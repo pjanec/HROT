@@ -121,6 +121,13 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                         slot.PayloadSize);
                     def.Tick(tickSpan, view, ecb, entity,
                              view.Time, deltaTime, slot.InstanceVersion);
+
+                    // ⭐⭐⭐ C-tick: ONE non-frozen tick of THIS asset on THIS entity.
+                    // ⭐ Frozen comes free -- Execute returns at `deltaTime <= 0f`, so this line is
+                    //   unreachable while paused, which is exactly what the ruling needs.
+                    // ⛔ AFTER def.Tick, not before: the counter means "a tick HAS RUN", and the
+                    //   monitor diffs the value the tick produced.
+                    BlueprintAssetTick.Bump(slot.BlueprintId, entity);
                 }
             }
         }
@@ -180,6 +187,13 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                         slot.PayloadSize);
                     def.Tick(tickSpan, view, ecb, entity,
                              view.Time, deltaTime, slot.InstanceVersion);
+
+                    // ⭐⭐⭐ C-tick: ONE non-frozen tick of THIS asset on THIS entity.
+                    // ⭐ Frozen comes free -- Execute returns at `deltaTime <= 0f`, so this line is
+                    //   unreachable while paused, which is exactly what the ruling needs.
+                    // ⛔ AFTER def.Tick, not before: the counter means "a tick HAS RUN", and the
+                    //   monitor diffs the value the tick produced.
+                    BlueprintAssetTick.Bump(slot.BlueprintId, entity);
                 }
             }
         }
@@ -239,6 +253,13 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                         slot.PayloadSize);
                     def.Tick(tickSpan, view, ecb, entity,
                              view.Time, deltaTime, slot.InstanceVersion);
+
+                    // ⭐⭐⭐ C-tick: ONE non-frozen tick of THIS asset on THIS entity.
+                    // ⭐ Frozen comes free -- Execute returns at `deltaTime <= 0f`, so this line is
+                    //   unreachable while paused, which is exactly what the ruling needs.
+                    // ⛔ AFTER def.Tick, not before: the counter means "a tick HAS RUN", and the
+                    //   monitor diffs the value the tick produced.
+                    BlueprintAssetTick.Bump(slot.BlueprintId, entity);
                 }
             }
         }
@@ -341,6 +362,11 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                 slot.PayloadSize);
             def.Tick(tickSpan, view, ecb, Entity.Null,
                      view.Time, deltaTime, slot.InstanceVersion);
+
+            // ⭐ C-tick, world-singleton arm. ⚠ Entity.Null IS this instance's identity here -- a
+            //   world singleton has exactly one instance, and keying it by Entity.Null keeps the
+            //   (asset, entity) shape rather than inventing a second one.
+            BlueprintAssetTick.Bump(blueprintId, Entity.Null);
         }
     }
 

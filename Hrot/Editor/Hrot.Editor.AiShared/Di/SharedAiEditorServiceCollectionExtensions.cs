@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Comparison;
@@ -81,7 +82,12 @@ public static class SharedAiEditorServiceCollectionExtensions
                 sp.GetRequiredService<IRefactorService>(),
                 sp.GetRequiredService<SanitizerRegistry>(),
                 sp.GetRequiredService<ComparisonExportBuilder>(),
-                sp.GetRequiredService<ComparisonSessionRegistry>()));
+                sp.GetRequiredService<ComparisonSessionRegistry>(),
+                // ⭐⭐ DEBT-AIB-009 (Batch 69) — the second production constructor, and it was missing
+                //    the exporter too. ⚠ GetService, not GetRequiredService: a host that registers no
+                //    exporter is legitimate (the parameter is optional by design), and demanding one
+                //    would turn a missing OPTIONAL dependency into a startup crash.
+                actionSchemaExporter: sp.GetService<IActionSchemaExporter>()));
         services.AddSingleton<DiagnosticsWindow>(sp =>
             new DiagnosticsWindow(
                 sp.GetRequiredService<IAssetCatalog>(),

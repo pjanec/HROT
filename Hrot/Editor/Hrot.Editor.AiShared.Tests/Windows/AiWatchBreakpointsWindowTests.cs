@@ -174,11 +174,15 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         Assert.Null(reg.Watch);
         Assert.Null(reg.Breakpoints);
 
-        // Six core windows registered.
-        Assert.Equal(6, reg.RegisteredWindows.Count);
+        // ⚠ Batch 79: the Variables table joined the CORE set (6 → 7).
+        // ⚠ Batch 80: this registrar is built for the "HSM" perspective, and the host kind is now
+        //    DERIVED from that name rather than passed — which is the whole fix, since EditorSubsystem
+        //    never passed it. ⇒ it gets a My Blueprint outline too (7 → 8).
+        // ⚠ Batch 88b: BP-317 -- the AI Details panel, on the same derived host kind (8 → 9).
+        Assert.Equal(9, reg.RegisteredWindows.Count);
     }
 
-    // ── AIE-034 SC4: With manager, 8 windows per perspective ─────────────────
+    // ── AIE-034 SC4: With manager, 8 windows per perspective (+1 in Batch 79) ─
 
     [Fact]
     public void Perspective_WithManager_RegistersEightWindows()
@@ -188,7 +192,11 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         var reg     = MakeRegistrar("BTree", manager);
         reg.RegisterWindows(wm);
 
-        Assert.Equal(8, reg.RegisteredWindows.Count);
+        // ⚠ 8 → 9 (Batch 79, the Variables table) → 10 (Batch 80, the derived My Blueprint outline)
+        //    → 11 (Batch 88b, BP-317: the AI Details panel).
+        // ⭐ The name of this test is kept so the AIE-034 scenario stays traceable; the count is what
+        //    moved, deliberately, in all three batches.
+        Assert.Equal(11, reg.RegisteredWindows.Count);
     }
 
     // ── AIE-034 SC5: All ids are distinct across three perspectives ───────────
@@ -214,8 +222,14 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
             .ToList();
 
         // 3 × 8 = 24 distinct ids.
-        Assert.Equal(24, allIds.Count);
-        Assert.Equal(24, allIds.Distinct().Count());
+        // ⚠ 24 → 27 (Batch 79: three perspectives × the Variables table) → 29 (Batch 80: the outline,
+        //    on BTree and HSM only — Blueprint keeps its own, which is why this is +2 and not +3).
+        // ⚠ 29 → 31 (Batch 88b: the AI Details panel, again BTree and HSM only — Blueprint keeps
+        //    BlueprintDetailsWindow, so again +2 and not +3).
+        // ⭐ What this test is ABOUT is unchanged — every id is still distinct across perspectives,
+        //    the property that would break if a new window forgot its perspective suffix.
+        Assert.Equal(31, allIds.Count);
+        Assert.Equal(31, allIds.Distinct().Count());
     }
 
     // ── AIE-034 SC6: Diagnostics window carries the correct id suffix ─────────

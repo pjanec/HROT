@@ -2,11 +2,11 @@ StructureHash: 0xE2C8BFAF86A48AA7
 Parameters:
   (empty)
 WorkingState:
+  (empty)
+Variables:
   CachedEqsRequestId : System.Int64 @8 size=8
   CachedTargetGroupHandle : System.Int32 @16 size=4
   EqsRequestTime : System.Single @20 size=4
-Variables:
-  (empty)
 GraphLocalSlots:
   (empty)
 Diagnostics:

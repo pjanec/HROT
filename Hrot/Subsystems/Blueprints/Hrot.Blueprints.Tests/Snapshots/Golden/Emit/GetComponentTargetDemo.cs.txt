@@ -19,13 +19,18 @@ public static class GetComponentTargetDemo_C263C82C_Bp
     public const int BlueprintId = unchecked((int)0xC263C82C);
     public const ulong StructureHash = 11485929181323805335UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public global::Fdp.Core.Entity TargetEntity;
+        [global::System.Runtime.InteropServices.FieldOffset(24)]
         public int OutHealth;
+        [global::System.Runtime.InteropServices.FieldOffset(28)]
         public int OutAmmo;
+        [global::System.Runtime.InteropServices.FieldOffset(32)]
         public bool OutFound;
     }
     
@@ -38,6 +43,9 @@ public static class GetComponentTargetDemo_C263C82C_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
+    
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
     
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
@@ -99,6 +107,8 @@ public static class BlueprintRegistrar_GetComponentTargetDemo_C263C82C_Bp
             StateClrType = typeof(GetComponentTargetDemo_C263C82C_Bp.State),
             InitDefault = GetComponentTargetDemo_C263C82C_Bp.InitDefault,
             Tick = GetComponentTargetDemo_C263C82C_Bp.TickThunk,
+            ParamsOffset = GetComponentTargetDemo_C263C82C_Bp.ParamsOffset,
+            ParamsSize = GetComponentTargetDemo_C263C82C_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["TargetEntity"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("TargetEntity", typeof(global::Fdp.Core.Entity), 16, 8, ""),

@@ -1,3 +1,13 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-17
+current-answer: section 4 "How to do it safely - RE-ORDERED by the review"
+stale-below: the A/B/C/D table under section 4's SUPERSEDED banner is HISTORY. Do not quote it.
+note: the live stage order is 0 -> C -> A -> B -> B' -> D1 -> D2 -> D3 -> D4
+known-rot: NONE as of 2026-08-17. B' was marked BLOCKED on BP-228 until then; BP-228
+  closed in Batch 47 and S5 built the union in Batch 65, so 0/C/A/B/B' are all DONE
+  and stage D is the only work left in this document.
+-->
 # Variable model unification — the vision, and how it maps to today
 
 > **Coordinator, 2026-08-13**, at the user's request. ⭐ **The question is not *whether* to unify —
@@ -168,8 +178,8 @@ declaration, the kind is what the declaration SAYS.** The pair falls out; it is 
 | **0** 🆕 | ⭐ **give `Compile` an owned copy of the graphs it rewrites** — `BP-229`: the macro splice writes **through** into the caller's `Graph`. Not reachable in production *today*, and only because `QuickReloadService` has no caller | compiler only | ✅ |
 | **C** ⬆️ | ⭐⭐ **MOVED TO FIRST.** `FindVariableIndex` → `(kind, index)`; `VarFieldName` switches — **closes `BP-226`** | compiler only · ⭐ **4 real call sites** | ✅ type change |
 | **A** | `Variables` becomes a third `IVariablesSchemaSource`; ⚠ **kill the `bool isParams`** | editor only · **2 construction sites** | ✅ trivial |
-| **B** | Details hosts the table; My Blueprint routes selection into it | editor only | ✅ |
-| **B′** | the type-choice union so structs are offerable | ⛔ **BLOCKED on `BP-228`** | — |
+| **B** | Details hosts the table; My Blueprint routes selection into it | editor only | ✅ **DONE — Batch 82** |
+| **B′** | the type-choice union so structs are offerable | ⚠⚠ **CORRECTED `2026-08-17`: NOT blocked, and DONE.** `BP-228` closed Batch 47 *(`U-7`)* — *"stage `B′` unblocked with it (`U-8`)"* — and `S5` **built the union** in Batch 65 *(`BP-255`)*: `SelectableTypeIds` ∪ discovered structs, `Assert.Same`-locked to `BlueprintTypeChoices.TypeIds` | ✅ |
 | **D1** | the tagged declaration type + both projections; **old lists become computed views, no consumer moved** | model only | ✅ |
 | **D2** | migrator **pair** + envelope bump 1 → 2 | ⚠ **persisted format** | ⛔ **the down-migrator IS the revert** |
 | **D3** | consumers moved off the old views, in dependency order | ~34 semantic sites | ⚠ |

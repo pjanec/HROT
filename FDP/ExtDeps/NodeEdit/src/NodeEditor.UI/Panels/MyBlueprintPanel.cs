@@ -181,16 +181,24 @@ public sealed class MyBlueprintPanel
         if (section.CanCreateItems && section.CreateCommandId is not null)
         {
             ImGui.SameLine(ImGui.GetContentRegionAvail().X - 16f);
-            bool sectionCmdAvailable = IsCommandAvailable(section.CreateCommandId);
-            if (!sectionCmdAvailable) ImGui.BeginDisabled();
+
+            // ⭐⭐ TWO reasons a "+" can be unusable, and they are different things:
+            //   · CreateDisabledReason — the model knows this section cannot create RIGHT NOW, and
+            //     says why in the designer's terms (2026-08-17 user ruling; a Q26-B2 refinement).
+            //   · no registered handler — a development-time gap, and the message says so.
+            // ⛔ The model's reason wins: it is the one a designer can act on.
+            string? disabledReason = ResolveCreateDisabledReason(
+                section, IsCommandAvailable(section.CreateCommandId));
+
+            if (disabledReason is not null) ImGui.BeginDisabled();
             ImGui.SmallButton("+##sec_add_" + section.Id);
-            if (ImGui.IsItemClicked())
+            if (disabledReason is null && ImGui.IsItemClicked())
                 InvokeCreate(section.CreateCommandId);
-            if (!sectionCmdAvailable)
+            if (disabledReason is not null)
             {
                 ImGui.EndDisabled();
                 if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-                    ImGui.SetTooltip($"Not implemented ({section.CreateCommandId})");
+                    ImGui.SetTooltip(disabledReason);
             }
         }
 
@@ -294,6 +302,21 @@ private void DrawItemsGrouped(string sectionId, IReadOnlyList<MyBlueprintItem> i
     }
 
     // â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    /// <summary>
+    /// ⭐⭐ <b>Which reason greys a section's "+", or <c>null</c> when it is usable.</b> Extracted from
+    /// the draw path so the PRECEDENCE is checkable — ⛔ the drawing itself needs an ImGui context and
+    /// no headless test can drive it.
+    ///
+    /// <para>⭐ <b>The model's reason wins.</b> It is stated in the designer's terms and is something
+    /// they can act on ("this graph is a macro"); the unregistered-command message is a development
+    /// gap and says so. ⚠ A section can be both at once, and reporting the second would send a
+    /// designer hunting a bug that is not there.</para>
+    /// </summary>
+    internal static string? ResolveCreateDisabledReason(
+        MyBlueprintSectionDescriptor section, bool isCommandAvailable)
+        => section.CreateDisabledReason
+           ?? (isCommandAvailable ? null : $"Not implemented ({section.CreateCommandId})");
 
     /// <summary>
     /// True when <paramref name="commandId"/> is actually registered. Used to grey out menu items

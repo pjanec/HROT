@@ -34,6 +34,21 @@ public sealed class V_AllValidatorsCoverageTests
         // on. Kept defined so the number is not reused; the invariant it rested on is locked by
         // Stage3_NormalizationTests.CoercionTable_ContainsOnlyLosslessWidenings.
         "BP3011",
+        // RETIRED, not reserved (Batch 52, U-12): BP1024 refused an AiPrimitive that declared a
+        // Variable, on the reasoning that "AiPrimitive uses parameters and workingState". Under the
+        // unified model Variable and WorkingState are the SAME cell -- (State, Asset) -- so the rule
+        // enforced a spelling, not a semantic. What it was ALSO doing silently -- keeping cross-kind
+        // name collisions unreachable -- is now BP1673's job, explicitly. Kept defined so the number
+        // is not reused.
+        "BP1024",
+        // RETIRED, not reserved (Batch 70, the Instance params seam): BP1031's surviving half refused
+        // an Instance that declared parameters, and its message stated the reason -- "nothing supplies
+        // them at spawn." DESIGN_Parameter_Model.md 3.3 supplies them: the attach event carries params
+        // JSON, BlueprintDefinition.ParseParams resolves it through the SAME delegate the behaviour
+        // path uses, and the payload reserves [Cursor 16][Params N][State M]. Kept defined so the
+        // number is not reused; the retirement is asserted by
+        // V_DispatchKindCompatibilityTests.Instance_WithParams_NoLongerEmitsBP1031.
+        "BP1031",
         // BP-80: allocated and emitted, but only reachable once MacroCallNode can be AUTHORED into a
         // compiled graph. It IS covered -- see MacroSurfaceTests -- so it is NOT listed here.
     };

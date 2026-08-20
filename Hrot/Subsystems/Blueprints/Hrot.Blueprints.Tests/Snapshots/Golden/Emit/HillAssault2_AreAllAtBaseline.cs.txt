@@ -24,12 +24,15 @@ public static class HillAssault2AreAllAtBaseline_4CDE3A29_Bp
     {
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         [global::System.Runtime.InteropServices.MarshalAs(global::System.Runtime.InteropServices.UnmanagedType.I1)]
         public bool AllAtBaseline;
     }
+    
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -85,8 +88,11 @@ public static class HillAssault2AreAllAtBaseline_4CDE3A29_Bp
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
+        // W13: the offset form — identical in shape to the BTree bridge's per-node adapter.
+        //      Standalone hosting is the single-method case, so the baked offset is 0.
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-            ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);
+            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
+                ref bb.BehaviorParameters[0], (nint)0));
         ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);
         unsafe
         {
@@ -117,7 +123,13 @@ public static class BlueprintRegistrar_HillAssault2AreAllAtBaseline_4CDE3A29_Bp
             Name = "HillAssault2_AreAllAtBaseline",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2AreAllAtBaseline_4CDE3A29_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2AreAllAtBaseline_4CDE3A29_Bp.StateSize,
+            AssetId = new Guid("c4f1a2b6-9d3e-4a70-8f21-6b5e0a7c2d94"),
+            StateClrType = typeof(HillAssault2AreAllAtBaseline_4CDE3A29_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["AllAtBaseline"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("AllAtBaseline", typeof(bool), 0, 1, ""),
+            },
         });
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.BTreeEvaluate@0", static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => HillAssault2AreAllAtBaseline_4CDE3A29_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
     }

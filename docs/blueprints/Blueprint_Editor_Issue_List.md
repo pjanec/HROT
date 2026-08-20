@@ -31,7 +31,7 @@
 
 | ID | Issue | Fix | Insertion point |
 |----|-------|-----|-----------------|
-| **BP-01** | Watch panel shows raw hex bytes | `MarshalFromBytes` is complete, unit-tested, already used at 4 sites in the same file | `WatchPanelWindow.cs:54-56` |
+| ✅ **BP-01** | Watch panel shows raw hex bytes | 🔴 **The premise was wrong and that is why it stayed open**: `MarshalFromBytes` was complete for PRIMITIVES only — 4 of the 18 offerable types fell through to `return bytes`, and 3 more failed `ResolveType` and were **silently skipped**. ✅ **Closed Batch 65 (`S3`) at the marshalling site**, as `Q32-C` ruled — a struct arm + an assembly-walking `ResolveType`, so three surfaces improve at once. See `BP-254` | `BlueprintDebugSession.cs` |
 | **BP-02** | Comment **colour** + Bring-to-Front/Send-to-Back bypass undo | route through `view.Execute(fwd, inv, label)` like every other op in the file | `CanvasRenderer.cs:808-828` |
 | **BP-03** | Bookmarks can't be renamed or deleted | `BookmarkStore.Remove` already exists; `Bookmark` is a `record` → rename is `b with { Label = x }` | `BookmarksPanel.cs:17-36` |
 | **BP-04** | `Compare`/`BinaryOp`/`BooleanOp`/`Not` **cannot be placed** despite being lowered + compile-tested | 14 palette entries (one per enum value), baked at create — exactly the `MakeMath` / `ChannelCommandEntries` recipe. No drawer needed | `BlueprintNodePaletteEntries.All()` |

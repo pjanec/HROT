@@ -19,12 +19,16 @@ public static class StructValueDemo_D97FEF92_Bp
     public const int BlueprintId = unchecked((int)0xD97FEF92);
     public const ulong StructureHash = 8454034707814862705UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public int OutHealth;
+        [global::System.Runtime.InteropServices.FieldOffset(20)]
         public int OutArmor;
+        [global::System.Runtime.InteropServices.FieldOffset(24)]
         public int OutAmmo;
     }
     
@@ -36,6 +40,9 @@ public static class StructValueDemo_D97FEF92_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
+    
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
     
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
@@ -106,6 +113,8 @@ public static class BlueprintRegistrar_StructValueDemo_D97FEF92_Bp
             StateClrType = typeof(StructValueDemo_D97FEF92_Bp.State),
             InitDefault = StructValueDemo_D97FEF92_Bp.InitDefault,
             Tick = StructValueDemo_D97FEF92_Bp.TickThunk,
+            ParamsOffset = StructValueDemo_D97FEF92_Bp.ParamsOffset,
+            ParamsSize = StructValueDemo_D97FEF92_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["OutHealth"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("OutHealth", typeof(int), 16, 4, ""),

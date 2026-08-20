@@ -8,6 +8,39 @@ namespace Hrot.Blueprints.Tests;
 /// </summary>
 public static class TestData
 {
+    /// <summary>
+    /// <b>U-15 — the node discriminators in a serialized asset, read from the DOM.</b>
+    ///
+    /// <para>
+    /// ⭐ <b>Why this exists.</b> Four tests asserted <c>Assert.Contains("\"kind\":\"When\"", json)</c>
+    /// — a substring of the <b>compact</b> spelling. ⛔ Making the canonical on-disk form indented
+    /// turned that into <c>"kind": "When"</c> and reddened 57 test cases across 5 methods, none of
+    /// which was about formatting. ⚠ <b>A test that asserts a JSON substring is coupled to whitespace
+    /// for no reason it ever chose;</b> re-coupling them to the new spelling would only move the trap.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<string> NodeDiscriminatorsIn(string json)
+    {
+        var found = new List<string>();
+        Walk(System.Text.Json.Nodes.JsonNode.Parse(json));
+        return found;
+
+        void Walk(System.Text.Json.Nodes.JsonNode? node)
+        {
+            switch (node)
+            {
+                case System.Text.Json.Nodes.JsonObject o:
+                    if (o.TryGetPropertyValue("kind", out var k) && k is not null)
+                        found.Add(k.GetValue<string>());
+                    foreach (var (_, v) in o) Walk(v);
+                    return;
+                case System.Text.Json.Nodes.JsonArray a:
+                    foreach (var v in a) Walk(v);
+                    return;
+            }
+        }
+    }
+
     public static class SampleAssets
     {
         public const string LibraryMath                  = "LibraryMath";

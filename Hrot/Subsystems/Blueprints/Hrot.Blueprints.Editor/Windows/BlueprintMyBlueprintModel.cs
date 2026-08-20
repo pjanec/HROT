@@ -70,6 +70,36 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     /// </summary>
     public const string CommandCreateLocalVariable = "editor.create-local-variable";
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>C-sections</c> — <b>the asset's INPUTS</b> (<c>DeclarationKind.Parameter</c>).
+    ///
+    /// <para>
+    /// 🔴 <b>Parameters and working state were not shown in My Blueprint AT ALL</b>:
+    /// <c>BuildVariableItems()</c> listed only <c>DeclarationKind.Variable</c>, so an AiPrimitive —
+    /// 32 of the shipped assets are <c>(Parameter, WorkingState)</c> — presented a designer with an
+    /// EMPTY Variables section and no way to see, rename or delete anything it actually declares.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The ruling this implements: a variable's classification is WHERE IT WAS CREATED</b>
+    /// (user, <c>2026-08-16</c>; 📄 <c>DESIGN_Variable_Details_And_Editing.md</c> §1c). ⛔ So each
+    /// section carries its own create command, and NO <c>Role</c>/<c>Scope</c> control is introduced
+    /// anywhere — the section IS the control.
+    /// </para>
+    /// </summary>
+    public const string SectionParameters = "parameters";
+
+    /// <summary>⭐ <c>C-sections</c> — the AiPrimitive's working state (<c>DeclarationKind.WorkingState</c>).</summary>
+    public const string SectionWorkingState = "workingstate";
+
+    /// <summary>The Inputs section's "+". ⚠ A literal for the same reason as
+    /// <see cref="CommandCreateLocalVariable"/>: adding a <c>CommandCatalog</c> member moves the two
+    /// NodeEdit gates for a string.</summary>
+    public const string CommandCreateParameter = "editor.create-parameter";
+
+    /// <summary>The Working State section's "+".</summary>
+    public const string CommandCreateWorkingState = "editor.create-working-state";
+
     // ── Fixed section descriptors (D.6.2 order) ────────────────────────────
 
     private static readonly IReadOnlyList<MyBlueprintSectionDescriptor> _sections =
@@ -80,17 +110,42 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             new(SectionMacros,       "Macros",           2, null, true,  true,  "editor.create-macro"),
             new(SectionCustomEvents, "Custom Events",    3, null, true,  true,  "editor.create-custom-event"),
             new(SectionVariables,    "Variables",        4, null, true,  true,  "editor.create-variable"),
-            // BP-57. ⭐ CanCreateItems is TRUE even for a Macro graph, which cannot own a local: the
-            // descriptor list is static (one instance for every asset and every graph), so the flag
-            // cannot vary per graph, and Q26-B2 rules that direction anyway — the "+" stays and
-            // REFUSES OUT LOUD, naming the reason, rather than vanishing and teaching nothing.
+            // BP-57 / Q26-B2. ⭐ CanCreateItems stays TRUE even for a Macro graph, which cannot own a
+            // local: the "+" STAYS and REFUSES OUT LOUD, naming the reason, rather than vanishing and
+            // teaching nothing.
+            // ⭐⭐ 2026-08-17 user REFINEMENT of that ruling — it now refuses BEFORE the work rather
+            // than after: the Sections property projects CreateDisabledReason per read, so on a macro
+            // the button greys with the reason in its tooltip. ⛔ Greying is not vanishing.
+            // ⚠⚠ What this comment used to add — "the descriptor list is static, so the flag cannot
+            // vary per graph" — is NO LONGER TRUE of the REASON, which is what made the refinement
+            // buildable.
             new(SectionLocalVariables, "Local Variables", 5, null, true, true, CommandCreateLocalVariable),
+            // ⭐⭐ C-sections. ⚠ APPENDED at 6/7 rather than slotted in above "Variables", for the
+            //    same reason BP-57 appended the locals: renumbering would move every existing
+            //    section's SortOrder, and the D.6.2 order is asserted position-by-position. ⛔ Reading
+            //    order would prefer Inputs FIRST; that is a presentation change worth making on
+            //    purpose, with the order test rewritten, and not as a side effect of this item.
+            new(SectionParameters,   "Inputs",           6, null, true, true, CommandCreateParameter),
         };
 
     // ── State ─────────────────────────────────────────────────────────────────
 
     private BlueprintAsset? _asset;
+
+    /// <summary>
+    /// ⭐ The asset this outline projects, or null. Exposed read-only for <c>U-6</c>'s selection
+    /// routing, which must build a row source over the SAME asset the outline is showing —
+    /// ⛔ a second accessor threaded through the window would be a second answer to one question.
+    /// </summary>
+    public BlueprintAsset? Asset => _asset;
     private IEditableAsset? _editableAsset;
+
+    /// <summary>
+    /// ⭐⭐ Batch 90 (<c>90b</c>) — the SAME asset as <see cref="Asset"/>, seen through the interface the
+    /// live-value providers take. ⛔ Exposed rather than re-resolved by the window: the outline already
+    /// owns "which asset am I showing", and a second lookup could answer it differently mid-switch.
+    /// </summary>
+    public IEditableAsset? EditableAsset => _editableAsset;
 
     /// <summary>
     /// BP-57/BP-72 — the id of the graph the canvas is showing. ⭐ A <b>provider</b>, not a captured
@@ -106,7 +161,60 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     // ── IMyBlueprintModel ─────────────────────────────────────────────────────
 
     /// <inheritdoc/>
-    public IReadOnlyList<MyBlueprintSectionDescriptor> Sections => _sections;
+    /// <remarks>
+    /// ⭐⭐⭐ <b>The static list is the TEMPLATE; the reason is projected per read.</b> A section's "+"
+    /// can be unusable for reasons that vary with the CURRENT GRAPH, which a
+    /// <c>static readonly</c> list cannot express — ⚠ and that staticness is exactly what
+    /// <c>SectionLocalVariables</c>'s own comment cites as the reason <c>CanCreateItems</c> could not
+    /// vary. ⇒ ⭐ projecting rather than mutating keeps the order and identity fixed (the D.6.2 order
+    /// is asserted position-by-position) while letting the REASON follow the canvas.
+    /// <para>⛔ Cached on the reason itself, not rebuilt per frame: the panel reads this every frame,
+    /// and a fresh list of records each time would allocate for nothing while the canvas sits still.</para>
+    /// </remarks>
+    public IReadOnlyList<MyBlueprintSectionDescriptor> Sections
+    {
+        get
+        {
+            var reason = LocalVariablesCreateDisabledReason();
+            if (_projectedSections is null || !string.Equals(_projectedReason, reason, StringComparison.Ordinal))
+            {
+                _projectedReason   = reason;
+                _projectedSections = _sections
+                    .Select(d => d.Id == SectionLocalVariables
+                        ? d with { CreateDisabledReason = reason }
+                        : d)
+                    .ToList();
+            }
+            return _projectedSections;
+        }
+    }
+
+    private IReadOnlyList<MyBlueprintSectionDescriptor>? _projectedSections;
+    private string? _projectedReason;
+
+    /// <summary>
+    /// ⭐⭐ Why the Local Variables "+" cannot be used right now, or <c>null</c> when it can.
+    ///
+    /// <para>📌 <b>User ruling, <c>2026-08-17</c>:</b> greying with an explanatory tooltip beats
+    /// letting the click happen and then refusing — <i>"same information value, no false
+    /// expectations."</i> ⭐ A <b>refinement</b> of <c>Q26-B2</c> (which forbids the "+" vanishing),
+    /// not a reversal: the button stays, and the reason is still taught.</para>
+    ///
+    /// <para>⛔ The refusal path is NOT removed. A designer can still reach the command by other
+    /// routes, and <c>BlueprintLocalVariableSchemaSource</c> remains the authority — this only stops
+    /// the button from inviting work that will be refused.</para>
+    /// </summary>
+    private string? LocalVariablesCreateDisabledReason()
+    {
+        if (_asset is null) return "Open a blueprint to declare a local variable.";
+        var graph = CurrentGraph;
+        if (graph is null) return "Open a graph to declare a local variable.";
+        // BP1664: a macro is spliced into its caller, so it has no frame of its own to hold a local.
+        if (graph.Kind == GraphKind.Macro)
+            return $"'{graph.Name}' is a macro — macros are spliced into the caller, so they cannot "
+                 + "own local variables. Declare it in the calling graph instead.";
+        return null;
+    }
 
     /// <inheritdoc/>
     public event System.Action? Changed;
@@ -223,7 +331,8 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             // BP-77 / BP-224: real, now that collapse and editor.create-macro both produce macros.
             SectionMacros       => BuildGraphItems(SectionMacros,    g => g.Kind == GraphKind.Macro),
             SectionCustomEvents => BuildCustomEventItems(),
-            SectionVariables    => BuildVariableItems(),
+            SectionVariables    => BuildDeclarationItems(DeclarationKind.Variable,     SectionVariables),
+            SectionParameters   => BuildDeclarationItems(DeclarationKind.Parameter,    SectionParameters),
             // BP-57: the one GRAPH-scoped section. ⭐ Empty rather than absent when the canvas has no
             // graph or the graph has no locals — a section that appears and disappears reads as a
             // broken feature, and BP1664's macro case is a refusal, not a vanishing.
@@ -313,10 +422,27 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
         return result;
     }
 
-    private IReadOnlyList<MyBlueprintItem> BuildVariableItems()
+    /// <summary>
+    /// ⭐⭐ <c>C-sections</c> — <b>ONE projection over every declaration kind</b>, parameterised by the
+    /// kind and the section it lands in.
+    ///
+    /// <para>
+    /// ⛔ This was <c>BuildVariableItems()</c>, hard-wired to <c>DeclarationKind.Variable</c>. ⭐ Three
+    /// copies differing only in an enum value is how the three kinds would drift apart in the tree —
+    /// which is precisely the defect one level up, where a parameter and a variable already looked
+    /// like different concepts because one of them was invisible.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>An empty section stays present.</b> The descriptor list is static, so a section with no
+    /// declarations renders EMPTY rather than vanishing — the subtlety <c>SectionLocalVariables</c>
+    /// already records: <i>"a section that appears and disappears reads as a broken feature."</i>
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<MyBlueprintItem> BuildDeclarationItems(DeclarationKind kind, string sectionId)
     {
-        var result = new List<MyBlueprintItem>(_asset!.Variables.Count);
-        foreach (var v in _asset.Variables)
+        var result = new List<MyBlueprintItem>(_asset!.Declarations.CountIn(kind));
+        foreach (var v in _asset.Declarations.Of(kind))
         {
             var accent = GetVariableAccentColor(v.Type?.TypeId ?? "");
             // FC-2/LV-4: a fixed-list variable shows its capacity as a "[N]" badge so lists are
@@ -324,7 +450,7 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             var badge = v.Type is { Capacity: > 0 } ? $"[{v.Type.Capacity}]" : null;
             result.Add(new MyBlueprintItem(
                 ItemId:       $"var:{v.Id}",
-                SectionId:    SectionVariables,
+                SectionId:    sectionId,
                 DisplayName:  v.Name,
                 CategoryPath: v.Category,
                 IconKey:      null,

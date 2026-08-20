@@ -19,10 +19,12 @@ public static class SetComponentDemo_D04431AF_Bp
     public const int BlueprintId = unchecked((int)0xD04431AF);
     public const ulong StructureHash = 17852985886333281802UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public bool OutWritten;
     }
     
@@ -32,6 +34,9 @@ public static class SetComponentDemo_D04431AF_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
+    
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
     
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
@@ -94,6 +99,8 @@ public static class BlueprintRegistrar_SetComponentDemo_D04431AF_Bp
             StateClrType = typeof(SetComponentDemo_D04431AF_Bp.State),
             InitDefault = SetComponentDemo_D04431AF_Bp.InitDefault,
             Tick = SetComponentDemo_D04431AF_Bp.TickThunk,
+            ParamsOffset = SetComponentDemo_D04431AF_Bp.ParamsOffset,
+            ParamsSize = SetComponentDemo_D04431AF_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["OutWritten"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("OutWritten", typeof(bool), 16, 1, ""),

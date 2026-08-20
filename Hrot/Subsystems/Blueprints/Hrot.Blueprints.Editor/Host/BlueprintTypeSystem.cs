@@ -250,12 +250,97 @@ public sealed class BlueprintTypeSystem : ITypeSystem
     /// The selectable variable type ids offered by the editor (e.g. the variable-create
     /// modal's type dropdown). Ordered for a stable UI; the first entry is a sensible default.
     /// </summary>
-    public static IReadOnlyList<string> SelectableTypeIds { get; } = new[]
+    /// <summary>
+    /// U-8 (stage B′) — the types a blueprint variable may be declared as: ⭐ <b>the primitives, plus
+    /// every discovered <c>[BlackboardDtoStruct]</c> type</b>.
+    ///
+    /// <para>
+    /// ⛔ <b>This was 13 hardcoded primitives and no structs</b>, while the Variables panel's own list
+    /// (<c>BlackboardTypeChoiceBuilder.BuildDefault</c>) offered primitives AND structs — two disjoint
+    /// answers to one question, so whether a designer could declare a struct variable depended on
+    /// which window they opened.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Every entry is guaranteed to compile, and by construction rather than by checking.</b>
+    /// The struct half is <b>discovered by reflection over loaded assemblies</b> — a type that does not
+    /// exist cannot be discovered — and the primitive half is the compiler's own
+    /// <c>StaticTypeRegistry</c> table. ⇒ this is <c>BP-87</c>'s *"every offered type resolves"* lock,
+    /// restored, and it is why no editor-side type oracle is needed: <c>BP1671</c> guards the build,
+    /// which is where a fabricated type actually bit.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>FQNs only — never short names.</b> A short name is <c>BP1500</c>; the picker writing
+    /// <c>"int"</c> where the palette expects <c>"System.Int32"</c> is the same alias-vs-FQN split
+    /// <c>BP-203</c> was filed for.
+    /// </para>
+    /// </summary>
+    /// <para>
+    /// ⚠ <b><see cref="Lazy{T}"/>, not a static initializer.</b> The struct half is discovered by
+    /// reflecting over <b>loaded</b> assemblies, so a static initializer would freeze whatever happened
+    /// to be loaded at type-load time — which, in a test host, is nothing. Deferring to first *use*
+    /// means the picker sees the assemblies the editor has actually loaded by the time it opens.
+    /// (Same load-order trap Batch 44 hit with the golden corpus's <c>BP1602</c> preload.)
+    /// </para>
+    public static IReadOnlyList<string> SelectableTypeIds => _selectableTypeIds.Value;
+
+    private static readonly Lazy<IReadOnlyList<string>> _selectableTypeIds =
+        new(BuildSelectableTypeIds);
+
+    private static IReadOnlyList<string> BuildSelectableTypeIds()
     {
-        Bool, Int32, Single, Float64, String, Byte, UInt32,
-        Vector2, Vector3, Entity,
-        FixedString32, FixedString64, FixedString128,
-    };
+        // ⭐⭐⭐ S5 — ONE offerable set, seeded from the COMPILER's own list.
+        //
+        // 🔴 This used to be twelve hand-written FQNs, and the parameter combo read a DIFFERENT
+        //    hand-written list (StaticTypeRegistry.EditorOfferableTypeIds, 18 primitives, no
+        //    structs). ⇒ a variable could be struct-typed and a parameter could not — U-8's own
+        //    comment names the class: "a designer could declare a struct variable in one window and
+        //    not the other". ⛔ The overlap was not even a superset either way: this list had
+        //    Fdp.Core.Entity and the other had sbyte/short/ushort/uint/long/ulong/Vector4/Quaternion.
+        //
+        // ⭐ EditorOfferableTypeIds SURVIVES as the compiler-side seed — its own doc explains why it
+        //   is not just TypeTable.Keys (curated project structs, System.String/Object, every FQN
+        //   spelling of an alias). What is gone is the second ANSWER, not the second file.
+        //
+        // ⚠ Canonicalised to FullName, because this list's Pass-3 rail forbids short names: a bare
+        //   "int" is a grey unnamed pin in the palette (BP-203). The aliases stay the picker's
+        //   INPUT, never its output.
+        var ids = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var alias in StaticTypeRegistry.EditorOfferableTypeIds)
+        {
+            if (!StaticTypeRegistry.Instance.TryResolve(
+                    new BlueprintTypeRef { TypeId = alias }, out var ir)) continue;
+            if (seen.Add(ir.FullName)) ids.Add(ir.FullName);
+        }
+
+        // ⭐ Entity is offerable but deliberately NOT in EditorOfferableTypeIds — that list is the
+        //   scalar/numeric picker the coercion table must agree with, and an entity handle coerces to
+        //   nothing. It has always been selectable as a variable; under one set it is selectable as a
+        //   parameter too.
+        if (seen.Add(Entity)) ids.Add(Entity);
+
+        // ⛔ System.String is deliberately ABSENT. It is a managed reference type, so a variable
+        // declared as one fails BP1503 ("state fields must be unmanaged") — offered by the picker,
+        // rejected by the compiler. U-8's "every offered type compiles" gate caught it on its first
+        // run. ⭐ FixedString32/64/128 above ARE the supported string types.
+
+        var structs = new List<string>();
+        foreach (var t in Hrot.Editor.AiShared.Blackboard.BlackboardTypeChoiceBuilder
+                     .DiscoverBlackboardDtoStructTypes())
+        {
+            var fqn = t.FullName;
+            if (string.IsNullOrEmpty(fqn) || !seen.Add(fqn!)) continue;
+            structs.Add(fqn!);
+        }
+
+        // Stable order so the picker does not reshuffle between runs.
+        structs.Sort(StringComparer.Ordinal);
+        ids.AddRange(structs);
+        return ids;
+    }
 
     // ── Static helpers ────────────────────────────────────────────────────────
 

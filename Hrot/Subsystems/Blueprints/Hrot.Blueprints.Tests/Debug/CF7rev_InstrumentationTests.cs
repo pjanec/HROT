@@ -181,4 +181,41 @@ public sealed class CF7rev_InstrumentationTests
         Assert.Equal(NodeId1.ToString("D"), bpAfter.ProbeNodeId);
         Assert.False(bpAfter.IsStale);
     }
+
+    // ---- C-watch (Batch 69): a Debug-compiled asset must still get a Trace request ----
+
+    /// <summary>
+    /// 🔴🔴 <b>The hole <c>C-watch</c> found, and it is exactly the case the old comment claimed to
+    /// handle.</b>
+    ///
+    /// <para>
+    /// The guard was <c>!_debugMaps.ContainsKey(assetId)</c> — <i>"only when the asset has NO map"</i>.
+    /// ⇒ set a BREAKPOINT first (which compiles in <b>Debug</b>) and the asset HAS a map, so adding a
+    /// watch requested <b>nothing</b>. ⛔ <c>DebugProbeInsertion:149</c> emits <c>PinValueChanged</c>
+    /// <b>only under <c>CompilerMode.Trace</c></b>, so the watch received values forever after —
+    /// showing <c>(pending)</c>, which a designer cannot distinguish from <i>"it has not changed"</i>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ The right question is not <i>"is there a map"</i> but <i>"does the map know this PIN"</i> —
+    /// which is precisely what a Trace compile adds.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void AddWatch_WithADebugMapThatLacksThePin_StillRequestsTrace()
+    {
+        var session = MakeSession();
+
+        // A map exists (as it would after a breakpoint-driven Debug compile) but resolves no pins.
+        var blockProbeId = new Guid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        session.RegisterDebugMap(MakeMap(AssetIdA, NodeId1, blockProbeId));
+
+        BPCompilerMode? capturedMode = null;
+        session.SetInstrumentationCallback((_, mode) => { capturedMode = mode; return Task.CompletedTask; });
+
+        session.AddWatch(AssetIdA, GraphId1,
+            new Guid("dddddddd-dddd-dddd-dddd-dddddddddddd"), "TestWatch", typeof(int));
+
+        Assert.Equal(BPCompilerMode.Trace, capturedMode);
+    }
 }

@@ -19,12 +19,16 @@ public static class SmokeGuard_82E000C5_Bp
     public const int BlueprintId = unchecked((int)0x82E000C5);
     public const ulong StructureHash = 5915540814906102046UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public int GuardSpeed;
+        [global::System.Runtime.InteropServices.FieldOffset(20)]
         public int LocalResult;
+        [global::System.Runtime.InteropServices.FieldOffset(24)]
         public int LibResult;
     }
     
@@ -36,6 +40,9 @@ public static class SmokeGuard_82E000C5_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
+    
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
     
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
@@ -111,6 +118,8 @@ public static class BlueprintRegistrar_SmokeGuard_82E000C5_Bp
             StateClrType = typeof(SmokeGuard_82E000C5_Bp.State),
             InitDefault = SmokeGuard_82E000C5_Bp.InitDefault,
             Tick = SmokeGuard_82E000C5_Bp.TickThunk,
+            ParamsOffset = SmokeGuard_82E000C5_Bp.ParamsOffset,
+            ParamsSize = SmokeGuard_82E000C5_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["GuardSpeed"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("GuardSpeed", typeof(int), 16, 4, ""),

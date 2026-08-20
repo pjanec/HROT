@@ -26,13 +26,18 @@ public static class HillAssault2AimAndFireSpecific_2BA06733_Bp
         public int MaxRounds;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public int RoundsFired;
+        [global::System.Runtime.InteropServices.FieldOffset(4)]
         public int LastObservedAmmo;
+        [global::System.Runtime.InteropServices.FieldOffset(8)]
         public byte __phase;
     }
+    
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -194,8 +199,11 @@ public static class HillAssault2AimAndFireSpecific_2BA06733_Bp
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
+        // W13: the offset form — identical in shape to the BTree bridge's per-node adapter.
+        //      Standalone hosting is the single-method case, so the baked offset is 0.
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-            ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);
+            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
+                ref bb.BehaviorParameters[0], (nint)0));
         ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);
         unsafe
         {
@@ -226,7 +234,15 @@ public static class BlueprintRegistrar_HillAssault2AimAndFireSpecific_2BA06733_B
             Name = "HillAssault2_AimAndFireSpecific",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2AimAndFireSpecific_2BA06733_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2AimAndFireSpecific_2BA06733_Bp.StateSize,
+            AssetId = new Guid("484e3dff-c548-422e-a1e2-13dd0a607343"),
+            StateClrType = typeof(HillAssault2AimAndFireSpecific_2BA06733_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["RoundsFired"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("RoundsFired", typeof(int), 0, 4, ""),
+                ["LastObservedAmmo"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("LastObservedAmmo", typeof(int), 4, 4, ""),
+                ["__phase"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("__phase", typeof(byte), 8, 1, ""),
+            },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2AimAndFireSpecific_2BA06733_Bp.BTreeTick@0", HillAssault2AimAndFireSpecific_2BA06733_Bp.BTreeTick);
     }

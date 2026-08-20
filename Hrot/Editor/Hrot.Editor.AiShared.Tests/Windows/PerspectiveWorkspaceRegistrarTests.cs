@@ -143,8 +143,14 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
             .ToList();
 
         // 3 perspectives × 6 windows = 18 distinct ids.
-        Assert.Equal(18, allIds.Count);
-        Assert.Equal(18, allIds.Distinct().Count());
+        // ⚠ 18 → 21 (Batch 79: the Variables table) → 23 (Batch 80: the derived outline, on BTree and
+        //    HSM only — +2, not +3, because Blueprint keeps BlueprintMyBlueprintWindow).
+        // ⚠ 23 → 25 (Batch 88b: the AI Details panel, again BTree and HSM only — +2, not +3, because
+        //    Blueprint keeps BlueprintDetailsWindow. ⭐ A second Details there would be two panels for
+        //    one concept AND an id collision, which RegisterCore now refuses at startup).
+        //    ⭐ The property under test is distinctness, and it still holds.
+        Assert.Equal(25, allIds.Count);
+        Assert.Equal(25, allIds.Distinct().Count());
     }
 
     /// <summary>
@@ -345,4 +351,102 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         wm.SwitchPerspective("BTree"); // already "BTree", so no-op
         Assert.Equal(0, fires);
     }
+
+    // ── DEBT-AIB-009 (Batch 69) — the schema exporter's forwarding ──────────────
+
+    private sealed class StubSchemaExporter : Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter
+    {
+        public IReadOnlyDictionary<string, Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry> All { get; }
+            = new Dictionary<string, Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry>();
+        public Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry? Lookup(string fqn) => null;
+        public void Rebuild() { }
+        public event Action? Changed { add { } remove { } }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>DEBT-AIB-009</c>: an exporter handed to the registrar must reach the authoring
+    /// window.</b>
+    ///
+    /// <para>
+    /// 📄 The debt, verbatim: <i>"hardcoded-DTO reflection <b>not wired in production DI</b>"</i>.
+    /// 📐 Measured on <c>HEAD</c> and true — this registrar <b>held</b> the exporter and handed it to
+    /// the validator two lines above the window it did not hand it to. ⇒ ⛔ <b>a value column over a
+    /// schema nothing supplies.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Deliberately placed beside <c>PerspectiveRegistrar_ForwardsFacetEditService_ToInspector</c></b>
+    /// — the same question about the same registrar, and the precedent that shows the right way to ask
+    /// it. 🔴 <b>An earlier draft scanned the caller's IL and was VACUOUS</b>: it checked whether the
+    /// caller's SIGNATURE mentioned the type, which this registrar satisfies whether or not it passes
+    /// the argument on, so the revert probe did not redden. ⭐ Asking the OBJECT cannot be fooled that
+    /// way.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void PerspectiveRegistrar_ForwardsSchemaExporter_ToBlackboardAuthoring()
+    {
+        var reg = new PerspectiveWorkspaceRegistrar(
+            perspectiveName: "BTree",
+            selectionStore:  new EditorSelectionStore(),
+            catalog:         new AssetCatalog(),
+            refactorService: StubRefactor(),
+            debugRegistry:   new DebugSessionRegistry(),
+            schemaExporter:  new StubSchemaExporter());
+
+        Assert.True(reg.BlackboardAuthoring.HasSchemaExporter,
+            "the schemaExporter passed to the registrar must reach BlackboardAuthoringWindow, "
+            + "or its hardcoded-DTO reflection contributes nothing in production");
+    }
+
+    /// <summary>⭐ Negative control, mirroring the facet-edit-service pair: without one the window has
+    /// none. ⛔ Without it the test above would also pass against a window that fabricates its own.</summary>
+    [Fact]
+    public void PerspectiveRegistrar_WithoutSchemaExporter_AuthoringWindowHasNone()
+        => Assert.False(MakeRegistrar("BTree").BlackboardAuthoring.HasSchemaExporter);
+
+    // ── 88a — the live-value provider's forwarding ──────────────────────────────
+
+    private sealed class StubLiveValues : Hrot.Editor.AiShared.Blackboard.ILiveBlackboardValueProvider
+    {
+        public IReadOnlyDictionary<string, string> GetLiveVariableValues(IEditableAsset asset)
+            => new Dictionary<string, string>();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>88a</c>: a live-value provider handed to the registrar must reach the window that
+    /// CONSUMES it.</b>
+    ///
+    /// <para>📐 <b>Measured, and it is the whole point of this rail:</b>
+    /// <see cref="Hrot.Editor.AiShared.Blackboard.ILiveBlackboardValueProvider"/> has ⭐ <b>exactly one
+    /// consumer</b> — <c>BlackboardAuthoringWindow</c> (<c>:514</c>, <c>GetLiveVariableValues</c> once
+    /// per frame). ⇒ if the registrar drops it here, the argument the composition root passes goes
+    /// nowhere and every Value cell shows <c>—</c>.</para>
+    ///
+    /// <para>⭐⭐ <b>Placed beside the schema-exporter pair deliberately</b> — 📌 <c>R-67</c> is the same
+    /// ruling and <b>this registrar is the one that has forgotten a service four times</b>. ⛔ Asking
+    /// the OBJECT, never the call site's signature: that mistake is recorded two rails above.</para>
+    /// </summary>
+    [Fact]
+    public void PerspectiveRegistrar_ForwardsLiveValueProvider_ToBlackboardAuthoring()
+    {
+        var reg = new PerspectiveWorkspaceRegistrar(
+            perspectiveName:   "Blueprint",
+            selectionStore:    new EditorSelectionStore(),
+            catalog:           new AssetCatalog(),
+            refactorService:   StubRefactor(),
+            debugRegistry:     new DebugSessionRegistry(),
+            liveValueProvider: new StubLiveValues());
+
+        Assert.True(reg.BlackboardAuthoring.HasLiveValueProvider,
+            "the liveValueProvider passed to the registrar must reach BlackboardAuthoringWindow, "
+            + "or the Value column has no source and renders '—' for every row");
+    }
+
+    /// <summary>⛔ Negative control. ⚠ <b>This is the state Blueprint actually shipped in</b> — not a
+    /// hypothetical: <c>EditorSubsystem</c> passed a provider for BTree and HSM and none for Blueprint,
+    /// so the column was sourceless on exactly one host.</summary>
+    [Fact]
+    public void PerspectiveRegistrar_WithoutLiveValueProvider_AuthoringWindowHasNone()
+        => Assert.False(MakeRegistrar("Blueprint").BlackboardAuthoring.HasLiveValueProvider);
 }

@@ -24,10 +24,12 @@ public static class HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp
     {
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
     }
+    
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -62,8 +64,11 @@ public static class HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
+        // W13: the offset form — identical in shape to the BTree bridge's per-node adapter.
+        //      Standalone hosting is the single-method case, so the baked offset is 0.
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-            ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);
+            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
+                ref bb.BehaviorParameters[0], (nint)0));
         ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);
         unsafe
         {
@@ -94,7 +99,9 @@ public static class BlueprintRegistrar_HillAssault2ForEachSubordinateClearBehavi
             Name = "HillAssault2_ForEachSubordinate_ClearBehavior",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp.StateSize,
+            AssetId = new Guid("ead05968-d6d7-4e2f-8133-6782fd733bb4"),
+            StateClrType = typeof(HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp.WorkingState),
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp.BTreeTick@0", HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp.BTreeTick);
     }

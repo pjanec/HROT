@@ -1,5 +1,8 @@
 {
-  "$meta": { "docType": "Hrot.Blueprints", "schemaVersion": 1 },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
   "Header": {},
   "AssetId": "c5100005-0000-0000-0000-000000000001",
   "Name": "GetComponentTargetDemo",
@@ -7,16 +10,74 @@
   "TierHint": "Auto",
   "IsWorldSingleton": false,
   "Primitive": null,
-  "Parameters": [],
-  "ParameterOrder": null,
-  "WorkingState": [],
-  "WorkingStateOrder": null,
-  "Variables": [
-    { "Id": "c5100005-0000-0000-0000-0000000000c1", "Name": "TargetEntity", "Type": { "TypeId": "Fdp.Core.Entity", "IsArray": false, "GenericArgs": [] }, "DefaultValueJson": null, "IsEditable": true, "IsExposedOnSpawn": true, "Category": null, "Tooltip": "Cross-entity read target -- set/wire an Entity value here (e.g. exposed on spawn). Defaults to a zero Entity if left unset.", "Comment": null },
-    { "Id": "c5100005-0000-0000-0000-0000000000a1", "Name": "OutHealth", "Type": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] }, "DefaultValueJson": "0", "IsEditable": false, "IsExposedOnSpawn": false, "Category": null, "Tooltip": null, "Comment": null },
-    { "Id": "c5100005-0000-0000-0000-0000000000a2", "Name": "OutAmmo",   "Type": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] }, "DefaultValueJson": "0", "IsEditable": false, "IsExposedOnSpawn": false, "Category": null, "Tooltip": null, "Comment": null },
-    { "Id": "c5100005-0000-0000-0000-0000000000a3", "Name": "OutFound",  "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] }, "DefaultValueJson": "false", "IsEditable": false, "IsExposedOnSpawn": false, "Category": null, "Tooltip": null, "Comment": null }
+  "Declarations": [
+    {
+      "Kind": "Variable",
+      "Id": "c5100005-0000-0000-0000-0000000000c1",
+      "Name": "TargetEntity",
+      "Type": {
+        "TypeId": "Fdp.Core.Entity",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": true,
+      "IsExposedOnSpawn": true,
+      "Category": null,
+      "Tooltip": "Cross-entity read target -- set/wire an Entity value here (e.g. exposed on spawn). Defaults to a zero Entity if left unset.",
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "c5100005-0000-0000-0000-0000000000a1",
+      "Name": "OutHealth",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "c5100005-0000-0000-0000-0000000000a2",
+      "Name": "OutAmmo",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "c5100005-0000-0000-0000-0000000000a3",
+      "Name": "OutFound",
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "false",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
   ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
@@ -28,72 +89,359 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
-        { "kind": "EventEntry", "EventTypeId": "", "Id": "c5100005-0000-0000-0000-000000000010",
-          "Pins": [ { "Id": "c5100005-0000-0000-0000-000000000020", "Name": "Out", "Direction": "Out", "IsExec": true, "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } } ],
-          "EditorMetadata": { "X": 40, "Y": 260, "Comment": null } },
-
-        { "kind": "GetVariable", "VariableId": "c5100005-0000-0000-0000-0000000000c1", "Id": "c5100005-0000-0000-0000-000000000011",
-          "Pins": [ { "Id": "c5100005-0000-0000-0000-000000000021", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity", "IsArray": false, "GenericArgs": [] } } ],
-          "EditorMetadata": { "X": 40, "Y": 40, "Comment": "TargetEntity variable (exposed-on-spawn) -> feeds GetComponent's Target pin (cross-entity read)." } },
-
-        { "kind": "GetComponent",
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "c5100005-0000-0000-0000-000000000010",
+          "Pins": [
+            {
+              "Id": "c5100005-0000-0000-0000-000000000020",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 260,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "VariableId": "c5100005-0000-0000-0000-0000000000c1",
+          "Id": "c5100005-0000-0000-0000-000000000011",
+          "Pins": [
+            {
+              "Id": "c5100005-0000-0000-0000-000000000021",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 40,
+            "Comment": "TargetEntity variable (exposed-on-spawn) -\u003E feeds GetComponent\u0027s Target pin (cross-entity read)."
+          }
+        },
+        {
+          "kind": "GetComponent",
           "ComponentTypeFqn": "Hrot.AI.Behaviors.BpComponentDemo",
-          "Fields": [ { "Name": "Health", "TypeId": "System.Int32" }, { "Name": "Ammo", "TypeId": "System.Int32" } ],
+          "FieldName": "",
+          "FieldTypeFqn": "",
+          "Fields": [
+            {
+              "Name": "Health",
+              "TypeId": "System.Int32"
+            },
+            {
+              "Name": "Ammo",
+              "TypeId": "System.Int32"
+            }
+          ],
           "Id": "c5100005-0000-0000-0000-000000000012",
           "Pins": [
-            { "Id": "c5100005-0000-0000-0000-000000000022", "Name": "Target", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "c5100005-0000-0000-0000-000000000023", "Name": "Health", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32",   "IsArray": false, "GenericArgs": [] } },
-            { "Id": "c5100005-0000-0000-0000-000000000024", "Name": "Ammo",   "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32",   "IsArray": false, "GenericArgs": [] } },
-            { "Id": "c5100005-0000-0000-0000-000000000025", "Name": "Found",  "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "c5100005-0000-0000-0000-000000000022",
+              "Name": "Target",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "c5100005-0000-0000-0000-000000000023",
+              "Name": "Health",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "c5100005-0000-0000-0000-000000000024",
+              "Name": "Ammo",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "c5100005-0000-0000-0000-000000000025",
+              "Name": "Found",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 380, "Y": 100, "Comment": "Target WIRED from TargetEntity parameter -- cross-entity read (unlike GetComponentDemo, which reads self)." } },
-
-        { "kind": "SetVariable", "VariableId": "c5100005-0000-0000-0000-0000000000a1", "Id": "c5100005-0000-0000-0000-000000000013",
+          "EditorMetadata": {
+            "X": 380,
+            "Y": 100,
+            "Comment": "Target WIRED from TargetEntity parameter -- cross-entity read (unlike GetComponentDemo, which reads self)."
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "c5100005-0000-0000-0000-0000000000a1",
+          "Id": "c5100005-0000-0000-0000-000000000013",
           "Pins": [
-            { "Id": "c5100005-0000-0000-0000-000000000030", "Name": "In",    "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "c5100005-0000-0000-0000-000000000031", "Name": "Out",   "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "c5100005-0000-0000-0000-000000000032", "Name": "Value", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "c5100005-0000-0000-0000-000000000030",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "c5100005-0000-0000-0000-000000000031",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "c5100005-0000-0000-0000-000000000032",
+              "Name": "Value",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 760, "Y": 160, "Comment": null } },
-
-        { "kind": "SetVariable", "VariableId": "c5100005-0000-0000-0000-0000000000a2", "Id": "c5100005-0000-0000-0000-000000000014",
+          "EditorMetadata": {
+            "X": 760,
+            "Y": 160,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "c5100005-0000-0000-0000-0000000000a2",
+          "Id": "c5100005-0000-0000-0000-000000000014",
           "Pins": [
-            { "Id": "c5100005-0000-0000-0000-000000000033", "Name": "In",    "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "c5100005-0000-0000-0000-000000000034", "Name": "Out",   "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "c5100005-0000-0000-0000-000000000035", "Name": "Value", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "c5100005-0000-0000-0000-000000000033",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "c5100005-0000-0000-0000-000000000034",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "c5100005-0000-0000-0000-000000000035",
+              "Name": "Value",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 1100, "Y": 220, "Comment": null } },
-
-        { "kind": "SetVariable", "VariableId": "c5100005-0000-0000-0000-0000000000a3", "Id": "c5100005-0000-0000-0000-000000000015",
+          "EditorMetadata": {
+            "X": 1100,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "c5100005-0000-0000-0000-0000000000a3",
+          "Id": "c5100005-0000-0000-0000-000000000015",
           "Pins": [
-            { "Id": "c5100005-0000-0000-0000-000000000036", "Name": "In",    "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "c5100005-0000-0000-0000-000000000037", "Name": "Out",   "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "c5100005-0000-0000-0000-000000000038", "Name": "Value", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "c5100005-0000-0000-0000-000000000036",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "c5100005-0000-0000-0000-000000000037",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "c5100005-0000-0000-0000-000000000038",
+              "Name": "Value",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 1440, "Y": 280, "Comment": null } },
-
-        { "kind": "Return", "Status": "Success", "Id": "c5100005-0000-0000-0000-000000000016",
-          "Pins": [ { "Id": "c5100005-0000-0000-0000-000000000039", "Name": "In", "Direction": "In", "IsExec": true, "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } } ],
-          "EditorMetadata": { "X": 1780, "Y": 260, "Comment": null } }
+          "EditorMetadata": {
+            "X": 1440,
+            "Y": 280,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "c5100005-0000-0000-0000-000000000016",
+          "Pins": [
+            {
+              "Id": "c5100005-0000-0000-0000-000000000039",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1780,
+            "Y": 260,
+            "Comment": null
+          }
+        }
       ],
       "Links": [
-        { "FromNodeId": "c5100005-0000-0000-0000-000000000010", "FromPinId": "c5100005-0000-0000-0000-000000000020", "ToNodeId": "c5100005-0000-0000-0000-000000000013", "ToPinId": "c5100005-0000-0000-0000-000000000030" },
-        { "FromNodeId": "c5100005-0000-0000-0000-000000000013", "FromPinId": "c5100005-0000-0000-0000-000000000031", "ToNodeId": "c5100005-0000-0000-0000-000000000014", "ToPinId": "c5100005-0000-0000-0000-000000000033" },
-        { "FromNodeId": "c5100005-0000-0000-0000-000000000014", "FromPinId": "c5100005-0000-0000-0000-000000000034", "ToNodeId": "c5100005-0000-0000-0000-000000000015", "ToPinId": "c5100005-0000-0000-0000-000000000036" },
-        { "FromNodeId": "c5100005-0000-0000-0000-000000000015", "FromPinId": "c5100005-0000-0000-0000-000000000037", "ToNodeId": "c5100005-0000-0000-0000-000000000016", "ToPinId": "c5100005-0000-0000-0000-000000000039" },
-
-        { "FromNodeId": "c5100005-0000-0000-0000-000000000011", "FromPinId": "c5100005-0000-0000-0000-000000000021", "ToNodeId": "c5100005-0000-0000-0000-000000000012", "ToPinId": "c5100005-0000-0000-0000-000000000022" },
-
-        { "FromNodeId": "c5100005-0000-0000-0000-000000000012", "FromPinId": "c5100005-0000-0000-0000-000000000023", "ToNodeId": "c5100005-0000-0000-0000-000000000013", "ToPinId": "c5100005-0000-0000-0000-000000000032" },
-        { "FromNodeId": "c5100005-0000-0000-0000-000000000012", "FromPinId": "c5100005-0000-0000-0000-000000000024", "ToNodeId": "c5100005-0000-0000-0000-000000000014", "ToPinId": "c5100005-0000-0000-0000-000000000035" },
-        { "FromNodeId": "c5100005-0000-0000-0000-000000000012", "FromPinId": "c5100005-0000-0000-0000-000000000025", "ToNodeId": "c5100005-0000-0000-0000-000000000015", "ToPinId": "c5100005-0000-0000-0000-000000000038" }
+        {
+          "FromNodeId": "c5100005-0000-0000-0000-000000000010",
+          "FromPinId": "c5100005-0000-0000-0000-000000000020",
+          "ToNodeId": "c5100005-0000-0000-0000-000000000013",
+          "ToPinId": "c5100005-0000-0000-0000-000000000030"
+        },
+        {
+          "FromNodeId": "c5100005-0000-0000-0000-000000000013",
+          "FromPinId": "c5100005-0000-0000-0000-000000000031",
+          "ToNodeId": "c5100005-0000-0000-0000-000000000014",
+          "ToPinId": "c5100005-0000-0000-0000-000000000033"
+        },
+        {
+          "FromNodeId": "c5100005-0000-0000-0000-000000000014",
+          "FromPinId": "c5100005-0000-0000-0000-000000000034",
+          "ToNodeId": "c5100005-0000-0000-0000-000000000015",
+          "ToPinId": "c5100005-0000-0000-0000-000000000036"
+        },
+        {
+          "FromNodeId": "c5100005-0000-0000-0000-000000000015",
+          "FromPinId": "c5100005-0000-0000-0000-000000000037",
+          "ToNodeId": "c5100005-0000-0000-0000-000000000016",
+          "ToPinId": "c5100005-0000-0000-0000-000000000039"
+        },
+        {
+          "FromNodeId": "c5100005-0000-0000-0000-000000000011",
+          "FromPinId": "c5100005-0000-0000-0000-000000000021",
+          "ToNodeId": "c5100005-0000-0000-0000-000000000012",
+          "ToPinId": "c5100005-0000-0000-0000-000000000022"
+        },
+        {
+          "FromNodeId": "c5100005-0000-0000-0000-000000000012",
+          "FromPinId": "c5100005-0000-0000-0000-000000000023",
+          "ToNodeId": "c5100005-0000-0000-0000-000000000013",
+          "ToPinId": "c5100005-0000-0000-0000-000000000032"
+        },
+        {
+          "FromNodeId": "c5100005-0000-0000-0000-000000000012",
+          "FromPinId": "c5100005-0000-0000-0000-000000000024",
+          "ToNodeId": "c5100005-0000-0000-0000-000000000014",
+          "ToPinId": "c5100005-0000-0000-0000-000000000035"
+        },
+        {
+          "FromNodeId": "c5100005-0000-0000-0000-000000000012",
+          "FromPinId": "c5100005-0000-0000-0000-000000000025",
+          "ToNodeId": "c5100005-0000-0000-0000-000000000015",
+          "ToPinId": "c5100005-0000-0000-0000-000000000038"
+        }
       ],
-      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
-    "Description": "CA-01..CA-06 component-access demo (CROSS-ENTITY READ). Instance blueprint (Instance dispatch uses Variables, not Parameters). Declares an Entity variable (TargetEntity, exposed on spawn); GetVariable reads it and wires it into GetComponent<BpComponentDemo>'s optional Target pin -- unlike GetComponentDemo (self-only, Target unwired), this reads BpComponentDemo off whatever entity TargetEntity points to. Health/Ammo/Found mirrored into OutHealth/OutAmmo/OutFound via SetVariable, same as GetComponentDemo. Pair with GetComponentDemo (self read) and SetComponentDemo (write half).",
+    "Description": "CA-01..CA-06 component-access demo (CROSS-ENTITY READ). Instance blueprint (Instance dispatch uses Variables, not Parameters). Declares an Entity variable (TargetEntity, exposed on spawn); GetVariable reads it and wires it into GetComponent\u003CBpComponentDemo\u003E\u0027s optional Target pin -- unlike GetComponentDemo (self-only, Target unwired), this reads BpComponentDemo off whatever entity TargetEntity points to. Health/Ammo/Found mirrored into OutHealth/OutAmmo/OutFound via SetVariable, same as GetComponentDemo. Pair with GetComponentDemo (self read) and SetComponentDemo (write half).",
     "Category": "Demo",
     "Recipe": null
   }

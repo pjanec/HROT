@@ -121,6 +121,15 @@ public sealed class VariableKindResolutionTests
     /// integer, finds <c>Variables.Count > 1</c>, and hands back <c>Variables[1]</c>. ⚠ Not a
     /// near-miss: it is a <b>different struct at a different offset</b>.
     /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b>Batch 56 sharpened the assertions, and the reason matters.</b> They were file-wide
+    /// <c>DoesNotContain("V1")</c> — a proxy that held only because <c>AiPrimitiveEmitter</c> dropped
+    /// <c>Variables</c> entirely, so the name could not appear anywhere. ⭐ Ruling 8 makes both kinds
+    /// real fields of ONE struct, so <c>V1</c> is now legitimately DECLARED. ⛔ The claim was never
+    /// "the name is absent from the file" — it is <b>"the reference resolves to <c>W1</c>"</b> — so it
+    /// is now stated on the reference site itself, which is strictly the tighter assertion.
+    /// </para>
     /// </summary>
     [Fact]
     public void AWorkingStateReference_EmitsTheWorkingStateField_NotAVariable()
@@ -139,10 +148,10 @@ public sealed class VariableKindResolutionTests
 
         var src = EmitReadWrite(asset, readTarget: w1.Id, writeTarget: w0.Id);
 
-        Assert.Contains("W1", src);        // ⭐ the field actually referenced
-        Assert.Contains("W0", src);
-        Assert.DoesNotContain("V1", src);  // ⛔ the shadowing Variables entry
-        Assert.DoesNotContain("V0", src);
+        Assert.Contains("= ws.W1;",  src);   // ⭐ the READ resolves to the field actually referenced
+        Assert.Contains("ws.W0 = ",  src);   // ⭐ and the WRITE to its target
+        Assert.DoesNotContain("ws.V1", src); // ⛔ the shadowing Variables entry is never touched
+        Assert.DoesNotContain("ws.V0", src);
     }
 
     /// <summary>

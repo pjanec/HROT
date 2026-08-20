@@ -139,6 +139,49 @@ public static class DiagnosticCodes
     // build broke with a CS error naming a generated file and no BP diagnostic named the node.
     public const string BP1670 = "BP1670";  // Get/SetVariable targets a variable that does not exist
 
+    // U-7 / BP-228 — a declared field type that does not exist. ⛔ Distinct from BP1500 ("does not
+    // resolve"): the type id here RESOLVED, via the AN2 "dotted FQN ⇒ trust the string" fallback, and
+    // only a real type oracle can say it names nothing. Its own code because the cause and the fix
+    // differ — BP1500 means "the compiler does not know this shape", BP1671 means "this type is not
+    // there". ⚠ Fires only when an IClrSignatureResolver is supplied; see Stage4_TypeResolve.
+    public const string BP1671 = "BP1671";  // declared field type does not exist (oracle-checked)
+
+    // Batch 52 §1 — trap #5 in the COMPILER, not merely in a test. `EmitPdbWithEmbeddedSource: true`
+    // with no RoslynFinalizer installed produced NO pdb, NO pe, NO diagnostic and `Succeeded == true`:
+    // the caller asked for an artefact, did not get it, and was told nothing. The finalizer is injected
+    // by Hrot.Blueprints.Core's [ModuleInitializer], so its absence is a HOST-CONFIGURATION fact (this
+    // process never loaded that assembly) rather than anything the blueprint author can fix — hence a
+    // precondition checked before any stage runs, and reported alone.
+    // ⚠ Not a throw. `.Compiler` multi-targets netstandard2.0 and references Roslyn only under net8.0,
+    // so "cannot produce a PDB here" is a reachable, legitimate configuration, not an impossible state.
+    public const string BP1672 = "BP1672";  // a PDB was requested but no Roslyn finalizer is installed
+
+    // U-12 / Batch 52 — the rail that BP1024 and BP1031's WorkingState half were silently also
+    // providing, and which their removal takes away.
+    //
+    // ⛔ Stage5.FindVariableRef resolves a reference by PRIORITY ACROSS KINDS -- Variables, then
+    // WorkingState, then Parameters -- and falls back to matching by NAME, which is what
+    // hand-authored assets use. Two declarations sharing a name therefore bind to whichever kind the
+    // priority order reaches first, silently, with no diagnostic anywhere.
+    //
+    // ⭐ That was unreachable only because the mixture itself was illegal: BP1024 kept Variables off
+    // an AiPrimitive, BP1031 kept Parameters/WorkingState off an Instance. U-12 makes the mixture
+    // legal, so the collision becomes reachable and needs its own rail.
+    //
+    // ⚠ Case-INSENSITIVE, matching U-14's OrdinalIgnoreCase namer, so the compiler refuses exactly
+    // what the editor's auto-namer refuses. Covers same-kind duplicates too -- equally undiagnosed
+    // before, and the same defect.
+    public const string BP1673 = "BP1673";  // two asset-scope declarations share a name
+
+    // BP-247 -- a persisted default value that has no C# literal of the declared type.
+    //
+    // ⛔ The alternative was what shipped for the whole programme so far: pass the JSON text through
+    // verbatim and let ROSLYN complain. A float default of `0.5` emitted a `double` literal and came
+    // back as CS0664 naming a generated file the designer has never seen -- the same "diagnostic in
+    // the wrong language" shape as `__var_-1` (BP-228). This says it in the compiler's own language,
+    // against the declaration.
+    public const string BP1674 = "BP1674";  // default value is not a literal of the declared type
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload

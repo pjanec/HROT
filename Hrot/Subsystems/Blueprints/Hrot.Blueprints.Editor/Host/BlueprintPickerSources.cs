@@ -192,12 +192,14 @@ public static class BlueprintPickerSources
             IReadOnlyDictionary<string, object?>? context)
         {
             var locals = Locals;
+            // U-11. ⚠ The no-filter branch used to hand back the LIVE _asset.Variables list; it is a
+            //   materialised copy now, matching what the other two branches always returned.
+            var declared = _asset.Declarations.Of(DeclarationKind.Variable)
+                                 .Select(d => d.AsVariableDecl!).ToList();
             if (string.IsNullOrEmpty(text))
-                return locals.Count == 0
-                    ? _asset.Variables
-                    : _asset.Variables.Concat(locals).ToList();
+                return locals.Count == 0 ? declared : declared.Concat(locals).ToList();
 
-            return _asset.Variables.Concat(locals)
+            return declared.Concat(locals)
                 .Where(v => v.Name.Contains(text, StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }

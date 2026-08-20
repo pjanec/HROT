@@ -3,6 +3,7 @@ using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Editor.AiShared.Selection;
+using Hrot.Editor.AiShared.Variables;
 using AiSelectionStore = Hrot.Editor.AiShared.Selection.EditorSelectionStore;
 
 namespace Hrot.Blueprints.Editor.Windows;
@@ -23,10 +24,21 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// logic (selection → session) can be exercised in headless unit tests.
 /// </para>
 /// </summary>
-public sealed class BlueprintDetailsWindow : ManagedWindow
+public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost,
+                                             Hrot.Editor.AiShared.Variables.IVariableTableHost
 {
     private readonly AiSelectionStore _selectionStore;
     private readonly BlueprintNodeDrawerRegistry _drawerRegistry;
+
+    // ⭐⭐⭐ U-6 — the SHARED variables list, hosted here rather than re-implemented.
+    //    📌 Q32 ruling 1: "Details hosts the list of vars, as designed."
+    //    📌 ruling 9 (the acceptance criterion): "no keeping two implementations for the same
+    //       concept" ⇒ this is Track C's VariableTableControl, not a blueprint copy of it.
+    private readonly VariableDetailsSection _variables;
+
+    // The sub-selection the node arm last saw. ⭐ Used to decide when a NODE click should take the
+    // panel back from a variable list — see ShowVariables.
+    private object? _lastSubSelection;
 
     // Cached session — rebuilt when selection changes.
     private INodeEditSession? _session;
@@ -65,6 +77,62 @@ public sealed class BlueprintDetailsWindow : ManagedWindow
     {
         _selectionStore = selectionStore ?? throw new ArgumentNullException(nameof(selectionStore));
         _drawerRegistry = drawerRegistry ?? throw new ArgumentNullException(nameof(drawerRegistry));
+
+        // ⭐ The formatter is built here rather than required, because a Details panel with no way to
+        //   render a value is not a Details panel. ⚠ The value's RUN-STATE meaning is sequencing row
+        //   58's — at authoring time a source with no byte reader renders "(pending)", which is true.
+        _variables = new VariableDetailsSection(
+            new VariableValueFormatter(
+                RawValueDecoder.Instance));
+    }
+
+    /// <summary>
+    /// ⭐ The hosted variables list. Exposed so a rail can assert on the CONSTRUCTED object rather
+    /// than on whatever wired it (the 2026-08-16 control).
+    /// </summary>
+    public VariableDetailsSection Variables => _variables;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <b>Batch 87 — forwarded from the hosted section</b>, so the registrar's attach loop reaches
+    /// the Details table without knowing that a Details WINDOW hosts a Details SECTION. ⛔ The window
+    /// does not own a second table; this is the same object <see cref="Variables"/> exposes.
+    /// </remarks>
+    public Hrot.Editor.AiShared.Variables.VariableTableControl? VariableTable
+        => ((Hrot.Editor.AiShared.Variables.IVariableTableHost)_variables).VariableTable;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <b><c>Q32</c> ruling 2 — "selection routes".</b> An outline click decides what this panel
+    /// shows: a global list, a graph-scoped locals list, or *(for a graph or function row)* nothing,
+    /// in which case the panel falls back to the node arm.
+    ///
+    /// <para>⭐ <b>The routing is installed by the registrar, not by the composition root</b> —
+    /// <c>PerspectiveWorkspaceRegistrar.RegisterExtraWindow</c> connects any
+    /// <c>IVariableOutlineSelectionSource</c> it is handed to any <c>IVariableDetailsHost</c>.
+    /// ⛔ Batches 79/80/81 each lost a surface to a "someone must remember to wire it" seam.</para>
+    /// </remarks>
+    /// <inheritdoc/>
+    /// <remarks>⭐ Row 58 — forwarded to the hosted list, which is what actually renders the column.</remarks>
+    public void SetRunStateSource(Func<VariableRunState> runState)
+        => _variables.SetRunStateSource(runState);
+
+    public void ShowVariables(VariableOutlineSelection selection)
+    {
+        if (selection.HasRows)
+        {
+            // ⭐ BATCH 84 (4a/4b) — the WHOLE selection, so the clicked row is highlighted and the
+            //   graph-scoped heading follows the canvas instead of naming the graph that was open
+            //   when the designer clicked.
+            _variables.Show(selection);
+            // ⭐ Remember what the node arm was showing, so a LATER node click wins. ⛔ Without this
+            //   the variable list would sit over an unrelated node selection forever.
+            _lastSubSelection = _selectionStore.ActiveSubSelection;
+        }
+        else
+        {
+            _variables.Clear();
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -118,8 +186,49 @@ public sealed class BlueprintDetailsWindow : ManagedWindow
 
     // ── ManagedWindow ─────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐ Which arm the panel is showing. ⛔ Extracted from the draw path so the PRECEDENCE is
+    /// checkable — drawing needs an ImGui context and no headless test can drive it.
+    ///
+    /// <para>⭐⭐⭐ <b>Batch 87 — the question is WHICH SURFACE, not WHICH NODE</b> *(user ruling,
+    /// <c>2026-08-18</c>: <i>"it's not the selection what changes but actually the focus to different
+    /// part of the UI"</i>)*. ⭐ Moving focus to the canvas hands the panel back, whether or not the
+    /// selection changed — ⛔ which is precisely the case the old value test could not see.</para>
+    ///
+    /// <para>⭐ <b>Last CLAIM wins, in both directions.</b> Picking a variable in the outline takes the
+    /// panel; returning to the canvas takes it back. ⚠ The sub-selection comparison survives as a
+    /// SECONDARY path — see the body.</para>
+    /// </summary>
+    internal bool ShowingVariables
+    {
+        get
+        {
+            if (!_variables.HasContent) return false;
+
+            // ⭐⭐⭐ Batch 87 — PRIMARY: which SURFACE is the designer working in (user ruling,
+            //    2026-08-18). 🔴 The line below used to be the ONLY test, and it is a VALUE test
+            //    standing in for the TIME claim in the comment: re-clicking the SAME node is Equals to
+            //    the snapshot, so it could never win the panel back. ⛔ Only a DIFFERENT node could —
+            //    which is why every test passed and the designer's real gesture failed.
+            //    ⭐ Focus answers it where a click cannot: measured, a re-click is a deliberate no-op
+            //    at CanvasInput and produces no signal at any of the four layers below it.
+            if (_selectionStore.FocusedSurface == SelectionOrigin.GraphCanvas) return false;
+
+            // ⭐ SECONDARY, and kept deliberately: a selection can move WITHOUT focus moving (a hotkey,
+            //   anything programmatic), and the node arm should still win then. ⛔ Replacing this
+            //   rather than layering would trade one blind spot for another.
+            return Equals(_selectionStore.ActiveSubSelection, _lastSubSelection);
+        }
+    }
+
     protected override void DrawClientArea()
     {
+        if (ShowingVariables)
+        {
+            _variables.Draw("bp_details_variables");
+            return;
+        }
+
         var session = ResolveSession();
         if (session != null)
         {

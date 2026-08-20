@@ -77,33 +77,71 @@ internal static class Stage5_Schedule
             DeclaredMacroCount = asset.Graphs.Count(g => g.Kind == GraphKind.Macro),
             Intent        = asset.Primitive?.Intent,
             Hostings      = (IReadOnlyList<AiPrimitiveHosting>?)asset.Primitive?.Hostings ?? Array.Empty<AiPrimitiveHosting>(),
-            Parameters    = BuildIrFields(asset.Parameters, typedAsset, asset.ParameterOrder),
-            WorkingState  = BuildIrFields(asset.WorkingState, typedAsset, asset.WorkingStateOrder),
-            Variables     = BuildIrFields(asset.Variables, typedAsset, asset.VariableOrder),
-            CustomEvents  = BuildCustomEvents(asset.CustomEvents, typedAsset),
+            Parameters    = BuildIrFields(asset.Declarations.Of(DeclarationKind.Parameter),    typedAsset, asset.ParameterOrder,     ctx),
+            // ⭐⭐⭐ Batch 86 — ONE state run (R-01). IrAsset.WorkingState is retired and stays empty;
+            //    Variables carries the whole tier, so StructureHashComputation's append is unchanged.
+            // 🔴🔴 R-24 — the ORDER is the whole risk, and BOTH order lists are applied, concatenated
+            //    WorkingStateOrder-then-VariableOrder: exactly DeclarationList.KindOrder's old
+            //    sequence. ⛔ Do NOT feed one list, and do NOT sort — an id missing from the list it
+            //    belongs to falls to GetOrdered's by-Id tail, which is a DIFFERENT position.
+            Variables     = BuildIrFields(
+                                asset.Declarations.Of(DeclarationKind.Variable), typedAsset,
+                                ConcatOrder(asset.WorkingStateOrder, asset.VariableOrder), ctx),
+            CustomEvents  = BuildCustomEvents(asset.CustomEvents, typedAsset, ctx),
             CallablePeerBlueprintIds = BuildPeerIds(asset.CallablePeers),
             IsWorldSingleton = asset.IsWorldSingleton,
             Graphs        = irGraphs,
         };
     }
 
+    /// <summary>
+    /// <b>U-11 — ONE builder over every declaration kind.</b> ⛔ This was two overloads with
+    /// <b>byte-identical bodies</b>, split only because <c>ParameterDecl</c> and <c>VariableDecl</c>
+    /// were different types. ⭐ <c>BlueprintDeclaration</c> is the type they now share.
+    /// </summary>
     private static IReadOnlyList<IrField> BuildIrFields(
-        IEnumerable<ParameterDecl> decls, TypedAsset typed, List<Guid>? order)
+        IEnumerable<BlueprintDeclaration> decls, TypedAsset typed, List<Guid>? order,
+        ValidationContext ctx)
     {
         var result = new List<IrField>();
         foreach (var d in decls)
         {
             typed.FieldTypes.TryGetValue(d.Id, out var irType);
+            var type = irType ?? UnknownType;
             result.Add(new IrField
             {
                 Id = d.Id,
                 Name = d.Name,
-                Type = irType ?? UnknownType,
-                DefaultValueCSharp = d.DefaultValueJson ?? "",
+                Type = type,
+                // ⭐⭐ BP-247 — the default becomes a C#-TYPED literal here. ⛔ This used to be
+                //    `d.DefaultValueJson ?? ""`, the JSON text verbatim, so a `float` default of `0.5`
+                //    emitted a `double` literal and Roslyn refused it with CS0664 naming a generated
+                //    file. ⭐ A literal the converter cannot type is REFUSED (BP1674) rather than passed
+                //    through — the refusal is the whole point.
+                DefaultValueCSharp = ConvertDefault(type, d, ctx),
                 Comment = d.Comment,
             });
         }
         return GetOrdered(result, order);
+    }
+
+    /// <summary>
+    /// ⭐ One conversion, one diagnostic — shared by the asset-level lists, the graph locals and the
+    /// graph-parameter path, so a local's default literal cannot drift from a variable's.
+    /// </summary>
+    internal static string ConvertDefault(IrTypeRef type, BlueprintDeclaration d, ValidationContext ctx)
+        => ConvertDefault(type, d.Name, d.DefaultValueJson, ctx);
+
+    internal static string ConvertDefault(
+        IrTypeRef type, string name, string? json, ValidationContext ctx)
+    {
+        if (Lowering.DefaultLiteral.TryToCSharp(type, json, out string csharp, out string reason))
+            return csharp;
+
+        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1674,
+            $"Default value '{json}' for '{name}' is not a valid {type.FullName} literal — {reason}.",
+            Guid.Empty));
+        return "";
     }
 
     /// <summary>
@@ -112,30 +150,12 @@ internal static class Stage5_Schedule
     /// Only the index space differs, and that is deliberate.
     /// </summary>
     internal static IReadOnlyList<IrField> BuildLocalIrFields(
-        IEnumerable<VariableDecl> decls, TypedAsset typed)
-        => BuildIrFields(decls, typed, order: null);
-
-    private static IReadOnlyList<IrField> BuildIrFields(
-        IEnumerable<VariableDecl> decls, TypedAsset typed, List<Guid>? order)
-    {
-        var result = new List<IrField>();
-        foreach (var d in decls)
-        {
-            typed.FieldTypes.TryGetValue(d.Id, out var irType);
-            result.Add(new IrField
-            {
-                Id = d.Id,
-                Name = d.Name,
-                Type = irType ?? UnknownType,
-                DefaultValueCSharp = d.DefaultValueJson ?? "",
-                Comment = d.Comment,
-            });
-        }
-        return GetOrdered(result, order);
-    }
+        IEnumerable<VariableDecl> decls, TypedAsset typed, ValidationContext ctx)
+        => BuildIrFields(
+            decls.Select(v => BlueprintDeclaration.For(DeclarationKind.Variable, v)), typed, order: null, ctx);
 
     private static IReadOnlyList<IrCustomEvent> BuildCustomEvents(
-        IEnumerable<CustomEventDecl> decls, TypedAsset typed)
+        IEnumerable<CustomEventDecl> decls, TypedAsset typed, ValidationContext ctx)
     {
         var result = new List<IrCustomEvent>();
         foreach (var d in decls)
@@ -144,10 +164,30 @@ internal static class Stage5_Schedule
             {
                 Id = d.Id,
                 Name = d.Name,
-                Parameters = BuildIrFields(d.Parameters, typed, null),
+                // ⚠ CustomEventDecl.Parameters is a DIFFERENT Parameters — an event signature, not
+                //   an asset declaration list. Wrapped, not projected through asset.Declarations.
+                Parameters = BuildIrFields(d.Parameters.Select(BlueprintDeclaration.For), typed, null, ctx),
             });
         }
         return result;
+    }
+
+    /// <summary>
+    /// ⭐⭐ Batch 86 — the two state order lists, as one, in <c>DeclarationList.KindOrder</c> sequence.
+    /// ⛔ Null when both are empty, so <see cref="GetOrdered"/> keeps its "no order ⇒ storage order"
+    /// arm rather than being handed an empty list that means the same thing by accident.
+    /// </summary>
+    private static List<Guid>? ConcatOrder(List<Guid>? first, List<Guid>? second)
+    {
+        bool a = first?.Count > 0;
+        bool b = second?.Count > 0;
+        if (!a && !b) return null;
+        if (!b) return first;
+        if (!a) return second;
+        var all = new List<Guid>(first!.Count + second!.Count);
+        all.AddRange(first);
+        all.AddRange(second);
+        return all;
     }
 
     private static IReadOnlyList<IrField> GetOrdered(List<IrField> items, List<Guid>? order)
@@ -4143,8 +4183,10 @@ internal sealed class GraphScheduler
         var vid = gv.VariableId ?? "";
         if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
         if (!Guid.TryParse(vid, out var id)) return null;
-        var decl = _typed.Asset.Variables.FirstOrDefault(v => v.Id == id)
-                ?? _typed.Asset.WorkingState.FirstOrDefault(v => v.Id == id);
+        // ⚠ U-11: Variables and WorkingState only — NOT Declarations.ById(), which also searches
+        //   Parameters. The two-kind set is what this site has always read.
+        var decl = _typed.Asset.Declarations.Of(DeclarationKind.Variable)
+                       .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
         return decl is { Type.Capacity: > 0 } ? decl : null;
     }
 
@@ -4157,8 +4199,10 @@ internal sealed class GraphScheduler
         var vid = variableId ?? "";
         if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
         if (!Guid.TryParse(vid, out var id)) return null;
-        var decl = _typed.Asset.Variables.FirstOrDefault(v => v.Id == id)
-                ?? _typed.Asset.WorkingState.FirstOrDefault(v => v.Id == id);
+        // ⚠ U-11: Variables and WorkingState only — NOT Declarations.ById(), which also searches
+        //   Parameters. The two-kind set is what this site has always read.
+        var decl = _typed.Asset.Declarations.Of(DeclarationKind.Variable)
+                       .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
         return decl is { Type.Capacity: > 0 } ? decl : null;
     }
 
@@ -4530,7 +4574,7 @@ internal sealed class GraphScheduler
 
         // ⭐ The SAME builder the asset-level lists use, so a local's type resolution, default and
         // ordering cannot drift from a variable's. Only the index space differs, and that is the point.
-        return Stage5_Schedule.BuildLocalIrFields(_graph.LocalVariables, _typed);
+        return Stage5_Schedule.BuildLocalIrFields(_graph.LocalVariables, _typed, _ctx);
     }
 
     /// <summary>
@@ -4590,9 +4634,13 @@ internal sealed class GraphScheduler
     private VariableRef FindVariableRef(string variableId)
     {
         // Search Instance variables first, then AiPrimitive working-state and parameters.
-        var variables  = _typed.Asset.Variables;
-        var workState  = _typed.Asset.WorkingState;
-        var parameters = _typed.Asset.Parameters;
+        // U-11: the same three sequences, now one collection projected three ways. ⚠ The SEARCH
+        // ORDER below is resolution priority (Variables -> WorkingState -> Parameters) and is
+        // deliberately NOT DeclarationList.KindOrder — see DeclarationList.ResolutionOrder.
+        // ⭐ Batch 86 — the first two sequences are ONE now (R-01); the priority that remains is
+        //   state-before-parameters, which is what BP-226 was about.
+        var variables  = _typed.Asset.Declarations.Of(DeclarationKind.Variable).ToList();
+        var parameters = _typed.Asset.Declarations.Of(DeclarationKind.Parameter).ToList();
 
         // VariableId may be in the form "var:<Guid>" — strip the prefix before parsing.
         // Mirrors Stage0_Rehydrate.ResolveVariableTypeId (lines 487-490).
@@ -4603,30 +4651,31 @@ internal sealed class GraphScheduler
         if (Guid.TryParse(idStr, out var guid))
         {
             for (int i = 0; i < variables.Count;  i++) if (variables[i].Id  == guid) return new(VariableKind.Variable, i);
-            for (int i = 0; i < workState.Count;  i++) if (workState[i].Id  == guid) return new(VariableKind.WorkingState, i);
             for (int i = 0; i < parameters.Count; i++) if (parameters[i].Id == guid) return new(VariableKind.Parameter, i);
         }
         // Name fallback
         for (int i = 0; i < variables.Count;  i++) if (variables[i].Name  == idStr) return new(VariableKind.Variable, i);
-        for (int i = 0; i < workState.Count;  i++) if (workState[i].Name  == idStr) return new(VariableKind.WorkingState, i);
         for (int i = 0; i < parameters.Count; i++) if (parameters[i].Name == idStr) return new(VariableKind.Parameter, i);
         return VariableRef.Unresolved;
     }
 
     /// <summary>
-    /// Params-ONLY index lookup for <see cref="GetParameterNode"/> (GAP-11). Unlike
-    /// <see cref="FindVariableIndex"/> -- which searches Variables, then WorkingState, then
-    /// Parameters and returns a COMBINED index (correct for GetVariable/SetVariable, which only
-    /// ever emit <c>IrOp_ReadVariable</c>/<c>IrOp_WriteVariable</c> against that same combined
-    /// space) -- this searches ONLY <c>_typed.Asset.Parameters</c>, since <c>IrOp_ReadParam</c>'s
-    /// index is looked up via <c>EmissionContext.ParamFieldName</c> against
-    /// <c>Asset.Parameters</c> alone. Using the combined index here would silently emit the wrong
-    /// field (or an out-of-range <c>__p_{idx}</c> placeholder) whenever Variables/WorkingState are
-    /// non-empty.
+    /// Params-ONLY index lookup for <see cref="GetParameterNode"/> (GAP-11): searches
+    /// <c>_typed.Asset.Parameters</c> alone, because <c>IrOp_ReadParam</c>'s index is resolved by
+    /// <c>EmissionContext.ParamFieldName</c> against that list alone.
+    ///
+    /// <para>
+    /// ⚠ <b>This comment used to claim <c>FindVariableIndex</c> returned "a COMBINED index". It never
+    /// did</b> — it returned the position <b>within whichever list matched</b> — and the false claim
+    /// has a demonstrated victim: it is the likely source of the Batch 45 handoff's wrong reading of
+    /// <c>VarFieldName</c>'s WorkingState arm as needing a rebase, which would have broken every
+    /// shipped AiPrimitive. ⭐ <c>U-3</c> replaced that method with <see cref="FindVariableRef"/>,
+    /// which returns an explicit <c>(kind, list-relative index)</c>, so the distinction this comment
+    /// was drawing no longer needs drawing.
     /// </summary>
     private int FindParameterIndex(string parameterId)
     {
-        var parameters = _typed.Asset.Parameters;
+        var parameters = _typed.Asset.Declarations.Of(DeclarationKind.Parameter).ToList();
 
         // ParameterId may be in the form "var:<Guid>" or "param:<Guid>" -- strip the prefix before
         // parsing. Mirrors FindVariableIndex's "var:" handling.
@@ -4677,7 +4726,8 @@ internal sealed class GraphScheduler
                 Id   = d.Id,
                 Name = d.Name,
                 Type = irType,
-                DefaultValueCSharp = d.DefaultValueJson ?? "",
+                // ⭐ BP-247 — same converter as the asset-level lists (see BuildIrFields).
+                DefaultValueCSharp = Stage5_Schedule.ConvertDefault(irType, d.Name, d.DefaultValueJson, _ctx),
                 Comment = d.Comment,
             });
         }

@@ -1,37 +1,53 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000099-0000-0000-0000-0000000000dd",
   "Name": "ListVariableDemo",
   "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": null,
-  "Parameters": [],
-  "WorkingState": [],
-  "Variables": [
+  "Declarations": [
     {
+      "Kind": "Variable",
       "Id": "d0000001-0000-0000-0000-000000000001",
       "Name": "Waypoints",
       "Type": {
         "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": [],
         "Capacity": 4
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Variable",
       "Id": "d0000001-0000-0000-0000-000000000002",
       "Name": "Count",
       "Type": {
-        "TypeId": "System.Int32"
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     }
   ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -42,190 +58,252 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
+          "EventTypeId": "",
           "Id": "d2000001-0000-0000-0000-000000000001",
           "Pins": [
             {
               "Id": "de000001-0000-0000-0000-000000000001",
               "Name": "ExecOut",
               "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 200.0
+            "X": 80,
+            "Y": 200,
+            "Comment": null
           }
         },
         {
           "kind": "ListWrite",
-          "Id": "d2000001-0000-0000-0000-000000000002",
           "VariableId": "d0000001-0000-0000-0000-000000000001",
           "Op": "Add",
+          "Id": "d2000001-0000-0000-0000-000000000002",
           "Pins": [
             {
               "Id": "de000001-0000-0000-0000-000000000011",
               "Name": "In",
               "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "de000001-0000-0000-0000-000000000012",
               "Name": "Out",
               "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "de000001-0000-0000-0000-000000000013",
               "Name": "Value",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Int32"
-              }
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "de000001-0000-0000-0000-000000000014",
               "Name": "Ok",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Boolean"
-              }
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 320.0,
-            "Y": 200.0
+            "X": 320,
+            "Y": 200,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "d2000001-0000-0000-0000-000000000003",
           "TypeId": "System.Int32",
           "ValueJson": "7",
+          "Id": "d2000001-0000-0000-0000-000000000003",
           "Pins": [
             {
               "Id": "de000001-0000-0000-0000-000000000021",
               "Name": "Value",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Int32"
-              }
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 320.0
+            "X": 80,
+            "Y": 320,
+            "Comment": null
           }
         },
         {
           "kind": "GetVariable",
-          "Id": "d2000001-0000-0000-0000-000000000004",
           "VariableId": "d0000001-0000-0000-0000-000000000001",
+          "Id": "d2000001-0000-0000-0000-000000000004",
           "Pins": [
             {
               "Id": "de000001-0000-0000-0000-000000000031",
               "Name": "Value",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Int32",
-                "IsArray": true
-              }
+                "IsArray": true,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 320.0,
-            "Y": 380.0
+            "X": 320,
+            "Y": 380,
+            "Comment": null
           }
         },
         {
           "kind": "ComponentItemCount",
-          "Id": "d2000001-0000-0000-0000-000000000005",
+          "ComponentTypeFqn": "",
+          "CountAccessorFqn": "",
           "CollectionKind": "BlackboardFixedList",
           "CollectionFieldName": "Waypoints",
+          "Id": "d2000001-0000-0000-0000-000000000005",
           "Pins": [
             {
               "Id": "de000001-0000-0000-0000-000000000041",
               "Name": "Collection",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
                 "TypeId": "System.Object",
-                "IsArray": true
-              }
+                "IsArray": true,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "de000001-0000-0000-0000-000000000042",
               "Name": "Count",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Int32"
-              }
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 540.0,
-            "Y": 380.0
+            "X": 540,
+            "Y": 380,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "d2000001-0000-0000-0000-000000000006",
           "VariableId": "d0000001-0000-0000-0000-000000000002",
+          "Id": "d2000001-0000-0000-0000-000000000006",
           "Pins": [
             {
               "Id": "de000001-0000-0000-0000-000000000051",
               "Name": "In",
               "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "de000001-0000-0000-0000-000000000052",
               "Name": "Out",
               "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "de000001-0000-0000-0000-000000000053",
               "Name": "Value",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Int32"
-              }
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 760.0,
-            "Y": 200.0
+            "X": 760,
+            "Y": 200,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "d2000001-0000-0000-0000-000000000007",
           "Pins": [
             {
               "Id": "de000001-0000-0000-0000-000000000061",
               "Name": "ExecIn",
               "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 980.0,
-            "Y": 200.0
+            "X": 980,
+            "Y": 200,
+            "Comment": null
           }
         }
       ],
@@ -266,18 +344,27 @@
           "ToNodeId": "d2000001-0000-0000-0000-000000000006",
           "ToPinId": "de000001-0000-0000-0000-000000000053"
         }
-      ]
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
+    "Description": null,
+    "Category": null,
     "Recipe": {
       "DisplayName": "List Variable Demo  (fixed-capacity lists)",
       "Category": "Tutorial",
-      "Description": "Instance blueprint with a fixed-capacity list variable (Waypoints: int, capacity 4). Every tick it appends 7 via the Add (List) write node and mirrors the list's logical length into a scalar via Item Count. After four ticks the list is full and Add degrades to Ok=false — the list never overflows. Watch Waypoints render as List<Int32>[4] Count=k {…} in the debugger.",
+      "Description": "Instance blueprint with a fixed-capacity list variable (Waypoints: int, capacity 4). Every tick it appends 7 via the Add (List) write node and mirrors the list\u0027s logical length into a scalar via Item Count. After four ticks the list is full and Add degrades to Ok=false \u2014 the list never overflows. Watch Waypoints render as List\u003CInt32\u003E[4] Count=k {\u2026} in the debugger.",
       "Difficulty": "Beginner",
       "ConceptsTaught": [
         "Declaring a fixed-capacity list variable (Container: List (fixed))",
-        "ListWrite Add — capacity-bounded, Ok=false on overflow",
+        "ListWrite Add \u2014 capacity-bounded, Ok=false on overflow",
         "Reading a list with the shared collection consumers (Item Count over GetVariable)",
         "Debugger watch rendering of list state"
       ]

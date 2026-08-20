@@ -366,7 +366,10 @@ public class ComponentReflector
             EditWindowManager.RegisterWindow(new ComponentEditWindow(
                 winId, title, EditOwningPerspective, editSession,
                 e, type, EditSessionGetter!, EditPickerContext, _fieldDrawers,
-                interceptor: MutationInterceptor));
+                interceptor: MutationInterceptor,
+                // ⭐ Ruling 14 — `data` IS the value the session is opened on, so the baseline costs
+                //   nothing to supply and is the only thing that makes the staged write surgical.
+                baseline: data));
         }
     }
 

@@ -1,23 +1,24 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "a3f83b53-1baa-4912-b2f0-7ac57f95ba94",
   "Name": "HillAssault2_AbortEngagement",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Action",
-    "Hostings": ["BTreeAction"]
+    "Hostings": [
+      "BTreeAction"
+    ]
   },
-  "Parameters": [],
-  "WorkingState": [],
-  "Variables": [],
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -28,20 +29,30 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "5f7f157f-e3c1-47a4-90ef-55f689e17c8f",
           "EventTypeId": "",
+          "Id": "5f7f157f-e3c1-47a4-90ef-55f689e17c8f",
           "Pins": [],
-          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
-          "Id": "7f6a40e8-ad97-4d91-8a94-31f16eeb2dce",
           "Status": "Success",
+          "Id": "7f6a40e8-ad97-4d91-8a94-31f16eeb2dce",
           "Pins": [],
-          "EditorMetadata": { "X": 400.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 400,
+            "Y": 220,
+            "Comment": null
+          }
         }
       ],
       "Links": [
@@ -52,11 +63,17 @@
           "ToPinId": "ea914d2d-4f48-4cb4-86fa-610f3f48f701"
         }
       ],
-      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
-    "Description": "Slice 0 (warm-up) proof: blueprint-authored rebuild of the C# oracle Action_AbortEngagement (HillAttackTankNodes.cs ~line 517) — an AiPrimitive BTreeAction that unconditionally returns Success. Graph is the trivial always-Success shape: EventEntry (empty EventTypeId, per-tick entry) -> Return(Success). No Parameters/WorkingState/Variables/GetShared — deliberately the smallest possible real node, using only lowered node kinds (EventEntry, Return) to dodge known unimplemented-node bugs (see docs/blueprints/HillAssault_Blueprint_Migration.md, GAP table). New asset under the HillAssault2 working name; does not modify or replace the C# oracle.",
+    "Description": "Slice 0 (warm-up) proof: blueprint-authored rebuild of the C# oracle Action_AbortEngagement (HillAttackTankNodes.cs ~line 517) \u2014 an AiPrimitive BTreeAction that unconditionally returns Success. Graph is the trivial always-Success shape: EventEntry (empty EventTypeId, per-tick entry) -\u003E Return(Success). No Parameters/WorkingState/Variables/GetShared \u2014 deliberately the smallest possible real node, using only lowered node kinds (EventEntry, Return) to dodge known unimplemented-node bugs (see docs/blueprints/HillAssault_Blueprint_Migration.md, GAP table). New asset under the HillAssault2 working name; does not modify or replace the C# oracle.",
     "Category": null,
     "Recipe": null
   }

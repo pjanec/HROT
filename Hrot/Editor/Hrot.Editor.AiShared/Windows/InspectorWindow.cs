@@ -323,7 +323,27 @@ public sealed class InspectorWindow : ManagedWindow
             }
         }
 
-        // ---- B-3: Default-value StructEdit panel ("Static Parameters") ----
+        // ---- B-3: the DEFAULT-VALUE editor for the selected node's ExpressionTargetField ----
+        //
+        // ⭐⭐ WHAT THIS IS (recorded Batch 74; it was carried as "retire STATIC PARAMETERS" since
+        //    Batch 69 on a label nobody had measured). ⛔ It has nothing to do with parameters. When
+        //    the selected BTree/HSM node's facet carries an ExpressionTargetField -- the OUTPUT
+        //    binding, i.e. the blackboard variable that receives the action's expression result --
+        //    this section edits THAT VARIABLE'S DEFAULT VALUE inline via StructEdit, persisting
+        //    through UpdateVariableDefaultValueJson. Contextual default-value authoring for the
+        //    variable the selected node writes. The old label named none of that.
+        //
+        // ⭐ WHY IT IS KEPT, not retired (user ruling 2026-08-17: "no rush removals"):
+        //   - the duplicate CODE half is already gone -- Batch 68 (BP-267) routed this through
+        //     DefaultValueAuthoring.OpenSession, so what remains is a duplicate SURFACE, not a
+        //     second implementation, and ExactlyOneCallSite_OpensAVariableEditSession pins that;
+        //   - the surface earns itself: it is NODE-scoped (you see the default of the variable this
+        //     node writes) where Track C's table is ASSET-scoped;
+        //   - Track C's replacement (VariableEditLauncher) is constructed by nothing yet, so
+        //     retiring this would delete the only live surface -- see
+        //     TrackCsVariableDialog_HasNoEntryPointYet_SoTheInspectorPanelIsTheLiveOne, which
+        //     INVERTS when the Track C menu lands.
+        //
         // Shown when: an expressionTargetFieldAccessor is wired, the current facet carries a
         // non-null ExpressionTargetField, the active asset implements IBlackboardManagedAsset,
         // and an edit service is available.
@@ -349,20 +369,17 @@ public sealed class InspectorWindow : ManagedWindow
                     if (_defaultValueSession is null || _defaultValueSessionVarName != boundVarName)
                     {
                         DisposeAndClearDefaultValueSession();
-                        // Hydrate an instance from the stored JSON (or use a fresh default).
-                        object instance;
-                        try
-                        {
-                            instance = (!string.IsNullOrEmpty(varEntry.DefaultValueJson))
-                                ? JsonSerializer.Deserialize(varEntry.DefaultValueJson, varEntry.FieldType, DefaultValueAuthoring.JsonOptions)
-                                    ?? Activator.CreateInstance(varEntry.FieldType)!
-                                : Activator.CreateInstance(varEntry.FieldType)!;
-                        }
-                        catch
-                        {
-                            instance = Activator.CreateInstance(varEntry.FieldType)!;
-                        }
-                        _defaultValueSession        = _facetEditService.Open(instance, varEntry.FieldType);
+                        // ⭐⭐ C-dialog (Batch 68): this used to inline its OWN copy of
+                        // DefaultValueAuthoring.Hydrate -- the same deserialize-or-Activator try/catch --
+                        // and then call Open itself, so a variable default-value session had TWO
+                        // implementations. ⛔ §9's rail is that exactly ONE call site opens one; it
+                        // failed here. Routed, not rebuilt.
+                        // ⭐⭐ C-dialog (Batch 68): this used to inline its OWN copy of
+                        // DefaultValueAuthoring.Hydrate -- the same deserialize-or-Activator try/catch --
+                        // and then call Open itself, so a variable default-value session had TWO
+                        // implementations. ⛔ §9's rail is that exactly ONE call site opens one; it
+                        // failed here. Routed, not rebuilt.
+                        _defaultValueSession        = DefaultValueAuthoring.OpenSession(_facetEditService, varEntry);
                         _defaultValueSessionVarName = boundVarName;
                     }
 
@@ -370,8 +387,10 @@ public sealed class InspectorWindow : ManagedWindow
                         _defaultValueSession.RebuildDocument();
 
                     ImGuiNET.ImGui.Separator();
-                    ImGuiNET.ImGui.Text("STATIC PARAMETERS");
-                    ImGuiNET.ImGui.TextDisabled($"Default values for: {boundVarName}");
+                    // ⭐ Batch 74: the label now names what the section does. Free to change --
+                    //   no test asserted the old string.
+                    ImGuiNET.ImGui.Text($"DEFAULT VALUE — {boundVarName}");
+                    ImGuiNET.ImGui.TextDisabled("the variable this node writes (ExpressionTargetField)");
 
                     var drawers2 = _facetCustomDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
                     var drawer2  = new ComponentEditDrawer(_defaultValueSession, pickerCtx: null, drawers2);
@@ -485,6 +504,25 @@ public sealed class InspectorWindow : ManagedWindow
     /// "Static Parameters" panel is active for Action/Transition facets.
     /// </summary>
     internal bool HasExpressionTargetFieldAccessor => _expressionTargetFieldAccessor is not null;
+
+    /// <summary>
+    /// ⭐⭐⭐ Batch 92 (<c>92d</c>) — true when a sub-asset resolver has been wired.
+    ///
+    /// <para>⛔ Asserted on the CONSTRUCTED object, never on the registrar's source — 📌 <c>R-67</c>:
+    /// <i>"a rail that builds its own composition root cannot see a composition-root defect."</i>
+    /// 🔴 Without it, <c>DrawSyncBindingsTable</c>'s caller (<c>:449</c>) renders
+    /// <i>"Sub-asset resolver not configured."</i> and the PARAMETER SYNCHRONIZATION panel is
+    /// unusable.</para>
+    /// </summary>
+    internal bool HasSubAssetResolver => _subAssetResolver is not null;
+
+    /// <summary>
+    /// ⭐⭐ Runs the wired resolver. ⛔ <b>Non-null is not the property that matters</b> — a resolver
+    /// that answers <c>null</c> for every id would satisfy <see cref="HasSubAssetResolver"/> and still
+    /// leave the panel empty. ⇒ the rail asks this instead, so it reddens on a stubbed forward too.
+    /// </summary>
+    internal IBlackboardManagedAsset? ResolveSubAssetForRail(Guid assetId)
+        => _subAssetResolver?.Invoke(assetId);
 
     /// <summary>
     /// Returns the bound variable name for the current facet (if any) using the wired

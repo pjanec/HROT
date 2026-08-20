@@ -95,6 +95,62 @@ public interface IDataBreakpointManager
     /// </summary>
     void StageMutation(Entity entity, Type componentType, object componentValue);
 
+    /// <summary>
+    /// Ruling 14 — stage an edit together with the value the editor was SEEDED with, so the
+    /// implementation can write only the bytes the designer actually changed.
+    ///
+    /// <para>
+    /// 🔴 <b>Why the baseline is a parameter and not something the callee can find.</b> The staged
+    /// value and the value in the world differ in TWO ways at drain time — the designer's edit and
+    /// whatever the simulation changed during the paused tick — and nothing at the drain can tell
+    /// those apart. Only the caller knows what the dialog opened on.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Default-implemented on purpose:</b> it forwards to the whole-component
+    /// <see cref="StageMutation(Entity, Type, object)"/>, so an implementer that has no baseline —
+    /// every test double, and any caller that genuinely replaces a component — keeps working
+    /// unchanged and unsurgically.
+    /// </para>
+    /// </summary>
+    void StageMutation(Entity entity, Type componentType, object componentValue, object? baseline)
+        => StageMutation(entity, componentType, componentValue);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 84 — stage a write to a KNOWN BYTE RANGE of a component.</b>
+    ///
+    /// <para>📌 <b>Ruling 14</b> <i>(user)</i>: <i>"the command buffer might need a special 'change
+    /// concrete variable in a concrete blackboard component' … it can not be full component overwrite
+    /// only, but <b>chirurgical change</b>."</i></para>
+    ///
+    /// <para>⭐ <b>Why this exists alongside the baseline overload.</b> 📐 The 4-arg
+    /// <see cref="StageMutation(Entity, Type, object, object?)"/> already produces field writes — it
+    /// DIFFS a before/after pair of boxed components. ⛔ That shape is wrong for a variable edit: the
+    /// editor knows the field's offset directly from the layout, and has no boxed
+    /// <c>Blackboard1024</c> to diff. ⚠ Manufacturing a 1024-byte baseline just to diff back down to
+    /// four bytes would also be a second answer to <i>"which bytes changed?"</i>.</para>
+    ///
+    /// <para>🔴🔴 <b>An out-of-range offset is MEMORY CORRUPTION, not a wrong value</b> *(📌 <c>Q32</c>
+    /// §2.1)*. ⇒ ⛔ <b>implementations MUST bounds-check against the registered component size and
+    /// throw</b> — ⛔ not <c>Debug.Assert</c>, not a silent clamp, not "does nothing".</para>
+    ///
+    /// <para>⛔⛔ <b>The default implementation THROWS, and must not forward.</b> ⚠ Forwarding to the
+    /// whole-component path is precisely <c>R-65</c>'s clobber: <c>Blackboard1024</c> is ONE component
+    /// shared by BTree, HSM and Blueprint at disjoint offsets, so a whole-component write carries
+    /// other subsystems' bytes back a tick. ⭐ A manager that cannot do this must say so out loud.</para>
+    /// </summary>
+    /// <param name="byteOffset">
+    /// ⭐ The offset <b>within the component</b>. ⚠ For blueprint working state that is
+    /// <c>WorkingStateLayout.ComponentOffsetOf(field.OffsetBytes)</c> — the header is already included;
+    /// ⛔ do not add it again here.
+    /// </param>
+    void StageFieldMutation(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
+        => throw new NotSupportedException(
+            $"{GetType().Name} does not implement StageFieldMutation. A surgical field write cannot "
+            + "fall back to a whole-component write: Blackboard1024 is shared by BTree, HSM and "
+            + "Blueprint at disjoint offsets, so the fallback would clobber other subsystems' state.");
+
+
     // ---- Hit callback (called by DataBreakpointSystem) -----------------
 
     /// <summary>

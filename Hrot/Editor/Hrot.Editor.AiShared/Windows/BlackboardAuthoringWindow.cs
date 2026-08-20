@@ -27,7 +27,10 @@ public sealed record VariableViewModel(
     bool   IsAutoManaged         = false,
     bool   IsReadOnly            = false,
     BlackboardVariableRole Role  = BlackboardVariableRole.Input,
-    WorkingStateScope Scope      = WorkingStateScope.Node)
+    WorkingStateScope Scope      = WorkingStateScope.Node,
+    // ⭐ Row 58 — the declaration's persisted default, so the Value column's INITIAL arm has a
+    //   source. ⚠ Trailing and optional: every existing construction site is unchanged.
+    string? DefaultValueJson     = null)
 {
     /// <summary>True when the Scope selector should be shown (i.e. Role == State).</summary>
     public bool ShowScopeSelector => Role == BlackboardVariableRole.State;
@@ -78,7 +81,25 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     private readonly ComparisonSessionRegistry? _sessionRegistry;
     private readonly BlackboardAggregatorService? _aggregatorService;
     private IActionSchemaExporter? _actionSchemaExporter;
+
+    /// <summary>
+    /// ⭐⭐ <c>DEBT-AIB-009</c> — whether this window actually received a schema exporter.
+    /// ⛔ <b>Exists so the rail can ask the OBJECT instead of guessing from the call site's IL.</b>
+    /// 🔴 An earlier version of that rail inspected the caller's SIGNATURE, which
+    /// <c>PerspectiveWorkspaceRegistrar</c> satisfies whether or not it passes the argument on —
+    /// so the probe did not redden and the rail was vacuous.
+    /// </summary>
+    internal bool HasSchemaExporter => _actionSchemaExporter is not null;
     private readonly ILiveBlackboardValueProvider? _liveValueProvider;
+
+    /// <summary>
+    /// ⭐⭐ <c>88a</c> — whether this window actually received a live-value provider.
+    /// ⛔ <b>Same shape and same reason as <see cref="HasSchemaExporter"/> above</b>: 📌 <c>R-67</c>,
+    /// the omission IS the defect, and it is invisible from the call site's signature. 🔴 Blueprint
+    /// shipped with <c>null</c> here while BTree and HSM did not, and the Value column's
+    /// <c>(pending)</c> — the DESIGNED output for a source with no reader — made that look intended.
+    /// </summary>
+    internal bool HasLiveValueProvider => _liveValueProvider is not null;
 
     // Inline rename state
     
@@ -302,7 +323,9 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 IsAutoManaged: v.IsAutoManaged,
                 IsReadOnly:    false,
                 Role:          v.Role,
-                Scope:         v.Scope));
+                Scope:         v.Scope,
+                // ⭐ Row 58 — the INITIAL arm's source for the AI hosts.
+                DefaultValueJson: v.DefaultValueJson));
         }
 
         return new BlackboardWindowViewModel(

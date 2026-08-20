@@ -21,9 +21,44 @@ public interface IVariablesSchemaSource
     void MoveVariable(int sourceIndex, int destIndex);
     int CountNodesReferencingVariable(string name);
     
-    // S3-1: Role / Scope authoring (default no-op so existing mock implementations continue to compile)
-    void UpdateVariableRole(string name, BlackboardVariableRole role) { }
-    void UpdateVariableScope(string name, WorkingStateScope scope) { }
+    /// <summary>
+    /// U-5 / <c>BP-230</c> — whether this source can actually apply <see cref="UpdateVariableRole"/> /
+    /// <see cref="UpdateVariableScope"/>.
+    ///
+    /// <para>
+    /// ⛔⛔ <b>Deliberately has NO default body.</b> Every implementer must answer, because the thing
+    /// this replaces was <b>silence built into the interface</b>: the two setters below shipped as
+    /// <c>{ }</c> defaults *"so existing mock implementations continue to compile"*, and
+    /// <c>BlueprintVariableSchemaSource</c> took that offer. ⇒ the panel drew a live Role combo for a
+    /// blueprint (it gates only on <see cref="IsReadOnly"/>, which is <c>false</c> there), the
+    /// designer changed it, and the call landed in an empty body. ⭐ <b>Trap #5 in the contract
+    /// itself</b> — a default body is the interface volunteering to lie on an implementer's behalf.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <c>Q-k</c> ruled the semantics: for blueprints <c>Role</c>/<c>Scope</c> are <b>read-only</b> —
+    /// a MOVE between storage classes, not a toggle. So the honest answer is not to implement the
+    /// setter but to <b>say the surface cannot edit them</b>, which lets the panel render the value as
+    /// text instead of a dead control.
+    /// </para>
+    /// </summary>
+    bool SupportsRoleScopeEditing { get; }
+
+    // S3-1: Role / Scope authoring.
+    // ⚠ U-5: these keep default bodies so implementers that legitimately cannot edit need not write
+    // them — but the bodies now THROW rather than doing nothing. Combined with
+    // SupportsRoleScopeEditing the pair is honest in both directions: a source that says it cannot
+    // edit is never called, and one that says it can but forgot to implement fails loudly instead of
+    // discarding the designer's edit.
+    void UpdateVariableRole(string name, BlackboardVariableRole role)
+        => throw new NotSupportedException(
+            $"{GetType().Name} does not support editing Role. "
+            + "Check SupportsRoleScopeEditing before calling.");
+
+    void UpdateVariableScope(string name, WorkingStateScope scope)
+        => throw new NotSupportedException(
+            $"{GetType().Name} does not support editing Scope. "
+            + "Check SupportsRoleScopeEditing before calling.");
 
     // Aliasing
     IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements { get; }
@@ -55,6 +90,8 @@ public sealed class BTreeHsmSchemaSource : IVariablesSchemaSource
     public void MoveVariable(int sourceIndex, int destIndex) => _asset.MoveVariable(sourceIndex, destIndex);
     public int CountNodesReferencingVariable(string name) => _asset.CountNodesReferencingVariable(name);
     
+    // U-5: BTree/HSM assets DO carry role/scope, so this source answers yes and implements both.
+    public bool SupportsRoleScopeEditing => true;
     public void UpdateVariableRole(string name, BlackboardVariableRole role) => _asset.UpdateVariableRole(name, role);
     public void UpdateVariableScope(string name, WorkingStateScope scope) => _asset.UpdateVariableScope(name, scope);
 
@@ -398,8 +435,11 @@ public sealed class VariablesPanelControl
                         ImGui.TextDisabled("—");
                 }
                 // Role column
+                // ⭐ U-5/BP-230: gated on the CAPABILITY, not just on IsReadOnly. A source that
+                // cannot apply the edit now renders the value as text (the else-branch) instead of a
+                // live combo that discards it.
                 ImGui.TableNextColumn();
-                if (!schema.IsReadOnly)
+                if (!schema.IsReadOnly && schema.SupportsRoleScopeEditing)
                 {
                     ImGui.SetNextItemWidth(-1f);
                     int roleIdx = (int)row.Role;
@@ -417,7 +457,7 @@ public sealed class VariablesPanelControl
                 ImGui.TableNextColumn();
                 if (row.ShowScopeSelector)
                 {
-                    if (!schema.IsReadOnly)
+                    if (!schema.IsReadOnly && schema.SupportsRoleScopeEditing)
                     {
                         ImGui.SetNextItemWidth(-1f);
                         int scopeIdx = (int)row.Scope;
@@ -513,7 +553,7 @@ public sealed class VariablesPanelControl
                 ImGui.TableNextColumn();
                 if (row.ShowScopeSelector)
                 {
-                    if (!schema.IsReadOnly)
+                    if (!schema.IsReadOnly && schema.SupportsRoleScopeEditing)
                     {
                         ImGui.SetNextItemWidth(-1f);
                         int scopeIdx = (int)row.Scope;

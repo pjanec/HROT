@@ -19,15 +19,22 @@ public static class ManagedCollectionDemo_23325F21_Bp
     public const int BlueprintId = unchecked((int)0x23325F21);
     public const ulong StructureHash = 2707544801263190169UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public int LoopLastItem;
+        [global::System.Runtime.InteropServices.FieldOffset(20)]
         public int ElementOut;
+        [global::System.Runtime.InteropServices.FieldOffset(24)]
         public int CountOut;
+        [global::System.Runtime.InteropServices.FieldOffset(28)]
         public bool ContainsResult;
+        [global::System.Runtime.InteropServices.FieldOffset(32)]
         public int FoundIndex;
+        [global::System.Runtime.InteropServices.FieldOffset(36)]
         public bool WasFound;
     }
     
@@ -42,6 +49,9 @@ public static class ManagedCollectionDemo_23325F21_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
+    
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
     
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
@@ -146,6 +156,8 @@ public static class BlueprintRegistrar_ManagedCollectionDemo_23325F21_Bp
             StateClrType = typeof(ManagedCollectionDemo_23325F21_Bp.State),
             InitDefault = ManagedCollectionDemo_23325F21_Bp.InitDefault,
             Tick = ManagedCollectionDemo_23325F21_Bp.TickThunk,
+            ParamsOffset = ManagedCollectionDemo_23325F21_Bp.ParamsOffset,
+            ParamsSize = ManagedCollectionDemo_23325F21_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["LoopLastItem"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("LoopLastItem", typeof(int), 16, 4, ""),

@@ -540,6 +540,94 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
             entity, typeId, isManaged, componentValue, sizeBytes));
     }
 
+    /// <inheritdoc/>
+    public void StageMutation(Entity entity, Type componentType, object componentValue, object? baseline)
+    {
+        if (componentType  == null) throw new ArgumentNullException(nameof(componentType));
+        if (componentValue == null) throw new ArgumentNullException(nameof(componentValue));
+
+        // ⛔ A managed component has no byte layout to diff, and a null baseline means the caller
+        //    cannot say what the designer changed — both fall back to the whole-component write.
+        if (baseline == null || !componentType.IsValueType)
+        {
+            StageMutation(entity, componentType, componentValue);
+            return;
+        }
+
+        int typeId    = ComponentTypeRegistry.GetId(componentType);
+        int sizeBytes = GetEcsComponentSize(componentType);
+
+        var after  = ToBytes(componentValue, sizeBytes);
+        var before = ToBytes(baseline,       sizeBytes);
+
+        int runs = 0;
+        int i = 0;
+        while (i < sizeBytes)
+        {
+            if (after[i] == before[i]) { i++; continue; }
+
+            int start = i;
+            while (i < sizeBytes && after[i] != before[i]) i++;
+            int length = i - start;
+
+            var payload = new byte[length];
+            Buffer.BlockCopy(after, start, payload, 0, length);
+            _pendingMutations.Enqueue(new PendingDebugMutation(
+                entity, typeId, isManaged: false, payload, length, byteOffset: start));
+            runs++;
+        }
+
+        // ⭐ An edit that changed nothing stages nothing — and that is a real case: the OK button
+        //   commits whether or not the designer altered a value.
+        _ = runs;
+    }
+
+    /// <inheritdoc/>
+    public void StageFieldMutation(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
+    {
+        if (componentType == null) throw new ArgumentNullException(nameof(componentType));
+
+        // ⛔ A managed component has no byte layout to patch. ⭐ Loud, not a fallback: forwarding to
+        //    the whole-component path is R-65's clobber wearing the surgical path's name.
+        if (!componentType.IsValueType)
+            throw new ArgumentException(
+                $"{componentType.Name} is a managed component and has no byte layout to patch. "
+                + "Replace the object through StageMutation instead.", nameof(componentType));
+
+        // 🔴🔴 Q32 §2.1: "an out-of-range offset/size is MEMORY CORRUPTION, not a wrong value. Bounds-
+        //    check against the registered component size and fail LOUDLY."
+        // ⚠ The engine DOES check, in ComponentTable.SetRawAt — but that runs at PLAYBACK, one
+        //   step/continue later and on the sim thread, where nothing remains to attribute it to.
+        //   ⭐ Checking here fails at the designer's OK button, naming the component and the range.
+        int componentSize = GetEcsComponentSize(componentType);
+        if (byteOffset < 0 || bytes.Length <= 0 || byteOffset + bytes.Length > componentSize)
+            throw new ArgumentOutOfRangeException(nameof(byteOffset),
+                $"Field write [{byteOffset}, {byteOffset + bytes.Length}) is outside "
+                + $"{componentType.Name}, which is {componentSize} bytes.");
+
+        // ⭐ COPIED, not aliased: the caller's span is very often a stack buffer or a slice of a
+        //   rented array, and the queue outlives this call by at least one step.
+        _pendingMutations.Enqueue(new PendingDebugMutation(
+            entity,
+            ComponentTypeRegistry.GetId(componentType),
+            isManaged:  false,
+            payload:    bytes.ToArray(),
+            sizeBytes:  bytes.Length,
+            byteOffset: byteOffset));
+    }
+
+    /// <summary>
+    /// ⭐ The managed byte image of a boxed unmanaged component — the same layout the ECS stores, so a
+    /// diff over it names real component offsets. ⚠ <c>Marshal.StructureToPtr</c> is deliberately not
+    /// used: it writes the MARSHALLED layout, which differs from the managed one on <c>bool</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ BATCH 84 — the body moved to <see cref="ComponentBytes.Of"/> so the editor's live write and
+    /// this diff produce the SAME image. ⛔ Two copies would be two answers to "what are this value's
+    /// bytes?", and the wrong one is wrong only for <c>bool</c>.
+    /// </remarks>
+    private static byte[] ToBytes(object boxed, int sizeBytes) => ComponentBytes.Of(boxed, sizeBytes);
+
     /// <summary>
     /// Plays back all staged mutations into the repository via its command buffer.
     /// The ECB will be applied at the next tick boundary (when the kernel calls Tick()).
@@ -562,10 +650,23 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                     m.Payload, GCHandleType.Pinned);
                 try
                 {
-                    ecb.SetComponentRaw(
-                        m.Target, m.ComponentTypeId,
-                        (void*)handle.AddrOfPinnedObject(),
-                        m.SizeBytes);
+                    if (m.IsFieldWrite)
+                    {
+                        // ⭐⭐ Ruling 14 — the surgical write. Only the bytes the designer actually
+                        //    changed are addressed, so the fields the SIM changed during the paused
+                        //    tick survive the drain instead of reverting to their pre-tick values.
+                        ecb.SetComponentFieldRaw(
+                            m.Target, m.ComponentTypeId, m.ByteOffset,
+                            (void*)handle.AddrOfPinnedObject(),
+                            m.SizeBytes);
+                    }
+                    else
+                    {
+                        ecb.SetComponentRaw(
+                            m.Target, m.ComponentTypeId,
+                            (void*)handle.AddrOfPinnedObject(),
+                            m.SizeBytes);
+                    }
                 }
                 finally
                 {

@@ -172,6 +172,79 @@ namespace Fdp.Toolkit.Behavior.Tests
                 }));
         }
 
+        // ── G4 — id collision under DISTINCT names ──────────────────────────
+        /// <summary>
+        /// ⭐⭐ <b>The other half of the duplicate guard, and the one that was missing.</b>
+        ///
+        /// <para>
+        /// The name check cannot see this case: the id is <c>FNV-1a-32</c> of the name
+        /// (<see cref="BehaviorHash.FromName"/>), so two <b>distinct</b> names can hash to one id.
+        /// <c>_nameToId</c> then maps both names to that id while <c>_definitions[id]</c> holds only
+        /// the second definition ⇒ 🔴 <b>the first behavior silently resolves to the second's
+        /// topology</b> — no throw, no log, one behaviour quietly replaced by another.
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠ Driven through the <b>explicit-id</b> overload rather than by hunting for a real FNV
+        /// collision: that overload is a public entry point a generated registrar uses, so the
+        /// collision is reachable without any hashing at all — and a hand-found hash collision would
+        /// make the test about the hash rather than about the guard.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void Register_IdCollisionUnderDistinctNames_Throws()
+        {
+            var registry = new BehaviorRegistry();
+
+            registry.Register(777, "Alpha", new BehaviorDefinition
+            {
+                Name      = "Alpha",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                registry.Register(777, "Bravo", new BehaviorDefinition
+                {
+                    Name      = "Bravo",
+                    BrainTier = BehaviorConstants.BrainTierBTree,
+                }));
+
+            // ⭐ Both sides named: a collision message that omits the resident is unactionable.
+            Assert.Contains("Bravo", ex.Message);
+            Assert.Contains("Alpha", ex.Message);
+        }
+
+        /// <summary>
+        /// ⚠ <b>The id guard must not fire on the reload path.</b> <c>MergeFrom</c> deliberately
+        /// overwrites (a fresh assembly's definition replaces the live one under the same name and
+        /// therefore the same id) — routing that through <c>Register</c> would abort every hot reload.
+        /// ⭐ Stated as its own test because the id guard is the second reason a reload could now
+        /// throw, and the existing test only covers the name one.
+        /// </summary>
+        [Fact]
+        public void MergeFrom_SameNameSameDerivedId_StillOverwrites()
+        {
+            var live = new BehaviorRegistry();
+            live.Register("Reloadable", new BehaviorDefinition
+            {
+                Name      = "Reloadable",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+
+            var staging = new BehaviorRegistry();
+            var updated = new BehaviorDefinition
+            {
+                Name      = "Reloadable",
+                BrainTier = BehaviorConstants.BrainTierHsm,
+            };
+            staging.Register("Reloadable", updated);
+
+            live.MergeFrom(staging);
+
+            Assert.True(live.TryGetDefinition(BehaviorHash.FromName("Reloadable"), out var got));
+            Assert.Same(updated, got);
+        }
+
         // ── Test 8 — distinct names register independently ──────────────────
         /// <summary>
         /// Registering two distinct behavior names must not interfere with each other's
@@ -186,7 +259,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Alpha",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
             });
             registry.Register(2, "Bravo", new BehaviorDefinition
             {
@@ -222,7 +295,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Reloadable",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
             };
             staging.Register(BehaviorHash.FromName("Reloadable"), "Reloadable", updated);
 
@@ -279,7 +352,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // resolver registered BEFORE the topology
             var r1 = new BehaviorRegistry();
-            r1.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self) => { },
+            r1.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
                 typeof(int));
             r1.Register("Y", TopologyOnly());
             Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Y"), out var d1));
@@ -289,7 +362,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // resolver registered AFTER the topology
             var r2 = new BehaviorRegistry();
             r2.Register("Y", TopologyOnly());
-            r2.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self) => { },
+            r2.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
                 typeof(int));
             Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Y"), out var d2));
             Assert.NotNull(d2!.ParseParams);

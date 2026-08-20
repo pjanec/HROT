@@ -1,0 +1,182 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "0a140000-0000-0000-0000-000000000001",
+  "Name": "LayoutAlignmentWitness",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Declarations": [
+    {
+      "Kind": "Variable",
+      "Id": "0a140000-0000-0000-0000-0000000000a1",
+      "Name": "Gate",
+      "Type": {
+        "TypeId": "System.Byte",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": "PA-14 witness: a 1-byte field so the NEXT field\u0027s alignment is observable.",
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "0a140000-0000-0000-0000-0000000000a2",
+      "Name": "Offset",
+      "Type": {
+        "TypeId": "Vector3",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": "PA-14 witness: 12 bytes, so FieldLayout.TypeAlignment\u0027s \u0060_ =\u003E 8\u0060 arm gives align 8 while the CLR packs it at 4.",
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "0a140000-0000-0000-0000-0000000000a3",
+      "Name": "Facing",
+      "Type": {
+        "TypeId": "Quaternion",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": "PA-14 witness: 16 bytes of float, align 4 in the CLR, align 8 to FieldLayout.",
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "0a140000-0000-0000-0000-0000000000a4",
+      "Name": "Label",
+      "Type": {
+        "TypeId": "FixedString32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": "PA-14 witness: a \u0060fixed byte[32]\u0060 buffer \u2014 align 1 in the CLR, align 8 to FieldLayout.",
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "0a140000-0000-0000-0000-0000000000a5",
+      "Name": "Tail",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": "PA-14 witness: a scalar AFTER the divergent types, so a drift accumulated above is still visible at the end.",
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "0a140000-0000-0000-0000-0000000000b0",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "0a140000-0000-0000-0000-000000000010",
+          "Pins": [
+            {
+              "Id": "0a140000-0000-0000-0000-000000000020",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 300,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "0a140000-0000-0000-0000-000000000019",
+          "Pins": [
+            {
+              "Id": "0a140000-0000-0000-0000-0000000000a0",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 480,
+            "Y": 300,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "0a140000-0000-0000-0000-000000000010",
+          "FromPinId": "0a140000-0000-0000-0000-000000000020",
+          "ToNodeId": "0a140000-0000-0000-0000-000000000019",
+          "ToPinId": "0a140000-0000-0000-0000-0000000000a0"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "PA-14 / W2 witness. Every shipped asset agrees with FieldLayout by luck: no corpus asset declares a type whose CLR alignment differs from \u0060SizeBytes switch { 1 =\u003E 1, 2 =\u003E 2, \u003C= 4 =\u003E 4, _ =\u003E 8 }\u0060. This asset declares four that do, so the runtime layout gate has something to fail on.",
+    "Category": "Diagnostics",
+    "Recipe": null
+  }
+}

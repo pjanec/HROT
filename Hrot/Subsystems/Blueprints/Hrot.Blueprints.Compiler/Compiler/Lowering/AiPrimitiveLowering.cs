@@ -45,7 +45,9 @@ internal static class AiPrimitiveLowering
 
     private static IrAsset EnsurePhaseByteInWorkingState(IrAsset asset)
     {
-        if (asset.WorkingState.Any(f => f.Name == "__phase")) return asset;
+        // ⭐ Batch 86 — the state tier is ONE list (R-01); Variables IS the AiPrimitive's
+        //   working-state struct now, and IrAsset.WorkingState is retired.
+        if (asset.Variables.Any(f => f.Name == "__phase")) return asset;
 
         var phaseField = new IrField
         {
@@ -66,13 +68,15 @@ internal static class AiPrimitiveLowering
         // append == prepend when __phase is the only field.)
         return asset with
         {
-            WorkingState = asset.WorkingState.Concat(new[] { phaseField }).ToList(),
+            // ⚠ Still APPEND, and now to the ONE state run — which is where it landed before, because
+            //   an AiPrimitive's state lived in WorkingState and Variables was empty.
+            Variables = asset.Variables.Concat(new[] { phaseField }).ToList(),
         };
     }
 
     private static IrAsset EnsureWaitUntilTimeField(IrAsset asset)
     {
-        if (asset.WorkingState.Any(f => f.Name == "__waitUntilTime")) return asset;
+        if (asset.Variables.Any(f => f.Name == "__waitUntilTime")) return asset;
 
         var waitField = new IrField
         {
@@ -84,7 +88,7 @@ internal static class AiPrimitiveLowering
 
         return asset with
         {
-            WorkingState = asset.WorkingState.Concat(new[] { waitField }).ToList(),
+            Variables = asset.Variables.Concat(new[] { waitField }).ToList(),
         };
     }
 

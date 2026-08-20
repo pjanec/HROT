@@ -108,12 +108,19 @@ public sealed class LocalVariablePickerAndTitleTests
     }
 
     /// <summary>
-    /// ⛔⛔ <b>The scope guard.</b> <c>WorkingState</c>/<c>Parameters</c> are <c>BP-226</c>'s unfixed
-    /// index space — widening the picker to them is exactly what would make that row live. This
-    /// asserts the batch widened to locals and <b>nothing else</b>.
+    /// ⛔⛔ <b>The scope guard.</b> <c>Parameters</c> are <c>BP-226</c>'s unfixed index space —
+    /// widening the picker to them is exactly what would make that row live. This asserts the batch
+    /// widened to locals and <b>nothing else</b>.
+    ///
+    /// <para>⭐⭐⭐ <b>Batch 86 — RESTATED, and this one is a SEMANTIC change, not a spelling one.</b>
+    /// "Phase" was excluded because it was a <c>WorkingState</c>; <c>R-01</c> makes it a
+    /// <c>Variable</c>, and asset variables have always been offered. ⇒ ⭐ it is now EXPECTED in the
+    /// list, and excluding it would be the picker hiding half the state tier from the designer.
+    /// ⛔ The guard itself is untouched and is the whole reason the test survives: <c>Speed</c>, a
+    /// <c>Parameter</c>, must still not appear.</para>
     /// </summary>
     [Fact]
-    public void ThePickerWasNotWidenedToWorkingStateOrParameters()
+    public void ThePickerWasNotWidenedToParameters()
     {
         var g = NewGraph("Tick");
         g.LocalVariables.Add(Decl("Scratch"));
@@ -128,8 +135,7 @@ public sealed class LocalVariablePickerAndTitleTests
         var offered = new BlueprintPickerSources.BlueprintVariablePickerSource(asset, () => g)
             .Query("", null).Select(v => v.Name).ToArray();
 
-        Assert.Equal(new[] { "Ammo", "Scratch" }, offered);
-        Assert.DoesNotContain("Phase", offered);
+        Assert.Equal(new[] { "Ammo", "Phase", "Scratch" }, offered);
         Assert.DoesNotContain("Speed", offered);
     }
 

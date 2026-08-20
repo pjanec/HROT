@@ -296,7 +296,14 @@ public sealed class MacroSurfaceTests
         Assert.Empty(reloaded.Graphs.Single().ExecInputs);
 
         // A pre-Q26 document: the member simply is not there.
-        var legacy = json.Replace("\"ExecInputs\":[],", "");
+        // ⚠ U-15: removed from the DOM, not by string surgery on the compact spelling — the canonical
+        //   on-disk form is now indented, and `"ExecInputs":[],` no longer occurs in it. A test that
+        //   deletes a property by matching its whitespace deletes nothing the day formatting changes,
+        //   and then asserts happily about a document it did not modify.
+        var legacyDom = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        foreach (var graph in legacyDom["Graphs"]!.AsArray())
+            graph!.AsObject().Remove("ExecInputs");
+        var legacy = legacyDom.ToJsonString();
         Assert.DoesNotContain("\"ExecInputs\"", legacy);
 
         var fromLegacy = BlueprintJsonServices.Deserialize(legacy)!;

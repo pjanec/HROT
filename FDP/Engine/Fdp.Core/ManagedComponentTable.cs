@@ -226,6 +226,18 @@ namespace Fdp.Core
                 "SetRaw is not supported for managed components. " +
                 "Use Set() with the deserialized object instead.");
         }
+
+        /// <summary>
+        /// Ruling 14 — ⛔ not applicable to a managed component: it has no byte layout to patch, so
+        /// there is no "the other fields" to preserve. Callers route a managed edit through
+        /// <c>SetManagedComponentRaw</c>, which replaces the reference wholesale.
+        /// </summary>
+        public unsafe void SetRawAt(int entityIndex, int byteOffset, IntPtr src, int size, uint version)
+        {
+            throw new NotSupportedException(
+                "SetRawAt is not supported for managed components — a reference-typed component has "
+                + "no byte layout. Replace the object via the managed path instead.");
+        }
         
         /// <summary>
         /// Checks if chunk is allocated.

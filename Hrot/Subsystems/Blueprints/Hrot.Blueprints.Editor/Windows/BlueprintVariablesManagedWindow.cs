@@ -30,7 +30,7 @@ public sealed class BlueprintVariablesManagedWindow : ManagedWindow
         string?                   idOverride        = null,
         string?                   owningPerspective = null)
         : base(idOverride        ?? "ai_variables_blueprint",
-               "Variables",
+               "Blueprint Variables",
                owningPerspective ?? "Blueprint",
                WindowScope.PerspectiveBound)
     {

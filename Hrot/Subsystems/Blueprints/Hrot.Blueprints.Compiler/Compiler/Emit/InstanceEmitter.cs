@@ -65,8 +65,17 @@ internal static class InstanceEmitter
         e.WriteLine("public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();");
         e.WriteLine();
 
+        EmitParamsGeometry(e, asset);
+        e.WriteLine();
+
         EmitInitDefault(e, asset);
         e.WriteLine();
+
+        if (asset.Parameters.Count > 0)
+        {
+            EmitParseParams(e, asset);
+            e.WriteLine();
+        }
 
         foreach (var evtGraph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Event))
         {
@@ -99,22 +108,215 @@ internal static class InstanceEmitter
         e.WriteLine("}");
     }
 
+    /// <summary>
+    /// ⭐⭐ Batch 56 / ruling 8 — <c>State</c> holds the asset's ONE state tier,
+    /// <see cref="IrAsset.StateDeclarations"/>. ⛔ It used to hold <c>Variables</c> alone, so a
+    /// <c>WorkingState</c> declaration on an Instance — legal since <c>U-12</c> split <c>BP1031</c> —
+    /// was bound by Stage 5 and then never emitted.
+    /// </summary>
     private static void EmitStateStruct(CSharpEmitter e, IrAsset asset)
     {
-        EmitListWrappers(e, asset.Variables);
-        e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+        // ⚠ ONE wrapper pass over state AND params: EmitListWrappers dedupes within a call, so two
+        //   calls sharing a `__List_…` shape would emit the type twice (CS0101). Byte-identical for
+        //   every asset with no parameters, which is all 296 shipped Instances.
+        EmitListWrappers(e, asset.Parameters.Count == 0
+            ? asset.StateDeclarations
+            : asset.StateDeclarations.Concat(asset.Parameters).ToList());
+        EmitParamsStruct(e, asset);
+
+        // ⭐⭐ W4 (Batch 60) — when every size is exact, the struct is DECLARED at the computed offsets
+        //    rather than left to agree with them. See CSharpEmitter.UseExplicitLayout for why this is
+        //    gated and why alignment reliability is not a second predicate.
+        bool explicitLayout = CSharpEmitter.UseExplicitLayout(asset);
+        e.WriteLine(explicitLayout
+            ? "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]"
+            : "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
         e.WriteLine("public struct State");
         e.WriteLine("{");
         e.Indent();
+        if (explicitLayout) e.WriteLine("[global::System.Runtime.InteropServices.FieldOffset(0)]");
         e.WriteLine("public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes");
-        foreach (var f in asset.Variables)
+        // ⭐⭐⭐ Batch 70 / DESIGN_Parameter_Model.md §3.3 — [Cursor 16][Params N][State M]. The params
+        //   region is part of the ONE payload struct, so StateSize keeps meaning "the whole payload"
+        //   and TryAttach/ChooseTier need no new arithmetic. ⛔ Emitted ONLY when the asset declares
+        //   parameters: 296 shipped Instance assets declare none, and the field's absence keeps their
+        //   generated text — and their StructureHash — byte-identical.
+        if (asset.Parameters.Count > 0)
+        {
+            if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({ParamsOffsetOf(asset)})]");
+            e.WriteLine($"public Params Params;  // params region, {ParamsOffsetOf(asset)} .. + ParamsSize");
+        }
+        foreach (var f in asset.StateDeclarations)
+        {
+            if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({CSharpEmitter.FieldOffsetOf(asset, f)})]");
             e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+        }
         // BP-57 / Q27-A3 — suspending graphs' locals, appended AFTER the real fields so their offsets
         // continue the struct's layout (FieldLayout does the same arithmetic). Addressed by name only.
         foreach (var f in asset.GraphLocalSlots)
+        {
+            if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({CSharpEmitter.FieldOffsetOf(asset, f)})]");
             e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+        }
         e.Outdent();
         e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// ⭐ Where an Instance's params region begins — after the 16-byte <c>BlueprintLatentCursor</c>.
+    ///
+    /// <para>
+    /// ⛔⛔ <b>It asks <c>FieldLayout</c> rather than repeating the number.</b> A private
+    /// <c>=&gt; 16</c> here was the first draft, and a revert probe caught what it costs: with the
+    /// layout base reverted to <c>0</c>, the emitted <c>ParamsOffset</c> constant stayed <b>16</b>
+    /// while the fields were laid at <b>0</b> — the declaration and the layout describing different
+    /// memory, which is the drift this constant exists to prevent. ⭐ One home: <c>FieldLayout</c> lays
+    /// the fields at it, this declares the struct at it, and the registration emits it onto
+    /// <c>BlueprintDefinition.ParamsOffset</c> so no runtime call site re-derives it either.
+    /// </para>
+    /// </summary>
+    private static int ParamsOffsetOf(IrAsset asset) => Lowering.FieldLayout.ParamsStructBase(asset);
+
+    /// <summary>
+    /// ⭐⭐ The nested <c>Params</c> struct — the Instance mirror of <c>AiPrimitiveEmitter</c>'s
+    /// top-level one. ⚠ Its <c>[FieldOffset]</c>s are <b>struct-relative</b> (<c>f.Offset -
+    /// ParamsOffset</c>), because <c>FieldLayout</c> lays params at their PAYLOAD offset.
+    /// <para>
+    /// ⭐ <c>Size</c> is declared too, so the struct occupies exactly the bytes the layout reserved and
+    /// the state fields that follow cannot be pushed by CLR tail padding. Under the
+    /// <c>LayoutFromRuntime</c> regime (a field whose size the compiler cannot know) it stays
+    /// Sequential, exactly as <c>State</c> does — offsets are queried from the real type there.
+    /// </para>
+    /// </summary>
+    private static void EmitParamsStruct(CSharpEmitter e, IrAsset asset)
+    {
+        if (asset.Parameters.Count == 0) return;
+
+        bool explicitLayout = CSharpEmitter.UseExplicitLayout(asset);
+        if (explicitLayout)
+        {
+            int size = ParamsRegionSize(asset);
+            e.WriteLine("[global::System.Runtime.InteropServices.StructLayout("
+                        + "global::System.Runtime.InteropServices.LayoutKind.Explicit, "
+                        + $"Size = {size})]");
+        }
+        else
+        {
+            e.WriteLine("[global::System.Runtime.InteropServices.StructLayout("
+                        + "global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+        }
+        e.WriteLine("public struct Params");
+        e.WriteLine("{");
+        e.Indent();
+        foreach (var f in asset.Parameters)
+        {
+            if (explicitLayout)
+                e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({f.Offset - ParamsOffsetOf(asset)})]");
+            e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+        }
+        e.Outdent();
+        e.WriteLine("}");
+    }
+
+    /// <summary>The bytes the params region occupies, as <c>FieldLayout</c> reserved them.</summary>
+    private static int ParamsRegionSize(IrAsset asset)
+    {
+        int end = ParamsOffsetOf(asset);
+        foreach (var f in asset.Parameters)
+            end = System.Math.Max(end, f.Offset + f.Size);
+        return end - ParamsOffsetOf(asset);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>ParamsOffset</c> / <c>ParamsSize</c>, emitted so the runtime never re-derives them.
+    /// ⚠ <c>ParamsSize</c> is <c>Unsafe.SizeOf&lt;Params&gt;()</c> rather than a baked number: the
+    /// scratch buffer the attach path parses into must be the size the CLR actually gave the struct,
+    /// not the size the compiler predicted.
+    /// </summary>
+    private static void EmitParamsGeometry(CSharpEmitter e, IrAsset asset)
+    {
+        e.WriteLine($"public const int ParamsOffset = {ParamsOffsetOf(asset)};");
+        e.WriteLine(asset.Parameters.Count > 0
+            ? "public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();"
+            : "public static int ParamsSize => 0;");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>DESIGN_Parameter_Model.md</c> §3.3 — <b>an Instance parses its params through the SAME
+    /// pipeline a behaviour does.</b> The signature is <c>ParseParamsDelegate</c> verbatim: only the
+    /// destination pointer differs (a behaviour passes <c>&amp;bb.BehaviorParameters[0]</c>, an
+    /// Instance passes <c>slotPayload + ParamsOffset</c>). ⛔ No second delegate type (ruling 9).
+    ///
+    /// <para>
+    /// ⭐ The body is <c>DEBT-AIB-021</c>'s decided shape, one mechanism for both hosts: <b>bake the
+    /// declared defaults FIRST, then overlay a wrapper object keyed by parameter name.</b> An absent
+    /// key leaves the default standing; an <b>unknown key is IGNORED</b> (what the curated path already
+    /// does); <b>malformed JSON THROWS</b>, which is what makes parse-before-commit meaningful.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <c>host</c> is accepted and unused — <c>IHostVariableAccess</c> ships declared-not-implemented
+    /// and <c>E7a</c> populates it. Its value for a root occurrence is <c>null</c>.
+    /// </para>
+    /// </summary>
+    private static void EmitParseParams(CSharpEmitter e, IrAsset asset)
+    {
+        e.WriteLine("public static unsafe void ParseParams(");
+        e.Indent();
+        e.WriteLine("string json,");
+        e.WriteLine("byte* memory,");
+        e.WriteLine("global::Fdp.Core.EntityRepository world,");
+        e.WriteLine("global::Fdp.Core.Entity self,");
+        e.WriteLine("global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)");
+        e.Outdent();
+        e.WriteLine("{");
+        e.Indent();
+        e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<Params>(memory);");
+        e.WriteLine("p = default;");
+
+        // Step 1 — the declared defaults.
+        foreach (var f in asset.Parameters.Where(f =>
+            !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
+        {
+            e.WriteLine($"p.{f.Name} = {f.DefaultValueCSharp};");
+        }
+        foreach (var f in asset.Parameters.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
+        {
+            e.WriteLine($"p.{f.Name}.Count = {f.Type.InitialLength};");
+        }
+
+        // Step 2 — the overlay.
+        e.WriteLine("if (string.IsNullOrWhiteSpace(json)) return;");
+        e.WriteLine("using var __doc = global::System.Text.Json.JsonDocument.Parse(json);");
+        e.WriteLine("if (__doc.RootElement.ValueKind != global::System.Text.Json.JsonValueKind.Object) return;");
+        e.WriteLine("foreach (var __prop in __doc.RootElement.EnumerateObject())");
+        e.WriteLine("{");
+        e.Indent();
+        e.WriteLine("switch (__prop.Name)");
+        e.WriteLine("{");
+        e.Indent();
+        foreach (var f in asset.Parameters)
+        {
+            e.WriteLine($"case \"{f.Name}\":");
+            e.Indent();
+            e.WriteLine($"p.{f.Name} = global::System.Text.Json.JsonSerializer.Deserialize<{CSharpType(f.Type)}>(");
+            e.WriteLine("    __prop.Value.GetRawText(), __ParamJsonOptions)!;");
+            e.WriteLine("break;");
+            e.Outdent();
+        }
+        e.WriteLine("// ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.");
+        e.WriteLine("default: break;");
+        e.Outdent();
+        e.WriteLine("}");
+        e.Outdent();
+        e.WriteLine("}");
+        e.Outdent();
+        e.WriteLine("}");
+        e.WriteLine();
+        e.WriteLine("// ⭐ The platform-canonical options, so params share ONE wire format with");
+        e.WriteLine("// scenario save/load and with the BTree bridge's own ParseParams.");
+        e.WriteLine("private static readonly global::System.Text.Json.JsonSerializerOptions __ParamJsonOptions =");
+        e.WriteLine("    global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;");
     }
 
     /// <summary>
@@ -161,7 +363,10 @@ internal static class InstanceEmitter
         e.WriteLine("public static class VarIds");
         e.WriteLine("{");
         e.Indent();
-        foreach (var v in asset.Variables)
+        // Batch 56 — the whole state tier, not just Variables: a name→id constant is exactly as true
+        // for a WorkingState declaration on an Instance, and omitting it would be the same silent gap
+        // one level up.
+        foreach (var v in asset.StateDeclarations)
             e.WriteLine($"public const string {v.Name} = \"{v.Id}\";");
         e.Outdent();
         e.WriteLine("}");
@@ -175,17 +380,21 @@ internal static class InstanceEmitter
         e.WriteLine("ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(");
         e.WriteLine("    ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(stateBytes));");
         e.WriteLine("s = default;");
-        foreach (var v in asset.Variables.Where(f =>
-            !string.IsNullOrEmpty(f.DefaultValueCSharp) &&
-            f.DefaultValueCSharp != "0" &&
-            f.DefaultValueCSharp != "default"))
+        // ⭐⭐ Batch 56 — the SILENT half of the defect lives here. An unreferenced wrong-side declaration
+        // produced no Roslyn error at all: it simply had no field and no initialiser, so an authored
+        // initial value was carried through the JSON, through Stage 5, and then dropped.
+        // ⭐ BP-247 — the skip test is VALUE-based, not text-based. It used to be `!= "0"`, and 45
+        //   shipped `float` fields carry the JSON default `0`, which now renders as `0F`; a text test
+        //   would have started emitting 45 assignments writing a zero over a zero.
+        foreach (var v in asset.StateDeclarations.Where(f =>
+            !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
         {
             e.WriteLine($"s.{v.Name} = {v.DefaultValueCSharp};");
         }
         // FC-2/LV-1 (Q#19-B): declared initial length seeds Count over the already-zeroed slots
         // (preallocation is free for blittable elements -- default(T) is all-zero bytes). This is
         // the PARTIAL init the whole-field DefaultValueCSharp path cannot express (review F2).
-        foreach (var v in asset.Variables.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
+        foreach (var v in asset.StateDeclarations.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
         {
             e.WriteLine($"s.{v.Name}.Count = {v.Type.InitialLength};");
         }

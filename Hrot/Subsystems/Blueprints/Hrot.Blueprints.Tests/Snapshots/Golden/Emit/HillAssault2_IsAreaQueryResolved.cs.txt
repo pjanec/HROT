@@ -24,18 +24,23 @@ public static class HillAssault2IsAreaQueryResolved_1D3BBCAF_Bp
     {
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public long CachedEqsRequestId;
+        [global::System.Runtime.InteropServices.FieldOffset(8)]
         public int CachedTargetGroupHandle;
+        [global::System.Runtime.InteropServices.FieldOffset(12)]
         public float EqsRequestTime;
     }
+    
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
-        dst->CachedEqsRequestId = -1;
+        dst->CachedEqsRequestId = -1L;
         dst->CachedTargetGroupHandle = -1;
     }
     
@@ -126,8 +131,11 @@ public static class HillAssault2IsAreaQueryResolved_1D3BBCAF_Bp
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
+        // W13: the offset form — identical in shape to the BTree bridge's per-node adapter.
+        //      Standalone hosting is the single-method case, so the baked offset is 0.
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-            ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);
+            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
+                ref bb.BehaviorParameters[0], (nint)0));
         ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);
         unsafe
         {
@@ -158,7 +166,15 @@ public static class BlueprintRegistrar_HillAssault2IsAreaQueryResolved_1D3BBCAF_
             Name = "HillAssault2_IsAreaQueryResolved",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2IsAreaQueryResolved_1D3BBCAF_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2IsAreaQueryResolved_1D3BBCAF_Bp.StateSize,
+            AssetId = new Guid("8ded9090-035c-59aa-8e2c-cc6c9ca9a130"),
+            StateClrType = typeof(HillAssault2IsAreaQueryResolved_1D3BBCAF_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["CachedEqsRequestId"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CachedEqsRequestId", typeof(long), 0, 8, ""),
+                ["CachedTargetGroupHandle"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CachedTargetGroupHandle", typeof(int), 8, 4, ""),
+                ["EqsRequestTime"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("EqsRequestTime", typeof(float), 12, 4, ""),
+            },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IsAreaQueryResolved_1D3BBCAF_Bp.BTreeTick@0", HillAssault2IsAreaQueryResolved_1D3BBCAF_Bp.BTreeTick);
     }

@@ -17,6 +17,13 @@
     <InternalsVisibleTo Include="Hrot.Blueprints.Compiler.Tests" />
   </ItemGroup>
 
+  <!-- Q31-A: the v1⇄v2 transform, extracted so `Hrot.Common` can reach it without a cycle.
+       ⚠ UNCONDITIONAL, and that is the point: the netstandard2.0 target is the generator, which is
+       the one production reader that must be able to Down a v2 file. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Blueprints.Schema\Hrot.Blueprints.Schema.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
     <PackageReference Include="System.Runtime.Loader" Version="4.3.0" />

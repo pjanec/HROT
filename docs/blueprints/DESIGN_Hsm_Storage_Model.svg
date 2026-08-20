@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <style>
+    .hdr   { font-size:15px; font-weight:700; fill:#1b2733 }
+    .sub   { font-size:11px; fill:#5b6b7a }
+    .lbl   { font-size:12px; font-weight:600; fill:#1b2733 }
+    .ok    { fill:#e6f4ea; stroke:#2e7d32 }
+    .gap   { fill:#fdecea; stroke:#c62828 }
+    .part  { fill:#e8f0fe; stroke:#1a56c4 }
+    .note  { font-size:11px; fill:#37474f }
+    .mono  { font-family:Consolas, monospace; font-size:11px }
+  </style>
+
+  <text x="20" y="26" class="hdr">Where an AI behaviour's bytes live — BTree (shipped) vs HSM (measured 2026-08-17)</text>
+  <text x="20" y="44" class="sub">Three storage classes. HSM has one of them. The other two are BP-281 and E3.</text>
+
+  <!-- column headers -->
+  <text x="250" y="80" class="lbl" text-anchor="middle">① Role=Input — the params</text>
+  <text x="250" y="95" class="sub" text-anchor="middle">BrainBlackboard.BehaviorParameters[100]</text>
+  <text x="520" y="80" class="lbl" text-anchor="middle">② Role=State @Behavior/Entity</text>
+  <text x="520" y="95" class="sub" text-anchor="middle">partition allocator slot</text>
+  <text x="780" y="80" class="lbl" text-anchor="middle">③ per-OCCURRENCE bytes</text>
+  <text x="780" y="95" class="sub" text-anchor="middle">partition slot, occurrence in the key</text>
+
+  <!-- BTree row -->
+  <text x="30" y="150" class="lbl">BTree</text>
+  <text x="30" y="166" class="sub">the template</text>
+
+  <rect x="120" y="120" width="260" height="62" rx="6" class="ok" stroke-width="1.5"/>
+  <text x="132" y="140" class="note">✅ packed by <tspan class="mono">BTreeBlackboardPackHelper</tspan></text>
+  <text x="132" y="157" class="note">✅ written by generated <tspan class="mono">ParseParams</tspan></text>
+  <text x="132" y="174" class="note">defaults, then JSON overlay (DEBT-AIB-021)</text>
+
+  <rect x="400" y="120" width="240" height="62" rx="6" class="part" stroke-width="1.5"/>
+  <text x="412" y="140" class="note">✅ <tspan class="mono">ComputeStatefulSlotKey</tspan></text>
+  <text x="412" y="157" class="note"><tspan class="mono">FNV(assetId ++ variableName)</tspan></text>
+  <text x="412" y="174" class="note">deliberately shared per behaviour</text>
+
+  <rect x="660" y="120" width="230" height="62" rx="6" class="ok" stroke-width="1.5"/>
+  <text x="672" y="140" class="note">✅ <tspan class="mono">Scope.Node</tspan></text>
+  <text x="672" y="157" class="note"><tspan class="mono">FNV(assetId ++ nodeVisualId)</tspan></text>
+  <text x="672" y="174" class="note">two nodes ⇒ two regions</text>
+
+  <!-- HSM row -->
+  <text x="30" y="272" class="lbl">HSM</text>
+  <text x="30" y="288" class="sub">measured</text>
+
+  <rect x="120" y="242" width="260" height="62" rx="6" class="gap" stroke-width="1.5"/>
+  <text x="132" y="262" class="note">⛔ NOTHING — no pack step, no ParseParams</text>
+  <text x="132" y="279" class="note">an authored Input reaches no emitted output</text>
+  <text x="132" y="296" class="note" font-weight="700">BP-281</text>
+
+  <rect x="400" y="242" width="240" height="62" rx="6" class="part" stroke-width="1.5"/>
+  <text x="412" y="262" class="note">✅ shipped in E1/E2 (Batch 67)</text>
+  <text x="412" y="279" class="note">same allocator, same key function</text>
+  <text x="412" y="296" class="note" font-weight="700">the one class that is done</text>
+
+  <rect x="660" y="242" width="230" height="62" rx="6" class="gap" stroke-width="1.5"/>
+  <text x="672" y="262" class="note">⛔ action DTO at a BAKED offset</text>
+  <text x="672" y="279" class="note">into the single 100-byte blackboard</text>
+  <text x="672" y="296" class="note" font-weight="700">E3 — two regions, one home</text>
+
+  <!-- arrows: the fix direction -->
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#1a56c4"/>
+    </marker>
+  </defs>
+  <path d="M250,120 L250,105 L250,105" stroke="none"/>
+  <line x1="250" y1="242" x2="250" y2="188" stroke="#1a56c4" stroke-width="1.6" marker-end="url(#a)" stroke-dasharray="4 3"/>
+  <line x1="780" y1="242" x2="780" y2="188" stroke="#1a56c4" stroke-width="1.6" marker-end="url(#a)" stroke-dasharray="4 3"/>
+
+  <rect x="120" y="340" width="770" height="104" rx="8" fill="#f7f9fb" stroke="#c7d2dc"/>
+  <text x="136" y="362" class="lbl">The unified answer — adopt BTree's shape twice, invent nothing</text>
+  <text x="136" y="383" class="note">① <tspan font-weight="700">BP-281</tspan> — pack Input-role variables and emit ParseParams, exactly as the BTree bridge does. Destination is decided by symmetry: not blocked on E3.</text>
+  <text x="136" y="403" class="note">③ <tspan font-weight="700">E3</tspan> — put the occurrence in the key (HSM passes Guid.Empty today) and move the action DTO onto the allocator. Delivery = Q35.</text>
+  <text x="136" y="423" class="note">    <tspan font-weight="700">E5</tspan> a hosted subtree is one more occurrence key · <tspan font-weight="700">E7a</tspan> the host context reads the host's variables by name through the same keys.</text>
+</svg>

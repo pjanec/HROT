@@ -46,10 +46,65 @@ public sealed record IrAsset
     public AiPrimitiveIntent? Intent { get; init; }
     public IReadOnlyList<AiPrimitiveHosting> Hostings { get; init; } = Array.Empty<AiPrimitiveHosting>();
     public IReadOnlyList<IrField> Parameters { get; init; } = Array.Empty<IrField>();
+    /// <summary>
+    /// ⚠⚠ <b>RETIRED in Batch 86 — always EMPTY.</b> 📌 <c>R-01</c>: the state tier is ONE list and
+    /// <see cref="Variables"/> carries it, on both dispatch kinds. ⭐ <b>Kept, not deleted</b> —
+    /// deleting the property is stage <c>D4</c>'s.
+    /// </summary>
     public IReadOnlyList<IrField> WorkingState { get; init; } = Array.Empty<IrField>();
 
     // For Instance only
     public IReadOnlyList<IrField> Variables { get; init; } = Array.Empty<IrField>();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Ruling 8 (Batch 56) — the ONE state tier: <c>WorkingState ∪ Variables</c>.</b>
+    ///
+    /// <para>
+    /// ⭐ <b>The user's words:</b> <i>"as the global vars and working state vars are the same stuff, it
+    /// makes no sense to emit them differently… no keeping two implementations for the same concept."</i>
+    /// Both kinds are the cell <c>(State, Asset)</c>; only <see cref="Parameters"/> — <c>(Input, Asset)</c>
+    /// — is a genuinely different thing, and it stays out.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔⛔ <b>What this closes.</b> <c>U-12</c> made the mixture legal at Stage 2 (<c>BP1024</c> retired,
+    /// <c>BP1031</c> split) and <c>Stage5.FindVariableRef</c> already resolves across both — but the two
+    /// emitters each walked ONE list, so a wrong-side declaration either produced a Roslyn error naming a
+    /// field the designer never wrote, or — unreferenced — 🔴 <b>vanished silently while its initial value
+    /// sat in the JSON.</b> ⭐ Every reader of the state tier now walks THIS, so there is one answer.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b>The order is <c>DeclarationList.KindOrder</c> — WorkingState, then Variable</b>: storage
+    /// order, which is also <c>StructureHashComputation</c>'s append order and the order
+    /// <see cref="Assets.BlueprintAsset.DeclarationStore"/> keeps its runs in. ⛔ Not resolution order
+    /// (<c>Variables</c> first), which is a name-collision <i>priority</i> and would put field order out of
+    /// step with the hash.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>The three lists remain the STORAGE and this is a projection over them</b> — deliberately, per
+    /// the batch's IR-boundary constraint. <c>VariableRef</c> addresses a (kind, list-relative index), so
+    /// collapsing the storage would invalidate every baked reference; a union that only ever describes
+    /// <i>layout</i> costs nothing and settles the question the emitters were disagreeing about.
+    /// ⚠ <b>Not cached, on purpose:</b> this is a <c>record</c>, and a cached field would survive a
+    /// <c>with</c> expression and go stale exactly when a lowering pass appends a field. The two
+    /// single-list fast paths mean every shipped asset allocates nothing at all.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<IrField> StateDeclarations
+    {
+        get
+        {
+            if (WorkingState.Count == 0) return Variables;
+            if (Variables.Count    == 0) return WorkingState;
+            var all = new List<IrField>(WorkingState.Count + Variables.Count);
+            all.AddRange(WorkingState);
+            all.AddRange(Variables);
+            return all;
+        }
+    }
+
     public IReadOnlyList<IrCustomEvent> CustomEvents { get; init; } = Array.Empty<IrCustomEvent>();
     public IReadOnlyList<int> CallablePeerBlueprintIds { get; init; } = Array.Empty<int>();
     public bool IsWorldSingleton { get; init; }

@@ -1,0 +1,47 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 1a200000-0000-0000-0000-0000000000dd
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Generated;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class PlatoonHillAttack2
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Sequence(seq =>
+            {
+                seq.Action("Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.TickCore@0@719287041",
+                    visualId: new Guid("1a200000-0000-0000-0000-0000000000a1"));
+                seq.Action("Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.TickCore@24@668954184",
+                    visualId: new Guid("1a200000-0000-0000-0000-0000000000a2"));
+                seq.Condition("Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.TickCore@40@685731803",
+                    visualId: new Guid("1a200000-0000-0000-0000-0000000000a3"));
+                seq.Repeater(-1, d4 => d4
+                    .Sequence(seq =>
+                    {
+                        seq.Action("Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.TickCore@40@450845137",
+                            visualId: new Guid("1a200000-0000-0000-0000-0000000000b1"));
+                        seq.Action("Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.TickCore@48@400512280",
+                            visualId: new Guid("1a200000-0000-0000-0000-0000000000b2"));
+                        seq.Action("Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.TickCore@48@417289899",
+                            visualId: new Guid("1a200000-0000-0000-0000-0000000000b3"));
+                        seq.Action("Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.TickCore@88@501177994",
+                            visualId: new Guid("1a200000-0000-0000-0000-0000000000b4"));
+                    },
+                        visualId: new Guid("1a200000-0000-0000-0000-000000000003")),
+                    visualId: new Guid("1a200000-0000-0000-0000-0000000000f1"));
+            },
+                visualId: new Guid("1a200000-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("PlatoonHillAttack2", AssetId = "1a200000-0000-0000-0000-0000000000dd")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("PlatoonHillAttack2");
+}

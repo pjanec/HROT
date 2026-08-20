@@ -83,6 +83,15 @@ internal static class BehaviorTreeAssetProjector
             }
         }
 
+        // ⭐ W7b (§9.4) -- per-VARIABLE "allow concurrent writes".
+        if (layout?.ConcurrentWritesAllowed != null)
+        {
+            foreach (var variableName in layout.ConcurrentWritesAllowed)
+            {
+                asset.SetConcurrentWritesAllowed(variableName, true);
+            }
+        }
+
         return asset;
     }
 

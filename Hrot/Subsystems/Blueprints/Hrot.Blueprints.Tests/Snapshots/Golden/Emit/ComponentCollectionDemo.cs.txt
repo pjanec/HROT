@@ -19,12 +19,16 @@ public static class ComponentCollectionDemo_D9BB8EF6_Bp
     public const int BlueprintId = unchecked((int)0xD9BB8EF6);
     public const ulong StructureHash = 10012552836510451542UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public int LoopLastItem;
+        [global::System.Runtime.InteropServices.FieldOffset(20)]
         public int ElementOut;
+        [global::System.Runtime.InteropServices.FieldOffset(24)]
         public int CountOut;
     }
     
@@ -36,6 +40,9 @@ public static class ComponentCollectionDemo_D9BB8EF6_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
+    
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
     
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
@@ -106,6 +113,8 @@ public static class BlueprintRegistrar_ComponentCollectionDemo_D9BB8EF6_Bp
             StateClrType = typeof(ComponentCollectionDemo_D9BB8EF6_Bp.State),
             InitDefault = ComponentCollectionDemo_D9BB8EF6_Bp.InitDefault,
             Tick = ComponentCollectionDemo_D9BB8EF6_Bp.TickThunk,
+            ParamsOffset = ComponentCollectionDemo_D9BB8EF6_Bp.ParamsOffset,
+            ParamsSize = ComponentCollectionDemo_D9BB8EF6_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["LoopLastItem"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("LoopLastItem", typeof(int), 16, 4, ""),

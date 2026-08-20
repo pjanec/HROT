@@ -25,6 +25,17 @@ internal sealed class ComponentEditWindow : ManagedWindow
     private readonly Func<IInspectableSession?> _sessionGetter;
     private readonly ComponentEditDrawer _drawer;
     private readonly IMutationInterceptor? _interceptor;
+    /// <summary>
+    /// ⭐⭐ Ruling 14 — the component value the edit session was SEEDED with.
+    ///
+    /// <para>
+    /// 🔴 Without it a staged edit is a WHOLE-COMPONENT write built from what the paused editor saw,
+    /// i.e. the PRE-tick snapshot — and the drain lands it after the post-tick restore, so every field
+    /// the designer did not touch reverts by a tick. ⛔ Nothing at the drain can separate the
+    /// designer's change from the simulation's; only this baseline can.
+    /// </para>
+    /// </summary>
+    private readonly object? _baseline;
     private string? _errorMessage;
 
     internal ComponentEditWindow(
@@ -37,9 +48,11 @@ internal sealed class ComponentEditWindow : ManagedWindow
         Func<IInspectableSession?> sessionGetter,
         IComponentPickerContext? pickerCtx = null,
         IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
-        IMutationInterceptor? interceptor = null)
+        IMutationInterceptor? interceptor = null,
+        object? baseline = null)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
+        _baseline      = baseline;
         _session       = session;
         _targetEntity  = targetEntity;
         _componentType = componentType;
@@ -90,7 +103,9 @@ internal sealed class ComponentEditWindow : ManagedWindow
 
             if (_interceptor != null && _interceptor.IsPaused)
             {
-                _interceptor.StageMutation(_targetEntity, _componentType, newState);
+                // ⭐ Ruling 14 — hand over the baseline so only the bytes the designer changed are
+                //   written. A null baseline degrades to the old whole-component write by contract.
+                _interceptor.StageMutation(_targetEntity, _componentType, newState, _baseline);
                 CloseAndCleanup();
                 return;
             }

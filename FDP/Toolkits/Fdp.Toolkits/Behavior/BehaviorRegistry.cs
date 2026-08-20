@@ -21,7 +21,15 @@ namespace Fdp.Toolkit.Behavior
     /// entity map, etc. — reached via <paramref name="world"/> singletons (rather than a
     /// registration-time closure). Runs once at behavior activation (<see cref="Systems.BehaviorIngressSystem"/>).
     /// </summary>
-    public unsafe delegate void ParseParamsDelegate(string json, byte* memory, EntityRepository world, Entity self);
+    /// <param name="host">
+    /// ⭐⭐ <c>G1</c>/<c>E7</c> — the HOSTING occurrence's variables, or <c>null</c> for a root
+    /// behaviour. 📄 <c>DESIGN_Parameter_Model.md</c> §3.4.
+    /// ⛔ <b>Always <c>null</c> today</b>: <see cref="IHostVariableAccess"/> is declared and
+    /// unimplemented on purpose. ⭐ The parameter is here NOW because adding one is a breaking change
+    /// to every resolver, and <c>E7a</c> should populate it without a second such change.
+    /// </param>
+    public unsafe delegate void ParseParamsDelegate(
+        string json, byte* memory, EntityRepository world, Entity self, IHostVariableAccess? host);
 
     /// <summary>Variable metadata for one packed slot in BrainBlackboard.BehaviorParameters.</summary>
     public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);
@@ -222,6 +230,25 @@ namespace Fdp.Toolkit.Behavior
                     + "self-register exactly once under a unique name. A second registration indicates a "
                     + "name collision between two [BlueprintRegistrar]s or a stale duplicate registrar.");
             }
+
+            // ⭐⭐ G4 — the OTHER half of the same guard, and the one that was missing.
+            //
+            // The name guard above cannot see this: `id` is FNV-1a-32 of the name
+            // (BehaviorHash.FromName), so two DISTINCT names can hash to one id. `_nameToId` would
+            // then hold both names -> the same id while `_definitions[id]` holds only the second
+            // definition -- ⛔ so the FIRST behavior silently resolves to the SECOND's topology.
+            // No throw, no log, one behaviour quietly replaced by another.
+            //
+            // ⭐ This is `W1`'s sibling on the other registry, and the shape is transplanted from
+            //   BlueprintRegistry.RegisterDirect rather than invented (the design says to copy it):
+            //   name the incoming, name the resident, say what to do about it.
+            // ⚠ An explicit-id caller (a generated registrar) can reach this without any hashing at
+            //   all, which is the other way in.
+            if (_definitions.TryGetValue(id, out var idHolder))
+                throw new InvalidOperationException(
+                    $"Behavior id 0x{id:X8} collision: '{name}' would replace '{idHolder.Name}'. "
+                    + "The id is FNV-1a-32 of the behavior name, so two distinct names hashed to one "
+                    + "id -- rename one of them.");
 
             _definitions[id] = definition;
             _nameToId[name] = id;

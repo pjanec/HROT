@@ -116,6 +116,96 @@ public sealed class LocalVariableSectionTests
         Assert.Empty(model.GetItems(BlueprintMyBlueprintModel.SectionLocalVariables));
     }
 
+    // ══ the "+" says WHY, before the work (2026-08-17 user ruling) ═══════════
+    //
+    // 📌 User, verbatim: "Disabling/graying a [+] on variable section but showing explanatory tooltip
+    //    would be better than allowing user to click the button and then saying that it is not
+    //    possible — same information value, no false expectations."
+    //
+    // ⭐ A REFINEMENT of Q26-B2 (which forbids the "+" VANISHING), not a reversal.
+
+    /// <summary>
+    /// ⭐ On a Function graph the "+" is usable and says nothing — ⛔ a reason that is always present
+    /// is a reason that teaches nothing.
+    /// </summary>
+    [Fact]
+    public void OnAFunctionGraph_TheLocalsCreateButtonHasNoReason()
+    {
+        var g = NewGraph("Tick");
+        var (model, _) = Model(Asset(g), g);
+
+        Assert.Null(LocalsSection(model).CreateDisabledReason);
+    }
+
+    /// <summary>
+    /// ⭐⭐ 🔴 On a Macro graph it greys and names the graph. ⛔ The section and its "+" both STAY —
+    /// <c>Q26-B2</c> forbids vanishing, and this test asserts that too.
+    /// </summary>
+    [Fact]
+    public void OnAMacroGraph_TheLocalsCreateButtonGreysAndSaysWhy()
+    {
+        var macro = NewGraph("Blend", GraphKind.Macro);
+        var (model, _) = Model(Asset(macro), macro);
+
+        var section = LocalsSection(model);
+        Assert.True(section.CanCreateItems);                   // ⛔ still declared creatable
+        Assert.NotNull(section.CreateCommandId);               // ⛔ the button still exists
+        Assert.NotNull(section.CreateDisabledReason);
+        Assert.Contains("Blend",  section.CreateDisabledReason!, StringComparison.Ordinal);
+        Assert.Contains("macro",  section.CreateDisabledReason!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The reason FOLLOWS the canvas.</b> 🔴 This is the half that a <c>static readonly</c>
+    /// descriptor list could not express, and whose impossibility the section's own comment cited —
+    /// ⛔ one model instance, two graphs, two answers.
+    /// </summary>
+    [Fact]
+    public void SwitchingFromAMacroToAFunction_ClearsTheReason()
+    {
+        var macro    = NewGraph("Blend", GraphKind.Macro);
+        var function = NewGraph("Tick");
+        var asset    = Asset(macro, function);
+
+        var current = macro.Id;
+        var model   = new BlueprintMyBlueprintModel();
+        model.Retarget(null, asset, () => current);
+
+        Assert.NotNull(LocalsSection(model).CreateDisabledReason);
+
+        current = function.Id;
+        Assert.Null(LocalsSection(model).CreateDisabledReason);
+    }
+
+    /// <summary>⭐ And with no canvas at all it says so, rather than inviting a click into nothing.</summary>
+    [Fact]
+    public void WithNoGraphOpen_TheLocalsCreateButtonSaysToOpenOne()
+    {
+        var model = new BlueprintMyBlueprintModel();
+        model.Retarget(null, Asset(NewGraph("Tick")));
+
+        Assert.NotNull(LocalsSection(model).CreateDisabledReason);
+    }
+
+    /// <summary>
+    /// ⚠ <b>Only the locals section carries a reason today.</b> ⛔ Asserted so a future reason added
+    /// somewhere else is a deliberate change rather than a side effect of the projection.
+    /// </summary>
+    [Fact]
+    public void NoOtherSectionCarriesAReason()
+    {
+        var g = NewGraph("Tick");
+        var (model, _) = Model(Asset(g), g);
+
+        Assert.All(
+            model.Sections.Where(s => s.Id != BlueprintMyBlueprintModel.SectionLocalVariables),
+            s => Assert.Null(s.CreateDisabledReason));
+    }
+
+    private static NodeEditor.Core.Interfaces.MyBlueprintSectionDescriptor LocalsSection(
+        BlueprintMyBlueprintModel model)
+        => model.Sections.Single(s => s.Id == BlueprintMyBlueprintModel.SectionLocalVariables);
+
     /// <summary>No canvas provider at all ⇒ empty, not a throw. The other five sections still work.</summary>
     [Fact]
     public void WithNoCurrentGraphProvider_TheSectionIsEmptyAndTheOthersAreNot()

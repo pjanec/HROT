@@ -3,9 +3,9 @@ Parameters:
   BaselineX : System.Single @0 size=4
   BaselineY : System.Single @4 size=4
 WorkingState:
-  __phase : System.Byte @8 size=1
-Variables:
   (empty)
+Variables:
+  __phase : System.Byte @8 size=1
 GraphLocalSlots:
   (empty)
 Diagnostics:

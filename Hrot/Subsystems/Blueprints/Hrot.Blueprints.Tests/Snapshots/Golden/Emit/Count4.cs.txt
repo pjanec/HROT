@@ -19,10 +19,12 @@ public static class Count4_F44891A7_Bp
     public const int BlueprintId = unchecked((int)0xF44891A7);
     public const ulong StructureHash = 668716165952000165UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public int Count;
     }
     
@@ -32,6 +34,9 @@ public static class Count4_F44891A7_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
+    
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
     
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
@@ -133,6 +138,8 @@ public static class BlueprintRegistrar_Count4_F44891A7_Bp
             StateClrType = typeof(Count4_F44891A7_Bp.State),
             InitDefault = Count4_F44891A7_Bp.InitDefault,
             Tick = Count4_F44891A7_Bp.TickThunk,
+            ParamsOffset = Count4_F44891A7_Bp.ParamsOffset,
+            ParamsSize = Count4_F44891A7_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["Count"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("Count", typeof(int), 16, 4, ""),

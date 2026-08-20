@@ -362,7 +362,7 @@ public sealed class BlueprintGraphModel : IGraphModel
 
         if (System.Guid.TryParse(id, out var guid))
         {
-            var decl = _asset.Parameters.FirstOrDefault(p => p.Id == guid);
+            var decl = _asset.Declarations.Of(DeclarationKind.Parameter).FirstOrDefault(d => d.Id == guid);
             if (decl != null && !string.IsNullOrEmpty(decl.Name)) return decl.Name;
         }
         return null;

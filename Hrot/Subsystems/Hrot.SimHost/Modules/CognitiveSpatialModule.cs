@@ -140,6 +140,9 @@ namespace Hrot.SimHost.Modules
             public void SetManagedComponent<T>(Entity entity, T? component) where T : class => _realEcb.SetManagedComponent(entity, component);
             public void RemoveManagedComponent<T>(Entity entity) where T : class => _realEcb.RemoveManagedComponent<T>(entity);
             public unsafe void SetComponentRaw(Entity entity, int typeId, void* ptr, int size) => _realEcb.SetComponentRaw(entity, typeId, ptr, size);
+            // Ruling 14 — a delegating wrapper must delegate this too, or the debug field write hits
+            // the interface's throwing default instead of the real buffer behind it.
+            public unsafe void SetComponentFieldRaw(Entity entity, int typeId, int byteOffset, void* ptr, int size) => _realEcb.SetComponentFieldRaw(entity, typeId, byteOffset, ptr, size);
             public void SetManagedComponentRaw(Entity entity, int typeId, object obj) => _realEcb.SetManagedComponentRaw(entity, typeId, obj);
             public void SetLifecycleState(Entity entity, EntityLifecycle state) => _realEcb.SetLifecycleState(entity, state);
         }

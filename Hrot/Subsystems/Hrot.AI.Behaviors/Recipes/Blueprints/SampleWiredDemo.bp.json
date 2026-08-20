@@ -1,24 +1,24 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000099-0000-0000-0000-000000000001",
   "Name": "SampleWiredDemo",
   "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Action",
     "Hostings": [
       "BTreeAction"
     ]
   },
-  "Parameters": [],
-  "WorkingState": [],
-  "Variables": [],
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -29,56 +29,64 @@
       "Kind": "Event",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "20000099-0000-0000-0000-000000000001",
           "EventTypeId": "OnStart",
+          "Id": "20000099-0000-0000-0000-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 220.0
+            "X": 80,
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "ChannelCommand",
-          "Id": "20000099-0000-0000-0000-000000000002",
           "ChannelType": "LocomotionChannel",
           "ActionId": "MoveTo",
+          "Id": "20000099-0000-0000-0000-000000000002",
           "Pins": [],
           "EditorMetadata": {
-            "X": 380.0,
-            "Y": 220.0
+            "X": 380,
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "WaitForChannel",
-          "Id": "20000099-0000-0000-0000-000000000003",
           "ChannelType": "LocomotionChannel",
+          "Id": "20000099-0000-0000-0000-000000000003",
           "Pins": [],
           "EditorMetadata": {
-            "X": 700.0,
-            "Y": 220.0
+            "X": 700,
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "ChannelCommand",
-          "Id": "20000099-0000-0000-0000-000000000004",
           "ChannelType": "WeaponChannel",
           "ActionId": "AimAndFire",
+          "Id": "20000099-0000-0000-0000-000000000004",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1020.0,
-            "Y": 220.0
+            "X": 1020,
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "20000099-0000-0000-0000-000000000005",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1340.0,
-            "Y": 220.0
+            "X": 1340,
+            "Y": 220,
+            "Comment": null
           }
         }
       ],
@@ -108,8 +116,18 @@
           "ToPinId": "e0000099-0000-0000-0000-000000000008"
         }
       ],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
-  "EditorMetadata": {}
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": null
+  }
 }

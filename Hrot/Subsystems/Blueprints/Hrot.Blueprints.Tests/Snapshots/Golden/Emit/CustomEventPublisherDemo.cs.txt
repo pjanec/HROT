@@ -19,9 +19,10 @@ public static class CustomEventPublisherDemo_50DE5698_Bp
     public const int BlueprintId = unchecked((int)0x50DE5698);
     public const ulong StructureHash = 3409046080660203083UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
     }
     
@@ -30,6 +31,9 @@ public static class CustomEventPublisherDemo_50DE5698_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
+    
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
     
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
@@ -91,6 +95,8 @@ public static class BlueprintRegistrar_CustomEventPublisherDemo_50DE5698_Bp
             StateClrType = typeof(CustomEventPublisherDemo_50DE5698_Bp.State),
             InitDefault = CustomEventPublisherDemo_50DE5698_Bp.InitDefault,
             Tick = CustomEventPublisherDemo_50DE5698_Bp.TickThunk,
+            ParamsOffset = CustomEventPublisherDemo_50DE5698_Bp.ParamsOffset,
+            ParamsSize = CustomEventPublisherDemo_50DE5698_Bp.ParamsSize,
         });
     }
 }

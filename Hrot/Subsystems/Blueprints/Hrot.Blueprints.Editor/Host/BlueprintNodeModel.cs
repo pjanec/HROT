@@ -1,6 +1,7 @@
 using System.Numerics;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
+using Hrot.Blueprints.Core.Assets;
 
 namespace Hrot.Blueprints.Editor.Host;
 
@@ -437,8 +438,10 @@ internal sealed class BlueprintNodeModel : INodeModel
             // Get/SetVariable can target either a blueprint Variable OR a WorkingState slot — both
             // are VariableDecl lists (the cross-entity / shared-state demos declare their mirrored
             // slots in WorkingState). Without the WorkingState fallback the title showed the raw GUID.
-            var decl = asset.Variables.FirstOrDefault(v => v.Id == guid)
-                    ?? asset.WorkingState.FirstOrDefault(v => v.Id == guid)
+            // ⚠ U-11: Variables ∪ WorkingState only — NOT Declarations.ById(), which also searches
+            //   Parameters. The comment above says why those two: both are VariableDecl lists.
+            var decl = asset.Declarations.Of(DeclarationKind.Variable)
+                            .FirstOrDefault(d => d.Id == guid)?.AsVariableDecl
                     // BP-57 — and a graph LOCAL, which had the same symptom for the same reason: a
                     // local-targeting node showed its raw GUID, because this resolver knew only the
                     // two asset-level lists.
@@ -510,7 +513,7 @@ internal sealed class BlueprintNodeModel : INodeModel
 
         if (Guid.TryParse(idStr, out var guid))
         {
-            var decl = asset.Parameters.FirstOrDefault(p => p.Id == guid);
+            var decl = asset.Declarations.Of(DeclarationKind.Parameter).FirstOrDefault(d => d.Id == guid);
             if (decl != null && !string.IsNullOrEmpty(decl.Name))
                 return decl.Name;
         }

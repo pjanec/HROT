@@ -11,6 +11,8 @@ Parameters:
   AttackDirX : System.Single @32 size=4
   AttackDirY : System.Single @36 size=4
 WorkingState:
+  (empty)
+Variables:
   Runners : Hrot.AI.Behaviors.Brains.MemberSlotList @8 size=96
   WaveUsedSlotsMask : System.UInt16 @104 size=2
   BaselineReservedMask : System.UInt16 @106 size=2
@@ -20,8 +22,6 @@ WorkingState:
   CachedTargetGroupHandle : System.Int32 @116 size=4
   CachedEqsRequestId : System.Int64 @120 size=8
   EqsRequestTime : System.Single @128 size=4
-Variables:
-  (empty)
 GraphLocalSlots:
   (empty)
 Diagnostics:

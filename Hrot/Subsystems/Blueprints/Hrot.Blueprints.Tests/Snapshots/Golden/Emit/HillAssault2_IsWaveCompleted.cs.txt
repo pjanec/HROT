@@ -24,11 +24,14 @@ public static class HillAssault2IsWaveCompleted_D4A1CE64_Bp
     {
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Hrot.AI.Behaviors.Brains.WaveState Wave;
     }
+    
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -68,8 +71,11 @@ public static class HillAssault2IsWaveCompleted_D4A1CE64_Bp
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
+        // W13: the offset form — identical in shape to the BTree bridge's per-node adapter.
+        //      Standalone hosting is the single-method case, so the baked offset is 0.
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-            ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);
+            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
+                ref bb.BehaviorParameters[0], (nint)0));
         ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);
         unsafe
         {
@@ -100,7 +106,13 @@ public static class BlueprintRegistrar_HillAssault2IsWaveCompleted_D4A1CE64_Bp
             Name = "HillAssault2_IsWaveCompleted",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2IsWaveCompleted_D4A1CE64_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2IsWaveCompleted_D4A1CE64_Bp.StateSize,
+            AssetId = new Guid("1f8c294f-768b-4348-9916-3bb110c92bb9"),
+            StateClrType = typeof(HillAssault2IsWaveCompleted_D4A1CE64_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["Wave"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("Wave", typeof(global::Hrot.AI.Behaviors.Brains.WaveState), 0, 104, ""),
+            },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IsWaveCompleted_D4A1CE64_Bp.BTreeTick@0", HillAssault2IsWaveCompleted_D4A1CE64_Bp.BTreeTick);
     }

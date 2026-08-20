@@ -6,6 +6,8 @@ Parameters:
   EndY : System.Single @12 size=4
   TankSpacing : System.Single @16 size=4
 WorkingState:
+  (empty)
+Variables:
   TotalSlots : System.Int32 @8 size=4
   BurnedSlotsMask : System.UInt16 @12 size=2
   WaveUsedSlotsMask : System.UInt16 @14 size=2
@@ -15,8 +17,6 @@ WorkingState:
   CachedEqsRequestId : System.Int64 @32 size=8
   CachedTargetGroupHandle : System.Int32 @40 size=4
   EqsRequestTime : System.Single @44 size=4
-Variables:
-  (empty)
 GraphLocalSlots:
   (empty)
 Diagnostics:

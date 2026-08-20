@@ -1,20 +1,19 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000000-aaaa-0001-0000-000000000002",
   "Name": "HealthThresholdReaction",
-  "Dispatch": 2,
-  "TierHint": 0,
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": null,
-  "Parameters": [],
-  "WorkingState": [],
-  "Variables": [],
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -22,22 +21,29 @@
     {
       "Id": "b2000001-0001-0001-0001-000000000001",
       "Name": "Tick",
-      "Kind": 1,
+      "Kind": "Event",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "c2000001-0001-0001-0001-000000000001",
           "EventTypeId": "",
+          "Id": "c2000001-0001-0001-0001-000000000001",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "When",
-          "Id": "c2000001-0002-0002-0002-000000000002",
-          "Mode": 2,
-          "Edges": 1,
+          "Mode": "ConditionMet",
+          "Edges": "RisingEdge",
+          "ValueChanged": null,
+          "EventFired": null,
           "ConditionMet": {
             "Condition": {
               "$type": "Compound",
@@ -52,20 +58,36 @@
               "ReadOnlyChildIndices": []
             }
           },
+          "EqsResult": null,
+          "Id": "c2000001-0002-0002-0002-000000000002",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "ChannelCommand",
-          "Id": "c2000001-0003-0003-0003-000000000003",
           "ChannelType": "LocomotionChannel",
           "ActionId": "FollowRoute",
+          "Id": "c2000001-0003-0003-0003-000000000003",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         }
       ],
       "Links": [],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {

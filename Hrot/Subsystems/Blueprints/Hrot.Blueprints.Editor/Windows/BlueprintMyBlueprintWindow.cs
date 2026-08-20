@@ -1,7 +1,12 @@
 using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
+using System;
+using System.Linq;
+using Hrot.Blueprints.Core.Compiler.Ir;   // VariableKind — one vocabulary for the three lists
+using Hrot.Blueprints.Editor.Variables;
 using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Variables;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Action;
@@ -18,8 +23,37 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// (via <see cref="Retarget"/>) whenever the active document changes.
 /// </para>
 /// </summary>
-public sealed class BlueprintMyBlueprintWindow : ManagedWindow
+public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutlineSelectionSource,
+                                                 Hrot.Editor.AiShared.Selection.IDetailsSurfaceClaimant,
+                                                 ILiveVariableProjectionHost
 {
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 90 (<c>90b</c>) — the live projection, installed by the registrar.</b>
+    /// 📌 <c>R-67</c>: the registrar already HOLDS the provider, so this arrives in its one
+    /// <c>RegisterExtraWindow</c> pass and ⛔ <b>the composition root gains nothing to forget.</b>
+    /// ⚠ Null in headless tests and before registration, which is exactly the <c>(pending)</c> case.
+    /// </summary>
+    private Hrot.Editor.AiShared.Blackboard.ILiveVariableProjection? _liveProjection;
+
+    /// <inheritdoc/>
+    public void SetLiveProjection(Hrot.Editor.AiShared.Blackboard.ILiveVariableProjection? projection)
+        => _liveProjection = projection;
+
+    /// <summary>True once a live projection has been installed. ⭐ A rail surface — asserted on the
+    /// CONSTRUCTED window, ⛔ never on the registrar's source.</summary>
+    public bool HasLiveProjection => _liveProjection != null;
+
+    /// <summary>
+    /// ⭐⭐ This frame's decoded live values for the active asset, or <c>null</c>.
+    /// ⛔ Resolved per CALL — the row source invokes it once per <c>GetRows()</c>, i.e. once per frame,
+    /// and the active asset changes under it.
+    /// </summary>
+    private System.Collections.Generic.IReadOnlyDictionary<string, object>? LiveObjects()
+    {
+        var asset = _model.EditableAsset;
+        return asset is null ? null : _liveProjection?.GetLiveObjects(asset);
+    }
+
     private readonly BlueprintMyBlueprintModel _model = new();
 
     // Panel is lazy — requires host services, which may be null at boot if no canvas context exists.
@@ -46,6 +80,10 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
     // the two sections offer the same gesture over two different lists, so they should not feel
     // like two different features.
     private VariableCreateModal? _createLocalVariableModal;
+
+    // ⭐ C-sections' two "+" dialogs (2026-08-17 user ruling). Same class as the variable modal,
+    //   distinguished by their nouns — which drive the title, the default name and the popup id.
+    private VariableCreateModal? _createParameterModal;
 
     // BP-57: the locals schema source for the active document. Rebuilt per asset like the modals,
     // and for the same reason — it closes over the asset and the document's undo recorder.
@@ -196,10 +234,36 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
                 // BlueprintAsset.Variables, and Q27-C1 makes a local that SHADOWS an asset variable
                 // legal on purpose — handing it the asset would refuse a legal declaration. The
                 // same-graph collision that IS an error is checked in CreateLocalVariable instead.
-                asset: null);
+                asset: null,
+                // ⭐⭐ The noun is LOAD-BEARING, not a label. Both fields of this window are the same
+                // class, and while its popup id was a `const` the two shared ONE ImGui window: the
+                // locals "+" drew both field sets and its first Create button was the ASSET modal's,
+                // so declaring a local silently created a global. See VariableCreateModal.PopupId.
+                noun: "Local Variable");
 
             BlueprintDocumentFactory.RegisterCreateLocalVariableCommand(
                 cmdImpl, _createLocalVariableModal.Open);
+
+            // ⭐⭐ C-sections — the Inputs / Working State sections' "+".
+            // ⛔ BP-12c: registered HERE, beside the sections that declare the ids, so the button
+            //    cannot ship inert the way Custom Events' and Macros' did.
+            // ⭐⭐⭐ 2026-08-17 (user): each "+" now opens the SAME name+type dialog every other
+            //    variable section opens — the quick-add was overruled as inconsistent, and its own
+            //    premise ("renamable in place") was false until this batch fixed the row commands.
+            // ⚠ The noun is LOAD-BEARING, not a label: VariableCreateModal derives its ImGui POPUP
+            //    ID from it, and two modals sharing one popup id is the exact bug the locals modal
+            //    hit (both field sets drawn in one window, the wrong Create button firing).
+            _createParameterModal = new VariableCreateModal(
+                (name, typeId, capacity, initialLength) => BlueprintDocumentFactory.CreateDeclaration(
+                    blueprintAsset, DeclarationKind.Parameter, name, typeId, markDirty,
+                    capacity, initialLength),
+                blueprintAsset,
+                noun: "Input");
+
+            BlueprintDocumentFactory.RegisterCreateDeclarationCommands(
+                // ⭐ Batch 86 — the Working State section is retired (R-01: one concept, one section),
+                //   so its create modal is the VARIABLE one: there is only one state kind to create.
+                cmdImpl, _createParameterModal.Open);
 
             // BP-12b: rename / delete / duplicate. The context menu has always invoked these three
             // and nothing ever handled them, so a variable could be created but never renamed or
@@ -254,6 +318,109 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
             Name: name, FieldType: clrType, Comment: null));
     }
 
+    /// <inheritdoc/>
+    public event Action<VariableOutlineSelection>? VariableSelectionChanged;
+
+    /// <summary>
+    /// ⭐⭐ Publishes an outline selection to whatever is listening. ⛔ The panel's own click path goes
+    /// through ImGui, which no headless test can drive — this is the same call it makes, and it is the
+    /// ONE place that resolves and raises so a panel rebuild cannot double-fire.
+    /// </summary>
+    public void PublishSelection(NodeEditor.Core.Interfaces.MyBlueprintItem? item)
+        => VariableSelectionChanged?.Invoke(ResolveVariableSelection(item));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q32</c> ruling 2, resolved.</b> 📌 verbatim: <i>"Selection routes: click a
+    /// <b>global</b> in My Blueprint ⇒ the list of <b>globals / working state</b>. Click a
+    /// <b>local</b> ⇒ the locals of the <b>currently selected graph</b>."</i>
+    ///
+    /// <para>⭐ <b>Keyed on the SECTION, which is what the designer actually picked.</b> Track C's
+    /// routing is section-keyed too ⇒ ⛔ <b>one routing mechanism, not two</b> (ruling 9).</para>
+    ///
+    /// <para>⚠ <b>One stated deviation from ruling 2's wording, and why.</b> The ruling says a global
+    /// click yields <i>"globals / working state"</i> — one merged list. ⛔ <b>Not merged here:</b>
+    /// 📌 <c>Q39</c> settles that <c>Variable</c> ≡ <c>WorkingState</c> and rules that the merge is
+    /// <b>stage <c>D</c></b>, <i>"the only risky stage"</i>, with its own batch and a JSON migration.
+    /// ⇒ ⭐ merging them in the ROUTER would do stage <c>D</c>'s job in the UI layer and would have to
+    /// be undone; routing per section collapses <b>by construction</b> the day the sections do.</para>
+    ///
+    /// <para>⛔ A graph, function, macro or custom-event row resolves to
+    /// <see cref="VariableOutlineSelection.None"/> — the Details panel then falls back to its node
+    /// arm rather than leaving a stale list beside an unrelated selection.</para>
+    /// </summary>
+    internal VariableOutlineSelection ResolveVariableSelection(
+        NodeEditor.Core.Interfaces.MyBlueprintItem? item)
+    {
+        var asset = _model.Asset;
+        if (item is null || asset is null) return VariableOutlineSelection.None;
+
+        // ⭐ The locals arm is GRAPH-SCOPED, and the source already follows the canvas by delegate —
+        //   a captured Graph would go stale on the first BP-24 graph switch.
+        if (item.SectionId == BlueprintMyBlueprintModel.SectionLocalVariables)
+        {
+            if (_locals is null) return VariableOutlineSelection.None;
+
+            // ⭐⭐⭐ BATCH 84 item 4b — the heading resolves WHEN DRAWN, not when clicked.
+            // 📐 Measured: the ROWS already followed the canvas (BlueprintLocalVariableSchemaSource
+            //    reads the graph through a Func<Graph?>). ⛔ The HEADING did not — it was
+            //    $"Local Variables — {graph.Name}" computed once, here. ⇒ ⚠ switching graph updated
+            //    the rows while the label kept naming the OLD graph, so the panel contradicted itself.
+            // ⭐ A delegate, not a stored Guid — the same shape the row source already uses, so there
+            //   is ONE way this arm follows the canvas rather than two.
+            string? LocalsHeading()
+            {
+                var g = _model.CurrentGraph;
+                return g is null ? "Local Variables" : $"Local Variables — {g.Name}";
+            }
+
+            return new VariableOutlineSelection(
+                LocalsHeading(),
+                new SectionVariableRowSource(
+                    assetId:   asset.AssetId,
+                    assetName: asset.Name,
+                    entity:    default,
+                    section:   BlueprintMyBlueprintModel.SectionLocalVariables,
+                    schema:    _locals,
+                    // ⭐⭐⭐ Batch 90 (90b) — THE LIVE VALUES. 🔴 This source has never had a reader,
+                    //    which is why every Details cell read "(pending)". ⭐ OBJECTS and not bytes:
+                    //    BlueprintStateSnapshot.FieldValues is already decoded, and re-encoding it so
+                    //    the byte arm could decode it again is REPORT_Batch88 §2.2's rejected (a).
+                    liveObjects: LiveObjects),
+                // ⭐ item 4a — WHICH row was clicked. VariablePath is the variable's name
+                //   (SectionVariableRowSource builds its origin from v.Name).
+                SelectedVariablePath: item.DisplayName,
+                HeadingAtReadTime:    LocalsHeading);
+        }
+
+        var kind = item.SectionId switch
+        {
+            BlueprintMyBlueprintModel.SectionVariables    => VariableKind.Variable,
+            BlueprintMyBlueprintModel.SectionParameters   => VariableKind.Parameter,
+            _                                             => VariableKind.Unresolved,
+        };
+        if (kind == VariableKind.Unresolved) return VariableOutlineSelection.None;
+
+        var heading = _model.Sections.FirstOrDefault(s => s.Id == item.SectionId)?.DisplayName
+                      ?? item.SectionId;
+
+        // ⭐ The asset-scoped arms need NO live heading: a section's name does not depend on the
+        //   canvas, so the click-time string is still true when drawn (item 4b applies to the
+        //   graph-scoped arm only).
+        return new VariableOutlineSelection(
+            heading,
+            new SectionVariableRowSource(
+                assetId:   asset.AssetId,
+                assetName: asset.Name,
+                entity:    default,
+                section:   item.SectionId,
+                schema:    new BlueprintVariableSchemaSource(asset, kind, onChanged: () => { }),
+                // ⭐⭐⭐ Batch 90 (90b) — the asset-scoped arm gets the same live map. ⛔ BOTH sites, or
+                //    the designer would see live values on locals and "(pending)" on globals, which
+                //    reads as a broken feature rather than as two seams.
+                liveObjects: LiveObjects),
+            SelectedVariablePath: item.DisplayName);
+    }
+
     /// <summary>
     /// BP-223/Q26-B2 — a refusal reaches the designer as a toast. ⛔ Never a silent return: BP-76 and
     /// BP-77 were both filed because a gesture did nothing and explained nothing.
@@ -301,8 +468,26 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
 
     // ── ManagedWindow ─────────────────────────────────────────────────────────
 
+
+    /// <summary>
+    /// ⭐⭐ <b>Invoked every frame this window holds focus</b>, so the selection store can record that
+    /// the designer is working in the OUTLINE *(<c>SelectionOrigin.VariableOutline</c>)*.
+    /// ⭐ A callback rather than a store reference — the registrar owns the wiring, so there is nothing
+    /// for a composition root to forget.
+    /// </summary>
+    public Action? NotifyFocusClaim { get; set; }
+
+    /// <inheritdoc/>
+    public Hrot.Editor.AiShared.Selection.SelectionOrigin DetailsOrigin
+        => Hrot.Editor.AiShared.Selection.SelectionOrigin.VariableOutline;
+
     protected override void DrawClientArea()
     {
+        // ⭐⭐⭐ Batch 87 — claim the Details panel for the OUTLINE while this window holds focus
+        //    (user ruling, 2026-08-18). ⛔ A LEVEL, not an edge — see AiGraphCanvasWindow.
+        if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.ChildWindows))
+            NotifyFocusClaim?.Invoke();
+
         if (_model == null || _hostServices == null || _commands == null)
         {
             ImGuiNET.ImGui.TextDisabled("No blueprint open.");
@@ -330,6 +515,15 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
                         NavigateToGraphOf(itemId);
                     }
                 });
+
+            // ⭐⭐⭐ U-6 / Q32 ruling 2 — "Selection routes." A SINGLE click publishes what the
+            //    Details panel should show. 🔴 BP-315 measured that MyBlueprintPanel.SelectionChanged
+            //    had ZERO subscribers anywhere in the repo — the hook existed and fed nothing, which
+            //    is why "Details keeps showing 'No node selected'" was a missing capability rather
+            //    than a broken wire. ⭐ This is that capability.
+            // ⚠ The panel is REBUILT whenever host services change, so subscribing here without a
+            //   guard would double-fire after the first rebuild. ⭐ PublishSelection is the one home.
+            _panel.SelectionChanged += PublishSelection;
         }
 
         // BP-57/BP-72: notice a canvas graph switch and fire Changed. ⚠ The panel itself re-reads
@@ -343,6 +537,9 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
         // Draw the create modals (opened by the section "+" commands). No-op when closed.
         _createVariableModal?.Draw();
         _createLocalVariableModal?.Draw();
+        // ⛔ A modal that is opened but never drawn is a "+" that does nothing — the same inert-button
+        //    shape BP-12c names, one level down.
+        _createParameterModal?.Draw();
         _createCustomEventModal?.Draw();
         _createFunctionModal?.Draw();
         _createMacroModal?.Draw();

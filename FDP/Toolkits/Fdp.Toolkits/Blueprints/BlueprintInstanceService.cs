@@ -24,6 +24,14 @@ public enum BlueprintAttachStatus
 
     /// <summary>The chosen blackboard tier had no free slot or payload space for the blueprint.</summary>
     NoSlotAvailable,
+
+    /// <summary>
+    /// ⭐⭐ The supplied params JSON could not be parsed, so NOTHING was attached.
+    /// <c>DESIGN_Parameter_Model.md</c> §3.3's parse-before-commit: mirroring <c>BehaviorIngressSystem</c>,
+    /// <i>"a failed parse leaves the entity 100% on its old behaviour"</i> — ⛔ not an allocated-then-freed
+    /// slot, and not a slot carrying half-applied params.
+    /// </summary>
+    ParamsParseFailed,
 }
 
 /// <summary>
@@ -80,12 +88,19 @@ public static unsafe class BlueprintInstanceService
     /// <param name="registry">The registry the runtime ticks against (must already contain the blueprint).</param>
     /// <param name="blueprintId">The runtime 32-bit blueprint identifier (<c>BlueprintIdHash.Compute(assetId)</c>).</param>
     /// <param name="entity">The target entity (must already exist in <paramref name="world"/>).</param>
+    /// <param name="paramsJson">
+    /// ⭐ Params for the blueprint, as a JSON object keyed by parameter name
+    /// (<c>DESIGN_Parameter_Model.md</c> §3.3). null/empty means "declared defaults only", which is the
+    /// shipped behaviour and every existing caller's answer. ⛔ This is the ONLY source of params —
+    /// there is no lookup into <c>BlueprintAssignmentDto.Overrides</c> and no side table.
+    /// </param>
     /// <returns>A classified <see cref="BlueprintAttachResult"/>.</returns>
     public static BlueprintAttachResult AttachToEntity(
         EntityRepository world,
         BlueprintRegistry registry,
         int blueprintId,
-        Entity entity)
+        Entity entity,
+        string? paramsJson = null)
     {
         if (world is null)    throw new ArgumentNullException(nameof(world));
         if (registry is null) throw new ArgumentNullException(nameof(registry));
@@ -109,6 +124,33 @@ public static unsafe class BlueprintInstanceService
                 $"Blueprint '{def.Name}' is already attached to entity {entity} " +
                 $"(tier {existingTier}).");
 
+        // ⭐⭐⭐ PARSE BEFORE COMMIT (§3.3), mirroring BehaviorIngressSystem exactly.
+        //   The params are resolved into a STACK buffer here, BEFORE any slot is allocated, so a
+        //   malformed payload leaves the entity untouched — ⛔ not an allocated-then-freed slot, which
+        //   would still have dense-compacted the slot table and could still have upgraded the tier.
+        //   The resolved bytes are copied in AFTER InitDefault below; the reverse order wipes them.
+        byte* resolvedParams = null;
+        int   paramsSize     = def.ParseParams != null ? def.ParamsSize : 0;
+        if (paramsSize > 0)
+        {
+            byte* scratch = stackalloc byte[paramsSize];
+            new Span<byte>(scratch, paramsSize).Clear();
+            try
+            {
+                // ⚠ host is null: IHostVariableAccess is declared-not-implemented and E7a populates it;
+                //   null is its defined value for a root (non-hosted) occurrence.
+                def.ParseParams!(paramsJson ?? string.Empty, scratch, world, entity, host: null);
+            }
+            catch (Exception ex)
+            {
+                return new BlueprintAttachResult(
+                    BlueprintAttachStatus.ParamsParseFailed, default,
+                    $"Params for blueprint '{def.Name}' could not be parsed; entity {entity} is " +
+                    $"unchanged and no slot was allocated. {ex.GetType().Name}: {ex.Message}");
+            }
+            resolvedParams = scratch;
+        }
+
         var tier = ChooseTier(def.StateSize);
         EnsureTierComponent(world, entity, tier);
 
@@ -127,6 +169,18 @@ public static unsafe class BlueprintInstanceService
             ref byte payloadRef = ref Unsafe.AsRef<byte>(memory + payloadOffset);
             var initSpan = MemoryMarshal.CreateSpan(ref payloadRef, def.StateSize);
             def.InitDefault(initSpan);
+        }
+
+        // ⭐⭐ ORDER IS THE RULING (§3.3): InitDefault FIRST, then the resolved params. The reverse
+        //    zeroes them and would read as a resolver bug rather than an ordering one.
+        // ⭐ The cursor at payload offset 0 is NOT touched: the copy lands at ParamsOffset (16).
+        if (resolvedParams != null)
+        {
+            Buffer.MemoryCopy(
+                resolvedParams,
+                memory + payloadOffset + def.ParamsOffset,
+                def.StateSize - def.ParamsOffset,
+                paramsSize);
         }
 
         return new BlueprintAttachResult(

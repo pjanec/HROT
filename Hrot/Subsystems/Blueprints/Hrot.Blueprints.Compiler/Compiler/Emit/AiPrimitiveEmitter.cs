@@ -25,6 +25,12 @@ internal static class AiPrimitiveEmitter
         EmitWorkingStateStruct(e, asset);
         e.WriteLine();
 
+        // ⭐ Batch 57 (S1) — the real size of the working state, mirroring InstanceEmitter's
+        // `StateSize`. ⛔ The registrar used to write a literal `StateSize = 0`, which is not a
+        // placeholder but a wrong answer: this struct occupies real bytes in Blackboard1024.
+        e.WriteLine("public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();");
+        e.WriteLine();
+
         EmitInitDefault(e, asset);
         e.WriteLine();
 
@@ -66,26 +72,45 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("}");
     }
 
+    /// <summary>
+    /// ⭐⭐ Batch 56 / ruling 8 — the struct is still <b>called</b> <c>WorkingState</c> (that name is ABI,
+    /// and <c>InlineActionLowering</c> emits it literally), but what it <b>holds</b> is the asset's ONE
+    /// state tier, <see cref="IrAsset.StateDeclarations"/>. ⛔ It used to hold <c>asset.WorkingState</c>
+    /// alone, so a <c>Variable</c> declaration on an AiPrimitive — legal since <c>U-12</c> retired
+    /// <c>BP1024</c> — was bound by Stage 5 and then never emitted.
+    /// </summary>
     private static void EmitWorkingStateStruct(CSharpEmitter e, IrAsset asset)
     {
-        // FC-2/LV-1b (Q#19-E): a WorkingState field may be a fixed-capacity list -- emit the same
+        // FC-2/LV-1b (Q#19-E): a state field may be a fixed-capacity list -- emit the same
         // per-class nested wrapper structs the Instance State path uses (additive: assets without
         // list fields emit byte-identical output).
-        InstanceEmitter.EmitListWrappers(e, asset.WorkingState);
-        e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+        InstanceEmitter.EmitListWrappers(e, asset.StateDeclarations);
+
+        // ⭐⭐ W4 (Batch 60) — see CSharpEmitter.UseExplicitLayout. ⚠ The offsets written here are
+        //    STRUCT-relative: FieldLayout lays an AiPrimitive's state out from 8, which is its position
+        //    inside Blackboard1024 and not a struct offset. FieldOffsetOf does the same -8 rebase the
+        //    descriptors take, so the declaration and the descriptor cannot disagree.
+        bool explicitLayout = CSharpEmitter.UseExplicitLayout(asset);
+        e.WriteLine(explicitLayout
+            ? "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]"
+            : "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
         e.WriteLine("public struct WorkingState");
         e.WriteLine("{");
         e.Indent();
 
-        foreach (var f in asset.WorkingState)
+        foreach (var f in asset.StateDeclarations)
         {
             EmitComment(e, f.Comment);
+            if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({CSharpEmitter.FieldOffsetOf(asset, f)})]");
             EmitStructField(e, CSharpType(f.Type), f.Name);
         }
         // BP-57 / Q27-A3 — suspending graphs' locals, appended AFTER the real fields so their offsets
         // continue the struct's layout (FieldLayout does the same arithmetic). Addressed by name only.
         foreach (var f in asset.GraphLocalSlots)
+        {
+            if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({CSharpEmitter.FieldOffsetOf(asset, f)})]");
             EmitStructField(e, CSharpType(f.Type), f.Name);
+        }
         e.Outdent();
         e.WriteLine("}");
     }
@@ -125,10 +150,13 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("{");
         e.Indent();
         e.WriteLine("*dst = default;");
-        foreach (var f in asset.WorkingState.Where(f =>
-            !string.IsNullOrEmpty(f.DefaultValueCSharp) &&
-            f.DefaultValueCSharp != "0" &&
-            f.DefaultValueCSharp != "default"))
+        // ⭐⭐ Batch 56 — the SILENT half. ⚠ And a coordinator error worth keeping: the Q32 draft asked
+        // whether working state should have initial values "since it is per-run scratch". It always has —
+        // these lines are `InstanceEmitter.EmitInitDefault`'s, over the other list. Reasoning from the
+        // NAME instead of the code is what made two kinds look like two concepts for nineteen batches.
+        // ⭐ BP-247 — value-based skip; see InstanceEmitter.EmitInitDefault.
+        foreach (var f in asset.StateDeclarations.Where(f =>
+            !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
         {
             e.WriteLine($"dst->{f.Name} = {f.DefaultValueCSharp};");
         }
@@ -136,7 +164,7 @@ internal static class AiPrimitiveEmitter
         // partial init the whole-field DefaultValueCSharp path cannot express (review F2). Runs on
         // every hash-mismatch (re)init inside the generated thunks; the BlueprintCall host's inline
         // zero path leaves Count=0 (safe empty list; documented LV-1b limitation).
-        foreach (var f in asset.WorkingState.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
+        foreach (var f in asset.StateDeclarations.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
         {
             e.WriteLine($"dst->{f.Name}.Count = {f.Type.InitialLength};");
         }
@@ -262,6 +290,50 @@ internal static class AiPrimitiveEmitter
         }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W13</c> / <c>BP-251</c> (Batch 63) — the ONE parameter projection formula, repo-wide.</b>
+    ///
+    /// <para>
+    /// 🔴 <b>This used to be a stride:</b> <c>bb.BehaviorParameters[paramIndex * Unsafe.SizeOf&lt;Params&gt;()]</c>.
+    /// ⛔ <c>paramIndex</c> is <b>not</b> a slot the blueprint owns — <c>TreeCompiler:155</c> sets it from
+    /// <c>GetOrAddMethodName(...)</c>, so it is the ordinal among <b>every distinct Action and Condition
+    /// method name in the whole tree</b>. ⇒ the multiplier grows with TREE SIZE. Measured:
+    /// <c>PlatoonHillAttack2</c> would put a 40-byte <c>Params</c> at index 5 ⇒ bytes <b>200…240 of a
+    /// 100-byte buffer inside a 128-byte component</b> — past the component entirely.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Why this is a ROUTE and not a delete.</b> The thunk is <b>not</b> vestigial: it is the
+    /// architect-confirmed <i>blueprint-as-behavior</i> standalone hosting, opt-in per
+    /// <see cref="AiPrimitiveHosting.BTreeAction"/>/<c>BTreeCondition</c> — <c>SLICE1-DESIGN §82</c>
+    /// records the ruling (<i>"BTree owns layout, blueprint provides TickCore"</i>) and says the
+    /// composition path <b>ignores</b> this thunk, while <c>SLICE2-DESIGN:52</c> says the thunk
+    /// <i>"stays the standalone blueprint-as-behavior hosting."</i> ⇒ deleting it would remove a
+    /// capability, not a mistake.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>What the <c>@0</c> in the registered key always meant.</b> Standalone hosting IS the
+    /// single-method case, where the payload index is 0 — so <c>@0</c> was <b>truthful for the case the
+    /// thunk exists for</b> and a lie only when bound anywhere else. ⛔ Nothing enforced that. Projecting
+    /// at a literal 0 makes the key true <b>by construction</b> instead of by convention, which is the
+    /// same invariant <c>W1</c>'s third rail states from the other end.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ The <c>paramIndex</c> parameter stays in the signature: it is <c>NodeLogicDelegate</c>'s shape,
+    /// not ours to change. ⭐ It is now unread — exactly as the bridge's per-node adapter leaves it.
+    /// </para>
+    /// </summary>
+    private static void EmitParamProjection(CSharpEmitter e)
+    {
+        e.WriteLine("// W13: the offset form — identical in shape to the BTree bridge's per-node adapter.");
+        e.WriteLine("//      Standalone hosting is the single-method case, so the baked offset is 0.");
+        e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
+        e.WriteLine("    ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(");
+        e.WriteLine("        ref bb.BehaviorParameters[0], (nint)0));");
+    }
+
     private static void EmitBTreeActionThunk(CSharpEmitter e)
     {
         e.WriteLine("public static unsafe global::Fbt.NodeStatus BTreeTick(");
@@ -273,8 +345,7 @@ internal static class AiPrimitiveEmitter
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
-        e.WriteLine("    ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);");
+        EmitParamProjection(e);
         e.WriteLine("ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);");
         e.WriteLine("unsafe");
         e.WriteLine("{");
@@ -312,8 +383,7 @@ internal static class AiPrimitiveEmitter
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
-        e.WriteLine("    ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);");
+        EmitParamProjection(e);
         e.WriteLine("ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);");
         e.WriteLine("unsafe");
         e.WriteLine("{");

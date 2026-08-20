@@ -25,12 +25,15 @@ public static class GateConditionDemo_CDFE149C_Bp
         public float Threshold;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         [global::System.Runtime.InteropServices.MarshalAs(global::System.Runtime.InteropServices.UnmanagedType.I1)]
         public bool LastEvaluated;
     }
+    
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -55,8 +58,11 @@ public static class GateConditionDemo_CDFE149C_Bp
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
+        // W13: the offset form — identical in shape to the BTree bridge's per-node adapter.
+        //      Standalone hosting is the single-method case, so the baked offset is 0.
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-            ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);
+            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
+                ref bb.BehaviorParameters[0], (nint)0));
         ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);
         unsafe
         {
@@ -87,7 +93,13 @@ public static class BlueprintRegistrar_GateConditionDemo_CDFE149C_Bp
             Name = "GateConditionDemo",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = GateConditionDemo_CDFE149C_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = GateConditionDemo_CDFE149C_Bp.StateSize,
+            AssetId = new Guid("00000000-aaaa-0002-0000-0000000000d1"),
+            StateClrType = typeof(GateConditionDemo_CDFE149C_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["LastEvaluated"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("LastEvaluated", typeof(bool), 0, 1, ""),
+            },
         });
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.GateConditionDemo_CDFE149C_Bp.BTreeEvaluate@0", static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => GateConditionDemo_CDFE149C_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
     }

@@ -123,10 +123,10 @@ namespace Hrot.AI.Behaviors
             // ManagedBlackboardVariables.
             beh.RegisterResolver(BehaviorNames.MoveToLocation, CgfNodes.ResolveMoveToParams);
             beh.RegisterResolver(BehaviorNames.FollowRoute,
-                (json, ptr, world, self) => CgfNodes.ParseFollowRouteParams(json, ptr));
+                (json, ptr, world, self, host) => CgfNodes.ParseFollowRouteParams(json, ptr));
             beh.RegisterResolver(BehaviorNames.FireAtTarget, CgfNodes.ResolveFireAtTargetParams);
             beh.RegisterResolver(BehaviorNames.HullDownAttackRun,
-                (json, ptr, world, self) => HillAttackTankNodes.ParseHullDownAttackParams(json, ptr),
+                (json, ptr, world, self, host) => HillAttackTankNodes.ParseHullDownAttackParams(json, ptr),
                 typeof(HullDownAttackParams));
             beh.RegisterResolver(BehaviorNames.PlatoonHillAttack,
                 HillAttackCommanderNodes.ResolvePlatoonHillAttackParams,

@@ -24,10 +24,12 @@ public static class HillAssault2ClearBehavior_4CC028CB_Bp
     {
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
     }
+    
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -57,8 +59,11 @@ public static class HillAssault2ClearBehavior_4CC028CB_Bp
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
+        // W13: the offset form — identical in shape to the BTree bridge's per-node adapter.
+        //      Standalone hosting is the single-method case, so the baked offset is 0.
         ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-            ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);
+            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
+                ref bb.BehaviorParameters[0], (nint)0));
         ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);
         unsafe
         {
@@ -89,7 +94,9 @@ public static class BlueprintRegistrar_HillAssault2ClearBehavior_4CC028CB_Bp
             Name = "HillAssault2_ClearBehavior",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2ClearBehavior_4CC028CB_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2ClearBehavior_4CC028CB_Bp.StateSize,
+            AssetId = new Guid("607f14d9-7450-47d2-907b-fa8d85b6f1df"),
+            StateClrType = typeof(HillAssault2ClearBehavior_4CC028CB_Bp.WorkingState),
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2ClearBehavior_4CC028CB_Bp.BTreeTick@0", HillAssault2ClearBehavior_4CC028CB_Bp.BTreeTick);
     }

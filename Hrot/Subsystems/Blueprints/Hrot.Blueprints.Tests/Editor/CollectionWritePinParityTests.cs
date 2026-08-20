@@ -27,6 +27,8 @@ public sealed class CollectionWritePinParityTests
     // its targets via string FQNs only, so nothing here would otherwise trigger the load) --
     // force-load Hrot.AI.Behaviors deterministically instead of depending on a sibling test
     // class having touched one of its types first (a latent ordering flake).
+    // ⭐ Batch 52: superseded by TestAssemblyModuleInit; kept as a local guard because the central
+    // one fails silently. A new test class needs nothing of its own.
     static CollectionWritePinParityTests()
     {
         _ = typeof(Hrot.AI.Behaviors.BpFixedListDemo).Assembly;

@@ -82,6 +82,13 @@ public sealed class BlueprintLocalVariableSchemaSource : IVariablesSchemaSource
     /// </summary>
     public bool IsReadOnly => _currentGraph() is not { } g || g.Kind == GraphKind.Macro;
 
+    /// <summary>
+    /// U-5 / <c>Q-k</c> — a blueprint local has no <c>Role</c>/<c>Scope</c> to edit. ⭐ Answering
+    /// <c>false</c> is what stops the panel drawing a live combo whose result would be discarded; the
+    /// interface's setters now throw rather than silently accepting the call (<c>BP-230</c>).
+    /// </summary>
+    public bool SupportsRoleScopeEditing => false;
+
     /// <summary>Null when no graph is open, or when the open graph cannot own locals.</summary>
     private Graph? EditableGraph
     {
@@ -126,7 +133,9 @@ public sealed class BlueprintLocalVariableSchemaSource : IVariablesSchemaSource
                     // passes `false` unconditionally; this one can afford the truth because it already
                     // has the reference walk below.
                     IsUnused:   CountNodesReferencingVariable(v.Name) == 0,
-                    IsReadOnly: IsReadOnly));
+                    IsReadOnly: IsReadOnly,
+                    // ⭐ Row 58 — the INITIAL arm's source for a graph local.
+                    DefaultValueJson: v.DefaultValueJson));
             }
             return result;
         }

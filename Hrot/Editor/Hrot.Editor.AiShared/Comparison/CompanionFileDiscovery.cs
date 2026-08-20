@@ -181,6 +181,18 @@ public static class CompanionFileDiscovery
         };
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>Batch 92 (<c>92e</c>) — WHICH CATEGORY these companions belong to.</b>
+    ///
+    /// <para>⛔⛔ The <c>.Orchestrators.g.cs</c> entry below is <b>NOT evidence that the JSON path has
+    /// a consumer</b> — 📌 reading it that way cost a stopped batch. It is keyed off a
+    /// <c>_BT.cs</c> / <c>_HSM.cs</c> main file, i.e. the <b>Category-1 HAND-AUTHORED</b> asset layout,
+    /// whose sidecar is written by <c>*OrchestratorEmitter.WriteOrchestratorFile</c>.</para>
+    ///
+    /// <para>⭐ The JSON-owned (Category-2) path emits its orchestrator through the SOURCE GENERATOR
+    /// instead (Batch 92 <c>92b</c>), into <c>obj/GeneratedFiles</c> — ⛔ never onto disk beside the
+    /// asset, so this discovery never sees it and must not be widened to look for it.</para>
+    /// </summary>
     private static string[] GetBTreeCompanions(string dir, string fileName)
     {
         if (!fileName.EndsWith("_BT.cs", StringComparison.Ordinal))

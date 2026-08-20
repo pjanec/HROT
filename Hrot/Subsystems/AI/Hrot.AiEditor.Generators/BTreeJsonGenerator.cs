@@ -276,6 +276,34 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         }
 
         spc.AddSource(baseName + ".Registrar.g.cs", bridge);
+
+        // ⭐⭐⭐ Batch 92 (92b): orchestrators — {Name}.Orchestrators.g.cs
+        //
+        // ⛔ OMITTED ENTIRELY when the core returns null, which is every asset in today's corpus
+        // (none carries an alias or a sync binding) ⇒ the generated output stays byte-identical.
+        //
+        // ⭐⭐ The empty Approach-B group list is MEASURED, not a shortcut. The groups need
+        // BehaviorTreeAsset._syncNodeMeta, whose only writer is InspectorWindow:590 (a UI draw); it
+        // has no load path and BehaviorTreeAssetDto.cs:10 names it deliberately excluded, enforced by
+        // BTreeDtoRuntimeFieldExclusionTests:29. ⛔ And the field the Approach-B body writes into
+        // (master.{Subtree}_{DtoType}) comes from GetAutoAllocatedVariables(), which is display-only
+        // (BlackboardAuthoringWindow:529) and reaches no blackboard emitter. ⇒ a generator provably
+        // has no groups to pass. See BTreeOrchestratorEmitCore for the full measurement.
+        string? orchestrators;
+        try
+        {
+            orchestrators = BTreeOrchestratorEmitCore.Emit(
+                dto, System.Array.Empty<OrchestratorSyncGroup>());
+        }
+        catch (Exception ex)
+        {
+            spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                "Exception during orchestrator code generation: " + ex.Message));
+            return;
+        }
+
+        if (orchestrators != null)
+            spc.AddSource(baseName + ".Orchestrators.g.cs", orchestrators);
     }
 
     /// <summary>Creates a Roslyn diagnostic for a BTree JSON parse/deserialize error.</summary>

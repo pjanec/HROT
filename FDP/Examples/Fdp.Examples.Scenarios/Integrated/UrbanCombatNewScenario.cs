@@ -624,15 +624,18 @@ namespace Fdp.Examples.Scenarios.Integrated
             builder.Event("MobilityLost", BehaviorConstants.EventId_MobilityLost);
 
             builder
-                .RegisterAction("Activity_Cruise")
-                .RegisterAction("OnEnter_Disabled");
+                // ⭐ E6 ruling (A), 2026-08-17: an HSM action id is FNV(FULLY QUALIFIED name).
+                //   The registrar keys on the method's FQN, so the machine must address it the
+                //   same way -- a simple name now hashes to an id nothing registers.
+                .RegisterAction("Fdp.Examples.Scenarios.Integrated.UrbanCombatApcBrainActions.Activity_Cruise")
+                .RegisterAction("Fdp.Examples.Scenarios.Integrated.UrbanCombatApcBrainActions.OnEnter_Disabled");
 
             var cruising = builder.State("Cruising")
-                .Activity("Activity_Cruise")
+                .Activity("Fdp.Examples.Scenarios.Integrated.UrbanCombatApcBrainActions.Activity_Cruise")
                 .Initial();
 
             var disabled = builder.State("Disabled")
-                .OnEntry("OnEnter_Disabled");
+                .OnEntry("Fdp.Examples.Scenarios.Integrated.UrbanCombatApcBrainActions.OnEnter_Disabled");
 
             cruising.On(BehaviorConstants.EventId_MobilityLost).GoTo(disabled);
 

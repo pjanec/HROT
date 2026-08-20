@@ -444,8 +444,8 @@ public static class BlueprintDocumentFactory
 
         // Prefer the declaration's own name for the display property; fall back to the id so a
         // variable that has since been renamed still places something meaningful.
-        var variableName = asset.Variables
-            .FirstOrDefault(v => string.Equals(v.Name, variableId, StringComparison.Ordinal))
+        var variableName = asset.Declarations.Of(DeclarationKind.Variable)
+            .FirstOrDefault(d => string.Equals(d.Name, variableId, StringComparison.Ordinal))
             ?.Name ?? variableId!;
 
         var position = ctx.CanvasPos ?? ViewportCentre(view);
@@ -612,8 +612,11 @@ public static class BlueprintDocumentFactory
              Dictionary<Guid, string> CallEventIds,
              Dictionary<Guid, string> PeerFunctionRefs) naming)
         {
-            asset.Variables.Clear();
-            asset.Variables.AddRange(variables);
+            // U-11: a snapshot RESTORE, so ReplaceAll — which deliberately leaves VariableOrder
+            // alone. The order list belongs to the same snapshot and is restored with it; dropping
+            // ids here would make undo lose the designer's ordering.
+            asset.Declarations.ReplaceAll(DeclarationKind.Variable,
+                variables.Select(v => BlueprintDeclaration.For(DeclarationKind.Variable, v)));
             asset.CustomEvents.Clear();
             asset.CustomEvents.AddRange(events);
 
@@ -810,7 +813,7 @@ public static class BlueprintDocumentFactory
     /// would restore the new name.
     /// </summary>
     private static List<VariableDecl> SnapshotVariables(BlueprintAsset asset)
-        => asset.Variables.Select(v => new VariableDecl
+        => asset.Declarations.Of(DeclarationKind.Variable).Select(v => new VariableDecl
         {
             Id   = v.Id,
             Name = v.Name,
@@ -850,7 +853,7 @@ public static class BlueprintDocumentFactory
     internal static string? ItemDisplayName(BlueprintAsset asset, string itemId)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return FindVariable(asset, itemId)?.Name
+        return FindDeclaration(asset, itemId)?.Name
                ?? FindCustomEvent(asset, itemId)?.Name
                ?? FindGraph(asset, itemId)?.Name
                ?? TryFindLocal(asset, itemId)?.Name;   // BP-57
@@ -875,11 +878,14 @@ public static class BlueprintDocumentFactory
 
         var trimmed = newName.Trim();
 
-        if (FindVariable(asset, itemId) is { } variable)
+        // ⭐ Any declaration kind: the facade's Name writes through to whichever backing shape holds it.
+        //   IsDuplicateVariableName already spans the WHOLE declaration list, so the uniqueness rule
+        //   needed no widening — only the lookup did.
+        if (FindDeclaration(asset, itemId) is { } decl)
         {
-            if (string.Equals(variable.Name, trimmed, StringComparison.Ordinal)) return false;
+            if (string.Equals(decl.Name, trimmed, StringComparison.Ordinal)) return false;
             if (IsDuplicateVariableName(asset, trimmed)) return false;
-            variable.Name = trimmed;
+            decl.Name = trimmed;
             return true;
         }
 
@@ -958,8 +964,11 @@ public static class BlueprintDocumentFactory
     {
         ArgumentNullException.ThrowIfNull(asset);
 
-        if (FindVariable(asset, itemId) is { } variable)
-            return asset.Variables.Remove(variable);
+        // ⭐ The found declaration carries its own kind, so Remove searches the right bucket.
+        //   ⛔ The old code rebuilt the facade with a HARD-CODED DeclarationKind.Variable — wrong for
+        //   the other two kinds even once the lookup found them.
+        if (FindDeclaration(asset, itemId) is { } decl)
+            return asset.Declarations.Remove(decl);
 
         if (FindCustomEvent(asset, itemId) is { } evt)
             return asset.CustomEvents.Remove(evt);
@@ -976,25 +985,37 @@ public static class BlueprintDocumentFactory
     {
         ArgumentNullException.ThrowIfNull(asset);
 
-        if (FindVariable(asset, itemId) is { } variable)
+        if (FindDeclaration(asset, itemId) is { } decl)
         {
-            asset.Variables.Add(new VariableDecl
-            {
-                Id       = Guid.NewGuid(),
-                Name     = MakeUniqueName(asset.Variables.Select(v => v.Name), variable.Name),
-                Type     = new BlueprintTypeRef
+            // ⭐ Create() picks the backing shape from the kind, so a Parameter duplicates as a
+            //   ParameterDecl and a WorkingState as a VariableDecl in the WorkingState bucket.
+            var copy = BlueprintDeclaration.Create(
+                decl.Kind,
+                Guid.NewGuid(),
+                // U-14: across all kinds, so a duplicate cannot land on a Parameter's name.
+                MakeUniqueName(asset.Declarations.Select(d => d.Name), decl.Name),
+                new BlueprintTypeRef
                 {
-                    TypeId        = variable.Type.TypeId,
-                    IsArray       = variable.Type.IsArray,
-                    Capacity      = variable.Type.Capacity,
-                    InitialLength = variable.Type.InitialLength,
-                },
-                DefaultValueJson = variable.DefaultValueJson,
-                IsEditable       = variable.IsEditable,
-                IsExposedOnSpawn = variable.IsExposedOnSpawn,
-                Category         = variable.Category,
-                Tooltip          = variable.Tooltip,
-            });
+                    TypeId        = decl.Type.TypeId,
+                    IsArray       = decl.Type.IsArray,
+                    Capacity      = decl.Type.Capacity,
+                    InitialLength = decl.Type.InitialLength,
+                });
+
+            copy.DefaultValueJson = decl.DefaultValueJson;
+            copy.Tooltip          = decl.Tooltip;
+            copy.Comment          = decl.Comment;
+
+            // ⭐ ASK the capability rather than testing the kind — writing Category on a Parameter
+            //   throws by design (RequireEditorPresentation), and both sides are the same kind here.
+            if (decl.CarriesEditorPresentation)
+            {
+                copy.IsEditable       = decl.IsEditable;
+                copy.IsExposedOnSpawn = decl.IsExposedOnSpawn;
+                copy.Category         = decl.Category;
+            }
+
+            asset.Declarations.Add(copy);
             return true;
         }
 
@@ -1020,12 +1041,30 @@ public static class BlueprintDocumentFactory
     }
 
     /// <summary>
-    /// Resolves a <c>var:{guid}</c> item id. The My Blueprint panel prefixes its item ids by
-    /// section; the prefix is what tells a variable id from an event id.
+    /// ⭐⭐⭐ Resolves a <c>var:{guid}</c> item id to its declaration, in <b>whichever kind list holds
+    /// it</b> — <c>Variable</c>, <c>Parameter</c> or <c>WorkingState</c>.
+    ///
+    /// <para>🔴 <b>Batch 81 — this was scoped to <c>DeclarationKind.Variable</c> alone</b>, while
+    /// <c>BuildDeclarationItems</c> emits the same <c>var:</c> prefix for all three kinds (C-sections).
+    /// ⇒ for an Inputs or Working-State row the id parsed, the lookup returned null, and <b>every row
+    /// command fell through to <c>return false</c></b>: Rename opened its dialog with an empty current
+    /// name and changed nothing, Delete did nothing, Duplicate did nothing. The user reported the first
+    /// two verbatim; ⚠ Duplicate was broken too and untested.</para>
+    ///
+    /// <para>⚠ <b>Why NOT a prefix per kind</b>, which is the rule <c>BuildLocalVariableItems</c>
+    /// states. 📐 Read why that rule exists: <i>"the declarations live in different lists and have
+    /// different delete rules."</i> True for locals (they live on <c>graph.LocalVariables</c>);
+    /// ⛔ <b>false for these three</b> — one list, one delete rule, and ids that are already unique
+    /// GUIDs. Two more prefixes would be two more places that know the kind→list mapping.</para>
+    ///
+    /// <para>⭐ <b>Returning the facade, not the backing decl, is what carries the kind into the
+    /// mutation.</b> <c>DeclarationList.Remove</c> searches <c>decl.Kind</c>'s bucket, so a hard-coded
+    /// <c>For(DeclarationKind.Variable, …)</c> could never have found a Parameter — and a Parameter is
+    /// backed by <c>ParameterDecl</c>, which <c>AsVariableDecl</c> reports as null anyway.</para>
     /// </summary>
-    private static VariableDecl? FindVariable(BlueprintAsset asset, string itemId)
+    private static BlueprintDeclaration? FindDeclaration(BlueprintAsset asset, string itemId)
         => TryItemGuid(itemId, "var:", out var id)
-            ? asset.Variables.FirstOrDefault(v => v.Id == id)
+            ? asset.Declarations.FirstOrDefault(d => d.Id == id)
             : null;
 
     private static CustomEventDecl? FindCustomEvent(BlueprintAsset asset, string itemId)
@@ -1507,7 +1546,7 @@ public static class BlueprintDocumentFactory
 
         // Never collide with an existing declaration: the designer asked to promote, not to
         // overwrite, and CreateVariable would reject a duplicate outright.
-        var name     = MakeUniqueName(asset.Variables.Select(v => v.Name), rawName!.Trim());
+        var name     = MakeUniqueName(asset.Declarations.Select(d => d.Name), rawName!.Trim());
         var category = ReadArg(ctx, "categoryPath") as string;
 
         // BP-57: the data model has no per-graph variable scope, so "Promote to Local Variable"
@@ -1575,8 +1614,12 @@ public static class BlueprintDocumentFactory
         // reference at any point.
         var steps = new List<(GraphCommand Forward, GraphCommand Inverse)>
         {
-            (new BlueprintEditCommand("Declare Variable",   () => asset.Variables.Add(decl)),
-             new BlueprintEditCommand("Undeclare Variable", () => asset.Variables.Remove(decl))),
+            // ⚠ U-11: `decl` is created by THIS command, so it is never in VariableOrder — the
+            //   Order-maintaining Remove is a no-op for it, and the pair stays an exact inverse.
+            (new BlueprintEditCommand("Declare Variable",
+                 () => asset.Declarations.Add(BlueprintDeclaration.For(DeclarationKind.Variable, decl))),
+             new BlueprintEditCommand("Undeclare Variable",
+                 () => asset.Declarations.Remove(BlueprintDeclaration.For(DeclarationKind.Variable, decl)))),
 
             (new GraphCommand.AddNode(nodeId, nodeKind, position, props),
              new GraphCommand.RemoveNodes(new[] { nodeId })),
@@ -1672,6 +1715,108 @@ public static class BlueprintDocumentFactory
     /// </para>
     /// </summary>
     /// <param name="openModal">Opens the local-variable create modal (e.g. <c>modal.Open</c>).</param>
+    /// <summary>
+    /// ⭐⭐⭐ <c>C-sections</c> — the Inputs and Working State sections' <b>"+"</b>.
+    ///
+    /// <para>
+    /// ⛔⛔ <b><c>BP-12c</c>: a section that declares a create command nothing registers is an INERT
+    /// BUTTON</b> — a defect that shipped twice (Custom Events, Macros) before it was caught. ⇒ these
+    /// are registered in the same call the sections are added in, and the rail invokes them rather
+    /// than checking that the descriptor carries an id.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b><c>2026-08-17</c> — the "quick-add, not a modal" choice recorded here was OVERRULED by
+    /// the user</b>: <i>"working state [+] opening no dialog is wrong, inconsistent. Must open new
+    /// variable dialog same as any other variable section."</i> ⇒ ⭐ <b>the production overload is
+    /// <see cref="RegisterCreateDeclarationCommands(EditorCommandsImpl, Action)"/></b>, which
+    /// opens the same name+type dialog every other variable section opens.
+    /// ⛔ This quick-add overload is retained for HEADLESS TESTS of the create path only — the same
+    /// split <see cref="RegisterCreateVariableCommand(EditorCommandsImpl, BlueprintAsset, Action)"/>
+    /// has always had — ⚠ <b>and it is not what the editor wires.</b>
+    /// </para>
+    /// </summary>
+    public static void RegisterCreateDeclarationCommands(
+        EditorCommandsImpl commands,
+        BlueprintAsset     asset,
+        Action?            markDirty)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            Windows.BlueprintMyBlueprintModel.CommandCreateParameter,
+            "Create Input", "Add",
+            _ => AddDeclaration(asset, DeclarationKind.Parameter, "NewInput", markDirty),
+            description: "Add an input parameter to this blueprint.");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The production wiring for the Inputs "+"</b>: it opens a name-and-type dialog, the
+    /// same gesture <c>editor.create-variable</c> and <c>editor.create-local-variable</c> already
+    /// offer.
+    ///
+    /// <para>📌 <b>User ruling, <c>2026-08-17</c></b> — see <see cref="CreateDeclaration"/> for the
+    /// reversal it records and why the superseded note's premise was false.</para>
+    ///
+    /// <para>⚠ <b><c>BP-12c</c>: a section that declares a create command nothing registers is an
+    /// INERT BUTTON</b>, which shipped twice before it was caught. The rails invoke these rather than
+    /// checking that the descriptor carries an id.</para>
+    /// </summary>
+    /// <param name="openParameterModal">Opens the Input create dialog.</param>
+    /// <remarks>
+    /// ⭐⭐ <b>Batch 86 — the <c>openWorkingStateModal</c> parameter is GONE, not merely unused.</b>
+    /// <c>R-01</c> retires that section, so the second delegate had nothing left to register — and an
+    /// argument a method silently drops is the SILENT-DEFAULT shape this programme has filed three
+    /// times. ⛔ <c>editor.create-variable</c> is <b>not</b> registered here: it has its own owner in
+    /// <see cref="RegisterCreateVariableCommand"/>, and registering it twice would be two
+    /// implementations of one concept — ruling 9, the thing this batch exists to remove.
+    /// </remarks>
+    public static void RegisterCreateDeclarationCommands(
+        EditorCommandsImpl commands,
+        Action             openParameterModal)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(openParameterModal);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            Windows.BlueprintMyBlueprintModel.CommandCreateParameter,
+            "Create Input", "Add",
+            _ => openParameterModal(),
+            description: "Add an input parameter to this blueprint.");
+    }
+
+    /// <summary>
+    /// ⭐ <c>C-sections</c> — the quick-add path for any declaration kind.
+    ///
+    /// <para>
+    /// ⚠ Routed through <c>BlueprintDeclaration.Create</c>, which is <i>"the one way to build one
+    /// without first knowing which concrete type to make"</i> — a <c>Parameter</c> is backed by
+    /// <c>ParameterDecl</c> and the other two by <c>VariableDecl</c>, and picking that here by hand
+    /// would be a fourth place that knows the mapping.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ The unique-name search is across ALL kinds (<c>U-14</c>/<c>BP-232</c>): a <c>Parameter</c>
+    /// and a <c>Variable</c> may not share a name, because <c>Stage5</c>'s name fallback would let
+    /// list order decide which one a reference reached.
+    /// </para>
+    /// </summary>
+    internal static BlueprintDeclaration AddDeclaration(
+        BlueprintAsset asset, DeclarationKind kind, string baseName, Action? markDirty = null)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var decl = BlueprintDeclaration.Create(
+            kind, Guid.NewGuid(), MakeUniqueVariableName(asset, baseName),
+            new BlueprintTypeRef { TypeId = BlueprintTypeSystem.Bool });
+        asset.Declarations.Add(decl);
+        markDirty?.Invoke();
+        return decl;
+    }
+
     public static void RegisterCreateLocalVariableCommand(
         EditorCommandsImpl commands,
         Action             openModal)
@@ -1743,6 +1888,37 @@ public static class BlueprintDocumentFactory
         Action?        markDirty     = null,
         int            capacity      = 0,
         int            initialLength = 0)
+        // ⭐ ONE create path for all three kinds — see CreateDeclaration. This overload survives
+        //   because ~40 call sites want a VariableDecl back and DeclarationKind.Variable by default.
+        => CreateDeclaration(asset, DeclarationKind.Variable, name, typeId, markDirty,
+                             capacity, initialLength)?.AsVariableDecl;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The create path for ANY declaration kind</b> — <c>Variable</c>, <c>Parameter</c> or
+    /// <c>WorkingState</c> — taking a <b>name and a TYPE</b>, exactly as the variable modal always has.
+    ///
+    /// <para>📌 <b>User ruling, <c>2026-08-17</c>, verbatim:</b> <i>"working state [+] opening no
+    /// dialog is <b>wrong, inconsistent</b>. Must open new variable dialog same as any other variable
+    /// section."</i></para>
+    ///
+    /// <para>⚠ <b>This REVERSES the "quick-add, not a modal" note</b> that stood here since
+    /// <c>C-sections</c>. That note weighed "a second modal" against nothing, and its stated premise —
+    /// <i>"the created declaration is renamable and retypable in place"</i> — was <b>false</b>: rename
+    /// on an Inputs or Working-State row was a silent no-op until Batch 81 fixed the row commands.
+    /// ⛔ The cost it skipped is a designer learning two different meanings for one button.</para>
+    ///
+    /// <para>⭐ Not a third modal — <c>VariableCreateModal</c> parameterised by <c>noun</c>, and this
+    /// one create path parameterised by kind. Rejection rules are unchanged and shared: blank name,
+    /// duplicate across ALL kinds (U-14), and no managed element type in a fixed list.</para>
+    /// </summary>
+    internal static BlueprintDeclaration? CreateDeclaration(
+        BlueprintAsset  asset,
+        DeclarationKind kind,
+        string          name,
+        string          typeId,
+        Action?         markDirty     = null,
+        int             capacity      = 0,
+        int             initialLength = 0)
     {
         ArgumentNullException.ThrowIfNull(asset);
 
@@ -1760,40 +1936,62 @@ public static class BlueprintDocumentFactory
         if (capacity > 0 && finalType == BlueprintTypeSystem.String)
             return null;
 
-        var decl = new VariableDecl
-        {
-            Id   = Guid.NewGuid(),
-            Name = trimmed,
-            Type = capacity > 0
+        var decl = BlueprintDeclaration.Create(
+            kind, Guid.NewGuid(), trimmed,
+            capacity > 0
                 ? new BlueprintTypeRef
                 {
                     TypeId        = finalType,
                     Capacity      = capacity,
                     InitialLength = Math.Clamp(initialLength, 0, capacity),
                 }
-                : new BlueprintTypeRef { TypeId = finalType },
-        };
-        asset.Variables.Add(decl);
+                : new BlueprintTypeRef { TypeId = finalType });
+
+        asset.Declarations.Add(decl);
         markDirty?.Invoke();
         return decl;
     }
 
     /// <summary>
-    /// True when <paramref name="name"/> matches an existing variable name (case-insensitive).
+    /// True when <paramref name="name"/> matches an existing declaration name (case-insensitive).
     /// Exposed <c>internal</c> so the variable-create modal can validate the live input and
     /// disable Confirm before invoking <see cref="CreateVariable"/>.
+    ///
+    /// <para>
+    /// <b>U-14 / <c>BP-232</c> — the check is across ALL THREE KINDS.</b> ⛔ It read
+    /// <c>asset.Variables</c> alone, so a <c>Parameter</c> and a <c>Variable</c> could both be
+    /// <c>Health</c>. ⚠ <b>Reachable:</b> <c>Stage5.FindVariableRef</c>'s name fallback searches
+    /// <c>Variables → WorkingState → Parameters</c>, so which one such a name reached was decided by
+    /// list order.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ One collection, not three — this is what <c>U-9</c> bought, and the plan's note that the rule
+    /// is *"trivial after `U-9`, awkward before"* is borne out: the fix is the receiver.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Graph locals are deliberately NOT consulted.</b> <c>Q27-C1</c> lets a local <b>legally
+    /// shadow</b> an asset variable — they are disjoint spaces resolving to disjoint IR ops — so
+    /// reaching into <c>Graph.LocalVariables</c> here would refuse the feature. Asserted by
+    /// <c>CrossKindUniquenessTests</c>.
+    /// </para>
     /// </summary>
     internal static bool IsDuplicateVariableName(BlueprintAsset asset, string name)
     {
         ArgumentNullException.ThrowIfNull(asset);
         if (string.IsNullOrWhiteSpace(name)) return false;
         var trimmed = name.Trim();
-        return asset.Variables.Any(v =>
-            string.Equals(v.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+        return asset.Declarations.Any(d =>
+            string.Equals(d.Name, trimmed, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// U-14: uniquified against <b>every</b> declaration. ⛔ A refusal enforced on create but ignored
+    /// by auto-naming would hand back a name the same rule rejects.
+    /// </summary>
     private static string MakeUniqueVariableName(BlueprintAsset asset, string baseName)
-        => MakeUniqueName(asset.Variables.Select(v => v.Name), baseName);
+        => MakeUniqueName(asset.Declarations.Select(d => d.Name), baseName);
 
     /// <summary>
     /// <paramref name="baseName"/> if free, otherwise the first <c>baseName1</c>, <c>baseName2</c>, …

@@ -1707,6 +1707,43 @@ namespace Fdp.Core
         }
         
         /// <summary>
+        /// Ruling 14 — writes <paramref name="size"/> bytes at <paramref name="byteOffset"/> inside a
+        /// component and <b>touches nothing else</b>. Used by <see cref="EntityCommandBuffer"/> playback
+        /// for a surgical field edit.
+        ///
+        /// <para>
+        /// ⭐ <b>Why this exists at all:</b> a whole-component write is a read-modify-write whose read
+        /// happened earlier — so it silently carries every OTHER field back to whatever it was at read
+        /// time. On a shared blackboard component that reverts unrelated subsystems' state by a tick.
+        /// </para>
+        /// </summary>
+        internal unsafe void SetComponentFieldRaw(Entity entity, int typeId, int byteOffset, IntPtr src, int size)
+        {
+            if (!IsAlive(entity)) return;
+
+            IComponentTable? table = null;
+            if (typeId < _tableCache.Length && _tableCache[typeId] != null)
+            {
+                table = _tableCache[typeId]!;
+            }
+            else
+            {
+                Type? componentType = ComponentTypeRegistry.GetType(typeId);
+                if (componentType == null)
+                    throw new InvalidOperationException($"Component type ID {typeId} not registered");
+                if (!_componentTables.TryGetValue(componentType, out table))
+                    throw new InvalidOperationException($"Component {componentType.Name} not registered. Call RegisterComponent first.");
+            }
+
+            table.SetRawAt(entity.Index, byteOffset, src, size, _globalVersion);
+
+            // ⚠ The component mask is NOT set here, deliberately: a field write PATCHES a component
+            //   that must already exist. Adding the bit would make a write to an absent component look
+            //   like an add of a component whose other bytes are whatever the slot happened to hold.
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+        }
+
+        /// <summary>
         /// Removes a component by type ID (type-erased).
         /// Used internally by EntityCommandBuffer during playback.
         /// </summary>

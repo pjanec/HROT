@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Transform;
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
@@ -53,6 +54,7 @@ internal static class Stage2_Validate
         new V_FunctionGraphReturnValue(),   // BP-71 (BP1655) + BP-73 gate (BP1656)
         new V_ExecOutFanOut(),
         new V_FormatStringRules(),   // BP-108 (BP2072)
+        new V_DeclarationNameUniqueness(),  // U-12: BP1673
     };
 
     public static void Run(BlueprintAsset asset, ValidationContext ctx)
@@ -104,9 +106,17 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1010,
                         "Library asset has 'primitive' block, valid only for AiPrimitive.",
                         asset.AssetId));
-                if (asset.Variables.Count > 0)
+                // U-12 — RESTATED from "must not declare member variables" to "must not declare
+                // anything asset-scope". ⭐ All three of BlueprintAsset's declaration lists are the
+                // `Asset` scope; graph locals live on Graph, a different type. The old wording named
+                // one of the three because the three were separate lists, and a Library carrying
+                // Parameters or WorkingState was quietly legal for no stated reason.
+                // ⚠ Measured over all 58 shipped assets: the 3 Library assets declare NOTHING, so this
+                // widening refuses nothing that ships.
+                if (asset.Declarations.Count > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1011,
-                        "Library asset must not declare member variables.", asset.AssetId));
+                        "Library asset must not declare asset-scope variables "
+                        + "(parameters, working state or variables).", asset.AssetId));
                 if (asset.CustomEvents.Count > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1012,
                         "Library asset must not declare custom events.", asset.AssetId));
@@ -139,24 +149,101 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                             $"Condition intent incompatible with action-shaped hosting '{hosting}'.",
                             asset.AssetId));
                 }
-                if (asset.Variables.Count > 0)
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1024,
-                        "AiPrimitive uses 'parameters' and 'workingState', not 'variables'.",
-                        asset.AssetId));
+                // ⛔ BP1024 RETIRED here (U-12). It refused an AiPrimitive that declared a Variable,
+                // on the reasoning that "AiPrimitive uses parameters and workingState". Under the
+                // unified model `Variable` and `WorkingState` are the SAME cell — (State, Asset) — so
+                // the rule was enforcing a spelling, not a semantic. ⭐ What it was ALSO doing, silently,
+                // is handled by BP1673 below: see DiagnosticCodes.BP1673.
                 if (asset.Graphs.Any(g => g.Kind == GraphKind.Event))
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1025,
                         "AiPrimitive does not subscribe to engine events.", asset.AssetId));
+                // ⚠ The latency rail's Condition row is NOT here — it already ships as BP1101 in
+                // V_AiPrimitiveIntent below. See that validator for what Batch 67 widened.
                 break;
 
             case BlueprintDispatchKind.Instance:
                 if (asset.Primitive is not null)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1030,
                         "Instance asset must not have a 'primitive' block.", asset.AssetId));
-                if (asset.Parameters.Count > 0 || asset.WorkingState.Count > 0)
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1031,
-                        "Instance uses 'variables', not 'parameters'/'workingState'.",
-                        asset.AssetId));
+                // ⛔⛔ BP1031 RETIRED here (Batch 70, the Instance params seam). U-12 had already
+                // dropped its `WorkingState` half as a spelling rule; what survived was the
+                // `Parameter` half, and its message stated its own reason verbatim: "nothing
+                // supplies them at spawn."
+                //
+                // ⭐⭐ That reason is no longer true. DESIGN_Parameter_Model.md §3.3 rules that
+                // "Instances could and should reuse the param parsing and resolving", and the seam
+                // that implements it supplies exactly that: AttachInstanceBlueprintEvent carries the
+                // params JSON, BlueprintDefinition.ParseParams resolves it (the SAME delegate the
+                // behaviour path uses), and BlueprintInstanceService.AttachToEntity parses before it
+                // commits. The payload is [BlueprintLatentCursor 16][Params N][State M].
+                //
+                // ⚠ Leaving the rule standing would have made the whole seam UNREACHABLE — a
+                // producer with no consumer, which is the "inert rule" shape this programme keeps
+                // filing (DEBT-AIB-028, trap #5) rather than shipping.
+                //
+                // ⭐ Kept defined so the number is not reused; listed in the coverage ratchet as
+                // RETIRED, on BP1024's precedent.
                 break;
+        }
+    }
+
+}
+
+// ---------------------------------------------------------------------------
+// V_DeclarationNameUniqueness — U-12 / BP1673
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// ⭐⭐ <b><c>BP1673</c> — two asset-scope declarations must not share a name.</b>
+///
+/// <para>
+/// ⛔ <b>The hole <c>U-12</c> opens.</b> <c>Stage5.FindVariableRef</c> resolves by <b>priority across
+/// kinds</b> — <c>Variables</c> → <c>WorkingState</c> → <c>Parameters</c> — and its <b>name</b>
+/// fallback is the path hand-authored assets take. Two declarations of one name therefore bind to
+/// whichever kind the priority order reaches first, <b>silently</b>. The GUID path is unambiguous;
+/// this rule is about the name path.
+/// </para>
+///
+/// <para>
+/// ⭐ <b>Nothing checked this before, and nothing had to.</b> <c>BP1024</c> kept <c>Variables</c> off
+/// an AiPrimitive and <c>BP1031</c> kept <c>Parameters</c>/<c>WorkingState</c> off an Instance, so at
+/// most one list was ever populated and a cross-kind collision could not be authored.
+/// ⇒ <b>retiring those rules is what makes this one necessary</b>, which is why it lands in the same
+/// batch rather than after one.
+/// </para>
+///
+/// <para>
+/// ⚠ <b><c>OrdinalIgnoreCase</c>, matching <c>U-14</c>'s auto-namer</b>, so the compiler refuses
+/// exactly what the editor refuses to create. ⚠ <b>Same-kind duplicates are covered too</b> — they
+/// were equally undiagnosed, and a designer reading the error does not care which list the twin is in.
+/// </para>
+///
+/// <para>
+/// 📌 <b>Graph locals are deliberately out of scope.</b> A local shadowing an asset declaration is
+/// legal and ruled on (<c>Q27-C1</c>: a local wins inside its own graph), and
+/// <c>CrossKindUniquenessTests</c> asserts that. This rule is asset-scope against asset-scope.
+/// </para>
+/// </summary>
+internal sealed class V_DeclarationNameUniqueness : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        var seen = new Dictionary<string, BlueprintDeclaration>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var decl in asset.Declarations)
+        {
+            var name = decl.Name;
+            if (string.IsNullOrWhiteSpace(name)) continue;   // V_AssetStructure's business, not this rule's
+
+            if (seen.TryGetValue(name, out var first))
+            {
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1673,
+                    $"Declaration '{name}' ({decl.Kind}) collides with '{first.Name}' ({first.Kind}); "
+                    + "a variable reference by name would silently bind to one of them.",
+                    asset.AssetId));
+                continue;   // report each collision once against the first occurrence
+            }
+            seen[name] = decl;
         }
     }
 }
@@ -392,13 +479,16 @@ internal sealed class V_VariablesAndState : IValidator
             case BlueprintDispatchKind.AiPrimitive:
                 if (asset.Primitive is null) return;
 
-                int paramsSize = ComputeStructSize(asset.Parameters.Select(p => p.Type), ctx);
+                int paramsSize = ComputeStructSize(
+                    asset.Declarations.Of(DeclarationKind.Parameter).Select(d => d.Type), ctx);
                 if (paramsSize > 100)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1200,
                         $"AiPrimitive Parameters total {paramsSize} bytes; max is 100.",
                         asset.AssetId));
 
-                int workingSize = ComputeStructSize(asset.WorkingState.Select(v => v.Type), ctx);
+                // ⭐ Batch 86 — the AiPrimitive working-state struct is the one state run (R-01).
+                int workingSize = ComputeStructSize(
+                    asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Type), ctx);
                 if (workingSize > 1024 - 8)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1201,
                         $"AiPrimitive WorkingState total {workingSize} bytes; max is {1024 - 8}.",
@@ -406,7 +496,8 @@ internal sealed class V_VariablesAndState : IValidator
                 break;
 
             case BlueprintDispatchKind.Instance:
-                int stateSize = ComputeStructSize(asset.Variables.Select(v => v.Type), ctx);
+                int stateSize = ComputeStructSize(
+                    asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Type), ctx);
                 int tierBudget = (asset.TierHint, stateSize) switch
                 {
                     (BlackboardTierHint.Force1024,  _)               => 928,
@@ -453,6 +544,48 @@ internal sealed class V_VariablesAndState : IValidator
 // V_AiPrimitiveIntent
 // ---------------------------------------------------------------------------
 
+/// <summary>
+/// ⭐⭐ <b>The latency rail's <c>Condition</c> row — <c>BP1100</c> / <c>BP1101</c>.</b>
+///
+/// <para>
+/// 🔴 <b>What it protects.</b> <c>BTreeEvaluate</c> emits
+/// <c>return TickCore(…) == NodeStatus.Success;</c>, so <b><c>Running</c> maps to <c>false</c></b>. A
+/// latent condition reads <i>false</i> while it waits — indistinguishable from <i>"the condition does
+/// not hold"</i> — then flips true later with <c>__phase</c> left mid-sequence. ⛔ No throw, no
+/// warning; the tree simply takes the wrong branch.
+/// </para>
+///
+/// <para>
+/// ⭐⭐⭐ <b>Batch 67 WIDENED this rule rather than adding a second one.</b> The carried task described
+/// the Condition row as missing; measured, it has shipped as <c>BP1101</c> all along — but matching on
+/// its <b>own</b> inline list of three node types.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>The kind that list did not name: a <c>ChannelCommandNode</c> carrying an <c>ActionFqn</c></b> —
+/// an inline action, which <c>WaitLowering</c> gives the same suspend/resume block split as a
+/// <c>Delay</c>. It is a fourth SHAPE of an already-listed type rather than a fourth type, which is
+/// why a type-match missed it. <c>MacroLatency</c>'s own doc records this kind as <i>"missing for six
+/// batches"</i> from the copy it replaced; ⭐ <b>this inline list was the last surviving copy</b>, and
+/// that doc says plainly <i>"do not write a second latent-detection rule"</i>. ⇒ the validator now
+/// calls the shared predicate.
+/// </para>
+///
+/// <para>
+/// 📌 <b>Latency behind a macro call needs no separate arm</b>, and one was written and then removed:
+/// the loop below scans <b>every</b> graph, macro bodies included, so a latent node in a called macro
+/// is already reported — against the macro that contains it. ⛔ A second, call-following arm produced
+/// only a duplicate diagnostic for one defect.
+/// </para>
+///
+/// <para>
+/// 📌 <b>Only the Condition row ships.</b> The rule is <i>"latency is legal iff the hosting can
+/// RE-ENTER"</i>. <c>BTreeCondition</c>/<c>HsmGuard</c> never can, which makes this row fully
+/// specified today. ⛔ The Action rows (HSM <c>Entry</c>/<c>Exit</c>/<c>Timer</c> cannot re-enter
+/// either) stay unimplemented deliberately — they are speculative until <c>E5</c> defines HSM activity
+/// hosting, and guessing them would refuse assets the design has not ruled on.
+/// </para>
+/// </summary>
 internal sealed class V_AiPrimitiveIntent : IValidator
 {
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
@@ -464,24 +597,17 @@ internal sealed class V_AiPrimitiveIntent : IValidator
         {
             foreach (var node in graph.Nodes)
             {
-                switch (node)
-                {
-                    case ReturnNode rn when rn.Status == NodeStatus.Running:
-                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1100,
-                            "Condition intent: Return Running is forbidden. "
-                            + "Conditions must be instantaneous.",
-                            asset.AssetId, graph.Id, node.Id));
-                        break;
+                if (node is ReturnNode { Status: NodeStatus.Running })
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1100,
+                        "Condition intent: Return Running is forbidden. "
+                        + "Conditions must be instantaneous.",
+                        asset.AssetId, graph.Id, node.Id));
 
-                    case LatentDelayNode:
-                    case WaitForChannelNode:
-                    case WaitForEventNode:
-                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1101,
-                            "Condition intent: latent nodes are forbidden. "
-                            + "Condition graphs must be synchronous.",
-                            asset.AssetId, graph.Id, node.Id));
-                        break;
-                }
+                if (!MacroLatency.IsLatent(node)) continue;
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1101,
+                    "Condition intent: latent nodes are forbidden. "
+                    + "Condition graphs must be synchronous.",
+                    asset.AssetId, graph.Id, node.Id));
             }
         }
     }
@@ -1263,9 +1389,9 @@ internal sealed class V_WhenNodeRules : IValidator
         EqsResultPayload er, ValidationContext ctx)
     {
         // BP2010 -- sensor variable not declared
-        bool sensorDeclared = asset.Variables.Any(v =>
-            v.Name == er.SensorVariableName
-            && v.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
+        bool sensorDeclared = asset.Declarations.Of(DeclarationKind.Variable).Any(d =>
+            d.Name == er.SensorVariableName
+            && d.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
         if (!sensorDeclared)
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2010,
                 $"WhenNode EqsResult: sensor variable '{er.SensorVariableName}' "
@@ -1335,9 +1461,9 @@ internal sealed class V_ReadEqsResultNodeRules : IValidator
                         asset.AssetId, graph.Id, node.Id));
 
                 // BP2021 -- sensor variable not declared
-                bool sensorDeclared = asset.Variables.Any(v =>
-                    v.Name == node.SensorVariableName
-                    && v.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
+                bool sensorDeclared = asset.Declarations.Of(DeclarationKind.Variable).Any(d =>
+                    d.Name == node.SensorVariableName
+                    && d.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
                 if (!sensorDeclared)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2021,
                         $"ReadEqsResultNode: sensor variable '{node.SensorVariableName}' "
@@ -1934,7 +2060,7 @@ internal sealed class V_ListVariableRules : IValidator
         // Variables, AiPrimitive WorkingState, and action DTOs. (The Shared home is fenced at
         // the WIRE level: a list value feeding SetShared/GetShared trips BP1506 -- see
         // CheckListValueWires' allowlist.)
-        foreach (var p in asset.Parameters)
+        foreach (var p in asset.Declarations.Of(DeclarationKind.Parameter))
         {
             if (p.Type is { Capacity: > 0 })
             {
@@ -1975,8 +2101,12 @@ internal sealed class V_ListVariableRules : IValidator
         var vid = variableId ?? "";
         if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
         if (!Guid.TryParse(vid, out var id)) return null;
-        return asset.Variables.FirstOrDefault(v => v.Id == id)
-            ?? asset.WorkingState.FirstOrDefault(v => v.Id == id);
+        // ⚠⚠ U-11: Variables and WorkingState ONLY, deliberately — NOT Declarations.ById(), which
+        //    also searches Parameters. Widening the set here would make a parameter id resolve where
+        //    it never did, which is the silent behaviour change a projection makes easy.
+        // ⭐ Batch 86 — ONE state kind (R-01).
+        return asset.Declarations.Of(DeclarationKind.Variable)
+                    .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
     }
 
     private static void CheckListWriteTarget(

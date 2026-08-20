@@ -572,10 +572,22 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
 
     public WatchId AddWatch(Guid assetId, Guid graphId, Guid pinId, string displayName, Type expectedType)
     {
-        // Auto-instrumentation: if no DebugMap yet for this asset, request a Trace compile.
-        // Trace mode includes watch probes + breakpoints. If the asset is already Debug-compiled
-        // the instrumentation service handles upgrading without recompiling if possible.
-        if (!_debugMaps.ContainsKey(assetId) && _onInstrumentationRequested != null)
+        // ⭐⭐⭐ Auto-instrumentation: request a Trace compile when this PIN cannot yet report values.
+        //
+        // 🔴 C-watch (Batch 69) -- the old guard was `!_debugMaps.ContainsKey(assetId)`, i.e. "only
+        //    when the asset has NO map at all". ⛔ That skipped the case the comment claimed to
+        //    handle: set a BREAKPOINT first (which compiles in Debug) and the asset HAS a map, so
+        //    adding a watch requested nothing -- and `DebugProbeInsertion:149` emits
+        //    `PinValueChanged` only under `CompilerMode.Trace`. ⇒ the watch sat there receiving
+        //    nothing, with `(pending)` in the cell forever and no way for the designer to tell that
+        //    from "the value has not changed".
+        //
+        // ⭐ The right question is not "is there a map" but "does the map know this pin" -- which is
+        //   exactly what a Trace compile adds. A Debug map resolves no pins, so this fires; a Trace
+        //   map already has it, so it does not.
+        if (_onInstrumentationRequested != null
+            && (!_debugMaps.TryGetValue(assetId, out var existingMap)
+                || existingMap.TryGetPinById(pinId) is null))
         {
             _ = _onInstrumentationRequested.Invoke(assetId, BPCompilerMode.Trace);
         }
@@ -881,6 +893,40 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         => _activeEntities.TryGetValue(assetId, out var set)
             ? set.ToList().AsReadOnly()
             : Array.Empty<Entity>().AsReadOnly();
+
+    // ---- IBlueprintDebugSession -- live write (Batch 84, row 59c) -----------
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The live write, STAGED.</b> 📌 <c>R-63</c> — measured <c>2026-08-18</c>: while paused
+    /// <c>ActiveView</c> IS the pre-tick snapshot, and <c>RequestStep</c>/<c>RequestContinue</c>
+    /// restore the live repo from the POST-tick snapshot and drain AFTERWARDS. ⇒ ⛔ a direct write to
+    /// the view is overwritten on resume; ⭐ a staged write lands on top of the restored state.
+    ///
+    /// <para>⭐ <b>The manager is DERIVED, not a new argument</b> — <see cref="SetDataBreakpointManager"/>
+    /// already hands it to this session for breakpoints.</para>
+    ///
+    /// <para>⛔ <b>Refuses unless FROZEN</b> (📌 ruling 15). ⚠ Both arms of "frozen" are this session's
+    /// own <see cref="IsPaused"/>, which the breakpoint hit sets — the editor-side freeze signal
+    /// (<c>IEngineDebugTimeController.IsPausedByDebugger</c>) is what the UI greys on, and the two must
+    /// both hold for a write to reach here.</para>
+    /// </summary>
+    public bool TryWriteWorkingStateField(
+        Entity entity, Type componentType, int fieldOffsetBytes, ReadOnlySpan<byte> bytes)
+    {
+        if (componentType is null) throw new ArgumentNullException(nameof(componentType));
+
+        // ⛔ Ruling 15: not frozen ⇒ no live write. ⭐ false, not an exception — the caller greys a
+        //    control on this answer.
+        if (!_isPaused) return false;
+        if (_dataBreakpointManager is null) return false;
+
+        // ⭐ The +8 through its ONE owner, so this write addresses exactly the byte the read path
+        //   showed the designer. ⛔ A bad offset THROWS from here (Q32 §2.1) — it is corruption, not
+        //   a refusal.
+        int componentOffset = WorkingStateLayout.ComponentOffsetOf(fieldOffsetBytes);
+        _dataBreakpointManager.StageFieldMutation(entity, componentType, componentOffset, bytes);
+        return true;
+    }
 
     // ---- IBlueprintDebugSession -- pause state ------------------------------
 
@@ -1295,7 +1341,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
             System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
 
-        if (bytes.Length < 8) return;
+        if (bytes.Length < WorkingStateLayout.HeaderBytes) return;
 
         ulong storedHash = System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
         if (storedHash != def.StructureHash) return;
@@ -1305,7 +1351,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         {
             foreach (var field in layoutFields)
             {
-                int start = 8 + field.OffsetBytes;
+                // ⭐ BATCH 84 — the +8 through its ONE owner (Q32 §2.1). ⛔ The write path computes the
+                //   same offset the same way; a read and a write that disagree by 8 bytes do not show
+                //   a wrong number, they scribble on the neighbouring field.
+                int start = WorkingStateLayout.ComponentOffsetOf(field.OffsetBytes);
                 if (start + field.SizeBytes > bytes.Length) continue;
                 var fieldType = ResolveType(field.Type);
                 if (fieldType is null) continue;
@@ -1317,7 +1366,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         {
             foreach (var (name, descriptor) in def.StateFields)
             {
-                int start = 8 + descriptor.OffsetBytes;
+                int start = WorkingStateLayout.ComponentOffsetOf(descriptor.OffsetBytes);
                 if (start + descriptor.SizeBytes > bytes.Length) continue;
                 var raw = MarshalFromBytes(bytes.Slice(start, descriptor.SizeBytes).ToArray(), descriptor.ClrType);
                 if (raw != null) outFields[name] = raw;
@@ -1719,7 +1768,24 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         return entry.SourceStartLine;
     }
 
-    private static Type? ResolveType(string typeFullName) => typeFullName switch
+    /// <summary>
+    /// ⭐⭐ <c>S3</c> — FQN → loaded CLR type, <b>across every loaded assembly</b>.
+    ///
+    /// <para>
+    /// 🔴 <c>Type.GetType(fqn)</c> alone searches only the CALLING assembly and corelib, so it never
+    /// found a game struct — <c>Fdp.Core.FixedString32</c>, <c>Hrot.AI.Behaviors.Brains.MemberSlotList</c>
+    /// — and the field was silently <b>skipped</b>, not shown as undecodable. ⭐ The nine-case switch
+    /// below is kept: it short-circuits the common primitives before any assembly walk, and it is what
+    /// makes the FALLBACK's cost irrelevant.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Mirrors <c>ComponentFieldReflector.ResolveType</c> deliberately — the same
+    /// <c>EditorTypeResolutionScope</c> (BP-62), so a referenced-but-not-yet-loaded assembly is
+    /// force-loaded rather than silently missing here and present there.
+    /// </para>
+    /// </summary>
+    public static Type? ResolveType(string typeFullName) => typeFullName switch
     {
         "System.Int32"   => typeof(int),
         "System.Single"  => typeof(float),
@@ -1730,7 +1796,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         "System.UInt64"  => typeof(ulong),
         "System.Int16"   => typeof(short),
         "System.Byte"    => typeof(byte),
-        _                => Type.GetType(typeFullName),
+        _                => Hrot.Blueprints.Editor.NodeDrawers.ComponentFieldReflector
+                                .ResolveType(typeFullName),
     };
 
     public static object? MarshalFromBytes(byte[] bytes, Type type)
@@ -1749,8 +1816,79 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         if (type == typeof(ushort)) return System.Runtime.InteropServices.MemoryMarshal.Read<ushort>(bytes);
         if (type == typeof(ulong))  return System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
         if (TryFormatFixedList(bytes, type, out var formatted)) return formatted;
+        if (TryReadStruct(bytes, type, out var value)) return value;
         return bytes;
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S3</c> / <c>BP-01</c> — <b>the struct arm.</b> Seven of the editor's eighteen offerable
+    /// types (<c>Vector2/3/4</c>, <c>Quaternion</c>, <c>FixedString32/64/128</c>) reached
+    /// <c>return bytes</c>, so the watch panel showed raw hex for a type the picker itself offers.
+    /// ⛔ <b>That was never a panel bug.</b>
+    ///
+    /// <para>
+    /// ⭐ <b>Reflection is the ruled mechanism</b>, and the ruling bounds it: <i>"reflection-based for
+    /// structs (UI decode only, <b>not on the probe path</b>)"</i>
+    /// (<c>_DONE/blueprints-1/TASK-DETAIL.md:1840</c>). ✅ Honoured by placement — every caller of
+    /// <see cref="MarshalFromBytes"/> is a snapshot/watch read; the probe path never reaches here.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>A structural rule, not an allow-list</b> — an allow-list is the very defect <c>S5</c>
+    /// exists to remove, one layer down. The bound is <b>exactness</b>: an unmanaged value type whose
+    /// managed size is exactly the slice it was handed. ⚠ The design's <i>"small structs only"</i>
+    /// (<c>blueprint-dbg-1:193</c>) is a SCOPE note on what the Debug DD covered, not a byte ceiling;
+    /// inventing a number here would just re-create the silent skip above it.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b><see cref="System.Runtime.InteropServices.MemoryMarshal"/>, not
+    /// <c>Marshal.PtrToStructure</c>.</b> The bytes are the MANAGED layout the generated writer stores
+    /// (<c>Unsafe.As</c> onto the blackboard); <c>PtrToStructure</c> reads the MARSHALLED one, and the
+    /// two differ on <c>bool</c>. Reading with the wrong model yields a plausible wrong value, which is
+    /// worse than hex.
+    /// </para>
+    /// </summary>
+    internal static bool TryReadStruct(byte[] bytes, Type type, out object? value)
+    {
+        value = null;
+        if (!type.IsValueType || type.IsEnum || type.IsPrimitive || type.IsGenericTypeDefinition)
+            return false;
+
+        try
+        {
+            if ((bool)IsReferenceOrContainsReferencesMethod.MakeGenericMethod(type).Invoke(null, null)!)
+                return false;                                       // managed => not blittable bytes
+            if ((int)UnsafeSizeOfMethod.MakeGenericMethod(type).Invoke(null, null)! != bytes.Length)
+                return false;                                       // ⛔ exactness IS the bound
+
+            value = ReadManagedMethod.MakeGenericMethod(type).Invoke(null, new object[] { bytes });
+            return true;
+        }
+        catch
+        {
+            // A ref struct, a pointer field, an open generic — unreflectable. ⭐ Fall through to the
+            // raw bytes rather than throwing: the watch panel must never take the session down.
+            return false;
+        }
+    }
+
+    /// <summary>The one generic frame the reflective call above needs, so the span is created INSIDE
+    /// (a <c>Span&lt;byte&gt;</c> cannot be boxed into an <c>object[]</c> argument list).</summary>
+    private static object ReadManaged<T>(byte[] bytes) where T : struct
+        => System.Runtime.InteropServices.MemoryMarshal.Read<T>(bytes)!;
+
+    private static readonly System.Reflection.MethodInfo IsReferenceOrContainsReferencesMethod =
+        typeof(System.Runtime.CompilerServices.RuntimeHelpers)
+            .GetMethod(nameof(System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences))!;
+
+    private static readonly System.Reflection.MethodInfo UnsafeSizeOfMethod =
+        typeof(System.Runtime.CompilerServices.Unsafe)
+            .GetMethod(nameof(System.Runtime.CompilerServices.Unsafe.SizeOf))!;
+
+    private static readonly System.Reflection.MethodInfo ReadManagedMethod =
+        typeof(BlueprintDebugSession).GetMethod(nameof(ReadManaged),
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
 
     /// <summary>
     /// FC-2/LV-5 → FC-3c: thin delegate to <see cref="Fdp.Core.FixedListFormatter"/> — THE

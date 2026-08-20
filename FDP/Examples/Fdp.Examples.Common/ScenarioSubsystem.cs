@@ -49,6 +49,13 @@ namespace Fdp.Examples.Common
         // ── ISubsystem ────────────────────────────────────────────────────────
 
         /// <inheritdoc/>
+        /// <summary>
+        /// ⭐ The diagnostic of the scenario failure that ended this run, or null if none.
+        /// ⛔ <c>ExitWith(1)</c> is the same code for every phase, so the exit code alone cannot say
+        /// what went wrong; this is what a test harness reports instead of "exit 1".
+        /// </summary>
+        public string? LastFailure { get; private set; }
+
         public string Name => $"ScenarioSubsystem[{_scenario.ScenarioName}]";
 
         /// <inheritdoc/>
@@ -145,6 +152,10 @@ namespace Fdp.Examples.Common
             }
             catch (ScenarioFailureException ex)
             {
+                // ⭐⭐ Batch 73 — the diagnostic is RETAINED, not only logged. ⛔ ExitWith(1) collapses
+                //   every phase to the same code, so a failing gate could say "exit 1" and nothing more:
+                //   a red that names no cause trains everyone to ignore the gate. See LastFailure.
+                LastFailure = $"Phase {ex.PhaseId} FAILED tick={_tick}: {ex.Diagnostics}";
                 FdpLog<ScenarioSubsystem>.Error(
                     "[{0}] [CI FAILURE] Phase {1} FAILED tick={2}: {3}",
                     _scenario.ScenarioName, ex.PhaseId, _tick, ex.Diagnostics);

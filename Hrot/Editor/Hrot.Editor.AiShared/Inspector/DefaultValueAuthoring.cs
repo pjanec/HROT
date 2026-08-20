@@ -82,12 +82,27 @@ public static class DefaultValueAuthoring
     /// <param name="editService">The StructEdit edit-service (from the composition root).</param>
     /// <param name="varEntry">The variable whose default value is being edited.</param>
     /// <returns>An open <see cref="IEditSession"/> for the hydrated DTO instance.</returns>
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>C-dialog</c> (Batch 68) — this is THE one call site that opens a variable edit
+    /// session, and <paramref name="scope"/> is the only thing that differs between the two menu
+    /// items.</b> §3: <i>"Edit value…"</i> passes <see cref="EditScope.ForField"/>, <i>"Properties…"</i>
+    /// passes <see cref="EditScope.WholeComponent"/> — ⛔ <b>same lifecycle, same OK/Cancel, same
+    /// validation.</b> §9's rail is a reflection test asserting exactly one such call site exists.
+    ///
+    /// <para>
+    /// 🔴 <b>The rail FAILED before the change.</b> <c>InspectorWindow:352-365</c> inlined its own copy
+    /// of <see cref="Hydrate"/> — the same deserialize-or-<c>Activator</c> try/catch — and called
+    /// <c>Open</c> itself, so a variable default-value session had <b>two</b> implementations. It now
+    /// routes here.
+    /// </para>
+    /// </remarks>
     public static IEditSession OpenSession(
         IComponentEditService editService,
-        BlackboardVariableEntry varEntry)
+        BlackboardVariableEntry varEntry,
+        EditScope? scope = null)
     {
         var instance = Hydrate(varEntry.FieldType, varEntry.DefaultValueJson);
-        return editService.Open(instance, varEntry.FieldType);
+        return editService.Open(instance, varEntry.FieldType, scope);
     }
 
     // ── Commit + serialize ────────────────────────────────────────────────────
