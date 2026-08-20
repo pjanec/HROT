@@ -25,8 +25,95 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// </summary>
 public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutlineSelectionSource,
                                                  Hrot.Editor.AiShared.Selection.IDetailsSurfaceClaimant,
-                                                 ILiveVariableProjectionHost
+                                                 ILiveVariableProjectionHost,
+                                                 Hrot.Editor.AiShared.Variables.IVariableWatchToggleHost
 {
+    // ── 98c: BP-360, the outline's watch entry ───────────────────────────────
+
+    private Action<Hrot.Editor.AiShared.Variables.VariableRow>? _watchToggle;
+
+    /// <inheritdoc/>
+    public void SetWatchToggle(Action<Hrot.Editor.AiShared.Variables.VariableRow>? toggle)
+        => _watchToggle = toggle;
+
+    /// <summary>⭐ True once a real toggle has been installed. ⭐ A rail surface — asserted on the
+    /// CONSTRUCTED window, ⛔ never on the registrar's source (📌 <c>M-22</c>).</summary>
+    public bool HasWatchToggle => _watchToggle != null;
+
+    /// <summary>
+    /// ⭐⭐ <b>Resolves an outline item id to the row the Watch would pin.</b>
+    ///
+    /// <para>⭐ Routed through <see cref="ResolveVariableSelection"/> — the SAME resolver the Details
+    /// panel uses — so the outline cannot pin a row the panel would not show. ⛔ A second lookup here
+    /// would be a second answer to "which variable is this item?".</para>
+    ///
+    /// <para>⚠ <c>null</c> when the id names no variable *(a graph, a function, a stale id)*, and the
+    /// command then refuses rather than pinning a guess.</para>
+    /// </summary>
+    internal Hrot.Editor.AiShared.Variables.VariableRow? RowForItem(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+
+        foreach (var section in new[]
+                 {
+                     BlueprintMyBlueprintModel.SectionVariables,
+                     BlueprintMyBlueprintModel.SectionParameters,
+                     BlueprintMyBlueprintModel.SectionLocalVariables,
+                 })
+        {
+            foreach (var item in _model.GetItems(section))
+            {
+                if (!string.Equals(item.ItemId, itemId, StringComparison.Ordinal)) continue;
+
+                var selection = ResolveVariableSelection(item);
+                if (selection.Source is null) return null;
+
+                foreach (var row in selection.Source.GetRows())
+                    if (string.Equals(row.ShortName, selection.SelectedVariablePath, StringComparison.Ordinal))
+                        return row;
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98c</c>) — registers the command the outline's menu looks for.</b>
+    ///
+    /// <para>⛔⛔ <b>Only when a real toggle was installed.</b> 📐 The menu enables itself on
+    /// <c>commands.Get(id) is not null</c> — so registering unconditionally would ENABLE the entry on a
+    /// perspective with no Watch and make the click do nothing. ⚠ That is the trap this item exists to
+    /// close, and re-creating it one layer down would be worse than leaving it greyed.</para>
+    ///
+    /// <para>⭐ The refusal stays honest: with no toggle the entry greys and its tooltip already names
+    /// the missing command.</para>
+    /// </summary>
+    /// <summary>⭐ The outline's own item id for a named variable — ⛔ so a rail asks the OUTLINE what
+    /// it would pass rather than fabricating an id the scheme could move away from.</summary>
+    internal string RowIdForTest(string displayName)
+        => _model.GetItems(BlueprintMyBlueprintModel.SectionVariables)
+                 .First(i => string.Equals(i.DisplayName, displayName, StringComparison.Ordinal))
+                 .ItemId;
+
+    private void RegisterWatchCommand(EditorCommandsImpl commands)
+    {
+        if (_watchToggle is null) return;
+
+        BlueprintDocumentFactory.RegisterToggleVariableWatchCommand(
+            commands,
+            itemId =>
+            {
+                // ⛔ Never silence: BP-223/Q26-B2 — a gesture that cannot proceed says so, through the
+                //   SAME indicator every other refusal in this window uses.
+                if (RowForItem(itemId) is not { } row)
+                {
+                    Refuse("That item is not a variable this Watch can pin.");
+                    return;
+                }
+                _watchToggle(row);
+            });
+    }
+
     /// <summary>
     /// ⭐⭐⭐ <b>Batch 90 (<c>90b</c>) — the live projection, installed by the registrar.</b>
     /// 📌 <c>R-67</c>: the registrar already HOLDS the provider, so this arrives in its one
@@ -170,6 +257,12 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
         if (blueprintAsset != null && commands is EditorCommandsImpl cmdImpl)
         {
             var markDirty = MarkDirtyAction();
+
+            // ⭐⭐⭐ Batch 98 (98c) — BP-360. Registered HERE, with the document's other commands,
+            //    because this is where an EditorCommandsImpl exists. ⚠ Re-registered per retarget for
+            //    the same reason the modals are rebuilt: the handler closes over this window, and the
+            //    ROW it resolves must come from the document now active.
+            RegisterWatchCommand(cmdImpl);
             _createVariableModal = new VariableCreateModal(
                 (name, typeId, capacity, initialLength) => BlueprintDocumentFactory.CreateVariable(
                     blueprintAsset, name, typeId, markDirty, capacity, initialLength),

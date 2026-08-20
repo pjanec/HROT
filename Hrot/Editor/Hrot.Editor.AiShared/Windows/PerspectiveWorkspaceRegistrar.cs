@@ -643,6 +643,17 @@ public class PerspectiveWorkspaceRegistrar
         if (window is ILiveVariableProjectionHost projectionHost)
             projectionHost.SetLiveProjection(LiveProjection);
 
+        // ⭐⭐⭐ Batch 98 (98c) — BP-360: the outline's "Watch this variable" was drawn and DEAD.
+        //    📐 MyBlueprintContextMenu enables it on commands.Get("editor.toggle-variable-watch"), and
+        //    nothing registered that command ⇒ Batch 94's "ONE command, TWO entry points" was half
+        //    true: the table's entry was wired here, the outline's was not.
+        // ⭐ Same pass, same reason as the projection above (R-67): this registrar already HOLDS the
+        //   Watch, so the outline is handed the toggle here and EditorSubsystem gains nothing to forget.
+        // ⚠ null when this perspective has no Watch window — the host then greys its entry instead of
+        //   registering a command that would do nothing.
+        if (window is IVariableWatchToggleHost watchHost)
+            watchHost.SetWatchToggle(Watch is null ? null : ToggleWatch);
+
         // ⭐⭐⭐ Batch 87 — WHICH SURFACE owns the Details panel (user ruling, 2026-08-18).
         //    🔴 B8: the panel decided by comparing NODE IDENTITY, so re-clicking the same node could
         //    never win it back. ⛔ Measured: a re-click produces no signal at any layer — CanvasInput
@@ -781,17 +792,34 @@ public class PerspectiveWorkspaceRegistrar
     /// </summary>
     private void AttachWatchGesture(VariableTableControl table)
     {
-        if (Watch is not { } watch || table.IsWatched is not null) return;
+        if (Watch is null || table.IsWatched is not null) return;
 
-        table.IsWatched = row => watch.Pinned.GetRows()
-            .Any(r => r.Origin.Key.Equals(row.Origin.Key));
+        table.IsWatched            = IsWatched;
+        table.WatchToggleRequested += ToggleWatch;
+    }
 
-        table.WatchToggleRequested += row =>
-        {
-            // ⭐ A toggle, resolved against the store rather than a remembered flag — ⛔ two panels
-            //   can pin the same variable and the store is the only truth about what is pinned.
-            if (!watch.Pinned.Unpin(row.Origin)) watch.Pinned.Pin(row);
-        };
+    /// <summary>
+    /// ⭐⭐ <b>Is this row pinned?</b> — asked of the STORE, not of a remembered flag. ⛔ Two panels can
+    /// pin the same variable, and the store is the only truth about what is pinned.
+    /// ⚠ <c>false</c> when the perspective has no Watch, which is honest rather than a throw.
+    /// </summary>
+    private bool IsWatched(VariableRow row)
+        => Watch is { } w && w.Pinned.GetRows().Any(r => r.Origin.Key.Equals(row.Origin.Key));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98c</c>) — THE toggle, now shared by both entry points.</b>
+    ///
+    /// <para>🔴 It used to live inline in <see cref="AttachWatchGesture"/>, reachable only by the
+    /// Details table. ⇒ the outline's <i>"Watch this variable"</i> had nothing to call and its command
+    /// was never registered *(<c>BP-360</c>)*. ⭐ Batch 94 specified <b>ONE command, TWO entry
+    /// points</b>; ⛔ giving the outline its own copy would have made that two implementations
+    /// *(ruling 9)* — the second of which would drift on the unpin-first rule below.</para>
+    /// </summary>
+    private void ToggleWatch(VariableRow row)
+    {
+        if (Watch is not { } watch) return;
+        // ⭐ Unpin FIRST: a toggle resolved against the store, ⛔ never a remembered flag.
+        if (!watch.Pinned.Unpin(row.Origin)) watch.Pinned.Pin(row);
     }
 
     /// <summary>
@@ -817,11 +845,15 @@ public class PerspectiveWorkspaceRegistrar
     /// so writing blindly to whatever document happens to be open would land a designer's edit
     /// <b>in the wrong asset</b> — ⛔ silently, and with an Ok outcome saying it worked.</para>
     ///
-    /// <para>⚠ <b>Blueprint still resolves to <c>null</c> here, and that is now HONEST rather than
-    /// silent</b>: the write target is typed <c>IBlackboardManagedAsset</c>, which
-    /// <c>BlueprintAsset</c> does not implement — 📌 the same vocabulary mismatch <c>95a</c> fixed for
-    /// READING, still open for WRITING. ⭐ The refusal it produces is
-    /// <c>RefusedNoDeclarationOwner</c>, which says so, ⛔ instead of blaming the row's kind.</para>
+    /// <para>⚠ <b>Blueprint still resolves to <c>null</c> HERE, and since Batch 98 that no longer
+    /// refuses the edit.</b> The write target is typed <c>IBlackboardManagedAsset</c>, which
+    /// <c>BlueprintAsset</c> does not implement — and 📌 <b><c>98a</c> closed that</b> by giving the ROW
+    /// a write-back *(<c>VariableRow.WriteDefault</c>)*, which <c>CommitInitialValue</c> now asks FIRST.
+    /// ⇒ ⭐ this method is the <b>FALLBACK</b>, for a row built without one.</para>
+    ///
+    /// <para>⛔ <b>It is not dead code and must not be deleted:</b> a hand-constructed row, or any host
+    /// with an asset but no schema source, still lands here — and its refusal is still
+    /// <c>RefusedNoDeclarationOwner</c>, which says what is missing ⛔ instead of blaming the row's kind.</para>
     /// </summary>
     private static IBlackboardManagedAsset? DeclarationOwnerOf(
         EditorSelectionStore store, VariableRow row)
