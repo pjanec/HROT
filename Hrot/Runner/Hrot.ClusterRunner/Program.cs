@@ -283,8 +283,24 @@ class Program
                     .OfType<Fdp.Toolkit.Runner.IAppExitGuard>()
                     .ToList();
                 bool exiting = false;
+
+                // Remote-desktop clicks (TeamViewer / Parsec / RDP) inject WM_*BUTTONDOWN and
+                // WM_*BUTTONUP microseconds apart, so both land in one glfwPollEvents() drain and
+                // the polled button state ends where it started -- the press is never observed and
+                // the click is silently lost. The latch watches the raw messages and replays a lost
+                // click held across frames, so raylib sees an ordinary slow click. Inert for local
+                // input; kill switch: HROT_DISABLE_CLICK_LATCH=1.
+                // Windows-only compensation; a no-op elsewhere (Linux needs nothing here).
+                using var clickLatch = Fdp.Presentation.Input.ClickLatch.Create();
+
                 while (!exiting)
                 {
+                    // Before input is polled: replay anything the previous frame dropped.
+                    clickLatch.Tick(
+                        Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Left),
+                        Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Right),
+                        Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Middle));
+
                     orchestrator.DrainConsoleActions();
                     float dt = Raylib_cs.Raylib.GetFrameTime();
 
