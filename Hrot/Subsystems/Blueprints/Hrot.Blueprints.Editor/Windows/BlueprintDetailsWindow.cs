@@ -25,8 +25,46 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// </para>
 /// </summary>
 public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost,
-                                             Hrot.Editor.AiShared.Variables.IVariableTableHost
+                                             Hrot.Editor.AiShared.Variables.IVariableTableHost,
+                                             Hrot.Editor.AiShared.Variables.IVariablePropertiesFormHost
 {
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — the CUSTOM Properties form (📌 <c>R-109</c>, <c>BP-369</c>).</b>
+    /// ⛔ Not a StructEdit session: two of its fields are OPERATIONS — see
+    /// <see cref="VariablePropertiesModal"/>.
+    /// </summary>
+    /// <remarks>
+    /// ⭐⭐⭐ <b>The refactor service is FORWARDED, not defaulted away</b> — 📌 the silent-default
+    /// ruling: <i>"a production caller that HAS a dependency must PASS it."</i> ⚠⚠ <b>The first draft
+    /// of <c>99a</c> wrote <c>new()</c> here</b> and justified it as <i>"this window has none to
+    /// give"</i> — 🔴 <b>true of the window and false of its CALLER</b>: <c>EditorSubsystem</c> holds a
+    /// <c>refactorService</c> and hands it to <c>BlueprintVariablesManagedWindow</c> <b>seven lines
+    /// below</b> the line that constructs this one. ⇒ ⭐ exactly the shape that ruling names, and it
+    /// was mine.
+    ///
+    /// <para>⚠ <b>It does not by itself enable renaming</b> — <c>CanRename</c> also needs a schema, and
+    /// this window still has none *(see <see cref="OpenVariableProperties"/>)*. ⭐ The point is that the
+    /// day a schema reaches the form, the service is ALREADY THERE and no composition-root edit is
+    /// needed — ⛔ which is the half a forgotten dependency always costs later.</para>
+    /// </remarks>
+    private readonly VariablePropertiesModal _propertiesModal;
+
+    /// <summary>⭐ The form, exposed so a rail can assert on the CONSTRUCTED object (📌 <c>M-22</c>).</summary>
+    internal VariablePropertiesModal PropertiesForm => _propertiesModal;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⚠⚠ <b>The schema is <c>null</c> here, and that is MEASURED rather than lazy.</b> 📐 This window
+    /// is constructed with a selection store and a drawer registry — it holds <b>no
+    /// <c>IVariablesSchemaSource</c> and no <c>IRefactorService</c></b>; the schema lives in the row
+    /// SOURCE the outline builds. ⇒ ⭐ the form draws <c>Name</c> <b>DISABLED with its reason</b>
+    /// *(<c>VariablePropertiesModal.RenameUnavailableHere</c>)* — ⛔ never a Name box that silently does
+    /// not commit. 📌 <c>M-15</c>: a rename that skips the refactor service dangles the binding.
+    /// </remarks>
+    public bool OpenVariableProperties(
+        Hrot.Editor.AiShared.Variables.VariableRow row, bool editable)
+        => _propertiesModal.Open(row, schema: null, row.Origin.AssetId, editable);
+
     private readonly AiSelectionStore _selectionStore;
     private readonly BlueprintNodeDrawerRegistry _drawerRegistry;
 
@@ -65,18 +103,26 @@ public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost
     /// <param name="drawerRegistry">Blueprint node-drawer registry.</param>
     /// <param name="idOverride">Stable ImGui id; defaults to <c>"ai_details_blueprint"</c>.</param>
     /// <param name="owningPerspective">Perspective name; defaults to <c>"Blueprint"</c>.</param>
+    /// <param name="refactorService">
+    /// ⭐⭐ Batch 99 (<c>99a</c>) — the service a RENAME must run. ⛔ <b>Optional for TESTS and
+    /// lightweight hosts, never for the composition root</b>: 📌 the silent-default ruling — the
+    /// production caller HAS one, so it passes one. ⚠ Absent ⇒ the form greys <c>Name</c> with its
+    /// reason rather than renaming without it, which 📌 <c>M-15</c> makes a dangling binding.
+    /// </param>
     public BlueprintDetailsWindow(
         AiSelectionStore selectionStore,
         BlueprintNodeDrawerRegistry drawerRegistry,
         string? idOverride        = null,
-        string? owningPerspective = null)
+        string? owningPerspective = null,
+        Hrot.Editor.AiShared.Refactor.IRefactorService? refactorService = null)
         : base(idOverride        ?? "ai_details_blueprint",
                "Details",
                owningPerspective ?? "Blueprint",
                WindowScope.PerspectiveBound)
     {
-        _selectionStore = selectionStore ?? throw new ArgumentNullException(nameof(selectionStore));
-        _drawerRegistry = drawerRegistry ?? throw new ArgumentNullException(nameof(drawerRegistry));
+        _selectionStore  = selectionStore ?? throw new ArgumentNullException(nameof(selectionStore));
+        _drawerRegistry  = drawerRegistry ?? throw new ArgumentNullException(nameof(drawerRegistry));
+        _propertiesModal = new VariablePropertiesModal(refactorService);
 
         // ⭐ The formatter is built here rather than required, because a Details panel with no way to
         //   render a value is not a Details panel. ⚠ The value's RUN-STATE meaning is sequencing row

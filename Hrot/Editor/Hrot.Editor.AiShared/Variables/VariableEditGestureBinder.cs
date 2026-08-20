@@ -165,17 +165,50 @@ public sealed class VariableEditGestureBinder
     /// <summary>⭐ The NAME cell ⇒ <c>EditScope.WholeComponent</c> — the whole properties object.</summary>
     public void OnProperties(VariableRow row) => Open(row, VariableEditAction.Properties);
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — raised when "Properties…" is chosen and the policy permits.</b>
+    ///
+    /// <para>📌 <c>R-108</c>/<c>R-109</c>: <i>"Properties… opens the DECLARATION"</i>, as a <b>CUSTOM
+    /// form</b> — ⛔ <b>so there is no <c>IEditSession</c> for it</b>, and this binder cannot open one.
+    /// ⇒ the host that owns the form subscribes here.</para>
+    ///
+    /// <para>⭐ The <c>bool</c> is <b>DIALOG-LEVEL editability</b>, already decided by
+    /// <c>VariableEditPolicy</c> — ⛔ the subscriber must not re-derive it *(ruling 9)*. ⚠ A row the
+    /// policy DENIES raises nothing at all.</para>
+    ///
+    /// <para>⚠ <b>No subscriber ⇒ nothing opens, and that is honest</b> rather than a dialog that does
+    /// nothing. 📌 <c>BP-317</c>: BTree/HSM have no Properties form yet — filed, not faked.</para>
+    /// </summary>
+    public event Action<VariableRow, bool>? PropertiesRequestedForRow;
+
+    /// <summary>⭐ True once a host has claimed the Properties form. ⭐ A rail surface — asserted on the
+    /// CONSTRUCTED binder, ⛔ never on a composition root's source.</summary>
+    public bool HasPropertiesHost => PropertiesRequestedForRow is not null;
+
     private void Open(VariableRow row, VariableEditAction action)
     {
         LastAction    = action;
         ActiveSession = null;
         ActiveRow     = null;
 
+        // ⭐ The policy decides, once, for BOTH arms — ⛔ this class does not re-implement it, and the
+        //   Properties arm must not grow a second copy of the matrix either.
+        var availability = VariableEditPolicy.Resolve(action, _runState(), row);
+        if (availability == VariableEditAvailability.Denied) return;
+
+        // ⭐⭐⭐ Batch 99 (99a) — R-109: PROPERTIES IS NOT A StructEdit SESSION.
+        // ⛔ Falling through to the launcher here is what made "Properties…" open the VALUE document
+        //   (BP-359) — the two menu items are two OBJECTS, and only one of them is a struct.
+        if (action == VariableEditAction.Properties)
+        {
+            PropertiesRequestedForRow?.Invoke(
+                row, availability == VariableEditAvailability.Editable);
+            return;
+        }
+
         var entry = _entryResolver(row);
         if (entry is null) return;   // ⛔ the row's variable is gone — fail closed, never guess
 
-        // ⭐ The policy decides; this class does not re-implement it. ⚠ A second copy of the
-        //   run-state matrix here is exactly how the two would drift.
         ActiveSession = _launcher.Open(row, action, _runState(), entry);
         // ⭐ Only remembered when a session actually opened — Accept must never see a row whose
         //   dialog §5 denied.

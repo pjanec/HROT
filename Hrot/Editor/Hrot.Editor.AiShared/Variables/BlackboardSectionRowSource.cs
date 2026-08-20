@@ -145,6 +145,27 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
                 if (target is null || (target as IEditableAsset)?.AssetId != _assetId) return false;
                 target.UpdateVariableDefaultValueJson(v.Name, json);
                 return true;
-            });
+            },
+            // ⭐⭐⭐ Batch 99 (99a) — the PROPERTIES arms. ⚠ The SAME asset-identity guard as above:
+            //    📌 BP-368 — this source follows the active document, and a pinned row must not write
+            //    its properties into whatever is open now either.
+            WriteProperties: values =>
+            {
+                var target = _asset();
+                if (target is null || values is null
+                    || (target as IEditableAsset)?.AssetId != _assetId) return false;
+                if (values.DefaultValueJson is not null)
+                    target.UpdateVariableDefaultValueJson(v.Name, values.DefaultValueJson);
+                if (values.Comment is not null) target.UpdateVariableComment(v.Name, values.Comment);
+                return true;
+            },
+            // ⭐ The entry IS the carrier here — no projection, and nothing invented for the four
+            //   members it has no place to store.
+            ReadProperties: () => new DeclarationPropertySnapshot(
+                VariableDeclarationKind.BlackboardEntry,
+                new VariablePropertyValues(
+                    DefaultValueJson: v.DefaultValueJson ?? "",
+                    Comment:          v.Comment ?? ""),
+                TypeId: v.FieldType?.FullName ?? ""));
     }
 }

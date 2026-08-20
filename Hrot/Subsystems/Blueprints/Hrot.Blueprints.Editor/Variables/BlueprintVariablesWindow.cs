@@ -5,6 +5,7 @@ using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Ir;   // VariableKind (U-3/U-4: one vocabulary for the three lists)
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Variables;   // 99a — VariablePropertyValues / DeclarationPropertySnapshot
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Windows;
 using Hrot.Editor.AiShared;
@@ -292,6 +293,72 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
 
         match.DefaultValueJson = defaultValueJson;
         _onChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 99 (<c>99a</c>) — the PROPERTIES form's commit, through the same facade.</b>
+    ///
+    /// <para>⭐ <b>ASK the capability rather than testing the kind</b> — the rule
+    /// <c>BlueprintDocumentFactory</c>'s duplicate path already follows: writing <c>Category</c> on a
+    /// Parameter throws by design *(<c>RequireEditorPresentation</c>)*, so the three presentation
+    /// members are guarded by <c>CarriesEditorPresentation</c>, ⛔ not by <c>if (_kind == Parameter)</c>.</para>
+    ///
+    /// <para>⚠ <c>null</c> members are LEFT ALONE per the contract, and ⭐ <b>ONE <c>_onChanged</c> for
+    /// the whole commit</b> — one OK is one edit, ⛔ not six dirty marks.</para>
+    ///
+    /// <para>⛔ <b>No <c>Name</c>, no <c>Type</c></b> — 📌 <c>R-109</c>: those are operations.</para>
+    /// </summary>
+    public void UpdateVariableProperties(string name, VariablePropertyValues values)
+    {
+        if (values is null) return;
+
+        var match = _asset.Declarations.Of(DeclKind).FirstOrDefault(d => d.Name == name);
+        if (match is null) return;
+
+        if (values.DefaultValueJson is not null) match.DefaultValueJson = values.DefaultValueJson;
+        if (values.Tooltip          is not null) match.Tooltip          = values.Tooltip;
+        if (values.Comment          is not null) match.Comment          = values.Comment;
+
+        if (match.CarriesEditorPresentation)
+        {
+            if (values.Category         is not null) match.Category         = values.Category;
+            if (values.IsEditable       is { } e)    match.IsEditable       = e;
+            if (values.IsExposedOnSpawn is { } x)    match.IsExposedOnSpawn = x;
+        }
+
+        _onChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 99 (<c>99a</c>) — the declaration's KIND and its non-value members.</b>
+    /// ⭐ The kind comes from <c>_kind</c>, which this source was CONSTRUCTED with — ⛔ nothing inferred.
+    /// ⚠ A <c>ParameterDecl</c> has no presentation members, so those stay <c>null</c> and the form
+    /// draws the five-property set rather than the eight-property one.
+    /// </summary>
+    public DeclarationPropertySnapshot? ReadVariableProperties(string name)
+    {
+        var match = _asset.Declarations.Of(DeclKind).FirstOrDefault(d => d.Name == name);
+        if (match is null) return null;
+
+        var kind = _kind == VariableKind.Parameter
+            ? VariableDeclarationKind.BlueprintParameter
+            : VariableDeclarationKind.BlueprintVariable;
+
+        // ⭐ ASK the capability, as the write arm does — reading Category off a Parameter throws by design.
+        var values = match.CarriesEditorPresentation
+            ? new VariablePropertyValues(
+                  DefaultValueJson: match.DefaultValueJson ?? "",
+                  Tooltip:          match.Tooltip ?? "",
+                  Comment:          match.Comment ?? "",
+                  Category:         match.Category ?? "",
+                  IsEditable:       match.IsEditable,
+                  IsExposedOnSpawn: match.IsExposedOnSpawn)
+            : new VariablePropertyValues(
+                  DefaultValueJson: match.DefaultValueJson ?? "",
+                  Tooltip:          match.Tooltip ?? "",
+                  Comment:          match.Comment ?? "");
+
+        return new DeclarationPropertySnapshot(kind, values, match.Type?.TypeId ?? "");
     }
 
     private IEnumerable<Guid> CurrentIds() => _asset.Declarations.Of(DeclKind).Select(d => d.Id);

@@ -75,6 +75,45 @@ public interface IVariablesSchemaSource
     /// </summary>
     void UpdateVariableDefaultValueJson(string name, string? defaultValueJson);
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — where the PROPERTIES form's OK lands.</b>
+    ///
+    /// <para>📌 <c>R-108</c>/<c>R-109</c>: <i>"'Properties…' must open the DECLARATION, not the
+    /// value"</i>, and it is a <b>CUSTOM</b> form. ⇒ it needs somewhere to put the declaration's
+    /// members, and <see cref="UpdateVariableDefaultValueJson"/> reaches exactly one of them.</para>
+    ///
+    /// <para>⭐ <b>ONE method, not five setters.</b> The properties are committed together by one OK,
+    /// so five calls would be five chances to fire the dirty callback five times — ⛔ and a host that
+    /// implemented four of them would look finished.</para>
+    ///
+    /// <para>⚠ <c>Variables.VariablePropertyValues</c> carries <c>null</c> for <i>"this kind does not
+    /// have it"</i>, and an implementer <b>must leave those members alone</b> — ⛔ coercing <c>null</c>
+    /// to <c>""</c> erases a comment the form never showed.</para>
+    ///
+    /// <para>⛔⛔ <b><c>Name</c> and <c>Type</c> are NOT part of this, and that is <c>R-109</c>.</b>
+    /// A rename is an OPERATION and goes through <c>VariableRenameCommit</c> *(the refactor service —
+    /// 📌 <c>M-15</c>)*; a retype is a MIGRATION *(<c>StructureHash</c> moves — <c>R-24</c>)*.</para>
+    ///
+    /// <para>⛔ <b>NO DEFAULT BODY</b> — 📌 <c>U-5</c>/<c>BP-230</c>, stated above.</para>
+    /// </summary>
+    void UpdateVariableProperties(string name, Variables.VariablePropertyValues values);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — reads the declaration's KIND and its non-value members.</b>
+    ///
+    /// <para>⚠ <b>Why <see cref="Variables"/>' view model is not enough.</b> 📐 <c>VariableViewModel</c>
+    /// carries <c>DefaultValueJson</c> and <b>not</b> Tooltip, Category, IsEditable or IsExposedOnSpawn
+    /// — and those are exactly the members <c>VariablePropertySchema.For(BlueprintVariable)</c> says the
+    /// form must show. ⛔ Widening the view model would put four members on the projection <b>every
+    /// table row builds</b>, for a form that opens on one row at a time.</para>
+    ///
+    /// <para>⭐ <b>The KIND rides along</b> because this source is the only thing that knows which
+    /// carrier it read — 📌 <c>95a</c>: the asset is exactly what cannot be type-tested.</para>
+    ///
+    /// <para>⛔ <b>NO DEFAULT BODY.</b> ⚠ <c>null</c> for an unknown name is correct and expected.</para>
+    /// </summary>
+    Variables.DeclarationPropertySnapshot? ReadVariableProperties(string name);
+
     // S3-1: Role / Scope authoring.
     // ⚠ U-5: these keep default bodies so implementers that legitimately cannot edit need not write
     // them — but the bodies now THROW rather than doing nothing. Combined with
@@ -125,6 +164,38 @@ public sealed class BTreeHsmSchemaSource : IVariablesSchemaSource
     public bool SupportsRoleScopeEditing => true;
     public void UpdateVariableRole(string name, BlackboardVariableRole role) => _asset.UpdateVariableRole(name, role);
     public void UpdateVariableScope(string name, WorkingStateScope scope) => _asset.UpdateVariableScope(name, scope);
+
+    /// <summary>
+    /// ⭐ 99a — an AI blackboard entry carries only DefaultValue and Comment of the properties set
+    /// *(📌 <c>VariablePropertySchema.For(BlackboardEntry)</c>: four properties, not eight)*, and the
+    /// asset already owns both writes. ⚠ <c>null</c> members are LEFT ALONE, per the contract.
+    /// </summary>
+    public void UpdateVariableProperties(
+        string name, Hrot.Editor.AiShared.Variables.VariablePropertyValues values)
+    {
+        if (values is null) return;
+        if (values.DefaultValueJson is not null)
+            _asset.UpdateVariableDefaultValueJson(name, values.DefaultValueJson);
+        if (values.Comment is not null) _asset.UpdateVariableComment(name, values.Comment);
+    }
+
+    /// <summary>
+    /// ⭐ 99a — the entry IS the carrier here, so this reads it directly.
+    /// ⚠ Tooltip/Category/IsEditable/IsExposedOnSpawn stay <c>null</c>: the entry has <b>no member for
+    /// any of them</b>, and the schema agrees. ⛔ Inventing them would draw controls with nowhere to save.
+    /// </summary>
+    public Hrot.Editor.AiShared.Variables.DeclarationPropertySnapshot? ReadVariableProperties(string name)
+    {
+        foreach (var v in _asset.BlackboardVariables)
+            if (string.Equals(v.Name, name, StringComparison.Ordinal))
+                return new Hrot.Editor.AiShared.Variables.DeclarationPropertySnapshot(
+                    Hrot.Editor.AiShared.Variables.VariableDeclarationKind.BlackboardEntry,
+                    new Hrot.Editor.AiShared.Variables.VariablePropertyValues(
+                        DefaultValueJson: v.DefaultValueJson ?? "",
+                        Comment:          v.Comment ?? ""),
+                    TypeId: v.FieldType?.FullName ?? "");
+        return null;
+    }
 
     // ⭐ 98a — the asset already owns this exact call (and its dirty marking); this source forwards.
     //   ⛔ Nothing is re-implemented here: BTree/HSM's initial-value write was never the broken half.

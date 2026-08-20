@@ -222,13 +222,31 @@ public sealed class TheEditDialogIsDrawnTests
         Assert.Null(binder.LastOutcome);   // ⛔ nothing was committed, not even a refusal
     }
 
-    /// <summary>⭐ Both scopes drive ONE dialog — 📌 design §3, same lifecycle and same OK/Cancel.</summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b>INVERTED, Batch 99 (<c>99a</c>) — <c>VariableEditModal</c> is the VALUE dialog, and
+    /// "Properties…" must NOT reach it.</b>
+    ///
+    /// <para>📌 <c>R-108</c>: <i>"the two menu items are TWO OBJECTS, not two SCOPES"</i> · 📌
+    /// <c>R-109</c>: the declaration <b>cannot be a StructEdit document</b>, because <c>Name</c> is a
+    /// RENAME and <c>Type</c> is a RETYPE MIGRATION. ⇒ ⛔ <b>the old assertion — <i>"both scopes drive
+    /// ONE dialog"</i> — was <c>BP-359</c> written down as a requirement</b>, and it was the design of
+    /// the day *(§3: <i>two menu items = the two <c>EditScope</c>s</i>)*, superseded.</para>
+    ///
+    /// <para>⭐ <b>What survives is the lifecycle claim</b>, which was always the useful half: ONE
+    /// dialog, reopenable, with one OK/Cancel. ⛔ It is now asserted on the value gesture ALONE, and
+    /// the Properties gesture is fenced with its absence in the same rail — so a fallthrough that
+    /// restored the old behaviour reddens HERE, not only in the binder's own file.</para>
+    /// </summary>
     [Fact]
-    public void BothGesturesDriveTheSameDialog()
+    public void ThePropertiesGestureNeverReachesTheValueDialog()
     {
         var (modal, binder) = Make(VariableRunState.Planning);
 
         binder.OnProperties(Row());
+        Assert.False(modal.IsOpen);        // ⛔ the declaration is not a struct — no value document
+
+        // ⭐ …and the VALUE gesture still drives the one dialog, open → Cancel → open again.
+        binder.OnEditValue(Row());
         Assert.True(modal.IsOpen);
         modal.Cancel();
         Assert.False(modal.IsOpen);

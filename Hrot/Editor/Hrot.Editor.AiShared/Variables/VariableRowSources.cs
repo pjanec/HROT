@@ -202,7 +202,11 @@ public sealed class SectionVariableRowSource : IVariableRowSource
             // ⭐ Nothing new is reached for: this source already holds the schema source, which is
             //   the one vocabulary all three hosts implement. ⚠ The NAME is hoisted for the same
             //   reason the read arms hoist it — capturing `v` would keep the schema entry alive.
-            WriteDefault: MakeWriter(v.Name));
+            WriteDefault: MakeWriter(v.Name),
+            // ⭐⭐⭐ Batch 99 (99a) — R-109's declaration properties, same source, same reason.
+            //    ⚠ Read PER CALL: the form must open on what the declaration holds NOW.
+            WriteProperties: MakePropertyWriter(v.Name),
+            ReadProperties:  () => _schema.ReadVariableProperties(v.Name));
 
     /// <summary>
     /// ⭐⭐ The schema's view model, expressed as the <see cref="BlackboardVariableEntry"/> the one
@@ -220,6 +224,16 @@ public sealed class SectionVariableRowSource : IVariableRowSource
         {
             if (_schema.IsReadOnly) return false;
             _schema.UpdateVariableDefaultValueJson(name, json);
+            return true;
+        };
+
+    /// <summary>⭐ The row's PROPERTIES write-back. ⚠ Refuses on a read-only source for the same
+    /// reason <see cref="MakeWriter"/> does — 📌 <c>BP1664</c>.</summary>
+    private WriteVariableProperties MakePropertyWriter(string name)
+        => values =>
+        {
+            if (_schema.IsReadOnly) return false;
+            _schema.UpdateVariableProperties(name, values);
             return true;
         };
 
