@@ -44,29 +44,29 @@ had to become STATIC. Tracker **open 73 / done 211** · rulings **69/69**.
 ✅ **BATCH 95 MERGED** *(ff-only)* — the declaration travels with the row · one `SharedEntitySelection`
 for all four stores *(`R-105`)*. ⭐ Tracker **open 74 / done 213** · rulings **70/70**.
 
-✅✅ **BATCH 97 MERGED** *(real merge — I had pushed after they branched)*. ⭐ **All four items done,
-nothing blocked** — `ScalarEditBox<T>` *(`BP-356` closed)* · `VariableEditGesture.Decide` *(`BP-361`)* ·
-the blueprint live writer *(`BP-358` closed)* · **`EntityBindingFrame`, `R-76`'s second clock**
-*(`BP-362`)*. ⭐ Tracker **open 78 / done 221** · rulings **73/73** · AiShared **1705 (+145)**.
-⭐⭐ **Their own `P2` probe caught that their FIRST offset rail covered one of two resolution arms** —
-exactly the self-check this programme was missing.
+✅✅ **BATCH 98 MERGED** — ⭐⭐ **the best return of this programme.**
 
-🛑🛑 **BUT THE ACCEPTANCE TEST STILL FAILS ON THE FIRST CLICK — and it is MY scope miss, not theirs.**
-📌 **`M-31`:** `DeclarationOwnerOf:826` still type-tests `IBlackboardManagedAsset`, which
-`BlueprintAsset` is not ⇒ in **PLANNING** *(the ordinary authoring state)* `CommitInitialValue` returns
-**`RefusedNoDeclarationOwner`** for every Blueprint variable. ⚠⚠ **The asymmetry is in the SAME FILE** —
-`ResolveEntry:836` asks the ROW first *(`95a`)*, `DeclarationOwnerOf:826` does not. ⭐ `BP-355` NAMED it
-and I never turned it into an item.
-⭐ **PAUSED does land** *(`97c`)* — ⚠ **`AiPrimitive` only**, and that refusal is **correct**.
+| item | |
+|---|---|
+| ✅ **`98a`** | ⭐⭐⭐ **OK NOW LANDS ON A BLUEPRINT VARIABLE WHILE PLANNING** *(`BP-365`)* — `IVariablesSchemaSource` gained **`UpdateVariableDefaultValueJson`** *(⛔ no default body)*, the seam is **on the ROW** *(argued deviation — Blueprint's schema sources are built per outline selection, long after `CreateRegistrar` returns)*, ⛔ **`IBlackboardManagedAsset` NOT widened**, railed |
+| ⛔⛔ **and it would have been DESTRUCTIVE without two more** | **`BP-366`** — `onChanged: () => { }` while a real `markDirty` sat ~260 lines above ⇒ **the edit would die on close** · **`BP-367`** — a three-arg `BlackboardVariableEntry` never projected `DefaultValueJson` ⇒ ⛔ **an untyped OK would overwrite an authored `1` with `0`.** ⭐ **Both harmless while the write refused — which is why they survived** |
+| ⭐⭐ **and Batch 96's rail caught a hazard `98a` INTRODUCED** | a row's write-back would have landed in **whatever document is open** *(`BP-368`)*. ⭐ Fixed with `96`'s own asset-identity guard, ⭐ and **the rail change was ARGUED, not done quietly** |
+| ⛔ **`98b`** | **not started — reverted in full before any commit** on the user's steer *(`R-109`)*, ⭐ **and it blocked nothing** *(`R-106` working)*. Filed as **`BP-369`** |
+| ✅ **`98c`** | the outline's Watch entry is live — `BP-360` closed |
 
-🛠 **BATCH 98 DISPATCHED at `18dfcbb25`** — 📄 **[`HANDOFF_Batch98_The_Write_Blueprint_Still_Refuses.md`](HANDOFF_Batch98_The_Write_Blueprint_Still_Refuses.md)**:
-`98a` **the planning-time write** *(a WRITE-BACK seam, ⛔ not a lookup; ⛔ do not widen
-`IBlackboardManagedAsset`)* · `98b` **the Properties dialog** *(answer settled in `R-108`; `Type` is NOT
-blocked — `S5` shipped in Batch 65)* · `98c` the dead outline Watch entry *(`BP-360`, droppable)*.
+⭐ Tracker **open 78 / done 226** · rulings **74/74** · Blueprints **3827 (+13)** · no new skip.
 
-⭐ **Carried, not scheduled:** `BP-364` *(BTree/HSM live write — a CAPABILITY)* · `BP-363` *(StructEdit's
-builder has no cycle fence — `R-104` applied to the other serializer; one PRE-EXISTING red)* ·
-`BP-345` *(four `FindEntityByNetworkId`)*.
+⭐⭐⭐ **THE USER'S ACCEPTANCE TEST IS READY TO RE-RUN:** open `Count4` → right-click `Count` →
+**"Edit value…"** → type → **OK** → **the value changes**, in **PLANNING**.
+⚠ **Still expected, not findings:** a LIVE (paused) edit is **`AiPrimitive`-only** *(correct)* ·
+BTree/HSM refuse a live edit *(`BP-364`, a capability)* · a pin does not survive a reload *(`94g`)*.
+
+🛠 **BATCH 99 DISPATCHED at `e90af1936`** — 📄 **[`HANDOFF_Batch99_The_Properties_Form.md`](HANDOFF_Batch99_The_Properties_Form.md)**:
+`99a` **the Properties form — CUSTOM** *(`R-109`; factor `VariableCreateModal`, which already draws
+`Name` + the `Type` combo; `VariablePropertySchema` is the filter; ⭐ **`Name` MUST route through the
+refactor service**; ⚠ **an unsafe retype ships DISABLED, never silent**)* · `99b` enumerate the other
+declaration projections for lost `DefaultValueJson` *(`BP-367`'s siblings — now LIVE because the write
+no longer refuses)*.
 
 ## 0a. ⭐⭐ Where things stand
 
