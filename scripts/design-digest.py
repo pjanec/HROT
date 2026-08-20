@@ -40,6 +40,14 @@ STATUS_RE = re.compile(r"<!--\s*STATUS(.*?)-->", re.S)
 # four). The block is the evidence the enumeration happened.
 INVENTORY_RE = re.compile(r"\bINVENTORY\b")
 
+# A design that is about to be BUILT must name its classes and its sequences in UML.
+# The diagram is what forces the design into exact terms -- which classes exist, which
+# already exist, what calls what, in what order. Prose can stay vague about all three.
+# Opt in via the STATUS field  build-state: READY-TO-BUILD | BUILDING | BUILT
+CLASS_DIAGRAM_RE = re.compile(r"```mermaid\s*\n\s*classDiagram")
+SEQ_DIAGRAM_RE   = re.compile(r"```mermaid\s*\n\s*sequenceDiagram")
+BUILD_STATES_NEEDING_UML = {"READY-TO-BUILD", "BUILDING", "BUILT"}
+
 # The rule binds designs written UNDER it. Demanding the back catalogue retro-fit
 # would make the gate red on arrival, and a gate nobody can turn green is a gate
 # somebody switches off -- the same way the optional-parameter detector died.
@@ -109,7 +117,7 @@ def main():
         print(f"No design documents changed in the last {args.days} days.")
         return 0
 
-    missing, no_inventory, out = [], [], []
+    missing, no_inventory, no_uml, out = [], [], [], []
     for date, path in rows:
         text = (ROOT / path).read_text(encoding="utf-8", errors="replace")
         st = status_of(text)
@@ -120,6 +128,15 @@ def main():
                 and created(path) >= INVENTORY_RULE_DATE \
                 and not INVENTORY_RE.search(text):
             no_inventory.append(path)
+        build_state = (st or {}).get("build-state", "").strip().upper()
+        if build_state in BUILD_STATES_NEEDING_UML:
+            lacks = []
+            if not CLASS_DIAGRAM_RE.search(text):
+                lacks.append("classDiagram")
+            if not SEQ_DIAGRAM_RE.search(text):
+                lacks.append("sequenceDiagram")
+            if lacks:
+                no_uml.append((path, build_state, ", ".join(lacks)))
         state = (st or {}).get("state", "?")
         superseded_by = (st or {}).get("superseded-by", "")
 
@@ -154,10 +171,24 @@ def main():
             print("graph answers 'what are ALL the X?'. Add a section containing the literal")
             print("word INVENTORY, the search_graph call you ran, and its total count.")
             print("See .claude/CLAUDE.md, 'Inventory before design'.")
+        if no_uml:
+            bad = True
+            print(f"\n{len(no_uml)} design document(s) marked buildable with no UML:")
+            for p, bs, lacks in no_uml:
+                print(f"  {p}  [build-state: {bs}]  missing: {lacks}")
+            print("\nA design that is about to be IMPLEMENTED must name its CLASSES and its")
+            print("SEQUENCES as mermaid classDiagram / sequenceDiagram blocks. The diagram is")
+            print("what forces the design into exact terms, and it is drawn AFTER enumerating")
+            print("the existing code -- so that what already exists is REUSED and not rebuilt.")
+            print("See .claude/CLAUDE.md, 'No implementation without UML'.")
         if bad:
             return 1
         print(f"All {len(rows)} recently-changed design documents carry a STATUS header,")
         print("and every design document written under the rule carries an INVENTORY block.")
+        if any((status_of((ROOT / p).read_text(encoding="utf-8", errors="replace")) or {})
+               .get("build-state", "").strip().upper() in BUILD_STATES_NEEDING_UML
+               for _, p in rows):
+            print("Every buildable design carries a class diagram and a sequence diagram.")
         return 0
 
     print(f"DESIGN DIGEST — {len(rows)} document(s) changed in the last {args.days} days")

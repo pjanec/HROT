@@ -177,8 +177,48 @@ implementation session builds; it does not source the design it builds from.**
   - ⇒ ⭐⭐ **KEEP WRITING THEM — the document is the deliverable, not the relay.** Its value is **triage**: forcing a question into decision-shaped options with leans and blast radius is what separates *"a design call"* from *"a thing to just build."*
   - ⇒ ⛔ **They are no longer relayed. They are resolved JOINTLY with the user** — *"we need to resolve that ourselves, together."* ⚠ **Do not mark one "relay to the architect"**; mark it as an agenda for a working session, and record the resolution in the same doc as before.
   - ⭐ **Historical architect answers stay authoritative** — prior sessions' answers repeatedly redirected the approach, and nothing retracts them. Treat this as load-bearing, not ceremony.
-- **Diagrams: prefer hand-authored SVG for anything non-trivial.** Mermaid is acceptable only for simple flowcharts; for richer pictures (memory layouts, timelines, architecture overviews) author SVG — it renders more reliably (Mermaid sometimes clips labels / lays out awkwardly) and looks better. Keep Mermaid box labels short so text is not clipped.
+- **Diagrams — ⭐⭐ MERMAID UML for architecture, SVG for explainers** *(user, `2026-08-20`, superseding the earlier SVG-first rule)*.
+  - ⭐⭐⭐ **Architecture ⇒ standard UML in Mermaid**: `classDiagram` · `sequenceDiagram` · `stateDiagram-v2` · a `graph TD` package/dependency view. ⭐ **Clear and unambiguous beats pretty** — a class diagram states multiplicity, ownership and realisation in a way prose cannot fudge.
+  - ⭐ **Hand-authored SVG stays for NON-UML explainers** — memory layouts, timelines, byte-packing pictures, anything with no standard notation.
+  - ⛔ **Never both for the same thing.** Two pictures of one architecture rot apart; delete the loser.
+  - ⚠ **VALIDATE every Mermaid block before pushing** — ⛔ a syntax error renders as an error box on GitHub, which is worse than no diagram. 📌 Real case (`2026-08-20`): `Default` is a **reserved word** in `stateDiagram-v2` and only the parser caught it.
+    ```bash
+    MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file.md>   # parses every block
+    ```
+  - ⭐ Keep box labels short so text is not clipped.
 - **Keep documentation prose short.** Lead with visuals and terse tables; no long prose walls — they go unread.
+
+## ⛔⛔⛔ NO IMPLEMENTATION WITHOUT UML — **the design must name the CLASSES and the SEQUENCES** *(user, `2026-08-20`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"design documents, once they are about to be implemented, MUST describe the
+> classes and sequences using the UML diagrams. And this should be checked by any task implementing the
+> design. The diagram forces to think about the implementation in exact terms; they should be created
+> after thorough analysis of the existing code to avoid duplicating existing implementation. Any
+> possibility for reuse should be utilized."*
+
+⭐⭐ **Why a diagram and not more prose.** ⛔ Prose can stay vague about the three things that decide
+whether a batch succeeds: **which types exist · which ALREADY exist · what calls what, in what order.**
+⭐⭐⭐ **A class diagram cannot.** Drawing one forces a name, a home, a multiplicity and an owner for every
+box — and **an existing class drawn on the same canvas as a proposed one makes the duplicate obvious.**
+
+### ⭐ The rule — **four obligations**
+
+| # | ⭐ obligation | owner |
+|---|---|---|
+| **①** | ⭐⭐⭐ **A design marked buildable carries a `classDiagram` AND a `sequenceDiagram`.** ⭐ Mark it in the STATUS block: `build-state: DESIGN │ READY-TO-BUILD │ BUILDING │ BUILT` | **coordinator** |
+| **②** | ⭐⭐⭐ **DRAW THEM AFTER THE ENUMERATION, NEVER BEFORE** — 📌 the `INVENTORY` rule feeds this one. ⭐⭐ **Every box that already exists is drawn as existing, with its file**, so a proposed class that duplicates it is visible on the same page. ⛔ **Any possibility for reuse must be UTILISED, not noted** | **coordinator** |
+| **③** | ⭐⭐ **An implementing task CHECKS the diagrams before building**, and reports it: *"the design carries N classes and M sequences; what I built matches / deviates HERE and why."* ⚠ **A deviation is a finding, not a silent choice** — ⭐ argue it in the report, as every good batch already does | **implementation** |
+| **④** | ⛔⛔ **A design with no UML is NOT ready to dispatch.** ⭐ A handoff citing one is a defect of the COORDINATOR — 📌 the same class of miss as `BP-355` *(named in a report, never turned into an item)* | **coordinator** |
+
+### ⭐ Gated — **a convention nothing checks is a convention that decays**
+
+```bash
+python3 scripts/design-digest.py --check    # buildable design + no classDiagram/sequenceDiagram => FAIL
+MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file>   # every block parses
+```
+
+⛔ **The gate cannot check that the diagram is TRUE** — ⭐ that is obligation ③'s job, and it is why the
+implementing session reports the match rather than the coordinator asserting it.
 
 ## Two-session protocol (coordinator ⇄ implementation) — **binding on both sessions**
 

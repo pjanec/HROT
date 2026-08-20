@@ -1,5 +1,6 @@
 <!--STATUS
 state: LIVE
+build-state: READY-TO-BUILD
 updated: 2026-08-20
 current-answer: sections 1-6. Section 1 is the PLACEMENT SPEC (where every type lives and
   who owns it); section 6 is the task breakdown. Everything from "## HISTORY" down is the
