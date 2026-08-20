@@ -77,6 +77,15 @@ public sealed class VariablePropertiesModal
     private readonly IRefactorService? _refactorService;
 
     private bool                    _openRequested;
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 100 (<c>100c</c>) — a FIELD, because ImGui writes to it.</b>
+    /// ⛔ It was a local *(<c>bool open = true;</c>)* passed by <c>ref</c> and never read, which is
+    /// how <c>[x]</c> came to be wired to nothing. ⭐ Reset to <c>true</c> when consumed, so the next
+    /// <see cref="Open"/> starts from an open window rather than a closed one.
+    /// </summary>
+    private bool                    _windowOpen = true;
+
     private VariableRow?            _row;
     private IVariablesSchemaSource? _schema;
     private Guid                    _assetId;
@@ -165,8 +174,27 @@ public sealed class VariablePropertiesModal
 
         if (_openRequested) { ImGui.OpenPopup(PopupId); _openRequested = false; }
 
-        bool open = true;
-        if (!ImGui.BeginPopupModal(PopupId, ref open, ImGuiWindowFlags.AlwaysAutoResize)) return;
+        // ⭐⭐ Batch 100 (100b) — the same container fix as VariableEditModal, for the same reason:
+        //    an AlwaysAutoResize popup starves any WidthStretch content inside it.
+        // ⚠ MEASURED HONESTLY: unlike the edit dialog, this form was NOT red before the fix — its
+        //   text inputs are wide enough that auto-resize already produced a usable window. ⭐ It is
+        //   applied anyway because the shape is identical and the failure is one short field away,
+        //   ⛔ not because a rail demanded it. 📌 The handoff: "Both modals."
+        ImGui.SetNextWindowSize(
+            new System.Numerics.Vector2(VariableEditModal.DefaultWidth, 0), ImGuiCond.Appearing);
+
+        // ⭐⭐⭐ Batch 100 (100c) — `[x]` MUST CLOSE THE FORM.
+        //
+        // 🔴🔴 The bug this replaces was worse than the edit dialog's: `bool open = true;` was a
+        //    LOCAL, passed by `ref` so ImGui could clear it, and then ⛔ NEVER READ AGAIN — it was
+        //    re-initialised to `true` on the next frame. ⇒ `[x]` was wired to nothing at all.
+        // ⭐ Closing now does what Cancel does: drop the row, so `IsOpen` goes false and the form
+        //   does not reappear. ⛔ The commit is NOT run — `[x]` is a discard, never a silent save.
+        if (!ImGui.BeginPopupModal(PopupId, ref _windowOpen, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            if (!_windowOpen) CloseFromWindowChrome();
+            return;
+        }
 
         VariablePropertyFields.Draw(
             _kind, _state, "bp_props",
@@ -231,6 +259,24 @@ public sealed class VariablePropertiesModal
                 _schema!, _refactorService!, _assetId, _originalName, _state.Name);
 
         _row = null;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 100 (<c>100c</c>) — what the title bar's <c>[x]</c> means here.</b>
+    ///
+    /// <para>🔴🔴 <b>Worse than the edit dialog's version of this bug.</b> The flag passed to
+    /// <c>BeginPopupModal</c> was <c>bool open = true;</c> — a <b>LOCAL</b>, passed by <c>ref</c> so
+    /// ImGui could clear it, and then ⛔ <b>never read again</b>: the next frame re-initialised it to
+    /// <c>true</c>. ⇒ <c>[x]</c> was wired to <b>nothing at all</b>.</para>
+    ///
+    /// <para>⛔ <b>DISCARDS — <see cref="Commit"/> is not run.</b> ⭐ Same rule as the edit dialog: a
+    /// close box that saves is a trap. ⚠ Named, not inlined, for the same reason: a rail cannot click
+    /// <c>[x]</c>, so it drives the code ImGui reaches *(📌 <c>M-29</c>)*.</para>
+    /// </summary>
+    internal void CloseFromWindowChrome()
+    {
+        _row        = null;
+        _windowOpen = true;   // ⭐ ready for the next Open — ⛔ the flag is chrome state, not our state
     }
 
     private static string ShortName(string typeId)

@@ -112,6 +112,20 @@ public sealed class VariableEditModal
     /// </summary>
     public string TableId { get; }
 
+    /// <summary>
+    /// ⭐⭐ <b>Batch 100 (<c>100b</c>) — the seed width that breaks the circularity.</b>
+    ///
+    /// <para>📐 <b>Chosen from a measurement, not taste.</b> The <c>Property</c> column is a fixed
+    /// <c>180f</c>; at this width the <c>Value</c> column measured <b>305 px</b> in a real frame, which
+    /// is comfortably past the drawer's <c>60 px</c> clamp and wide enough for <c>InputInt</c>'s field
+    /// PLUS its <c>−</c>/<c>+</c> step buttons.</para>
+    ///
+    /// <para>⚠ <b>A seed, not a lock</b> — applied with <c>ImGuiCond.Appearing</c>, so a designer who
+    /// resizes the dialog keeps their size. ⛔ It is deliberately not a per-host setting: 📌 one
+    /// dialog, one shape *(ruling 9)*.</para>
+    /// </summary>
+    public const float DefaultWidth = 520f;
+
     // ── the headless half — every decision this dialog makes, without ImGui ──
     //
     // ⭐⭐ The draw path below is unreachable from a test (no ImGui context), so every DECISION is a
@@ -244,6 +258,27 @@ public sealed class VariableEditModal
         _open    = false;
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 100 (<c>100c</c>) — what the title bar's <c>[x]</c> means.</b>
+    ///
+    /// <para>🔴🔴 <b>The defect this replaces.</b> ImGui clears the <c>ref bool</c> when <c>[x]</c> is
+    /// clicked — ⛔ but <see cref="IsOpen"/> is <c>_binder.ActiveSession != null</c>, which <c>[x]</c>
+    /// never touched. ⇒ the guard at the top of <see cref="Draw"/> let the next frame straight through,
+    /// <c>OpenPopup</c> ran again, and <b>the dialog reappeared the frame after the designer closed
+    /// it.</b> ⚠ It could only be dismissed through Cancel.</para>
+    ///
+    /// <para>⭐⭐ <b>Why this is a NAMED method rather than a call to <see cref="Cancel"/>.</b> It does
+    /// exactly what Cancel does, and that identity is the point — ⛔ <b>but a rail cannot click
+    /// <c>[x]</c></b>, and a rail that called <c>Cancel</c> would be asserting the button it wishes
+    /// existed. ⭐ Naming the seam lets a rail drive <b>the code ImGui itself reaches</b>, and leaves
+    /// exactly one unrailed line: the <c>if</c> in <see cref="Draw"/> that calls it.
+    /// ⚠ <b>That one line is the honestly-faked layer</b> *(📌 <c>M-29</c>)* — ⛔ not the behaviour.</para>
+    ///
+    /// <para>⛔ <b>It DISCARDS.</b> A close box that commits would make the designer's escape hatch
+    /// write — worse than one that fails to close.</para>
+    /// </summary>
+    public void CloseFromWindowChrome() => Cancel();
+
     /// <summary>⭐ Dismisses a refusal banner without reopening anything.</summary>
     public void DismissRefusal()
     {
@@ -267,7 +302,35 @@ public sealed class VariableEditModal
             _open = true;
         }
 
-        if (!ImGui.BeginPopupModal(PopupId, ref _open, ImGuiWindowFlags.AlwaysAutoResize)) return;
+        // ⭐⭐⭐ Batch 100 (100b) — WITHOUT THIS THE NUMBER HAS NOWHERE TO DRAW.
+        //
+        // 📐 Measured in a real frame (100a): the popup's content width was 259.0 px, and the VALUE
+        //    column inside it resolved to ComponentEditDrawer's 60 px CLAMP FLOOR — InputInt draws a
+        //    field PLUS `−`/`+` step buttons as one group, so the digits were clipped away entirely.
+        //
+        // ⛔ It is NOT a StructEdit bug. This table's setup is byte-identical to the working reference
+        //    (ComponentEditWindow:144–:149). ⭐⭐ The difference is the CONTAINER: a WidthStretch column
+        //    inside an AlwaysAutoResize popup is CIRCULAR — the window sizes to its content while the
+        //    content sizes to the window — so the stretch column resolves to nothing.
+        //
+        // ⭐ `Appearing`, deliberately: it seeds the size the first time the popup opens and then
+        //    leaves the designer's own resize alone. ⛔ `Always` would fight them every frame.
+        ImGui.SetNextWindowSize(new System.Numerics.Vector2(DefaultWidth, 0), ImGuiCond.Appearing);
+
+        // ⭐⭐⭐ Batch 100 (100c) — `[x]` MUST END THE SESSION, not flip a flag.
+        //
+        // 🔴 The bug this replaces: ImGui clears `_open` when `[x]` is clicked, but `IsOpen` is
+        //    `_binder.ActiveSession != null`, which `[x]` never touched ⇒ the guard at the top let the
+        //    next frame straight through and `OpenPopup` REOPENED what the designer had just closed.
+        //    ⛔ The dialog was uncloseable except through Cancel.
+        // ⭐ `[x]` now means exactly what Cancel means — discard the session — so there is ONE close
+        //    path and no way for the two to disagree.
+        bool wasOpen = _open;
+        if (!ImGui.BeginPopupModal(PopupId, ref _open, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            if (wasOpen && !_open) CloseFromWindowChrome();
+            return;
+        }
 
         var session = _binder.ActiveSession;
 
