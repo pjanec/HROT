@@ -203,6 +203,39 @@ now, build it after.** ⚠ **The `2026-08-17` warning stands and has now been PA
 
 ---
 
+# ⭐⭐ WHAT EACH SURFACE ACTUALLY IS — *(written `2026-08-20` at the user's request, to decide keep/retire)*
+
+> ⭐⭐ **User:** *"i forgot what each is about, which helps me to decide what to retire or keep."*
+
+| # | surface | ⭐ what it is, in one line | verdict |
+|---|---|---|---|
+| **1** | **`InspectorWindow`** *(AiShared, 678)* | the **NODE** inspector: node facets · **`DEFAULT VALUE — {var}`** · the subtree **param-sync** table · utility considerations | ⭐ **FOLD** — it is a view of *"the selected node"* |
+| **2** | **`InspectorWindow`** *(Blueprints.Editor, 70)* | ⛔⛔ **a SECOND class with the same name** *(`BP-317`)*, a thin Blueprint-side one | ⛔ **RETIRE** — ruling 9 |
+| **3** | **`RuntimeInspectorWindow`** *(57)* | ⭐⭐ **a SHELL** — it holds no content; it hosts whichever per-host pane matches | ⭐⭐⭐ **KEEP AS THE SHELL** *(`Q38-D`)* |
+| **4–6** | **`BTree`/`Hsm`/`BlueprintRuntimeInspectorPane`** | ⭐ the three **FEEDS** behind that shell — *"what is this asset's runtime state right now?"*, read from three different stores | ⭐ **FOLD to ONE VIEW, three feeds** — same question |
+| **7** | **`BlueprintDetailsWindow`** *(304)* | the current chameleon — ⛔ **Blueprint only, and `sealed`** so nothing can extend it | ⭐ **FOLD** *(its Blueprint content becomes a feed)* |
+| **8** | **`BlackboardAuthoringWindow`** *(462)* | ⭐⭐ **the BYTE BUDGET / BIN-PACK view** — *"does this whole blackboard FIT its tier, and how is it packed?"* plus DTO warnings | ⭐⭐ **KEEP — a DIFFERENT QUESTION** *(see `Q38-C`)* |
+| **9** | **`BlueprintVariablesManagedWindow`** *(33)* | hosts `VariablesPanelControl` **again** — a second host of the same control | ⛔ **RETIRE** — duplicate host |
+| **10** | **`BlueprintVariablesWindow`** *(82)* | ⚠ **a THIRD variables surface** — the editor's projection of ONE of the asset's three declaration lists | ⛔ **RETIRE** *(`U-16`/row 60)* |
+| **11** | **`AiVariablesWindow`** *(120)* | the standalone **variables TABLE**, one per perspective, fed by an `IVariableRowSource` | ⭐ **FOLD as a VIEW** — it becomes the default view in the variable context |
+| **12–13** | **`AiWatchWindow`** · **`WatchPanelWindow`** | ⛔ **two watch windows** *(`R-72`)* — a curated list of pinned variables | ⭐ **COLLAPSE to one, then KEEP** — ⛔ a watch is **not** focus-following, and it must stay **persistable** *(`R-98`)* |
+| **14** | 🔴 **`LiveBlackboardPanel`** *(BTree.Editor, 120)* | 📐 its own doc: *"renders a **read-only** blackboard panel inside an existing ImGui window … in Slice 2 field values are **live-read** from the ECS blackboard component."* ⛔⛔ **in-degree 0 — NOTHING HOSTS IT** | ⚠ **DECIDE — see below** |
+| **15** | **`DetailsPanel`** *(NodeEditor.UI, 151)* | the generic **panel primitive** — not a surface, the thing surfaces are built from | ⭐ **KEEP — infrastructure** |
+| **16** | **`GraphSignatureWindow`** | the graph's **signature** — its inputs/outputs as a callable | ⭐ **FOLD** *(`BP-128`)* — a view of *"the selected graph"* |
+
+### ⚠ `LiveBlackboardPanel` — **the one that needs a decision, stated out loud**
+
+⭐ **What it does:** a read-only live blackboard dump for **BTree**, live-read from the ECS component.
+⭐ **Why it exists:** built deliberately — `.dev/_DONE/blueprints-2` `TASK-BT-S2-03/05`, *"decode them to
+display actual runtime values."*
+⛔ **Why it is a problem:** **nothing hosts it** — it lost its host rather than never having one.
+⭐⭐ **What supersedes it:** the **Details variable table's live Value column** *(Batch 90/94/95)* now does
+the same job on **all three** hosts, with change highlighting and editing.
+⇒ ⭐ **Recommended: RETIRE** — ⛔ but 📌 `R-13` requires saying which of the three it is: this is
+**duplicate CODE superseded by a working surface**, not a dormant capability. ⚠ **The user decides.**
+
+---
+
 # ⭐⭐⭐ RECOMMENDED ANSWERS `A`–`F` — *(`2026-08-18`; I analyse and SUGGEST, the user APPROVES)*
 
 > ⛔ **Nothing here is scheduled.** 📌 **`R-27` still gates the BUILD** — see `R5`.
@@ -226,7 +259,11 @@ context instead of overriding it. ⇒ ⭐ **one authority, plus an explicit esca
 
 ### ⭐⭐ `Q38-B` — one panel across perspectives, or one per perspective?
 
-| ⭐⭐⭐ **RECOMMENDED: ONE window CLASS · ONE INSTANCE PER PERSPECTIVE · FEEDS REGISTERED PER HOST.** |
+| ✅✅ **RULED `2026-08-20` BY THE USER — `R-110`.** |
+|---|
+| ⭐ **The Details panel is in ALL perspectives and its content is PLUGGABLE.** ⭐⭐ **Which sub-panels (views) are available depends on the CLICKED THING and the CURRENT PERSPECTIVE** ⇒ the offer set is a function of `(selection, perspective)` — 📌 `R-98`, now with perspective named. ⛔⛔ **One shared instance is NOT required:** *"some views do not change with perspective but that does not necessarily mean we have to share the single instance … if multiple ones showing same data are possible"* ⇒ ⭐ **read-only views may be instanced freely; SHARING is preferred for EDITING views.** ⭐ **Feeds registered by whoever needs to show contextual info, at the composition root** *("host" = the initial composition of all the sw components)* |
+
+| ⭐ ~~RECOMMENDED *(kept as the mechanism, ⛔ but "one instance" is NOT a requirement — see the ruling)*: ONE window CLASS · ONE INSTANCE PER PERSPECTIVE · FEEDS REGISTERED PER HOST.~~ |
 |---|
 
 📐 **That is already how this editor works** — every window is built by `PerspectiveWorkspaceRegistrar`
@@ -249,7 +286,11 @@ being authored, not about a selection ⇒ **`BlackboardAuthoringWindow`'s layout
 
 ### ⭐⭐⭐ `Q38-D` — runtime vs authoring: one panel or two?
 
-| ⭐⭐⭐ **RECOMMENDED: ONE. And the SHELL that survives is `RuntimeInspectorWindow`'s, not `BlueprintDetailsWindow`.** |
+| ✅✅ **RULED `2026-08-20` BY THE USER — `R-111`.** |
+|---|
+| ⭐⭐ **Runtime vs authoring is part of the CONTEXT definition, not a second panel** — *"authoring mode can provide different set of available views than runtime"* ⇒ **the MODE joins `(selection, perspective)` in deciding the offer set.** ⭐⭐⭐ **And a view is implemented ONCE, supporting multiple modes** — ⛔ not an authoring view plus a runtime twin *(ruling 9)*. 📌 The variable table already does this: the INITIAL arm while planning, the LIVE arm while running *(`Q32` ruling 3)* |
+
+| ⭐ **The recommendation's SHELL half still holds**: ~~ONE.~~ ⭐ the shell that survives is `RuntimeInspectorWindow`'s, ⛔ not `BlueprintDetailsWindow`'s |
 |---|
 
 📐 **Measured (`R2`):** the runtime family is **already** shell + per-host feeds. 📌 And Track C ruled
@@ -263,7 +304,7 @@ seam)* and **fold the SPECIFIC one** *(`BlueprintDetailsWindow`, `sealed`, bluep
 
 ### ⭐⭐ `Q38-E` — sequencing
 
-| ⭐⭐⭐ **RECOMMENDED: ANSWER NOW, BUILD AFTER the post-Batch-88 visual check passes** *(`R-27`)*. |
+| ✅ **APPROVED `2026-08-20` by the user — *"Q-E yes"*.** ⭐ **ANSWER NOW, BUILD AFTER the visual check passes** *(`R-27`)*. |
 |---|
 
 ⭐ **Then in this order, each step independently revertible:**
