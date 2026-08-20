@@ -84,7 +84,8 @@ MODE** *(`R-111`)* and by **perspective** *(`R-110`)* — the two right-hand col
 
 | # | context *(what you clicked)* | views offered | ⭐ perspective | ⚠ mode |
 |---|---|---|---|---|
-| **1** | ⛔ **nothing selected** | ⭐ **Asset** views *(row 7)* — the panel falls back to the active asset, ⛔ never blank | all | — |
+| **1** | ⛔⛔ **NO SUB-SELECTION** — 📐 **measured, and it happens CONSTANTLY**: `MapSelection` returns `null` when the canvas selection is **empty**, **multi**, or **not a node**, and `BuildAfterDrawAction` assigns that `null` to `ActiveSubSelection` **every frame** ⇒ ⛔ **there is NO "last clicked" within an asset today** | ⭐ **Asset views** *(row 7)* — ⚠ **this is a PROPOSAL, see the fork below** | all | — |
+| **1b** | ⚠ **a MULTI-selection** *(two or more nodes)* | ⭐ same as row 1 — 📐 `selection.Count != 1` ⇒ `null`. ⛔ **A multi-node property editor does not exist and is not proposed here** | all | — |
 | **2** | ⭐⭐ **a VARIABLE or a variable SECTION** *(`VariableOutlineSelection`)* | ⭐ **Variables `(DEFAULT)`** · **Layout / byte budget** *(the bin-pack view — `R-112`)* | all three | ⭐ the table itself switches **initial ⇄ live** arm by mode *(`Q32` ruling 3)* — ⛔ not a different view |
 | **3** | ⭐⭐ **a NODE** — `BlueprintNodeSelection` · `BTreeNodeSelection` · `HsmStateSelection` | ⭐ **Properties `(DEFAULT)`** *(the facet editor, and it CARRIES the node's two bindings — `ExpressionTargetField` / `WorkingStateTargetField`)* · **Default value** *(`DEFAULT VALUE — {var}`, the node-scoped default of the variable this node WRITES)* · **Runtime** | all three *(different feed per host)* | **Runtime** view offered **only** when a debug session is attached |
 | **3a** | ⚠ **a SUBTREE node** *(a `BTreeNodeSelection` whose node is a subtree)* | row 3 **plus** ⭐ **Parameter sync** *(`PARAMETER SYNCHRONIZATION` — Approach B's copy-in/copy-out table)* | ⭐ **BTree** only — 📌 `M-24`: HSM cannot produce a subtree sync binding at all | ⛔ **sequenced AFTER the orchestrator wiring** *(`R-99`)* — *"promoting an inert panel is worse than leaving it buried"* |
@@ -92,8 +93,37 @@ MODE** *(`R-111`)* and by **perspective** *(`R-110`)* — the two right-hand col
 | **4** | **an HSM TRANSITION** *(`HsmTransitionSelection`, `HsmGlobalTransitionSelection`)* | ⭐ **Properties `(DEFAULT)`** — trigger/guard/priority | HSM only | — |
 | **5** | **an HSM REGION** *(`HsmRegionSelection`)* · **an HSM EVENT** *(`HsmEventSelection`)* | ⭐ **Properties `(DEFAULT)`** | HSM only | — |
 | **6** | **a BTREE PILL** *(`BTreePillSelection`)* | ⭐ **Properties `(DEFAULT)`** | BTree only | — |
-| **7** | ⭐⭐ **the ASSET** *(no sub-selection, or the outline root)* | ⭐ **Asset settings `(DEFAULT)`** *(incl. `Use editor-managed blackboard` — ⛔ mis-homed today)* · **Layout / byte budget** · **Diagnostics** *(sub-tree allocations · unbound requirements)* | all three | — |
+| **7** | ⭐⭐ **the ASSET** — 📐 **`EditorSelectionStore.ActiveAsset`, whose own doc says *"the asset whose editor canvas has FOCUS"*, set by window-focus handlers.** ⛔ **Not** something picked in a browser; ⭐ **it is the open document you are looking at** | ⭐ **Asset settings `(DEFAULT)`** · **Layout / byte budget** · **Diagnostics** — ⭐ defined below | all three | — |
 | **8** | **a GRAPH** *(a function / macro graph in the outline)* | ⭐ **Graph signature `(DEFAULT)`** *(`GraphSignatureWindow` — 📌 `BP-128`)* · **Variables** *(that graph's Local Variables)* | Blueprint only | — |
+
+## ⭐⭐ WHAT THE "ASSET VIEWS" ARE — **concretely** *(row 7)*
+
+| view | ⭐ what it shows | where it lives today |
+|---|---|---|
+| ⭐ **Asset settings** *(default)* | the asset-scoped switches — today the only measured one is **`Use editor-managed blackboard`** | `BlackboardAuthoringWindow` — ⛔ **genuinely mis-homed**: an asset-scoped switch inside a variables window |
+| ⭐⭐ **Layout / byte budget** | ⭐ **does this blackboard FIT its tier, and how are its fields packed?** — the bin-pack picture, field offsets/sizes, and **DTO warnings** | `BlackboardAuthoringWindow`'s bin-pack view |
+| ⭐ **Diagnostics** | **sub-tree allocations** *(`GetAutoAllocatedVariables` — ⚠ display-only today, `M-23`)* + **unbound requirements** *(`UnboundRequirementViewModel`)* | `VariablesPanelControl`'s host |
+
+⇒ ⭐ **All three are about the ASSET AS A WHOLE**, ⛔ not about anything you clicked inside it — which is
+exactly why they belong to the asset context and not to a node or variable context.
+
+## ⛔⛔ THE FORK — **what should row 1 actually do?** *(NOT settled; the user decides)*
+
+📐 **Measured today:** clicking empty canvas, or selecting two nodes, sets `ActiveSubSelection = null`
+**that frame**. ⇒ whatever the panel was showing about a node **disappears at once**.
+⚠ **And a nuance that DOES exist:** `_subSelectionsByAsset` is keyed **by `AssetId`**, so switching
+documents **restores that asset's own sub-selection**. ⇒ ⭐ *"last clicked"* exists **per asset**,
+⛔ **never within one asset.**
+
+| ⭐ option | |
+|---|---|
+| **(a)** ⭐ **fall back to the ASSET views** *(what the table proposes)* | ⭐ the panel is never blank and always says something true; ⚠ **clicking empty space silently swaps the whole toolbar**, which may read as the panel "losing" your node |
+| **(b)** ⭐⭐ **KEEP the last sub-selection until something else is picked** | ⭐ matches *"last clicked"* — the inspector holds still while you pan/marquee; ⛔ **requires the bridge to STOP writing `null` every frame**, which is a real behaviour change to three helpers |
+| **(c)** **show a deliberate empty state** | ⭐ honest; ⛔ wastes the panel and loses the asset views' natural home |
+
+⭐⭐ **My lean: (b) for the SELECTION, (a) for the FALLBACK** — keep the last node while the canvas has
+no single selection, and show Asset views only when there genuinely is no prior pick *(fresh document)*.
+⚠ **But (b) is a measured behaviour change**, so it is a decision, not a detail.
 
 ## ⛔ NOT in this table — **and why**
 
