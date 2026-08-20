@@ -246,7 +246,7 @@ L0.4 ─────────────────────────
 
 ## ⛔ HISTORY — **how the answer was reached. ⛔ Not the design; do not quote it.**
 
-### 📐 The inventory that opened it *(`R-74`, `2026-08-20`)*
+### 📐 INVENTORY — **what was enumerated before any of this was decided** *(`R-74`, `2026-08-20`)*
 
 ```
 search_graph(".*(RuntimeInspector|InspectorWindow|InspectorPane|DetailsWindow|DetailsPanel|
