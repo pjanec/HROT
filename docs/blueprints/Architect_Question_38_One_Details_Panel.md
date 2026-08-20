@@ -3,7 +3,8 @@ state: LIVE
 updated: 2026-08-20
 current-answer: THE LIVE ANSWER, the block immediately below the title. Everything under
   "WORKING HISTORY" is the record of how it was reached and must NOT be quoted as the answer.
-  The INTEGRATION TABLE at the very bottom is also LIVE - it is the build-level detail.
+  The CONTEXT -> VIEWS TABLE below it is also LIVE and supersedes the bottom table's A/B/C
+  lists; the bottom table's D/E/F sections (what stays out, what retires, the count) remain LIVE.
 stale-below: every RECOMMENDED ANSWER that carries a struck-through line, the 2026-08-17
   inventory in section 1 (8 surfaces; the graph finds 25), and section 4's claim that the
   shell is missing. All superseded and marked in place.
@@ -56,6 +57,64 @@ breakpoint watches **and** pinned variables. ⭐ `R-98` says the Watch stays **v
 |---|---|
 | ⚠ **`R-27` still gates the BUILD** | the visual check must pass first — ⭐ **this is the only thing standing between here and a batch** |
 | ⚠ **the `PARAMETER SYNCHRONIZATION` toggle** | ⭐ ruled a Details toggle in the NODE context *(`R-98`/`R-99`)*, ⛔ **sequenced AFTER the orchestrator wiring** — *"promoting an inert panel is worse than leaving it buried"* |
+
+---
+
+# ⭐⭐⭐ THE CONTEXT → VIEWS TABLE — **what each selection offers** *(`2026-08-20`)*
+
+> ⭐⭐ **This supersedes the A/B/C lists in the INTEGRATION TABLE at the bottom** — same content,
+> completed against the **measured** selection kinds and with the perspective/mode axes `R-110`/`R-111`
+> add. ⛔ **The bottom table's D/E/F sections (what stays out · what retires · the count) are still live.**
+
+## 📐 The selection kinds — **measured, not invented** *(`R-74`)*
+
+`Selection/SubSelectionRecords.cs` — `BlueprintNodeSelection(GraphId, NodeId)` ·
+`BTreeNodeSelection(VisualId)` · `BTreePillSelection(PillVisualId)` · `HsmStateSelection(StableId)` ·
+`HsmTransitionSelection(VisualId)` · `HsmRegionSelection(StableId, RegionIndex)` ·
+`UtilityConsiderationSelection(OptionIndex, ConsiderationIndex)`
+`Hsm.Editor/Inspector/HsmSubSelections.cs` — `HsmEventSelection(EventId)` ·
+`HsmGlobalTransitionSelection(VisualId)`
+⭐ plus **`VariableOutlineSelection`** *(the My Blueprint outline's variable/section pick — a
+different axis from the canvas sub-selection)* and ⭐ **`ActiveAsset`** with **no** sub-selection.
+
+## ⭐⭐⭐ The table
+
+⭐ **DEFAULT** = the view shown when the context becomes active. ⭐ **Availability may be narrowed by
+MODE** *(`R-111`)* and by **perspective** *(`R-110`)* — the two right-hand columns say how.
+
+| # | context *(what you clicked)* | views offered | ⭐ perspective | ⚠ mode |
+|---|---|---|---|---|
+| **1** | ⛔ **nothing selected** | ⭐ **Asset** views *(row 7)* — the panel falls back to the active asset, ⛔ never blank | all | — |
+| **2** | ⭐⭐ **a VARIABLE or a variable SECTION** *(`VariableOutlineSelection`)* | ⭐ **Variables `(DEFAULT)`** · **Layout / byte budget** *(the bin-pack view — `R-112`)* | all three | ⭐ the table itself switches **initial ⇄ live** arm by mode *(`Q32` ruling 3)* — ⛔ not a different view |
+| **3** | ⭐⭐ **a NODE** — `BlueprintNodeSelection` · `BTreeNodeSelection` · `HsmStateSelection` | ⭐ **Properties `(DEFAULT)`** *(the facet editor, and it CARRIES the node's two bindings — `ExpressionTargetField` / `WorkingStateTargetField`)* · **Default value** *(`DEFAULT VALUE — {var}`, the node-scoped default of the variable this node WRITES)* · **Runtime** | all three *(different feed per host)* | **Runtime** view offered **only** when a debug session is attached |
+| **3a** | ⚠ **a SUBTREE node** *(a `BTreeNodeSelection` whose node is a subtree)* | row 3 **plus** ⭐ **Parameter sync** *(`PARAMETER SYNCHRONIZATION` — Approach B's copy-in/copy-out table)* | ⭐ **BTree** only — 📌 `M-24`: HSM cannot produce a subtree sync binding at all | ⛔ **sequenced AFTER the orchestrator wiring** *(`R-99`)* — *"promoting an inert panel is worse than leaving it buried"* |
+| **3b** | ⚠ **a UTILITY node** *(or `UtilityConsiderationSelection`)* | row 3 **plus** ⭐ **Utility** *(`UTILITY CONSIDERATION`)* | BTree · HSM | — |
+| **4** | **an HSM TRANSITION** *(`HsmTransitionSelection`, `HsmGlobalTransitionSelection`)* | ⭐ **Properties `(DEFAULT)`** — trigger/guard/priority | HSM only | — |
+| **5** | **an HSM REGION** *(`HsmRegionSelection`)* · **an HSM EVENT** *(`HsmEventSelection`)* | ⭐ **Properties `(DEFAULT)`** | HSM only | — |
+| **6** | **a BTREE PILL** *(`BTreePillSelection`)* | ⭐ **Properties `(DEFAULT)`** | BTree only | — |
+| **7** | ⭐⭐ **the ASSET** *(no sub-selection, or the outline root)* | ⭐ **Asset settings `(DEFAULT)`** *(incl. `Use editor-managed blackboard` — ⛔ mis-homed today)* · **Layout / byte budget** · **Diagnostics** *(sub-tree allocations · unbound requirements)* | all three | — |
+| **8** | **a GRAPH** *(a function / macro graph in the outline)* | ⭐ **Graph signature `(DEFAULT)`** *(`GraphSignatureWindow` — 📌 `BP-128`)* · **Variables** *(that graph's Local Variables)* | Blueprint only | — |
+
+## ⛔ NOT in this table — **and why**
+
+| | |
+|---|---|
+| **Watch** · **Breakpoints** | ⭐ **curated lists kept open ACROSS selections** ⇒ standalone *(`R-112`/`R-113`)* |
+| **a PINNED instance** | ⭐ it is **this same panel with a FROZEN context** *(`R-100`)* — ⛔ not a context of its own |
+| **engine / sim inspectors** | ⛔ different lifecycle, not the AI editor |
+
+## ✅ THE TERM I COULD NOT MAP — **resolved, and it is TWO DIFFERENT ROWS**
+
+📌 The user's *"param-to-working state mapper"* mapped to two measured candidates and I refused to
+guess. ⭐ **Both now have a home, and they are not the same row:**
+
+| the thing | ⭐ where it shows |
+|---|---|
+| ⭐ **`PARAMETER SYNCHRONIZATION`** — subtree param ⇄ sub-asset field, copy-in/copy-out *(Approach B)* | ⭐⭐ **its OWN toggle, row `3a`** — subtree nodes, BTree only, ⛔ after the orchestrator wiring |
+| ⭐ **the node's two BINDINGS** — `ExpressionTargetField` *(params)* + `WorkingStateTargetField` *(working state)* | ⭐⭐ **FIELDS INSIDE the Properties view, row 3** — ⛔ **not a toggle of their own.** 📐 They are node facet members and `InspectorWindow` already draws them there |
+
+⇒ ⭐ **That is what "closed" means:** ⛔ not *"the question went away"* — **each candidate was given a
+row in this table.**
 
 ---
 
@@ -648,7 +707,10 @@ watch windows must not lose `DebugSessionPersistence`'s watch list — 📌 it a
 > implementations and become TOGGLES inside one window.** 📌 *"whether to merge these toggleable panels
 > into something more generic is a question for later."*
 
-## ⭐ A. Toggles offered when the context is a **VARIABLE / a variable SECTION**
+> ⛔⛔ **A/B/C BELOW ARE SUPERSEDED** by the **CONTEXT → VIEWS TABLE** above — same content, completed
+> against the measured selection kinds. ⭐ **D/E/F remain LIVE.** ⛔ Do not quote A/B/C as the answer.
+
+## ⛔ A. ~~Toggles offered when the context is a **VARIABLE / a variable SECTION**~~ *(superseded)*
 
 | toggle | today's surface | notes |
 |---|---|---|
@@ -656,7 +718,7 @@ watch windows must not lose `DebugSessionPersistence`'s watch list — 📌 it a
 | **Layout / byte budget** | `BlackboardAuthoringWindow`'s bin-pack view | ⚠ **answers *"will it fit?"*** — ⭐ as a TOGGLE it is reachable without being a window |
 | **Live values** | ⛔ **none — retire `LiveBlackboardPanel`** | 📌 superseded once the formatter gains the fixed-list arm |
 
-## ⭐ B. Toggles offered when the context is a **NODE**
+## ⛔ B. ~~Toggles offered when the context is a **NODE**~~ *(superseded)*
 
 | toggle | today's surface |
 |---|---|
@@ -679,7 +741,7 @@ watch windows must not lose `DebugSessionPersistence`'s watch list — 📌 it a
 > ⛔ **I am not guessing which you meant** — the second is closer to the words, the first is closer to
 > the word *"mapper"*.
 
-## ⭐ C. Toggles offered when the context is the **ASSET** or a **GRAPH**
+## ⛔ C. ~~Toggles offered when the context is the **ASSET** or a **GRAPH**~~ *(superseded)*
 
 | toggle | today's surface |
 |---|---|
