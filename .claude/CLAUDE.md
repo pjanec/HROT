@@ -220,6 +220,50 @@ MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file>   # every block par
 ⛔ **The gate cannot check that the diagram is TRUE** — ⭐ that is obligation ③'s job, and it is why the
 implementing session reports the match rather than the coordinator asserting it.
 
+## ⭐⭐⭐ THE THREE TEST TIERS — **run what the change earns** *(user, `2026-08-20`)*
+
+> ⭐⭐ **User:** *"the amount of tests run for every small fix is rendering the iteration time
+> unbearable… The tests rarely catch real bugs."*
+
+⛔⛔ **The first half was a MISDIAGNOSIS, and measuring it is what fixed it.** 📐 On this repo:
+
+| step | time |
+|---|---|
+| `dotnet build` *(restore + dependency graph)* | ⛔ **79 s** |
+| `dotnet build --no-restore` | ⭐ **16 s** |
+| `dotnet test --no-build --filter <one class>` | ⭐⭐ **3 s** |
+| `dotnet test --no-build` *(Blueprints, 3 870 tests)* | ⚠ **179 s** |
+
+⇒ ⭐⭐⭐ **For a small fix the cost was never the tests. It was RESTORE.**
+⇒ ⭐ **`scripts/quick-check.sh <proj> [filter] [--isolated]` — measured 8 s end to end.**
+
+⛔⛔ **AND IT REFUSES TO TEST A FAILED BUILD** — 📌 `dotnet test --no-build` runs a **STALE BINARY** and
+prints `PASSED`. ⚠ **That happened twice in one session**; both times it looked like a green.
+
+### ⭐ The tiers
+
+| tier | when | what |
+|---|---|---|
+| **T0** ~8 s | ⭐ **every edit** | `quick-check.sh` — the touched project, filtered to the touched concept |
+| **T1** ~1 min | ⭐ **before a push** | the touched project's **whole** suite, `--no-build` |
+| **T2** minutes | ⭐⭐ **the BATCH gate, once** — the implementation session's table | everything. ⛔ **Not per fix** |
+
+### ⚠⚠ The second half of the complaint is TRUE, and the tally is worth keeping
+
+| what found the defect, batches 94–101 | |
+|---|---|
+| ⭐⭐ **a NEW rail written for that item** | `BP-366` · `BP-367` · `BP-368` · `BP-370` · `BP-371` + Batch 100's two author mistakes |
+| ⛔⛔ **the ~8 000 existing regression tests** | ⚠ **not one I can name.** The single time an old rail fired it was a **false positive** |
+| 🔴 **the USER, by opening the editor** | the scalar tree · the width · the `[x]` · the un-drawn form · the Watch `0` · the double-click · the `312`→`0` seeding |
+
+⇒ ⭐⭐⭐ **The value is in the ~5 NEW rails per batch, not in re-running the old ones** — ⛔ so re-running
+them per fix has near-zero expected value, and `T2` is where they belong.
+⚠ **Stated fairly:** *"caught nothing"* is not *"worthless"* — a suite also deters the breakage it would
+catch, and that cannot be measured. ⛔ **But it is not worth 80 s per edit.**
+
+⭐⭐ **Where the real signal is: `R-124`'s frame rails and `DESIGN_Smoke_Suite.md`'s T2 panel-model
+assertions** — 📌 those would have caught **4 of the 7** the user found.
+
 ## Two-session protocol (coordinator ⇄ implementation) — **binding on both sessions**
 
 Both sessions share this repo, so **both load this file**. A *coordinator* session owns the tracker,
