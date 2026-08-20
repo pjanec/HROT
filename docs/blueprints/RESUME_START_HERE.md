@@ -44,23 +44,29 @@ had to become STATIC. Tracker **open 73 / done 211** · rulings **69/69**.
 ✅ **BATCH 95 MERGED** *(ff-only)* — the declaration travels with the row · one `SharedEntitySelection`
 for all four stores *(`R-105`)*. ⭐ Tracker **open 74 / done 213** · rulings **70/70**.
 
-🛑🛑🛑 **THE SECOND VISUAL CHECK FOUND FIVE MORE** — 📄 **[`FINDINGS_Visual_Check_2026_08_19b.md`](FINDINGS_Visual_Check_2026_08_19b.md)**.
-⭐⭐⭐ **READ ITS §1 BEFORE ANYTHING ELSE — it is the pattern, not a list:** `R-21`/`R-62` are TRUE, so
-**the surface layer is unrailed BY CONSTRUCTION**, and every rail stops one call short of it and then
-reads as proof. 📌 **`M-29`.**
+✅ **BATCH 96 MERGED** — ⭐ the modal **opens the table the drawer requires** *(one cause for BOTH the
+empty dialog and the `Properties…` crash)* · the scope stops synthesising `$.<name>` · **OK actually
+writes** · ⭐⭐ **the Watch pins the CAMERA, not the photograph** *(`96c` reversed part of `94c`)*.
+⭐ Tracker **open 78 / done 217** · rulings **70/70**.
 
-| | |
-|---|---|
-| ✅✅ | **the empty dialog AND the "Properties…" crash are ONE cause:** ⭐⭐ `ComponentEditDrawer` documents *"Must be called inside a two-column `BeginTable`/`EndTable` block"* and **`VariableEditModal` never opens one.** *"Edit value…"* survives only because its scope filters to an **empty `SelectionRoot`** ⇒ `TableNextRow` never reached. ⇒ ⛔ **the modal has NEVER drawn anything, on any host** |
-| ✅ | **`ScopeFor` synthesises `"$.<variableName>"`** — ⛔ **a variable's NAME is not a path inside its own VALUE**; the document root IS the value. Wrong for every variable |
-| ⚠ | **it opens and THEN refuses on OK** — ⭐ the *decision* is deliberate *(read-only still opens)*; ⛔ the **presentation** is not |
-| ✅ | **no live writer** — `writeLive` is never passed to the binder *(`R-67`, **sixth**)* |
-| ✅ | **the pin froze AGAIN** — ⭐⭐ **`94a` fixed the arms and `94c` re-froze them**: the Watch pins a **sampled** row whose arms close over that frame's locals. ⚠ **Batch 94's rail pins a SOURCE row, so it is green** |
+🛑 **`96d` STOPPED — correctly, on its own condition**, and the measurement is the gold:
+⭐⭐ **`IBlueprintDebugSession.TryWriteWorkingStateField` is REAL production code with ZERO callers**;
+the name→offset walk is **private**, so `writeLive` could not be built from outside.
+⛔⛔ **BTree/HSM have NO live write path at all** — the offset seam does not exist *(`BP-358`)*.
 
-🛠 **BATCH 96 DISPATCHED at `a2f93954c`** — 📄 **[`HANDOFF_Batch96_Make_The_Dialog_Real.md`](HANDOFF_Batch96_Make_The_Dialog_Real.md)**:
-`96a` wrap the draw in the table the drawer requires *(fixes the empty dialog AND the crash)* · `96b` stop synthesising a field path from the variable name ·
-`96c` unfreeze the pin *(**reverses part of `94c`**)* · `96d` the live writer · `96e` the dead outline
-entry, droppable.
+🔴 **AND ONE NEW BLOCKER:** ⛔⛔ **a SCALAR variable's edit still goes nowhere** *(`BP-356`)* —
+`CreateLeafBinding` opens `if (fi == null && pi == null) return null;`, so a document ROOT has no
+binding and `DrawLeafNode`'s `node.Binding?.SetBoxed(value)` **silently discards the typing.**
+⭐ Asserted on purpose by `AScalarVariablesEditGoesNowhere` — ⚠ **flip it, do not delete it.**
+
+🛠 **BATCH 97 DISPATCHED at `d5f18e2b2`** — 📄 **[`HANDOFF_Batch97_Editing_A_Scalar_For_Real.md`](HANDOFF_Batch97_Editing_A_Scalar_For_Real.md)**.
+⭐⭐⭐ **THE USER SPECIFIED IT**, and its acceptance is in their words: *open `Count4`, right-click
+`Count`, "Edit value…", type a number, press OK, and the value changes.*
+⭐ `97a` the **one-field wrapper** *(their own suggestion — and the cheaper option Batch 96 costed;* ⛔ **not**
+a root binding in `StructEdit`*)* · `97b` **grey "Edit…" when genuinely `Denied`** *(call
+`VariableEditPolicy.Resolve`, mirror `VariableWatchGesture.Decide`;* ⛔ `ReadOnly` still opens*)* ·
+`97c` **make the blueprint writer a public seam and wire it** *(Blueprint only;* ⛔ **no BTree/HSM
+writer — guessing the offset is memory corruption**).
 
 | | |
 |---|---|
