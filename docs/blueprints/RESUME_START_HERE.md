@@ -123,6 +123,19 @@ been re-run since Batches 96–98 landed. ⭐⭐ **This thread produced ELEVEN r
 | ⭐⭐ **the PIN needs NO new machinery** *(`M-34`)* | `IsVolatile` + runtime `RegisterWindow` + a layout-excluded, self-removing lifecycle, ⭐ **with a production precedent** *(`ComponentEditWindow`)* ⇒ `R-100` is a wrapping job |
 | ⚠ **and the shell ruling moved a half-step** | `Q38` said *"`RuntimeInspectorWindow` IS the shell"*. ⭐ Its **chrome** is; ⛔ its **pane registry keys on `AssetKind`**, which `R-112` rules is a FEED difference. ⇒ the shell to grow is **`AiDetailsWindow`** |
 
+### ⚠ A THIRD SESSION WRITES TO THE COORDINATOR BRANCH — **and that is FINE** *(user, `2026-08-20`)*
+
+⭐ **The user's own WINDOWS VISUAL-CHECK session** lands fixes here directly — e.g. `caf9a3824`
+*"fix(input): replay the clicks a polled loop drops, so remote desktop works"*.
+⛔ **Do NOT read that as a lane violation** — 📌 the lane table names coordinator and implementation
+because those are the two *agent* lanes; the user is not bound by it.
+⚠ **Practical consequence:** ⭐ **`git pull --rebase` before pushing** — the coordinator branch is no
+longer only mine.
+⭐⭐ **And one substantive knock-on:** that fix means a polled loop was **dropping clicks over remote
+desktop** ⇒ ⚠ **some earlier visual-check symptoms may have been DROPPED INPUT rather than defects.**
+⛔ Not the ones measured in `FINDINGS_VisualCheck_PostBatch99.md` — those were root-caused in code —
+⭐ but the next check should be more trustworthy than the last.
+
 ## 0a. ⭐⭐ Where things stand
 
 | | |
