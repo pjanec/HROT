@@ -68,6 +68,9 @@ public sealed class VariableChangeMonitor
         public bool   Seen;
         public bool   HasEverChanged;
         public bool   Pending;
+
+        /// <summary>⭐ Batch 97 (97d) — the BINDING generation this entry's baseline belongs to.</summary>
+        public uint   AtBinding;
     }
 
     private readonly Dictionary<(Guid, Entity, string), Entry> _byRow = new();
@@ -100,7 +103,25 @@ public sealed class VariableChangeMonitor
 
         var key = row.Origin.Key;
         if (!_byRow.TryGetValue(key, out var entry))
+        {
             _byRow[key] = entry = new Entry();
+            entry.AtBinding = EntityBindingFrame.Current;
+        }
+
+        // ⭐⭐⭐ Batch 97 (97d) — THE BASELINE FOLLOWS THE BINDING.
+        // 🔴🔴 A chameleon row is "this variable, on whoever is selected" (R-78), so selecting another
+        //    entity does not CHANGE the value — it changes which value the row is about. ⛔ Comparing
+        //    the new entity's value against the old entity's would paint a red "the sim changed it"
+        //    the instant the designer clicked, which is 📌 the one thing a monitor must not do.
+        // ⭐ Forgetting the baseline is enough: the next block's `!entry.Seen` arm records the new
+        //   value WITHOUT calling it a change, which is exactly the first-sighting rule.
+        uint binding = EntityBindingFrame.Current;
+        if (entry.AtBinding != binding)
+        {
+            entry.AtBinding      = binding;
+            entry.Seen           = false;
+            entry.HasEverChanged = false;
+        }
 
         // ⭐⭐ Compare RAW BYTES, not the formatted string: a float moving in its 7th digit renders
         //     identically, and hiding that is exactly what a value monitor must not do.
