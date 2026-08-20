@@ -44,81 +44,29 @@ had to become STATIC. Tracker **open 73 / done 211** · rulings **69/69**.
 ✅ **BATCH 95 MERGED** *(ff-only)* — the declaration travels with the row · one `SharedEntitySelection`
 for all four stores *(`R-105`)*. ⭐ Tracker **open 74 / done 213** · rulings **70/70**.
 
-✅ **BATCH 96 MERGED** — ⭐ the modal **opens the table the drawer requires** *(one cause for BOTH the
-empty dialog and the `Properties…` crash)* · the scope stops synthesising `$.<name>` · **OK actually
-writes** · ⭐⭐ **the Watch pins the CAMERA, not the photograph** *(`96c` reversed part of `94c`)*.
-⭐ Tracker **open 78 / done 217** · rulings **70/70**.
+✅✅ **BATCH 97 MERGED** *(real merge — I had pushed after they branched)*. ⭐ **All four items done,
+nothing blocked** — `ScalarEditBox<T>` *(`BP-356` closed)* · `VariableEditGesture.Decide` *(`BP-361`)* ·
+the blueprint live writer *(`BP-358` closed)* · **`EntityBindingFrame`, `R-76`'s second clock**
+*(`BP-362`)*. ⭐ Tracker **open 78 / done 221** · rulings **73/73** · AiShared **1705 (+145)**.
+⭐⭐ **Their own `P2` probe caught that their FIRST offset rail covered one of two resolution arms** —
+exactly the self-check this programme was missing.
 
-🛑 **`96d` STOPPED — correctly, on its own condition**, and the measurement is the gold:
-⭐⭐ **`IBlueprintDebugSession.TryWriteWorkingStateField` is REAL production code with ZERO callers**;
-the name→offset walk is **private**, so `writeLive` could not be built from outside.
-⛔⛔ **BTree/HSM have NO live write path at all** — the offset seam does not exist *(`BP-358`)*.
+🛑🛑 **BUT THE ACCEPTANCE TEST STILL FAILS ON THE FIRST CLICK — and it is MY scope miss, not theirs.**
+📌 **`M-31`:** `DeclarationOwnerOf:826` still type-tests `IBlackboardManagedAsset`, which
+`BlueprintAsset` is not ⇒ in **PLANNING** *(the ordinary authoring state)* `CommitInitialValue` returns
+**`RefusedNoDeclarationOwner`** for every Blueprint variable. ⚠⚠ **The asymmetry is in the SAME FILE** —
+`ResolveEntry:836` asks the ROW first *(`95a`)*, `DeclarationOwnerOf:826` does not. ⭐ `BP-355` NAMED it
+and I never turned it into an item.
+⭐ **PAUSED does land** *(`97c`)* — ⚠ **`AiPrimitive` only**, and that refusal is **correct**.
 
-🔴 **AND ONE NEW BLOCKER:** ⛔⛔ **a SCALAR variable's edit still goes nowhere** *(`BP-356`)* —
-`CreateLeafBinding` opens `if (fi == null && pi == null) return null;`, so a document ROOT has no
-binding and `DrawLeafNode`'s `node.Binding?.SetBoxed(value)` **silently discards the typing.**
-⭐ Asserted on purpose by `AScalarVariablesEditGoesNowhere` — ⚠ **flip it, do not delete it.**
+🛠 **BATCH 98 DISPATCHED at `18dfcbb25`** — 📄 **[`HANDOFF_Batch98_The_Write_Blueprint_Still_Refuses.md`](HANDOFF_Batch98_The_Write_Blueprint_Still_Refuses.md)**:
+`98a` **the planning-time write** *(a WRITE-BACK seam, ⛔ not a lookup; ⛔ do not widen
+`IBlackboardManagedAsset`)* · `98b` **the Properties dialog** *(answer settled in `R-108`; `Type` is NOT
+blocked — `S5` shipped in Batch 65)* · `98c` the dead outline Watch entry *(`BP-360`, droppable)*.
 
-🛠 **BATCH 97 DISPATCHED at `d5f18e2b2`** — 📄 **[`HANDOFF_Batch97_Editing_A_Scalar_For_Real.md`](HANDOFF_Batch97_Editing_A_Scalar_For_Real.md)**.
-⭐⭐⭐ **THE USER SPECIFIED IT**, and its acceptance is in their words: *open `Count4`, right-click
-`Count`, "Edit value…", type a number, press OK, and the value changes.*
-⭐ `97a` the **one-field wrapper** *(their own suggestion — and the cheaper option Batch 96 costed;* ⛔ **not**
-a root binding in `StructEdit`*)* · `97b` **grey "Edit…" when genuinely `Denied`** *(call
-`VariableEditPolicy.Resolve`, mirror `VariableWatchGesture.Decide`;* ⛔ `ReadOnly` still opens*)* ·
-`97c` **wire the blueprint writer** *(Blueprint only)* · ⭐ **`97d` FOLDED IN by the user — `BP-352`.**
-⛔⛔ **BUT NOT AS FILED:** ⭐⭐⭐ **`R-107` — `entity: default` is the CHAMELEON SENTINEL** *(`R-78`: the
-binding has two kinds, concrete and chameleon; there is no entity-less third)* ⇒ **two chameleon rows
-for one variable SHOULD share a cache slot.** ⛔ **`BP-352`'s face ② is MY error — do not build it.**
-⭐⭐ **The real gap: `R-76`'s SECOND CLOCK was never built** — the sampler has only the `BehaviorFrame`
-pulse, so a **selection change re-evaluates nothing**, and while time is stopped it never will.
-⇒ ⭐ **fire the BINDING clock on selection change regardless of run state, and reset the highlight
-baseline when the binding moves**; ⛔ **never per tick.**
-⛔⛔ **AND A NEW STOP POLICY — `R-106`, user:** *"don't let them stop on first issue, then need to do
-everything else what is not blocked."* ⇒ ⭐⭐⭐ **a blocked item stops THAT ITEM, never the batch**; only
-a genuine dependency may cascade and the report must name it; ⭐ **four verdicts per item** *(✅ / 🛑 /
-⚠ / ⛔)*. ⛔ **STOP-AND-REPORT itself is unchanged — only its blast radius.**
-✅✅ **ALL THREE VERIFIED FEASIBLE BEFORE DISPATCH** *(user: "you need to verify that the stuff is
-possible at all")*: ⭐ `RuntimeTypeOpsFactory.Get` works for **any** unmanaged struct via
-`MakeGenericType` — ⛔ **no registration, no codegen** — and `ScalarBox<string>` takes the
-`BoxedStructEditBuffer` door instead · ⭐ `VariableEditPolicy.Resolve` is a public static pure
-function and the control already holds `RunState` · ⭐⭐ **`TryWriteWorkingStateField` is ALREADY
-public on the interface** ⇒ `97c` shrank to **one name→(componentType, offset) resolver** built
-from the read's own walk. 🔴🔴 **And one memory-corruption trap found: the writer applies the +8
-itself, so the resolver must return the RAW `field.OffsetBytes`, ⛔ never the read walk's
-already-converted `start`.**
-
-| | |
-|---|---|
-| ⭐⭐⭐ **① RUN THE VISUAL CHECK** | 📄 [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ~45 min. ⭐ **It is `R-27`'s gate**, so the whole `Q38`/`Q44` family waits on it |
-| ⭐⭐ **② `Q45` needs the user's approval** | 📄 [`Architect_Question_45_Who_Emits_The_Orchestrator.md`](Architect_Question_45_Who_Emits_The_Orchestrator.md) — **`A`–`F` all carry recommendations.** ⭐ Approving it unblocks **`BP-340`** *(`91a`+`91c`)*, the last piece of the sub-asset sharing model |
-
-| | |
-|---|---|
-| ✅ **Batch 91 MERGED** | `BP-339` done · **`BP-340`** / **`BP-341`** open · tracker **68 / 208** · plan **revision 37** |
-| ⭐⭐ **what landed** | **aliases PERSIST** *(`M-20` closed)* · `BP-337` half-fixed *(34 → 83 passing; a NATIVE crash remains)* |
-| 🛑 **what STOPPED, correctly** | **`91a`/`91c`** — ⇒ `Q45` · **`91e`** — a readable auto-name breaks `Promote`'s idempotence, which **comes from the GUID** ⇒ **`BP-341` belongs with `B2`** |
-| ⭐ **new guide row** | **`A9`/`A9b`** — author an alias, save, reopen. ⭐ **The only designer-visible surface of `91b`**, and its old failure was silent |
-
-⚠ **`M-23`** measures the orchestrator gap; **`M-22`** the live Value column *(✅ live on all three)*.
-
-### ⭐⭐⭐ QUEUED FOR BATCH 98 — **the user asked for this on `2026-08-19`, write it WHEN 97 RETURNS**
-
-> ⭐⭐ **User:** *"ok so you please add the properties dialog to next batch once 97 returns."*
-
-⭐ **`BP-359` — "Properties…" has never edited properties; it opens the VALUE document.** ⭐⭐ **The
-answer is already settled — 📌 `R-108`, do NOT re-derive it:**
-
-| ⭐ | |
-|---|---|
-| **what it opens** | 📄 `DESIGN_Variable_Details_And_Editing.md:233` — **a properties object for that DECLARATION KIND.** ⛔ The two menu items differ by the **OBJECT**, ⛔ **not** by the scope *(both use `WholeComponent` since `96b`)* |
-| **what it shows** | ⭐ **`VariablePropertySchema.For(kind)`, already in code**: `VariableDecl` ⇒ Name · Type · DefaultValue · Tooltip · Comment · Category · IsEditable · IsExposedOnSpawn · `ParameterDecl` ⇒ the first five · `BlackboardVariableEntry` ⇒ Name · Type · DefaultValue · Comment |
-| ⛔ **what it must NOT show** | **`Role`/`Scope`** — *the SECTION is the classification* *(user, `2026-08-16`)* · **Replication** and **Range** — ⛔ **no carrier has a backing member**, and the schema rail fails a property that cannot be stored |
-| **availability** | planning ⇒ **editable** · running/paused ⇒ ⚠ **read-only** *("you cannot retype a variable mid-run")* · replay ⇒ read-only |
-| ✅ **NOT blocked** | ⭐⭐ **`S5` shipped in Batch 65** *(`BP-255`)* — ⛔ the design's *"`S5` lands first"* is **rotted and struck through**. ⭐ **Offer `Type` from the start** |
-| ⚠ **the two real costs** | a **picker** editor for `Type` and a **combo** for `Category`, registered as StructEdit custom editors · ⭐⭐ **`Name` IS a rename** ⇒ safe on Blueprint *(persisted `Guid Id`, references store `VariableId` — `M-16`)*, ⛔ **but BTree/HSM store the NAME STRING and `RenameVariable` does not fix up `ExpressionTargetField`** *(`M-15`)* ⇒ **it must run the refactor service**, which the design already requires of both routes |
-
-⚠ **Also carry into 98:** whatever `97` reports as 🛑 blocked or ⚠ partial *(`R-106`'s four verdicts)*,
-plus `BP-360` *(the dead outline watch entry)* and `BP-345` *(four `FindEntityByNetworkId`)*.
+⭐ **Carried, not scheduled:** `BP-364` *(BTree/HSM live write — a CAPABILITY)* · `BP-363` *(StructEdit's
+builder has no cycle fence — `R-104` applied to the other serializer; one PRE-EXISTING red)* ·
+`BP-345` *(four `FindEntityByNetworkId`)*.
 
 ## 0a. ⭐⭐ Where things stand
 
