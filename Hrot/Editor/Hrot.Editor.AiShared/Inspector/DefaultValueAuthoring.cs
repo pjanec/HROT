@@ -96,12 +96,29 @@ public static class DefaultValueAuthoring
     /// routes here.
     /// </para>
     /// </remarks>
+    /// <param name="seed">
+    /// ⭐⭐⭐ <b>The value to OPEN OVER, when it is not the declaration's default.</b>
+    ///
+    /// <para>🔴🔴 <b>The defect this closes</b> *(user, <c>2026-08-20</c>: "opened Edit on a variable row
+    /// which was showing '312'. The Edit variable dialog opened with value '0'")*. 📐 This method only
+    /// ever hydrated <c>varEntry.DefaultValueJson</c> ⇒ ⛔ <b>a PAUSED edit opened at the DECLARATION's
+    /// default while the row showed the LIVE value</b>, and an OK would then have written that default
+    /// over the running value — 📌 the <c>BP-367</c> shape, one layer up.</para>
+    ///
+    /// <para>⚠ <b>Fails SAFE</b>: null, or a value of the wrong type, falls back to the declaration —
+    /// ⛔ a variable the run has not written yet must not open over a guess.</para>
+    /// </summary>
+    /// <remarks>⭐ Callers pass this only when the edit TARGETS the live blackboard; deciding that is
+    /// <c>VariableEditCommit.TargetFor</c>'s job, ⛔ not this method's.</remarks>
     public static IEditSession OpenSession(
         IComponentEditService editService,
         BlackboardVariableEntry varEntry,
-        EditScope? scope = null)
+        EditScope? scope = null,
+        object? seed = null)
     {
-        var instance = Hydrate(varEntry.FieldType, varEntry.DefaultValueJson);
+        var instance = varEntry.FieldType.IsInstanceOfType(seed)
+            ? seed!
+            : Hydrate(varEntry.FieldType, varEntry.DefaultValueJson);
 
         // ⭐⭐⭐ Batch 97 (97a) — A SCALAR IS OPENED THROUGH A ONE-FIELD WRAPPER.
         // 🔴🔴 BP-356: CreateLeafBinding needs a MEMBER and a document ROOT has none, so a scalar

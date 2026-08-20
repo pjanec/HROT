@@ -271,7 +271,18 @@ public sealed class VariableEditLauncher
         // ⭐⭐⭐ Batch 96 (96b) — NO sub-path. 🔴 This used to pass row.Origin.VariablePath, which named
         //    the VARIABLE and was then read as a field path INSIDE the variable's own value ⇒ the
         //    document filtered to nothing and the dialog drew an empty body. See ScopeFor.
+        // ⭐⭐⭐ THE DIALOG OPENS OVER WHAT THE ROW IS SHOWING — 🔴 it used to always open over the
+        //    DECLARATION's default *(user, 2026-08-20: the row read "312", the dialog opened at "0")*.
+        // ⭐ The arm is chosen by the same function the COMMIT uses, so "which value am I editing?" and
+        //   "where will OK put it?" can never disagree — ⛔ two matrices is how they would.
+        // ⚠ Only the OBJECT arm is read: it is the decoded value the table itself renders. A row with
+        //   none, or one the run has not written, seeds null and OpenSession falls back to the
+        //   declaration — ⛔ never a guess.
+        var seed = VariableEditCommit.TargetFor(runState) == VariableEditCommit.Target.LiveBlackboard
+            ? row.ReadValueObject?.Invoke()
+            : null;
+
         return DefaultValueAuthoring.OpenSession(
-            _editService, entry, ScopeFor(action));
+            _editService, entry, ScopeFor(action), seed);
     }
 }
