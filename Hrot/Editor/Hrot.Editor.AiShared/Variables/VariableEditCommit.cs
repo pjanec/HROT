@@ -143,9 +143,29 @@ public static class VariableEditCommit
         // ⭐ ONE question, asked in one place: is the initial value what this edit means?
         if (TargetFor(runState) != Target.InitialValue) return Outcome.RefusedRunning;
 
+        // ⭐⭐⭐ Batch 98 (98a) — ASK THE ROW FIRST, exactly as ResolveEntry does for READING.
+        // 🔴🔴 Measured: the asset arm below type-tests store.ActiveAsset against
+        //    IBlackboardManagedAsset, and BlueprintAsset is not one ⇒ in PLANNING — the ordinary
+        //    authoring state — OK returned RefusedNoDeclarationOwner on EVERY Blueprint variable,
+        //    EVERY time. 📌 BP-355 named this asymmetry and it was never given to anyone.
+        // ⭐ ONE preference order, not two mechanisms: PerspectiveWorkspaceRegistrar:836 already
+        //   resolves a row's DECLARATION by asking the row and falling back to the store. This is
+        //   that same order, for the write.
+        // ⚠ The session is committed INSIDE the arm that will land it — see the remarks. A row whose
+        //   source refuses (a read-only macro graph, BP1664) falls through to the asset arm rather
+        //   than reporting a write nobody performed.
+        if (row.WriteDefault is { } writeBack)
+        {
+            var carried = DefaultValueAuthoring.CommitAndSerialize(session, fieldType);
+            if (writeBack(carried)) return Outcome.Ok;
+            return Outcome.RefusedNoDeclarationOwner;
+        }
+
         // ⭐⭐⭐ Batch 96 — its OWN outcome. 🔴 This used to return RefusedReadOnly, whose message names
         //    the row kind ("node-owned, a passthrough, or stale") — and the row is usually none of
         //    those. See RefusedNoDeclarationOwner for the measurement.
+        // ⭐ Still reachable, and NOT dead code: a row built without a source-supplied write-back —
+        //   a hand-constructed row, or any host that has an asset but no schema source — lands here.
         if (asset is null) return Outcome.RefusedNoDeclarationOwner;
 
         var json = DefaultValueAuthoring.CommitAndSerialize(session, fieldType);

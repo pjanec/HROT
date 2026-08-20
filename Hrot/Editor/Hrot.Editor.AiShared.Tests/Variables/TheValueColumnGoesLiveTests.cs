@@ -314,6 +314,13 @@ public sealed class TheValueColumnGoesLiveTests
         public void RemoveVariable(string name) { }
         public void RemoveVariables(IReadOnlyList<string> names) { }
         public void RenameVariable(string oldName, string newName) { }
+        // ⭐ 98a — the interface has NO default body on purpose (U-5/BP-230: "a default body is
+        //   the interface volunteering to lie on an implementer's behalf"), so every double must
+        //   answer. ⚠ These doubles do not exercise the write, so they RECORD rather than no-op —
+        //   a silent { } here would be the very shape the rule exists to stop.
+        public System.Collections.Generic.List<(string Name, string? Json)> DefaultWrites { get; } = new();
+        public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
+            => DefaultWrites.Add((name, defaultValueJson));
         public void MoveVariable(int sourceIndex, int destIndex) { }
         public int CountNodesReferencingVariable(string name) => 0;
         public IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements

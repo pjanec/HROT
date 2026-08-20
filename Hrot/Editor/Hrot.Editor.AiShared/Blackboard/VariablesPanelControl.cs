@@ -44,6 +44,37 @@ public interface IVariablesSchemaSource
     /// </summary>
     bool SupportsRoleScopeEditing { get; }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98a</c>) — WHERE AN INITIAL-VALUE EDIT LANDS, in the vocabulary all three
+    /// hosts already share.</b>
+    ///
+    /// <para>🔴🔴 <b>The defect.</b> 📐 Measured: <c>VariableEditCommit.CommitInitialValue</c> resolved
+    /// its write target through <c>PerspectiveWorkspaceRegistrar.DeclarationOwnerOf</c>, which
+    /// type-tests <c>store.ActiveAsset is IBlackboardManagedAsset</c> — ⛔ <b>and
+    /// <c>BlueprintAsset</c> is not one.</b> ⇒ in <b>PLANNING</b>, the ordinary authoring state, the
+    /// target is the initial value, the owner was <b>always <c>null</c> on Blueprint</b>, and
+    /// <b>OK refused on every Blueprint variable, every time.</b></para>
+    ///
+    /// <para>⭐⭐ <b>Why HERE and not on <c>IBlackboardManagedAsset</c>.</b> 📌 <c>95a</c> and
+    /// <c>R-108</c> both keep the two vocabularies apart on purpose: <c>IBlackboardManagedAsset</c> is
+    /// the <b>AI blackboard's</b> interface, and a <c>BlueprintAsset</c> speaks
+    /// <c>VariableDecl</c>/<c>ParameterDecl</c> with a persisted <c>Guid Id</c>. ⛔ Widening it to
+    /// swallow blueprints is explicitly forbidden by this batch's handoff. ⭐ <b>This interface is
+    /// already the one thing all three hosts implement</b> — it carries <c>RenameVariable</c>,
+    /// <c>RemoveVariable</c> and <c>MoveVariable</c> for exactly the same reason.</para>
+    ///
+    /// <para>⛔⛔ <b>NO DEFAULT BODY, deliberately.</b> 📌 <c>U-5</c>/<c>BP-230</c>, stated in this very
+    /// file: <i>"a default body is the interface volunteering to lie on an implementer's behalf."</i>
+    /// ⚠ That is precisely how <c>UpdateVariableRole</c> shipped as <c>{ }</c> and how a blueprint's
+    /// Role combo landed in an empty body for two batches. ⭐ Every implementer answers, and a new one
+    /// <b>cannot compile</b> without deciding.</para>
+    ///
+    /// <para>⭐ <c>null</c> clears the authored default — byte-stable, exactly as
+    /// <c>IBlackboardManagedAsset.UpdateVariableDefaultValueJson</c> defines it. ⚠ An unknown name is
+    /// a <b>no-op</b>, not a throw: the row may have been deleted under an open dialog.</para>
+    /// </summary>
+    void UpdateVariableDefaultValueJson(string name, string? defaultValueJson);
+
     // S3-1: Role / Scope authoring.
     // ⚠ U-5: these keep default bodies so implementers that legitimately cannot edit need not write
     // them — but the bodies now THROW rather than doing nothing. Combined with
@@ -94,6 +125,11 @@ public sealed class BTreeHsmSchemaSource : IVariablesSchemaSource
     public bool SupportsRoleScopeEditing => true;
     public void UpdateVariableRole(string name, BlackboardVariableRole role) => _asset.UpdateVariableRole(name, role);
     public void UpdateVariableScope(string name, WorkingStateScope scope) => _asset.UpdateVariableScope(name, scope);
+
+    // ⭐ 98a — the asset already owns this exact call (and its dirty marking); this source forwards.
+    //   ⛔ Nothing is re-implemented here: BTree/HSM's initial-value write was never the broken half.
+    public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
+        => _asset.UpdateVariableDefaultValueJson(name, defaultValueJson);
 
     public IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements => _vm.UnboundRequirements;
     public void AddAlias(string name, BlackboardAliasBinding binding) => _asset.AddAlias(name, binding);

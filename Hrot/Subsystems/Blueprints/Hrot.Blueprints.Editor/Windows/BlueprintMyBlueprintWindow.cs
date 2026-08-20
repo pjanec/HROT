@@ -54,6 +54,21 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
         return asset is null ? null : _liveProjection?.GetLiveObjects(asset);
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>Batch 98 (<c>98a</c>) — the ONE place this window resolves "mark the document dirty".</b>
+    ///
+    /// <para>🔴 Before this it was computed as a LOCAL inside <c>Retarget</c> and therefore
+    /// unreachable from <see cref="ResolveVariableSelection"/>, which is why the Details row source
+    /// was handed <c>onChanged: () =&gt; { }</c>. ⇒ once <c>98a</c> gave that source a write, the edit
+    /// would have landed in memory and never reached the file.</para>
+    ///
+    /// <para>⭐ Reads <c>_model.EditableAsset</c> rather than capturing one — <c>Retarget</c> assigns
+    /// it before anything here runs, and the active document changes underneath. ⚠ <c>null</c> for a
+    /// non-file asset *(headless tests, an in-memory document)*, which is an honest "nothing to mark".</para>
+    /// </summary>
+    private Action? MarkDirtyAction()
+        => _model.EditableAsset is Catalog.BlueprintFileAsset bpFile ? bpFile.MarkDirty : null;
+
     private readonly BlueprintMyBlueprintModel _model = new();
 
     // Panel is lazy — requires host services, which may be null at boot if no canvas context exists.
@@ -154,9 +169,7 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
         // headless-tested create path (BlueprintDocumentFactory.CreateVariable).
         if (blueprintAsset != null && commands is EditorCommandsImpl cmdImpl)
         {
-            var markDirty = editableAsset is Catalog.BlueprintFileAsset bpFile
-                ? (Action)bpFile.MarkDirty
-                : null;
+            var markDirty = MarkDirtyAction();
             _createVariableModal = new VariableCreateModal(
                 (name, typeId, capacity, initialLength) => BlueprintDocumentFactory.CreateVariable(
                     blueprintAsset, name, typeId, markDirty, capacity, initialLength),
@@ -413,7 +426,19 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
                 assetName: asset.Name,
                 entity:    default,
                 section:   item.SectionId,
-                schema:    new BlueprintVariableSchemaSource(asset, kind, onChanged: () => { }),
+                // ⭐⭐⭐ Batch 98 (98a) — THE SILENT DEFAULT, in its textbook form.
+                // 🔴🔴 This read `onChanged: () => { }`. ⛔ Harmless while the source was READ-ONLY —
+                //    the panel re-reads every frame, so nothing needed telling — but `98a` gives this
+                //    source a WRITE (UpdateVariableDefaultValueJson), and an edit that lands in the
+                //    declaration without marking the document dirty is LOST ON CLOSE. The designer
+                //    sees the new value, saves nothing, and the file still holds the old one.
+                // ⭐ 📌 CLAUDE.md's rule, exactly: "a production caller that HAS a dependency must
+                //   PASS it." This window computed `markDirty` from the SAME editable asset ~260
+                //   lines above and did not hand it here. Two hundred lines away
+                //   BlueprintVariablesWindow:403 constructs the SAME CLASS with the real callback.
+                // ⚠ Resolved PER CALL, not captured: the active document changes under this window.
+                schema:    new BlueprintVariableSchemaSource(
+                               asset, kind, onChanged: MarkDirtyAction() ?? (() => { })),
                 // ⭐⭐⭐ Batch 90 (90b) — the asset-scoped arm gets the same live map. ⛔ BOTH sites, or
                 //    the designer would see live values on locals and "(pending)" on globals, which
                 //    reads as a broken feature rather than as two seams.

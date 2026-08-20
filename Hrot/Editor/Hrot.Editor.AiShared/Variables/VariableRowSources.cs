@@ -194,13 +194,35 @@ public sealed class SectionVariableRowSource : IVariableRowSource
             // ⭐ Nothing is invented here: VariableViewModel already carries every member
             //   DefaultValueAuthoring.OpenSession reads (FieldType, DefaultValueJson) plus the three
             //   the entry needs to be well-formed. ⛔ Same capture idiom as ReadInitialJson above.
-            ReadDeclaration: () => DeclarationOf(v));
+            ReadDeclaration: () => DeclarationOf(v),
+            // ⭐⭐⭐ Batch 98 (98a) — THE WRITE-BACK, from the object that BUILT the row.
+            // 🔴 Before this, an OK in PLANNING resolved its target by type-testing
+            //    store.ActiveAsset against IBlackboardManagedAsset — which BlueprintAsset does not
+            //    implement — so every Blueprint variable answered RefusedNoDeclarationOwner.
+            // ⭐ Nothing new is reached for: this source already holds the schema source, which is
+            //   the one vocabulary all three hosts implement. ⚠ The NAME is hoisted for the same
+            //   reason the read arms hoist it — capturing `v` would keep the schema entry alive.
+            WriteDefault: MakeWriter(v.Name));
 
     /// <summary>
     /// ⭐⭐ The schema's view model, expressed as the <see cref="BlackboardVariableEntry"/> the one
     /// dialog opener takes. ⛔ <b>Not a conversion between two models</b> — the view model IS the
     /// schema's projection of the declaration, and this names the members that survive the trip.
     /// </summary>
+    /// <summary>
+    /// ⭐ The row's write-back, closing over the NAME and this source's schema.
+    /// ⚠ <b>Refuses on a read-only source</b> — 📌 <c>BP1664</c>: a macro graph's locals belong to the
+    /// host after splicing, and <c>BlueprintLocalVariableSchemaSource.IsReadOnly</c> is how that is
+    /// said. ⛔ Answering <c>true</c> there would report a write that the source then discards.
+    /// </summary>
+    private WriteVariableDefault MakeWriter(string name)
+        => json =>
+        {
+            if (_schema.IsReadOnly) return false;
+            _schema.UpdateVariableDefaultValueJson(name, json);
+            return true;
+        };
+
     private static BlackboardVariableEntry DeclarationOf(VariableViewModel v)
         => new(
             Name:             v.Name,

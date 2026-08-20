@@ -107,9 +107,26 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
         => GetOrdered(_asset.Declarations.Of(DeclKind).ToList(), Order);
 
     /// <summary>The declaration list this source projects, in display order.</summary>
+    /// <remarks>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98a</c>) — <c>DefaultValueJson</c> WAS NOT PROJECTED, and the line that
+    /// consumes it says it is <i>"Row 58 — the INITIAL arm's source for blueprint declarations."</i>
+    ///
+    /// <para>📐 <b>Measured:</b> this projection built a three-argument
+    /// <c>BlackboardVariableEntry</c> ⇒ <c>DefaultValueJson</c> defaulted to <c>null</c> ⇒
+    /// <see cref="Variables"/><c>:174</c> read <c>e.DefaultValueJson</c> and always got <c>null</c>.
+    /// ⛔ So on Blueprint the Details Value column's INITIAL arm has <b>never shown the authored
+    /// default</b>, and <c>"Edit value…"</c> opened the dialog at the TYPE's default instead of the
+    /// variable's.</para>
+    ///
+    /// <para>⛔⛔ <b>Harmless until <c>98a</c>, DESTRUCTIVE after it.</b> ⚠ While OK refused, opening at
+    /// the wrong value cost nothing. ⭐ Now that the write lands, a designer who opens the dialog and
+    /// presses OK <b>without typing</b> would overwrite an authored <c>1</c> with <c>0</c>. ⇒ fixing
+    /// this is not scope creep; it is what makes <c>98a</c> safe.</para>
+    /// </remarks>
     private IEnumerable<BlackboardVariableEntry> Entries
         => Declared.Select(d => new BlackboardVariableEntry(
-               d.Name, Type.GetType(d.Type.TypeId) ?? typeof(int), d.Comment ?? ""));
+               d.Name, Type.GetType(d.Type.TypeId) ?? typeof(int), d.Comment ?? "",
+               DefaultValueJson: d.DefaultValueJson));
 
     /// <summary>The order list behind this source. ⚠ Assigned back, so it is a ref-returning property.</summary>
     private List<Guid>? Order
@@ -248,6 +265,32 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
         var match = _asset.Declarations.Of(DeclKind).FirstOrDefault(d => d.Name == oldName);
         if (match != null) match.Name = newName;
         // ⚠ The order list is keyed by ID, so a rename must NOT touch it. See RemoveVariables.
+        _onChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 98 (<c>98a</c>) — the write half of the vocabulary <c>95a</c> only fixed for
+    /// READING.</b>
+    ///
+    /// <para>🔴🔴 <b>Until this, OK refused on every Blueprint variable while PLANNING</b>: the commit
+    /// resolved its target by type-testing <c>store.ActiveAsset is IBlackboardManagedAsset</c>, and a
+    /// <c>BlueprintAsset</c> is not one. ⇒ <c>RefusedNoDeclarationOwner</c>, always — the exact
+    /// asymmetry <c>BP-355</c> named and nobody was given.</para>
+    ///
+    /// <para>⭐ <b>Same shape as <see cref="RenameVariable"/></b>: write THROUGH the facade to the
+    /// stored declaration *(the property <c>U-9</c> exists for)*, then fire <c>_onChanged</c> — which
+    /// is what marks the asset dirty. ⛔ No new persistence route is invented; the setter and the
+    /// dirty callback both already shipped.</para>
+    ///
+    /// <para>⚠ An unknown name is a <b>no-op</b>, and <c>_onChanged</c> is NOT fired for one — a
+    /// dialog left open over a deleted variable must not dirty the document.</para>
+    /// </summary>
+    public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
+    {
+        var match = _asset.Declarations.Of(DeclKind).FirstOrDefault(d => d.Name == name);
+        if (match is null) return;
+
+        match.DefaultValueJson = defaultValueJson;
         _onChanged?.Invoke();
     }
 

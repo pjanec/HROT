@@ -123,6 +123,18 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
             //    sources, never one: the Blueprint failure is what forced this, but leaving the AI
             //    hosts on the store lookup would keep two rules for one question (ruling 9).
             // ⭐ Here it is the authored entry ITSELF — no projection at all.
-            ReadDeclaration: () => v);
+            ReadDeclaration: () => v,
+            // ⭐⭐⭐ Batch 98 (98a) — the write-back, and BOTH sources for the same reason as above:
+            //    the Blueprint failure forced it, but leaving the AI hosts on the store lookup would
+            //    keep two rules for one question (ruling 9).
+            // ⚠ The asset is resolved PER CALL, not captured — the active asset changes as the
+            //   designer switches documents, and this source has always been a delegate for that.
+            WriteDefault: json =>
+            {
+                var target = _asset();
+                if (target is null) return false;
+                target.UpdateVariableDefaultValueJson(v.Name, json);
+                return true;
+            });
     }
 }
