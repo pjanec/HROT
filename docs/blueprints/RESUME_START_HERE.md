@@ -110,7 +110,15 @@ been re-run since Batches 96–98 landed. ⭐⭐ **This thread produced ELEVEN r
 |---|---|
 | **1** | ⭐⭐⭐ **The user re-runs the VISUAL CHECK** *(`R-27`)* — ⭐ the acceptance test first: open `Count4` → right-click `Count` → **"Edit value…"** → type → **OK** → **the value changes**, in **PLANNING** |
 | **2** | ⭐ **Batch 100 — SMALL and verified feasible:** ⭐⭐ **hand the Properties form a schema so `Name` stops being greyed.** 📐 **Measured:** `VariableRowSources`/`BlackboardSectionRowSource` already close over the schema *(`BlueprintVariableSchemaSource : IVariablesSchemaSource`)* ⇒ ⭐ **one more optional row arm, the eighth of the same idiom** — either `Func<IVariablesSchemaSource?>` *(the modal already holds the refactor service)* or a rename delegate taking the service. ⛔ **`Type` stays disabled** — that is a capability, not wiring |
-| **3** | ⭐ **then, and only then, the first `Q38` slice** — ⭐⭐ **design the view registry to take a PREDICATE from the start** *(`R-116`/`R-117`)*; retrofitting it later touches every context |
+| **3** | ⭐⭐⭐ **the `Q38`/`Q47` BUILD DESIGN IS WRITTEN** — 📄 **[`DESIGN_Details_Panel_View_Switching.md`](DESIGN_Details_Panel_View_Switching.md)**: six layers `L0`–`L6`, every seam measured, the dependency graph, and **three questions it deliberately does not answer** *(§7)*. ⛔ **`R-27` still gates the first batch on the visual check** |
+
+### ⭐⭐ WHAT THE BUILD DESIGN MEASURED — **two findings that reorder the plan**
+
+| ⛔ | |
+|---|---|
+| ⭐⭐⭐ **the SCENARIO perspective has NO infrastructure** *(`M-32`)* | **3** selection stores and **3** registrars — `Blueprint`/`BTree`/`HSM`. ⇒ ⛔ **`Q47` is not "add a predicate"; its HOST DOES NOT EXIST**, and `R-110` is true of **3 of 4** perspectives. ⇒ `L6` is a **layer**, not a task |
+| ⭐⭐ **the PIN needs NO new machinery** *(`M-34`)* | `IsVolatile` + runtime `RegisterWindow` + a layout-excluded, self-removing lifecycle, ⭐ **with a production precedent** *(`ComponentEditWindow`)* ⇒ `R-100` is a wrapping job |
+| ⚠ **and the shell ruling moved a half-step** | `Q38` said *"`RuntimeInspectorWindow` IS the shell"*. ⭐ Its **chrome** is; ⛔ its **pane registry keys on `AssetKind`**, which `R-112` rules is a FEED difference. ⇒ the shell to grow is **`AiDetailsWindow`** |
 
 ## 0a. ⭐⭐ Where things stand
 
