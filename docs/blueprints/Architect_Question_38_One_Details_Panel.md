@@ -84,8 +84,8 @@ MODE** *(`R-111`)* and by **perspective** *(`R-110`)* — the two right-hand col
 
 | # | context *(what you clicked)* | views offered | ⭐ perspective | ⚠ mode |
 |---|---|---|---|---|
-| **1** | ⛔⛔ **NO SUB-SELECTION** — 📐 **measured, and it happens CONSTANTLY**: `MapSelection` returns `null` when the canvas selection is **empty**, **multi**, or **not a node**, and `BuildAfterDrawAction` assigns that `null` to `ActiveSubSelection` **every frame** ⇒ ⛔ **there is NO "last clicked" within an asset today** | ⭐ **Asset views** *(row 7)* — ⚠ **this is a PROPOSAL, see the fork below** | all | — |
-| **1b** | ⚠ **a MULTI-selection** *(two or more nodes)* | ⭐ same as row 1 — 📐 `selection.Count != 1` ⇒ `null`. ⛔ **A multi-node property editor does not exist and is not proposed here** | all | — |
+| **1** | ⭐⭐ **FOCUS on a surface with NO sub-selection** *(a fresh document, or after a deselect)* — 📌 **`R-115`: focus and selection are TWO axes** | ⭐ **the FOCUSED SURFACE'S DEFAULT view** — for the canvas/asset that is **Asset views** *(row 7)* | all | — |
+| **1b** | ⚠ **a MULTI-selection** *(marquee, two or more nodes)* — ⭐ **a REAL selection** *(`R-115`)*, ⛔ **not "nothing"** | ⚠ **no multi-node view exists** ⇒ ⭐ the interim is *"N nodes selected"* + the focus default — ⛔ **never a silent empty** | all | — |
 | **2** | ⭐⭐ **a VARIABLE or a variable SECTION** *(`VariableOutlineSelection`)* | ⭐ **Variables `(DEFAULT)`** · **Layout / byte budget** *(the bin-pack view — `R-112`)* | all three | ⭐ the table itself switches **initial ⇄ live** arm by mode *(`Q32` ruling 3)* — ⛔ not a different view |
 | **3** | ⭐⭐ **a NODE** — `BlueprintNodeSelection` · `BTreeNodeSelection` · `HsmStateSelection` | ⭐ **Properties `(DEFAULT)`** *(the facet editor, and it CARRIES the node's two bindings — `ExpressionTargetField` / `WorkingStateTargetField`)* · **Default value** *(`DEFAULT VALUE — {var}`, the node-scoped default of the variable this node WRITES)* · **Runtime** | all three *(different feed per host)* | **Runtime** view offered **only** when a debug session is attached |
 | **3a** | ⚠ **a SUBTREE node** *(a `BTreeNodeSelection` whose node is a subtree)* | row 3 **plus** ⭐ **Parameter sync** *(`PARAMETER SYNCHRONIZATION` — Approach B's copy-in/copy-out table)* | ⭐ **BTree** only — 📌 `M-24`: HSM cannot produce a subtree sync binding at all | ⛔ **sequenced AFTER the orchestrator wiring** *(`R-99`)* — *"promoting an inert panel is worse than leaving it buried"* |
@@ -107,23 +107,48 @@ MODE** *(`R-111`)* and by **perspective** *(`R-110`)* — the two right-hand col
 ⇒ ⭐ **All three are about the ASSET AS A WHOLE**, ⛔ not about anything you clicked inside it — which is
 exactly why they belong to the asset context and not to a node or variable context.
 
-## ⛔⛔ THE FORK — **what should row 1 actually do?** *(NOT settled; the user decides)*
+## ✅✅✅ CONTEXT = **FOCUS + SELECTION**, and they change INDEPENDENTLY *(user, `2026-08-20` — `R-115`)*
 
-📐 **Measured today:** clicking empty canvas, or selecting two nodes, sets `ActiveSubSelection = null`
-**that frame**. ⇒ whatever the panel was showing about a node **disappears at once**.
-⚠ **And a nuance that DOES exist:** `_subSelectionsByAsset` is keyed **by `AssetId`**, so switching
-documents **restores that asset's own sub-selection**. ⇒ ⭐ *"last clicked"* exists **per asset**,
-⛔ **never within one asset.**
+> ⭐⭐ **User, verbatim:** *"of course graph pan clicks should not change node selection or detail panels
+> view. but it can change focus to the graph so context changes. marquee changes selection (if not
+> cancelled). clicking empty space might change focus (i.e. context) so it is legitimate if it switches
+> the detail to default view for the clicked UI. just switching perspective or switching document never
+> changes sub-selection, just it changes the focus part of the context. same with perspective switch."*
 
-| ⭐ option | |
+⭐⭐⭐ **This resolves the fork — and it does it by splitting the thing I had conflated.** ⛔ *"Nothing
+selected"* was never one state: **FOCUS** and **SELECTION** are two axes, and each has its own triggers.
+
+| axis | ⭐ what it decides | ⭐ what CHANGES it | ⛔ what does NOT |
+|---|---|---|---|
+| ⭐⭐ **FOCUS** *(which UI surface you are in)* | **the OFFER SET and the DEFAULT view** | a click **into** a surface — **including empty canvas** · switching **document** · switching **perspective** | — |
+| ⭐⭐ **SELECTION** *(the per-asset sub-selection)* | **which THING the views are about** | a real selection gesture — **click a node** · **marquee** *(unless cancelled)* | ⛔⛔ **PAN** · ⛔⛔ **switching DOCUMENT** · ⛔⛔ **switching PERSPECTIVE** — ⭐ those move **only the focus part** |
+
+⇒ ⭐⭐ **A pan must leave both the selection AND the drawn view alone.**
+⇒ ⭐ **A click on empty canvas legitimately moves FOCUS** ⇒ the panel may switch to **that surface's
+default view** — ⛔ that is not "losing" the node, it is the focus part of the context moving.
+⇒ ⭐⭐⭐ **Switching document or perspective NEVER touches the sub-selection** — ⭐ and the store already
+supports this: `_subSelectionsByAsset` is keyed **by `AssetId`**, so each asset keeps its own pick.
+
+### ⛔⛔ TWO MEASURED CONFLICTS — **today's code does not implement this**
+
+📐 `BuildAfterDrawAction` assigns `MapSelection(ctx.View.Selection, asset)` to `ActiveSubSelection`
+**every frame**, and `MapSelection` returns `null` when `selection.Count != 1`.
+
+| ⛔ conflict | |
 |---|---|
-| **(a)** ⭐ **fall back to the ASSET views** *(what the table proposes)* | ⭐ the panel is never blank and always says something true; ⚠ **clicking empty space silently swaps the whole toolbar**, which may read as the panel "losing" your node |
-| **(b)** ⭐⭐ **KEEP the last sub-selection until something else is picked** | ⭐ matches *"last clicked"* — the inspector holds still while you pan/marquee; ⛔ **requires the bridge to STOP writing `null` every frame**, which is a real behaviour change to three helpers |
-| **(c)** **show a deliberate empty state** | ⭐ honest; ⛔ wastes the panel and loses the asset views' natural home |
+| **① a PAN can clear the selection** | ⭐ if a pan ends with the canvas reporting no single node, the sub-selection is **overwritten with `null` that frame** ⇒ ⛔ **the panel loses the node on a gesture the user says must not touch it** |
+| **② a MULTI-selection is DISCARDED, not represented** | ⭐ marquee two nodes ⇒ `Count != 1` ⇒ `null` ⇒ **the same as nothing.** ⛔ But the ruling says *"marquee changes selection"* ⇒ a multi-pick is a **real selection with no view yet**, ⛔ not an empty one |
 
-⭐⭐ **My lean: (b) for the SELECTION, (a) for the FALLBACK** — keep the last node while the canvas has
-no single selection, and show Asset views only when there genuinely is no prior pick *(fresh document)*.
-⚠ **But (b) is a measured behaviour change**, so it is a decision, not a detail.
+⚠ **`②` leaves a genuine gap: there is no multi-node view.** ⭐ **Filed, not invented here** — the honest
+interim is *"N nodes selected"* with the **asset/focus default** views offered, ⛔ never a silent
+"nothing".
+
+### ⚠ The one residual — **stated, not assumed**
+
+⭐ Whether a **click on empty canvas** should also **CLEAR** the selection *(the usual convention)* or
+merely move focus is ⛔ **not stated by the ruling.** ⭐ **My lean: it clears** — it is a click *into* the
+canvas surface, and the conventional deselect. ⚠ **But that is a lean, and the ruling only guarantees
+that PAN and document/perspective switches do not.**
 
 ## ⛔ NOT in this table — **and why**
 
