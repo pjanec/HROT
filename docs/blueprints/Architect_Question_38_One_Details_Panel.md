@@ -211,15 +211,15 @@ now, build it after.** ⚠ **The `2026-08-17` warning stands and has now been PA
 |---|---|---|---|
 | **1** | **`InspectorWindow`** *(AiShared, 678)* | the **NODE** inspector: node facets · **`DEFAULT VALUE — {var}`** · the subtree **param-sync** table · utility considerations | ⭐ **FOLD** — it is a view of *"the selected node"* |
 | **2** | **`InspectorWindow`** *(Blueprints.Editor, 70)* | ⛔⛔ **a SECOND class with the same name** *(`BP-317`)*, a thin Blueprint-side one | ⛔ **RETIRE** — ruling 9 |
-| **3** | **`RuntimeInspectorWindow`** *(57)* | ⭐⭐ **a SHELL** — it holds no content; it hosts whichever per-host pane matches | ⭐⭐⭐ **KEEP AS THE SHELL** *(`Q38-D`)* |
+| **3** | **`RuntimeInspectorWindow`** *(57)* | ⭐⭐ **a SHELL** — it holds no content; it hosts whichever per-host pane matches | ⭐⭐⭐ **IT *IS* THE SHELL — reuse it, ⛔ do NOT keep a second window beside Details.** 📐 It renders entity-lifecycle status, mode controls and a scrub bar, then **delegates to the registered `IRuntimeInspectorPane` for the active asset kind** ⇒ ⭐ **the pane registry the toolbar needs already exists here.** ⚠ Its runtime chrome becomes **mode-conditional content** *(`R-111`)*, ⛔ not a separate window |
 | **4–6** | **`BTree`/`Hsm`/`BlueprintRuntimeInspectorPane`** | ⭐ the three **FEEDS** behind that shell — *"what is this asset's runtime state right now?"*, read from three different stores | ⭐ **FOLD to ONE VIEW, three feeds** — same question |
 | **7** | **`BlueprintDetailsWindow`** *(304)* | the current chameleon — ⛔ **Blueprint only, and `sealed`** so nothing can extend it | ⭐ **FOLD** *(its Blueprint content becomes a feed)* |
-| **8** | **`BlackboardAuthoringWindow`** *(462)* | ⭐⭐ **the BYTE BUDGET / BIN-PACK view** — *"does this whole blackboard FIT its tier, and how is it packed?"* plus DTO warnings | ⭐⭐ **KEEP — a DIFFERENT QUESTION** *(see `Q38-C`)* |
+| **8** | **`BlackboardAuthoringWindow`** *(462)* | ⭐⭐ **the BYTE BUDGET / BIN-PACK view** — *"does this whole blackboard FIT its tier, and how is it packed?"* plus DTO warnings | ⭐⭐ **BECOMES A VIEW in the ASSET context** *(`R-112`)* — ⛔ not standalone |
 | **9** | **`BlueprintVariablesManagedWindow`** *(33)* | hosts `VariablesPanelControl` **again** — a second host of the same control | ⛔ **RETIRE** — duplicate host |
 | **10** | **`BlueprintVariablesWindow`** *(82)* | ⚠ **a THIRD variables surface** — the editor's projection of ONE of the asset's three declaration lists | ⛔ **RETIRE** *(`U-16`/row 60)* |
 | **11** | **`AiVariablesWindow`** *(120)* | the standalone **variables TABLE**, one per perspective, fed by an `IVariableRowSource` | ⭐ **FOLD as a VIEW** — it becomes the default view in the variable context |
-| **12–13** | **`AiWatchWindow`** · **`WatchPanelWindow`** | ⛔ **two watch windows** *(`R-72`)* — a curated list of pinned variables | ⭐ **COLLAPSE to one, then KEEP** — ⛔ a watch is **not** focus-following, and it must stay **persistable** *(`R-98`)* |
-| **14** | 🔴 **`LiveBlackboardPanel`** *(BTree.Editor, 120)* | 📐 its own doc: *"renders a **read-only** blackboard panel inside an existing ImGui window … in Slice 2 field values are **live-read** from the ECS blackboard component."* ⛔⛔ **in-degree 0 — NOTHING HOSTS IT** | ⚠ **DECIDE — see below** |
+| **12–13** | **`AiWatchWindow`** · **`WatchPanelWindow`** | ⛔ **two watch windows** *(`R-72`)* — a curated list of pinned variables | ⭐⭐ **`AiWatchWindow` SURVIVES · `WatchPanelWindow` RETIRES** *(`R-113`)* — ⛔ **standalone, never a Details view.** ⚠ **And its BREAKPOINT-WATCH list moves to the Breakpoints window** — `R-98`: *the Watch stays variables-only* |
+| **14** | 🔴 **`LiveBlackboardPanel`** *(BTree.Editor, 120)* | 📐 its own doc: *"renders a **read-only** blackboard panel inside an existing ImGui window … in Slice 2 field values are **live-read** from the ECS blackboard component."* ⛔⛔ **in-degree 0 — NOTHING HOSTS IT** | ⛔ **RETIRE** — ✅ ruled `2026-08-20` *(`R-114`)*: no feature the variable table lacks |
 | **15** | **`DetailsPanel`** *(NodeEditor.UI, 151)* | the generic **panel primitive** — not a surface, the thing surfaces are built from | ⭐ **KEEP — infrastructure** |
 | **16** | **`GraphSignatureWindow`** | the graph's **signature** — its inputs/outputs as a callable | ⭐ **FOLD** *(`BP-128`)* — a view of *"the selected graph"* |
 
@@ -274,7 +274,11 @@ invisible. ⭐ **And the FEED registry already exists** — `RuntimeInspectorWin
 
 ### ⭐⭐ `Q38-C` — what about views that are not "properties"?
 
-| ⭐⭐⭐ **RECOMMENDED: a surface stays STANDALONE only if it answers a DIFFERENT QUESTION — never merely a different ASSET TYPE.** |
+| ✅✅ **RULED `2026-08-20` BY THE USER — `R-112`, and it CORRECTS the recommendation below.** |
+|---|
+| ⭐⭐⭐ **THE TEST IS: IS IT ABOUT THE CURRENT SELECTION?** ⭐ **YES ⇒ a VIEW inside Details**, reachable by a toolbar toggle — ⛔ **a different question earns its own VIEW, not its own WINDOW**, once `R-98` exists. ⇒ **`BlackboardAuthoringWindow`'s byte-budget / bin-pack becomes a view in the ASSET context.** ⭐ **NO — a CURATED LIST kept open ACROSS selections ⇒ STANDALONE**: the **Watch** and the **Breakpoints** windows *(`R-113`)* |
+
+| ⭐ **The old half that SURVIVES**: ⛔ a surface never stays separate **merely because it is a different ASSET TYPE** — that is a FEED difference. ⛔ ~~*"…stays STANDALONE only if it answers a DIFFERENT QUESTION"* — too coarse; see the ruling.~~ |
 |---|
 
 ⭐ **The test, in one line:** *does it answer **"tell me about the thing I selected"**?*
