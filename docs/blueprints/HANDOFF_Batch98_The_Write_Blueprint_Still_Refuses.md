@@ -4,8 +4,8 @@ updated: 2026-08-20
 current-answer: this whole file — the Batch 98 dispatch.
 stale-below: nothing.
 known-rot: none.
-known-conflict: none. It finishes the half of the write path Batch 96 named and
-  Batch 97 did not cover, and builds the Properties dialog the user queued.
+known-conflict: SECTION 2 (98b) IS WITHDRAWN by STEER_Batch98b_Properties_Is_A_Custom_Dialog.md
+  (user steer, 2026-08-20, R-109). Sections 1 (98a) and 3 (98c) are unchanged and live.
 -->
 # HANDOFF — Batch 98: **the write Blueprint still refuses, and the Properties dialog**
 
@@ -76,56 +76,19 @@ somewhere to **PUT** the new JSON. ⇒ ⭐⭐ **the missing thing is a WRITE-BAC
 
 ---
 
-## 2. 🛠 **`98b` — the Properties dialog** *(`BP-359`; the user queued it on `2026-08-19`)*
+## 2. ⛔⛔ **`98b` — WITHDRAWN AND REPLACED** *(user steer, `2026-08-20`)*
 
-> ⭐⭐ **User:** *"the 'Properties' context menu now opens the same 'Edit variable' modal as 'Edit'. This
-> is wrong."* … *"ok so you please add the properties dialog to next batch once 97 returns."*
-
-⭐⭐⭐ **The answer is SETTLED — 📌 `R-108`. ⛔ Do not re-derive it.**
-
-### 📐 What it opens
-
-📄 **`DESIGN_Variable_Details_And_Editing.md:233`** — *"'Properties…' | **a properties object for that
-declaration kind** | `WholeComponent`"*
-⇒ ⭐⭐ **the two menu items differ by the OBJECT, ⛔ not by the scope.** Both correctly use
-`WholeComponent` since `96b`, which is exactly why they now look identical.
-⚠ **The design's own summary line — *"the two menu items ARE the two scopes"* — is FALSE**, and Batch 96
-measured it so *(`BP-359`)*.
-
-### ⭐ What it shows — **already enumerated in code**
-
-`VariablePropertySchema.For(kind)`, measured off the carriers rather than taken from a spec:
-
-| carrier | properties |
-|---|---|
-| **`VariableDecl`** | Name · Type · DefaultValue · Tooltip · Comment · Category · IsEditable · IsExposedOnSpawn |
-| **`ParameterDecl`** | Name · Type · DefaultValue · Tooltip · Comment |
-| **`BlackboardVariableEntry`** | Name · Type · DefaultValue · Comment |
-
-⛔ **`Role`/`Scope` is NOT a property** — *the SECTION is the classification* *(user, `2026-08-16`)*.
-⛔ **Replication and Range are excluded** — **no carrier has a backing member**, and the schema's own
-rail fails a property that cannot be stored.
-
-### ⭐ Availability *(the design's matrix)*
-
-| | planning | running / paused | replay |
-|---|---|---|---|
-| **Properties…** | ✔ **editable** | ⚠ **read-only** — *"you cannot retype a variable mid-run"* | ⛔ read-only |
-
-⭐ **`97b` built `VariableEditGesture.Decide` over `VariableEditPolicy`** ⇒ ⭐⭐ **the greying is already
-there; feed it, ⛔ do not write a second matrix** *(ruling 9)*.
-
-### ⚠ Two real costs — ⭐ **and the third one you may have read is STALE**
-
-| ⭐ | |
-|---|---|
-| **`Type` picker · `Category` combo** | registered as **StructEdit custom editors** — ⭐ the mechanism exists *(`_fieldEditors`, `ICustomFieldEditor`)* |
-| ⭐⭐⭐ **`Name` IS A RENAME** | ✅ safe on **Blueprint** — declarations carry a persisted `Guid Id` and references store `VariableId` *(`M-16`)*. ⛔⛔ **On BTree/HSM the binding stores the NAME STRING and `RenameVariable` does NOT fix up `ExpressionTargetField`** *(`M-15`)* ⇒ **renaming a bound AI variable DANGLES it** *(caught at build as `BTREE0002`, a whole-asset skip)* ⇒ ⭐ **it MUST run the refactor service**, which the design already requires of both routes |
-| ⛔ ~~`S5` must land first~~ | ⭐⭐ **STALE — `S5` shipped in Batch 65** *(`BP-255`)*: `BuildSelectableTypeIds` is seeded from `EditorOfferableTypeIds` ∪ `Entity` ∪ discovered structs and `BlueprintTypeChoices.TypeIds` is **that same list**, `Assert.Same`-locked. ⇒ ⭐ **offer `Type` from the start** |
-
-⚠ **If the `Type` picker turns out to need more than registering an editor, ⭐ ship Properties with
-`Type` greyed and its reason, and report it** — ⛔ **do not hold the whole dialog for one field**
-*(`R-106`)*.
+> ⛔⛔⛔ **DO NOT BUILD THIS SECTION. It is superseded in full by**
+> 📄 **[`STEER_Batch98b_Properties_Is_A_Custom_Dialog.md`](STEER_Batch98b_Properties_Is_A_Custom_Dialog.md)** — 📌 **`R-109`.**
+>
+> ⭐⭐ **The short version:** ⛔ **Properties is NOT a StructEdit document** — two of its fields are
+> **OPERATIONS, not writes** *(`Name` is a rename ⇒ the refactor service; `Type` is a retype migration)*.
+> ⭐ **And per-field read-only was never needed**: read-only is **dialog-level** and already built.
+> ⭐⭐⭐ **Build it by factoring `VariableCreateModal`**, which already draws `Name` *(with duplicate-name
+> validation)* and the `Type` combo over `SelectableTypeIds`. ⭐ **`VariablePropertySchema.For(kind)` is
+> the filter.** ⭐ **"Edit value…" stays StructEdit, unchanged.**
+>
+> ⚠ **`98a` and `98c` are UNCHANGED — `R-106`: keep going on those, and `98a` first.**
 
 ---
 
@@ -146,6 +109,8 @@ Details-table entry is wired, the outline entry is drawn and dead.
 | **an `Instance`-blueprint live write** | ⭐ a per-blueprint slot in a tiered component — 📌 `Q32` §2.1, guessing corrupts memory |
 | **a BTree/HSM live writer** | `BP-364` — a capability, and the refusal is honest today |
 | **a second editability matrix** | `98b` — ⭐ `97b`'s `VariableEditGesture.Decide` already exists |
+| ⛔⛔ **Properties as a StructEdit document** | `R-109` — ⭐ see the STEER note; `Name` and `Type` are OPERATIONS |
+| **a per-field read-only flag in StructEdit** | `R-109` — ⭐ read-only is **dialog-level** and already built |
 | **`Role`/`Scope` in the Properties dialog** | user ruling `2026-08-16` — the section is the classification |
 | **reverting anything from Batch 97** | ⭐ all four items hold |
 
