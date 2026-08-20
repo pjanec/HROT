@@ -17,15 +17,32 @@
 
 | | |
 |---|---|
-| Tracker | **16 open rows**, HSM-001…HSM-016, none done |
+| Tracker | **18 open + 1 closed**, HSM-001…HSM-019 |
 | Build | `IOS-IG-SimHost.sln` — 0 errors (69 pre-existing warnings) |
-| Tests | `Hrot.Hsm.Editor.Tests` **510/510 green** |
-| Committed | integration map, tracker, concepts primer, 3 hand-authored SVGs, this file |
+| Tests | `Hrot.Hsm.Editor.Tests` **554/554 green** (was 510; the merge added 44) |
+| Committed | integration map, tracker, concepts primer, opening prompt, 3 hand-authored SVGs, this file |
 | Environment | .NET 8.0.424 at `/root/.dotnet`; `codebase-memory-mcp` 0.10.3 at `/opt/codebase-memory-mcp`, project `home-user-HROT` indexed (166k nodes / 537k edges), warm daemon running |
 
 ⚠ **MCP graph tools flap in and out.** When they are disconnected use the CLI, which always works:
 `/opt/codebase-memory-mcp/codebase-memory-mcp cli <tool> '<json>'`
 (`trace_path` uses `direction: inbound|outbound|both`, **not** `callers`.)
+
+---
+
+## 1b. ⭐⭐ Merged the coordinator branch `2026-08-20` — Batch 46 → 98, 428 commits
+
+The blueprint programme did **substantial HSM work** in that window (Batches 58, 59, 67, 71–78, 92).
+**Every reproduced row was re-run on the merged tree**; only `HSM-016` had been fixed
+(Batch 59 `W3`, railed by `BHU_020`) — the rest reproduce identically.
+
+⭐ **Read these before re-deriving anything about parameters:**
+`DESIGN_Parameter_Model.md` *(authoritative)* · `EXPLAINER_Where_Parameters_And_State_Live.md`
+*(measurement record)* · `RULINGS.md` *(the ledger — `R-06`, `R-52`, `R-65`, `R-81`, `R-88`, `M-15`,
+`M-16`, `M-24`)*.
+
+📌 **Lesson:** the first audit ran on a base 428 commits stale, so one row was raised against a
+defect the world had already closed. `.claude/CLAUDE.md` **rule 7** says re-sync from the coordinator
+branch at the START of a run — do that before presenting findings, not after.
 
 ---
 
@@ -104,8 +121,10 @@ States, transitions and hierarchy already work. Three things stand in the way, i
 | A bound action/guard cannot resolve | **HSM-013** | GUID-hash registration vs name-hash lookup — never match |
 | Nothing can be picked | **HSM-014** | the picker only offers names the asset already contains |
 
-HSM-015 sits behind 013: even once naming is fixed, a **parameterised** primitive has nowhere to
-store its params on the HSM side.
+HSM-015 sits behind 013. ⭐ **Both are now UNIMPLEMENTED RULINGS, not open questions** — `R-88`
+rules the key as `MethodFqn@offset` for BTree and HSM jointly, and the offset rides inside the
+hashed identity so **no ROM change is needed**. 📐 `BTreeBridgeEmitCore` has **50** `MethodFqn`
+references; `HsmBridgeEmitCore` has **0**.
 
 ---
 
@@ -124,13 +143,21 @@ store its params on the HSM side.
 
 ## 5b. In flight — the parameters/variables consultation
 
-[Hsm_Parameters_And_Variables_OPENING_PROMPT.md](Hsm_Parameters_And_Variables_OPENING_PROMPT.md) is
-drafted and awaiting dispatch to the blueprint session. Its central proposal: **adopt BTree's
-`{MethodFqn}@{offset}` key convention verbatim**, because HSM action ids are `ComputeHash(<arbitrary
-string>)` — so the offset can ride inside the hashed identity and **no `StateDef` ROM change is
-needed**. If that holds, HSM-013 and HSM-015 collapse into one fix. Open questions cover per-slot
-binding on a 4-slot state (`DEBT-BF-04`), where guard params live, write-back via aliasing, working
-state across state re-entry, and the 100-byte budget under genuine region concurrency.
+[Hsm_Parameters_And_Variables_OPENING_PROMPT.md](Hsm_Parameters_And_Variables_OPENING_PROMPT.md) —
+⭐ **REWRITTEN `2026-08-20` after the merge.** Four of its original seven questions were **already
+ruled**, and two of our own premises were **wrong** (we said "whole-DTO binding"; the model moved to
+*one params struct per behaviour, action binds a FIELD*. We said role `param`; the enum is
+`{Input, State}` with no Param role).
+
+⭐⭐ **The central proposal is no longer a proposal — `R-88` rules it:** the thunk key is
+`MethodFqn@offset`, stated for BTree **and HSM** jointly. So it is an **unimplemented ruling**, not
+an open design question. 📐 Measured: `BTreeBridgeEmitCore` has **50** `MethodFqn` references,
+`HsmBridgeEmitCore` has **0** ⇒ **HSM has the params *supply* half and not the *binding* half.**
+
+What genuinely remains: per-slot binding on a four-slot state (`DEBT-BF-04` — possibly already
+discharged by the field-binding ruling), where a guard's params come from, guard side-effect safety
+under speculative evaluation, `Scope=Node` across state re-entry and history restore, and whether
+the packer's budget assumes one-live-binding-at-a-time.
 
 ---
 

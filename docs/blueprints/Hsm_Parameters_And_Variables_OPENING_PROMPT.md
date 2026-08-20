@@ -1,203 +1,161 @@
-# Opening prompt — asset variables, action parameters, and what the HSM analogue should be
+<!--STATUS
+state: LIVE
+updated: 2026-08-20
+current-answer: sections 3-5; sections 1-2 are the shared ground, not questions
+known-rot: none. REWRITTEN 2026-08-20 after merging Batches 46-98 — the first draft asked
+  seven questions of which four were already ruled. Do not restore it from history.
+-->
+# Opening prompt — HSM parameters and variables: what is ruled, what HSM is missing, what is still open
 
-> **To:** the Blueprint / BTree authoring session (the one that owns
-> `BTree_AiActionParameterBinding_Detailed_Design.md`, `Blackboard_Authoring_Detailed_Design.md` and
-> the variable-unification work).
+> **To:** the Blueprint / BTree authoring session (owner of `DESIGN_Parameter_Model.md`, `RULINGS.md`
+> and the variable-unification programme).
 > **From:** the HSM design session, branch `claude/hsm-visual-editing-9ngei4`.
-> **Purpose:** settle how an HSM binds **parameters** to its actions and guards, and how **asset
-> variables** feed them and receive results back — by reusing the BTree model wherever it fits and
-> naming precisely where HSM differs.
-> **This is an opening prompt for a long discussion, not a change request.** Nothing is being built.
-> **Read first if you are new to the HSM side:** [Hsm_Integration_Map.md](Hsm_Integration_Map.md) ·
+> **Read first if new to the HSM side:** [Hsm_Integration_Map.md](Hsm_Integration_Map.md) ·
 > [Hsm_Issues_Tracker.md](Hsm_Issues_Tracker.md)
+>
+> ⭐⭐ **REWRITTEN `2026-08-20`.** The first draft asked you to explain your parameter model. Then we
+> merged Batches 46→98 and read `DESIGN_Parameter_Model.md`, `EXPLAINER_Where_Parameters_And_State_Live.md`
+> and `RULINGS.md`. **Four of the seven questions were already ruled, and two of our stated
+> premises were wrong.** This version records what we now believe, corrects our own errors, and asks
+> only what your documents do not answer.
+>
+> ⛔ **Nothing is being built.** This is a design consult.
 
 ---
 
-## 0. Why we are asking you
+## 1. ⛔ Two things we had wrong — corrected from your docs
 
-The HSM audit found that **binding an action or guard to an HSM does not work at all today** — three
-separate id spaces, parameters read out of live instance memory, and a picker that offers nothing.
-Before proposing fixes we want the BTree/blueprint model as the reference, because:
+Recording these because the first draft would have asked you to confirm them.
 
-- BTree already solved the identical problem and the architect already ruled on the hard parts
-  (per-field binding **rejected**; whole-DTO binding **approved**).
-- Whatever HSM does should be *the same mechanism*, not a parallel invention — the two hosts already
-  share `BrainBlackboard`, `Blackboard1024`, `IActionSchemaExporter`, `BehaviorRegistry` and the
-  `[BlueprintRegistrar]` masquerade.
-- We would rather inherit your constraints than rediscover them.
-
-**We are not asking you to design the HSM side. We are asking: is our reading of your model right,
-and where does it stop applying?**
-
----
-
-## 1. What we believe your model is — please correct us
-
-Verified from your docs + code on 2026-08-14. **If any line here is wrong, that correction alone is
-worth the round trip.**
-
-| # | Our understanding | Source |
+| we wrote | the truth | source |
 |---|---|---|
-| 1 | Every blackboard datum is a typed named **variable** with a **role** (`input`/param vs `state`) and, for state, a **scope** (`Node` \| `Behavior` \| `Entity`) | ParamBinding DD §4.4 |
-| 2 | **Per-field binding was rejected by the architect.** A node binds its **whole DTO** to exactly **one** variable, via a single `ExpressionTargetField` | Addendum v3 §2.1–2.2 |
-| 3 | Reason: the kernel projects params as one `ref TValue` over a contiguous pre-packed slice (`Unsafe.As` at a bin-packed offset); scattering fields would force a per-tick temp struct + copy, breaking zero-alloc | Addendum v3 §2.1 |
-| 4 | **Static** values → the bound variable's `DefaultValueJson`, baked into a generated `ParseParamsDelegate`, applied at **behavior assignment** | Addendum v3 §2.3 |
-| 5 | **Dynamic** values → **Approach A**, whole-DTO aliasing: two nodes bind the same variable ⇒ same baked offset ⇒ true zero-copy sharing, so writes are visible to both | DD §7, Addendum v3 §2.3 |
-| 6 | **Approach B**, field-level sync in/out via a generated orchestrator, is **Subtree-only** and explicitly *not* available on plain action nodes | Addendum v3 §2.3 |
-| 7 | **Node-owned / auto-managed** variables (`IsAutoManaged`, "+ Promote to new variable") exist to avoid variable sprawl; downstream they are ordinary variables | Addendum v3 §3 |
-| 8 | Params live in `BrainBlackboard.BehaviorParameters` (100 B inline, `MaxBehaviorParamByteSize`); overflow → `Blackboard1024` heavy tier | ParamBinding DD §2 |
-| 9 | ⭐ The binding identity is a **key string carrying the offset**: `{MethodFqn}@{offset}`, and `{MethodFqn}@{offset}@{slotKey}` when stateful | `BTreeBridgeEmitCore.cs:460,488,622` |
-| 10 | Stateful slot key = `FNV-1a(BehaviorAssetId, NodeVisualId)` — because `BlueprintId` alone cannot distinguish two nodes using the same primitive | ParamBinding DD §4.2 |
-| 11 | **"BTree owns layout, blueprint provides `TickCore`"** — the generator *ignores* a blueprint's standalone `BTreeTick` and emits a per-node adapter projecting `Params` at the BTree-controlled offset | ParamBinding DD §3.2 |
-| 12 | The editor bin-packer is **advisory**; the authoritative layout is the compiled struct (`Marshal.OffsetOf`), and `bool` needs `[MarshalAs(UnmanagedType.I1)]` or offsets silently drift | ParamBinding DD §2, §3.2 |
+| *"a node binds its **whole DTO** to one variable"* | ⛔ **superseded `2026-08-16`.** The 100 B holds **ONE params struct per BEHAVIOUR** (`BehaviorDefinition.ParamsDtoType`, singular); an action **binds a FIELD** of it — `[SharedAiAction(typeof(Dto),"Field")]` | `DESIGN_Parameter_Model.md` §0 |
+| *"role is `input`/param vs `state`"* | ⚠ **vocabulary:** the enum is `{ Input, State }` and **there is no "Param" role** — `Input` *is* the parameter role | resolver design §3.2, `R-06` |
+
+⭐ We have propagated both into our own docs.
 
 ---
 
-## 2. The HSM side — where it stands
+## 2. What we take as settled — please correct anything wrong
 
-Verified; details and citations in [Hsm_Integration_Map.md](Hsm_Integration_Map.md) §4.
+| # | Taken as ruled | Source |
+|---|---|---|
+| 1 | `Role { Input, State }` is **cross-host**; BTree/HSM working state ≡ blueprint working state | `R-06` |
+| 2 | `Scope { Node, Behavior, Entity }` applies to `State` only | `DESIGN_Parameter_Model.md` §1 |
+| 3 | ⭐⭐ **The thunk key is `MethodFqn@offset`** — stated for the BTree/HSM `Role=Input` case **jointly** | `R-88` |
+| 4 | Offsets come from the packer ⇒ the params-case variable name is **editor-only** at runtime | `R-88` |
+| 5 | Supply order: **bake defaults, overlay incoming JSON by variable name, runtime wins** — once at assignment, never per tick. **True on both hosts since Batch 70/74** | `R-81`, `BP-292` |
+| 6 | **Sections are the classification** — no `Role`/`Scope` control on any host | ruling `2026-08-16` |
+| 7 | Params belong to the **occurrence**, not the entity; carry the **params area only** | `DESIGN_Parameter_Model.md` §4 |
+| 8 | **HSM multi-occurrence cost ACCEPTED** | ruling `2026-08-16` |
+| 9 | ⭐ **"On HSM, absent NEVER means unwanted — it is behind, not scoped out"** | ruling `2026-08-16` |
+| 10 | `Blackboard1024` is **one component shared** by BTree/HSM/Blueprint at disjoint offsets | `R-65` |
 
-**What is the same.** HSM entities carry `BrainBlackboard` and `Blackboard1024` already;
-`HsmAsset` already has `BlackboardVariables` + `BlackboardTypeName`; `TransitionNode` and
-`GlobalTransitionNode` already carry `ExpressionTargetField` (BB1 shipped that).
+⇒ **Our earlier "is the offset-in-key convention sound?" question is withdrawn.** `R-88` rules it,
+and it is the right answer: the offset rides inside the hashed identity, so **no `StateDef` /
+`TransitionDef` ROM change is needed** — which matters, because both structs are full (32 B with one
+spare byte; 16 B with none).
 
-**What is different — and this is the crux.**
+---
+
+## 3. 📐 The measurement: HSM has the supply half and not the binding half
+
+Measured on the merged tree, `2026-08-20`:
 
 | | BTree | HSM |
 |---|---|---|
-| Bindings per carrier | 1 action per node | **4 per state** (Entry/Exit/Activity/Timer) + **2 per transition** (guard, effect) |
-| Node identity | `NodeVisualId` | `StateNode.StableId` / `TransitionNode.VisualId` |
-| Identity → id | key string `{Fqn}@{offset}` into the action registry | **`ComputeHash(name)`** — FNV-1a-32 of the name, truncated to `ushort` (`HsmFlattener.cs:385`) |
-| How the callee gets the blackboard | `ref BrainBlackboard bb` **is a parameter** of the thunk | thunk gets `(void* instance, void* context, …)`; blackboard must be fetched from the entity via `HsmKernelBridge` |
-| Concurrency | parallel nodes | **orthogonal regions genuinely run concurrently**, and the kernel already has a lane-conflict notion |
-| `ExpressionTargetField` on states | n/a | **absent** — `StateNode` has none (`DEBT-BF-04`) |
+| `MethodFqn` references in the bridge emit core | **50** | ⛔ **0** |
+| params **supply** (`__parseParams`: bake defaults → overlay JSON) | ✅ `BTreeBridgeEmitCore.EmitParseParamsLocal:1231` | ✅ `HsmBridgeEmitCore:231` *(Batch 74, `BP-292`)* |
+| params **binding** (per-binding thunk at `MethodFqn@offset`) | ✅ shipped | ⛔ **absent** |
+| stateful working slots | ✅ | ✅ `EmitStatefulWorkingSlotsArray:443` |
+| `ExpressionTargetField` carrier | node | ⚠ **transition + global only — `StateNodeDto` has none** |
 
-**What is broken** (tracker rows): HSM-013 registration keyed on a GUID hash the blob never looks up ·
-HSM-015 the generated thunk reads `Params` out of live instance memory · HSM-016 the JSON bridge
-registers no-op stubs at invented ids · HSM-014 the picker offers only names already in the asset.
-
----
-
-## 3. ⭐ Our central proposal — please shoot at it
-
-**Adopt your key convention verbatim, because HSM action ids are hashes of an arbitrary string.**
-
-```
-editor writes the slot's action name as:   Ns.Type.Method@40
-HsmFlattener hashes the whole string   →   StateDef.ActivityActionId = ComputeHash("Ns.Type.Method@40")
-the generated bridge registers a thunk under the SAME hash, projecting the DTO at offset 40
-```
-
-If this holds it is unusually good news: **the offset rides inside the hashed identity, so no
-`StateDef`/`TransitionDef` ROM change is needed** (both structs are full — 32 B with one spare byte,
-and 16 B with none). HSM-013 and HSM-015 collapse into one fix, and it is the fix you already
-shipped.
-
-**Q-A. Is that sound, or does the offset-in-key convention depend on something BTree-specific we
-have not noticed?**
+⇒ **HSM is exactly one layer behind: it can be *given* parameters, but nothing can *bind* an action
+to them.** Combined with our tracker rows `HSM-013` (AiPrimitive registers under a GUID hash the blob
+never looks up) and `HSM-015` (the generated HSM thunk reads `Params` out of live instance memory),
+**an HSM action or guard with parameters cannot work today by any route.**
 
 ---
 
-## 4. The questions
+## 4. The questions your documents do not answer
 
-Grouped. Each carries our lean so you can disagree with something concrete.
+Each has our lean, so you have something concrete to reject.
 
-### Q-B — Per-slot binding on a state
+### Q-1 — Per-slot binding on a four-slot state *(this is `DEBT-BF-04`)*
 
-A BTree node has one action; an HSM **state has four**. Options:
+A BTree node has **one** action. An HSM **state has four** (`OnEntry`/`OnExit`/`Activity`/`Timer`)
+and a transition has **two** (guard, effect). `StateNodeDto` carries **no** `ExpressionTargetField`
+at all — verified on the merged tree.
 
-- **B1** — one `ExpressionTargetField` per slot: `OnEntryParam`, `OnExitParam`, `ActivityParam`, `TimerParam`, plus the transition's `GuardParam`/`EffectParam`. Faithful, but six new persisted fields and six picker sites.
-- **B2** — one variable per *state*, shared by all four slots. Cheap, but forces all four actions to take the same DTO type — almost never true.
-- **B3** — treat each slot as its own binding *carrier* with a synthetic id (`StableId` + slot kind), so the model is "bindings" rather than "fields on a state".
+Under the *"one params struct per behaviour, action binds a field"* model this may be **simpler than
+we first thought**: each of the six slots binds a **field** of the one behaviour struct, so no new
+per-slot allocation is needed — only a per-slot *field name*.
 
-**Our lean: B1** for the authored surface, with B3's synthetic id underneath for slot-key
-uniqueness. **Does that match how you would extend your own model?** This is `DEBT-BF-04`, which the
-plan doc says needs a design decision rather than a guess.
+**Our lean:** six field-name bindings, one per slot, mirroring `[SharedAiAction(typeof(Dto),"Field")]`.
+**Q-1a.** Is that the intended extension? **Q-1b.** `DEBT-BF-04` was flagged as *"needs an architect
+design decision, not an autonomous guess"* — does the `2026-08-16` field-binding ruling already
+discharge it, or does it still need its own round?
 
-### Q-C — Where a guard's parameters live
+### Q-2 — Where a guard's parameters come from
 
-Your conditions bind params exactly like actions. An HSM guard is
-`bool Guard(void* instance, void* context, ushort eventId)` — **no blackboard parameter**, and
-`instance` is the HSM instance, not a blackboard. So the thunk must fetch `BrainBlackboard` from the
-entity via the bridge and project at the baked offset.
+An HSM guard is `bool(void* instance, void* context, ushort eventId)` — **no blackboard argument**,
+and `instance` is the HSM instance, not a blackboard. So a bound guard must fetch `BrainBlackboard`
+from the entity through `HsmKernelBridge`.
 
-**Q-C1.** Is fetching `BrainBlackboard` per guard evaluation acceptable, given guards are evaluated
-**speculatively** across candidate transitions (possibly several per RTC iteration, up to 100
-iterations)? **Q-C2.** Would you instead push a blackboard pointer into `HsmKernelBridge` once per
-tick, so guards get it for free? *(Our lean: C2 — it is one extra pointer in a struct we already
-build per entity per tick.)*
+**Q-2a.** Acceptable per evaluation, given guards are evaluated **speculatively** across candidate
+transitions inside an RTC loop bounded at 100 iterations? **Q-2b.** Or add the pointer to
+`HsmKernelBridge`, which we already build once per entity per tick? *(Our lean: Q-2b.)*
 
-### Q-D — Write-back: how an action's results reach a variable
+### Q-3 — Guard side-effect safety
 
-This is the user's explicit question, and where we are least sure of your intent.
+`R-88` makes the params case editor-only precisely because the binding is by offset. But an HSM guard
+**must be side-effect free** — `SelectTransition` evaluates candidates and discards losers. A guard
+holding a mutable `ref` into shared param bytes is a footgun BTree conditions may not have.
 
-As we read it, **Approach A aliasing is the write-back mechanism**: the action holds a `ref` to the
-variable's bytes, so anything it writes *is* the variable, with no copy-back step. Approach B's
-explicit in/out sync is Subtree-only.
+**Should a bound HSM guard get a read-only projection?** And if so, does that break field-type
+equality with an action that binds the same field? *(No lean — we do not know your intent here.)*
 
-- **Q-D1.** Is that right — is "write back" simply "the DTO **is** the variable, mutate it in place"?
-- **Q-D2.** If so, is there any read-only enforcement? An HSM **guard** must be side-effect free
-  (`SelectTransition` evaluates speculatively and discards losers), so a guard holding a mutable
-  `ref` to a shared variable is a footgun your BTree conditions may not have. **Should HSM guards get
-  a read-only projection, and does that break DTO-type equality with the action that shares the
-  variable?**
-- **Q-D3.** Two orthogonal HSM regions aliasing one variable are **genuinely concurrent** — worse
-  than BTree parallel nodes. Our validator already has `CheckConcurrentSharedScopeKeys` and
-  `CrossRegionBlackboardConflict` rules for exactly this. Is hard-erroring the right stance (matching
-  your §4.3 fix 3 for concurrent stateful Subtrees), or is aliasing across regions legitimate when
-  the writer is unique?
+### Q-4 — `Scope=Node` across state re-entry
 
-### Q-E — Working state and scope
+Your `Node` scope is keyed `FNV-1a(BehaviorAssetId, NodeVisualId)`. HSM has a lifecycle BTree lacks:
+**a state can be exited and re-entered**, and **history can restore it**.
 
-Your §4.4 model is role × scope, with `Node` scope keyed `FNV-1a(BehaviorAssetId, NodeVisualId)`.
+**Q-4a.** Is the HSM `Node`-scope unit the **state**, or the **state-slot**? *(Lean: state-slot,
+keyed `FNV-1a(AssetId, StableId, SlotKind)` — `OnEntry` and `Activity` are different call sites.)*
+**Q-4b.** Should `Node`-scoped state be **reset on entry**, **preserved across re-entry**, or
+**author-controlled**? *(Lean: preserved — `OnEntry` is the natural place to reset. But this is a
+real semantic choice.)*
 
-- **Q-E1.** For HSM, is the `Node`-scope analogue **per state**, or **per state-slot**? A state's
-  Entry and Activity are different call sites — do they share working state or not?
-  *(Our lean: per state-slot, keyed `FNV-1a(AssetId, StableId, SlotKind)`.)*
-- **Q-E2.** `Behavior` and `Entity` scope look like they carry over unchanged. Agreed?
-- **Q-E3.** HSM has a lifecycle BTree lacks: **a state can be exited and re-entered**, and history
-  can restore it. Should `Node`-scoped state be **reset on entry**, **preserved across re-entry**, or
-  **author-controlled**? *(Our lean: preserved, because OnEntry is the natural place to reset — but
-  this is a real semantic choice and we would rather have your view.)*
+### Q-5 — The 100-byte budget under genuine concurrency
 
-### Q-F — The 100-byte budget under HSM concurrency
+Ruling 8 accepts *"HSM multi-occurrence cost"*. We want to check it covers this: a BTree runs **one
+leaf at a time**; an HSM **parallel composite has several active leaves simultaneously**, each with
+live `Activity` params in the same 100 B.
 
-Inline params share a 100 B region. A BTree runs one leaf at a time; **an HSM parallel composite has
-several active leaves simultaneously**, each with Activity params live in the same 100 B.
+**Does the packer's budget model already account for simultaneously-live bindings, or does it assume
+one-at-a-time?** If the latter, HSM reaches the heavy tier much sooner than BTree.
 
-**Does the bin-packer's budget model already account for simultaneously-live bindings, or does it
-assume one-at-a-time?** If the latter, HSM may exhaust the inline region far sooner and need the
-heavy tier much earlier.
+### Q-6 — Ownership
 
-### Q-G — Ownership
-
-HSM-013, HSM-015 and HSM-016 are **codegen** defects (`AiPrimitiveEmitter`, `CSharpEmitter`,
-`HsmBridgeEmitCore`) surfacing as HSM authoring failures. **Whose lane are they?** We are happy to
-hold them in the HSM tracker as *recorded, not owned*, if the fix belongs with the blueprint
-compiler.
+`HSM-013` and `HSM-015` live in `AiPrimitiveEmitter` / `CSharpEmitter` — **your compiler**, surfacing
+as HSM authoring failures. `HSM-017` (rename dangles the binding, with **no** HSM build diagnostic —
+BTree has `BTREE0002`, HSM has only the `HSM0001` parse-error code) is the HSM half of your `M-15`.
+**Whose lane?** We are content to hold them as *recorded, not owned*.
 
 ---
 
 ## 5. What would be most useful back
 
-1. **Corrections to §1** — anything we have misread about your model.
-2. **A yes/no on Q-A**, the offset-in-key proposal. Everything else depends on it.
-3. **Your lean on Q-B and Q-D**, the two genuinely new shapes (multi-slot carriers, guard
-   side-effect safety).
-4. **A pointer to anything already designed for HSM** that we have not found — the ParamBinding DD
-   is BTree-titled but its §4.4 variable model reads as host-agnostic, and we would rather adopt than
-   re-derive.
-5. **A view on whether this needs an architect round** before either session builds. Our instinct is
-   yes for Q-B/Q-D/Q-E3, since `.claude/CLAUDE.md` requires an architect pass for non-trivial
-   capabilities and `DEBT-BF-04` was explicitly flagged as *"needs an architect design decision, not
-   an autonomous guess"*.
+1. **Corrections to §2** — anything we have taken as ruled that is not.
+2. **Q-1**, which unblocks the most: it decides whether `DEBT-BF-04` is discharged or still needs an
+   architect round.
+3. **Q-3**, the one place we have no lean at all.
+4. **A view on sequencing.** `HSM-013`/`HSM-015` are the fix that makes bound HSM actions work; is
+   that a batch you would take, or one we should hand off?
 
----
-
-## 6. Explicitly not in scope here
-
-Event authoring (HSM-009) · the initial-state model (HSM-003) · history modelling (HSM-010) ·
-timers (HSM-012) · region persistence (HSM-004/005). Those are HSM-local and do not need you.
+⛔ **Out of scope here** — HSM-local and not needing you: event authoring (`HSM-009`), the
+initial-state model (`HSM-003`), history modelling (`HSM-010`), timers (`HSM-012`), region
+persistence (`HSM-004`/`005`).
 
 ---
 
@@ -205,4 +163,5 @@ timers (HSM-012) · region persistence (HSM-004/005). Those are HSM-local and do
 
 | Date | Change |
 |---|---|
-| 2026-08-14 | Created as the opening prompt for the parameters/variables consultation. |
+| 2026-08-14 | Created. |
+| 2026-08-20 | ⭐ **Rewritten** after merging Batches 46–98: four of seven questions were already ruled (`R-88`, `R-06`, `R-81`, ruling 8); two of our own premises were wrong and are corrected in §1; added the §3 measurement showing HSM has the supply half and not the binding half. |

@@ -27,10 +27,10 @@ decision first.
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 1 | 0 |
-| `RW-L` | 5 | 0 |
-| `RW-M` | 7 | 0 |
+| `RW-L` | 7 | 0 |
+| `RW-M` | 7 | 1 |
 | `RW-H` | 3 | 0 |
-| **Total** | **16** | **0** |
+| **Total** | **18** | **1** |
 
 ⭐ **New here? Read [Hsm_Integration_Map.md](Hsm_Integration_Map.md) first** — how an HSM gets from
 the canvas to a ticking entity, with every stage cited. These rows assume it.
@@ -64,8 +64,29 @@ Docs read: `HSM_Editor_NodeEditor_Host_Design.md` (feature/UX target),
 `docs/projects/Hrot/AI/Hrot.Hsm.Editor.md`.
 
 Rows marked **✅ reproduced** were confirmed by a throwaway xUnit probe run against the real
-assemblies, quoted inline, then deleted. Baseline at time of audit:
-`Hrot.Hsm.Editor.Tests` **510/510 green**, solution build **0 errors**.
+assemblies, quoted inline, then deleted.
+
+> ### ⭐ RE-VERIFIED `2026-08-20`, after merging 428 coordinator commits (Batch 46 → 98)
+>
+> The original audit ran on a base that had gone **428 commits stale**, and the coordinator branch
+> had done substantial HSM work in between (Batches 58, 59, 67, 71–78, 92). **Every reproduced row
+> was re-run on the merged tree.**
+>
+> | | |
+> |---|---|
+> | **HSM-001, 002, 004, 005, 006, 013** | ⭐ **reproduce identically** — same outputs, same values |
+> | **HSM-007, 009, 012, 014** | ⭐ still live — re-greped repo-wide |
+> | **HSM-016** | ✅ **FIXED upstream in Batch 59** — closed, see the row |
+> | **HSM-015** | still live: `AiPrimitiveEmitter:420,448` still `ref var p = ref *(Params*)instance` |
+> | **HSM-013** | still live: `CSharpEmitter:383,385` still keys on `(ushort)BlueprintId` |
+>
+> Baseline on the merged tree: `Hrot.Hsm.Editor.Tests` **554/554 green** (was 510 — the merge added
+> 44), solution build **0 errors**.
+>
+> 📌 **Lesson recorded:** a tracker built off a stale base carries rows the world has already closed.
+> Re-sync and re-verify **before** presenting findings, not after — this is `.claude/CLAUDE.md`
+> rule 7 (*re-sync from the coordinator branch at the START of every run*), and skipping it cost one
+> row's credibility here.
 
 > ⚠ **A "nothing calls X" claim needs the whole repo and the graph, not one grep.** During this
 > session it was asserted that *"no HROT runtime code drives an HSM instance"*. **That was wrong.**
@@ -272,40 +293,27 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
   and invocable, but `BlueprintTestFixture.InvokeHsmAction` computes the id as
   `(ushort)BlueprintIdHash.Compute(asset.AssetId)` (`:565`) — the same key the registrar used. It
   never goes through a machine's name → `ComputeHash` path, which is the only path an author has.
-  **Fix direction** (needs a ruling): register the thunk under `ComputeHash(<canonical name>)` as
-  well as / instead of the GUID hash, and agree what the canonical name *is* — this is the same
-  "one identity for a bound action" question BTree answers with FQN keys.
+  **Fix direction.** ⭐⭐ **ANSWERED upstream — the canonical form is already ruled.** Coordinator
+  ledger **`R-88`**: *"offsets come from the packer and the thunk key is `MethodFqn@offset`"*, stated
+  for **the BTree/HSM `Role=Input` params case jointly**. ⇒ this is no longer an open design
+  question, it is an **unimplemented ruling**. 📐 **Measured on the merged tree `2026-08-20`:**
+  `BTreeBridgeEmitCore` contains **50** `MethodFqn` references; `HsmBridgeEmitCore` contains **0**
+  ⇒ BTree ships the binding half, HSM does not — exactly the coordinator's own ruling *"on HSM,
+  absent NEVER means unwanted — it is behind, not scoped out"* (`2026-08-16`).
 
-- [ ] **HSM-016** 🔴 · `RW-M` — **The `[BlueprintRegistrar]` bridge emitted for every editor-authored
-  `.hsm.json` registers no-op stubs under placeholder ids.**
-  `HsmBridgeEmitCore.EmitBridge` — the bridge `HsmJsonGenerator` emits for **every** JSON asset
-  (`HsmJsonGenerator.cs:84-97`) — correctly registers the definition
-  (`beh.Register(id, name, new BehaviorDefinition { BrainTier = BrainTierHsm, HsmDefinition = blob })`),
-  then does this for the machine's actions and guards (`:119-126, 138-145`):
-  ```csharp
-  static void __hsActionStub(void* inst, void* ctx, HsmCommandWriter* w) { }
-  static bool __hsGuardStub (void* inst, void* ctx, ushort ev) => true;
-  ushort actionId = 100;   // "placeholder IDs for JSON-owned HSM thunks"
-  ushort guardId  = 200;
-  HsmActionDispatcher.RegisterAction(actionId++, …__hsActionStub);
-  HsmActionDispatcher.RegisterGuard (guardId++,  …__hsGuardStub);
-  ```
-  The blob looks actions up by `ComputeHash(name)` (`HsmFlattener.cs:385`), and the hand-written
-  generator registers under that same hash (`HsmActionGenerator.cs:517,528,630,636`) — so
-  `ComputeHash` is the canonical key and **`100+`/`200+` is a third, invented id space.**
-  Two consequences:
-  **(a)** the stubs are keyed where nothing ever looks, so they achieve nothing — the code comment's
-  rationale (*"merely ensures the IDs are known to the dispatcher after hot reload"*) does not hold,
-  because the ids it makes known are not the ids the blob carries;
-  **(b)** `RegisterAction` is `ActionTable[id] = action` — **last writer wins** — so any real action
-  whose name hashes into `[100,199]`, or guard into `[200,299]`, is **silently clobbered by a stub**,
-  order-dependently. A clobbered action becomes a no-op; a clobbered guard becomes permanently `true`.
-  ~0.15% per name, but silent, non-deterministic across registration order, and undetectable at
-  author time.
-  **Fix direction:** either register the real hand-written thunk under `ComputeHash(fqn)`, or emit
-  nothing at all for actions/guards and let `HsmActionRegistrar.g.cs` own that table exclusively —
-  the latter is probably right, since the bridge has no access to real bodies anyway. Same
-  "one identity for a bound action" ruling as HSM-013/HSM-015.
+- [x] **HSM-016** ✅ **CLOSED — already fixed upstream, found independently.** · `RW-M` —
+  *The `[BlueprintRegistrar]` bridge registered no-op stubs at placeholder ids 100+/200+.*
+  ⭐ **Fixed in Batch 59 (`W3`) on the coordinator branch, before this session ever saw it** — this
+  row was raised against a base that was 428 commits stale. Verified on the merged tree
+  `2026-08-20`: `HsmBridgeEmitCore:162-188` now carries the deletion rationale as a comment, and it
+  reaches **the same two conclusions this session derived independently** — (1) nothing ever looked
+  the ids up, because the blob addresses `ComputeHash(name)` only; (2) they could silently overwrite
+  a real action, because `RegisterAction` is `ActionTable[id] = a`, last-writer-wins, and
+  `ComputeHash` ranges over all of `0…65535` including those windows.
+  ⭐ **Regression-railed:** `BHU_020` (Batch 58) ranges over the final id set, so a reintroduced
+  counter-allocated registration that collides with a hashed one fails the build.
+  📌 **Kept as a row, not deleted** — it is the evidence that two independent audits reached the same
+  root cause, and the rail is worth knowing about.
 
 - [ ] **HSM-015** 🔴📐 · `RW-H` — **The generated HSM thunk reads its parameters out of the live HSM
   instance memory. There is nowhere else for them to live.**
@@ -390,6 +398,50 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
   no duration field at all, so even the *design* has no way to say "how long".
 
 ---
+
+---
+
+## Area H ⚙️🔧 — Surfaced by the coordinator branch, HSM half unowned
+
+⭐ **Added 2026-08-20 after merging 428 coordinator commits (Batch 46 → 98).** The blueprint
+programme measured these; each has an **HSM half that nobody owns**. Their ledger entry is cited so
+the two trackers do not drift.
+
+- [ ] **HSM-017** 🔴 · `RW-M` — **Renaming a bound variable dangles the binding — and on HSM nothing
+  catches it at build.** ✅ Verified on the merged tree `2026-08-20`: `HsmAsset.RenameVariable:244`
+  renames the entry and fixes up `_aliases`, and **never touches `ExpressionTargetField`** — the
+  binding still names the old string. This is the HSM half of the coordinator's `M-15`/`M-16`:
+  Blueprint is safe because declarations carry a persisted `Guid Id` and references store
+  `VariableId`; **BTree/HSM store the NAME STRING**.
+  ⭐⭐ **But HSM is worse than BTree, and that half is not in their ledger.** BTree's dangling
+  binding is caught at build — `BTreeJsonGenerator` skips the whole asset with a `BTREE0002`
+  **Warning** (*"never a partial/silent emit"*). `HsmJsonGenerator` has **only `HSM0001`**, and it is
+  a *parse/emit error* code — there is **no dangling-binding diagnostic on the HSM path at all**
+  (verified: the only `ReportDiagnostic` calls are `MakeParseErrorDiagnostic`). ⇒ on HSM a rename
+  produces a **silently wrong machine**, where on BTree it produces a build warning.
+  📌 Coordinator ledger `M-15` · `M-16` · `R-88`.
+
+- [ ] **HSM-018** 🔴 · `RW-L` — **Editing one blueprint variable reverts a tick of HSM state.**
+  The coordinator's `R-52`, recorded verbatim as *"A LIVE DATA-CORRUPTION DEFECT ON NO WORK LIST"*:
+  the staged variable write takes a **whole component** and writes it with `SetComponentRaw` (no
+  offset), and `Blackboard1024` is **one component shared by BTree, HSM and Blueprint at disjoint
+  offsets** (`R-65`) ⇒ writing the whole thing **clobbers the other subsystems' state**. Batches
+  79/80 made that editing reachable. Needs `SetComponentFieldRaw`.
+  📌 **Recorded here because the HSM state is what gets clobbered**, and the row sits on no work
+  list in either programme. ⚠ Fix belongs to whoever owns the variable-edit write path, not to us.
+  📌 Coordinator ledger `R-52` · `R-65`.
+
+- [ ] **HSM-019** · `RW-L` — **HSM cannot produce a subtree sync binding, and that is by design —
+  but the validator still blames a field that exists.** Coordinator `M-24` measured it: `HsmAsset`
+  implements `IEditableAsset, IBlackboardManagedAsset, IStitchableAsset` — **not
+  `IBTreeSyncableAsset`** — and the Inspector gate is `is BTreeNodeSelection` while HSM emits
+  `HsmStateSelection`, so the path is **doubly closed**. ⇒ the missing `SubtreeSyncBindings` mapper
+  field is a **consequence, not an omission**, and `Q45-F` recommends **not** adding it.
+  ⚠ **The actionable residue is a rotted comment:** `HsmValidator:395` blames a missing
+  `StateNodeDto.SubtreeAssetId` — **false since Batch 75**; the field is at `HsmAssetDto.cs:37`
+  (verified on the merged tree) and `DEBT-AIB-028(a)` is resolved. A stale comment that names a
+  non-existent gap will send the next reader down a dead end.
+  📌 Coordinator ledger `M-24`.
 
 ## Area F 📄 — Documentation accuracy
 
