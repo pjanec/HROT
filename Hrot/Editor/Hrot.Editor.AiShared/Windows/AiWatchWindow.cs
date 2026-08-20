@@ -39,6 +39,15 @@ namespace Hrot.Editor.AiShared.Windows;
 /// </summary>
 public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
 {
+    /// <summary>
+    /// ⭐⭐ <b>Batch 100 (<c>100f</c>) — the row gestures this surface offers.</b>
+    /// ⛔⛔ MONITORING, so NO &quot;Properties…&quot; — 📌 the user: <i>"no one is interested in the other properties than the value in the Watch window."</i> ⭐ &quot;Edit value…&quot; STAYS: Batch 84 built writing a live value while frozen, and this is exactly where a designer does it.
+    /// <para>⛔ Answered explicitly because <c>IVariableTableHost.Gestures</c> has
+    /// <b>no default body</b> — 📌 <c>U-5</c>/<c>BP-230</c>: <i>"a default body is the
+    /// interface volunteering to lie on an implementer's behalf."</i></para>
+    /// </summary>
+    public Hrot.Editor.AiShared.Variables.VariableTableGestures Gestures => Hrot.Editor.AiShared.Variables.VariableTableGestures.Watch;
+
     private readonly IDataBreakpointManager   _manager;
     private readonly PinnedVariableRowSource  _pinned = new();
     private readonly VariableTableModel?      _variables;
@@ -92,11 +101,52 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
     /// </remarks>
     public VariableTableControl? VariableTable => _control;
 
+    private Func<VariableRunState>? _runState;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 100 (<c>100e</c>) — WITHOUT THIS THE WATCH SHOWS <c>0</c> FOR EVER.</b>
+    ///
+    /// <para>🔴🔴 <b>The defect, and the row was never the problem.</b> The pinned row IS a live
+    /// camera — <c>SectionVariableRowSource</c> and <c>BlackboardSectionRowSource</c> both pass
+    /// <c>AssetTick</c>, and <c>PinnedVariableRowSource.Pin</c> stores the row object unchanged.
+    /// ⛔ <b>This window built its <c>VariableTableModel</c> and was never given a run-state source</b>
+    /// ⇒ the model sat at <c>Planning</c> ⇒ <c>VariableValue.ModeFor(Planning)</c> picks the
+    /// <b>INITIAL</b> arm *(<c>Q32</c> ruling 3)</b> ⇒ it rendered <c>DefaultValueJson</c>, always.</para>
+    ///
+    /// <para>📌 <b><c>CLAUDE.md</c> verbatim: <i>"a production caller that HAS a dependency must PASS
+    /// it."</i></b> ⚠⚠ <b>The registrar holds <c>_runState</c>, hands it to the details host, and holds
+    /// this window — and did not.</b> ⭐ <b>The ninth instance of that shape.</b></para>
+    ///
+    /// <para>⭐ Same seam as <c>IVariableDetailsHost.SetRunStateSource</c>, deliberately: ⛔ one
+    /// concept, one method name *(ruling 9)*, and ⛔ <b>nothing new for <c>EditorSubsystem</c> to
+    /// forget</b> — the registrar already reaches this window *(📌 <c>R-67</c>)*.</para>
+    /// </summary>
+    public void SetRunStateSource(Func<VariableRunState> runState)
+        => _runState = runState ?? throw new ArgumentNullException(nameof(runState));
+
+    /// <summary>⭐ True once a run-state source is installed. ⭐ A rail surface — asserted on the
+    /// CONSTRUCTED window, ⛔ never on the registrar's source *(📌 <c>R-67</c>)*.</summary>
+    public bool HasRunStateSource => _runState != null;
+
+    /// <summary>
+    /// ⭐ Re-reads the run state onto the model. ⚠ Called every frame from <see cref="DrawClientArea"/>
+    /// AND directly by rails — ⛔ the draw path goes through ImGui, and a rail that could only reach
+    /// this through a rendered frame would be testing the harness rather than the wiring.
+    /// </summary>
+    public void SyncRunState()
+    {
+        if (_runState != null && _variables != null) _variables.RunState = _runState();
+    }
+
     protected override void DrawClientArea()
     {
         DrawBreakpointWatches();
 
         if (_variables == null || _control == null) return;
+
+        // ⭐⭐ Batch 100 (100e) — per frame, ⛔ not captured once: the sim starts and pauses under the
+        //    designer, and a stale snapshot would keep showing authored defaults during a run.
+        SyncRunState();
 
         ImGuiNET.ImGui.Separator();
         // ⭐ Named, so the two lists cannot read as one feature with an odd column set.

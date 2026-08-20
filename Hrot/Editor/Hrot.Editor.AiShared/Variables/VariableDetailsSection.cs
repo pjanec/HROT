@@ -26,6 +26,15 @@ namespace Hrot.Editor.AiShared.Variables;
 /// </summary>
 public sealed class VariableDetailsSection : IVariableTableHost
 {
+    /// <summary>
+    /// ⭐⭐ <b>Batch 100 (<c>100f</c>) — the row gestures this surface offers.</b>
+    /// ⭐ An AUTHORING surface — this is the section the Details panel hosts.
+    /// <para>⛔ Answered explicitly because <c>IVariableTableHost.Gestures</c> has
+    /// <b>no default body</b> — 📌 <c>U-5</c>/<c>BP-230</c>: <i>"a default body is the
+    /// interface volunteering to lie on an implementer's behalf."</i></para>
+    /// </summary>
+    public VariableTableGestures Gestures => VariableTableGestures.Default;
+
     private readonly VariableTableControl _control;
     private readonly VariableTableModel   _model;
 

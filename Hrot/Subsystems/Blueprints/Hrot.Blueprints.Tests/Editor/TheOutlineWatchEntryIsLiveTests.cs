@@ -175,7 +175,9 @@ public sealed class TheOutlineWatchEntryIsLiveTests : IDisposable
     }
 
     /// <summary>⭐ Nothing here exercises refactoring.</summary>
-    private sealed class NoRefactorForWatch : Hrot.Editor.AiShared.Refactor.IRefactorService
+    /// <summary>⭐ Batch 100 — INTERNAL so Batch 100's registrar rails reuse it. ⛔ A second
+    /// no-op refactor stub for the same job would be two implementations (ruling 9).</summary>
+    internal sealed class NoRefactorForWatch : Hrot.Editor.AiShared.Refactor.IRefactorService
     {
         public IReadOnlyList<Hrot.Editor.AiShared.Refactor.AssetReferenceInfo> FindReferences(string k)
             => Array.Empty<Hrot.Editor.AiShared.Refactor.AssetReferenceInfo>();

@@ -23,6 +23,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- ⭐⭐⭐ Batch 100 (100a) — the FRAME RAIL (R-124). TEST SUPPORT ONLY; renders real ImGui
+         frames under Xvfb so a rail can assert INSIDE one. ⭐ Shared with Hrot.Blueprints.Tests
+         rather than copied (ruling 9). ⛔ No production assembly may reference it. -->
+    <ProjectReference Include="..\Hrot.Editor.UiFrameRail\Hrot.Editor.UiFrameRail.csproj" />
     <ProjectReference Include="..\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <!-- FC-3c: open real StructEdit sessions to test the FixedListBufferViewProvider. -->

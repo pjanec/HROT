@@ -80,6 +80,24 @@ public sealed class VariableTableControl
     /// </summary>
     public bool HasEditGestures => EditValueRequested != null && PropertiesRequested != null;
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 100 (<c>100f</c>) — which row gestures THIS table offers, set by its host.</b>
+    ///
+    /// <para>📌 <b>User:</b> <i>"no one is interested in the other properties than the value in the
+    /// Watch window."</i> ⇒ the two Watch surfaces answer <see cref="VariableTableGestures.Watch"/>.</para>
+    ///
+    /// <para>⭐ <b>Defaults to <see cref="VariableTableGestures.Default"/> HERE and only here</b>, and
+    /// that is not the thing <c>U-5</c> forbids: ⛔ <c>U-5</c> is about an INTERFACE volunteering an
+    /// answer on an implementer's behalf, and <c>IVariableTableHost.Gestures</c> has no default body —
+    /// every host must answer. ⭐ This is a control that can be constructed without a host at all
+    /// *(rails do it constantly)*, and the authoring menu is the right shape for one.</para>
+    ///
+    /// <para>⚠ Assigned by <c>PerspectiveWorkspaceRegistrar.AttachEditGestures</c>, which is the ONE
+    /// place a host and its table meet — ⛔ not by each host, which would be five call sites to
+    /// forget.</para>
+    /// </summary>
+    public VariableTableGestures Gestures { get; set; } = VariableTableGestures.Default;
+
     public VariableTableControl(VariableValueFormatter formatter)
         => _formatter = formatter ?? throw new ArgumentNullException(nameof(formatter));
 
@@ -294,8 +312,15 @@ public sealed class VariableTableControl
         //   spelling here is how the menu and the dialog would come to disagree.
         DrawEditItem(VariableEditGesture.EditValueLabel,  VariableEditAction.EditValue,  row,
                      () => EditValueRequested?.Invoke(row));
-        DrawEditItem(VariableEditGesture.PropertiesLabel, VariableEditAction.Properties, row,
-                     () => PropertiesRequested?.Invoke(row));
+
+        // ⭐⭐⭐ Batch 100 (100f) — the SURFACE decides whether "Properties…" is on the menu.
+        // 📌 User: "no one is interested in the other properties than the value in the Watch window."
+        // ⛔ ABSENT, not greyed — and the distinction matters: greying says "not right now" (the F3
+        //    convention, for a refusal the designer can undo by pausing), whereas this surface will
+        //    never offer it. ⭐ A permanently-greyed item is clutter that teaches nothing.
+        if (Gestures.OffersProperties)
+            DrawEditItem(VariableEditGesture.PropertiesLabel, VariableEditAction.Properties, row,
+                         () => PropertiesRequested?.Invoke(row));
 
         // ⭐⭐⭐ Batch 94 (94f) — ENTRY POINT 2 of the watch gesture (the other is the My Blueprint
         //    row menu). ⛔ One command, two surfaces: a one-surface gesture re-creates the split U-6

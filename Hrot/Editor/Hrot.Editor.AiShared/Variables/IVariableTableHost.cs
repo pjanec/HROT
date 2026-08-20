@@ -30,4 +30,19 @@ public interface IVariableTableHost
     /// cannot see a composition-root defect"</i>, so the rail must be able to reach the real one.
     /// </summary>
     VariableTableControl? VariableTable { get; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 100 (<c>100f</c>) — which row gestures THIS surface offers.</b>
+    ///
+    /// <para>📌 <b>User:</b> <i>"no one is interested in the other properties than the value in the
+    /// Watch window."</i> ⇒ the Watch answers <see cref="VariableTableGestures.Watch"/>; every
+    /// authoring surface answers <see cref="VariableTableGestures.Default"/>.</para>
+    ///
+    /// <para>⛔⛔ <b>NO DEFAULT BODY, deliberately</b> — 📌 <c>U-5</c>/<c>BP-230</c>:
+    /// <i>"a default body is the interface volunteering to lie on an implementer's behalf."</i>
+    /// ⚠ A <c>=&gt; VariableTableGestures.Default</c> here would silently give a new monitoring surface
+    /// the authoring menu, which is the defect this member exists to end. ⭐ The cost is that every
+    /// host must answer — <b>and that cost IS the feature.</b></para>
+    /// </summary>
+    VariableTableGestures Gestures { get; }
 }

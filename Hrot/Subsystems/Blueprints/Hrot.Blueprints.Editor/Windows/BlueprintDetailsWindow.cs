@@ -147,6 +147,16 @@ public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost
     public Hrot.Editor.AiShared.Variables.VariableTableControl? VariableTable
         => ((Hrot.Editor.AiShared.Variables.IVariableTableHost)_variables).VariableTable;
 
+    /// <summary>
+    /// ⭐⭐ <b>Batch 100 (<c>100f</c>) — the row gestures this surface offers.</b>
+    /// ⭐ An AUTHORING surface: this panel is where a designer edits a declaration, and it hosts the
+    /// Properties form itself.
+    /// <para>⛔ Answered explicitly because <c>IVariableTableHost.Gestures</c> has <b>no default
+    /// body</b> — 📌 <c>U-5</c>/<c>BP-230</c>.</para>
+    /// </summary>
+    public Hrot.Editor.AiShared.Variables.VariableTableGestures Gestures
+        => Hrot.Editor.AiShared.Variables.VariableTableGestures.Default;
+
     /// <inheritdoc/>
     /// <remarks>
     /// ⭐⭐ <b><c>Q32</c> ruling 2 — "selection routes".</b> An outline click decides what this panel
@@ -269,6 +279,20 @@ public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost
 
     protected override void DrawClientArea()
     {
+        // ⭐⭐⭐ Batch 100 (100d) — WITHOUT THIS LINE THE PROPERTIES FORM DOES NOT EXIST.
+        //
+        // 🔴🔴 THE THIRD OCCURRENCE OF BP-327: Batch 87 shipped "the modal draws", Batch 89 fixed
+        //    "Draw had no caller", and Batch 99 built this form with :50 declaring it, :125
+        //    constructing it, :66 OPENING it, :53 exposing it — and ⛔ NO LINE CALLING Draw().
+        //    ⚠ Batch 99's rails asserted IsOpen and the commit path. Both were true. Both were useless:
+        //    the designer right-clicked "Properties…" and nothing appeared.
+        //
+        // ⭐⭐ FIRST, and deliberately so. This method has THREE `return`s below it; a modal submitted
+        //    after any of them is unreachable on that path — ⛔ which is the same class of mistake as
+        //    not calling it at all, and harder to see. ⭐ ImGui popups are their own windows, so
+        //    submitting here costs nothing and is reached on every path.
+        _propertiesModal.Draw();
+
         if (ShowingVariables)
         {
             _variables.Draw("bp_details_variables");

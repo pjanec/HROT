@@ -273,7 +273,7 @@ public sealed class ThePropertiesFormIsCustomTests
 
     // ── the harness ─────────────────────────────────────────────────────────
 
-    private sealed record Rig(
+    internal sealed record Rig(
         VariablePropertiesModal Modal, VariableRow Row,
         IVariablesSchemaSource Schema, Hrot.Blueprints.Core.Assets.BlueprintAsset Asset);
 
@@ -311,6 +311,12 @@ public sealed class ThePropertiesFormIsCustomTests
         var service = refactor ?? (withRefactor ? new RecordingRefactor() : null);
         return new Rig(new VariablePropertiesModal(service), row, schema, asset);
     }
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 100 (<c>100a</c>) — the SAME rig, lent to the frame rails.</b>
+    /// ⛔ Not a second scene: a frame rail that built its own would be measuring a fixture rather than
+    /// the form these rails already pin *(ruling 9, and 📌 <c>M-29</c> — say whose object it is)</summary>
+    internal static Rig SceneForFrameRail() => Scene();
 
     private static Hrot.Blueprints.Core.Assets.VariableDecl Decl(
         Hrot.Blueprints.Core.Assets.BlueprintAsset asset, string name = "Health")
