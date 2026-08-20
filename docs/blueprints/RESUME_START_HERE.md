@@ -101,6 +101,25 @@ already-converted `start`.**
 
 ⚠ **`M-23`** measures the orchestrator gap; **`M-22`** the live Value column *(✅ live on all three)*.
 
+### ⭐⭐⭐ QUEUED FOR BATCH 98 — **the user asked for this on `2026-08-19`, write it WHEN 97 RETURNS**
+
+> ⭐⭐ **User:** *"ok so you please add the properties dialog to next batch once 97 returns."*
+
+⭐ **`BP-359` — "Properties…" has never edited properties; it opens the VALUE document.** ⭐⭐ **The
+answer is already settled — 📌 `R-108`, do NOT re-derive it:**
+
+| ⭐ | |
+|---|---|
+| **what it opens** | 📄 `DESIGN_Variable_Details_And_Editing.md:233` — **a properties object for that DECLARATION KIND.** ⛔ The two menu items differ by the **OBJECT**, ⛔ **not** by the scope *(both use `WholeComponent` since `96b`)* |
+| **what it shows** | ⭐ **`VariablePropertySchema.For(kind)`, already in code**: `VariableDecl` ⇒ Name · Type · DefaultValue · Tooltip · Comment · Category · IsEditable · IsExposedOnSpawn · `ParameterDecl` ⇒ the first five · `BlackboardVariableEntry` ⇒ Name · Type · DefaultValue · Comment |
+| ⛔ **what it must NOT show** | **`Role`/`Scope`** — *the SECTION is the classification* *(user, `2026-08-16`)* · **Replication** and **Range** — ⛔ **no carrier has a backing member**, and the schema rail fails a property that cannot be stored |
+| **availability** | planning ⇒ **editable** · running/paused ⇒ ⚠ **read-only** *("you cannot retype a variable mid-run")* · replay ⇒ read-only |
+| ✅ **NOT blocked** | ⭐⭐ **`S5` shipped in Batch 65** *(`BP-255`)* — ⛔ the design's *"`S5` lands first"* is **rotted and struck through**. ⭐ **Offer `Type` from the start** |
+| ⚠ **the two real costs** | a **picker** editor for `Type` and a **combo** for `Category`, registered as StructEdit custom editors · ⭐⭐ **`Name` IS a rename** ⇒ safe on Blueprint *(persisted `Guid Id`, references store `VariableId` — `M-16`)*, ⛔ **but BTree/HSM store the NAME STRING and `RenameVariable` does not fix up `ExpressionTargetField`** *(`M-15`)* ⇒ **it must run the refactor service**, which the design already requires of both routes |
+
+⚠ **Also carry into 98:** whatever `97` reports as 🛑 blocked or ⚠ partial *(`R-106`'s four verdicts)*,
+plus `BP-360` *(the dead outline watch entry)* and `BP-345` *(four `FindEntityByNetworkId`)*.
+
 ## 0a. ⭐⭐ Where things stand
 
 | | |
