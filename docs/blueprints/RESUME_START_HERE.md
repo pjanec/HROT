@@ -61,12 +61,19 @@ for all four stores *(`R-105`)*. ⭐ Tracker **open 74 / done 213** · rulings *
 ⚠ **Still expected, not findings:** a LIVE (paused) edit is **`AiPrimitive`-only** *(correct)* ·
 BTree/HSM refuse a live edit *(`BP-364`, a capability)* · a pin does not survive a reload *(`94g`)*.
 
-🛠 **BATCH 99 DISPATCHED at `e90af1936`** — 📄 **[`HANDOFF_Batch99_The_Properties_Form.md`](HANDOFF_Batch99_The_Properties_Form.md)**:
-`99a` **the Properties form — CUSTOM** *(`R-109`; factor `VariableCreateModal`, which already draws
-`Name` + the `Type` combo; `VariablePropertySchema` is the filter; ⭐ **`Name` MUST route through the
-refactor service**; ⚠ **an unsafe retype ships DISABLED, never silent**)* · `99b` enumerate the other
-declaration projections for lost `DefaultValueJson` *(`BP-367`'s siblings — now LIVE because the write
-no longer refuses)*.
+✅ **BATCH 99 MERGED** *(`2026-08-20`; ⚠ **a real merge, not ff-only** — my `Q38`/`Q47` docs landed after
+their branch point)* — 📄 **[`REPORT_Batch99_The_Properties_Form.md`](REPORT_Batch99_The_Properties_Form.md)**.
+
+| item | |
+|---|---|
+| ✅ **`99a`** | ⭐⭐ **"Properties…" is now a CUSTOM form** *(`BP-369` closed, `R-109`)* — `VariableCreateModal` was **factored onto the same `VariablePropertyFields`** ⇒ CREATE and EDIT-PROPERTIES draw one body *(ruling 9 at the right level)*. ⭐ The write goes through a new **`WriteProperties` row seam** — the seventh arm of that idiom |
+| ⚠⚠ **but TWO of the eight fields ship DISABLED** | **`Type`** — ⛔ a retype migration, **by ruling**, `Commit` never reads `_state.TypeId` · **`Name`** — ⚠ **a WIRING gap, not a capability**: `BlueprintDetailsWindow` calls `Open(row, schema: null, …)` ⇒ `CanRename` is **always false in production**. 📐 **Coordinator-verified** *(`VariablePropertiesModal:66`, `:99`, `:229`)* |
+| ⭐⭐ **the rename itself is BUILT and railed** | **`VariableRenameCommit`** — ⭐ **EXTRACTED from `VariablesPanelControl.CommitRename`, not written** *(ruling 9)*, ⭐⭐ **and one deliberate change: an ERROR now aborts BOTH halves.** ⛔ The original renamed the declaration anyway ⇒ **exactly the dangling state `M-15` describes** |
+| ✅ **`99b`** | ⭐ **`BP-367` has NO unfixed sibling** *(`BP-372`)* — **16 production sites**, ⚠ **graph ∪ grep: the graph missed `BTreeCommandSink`'s four** *(no `CALLS` edge to a record ctor)*. ⭐ Two correct-but-ungated carriers are **now gated** |
+| ⛔ **two defects found doing it** | **`BP-370`** — ⭐⭐⭐ **a rail went VACUOUS**: `99a` made Properties return before the resolver, so the fail-closed rail **could no longer go red for any input** — green before, green after, ⛔ nothing would have announced it · **`BP-371`** — ⭐ **the silent-default pattern, 8th instance and the first that was THEIRS**: `EditorSubsystem` hands `refactorService` to another window **seven lines below** the one it did not |
+
+⭐ Tracker **open 77 / done 230** · rulings **82/82** · Blueprints **3852 (+25)** · AiShared **1706 (+1)** ·
+⛔ no new skip · ⭐ **zero golden/asset movement** · `StructEdit` **1 RED confirmed pre-existing** *(`BP-363`)*.
 
 ### ⭐⭐⭐ THE DESIGN THREAD — **`Q38`/`Q47`, ALL SUB-QUESTIONS NOW RULED** *(`2026-08-20`)*
 
@@ -102,7 +109,7 @@ been re-run since Batches 96–98 landed. ⭐⭐ **This thread produced ELEVEN r
 | # | |
 |---|---|
 | **1** | ⭐⭐⭐ **The user re-runs the VISUAL CHECK** *(`R-27`)* — ⭐ the acceptance test first: open `Count4` → right-click `Count` → **"Edit value…"** → type → **OK** → **the value changes**, in **PLANNING** |
-| **2** | ⏳ **Batch 99 is IN FLIGHT** — the custom Properties form + the `DefaultValueJson` projection sweep |
+| **2** | ⭐ **Batch 100 — SMALL and verified feasible:** ⭐⭐ **hand the Properties form a schema so `Name` stops being greyed.** 📐 **Measured:** `VariableRowSources`/`BlackboardSectionRowSource` already close over the schema *(`BlueprintVariableSchemaSource : IVariablesSchemaSource`)* ⇒ ⭐ **one more optional row arm, the eighth of the same idiom** — either `Func<IVariablesSchemaSource?>` *(the modal already holds the refactor service)* or a rename delegate taking the service. ⛔ **`Type` stays disabled** — that is a capability, not wiring |
 | **3** | ⭐ **then, and only then, the first `Q38` slice** — ⭐⭐ **design the view registry to take a PREDICATE from the start** *(`R-116`/`R-117`)*; retrofitting it later touches every context |
 
 ## 0a. ⭐⭐ Where things stand
