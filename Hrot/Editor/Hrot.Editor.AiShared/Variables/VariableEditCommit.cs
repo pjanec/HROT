@@ -195,7 +195,12 @@ public static class VariableEditCommit
 
                 // ⭐ Committed FIRST so the boxed result exists, but only inside the arm that will
                 //   land it — see the remarks.
-                var value = session.Commit();
+                // ⭐⭐⭐ Batch 97 (97a) — UNWRAPPED, exactly as the JSON arm is. ⛔ A scalar session
+                //    commits a ScalarEditBox<T>, whose LAYOUT is not the scalar's: writing its bytes
+                //    into the blackboard would put the wrapper's image where the field lives.
+                //    ⚠ Both arms or neither — a wrapper that leaks on one path only is worse than one
+                //    that leaks on both, because half the feature would look correct.
+                var value = ScalarEditBox.Unwrap(session.Commit(), fieldType);
                 var bytes = ComponentBytes.Of(value, ComponentBytes.SizeOf(fieldType));
                 return writeLive(row, bytes) ? Outcome.Ok : Outcome.LiveWriteUnavailable;
 
