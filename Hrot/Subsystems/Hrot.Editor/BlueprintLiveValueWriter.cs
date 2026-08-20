@@ -73,32 +73,126 @@ public sealed class BlueprintLiveValueWriter
     /// ⚠ <c>Blackboard1024</c> is ONE component shared by BTree, HSM and Blueprint at disjoint offsets,
     /// so the neighbour may not even be a blueprint's.</para>
     ///
-    /// <para>⛔ <b>The offset is passed RAW, exactly as resolved.</b>
-    /// <c>TryWriteWorkingStateField</c> applies the 8-byte working-state header itself through
-    /// <c>WorkingStateLayout.ComponentOffsetOf</c> — ⚠ <b>adding it here would double-apply it</b> and
-    /// scribble 8 bytes past the field. 📌 That is the specific mistake the rail pins.</para>
+    /// <para>⭐⭐ <b>The offset is passed EXACTLY as resolved</b> — 📌 Batch 102 (<c>102a</c>): it is now
+    /// component-absolute, because each dispatch kind's layout applies its own transform in the
+    /// resolver. ⛔ This class must not adjust it; see <c>WorkingStateFieldRef.ComponentOffsetBytes</c>.</para>
     /// </summary>
-    public bool Write(VariableRow row, ReadOnlySpan<byte> bytes)
+    public bool Write(VariableRow row, ReadOnlySpan<byte> bytes) => TryWrite(row, bytes).Ok;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102b</c>) — THE production <see cref="WriteLiveValue"/>, and it carries
+    /// the REASON across the assembly boundary.</b>
+    ///
+    /// <para>⭐ A projection of <see cref="TryWrite"/>, ⛔ not a second implementation — the refusal
+    /// vocabulary stays here, where the causes are knowable, and only the SENTENCE crosses. 📌
+    /// <c>LiveWriteOutcome.Reason</c>: <c>Hrot.Editor.AiShared</c> must not enumerate causes it cannot
+    /// see.</para>
+    /// </summary>
+    public LiveWriteOutcome WriteLive(VariableRow row, ReadOnlySpan<byte> bytes)
+    {
+        var attempt = TryWrite(row, bytes);
+        return attempt.Ok ? LiveWriteOutcome.Landed : LiveWriteOutcome.Refused(attempt.Message);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102b</c>) — the same write, but it SAYS WHICH REFUSAL IT IS.</b>
+    ///
+    /// <para>🔴🔴 <b>Why this exists.</b> Five distinct causes collapsed into one bare <c>false</c> ⇒
+    /// ⛔ <b>a correctly-gated editor and a broken wire looked IDENTICAL</b>, which cost a whole
+    /// measurement session and three handoffs' worth of a wrong conclusion *(📌 <c>M-36</c>)*.</para>
+    ///
+    /// <para>⚠ <c>VariableEditModal:41</c> is right that <c>LiveWriteUnavailable</c> <i>"cannot be known
+    /// in advance"</i> — ⛔ so OK is not greyed up front. ⭐ <b>But the message AFTER the click must name
+    /// the cause</b>, and that is what this returns.</para>
+    /// </summary>
+    public LiveWriteAttempt TryWrite(VariableRow row, ReadOnlySpan<byte> bytes)
     {
         // ⭐ 1 — an entity must be selected, from the store the READ reads. See the class remarks.
         var entity = _store.SelectedEntity;
-        if (entity is null) return false;
+        if (entity is null) return LiveWriteAttempt.Refused(LiveWriteRefusal.NoSelectedEntity);
 
-        // ⭐ 2 — a blueprint session must be active. ⛔ Not "the sim is frozen" — that is step 4's.
+        // ⭐ 2 — a blueprint session must be active. ⛔ Not "the sim is frozen" — that is step 5's.
         var session = _sessionFactory();
-        if (session is null) return false;
+        if (session is null) return LiveWriteAttempt.Refused(LiveWriteRefusal.NoDebugSession);
 
-        // ⭐ 3 — NAME → (component, RAW offset, size). ⚠ row.Origin.VariablePath is the same key the
-        //   read looks up in BlueprintStateSnapshot.FieldValues (both are VariableViewModel.Name), so
-        //   a row whose value the designer can SEE is a row this can resolve.
+        // ⭐ 3 — NAME → (component, component-absolute offset, size).
+        // ⚠⚠ Batch 102 CORRECTED a false premise that stood in this comment: it used to claim
+        //    "a row whose value the designer can SEE is a row this can resolve". ⛔ That was UNTRUE for
+        //    Instance blueprints, whose value the read displayed while the resolver refused outright
+        //    (M-36). ⭐ 102a built the Instance arm, so it now holds for AiPrimitive AND Instance —
+        //    ⛔ and still does NOT hold for any other dispatch kind, whose layout nobody has measured.
         var field = session.ResolveWorkingStateField(entity.Value, row.Origin.AssetId, row.Origin.VariablePath);
-        if (field is null) return false;
+        if (field is null) return LiveWriteAttempt.Refused(LiveWriteRefusal.FieldNotResolvable);
 
         // ⛔⛔ 4 — the width must match EXACTLY. See the remarks: this is the corruption gate, not a
         //    tidiness check.
-        if (bytes.Length != field.SizeBytes) return false;
+        if (bytes.Length != field.SizeBytes)
+            return LiveWriteAttempt.Refused(LiveWriteRefusal.SizeMismatch, bytes.Length, field.SizeBytes);
 
-        // ⭐ 5 — RAW offset, as resolved. The header is the writer's to apply, and it applies it once.
-        return session.TryWriteWorkingStateField(entity.Value, field.ComponentType, field.RawOffsetBytes, bytes);
+        // ⭐ 5 — the session's own freeze gate (ruling 15) is the only remaining way this returns false.
+        return session.TryWriteWorkingStateField(
+                   entity.Value, field.ComponentType, field.ComponentOffsetBytes, bytes)
+            ? LiveWriteAttempt.Succeeded
+            : LiveWriteAttempt.Refused(LiveWriteRefusal.NotFrozen);
     }
+}
+
+/// <summary>
+/// ⭐⭐⭐ <b>Batch 102 (<c>102b</c>) — WHY a live write did not happen.</b>
+/// ⛔ Five causes that used to be one <c>false</c>. 📌 The whole point is that a designer, and a
+/// measuring session, can tell a correct refusal from a broken wire.
+/// </summary>
+public enum LiveWriteRefusal
+{
+    /// <summary>⭐ It worked.</summary>
+    None = 0,
+
+    /// <summary>⛔ Nothing is selected — the store the READ reads has no entity.</summary>
+    NoSelectedEntity,
+
+    /// <summary>⛔ No blueprint document is open. ⚠ 📌 <c>R-66</c>: this is NOT "the sim is running".</summary>
+    NoDebugSession,
+
+    /// <summary>
+    /// ⛔ The variable's name resolved to no address. ⚠ Since <c>102a</c> this means the dispatch kind
+    /// is neither <c>AiPrimitive</c> nor <c>Instance</c>, the entity carries no blackboard component,
+    /// the slot is unallocated, or the stored <c>StructureHash</c> does not match the definition —
+    /// ⭐ a STALE LAYOUT, which the read also refuses to display.
+    /// </summary>
+    FieldNotResolvable,
+
+    /// <summary>⛔⛔ The payload width is not the field's width. 📌 <c>Q32</c> §2.1 — the corruption gate.</summary>
+    SizeMismatch,
+
+    /// <summary>⛔ The simulation is not frozen. 📌 Ruling 15 — ⭐ the one refusal a designer can undo.</summary>
+    NotFrozen,
+}
+
+/// <summary>⭐ The outcome of one live-write attempt, with the numbers a size mismatch needs.</summary>
+public readonly record struct LiveWriteAttempt(bool Ok, LiveWriteRefusal Refusal, int Got, int Expected)
+{
+    public static LiveWriteAttempt Succeeded => new(true, LiveWriteRefusal.None, 0, 0);
+
+    public static LiveWriteAttempt Refused(LiveWriteRefusal why, int got = 0, int expected = 0)
+        => new(false, why, got, expected);
+
+    /// <summary>
+    /// ⭐⭐ What the dialog shows. ⛔ Not an enum name: 📌 the visual guide's <c>F3</c> — a refusal the
+    /// designer reads must say what to DO, and only <see cref="LiveWriteRefusal.NotFrozen"/> is
+    /// actionable by them.
+    /// </summary>
+    public string Message => Refusal switch
+    {
+        LiveWriteRefusal.None               => "",
+        LiveWriteRefusal.NoSelectedEntity   => "No entity is selected — pick one in the world or the outline.",
+        LiveWriteRefusal.NoDebugSession     => "No blueprint document is open, so there is nothing to write into.",
+        LiveWriteRefusal.FieldNotResolvable => "This variable has no live address on the selected entity — "
+                                             + "its blueprint may not be attached, or its compiled layout is "
+                                             + "out of date (recompile the blueprint).",
+        LiveWriteRefusal.SizeMismatch       => $"Internal size mismatch: the editor produced {Got} bytes for a "
+                                             + $"{Expected}-byte field, so the write was refused rather than "
+                                             +  "risk the neighbouring value.",
+        LiveWriteRefusal.NotFrozen          => "The simulation is running — pause it to edit a live value.",
+        _                                   => "The live write was refused.",
+    };
 }

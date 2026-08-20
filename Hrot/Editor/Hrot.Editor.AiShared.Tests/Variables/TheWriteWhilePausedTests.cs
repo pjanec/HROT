@@ -72,7 +72,7 @@ public sealed class TheWriteWhilePausedTests
 
         var outcome = VariableEditCommit.Commit(
             session, asset, Row("Health", typeof(int)), typeof(int), VariableRunState.Paused,
-            writeLive: (row, bytes) => { written = bytes.ToArray(); return true; });
+            writeLive: (row, bytes) => { written = bytes.ToArray(); return LiveWriteOutcome.Landed; });
 
         Assert.Equal(VariableEditCommit.Outcome.Ok, outcome);
         Assert.Equal(4242, BitConverter.ToInt32(written!));
@@ -95,7 +95,7 @@ public sealed class TheWriteWhilePausedTests
 
         var outcome = VariableEditCommit.Commit(
             session, Asset(), Row("Health", typeof(int)), typeof(int), run,
-            writeLive: (_, __) => { called = true; return true; });
+            writeLive: (_, __) => { called = true; return LiveWriteOutcome.Landed; });
 
         Assert.Equal(VariableEditCommit.Outcome.RefusedRunning, outcome);
         Assert.False(called, "Ruling 15 forbids a live write while free-running; the writer must not run.");
@@ -134,7 +134,7 @@ public sealed class TheWriteWhilePausedTests
 
         var outcome = VariableEditCommit.Commit(
             session, Asset(), Row("Health", typeof(int), kind), typeof(int),
-            VariableRunState.Paused, writeLive: (_, __) => { called = true; return true; });
+            VariableRunState.Paused, writeLive: (_, __) => { called = true; return LiveWriteOutcome.Landed; });
 
         Assert.Equal(VariableEditCommit.Outcome.RefusedReadOnly, outcome);
         Assert.False(called);
@@ -155,7 +155,7 @@ public sealed class TheWriteWhilePausedTests
             VariableEditCommit.Outcome.LiveWriteUnavailable,
             VariableEditCommit.Commit(
                 session, Asset(), Row("Health", typeof(int)), typeof(int),
-                VariableRunState.Paused, writeLive: (_, __) => false));
+                VariableRunState.Paused, writeLive: (_, __) => LiveWriteOutcome.Refused(null)));
     }
 
     // ══ the OK path — the seam that did not exist ════════════════════════════
@@ -251,7 +251,7 @@ public sealed class TheWriteWhilePausedTests
             entryResolver: row => new BlackboardVariableEntry(row.ShortName, typeof(int), null),
             runState:  runState,
             assetOf:   _ => asset,
-            writeLive: (_, bytes) => { writes.Add(bytes.ToArray()); return true; });
+            writeLive: (_, bytes) => { writes.Add(bytes.ToArray()); return LiveWriteOutcome.Landed; });
     }
 
     private static VariableRow Row(string name, Type clr, VariableRowKind kind = VariableRowKind.Normal)

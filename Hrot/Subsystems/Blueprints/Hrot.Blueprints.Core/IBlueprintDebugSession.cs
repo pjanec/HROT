@@ -131,16 +131,29 @@ public sealed class Watch
 /// ⭐ The ECS <b>COMPONENT</b> the working state is stored in — ⛔ <b>not the field's own type.</b>
 /// ⚠ Confusing the two is a size mismatch at best and a write into the wrong component at worst.
 /// </param>
-/// <param name="RawOffsetBytes">
-/// ⛔⛔ <b>RAW — within the working-state block, exactly as the layout reports it.</b> ⚠ The 8-byte
-/// header is applied by <c>IBlueprintDebugSession.TryWriteWorkingStateField</c>; ⛔ adding it here
-/// double-applies it.
+/// <param name="ComponentOffsetBytes">
+/// ⭐⭐⭐ <b>Batch 102 (<c>102a</c>) — the offset WITHIN THE COMPONENT, fully resolved. ⛔ It was
+/// <c>RawOffsetBytes</c>, and the rename is the whole point: it forces every reader to be revisited.</b>
+///
+/// <para>🔴 <b>Why the contract had to change.</b> The old shape said <i>"raw, within the working-state
+/// block; the 8-byte header is applied by <c>TryWriteWorkingStateField</c>"</i> — ⭐ true for
+/// <c>AiPrimitive</c>, whose block starts at component byte 0 behind an 8-byte <c>StructureHash</c>.
+/// ⛔⛔ <b>It cannot express an <c>Instance</c> address at all.</b> An <c>Instance</c> field lives at
+/// <c>payloadOffset + field.OffsetBytes</c>, where the partition allocator chose <c>payloadOffset</c> at
+/// runtime and the block opens with a <b>16-byte <c>BlueprintLatentCursor</c></b>, ⛔ not the 8-byte
+/// header. ⇒ a writer applying <c>ComponentOffsetOf</c> unconditionally would land <b>8 bytes past every
+/// Instance field</b> — 📌 <c>Q32</c> §2.1, <i>"memory corruption, not a wrong value."</i></para>
+///
+/// <para>⇒ ⭐⭐ <b>Each dispatch kind now applies its OWN transform in the resolver, where the layout is
+/// known</b>, and the writer stores what it is given. ⛔ The alternative — returning
+/// <c>payloadOffset + offset − 8</c> so the writer's <c>+8</c> cancels — is a lie encoded as
+/// arithmetic.</para>
 /// </param>
 /// <param name="SizeBytes">
 /// ⭐ The layout's own width. ⚠ <b>A caller must refuse a payload of a different length</b> rather than
 /// truncate or overrun — 📌 <c>Q32</c> §2.1.
 /// </param>
-public sealed record WorkingStateFieldRef(Type ComponentType, int RawOffsetBytes, int SizeBytes);
+public sealed record WorkingStateFieldRef(Type ComponentType, int ComponentOffsetBytes, int SizeBytes);
 
 public sealed record BlueprintStateSnapshot(
     Entity Self,

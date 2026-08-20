@@ -96,6 +96,13 @@ public sealed class VariableEditGestureBinder
     public VariableEditCommit.Outcome? LastOutcome { get; private set; }
 
     /// <summary>
+    /// ⭐⭐ <b>Batch 102 (<c>102b</c>) — the HOST's own sentence for the last refusal</b>, or
+    /// <c>null</c> when there was none to carry. 📌 <c>M-36</c>: the live arm's causes are the host's,
+    /// so the dialog must be able to show what the host said rather than a word this assembly guessed.
+    /// </summary>
+    public string? LastRefusalDetail { get; private set; }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>Batch 84 — the OK path, which DID NOT EXIST.</b>
     ///
     /// <para>🔴🔴 <b>Measured before building:</b> <c>VariableEditCommit</c> shipped complete and tested
@@ -109,6 +116,8 @@ public sealed class VariableEditGestureBinder
     /// </summary>
     public VariableEditCommit.Outcome Accept()
     {
+        LastRefusalDetail = null;
+
         if (ActiveSession is null || ActiveRow is not { } row)
         { LastOutcome = VariableEditCommit.Outcome.RefusedReadOnly; return LastOutcome.Value; }
 
@@ -116,14 +125,15 @@ public sealed class VariableEditGestureBinder
         if (fieldType is null)
         { LastOutcome = VariableEditCommit.Outcome.RefusedReadOnly; return LastOutcome.Value; }
 
-        var outcome = VariableEditCommit.Commit(
+        var result = VariableEditCommit.CommitWithDetail(
             ActiveSession, _assetOf?.Invoke(row), row, fieldType, _runState(), _writeLive);
 
         // ⛔ The session is spent either way — a refused commit already left it uncommitted, and
         //    keeping it open would let a second Accept re-apply a stale edit.
         Close();
-        LastOutcome = outcome;
-        return outcome;
+        LastOutcome       = result.Outcome;
+        LastRefusalDetail = result.Detail;
+        return result.Outcome;
     }
 
     /// <summary>⭐ The Cancel path — discards without committing, so nothing lands.</summary>

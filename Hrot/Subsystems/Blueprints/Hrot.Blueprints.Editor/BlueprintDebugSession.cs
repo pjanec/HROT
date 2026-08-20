@@ -911,7 +911,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     /// both hold for a write to reach here.</para>
     /// </summary>
     public bool TryWriteWorkingStateField(
-        Entity entity, Type componentType, int fieldOffsetBytes, ReadOnlySpan<byte> bytes)
+        Entity entity, Type componentType, int componentOffsetBytes, ReadOnlySpan<byte> bytes)
     {
         if (componentType is null) throw new ArgumentNullException(nameof(componentType));
 
@@ -920,11 +920,19 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         if (!_isPaused) return false;
         if (_dataBreakpointManager is null) return false;
 
-        // ⭐ The +8 through its ONE owner, so this write addresses exactly the byte the read path
-        //   showed the designer. ⛔ A bad offset THROWS from here (Q32 §2.1) — it is corruption, not
-        //   a refusal.
-        int componentOffset = WorkingStateLayout.ComponentOffsetOf(fieldOffsetBytes);
-        _dataBreakpointManager.StageFieldMutation(entity, componentType, componentOffset, bytes);
+        // ⭐⭐⭐ Batch 102 (102a) — THE OFFSET ARRIVES FULLY RESOLVED, and this method no longer
+        //    transforms it. ⛔ It used to apply WorkingStateLayout.ComponentOffsetOf (+8)
+        //    UNCONDITIONALLY, which is correct for AiPrimitive's flat block and WRONG for an Instance
+        //    slot — whose payload the partition allocator places and whose header is a 16-byte cursor,
+        //    not an 8-byte hash. ⇒ the +8 now lives in ResolveWorkingStateField's AiPrimitive arm,
+        //    where the layout is actually known. 📌 See WorkingStateFieldRef.ComponentOffsetBytes.
+        // ⚠ A negative offset is a broken layout, not a field near the start — fail LOUDLY rather than
+        //   memcpy at a negative index (the guard ComponentOffsetOf used to provide).
+        if (componentOffsetBytes < 0)
+            throw new ArgumentOutOfRangeException(nameof(componentOffsetBytes),
+                $"A component offset must not be negative (was {componentOffsetBytes}).");
+
+        _dataBreakpointManager.StageFieldMutation(entity, componentType, componentOffsetBytes, bytes);
         return true;
     }
 
@@ -953,25 +961,117 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         if (string.IsNullOrEmpty(fieldName)) return null;
 
         _debugMaps.TryGetValue(assetId, out var mapIndex);
-        _registry.TryGetById(BlueprintIdHash.Compute(assetId), out var def);
+        int blueprintId = BlueprintIdHash.Compute(assetId);
+        _registry.TryGetById(blueprintId, out var def);
         if (def is null) return null;
 
-        // ⛔ See the remarks — never guess for a dispatch kind laid out another way.
-        if (def.Kind != BlueprintDispatchKind.AiPrimitive) return null;
+        return def.Kind switch
+        {
+            BlueprintDispatchKind.AiPrimitive => ResolveAiPrimitiveField(entity, def, mapIndex, fieldName),
+            BlueprintDispatchKind.Instance    => ResolveInstanceField(entity, blueprintId, def, mapIndex, fieldName),
 
+            // ⛔ Still refused for anything else — 📌 the remarks: never guess for a dispatch kind laid
+            //    out another way. ⭐ Batch 102 turned ONE of the two refusals into an arm; ⚠ the
+            //    remaining kinds are a refusal because nobody has measured their layout, ⛔ not because
+            //    refusing is "safe".
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// ⭐⭐ The <c>AiPrimitive</c> arm — a FLAT <c>Blackboard1024</c> working-state block.
+    ///
+    /// <para>⭐⭐⭐ <b>Batch 102 (<c>102a</c>) — this arm now VERIFIES THE LAYOUT before handing out an
+    /// address, and that is a fix, not a refactor.</b> 📐 <c>CaptureAiPrimitiveState:1395</c> refuses to
+    /// display a single field when <c>storedHash != def.StructureHash</c> — ⛔ <b>and the write path had
+    /// no such check</b>. ⚠ 📌 The handoff: <i>"if the read verifies identity before trusting an offset,
+    /// the WRITE must too — a stale layout writing at a valid-looking offset is exactly how memory gets
+    /// corrupted."</i> ⇒ the read would show the designer NOTHING while the write happily scribbled.</para>
+    /// </summary>
+    private WorkingStateFieldRef? ResolveAiPrimitiveField(
+        Entity entity, BlueprintDefinition def, DebugMapIndex? mapIndex, string fieldName)
+    {
+        if (!_view.HasComponent<Blackboard1024>(entity)) return null;
+
+        // ⭐ The SAME identity gate the read applies before it trusts any offset in this block.
+        ref readonly var bb = ref _view.GetComponentRO<Blackboard1024>(entity);
+        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+        if (bytes.Length < WorkingStateLayout.HeaderBytes) return null;
+        if (System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes) != def.StructureHash) return null;
+
+        // ⭐⭐ The +8 through its ONE owner (📌 Q32 §2.1), applied HERE rather than by the writer —
+        //    see WorkingStateFieldRef.ComponentOffsetBytes for why that moved in Batch 102.
+        if (FindField(mapIndex, def, fieldName) is not { } f) return null;
+        return new WorkingStateFieldRef(
+            typeof(Blackboard1024), WorkingStateLayout.ComponentOffsetOf(f.Offset), f.Size);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102a</c>) — THE <c>Instance</c> ARM. Built by MIRRORING THE READ.</b>
+    ///
+    /// <para>🔴 <b>User:</b> <i>"what is correct about not being able to write into a live blackboard of
+    /// instance when simulation is paused?"</i> ⭐⭐ <b>Nothing</b> — 📌 <c>M-36</c> carries the
+    /// retraction. 📐 The read has resolved this address all along *(it is what displayed the user's
+    /// number)*; ⛔ only the write refused.</para>
+    ///
+    /// <para>⭐ <b>Same component pick as <c>CaptureInstanceStateFromDefinition</c></b> — by what the
+    /// entity HAS, across the three tiers — ⭐⭐ <b>and the same slot maths</b>, through
+    /// <see cref="TryGetInstancePayloadOffset"/>, which both sides now call.</para>
+    ///
+    /// <para>⚠⚠ <b>NO <c>+8</c> HERE, and that is the whole reason the offset contract had to change.</b>
+    /// An <c>Instance</c> field lives at <c>payloadOffset + field.OffsetBytes</c>: the partition
+    /// allocator's slot offset already places it, and the block carries a 16-byte
+    /// <c>BlueprintLatentCursor</c>, ⛔ <b>not the 8-byte working-state header <c>AiPrimitive</c> has.</b>
+    /// ⇒ a writer that applied <c>ComponentOffsetOf</c> unconditionally would land <b>8 bytes past every
+    /// Instance field.</b></para>
+    /// </summary>
+    private WorkingStateFieldRef? ResolveInstanceField(
+        Entity entity, int blueprintId, BlueprintDefinition def, DebugMapIndex? mapIndex, string fieldName)
+    {
+        if (FindField(mapIndex, def, fieldName) is not { } f) return null;
+
+        // ⭐ The read's own component pick, in the read's own order.
+        if (TryInstanceSlot<BlueprintBlackboard1024>(entity, blueprintId, out int payload))
+            return Ref(typeof(BlueprintBlackboard1024), payload);
+        if (TryInstanceSlot<BlueprintBlackboard4096>(entity, blueprintId, out payload))
+            return Ref(typeof(BlueprintBlackboard4096), payload);
+        if (TryInstanceSlot<BlueprintBlackboard16384>(entity, blueprintId, out payload))
+            return Ref(typeof(BlueprintBlackboard16384), payload);
+
+        return null;
+
+        WorkingStateFieldRef Ref(Type component, int payloadOffset)
+            => new(component, payloadOffset + f.Offset, f.Size);
+    }
+
+    /// <summary>⭐ One tier's "does this entity carry it, and where is my slot?" — the span acquisition
+    /// the read does inline, here as a generic so the three tiers are not three copies.</summary>
+    private bool TryInstanceSlot<T>(Entity entity, int blueprintId, out int payloadOffset)
+        where T : unmanaged
+    {
+        payloadOffset = 0;
+        if (!_view.HasComponent<T>(entity)) return false;
+
+        ref readonly var bb = ref _view.GetComponentRO<T>(entity);
+        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+        return TryGetInstancePayloadOffset(bytes, blueprintId, out payloadOffset);
+    }
+
+    /// <summary>⭐ NAME → <c>(offset, size)</c> from the SAME two tables the read consults, in the same
+    /// order: the debug map's editor-authored layout first, the compiled <c>StateFields</c> second.</summary>
+    private static (int Offset, int Size)? FindField(
+        DebugMapIndex? mapIndex, BlueprintDefinition def, string fieldName)
+    {
         var layoutFields = mapIndex?.StateLayout.Fields;
         if (layoutFields != null)
-        {
             foreach (var field in layoutFields)
                 if (string.Equals(field.Name, fieldName, StringComparison.Ordinal))
-                    return new WorkingStateFieldRef(
-                        typeof(Blackboard1024), field.OffsetBytes, field.SizeBytes);
-        }
+                    return (field.OffsetBytes, field.SizeBytes);
 
-        if (def.StateFields != null
-            && def.StateFields.TryGetValue(fieldName, out var descriptor))
-            return new WorkingStateFieldRef(
-                typeof(Blackboard1024), descriptor.OffsetBytes, descriptor.SizeBytes);
+        if (def.StateFields != null && def.StateFields.TryGetValue(fieldName, out var descriptor))
+            return (descriptor.OffsetBytes, descriptor.SizeBytes);
 
         return null;
     }
@@ -1455,16 +1555,44 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102a</c>) — WHERE AN <c>Instance</c> BLUEPRINT'S SLOT PAYLOAD STARTS.
+    /// The ONE owner of that question, called by the READ and by the WRITE.</b>
+    ///
+    /// <para>📌 The handoff: <i>"⛔ Do not re-derive the slot maths — ruling 9: if the read's resolution
+    /// can be factored so both sides call it, do that."</i> ⭐ It could, and this is it.</para>
+    ///
+    /// <para>⚠⚠ <b>Why sharing THIS specifically matters more than tidiness.</b> An <c>Instance</c>
+    /// blackboard is partitioned: several blueprints share one component at slot offsets the allocator
+    /// chose at runtime. ⇒ ⛔ <b>a write that computed the payload offset even slightly differently from
+    /// the read would not show a wrong number — it would edit ANOTHER BLUEPRINT'S field.</b> 📌 <c>Q32</c>
+    /// §2.1: <i>"an out-of-range offset is MEMORY CORRUPTION, not a wrong value."</i></para>
+    ///
+    /// <para>⭐ The <c>fixed</c> lives here so neither caller has to be <c>unsafe</c> about it.</para>
+    /// </summary>
+    internal static unsafe bool TryGetInstancePayloadOffset(
+        ReadOnlySpan<byte> bytes, int blueprintId, out int payloadOffset)
+    {
+        payloadOffset = 0;
+        if (bytes.IsEmpty) return false;
+
+        fixed (byte* memory = bytes)
+            return BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset);
+    }
+
     internal static unsafe void ReadInstanceState(
         ReadOnlySpan<byte> bytes, int blueprintId, DebugStateLayout? stateLayout,
         BlueprintDefinition? def,
         Dictionary<string, object> outFields, out BlueprintLatentCursor? cursor)
     {
         cursor = null;
-        fixed (byte* memory = bytes)
         {
-            if (!BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int payloadOffset))
-                return;
+            // ⭐⭐⭐ Batch 102 (102a) — THE SLOT MATHS, through its ONE owner.
+            // 📌 Ruling 9 / the handoff: "do not re-derive the slot maths". The WRITE path
+            //    (ResolveWorkingStateField's Instance arm) calls this same helper, so a read and a
+            //    write cannot disagree about where a field lives — which, on a byte writer, is the
+            //    difference between editing a value and scribbling on the neighbouring one.
+            if (!TryGetInstancePayloadOffset(bytes, blueprintId, out int payloadOffset)) return;
 
             if (payloadOffset + 16 > bytes.Length) return;
             cursor = System.Runtime.InteropServices.MemoryMarshal.Read<BlueprintLatentCursor>(

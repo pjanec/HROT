@@ -163,7 +163,7 @@ public sealed class TheScalarBoxTests
         byte[]? written = null;
         var outcome = VariableEditCommit.Commit(
             session, asset: null, row, typeof(int), VariableRunState.Paused,
-            writeLive: (_, bytes) => { written = bytes.ToArray(); return true; });
+            writeLive: (_, bytes) => { written = bytes.ToArray(); return LiveWriteOutcome.Landed; });
 
         Assert.Equal(VariableEditCommit.Outcome.Ok, outcome);
         Assert.NotNull(written);

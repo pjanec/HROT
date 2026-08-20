@@ -7,12 +7,41 @@ using StructEdit.Core;
 namespace Hrot.Editor.AiShared.Variables;
 
 /// <summary>
+/// ⭐⭐⭐ <b>Batch 102 (<c>102b</c>) — the outcome of a live write, WITH ITS REASON.</b>
+///
+/// <para>🔴🔴 <b>Why the <c>bool</c> was not enough.</b> 📌 <c>M-36</c>: five distinct causes — nothing
+/// selected · no document · an unresolvable name · a stale layout · not frozen — arrived here as one
+/// bare <c>false</c>, so ⛔ <b>a correctly-gated editor and a broken wire looked IDENTICAL.</b> ⚠ That
+/// cost a whole measurement session and three handoffs' worth of a wrong conclusion, and the coordinator
+/// called the refusal <i>"correct"</i> three times over an <b>unbuilt capability</b>.</para>
+///
+/// <para>⭐⭐ <b><see cref="Reason"/> is the HOST's sentence, passed through verbatim.</b> ⛔ Not an enum:
+/// the causes are the host's — <c>IBlueprintDebugSession</c> lives ABOVE this assembly, which is the
+/// same reason <see cref="WriteLiveValue"/> is a delegate at all. ⇒ ⭐ this assembly must not enumerate
+/// causes it cannot see, and a future host with a cause nobody here imagined still says it.</para>
+/// </summary>
+/// <param name="Ok">⭐ The bytes landed.</param>
+/// <param name="Reason">
+/// ⭐ A sentence for the designer when <paramref name="Ok"/> is false. ⛔ <c>null</c> is legal and means
+/// <i>"refused, and the host offered no reason"</i> — ⚠ the dialog then falls back to its generic text
+/// rather than inventing one.
+/// </param>
+public readonly record struct LiveWriteOutcome(bool Ok, string? Reason)
+{
+    /// <summary>⭐ It landed.</summary>
+    public static LiveWriteOutcome Landed => new(true, null);
+
+    /// <summary>⭐ It did not, and here is why.</summary>
+    public static LiveWriteOutcome Refused(string? reason) => new(false, reason);
+}
+
+/// <summary>
 /// ⭐⭐ Writes <paramref name="bytes"/> as <paramref name="row"/>'s LIVE value, returning whether it
-/// landed. 📌 Ruling 15 — a host that is not frozen must answer <c>false</c>, ⛔ never throw: the UI
-/// asks this to decide whether to grey a control (📌 the visual-check guide's <c>F3</c>:
+/// landed <b>and why not</b>. 📌 Ruling 15 — a host that is not frozen must answer a REFUSAL, ⛔ never
+/// throw: the UI asks this to decide whether to grey a control (📌 the visual-check guide's <c>F3</c>:
 /// <i>"every refusal GREYED WITH A TOOLTIP, not a click that dead-ends"</i>).
 /// </summary>
-public delegate bool WriteLiveValue(VariableRow row, ReadOnlySpan<byte> bytes);
+public delegate LiveWriteOutcome WriteLiveValue(VariableRow row, ReadOnlySpan<byte> bytes);
 
 /// <summary>
 /// ⭐⭐⭐ <b>Row 59 — where an edit LANDS, and only the NOT-RUNNING half.</b>
@@ -81,6 +110,19 @@ public static class VariableEditCommit
         /// mechanism did not arrive — 📌 exactly the silent-default shape, so it gets its own word.
         /// </summary>
         LiveWriteUnavailable,
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102b</c>) — an outcome PLUS the host's own sentence.</b>
+    ///
+    /// <para>⚠ <b>Only the live arm can carry a <see cref="Detail"/>.</b> Every other outcome is decided
+    /// in THIS assembly, where the dialog's own text already names the cause exactly; ⛔ the live arm is
+    /// the one whose causes live above it — 📌 see <see cref="LiveWriteOutcome"/>.</para>
+    /// </summary>
+    /// <param name="Detail">⭐ The host's sentence, or <c>null</c> ⇒ the dialog uses its generic text.</param>
+    public readonly record struct Result(Outcome Outcome, string? Detail)
+    {
+        public static Result Of(Outcome outcome) => new(outcome, null);
     }
 
     /// <summary>⭐⭐ Where an edit would land, given the run state.</summary>
@@ -199,19 +241,44 @@ public static class VariableEditCommit
         Type                     fieldType,
         VariableRunState         runState,
         WriteLiveValue?          writeLive = null)
+        => CommitWithDetail(session, asset, row, fieldType, runState, writeLive).Outcome;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102b</c>) — the same commit, carrying the host's REASON.</b>
+    ///
+    /// <para>⭐ <see cref="Commit"/> is a projection of this, not a second implementation — ⛔ the two
+    /// cannot disagree about an arm. ⚠ It stays because most callers only ever ask <i>"did it
+    /// land?"</i>, and widening every one of them would be churn for no information.</para>
+    /// </summary>
+    public static Result CommitWithDetail(
+        IEditSession             session,
+        IBlackboardManagedAsset? asset,
+        VariableRow              row,
+        Type                     fieldType,
+        VariableRunState         runState,
+        WriteLiveValue?          writeLive = null)
     {
         if (session is null)   throw new ArgumentNullException(nameof(session));
         if (fieldType is null) throw new ArgumentNullException(nameof(fieldType));
 
-        if (!row.CanEverBeWritten) return Outcome.RefusedReadOnly;
+        if (!row.CanEverBeWritten) return Result.Of(Outcome.RefusedReadOnly);
 
         switch (TargetFor(runState))
         {
             case Target.InitialValue:
-                return CommitInitialValue(session, asset, row, fieldType, runState);
+                return Result.Of(CommitInitialValue(session, asset, row, fieldType, runState));
 
             case Target.LiveBlackboard:
-                if (writeLive is null) return Outcome.LiveWriteUnavailable;
+                // ⭐⭐⭐ Batch 102 (102b) — THE SILENT DEFAULT NAMES ITSELF.
+                // ⛔ This branch is the shape M-36 is about: the run state SAID yes and the mechanism
+                //    never arrived. ⚠ It used to be indistinguishable from a host that considered the
+                //    write and refused it — ⇒ six batches of "the refusal is correct".
+                if (writeLive is null)
+                    return new Result(
+                        Outcome.LiveWriteUnavailable,
+                        "No live writer is installed for this editor, so a paused edit has nowhere to "
+                        + "go. This is a missing capability on this host, not a property of the "
+                        + "variable.");
 
                 // ⭐ Committed FIRST so the boxed result exists, but only inside the arm that will
                 //   land it — see the remarks.
@@ -222,11 +289,17 @@ public static class VariableEditCommit
                 //    that leaks on both, because half the feature would look correct.
                 var value = ScalarEditBox.Unwrap(session.Commit(), fieldType);
                 var bytes = ComponentBytes.Of(value, ComponentBytes.SizeOf(fieldType));
-                return writeLive(row, bytes) ? Outcome.Ok : Outcome.LiveWriteUnavailable;
+
+                // ⭐ The host's sentence is carried through UNCHANGED — ⛔ this assembly must not
+                //   paraphrase a cause it cannot see. 📌 LiveWriteOutcome.Reason.
+                var attempt = writeLive(row, bytes);
+                return attempt.Ok
+                    ? Result.Of(Outcome.Ok)
+                    : new Result(Outcome.LiveWriteUnavailable, attempt.Reason);
 
             default:
                 // ⛔ Free-running or replaying. 📌 Ruling 15 — a decision, not a gap.
-                return Outcome.RefusedRunning;
+                return Result.Of(Outcome.RefusedRunning);
         }
     }
 }

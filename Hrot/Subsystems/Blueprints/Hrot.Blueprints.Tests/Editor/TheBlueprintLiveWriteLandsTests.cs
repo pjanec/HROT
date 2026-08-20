@@ -51,6 +51,21 @@ public sealed class TheBlueprintLiveWriteLandsTests
     private const int Width     = 4;
     private const string FieldName = "Health";
 
+    /// <summary>
+    /// ⭐⭐ <b>A NON-ZERO structure hash, and Batch 102 (<c>102a</c>) made that load-bearing.</b>
+    ///
+    /// <para>📐 <b>Measured:</b> this harness used to hand the session a world with <b>no entity and no
+    /// component at all</b>, and every rail below still passed — ⛔ because the resolver's
+    /// <c>AiPrimitive</c> arm trusted the field table without ever looking at the entity. ⚠ Adding the
+    /// read's own identity gate to the write path <b>reddened four rails</b>, which is the gate working:
+    /// 📌 the handoff — <i>"a stale layout writing at a valid-looking offset is exactly how memory gets
+    /// corrupted."</i></para>
+    ///
+    /// <para>⛔ It must not be <c>0</c>: a zero-initialised blackboard matches a zero hash by accident,
+    /// ⇒ the stale-layout rail would pass under a resolver that never compared anything.</para>
+    /// </summary>
+    private const ulong StructureHash = 0xA11CE5F00DUL;
+
     // ══ the composition root — the only rail that can see the defect ═════════
 
     /// <summary>
@@ -137,8 +152,15 @@ public sealed class TheBlueprintLiveWriteLandsTests
     /// <c>Blackboard1024</c> is one component shared by BTree, HSM and Blueprint at disjoint offsets,
     /// so the neighbour may not even be a blueprint's. 📌 <c>Q32</c> §2.1.</para>
     ///
-    /// <para>⭐ Both halves are pinned: the resolver returns the layout's RAW number, and the staged
-    /// address is the header applied to it <b>once</b>.</para>
+    /// <para>⭐ Both halves are pinned: the resolver returns the layout's number with the header applied
+    /// <b>once</b>, and the staged address is that number <b>unchanged</b>.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>RE-EXPRESSED, Batch 102 (<c>102a</c>) — the PROPERTY is identical, the OWNER of the
+    /// <c>+8</c> moved.</b> ⛔ It used to live in <c>TryWriteWorkingStateField</c, which applied it
+    /// UNCONDITIONALLY; ⚠ that is correct for <c>AiPrimitive</c>'s flat block and <b>wrong for an
+    /// <c>Instance</c> slot</b>, whose payload the partition allocator places and whose header is a
+    /// 16-byte cursor. ⇒ ⭐ the transform now lives in the resolver's <c>AiPrimitive</c> arm, where the
+    /// layout is known, and this rail asserts <b>the same "exactly once"</b> one step earlier.</para>
     /// </summary>
     /// <remarks>
     /// ⭐⭐ <b>BOTH ARMS, and that is not padding.</b> 📐 <b>Measured by the revert probe:</b> mutating
@@ -149,22 +171,25 @@ public sealed class TheBlueprintLiveWriteLandsTests
     [Theory]
     [InlineData(null)]   // ⭐ no debug map ⇒ the def.StateFields FALLBACK arm
     [InlineData(40)]     // ⭐ a debug map  ⇒ the mapIndex.StateLayout arm
-    public void TheOffsetIsRaw_AndTheHeaderIsAppliedExactlyOnce(int? mapOffset)
+    public void TheHeaderIsAppliedExactlyOnce(int? mapOffset)
     {
         var h   = Harness(mapOffset: mapOffset);
         int raw = mapOffset ?? RawOffset;
 
+        int once  = WorkingStateLayout.ComponentOffsetOf(raw);
+        int twice = WorkingStateLayout.ComponentOffsetOf(once);
+        Assert.NotEqual(once, twice);   // ⭐ the rail is only meaningful because these differ
+
         var field = h.Session.ResolveWorkingStateField(h.Entity, h.AssetId, FieldName);
         Assert.NotNull(field);
-        Assert.Equal(raw,   field!.RawOffsetBytes);          // ⛔ RAW — unconverted
+        Assert.Equal(once,  field!.ComponentOffsetBytes);   // ⭐ applied ONCE, by the resolver
+        Assert.NotEqual(raw, field.ComponentOffsetBytes);   // ⛔ and it really did convert
         Assert.Equal(Width, field.SizeBytes);
 
         h.Registrar.EditGestures!.OnEditValue(Row(h.AssetId));
         h.Registrar.EditGestures!.Accept();
 
-        int once  = WorkingStateLayout.ComponentOffsetOf(raw);
-        int twice = WorkingStateLayout.ComponentOffsetOf(once);
-        Assert.NotEqual(once, twice);   // ⭐ the rail is only meaningful because these differ
+        // ⭐ The writer stores what it was given — ⛔ no second conversion anywhere downstream.
         Assert.Equal(once, Assert.Single(h.Manager.Staged).ByteOffset);
     }
 
@@ -185,14 +210,54 @@ public sealed class TheBlueprintLiveWriteLandsTests
     }
 
     /// <summary>
-    /// ⛔ <b>An <c>Instance</c> blueprint resolves to NOTHING.</b> Its fields are offset within a
-    /// per-instance payload — a different address space — and the writer applies the
-    /// <c>AiPrimitive</c> convention. ⚠ Answering would not mis-report a value, it would corrupt memory.
+    /// ⭐⭐⭐ <b>INVERTED, Batch 102 (<c>102a</c>) — an <c>Instance</c> blueprint no longer resolves to
+    /// nothing, and the old assertion was a CAPABILITY GAP wearing a safety property's clothes.</b>
+    ///
+    /// <para>🔴 <b>User:</b> <i>"what is correct about not being able to write into a live blackboard of
+    /// instance when simulation is paused?"</i> ⭐⭐ <b>Nothing</b> — 📌 <c>M-36</c> carries the
+    /// retraction, and this rail carried the false claim: <i>"answering would corrupt memory."</i>
+    /// 📐 The READ has resolved this address all along; ⛔ only the write refused.</para>
+    ///
+    /// <para>⚠ <b>The old rail's REASONING was sound and its CONCLUSION was not.</b> It was true that
+    /// the writer applied the <c>AiPrimitive</c> convention unconditionally, so answering under THAT
+    /// contract would have corrupted memory. ⇒ ⭐ <c>102a</c> changed the contract rather than keeping
+    /// the refusal — see <c>WorkingStateFieldRef.ComponentOffsetBytes</c>.</para>
+    ///
+    /// <para>⭐ This entity carries no <c>BlueprintBlackboard*</c> component, so the resolve still
+    /// answers <c>null</c> — ⛔ but for the RIGHT reason now, which
+    /// <see cref="TheInstanceWriteLandsInTheSlotTests"/> pins from the other side with a real slot.</para>
     /// </summary>
     [Fact]
-    public void ADispatchKindLaidOutAnotherWay_ResolvesToNothing()
+    public void AnInstanceEntityWithNoBlackboardComponent_StillResolvesToNothing()
     {
         var h = Harness(kind: BlueprintDispatchKind.Instance);
+
+        Assert.Null(h.Session.ResolveWorkingStateField(h.Entity, h.AssetId, FieldName));
+        Assert.False(h.Writer.Write(Row(h.AssetId), BitConverter.GetBytes(4242)));
+        Assert.Empty(h.Manager.Staged);
+    }
+
+    /// <summary>
+    /// ⛔⛔⛔ <b>Batch 102 (<c>102a</c>) — A STALE LAYOUT IS REFUSED BY THE WRITE, exactly as it is by
+    /// the READ.</b>
+    ///
+    /// <para>🔴 <b>What was measured.</b> 📐 <c>CaptureAiPrimitiveState:1395</c> refuses to display a
+    /// single field when the blackboard's stored hash is not the definition's — ⛔ <b>and the resolve
+    /// path had no such check</b>, so the designer would be shown NOTHING while a write happily
+    /// scribbled at an offset from a layout the entity no longer has.</para>
+    ///
+    /// <para>⚠ <b>This is not a "wrong value" case.</b> 📌 <c>Q32</c> §2.1 — a recompiled layout moves
+    /// fields, so the old offset lands wherever the new layout put something else, and
+    /// <c>Blackboard1024</c> is one component shared by BTree, HSM and Blueprint at disjoint offsets.
+    /// ⇒ ⭐ the neighbour need not even be a blueprint's.</para>
+    ///
+    /// <para>⭐ Both halves: it resolves to nothing, <b>and</b> the writer stages nothing — 📌
+    /// <c>M-22</c>, a refusal upstream is only worth asserting where the bytes would have gone.</para>
+    /// </summary>
+    [Fact]
+    public void AStaleLayout_ResolvesToNothing()
+    {
+        var h = Harness(storedHash: StructureHash ^ 1);   // ⭐ one bit — a recompile, not a garbage entity
 
         Assert.Null(h.Session.ResolveWorkingStateField(h.Entity, h.AssetId, FieldName));
         Assert.False(h.Writer.Write(Row(h.AssetId), BitConverter.GetBytes(4242)));
@@ -223,7 +288,7 @@ public sealed class TheBlueprintLiveWriteLandsTests
         var h = Harness(mapOffset: mapOffset);
 
         var field = h.Session.ResolveWorkingStateField(h.Entity, h.AssetId, FieldName);
-        Assert.Equal(mapOffset, field!.RawOffsetBytes);
+        Assert.Equal(WorkingStateLayout.ComponentOffsetOf(mapOffset), field!.ComponentOffsetBytes);
     }
 
     // ══ the honest refusals ══════════════════════════════════════════════════
@@ -270,13 +335,126 @@ public sealed class TheBlueprintLiveWriteLandsTests
         Assert.False(writer.Write(Row(Guid.NewGuid()), BitConverter.GetBytes(4242)));
     }
 
+    // ══ Batch 102 (102b) — the dialog SAYS WHICH REFUSAL IT IS ═══════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>FOUR CAUSES, FOUR SENTENCES — read off the PRODUCTION dialog.</b>
+    ///
+    /// <para>🔴🔴 <b>What this replaces.</b> 📌 <c>M-36</c>: every one of these arrived at the designer
+    /// as <i>"no live writer is installed for this host, <b>or</b> it refused the write"</i> — ⛔ <b>an
+    /// "or" spanning a MISSING CAPABILITY and a CORRECT GATE.</b> ⚠ That single sentence is why the
+    /// coordinator called the Instance refusal <i>"correct"</i> in three consecutive handoffs over a
+    /// capability that was simply <b>unbuilt</b>, and why a whole measurement session was spent on it.</para>
+    ///
+    /// <para>⭐⭐ <b>Asserted through <c>Registrar.EditModal</c>, the object the designer sees</b> — ⛔ not
+    /// on <c>LiveWriteAttempt.Message</c>, which would prove only that a string exists. 📌 <c>M-22</c>:
+    /// <i>"'is it connected?' is not 'does anything flow?'"</i> — the message has to survive the delegate,
+    /// the commit, the binder and the modal, and each of those is a place it used to be dropped.</para>
+    ///
+    /// <para>⚠ <b>WHICH LAYER IS FAKED</b> *(📌 <c>M-29</c>)*: the gesture is raised by calling
+    /// <c>OnEditValue</c> and OK by calling <c>Ok()</c> — ⛔ the ImGui click itself. ⭐ Everything from
+    /// the binder down is production, including the real <c>BlueprintDebugSession</c>.</para>
+    ///
+    /// <para>⛔ <b>Distinctness is asserted as a SET</b>, not sentence by sentence: the defect was two
+    /// causes sharing one string, so what must hold is that no two of them collide.</para>
+    /// </summary>
+    [Fact]
+    public void EachRefusalReachesTheDesignerAsItsOwnSentence()
+    {
+        var messages = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (cause, rig) in Refusals())
+        {
+            rig.Registrar.EditGestures!.OnEditValue(Row(rig.AssetId));
+            var outcome = rig.Registrar.EditModal!.Ok();
+
+            Assert.Equal(VariableEditCommit.Outcome.LiveWriteUnavailable, outcome);
+
+            var message = rig.Registrar.EditModal!.RefusalMessage;
+            Assert.False(string.IsNullOrWhiteSpace(message), $"'{cause}' told the designer nothing.");
+
+            // ⛔ The old text, verbatim — its "or" is the defect, so its return is a failure.
+            Assert.DoesNotContain("or it refused the write", message!, StringComparison.Ordinal);
+
+            messages[cause] = message!;
+            Assert.Empty(rig.Manager.Staged);   // ⭐ a refusal that stages bytes is not a refusal
+        }
+
+        Assert.Equal(4, messages.Count);
+        Assert.Equal(
+            messages.Count,
+            messages.Values.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>⭐ One rig per cause, each induced the way production would meet it — ⛔ never by
+    /// constructing the refusal directly.</summary>
+    private static IEnumerable<(string Cause, Rig Rig)> Refusals()
+    {
+        // ⛔ Nothing selected. ⚠ 📌 R-78 — the row's own entity is the chameleon sentinel, so there is
+        //    no fallback to fall back to.
+        var noEntity = Harness();
+        noEntity.Store.SelectedEntity = null;
+        yield return ("no selected entity", noEntity);
+
+        // ⛔ No blueprint document open. ⚠ 📌 R-66 — this is NOT "the sim is running".
+        var noSession = Harness();
+        noSession.Sessions.SetActiveSession(null);
+        yield return ("no debug session", noSession);
+
+        // ⛔ A STALE LAYOUT — the entity's blackboard carries a different structure hash, so the
+        //    compiled offsets describe a layout it no longer has. ⭐ The read refuses this too.
+        yield return ("stale layout", Harness(storedHash: StructureHash ^ 1));
+
+        // ⛔ The SESSION is not frozen while the editor thinks it is. ⭐ The one refusal the designer
+        //    can act on, and the sentence must be the one that says how.
+        yield return ("session not frozen", Harness(paused: false));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>And the FIFTH cause — no writer at all — is named by <c>Hrot.Editor.AiShared</c> itself.</b>
+    ///
+    /// <para>⭐⭐⭐ <b>This is the one that matters most</b>, because it is the shape 📌 <c>M-36</c> is
+    /// about: ⛔ <b>the run state SAID yes and the mechanism never arrived.</b> ⚠ BTree and HSM sit in
+    /// exactly this state today, deliberately — ⇒ their designers must be told it is a missing
+    /// capability of the HOST, ⛔ not a property of their variable.</para>
+    /// </summary>
+    [Fact]
+    public void WithNoLiveWriterAtAll_TheDialogSaysTheHostHasNone()
+    {
+        var result = VariableEditCommit.CommitWithDetail(
+            new StubSession(), asset: null, Row(Guid.NewGuid()), typeof(int),
+            VariableRunState.Paused, writeLive: null);
+
+        Assert.Equal(VariableEditCommit.Outcome.LiveWriteUnavailable, result.Outcome);
+        Assert.Contains("host", result.Detail!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("or it refused the write", result.Detail!, StringComparison.Ordinal);
+    }
+
+    /// <summary>⭐ A session that is never committed — this rail never reaches the commit. ⛔ Not a
+    /// stand-in for StructEdit anywhere else.</summary>
+    private sealed class StubSession : StructEdit.Core.IEditSession
+    {
+        public StructEdit.Core.EditDocument Document      => throw new NotSupportedException();
+        public bool                         IsDirty       => false;
+        public StructEdit.Core.EditRebuildState RebuildState => StructEdit.Core.EditRebuildState.Stable;
+        public void MarkStructuralChange() { }
+        public void RebuildDocument() { }
+        public StructEdit.Core.ValidationResult Validate() => StructEdit.Core.ValidationResult.Ok();
+        public object Commit() => throw new NotSupportedException();
+        public void Cancel() { }
+        public void Dispose() { }
+    }
+
     // ── the harness ─────────────────────────────────────────────────────────
 
     private sealed record Rig(
         Guid AssetId, Entity Entity, BlueprintDebugSession Session,
         TheSessionWritesWhileFrozenTests.RecordingManager Manager,
         Hrot.Editor.AiShared.Selection.EditorSelectionStore Store, BlueprintLiveValueWriter Writer,
-        PerspectiveWorkspaceRegistrar Registrar);
+        PerspectiveWorkspaceRegistrar Registrar,
+        // ⭐ Batch 102 (102b) — exposed so a rail can take the SESSION away and see what the dialog
+        //   then says. ⛔ Without it "no document is open" is unreachable through the production chain.
+        Hrot.Editor.AiShared.Debug.DebugSessionRegistry Sessions);
 
     /// <summary>
     /// ⭐ Everything REAL except the draw layer: a real <c>BlueprintRegistry</c>, a real
@@ -284,20 +462,35 @@ public sealed class TheBlueprintLiveWriteLandsTests
     /// ⚠ 📌 <c>R-67</c> — this builds its OWN composition root, so it cannot see a composition-root
     /// defect; <see cref="TheCompositionRootHandsBlueprintALiveWriter"/> is what covers that.
     /// </summary>
-    private static Rig Harness(
+    private static unsafe Rig Harness(
         bool paused = true,
         BlueprintDispatchKind kind = BlueprintDispatchKind.AiPrimitive,
-        int? mapOffset = null)
+        int? mapOffset = null,
+        ulong? storedHash = null)
     {
         var assetId = Guid.NewGuid();
-        var entity  = new Entity(7, 1);
+
+        // ⭐⭐ Batch 102 (102a) — a REAL world with a REAL blackboard, stamped with the definition's
+        //    structure hash exactly as the generated thunk stamps it (📌 AiPrimitiveStateMetadataTests:89).
+        // ⛔ Before this, the session was handed `new EntityRepository()` and a fabricated Entity(7,1)
+        //    that existed in no world at all — see the StructureHash remark for what that concealed.
+        var world = new EntityRepository();
+        world.RegisterComponent<Blackboard1024>();
+        var entity = world.CreateEntity();
+        if (kind == BlueprintDispatchKind.AiPrimitive)
+        {
+            world.AddComponent(entity, default(Blackboard1024));
+            ref var bb = ref world.GetComponentRW<Blackboard1024>(entity);
+            fixed (Blackboard1024* p = &bb)
+                *(ulong*)p = storedHash ?? StructureHash;
+        }
 
         var registry = new BlueprintRegistry();
         var def = new BlueprintDefinition
         {
             Name          = "LiveWriteRail",
             Kind          = kind,
-            StructureHash = 0,
+            StructureHash = StructureHash,
             StateSize     = 64,
             StateFields   = new Dictionary<string, BlueprintFieldDescriptor>(StringComparer.Ordinal)
             {
@@ -308,7 +501,7 @@ public sealed class TheBlueprintLiveWriteLandsTests
         if (kind == BlueprintDispatchKind.AiPrimitive) registry.RegisterAiPrimitive(id, def);
         else                                           registry.RegisterInstance(id, def);
 
-        var session = new BlueprintDebugSession(registry, new EntityRepository(), new MockTimeController());
+        var session = new BlueprintDebugSession(registry, world, new MockTimeController());
         var manager = new TheSessionWritesWhileFrozenTests.RecordingManager();
         session.SetDataBreakpointManager(manager);
         if (paused) session.Pause();
@@ -344,9 +537,9 @@ public sealed class TheBlueprintLiveWriteLandsTests
         var registrar = services.CreateRegistrar(
             "Blueprint", store,
             validators: Array.Empty<IAssetValidator>(),
-            writeLive:  writer.Write);
+            writeLive:  writer.WriteLive);
 
-        return new Rig(assetId, entity, session, manager, store, writer, registrar);
+        return new Rig(assetId, entity, session, manager, store, writer, registrar, debugRegistry);
     }
 
     /// <summary>

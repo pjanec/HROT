@@ -2297,7 +2297,10 @@ namespace Hrot.Editor
                 //    staged surgical write, so their paused edits keep answering LiveWriteUnavailable.
                 //    ⭐ Faking one would be "the unsafe route wearing the safe one's name"
                 //    (VariableEditCommit's own remark). ⚠ When they grow one, it is passed HERE.
-                writeLive: blueprintLiveValueWriter.Write);
+                //    ⭐⭐ Batch 102 (102b) — WriteLive, not Write: it carries the REASON a refusal
+                //      happened, so the dialog names the cause instead of the "no writer installed OR it
+                //      refused" sentence that made a missing capability look like a correct gate (M-36).
+                writeLive: blueprintLiveValueWriter.WriteLive);
 
             // Document manager — activated doc drives perspective switch.
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);

@@ -213,12 +213,24 @@ public sealed class VariableEditModal
         }
     }
 
+    /// <summary>⭐ The host's own sentence for the refusal on screen, captured when it was made.
+    /// ⛔ Not read live off the binder: the binder has already closed the session by then.</summary>
+    private string? _refusalDetail;
+
     /// <summary>
     /// ⭐⭐ <b>The message shown after a refused commit</b>, or <c>null</c>. ⚠ Distinct from
     /// <see cref="CommitRefusalReason"/>: that one is known BEFORE the click, this one only after.
+    ///
+    /// <para>⭐⭐⭐ <b>Batch 102 (<c>102b</c>) — THE HOST'S SENTENCE WINS.</b> 📌 <c>M-36</c>: the live
+    /// arm's five causes used to arrive as one <c>false</c>, and the text below said <i>"no live writer
+    /// is installed for this host, <b>or</b> it refused the write"</i> — ⛔ <b>an "or" spanning a
+    /// missing capability and a correct gate.</b> ⇒ ⭐ when the host names the cause, that is what the
+    /// designer reads; ⚠ the generic sentence remains only for a host that offered nothing.</para>
     /// </summary>
     public string? RefusalMessage => _refusal switch
     {
+        VariableEditCommit.Outcome.LiveWriteUnavailable when _refusalDetail is { Length: > 0 } d => d,
+
         // ⭐⭐⭐ Batch 96 — the cause the designer actually hit, and it is NOT the row kind.
         VariableEditCommit.Outcome.RefusedNoDeclarationOwner =>
             "The edit could not be saved: the variable's declaration owner could not be resolved for "
@@ -241,7 +253,8 @@ public sealed class VariableEditModal
     public VariableEditCommit.Outcome Ok()
     {
         var outcome = _binder.Accept();
-        _refusal = outcome == VariableEditCommit.Outcome.Ok ? null : outcome;
+        _refusal       = outcome == VariableEditCommit.Outcome.Ok ? null : outcome;
+        _refusalDetail = _refusal == null ? null : _binder.LastRefusalDetail;
         if (_refusal == null) _open = false;
         return outcome;
     }
@@ -255,8 +268,9 @@ public sealed class VariableEditModal
     public void Cancel()
     {
         _binder.Cancel();
-        _refusal = null;
-        _open    = false;
+        _refusal       = null;
+        _refusalDetail = null;
+        _open          = false;
     }
 
     /// <summary>
@@ -283,8 +297,9 @@ public sealed class VariableEditModal
     /// <summary>⭐ Dismisses a refusal banner without reopening anything.</summary>
     public void DismissRefusal()
     {
-        _refusal = null;
-        _open    = false;
+        _refusal       = null;
+        _refusalDetail = null;
+        _open          = false;
     }
 
     // ── the draw half — ImGui only, and deliberately decision-free ──────────
