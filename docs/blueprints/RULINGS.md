@@ -167,6 +167,9 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐⭐ **R-59** | ⛔⛔ **`U-6`'s router does NOT merge globals with working state** — one list per SECTION. 📌 **The merge is stage `D`** *("the only risky stage", its own batch + JSON migration)* ⇒ ⭐ **merging in the UI would do `D`'s job and be undone.** Routing per section **collapses by construction** the day the sections do | `Q39:49` · `Q39-C` · Batch 82 report §2 |
 
 
+| ⭐⭐⭐ **R-118** | ⛔⛔ **A SELECTION BRIDGE REPORTS; IT NEVER FILTERS.** *(user, `2026-08-20`: "lets use same concept of predicates that can read the selection set and decide to be available or not.")* ⭐ **REPORTING and AVAILABILITY are two jobs**: the bridge publishes **every** selected item; the **view's predicate** decides who applies. ⛔ The three `Count != 1` refusals are a view's job done in the wrong place — ⚠ they flatten *"nothing selected"*, *"more than one"* and *"one I could not resolve"* into a single `null`, which is why a **PAN is indistinguishable from a DESELECT**. ⇒ ⭐ the rule is **DELETED from the bridge and restated in ONE predicate** *(`ctx.Selection is [BlueprintNodeSelection]`)*, ⛔ not moved | `DESIGN_Details_Panel_View_Switching.md` §5 `L0.2` |
+| ⭐⭐⭐ **R-119** | ⭐⭐ **A VIEW HAS THREE HOSTING MODES, DIFFERING ONLY IN THE CONTEXT SOURCE** *(user, `2026-08-20`)*: **DOCKED** *(live, in the shell, one at a time)* · ⭐⭐⭐ **FLOATING-CONTEXTUAL** *(live, its own window anywhere, **persisted across sessions**)* · **FLOATING-PINNED** *(frozen at pin time, volatile — `R-100`)*. ⭐ **User, verbatim:** *"not being pinned to a concrete context, but stay contextual… such a window would show just a gray informative text about being empty because having nothing to show for that context."* ⇒ ⭐⭐ **ONE window class, one parameter** — the pin stops being a special case *(ruling 9)*; ⭐⭐ **`R-117`'s grey line gets a SECOND site with the same mechanism**; ⭐⭐⭐ **and RETIREMENT BECOMES LOSSLESS** — folding a standalone window into a toolbar no longer takes away a designer's floating placement. ⛔ **Consequence: a view is a DESCRIPTOR + FACTORY, never a singleton** — 📐 measured, every candidate holds per-instance state and `GraphSignatureWindow` holds an **uncommitted edit** ⇒ ⚠ an editing view declares `Instanceable: false` and **RE-HOSTS rather than duplicates** *(`R-110`)* | `DESIGN_Details_Panel_View_Switching.md` §2b |
+
 ## ⛔⛔⛔ §M — MEASURE, DON'T MEMORISE *(added `2026-08-18`, user ruling)*
 
 > ⭐⭐⭐ **NOTHING IN THIS FILE MAY ASSERT WHAT THE CODE CURRENTLY IS.**
@@ -316,6 +319,11 @@ R-89 | docs/blueprints/Architect_Question_42_Declaration_Identity_Guid_Vs_Name.m
 R-90 | docs/blueprints/Architect_Question_41_Blueprint_Driving_BTree_Params.md | publish/subscribe
 R-91 | docs/blueprints/Architect_Question_41_Blueprint_Driving_BTree_Params.md | The fix is to emit the hook, not to harden the collision
 R-92 | docs/blueprints/Architect_Question_41_Blueprint_Driving_BTree_Params.md | APPROVED IN FULL
+R-118 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | THE BRIDGE REPORTS; IT NEVER FILTERS
+R-119 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | THREE HOSTING MODES
+M-32 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | the SCENARIO perspective has no infrastructure AT ALL
+M-33 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | three different refusals of the same shape
+M-34 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | verified: no new machinery
 R-93 | docs/blueprints/Architect_Question_23_Graph_Create_And_Switching.md | nothing in the runtime consumes
 R-94 | docs/blueprints/Architect_Question_43_Blueprint_Authored_Param_Resolver.md | APPROVED IN FULL
 R-96 | docs/blueprints/Architect_Question_44_Breakpoint_UI_Unification.md | still just a breakpoint so it belongs to one single breakpoint window

@@ -114,16 +114,32 @@
 
   <path class="ln" d="M852 250 L 916 250"/>
 
-  <!-- ─────────── the pin ─────────── -->
-  <rect class="exist" x="600" y="430" width="550" height="96"/>
-  <text x="614" y="456" class="hdr" font-size="13">⑤ THE PIN — the mechanism already exists</text>
-  <text x="614" y="478" class="s">ManagedWindow.IsVolatile · WindowManager.RegisterWindow at runtime ·</text>
-  <text x="614" y="495" class="s">Render() iterates a COPY and drops a closed volatile window · excluded from the saved layout</text>
-  <text x="614" y="514" class="s">precedent in production: ComponentEditWindow (ComponentReflector:366)</text>
+  <!-- ─────────── three hosting modes ─────────── -->
+  <rect class="box" x="600" y="404" width="550" height="140"/>
+  <text x="614" y="428" class="hdr" font-size="13">⑤ THREE HOSTING MODES — one window class, one parameter</text>
 
-  <path class="ln" d="M1035 384 L 1035 426"/>
-  <text x="1042" y="410" class="lbl">pin = same shell,</text>
-  <text x="1042" y="424" class="lbl">frozen context</text>
+  <rect class="exist" x="614" y="440" width="168" height="86"/>
+  <text x="624" y="459" class="t" font-size="12">DOCKED</text>
+  <text x="624" y="476" class="s">context: LIVE</text>
+  <text x="624" y="491" class="s">in the shell, one at a time</text>
+  <text x="624" y="508" class="s">no view applies ⇒ grey line</text>
+
+  <rect class="gap" x="792" y="440" width="168" height="86"/>
+  <text x="802" y="459" class="t" font-size="12">FLOATING — CONTEXTUAL</text>
+  <text x="802" y="476" class="s">context: LIVE (same object)</text>
+  <text x="802" y="491" class="s">own window, PERSISTED</text>
+  <text x="802" y="508" class="s">predicate says no ⇒ grey line</text>
+
+  <rect class="gap" x="970" y="440" width="168" height="86"/>
+  <text x="980" y="459" class="t" font-size="12">FLOATING — PINNED</text>
+  <text x="980" y="476" class="s">context: FROZEN at pin time</text>
+  <text x="980" y="491" class="s">own window, IsVolatile</text>
+  <text x="980" y="508" class="s">never stops applying</text>
+
+  <path class="ln" d="M1035 384 L 1035 400"/>
+  <text x="600" y="562" class="s">Mechanism already in production: ManagedWindow.IsVolatile · runtime RegisterWindow · Render() iterates a COPY ·</text>
+  <text x="600" y="579" class="s">volatile windows skipped by the layout save — precedent: ComponentEditWindow (ComponentReflector:366)</text>
+  <text x="600" y="600" class="s">⇒ a VIEW is a DESCRIPTOR + FACTORY, never a singleton: each host owns the instance it created.</text>
 
   <!-- ─────────── the scenario gap ─────────── -->
   <rect class="gap" x="30" y="470" width="500" height="120"/>
@@ -132,9 +148,6 @@
   <text x="44" y="536" class="s">The "Editor" (Scenario) perspective has no registrar and no EditorSelectionStore.</text>
   <text x="44" y="558" class="s">⇒ Q47's entity context is not "add a predicate"; the shell must reach that perspective first.</text>
   <text x="44" y="578" class="s">R-110 says Details is in ALL perspectives ⇒ 3 of 4 have the infrastructure.</text>
-
-  <text x="600" y="560" class="s">Ordering consequence: L0–L5 land on the three AI perspectives;</text>
-  <text x="600" y="578" class="s">L6 (Q47) is a separate layer because its host does not exist yet.</text>
 
   <text x="20" y="628" class="s">Sources: EditorSelectionStore.cs · SelectionOrigin.cs · PerspectiveWorkspaceRegistrar.cs:600-685 · WindowManager.cs:112/571 ·</text>
   <text x="20" y="645" class="s">{Blueprint,BTree,Hsm}SelectionBridgeHelper.MapSelection · EntityInspectorPanel.cs:32 · EditorSubsystem.cs:626-628, 2241/2249/2292</text>

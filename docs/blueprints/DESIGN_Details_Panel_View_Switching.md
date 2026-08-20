@@ -2,8 +2,9 @@
 state: LIVE
 updated: 2026-08-20
 current-answer: this whole file — it is the IMPLEMENTATION design for the rulings already
-  made in Architect_Question_38 and Architect_Question_47. It decides NOTHING new about
-  behaviour; where it would have to, section 7 lists the question instead of answering it.
+  made in Architect_Question_38 and Architect_Question_47, plus R-118 and R-119 which the
+  user ruled while reviewing it (section 2b and section 5 L0.2). Where a decision is still
+  open, section 7 lists the question with a lean instead of answering it silently.
 stale-below: nothing.
 known-rot: none.
 known-conflict: Q38's live answer says "RuntimeInspectorWindow IS the shell". Section 4
@@ -74,20 +75,66 @@ public sealed record DetailsContext(
     string                             Perspective,  // R-110
     VariableRunState                   Mode);        // R-111
 
-// ② the VIEW — R-116: the predicate SHIPS WITH THE VIEW.
-public interface IDetailsView
+// ② the VIEW is a DESCRIPTOR + A FACTORY — ⛔ NOT a singleton instance. See the measurement below.
+public sealed record DetailsViewDescriptor(
+    string Id,                                   // stable — every host id and layout key is built from it
+    string Title,                                // the toolbar toggle's label
+    int    Rank,                                 // highest applicable Rank is the DEFAULT (R-98)
+    bool   Instanceable,                         // ⭐⭐ may a second live instance exist? (R-110)
+    Func<DetailsContext, bool>       AppliesTo,  // ⭐⭐ R-117 — the whole context, SET included
+    Func<IDetailsViewInstance>       Create);    // ⭐ one instance per HOST, not one per registry
+
+public interface IDetailsViewInstance : IDisposable
 {
-    string Id    { get; }                        // stable — the pin id and the layout key are built from it
-    string Title { get; }                        // the toolbar toggle's label
-    int    Rank  { get; }                        // highest applicable Rank is the DEFAULT (R-98)
-    bool   AppliesTo(DetailsContext ctx);        // ⭐⭐ R-117 — reads the whole context, SET included
-    void   Draw(DetailsContext ctx, string id);
+    void Draw(DetailsContext ctx, string imGuiId);
 }
 
-// ③ the REGISTRY — offer set = every view whose predicate says yes, ordered by Rank.
-// ④ the SHELL — draws the toolbar over the offer set, remembers the user's pick per context key,
-//               and draws R-117's grey line when the offer set is empty.
+// ③ the REGISTRY — offer set = every descriptor whose predicate says yes, ordered by Rank.
+// ④ the HOSTS — three of them, and they differ ONLY in where the context comes from. See §2b.
 ```
+
+### ⛔⛔ WHY A FACTORY — **measured, and it is not a style preference** *(`2026-08-20`)*
+
+📐 **Every candidate view carries per-instance MUTABLE state:**
+
+| view | what it holds |
+|---|---|
+| `BlueprintDetailsWindow` | `_session` / `_sessionNodeId` / `_sessionGraphId` / `_sessionNode` — ⭐ **a cached `INodeEditSession` keyed to a node** |
+| ⛔⛔ **`GraphSignatureWindow`** | `GraphSignatureEditModel` **Inputs/Outputs** + `_lastSnappedCanvasGraphId` — ⭐⭐ **an UNCOMMITTED EDIT** |
+| `VariableDetailsSection` | `_heading` / `_headingAtReadTime` / the table model |
+
+⇒ ⭐⭐⭐ **A singleton view drawn by two hosts would share one scroll position, one cached session and —
+on `GraphSignatureWindow` — one half-typed signature edit.** ⛔ **That is a defect, not a quirk**, and it
+only becomes reachable the moment a view can live in more than one place *(§2b)*.
+⇒ ⭐ **the registry holds DESCRIPTORS; each host calls `Create()` and owns what it made.**
+
+---
+
+## 2b. ⭐⭐⭐ THREE HOSTING MODES — **and they differ ONLY in the context source**
+
+> ⭐⭐ **User, `2026-08-20`, verbatim:** *"if they could optionally live as standalone windows, similarly
+> to the pinning, but in this case not being pinned to a concrete context, but stay contextual. so if
+> the current context not fitting them… such a window would show just a gray informative text about
+> being empty because having nothing to show for that context… the use case is the ability to keep such
+> a view floating anywhere the user wants, independently on the detail panel toolbar state."*
+
+| mode | context source | window | ⛔ when the predicate says NO | survives a layout save? |
+|---|---|---|---|---|
+| ⭐ **DOCKED** *(the toolbar)* | **LIVE** | the shared Details shell, **one view at a time** | it leaves the offer set; the shell falls back by `Rank` | ⭐ yes — it is the shell |
+| ⭐⭐⭐ **FLOATING — CONTEXTUAL** *(new)* | ⭐⭐ **LIVE, the same object the shell reads** | ⭐ **its own window, anywhere the user drags it** | ⭐⭐ **it stays open and draws `R-117`'s GREY LINE** — ⛔ it does not close, and ⛔ it does not go blank | ⭐⭐ **YES** — ⛔ **not volatile**: this is a durable layout choice, exactly like today's standalone windows |
+| ⭐⭐ **FLOATING — PINNED** *(`R-100`)* | ⛔ **FROZEN** at pin time | its own window, titled by the captured context | ⛔ **not applicable** — its context never changes | ⛔ **no — `IsVolatile`**, by ruling |
+
+⭐⭐⭐ **This collapses two mechanisms into one.** 📌 Ruling 9, at the right level: the pin was going to be
+*"the shell with a frozen context source"*; the contextual float is *"the shell with the LIVE context
+source"* — ⇒ ⭐ **one window class, one parameter**, and the pin stops being a special case.
+
+### ⭐⭐ Three consequences worth stating
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **RETIREMENT BECOMES LOSSLESS** | 📌 `L5` retires `GraphSignatureWindow`, the byte-budget view, the diagnostics list — ⚠ **every one of which a designer may today keep floating beside the canvas.** ⛔ Folding them into a toolbar would have TAKEN that away. ⭐ **With a contextual float it is preserved**, and `R-13`'s *"no rush removals"* is satisfied by construction rather than by argument |
+| ⭐⭐ **`R-117`'s grey line has TWO sites, one mechanism** | the shell with an **empty offer set**, and a contextual float whose **own predicate** says no. ⭐ Same string, same rule: ⛔ **a blank panel is a defect, not a state** |
+| ⚠ **`Instanceable` is what keeps an editing view honest** | 📌 `R-110`: *"read-only views may be instanced freely; sharing is preferred for EDITING views."* ⇒ ⭐ a view holding an **uncommitted edit** *(`GraphSignatureWindow`)* declares `Instanceable: false`, and floating it **RE-HOSTS the single instance** rather than duplicating it — the shell then shows *"shown in its own window"* in place of that toggle. ⛔ **Two divergent half-typed signature edits is the failure this prevents** — §7 `Q-iv` |
 
 ### ⭐ Three decisions this shape encodes — **each traced to a ruling**
 
@@ -149,10 +196,29 @@ shell."*
 | task | ⭐ what | 📐 seam verified |
 |---|---|---|
 | **`L0.1`** | ⭐⭐⭐ **a SELECTION SET on the store** — `ActiveSubSelections` *(list)* with `ActiveSubSelection` kept as **the derived single** *(`Count == 1 ? [0] : null`)* | ⭐ **every existing reader is unchanged** — the same optional-and-preferred shape the row seams used seven times |
-| **`L0.2`** | ⛔⛔ **stop the three bridges collapsing** — each maps **all** selected nodes; ⭐ **a PAN that reports the same set writes the same set** ⇒ no clear | 📌 **all three measured**: `Blueprint:57` · `BTree:61` · `Hsm:79` — ⚠ **three different refusals, one behaviour to unify** |
+| **`L0.2`** | ⛔⛔⛔ **THE BRIDGE REPORTS; IT NEVER FILTERS** — `MapSelection` returns **every** selected node mapped, and an **empty list** only when nothing is selected. ⭐ **A PAN that reports the same set writes the same set** ⇒ no clear | 📌 **all three measured**: `Blueprint:57` · `BTree:61` · `Hsm:79` — ⚠ **three different refusals of the same shape** ⇒ ⭐ **deleted, not unified** — see the box below |
 | **`L0.3`** | ⭐ the **`DetailsContext`** record + a builder that reads the store, the window manager and the run state | ⭐ all five sources measured and present |
 | **`L0.4`** | ⭐ the **ENTITY set** — `SharedEntitySelection` gains the list; `EntityInspectorPanel` publishes its `HashSet` instead of keeping it | 📐 `EntityInspectorPanel:32`/`:183` — ⚠ **its multi-select is real and already tested** *(`EntityInspectorPanelMultiSelectTests`)*, it is only unpublished |
 | ⭐ **rail** | **a marquee of two nodes yields a 2-item context; a pan yields the SAME context object as the frame before** — ⛔ not *"the bridge was called"* | 📌 `M-22` |
+
+> ### ⭐⭐⭐ `L0.2` — **the same predicate concept, one layer down** *(user, `2026-08-20`)*
+>
+> ⭐⭐ **User, verbatim:** *"lets use same concept of predicates that can read the selection set and
+> decide to be available or not."*
+>
+> ⛔⛔ **The three `Count != 1` lines are a VIEW'S JOB done in the WRONG PLACE.** 📐 Each bridge is
+> deciding *"is this selection usable?"* — ⭐ **but usable BY WHOM?** A node-properties view wants
+> exactly one; a *"3 nodes selected"* summary wants many; a byte-budget view does not care at all.
+> ⇒ ⭐⭐⭐ **the bridge cannot answer that question, and today it answers it for everybody — as `null`.**
+>
+> | ⭐ the rule | |
+> |---|---|
+> | ⭐⭐⭐ **REPORTING and AVAILABILITY are two jobs** | the bridge **reports what is selected**; the **predicate decides who applies to it** |
+> | ⛔ **an empty list means NOTHING IS SELECTED** | ⚠ today `null` means *"nothing selected"* **and** *"more than one"* **and** *"a node I could not resolve"* — ⭐ **three facts flattened into one**, which is why a pan is indistinguishable from a deselect |
+> | ⭐ **a node that resolves to no record is DROPPED, and that is not a refusal** | ⛔ it must not cause the **other** selected nodes to vanish — 📌 today's `Blueprint:65`–`:70` walk returns `null` for the whole selection when one node is unknown |
+> | ⭐⭐ **the `Count != 1` logic is not moved — it is DELETED** | ⭐ it **reappears as one line in the node-properties view's predicate**: `ctx.Selection is [BlueprintNodeSelection]`. ⛔ Nothing is lost; ⭐ it is stated where it is true |
+>
+> ⇒ ⭐⭐ **`L0.2` gets SMALLER, not larger** — three refusal blocks removed, one `Select` kept.
 
 ⚠ **`L0.2` is the one place a behaviour visibly changes without any new UI** — ⭐ and it changes it
 **towards** `R-115`. ⛔ If it is deferred, every later layer inherits a context that lies.
@@ -161,9 +227,10 @@ shell."*
 
 | task | ⭐ what |
 |---|---|
-| **`L1.1`** | `IDetailsView` + `DetailsViewRegistry` *(offer set · `Rank` default · the remembered pick, §3)* |
+| **`L1.1`** | ⭐⭐ **`DetailsViewDescriptor` + `IDetailsViewInstance` + `DetailsViewRegistry`** *(offer set · `Rank` default · the remembered pick, §3)* — ⛔ **descriptors, never instances** *(§2)* |
 | **`L1.2`** | ⭐⭐ **registration through the registrar's existing claim chain** — `if (window is IDetailsViewSource src) registry.AddRange(src.Views);` ⛔ **no new composition-root argument** *(`R-67`)* |
-| **`L1.3`** | ⭐ **`VariableDetailsSection` becomes the FIRST `IDetailsView`** — predicate: *"the focus is the outline and the selection names variable rows"* |
+| **`L1.3`** | ⭐ **`VariableDetailsSection` becomes the FIRST descriptor** — predicate: *"the focus is the outline and the selection names variable rows"*; ⭐ `Create()` returns a fresh section, which is already how it is built |
+| ⚠ **`L1.4`** | ⭐ **the node-properties predicate carries `L0.2`'s deleted rule** — `ctx.Selection is [BlueprintNodeSelection]` ⇒ ⛔ **the single-selection requirement is stated ONCE, by the view that has it** |
 | ⭐ **rail** | ⭐⭐ **the offer set for a measured context**, asserted on the **registry built by the production registrar** — ⛔ never on a registry a test `new`s |
 
 ### ⭐⭐⭐ `L2` — **the shell and the toolbar** — *the first layer the user SEES*
@@ -192,16 +259,27 @@ one is *"wrap an existing panel, write its predicate, register it."*
 | **Utility** | `InspectorWindow`'s utility arm | selection is a utility node or consideration |
 | ⛔ **Parameter sync** | `PARAMETER SYNCHRONIZATION` | ⚠ **LAST, and only after the orchestrator wiring** — 📌 `R-99`: *"promoting an inert panel is worse than leaving it buried"* |
 
-### ⭐ `L4` — **the pin** *(`R-100`)* — ⭐⭐ **verified: no new machinery**
+### ⭐⭐ `L4` — **view INSTANCES: float and pin** *(`R-100` + the user's `2026-08-20` float)* — ⭐⭐ **verified: no new machinery**
+
+⭐⭐⭐ **One window class, `DetailsViewWindow`, parameterised by its context source** *(§2b)*. ⛔ **Not two.**
 
 | task | ⭐ what | 📐 verified |
 |---|---|---|
-| **`L4.1`** | pin = **the same shell class with a FROZEN `DetailsContext` source**, `IsVolatile = true`, id `= (viewId, assetId, selectionKey)` | ⭐ `ComponentEditWindow` does exactly this in production |
-| **`L4.2`** | ⭐ an exact-duplicate id **focuses** instead of spawning | `WindowManager.FocusWindow:176` exists; `RegisterWindow` **overwrites on the same id**, so the guard must be *"try get, then focus"* — ⛔ not *"register and hope"* |
-| **`L4.3`** | the title carries the context | `ManagedWindow.Title` has a `protected set` |
-| ⚠ **known limit** | ⛔ a pin does not survive a scenario reload — 📌 the open `94g`, ⭐ **and `IsVolatile` means it does not survive a layout save either, which is the ruling** |
+| **`L4.1`** | ⭐⭐ **`DetailsViewWindow(descriptor, contextSource)`** — hosts **one** view instance from `Create()`, draws the grey line when `AppliesTo` is false | ⭐ `ComponentEditWindow` already spawns a runtime window in production |
+| **`L4.2`** | ⭐⭐⭐ **CONTEXTUAL float** — `contextSource = LIVE`, ⛔ **`IsVolatile = false`** *(it survives the layout save — it is a durable placement, not a captured moment)*, id `= details_view_{viewId}_{perspective}` | `WindowManager.SaveSettings` keys on the window id ⇒ a stable id is all persistence needs |
+| **`L4.3`** | ⭐ **PINNED float** — `contextSource = FROZEN snapshot`, `IsVolatile = true` *(`R-100`)*, id `= (viewId, assetId, selectionKey)`, title carries the captured context | `ManagedWindow.Title` has a `protected set`; volatile windows are skipped by `SerializeToIniSection` **and** `SaveSettings` |
+| **`L4.4`** | ⭐ **the entry points** — a small *"open in own window"* affordance on the toolbar toggle *(contextual)* beside the existing pin gesture *(frozen)*; ⭐ **and the contextual float appears in the View menu** | `ManagedWindow.ShowInMenu` exists — ⭐ ⇒ ⛔ **a float is discoverable without the Details panel being open at all**, which is the point of it |
+| **`L4.5`** | ⚠ **`Instanceable: false` ⇒ RE-HOST, do not duplicate** — the shell shows *"shown in its own window"* in that toggle's place | §7 `Q-iv` |
+| ⚠ **known limits** | ⛔ a **pin** does not survive a scenario reload *(the open `94g`)*, ⭐ and `IsVolatile` means it does not survive a layout save **by ruling**. ⭐ **A contextual float survives both** — ⚠ **and must therefore tolerate being restored into a context its predicate rejects**, which is exactly the grey line |
 
 ### ⭐ `L5` — **retire** — ⛔ **only after the view that replaces each one is live**
+
+> ⭐⭐⭐ **`L4.2` changes what "retire" COSTS.** ⛔ Before the contextual float, folding
+> `GraphSignatureWindow` *(or the byte budget, or diagnostics)* into a toolbar **took away a window a
+> designer could keep beside the canvas.** ⭐ **With the float, the same surface is still available as a
+> standalone window — it is now just contextual and predicate-gated.**
+> ⇒ ⭐⭐ **`R-13`'s *"no rush removals"* is satisfied BY CONSTRUCTION**, not by argument, and every row
+> below is honestly a **duplicate CODE** case rather than a lost affordance.
 
 | retire | ⭐ label *(`R-13`)* |
 |---|---|
@@ -230,8 +308,8 @@ one is *"wrap an existing panel, write its predicate, register it."*
 
 ```
 L0.1 ─┬─ L0.2 ──┐
-      └─ L0.3 ──┴─ L1.1 ─┬─ L1.2 ─ L1.3 ─ L2.1 ─ L2.2 ─ L2.3 ─┬─ L3.* (all parallel) ─ L5.*
-L0.4 ─────────────────────┘                                    └─ L4.*
+      └─ L0.3 ──┴─ L1.1 ─ L1.2 ─┬─ L1.3 / L1.4 ─ L2.1 ─ L2.2 ─ L2.3 ─┬─ L3.* (all parallel) ─ L5.*
+L0.4 ─────────────────────────── └─ L4.1 ─ L4.2 (float) ─ L4.3 (pin) ─┘
                                                     L6.1 ─ L6.2 ─ L6.3 / L6.4 / L6.5
 ```
 
@@ -239,7 +317,7 @@ L0.4 ─────────────────────┘         
 |---|---|
 | ⭐⭐ **`L0` is the only true bottleneck** | everything reads the context |
 | ⭐⭐ **`L3` fans out completely** | ⭐ nine independent mirror-pattern tasks once `L2` lands — **the delegation opportunity** |
-| ⭐ **`L4` needs only `L2`** | a pin is the shell with a frozen source |
+| ⭐⭐ **`L4` needs only `L1`, NOT `L2`** | ⭐⭐⭐ **a float is a descriptor + a live context + a window — the toolbar is not involved.** ⇒ ⛔ **the ordering assumption changed**: a contextual float could ship **before** the shell, and `L5`'s retirements would already be lossless. ⚠ Kept after `L2` only because the *"open in own window"* affordance lives on the toolbar — ⭐ **the View menu is an entry point that does not** |
 | ⚠ **`L6.1` gates all of `Q47`** | ⛔ and it is a design question first — §7 |
 | ⛔ **`L5` is last, per item** | ⭐ retire a surface only when its replacement view is live *(`R-13`)* |
 
@@ -253,7 +331,8 @@ L0.4 ─────────────────────┘         
 |---|---|---|
 | **Q-i** | ⭐⭐ **Does the Scenario perspective get a full `PerspectiveWorkspaceRegistrar`, or only a selection store + the view registry?** | ⭐ **the lighter one.** The registrar carries validators, breakpoints, blackboard hosts and schema exporters — ⛔ **all AI-authoring concerns a scenario has no use for.** ⇒ extract the **claim chain** into something both can host, and give Scenario only the store + registry |
 | **Q-ii** | ⚠ **Does `L0.2` publish a multi-selection that no view yet consumes?** | ⭐ **Yes — and `L2.3`'s grey line is exactly what makes that safe.** ⛔ The alternative *(keep collapsing until a view exists)* means the context lies for three more layers |
-| **Q-iii** | ⚠ **Does `RuntimeInspectorWindow` survive as a window, or dissolve entirely into views?** | ⭐ **Dissolve.** Its chrome is `R-111` mode-conditional content and its registry is on the wrong axis ⇒ ⛔ keeping it is keeping a second shell. ⚠ **`R-13`: this is duplicate CODE, so it is ROUTED then removed — not deleted first** |
+| **Q-iii** | ⚠ **Does `RuntimeInspectorWindow` survive as a window, or dissolve entirely into views?** | ⭐ **Dissolve.** Its chrome is `R-111` mode-conditional content and its registry is on the wrong axis ⇒ ⛔ keeping it is keeping a second shell. ⚠ **`R-13`: this is duplicate CODE, so it is ROUTED then removed — not deleted first.** ⭐ **And `L4.2` means nothing is lost** — anyone who kept it floating keeps a floating Runtime view |
+| ⭐⭐ **Q-iv** | ⛔⛔ **What happens when a view that holds an UNCOMMITTED EDIT is floated while also docked?** 📐 `GraphSignatureWindow` holds `GraphSignatureEditModel` Inputs/Outputs; `BlueprintDetailsWindow` caches an `INodeEditSession` | ⭐ **The descriptor declares `Instanceable`, and a `false` one RE-HOSTS rather than duplicates** — the single instance moves into the float and the shell shows *"shown in its own window"*. 📌 `R-110` verbatim: *"read-only views may be instanced freely; sharing is preferred for EDITING views"* ⇒ this is that ruling made mechanical. ⛔ **The alternative — two live instances — means two divergent half-typed signature edits over one graph**, and neither would know about the other |
 
 ---
 
@@ -264,4 +343,5 @@ L0.4 ─────────────────────┘         
 | ⛔ **The DRAW is unrailed by construction** *(`R-21`/`R-62`)* | ⭐ every rail here asserts on a **returned model** — the offer set, the empty-state string, the chosen view id. ⛔ **Nothing asserts a toggle appears on screen**, and no rail in this programme ever can |
 | ⚠ **`L0.2` is the highest-risk task** | ⭐ it changes selection behaviour on **three hosts** with **three different current refusals**. ⛔ If any host's canvas reports a transiently-empty selection during a pan, the *"same set ⇒ same context"* rule is what saves it — ⭐ **that must be measured per host, not assumed** |
 | ⚠ **`InspectorWindow` is 697 lines with four arms** | ⭐ `L3`'s node-properties task is the one that is **not** a mirror-pattern slice. ⛔ Do not delegate that one |
+| ⚠⚠ **a restored contextual float can outlive its own predicate** | ⭐ `L4.2` persists the float across sessions ⇒ ⛔ **it WILL be restored into a context that rejects it** — on the wrong perspective, with nothing selected, on a document that was not reopened. ⭐ **That is not an error path, it is the ordinary case**, and the grey line is the whole answer. ⚠ **A float must therefore hold NO reference captured at open time** — it reads the live context every frame or it lies |
 | ⭐ **`R-27` gates everything** | ⛔ the visual check has not been re-run since Batches 96–98 |
