@@ -297,6 +297,22 @@ had reached the other amendment independently)* — ⛔ **that was luck, not the
 ⭐ **the cost of a needless new batch is one batch; the cost of amending under a live run is a
 collision.**
 
+### ⭐⭐ Rule 1c — **WITHDRAWING an item from a RUNNING batch** *(first used `2026-08-20`)*
+
+⭐ **Rule 1 forbids amending a dispatched handoff; rule 1a allows it only while UNSTARTED.** ⛔ **Neither
+covers the case that actually arose:** a batch is **running** and the user rules that one item is
+**wrong to build at all** *(here: Properties as a StructEdit document — `R-109`)*.
+
+| ⭐ the legal form — **all four, or it is a silent amendment** | |
+|---|---|
+| **①** | ⭐⭐ **write a SEPARATE `STEER_*.md`** carrying the user's words, the reasoning and what to build instead — ⛔ **never edit the item's text in place** |
+| **②** | ⭐ **mark the handoff section `WITHDRAWN AND REPLACED`** with a link, and say it in the file's `known-conflict` — ⛔ do not delete it, the run may already have read it |
+| **③** | ⭐⭐⭐ **the USER relays the steer to the running session** — ⛔ **the coordinator does not reach into a live run** |
+| **④** | ⭐⭐ **state explicitly which items are UNCHANGED** — 📌 `R-106`: the withdrawal must not stop the batch |
+
+⚠ **A withdrawal is not a correction of the implementation session** — ⭐ say so, in the note. ⛔ Work
+already built against the withdrawn item is **reverted by them, not argued about.**
+
 ### ⭐ Rule 3a — **architect-question numbers are ids too** *(added `2026-08-14`)*
 
 > **Any session creating `Architect_Question_N_*.md` must first `git fetch` every active branch and
