@@ -9,9 +9,9 @@ known-conflict: none.
 -->
 # HANDOFF — Batch 101: **the scalar row, and the suite nobody runs**
 
-> 📌 **Dispatched at `<STAMP>`.** ⭐ Branch from this commit *(rule 7)*.
+> 📌 **Dispatched at `6106f7047`.** ⭐ Branch from this commit *(rule 7)*.
 > ⛔⛔ **YOUR SCOPE IS FROZEN AT THIS SHA.** ⭐ **Rule 3: allocate your own ids.**
-> ⭐ **Rule 1b: push `chore: started batch 101 at <STAMP>` FIRST.**
+> ⭐ **Rule 1b: push `chore: started batch 101 at 6106f7047` FIRST.**
 > ⭐⭐ **`R-106`: a blocked item stops THAT ITEM, never the batch. Four verdicts per item.**
 
 > ## ⭐⭐⭐ BATCH 100 WAS EXCELLENT — **and nothing here corrects it**
