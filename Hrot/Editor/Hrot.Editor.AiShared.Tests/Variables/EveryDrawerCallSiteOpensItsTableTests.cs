@@ -192,6 +192,14 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
             if (rel.EndsWith("ComponentEditDrawer.cs",     StringComparison.Ordinal)) continue;
             if (rel.EndsWith("ImGuiPropertyTreeAdapter.cs", StringComparison.Ordinal)) continue;
             if (rel.Contains(".Tests/", StringComparison.Ordinal)) continue;
+            // ⭐⭐ Batch 101 — `tools/` is EVIDENCE, not production. 📌 `R-124`'s probes render real
+            //    sessions to prove a diagnosis *(tools/ui-probe/…)*, so they legitimately call
+            //    DrawEditNode — ⛔ but a probe that ships a screenshot is not a call site this rail is
+            //    about, and counting it would make the enumeration answer a different question.
+            // ⚠ ARGUED, not silenced: the rail's subject is "every PRODUCTION call site opens its
+            //    table" *(see the class remark)*, and `tools/` is neither shipped nor referenced by any
+            //    assembly. ⭐ If a probe ever moves into a product, it leaves `tools/` and reappears here.
+            if (rel.StartsWith("tools/", StringComparison.Ordinal)) continue;
 
             if (System.IO.File.ReadLines(path).Any(IsCallSite)) yield return rel;
         }

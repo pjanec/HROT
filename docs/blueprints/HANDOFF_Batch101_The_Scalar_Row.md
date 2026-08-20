@@ -24,7 +24,24 @@ known-conflict: none.
 
 ---
 
-## 1. ⭐⭐⭐ `101a` — **A SCALAR EDITS AS ONE ROW, LABELLED WITH ITS OWN NAME**
+## 1. ✅✅ `101a` — **DONE BY THE COORDINATOR. ⛔ DO NOT BUILD IT.**
+
+> ⛔⛔ **WITHDRAWN FROM THIS BATCH** *(user, `2026-08-20`: "if it is 5 line fix then do it yourself
+> please, not worth delegating")*. ⭐ **Landed on the coordinator branch before you started** — the
+> ancestry check said the dispatch sha was not on your branch, and the user directed it.
+>
+> ⭐ **What landed:** `ScalarEditBox.IsWrapper` · `VariableEditModal.ScalarRowOrRoot` · 8 rails in
+> `Hrot.Editor.AiShared.Tests/Variables/Frame/AScalarEditsAsOneNamedRowTests.cs` *(7 pure + 1 frame)* ·
+> a `Xunit.SkippableFact` package reference on `AiShared.Tests` · ⚠ **and one ARGUED rail change**:
+> `EveryDrawerCallSiteOpensItsTableTests` now excludes `tools/`, because a probe that ships a
+> screenshot is evidence, not a production call site.
+>
+> ⭐ **Revert probe run:** inverting the wrapper guard reddens **2 of 8**.
+> ⭐⭐ **`101b` and `101c` are UNCHANGED and are the whole batch now** — 📌 `R-106`.
+
+<details><summary>the original item, kept for the record</summary>
+
+### ⭐⭐⭐ `101a` — a scalar edits as one row, labelled with its own name
 
 > ⭐⭐ **User, `2026-08-20`:** *"so what to do about the scalar editing. it starts to be tiring."*
 
@@ -76,6 +93,8 @@ else drawer.DrawEditNode(root);
 | **①** | ⭐⭐⭐ **a frame rail over a REAL `int` variable** *(⛔ not a struct — that is the whole gap)*: **exactly one row**, its label is **the variable's name**, and the value is **visible** |
 | **②** | ⭐ **the commit still round-trips** — type in the frame, `Commit()`, and the scalar comes back **unwrapped**. ⚠ **This is the one that would catch a regression in `97a`'s unwrap** |
 | **③** | ⭐ **the struct path still draws its tree** — ⛔ the fix must not flatten a real struct |
+
+</details>
 
 ---
 

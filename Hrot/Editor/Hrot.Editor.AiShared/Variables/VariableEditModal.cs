@@ -1,5 +1,6 @@
 using System;
 using Fdp.Presentation.Editing;
+using Hrot.Editor.AiShared.Inspector;
 using ImGuiNET;
 using StructEdit.Core;
 
@@ -289,6 +290,42 @@ public sealed class VariableEditModal
     // ── the draw half — ImGui only, and deliberately decision-free ──────────
 
     /// <summary>
+    /// ⭐⭐⭐ <b>A SCALAR IS ONE ROW, LABELLED WITH THE VARIABLE'S OWN NAME.</b>
+    ///
+    /// <para>🔴 <b>What the designer saw</b> *(user, <c>2026-08-20</c>: "it now shows a tree with one
+    /// collapsible node ScalarEditorBox`1 which after expanding shows a line … first reads Value")*.
+    /// 📐 Measured against the REAL session: <c>root='ScalarEditBox`1' childCount=1 leaf='Value'</c>.
+    /// ⭐ <c>97a</c>'s wrapper is <b>correct and stays</b> — <c>CreateLeafBinding</c> needs a MEMBER — but
+    /// it is an <b>implementation detail of the BINDING</b> and it was leaking into the LABELS.</para>
+    ///
+    /// <para>⭐⭐ <b>So the wrapper is not drawn: its single child is, renamed.</b>
+    /// <see cref="EditNode"/> is immutable with a <b>public constructor</b>, and
+    /// <c>ComponentEditDrawer.DrawEditNode</c> is public and takes <b>any</b> node — so an equivalent
+    /// node is built around <b>the SAME <see cref="EditNode.Binding"/> object</b>. ⇒ ⛔ every commit path
+    /// is untouched: the binding, <c>Commit()</c> and <see cref="ScalarEditBox.Unwrap"/> never learn that
+    /// the label changed.</para>
+    ///
+    /// <para>⛔⛔ <b>Neither <c>StructEdit.Core</c> nor <c>ComponentEditDrawer</c> is modified</b> — the
+    /// drawer has five other production callers. ⭐ A non-wrapper document is returned untouched, so a
+    /// real struct still draws its tree.</para>
+    /// </summary>
+    /// <param name="name">
+    /// The variable's own name. ⚠ Null or blank ⇒ the root is drawn as before, because a row that cannot
+    /// say what it is must not be labelled with a guess.
+    /// </param>
+    internal static EditNode ScalarRowOrRoot(EditNode root, string? name)
+    {
+        if (root is null) return root!;
+        if (string.IsNullOrWhiteSpace(name)) return root;
+        if (!ScalarEditBox.IsWrapper(root.ClrType)) return root;
+        if (root.Children.Count != 1) return root;
+
+        var leaf = root.Children[0];
+        return new EditNode(leaf.Id, name!, leaf.JsonPath, leaf.Kind, leaf.ClrType,
+                            leaf.Binding, leaf.Children, leaf.Metadata, leaf.IsReadOnly);
+    }
+
+    /// <summary>
     /// Draws the modal. ⛔ No-op when no session is open and no refusal is pending.
     /// ⚠ <b>Every branch below asks a property above</b> — see the class remark.
     /// </summary>
@@ -365,7 +402,8 @@ public sealed class VariableEditModal
                 ImGui.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
 
                 var drawer = new ComponentEditDrawer(session, pickerCtx: null);
-                drawer.DrawEditNode(session.Document.Root);
+                drawer.DrawEditNode(ScalarRowOrRoot(session.Document.Root,
+                                                    _binder.ActiveRow?.ShortName));
 
                 ImGui.EndTable();
             }

@@ -94,6 +94,19 @@ public static class ScalarEditBox
             : value;
 
     /// <summary>
+    /// ⭐⭐ <b>Is <paramref name="type"/> one of MY wrappers?</b> ⭐ Asked by the DRAW, which must show a
+    /// scalar as ONE ROW carrying the variable's own name — ⛔ not as a collapsible
+    /// <c>ScalarEditBox`1</c> whose single child reads <c>Value</c>.
+    ///
+    /// <para>⭐ It lives here, beside <see cref="EditTypeFor"/>/<see cref="Wrap"/>/<see cref="Unwrap"/>,
+    /// because the wrapper's shape is this type's business — ⛔ an <c>IsGenericType</c> test written at
+    /// a call site is a second place that would have to learn about the box.</para>
+    /// </summary>
+    public static bool IsWrapper(Type? type)
+        => type is { IsGenericType: true }
+           && type.GetGenericTypeDefinition() == typeof(ScalarEditBox<>);
+
+    /// <summary>
     /// ⭐⭐⭐ <b>Unwraps a committed value back to the variable's OWN type.</b>
     /// ⛔ <b>Every commit path must go through this</b> — the JSON on a declaration and the bytes on a
     /// live blackboard are the SCALAR, ⛔ never <c>{"Value":7}</c> and never the wrapper's layout.
