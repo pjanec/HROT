@@ -1,9 +1,11 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-20
-current-answer: section 4 — RECOMMENDED ANSWERS, awaiting the user's approval.
+current-answer: section 4 — ANSWERED IN FULL by the user on 2026-08-20 (R-116, R-117).
 stale-below: nothing.
-known-rot: none.
+known-rot: section 2's line that type-specific editors 'do not exist' was true of today's
+  code and WRONG about the design - the user ruled they exist or arrive soon. Corrected
+  inline in section 4.
 known-conflict: it EXTENDS Q38's scope. Q38's inventory explicitly fenced these surfaces
   out as "engine / sim, different lifecycle". The user has brought them in for the
   scenario perspective; §1 says so rather than editing the fence silently.
@@ -83,68 +85,60 @@ entity TYPE.**
 
 ---
 
-## 4. ⭐⭐⭐ THE SUB-QUESTIONS — **with recommended answers**
+## 4. ✅✅✅ THE ANSWERS — **RULED `2026-08-20` by the user** *(`R-116`, `R-117`)*
 
-### ⭐⭐⭐ `Q47-A` — what views does the ENTITY context offer?
+### ⭐⭐⭐ HOST SCOPE — **decided first, and it removes an item**
 
-| ⭐⭐⭐ **RECOMMENDED** |
-|---|
+> ⭐⭐ **User:** *"Der is meaningful only for ExCon(IOS) perspective. We may ignore the IOS and IG and
+> CGF hosts for now and focus on the editor host only."*
 
-| view | ⭐ source | notes |
-|---|---|---|
-| ⭐⭐ **Components** *(DEFAULT)* | **`EntityInspectorPanel`** *(the 570-line one)* | ⭐ the same panel the pinnable single-entity inspector uses — 📌 **`R-100`: a pin is this same view with a frozen context**, ⛔ not a different window |
-| ⭐⭐ **Mission plan** | **`MissionPanel`** | ⚠ **offered only when the entity HAS a mission** *(`MissionPlanQueue` / `ActiveMissionPlan`)* — ⛔ otherwise it is a toggle that opens onto nothing |
-| **DER** | `DerEntityInspectorPanel` | ⚠ **offered only where DER is meaningful** — ⭐ measure whether that is a perspective or a component test before wiring |
-| ⭐⭐⭐ **type-specific editors** | ⛔ **DO NOT EXIST — `Q47-C`** | the colour-for-a-map-drawing case |
+⇒ ⛔ **`DerEntityInspectorPanel` is OUT of scope.** ⭐ **The EDITOR host is the target.**
 
-### ⭐⭐⭐ `Q47-B` — is the entity context ONE row, or one per entity KIND?
+### ✅ `Q47-A` — the views
 
-| ⭐⭐⭐ **RECOMMENDED: ONE context row — *"an entity is selected"* — with a VARIABLE offer set.** |
-|---|
+| view | ⭐ ruled |
+|---|---|
+| ⭐⭐ **Components** *(default)* | ✅ **in** — the same panel the pinnable single-entity inspector uses *(`R-100`)* |
+| ⭐⭐ **Mission plan** | ✅ **in** — ⭐ **and it is ITSELF an entity-type-specific view**: *"makes sense only for brain-equipped entities"* |
+| ⭐⭐⭐ **entity-TYPE-specific views** | ✅✅ **THEY EXIST OR ARRIVE SOON** — *"to allow user friendly setting of various entity properties, not just via component inspector"* |
+| ⛔ **DER** | ⛔ **out** — ExCon/IOS only |
 
-⭐ `R-98` already says the context decides what is **offered**; ⇒ *"entity"* is the context and the
-entity's **components** decide which optional views appear. ⛔ **Not one context per entity type** —
-that multiplies contexts without bound and the toolbar becomes a type switch.
-⭐⭐ **Mission plan is the worked example**: same context, offered only when the components say so.
+> ⛔⛔ **A CORRECTION OF MINE.** §2 measured *"`ColorEdit`/`ColorPicker`: zero hits ⇒ type-specific
+> editors do not exist"*. ⭐⭐ **That was true of TODAY'S CODE and WRONG as a statement about the
+> design** — 📌 the `.dev/` rule in one line: **a grep answers *"is it used?"*, never *"is it meant to
+> exist?"*** ⇒ ⭐ **they are a planned family, and the Mission panel is the first member.**
 
-### ⭐⭐⭐ `Q47-C` — how does a subsystem contribute an entity-TYPE view?
+### ✅ `Q47-B` — ONE context row, VARIABLE offer set
 
-| ⭐⭐⭐ **RECOMMENDED: a REGISTRY of `(predicate over the entity) → view`, filled at the composition root.** |
-|---|
+⭐ **Confirmed.** ⭐⭐ **The offer set is computed from the TKB record AND the currently present
+component combination** — 📐 `TkbDescriptorRegistry`, keyed by `TkbEntityTypes`, descriptors registered
+by a Roslyn source generator. ⛔ **Not one context per entity type.**
 
-⭐⭐ **This is the same shape `RuntimeInspectorWindow` already uses** — 📐 it *"delegates the
-asset-specific pane to the registered `IRuntimeInspectorPane` for the active asset kind."*
-⇒ ⭐ **an entity-view registry is that pattern with a PREDICATE instead of an asset kind**, because an
-entity has no single "kind" — ⛔ it has components.
-⭐ **Feeds registered by whoever needs to show contextual info** *(`R-110`)* — the map-drawing subsystem
-registers the colour editor; ⛔ the shared panel never learns about map drawing.
+### ✅ `Q47-C` — predicate-based, and **the view OWNS its predicate**
 
-⚠ **This is the item with real design content**, and it is what makes the colour example cheap later
-instead of a special case.
+> ⭐⭐ **User:** *"each view 'knows' via the predicate what entities it wants to be available for."*
 
-### ⭐⭐ `Q47-D` — multi-select?
+⇒ ⭐⭐⭐ **The registry maps `predicate → view`, and the PREDICATE SHIPS WITH THE VIEW.** ⛔ **The shared
+panel never learns about map drawing, or missions, or any entity type** — ⭐ it asks each registered
+view *"do you apply to this selection?"*
 
-| ⭐⭐⭐ **RECOMMENDED: YES for the entity context — the panel ALREADY supports it.** |
-|---|
+### ✅✅ `Q47-D` — the predicate reads the SELECTION SET, and an empty offer set MUST SAY SO
 
-📐 `EntityInspectorPanelMultiSelectTests` *(`DD-P3-T02`)* ⇒ ⭐ **the capability exists and is railed.**
-⇒ ⭐⭐ **the entity context should NOT throw a multi-pick away** — ⛔ which is exactly the gap `R-115`
-left open on the **node** side *(a marquee of two nodes currently resolves to `null`)*.
-⚠ **Worth noting the asymmetry out loud:** entities have a multi-select inspector, nodes do not.
+> ⭐⭐ **User:** *"the predicate must allow reading the selection set and each view decides itself what
+> to show. if no views for specific multi-select set, the detail panel should say so in gray
+> informative text (intentionally empty for currently selected entities) — not just empty."*
 
-### ⚠ `Q47-E` — which of the SEVEN existing surfaces retire?
+| ⭐ | |
+|---|---|
+| **the signature** | ⛔ **over a SET, never a single entity.** ⭐ A view that only handles one entity **says so in its own predicate** — the panel does not special-case it |
+| ⭐⭐⭐ **the empty state** | ⛔⛔ **A BLANK PANEL IS A DEFECT, NOT A STATE.** ⭐ **Grey informative text** — *"intentionally empty for the current selection"* |
+| ⭐⭐ **and it generalises** | 📌 **this answers the multi-NODE gap `R-115` left open** — a marquee of two nodes is a **real selection with no view yet**, and it renders that grey line rather than resolving to nothing |
 
-| ⭐⭐⭐ **RECOMMENDED: DECIDE NOTHING YET — measure each against `R-13`'s three labels first.** |
-|---|
+### ✅ `Q47-E` — **no retiring yet**
 
-⚠ **`EntityPropertyInspector` is in-degree 0 with a single `SetSelectedEntity(long)` method** — ⭐ it
-*looks* like the `LiveBlackboardPanel` case, ⛔ **but `R-13` requires the label before the verdict**,
-and this question has not measured what it was for.
-⛔ **The two `EntityInspectorPanel` classes and the two `FdpEntityInspectorWindow`s are a ruling-9
-question** — ⭐ but they belong to **`Fdp.Presentation`/`Hrot.IG`**, which is **not this programme's
-assembly**, so retiring them has an owner outside this work. ⚠ **Name it; do not assume it.**
-
----
+⭐ Confirmed. ⛔ **Nothing in §2's inventory is retired by this question** — 📌 `R-13` labels first, and
+the duplicate `EntityInspectorPanel`/`FdpEntityInspectorWindow` pairs live outside this programme's
+assemblies anyway.
 
 ## 5. ⭐ Sequencing
 

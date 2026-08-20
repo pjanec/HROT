@@ -68,6 +68,43 @@ refactor service**; ⚠ **an unsafe retype ships DISABLED, never silent**)* · `
 declaration projections for lost `DefaultValueJson` *(`BP-367`'s siblings — now LIVE because the write
 no longer refuses)*.
 
+### ⭐⭐⭐ THE DESIGN THREAD — **`Q38`/`Q47`, ALL SUB-QUESTIONS NOW RULED** *(`2026-08-20`)*
+
+⛔⛔ **NOTHING IS BUILT YET.** ⭐ `R-27` gates the build on the **visual check passing**, and it has not
+been re-run since Batches 96–98 landed. ⭐⭐ **This thread produced ELEVEN rulings and no code.**
+
+| doc | state |
+|---|---|
+| 📄 **[`Architect_Question_38_One_Details_Panel.md`](Architect_Question_38_One_Details_Panel.md)** | ⭐⭐ **READ THE LIVE ANSWER BLOCK AT THE TOP + the CONTEXT → VIEWS TABLE.** ⛔ Everything under `WORKING HISTORY` is superseded working material |
+| 📄 **[`Architect_Question_47_The_Entity_Context.md`](Architect_Question_47_The_Entity_Context.md)** | ✅ **fully answered** — §4 |
+
+| id | the ruling, in one line |
+|---|---|
+| **`R-98`** | the Details toolbar is a **panel switch**; context decides the OFFER SET and the DEFAULT |
+| **`R-100`** | a pin is **one window instance per pin**, titled, volatile |
+| **`R-110`** | Details is in **all perspectives**, content **pluggable**; offer set = `(selection, perspective)`; ⛔ one instance NOT required |
+| **`R-111`** | the **mode** joins the context; ⭐ **one view, multiple modes** |
+| **`R-112`** | the test is **"is it about the current selection?"** — YES ⇒ a **view**; NO *(a curated list)* ⇒ **standalone** |
+| **`R-113`** | **`AiWatchWindow` survives**, `WatchPanelWindow` retires; ⚠ the **breakpoint-watch list moves to Breakpoints** |
+| **`R-114`** | **`LiveBlackboardPanel` RETIRES** — no feature the variable table lacks |
+| ⭐⭐ **`R-115`** | **context = FOCUS + SELECTION**, independent. ⛔ **pan changes neither**; ⛔ document/perspective switch moves **only focus**; ✅ **empty-canvas CLICK clears + refocuses** |
+| ⭐⭐ **`R-116`** | **`Q47`**: **EDITOR host only** *(⛔ DER is IOS-only)*; **Components + Mission panel**; ⭐⭐ **entity-type views EXIST or arrive soon and every one is PREDICATE-GATED** on the **TKB record + present components** |
+| ⭐⭐ **`R-117`** | the predicate takes the **selection SET**; ⛔⛔ **a blank panel is a DEFECT** — grey *"intentionally empty for the current selection"*. ⭐ **This also answers the multi-NODE gap** |
+| **`R-109`** | *(from the same day)* Properties is a **custom** dialog, ⛔ not StructEdit |
+
+⚠⚠ **TWO MEASURED CONFLICTS WITH TODAY'S CODE** *(from `R-115`)*, both from one line —
+`BuildAfterDrawAction` writes `MapSelection(...)` to `ActiveSubSelection` **every frame** and
+`MapSelection` returns `null` when `selection.Count != 1`:
+⛔ **a PAN can clear the selection** · ⛔ **a MULTI-pick is discarded rather than represented.**
+
+### ⭐ WHAT TO DO NEXT — **in order**
+
+| # | |
+|---|---|
+| **1** | ⭐⭐⭐ **The user re-runs the VISUAL CHECK** *(`R-27`)* — ⭐ the acceptance test first: open `Count4` → right-click `Count` → **"Edit value…"** → type → **OK** → **the value changes**, in **PLANNING** |
+| **2** | ⏳ **Batch 99 is IN FLIGHT** — the custom Properties form + the `DefaultValueJson` projection sweep |
+| **3** | ⭐ **then, and only then, the first `Q38` slice** — ⭐⭐ **design the view registry to take a PREDICATE from the start** *(`R-116`/`R-117`)*; retrofitting it later touches every context |
+
 ## 0a. ⭐⭐ Where things stand
 
 | | |
