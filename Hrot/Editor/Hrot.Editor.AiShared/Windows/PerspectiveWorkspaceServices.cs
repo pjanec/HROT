@@ -143,6 +143,12 @@ public sealed class PerspectiveWorkspaceServices
     /// <param name="liveValueProvider">
     ///   ⭐ The perspective's live-value provider, or null where none exists yet (Blueprint).
     /// </param>
+    /// <param name="writeLive">
+    ///   ⭐⭐ The perspective's LIVE blackboard writer, or null where none exists.
+    ///   ⚠ <b>Genuinely per-perspective</b>, exactly like <paramref name="liveValueProvider"/>: 📐 only
+    ///   Blueprint has a live write path *(<c>IBlueprintDebugSession</c>)*; BTree/HSM have none, and
+    ///   ⛔ their <c>LiveWriteUnavailable</c> refusal is the honest answer, not a gap to paper over.
+    /// </param>
     /// <param name="hostKind">
     ///   ⭐ Override only. ⛔ Normally null — 📌 Batch 80 made the registrar DERIVE it from the
     ///   perspective name precisely because a caller forgot it for two perspectives.
@@ -152,7 +158,8 @@ public sealed class PerspectiveWorkspaceServices
         EditorSelectionStore          selectionStore,
         IReadOnlyList<IAssetValidator> validators,
         ILiveBlackboardValueProvider? liveValueProvider = null,
-        BlackboardHostKind?           hostKind          = null)
+        BlackboardHostKind?           hostKind          = null,
+        WriteLiveValue?               writeLive         = null)
         => new PerspectiveWorkspaceRegistrar(
             perspectiveName, selectionStore, Catalog, RefactorService, DebugRegistry,
             validators:                    validators ?? throw new ArgumentNullException(nameof(validators)),
@@ -169,5 +176,6 @@ public sealed class PerspectiveWorkspaceServices
             hostKind:                      hostKind,
             valueDecoder:                  ValueDecoder,
             isSimUp:                       IsSimUp,
-            isFrozen:                      IsFrozen);
+            isFrozen:                      IsFrozen,
+            writeLive:                     writeLive);
 }

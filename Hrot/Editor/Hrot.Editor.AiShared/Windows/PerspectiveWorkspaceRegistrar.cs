@@ -180,6 +180,12 @@ public class PerspectiveWorkspaceRegistrar
     ///   that cannot observe the sim. 📌 <c>R-66</c>: this replaced <c>IDebugSessionRegistry</c>, whose
     ///   <c>ActiveSession</c> means <i>"a document is open"</i> and made <c>Planning</c> unreachable.
     /// </param>
+    /// <param name="writeLive">
+    ///   ⭐⭐ The host's LIVE blackboard writer, used only while frozen *(📌 ruling 15)*.
+    ///   ⛔ <b>Null is not "refuse"</b> — it produces <c>Outcome.LiveWriteUnavailable</c>, whose message
+    ///   says <i>"no live writer is installed for this host"</i>. ⚠ That is the honest answer for
+    ///   BTree/HSM, which have no live write path at all.
+    /// </param>
     /// <param name="isFrozen">
     ///   ⭐ Whether the debugger holds time — <c>IDataBreakpointManager.IsPaused</c> OR
     ///   <c>IEngineDebugTimeController.IsPausedByDebugger</c> (📌 ruling 15 names both arms).
@@ -205,7 +211,8 @@ public class PerspectiveWorkspaceRegistrar
         BlackboardHostKind? hostKind = null,
         DecodeRawValue? valueDecoder = null,
         Func<bool>? isSimUp = null,
-        Func<bool>? isFrozen = null)
+        Func<bool>? isFrozen = null,
+        WriteLiveValue? writeLive = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -339,7 +346,13 @@ public class PerspectiveWorkspaceRegistrar
                 //    the whole dialog exists for has never landed in production, on any host.
                 // ⭐ Derived from the store this registrar already holds — ⛔ nothing new for the
                 //   composition root to forget (R-67).
-                assetOf:       row => DeclarationOwnerOf(selectionStore, row));
+                assetOf:       row => DeclarationOwnerOf(selectionStore, row),
+                // ⭐⭐⭐ Batch 97 (97c) — THE LIVE WRITER, host-supplied. 🔴 Batch 96 measured this
+                //    parameter as never passed, so VariableEditCommit returned LiveWriteUnavailable
+                //    on every paused edit, on every host. ⛔ It is NOT defaulted here: only a host
+                //    that HAS a live write path may supply one, and BTree/HSM genuinely do not —
+                //    their refusal stays honest rather than becoming a guessed byte offset.
+                writeLive:     writeLive);
 
             // ⭐⭐⭐ Batch 87 — ONE attach point, reached through IVariableTableHost.
             // 🔴🔴 THE TWELFTH INSTANCE, and it was the line right here: this said
