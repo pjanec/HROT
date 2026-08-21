@@ -269,9 +269,9 @@ sequenceDiagram
 | path | who | shape | ⚠ |
 |---|---|---|---|
 | **A** ⭐ | ExCon / operator UI → `ITimeControlGateway` → `ClusterMaster` | ⭐⭐ **intents on the bus**, drained by the master, fanned out over DDS with a **wall-clock barrier** | ⭐ **the right shape** |
-| **B** ⛔ | editor toolbar → `EditorTimeTransportAdapter` | ⛔ **direct method call** on the editor's own controller | ⛔ **bypasses the intent bus entirely** |
-| **C** ⛔ | breakpoint / debugger → `IEngineDebugTimeController` | ⛔ **direct method call**, empty slave roster | ⛔ 🔒 `R-126`: this is the one that must go cluster-wide |
-| **D** ⚠ | `AiTracerCoordinator.RequestPause/Continue/StepOneTick` *(BTree · HSM)* | ⛔⛔ **virtual NO-OPS** — production builds the base class *(`EditorSubsystem:750`)* | 🔴 📌 `AS-9` / `R-67` |
+| **B** ✅ | editor toolbar → `EditorTimeTransportFacade` *(the Adapter was retired — `AS-11`)* | ✅ **FIXED `2026-08-21` (`TM-019`)** — pause/resume/step/scale now **publish through `ITimeCommands`**. ⚠ The direct-call fallback survives for a host constructed without a bus, and is visible in one place each | ✅ path B is path A |
+| **C** ⛔ | breakpoint / debugger → `IEngineDebugTimeController` | ⛔ **direct method call**, empty slave roster | ⛔ **STILL OPEN — the last one.** 🔒 `R-126`: this is the one that must go cluster-wide. ⚠ Deliberately left by `TM-106`/`TM-107`: it is entangled with the debugger's rewind, which `W2`/`W5` reshape, and those are the coordinator's |
+| **D** ✅ | `AiTracerCoordinator.RequestPause/Continue/StepOneTick` *(BTree · HSM)* | ✅ **FIXED `2026-08-21` (`TM-018`)** — ⛔ they were **virtual NO-OPS** and production built the base class, so a tracer asking the sim to stop did **nothing, silently**. ⭐ Now `EditorAiTracerCoordinator` overrides all three and **publishes intents** ⇒ **path D IS path A**. ⭐⭐ Subclassing is the PRESCRIBED mechanism *(`docs/projects/Hrot/Editor/Hrot.Editor.AiShared.md` §3)*, which also keeps the change out of the frozen `Hrot.Editor.AiShared` | ✅ `AS-9` / `R-67` |
 
 ### ⛔⛔ `AS-11` — **a measured duplicate: `EditorTimeTransportFacade`**
 

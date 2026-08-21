@@ -32,10 +32,11 @@ namespace Hrot.Editor.UI
         internal TimeControlStatusBarSection(
             IPreviewController   preview,
             MasterSyncController timeCtrl,
-            EntityRepository     world)
+            EntityRepository     world,
+            Fdp.Toolkit.Time.ITimeCommands? commands = null)
         {
             _inner = new ClusterTimeControlStatusBarSection(
-                new EditorTimeTransportFacade(preview, timeCtrl, world));
+                new EditorTimeTransportFacade(preview, timeCtrl, world, commands));
         }
 
         /// <summary>

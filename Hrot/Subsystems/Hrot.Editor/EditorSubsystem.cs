@@ -186,6 +186,7 @@ namespace Hrot.Editor
         private EntityRepository?       _world;
         private ModuleHostKernel?       _kernel;
         private MasterSyncController?   _timeController;
+        private Fdp.Toolkit.Time.ITimeCommands? _timeCommands;
         /// <summary>⭐ BATCH 84 / R-66 — the frozen-time signal for the variable surfaces (ruling 15).</summary>
         private MasterSyncTimeControllerAdapter? _bpTimeAdapter;
         /// <summary>⭐ BATCH 84 — the AI debug-session registry built in RegisterWindows; see the test accessor.</summary>
@@ -586,13 +587,14 @@ namespace Hrot.Editor
         /// the first tick, and a surface with no way to observe the clock must not claim the sim is
         /// running.</para>
         /// </summary>
-        private bool ClockIsHalted()
-        {
-            var world = _world;
-            if (world is null) return true;
-            if (!world.HasSingletonUnmanaged<GlobalTime>()) return true;
-            return world.GetSingletonUnmanaged<GlobalTime>().DeltaTime <= 0f;
-        }
+        /// <summary>
+        /// T5, first site. This was a hand-rolled copy of the guarded singleton read that
+        /// <c>SimClock</c> now owns — null world, missing singleton and the DeltaTime predicate, all
+        /// three identical. Routed rather than kept: the point of `T1` is that "is the simulation
+        /// running" has ONE named answer, and a second copy of the predicate is how the codebase
+        /// arrived at a dozen of them.
+        /// </summary>
+        private bool ClockIsHalted() => Fdp.Toolkit.Time.SimClock.Of(_world).IsHalted;
 
         /// <summary>Internal test hook: exposes the mutation interceptor wired to the entity inspector (UBP-P10T5).</summary>
         internal Fdp.Toolkit.Diagnostics.Gizmos.IMutationInterceptor? BpMutationInterceptor
@@ -787,7 +789,13 @@ namespace Hrot.Editor
             _aiCoordinator.TriggerInitialLoad();
 
             // ── AIE-030: Shared debug session infrastructure (created before contributor, wired in RegisterWindows) ──
-            _aiTracerCoordinator = new AiTracerCoordinator();
+            // T4d: the SUBSYSTEM-SPECIFIC coordinator, not the base class. The base's
+            // RequestPause/RequestContinue/RequestStepOneTick are virtual no-ops, so constructing it
+            // here meant a BTree or HSM tracer asking the simulation to stop did nothing at all --
+            // silently. It publishes intents on _orchestrationBus, the bus the master drains (T3),
+            // so path D now has the same shape as the cluster path.
+            _timeCommands        = new Fdp.Toolkit.Time.IntentTimeCommands(_orchestrationBus!);
+            _aiTracerCoordinator = new Hrot.Editor.Debug.EditorAiTracerCoordinator(_timeCommands);
             _btreeDebugSession   = new Hrot.BTree.Editor.Debug.BTreeDebugSession(_aiTracerCoordinator);
             _hsmDebugSession     = new Hrot.Hsm.Editor.Debug.HsmDebugSession(_aiTracerCoordinator);
             // ────────────────────────────────────────────────────────────────────────────────────
@@ -3887,7 +3895,8 @@ namespace Hrot.Editor
             if (_previewController != null && _timeController != null && _world != null
                 && windowManager.MainToolbar != null)
             {
-                var timeControls = new TimeControlStatusBarSection(_previewController, _timeController, _world);
+                var timeControls = new TimeControlStatusBarSection(
+                    _previewController, _timeController, _world, _timeCommands);
                 windowManager.StatusBar.RegisterSection(
                     id:             "editor_time_controls",
                     sortOrder:      100,
@@ -3896,7 +3905,7 @@ namespace Hrot.Editor
 
                 // ── BATCH-24: Main toolbar time-control group (§7, sortOrder range 0–9) ──
                 var timeTransportFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(
-                    _previewController, _timeController, _world);
+                    _previewController, _timeController, _world, _timeCommands);
                 var toolbarTimeSection = new Hrot.UI.Common.Panels.MainToolbarTimeControlSection(
                     timeTransportFacade);
                 windowManager.MainToolbar.RegisterEntry(
