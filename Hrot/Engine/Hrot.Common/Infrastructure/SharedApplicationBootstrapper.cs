@@ -123,25 +123,8 @@ public abstract class SharedApplicationBootstrapper
         // all accept a null participant and become safe no-ops in that case (headless / test mode).
         // Registered unconditionally so the SlaveSyncController is always reachable via the event
         // bus even when no DDS participant is present.
-        var timeSyncTranslators = new IDescriptorTranslator[]
-        {
-            TimeNetworkModule.CreateDescriptorTranslator(context.Participant, context.EventBus),
-            TimeNetworkModule.CreateSlaveLockstepTranslator(context.Participant, context.EventBus, context.NodeId),
-            TimeNetworkModule.CreateSlaveTimeSyncTranslator(context.Participant, context.EventBus, context.NodeId),
-        };
-
-        var ingress = new List<IDescriptorTranslator>();
-        var egress  = new List<IDescriptorTranslator>();
-        foreach (var t in timeSyncTranslators)
-        {
-            if ((t.Direction & TranslatorDirection.Ingress) != 0) ingress.Add(t);
-            if ((t.Direction & TranslatorDirection.Egress)  != 0) egress.Add(t);
-        }
-        if (ingress.Count > 0)
-            context.Kernel.RegisterGlobalSystem(new CycloneNetworkIngressSystem(ingress.ToArray()));
-        if (egress.Count > 0)
-            context.Kernel.RegisterGlobalSystem(new CycloneEgressSystem(egress.ToArray()));
-        context.Kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(timeSyncTranslators));
+        SlaveTimeTranslatorRegistration.RegisterOn(
+            context.Kernel, context.Participant, context.EventBus, context.NodeId);
 
         // TimeControl is set from the CONFIGURED factory (not the raw input factory).
         // The raw factory's event bus is an unbound shell — gateways built from it publish

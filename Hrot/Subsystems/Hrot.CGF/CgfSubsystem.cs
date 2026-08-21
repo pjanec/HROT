@@ -397,6 +397,18 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _cgfNetworkPolling = adapters.PollNetwork;
         }
 
+        // ── Cluster time control (TM-002) ─────────────────────────────────────────
+        // CGF is a kernel-owning node and the orchestrator DOES list it in the lockstep
+        // roster (OrchestratorSubsystem: SubsystemName is "SimHost" or "IG" or "CGF"), so the
+        // master blocks every step on a FrameAck from this node.  SimHost/IG/StrideMock get the
+        // translators that carry that traffic from SharedApplicationBootstrapper Phase 6c; CGF
+        // composes through HrotNodeBuilder directly and therefore has to register them itself.
+        // Without this the node had a SlaveSyncController but no way to hear a pause or answer a
+        // frame order — it stayed Continuous forever and the master's _pendingAcks never cleared,
+        // so every step after the first was silently discarded (AS-14's actual root cause).
+        SlaveTimeTranslatorRegistration.RegisterOn(
+            _context.Kernel, _context.Participant, _context.EventBus, _context.NodeId);
+
         // Auxiliary translators (time-sync, combat, mission-control) via the injected factory.
         // Mirrors SimHostApp.cs pattern: nodeFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(kernel)
         nodeFactory?.CreateSimHostAuxiliaryTranslators()?.RegisterOn(_context.Kernel);
