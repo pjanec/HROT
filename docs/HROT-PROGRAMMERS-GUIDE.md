@@ -65,6 +65,38 @@ These hold across every subsystem. The rest of the guide assumes them.
    through an `IEntityCommandBuffer`, played back on the main thread. `GetComponentRW` is
    intentionally absent from `ISimulationView`. `.dev/.guides/CODE-STANDARDS.md:74-76`
 
+8. 🔴 **Two classes of inbound writer, with *inverse* authority gates.** Both are correct;
+   confusing them corrupts either ghosts or ownership. Rule 6 says who *owns* a component —
+   this says who may *write* one, and it depends on why you are writing.
+
+   | Writer | Purpose | Gate | Writes unowned? |
+   |---|---|---|:--:|
+   | **Replication ingress translator** | apply the **owner's state** to a local **ghost** | `if (HasAuthority) skip` | ✅ **yes — that is what a ghost is** |
+   | **Change-request applier** (attribute · descriptor · command) | apply a **request** that any node may send | `if (!HasAuthority) skip` | ❌ **never** |
+
+   Replication flows *owner → replicas*, so it writes precisely the components it does **not**
+   own — `if (!isLocallyOwned) { SetComponent(...) }`
+   `Hrot/Network/Hrot.Network.NED/Replication/Map/Ingress/GeoSpatialIngressTranslator.cs:85-89`
+   (this is also §1.5's loopback guard, seen from the other side). A change request flows
+   *anyone → owner*, so it applies **only** to owned components — the reference implementation
+   is the per-field guard `if (!context.CanWrite<T>()) { reader.Skip(); return; }`
+   `FDP/Toolkits/Fdp.Toolkits/Replication/Patching/JsonAttributeCompiler.cs:40,58`, which
+   delegates to `EntityRepository.HasAuthority` via `EcsPatchContext.cs:152-162`.
+
+   🔴 **The gate is on *native component* authority, not on a descriptor key.** A request that
+   names a descriptor still resolves to components, and it is the component bits that decide.
+
+   ⚠ **Do not "fix" a translator by making its gate match the other class** — inverting a
+   replication translator silently freezes every ghost on that node. Classify the site first.
+
+   ⚠ **Known non-conformance** (tracked in `docs/UX/UX_Issues.md#uxi-30`): the **binary**
+   attribute path applies records with no gate at all
+   `FDP/Toolkits/Fdp.Toolkits/Replication/Patching/BinaryInterpreter.cs:102-128`; the descriptor
+   appliers gate on the **descriptor key** rather than component authority, with a `FIXME`
+   saying so `Hrot/Network/Hrot.Network.NED/Replication/Map/Ingress/UpdateEntityDescriptorRequestSystem.cs:139-142,190`;
+   and the local `UpdateEntityCommand` consumer applies unconditionally
+   `FDP/Toolkits/Fdp.Toolkits/NetworkSpawning/Systems/NetworkSpawningSystem.cs:162-175`.
+
 ---
 
 ## Part 1 — Cross-cutting traps (the ones that catch everyone)
@@ -110,6 +142,8 @@ if you own it `Hrot/Network/Hrot.Network.NED/Replication/Map/Ingress/GeoSpatialI
 don't reset `NetworkAuthority.PrimaryOwnerId` on re-announced `EntityMaster`
 `.../EntityMasterIngressTranslator.cs:142-146`; check DDS **instance state before `IsValid`**
 (dispose samples have `IsValid==false`) `.../EntityMasterIngressTranslator.cs:73-78`.
+⚠ This guard is the *replication* half of **Part 0 rule 8** — an ingress translator writes only
+what it does **not** own. A **change-request** applier has the opposite gate; do not unify them.
 
 ### 1.6 🔴 One-frame latencies are structural, not bugs
 The double-buffered event bus delivers events in frame **N+1** `FDP/Engine/Fdp.Core/FdpEventBus.cs:13`.
