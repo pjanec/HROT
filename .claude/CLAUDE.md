@@ -104,7 +104,7 @@ not a signal).
 - `manage_adr(action)` — CRUD for Architecture Decision Records
 - `ingest_traces(traces)` — Ingest runtime traces to validate HTTP edges
 
-## ⛔⛔ UNREFERENCED IS NOT UNINTENTIONAL — **search `.dev/` before proposing any deletion** *(user ruling, `2026-08-15`)*
+## ⛔⛔ UNREFERENCED IS NOT UNINTENTIONAL — **search `docs/` FIRST, then `.dev/`, before proposing any deletion** *(user ruling, `2026-08-15`; corpus order corrected `2026-08-17` and again `2026-08-21`)*
 
 > ⭐⭐⭐ **User, verbatim:** *"what is not used does not mean it is existing without reason — a design doc
 > gives answers."*
@@ -127,13 +127,19 @@ by construction** instead of true by convention.
 ### ⭐ The rules that follow
 
 1. ⛔⛔ **Before proposing to delete anything registered / emitted / exported but unreferenced, search
-   `.dev/` for a design record.** 🔴 **There are ~2900 markdown files there and this programme had never
-   searched them** — the whole design corpus sat outside every session's reading.
+   the design corpus for a record — ⭐⭐⭐ `docs/` FIRST, `.dev/` SECOND.**
+   🔒 **User, `2026-08-21`:** *"not just `.dev`, there is docs folder as the main source."*
+   ⭐⭐ **`docs/` carries the INTENT** *(what it is MEANT to be)*; ⚠ **`.dev/` carries the AS-BUILT**
+   *(what was implemented)* — 📌 the full order is **`RULINGS.md` §4**, and it is the user's own
+   `2026-08-17` correction. 🔴 **There are ~2900 markdown files in `.dev/` and this programme had never
+   searched them** — ⛔ **but searching only those is the OPPOSITE error**: an as-built document agrees
+   with the code by construction, so it can never tell you the thing was *meant* to exist.
 2. ⭐⭐ **"Unreachable" and "dangerous" are TWO properties — do not collapse them.** `W3`'s stubs were
    unreachable **and harmful** *(last-writer-wins overwrite)* ⇒ delete. This one was **dormant**
    *(a unique key that overwrites nothing)* ⇒ route. ⚠ **The precedent applied to the wrong half.**
 3. ⭐ **A grep over assets/call sites cannot see intent.** It answers *"is it used?"*, never *"is it
-   meant to exist?"* ⇒ **the second question has a different source, and that source is `.dev/`.**
+   meant to exist?"* ⇒ ⭐⭐ **the second question has a different source, and that source is `docs/`**
+   *(with `.dev/` for "why is it like this")*.
 4. ⭐ **When in doubt, prefer ROUTING to DELETING** — routing preserves the capability and still
    collapses the duplicate mechanism (ruling 9). Deletion is only right when the design record says the
    thing is dead, or nothing claims it.
@@ -155,14 +161,29 @@ have raced its own fix.
 design record agrees)*. ⛔ **"Ruling 9 says one implementation" is about IMPLEMENTATIONS, not about
 every place a user can reach one.**
 
-### ⭐⭐ Where to look, in order *(derived by sweeping the corpus, `2026-08-15`)*
+### ⭐⭐ Where to look, in order — ⛔⛔ **`docs/` IS THE MAIN SOURCE, NOT `.dev/`**
+
+> ⭐⭐⭐ **USER CORRECTION, `2026-08-17`, verbatim:** *"most designs are in the **docs** folder. in the
+> `.dev` those named like 'design' or 'detailed design' describe **what was implemented**."*
+> ⚠⚠ **An earlier version of THIS TABLE listed `.dev/*-DESIGN.md` as ① "the INTENT" — that was WRONG**,
+> and it contradicted [`RULINGS.md` §4](../docs/blueprints/RULINGS.md) for four days.
+> 🔒 **Restated by the user `2026-08-21`:** *"not just `.dev`, there is docs folder as the main source."*
 
 | # | look here | it tells you |
 |---|---|---|
-| ① | the programme's **`*-DESIGN.md` / `*_Detailed_Design.md`** | ⭐ **the INTENT** — what the thing is for |
-| ② | its **`reports/*-REPORT.md`**, especially the *notes / debt* tails | ⭐⭐ **the DEBT** — `DEBT-*` ids are filed here and nowhere else |
-| ③ | **`TASK-DETAIL.md`** | the **user decision** that authorised it, usually dated |
+| ① | ⭐⭐⭐ **`docs/**/Architect_Question_*_ANSWERS.md`** | ⭐ **THE RULINGS.** ⛔ the non-`ANSWERS` files carry only options |
+| ② | ⭐⭐ **their §"Sequencing" tables** | ⛔ **a finding with a planned batch is NOT a new finding** |
+| ③ | ⭐⭐ **`docs/` — `DESIGN_*.md` · `PLAN_*.md` · `*_Unification.md` · `BOOTSTRAP_*.md`** | ⭐⭐ **THE INTENT — the model as it is MEANT to be** |
+| ④ | ⚠ **`.dev/<programme>/*-DESIGN.md` · `*_Detailed_Design.md`** | ⛔⛔ **AS-BUILT — what WAS IMPLEMENTED.** ⭐ good for *"why is it like this"*, ⛔ **never for *"what should it be"*** |
+| ⑤ | **`.dev/**/reports/*-REPORT.md`** tails · **`TASK-DETAIL.md`** | ⭐ **the DEBT** *(`DEBT-*` ids are filed here and nowhere else)* · the authorising user decision, usually dated |
 | ⛔ | `batches/*-INSTRUCTIONS.md`, `reviews/*` | **least useful — they restate the design** |
+
+⚠⚠ **The trap this closes:** ⛔ **an as-built document AGREES WITH THE CODE by construction.**
+⭐ **Citing one to justify a design position proves nothing** — it is code-reasoning wearing a design
+document's name. 📌 **Measured `2026-08-21`:** searching `EditorTimeTransportFacade` returns hits in
+**both** trees — `docs/blueprints/{DESIGN_Time_Architecture,PLAN_Time_System_Refactor,Q48}.md` *(the
+live intent)* **and** `.dev/main-toolbar-1/` *(the batch that built it)*. ⇒ ⭐ **searching one tree
+answers half the question.**
 
 📌 **Three findings this programme derived the hard way were already written down:** the standalone
 `BTreeTick` hosting path (`SLICE1-DESIGN.md:82`) · the netstandard2.0/net8.0 wall duplicating whole
