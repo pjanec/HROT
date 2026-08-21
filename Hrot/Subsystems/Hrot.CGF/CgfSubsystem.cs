@@ -149,6 +149,22 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
     internal Fdp.Core.EntityRepository? World => _context?.World;
 
+    /// <summary>
+    /// TestHook: runtime type of the CGF kernel's time controller. Mirrors
+    /// <c>SimHostApp.TestHook_TimeControllerType</c> so an integration test can assert both
+    /// kernel-owning nodes the same way.
+    /// </summary>
+    internal Type? TestHook_TimeControllerType => _context?.Kernel?.GetTimeController()?.GetType();
+
+    /// <summary>
+    /// TestHook: current <see cref="Fdp.ModuleHost.Time.TimeMode"/> of the CGF kernel's time
+    /// controller. CGF sits in the orchestrator's lockstep roster, so on Pause this must reach
+    /// <c>Deterministic</c> — if it does not, the node never ACKs and every step after the first
+    /// is lost (AS-14). Nothing observed this before Batch 104.
+    /// </summary>
+    internal Fdp.ModuleHost.Time.TimeMode? TestHook_TimeControllerMode
+        => _context?.Kernel?.GetTimeController()?.GetMode();
+
     /// <summary>Internal test hook: exposes the data breakpoint manager (UBP-P10T2).</summary>
     internal IDataBreakpointManager? DataBreakpointManager => _bpManager;
 

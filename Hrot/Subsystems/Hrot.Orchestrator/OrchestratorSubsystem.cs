@@ -77,6 +77,13 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     /// <summary>Internal test hook: current master sim time in seconds.</summary>
     internal double TestHook_CurrentSimTime => _masterSync?.GetCurrentState().TotalTime ?? 0.0;
 
+    /// <summary>
+    /// TestHook: the master controller's current time scale. Exposed so an integration test can
+    /// assert what the SetTimeScale cluster op actually delivered without inferring it from an
+    /// observed sim-time slope.
+    /// </summary>
+    internal float TestHook_TimeScale => _masterSync?.GetTimeScale() ?? 0.0f;
+
     public string Name => "Orchestrator";
 
     public System.Numerics.Vector4 TitleBarColor => new(0.72f, 0.64f, 0.47f, 1f);  // S0501: beige
