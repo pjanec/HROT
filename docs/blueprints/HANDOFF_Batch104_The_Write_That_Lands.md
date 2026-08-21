@@ -24,7 +24,8 @@ re-dispatched: 2026-08-21 under rule 1a — 104f rewritten (its probe measured t
 > |---|---|
 > | **`104f`** | ⛔⛔ **REWRITTEN.** Its probe (`P6`) measured the wrong layer. ⭐ "Queued" is real in **two** run states, not three, and the **mechanism already exists** *(`Q46` rule 5)* |
 > | **the second landmine box** | ⭐ **restated** *(twice — see the note below)*: the delta is meaningful only on the frame instance |
-> | ⛔ **`104a`–`104e`** | ⭐⭐ **UNCHANGED, byte for byte.** Nothing else in this file moved |
+> | ⭐⭐ **`104d`** | ⛔⛔ **AMENDED at the SECOND re-stamp** — gate on the `deltaTime` **parameter**, not the singleton. 📌 `AS-10`: the singleton freezes at a **non-zero** delta during `PrepareReplay` |
+> | ⛔ **`104a`–`104c`, `104e`** | ⭐⭐ **UNCHANGED, byte for byte** |
 >
 > ⚠ **A second, WORDING-ONLY amendment followed** *(user, `2026-08-21`: "'GlobalTime serves two roles'
 > sounds alarming… is that correct?")* — ⛔ **it was not correct, and the claim is withdrawn.**
@@ -95,6 +96,7 @@ holds **~25 state-mutating systems**. ⛔ `BeforeSync` is too late.
 | ⭐ | |
 |---|---|
 | **①** | `SystemPhase.PreFrame = 0` |
+| ⚠ **③** | ⛔ **A `PreFrame` system is OUTSIDE the four groups `ReferenceReplayLoadHandler.SetSystemsEnabled` toggles** — ⭐ **state that in your report**; 📌 `AS-10` |
 | **②** | one `topology.Scheduler.ExecutePhase(SystemPhase.PreFrame, _liveWorld, deltaTime);` in `ModuleHostKernel.UpdateInternal`, **immediately after the `GlobalTime` push and before the `Input` line** *(`:493`)* |
 | ⭐⭐ **why this is small** | 📐 `SystemScheduler` is **phase-generic** — `Dictionary<SystemPhase, List<IEcsModuleSystem>>`, built by iterating whatever was registered *(`:16`, `:46`)*. ⛔ No phase list to extend anywhere else |
 | ⚠ **check** | `ModuleHostKernel:156` *"validate that the system's phase will actually be executed for global systems"* — ⭐ **make sure `PreFrame` counts as executed there**, or a `PreFrame` global system may be rejected at registration |
@@ -110,9 +112,24 @@ holds **~25 state-mutating systems**. ⛔ `BeforeSync` is too late.
 
 ```
 if (view is not EntityRepository repo) return;
-if (globalTime.DeltaTime <= 0f) return;        // halted: the edit waits
+if (deltaTime <= 0f) return;                   // halted: the edit waits
 manager.DrainPendingMutations(repo);
 ```
+
+> ### ⛔⛔⛔ GATE ON THE `deltaTime` **PARAMETER**, NOT ON THE SINGLETON — `AS-10`
+> 📐 **Measured `2026-08-21`:** during `PrepareReplay`, `SuspendGlobalTimePush()` stops the kernel
+> writing the singleton, so **it FREEZES AT ITS LAST VALUE — which may carry a NON-ZERO `DeltaTime`.**
+> ⇒ ⛔⛔ **a singleton-based `IsAdvancing` answers TRUE while nothing is advancing.**
+> ⚠ And `SetSystemsEnabled(false)` disables only **four named groups** *(input · sim · postSim ·
+> lifecycle)* — ⭐ **a `PreFrame` system is in none of them**, so it keeps running.
+> ⭐⭐ **`ExecutePhase(phase, _liveWorld, deltaTime)` hands every system the kernel's REAL per-frame
+> delta**, and the suspension does not touch it. ⛔ **So use the parameter.**
+>
+> ⚠ **Residual, ACCEPTED and named** *(⛔ do not fix it in this batch)*: during replay preparation the
+> parameter still reads *advancing*, so a staged edit can be drained into a world replay is about to
+> overwrite. ⭐ **The edit is LOST, not corrupted**, and only if the designer starts a replay between
+> editing and resuming. ⛔ A guard needs `_globalTimePushSuspended` exposed — a kernel API change this
+> slice does not earn. ⭐ **Report it if you touch it; do not widen the batch for it.**
 
 | ⛔⛔ **NOT in this item** | |
 |---|---|

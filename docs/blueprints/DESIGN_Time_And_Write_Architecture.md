@@ -31,6 +31,7 @@ Graph `home-user-HROT` @ `ac7860dd8` — **175 663 nodes / 438 004 edges**.
 | Q3 | `trace_path("DataBreakpointManager.DrainPendingMutations", inbound, 3)` | **3** production callers |
 | Q4 | `search_graph(name_pattern=".*(SetComponentFieldRaw\|SetComponentRaw\|SetManagedComponentRaw\|WriteLive\|TryWriteWorkingState\|ApplyEdit\|CommitEdit).*", label="Method")` | **37** |
 | Q5 | reads in full or in the relevant part: `GlobalTime` · `MasterSyncController` · `MasterSyncTimeControllerAdapter` · `DataBreakpointManager` · `DebugSnapshotProvider` · `SystemScheduler` · `ModuleHostKernel` · `ExecutionPolicy` · `SubsystemOrchestrator` · `ClusterUiCache` · `AiTracerCoordinator` · `AiDebugSessionBase` | — |
+| Q8 | `EntityRepository.Sync.cs` `SyncFrom` + `SetSingletonUnmanaged` · `ReferenceReplayLoadHandler.SetSystemsEnabled` | **5 singletons travel, `GlobalTime` NOT among them · 4 groups disabled** |
 | Q7 | `grep` for `SuspendGlobalTimePush` · `SetSingletonUnmanaged(new GlobalTime` · the controllers' private fields | **4 suspend sites · 3+ singleton writers · NO retained delta** |
 | Q6 | ⭐⭐ **an executable rail** — `ThePauseFlagOnTheClockIsFalseWhilePausedTests`, 4 tests | ⭐ **the only claims here that are MEASURED rather than READ** |
 
@@ -119,6 +120,48 @@ is about sync:**
 SIMULATION READS IT.** ⛔ A predicate that reads the controller can disagree with what the frame actually
 did — ⚠ **silently, and precisely in the suspend window where nobody would look.**
 📌 Same rule as Batch 96's: *a rail must take its input from the same object the UI takes it from.*
+
+---
+
+### ⭐⭐⭐ `P8` — **"shouldn't the CONTROLLER be the read API?"** *(user, `2026-08-21`)* — and it found a HAZARD
+
+📐 **Two measurements first, one of which corrects `P7`'s framing:**
+
+| # | 📐 measured | ⇒ |
+|---|---|---|
+| **①** | ⛔⛔ **`GlobalTime` is NOT per-view.** `EntityRepository.SyncFrom` copies **five named singletons** *(`SpatialGridData` · `EqsResultPool` · `IEqsTemplateRegistry` · `ICoverProvider` · `INavmeshProvider`)* — ⛔ **`GlobalTime` is not among them.** Snapshots and leased views carry **none** | ⭐ **there IS exactly one time per node** ⇒ ⚠ **hiding the storage behind an API is viable in principle** — my earlier "time is per-view" reasoning was wrong |
+| **②** | ⭐ **modules never read it anyway** — `Tick(view, moduleDelta)` and `Execute(view, deltaTime)` **pass the delta as a PARAMETER** | ⇒ the singleton serves **main-thread readers against the live world**, not module code |
+
+### ⭐⭐ So why not the controller? — **three reasons, none of them "it is stale"**
+
+| ⭐ | |
+|---|---|
+| **①** | ⛔ **it does not retain a delta** *(`P7` ①)* ⇒ a controller-façade would have to **store** one — i.e. become a second storage, which is the thing the façade was supposed to avoid |
+| **②** | ⭐⭐ **it answers a DIFFERENT QUESTION** — *"what has this node's clock done"*, not *"what did the frame the simulation just ran do"*. ⚠ In the suspend window those diverge, **and both are right about their own question** |
+| **③** | ⛔ **it is not the only author** — `TimeSystem` *(`Fdp.Core`)*, `SimHostNodeBootstrapper` and the examples also write the singleton ⇒ the controller cannot be the authority over a value it does not solely produce |
+
+⇒ ⭐⭐⭐ **The model IS "controller produces, kernel publishes, singleton is what the simulation
+experienced" — and it is coherent.** ⛔ **What is missing is a NAMED READ API on the view side**, which is
+why callers hand-roll `HasSingleton`/`GetSingleton`/`DeltaTime > 0` and get it wrong. 📌 That is `RF-1`
+plus a small view-taking helper — ⭐ **a façade over the VIEW, never over the controller.**
+
+### ⛔⛔⛔ AND THE HAZARD THE QUESTION FOUND — **`AS-10`**
+
+📐 **During `PrepareReplay`:** `SetSystemsEnabled(false)` toggles **four named groups** — input, sim,
+postSim, lifecycle *(`ReferenceReplayLoadHandler.SetSystemsEnabled`)* — and `SuspendGlobalTimePush()`
+stops the kernel writing the singleton.
+
+⇒ ⛔⛔ **The singleton then FREEZES AT ITS LAST VALUE, which may carry a NON-ZERO `DeltaTime`.**
+⚠⚠ **So `IsAdvancing` read from the singleton answers TRUE while nothing is advancing** — ⭐ and a
+`PreFrame` drain system is **in none of those four groups**, so it keeps running.
+
+| ⭐ the fix, and it is small | |
+|---|---|
+| ⭐⭐⭐ **the drain gates on its `deltaTime` PARAMETER, not on the singleton** | 📐 `ExecutePhase(phase, _liveWorld, deltaTime)` hands every system the kernel's **real** per-frame delta, ⛔ and the suspension does not touch it |
+| ⚠ **residual, and ACCEPTED rather than hidden** | during replay preparation the parameter still reads *advancing* ⇒ a staged edit can be drained into a world replay is about to overwrite. ⭐ **The edit is LOST, not corrupted**, and only if the designer starts a replay between editing and resuming. ⛔ **Named, not fixed** — a guard needs `_globalTimePushSuspended` exposed, which is a kernel API change this slice does not earn |
+
+📌 **This is the second time a "which source?" question has produced a defect** — ⭐ the first was `M-42`.
+⚠ **Both were found by asking where a value comes from, not by reading what it is called.**
 
 ---
 
