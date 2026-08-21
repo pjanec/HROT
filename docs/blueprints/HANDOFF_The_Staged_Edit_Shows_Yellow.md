@@ -84,20 +84,20 @@ classDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant U as Edit (OK)
+    participant U as Edit OK
     participant C as VariableEditCommit
     participant M as VariableChangeMonitor
-    participant S as VariableRowSampler (each Draw)
+    participant S as VariableRowSampler
     participant T as VariableTableControl
 
-    U->>C: commit (typed bytes)
-    C->>M: MarkPending(origin, typedBytes)   [on LiveWriteOutcome.Landed]
-    Note over S,T: next Draw — no tick needed (dt=0)
-    S->>M: IsPending? → yes ⇒ return typedBytes as the cell value
-    T->>M: Observe → RowHighlight.Pending ⇒ 🟡 yellow
-    Note over S,T: later — a REGULAR tick (dt>0) samples the real value
-    S->>M: pulse moved ⇒ ClearPending(origin); optimistic cache dropped
-    T->>M: Observe → not Pending ⇒ normal colour (confirmed)
+    U->>C: commit with typed bytes
+    C->>M: MarkPending on Landed
+    Note over S,T: next Draw, no tick needed at dt=0
+    S->>M: IsPending yes, so cell value is the typed bytes
+    T->>M: Observe returns Pending, paints yellow
+    Note over S,T: later a regular tick at dt>0 samples the real value
+    S->>M: pulse moved, ClearPending, drop optimistic cache
+    T->>M: Observe not Pending, normal colour confirmed
 ```
 
 ## 4. ⭐⭐ THE CHANGE
