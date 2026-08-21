@@ -34,9 +34,9 @@ re-dispatched: 2026-08-21 under rule 1a, TWICE — 104f rewritten (its probe mea
 > sounds alarming… is that correct?")* — ⛔ **it was not correct, and the claim is withdrawn.**
 > ⭐⭐ **The INSTRUCTION did not change**; only the explanation behind it. 📄 `DESIGN_… §3 AS-1b`.
 
-> 📌 **Dispatched at `3a8690375`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** —
+> 📌 **Dispatched at `e982386d1`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** —
 > documents that change after it are **FYI ONLY**.
-> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 104 at 3a8690375` FIRST.**
+> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 104 at e982386d1` FIRST.**
 > ⭐⭐ **`R-106`: a blocked item stops THAT ITEM, never the batch. Five verdicts.**
 > ⭐ `quick-check.sh` while working; the FULL gate table ONCE, at the end *(`M-37`)*.
 
