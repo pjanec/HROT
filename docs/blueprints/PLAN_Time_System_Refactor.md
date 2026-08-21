@@ -2,7 +2,8 @@
 state: LIVE
 build-state: DESIGN
 updated: 2026-08-21
-current-answer: §2 is the task list. §1 is the gate that blocks all of it.
+current-answer: §1b is the NECESSITY ANALYSIS and the recommendation (MIN first).
+  §2 is the task list. §1 is the gate that blocks the big work.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none. This file is the ROADMAP; DESIGN_Time_Architecture.md is the detail.
@@ -58,6 +59,64 @@ still untested.
 
 > ⭐⭐⭐ **`T0` EXIT CRITERION:** `TimeControlIntegrationTests` **6/6 green**, run twice, and the row is in
 > the gate table. ⛔ **Until then no task below may touch a production file in the time stack.**
+
+---
+
+## 1b. ⭐⭐⭐ HOW MUCH OF THIS IS ACTUALLY NECESSARY? — **the honest answer** *(user, `2026-08-21`)*
+
+> 🔒 **User:** *"heretic question: how much is the time refactor necessary?"* ⭐⭐ **Mostly it is not**, and
+> the plan should say so rather than defend itself.
+
+### ⭐ Separate the USER'S BUG from the ARCHITECTURE
+
+📌 **The live failure** is one sentence: *edit a variable while paused → the value does not change.*
+📐 **Measured chain:** run state = `Paused` ✅ → `writeLive` runs ✅ → `TryWriteWorkingStateField`
+**refuses on `_isPaused`** ⛔ *(`AS-3`)*, and even if it staged, **nothing drains** *(`AS-5`)*.
+
+| ⭐ what the bug needs | ⛔ what it does NOT need |
+|---|---|
+| drop the session's write gate *(`W3`)* | ⛔ `T1` `ISimClock` · `T2` the duplicate · `T3`/`T4` the bus and `ITimeCommands` · `T5` the ten notions · `T6` `HaltReason` · `T7` the caches |
+| **and a way for the value to land** | ⛔ **and possibly not `W1`/`W2` either** — see `MIN` |
+
+### ⭐⭐⭐ `MIN` — **the minimal path, and it is ~10 lines**
+
+📐 **Two measurements make a much smaller fix legitimate for the case the user actually hits:**
+
+| 📐 | |
+|---|---|
+| **`P4`** | ⛔ **no threading race** — the runner is one loop; `Direct` strategy is `Synchronous`-only and enforced |
+| **`P6′`** | ⛔⛔ **behaviours do NOT tick at `dt == 0`** — `BlueprintTickSystem:51` · `BTreeTickSystem:55` · `HsmTickSystem:103` |
+
+⇒ ⭐⭐⭐ **In a plain TIME pause with no breakpoint rewind, a DIRECT write sticks and is visible
+immediately.** ⇒ **`MIN` = `W3` + a direct-write arm guarded by `clock halted && !dbm.IsPaused`.**
+⛔ **No `PreFrame` phase. No drain system. No kernel change.** ⇒ ⚠ **and `T0` matters far less**, because
+almost no time-stack code is touched.
+
+| ⚠ `MIN`'s one open probe | ⭐ does a direct write while toolbar-paused actually survive to the next frame? ⛔ **Testable in one rail** — and it is the only thing standing between the user and a working edit |
+|---|---|
+
+### ⛔ WHAT `MIN` DOES **NOT** COVER — **and this is why the rest exists**
+
+| case | ⛔ `MIN` |
+|---|---|
+| **RUNNING** *(dt > 0)* | ⛔ a direct write is overwritten by the next behaviour tick ⇒ **needs staging + a drain** *(`W1`/`W2`)* |
+| **BREAKPOINT-paused** *(rewound)* | ⛔ a direct write is overwritten by the post-tick restore ⇒ **needs the drain, and `W5`** |
+| **BTree / HSM** | ⛔ no live-write path at all yet |
+| **CGF node** | ⛔ 🔒 the stated future requirement — **`T3`/`T4` are for that, not for the editor** |
+
+### ⭐⭐ ⇒ THE RECOMMENDATION
+
+| ⭐ | |
+|---|---|
+| **①** | ⭐⭐⭐ **Do `MIN` first**, as a small fix with one rail. ⭐ **It is the thing that has failed the visual check five times** |
+| **②** | ⭐⭐ **Then `T0`** — the net — because it is cheap, it found a real defect *(`AS-14`)* already, and it is the precondition for anything bigger |
+| **③** | ⚠ **Then decide whether `W1`/`W2` are worth it** — ⭐ they buy the RUNNING and BREAKPOINT cases; ⛔ **if nobody needs to edit a value while the sim runs, they may never be worth a kernel phase** |
+| **④** | ⛔ **`T1`–`T7` are HYGIENE.** ⭐ Real *(twelve notions, a dead flag, a duplicate class)*, ⚠ **but invisible to the user** — 📌 schedule them against the CGF-unification need, **not against this bug** |
+
+⚠⚠ **Stated plainly so the plan cannot quietly justify itself:** ⛔ **the twelve pause notions have never
+produced a user-visible defect on their own.** ⭐ What produced the defect was **`AS-3` + `AS-5`** — one
+gate and one missing drain. 📌 **The inventory work was worth it because it found `M-42`, `AS-14` and
+`AS-10`** — ⛔ **not because twelve is an inherently intolerable number.**
 
 ---
 
