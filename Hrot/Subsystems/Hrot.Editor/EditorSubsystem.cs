@@ -566,6 +566,34 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: exposes the debug snapshot provider (UBP-P10T1).</summary>
         internal DebugSnapshotProvider? BpSnapshotProvider => _bpSnapshotProvider;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>Is the simulation clock HALTED this frame?</b> — <c>DeltaTime == 0</c> on the
+        /// <c>GlobalTime</c> singleton the kernel pushes into the live world every frame.
+        ///
+        /// <para>⛔⛔ <b>This is the ONE reading of the clock that is true.</b> 📐 <c>M-42</c>, measured
+        /// <c>2026-08-21</c>: <c>GlobalTime.IsPaused</c> is <c>TimeScale == 0</c> and a pause never sets
+        /// <c>TimeScale</c> to <c>0</c> — it switches the master to <c>MasterMode.Stepping</c>, whose
+        /// <c>UpdateStepping</c> returns <c>BuildGlobalTime(dt: _pendingStepDelta, …)</c> with
+        /// <c>TimeScale</c> untouched. ⇒ <b>the convenience flag is FALSE while paused</b>, and it has
+        /// zero production readers, which is the only reason that has never bitten.</para>
+        ///
+        /// <para>⚠ <b>And it must be read from the WORLD, not the controller.</b>
+        /// <c>MasterSyncController.GetCurrentState()</c> is <c>BuildGlobalTime(0.0f, 0.0f)</c> — it
+        /// hard-codes the delta to zero, so a delta-based predicate read through it answers
+        /// <i>"halted"</i> forever.</para>
+        ///
+        /// <para>⭐ <c>true</c> when there is no world or no singleton yet: nothing is advancing before
+        /// the first tick, and a surface with no way to observe the clock must not claim the sim is
+        /// running.</para>
+        /// </summary>
+        private bool ClockIsHalted()
+        {
+            var world = _world;
+            if (world is null) return true;
+            if (!world.HasSingletonUnmanaged<GlobalTime>()) return true;
+            return world.GetSingletonUnmanaged<GlobalTime>().DeltaTime <= 0f;
+        }
+
         /// <summary>Internal test hook: exposes the mutation interceptor wired to the entity inspector (UBP-P10T5).</summary>
         internal Fdp.Toolkit.Diagnostics.Gizmos.IMutationInterceptor? BpMutationInterceptor
             => _fdpEntityInspector.Reflector.MutationInterceptor;
@@ -2234,14 +2262,22 @@ namespace Hrot.Editor
                 //    sets the clock's TimeScale to 0 -- and NOTHING here asked the clock. ⇒ the panel
                 //    answered Running, TargetFor(Running) is Nowhere, and the dialog refused with
                 //    "only when the simulation is paused" WHILE IT WAS PAUSED.
-                // ⭐⭐ The authority is the clock, and it already says so: GlobalTime.IsPaused is
-                //    `TimeScale == 0.0f` (Fdp.Core/GlobalTime.cs:66), reached through
-                //    ITimeController.GetCurrentState(). ⛔ Not a new signal -- the one that was there.
-                // ⚠ 📌 THE SILENT-DEFAULT PATTERN AGAIN, and the purest instance yet: this class HOLDS
-                //   _timeController (:687, and exposes it at :556) and handed isFrozen everything BUT.
+                // ⛔⛔⛔ 2026-08-21, CORRECTED THE SAME DAY -- the first version of this third arm was
+                //    `_timeController.GetCurrentState().IsPaused`, and it CAN NEVER BE TRUE. Two
+                //    independent reasons, both measured (M-42):
+                //      (a) GlobalTime.IsPaused is `TimeScale == 0`, and a pause NEVER sets TimeScale
+                //          to 0 -- PauseTimeIntent switches the master to MasterMode.Stepping, which
+                //          returns BuildGlobalTime(dt: 0, ...) with TimeScale UNCHANGED.
+                //      (b) GetCurrentState() is `BuildGlobalTime(0.0f, 0.0f)` -- it hard-codes dt to
+                //          zero, so no delta-based predicate can be read through it either.
+                //    ⚠ The comment it replaced asserted "the toolbar sets the clock's TimeScale to 0".
+                //    That was inferred, not measured, and it was false.
+                // ⭐⭐⭐ The clock's real answer is DeltaTime on the ECS singleton the kernel pushes
+                //    every frame (ModuleHostKernel.UpdateInternal). `_world` IS the kernel's live world
+                //    (:661), so this reads the same struct every system sees this tick.
                 isFrozen: () => (_bpManager?.IsPaused ?? false)
                              || (_bpTimeAdapter?.IsPausedByDebugger ?? false)
-                             || (_timeController?.GetCurrentState().IsPaused ?? false))
+                             || ClockIsHalted())
             {
                 BreakpointManager             = _bpManager,
                 SanitizerRegistry             = sanitizerRegistry,
