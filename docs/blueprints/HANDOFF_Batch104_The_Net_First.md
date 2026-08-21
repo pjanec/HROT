@@ -10,8 +10,8 @@ replaces: HANDOFF_Batch104_The_Write_That_Lands.md (withdrawn under rule 1c, nev
 -->
 # HANDOFF — Batch 104: **make the net work, before anything else**
 
-> 📌 **Dispatched at `<STAMP>`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha.**
-> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 104 at <STAMP>` FIRST.**
+> 📌 **Dispatched at `34deca154`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha.**
+> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 104 at 34deca154` FIRST.**
 > ⭐⭐ **`R-106`: a blocked item stops THAT ITEM, never the batch. Four verdicts.**
 
 > ## ⭐⭐⭐ WHY THIS BATCH EXISTS — **and why the previous 104 was withdrawn**
