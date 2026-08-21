@@ -68,7 +68,7 @@ still untested.
 > | **`T0.3`** | ✅ **done** — the gate row is standing; **run twice, no flake** *(`TM-003`)* |
 > | **`T0.4`** | ⚠ **partial** — `SetTimeScale` + CGF-participation rails added; ⛔ editor-composition deferred to **`T3`** *(it guards the change `T3` makes)* and breakpoint-pause to **`W2`/`W5`** *(the path does not exist yet)* *(`TM-005`)* |
 > | ⭐⭐ **BASELINE FROM NOW ON** | **`TimeControlIntegrationTests` 9/9**, ⛔ not 4/2 |
-> 📄 **[`REPORT_Batch104_The_Net_First.md`](REPORT_Batch104_The_Net_First.md)**
+> 📄 **[`REPORT_Batch104_The_Net_First.md`](batches/REPORT_Batch104_The_Net_First.md)**
 
 ---
 

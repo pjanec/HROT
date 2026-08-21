@@ -1,3 +1,13 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-08-21
+current-answer: the Pull Model for the replay time plane, as IMPLEMENTED intent.
+stale-below: nothing.
+known-rot: none found.
+superseded-by: nothing. ../../blueprints/DESIGN_Time_Architecture.md §12 maps the replay clock onto
+  the current architecture and states there is NO third time authority.
+known-conflict: none.
+-->
 # Replay Time Control - Design
 
 ## Overview

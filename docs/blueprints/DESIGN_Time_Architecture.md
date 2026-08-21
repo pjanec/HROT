@@ -1018,6 +1018,20 @@ and the request is DISCARDED rather than queued.**
 > translators are wired **only** in `SharedApplicationBootstrapper` **phase 6c**, which CGF never runs
 > ⇒ the node holds a `SlaveSyncController` **with nothing connected to it**, while `OrchestratorSubsystem:303`
 > and `ClusterMaster:327` both keep it in the lockstep roster.
+>
+> ### ⭐⭐⭐ AND THE ORIGINAL DESIGN SAYS CGF WAS SUPPOSED TO HAVE THEM — **this was a REGRESSION, not a gap**
+> 📄 **`docs/designs/time-ctrl-unif/docs/DESIGN.md` §4.4**, the design that PRODUCED
+> `MasterSyncController`/`SlaveSyncController`, names the roster in its own heading:
+> > **`SlaveLockstepTranslator` (SimHost, IG, **CGF**)**
+>
+> ⭐ And §3: *"IG, SimHost, and CGF are pure time slaves"*; §5: *"IG, SimHost, and CGF all
+> PLL-synchronise directly to the Orchestrator's pulses over DDS"*; §7's rollout lists
+> *"(Orchestrator, SimHost, **CGF**, IG)"*.
+> ⇒ ⭐⭐ **`TM-002` RESTORES DESIGNED INTENT that the `CgfApplication` → `CgfSubsystem` migration
+> (`EAM-M003`) dropped.** ⛔ **It did not invent a capability**, and the earlier framing — inferred from
+> the roster filter alone — understated it. ⚠⚠ **This citation was found only after the `docs/designs/`
+> import** *(`e2c1348a`)*; ⭐ **the design that answers it had been sitting in `.dev/time-ctrl-unif/`
+> the whole time** — 📌 exactly the corpus the `2026-08-21` rule now sends you to first.
 > ⚠ **`CgfApplication` DID wire them** *(`:118-119`)* — its only caller is a unit test, so **the working
 > copy was the dead one.** ⇒ **phase 6c extracted to `SlaveTimeTranslatorRegistration`, called from both**
 > *(`TM-002`)*, **and the silent discard fixed independently** *(`TM-001`)* — ⛔ fixing only the wiring
