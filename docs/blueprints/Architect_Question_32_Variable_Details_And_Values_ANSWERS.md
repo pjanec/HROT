@@ -530,7 +530,7 @@ freeze binds sessions that will never read *this* document.
 
 ### ⚠ Consequence for the dispatched Batch 56
 
-📌 **[HANDOFF_Batch56](HANDOFF_Batch56_Emitter_Unification.md) §5 says `Hrot.Editor.AiShared` is
+📌 **[HANDOFF_Batch56](batches/HANDOFF_Batch56_Emitter_Unification.md) §5 says `Hrot.Editor.AiShared` is
 *"the CROSS-HOST session's territory — do not touch it."* ⛔ **That RATIONALE is superseded by this
 ruling.** ⭐ **Its SCOPE stands unchanged:** Batch 56 is the emitter unification alone, and it has no
 business in `AiShared` either way. ⛔ **The handoff is NOT amended** — rule 1 — and this note is the

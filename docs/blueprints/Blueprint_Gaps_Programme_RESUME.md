@@ -170,7 +170,7 @@ implementation sessions build. ⚡ Every handoff carries the **Sonnet-delegation
 
 🔀 **Two things run in parallel right now (2026-08-08):**
 1. ✅ **Build — DELIVERED (Batch 22).**
-   [HANDOFF_Batch22_EndToEnd_Smoke.md](HANDOFF_Batch22_EndToEnd_Smoke.md): **BP-109** 🔴 shipped —
+   [HANDOFF_Batch22_EndToEnd_Smoke.md](batches/HANDOFF_Batch22_EndToEnd_Smoke.md): **BP-109** 🔴 shipped —
    two entities · two blueprints · one shared Library function, as recipe assets **plus** a gate test
    that loads those same on-disk files. Runs in **2 seconds**.
    ⭐ **It found what it was built to find, immediately: [BP-110](Blueprint_Issues_Detail.md#bp-110)
@@ -330,7 +330,7 @@ precisely why this check matters.
 | ⚪ Not defects (checked) | `Header: {}` on save is **correct** — `$meta` supersedes it (D-021, `GraphTypes.cs:162`) · `"VariableId": "var:<guid>"` is a **tolerated form by design** (`BlueprintDocumentFactory:1083-1085`) · New-from-Recipe **writing the file before any save** is by design (`NewFromRecipeService` returns an unregistered asset "ready for the host to save and register") · a Return node with **no** value pin in a 0-output function is **correct** — declare an Output in Graph Signature first · ⚠ **adding *Input* params correctly leaves the Return node unchanged** — inputs surface as data-outs on the **entry** node; the Return node reflects **Outputs**. Mistaking this for a bug cost real time, which is BP-85's case in one sentence |
 
 📋 **Fixing these on Windows? Start from
-[HANDOFF_Windows_Fix_Session.md](HANDOFF_Windows_Fix_Session.md)** — self-contained, with the exact fix
+[HANDOFF_Windows_Fix_Session.md](batches/HANDOFF_Windows_Fix_Session.md)** — self-contained, with the exact fix
 for BP-86, what is already ruled out for BP-84, the fixture setup, and the in-editor verification steps.
 
 **🔬 Open question for BP-84:** does closing and reopening the asset heal the pin-less node?

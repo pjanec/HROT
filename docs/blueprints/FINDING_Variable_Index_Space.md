@@ -3,7 +3,7 @@
 > **Coordinator, 2026-08-11**, at the user's request to think it through before implementing.
 >
 > ⚠ **This corrects [Q27](Architect_Question_27_Local_Variables.md)'s ground-truth section and
-> [Batch 37](HANDOFF_Batch37_Local_Variables.md) §6**, both of which called it *"a latent defect,
+> [Batch 37](batches/HANDOFF_Batch37_Local_Variables.md) §6**, both of which called it *"a latent defect,
 > `BP-224`'s shape."* ⭐ **Batch 37 §6 has since been amended** — the user confirmed on `2026-08-12`
 > that no implementation run had picked the handoff up, so rule 1 did not bite. Its instruction *"file
 > it, do not fix it here"* is unchanged; the row's content and severity are what moved. This note is

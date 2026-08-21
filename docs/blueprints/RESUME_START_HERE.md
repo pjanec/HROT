@@ -62,7 +62,7 @@ for all four stores *(`R-105`)*. ⭐ Tracker **open 74 / done 213** · rulings *
 BTree/HSM refuse a live edit *(`BP-364`, a capability)* · a pin does not survive a reload *(`94g`)*.
 
 ✅ **BATCH 99 MERGED** *(`2026-08-20`; ⚠ **a real merge, not ff-only** — my `Q38`/`Q47` docs landed after
-their branch point)* — 📄 **[`REPORT_Batch99_The_Properties_Form.md`](REPORT_Batch99_The_Properties_Form.md)**.
+their branch point)* — 📄 **[`REPORT_Batch99_The_Properties_Form.md`](batches/REPORT_Batch99_The_Properties_Form.md)**.
 
 | item | |
 |---|---|
@@ -108,17 +108,17 @@ been re-run since Batches 96–98 landed. ⭐⭐ **This thread produced ELEVEN r
 
 | # | |
 |---|---|
-| **1** | 🛠 **BATCH 103 IN FLIGHT** — 📄 **[`HANDOFF_Batch103_The_Shared_Layout.md`](HANDOFF_Batch103_The_Shared_Layout.md)**: ⭐⭐ **the user's tuned Windows layout is now the SHIPPED DEFAULT** — `layout/default/{imgui.ini,fdp_windows.json}`, 55 window entries + the full docking tree, **already committed**; the batch WIRES it per the UX session's design. ⭐ Plus a rail that the layout is not stale |
+| **1** | 🛠 **BATCH 103 IN FLIGHT** — 📄 **[`HANDOFF_Batch103_The_Shared_Layout.md`](batches/HANDOFF_Batch103_The_Shared_Layout.md)**: ⭐⭐ **the user's tuned Windows layout is now the SHIPPED DEFAULT** — `layout/default/{imgui.ini,fdp_windows.json}`, 55 window entries + the full docking tree, **already committed**; the batch WIRES it per the UX session's design. ⭐ Plus a rail that the layout is not stale |
 | ⭐⭐ **1z** | **THE UX SESSION'S CORPUS IS MERGED** — `docs/UX/`, **51 files**, design-only and on hold; ⭐ detailing them is ours. ⚠ Their `CLAUDE.md` carried the OLDER architect/SVG rules — **ours won** *(later user rulings)*, and their new prior-art seam-law bullet was taken |
-| **2** | ✅✅ **BATCH 102 MERGED** — 📄 **[`REPORT_Batch102_The_Instance_Write.md`](REPORT_Batch102_The_Instance_Write.md)**. ⭐ All four items, no blocks. ⭐⭐⭐ **A paused edit now lands on an `Instance` blueprint** *(`102a` — and the fix was a CONTRACT change: `RawOffsetBytes` → `ComponentOffsetBytes`, ⛔ they rejected the `−8` cancellation hack as "a lie encoded as arithmetic")* · refusals **name their cause** *(`102b`)* · the harness's cold `dt=0` frame is fixed *(`102c`, `BP-379` closed)* · ⭐⭐ **the SMOKE SUITE EXISTS AND IS GATED** — `Hrot.Smoke.Tests`, its own project *(`102d`)* |
+| **2** | ✅✅ **BATCH 102 MERGED** — 📄 **[`REPORT_Batch102_The_Instance_Write.md`](batches/REPORT_Batch102_The_Instance_Write.md)**. ⭐ All four items, no blocks. ⭐⭐⭐ **A paused edit now lands on an `Instance` blueprint** *(`102a` — and the fix was a CONTRACT change: `RawOffsetBytes` → `ComponentOffsetBytes`, ⛔ they rejected the `−8` cancellation hack as "a lie encoded as arithmetic")* · refusals **name their cause** *(`102b`)* · the harness's cold `dt=0` frame is fixed *(`102c`, `BP-379` closed)* · ⭐⭐ **the SMOKE SUITE EXISTS AND IS GATED** — `Hrot.Smoke.Tests`, its own project *(`102d`)* |
 | ⭐⭐⭐ **1a′** | **T2 CAUGHT A REAL DEFECT ON ITS FIRST RUN** — `blackboard=11, Details "0", Watch "0"`. ⛔ **Not `(pending)`, not an exception — a plausible number.** 📐 Both panels push the run state into their model **from inside `Draw`**, so a headless reader sees `Planning` and renders the INITIAL arm. ⚠ Filed **`BP-385`**; ⭐ the general question *(should `Build()` sync from the source?)* has a blast radius across every table host |
 | ⛔⛔ **1a″** | **`M-38` — `R-69` IS RULED AND THE CODE DOES NOT IMPLEMENT IT.** `isSimUp` reads a **private bool in a nested class** while the editor already stores the real `ClusterState`. ⇒ ⭐⭐ **`VariableRunState.Replay` is consumed and NEVER PRODUCED** — a shipped safety rule that cannot fire. **Next batch's first item** |
 | **1a** | ✅ **BATCHES 100 + 101 MERGED.** ⭐⭐ **`R-124`: the frame rail works** *(8 ran under Xvfb)*. ⭐⭐ **`101c` proved the `N−1` DIRECTION** — the counter and the sim are RIGHT, **the harness's first pump is frozen**; ⛔ the 8 expectations stay untouched. ⛔⛔ **`BP-378`: the 174-test integration suite CANNOT BE GATED — it aborts every run** *(89/75/117 reached; 59–118 OOMs at `EntityRepository..ctor`)* ⇒ ⭐ the smoke suite gets **its own small project** |
 | **1b** | ⭐ **Coordinator-landed fixes since the last check** *(user: "if it is a 5 line fix, do it yourself")*: the **scalar row** *(one row, its own name)* · the **dialog seeding** *(opened at `0` while the row read `312`)* · the **Watch double-click** *(raised Properties from a gesture the host no longer offers)* |
 | **1c** | ⭐⭐⭐ **`M-37` — the small-fix loop is now 8 s, not 80** *(`scripts/quick-check.sh`; RESTORE was the cost, not the tests)*. ⚠ **And the tally: in batches 94–101 not one defect was caught by the ~8 000 regression tests** — every one came from a NEW rail or from the user |
-| **2** | ✅✅ **BATCH 100 MERGED** — 📄 **[`REPORT_Batch100_The_Frame_Rail.md`](REPORT_Batch100_The_Frame_Rail.md)**. ⭐⭐⭐ **THE FRAME RAIL EXISTS AND WORKS**: `Hrot.Editor.UiFrameRail`, **8 rails ran under Xvfb / 8 skipped with no `DISPLAY`**, each printing its reason. ⭐⭐ **It reproduced the defect before the fix** — the production modal measured **259.0 px → 504.0 px**. ⭐ All six items done, no blocks. ⚠ **ONE GAP I FOUND ON MERGE — see `1a`** |
+| **2** | ✅✅ **BATCH 100 MERGED** — 📄 **[`REPORT_Batch100_The_Frame_Rail.md`](batches/REPORT_Batch100_The_Frame_Rail.md)**. ⭐⭐⭐ **THE FRAME RAIL EXISTS AND WORKS**: `Hrot.Editor.UiFrameRail`, **8 rails ran under Xvfb / 8 skipped with no `DISPLAY`**, each printing its reason. ⭐⭐ **It reproduced the defect before the fix** — the production modal measured **259.0 px → 504.0 px**. ⭐ All six items done, no blocks. ⚠ **ONE GAP I FOUND ON MERGE — see `1a`** |
 | ⚠⚠ **`1a`** | ⛔ **THE SCALAR PATH IS STILL UNRAILED, AND ITS COSMETIC HALF IS UNFIXED.** 📐 The width rail's fixture is `struct Counter { public int Count; }` — **a struct** ⇒ it never enters `ScalarEditBox<T>`, which is **the path the user actually hit.** ⭐ The width fix is container-level and applies to both, ⛔ **but the user's other complaint stands**: a scalar variable still opens a collapsible **`ScalarEditBox\`1`** node whose single child is labelled **`Value`**, not the variable's name — 📐 the field's own doc says *"the name is what the designer reads as the row label"*. ⇒ **next batch: label the row with the variable's name, and give the SCALAR path a frame rail** |
-| **1b** | ⭐⭐ **The `2026-08-20` visual check found FIVE defects, all root-caused BEFORE the batch was written** — 📄 **[`FINDINGS_VisualCheck_PostBatch99.md`](FINDINGS_VisualCheck_PostBatch99.md)**. ⚠ **§6 answers *"why is this so slow?"*** — ⛔ every defect lived where no rail could reach; ⭐ `BP-327` is on its **3rd** occurrence and the silent default on its **9th**; ⭐⭐ **and the composition root is the thing that needs the refactor `R-121` already specifies** |
+| **1b** | ⭐⭐ **The `2026-08-20` visual check found FIVE defects, all root-caused BEFORE the batch was written** — 📄 **[`FINDINGS_VisualCheck_PostBatch99.md`](batches/FINDINGS_VisualCheck_PostBatch99.md)**. ⚠ **§6 answers *"why is this so slow?"*** — ⛔ every defect lived where no rail could reach; ⭐ `BP-327` is on its **3rd** occurrence and the silent default on its **9th**; ⭐⭐ **and the composition root is the thing that needs the refactor `R-121` already specifies** |
 | **2** | ⭐⭐⭐ **Then the user re-runs the VISUAL CHECK** *(`R-27`)* — ⭐ the acceptance test first: open `Count4` → right-click `Count` → **"Edit value…"** → type → **OK** → **the value changes**, in **PLANNING** |
 | **3** | ⭐ **AFTER Batch 100 — hand the Properties form a schema so `Name` stops being greyed:** ⭐⭐ **hand the Properties form a schema so `Name` stops being greyed.** 📐 **Measured:** `VariableRowSources`/`BlackboardSectionRowSource` already close over the schema *(`BlueprintVariableSchemaSource : IVariablesSchemaSource`)* ⇒ ⭐ **one more optional row arm, the eighth of the same idiom** — either `Func<IVariablesSchemaSource?>` *(the modal already holds the refactor service)* or a rename delegate taking the service. ⛔ **`Type` stays disabled** — that is a capability, not wiring |
 | **4** | ⭐⭐⭐ **the `Q38`/`Q47` BUILD DESIGN IS WRITTEN** — 📄 **[`DESIGN_Details_Panel_View_Switching.md`](DESIGN_Details_Panel_View_Switching.md)**: six layers `L0`–`L6`, every seam measured, the dependency graph, and **three questions it deliberately does not answer** *(§7)*. ⛔ **`R-27` still gates the first batch on the visual check** |
@@ -193,7 +193,7 @@ asset/graph)*, what stays out, what retires. ⭐ **16 editor windows → 5 + N p
 
 | ⭐ | |
 |---|---|
-| ⭐⭐⭐ **the visual check RE-RUN** | 📄 [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ⚠ **FIX THE GUIDE FIRST**: four rows were MY errors *(`D1`'s `⋮`, `C7`, `E2`–`E7`, `C2`)* — 📄 [`FINDINGS_VisualCheck_PostBatch86.md`](FINDINGS_VisualCheck_PostBatch86.md) |
+| ⭐⭐⭐ **the visual check RE-RUN** | 📄 [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ⚠ **FIX THE GUIDE FIRST**: four rows were MY errors *(`D1`'s `⋮`, `C7`, `E2`–`E7`, `C2`)* — 📄 [`FINDINGS_VisualCheck_PostBatch86.md`](batches/FINDINGS_VisualCheck_PostBatch86.md) |
 | ⭐⭐ **task groups `A` / `B` / `C`** | 📄 `PLAN_Remaining_Work.md` rev 31/32 — **no ids allocated** *(rule 3)*. ⭐ Suggested first: **`B5`** *(readable seed name)* + **`A3`** *(render node-owned rows by owner)* |
 | ⭐⭐ **task group `D`** *(NEW, rev 33)* | ⭐⭐⭐ **`D3` is RULED — WIRE the orchestrator emitters** *(`R-99`, user `2026-08-19`)*. ⭐ **`D-a`** wire the emit · **`D-b`** pass `InspectorWindow`'s `subAssetResolver` *(silent-default, 13th instance)* · **`D-c`** `PARAMETER SYNCHRONIZATION` as a Details toolbar toggle, ⛔ **last** · **`D-d`** ⛔ Approach A stays in the table. ⚠ **`M-19` carries the measurement; `M-20` is an unconfirmed lead** *(do alias bindings persist at all?)* |
 | ⭐ **`Q44-B` before `Q38-E` step 1** | ⛔ otherwise the watch merge merges a heterogeneous surface |
@@ -399,7 +399,7 @@ fix: `SetComponentFieldRaw(entity, typeId, byteOffset, src, size)` in `Fdp.Core`
 > ⭐ **`BP-226` is now expected to DISSOLVE into the unification** rather than be patched — stage C.
 >
 > ✅ **Batch 38 VERIFIED AND MERGED at `27ebe8dc`** (§7j) — ⭐⭐ **the design review, and it changed
-> the design.** 📄 **[REVIEW_Unified_Variable_Design.md](REVIEW_Unified_Variable_Design.md)** —
+> the design.** 📄 **[REVIEW_Unified_Variable_Design.md](batches/REVIEW_Unified_Variable_Design.md)** —
 > verdict **build it, with four named changes and a re-ordered plan**.
 > ⭐⭐ **`C` moves to FIRST** (4 call sites, needs nothing from D, closes `BP-226`).
 > 🔴 **`BP-228`** any dotted string compiles ⇒ **stage B′ blocked** · 🔴 **`BP-230`** the shared table's
@@ -414,7 +414,7 @@ fix: `SetComponentFieldRaw(entity, typeId, byteOffset, src, size)` in `Fdp.Core`
 >
 > ⏭ **Batch 39 dispatched (`ade79865`) — RE-SCOPED:** merge and close out that work, then build the
 > authoring half. ⛔ **Not a rebuild.**
-> ⏭ **Batch 40 dispatched — [review the unification TASK PLAN](HANDOFF_Batch40_Unification_Plan_Review.md).**
+> ⏭ **Batch 40 dispatched — [review the unification TASK PLAN](batches/HANDOFF_Batch40_Unification_Plan_Review.md).**
 > 📄 **[PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md)** — **14 tasks with
 > headless gates**, batches **41–49**. ⭐ **`U-1` builds a golden-corpus harness FIRST**, because every
 > later task's success condition is *"the output did not change"* and that is unfalsifiable without
@@ -721,19 +721,19 @@ tracker records the method, including that the *refuted* row sits **outside** th
 
 ---
 
-> ⏭ **Batch 42 dispatched — [finish `BP-57`, wiring what Batch 41 built](HANDOFF_Batch42_Local_Variables_Wiring.md).**
+> ⏭ **Batch 42 dispatched — [finish `BP-57`, wiring what Batch 41 built](batches/HANDOFF_Batch42_Local_Variables_Wiring.md).**
 > ⭐⭐ **`BlueprintLocalVariableSchemaSource` is complete and ORPHANED** — `grep` finds nothing that
 > constructs it outside its tests. ⇒ **this batch is mostly WIRING**: the section that projects it,
 > a delete that uses the reference count Batch 41 built and left unused, and ⛔ **undo, which no
 > locals gesture has at all today.** §4 (the badge) moves the two NodeEdit gates and is the stop point.
 
-> ⏭ **Batch 43 dispatched — [ONE ITEM: the Local Variables section](HANDOFF_Batch43_Local_Variables_Section.md).**
+> ⏭ **Batch 43 dispatched — [ONE ITEM: the Local Variables section](batches/HANDOFF_Batch43_Local_Variables_Section.md).**
 > ⛔⛔ **Asked for twice, skipped twice — and the common factor is mine:** I marked it *"🟢 Sonnet takes
 > the section wiring"* both times. ⇒ ⭐ **one item, on Opus, delegated to nobody, nothing else in the
 > batch.** ⭐⭐ **It is the last thing between `BP-57` and closed** — source, count, refusal and undo
 > are all built; there is simply nowhere to declare a local.
 
-> ⏭ **Batch 44 dispatched — [`U-1` the golden harness, then `U-2` the first thing it protects](HANDOFF_Batch44_Golden_Harness_And_Compiler_Ownership.md).**
+> ⏭ **Batch 44 dispatched — [`U-1` the golden harness, then `U-2` the first thing it protects](batches/HANDOFF_Batch44_Golden_Harness_And_Compiler_Ownership.md).**
 > ⭐⭐ **The `U-` sequence opens.** `U-1` ships **no product change**: it records `StructureHash`, every
 > emitted struct field and the diagnostic multiset across the 42-asset corpus, plus the generated source
 > **as files**, because *"a hash names the asset; a stored file names the LINE."* ⭐ **Every later `U-`
@@ -743,7 +743,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > visual check is unavailable.** ⭐ **Reuses `TestData.ReadOrRegenerateSnapshot`; the three existing
 > `*EmitGoldenTests` are the precedent, so `U-1` is the sweep they imply, not a new concept.**
 
-> ⏭ **Batch 45 dispatched — [`U-3`: `(kind, index)`, and it closes `BP-226`](HANDOFF_Batch45_Kind_Index.md).**
+> ⏭ **Batch 45 dispatched — [`U-3`: `(kind, index)`, and it closes `BP-226`](batches/HANDOFF_Batch45_Kind_Index.md).**
 > ⭐⭐ **The first task the net was built for** — its Pass 1 is *"golden unchanged"*, which only became
 > a real assertion yesterday. ⭐ **Coordinator finding added to the handoff and NOT in `BP-226`'s row:**
 > `VarFieldName`'s `WorkingState` branch tests `index < ws.Count` and reads **`ws[index]`** — ⛔ **the
@@ -753,7 +753,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > "golden unchanged" alone would also pass a refactor that fixed nothing.** ⇒ ⭐ **Pass 2 and Pass 3
 > must be asserted RED before the change.**
 
-> ⏭ **Batch 46 dispatched — [`U-4` + `U-5`: the editor's turn at the same defect](HANDOFF_Batch46_Third_Source_And_Honesty.md).**
+> ⏭ **Batch 46 dispatched — [`U-4` + `U-5`: the editor's turn at the same defect](batches/HANDOFF_Batch46_Third_Source_And_Honesty.md).**
 > ⭐⭐ **`U-3` killed an untagged `int` in the compiler; `U-4` kills a two-valued `bool` over the same
 > three-list model in the editor** — `BlueprintVariableSchemaSource(asset, bool isParams, …)`, with ten
 > branches riding it and ⛔ **`Variables` not representable at all.**
@@ -763,7 +763,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > the surface must **say so**, not implement a setter.
 > ⚠ **This is the one batch since 38 that SHOULD move the AiShared gate (1213).**
 
-> ⏭ **Batch 47 dispatched — [`U-7` + `U-8`: the type-existence rail, then the picker](HANDOFF_Batch47_Type_Existence_Rail.md).**
+> ⏭ **Batch 47 dispatched — [`U-7` + `U-8`: the type-existence rail, then the picker](batches/HANDOFF_Batch47_Type_Existence_Rail.md).**
 > ⚠⚠ **ORDER SWAP:** these are the plan's *"batch 48"* tasks, **pulled ahead of `U-6`/`U-13`/`U-16`**,
 > which hard-require the visual check. ⭐ **Nothing depends on the order** — `U-8` needs `U-7`; `U-6`
 > needs `U-4`/`U-5`, which are done.
@@ -773,7 +773,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > 📐 **Still open and handed to them: does the EDITOR get an oracle at all?** ⭐ The review's lean is
 > yes; ⛔ **`U-7` alone is shippable if wiring it reaches past `CompileOptions`.**
 
-> ⏭ **Batch 48 dispatched — [`U-9`: the tagged declaration](HANDOFF_Batch48_Tagged_Declaration.md).**
+> ⏭ **Batch 48 dispatched — [`U-9`: the tagged declaration](batches/HANDOFF_Batch48_Tagged_Declaration.md).**
 > ⛔⛔ **The one rule: the tag must NOT reach JSON.** The serializer keeps writing the old three-list
 > shape byte for byte, or `U-9` and `U-10` collapse and the migrator loses its own revert.
 > ⭐ **Coordinator finding, from `Declarations.cs` and not in the plan:** `ParameterDecl` and
@@ -784,7 +784,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > reddens NOTHING**: not the golden corpus, not the round-trip, not the build. Same reason `BP-226`
 > hid behind `BP1024`/`BP1031`.
 
-> ⏭ **Batch 49 dispatched — [`U-15` + `U-10`: canonicalise, then migrate](HANDOFF_Batch49_Canonicalise_And_Migrate.md).**
+> ⏭ **Batch 49 dispatched — [`U-15` + `U-10`: canonicalise, then migrate](batches/HANDOFF_Batch49_Canonicalise_And_Migrate.md).**
 > ⚠⚠ **The plan calls `U-10` *"the risky one"*, and it is the only batch whose ⛔ REVERT IS CODE IT
 > SHIPS** — `git revert` does not undo a migration; the **down-migrator is the revert**.
 > ⭐⭐ **`U-15` is also the first task since 44 that deliberately CHANGES shipped files**, and the golden
@@ -796,7 +796,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > **and** the envelope, or just the envelope? ⚖️ **Lean: envelope only** — a store flip belongs after
 > `U-11` has moved the ~34 consumers.
 
-> ⏭ **Batch 50 dispatched — [`U-11` + `U-14`: move the consumers, then the names](HANDOFF_Batch50_Consumers_And_Uniqueness.md).**
+> ⏭ **Batch 50 dispatched — [`U-11` + `U-14`: move the consumers, then the names](batches/HANDOFF_Batch50_Consumers_And_Uniqueness.md).**
 > ⭐⭐ **On the critical path** — `U-10`'s wiring cannot finish until `U-11` → `U-12` land.
 > ⭐ **Two coordinator findings handed over:** ⛔ **`BlueprintVariablesWindow.cs` holds the SOURCE
 > (`:45`, survives `U-16`) and the WINDOW (`:377`, retired BY `U-16`)** — the plan's *"a rewrite, not a
@@ -806,7 +806,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > (`EventDispatcherDecl.Parameters` is a different `Parameters`), so **46 is an upper bound**; the real
 > semantic count is theirs to report before sweeping.
 
-> ⏭ **Batch 51 dispatched — [`U-11`'s editor bucket](HANDOFF_Batch51_Editor_Bucket.md), alone.**
+> ⏭ **Batch 51 dispatched — [`U-11`'s editor bucket](batches/HANDOFF_Batch51_Editor_Bucket.md), alone.**
 > ⭐ **~50 refs across 8 files**, coordinator-counted; ⚠ **`BlueprintVariablesWindow.cs` has the most
 > (18) and should be touched LEAST** — the source at `:45` survives `U-16`, the window at `:377` does
 > not. ⭐⭐ **The gate that matters is a GREP ASSERTION: nothing under `Hrot.Blueprints.Editor` reads the
@@ -814,14 +814,14 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > not a belief.** ⚖️ **`U-12` deliberately NOT paired** — it carries three rail restatements **and** the
 > store flip; two revert stories in one batch.
 
-> ⏭ **Batch 52 dispatched — [§1 the RED gate, then `U-12`](HANDOFF_Batch52_Red_Gate_And_Rails.md).**
+> ⏭ **Batch 52 dispatched — [§1 the RED gate, then `U-12`](batches/HANDOFF_Batch52_Red_Gate_And_Rails.md).**
 > ⛔⛔ **`U-12` does not start until the suite is green** — a store flip cannot be verified against two
 > known failures. ⭐ **Two decisions handed over:** the test's preload *(the `BP-236` precedent)*, and
 > ⭐⭐ **the compiler's silent guard, which is the real defect.** ⚖️ **Lean: both.**
 > ⭐ **Plus a sweep, because three-in-three is a class:** what else passes only because something else
 > ran first?
 
-> ⏭ **Batch 53 dispatched — [the STORE FLIP](HANDOFF_Batch53_Store_Flip.md), one item.**
+> ⏭ **Batch 53 dispatched — [the STORE FLIP](batches/HANDOFF_Batch53_Store_Flip.md), one item.**
 > ⭐ **Their own framing is the brief:** the three properties must stop being **storage** while
 > remaining **the serialized shape** — serialization-only projections over the tagged store.
 > 🔴🔴 **Pass 1 is `persistence-shape.txt` unchanged**, and ⛔ **its failure mode is not a red test — it
@@ -830,7 +830,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > silently holding shut?** ⚠ **And there is no clean mid-flip stop** — if it does not fit, stop before
 > starting it.
 
-> ⏭ **Batch 54 dispatched — [`U-10`'s WIRING](HANDOFF_Batch54_Migrator_Wiring.md), the LAST task in the
+> ⏭ **Batch 54 dispatched — [`U-10`'s WIRING](batches/HANDOFF_Batch54_Migrator_Wiring.md), the LAST task in the
 > `D` programme.** ⭐⭐ **The only batch where `persistence-shape.txt` is ALLOWED to move** — once,
 > deliberately, diff reviewed. ⚠ **Two live obstacles, both theirs:** 🔴 **`BP-235`**, the
 > netstandard2.0 wall between the generator and the migration framework, and ⚠ **`ClusterRunner
@@ -840,7 +840,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > fixtures can.**
 
 > ⭐⭐ **CROSS-HOST DESIGN REVIEWED AND ACCEPTED IN FULL** *(`2026-08-14`)* —
-> 📄 **[REVIEW_Behavior_Asset_Parameter_Model.md](REVIEW_Behavior_Asset_Parameter_Model.md)**, against
+> 📄 **[REVIEW_Behavior_Asset_Parameter_Model.md](batches/REVIEW_Behavior_Asset_Parameter_Model.md)**, against
 > `claude/cross-host-variable-model-3k8cfh` @ `24fe008`. **Verdict: build it**, with four corrections;
 > ⭐ **they verified all four independently and applied them at `b02ddb1`.**
 > 🔴🔴 **The one that mattered:** their `[FieldOffset]` step claimed *"byte-stable"* — ⛔ **golden Tier 1
@@ -880,7 +880,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > added in **`JM-P3-003`** when the Blueprint format is bumped to version 2"* ⇒ **the bump is a
 > pre-existing planned work item, not this programme's invention.**
 >
-> ⏭ **Batch 55 dispatched — [ALL THREE of `Q31`'s steps](HANDOFF_Batch55_Schema_Assembly_And_Registry.md).**
+> ⏭ **Batch 55 dispatched — [ALL THREE of `Q31`'s steps](batches/HANDOFF_Batch55_Schema_Assembly_And_Registry.md).**
 > ⭐⭐⭐ **THE BUMP IS RELEASED — user ruling `2026-08-14`:** *"new assembly is fine, go ahead with step
 > 3, assets saved in git so all is reversible."* ⇒ **`U-10` closes in this batch**, and with it the
 > last task in the `D` programme.
@@ -1145,11 +1145,11 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > *(+ [access-stack SVG](DESIGN_Variable_Access_Stack.svg))* — ⭐ **that is what gets built;**
 > `Q32_…_ANSWERS` keeps the 16 rulings, the derivations and the coordinator's corrected errors.
 >
-> ⏭ **Batch 57 dispatched — [`S1`, AiPrimitive state metadata](HANDOFF_Batch57_AiPrimitive_State_Metadata.md).**
+> ⏭ **Batch 57 dispatched — [`S1`, AiPrimitive state metadata](batches/HANDOFF_Batch57_AiPrimitive_State_Metadata.md).**
 > ⛔ **RUNS AFTER 56.** ⭐ **User ruling: pulled ahead of the panel work**, because without it the value
 > column is dead for every AiPrimitive asset and it would surface mid-panel-batch as a mystery.
 >
-> ⏭ **Batch 56 dispatched — [the EMITTER UNIFICATION](HANDOFF_Batch56_Emitter_Unification.md).**
+> ⏭ **Batch 56 dispatched — [the EMITTER UNIFICATION](batches/HANDOFF_Batch56_Emitter_Unification.md).**
 > ⭐⭐ **`U-12` made the mixture legal at Stage 2 and nobody told the emitters:** `InstanceEmitter`
 > walks `Variables` only, `AiPrimitiveEmitter` walks `WorkingState` only, while `Stage5:4137`
 > **resolves across both concatenated** ⇒ 🔴🔴 **a wrong-side declaration is either a Roslyn error
@@ -1169,7 +1169,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > unverified panel surface, and that is the coordinator's reason for not dispatching it unasked.**
 >
 > ⭐⭐⭐ **THE CROSS-HOST PROGRAMME WAS HANDED TO THIS COORDINATOR** *(`2026-08-15`)* — 📄
-> **[`HANDOFF_Cross_Host_Parameter_Model.md`](HANDOFF_Cross_Host_Parameter_Model.md)** on
+> **[`HANDOFF_Cross_Host_Parameter_Model.md`](batches/HANDOFF_Cross_Host_Parameter_Model.md)** on
 > `claude/cross-host-variable-model-3k8cfh` @ **`a01c583dd`**: **13 work items `W1`–`W13`**, design
 > complete and reviewed, ⛔ **nothing built.** 📄 **Coordinator response:
 > [`PLAN_Cross_Host_Sequencing.md`](PLAN_Cross_Host_Sequencing.md).**
@@ -1271,7 +1271,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⚠ **They also flagged my dispatch expectation as wrong:** I predicted every asset would LOSE a
 > registration line; **under routing no registration is lost** — 30 projections change shape instead.
 >
-> ⏭ **Batch 64 dispatched — [read the design record FIRST](HANDOFF_Batch64_Design_Record_Sweep.md).**
+> ⏭ **Batch 64 dispatched — [read the design record FIRST](batches/HANDOFF_Batch64_Design_Record_Sweep.md).**
 > ⭐⭐⭐ **Item ONE is a `.dev/` SWEEP of the REMAINING plan** *(`S2`–`S5`, Track C, `W8`–`W12`)*, reported
 > as **item → record → confirms / refines / CONTRADICTS**, ⛔ **with a STOP-and-report if any record
 > contradicts a dispatched design.** ⚠ **Timeboxed, and an honest "I did not cover W" is the
@@ -1304,7 +1304,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⇒ ⛔ **Not a bound to add — `W13`, found from the other end.** ⭐ **The design session predicted the
 > duplication; they measured why it is dangerous and that nothing binds it. Two routes, one answer.**
 >
-> ⏭ **Batch 63 dispatched — [retire the standalone stride path](HANDOFF_Batch63_Retire_The_Stride_Path.md).**
+> ⏭ **Batch 63 dispatched — [retire the standalone stride path](batches/HANDOFF_Batch63_Retire_The_Stride_Path.md).**
 > ⚖️ **Lean: DELETE, on `W3`'s precedent** *(unreachable AND dangerous)*, ⭐ **with the rail stated as an
 > ABSENCE** — their own `W3` wording: naming the literal *"would pass again the moment someone
 > reintroduced the mechanism at 300."* 📐 **But answer first: WHY is `BTreeTick@0` emitted at all?** —
@@ -1354,7 +1354,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > race in an assembly their diff does not touch; races do not respect commit boundaries.**
 > ⚠ **FIFTH order-dependent/racy result in this programme** — it undermines every gate.
 >
-> ⏭ **Batch 62 dispatched — [`BP-251`, then the rest of 61](HANDOFF_Batch62_Param_Slot_Bound.md).**
+> ⏭ **Batch 62 dispatched — [`BP-251`, then the rest of 61](batches/HANDOFF_Batch62_Param_Slot_Bound.md).**
 > ⭐⭐ **Ordered by DEPENDENCY, not severity: step 0 measures `BP-251` reachability** *(cheap, depends on
 > nothing, may change the batch)*, **then `S2`** — ⭐⭐⭐ **moved AHEAD of the fix because `BP-251`'s gate
 > needs the size oracle `S2` builds** — then `BP-251`, then `W6`/`W7`, then the race.
@@ -1370,7 +1370,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > five items and a guess"* — plus **one commit per item**, which is what made attribution work across
 > 56/58/57/59.
 >
-> ⏭ **Batch 61 dispatched — [the REST OF PHASE A, five items](HANDOFF_Batch61_Phase_A_Remainder.md).**
+> ⏭ **Batch 61 dispatched — [the REST OF PHASE A, five items](batches/HANDOFF_Batch61_Phase_A_Remainder.md).**
 > ⭐⭐ **Run 60 THEN 61 back to back, no return in between.** Order: **`BP-247` → `W5` → `W6` → `W7` → `S2`**.
 > ⛔⛔ **TWO PRE-DISPATCH CATCHES, one of which would have wasted their run:**
 > 🔴🔴 **`W5`'s instruction — *"fold in the duplicated constant"* — is NOT BUILDABLE.**
@@ -1389,7 +1389,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ships**, because ruling 5's stopped half writes the initial value to JSON ⇒ a designer typing `0.5`
 > gets `CS0664` naming a generated file they have never seen.
 >
-> ⏭ **Batch 60 dispatched — [`W2` + `W4`, the runtime layout gate and the layout it guards](HANDOFF_Batch60_Runtime_Layout_Gate.md).**
+> ⏭ **Batch 60 dispatched — [`W2` + `W4`, the runtime layout gate and the layout it guards](batches/HANDOFF_Batch60_Runtime_Layout_Gate.md).**
 > ⭐⭐⭐ **Coordinator-measured and it makes the batch cheap: ZERO shipped `.bp.json` declares a
 > `Vector3`/`Vector2`/`Vector4`/`Quaternion` variable** ⇒ ⛔ **no field moves, no `StructureHash` moves,
 > NO blackboard re-init hazard — the cheapest moment this change will ever have.** ⚠ **But the types ARE
@@ -1427,7 +1427,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐ **survives as the SERIALIZED shape** after the `U-12` store flip. ⚠ **New code must still target the
 > union** ⇒ **binds `W8`, `W10`, `W13`.**
 >
-> ⏭ **Batch 58 dispatched — [`W1`, the hashed-id collision gate](HANDOFF_Batch58_Hashed_Id_Collision_Gate.md).**
+> ⏭ **Batch 58 dispatched — [`W1`, the hashed-id collision gate](batches/HANDOFF_Batch58_Hashed_Id_Collision_Gate.md).**
 > ⛔ **AFTER 56, BEFORE 57** (Option A). ⭐ **ONE ITEM, ALONE** — the design session's own condition.
 > ⭐⭐ **TWO silent no-op mechanisms, one rail, both coordinator-verified:** 🔴 **reserved values —
 > `HsmKernelCore` guards FIVE call sites with `!= 0 && != 0xFFFF` and `GlobalTransitionDef:19` says
@@ -2361,7 +2361,7 @@ My *"one file, one lane"* description of that batch was wrong.
 
 ### ⏭ Batch 41 is dispatched — and it is NOT a `U-` task
 
-📄 **[HANDOFF_Batch41_Local_Variables_Authoring.md](HANDOFF_Batch41_Local_Variables_Authoring.md)** —
+📄 **[HANDOFF_Batch41_Local_Variables_Authoring.md](batches/HANDOFF_Batch41_Local_Variables_Authoring.md)** —
 ⭐⭐ **its §1 is the load-bearing instruction: build the locals model as an `IVariablesSchemaSource`
 so the unification ABSORBS it instead of undoing it**, while ⛔ **NOT adding a member to that
 interface** (that is `U-5`'s `V2`, and it would move the AiShared gate).
@@ -2421,7 +2421,7 @@ building: scoping `BP1670` to `Get`/`SetVariableNode` refuses nothing that ships
 | | |
 |---|---|
 | ⚠ **`claude/batch39-locals-preserved` still exists** | the handoff asked for it to be deleted once merged. **Harmless; the content is in the mainline.** Delete when convenient |
-| 🔴 **The task plan is now stale in one place** | ⭐ **`IrAsset` has a FOURTH list — `GraphLocalSlots` — and it is in `StructureHash`.** [`PLAN`](PLAN_Variable_Unification_Tasks.md)'s `U-9`/`U-10`/`U-11` are scoped against **three**. ⛔ **Not amended: the plan is the artifact [Batch 40](HANDOFF_Batch40_Unification_Plan_Review.md) reviews, and that handoff is dispatched and seen.** Its §3.6 points straight at it |
+| 🔴 **The task plan is now stale in one place** | ⭐ **`IrAsset` has a FOURTH list — `GraphLocalSlots` — and it is in `StructureHash`.** [`PLAN`](PLAN_Variable_Unification_Tasks.md)'s `U-9`/`U-10`/`U-11` are scoped against **three**. ⛔ **Not amended: the plan is the artifact [Batch 40](batches/HANDOFF_Batch40_Unification_Plan_Review.md) reviews, and that handoff is dispatched and seen.** Its §3.6 points straight at it |
 
 ---
 
@@ -2470,7 +2470,7 @@ the correct trade, and the escalation was the right shape: act, then flag it.**
 gates **cannot** have moved. Confirmed: build **0 errors** · Blueprints **3243** / 0 / 10 skipped ·
 counts clean on arrival (**seventh** batch running) · **6 rows filed** (`BP-228`…`BP-233`), 57 → 63 open.
 
-📄 **[REVIEW_Unified_Variable_Design.md](REVIEW_Unified_Variable_Design.md)** · verdict:
+📄 **[REVIEW_Unified_Variable_Design.md](batches/REVIEW_Unified_Variable_Design.md)** · verdict:
 ⭐ **build it — with four named changes and a re-ordered plan.**
 
 ### ⭐⭐ The two findings that change the plan
@@ -2877,7 +2877,7 @@ that step is not optional.
 
 ## 7a · Batch 29 as dispatched — the handoff
 
-📄 **[HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md](HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md)**
+📄 **[HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md](batches/HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md)**
 — ⛔ **frozen** (rule 1). Three headless halves; every coordinate in it verified against this tree.
 
 | | Item | Shape |
@@ -2927,5 +2927,5 @@ required"* (verified still present). Not yours to edit — **flagged in the Batc
 | [DECISIONS_Authoring_UX.md](DECISIONS_Authoring_UX.md) | **D1-D6** — settled authoring-UX rulings. Every architect question is closed |
 | [Macro_Implementation_Design.md](Macro_Implementation_Design.md) · [Architect_Question_25_Macros.md](Architect_Question_25_Macros.md) | the macro capability, end to end |
 | [FINDING_SetVariable_ValueOut.md](FINDING_SetVariable_ValueOut.md) | the printed-`0` root cause + the data-out audit method |
-| [HANDOFF_Batch28_Silent_Defaults.md](HANDOFF_Batch28_Silent_Defaults.md) | the most recent handoff — **copy its shape**, including §0a's standing rules |
+| [HANDOFF_Batch28_Silent_Defaults.md](batches/HANDOFF_Batch28_Silent_Defaults.md) | the most recent handoff — **copy its shape**, including §0a's standing rules |
 | [RESUME_Coordinator.md](RESUME_Coordinator.md) | historical log, Batches 22-28 |

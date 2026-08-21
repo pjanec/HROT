@@ -241,7 +241,7 @@ using) will be implementing for all hosts, **no other session will implement unt
 
 | lane | first batch | ⭐ |
 |---|---|---|
-| ⭐⭐⭐ **UI lane** *(the existing session, `claude/hrot-implementation-j1jvin`)* | **`MIN`** — 📄 **[`HANDOFF_MIN_The_Toolbar_Pause_Write_Lands.md`](HANDOFF_MIN_The_Toolbar_Pause_Write_Lands.md)** *(dispatched `38deecc9a`)*, then **`Q38` `L0`** | ⭐ it owns the frozen area already; ⭐⭐ **`MIN` is the thing that has failed five visual checks** |
+| ⭐⭐⭐ **UI lane** *(the existing session, `claude/hrot-implementation-j1jvin`)* | **`MIN`** — 📄 **[`HANDOFF_MIN_The_Toolbar_Pause_Write_Lands.md`](batches/HANDOFF_MIN_The_Toolbar_Pause_Write_Lands.md)** *(dispatched `38deecc9a`)*, then **`Q38` `L0`** | ⭐ it owns the frozen area already; ⭐⭐ **`MIN` is the thing that has failed five visual checks** |
 | ⭐⭐ **TIME lane** *(`claude/time-system-refactor-batch-104-gp617x`, started `404f95e9a`)* | **`T0`** — Batch 104 as dispatched | ⭐ self-contained; ⛔ **its only production edit is `AS-14`** |
 
 ⚠ **Coordination cost, stated honestly:** ⭐ **two lanes double the merge and review load on this

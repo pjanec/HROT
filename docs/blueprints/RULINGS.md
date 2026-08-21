@@ -372,16 +372,16 @@ R-94 | docs/blueprints/Architect_Question_43_Blueprint_Authored_Param_Resolver.m
 R-96 | docs/blueprints/Architect_Question_44_Breakpoint_UI_Unification.md | still just a breakpoint so it belongs to one single breakpoint window
 R-97 | docs/blueprints/Architect_Question_44_Breakpoint_UI_Unification.md | APPROVED IN FULL
 R-98 | docs/blueprints/Architect_Question_38_One_Details_Panel.md | the toolbar in the detail window should switch different panels
-R-95 | docs/blueprints/REPORT_Batch87_The_Panel_Obeys_The_Surface.md | not the selection what changes but actually
+R-95 | docs/blueprints/batches/REPORT_Batch87_The_Panel_Obeys_The_Surface.md | not the selection what changes but actually
 R-99 | docs/blueprints/PLAN_Remaining_Work.md | WIRE the orchestrator emitters
-R-101 | docs/blueprints/HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md | A STRING arm hands notation to the provider
+R-101 | docs/blueprints/batches/HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md | A STRING arm hands notation to the provider
 R-102 | docs/blueprints/DESIGN_Variable_Watch_Pinning.md | wired to the bus **by the subsystem**
 R-103 | docs/blueprints/Architect_Question_46_What_A_VariableRow_Means.md | No way comparing rendered text!
-R-104 | docs/blueprints/REPORT_Batch94_The_Watch_Row_Becomes_A_Camera.md | cannot be caught in .NET
-R-106 | docs/blueprints/HANDOFF_Batch97_Editing_A_Scalar_For_Real.md | STOPS THAT ITEM
-R-107 | docs/blueprints/HANDOFF_Batch97_Editing_A_Scalar_For_Real.md | IS THE CHAMELEON SENTINEL
+R-104 | docs/blueprints/batches/REPORT_Batch94_The_Watch_Row_Becomes_A_Camera.md | cannot be caught in .NET
+R-106 | docs/blueprints/batches/HANDOFF_Batch97_Editing_A_Scalar_For_Real.md | STOPS THAT ITEM
+R-107 | docs/blueprints/batches/HANDOFF_Batch97_Editing_A_Scalar_For_Real.md | IS THE CHAMELEON SENTINEL
 R-108 | docs/blueprints/DESIGN_Variable_Details_And_Editing.md | a **properties object** for that declaration kind
-R-109 | docs/blueprints/STEER_Batch98b_Properties_Is_A_Custom_Dialog.md | two of its fields are OPERATIONS, not writes
+R-109 | docs/blueprints/batches/STEER_Batch98b_Properties_Is_A_Custom_Dialog.md | two of its fields are OPERATIONS, not writes
 R-110 | docs/blueprints/Architect_Question_38_One_Details_Panel.md | multiple ones showing same data are possible
 R-111 | docs/blueprints/Architect_Question_38_One_Details_Panel.md | a view is implemented ONCE, supporting multiple modes
 R-112 | docs/blueprints/Architect_Question_38_One_Details_Panel.md | IS IT ABOUT THE CURRENT SELECTION?

@@ -1,6 +1,6 @@
 # PLAN — sequencing the cross-host parameter model into the frozen implementation queue
 
-> **Coordinator response to [`HANDOFF_Cross_Host_Parameter_Model.md`](HANDOFF_Cross_Host_Parameter_Model.md)**
+> **Coordinator response to [`HANDOFF_Cross_Host_Parameter_Model.md`](batches/HANDOFF_Cross_Host_Parameter_Model.md)**
 > *(design session, `claude/cross-host-variable-model-3k8cfh` @ `a01c583dd`, dispatched `b02ddb16`)*
 > **Date `2026-08-15`.** ⛔ **No ids allocated here** (rule 3). `W1`–`W13` stay the handoff's placeholders.
 > ⚠ **Nothing in this document amends Batch 56 or 57** (rule 1) — both are dispatched and frozen.
