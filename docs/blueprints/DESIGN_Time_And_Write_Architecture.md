@@ -31,6 +31,7 @@ Graph `home-user-HROT` @ `ac7860dd8` — **175 663 nodes / 438 004 edges**.
 | Q3 | `trace_path("DataBreakpointManager.DrainPendingMutations", inbound, 3)` | **3** production callers |
 | Q4 | `search_graph(name_pattern=".*(SetComponentFieldRaw\|SetComponentRaw\|SetManagedComponentRaw\|WriteLive\|TryWriteWorkingState\|ApplyEdit\|CommitEdit).*", label="Method")` | **37** |
 | Q5 | reads in full or in the relevant part: `GlobalTime` · `MasterSyncController` · `MasterSyncTimeControllerAdapter` · `DataBreakpointManager` · `DebugSnapshotProvider` · `SystemScheduler` · `ModuleHostKernel` · `ExecutionPolicy` · `SubsystemOrchestrator` · `ClusterUiCache` · `AiTracerCoordinator` · `AiDebugSessionBase` | — |
+| Q7 | `grep` for `SuspendGlobalTimePush` · `SetSingletonUnmanaged(new GlobalTime` · the controllers' private fields | **4 suspend sites · 3+ singleton writers · NO retained delta** |
 | Q6 | ⭐⭐ **an executable rail** — `ThePauseFlagOnTheClockIsFalseWhilePausedTests`, 4 tests | ⭐ **the only claims here that are MEASURED rather than READ** |
 
 ---
@@ -102,6 +103,24 @@ graph TD
 | **`P4`** — is there a THREADING reason anything is unwritable? | ⛔⛔ **NO.** 📐 The runner is one loop — `while (_running) { Update(dt); DrawWorldAll(); DrawUIAll(); }` *(`SubsystemOrchestrator:105-114`)*; `DataStrategy.Direct` is **`Synchronous`-only and ENFORCED** *(`ExecutionPolicy.Validate:148-157`, called at `ModuleHostKernel:246`)*; async modules run on **leased views** and play back at harvest. ⇒ ⭐⭐ **the UI writes between frames with nothing else touching the live repo** |
 | **`P5`** — the BTree/HSM twins | ⛔ **`AS-9`.** Their pause is a UI flag over a no-op coordinator. ⭐ **Good news: no rewind either**, so they are the SIMPLE case once they get a write path |
 | **`P6`** ⭐⭐⭐ NEW | **Do modules tick while paused?** ⛔⛔ **YES.** `ShouldRunThisFrame` **never consults `deltaTime`** — a module at ≥60 Hz runs **every frame**, with `moduleDelta == 0` *(`ModuleHostKernel:614`, `:624`, `ShouldRunThisFrame`)* |
+
+### ⭐⭐ `P7` — **"aren't the controller and the world in sync?"** *(user, `2026-08-21`)*
+
+⭐ **Fair question, and "stale" was the wrong word.** 📐 Measured — **three reasons, and only the second
+is about sync:**
+
+| # | ⭐ reason | 📐 |
+|---|---|---|
+| **①** ⭐⭐⭐ **decisive** | ⛔⛔ **THE CONTROLLER DOES NOT RETAIN A DELTA.** There is no `_lastDelta` field: `Update()` computes `scaledDelta` as a **local**, hands it to `BuildGlobalTime`, and nothing keeps it. ⚠ `_pendingStepDelta` is **not** "the last delta" — it is the **pending** step amount, zeroed the moment it is consumed *(`:425-427`)* | ⇒ ⭐ `GetCurrentState()` **cannot** return a real delta — **there is nothing to return.** ⛔ It is not discarding information; the delta only ever lived in the struct the kernel put in the world |
+| **②** ⚠⚠ **and they genuinely CAN diverge** | ⛔ **`ModuleHostKernel.SuspendGlobalTimePush()`** *(`:131-134`, guard at `:484`)* — wired in **four** places *(`EditorSubsystem:1034`, `CgfSubsystem:428`, `CgfApplication:176`, `NodeBootstrapper:225`)* into `ReferenceReplayLoadHandler`: **suspended on `PrepareReplay`, resumed on `FinalizeReplay`** *(`:237`, `:246`, `:255`)*. ⇒ **during replay preparation the controller advances while the world's singleton is FROZEN** | ⭐⭐ **and in that window the WORLD is the one telling the truth** — because that is what systems read |
+| **③** ⚠ **the singleton has more than one writer** | `TimeSystem:43,124` *(`Fdp.Core`)* · `SimHostNodeBootstrapper:212` · the CarKinem examples — ⛔ **not only the kernel** | ⇒ *"the world's `GlobalTime`"* is **whatever the host last put there**, which is exactly what every ECS system sees |
+
+⇒ ⭐⭐⭐ **The principle is not *"the controller is stale."* It is: READ TIME FROM THE SAME PLACE THE
+SIMULATION READS IT.** ⛔ A predicate that reads the controller can disagree with what the frame actually
+did — ⚠ **silently, and precisely in the suspend window where nobody would look.**
+📌 Same rule as Batch 96's: *a rail must take its input from the same object the UI takes it from.*
+
+---
 
 ### ⛔⛔⛔ `P6` is the one that changes the design — **and it answers the user's question**
 
