@@ -569,6 +569,26 @@ existed.** ⇒ ⛔ **The gate manufactured confidence and I spent it.**
 | **①** | ⭐⭐ **Enumerate the code surface with codebase-memory** *(`search_graph`)* — ⛔ **`grep` can only CONFIRM a guess; it cannot enumerate** |
 | **②** | ⭐⭐ **Read the NON-SUPERSEDED design markdowns** for the area — ⛔ check each `STATUS` header before quoting it |
 
+### ⛔⛔⛔ THE INTENT IS IN THE DESIGN DOC, NOT THE CODE — **read it BEFORE you touch or design a change** *(user, `2026-08-21`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"you failed to read existing designs before touching or designing changes to
+> related existing features … you need to make sure you know the intents BEFORE changing stuff. intents
+> are not in code. they are in design docs. code is usually behind."*
+
+⛔⛔ **This is the MOST GENERIC rule and it governs every batch and every design.** 📌 **The case:** I
+designed a `LiveWriteFrame` re-sample clock for the watch row after reading only the sampler code and a
+few ledger rows — the intent *(optimistic yellow display, already BUILT-but-unwired)* was in
+`DESIGN_Variable_Details_And_Editing.md` §4a/§6, which nothing I read pointed to. I ran the docs sweep
+only AFTER being corrected.
+
+| ⭐ the checkable habit — **for ANY change to an existing feature** | |
+|---|---|
+| **①** | ⭐⭐⭐ **`grep -rln docs/blueprints` for the feature and READ the owning `*.md` END-TO-END — BEFORE you read the code's current mechanism.** ⛔ The code hands you an *"obvious"* fix that reasons from **how it IS**; the doc says **how it was MEANT to be** |
+| **②** | ⭐⭐ **Cite the owning DOC + SECTION in `design-basis`** — ⛔ **NOT only a `RULINGS.md` row.** 📌 The ledger is the INDEX; the design doc is the intent. A ledger citation is not proof you read the design |
+| **③** | ⚠ **"the code does X" is never "X is what was intended."** Code is usually behind the design — a mismatch means the code is unfinished, not that the design is wrong |
+
+⭐ *(Indexed as `R-129`; the substance lives HERE because it is generic, not buried in the ledger.)*
+
 ### ⭐⭐⭐ And the one rule that would have caught almost every failure of `2026-08-18`
 
 > ⛔⛔⛔ **NEVER claim *"X is not built"* without running the enumeration that would find X.**
