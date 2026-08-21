@@ -849,7 +849,7 @@ precisely *"a single concept, differently composed"* — ⛔ **there is no secon
 
 | ⭐ | |
 |---|---|
-| ⭐⭐⭐ **Construct the editor's `MasterSyncController` on `_orchestrationBus`**, not `_world.Bus` | 📌 identical to `OrchestratorSubsystem:146`; ⭐ **no new mechanism, no bridge, no second registry** |
+| ✅ **DONE `2026-08-21` — `EditorSubsystem:727` now builds the master on `_orchestrationBus`** | 📌 identical to `OrchestratorSubsystem:146`; ⭐ **no new mechanism, no bridge, no second registry.** ⭐ **Verified safe:** the editor has **no reader of `SwitchTimeModeEvent` on `_world.Bus`** *(measured — the only reader anywhere is `ClusterTimeTransportAdapter`, which the editor does not construct)*, so the move orphans nothing. ⚠ **One frame of latency by construction**: `EditorSubsystem.Update` swaps `_orchestrationBus` AFTER `_kernel.Update()`, so an intent published in frame N is drained in N+1 |
 | ⭐⭐ **Then paths B, C and D publish intents like everyone else** | ⇒ `TC-3` **unblocks**, and 🔒 **the CGF node gets the same code**, which is the stated requirement |
 | ⚠ **and the editor needs NO egress translator** | ⭐ it hosts the master, so it drains directly — ⛔ exactly the `YES` arm of the diagram |
 
@@ -857,8 +857,8 @@ precisely *"a single concept, differently composed"* — ⛔ **there is no secon
 
 | ⚠ | |
 |---|---|
-| **①** | ⛔ **CGF and SimHost hand `ClusterTimeTransportAdapter` DIFFERENT buses** — `_context.EventBus` vs `OrchestrationEventBus`. ⭐ **CGF's is correct** *(it is the bus its controller and the egress translator use)*; ⚠ **SimHost's needs checking** — ⛔ **not measured**, and it is a one-line question worth answering before `TC-3` |
-| **②** | ⚠ **`HrotNodeBuilder` never calls `OrchestrationEventRegistry.RegisterAll`** on the bus it creates. ⭐ CGF's `CgfApplication:115` registers on a **different** bus (`_orchestrationBus`) ⇒ ⛔ **whether the intent types are registered on the bus that actually carries them is UNVERIFIED** — 📌 **probe it with `TC-3`, not before** |
+| **①** ✅ **RESOLVED — `T3a`, and there is NO divergence** | 📐 `SimHostApp.cs:466` is `_eventBus = _context.EventBus;` and `:667` exposes that same field as `OrchestrationEventBus`. ⇒ ⭐⭐ **CGF and SimHost hand the adapter THE SAME BUS**; the apparent disagreement was **a naming artifact — one accessor, two names.** ⛔ Nothing to fix |
+| **②** ⛔⛔⛔ **CONFIRMED — `T3b`, and it was a LIVE PRODUCTION DEFECT** | 📐 `OrchestrationEventRegistry.RegisterAll` is called on the Orchestrator's `_bus`, ExCon's two buses, the editor's `_orchestrationBus` — and on `CgfApplication:115`, **whose only caller is a unit test.** ⛔ **Never on `HrotNodeContext.EventBus`**, the bus CGF/SimHost/IG actually publish their intents on. ⚠⚠ **And the failure mode is NOT the "silently does nothing" this row guessed:** `Hrot.ClusterRunner/Program.cs:52` sets `FdpConfig.EnforceExplicitEventRegistration = true`, under which `PublishManaged` **THROWS**. ⇒ ⭐⭐⭐ **pressing pause on a CGF/SimHost/IG toolbar threw `InvalidOperationException`.** ✅ **Fixed:** `HrotNodeBuilder.Build()` now calls `RegisterAll` on the bus it creates, reproduced red first by `Build_NodeEventBus_HasTheTimeControlIntentsRegistered` |
 
 ### ⭐ `TimeSystem` *(`Fdp.Core`)* — **LEGACY, not a competing writer**
 

@@ -711,8 +711,20 @@ namespace Hrot.Editor
             _world.RegisterEvent<CenterOnEntityCommand>();
 
             // ?? 2. Time controller (MasterSyncController in Deterministic/frozen mode) ??
+            // T3: the controller lives on THE BUS THE INTENTS LIVE ON — _orchestrationBus, which
+            // carries OrchestrationEventRegistry (registered at the top of this method). That is the
+            // rule every other node already follows: the Orchestrator builds its master on the same
+            // _bus it registers (OrchestratorSubsystem:118/:146), and CGF/SimHost/IG/ExCon put their
+            // controller and their egress translator on one bus each.
+            //
+            // The editor was the only place those were two different objects: the registry on
+            // _orchestrationBus, the master on _world.Bus. Intents published by the toolbar, the
+            // debugger or a BTree/HSM path therefore landed on a bus the master never read, and
+            // ReadManaged on the other bus returns empty — no error, nothing happens. Putting them
+            // on one bus is what unblocks paths B/C/D publishing intents like everyone else, and it
+            // is the same code the CGF node will need for cluster-side debugging.
             var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
-            _timeController = (MasterSyncController)TimeControllerFactory.Create(_world.Bus, timeConfig);
+            _timeController = (MasterSyncController)TimeControllerFactory.Create(_orchestrationBus, timeConfig);
             _kernel.SetTimeController(_timeController);
             // Start in Deterministic mode so authoring starts paused (dt == 0 every frame).
             _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());

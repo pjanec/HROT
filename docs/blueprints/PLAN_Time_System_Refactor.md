@@ -156,9 +156,9 @@ graph TD
 |---|---|---|---|
 | **`T1`** | **`ISimClock` + `SimClock.Of(view)` + `GlobalTime.IsAdvancing`**; `IsPaused` marked obsolete | `TC-1`/`RF-1` | ✅ **PROVEN** |
 | **`T2`** | **retire the duplicate** `EditorTimeTransportFacade` ⇄ `EditorTimeTransportAdapter` *(identical but for name/accessibility/null-guards; only the Adapter is constructed)* | `TC-2`/`AS-11` | ✅ **PROVEN** |
-| **`T3`** | ⭐⭐ **put the editor's `MasterSyncController` on the bus the intents live on** *(`_orchestrationBus`)* — ⭐ **"do what the Orchestrator does"** | `TC-3`/`AS-12` | ✅ **one line** ⚠ + 2 sub-checks below |
-| **`T3a`** | ⚠ **verify SimHost's `ClusterTimeTransportAdapter` bus** — CGF uses `_context.EventBus`, SimHost `OrchestrationEventBus`; ⛔ **they disagree and only CGF's is proven right** | new | ⚠ **1 line to check** |
-| **`T3b`** | ⚠ **verify the intent types are REGISTERED on the bus that carries them** — ⛔ `HrotNodeBuilder` never calls `OrchestrationEventRegistry.RegisterAll` on the bus it creates | new | ⚠ **would make a toolbar silently do nothing** |
+| ✅ **`T3`** | ✅ **DONE** *(TM-106/`TM-013`)* — the editor's master is on `_orchestrationBus`. ⭐ Verified no `SwitchTimeModeEvent` reader was orphaned | `TC-3`/`AS-12` | ✅ **done** |
+| ✅ **`T3a`** | ✅ **DONE — NO DIVERGENCE** *(`TM-017`)*. 📐 `SimHostApp:466`/`:667`: `OrchestrationEventBus` IS `_context.EventBus` ⇒ **one bus, two names.** ⛔ Nothing to fix | new | ✅ **checked** |
+| ✅ **`T3b`** | ⛔⛔ **CONFIRMED A LIVE DEFECT, FIXED** *(`TM-014`)* — and ⚠ **the mechanism was NOT "silently nothing"**: production sets `EnforceExplicitEventRegistration = true`, so a CGF/SimHost/IG toolbar pause **THREW**. Reproduced red, then one `RegisterAll` in `HrotNodeBuilder` | new | ✅ **fixed** |
 | **`T4`** | ⭐⭐ **`ITimeCommands` — intents only.** Paths **B** *(toolbar)*, **C** *(debugger)* and **D** *(BTree/HSM)* stop calling `SwitchToDeterministic` directly | `TC-3`/`TC-4` | ⭐ after `T3` |
 | **`T4d`** | ⭐ **path D: hand `AiTracerCoordinator` a real controller** — ⛔ its `RequestPause/Continue/StepOneTick` are **virtual no-ops** and production builds the base class | `TC-5`/`AS-9` | ✅ **PROVEN** — `R-67` |
 | **`T5`** | **the remaining pause notions read through `ISimClock`** — ⛔ **not one refactor, ten**, one site at a time | `TC-8`/`RF-9` | ⚠ per-site |

@@ -74,6 +74,9 @@ public sealed class EditorHarness : IDisposable
     public ZoneManagerService  ZoneService  => _zoneService;
     public IPreviewController  Preview   { get; private set; } = null!;
 
+    /// <summary>The mirrored editor master's current mode — Deterministic while authoring is paused.</summary>
+    public Fdp.ModuleHost.Time.TimeMode TimeControllerMode => _timeController!.GetMode();
+
     // ── Nested test stub ─────────────────────────────────────────────────────
 
     private sealed class SequentialIdAllocator : INetworkIdAllocator
@@ -153,7 +156,13 @@ public sealed class EditorHarness : IDisposable
             Role       = TimeRole.Standalone,
             SyncConfig = new TimeConfig { LookaheadWallTicks = 0 },
         };
-        _timeController = (MasterSyncController)TimeControllerFactory.Create(Bus, timeConfig);
+        // T3: the master goes on the ORCHESTRATION bus, because that is where the intents live —
+        // the same rule EditorSubsystem now follows, and the Orchestrator always did. This harness
+        // MIRRORS the editor's composition rather than constructing EditorSubsystem, so when the
+        // real wiring moves this must move with it: a mirror that has drifted from the thing it
+        // mirrors is worse than no harness, because its tests stay green while production breaks.
+        Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(OrchBus);
+        _timeController = (MasterSyncController)TimeControllerFactory.Create(OrchBus, timeConfig);
         Kernel.SetTimeController(_timeController);
         _timeController.SwitchToDeterministic(new HashSet<int>());
         CrossTheDeterministicBarrier();
@@ -317,6 +326,11 @@ public sealed class EditorHarness : IDisposable
         {
             _timeController?.Step(PumpSleepMs / 1000f);
             Kernel.Update();
+            // Mirrors EditorSubsystem.Update: the kernel runs first, then the control-plane bus is
+            // swapped so intents published by the UI this frame are readable next frame. Without
+            // this the harness silently drops every orchestration intent, because ReadManaged on an
+            // unswapped bus returns empty.
+            OrchBus.SwapBuffers();
         }
     }
 
@@ -333,6 +347,7 @@ public sealed class EditorHarness : IDisposable
         {
             _timeController?.Step(PumpSleepMs / 1000f);
             Kernel.Update();
+            OrchBus.SwapBuffers();
             if (condition()) return true;
         }
 
