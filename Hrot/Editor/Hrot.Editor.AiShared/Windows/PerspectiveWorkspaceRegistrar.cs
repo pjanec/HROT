@@ -212,7 +212,8 @@ public class PerspectiveWorkspaceRegistrar
         DecodeRawValue? valueDecoder = null,
         Func<bool>? isSimUp = null,
         Func<bool>? isFrozen = null,
-        WriteLiveValue? writeLive = null)
+        WriteLiveValue? writeLive = null,
+        Shell.IEntitySelectionSource? entitySelection = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -230,6 +231,7 @@ public class PerspectiveWorkspaceRegistrar
         if (debugRegistry is null) throw new ArgumentNullException(nameof(debugRegistry));
 
         _perspectiveName = perspectiveName;
+        _entitySelection = entitySelection;
         // ⭐ Row 58 — the run state, from signals that are ABOUT TIME.
         // 🔴🔴 Batch 84 / R-66: this used to be RunStateSource.For(debugRegistry), on the premise that
         //    "a live session is what running means to this editor". MEASURED FALSE — ActiveSession is
@@ -467,7 +469,12 @@ public class PerspectiveWorkspaceRegistrar
                 //     moves one method. Same shape as L0.3's builder and L1's registry home.
                 context:           new Shell.LiveContextSource(() =>
                                        Shell.DetailsContextBuilder.Build(
-                                           selectionStore, perspectiveName, _runState())));
+                                           selectionStore, perspectiveName, _runState(),
+                                           // ⭐⭐⭐ L0.4 (R-122) — the ENTITIES come from the World.
+                                           //   ⚠ Held as a field so every context this perspective
+                                           //     builds reads the SAME source, which is what keeps
+                                           //     §6 L0.4's same-instance guarantee meaningful.
+                                           _entitySelection)));
 
             // ⭐⭐ How a section id becomes a LIST. The registrar already holds the row-source resolver,
             //    so the outline is handed the resolution rather than the sources — ⛔ one row-source
@@ -614,7 +621,13 @@ public class PerspectiveWorkspaceRegistrar
         // ⭐⭐ 88b — same reasoning as the two above: registered HERE, not left to the host. ⛔ Its
         //    ROUTING is already live from the constructor, so a host that forgets to register it loses
         //    the window but never leaves a half-wired panel.
-        if (Details != null) RegisterCore(windowManager, Details);
+        if (Details != null)
+        {
+            RegisterCore(windowManager, Details);
+            // ⭐⭐ L4.4 — the shell needs the manager to REGISTER a float/pin. ⛔ Not a new root
+            //    argument: this is the same call the root already makes (R-67).
+            Details.AttachWindowManager(windowManager);
+        }
 
         // ⭐⭐⭐ Batch 89 (BP-327, REOPENED) — THE MODAL JOINS THE FRAME.
         //    🔴🔴 Batch 87 built VariableEditModal complete — drawer body, OK, Cancel, a greyed OK with
@@ -780,6 +793,15 @@ public class PerspectiveWorkspaceRegistrar
     /// <summary>⚠ Guards against double-registration: <c>RegisterExtraWindow</c> can be called twice
     /// for the same window, and a second pass would throw on the duplicate id — ⛔ turning a harmless
     /// re-registration into a crash.</summary>
+    /// <summary>⭐ <c>L0.4</c>'s entity source — see <c>PerspectiveWorkspaceServices.EntitySelection</c>.</summary>
+    private readonly Shell.IEntitySelectionSource? _entitySelection;
+
+    /// <summary>
+    /// ⭐ Exposed so a rail can assert on the CONSTRUCTED registrar that production passed a REAL
+    /// source — 📌 <c>R-67</c>, and the control the <c>2026-08-16</c> rule prescribes.
+    /// </summary>
+    public Shell.IEntitySelectionSource? EntitySelection => _entitySelection;
+
     private readonly HashSet<Shell.IDetailsViewSource> _viewSources = new();
 
     /// <summary>

@@ -80,6 +80,22 @@ public sealed class PerspectiveWorkspaceServices
 
     // ── Optional, but shared when present ─────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L0.4</c> — where the Details context gets its selected ENTITIES</b>
+    /// *(<c>R-122</c>: "entity selection is on the entity")*. ⭐ Production passes a
+    /// <c>WorldEntitySelectionSource</c> over the kernel's live world.
+    ///
+    /// <para>⛔⛔ <b>It belongs in THIS bag and nowhere else.</b> 📌 This class exists because
+    /// <i>"the next shared service is one more thing three call sites must remember, and the third one
+    /// has now forgotten three times"</i> — ⚠ a per-perspective entity source would be exactly that
+    /// mistake, and the entity is <b>one fact about the world</b>, not a per-perspective one.</para>
+    ///
+    /// <para>⚠ Optional, because headless hosts have no World; ⛔ but a production caller that HAS one
+    /// must pass it, and <c>TheEntityContextReadsTheWorldTests</c> asserts that on the CONSTRUCTED
+    /// object rather than on this declaration.</para>
+    /// </summary>
+    public Shell.IEntitySelectionSource? EntitySelection { get; init; }
+
     /// <summary>Shared breakpoint manager; drives the per-perspective Watch + Breakpoints windows.</summary>
     public IDataBreakpointManager? BreakpointManager { get; init; }
 
@@ -177,5 +193,6 @@ public sealed class PerspectiveWorkspaceServices
             valueDecoder:                  ValueDecoder,
             isSimUp:                       IsSimUp,
             isFrozen:                      IsFrozen,
-            writeLive:                     writeLive);
+            writeLive:                     writeLive,
+            entitySelection:               EntitySelection);
 }

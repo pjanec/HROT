@@ -14,9 +14,8 @@ namespace Hrot.Editor.AiShared.Shell;
 /// mode flag and no <c>if (isPinned)</c> anywhere — a pin is a different SOURCE, not a different
 /// window.</para>
 ///
-/// <para>⚠ <see cref="FrozenContextSource"/> is <c>L4.3</c>'s and is deliberately NOT here yet — ⛔ a
-/// snapshot type with no window to freeze for would be a guess about <c>L4</c>, and 📌 §6 puts the pin
-/// three tasks away.</para>
+/// <para>⭐ <see cref="FrozenContextSource"/> is <c>L4.3</c>'s and now exists — a pin is a window whose
+/// source never changes its answer.</para>
 /// </summary>
 public interface IDetailsContextSource
 {
@@ -57,4 +56,34 @@ public sealed class LiveContextSource : IDetailsContextSource
         => _build() ?? throw new InvalidOperationException(
                "The context builder returned null. A Details window must always have a context — " +
                "use DetailsContext.Empty(perspective) for 'nothing is open' (R-117).");
+}
+
+/// <summary>
+/// ⭐⭐⭐ <b><c>L4.3</c> — A PIN: the context is FROZEN at the moment the designer pinned it.</b>
+/// 📄 §2's classDiagram *(<c>FrozenContextSource : -DetailsContext snapshot</c>)* · §2b's pin sequence
+/// *(<c>D-&gt;&gt;D: snapshot = current ctx</c>)* · 📌 <c>R-100</c>.
+///
+/// <para>⭐⭐⭐ <b>This class is the WHOLE of what makes a pin different from a float.</b>
+/// 📄 §2, verbatim: <i>"the two window classes differ ONLY in <c>IDetailsContextSource</c>."</i>
+/// ⇒ ⛔ there is no <c>isPinned</c> flag, no branch in the window, and no second window class — ⚠ a pin
+/// is a <see cref="DetailsViewWindow"/> holding one of these instead of a
+/// <see cref="LiveContextSource"/>.</para>
+///
+/// <para>⭐⭐ <b><see cref="DetailsContext"/> is a <c>record</c> over stable list instances</b>
+/// *(<c>L0.1</c>'s store guard, <c>L0.4</c>'s entity source)*, so the snapshot is genuinely immutable
+/// as a value — ⛔ nothing later mutates what a pin shows. ⚠ It does NOT deep-freeze the ASSET: a pin
+/// shows the selection as it was, over the document as it IS, which is what a designer comparing two
+/// nodes actually wants.</para>
+/// </summary>
+public sealed class FrozenContextSource : IDetailsContextSource
+{
+    private readonly DetailsContext _snapshot;
+
+    public FrozenContextSource(DetailsContext snapshot)
+        => _snapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ Always the SAME instance — ⛔ a pin that re-derived its context each frame would be
+    /// a float with extra steps.</remarks>
+    public DetailsContext Current() => _snapshot;
 }

@@ -2286,6 +2286,11 @@ namespace Hrot.Editor
                 AggregatorService             = aggregatorService,
                 SchemaExporter                = sharedSchemaExporter,
                 ExpressionTargetFieldAccessor = ResolveExpressionTargetField,
+                // ⭐⭐⭐ L0.4 (R-122) — "entity selection is on the entity". The Details context reads
+                //    SelectionState from the WORLD, not from an editor-side copy.
+                // ⭐ `_world` IS the kernel's live world (:661) — the same one SelectionInteractionSystem
+                //   writes and the ring gizmos read. ⛔ A production caller that HAS it must PASS it.
+                EntitySelection               = new Hrot.Editor.AiShared.Shell.WorldEntitySelectionSource(() => _world),
             };
 
             _btreeRegistrar    = perspectiveServices.CreateRegistrar(

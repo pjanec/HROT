@@ -123,7 +123,10 @@ public sealed class DetailsViewSelector
     /// *(<c>L0.1</c>'s elementwise guard)*, so the two agree rather than disagreeing by one being
     /// order-blind.</para>
     /// </summary>
-    internal static string KeyOf(DetailsContext context)
+    /// <remarks>⭐ <c>public</c> since <c>L4.3</c>: §2b's pin id is
+    /// <c>viewId + assetId + selectionKey</c>, and <b>this IS that selection key</b> — ⛔ a second
+    /// key-builder would drift from the toolbar's memory (ruling 9).</remarks>
+    public static string KeyOf(DetailsContext context)
     {
         var sb = new StringBuilder(context.Perspective);
         sb.Append('|').Append(context.Asset?.AssetId.ToString() ?? "-");

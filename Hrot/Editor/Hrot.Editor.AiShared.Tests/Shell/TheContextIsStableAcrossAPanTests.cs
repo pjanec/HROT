@@ -23,8 +23,21 @@ public sealed class TheContextIsStableAcrossAPanTests
     private static EditorSelectionStore Store()
         => new() { ActiveAsset = new EditorSelectionStoreTests.FakeAsset() };
 
-    private static DetailsContext Build(EditorSelectionStore s)
-        => DetailsContextBuilder.Build(s, "Blueprint", VariableRunState.Planning);
+    private static DetailsContext Build(EditorSelectionStore s, IEntitySelectionSource? entities = null)
+        => DetailsContextBuilder.Build(s, "Blueprint", VariableRunState.Planning, entities);
+
+    /// <summary>
+    /// ⚠⚠ <b><c>L0.4</c> re-pointed the ENTITY source</b> — 📄 §6 <c>L0.4</c> *(<c>R-122</c>)*, which
+    /// <c>L0.3</c>'s own doc comment predicted verbatim: <i>"<c>L0.4</c> REPLACES THIS ENTIRE
+    /// METHOD."</i> ⇒ ⭐ these rails now feed the context an <see cref="IEntitySelectionSource"/>
+    /// instead of writing <c>store.SelectedEntity</c>. ⛔ The CLAIMS are unchanged.
+    /// </summary>
+    private sealed class FixedEntities : IEntitySelectionSource
+    {
+        private readonly Entity[] _e;
+        public FixedEntities(params Entity[] e) => _e = e;
+        public System.Collections.Generic.IReadOnlyList<Entity> Selected() => _e;
+    }
 
     /// <summary>⭐⭐ <b>A marquee of two yields a 2-item context</b> — the design's first clause.</summary>
     [Fact]
@@ -111,9 +124,10 @@ public sealed class TheContextIsStableAcrossAPanTests
         var entity = new Entity(7, 1);
         store.ActiveSubSelections = new IAssetSubSelection[] { new NodeSel(1) };
         store.NotifySurfaceFocused(SelectionOrigin.GraphCanvas);
-        store.SelectedEntity = entity;
 
-        var ctx = DetailsContextBuilder.Build(store, "HSM", VariableRunState.Paused);
+        // ⭐ L0.4: the entity source, not the store's copy (R-122).
+        var ctx = DetailsContextBuilder.Build(
+            store, "HSM", VariableRunState.Paused, new FixedEntities(entity));
 
         Assert.Equal(SelectionOrigin.GraphCanvas, ctx.Focus);      // ① focus
         Assert.Single(ctx.Selection);                              // ② selection
@@ -123,14 +137,27 @@ public sealed class TheContextIsStableAcrossAPanTests
         Assert.Equal("HSM", ctx.Perspective);
     }
 
-    /// <summary>⚠ The entity list is stable too — ⛔ otherwise the pan guarantee would fail through the
-    /// ENTITY field while the selection field held.</summary>
+    /// <summary>
+    /// ⚠ The entity list is stable too — ⛔ otherwise the pan guarantee would fail through the
+    /// ENTITY field while the selection field held.
+    ///
+    /// <para>⛔⛔ <b>THIS RAIL HAD GONE VACUOUS AND STILL PASSED.</b> 📐 After <c>L0.4</c> re-pointed
+    /// the source, the old body wrote <c>store.SelectedEntity</c> — which the context no longer reads —
+    /// so it compared <c>Array.Empty</c> with <c>Array.Empty</c> and was <b>true by construction</b>.
+    /// ⚠ Found only because its sibling FAILED and I read the file. ⭐ It now asserts a NON-EMPTY list
+    /// through the real seam, so the same-instance claim is testable again — 📌 the same family as
+    /// <c>BP-394</c>: a rail that cannot fail is not a rail.</para>
+    /// </summary>
     [Fact]
     public void TheEntityListIsStable_WhenTheEntityDidNotChange()
     {
-        var store = Store();
-        store.SelectedEntity = new Entity(7, 1);
+        var store    = Store();
+        var entities = new FixedEntities(new Entity(7, 1));
 
-        Assert.Same(Build(store).Entities, Build(store).Entities);
+        var one = Build(store, entities).Entities;
+        var two = Build(store, entities).Entities;
+
+        Assert.NotEmpty(one);                 // ⛔ the guard against going vacuous again
+        Assert.Same(one, two);
     }
 }

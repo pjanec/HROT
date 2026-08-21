@@ -63,12 +63,11 @@ public sealed record DetailsContext(
 /// here now and <c>L1.1</c> hosts it on the workspace, so <c>L1</c> moves a call rather than writing
 /// this twice *(ruling 9)*. ⛔ Stated because it is a deviation from where the diagram draws it.</para>
 ///
-/// <para>⚠⚠ <b>The entity source is <c>L0.4</c>'s, and it is NOT wired yet.</b> 📌 §6 <c>L0.4</c>:
-/// <i>"entity selection: DELETE two copies, read <c>SelectionState</c> from the World"</i>
-/// *(<c>R-122</c>)*. ⭐ Until that lands this reads the store's single <c>SelectedEntity</c> — the
-/// source every existing panel already reads — so the field is HONEST rather than empty, and
-/// <c>L0.4</c> re-points one method. ⛔ It is not a silent default: the parameter is explicit and this
-/// paragraph is the record of what it will become.</para>
+/// <para>⭐⭐⭐ <b><c>L0.4</c> IS NOW WIRED — the entities come from the WORLD.</b> 📌 §6 <c>L0.4</c> /
+/// <c>R-122</c>: <i>"entity selection: DELETE two copies, read <c>SelectionState</c> from the
+/// World."</i> ⭐ The interim that read the store's single <c>SelectedEntity</c>, and its
+/// <c>[ThreadStatic]</c> cache, are <b>DELETED</b>; the same-instance guarantee moved into
+/// <see cref="IEntitySelectionSource"/>, where it is a CONTRACT rather than a local trick.</para>
 /// </summary>
 public static class DetailsContextBuilder
 {
@@ -77,11 +76,17 @@ public static class DetailsContextBuilder
     /// the store's OWN instance *(not a copy)*, which is what makes §2b's <i>"a pan yields the same
     /// context"</i> hold — ⛔ copying here would defeat the store's stability guarantee.
     /// </summary>
+    /// <param name="entities">
+    ///   ⭐⭐ <b><c>L0.4</c>'s source</b> — the World, in production. ⚠ Defaults to
+    ///   <see cref="EmptyEntitySelection"/> for headless callers with no World; ⛔ <b>a production
+    ///   caller that HAS one must PASS it</b> *(the <c>2026-08-16</c> rule)*, and the control is
+    ///   <c>TheEntityContextReadsTheWorldTests</c>, asserted on the CONSTRUCTED registrar.
+    /// </param>
     public static DetailsContext Build(
         EditorSelectionStore store,
         string               perspective,
         VariableRunState     mode,
-        IReadOnlyList<Entity>? entities = null)
+        IEntitySelectionSource? entities = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(perspective);
@@ -89,31 +94,13 @@ public static class DetailsContextBuilder
         return new DetailsContext(
             Focus:       store.FocusedSurface,
             Selection:   store.ActiveSubSelections,        // ⭐ the store's instance, not a copy
-            Entities:    entities ?? EntitiesOf(store),
+            // ⭐ The source's OWN instance, not a copy — §6 L0.4's same-instance clause is the
+            //   source's contract, and copying here would defeat it exactly as copying the
+            //   selection list would defeat L0.1's.
+            Entities:    (entities ?? EmptyEntitySelection.Instance).Selected(),
             Asset:       store.ActiveAsset,
             Perspective: perspective,
             Mode:        mode);
     }
 
-    /// <summary>
-    /// ⚠ <b><c>L0.4</c> REPLACES THIS ENTIRE METHOD</b> with a World query over <c>SelectionState</c>
-    /// *(<c>R-122</c>)*. ⭐ Isolated deliberately, so that task is a one-method change.
-    ///
-    /// <para>⛔ <b>The cached single is not an optimisation, it is the same-instance rule</b>
-    /// *(§6 <c>L0.4</c>: "return the same list instance when unchanged, or every view rebuilds per
-    /// frame")* — ⚠ a fresh <c>new[]{ e }</c> every frame would make every context unequal to the last
-    /// and defeat the pan guarantee through the ENTITY field instead of the selection one.</para>
-    /// </summary>
-    private static IReadOnlyList<Entity> EntitiesOf(EditorSelectionStore store)
-    {
-        var selected = store.SelectedEntity;
-        if (selected is null) return Array.Empty<Entity>();
-
-        var cached = _lastEntities;
-        if (cached is { Length: 1 } && cached[0].Equals(selected.Value)) return cached;
-
-        return _lastEntities = new[] { selected.Value };
-    }
-
-    [ThreadStatic] private static Entity[]? _lastEntities;
 }

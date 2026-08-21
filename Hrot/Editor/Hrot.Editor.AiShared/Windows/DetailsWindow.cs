@@ -249,6 +249,107 @@ public sealed class DetailsWindow
         InstanceFor(frame.Choice.View!).Draw(frame.Context, _drawId);
     }
 
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ L4.2 / L4.3 / L4.4 — FLOAT AND PIN. The shell is where both gestures start.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L4.2</c> — the CONTEXTUAL FLOAT id, and it is STABLE.</b>
+    /// 📄 §6 <c>L4.2</c>: <i>"contextual float — live context, <c>IsVolatile = false</c>, stable
+    /// id."</i>
+    /// <para>⚠ <b>Stable means it does NOT include the selection</b> — ⛔ an id that moved with the
+    /// selection could never be restored from a saved layout, which is the whole point of
+    /// <c>IsVolatile = false</c>.</para>
+    /// </summary>
+    public static string FloatIdFor(string perspective, string viewId)
+        => $"details_float_{perspective}_{viewId}".ToLowerInvariant();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L4.3</c> — the PIN id: §2b's <c>viewId + assetId + selectionKey</c>.</b>
+    /// ⭐ The selection key is <see cref="DetailsViewSelector.KeyOf"/> — 📌 <b>the same key the toolbar
+    /// remembers picks by</b>, ⛔ not a second key-builder (ruling 9). ⚠ It already carries the
+    /// perspective and the asset id, so the id is exactly §2b's triple.
+    /// </summary>
+    public static string PinIdFor(DetailsContext context, string viewId)
+        => $"details_pin_{viewId}_{DetailsViewSelector.KeyOf(context)}";
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L4.2</c> — open the CURRENT view in its own window</b>, following the live context.
+    /// 📄 §2b's float sequence.
+    ///
+    /// <para>⭐ Returns the existing window if one is already open for this view — ⚠ the same
+    /// <c>TryGetWindow</c>-then-focus shape §2b gives the pin, because a second identical float is
+    /// never what the designer meant.</para>
+    ///
+    /// <para>⛔ Returns <see langword="null"/> when nothing is showing — ⚠ there is no view to float,
+    /// and 📌 <c>R-117</c>'s grey line is already the shell's answer.</para>
+    /// </summary>
+    public DetailsViewWindow? OpenFloat(WindowManager windowManager)
+    {
+        ArgumentNullException.ThrowIfNull(windowManager);
+
+        var frame = Frame();
+        if (frame.Choice.View is not { } descriptor) return null;
+
+        var id = FloatIdFor(OwningPerspective, descriptor.Id);
+        if (windowManager.TryGetWindow(id, out var existing))
+        {
+            windowManager.FocusWindow(id);
+            return existing as DetailsViewWindow;
+        }
+
+        var window = new DetailsViewWindow(
+            id:                id,
+            title:             descriptor.Title,
+            owningPerspective: OwningPerspective,
+            descriptor:        descriptor,
+            // ⭐⭐ LIVE — 📌 R-119: the source is the only thing that makes this a float and not a pin.
+            context:           _context,
+            isVolatile:        false);
+
+        windowManager.RegisterWindow(window);
+        return window;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L4.3</c> — PIN the current view at the CURRENT context.</b> 📄 §2b's pin sequence ·
+    /// 📌 <c>R-100</c>: <i>"a pin is one titled, volatile instance; a duplicate FOCUSES."</i>
+    ///
+    /// <para>⭐⭐ <b>The snapshot is taken HERE, once</b> — <c>D-&gt;&gt;D: snapshot = current ctx</c> —
+    /// and handed to a <see cref="FrozenContextSource"/>. ⛔ The window itself has no idea it is
+    /// pinned.</para>
+    ///
+    /// <para>⭐ <b>Pinning the same view at the same context FOCUSES the existing pin</b> rather than
+    /// stacking a second identical window — ⚠ which is what the id's selection key is FOR.</para>
+    /// </summary>
+    public DetailsViewWindow? Pin(WindowManager windowManager)
+    {
+        ArgumentNullException.ThrowIfNull(windowManager);
+
+        var frame = Frame();
+        if (frame.Choice.View is not { } descriptor) return null;
+
+        var id = PinIdFor(frame.Context, descriptor.Id);
+        if (windowManager.TryGetWindow(id, out var existing))
+        {
+            windowManager.FocusWindow(id);
+            return existing as DetailsViewWindow;
+        }
+
+        var window = new DetailsViewWindow(
+            id:                id,
+            // ⚠ TITLED, so two pins of one view are told apart — 📌 R-100's "one titled instance".
+            title:             $"{descriptor.Title} (pinned)",
+            owningPerspective: OwningPerspective,
+            descriptor:        descriptor,
+            // ⭐⭐ FROZEN at this moment. That is the entire difference from OpenFloat above.
+            context:           new FrozenContextSource(frame.Context),
+            isVolatile:        true);
+
+        windowManager.RegisterWindow(window);
+        return window;
+    }
+
     /// <summary>
     /// ⭐⭐ <b><c>L2.2</c> — the toolbar.</b> 📌 <c>R-98</c>: <i>"the toolbar is a panel switch."</i>
     ///
@@ -278,6 +379,29 @@ public sealed class DetailsWindow
             }
         }
 
+        // ⭐⭐ L4.4 — the float/pin affordances live on the toolbar, at the right edge.
+        //   ⚠ A DRAW, and unrailed by construction (R-21/R-62) — everything it DOES is OpenFloat/Pin,
+        //     which are railed directly.
+        if (_windowManager != null)
+        {
+            ImGuiNET.ImGui.SameLine();
+            if (ImGuiNET.ImGui.SmallButton($"float##{Id}_float")) OpenFloat(_windowManager);
+            ImGuiNET.ImGui.SameLine();
+            if (ImGuiNET.ImGui.SmallButton($"pin##{Id}_pin"))     Pin(_windowManager);
+        }
+
         ImGuiNET.ImGui.Separator();
     }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>L4.4</c> — the window manager the float/pin affordances act on.</b>
+    /// ⚠ Set by the registrar when it registers this window; ⛔ null in the standalone constructions
+    /// that predate <c>L4</c>, in which case the toolbar simply offers no float button — ⭐ the
+    /// gestures themselves take the manager as an argument and are railed without this.
+    /// </summary>
+    private WindowManager? _windowManager;
+
+    /// <summary>⭐ Called by the registrar at registration — ⛔ not a service the root must remember.</summary>
+    public void AttachWindowManager(WindowManager windowManager)
+        => _windowManager = windowManager ?? throw new ArgumentNullException(nameof(windowManager));
 }
