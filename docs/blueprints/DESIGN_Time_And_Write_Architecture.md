@@ -9,8 +9,20 @@ known-rot: none. ⚠ THREE claims from this file's first edition were corrected 
   CORRECTED inline — the pause barrier (§3 AS-2), the threading premise (§4 P4), and P6, whose
   first version measured the wrong layer (§4 P6'). ⛔ P6' CHANGES ITEM 104f — see §7.
 known-conflict: none. Q48 §5 is the RULING and wins on intent; this file measures what it costs.
+supersession: NOT superseded. This file is the WRITE PATH authority (staging, drain, refusals,
+  the breakpoint rewind). DESIGN_Time_Control_And_Reporting.md is the TIME authority (topology,
+  APIs, control paths, replay). Time-only findings that still live here -- AS-1, AS-1b, AS-2, P4,
+  P6', P7, P8, AS-10 -- are cited by id from the time doc and the roadmap; do not re-derive them.
+roadmap: PLAN_Time_System_Refactor.md -- the ORDER, and T0 blocks every task in this file.
 -->
 # ⭐⭐⭐ Time, Pause and the Write Path — **as-is, target, and the refactors between**
+
+> ⛔⛔⛔ **NOTHING IN §6 STARTS UNTIL `T0` IS GREEN** — 📄 **[`PLAN_Time_System_Refactor.md`](PLAN_Time_System_Refactor.md)**.
+> 🔒 **User, `2026-08-21`:** *"the integration tests are the most important thing we need to make working
+> before we touch any time monitoring/control related code."* ⭐ **`RF-1`…`RF-11` are `W0`…`W5` in the
+> roadmap; the roadmap owns the ORDER, this file owns the DETAIL.**
+> ⭐ **Is this file superseded by the time document? NO** — they answer different questions; see the
+> `supersession:` line in the STATUS block above.
 
 > ⭐⭐ **Why:** `R-126` settled the intent — one source (the clock), the tick loop drains, running is not
 > a refusal. ⛔ **This document measures what that costs.**

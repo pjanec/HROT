@@ -10,8 +10,14 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none. ⚠ This is the TIME subsystem in full; DESIGN_Time_And_Write_Architecture.md
   is the WRITE path and cites this one for time. Where they overlap, this file is the time authority.
+roadmap: PLAN_Time_System_Refactor.md -- the ORDER. TC-1..TC-8 here are T1..T7 there, and T0
+  (make the integration net work) blocks all of them.
 -->
 # ⭐⭐⭐ Time — **control and reporting: how it works now, and how it should**
+
+> ⛔⛔⛔ **NOTHING IN §8 STARTS UNTIL `T0` IS GREEN** — 📄 **[`PLAN_Time_System_Refactor.md`](PLAN_Time_System_Refactor.md)**.
+> 🔒 **User, `2026-08-21`:** *"the integration tests are the most important thing we need to make working
+> before we touch any time monitoring/control related code."*
 
 > ⭐⭐ **Why this exists** *(user, `2026-08-21`)*: *"we need design docs with mermaids about how the time
 > reporting and time control works now (and what the apis look now) and how it should be working."*

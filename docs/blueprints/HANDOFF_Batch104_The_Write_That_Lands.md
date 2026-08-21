@@ -1,60 +1,30 @@
 <!--STATUS
-state: LIVE
-build-state: READY-TO-BUILD
+state: SUPERSEDED
+build-state: DESIGN
 updated: 2026-08-21
-current-answer: this whole file — the Batch 104 dispatch.
-stale-below: nothing.
-known-rot: none.
-known-conflict: none. ⛔ RF-4 (moving the RESTORE out of RequestStep/RequestContinue) is
-  deliberately NOT in this batch — §5. The breakpoint resume path stays exactly as it is.
-re-dispatched: 2026-08-21 under rule 1a, TWICE — 104f rewritten (its probe measured the wrong layer),
-  the landmine box restated, then restated again for accuracy (the 'two roles' claim was wrong and
-  is withdrawn; the instruction is unchanged), and 104d amended for AS-10 (gate on the deltaTime
-  parameter, not the singleton), and a THIRD time to add the ClusterRunner integration gate row
-  (AS-13: BP-378 rotted; baseline 4/2). 104a-104c and 104e unchanged. User confirmed: not started.
+current-answer: NOTHING IN THIS FILE. It is replaced by HANDOFF_Batch104_The_Net_First.md.
+stale-below: EVERYTHING. 104a-104f describe work that may not start until T0 is green.
+superseded-by: HANDOFF_Batch104_The_Net_First.md
+known-rot: none -- the items are still correct, they are just NOT FIRST.
 -->
-# HANDOFF — Batch 104: **the write that actually lands**
+# ⛔⛔⛔ WITHDRAWN — HANDOFF Batch 104 (**the write that actually lands**)
 
-> ## ⚠⚠ RE-DISPATCHED — **rule 1a**
-> 📌 **First dispatched at `c0c066334`; AMENDED AND RE-STAMPED — see the stamp below.**
-> ⭐ **Legal because the batch was never started:** `git merge-base --is-ancestor c0c066334
-> origin/claude/hrot-implementation-j1jvin` ⇒ **no**; no `chore: started batch 104` marker exists;
-> ⭐⭐ **and the user confirmed it directly** *(`2026-08-21`: "104 not started yet, re-stamp it with the
-> corrected 104f")* — 📌 **rule 1b: the ancestry check is corroboration, the ASK is the proof.**
+> ## ⛔⛔⛔ THIS DISPATCH IS WITHDRAWN AND REPLACED — **`2026-08-21`, rule 1c**
+> 🔒 **User, verbatim:** *"the integration tests are the most important thing we need to make working
+> before we touch any time monitoring/control related code. lets put that as the beginning of all the
+> tasks belonging to the time system unification/refactor."*
 >
-> | ⭐ what changed | |
-> |---|---|
-> | **`104f`** | ⛔⛔ **REWRITTEN.** Its probe (`P6`) measured the wrong layer. ⭐ "Queued" is real in **two** run states, not three, and the **mechanism already exists** *(`Q46` rule 5)* |
-> | **the second landmine box** | ⭐ **restated** *(twice — see the note below)*: the delta is meaningful only on the frame instance |
-> | ⭐⭐ **`104d`** | ⛔⛔ **AMENDED at the SECOND re-stamp** — gate on the `deltaTime` **parameter**, not the singleton. 📌 `AS-10`: the singleton freezes at a **non-zero** delta during `PrepareReplay` |
-> | ⭐⭐⭐ **§8 GATES** | ⛔⛔ **AMENDED at the THIRD re-stamp** — `TimeControlIntegrationTests` is now a **gate row with a 4/2 baseline**. 🔒 The user's own instruction; 📌 `AS-13`/`AS-14` |
-> | ⛔ **`104a`–`104c`, `104e`** | ⭐⭐ **UNCHANGED, byte for byte** |
+> ⛔ **`104b`, `104c` and `104d` all touch time-related production code** — `GlobalTime`, `SystemPhase`,
+> `ModuleHostKernel`. ⇒ **they may not go first.**
 >
-> ⚠ **A second, WORDING-ONLY amendment followed** *(user, `2026-08-21`: "'GlobalTime serves two roles'
-> sounds alarming… is that correct?")* — ⛔ **it was not correct, and the claim is withdrawn.**
-> ⭐⭐ **The INSTRUCTION did not change**; only the explanation behind it. 📄 `DESIGN_… §3 AS-1b`.
-
-> 📌 **Dispatched at `e982386d1`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** —
-> documents that change after it are **FYI ONLY**.
-> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 104 at e982386d1` FIRST.**
-> ⭐⭐ **`R-106`: a blocked item stops THAT ITEM, never the batch. Five verdicts.**
-> ⭐ `quick-check.sh` while working; the FULL gate table ONCE, at the end *(`M-37`)*.
-
-> ## ⭐⭐⭐ THE DESIGN IS WRITTEN AND THE PROBES ARE RUN — **⛔ do not re-derive either**
-> 📄 **[`DESIGN_Time_And_Write_Architecture.md`](DESIGN_Time_And_Write_Architecture.md)** — as-is,
-> target, 6 probes, 11 refactors, 4 diagrams. 📄 **[`Architect_Question_48_…`](Architect_Question_48_What_Stopped_Means_And_Who_Drains.md)** — the ruling.
-> 🔒 **`R-126`** is the user's ruling and binds: **one source (the clock) · the tick loop drains ·
-> running is not a refusal.**
-> ⭐⭐ **`R-123` obligation ③ applies to you:** the design carries **1 class diagram and 1 sequence
-> diagram** — **check them before building and report the match**; ⚠ a deviation is a finding to argue,
-> not a silent choice.
-
-> ## ⛔⛔ THE TWO LANDMINES — **read these or lose a day**
-> | | |
+> | ⭐ | |
 > |---|---|
-> | ⛔⛔ **`M-42` · Do NOT use `GlobalTime.IsPaused`** | it is `TimeScale == 0`, and **a pause never sets `TimeScale` to 0** ⇒ **it is FALSE while paused.** ⭐ The predicate is **`DeltaTime`** |
-> | ⛔⛔ **Do NOT read the delta from `ITimeController.GetCurrentState()`** | ⭐ **Not a bug — the delta is meaningful only on THE INSTANCE THE KERNEL PUSHED THIS FRAME.** 📐 `DeltaTime` describes *the step just taken*, so a state snapshot has none and all three `SeedState` implementations ignore it. ⇒ ⛔ its zero means *"no information"*, ⚠ **indistinguishable from "halted"** ⇒ any delta predicate through `GetCurrentState()` answers *"halted"* forever. ⭐ **Read the `GlobalTime` singleton on the LIVE WORLD** |
-> ⭐ Both are pinned by an existing rail: `Fdp.Toolkits.Tests` ▸ `ThePauseFlagOnTheClockIsFalseWhilePausedTests` *(4 tests, green)*.
+> | ⭐⭐⭐ **BUILD THIS INSTEAD** | 📄 **[`HANDOFF_Batch104_The_Net_First.md`](HANDOFF_Batch104_The_Net_First.md)** |
+> | ⭐⭐ **the ORDER for everything after it** | 📄 **[`PLAN_Time_System_Refactor.md`](PLAN_Time_System_Refactor.md)** |
+> | ⭐ **the items below are NOT WRONG** | ⚠ they are `W0`–`W4` in the roadmap and return **after `T0`** |
+> | ⛔ **never started** | ✅ no `chore: started batch 104` marker; the user confirmed twice |
+>
+> ⭐ **Kept, not deleted** *(rule 1c ②)*: the item text is the detail the later batches reuse.
 
 ---
 
