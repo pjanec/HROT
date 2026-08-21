@@ -181,7 +181,14 @@ public readonly record struct LiveWriteAttempt(bool Ok, LiveWriteRefusal Refusal
     /// designer reads must say what to DO, and only <see cref="LiveWriteRefusal.NotFrozen"/> is
     /// actionable by them.
     /// </summary>
-    public string Message => Refusal switch
+    public string Message => $"{Sentence} [{Refusal}]";
+
+    /// <summary>
+    /// ⭐ The prose half. ⚠ <see cref="Message"/> appends the enum name because 📌 <b>three sessions
+    /// were spent guessing WHICH of these five a screenshot showed</b> — ⛔ the five sentences are
+    /// distinguishable to a reader who has them all in front of them, and to nobody else.
+    /// </summary>
+    private string Sentence => Refusal switch
     {
         LiveWriteRefusal.None               => "",
         LiveWriteRefusal.NoSelectedEntity   => "No entity is selected — pick one in the world or the outline.",
@@ -192,7 +199,24 @@ public readonly record struct LiveWriteAttempt(bool Ok, LiveWriteRefusal Refusal
         LiveWriteRefusal.SizeMismatch       => $"Internal size mismatch: the editor produced {Got} bytes for a "
                                              + $"{Expected}-byte field, so the write was refused rather than "
                                              +  "risk the neighbouring value.",
-        LiveWriteRefusal.NotFrozen          => "The simulation is running — pause it to edit a live value.",
+
+        // ⛔⛔⛔ 2026-08-21 — THE OLD SENTENCE WAS FALSE, and it is the single sentence that cost this
+        //    programme the most. It read "The simulation is running — pause it to edit a live value."
+        // 📐 Measured: the gate behind it is BlueprintDebugSession._isPaused, a SESSION-LOCAL flag set
+        //    only by that session's own Pause() or by a breakpoint hit. ⇒ a user who paused time from
+        //    the toolbar IS stopped, the Details panel correctly reads `Paused`, and this still refuses
+        //    — while telling them to do the thing they already did.
+        // 🔒 The user's own ruling (2026-08-21): "time is paused OR debugger hit a breakpoint — in both
+        //    cases the simulation is stopped and we can write new values." ⛔ Widening the gate is NOT
+        //    a string change: the write STAGES into the data-breakpoint manager and drains on its
+        //    step/continue, so who drains it under a toolbar pause is an open design question (Q48).
+        // ⇒ ⭐ until that is answered the honest message names the mechanism, not a user action that
+        //    does not help.
+        LiveWriteRefusal.NotFrozen          => "The blueprint debugger is not holding the simulation, so a "
+                                             + "staged write has nothing to drain it. Pausing TIME is not "
+                                             + "enough — this path currently requires the blueprint debug "
+                                             + "session itself to be paused (a breakpoint hit, or Pause in "
+                                             + "the debugger).",
         _                                   => "The live write was refused.",
     };
 }
