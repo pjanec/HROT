@@ -3,9 +3,9 @@
 > **Coordinator, 2026-08-13.** Decomposition of
 > [Variable_Model_Unification.md](Variable_Model_Unification.md) ·
 > [Variable_Editing_UI.md](Variable_Editing_UI.md), as re-ordered by
-> [the Batch 38 review](REVIEW_Unified_Variable_Design.md).
+> [the Batch 38 review](batches/REVIEW_Unified_Variable_Design.md).
 >
-> ✅ **REVIEWED — [Batch 40](REVIEW_Unification_Plan.md), `2026-08-13`. Verdict: run it, with five named
+> ✅ **REVIEWED — [Batch 40](batches/REVIEW_Unification_Plan.md), `2026-08-13`. Verdict: run it, with five named
 > changes. No re-cut — the task boundaries are right.** ⭐ **This plan is updated to match.**
 >
 > | | what changed |
@@ -330,8 +330,8 @@ by two. The task groupings and their reasons are unchanged;** only the numbers m
 
 | batch | tasks | why together |
 |---|---|---|
-| ~~40~~ | ✅ **plan review — DONE** | [`REVIEW_Unification_Plan.md`](REVIEW_Unification_Plan.md) |
-| ~~41–43~~ | ✅ **`BP-57`'s authoring half — DONE, `BP-57` CLOSED** — [41](HANDOFF_Batch41_Local_Variables_Authoring.md) *(source + picker)* · [42](HANDOFF_Batch42_Local_Variables_Wiring.md) *(delete + undo)* · [43](HANDOFF_Batch43_Local_Variables_Section.md) *(the section)* | ⭐⭐ **Its schema source is an `IVariablesSchemaSource`, so `U-4`…`U-6` ABSORB it** ⚠ **and `U-6` inherits one known gap: `AddVariable` does not reject a duplicate name — the guard currently sits in the window** |
+| ~~40~~ | ✅ **plan review — DONE** | [`REVIEW_Unification_Plan.md`](batches/REVIEW_Unification_Plan.md) |
+| ~~41–43~~ | ✅ **`BP-57`'s authoring half — DONE, `BP-57` CLOSED** — [41](batches/HANDOFF_Batch41_Local_Variables_Authoring.md) *(source + picker)* · [42](batches/HANDOFF_Batch42_Local_Variables_Wiring.md) *(delete + undo)* · [43](batches/HANDOFF_Batch43_Local_Variables_Section.md) *(the section)* | ⭐⭐ **Its schema source is an `IVariablesSchemaSource`, so `U-4`…`U-6` ABSORB it** ⚠ **and `U-6` inherits one known gap: `AddVariable` does not reject a duplicate name — the guard currently sits in the window** |
 | ~~44~~ | ✅ **`U-1` · `U-2` — DONE.** The golden net is built and bites; `BP-229` closed | ⭐ **the net, then the first thing it protects.** Both compiler-only, both small |
 | ~~45~~ | ✅ **`U-3` — DONE, `BP-226` closed.** Golden 42/42 unchanged | ⭐ **closes `BP-226` alone** — the highest-value single task, kept unmixed |
 | ~~46~~ | ✅ **`U-4` · `U-5` — DONE, `BP-230` + `BP-231` closed.** AiShared 1213 → 1216 | ⚠ **V2: this is NOT one lane** — `U-5` reaches into `Hrot.Editor.AiShared` and **moves that gate**. Kept together anyway because `U-5` is what makes `U-6` honest |

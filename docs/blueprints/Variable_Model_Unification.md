@@ -16,7 +16,7 @@ known-rot: NONE as of 2026-08-17. B' was marked BLOCKED on BP-228 until then; BP
 >
 > 📌 **Input to Q28.** ⛔ **Not an implementation task yet** — see the banner below.
 
-> ✅ **REVIEWED — [Batch 38](REVIEW_Unified_Variable_Design.md), `2026-08-13`. Verdict: build it, with
+> ✅ **REVIEWED — [Batch 38](batches/REVIEW_Unified_Variable_Design.md), `2026-08-13`. Verdict: build it, with
 > four named changes and a re-ordered plan.** ⭐ **This document has been updated to match.**
 >
 > ⛔⛔ **Two of its measured claims were WRONG and the corrections are inline below:**
@@ -262,7 +262,7 @@ through that table** — 📐 **decide before B, because the two design document
 
 ---
 
-## 5. 📌 The one thing [Batch 39](HANDOFF_Batch39_Finish_Local_Variables.md) must do differently
+## 5. 📌 The one thing [Batch 39](batches/HANDOFF_Batch39_Finish_Local_Variables.md) must do differently
 
 ⚠ As drafted, its **Local Variables** section is a **third** implementation — precisely what this
 document exists to prevent. ⇒ **One instruction:**
@@ -271,7 +271,7 @@ document exists to prevent. ⇒ **One instruction:**
 > project it. **Same UI as ruled** — a canvas-following section with `[+]` — but **stage B absorbs it
 > for free** instead of stage B having to undo it.
 
-⛔ **Batch 39 is postponed** until [Batch 38's review](HANDOFF_Batch38_Unified_Variable_Design_Review.md) returns.
+⛔ **Batch 39 is postponed** until [Batch 38's review](batches/HANDOFF_Batch38_Unified_Variable_Design_Review.md) returns.
 
 ---
 
@@ -310,7 +310,7 @@ model refactor.**
 
 ### Q-i · Does shared state join the model? → ⛔ **No — it is another document's storage.** `2026-08-13`
 
-> ⚠ **Raised by the [Batch 38 review](REVIEW_Unified_Variable_Design.md) `R5`: 61 references across 8
+> ⚠ **Raised by the [Batch 38 review](batches/REVIEW_Unified_Variable_Design.md) `R5`: 61 references across 8
 > shipped assets, and neither design document mentioned it once.**
 
 `GetSharedNode`/`SetSharedNode` carry an *"entity-scoped slot name (**matches the manifest-provisioned

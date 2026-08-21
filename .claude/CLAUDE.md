@@ -129,11 +129,12 @@ by construction** instead of true by convention.
 1. ⛔⛔ **Before proposing to delete anything registered / emitted / exported but unreferenced, search
    the design corpus for a record — ⭐⭐⭐ `docs/` FIRST, `.dev/` SECOND.**
    🔒 **User, `2026-08-21`:** *"not just `.dev`, there is docs folder as the main source."*
-   ⭐⭐ **`docs/` carries the INTENT** *(what it is MEANT to be)*; ⚠ **`.dev/` carries the AS-BUILT**
-   *(what was implemented)* — 📌 the full order is **`RULINGS.md` §4**, and it is the user's own
-   `2026-08-17` correction. 🔴 **There are ~2900 markdown files in `.dev/` and this programme had never
-   searched them** — ⛔ **but searching only those is the OPPOSITE error**: an as-built document agrees
-   with the code by construction, so it can never tell you the thing was *meant* to exist.
+   ⭐⭐ **`docs/` carries the CURRENT intent**; ⭐⭐ **`.dev/<programme>/*-DESIGN.md` carries IMPLEMENTED
+   intent — the WHY behind a built feature, often more than the code says** *(coordinator ruling
+   `8f950a83`, `2026-08-21`)*. ⚠⚠ **An earlier version of this line called `.dev/` "as-built" and told
+   you never to read it for intent — that was too dismissive and is SUPERSEDED.** ⭐ **Read both**;
+   ⚠ **check for a newer `docs/` supersession before quoting a `.dev/` one.** 🔴 **There are ~2900
+   markdown files in `.dev/` and this programme had never searched them.**
 2. ⭐⭐ **"Unreachable" and "dangerous" are TWO properties — do not collapse them.** `W3`'s stubs were
    unreachable **and harmful** *(last-writer-wins overwrite)* ⇒ delete. This one was **dormant**
    *(a unique key that overwrites nothing)* ⇒ route. ⚠ **The precedent applied to the wrong half.**
@@ -174,13 +175,13 @@ every place a user can reach one.**
 | ① | ⭐⭐⭐ **`docs/**/Architect_Question_*_ANSWERS.md`** | ⭐ **THE RULINGS.** ⛔ the non-`ANSWERS` files carry only options |
 | ② | ⭐⭐ **their §"Sequencing" tables** | ⛔ **a finding with a planned batch is NOT a new finding** |
 | ③ | ⭐⭐ **`docs/` — `DESIGN_*.md` · `PLAN_*.md` · `*_Unification.md` · `BOOTSTRAP_*.md`** | ⭐⭐ **THE INTENT — the model as it is MEANT to be** |
-| ④ | ⚠ **`.dev/<programme>/*-DESIGN.md` · `*_Detailed_Design.md`** | ⛔⛔ **AS-BUILT — what WAS IMPLEMENTED.** ⭐ good for *"why is it like this"*, ⛔ **never for *"what should it be"*** |
+| ④ | ⭐⭐ **`.dev/<programme>/*-DESIGN.md` · `*_Detailed_Design.md`** | ⭐⭐ **IMPLEMENTED INTENT — the WHY behind a built feature, often richer than the code** *(`8f950a83`)*. ⚠ **Check for a newer `docs/` supersession before quoting it** — ⛔ but do NOT dismiss it as mere as-built |
 | ⑤ | **`.dev/**/reports/*-REPORT.md`** tails · **`TASK-DETAIL.md`** | ⭐ **the DEBT** *(`DEBT-*` ids are filed here and nowhere else)* · the authorising user decision, usually dated |
 | ⛔ | `batches/*-INSTRUCTIONS.md`, `reviews/*` | **least useful — they restate the design** |
 
-⚠⚠ **The trap this closes:** ⛔ **an as-built document AGREES WITH THE CODE by construction.**
-⭐ **Citing one to justify a design position proves nothing** — it is code-reasoning wearing a design
-document's name. 📌 **Measured `2026-08-21`:** searching `EditorTimeTransportFacade` returns hits in
+⚠ **The one caution that survives:** ⛔ **a document describing what was built can AGREE WITH THE CODE by
+construction** — ⭐ so when a `.dev/` design and a newer `docs/` design disagree, **`docs/` wins**; ⛔ but
+absence of a `docs/` record does NOT make the `.dev/` one worthless. 📌 **Measured `2026-08-21`:** searching `EditorTimeTransportFacade` returns hits in
 **both** trees — `docs/blueprints/{DESIGN_Time_Architecture,PLAN_Time_System_Refactor,Q48}.md` *(the
 live intent)* **and** `.dev/main-toolbar-1/` *(the batch that built it)*. ⇒ ⭐ **searching one tree
 answers half the question.**
@@ -276,10 +277,32 @@ box — and **an existing class drawn on the same canvas as a proposed one makes
 | # | ⭐ obligation | owner |
 |---|---|---|
 | **①** | ⭐⭐⭐ **A design marked buildable carries a `classDiagram` AND a `sequenceDiagram`.** ⭐ Mark it in the STATUS block: `build-state: DESIGN │ READY-TO-BUILD │ BUILDING │ BUILT` | **coordinator** |
-| **①b** | ⛔⛔⛔ **THE DIAGRAMS LIVE IN THE DESIGN. NEVER IN A BATCH OR A HANDOFF.** 🔒 **User, `2026-08-21`, verbatim:** *"the diagrams are to be written to designs to survive, not to ephemeral batches and tasks. batches should reference the designs, not being designs on their own."* ⇒ ⭐⭐ **a batch/handoff carries SCOPE · ITEMS · GATES · VERDICTS, and LINKS to the design section it builds.** ⛔ **A `DESIGN_*Batch*.md` is a contradiction in terms** — 📌 one was created and deleted on `2026-08-21`, its content folded into `DESIGN_Time_Architecture.md` §9a where it survives the batch. ⚠ **Why it matters:** a batch is read once and never again; ⭐ **the diagram's whole value is being there for the NEXT session**, which will never open a closed batch | **both** |
+| **①b** | ⭐⭐⭐ **The diagrams live in the DESIGN, never in the batch** — ⭐ full rule in its own section below, *"THE DIAGRAMS LIVE IN THE DESIGN, NEVER IN THE BATCH"*. ⛔ Not restated here: 📌 two rule files stating one rule is how the `.dev`/`docs` order rotted | **both** |
 | **②** | ⭐⭐⭐ **DRAW THEM AFTER THE ENUMERATION, NEVER BEFORE** — 📌 the `INVENTORY` rule feeds this one. ⭐⭐ **Every box that already exists is drawn as existing, with its file**, so a proposed class that duplicates it is visible on the same page. ⛔ **Any possibility for reuse must be UTILISED, not noted** | **coordinator** |
 | **③** | ⭐⭐ **An implementing task CHECKS the diagrams before building**, and reports it: *"the design carries N classes and M sequences; what I built matches / deviates HERE and why."* ⚠ **A deviation is a finding, not a silent choice** — ⭐ argue it in the report, as every good batch already does | **implementation** |
 | **④** | ⛔⛔ **A design with no UML is NOT ready to dispatch.** ⭐ A handoff citing one is a defect of the COORDINATOR — 📌 the same class of miss as `BP-355` *(named in a report, never turned into an item)* | **coordinator** |
+
+### ⛔⛔⛔ THE DIAGRAMS LIVE IN THE DESIGN, NEVER IN THE BATCH — **a handoff REFERENCES them** *(user, `2026-08-21`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"the diagrams are to be written to designs to survive, not to ephemeral
+> batches and tasks. batches should reference the designs, not being designs on their own."*
+
+⛔⛔ **A handoff / report / review is EPHEMERAL — it now lives in `docs/blueprints/batches/` and is not
+read again after the batch closes.** ⇒ ⭐⭐⭐ **A diagram drawn inside a handoff DIES with the batch, and
+the design it belonged to never gets it.** 📌 The case: I put the `classDiagram`/`sequenceDiagram` for
+`MIN`, the staged-edit and `T1/T2` **inside the handoffs** — and `T1/T2`'s was a straight duplicate of
+`DESIGN_Time_Architecture.md` §9's own diagram.
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **UML — and any design content — goes in a `DESIGN_*` / `Architect_Question_*` doc** | that is the long-lived home; it survives compaction and batch archival |
+| ⭐⭐ **the handoff CITES the design's diagram by DOC + SECTION** | *"build §9's `ISimClock` classDiagram"* — ⛔ it does not redraw it |
+| ⛔⛔ **a batch that CONTAINS a `classDiagram`/`sequenceDiagram` is a SMELL** | either it is inventing design in a place that dies, or duplicating the design ⇒ **move it into the design and reference it** |
+| ⭐ **if a change has no owning design yet, CREATE/EXTEND one** *(with the UML)*, then dispatch a handoff that points at it | ⛔ **do not let the handoff BE the design** — 📌 the `MIN` mistake |
+
+⇒ ⭐⭐ **Obligation ① restated with a home:** the `classDiagram`+`sequenceDiagram` live in the **DESIGN doc**
+marked `build-state: READY-TO-BUILD`; the handoff is a dispatch pointer to it. ⚠ **`design-digest.py`
+already checks designs for UML and EXCLUDES `batches/`** — so a diagram put in a batch is unchecked too.
 
 ### ⭐ Gated — **a convention nothing checks is a convention that decays**
 
@@ -590,6 +613,26 @@ existed.** ⇒ ⛔ **The gate manufactured confidence and I spent it.**
 |---|---|
 | **①** | ⭐⭐ **Enumerate the code surface with codebase-memory** *(`search_graph`)* — ⛔ **`grep` can only CONFIRM a guess; it cannot enumerate** |
 | **②** | ⭐⭐ **Read the NON-SUPERSEDED design markdowns** for the area — ⛔ check each `STATUS` header before quoting it |
+
+### ⛔⛔⛔ THE INTENT IS IN THE DESIGN DOC, NOT THE CODE — **read it BEFORE you touch or design a change** *(user, `2026-08-21`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"you failed to read existing designs before touching or designing changes to
+> related existing features … you need to make sure you know the intents BEFORE changing stuff. intents
+> are not in code. they are in design docs. code is usually behind."*
+
+⛔⛔ **This is the MOST GENERIC rule and it governs every batch and every design.** 📌 **The case:** I
+designed a `LiveWriteFrame` re-sample clock for the watch row after reading only the sampler code and a
+few ledger rows — the intent *(optimistic yellow display, already BUILT-but-unwired)* was in
+`DESIGN_Variable_Details_And_Editing.md` §4a/§6, which nothing I read pointed to. I ran the docs sweep
+only AFTER being corrected.
+
+| ⭐ the checkable habit — **for ANY change to an existing feature** | |
+|---|---|
+| **①** | ⭐⭐⭐ **`grep -rln docs .dev` for the feature and READ the owning `*-DESIGN`/`*_Detailed_Design`/`DESIGN_*` `*.md` END-TO-END — BEFORE you read the code's current mechanism.** ⚠ **Intent lives across ALL of `docs/` AND `.dev/`** — ⭐ **`docs/`** *(the CURRENT intent — `blueprints/`, `UX/`, `projects/`)* · ⭐⭐ **`.dev/<programme>/*-DESIGN.md`** *(IMPLEMENTED intent — the WHY behind built features, often more than the code; ⚠ check for a newer `docs/` supersession)*. ⛔ The code hands you an *"obvious"* fix that reasons from **how it IS**; a design doc — even an old `.dev` one — says **how it was MEANT to be** |
+| **②** | ⭐⭐ **Cite the owning DOC + SECTION in `design-basis`** — ⛔ **NOT only a `RULINGS.md` row.** 📌 The ledger is the INDEX; the design doc is the intent. A ledger citation is not proof you read the design |
+| **③** | ⚠ **"the code does X" is never "X is what was intended."** Code is usually behind the design — a mismatch means the code is unfinished, not that the design is wrong |
+
+⭐ *(Indexed as `R-129`; the substance lives HERE because it is generic, not buried in the ledger.)*
 
 ### ⭐⭐⭐ And the one rule that would have caught almost every failure of `2026-08-18`
 

@@ -150,6 +150,53 @@ public interface IDataBreakpointManager
             + "fall back to a whole-component write: Blackboard1024 is shared by BTree, HSM and "
             + "Blueprint at disjoint offsets, so the fallback would clobber other subsystems' state.");
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>MIN</c> — is the SIMULATION CLOCK halted?</b> 📌 <c>R-126</c>, the user's ruling:
+    /// <i>"time is paused OR debugger hit a breakpoint — in both cases the simulation is stopped and we
+    /// can write new values."</i> ⇒ ⭐ <b>there is ONE source of "paused", and it is the clock</b> —
+    /// ⛔ not <see cref="IsPaused"/>, which answers the much narrower <i>"is the DEBUGGER holding a
+    /// rewound tick?"</i>
+    ///
+    /// <para>⚠⚠ <b><c>AS-1b</c>: implementations MUST read the LIVE WORLD's <c>GlobalTime</c>
+    /// singleton</b> — ⛔ <b>never</b> the time controller's <c>GetCurrentState()</c>, which hard-codes
+    /// its delta to <c>0</c> and therefore answers <i>"halted"</i> for ever. 📌 Pinned by
+    /// <c>ThePauseFlagOnTheClockIsFalseWhilePausedTests</c>.</para>
+    ///
+    /// <para>⛔⛔ <b>The default THROWS and must not answer <c>false</c>.</b> ⚠ A silent <c>false</c>
+    /// here reads as <i>"the simulation is advancing"</i>, so every live edit would be refused with a
+    /// message about pausing something the designer already paused — 📌 exactly the confusion
+    /// <c>M-36</c> cost three handoffs. ⭐ A manager that cannot see a clock says so out loud.</para>
+    /// </summary>
+    bool IsClockHalted()
+        => throw new NotSupportedException(
+            $"{GetType().Name} does not implement IsClockHalted, so it cannot say whether the "
+            + "simulation is advancing. Answering 'not halted' by default would refuse every live "
+            + "edit and blame the designer for it.");
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>MIN</c> — the write that lands NOW, for a TOOLBAR pause.</b>
+    ///
+    /// <para>⭐ <b>When this is the right arm:</b> the clock is halted *(<see cref="IsClockHalted"/>)*
+    /// and <see cref="IsPaused"/> is <c>false</c> ⇒ no breakpoint is holding a rewound tick, so
+    /// <see cref="ActiveView"/> IS the live repository and there is no post-tick restore to survive.
+    /// ⛔ <b>Under a BREAKPOINT pause use <see cref="StageFieldMutation"/> instead</b> — 📌 <c>R-63</c>:
+    /// <c>RequestStep</c>/<c>RequestContinue</c> restore the live repo from the POST-tick snapshot and
+    /// drain <i>afterwards</i>, so a direct write there is overwritten on resume.</para>
+    ///
+    /// <para>⚠ <b>"Now" means "this frame's flush", not "before this call returns".</b> 📐 Measured
+    /// against a real <c>ModuleHostKernel</c> at <c>dt = 0</c>: the kernel plays the per-thread command
+    /// buffer back in <c>BeforeSync</c> <b>unconditionally</b>, so the write lands on the next kernel
+    /// frame and then stays *(<c>P6′</c>: no behaviour ticks at <c>dt = 0</c>, so nothing overwrites
+    /// it)*. ⭐ That dependency is pinned by a rail rather than trusted.</para>
+    ///
+    /// <para>⛔ Same corruption gate as <see cref="StageFieldMutation"/>: bounds-checked against the
+    /// registered component size, and managed components are refused loudly *(📌 <c>Q32</c> §2.1)*.</para>
+    /// </summary>
+    void WriteFieldNow(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
+        => throw new NotSupportedException(
+            $"{GetType().Name} does not implement WriteFieldNow, so a live edit under a toolbar pause "
+            + "has nowhere to land. Staging it instead would queue a write that nothing drains.");
+
 
     // ---- Hit callback (called by DataBreakpointSystem) -----------------
 

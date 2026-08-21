@@ -80,6 +80,9 @@ def changed(days, include_all):
             dates.setdefault(line.strip(), seen)
     for path, date in dates.items():
         name = pathlib.Path(path).name
+        # Short-lived batch artefacts live under docs/blueprints/batches/ and are NOT designs.
+        if "/batches/" in path:
+            continue
         if not include_all and (name.startswith("HANDOFF_") or name.startswith("REPORT_")):
             continue
         if (ROOT / path).exists():

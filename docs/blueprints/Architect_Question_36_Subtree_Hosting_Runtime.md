@@ -5,7 +5,7 @@
 > **resolved jointly with the user.**
 >
 > 📄 **Context:** `E5` — 📄 [`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) §4B ·
-> [`HANDOFF_Batch77_Subtree_Hosting.md`](HANDOFF_Batch77_Subtree_Hosting.md) §1.
+> [`HANDOFF_Batch77_Subtree_Hosting.md`](batches/HANDOFF_Batch77_Subtree_Hosting.md) §1.
 > ⭐ **The SHAPE is already ruled** — [`Q33`](Architect_Question_33_Blueprint_Brain_Tier.md) §1.5.4
 > *(hosted via `SubtreeAssetId`, not as an action; non-blocking; completion raised through
 > `HsmCommandWriter`)* and [`Q34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) §7

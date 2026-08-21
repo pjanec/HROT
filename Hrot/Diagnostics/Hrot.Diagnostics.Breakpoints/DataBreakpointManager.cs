@@ -585,6 +585,71 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     /// <inheritdoc/>
     public void StageFieldMutation(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
     {
+        int typeId = GuardFieldWrite(componentType, byteOffset, bytes.Length);
+
+        // ⭐ COPIED, not aliased: the caller's span is very often a stack buffer or a slice of a
+        //   rented array, and the queue outlives this call by at least one step.
+        _pendingMutations.Enqueue(new PendingDebugMutation(
+            entity,
+            typeId,
+            isManaged:  false,
+            payload:    bytes.ToArray(),
+            sizeBytes:  bytes.Length,
+            byteOffset: byteOffset));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <c>MIN</c> — <c>AS-1b</c>: the LIVE WORLD's singleton, never the controller's
+    /// <c>GetCurrentState()</c>.
+    /// <para>⚠ <b>No clock at all ⇒ HALTED</b>, deliberately and not as a fallback: a world with no
+    /// <c>GlobalTime</c> has no source of ticks, so nothing can overwrite a direct write. ⛔ The other
+    /// answer would refuse every edit in such a world and blame the designer for a running simulation
+    /// that does not exist.</para>
+    /// </remarks>
+    public bool IsClockHalted()
+        => !_liveRepo.HasSingletonUnmanaged<GlobalTime>()
+           || _liveRepo.GetSingletonUnmanaged<GlobalTime>().DeltaTime <= 0f;
+
+    /// <inheritdoc/>
+    public unsafe void WriteFieldNow(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
+    {
+        int typeId = GuardFieldWrite(componentType, byteOffset, bytes.Length);
+
+        // ⭐⭐⭐ THE SAME SURGICAL WRITER THE DRAIN USES — 📌 R-65/ruling 9: one implementation of
+        //    "patch these bytes of this component", not two. ⛔ The rejected fallback was
+        //    EntityRepository.SetComponentFieldRaw direct, which is `internal` to Fdp.Core and would
+        //    have needed either InternalsVisibleTo or a SECOND public surgical-write surface.
+        //
+        // ⭐⭐ A SCRATCH BUFFER, FLUSHED HERE — 📌 EntityCommandBuffer.Playback IS SYNCHRONOUS
+        //    (EntityCommandBuffer.cs:331): it applies every recorded op to the repo AT THE CALL, on
+        //    the main thread. ⇒ the write has landed before this method returns.
+        // ⛔⛔ DELIBERATELY *NOT* the repository's own per-thread buffer. That one is flushed by the
+        //    kernel in BeforeSync — measured to happen even at dt = 0, so it WOULD have worked — but
+        //    it makes a designer's edit depend on a kernel behaviour that could change silently, and
+        //    it lands a frame late. ⭐ A scratch buffer owes the kernel nothing.
+        // ⚠ Scoped: the buffer is disposed, so a partial write cannot leak into a later playback.
+        using var ecb = new EntityCommandBuffer();
+        fixed (byte* src = bytes)
+            ecb.SetComponentFieldRaw(entity, typeId, byteOffset, src, bytes.Length);
+        ecb.Playback(_liveRepo);
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b>The corruption gate, owned ONCE.</b> 📌 <c>Q32</c> §2.1: <i>"an out-of-range offset/size
+    /// is MEMORY CORRUPTION, not a wrong value. Bounds-check against the registered component size and
+    /// fail LOUDLY."</i>
+    ///
+    /// <para>⚠ The engine DOES check, in <c>ComponentTable.SetRawAt</c> — but that runs at PLAYBACK,
+    /// on the sim thread, where nothing remains to attribute it to. ⭐ Checking here fails at the
+    /// designer's OK button, naming the component and the range.</para>
+    ///
+    /// <para>⭐ <c>MIN</c> extracted this from <see cref="StageFieldMutation"/> so the staging arm and
+    /// the write-now arm cannot drift into two different notions of "in range".</para>
+    /// </summary>
+    /// <returns>The registered component type id, which both callers need next.</returns>
+    private static int GuardFieldWrite(Type componentType, int byteOffset, int length)
+    {
         if (componentType == null) throw new ArgumentNullException(nameof(componentType));
 
         // ⛔ A managed component has no byte layout to patch. ⭐ Loud, not a fallback: forwarding to
@@ -594,26 +659,13 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                 $"{componentType.Name} is a managed component and has no byte layout to patch. "
                 + "Replace the object through StageMutation instead.", nameof(componentType));
 
-        // 🔴🔴 Q32 §2.1: "an out-of-range offset/size is MEMORY CORRUPTION, not a wrong value. Bounds-
-        //    check against the registered component size and fail LOUDLY."
-        // ⚠ The engine DOES check, in ComponentTable.SetRawAt — but that runs at PLAYBACK, one
-        //   step/continue later and on the sim thread, where nothing remains to attribute it to.
-        //   ⭐ Checking here fails at the designer's OK button, naming the component and the range.
         int componentSize = GetEcsComponentSize(componentType);
-        if (byteOffset < 0 || bytes.Length <= 0 || byteOffset + bytes.Length > componentSize)
+        if (byteOffset < 0 || length <= 0 || byteOffset + length > componentSize)
             throw new ArgumentOutOfRangeException(nameof(byteOffset),
-                $"Field write [{byteOffset}, {byteOffset + bytes.Length}) is outside "
+                $"Field write [{byteOffset}, {byteOffset + length}) is outside "
                 + $"{componentType.Name}, which is {componentSize} bytes.");
 
-        // ⭐ COPIED, not aliased: the caller's span is very often a stack buffer or a slice of a
-        //   rented array, and the queue outlives this call by at least one step.
-        _pendingMutations.Enqueue(new PendingDebugMutation(
-            entity,
-            ComponentTypeRegistry.GetId(componentType),
-            isManaged:  false,
-            payload:    bytes.ToArray(),
-            sizeBytes:  bytes.Length,
-            byteOffset: byteOffset));
+        return ComponentTypeRegistry.GetId(componentType);
     }
 
     /// <summary>

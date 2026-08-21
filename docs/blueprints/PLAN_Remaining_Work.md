@@ -34,7 +34,7 @@
 > ⭐ **Guide row `A9`/`A9b` added** — the alias reload is `91b`'s only designer-visible surface, and the
 > failure it replaces was **silent**.
 
-> ⏭ **BATCH 92 DISPATCHED at `27c83f5e0`** — 📄 [`HANDOFF_Batch92_The_Orchestrator_Is_Generated.md`](HANDOFF_Batch92_The_Orchestrator_Is_Generated.md).
+> ⏭ **BATCH 92 DISPATCHED at `27c83f5e0`** — 📄 [`HANDOFF_Batch92_The_Orchestrator_Is_Generated.md`](batches/HANDOFF_Batch92_The_Orchestrator_Is_Generated.md).
 > ⭐⭐⭐ **`Q45` BUILT**: the orchestrator becomes a **fourth `AddSource`** in the JSON→C# generators,
 > its body moves to `Hrot.AiEditor.Persistence/Emit/`, the editor emitters are routed onto it, and
 > `subAssetResolver` finally gets passed.
@@ -113,7 +113,7 @@
 > ⭐⭐ **They reported two `§M` rows as stale rather than editing them** — 📌 §M is the coordinator's.
 > **`M-19`** and **`M-23`** updated here.
 
-> ⏭ **BATCH 93 DISPATCHED at `ad9f1cd93`** — 📄 [`HANDOFF_Batch93_Watch_Pinning.md`](HANDOFF_Batch93_Watch_Pinning.md).
+> ⏭ **BATCH 93 DISPATCHED at `ad9f1cd93`** — 📄 [`HANDOFF_Batch93_Watch_Pinning.md`](batches/HANDOFF_Batch93_Watch_Pinning.md).
 > ⭐⭐ **Watch pinning, all three slices in one batch** — the split stopped being worth it once `M-25`
 > sized slice 3 and `R-102` ruled its one decision. ⭐ **What is missing is the GESTURE, not the
 > machinery** *(the 14th instance)*, and ⚠ **the handoff explicitly warns against building the per-tick
@@ -189,7 +189,7 @@
 > `C7c` *(a zero where `(pending)` belongs is the `BP-338` regression)* and `C10`/`H10`
 > *(Blueprint's highlight is inert; BTree/HSM's lights)*.
 
-> ⏭ **BATCH 91 DISPATCHED at `3868c29e5`** — 📄 [`HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md`](HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md).
+> ⏭ **BATCH 91 DISPATCHED at `3868c29e5`** — 📄 [`HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md`](batches/HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md).
 > ⭐⭐⭐ **Five items, one spine: the master ⇄ sub-asset sharing model is HALF-BUILT IN BOTH HALVES, in
 > opposite ways.** ⭐ **Approach A authors and FORGETS** *(`M-20`: aliases never persist)*; ⭐ **Approach
 > B remembers and DOES NOTHING** *(the orchestrator emitters have no callers — `R-99`)*.
@@ -231,7 +231,7 @@
 > the second in two batches** ⇒ ⭐⭐ **the gate is being reported without being re-run after the final
 > tracker edit.** ⛔ **Next handoff must say: run it LAST.**
 
-> ⏭ **BATCH 90 DISPATCHED at `67a6376e4`** — 📄 [`HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md`](HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md).
+> ⏭ **BATCH 90 DISPATCHED at `67a6376e4`** — 📄 [`HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md`](batches/HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md).
 > ⭐⭐⭐ **`BP-334` — the Details Value column goes live.** 📌 **The user's headline ask**, and `M-22`
 > measures it. ⭐ **`R-101` rules the shape: an OBJECT arm, ⛔ not a formatted-string arm** — Blueprint's
 > snapshot is already `IReadOnlyDictionary<string, object>`, and BTree/HSM need **no arm at all**
@@ -309,7 +309,7 @@
 >
 > ⏸ **`2e` NOT STARTED** *(Blueprint's live-value provider — row 58's unbuilt half)*. ⭐ Marked last and
 > stoppable; **nothing half-built.** ⇒ **it is the next batch's item.**
-> 📄 **[`REPORT_Batch87_The_Panel_Obeys_The_Surface.md`](REPORT_Batch87_The_Panel_Obeys_The_Surface.md)**
+> 📄 **[`REPORT_Batch87_The_Panel_Obeys_The_Surface.md`](batches/REPORT_Batch87_The_Panel_Obeys_The_Surface.md)**
 
 ---
 
@@ -347,7 +347,7 @@
 | ⭐⭐ **A2** | ⚠ **Two surfaces present node-owned variables OPPOSITELY** *(`R-87`)*. `BlackboardMyBlueprintModel` **lists** them under `Inputs`, `IsHostDefined: true`; `VariablesPanelControl` **segregates** them into a dimmed *"Node-Owned Allocations"* table. ⛔ **Neither is wrong today — but they cannot both be the rule** | ⭐ **Pick one and state it.** ⚠ **Sequencing row 61 owns the unified outline** ⇒ ⛔ do not settle it in a Details batch |
 | ⭐⭐ **A3** | ⛔ **The outline shows the RAW NAME** — `DisplayName: v.Name` ⇒ N copies of one action give N opaque rows *(`_auto_7f3c9e2a…`)*. 📌 The addendum §3.1 already says node-owned vars are *"presented as belonging to its owning node"* — **that intent is unimplemented** | ⭐ `MyBlueprintItem` already carries `DisplayName` · `BadgeText` · `Tooltip` · **`CategoryPath`** ⇒ **render by owner, group by owning node, keep the real name in the tooltip.** ⚠ **Display only** — ⛔ not a rename |
 | ⭐ **A4** | ⛔ **BTree/HSM have no Details WINDOW** to host the panel *(`R-60`/`R-62`)* — ⭐ but `VariableDetailsSection` **is already in `AiShared` and deliberately window-less** *("the host draws it; it does not own a window")* | ⭐ **Placement + selection routing only.** ⛔ **Never a second copy of the table** *(ruling 9)*. ⚠ **Gated by `R-21`** — no visual check for these hosts yet |
-| 🔴🔴 **A6** ⏭ **DISPATCHED as Batch 89** *(`2026-08-19`)* — 📄 [`HANDOFF_Batch89_The_Edit_Dialog_Reaches_The_Designer.md`](HANDOFF_Batch89_The_Edit_Dialog_Reaches_The_Designer.md) | ⛔⛔ **`VariableEditModal.Draw()` HAS ZERO CALLERS — production or test.** 📐 `grep -rn "EditModal" --include=*.cs` over the whole repo returns **four** hits: the construction *(`PerspectiveWorkspaceRegistrar:328`)*, the property *(`:602`)*, and two test asserts that it is non-null. ⇒ ⭐⭐ **no frame ever renders it, so the edit dialog still cannot appear.** ⚠⚠ **This is one level up from `BP-327`**: Batch 84 built a write path nothing drew · Batch 87 built the dialog **nothing calls** — 📌 **the same pattern, third consecutive turn of it** | ⭐ **Call `EditModal.Draw()` from the frame** — ⭐⭐ **and rail it the only way that works: `R-67` — assert on the CONSTRUCTED registrar, ⛔ never on the source.** ⚠ **`TheEditDialogIsDrawnTests` already exists and is GREEN** — 📌 **it constructs the modal itself, so it cannot see that nobody else does.** ⛔ **Do not extend it; add a rail that asks the composition root** |
+| 🔴🔴 **A6** ⏭ **DISPATCHED as Batch 89** *(`2026-08-19`)* — 📄 [`HANDOFF_Batch89_The_Edit_Dialog_Reaches_The_Designer.md`](batches/HANDOFF_Batch89_The_Edit_Dialog_Reaches_The_Designer.md) | ⛔⛔ **`VariableEditModal.Draw()` HAS ZERO CALLERS — production or test.** 📐 `grep -rn "EditModal" --include=*.cs` over the whole repo returns **four** hits: the construction *(`PerspectiveWorkspaceRegistrar:328`)*, the property *(`:602`)*, and two test asserts that it is non-null. ⇒ ⭐⭐ **no frame ever renders it, so the edit dialog still cannot appear.** ⚠⚠ **This is one level up from `BP-327`**: Batch 84 built a write path nothing drew · Batch 87 built the dialog **nothing calls** — 📌 **the same pattern, third consecutive turn of it** | ⭐ **Call `EditModal.Draw()` from the frame** — ⭐⭐ **and rail it the only way that works: `R-67` — assert on the CONSTRUCTED registrar, ⛔ never on the source.** ⚠ **`TheEditDialogIsDrawnTests` already exists and is GREEN** — 📌 **it constructs the modal itself, so it cannot see that nobody else does.** ⛔ **Do not extend it; add a rail that asks the composition root** |
 | ⚠ **A5** | ⛔ **A dead menu item**: `VariablesPanelControl:272` offers *"Promote to new variable"* on an **unbound subtree requirement** and the handler is empty — `{ } // deferred 1.5d` | ⭐ **Implement or remove.** ⛔ **A gesture that silently does nothing is the silent-default pattern in UI form** |
 
 ---
@@ -456,7 +456,7 @@ hosts.** ⛔ **Group A and Group B are not parallelisable across sessions.**
 > 📌 **Still open, deliberately:** `D4` *(deleting the `WorkingState` PROPERTY — a live alias the read
 > path needs)* · the on-disk tag *(stays readable forever, or every v1 file loses its revert)* ·
 > ⚠ **the panel is asserted on the MODEL, not on pixels** *(`R-21`/`R-62`)*.
-> 📄 **[`REPORT_Batch86_One_State_Kind.md`](REPORT_Batch86_One_State_Kind.md)**
+> 📄 **[`REPORT_Batch86_One_State_Kind.md`](batches/REPORT_Batch86_One_State_Kind.md)**
 
 
 # ⛔ HISTORY — revisions 30 and earlier
@@ -490,7 +490,7 @@ hosts.** ⛔ **Group A and Group B are not parallelisable across sessions.**
 > arm uses §4b's form ⇒ **`{X=1.0, Y=2.0, …}`**. 📌 **Ruling 3 switches the column's MEANING, not its
 > NOTATION** — and §4b's cell format is stated without an initial/current split. ⇒ **fold into the next
 > batch; do not reopen 83.**
-> 📄 **[`REPORT_Batch83_Values_And_The_Dialog.md`](REPORT_Batch83_Values_And_The_Dialog.md)**
+> 📄 **[`REPORT_Batch83_Values_And_The_Dialog.md`](batches/REPORT_Batch83_Values_And_The_Dialog.md)**
 
 
 # ⛔ HISTORY — revisions 28 and earlier
@@ -520,7 +520,7 @@ hosts.** ⛔ **Group A and Group B are not parallelisable across sessions.**
 > *(`R-21`)*; the other half is the emitter/access unification.
 > 📌 **Next: `58`** *(the Value column and its run-state meaning switch)*, **then `59`** *(the StructEdit
 > dialog — where `Type` becomes editable)*.
-> 📄 **[`REPORT_Batch82_U6_Details_Hosts_The_Table.md`](REPORT_Batch82_U6_Details_Hosts_The_Table.md)**
+> 📄 **[`REPORT_Batch82_U6_Details_Hosts_The_Table.md`](batches/REPORT_Batch82_U6_Details_Hosts_The_Table.md)**
 
 
 > ✅ **REVISION 27 — BATCH 81 MERGED at `3ae96f53d`; BATCH 82 DISPATCHED at `0973760ca`.**
@@ -537,8 +537,8 @@ hosts.** ⛔ **Group A and Group B are not parallelisable across sessions.**
 > ⭐⭐⭐ **BATCH 82 = `U-6` = stage `B` = `Q32` batch 57** — **Details hosts the shared table + ruling
 > 2's selection routing.** ⭐ **Two independent roadmaps converge on it**, and 📌 it is **half the
 > unblock condition** for the standing *"NO VISUAL CHECKS"* suspension *(`R-21`)*.
-> 📄 **[`HANDOFF_Batch82_U6_Details_Hosts_The_Table.md`](HANDOFF_Batch82_U6_Details_Hosts_The_Table.md)**
-> 📄 **[`REPORT_Batch81_Surfaces_Reach_The_User.md`](REPORT_Batch81_Surfaces_Reach_The_User.md)**
+> 📄 **[`HANDOFF_Batch82_U6_Details_Hosts_The_Table.md`](batches/HANDOFF_Batch82_U6_Details_Hosts_The_Table.md)**
+> 📄 **[`REPORT_Batch81_Surfaces_Reach_The_User.md`](batches/REPORT_Batch81_Surfaces_Reach_The_User.md)**
 
 
 > 🔴🔴 **REVISION 26 (`2026-08-17`) — THE FIRST VISUAL CHECK RAN, AND IT PAID.** ⭐⭐⭐ **Eight findings
@@ -577,8 +577,8 @@ hosts.** ⛔ **Group A and Group B are not parallelisable across sessions.**
 > ⭐⭐⭐ **With ONE drop item:** §3c *(greying the `[+]`)* crosses into **`NodeEditor.Core` +
 > `NodeEditor.UI`** and needs **per-graph descriptors** ⇒ ⛔ **if it grows it is split back out and the
 > rest ships** — the blocking fix is never held hostage.
-> 📄 **[`HANDOFF_Batch81_Surfaces_Reach_The_User.md`](HANDOFF_Batch81_Surfaces_Reach_The_User.md)** — ⭐ **DISPATCHED, absorbs 82**
-> 📄 **[`HANDOFF_Batch82_The_Row_Commands_Work.md`](HANDOFF_Batch82_The_Row_Commands_Work.md)** — ⛔ **pointer stub**
+> 📄 **[`HANDOFF_Batch81_Surfaces_Reach_The_User.md`](batches/HANDOFF_Batch81_Surfaces_Reach_The_User.md)** — ⭐ **DISPATCHED, absorbs 82**
+> 📄 **[`HANDOFF_Batch82_The_Row_Commands_Work.md`](batches/HANDOFF_Batch82_The_Row_Commands_Work.md)** — ⛔ **pointer stub**
 >
 > ✅✅ **REVISION 25 (`2026-08-17`) — BATCH 80 MERGED at `4911cf50d`. ⭐⭐⭐ TRACK C IS REACHABLE IN THE
 > RUNNING EDITOR, AND THE VISUAL CHECK IS UNBLOCKED END TO END.**
@@ -599,7 +599,7 @@ hosts.** ⛔ **Group A and Group B are not parallelisable across sessions.**
 > ⭐ **Second batch under rule 8 — I re-ran no gates.** I read the diff and spot-verified **two** claims
 > *(the no-filter finding; the derivation's perspective names)*. **Two findings carried:** §4C-b.
 > 📄 **[`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md) — ⭐ ALL PARTS A–F RUNNABLE.**
-> 📄 **[`REPORT_Batch80_Track_C_Reaches_The_Editor.md`](REPORT_Batch80_Track_C_Reaches_The_Editor.md)**
+> 📄 **[`REPORT_Batch80_Track_C_Reaches_The_Editor.md`](batches/REPORT_Batch80_Track_C_Reaches_The_Editor.md)**
 >
 > **REVISION 24 (`2026-08-17`) — FIFTH INSTANCE, AND IT IS INSIDE THE BATCH THAT EXISTED TO FIX
 > THE PATTERN.** 📐 **Found while writing the step-by-step guide:** `PerspectiveWorkspaceRegistrar`
@@ -771,7 +771,7 @@ hosts.** ⛔ **Group A and Group B are not parallelisable across sessions.**
 > **Rev 2** folded in three coordinator subagent scans over `.dev/` (~2887 files) + the implementation
 > session's sweep; **rev 1** was written from **code alone**.
 > ⛔ **Two of my own rev-1 conclusions were WRONG (§0).** 📄 Sources:
-> [`REPORT_Batch64_Dev_Sweep.md`](REPORT_Batch64_Dev_Sweep.md) + the three coordinator scans.
+> [`REPORT_Batch64_Dev_Sweep.md`](batches/REPORT_Batch64_Dev_Sweep.md) + the three coordinator scans.
 
 ![remaining work](PLAN_Remaining_Work.svg) *(diagram predates this revision — tracks still hold, contents changed)*
 
@@ -800,7 +800,7 @@ Phase A correctness is complete except `W6`/`W7`, which the sweep has now **re-s
 ## 2. ✅ Track B — struct support ⭐⭐ **DONE, Batch 65 (`8c09d5004`), coordinator-verified.**
 
 ⭐ **All four shipped: `S2` · `S4` · `S3` · `S5`.** ⛔ **`BP-01` CLOSED.** Tracker **open 61 / done 129**.
-📄 [`REPORT_Batch65_Track_B.md`](REPORT_Batch65_Track_B.md) — ⭐ **and it corrected a mis-citation I had
+📄 [`REPORT_Batch65_Track_B.md`](batches/REPORT_Batch65_Track_B.md) — ⭐ **and it corrected a mis-citation I had
 propagated four times** *(`DEBT-AIB-012`, below)*.
 
 ### The design records each was built to
@@ -1013,7 +1013,7 @@ action write the same bytes. ⭐ BTree is immune: it provisions per-scope slots 
 
 ## 4A. ✅ Batch 66 — verified, merged, and **two coordinator rulings it forced**
 
-📄 [`REPORT_Batch66_Defect_Seam_Sections.md`](REPORT_Batch66_Defect_Seam_Sections.md).
+📄 [`REPORT_Batch66_Defect_Seam_Sections.md`](batches/REPORT_Batch66_Defect_Seam_Sections.md).
 ⭐ **`G4` · the surgical write · `G1` · `C-sections`** — all four, gates re-run and matching.
 
 ### ⭐⭐ `G4` grew, correctly — **the name guard was necessary but NOT SUFFICIENT**
@@ -1057,7 +1057,7 @@ full run stand as evidence either**, for the same reason.
 
 ## 4A2. ✅ Batch 67 — verified, merged, and ⛔ **it corrected me twice more**
 
-📄 [`REPORT_Batch67_Conflicts_Singletons_HsmState.md`](REPORT_Batch67_Conflicts_Singletons_HsmState.md).
+📄 [`REPORT_Batch67_Conflicts_Singletons_HsmState.md`](batches/REPORT_Batch67_Conflicts_Singletons_HsmState.md).
 ⭐ **`W7c` · `W7a` · `G3` · `E1`+`E2` · the owed reflection rail · ⭐ the twice-carried latency rail.**
 ⭐⭐ **They added an `Hsm.Editor` gate themselves** — *"not a standing gate — the diff reaches it."*
 
@@ -1105,7 +1105,7 @@ walks **DIRECT children only** — a stateful subtree nested deeper is undetecte
 
 ## 4A3. ✅ Batch 68 — ⭐⭐ **and it found a contradiction in MY authoritative design**
 
-📄 [`REPORT_Batch68_Track_C_Table_And_Dialog.md`](REPORT_Batch68_Track_C_Table_And_Dialog.md).
+📄 [`REPORT_Batch68_Track_C_Table_And_Dialog.md`](batches/REPORT_Batch68_Track_C_Table_And_Dialog.md).
 ⭐ **`C-table` · `C-dialog` · `W7b` · `E4`.** Gates re-run, snapshots unchanged, tracker **61 / 143**.
 
 ### 🔴🔴 The tick unit is **WORLD**, and there is **no per-asset tick anywhere**
@@ -1152,7 +1152,7 @@ red/yellow tints)* · **the gestures** *(value-cell vs name-cell double-click, t
 
 ## 4A4. ✅ Batch 69 — ⭐⭐ **the table is LIVE, and a rail I wrote was VACUOUS**
 
-📄 [`REPORT_Batch69_Tick_Schema_Watch_Outline.md`](REPORT_Batch69_Tick_Schema_Watch_Outline.md).
+📄 [`REPORT_Batch69_Tick_Schema_Watch_Outline.md`](batches/REPORT_Batch69_Tick_Schema_Watch_Outline.md).
 ⭐ **`C-tick` · `DEBT-AIB-009` · `C-watch` · `C-outline` · `E4` finished.** Gates re-run by me,
 snapshots unchanged, tracker **61 / 148**. Rows `BP-270`–`BP-274`.
 
@@ -1210,7 +1210,7 @@ which section each lands in, what is highlighted, what refuses a dialog.
 
 ## 4A5. ✅ Batch 70 — ⭐⭐⭐ **the parameter model RUNS, and a rule had to be retired to let it**
 
-📄 [`REPORT_Batch70_Parameter_Seam.md`](REPORT_Batch70_Parameter_Seam.md).
+📄 [`REPORT_Batch70_Parameter_Seam.md`](batches/REPORT_Batch70_Parameter_Seam.md).
 ⭐ **`DEBT-AIB-021` · the Instance params seam · `G7`+`W10`.** Gates re-run by me, `StructureHash` and
 `persistence-shape` **unchanged**, tracker **61 / 153**. Rows `BP-275`–`BP-279`.
 
@@ -1281,7 +1281,7 @@ specifically.** 📌 **Record it on the row; the mitigation is unchanged.**
 
 ## 4A6. ✅ Batch 71 — ⭐⭐⭐ **the floor exists, and it found a live defect within one commit**
 
-📄 [`REPORT_Batch71_Hsm_Golden_Harness.md`](REPORT_Batch71_Hsm_Golden_Harness.md).
+📄 [`REPORT_Batch71_Hsm_Golden_Harness.md`](batches/REPORT_Batch71_Hsm_Golden_Harness.md).
 ⭐ **`E0` · `E1`/`E2` backfill · `E7b` (count half) · `E6` PARTIAL.** Gates re-run by me; ⭐ **the
 BLUEPRINT golden set is untouched — no file under `Hrot.Blueprints.Tests` moved at all.** Tracker
 **61 / 157**. Rows `BP-280`–`BP-283`.
@@ -1335,7 +1335,7 @@ against a measurement, not a memory.** ⚠ **Invert those tests when (A) lands.*
 
 ## 4A7. ✅ Batch 72 — ⭐ **`E6` shipped; `E3` turned out to be a different, larger thing**
 
-📄 [`REPORT_Batch72_Occurrence_Identity.md`](REPORT_Batch72_Occurrence_Identity.md).
+📄 [`REPORT_Batch72_Occurrence_Identity.md`](batches/REPORT_Batch72_Occurrence_Identity.md).
 Gates re-run by me. ⭐ **Blueprint golden set untouched.** Tracker **61 / 161**. Rows `BP-284`–`BP-287`.
 
 ### ⛔⛔ USER RULING `2026-08-17` — **blueprint multi-occurrence is DEFERRED**
@@ -1400,7 +1400,7 @@ gate set either way.
 
 ## 4A8. ✅ Batch 73 — ⭐⭐ **the floor learned to see generated code; my scenario hypothesis was wrong**
 
-📄 [`REPORT_Batch73_Red_Suite_And_Generated_Floor.md`](REPORT_Batch73_Red_Suite_And_Generated_Floor.md).
+📄 [`REPORT_Batch73_Red_Suite_And_Generated_Floor.md`](batches/REPORT_Batch73_Red_Suite_And_Generated_Floor.md).
 ⭐ **Items 1, 2, 4 landed; `E3` escalated a second time — as §3 of the handoff pre-authorised.**
 Gates re-run by me; blueprint golden set untouched. Tracker **61 / 165**. Rows `BP-288`–`BP-291`.
 
@@ -1458,7 +1458,7 @@ stateId)` there with no signature change anywhere.** ⚠ **Guards are unserved �
 
 ## 4A9. ✅ Batch 74 — ⭐⭐ **HSM's runtime caught up, and two of my premises inverted**
 
-📄 [`REPORT_Batch74_Hsm_Runtime_Catchup.md`](REPORT_Batch74_Hsm_Runtime_Catchup.md).
+📄 [`REPORT_Batch74_Hsm_Runtime_Catchup.md`](batches/REPORT_Batch74_Hsm_Runtime_Catchup.md).
 ⭐ **All four items plus both amendments.** Gates re-run by me; **blueprint golden set untouched**;
 tracker **61 / 170**. Rows `BP-292`–`BP-296`.
 
@@ -1526,7 +1526,7 @@ isolation, for its class, and for all 187 `Gizmos` tests. ⛔ **Not signal.**
 
 ## 4A10. ✅ Batch 75 — ⭐⭐⭐ **`E3` has no subject, and the live defect is elsewhere**
 
-📄 [`REPORT_Batch75_E3_Occurrence_Storage.md`](REPORT_Batch75_E3_Occurrence_Storage.md).
+📄 [`REPORT_Batch75_E3_Occurrence_Storage.md`](batches/REPORT_Batch75_E3_Occurrence_Storage.md).
 ⭐ **Rule 1b honoured on its first outing** — started-marker `4ab9483`, pushed before any code.
 Gates re-run by me; **goldens untouched, blueprint and HSM alike**; tracker **63 / 172**.
 Rows `BP-297`–`BP-300`.
@@ -1602,7 +1602,7 @@ last batch)* ⇒ ⭐⭐ **the strongest evidence yet that it is scheduling, not 
 
 ## 4A11. ✅ Batch 76 — ⭐⭐⭐ **one defect, four instances; and a gate that was lying**
 
-📄 [`REPORT_Batch76_Orthogonal_Regions.md`](REPORT_Batch76_Orthogonal_Regions.md).
+📄 [`REPORT_Batch76_Orthogonal_Regions.md`](batches/REPORT_Batch76_Orthogonal_Regions.md).
 ⭐ Rule 1b honoured *(marker `60791f3`)*. Gates re-run by me; **goldens untouched**; tracker **63 / 176**.
 Rows `BP-301`–`BP-304`.
 
@@ -1665,7 +1665,7 @@ when an asset is next SAVED**, not at build time. 📌 **Fold that into how I wr
 
 ## 4A12. ✅ Batch 77 — ⭐⭐⭐ **`E5` stopped upstream of my STOP, and my census was wrong**
 
-📄 [`REPORT_Batch77_Subtree_Hosting.md`](REPORT_Batch77_Subtree_Hosting.md).
+📄 [`REPORT_Batch77_Subtree_Hosting.md`](batches/REPORT_Batch77_Subtree_Hosting.md).
 ⭐ Rule 1b honoured *(marker `49efe83`)*. Gates re-run by me — ⭐ **FastHSM 300 / 300, Generators 268**;
 tracker **65 / 178**. Rows `BP-305`–`BP-308` · **`Q36`**.
 

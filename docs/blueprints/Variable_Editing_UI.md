@@ -8,7 +8,7 @@
 >
 > 📌 **Input to Q28.** ⛔ **Not an implementation task yet** — see the banner below.
 
-> ✅ **REVIEWED — [Batch 38](REVIEW_Unified_Variable_Design.md), `2026-08-13`.** ⭐ **Updated to match.**
+> ✅ **REVIEWED — [Batch 38](batches/REVIEW_Unified_Variable_Design.md), `2026-08-13`.** ⭐ **Updated to match.**
 >
 > ⛔⛔ **Two claims here were WRONG, and both were load-bearing for this document:**
 > 🔴 **`BP-230`** — the shared table's `Role`/`Scope` editors and its reference counter are **stubs**
@@ -162,7 +162,7 @@ rail, and let the editor stay permissive until someone is actually bitten in the
 
 ---
 
-## 5. 📌 The one thing [Batch 39](HANDOFF_Batch39_Finish_Local_Variables.md) must do differently
+## 5. 📌 The one thing [Batch 39](batches/HANDOFF_Batch39_Finish_Local_Variables.md) must do differently
 
 ⚠ As drafted, its Local Variables section is a **third** implementation. ⇒ **One instruction:**
 

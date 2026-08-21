@@ -371,10 +371,10 @@ graph TD
 
 | # | finding | ⚠ |
 |---|---|---|
-| **`AS-11`** | ⛔ **`EditorTimeTransportFacade` ⇄ `EditorTimeTransportAdapter` are identical** but for name, accessibility and three null-guards; ⭐ **only the Adapter is constructed** *(`TimeControlStatusBarSection:31`)*. ⚠ `.dev/` checked: Batch 24 introduced the facade, **no record explains why both survive** | 🔴 ruling-9 duplicate — §4 |
+| **`AS-11`** | ✅ **RESOLVED by Batch TM-105.** ⛔ **The old claim *"only the Adapter is constructed"* was FALSE** — 📐 **both are**, eight lines apart in one method *(`EditorSubsystem:3878` Adapter → status bar, `:3886` Facade → main toolbar)* ⇒ ⭐ **two SURFACES sharing one duplicated implementation, not a dead class beside a live one.** ⇒ **ROUTE:** Facade kept *(public, stronger null-guards)*, Adapter deleted, status bar repointed *(`TM-010`)* | ✅ §4 · `TM-010` |
 | **`AS-12`** | ⭐⭐⭐ **RESOLVED.** Every node puts its time controller **on the bus the intents live on**; ⛔ **the editor is the only place those are two different objects** *(registry on `_orchestrationBus`, master on `_world.Bus`)* | ⭐ **one line to fix** — §8 |
-| **`AS-13`** | ⚠⚠ **CORRECTED `2026-08-21` (Batch 104): only the FILTERED claim rotted.** ⭐ Filtered: build 88 s, `TimeControlIntegrationTests` 38 s, 4P/2F, no OOM. ⛔⛔ **The FULL single-process run STILL ABORTS** — 55/250 then a host crash; 83/250 then `dds_take -3`; 14 OOMs at `EntityIndex..ctor:38`. ⭐⭐⭐ **But the crash has ONE source: `ClusterOpE2eScriptTests` aborts the host alone, reproducibly** — **43 of 72 classes are fully green in isolation, 15.7 min for all 72** ⇒ a class-at-a-time gate is real | ⭐⭐⭐ §12 · `TM-006`/`TM-007` |
-| **`AS-14`** | ✅✅ **FIXED `2026-08-21` (Batch 104), and the root cause was NOT where this row guessed.** ⛔ The discard was real *(`Step:188-195`, 3 steps ⇒ 1.000 s)* — ⭐⭐⭐ **but what kept `_pendingAcks` non-empty forever is that the CGF node had NO TIME TRANSLATORS AT ALL** *(it composes past `SharedApplicationBootstrapper` phase 6c)*, so it never heard the pause and never ACKed, while the orchestrator still listed it in the roster. ⇒ **both fixed**: translators extracted + wired *(`TM-002`)*, and a blocked step is now **queued, or refused audibly** *(`TM-001`)*. 📐 **4/2 → 9/9** | ✅ `T0` **UNBLOCKED** — §12 · `TM-001`/`TM-002` |
+| **`AS-13`** | ⚠ **CORRECTED by Batch 104.** ⭐ `BP-378` rotted for the **FILTERED** run only *(`TimeControlIntegrationTests` runs, 4/2)*; ⛔ **the FULL single-process run still aborts** — `ClusterOpE2eScriptTests` crashes its host in 2–3 s, and `MAX_ENTITIES × 4–5 nodes` OOMs a shared host. ⭐ **43 classes are green in isolation** ⇒ a **class-at-a-time gate is real** *(quarantine flagged `TM-006`)* | ⭐⭐⭐ §13 |
+| **`AS-14`** | ✅ **RESOLVED by Batch 104.** ⛔ Root cause was NOT the settle nor the harness — 📐 **the CGF node is structurally unable to ACK in PRODUCTION** *(it composes past `SharedApplicationBootstrapper` phase 6c, so it holds a `SlaveSyncController` with no translators, yet sits in the lockstep roster)* ⇒ **the master blocks forever**. ⭐ **Fixed:** `TM-002` extracts the translator registration *(shared, not copied)* + `TM-001` makes `Step` **queue-bounded-and-refuse-audibly** instead of silently dropping | ✅ **net now 9/9** — ⭐ `TM-001`+`TM-002` fixed the two reds *(6/6)*, `TM-005` added 3 rails — §13 |
 
 ---
 
@@ -931,7 +931,12 @@ sequenceDiagram
 
 ---
 
-## 13. ⭐⭐⭐ THE REGRESSION NET — **it EXISTS, it RUNS, and it is 4/6 GREEN** *(user, `2026-08-21`)*
+## 13. ⭐⭐⭐ THE REGRESSION NET — **it EXISTS, it RUNS, and Batch 104 made it 6/6 GREEN** *(user, `2026-08-21`)*
+
+> ✅ **UPDATE `2026-08-21` (Batch 104, TIME lane).** The net went **4/2 → 6/0** after `TM-001` + `TM-002`,
+> then **9/0** with `TM-005`'s added coverage, run three times, **no flake**. ⭐ Both original reds were a
+> **FIX**, not a skip. The AS-13/AS-14 subsections below are kept with their **corrections inline** — the
+> `2026-08-21` measurements that seeded them, and what Batch 104 then proved.
 
 > 🔒 **User:** *"these changes start to have very big blast radius… the cluster runner has an integration
 > test suite where multiple cluster runner subsystems are instantiated in a single process and
@@ -941,7 +946,13 @@ sequenceDiagram
 > ⭐⭐⭐ **Correct, and better than expected — but the first thing I had to check was whether it can run
 > at all**, because `BP-378` excludes this suite from every gate.
 
-### ⭐⭐ `AS-13` — **`BP-378` HAS ROTTED: the suite runs when FILTERED**
+### ⭐⭐ `AS-13` — **`BP-378` rotted for the FILTERED run; the FULL run still aborts** *(corrected by Batch 104)*
+
+> ⚠ **CORRECTION (Batch 104):** the headline below was true of the **filtered** run only. 📐 The **full**
+> single-process run **aborts** — `ClusterOpE2eScriptTests` crashes its host in 2–3 s at both shas, and
+> `MAX_ENTITIES (1_000_000) × 4–5 nodes` OOMs a shared host *(engine constant — deliberately NOT capped)*.
+> ⭐ **43 classes pass in isolation** ⇒ a **class-at-a-time gate is the real net**; quarantining
+> `ClusterOpE2eScriptTests` is flagged `TM-006` *(a finding, not a silent skip)*.
 
 📐 **Measured `2026-08-21`, on this branch:**
 
@@ -975,7 +986,17 @@ dotnet test  --no-build --filter "FullyQualifiedName~TimeControlIntegrationTests
 | ⛔ | **`PauseStepResume_SimTimeAdvancesByStepAmount`** — *"should have advanced ~3s after 3 steps; actual delta=**1.000s**"* |
 | ⛔ | **`MixedSequence_PauseStepPauseStep_AllCorrect`** — *"expected ~2s advance; got **1.000s**"* |
 
-### ⛔⛔ `AS-14` — **the two reds are ONE pre-existing defect: a STEP IS SILENTLY DROPPED**
+### ⛔⛔ `AS-14` — **the two reds are ONE pre-existing defect: a STEP IS SILENTLY DROPPED** *(ROOT-CAUSED + FIXED by Batch 104)*
+
+> ✅ **RESOLVED (Batch 104).** The hypothesis below — *"the settle is too short or the slave never ACKs in
+> the harness"* — was **wrong on both counts**. 📐 The **CGF node is structurally unable to ACK in
+> PRODUCTION**: `CgfSubsystem` composes through `HrotNodeBuilder`, bypassing `SharedApplicationBootstrapper`
+> phase 6c, so it holds a `SlaveSyncController` with **no translators** — it never hears the pause and never
+> ACKs — while the orchestrator's roster *(`OrchestratorSubsystem:303`, `ClusterMaster:327`)* still blocks
+> the master on it. ⚠ *"in the harness"* pointed at the wrong place; the harness is faithful. ⭐ **Fixed:**
+> `TM-002` extracts phase 6c to `SlaveTimeTranslatorRegistration.RegisterOn` *(shared by both compose paths,
+> not copied)*; `TM-001` makes `Step` **queue** behind the ACK guard, **bounded** by `TimeConfig.MaxQueuedSteps`,
+> and **refuse audibly** past it — never a silent discard.
 
 📐 `MasterSyncController.Step` *(`:188-195`)*:
 
@@ -1012,11 +1033,16 @@ faster than ACKs return** ⇒ **a dropped step becomes MORE likely, not less.** 
 unrelated red to note — it is a HAZARD the control refactor walks into**, and it should be fixed
 *before* `TC-3`, or at minimum baselined and re-checked after every step of it.
 
+> ✅ **GUARDED (Batch 104).** `TM-001`'s bounded queue is exactly what absorbs the faster intent
+> publication `TC-3`/`TC-4` introduce — a step that arrives while ACKs are outstanding is now deferred and
+> released one-per-frame, or refused audibly past the bound, never dropped. ⭐ The hazard is closed *before*
+> `TC-3` rather than merely re-checked after it.
+
 ### ⭐⭐ ⇒ THE RULE FOR EVERY BATCH IN THIS PROGRAMME
 
 > ⭐⭐⭐ **`TimeControlIntegrationTests` is a GATE ROW from now on**, filtered, with its **before/after
-> counts**. ⛔ **4/6 is the baseline.** ⚠ **A third red is a regression the batch caused**; ⭐ **a green
-> on `PauseStepResume` is a FIX and must be reported as one.**
+> counts**. ✅ **The baseline is now `9/0`** *(Batch 104: 6 original + `TM-005`'s 3 added)* — ⛔ **was `4/6`
+> before Batch 104 fixed `AS-14`.** ⚠ **A new red is a regression the batch caused.**
 
 ---
 

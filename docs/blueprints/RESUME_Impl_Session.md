@@ -42,7 +42,7 @@
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
 | **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `a4842db`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch55_Schema_Assembly_And_Registry.md](HANDOFF_Batch55_Schema_Assembly_And_Registry.md)** — all three steps delivered; ⚖️ **`--canonicalise` split out per §3.5.2** |
+| **Last handoff** | 📄 **[HANDOFF_Batch55_Schema_Assembly_And_Registry.md](batches/HANDOFF_Batch55_Schema_Assembly_And_Registry.md)** — all three steps delivered; ⚖️ **`--canonicalise` split out per §3.5.2** |
 | **Counts** | **60 open · 117 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
 | **Next free ids** | rows **BP-243+** · diagnostics **BP1674+** — ⭐ **Batch 55 allocated `BP-242` and NO diagnostic** |
 
@@ -769,7 +769,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 ## 14 · The wider programme
 
 ⏭ **The unification is under way** — 📄 [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md),
-reviewed by 📄 [REVIEW_Unification_Plan.md](REVIEW_Unification_Plan.md) (**run it, with five named changes**).
+reviewed by 📄 [REVIEW_Unification_Plan.md](batches/REVIEW_Unification_Plan.md) (**run it, with five named changes**).
 ✅ **`U-1`, `U-2` (44), `U-3` (45), `U-4`/`U-5` (46), `U-7`/`U-8` (47) are done.** ⏭ **`U-6` is next — and it is the
 first task that is NOT headless-provable**: that the Details table renders, and renders read-only, needs
 the visual check that has not run for twelve batches. ⭐ `U-3` declared no golden change and
