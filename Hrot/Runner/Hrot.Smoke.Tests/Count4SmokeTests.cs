@@ -25,7 +25,7 @@ namespace Hrot.Smoke.Tests;
 ///   diagram MORE true, not less.</item>
 ///   <item>⚠ <b>Two Details panels exist, and Blueprint uses its own.</b> The diagram's single
 ///   <c>DetailsRows</c> is <c>BlueprintDetailsWindow.Variables.Model</c> here;
-///   <c>registrar.AiDetails</c> is <c>null</c> on Blueprint by construction
+///   <c>registrar.Details</c> is <c>null</c> on Blueprint by construction
 ///   *(<c>HostKindOf("Blueprint") == null</c>)* — ⛔ not a defect, and 📌 the reason
 ///   <c>BlueprintDetailsWindow</c> is registered as an extra window.</item>
 ///   <item>⛔ <b><c>UiFrameSession</c> is not referenced</b> — the design marks it <i>T3 only</i>, and

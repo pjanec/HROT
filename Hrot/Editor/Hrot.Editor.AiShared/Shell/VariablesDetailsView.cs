@@ -81,7 +81,15 @@ public static class VariablesDetailsViewDescriptor
             Id:        ViewId,
             Title:     "Variables",
             Rank:      Rank,
-            AppliesTo: Applies,
+            // ⭐⭐⭐ L2.3 — TWO halves, and the second one is what keeps R-117 honest.
+            //   📐 Measured: VariableDetailsSection.Draw is `if (!HasContent) return;` — ⇒ a view that
+            //      claimed the panel with an empty section would render a BLANK, which is exactly the
+            //      defect R-117 names. ⛔ Answering that in the shell would be a special case about
+            //      variables living in a type that must not know what a variable is.
+            //   ⭐ 📌 R-116 — "the predicate ships with the view": the view knows it has nothing to
+            //      show, so it does not claim, and the shell's ordinary empty-offer path draws the
+            //      grey line.
+            AppliesTo: ctx => Applies(ctx) && section.HasContent,
             // ⚠ Returns the SAME wrapper today because the section is shared and borrowed — see
             //   VariablesDetailsView's remarks and the L4.2 note there. ⛔ The factory shape is what
             //   lets L4 fix that without touching any caller.

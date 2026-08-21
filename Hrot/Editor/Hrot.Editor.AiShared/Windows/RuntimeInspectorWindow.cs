@@ -44,27 +44,46 @@ public sealed class RuntimeInspectorWindow : ManagedWindow
     /// <summary>Number of registered panes. Exposed for test verification.</summary>
     internal int RegisteredPaneCount => _panes.Count;
 
-    protected override void DrawClientArea()
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L2.3</c> — WHICH grey line this window shows, as a value.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L2.3</c>, which names <b>these two
+    /// sites</b> *(<c>:54</c> and <c>:67</c>)* by line number.
+    ///
+    /// <para>⛔⛔ <b>Both used to say <i>"No active session."</i> — and they are not the same fact.</b>
+    /// 📐 Measured: the first fires when <c>ActiveAsset</c> is <see langword="null"/> *(nothing is open
+    /// — fixed by OPENING a document)*; the second when a document IS open and no pane claims its kind
+    /// *(fixed by selecting something else, or by the missing pane being registered)*. ⚠ Neither is
+    /// about a <i>session</i> at all. ⇒ ⭐ 📌 <c>R-118</c>'s lesson applied to prose: one sentence
+    /// standing for several facts sends the designer to the wrong place.</para>
+    ///
+    /// <para>⭐ Returns a STRING so this is railable without a draw — 📌 §6: <i>"every task's rail
+    /// asserts on a store or a returned model."</i></para>
+    ///
+    /// <para>⚠ <b>This window is on borrowed time and that is fine.</b> 📌 §4: its pane registry keys on
+    /// <c>AssetKind</c>, which <c>R-112</c> rules is never a view key ⇒ <c>L3</c> turns its three panes
+    /// into three predicated views and the window DISSOLVES. ⭐ Until then it must not lie.</para>
+    /// </summary>
+    internal string? EmptyState()
     {
         var activeAsset = _store.ActiveAsset;
-    
-        // If no asset is focused in the editor, we have nothing to inspect
-        if (activeAsset == null)
+        if (activeAsset == null) return Shell.DetailsEmptyState.NoDocument;
+
+        // Find the pane that matches the currently active asset's kind (Blueprint, BTree, or HSM)
+        return _panes.Find(p => p.TargetKind == activeAsset.Kind) == null
+            ? Shell.DetailsEmptyState.NothingForThisSelection
+            : null;
+    }
+
+    protected override void DrawClientArea()
+    {
+        // ⭐ A thin renderer over EmptyState() — ⛔ it decides nothing the rail cannot check.
+        var empty = EmptyState();
+        if (empty != null)
         {
-            ImGuiNET.ImGui.TextDisabled("No active session.");
+            ImGuiNET.ImGui.TextDisabled(empty);
             return;
         }
 
-        // Find the pane that matches the currently active asset's kind (Blueprint, BTree, or HSM)
-        var pane = _panes.Find(p => p.TargetKind == activeAsset.Kind);
-    
-        if (pane != null)
-        {
-            pane.Draw();
-        }
-        else
-        {
-            ImGuiNET.ImGui.TextDisabled("No active session.");
-        }
+        _panes.Find(p => p.TargetKind == _store.ActiveAsset!.Kind)!.Draw();
     }
 }

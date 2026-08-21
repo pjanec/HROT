@@ -74,7 +74,7 @@ public sealed class TheLiveProjectionReachesTheRowSourcesTests : IDisposable
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
 
         var f    = Formatter();
-        var rows = reg.AiDetails!.Variables.Model.Build().AllRows.ToDictionary(r => r.ShortName);
+        var rows = reg.Details!.Variables.Model.Build().AllRows.ToDictionary(r => r.ShortName);
 
         Assert.Equal("7", f.Cell(rows["Health"]));
         // ⛔ Guide C9 — absent from the live map ⇒ (pending), NOT a decoded zero.
@@ -93,7 +93,7 @@ public sealed class TheLiveProjectionReachesTheRowSourcesTests : IDisposable
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
 
         var f = Formatter();
-        Assert.All(reg.AiDetails!.Variables.Model.Build().AllRows,
+        Assert.All(reg.Details!.Variables.Model.Build().AllRows,
             r => Assert.Equal(VariableValueFormatter.PendingFirstWrite, f.Cell(r)));
     }
 
@@ -112,7 +112,7 @@ public sealed class TheLiveProjectionReachesTheRowSourcesTests : IDisposable
         Assert.Null(reg.LiveProjection);
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
         Assert.Equal(VariableValueFormatter.PendingFirstWrite,
-                     Formatter().Cell(reg.AiDetails!.Variables.Model.Build().AllRows.Single()));
+                     Formatter().Cell(reg.Details!.Variables.Model.Build().AllRows.Single()));
     }
 
     /// <summary>⭐ The registrar exposes what it resolved, so the type-test itself is railable.</summary>

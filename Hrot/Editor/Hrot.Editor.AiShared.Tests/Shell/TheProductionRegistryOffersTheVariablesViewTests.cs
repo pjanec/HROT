@@ -26,7 +26,7 @@ namespace Hrot.Editor.AiShared.Tests.Shell;
 /// </summary>
 public sealed class TheProductionRegistryOffersTheVariablesViewTests
 {
-    /// <summary>⚠ BTree and HSM only: 📌 <c>AiDetails</c> is deliberately null on Blueprint, which has
+    /// <summary>⚠ BTree and HSM only: 📌 <c>Details</c> is deliberately null on Blueprint, which has
     /// its own <c>BlueprintDetailsWindow</c> — a second panel there would be two for one concept.</summary>
     private static readonly string[] DetailsPerspectives = { "BTree", "HSM" };
 
@@ -65,15 +65,24 @@ public sealed class TheProductionRegistryOffersTheVariablesViewTests
     /// <summary>
     /// ⭐⭐ <b>The OFFER SET for a MEASURED context</b> — §6 <c>L1</c>'s clause. ⚠ The context is built
     /// by the production builder from a real store, ⛔ not hand-assembled.
+    ///
+    /// <para>⚠⚠ <b>WIDENED BY <c>L2.3</c>, and the widening is the point.</b> 📄 §6 <c>L3</c>'s table
+    /// gives this view the predicate <i>"outline focus <b>∧ variable rows</b>"</i>. ⭐ <c>L1</c> asserted
+    /// only the FIRST half, because it had no second half to assert; ⛔ <c>L2.3</c> built it *(an empty
+    /// section must not claim the panel, or <c>Draw</c>'s <c>if (!HasContent) return;</c> renders the
+    /// blank <c>R-117</c> forbids)* — ⇒ this rail now states the design's predicate in full.
+    /// ⚠ <b>Not a weakening:</b> the assertions are unchanged, the SETUP gained the row the design
+    /// always required.</para>
     /// </summary>
     [Theory]
     [InlineData("BTree")]
     [InlineData("HSM")]
-    public void WithTheOutlineFocused_TheVariablesViewIsOffered(string perspective)
+    public void WithTheOutlineFocused_AndRowsToShow_TheVariablesViewIsOffered(string perspective)
     {
         var store     = new EditorSelectionStore();
         var registrar = Production(perspective);
         store.NotifySurfaceFocused(SelectionOrigin.VariableOutline);
+        registrar.Details!.ShowVariables(new VariableOutlineSelection("Inputs", OneRow()));
 
         var ctx     = DetailsContextBuilder.Build(store, perspective, VariableRunState.Planning);
         var offered = registrar.DetailsViews.OfferSet(ctx);
@@ -81,6 +90,38 @@ public sealed class TheProductionRegistryOffersTheVariablesViewTests
         Assert.Contains(offered, d => d.Id == VariablesDetailsViewDescriptor.ViewId);
         Assert.Equal(VariablesDetailsViewDescriptor.ViewId, registrar.DetailsViews.Default(ctx)!.Id);
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>…and the OTHER half, which <c>L2.3</c> added: focus alone is NOT enough.</b>
+    /// ⚠ Written as its own rail rather than folded into the one above, so the two halves of §6
+    /// <c>L3</c>'s predicate fail SEPARATELY — ⛔ a single rail covering both cannot say which broke.
+    /// </summary>
+    [Theory]
+    [InlineData("BTree")]
+    [InlineData("HSM")]
+    public void WithTheOutlineFocused_ButNoRows_TheVariablesViewDoesNotClaimThePanel(string perspective)
+    {
+        var store     = new EditorSelectionStore();
+        var registrar = Production(perspective);
+        store.NotifySurfaceFocused(SelectionOrigin.VariableOutline);
+
+        var ctx = DetailsContextBuilder.Build(store, perspective, VariableRunState.Planning);
+
+        Assert.Empty(registrar.DetailsViews.OfferSet(ctx));
+        Assert.Null(registrar.DetailsViews.Default(ctx));
+    }
+
+    /// <summary>⭐ Reuses the shipped <c>FixedVariableRowSource</c> — ⛔ not a second fake (ruling 9).</summary>
+    private static IVariableRowSource OneRow()
+        => new FixedVariableRowSource(new[]
+        {
+            new VariableRow(
+                Origin:    new VariableRowOrigin(Guid.NewGuid(), new Fdp.Core.Entity(1, 0), "s", "Ammo", "Asset"),
+                ShortName: "Ammo",
+                TypeText:  "Int32",
+                ClrType:   typeof(int),
+                ReadValue: () => new byte[4]),
+        });
 
     // ══ L1.4 — the "exactly one" rule, in ONE predicate ══════════════════════
 
@@ -147,8 +188,8 @@ public sealed class TheProductionRegistryOffersTheVariablesViewTests
 
         var wm = new Fdp.Presentation.WindowManager.WindowManager(
             new Fdp.Presentation.Icons.IconAtlas(nint.Zero, 1, 1, 16f));
-        registrar.RegisterExtraWindow(wm, registrar.AiDetails!);
-        registrar.RegisterExtraWindow(wm, registrar.AiDetails!);
+        registrar.RegisterExtraWindow(wm, registrar.Details!);
+        registrar.RegisterExtraWindow(wm, registrar.Details!);
 
         Assert.Equal(before, registrar.DetailsViews.All.Count);
     }
