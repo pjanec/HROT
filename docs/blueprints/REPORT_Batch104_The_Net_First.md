@@ -96,7 +96,7 @@ explicitly not this batch.
 
 ---
 
-## 2. ⭐⭐ WHAT MOVED — **7 production files, and 2 of them are the fix**
+## 2. ⭐⭐ WHAT MOVED — **6 production files, and 2 of them are the fix**
 
 | file | what |
 |---|---|
@@ -125,14 +125,206 @@ refactor touches, before anyone knew where `AS-14` lived.**
 
 ---
 
+## 3. ⭐⭐ `104c` — **the gate row, and it is not a flake**
+
+```
+dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/... --no-build \
+            --filter "FullyQualifiedName~TimeControlIntegrationTests"
+```
+
+| run | result | |
+|---|---|---|
+| ⭐ **baseline, at `34deca154`** | ⛔ **4 passed / 2 FAILED**, 32 s | 📐 *"advanced ~3s after 3 steps; actual delta=**1.000s**"* · *"expected ~2s advance; got **1.000s**"* — ⭐ **reproduced exactly as the handoff predicted** |
+| ✅ **after `TM-001` + `TM-002`** | **6 / 0**, 36 s | the two named reds are **fixed**, not skipped |
+| ✅ **run 1, with `TM-005`'s additions** | **9 / 0**, 51 s | |
+| ✅ **run 2** *(the handoff's "run it TWICE")* | **9 / 0**, 52 s | ⭐ **no flake observed** |
+| ✅ **run 3** *(again, inside the isolation sweep of §4)* | **9 / 0**, 62 s | |
+
+⛔ **No third red at any point.** ⭐ **The two greens are a FIX and are reported as one**, per the rule.
+
+---
+
+## 4. ⛔⛔⛔ `104b` — **`BP-378` HAS NOT ROTTED FOR THE FULL RUN. But the crash has ONE name.**
+
+### ⚠⚠ First, the correction: **`AS-13`'s headline is true of the FILTERED run only**
+
+📐 **Two full single-process runs, same commit, same machine:**
+
+| run | got through | then |
+|---|---|---|
+| ① | **55 of 250** — 31P / 22F / 2S | ⛔ **host crash**, then the 5-min blame timer elapsed; ⚠ *"Collect dump was enabled but no dump file was generated"* |
+| ② | **83 of 250** — 42P / 36F / 5S | ⛔ **`Test host process crashed : CycloneDDS.Runtime.DdsException: dds_take failed: -3 (BadParameter)`** |
+
+⇒ ⭐⭐ **`BP-378`'s signature — *"the count differs every run"* — is intact.** ⛔ **The suite cannot be
+gated as one process today.**
+
+### ⭐ The OOM, **named** — 📌 the handoff said *"do not fix `MAX_ENTITIES` blind"*, so it is not fixed
+
+📐 **14 `OutOfMemoryException`s in run ②.** ⭐ The stack is the same every time:
+
+```
+Fdp.Core.EntityIndex..ctor()          EntityIndex.cs:38    ← _freeList = new int[FdpConfig.MAX_ENTITIES]   (1 000 000)
+Fdp.Core.EntityRepository..ctor()     EntityRepository.cs:114                                    ×13
+Hrot.Common.Infrastructure.HrotNodeBuilder.Build()          HrotNodeBuilder.cs:92                ×12
+Hrot.SimHost.SimHostNodeBootstrapper.BuildContext(...)      SimHostNodeBootstrapper.cs:156       ×11
+```
+
+| ⭐ | |
+|---|---|
+| **the allocation** | `int[1_000_000]` *(4 MB managed)* **plus** `NativeChunkTable<BitMask512>` and `NativeChunkTable<EntityMetadataCold>`, each reserving `⌈1_000_000 / chunkCapacity⌉ × 64 KB` ≈ **64 MB of address space** |
+| **the multiplier** | ⛔ **one set per `EntityRepository`** ⇒ **one per NODE**, and each harness boots **4–5 nodes** — 📌 `HrotRunnerHarness` builds Orchestrator + SimHost + IG + ExCon + CGF |
+| **why it accumulates** | ⚠ **nothing releases them between test classes** in a shared host |
+| ⛔ **why I did not touch it** | 📌 `MAX_ENTITIES` is a **genuine engine constant**, not a test knob — ⭐ capping it to make a test suite pass is exactly the "blind fix" the handoff forbade |
+
+### ⭐⭐⭐ AND THE FIND THAT IS ACTUALLY ACTIONABLE — **the host crash has a single source**
+
+📐 **Every one of the 72 classes run in its OWN test host:**
+
+| ⭐ | |
+|---|---|
+| ⛔⛔ **`ClusterOpE2eScriptTests` aborts the host ON ITS OWN** | **in 2–3 s, reproducibly, at BOTH shas** |
+| ✅ **every other class COMPLETES** | ⚠ some with pre-existing reds — but **none crashes, none hangs, none OOMs** |
+| ⭐ **total wall-clock for all 72** | **15.7 minutes** |
+
+⇒ ⭐⭐⭐ **`BP-378`'s *"a DIFFERENT proximate cause every time"* is what a crashed host looks like from
+the outside.** 📌 **Isolation makes it one class.** ⇒ **Quarantining `ClusterOpE2eScriptTests` is the
+difference between a suite that finishes and one that does not** — ⚠ **and I did NOT do it**: 📌 the
+handoff's rule is *"a new skip is a finding, not a fix"*, and this is a finding. ⭐ `TM-006`.
+
+### ✅ **43 classes FULLY GREEN in isolation** — ⭐ the standing class-at-a-time gate list
+
+```
+AclBackdoorEliminationTests                     BlueprintKernelRunTests
+BreakpointSubsystemWiringTests                  CgfComponentRegistryTests
+ContextMenuIntegrationTests                     DdsIdAllocatorDecouplingTests
+EditorAuthoringIntegrationTests                 EditorPreviewAndSaveIntegrationTests
+EditorSubsystemBootTests                        Eqs.EqsChildSensorActionTests
+Eqs.EqsCombatNodesTests                         Eqs.EqsContextSlotTests
+Eqs.EqsDistributedTests                         Eqs.EqsLastUpdateTimeTests
+Eqs.EqsLifecycleNodesTests                      Eqs.EqsMultiLevelProofTests
+Eqs.EqsMultiSensorTests                         Eqs.EqsMultiTemplateTests
+Eqs.EqsResultUpdateSystemTests                  Eqs.EqsRoundTripTests
+Eqs.EqsSolverSystemPhase2Tests                  Eqs.EqsSolverSystemTests
+Eqs.EqsTranslatorTests                          Eqs.FindCoverFromTargetTests
+Eqs.Golden.EqsFlatTerrainGoldenTests            Eqs.HideInCoverV2SmokeTests
+Eqs.HotReloadTests                              Eqs.PathCostInversionTests
+EyesAndMuscleIntegrationTests                   HarnessSmokeTests
+HeadlessGizmoStreamingTests                     HrotRunnerHarnessTests
+IdAllocatorDiscoveryTests                       MissionControlIntegrationTests
+OfflineEditorIntegrationTests                   PreviewModeVehicleMovementTests
+ReplicationPhaseExecutionTests                  SelectionAndMissionIntegrationTests
+SimTimeSyncIntegrationTests                     SubEntityCascadeDestroyTests
+TimeControlIntegrationTests                     ZombieEntityMapTests
+ZoneScenarioLoadIntegrationTests
+```
+
+### ⚠ **29 classes NOT green — every one IDENTICAL at the base sha `91b53840`**
+
+| class | base | this branch | |
+|---|---|---|---|
+| `AllSubsystemsClusterTransitionTests` | 0P / 2F / 0S | 0P / 2F / 0S | ✅ same |
+| `AllSubsystemsSpawnMovingVehicleTests` | 0P / 1F / 0S | 0P / 1F / 0S | ✅ same |
+| `AreaAuthoringIntegrationTests` | 0P / 1F / 0S | 0P / 1F / 0S | ✅ same |
+| `BlueprintObserveTests` | 4P / 1F / 0S | 4P / 1F / 0S | ✅ same |
+| `BlueprintScenarioIntegrationTests` | 4P / 1F / 2S | 4P / 1F / 2S | ✅ same |
+| `CgfRecordingIntegrationTests` | 0P / 3F / 0S | 0P / 3F / 0S | ✅ same |
+| `CgfSubsystemHeadlessTests` | 4P / 5F / 0S | 4P / 5F / 0S | ✅ same |
+| `ClusterOpE2eScriptTests` | ⛔ **ABORTS the host** | ⛔ **ABORTS the host** | ✅ same |
+| `DistributedBrainMuscleIntegrationTests` | 2P / 1F / 1S | 2P / 1F / 1S | ✅ same |
+| `DistributedScenarioLoadTests` | 0P / 1F / 0S | 0P / 1F / 0S | ✅ same |
+| `DragDropIntegrationTests` | 0P / 2F / 0S | 0P / 2F / 0S | ✅ same |
+| `EditorFileIOIntegrationTests` | 3P / 1F / 0S | 3P / 1F / 0S | ✅ same |
+| `EntityDestroyIntegrationTests` | 0P / 2F / 0S | 0P / 2F / 0S | ✅ same |
+| `Eqs.AccurateLosPhaseTests` | 1P / 2F / 0S | 1P / 2F / 0S | ✅ same |
+| `Eqs.EqsFlagsMeaningfulTests` | 3P / 1F / 0S | 3P / 1F / 0S | ✅ same |
+| `Eqs.EqsScoreDeltaTests` | 2P / 1F / 0S | 2P / 1F / 0S | ✅ same |
+| `FeatureSwitchRcuIntegrationTests` | 0P / 4F / 0S | 0P / 4F / 0S | ✅ same |
+| `GhostPromotionTests` | 0P / 1F / 0S | 0P / 1F / 0S | ✅ same |
+| `HsmBehaviorIntegrationTests` | 1P / 1F / 0S | 1P / 1F / 0S | ✅ same |
+| `MapPlacementIntegrationTests` | 0P / 2F / 0S | 0P / 2F / 0S | ✅ same |
+| `MiniExConIntegrationTests` | 2P / 3F / 0S | 2P / 3F / 0S | ✅ same |
+| `NavigationStatusAuthorityTests` | 1P / 1F / 0S | 1P / 1F / 0S | ✅ same |
+| `NetworkDemoPatrolAndEngageTests` | 0P / 3F / 0S | 0P / 3F / 0S | ✅ same |
+| `NetworkGatewayIntegrationTests` | 0P / 1F / 0S | 0P / 1F / 0S | ✅ same |
+| `SensorMechanismIntegrationTests` | 0P / 1F / 0S | 0P / 1F / 0S | ✅ same |
+| `SpawnMovingVehicleIntegrationTests` | 0P / 3F / 0S | 0P / 3F / 0S | ✅ same |
+| `SpawnMovingVehicleWithGatewayIntegrationTests` | 0P / 1F / 0S | 0P / 1F / 0S | ✅ same |
+| `SplitAuthoritySpawnTests` | 2P / 1F / 0S | 2P / 1F / 0S | ✅ same |
+| `UrbanCombatFileLifecycleTests` | 0P / 1F / 0S | 0P / 1F / 0S | ✅ same |
+
+
+⭐⭐⭐ **On "pre-existing": this is a MEASUREMENT.** 📐 Every red above was re-run at the base sha
+`91b53840` *(the branch point)* — ⛔ **not asserted from the diff.** ⭐⭐ **Zero classes differ.**
+⚠ **This mattered most for the CGF classes**: `TM-002` adds three systems to the CGF kernel's schedule,
+so `CgfSubsystemHeadlessTests` *(4P/5F)* and `CgfRecordingIntegrationTests` *(0P/3F)* were the ones that
+could plausibly have moved. ⭐ **They did not — identical counts at both shas.**
+
+---
+
+## 5. ⚠ `104d` — **two of three gaps closed, and the third is NAMED, not skipped**
+
+| gap | verdict | |
+|---|---|---|
+| ⛔ **no `SetTimeScale` test** | ✅ **closed, twice over** | ⭐ `SetTimeScale_HalfSpeed_ReachesTheMasterController` — the op **had never been exercised at all**. ⭐⭐ **And a second rail records what the first one found:** ⛔⛔ **`TimeScale = 0` IS NOT EXPRESSIBLE over the cluster op path** — 📐 `ClusterMaster.cs:359`, `scale = dto != null && dto.TimeScale > 0f ? dto.TimeScale : 1f` ⇒ **"halt via time scale" silently becomes "run at full speed"** *(`TM-004`)* |
+| ⛔ **no editor-composition test** | ⛔ **NOT added** | 📌 it needs `EditorHarness` — **a second composition root** — inside a batch whose stated point is *"touches NO time-control production code"*. ⭐ **It belongs to `T3`**, which is the change it would guard: a rail written now guards nothing and would have to be rewritten when the bus moves |
+| ⛔ **no breakpoint-pause test** | ⛔ **NOT added** | 📌 it needs the rewind path **`W2`/`W5` turn on**, which does not exist yet ⇒ ⭐ there is nothing to assert against |
+| ⭐ **bonus, unasked** | ✅ **added** | `PauseStep_CgfNodeEntersLockstepAndAcksEveryStep` — ⛔⛔ **nothing in the suite observed the CGF side.** ⚠ **That is precisely why `TM-002` survived**: the two reds saw the *missing sim time*, never the *silent node* |
+
+⭐ **The root-cause probe was a throwaway and was REMOVED**, not left behind: it reflected into
+`_pendingAcks` / `_mode` and asserted `true`. ⇒ **Replaced by real hooks** —
+`CgfSubsystem.TestHook_TimeControllerType`/`Mode` *(mirroring `SimHostApp`)* and
+`OrchestratorSubsystem.TestHook_TimeScale` — ⭐ so the rails assert **observed state** instead of private
+fields or an inferred timing slope.
+
+
+---
+
 ## 6. ⭐⭐ GATES
 
 ⚠ **Environment: Linux cloud container, 4 cores / 16 GB, `dotnet 8.0.424`. ⛔ NO Xvfb** — nothing in
 these suites needs a GL context.
+⭐ **`--no-build` column:** every row below ran `--no-build` **after** an explicit build of that project
+in the same session ⇒ ⛔ **no stale-binary green.** 📌 The out-of-solution projects that report a stale
+bin *(`NodeEditor.Core`, `NodeEditor.UI`, `Fhsm.Tests`)* are **not in this batch's blast radius** and
+were not run.
+
+| # | gate | built? | before *(`91b53840`)* | after | Δ |
+|---|---|---|---|---|---|
+| **1** | ⭐⭐⭐ `dotnet build IOS-IG-SimHost.sln` | — | 0 errors | ✅ **0 errors**, 60 warnings, 67 s | **0** |
+| **2** | ⭐⭐⭐ **`~TimeControlIntegrationTests`** *(the standing row)* | ✅ | ⛔ **4P / 2F** | ✅ **9P / 0F** | **+2 fixed, +3 added** |
+| **3** | ⭐ same, **run 2** | `--no-build` | — | ✅ **9P / 0F**, 52 s | ⭐ **no flake** |
+| **4** | ⭐⭐ `~MasterSyncControllerTests` | ✅ | 34P / 0F | ✅ **39P / 0F** | **+5 rails** |
+| **5** | ⭐⭐ **`Fdp.Toolkits.Tests` — FULL** | ✅ | — | ✅ **1973P / 0F / 0S**, 33 s | ⚠ **`DEBT-AIB-030` did NOT fire this run** — ⛔ neither a red nor a green here is evidence; row 6 is the one that counts |
+| **6** | ⭐⭐⭐ **`~ThePauseFlagOnTheClockIsFalseWhilePausedTests`** *(must stay 4/0)* | `--no-build` | 4 / 0 | ✅ **4P / 0F**, 65 ms | **0** — 📌 `M-42` + `AS-1b` still pinned |
+| **7** | ⭐ **`Hrot.ClusterRunner.Tests`** | ✅ | ⛔ 2 pre-existing reds | ⚠ **260P / 2F** — ⭐ **exactly `DataDrivenGizmoPredicateTests.D003_Predicate_True_AllowsUpdateAndDraw` and `…_False_SkipsUpdateAndDraw_ForFilteredEntity`** | **0** — ⛔ **no third red** |
+| **8** | ⛔⛔ **`Hrot.ClusterRunner.Integration.Tests` — FULL, one process** | ✅ | *(never measured — `BP-378`)* | ⛔ **ABORTS**: 55/250 then a host crash; 83/250 then `dds_take -3` | 📌 **`TM-006`** |
+| **9** | ⭐⭐⭐ **same — 72 classes, EACH in its own host** | `--no-build` | **identical, class by class** | ✅ **43/72 fully green** · 192P / 48F / 6S · 15.7 min | ⭐ **0 differences vs base** — `TM-007` |
+| **10** | ⭐ `python3 scripts/tracker-counts.py --check` | — | `open 81 / done 242 (+1 refuted)` | ✅ **unchanged** | **0** — ⚠ **and that is the point: it counts only `BP-` rows, so it does NOT cover Area H.** Stated in the section header, `TM-008` |
+
+| ⭐ contract items | |
+|---|---|
+| **golden movement** | ⛔ **none.** 📐 No golden, `.bp.json`, `.trx` baseline or generated file is in the diff — **6 production files + 2 test files, all hand-written**, zero regenerated — 📐 `git diff --stat 91b53840..HEAD`: **10 files, +642 / −28**, of which 2 are docs |
+| **working tree after every suite run** | ✅ **CLEAN** — `git status --short` empty; `TestResults/` is gitignored |
+| **quarantine counts** | ⭐ **unchanged.** ⛔ **I added no skip.** 📌 The 6 skips in the isolated sweep are pre-existing `[Fact(Skip=…)]`, identical at base. ⚠ **`ClusterOpE2eScriptTests` is a candidate for quarantine and I did NOT quarantine it** — *"a new skip is a finding, not a fix"* |
+| **ids allocated** | `TM-001` `TM-002` `TM-003` `TM-004` `TM-005` `TM-006` `TM-007` `TM-008` — ⭐ **all in Area H**, ⛔ **no `BP-` id taken** |
 
 ---
 
-## 7. ⛔⛔ FOR THE COORDINATOR — **two design-doc statements are now stale, and that file is yours**
+## 7. ⛔ THE FOUR VERDICTS — `R-106`
+
+| item | verdict | |
+|---|---|---|
+| **`104a`** | ✅ **done** | root-caused *(hypothesis ②)*, then **both** defects fixed. ⛔ Nothing blocked |
+| **`104b`** | ✅ **done** | the measurement **is** the deliverable; ⚠ one part *(edit `BP-378`)* **redirected** to Area H — `TM-008` |
+| **`104c`** | ✅ **done** | gate row + before/after, run twice |
+| **`104d`** | ⚠ **partial** | 2 of 3 measured gaps closed + 1 unasked; **2 not added, each with a reason** — §5 |
+
+⛔ **No item was blocked.** ⭐ **Nothing cascaded.**
+
+
+---
+
+## 8. ⛔⛔ FOR THE COORDINATOR — **two design-doc statements are now stale, and that file is yours**
 
 📌 **Rule: the coordinator designs; the implementation session does not rewrite `DESIGN_*`.** ⭐ So
 they are **named here rather than edited**:
