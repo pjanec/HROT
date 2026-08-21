@@ -139,6 +139,7 @@ namespace Fdp.ModuleHost
         /// </summary>
         private static readonly HashSet<SystemPhase> _validGlobalPhases = new()
         {
+            SystemPhase.PreFrame,
             SystemPhase.Input,
             SystemPhase.BeforeSync,
             SystemPhase.PostSimulation,
@@ -489,6 +490,12 @@ namespace Fdp.ModuleHost
             CurrentTime = globalTime;
             _currentFrame = (uint)globalTime.FrameNumber;
             
+            // ═══════════ PHASE: PreFrame ═══════════
+            // Runs before Input, and after the GlobalTime singleton above — so a system here sees
+            // this frame's delta and a world nothing has mutated yet. That is what the staged-write
+            // drain needs: apply the designer's edit, then let Input run against the edited state.
+            topology.Scheduler.ExecutePhase(SystemPhase.PreFrame, _liveWorld, deltaTime);
+
             // ═══════════ PHASE: Input ═══════════
             topology.Scheduler.ExecutePhase(SystemPhase.Input, _liveWorld, deltaTime);
             

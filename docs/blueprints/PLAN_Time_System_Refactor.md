@@ -170,8 +170,8 @@ graph TD
 | id | task | was | feasibility |
 |---|---|---|---|
 | **`W0`** | ⭐⭐⭐ **`Q48-E`'s end-to-end rail, written FIRST and RED** — *pause → edit → resume → the value is in the repository*, per pause kind | `104a` | ⭐ the acceptance criterion |
-| **`W1`** | **`SystemPhase.PreFrame` + one kernel line** — ⛔ the drain must precede `Input` *(~25 state-mutating systems)* | `RF-2` | ✅ **PROVEN** *(scheduler is phase-generic)* |
-| **`W2`** | ⭐⭐ **the drain system**, mirroring `DebugSnapshotProvider`; ⛔ **gate on the `deltaTime` PARAMETER** *(`AS-10`)*; ⛔ skip while the DBM holds a rewind | `RF-3` | ✅ **PROVEN by precedent** |
+| ✅ **`W1`** | ✅ **DONE** *(`TM-020`)* — `PreFrame = 0`, in the kernel's allow-list, executed after the `GlobalTime` push and before `Input`. ⚠ Checked that `default(SystemPhase)` cannot catch unattributed systems *(the scheduler throws)*. ⭐ Railed on the OBSERVED order, not the attribute | `RF-2` | ✅ **done** |
+| ✅ **`W2`** | ✅ **DONE** *(`TM-021`)* — `ResumeAndDrainSystem`: skip while `dt <= 0`, skip while `IsRewound`, else `DrainInto(view)`. ⭐ A PULL *(`R-126`)*. Built against `IStagedWrites` with a fake, so it did not wait on the UI lane. ⚠ **NOT composed in production yet** — `TM-022` | `RF-3` | ✅ **done, unwired** |
 | **`W3`** | ⭐⭐⭐ **running is not a refusal** — delete `RefusedRunning` and `LiveWriteRefusal.NotFrozen`; drop the session's `_isPaused` write gate. ⭐ **Keep** `NoSelectedEntity` · `FieldNotResolvable` · **`SizeMismatch`** *(`Q32` §2.1's corruption gate)* | `RF-5`/`RF-6` | ✅ **mechanical** |
 | **`W4`** | ⭐ **the "queued" affordance** — ⛔ **only two of three run states need it** *(`P6′`)*; ⭐ the mechanism exists: **`Q46` rule 5's typed-value cache**. ⛔ **NOT on `AiVariablesWindow`** *(`U-16` retires it)* | `RF-11` | ⭐ mechanism exists |
 | **`W5`** | ⚠ **move the RESTORE out of `RequestStep`/`RequestContinue`** | `RF-4` | ⚠⚠ **LIKELY, not proven** — ⛔ `W0`'s rail settles it |
