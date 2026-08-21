@@ -50,7 +50,33 @@ namespace Hrot.Editor.UI
         }
 
         private bool InPreview => _preview.IsInPreviewMode;
-        private bool Paused    => _timeCtrl.GetMode() == TimeMode.Deterministic;
+
+        /// <summary>
+        /// `T7`: was <c>GetMode() == Deterministic</c>, which is LATE by the Future Barrier window.
+        /// The master freezes its sim time the instant <c>SwitchToDeterministic</c> is called but
+        /// keeps answering <c>Continuous</c> until the barrier lands (200 ms by default), so for
+        /// that window the toolbar still showed a pause button on an already-stopped clock — and, on
+        /// the same node, disagreed with <c>ClusterUiCache.IsPaused</c>, which folds the event and
+        /// turns over immediately.
+        ///
+        /// <para>Asking <see cref="HaltReasonResolver"/> instead of widening the mode check is the
+        /// point: it is the one place that knows the barrier window is a pause, and using it here
+        /// gives `T6`'s resolver its first production caller.</para>
+        /// </summary>
+        private bool Paused => Reason is HaltReason.PausedByOperator
+                                      or HaltReason.SteppingHeld
+                                      or HaltReason.PauseBarrierPending;
+
+        /// <summary>
+        /// Why time is stopped, resolved fresh on every read (`T6`/`R-126` — derived, never latched).
+        /// </summary>
+        public HaltReason Reason => HaltReasonResolver.Resolve(
+            isPublishing:          true,   // the editor host does not suspend its own clock push
+            isAdvancing:           SimClock.Of(_world).IsAdvancing,
+            isRewound:             false,  // the breakpoint's rewind is `W5`, not wired here yet
+            isAwaitingStepAcks:    _timeCtrl.IsAwaitingStepAcks,
+            isDeterministic:       _timeCtrl.GetMode() == TimeMode.Deterministic,
+            isPauseBarrierPending: _timeCtrl.IsPauseBarrierPending);
 
         /// <inheritdoc/>
         public bool IsPlayPauseEnabled => true;

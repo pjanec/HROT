@@ -1229,5 +1229,92 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.SwitchToContinuous();
             Assert.Equal(0, ctrl.QueuedStepCount);
         }
+
+        // ── T7: the Future Barrier window ────────────────────────────────────
+        //
+        // AS-14 made a blocked step DEFER instead of vanish, but only for the ACK guard. The mode
+        // guard above it still refused, and for the first 200 ms after every pause the mode is
+        // BarrierPending — which is exactly when an operator who just pressed pause presses step.
+        // The window is short, so the loss is intermittent, which is the worst shape for it.
+
+        /// <summary>
+        /// TM-031 — a step pressed inside the barrier window is QUEUED, not refused, and it is
+        /// released once the barrier lands. Nothing else in the pause path changes.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_StepDuringPauseBarrier_IsQueuedNotRefused()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 100 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            Assert.True(ctrl.IsPauseBarrierPending);
+
+            // Inside the window: mode still reads Continuous, but the pause IS in effect.
+            ticks = 10;
+            ctrl.Update();
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+
+            ctrl.Step(1.0f);
+            Assert.Equal(1, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);   // this was 1 before TM-031
+
+            // Past the barrier the controller enters Stepping; the next frame releases the step.
+            ticks = 500;
+            ctrl.Update();                              // BarrierPending -> Stepping
+            var released = ctrl.Update();               // UpdateStepping releases the queued delta
+
+            Assert.Equal(0, ctrl.QueuedStepCount);
+            Assert.Equal(1.0f, released.DeltaTime, 3);
+            Assert.Equal(1L, ctrl.GetCurrentState().FrameNumber);
+        }
+
+        /// <summary>
+        /// TM-031 — the bound still applies inside the window: a queue that cannot grow must refuse
+        /// audibly rather than silently absorb. Same contract as the ACK-guard case.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_BarrierQueueFull_StillRefusesAudibly()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 100, MaxQueuedSteps = 2 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+
+            ctrl.Step(1.0f); ctrl.Step(1.0f);
+            Assert.Equal(2, ctrl.QueuedStepCount);
+            Assert.Equal(0L, ctrl.RefusedStepCount);
+
+            ctrl.Step(1.0f);
+            Assert.Equal(2, ctrl.QueuedStepCount);
+            Assert.Equal(1L, ctrl.RefusedStepCount);
+        }
+
+        /// <summary>
+        /// TM-031 — the probe itself: true only for the window, false either side of it. `T6`'s
+        /// resolver answered <c>Unknown</c> for this state because nothing exposed it.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_ReportsThePendingPauseBarrier()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var config = new TimeConfig { LookaheadWallTicks = 100 };
+            var ctrl   = CreateController(bus, config: config, tickSource: () => ticks);
+
+            Assert.False(ctrl.IsPauseBarrierPending);   // continuous
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+            Assert.True(ctrl.IsPauseBarrierPending);    // window open
+
+            ticks = 500;
+            ctrl.Update();
+            Assert.False(ctrl.IsPauseBarrierPending);   // barrier crossed
+            Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
+        }
     }
 }

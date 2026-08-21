@@ -26,12 +26,20 @@ namespace Fdp.Toolkit.Time
         /// <param name="isRewound">Has a breakpoint rewound the live repository?</param>
         /// <param name="isAwaitingStepAcks">Is a deterministic step issued and unacknowledged?</param>
         /// <param name="isDeterministic">Is the controller in deterministic (stepping) mode?</param>
+        /// <param name="isPauseBarrierPending">
+        /// Is a pause broadcast but its Future Barrier not yet crossed (`T7`)? A separate signal
+        /// from <paramref name="isDeterministic"/> on purpose: <c>GetMode()</c> answers
+        /// <c>Continuous</c> for that whole window, so a caller that had only the mode could not
+        /// distinguish the window from a genuinely unexplained halt — and did not, which is how
+        /// <see cref="HaltReason.Unknown"/> came to be reachable in normal operation.
+        /// </param>
         public static HaltReason Resolve(
             bool isPublishing,
             bool isAdvancing,
             bool isRewound,
             bool isAwaitingStepAcks,
-            bool isDeterministic)
+            bool isDeterministic,
+            bool isPauseBarrierPending)
         {
             // FIRST, and not negotiable: while the push is suspended the singleton is frozen at its
             // last value, which may carry a non-zero delta. Asking "is it advancing" before this
@@ -49,6 +57,10 @@ namespace Fdp.Toolkit.Time
             if (isAwaitingStepAcks) return HaltReason.SteppingHeld;
 
             if (isDeterministic) return HaltReason.PausedByOperator;
+
+            // Below deterministic, because once the barrier HAS landed the mode is the better
+            // answer; above Unknown, because this is the state Unknown was wrongly covering.
+            if (isPauseBarrierPending) return HaltReason.PauseBarrierPending;
 
             // Halted, publishing, continuous, nothing holding it. Nothing here explains that, and
             // saying so is more useful than picking the nearest plausible answer.

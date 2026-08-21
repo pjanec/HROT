@@ -44,6 +44,23 @@ namespace Fdp.Toolkit.Time
         PausedByOperator = 4,
 
         /// <summary>
+        /// The operator's pause has been broadcast and sim time is already frozen, but the cluster
+        /// has not yet crossed the Future Barrier, so the controller is still nominally continuous
+        /// (`T7`).
+        ///
+        /// <para>This value exists because <c>Unknown</c> showed up in a real, reachable state and
+        /// the enum's own documentation said that when it does, the missing probe is the finding.
+        /// It was: <c>GetMode()</c> hides <c>BarrierPending</c> by design, so for the whole 200 ms
+        /// lookahead window every probe answered "nothing is holding it" while nothing ran.</para>
+        ///
+        /// <para>Reported separately from <see cref="PausedByOperator"/> rather than folded into it
+        /// because the states differ where it matters for diagnosis: here the cluster has not
+        /// converged yet, and a step issued now is queued until the barrier lands rather than
+        /// executed.</para>
+        /// </summary>
+        PauseBarrierPending = 5,
+
+        /// <summary>
         /// Time is not advancing and no probe accounted for it.
         ///
         /// <para>A real answer, not a placeholder: it means the halt has a cause nothing here can

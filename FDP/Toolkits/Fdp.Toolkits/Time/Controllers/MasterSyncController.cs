@@ -204,6 +204,20 @@ namespace Fdp.Toolkit.Time.Controllers
         public bool IsAwaitingStepAcks => _mode == MasterMode.Stepping && _pendingAcks.Count > 0;
 
         /// <summary>
+        /// True during the Future Barrier window: the operator's pause has been broadcast and the
+        /// master's sim time is ALREADY frozen, but the barrier has not yet been crossed so the
+        /// controller is not in <c>Stepping</c> mode (`T7`).
+        ///
+        /// <para><b>Why it has to be exposed.</b> <see cref="GetMode()"/> deliberately answers
+        /// <c>Continuous</c> for this whole window — 200 ms by default — because the pending barrier
+        /// is an implementation detail. That is fine for "which protocol am I speaking", and wrong
+        /// for "why is time stopped": in the window the clock reports a zero delta and every probe
+        /// says "nothing is holding it", so <c>HaltReasonResolver</c> answered <c>Unknown</c>. This
+        /// is the missing probe its <c>Unknown</c> documentation predicted.</para>
+        /// </summary>
+        public bool IsPauseBarrierPending => _mode == MasterMode.BarrierPending;
+
+        /// <summary>
         /// Number of step requests REFUSED since construction — because the controller was not in
         /// <c>Stepping</c> mode, or because the deferral queue was already full. A non-zero value
         /// means the caller asked for motion it did not get; it is paired with a logged warning.
@@ -225,6 +239,31 @@ namespace Fdp.Toolkit.Time.Controllers
         /// </summary>
         public GlobalTime Step(float fixedDelta)
         {
+            // `T7`: a step pressed inside the Future Barrier window is a step the operator asked for
+            // AFTER pausing — the pause is broadcast and sim time is already frozen, the cluster has
+            // simply not reached the barrier yet. Refusing it dropped the request for the first
+            // 200 ms after every pause, which is precisely when an operator presses step. It goes in
+            // the SAME queue AS-14 built, and UpdateStepping releases it on the first frame past the
+            // barrier.
+            if (_mode == MasterMode.BarrierPending)
+            {
+                if (_queuedStepDeltas.Count >= _config.MaxQueuedSteps)
+                {
+                    _refusedStepCount++;
+                    Fdp.Core.Logging.FdpLog<MasterSyncController>.Warn(
+                        "[TimeSync] STEP REFUSED: deferral queue is full ({0}) while the pause " +
+                        "barrier is still pending. Delta={1:F4}s dropped (refusals so far={2}).",
+                        _config.MaxQueuedSteps, fixedDelta, _refusedStepCount);
+                    return GetCurrentState();
+                }
+
+                _queuedStepDeltas.Enqueue(fixedDelta);
+                Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
+                    "[TimeSync] STEP QUEUED: pause barrier still pending. Delta={0:F4}s, queued={1}.",
+                    fixedDelta, _queuedStepDeltas.Count);
+                return GetCurrentState();
+            }
+
             if (_mode != MasterMode.Stepping)
             {
                 _refusedStepCount++;

@@ -17,8 +17,10 @@ namespace Fdp.Toolkit.Time.Tests
             bool advancing = false,
             bool rewound = false,
             bool awaitingAcks = false,
-            bool deterministic = false)
-            => HaltReasonResolver.Resolve(publishing, advancing, rewound, awaitingAcks, deterministic);
+            bool deterministic = false,
+            bool barrierPending = false)
+            => HaltReasonResolver.Resolve(publishing, advancing, rewound, awaitingAcks,
+                                          deterministic, barrierPending);
 
         [Fact]
         public void AnAdvancingClock_IsRunning()
@@ -53,8 +55,28 @@ namespace Fdp.Toolkit.Time.Tests
             // the world's clock is frozen.
             Assert.Equal(HaltReason.NotPublishing,
                 Resolve(publishing: false, advancing: true, rewound: true,
-                        awaitingAcks: true, deterministic: true));
+                        awaitingAcks: true, deterministic: true, barrierPending: true));
         }
+
+        /// <summary>
+        /// `T7`. The barrier window used to answer <see cref="HaltReason.Unknown"/>: the master
+        /// freezes sim time the instant a pause is issued, but <c>GetMode()</c> keeps saying
+        /// Continuous until the barrier lands, so every probe said "nothing is holding it" while
+        /// nothing ran. The enum's Unknown documentation said that if Unknown ever showed up, the
+        /// missing probe was the finding — it did, and it was.
+        /// </summary>
+        [Fact]
+        public void ThePendingPauseBarrier_IsNamed_NotReportedAsUnknown()
+            => Assert.Equal(HaltReason.PauseBarrierPending, Resolve(barrierPending: true));
+
+        /// <summary>
+        /// Once the barrier HAS landed the mode is the better answer, so the window must not shadow
+        /// it. Ordering rail: if anyone lifts the barrier branch above deterministic, this fails.
+        /// </summary>
+        [Fact]
+        public void OnceDeterministic_TheModeOutranksALingeringBarrierFlag()
+            => Assert.Equal(HaltReason.PausedByOperator,
+                Resolve(deterministic: true, barrierPending: true));
 
         /// <summary>
         /// The breakpoint owns the world while rewound, even mid-step: the step cannot proceed until
@@ -142,7 +164,8 @@ namespace Fdp.Toolkit.Time.Tests
                 isAdvancing: advancing,
                 isRewound: false,
                 isAwaitingStepAcks: ctrl.IsAwaitingStepAcks,
-                isDeterministic: ctrl.GetMode() == TimeMode.Deterministic);
+                isDeterministic: ctrl.GetMode() == TimeMode.Deterministic,
+                isPauseBarrierPending: ctrl.IsPauseBarrierPending);
 
             Assert.Equal(HaltReason.Running, Ask(advancing: true));
 
@@ -153,6 +176,41 @@ namespace Fdp.Toolkit.Time.Tests
 
             ctrl.Step(1.0f);
             Assert.Equal(HaltReason.SteppingHeld, Ask(advancing: false));
+        }
+
+        /// <summary>
+        /// `T7`, over the REAL master rather than five booleans: with a non-zero lookahead the pause
+        /// leaves the controller in the barrier window, and the reason must name it. This is the rail
+        /// that would have failed before the probe existed — it answered <c>Unknown</c>.
+        /// </summary>
+        [Fact]
+        public void TheRealMaster_NamesTheBarrierWindow_ForTheWholeLookahead()
+        {
+            long ticks = 0;
+            var bus  = new FdpEventBus();
+            var ctrl = new MasterSyncController(
+                bus, new System.Collections.Generic.HashSet<int> { 1 },
+                new TimeConfig { LookaheadWallTicks = 100 }, () => ticks);
+
+            HaltReason Ask() => HaltReasonResolver.Resolve(
+                isPublishing: true,
+                isAdvancing: ctrl.Update().DeltaTime > 0f,
+                isRewound: false,
+                isAwaitingStepAcks: ctrl.IsAwaitingStepAcks,
+                isDeterministic: ctrl.GetMode() == TimeMode.Deterministic,
+                isPauseBarrierPending: ctrl.IsPauseBarrierPending);
+
+            ctrl.SwitchToDeterministic(new System.Collections.Generic.HashSet<int> { 1 });
+
+            // Inside the window: the mode still answers Continuous and the clock is already frozen.
+            ticks += 10;
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            Assert.Equal(HaltReason.PauseBarrierPending, Ask());
+
+            // Past the barrier: the mode takes over and the window flag drops.
+            ticks += 200;
+            Assert.Equal(HaltReason.PausedByOperator, Ask());
+            Assert.False(ctrl.IsPauseBarrierPending);
         }
     }
 }
