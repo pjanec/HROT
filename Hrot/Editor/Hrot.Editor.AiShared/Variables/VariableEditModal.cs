@@ -246,7 +246,22 @@ public sealed class VariableEditModal
     /// missing capability and a correct gate.</b> ⇒ ⭐ when the host names the cause, that is what the
     /// designer reads; ⚠ the generic sentence remains only for a host that offered nothing.</para>
     /// </summary>
-    public string? RefusalMessage => _refusal switch
+    public string? RefusalMessage
+    {
+        get
+        {
+            var text = RefusalSentence;
+            // ⭐⭐⭐ 2026-08-21 — EVERY refusal names the OUTCOME and the observed run state.
+            // 🔴 The diagnostic was added to the PRE-CLICK tooltip only, and the user reported
+            //    "still the same text, no extra info" — ⛔ because THIS is the sentence they see:
+            //    it is rendered AFTER OK. ⚠ Two sites, one message; a fix to one is not a fix.
+            // ⭐⭐ And the ARM is named too, because the five arms are indistinguishable on a
+            //    screenshot — ⛔ two fixes were already made on a guess about which one fired.
+            return text is null ? null : $"{text} [{_refusal}; observed: {_describeRunState()}]";
+        }
+    }
+
+    private string? RefusalSentence => _refusal switch
     {
         VariableEditCommit.Outcome.LiveWriteUnavailable when _refusalDetail is { Length: > 0 } d => d,
 
