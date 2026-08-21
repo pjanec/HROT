@@ -22,6 +22,9 @@ known-conflict: none.
 
 ⭐ **IDs I allocated:** `BP-381` · `BP-382` · `BP-383` · `BP-384` · `BP-385`. ⭐ `BP-379` **closed**.
 
+⚠⚠ **PLUS one finding OUTSIDE the batch scope, raised by the user after the gates and left for the
+coordinator to book: §9 — `R-69` IS RULED AND NOT IMPLEMENTED.**
+
 ---
 
 ## 1. ⭐⭐⭐ `102a` — **the refusal was an UNBUILT CAPABILITY, not a safety property**
@@ -317,3 +320,61 @@ and the reason the full table is non-negotiable. ⭐ The rail is **re-expressed,
 asserts the same property from the writer's side — *the writer stages the offset it was given and adds
 nothing of its own* — **and explicitly not the old behaviour**, so a writer that quietly re-applied a
 header still reddens it.
+
+---
+
+## 9. ⛔⛔⛔ RAISED AFTER THE GATES — **`R-69` IS RULED, AND THE CODE DOES NOT IMPLEMENT IT**
+
+> ⭐⭐⭐ **User, `2026-08-21`:** *"whether sim is running or not should be read from orchestrator's state
+> machine state (each node has a cluster orchestrator client), is it so?"*
+
+⛔⛔ **It is not so — and it was RULED to be so three days ago.** 📌 **`R-69`** *(user, `2026-08-18`,
+already in `RULINGS.md`)*:
+
+> *"**THE 'IS THE SIM UP' SIGNAL IS THE CLUSTER STATE** … `Idle` / `*Edit` ⇒ `Planning` ·
+> `OperatingPreview`/`OperatingLive` ⇒ `Running` · `OperatingReplay` ⇒ `Replay` ⇒ **it resolves `R-66`
+> AND the `Replay` arm `RunStateSource` says it cannot resolve**"*
+
+⚠⚠ **This is a canon row that the code contradicts, and I described `isSimUp` in conversation without
+noticing it.** ⭐ Filed here rather than as a tracker row **at the user's instruction** — *"coordinator
+will handle the bookkeeping."*
+
+### 📐 MEASURED `2026-08-21` — ⛔ not remembered
+
+| what | where | verdict |
+|---|---|---|
+| the state machine | `Fdp.Toolkits/Orchestration/Enums/ClusterState.cs:8` — `Idle · Loading/Operating/Unloading × Edit/Preview/Live/Replay · Degraded` | ⭐ **exists, with exactly the vocabulary the run state needs** |
+| mirrored for the wire | `Hrot.Network.Orchestration/Orchestration/OrchestrationMessages.cs:5` | ⭐ kept in step by `FdpOrchestrationEnumSyncTests.ClusterStateValuesMatchHrot` |
+| the per-node client | `Fdp.Toolkits/Orchestration/ClusterSlave.cs:28`; the editor builds one at `EditorSubsystem:863` | ⭐ **yes — every node has one**, as the user said |
+| ⚠ its state accessor | **`ClusterSlave.LocalStateIdForTest`** *(`:231`)* — an `int`, **named ForTest** | ⛔ and `SyncFdpToStrideScript:59` **already casts it to `ClusterState` in non-test code** |
+| ⭐⭐ the editor's OWN copy | **`EditorApplication:46` — `_currentClusterState`, fed at `:78` from `ClusterStateUpdateEvent`** | ⭐⭐⭐ **`R-69`'s cited evidence is STILL TRUE** — the signal is already received and stored |
+| ⛔ what `isSimUp` reads instead | `IPreviewController.IsInPreviewMode` — a **private `bool` in a nested class** *(`EditorSubsystem:467`)*, flipped by `EnterPreviewMode`/`ExitPreviewMode` | ⛔ **a local latch, sitting beside the real signal** |
+
+### ⭐⭐ WHAT THE BOOLEAN COSTS — **three things, all measurable**
+
+| # | |
+|---|---|
+| ⭐⭐⭐ **①** | **`VariableRunState.Replay` is CONSUMED AND NEVER PRODUCED.** 📐 `VariableEditPolicy:153` **denies editing** during replay and `VariableWatchGesture:74` has an arm for it — ⛔ but `RunStateSource.Resolve` only knows two booleans, so **nothing can ever emit it**. ⇒ ⚠ **a shipped safety rule that cannot fire** |
+| **②** | `OperatingEdit` and `OperatingLive` are **flattened into one bit**, so the panel cannot tell authoring-with-a-cluster-up from a live run |
+| **③** | the **transients** *(`Loading*` / `Unloading*`)* and **`Degraded`** have no defined answer — they fall to `Planning` by default, i.e. *"show the initial value"*, during exactly the moments the world is changing under the panel |
+
+### ⛔ WHAT DOES **NOT** MOVE — ⚠ stated so nobody over-reaches
+
+⭐ **`isFrozen` stays local.** The cluster state has **no notion of "stopped on a breakpoint"** — 📌
+ruling 15's `Paused` arm is genuinely node-local *(`_bpManager.IsPaused || _bpTimeAdapter.IsPausedByDebugger`)*.
+⇒ ⭐ the change is to **`isSimUp` alone**, and `RunStateSource.Resolve` would take **a `ClusterState`
+plus the freeze boolean**, ⛔ not two booleans.
+
+### ⚠ TWO CAVEATS A BUILDER MUST MEASURE FIRST
+
+| ⚠ | |
+|---|---|
+| **the accessor** | `ClusterSlave` exposes only `LocalStateIdForTest`. ⇒ ⭐ either it gains a real one, **or** the editor uses `EditorApplication._currentClusterState`, which is **already fed** and is the path `R-69` itself names |
+| **the latch does TWO jobs** | `EnterPreviewMode` **latches the flag AND switches the clock**. ⇒ ⛔ before removing the latch, measure whether anything else reads it as a proxy for the clock — 📌 exactly the `M-37`-shaped mistake of assuming a symbol means what its name says |
+
+### ⭐ RECOMMENDED SHAPE — ⛔ not built here, and it needs a batch
+
+⭐ An architect-question doc with the **full mapping table** *(all 14 `ClusterState` members → a
+`VariableRunState`, including the transients and `Degraded`, which `R-69` does not spell out)* and the
+blast radius: the composition root, `RunStateSource`, and **every host's run state**. ⚠ It also **closes
+`R-66`**, which `R-69` says it supersedes.
