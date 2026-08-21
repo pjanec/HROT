@@ -59,6 +59,16 @@ still untested.
 
 > ⭐⭐⭐ **`T0` EXIT CRITERION:** `TimeControlIntegrationTests` **6/6 green**, run twice, and the row is in
 > the gate table. ⛔ **Until then no task below may touch a production file in the time stack.**
+>
+> ## ✅✅✅ **`T0` IS MET — Batch 104, `2026-08-21`. THE REST OF THIS PLAN IS UNBLOCKED.**
+> | | |
+> |---|---|
+> | **`T0.1`** | ✅ **done** — ⛔ **and the root cause was not in `Step`**: the CGF node had **no time translators at all** and could never ACK *(`TM-002`)*. The silent discard was fixed too — **queue, or refuse audibly** *(`TM-001`)* |
+> | **`T0.2`** | ✅ **measured** — ⛔ **the FULL run still aborts** *(`BP-378` stands; only `AS-13`'s filtered half rotted)*. ⭐⭐ **The crash has ONE source, `ClusterOpE2eScriptTests`; 43/72 classes green in isolation, 15.7 min** *(`TM-006`/`TM-007`)* |
+> | **`T0.3`** | ✅ **done** — the gate row is standing; **run twice, no flake** *(`TM-003`)* |
+> | **`T0.4`** | ⚠ **partial** — `SetTimeScale` + CGF-participation rails added; ⛔ editor-composition deferred to **`T3`** *(it guards the change `T3` makes)* and breakpoint-pause to **`W2`/`W5`** *(the path does not exist yet)* *(`TM-005`)* |
+> | ⭐⭐ **BASELINE FROM NOW ON** | **`TimeControlIntegrationTests` 9/9**, ⛔ not 4/2 |
+> 📄 **[`REPORT_Batch104_The_Net_First.md`](REPORT_Batch104_The_Net_First.md)**
 
 ---
 

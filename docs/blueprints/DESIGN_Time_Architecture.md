@@ -354,8 +354,8 @@ graph TD
 |---|---|---|
 | **`AS-11`** | ⛔ **`EditorTimeTransportFacade` ⇄ `EditorTimeTransportAdapter` are identical** but for name, accessibility and three null-guards; ⭐ **only the Adapter is constructed** *(`TimeControlStatusBarSection:31`)*. ⚠ `.dev/` checked: Batch 24 introduced the facade, **no record explains why both survive** | 🔴 ruling-9 duplicate — §4 |
 | **`AS-12`** | ⭐⭐⭐ **RESOLVED.** Every node puts its time controller **on the bus the intents live on**; ⛔ **the editor is the only place those are two different objects** *(registry on `_orchestrationBus`, master on `_world.Bus`)* | ⭐ **one line to fix** — §8 |
-| **`AS-13`** | ⭐⭐ **`BP-378` has ROTTED** — the ClusterRunner integration suite **runs when filtered**: build 88 s, `TimeControlIntegrationTests` 38 s, **4 passed / 2 failed, no OOM** | ⭐⭐⭐ §12 |
-| **`AS-14`** | ⛔⛔ **A STEP IS SILENTLY DISCARDED.** `MasterSyncController.Step:188-195` returns early when `_pendingAcks.Count > 0` ⇒ **3 steps produce 1.000 s**, and the caller is never told. ⭐ **Pre-existing**, provable by construction | 🔴🔴 **the `T0` blocker** — §12 |
+| **`AS-13`** | ⚠⚠ **CORRECTED `2026-08-21` (Batch 104): only the FILTERED claim rotted.** ⭐ Filtered: build 88 s, `TimeControlIntegrationTests` 38 s, 4P/2F, no OOM. ⛔⛔ **The FULL single-process run STILL ABORTS** — 55/250 then a host crash; 83/250 then `dds_take -3`; 14 OOMs at `EntityIndex..ctor:38`. ⭐⭐⭐ **But the crash has ONE source: `ClusterOpE2eScriptTests` aborts the host alone, reproducibly** — **43 of 72 classes are fully green in isolation, 15.7 min for all 72** ⇒ a class-at-a-time gate is real | ⭐⭐⭐ §12 · `TM-006`/`TM-007` |
+| **`AS-14`** | ✅✅ **FIXED `2026-08-21` (Batch 104), and the root cause was NOT where this row guessed.** ⛔ The discard was real *(`Step:188-195`, 3 steps ⇒ 1.000 s)* — ⭐⭐⭐ **but what kept `_pendingAcks` non-empty forever is that the CGF node had NO TIME TRANSLATORS AT ALL** *(it composes past `SharedApplicationBootstrapper` phase 6c)*, so it never heard the pause and never ACKed, while the orchestrator still listed it in the roster. ⇒ **both fixed**: translators extracted + wired *(`TM-002`)*, and a blocked step is now **queued, or refused audibly** *(`TM-001`)*. 📐 **4/2 → 9/9** | ✅ `T0` **UNBLOCKED** — §12 · `TM-001`/`TM-002` |
 
 ---
 
@@ -823,8 +823,16 @@ dotnet test  --no-build --filter "FullyQualifiedName~TimeControlIntegrationTests
 ```
 
 ⇒ ⛔ **No OOM. No hang.** ⭐⭐ **The net the user remembered is available TODAY**, at least per class.
-⚠ **Stated exactly:** ⛔ **I did NOT run the whole suite** — 📌 `BP-378`'s claim about the *full* run is
-**untested**, and only the **filtered** run is proven.
+
+> ⚠⚠ **CORRECTED `2026-08-21` by Batch 104 — the sentence that used to sit here said the full run was
+> *untested*. It has now been RUN, twice, and it ABORTS:** 55/250 then a host crash; 83/250 then
+> `Test host process crashed : dds_take failed: -3 (BadParameter)`; **14 `OutOfMemoryException`s at
+> `EntityIndex..ctor:38`** — `int[MAX_ENTITIES]` plus two ~64 MB `NativeChunkTable` reservations, **per
+> `EntityRepository`, per node, 4–5 nodes per harness**, released between classes by nothing.
+> ⇒ ⛔ **`BP-378`'s FULL-run claim stands. Only the FILTERED half rotted.**
+> ⭐⭐⭐ **And the crash has one name:** run class-by-class, **`ClusterOpE2eScriptTests` aborts the host on
+> its own in 2–3 s, reproducibly, at both shas** — every other class completes. **43/72 fully green,
+> 15.7 min for all 72.** ⇒ **a class-at-a-time gate is real** — `TM-006` / `TM-007`.
 
 ### ⭐ What it covers — **`TimeControlIntegrationTests`, 6 tests over REAL subsystems**
 
@@ -849,9 +857,21 @@ if (_pendingAcks.Count > 0)       return GetCurrentState();   // ⛔ the step is
 
 ⇒ ⭐⭐⭐ **N steps produce ONE step's worth of time.** ⚠ The blocking is **documented and deliberate**
 *("Blocked while the previous step's ACKs are still outstanding")* — ⛔ **but the caller gets NO signal
-and the request is DISCARDED rather than queued**, and the test settles between steps, so either the
-settle is too short or **the slave never ACKs in the harness**. ⭐ **Root-causing it is the
-implementation session's**; ⚠ **the measurement and the hypothesis are here.**
+and the request is DISCARDED rather than queued.**
+
+> ⭐⭐⭐ **ROOT-CAUSED `2026-08-21` by Batch 104. The two candidates named here were *"the settle is too
+> short"* and *"the slave never ACKs **in the harness**"* — it is the second, and the words *in the
+> harness* were wrong: the harness is faithful and the defect is PRODUCTION.**
+> 📐 Roster `[1, 400]`. SimHost (1) ACKs. **CGF (400) never ACKs — and never leaves `Continuous`, so it
+> never hears the pause at all** *(5 000 ms and thousands of pumped frames, three runs)*.
+> ⛔ **`CgfSubsystem` builds its node through `HrotNodeBuilder` DIRECTLY**, and the three slave time
+> translators are wired **only** in `SharedApplicationBootstrapper` **phase 6c**, which CGF never runs
+> ⇒ the node holds a `SlaveSyncController` **with nothing connected to it**, while `OrchestratorSubsystem:303`
+> and `ClusterMaster:327` both keep it in the lockstep roster.
+> ⚠ **`CgfApplication` DID wire them** *(`:118-119`)* — its only caller is a unit test, so **the working
+> copy was the dead one.** ⇒ **phase 6c extracted to `SlaveTimeTranslatorRegistration`, called from both**
+> *(`TM-002`)*, **and the silent discard fixed independently** *(`TM-001`)* — ⛔ fixing only the wiring
+> would have turned the suite green and left the trap armed for `T4`. 📐 **4/2 → 9/9.**
 
 | ⭐ **PRE-EXISTING — the basis** | ⛔ **no production file under `FDP/…/Time/`, `Hrot.Orchestrator`, `MasterSync*`, `SlaveSync*`, `ClusterMaster` or `ModuleHostKernel` has been touched on this branch.** ⭐ Provable by construction, not by a worktree |
 |---|---|
