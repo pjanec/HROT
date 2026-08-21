@@ -5,8 +5,9 @@ updated: 2026-08-21
 current-answer: §3 findings · §4 the probe results · §5 the target · §6 the refactor list.
   ⭐ Dispatched as Batch 104 (RF-1, RF-2, RF-3, RF-5, RF-6). ⛔ RF-4 is NOT in it — §7.
 stale-below: nothing above HISTORY.
-known-rot: none. ⚠ Two claims from this file's FIRST edition were corrected by the probes and
-  are marked CORRECTED inline — the pause barrier (§3 AS-2) and the threading premise (§4 P4).
+known-rot: none. ⚠ THREE claims from this file's first edition were corrected and are marked
+  CORRECTED inline — the pause barrier (§3 AS-2), the threading premise (§4 P4), and P6, whose
+  first version measured the wrong layer (§4 P6'). ⛔ P6' CHANGES ITEM 104f — see §7.
 known-conflict: none. Q48 §5 is the RULING and wins on intent; this file measures what it costs.
 -->
 # ⭐⭐⭐ Time, Pause and the Write Path — **as-is, target, and the refactors between**
@@ -107,19 +108,49 @@ graph TD
 > 🔒 **User:** *"I do not understand how comes that something can be unwritable. The only real reason
 > might be threading issues…"*
 
-⭐⭐ **`P4` says the threading answer is NO — there is no race.** ⛔⛔ **But there is a second mechanism,
-and it is real:** the simulation **keeps ticking while paused** *(dt = 0)*, so anything that **recomputes**
-a value writes it again on the very next frame. ⇒ ⛔ **a direct write to the live repo is overwritten
-before the designer's next frame**, with time still stopped.
+⭐⭐ **`P4` says the threading answer is NO — there is no race.**
 
-| ⭐ consequence | |
+### ⚠⚠ `P6′` — **CORRECTED `2026-08-21`, same day, prompted by the user's question**
+
+⛔ **The first version of `P6` said *"the tick never stops, so a direct write is always overwritten."*
+📐 That was measured at the WRONG LAYER.** ⭐ There are two, and only one of them ignores `dt`:
+
+| layer | guards on `dt`? | 📐 |
+|---|---|---|
+| **module DISPATCH** | ⛔ **NO** — a ≥60 Hz module is dispatched **every frame**, with `moduleDelta == 0` | `ShouldRunThisFrame` never reads `deltaTime` |
+| ⭐⭐⭐ **the BEHAVIOUR tick systems inside it** | ✅ **YES** — `if (deltaTime <= 0f) return;` | `BlueprintTickSystem:51` · `BTreeTickSystem:55` · `HsmTickSystem:103` |
+
+⇒ ⭐⭐⭐ **A blackboard variable written by a behaviour is NOT recomputed while paused.**
+📌 **And this was already in the corpus** — `Q46` rule `2b`, the user's own `2026-08-19` specification:
+*"the brain (cgf) does not tick ANY behavior when `dt=0`."* ⚠ **I re-derived it instead of reading it.**
+
+### ⭐⭐ So the answer is PER RUN-STATE, not one rule
+
+| state | is a direct write overwritten? | ⇒ |
+|---|---|---|
+| ⭐⭐ **time-paused, no rewind** *(toolbar · stepping — **the case the user hits**)* | ⛔ **NO.** Behaviours are not ticking | ⭐⭐⭐ **write DIRECT — it sticks, and it is visible IMMEDIATELY.** ⛔ No "queued" state needed |
+| ⛔ **breakpoint-paused (rewound)** | ⚠ **yes, by the RESTORE** — the live repo holds pre-tick and resume overwrites it *(`AS-4`)* | ⭐ **stage** ⇒ **"queued" is REAL here** |
+| ⚠ **running** *(`dt > 0` every frame)* | ⚠ **yes, by the next behaviour tick** | ⭐ **stage** ⇒ **"queued" is REAL here**, and ⛔ **an edit to a COMPUTED variable is inherently a one-tick poke** — 📌 you are editing an output |
+
+⇒ ⭐⭐ **The old refusal sentence — *"the edit would be overwritten by the next tick"* — described a real
+mechanism, but only in TWO of the three states.** ⛔ In the third — the one the designer actually uses —
+it was simply wrong.
+
+### ⭐ Which SURFACES owe the "queued" affordance — **enumerated**
+
+📐 `search_graph(".*VariableTableModel.*")` → **4 owners**, unchanged since Batch 103's `103c`:
+
+| surface | ⭐ verdict |
 |---|---|
-| ⭐⭐⭐ **STAGE, do not write direct** | ⛔ **and not for the reason anyone assumed** — not threading, not the rewind: **because the tick never stops** |
-| ⭐⭐ **drain at the top of an ADVANCING tick** | ⭐ the edit becomes the **input** to the tick that will use it — which is the semantics a designer expects |
-| ⚠⚠ **AND THE HONEST UX COST** | ⛔ **for a RECOMPUTED variable, the new value cannot be shown while paused** — the next dt=0 frame overwrites it. ⭐ For a stored value nobody recomputes, a direct write would stick. ⇒ ⚠ **the panel must say "queued, applies on the next tick" rather than pretend** — 📌 this is a UX decision the design owes, not a defect |
+| ⭐⭐⭐ **`AiWatchWindow`** *(and `WatchPanelWindow`)* | 🔒 **the design already specifies it** — `Q46` rule **5**: *"a value the user typed is a SEPARATE cache on the row, distinct from the value read through the accessor."* ⇒ **the queued state IS that second cache**, and it resolves on the next `dt > 0` pulse *(rule 2)*. ⛔ **Nothing new to invent** |
+| ⭐⭐ **`VariableDetailsSection`** | ⭐ **same row class, same rule 5** ⇒ it inherits the affordance for free. ⚠ **It is the surface the designer edits from**, so it is the one that must not lie |
+| ⭐ **`AiVariablesWindow`** | ⚠ **`U-16` retires it** *(`R-54`)* ⇒ ⛔ **do not build the affordance here** — it would cement a duplicate |
+| ⚠ **`VariableEditModal`** | ⭐ **the CONFIRMATION, not the display** — it closes on OK, so its job is one sentence *("queued; applies on the next tick")*, ⛔ not a live state |
+| ⚠ **`VariablePropertiesModal`** | ⛔ **no** — it edits the DECLARATION, not the value |
 
-⇒ ⭐⭐ **The old refusal sentence — *"the edit would be overwritten by the next tick"* — was describing a
-REAL mechanism.** ⛔ What was wrong was **refusing** instead of **staging**.
+⇒ ⭐⭐⭐ **One mechanism (`Q46` rule 5's typed-value cache), two surfaces that render it, one sentence in
+the modal.** ⛔ **And it is only reachable in two of the three run states** — in a plain time-pause the
+value simply changes.
 
 ---
 
@@ -214,7 +245,7 @@ sequenceDiagram
 | **`RF-8`** | **debugger pause publishes `PauseTimeIntent`** ⇒ cluster-wide by construction | ✅ **PROVEN** | `AS-7` |
 | **`RF-9`** | ⛔ **`ClusterUiCache.IsPaused` — KEEP, refine to a mode name** | ✅ **decided** | `P3` — it observes the wire |
 | **`RF-10`** | **BTree/HSM: hand the coordinator the real time controller** | ✅ **PROVEN — the caller holds it** | `AS-9` |
-| **`RF-11`** | ⚠ **the "queued, applies next tick" affordance** in the edit dialog / panel | ⛔ **DESIGN OWED** | `P6` — ⚠ a UX decision, not a mechanism |
+| **`RF-11`** | ⚠ **the "queued" affordance** — ⛔ **NARROWED by `P6′`**: needed only in the **breakpoint-paused** and **running** states; ⭐ in a plain time-pause the value simply changes | ⭐ **mechanism EXISTS** | `P6′` + 🔒 **`Q46` rule 5** — the typed-value cache on the row is already the design |
 
 ### ⭐ Order
 
@@ -239,6 +270,11 @@ feels. ⭐ `RF-7`–`RF-10` are independent and can go in any batch.
 ---
 
 ## 7. ⭐ WHAT IS STILL NOT PROVEN — **one item, named**
+
+⚠⚠ **`104f`'s premise MOVED after dispatch** — `P6′`. ⭐ The affordance is **narrower** than the
+handoff says *(two run states, not all three)* and its **mechanism already exists** *(`Q46` rule 5)*.
+⛔ **Not an invalidation** — 📌 rule 1: this is FYI for a running batch, and `104f` is *"only if
+early"* anyway. ⭐ **If Batch 104 has not started, the coordinator re-stamps under rule 1a.**
 
 ⚠ **`RF-4` is LIKELY, not proven.** ⭐ What is measured: the DBM has **only 10 `_isPaused` sites**, all
 inside its own protocol, and **every external consumer is display or a per-frame system** — so a
