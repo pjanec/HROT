@@ -259,6 +259,28 @@ box — and **an existing class drawn on the same canvas as a proposed one makes
 | **③** | ⭐⭐ **An implementing task CHECKS the diagrams before building**, and reports it: *"the design carries N classes and M sequences; what I built matches / deviates HERE and why."* ⚠ **A deviation is a finding, not a silent choice** — ⭐ argue it in the report, as every good batch already does | **implementation** |
 | **④** | ⛔⛔ **A design with no UML is NOT ready to dispatch.** ⭐ A handoff citing one is a defect of the COORDINATOR — 📌 the same class of miss as `BP-355` *(named in a report, never turned into an item)* | **coordinator** |
 
+### ⛔⛔⛔ THE DIAGRAMS LIVE IN THE DESIGN, NEVER IN THE BATCH — **a handoff REFERENCES them** *(user, `2026-08-21`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"the diagrams are to be written to designs to survive, not to ephemeral
+> batches and tasks. batches should reference the designs, not being designs on their own."*
+
+⛔⛔ **A handoff / report / review is EPHEMERAL — it now lives in `docs/blueprints/batches/` and is not
+read again after the batch closes.** ⇒ ⭐⭐⭐ **A diagram drawn inside a handoff DIES with the batch, and
+the design it belonged to never gets it.** 📌 The case: I put the `classDiagram`/`sequenceDiagram` for
+`MIN`, the staged-edit and `T1/T2` **inside the handoffs** — and `T1/T2`'s was a straight duplicate of
+`DESIGN_Time_Architecture.md` §9's own diagram.
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **UML — and any design content — goes in a `DESIGN_*` / `Architect_Question_*` doc** | that is the long-lived home; it survives compaction and batch archival |
+| ⭐⭐ **the handoff CITES the design's diagram by DOC + SECTION** | *"build §9's `ISimClock` classDiagram"* — ⛔ it does not redraw it |
+| ⛔⛔ **a batch that CONTAINS a `classDiagram`/`sequenceDiagram` is a SMELL** | either it is inventing design in a place that dies, or duplicating the design ⇒ **move it into the design and reference it** |
+| ⭐ **if a change has no owning design yet, CREATE/EXTEND one** *(with the UML)*, then dispatch a handoff that points at it | ⛔ **do not let the handoff BE the design** — 📌 the `MIN` mistake |
+
+⇒ ⭐⭐ **Obligation ① restated with a home:** the `classDiagram`+`sequenceDiagram` live in the **DESIGN doc**
+marked `build-state: READY-TO-BUILD`; the handoff is a dispatch pointer to it. ⚠ **`design-digest.py`
+already checks designs for UML and EXCLUDES `batches/`** — so a diagram put in a batch is unchecked too.
+
 ### ⭐ Gated — **a convention nothing checks is a convention that decays**
 
 ```bash
