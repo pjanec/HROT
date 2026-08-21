@@ -25,9 +25,9 @@ re-dispatched: 2026-08-21 under rule 1a — 104f rewritten (its probe measured t
 > | **the second landmine box** | ⭐ **restated** — the zeroed delta is the wrong ROLE, not a bug |
 > | ⛔ **`104a`–`104e`** | ⭐⭐ **UNCHANGED, byte for byte.** Nothing else in this file moved |
 
-> 📌 **Dispatched at `<STAMP>`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** —
+> 📌 **Dispatched at `335dd78c6`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** —
 > documents that change after it are **FYI ONLY**.
-> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 104 at <STAMP>` FIRST.**
+> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 104 at 335dd78c6` FIRST.**
 > ⭐⭐ **`R-106`: a blocked item stops THAT ITEM, never the batch. Five verdicts.**
 > ⭐ `quick-check.sh` while working; the FULL gate table ONCE, at the end *(`M-37`)*.
 
