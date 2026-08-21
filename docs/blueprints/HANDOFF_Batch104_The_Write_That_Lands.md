@@ -7,9 +7,10 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none. ⛔ RF-4 (moving the RESTORE out of RequestStep/RequestContinue) is
   deliberately NOT in this batch — §5. The breakpoint resume path stays exactly as it is.
-re-dispatched: 2026-08-21 under rule 1a — 104f rewritten (its probe measured the wrong layer),
+re-dispatched: 2026-08-21 under rule 1a, TWICE — 104f rewritten (its probe measured the wrong layer),
   the landmine box restated, then restated again for accuracy (the 'two roles' claim was wrong and
-  is withdrawn; the instruction is unchanged). 104a-104e unchanged. User confirmed: not started.
+  is withdrawn; the instruction is unchanged), and 104d amended for AS-10 (gate on the deltaTime
+  parameter, not the singleton). 104a-104c and 104e unchanged. User confirmed: not started.
 -->
 # HANDOFF — Batch 104: **the write that actually lands**
 
@@ -31,9 +32,9 @@ re-dispatched: 2026-08-21 under rule 1a — 104f rewritten (its probe measured t
 > sounds alarming… is that correct?")* — ⛔ **it was not correct, and the claim is withdrawn.**
 > ⭐⭐ **The INSTRUCTION did not change**; only the explanation behind it. 📄 `DESIGN_… §3 AS-1b`.
 
-> 📌 **Dispatched at `335dd78c6`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** —
+> 📌 **Dispatched at `3a8690375`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** —
 > documents that change after it are **FYI ONLY**.
-> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 104 at 335dd78c6` FIRST.**
+> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 104 at 3a8690375` FIRST.**
 > ⭐⭐ **`R-106`: a blocked item stops THAT ITEM, never the batch. Five verdicts.**
 > ⭐ `quick-check.sh` while working; the FULL gate table ONCE, at the end *(`M-37`)*.
 
@@ -96,9 +97,9 @@ holds **~25 state-mutating systems**. ⛔ `BeforeSync` is too late.
 | ⭐ | |
 |---|---|
 | **①** | `SystemPhase.PreFrame = 0` |
-| ⚠ **③** | ⛔ **A `PreFrame` system is OUTSIDE the four groups `ReferenceReplayLoadHandler.SetSystemsEnabled` toggles** — ⭐ **state that in your report**; 📌 `AS-10` |
 | **②** | one `topology.Scheduler.ExecutePhase(SystemPhase.PreFrame, _liveWorld, deltaTime);` in `ModuleHostKernel.UpdateInternal`, **immediately after the `GlobalTime` push and before the `Input` line** *(`:493`)* |
 | ⭐⭐ **why this is small** | 📐 `SystemScheduler` is **phase-generic** — `Dictionary<SystemPhase, List<IEcsModuleSystem>>`, built by iterating whatever was registered *(`:16`, `:46`)*. ⛔ No phase list to extend anywhere else |
+| ⚠ **③** | ⛔ **A `PreFrame` system is OUTSIDE the four groups `ReferenceReplayLoadHandler.SetSystemsEnabled` toggles** — ⭐ **state that in your report**; 📌 `AS-10` |
 | ⚠ **check** | `ModuleHostKernel:156` *"validate that the system's phase will actually be executed for global systems"* — ⭐ **make sure `PreFrame` counts as executed there**, or a `PreFrame` global system may be rejected at registration |
 
 ---
