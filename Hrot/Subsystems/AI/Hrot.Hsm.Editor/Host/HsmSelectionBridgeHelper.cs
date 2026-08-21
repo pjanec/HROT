@@ -75,49 +75,59 @@ public static class HsmSelectionBridgeHelper
         SelectionState  selection,
         HsmAsset?       hsmAsset)
     {
-        if (hsmAsset == null) return null;
-        if (selection.Count == 0) return null;
+        var all = MapSelections(selection, hsmAsset);
+        return all.Count == 1 ? all[0] : null;
+    }
 
-        // --- single node (state) ---
-        using var nodeEnum = selection.Nodes.GetEnumerator();
-        if (nodeEnum.MoveNext())
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L0.2</c> — THE BRIDGE REPORTS, IT NEVER FILTERS.</b> 📌 <c>R-118</c> · 📄
+    /// <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L0.2</c>.
+    ///
+    /// <para>🔴 <b>Deleted:</b> <c>if (selection.Count == 0) return null;</c>, the <i>"more than one
+    /// node ⇒ null"</i> arm, and the <i>"must be the only selected element overall"</i> arm. ⭐ Every
+    /// selected STATE and every selected TRANSITION is now reported; ⚠ an id the asset cannot resolve
+    /// is <b>dropped</b>, not fatal — a stale canvas id must not discard the designer's other
+    /// selections.</para>
+    ///
+    /// <para>⭐⭐ <b>NODES BEFORE LINKS, deliberately.</b> 📐 The deleted code preferred a state over a
+    /// transition when both were selected *(its own words: "deterministic tie-break: state wins")*.
+    /// ⇒ ⭐ reporting nodes first keeps that intent visible in the ORDER, which is what a ranked
+    /// consumer will read.</para>
+    ///
+    /// <para>⚠⚠ <b>ONE MEASURED BEHAVIOUR CHANGE, and it is HSM-only</b> — 📌 the design asked for the
+    /// <i>"same set ⇒ same context"</i> rule to be <b>measured per host</b>, so it is stated rather
+    /// than discovered later. <b>One state + one transition selected together</b> used to resolve to
+    /// the STATE; it now reports <b>both</b>, so the store's derived single is <c>null</c>.
+    /// ⛔ Restoring the old answer would require the tie-break to live in the STORE — HSM knowledge in
+    /// <c>AiShared</c>, and exactly the filtering <c>R-118</c> deletes. ⭐ The design's own answer for
+    /// this shape is <c>L1.4</c>'s predicate plus <c>R-117</c>'s grey line, ⚠ which land in <c>L1</c>/
+    /// <c>L2</c> — so the mixed selection shows nothing until then, instead of the state.</para>
+    /// </summary>
+    public static IReadOnlyList<IAssetSubSelection> MapSelections(
+        SelectionState  selection,
+        HsmAsset?       hsmAsset)
+    {
+        if (hsmAsset == null) return Array.Empty<IAssetSubSelection>();
+
+        List<IAssetSubSelection>? mapped = null;
+
+        // --- states (nodes) — first, preserving the old state-wins tie-break as an ORDER ---
+        foreach (var nodeId in selection.Nodes)
         {
-            // Prefer node over link when mixed (deterministic tie-break: state wins).
-            var stableId = nodeEnum.Current.Value;
-            // Only return state selection when it's an exclusive single-node selection
-            // OR a mixed node+link single pair — node is preferred in both cases.
-            if (!nodeEnum.MoveNext()) // no second node
-            {
-                var state = hsmAsset.FindStateByStableId(stableId);
-                if (state is not null)
-                    return new HsmStateSelection(stableId);
-                // Node present but not a known state → fall through to check links.
-            }
-            else
-            {
-                // More than one node → multi-select, return null.
-                return null;
-            }
+            var stableId = nodeId.Value;
+            if (hsmAsset.FindStateByStableId(stableId) is null) continue;   // ⭐ dropped, not fatal
+            (mapped ??= new List<IAssetSubSelection>()).Add(new HsmStateSelection(stableId));
         }
 
-        // --- single link (transition) ---
-        using var linkEnum = selection.Links.GetEnumerator();
-        if (linkEnum.MoveNext())
+        // --- transitions (links) — Canvas LinkId.Value == TransitionNode.VisualId ---
+        foreach (var linkId in selection.Links)
         {
-            // Canvas LinkId.Value == TransitionNode.VisualId (HsmGraphModel contract).
-            var visualId = linkEnum.Current.Value;
-            if (!linkEnum.MoveNext()) // no second link
-            {
-                // Must also be the only selected element overall (no nodes, one link).
-                if (selection.Count == 1)
-                {
-                    var transition = hsmAsset.FindTransitionByVisualId(visualId);
-                    return transition is null ? null : new HsmTransitionSelection(visualId);
-                }
-            }
+            var visualId = linkId.Value;
+            if (hsmAsset.FindTransitionByVisualId(visualId) is null) continue;   // ⭐ dropped
+            (mapped ??= new List<IAssetSubSelection>()).Add(new HsmTransitionSelection(visualId));
         }
 
-        return null;
+        return (IReadOnlyList<IAssetSubSelection>?)mapped ?? Array.Empty<IAssetSubSelection>();
     }
 
     /// <summary>
@@ -140,8 +150,8 @@ public static class HsmSelectionBridgeHelper
         return ctx =>
         {
             var hsmAsset = ctx.AssetRef as HsmAsset;
-            var newSel   = MapSelection(ctx.View.Selection, hsmAsset);
-            selectionStore.ActiveSubSelection = newSel;
+            // ⭐⭐ L0.2 — the FULL set is published (R-118).
+            selectionStore.ActiveSubSelections = MapSelections(ctx.View.Selection, hsmAsset);
         };
     }
 
