@@ -7,12 +7,27 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none. ⛔ RF-4 (moving the RESTORE out of RequestStep/RequestContinue) is
   deliberately NOT in this batch — §5. The breakpoint resume path stays exactly as it is.
+re-dispatched: 2026-08-21 under rule 1a — 104f rewritten (its probe measured the wrong layer),
+  the landmine box restated. 104a-104e unchanged. The user confirmed the batch was not started.
 -->
 # HANDOFF — Batch 104: **the write that actually lands**
 
-> 📌 **Dispatched at `c0c066334`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** —
+> ## ⚠⚠ RE-DISPATCHED — **rule 1a**
+> 📌 **First dispatched at `c0c066334`; AMENDED AND RE-STAMPED — see the stamp below.**
+> ⭐ **Legal because the batch was never started:** `git merge-base --is-ancestor c0c066334
+> origin/claude/hrot-implementation-j1jvin` ⇒ **no**; no `chore: started batch 104` marker exists;
+> ⭐⭐ **and the user confirmed it directly** *(`2026-08-21`: "104 not started yet, re-stamp it with the
+> corrected 104f")* — 📌 **rule 1b: the ancestry check is corroboration, the ASK is the proof.**
+>
+> | ⭐ what changed | |
+> |---|---|
+> | **`104f`** | ⛔⛔ **REWRITTEN.** Its probe (`P6`) measured the wrong layer. ⭐ "Queued" is real in **two** run states, not three, and the **mechanism already exists** *(`Q46` rule 5)* |
+> | **the second landmine box** | ⭐ **restated** — the zeroed delta is the wrong ROLE, not a bug |
+> | ⛔ **`104a`–`104e`** | ⭐⭐ **UNCHANGED, byte for byte.** Nothing else in this file moved |
+
+> 📌 **Dispatched at `<STAMP>`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** —
 > documents that change after it are **FYI ONLY**.
-> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 104 at c0c066334` FIRST.**
+> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 104 at <STAMP>` FIRST.**
 > ⭐⭐ **`R-106`: a blocked item stops THAT ITEM, never the batch. Five verdicts.**
 > ⭐ `quick-check.sh` while working; the FULL gate table ONCE, at the end *(`M-37`)*.
 
@@ -29,7 +44,7 @@ known-conflict: none. ⛔ RF-4 (moving the RESTORE out of RequestStep/RequestCon
 > | | |
 > |---|---|
 > | ⛔⛔ **`M-42` · Do NOT use `GlobalTime.IsPaused`** | it is `TimeScale == 0`, and **a pause never sets `TimeScale` to 0** ⇒ **it is FALSE while paused.** ⭐ The predicate is **`DeltaTime`** |
-> | ⛔⛔ **Do NOT read the delta from `ITimeController.GetCurrentState()`** | it is `BuildGlobalTime(0f, 0f)` — **hard-coded zero** ⇒ any delta predicate through it answers *"halted"* forever. ⭐ Read the **`GlobalTime` singleton on the live world** |
+> | ⛔⛔ **Do NOT read the delta from `ITimeController.GetCurrentState()`** | ⭐ **It is not a bug — it is the WRONG ROLE.** `GlobalTime` is one struct serving both a **per-frame reading** *(what `Update()` returns and the kernel pushes)* and a **transferable state snapshot** *(`GetCurrentState()` ⇄ `SeedState`)*; a snapshot has no delta, so it is correctly zeroed. ⇒ ⛔ any delta predicate through it answers *"halted"* forever. ⭐ **Read the `GlobalTime` singleton on the LIVE WORLD** |
 > ⭐ Both are pinned by an existing rail: `Fdp.Toolkits.Tests` ▸ `ThePauseFlagOnTheClockIsFalseWhilePausedTests` *(4 tests, green)*.
 
 ---
@@ -120,15 +135,44 @@ unwritable… we should be able to write anything anywhere."*
 
 ---
 
-## 6. ⭐⭐ `104f` — **say "queued", do not pretend** *(`RF-11`)* — ⚠ **only if `104a`–`104e` land early**
+## 6. ⭐⭐ `104f` — **"queued" is REAL, but only in TWO of three states** *(`RF-11`)* — ⚠ **only if `104a`–`104e` land early**
 
-📌 **Design basis:** probe `P6`, and it is the honest cost of the whole design:
-⛔⛔ **`ShouldRunThisFrame` never consults `deltaTime`** ⇒ a module at ≥60 Hz **ticks every frame while
-paused**, with `moduleDelta == 0`. ⇒ ⭐⭐⭐ **a RECOMPUTED variable cannot show its new value while
-paused** — the next dt=0 frame overwrites the display too.
+> ⚠⚠ **AMENDED at the re-stamp.** ⛔ The first edition of this item rested on a probe (`P6`) that
+> **measured the wrong layer** and told you a paused edit can never be shown. ⭐ **That is false for the
+> case the designer actually hits.** 📄 `DESIGN_…§4 P6′`.
 
-⇒ ⭐ **The dialog/panel must say so** — *"queued; applies on the next tick"* — ⛔ rather than close
-silently and leave the designer watching an unchanged number and concluding it failed **again**.
+📌 **Design basis — `P6′`, and it is TWO layers, only one of which ignores `dt`:**
+
+| layer | guards on `dt`? |
+|---|---|
+| module **DISPATCH** | ⛔ **no** — `ShouldRunThisFrame` never reads `deltaTime` |
+| ⭐⭐⭐ **the BEHAVIOUR tick systems** | ✅ **YES** — `BlueprintTickSystem:51` · `BTreeTickSystem:55` · `HsmTickSystem:103`, all `if (deltaTime <= 0f) return;` |
+
+🔒 **And this is the user's own `2026-08-19` specification** — `Q46` rule `2b`: *"the brain (cgf) does
+not tick ANY behavior when `dt=0`."*
+
+### ⭐⭐ ⇒ The behaviour is PER RUN-STATE
+
+| state | is the write overwritten? | what the surface shows |
+|---|---|---|
+| ⭐⭐ **time-paused** *(toolbar · stepping — **the case the user hits**)* | ⛔ **NO** — behaviours are not ticking | ⭐⭐⭐ **the value simply CHANGES.** ⛔ **No "queued" state — do not add one here** |
+| ⛔ **breakpoint-paused** *(rewound)* | ⚠ **yes, by the RESTORE** *(`AS-4`)* | ⭐ **"queued"** |
+| ⚠ **running** | ⚠ **yes, by the next behaviour tick** | ⭐ **"queued"**, and ⛔ an edit to a **computed** variable is inherently a **one-tick poke** |
+
+### ⭐⭐⭐ The MECHANISM ALREADY EXISTS — ⛔ do not invent one
+
+🔒 **`Q46` rule 5**, verbatim: *"A value the user typed is a **SEPARATE cache on the row**, distinct from
+the value read through the accessor."* ⇒ ⭐ **that IS the queued state**, and it resolves on the next
+`dt > 0` pulse *(rule 2)*.
+
+| surface | ⭐ verdict |
+|---|---|
+| ⭐⭐ **`AiWatchWindow`** *(and `WatchPanelWindow`)* | ⭐ **the design's home for it** — rule 5 |
+| ⭐⭐ **`VariableDetailsSection`** | ⭐ same row class ⇒ free. ⚠ **the surface the designer edits from — the one that must not lie** |
+| ⛔ **`AiVariablesWindow`** | ⛔⛔ **DO NOT** — `U-16` / `R-54` retires it; the affordance would cement a duplicate |
+| ⚠ **`VariableEditModal`** | ⭐ **one sentence on confirm**, ⛔ not a live state |
+| ⛔ **`VariablePropertiesModal`** | ⛔ no — it edits the DECLARATION |
+
 ⚠ **Shape it minimally and report it**; ⭐ the full affordance is a UX design this batch does not own.
 
 ---
