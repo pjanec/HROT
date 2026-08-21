@@ -83,6 +83,10 @@ def changed(days, include_all):
         # Short-lived batch artefacts live under docs/blueprints/batches/ and are NOT designs.
         if "/batches/" in path:
             continue
+        # docs/designs/ holds VERBATIM design copies migrated from .dev/ — exempt from the STATUS/UML
+        # convention until a session touches one (retro-fit lazily, per CLAUDE.md), same as batches/.
+        if path.startswith("docs/designs/"):
+            continue
         if not include_all and (name.startswith("HANDOFF_") or name.startswith("REPORT_")):
             continue
         if (ROOT / path).exists():
