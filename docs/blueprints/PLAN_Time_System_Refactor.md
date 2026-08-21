@@ -221,7 +221,13 @@ graph TD
 | **ID ALLOCATION** — rule 3 says each session numbers its own rows; ⛔ **two sessions drawing from `BP-` collide by construction** | ⭐⭐⭐ **a PREFIX per lane** — `BP-` stays with the UI/variable lane, the time lane uses **`TM-`**. ⛔ **Structural, not coordination** |
 | **the LANE TABLE** — `.claude/CLAUDE.md` names **one** implementation branch | ⭐ **add the second branch by name**, and say which lane each owns |
 
-### ⛔⛔ ③ AND IT BRUSHES THE `2026-08-15` FREEZE — **the user must rule**
+### ✅✅ ③ THE FREEZE — **RULED `2026-08-21`: APPROVED**
+
+🔒 **User, verbatim:** *"the freeze was about the variable model, time lane is fine. approved."*
+⇒ ⭐⭐⭐ **The carve-out is now in `.claude/CLAUDE.md`** beside the freeze itself, with the three
+two-lane rules *(`TM-` ids · tracker `Area H` · no cross-lane files)*.
+
+#### ⛔ The original question, kept for the record
 
 🔒 **The standing ruling, verbatim:** *"cross host it is. one single implem session (the one we are
 using) will be implementing for all hosts, **no other session will implement until this is all done**."*
@@ -231,7 +237,7 @@ using) will be implementing for all hosts, **no other session will implement unt
 | ⭐⭐ **the freeze protects the UNIFIED VARIABLE MODEL** — variables, working state, the blackboard panel, `Hrot.Editor.AiShared` | ⇒ ⭐ **the TIME lane is outside it** *(engine, orchestrator, kernel, integration tests)* |
 | ⛔ **but the words say "no other session will implement"**, without an area carve-out | ⇒ ⚠⚠ **this needs the user to say "the freeze is about the variable model; a time-lane session is fine"** — ⛔ **I will not read the carve-out into it myself** |
 
-### ⭐⭐ ⇒ RECOMMENDED SPLIT, if approved
+### ✅ ⇒ THE APPROVED SPLIT
 
 | lane | first batch | ⭐ |
 |---|---|---|

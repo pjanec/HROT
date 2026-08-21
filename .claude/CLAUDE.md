@@ -321,10 +321,18 @@ in the other's lane.
 
 ### ⭐ The lanes — branch names, authoritative
 
-| Lane | Branch |
-|---|---|
-| **Coordinator** (handoffs, tracker, gates) | ⭐ **`claude/blueprint-authoring-status-gm0akp`** |
-| **Implementation** (all feature code) | ⭐ **`claude/hrot-implementation-j1jvin`** |
+| Lane | Branch | owns |
+|---|---|---|
+| **Coordinator** (handoffs, design, gates) | ⭐ **`claude/blueprint-authoring-status-gm0akp`** | — |
+| ⭐⭐ **UI / VARIABLE lane** *(the frozen area)* | ⭐ **`claude/hrot-implementation-j1jvin`** | variables · working state · blackboard · `AiShared` · Q38/Details · ⭐ **`MIN`**. ⭐ ids **`BP-`**, tracker areas **`A`–`G`** |
+| ⭐⭐ **TIME lane** *(approved `2026-08-21`)* | ⚠ **TBD — record it when that session first pushes**; 📌 locate it by ancestry, never by name | `Fdp.Toolkits/Time/` · `Hrot.Orchestrator` · `ModuleHostKernel` · `Hrot.ClusterRunner.Integration.Tests`. ⭐ ids **`TM-`**, tracker area **`H` only** |
+
+> ⛔⛔ **TWO IMPLEMENTATION LANES, `2026-08-21` — the three rules that keep them apart**
+> | ⭐ | |
+> |---|---|
+> | ⭐⭐⭐ **ID PREFIX PER LANE** | `BP-` = UI/variable · **`TM-` = time.** ⛔ **Structural, not coordination** — 📌 id collisions have bitten this programme **three times** |
+> | ⭐⭐ **TRACKER PARTITION** | the time lane writes **ONLY** to `Area H — Time & clock`. ⇒ different regions of one file **merge cleanly** |
+> | ⭐ **NO CROSS-LANE FILES** | 📐 measured: different assemblies, no shared production file. ⚠ **A cross-lane edit is a STOP-and-report**, not a judgement call |
 
 ⚠ **Updated 2026-08-10 by the user.** The coordinator lane was previously
 `claude/blueprint-authoring-status-6sr5ld`; that was a **different, now-retired session**. Any document
@@ -473,6 +481,18 @@ artefact, not just `BP-` rows.**
 
 ⚠ **If you are a session other than the one named above and you are about to write code touching
 variables, working state, the blackboard panel or `Hrot.Editor.AiShared` — STOP and ask the user.**
+
+#### ⭐⭐⭐ `2026-08-21` — **THE FREEZE IS SCOPED TO THE VARIABLE MODEL. A TIME LANE IS APPROVED.**
+
+🔒 **User, verbatim:** *"the freeze was about the variable model, time lane is fine. approved."*
+
+| ⭐ | |
+|---|---|
+| ⭐⭐ **the freeze still binds** | variables · working state · the blackboard panel · `Hrot.Editor.AiShared` · the Details/Q38 work — ⛔ **one session only** |
+| ⭐⭐⭐ **OUTSIDE it, and now APPROVED for a second session** | ⭐ **the TIME lane** — `FDP/Toolkits/Fdp.Toolkits/Time/` · `Hrot.Orchestrator` · `ModuleHostKernel` · `Hrot.ClusterRunner.Integration.Tests` |
+| ⛔⛔ **`MIN` is NOT in the time lane** | 📐 it edits `BlueprintDebugSession` · `BlueprintLiveValueWriter` · `VariableEditCommit` ⇒ **variable-edit code** ⇒ ⭐ **it ships with the UI/variable session** |
+
+📄 **The split, the conflicts and the amendments: [`docs/blueprints/PLAN_Time_System_Refactor.md`](../docs/blueprints/PLAN_Time_System_Refactor.md) §5.**
 
 ### Checking "did they see X?" — do it correctly, and name the run
 
