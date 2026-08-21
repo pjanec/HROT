@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN
+build-state: READY-TO-BUILD
 updated: 2026-08-21
 current-answer: §3 findings · §4 the probe results · §5 the target · §6 the refactor list.
+  ⭐ Dispatched as Batch 104 (RF-1, RF-2, RF-3, RF-5, RF-6). ⛔ RF-4 is NOT in it — §7.
 stale-below: nothing above HISTORY.
 known-rot: none. ⚠ Two claims from this file's FIRST edition were corrected by the probes and
   are marked CORRECTED inline — the pause barrier (§3 AS-2) and the threading premise (§4 P4).
