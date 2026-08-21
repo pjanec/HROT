@@ -2226,8 +2226,22 @@ namespace Hrot.Editor
                 isSimUp:  () => _previewController?.IsInPreviewMode ?? false,
                 // ⭐ Ruling 15's two arms: a breakpoint pause OR deterministic stepping. ⛔ Read
                 //   through the SAME adapter the Blueprint debugger uses -- not a second rule.
+                // ⭐⭐⭐ THIRD ARM (2026-08-21, M-40) -- THE SIMULATION CLOCK ITSELF.
+                // 🔴🔴 User: "it is fail in the value changing point - value does not change although
+                //    I do it when sim is paused." 📐 Measured: the two arms below see only the DEBUGGER.
+                //    The pause a designer actually presses is ITimeTransportFacade.TogglePlayPause
+                //    (MainToolbarTimeControlSection:42, ClusterTimeControlStatusBarSection:47), which
+                //    sets the clock's TimeScale to 0 -- and NOTHING here asked the clock. ⇒ the panel
+                //    answered Running, TargetFor(Running) is Nowhere, and the dialog refused with
+                //    "only when the simulation is paused" WHILE IT WAS PAUSED.
+                // ⭐⭐ The authority is the clock, and it already says so: GlobalTime.IsPaused is
+                //    `TimeScale == 0.0f` (Fdp.Core/GlobalTime.cs:66), reached through
+                //    ITimeController.GetCurrentState(). ⛔ Not a new signal -- the one that was there.
+                // ⚠ 📌 THE SILENT-DEFAULT PATTERN AGAIN, and the purest instance yet: this class HOLDS
+                //   _timeController (:687, and exposes it at :556) and handed isFrozen everything BUT.
                 isFrozen: () => (_bpManager?.IsPaused ?? false)
-                             || (_bpTimeAdapter?.IsPausedByDebugger ?? false))
+                             || (_bpTimeAdapter?.IsPausedByDebugger ?? false)
+                             || (_timeController?.GetCurrentState().IsPaused ?? false))
             {
                 BreakpointManager             = _bpManager,
                 SanitizerRegistry             = sanitizerRegistry,
