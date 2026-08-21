@@ -354,8 +354,8 @@ graph TD
 |---|---|---|
 | **`AS-11`** | ⛔ **`EditorTimeTransportFacade` ⇄ `EditorTimeTransportAdapter` are identical** but for name, accessibility and three null-guards; ⭐ **only the Adapter is constructed** *(`TimeControlStatusBarSection:31`)*. ⚠ `.dev/` checked: Batch 24 introduced the facade, **no record explains why both survive** | 🔴 ruling-9 duplicate — §4 |
 | **`AS-12`** | ⭐⭐⭐ **RESOLVED.** Every node puts its time controller **on the bus the intents live on**; ⛔ **the editor is the only place those are two different objects** *(registry on `_orchestrationBus`, master on `_world.Bus`)* | ⭐ **one line to fix** — §8 |
-| **`AS-13`** | ⭐⭐ **`BP-378` has ROTTED** — the ClusterRunner integration suite **runs when filtered**: build 88 s, `TimeControlIntegrationTests` 38 s, **4 passed / 2 failed, no OOM** | ⭐⭐⭐ §12 |
-| **`AS-14`** | ⛔⛔ **A STEP IS SILENTLY DISCARDED.** `MasterSyncController.Step:188-195` returns early when `_pendingAcks.Count > 0` ⇒ **3 steps produce 1.000 s**, and the caller is never told. ⭐ **Pre-existing**, provable by construction | 🔴🔴 **the `T0` blocker** — §12 |
+| **`AS-13`** | ⚠ **CORRECTED by Batch 104.** ⭐ `BP-378` rotted for the **FILTERED** run only *(`TimeControlIntegrationTests` runs, 4/2)*; ⛔ **the FULL single-process run still aborts** — `ClusterOpE2eScriptTests` crashes its host in 2–3 s, and `MAX_ENTITIES × 4–5 nodes` OOMs a shared host. ⭐ **43 classes are green in isolation** ⇒ a **class-at-a-time gate is real** *(quarantine flagged `TM-006`)* | ⭐⭐⭐ §13 |
+| **`AS-14`** | ✅ **RESOLVED by Batch 104.** ⛔ Root cause was NOT the settle nor the harness — 📐 **the CGF node is structurally unable to ACK in PRODUCTION** *(it composes past `SharedApplicationBootstrapper` phase 6c, so it holds a `SlaveSyncController` with no translators, yet sits in the lockstep roster)* ⇒ **the master blocks forever**. ⭐ **Fixed:** `TM-002` extracts the translator registration *(shared, not copied)* + `TM-001` makes `Step` **queue-bounded-and-refuse-audibly** instead of silently dropping | ✅ **net now 6/6** — §13 |
 
 ---
 
@@ -802,7 +802,12 @@ sequenceDiagram
 
 ---
 
-## 13. ⭐⭐⭐ THE REGRESSION NET — **it EXISTS, it RUNS, and it is 4/6 GREEN** *(user, `2026-08-21`)*
+## 13. ⭐⭐⭐ THE REGRESSION NET — **it EXISTS, it RUNS, and Batch 104 made it 6/6 GREEN** *(user, `2026-08-21`)*
+
+> ✅ **UPDATE `2026-08-21` (Batch 104, TIME lane).** The net went **4/2 → 6/0** after `TM-001` + `TM-002`,
+> then **9/0** with `TM-005`'s added coverage, run three times, **no flake**. ⭐ Both original reds were a
+> **FIX**, not a skip. The AS-13/AS-14 subsections below are kept with their **corrections inline** — the
+> `2026-08-21` measurements that seeded them, and what Batch 104 then proved.
 
 > 🔒 **User:** *"these changes start to have very big blast radius… the cluster runner has an integration
 > test suite where multiple cluster runner subsystems are instantiated in a single process and
@@ -812,7 +817,13 @@ sequenceDiagram
 > ⭐⭐⭐ **Correct, and better than expected — but the first thing I had to check was whether it can run
 > at all**, because `BP-378` excludes this suite from every gate.
 
-### ⭐⭐ `AS-13` — **`BP-378` HAS ROTTED: the suite runs when FILTERED**
+### ⭐⭐ `AS-13` — **`BP-378` rotted for the FILTERED run; the FULL run still aborts** *(corrected by Batch 104)*
+
+> ⚠ **CORRECTION (Batch 104):** the headline below was true of the **filtered** run only. 📐 The **full**
+> single-process run **aborts** — `ClusterOpE2eScriptTests` crashes its host in 2–3 s at both shas, and
+> `MAX_ENTITIES (1_000_000) × 4–5 nodes` OOMs a shared host *(engine constant — deliberately NOT capped)*.
+> ⭐ **43 classes pass in isolation** ⇒ a **class-at-a-time gate is the real net**; quarantining
+> `ClusterOpE2eScriptTests` is flagged `TM-006` *(a finding, not a silent skip)*.
 
 📐 **Measured `2026-08-21`, on this branch:**
 
@@ -838,7 +849,17 @@ dotnet test  --no-build --filter "FullyQualifiedName~TimeControlIntegrationTests
 | ⛔ | **`PauseStepResume_SimTimeAdvancesByStepAmount`** — *"should have advanced ~3s after 3 steps; actual delta=**1.000s**"* |
 | ⛔ | **`MixedSequence_PauseStepPauseStep_AllCorrect`** — *"expected ~2s advance; got **1.000s**"* |
 
-### ⛔⛔ `AS-14` — **the two reds are ONE pre-existing defect: a STEP IS SILENTLY DROPPED**
+### ⛔⛔ `AS-14` — **the two reds are ONE pre-existing defect: a STEP IS SILENTLY DROPPED** *(ROOT-CAUSED + FIXED by Batch 104)*
+
+> ✅ **RESOLVED (Batch 104).** The hypothesis below — *"the settle is too short or the slave never ACKs in
+> the harness"* — was **wrong on both counts**. 📐 The **CGF node is structurally unable to ACK in
+> PRODUCTION**: `CgfSubsystem` composes through `HrotNodeBuilder`, bypassing `SharedApplicationBootstrapper`
+> phase 6c, so it holds a `SlaveSyncController` with **no translators** — it never hears the pause and never
+> ACKs — while the orchestrator's roster *(`OrchestratorSubsystem:303`, `ClusterMaster:327`)* still blocks
+> the master on it. ⚠ *"in the harness"* pointed at the wrong place; the harness is faithful. ⭐ **Fixed:**
+> `TM-002` extracts phase 6c to `SlaveTimeTranslatorRegistration.RegisterOn` *(shared by both compose paths,
+> not copied)*; `TM-001` makes `Step` **queue** behind the ACK guard, **bounded** by `TimeConfig.MaxQueuedSteps`,
+> and **refuse audibly** past it — never a silent discard.
 
 📐 `MasterSyncController.Step` *(`:188-195`)*:
 
@@ -863,11 +884,16 @@ faster than ACKs return** ⇒ **a dropped step becomes MORE likely, not less.** 
 unrelated red to note — it is a HAZARD the control refactor walks into**, and it should be fixed
 *before* `TC-3`, or at minimum baselined and re-checked after every step of it.
 
+> ✅ **GUARDED (Batch 104).** `TM-001`'s bounded queue is exactly what absorbs the faster intent
+> publication `TC-3`/`TC-4` introduce — a step that arrives while ACKs are outstanding is now deferred and
+> released one-per-frame, or refused audibly past the bound, never dropped. ⭐ The hazard is closed *before*
+> `TC-3` rather than merely re-checked after it.
+
 ### ⭐⭐ ⇒ THE RULE FOR EVERY BATCH IN THIS PROGRAMME
 
 > ⭐⭐⭐ **`TimeControlIntegrationTests` is a GATE ROW from now on**, filtered, with its **before/after
-> counts**. ⛔ **4/6 is the baseline.** ⚠ **A third red is a regression the batch caused**; ⭐ **a green
-> on `PauseStepResume` is a FIX and must be reported as one.**
+> counts**. ✅ **The baseline is now `9/0`** *(Batch 104: 6 original + `TM-005`'s 3 added)* — ⛔ **was `4/6`
+> before Batch 104 fixed `AS-14`.** ⚠ **A new red is a regression the batch caused.**
 
 ---
 
