@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN
 updated: 2026-08-21
-current-answer: §2–§4 AS-IS (measured) · §6–§7 TARGET · §8 refactors · §9 the probes.
+current-answer: §2–§4 AS-IS (measured) · §6–§7 TARGET · §8 refactors · §9 probes · §10 replay.
   ⛔ TC-3/TC-4 are BLOCKED on AS-12 — the editor's two buses. A decision is owed (§9).
 stale-below: nothing.
 known-rot: none.
@@ -50,18 +50,37 @@ graph TD
         ORCH --> EX
     end
 
-    subgraph Ed["THE EDITOR - a SECOND master"]
-        EDT["EditorSubsystem:715<br/>TimeControllerFactory.Create<br/>= MasterSyncController"]
+    subgraph Ed["THE EDITOR - the SAME cluster, composed all-in-one"]
+        EDT["EditorSubsystem:715<br/>TimeRole.Standalone<br/>= MasterSyncController, hosted locally"]
     end
 
-    EDT -.->|"no wire, no slaves"| EDT
+    EDT -.->|"no wire: there is nobody to talk to"| EDT
 ```
 
-> ⛔⛔ **THE EDITOR RUNS ITS OWN MASTER CLOCK.** 📐 `EditorSubsystem:715` casts the factory result to
-> `MasterSyncController`. ⚠ **It has no slaves and publishes to no wire** — every editor pause is
-> **local by construction**, which is exactly why 🔒 `R-126`'s *"debugger pause should force
-> deterministic stepping cluster wide (now just inside the editor process)"* is a real gap and not an
-> oversight.
+> ## ⭐⭐⭐ THE EDITOR IS NOT A SECOND MASTER — **corrected `2026-08-21` by the user**
+> ⛔⛔ **My first edition called it *"a SECOND master"*. That was wrong**, and it is the same failure mode
+> as *"two roles"*: a composition fact inflated into an architectural anomaly.
+>
+> 🔒 **User, verbatim:** *"editor IS the cluster, there is no second parallel master, it is just a
+> different composition of the building blocks into an all-in-one editor system, but not changing or
+> weakening any distributability rules… it is still the single concept that should exist with no
+> exceptions."*
+>
+> | ⭐ so the rule is ONE, and it holds everywhere | |
+> |---|---|
+> | ⭐⭐ **exactly one time master per cluster** | ⭐ the editor **hosts that role itself** because it *is* the whole cluster, in one process |
+> | ⭐⭐ **the wire is absent, not bypassed** | ⛔ **no distributability rule is weakened** — there are simply no other nodes to serve. 🔒 *"network is reserved for the cgf node if running network-distributed together with other nodes"* |
+> | ⛔ **so `AS-12` is a WIRING GAP in one composition** | ⚠ **not evidence of a second concept.** ⭐ It still blocks `TC-3`, and it is still real |
+
+> ### ⭐⭐ AND THE DESIGN PRINCIPLE THAT FOLLOWS — **build the BLOCKS, not "the editor case"**
+> 🔒 **User:** *"as the cgf-editor unifications are planned for future (UX session docs), we could try to
+> focus on the editor where isolated from the rest - but it might not be feasible as many parts are
+> shared and they will need to be shared much more in order to be able to run the debugging on the cgf
+> node (non-editor)."*
+>
+> ⇒ ⭐⭐⭐ **Every target API in §6 must be usable by the CGF node unchanged.** ⛔ An "editor-only" time
+> read or an "editor-only" command surface would have to be built twice — 📌 and *"we need a shared X"*
+> in this codebase almost always means **X exists and is under-adopted**, which is exactly what §5 found.
 
 ### ⭐ The master's own states — **and a pause is TWO-PHASE**
 
@@ -345,7 +364,7 @@ there is exactly one way to change it and exactly one place it is reported.
 | **`TC-1`** | ⭐⭐ **`ISimClock` + `SimClock.Of(view)`**, and `GlobalTime.IsAdvancing` | ✅ **PROVEN** | one property + one static; 📌 `RF-1` in the write-path doc is its first half |
 | **`TC-2`** | ⭐ **retire the duplicate** `EditorTimeTransportFacade`/`Adapter` → one class | ✅ **PROVEN** | `AS-11`; ⚠ keep the better name + the null-guards |
 | **`TC-3`** | ⭐⭐ **`ITimeCommands`, intents only** — path B onto it | ⛔⛔ **BLOCKED — probed, §9 `AS-12`** | ⚠ **the editor has TWO buses and the intents are on the wrong one.** ⭐ Needs a wiring decision first |
-| **`TC-4`** | ⭐⭐⭐ **path C (debugger) onto `ITimeCommands`** ⇒ cluster-wide pause | ⛔ **blocked behind `TC-3`** | 🔒 `R-126`; 📌 UX Ruling 62 |
+| **`TC-4`** | ⭐⭐⭐ **path C (debugger) onto `ITimeCommands`** | ⛔ **blocked behind `TC-3`** | ⚠⚠ **RESCOPED:** in the editor composition this is **already satisfied** — one process, one master. ⭐ **The target is the CGF NODE running distributed**, where the same command surface must fan out. 🔒 `R-126`; 📌 UX Ruling 62 |
 | **`TC-5`** | ⭐ **path D — hand the BTree/HSM coordinator a real controller** | ✅ **PROVEN** | `AS-9`; the caller holds it |
 | **`TC-6`** | ⭐ **`HaltReason`** | ⚠ **design owed** | needs `AS-10`'s `NotPublishing` exposed from the kernel |
 | **`TC-7`** | ⚠ **collapse the two remote caches** *(`ClusterUiCache` · `ClusterTimeTransportAdapter`)* | ⚠ **UNKNOWN** | ⛔ **not probed** — they may serve different processes |
@@ -387,12 +406,70 @@ singleton's authors: **true across the repo, false for HROT.** ⚠ In HROT the s
 
 ---
 
+## 10. ⭐⭐⭐ THE REPLAY CLOCK — **mapped, and there is NO third authority**
+
+> ⭐⭐ **The good news first:** ⛔ **replay does not have a clock.** 📐 It is a **consumer** of the ordinary
+> one plus a **frame index keyed by wall ticks.** ⇒ my earlier *"a third time authority"* caveat is
+> withdrawn.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant MSC as MasterSyncController
+    participant K as ModuleHostKernel
+    participant GT as GlobalTime (live world)
+    participant REC as RecorderTickSystem
+    participant PB as PlaybackTickSystem
+    participant PC as PlaybackController
+    participant R as live EntityRepository
+
+    rect rgb(238,246,255)
+    Note over MSC,R: RECORDING - GlobalTime is READ, never stored as a clock
+    K->>GT: publish this frame
+    REC->>GT: read TotalWallTicks
+    REC->>PC: CaptureFrame(repo, wallClockTicks)
+    Note over REC,PC: the recording stores WALL TICKS PER FRAME,<br/>not the clock
+    end
+
+    rect rgb(240,255,240)
+    Note over MSC,R: PLAYBACK - the ordinary clock is the PLAYHEAD
+    MSC-->>K: Update()
+    PB->>MSC: GetCurrentState().TotalTime
+    Note over PB: cumulative field - VALID on a snapshot
+    PB->>PB: targetTicks = recordingStart + TotalTime
+    alt gap > 3 frames
+        PB->>PC: SeekToWallClockTicks(repo, targetTicks)
+    else small gap
+        PB->>PC: StepForward(repo) x N
+    end
+    PC->>R: recorded component data
+    end
+```
+
+### ⭐ The four pieces, measured
+
+| piece | what it is | ⚠ |
+|---|---|---|
+| ⭐⭐ **`PlaybackTickSystem`** *(`PostSimulation`)* | ⭐⭐⭐ **the playhead IS `ITimeController.GetCurrentState().TotalTime`** — a **cumulative** field, ✅ **valid on a snapshot** *(unlike the delta)*. Converts it to an absolute tick and seeks or steps | ⭐ **a correct use of `GetCurrentState()`** — worth noting, since the delta use was not |
+| **`RecorderTickSystem`** | reads `GlobalTime.TotalWallTicks` to stamp each frame | ⛔ **`GlobalTime` is never RECORDED**, only read |
+| **`ReplayProcessManager` · `ReplaySeekProcessManager`** | end-of-replay and seek detection, then ⭐ **`PauseTimeIntent`** — the ordinary control path | ⭐⭐ **replay is controlled by PATH A**, not a private one |
+| ⚠ **`ReplayBrowserContext.SandboxRepo`** | ⛔⛔ **a bare `EntityRepository` with NO kernel and NO time controller** | ⇒ it has **no clock at all**; readers guard with `HasSingletonUnmanaged<GlobalTime>()` and fall back — 📌 which is why that guard exists |
+
+### ⚠ Two consequences worth writing down
+
+| ⚠ | |
+|---|---|
+| **①** | ⛔ **During playback the `GlobalTime` in the repo is the LIVE clock's, not the replayed frame's.** ⭐ `TotalTime` is coherent *(it IS the playhead)*, ⚠ **but `FrameNumber` and `TotalWallTicks` are live** — ⛔ **anything correlating `TotalWallTicks` with replayed data would be wrong.** 📐 Not currently done; ⭐ **stated so it stays not done** |
+| **②** | ⭐⭐ **`AS-10`'s window is narrower than it looked.** The push suspension and `SetSystemsEnabled(false)` both span **`PrepareReplay` → `FinalizeReplay`** only — ⭐ a bounded **setup** window, ⛔ not the whole replay. `PlaybackTickSystem` is `PostSimulation`, so it is off during that window too and on afterwards |
+
+---
+
 ## 10. ⛔ WHAT THIS DOCUMENT STILL HAS NOT MEASURED — **named, not implied**
 
 | ⛔ | |
 |---|---|
-| **`SlaveSyncController` internals** | the PLL, NTP offset handshake and ACK protocol. ⭐ Its **surface** is in §3; ⛔ its **behaviour** is not |
-| **the replay/playback clock** | `PlaybackTickSystem` · `EcsRecordReplayController` · `ReplayProcessManager` — ⚠ **a third time authority**, touched only at `AS-10` |
+| ~~`SlaveSyncController` internals~~ | 🔒 **ruled out of scope by the user** *(`2026-08-21`: "internals of SlaveSyncController should not be important i guess")* — ⭐ its **surface** is in §3 and that is what the design needs |
+| ~~the replay clock~~ | ✅ **MAPPED — §10.** There is no third authority |
 | **`TC-7`** | what each of the two remote caches is for, and whether they serve different processes |
 
 ⇒ ⭐ **Suggested next: the replay clock**, because `AS-10` already showed it interacts with the write
