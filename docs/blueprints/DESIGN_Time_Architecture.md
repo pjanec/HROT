@@ -693,6 +693,46 @@ preparation — 📌 `AS-10`)*. ⛔ **Derived, never latched.** ⚠ **This is th
 every one of the twelve notions unnecessary**: each of them existed to answer *"why"*, and `bool` could
 not.
 
+#### ✅ 9c. BUILT `2026-08-21` (`T6`, `TM-024`) — **and NOT where §9's diagram put it**
+
+⛔⛔ **No single object can answer this**, which is why the shape above needed deciding rather than
+transcribing. 📐 **Measured, three homes considered:**
+
+| candidate home | ⛔ why not |
+|---|---|
+| **a field on `GlobalTime`** | it is an **unmanaged ECS component**; its size sets `NativeChunkTable` chunk capacity ⇒ **the recorded chunk layout changes** and old recordings stop reading. ⛔ **A migration cost for a diagnostic field** |
+| **a member on `ITimeController`** | 📐 **3 production implementers + 4 test doubles** — and ⛔ **the controller cannot answer anyway**: it knows nothing of `NotPublishing` *(kernel)* or `HeldByBreakpoint` *(debugger)* |
+| ✅ **a PURE resolver over explicit probes** | ⭐ no layout change, no interface break, and **each arm reads its own authority at the moment of the question** — which is what *"derived, never latched"* actually requires |
+
+⭐⭐ **`HaltReasonResolver.Resolve(isPublishing, isAdvancing, isRewound, isAwaitingStepAcks, isDeterministic)`**
+— ⛔ **no optional parameters and no defaults**: a caller cannot silently omit a signal it held, and
+that omission is this codebase's recurring defect shape.
+
+##### ⛔⛔⛔ THE PRECEDENCE IS LOAD-BEARING — **`NotPublishing` is checked FIRST, before `Running`**
+
+📌 **`AS-10`:** while the push is suspended the singleton **freezes at its last value, which may carry a
+NON-ZERO delta.** ⇒ ⭐⭐⭐ **asking *"is it advancing"* first would answer `Running` while replay
+preparation holds four system groups disabled.** ⭐ Pinned by
+`NotPublishing_OutranksAStaleAdvancingClock`; ⛔ **reorder those branches and that rail fails.**
+⭐ Then: `HeldByBreakpoint` *(the debugger owns the world, even mid-step)* → `SteppingHeld` → `PausedByOperator` → `Unknown`.
+
+##### ⭐⭐ The two probes this earned — **and `AS-10`'s residual is now CLOSED**
+
+| probe | ⭐ |
+|---|---|
+| `ModuleHostKernel.IsPublishingGlobalTime` | ⚠ `AS-10` called this *"a kernel API change this slice does not earn"* — 📐 **it is smaller than that**: `SuspendGlobalTimePush`/`ResumeGlobalTimePush` were **already public**; only the READ was missing |
+| `MasterSyncController.IsAwaitingStepAcks` | distinguishes **mid-step** from **paused-and-idle** — ⛔ both are deterministic mode with a zero delta, so without it they are the same state from outside |
+| ✅ **`AS-10`'s residual** | ⭐⭐ **`ResumeAndDrainSystem` now takes an optional `isPublishing` probe and skips while suspended** ⇒ the *"a staged edit can be drained into a world replay is about to overwrite"* hole is **closed, not just named** |
+
+##### ⚠ DEVIATION from §9's `classDiagram`, argued not hidden *(obligation ③)*
+
+⛔ **`ISimClock` does NOT gain `+HaltReason Reason` in this slice.** 📐 Its only implementer,
+`WorldSimClock`, holds **just the world** — it cannot see the kernel's publish state, the debugger's
+rewind or the controller's step state. ⇒ adding `Reason` there would make it answer `Unknown` **always**,
+which is precisely **the silent-default pattern**: a member that looks built, is reachable, and tells
+every caller nothing. ⭐⭐ **The resolver is the honest shape until a composition root exists that holds
+all three probes** — 📌 and that root is the same one `TM-022` is waiting on.
+
 ---
 
 ### 9b. ⭐⭐ TARGET — **one pause, one shape**

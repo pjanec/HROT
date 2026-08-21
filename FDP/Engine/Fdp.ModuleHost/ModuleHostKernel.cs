@@ -132,6 +132,17 @@ namespace Fdp.ModuleHost
 
         /// <summary>Resumes normal simulation-time propagation after replay ends.</summary>
         public void ResumeGlobalTimePush() => _globalTimePushSuspended = false;
+
+        /// <summary>
+        /// Is the kernel currently pushing the <c>GlobalTime</c> singleton into the world?
+        ///
+        /// <para>Suspend/Resume were already public; only the READ was missing, which is why anything
+        /// wanting to know had to infer it. While this is false the world's clock is frozen at its
+        /// last value and may still carry a non-zero delta — so a reader that trusts the singleton
+        /// will believe time is advancing while replay preparation holds the world still. Anything
+        /// deciding "is the simulation running" must consult this BEFORE the clock.</para>
+        /// </summary>
+        public bool IsPublishingGlobalTime => !_globalTimePushSuspended;
         
         /// <summary>
         /// Phases that are actually executed for global systems by the kernel's Update loop.

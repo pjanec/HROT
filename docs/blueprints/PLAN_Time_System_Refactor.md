@@ -162,7 +162,7 @@ graph TD
 | ⚠ **`T4`** | ⚠ **PARTIAL** *(TM-107)* — ✅ `ITimeCommands` + `IntentTimeCommands` built; ✅ **path B** *(toolbar)* and ✅ **path D** *(tracer)* publish intents. ⛔ **path C** *(debugger)* still direct — entangled with the rewind that `W2`/`W5` reshape | `TC-3`/`TC-4` | ⚠ **B+D done, C open** |
 | ✅ **`T4d`** | ✅ **DONE** *(`TM-018`)* — `EditorAiTracerCoordinator` overrides all three and publishes intents. ⭐ Subclassing is the prescribed mechanism, so **nothing in the frozen `Hrot.Editor.AiShared` was touched** | `TC-5`/`AS-9` | ✅ **done** |
 | **`T5`** | **the remaining pause notions read through `ISimClock`** — ⛔ **not one refactor, ten**, one site at a time | `TC-8`/`RF-9` | ⚠ per-site |
-| **`T6`** | ⭐ **`HaltReason`** — *why* it is stopped, not just that it is *(`Running` · `PausedByOperator` · `SteppingHeld` · `HeldByBreakpoint` · `NotPublishing`)* | `TC-6` | ⚠ needs `AS-10`'s `NotPublishing` exposed |
+| ✅ **`T6`** | ✅ **DONE** *(`TM-024`)* — the enum + a PURE resolver over explicit probes. ⛔ **Not on `GlobalTime`** *(layout ⇒ recorded format)*, ⛔ **not on `ITimeController`** *(7 implementers, and it cannot answer anyway)*. ⭐⭐ **`NotPublishing` is checked FIRST** — `AS-10` means the clock lies while suspended. ✅ **`AS-10`'s residual CLOSED** in the drain. ⚠ `ISimClock.Reason` deferred — it would answer `Unknown` always | `TC-6` | ✅ **done** |
 | **`T7`** | ⚠ **the two remote caches** *(`ClusterUiCache` · `ClusterTimeTransportAdapter`)* — ⛔ **KEEP both** *(they observe the wire)*; ⭐ decide whether they collapse | `TC-7` | ⚠ **UNMEASURED** |
 
 ### ⭐ `W` — the WRITE path *(detail: `DESIGN_Time_Architecture.md` §5 + §10)*

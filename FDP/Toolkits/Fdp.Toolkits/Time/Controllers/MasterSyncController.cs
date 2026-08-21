@@ -194,6 +194,16 @@ namespace Fdp.Toolkit.Time.Controllers
         public int QueuedStepCount => _queuedStepDeltas.Count;
 
         /// <summary>
+        /// True while a step has been issued and at least one slave has not acknowledged it (`T6`).
+        ///
+        /// <para>Distinguishes "mid-step, waiting on the cluster" from "paused and idle". Both are
+        /// deterministic mode and both report a zero delta, so without this they are the same state
+        /// from outside — and they are not: one is waiting on something and will proceed, the other
+        /// will not move until the operator asks.</para>
+        /// </summary>
+        public bool IsAwaitingStepAcks => _mode == MasterMode.Stepping && _pendingAcks.Count > 0;
+
+        /// <summary>
         /// Number of step requests REFUSED since construction — because the controller was not in
         /// <c>Stepping</c> mode, or because the deferral queue was already full. A non-zero value
         /// means the caller asked for motion it did not get; it is paired with a logged warning.
