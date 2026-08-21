@@ -46,7 +46,7 @@ public sealed class WindowIdentityIsDistinctTests
     /// Blueprint perspective — ⛔ before the id split, looking up the Track C id found nothing at all.
     /// </summary>
     [Fact]
-    public void BothVariablesWindows_SurviveRegistration_OnBlueprint()
+    public void TheSurvivingVariablesTable_KeepsItsOwnId_AfterTheLegacyRetirement()
     {
         var wm = MakeWindowManager();
         new EditorSubsystem().RegisterWindows(wm);
@@ -54,12 +54,17 @@ public sealed class WindowIdentityIsDistinctTests
         Assert.True(wm.TryGetWindow("ai_variable_values_blueprint", out var trackC),
             "Expected the Track C variables table to be registered on the Blueprint perspective. " +
             "Before Batch 81 it shared an id with BlueprintVariablesManagedWindow and was evicted.");
-        Assert.True(wm.TryGetWindow("ai_variables_blueprint", out var legacy),
-            "Expected the legacy Blueprint variables window to still be registered.");
 
-        Assert.NotSame(trackC, legacy);
-        Assert.Equal("Variable Values",     trackC!.Title);
-        Assert.Equal("Blueprint Variables", legacy!.Title);
+        // ⛔⛔ L5 — the LEGACY half is RETIRED (Q38's list), so this rail can no longer be about
+        //    "both survive". ⭐ What it is about NOW is the half that still matters: the surviving
+        //    table keeps its OWN id and title, i.e. the Batch 81 eviction cannot come back by the
+        //    retirement handing its id to someone else.
+        // ⚠ The id it used to collide with must now resolve to NOTHING — that is the assertion that
+        //   makes the retirement real, and it is stronger than the one it replaces.
+        Assert.False(wm.TryGetWindow("ai_variables_blueprint", out _),
+            "The legacy Blueprint variables window is retired (L5); its id must resolve to nothing.");
+
+        Assert.Equal("Variable Values", trackC!.Title);
     }
 
     /// <summary>
@@ -173,7 +178,10 @@ public sealed class WindowIdentityIsDistinctTests
         ("Blueprint", "ai_my_blueprint_blueprint"),
         ("Blueprint", "ai_bookmarks_blueprint"),
         ("Blueprint", "ai_details_blueprint"),
-        ("Blueprint", "ai_variables_blueprint"),
+        // ⛔ L5 — ("Blueprint", "ai_variables_blueprint") REMOVED: BlueprintVariablesManagedWindow is
+        //    retired (Q38's list). ⚠ Its absence is asserted directly in
+        //    TheSurvivingVariablesTable_KeepsItsOwnId_AfterTheLegacyRetirement — ⛔ so dropping the row
+        //    here does not lose the coverage, it moves it to a rail that says the RIGHT thing.
         ("Blueprint", "ai_graph_signature_blueprint"),
     ];
 }

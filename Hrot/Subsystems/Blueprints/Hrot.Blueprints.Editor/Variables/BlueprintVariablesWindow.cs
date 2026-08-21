@@ -473,85 +473,13 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
     }
 }
 
-public sealed class BlueprintVariablesWindow : BlueprintEditorWindowBase
-{
-    private readonly EditorSelectionStore _selectionStore;
-    private readonly DirtyTracker _dirtyTracker;
-    private readonly IRefactorService _refactorService;
-    private VariablesPanelControl? _variablesControl;
-    private IEditableAsset? _lastAsset;
-
-    public BlueprintVariablesWindow(EditorSelectionStore selectionStore, DirtyTracker dirtyTracker, IRefactorService refactorService)
-    {
-        _selectionStore = selectionStore;
-        _dirtyTracker = dirtyTracker;
-        _refactorService = refactorService;
-    }
-
-    public override string Title => "Blueprint Variables";
-
-    public override void DrawUI()
-    {
-        if (_selectionStore.SelectedAsset == null)
-        {
-            ImGui.TextDisabled("No blueprint selected.");
-            return;
-        }
-
-        var asset = _selectionStore.SelectedAsset;
-        var adapter = new BlueprintEditableAssetAdapter(asset);
-
-        if (_variablesControl == null || _lastAsset?.AssetId != asset.AssetId)
-        {
-            // No IActionSchemaExporter is in scope here -- the Blueprint Variables window is
-            // constructed without one, so the choice list is primitives + [BlackboardDtoStruct]
-            // types only (no action-schema DTO types). See BlackboardTypeChoiceBuilder.
-            _variablesControl = new VariablesPanelControl(_refactorService, adapter, BlackboardTypeChoiceBuilder.BuildDefault());
-            _lastAsset = adapter;
-        }
-
-        var paramsSchema = new BlueprintVariableSchemaSource(asset, VariableKind.Parameter, () => _dirtyTracker.MarkDirty(asset.AssetId));
-        var stateSchema = new BlueprintVariableSchemaSource(asset, VariableKind.Variable, () => _dirtyTracker.MarkDirty(asset.AssetId));
-
-        var paramsVars = paramsSchema.Variables;
-        int paramsInline = paramsVars.Sum(v => v.ByteSize);
-        var paramsSection = new VariablesPanelSection(
-            "Parameters (Sync In)",
-            "##bp_params",
-            paramsSchema,
-            paramsInline,
-            100, // 100B per budget spec 1g-03
-            0,
-            128, // MaxHeavyBytes not used in BP, just give a number
-            false,
-            paramsInline > 100 ? (PackWarning)1 : (PackWarning)0,
-            false // aliasing-off
-        );
-
-        var stateVars = stateSchema.Variables;
-        int stateInline = stateVars.Sum(v => v.ByteSize);
-        int stateBudget = asset.TierHint switch
-        {
-            BlackboardTierHint.Auto => 1024,
-            BlackboardTierHint.Force1024 => 1024,
-            BlackboardTierHint.Force4096 => 4096,
-            BlackboardTierHint.Force16384 => 16384,
-            _ => 1024
-        };
-
-        var stateSection = new VariablesPanelSection(
-            "Working State",
-            "##bp_state",
-            stateSchema,
-            stateInline,
-            stateBudget,
-            0,
-            128, // arbitrary max heavy
-            false,
-            stateInline > stateBudget ? (PackWarning)2 : (PackWarning)0,
-            false // aliasing-off
-        );
-
-        _variablesControl.DrawDual(paramsSection, stateSection);
-    }
-}
+// ⛔⛔ L5 — `BlueprintVariablesWindow` (the WINDOW class) was RETIRED here.
+//    📄 Q38's retire list · §6 L5. ⭐ Its replacement is LIVE, which is §6 L5's precondition:
+//       BlueprintDetailsWindow hosts the SHARED VariableDetailsSection (U-6, Batch 82).
+//
+//    ⚠⚠ THE FILE IS NOT THE UNIT — THE CLASS IS. 📐 Measured before deleting: this file also holds
+//       `BlueprintEditableAssetAdapter` (used by BlueprintNewAssetService at 5 sites, and the smoke
+//       tests) and `BlueprintVariableSchemaSource` (used by BlueprintMyBlueprintWindow:533 in
+//       PRODUCTION). ⛔ Deleting the file would have taken both with it.
+//    📌 CLAUDE.md: "prefer ROUTING to DELETING" — and the routing here is simply to leave the two
+//       live types where their callers already find them.

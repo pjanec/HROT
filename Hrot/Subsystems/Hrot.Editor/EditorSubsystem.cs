@@ -347,7 +347,6 @@ namespace Hrot.Editor
         private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
         // AIE-048: Blueprint Details + Variables windows.
         private Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow? _blueprintDetailsWindow;
-        private Hrot.Blueprints.Editor.Windows.BlueprintVariablesManagedWindow? _blueprintVariablesWindow;
         // BATCH-03D2: Graph Signature window (edits Function graph Inputs/Outputs).
         private Hrot.Blueprints.Editor.Windows.GraphSignatureWindow? _blueprintSignatureWindow;
         // AIE-048: legacy selection store bridging AiShared → BlueprintVariablesWindow.
@@ -3195,13 +3194,12 @@ namespace Hrot.Editor
                 refactorService: refactorService);
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintDetailsWindow);
 
-            // BlueprintVariablesWindow (wrapped in a ManagedWindow adapter) uses the legacy
-            // Blueprints.Editor.EditorSelectionStore (which holds a BlueprintAsset? directly);
-            // we bridge it from the AiShared store via _blueprintLegacySelectionStore in ActiveChanged.
-            _blueprintVariablesWindow = new Hrot.Blueprints.Editor.Windows.BlueprintVariablesManagedWindow(
-                legacySelectionStore: _blueprintLegacySelectionStore,
-                refactorService:      refactorService);
-            _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintVariablesWindow);
+            // ⛔⛔ L5 — BlueprintVariablesManagedWindow / BlueprintVariablesWindow are RETIRED
+            //    (Q38's retire list). ⭐ Their replacement is LIVE and that is the precondition §6 L5
+            //    sets: BlueprintDetailsWindow hosts the SHARED VariableDetailsSection (U-6, Batch 82),
+            //    and the per-perspective AiVariablesWindow is the standalone table.
+            //    ⚠ The legacy store bridge (_blueprintLegacySelectionStore) STAYS — GraphSignatureWindow
+            //      below still uses it.
 
             // BATCH-03D2: Graph Signature window — edits Function graph Inputs/Outputs.
             // Uses the same legacy selection store bridge (SelectAsset is called in ActiveChanged).
