@@ -272,7 +272,12 @@ public class PerspectiveWorkspaceRegistrar
             store:             selectionStore,
             registry:          debugRegistry,
             idOverride:        $"ai_runtime_inspector_{suffix}",
-            owningPerspective: perspectiveName);
+            owningPerspective: perspectiveName,
+            // ⭐⭐⭐ L3.1 — the catalogue is PASSED, so RegisterPane can contribute the Runtime view.
+            //   📌 The 2026-08-16 rule: this registrar HOLDS the registry (a field initialiser), so it
+            //      must hand it over. ⛔ EditorSubsystem's three RegisterPane calls are UNCHANGED —
+            //      the root gains nothing to forget (R-67).
+            detailsViews:      DetailsViews);
 
         TraceTimeline = new TraceTimelineWindow(
             store:             selectionStore,
@@ -296,6 +301,10 @@ public class PerspectiveWorkspaceRegistrar
             //    contributed nothing. ⛔ The registrar already HELD the exporter; it handed it to the
             //    validator two lines up and not to this window.
             actionSchemaExporter: schemaExporter);
+
+        // ⭐⭐⭐ L3.3 — BlackboardAuthoring is built HERE (like Details), so the claim chain never
+        //    sees it; its arm is mirrored through the SAME one implementation.
+        ContributeDetailsViews(BlackboardAuthoring);
 
         Diagnostics = new DiagnosticsWindow(
             catalog:           catalog,
@@ -484,11 +493,7 @@ public class PerspectiveWorkspaceRegistrar
             //    ⭐ ONE registration path per concept (ruling 9), ⛔ not a second mechanism.
             // ⚠ The guard is the same _viewSources set the chain uses, so a window reaching BOTH paths
             //   registers its views exactly once.
-            if (Details is Shell.IDetailsViewSource detailsViews && _viewSources.Add(detailsViews))
-            {
-                foreach (var descriptor in detailsViews.DetailsViews)
-                    DetailsViews.Add(descriptor);
-            }
+            ContributeDetailsViews(Details);
 
             // ⭐⭐ Batch 87's ONE attach point. ⛔ Details is a table host like any other; a second
             //    Attach line here is precisely what the twelfth instance was.
@@ -680,11 +685,7 @@ public class PerspectiveWorkspaceRegistrar
         //   (R-116), not by being re-read every frame.
         // ⛔ Registered even for a source that yields nothing: "asked and there are none" must be
         //   distinguishable from "never asked" — the second is the bug this arm exists to prevent.
-        if (window is Shell.IDetailsViewSource viewSource && _viewSources.Add(viewSource))
-        {
-            foreach (var descriptor in viewSource.DetailsViews)
-                DetailsViews.Add(descriptor);
-        }
+        ContributeDetailsViews(window);
 
         // ⭐⭐⭐ Batch 87 — the Details panel and the Blueprint Watch arrive HERE, as extras, which is
         //    precisely why the constructor's single Attach could never have reached them. ⛔ Stated
@@ -780,6 +781,29 @@ public class PerspectiveWorkspaceRegistrar
     /// for the same window, and a second pass would throw on the duplicate id — ⛔ turning a harmless
     /// re-registration into a crash.</summary>
     private readonly HashSet<Shell.IDetailsViewSource> _viewSources = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.3</c> — the ONE place a window's Details views reach the catalogue.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L1.2</c> *(<c>R-67</c>)*.
+    ///
+    /// <para>⚠⚠ <b>Collapsed from TWO copies, before <c>L3.3</c> could add a THIRD.</b> 📐 <c>L1.2</c>
+    /// wrote this arm in <c>RegisterExtraWindow</c> and mirrored it in the constructor for <c>Details</c>
+    /// *(which the chain never sees)*; ⛔ <c>BlackboardAuthoring</c> is a third window in the same
+    /// position. 📌 Ruling 9 — <i>"no keeping two implementations for the same concept"</i> — and three
+    /// copies of a guarded loop is how one of them quietly loses its guard.</para>
+    ///
+    /// <para>⭐ Read ONCE, at registration — a source that varies its offer does so in its predicates
+    /// *(<c>R-116</c>)*, ⛔ not by being re-read every frame. ⭐ The <c>_viewSources</c> guard means a
+    /// window reaching BOTH paths contributes exactly once.</para>
+    /// </summary>
+    private void ContributeDetailsViews(object? candidate)
+    {
+        if (candidate is not Shell.IDetailsViewSource source) return;
+        if (!_viewSources.Add(source)) return;
+
+        foreach (var descriptor in source.DetailsViews)
+            DetailsViews.Add(descriptor);
+    }
     private bool                             _outlineConnected;
 
     /// <summary>

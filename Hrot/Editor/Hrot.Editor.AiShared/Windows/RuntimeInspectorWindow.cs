@@ -1,3 +1,4 @@
+using System;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Selection;
@@ -26,20 +27,56 @@ public sealed class RuntimeInspectorWindow : ManagedWindow
     /// <param name="owningPerspective">
     ///   Perspective that owns this instance. Defaults to <c>"Authoring"</c>.
     /// </param>
+    /// <param name="detailsViews">
+    /// ⭐⭐⭐ <b><c>L3.1</c> — this perspective's Details catalogue, so a registered pane becomes a
+    /// Details VIEW as well as a pane.</b> 📄 §6 <c>L3</c>'s Runtime row · §4's <i>"3 panes → 3
+    /// predicated views"</i>.
+    /// <para>⚠ Optional <b>only</b> for the standalone-window tests that predate the shell; ⭐ the
+    /// registrar always passes it — 📌 the <c>2026-08-16</c> rule, and the rail
+    /// <c>TheProductionRegistrar_RegistersTheRuntimeView</c> asserts the production path rather than
+    /// this parameter's default.</para>
+    /// </param>
     public RuntimeInspectorWindow(
         EditorSelectionStore store,
         IDebugSessionRegistry registry,
         string? idOverride = null,
-        string? owningPerspective = null)
+        string? owningPerspective = null,
+        Shell.DetailsViewRegistry? detailsViews = null)
         : base(idOverride ?? "ai_runtime_inspector", "Runtime Inspector",
                owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
         _store = store;
         _registry = registry;
+        _detailsViews = detailsViews;
     }
 
-    /// <summary>Register a subsystem-provided pane. Called at editor startup.</summary>
-    public void RegisterPane(IRuntimeInspectorPane pane) => _panes.Add(pane);
+    private readonly Shell.DetailsViewRegistry? _detailsViews;
+
+    /// <summary>
+    /// Register a subsystem-provided pane. Called at editor startup.
+    ///
+    /// <para>⭐⭐⭐ <b><c>L3.1</c> — registering a pane ALSO contributes its Details view</b>, so
+    /// <c>EditorSubsystem</c> gains <b>nothing to forget</b> *(📌 <c>R-67</c>; this is the same
+    /// claim-chain principle <c>L1.2</c> used, applied to the seam that already exists)*. 📐 The three
+    /// production call sites — <c>EditorSubsystem:2864</c>/<c>:2870</c>/<c>:2884</c> — are
+    /// <b>unchanged</b>.</para>
+    ///
+    /// <para>⚠⚠ <b>Why this is not the claim chain itself:</b> panes are registered LONG AFTER the
+    /// workspace is built, and <c>IDetailsViewSource</c> is read ONCE at registration. ⛔ Making the
+    /// registry lazily re-read would turn a snapshot into a live query and cost every frame; ⭐ pushing
+    /// at the moment of registration is the honest shape.</para>
+    ///
+    /// <para>⛔⛔ <b>A second pane for the same kind now THROWS</b>, via the registry's duplicate-id
+    /// guard. 📐 It used to be silent: <c>_panes.Find</c> returned the FIRST and the second pane simply
+    /// never drew. ⚠ That is a wiring bug wearing a working editor, and 📌 the <c>G4</c> precedent says
+    /// it must fail where it is wired.</para>
+    /// </summary>
+    public void RegisterPane(IRuntimeInspectorPane pane)
+    {
+        ArgumentNullException.ThrowIfNull(pane);
+        _panes.Add(pane);
+        _detailsViews?.Add(Shell.RuntimeDetailsViewDescriptor.For(pane));
+    }
 
     /// <summary>Number of registered panes. Exposed for test verification.</summary>
     internal int RegisteredPaneCount => _panes.Count;

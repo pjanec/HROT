@@ -87,11 +87,20 @@ public sealed class TheShellShowsTheChosenViewTests
     /// <para>⭐ 📌 <c>R-116</c> — the predicate ships with the view, so the view declines and the shell's
     /// ordinary empty-offer path answers. ⛔ The alternative *(the shell special-casing variables)* would
     /// put knowledge of what a variable is inside a type that must not have it.</para>
+    ///
+    /// <para>⚠⚠ <b>RE-EXPRESSED BY <c>L3.3</c>, and the reason matters.</b> ⭐ <c>L2</c> asserted
+    /// <c>EmptyOffer</c> here — which was true, but only because <b>no other view existed yet</b>.
+    /// 📐 <c>L3.3</c>'s Blackboard view claims any open document, so the panel is now filled.
+    /// ⇒ ⛔ the <c>EmptyOffer</c> assertion was encoding <i>"nothing else is built"</i>, not the claim
+    /// this rail is FOR. ⭐ <b>The two real claims are unchanged and are asserted directly:</b>
+    /// the variables view <b>declines</b> with an empty section, and the panel is <b>never blank</b>.
+    /// 📌 The mirror of <c>BP-396</c>: a rail written before its neighbours exist can encode their
+    /// absence by accident.</para>
     /// </summary>
     [Theory]
     [InlineData("BTree")]
     [InlineData("HSM")]
-    public void ADocumentWithNoVariableSelected_SaysWhy_RatherThanDrawingABlank(string perspective)
+    public void ADocumentWithNoVariableSelected_DoesNotOfferTheVariablesView(string perspective)
     {
         var store = new EditorSelectionStore
             { ActiveAsset = new Tests.Selection.EditorSelectionStoreTests.FakeAsset() };
@@ -102,8 +111,31 @@ public sealed class TheShellShowsTheChosenViewTests
         //   empty, so the view must NOT claim the panel.
         var frame = details.Frame();
 
-        Assert.Equal(DetailsViewSelector.Mode.EmptyOffer, frame.Choice.State);
-        Assert.Equal(DetailsEmptyState.NothingForThisSelection, frame.EmptyState);
+        Assert.DoesNotContain(
+            frame.Choice.Offered, d => d.Id == VariablesDetailsViewDescriptor.ViewId);
+
+        // ⛔ R-117: never a blank. Either a view is showing, or the grey line says why.
+        Assert.True(frame.Choice.View != null || frame.EmptyState != null);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>…and with NO view at all registered, the same context still answers with the grey
+    /// line.</b> ⚠ Kept as its own rail so <c>L2.3</c>'s empty-offer path stays covered now that
+    /// <c>L3.3</c> fills the production panel — ⛔ otherwise the branch would go unrailed and nobody
+    /// would notice until a perspective had no views.
+    /// </summary>
+    [Fact]
+    public void WithNoViewsRegistered_AnOpenDocumentStillGetsTheGreyLine()
+    {
+        var store = new EditorSelectionStore
+            { ActiveAsset = new Tests.Selection.EditorSelectionStoreTests.FakeAsset() };
+        var ctx = DetailsContextBuilder.Build(store, "BTree", VariableRunState.Planning);
+
+        var empty = new DetailsViewRegistry();
+        var choice = new DetailsViewSelector().Resolve(empty, ctx);
+
+        Assert.Equal(DetailsViewSelector.Mode.EmptyOffer, choice.State);
+        Assert.Equal(DetailsEmptyState.NothingForThisSelection, DetailsEmptyState.For(ctx));
     }
 
     // ══ a view that applies IS what the shell shows ══════════════════════════

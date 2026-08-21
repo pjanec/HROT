@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Selection;
+using Hrot.Editor.AiShared.Variables;
 
 namespace Hrot.Editor.AiShared.Shell;
 
@@ -61,4 +63,32 @@ public static class DetailsViewPredicates
     /// <summary>⭐ An asset is open — the weakest useful predicate, for views that are about the
     /// document as a whole *(§6 <c>L3</c>: "asset context")*.</summary>
     public static bool HasAsset(DetailsContext context) => context.Asset is not null;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The open document is of this KIND — and this is the ONLY legal way to ask.</b>
+    /// 📄 §3, <c>R-112</c> verbatim: <i>"⛔ <b><c>AssetKind</c> is never a view key</b> — <b>a host says
+    /// so in its own predicate</b>."</i>
+    ///
+    /// <para>⚠⚠ <b>The distinction is not pedantry, and §4 measures the difference.</b>
+    /// ⛔ <c>RuntimeInspectorWindow</c>'s <c>_panes.Find(p =&gt; p.TargetKind == asset.Kind)</c> made kind
+    /// the <b>REGISTRY'S axis</b> — one pane per kind, chosen by a lookup the window owned ⇒ a second
+    /// Blueprint view was unrepresentable and a *"this kind, only while running"* view was impossible.
+    /// ⭐ Here kind is one CLAUSE inside one view's own predicate ⇒ any number of views may claim a
+    /// kind, none, or a kind conjoined with anything else.</para>
+    /// </summary>
+    public static bool AssetKindIs(DetailsContext context, AssetKind kind)
+        => context.Asset is { } asset && asset.Kind == kind;
+
+    /// <summary>
+    /// ⭐⭐ <b>The run state — 📌 <c>R-111</c>: <i>"the mode joins the context; one view, many
+    /// modes."</i></b> ⭐ Offered as <b>both</b> senses because §6 <c>L3</c>'s Runtime row is stated
+    /// NEGATIVELY *(<i>"<c>Mode != Planning</c>"</i>)*: ⚠ a runtime view is about **any** live mode, and
+    /// spelling that as an OR over the positive cases would silently exclude a mode added later.
+    /// </summary>
+    public static bool ModeIs(DetailsContext context, VariableRunState mode)
+        => context.Mode == mode;
+
+    /// <inheritdoc cref="ModeIs"/>
+    public static bool ModeIsNot(DetailsContext context, VariableRunState mode)
+        => context.Mode != mode;
 }
