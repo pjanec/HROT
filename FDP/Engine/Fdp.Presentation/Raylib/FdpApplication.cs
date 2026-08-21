@@ -100,10 +100,13 @@ public abstract class FdpApplication : IDisposable
             var io = ImGuiNET.ImGui.GetIO();
             io.ConfigFlags |= ImGuiNET.ImGuiConfigFlags.DockingEnable;
 
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string configDir = Path.Combine(appData, "HROT");
-            Directory.CreateDirectory(configDir);
-            string iniPath = Path.Combine(configDir, "imgui.ini");
+            // ⭐⭐ Batch 103 (103a) — ONE owner of the convention. 📐 This block and
+            //    RaylibPresentationShell.SetupImGui computed the same path INDEPENDENTLY, byte for byte:
+            //    "two apps, one convention, no shared helper." ⛔ Two copies of a path is how a reset
+            //    ends up resetting one of them.
+            // ⭐ The NAME stays here, the CONVENTION moves — Fdp.Presentation must not learn what
+            //   "HROT" is (the design's constraint 1), so it travels as an argument.
+            string iniPath = Fdp.Presentation.WindowManager.LayoutPaths.UserIniPath("HROT");
             _iniFilenamePtr = Marshal.StringToHGlobalAnsi(iniPath);
             unsafe
             {

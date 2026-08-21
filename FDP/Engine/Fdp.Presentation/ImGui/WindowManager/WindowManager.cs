@@ -120,6 +120,21 @@ public class WindowManager
     /// <param name="id">The window id to look up.</param>
     /// <param name="window">The found window, or <c>null</c> when not found.</param>
     /// <returns><c>true</c> if a window with <paramref name="id"/> is registered; otherwise <c>false</c>.</returns>
+    /// <summary>
+    /// ⭐⭐ <b>Batch 103 (<c>103b</c>) — every registered window id.</b>
+    ///
+    /// <para>⭐ A RAIL SURFACE on the CONSTRUCTED manager: the shipped default layout names 55 window
+    /// ids, and ⛔ <b>a renamed or retired window silently ORPHANS its entry</b> — the layout still
+    /// loads, that window just never appears, and nothing says so. ⇒ ⭐ a rail needs to ask what was
+    /// actually registered, not re-derive the ids from a naming convention that could itself be the
+    /// thing that moved.</para>
+    ///
+    /// <para>⚠ <c>TryGetWindow</c> answers the other direction *(is this id real?)*; ⛔ it cannot answer
+    /// <i>"is every real id in the file?"</i>, which is the half that catches a NEW window nobody added
+    /// to the default.</para>
+    /// </summary>
+    public IReadOnlyCollection<string> RegisteredWindowIds => _windows.Keys.ToList();
+
     public bool TryGetWindow(string id, [MaybeNullWhen(false)] out ManagedWindow window)
         => _windows.TryGetValue(id, out window);
 

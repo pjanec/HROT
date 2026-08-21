@@ -23,6 +23,22 @@
         /// <summary>Target frame rate cap; ignored in headless mode.</summary>
         public int TargetFps { get; set; } = 60;
 
+        /// <summary>
+        /// ⭐⭐⭐ Batch 103 (103a) — <b>restore the shipped default layout on every run.</b>
+        ///
+        /// <para>🔒 <b>The user's ruling, 2026-08-10:</b> <i>"during the development stage — practically
+        /// always now — auto-revert the user setting to the repo committed default on each new run."</i>
+        /// ⇒ ⭐ <b>the default is ON</b>, deliberately, while the layout is still evolving.</para>
+        ///
+        /// <para>⚠⚠ <b>It is DESTRUCTIVE by design</b> — the user's own arrangement is overwritten at
+        /// startup. ⛔ Which is exactly why the runner LOGS it every run and <c>File ▸ Layout</c> shows
+        /// the current mode: 📌 the design's own risk row — <i>"must be discoverable, so a user who
+        /// loses their layout every run can find out why."</i></para>
+        ///
+        /// <para>⭐ <c>--reset-layout</c> / <c>--no-reset-layout</c> on the command line.</para>
+        /// </summary>
+        public bool ResetLayoutOnRun { get; set; } = true;
+
         /// <summary>Base node ID forwarded to the orchestrator for per-subsystem offset resolution (0 = use legacy constants).</summary>
         public int NodeId { get; set; }
 
