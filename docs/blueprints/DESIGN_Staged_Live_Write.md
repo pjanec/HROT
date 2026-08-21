@@ -35,10 +35,17 @@ drain; once the drain lands, staging is uniform and honours `R-130` *(yellow is 
 | **running** | refused | ⭐ **stages → yellow → drains next tick** *(`R-126`: running is a reason to STAGE)* |
 | **breakpoint-rewound** | stages *(already)* | ⭐ unchanged; drains after the post-tick restore *(`R-63`)* |
 
-⭐⭐⭐ **Why yellow is load-bearing, not decoration** *(the user's point)*: a staged edit reaches the repo
-only at the next tick, so **Details** *(where you typed)* and **Watch** *(sampling the repo)* legitimately
-**disagree until then**. 🟡 **Yellow on BOTH surfaces labels that disagreement** as *"a staged edit is
-pending"* — ⛔ without it, Watch just looks stale.
+⭐⭐⭐ **The staged state is SHARED, so the surfaces AGREE** *(user, `2026-08-21`)*: because the pending set
+is one shared thing *(Lean A, §4)*, **every surface showing the variable — Details AND Watch — shows the
+SAME staged value in 🟡 yellow, immediately after the edit.** ⇒ ⛔ **they do NOT diverge**; the yellow
+says *"staged — the sim has not applied it yet."* When the tick drains it, both re-sample the applied
+value and the yellow clears together. ⚠ **Only if the staged state could NOT be shared** would they
+differ *(the edited row yellow, the other white on its last value)* — ⭐ and Lean A makes sharing free,
+so **we take the shared path.**
+
+⭐ **Three colours, one meaning each** *(§4a)*: **white** = last value, unchanged · 🔴 **red** = the SIM
+changed it this tick · 🟡 **yellow** = a staged edit, not yet applied. ⛔ **A row is never red and yellow
+for the same cause** — a user edit is yellow, never red.
 
 ## 2. ⭐⭐ INVENTORY — *(`R-74`; the queries, and what they settled)*
 
@@ -104,8 +111,8 @@ sequenceDiagram
     U->>W: WriteLive(row, typed bytes)
     W->>M: StageFieldMutation (typed bytes queued)
     Note over D,Wt: next Draw, no tick yet
-    D->>M: pending for my var? yes, show typed bytes, yellow
-    Wt->>M: pending for my var? yes, show last value, yellow
+    D->>M: pending for my var? yes, show the staged bytes, yellow
+    Wt->>M: pending for my var? yes, show the SAME staged bytes, yellow
     Note over K: next advancing tick (dt > 0)
     K->>M: DrainInto(repo) — the typed bytes land
     Note over D,Wt: next sample sees the applied value, no pending, yellow clears
@@ -155,10 +162,13 @@ stages and never applies.** ⇒ ⭐ **the drain goes to the time lane FIRST** *(
 T1/T2)*; the UI lane's `W3`/`W4` follow. Both meet only at `IStagedWrites` + `DataBreakpointManager` — no
 shared file edited by both.
 
-## 7. ⚠ NOT DECIDED HERE — **flagged, not silently chosen**
+## 7. ✅ RESOLVED — **both surfaces show the SAME staged value in yellow** *(user, `2026-08-21`)*
 
-⚠ **Whether Watch shows the TYPED value or its LAST value while pending.** §1 says Watch shows its last
-value *(only Details shows the typed one)*, both yellow. ⭐ Fork A makes showing the typed value on Watch
-**free** *(the payload is right there)* — but that would make Watch jump to a value the sim has not
-applied. ⭐ **Lean: Watch keeps its last sampled value + yellow** *(the honest "not applied yet")*; the
-implementation session should confirm this reads well and report if not.
+> 🔒 **User:** *"if we can share the staged state to both views, even better, both yellow, both showing
+> the same staged value, immediately after user edit."*
+
+⭐⭐⭐ **Because Lean A shares the one staged set, we take the shared path:** the instant an edit stages,
+**Details AND Watch both show the staged bytes, both yellow** — ⛔ **not** *"Details typed, Watch last
+value."* A row with no staged edit stays **white** *(or 🔴 red for a sim change — never yellow)*. When the
+drain lands, both re-sample the applied value and go white together. ⚠ **The earlier "they diverge until
+next tick" framing is SUPERSEDED — sharing removes the divergence.**
