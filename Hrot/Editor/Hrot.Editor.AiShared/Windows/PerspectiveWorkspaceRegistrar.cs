@@ -465,6 +465,17 @@ public class PerspectiveWorkspaceRegistrar
             _detailsHost      ??= AiDetails;
             ConnectOutlineToDetails();
 
+            // ⭐⭐⭐ L1.2 — AiDetails is built HERE, not handed in through RegisterExtraWindow, so its
+            //    claim-chain arm is mirrored here for the same reason the two lines above are:
+            //    ⭐ ONE registration path per concept (ruling 9), ⛔ not a second mechanism.
+            // ⚠ The guard is the same _viewSources set the chain uses, so a window reaching BOTH paths
+            //   registers its views exactly once.
+            if (AiDetails is Shell.IDetailsViewSource detailsViews && _viewSources.Add(detailsViews))
+            {
+                foreach (var descriptor in detailsViews.DetailsViews)
+                    DetailsViews.Add(descriptor);
+            }
+
             // ⭐⭐ Batch 87's ONE attach point. ⛔ Details is a table host like any other; a second
             //    Attach line here is precisely what the twelfth instance was.
             AttachEditGestures(AiDetails);
@@ -646,6 +657,21 @@ public class PerspectiveWorkspaceRegistrar
         if (window is IVariableDetailsHost      detailsHost)   _detailsHost      ??= detailsHost;
         ConnectOutlineToDetails();
 
+        // ⭐⭐⭐ L1.2 — A WINDOW THAT CONTRIBUTES DETAILS VIEWS REGISTERS THEM HERE.
+        //    📄 DESIGN_Details_Panel_View_Switching.md §6 L1.2: "registration through the existing
+        //    claim chain — ⛔ no new root argument". 📌 R-67, and this registrar is the one that has
+        //    forgotten a service four times: an interface arm means a host added later binds itself
+        //    with NO new line anywhere, so there is nothing for EditorSubsystem to forget.
+        // ⚠ Read ONCE, at registration — a source that varies its offer does so in its predicates
+        //   (R-116), not by being re-read every frame.
+        // ⛔ Registered even for a source that yields nothing: "asked and there are none" must be
+        //   distinguishable from "never asked" — the second is the bug this arm exists to prevent.
+        if (window is Shell.IDetailsViewSource viewSource && _viewSources.Add(viewSource))
+        {
+            foreach (var descriptor in viewSource.DetailsViews)
+                DetailsViews.Add(descriptor);
+        }
+
         // ⭐⭐⭐ Batch 87 — the Details panel and the Blueprint Watch arrive HERE, as extras, which is
         //    precisely why the constructor's single Attach could never have reached them. ⛔ Stated
         //    over the INTERFACE so a host added later binds itself with no new line anywhere.
@@ -721,6 +747,25 @@ public class PerspectiveWorkspaceRegistrar
 
     private IVariableOutlineSelectionSource? _outlineSelection;
     private IVariableDetailsHost?            _detailsHost;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L1.1</c>/<c>L1.2</c> — THIS PERSPECTIVE'S DETAILS-VIEW CATALOGUE.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §2: <c>PerspectiveWorkspace *-- DetailsViewRegistry</c>.
+    ///
+    /// <para>⚠ <b>A STATED PLACEMENT DEVIATION.</b> §2 composes the registry into
+    /// <c>PerspectiveWorkspace</c> — ⛔ but that type is extracted in <b><c>L6.1</c></b> *(§6:
+    /// "extract <c>PerspectiveWorkspace</c>, give Scenario one, rename the key with a layout
+    /// migration")*, not in <c>L1</c>. ⇒ ⭐ the registry lives on the registrar now, and <c>L6.1</c>
+    /// carries it across when it splits §5's <i>"wiring hub"</i> half out. 📌 §5 is explicit that the
+    /// generic half is <i>"trapped inside the specific one"</i> — this is one more thing that travels
+    /// with it, ⛔ not a second registry.</para>
+    /// </summary>
+    public Shell.DetailsViewRegistry DetailsViews { get; } = new();
+
+    /// <summary>⚠ Guards against double-registration: <c>RegisterExtraWindow</c> can be called twice
+    /// for the same window, and a second pass would throw on the duplicate id — ⛔ turning a harmless
+    /// re-registration into a crash.</summary>
+    private readonly HashSet<Shell.IDetailsViewSource> _viewSources = new();
     private bool                             _outlineConnected;
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Variables;
 
@@ -50,7 +51,8 @@ namespace Hrot.Editor.AiShared.Windows;
 /// <c>(pending)</c> on all three hosts</b> until <c>BP-334</c> settles which seam survives — ⛔ a
 /// ruling-9 decision, not a wiring fix.</para>
 /// </summary>
-public sealed class AiDetailsWindow : ManagedWindow, IVariableDetailsHost, Variables.IVariableTableHost
+public sealed class AiDetailsWindow
+    : ManagedWindow, IVariableDetailsHost, Variables.IVariableTableHost, Shell.IDetailsViewSource
 {
     /// <summary>
     /// ⭐⭐ <b>Batch 100 (<c>100f</c>) — the row gestures this surface offers.</b>
@@ -92,6 +94,23 @@ public sealed class AiDetailsWindow : ManagedWindow, IVariableDetailsHost, Varia
     /// whatever wired it — 📌 <c>R-67</c>.
     /// </summary>
     public VariableDetailsSection Variables => _variables;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L1.3</c>/<c>L1.2</c> — this window CONTRIBUTES the variables view to its
+    /// perspective's catalogue.</b> 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L1.3</c>
+    /// *("<c>VariableDetailsSection</c> becomes the first descriptor")*.
+    ///
+    /// <para>⭐⭐ <b>The window declares it; the registrar's claim chain collects it</b> — 📌 §6
+    /// <c>L1.2</c>: <i>"registration through the existing claim chain, ⛔ no new root argument"</i>
+    /// *(<c>R-67</c>)*. ⇒ ⛔ <c>EditorSubsystem</c> gains nothing to forget.</para>
+    ///
+    /// <para>⚠ Read ONCE at registration, so this is a fresh descriptor over the SAME section — ⭐ the
+    /// section stays the one the registrar wires with run-state, gestures and the live projection.</para>
+    /// </summary>
+    public IEnumerable<Shell.DetailsViewDescriptor> DetailsViews
+    {
+        get { yield return Shell.VariablesDetailsViewDescriptor.For(_variables); }
+    }
 
     /// <summary>⭐ What the panel is currently showing, or null. A rail surface.</summary>
     public string? Heading => _variables.Heading;

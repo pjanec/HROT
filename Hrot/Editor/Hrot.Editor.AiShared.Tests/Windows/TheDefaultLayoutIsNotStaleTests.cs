@@ -311,7 +311,9 @@ public sealed class TheDefaultLayoutIsNotStaleTests : IDisposable
                             Hrot.Diagnostics.Breakpoints.CompiledEventScanner)>();
     }
 
-    private sealed class NoRefactor : IRefactorService
+    /// <summary>⭐ <c>internal</c> since <c>L1</c> so the production-registry rail reuses the SAME
+    /// fake — ⛔ a second one would be two answers to "what is a no-op refactor service" (ruling 9).</summary>
+    internal sealed class NoRefactor : IRefactorService
     {
         public IReadOnlyList<AssetReferenceInfo> FindReferences(string k)
             => Array.Empty<AssetReferenceInfo>();
