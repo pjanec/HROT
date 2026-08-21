@@ -193,3 +193,52 @@ graph TD
 >
 > ⚠⚠ **`AS-14` gets WORSE under `T4`**: intents can be published faster than ACKs return, so a dropped
 > step becomes **more** likely. ⛔ **That is why `T0.1` is a blocker and not a nice-to-have.**
+
+---
+
+## 5. ⭐⭐⭐ CAN THIS RUN IN PARALLEL WITH THE UI/DETAILS REFACTOR? *(user, `2026-08-21`)*
+
+> ⭐⭐ **Yes — the CODE separates cleanly. ⛔ The PROCESS does not, yet.** Three amendments are needed and
+> one of them **needs the user's explicit nod**.
+
+### ⭐ ① THE CODE — **measured, and the overlap is near zero**
+
+| lane | touches |
+|---|---|
+| ⭐ **TIME lane** *(`T0`, then `T1`…`T7`)* | `FDP/Toolkits/Fdp.Toolkits/Time/` · `Hrot.Orchestrator` · `ModuleHostKernel` · `Hrot.ClusterRunner.Integration.Tests` |
+| ⭐ **UI lane** *(`Q38` `L0`…`L6`)* | `Hrot.Editor.AiShared/Windows` · `Blueprints.Editor` · `BTree.Editor` · `Hsm.Editor` — **selection stores, bridges, the view registry** |
+| ⇒ | ⭐⭐⭐ **different assemblies. No shared production file.** |
+
+⛔⛔ **THE ONE EXCEPTION — `MIN` IS NOT IN THE TIME LANE.** 📐 It edits `BlueprintDebugSession`,
+`BlueprintLiveValueWriter` and `VariableEditCommit` — ⭐ **variable-edit code, the UI lane's files.**
+⇒ ⭐⭐ **`MIN` ships with the UI session**, not the time one.
+
+### ⛔ ② THE PROCESS — **three real conflicts**
+
+| ⛔ | ⭐ the amendment |
+|---|---|
+| **the TRACKER** — one 985-line file, areas `A`–`G`; ⚠ **both lanes would append rows** 📌 and id collisions have already bitten this programme **three times** | ⭐⭐ **partition it: the time lane writes ONLY to a new `Area H — Time & clock`.** ⇒ different regions of one file **merge cleanly** |
+| **ID ALLOCATION** — rule 3 says each session numbers its own rows; ⛔ **two sessions drawing from `BP-` collide by construction** | ⭐⭐⭐ **a PREFIX per lane** — `BP-` stays with the UI/variable lane, the time lane uses **`TM-`**. ⛔ **Structural, not coordination** |
+| **the LANE TABLE** — `.claude/CLAUDE.md` names **one** implementation branch | ⭐ **add the second branch by name**, and say which lane each owns |
+
+### ⛔⛔ ③ AND IT BRUSHES THE `2026-08-15` FREEZE — **the user must rule**
+
+🔒 **The standing ruling, verbatim:** *"cross host it is. one single implem session (the one we are
+using) will be implementing for all hosts, **no other session will implement until this is all done**."*
+
+| ⭐ my reading | |
+|---|---|
+| ⭐⭐ **the freeze protects the UNIFIED VARIABLE MODEL** — variables, working state, the blackboard panel, `Hrot.Editor.AiShared` | ⇒ ⭐ **the TIME lane is outside it** *(engine, orchestrator, kernel, integration tests)* |
+| ⛔ **but the words say "no other session will implement"**, without an area carve-out | ⇒ ⚠⚠ **this needs the user to say "the freeze is about the variable model; a time-lane session is fine"** — ⛔ **I will not read the carve-out into it myself** |
+
+### ⭐⭐ ⇒ RECOMMENDED SPLIT, if approved
+
+| lane | first batch | ⭐ |
+|---|---|---|
+| ⭐⭐⭐ **UI lane** *(the existing session, `claude/hrot-implementation-j1jvin`)* | **`MIN`** *(the ~10-line fix + one rail)*, then **`Q38` `L0`** | ⭐ it owns the frozen area already; ⭐⭐ **`MIN` is the thing that has failed five visual checks** |
+| ⭐⭐ **TIME lane** *(a NEW session/branch)* | **`T0`** — Batch 104 as dispatched | ⭐ self-contained; ⛔ **its only production edit is `AS-14`** |
+
+⚠ **Coordination cost, stated honestly:** ⭐ **two lanes double the merge and review load on this
+session**, and ⛔ **the protocol has never run two.** ⭐ The split above is chosen to minimise that — one
+lane is a **single self-contained batch** with one production file, so if the process strains, **the time
+lane is the one to pause.**
