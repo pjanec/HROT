@@ -312,17 +312,23 @@ public sealed class TheBlueprintLiveWriteLandsTests
     }
 
     /// <summary>
-    /// ⛔ <b>Not frozen ⇒ nothing is staged</b> — 📌 ruling 15. ⭐ The gate is the SESSION's, not a
-    /// second rule in the writer: the editor's run state and the session's pause flag are two
-    /// observations, and the write must survive their disagreement without corrupting anything.
+    /// ⛔ <b>A RUNNING simulation ⇒ nothing is staged and nothing is written</b> — 📌 ruling 15.
+    /// ⭐ The gate is the SESSION's, not a second rule in the writer.
+    ///
+    /// <para>⚠⚠ <b><c>MIN</c> RE-EXPRESSED THIS RAIL.</b> It used to read <c>Harness(paused: false)</c>
+    /// and was named <c>WhileTheSessionIsNotFrozen_NothingIsStaged</c> — ⛔ naming the exact flag
+    /// <c>MIN</c> removed from the gate *(<c>AS-3</c>: a toolbar pause never sets it, so it refused a
+    /// designer who had stopped)*. ⇒ ⭐ it now drives an advancing CLOCK, which is what <c>R-126</c>
+    /// makes the single source of "the simulation is not stopped".</para>
     /// </summary>
     [Fact]
-    public void WhileTheSessionIsNotFrozen_NothingIsStaged()
+    public void WhileTheClockAdvances_NothingIsStaged()
     {
-        var h = Harness(paused: false);
+        var h = Harness(paused: false, clockHalted: false);
 
         Assert.False(h.Writer.Write(Row(h.AssetId), BitConverter.GetBytes(4242)));
         Assert.Empty(h.Manager.Staged);
+        Assert.Empty(h.Manager.WroteNow);
     }
 
     /// <summary>⛔ No active blueprint session ⇒ <c>false</c>, never a throw into the dialog.</summary>
@@ -405,9 +411,14 @@ public sealed class TheBlueprintLiveWriteLandsTests
         //    compiled offsets describe a layout it no longer has. ⭐ The read refuses this too.
         yield return ("stale layout", Harness(storedHash: StructureHash ^ 1));
 
-        // ⛔ The SESSION is not frozen while the editor thinks it is. ⭐ The one refusal the designer
-        //    can act on, and the sentence must be the one that says how.
-        yield return ("session not frozen", Harness(paused: false));
+        // ⛔ The SIMULATION IS ADVANCING. ⭐ The one refusal the designer can act on, and the sentence
+        //    must be the one that says how.
+        // ⚠⚠ MIN CHANGED WHAT INDUCES THIS. It used to be `Harness(paused: false)` — the SESSION's own
+        //    pause flag. 📐 That flag is not the gate any more (R-126/AS-3): a toolbar pause never set
+        //    it, so this cause fired while the designer was demonstrably stopped and the sentence had
+        //    to be made deliberately vague to stay honest. ⇒ ⭐ inducing it through the CLOCK is what
+        //    lets the sentence say "pause it" again and be TRUE.
+        yield return ("simulation advancing", Harness(paused: false, clockHalted: false));
     }
 
     /// <summary>
@@ -466,7 +477,11 @@ public sealed class TheBlueprintLiveWriteLandsTests
         bool paused = true,
         BlueprintDispatchKind kind = BlueprintDispatchKind.AiPrimitive,
         int? mapOffset = null,
-        ulong? storedHash = null)
+        ulong? storedHash = null,
+        // ⭐ MIN — the run-state gate is the CLOCK now (R-126/AS-3), so a rail that wants a REFUSAL
+        //   must stop the pretending and start the simulation. ⚠ Default halted, so every rail written
+        //   before MIN keeps the behaviour it was written against.
+        bool clockHalted = true)
     {
         var assetId = Guid.NewGuid();
 
@@ -502,7 +517,10 @@ public sealed class TheBlueprintLiveWriteLandsTests
         else                                           registry.RegisterInstance(id, def);
 
         var session = new BlueprintDebugSession(registry, world, new MockTimeController());
-        var manager = new TheSessionWritesWhileFrozenTests.RecordingManager();
+        var manager = new TheSessionWritesWhileFrozenTests.RecordingManager
+        {
+            ClockHalted = clockHalted,
+        };
         session.SetDataBreakpointManager(manager);
         if (paused) session.Pause();
 

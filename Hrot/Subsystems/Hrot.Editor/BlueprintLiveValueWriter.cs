@@ -129,11 +129,14 @@ public sealed class BlueprintLiveValueWriter
         if (bytes.Length != field.SizeBytes)
             return LiveWriteAttempt.Refused(LiveWriteRefusal.SizeMismatch, bytes.Length, field.SizeBytes);
 
-        // ⭐ 5 — the session's own freeze gate (ruling 15) is the only remaining way this returns false.
+        // ⭐ 5 — the CLOCK gate is the only remaining way this returns false. 📌 MIN: it used to be the
+        //    session's own `_isPaused`, which a toolbar pause never set — so this arm fired while the
+        //    designer was demonstrably stopped. ⇒ a `false` here now means one thing, and the sentence
+        //    below can say it.
         return session.TryWriteWorkingStateField(
                    entity.Value, field.ComponentType, field.ComponentOffsetBytes, bytes)
             ? LiveWriteAttempt.Succeeded
-            : LiveWriteAttempt.Refused(LiveWriteRefusal.NotFrozen);
+            : LiveWriteAttempt.Refused(LiveWriteRefusal.SimulationAdvancing);
     }
 }
 
@@ -164,8 +167,16 @@ public enum LiveWriteRefusal
     /// <summary>⛔⛔ The payload width is not the field's width. 📌 <c>Q32</c> §2.1 — the corruption gate.</summary>
     SizeMismatch,
 
-    /// <summary>⛔ The simulation is not frozen. 📌 Ruling 15 — ⭐ the one refusal a designer can undo.</summary>
-    NotFrozen,
+    /// <summary>
+    /// ⛔ <b>The simulation clock is ADVANCING.</b> ⭐ The one refusal a designer can undo, and since
+    /// <c>MIN</c> the only one the session's gate can produce.
+    ///
+    /// <para>⚠⚠ <b>Renamed from <c>NotFrozen</c> deliberately</b>, so the compiler revisited every
+    /// reader. 📌 <c>NotFrozen</c> named a SESSION FLAG *(<c>BlueprintDebugSession._isPaused</c>)*, and
+    /// that flag is exactly what <c>MIN</c> stopped gating on — a name that still said "frozen" would
+    /// keep pointing at the mechanism <c>AS-3</c> removed.</para>
+    /// </summary>
+    SimulationAdvancing,
 }
 
 /// <summary>⭐ The outcome of one live-write attempt, with the numbers a size mismatch needs.</summary>
@@ -178,7 +189,7 @@ public readonly record struct LiveWriteAttempt(bool Ok, LiveWriteRefusal Refusal
 
     /// <summary>
     /// ⭐⭐ What the dialog shows. ⛔ Not an enum name: 📌 the visual guide's <c>F3</c> — a refusal the
-    /// designer reads must say what to DO, and only <see cref="LiveWriteRefusal.NotFrozen"/> is
+    /// designer reads must say what to DO, and only <see cref="LiveWriteRefusal.SimulationAdvancing"/> is
     /// actionable by them.
     /// </summary>
     public string Message => $"{Sentence} [{Refusal}]";
@@ -200,23 +211,19 @@ public readonly record struct LiveWriteAttempt(bool Ok, LiveWriteRefusal Refusal
                                              + $"{Expected}-byte field, so the write was refused rather than "
                                              +  "risk the neighbouring value.",
 
-        // ⛔⛔⛔ 2026-08-21 — THE OLD SENTENCE WAS FALSE, and it is the single sentence that cost this
-        //    programme the most. It read "The simulation is running — pause it to edit a live value."
-        // 📐 Measured: the gate behind it is BlueprintDebugSession._isPaused, a SESSION-LOCAL flag set
-        //    only by that session's own Pause() or by a breakpoint hit. ⇒ a user who paused time from
-        //    the toolbar IS stopped, the Details panel correctly reads `Paused`, and this still refuses
-        //    — while telling them to do the thing they already did.
-        // 🔒 The user's own ruling (2026-08-21): "time is paused OR debugger hit a breakpoint — in both
-        //    cases the simulation is stopped and we can write new values." ⛔ Widening the gate is NOT
-        //    a string change: the write STAGES into the data-breakpoint manager and drains on its
-        //    step/continue, so who drains it under a toolbar pause is an open design question (Q48).
-        // ⇒ ⭐ until that is answered the honest message names the mechanism, not a user action that
-        //    does not help.
-        LiveWriteRefusal.NotFrozen          => "The blueprint debugger is not holding the simulation, so a "
-                                             + "staged write has nothing to drain it. Pausing TIME is not "
-                                             + "enough — this path currently requires the blueprint debug "
-                                             + "session itself to be paused (a breakpoint hit, or Pause in "
-                                             + "the debugger).",
+        // ⭐⭐⭐ MIN (2026-08-21) — THE SENTENCE CAN TELL THE TRUTH AGAIN, because the GATE now does.
+        // 📌 The history, kept because it is the point: the original read "The simulation is running —
+        //    pause it to edit a live value", which was FALSE — the gate behind it was
+        //    BlueprintDebugSession._isPaused, a SESSION-LOCAL flag a toolbar pause never sets, so it
+        //    told a designer who HAD paused to pause. Batch 102's honest-refusal work then replaced it
+        //    with a sentence describing that MECHANISM instead, deliberately vague about what to do,
+        //    because at the time nothing drained a toolbar-paused write.
+        // ⇒ ⭐⭐ MIN made the gate `!IsClockHalted()` — one source of "paused", the clock (R-126) — so
+        //    this arm now means exactly what it says, and the actionable instruction is true for BOTH
+        //    ways of stopping. ⛔ It is no longer a description of a limitation; it is a fact about the
+        //    simulation.
+        LiveWriteRefusal.SimulationAdvancing => "The simulation is running — pause it (the toolbar's "
+                                             + "pause, or a breakpoint) to edit a live value.",
         _                                   => "The live write was refused.",
     };
 }

@@ -41,7 +41,7 @@ public sealed class TheInstanceWriteLandsInTheSlotTests
         BlueprintDebugSession Session,
         Hrot.Blueprints.Tests.Debug.TheSessionWritesWhileFrozenTests.RecordingManager Manager);
 
-    private static Rig Attach(bool paused = true)
+    private static Rig Attach(bool paused = true, bool clockHalted = true)
     {
         var world = new EntityRepository();
         BlueprintRuntimeWiring.RegisterTierComponents(world);
@@ -56,7 +56,10 @@ public sealed class TheInstanceWriteLandsInTheSlotTests
 
         // ⭐ The session reads and resolves through THIS world — the same one the attach wrote into.
         var session = new BlueprintDebugSession(registry, world, new MockTimeController());
-        var manager = new Hrot.Blueprints.Tests.Debug.TheSessionWritesWhileFrozenTests.RecordingManager();
+        var manager = new Hrot.Blueprints.Tests.Debug.TheSessionWritesWhileFrozenTests.RecordingManager
+        {
+            ClockHalted = clockHalted,
+        };
         session.SetDataBreakpointManager(manager);
         if (paused) session.Pause();
 
@@ -119,19 +122,56 @@ public sealed class TheInstanceWriteLandsInTheSlotTests
 
     /// <summary>
     /// ⭐⭐ <b>Ruling 15 still holds for the new arm.</b> ⛔ Building the Instance capability must not
-    /// have opened a write path that ignores the freeze gate — ⚠ the gate is the SESSION's, and the arm
-    /// is upstream of it, so this is worth asserting rather than assuming.
+    /// have opened a write path that ignores the run-state gate — ⚠ the gate is upstream of this arm,
+    /// so it is worth asserting rather than assuming.
+    ///
+    /// <para>⚠⚠ <b><c>MIN</c> RE-EXPRESSED THIS RAIL, and the change of premise is the finding.</b> It
+    /// used to drive <c>Attach(paused: false)</c> — the SESSION's own pause flag — because that was the
+    /// gate. 📐 <c>MIN</c> moved the gate to the CLOCK *(<c>R-126</c>, <c>AS-3</c>)</b>, since a toolbar
+    /// pause never sets the session flag and a designer who had stopped time was refused anyway.
+    /// ⇒ ⭐ the rail now drives an ADVANCING CLOCK, which is what "not stopped" means after <c>MIN</c>.
+    /// ⛔ <b>Not a weakening:</b> the Instance arm is still refused while the simulation runs, and it is
+    /// still asserted to stage nothing AND write nothing.</para>
     /// </summary>
     [Fact]
-    public void WhileNotFrozen_TheInstanceWriteStagesNothing()
+    public void WhileTheClockAdvances_TheInstanceWriteStagesNothing()
     {
-        var rig = Attach(paused: false);
+        var rig = Attach(paused: false, clockHalted: false);
 
         var field = rig.Session.ResolveWorkingStateField(rig.Entity, rig.AssetId, FieldName);
         Assert.NotNull(field);   // ⭐ resolving is not writing — the address is knowable either way
 
         Assert.False(rig.Session.TryWriteWorkingStateField(
             rig.Entity, field!.ComponentType, field.ComponentOffsetBytes, BitConverter.GetBytes(4242)));
+        Assert.Empty(rig.Manager.Staged);
+        Assert.Empty(rig.Manager.WroteNow);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>MIN</c> — the Instance arm under a TOOLBAR pause lands at the SAME address it would
+    /// have staged at.</b>
+    ///
+    /// <para>⛔ The address is the half that corrupts if it is wrong *(<c>Q32</c> §2.1)*, and
+    /// <c>MIN</c> introduced a SECOND way out of the session. ⇒ ⭐ this asserts the two arms agree on
+    /// the allocator's own slot offset — ⚠ computed the way the READ computes it, not re-run from the
+    /// resolver's arithmetic.</para>
+    /// </summary>
+    [Fact]
+    public unsafe void UnderAToolbarPause_TheInstanceWriteLandsAtTheSameAddressItWouldHaveStagedAt()
+    {
+        var rig = Attach(paused: false, clockHalted: true);
+        rig.Manager.BreakpointHolding = false;          // ⭐ toolbar, not breakpoint
+
+        int expected = PayloadOffsetOf(rig) + CounterDemoBlueprint.CountOffset;
+
+        var field = rig.Session.ResolveWorkingStateField(rig.Entity, rig.AssetId, FieldName)!;
+        Assert.True(rig.Session.TryWriteWorkingStateField(
+            rig.Entity, field.ComponentType, field.ComponentOffsetBytes, BitConverter.GetBytes(4242)));
+
+        var wrote = Assert.Single(rig.Manager.WroteNow);
+        Assert.Equal(typeof(BlueprintBlackboard1024), wrote.ComponentType);
+        Assert.Equal(expected, wrote.ByteOffset);
+        Assert.Equal(4242, BitConverter.ToInt32(wrote.Bytes, 0));
         Assert.Empty(rig.Manager.Staged);
     }
 

@@ -905,20 +905,37 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     /// <para>⭐ <b>The manager is DERIVED, not a new argument</b> — <see cref="SetDataBreakpointManager"/>
     /// already hands it to this session for breakpoints.</para>
     ///
-    /// <para>⛔ <b>Refuses unless FROZEN</b> (📌 ruling 15). ⚠ Both arms of "frozen" are this session's
-    /// own <see cref="IsPaused"/>, which the breakpoint hit sets — the editor-side freeze signal
-    /// (<c>IEngineDebugTimeController.IsPausedByDebugger</c>) is what the UI greys on, and the two must
-    /// both hold for a write to reach here.</para>
+    /// <para>⭐⭐⭐ <b><c>MIN</c> (<c>2026-08-21</c>) — THE GATE IS THE CLOCK, NOT THE SESSION FLAG.</b>
+    /// 🔒 The user's ruling <c>R-126</c>: <i>"time is paused OR debugger hit a breakpoint — in both
+    /// cases the simulation is stopped and we can write new values."</i>
+    /// 🔴 What stood here was <c>if (!_isPaused) return false;</c> — a <b>session-local</b> flag set
+    /// only by this session's own <c>Pause()</c> or a breakpoint hit. ⇒ ⛔ a designer who paused time
+    /// from the TOOLBAR was stopped, the Details panel correctly read <c>Paused</c>, and the write was
+    /// still refused. 📌 <c>AS-3</c>.</para>
+    ///
+    /// <para>⭐ <b>Three ways now, and which one is right is decided by <c>ActiveView</c>:</b>
+    /// <list type="table">
+    ///   <item><term>clock ADVANCING</term><description>⛔ refuse. A direct write is overwritten by the
+    ///   next tick, and staging has nothing to drain it — that is <c>W1</c>/<c>W2</c>'s job.</description></item>
+    ///   <item><term>halted, breakpoint HOLDING</term><description>⭐ STAGE, exactly as before. 📌
+    ///   <c>R-63</c>: <c>RequestStep</c>/<c>RequestContinue</c> restore the live repo from the POST-tick
+    ///   snapshot and drain <i>afterwards</i>, so a direct write would be lost on resume.</description></item>
+    ///   <item><term>halted, TOOLBAR pause</term><description>⭐⭐ write NOW. <c>ActiveView</c> IS the
+    ///   live repo, there is no restore to survive, and <c>P6′</c>: nothing recomputes at
+    ///   <c>dt = 0</c>.</description></item>
+    /// </list></para>
     /// </summary>
     public bool TryWriteWorkingStateField(
         Entity entity, Type componentType, int componentOffsetBytes, ReadOnlySpan<byte> bytes)
     {
         if (componentType is null) throw new ArgumentNullException(nameof(componentType));
 
-        // ⛔ Ruling 15: not frozen ⇒ no live write. ⭐ false, not an exception — the caller greys a
-        //    control on this answer.
-        if (!_isPaused) return false;
+        // ⭐ false, not an exception — the caller turns this answer into a sentence for the designer.
         if (_dataBreakpointManager is null) return false;
+
+        // ⛔⛔ The ONE refusal that survives MIN: the simulation is actually advancing. ⭐ Everything
+        //    else below lands, which is what lets the message name a real, actionable cause again.
+        if (!_dataBreakpointManager.IsClockHalted()) return false;
 
         // ⭐⭐⭐ Batch 102 (102a) — THE OFFSET ARRIVES FULLY RESOLVED, and this method no longer
         //    transforms it. ⛔ It used to apply WorkingStateLayout.ComponentOffsetOf (+8)
@@ -932,7 +949,18 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
             throw new ArgumentOutOfRangeException(nameof(componentOffsetBytes),
                 $"A component offset must not be negative (was {componentOffsetBytes}).");
 
-        _dataBreakpointManager.StageFieldMutation(entity, componentType, componentOffsetBytes, bytes);
+        // ⭐⭐ The BREAKPOINT arm — staged, because the resume path restores the live repo from the
+        //    post-tick snapshot and drains after it (R-63). ⚠ Asked of the MANAGER, not of this
+        //    session's `_isPaused`: the manager owns the rewind, so it owns the question.
+        if (_dataBreakpointManager.IsPaused)
+        {
+            _dataBreakpointManager.StageFieldMutation(entity, componentType, componentOffsetBytes, bytes);
+            return true;
+        }
+
+        // ⭐⭐⭐ The TOOLBAR arm — halted with no breakpoint holding a rewound tick, so ActiveView is
+        //    the live repo and the write can simply land.
+        _dataBreakpointManager.WriteFieldNow(entity, componentType, componentOffsetBytes, bytes);
         return true;
     }
 

@@ -27,43 +27,86 @@ namespace Hrot.Blueprints.Tests.Debug;
 /// </summary>
 public sealed class TheSessionWritesWhileFrozenTests
 {
-    private static (BlueprintDebugSession Session, RecordingManager Manager) Session(bool paused)
+    /// <summary>
+    /// ⭐⭐ <c>MIN</c> — the harness now sets up the THREE-WAY. ⚠ <c>sessionPaused</c> is still driven,
+    /// deliberately: ⛔ it is no longer the gate, and a rail that stopped setting it could not tell the
+    /// difference between <i>"the gate moved"</i> and <i>"the flag happens to agree"</i>.
+    /// </summary>
+    private static (BlueprintDebugSession Session, RecordingManager Manager) Session(
+        bool clockHalted, bool breakpointHolding, bool sessionPaused)
     {
         var repo    = new EntityRepository();
         var session = new BlueprintDebugSession(
             new BlueprintRegistry(), repo, new MockTimeController());
 
-        var manager = new RecordingManager();
+        var manager = new RecordingManager
+        {
+            ClockHalted       = clockHalted,
+            BreakpointHolding = breakpointHolding,
+        };
         session.SetDataBreakpointManager(manager);
-        if (paused) session.Pause();
+        if (sessionPaused) session.Pause();
 
         return (session, manager);
     }
 
+    /// <summary>⭐ The pre-<c>MIN</c> shape: a breakpoint holding a rewound tick.</summary>
+    private static (BlueprintDebugSession Session, RecordingManager Manager) UnderABreakpoint()
+        => Session(clockHalted: true, breakpointHolding: true, sessionPaused: true);
+
     /// <summary>
-    /// ⛔⛔ <b>Free-running REFUSES, and stages NOTHING.</b> 📌 Ruling 15 — <i>"at that time nothing
-    /// else changes the blackboard"</i> is only true while frozen. ⭐ <c>false</c> rather than a throw:
-    /// the UI greys a control on this answer (📌 the visual-check guide's <c>F3</c>).
+    /// ⛔⛔ <b>A RUNNING simulation REFUSES, and stages NOTHING.</b> 📌 Ruling 15 — <i>"at that time
+    /// nothing else changes the blackboard"</i> is only true while stopped. ⭐ <c>false</c> rather than
+    /// a throw: the UI turns this answer into a sentence (📌 the visual guide's <c>F3</c>).
+    ///
+    /// <para>⚠⚠ <b><c>MIN</c> RE-EXPRESSED THIS RAIL, and the re-expression is the finding.</b> It used
+    /// to read <c>Session(paused: false)</c> — i.e. it asserted that <b>the SESSION's own pause flag</b>
+    /// was the gate. 📐 That flag is set only by this session's <c>Pause()</c> or a breakpoint hit, so
+    /// a designer who paused time from the TOOLBAR was refused while demonstrably stopped
+    /// *(<c>AS-3</c>)*. ⇒ ⭐ the rail now drives the CLOCK, which is what <c>R-126</c> makes the single
+    /// source of "paused". ⛔ <b>Not a weakening</b>: a running simulation is still refused, and
+    /// <see cref="TheSessionsOwnPauseFlagIsNoLongerTheGate"/> pins the half that changed.</para>
     /// </summary>
     [Fact]
-    public void WhileFreeRunning_TheWriteIsRefused_AndNothingIsStaged()
+    public void WhileTheClockAdvances_TheWriteIsRefused_AndNothingIsStaged()
     {
-        var (session, manager) = Session(paused: false);
+        var (session, manager) = Session(
+            clockHalted: false, breakpointHolding: false, sessionPaused: false);
 
         Assert.False(session.TryWriteWorkingStateField(
             default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, new byte[4]));
         Assert.Empty(manager.Staged);
+        Assert.Empty(manager.WroteNow);
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b>And a running simulation is refused EVEN IF the session thinks it is paused.</b>
+    /// ⚠ The mirror of <see cref="TheSessionsOwnPauseFlagIsNoLongerTheGate"/>: <c>MIN</c> did not swap
+    /// one flag for another, it moved the question to the clock — so a stale session flag can no longer
+    /// admit a write into an advancing simulation either.
+    /// </summary>
+    [Fact]
+    public void WhileTheClockAdvances_AStaleSessionPauseFlagDoesNotAdmitTheWrite()
+    {
+        var (session, manager) = Session(
+            clockHalted: false, breakpointHolding: false, sessionPaused: true);
+
+        Assert.False(session.TryWriteWorkingStateField(
+            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, new byte[4]));
+        Assert.Empty(manager.Staged);
+        Assert.Empty(manager.WroteNow);
     }
 
     /// <summary>
     /// 🔴 <b>RED before Batch 84</b> — the interface had no write at all.
-    /// ⭐ While frozen the write is accepted and STAGED, ⛔ never applied to <c>ActiveView</c>
-    /// (📌 <c>R-63</c>).
+    /// ⭐ Under a BREAKPOINT the write is accepted and STAGED, ⛔ never applied to <c>ActiveView</c>
+    /// (📌 <c>R-63</c>: resume restores the live repo from the POST-tick snapshot and drains after it,
+    /// so a direct write there would be lost).
     /// </summary>
     [Fact]
-    public void WhileFrozen_TheWriteIsStaged()
+    public void UnderABreakpoint_TheWriteIsStaged()
     {
-        var (session, manager) = Session(paused: true);
+        var (session, manager) = UnderABreakpoint();
 
         Assert.True(session.TryWriteWorkingStateField(
             default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, BitConverter.GetBytes(7)));
@@ -71,6 +114,62 @@ public sealed class TheSessionWritesWhileFrozenTests
         var staged = Assert.Single(manager.Staged);
         Assert.Equal(typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), staged.ComponentType);
         Assert.Equal(7, BitConverter.ToInt32(staged.Bytes));
+
+        // ⛔ And it did NOT take the immediate arm — R-63's restore would have eaten it.
+        Assert.Empty(manager.WroteNow);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>MIN</c> — THE TOOLBAR ARM. The write LANDS, and it is NOT staged.</b>
+    ///
+    /// <para>🔒 The user's ruling <c>R-126</c>: <i>"time is paused OR debugger hit a breakpoint — in
+    /// both cases the simulation is stopped and we can write new values."</i> 📌 The live failure this
+    /// closes: <i>edit a working-state variable while paused from the toolbar → the value does not
+    /// change</i>.</para>
+    ///
+    /// <para>⛔ <b>Staging here would be the bug, not a safe alternative</b> — nothing drains under a
+    /// toolbar pause *(<c>AS-5</c>)*, so a staged write sits in the queue until the next breakpoint
+    /// step, which may never come. ⇒ ⭐ the rail asserts BOTH halves: it landed, and it did not queue.</para>
+    /// </summary>
+    [Fact]
+    public void UnderAToolbarPause_TheWriteLandsNow_AndIsNotStaged()
+    {
+        var (session, manager) = Session(
+            clockHalted: true, breakpointHolding: false, sessionPaused: false);
+
+        Assert.True(session.TryWriteWorkingStateField(
+            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, BitConverter.GetBytes(7)));
+
+        var wrote = Assert.Single(manager.WroteNow);
+        Assert.Equal(typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), wrote.ComponentType);
+        Assert.Equal(4, wrote.ByteOffset);
+        Assert.Equal(7, BitConverter.ToInt32(wrote.Bytes));
+
+        // ⛔⛔ AS-5: nothing drains the queue under a toolbar pause, so a staged write would be a
+        //    write that never happens — the exact symptom MIN exists to end.
+        Assert.Empty(manager.Staged);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>AS-3</c>, pinned from the other side: the SESSION's own pause flag is NOT the gate.</b>
+    ///
+    /// <para>⚠ Identical to <see cref="UnderAToolbarPause_TheWriteLandsNow_AndIsNotStaged"/> in
+    /// mechanism, and it exists anyway — because that rail could keep passing if someone re-introduced
+    /// <c>if (!_isPaused) return false;</c> AND a future harness happened to call <c>Pause()</c>. ⭐ This
+    /// one states the property that actually regressed: <b>the session is NOT paused, and the write
+    /// still lands.</b></para>
+    /// </summary>
+    [Fact]
+    public void TheSessionsOwnPauseFlagIsNoLongerTheGate()
+    {
+        var (session, manager) = Session(
+            clockHalted: true, breakpointHolding: false, sessionPaused: false);
+
+        Assert.False(session.IsPaused);
+
+        Assert.True(session.TryWriteWorkingStateField(
+            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 0, new byte[4]));
+        Assert.Single(manager.WroteNow);
     }
 
     /// <summary>
@@ -105,7 +204,7 @@ public sealed class TheSessionWritesWhileFrozenTests
     [InlineData(64)]
     public void TheWriterStagesTheOffsetItWasGiven(int componentOffset)
     {
-        var (session, manager) = Session(paused: true);
+        var (session, manager) = UnderABreakpoint();
 
         session.TryWriteWorkingStateField(
             default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), componentOffset, new byte[4]);
@@ -130,7 +229,7 @@ public sealed class TheSessionWritesWhileFrozenTests
     [Fact]
     public void ANegativeFieldOffset_Throws_EvenWhileFrozen()
     {
-        var (session, _) = Session(paused: true);
+        var (session, _) = UnderABreakpoint();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => session.TryWriteWorkingStateField(
             default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), -1, new byte[4]));
@@ -175,8 +274,24 @@ public sealed class TheSessionWritesWhileFrozenTests
     {
         public List<(Type ComponentType, int ByteOffset, byte[] Bytes)> Staged { get; } = new();
 
+        /// <summary>⭐ <c>MIN</c> — what the session wrote through the TOOLBAR arm, kept apart from
+        /// <see cref="Staged"/> so a rail can tell the two arms apart rather than counting writes.</summary>
+        public List<(Type ComponentType, int ByteOffset, byte[] Bytes)> WroteNow { get; } = new();
+
+        /// <summary>⭐ <c>MIN</c> — drives the three-way. Defaults reproduce the pre-<c>MIN</c> world
+        /// *(halted, breakpoint holding)*, so every rail written before this keeps its meaning.</summary>
+        public bool ClockHalted { get; set; } = true;
+
+        /// <summary>⭐ <c>MIN</c> — is a BREAKPOINT holding a rewound tick? ⛔ Not "is time stopped".</summary>
+        public bool BreakpointHolding { get; set; } = true;
+
         public void StageFieldMutation(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
             => Staged.Add((componentType, byteOffset, bytes.ToArray()));
+
+        public bool IsClockHalted() => ClockHalted;
+
+        public void WriteFieldNow(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
+            => WroteNow.Add((componentType, byteOffset, bytes.ToArray()));
 
         public void StageMutation(Entity entity, Type componentType, object componentValue)
             => throw new InvalidOperationException(
@@ -200,7 +315,7 @@ public sealed class TheSessionWritesWhileFrozenTests
         public void OnExternalHit(string tag, Entity entity) { }
         public event Action<BpBreakpoint, Entity>? OnBreakpointHit { add { } remove { } }
         public event Action<bool>? OnPauseStateChanged { add { } remove { } }
-        public bool IsPaused => true;
+        public bool IsPaused => BreakpointHolding;
         public Fdp.ModuleHost.Abstractions.ISimulationView ActiveView => null!;
         public long PausedTick => 0;
         public int PendingMutationsCount => Staged.Count;
