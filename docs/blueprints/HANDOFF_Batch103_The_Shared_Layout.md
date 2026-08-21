@@ -11,8 +11,8 @@ known-conflict: the shipped default has ActivePerspective="Blueprint", which
 -->
 # HANDOFF — Batch 103: **one shared layout**
 
-> 📌 **Dispatched at `<STAMP>`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha.**
-> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 103 at <STAMP>` FIRST.**
+> 📌 **Dispatched at `d3c370ffb`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha.**
+> ⭐ **Rule 3: your own ids.** ⭐ **Rule 1b: push `chore: started batch 103 at d3c370ffb` FIRST.**
 > ⭐⭐ **`R-106`: a blocked item stops THAT ITEM, never the batch. Four verdicts.**
 > ⭐ **`quick-check.sh` while working; the FULL gate table ONCE, at the end** *(`M-37`)*.
 
@@ -114,7 +114,7 @@ beyond what `103a` requires**.
 
 ## 6. ⭐ GATES — **ONCE, at the end**
 
-⭐ Baseline = Batch 102's table, base **`<STAMP>`**. ⚠ **State the environment** *(Xvfb or not)* — 📌
+⭐ Baseline = Batch 102's table, base **`d3c370ffb`**. ⚠ **State the environment** *(Xvfb or not)* — 📌
 Blueprints is **3870 / 0 / 10** with a display and **3862 / 0 / 18** without.
 ⭐ **Extra rows:** the layout rail's result **with the orphan list if any** · the measured cold-start
 perspective *(§1)* · `Hrot.Smoke.Tests`.
