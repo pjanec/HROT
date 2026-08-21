@@ -6,6 +6,14 @@ namespace Hrot.ClusterRunner.Presentation;
 
 internal sealed class RaylibPresentationShell : IPresentationShell
 {
+    /// <summary>
+    /// ⭐⭐ <b>The user layout folder's name</b> — 📌 <c>LayoutPaths</c> takes it as an argument so
+    /// <c>Fdp.Presentation</c> never learns what "HROT" is *(the design's constraint 1)*.
+    /// ⭐ <c>internal</c> so <c>LocalWindowController</c> names the same folder the ini went to, ⛔ rather
+    /// than repeating the literal and re-creating the split this batch is closing.
+    /// </summary>
+    internal const string AppFolderName = "HROT";
+
     private Raylib_cs.Texture2D _atlasTexture;
     private Raylib_cs.Font _gizmoFont;
     private IntPtr _iniFilenamePtr;
@@ -125,10 +133,9 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         var io = ImGuiNET.ImGui.GetIO();
         io.ConfigFlags |= ImGuiNET.ImGuiConfigFlags.DockingEnable;
 
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        string configDir = Path.Combine(appData, "HROT");
-        Directory.CreateDirectory(configDir);
-        string iniPath = Path.Combine(configDir, "imgui.ini");
+        // ⭐⭐ Batch 103 (103a) — the same helper FdpApplication uses. 📌 See its remark: the two
+        //    computations were byte-identical and independent.
+        string iniPath = Fdp.Presentation.WindowManager.LayoutPaths.UserIniPath(AppFolderName);
         _iniFilenamePtr = Marshal.StringToHGlobalAnsi(iniPath);
         unsafe
         {

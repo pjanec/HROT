@@ -55,6 +55,25 @@
     <ProjectReference Include="..\..\Subsystems\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.ReplayBrowser\Hrot.ReplayBrowser.csproj" />  </ItemGroup>
 
+  <!--
+    ⭐⭐⭐ Batch 103 (103a) — THE SHIPPED DEFAULT LAYOUT reaches the output directory.
+
+    📄 docs/UX/UX_Feature_Layout_Defaults.md. 🔒 The user's ruling: the json lives NEXT TO the imgui.ini
+    in BOTH places, so "the layout" is a DIRECTORY and a reset is a directory copy — ⛔ not two
+    special-cased files. Adding a third layout file later needs no build change, only a new file.
+
+    ⚠ Flattened to `layout/` in the output (Link), because LayoutPaths.ShippedDefaultDirectory looks
+    there. ⛔ The SOURCE keeps `layout/default/` so the tree says which layout it is.
+  -->
+  <ItemGroup>
+    <Content Include="..\..\..\layout\default\imgui.ini" Link="layout\imgui.ini">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\..\layout\default\fdp_windows.json" Link="layout\fdp_windows.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />

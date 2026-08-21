@@ -229,6 +229,9 @@ class Program
             Headless       = config.Headless,
             DomainId       = config.DomainId,
             NodeId         = config.NodeId,
+            // ⭐ Batch 103 (103a) — the layout reset is a RUNNER option, so the window controller reads
+            //   it from the same place it reads the window size. ⛔ Not a static or an env var.
+            ResetLayoutOnRun = config.ResetLayout,
             NodeIdResolver = ResolveAppNodeId,
         };
 

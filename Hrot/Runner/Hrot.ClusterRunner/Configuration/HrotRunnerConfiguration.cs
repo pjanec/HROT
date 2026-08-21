@@ -35,6 +35,17 @@ namespace Hrot.ClusterRunner.Configuration
         public string ConfigFile { get; set; } = string.Empty;
 
         /// <summary>
+        /// ⭐⭐ Batch 103 (103a) — restore the shipped default layout on every run. 🔒 <b>Defaults
+        /// ON</b> per the user's ruling, while the layout is still evolving.
+        /// ⚠ Destructive by design; the runner logs it every run so it is discoverable.
+        /// ⭐ <c>--no-reset-layout</c> keeps your own arrangement.
+        /// </summary>
+        [Option("reset-layout", Default = true,
+                HelpText = "Restore the shipped default window layout on start (default: true). "
+                         + "Pass --reset-layout=false to keep your own arrangement.")]
+        public bool ResetLayout { get; set; } = true;
+
+        /// <summary>
         /// Relative path segments to the AI Behaviors project file used for hot-reloading BTrees.
         /// When relative, the system traverses parent directories from the CWD looking for this path.
         /// Defaults to the standard workspace layout.
