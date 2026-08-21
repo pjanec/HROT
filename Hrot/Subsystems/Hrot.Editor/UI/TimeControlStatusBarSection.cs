@@ -16,7 +16,14 @@ namespace Hrot.Editor.UI
     /// and bound to the "Editor" perspective so it is hidden when switching away.</para>
     ///
     /// <para>Rendering is delegated to the shared <see cref="ClusterTimeControlStatusBarSection"/>
-    /// via an <see cref="EditorTimeTransportAdapter"/> facade.</para>
+    /// via an <see cref="EditorTimeTransportFacade"/>.</para>
+    ///
+    /// <para>This used to build its own <c>EditorTimeTransportAdapter</c> — a byte-for-byte copy of
+    /// the facade but for its name, its accessibility and its missing null-guards. Both were live
+    /// (the copy here for the status bar, the facade eight lines later in
+    /// <c>EditorSubsystem</c> for the main toolbar), so this was two implementations of one
+    /// interface serving two surfaces, not a dead class beside a live one. The surfaces both stay;
+    /// the second implementation does not.</para>
     /// </summary>
     internal sealed class TimeControlStatusBarSection
     {
@@ -28,7 +35,7 @@ namespace Hrot.Editor.UI
             EntityRepository     world)
         {
             _inner = new ClusterTimeControlStatusBarSection(
-                new EditorTimeTransportAdapter(preview, timeCtrl, world));
+                new EditorTimeTransportFacade(preview, timeCtrl, world));
         }
 
         /// <summary>
