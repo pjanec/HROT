@@ -231,7 +231,10 @@ class Program
             NodeId         = config.NodeId,
             // ⭐ Batch 103 (103a) — the layout reset is a RUNNER option, so the window controller reads
             //   it from the same place it reads the window size. ⛔ Not a static or an env var.
-            ResetLayoutOnRun = config.ResetLayout,
+            // ⚠ `?? true` because the option is `bool?` — see HrotRunnerConfiguration.ResetLayout for
+            //   why. ⭐ The default lives in ONE place (the [Option] attribute); this is only the
+            //   unwrap, and it agrees with it.
+            ResetLayoutOnRun = config.ResetLayout ?? true,
             NodeIdResolver = ResolveAppNodeId,
         };
 

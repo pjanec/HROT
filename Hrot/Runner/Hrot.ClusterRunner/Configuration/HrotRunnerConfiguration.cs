@@ -38,12 +38,28 @@ namespace Hrot.ClusterRunner.Configuration
         /// ⭐⭐ Batch 103 (103a) — restore the shipped default layout on every run. 🔒 <b>Defaults
         /// ON</b> per the user's ruling, while the layout is still evolving.
         /// ⚠ Destructive by design; the runner logs it every run so it is discoverable.
-        /// ⭐ <c>--no-reset-layout</c> keeps your own arrangement.
+        /// ⭐ <c>--reset-layout=false</c> keeps your own arrangement.
+        ///
+        /// <para>⛔⛔ <b>The type is <c>bool?</c> ON PURPOSE, and it is the whole fix.</b> 📐 Measured
+        /// against <c>CommandLineParser 2.9.1</c>, <c>2026-08-21</c>, with a plain <c>bool</c>:
+        /// <list type="bullet">
+        ///   <item>a <c>--no-</c>-prefixed spelling ⇒ <b><c>UnknownOptionError</c></b> — the runner
+        ///   refuses to start. ⚠ And that was the flag the startup LOG told the user to use.</item>
+        ///   <item><c>--reset-layout=false</c> ⇒ parses fine and the value stays <b><c>true</c></b>
+        ///   — ⛔ a plain <c>bool</c> is a SWITCH, so its <c>=false</c> is discarded. ⚠ That was the
+        ///   syntax the <c>HelpText</c> documented.</item>
+        /// </list>
+        /// ⇒ ⛔⛔ <b>there was NO working way to turn a DESTRUCTIVE default off</b>, and both documented
+        /// escape hatches failed in different directions — one loudly, one silently.
+        /// ⭐ <c>bool?</c> makes the option take a VALUE, so <c>--reset-layout=false</c> and
+        /// <c>--reset-layout false</c> both land. 📌 Railed by
+        /// <c>TheLayoutResetCanActuallyBeTurnedOffTests</c> — ⛔ a claim about a parser belongs in a
+        /// test, not in a comment.</para>
         /// </summary>
         [Option("reset-layout", Default = true,
                 HelpText = "Restore the shipped default window layout on start (default: true). "
                          + "Pass --reset-layout=false to keep your own arrangement.")]
-        public bool ResetLayout { get; set; } = true;
+        public bool? ResetLayout { get; set; }
 
         /// <summary>
         /// Relative path segments to the AI Behaviors project file used for hot-reloading BTrees.

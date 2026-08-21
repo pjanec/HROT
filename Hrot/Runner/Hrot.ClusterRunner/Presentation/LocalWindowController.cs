@@ -63,7 +63,7 @@ internal sealed class LocalWindowController
             //    coming back.
             FdpLog<LocalWindowController>.Info(copied.Count > 0
                 ? $"[Layout] Reset ON — restored the shipped default ({string.Join(", ", copied)}). "
-                + "Use --no-reset-layout to keep your own arrangement."
+                + "Use --reset-layout=false to keep your own arrangement."
                 : "[Layout] Reset ON but no shipped default was found next to the executable — "
                 + "keeping the existing user layout.");
         }

@@ -35,7 +35,11 @@
         /// the current mode: 📌 the design's own risk row — <i>"must be discoverable, so a user who
         /// loses their layout every run can find out why."</i></para>
         ///
-        /// <para>⭐ <c>--reset-layout</c> / <c>--no-reset-layout</c> on the command line.</para>
+        /// <para>⭐ <c>--reset-layout=false</c> on the command line keeps your own arrangement — ⛔ and
+        /// that is the ONLY spelling. 📐 Measured <c>2026-08-21</c>: <c>CommandLineParser</c> has no
+        /// <c>--no-</c>-prefixed negation form and answers <c>UnknownOptionError</c>, which stops the
+        /// runner starting. ⚠ The design document names a negated spelling too; it never existed.
+        /// 📌 Railed by <c>TheLayoutResetCanActuallyBeTurnedOffTests</c>.</para>
         /// </summary>
         public bool ResetLayoutOnRun { get; set; } = true;
 
