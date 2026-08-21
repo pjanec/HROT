@@ -238,6 +238,8 @@ public class PerspectiveWorkspaceRegistrar
         // ⛔ The registry is still a constructor argument, and still right for what it is: which
         //    document's session is active. It is simply not a clock.
         _runState = RunStateSource.For(isSimUp, isFrozen);
+        // ⭐ 2026-08-21 — the same two predicates as a sentence, for the refusal message.
+        _describeRunState = RunStateSource.Describe(isSimUp, isFrozen);
         var suffix = perspectiveName.ToLowerInvariant();
         var vl     = validators ?? Array.Empty<IAssetValidator>();
 
@@ -366,7 +368,8 @@ public class PerspectiveWorkspaceRegistrar
             //    idOverride. 🔴 Once 89a puts the modal in the frame, all three registrars draw one
             //    every frame; sharing one ImGui id was correct only because `if (!IsOpen) return` fires
             //    first for the other two — an undocumented guard between two popups with one id.
-            EditModal = new VariableEditModal(EditGestures, _runState, idScope: suffix);
+            EditModal = new VariableEditModal(EditGestures, _runState, idScope: suffix,
+                                             describeRunState: _describeRunState);
         }
 
 
@@ -699,6 +702,12 @@ public class PerspectiveWorkspaceRegistrar
     }
 
     private readonly Func<VariableRunState> _runState;
+
+    /// <summary>⭐ What the run state was OBSERVED to be — reported by a refusal, never inferred.</summary>
+    private readonly Func<string> _describeRunState;
+
+    /// <summary>⭐ A rail surface: the sentence a refusal would print right now.</summary>
+    public string DescribeRunState() => _describeRunState();
     private readonly EditorSelectionStore  _selectionStore;
 
     /// <summary>

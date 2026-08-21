@@ -71,4 +71,24 @@ public static class RunStateSource
     /// <summary>⭐ The same rule as a delegate, for surfaces that re-read it every frame.</summary>
     public static Func<VariableRunState> For(Func<bool>? isSimUp, Func<bool>? isFrozen = null)
         => () => Resolve(isSimUp, isFrozen);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The same two predicates, as a SENTENCE — so a refusal can report its INPUTS.</b>
+    ///
+    /// <para>🔴🔴 <b>Why this exists</b> *(user, twice, <c>2026-08-21</c>)*: the edit dialog said
+    /// <i>"the simulation is running, pause it"</i> <b>while the simulation was paused</b>. 📐 The editor
+    /// has FIVE independent notions of "stopped" — a data breakpoint, deterministic stepping, the clock's
+    /// <c>TimeScale</c>, preview mode, and the cluster state *(<c>M-38</c>, <c>M-40</c>)* — ⛔ and the
+    /// message named none of them, so each occurrence cost a measurement session.</para>
+    ///
+    /// <para>⭐⭐ <b>Built HERE because this is the one place that holds both predicates.</b> ⛔ A surface
+    /// downstream sees only the verdict, which is exactly what was not enough.</para>
+    /// </summary>
+    public static Func<string> Describe(Func<bool>? isSimUp, Func<bool>? isFrozen = null)
+        => () =>
+        {
+            bool up     = isSimUp  is not null && isSimUp();
+            bool frozen = isFrozen is not null && isFrozen();
+            return $"simUp={up}, frozen={frozen} => {Resolve(isSimUp, isFrozen)}";
+        };
 }

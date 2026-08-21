@@ -46,6 +46,7 @@ public sealed class VariableEditModal
 {
     private readonly VariableEditGestureBinder _binder;
     private readonly Func<VariableRunState>    _runState;
+    private readonly Func<string>              _describeRunState;
 
     /// <summary>⭐ Set when an <see cref="VariableEditGestureBinder.Accept"/> refused, so the dialog can
     /// say WHY instead of vanishing. ⛔ Cleared when the next session opens.</summary>
@@ -58,11 +59,18 @@ public sealed class VariableEditModal
     /// perspective suffix, the same way every window takes an <c>idOverride</c>. ⛔ Null or empty means
     /// "the only modal", which is what a headless harness with one instance wants.
     /// </param>
+    /// <param name="describeRunState">
+    /// ⭐⭐ <b>What the run state was OBSERVED to be</b>, for a refusal that reports its inputs rather
+    /// than only its verdict — 📌 the two `2026-08-21` reports of *"pause it"* while paused.
+    /// ⛔ Optional: a host that cannot say falls back to the resolved state alone.
+    /// </param>
     public VariableEditModal(
-        VariableEditGestureBinder binder, Func<VariableRunState> runState, string? idScope = null)
+        VariableEditGestureBinder binder, Func<VariableRunState> runState, string? idScope = null,
+        Func<string>? describeRunState = null)
     {
         _binder   = binder   ?? throw new ArgumentNullException(nameof(binder));
         _runState = runState ?? throw new ArgumentNullException(nameof(runState));
+        _describeRunState = describeRunState ?? (() => runState().ToString());
         PopupId   = string.IsNullOrEmpty(idScope) ? Title : $"{Title}##{idScope}";
         TableId   = string.IsNullOrEmpty(idScope) ? "##vedit" : $"##vedit_{idScope}";
     }
@@ -206,10 +214,21 @@ public sealed class VariableEditModal
         get
         {
             if (_binder.ActiveSession == null) return null;
-            return VariableEditCommit.TargetFor(_runState()) == VariableEditCommit.Target.Nowhere
-                ? "The simulation is running. A variable can only be changed while it is paused on a "
-                  + "breakpoint or stepping — otherwise the next tick would overwrite the edit."
-                : null;
+            if (VariableEditCommit.TargetFor(_runState()) != VariableEditCommit.Target.Nowhere)
+                return null;
+
+            // ⭐⭐⭐ 2026-08-21 — SAY WHAT WAS OBSERVED, not just the verdict.
+            // 🔴🔴 User, twice: "it tells me i can only do that when simulation is paused" — WHILE IT
+            //    WAS PAUSED. 📐 The editor has FIVE independent notions of "stopped" *(a data
+            //    breakpoint · deterministic stepping · the clock's TimeScale · preview mode · the
+            //    cluster state — M-38, M-40)*, and this sentence named NONE of them. ⇒ every
+            //    occurrence cost a measurement session, and two fixes were made on inference and
+            //    missed.
+            // ⭐⭐ A refusal that reports its INPUTS turns that into one screenshot. ⛔ This is not a
+            //    debug affordance to remove later: 📌 the F3 convention is that a refusal explains
+            //    itself, and "running" is a CONCLUSION, not an explanation.
+            return "The simulation is not stopped, so the edit would be overwritten by the next tick. "
+                 + $"(observed: {_describeRunState()})";
         }
     }
 
