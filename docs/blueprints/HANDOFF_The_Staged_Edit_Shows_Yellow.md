@@ -1,19 +1,27 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD
+build-state: DESIGN
 updated: 2026-08-21
-current-answer: this whole file — the next UI/variable batch: an edit paints its value into the
-  row IMMEDIATELY and yellow (optimistic display), until a regular tick confirms it. NO clock.
-stale-below: nothing.
-known-rot: none. REPLACES the withdrawn HANDOFF_The_Watch_Row_Refreshes_After_A_Paused_Write.md,
-  whose LiveWriteFrame/re-sample-clock approach the user rejected ("nothing related to clocks").
-known-conflict: ⚠ §6 of DESIGN_Variable_Details_And_Editing.md says "do NOT write _liveRepo during
-  a pause (Flight Recorder linearity)"; MIN's WriteFieldNow does. That is a SEPARATE write-model
-  question (§7 here), NOT resolved by this batch — this batch is display only and works either way.
-design-basis: DESIGN_Variable_Details_And_Editing.md §4a (colours: 🔴 changed vs 🟡 pending, "never
-  the same colour") + §6 ("OPTIMISTIC DISPLAY (user ruling): paint the new value immediately, then
-  stage"); R-103 ("a user-typed value is a SEPARATE cache from the accessor value").
+current-answer: §4a/§6 (yellow = staged) and the built-but-unwired MarkPending inventory stand. ⛔ The
+  wiring in §4 is NOT ready to build — R-130 corrected it (see the banner). This is really W4.
+stale-below: ⛔ §4 item ② ("MarkPending on LiveWriteOutcome.Landed") is WRONG per R-130 — see banner.
+known-rot: R-130 (2026-08-21) — yellow fires ONLY on a GENUINE staged write, never on a directly
+  applied one. "MarkPending on Landed" is wrong: MIN's WriteFieldNow applies directly (not staged).
+known-conflict: this is the W4 "queued affordance" and is BLOCKED on the staged write path (W1/W2/W3
+  + the drain, M-41). The write model must move to STAGED (§6/R-126) before the yellow is meaningful.
+design-basis: DESIGN_Variable_Details_And_Editing.md §4a (🔴 changed vs 🟡 pending, "never the same
+  colour") + §6 ("OPTIMISTIC DISPLAY … then STAGE; do NOT write _liveRepo during a pause"); R-103;
+  R-130; R-126 (staged writes drain from the sim tick loop).
 -->
+> # ⛔⛔⛔ NOT READY TO BUILD — corrected by R-130 (`2026-08-21`)
+> ⭐ **What stands:** the design (§4a/§6, yellow = staged) and the INVENTORY *(§2 — `MarkPending`/
+> `ClearPending`/`RowHighlight.Pending` exist unwired; the renderer already paints yellow)*.
+> ⛔ **What is WRONG:** §4 fires yellow on `LiveWriteOutcome.Landed`. `R-130`: **yellow means STAGED**,
+> and a directly-applied write *(MIN's `WriteFieldNow`)* is **not** staged ⇒ no yellow. ⇒ ⭐⭐ **This is
+> the `W4` "queued affordance", and it is BLOCKED on the STAGED write path** — `W1`+`W2` *(the drain
+> from the sim tick loop, `R-126`; `M-41` is the gap)* + `W3` *(stage instead of direct-write/refuse)*.
+> ⇒ ⛔ **Do not dispatch until the `W`-path is designed against `R-130`.** The rest of this file is kept
+> as the display half of that future work.
 # HANDOFF — **a staged edit shows its value immediately, in yellow**
 
 > 📌 **Dispatched at `9c80d7aa0`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha.**
