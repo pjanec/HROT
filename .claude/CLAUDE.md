@@ -605,7 +605,7 @@ only AFTER being corrected.
 
 | ⭐ the checkable habit — **for ANY change to an existing feature** | |
 |---|---|
-| **①** | ⭐⭐⭐ **`grep -rln docs` for the feature and READ the owning `*.md` END-TO-END — BEFORE you read the code's current mechanism.** ⚠ **Designs live across ALL of `docs/`, not only `docs/blueprints/`** — ⭐ **`docs/blueprints/`** *(blueprint/AI/variable/time)* · **`docs/UX/`** *(UX + cgf-editor unification)* · **`docs/projects/`** *(subsystem API/reference — the hard limits)*. ⛔ The code hands you an *"obvious"* fix that reasons from **how it IS**; the doc says **how it was MEANT to be** |
+| **①** | ⭐⭐⭐ **`grep -rln docs .dev` for the feature and READ the owning `*-DESIGN`/`*_Detailed_Design`/`DESIGN_*` `*.md` END-TO-END — BEFORE you read the code's current mechanism.** ⚠ **Intent lives across ALL of `docs/` AND `.dev/`** — ⭐ **`docs/`** *(the CURRENT intent — `blueprints/`, `UX/`, `projects/`)* · ⭐⭐ **`.dev/<programme>/*-DESIGN.md`** *(IMPLEMENTED intent — the WHY behind built features, often more than the code; ⚠ check for a newer `docs/` supersession)*. ⛔ The code hands you an *"obvious"* fix that reasons from **how it IS**; a design doc — even an old `.dev` one — says **how it was MEANT to be** |
 | **②** | ⭐⭐ **Cite the owning DOC + SECTION in `design-basis`** — ⛔ **NOT only a `RULINGS.md` row.** 📌 The ledger is the INDEX; the design doc is the intent. A ledger citation is not proof you read the design |
 | **③** | ⚠ **"the code does X" is never "X is what was intended."** Code is usually behind the design — a mismatch means the code is unfinished, not that the design is wrong |
 

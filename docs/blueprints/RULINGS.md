@@ -122,23 +122,28 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 
 ## 4. ⭐⭐ WHERE TO LOOK when there is no row
 
-> ⭐⭐⭐ **USER CORRECTION, `2026-08-17`, verbatim:** *"most designs are in the **docs** folder. in the
-> `.dev` those named like 'design' or 'detailed design' describe **what was implemented**."*
-> ⇒ ⛔⛔ **`.dev/` is AS-BUILT, not INTENT.** ⚠ **I previously listed `.dev/*-DESIGN.md` as an intent
-> source — that was WRONG**, and it is the same error as reading code: it tells you *how it is*.
+> ⭐⭐⭐ **USER, `2026-08-17`:** *"most designs are in the **docs** folder. in the `.dev` those named like
+> 'design' describe **what was implemented**."* ⭐⭐⭐ **REFINED `2026-08-21`, verbatim:** *"the .dev
+> contains implemented intents, but they are still intents telling often more than the code."*
+> ⇒ ⛔⛔ **CORRECTION of my earlier over-reading:** I had written *".dev is as-built, citing it proves
+> nothing." That was WRONG.* ⭐⭐ **A `.dev` design is an IMPLEMENTED intent — it explains the WHY and
+> the MEANT-TO-BE, often more than the code does.** ⇒ **it IS a valid intent source.** ⚠ The only
+> caveat: it describes work already built, so **check whether a NEWER `docs/` design supersedes it**
+> *(STATUS block / recency)* — ⛔ not *"discard it because it is old."*
 
 | # | look | it tells you |
 |---|---|---|
 | ① | ⭐⭐⭐ **`docs/**` — `Architect_Question_*_ANSWERS.md`** | ⭐ **THE RULINGS.** ⛔ the non-`ANSWERS` files carry only options |
 | ② | ⭐⭐ **their §"Sequencing" tables** | ⛔ **a finding with a planned batch is NOT a new finding** |
-| ③ | ⭐⭐ **`docs/` — `DESIGN_*.md`, `*_Unification.md`, `BOOTSTRAP_*.md`, `PLAN_*.md`** | ⭐ **THE INTENT — the model as it is MEANT to be** |
-| ④ | ⚠ **`.dev/<programme>/*-DESIGN.md`, `*_Detailed_Design.md`** | ⛔⛔ **AS-BUILT — what WAS IMPLEMENTED.** ⭐ Useful for *"why is it like this"*, ⛔ **never for *"what should it be"*** |
+| ③ | ⭐⭐ **`docs/` — `DESIGN_*.md`, `*_Unification.md`, `BOOTSTRAP_*.md`, `PLAN_*.md`, `docs/UX/`, `docs/projects/`** | ⭐ **THE CURRENT INTENT — the model as it is MEANT to be now** |
+| ④ | ⭐ **`.dev/<programme>/*-DESIGN.md`, `*_Detailed_Design.md`** | ⭐⭐ **IMPLEMENTED INTENT — the WHY behind what was built, often more than the code.** ⚠ check for a newer `docs/` supersession before treating it as current |
 | ⑤ | `.dev/**/reports/*-REPORT.md` tails · `TASK-DETAIL.md` | **the DEBT** *(`DEBT-*` ids are filed here and nowhere else)* · the authorising user decision |
-| ⛔ | `batches/*-INSTRUCTIONS.md`, `reviews/*` | **least useful — they restate the design** |
+| ⛔ | `*-INSTRUCTIONS.md`, `reviews/*`, `batches/` | ⛔ **ephemera — they restate the design; not an intent source** |
 
-⚠⚠ **The trap this correction closes:** ⛔ **an as-built document AGREES WITH THE CODE by
-construction.** ⭐ **Citing one to justify a design position proves nothing** — it is code-reasoning
-wearing a design document's name.
+⭐⭐ **The distinction that stays:** ⛔ **CODE** tells you *how it IS* and can never tell you *how it was
+MEANT to be*; ⭐ **a `.dev` design doc, even an old one, DOES carry intent the code cannot.** ⚠ **What a
+`.dev` doc cannot promise is CURRENCY** — a later `docs/` design may have moved on. ⇒ read it for intent,
+check its STATUS for supersession.
 
 ## 5. ⛔ MY OWN CORRECTIONS — **do not repeat these**
 
