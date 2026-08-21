@@ -20,7 +20,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 > things a design search and CLAUDE.md do NOT give you:
 > **① engine invariants that fail silently · ② cross-subsystem hazards · ③ decisions that span features.**
 >
-> ⭐ **For any feature question: `grep -rln docs/blueprints` and read the owning DESIGN doc** *(`R-129`)* —
+> ⭐ **For any feature question: `grep -rln docs` and read the owning DESIGN doc** *(`R-129`)* —
 > ⛔ do not expect a row here. Every quote below is verified verbatim by `scripts/rulings-check.py`.
 
 ---
@@ -30,7 +30,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | when | do |
 |---|---|
 | ⭐⭐⭐ **session start / after compaction** | **READ THIS WHOLE FILE** *(it is short)* + `.claude/CLAUDE.md` |
-| ⭐⭐ **a FEATURE design question** | ⛔ **do not look here first** — `grep -rln docs/blueprints` for the feature, read the owning `DESIGN_*` / `Architect_Question_*_ANSWERS` doc *(`R-129`)* |
+| ⭐⭐ **a FEATURE design question** | ⛔ **do not look here first** — `grep -rln docs` for the feature, read the owning `DESIGN_*` / `Architect_Question_*_ANSWERS` doc *(`R-129`)* |
 | ⭐⭐ **before a handoff item / architect question** | ⛔ **cite the owning DESIGN doc + section** in `design-basis`, not a row here |
 | ⭐ **when you find a CROSS-CUTTING hazard/invariant/decision** | ⭐⭐ **add a row** — ⛔ but a feature ruling belongs in its DESIGN doc, not here |
 

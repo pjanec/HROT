@@ -605,7 +605,7 @@ only AFTER being corrected.
 
 | ⭐ the checkable habit — **for ANY change to an existing feature** | |
 |---|---|
-| **①** | ⭐⭐⭐ **`grep -rln docs/blueprints` for the feature and READ the owning `*.md` END-TO-END — BEFORE you read the code's current mechanism.** ⛔ The code hands you an *"obvious"* fix that reasons from **how it IS**; the doc says **how it was MEANT to be** |
+| **①** | ⭐⭐⭐ **`grep -rln docs` for the feature and READ the owning `*.md` END-TO-END — BEFORE you read the code's current mechanism.** ⚠ **Designs live across ALL of `docs/`, not only `docs/blueprints/`** — ⭐ **`docs/blueprints/`** *(blueprint/AI/variable/time)* · **`docs/UX/`** *(UX + cgf-editor unification)* · **`docs/projects/`** *(subsystem API/reference — the hard limits)*. ⛔ The code hands you an *"obvious"* fix that reasons from **how it IS**; the doc says **how it was MEANT to be** |
 | **②** | ⭐⭐ **Cite the owning DOC + SECTION in `design-basis`** — ⛔ **NOT only a `RULINGS.md` row.** 📌 The ledger is the INDEX; the design doc is the intent. A ledger citation is not proof you read the design |
 | **③** | ⚠ **"the code does X" is never "X is what was intended."** Code is usually behind the design — a mismatch means the code is unfinished, not that the design is wrong |
 
