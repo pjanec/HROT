@@ -325,7 +325,7 @@ in the other's lane.
 |---|---|---|
 | **Coordinator** (handoffs, design, gates) | ⭐ **`claude/blueprint-authoring-status-gm0akp`** | — |
 | ⭐⭐ **UI / VARIABLE lane** *(the frozen area)* | ⭐ **`claude/hrot-implementation-j1jvin`** | variables · working state · blackboard · `AiShared` · Q38/Details · ⭐ **`MIN`**. ⭐ ids **`BP-`**, tracker areas **`A`–`G`** |
-| ⭐⭐ **TIME lane** *(approved `2026-08-21`)* | ⚠ **TBD — record it when that session first pushes**; 📌 locate it by ancestry, never by name | `Fdp.Toolkits/Time/` · `Hrot.Orchestrator` · `ModuleHostKernel` · `Hrot.ClusterRunner.Integration.Tests`. ⭐ ids **`TM-`**, tracker area **`H` only** |
+| ⭐⭐ **TIME lane** *(approved `2026-08-21`)* | ⭐ **`claude/time-system-refactor-batch-104-gp617x`** *(recorded `2026-08-21`, started Batch 104 at `404f95e9a`, branched from dispatch `34deca154`)*; 📌 still confirm by ancestry, not by name | `Fdp.Toolkits/Time/` · `Hrot.Orchestrator` · `ModuleHostKernel` · `Hrot.ClusterRunner.Integration.Tests`. ⭐ ids **`TM-`**, tracker area **`H` only** |
 
 > ⛔⛔ **TWO IMPLEMENTATION LANES, `2026-08-21` — the three rules that keep them apart**
 > | ⭐ | |
