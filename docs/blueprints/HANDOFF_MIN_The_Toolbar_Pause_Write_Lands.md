@@ -13,12 +13,12 @@ design-basis: Architect_Question_48 (R-126, "one source of paused; the tick loop
 -->
 # HANDOFF — `MIN`: **make the toolbar-pause write LAND**
 
-> 📌 **Dispatched at `52e12fb5b`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** — a
+> 📌 **RE-DISPATCHED at `38deecc9a`** *(rule 1a — unstarted; supersedes the `52e12fb5b` stamp, §3b sharpened)*. ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** — a
 > document that changes after it is FYI only; if a later doc invalidates an item, **STOP and REPORT**,
 > do not adapt *(SCOPE-IS-FROZEN rule)*.
 > ⭐ **Lane: UI / variable** *(`claude/hrot-implementation-j1jvin`)*. ⭐ **ids `BP-`**, tracker areas
 > `A`–`G`. ⛔ **NOT `TM-`, NOT `Area H`** — that is the time lane's partition.
-> ⭐ **Rule 1b: push `chore: started MIN at 52e12fb5b` FIRST**, before any code.
+> ⭐ **Rule 1b: push `chore: started MIN at 38deecc9a` FIRST**, before any code.
 > ⭐ **Rule 3: you allocate the ids.** Any `BP-###` below is a placeholder.
 
 ---
@@ -150,19 +150,23 @@ sequenceDiagram
 the delta to 0 and answers "halted" forever)*. 📌 The `Fdp.Toolkits.Tests` rail
 `ThePauseFlagOnTheClockIsFalseWhilePausedTests` already pins this behaviour — do not regress it.
 
-### 3b. ⚠⚠ THE ONE OPEN PROBE — **which immediate path does `WriteFieldNow` use? MEASURE, do not guess**
+### 3b. ⭐⭐ THE MECHANISM — **`WriteFieldNow` flushes ITSELF; do not depend on the kernel**
 
-📌 The drain writes through the **ECB**, which is **applied at the tick boundary** — so the question is
-whether a paused kernel *(dt=0)* still flushes it.
+📌 The staging drain writes through the ECB, which is normally **applied at the tick boundary** — so the
+tempting question is *"does a paused kernel (dt=0) flush it?"*. ⛔ **Do not build on that.** 📐 Measured
+*(`FDP/Engine/Fdp.Core/EntityCommandBuffer.cs:331`)*: **`EntityCommandBuffer.Playback(repo)` is
+SYNCHRONOUS** — it applies every buffered op to the repo *at the call*, on the main thread. ⇒ `MIN` can
+land the write itself and never ask the kernel anything.
 
-| candidate | mechanism | ⭐ the probe |
+| ⭐ | mechanism | verdict |
 |---|---|---|
-| **A — rely on the paused kernel** | stage into a scratch `EntityCommandBuffer` and let the next paused frame flush it *(or `ecb.Playback(_liveRepo)` now)* | ⭐ **does the kernel flush the command buffer while `dt=0`?** If yes, near-zero new code |
-| **B — do not rely on the kernel** | apply straight to `_liveRepo` via the existing `EntityRepository.SetComponentFieldRaw` | ⚠ it is `internal` to `Fdp.Core` — needs `InternalsVisibleTo` **or** a thin public surgical-write on `ISimulationView`. ⛔ **Do NOT copy the write body** *(R-65: one surgical writer, not two)* |
+| ✅✅ **PREFERRED** | scratch `EntityCommandBuffer` → `SetComponentFieldRaw(...)` → **`Playback(_liveRepo)` NOW** | ⭐⭐ **public, already the flush idiom across tests/examples** *(`BallisticsSystemTests:83`, `HeadlessDemoApp:228`)*, immediate, **no `dt=0` kernel dependency, no `InternalsVisibleTo`.** ⭐ reuses the exact `IEntityCommandBuffer.SetComponentFieldRaw` the drain already uses *(Ruling 14, R-65-safe)* |
+| ⚠ fallback | `EntityRepository.SetComponentFieldRaw` directly | ⛔ `internal` to `Fdp.Core` — only if the ECB idiom proves unusable; needs `InternalsVisibleTo`. ⛔ **never copy the write body** *(R-65: one surgical writer)* |
 
-⭐⭐ **Report which one you chose and why — that IS a deliverable of this item**, exactly as `104a` reports
-its root cause. ⭐ **Prefer B if A cannot be shown to flush at `dt=0`** — B is unconditional; A depends on
-a kernel behaviour that, if it changes, silently breaks the edit.
+⇒ ⭐⭐⭐ **The open question is no longer "which mechanism" — it is the RAIL in §4:** with `Playback` doing
+the flush, does the value **land in `ActiveView` and survive N paused frames** *(`P6′`/`P4` say yes)*?
+⭐ Report the `Playback`-now path as what you built, or report *why* it did not land and what you used
+instead — that reporting is the deliverable, exactly as `104a` reports its root cause.
 
 ### 3c. The refusal message can now tell the truth
 
