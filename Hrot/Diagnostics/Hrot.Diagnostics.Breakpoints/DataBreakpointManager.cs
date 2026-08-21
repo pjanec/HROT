@@ -617,15 +617,22 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         int typeId = GuardFieldWrite(componentType, byteOffset, bytes.Length);
 
         // ⭐⭐⭐ THE SAME SURGICAL WRITER THE DRAIN USES — 📌 R-65/ruling 9: one implementation of
-        //    "patch these bytes of this component", not two. ⛔ The alternative measured for MIN §3b
-        //    was EntityRepository.SetComponentFieldRaw direct, which is `internal` to Fdp.Core and
-        //    would have needed either InternalsVisibleTo or a SECOND public surgical-write surface.
-        // 📐 The kernel plays this buffer back in BeforeSync unconditionally — measured at dt = 0
-        //    against a real ModuleHostKernel, and railed, because "the kernel still flushes while
-        //    paused" is exactly the kind of dependency that breaks silently.
-        var ecb = ((ISimulationView)_liveRepo).GetCommandBuffer();
+        //    "patch these bytes of this component", not two. ⛔ The rejected fallback was
+        //    EntityRepository.SetComponentFieldRaw direct, which is `internal` to Fdp.Core and would
+        //    have needed either InternalsVisibleTo or a SECOND public surgical-write surface.
+        //
+        // ⭐⭐ A SCRATCH BUFFER, FLUSHED HERE — 📌 EntityCommandBuffer.Playback IS SYNCHRONOUS
+        //    (EntityCommandBuffer.cs:331): it applies every recorded op to the repo AT THE CALL, on
+        //    the main thread. ⇒ the write has landed before this method returns.
+        // ⛔⛔ DELIBERATELY *NOT* the repository's own per-thread buffer. That one is flushed by the
+        //    kernel in BeforeSync — measured to happen even at dt = 0, so it WOULD have worked — but
+        //    it makes a designer's edit depend on a kernel behaviour that could change silently, and
+        //    it lands a frame late. ⭐ A scratch buffer owes the kernel nothing.
+        // ⚠ Scoped: the buffer is disposed, so a partial write cannot leak into a later playback.
+        using var ecb = new EntityCommandBuffer();
         fixed (byte* src = bytes)
             ecb.SetComponentFieldRaw(entity, typeId, byteOffset, src, bytes.Length);
+        ecb.Playback(_liveRepo);
     }
 
     /// <summary>

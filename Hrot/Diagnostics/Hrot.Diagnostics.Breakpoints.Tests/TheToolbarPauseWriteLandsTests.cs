@@ -176,6 +176,13 @@ public sealed class TheToolbarPauseWriteLandsTests
         rig.Manager.WriteFieldNow(
             rig.Target, typeof(ToolbarPausedComp), Edited, BitConverter.GetBytes(4242));
 
+        // ⭐⭐⭐ NO FRAME HAS RUN, and it is already there — EntityCommandBuffer.Playback is
+        //    SYNCHRONOUS, so WriteFieldNow flushes its own scratch buffer before returning.
+        // ⛔ This assertion is the one that distinguishes the two mechanisms: the rejected variant
+        //    (record into the repository's per-thread buffer and let the kernel flush it) would be
+        //    RED here and green one Update() later.
+        Assert.Equal(4242, rig.Live.GetComponent<ToolbarPausedComp>(rig.Target).Edited);
+
         rig.Kernel.Update();
         Assert.Equal(4242, rig.Live.GetComponent<ToolbarPausedComp>(rig.Target).Edited);
 
@@ -213,6 +220,18 @@ public sealed class TheToolbarPauseWriteLandsTests
     /// POST-tick snapshot and drain <b>afterwards</b>. ⇒ ⛔ a direct write under a breakpoint would be
     /// erased by that restore. ⚠ This rail is here because <c>MIN</c> introduced a second path out of
     /// the same method, and "the other arm still behaves" is exactly what a new branch can break.</para>
+    ///
+    /// <para>⚠⚠ <b>WHAT THIS RAIL DOES NOT COVER, stated so nobody reads it as more than it is</b>
+    /// *(📌 <c>M-29</c>)*: it calls <see cref="DataBreakpointManager.RequestContinue"/> <b>directly</b>.
+    /// 📐 <b>Re-measured for <c>MIN</c></b> *(<c>M-41</c>, §M — measured, not quoted)</b>:
+    /// <c>DrainPendingMutations</c> has <b>two</b> call sites, both inside this class
+    /// *(<c>RequestStep</c>, <c>RequestContinue</c>)*, and <b>no production code outside
+    /// <c>DataBreakpointManager</c> calls either request</b> — the editor's own Continue goes through
+    /// <c>_timeController.RequestResume()</c> and never tells the queue. ⇒ ⛔ <b>this rail proves the
+    /// MANAGER's path works; it cannot prove the designer's Continue button reaches it.</b>
+    /// ⭐⭐ <b>That is precisely why the TOOLBAR arm writes instead of staging</b>: staging there would
+    /// have turned <i>"refused with a wrong reason"</i> into <i>"accepted and silently discarded"</i>.
+    /// 📌 The breakpoint half is <c>Q48-C</c> / <c>W1</c>–<c>W5</c>, ⛔ explicitly not <c>MIN</c>'s.</para>
     /// </summary>
     [Fact]
     public void UnderABreakpoint_TheWriteIsStillStagedAndSurvivesTheResumeRestore()
