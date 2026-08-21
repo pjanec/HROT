@@ -725,6 +725,13 @@ there is exactly one way to change it and exactly one place it is reported.
 
 ---
 
+> ⚠⚠ **§10 REPLACED `2026-08-21` — taken from the coordinator branch, THAT SECTION ONLY.**
+> ⛔ The whole file was **not** merged: the coordinator's copy predates `TM-105`/`TM-106`/`TM-107` and
+> would have reverted `AS-11`'s correction, `AS-13`/`AS-14`'s measurements, §9a's diagrams and the
+> `T3a`/`T3b` resolutions. ⭐ **The old §10 here was a DRAFT whose `IStagedWrites` shape**
+> *(`Stage(write)` · `RestorePostTick()`)* **does not match the interface that actually shipped**
+> *(`HasPending` · `IsRewound` · `DrainInto` · `TryGetPending`)* ⇒ theirs is authoritative.
+
 ## 10. ⭐⭐⭐ TARGET — **the WRITE side: the drain, and the tick that runs it**
 
 ```mermaid
@@ -785,11 +792,10 @@ sequenceDiagram
     alt DeltaTime == 0
         D--)K: nothing - the edit waits
     else advancing
-        opt IsRewound (a breakpoint pause is ending)
-            D->>Q: RestorePostTick()
-            Q->>R: live <- post-tick snapshot
+        opt IsRewound (a breakpoint holds the pre-tick snapshot)
+            D--)K: SKIP - the restore is W5, the UI lane's
         end
-        D->>Q: DrainPendingMutations(repo)
+        D->>Q: DrainInto(view)
         Q->>R: the designer's bytes land
     end
     K->>I: ExecutePhase(Input) - sees the restored, edited state
@@ -798,6 +804,14 @@ sequenceDiagram
 
 ⭐⭐⭐ **Why `PreFrame` and not `BeforeSync`:** `Input` runs first and mutates state. ⛔ Draining in
 `BeforeSync` would let ~25 Input systems run against a rewound repo.
+
+> ⚠⚠ **CORRECTED `2026-08-21` while building `W1`/`W2`.** ⛔ **The sequence above used to have the drain
+> call `RestorePostTick()` and `DrainPendingMutations(repo)`** — ⭐ **neither is on the `IStagedWrites`
+> that shipped** *(`HasPending` · `IsRewound` · `DrainInto` · `TryGetPending`)*, and it contradicted
+> **§6 of `DESIGN_Staged_Live_Write.md`**, which assigns *"`DrainInto` when advancing, **skip while
+> rewound**"* to `W2` and *"move the restore out of `RequestStep`/`RequestContinue`"* to **`W5`, the UI
+> lane.** ⇒ ⭐⭐ **the drain does NOT restore.** 📌 The diagram predated the W-task lane split; the seam
+> design, the handoff and the interface all agree with each other, so the diagram was the odd one out.
 
 ---
 
