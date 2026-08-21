@@ -8,7 +8,8 @@ known-rot: none.
 known-conflict: none. ⛔ RF-4 (moving the RESTORE out of RequestStep/RequestContinue) is
   deliberately NOT in this batch — §5. The breakpoint resume path stays exactly as it is.
 re-dispatched: 2026-08-21 under rule 1a — 104f rewritten (its probe measured the wrong layer),
-  the landmine box restated. 104a-104e unchanged. The user confirmed the batch was not started.
+  the landmine box restated, then restated again for accuracy (the 'two roles' claim was wrong and
+  is withdrawn; the instruction is unchanged). 104a-104e unchanged. User confirmed: not started.
 -->
 # HANDOFF — Batch 104: **the write that actually lands**
 
@@ -22,8 +23,12 @@ re-dispatched: 2026-08-21 under rule 1a — 104f rewritten (its probe measured t
 > | ⭐ what changed | |
 > |---|---|
 > | **`104f`** | ⛔⛔ **REWRITTEN.** Its probe (`P6`) measured the wrong layer. ⭐ "Queued" is real in **two** run states, not three, and the **mechanism already exists** *(`Q46` rule 5)* |
-> | **the second landmine box** | ⭐ **restated** — the zeroed delta is the wrong ROLE, not a bug |
+> | **the second landmine box** | ⭐ **restated** *(twice — see the note below)*: the delta is meaningful only on the frame instance |
 > | ⛔ **`104a`–`104e`** | ⭐⭐ **UNCHANGED, byte for byte.** Nothing else in this file moved |
+>
+> ⚠ **A second, WORDING-ONLY amendment followed** *(user, `2026-08-21`: "'GlobalTime serves two roles'
+> sounds alarming… is that correct?")* — ⛔ **it was not correct, and the claim is withdrawn.**
+> ⭐⭐ **The INSTRUCTION did not change**; only the explanation behind it. 📄 `DESIGN_… §3 AS-1b`.
 
 > 📌 **Dispatched at `335dd78c6`.** ⭐ Branch from it *(rule 7)*. ⛔ **Scope FROZEN at this sha** —
 > documents that change after it are **FYI ONLY**.
@@ -44,7 +49,7 @@ re-dispatched: 2026-08-21 under rule 1a — 104f rewritten (its probe measured t
 > | | |
 > |---|---|
 > | ⛔⛔ **`M-42` · Do NOT use `GlobalTime.IsPaused`** | it is `TimeScale == 0`, and **a pause never sets `TimeScale` to 0** ⇒ **it is FALSE while paused.** ⭐ The predicate is **`DeltaTime`** |
-> | ⛔⛔ **Do NOT read the delta from `ITimeController.GetCurrentState()`** | ⭐ **It is not a bug — it is the WRONG ROLE.** `GlobalTime` is one struct serving both a **per-frame reading** *(what `Update()` returns and the kernel pushes)* and a **transferable state snapshot** *(`GetCurrentState()` ⇄ `SeedState`)*; a snapshot has no delta, so it is correctly zeroed. ⇒ ⛔ any delta predicate through it answers *"halted"* forever. ⭐ **Read the `GlobalTime` singleton on the LIVE WORLD** |
+> | ⛔⛔ **Do NOT read the delta from `ITimeController.GetCurrentState()`** | ⭐ **Not a bug — the delta is meaningful only on THE INSTANCE THE KERNEL PUSHED THIS FRAME.** 📐 `DeltaTime` describes *the step just taken*, so a state snapshot has none and all three `SeedState` implementations ignore it. ⇒ ⛔ its zero means *"no information"*, ⚠ **indistinguishable from "halted"** ⇒ any delta predicate through `GetCurrentState()` answers *"halted"* forever. ⭐ **Read the `GlobalTime` singleton on the LIVE WORLD** |
 > ⭐ Both are pinned by an existing rail: `Fdp.Toolkits.Tests` ▸ `ThePauseFlagOnTheClockIsFalseWhilePausedTests` *(4 tests, green)*.
 
 ---
