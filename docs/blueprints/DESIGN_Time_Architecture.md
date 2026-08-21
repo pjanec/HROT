@@ -3,7 +3,8 @@ state: LIVE
 build-state: DESIGN
 updated: 2026-08-21
 current-answer: the whole file. §2-§6 AS-IS (measured) - §7 findings - §8 probes - §9 root cause
-  - §10 target - §11 replay - §12 the regression net - §15 the two remote caches (T7).
+  - §10 target - §11 replay - §12 the regression net - §15 the two remote caches (T7)
+  - §16 the pause-notion roll, site by site (T5).
   The ORDER lives in PLAN_Time_System_Refactor.md.
 stale-below: nothing above HISTORY.
 known-rot: none. Claims corrected by later measurement are marked CORRECTED inline and keep the
@@ -1308,6 +1309,98 @@ sequenceDiagram
     Mas->>Mas: barrier crossed -> Stepping
     Mas->>Mas: UpdateStepping releases the queued step
 ```
+
+---
+
+## 16. ⭐⭐⭐ `T5` — **the pause notions, ENUMERATED and taken site by site**
+
+> ⭐ **`T5` was never one refactor.** ⭐⭐ **This section is the roll**: every production declaration, its
+> verdict, and — for the ones NOT taken — why, so the next session does not re-derive it.
+
+### 📐 16.1 The enumeration — **the query, and what it returned**
+
+```
+search_graph(name_pattern=".*(IsPaused|IsFrozen|IsStopped|PausedBy|IsHalted).*")
+  -> total 98, has_more false
+```
+
+⛔ **98 declarations. 20 of them are production and about TIME**; the rest are test doubles, docs nodes,
+JSON-options `IsFrozen`, and the `FDP/Examples` standalone loops.
+
+### ⭐⭐ 16.2 The roll
+
+| # | site | verdict |
+|---|---|---|
+| ① | `GlobalTime.IsPaused` | ✅ **`TM-009`** — `[Obsolete]`; `IsAdvancing`/`IsHalted` added |
+| ② | `ISimClock` · `WorldSimClock` · `SimClock.Of` | ✅ **`TM-009`** — the read API itself |
+| ③ | `EditorSubsystem.ClockIsHalted` | ✅ **`TM-012`** — routed to `SimClock.Of(_world).IsHalted` |
+| ④ | `EditorTimeTransportFacade.IsPaused` | ✅ **`TM-030`** — asks `HaltReasonResolver` |
+| ⑤ | `ClusterUiCache.IsPaused` | ✅ **`TM-027`** — the shared fold |
+| ⑥ | `ClusterTimeTransportAdapter.IsPaused` | ✅ **`TM-027`** — the shared fold |
+| ⑦ | ⭐⭐ **`ExConLogic.IsPaused` + 3 `Master*`** | ✅ **`TM-033` — see 16.3** |
+| ⑧ | ⭐⭐ **`SimHostSimulationControlsPanel` · `SimHostMainUI`** | ✅ **`TM-034` — see 16.4** |
+| ⑨ | ⚠ **`PerspectiveWorkspaceServices.IsFrozen`** | ⛔ **NOT TAKEN — cross-lane. See 16.5** |
+| ⑩ | `IEngineDebugTimeController.IsPausedByDebugger` *(+2 impls)* | ⛔ **path C** — `W5`, the other lane |
+| ⑪ | `IBlueprintDebugSession.IsPaused` *(+2)* · `IDataBreakpointManager.IsPaused` · `IMutationInterceptor.IsPaused` · `IAiDebugSession.IsPaused` | ⛔ **the DEBUGGER's pause**, `W4`/`W5`, and `AiShared` is frozen |
+| ⑫ | `FDP/Examples` — `MainUI` · `SimulationControlsPanel` · `ShowcaseGame` | ⭐ **legitimately local** — standalone loops with no cluster; ⛔ not notions of the cluster's pause |
+
+### ⛔⛔ 16.3 `ExCon` — **a FOURTH copy of the fold, and three properties NEVER WRITTEN**
+
+📐 **Measured:** `MasterSimTime` · `MasterWallTicks` · `MasterTimeScale` had **no assignment anywhere in
+the repo** ⇒ they reported **0 / 0 / 1 forever**, while ⛔ **both `IExConLogic` and
+`docs/projects/Hrot/Subsystems/Hrot.ExCon.md` §Properties document them as live readings.**
+⭐ Only `IsPaused` was fed, by `OnTimeMode`.
+
+⚠⚠ **And it is why `T7`'s sweep missed it:** `T7` keyed on **`SwitchTimeModeEvent`**; ⛔ `ExConLogic`
+folds the **`SwitchTimeModeWireDto`** instead. 📌 **Same message, different type, invisible to the
+search** — ⭐ the enumeration above was keyed on the NAME and found it.
+
+⭐⭐ **The values were arriving all along.** The DTO carries `SimTimeSnapshot`, `BarrierWallTicks` and
+`TimeScale`; only the mode was being read off it. ⇒ ✅ **`OnTimeMode` now folds the whole message
+through `ClusterTimeObservation.Apply(dto.ToEvent())`** and all four properties forward.
+
+⭐ **`SnapshotSimTime` vs `ResumeSimTime`** *(`TM-035`)* — ⛔ **not a redundant pair.** A node that
+advances its own clock between events must **not** adopt a pause snapshot *(it would jump backwards by
+the barrier window)*; a node with **no clock at all** must, or it can only ever show the last resume.
+⇒ ⭐ **two questions, two properties, each with a named caller.**
+
+### ⛔⛔ 16.4 `SimHost` — **the Play/Pause/Step controls were INERT**
+
+📐 `IsPaused` toggled a private field · `StepRequested` set a private flag · **`ConsumeStepRequest` had
+no caller anywhere in the repo.** ⇒ ⛔⛔ **pressing Pause on the SimHost panel did nothing, silently.**
+
+⚠ **`AS-9`'s exact shape**, and the reason it read as wired: ⭐ **the `FDP/Examples` `MainUI` has the
+identical members and `CarKinemApp` genuinely consumes them** *(`:203`, `:311`, `:324`)*.
+📌 **A control looks alive because its twin elsewhere is.**
+
+⭐⭐ **Routed, not deleted** *(CLAUDE.md — `docs/projects/…/Hrot.SimHost.md:252` documents the panel as a
+capability)*, ⭐⭐⭐ **and the seam already existed on the node**: `SimHostSubsystem:263` builds a
+`ClusterTimeTransportAdapter` for the status bar and **pumps it** *(`:195`)*. ⇒ ✅ **the panel reads and
+commands through that same facade.**
+
+| ⭐ the three-way test | |
+|---|---|
+| duplicate **SURFACE** | ⭐ status bar **and** sim-controls panel — ⛔ **both stay** |
+| duplicate/broken **CODE** | ⭐ the panel's private flag ⇒ **routed onto the facade** |
+| genuinely **dead** | ⛔ **no** — the design record documents the capability |
+
+⭐ **With no facade the controls render DISABLED**, with a reason. ⛔ Not falling back to the old local
+toggle: ⭐⭐ **a visibly dead button is a bug report; a silently dead one is what this fixed.**
+
+### ⛔ 16.5 `PerspectiveWorkspaceServices.IsFrozen` — **NOT TAKEN, and why**
+
+📐 It **is** a time notion — *"is time held by the debugger — a breakpoint pause OR deterministic
+stepping"* — and its supplier is `EditorSubsystem:2298`:
+`() => (_bpManager?.IsPaused ?? false) || (_bpTimeAdapter?.IsPausedByDebugger ?? false)`.
+
+⭐ **It is `HaltReasonResolver` written by hand**, and routing it would collapse one more notion.
+⛔⛔ **But `!= Running` is NOT the same predicate**: it would newly report frozen for `NotPublishing`
+*(replay preparation)* and `Unknown`. ⚠ **That is a CONTRACT change to a consumer in
+`Hrot.Editor.AiShared` — the frozen area — whose design basis is ruling 15 and the write surface that
+hangs off it.**
+
+⇒ ⭐⭐⭐ **STOP-and-report, not a judgement call** *(the lane rule)*. 📄 The proposed shape is above;
+**the UI lane owns the decision.**
 
 ---
 

@@ -55,11 +55,26 @@ namespace Fdp.Toolkit.Time
         public long BarrierWallTicks { get; private set; }
 
         /// <summary>
-        /// Sim time carried by the last RESUME. Deliberately not updated on pause: the paused value
-        /// is already displayed from whatever the node was showing, and overwriting it here would
-        /// make a display jump backwards by the barrier window on every pause.
+        /// Sim time carried by the last RESUME — the re-anchor point for a node that advances its
+        /// own clock between events. Deliberately NOT updated on pause: such a node is already
+        /// displaying a time of its own, and adopting the master's paused value would make it jump
+        /// backwards by the barrier window on every pause.
+        ///
+        /// <para>For a node with no clock of its own, this is the wrong one — use
+        /// <see cref="SnapshotSimTime"/>.</para>
         /// </summary>
         public double ResumeSimTime { get; private set; }
+
+        /// <summary>
+        /// The most recent sim time the master reported, from a pause or a resume alike — the right
+        /// reading for a node that has no clock to advance between events and can only ever show
+        /// what it was last told (an operator console, for instance).
+        ///
+        /// <para>Kept separate from <see cref="ResumeSimTime"/> rather than replacing it: the two
+        /// answer different questions and a single property would have to be wrong for one of the
+        /// two kinds of caller.</para>
+        /// </summary>
+        public double SnapshotSimTime { get; private set; }
 
         /// <summary>Folds one mode event. Call once per event, in bus order.</summary>
         public void Apply(SwitchTimeModeEvent ev)
@@ -74,8 +89,13 @@ namespace Fdp.Toolkit.Time
             if (ev.BarrierWallTicks > 0)
                 BarrierWallTicks = ev.BarrierWallTicks;
 
-            if (!deterministic && ev.SimTimeSnapshot > 0.0)
-                ResumeSimTime = ev.SimTimeSnapshot;
+            if (ev.SimTimeSnapshot > 0.0)
+            {
+                SnapshotSimTime = ev.SimTimeSnapshot;
+
+                if (!deterministic)
+                    ResumeSimTime = ev.SimTimeSnapshot;
+            }
         }
     }
 }

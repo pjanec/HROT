@@ -261,6 +261,14 @@ namespace Hrot.SimHost
             if (bus != null)
             {
                 _clusterTimeAdapter = new ClusterTimeTransportAdapter(bus, () => _app!.CurrentSimTime);
+
+                // `T5`: the simulation-controls panel gets the SAME transport as the status bar.
+                // It had its own private pause flag that nothing read, so its Play/Pause/Step did
+                // nothing at all. Two surfaces, one implementation — the caller HAS the dependency,
+                // so it passes it.
+                if (vis.UI != null)
+                    vis.UI.TimeFacade = _clusterTimeAdapter;
+
                 var timeSection = new ClusterTimeControlStatusBarSection(_clusterTimeAdapter);
                 windowManager.StatusBar.RegisterSection(
                     id:             "simhost_time_controls",

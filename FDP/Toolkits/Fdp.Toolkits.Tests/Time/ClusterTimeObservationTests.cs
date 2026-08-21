@@ -100,6 +100,36 @@ namespace Fdp.Toolkit.Time.Tests
         }
 
         /// <summary>
+        /// `T5`. The companion to the rail above, and the reason both exist: a node with no clock of
+        /// its own (ExCon) can only ever show what it was last told, so it must adopt the PAUSE
+        /// snapshot too. A node that advances its own clock (the cache's hosts) must not.
+        /// </summary>
+        [Fact]
+        public void ANodeWithNoClock_AdoptsThePauseSnapshotToo()
+        {
+            var obs = new ClusterTimeObservation();
+
+            obs.Apply(Resume(sim: 10.0));
+            Assert.Equal(10.0, obs.SnapshotSimTime);
+
+            obs.Apply(Pause(sim: 25.0));
+            Assert.Equal(25.0, obs.SnapshotSimTime);   // moved
+            Assert.Equal(10.0, obs.ResumeSimTime);     // did not
+        }
+
+        /// <summary>A zero snapshot is "no information", for both readings alike.</summary>
+        [Fact]
+        public void AZeroSnapshot_MovesNeitherReading()
+        {
+            var obs = new ClusterTimeObservation();
+            obs.Apply(Resume(sim: 7.0));
+            obs.Apply(Pause(sim: 0.0));
+
+            Assert.Equal(7.0, obs.SnapshotSimTime);
+            Assert.Equal(7.0, obs.ResumeSimTime);
+        }
+
+        /// <summary>
         /// ⭐ THE measurement rail behind `T7`, over the real master.
         ///
         /// <para>The fold sees the pause the moment it is issued, because the master publishes the
