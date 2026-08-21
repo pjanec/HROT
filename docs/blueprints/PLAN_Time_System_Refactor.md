@@ -5,7 +5,7 @@ updated: 2026-08-21
 current-answer: §2 is the task list. §1 is the gate that blocks all of it.
 stale-below: nothing.
 known-rot: none.
-known-conflict: none. This file is the ROADMAP; the two design documents it cites are the detail.
+known-conflict: none. This file is the ROADMAP; DESIGN_Time_Architecture.md is the detail.
 -->
 # ⭐⭐⭐ PLAN — **the time-system unification/refactor: every task, in order**
 
@@ -16,18 +16,20 @@ known-conflict: none. This file is the ROADMAP; the two design documents it cite
 > ⛔⛔ **`T0` BLOCKS EVERYTHING BELOW IT.** ⭐ No task in §2 starts until `T0` is green and its numbers are
 > the published baseline.
 
-## 0. ⭐⭐ WHERE THE KNOWLEDGE LIVES — **three documents, no overlap**
+## 0. ⭐⭐ WHERE THE KNOWLEDGE LIVES — **two documents, and they do not overlap**
 
-| document | answers | authority for |
+🔒 **User, `2026-08-21`:** *"can the two time docs be merged into one? they are two parts of the same
+architecture."* ⭐ **Merged on `2026-08-21`** — ⛔ the old `DESIGN_Time_Control_And_Reporting.md` and
+`DESIGN_Time_And_Write_Architecture.md` **no longer exist.**
+
+| document | holds | ⭐ changes when |
 |---|---|---|
-| 📄 **[`DESIGN_Time_Control_And_Reporting.md`](DESIGN_Time_Control_And_Reporting.md)** | *who owns time, who may change it, who may ask what it is* | ⭐⭐ **the TIME subsystem** — topology · APIs · the 4 control paths · the target · replay |
-| 📄 **[`DESIGN_Time_And_Write_Architecture.md`](DESIGN_Time_And_Write_Architecture.md)** | *when may bytes reach the repository* | ⭐⭐ **the WRITE path** — staging · the drain · refusals · the breakpoint rewind |
-| 📄 **[`Architect_Question_48_…`](Architect_Question_48_What_Stopped_Means_And_Who_Drains.md)** | the **ruling** *(`R-126`)* | ⭐ intent, not mechanism |
-| 📄 **this file** | ⭐ **the ORDER** | the task list and its gate |
+| 📄 **[`DESIGN_Time_Architecture.md`](DESIGN_Time_Architecture.md)** | ⭐⭐ **the ARCHITECTURE and the EVIDENCE** — topology · APIs · the 4 control paths · the write path · `AS-1`…`AS-14` · `P1`…`P8` · the target · replay · the regression net | ⭐ **a MEASUREMENT changes** |
+| 📄 **this file** | ⭐⭐ **the ORDER** — every task, its old id, its feasibility, and `T0` | ⭐ **a PRIORITY changes** |
+| 📄 **[`Architect_Question_48_…`](Architect_Question_48_What_Stopped_Means_And_Who_Drains.md)** | the **ruling** *(`R-126`)* | ⛔ intent only — a user decision |
 
-⭐ **They are NOT duplicates** — ⛔ but the write-path document was written first and still carries
-time-only findings *(`AS-1`, `AS-1b`, `AS-2`, `P4`, `P6′`, `P7`, `P8`)*. 📌 **Those are cited from here by
-their ids and must not be re-derived in a third place.**
+⭐⭐ **That split is deliberate and is the only one left.** ⛔ **Do not re-derive a finding here** — cite
+its `AS-`/`P-` id.
 
 ---
 
@@ -79,7 +81,7 @@ graph TD
     classDef gate fill:#fee,stroke:#c00,stroke-width:3px
 ```
 
-### ⭐ `A` — the TIME subsystem *(detail: `DESIGN_Time_Control_And_Reporting.md` §8)*
+### ⭐ `A` — the TIME subsystem *(detail: `DESIGN_Time_Architecture.md` §9 + §11)*
 
 | id | task | was | feasibility |
 |---|---|---|---|
@@ -94,7 +96,7 @@ graph TD
 | **`T6`** | ⭐ **`HaltReason`** — *why* it is stopped, not just that it is *(`Running` · `PausedByOperator` · `SteppingHeld` · `HeldByBreakpoint` · `NotPublishing`)* | `TC-6` | ⚠ needs `AS-10`'s `NotPublishing` exposed |
 | **`T7`** | ⚠ **the two remote caches** *(`ClusterUiCache` · `ClusterTimeTransportAdapter`)* — ⛔ **KEEP both** *(they observe the wire)*; ⭐ decide whether they collapse | `TC-7` | ⚠ **UNMEASURED** |
 
-### ⭐ `W` — the WRITE path *(detail: `DESIGN_Time_And_Write_Architecture.md` §6)*
+### ⭐ `W` — the WRITE path *(detail: `DESIGN_Time_Architecture.md` §5 + §10)*
 
 | id | task | was | feasibility |
 |---|---|---|---|
