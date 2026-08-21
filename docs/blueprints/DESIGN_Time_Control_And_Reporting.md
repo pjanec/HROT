@@ -3,7 +3,8 @@ state: LIVE
 build-state: DESIGN
 updated: 2026-08-21
 current-answer: §2–§4 AS-IS (measured) · §6–§7 TARGET · §8 refactors · §9 probes · §10 replay.
-  ⛔ TC-3/TC-4 are BLOCKED on AS-12 — the editor's two buses. A decision is owed (§9).
+  ⭐ AS-12 RESOLVED (§9): the editor's master belongs on the bus the intents live on, exactly
+  as every other node does. TC-3 unblocked; two small follow-ups named there.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none. ⚠ This is the TIME subsystem in full; DESIGN_Time_And_Write_Architecture.md
@@ -363,8 +364,8 @@ there is exactly one way to change it and exactly one place it is reported.
 |---|---|---|---|
 | **`TC-1`** | ⭐⭐ **`ISimClock` + `SimClock.Of(view)`**, and `GlobalTime.IsAdvancing` | ✅ **PROVEN** | one property + one static; 📌 `RF-1` in the write-path doc is its first half |
 | **`TC-2`** | ⭐ **retire the duplicate** `EditorTimeTransportFacade`/`Adapter` → one class | ✅ **PROVEN** | `AS-11`; ⚠ keep the better name + the null-guards |
-| **`TC-3`** | ⭐⭐ **`ITimeCommands`, intents only** — path B onto it | ⛔⛔ **BLOCKED — probed, §9 `AS-12`** | ⚠ **the editor has TWO buses and the intents are on the wrong one.** ⭐ Needs a wiring decision first |
-| **`TC-4`** | ⭐⭐⭐ **path C (debugger) onto `ITimeCommands`** | ⛔ **blocked behind `TC-3`** | ⚠⚠ **RESCOPED:** in the editor composition this is **already satisfied** — one process, one master. ⭐ **The target is the CGF NODE running distributed**, where the same command surface must fan out. 🔒 `R-126`; 📌 UX Ruling 62 |
+| **`TC-3`** | ⭐⭐ **`ITimeCommands`, intents only** — path B onto it | ✅ **UNBLOCKED — §9 `AS-12`** | ⭐⭐ **one line**: put the editor's master on the bus the intents live on, as every other node does |
+| **`TC-4`** | ⭐⭐⭐ **path C (debugger) onto `ITimeCommands`** | ⭐ **follows `TC-3`** | ⚠⚠ **RESCOPED:** in the editor composition this is **already satisfied** — one process, one master. ⭐ **The target is the CGF NODE running distributed**, where the same command surface must fan out. 🔒 `R-126`; 📌 UX Ruling 62 |
 | **`TC-5`** | ⭐ **path D — hand the BTree/HSM coordinator a real controller** | ✅ **PROVEN** | `AS-9`; the caller holds it |
 | **`TC-6`** | ⭐ **`HaltReason`** | ⚠ **design owed** | needs `AS-10`'s `NotPublishing` exposed from the kernel |
 | **`TC-7`** | ⚠ **collapse the two remote caches** *(`ClusterUiCache` · `ClusterTimeTransportAdapter`)* | ⚠ **UNKNOWN** | ⛔ **not probed** — they may serve different processes |
@@ -374,28 +375,60 @@ there is exactly one way to change it and exactly one place it is reported.
 
 ## 9. ⭐⭐⭐ THE TWO PROBES — **run, and one of them BLOCKS `TC-3`**
 
-### ⛔⛔⛔ `AS-12` — **the editor has TWO buses, and the time intents are on the wrong one**
+### ⭐⭐⭐ `AS-12` — **RESOLVED. There IS a uniform pattern, and the editor is the only node that deviates**
 
-📐 **Measured:**
+> 🔒 **User, `2026-08-21`:** *"how (what bus) is PauseIntent sent now in cgf/simhost nodes? editor should
+> not be different. cgf and editor will need to be almost identical to fulfil the future need of
+> debugging on cgf."*
+>
+> ⭐⭐ **Measured, and the question was the right one.** ⛔ **My earlier "three options with a lean toward a
+> bridge" is WITHDRAWN** — a bridge would have invented a mechanism **no node has.**
 
-| | |
+```mermaid
+graph TD
+    UI["Any node's UI / debugger / ExCon<br/>publishes PauseTimeIntent"]
+    BUS["THE NODE'S ONE EVENT BUS<br/>intents registered here"]
+    UI --> BUS
+
+    BUS --> Q{"does THIS node<br/>host the master?"}
+
+    Q -->|"YES - Orchestrator,<br/>or the editor all-in-one"| MSC["MasterSyncController.Update()<br/>drains the intent"]
+    MSC --> ACT["SwitchToDeterministic + barrier<br/>fan out over DDS if there are slaves"]
+
+    Q -->|"NO - CGF, SimHost, IG, ExCon"| EG["ClusterOpEgressTranslator<br/>drains the intent"]
+    EG --> DDS["ClusterOpRequest over DDS"]
+    DDS --> OM["orchestrator: ClusterOpMasterTranslator<br/>re-publishes PauseTimeIntent"]
+    OM --> MSC
+```
+
+⭐⭐⭐ **ONE intent · ONE bus per node · TWO possible drainers, chosen by the node's ROLE.** 📌 That is
+precisely *"a single concept, differently composed"* — ⛔ **there is no second mechanism anywhere.**
+
+### 📐 The measurement, per node
+
+| node | the node's bus | who **publishes** the intent | who **drains** it |
+|---|---|---|---|
+| ⭐ **Orchestrator** | **`_bus`** — `RegisterAll(_bus)` *(`:111`)* | `ClusterMaster` · `ClusterScenarioPanel` · the replay managers · `ClusterOpMasterTranslator` | ⭐⭐ **`MasterSyncController(_bus, …)`** *(`:146`)* — **the same bus** |
+| ⭐ **CGF · SimHost · IG · ExCon** | ⭐ **`HrotNodeContext.EventBus`** *(`HrotNodeBuilder:99`)* — ⭐⭐ **and the time controller is created on it** *(`:109-110`)* | `ClusterTimeTransportAdapter` — CGF gets `_context.EventBus` *(`CgfSubsystem:731`)*, SimHost `OrchestrationEventBus` *(`:262`)* | ⭐⭐ **`ClusterOpEgressTranslator`** *(`:55`, `:63`)* → `ClusterOpRequest` over DDS. ⛔ `SlaveSyncController` drains only `AdvanceFrameIntent` — ⭐ **a slave takes its mode from the wire, by design** |
+| ⛔⛔ **EDITOR** | ⛔ **`_orchestrationBus`** carries the registry *(`:686`)* … | *(nothing)* | ⛔⛔ **… but the master is on `_world.Bus`** *(`:715`)* |
+
+⇒ ⭐⭐⭐ **The rule every other node follows: THE TIME CONTROLLER LIVES ON THE BUS THE INTENTS LIVE ON.**
+⛔ **The editor is the only place those are two different objects.**
+
+### ⭐⭐ ⇒ THE FIX — **one line, and it is "do what the Orchestrator does"**
+
+| ⭐ | |
 |---|---|
-| `EditorSubsystem:685-686` | `_orchestrationBus = new FdpEventBus();` — a **separate control-plane bus** — and `OrchestrationEventRegistry.RegisterAll(_orchestrationBus)` registers `PauseTimeIntent` / `ResumeTimeIntent` / `StepTimeIntent` / `SetTimeScaleIntent` **there** |
-| `EditorSubsystem:715` | `TimeControllerFactory.Create(**_world.Bus**, timeConfig)` — ⛔ **the editor's clock drains intents from the WORLD bus** |
+| ⭐⭐⭐ **Construct the editor's `MasterSyncController` on `_orchestrationBus`**, not `_world.Bus` | 📌 identical to `OrchestratorSubsystem:146`; ⭐ **no new mechanism, no bridge, no second registry** |
+| ⭐⭐ **Then paths B, C and D publish intents like everyone else** | ⇒ `TC-3` **unblocks**, and 🔒 **the CGF node gets the same code**, which is the stated requirement |
+| ⚠ **and the editor needs NO egress translator** | ⭐ it hosts the master, so it drains directly — ⛔ exactly the `YES` arm of the diagram |
 
-⇒ ⛔⛔ **A `PauseTimeIntent` published the cluster way would never reach the editor's clock.** ⭐ **That is
-why paths B and C call methods directly** — 📌 **not laziness: the intent road does not connect.**
+### ⚠ Two smaller findings the same sweep turned up
 
-| ⭐ the three ways out — **a decision, not a discovery** | |
+| ⚠ | |
 |---|---|
-| **①** | construct the editor's controller on **`_orchestrationBus`** ⇒ ⚠ it then shares a bus with cluster management; **smallest diff, widest blast radius** |
-| **②** | ⭐ **register the four time intents on `_world.Bus` too** and publish there ⇒ ⛔ **two buses carrying the same intent type** — a second notion by another name |
-| **③** | ⭐⭐ **one explicit bridge** that forwards *only* the four time intents orchestration → world ⇒ ⭐ **the seam is named and one-way**, ⚠ and it is the shape the cluster hop will need anyway |
-| ⭐ **my lean** | **③**, for approval — ⛔ but **`TC-3` must not be scheduled until this is chosen** |
-
-⚠ **And a corroboration worth recording:** `Role = TimeRole.Standalone`, with the comment *"Start in
-Deterministic mode so authoring starts paused (dt == 0 every frame)"* ⇒ ⭐ **the editor deliberately
-boots HALTED**, which is why `IsPausedByDebugger` reads true while merely planning *(`AS-2`)*.
+| **①** | ⛔ **CGF and SimHost hand `ClusterTimeTransportAdapter` DIFFERENT buses** — `_context.EventBus` vs `OrchestrationEventBus`. ⭐ **CGF's is correct** *(it is the bus its controller and the egress translator use)*; ⚠ **SimHost's needs checking** — ⛔ **not measured**, and it is a one-line question worth answering before `TC-3` |
+| **②** | ⚠ **`HrotNodeBuilder` never calls `OrchestrationEventRegistry.RegisterAll`** on the bus it creates. ⭐ CGF's `CgfApplication:115` registers on a **different** bus (`_orchestrationBus`) ⇒ ⛔ **whether the intent types are registered on the bus that actually carries them is UNVERIFIED** — 📌 **probe it with `TC-3`, not before** |
 
 ### ⭐ `TimeSystem` *(`Fdp.Core`)* — **LEGACY, not a competing writer**
 
