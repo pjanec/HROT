@@ -10,7 +10,8 @@ known-conflict: none. ⛔ RF-4 (moving the RESTORE out of RequestStep/RequestCon
 re-dispatched: 2026-08-21 under rule 1a, TWICE — 104f rewritten (its probe measured the wrong layer),
   the landmine box restated, then restated again for accuracy (the 'two roles' claim was wrong and
   is withdrawn; the instruction is unchanged), and 104d amended for AS-10 (gate on the deltaTime
-  parameter, not the singleton). 104a-104c and 104e unchanged. User confirmed: not started.
+  parameter, not the singleton), and a THIRD time to add the ClusterRunner integration gate row
+  (AS-13: BP-378 rotted; baseline 4/2). 104a-104c and 104e unchanged. User confirmed: not started.
 -->
 # HANDOFF — Batch 104: **the write that actually lands**
 
@@ -26,6 +27,7 @@ re-dispatched: 2026-08-21 under rule 1a, TWICE — 104f rewritten (its probe mea
 > | **`104f`** | ⛔⛔ **REWRITTEN.** Its probe (`P6`) measured the wrong layer. ⭐ "Queued" is real in **two** run states, not three, and the **mechanism already exists** *(`Q46` rule 5)* |
 > | **the second landmine box** | ⭐ **restated** *(twice — see the note below)*: the delta is meaningful only on the frame instance |
 > | ⭐⭐ **`104d`** | ⛔⛔ **AMENDED at the SECOND re-stamp** — gate on the `deltaTime` **parameter**, not the singleton. 📌 `AS-10`: the singleton freezes at a **non-zero** delta during `PrepareReplay` |
+> | ⭐⭐⭐ **§8 GATES** | ⛔⛔ **AMENDED at the THIRD re-stamp** — `TimeControlIntegrationTests` is now a **gate row with a 4/2 baseline**. 🔒 The user's own instruction; 📌 `AS-13`/`AS-14` |
 > | ⛔ **`104a`–`104c`, `104e`** | ⭐⭐ **UNCHANGED, byte for byte** |
 >
 > ⚠ **A second, WORDING-ONLY amendment followed** *(user, `2026-08-21`: "'GlobalTime serves two roles'
@@ -224,6 +226,34 @@ the value read through the accessor."* ⇒ ⭐ **that IS the queued state**, and
 | **`104a`'s failure map** | ⭐⭐ **before and after**, per pause kind |
 | **the `[Obsolete]` fallout** | ⭐ every site, if any |
 
-⛔ `Hrot.ClusterRunner.Integration.Tests` stays out *(`BP-378`)*.
+> ## ⭐⭐⭐ `Hrot.ClusterRunner.Integration.Tests` IS BACK IN — **as a GATE ROW** *(user, `2026-08-21`)*
+> 🔒 *"these changes start to have very big blast radius… we should use these to verify if the time
+> control during the refactoring still works as it used before."* ⭐⭐ **Correct, and it RUNS.**
+>
+> ⛔⛔ **`BP-378` has ROTTED.** 📐 Measured on the dispatch branch:
+> ```
+> dotnet build Hrot.ClusterRunner.Integration.Tests --no-restore   → 0 errors, 88 s
+> dotnet test  --no-build --filter "FullyQualifiedName~TimeControlIntegrationTests"
+>                                                                  → 4 passed / 2 FAILED, 38 s
+> ```
+> ⚠ **No OOM, no hang.** ⛔ **The FULL suite is still untested** — ⭐ **run it FILTERED**, and ⚠ **report
+> `BP-378`'s rot as a finding** *(rule 3: it is the implementation session that renumbers/updates rows)*.
+>
+> | ⭐⭐ **THE BASELINE IS `4 / 2`** | ⛔ **a THIRD red is a regression THIS BATCH caused** |
+> |---|---|
+> | ⛔ `PauseStepResume_SimTimeAdvancesByStepAmount` | *"~3s after 3 steps; actual **1.000s**"* |
+> | ⛔ `MixedSequence_PauseStepPauseStep_AllCorrect` | *"expected ~2s; got **1.000s**"* |
+>
+> ⭐ **Both are ONE pre-existing defect — `AS-14`.** 📐 `MasterSyncController.Step:188-195` returns early
+> when `_pendingAcks.Count > 0` ⇒ **the step is DISCARDED, not queued, and the caller is not told.**
+> ⭐ **PRE-EXISTING, provable by construction:** ⛔ no production file under `FDP/…/Time/`,
+> `Hrot.Orchestrator`, `MasterSync*`, `SlaveSync*`, `ClusterMaster` or `ModuleHostKernel` was touched on
+> the coordinator branch. ⚠ **Do NOT fix it in this batch** — ⭐ **it is `AS-14`'s own item**, and this
+> batch changes nothing on that path.
+>
+> ⭐⭐ **Report it before AND after your changes.** 📌 `104c`/`104d` add a kernel phase and a system that
+> runs on **every node**, so this suite is the only thing that will notice if a slave stops keeping time.
+
+⛔ **The rest of `Hrot.ClusterRunner.Integration.Tests` stays out** *(`BP-378`, unverified for the full run)*.
 ⚠ **`Hrot.ClusterRunner.Tests` carries 2 pre-existing reds** — `DataDrivenGizmoPredicateTests.D003_*`,
 proven against base in Batch 103 and reproduced again on `c0c066334`.

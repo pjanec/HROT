@@ -3,8 +3,9 @@ state: LIVE
 build-state: DESIGN
 updated: 2026-08-21
 current-answer: §2–§4 AS-IS (measured) · §6–§7 TARGET · §8 refactors · §9 probes · §10 replay.
-  ⭐ AS-12 RESOLVED (§9): the editor's master belongs on the bus the intents live on, exactly
-  as every other node does. TC-3 unblocked; two small follow-ups named there.
+  ⭐ AS-12 RESOLVED (§9): the editor's master belongs on the bus the intents live on.
+  ⭐⭐ §9b: TimeControlIntegrationTests is the regression net -- it RUNS (BP-378 rotted) and its
+  baseline is 4/6. AS-14: a step is silently dropped while ACKs are outstanding.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none. ⚠ This is the TIME subsystem in full; DESIGN_Time_And_Write_Architecture.md
@@ -436,6 +437,75 @@ precisely *"a single concept, differently composed"* — ⛔ **there is no secon
 ⇒ ⭐⭐ **It is NOT in the HROT path.** ⛔ Correcting an earlier note of mine that listed it among the
 singleton's authors: **true across the repo, false for HROT.** ⚠ In HROT the singleton has exactly
 **two** writers — `ModuleHostKernel.UpdateInternal` and `SimHostNodeBootstrapper`'s seed.
+
+---
+
+## 9b. ⭐⭐⭐ THE REGRESSION NET — **it EXISTS, it RUNS, and it is 4/6 GREEN** *(user, `2026-08-21`)*
+
+> 🔒 **User:** *"these changes start to have very big blast radius… the cluster runner has an integration
+> test suite where multiple cluster runner subsystems are instantiated in a single process and
+> communicating over the network as if on different computers. We should use these to verify if the time
+> control during the refactoring still works as it used before."*
+>
+> ⭐⭐⭐ **Correct, and better than expected — but the first thing I had to check was whether it can run
+> at all**, because `BP-378` excludes this suite from every gate.
+
+### ⭐⭐ `AS-13` — **`BP-378` HAS ROTTED: the suite runs when FILTERED**
+
+📐 **Measured `2026-08-21`, on this branch:**
+
+```
+dotnet build Hrot.ClusterRunner.Integration.Tests --no-restore      → 0 errors, 88 s
+dotnet test  --no-build --filter "FullyQualifiedName~TimeControlIntegrationTests"
+                                                                   → 4 passed / 2 FAILED, 38 s
+```
+
+⇒ ⛔ **No OOM. No hang.** ⭐⭐ **The net the user remembered is available TODAY**, at least per class.
+⚠ **Stated exactly:** ⛔ **I did NOT run the whole suite** — 📌 `BP-378`'s claim about the *full* run is
+**untested**, and only the **filtered** run is proven.
+
+### ⭐ What it covers — **`TimeControlIntegrationTests`, 6 tests over REAL subsystems**
+
+⭐⭐ Drives an `_orchestratorSvc` and a `_simHost` through `MockNetworkFactory` — ⭐ **a real
+`ClusterOpRequest` → intent → `MasterSyncController` → DDS → slave round trip**, pumped until settled.
+
+| ✅ | pause ⇒ sim time freezes ⇒ resume ⇒ advances |
+| ✅ | multi-cycle pause/resume, every cycle |
+| ✅ | ⭐⭐ **`PauseResume_SimHostKernelRestoresMasterTimeController`** — asserts the slave is still a `SlaveSyncController` in `Continuous` after each cycle |
+| ✅ | second-cycle pause/step |
+| ⛔ | **`PauseStepResume_SimTimeAdvancesByStepAmount`** — *"should have advanced ~3s after 3 steps; actual delta=**1.000s**"* |
+| ⛔ | **`MixedSequence_PauseStepPauseStep_AllCorrect`** — *"expected ~2s advance; got **1.000s**"* |
+
+### ⛔⛔ `AS-14` — **the two reds are ONE pre-existing defect: a STEP IS SILENTLY DROPPED**
+
+📐 `MasterSyncController.Step` *(`:188-195`)*:
+
+```csharp
+if (_mode != MasterMode.Stepping) return GetCurrentState();
+if (_pendingAcks.Count > 0)       return GetCurrentState();   // ⛔ the step is LOST, not queued
+```
+
+⇒ ⭐⭐⭐ **N steps produce ONE step's worth of time.** ⚠ The blocking is **documented and deliberate**
+*("Blocked while the previous step's ACKs are still outstanding")* — ⛔ **but the caller gets NO signal
+and the request is DISCARDED rather than queued**, and the test settles between steps, so either the
+settle is too short or **the slave never ACKs in the harness**. ⭐ **Root-causing it is the
+implementation session's**; ⚠ **the measurement and the hypothesis are here.**
+
+| ⭐ **PRE-EXISTING — the basis** | ⛔ **no production file under `FDP/…/Time/`, `Hrot.Orchestrator`, `MasterSync*`, `SlaveSync*`, `ClusterMaster` or `ModuleHostKernel` has been touched on this branch.** ⭐ Provable by construction, not by a worktree |
+|---|---|
+
+### ⭐⭐⭐ AND WHY THIS MATTERS TO THE REFACTOR — **it gets WORSE, not better**
+
+⛔⛔ **`TC-3`/`TC-4` route the toolbar and the debugger through INTENTS.** ⚠ **Intents can be published
+faster than ACKs return** ⇒ **a dropped step becomes MORE likely, not less.** ⇒ ⭐⭐ **`AS-14` is not an
+unrelated red to note — it is a HAZARD the control refactor walks into**, and it should be fixed
+*before* `TC-3`, or at minimum baselined and re-checked after every step of it.
+
+### ⭐⭐ ⇒ THE RULE FOR EVERY BATCH IN THIS PROGRAMME
+
+> ⭐⭐⭐ **`TimeControlIntegrationTests` is a GATE ROW from now on**, filtered, with its **before/after
+> counts**. ⛔ **4/6 is the baseline.** ⚠ **A third red is a regression the batch caused**; ⭐ **a green
+> on `PauseStepResume` is a FIX and must be reported as one.**
 
 ---
 
