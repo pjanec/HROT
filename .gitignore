@@ -52,6 +52,8 @@ nunit-*.xml
 .dumps
 .tmp
 imgui.ini
+# ...except the SHIPPED DEFAULT LAYOUT, which is a deliberate asset (UX_Feature_Layout_Defaults.md).
+!layout/default/imgui.ini
 cyclonedds.log
 *.csproj.user
 .codebase
