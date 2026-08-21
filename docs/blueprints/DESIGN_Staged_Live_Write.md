@@ -172,3 +172,24 @@ shared file edited by both.
 value."* A row with no staged edit stays **white** *(or 🔴 red for a sim change — never yellow)*. When the
 drain lands, both re-sample the applied value and go white together. ⚠ **The earlier "they diverge until
 next tick" framing is SUPERSEDED — sharing removes the divergence.**
+
+## 8. ⭐⭐⭐ THE INTEGRATION — **one wire, and the one place the two lanes MEET**
+
+📐 **The composition root is `EditorSubsystem`** *(measured)*: it builds `_kernel` *(`:689`)* and
+`_bpManager` *(`:1108`)* in one method, **already registers a kernel system** `_bpSnapshotProvider`
+*(`:1113`)*, and hands `_bpManager` to the session *(`:1119`)*. ⇒ ⭐⭐ **the drain wire is ~1 line beside
+those:** `_kernel.RegisterGlobalSystem(new ResumeAndDrainSystem(_bpManager))` — `_bpManager` passed **as
+`IStagedWrites`** *(after `W4` makes it one)*.
+
+⛔⛔ **This is the ONE place the lanes truly integrate**, and it changes the merge rule for the drain:
+
+| ⭐ | |
+|---|---|
+| **T-tasks `T1`–`T7`** | the time refactor — **stay on the time lane branch**, isolated *(as agreed)* |
+| ⭐⭐ **the DRAIN `W1`/`W2`** | ⛔ **NOT like the T-tasks** — it is WATCH/write work, and `EditorSubsystem` *(UI lane)* must reference `ResumeAndDrainSystem` *(time lane's class)* to wire it ⇒ **when `W1`/`W2` land, the coordinator MERGES them into the integration tree** where `W4` and the wire live |
+| ⭐ **the wire itself** | one line in `EditorSubsystem` — ⭐ **UI lane**, done **after** `W2` is merged in AND `W4` implements the interface |
+
+⛔⛔⛔ **THE HAZARD — restated because it is the whole risk:** `W3` *(remove `MIN`'s direct write, stage
+everything)* must land **only after the drain is live-wired.** ⇒ ⭐ **`MIN`'s `WriteFieldNow` STAYS until
+the wire is in** — otherwise a paused edit stages and **never applies** *(worse than today)*. ⭐⭐ **Safe
+order:** `W4` *(implement + display)* → **merge `W1`/`W2`** → **wire** → `W3` *(remove `MIN`)* → `W5`.
