@@ -276,13 +276,32 @@ sequenceDiagram
 ### ⛔⛔ `AS-11` — **a measured duplicate: `EditorTimeTransportFacade`**
 
 📐 `diff` of `EditorTimeTransportFacade` vs `EditorTimeTransportAdapter`: **identical apart from the
-name, the accessibility, and three null-guards.** ⭐ **Only the Adapter is constructed**
-*(`TimeControlStatusBarSection:31`)*.
-⚠ **Checked `.dev/` before saying so** *(the `2026-08-15` rule)* — the record is `.dev/main-toolbar-1/`
-Batch 24, which introduced the facade; ⛔ **no record explains why both survive.**
-⇒ ⭐ **A ruling-9 duplicate. The Facade is dead** — but 📌 **the right verdict is ROUTE-OR-DELETE decided
-by name**: the *public* one has the better name and the null-guards; the *internal* one is the one
-wired. ⛔ **Do not delete the wrong half.**
+name, the accessibility, and three null-guards.**
+
+> ## ⛔⛔⛔ CORRECTED `2026-08-21` — **"only the Adapter is constructed" IS FALSE. BOTH ARE.**
+> ⚠⚠ **This row previously read *"Only the Adapter is constructed (`TimeControlStatusBarSection:31`)"*
+> and concluded *"the Facade is dead."*** 📐 **Measured — they are built EIGHT LINES APART in the same
+> method of `EditorSubsystem.cs`:**
+>
+> | site | builds | feeds |
+> |---|---|---|
+> | `EditorSubsystem.cs:3878` → `TimeControlStatusBarSection:31` | **`EditorTimeTransportAdapter`** | ⭐ the **status bar** |
+> | `EditorSubsystem.cs:3886` | **`EditorTimeTransportFacade`** | ⭐ the **main toolbar** *(`MainToolbarTimeControlSection`, BATCH-24)* |
+>
+> ⇒ ⭐⭐ **Neither is dead. There are TWO SURFACES, each with its own copy of one implementation.**
+> ⛔ **The word "dead" was the dangerous half** — 📌 it is exactly the premise that CLAUDE.md's
+> *"unreferenced is not unintentional"* rule exists to stop, and here it was not even unreferenced.
+
+⚠ **Checked the corpus before saying so** — ⭐ **`docs/` first, then `.dev/`** *(the `2026-08-17` order;
+restated by the user `2026-08-21`)*: the `.dev/` record is `.dev/main-toolbar-1/` Batch 24, which
+introduced the facade for the new toolbar; ⛔ **no record explains why both survive.**
+
+⇒ ⭐⭐⭐ **VERDICT: ROUTE, not delete.** 📌 CLAUDE.md's three-way test decides it —
+**duplicate CODE** *(two implementations of one interface ⇒ route)*, ⛔ **not duplicate SURFACE**
+*(status bar and main toolbar are different surfaces and BOTH stay)*, ⛔ **not dead** *(both wired)*.
+⭐ **Keep the `Facade`** — it is `public` and its null-guards are strictly stronger; **delete the
+`Adapter`**; **point the status bar at the `Facade`.** ⇒ **one implementation, two surfaces, no
+capability lost.**
 
 ---
 
@@ -556,6 +575,116 @@ classDiagram
 | ⭐⭐⭐ **PRODUCER — `ITimeController`** | ⭐ **unchanged.** It computes this node's frame time and hands it to the kernel. ⛔ **Nobody outside the kernel calls `Update()`, and nobody asks it questions** |
 | ⭐⭐⭐ **STORAGE + READ — `GlobalTime` behind `ISimClock`** | ⭐ **one named read surface**, taking an `ISimulationView` so a caller cannot accidentally ask the wrong world. ⛔ **`IsAdvancing`, never `IsPaused`** |
 | ⭐⭐⭐ **CONTROL — `ITimeCommands`, intents only** | ⭐ **paths B, C and D become path A.** ⛔ No direct `SwitchToDeterministic` outside the controller ⇒ 🔒 **`R-126`'s cluster-wide debugger pause comes free**, because the intent already fans out |
+
+### ⭐⭐⭐ 9a. THE READ SIDE, AS IT IS BUILT — **the concrete classes behind `ISimClock`**
+
+> ⭐ §9's diagram above is the **TARGET SHAPE**. This one is the **BUILDABLE SLICE**: every box that
+> already exists is drawn as existing, so a proposed class that duplicates one is visible on the same
+> page. ⛔ `HaltReason` and `ITimeCommands` are deliberately absent — they are `T6` and `T4`.
+
+| box | file | status |
+|---|---|---|
+| `GlobalTime` | `FDP/Engine/Fdp.Core/GlobalTime.cs` | **exists** — gains `IsAdvancing`; `IsPaused` obsoleted |
+| `ISimulationView` | `FDP/Engine/Fdp.Core/Abstractions/ISimulationView.cs` | **exists, 1171 refs — UNCHANGED** |
+| `EntityRepository` | `FDP/Engine/Fdp.Core/EntityRepository.cs` | **exists** |
+| `ISimClock` · `SimClock` · `WorldSimClock` | `FDP/Toolkits/Fdp.Toolkits/Time/` | ⭐ **new** |
+| `ITimeTransportFacade` | `Hrot/Engine/Hrot.Presentation/Facades/` | **exists, 12 refs** |
+| `EditorTimeTransportFacade` | `Hrot/Subsystems/Hrot.Editor/UI/` | **exists — KEPT** |
+| `EditorTimeTransportAdapter` | `Hrot/Subsystems/Hrot.Editor/UI/` | ⛔ **exists — DELETED** *(`AS-11`)* |
+| `TimeControlStatusBarSection` | `Hrot/Subsystems/Hrot.Editor/UI/` | **exists — REPOINTED** |
+
+```mermaid
+classDiagram
+    class GlobalTime {
+        <<struct>>
+        +float DeltaTime
+        +float TimeScale
+        +double TotalTime
+        +long FrameNumber
+        +bool IsAdvancing
+        +bool IsPaused
+    }
+    class ISimClock {
+        <<interface>>
+        +bool IsAdvancing
+        +bool IsHalted
+        +double TotalTime
+        +float TimeScale
+        +long FrameNumber
+    }
+    class SimClock {
+        <<static>>
+        +Of(ISimulationView) ISimClock
+        +Of(EntityRepository) ISimClock
+    }
+    class WorldSimClock {
+        <<readonly struct>>
+    }
+    class ISimulationView {
+        <<interface>>
+        +uint Tick
+        +float Time
+    }
+    class EntityRepository
+    class ITimeTransportFacade {
+        <<interface>>
+    }
+    class EditorTimeTransportFacade
+    class EditorTimeTransportAdapter
+    class TimeControlStatusBarSection
+    class MainToolbarTimeControlSection
+
+    ISimClock <|.. WorldSimClock
+    SimClock ..> WorldSimClock : creates
+    WorldSimClock ..> GlobalTime : reads live singleton
+    ISimulationView <|.. EntityRepository
+    SimClock ..> EntityRepository : casts the view
+    ITimeTransportFacade <|.. EditorTimeTransportFacade
+    ITimeTransportFacade <|.. EditorTimeTransportAdapter
+    TimeControlStatusBarSection ..> EditorTimeTransportAdapter : BEFORE
+    TimeControlStatusBarSection ..> EditorTimeTransportFacade : AFTER
+    MainToolbarTimeControlSection ..> EditorTimeTransportFacade
+```
+
+### ⭐⭐ 9a.1 THE READ SEQUENCE — **why the answer cannot be stale**
+
+```mermaid
+sequenceDiagram
+    participant K as ModuleHostKernel
+    participant C as ITimeController
+    participant W as EntityRepository
+    participant S as SimClock
+    participant R as Caller
+
+    Note over K,W: every frame, unchanged by T1
+    K->>C: Update()
+    C-->>K: GlobalTime for this frame
+    K->>W: SetSingleton GlobalTime
+
+    Note over R,W: the read side
+    R->>S: Of(view)
+    S->>W: cast view then read singleton
+    W-->>S: the instance pushed THIS frame
+    S-->>R: ISimClock
+    R->>S: IsAdvancing
+    S-->>R: DeltaTime greater than zero
+
+    Note over R,C: forbidden by AS-1b
+    R--xC: GetCurrentState reports halted forever
+```
+
+| ⛔ the two traps this shape exists to avoid | |
+|---|---|
+| **`M-42`** | ⭐⭐⭐ **`IsAdvancing` is `DeltaTime > 0`, NEVER `!IsPaused`.** 📌 `IsPaused` is `TimeScale == 0` and **no pause path sets `TimeScale`** ⇒ implementing the negation ships the same dead flag under a better name |
+| **`AS-1b`** | ⭐⭐ **read the LIVE WORLD'S singleton**, ⛔ never `controller.GetCurrentState()` — that answers *halted* forever |
+
+⚠ **`ISimulationView` has NO singleton accessor** *(measured: `Tick`, `Time`, components, queries,
+events — that is all)*. ⛔ **It is not widened.** ⭐ **`SimClock.Of` casts internally**, on the settled
+convention: 📄 **`Blueprint_Subsystem_Runtime_Detailed_Design.md` §12.2 — RESOLVED**: *"the
+`var repo = (EntityRepository)view;` pattern is the engine convention, not brittle… No commentary or
+hedging needed."* ⚠ **A view with no repository behind it reports `Halted`** — ⭐ stated, not silent.
+
+---
 
 ### ⭐ `HaltReason` — **why it is stopped, not just that it is**
 
