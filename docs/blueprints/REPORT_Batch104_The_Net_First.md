@@ -293,7 +293,7 @@ were not run.
 | **1** | ⭐⭐⭐ `dotnet build IOS-IG-SimHost.sln` | — | 0 errors | ✅ **0 errors**, 60 warnings, 67 s | **0** |
 | **2** | ⭐⭐⭐ **`~TimeControlIntegrationTests`** *(the standing row)* | ✅ | ⛔ **4P / 2F** | ✅ **9P / 0F** | **+2 fixed, +3 added** |
 | **3** | ⭐ same, **run 2** | `--no-build` | — | ✅ **9P / 0F**, 52 s | ⭐ **no flake** |
-| **4** | ⭐⭐ `~MasterSyncControllerTests` | ✅ | 34P / 0F | ✅ **39P / 0F** | **+5 rails** |
+| **4** | ⭐⭐ `~MasterSyncControllerTests` | ✅ | 34 tests | ✅ **39P / 0F** | **+5 rails** — ⚠ **the base figure is a COUNT, not a run**: 📐 `git show 91b53840:…MasterSyncControllerTests.cs \| grep -c '\[Fact'` = **34**, and the 5 additions are the delta. ⭐ The 34 are covered green by row 5 |
 | **5** | ⭐⭐ **`Fdp.Toolkits.Tests` — FULL** | ✅ | — | ✅ **1973P / 0F / 0S**, 33 s | ⚠ **`DEBT-AIB-030` did NOT fire this run** — ⛔ neither a red nor a green here is evidence; row 6 is the one that counts |
 | **6** | ⭐⭐⭐ **`~ThePauseFlagOnTheClockIsFalseWhilePausedTests`** *(must stay 4/0)* | `--no-build` | 4 / 0 | ✅ **4P / 0F**, 65 ms | **0** — 📌 `M-42` + `AS-1b` still pinned |
 | **7** | ⭐ **`Hrot.ClusterRunner.Tests`** | ✅ | ⛔ 2 pre-existing reds | ⚠ **260P / 2F** — ⭐ **exactly `DataDrivenGizmoPredicateTests.D003_Predicate_True_AllowsUpdateAndDraw` and `…_False_SkipsUpdateAndDraw_ForFilteredEntity`** | **0** — ⛔ **no third red** |
