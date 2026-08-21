@@ -104,7 +104,7 @@ not a signal).
 - `manage_adr(action)` — CRUD for Architecture Decision Records
 - `ingest_traces(traces)` — Ingest runtime traces to validate HTTP edges
 
-## ⛔⛔ UNREFERENCED IS NOT UNINTENTIONAL — **search `.dev/` before proposing any deletion** *(user ruling, `2026-08-15`)*
+## ⛔⛔ UNREFERENCED IS NOT UNINTENTIONAL — **search `docs/` FIRST, then `.dev/`, before proposing any deletion** *(user ruling, `2026-08-15`; corpus order corrected `2026-08-17` and again `2026-08-21`)*
 
 > ⭐⭐⭐ **User, verbatim:** *"what is not used does not mean it is existing without reason — a design doc
 > gives answers."*
@@ -127,13 +127,20 @@ by construction** instead of true by convention.
 ### ⭐ The rules that follow
 
 1. ⛔⛔ **Before proposing to delete anything registered / emitted / exported but unreferenced, search
-   `.dev/` for a design record.** 🔴 **There are ~2900 markdown files there and this programme had never
-   searched them** — the whole design corpus sat outside every session's reading.
+   the design corpus for a record — ⭐⭐⭐ `docs/` FIRST, `.dev/` SECOND.**
+   🔒 **User, `2026-08-21`:** *"not just `.dev`, there is docs folder as the main source."*
+   ⭐⭐ **`docs/` carries the CURRENT intent**; ⭐⭐ **`.dev/<programme>/*-DESIGN.md` carries IMPLEMENTED
+   intent — the WHY behind a built feature, often more than the code says** *(coordinator ruling
+   `8f950a83`, `2026-08-21`)*. ⚠⚠ **An earlier version of this line called `.dev/` "as-built" and told
+   you never to read it for intent — that was too dismissive and is SUPERSEDED.** ⭐ **Read both**;
+   ⚠ **check for a newer `docs/` supersession before quoting a `.dev/` one.** 🔴 **There are ~2900
+   markdown files in `.dev/` and this programme had never searched them.**
 2. ⭐⭐ **"Unreachable" and "dangerous" are TWO properties — do not collapse them.** `W3`'s stubs were
    unreachable **and harmful** *(last-writer-wins overwrite)* ⇒ delete. This one was **dormant**
    *(a unique key that overwrites nothing)* ⇒ route. ⚠ **The precedent applied to the wrong half.**
 3. ⭐ **A grep over assets/call sites cannot see intent.** It answers *"is it used?"*, never *"is it
-   meant to exist?"* ⇒ **the second question has a different source, and that source is `.dev/`.**
+   meant to exist?"* ⇒ ⭐⭐ **the second question has a different source, and that source is `docs/`**
+   *(with `.dev/` for "why is it like this")*.
 4. ⭐ **When in doubt, prefer ROUTING to DELETING** — routing preserves the capability and still
    collapses the duplicate mechanism (ruling 9). Deletion is only right when the design record says the
    thing is dead, or nothing claims it.
@@ -155,14 +162,29 @@ have raced its own fix.
 design record agrees)*. ⛔ **"Ruling 9 says one implementation" is about IMPLEMENTATIONS, not about
 every place a user can reach one.**
 
-### ⭐⭐ Where to look, in order *(derived by sweeping the corpus, `2026-08-15`)*
+### ⭐⭐ Where to look, in order — ⛔⛔ **`docs/` IS THE MAIN SOURCE, NOT `.dev/`**
+
+> ⭐⭐⭐ **USER CORRECTION, `2026-08-17`, verbatim:** *"most designs are in the **docs** folder. in the
+> `.dev` those named like 'design' or 'detailed design' describe **what was implemented**."*
+> ⚠⚠ **An earlier version of THIS TABLE listed `.dev/*-DESIGN.md` as ① "the INTENT" — that was WRONG**,
+> and it contradicted [`RULINGS.md` §4](../docs/blueprints/RULINGS.md) for four days.
+> 🔒 **Restated by the user `2026-08-21`:** *"not just `.dev`, there is docs folder as the main source."*
 
 | # | look here | it tells you |
 |---|---|---|
-| ① | the programme's **`*-DESIGN.md` / `*_Detailed_Design.md`** | ⭐ **the INTENT** — what the thing is for |
-| ② | its **`reports/*-REPORT.md`**, especially the *notes / debt* tails | ⭐⭐ **the DEBT** — `DEBT-*` ids are filed here and nowhere else |
-| ③ | **`TASK-DETAIL.md`** | the **user decision** that authorised it, usually dated |
+| ① | ⭐⭐⭐ **`docs/**/Architect_Question_*_ANSWERS.md`** | ⭐ **THE RULINGS.** ⛔ the non-`ANSWERS` files carry only options |
+| ② | ⭐⭐ **their §"Sequencing" tables** | ⛔ **a finding with a planned batch is NOT a new finding** |
+| ③ | ⭐⭐ **`docs/` — `DESIGN_*.md` · `PLAN_*.md` · `*_Unification.md` · `BOOTSTRAP_*.md`** | ⭐⭐ **THE INTENT — the model as it is MEANT to be** |
+| ④ | ⭐⭐ **`.dev/<programme>/*-DESIGN.md` · `*_Detailed_Design.md`** | ⭐⭐ **IMPLEMENTED INTENT — the WHY behind a built feature, often richer than the code** *(`8f950a83`)*. ⚠ **Check for a newer `docs/` supersession before quoting it** — ⛔ but do NOT dismiss it as mere as-built |
+| ⑤ | **`.dev/**/reports/*-REPORT.md`** tails · **`TASK-DETAIL.md`** | ⭐ **the DEBT** *(`DEBT-*` ids are filed here and nowhere else)* · the authorising user decision, usually dated |
 | ⛔ | `batches/*-INSTRUCTIONS.md`, `reviews/*` | **least useful — they restate the design** |
+
+⚠ **The one caution that survives:** ⛔ **a document describing what was built can AGREE WITH THE CODE by
+construction** — ⭐ so when a `.dev/` design and a newer `docs/` design disagree, **`docs/` wins**; ⛔ but
+absence of a `docs/` record does NOT make the `.dev/` one worthless. 📌 **Measured `2026-08-21`:** searching `EditorTimeTransportFacade` returns hits in
+**both** trees — `docs/blueprints/{DESIGN_Time_Architecture,PLAN_Time_System_Refactor,Q48}.md` *(the
+live intent)* **and** `.dev/main-toolbar-1/` *(the batch that built it)*. ⇒ ⭐ **searching one tree
+answers half the question.**
 
 📌 **Three findings this programme derived the hard way were already written down:** the standalone
 `BTreeTick` hosting path (`SLICE1-DESIGN.md:82`) · the netstandard2.0/net8.0 wall duplicating whole
@@ -255,6 +277,7 @@ box — and **an existing class drawn on the same canvas as a proposed one makes
 | # | ⭐ obligation | owner |
 |---|---|---|
 | **①** | ⭐⭐⭐ **A design marked buildable carries a `classDiagram` AND a `sequenceDiagram`.** ⭐ Mark it in the STATUS block: `build-state: DESIGN │ READY-TO-BUILD │ BUILDING │ BUILT` | **coordinator** |
+| **①b** | ⭐⭐⭐ **The diagrams live in the DESIGN, never in the batch** — ⭐ full rule in its own section below, *"THE DIAGRAMS LIVE IN THE DESIGN, NEVER IN THE BATCH"*. ⛔ Not restated here: 📌 two rule files stating one rule is how the `.dev`/`docs` order rotted | **both** |
 | **②** | ⭐⭐⭐ **DRAW THEM AFTER THE ENUMERATION, NEVER BEFORE** — 📌 the `INVENTORY` rule feeds this one. ⭐⭐ **Every box that already exists is drawn as existing, with its file**, so a proposed class that duplicates it is visible on the same page. ⛔ **Any possibility for reuse must be UTILISED, not noted** | **coordinator** |
 | **③** | ⭐⭐ **An implementing task CHECKS the diagrams before building**, and reports it: *"the design carries N classes and M sequences; what I built matches / deviates HERE and why."* ⚠ **A deviation is a finding, not a silent choice** — ⭐ argue it in the report, as every good batch already does | **implementation** |
 | **④** | ⛔⛔ **A design with no UML is NOT ready to dispatch.** ⭐ A handoff citing one is a defect of the COORDINATOR — 📌 the same class of miss as `BP-355` *(named in a report, never turned into an item)* | **coordinator** |

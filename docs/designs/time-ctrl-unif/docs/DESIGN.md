@@ -1,3 +1,17 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-08-21
+current-answer: §4 is the IMPLEMENTED intent behind MasterSyncController / SlaveSyncController and
+  the role-split lockstep translators. It is WHY the code is shaped as it is.
+stale-below: the header's "Status: Planning" is stale — this shipped.
+known-rot: none found. §4.4's roster "SlaveLockstepTranslator (SimHost, IG, CGF)" was measured
+  UNMET for CGF on 2026-08-21 and restored by TM-002 — the DESIGN was right, the wiring had
+  regressed in the CgfApplication -> CgfSubsystem migration.
+superseded-by: nothing wholesale. For the CURRENT target shape of the time APIs see
+  ../../../blueprints/DESIGN_Time_Architecture.md §9/§9a; this document remains the authority on
+  WHY the master/slave split and the barrier protocol exist.
+known-conflict: none.
+-->
 # Design: Time Controller Unification
 
 **Workstream:** `time-ctrl-unif`

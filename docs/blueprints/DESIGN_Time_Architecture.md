@@ -3,11 +3,14 @@ state: LIVE
 build-state: DESIGN
 updated: 2026-08-21
 current-answer: the whole file. §2-§6 AS-IS (measured) - §7 findings - §8 probes - §9 root cause
-  - §10 target - §11 replay - §12 the regression net. The ORDER lives in PLAN_Time_System_Refactor.md.
+  - §10 target - §11 replay - §12 the regression net - §15 the two remote caches (T7)
+  - §16 the pause-notion roll, site by site (T5).
+  The ORDER lives in PLAN_Time_System_Refactor.md.
 stale-below: nothing above HISTORY.
 known-rot: none. Claims corrected by later measurement are marked CORRECTED inline and keep the
   correction, not the original: AS-1b (the "two roles" claim, withdrawn), AS-2 (the pause barrier),
-  P4 (the threading premise), P6' (measured the wrong layer).
+  P4 (the threading premise), P6' (measured the wrong layer), P3 (the direction of AS-2's
+  lateness -- CORRECTED by T7 §15.2, which reversed the change P3 implied).
 known-conflict: none.
 supersedes: DESIGN_Time_Control_And_Reporting.md and DESIGN_Time_And_Write_Architecture.md, merged
   into this file on 2026-08-21 at the user's request -- they were two halves of one architecture and
@@ -269,20 +272,39 @@ sequenceDiagram
 | path | who | shape | ⚠ |
 |---|---|---|---|
 | **A** ⭐ | ExCon / operator UI → `ITimeControlGateway` → `ClusterMaster` | ⭐⭐ **intents on the bus**, drained by the master, fanned out over DDS with a **wall-clock barrier** | ⭐ **the right shape** |
-| **B** ⛔ | editor toolbar → `EditorTimeTransportAdapter` | ⛔ **direct method call** on the editor's own controller | ⛔ **bypasses the intent bus entirely** |
-| **C** ⛔ | breakpoint / debugger → `IEngineDebugTimeController` | ⛔ **direct method call**, empty slave roster | ⛔ 🔒 `R-126`: this is the one that must go cluster-wide |
-| **D** ⚠ | `AiTracerCoordinator.RequestPause/Continue/StepOneTick` *(BTree · HSM)* | ⛔⛔ **virtual NO-OPS** — production builds the base class *(`EditorSubsystem:750`)* | 🔴 📌 `AS-9` / `R-67` |
+| **B** ✅ | editor toolbar → `EditorTimeTransportFacade` *(the Adapter was retired — `AS-11`)* | ✅ **FIXED `2026-08-21` (`TM-019`)** — pause/resume/step/scale now **publish through `ITimeCommands`**. ⚠ The direct-call fallback survives for a host constructed without a bus, and is visible in one place each | ✅ path B is path A |
+| **C** ⛔ | breakpoint / debugger → `IEngineDebugTimeController` | ⛔ **direct method call**, empty slave roster | ⛔ **STILL OPEN — the last one.** 🔒 `R-126`: this is the one that must go cluster-wide. ⚠ Deliberately left by `TM-106`/`TM-107`: it is entangled with the debugger's rewind, which `W2`/`W5` reshape, and those are the coordinator's |
+| **D** ✅ | `AiTracerCoordinator.RequestPause/Continue/StepOneTick` *(BTree · HSM)* | ✅ **FIXED `2026-08-21` (`TM-018`)** — ⛔ they were **virtual NO-OPS** and production built the base class, so a tracer asking the sim to stop did **nothing, silently**. ⭐ Now `EditorAiTracerCoordinator` overrides all three and **publishes intents** ⇒ **path D IS path A**. ⭐⭐ Subclassing is the PRESCRIBED mechanism *(`docs/projects/Hrot/Editor/Hrot.Editor.AiShared.md` §3)*, which also keeps the change out of the frozen `Hrot.Editor.AiShared` | ✅ `AS-9` / `R-67` |
 
 ### ⛔⛔ `AS-11` — **a measured duplicate: `EditorTimeTransportFacade`**
 
 📐 `diff` of `EditorTimeTransportFacade` vs `EditorTimeTransportAdapter`: **identical apart from the
-name, the accessibility, and three null-guards.** ⭐ **Only the Adapter is constructed**
-*(`TimeControlStatusBarSection:31`)*.
-⚠ **Checked `.dev/` before saying so** *(the `2026-08-15` rule)* — the record is `.dev/main-toolbar-1/`
-Batch 24, which introduced the facade; ⛔ **no record explains why both survive.**
-⇒ ⭐ **A ruling-9 duplicate. The Facade is dead** — but 📌 **the right verdict is ROUTE-OR-DELETE decided
-by name**: the *public* one has the better name and the null-guards; the *internal* one is the one
-wired. ⛔ **Do not delete the wrong half.**
+name, the accessibility, and three null-guards.**
+
+> ## ⛔⛔⛔ CORRECTED `2026-08-21` — **"only the Adapter is constructed" IS FALSE. BOTH ARE.**
+> ⚠⚠ **This row previously read *"Only the Adapter is constructed (`TimeControlStatusBarSection:31`)"*
+> and concluded *"the Facade is dead."*** 📐 **Measured — they are built EIGHT LINES APART in the same
+> method of `EditorSubsystem.cs`:**
+>
+> | site | builds | feeds |
+> |---|---|---|
+> | `EditorSubsystem.cs:3878` → `TimeControlStatusBarSection:31` | **`EditorTimeTransportAdapter`** | ⭐ the **status bar** |
+> | `EditorSubsystem.cs:3886` | **`EditorTimeTransportFacade`** | ⭐ the **main toolbar** *(`MainToolbarTimeControlSection`, BATCH-24)* |
+>
+> ⇒ ⭐⭐ **Neither is dead. There are TWO SURFACES, each with its own copy of one implementation.**
+> ⛔ **The word "dead" was the dangerous half** — 📌 it is exactly the premise that CLAUDE.md's
+> *"unreferenced is not unintentional"* rule exists to stop, and here it was not even unreferenced.
+
+⚠ **Checked the corpus before saying so** — ⭐ **`docs/` first, then `.dev/`** *(the `2026-08-17` order;
+restated by the user `2026-08-21`)*: the `.dev/` record is `.dev/main-toolbar-1/` Batch 24, which
+introduced the facade for the new toolbar; ⛔ **no record explains why both survive.**
+
+⇒ ⭐⭐⭐ **VERDICT: ROUTE, not delete.** 📌 CLAUDE.md's three-way test decides it —
+**duplicate CODE** *(two implementations of one interface ⇒ route)*, ⛔ **not duplicate SURFACE**
+*(status bar and main toolbar are different surfaces and BOTH stay)*, ⛔ **not dead** *(both wired)*.
+⭐ **Keep the `Facade`** — it is `public` and its null-guards are strictly stronger; **delete the
+`Adapter`**; **point the status bar at the `Facade`.** ⇒ **one implementation, two surfaces, no
+capability lost.**
 
 ---
 
@@ -352,10 +374,10 @@ graph TD
 
 | # | finding | ⚠ |
 |---|---|---|
-| **`AS-11`** | ⛔ **`EditorTimeTransportFacade` ⇄ `EditorTimeTransportAdapter` are identical** but for name, accessibility and three null-guards; ⭐ **only the Adapter is constructed** *(`TimeControlStatusBarSection:31`)*. ⚠ `.dev/` checked: Batch 24 introduced the facade, **no record explains why both survive** | 🔴 ruling-9 duplicate — §4 |
+| **`AS-11`** | ✅ **RESOLVED by Batch TM-105.** ⛔ **The old claim *"only the Adapter is constructed"* was FALSE** — 📐 **both are**, eight lines apart in one method *(`EditorSubsystem:3878` Adapter → status bar, `:3886` Facade → main toolbar)* ⇒ ⭐ **two SURFACES sharing one duplicated implementation, not a dead class beside a live one.** ⇒ **ROUTE:** Facade kept *(public, stronger null-guards)*, Adapter deleted, status bar repointed *(`TM-010`)* | ✅ §4 · `TM-010` |
 | **`AS-12`** | ⭐⭐⭐ **RESOLVED.** Every node puts its time controller **on the bus the intents live on**; ⛔ **the editor is the only place those are two different objects** *(registry on `_orchestrationBus`, master on `_world.Bus`)* | ⭐ **one line to fix** — §8 |
 | **`AS-13`** | ⚠ **CORRECTED by Batch 104.** ⭐ `BP-378` rotted for the **FILTERED** run only *(`TimeControlIntegrationTests` runs, 4/2)*; ⛔ **the FULL single-process run still aborts** — `ClusterOpE2eScriptTests` crashes its host in 2–3 s, and `MAX_ENTITIES × 4–5 nodes` OOMs a shared host. ⭐ **43 classes are green in isolation** ⇒ a **class-at-a-time gate is real** *(quarantine flagged `TM-006`)* | ⭐⭐⭐ §13 |
-| **`AS-14`** | ✅ **RESOLVED by Batch 104.** ⛔ Root cause was NOT the settle nor the harness — 📐 **the CGF node is structurally unable to ACK in PRODUCTION** *(it composes past `SharedApplicationBootstrapper` phase 6c, so it holds a `SlaveSyncController` with no translators, yet sits in the lockstep roster)* ⇒ **the master blocks forever**. ⭐ **Fixed:** `TM-002` extracts the translator registration *(shared, not copied)* + `TM-001` makes `Step` **queue-bounded-and-refuse-audibly** instead of silently dropping | ✅ **net now 6/6** — §13 |
+| **`AS-14`** | ✅ **RESOLVED by Batch 104.** ⛔ Root cause was NOT the settle nor the harness — 📐 **the CGF node is structurally unable to ACK in PRODUCTION** *(it composes past `SharedApplicationBootstrapper` phase 6c, so it holds a `SlaveSyncController` with no translators, yet sits in the lockstep roster)* ⇒ **the master blocks forever**. ⭐ **Fixed:** `TM-002` extracts the translator registration *(shared, not copied)* + `TM-001` makes `Step` **queue-bounded-and-refuse-audibly** instead of silently dropping | ✅ **net now 9/9** — ⭐ `TM-001`+`TM-002` fixed the two reds *(6/6)*, `TM-005` added 3 rails — §13 |
 
 ---
 
@@ -365,7 +387,7 @@ graph TD
 |---|---|
 | **`P1`** — can the restore leave `RequestStep`/`RequestContinue`? | ⭐⭐ **YES, and it must go EARLIER than `BeforeSync`.** 📐 `Input` runs **first** and holds ~25 state-mutating systems, so a rewound repo must be restored **before** it ⇒ ⭐ **a new `PreFrame` phase**, which `AS-8` makes a 2-line engine change. ⭐⭐ **And `_isPaused` must stay TRUE until the restore runs**, because it also selects `ActiveView` |
 | **`P2`** — is a repo available where `RunStateSource` is built? | ✅ **YES.** `_kernel = new ModuleHostKernel(_world, …)` *(`EditorSubsystem:661`)* ⇒ **`_world` IS the kernel's live world**, in scope at `:2226`. ⛔ No new plumbing |
-| **`P3`** — what is `ClusterUiCache.IsPaused` for? | ⭐ **A REMOTE OBSERVATION, not a local cache.** Fed by `SwitchTimeModeEvent` off the bus *(`:173-181`)* — there is no local object to ask. ⇒ ⛔ **do NOT delete it**; ⚠ it stores **mode**, so it inherits `AS-2` and should be renamed/refined. 📌 `R-126`'s "don't cache" is about locally-derivable state |
+| **`P3`** — what is `ClusterUiCache.IsPaused` for? | ⭐ **A REMOTE OBSERVATION, not a local cache.** Fed by `SwitchTimeModeEvent` off the bus *(`:173-181`)* — there is no local object to ask. ⇒ ⛔ **do NOT delete it**; ⛔⛔ **CORRECTED by `T7` — see §15.2**: it stores the cluster's **DECISION**, which is **PROMPT**; `GetMode()` is the LATE reading, so "refine it towards the controller" would have made it worse by 200 ms. ⚠ **And "there is no local object to ask" is FALSE** — all three sites pass one *(§15.4)*. 📌 `R-126`'s "don't cache" is about locally-derivable state |
 | **`P4`** — is there a THREADING reason anything is unwritable? | ⛔⛔ **NO.** 📐 The runner is one loop — `while (_running) { Update(dt); DrawWorldAll(); DrawUIAll(); }` *(`SubsystemOrchestrator:105-114`)*; `DataStrategy.Direct` is **`Synchronous`-only and ENFORCED** *(`ExecutionPolicy.Validate:148-157`, called at `ModuleHostKernel:246`)*; async modules run on **leased views** and play back at harvest. ⇒ ⭐⭐ **the UI writes between frames with nothing else touching the live repo** |
 | **`P5`** — the BTree/HSM twins | ⛔ **`AS-9`.** Their pause is a UI flag over a no-op coordinator. ⭐ **Good news: no rewind either**, so they are the SIMPLE case once they get a write path |
 | **`P6`** ⭐⭐⭐ NEW | **Do modules tick while paused?** ⛔⛔ **YES.** `ShouldRunThisFrame` **never consults `deltaTime`** — a module at ≥60 Hz runs **every frame**, with `moduleDelta == 0` *(`ModuleHostKernel:614`, `:624`, `ShouldRunThisFrame`)* |
@@ -557,12 +579,162 @@ classDiagram
 | ⭐⭐⭐ **STORAGE + READ — `GlobalTime` behind `ISimClock`** | ⭐ **one named read surface**, taking an `ISimulationView` so a caller cannot accidentally ask the wrong world. ⛔ **`IsAdvancing`, never `IsPaused`** |
 | ⭐⭐⭐ **CONTROL — `ITimeCommands`, intents only** | ⭐ **paths B, C and D become path A.** ⛔ No direct `SwitchToDeterministic` outside the controller ⇒ 🔒 **`R-126`'s cluster-wide debugger pause comes free**, because the intent already fans out |
 
+### ⭐⭐⭐ 9a. THE READ SIDE, AS IT IS BUILT — **the concrete classes behind `ISimClock`**
+
+> ⭐ §9's diagram above is the **TARGET SHAPE**. This one is the **BUILDABLE SLICE**: every box that
+> already exists is drawn as existing, so a proposed class that duplicates one is visible on the same
+> page. ⛔ `HaltReason` and `ITimeCommands` are deliberately absent — they are `T6` and `T4`.
+
+| box | file | status |
+|---|---|---|
+| `GlobalTime` | `FDP/Engine/Fdp.Core/GlobalTime.cs` | **exists** — gains `IsAdvancing`; `IsPaused` obsoleted |
+| `ISimulationView` | `FDP/Engine/Fdp.Core/Abstractions/ISimulationView.cs` | **exists, 1171 refs — UNCHANGED** |
+| `EntityRepository` | `FDP/Engine/Fdp.Core/EntityRepository.cs` | **exists** |
+| `ISimClock` · `SimClock` · `WorldSimClock` | `FDP/Toolkits/Fdp.Toolkits/Time/` | ⭐ **new** |
+| `ITimeTransportFacade` | `Hrot/Engine/Hrot.Presentation/Facades/` | **exists, 12 refs** |
+| `EditorTimeTransportFacade` | `Hrot/Subsystems/Hrot.Editor/UI/` | **exists — KEPT** |
+| `EditorTimeTransportAdapter` | `Hrot/Subsystems/Hrot.Editor/UI/` | ⛔ **exists — DELETED** *(`AS-11`)* |
+| `TimeControlStatusBarSection` | `Hrot/Subsystems/Hrot.Editor/UI/` | **exists — REPOINTED** |
+
+```mermaid
+classDiagram
+    class GlobalTime {
+        <<struct>>
+        +float DeltaTime
+        +float TimeScale
+        +double TotalTime
+        +long FrameNumber
+        +bool IsAdvancing
+        +bool IsPaused
+    }
+    class ISimClock {
+        <<interface>>
+        +bool IsAdvancing
+        +bool IsHalted
+        +double TotalTime
+        +float TimeScale
+        +long FrameNumber
+    }
+    class SimClock {
+        <<static>>
+        +Of(ISimulationView) ISimClock
+        +Of(EntityRepository) ISimClock
+    }
+    class WorldSimClock {
+        <<readonly struct>>
+    }
+    class ISimulationView {
+        <<interface>>
+        +uint Tick
+        +float Time
+    }
+    class EntityRepository
+    class ITimeTransportFacade {
+        <<interface>>
+    }
+    class EditorTimeTransportFacade
+    class EditorTimeTransportAdapter
+    class TimeControlStatusBarSection
+    class MainToolbarTimeControlSection
+
+    ISimClock <|.. WorldSimClock
+    SimClock ..> WorldSimClock : creates
+    WorldSimClock ..> GlobalTime : reads live singleton
+    ISimulationView <|.. EntityRepository
+    SimClock ..> EntityRepository : casts the view
+    ITimeTransportFacade <|.. EditorTimeTransportFacade
+    ITimeTransportFacade <|.. EditorTimeTransportAdapter
+    TimeControlStatusBarSection ..> EditorTimeTransportAdapter : BEFORE
+    TimeControlStatusBarSection ..> EditorTimeTransportFacade : AFTER
+    MainToolbarTimeControlSection ..> EditorTimeTransportFacade
+```
+
+### ⭐⭐ 9a.1 THE READ SEQUENCE — **why the answer cannot be stale**
+
+```mermaid
+sequenceDiagram
+    participant K as ModuleHostKernel
+    participant C as ITimeController
+    participant W as EntityRepository
+    participant S as SimClock
+    participant R as Caller
+
+    Note over K,W: every frame, unchanged by T1
+    K->>C: Update()
+    C-->>K: GlobalTime for this frame
+    K->>W: SetSingleton GlobalTime
+
+    Note over R,W: the read side
+    R->>S: Of(view)
+    S->>W: cast view then read singleton
+    W-->>S: the instance pushed THIS frame
+    S-->>R: ISimClock
+    R->>S: IsAdvancing
+    S-->>R: DeltaTime greater than zero
+
+    Note over R,C: forbidden by AS-1b
+    R--xC: GetCurrentState reports halted forever
+```
+
+| ⛔ the two traps this shape exists to avoid | |
+|---|---|
+| **`M-42`** | ⭐⭐⭐ **`IsAdvancing` is `DeltaTime > 0`, NEVER `!IsPaused`.** 📌 `IsPaused` is `TimeScale == 0` and **no pause path sets `TimeScale`** ⇒ implementing the negation ships the same dead flag under a better name |
+| **`AS-1b`** | ⭐⭐ **read the LIVE WORLD'S singleton**, ⛔ never `controller.GetCurrentState()` — that answers *halted* forever |
+
+⚠ **`ISimulationView` has NO singleton accessor** *(measured: `Tick`, `Time`, components, queries,
+events — that is all)*. ⛔ **It is not widened.** ⭐ **`SimClock.Of` casts internally**, on the settled
+convention: 📄 **`Blueprint_Subsystem_Runtime_Detailed_Design.md` §12.2 — RESOLVED**: *"the
+`var repo = (EntityRepository)view;` pattern is the engine convention, not brittle… No commentary or
+hedging needed."* ⚠ **A view with no repository behind it reports `Halted`** — ⭐ stated, not silent.
+
+---
+
 ### ⭐ `HaltReason` — **why it is stopped, not just that it is**
 
 ⭐ `Running` · `PausedByOperator` · `SteppingHeld` · `HeldByBreakpoint` · `NotPublishing` *(replay
 preparation — 📌 `AS-10`)*. ⛔ **Derived, never latched.** ⚠ **This is the field that would have made
 every one of the twelve notions unnecessary**: each of them existed to answer *"why"*, and `bool` could
 not.
+
+#### ✅ 9c. BUILT `2026-08-21` (`T6`, `TM-024`) — **and NOT where §9's diagram put it**
+
+⛔⛔ **No single object can answer this**, which is why the shape above needed deciding rather than
+transcribing. 📐 **Measured, three homes considered:**
+
+| candidate home | ⛔ why not |
+|---|---|
+| **a field on `GlobalTime`** | it is an **unmanaged ECS component**; its size sets `NativeChunkTable` chunk capacity ⇒ **the recorded chunk layout changes** and old recordings stop reading. ⛔ **A migration cost for a diagnostic field** |
+| **a member on `ITimeController`** | 📐 **3 production implementers + 4 test doubles** — and ⛔ **the controller cannot answer anyway**: it knows nothing of `NotPublishing` *(kernel)* or `HeldByBreakpoint` *(debugger)* |
+| ✅ **a PURE resolver over explicit probes** | ⭐ no layout change, no interface break, and **each arm reads its own authority at the moment of the question** — which is what *"derived, never latched"* actually requires |
+
+⭐⭐ **`HaltReasonResolver.Resolve(isPublishing, isAdvancing, isRewound, isAwaitingStepAcks, isDeterministic)`**
+— ⛔ **no optional parameters and no defaults**: a caller cannot silently omit a signal it held, and
+that omission is this codebase's recurring defect shape.
+
+##### ⛔⛔⛔ THE PRECEDENCE IS LOAD-BEARING — **`NotPublishing` is checked FIRST, before `Running`**
+
+📌 **`AS-10`:** while the push is suspended the singleton **freezes at its last value, which may carry a
+NON-ZERO delta.** ⇒ ⭐⭐⭐ **asking *"is it advancing"* first would answer `Running` while replay
+preparation holds four system groups disabled.** ⭐ Pinned by
+`NotPublishing_OutranksAStaleAdvancingClock`; ⛔ **reorder those branches and that rail fails.**
+⭐ Then: `HeldByBreakpoint` *(the debugger owns the world, even mid-step)* → `SteppingHeld` → `PausedByOperator` → `Unknown`.
+
+##### ⭐⭐ The two probes this earned — **and `AS-10`'s residual is now CLOSED**
+
+| probe | ⭐ |
+|---|---|
+| `ModuleHostKernel.IsPublishingGlobalTime` | ⚠ `AS-10` called this *"a kernel API change this slice does not earn"* — 📐 **it is smaller than that**: `SuspendGlobalTimePush`/`ResumeGlobalTimePush` were **already public**; only the READ was missing |
+| `MasterSyncController.IsAwaitingStepAcks` | distinguishes **mid-step** from **paused-and-idle** — ⛔ both are deterministic mode with a zero delta, so without it they are the same state from outside |
+| ✅ **`AS-10`'s residual** | ⭐⭐ **`ResumeAndDrainSystem` now takes an optional `isPublishing` probe and skips while suspended** ⇒ the *"a staged edit can be drained into a world replay is about to overwrite"* hole is **closed, not just named** |
+
+##### ⚠ DEVIATION from §9's `classDiagram`, argued not hidden *(obligation ③)*
+
+⛔ **`ISimClock` does NOT gain `+HaltReason Reason` in this slice.** 📐 Its only implementer,
+`WorldSimClock`, holds **just the world** — it cannot see the kernel's publish state, the debugger's
+rewind or the controller's step state. ⇒ adding `Reason` there would make it answer `Unknown` **always**,
+which is precisely **the silent-default pattern**: a member that looks built, is reachable, and tells
+every caller nothing. ⭐⭐ **The resolver is the honest shape until a composition root exists that holds
+all three probes** — 📌 and that root is the same one `TM-022` is waiting on.
 
 ---
 
@@ -595,6 +767,13 @@ there is exactly one way to change it and exactly one place it is reported.
 ---
 
 ---
+
+> ⚠⚠ **§10 REPLACED `2026-08-21` — taken from the coordinator branch, THAT SECTION ONLY.**
+> ⛔ The whole file was **not** merged: the coordinator's copy predates `TM-105`/`TM-106`/`TM-107` and
+> would have reverted `AS-11`'s correction, `AS-13`/`AS-14`'s measurements, §9a's diagrams and the
+> `T3a`/`T3b` resolutions. ⭐ **The old §10 here was a DRAFT whose `IStagedWrites` shape**
+> *(`Stage(write)` · `RestorePostTick()`)* **does not match the interface that actually shipped**
+> *(`HasPending` · `IsRewound` · `DrainInto` · `TryGetPending`)* ⇒ theirs is authoritative.
 
 ## 10. ⭐⭐⭐ TARGET — **the WRITE side: the drain, and the tick that runs it**
 
@@ -656,11 +835,10 @@ sequenceDiagram
     alt DeltaTime == 0
         D--)K: nothing - the edit waits
     else advancing
-        opt IsRewound (a breakpoint pause is ending)
-            D->>Q: RestorePostTick()
-            Q->>R: live <- post-tick snapshot
+        opt IsRewound (a breakpoint holds the pre-tick snapshot)
+            D--)K: SKIP - the restore is W5, the UI lane's
         end
-        D->>Q: DrainPendingMutations(repo)
+        D->>Q: DrainInto(view)
         Q->>R: the designer's bytes land
     end
     K->>I: ExecutePhase(Input) - sees the restored, edited state
@@ -669,6 +847,14 @@ sequenceDiagram
 
 ⭐⭐⭐ **Why `PreFrame` and not `BeforeSync`:** `Input` runs first and mutates state. ⛔ Draining in
 `BeforeSync` would let ~25 Input systems run against a rewound repo.
+
+> ⚠⚠ **CORRECTED `2026-08-21` while building `W1`/`W2`.** ⛔ **The sequence above used to have the drain
+> call `RestorePostTick()` and `DrainPendingMutations(repo)`** — ⭐ **neither is on the `IStagedWrites`
+> that shipped** *(`HasPending` · `IsRewound` · `DrainInto` · `TryGetPending`)*, and it contradicted
+> **§6 of `DESIGN_Staged_Live_Write.md`**, which assigns *"`DrainInto` when advancing, **skip while
+> rewound**"* to `W2` and *"move the restore out of `RequestStep`/`RequestContinue`"* to **`W5`, the UI
+> lane.** ⇒ ⭐⭐ **the drain does NOT restore.** 📌 The diagram predated the W-task lane split; the seam
+> design, the handoff and the interface all agree with each other, so the diagram was the odd one out.
 
 ---
 
@@ -720,7 +906,7 @@ precisely *"a single concept, differently composed"* — ⛔ **there is no secon
 
 | ⭐ | |
 |---|---|
-| ⭐⭐⭐ **Construct the editor's `MasterSyncController` on `_orchestrationBus`**, not `_world.Bus` | 📌 identical to `OrchestratorSubsystem:146`; ⭐ **no new mechanism, no bridge, no second registry** |
+| ✅ **DONE `2026-08-21` — `EditorSubsystem:727` now builds the master on `_orchestrationBus`** | 📌 identical to `OrchestratorSubsystem:146`; ⭐ **no new mechanism, no bridge, no second registry.** ⭐ **Verified safe:** the editor has **no reader of `SwitchTimeModeEvent` on `_world.Bus`** *(measured — the only reader anywhere is `ClusterTimeTransportAdapter`, which the editor does not construct)*, so the move orphans nothing. ⚠ **One frame of latency by construction**: `EditorSubsystem.Update` swaps `_orchestrationBus` AFTER `_kernel.Update()`, so an intent published in frame N is drained in N+1 |
 | ⭐⭐ **Then paths B, C and D publish intents like everyone else** | ⇒ `TC-3` **unblocks**, and 🔒 **the CGF node gets the same code**, which is the stated requirement |
 | ⚠ **and the editor needs NO egress translator** | ⭐ it hosts the master, so it drains directly — ⛔ exactly the `YES` arm of the diagram |
 
@@ -728,8 +914,8 @@ precisely *"a single concept, differently composed"* — ⛔ **there is no secon
 
 | ⚠ | |
 |---|---|
-| **①** | ⛔ **CGF and SimHost hand `ClusterTimeTransportAdapter` DIFFERENT buses** — `_context.EventBus` vs `OrchestrationEventBus`. ⭐ **CGF's is correct** *(it is the bus its controller and the egress translator use)*; ⚠ **SimHost's needs checking** — ⛔ **not measured**, and it is a one-line question worth answering before `TC-3` |
-| **②** | ⚠ **`HrotNodeBuilder` never calls `OrchestrationEventRegistry.RegisterAll`** on the bus it creates. ⭐ CGF's `CgfApplication:115` registers on a **different** bus (`_orchestrationBus`) ⇒ ⛔ **whether the intent types are registered on the bus that actually carries them is UNVERIFIED** — 📌 **probe it with `TC-3`, not before** |
+| **①** ✅ **RESOLVED — `T3a`, and there is NO divergence** | 📐 `SimHostApp.cs:466` is `_eventBus = _context.EventBus;` and `:667` exposes that same field as `OrchestrationEventBus`. ⇒ ⭐⭐ **CGF and SimHost hand the adapter THE SAME BUS**; the apparent disagreement was **a naming artifact — one accessor, two names.** ⛔ Nothing to fix |
+| **②** ⛔⛔⛔ **CONFIRMED — `T3b`, and it was a LIVE PRODUCTION DEFECT** | 📐 `OrchestrationEventRegistry.RegisterAll` is called on the Orchestrator's `_bus`, ExCon's two buses, the editor's `_orchestrationBus` — and on `CgfApplication:115`, **whose only caller is a unit test.** ⛔ **Never on `HrotNodeContext.EventBus`**, the bus CGF/SimHost/IG actually publish their intents on. ⚠⚠ **And the failure mode is NOT the "silently does nothing" this row guessed:** `Hrot.ClusterRunner/Program.cs:52` sets `FdpConfig.EnforceExplicitEventRegistration = true`, under which `PublishManaged` **THROWS**. ⇒ ⭐⭐⭐ **pressing pause on a CGF/SimHost/IG toolbar threw `InvalidOperationException`.** ✅ **Fixed:** `HrotNodeBuilder.Build()` now calls `RegisterAll` on the bus it creates, reproduced red first by `Build_NodeEventBus_HasTheTimeControlIntentsRegistered` |
 
 ### ⭐ `TimeSystem` *(`Fdp.Core`)* — **LEGACY, not a competing writer**
 
@@ -834,8 +1020,16 @@ dotnet test  --no-build --filter "FullyQualifiedName~TimeControlIntegrationTests
 ```
 
 ⇒ ⛔ **No OOM. No hang.** ⭐⭐ **The net the user remembered is available TODAY**, at least per class.
-⚠ **Stated exactly:** ⛔ **I did NOT run the whole suite** — 📌 `BP-378`'s claim about the *full* run is
-**untested**, and only the **filtered** run is proven.
+
+> ⚠⚠ **CORRECTED `2026-08-21` by Batch 104 — the sentence that used to sit here said the full run was
+> *untested*. It has now been RUN, twice, and it ABORTS:** 55/250 then a host crash; 83/250 then
+> `Test host process crashed : dds_take failed: -3 (BadParameter)`; **14 `OutOfMemoryException`s at
+> `EntityIndex..ctor:38`** — `int[MAX_ENTITIES]` plus two ~64 MB `NativeChunkTable` reservations, **per
+> `EntityRepository`, per node, 4–5 nodes per harness**, released between classes by nothing.
+> ⇒ ⛔ **`BP-378`'s FULL-run claim stands. Only the FILTERED half rotted.**
+> ⭐⭐⭐ **And the crash has one name:** run class-by-class, **`ClusterOpE2eScriptTests` aborts the host on
+> its own in 2–3 s, reproducibly, at both shas** — every other class completes. **43/72 fully green,
+> 15.7 min for all 72.** ⇒ **a class-at-a-time gate is real** — `TM-006` / `TM-007`.
 
 ### ⭐ What it covers — **`TimeControlIntegrationTests`, 6 tests over REAL subsystems**
 
@@ -870,9 +1064,35 @@ if (_pendingAcks.Count > 0)       return GetCurrentState();   // ⛔ the step is
 
 ⇒ ⭐⭐⭐ **N steps produce ONE step's worth of time.** ⚠ The blocking is **documented and deliberate**
 *("Blocked while the previous step's ACKs are still outstanding")* — ⛔ **but the caller gets NO signal
-and the request is DISCARDED rather than queued**, and the test settles between steps, so either the
-settle is too short or **the slave never ACKs in the harness**. ⭐ **Root-causing it is the
-implementation session's**; ⚠ **the measurement and the hypothesis are here.**
+and the request is DISCARDED rather than queued.**
+
+> ⭐⭐⭐ **ROOT-CAUSED `2026-08-21` by Batch 104. The two candidates named here were *"the settle is too
+> short"* and *"the slave never ACKs **in the harness**"* — it is the second, and the words *in the
+> harness* were wrong: the harness is faithful and the defect is PRODUCTION.**
+> 📐 Roster `[1, 400]`. SimHost (1) ACKs. **CGF (400) never ACKs — and never leaves `Continuous`, so it
+> never hears the pause at all** *(5 000 ms and thousands of pumped frames, three runs)*.
+> ⛔ **`CgfSubsystem` builds its node through `HrotNodeBuilder` DIRECTLY**, and the three slave time
+> translators are wired **only** in `SharedApplicationBootstrapper` **phase 6c**, which CGF never runs
+> ⇒ the node holds a `SlaveSyncController` **with nothing connected to it**, while `OrchestratorSubsystem:303`
+> and `ClusterMaster:327` both keep it in the lockstep roster.
+>
+> ### ⭐⭐⭐ AND THE ORIGINAL DESIGN SAYS CGF WAS SUPPOSED TO HAVE THEM — **this was a REGRESSION, not a gap**
+> 📄 **`docs/designs/time-ctrl-unif/docs/DESIGN.md` §4.4**, the design that PRODUCED
+> `MasterSyncController`/`SlaveSyncController`, names the roster in its own heading:
+> > **`SlaveLockstepTranslator` (SimHost, IG, **CGF**)**
+>
+> ⭐ And §3: *"IG, SimHost, and CGF are pure time slaves"*; §5: *"IG, SimHost, and CGF all
+> PLL-synchronise directly to the Orchestrator's pulses over DDS"*; §7's rollout lists
+> *"(Orchestrator, SimHost, **CGF**, IG)"*.
+> ⇒ ⭐⭐ **`TM-002` RESTORES DESIGNED INTENT that the `CgfApplication` → `CgfSubsystem` migration
+> (`EAM-M003`) dropped.** ⛔ **It did not invent a capability**, and the earlier framing — inferred from
+> the roster filter alone — understated it. ⚠⚠ **This citation was found only after the `docs/designs/`
+> import** *(`e2c1348a`)*; ⭐ **the design that answers it had been sitting in `.dev/time-ctrl-unif/`
+> the whole time** — 📌 exactly the corpus the `2026-08-21` rule now sends you to first.
+> ⚠ **`CgfApplication` DID wire them** *(`:118-119`)* — its only caller is a unit test, so **the working
+> copy was the dead one.** ⇒ **phase 6c extracted to `SlaveTimeTranslatorRegistration`, called from both**
+> *(`TM-002`)*, **and the silent discard fixed independently** *(`TM-001`)* — ⛔ fixing only the wiring
+> would have turned the suite green and left the trap armed for `T4`. 📐 **4/2 → 9/9.**
 
 | ⭐ **PRE-EXISTING — the basis** | ⛔ **no production file under `FDP/…/Time/`, `Hrot.Orchestrator`, `MasterSync*`, `SlaveSync*`, `ClusterMaster` or `ModuleHostKernel` has been touched on this branch.** ⭐ Provable by construction, not by a worktree |
 |---|---|
@@ -906,9 +1126,9 @@ unrelated red to note — it is a HAZARD the control refactor walks into**, and 
 |---|---|
 | ~~`SlaveSyncController` internals~~ | 🔒 **ruled out of scope by the user** *(`2026-08-21`: "internals of SlaveSyncController should not be important i guess")* — ⭐ its **surface** is in §3 and that is what the design needs |
 | ~~the replay clock~~ | ✅ **MAPPED — §10.** There is no third authority |
-| **`TC-7`** | what each of the two remote caches is for, and whether they serve different processes |
+| ~~**`TC-7`**~~ | ✅ **MEASURED — §15.** Disjoint nodes, different roles ⇒ **not collapsed**; the FOLD was the duplicate and is now one class. ⭐ It also found `HaltReason.Unknown` reachable and a step dropped in the barrier window |
 
-⇒ ⭐ **Suggested next: the replay clock**, because `AS-10` already showed it interacts with the write
+⇒ ⭐ **Nothing on this list is unmeasured any more.** ⚠ The open WORK is `T5`'s remaining pause-notion sites and `T4`'s path C *(debugger → intents)*, both entangled with the UI lane's `W2`/`W5`.
 
 ⚠⚠ **`104f`'s premise MOVED after dispatch** — `P6′`. ⭐ The affordance is **narrower** than the
 handoff says *(two run states, not all three)* and its **mechanism already exists** *(`Q46` rule 5)*.
@@ -921,6 +1141,268 @@ one-frame deferral is invisible **provided `_isPaused` stays true until the rest
 ⛔ **What is NOT measured:** whether `BlueprintDebugSession`'s **own** step machinery *(temp
 breakpoints, `_nodePointer`, the recorder)* tolerates the DBM resuming a frame later than the session.
 ⇒ ⭐⭐ **`Q48-E`'s end-to-end rail is what settles it**, and it should be written **before** `RF-4`.
+
+## 15. ⭐⭐⭐ `T7` — **THE TWO REMOTE CACHES, MEASURED. And `P3` was right about the hazard and BACKWARDS about its direction.**
+
+> ⭐ **`TC-7` in §14 was the last unmeasured item.** ⛔ It is now measured, and the measurement
+> **reversed** the change `P3` proposed.
+
+### 📐 15.1 What each one actually is — **and no node has both**
+
+| | `ClusterUiCache` | `ClusterTimeTransportAdapter` |
+|---|---|---|
+| **home** | `Hrot.Orchestrator/Panels/` | `Hrot.Presentation/Adapters/` |
+| **role** | broad cluster read-model — **17 fields** *(state, exercises, transactions, heartbeats, episodes…)* | ⭐ **`ITimeTransportFacade`** — the toolbar's 4 read fields **+ the COMMANDS** |
+| ⭐⭐ **constructed at** | `OrchestratorSubsystem:161` · `EditorSubsystem:1501` · `ExConSubsystem:298` | `CgfSubsystem:762` · `SimHostSubsystem:263` |
+| ⭐ **so, on** | **Orchestrator · Editor · ExCon** | **CGF · SimHost** |
+
+⇒ ⭐⭐⭐ **DISJOINT. No node constructs both** ⇒ ⛔ **they are not a duplicate SURFACE and must not be
+collapsed** *(CLAUDE.md's three-way test: this is **duplicate CODE**, not duplicate surface)*.
+
+⭐ **What IS duplicated is the FOLD** — both drained `SwitchTimeModeEvent` with the same four lines
+*(paused ← `TargetMode`; scale if `>0`; resume snapshot if `>0`)*. ⇒ ✅ **one implementation:
+`ClusterTimeObservation`** *(`Fdp.Toolkits/Time/`, referenced by both projects)*.
+
+### ⛔⛔⛔ 15.2 `P3` CORRECTED — **the latch is PROMPT; `GetMode()` is the LATE one**
+
+> 📌 **`P3` said:** *"it stores **mode**, so it inherits `AS-2` and should be renamed/refined."*
+> ⭐ **Renamed: yes. "Inherits `AS-2`": ⛔ BACKWARDS.**
+
+| 📐 measured | |
+|---|---|
+| `MasterSyncController:340` | the `Deterministic` event is published **at the TOP of `SwitchToDeterministic`** — ⭐ i.e. at the **START** of the lookahead window |
+| `UpdateBarrierPending:462-479` | ⭐⭐ **`_totalTime` is NOT advanced**, and it returns `BuildGlobalTime(0f, 0f)` ⇒ **sim time is frozen from that same instant** |
+| `GetMode():167` | ⛔ answers **`Continuous`** until the barrier lands — **200 ms by default** *(`TimeConfig:75`)* |
+
+⇒ ⭐⭐⭐ **The event and the freeze turn over TOGETHER.** ⛔ **`GetMode()` is late by the whole window.**
+⇒ ⛔⛔ **"Swap the latch for the controller" — the change `P3` implies — would have made the answer
+WORSE by 200 ms on every pause.** ⭐ **Rail: `ClusterTimeObservationTests.TheFoldIsPrompt_WhereTheControllersModeIsLate`.**
+
+### ⚠ 15.3 Where it IS ahead — **the slave, and that is correct too**
+
+📐 `SlaveSyncController.DrainModeSwitchEvents:186-204` **DEFERS** a future-barrier event
+*(`_pendingBarrierEvent`, `SlaveMode.BarrierPending`)* and applies it when the barrier lands.
+⛔ **The UI fold on the same node applies it on ARRIVAL.**
+
+⇒ on **ExCon**, for the window: `IsPaused == true` while the local slave clock still advances.
+⭐⭐ **Not a defect — it reports the CLUSTER's decision, which the node is about to snap to.** ⛔ **But it
+means the flag is NOT "my clock is stopped"**, and the name said it was.
+
+⇒ ⭐⭐ **`ClusterTimeObservation.PauseRequested`** — *"what did the cluster decide"*.
+⭐ For *"is MY time moving, and why not"*: **`ISimClock.IsAdvancing`** *(§9a)* / **`HaltReason`** *(§9c)*.
+⚠ `ClusterUiCache.IsPaused` **keeps its name** and forwards — 📌 renaming a read-model property used by
+`ClusterScenarioPanel` buys nothing the doc-comment does not.
+
+### ⭐ 15.4 The silent-default check — **`P3`'s "there is no local object to ask" is FALSE**
+
+📐 **All three production sites DO pass a controller**: `_masterSync` · `_timeController` ·
+`_slaveSyncController`. ⭐ It is used — for `MasterSimTime`. ⛔ **But it still must not be asked for
+pausedness**: `GetCurrentState()` hard-codes a zero delta *(`AS-1b`)* and `GetMode()` is late *(15.2)*.
+⇒ ⭐ **not an unused dependency, and `IsPaused` is right not to use it.**
+
+### ⛔⛔⛔ 15.5 THE FINDING — **`HaltReason.Unknown` was REACHABLE, and `T6` predicted exactly this**
+
+> ⭐⭐⭐ **`HaltReason.Unknown`'s own doc, written in `T6`:** *"If this appears in practice, the missing
+> probe is the finding."* ⭐ **It appeared. It was.**
+
+📐 **In the barrier window** — publishing ✅ · advancing ❌ · rewound ❌ · awaiting-acks ❌ *(mode is not
+`Stepping`)* · deterministic ❌ *(`GetMode()` says `Continuous`)* ⇒ ⛔⛔ **`Unknown`**, for 200 ms after
+**every** pause, in **normal operation**.
+
+| ✅ closed | |
+|---|---|
+| ⭐⭐ **`MasterSyncController.IsPauseBarrierPending`** | the missing probe — `_mode == BarrierPending` |
+| ⭐⭐ **`HaltReason.PauseBarrierPending = 5`** | ⛔ **separate from `PausedByOperator`**, because the cluster has not converged and the states differ for diagnosis |
+| ⭐ **ordered BELOW `isDeterministic`** | ⛔ once the barrier lands the mode is the better answer — ⚠ **ordering rail: `OnceDeterministic_TheModeOutranksALingeringBarrierFlag`** |
+
+### ⛔⛔ 15.6 AND THE DEFECT IT UNCOVERED — **a step inside the barrier window was DROPPED**
+
+📐 `Step()` refused whenever `_mode != Stepping` ⇒ ⛔ **for the first 200 ms after every pause** — ⭐ which
+is **exactly when an operator who just pressed pause presses step.**
+
+⚠⚠ **`AS-14` fixed the ACK guard and left this one**: the deferral queue sat *below* the mode guard.
+⇒ ✅ **`BarrierPending` now QUEUES into the SAME queue**, bounded by `MaxQueuedSteps`, released by
+`UpdateStepping` on the first frame past the barrier. ⛔ **Refusal past the bound stays audible.**
+📌 **Short window ⇒ intermittent loss ⇒ the worst shape**: it would have read as *"step sometimes does
+nothing"*.
+
+### ⭐⭐ 15.7 `T6`'s resolver got its FIRST PRODUCTION CALLER — **and it closed a same-node disagreement**
+
+⛔ **Before this, `HaltReasonResolver` was called only by its own tests** — 📌 the `R-67` built-and-unwired
+shape, two batches after `AS-9`'s no-op coordinator.
+
+📐 **The Editor hosts BOTH** `ClusterUiCache` *(`:1501`)* **and** `EditorTimeTransportFacade` *(`:3907`)*,
+and their pause answers **disagreed for the window**: the cache folds the event *(prompt)*, the facade
+read `GetMode()` *(late)*. ⇒ ⭐ **`EditorTimeTransportFacade.Paused` now asks the resolver**, and treats
+`PausedByOperator` · `SteppingHeld` · `PauseBarrierPending` as paused.
+
+⚠ **Why not just widen the mode check?** ⛔ Because the resolver is the one place that knows the window
+is a pause — ⭐ **widening it at the call site is the silent-default shape this programme keeps hitting.**
+
+### 15.8 ⭐⭐ UML — **what `T7` built** *(obligation ①)*
+
+```mermaid
+classDiagram
+    class ClusterTimeObservation {
+        <<Fdp.Toolkits/Time — NEW T7>>
+        +bool PauseRequested
+        +float TimeScale
+        +long BarrierWallTicks
+        +double ResumeSimTime
+        +Apply(SwitchTimeModeEvent)
+    }
+    class ClusterUiCache {
+        <<Hrot.Orchestrator — EXISTS>>
+        +IsPaused
+        +MasterTimeScale
+        +MasterSimTime
+    }
+    class ClusterTimeTransportAdapter {
+        <<Hrot.Presentation — EXISTS>>
+        +IsPaused
+        +TogglePlayPause()
+        +Step()
+    }
+    class EditorTimeTransportFacade {
+        <<Hrot.Editor — EXISTS>>
+        +HaltReason Reason
+        -bool Paused
+    }
+    class HaltReasonResolver {
+        <<Fdp.Toolkits/Time — T6>>
+        +Resolve(...)$ HaltReason
+    }
+    class MasterSyncController {
+        <<Fdp.Toolkits/Time — EXISTS>>
+        +bool IsPauseBarrierPending
+        +bool IsAwaitingStepAcks
+        +Step(float)
+    }
+    ClusterUiCache o-- ClusterTimeObservation : owns 1
+    ClusterTimeTransportAdapter o-- ClusterTimeObservation : owns 1
+    EditorTimeTransportFacade ..> HaltReasonResolver : asks
+    HaltReasonResolver ..> MasterSyncController : reads probes
+```
+
+```mermaid
+sequenceDiagram
+    actor Op as Operator
+    participant Fac as EditorTimeTransportFacade
+    participant Mas as MasterSyncController
+    participant Bus as FdpEventBus
+    participant Obs as ClusterTimeObservation
+
+    Op->>Fac: press Pause
+    Fac->>Mas: PauseTimeIntent
+    Mas->>Mas: mode = BarrierPending, sim time FROZEN
+    Mas->>Bus: SwitchTimeModeEvent(Deterministic)
+    Bus->>Obs: Apply -> PauseRequested = true
+    Note over Mas,Obs: window open ~200 ms.<br/>GetMode() still says Continuous.
+
+    Op->>Fac: press Step
+    Fac->>Mas: StepTimeIntent
+    Mas->>Mas: QUEUED (was: refused and dropped)
+
+    Fac->>Mas: IsPauseBarrierPending?
+    Mas-->>Fac: true -> PauseBarrierPending (was: Unknown)
+
+    Mas->>Mas: barrier crossed -> Stepping
+    Mas->>Mas: UpdateStepping releases the queued step
+```
+
+---
+
+## 16. ⭐⭐⭐ `T5` — **the pause notions, ENUMERATED and taken site by site**
+
+> ⭐ **`T5` was never one refactor.** ⭐⭐ **This section is the roll**: every production declaration, its
+> verdict, and — for the ones NOT taken — why, so the next session does not re-derive it.
+
+### 📐 16.1 The enumeration — **the query, and what it returned**
+
+```
+search_graph(name_pattern=".*(IsPaused|IsFrozen|IsStopped|PausedBy|IsHalted).*")
+  -> total 98, has_more false
+```
+
+⛔ **98 declarations. 20 of them are production and about TIME**; the rest are test doubles, docs nodes,
+JSON-options `IsFrozen`, and the `FDP/Examples` standalone loops.
+
+### ⭐⭐ 16.2 The roll
+
+| # | site | verdict |
+|---|---|---|
+| ① | `GlobalTime.IsPaused` | ✅ **`TM-009`** — `[Obsolete]`; `IsAdvancing`/`IsHalted` added |
+| ② | `ISimClock` · `WorldSimClock` · `SimClock.Of` | ✅ **`TM-009`** — the read API itself |
+| ③ | `EditorSubsystem.ClockIsHalted` | ✅ **`TM-012`** — routed to `SimClock.Of(_world).IsHalted` |
+| ④ | `EditorTimeTransportFacade.IsPaused` | ✅ **`TM-030`** — asks `HaltReasonResolver` |
+| ⑤ | `ClusterUiCache.IsPaused` | ✅ **`TM-027`** — the shared fold |
+| ⑥ | `ClusterTimeTransportAdapter.IsPaused` | ✅ **`TM-027`** — the shared fold |
+| ⑦ | ⭐⭐ **`ExConLogic.IsPaused` + 3 `Master*`** | ✅ **`TM-033` — see 16.3** |
+| ⑧ | ⭐⭐ **`SimHostSimulationControlsPanel` · `SimHostMainUI`** | ✅ **`TM-034` — see 16.4** |
+| ⑨ | ⚠ **`PerspectiveWorkspaceServices.IsFrozen`** | ⛔ **NOT TAKEN — cross-lane. See 16.5** |
+| ⑩ | `IEngineDebugTimeController.IsPausedByDebugger` *(+2 impls)* | ⛔ **path C** — `W5`, the other lane |
+| ⑪ | `IBlueprintDebugSession.IsPaused` *(+2)* · `IDataBreakpointManager.IsPaused` · `IMutationInterceptor.IsPaused` · `IAiDebugSession.IsPaused` | ⛔ **the DEBUGGER's pause**, `W4`/`W5`, and `AiShared` is frozen |
+| ⑫ | `FDP/Examples` — `MainUI` · `SimulationControlsPanel` · `ShowcaseGame` | ⭐ **legitimately local** — standalone loops with no cluster; ⛔ not notions of the cluster's pause |
+
+### ⛔⛔ 16.3 `ExCon` — **a FOURTH copy of the fold, and three properties NEVER WRITTEN**
+
+📐 **Measured:** `MasterSimTime` · `MasterWallTicks` · `MasterTimeScale` had **no assignment anywhere in
+the repo** ⇒ they reported **0 / 0 / 1 forever**, while ⛔ **both `IExConLogic` and
+`docs/projects/Hrot/Subsystems/Hrot.ExCon.md` §Properties document them as live readings.**
+⭐ Only `IsPaused` was fed, by `OnTimeMode`.
+
+⚠⚠ **And it is why `T7`'s sweep missed it:** `T7` keyed on **`SwitchTimeModeEvent`**; ⛔ `ExConLogic`
+folds the **`SwitchTimeModeWireDto`** instead. 📌 **Same message, different type, invisible to the
+search** — ⭐ the enumeration above was keyed on the NAME and found it.
+
+⭐⭐ **The values were arriving all along.** The DTO carries `SimTimeSnapshot`, `BarrierWallTicks` and
+`TimeScale`; only the mode was being read off it. ⇒ ✅ **`OnTimeMode` now folds the whole message
+through `ClusterTimeObservation.Apply(dto.ToEvent())`** and all four properties forward.
+
+⭐ **`SnapshotSimTime` vs `ResumeSimTime`** *(`TM-035`)* — ⛔ **not a redundant pair.** A node that
+advances its own clock between events must **not** adopt a pause snapshot *(it would jump backwards by
+the barrier window)*; a node with **no clock at all** must, or it can only ever show the last resume.
+⇒ ⭐ **two questions, two properties, each with a named caller.**
+
+### ⛔⛔ 16.4 `SimHost` — **the Play/Pause/Step controls were INERT**
+
+📐 `IsPaused` toggled a private field · `StepRequested` set a private flag · **`ConsumeStepRequest` had
+no caller anywhere in the repo.** ⇒ ⛔⛔ **pressing Pause on the SimHost panel did nothing, silently.**
+
+⚠ **`AS-9`'s exact shape**, and the reason it read as wired: ⭐ **the `FDP/Examples` `MainUI` has the
+identical members and `CarKinemApp` genuinely consumes them** *(`:203`, `:311`, `:324`)*.
+📌 **A control looks alive because its twin elsewhere is.**
+
+⭐⭐ **Routed, not deleted** *(CLAUDE.md — `docs/projects/…/Hrot.SimHost.md:252` documents the panel as a
+capability)*, ⭐⭐⭐ **and the seam already existed on the node**: `SimHostSubsystem:263` builds a
+`ClusterTimeTransportAdapter` for the status bar and **pumps it** *(`:195`)*. ⇒ ✅ **the panel reads and
+commands through that same facade.**
+
+| ⭐ the three-way test | |
+|---|---|
+| duplicate **SURFACE** | ⭐ status bar **and** sim-controls panel — ⛔ **both stay** |
+| duplicate/broken **CODE** | ⭐ the panel's private flag ⇒ **routed onto the facade** |
+| genuinely **dead** | ⛔ **no** — the design record documents the capability |
+
+⭐ **With no facade the controls render DISABLED**, with a reason. ⛔ Not falling back to the old local
+toggle: ⭐⭐ **a visibly dead button is a bug report; a silently dead one is what this fixed.**
+
+### ⛔ 16.5 `PerspectiveWorkspaceServices.IsFrozen` — **NOT TAKEN, and why**
+
+📐 It **is** a time notion — *"is time held by the debugger — a breakpoint pause OR deterministic
+stepping"* — and its supplier is `EditorSubsystem:2298`:
+`() => (_bpManager?.IsPaused ?? false) || (_bpTimeAdapter?.IsPausedByDebugger ?? false)`.
+
+⭐ **It is `HaltReasonResolver` written by hand**, and routing it would collapse one more notion.
+⛔⛔ **But `!= Running` is NOT the same predicate**: it would newly report frozen for `NotPublishing`
+*(replay preparation)* and `Unknown`. ⚠ **That is a CONTRACT change to a consumer in
+`Hrot.Editor.AiShared` — the frozen area — whose design basis is ruling 15 and the write surface that
+hangs off it.**
+
+⇒ ⭐⭐⭐ **STOP-and-report, not a judgement call** *(the lane rule)*. 📄 The proposed shape is above;
+**the UI lane owns the decision.**
+
+---
 
 ---
 

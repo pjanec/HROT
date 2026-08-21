@@ -59,6 +59,16 @@ still untested.
 
 > ⭐⭐⭐ **`T0` EXIT CRITERION:** `TimeControlIntegrationTests` **6/6 green**, run twice, and the row is in
 > the gate table. ⛔ **Until then no task below may touch a production file in the time stack.**
+>
+> ## ✅✅✅ **`T0` IS MET — Batch 104, `2026-08-21`. THE REST OF THIS PLAN IS UNBLOCKED.**
+> | | |
+> |---|---|
+> | **`T0.1`** | ✅ **done** — ⛔ **and the root cause was not in `Step`**: the CGF node had **no time translators at all** and could never ACK *(`TM-002`)*. The silent discard was fixed too — **queue, or refuse audibly** *(`TM-001`)* |
+> | **`T0.2`** | ✅ **measured** — ⛔ **the FULL run still aborts** *(`BP-378` stands; only `AS-13`'s filtered half rotted)*. ⭐⭐ **The crash has ONE source, `ClusterOpE2eScriptTests`; 43/72 classes green in isolation, 15.7 min** *(`TM-006`/`TM-007`)* |
+> | **`T0.3`** | ✅ **done** — the gate row is standing; **run twice, no flake** *(`TM-003`)* |
+> | **`T0.4`** | ⚠ **partial** — `SetTimeScale` + CGF-participation rails added; ⛔ editor-composition deferred to **`T3`** *(it guards the change `T3` makes)* and breakpoint-pause to **`W2`/`W5`** *(the path does not exist yet)* *(`TM-005`)* |
+> | ⭐⭐ **BASELINE FROM NOW ON** | **`TimeControlIntegrationTests` 9/9**, ⛔ not 4/2 |
+> 📄 **[`REPORT_Batch104_The_Net_First.md`](batches/REPORT_Batch104_The_Net_First.md)**
 
 ---
 
@@ -146,22 +156,22 @@ graph TD
 |---|---|---|---|
 | **`T1`** | **`ISimClock` + `SimClock.Of(view)` + `GlobalTime.IsAdvancing`**; `IsPaused` marked obsolete | `TC-1`/`RF-1` | ✅ **PROVEN** |
 | **`T2`** | **retire the duplicate** `EditorTimeTransportFacade` ⇄ `EditorTimeTransportAdapter` *(identical but for name/accessibility/null-guards; only the Adapter is constructed)* | `TC-2`/`AS-11` | ✅ **PROVEN** |
-| **`T3`** | ⭐⭐ **put the editor's `MasterSyncController` on the bus the intents live on** *(`_orchestrationBus`)* — ⭐ **"do what the Orchestrator does"** | `TC-3`/`AS-12` | ✅ **one line** ⚠ + 2 sub-checks below |
-| **`T3a`** | ⚠ **verify SimHost's `ClusterTimeTransportAdapter` bus** — CGF uses `_context.EventBus`, SimHost `OrchestrationEventBus`; ⛔ **they disagree and only CGF's is proven right** | new | ⚠ **1 line to check** |
-| **`T3b`** | ⚠ **verify the intent types are REGISTERED on the bus that carries them** — ⛔ `HrotNodeBuilder` never calls `OrchestrationEventRegistry.RegisterAll` on the bus it creates | new | ⚠ **would make a toolbar silently do nothing** |
-| **`T4`** | ⭐⭐ **`ITimeCommands` — intents only.** Paths **B** *(toolbar)*, **C** *(debugger)* and **D** *(BTree/HSM)* stop calling `SwitchToDeterministic` directly | `TC-3`/`TC-4` | ⭐ after `T3` |
-| **`T4d`** | ⭐ **path D: hand `AiTracerCoordinator` a real controller** — ⛔ its `RequestPause/Continue/StepOneTick` are **virtual no-ops** and production builds the base class | `TC-5`/`AS-9` | ✅ **PROVEN** — `R-67` |
-| **`T5`** | **the remaining pause notions read through `ISimClock`** — ⛔ **not one refactor, ten**, one site at a time | `TC-8`/`RF-9` | ⚠ per-site |
-| **`T6`** | ⭐ **`HaltReason`** — *why* it is stopped, not just that it is *(`Running` · `PausedByOperator` · `SteppingHeld` · `HeldByBreakpoint` · `NotPublishing`)* | `TC-6` | ⚠ needs `AS-10`'s `NotPublishing` exposed |
-| **`T7`** | ⚠ **the two remote caches** *(`ClusterUiCache` · `ClusterTimeTransportAdapter`)* — ⛔ **KEEP both** *(they observe the wire)*; ⭐ decide whether they collapse | `TC-7` | ⚠ **UNMEASURED** |
+| ✅ **`T3`** | ✅ **DONE** *(TM-106/`TM-013`)* — the editor's master is on `_orchestrationBus`. ⭐ Verified no `SwitchTimeModeEvent` reader was orphaned | `TC-3`/`AS-12` | ✅ **done** |
+| ✅ **`T3a`** | ✅ **DONE — NO DIVERGENCE** *(`TM-017`)*. 📐 `SimHostApp:466`/`:667`: `OrchestrationEventBus` IS `_context.EventBus` ⇒ **one bus, two names.** ⛔ Nothing to fix | new | ✅ **checked** |
+| ✅ **`T3b`** | ⛔⛔ **CONFIRMED A LIVE DEFECT, FIXED** *(`TM-014`)* — and ⚠ **the mechanism was NOT "silently nothing"**: production sets `EnforceExplicitEventRegistration = true`, so a CGF/SimHost/IG toolbar pause **THREW**. Reproduced red, then one `RegisterAll` in `HrotNodeBuilder` | new | ✅ **fixed** |
+| ⚠ **`T4`** | ⚠ **PARTIAL** *(TM-107)* — ✅ `ITimeCommands` + `IntentTimeCommands` built; ✅ **path B** *(toolbar)* and ✅ **path D** *(tracer)* publish intents. ⛔ **path C** *(debugger)* still direct — entangled with the rewind that `W2`/`W5` reshape | `TC-3`/`TC-4` | ⚠ **B+D done, C open** |
+| ✅ **`T4d`** | ✅ **DONE** *(`TM-018`)* — `EditorAiTracerCoordinator` overrides all three and publishes intents. ⭐ Subclassing is the prescribed mechanism, so **nothing in the frozen `Hrot.Editor.AiShared` was touched** | `TC-5`/`AS-9` | ✅ **done** |
+| ⭐ **`T5`** | ⭐⭐ **ENUMERATED and rolled** *(`TM-033`…`TM-037`)* — 📐 `search_graph` over the pause names: **98 declarations ⇒ 20 production time notions**, each with a verdict in **§16.2**. ✅ **Every site in THIS lane is now closed**; ⛔ what remains is the **debugger's** pause *(`W4`/`W5`, the other lane)* and **`IsFrozen`** *(`TM-037` — cross-lane, STOP-and-reported)*. ⚠⚠ **Two of the two open sites turned out to do NOTHING**: ExCon's three documented properties were **never written**, and SimHost's Play/Pause/Step were **inert** | `TC-8`/`RF-9` | ✅ **lane-complete** |
+| ✅ **`T6`** | ✅ **DONE** *(`TM-024`)* — the enum + a PURE resolver over explicit probes. ⛔ **Not on `GlobalTime`** *(layout ⇒ recorded format)*, ⛔ **not on `ITimeController`** *(7 implementers, and it cannot answer anyway)*. ⭐⭐ **`NotPublishing` is checked FIRST** — `AS-10` means the clock lies while suspended. ✅ **`AS-10`'s residual CLOSED** in the drain. ⚠ `ISimClock.Reason` deferred — it would answer `Unknown` always | `TC-6` | ✅ **done** |
+| ✅ **`T7`** | ✅ **DONE** *(`TM-027`…`TM-031`)* — 📐 **MEASURED: disjoint nodes** *(cache on Orchestrator/Editor/ExCon, adapter on CGF/SimHost)* ⇒ ⛔ **NOT collapsed** — duplicate **surface**, kept. ✅ The duplicate **CODE** — the `SwitchTimeModeEvent` fold — is now **`ClusterTimeObservation`**. ⛔⛔ **`P3` CORRECTED**: the latch is **PROMPT**, `GetMode()` is the LATE one by the 200 ms barrier window ⇒ the change `P3` implied would have made it worse. ⭐⭐ **And it found two defects**: `HaltReason.Unknown` **reachable after every pause** *(missing probe ⇒ `PauseBarrierPending`)* and **a step DROPPED in the barrier window** *(now queued)*. 📄 §15 | `TC-7` | ✅ **done** |
 
 ### ⭐ `W` — the WRITE path *(detail: `DESIGN_Time_Architecture.md` §5 + §10)*
 
 | id | task | was | feasibility |
 |---|---|---|---|
 | **`W0`** | ⭐⭐⭐ **`Q48-E`'s end-to-end rail, written FIRST and RED** — *pause → edit → resume → the value is in the repository*, per pause kind | `104a` | ⭐ the acceptance criterion |
-| **`W1`** | **`SystemPhase.PreFrame` + one kernel line** — ⛔ the drain must precede `Input` *(~25 state-mutating systems)* | `RF-2` | ✅ **PROVEN** *(scheduler is phase-generic)* |
-| **`W2`** | ⭐⭐ **the drain system**, mirroring `DebugSnapshotProvider`; ⛔ **gate on the `deltaTime` PARAMETER** *(`AS-10`)*; ⛔ skip while the DBM holds a rewind | `RF-3` | ✅ **PROVEN by precedent** |
+| ✅ **`W1`** | ✅ **DONE** *(`TM-020`)* — `PreFrame = 0`, in the kernel's allow-list, executed after the `GlobalTime` push and before `Input`. ⚠ Checked that `default(SystemPhase)` cannot catch unattributed systems *(the scheduler throws)*. ⭐ Railed on the OBSERVED order, not the attribute | `RF-2` | ✅ **done** |
+| ✅ **`W2`** | ✅ **DONE** *(`TM-021`)* — `ResumeAndDrainSystem`: skip while `dt <= 0`, skip while `IsRewound`, else `DrainInto(view)`. ⭐ A PULL *(`R-126`)*. Built against `IStagedWrites` with a fake, so it did not wait on the UI lane. ⚠ **NOT composed in production yet** — `TM-022` | `RF-3` | ✅ **done, unwired** |
 | **`W3`** | ⭐⭐⭐ **running is not a refusal** — delete `RefusedRunning` and `LiveWriteRefusal.NotFrozen`; drop the session's `_isPaused` write gate. ⭐ **Keep** `NoSelectedEntity` · `FieldNotResolvable` · **`SizeMismatch`** *(`Q32` §2.1's corruption gate)* | `RF-5`/`RF-6` | ✅ **mechanical** |
 | **`W4`** | ⭐ **the "queued" affordance** — ⛔ **only two of three run states need it** *(`P6′`)*; ⭐ the mechanism exists: **`Q46` rule 5's typed-value cache**. ⛔ **NOT on `AiVariablesWindow`** *(`U-16` retires it)* | `RF-11` | ⭐ mechanism exists |
 | **`W5`** | ⚠ **move the RESTORE out of `RequestStep`/`RequestContinue`** | `RF-4` | ⚠⚠ **LIKELY, not proven** — ⛔ `W0`'s rail settles it |

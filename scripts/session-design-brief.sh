@@ -16,6 +16,15 @@ cd "$(dirname "$0")/.." || exit 0
 COORDINATOR_BRANCH="claude/blueprint-authoring-status-gm0akp"
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
 
+# 2026-08-21 (user: "lets continue without the coordinator, it just slows us down"):
+# the TIME lane now carries BOTH roles on its own branch, so a pure branch-name test
+# would tell it to skip the brief it is now obliged to write. A branch that owns both
+# roles declares itself here. Anything not listed stays implementation-only.
+SELF_COORDINATED_BRANCHES="claude/time-system-refactor-batch-104-gp617x"
+for b in $SELF_COORDINATED_BRANCHES; do
+  [ "$CURRENT_BRANCH" = "$b" ] && COORDINATOR_BRANCH="$CURRENT_BRANCH"
+done
+
 echo "=============================================================="
 echo " DESIGN CANON -- re-read before answering any design question."
 echo " Code answers 'how it IS'. It can never answer 'how it was MEANT to be'."

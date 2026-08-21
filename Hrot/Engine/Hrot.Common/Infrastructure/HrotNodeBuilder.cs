@@ -98,6 +98,19 @@ public sealed class HrotNodeBuilder
         // Step 3 — Event bus
         var eventBus = new FdpEventBus();
 
+        // The orchestration/time intent types must be registered on THE BUS THAT CARRIES THEM.
+        // Every non-orchestrator node publishes its time-control intents here —
+        // ClusterTimeTransportAdapter issues PauseTimeIntent/ResumeTimeIntent/StepTimeIntent/
+        // SetTimeScaleIntent/TransitionStateIntent onto HrotNodeContext.EventBus — and
+        // Hrot.ClusterRunner/Program.cs turns on FdpConfig.EnforceExplicitEventRegistration, under
+        // which PublishManaged throws for an unregistered type. Without this line, pressing pause on
+        // a CGF/SimHost/IG toolbar throws instead of pausing.
+        //
+        // The orchestrator (OrchestratorSubsystem), ExCon and the editor each already call this on
+        // their own bus; the nodes built here were the gap, because the only call that named a
+        // node's bus was in CgfApplication, whose sole caller is a unit test.
+        Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(eventBus);
+
         // Step 4 — Time controller (Slave role; transitions handled by SlaveSyncController)
         var timeConfig = new TimeControllerConfig
         {

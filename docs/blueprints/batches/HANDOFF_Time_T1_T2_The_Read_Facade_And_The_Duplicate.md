@@ -130,3 +130,56 @@ dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/... --no-build \
 ThePauseFlagOnTheClockIsFalseWhilePaused` **4/0**. ⚠ `DEBT-AIB-030`: the rotating flakes are confirmed by
 `--filter`, not by the whole-suite number. ⭐ `tracker-counts.py --check` + the **`TM-` ids you allocated**
 *(Area H only)*. ⭐ **Rule 4: merge the coordinator branch again before your final commit.**
+
+---
+
+## ⭐⭐⭐ RECONCILIATION — **BUILT BEFORE THIS HANDOFF ARRIVED, and `T2` came out INVERTED**
+
+⚠ **Timing, stated plainly:** the time lane was told to self-direct *(user, `2026-08-21`: "continue
+without the coordinator… you are the time lane only")* and had already shipped `T1`+`T2` as
+**Batch TM-105** *(`b59248d8`)* when this handoff was imported. ⛔ **No rule-1b marker was pushed for
+it** — there was no dispatch to mark. 📄 **[`BATCH_TM105_Read_Side_And_Transport_Merge.md`](BATCH_TM105_Read_Side_And_Transport_Merge.md)**.
+
+### ✅ Where the built work MATCHES this handoff
+
+| obligation | built |
+|---|---|
+| `T1` ① `IsAdvancing = DeltaTime > 0`, `IsPaused` obsoleted | ✅ — and the rail `IsAdvancing_IsNotTheNegationOfIsPaused_OnAPausedClock` fails if anyone derives one from the other |
+| `T1` ② read the VIEW's singleton, never `GetCurrentState()` | ✅ |
+| `T1` ③ `IsHalted` + pass-throughs | ✅ |
+| `T1` ④ **no `HaltReason`** | ✅ — ⛔ **and not the two-value placeholder either**: a `Reason` that always answers `Running`/`Halted` adds nothing `IsAdvancing` does not already say, and is the silent-default pattern |
+| `T1` ⑤ do NOT re-point the twelve notions | ✅ — the first site is identified and **deliberately left** *(`TM-012`)* |
+| `T2` ② move the guard, do not keep two classes | ✅ **satisfied — by the opposite route**, see below |
+| `T2` ③ report the measured reference count before deleting | ✅ **and it overturned the premise** |
+
+### ⛔⛔ Where it DIVERGES — **`T2` ①: this handoff says delete the FACADE. The opposite shipped.**
+
+📌 **This handoff's premise** *(§1 `I3`, and §3)*: *"only `EditorTimeTransportAdapter` is constructed…
+the **Facade** has no constructor call ⇒ `T2` retires it."*
+
+📐 **Measured — the premise is FALSE. BOTH are constructed, eight lines apart in one method:**
+
+| site | builds | feeds |
+|---|---|---|
+| `EditorSubsystem.cs:3878` → `TimeControlStatusBarSection:31` | **`EditorTimeTransportAdapter`** | the **status bar** |
+| `EditorSubsystem.cs:3886` | **`EditorTimeTransportFacade`** | the **main toolbar** *(`MainToolbarTimeControlSection`, BATCH-24)* |
+
+⇒ ⭐⭐⭐ **Deleting the Facade would have deleted the main toolbar's time controls.**
+
+⭐⭐ **What shipped instead, and why it still satisfies the handoff's intent:** the Facade is `public`
+and carries the null-guards; the Adapter is `internal` and lacks them. ⇒ **keep the Facade, delete the
+Adapter, repoint the status bar** — which is obligation ② *("move the guard, do not keep the class")*
+reached from the other side, with **one implementation and both surfaces intact**.
+
+⭐ **`AS-11` and its summary row are corrected in the design** *(`DESIGN_Time_Architecture.md` §4 + §6)*
+— 📌 the false call-site claim originated there and was inherited by this handoff.
+
+### ⚠ One more: **`SimClock.Of(ISimulationView)` is not implementable as this handoff's diagram draws it**
+
+📐 The sequence shows `V->>G: GetSingletonUnmanaged GlobalTime` **on the view**. ⛔ **`ISimulationView`
+has no singleton accessor at all** *(measured: `Tick`, `Time`, components, queries, events, command
+buffer — that is the whole interface)*, and it has **1171 references**, so widening it is not a small
+change. ⇒ ⭐ **`SimClock.Of` casts to `EntityRepository` internally**, on the convention settled in
+📄 `Blueprint_Subsystem_Runtime_Detailed_Design.md` §12.2 *("the engine convention, not brittle…
+no hedging needed")*. ⭐ **The corrected shape is in `DESIGN_Time_Architecture.md` §9a/§9a.1**, where it
+survives this batch.

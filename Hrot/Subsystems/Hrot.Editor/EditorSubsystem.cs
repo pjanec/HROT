@@ -186,6 +186,7 @@ namespace Hrot.Editor
         private EntityRepository?       _world;
         private ModuleHostKernel?       _kernel;
         private MasterSyncController?   _timeController;
+        private Fdp.Toolkit.Time.ITimeCommands? _timeCommands;
         /// <summary>⭐ BATCH 84 / R-66 — the frozen-time signal for the variable surfaces (ruling 15).</summary>
         private MasterSyncTimeControllerAdapter? _bpTimeAdapter;
         /// <summary>⭐ BATCH 84 — the AI debug-session registry built in RegisterWindows; see the test accessor.</summary>
@@ -586,13 +587,14 @@ namespace Hrot.Editor
         /// the first tick, and a surface with no way to observe the clock must not claim the sim is
         /// running.</para>
         /// </summary>
-        private bool ClockIsHalted()
-        {
-            var world = _world;
-            if (world is null) return true;
-            if (!world.HasSingletonUnmanaged<GlobalTime>()) return true;
-            return world.GetSingletonUnmanaged<GlobalTime>().DeltaTime <= 0f;
-        }
+        /// <summary>
+        /// T5, first site. This was a hand-rolled copy of the guarded singleton read that
+        /// <c>SimClock</c> now owns — null world, missing singleton and the DeltaTime predicate, all
+        /// three identical. Routed rather than kept: the point of `T1` is that "is the simulation
+        /// running" has ONE named answer, and a second copy of the predicate is how the codebase
+        /// arrived at a dozen of them.
+        /// </summary>
+        private bool ClockIsHalted() => Fdp.Toolkit.Time.SimClock.Of(_world).IsHalted;
 
         /// <summary>Internal test hook: exposes the mutation interceptor wired to the entity inspector (UBP-P10T5).</summary>
         internal Fdp.Toolkit.Diagnostics.Gizmos.IMutationInterceptor? BpMutationInterceptor
@@ -711,8 +713,20 @@ namespace Hrot.Editor
             _world.RegisterEvent<CenterOnEntityCommand>();
 
             // ?? 2. Time controller (MasterSyncController in Deterministic/frozen mode) ??
+            // T3: the controller lives on THE BUS THE INTENTS LIVE ON — _orchestrationBus, which
+            // carries OrchestrationEventRegistry (registered at the top of this method). That is the
+            // rule every other node already follows: the Orchestrator builds its master on the same
+            // _bus it registers (OrchestratorSubsystem:118/:146), and CGF/SimHost/IG/ExCon put their
+            // controller and their egress translator on one bus each.
+            //
+            // The editor was the only place those were two different objects: the registry on
+            // _orchestrationBus, the master on _world.Bus. Intents published by the toolbar, the
+            // debugger or a BTree/HSM path therefore landed on a bus the master never read, and
+            // ReadManaged on the other bus returns empty — no error, nothing happens. Putting them
+            // on one bus is what unblocks paths B/C/D publishing intents like everyone else, and it
+            // is the same code the CGF node will need for cluster-side debugging.
             var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
-            _timeController = (MasterSyncController)TimeControllerFactory.Create(_world.Bus, timeConfig);
+            _timeController = (MasterSyncController)TimeControllerFactory.Create(_orchestrationBus, timeConfig);
             _kernel.SetTimeController(_timeController);
             // Start in Deterministic mode so authoring starts paused (dt == 0 every frame).
             _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
@@ -775,7 +789,13 @@ namespace Hrot.Editor
             _aiCoordinator.TriggerInitialLoad();
 
             // ── AIE-030: Shared debug session infrastructure (created before contributor, wired in RegisterWindows) ──
-            _aiTracerCoordinator = new AiTracerCoordinator();
+            // T4d: the SUBSYSTEM-SPECIFIC coordinator, not the base class. The base's
+            // RequestPause/RequestContinue/RequestStepOneTick are virtual no-ops, so constructing it
+            // here meant a BTree or HSM tracer asking the simulation to stop did nothing at all --
+            // silently. It publishes intents on _orchestrationBus, the bus the master drains (T3),
+            // so path D now has the same shape as the cluster path.
+            _timeCommands        = new Fdp.Toolkit.Time.IntentTimeCommands(_orchestrationBus!);
+            _aiTracerCoordinator = new Hrot.Editor.Debug.EditorAiTracerCoordinator(_timeCommands);
             _btreeDebugSession   = new Hrot.BTree.Editor.Debug.BTreeDebugSession(_aiTracerCoordinator);
             _hsmDebugSession     = new Hrot.Hsm.Editor.Debug.HsmDebugSession(_aiTracerCoordinator);
             // ────────────────────────────────────────────────────────────────────────────────────
@@ -3880,7 +3900,8 @@ namespace Hrot.Editor
             if (_previewController != null && _timeController != null && _world != null
                 && windowManager.MainToolbar != null)
             {
-                var timeControls = new TimeControlStatusBarSection(_previewController, _timeController, _world);
+                var timeControls = new TimeControlStatusBarSection(
+                    _previewController, _timeController, _world, _timeCommands);
                 windowManager.StatusBar.RegisterSection(
                     id:             "editor_time_controls",
                     sortOrder:      100,
@@ -3889,7 +3910,7 @@ namespace Hrot.Editor
 
                 // ── BATCH-24: Main toolbar time-control group (§7, sortOrder range 0–9) ──
                 var timeTransportFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(
-                    _previewController, _timeController, _world);
+                    _previewController, _timeController, _world, _timeCommands);
                 var toolbarTimeSection = new Hrot.UI.Common.Panels.MainToolbarTimeControlSection(
                     timeTransportFacade);
                 windowManager.MainToolbar.RegisterEntry(

@@ -1,3 +1,13 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-08-21
+current-answer: features A/B/C as IMPLEMENTED intent — the NTP baseline sync and the wall-clock
+  domain the barrier is evaluated in.
+stale-below: the header's "Status: Design phase" is stale — this shipped.
+known-rot: none found.
+superseded-by: ../../blueprints/DESIGN_Time_Architecture.md for the current target.
+known-conflict: none.
+-->
 # Time Control — Phase 3 Design Document
 
 **Project:** `time-ctrl-3`  

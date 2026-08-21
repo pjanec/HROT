@@ -105,4 +105,81 @@ public class ExConLogicTimeTests
         logic.RequestStep();
         logic.SetTimeScale(1.0f);
     }
+
+    // ── T5: the three time properties that were never written ────────────────
+    //
+    // MasterSimTime / MasterWallTicks / MasterTimeScale had NO assignment anywhere in the repo, so
+    // they reported 0 / 0 / 1 forever while IExConLogic and docs/projects/.../Hrot.ExCon.md both
+    // documented them as live readings. The values were arriving all along on the very DTO that fed
+    // IsPaused; only the mode was being read off it.
+
+    /// <summary>
+    /// THE rail for TM-033: one pause message, and all four properties answer from it. Before the
+    /// fix only the first assertion passed.
+    /// </summary>
+    [Fact]
+    public void OnTimeMode_FeedsEveryTimeProperty_NotJustTheMode()
+    {
+        var logic = MakeLogic();
+
+        logic.OnTimeMode(new SwitchTimeModeWireDto
+        {
+            TargetModeInt    = (int)TimeMode.Deterministic,
+            SimTimeSnapshot  = 42.5,
+            BarrierWallTicks = 123456789L,
+            TimeScale        = 2.0f,
+        });
+
+        Assert.True(logic.IsPaused);
+        Assert.Equal(42.5,       logic.MasterSimTime, precision: 3);
+        Assert.Equal(123456789L, logic.MasterWallTicks);
+        Assert.Equal(2.0f,       logic.MasterTimeScale);
+    }
+
+    /// <summary>
+    /// ExCon has no clock of its own to advance between messages, so it must adopt the PAUSE
+    /// snapshot too — not only the resume anchor. A console that reset to the last resume time on
+    /// every pause would run backwards on screen.
+    /// </summary>
+    [Fact]
+    public void APauseSnapshot_IsAdopted_BecauseExConHasNoClockOfItsOwn()
+    {
+        var logic = MakeLogic();
+
+        logic.OnTimeMode(new SwitchTimeModeWireDto
+        {
+            TargetModeInt   = (int)TimeMode.Continuous,
+            SimTimeSnapshot = 10.0,
+        });
+        logic.OnTimeMode(new SwitchTimeModeWireDto
+        {
+            TargetModeInt   = (int)TimeMode.Deterministic,
+            SimTimeSnapshot = 25.0,
+        });
+
+        Assert.Equal(25.0, logic.MasterSimTime, precision: 3);
+    }
+
+    /// <summary>
+    /// A Continuous event carries FixedDelta = 0, not a zero SCALE. Latching that as a stop would
+    /// show the cluster frozen at 0x on every resume.
+    /// </summary>
+    [Fact]
+    public void AZeroTimeScaleOnResume_DoesNotClearTheScale()
+    {
+        var logic = MakeLogic();
+
+        logic.OnTimeMode(new SwitchTimeModeWireDto
+        {
+            TargetModeInt = (int)TimeMode.Deterministic,
+            TimeScale     = 4.0f,
+        });
+        logic.OnTimeMode(new SwitchTimeModeWireDto
+        {
+            TargetModeInt = (int)TimeMode.Continuous,
+            TimeScale     = 0f,
+        });
+
+        Assert.Equal(4.0f, logic.MasterTimeScale);
+    }
 }

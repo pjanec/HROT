@@ -149,6 +149,22 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
     internal Fdp.Core.EntityRepository? World => _context?.World;
 
+    /// <summary>
+    /// TestHook: runtime type of the CGF kernel's time controller. Mirrors
+    /// <c>SimHostApp.TestHook_TimeControllerType</c> so an integration test can assert both
+    /// kernel-owning nodes the same way.
+    /// </summary>
+    internal Type? TestHook_TimeControllerType => _context?.Kernel?.GetTimeController()?.GetType();
+
+    /// <summary>
+    /// TestHook: current <see cref="Fdp.ModuleHost.Time.TimeMode"/> of the CGF kernel's time
+    /// controller. CGF sits in the orchestrator's lockstep roster, so on Pause this must reach
+    /// <c>Deterministic</c> — if it does not, the node never ACKs and every step after the first
+    /// is lost (AS-14). Nothing observed this before Batch 104.
+    /// </summary>
+    internal Fdp.ModuleHost.Time.TimeMode? TestHook_TimeControllerMode
+        => _context?.Kernel?.GetTimeController()?.GetMode();
+
     /// <summary>Internal test hook: exposes the data breakpoint manager (UBP-P10T2).</summary>
     internal IDataBreakpointManager? DataBreakpointManager => _bpManager;
 
@@ -396,6 +412,18 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // Store polling action for heartbeat updates in Update().
             _cgfNetworkPolling = adapters.PollNetwork;
         }
+
+        // ── Cluster time control (TM-002) ─────────────────────────────────────────
+        // CGF is a kernel-owning node and the orchestrator DOES list it in the lockstep
+        // roster (OrchestratorSubsystem: SubsystemName is "SimHost" or "IG" or "CGF"), so the
+        // master blocks every step on a FrameAck from this node.  SimHost/IG/StrideMock get the
+        // translators that carry that traffic from SharedApplicationBootstrapper Phase 6c; CGF
+        // composes through HrotNodeBuilder directly and therefore has to register them itself.
+        // Without this the node had a SlaveSyncController but no way to hear a pause or answer a
+        // frame order — it stayed Continuous forever and the master's _pendingAcks never cleared,
+        // so every step after the first was silently discarded (AS-14's actual root cause).
+        SlaveTimeTranslatorRegistration.RegisterOn(
+            _context.Kernel, _context.Participant, _context.EventBus, _context.NodeId);
 
         // Auxiliary translators (time-sync, combat, mission-control) via the injected factory.
         // Mirrors SimHostApp.cs pattern: nodeFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(kernel)

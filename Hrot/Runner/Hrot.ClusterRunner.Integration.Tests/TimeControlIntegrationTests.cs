@@ -404,4 +404,113 @@ public sealed class TimeControlIntegrationTests : IDisposable
         Assert.True(finalDelta > 0.3,
             $"Sim-time must advance freely after second cycle Resume; delta={finalDelta:F3}s");
     }
+
+    // ── Scenario G: CGF is a lockstep participant, not just a roster entry ────
+
+    /// <summary>
+    /// AS-14 regression rail (Batch 104). The orchestrator puts every kernel-owning node in the
+    /// lockstep roster — <c>SubsystemName is "SimHost" or "IG" or "CGF"</c> — so the master blocks
+    /// each step on a FrameAck from CGF as much as from SimHost.
+    ///
+    /// <para>CGF's live composition path (<c>CgfSubsystem</c> → <c>HrotNodeBuilder</c>) used to wire
+    /// no time translators at all: the node held a <c>SlaveSyncController</c> that never heard
+    /// <c>SwitchTimeModeEvent</c> and never saw a <c>FrameOrder</c>, so it stayed Continuous and
+    /// never ACKed. The master's ACK set therefore never cleared and every step after the first was
+    /// discarded — measured as "3 steps ⇒ 1.000 s". Nothing observed the CGF side before this rail:
+    /// the two failing tests only saw the missing sim time, not the reason.</para>
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public async Task PauseStep_CgfNodeEntersLockstepAndAcksEveryStep()
+    {
+        const float StepDelta = 1.0f;
+        string payload = $"{{\"FixedDelta\":{StepDelta.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}}}";
+
+        Assert.NotNull(_harness.Cgf);
+        Assert.Equal(Fdp.ModuleHost.Time.TimeMode.Continuous, _harness.Cgf!.TestHook_TimeControllerMode);
+
+        await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
+        Assert.True(PumpUntil(() => _orchestratorSvc.UiCacheForTest!.IsPaused), "Should be paused");
+
+        // Both kernel-owning nodes must reach Deterministic — CGF is the one that did not.
+        bool cgfInLockstep = PumpUntil(
+            () => _harness.Cgf!.TestHook_TimeControllerMode == Fdp.ModuleHost.Time.TimeMode.Deterministic,
+            timeoutMs: 5000);
+        Assert.True(cgfInLockstep,
+            $"CGF must enter Deterministic on Pause; mode={_harness.Cgf!.TestHook_TimeControllerMode}");
+        Assert.Equal(Fdp.ModuleHost.Time.TimeMode.Deterministic, _simHost.TestHook_TimeControllerMode);
+
+        // Three steps must produce three steps' worth of time. If CGF stops ACKing, this is 1.000 s.
+        double before = _simHost.TestHook_CurrentSimTime;
+        for (int i = 0; i < 3; i++)
+        {
+            await SendTimeOpAsync(ClusterOpType.StepTime, payload).ConfigureAwait(false);
+            _harness.PumpFrames(SettleFrames);
+            Thread.Sleep(SettleFrames * PumpSleepMs);
+        }
+        double advanced = _simHost.TestHook_CurrentSimTime - before;
+        Assert.True(advanced > 3 * StepDelta * 0.5,
+            $"3 steps must advance ~{3 * StepDelta}s while CGF is in the roster; actual={advanced:F3}s");
+
+        await SendTimeOpAsync(ClusterOpType.ResumeTime).ConfigureAwait(false);
+        Assert.True(PumpUntil(() => !_orchestratorSvc.UiCacheForTest!.IsPaused), "Should resume");
+
+        // And CGF must come back out of lockstep, or the next running phase is frozen on that node.
+        bool cgfResumed = PumpUntil(
+            () => _harness.Cgf!.TestHook_TimeControllerMode == Fdp.ModuleHost.Time.TimeMode.Continuous,
+            timeoutMs: 5000);
+        Assert.True(cgfResumed,
+            $"CGF must return to Continuous on Resume; mode={_harness.Cgf!.TestHook_TimeControllerMode}");
+    }
+
+    // ── Scenario H: SetTimeScale over the cluster op path ─────────────────────
+
+    /// <summary>
+    /// Closes 104d's first measured gap: the suite exercised Pause/Resume/Step but never
+    /// <see cref="ClusterOpType.SetTimeScale"/>, even though time scale is the other lever on the
+    /// master clock.
+    /// </summary>
+    [Fact(Timeout = 30_000)]
+    public async Task SetTimeScale_HalfSpeed_ReachesTheMasterController()
+    {
+        Assert.Equal(1.0f, _orchestratorSvc.TestHook_TimeScale, 3);
+
+        await SendTimeOpAsync(ClusterOpType.SetTimeScale, "{\"TimeScale\":0.5}").ConfigureAwait(false);
+
+        bool applied = PumpUntil(() => Math.Abs(_orchestratorSvc.TestHook_TimeScale - 0.5f) < 0.001f);
+        Assert.True(applied, $"SetTimeScale(0.5) must reach the master; scale={_orchestratorSvc.TestHook_TimeScale}");
+
+        // Sim time must still be advancing — a scale change is not a halt.
+        double delta = ObserveSimTimeDelta(600);
+        Assert.True(delta > 0.05, $"Clock must still advance at half speed; delta={delta:F3}s");
+
+        await SendTimeOpAsync(ClusterOpType.SetTimeScale, "{\"TimeScale\":1.0}").ConfigureAwait(false);
+        Assert.True(PumpUntil(() => Math.Abs(_orchestratorSvc.TestHook_TimeScale - 1.0f) < 0.001f),
+            "SetTimeScale(1.0) must restore full speed");
+    }
+
+    /// <summary>
+    /// The measured half of the same gap, pinned so the refactor does not assume otherwise:
+    /// <c>TimeScale = 0</c> — the OTHER way to halt the clock — is NOT reachable through the cluster
+    /// op path. <c>ClusterMaster</c> maps any non-positive payload to <c>1f</c>
+    /// (<c>scale = dto != null &amp;&amp; dto.TimeScale &gt; 0f ? dto.TimeScale : 1f</c>), so a
+    /// "set scale to zero" request silently becomes "resume full speed".
+    ///
+    /// <para>This rail records the behaviour rather than endorsing it. It matters to <c>M-42</c>:
+    /// <c>GlobalTime.IsPaused</c> is defined as <c>TimeScale == 0</c>, and nothing on any pause path
+    /// — including this one — ever sets it, so that flag stays false while the sim is paused. The
+    /// predicate to read is <c>DeltaTime</c>.</para>
+    /// </summary>
+    [Fact(Timeout = 30_000)]
+    public async Task SetTimeScale_Zero_IsCoercedToOne_ByTheClusterOpPath()
+    {
+        await SendTimeOpAsync(ClusterOpType.SetTimeScale, "{\"TimeScale\":0.0}").ConfigureAwait(false);
+        _harness.PumpUntil(() => false, SettleFrames);
+
+        Assert.Equal(1.0f, _orchestratorSvc.TestHook_TimeScale, 3);
+
+        // And therefore the clock keeps running: TimeScale is not a usable halt over this path.
+        double delta = ObserveSimTimeDelta(600);
+        Assert.True(delta > 0.05,
+            $"TimeScale=0 over the cluster op path does not halt the clock; delta={delta:F3}s");
+    }
 }

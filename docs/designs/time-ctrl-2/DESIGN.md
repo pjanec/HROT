@@ -1,3 +1,15 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-08-21
+current-answer: the three features A/B/C as IMPLEMENTED intent.
+stale-below: the header's "Status: Design phase" is stale — this shipped.
+known-rot: feature C says ExCon "must participate in cluster lockstep". ⚠ Measured 2026-08-21: the
+  orchestrator's roster filter is `SubsystemName is "SimHost" or "IG" or "CGF"`, which EXCLUDES
+  ExCon, though ExConSubsystem does construct its own SlaveLockstepTranslator. Unreconciled — see
+  Area H when it is next touched.
+superseded-by: ../../blueprints/DESIGN_Time_Architecture.md for the current target.
+known-conflict: none.
+-->
 # Time Control — Phase 2 Design Document
 
 **Project:** `time-ctrl-2`  
