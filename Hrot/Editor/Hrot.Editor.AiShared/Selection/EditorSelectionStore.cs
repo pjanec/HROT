@@ -7,8 +7,21 @@ public sealed class EditorSelectionStore
     // Currently-active asset -- the asset whose canvas window has focus.
     private IEditableAsset? _activeAsset;
 
-    // Per-asset sub-selection keyed by AssetId.
-    private readonly Dictionary<Guid, IAssetSubSelection?> _subSelectionsByAsset = new();
+    // ⭐⭐⭐ L0.1 — the STORAGE IS A SET, keyed by AssetId.
+    // 📄 DESIGN_Details_Panel_View_Switching.md §6 `L0.1`: "selection SET on the store —
+    //    ActiveSubSelections; ActiveSubSelection becomes the derived single".
+    // 📌 R-118: a bridge REPORTS; it does not filter. ⇒ the store must be able to HOLD what a
+    //    marquee produces, or the filtering just moves one layer down.
+    // ⚠ Never null and never re-allocated for an unchanged selection — see EmptySelection.
+    private readonly Dictionary<Guid, IReadOnlyList<IAssetSubSelection>> _subSelectionsByAsset = new();
+
+    /// <summary>
+    /// ⭐⭐ The ONE empty instance. 📌 §6 `L0.4`: <i>"return the same list instance when unchanged,
+    /// or every view rebuilds per frame."</i> ⛔ A fresh <c>Array.Empty</c> would still be reference-
+    /// equal, but a fresh <c>List</c> would not — this makes the guarantee explicit rather than
+    /// incidental.
+    /// </summary>
+    private static readonly IReadOnlyList<IAssetSubSelection> EmptySelection = Array.Empty<IAssetSubSelection>();
 
     // Set of assets with at least one window currently open.
     private readonly HashSet<Guid> _openAssets = new();
@@ -56,31 +69,96 @@ public sealed class EditorSelectionStore
         }
     }
 
-    /// <summary>Sub-selection within the active asset. Read- and write-routed through this property.</summary>
-    public IAssetSubSelection? ActiveSubSelection
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L0.1</c> — the FULL sub-selection within the active asset.</b> 📄 §6 <c>L0.1</c>.
+    ///
+    /// <para>⭐ Never <see langword="null"/> — an empty selection is an empty LIST. 📌 <c>R-118</c>:
+    /// <c>null</c> used to mean <i>"nothing"</i> AND <i>"more than one"</i> AND <i>"unresolvable"</i>,
+    /// ⛔ three facts flattened into one, which is exactly what the design deletes.</para>
+    /// </summary>
+    public IReadOnlyList<IAssetSubSelection> ActiveSubSelections
     {
-        get => _activeAsset is null ? null : _subSelectionsByAsset.GetValueOrDefault(_activeAsset.AssetId);
+        get => _activeAsset is null ? EmptySelection : GetSubSelections(_activeAsset.AssetId);
         set
         {
             if (_activeAsset is null) return;
-            var current = _subSelectionsByAsset.GetValueOrDefault(_activeAsset.AssetId);
-            if (Equals(current, value)) return;
-            _subSelectionsByAsset[_activeAsset.AssetId] = value;
-            OnSelectionChanged?.Invoke();
+            SetSubSelections(_activeAsset.AssetId, value);
         }
     }
 
-    /// <summary>Read sub-selection for any asset (active or not).</summary>
-    public IAssetSubSelection? GetSubSelection(Guid assetId) =>
-        _subSelectionsByAsset.GetValueOrDefault(assetId);
+    /// <summary>
+    /// ⭐⭐ <b>The DERIVED single</b> — 📄 §6 <c>L0.1</c>: <i>"<c>ActiveSubSelection</c> becomes the
+    /// derived single … every existing reader unchanged."</i>
+    ///
+    /// <para>⛔⛔ <b><c>Count == 1</c>, deliberately — and this is NOT <c>R-118</c>'s deleted rule
+    /// reappearing.</b> 📐 The seven production read sites *(<c>InspectorWindow</c> ×3,
+    /// <c>BlueprintDetailsWindow</c> ×4)* each ask <i>"is the selection THIS one node?"</i>. ⭐ Answering
+    /// <c>list[0]</c> for a two-node marquee would silently show node 1 of 2 — a behaviour change this
+    /// task promises not to make. ⇒ ⭐⭐ <b>the SET carries the whole truth for the new
+    /// <c>DetailsContext</c> path; this property preserves today's answer exactly for the old one.</b>
+    /// 📌 The genuine home of the <i>"exactly one"</i> rule is <c>L1.4</c>'s PREDICATE
+    /// (<c>ctx.Selection is [BlueprintNodeSelection]</c>), which is where the design puts it.</para>
+    /// </summary>
+    public IAssetSubSelection? ActiveSubSelection
+    {
+        get
+        {
+            var all = ActiveSubSelections;
+            return all.Count == 1 ? all[0] : null;
+        }
+        set => ActiveSubSelections = value is null ? EmptySelection : new[] { value };
+    }
+
+    /// <summary>Read the full sub-selection for any asset (active or not). ⭐ Never null.</summary>
+    public IReadOnlyList<IAssetSubSelection> GetSubSelections(Guid assetId) =>
+        _subSelectionsByAsset.GetValueOrDefault(assetId) ?? EmptySelection;
+
+    /// <summary>Read sub-selection for any asset (active or not). ⭐ The derived single — see
+    /// <see cref="ActiveSubSelection"/> for why <c>Count == 1</c>.</summary>
+    public IAssetSubSelection? GetSubSelection(Guid assetId)
+    {
+        var all = GetSubSelections(assetId);
+        return all.Count == 1 ? all[0] : null;
+    }
+
+    /// <summary>
+    /// ⭐⭐ Write the full sub-selection for any asset.
+    ///
+    /// <para>⛔⛔ <b>The no-change guard is what makes a PAN free</b> — 📄 §2b's second sequence:
+    /// <i>"AFTER <c>L0.2</c> the same set is written ⇒ <c>Equals(current)</c> ⇒ no event ⇒ unchanged,
+    /// no repaint."</i> ⚠ It compares ELEMENTWISE, because the bridges build a fresh list every frame
+    /// ⇒ reference equality would never hold and every frame would fire.</para>
+    ///
+    /// <para>⭐ On no change the STORED INSTANCE IS KEPT, so a reader that caches by reference — and
+    /// the context builder in <c>L0.3</c> — sees the same object frame after frame *(§6 <c>L0.4</c>)*.</para>
+    /// </summary>
+    public void SetSubSelections(Guid assetId, IReadOnlyList<IAssetSubSelection>? selection)
+    {
+        var incoming = selection is null || selection.Count == 0 ? EmptySelection : selection;
+        var current  = _subSelectionsByAsset.GetValueOrDefault(assetId) ?? EmptySelection;
+        if (SameSelection(current, incoming)) return;   // ⭐ keeps `current`, does not store `incoming`
+        _subSelectionsByAsset[assetId] = incoming;
+        OnSelectionChanged?.Invoke();
+    }
 
     /// <summary>Write sub-selection for any asset. Used by windows that are not currently focused.</summary>
-    public void SetSubSelection(Guid assetId, IAssetSubSelection? selection)
+    public void SetSubSelection(Guid assetId, IAssetSubSelection? selection) =>
+        SetSubSelections(assetId, selection is null ? EmptySelection : new[] { selection });
+
+    /// <summary>
+    /// ⭐ Elementwise equality over the two lists. ⚠ ORDER-SENSITIVE, and that is correct rather than
+    /// lazy: the bridges enumerate the canvas selection in a stable order, so a differing order IS a
+    /// differing selection. ⛔ An order-insensitive compare would need a sort or a set per frame — a
+    /// per-frame allocation to answer a question nothing asks.
+    /// </summary>
+    private static bool SameSelection(
+        IReadOnlyList<IAssetSubSelection> a, IReadOnlyList<IAssetSubSelection> b)
     {
-        var current = _subSelectionsByAsset.GetValueOrDefault(assetId);
-        if (Equals(current, selection)) return;
-        _subSelectionsByAsset[assetId] = selection;
-        OnSelectionChanged?.Invoke();
+        if (ReferenceEquals(a, b)) return true;
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+            if (!Equals(a[i], b[i])) return false;
+        return true;
     }
 
     /// <summary>

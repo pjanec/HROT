@@ -73,7 +73,7 @@ public sealed record BlackboardWindowViewModel(
 /// The drawing logic delegates to a testable static view-model builder so that unit
 /// tests never touch ImGui.
 /// </summary>
-public sealed class BlackboardAuthoringWindow : ManagedWindow
+public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsViewSource
 {
     private readonly EditorSelectionStore _store;
     private readonly IRefactorService _refactorService;
@@ -397,7 +397,28 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     private VariablesPanelControl? _variablesControl;
     private IEditableAsset? _lastAssetBase;
 
-    protected override void DrawClientArea()
+    protected override void DrawClientArea() => DrawContent();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.3</c> — THE CONTENT, split from the WINDOW so a Details view can host it.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L3</c>'s table.
+    /// ⭐ Same ROUTING move as <c>L3.2</c>'s <c>GraphSignatureWindow.DrawContent</c>: the body is
+    /// unchanged and there is still exactly ONE of it — ⛔ not a duplicate.
+    /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.3</c> — this window CONTRIBUTES the Blackboard view to its perspective's
+    /// catalogue.</b> 📄 §6 <c>L3</c> · §6 <c>L1.2</c>'s claim chain *(<c>R-67</c> — no new root
+    /// argument)*.
+    /// <para>⚠ Built in the registrar's CONSTRUCTOR *(<c>:288</c>)*, like <c>Details</c>, so its arm is
+    /// mirrored there rather than reached through <c>RegisterExtraWindow</c> — ⭐ the SAME
+    /// <c>_viewSources</c> guard covers both paths, so a window reaching both registers once.</para>
+    /// </summary>
+    public IEnumerable<Shell.DetailsViewDescriptor> DetailsViews
+    {
+        get { yield return Shell.BlackboardDetailsViewDescriptor.For(this); }
+    }
+
+    public void DrawContent()
     {
         // Prune stale alias bindings before building the view-model (DEBT-06).
         if (_store.ActiveAsset is IBlackboardManagedAsset bbAssetForPrune)

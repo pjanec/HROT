@@ -71,9 +71,9 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     {
         var reg = AsTheEditorBuildsIt(perspective, new EditorSelectionStore());
 
-        Assert.NotNull(reg.AiDetails);
-        Assert.Equal("Details", reg.AiDetails!.Title);
-        Assert.Equal(perspective, reg.AiDetails.OwningPerspective);
+        Assert.NotNull(reg.Details);
+        Assert.Equal("Details", reg.Details!.Title);
+        Assert.Equal(perspective, reg.Details.OwningPerspective);
     }
 
     /// <summary>
@@ -84,7 +84,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     /// </summary>
     [Fact]
     public void TheBlueprintPerspective_GetsNoAiDetailsPanel()
-        => Assert.Null(AsTheEditorBuildsIt("Blueprint", new EditorSelectionStore()).AiDetails);
+        => Assert.Null(AsTheEditorBuildsIt("Blueprint", new EditorSelectionStore()).Details);
 
     /// <summary>
     /// ⭐⭐ <b>Registered by <c>RegisterWindows</c>, not left to the host.</b> 🔴 Asked of the
@@ -100,8 +100,8 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
         var reg = AsTheEditorBuildsIt(perspective, new EditorSelectionStore());
         reg.RegisterWindows(wm);
 
-        Assert.True(wm.TryGetWindow(reg.AiDetails!.Id, out var found));
-        Assert.Same(reg.AiDetails, found);
+        Assert.True(wm.TryGetWindow(reg.Details!.Id, out var found));
+        Assert.Same(reg.Details, found);
     }
 
     /// <summary>⚠ The two AI hosts must not share an id — both perspectives exist at once, and the
@@ -109,8 +109,8 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     [Fact]
     public void TheTwoAiDetailsPanels_HaveDistinctIds()
     {
-        var bt = AsTheEditorBuildsIt("BTree", new EditorSelectionStore()).AiDetails!;
-        var hs = AsTheEditorBuildsIt("HSM",   new EditorSelectionStore()).AiDetails!;
+        var bt = AsTheEditorBuildsIt("BTree", new EditorSelectionStore()).Details!;
+        var hs = AsTheEditorBuildsIt("HSM",   new EditorSelectionStore()).Details!;
 
         Assert.NotEqual(bt.Id, hs.Id);
     }
@@ -145,13 +145,13 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
 
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
 
-        Assert.True(reg.AiDetails!.ShowingVariables);
-        Assert.Equal("Inputs", reg.AiDetails.Heading);
+        Assert.True(reg.Details!.ShowingVariables);
+        Assert.Equal("Inputs", reg.Details.Heading);
         Assert.Equal(new[] { "Ammo", "Health" }, DetailsRowNames(reg));
 
         reg.MyBlueprint.SelectSection(BlackboardMyBlueprintModel.SectionWorkingState);
 
-        Assert.Equal("Working State", reg.AiDetails.Heading);
+        Assert.Equal("Working State", reg.Details.Heading);
         Assert.Equal(new[] { "Cursor" }, DetailsRowNames(reg));
     }
 
@@ -169,7 +169,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
 
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionAssetGlobals);
 
-        Assert.Equal("Asset Globals", reg.AiDetails!.Heading);
+        Assert.Equal("Asset Globals", reg.Details!.Heading);
     }
 
     /// <summary>
@@ -187,8 +187,8 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
 
         reg.MyBlueprint!.SelectItem(BlackboardMyBlueprintModel.SectionInputs, "Ammo");
 
-        Assert.Equal("Ammo", reg.AiDetails!.Variables.SelectedVariablePath);
-        var view = reg.AiDetails.Variables.Model.Build();
+        Assert.Equal("Ammo", reg.Details!.Variables.SelectedVariablePath);
+        var view = reg.Details.Variables.Model.Build();
         Assert.True(view.IsSelected(view.AllRows.Single(r => r.ShortName == "Ammo")));
         Assert.False(view.IsSelected(view.AllRows.Single(r => r.ShortName == "Health")));
     }
@@ -205,12 +205,12 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
         store.ActiveAsset = FakeAsset.With(Var("Health"));
 
         reg.MyBlueprint!.SelectSection(BlackboardMyBlueprintModel.SectionInputs);
-        Assert.True(reg.AiDetails!.ShowingVariables);
+        Assert.True(reg.Details!.ShowingVariables);
 
-        reg.AiDetails.ShowVariables(VariableOutlineSelection.None);
+        reg.Details.ShowVariables(VariableOutlineSelection.None);
 
-        Assert.False(reg.AiDetails.ShowingVariables);
-        Assert.Null(reg.AiDetails.Heading);
+        Assert.False(reg.Details.ShowingVariables);
+        Assert.Null(reg.Details.Heading);
     }
 
     /// <summary>⭐ Before any click the panel shows NOTHING — ⛔ not an empty table, which reads as
@@ -218,7 +218,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     [Fact]
     public void BeforeAnyClick_ThePanelShowsNothing()
         => Assert.False(AsTheEditorBuildsIt("BTree", new EditorSelectionStore())
-                        .AiDetails!.ShowingVariables);
+                        .Details!.ShowingVariables);
 
     // ══ the services the panel needs, asked of the panel ═════════════════════
 
@@ -232,7 +232,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     [InlineData("HSM")]
     public void TheDetailsPanel_HasItsRunStateSource(string perspective)
         => Assert.True(AsTheEditorBuildsIt(perspective, new EditorSelectionStore())
-                       .AiDetails!.Variables.HasRunStateSource);
+                       .Details!.Variables.HasRunStateSource);
 
     /// <summary>
     /// ⭐⭐⭐ <b>Batch 87's contract, applied to the new host.</b> 🔴 The twelfth instance was a Details
@@ -246,7 +246,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     {
         var reg = AsTheEditorBuildsIt(perspective, new EditorSelectionStore(), withEditService: true);
 
-        var table = ((IVariableTableHost)reg.AiDetails!).VariableTable;
+        var table = ((IVariableTableHost)reg.Details!).VariableTable;
         Assert.NotNull(table);
         Assert.Contains(table!, reg.BoundTables);
         Assert.True(table!.HasEditGestures);
@@ -265,7 +265,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
         //   statically (CS0184) and the rail would not compile the day someone adds the interface,
         //   which is precisely the day it should FAIL instead.
         => Assert.DoesNotContain(typeof(IDetailsSurfaceClaimant),
-                                 typeof(AiDetailsWindow).GetInterfaces());
+                                 typeof(DetailsWindow).GetInterfaces());
 
     /// <summary>⭐ The outline still claims, unchanged — the half that DOES drive the panel.</summary>
     [Fact]
@@ -298,7 +298,7 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     // ── helpers ─────────────────────────────────────────────────────────────
 
     private static string[] DetailsRowNames(PerspectiveWorkspaceRegistrar reg)
-        => reg.AiDetails!.Variables.Model.Build().AllRows
+        => reg.Details!.Variables.Model.Build().AllRows
               .Select(r => r.ShortName).OrderBy(n => n, StringComparer.Ordinal).ToArray();
 
     private static BlackboardVariableEntry Var(string n) => new(n, typeof(float), null);

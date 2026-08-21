@@ -90,7 +90,7 @@ public class PerspectiveWorkspaceRegistrar
     /// <para>⭐ 📌 <c>Q32</c> ruling 6 — <i>"the same Details panel is REUSED for every asset type"</i>:
     /// what is reused is <c>VariableDetailsSection</c>, which both windows host.</para>
     /// </summary>
-    public AiDetailsWindow? AiDetails { get; }
+    public DetailsWindow? Details { get; }
 
     /// <summary>
     /// ⭐ The one value formatter, shared by <see cref="Variables"/> and <see cref="Watch"/>.
@@ -212,7 +212,8 @@ public class PerspectiveWorkspaceRegistrar
         DecodeRawValue? valueDecoder = null,
         Func<bool>? isSimUp = null,
         Func<bool>? isFrozen = null,
-        WriteLiveValue? writeLive = null)
+        WriteLiveValue? writeLive = null,
+        Shell.IEntitySelectionSource? entitySelection = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -230,6 +231,7 @@ public class PerspectiveWorkspaceRegistrar
         if (debugRegistry is null) throw new ArgumentNullException(nameof(debugRegistry));
 
         _perspectiveName = perspectiveName;
+        _entitySelection = entitySelection;
         // ⭐ Row 58 — the run state, from signals that are ABOUT TIME.
         // 🔴🔴 Batch 84 / R-66: this used to be RunStateSource.For(debugRegistry), on the premise that
         //    "a live session is what running means to this editor". MEASURED FALSE — ActiveSession is
@@ -272,7 +274,12 @@ public class PerspectiveWorkspaceRegistrar
             store:             selectionStore,
             registry:          debugRegistry,
             idOverride:        $"ai_runtime_inspector_{suffix}",
-            owningPerspective: perspectiveName);
+            owningPerspective: perspectiveName,
+            // ⭐⭐⭐ L3.1 — the catalogue is PASSED, so RegisterPane can contribute the Runtime view.
+            //   📌 The 2026-08-16 rule: this registrar HOLDS the registry (a field initialiser), so it
+            //      must hand it over. ⛔ EditorSubsystem's three RegisterPane calls are UNCHANGED —
+            //      the root gains nothing to forget (R-67).
+            detailsViews:      DetailsViews);
 
         TraceTimeline = new TraceTimelineWindow(
             store:             selectionStore,
@@ -296,6 +303,10 @@ public class PerspectiveWorkspaceRegistrar
             //    contributed nothing. ⛔ The registrar already HELD the exporter; it handed it to the
             //    validator two lines up and not to this window.
             actionSchemaExporter: schemaExporter);
+
+        // ⭐⭐⭐ L3.3 — BlackboardAuthoring is built HERE (like Details), so the claim chain never
+        //    sees it; its arm is mirrored through the SAME one implementation.
+        ContributeDetailsViews(BlackboardAuthoring);
 
         Diagnostics = new DiagnosticsWindow(
             catalog:           catalog,
@@ -440,11 +451,30 @@ public class PerspectiveWorkspaceRegistrar
             //    ⭐⭐ Built HERE and not by the composition root, for the same reason MyBlueprint and
             //       Variables are: a surface the host must remember to attach is how five surfaces
             //       came to be unreachable. ⇒ EditorSubsystem gains NOTHING to forget.
-            AiDetails = new AiDetailsWindow(
+            Details = new DetailsWindow(
                 id:                $"ai_details_{suffix}",
                 owningPerspective: perspectiveName,
                 // ⭐ The ONE formatter, shared with the standalone table and the Watch.
-                formatter:         ValueFormatter);
+                formatter:         ValueFormatter,
+                // ⭐⭐⭐ L2.1 — BOTH shell collaborators are PASSED, not attached later.
+                //   📌 The 2026-08-16 rule: "a production caller that HAS a dependency must PASS it."
+                //      This registrar holds the registry (a field, two lines of wiring below), the
+                //      selection store (an argument) and the run-state source (line 240). ⛔ An
+                //      AttachShell(...) setter would be a tenth silent default waiting to happen.
+                views:             DetailsViews,
+                // ⭐⭐ §2: "only the workspace builds a context" — ⛔ the window reads no store.
+                //   ⚠ DEVIATION, stated: §2 draws this on PerspectiveWorkspace.BuildContext(), which
+                //     L6.1 extracts from THIS registrar's generic half (§5's "wiring hub"). Until
+                //     then the wiring hub is the registrar itself, so the lambda lives here and L6.1
+                //     moves one method. Same shape as L0.3's builder and L1's registry home.
+                context:           new Shell.LiveContextSource(() =>
+                                       Shell.DetailsContextBuilder.Build(
+                                           selectionStore, perspectiveName, _runState(),
+                                           // ⭐⭐⭐ L0.4 (R-122) — the ENTITIES come from the World.
+                                           //   ⚠ Held as a field so every context this perspective
+                                           //     builds reads the SAME source, which is what keeps
+                                           //     §6 L0.4's same-instance guarantee meaningful.
+                                           _entitySelection)));
 
             // ⭐⭐ How a section id becomes a LIST. The registrar already holds the row-source resolver,
             //    so the outline is handed the resolution rather than the sources — ⛔ one row-source
@@ -462,12 +492,19 @@ public class PerspectiveWorkspaceRegistrar
             //    and the run-state install have ONE implementation across all three hosts (ruling 9).
             //    ⛔ Not re-implemented here — ConnectOutlineToDetails is the one path.
             _outlineSelection ??= MyBlueprint;
-            _detailsHost      ??= AiDetails;
+            _detailsHost      ??= Details;
             ConnectOutlineToDetails();
+
+            // ⭐⭐⭐ L1.2 — Details is built HERE, not handed in through RegisterExtraWindow, so its
+            //    claim-chain arm is mirrored here for the same reason the two lines above are:
+            //    ⭐ ONE registration path per concept (ruling 9), ⛔ not a second mechanism.
+            // ⚠ The guard is the same _viewSources set the chain uses, so a window reaching BOTH paths
+            //   registers its views exactly once.
+            ContributeDetailsViews(Details);
 
             // ⭐⭐ Batch 87's ONE attach point. ⛔ Details is a table host like any other; a second
             //    Attach line here is precisely what the twelfth instance was.
-            AttachEditGestures(AiDetails);
+            AttachEditGestures(Details);
         }
 
         // AIE-034: per-perspective Watch + Breakpoints windows (optional).
@@ -584,7 +621,13 @@ public class PerspectiveWorkspaceRegistrar
         // ⭐⭐ 88b — same reasoning as the two above: registered HERE, not left to the host. ⛔ Its
         //    ROUTING is already live from the constructor, so a host that forgets to register it loses
         //    the window but never leaves a half-wired panel.
-        if (AiDetails != null) RegisterCore(windowManager, AiDetails);
+        if (Details != null)
+        {
+            RegisterCore(windowManager, Details);
+            // ⭐⭐ L4.4 — the shell needs the manager to REGISTER a float/pin. ⛔ Not a new root
+            //    argument: this is the same call the root already makes (R-67).
+            Details.AttachWindowManager(windowManager);
+        }
 
         // ⭐⭐⭐ Batch 89 (BP-327, REOPENED) — THE MODAL JOINS THE FRAME.
         //    🔴🔴 Batch 87 built VariableEditModal complete — drawer body, OK, Cancel, a greyed OK with
@@ -595,7 +638,7 @@ public class PerspectiveWorkspaceRegistrar
         //    ⛔ NOT drawn from a window's client area: ManagedWindow.Render returns early when the
         //    window is closed or belongs to another perspective, so the dialog would vanish exactly
         //    like it does today. ⛔ NOT a line in EditorSubsystem: three registrars are three lines to
-        //    forget, and R-67 is the whole reason AiDetails, MyBlueprint and Variables are registered
+        //    forget, and R-67 is the whole reason Details, MyBlueprint and Variables are registered
         //    HERE. ⭐ The overlay slot is the one documented for "the modal overlays all other windows".
         //    ⭐ A METHOD GROUP, not a lambda, so a rail can assert this modal's Draw is in the path.
         if (EditModal != null) windowManager.RegisterFrameOverlay(EditModal.Draw);
@@ -645,6 +688,17 @@ public class PerspectiveWorkspaceRegistrar
         if (window is IVariableOutlineSelectionSource outline) _outlineSelection ??= outline;
         if (window is IVariableDetailsHost      detailsHost)   _detailsHost      ??= detailsHost;
         ConnectOutlineToDetails();
+
+        // ⭐⭐⭐ L1.2 — A WINDOW THAT CONTRIBUTES DETAILS VIEWS REGISTERS THEM HERE.
+        //    📄 DESIGN_Details_Panel_View_Switching.md §6 L1.2: "registration through the existing
+        //    claim chain — ⛔ no new root argument". 📌 R-67, and this registrar is the one that has
+        //    forgotten a service four times: an interface arm means a host added later binds itself
+        //    with NO new line anywhere, so there is nothing for EditorSubsystem to forget.
+        // ⚠ Read ONCE, at registration — a source that varies its offer does so in its predicates
+        //   (R-116), not by being re-read every frame.
+        // ⛔ Registered even for a source that yields nothing: "asked and there are none" must be
+        //   distinguishable from "never asked" — the second is the bug this arm exists to prevent.
+        ContributeDetailsViews(window);
 
         // ⭐⭐⭐ Batch 87 — the Details panel and the Blueprint Watch arrive HERE, as extras, which is
         //    precisely why the constructor's single Attach could never have reached them. ⛔ Stated
@@ -721,6 +775,57 @@ public class PerspectiveWorkspaceRegistrar
 
     private IVariableOutlineSelectionSource? _outlineSelection;
     private IVariableDetailsHost?            _detailsHost;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L1.1</c>/<c>L1.2</c> — THIS PERSPECTIVE'S DETAILS-VIEW CATALOGUE.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §2: <c>PerspectiveWorkspace *-- DetailsViewRegistry</c>.
+    ///
+    /// <para>⚠ <b>A STATED PLACEMENT DEVIATION.</b> §2 composes the registry into
+    /// <c>PerspectiveWorkspace</c> — ⛔ but that type is extracted in <b><c>L6.1</c></b> *(§6:
+    /// "extract <c>PerspectiveWorkspace</c>, give Scenario one, rename the key with a layout
+    /// migration")*, not in <c>L1</c>. ⇒ ⭐ the registry lives on the registrar now, and <c>L6.1</c>
+    /// carries it across when it splits §5's <i>"wiring hub"</i> half out. 📌 §5 is explicit that the
+    /// generic half is <i>"trapped inside the specific one"</i> — this is one more thing that travels
+    /// with it, ⛔ not a second registry.</para>
+    /// </summary>
+    public Shell.DetailsViewRegistry DetailsViews { get; } = new();
+
+    /// <summary>⚠ Guards against double-registration: <c>RegisterExtraWindow</c> can be called twice
+    /// for the same window, and a second pass would throw on the duplicate id — ⛔ turning a harmless
+    /// re-registration into a crash.</summary>
+    /// <summary>⭐ <c>L0.4</c>'s entity source — see <c>PerspectiveWorkspaceServices.EntitySelection</c>.</summary>
+    private readonly Shell.IEntitySelectionSource? _entitySelection;
+
+    /// <summary>
+    /// ⭐ Exposed so a rail can assert on the CONSTRUCTED registrar that production passed a REAL
+    /// source — 📌 <c>R-67</c>, and the control the <c>2026-08-16</c> rule prescribes.
+    /// </summary>
+    public Shell.IEntitySelectionSource? EntitySelection => _entitySelection;
+
+    private readonly HashSet<Shell.IDetailsViewSource> _viewSources = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.3</c> — the ONE place a window's Details views reach the catalogue.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L1.2</c> *(<c>R-67</c>)*.
+    ///
+    /// <para>⚠⚠ <b>Collapsed from TWO copies, before <c>L3.3</c> could add a THIRD.</b> 📐 <c>L1.2</c>
+    /// wrote this arm in <c>RegisterExtraWindow</c> and mirrored it in the constructor for <c>Details</c>
+    /// *(which the chain never sees)*; ⛔ <c>BlackboardAuthoring</c> is a third window in the same
+    /// position. 📌 Ruling 9 — <i>"no keeping two implementations for the same concept"</i> — and three
+    /// copies of a guarded loop is how one of them quietly loses its guard.</para>
+    ///
+    /// <para>⭐ Read ONCE, at registration — a source that varies its offer does so in its predicates
+    /// *(<c>R-116</c>)*, ⛔ not by being re-read every frame. ⭐ The <c>_viewSources</c> guard means a
+    /// window reaching BOTH paths contributes exactly once.</para>
+    /// </summary>
+    private void ContributeDetailsViews(object? candidate)
+    {
+        if (candidate is not Shell.IDetailsViewSource source) return;
+        if (!_viewSources.Add(source)) return;
+
+        foreach (var descriptor in source.DetailsViews)
+            DetailsViews.Add(descriptor);
+    }
     private bool                             _outlineConnected;
 
     /// <summary>

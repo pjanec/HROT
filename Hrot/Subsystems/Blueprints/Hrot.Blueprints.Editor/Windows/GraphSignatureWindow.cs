@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.NodeDrawers;
@@ -32,7 +33,7 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// <see cref="ResolveEditModels"/>.
 /// </para>
 /// </summary>
-public sealed class GraphSignatureWindow : ManagedWindow
+public sealed class GraphSignatureWindow : ManagedWindow, Hrot.Editor.AiShared.Shell.IDetailsViewSource
 {
     private readonly EditorSelectionStore _selectionStore;
     private readonly DirtyTracker         _dirtyTracker;
@@ -184,7 +185,21 @@ public sealed class GraphSignatureWindow : ManagedWindow
 
     // ── ManagedWindow ─────────────────────────────────────────────────────────
 
-    protected override void DrawClientArea()
+    protected override void DrawClientArea() => DrawContent();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.2</c> — THE CONTENT, split from the WINDOW so a Details view can host it.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L3</c>'s table
+    /// *(<i>"Graph signature | <c>GraphSignatureWindow</c> (388 ln) | Blueprint ∧ a graph row"</i>)*.
+    ///
+    /// <para>⭐⭐ <b>This is the shape <c>L1.3</c> already relied on and did not have to build:</b>
+    /// <c>VariableDetailsSection</c> is deliberately window-less — <i>"the host draws it; it does not
+    /// own a window… that is what lets one Details panel per perspective host the same list."</i>
+    /// ⇒ ⛔ a <c>protected override</c> body is unreachable from a view, so the content must become
+    /// callable. ⭐ <b>ROUTING, not duplication:</b> the body is unchanged and there is still exactly
+    /// ONE of it — <see cref="DrawClientArea"/> and <c>GraphSignatureDetailsView</c> both call it.</para>
+    /// </summary>
+    public void DrawContent()
     {
         var asset = _asset ?? _selectionStore.SelectedAsset;
         if (asset == null)
@@ -314,6 +329,49 @@ public sealed class GraphSignatureWindow : ManagedWindow
     /// </para>
     /// Construction graphs stay out: nothing in the runtime consumes them yet (Q23 scope guard).
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L3.2</c> — this window CONTRIBUTES the Graph-signature view to Blueprint's
+    /// catalogue.</b> 📄 §6 <c>L3</c>'s table · §6 <c>L1.2</c>'s claim chain
+    /// *(<i>"registration through the existing claim chain, ⛔ no new root argument"</i> — <c>R-67</c>)*.
+    /// 📐 <c>EditorSubsystem:3190</c> already calls <c>RegisterExtraWindow</c> for this window, so the
+    /// root gains <b>nothing</b>.
+    /// </summary>
+    public IEnumerable<Hrot.Editor.AiShared.Shell.DetailsViewDescriptor> DetailsViews
+    {
+        get { yield return GraphSignatureDetailsViewDescriptor.For(this); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>L3.2</c>'s predicate, as a value.</b> 📄 §6 <c>L3</c> asks for
+    /// <i>"Blueprint ∧ a graph row"</i>.
+    ///
+    /// <para>⚠⚠ <b>STATED DEVIATION — <i>"a graph row"</i> is NOT EXPRESSIBLE from the context, and I
+    /// measured that rather than inventing it.</b> 📐 <c>search_graph(".*Selection$", label="Class")</c>
+    /// returns <b>12</b> sub-selection types and <b>none of them is a graph</b>; the selected graph is
+    /// this window's OWN state *(<c>_selectedGraphId</c>, snapped from the canvas by
+    /// <c>ResolveSelectedGraph</c>)*, ⛔ not something the store publishes. ⇒ ⭐ inventing a 13th
+    /// <c>IAssetSubSelection</c> with no writer would be a dead seam, which is the exact shape
+    /// <c>CLAUDE.md</c> warns about.</para>
+    ///
+    /// <para>⭐ <b>What IS expressible, and is the honest reading:</b> a Blueprint document that HAS at
+    /// least one editable graph row to show. ⚠ With zero graphs the window's own body draws
+    /// <i>"No Function, Event or Macro graphs in this blueprint."</i> — 📌 <c>R-117</c>: a view that
+    /// claims the panel in order to apologise is the blank defect one level down, so it declines and
+    /// the shell's grey line answers instead.</para>
+    /// </summary>
+    public bool AppliesTo(Hrot.Editor.AiShared.Shell.DetailsContext context)
+    {
+        if (context.Asset?.Kind != Hrot.Editor.AiShared.AssetKind.Blueprint) return false;
+
+        // ⚠⚠ MEASURED: the shell's IEditableAsset and BlueprintAsset are DIFFERENT hierarchies —
+        //    `context.Asset is BlueprintAsset` does not even compile (CS8121). ⇒ the KIND is what the
+        //    context can answer, and WHICH blueprint is this window's own question, exactly as
+        //    ResolveSelectedGraph already treats it. ⛔ Bridging the two hierarchies to satisfy a
+        //    predicate would be a far larger change than L3 authorises.
+        var asset = _asset ?? _selectionStore.SelectedAsset;
+        return asset != null && EditableGraphs(asset).Count > 0;
+    }
+
     private static List<Graph> EditableGraphs(BlueprintAsset asset)
         => asset.Graphs
             .Where(g => g.Kind is GraphKind.Function or GraphKind.Event or GraphKind.Macro)
