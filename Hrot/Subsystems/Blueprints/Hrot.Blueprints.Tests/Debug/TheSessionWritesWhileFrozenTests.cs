@@ -74,29 +74,51 @@ public sealed class TheSessionWritesWhileFrozenTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>THE offset agreement — the whole reason <c>WorkingStateLayout</c> exists.</b>
+    /// ⭐⭐⭐ <b>THE offset agreement — and Batch 102 (<c>102a</c>) MOVED WHO OWNS IT.</b>
     ///
     /// <para>📌 <c>Q32</c> §2.1: <i>"the read path uses <c>8 + OffsetBytes</c> … whoever computes the
-    /// offset must own that <c>+8</c> in exactly one place, not two."</i> ⇒ ⭐ the caller passes the
-    /// offset <b>within the working-state block</b>, exactly as the LAYOUT reports it, and the session
-    /// adds the header through the one owner. ⛔ A caller that added its own <c>+8</c> would write 8
-    /// bytes past the field it was shown — on <c>Blackboard1024</c> that is another subsystem's bytes
-    /// (📌 <c>R-65</c>), and it would look like a wrong value rather than corruption.</para>
+    /// offset must own that <c>+8</c> in exactly one place, not two."</i> ⭐ <b>That ruling is
+    /// unchanged.</b> ⚠ <b>What changed is WHERE the one place is.</b></para>
+    ///
+    /// <para>🔴🔴 <b>This rail asserted that <c>TryWriteWorkingStateField</c> adds the header</b>, and
+    /// it did — <b>unconditionally</b>. 📐 That is correct for <c>AiPrimitive</c>'s flat block and
+    /// ⛔ <b>WRONG for an <c>Instance</c> slot</b>, whose payload the partition allocator places and
+    /// whose block opens with a 16-byte <c>BlueprintLatentCursor</c>, not an 8-byte working-state
+    /// header. ⇒ every Instance write would have landed <b>8 bytes past the field</b> — 📌 on a
+    /// partitioned blackboard, in the NEIGHBOURING blueprint's bytes.</para>
+    ///
+    /// <para>⭐⭐ <b>So the transform moved into the RESOLVER's per-kind arms</b>, where the layout is
+    /// known, and the writer now stages the offset <b>exactly as given</b>. ⇒ ⭐ this rail asserts the
+    /// SAME property from the other side: <b>the writer adds nothing of its own.</b> ⚠ The "applied
+    /// exactly once" end-to-end claim is pinned by
+    /// <c>TheBlueprintLiveWriteLandsTests.TheHeaderIsAppliedExactlyOnce</c>, over both field tables,
+    /// and the Instance half by <c>TheInstanceWriteLandsInTheSlotTests</c>.</para>
+    ///
+    /// <para>⛔ <b>This is a re-expression, not a weakening</b> — a writer that quietly re-applied a
+    /// header would still redden it, and that is the corruption the original rail was written against.
+    /// ⚠ It is stated here rather than silently edited because ⭐ <b>a rail whose claim about the code
+    /// became false is a finding.</b></para>
     /// </summary>
     [Theory]
     [InlineData(0)]
     [InlineData(4)]
     [InlineData(64)]
-    public void TheStagedOffsetIsTheLayoutsOffsetPlusTheHeader(int fieldOffset)
+    public void TheWriterStagesTheOffsetItWasGiven(int componentOffset)
     {
         var (session, manager) = Session(paused: true);
 
         session.TryWriteWorkingStateField(
-            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), fieldOffset, new byte[4]);
+            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), componentOffset, new byte[4]);
 
-        Assert.Equal(
-            WorkingStateLayout.ComponentOffsetOf(fieldOffset),
-            Assert.Single(manager.Staged).ByteOffset);
+        Assert.Equal(componentOffset, Assert.Single(manager.Staged).ByteOffset);
+
+        // ⛔ And explicitly NOT the old behaviour: a re-applied header is the corruption case.
+        //    ⚠ Skipped at 0, where ComponentOffsetOf(0) and 0 could only differ by the header itself —
+        //    which the first assertion already covers.
+        if (componentOffset != 0)
+            Assert.NotEqual(
+                WorkingStateLayout.ComponentOffsetOf(componentOffset),
+                manager.Staged[0].ByteOffset);
     }
 
     /// <summary>
