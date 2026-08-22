@@ -18,7 +18,7 @@ known-conflict: none.
 >   most proven solution; the bullet was intentional."* ⇒ **the target is the branch's Stride (Bullet).**
 > - ⭐ **The real question for the port is the INTEGRATION SIDE:** how `stride-integ-1` changed the HROT/FDP
 >   shared code, and whether that breaks current functionality — **especially the brain → stride-node
->   ANIMATION control path.** Investigation in progress; findings will seed a proper Stride-port design.
+>   ANIMATION control path.** Findings recorded in **`docs/DESIGN_Stride_Port.md`** (the port-risk map + safe strategy).
 
 **Why this exists.** The trunk was re-created (fresh import/squash, ~2026-07-16), so ~20 branches share no
 git ancestor with it. Two features were found stranded that way (the MCP/AI-debug server; the cross-platform
