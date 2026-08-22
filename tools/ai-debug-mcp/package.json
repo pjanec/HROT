@@ -1,0 +1,20 @@
+{
+  "name": "ai-debug-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that proxies the Hrot ClusterRunner AI Debug HTTP API as MCP tools",
+  "type": "module",
+  "main": "src/index.mjs",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "verify": "node verify.mjs",
+    "gen:skill": "node generate-skill.mjs",
+    "gen:skill:check": "node generate-skill.mjs --check",
+    "test:catalog": "node test-catalog.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
