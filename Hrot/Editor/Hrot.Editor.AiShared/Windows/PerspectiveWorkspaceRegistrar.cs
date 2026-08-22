@@ -216,12 +216,6 @@ public class PerspectiveWorkspaceRegistrar
         Shell.IEntitySelectionSource? entitySelection = null,
         StagedWriteView? stagedWrites = null)
     {
-        // ⭐⭐⭐ W4 — assigned FIRST, before any host is built. ⛔ AttachEditGestures forwards it, and
-        //    this constructor calls that method several times below; a later assignment would wire the
-        //    hosts built before it with null — 📌 exactly L3.3's construction-order defect, which the
-        //    production-built rail caught on its first run.
-        _stagedWrites = stagedWrites;
-
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
         if (selectionStore is null) throw new ArgumentNullException(nameof(selectionStore));
@@ -238,7 +232,20 @@ public class PerspectiveWorkspaceRegistrar
         if (debugRegistry is null) throw new ArgumentNullException(nameof(debugRegistry));
 
         _perspectiveName = perspectiveName;
-        _entitySelection = entitySelection;
+
+        // ⭐⭐⭐ L6.1a — THE WORKSPACE, built before ANY host and after the argument guards.
+        //   ⛔ Everything below reads DetailsViews / EntitySelection / StagedWrites THROUGH it, and
+        //     AttachEditGestures forwards the staged view during this very constructor. A later
+        //     assignment would wire the hosts built before it against nothing — 📌 exactly L3.3's
+        //     construction-order defect, which the production-built rail caught on its first run.
+        //   ⚠ `_runState` is assigned just below, so the workspace takes a LAMBDA rather than the
+        //     field: a context reads the run state at BUILD time, per frame, never captured.
+        Workspace = new Shell.PerspectiveWorkspace(
+            // ⚠ `_runState!` — the field is assigned two lines below and the compiler's flow analysis
+            //   cannot see that the lambda only runs later. ⛔ Constructing the workspace AFTER the
+            //   assignment would read better but put it after the run-state comment block, which is
+            //   where a future edit would insert a host; the bang is the smaller risk, stated.
+            perspectiveName, selectionStore, () => _runState!(), entitySelection, stagedWrites);
         // ⭐ Row 58 — the run state, from signals that are ABOUT TIME.
         // 🔴🔴 Batch 84 / R-66: this used to be RunStateSource.For(debugRegistry), on the premise that
         //    "a live session is what running means to this editor". MEASURED FALSE — ActiveSession is
@@ -469,19 +476,12 @@ public class PerspectiveWorkspaceRegistrar
                 //      selection store (an argument) and the run-state source (line 240). ⛔ An
                 //      AttachShell(...) setter would be a tenth silent default waiting to happen.
                 views:             DetailsViews,
-                // ⭐⭐ §2: "only the workspace builds a context" — ⛔ the window reads no store.
-                //   ⚠ DEVIATION, stated: §2 draws this on PerspectiveWorkspace.BuildContext(), which
-                //     L6.1 extracts from THIS registrar's generic half (§5's "wiring hub"). Until
-                //     then the wiring hub is the registrar itself, so the lambda lives here and L6.1
-                //     moves one method. Same shape as L0.3's builder and L1's registry home.
-                context:           new Shell.LiveContextSource(() =>
-                                       Shell.DetailsContextBuilder.Build(
-                                           selectionStore, perspectiveName, _runState(),
-                                           // ⭐⭐⭐ L0.4 (R-122) — the ENTITIES come from the World.
-                                           //   ⚠ Held as a field so every context this perspective
-                                           //     builds reads the SAME source, which is what keeps
-                                           //     §6 L0.4's same-instance guarantee meaningful.
-                                           _entitySelection)));
+                // ⭐⭐⭐ §2: "only the workspace builds a context" — ⛔ the window reads no store.
+                //   ⭐ L6.1a RESOLVED the deviation L2.1 stated here: the lambda used to live in this
+                //     registrar with a comment saying "L6.1 moves one method". This IS that move —
+                //     PerspectiveWorkspace.BuildContext() is now the one place a context is made, and
+                //     the body is unchanged (L0.4's entity source included).
+                context:           Workspace.ContextSource());
 
             // ⭐⭐ How a section id becomes a LIST. The registrar already holds the row-source resolver,
             //    so the outline is handed the resolution rather than the sources — ⛔ one row-source
@@ -795,31 +795,40 @@ public class PerspectiveWorkspaceRegistrar
     /// generic half is <i>"trapped inside the specific one"</i> — this is one more thing that travels
     /// with it, ⛔ not a second registry.</para>
     /// </summary>
-    public Shell.DetailsViewRegistry DetailsViews { get; } = new();
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L6.1a</c> — THE GENERIC HALF, now a collaborator rather than fields on this class.</b>
+    /// 📄 §5: <i>"the generic half is trapped inside the specific one."</i> ⭐ This registrar keeps its
+    /// 21-parameter AI-authoring bag; ⛔ the registry, the context builder, the entity source and the
+    /// claim chain moved to <see cref="Shell.PerspectiveWorkspace"/>, so Scenario can have those four
+    /// WITHOUT the bag *(<c>L6.1c</c>)*.
+    /// <para>⚠ Every member below is a FORWARD, deliberately: <c>L6.1a</c> is a pure refactor and the
+    /// existing callers must not move. 📌 The stage gate *(<c>TheAiOfferSetsAreUnchangedTests</c>)* is
+    /// what says the move was clean.</para>
+    /// </summary>
+    public Shell.PerspectiveWorkspace Workspace { get; }
+
+    /// <inheritdoc cref="Shell.PerspectiveWorkspace.DetailsViews"/>
+    public Shell.DetailsViewRegistry DetailsViews => Workspace.DetailsViews;
 
     /// <summary>⚠ Guards against double-registration: <c>RegisterExtraWindow</c> can be called twice
     /// for the same window, and a second pass would throw on the duplicate id — ⛔ turning a harmless
     /// re-registration into a crash.</summary>
-    /// <summary>⭐ <c>L0.4</c>'s entity source — see <c>PerspectiveWorkspaceServices.EntitySelection</c>.</summary>
-    private readonly Shell.IEntitySelectionSource? _entitySelection;
-
     /// <summary>
     /// ⭐ Exposed so a rail can assert on the CONSTRUCTED registrar that production passed a REAL
     /// source — 📌 <c>R-67</c>, and the control the <c>2026-08-16</c> rule prescribes.
+    /// ⭐ <c>L6.1a</c>: forwarded from <see cref="Workspace"/>, which now owns it.
     /// </summary>
-    public Shell.IEntitySelectionSource? EntitySelection => _entitySelection;
-
-    /// <summary>⭐ <c>W4</c>'s shared staged set — see <c>PerspectiveWorkspaceServices.StagedWrites</c>.</summary>
-    private readonly StagedWriteView? _stagedWrites;
+    public Shell.IEntitySelectionSource? EntitySelection => Workspace.EntitySelection;
 
     /// <summary>
     /// ⭐ Exposed so a rail can assert on the CONSTRUCTED registrar that production passed a REAL view,
     /// and that the SAME instance reached both a Details-shaped and a Watch-shaped model —
     /// 📌 <c>R-67</c>, and the <c>2026-08-16</c> rule's prescribed control.
+    /// ⭐ <c>L6.1a</c>: forwarded from <see cref="Workspace"/>, which now carries it.
     /// </summary>
-    public StagedWriteView? StagedWrites => _stagedWrites;
+    public StagedWriteView? StagedWrites => Workspace.StagedWrites;
 
-    private readonly HashSet<Shell.IDetailsViewSource> _viewSources = new();
+    // ⭐ L6.1a — the `_viewSources` guard moved with the chain (PerspectiveWorkspace.Contribute).
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>L3.3</c> — the ONE place a window's Details views reach the catalogue.</b>
@@ -835,14 +844,10 @@ public class PerspectiveWorkspaceRegistrar
     /// *(<c>R-116</c>)*, ⛔ not by being re-read every frame. ⭐ The <c>_viewSources</c> guard means a
     /// window reaching BOTH paths contributes exactly once.</para>
     /// </summary>
-    private void ContributeDetailsViews(object? candidate)
-    {
-        if (candidate is not Shell.IDetailsViewSource source) return;
-        if (!_viewSources.Add(source)) return;
-
-        foreach (var descriptor in source.DetailsViews)
-            DetailsViews.Add(descriptor);
-    }
+    /// <remarks>⭐ <c>L6.1a</c> — the BODY moved to <see cref="Shell.PerspectiveWorkspace.Contribute"/>;
+    /// this stays as the registrar's name for it so the ~5 call sites are unchanged. ⛔ Not a second
+    /// implementation — one line, forwarding.</remarks>
+    private void ContributeDetailsViews(object? candidate) => Workspace.Contribute(candidate);
     private bool                             _outlineConnected;
 
     /// <summary>
@@ -939,7 +944,7 @@ public class PerspectiveWorkspaceRegistrar
         // ⚠ Deliberately BEFORE the `VariableTable is null` guard below: a host can own a MODEL without
         //   yet owning a control, and a model with no yellow is precisely the silent default this
         //   forwarding exists to prevent.
-        if (host.TableModel is { } model) model.StagedWrites = _stagedWrites;
+        if (host.TableModel is { } model) model.StagedWrites = Workspace.StagedWrites;
 
         if (host.VariableTable is not { } table) return;
 

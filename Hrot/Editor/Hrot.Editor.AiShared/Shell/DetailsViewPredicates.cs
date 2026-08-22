@@ -64,6 +64,61 @@ public static class DetailsViewPredicates
     /// document as a whole *(§6 <c>L3</c>: "asset context")*.</summary>
     public static bool HasAsset(DetailsContext context) => context.Asset is not null;
 
+    // ══ L6.5 — THE ENTITY CONTEXT ════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L6.5</c> — EXACTLY ONE ENTITY IS SELECTED.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L6</c> stage 3:
+    /// <i>"the entity/component predicate helper — <c>ctx.Entities is [{ }]</c> … so each entity-type
+    /// view is a one-line predicate."</i>
+    ///
+    /// <para>⭐⭐ <b>Added HERE rather than in a new type</b> — 📌 <c>R-13</c>. This class already owns
+    /// the <i>"exactly one"</i> rule for SUB-SELECTIONS *(<c>ExactlyOne&lt;T&gt;</c>, <c>R-118</c>'s
+    /// home)*; the entity axis is the same rule on a different field, and a second predicates class
+    /// would be two places that disagree about what "one" means.</para>
+    ///
+    /// <para>⛔⛔ <b>Why exactly one and not "at least one".</b> Both entity views present a SINGLE
+    /// entity's data — <c>EntityInspectorPanel</c> renders components and <c>MissionPanel</c> selects
+    /// by one <c>SelectedEntityId</c>. ⚠ Handing them a multi-selection would show the first and
+    /// silently ignore the rest, which is precisely the collapse <c>R-118</c> deletes. ⭐ Two entities
+    /// selected ⇒ no offer ⇒ <c>R-117</c>'s grey line, which is honest.</para>
+    ///
+    /// <para>⚠ <b><c>L0.4</c> already fills this field</b> *(as-built (a))* — every perspective's
+    /// context builder reads <c>SelectionState</c> from the World. ⛔ Nothing to add to the context;
+    /// this is the descriptor-side half.</para>
+    /// </summary>
+    public static bool ExactlyOneEntity(DetailsContext context)
+        => context.Entities is { Count: 1 };
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L6.5</c> — the BRAIN SIGNAL, as a predicate factory.</b>
+    ///
+    /// <para>⚠⚠ <b>As-built (c), measured <c>2026-08-22</c>: there is NO <c>HasBrain</c>/
+    /// <c>IsBrainEquipped</c> check in this codebase</b> — the design says so in its own words, and the
+    /// enumeration agrees. ⭐ The behavioural signal is <c>IMissionEditorService.GetAvailableBehaviors</c>
+    /// / <c>GetMissionSnapshot</c> returning <b>empty</b>.</para>
+    ///
+    /// <para>⛔⛔ <b>So this takes a DELEGATE, and that is a reference-wall fact, not a preference.</b>
+    /// 📐 <c>IMissionEditorService</c> lives in <c>Hrot.Presentation</c>/<c>Hrot.UI.Common</c> — ABOVE
+    /// <c>Hrot.Editor.AiShared</c> *(§3's reference wall, the same one that puts the two view adapters
+    /// in the composition root)*. ⇒ ⭐ the host supplies the signal; this assembly never learns what a
+    /// mission is. 📌 Exactly the shape <c>W4</c>'s <c>ResolveStagedField</c> uses for the same
+    /// reason.</para>
+    ///
+    /// <para>⭐ <b>It composes rather than restating:</b> the entity half is
+    /// <see cref="ExactlyOneEntity"/>, so a change to what "one entity" means reaches both views.</para>
+    /// </summary>
+    /// <param name="hasBrain">
+    /// ⭐ Answers <i>"does this entity have behaviours?"</i> ⚠ <c>null</c> ⇒ the predicate is always
+    /// <c>false</c>: a host that cannot ask must not claim yes. ⛔ NOT a silent default — the view
+    /// simply never offers, which is the honest answer for a host with no mission service.
+    /// </param>
+    public static System.Func<DetailsContext, bool> OneEntityWithBrain(
+        System.Func<Fdp.Core.Entity, bool>? hasBrain)
+        => context => ExactlyOneEntity(context)
+                   && hasBrain is not null
+                   && hasBrain(context.Entities[0]);
+
     /// <summary>
     /// ⭐⭐⭐ <b>The open document is of this KIND — and this is the ONLY legal way to ask.</b>
     /// 📄 §3, <c>R-112</c> verbatim: <i>"⛔ <b><c>AssetKind</c> is never a view key</b> — <b>a host says

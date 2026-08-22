@@ -512,22 +512,47 @@ public class EntityInspectorPanel
 
     private void DrawEntityDetails(IInspectableSession session, IInspectorContext context)
     {
-        ImGuiApi.BeginChild("EntityDetails_Scroll");
-
         int selCount = _selectedEntities.Count;
 
+        // ── The ARBITRATION half: decide WHICH entity (or that there is none) ──
+        //    The rendering half lives in DrawComponentsFor, so a caller that has
+        //    already decided the entity (the Scenario Details view) reuses the
+        //    renderer without going through this panel's own selection.
         if (selCount > 1)
         {
+            ImGuiApi.BeginChild("EntityDetails_Scroll");
             ImGuiApi.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1),
                 $"Multiple entities selected ({selCount}) - details not available.");
+            ImGuiApi.EndChild();
+            return;
         }
-        else if (selCount == 0 && context.SelectedEntity == null)
+
+        if (selCount == 0 && context.SelectedEntity == null)
         {
+            ImGuiApi.BeginChild("EntityDetails_Scroll");
             ImGuiApi.TextDisabled("Select an entity to view components.");
+            ImGuiApi.EndChild();
+            return;
         }
-        else
+
+        DrawComponentsFor(session, selCount == 1 ? _selectedEntities.First() : context.SelectedEntity!.Value);
+    }
+
+    /// <summary>
+    /// Renders the component-details column for one caller-chosen <paramref name="entity"/>,
+    /// without the entity list and without consulting this panel's own selection.
+    /// </summary>
+    /// <remarks>
+    /// This is the renderer half of <c>DrawEntityDetails</c>, extracted so a host that already
+    /// knows which entity it is about — the Scenario Details panel, whose entity comes from the
+    /// World's <c>SelectionState</c> — reuses it rather than growing a second component renderer.
+    /// The panel's own multi-select state is deliberately not read here: the caller decided.
+    /// </remarks>
+    public void DrawComponentsFor(IInspectableSession session, Entity entity)
+    {
+        ImGuiApi.BeginChild("EntityDetails_Scroll");
         {
-            Entity e = selCount == 1 ? _selectedEntities.First() : context.SelectedEntity!.Value;
+            Entity e = entity;
             bool isSingleton = e == RepositoryAdapter.SingletonEntity;
 
             if (isSingleton)
