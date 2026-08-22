@@ -18,7 +18,7 @@ namespace Hrot.BTree.Editor.Emit;
 /// generator (<c>92b</c>) and this sidecar path emit from <b>one body</b> — 📌 ruling 9.</para>
 ///
 /// <para>⭐⭐ <b>The Approach-B groups are supplied HERE and nowhere else</b>, because they are
-/// session-local: <c>_syncNodeMeta</c> is written only by <c>InspectorWindow:590</c> and is
+/// session-local: <c>_syncNodeMeta</c> is written only by <c>InspectorWindow:194</c> and is
 /// deliberately not persisted. 📄 The measurement, and why widening the DTO would not be enough, is
 /// on <see cref="BTreeOrchestratorEmitCore"/>.</para>
 ///

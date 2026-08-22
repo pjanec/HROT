@@ -20,7 +20,7 @@ namespace Hrot.AiEditor.Persistence.Emit;
 /// <list type="number">
 /// <item>⭐⭐ <b>The sub-tree IDENTITY is session-local.</b>
 /// <c>BehaviorTreeAsset.GetApproachBSyncGroups()</c> (<c>:719</c>) skips any node absent from
-/// <c>_syncNodeMeta</c>, whose <b>only</b> writer is <c>InspectorWindow:590</c> — a UI draw. It has no
+/// <c>_syncNodeMeta</c>, whose <b>only</b> writer is <c>InspectorWindow:194</c> — a UI draw. It has no
 /// load path, and <c>BehaviorTreeAssetDto.cs:10</c> names it <b>deliberately excluded</b>, enforced by
 /// <c>BTreeDtoRuntimeFieldExclusionTests:29</c>. ⚠ So even in the EDITOR, Approach B emits nothing
 /// after a reload until a designer re-opens that panel.</item>

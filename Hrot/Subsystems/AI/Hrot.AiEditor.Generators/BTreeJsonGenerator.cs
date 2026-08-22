@@ -283,7 +283,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         // (none carries an alias or a sync binding) ⇒ the generated output stays byte-identical.
         //
         // ⭐⭐ The empty Approach-B group list is MEASURED, not a shortcut. The groups need
-        // BehaviorTreeAsset._syncNodeMeta, whose only writer is InspectorWindow:590 (a UI draw); it
+        // BehaviorTreeAsset._syncNodeMeta, whose only writer is InspectorWindow:194 (a UI draw); it
         // has no load path and BehaviorTreeAssetDto.cs:10 names it deliberately excluded, enforced by
         // BTreeDtoRuntimeFieldExclusionTests:29. ⛔ And the field the Approach-B body writes into
         // (master.{Subtree}_{DtoType}) comes from GetAutoAllocatedVariables(), which is display-only

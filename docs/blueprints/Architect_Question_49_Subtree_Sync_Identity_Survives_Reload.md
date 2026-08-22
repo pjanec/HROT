@@ -1,6 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (OPEN architect question — a decision to resolve with the user; not yet buildable)
+build-state: DESIGN (the C-vs-A measurement is ANSWERED 2026-08-22 => C; ONE sub-question left for the
+  user: what happens when the subtree asset is MISSING at load. ALSO AMENDED 2026-08-22 by the UI lane:
+  this question covers BP-342 gap (1) ONLY — gap (2) (the master blackboard does not declare the
+  auto-allocated slice) still blocks S4, and needs its own question. Option D added.)
 updated: 2026-08-22
 current-answer: the whole file — how the subtree-sync IDENTITY (`_syncNodeMeta`) survives a reload so
   Approach-B orchestrator emission works after load WITHOUT re-opening the Inspector on every node. This is
@@ -27,7 +30,7 @@ and the **identity** *(which subtree, which param DTO)*. The bindings survive a 
 | symbol | where | role |
 |---|---|---|
 | **`_syncBindings`** → persisted as **`SubtreeSyncBindings`** | `BehaviorTreeAsset` · `BehaviorTreeAssetDto:354` | ✅ **survives reload** — the copy-in/out bindings |
-| ⛔ **`_syncNodeMeta`** `Dictionary<Guid,(SubtreeName, SubDtoTypeName, SubDtoTypeNs)>` | `BehaviorTreeAsset:243` | ⛔ **session-local — LOST on reload.** Its **only writer** is `RecordSubtreeNodeMeta` *(→ `InspectorWindow:590`, a UI draw)* |
+| ⛔ **`_syncNodeMeta`** `Dictionary<Guid,(SubtreeName, SubDtoTypeName, SubDtoTypeNs)>` | `BehaviorTreeAsset:243` | ⛔ **session-local — LOST on reload.** Its **only writer** is `RecordSubtreeNodeMeta` *(→ `InspectorWindow:194`, a UI draw)* |
 | **`GetApproachBSyncGroups()`** | `BehaviorTreeAsset:707` | iterates `_syncBindings`; ⛔ **skips any node whose `_syncNodeMeta` is absent** *(:719 `continue`)* ⇒ after reload, all skipped |
 | **`ApproachBSyncGroup(nodeId, SubtreeName, SubDtoTypeName, SubDtoTypeNs, bindings)`** | `Hrot.Editor.AiShared/Blackboard/ApproachBSyncGroup.cs:25` | the emitted group — **4 identity fields + the bindings** |
 | **`BTreeDtoRuntimeFieldExclusionTests`** | `…AiEditor.Persistence.Tests/BTree/` | ⛔ **the rail that DELIBERATELY excludes `_syncNodeMeta` from the DTO** — the thing Option A reddens |
@@ -59,14 +62,93 @@ in which case the rail update is legitimate *(the field is reclassified as autho
 ⛔ **B is not a standalone answer** — it recovers only part; it can *feed* C *(the bindings half)* but cannot
 supply the DTO type.
 
-## To resolve
+## ✅ RESOLVED — **the decisive measurement is ANSWERED: C is feasible** *(UI lane, `2026-08-22`)*
 
-⭐ **The one measurement that decides C vs A:** *at load, from a subtree node, can we resolve the called subtree
-and read its param-DTO type name + namespace?* — a `search_graph`/read pass the build session runs first.
-⭐ **On "yes" ⇒ C** *(a `RecomputeSyncIdentity()` at load; the rail is untouched)*. **On "no" ⇒ A** *(persist +
-reclassify the rail, documented)*.
+⭐⭐⭐ **The question was:** *at load, from a subtree node, can we resolve the called subtree and read its
+param-DTO type name + namespace?* ⛔ It did **not** need to wait for the build session — 📐 **measured now**:
 
-⛔ **This unblocks BP-399's tail:** with the identity durable, **S4** *(promote `details.parametersync`)* is no
-longer promoting an inert panel, and **S5** *(retire `InspectorWindow`)* — blocked only on S4 — lands with it.
-📌 **Owner when resolved:** the UI / BTree-editor lane *(this is `Hrot.BTree.Editor` + `…AiEditor.Persistence`)*;
-tracked against **BP-342 gap ①**.
+| what `RecordSubtreeNodeMeta` needs | where it comes from | persisted? |
+|---|---|---|
+| **which subtree this node calls** | `BehaviorTreeAssetDto:233` `SubtreeAssetId` → read back via `BehaviorTreeAsset.GetSubtreeNodeInfo` *(`:645`)* | ✅ **YES** |
+| **`SubtreeName`** | `SanitizeIdentifier(subAsset.Name)` | ✅ the sub-asset's own name |
+| **`SubDtoTypeName` / `SubDtoTypeNs`** | `ShortTypeName`/`NsOf` over `subAsset.BlackboardTypeName` — `BehaviorTreeAssetDto:342`, a **plain string** on the loaded asset *(`BehaviorTreeAsset:266`)* | ✅ **YES** |
+
+⇒ ⭐⭐ **All three values are derivable from the RESOLVED SUB-ASSET, with no compilation and no type
+loading** — ⛔ which was the feared blocker *(*"e.g. it requires compilation"*)* and is **not** one.
+⇒ **C stands; A is not needed, and the exclusion rail stays correct.**
+
+### ⚠ The one real constraint the options table did not name — **ORDERING, not feasibility**
+
+⛔ The recompute needs the **sub-asset LOADED**, so it cannot live inside the calling asset's own
+deserialisation *(the callee may not exist yet)*. ⇒ ⭐ it belongs **after the catalog is populated** —
+the same resolver shape the panel already uses *(`Func<Guid, IBlackboardManagedAsset?>`)*, run once per
+subtree node on catalog-ready rather than per UI draw.
+
+⭐⭐ **And that turns `BP-342` gap ① into an ordinary silent-default instance**: the value is available,
+the caller holds a resolver, and nothing passes it at load — 📌 the `2026-08-16` rule, whose control is
+**a rail asserted on the CONSTRUCTED object**, i.e. *"after a reload with no UI shown,
+`GetApproachBSyncGroups()` is non-empty."*
+
+⚠ **What is still the USER's call, and it is the only thing left open:** ⛔ **when a subtree asset is
+MISSING at load** *(deleted, renamed, not in the catalog)* — does the node keep its bindings and emit
+nothing *(silent)*, or does it raise a diagnostic row? ⭐ **Recommended: a diagnostic row** — 📌 `AIE053`
+just established that the Diagnostics window is where an unresolvable authoring reference belongs, and a
+silent skip is precisely the failure mode this whole question exists to end.
+
+## ⛔⛔ AMENDMENT — **this question covers `BP-342` gap ① ONLY, and ① alone does NOT unblock `S4`**
+
+> ⚠ **Added by the UI lane, `2026-08-22`, on merging the coordinator branch.** The question as written
+> closed with *"this unblocks `BP-399`'s tail."* 📐 **Measured — that is overstated on TWO counts**, and
+> `BP-342`'s own text says the first of them in as many words.
+
+### ① `BP-342` has a SECOND gap, and it is not an identity problem
+
+📄 **`BP-342` ②, verbatim:** *"the destination **FIELD** does not exist at all."* The Approach-B body
+writes `ref master.{SubtreeName}_{SubtreeDtoTypeName}`. That slice comes from
+`BehaviorTreeAsset.GetAutoAllocatedVariables()` *(`:768`)*, whose **only** consumer is
+`BlackboardAuthoringWindow:529`, which merely **displays it greyed** as *"(size unknown until build)"*.
+⇒ ⛔ it never enters `_blackboardVariables`, never reaches `Blackboard.Variables`, and **no blackboard
+emitter declares it** ⇒ **the Approach-B orchestrator references a master field the generated blackboard
+struct does not have.**
+
+⭐⭐⭐ **`BP-342` states the consequence directly:** *"Widening the DTO would NOT be sufficient while ②
+stands, which is why it was not attempted."* ⇒ ⛔ **the same is true of recomputing it (option C).**
+📌 The open question ② carries: **does the master blackboard DECLARE the auto-allocated sub-tree slice,
+and if so who sizes it?** — ⚠ a **blackboard-emission** decision, not an identity one, and
+`GetAutoAllocatedVariables` carries its own `DEBT` *("real type resolution requires catalog
+integration")*.
+
+### ② Option C fixes the EDITOR arm — ⛔ and per `Q45` the editor arm is not the one that ships
+
+📐 `Q45` ruled that **neither editor path owns the sidecar — the SOURCE GENERATOR does**. And the
+generator passes `Array.Empty<OrchestratorSyncGroup>()` *(`BTreeJsonGenerator:286`)*, saying at the call
+site why: ⛔ **a generator cannot load assets**, so an in-editor load-time resolver — which is exactly
+what C is — **cannot run there**.
+
+⇒ ⭐⭐ **C makes the editor's groups survive a reload, and changes nothing about the generated
+`.Orchestrators.g.cs`.** ⚠ That is still worth having *(the editor's `WriteOrchestratorFile` path is
+retained per spec)*, ⛔ but it is not *"the identity is durable, therefore the panel is live."*
+
+### ⭐ THE MISSING OPTION — **D: a `*.btree.json` catalog for the generator**
+
+⛔ **Not in the options table, and `BP-342` had already identified it** — with a working precedent **in
+`BTreeJsonGenerator` itself**: *"Option A"* collects sibling `*.bp.json` `AdditionalTexts` into
+`GeneratedBlueprintSchemaCatalog`, precisely because a sibling generator's shape is not in this DTO.
+
+| **D** | ⭐⭐ **a `*.btree.json` `AdditionalTexts` catalog keyed `AssetId → Blackboard.TypeName`** | mirrors the shipped `*.bp.json` precedent | ⭐ **works in the GENERATOR**, where C cannot; **no schema change**; the exclusion rail stays correct | ⛔ **fixes ① only** — ② still stands |
+
+⇒ ⭐⭐⭐ **The honest shape is C **and** D, not C or A:** ⭐ **D** for the generator *(the arm that ships)*,
+⭐ **C** for the editor *(the retained hand-authored path)* — ⚠ **and they share one derivation**
+*(`AssetId → Name + BlackboardTypeName → Sanitize/ShortName/Ns`)*, so 📌 **ruling 9 says write it once**
+and give it two front ends, exactly as `BTreeOrchestratorEmitCore` already is.
+
+### ⇒ ⭐ What this question actually unblocks
+
+| | |
+|---|---|
+| ✅ **`BP-342` gap ①** | with **C + D**, and the C-vs-A measurement is settled *(above)* |
+| ⛔ **`S4` / `BP-399`'s tail** | **NOT unblocked by this question alone.** `BP-342` **②** is the remaining blocker and it is a **separate architect question** — *"does the master blackboard declare the auto-allocated slice, and who sizes it?"* ⚠ **Worth its own `Q50`** |
+| ⛔ **`S5`** | blocked on `S4`, which is blocked on ② *(`BP-439`)* |
+
+📌 **Owner when resolved:** the UI / BTree-editor lane *(`Hrot.BTree.Editor` + `…AiEditor.Persistence`)*;
+tracked against **`BP-342`** — ⚠ **gap ① here, gap ② needs its own question.**
