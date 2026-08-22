@@ -1,10 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (user-approved 2026-08-22; dispatched to the implementation session as HANDOFF_MCP_Harness.md)
+build-state: BUILT (H1–H6, Batch HN-120, 2026-08-22)
 updated: 2026-08-22
-current-answer: the whole file — the design for a C# system-test harness that drives the REAL editor as a
-  subprocess over the AI-debug (MCP) HTTP API, to smoke-test whole-system operations. APPROVED; §3 classDiagram
-  + §4 sequenceDiagram are the build contract (obligation ①); §5 decisions D1–D11 and §6 tasks H1–H7 are the build.
+current-answer: §3 classDiagram + §4 sequenceDiagram remain the contract, AS AMENDED BY §9 "AS-BUILT".
+  ⭐ §9 is the current truth where it differs from §3/§5 — read it before quoting a member signature or D5.
+  §5 decisions D1–D11 and §6 tasks H1–H7 are the build; H7 remains out of scope.
+known-rot: §3's classDiagram shows per-endpoint DTO returns (StatusDto, EntityDto, …) — the build returns
+  one ApiResult envelope instead; §5 D5 says "Xvfb-wrap on Linux" — the build owns the Xvfb server directly.
+  Both are corrected in §9 with the measurements that forced them.
 known-conflict: none.
 design-basis: docs/MCP_Integration.md (the wired, verified API) · docs/Editor_Headless_Xvfb.md (headless
   launch) · UX_Feature_Curated_Scenarios.md (curated worlds) · UX_Feature_Layout_Defaults.md (curated UI).
@@ -177,3 +180,58 @@ sequenceDiagram
 Pixel/screenshot UI assertions · the declarative script DSL (H7) · reviving the 15 in-process ADA unit
 tests (`DEBT-MCP-001` — the smoke suite here is the better gate) · multi-node/cluster tests (the editor is
 single-process by design).
+
+---
+
+## 9. AS-BUILT — **Batch HN-120, `2026-08-22`** *(obligation ⑤: the design must reflect what was built)*
+
+⭐ **Built at `Hrot/Runner/Hrot.SystemTests/`** *(7 files)* + `scripts/run-system-tests.sh` +
+`.github/workflows/system-tests.yml`. **18 passing · 2 skipped · ~17 s** on Linux/Xvfb.
+⭐⭐ **Where this section and §3/§5 disagree, THIS is current.**
+
+### 9.1 The four deviations, and what forced each
+
+| # | design said | built instead | ⭐ why — **measured, not preferred** |
+|---|---|---|---|
+| **①** | ⭐ §3: typed returns per endpoint — `GetStatusAsync() StatusDto`, `GetEntityAsync() EntityDto`, … | ⭐⭐ **every method returns one `ApiResult(StatusCode, Ok, Data, Error)`**; `StatusDto`/`SimStateDto`/`EntityRowDto`/`ReplayStatusDto` exist as records for typed reads where wanted | ⛔ **Two measurements killed the per-endpoint DTO.** ① **The payload casing is MIXED by construction**: hand-built `JsonObject`s use lowercase keys (`clusterState`), while entity dumps serialize from a DTO and keep **PascalCase** (`NetworkId`) — the host embeds each handler's payload *verbatim*. ② **Six smoke cases assert on a REJECTION** *(bad condition, unknown entity, unknown baseline, missing recording)*; a client typed to the success shape makes the negative cases the awkward path. ⇒ one envelope + case-insensitive readers |
+| **②** | ⭐ §5 `D5`: *"Xvfb-wrap on Linux"* — i.e. `xvfb-run` | ⭐⭐⭐ **the fixture starts and stops the `Xvfb` SERVER itself** on a display it picks | 🔴 **Measured leak:** `xvfb-run` is a shell script that stops its Xvfb from an **EXIT trap**, and `Process.Kill` sends **SIGKILL** ⇒ the trap never runs. **Four orphaned `Xvfb` processes and four `/tmp/.X<n>-lock` files** accumulated across this session's runs — on a CI lane that is display exhaustion. ⭐ After the change: **0 orphans, 0 locks**, verified. ⭐ The *environment* is unchanged from the proven recipe *(1600x1000x24, `LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=llvmpipe`)* — only the **lifetime** is owned |
+| **③** | §4: teardown *"kills process tree and Xvfb"* — via a graceful stop | ⭐ **tree-kill only; `POST /shutdown` is NOT used** | 📐 **`/shutdown` is INERT**: `EditorSubsystem:1585` passes `() => { }` as the shutdown callback, so it answers `{ok:true}` and stops nothing *(`HN-003`)*. ⚠ Killing mid-frame can print `free(): corrupted unsorted chunks` — a documented teardown artifact, not a fault |
+| **④** | §4: fixture *"polls `/status`"* | ⭐⭐ **polls until `/status` answers `ok` WITH A PAYLOAD** | ⛔ **A bare 200 is not readiness.** The host answers a minimal `{ok:true}` before its service is attached, and `/status`'s payload is served through `MainThreadJobQueue` ⇒ **a payload proves the editor's main loop is DRAINING JOBS** — i.e. actually ticking, which is what every case depends on |
+
+### 9.2 Added beyond the design — **both because the harness found something**
+
+| what | why it exists |
+|---|---|
+| ⭐ **`SystemSmokeFactAttribute`** — a `FactAttribute` that self-skips with a stated reason | the suite needs a real editor and, on Linux, a display server. On a host without one, a red would say *"the system is broken"* when it means *"this machine cannot host the test"*. ⚠ **Environment limits only** — a boot FAILURE still fails loudly and is never converted into a skip |
+| ⭐⭐ **`KnownDefectRails`** + its own collection *(a second editor)* | the harness **found a crash on its first full run** *(`HN-001`)*. A defect recorded only in a batch report is invisible by the next batch; a rail names it, carries the repro, and **becomes a live assertion the day it is fixed.** ⛔ Its own collection because the defect **kills the editor** and would take every other case with it |
+
+### 9.3 The `H4` capability ladder — **what is covered, and the two that are not**
+
+⭐ **Covered (18 green):** status · curated-scenario load · entity list + dump · unknown-entity 404 ·
+preview+play advancing time · discrete stepping · breakpoint set/list/remove · malformed-condition
+rejection · component write + read-back · baseline capture + compare · unknown-baseline rejection ·
+attribute schema *(Group L)* · trace observe · command/component catalogs · replay-surface state ·
+missing-recording rejection · **hill-attack advances the assault force** *(`H5`)* · **pause holds the
+world still**.
+
+| ⛔ NOT covered | why, and where it lands |
+|---|---|
+| ⭐ **"watch read + write a VARIABLE"** | **the Group O endpoints do not exist.** 📐 Enumerated from `DebugApiHost.BuildRoutes` — the **single** route-registration site — **47 routes, none matching `/variables`** ⇒ that is `MX1`, **slice ②**. ⭐ Substituted the nearest BUILT capability *(`POST /entities/{id}/component` write + read-back)*; ⛔ the watch-vocabulary case is still owed *(`HN-005`)* |
+| ⭐ **record → replay 48 frames** | ⛔ **blocked by `HN-001`** — `/recording/stop` exits preview, which aborts the editor. ⭐ **Written out in full and skipped**, so it runs the day the defect is fixed |
+
+### 9.4 Notes that change how the suite is USED
+
+- ⭐⭐ **`ResetToIdleAsync` deliberately does NOT exit preview** — `HN-001` would kill the shared editor
+  and turn one product defect into a cascade of unrelated red. ⚠ **That is isolation, not avoidance:**
+  the defect has its own rail.
+- ⭐ **The world is loaded ONCE per editor**, not per case. 📌 Reloading rebuilds entities with fresh
+  network ids, so a case listing entities while another's reload settles holds an id the map has already
+  dropped — **a 404 that says nothing about the system.** It cost three false failures before being seen.
+- ⭐ **The project IS in `IOS-IG-SimHost.sln`** *(D1 did not settle this)*. ⛔ An out-of-solution test
+  project runs a **stale binary** when a run skips the build — a false green this repo has already paid
+  for twice. It stays off the fast path by **trait**, not by exclusion.
+- ⭐ **`H6` ships MANUAL-trigger** *(`workflow_dispatch`)*: it is **the repository's first GitHub Actions
+  workflow**, and several suites carry known pre-existing reds ⇒ enabling it on every push would greet
+  everyone with a red badge about someone else's change. ⭐ The file names the one-line change to arm it.
+  ⚠ **"green in CI" is therefore NOT claimed** — it has never run on GitHub; the same lane is verified
+  locally via `scripts/run-system-tests.sh`.
