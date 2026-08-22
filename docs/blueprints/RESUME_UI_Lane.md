@@ -75,7 +75,7 @@ load-bearing rule. ⭐ Umbrella context: [`../DESIGN_Headless_Testability.md`](.
 | ⭐ **tiers** | `T0` `scripts/quick-check.sh <csproj> [filter]` while working; the **full gate table ONCE, at the end** |
 | ⭐⭐ **the gate report substitutes for the coordinator's run** | 8-row contract: per-gate command + counts + delta · a `--no-build` column · goldens as a **diff shape** · every red **confirmed pre-existing against the base sha** · clean tree · both quarantine counts · `tracker-counts.py --check` + ids allocated · the **integration suite** for a cross-cutting change *(or why it cannot gate)* |
 | ⭐⭐⭐ **obligation ⑤** | a deviation goes **back into the owning DESIGN doc**, prior state marked SUPERSEDED — ⛔ the report is ephemeral, the design is not |
-| ⭐ **I allocate the ids** | state them in the report. **Next free: `BP-444`** |
+| ⭐ **I allocate the ids** | state them in the report. **Next free: `BP-448`** |
 | ⛔ **no PR** unless the user asks | there has never been one in this programme |
 | ⭐ **links for mobile** | `https://github.com/pjanec/HROT/blob/claude/hrot-implementation-j1jvin/<path>` — ⚠ **push first** |
 | ⛔ **plain-text questions** | never the multiple-choice widget |
@@ -96,22 +96,24 @@ load-bearing rule. ⭐ Umbrella context: [`../DESIGN_Headless_Testability.md`](.
 
 ## 4. ⭐ CARRIED OPEN
 
-### ⛔⛔ `S4` / `BP-399`'s tail — **two blockers, not one**
+### ⭐ `S4` / `BP-399`'s tail — **both blockers are now CLOSED; one design call remains**
 
 📄 **[`Architect_Question_49_…`](Architect_Question_49_Subtree_Sync_Identity_Survives_Reload.md)** —
 written by the coordinator, **amended by this lane `2026-08-22`**:
 
 | | |
 |---|---|
-| ✅ **option C is BUILT** *(`2026-08-22`, `BP-440`–`BP-442`)* | user approved; the identity is recomputed from the catalog resolver already wired at `PerspectiveWorkspaceRegistrar:289`, through ONE derivation *(`SubtreeSyncIdentity`, in `netstandard2.0` persistence — reachable from generator, AiShared **and** BTree.Editor)*, pulled from inside `Emit` so no path can forget *(`R-126`)*. 11 rails, revert-probed |
-| ⛔ **option D is DESIGNED and GATED** | the generator's load path is the `*.btree.json` `AdditionalTexts` it **already receives** — a second projection, not new plumbing. ⛔ **NOT wired**: it would emit `ref master.{Subtree}_{DtoType}` for a field nothing declares ⇒ non-compiling generated code the moment a designer makes a sync binding *(`BP-306`'s shape)* |
-| 🛑 **`S4` is blocked on ONE ruling — [`Q50`](Architect_Question_50_The_Master_Blackboard_Declares_The_Subtree_Slice.md)** *(`BP-443`)* | *does the master blackboard DECLARE the auto-allocated slice, and who SIZES it?* ⭐ **Recommended: A (declare it)** — its two deferral reasons have **expired**: *"needs catalog integration"* ⇒ `Q49` delivered it, and *"size unknown until build"* is false in the generator *(`StructSizeResolver.Resolve`)*. 📐 **Zero corpus assets have a sync binding ⇒ byte-identical today.** ⇒ **`Q50` → D → `S4` → `S5` → `BP-399` closes** |
-| ⚠ also awaiting a nod | `Q49`'s one open sub-question — what happens when a subtree asset is **MISSING** at load. ⭐ Recommended: a **diagnostic row**. ⭐ Built behaviour today: the identity is **left alone, never erased** |
+| ✅ **`Q49` option C is BUILT** *(`BP-440`–`BP-442`)* | the identity is recomputed from the catalog resolver already wired at `PerspectiveWorkspaceRegistrar:289`, through ONE derivation *(`SubtreeSyncIdentity`)*, pulled from inside `Emit` so no path can forget *(`R-126`)* |
+| ✅ **`Q50` option A + `Q49` option D are BUILT** *(`BP-444`–`BP-447`)* | 🔒 user: *"i hoped the editor automatically adds the subtree's data."* ⭐⭐ **A and D turned out to be the SAME change**: every input is persisted, so it is a **generator-side projection over a document** — no editor, no ordering. `SubtreeSyncProjection` does one walk yielding both the groups and the slice fields, so *"a group without its field"* is unrepresentable |
+| ⚠⚠ **BUT there is a MEASURED LIMIT — read before touching `S4`** *(`BP-446`)* | the slice's type is the **callee's** blackboard; a **generated (Category-2)** callee blackboard **does not exist in the master's compilation** *(sibling generators can't see each other's output)*. ⭐ The validator **skips the asset with `BTREE0002`** — safe, loud, never broken code. ⇒ ⭐ **resolvable callee: works end to end. Generated callee: needs its SHAPE derived from JSON** *(the blueprint "Option A" route)* — ⛔ **not built** |
+| ⚠ also required | the **master** blackboard must be `Managed`; a Category-1 master cannot gain a field |
+| 🛑 **`S4`'s remaining call — the user's** | promote `details.parametersync` now *(it works for resolvable callees)*, or wait for the Category-2 route? ⛔ `Q50` deliberately does not decide it. **`S5` follows `S4`** |
+| ⚠ still awaiting a nod | `Q49`'s open sub-question — a **MISSING** subtree at load. ⭐ Recommended: a diagnostic row. Built behaviour: identity left alone, never erased |
 
 ### ⚠ Other open `BP-` rows
 
 `BP-405` · `BP-407` · `BP-411` · `BP-416` · `BP-418` · `BP-419` · `BP-426` *(needs a running editor)* ·
-`BP-427` · `BP-342` · `BP-399`. ⭐ Tracker: **open 92 / done 286**.
+`BP-427` · `BP-342` · `BP-399`. ⭐ Tracker: **open 91 / done 291**.
 
 ### ⭐ The other lanes — **do not touch their files**
 

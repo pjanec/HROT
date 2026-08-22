@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (OPEN architect question — resolve with the user; not yet buildable)
+build-state: BUILT (option A approved by the user 2026-08-22 and shipped, BP-444..447) —
+  WITH ONE MEASURED LIMIT the options table did not foresee, recorded in the AS-BUILT section.
 updated: 2026-08-22
 current-answer: the whole file — does the MASTER blackboard DECLARE the auto-allocated sub-tree slice
   `{SubtreeName}_{DtoTypeName}`, and who SIZES it? This is BP-342 gap (2), and it is the LAST thing
@@ -78,6 +79,66 @@ make it.
 ⇒ ⭐ **Sequenced as:** `A` → `Q49`'s **option D** *(the generator catalog, now safe to wire)* → **`S4`**
 *(promote `details.parametersync`; the panel is no longer inert)* → **`S5`** *(retire
 `InspectorWindow`)* ⇒ **`BP-399` closes.**
+
+## ✅ BUILT — **option A shipped `2026-08-22`** *(`BP-444`–`BP-447`)*
+
+🔒 **User, `2026-08-22`:** *"i hoped the editor automatically adds the subtree's data, which is likely
+the option A."*
+
+### ⭐⭐⭐ The refinement that made A and `Q49`'s D the SAME change
+
+⛔ **The options table described A as *"the entries flow into `_blackboardVariables`"* — an EDITOR-side
+change. 📐 Measured, that is the wrong home**, and the right one is smaller:
+
+| ⭐ every input is already PERSISTED | where |
+|---|---|
+| which fields copy in/out | `BehaviorTreeAssetDto.SubtreeSyncBindings` *(`:354`)* |
+| which subtree, and its name | `BTreeSubtreePayloadDto.SubtreeAssetId` + `SubtreeName` *(`:231`)* |
+| the callee's blackboard type | ⭐ the **sibling `*.btree.json`** — `Q49` option D's catalog |
+
+⇒ ⭐⭐ **the whole thing is a GENERATOR-side projection over a document**, so ⛔ there is **no editor
+involvement and no ordering problem** — nothing must run *"after the catalog is populated."*
+⭐ `SubtreeSyncProjection` does **one walk** producing **both** the groups and the slice fields they
+require: 📌 ruling 9, and it makes *"a group without its field"* — the non-compiling state — unrepresentable.
+
+### ⭐ What shipped
+
+| | |
+|---|---|
+| **`SubtreeSyncProjection`** *(persistence, netstandard2.0)* | the one walk; **`SliceFieldName`** is the single composer, and `BTreeOrchestratorEmitCore` now calls it instead of spelling the name out |
+| **`GeneratedBTreeSchemaCatalog`** *(`Q49` D)* | `AssetId → (Name, BlackboardTypeName)` from the `*.btree.json` AdditionalTexts the generator **already receives**. ⭐ Unlike the `*.bp.json` precedent it is **not a second parser** — it deserialises through `BTreeJsonServices`, so a schema change cannot desynchronise two readers |
+| **`BTreeJsonGenerator`** | declares the slices **before** the blackboard is sized or packed, then passes the real groups to the emit core. ⛔ The *"a generator provably has no groups to pass"* note is gone — both of its reasons are closed |
+| **rails** | 7 projection + 3 generator, incl. an **end-to-end two-sibling** rail asserting the declared field IS the field the orchestrator writes |
+
+### ⛔⛔ THE LIMIT THE RAILS FOUND — **and it is not in the options table**
+
+📐 The slice's type is the **CALLEE's blackboard**. ⇒ ⚠ **when that is a GENERATED (Category-2) struct
+it does not exist in the master's compilation** — 📌 the same wall `GeneratedBlueprintSchemaCatalog`
+exists for: *sibling generators cannot see each other's generated output within one pass.*
+
+⭐⭐⭐ **The existing validator already handles it correctly, which is why this is safe to ship:** the
+asset is **SKIPPED** with an actionable `BTREE0002` *("managed blackboard variable 'X' has type 'Y'
+which cannot be resolved in the compilation")* — ⛔ **never emitted half-formed.** ⇒ the worst case is a
+skipped asset with a named reason, ⛔ **not** `BP-306`'s non-compiling output.
+
+| ⭐ so, today | |
+|---|---|
+| callee blackboard **resolvable** *(Category-1, or any referenced type)* | ✅ **works end to end** — railed |
+| callee blackboard **generated** *(Category-2)* | ⚠ asset skipped, loudly. ⭐ The fix is to derive the callee's SHAPE from its JSON rather than reference its type — **the blueprint *"Option A"* route, already shipped for `*.bp.json`**. ⛔ Not built |
+| **also required** | the MASTER blackboard must be **`Managed`** — a Category-1 master is a hand-written struct that cannot gain a field. ⇒ no managed master ⇒ no groups, silently and completely |
+
+⚠ **Two of those three constraints were found by a rail, not by reading** — 📌 and one of the rails was
+itself defective first: it searched ALL generated trees, so the orchestrator's own `ref master.X`
+satisfied it and a revert-probe reddened **nothing** *(`BP-402` ①)*. ⭐ It now reads only the trees that
+DECLARE.
+
+### ⭐ What this unblocks
+
+⇒ ⭐⭐ **`S4`** *(promote `details.parametersync`)* is no longer promoting an inert panel **for the
+resolvable-callee case**, and ⭐ **`S5`** follows it. ⚠ Whether `S4` should ship before the Category-2
+callee route exists is the next call — ⛔ this document does not decide it.
+
+---
 
 ## To resolve
 

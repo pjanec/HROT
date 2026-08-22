@@ -5,6 +5,7 @@ using System.Reflection;
 using FluentAssertions;
 using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
+using Hrot.AiEditor.Persistence.Emit;
 using Hrot.AiEditor.Persistence.Hsm;
 using Hrot.BTree.Editor.Catalog;
 using Hrot.BTree.Editor.Model;
@@ -54,6 +55,27 @@ public sealed class TheOrchestratorIsGeneratedTests
             .Create(generator)
             .AddAdditionalTexts(new AdditionalText[] { new StringAdditionalText(path, json) }
                 .ToImmutableArrayCompat());
+        driver = (CSharpGeneratorDriver)driver.RunGenerators(CreateCompilation());
+        return driver.GetRunResult();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q49</c> D + <c>Q50</c> A — run the generator over TWO SIBLING trees.</b>
+    /// ⛔ The single-asset <see cref="Run"/> above cannot exercise subtree sync at all: the master needs
+    /// its CALLEE's <c>*.btree.json</c> in the same <c>AdditionalTexts</c> set, because that is the only
+    /// way a generator can learn what blackboard type the callee declares *(it cannot load assets)*.
+    /// </summary>
+    private static GeneratorDriverRunResult RunTwo(
+        IIncrementalGenerator generator,
+        (string Path, string Json) a, (string Path, string Json) b)
+    {
+        var driver = CSharpGeneratorDriver
+            .Create(generator)
+            .AddAdditionalTexts(new AdditionalText[]
+            {
+                new StringAdditionalText(a.Path, a.Json),
+                new StringAdditionalText(b.Path, b.Json),
+            }.ToImmutableArrayCompat());
         driver = (CSharpGeneratorDriver)driver.RunGenerators(CreateCompilation());
         return driver.GetRunResult();
     }
@@ -249,5 +271,178 @@ public sealed class TheOrchestratorIsGeneratedTests
         int n = 0, i = 0;
         while ((i = haystack.IndexOf(needle, i, StringComparison.Ordinal)) >= 0) { n++; i += needle.Length; }
         return n;
+    }
+
+    // ══ Q49 D + Q50 A — SUBTREE SYNC, END TO END ═════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE RAIL THE WHOLE APPROACH-B ARM WAS BLOCKED ON.</b>
+    /// 🔒 <b>User, <c>2026-08-22</c>:</b> <i>"i hoped the editor automatically adds the subtree's
+    /// data"</i> — this is that, proven at the generator.
+    ///
+    /// <para>⛔⛔ <b>Before this batch BOTH halves were impossible</b> and the emitter said so at the call
+    /// site: <i>"a generator provably has no groups to pass."</i> ① the identity lived only in a UI draw
+    /// *(<c>Q49</c>, gap ①)*; ② the field the body writes was declared by nothing *(<c>Q50</c>, gap ②)*.
+    /// ⇒ ⭐ this asserts <b>both are now true at once</b>, from two sibling <c>*.btree.json</c> files and
+    /// <b>no editor state whatsoever</b>.</para>
+    ///
+    /// <para>⚠ <b>And it asserts the AGREEMENT, not just presence</b>: the declared field name and the
+    /// name the orchestrator writes are compared to each other. ⛔ A group emitted against an undeclared
+    /// field is the non-compiling state <c>BP-306</c> filed, and a rail that only checked "a file was
+    /// produced" would pass straight through it.</para>
+    /// </summary>
+    [Fact]
+    public void TwoSiblingTrees_YieldAnOrchestratorAndTheMasterDeclaresItsSlice()
+    {
+        var callee = SampleScoutDto();
+        callee.Name               = "ShootBT";
+        callee.AssetId            = Guid.NewGuid();
+        // ⭐⭐⭐ A type the MASTER's compilation can actually resolve. ⛔ This is not fixture
+        //    convenience — it is the design constraint, and the rail below pins the other side of it:
+        //    a callee whose blackboard is GENERATED (Category-2) is not resolvable while the master is
+        //    generated, because sibling generators cannot see each other's output in one pass.
+        callee.BlackboardTypeName = "System.Guid";
+
+        var master = SampleScoutDto();
+        master.Name    = "MasterAI";
+        master.AssetId = Guid.NewGuid();
+        // ⭐⭐⭐ MANAGED (Category-2) is REQUIRED, and the rail says so rather than assuming it: a
+        //    Category-1 blackboard is a hand-written struct the generator only reflects, so it cannot
+        //    gain the slice field — see WithoutAManagedBlackboard_NothingIsEmitted below.
+        master.Blackboard.Managed = true;
+        string masterVar = EnsureVariable(master);
+
+        var nodeId = Guid.NewGuid();
+        master.Nodes.Add(new BTreeSubtreeNodeDto
+        {
+            VisualId = nodeId,
+            Subtree  = new BTreeSubtreePayloadDto
+            {
+                SubtreeAssetId = callee.AssetId,
+                SubtreeName    = callee.Name,
+                IsResolved     = true,
+            },
+        });
+        master.SubtreeSyncBindings[nodeId.ToString()] = new List<SubtreeSyncBindingDto>
+        {
+            new() { FieldName = "Health", MasterVariableName = masterVar, SyncIn = true, SyncOut = true },
+        };
+
+        var result = RunTwo(new BTreeJsonGenerator(),
+            ("/p/MasterAI.btree.json", BTreeJsonServices.Serialize(master)),
+            ("/p/ShootBT.btree.json",  BTreeJsonServices.Serialize(callee)));
+
+        // ① the orchestrator exists, and it is the Approach-B (copy · tick · copy) body.
+        string? text = OrchestratorText(result);
+        text.Should().NotBeNull("the generator can now resolve the callee from its sibling JSON");
+        text!.Should().Contain("[BTreeAction(Name = \"Orchestrate_ShootBT\")]");
+        text.Should().Contain($"subDto.Health = master.{masterVar};", "SyncIn copies IN before the tick");
+        text.Should().Contain($"master.{masterVar} = subDto.Health;", "SyncOut copies OUT after it");
+
+        // ② THE SLICE IS DECLARED — gap ②'s whole content — and it is the field ① writes through.
+        string sliceField = SubtreeSyncProjection.SliceFieldName("ShootBT", "Guid");
+        text.Should().Contain($"ref master.{sliceField}");
+
+        // ⛔⛔ EXCLUDE the orchestrator tree, and that exclusion is load-bearing — 📌 BP-402 ①.
+        //    🔴 The first version of this rail searched ALL generated trees, and a revert-probe that
+        //    deleted the declaration REDDENED NOTHING: the orchestrator's own `ref master.X` satisfied
+        //    the substring. ⇒ ⭐ a rail that cannot fail is worse than no rail; it must read the trees
+        //    that DECLARE, never the one that WRITES.
+        string declarations = string.Join("\n", result.GeneratedTrees
+            .Where(t => !t.FilePath.EndsWith("Orchestrators.g.cs", StringComparison.Ordinal))
+            .Select(t => t.ToString()));
+        declarations.Should().Contain(sliceField,
+            "the master blackboard must DECLARE the field the orchestrator writes through");
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b>The anti-vacuity half, and it is the one that matters.</b> ⚠ WITHOUT the callee's sibling
+    /// JSON the generator cannot resolve the blackboard type ⇒ ⭐ it emits <b>NOTHING</b> — not a group
+    /// against a missing field. 📌 That is the safety property: half-formed output is what
+    /// <c>BP-306</c> was.
+    /// </summary>
+    [Fact]
+    public void WithoutTheCalleesSiblingJson_NothingIsEmitted()
+    {
+        var master = SampleScoutDto();
+        string masterVar = EnsureVariable(master);
+        var nodeId = Guid.NewGuid();
+        master.Nodes.Add(new BTreeSubtreeNodeDto
+        {
+            VisualId = nodeId,
+            Subtree  = new BTreeSubtreePayloadDto
+            {
+                SubtreeAssetId = Guid.NewGuid(),   // ⛔ no sibling declares this id
+                SubtreeName    = "ShootBT",
+                IsResolved     = true,
+            },
+        });
+        master.SubtreeSyncBindings[nodeId.ToString()] = new List<SubtreeSyncBindingDto>
+        {
+            new() { FieldName = "Health", MasterVariableName = masterVar, SyncIn = true, SyncOut = false },
+        };
+
+        var result = Run(new BTreeJsonGenerator(), "/p/MasterAI.btree.json",
+            BTreeJsonServices.Serialize(master));
+
+        OrchestratorText(result).Should().BeNull();
+        string allGenerated = string.Join("\n", result.GeneratedTrees.Select(t => t.ToString()));
+        allGenerated.Should().NotContain("ShootBT_",
+            "no slice may be declared for a callee that cannot be resolved");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE CONSTRAINT THE RAIL ABOVE FOUND, pinned — and the SAFE failure it produces.</b>
+    /// 📐 Measured <c>2026-08-22</c>: the slice's type is the <b>CALLEE's blackboard</b>. When that is a
+    /// <b>GENERATED</b> (Category-2) struct it does <b>not exist in the master's compilation</b> — 📌 the
+    /// same wall <c>GeneratedBlueprintSchemaCatalog</c> exists for: <i>sibling generators cannot see each
+    /// other's generated output within one generation pass.</i>
+    ///
+    /// <para>⭐⭐ <b>And the existing validator already handles it correctly</b>: the asset is
+    /// <b>SKIPPED</b> with an actionable <c>BTREE0002</c>, ⛔ never emitted half-formed. ⇒ ⭐ that is why
+    /// this feature is safe to ship even though it does not cover every callee — the worst case is a
+    /// skipped asset with a named reason, 📌 <b>not</b> the non-compiling output of <c>BP-306</c>.</para>
+    ///
+    /// <para>⚠ <b>Stated limit, not hidden:</b> Approach-B subtree sync currently works for a callee
+    /// whose blackboard type is <b>resolvable</b> in the master's compilation. A generated-blackboard
+    /// callee needs the shape derived from JSON instead of referenced by type — the blueprint
+    /// <i>"Option A"</i> route. ⛔ Not built; recorded in <c>Q50</c>.</para>
+    /// </summary>
+    [Fact]
+    public void ACalleeWhoseBlackboardTypeCannotBeResolved_SkipsTheAssetWithADiagnostic()
+    {
+        var callee = SampleScoutDto();
+        callee.Name               = "ShootBT";
+        callee.AssetId            = Guid.NewGuid();
+        callee.BlackboardTypeName = "Made.Up.ShootBlackboard";   // ⛔ in no assembly
+
+        var master = SampleScoutDto();
+        master.Name    = "MasterAI";
+        master.AssetId = Guid.NewGuid();
+        master.Blackboard.Managed = true;
+        string masterVar = EnsureVariable(master);
+
+        var nodeId = Guid.NewGuid();
+        master.Nodes.Add(new BTreeSubtreeNodeDto
+        {
+            VisualId = nodeId,
+            Subtree  = new BTreeSubtreePayloadDto
+            {
+                SubtreeAssetId = callee.AssetId, SubtreeName = callee.Name, IsResolved = true,
+            },
+        });
+        master.SubtreeSyncBindings[nodeId.ToString()] = new List<SubtreeSyncBindingDto>
+        {
+            new() { FieldName = "Health", MasterVariableName = masterVar, SyncIn = true, SyncOut = false },
+        };
+
+        var result = RunTwo(new BTreeJsonGenerator(),
+            ("/p/MasterAI.btree.json", BTreeJsonServices.Serialize(master)),
+            ("/p/ShootBT.btree.json",  BTreeJsonServices.Serialize(callee)));
+
+        result.Diagnostics.Should().Contain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
+            "an unresolvable slice type must SKIP the asset, loudly");
+        OrchestratorText(result).Should().BeNull(
+            "⛔ never a group against a field the compilation cannot type");
     }
 }

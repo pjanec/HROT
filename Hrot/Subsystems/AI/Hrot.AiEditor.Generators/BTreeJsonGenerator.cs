@@ -60,6 +60,14 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> bpJsonCollected =
             bpJsonFiles.Collect();
 
+        // ⭐⭐⭐ Q49 option D — the SIBLING TREES, for subtree-sync identity.
+        //    A generator cannot load assets, so a master tree cannot ask "what blackboard type does the
+        //    subtree I call declare?" the way the editor does (Q49 option C, catalog.FindByAssetId).
+        //    ⭐ These are the SAME *.btree.json AdditionalTexts this generator already receives — a
+        //      second projection of texts in hand, not new plumbing. See GeneratedBTreeSchemaCatalog.
+        IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> btreeJsonCollected =
+            rawFiles.Collect();
+
         // Combine with the full compilation so the method-compatibility validator can
         // resolve type/method symbols, plus the collected *.bp.json schemas (Option A fallback).
         //
@@ -67,27 +75,34 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         // GenerateOneAsset re-runs on ANY compilation change (not only asset changes).
         // This is acceptable for the small *.btree.json asset set.  A fancier
         // incremental symbol extraction is deferred (VE-DEBT-003).
-        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, ImmutableArray<(string Path, string Text)> BpJsonFiles)> combined =
+        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, ImmutableArray<(string Path, string Text)> BpJsonFiles, ImmutableArray<(string Path, string Text)> BtreeJsonFiles)> combined =
             rawFiles.Combine(context.CompilationProvider)
                     .Combine(bpJsonCollected)
+                    .Combine(btreeJsonCollected)
                     .Select(static (pair, _) =>
-                        (pair.Left.Left.Path, pair.Left.Left.Text, pair.Left.Right, pair.Right));
+                        (pair.Left.Left.Left.Path, pair.Left.Left.Left.Text, pair.Left.Left.Right,
+                         pair.Left.Right, pair.Right));
 
         // Per-asset: deserialize → validate bound methods → emit topology core → register source output
         context.RegisterSourceOutput(combined, static (spc, item) =>
         {
-            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.BpJsonFiles);
+            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.BpJsonFiles, item.BtreeJsonFiles);
         });
     }
 
     private static void GenerateOneAsset(SourceProductionContext spc, string path, string text,
-        Compilation compilation, ImmutableArray<(string Path, string Text)> bpJsonFiles)
+        Compilation compilation, ImmutableArray<(string Path, string Text)> bpJsonFiles,
+        ImmutableArray<(string Path, string Text)> btreeJsonFiles)
     {
         // Option A: parse the blueprint schemas once, up front — used both by the method-compatibility
         // validator (AiPrimitiveTickCore method-resolution fallback) and the struct-size resolver
         // (AiPrimitiveTickCore Params-size fallback) below.
         System.Collections.Generic.IReadOnlyList<GeneratedBlueprintSchema> blueprintSchemas =
             GeneratedBlueprintSchemaCatalog.Parse(bpJsonFiles);
+        // ⭐ Q49 option D: what every SIBLING tree declares — the only input the subtree-sync projection
+        //   cannot read out of this asset's own JSON.
+        System.Collections.Generic.IReadOnlyDictionary<Guid, GeneratedBTreeSchemaCatalog.Entry> btreeCatalog =
+            GeneratedBTreeSchemaCatalog.Parse(btreeJsonFiles);
         // Deserialize — failure becomes a diagnostic, never throws, never fails siblings.
         BehaviorTreeAssetDto? dto;
         try
@@ -106,6 +121,47 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             spc.ReportDiagnostic(MakeParseErrorDiagnostic(path,
                 "Deserialization returned null (empty or invalid JSON)."));
             return;
+        }
+
+        // ⭐⭐⭐ Q50 option A + Q49 option D — DECLARE THE SUB-TREE SLICES, then derive the groups.
+        //    🔒 User, 2026-08-22: "i hoped the editor automatically adds the subtree's data, which is
+        //       likely the option A."
+        //    ⛔⛔ ORDER IS LOAD-BEARING: this runs BEFORE the blackboard is sized, packed or emitted,
+        //       because the slice fields ARE blackboard variables. Doing it after would emit an
+        //       orchestrator writing `ref master.X` into a struct that was already packed without X —
+        //       gap ②, which is exactly why the Approach-B arm could never ship (BP-342, BP-306's shape).
+        //    ⭐ Both halves come from ONE walk over persisted data (SubtreeSyncProjection): the groups
+        //      and the fields they require. Two walks would be two answers to "which nodes qualify".
+        //    ⛔⛔ AND IT REQUIRES A **MANAGED** MASTER BLACKBOARD — measured 2026-08-22, by a rail that
+        //       failed with the probe REMOVED. A Category-1 blackboard is a HAND-WRITTEN struct this
+        //       generator only reflects: it cannot gain a field, so the slice can never be declared and
+        //       emitting the orchestrator anyway would reference a member that does not exist — the very
+        //       state gap ② is. ⇒ no managed blackboard ⇒ NO groups, NO slices, silently and completely.
+        //       ⚠ Neither BP-342 nor Q50 named this constraint; the rail found it.
+        var (approachBGroups, sliceFields) = dto.Blackboard.Managed
+            ? SubtreeSyncProjection.Project(
+                dto,
+                assetId => btreeCatalog.TryGetValue(assetId, out var e) ? e.BlackboardTypeName : null)
+            : (System.Array.Empty<OrchestratorSyncGroup>(),
+               System.Array.Empty<SubtreeSyncProjection.SliceField>());
+
+        foreach (var slice in sliceFields)
+        {
+            // ⚠ A hand-authored variable of the same name WINS — the designer's declaration is explicit
+            //   and this one is derived; silently overwriting it would lose authored data.
+            bool alreadyDeclared = false;
+            foreach (var existing in dto.Blackboard.Variables)
+                if (string.Equals(existing.Name, slice.FieldName, StringComparison.Ordinal))
+                { alreadyDeclared = true; break; }
+            if (alreadyDeclared) continue;
+
+            dto.Blackboard.Variables.Add(new BlackboardVariableDto
+            {
+                Name = slice.FieldName,
+                Type = new BlackboardTypeRefDto { TypeId = slice.TypeId },
+                Comment = "Auto-allocated sub-tree parameter slice (Approach B).",
+                IsAutoManaged = true,
+            });
         }
 
         // Validate bound method signatures before emitting.
@@ -282,18 +338,18 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         // ⛔ OMITTED ENTIRELY when the core returns null, which is every asset in today's corpus
         // (none carries an alias or a sync binding) ⇒ the generated output stays byte-identical.
         //
-        // ⭐⭐ The empty Approach-B group list is MEASURED, not a shortcut. The groups need
-        // BehaviorTreeAsset._syncNodeMeta, whose only writer is InspectorWindow:194 (a UI draw); it
-        // has no load path and BehaviorTreeAssetDto.cs:10 names it deliberately excluded, enforced by
-        // BTreeDtoRuntimeFieldExclusionTests:29. ⛔ And the field the Approach-B body writes into
-        // (master.{Subtree}_{DtoType}) comes from GetAutoAllocatedVariables(), which is display-only
-        // (BlackboardAuthoringWindow:529) and reaches no blackboard emitter. ⇒ a generator provably
-        // has no groups to pass. See BTreeOrchestratorEmitCore for the full measurement.
+        // ⭐⭐⭐ Q49 D + Q50 A (2026-08-22): THE GROUPS ARE REAL NOW.
+        // ⛔ (was: "a generator provably has no groups to pass" — true then, for two reasons that are
+        //    both now closed. ① the identity needed BehaviorTreeAsset._syncNodeMeta, a UI-draw-only
+        //    field: option D reads the sibling *.btree.json instead, so no editor state is involved.
+        //    ② the field the body writes into was declared by nothing: option A declares it above,
+        //    BEFORE the blackboard is packed.)
+        // ⚠ Still omitted entirely when the core returns null — no alias and no sync binding — which is
+        //    every asset in today's corpus, so the generated output stays byte-identical.
         string? orchestrators;
         try
         {
-            orchestrators = BTreeOrchestratorEmitCore.Emit(
-                dto, System.Array.Empty<OrchestratorSyncGroup>());
+            orchestrators = BTreeOrchestratorEmitCore.Emit(dto, approachBGroups);
         }
         catch (Exception ex)
         {

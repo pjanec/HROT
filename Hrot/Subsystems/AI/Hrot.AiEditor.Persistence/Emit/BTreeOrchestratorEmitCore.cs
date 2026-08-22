@@ -151,7 +151,10 @@ public static class BTreeOrchestratorEmitCore
         foreach (var group in approachBMethods)
         {
             string subTreeId  = OrchestratorAliasCollector.SanitizeIdentifier(group.SubtreeName, "BTreeAsset");
-            string sliceField = $"{subTreeId}_{group.SubtreeDtoTypeName}";
+            // ⭐⭐⭐ Q50: ONE composer for this name. SubtreeSyncProjection DECLARES the field with it;
+            //    this WRITES through it. ⛔ A one-character divergence between the two is a build break
+            //    with no obvious cause, so neither side spells it out (ruling 9).
+            string sliceField = SubtreeSyncProjection.SliceFieldName(subTreeId, group.SubtreeDtoTypeName);
             var syncIn  = ActiveBindings(group, syncIn: true);
             var syncOut = ActiveBindings(group, syncIn: false);
 
