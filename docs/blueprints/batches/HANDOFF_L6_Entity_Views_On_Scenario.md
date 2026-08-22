@@ -9,7 +9,7 @@ known-conflict: none.
 -->
 # HANDOFF — UI lane · **L6: the entity views (Components + Mission plan) on Scenario**
 
-> 📌 **Dispatched at `4d54a9e04`.** ⭐ Branch from it *(rule 7)*; **rule 1b: started-marker FIRST.**
+> 📌 **Dispatched at `16be5f2c2`.** ⭐ Branch from it *(rule 7)*; **rule 1b: started-marker FIRST.**
 > ⭐ Lane: UI / variable *(`claude/hrot-implementation-j1jvin`)* — ids **`BP-`**, tracker `A`–`G`. **Rule 3: your own ids.**
 > ⛔ **Scope FROZEN at this sha.** Documents that change after it are FYI only.
 
