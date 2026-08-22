@@ -62,13 +62,29 @@ GET /sim/state → isPaused:true, inPreview:false
 GET /entities  → []
 ```
 
+### ✅ Behavior-trace tracer + record/replay — WIRED and VERIFIED (2026-08-22)
+
+- **`DEBT-MCP-002` was a NAME COLLISION, not a duplicate implementation.** Trunk's
+  `Hrot.Editor.Debug.EditorAiTracerCoordinator` does *time control* (pause/step); the ported
+  `Hrot.Editor.DebugApi.EditorAiTracerCoordinator` does *behavior-trace arming* (`ArmEntity`/`DisarmEntity`,
+  self-contained on the world). They are different concepts — **both are kept**; the DebugApi one is now
+  constructed and passed as `editorTracer`. *(A rename to disambiguate would be nice-to-have polish.)*
+- **`EcsRecordReplayController` already exists on trunk** (`Hrot.SimHost/Modules/Orchestration/`) — it was
+  never *instantiated* in the editor root, not missing. Now constructed dedicated to the API
+  (`new EcsRecordReplayController(_kernel, EditorNodeId, _world)`) and passed as `rrController`.
+
+**End-to-end verification (headless, `FDP_STAGING_ROOT=/tmp/…`):** `load_scenario` → `recording/start`
+(entered preview, began writing) → `sim/play` → `recording/stop` wrote a real **48-frame `.fdp`** →
+`replay/load` (loaded, `totalFrames:48`) → `replay/status` (active) → `replay/step` (advanced frames);
+`trace/observe` responded (tracer live); `entities` returned a live `M2 Bradley IFV` with its components.
+⚠ Recording needs a POSIX `FDP_STAGING_ROOT` on Linux — the default `C:\FDP_Temp` is a Windows path.
+
 ### Follow-ups
 
 | item | status |
 |---|---|
-| **`DEBT-MCP-001` — the 15 harness-dependent integration tests** | ⛔ **DEFERRED, excluded from the build** (`.csproj <Compile Remove>`). They call `EditorHarness.BuildDebugApiService(...)`, which needs 9 collaborators trunk's diverged `EditorHarness` lacks. Reconciling the harness is its own task; the end-to-end drive above is the interim gate. |
-| **`DEBT-MCP-002` — duplicate `EditorAiTracerCoordinator`** | trunk already has `Hrot.Editor.Debug.EditorAiTracerCoordinator` (ctor takes `_timeCommands`); the port added `Hrot.Editor.DebugApi.EditorAiTracerCoordinator` (ctor takes the world). `DebugApiService` depends on the latter's type, so `editorTracer` is passed `null` for now. Reconcile to one, then wire the tracer so behavior-trace endpoints work. |
-| **`rrController` (record/replay)** | trunk has no `EcsRecordReplayController` in the editor root — the `/recording/*` endpoints are inert until one is provided. |
+| **`DEBT-MCP-001` — the 15 harness-dependent integration tests** | ⛔ **DEFERRED, excluded from the build**. They call `EditorHarness.BuildDebugApiService(...)`, needing 9 collaborators trunk's diverged `EditorHarness` lacks (all of which now exist in `EditorSubsystem`, so reviving them is a harness-build mirror of the production wiring). ⭐ **Recommendation:** prefer a small NEW set of end-to-end HTTP smoke tests (drive the real API headless, as above) as the primary gate; selectively revive the original unit tests only for tricky semantics (checkpoint/diff, fault injection). |
+| **`DEBT-MCP-003` — rename the ported tracer** | optional: `Hrot.Editor.DebugApi.EditorAiTracerCoordinator` → e.g. `BehaviorTraceCoordinator`, to kill the name collision with the time-control tracer. |
 
 ## Notes
 

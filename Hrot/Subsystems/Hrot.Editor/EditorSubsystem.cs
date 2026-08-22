@@ -249,6 +249,8 @@ namespace Hrot.Editor
         //    of this loopback HttpListener. See docs/MCP_Integration.md.
         private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiJobQueue;
         private Hrot.Editor.DebugApi.DebugApiHost?       _debugApiHost;
+        private Hrot.Editor.DebugApi.EditorAiTracerCoordinator?          _debugApiTracer;
+        private Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _debugApiRrController;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
         private Hrot.SimHost.Modules.CognitiveSpatialModule? _perceptionMod;
@@ -1573,10 +1575,8 @@ namespace Hrot.Editor
             // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
             //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; the MCP server
             //    (tools/ai-debug-mcp) is an out-of-process client of this loopback HttpListener.
-            //    editorTracer and rrController are OMITTED on purpose: trunk's tracer coordinator is a
-            //    different type (Hrot.Editor.Debug.*, DEBT-MCP-002) and EcsRecordReplayController is not in
-            //    this composition root — so the behavior-trace and record/replay endpoints are degraded,
-            //    while scenario/entity/time/preview/checkpoint remain live. See docs/MCP_Integration.md.
+            //    Full surface: the behavior-trace tracer and the record/replay controller are wired below
+            //    (own instances, dedicated to the API). See docs/MCP_Integration.md.
             {
                 var portEnv = System.Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT");
                 if (!string.IsNullOrWhiteSpace(portEnv) && int.TryParse(portEnv, out var debugApiPort) && debugApiPort > 0)
@@ -1586,6 +1586,13 @@ namespace Hrot.Editor
 
                     var debugExtraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap!, scenarioSerializer);
                     var debugTimeFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController!, _timeController!, _world);
+                    // The behavior-trace arming coordinator (Hrot.Editor.DebugApi.*) — distinct from the
+                    // time-control tracer of the same short name in Hrot.Editor.Debug. Self-contained.
+                    _debugApiTracer = new Hrot.Editor.DebugApi.EditorAiTracerCoordinator(_world);
+                    // The record/replay controller (already exists in Hrot.SimHost); a dedicated instance
+                    // for the API's /recording/* and /replay/* endpoints.
+                    _debugApiRrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
+                        _kernel!, EditorNodeId, _world);
 
                     var debugService = new Hrot.Editor.DebugApi.DebugApiService(
                         _world,
@@ -1600,6 +1607,8 @@ namespace Hrot.Editor
                         tkbDb:            tkbDb,
                         geoTransform:     _geoTransform,
                         bpManager:        _bpManager,
+                        rrController:     _debugApiRrController,
+                        editorTracer:     _debugApiTracer,
                         btreeSession:     _btreeDebugSession,
                         hsmSession:       _hsmDebugSession,
                         primitiveBuffer:  _gizmoBuffer);
