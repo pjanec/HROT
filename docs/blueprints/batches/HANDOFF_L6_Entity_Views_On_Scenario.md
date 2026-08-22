@@ -52,6 +52,34 @@ extraction on the **unchanged** offer sets first — if BTree/HSM/Blueprint stil
 the generic half moved cleanly. ⚠ **If `L6.1a` proves larger than one batch, STOP and report** *(`R-106`:
 stop THAT item, not the batch — items already green stay)*; we split it rather than rush it.
 
+## 2b. ⭐⭐⭐ AUTONOMOUS SELF-STEERING PROTOCOL — **run the plan point by point without waiting on the coordinator**
+
+⭐ **You are cleared to run all of §1 autonomously.** ⛔ Do NOT stop for a coordinator hand-hold between
+items — the order, the gates and the stop rules below are your steering.
+
+| ⭐ the loop, per item in §1 order | |
+|---|---|
+| **① build the item** | to the design *(§6 `L6`)*; **obligation ③**: note match/deviation vs the `classDiagram`/sequence |
+| **② gate it** | run its row's gate *(T0/T1)*; ⛔ **a build must SUCCEED before its tests count** *(no stale-binary green)* |
+| **③ green? → next item.** failed / premise false? → **stop THAT item**, record it, **do every other unblocked item** *(`R-106`)* | ⛔ a genuine DEPENDENCY may cascade — name it |
+| **④ deviated? → fold the as-built into the DESIGN now** *(obligation ⑤)*, marking prior state superseded | ⛔ not only the report — the report is ephemeral |
+| **⑤ update the LIVING report each item** | so an interruption/compaction leaves the state visible — build/blocked/deviated per item |
+
+⛔⛔ **THE ONE HARD CHECKPOINT — the STAGE GATE after `L6.1a`:** rail the **three** AI perspectives'
+offer sets. ⭐ **Unchanged ⇒ proceed autonomously** to item 2 — no need to check in. 🔴 **ANY change ⇒
+HALT the L6 line and REPORT** *(surface it, not just log it)* — the extraction is wrong and everything
+downstream would inherit it. ⚠ This is the one place a false green is expensive; do not self-certify past a
+drift.
+
+⚠ **What autonomy does NOT close, by design — so do not claim them:**
+- ⛔ **the coordinator merge-review** — you build on `claude/hrot-implementation-j1jvin` and REPORT; the
+  coordinator verifies the diff + the design fold-back and merges. ⭐ One round-trip at the END.
+- ⛔ **the visual check** — L6's output is visual and you run headless. ⭐ Deliver a **built, rail-green
+  result to visual-check**; ⛔ do not report "works" for the on-screen behaviour you cannot see.
+
+⭐ **End state you produce:** the §3 gate report · the per-item built/blocked/deviated list · the `BP-` ids ·
+the design edits you folded back. ⇒ then the coordinator merges and the user visual-checks.
+
 ## 3. ⭐ LANE & GATES
 
 ⛔ No time-lane file. ⭐ Expect to touch: `Hrot.Editor.AiShared/Shell` + `Windows` *(the extraction)* ·
