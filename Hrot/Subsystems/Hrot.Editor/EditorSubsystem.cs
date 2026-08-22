@@ -199,6 +199,9 @@ namespace Hrot.Editor
         private bool                    _headless;
         // GZH-016: gate — false when another subsystem owns the map view.
         private Func<bool>              _isActiveMapOwner = () => true;
+        // Asks the host runner to leave its frame loop gracefully (SubsystemConfig.RequestAppExit,
+        // bound to SubsystemOrchestrator.Stop). Used by the AI-debug API's POST /shutdown.
+        private Action                  _requestAppExit = () => { };
 
         // ── Universal breakpoints (UBP-P10T1) ────────────────────────────────────
         private EntityRepository?       _bpPreTickSnapshot;
@@ -729,6 +732,7 @@ namespace Hrot.Editor
             _headless = config.Headless;
             // GZH-016: store active-map-owner predicate injected by SubsystemOrchestrator.
             _isActiveMapOwner = config.IsActiveMapOwner;
+            _requestAppExit   = config.RequestAppExit;
 
             // ?? 1. ECS world ?????????????????????????????????????????????????
             _world = new EntityRepository();
@@ -1597,7 +1601,14 @@ namespace Hrot.Editor
                 if (!string.IsNullOrWhiteSpace(portEnv) && int.TryParse(portEnv, out var debugApiPort) && debugApiPort > 0)
                 {
                     _debugApiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
-                    _debugApiHost     = new Hrot.Editor.DebugApi.DebugApiHost(debugApiPort, _debugApiJobQueue, () => { });
+                    // POST /shutdown asks the HOST RUNNER to leave its frame loop, so the process
+                    // exits through the same ordered teardown as the window's [X] — subsystems get
+                    // Shutdown(), recordings flush. ⛔ Deliberately not Environment.Exit: that skips
+                    // the runner's finally. The call arrives on the HttpListener thread and only
+                    // sets a volatile flag; the loop observes it on its next frame, so the client
+                    // still receives its 200 first.
+                    _debugApiHost     = new Hrot.Editor.DebugApi.DebugApiHost(
+                        debugApiPort, _debugApiJobQueue, () => _requestAppExit());
 
                     var debugExtraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap!, scenarioSerializer);
                     var debugTimeFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController!, _timeController!, _world);

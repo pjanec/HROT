@@ -130,7 +130,19 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         internal static readonly JsonSerializerOptions DebugApiDumpOptions = BuildDebugApiDumpOptions();
 
-        private static JsonSerializerOptions BuildDebugApiDumpOptions()
+        /// <summary>
+        /// The dump options, but for reading a client's PATCH: identical converters — so a value
+        /// the API emitted is accepted verbatim (HN-002) — with enums relaxed to also accept their
+        /// integer form, which the strict dump converter refuses.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately asymmetric, and only in the tolerant direction: the API keeps emitting
+        /// canonical enum NAMES, and merely stops rejecting an integer a caller sends back.
+        /// </remarks>
+        internal static readonly JsonSerializerOptions DebugApiPatchOptions =
+            BuildDebugApiDumpOptions(strictEnums: false);
+
+        private static JsonSerializerOptions BuildDebugApiDumpOptions(bool strictEnums = true)
         {
             // Start from a mutable copy of DefaultRelaxed settings (can't clone frozen opts directly).
             var opts = new JsonSerializerOptions
@@ -157,7 +169,9 @@ namespace Hrot.Editor.DebugApi
             // Keep FixedString and strict-enum converters from DefaultRelaxed.
             opts.Converters.Add(new Fdp.Core.Serialization.Converters.FixedString32Converter());
             opts.Converters.Add(new Fdp.Core.Serialization.Converters.FixedString64Converter());
-            opts.Converters.Add(new Fdp.Core.Serialization.Converters.StrictStringEnumConverter());
+            opts.Converters.Add(strictEnums
+                ? new Fdp.Core.Serialization.Converters.StrictStringEnumConverter()
+                : new System.Text.Json.Serialization.JsonStringEnumConverter());
 
             opts.MakeReadOnly();
             return opts;
@@ -2214,13 +2228,14 @@ namespace Hrot.Editor.DebugApi
                 object? deserialized;
                 try
                 {
+                    // HN-002 — parse with the SAME options the dump was written with. The patch
+                    // parser used to build its own bare options, so a Vector3 could only be written
+                    // in the {X,Y,Z} shape while GET /entities emitted [x,y,z]: read-modify-write
+                    // could not round-trip. DebugApiDumpOptions carries the vector converters (which
+                    // now accept both shapes) and the NaN sentinels, so what the API hands out is
+                    // exactly what it takes back.
                     deserialized = JsonSerializer.Deserialize(
-                        valueNode.ToJsonString(), targetType,
-                        new JsonSerializerOptions
-                        {
-                            IncludeFields = true,
-                            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
-                        });
+                        valueNode.ToJsonString(), targetType, DebugApiPatchOptions);
                 }
                 catch (Exception ex)
                 {

@@ -57,14 +57,22 @@ namespace Fdp.Core
             return ref GetUnmanagedComponentRO<T>(e);
         }
         
+        /// <remarks>
+        /// The diagnostic on the null path is load-bearing, not noise: <c>Has=true</c> with a null
+        /// payload means the repository's presence bits and its managed storage have diverged, and
+        /// naming both halves is what made HN-001 (the preview-rewind crash) diagnosable at all.
+        /// It goes through the logger rather than <c>Console.WriteLine</c> so a host that captures
+        /// its output — the editor, a test harness, a headless runner — actually receives it.
+        /// </remarks>
         T ISimulationView.GetManagedComponentRO<T>(Entity e)
         {
             // Call internal method directly
             var val = GetManagedComponentRO<T>(e);
-            if (val == null) 
+            if (val == null)
             {
                 bool has = HasManagedComponent<T>(e);
-                System.Console.WriteLine($"FATAL: Entity {e} GetManagedComponentRO<{typeof(T).Name}> returned null, but Has={has}. Idx={e.Index}");
+                Logging.FdpLog<EntityRepository>.Error(
+                    $"Entity {e} GetManagedComponentRO<{typeof(T).Name}> returned null, but Has={has}. Idx={e.Index}");
                 throw new InvalidOperationException($"Entity {e} missing component {typeof(T).Name}");
             }
             return val;

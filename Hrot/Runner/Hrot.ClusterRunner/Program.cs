@@ -308,6 +308,14 @@ class Program
                         Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Middle));
 
                     orchestrator.DrainConsoleActions();
+
+                    // A subsystem (or a console action) asked the orchestrator to stop — e.g. the
+                    // editor's POST /shutdown. This loop is not orchestrator.Run(), so it has to
+                    // honour that request itself; breaking here still reaches the finally below,
+                    // which shuts every subsystem down in order.
+                    if (!orchestrator.IsRunning)
+                        break;
+
                     float dt = Raylib_cs.Raylib.GetFrameTime();
 
                     // WindowShouldClose() is edge-triggered (it reads AND resets the GLFW close flag),
