@@ -226,10 +226,14 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         //    on BTree and HSM only — Blueprint keeps its own, which is why this is +2 and not +3).
         // ⚠ 29 → 31 (Batch 88b: the AI Details panel, again BTree and HSM only — Blueprint keeps
         //    BlueprintDetailsWindow, so again +2 and not +3).
+        // ⛔⛔ 31 → 32 (S1 / BP-399, 2026-08-22 — DESIGN_Details_Panel_View_Switching.md §7.3 ①: the shell
+        //    is built for EVERY perspective, so Blueprint gets the third AI Details panel and the 88b
+        //    note above is SUPERSEDED. BlueprintDetailsWindow retires in the same commit — it claims the
+        //    same id, and RegisterCore throws on a duplicate).
         // ⭐ What this test is ABOUT is unchanged — every id is still distinct across perspectives,
         //    the property that would break if a new window forgot its perspective suffix.
-        Assert.Equal(31, allIds.Count);
-        Assert.Equal(31, allIds.Distinct().Count());
+        Assert.Equal(32, allIds.Count);
+        Assert.Equal(32, allIds.Distinct().Count());
     }
 
     // ── AIE-034 SC6: Diagnostics window carries the correct id suffix ─────────

@@ -17,7 +17,7 @@ namespace Hrot.Blueprints.Tests.Editor;
 /// the commit path were both genuinely correct. 📌 <c>BP-327</c>.</para>
 ///
 /// <para>⭐⭐⭐ <b>Why a rail on the specific window would not have been enough</b> — 📌 the handoff:
-/// <i>"and the CLASS, not just the instance."</i> A rail that names <c>BlueprintDetailsWindow</c>
+/// <i>"and the CLASS, not just the instance."</i> A rail that names one window
 /// catches the instance we already know about; ⛔ <b>it does nothing for the fourth occurrence</b>,
 /// which will be in a window nobody has written yet.</para>
 ///
@@ -28,10 +28,16 @@ namespace Hrot.Blueprints.Tests.Editor;
 ///
 /// <para>⚠ <b>WHAT IT CANNOT SEE</b> *(📌 <c>M-29</c>, stated rather than implied)*: <b>reachability</b>.
 /// A <c>Draw()</c> call sitting <b>after an early <c>return</c></b> is present in the IL and this rail
-/// passes. ⭐ That is why <c>BlueprintDetailsWindow</c> draws its modal on the FIRST line — its
-/// <c>DrawClientArea</c> has three <c>return</c>s — and why the frame rail
-/// <c>ThePropertiesFormIsVisibleWhenOpenedTests</c> exists alongside this one: ⭐⭐ <b>this rail proves
-/// the call exists; that one proves the dialog appears.</b></para>
+/// passes. ⇒ ⭐ the frame rail <c>ThePropertiesFormIsVisibleWhenOpenedTests</c> exists alongside this
+/// one: ⭐⭐ <b>this rail proves the call exists; that one proves the dialog appears.</b></para>
+///
+/// <para>⚠⚠ <b>AND A SCOPE LOSS <c>S1</c> CREATED, named rather than left to be discovered.</b>
+/// 📐 This rail only sees a modal held in a FIELD OF A <c>ManagedWindow</c>. §7.3 ① retired
+/// <c>BlueprintDetailsWindow</c>, and the Properties form now lives in
+/// <c>BlueprintDetailsContribution</c> as a frame OVERLAY — ⛔ so it is <b>out of this rail's
+/// scope</b>. ⭐ It is not uncovered: the frame rail above renders <c>WindowManager.FrameOverlays</c>
+/// and reddens if the installer never registered it, which is the same question one floor up. ⚠ The
+/// rail below still guards every OTHER window-owned modal, which is what it was written for.</para>
 /// </summary>
 public sealed class EveryModalAWindowOwnsIsDrawnTests
 {
@@ -39,7 +45,7 @@ public sealed class EveryModalAWindowOwnsIsDrawnTests
     /// that would sweep in test doubles and make the rail's own scope drift.</summary>
     private static IEnumerable<Assembly> EditorAssemblies() => new[]
     {
-        typeof(Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow).Assembly,
+        typeof(Hrot.Blueprints.Editor.Windows.BlueprintNodeDetailsView).Assembly,
         typeof(Hrot.Editor.AiShared.Variables.VariableEditModal).Assembly,
         typeof(Hrot.Hsm.Editor.Windows.HsmEventsWindow).Assembly,
     }.Distinct();

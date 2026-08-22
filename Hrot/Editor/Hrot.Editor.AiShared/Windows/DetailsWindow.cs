@@ -39,8 +39,56 @@ namespace Hrot.Editor.AiShared.Windows;
 /// as <c>VariablesDetailsView</c>.</para>
 /// </summary>
 public sealed class DetailsWindow
-    : ManagedWindow, IVariableDetailsHost, Variables.IVariableTableHost, Shell.IDetailsViewSource
+    : ManagedWindow, IVariableDetailsHost, Variables.IVariableTableHost, Shell.IDetailsViewSource,
+      Variables.IVariablePropertiesFormHost
 {
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ S1 — THE "PROPERTIES…" FORM, AS AN INJECTED DELEGATE.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <b>The host's custom Properties form, or <see langword="null"/> when this perspective has
+    /// none.</b> 📌 <c>R-109</c>: Properties is a CUSTOM form, ⛔ not a StructEdit session, so the
+    /// gesture binder cannot open one and the host that HAS one must.
+    ///
+    /// <para>⛔⛔ <b>A DELEGATE, and that is a reference-wall fact rather than a preference.</b>
+    /// 📐 <c>VariablePropertiesModal</c> lives in <c>Hrot.Blueprints.Editor</c> and depends on
+    /// <c>Hrot.Blueprints.Core.Compiler.Catalogs</c> — <b>ABOVE</b> this assembly *(§3's reference
+    /// wall)*. ⇒ ⭐ the host supplies the form; this shell never learns what a blueprint type is.
+    /// 📌 Exactly the shape <c>W4</c>'s <c>ResolveStagedField</c> and <c>L6.5</c>'s brain signal use,
+    /// for the same reason.</para>
+    ///
+    /// <para>⚠ <b>Retired with <c>BlueprintDetailsWindow</c>:</b> that class implemented
+    /// <see cref="Variables.IVariablePropertiesFormHost"/> directly and OWNED the modal. ⭐ The form
+    /// itself did not move — only who holds the reference.</para>
+    /// </summary>
+    private Func<Variables.VariableRow, bool, bool>? _propertiesForm;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Install this perspective's Properties form.</b> ⚠ Called even with <see langword="null"/>
+    /// is <b>not</b> the contract — ⛔ a host with no form simply never calls this, and
+    /// <see cref="HasPropertiesForm"/> is then honestly <c>false</c>.
+    /// </summary>
+    public void SetPropertiesForm(Func<Variables.VariableRow, bool, bool> form)
+        => _propertiesForm = form ?? throw new ArgumentNullException(nameof(form));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Does this shell actually have a form?</b> ⛔ Asked of the CONSTRUCTED object, which is the
+    /// control the <c>2026-08-16</c> silent-default rule prescribes.
+    ///
+    /// <para>⚠⚠ <b>This replaces a TYPE test.</b> 📌 <c>TheDialogOpensOnEveryHostTests</c> used to ask
+    /// <c>window is IVariablePropertiesFormHost</c>, which worked only while Blueprint had a
+    /// <b>different window class</b>. ⭐ One shell for four perspectives makes the type test meaningless
+    /// and this one strictly better: it reads what the composition root actually wired.</para>
+    /// </summary>
+    public bool HasPropertiesForm => _propertiesForm is not null;
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ <c>false</c> when no form was installed — 📌 the interface's own contract: <i>"no host
+    /// ⇒ the gesture opens nothing, and that is honest"</i>. ⛔ Never a dialog that does nothing.</remarks>
+    public bool OpenVariableProperties(Variables.VariableRow row, bool editable)
+        => _propertiesForm is { } form && form(row, editable);
+
     /// <summary>
     /// ⭐⭐ <b>Batch 100 (<c>100f</c>) — the row gestures this surface offers.</b>
     /// ⭐ An AUTHORING surface — the Details panel is where a designer edits a declaration.

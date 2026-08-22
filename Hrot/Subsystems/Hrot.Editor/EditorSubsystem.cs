@@ -379,8 +379,17 @@ namespace Hrot.Editor
         private AssetBrowserDockedWindow?       _aiAssetBrowser;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
         private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
-        // AIE-048: Blueprint Details + Variables windows.
-        private Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow? _blueprintDetailsWindow;
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>S1</c> — the active Blueprint asset, PULLED by the node Details view.</b>
+        /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.3 ①.
+        ///
+        /// <para>⚠⚠ <b>This field replaces <c>BlueprintDetailsWindow.Retarget(bpAsset)</c>.</b>
+        /// 🔴 That was a PUSH the composition root had to remember; ⭐ 📌 <c>R-126</c> —
+        /// <i>"no path can forget to raise what is never raised"</i> — so the view asks for the asset on
+        /// the frame it needs it. ⛔ The ASSIGNMENT still happens in the same place
+        /// *(<c>ActiveChanged</c>)*, so the timing is unchanged; only the direction is.</para>
+        /// </summary>
+        private Hrot.Blueprints.Core.Assets.BlueprintAsset? _blueprintActiveAsset;
         // BATCH-03D2: Graph Signature window (edits Function graph Inputs/Outputs).
         private Hrot.Blueprints.Editor.Windows.GraphSignatureWindow? _blueprintSignatureWindow;
         // AIE-048: legacy selection store bridging AiShared → BlueprintVariablesWindow.
@@ -2706,8 +2715,9 @@ namespace Hrot.Editor
                         // BP-223: where the locals "+" refusal on a macro graph is drawn.
                         indicators:     ctx?.Indicators);
 
-                    // Retarget Details window (just needs the BlueprintAsset).
-                    _blueprintDetailsWindow?.Retarget(bpAsset);
+                    // ⭐ S1 — the Details node view PULLS this (see the field's remarks); the assignment
+                    //   stays exactly where BlueprintDetailsWindow.Retarget(bpAsset) used to be.
+                    _blueprintActiveAsset = bpAsset;
 
                     // Retarget Variables window via legacy bridge store.
                     _blueprintLegacySelectionStore.SelectAsset(bpAsset);
@@ -2723,7 +2733,7 @@ namespace Hrot.Editor
                 {
                     // Clear Blueprint windows when switching away from Blueprint perspective.
                     _blueprintMyBlueprintWindow?.Retarget(null, null, null, null);
-                    _blueprintDetailsWindow?.Retarget(null);
+                    _blueprintActiveAsset = null;
                     _blueprintLegacySelectionStore.SelectAsset(null);
                     _blueprintSignatureWindow?.Retarget(null);
                 }
@@ -3412,16 +3422,27 @@ namespace Hrot.Editor
                 new Hrot.Blueprints.Editor.Windows.BlueprintBookmarksWindow(_aiDocumentManager!);
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, blueprintBookmarksWindow);
 
-            // ── AIE-048: Blueprint Details + Variables windows ────────────────────────────────
-            _blueprintDetailsWindow = new Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow(
-                selectionStore:  _blueprintSelectionStore,
+            // ── ⭐⭐⭐ S1 (BP-399) — BLUEPRINT'S DETAILS IS THE SHARED SHELL ────────────────────
+            // 📄 DESIGN_Details_Panel_View_Switching.md §7.3 ① — one DetailsWindow class on all four
+            //    perspectives; BlueprintDetailsWindow is DELETED and its node arm is now a view.
+            // ⛔⛔ The shell is already built and registered by _blueprintRegistrar (it keeps the SAME
+            //    persisted id, `ai_details_blueprint` — §7.3 ④). ⇒ nothing is constructed here; what
+            //    this root supplies is the two things the reference wall keeps out of AiShared: the
+            //    node view and the Properties form. 📌 One call, so a rail on the constructed editor
+            //    covers all of it (the 2026-08-16 control).
+            Hrot.Blueprints.Editor.Windows.BlueprintDetailsContribution.InstallInto(
+                registrar:       _blueprintRegistrar!,
+                windowManager:   windowManager,
+                // ⭐ Re-asked every frame — R-126's pull. Set in ActiveChanged, exactly where the
+                //   retired Retarget(bpAsset) call stood.
+                asset:           () => _blueprintActiveAsset,
                 drawerRegistry:  _blueprintNodeDrawers ?? new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry(),
                 // ⭐⭐ Batch 99 (99a) — the Properties form's RENAME runs this. 📌 The silent-default
                 //    ruling: "a production caller that HAS a dependency must PASS it" — this method
                 //    hands the SAME service to BlueprintVariablesManagedWindow seven lines below, and
-                //    the first draft of 99a left this one defaulted to null.
+                //    the first draft of 99a left this one defaulted to null. ⭐ S1 made the parameter
+                //    REQUIRED, so that mistake is now unrepresentable.
                 refactorService: refactorService);
-            _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintDetailsWindow);
 
             // ⛔⛔ L5 — BlueprintVariablesManagedWindow / BlueprintVariablesWindow are RETIRED
             //    (Q38's retire list). ⭐ Their replacement is LIVE and that is the precondition §6 L5

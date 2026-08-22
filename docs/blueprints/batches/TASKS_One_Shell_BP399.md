@@ -21,8 +21,8 @@ design-basis: DESIGN_Details_Panel_View_Switching.md §7 (target state, approved
 
 | # | task | design | gate | verdict |
 |---|---|---|---|---|
-| **S0** | ⭐ **MEASURE before building**: are §6 `L3`'s *Diagnostics* and *Layout/byte-budget · Asset settings* rows already satisfied by `details.blackboard`? | §7.6's closing note | a written answer + `search_graph` totals; ⛔ **no code** | |
-| **S1** | ⭐⭐⭐ **Blueprint gets the real shell** — `DetailsWindow` under the existing id, `BlueprintDetailsWindow` retired, its node arm ported | §7.3 ①③④ · §7.6 ① | ⛔⛔ **STAGE GATE**, see §2 | |
+| **S0** | ⭐ **MEASURE before building**: are §6 `L3`'s *Diagnostics* and *Layout/byte-budget · Asset settings* rows already satisfied by `details.blackboard`? | §7.6's closing note | a written answer + `search_graph` totals; ⛔ **no code** | ✅ **YES — both already satisfied.** 📐 `BlackboardDetailsView`'s own header records that §6 `L3`'s **three** rows ship as **ONE** view: `BlackboardAuthoringWindow.DrawClientArea` is one flowing body with **no seam** to split, and `VariablesPanelControl`'s host **IS** that window *(`:509`)*. ⇒ ⛔ **no code**, and adding views for those rows would duplicate `details.blackboard` |
+| **S1** | ⭐⭐⭐ **Blueprint gets the real shell** — `DetailsWindow` under the existing id, `BlueprintDetailsWindow` retired, its node arm ported | §7.3 ①③④ · §7.6 ① | ⛔⛔ **STAGE GATE**, see §2 | ✅ **BUILT** — `BP-428` · `BP-429` · `BP-430`. Stage gate ①–⑤ all hold *(§2 below, annotated)* |
 | **S2** | ⭐⭐⭐ **`details.nodeproperties` on BTree + HSM** — extracted from `InspectorWindow`'s facet arm, **Rank 20** | §7.3's catalogue · §7.6 ② | selecting a BTree node makes it the **default**; Blackboard Variables is the other toolbar entry | |
 | **S3** | ⭐ **`details.utility`** — from `InspectorWindow`'s utility arm | §7.6 ③ | offered on a utility-consideration selection; ⚠ **ported as the stub it is** | |
 | **S4** | ⛔ **`details.parametersync`** — **NOT THIS BATCH** | §7.6 ④ · `R-99` | — | ⛔ **deferred, by design** |
@@ -36,15 +36,16 @@ design-basis: DESIGN_Details_Panel_View_Switching.md §7 (target state, approved
 depend on, and piling two new views on an unverified swap is how a structural change hides its blast
 radius.
 
-| must hold | |
-|---|---|
-| **①** | ⭐⭐ **Scenario · BTree · HSM offer sets UNCHANGED**, ordered-equal — the existing rail `TheAiOfferSetsAreUnchangedTests` already asserts three of them |
-| **②** | ⭐⭐⭐ **Blueprint's Details is now a `DetailsWindow`** and its id is still `ai_details_blueprint` |
-| **③** | ⭐⭐ **Blueprint gains toolbar + float + pin** — `ShowsFloatAndPin` true with a view showing |
-| **④** | ⛔ **Blueprint's node drawer still renders** — the ported view shows what `BlueprintDetailsWindow`'s node arm showed |
-| **⑤** | ⭐ solution build **0 errors**; the three suites green |
+| must hold | | ✅ result `2026-08-22` |
+|---|---|---|
+| **①** | ⭐⭐ **Scenario · BTree · HSM offer sets UNCHANGED**, ordered-equal — the existing rail `TheAiOfferSetsAreUnchangedTests` already asserts three of them | ✅ **BTree/HSM rows byte-for-byte the pre-`S1` measurement.** ⚠ **The Blueprint row MOVED, by design** — §7.3 ① gives it the shell, so it gains `details.variables`; re-expressed in place with the reason, ⛔ not silently updated *(`B101c`)* |
+| **②** | ⭐⭐⭐ **Blueprint's Details is now a `DetailsWindow`** and its id is still `ai_details_blueprint` | ✅ `TheOneShellIsOnEveryPerspectiveTests.{EveryAiPerspectivesDetailsPanel_IsTheOneShellClass, TheShellKeepsThePersistedWindowId}` — the type asserted **exactly**, so a subclass would fail too |
+| **③** | ⭐⭐ **Blueprint gains toolbar + float + pin** — `ShowsFloatAndPin` true with a view showing | ✅ `WithADocumentOpen_EveryAiShellOffersFloatAndPin` *(with the negative half in the same test)* + `FloatingFromAnAiShell_RegistersAWindow` |
+| **④** | ⛔ **Blueprint's node drawer still renders** — the ported view shows what `BlueprintDetailsWindow`'s node arm showed | ✅ all 8 behavioural cases ported to `BlueprintNodeDetailsViewTests` + `FunctionCallNodeDrawerTests` FC-09; ⚠ **`R-27`: rail-green TO a visual check** — the pixels are the user's |
+| **⑤** | ⭐ solution build **0 errors**; the three suites green | ✅ see §5's gate table in the report |
 
 🔴 **Any drift ⇒ HALT and report.** ⛔ Do not self-certify past it.
+⭐ **No drift found.** ⚠ The one row that moved *(①'s Blueprint half)* is the approved design's own change, argued above and folded into `DESIGN_…` §7.3.
 
 ---
 

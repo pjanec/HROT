@@ -58,8 +58,14 @@ public sealed class EditorPanels : IDisposable
     /// <summary>⭐ The outline. An outline CLICK is what routes a section into the Details panel.</summary>
     public BlueprintMyBlueprintWindow Outline { get; }
 
-    /// <summary>⭐ The Details panel — Blueprint's own, as production registers it.</summary>
-    public BlueprintDetailsWindow Details { get; }
+    /// <summary>
+    /// ⭐ The Details panel — <b>the SHARED shell</b>, as production registers it.
+    /// <para>⚠ <b><c>S1</c> (<c>BP-399</c>, <c>2026-08-22</c>):</b> this used to be Blueprint's own
+    /// <c>BlueprintDetailsWindow</c>. 📄 §7.3 ① retired that class; ⭐ the registrar now BUILDS this
+    /// panel for every perspective, so the fixture no longer constructs one — ⛔ and could not, because
+    /// a second window under <c>ai_details_blueprint</c> would collide.</para>
+    /// </summary>
+    public Hrot.Editor.AiShared.Windows.DetailsWindow Details => Registrar.Details!;
 
     /// <summary>⭐ The Watch — a PINNED view, so a row reaches it only by being pinned.</summary>
     public AiWatchWindow Watch => Registrar.Watch!;
@@ -129,14 +135,14 @@ public sealed class EditorPanels : IDisposable
             editableAsset:  editable, blueprintAsset: asset,
             hostServices:   null, commands:       null);
 
-        Details = new BlueprintDetailsWindow(
-            selectionStore: store,
-            drawerRegistry: new BlueprintNodeDrawerRegistry());
-
         // ⭐⭐ RegisterExtraWindow is what CONNECTS the outline to the Details panel and installs the
         //    run-state source — 📌 the registrar's own remark: "batches 79/80/81 each lost a surface to
         //    a 'someone must remember to wire it' seam." ⛔ So the smoke fixture must not wire them by
         //    hand either: it registers them, exactly as the composition root does.
+        // ⚠ S1: the Details panel is no longer CONSTRUCTED here — the registrar builds one for every
+        //   perspective (§7.3 ①). ⭐ It is still registered through the same call, so this fixture keeps
+        //   exercising the same path production does; the registrar's own guards make the second pass
+        //   idempotent (view sources, properties hosts and gesture attachment are all keyed).
         Registrar.RegisterExtraWindow(_windows, Outline);
         Registrar.RegisterExtraWindow(_windows, Details);
     }

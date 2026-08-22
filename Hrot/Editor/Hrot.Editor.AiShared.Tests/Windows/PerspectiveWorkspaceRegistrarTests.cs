@@ -148,9 +148,14 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         // ⚠ 23 → 25 (Batch 88b: the AI Details panel, again BTree and HSM only — +2, not +3, because
         //    Blueprint keeps BlueprintDetailsWindow. ⭐ A second Details there would be two panels for
         //    one concept AND an id collision, which RegisterCore now refuses at startup).
+        // ⛔⛔ 25 → 26 (S1 / BP-399, 2026-08-22: DESIGN_Details_Panel_View_Switching.md §7.3 ① — the
+        //    shell is built for EVERY perspective, so Blueprint gets the third AI Details panel and the
+        //    88b note above is SUPERSEDED. ⭐ It is still ONE panel per perspective: BlueprintDetailsWindow
+        //    is retired in the same commit — it HAD to be, because it claims the same
+        //    `ai_details_blueprint` id and RegisterCore throws on a duplicate).
         //    ⭐ The property under test is distinctness, and it still holds.
-        Assert.Equal(25, allIds.Count);
-        Assert.Equal(25, allIds.Distinct().Count());
+        Assert.Equal(26, allIds.Count);
+        Assert.Equal(26, allIds.Distinct().Count());
     }
 
     /// <summary>

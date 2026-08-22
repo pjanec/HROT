@@ -678,9 +678,21 @@ becomes the other toolbar entry. ⛔ Deselect the node and its predicate decline
 
 ⚠ **One rank interaction, stated rather than buried:** `details.runtime.*` is **50**, so while a session
 is LIVE the Runtime view still outranks node properties. ⭐ That is deliberate — you started a run to
-watch it — and 📌 `R-98` means one toolbar click switches, remembered per context. ⛔ **If the intent is
-that node properties wins even while running, that is a rank change and it is the user's call, not a
-build decision.**
+watch it — and 📌 `R-98` means one toolbar click switches, remembered per context. ⭐⭐ **Approved by the
+user, `2026-08-22`:** *"runtime having higher rank during live session is OK."*
+
+#### ⛔⛔ AS-BUILT (`S1`, `2026-08-22`) — **the node predicate carries a SECOND clause**
+
+📐 **The catalogue row above says `details.nodeproperties` applies on *"exactly one node selected"*.
+⚠ As built it is `exactly one node selected ∧ the designer is NOT working in the variable outline`**
+*(`DetailsViewPredicates.ExactlyOneNodeNotInTheOutline<T>`)*.
+
+| | |
+|---|---|
+| 🔴 **Why the one-line version is not enough** | node properties is **Rank 20**, Variables is **10** ⇒ with only the *"one node"* clause a node selected on the canvas would **outrank the variables list while the designer is clicking rows in the outline** |
+| ⭐ **What it preserves** | `Q32` ruling 2 — *"selection routes"* — the outline→Details routing built across batches 79–87. 📐 The retired `BlueprintDetailsWindow.ShowingVariables` encoded the SAME rule as `focus != GraphCanvas`; this is that rule stated from the node view's side |
+| ⭐ **Where it lives** | **one** helper in `DetailsViewPredicates` *(`R-13`)*, used by `S1`'s Blueprint view and by `S2`'s BTree/HSM view — ⛔ not copied into two descriptors |
+| ⚠ **What it does NOT read** | whether the outline has rows. That half is the Variables view's own `section.HasContent`; if both decline, `R-117`'s grey line is what the designer gets |
 
 ### 7.4 ⭐⭐ THE TARGET CLASS DIAGRAM
 
@@ -694,6 +706,12 @@ classDiagram
         +OpenFloat(WindowManager) DetailsViewWindow
         +Pin(WindowManager) DetailsViewWindow
         +ShowsFloatAndPin bool
+        +SetPropertiesForm(Func) void
+        +HasPropertiesForm bool
+    }
+    class BlueprintDetailsContribution {
+        <<S1 - composition root, one call>>
+        +InstallInto(registrar, windows, asset, drawers, refactor)$ void
     }
     class DetailsViewRegistry {
         +OfferSet(DetailsContext)
@@ -737,7 +755,28 @@ classDiagram
     InspectorWindow ..> NodePropertiesDetailsView : content EXTRACTED to
     InspectorWindow ..> UtilityDetailsView : content EXTRACTED to
     BlueprintDetailsWindow ..> BlueprintNodeDetailsView : content EXTRACTED to
+
+    BlueprintDetailsContribution ..> DetailsViewRegistry : adds node view
+    BlueprintDetailsContribution ..> DetailsWindow : installs Properties form
 ```
+
+#### ⛔ AS-BUILT (`S1`, `2026-08-22`) — **two boxes the design did not have, and why**
+
+| box | why it exists |
+|---|---|
+| ⭐⭐ **`BlueprintDetailsContribution`** | 📐 **A reference-wall fact.** `VariablePropertiesModal` and `BlueprintNodeDrawerRegistry` live in `Hrot.Blueprints.Editor`, **above** `Hrot.Editor.AiShared` where the shell and the registrar live ⇒ the registrar cannot build either. ⭐ Same shape as `L6.3`/`L6.4`'s Scenario adapters. ⛔ **ONE call at the root, not three loose lines** — the node view, the Properties form and its frame overlay ship together, so a rail on the constructed editor covers all three |
+| ⭐⭐ **`DetailsWindow.SetPropertiesForm` / `HasPropertiesForm`** | 📌 `R-109`: Properties is a CUSTOM form, so the shell cannot own one across the wall. ⭐ A delegate — the same shape as `W4`'s `ResolveStagedField` and `L6.5`'s brain signal. ⚠ **`HasPropertiesForm` REPLACES a type test**: `window is IVariablePropertiesFormHost` separated the perspectives only while Blueprint had its own window class; with one shell it answers `true` everywhere and says nothing |
+
+⚠ **Two other as-built differences, named:**
+① **The Properties form is a FRAME OVERLAY**, not a `DrawClientArea` line — 📌 `ManagedWindow.Render`
+returns early when the window is closed or belongs to another perspective, so a modal drawn there
+vanishes with the panel *(`BP-327`'s own lesson)*. ⇒ ⚠ it leaves
+`EveryModalAWindowOwnsIsDrawnTests`'s scope *(that rail only sees modals held in a window FIELD)*; the
+frame rail covers it instead, and now reddens if the installer never registers the overlay.
+② **The asset is PULLED, not pushed** — `BlueprintDetailsWindow.Retarget(bpAsset)` is gone; the view
+reads a `Func<BlueprintAsset?>` on the frame it needs it *(`R-126`)*, and detects a document switch by
+comparing the asset rather than by being told. ⭐ The ASSIGNMENT still happens where `Retarget` was
+called, so the timing is unchanged.
 
 ⛔⛔ **`..>` says EXTRACTED, not WRAPPED — and that is §6 `L3`'s *"do not delegate this one"*.**
 ⚠ `L3`'s default strategy IS delegation *(a thin view borrowing the existing surface, as
@@ -773,7 +812,7 @@ sequenceDiagram
 
 | # | item | why here |
 |---|---|---|
-| **①** | ⭐⭐⭐ **Blueprint gets the real shell** — stop gating `Details` on `HostKindOf`; keep the id | ⛔ **first**: until Blueprint has the shell, "node properties" has two homes and the extraction target is ambiguous |
+| **①** | ✅ **BUILT `2026-08-22` (`BP-428`)** — ⭐⭐⭐ **Blueprint gets the real shell**; `Details` no longer gated on `HostKindOf`, the id is kept, `BlueprintDetailsWindow` **deleted**, its node arm now `BlueprintNodeDetailsView` at `details.nodeproperties`/**Rank 20** | ⛔ **first**: until Blueprint has the shell, "node properties" has two homes and the extraction target is ambiguous. ⚠ **Atomic by necessity** — the old window claims `ai_details_blueprint` and `RegisterCore` throws on a duplicate |
 | **②** | ⭐⭐ **`details.nodeproperties`** — extracted from `InspectorWindow`'s facet arm **and** `BlueprintDetailsWindow`'s node arm | ⭐ one view, three perspectives; ⚠ the two sources must be reconciled, which is why ① comes first |
 | **③** | ⭐ **`details.utility`** — from `InspectorWindow`'s utility arm | ⚠ 📐 that arm is a **STUB** *(a heading and `"Option N, Consideration M"`, then `// Curve inspector panel wired in a later phase`)* ⇒ ⭐ port it honestly as a stub, ⛔ do not pretend it is a feature |
 | **④** | ⛔ **`details.parametersync`** — from `InspectorWindow`'s `PARAMETER SYNCHRONIZATION` arm | ⚠ **LAST**, after the orchestrator wiring *(`R-99`)* — unchanged |
@@ -782,6 +821,12 @@ sequenceDiagram
 ⚠ **Not in this list, deliberately:** the **Diagnostics** and **Layout/byte-budget · Asset settings** rows.
 📐 `BlackboardAuthoringWindow` already contributes `details.blackboard`; ⇒ ⭐ **measure whether those rows
 are already satisfied before building anything**, rather than adding views that duplicate it.
+
+✅ **MEASURED `2026-08-22` (`S0`) — BOTH ARE ALREADY SATISFIED, and no code is owed.** 📐 `BlackboardDetailsView`'s
+own header records that §6 `L3`'s **three** rows ship as **ONE** view: `BlackboardAuthoringWindow.DrawClientArea`
+is a single flowing body with **no seam** to split, and `VariablesPanelControl`'s host **IS** that window
+*(`:509`)*. ⇒ ⛔ adding views for those rows would duplicate `details.blackboard`, which is what this note
+existed to prevent.
 
 ### 7.7 ⚠ WHAT THIS SECTION SUPERSEDES
 

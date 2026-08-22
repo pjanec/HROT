@@ -1,9 +1,11 @@
 using System;
+using Fdp.Presentation.Icons;
+using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor.Windows;
-using System.Reflection;
 using AiSelectionStore = Hrot.Editor.AiShared.Selection.EditorSelectionStore;
 using Hrot.Editor.AiShared.Variables;
+using Hrot.Editor.AiShared.Windows;
 using Hrot.Editor.UiFrameRail;
 using ImGuiNET;
 using Xunit;
@@ -23,33 +25,69 @@ namespace Hrot.Blueprints.Tests.Editor.Frame;
 /// popup is actually on screen — <b>the only question the designer was asking.</b></para>
 ///
 /// <para>⚠ <b>WHICH LAYER IS FAKED</b> *(📌 <c>M-29</c>)*: the row is built here rather than by an
-/// outline click, and the window is constructed directly rather than by <c>EditorSubsystem</c> —
+/// outline click, and the registrar is constructed directly rather than by <c>EditorSubsystem</c> —
 /// ⭐ the composition-root half is covered from the other side by
 /// <c>TheDialogOpensOnEveryHostTests.OnlyBlueprintHasAPropertiesFormHost</c>. ⛔ Nothing else is faked:
-/// this is the production window, its production modal, and a real frame.</para>
+/// this is the production shell, the production installer, its production modal, and a real frame.</para>
+///
+/// <para>⛔⛔ <b><c>S1</c> (<c>BP-399</c>, <c>2026-08-22</c>) — RE-EXPRESSED, and the seam it guards
+/// MOVED.</b> 📐 The form used to be drawn from <c>BlueprintDetailsWindow.DrawClientArea</c>, so this
+/// rail reflected into that private method. 📄 §7.3 ① retires that class; ⭐ the form is now registered
+/// as a <b>frame overlay</b> by <see cref="BlueprintDetailsContribution"/>, which is where a modal
+/// belongs — <c>ManagedWindow.Render</c> returns early when the window is closed or belongs to another
+/// perspective, and a dialog drawn there vanishes with the panel. ⇒ ⭐ <b>the rail now draws what the
+/// WINDOW MANAGER holds</b>, which is strictly closer to production than a private method ever was:
+/// ⛔ an installer that forgot <c>RegisterFrameOverlay</c> leaves the overlay list empty and this
+/// reddens.</para>
 /// </summary>
 [Collection(UiFrameCollection.Name)]
 public sealed class ThePropertiesFormIsVisibleWhenOpenedTests
 {
     /// <summary>
-    /// ⭐⭐ <b>Draws the window's CLIENT AREA — ⛔ not <c>ManagedWindow.Render</c>, and the reason is a
-    /// finding.</b>
+    /// ⭐⭐ <b>Draws the manager's FRAME OVERLAYS — ⛔ not <c>WindowManager.Render</c>, and the reason is
+    /// a finding.</b>
     ///
-    /// <para>🔴 <b>Measured:</b> calling <c>Render(perspective, new IconAtlas(IntPtr.Zero, …))</c>
-    /// <b>CRASHED THE TEST HOST</b> under a real GL context — the title-bar pin button hands ImGui a
-    /// zero texture handle, which is harmless with no renderer attached and fatal with one.
-    /// ⚠⚠ <b>A crashed host truncates the run and makes the counts differ between runs</b> — 📌 exactly
-    /// the shape of <c>BP-337</c> and <c>DEBT-AIB-030</c>, which have cost this programme whole batches
-    /// of confusion. ⛔ Shipping a rail that can do that would be worse than shipping no rail.</para>
+    /// <para>🔴 <b>Measured:</b> rendering the real window chrome under a real GL context
+    /// <b>CRASHED THE TEST HOST</b> — the title-bar pin button hands ImGui a zero texture handle, which
+    /// is harmless with no renderer attached and fatal with one. ⚠⚠ <b>A crashed host truncates the run
+    /// and makes the counts differ between runs</b> — 📌 exactly the shape of <c>BP-337</c> and
+    /// <c>DEBT-AIB-030</c>. ⛔ Shipping a rail that can do that would be worse than shipping no rail.</para>
     ///
-    /// <para>⭐ <c>DrawClientArea</c> is <b>the method the defect was in</b> — it is where
-    /// <c>_propertiesModal.Draw()</c> belongs and where it was missing. ⇒ the window CHROME is the
-    /// faked layer *(📌 <c>M-29</c>)*, and nothing else is.</para>
+    /// <para>⭐ The overlay LIST is what production draws *(<c>WindowManager.Render</c> invokes exactly
+    /// these, after every window)*, so the window CHROME is the faked layer *(📌 <c>M-29</c>)* and
+    /// nothing else is.</para>
     /// </summary>
-    private static void DrawClientArea(BlueprintDetailsWindow w)
-        => typeof(BlueprintDetailsWindow)
-            .GetMethod("DrawClientArea", BindingFlags.NonPublic | BindingFlags.Instance)!
-            .Invoke(w, null);
+    private static void DrawOverlays(WindowManager wm)
+    {
+        foreach (var overlay in wm.FrameOverlays) overlay();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The production composition, as far as this assembly can build it:</b> a real registrar
+    /// *(which CONSTRUCTS the shell — §7.3 ①)*, a real manager, and the real installer.
+    /// ⛔ Nothing is wired by hand — <see cref="BlueprintDetailsContribution.InstallInto"/> is the ONE
+    /// call <c>EditorSubsystem</c> makes.
+    /// </summary>
+    private static (DetailsWindow Shell, WindowManager Windows) Production()
+    {
+        var registrar = new PerspectiveWorkspaceRegistrar(
+            perspectiveName: "Blueprint",
+            selectionStore:  new AiSelectionStore(),
+            catalog:         new Hrot.Editor.AiShared.Catalog.AssetCatalog(),
+            refactorService: new TheOutlineWatchEntryIsLiveTests.NoRefactorForWatch(),
+            debugRegistry:   new Hrot.Editor.AiShared.Debug.DebugSessionRegistry());
+
+        var windows = new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f));
+
+        BlueprintDetailsContribution.InstallInto(
+            registrar:       registrar,
+            windowManager:   windows,
+            asset:           () => null,
+            drawerRegistry:  new BlueprintNodeDrawerRegistry(),
+            refactorService: new TheOutlineWatchEntryIsLiveTests.NoRefactorForWatch());
+
+        return (registrar.Details!, windows);
+    }
 
     /// <summary>
     /// ⭐⭐⭐ <b>Open it through the window's own host interface, render, and assert ImGui shows it.</b>
@@ -62,32 +100,28 @@ public sealed class ThePropertiesFormIsVisibleWhenOpenedTests
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
 
-        var window = new BlueprintDetailsWindow(
-            selectionStore: new AiSelectionStore(),
-            drawerRegistry: new BlueprintNodeDrawerRegistry());
-
-        window.IsOpen = true;
+        var (shell, windows) = Production();
 
         var rig = ThePropertiesFormIsCustomTests.SceneForFrameRail();
 
         // ⭐ The gesture's own entry point, not the field.
-        Assert.True(((IVariablePropertiesFormHost)window)
+        Assert.True(((IVariablePropertiesFormHost)shell)
             .OpenVariableProperties(rig.Row, editable: true));
 
         bool visible = false;
         using (var f = UiFrameHarness.Begin())
         {
-            f.StepN(4, () => DrawClientArea(window));
+            f.StepN(4, () => DrawOverlays(windows));
             f.Step(() =>
             {
-                DrawClientArea(window);
+                DrawOverlays(windows);
                 visible = ImGui.IsPopupOpen(VariablePropertiesModal.PopupIdForTest);
             });
         }
 
         Assert.True(visible,
-            "\"Properties…\" was opened and no popup appeared. The window owns the modal but does " +
-            "not draw it — BP-327, and this is the third time.");
+            "\"Properties…\" was opened and no popup appeared. The installer registered the form on " +
+            "the shell but its Draw is not in the frame — BP-327, and this is the third time.");
     }
 
     /// <summary>
@@ -101,19 +135,15 @@ public sealed class ThePropertiesFormIsVisibleWhenOpenedTests
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
 
-        var window = new BlueprintDetailsWindow(
-            selectionStore: new AiSelectionStore(),
-            drawerRegistry: new BlueprintNodeDrawerRegistry());
-
-        window.IsOpen = true;
+        var (_, windows) = Production();
 
         bool visible = true;
         using (var f = UiFrameHarness.Begin())
         {
-            f.StepN(4, () => DrawClientArea(window));
+            f.StepN(4, () => DrawOverlays(windows));
             f.Step(() =>
             {
-                DrawClientArea(window);
+                DrawOverlays(windows);
                 visible = ImGui.IsPopupOpen(VariablePropertiesModal.PopupIdForTest);
             });
         }

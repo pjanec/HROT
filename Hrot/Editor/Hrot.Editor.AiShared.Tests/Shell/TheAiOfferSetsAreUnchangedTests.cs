@@ -30,6 +30,16 @@ namespace Hrot.Editor.AiShared.Tests.Shell;
 /// perspective it does not belong to. ⭐ Registration order is asserted too, because
 /// <c>DetailsViewRegistry.OfferSet</c> breaks rank ties by it — a reshuffle would flip which view a
 /// designer sees by default.</para>
+///
+/// <para>⛔⛔ <b><c>S1</c> (<c>BP-399</c>, <c>2026-08-22</c>) — THE <b>BLUEPRINT</b> ROW MOVED, AND IT MOVED
+/// <i>BY DESIGN</i>.</b> 📄 <b><c>DESIGN_Details_Panel_View_Switching.md</c> §7.3 ①</b>: <i>the shell is
+/// built for EVERY perspective</i>, so Blueprint now HAS a <c>DetailsWindow</c> and therefore gains the
+/// generic <c>details.variables</c> descriptor the shell contributes. ⭐ <b>Scenario · BTree · HSM are
+/// ordered-EQUAL to the pre-<c>S1</c> measurement</b> — that half is still a frozen baseline and is the
+/// stage gate (<c>TASKS_One_Shell_BP399.md</c> §2 ①). ⚠ <b>Only the row the approved design changes was
+/// re-expressed</b>; ⛔ per <c>B101c</c> the DIRECTION was established first (the design says Blueprint
+/// gets the shell) and only then were the expectations moved — this is not "updating the expected list"
+/// to hide a drift.</para>
 /// </summary>
 public sealed class TheAiOfferSetsAreUnchangedTests
 {
@@ -80,45 +90,74 @@ public sealed class TheAiOfferSetsAreUnchangedTests
     ///   <item><b>Blueprint has no <c>details.variables</c>.</b> ⭐ Consistent, not a defect: the
     ///   variables descriptor is contributed by the generic <c>DetailsWindow</c>, and <c>Details</c> is
     ///   deliberately <c>null</c> on Blueprint *(it has <c>BlueprintDetailsWindow</c>)* — the last rail
-    ///   in this file pins that.</item>
+    ///   in this file pins that. ⛔⛔ <b>SUPERSEDED BY <c>S1</c></b> — see the note below.</item>
     /// </list></para>
+    ///
+    /// <para>⛔⛔ <b><c>S1</c>, <c>2026-08-22</c> — the Blueprint row is now
+    /// <c>{ details.blackboard, details.variables }</c>.</b> ⭐ <b>Cause, named:</b>
+    /// <c>PerspectiveWorkspaceRegistrar</c> used to build the shell only inside the
+    /// <c>effectiveHost != null</c> gate, so Blueprint got no <c>DetailsWindow</c> and therefore none of
+    /// the descriptors the shell contributes. §7.3 ① moves that construction OUT of the gate ⇒ Blueprint
+    /// gets the same shell as its neighbours, and the same generic view with it. ⚠ <b>The BTree and HSM
+    /// rows are byte-for-byte the pre-<c>S1</c> measurement</b> — ⛔ if either of THOSE ever reddens, the
+    /// old rule applies unchanged: HALT, do not edit the list.</para>
     /// </remarks>
     public static TheoryData<string, string[]> FrozenOfferSets => new()
     {
+        // ⭐ FROZEN — measured before L6.1a, unchanged by S1.
         { "BTree",     new[] { "details.blackboard", "details.variables" } },
         { "HSM",       new[] { "details.blackboard", "details.variables" } },
-        { "Blueprint", new[] { "details.blackboard" } },
+        // ⛔ RE-EXPRESSED by S1, per DESIGN_Details_Panel_View_Switching.md §7.3 ①. Was
+        //   { "details.blackboard" } while Blueprint had no shell.
+        { "Blueprint", new[] { "details.blackboard", "details.variables" } },
     };
 
     /// <summary>
-    /// ⛔ <b>The negative half — a perspective must not GAIN a neighbour's view.</b>
-    /// ⚠ Without this, an extraction that registered every runtime pane on every perspective would
-    /// still satisfy an ordered-equality check per row only by luck; ⭐ stating the exclusion makes the
-    /// claim independent of the lists above.
+    /// ⛔ <b>The negative half — the SHARED registrar must stay host-AGNOSTIC.</b>
+    ///
+    /// <para>⭐ <b>Why this rail changed shape at <c>S1</c>, stated plainly.</b> Before <c>S1</c> the
+    /// reachable cross-contamination was <i>"Blueprint must not get the generic variables panel"</i> —
+    /// ⛔ but §7.3 ① makes exactly that the DESIGNED outcome, so that assertion no longer says anything
+    /// true. ⚠ The remaining two clauses (<c>details.graphsignature</c> on BTree/HSM) were already
+    /// <b>vacuous</b>: 📐 measured — <c>graphsignature</c> is not registered by this composition on ANY
+    /// perspective, so they asserted an absence nothing could produce. ⛔ Keeping them would be a rail
+    /// that cannot redden, which is worse than no rail (<c>BP-402</c> ①).</para>
+    ///
+    /// <para>⭐⭐ <b>The claim that IS reachable and IS independent of <c>FrozenOfferSets</c>:</b> the
+    /// three AI perspectives register the <b>SAME</b> set from the shared composition. 📌 That is the
+    /// property <c>S1</c> creates and the one a future edit would break — a perspective-specific view
+    /// registered into <c>PerspectiveWorkspaceRegistrar</c> instead of into its own host editor's
+    /// contribution reddens here, whatever the lists above say. ⚠ <b>Host-contributed views are
+    /// deliberately out of scope</b> — <c>details.nodeproperties</c> and <c>details.runtime.*</c> come
+    /// from the BTree/HSM/Blueprint editor registrars, which are not in this assembly.</para>
     /// </summary>
     [Fact]
-    public void NoAiPerspective_HostsAnotherPerspectivesView()
+    public void TheSharedRegistrar_OffersTheSameViewsToEveryAiPerspective()
     {
-        // ⚠ 📐 Measured: no `details.runtime.*` is registered in THIS composition at all (see the
-        //   FrozenOfferSets remarks), so naming those ids here would assert an absence that is already
-        //   guaranteed — a vacuous half. ⭐ The reachable cross-contamination is the GENERIC views, and
-        //   the one perspective that must NOT have the generic variables panel is Blueprint.
-        Assert.DoesNotContain("details.variables",    RegisteredIds("Blueprint"));
-        Assert.DoesNotContain("details.graphsignature", RegisteredIds("BTree"));
-        Assert.DoesNotContain("details.graphsignature", RegisteredIds("HSM"));
+        var btree     = RegisteredIds("BTree");
+        var hsm       = RegisteredIds("HSM");
+        var blueprint = RegisteredIds("Blueprint");
+
+        Assert.Equal(btree, hsm);
+        Assert.Equal(btree, blueprint);
     }
 
     /// <summary>
-    /// ⭐⭐ <b>And the DetailsWindow's presence per perspective is frozen too.</b>
-    /// ⚠ 📌 <c>Details</c> is deliberately <c>null</c> on Blueprint — it has its own
-    /// <c>BlueprintDetailsWindow</c>, and a second panel there would be two for one concept. ⛔ An
-    /// extraction that "helpfully" gave Blueprint a generic panel would be a behaviour change wearing a
-    /// refactor's name, and the id lists alone would not see it.
+    /// ⭐⭐ <b>And the shell's presence per perspective — now UNIVERSAL, which is the whole of <c>S1</c>.</b>
+    ///
+    /// <para>⛔⛔ <b>RE-EXPRESSED, <c>2026-08-22</c>.</b> This rail used to pin <c>Blueprint ⇒ false</c>
+    /// with the reason <i>"it has its own <c>BlueprintDetailsWindow</c>, and a second panel there would be
+    /// two for one concept."</i> ⭐ <b>The reason was right and the conclusion is now reached the other
+    /// way round:</b> §7.3 ①③ keeps ONE panel per perspective by retiring
+    /// <c>BlueprintDetailsWindow</c> and giving Blueprint the SAME shell, not by leaving Blueprint
+    /// without one. ⚠ <b>So this is the same invariant, inverted by the design, not a weakened gate</b>
+    /// — and it is now an <c>Assert.NotNull</c> on every row, which is strictly harder to satisfy by
+    /// accident than the old mixed table.</para>
     /// </summary>
     [Theory]
-    [InlineData("BTree",     true)]
-    [InlineData("HSM",       true)]
-    [InlineData("Blueprint", false)]
-    public void TheDetailsWindowPresence_IsUnchanged(string perspective, bool hasWindow)
-        => Assert.Equal(hasWindow, Production(perspective).Details is not null);
+    [InlineData("BTree")]
+    [InlineData("HSM")]
+    [InlineData("Blueprint")]
+    public void EveryAiPerspective_HasTheShell(string perspective)
+        => Assert.NotNull(Production(perspective).Details);
 }

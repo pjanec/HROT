@@ -455,33 +455,6 @@ public class PerspectiveWorkspaceRegistrar
                 if (source != null) Variables.ShowSection(section, source);
             };
 
-            // ⭐⭐⭐ 88b / BP-317 — the DETAILS panel for BTree and HSM.
-            //    📌 Q32 ruling 6: "The same Details panel is REUSED for every asset type — HSM, BTree,
-            //       Blueprint ⇒ this is a cross-host deliverable, not a blueprint one."
-            //    📐 Measured (gate 8): exactly ONE production window was titled "Details" and exactly
-            //       ONE type hosted a VariableDetailsSection — BlueprintDetailsWindow, on Blueprint
-            //       only. ⛔ The AI perspectives had NO Details panel at all (R-60), which is what
-            //       R-62 cites for keeping visual checks suspended on those two hosts.
-            //    ⭐⭐ Built HERE and not by the composition root, for the same reason MyBlueprint and
-            //       Variables are: a surface the host must remember to attach is how five surfaces
-            //       came to be unreachable. ⇒ EditorSubsystem gains NOTHING to forget.
-            Details = new DetailsWindow(
-                id:                $"ai_details_{suffix}",
-                owningPerspective: perspectiveName,
-                // ⭐ The ONE formatter, shared with the standalone table and the Watch.
-                formatter:         ValueFormatter,
-                // ⭐⭐⭐ L2.1 — BOTH shell collaborators are PASSED, not attached later.
-                //   📌 The 2026-08-16 rule: "a production caller that HAS a dependency must PASS it."
-                //      This registrar holds the registry (a field, two lines of wiring below), the
-                //      selection store (an argument) and the run-state source (line 240). ⛔ An
-                //      AttachShell(...) setter would be a tenth silent default waiting to happen.
-                views:             DetailsViews,
-                // ⭐⭐⭐ §2: "only the workspace builds a context" — ⛔ the window reads no store.
-                //   ⭐ L6.1a RESOLVED the deviation L2.1 stated here: the lambda used to live in this
-                //     registrar with a comment saying "L6.1 moves one method". This IS that move —
-                //     PerspectiveWorkspace.BuildContext() is now the one place a context is made, and
-                //     the body is unchanged (L0.4's entity source included).
-                context:           Workspace.ContextSource());
 
             // ⭐⭐ How a section id becomes a LIST. The registrar already holds the row-source resolver,
             //    so the outline is handed the resolution rather than the sources — ⛔ one row-source
@@ -499,20 +472,51 @@ public class PerspectiveWorkspaceRegistrar
             //    and the run-state install have ONE implementation across all three hosts (ruling 9).
             //    ⛔ Not re-implemented here — ConnectOutlineToDetails is the one path.
             _outlineSelection ??= MyBlueprint;
-            _detailsHost      ??= Details;
-            ConnectOutlineToDetails();
-
-            // ⭐⭐⭐ L1.2 — Details is built HERE, not handed in through RegisterExtraWindow, so its
-            //    claim-chain arm is mirrored here for the same reason the two lines above are:
-            //    ⭐ ONE registration path per concept (ruling 9), ⛔ not a second mechanism.
-            // ⚠ The guard is the same _viewSources set the chain uses, so a window reaching BOTH paths
-            //   registers its views exactly once.
-            ContributeDetailsViews(Details);
-
-            // ⭐⭐ Batch 87's ONE attach point. ⛔ Details is a table host like any other; a second
-            //    Attach line here is precisely what the twelfth instance was.
-            AttachEditGestures(Details);
         }
+
+        // ⭐⭐⭐ S1 — THE SHELL IS BUILT FOR **EVERY** PERSPECTIVE, OUTSIDE THE HOST-KIND GATE.
+        // 📄 DESIGN_Details_Panel_View_Switching.md §7.3 ①③ (user ruling 2026-08-22: "one Details
+        //    window … same/reused across the perspectives, no parallel implementations").
+        //
+        // 🔴🔴 THE DEFECT THIS ENDS: these lines used to sit INSIDE `if (effectiveHost != null)`, and
+        //    HostKindOf() answers only BTree and Hsm. ⇒ Blueprint and Scenario never got a shell from
+        //    this registrar, and BlueprintDetailsWindow — a separate sealed class with NO view
+        //    registry, NO toolbar and NO float/pin — filled the slot under the SAME id and title.
+        //    ⛔ `effectiveHost` answers "which blackboard host is this?". That is a fair question, and
+        //       it has NOTHING to do with whether a perspective deserves a Details panel. Reusing it as
+        //       the shell gate is the actual bug (§7.3 ③).
+        Details = new DetailsWindow(
+            id:                $"ai_details_{suffix}",
+            owningPerspective: perspectiveName,
+            // ⭐ The ONE formatter, shared with the standalone table and the Watch.
+            formatter:         ValueFormatter,
+            // ⭐⭐⭐ L2.1 — BOTH shell collaborators are PASSED, not attached later.
+            //   📌 The 2026-08-16 rule: "a production caller that HAS a dependency must PASS it."
+            views:             DetailsViews,
+            // ⭐⭐⭐ §2: "only the workspace builds a context" — ⛔ the window reads no store.
+            context:           Workspace.ContextSource());
+
+        // ⭐⭐⭐ Wired through the SAME pair RegisterExtraWindow uses, so the routing and the run-state
+        //    install have ONE implementation across all FOUR hosts (ruling 9).
+        //    ⚠ `??=` — an outline that claimed the panel above keeps it; a perspective with no outline
+        //      (Scenario, Blueprint) simply has none to connect, and ConnectOutlineToDetails no-ops.
+        _detailsHost ??= Details;
+        ConnectOutlineToDetails();
+
+        // ⭐⭐⭐ L1.2 — Details is built HERE, not handed in through RegisterExtraWindow, so its
+        //    claim-chain arm is mirrored here: ⭐ ONE registration path per concept (ruling 9).
+        // ⚠ The guard is the same _viewSources set the chain uses, so a window reaching BOTH paths
+        //   registers its views exactly once.
+        ContributeDetailsViews(Details);
+
+        // ⭐⭐ Batch 87's ONE attach point. ⛔ Details is a table host like any other.
+        AttachEditGestures(Details);
+
+        // ⭐⭐⭐ S1 — and a PROPERTIES-FORM host like any other. 📌 Ruling 9: the subscription has ONE
+        //    implementation (SubscribePropertiesForm), reached from both construction paths.
+        // ⚠ Subscribing is not the same as HAVING a form: the shell answers `false` until a host installs
+        //   one (DetailsWindow.HasPropertiesForm), which is the honest shape R-109 asks for.
+        SubscribePropertiesForm(Details);
 
         // AIE-034: per-perspective Watch + Breakpoints windows (optional).
         if (breakpointManager != null)
@@ -739,13 +743,7 @@ public class PerspectiveWorkspaceRegistrar
         //    and the host that HAS one must. ⭐ Same pass, same reason as the two above (R-67).
         // ⚠ Subscribed ONCE per host: RegisterExtraWindow can be called again for the same window, and
         //   a second subscription would open the form twice on one gesture.
-        if (window is IVariablePropertiesFormHost formHost
-            && EditGestures is not null
-            && _propertiesHosts.Add(formHost))
-        {
-            EditGestures.PropertiesRequestedForRow +=
-                (row, editable) => formHost.OpenVariableProperties(row, editable);
-        }
+        SubscribePropertiesForm(window);
 
         // ⭐⭐⭐ Batch 87 — WHICH SURFACE owns the Details panel (user ruling, 2026-08-18).
         //    🔴 B8: the panel decided by comparing NODE IDENTITY, so re-clicking the same node could
@@ -763,6 +761,30 @@ public class PerspectiveWorkspaceRegistrar
         if (window is IDetailsSurfaceClaimant claimant)
             claimant.NotifyFocusClaim =
                 () => _selectionStore.NotifySurfaceFocused(claimant.DetailsOrigin);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — <c>R-109</c>: <i>"Properties…"</i> is a CUSTOM form, so the
+    /// binder cannot open one and the host that HAS one must.</b>
+    ///
+    /// <para>⚠ <b>Subscribed ONCE per host</b> — <see cref="RegisterExtraWindow"/> can be called again
+    /// for the same window, and a second subscription would open the form twice on one gesture.</para>
+    ///
+    /// <para>⭐⭐ <b><c>S1</c> made this a METHOD.</b> 📐 It was inline in <see cref="RegisterExtraWindow"/>,
+    /// which was enough while only <c>BlueprintDetailsWindow</c> — an EXTRA window — had a form. ⛔ The
+    /// shell is built in the CONSTRUCTOR and never passes through that method, so leaving the arm inline
+    /// would have made <c>DetailsWindow</c>'s form unreachable by the gesture. 📌 Ruling 9: one
+    /// implementation, two call sites.</para>
+    /// </summary>
+    private void SubscribePropertiesForm(object? candidate)
+    {
+        if (candidate is IVariablePropertiesFormHost formHost
+            && EditGestures is not null
+            && _propertiesHosts.Add(formHost))
+        {
+            EditGestures.PropertiesRequestedForRow +=
+                (row, editable) => formHost.OpenVariableProperties(row, editable);
+        }
     }
 
     private readonly Func<VariableRunState> _runState;

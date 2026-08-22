@@ -173,17 +173,26 @@ public sealed class TheDialogOpensOnEveryHostTests
     /// composition-root defect."</i> ⇒ this asks the registrar production built, after production's own
     /// <c>RegisterWindows</c> pass — ⛔ it does not call <c>RegisterExtraWindow</c> itself.</para>
     ///
-    /// <para>⭐⭐ <b>The asymmetry is the FINDING, not an omission:</b> only <c>BlueprintDetailsWindow</c>
-    /// implements <c>IVariablePropertiesFormHost</c>, so BTree and HSM raise the gesture and
-    /// <b>nothing opens</b> — 📌 <c>BP-317</c>, <b>filed, not faked</b>. ⚠ Pinning it here means the day
-    /// an AI host grows a form, THIS rail is what says so.</para>
+    /// <para>⭐⭐ <b>The asymmetry is the FINDING, not an omission:</b> only Blueprint has a Properties
+    /// form, so BTree and HSM raise the gesture and <b>nothing opens</b> — 📌 <c>BP-317</c>,
+    /// <b>filed, not faked</b>. ⚠ Pinning it here means the day an AI host grows a form, THIS rail is
+    /// what says so.</para>
+    ///
+    /// <para>⛔⛔ <b><c>S1</c> (<c>BP-399</c>, <c>2026-08-22</c>) — THE QUESTION MOVED FROM THE TYPE TO
+    /// THE OBJECT, and that is an improvement.</b> 📐 This used to read
+    /// <c>EditGestures.HasPropertiesHost</c>, which was true exactly when a registered window
+    /// IMPLEMENTED <c>IVariablePropertiesFormHost</c> — ⚠ a claim that only worked while Blueprint had a
+    /// <b>different window class</b>. 📄 §7.3 ① gives all four perspectives the SAME shell, so the type
+    /// test now answers <c>true</c> everywhere and says nothing. ⭐ <c>HasPropertiesForm</c> reads
+    /// whether a form was actually INSTALLED on the constructed shell — 📌 exactly the control the
+    /// <c>2026-08-16</c> rule prescribes, and it still separates the three perspectives.</para>
     /// </summary>
     [Theory]
     [InlineData("btree",     false)]
     [InlineData("hsm",       false)]
     [InlineData("blueprint", true)]
-    public void OnlyBlueprintHasAPropertiesFormHost(string perspective, bool expected)
-        => Assert.Equal(expected, RegistrarOf(perspective).EditGestures!.HasPropertiesHost);
+    public void OnlyBlueprintHasAPropertiesForm(string perspective, bool expected)
+        => Assert.Equal(expected, RegistrarOf(perspective).Details!.HasPropertiesForm);
 
     /// <summary>
     /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — THE FORWARDING RAIL, and it caught its own author.</b>
@@ -198,21 +207,28 @@ public sealed class TheDialogOpensOnEveryHostTests
     /// holds a <c>refactorService</c> and hands it to <c>BlueprintVariablesManagedWindow</c> seven lines
     /// below. ⚠ <b>The eighth instance of that shape in this programme, and the first that was mine.</b></para>
     ///
-    /// <para>⭐ Asked of the window PRODUCTION built, reached through the registrar's own registered
-    /// list — ⛔ <c>new BlueprintDetailsWindow(...)</c> here would assert the default, not the wiring
-    /// *(📌 <c>R-67</c>)*.</para>
+    /// <para>⛔⛔ <b><c>S1</c> — RE-EXPRESSED IN TWO HALVES, and the defect became UNREPRESENTABLE.</b>
+    /// 📐 The form is no longer a field on a window a rail can find; it lives inside
+    /// <see cref="Hrot.Blueprints.Editor.Windows.BlueprintDetailsContribution"/>, whose
+    /// <c>refactorService</c> parameter is <b>REQUIRED</b> and forwarded straight into the modal.
+    /// ⇒ ⭐ <b>the original mistake — defaulting it to <c>null</c> while the caller holds one — is now a
+    /// COMPILE ERROR</b>, which is a stronger guarantee than any rail. ⚠ Stated rather than assumed:
+    /// what remains checkable at runtime is <b>①</b> that the installer refuses a null service instead
+    /// of quietly building a form without one, and <b>②</b> that production actually installed a form
+    /// *(<see cref="OnlyBlueprintHasAPropertiesForm"/>, asked of the CONSTRUCTED shell — 📌 <c>R-67</c>).</para>
     /// </summary>
     [Fact]
-    public void TheProductionDetailsWindowIsHandedTheRefactorService()
+    public void TheDetailsContribution_RefusesToInstallAFormWithNoRefactorService()
     {
-        var details = RegistrarOf("blueprint").RegisteredWindows
-                          .OfType<Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow>()
-                          .SingleOrDefault();
+        var registrar = RegistrarOf("blueprint");
 
-        Assert.NotNull(details);
-        Assert.True(details!.PropertiesForm.HasRefactorService,
-            "EditorSubsystem holds a RefactorService and must hand it to the Details window's " +
-            "Properties form — a rename that skips it dangles the binding on BTree/HSM (M-15).");
+        Assert.Throws<ArgumentNullException>(() =>
+            Hrot.Blueprints.Editor.Windows.BlueprintDetailsContribution.InstallInto(
+                registrar:       registrar,
+                windowManager:   new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f)),
+                asset:           () => null,
+                drawerRegistry:  new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry(),
+                refactorService: null!));
     }
 
     /// <summary>
