@@ -2,13 +2,16 @@
 state: LIVE
 build-state: BUILDING
 updated: 2026-08-22
-current-answer: sections 1-6. Section 1 is the PLACEMENT SPEC (where every type lives and
-  who owns it); section 6 is the task breakdown. L0-L5 are BUILT (L3 partial: 4 views migrated,
-  its remaining 4 are BP-399); L6 is RE-STAGED as-built (see §6 L6 and its sequence). Everything
-  from "## HISTORY" down is the record of how the answer was reached, including withdrawn leans.
+current-answer: sections 1-7. Section 1 is the PLACEMENT SPEC (where every type lives and
+  who owns it); section 6 is the task breakdown; SECTION 7 IS THE TARGET STATE for the one shell
+  (user ruling 2026-08-22) and re-stages BP-399 against it. L0-L5 are BUILT (L3 partial: 4 views
+  migrated, its remaining rows are BP-399, re-staged in §7.6); L6 is RE-STAGED as-built (see §6 L6
+  and its sequence). Everything from "## HISTORY" down is the record of how the answer was reached.
 stale-below: "## HISTORY" and everything under it. Do NOT quote it as the design.
 known-rot: none. L6's original wording (entity already-in-context, brain-equipped predicate exists,
   L6.1 as one item) was corrected 2026-08-22 in §6 L6 against the as-built; the prior phrasing is in HISTORY.
+  §6 L3's "Node properties" row is SUPERSEDED BY §7.6 (see §7.7): it named two sources and no order.
+  §4's BlueprintDetailsWindow row stands but §7.3 turns it into a dated, ordered commitment.
 known-conflict: Q38's live answer says "RuntimeInspectorWindow IS the shell". Section 1
   places the shell in AiDetailsWindow's line instead: the WINDOW's chrome is reusable, its
   PANE REGISTRY keys on asset kind, and R-112 rules that a feed difference. Stated here
@@ -596,6 +599,192 @@ sequenceDiagram
 | ⭐⭐ **`L6.3`'s offer half cannot be railed on the PRODUCTION root** *(measured `2026-08-22`)* | 📐 `_fdpRepoAdapter` — the `IInspectableSession` Components renders through — is built at `EditorSubsystem.cs:1579`, **inside `if (!_headless)` (:1565)** ⇒ a headless editor never has one, and correctly never offers Components. ⭐ The gate therefore SPLITS: the REAL root proves REGISTRATION *(`R-67`)*, and the production descriptor factory over a stubbed session proves the PREDICATE. ⛔ Neither half alone is the gate |
 | ⭐ **two Details windows on one perspective would share the borrowed `EntityInspectorPanel`'s search filter** | ⚠ `R-120` is not breached *(the shared state lives at the root and is handed in)*, but it is a real limit. ⛔ Cannot occur today — Scenario hosts one `DetailsWindow` |
 | ⚠ **the brain signal calls `GetAvailableBehaviors` from a per-frame predicate** | ⭐ Same order of cost as today: `MissionPanel.DrawContent` already calls it every frame. ⛔ If the service ever becomes expensive, the signal is the one place to memoise |
+
+---
+
+## 7. ⭐⭐⭐ THE ONE SHELL — **target state** *(user ruling, `2026-08-22`, after the BTree visual check)*
+
+> 🔒 **User, verbatim:** *"we have one Details window in Scenario/HSM/Btree/Blueprint perspectives and it
+> is able to run multiple views and switch them and allow poping a floting window pinning/unpinned to
+> current context. **This is what i call a shell and this needs to be same/reused across the
+> perspectives, no parallel implementations.**"*
+>
+> 🔒 **And, for BTree specifically:** *"the 'Inspector' window there shows the selected-node details —
+> and **this is exactly what should be the default view shown in the Details window for BTree**. The
+> 'Blackboard Variables' view would be the other view selectable via Details window toolbar."*
+
+⭐ **Confirmed by the same visual check:** the float and pin buttons **work**. `L4` is live.
+
+### 7.1 ⛔⛔ AS-IS — **"the Details window" is TWO classes**
+
+📐 Measured `2026-08-22`:
+
+| perspective | window id | class | view registry | toolbar switch | float / pin |
+|---|---|---|---|---|---|
+| **Scenario** | `scenario_details` | ⭐ `DetailsWindow` | ✅ | ✅ | ✅ |
+| **BTree** | `ai_details_btree` | ⭐ `DetailsWindow` | ✅ | ✅ | ✅ |
+| **HSM** | `ai_details_hsm` | ⭐ `DetailsWindow` | ✅ | ✅ | ✅ |
+| ⛔⛔ **Blueprint** | `ai_details_blueprint` | ⛔ **`BlueprintDetailsWindow`** — a separate `sealed class : ManagedWindow` | ⛔ **none** | ⛔ **none** | ⛔ **none** |
+
+⭐⭐ **The mechanism, named so it is fixable rather than mysterious:** `PerspectiveWorkspaceRegistrar`
+builds `Details = new DetailsWindow(…)` **inside `if (effectiveHost != null)`**, and
+`HostKindOf("Blueprint")` returns **`null`** *(it answers only `BTree` and `Hsm`)*. ⇒ ⛔ the registrar
+never builds a shell for Blueprint, and `EditorSubsystem` constructs `BlueprintDetailsWindow` instead —
+**same id, same title, fewer capabilities.**
+
+⚠ **Why it looks fine until you try something:** both are titled *"Details"* and dock in the same slot.
+The difference only appears when a designer wants a second view, the toolbar, a float or a pin — none of
+which Blueprint has.
+
+### 7.2 ⛔ AS-IS — **BTree's Details shows Blackboard Variables permanently, and that is a RANK+PREDICATE fact**
+
+| view | rank | predicate | ⇒ observed |
+|---|---:|---|---|
+| `details.blackboard` | **5** | `HasAsset` — *any* open document | ⭐ applies **always** ⇒ what the user sees |
+| `details.variables` | **10** | outline focus ∧ `section.HasContent` | ⚠ applies **rarely** |
+| ⛔ **node properties** | — | — | ⛔⛔ **does not exist as a view** — the content is stranded in `InspectorWindow`'s facet arm |
+
+⇒ ⭐ The panel is not broken: **it is showing the only thing that ever claims it.**
+
+### 7.3 ⭐⭐⭐ TARGET — **one shell class, per-perspective catalogues**
+
+| ⭐ rule | |
+|---|---|
+| **①** | ⭐⭐⭐ **`DetailsWindow` is THE shell on all four perspectives.** ⛔ `BlueprintDetailsWindow` **dissolves** — its arms become views *(§4 already said so: "both arms become views; the registry does its arbitration generically")* |
+| **②** | ⭐⭐ **A perspective differs only by its CATALOGUE**, never by its window class — 📌 `R-116`: the predicate ships with the view |
+| **③** | ⭐⭐ **`HostKindOf` stops gating the shell.** ⚠ It answers *"which blackboard host is this?"* — a fair question that has **nothing to do with whether a perspective deserves a Details panel.** ⛔ Reusing it as the shell gate is the actual bug |
+| **④** | ⛔ **The persisted id `ai_details_blueprint` is KEPT** — 📌 §5: a bare key rename *"silently resets layouts"*. ⭐ The TYPE changes, the KEY does not *(the same rule `L2.1` followed)* |
+
+#### ⭐⭐ The target catalogue, per perspective — **with ranks**
+
+| view | rank | predicate | Scenario | BTree | HSM | Blueprint |
+|---|---:|---|:---:|:---:|:---:|:---:|
+| `details.blackboard` | 5 | `HasAsset` | — | ✅ | ✅ | ✅ |
+| `details.variables` | 10 | outline focus ∧ content | ✅ | ✅ | ✅ | ✅ |
+| ⭐⭐⭐ **`details.nodeproperties`** *(NEW)* | **20** | **exactly one node selected** | — | ✅ | ✅ | ✅ |
+| `details.components` | 30 | exactly one entity | ✅ | — | — | — |
+| `details.mission` | 40 | one entity ∧ brain | ✅ | — | — | — |
+| `details.runtime.*` | 50 | `Mode != Planning` ∧ kind | — | ✅ | ✅ | ✅ |
+| `details.graphsignature` | *(as built)* | Blueprint ∧ ≥1 editable graph | — | — | — | ✅ |
+
+⭐⭐⭐ **Rank 20 is what delivers the user's ask:** with a node selected on BTree, node properties
+**outranks** Blackboard (5) and Variables (10) ⇒ it becomes the **default**, and Blackboard Variables
+becomes the other toolbar entry. ⛔ Deselect the node and its predicate declines ⇒ Blackboard returns.
+
+⚠ **One rank interaction, stated rather than buried:** `details.runtime.*` is **50**, so while a session
+is LIVE the Runtime view still outranks node properties. ⭐ That is deliberate — you started a run to
+watch it — and 📌 `R-98` means one toolbar click switches, remembered per context. ⛔ **If the intent is
+that node properties wins even while running, that is a rank change and it is the user's call, not a
+build decision.**
+
+### 7.4 ⭐⭐ THE TARGET CLASS DIAGRAM
+
+```mermaid
+classDiagram
+    direction LR
+
+    class DetailsWindow {
+        <<the ONE shell>>
+        +Frame() DetailsFrame
+        +OpenFloat(WindowManager) DetailsViewWindow
+        +Pin(WindowManager) DetailsViewWindow
+        +ShowsFloatAndPin bool
+    }
+    class DetailsViewRegistry {
+        +OfferSet(DetailsContext)
+        +Default(DetailsContext)
+    }
+    class IDetailsViewInstance {
+        <<interface>>
+        +Draw(DetailsContext, string) void
+    }
+
+    class NodePropertiesDetailsView {
+        <<NEW - from InspectorWindow>>
+    }
+    class BlueprintNodeDetailsView {
+        <<NEW - from BlueprintDetailsWindow>>
+    }
+    class UtilityDetailsView {
+        <<NEW - from InspectorWindow>>
+    }
+    class VariablesDetailsView
+    class BlackboardDetailsView
+    class RuntimeDetailsView
+
+    class InspectorWindow {
+        <<RETIRED by L5>>
+    }
+    class BlueprintDetailsWindow {
+        <<RETIRED by L5>>
+    }
+
+    DetailsWindow o-- DetailsViewRegistry
+    DetailsViewRegistry o-- "0..*" IDetailsViewInstance
+
+    IDetailsViewInstance <|.. NodePropertiesDetailsView
+    IDetailsViewInstance <|.. BlueprintNodeDetailsView
+    IDetailsViewInstance <|.. UtilityDetailsView
+    IDetailsViewInstance <|.. VariablesDetailsView
+    IDetailsViewInstance <|.. BlackboardDetailsView
+    IDetailsViewInstance <|.. RuntimeDetailsView
+
+    InspectorWindow ..> NodePropertiesDetailsView : content EXTRACTED to
+    InspectorWindow ..> UtilityDetailsView : content EXTRACTED to
+    BlueprintDetailsWindow ..> BlueprintNodeDetailsView : content EXTRACTED to
+```
+
+⛔⛔ **`..>` says EXTRACTED, not WRAPPED — and that is §6 `L3`'s *"do not delegate this one"*.**
+⚠ `L3`'s default strategy IS delegation *(a thin view borrowing the existing surface, as
+`RuntimeDetailsView` does)*; ⭐ the node rows are the exception because wrapping would leave both
+697-line and 350-line windows standing as the implementation, which is the duplication this section
+exists to end.
+
+### 7.5 ⭐ THE SEQUENCE — **selecting a BTree node**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Designer
+    participant C as BTree canvas
+    participant S as EditorSelectionStore
+    participant D as DetailsWindow (BTree)
+    participant R as DetailsViewRegistry
+    participant NP as NodePropertiesDetailsView
+
+    U->>C: click a node
+    C->>S: ActiveSubSelections = [BTreeNodeSelection]
+    D->>D: Frame() builds the context
+    D->>R: OfferSet(ctx)
+    R-->>D: [blackboard r5, nodeproperties r20]
+    Note over D: no remembered pick for this shape<br/>=> Default() takes the highest rank
+    D->>NP: Draw(ctx, idScope)
+    NP-->>U: the node's properties
+    U->>D: toolbar - Blackboard Variables
+    D->>D: Pick(ctx, "details.blackboard") remembered per context key
+```
+
+### 7.6 ⭐ THE ORDER — **`BP-399` re-staged against this target**
+
+| # | item | why here |
+|---|---|---|
+| **①** | ⭐⭐⭐ **Blueprint gets the real shell** — stop gating `Details` on `HostKindOf`; keep the id | ⛔ **first**: until Blueprint has the shell, "node properties" has two homes and the extraction target is ambiguous |
+| **②** | ⭐⭐ **`details.nodeproperties`** — extracted from `InspectorWindow`'s facet arm **and** `BlueprintDetailsWindow`'s node arm | ⭐ one view, three perspectives; ⚠ the two sources must be reconciled, which is why ① comes first |
+| **③** | ⭐ **`details.utility`** — from `InspectorWindow`'s utility arm | ⚠ 📐 that arm is a **STUB** *(a heading and `"Option N, Consideration M"`, then `// Curve inspector panel wired in a later phase`)* ⇒ ⭐ port it honestly as a stub, ⛔ do not pretend it is a feature |
+| **④** | ⛔ **`details.parametersync`** — from `InspectorWindow`'s `PARAMETER SYNCHRONIZATION` arm | ⚠ **LAST**, after the orchestrator wiring *(`R-99`)* — unchanged |
+| **⑤** | ⭐ **`L5` retires both windows** and removes `ai_inspector_*` from the shipped default layout | 📌 `L5`: *"per item, after its replacement is live"* |
+
+⚠ **Not in this list, deliberately:** the **Diagnostics** and **Layout/byte-budget · Asset settings** rows.
+📐 `BlackboardAuthoringWindow` already contributes `details.blackboard`; ⇒ ⭐ **measure whether those rows
+are already satisfied before building anything**, rather than adding views that duplicate it.
+
+### 7.7 ⚠ WHAT THIS SECTION SUPERSEDES
+
+| prior text | status |
+|---|---|
+| §4's row *"`BlueprintDetailsWindow` … ⚠ both arms become views"* | ⭐ **still true** — §7.3 ① makes it a dated, ordered commitment rather than an aside |
+| §6 `L3`'s *"Node properties"* row | ⭐ **superseded by §7.6 ②** — the row named two sources and no order; §7.6 gives both |
+| `BP-427`'s claim that *"the design gates two of `BP-399`'s five rows"* | ⛔⛔ **WRONG, corrected here.** *"Do not delegate this one"* is a **strategy** constraint *(extract, don't wrap)*, ⛔ not a blocker. Only **parameter sync** is genuinely sequenced |
 
 ---
 
