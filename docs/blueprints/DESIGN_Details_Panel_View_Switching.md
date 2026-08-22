@@ -604,6 +604,11 @@ sequenceDiagram
 
 ## 7. ⭐⭐⭐ THE ONE SHELL — **target state** *(user ruling, `2026-08-22`, after the BTree visual check)*
 
+> ✅ **APPROVED by the user, `2026-08-22`** — *"good design approved."*
+> ⭐ **`build-state: READY-TO-BUILD`.** 📄 Dispatched as
+> [`TASKS_One_Shell_BP399.md`](batches/TASKS_One_Shell_BP399.md) — ⛔ that file is a task list only; the
+> design and its UML stay here.
+
 > 🔒 **User, verbatim:** *"we have one Details window in Scenario/HSM/Btree/Blueprint perspectives and it
 > is able to run multiple views and switch them and allow poping a floting window pinning/unpinned to
 > current context. **This is what i call a shell and this needs to be same/reused across the
