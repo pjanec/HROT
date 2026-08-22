@@ -263,8 +263,23 @@ the structured diff names the exact field. ⇒ **assert at the VM layer, not the
 | **U-obs-4** | the **smoke suite T2** reads `PanelSnapshot` instead of a bespoke `EditorPanels` *(supersedes `DESIGN_Smoke_Suite.md` G-c)* | one snapshot, many consumers |
 | **U-obs-5+** | convert further panels **as they are touched** *(a standing rule, not a big-bang sweep)*; new/unified panels are born on the contract | value-ordered; never refactor a static label |
 
-⛔ **Not required:** converting every one of the hundreds of panels up front. The long tail of static/cosmetic
-panels stays on pixels/human until touched.
+⛔ *(was: **Not required:** converting every one of the hundreds of panels up front. The long tail of
+static/cosmetic panels stays on pixels/human until touched.)*
+
+### ⭐⭐⭐ SUPERSEDED `2026-08-22` — **the user ordered a FULL SWEEP**
+
+🔒 **User, verbatim:** *"pls work autonomously overnight, take it as far as possible, migrate all panels"*
+
+⇒ ⭐⭐ **`U-obs-5`'s *"as they are touched"* is WITHDRAWN as the operating policy.** ⛔ The value-ordered
+trickle was a cost-control choice; the user has priced it differently and wants the fleet converted.
+
+| ⭐ what survives the override — ⛔ and it is not a loophole | |
+|---|---|
+| ⭐⭐⭐ **"never refactor a static label" STILL HOLDS** | ⛔ a panel whose draw is fixed chrome — constant captions, a button that only invokes a command, an about box — has **nothing a test could assert beyond a constant** ⇒ converting it adds a view-model that can never fail. ⭐ **So "all panels" is read as "every panel that shows STATE"** |
+| ⭐⭐ **the skipped set is REPORTED, never silent** | ⛔ a sweep that quietly drops files is indistinguishable from one that missed them ⇒ ⭐ every `SKIP` is listed with its one-line reason, so the user can overrule any of them |
+| ⚠ **two buckets cannot be converted at all** | **`FDP/ExtDeps/NodeEdit/`** — that tree references nothing from FDP, so it cannot see the contracts assembly *(`BP-453`'s recorded limit)*; **`FDP/Examples/`** — sample apps, not editor panels |
+
+📐 **Scope measured `2026-08-22`:** **91** `*Panel.cs` / `*Window.cs` files outside tests, across ~20 assemblies.
 
 ## Perf & correctness details
 
