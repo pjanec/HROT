@@ -1,7 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (slice 1: the contract + snapshot singleton + one pilot panel + MCP read; rollout is incremental)
+build-state: BUILT for U-obs-1 (the contract + snapshot singleton + the EntityBlueprints pilot, 2026-08-22,
+  BP-453..457) WITH FIVE DEVIATIONS recorded in the AS-BUILT section; U-obs-2+ remain READY-TO-BUILD.
+  The GET /panels endpoints are the TIME lane's, after U-obs-1 merges.
 updated: 2026-08-22
+stale-below: the "## ⛔ HISTORY" section at the foot of this file — the open questions as first written.
+  Question ② was resolved AGAINST its lean; do not quote the leans as current.
+known-rot: §"Perf & correctness" still says "use the window-manager registration id". That is
+  CONTRADICTED by §Example and by measurement — see AS-BUILT deviation ②; PanelIds carries the real rule.
 current-answer: the whole file — the decision to make every panel render from a whole, dumpable view-model
   handed to a per-frame snapshot singleton (approach C), so the UI becomes machine-readable for tests, MCP,
   and cross-host conformance without pixels. §UML is the build contract; §APIs + §Example are the shape.
@@ -269,8 +275,54 @@ panels stays on pixels/human until touched.
 | **Pixel comparison** | ⭐ kept as a rare backstop | cheap to build, expensive to use *(token/human cost, brittle)*. Allocate by check-frequency: model for frequent/regression/conformance; pixels for the rare tail. |
 | ⭐ **C — whole VM per panel, dumped per frame** | ✅ **chosen** | structured, high-fidelity, single-source-of-truth by the invariant, well-posed for cross-host, and the `VariableTableModel` pattern already proves it. |
 
-## Open questions (for the build session to resolve, argued in-report)
+## ✅ AS-BUILT — `U-obs-1` shipped `2026-08-22` (`BP-453`–`BP-457`)
 
-1. **`Dump()` shape** — hand-written per VM, or reflection/`System.Text.Json` over the VM's properties? *(Lean: STJ over the VM, like the rest of the MCP surface, with a hook for custom cases — matches decision 3 of the extensions.)*
-2. **Registration mechanics** — does the panel call `PanelSnapshot.Register` itself, or does the window-manager wrap `Draw()` and register the returned VM? *(Lean: the window-manager wraps, so a panel cannot forget — but that needs panels to RETURN their VM from a build step; decide with the pilot.)*
-3. **In-panel input** — defer until a concrete need, or design the actionable-item id scheme now? *(Lean: defer; the command bus covers the near-term.)*
+> ⭐ **What exists:** `IPanelViewModel` · `PanelDump` · `PanelSnapshot` · `PanelIds` in
+> **`Fdp.Diagnostics.Contracts`** *(namespace `Fdp.Diagnostics.Contracts.Panels`)*, and
+> **`EntityBlueprintsPanel`** converted end-to-end as the pilot. ⚠ **Five deviations from §UML/§Example
+> below — read them before mirroring the pilot.**
+
+### ⭐ The home, confirmed by measurement *(the handoff asked for this)*
+
+📐 `Fdp.Diagnostics.Contracts` → only `Fdp.Core` + `GizmoMap.Contracts`; and **every Hrot editor panel
+assembly reaches it transitively** *(`Hrot.Blueprints.Editor` → `Fdp.Toolkits` → it;
+`Hrot.Editor.AiShared` → `Fdp.Presentation` → `Fdp.Toolkits` → it)* ⇒ ⭐ **no new ProjectReference was
+needed anywhere.** ⚠ **One limit, stated:** the `FDP/ExtDeps/NodeEdit` tree references **nothing** from
+FDP, so a NodeEditor-owned panel cannot see this contract ⇒ ⛔ it would need a host-side shim rather than
+inverting that layering. 📌 Not a problem for `U-obs-2`'s targets, which all live in `Hrot.Editor.AiShared`.
+
+### ⛔⛔ DEVIATIONS — **each one measured, none cosmetic**
+
+| # | §says | ⭐ as built, and why |
+|---|---|---|
+| **①** | §Example orders it **build → render → capture** | ⭐⭐⭐ **CAPTURE HAPPENS BEFORE THE RENDER GUARD.** 📐 The pilot's draw opens `if (ImGui.GetCurrentContext() == IntPtr.Zero) return;` ⇒ capturing after it makes the dump **depend on a live GPU context**, and ⛔ **a headless run would observe NOTHING** — which defeats `DESIGN_Headless_Testability.md`, the very reason this programme exists. ⇒ ⭐ **the model is the panel's truth whether or not anyone paints it.** 📌 Probed: moving the capture back after the guard reddens **4 of 6** pilot rails |
+| **②** | §"Perf &amp; correctness": *"use the window-manager registration id"* | ⛔⛔ **CONTRADICTED BY §Example's own payload** *(`"panelId": "entity-blueprints"`)*, **and §Example is right.** 📐 Two measured reasons: **(a)** `BlueprintEditorWindowBase` — the pilot's base class — has **`Title` and nothing else**, there is no id to use; **(b)** where ids do exist they are **perspective-suffixed** *(`ai_runtime_inspector_btree`)* because they must be unique per dock slot ⇒ ⭐⭐ **a window id is unique by construction; a panel id must be STABLE by construction — opposite requirements.** ⇒ 📄 the rule now lives in `PanelIds`' own header |
+| **③** | §APIs lists **one** member, `RegisteredPanels` | ⭐⭐ **TWO SETS**: `RegisteredPanels` *(instrumented at all)* + `CapturedPanels` *(actually dumped)*. ⛔ One set cannot express both halves — ⭐ and §"MCP read surface" already **requires** both: *"the panel ids captured this frame, **and** which panels are instrumented at all"* |
+| **④** | *(unspecified)* | ⭐⭐⭐ **`DeclareInstrumented` is called at CONSTRUCTION, always, ungated by `CaptureEnabled`.** ⛔ If instrumentation were declared by **drawing**, a panel whose window nobody opened would be indistinguishable from a panel nobody converted — 📌 exactly the false green the opt-in registry exists to prevent. Probed: moving it into the draw reddens 2 rails |
+| **⑤** | *(unspecified)* | ⚠⚠ **THERE IS NO FRAME BOUNDARY.** Entries are **latest-wins** and persist until overwritten ⇒ ⛔ a panel that stops drawing leaves its last model visible. ⭐ Clearing per frame needs a call site in the frame loop *(`EditorSubsystem`)*, which this lane must not touch ⇒ 📌 **`BP-456`, for whoever owns the loop.** A tripwire rail pins the current behaviour so the limit and the code change together |
+
+### ⭐ The open questions, RESOLVED
+
+| # | resolution |
+|---|---|
+| **①** `Dump()` shape | ⭐ **The design's own lean, taken:** `PanelDump.Of(this)` — STJ over the VM, camelCase, with a VM free to write its own `JsonNode` for a custom shape |
+| **②** registration mechanics | ⭐⭐ **THE PANEL CALLS IT** — ⛔ *not* a window-manager wrapper, and the lean was wrong for a measured reason: **there is no single wrapper to put it in.** 📐 `IBlueprintEditorWindow` and `Fdp.Presentation.WindowManager`'s windows are **two unrelated families with no common base** ⇒ a wrapper would have to be written twice, which is the duplicate-mechanism ruling 9 forbids. ⚠ The cost is real and accepted: **a panel CAN forget to register** — ⭐ which is what the opt-in registry surfaces, rather than hides |
+| **③** in-panel input | ⭐ **Deferred**, as the lean said. Nothing here needs it |
+
+### ⚠ What `U-obs-1` does NOT give you
+
+⛔ **No rail can enforce the INVARIANT.** 📐 A draw that reads `_model.GetCurrentTier()` instead of
+`vm.Tier` renders the *same characters*, so no assertion over the dump can see the difference. ⇒ ⭐⭐ **the
+invariant stays a REVIEW rule** — which is what §Invariant already says, and it is why phase 2's Opus review
+gate is *"any drawn value that did not come from the VM"* rather than a test.
+
+---
+
+## ⛔ HISTORY — the open questions as first written
+
+⚠ **Superseded by *"The open questions, RESOLVED"* above. ⛔ Do not quote the leans as current** — ② was
+resolved **against** its lean, on a measurement the lean did not have.
+
+> 1. **`Dump()` shape** — hand-written per VM, or reflection/`System.Text.Json` over the VM's properties? *(Lean: STJ over the VM, like the rest of the MCP surface, with a hook for custom cases — matches decision 3 of the extensions.)*
+> 2. **Registration mechanics** — does the panel call `PanelSnapshot.Register` itself, or does the window-manager wrap `Draw()` and register the returned VM? *(Lean: the window-manager wraps, so a panel cannot forget — but that needs panels to RETURN their VM from a build step; decide with the pilot.)*
+> 3. **In-panel input** — defer until a concrete need, or design the actionable-item id scheme now? *(Lean: defer; the command bus covers the near-term.)*

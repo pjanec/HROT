@@ -156,7 +156,7 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Assert.Equal(4, (int)DebugPrimitiveShape.Text);
             Assert.Equal(5, (int)DebugPrimitiveShape.EntityBadge);
             Assert.Equal(6, (int)DebugPrimitiveShape.Icon);
-            Assert.Equal(7, (int)DebugPrimitiveShape.ComponentInspector);
+            Assert.Equal(7, (int)DebugPrimitiveShape.StructInspector);
             Assert.Equal(64, Marshal.SizeOf<DebugPrimitive>());
         }
 
@@ -167,7 +167,7 @@ namespace Fdp.Diagnostics.Contracts.Tests
         public void SC_GZ051_1_InspNetworkId_FieldRoundTrips()
         {
             var prim = new DebugPrimitive();
-            prim.Shape         = DebugPrimitiveShape.ComponentInspector;
+            prim.Shape         = DebugPrimitiveShape.StructInspector;
             prim.InspNetworkId = 12345L;
 
             Assert.Equal(12345L, prim.InspNetworkId);
@@ -176,14 +176,14 @@ namespace Fdp.Diagnostics.Contracts.Tests
         // SC-GZ051-2: Verified by the build succeeding (InspTargetIndex and InspComponentTypeId
         // no longer exist on DebugPrimitive -- any reference would be a compile error).
 
-        // SC-GZ051-3: InspSchemaHash matches GizmoSettingsRegistry.ComputeHash for a sample type name.
+        // SC-GZ051-3: StructSchemaHash matches GizmoSettingsRegistry.ComputeHash for a sample type name.
         [Fact]
-        public void SC_GZ051_3_InspSchemaHash_MatchesComputeHash()
+        public void SC_GZ051_3_StructSchemaHash_MatchesComputeHash()
         {
             uint expected = ComputeHash("MyNamespace.MyType");
             var prim = new DebugPrimitive();
-            prim.InspSchemaHash = expected;
-            Assert.Equal(expected, prim.InspSchemaHash);
+            prim.StructSchemaHash = expected;
+            Assert.Equal(expected, prim.StructSchemaHash);
         }
 
         // SC-GZ051-4: Marshal.SizeOf<DebugPrimitive>() == 64 after field relayout.
@@ -193,26 +193,26 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Assert.Equal(64, Marshal.SizeOf<DebugPrimitive>());
         }
 
-        // SC-GZ051-5: Remote viewer can reconstruct display label from InspNetworkId and InspSchemaHash
+        // SC-GZ051-5: Remote viewer can reconstruct display label from InspNetworkId and StructSchemaHash
         // without any ECS dependency.
         [Fact]
         public void SC_GZ051_5_DisplayLabel_ConstructableFromStructFields()
         {
             var prim = new DebugPrimitive();
             prim.InspNetworkId  = 99L;
-            prim.InspSchemaHash = 0xABCD1234u;
+            prim.StructSchemaHash = 0xABCD1234u;
 
-            string label = $"Entity:{prim.InspNetworkId} Schema:{prim.InspSchemaHash:X8}";
+            string label = $"Entity:{prim.InspNetworkId} Schema:{prim.StructSchemaHash:X8}";
 
             Assert.Equal("Entity:99 Schema:ABCD1234", label);
         }
 
-        // SC-GZ051-6: InspNetworkId is at FieldOffset(24) and InspSchemaHash is at FieldOffset(32).
+        // SC-GZ051-6: InspNetworkId is at FieldOffset(24) and StructSchemaHash is at FieldOffset(32).
         [Fact]
         public void SC_GZ051_6_FieldOffsets_AreCorrect()
         {
             int networkIdOffset   = (int)Marshal.OffsetOf<DebugPrimitive>(nameof(DebugPrimitive.InspNetworkId));
-            int schemaHashOffset  = (int)Marshal.OffsetOf<DebugPrimitive>(nameof(DebugPrimitive.InspSchemaHash));
+            int schemaHashOffset  = (int)Marshal.OffsetOf<DebugPrimitive>(nameof(DebugPrimitive.StructSchemaHash));
 
             Assert.Equal(24, networkIdOffset);
             Assert.Equal(32, schemaHashOffset);
