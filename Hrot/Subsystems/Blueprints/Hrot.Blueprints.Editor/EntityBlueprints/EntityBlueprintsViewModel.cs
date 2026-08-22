@@ -27,7 +27,12 @@ namespace Hrot.Blueprints.Editor.EntityBlueprints;
 public sealed record EntityBlueprintsViewModel : IPanelViewModel
 {
     /// <inheritdoc/>
+    /// <remarks>⚠ A SINGLETON panel, so its address and its kind are the same string. ⛔ Do not copy that
+    /// shortcut to a multi-instance panel *(the watch)* — there the address must be the window's own id.</remarks>
     public string PanelId => PanelIds.EntityBlueprints;
+
+    /// <inheritdoc/>
+    public string PanelKind => PanelIds.EntityBlueprints;
 
     /// <summary>⭐ The panel's own heading, drawn as-is.</summary>
     public string Title { get; init; } = "Entity Blueprints";

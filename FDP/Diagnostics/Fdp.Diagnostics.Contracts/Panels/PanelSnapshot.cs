@@ -69,12 +69,32 @@ public static class PanelSnapshot
 
         string id = viewModel.PanelId;
         if (string.IsNullOrWhiteSpace(id))
-            throw new ArgumentException("A panel view-model must carry a stable PanelId.", nameof(viewModel));
+            throw new ArgumentException("A panel view-model must carry a unique PanelId.", nameof(viewModel));
+        if (string.IsNullOrWhiteSpace(viewModel.PanelKind))
+            throw new ArgumentException("A panel view-model must carry a stable PanelKind.", nameof(viewModel));
 
         Instrumented[id] = 0;
         if (!CaptureEnabled) return;
 
         Captured[id] = viewModel;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The live panel ids of one KIND</b> — what a cross-host conformance check groups by.
+    /// ⛔ Returns ids *(addresses)*, not models, because the caller's next question is always
+    /// <i>"…and which one"</i>: 📐 three perspectives can each host a <c>watch</c>, and the whole point of
+    /// the two-field split is that they stay individually addressable while still being comparable.
+    /// </summary>
+    public static IReadOnlyList<string> PanelsOfKind(string kind)
+    {
+        if (string.IsNullOrWhiteSpace(kind)) return Array.Empty<string>();
+
+        var matches = new List<string>();
+        foreach (var kv in Captured)
+            if (string.Equals(kv.Value.PanelKind, kind, StringComparison.Ordinal))
+                matches.Add(kv.Key);
+        matches.Sort(StringComparer.Ordinal);   // ⭐ deterministic — a conformance diff must not reorder
+        return matches;
     }
 
     /// <summary>⭐ The latest model for <paramref name="panelId"/>, or <see langword="null"/>. ⚠ <b>Null means

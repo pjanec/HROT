@@ -19,12 +19,13 @@ public class PanelSnapshotTests
 
     private sealed class FakePanelVm : IPanelViewModel
     {
-        public FakePanelVm(string panelId, string title = "", int count = 0)
-        { PanelId = panelId; Title = title; Count = count; }
+        public FakePanelVm(string panelId, string title = "", int count = 0, string? kind = null)
+        { PanelId = panelId; PanelKind = kind ?? panelId; Title = title; Count = count; }
 
-        public string PanelId { get; }
-        public string Title   { get; }
-        public int    Count   { get; }
+        public string PanelId   { get; }
+        public string PanelKind { get; }
+        public string Title     { get; }
+        public int    Count     { get; }
 
         public JsonNode Dump() => PanelDump.Of(this);
     }
@@ -163,6 +164,54 @@ public class PanelSnapshotTests
 
     // ── Contract guards ────────────────────────────────────────────────────────────────────────
 
+    // ── THE ADDRESS / KIND SPLIT ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE CASE THAT FORCED TWO FIELDS.</b> 🔒 <b>User, <c>2026-08-22</c>:</b> <i>"how will the MCP
+    /// server know what the panel id to ask for if the panel does not have unique id no matter what model
+    /// it is showing?"</i>
+    ///
+    /// <para>📐 Three watches are live at once — one per perspective. ⛔ With a single shared id they would
+    /// <b>overwrite one another</b> in the snapshot and <c>GET /panels/watch</c> would be ambiguous.
+    /// ⭐ With distinct ADDRESSES they stay individually reachable, ⭐⭐ and the shared KIND still groups
+    /// them for a conformance diff — <b>which is the whole reason the two cannot be one field.</b></para>
+    /// </summary>
+    [Fact]
+    public void ThreeLivePanelsOfOneKind_StayIndividuallyAddressable()
+    {
+        Reset();
+        PanelSnapshot.CaptureEnabled = true;
+
+        PanelSnapshot.Register(new FakePanelVm("ai_watch_btree",     "BTree watch",     kind: "watch"));
+        PanelSnapshot.Register(new FakePanelVm("ai_watch_hsm",       "HSM watch",       kind: "watch"));
+        PanelSnapshot.Register(new FakePanelVm("ai_watch_blueprint", "Blueprint watch", kind: "watch"));
+
+        // ⛔ NOT clobbered — the defect a shared id would have caused.
+        Assert.Equal(3, PanelSnapshot.CapturedPanels.Count);
+        Assert.Equal("HSM watch", ((FakePanelVm)PanelSnapshot.TryGet("ai_watch_hsm")!).Title);
+
+        // ⭐⭐ …and they are still comparable AS a group, deterministically ordered.
+        Assert.Equal(
+            new[] { "ai_watch_blueprint", "ai_watch_btree", "ai_watch_hsm" },
+            PanelSnapshot.PanelsOfKind("watch"));
+
+        Assert.Empty(PanelSnapshot.PanelsOfKind("variables"));   // ⛔ anti-vacuity
+        Reset();
+    }
+
+    /// <summary>⭐ A singleton carries the same string in both roles — ⚠ which is exactly why the missing
+    /// split was invisible on the pilot, and worth pinning so nobody "simplifies" it back.</summary>
+    [Fact]
+    public void ASingletonPanel_CarriesTheSameStringInBothRoles()
+    {
+        var vm = new FakePanelVm("entity-blueprints");
+        Assert.Equal(vm.PanelId, vm.PanelKind);
+
+        var json = vm.Dump();
+        Assert.Equal("entity-blueprints", json["panelId"]!.GetValue<string>());
+        Assert.Equal("entity-blueprints", json["panelKind"]!.GetValue<string>());
+    }
+
     [Fact]
     public void AModelWithoutAPanelId_IsRefusedRatherThanStoredUnderAnEmptyKey()
     {
@@ -172,6 +221,10 @@ public class PanelSnapshotTests
         Assert.Throws<System.ArgumentException>(() => PanelSnapshot.Register(new FakePanelVm("")));
         Assert.Throws<System.ArgumentNullException>(() => PanelSnapshot.Register(null!));
         Assert.Throws<System.ArgumentException>(() => PanelSnapshot.DeclareInstrumented("  "));
+
+        // ⭐ A model with an address but NO KIND is refused too — ⛔ it would be unreachable to every
+        //   conformance query while looking perfectly healthy in the dump.
+        Assert.Throws<System.ArgumentException>(() => PanelSnapshot.Register(new FakePanelVm("addr", kind: " ")));
 
         Reset();
     }

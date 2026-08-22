@@ -25,11 +25,28 @@ namespace Fdp.Diagnostics.Contracts.Panels;
 public interface IPanelViewModel
 {
     /// <summary>
-    /// ⭐⭐ <b>Stable across frames AND across hosts</b> — ⛔ cross-host conformance diffs models by this key,
-    /// so a per-host or per-perspective suffix would defeat the whole point. 📌 See
-    /// <see cref="PanelIds"/> for why this is a declared literal rather than a window-manager id.
+    /// ⭐⭐⭐ <b>THE ADDRESS — unique among panels that are live at the same time.</b>
+    /// ⛔⛔ This is what <c>GET /panels/{id}</c> resolves and what the snapshot is keyed by, so ⚠ **two live
+    /// panels sharing it means an agent cannot say WHICH one it wants, and one silently overwrites the
+    /// other in the dump.** ⇒ ⭐ a per-perspective window uses **its own window-manager registration id**
+    /// *(`ai_watch_btree`)*, which is unique by construction; ⭐ a singleton panel uses its declared literal.
+    /// 📌 <see cref="PanelKind"/> is the other half — read both before choosing either.
     /// </summary>
     string PanelId { get; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE KIND — the stable logical name, IDENTICAL across hosts and perspectives.</b>
+    /// ⭐ <c>watch</c> · <c>variables</c> · <c>entity-blueprints</c>. ⛔ **Cross-host conformance groups by
+    /// THIS, never by <see cref="PanelId"/>** — 📌 the address is unique *by construction*, which is exactly
+    /// the property that makes it useless for saying *"these two are the same panel."*
+    ///
+    /// <para>⚠⚠ <b>The two are separate FIELDS because they are opposite requirements</b>, and collapsing
+    /// them was a real mistake in this contract's first cut: an address that is stable across hosts cannot
+    /// disambiguate two live panels, and a kind that is unique per instance cannot be diffed. ⭐ For a
+    /// singleton panel they simply carry the same string, which is why the mistake was invisible on the
+    /// pilot.</para>
+    /// </summary>
+    string PanelKind { get; }
 
     /// <summary>
     /// ⭐ The model as JSON — ⛔ <b>structured, never a pre-formatted string blob</b>: a test asserts a
