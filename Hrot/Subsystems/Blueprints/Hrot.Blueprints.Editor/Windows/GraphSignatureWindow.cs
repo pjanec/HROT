@@ -1,10 +1,33 @@
 using System.Collections.Generic;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor.Variables;
 
 namespace Hrot.Blueprints.Editor.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 3) — this window's own state, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⭐ <c>PanelKind</c> is a local literal — this is the only <c>GraphSignatureWindow</c>-shaped
+/// class in the repo (measured), so a cross-host constant would name a set of one.</para>
+/// </summary>
+public sealed record GraphSignatureWindowPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool   HasAsset,
+    int    GraphCount,
+    string? SelectedGraphName,
+    string? SelectedGraphKind,
+    int    InputCount,
+    int    OutputCount) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Editor window that lets an author edit a Function graph's signature:
@@ -35,6 +58,9 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// </summary>
 public sealed class GraphSignatureWindow : ManagedWindow, Hrot.Editor.AiShared.Shell.IDetailsViewSource
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Local literal — see the view-model's class remarks.</summary>
+    internal const string Kind = "graph-signature";
+
     private readonly EditorSelectionStore _selectionStore;
     private readonly DirtyTracker         _dirtyTracker;
 
@@ -91,6 +117,9 @@ public sealed class GraphSignatureWindow : ManagedWindow, Hrot.Editor.AiShared.S
         _selectionStore = selectionStore ?? throw new ArgumentNullException(nameof(selectionStore));
         _dirtyTracker   = dirtyTracker   ?? throw new ArgumentNullException(nameof(dirtyTracker));
         _editServiceAccessor = editServiceAccessor;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     private readonly Func<NodeDrawers.IEditService?>? _editServiceAccessor;
@@ -199,9 +228,34 @@ public sealed class GraphSignatureWindow : ManagedWindow, Hrot.Editor.AiShared.S
     /// callable. ⭐ <b>ROUTING, not duplication:</b> the body is unchanged and there is still exactly
     /// ONE of it — <see cref="DrawClientArea"/> and <c>GraphSignatureDetailsView</c> both call it.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ U-obs-5: BUILD · CAPTURE. ⛔⛔ No ImGui — <see cref="EditableGraphs"/> and
+    /// <see cref="ResolveSelectedGraph"/> are already pure, published before <see cref="DrawContent"/>'s
+    /// first ImGui call (which, like several siblings in this family, carries no headless guard at all).
+    /// </summary>
+    private GraphSignatureWindowPanelViewModel BuildAndPublish(BlueprintAsset? asset)
+    {
+        var graphs   = asset != null ? EditableGraphs(asset) : new List<Graph>();
+        var selected = asset != null ? ResolveSelectedGraph(asset) : null;
+
+        var vm = new GraphSignatureWindowPanelViewModel(
+            Id, Kind, asset != null, graphs.Count,
+            selected?.Name, selected?.Kind.ToString(),
+            selected?.Inputs.Count ?? 0, selected?.Outputs.Count ?? 0);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal GraphSignatureWindowPanelViewModel SimulateDrawContent()
+        => BuildAndPublish(_asset ?? _selectionStore.SelectedAsset);
+
     public void DrawContent()
     {
         var asset = _asset ?? _selectionStore.SelectedAsset;
+        BuildAndPublish(asset);
+
         if (asset == null)
         {
             ImGuiNET.ImGui.TextDisabled("No blueprint selected.");
