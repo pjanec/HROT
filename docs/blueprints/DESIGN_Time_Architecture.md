@@ -1,10 +1,16 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN
-updated: 2026-08-21
+build-state: BUILDING
+updated: 2026-08-22
+merged: T1-T7 + W1/W2 (the drain) are BUILT and MERGED into the coordinator branch. Open per PLAN:
+  T4 path-C (debugger->intents) and T5's remaining pause-notion sites. X1/X2 deferred.
+verified: coordinator post-merge run 2026-08-22 (HEAD c7fb299d vs 34deca154^) - TimeControlIntegrationTests
+  9/0 and SimTimeSyncIntegrationTests 6/0 in ISOLATION, zero NEW failures across the 4 cluster/time
+  suites. §13's COORDINATOR POST-MERGE VERIFICATION block has the detail. DEBT-TIME-001 (§14): the FULL
+  ClusterRunner.Integration suite is un-gateable (pre-existing DDS crash) - gate via the filtered runs.
 current-answer: the whole file. §2-§6 AS-IS (measured) - §7 findings - §8 probes - §9 root cause
-  - §10 target - §11 replay - §12 the regression net - §15 the two remote caches (T7)
-  - §16 the pause-notion roll, site by site (T5).
+  - §10 target/AS-BUILT - §11 replay - §12 the regression net - §13 verification - §15 the two remote
+  caches (T7) - §16 the pause-notion roll, site by site (T5).
   The ORDER lives in PLAN_Time_System_Refactor.md.
 stale-below: nothing above HISTORY.
 known-rot: none. Claims corrected by later measurement are marked CORRECTED inline and keep the
@@ -1115,6 +1121,25 @@ unrelated red to note — it is a HAZARD the control refactor walks into**, and 
 > counts**. ✅ **The baseline is now `9/0`** *(Batch 104: 6 original + `TM-005`'s 3 added)* — ⛔ **was `4/6`
 > before Batch 104 fixed `AS-14`.** ⚠ **A new red is a regression the batch caused.**
 
+### ✅ COORDINATOR POST-MERGE VERIFICATION — **the gate row held across the whole refactor** *(2026-08-22)*
+
+⚠⚠ **The gap that prompted this** *(user)*: the rule above made `TimeControlIntegrationTests` a mandatory
+gate row, but **`TM-105`–`TM-111` never reported it** — they gated `Fdp.ModuleHost.Tests` + filtered
+rails and omitted the one suite that proves the cluster-time invariant. ⇒ this is now enforced generally
+by **`CLAUDE.md` gate-contract row 8**.
+
+⭐ **Run by the coordinator after the whole T1–T7 + W1/W2 refactor merged** *(HEAD `c7fb299dd`, vs
+pre-refactor baseline `34deca154^`)*:
+
+| what | command | result |
+|---|---|---|
+| ⭐⭐ **the §13 net**, isolated | `dotnet test …ClusterRunner.Integration…Tests --filter ~TimeControlIntegrationTests --no-build` | ✅ **9 / 0 / 0** — baseline held |
+| ⭐ **the cross-node sync invariant**, isolated | `--filter ~SimTimeSyncIntegrationTests` | ✅ **6 / 0 / 0** |
+| ⭐ **regression sweep**, 4 cluster/time suites, HEAD vs `34deca154^` | Orchestrator ×2 · `Fdp.ModuleHost.Tests` · ClusterRunner.Integration | ✅ **zero NEW failures** — every red *(6+3+6 + the DDS cascade)* reproduces on the baseline |
+
+⇒ ⭐⭐⭐ **The refactor introduced no cluster-time regression.** The invariant suites are green on merged
+HEAD; the skipped gate row was a REPORTING gap, not a correctness one.
+
 ---
 
 ---
@@ -1129,6 +1154,24 @@ unrelated red to note — it is a HAZARD the control refactor walks into**, and 
 | ~~**`TC-7`**~~ | ✅ **MEASURED — §15.** Disjoint nodes, different roles ⇒ **not collapsed**; the FOLD was the duplicate and is now one class. ⭐ It also found `HaltReason.Unknown` reachable and a step dropped in the barrier window |
 
 ⇒ ⭐ **Nothing on this list is unmeasured any more.** ⚠ The open WORK is `T5`'s remaining pause-notion sites and `T4`'s path C *(debugger → intents)*, both entangled with the UI lane's `W2`/`W5`.
+
+### ⛔ `DEBT-TIME-001` — **the FULL `ClusterRunner.Integration.Tests` suite is UN-GATEABLE** *(pre-existing; coordinator, 2026-08-22)*
+
+📐 The suite **host crashes mid-run** and aborts the remainder ⇒ full-run fail counts swing wildly and
+mean nothing *(HEAD 26–74 failed, baseline up to 86 — **the baseline fails MORE**)*:
+
+```
+CycloneDDS.Runtime.DdsException: dds_take failed: -3 (BadParameter)
+  at Fdp.Network.Cyclone.Services.DdsIdAllocatorServer.ProcessRequests()
+  at Hrot.Network.NED.Factory.HostedIdAllocatorServer.RunLoop()
+```
+
+⛔⛔ **PRE-EXISTING and NOT time-related** — reproduces identically on `34deca154^`; it is a DDS-allocator
+infrastructure fault, not anything the refactor touched. ⇒ ⭐⭐ **Until it is fixed, the time-control
+invariant is gated by the FILTERED runs above** *(`~TimeControlIntegrationTests`, `~SimTimeSyncIntegrationTests`)*,
+which sidestep the crashing test — ⛔ **the full-suite counts must NEVER be quoted as "verified."**
+⚠ **Fixing the DDS crash is its own task** *(Area H, not blocked, not urgent)* — filed so it is not
+rediscovered every batch.
 
 ⚠⚠ **`104f`'s premise MOVED after dispatch** — `P6′`. ⭐ The affordance is **narrower** than the
 handoff says *(two run states, not all three)* and its **mechanism already exists** *(`Q46` rule 5)*.
