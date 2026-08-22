@@ -270,10 +270,10 @@ public sealed class CapabilitySmokeTests : SystemTestBase
 
     // ── ⑧ replay ───────────────────────────────────────────────────────────────
     //
-    // ⛔ The record→replay ROUND TRIP is pinned in KnownDefectRails, not here: /recording/stop
-    // exits preview, which currently aborts the editor (HN-001). What is still assertable — and
-    // worth asserting, because it is the surface an agent hits first — is that the replay group
-    // answers coherently and refuses a bad load with a usable error.
+    // ⛔ The record→replay ROUND TRIP is pinned in PreviewLifecycleRails, not here: /recording/stop
+    // exits preview, and this suite's editor is shared — a case that leaves preview would rebuild
+    // the world under every other case. What belongs here — and is the surface an agent hits first —
+    // is that the replay group answers coherently and refuses a bad load with a usable error.
 
     [SystemSmokeFact]
     public async Task The_replay_surface_reports_no_replay_until_one_is_loaded()
