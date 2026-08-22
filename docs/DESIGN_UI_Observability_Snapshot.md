@@ -277,7 +277,23 @@ trickle was a cost-control choice; the user has priced it differently and wants 
 |---|---|
 | ⭐⭐⭐ **"never refactor a static label" STILL HOLDS** | ⛔ a panel whose draw is fixed chrome — constant captions, a button that only invokes a command, an about box — has **nothing a test could assert beyond a constant** ⇒ converting it adds a view-model that can never fail. ⭐ **So "all panels" is read as "every panel that shows STATE"** |
 | ⭐⭐ **the skipped set is REPORTED, never silent** | ⛔ a sweep that quietly drops files is indistinguishable from one that missed them ⇒ ⭐ every `SKIP` is listed with its one-line reason, so the user can overrule any of them |
-| ⚠ **two buckets cannot be converted at all** | **`FDP/ExtDeps/NodeEdit/`** — that tree references nothing from FDP, so it cannot see the contracts assembly *(`BP-453`'s recorded limit)*; **`FDP/Examples/`** — sample apps, not editor panels |
+| ⚠ **one bucket is genuinely out** | **`FDP/Examples/`** — sample apps, not editor panels |
+| ⭐⭐⭐ **and `NodeEdit` is NOT blocked — THE CALLER REGISTERS** *(user, `2026-08-22`)* | 🔒 **verbatim:** *"nodeEdit itself does not need conversion, it is editing given structure reference, but its caller can register the model (the struct) in the singleton snapshot registry."* ⇒ ⛔ **my "cannot be converted" claim was wrong**, and it was wrong because I reasoned from the DEPENDENCY GRAPH instead of from what the panel IS |
+
+#### ⭐⭐ THE CALLER-REGISTERS RULE — **a generic panel does not own a panel identity**
+
+📐 A `NodeEdit` panel *(`DetailsPanel`, `MyBlueprintPanel`, `BookmarksPanel`, `FindResultsPanel`,
+`PickerWindow`)* **edits a structure it is handed.** ⇒ ⭐⭐ it has **no identity of its own to publish**:
+the same `DetailsPanel` renders a different thing in every host that calls it.
+
+| ⭐ so the split is the same one `PanelId`/`PanelKind` already makes | |
+|---|---|
+| ⭐⭐ **the CALLER owns the address, the kind, and the registration** | it is the one that knows *which* panel this is and *what* it was handed |
+| ⭐ **the generic panel owns only the RENDERING** | ⛔ it needs no reference to the contracts assembly at all ⇒ **the layering objection dissolves rather than being worked around** |
+| ⭐⭐ **what gets registered is THE STRUCTURE THE CALLER PASSED IN** | ⚠ which is the honest model anyway: the panel's whole visible content is a projection of that argument |
+
+⇒ ⛔ **`BP-453`'s recorded limit is NARROWED, not deleted:** a NodeEdit panel still cannot *call*
+`PanelSnapshot` — ⭐ but nothing needs it to. 📌 **The limit was real; the conclusion drawn from it was not.**
 
 📐 **Scope measured `2026-08-22`:** **91** `*Panel.cs` / `*Window.cs` files outside tests, across ~20 assemblies.
 
