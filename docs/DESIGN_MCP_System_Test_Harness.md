@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN │ READY-TO-BUILD? NO — awaiting user review
+build-state: READY-TO-BUILD (user-approved 2026-08-22; dispatched to the implementation session as HANDOFF_MCP_Harness.md)
 updated: 2026-08-22
 current-answer: the whole file — the design for a C# system-test harness that drives the REAL editor as a
-  subprocess over the AI-debug (MCP) HTTP API, to smoke-test whole-system operations. NOT yet approved to
-  build; §5 decisions and §6 task breakdown are what the user reviews.
+  subprocess over the AI-debug (MCP) HTTP API, to smoke-test whole-system operations. APPROVED; §3 classDiagram
+  + §4 sequenceDiagram are the build contract (obligation ①); §5 decisions D1–D11 and §6 tasks H1–H7 are the build.
 known-conflict: none.
 design-basis: docs/MCP_Integration.md (the wired, verified API) · docs/Editor_Headless_Xvfb.md (headless
   launch) · UX_Feature_Curated_Scenarios.md (curated worlds) · UX_Feature_Layout_Defaults.md (curated UI).

@@ -34,6 +34,70 @@ anything but the curated names, and is dev-only by construction.
 | **Dev-only** | the git set is found by walking up to the source tree (as `LayoutPaths.TryFindSourceLayoutDirectory` does). A deployed build has no source tree ⇒ the start-up seed is a no-op and the menu item is disabled-with-reason. No output-copy is shipped. |
 | **Removal** | dropping a name from git just stops it being refreshed; its NAS copy stays as an ordinary user scenario. Never deleted. |
 
+## UML — the as-built *(obligation ①/⑤; the class MIRRORS the existing `LayoutPaths`, drawn beside it)*
+
+⭐ `CuratedScenarios` is a deliberate mirror of the shipped-default-layout helper `LayoutPaths` — same walk-up
+probe, same force-overwrite-curated-only shape. Drawn on one canvas so the parallel is explicit and neither
+duplicates logic the other should own.
+
+```mermaid
+classDiagram
+    direction LR
+
+    class CuratedScenarios {
+        <<new · Hrot.Presentation/ScenarioEditor/Services>>
+        +TryFindSourceScenariosDirectory() string
+        +CanSaveToGit() bool
+        +SeedIntoWorking(workingRoot) string[]
+        +SeedFrom(sourceRoot, workingRoot) string[]
+        +SaveWorkingToGit(workingRoot) string[]
+        +SaveTo(sourceRoot, workingRoot) string[]
+        +CuratedRelPaths(root) string[]
+    }
+    class LayoutPaths {
+        <<exists · Fdp.Presentation/ImGui/WindowManager>>
+        +TryFindSourceLayoutDirectory() string
+        +ShippedDefaultDirectory() string
+        +TryResetUserLayout(appName) string[]
+        +TrySaveUserLayoutAsDefault(appName) bool
+    }
+    class EditorSubsystem {
+        <<exists · Hrot.Editor>>
+        +Initialize()
+    }
+    class ScenarioMenuCommands {
+        <<exists · Hrot.Editor>>
+        +Register(...)
+    }
+
+    CuratedScenarios ..|> LayoutPaths : mirrors the pattern
+    EditorSubsystem ..> CuratedScenarios : SeedIntoWorking on start
+    ScenarioMenuCommands ..> CuratedScenarios : Save Curated menu to SaveWorkingToGit and CanSaveToGit
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant E as EditorSubsystem
+    participant C as CuratedScenarios
+    participant NAS as working scenarios root
+    participant U as user
+    participant M as Save Curated menu
+
+    Note over E: on start, before SetAvailableScenariosSource
+    E->>C: SeedIntoWorking(workingRoot)
+    C->>C: TryFindSourceScenariosDirectory (walk up)
+    alt source tree found (dev)
+        C->>NAS: force-overwrite each curated name only
+    else deployed (no source tree)
+        C-->>E: no-op
+    end
+    U->>M: click Save Curated Scenarios to Git
+    M->>C: CanSaveToGit
+    M->>C: SaveWorkingToGit(workingRoot)
+    C->>C: copy NAS curated names back into git set
+```
+
 ## The decisions (settled with the user, 2026-08-22)
 
 | # | Decision | Resolution |

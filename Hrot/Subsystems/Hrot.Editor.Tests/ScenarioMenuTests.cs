@@ -148,11 +148,13 @@ public sealed class ScenarioMenuTests
         Assert.True(fileNode.Children.ContainsKey("Scenario"));
         var scenarioNode = fileNode.Children["Scenario"];
 
-        // ⭐⭐ SIX sub-items — the sixth is `Save Curated Scenarios to Git`, added by the curated-test-
-        //    scenarios feature (docs/UX/UX_Feature_Curated_Scenarios.md). ⚠ This rail and the one below
-        //    still said FIVE and had been RED since that commit; ⛔ updating the count records what the
-        //    feature deliberately added, it does not relax an expectation (📌 B101c's rule: establish
-        //    the DIRECTION first — the sixth command is designed, documented and reachable).
+        // ⭐⭐ SIX sub-items: New Scenario, Load Scenario, Save Scenario, Save Scenario As,
+        //    Migration History, and `Save Curated Scenarios to Git` — the sixth added by the
+        //    curated-test-scenarios feature (docs/UX/UX_Feature_Curated_Scenarios.md). ⚠ This rail and
+        //    the one below still said FIVE and had been RED since that commit; ⛔ updating the count
+        //    records what the feature deliberately added, it does not relax an expectation (📌 B101c's
+        //    rule: establish the DIRECTION first — the sixth command is designed, documented and
+        //    reachable).
         Assert.Equal(6, scenarioNode.Children.Count);
         Assert.True(scenarioNode.Children.ContainsKey("New Scenario"));
         Assert.True(scenarioNode.Children.ContainsKey("Load Scenario"));
@@ -162,21 +164,25 @@ public sealed class ScenarioMenuTests
         Assert.True(scenarioNode.Children.ContainsKey("Save Curated Scenarios to Git"));
     }
 
-    // ── SixCommands_Registered_InCommandSet ──────────────────────────────────
+    // ── AllCommands_Registered_InCommandSet ──────────────────────────────────
 
     /// <summary>⭐ Renamed from <c>FiveCommands…</c>: the curated-scenarios feature made it six.
-    /// ⚠ A count in a test NAME is a rail that lies the moment the count moves.</summary>
+    /// ⚠⚠ <b>And the new name carries NO count</b> — 📌 a count in a test NAME is a rail that lies the
+    /// moment the count moves, which is exactly how the old name went stale. ⭐ Both lanes fixed this
+    /// red independently; the coordinator's countless name won on that reasoning.</summary>
     [Fact]
-    public void SixCommands_Registered_InCommandSet()
+    public void AllCommands_Registered_InCommandSet()
     {
         var (_, commands, _, _, _, _) = CreateRegistrar();
 
+        // Six commands: the original five + scenario.updateCurated (Save Curated Scenarios to Git).
         Assert.Equal(6, commands.RegisterCallCount);
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveAsId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.MigrationHistoryId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.UpdateCuratedId));
     }
 
     [Fact]
