@@ -21,6 +21,7 @@ namespace Hrot.Editor.AiShared.Tests.Variables;
 /// <para>⚠ <b>ONE class</b>: <c>PanelSnapshot</c> is process-global static state and xunit parallelises
 /// across CLASSES. Every case opens by resetting it.</para>
 /// </summary>
+[Collection(Hrot.Editor.AiShared.Tests.PanelSnapshotTestCollection.Name)]
 public sealed class TheVariablesPanelDumpsItsTableTests : IDisposable
 {
     private static readonly Guid AssetA = new("aaaaaaaa-0000-0000-0000-000000000001");

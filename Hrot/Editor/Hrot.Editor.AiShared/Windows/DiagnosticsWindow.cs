@@ -1,8 +1,35 @@
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Validation;
 
 namespace Hrot.Editor.AiShared.Windows;
+
+/// <summary>⭐ One aggregated diagnostic, projected for the dump. ⚠ <see cref="Severity"/> is a STRING
+/// here, not the raw enum — 📌 the pilot's own convention (<c>EntityBlueprintRow.Emphasis</c>): an
+/// assertion should read a readable value, not an STJ integer.</summary>
+public sealed record DiagnosticsRow(Guid AssetId, string AssetName, string Severity, string Code, string Message);
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="DiagnosticsWindow"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⭐ <see cref="Collect"/> was already a
+/// pure projection with no ImGui — this is that projection, made dumpable.
+/// </summary>
+public sealed record DiagnosticsPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    int TotalCount,
+    int AssetCount,
+    bool HasValidators,
+    bool HasSchemaDiagnostics,
+    IReadOnlyList<DiagnosticsRow> Diagnostics) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Cross-asset diagnostics aggregation window.
@@ -11,6 +38,10 @@ namespace Hrot.Editor.AiShared.Windows;
 /// </summary>
 public sealed class DiagnosticsWindow : ManagedWindow
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Single-host: stays a local literal, not a <c>PanelIds</c>
+    /// constant (📄 the queue's identity rule).</summary>
+    internal const string Kind = "diagnostics";
+
     private readonly IAssetCatalog _catalog;
     private readonly IReadOnlyList<IAssetValidator> _validators;
 
@@ -62,6 +93,9 @@ public sealed class DiagnosticsWindow : ManagedWindow
         _catalog            = catalog;
         _validators         = validators;
         _schemaDiagnostics  = schemaDiagnostics;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>⭐ A rail surface — 📌 <c>R-67</c>: asked of the CONSTRUCTED window, so a composition
@@ -92,22 +126,54 @@ public sealed class DiagnosticsWindow : ManagedWindow
         return all;
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5: BUILD · CAPTURE.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+    /// ⛔⛔ No ImGui here — <see cref="Collect"/> was already pure, so this is that projection made
+    /// dumpable, published <b>before</b> the render guard so a headless run still observes it.
+    /// </summary>
+    private DiagnosticsPanelViewModel BuildAndPublish()
+    {
+        var allDiags = Collect();
+
+        var rows = new List<DiagnosticsRow>(allDiags.Count);
+        foreach (var d in allDiags)
+            rows.Add(new DiagnosticsRow(d.AssetId, d.AssetName, d.Severity.ToString(), d.Code, d.Message));
+
+        var vm = new DiagnosticsPanelViewModel(
+            PanelId:              Id,
+            PanelKind:            Kind,
+            TotalCount:           allDiags.Count,
+            AssetCount:           _catalog.All.Count,
+            HasValidators:        _validators.Count > 0,
+            HasSchemaDiagnostics: _schemaDiagnostics != null,
+            Diagnostics:          rows);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context. 📌 Mirrors
+    /// <c>AiWatchWindow.DrawContent</c>.</summary>
+    internal DiagnosticsPanelViewModel SimulateDrawContent() => BuildAndPublish();
+
     protected override void DrawClientArea()
     {
+        var vm = BuildAndPublish();
+
+        if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
+
         // ⚠ The schema source is independent of the validators: a host can have collisions to report
         //   and no per-asset validator at all, and the old early-return would have hidden them.
-        if (_validators.Count == 0 && _schemaDiagnostics is null)
+        if (!vm.HasValidators && !vm.HasSchemaDiagnostics)
         {
             ImGuiNET.ImGui.TextDisabled("No validators registered.");
             return;
         }
 
-        var allDiags = Collect();
-
-        ImGuiNET.ImGui.Text($"Total: {allDiags.Count} issue(s) across {_catalog.All.Count} asset(s).");
+        ImGuiNET.ImGui.Text($"Total: {vm.TotalCount} issue(s) across {vm.AssetCount} asset(s).");
         ImGuiNET.ImGui.Separator();
 
-        if (allDiags.Count == 0)
+        if (vm.TotalCount == 0)
         {
             ImGuiNET.ImGui.TextColored(
                 new System.Numerics.Vector4(0.4f, 0.9f, 0.4f, 1f), "No issues found.");
@@ -125,7 +191,7 @@ public sealed class DiagnosticsWindow : ManagedWindow
             ImGuiNET.ImGui.TableSetupColumn("Message",  ImGuiNET.ImGuiTableColumnFlags.WidthStretch);
             ImGuiNET.ImGui.TableHeadersRow();
 
-            foreach (var d in allDiags)
+            foreach (var d in vm.Diagnostics)
             {
                 ImGuiNET.ImGui.TableNextRow();
                 ImGuiNET.ImGui.TableSetColumnIndex(0);
@@ -134,11 +200,11 @@ public sealed class DiagnosticsWindow : ManagedWindow
                 // Color severity
                 var sevColor = d.Severity switch
                 {
-                    AssetDiagnosticSeverity.Error   => new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f),
-                    AssetDiagnosticSeverity.Warning => new System.Numerics.Vector4(1f, 0.85f, 0.1f, 1f),
-                    _                               => new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1f),
+                    nameof(AssetDiagnosticSeverity.Error)   => new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f),
+                    nameof(AssetDiagnosticSeverity.Warning) => new System.Numerics.Vector4(1f, 0.85f, 0.1f, 1f),
+                    _                                        => new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1f),
                 };
-                ImGuiNET.ImGui.TextColored(sevColor, d.Severity.ToString());
+                ImGuiNET.ImGui.TextColored(sevColor, d.Severity);
                 ImGuiNET.ImGui.TableSetColumnIndex(2);
                 ImGuiNET.ImGui.Text(d.Code);
                 ImGuiNET.ImGui.TableSetColumnIndex(3);

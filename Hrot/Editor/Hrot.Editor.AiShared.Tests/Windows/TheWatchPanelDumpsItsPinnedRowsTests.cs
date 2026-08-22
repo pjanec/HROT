@@ -30,6 +30,7 @@ namespace Hrot.Editor.AiShared.Tests.Windows;
 /// <c>PanelKind</c> (the logical name)</b> — three perspectives each host their own Watch, and a shared
 /// id would let one silently overwrite another in the snapshot (AS-BUILT deviation ②).</para>
 /// </summary>
+[Collection(PanelSnapshotTestCollection.Name)]
 public sealed class TheWatchPanelDumpsItsPinnedRowsTests : IDisposable
 {
     private static readonly Guid AssetId = new("aaaaaaaa-0000-0000-0000-00000000000a");
