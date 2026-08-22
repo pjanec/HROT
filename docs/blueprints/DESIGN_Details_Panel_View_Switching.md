@@ -192,6 +192,25 @@ classDiagram
         +DrawClientArea() void
     }
 
+    class ScenarioComponentsView {
+        <<comp-root adapter>>
+        +Draw(DetailsContext, string) void
+    }
+    class ScenarioMissionView {
+        <<comp-root adapter>>
+        +MissionPanel Panel
+        +Draw(DetailsContext, string) void
+    }
+    class EntityInspectorPanel {
+        <<Fdp.Presentation, existing>>
+        +DrawComponentsFor(IInspectableSession, Entity) void
+    }
+    class MissionPanel {
+        <<Hrot.Presentation, existing>>
+        +int SelectedEntityId
+        +DrawContent(IMissionEditorService, IMapPickService) void
+    }
+
     ManagedWindow <|-- DetailsWindow
     ManagedWindow <|-- DetailsViewWindow
     IDetailsContextSource <|.. LiveContextSource
@@ -213,7 +232,18 @@ classDiagram
     DetailsViewWindow o-- DetailsViewDescriptor
     DetailsViewWindow o-- IDetailsContextSource
     DetailsViewWindow *-- "1" IDetailsViewInstance
+
+    IDetailsViewInstance <|.. ScenarioComponentsView
+    IDetailsViewInstance <|.. ScenarioMissionView
+    ScenarioComponentsView o-- EntityInspectorPanel : borrows the root's
+    ScenarioMissionView *-- "1" MissionPanel : owns its own
 ```
+
+⭐⭐ **The `o--` vs `*--` on the last two lines is the whole `L6.3`/`L6.4` asymmetry, and it is
+MEASURED** *(as-built (e))*: the root wires ~60 lines into its one `EntityInspectorPanel`, so the
+Components view must borrow it; it wires **nothing** into a `MissionPanel` after construction, and the
+update loop writes that panel's `SelectedEntityId` from the LEGACY selection every frame — ⛔ so the
+Mission view owns a private one instead of fighting for the property.
 
 | ⭐ what the diagram asserts | |
 |---|---|
@@ -493,6 +523,8 @@ per obligation ⑤** *(prior wording moved to `## ⛔ HISTORY`)*:
 | **a** | *"register the entity arm"* implies the entity is not yet in context | ✅ **`DetailsContext.Entities` ALREADY carries the selected entities** *(`L0.4`, from the World via `IEntitySelectionSource`)* — every AI perspective's builder populates it today. ⇒ ⛔ nothing to add to the context; what is missing is DESCRIPTORS that READ `ctx.Entities` |
 | **b** | the views hang off the existing details panel | ⛔⛔ **the Scenario perspective has NO `PerspectiveWorkspaceRegistrar`, no `DetailsWindow`, no registry** — it uses a bespoke `RegisterPane` and `ResolveDocumentForCurrentPerspective` returns null for it. ⇒ ⭐ **the real work is STANDING UP a details host on Scenario**, which is exactly what extracting `PerspectiveWorkspace` enables |
 | **c** | *"predicate = brain-equipped"* names an existing check | ⛔ **no `HasBrain`/`IsBrainEquipped` exists.** ⭐ The behavioural signal is `IMissionEditorService.GetMissionSnapshot`/`GetAvailableBehaviors` returning empty ⇒ `L6.5`'s helper writes the predicate FRESH |
+| ⛔⛔ **d** *(added `2026-08-22`, from the build)* | *"the panel OWNS its selection via a `HashSet`"* ⇒ **DELETE it** | ⛔⛔ **`_selectedEntities` is a read-WRITE INTERACTION MODEL, not a cache.** 📐 `HandleRowClick` *(:409)* writes it in all three arms *(shift-range / ctrl-toggle / plain click)* and `Select All` writes it too. ⇒ **deleting it deletes multi-select interaction** unless clicks instead write `SelectionState` to the World — 📌 that is `UX_Feature_Selection.md`'s `UXI-11` migration, which `L0.4` put OUT OF SCOPE. ⭐ **And the deletion is not needed:** `DrawEntityDetails:530` shows the renderer takes the entity, so the adapter renders the World's entity without touching the `HashSet`. ⇒ ⭐⭐ **the deletion is `UXI-11`'s, not `L6.3`'s** |
+| ⭐⭐ **e** *(added `2026-08-22`, from the build)* | both views *"wrap"* the editor's existing panel | ⭐ **BORROW vs OWN, decided per panel by what the root wires into it.** `EntityInspectorPanel` gets ~60 lines *(reflector · 2 buffer-view providers · serializer · mutation interceptor · edit-context factory)* ⇒ **borrowed**, or the view would render with none of it *(the `2026-08-16` silent-default shape)*. `MissionPanel` gets **nothing** after construction, and `EditorSubsystem.Update:1810–1823` writes its `SelectedEntityId` every frame from the LEGACY `DefaultSelectionState` ⇒ ⛔ **sharing it would make the view and the Mission Editor window overwrite each other within one frame** ⇒ **the Mission view OWNS a private panel** |
 
 ⭐⭐⭐ **And the risk is SPLIT** *(`no rush removals`)*: `L6.1` bundled a **persisted-key rename +
 layout migration** *(§5: `"Editor"`→`"Scenario"`, which silently resets saved layouts)* with the
@@ -506,8 +538,8 @@ the workspace and the entity views ship WITHOUT touching the persisted key.
 | **1 · enabling** | ⭐⭐ **`L6.1a`** | **extract `PerspectiveWorkspace`** — split the registrar's GENERIC half *(the `DetailsViewRegistry`, the `LiveContextSource` builder, the entity source, the `IDetailsViewSource` claim chain)* from its 21-param AI service bag *(§5)*. ⛔ **Pure refactor of the THREE existing AI perspectives** *(BTree/HSM/Blueprint)* — no behaviour change, railed on the unchanged offer sets. ⭐ **STAGE GATE: all three perspectives still host their views before proceeding** | ⛔ no |
 | **2 · the host** | ⭐⭐ **`L6.1c`** | **give the Scenario perspective a `PerspectiveWorkspace` + `DetailsWindow`**, built from SCENARIO services, not the AI bag. ⛔ Does NOT rename the persisted key *(`L6.1b`)*. + wire `WorldEntitySelectionSource` into its context builder so `ctx.Entities` flows on Scenario too *(the old `L6.2`, now trivial — the source already exists)* | ✅ **Scenario gains a details panel** |
 | **3 · the views** | ⭐⭐ **`L6.5`** *(before `L6.4`)* | the **entity/component predicate helper** — `ctx.Entities is [{ }]` and the behavioural brain signal — so each entity-type view is a one-line predicate. ⛔ Built BEFORE the view that needs it | ⛔ no |
-| **3 · the views** | ⭐⭐⭐ **`L6.3`** | **Components view** — an **adapter in the composition root** *(`Hrot.Editor`/`Scenario/` — the ONLY assembly seeing both `Fdp.Presentation`'s `EntityInspectorPanel` and `AiShared`'s `IDetailsViewSource`; §3's reference wall)* wrapping the FDP `EntityInspectorPanel`. ⚠ **That panel OWNS its selection via a `HashSet`** — ⭐ the adapter feeds it `ctx.Entities` instead, the `HashSet` is DELETED, and `EntityInspectorPanelMultiSelectTests` re-points at the World | ✅ **Components in Scenario** |
-| **3 · the views** | ⭐⭐⭐ **`L6.4`** | **Mission plan view** — an adapter *(same comp-root rule)* wrapping `Hrot.Presentation`'s `MissionPanel`; it selects by `SelectedEntityId` *(int)*, so the adapter sets it from `ctx.Entities[0]`; predicate = `L6.5`'s brain signal | ✅ **Mission in Scenario** |
+| **3 · the views** | ⭐⭐⭐ **`L6.3`** | **Components view** — an **adapter in the composition root** *(`Hrot.Editor`/`Scenario/` — the ONLY assembly seeing both `Fdp.Presentation`'s `EntityInspectorPanel` and `AiShared`'s `IDetailsViewSource`; §3's reference wall)* wrapping the FDP `EntityInspectorPanel`. ⭐ The adapter renders `ctx.Entities[0]` through `EntityInspectorPanel.DrawComponentsFor(session, entity)` — the renderer half **extracted** from `DrawEntityDetails` *(`R-13`)*, so the caller's entity is the one that lands. ⛔⛔ **The `HashSet` is NOT deleted — see as-built (d): it is `UXI-11`'s, not this item's**, and `EntityInspectorPanelMultiSelectTests` stays as it is | ✅ **Components in Scenario** |
+| **3 · the views** | ⭐⭐⭐ **`L6.4`** | **Mission plan view** — an adapter *(same comp-root rule)* over `Hrot.Presentation`'s `MissionPanel`; it selects by `SelectedEntityId` — ⚠ an **int NETWORK id**, so the root supplies the `Entity`→`NetworkIdentity` translation *(one place, the same lookup `Update:1816` already does)*; predicate = `L6.5`'s brain signal. ⛔ **It OWNS a private `MissionPanel` rather than sharing the editor's — see as-built (e)** | ✅ **Mission in Scenario** |
 | ⛔ **DEFERRED** | ⚠ **`L6.1b`** | the persisted-key rename `"Editor"`→`"Scenario"` **+ layout migration** — its own gated task *(silently resets layouts; §5)*. ⛔ **NOT in the L6 batch** | — |
 
 ⛔ **Out of scope:** `DerEntityInspectorPanel` *(IOS/ExCon only)*. ⛔ **Not this batch:** `BP-399` *(L3's
@@ -561,6 +593,9 @@ sequenceDiagram
 | **`L0.2` is the risk** | three hosts, three current refusals; the *"same set ⇒ same context"* rule must be **measured per host** |
 | **`InspectorWindow` is 697 lines / 4 arms** | ⛔ the one `L3` task that is not a mirror-pattern slice |
 | **entity selection is `NoSave`** | ⛔ it does not survive a scenario reload — consistent with `94g`, and correct |
+| ⭐⭐ **`L6.3`'s offer half cannot be railed on the PRODUCTION root** *(measured `2026-08-22`)* | 📐 `_fdpRepoAdapter` — the `IInspectableSession` Components renders through — is built at `EditorSubsystem.cs:1579`, **inside `if (!_headless)` (:1565)** ⇒ a headless editor never has one, and correctly never offers Components. ⭐ The gate therefore SPLITS: the REAL root proves REGISTRATION *(`R-67`)*, and the production descriptor factory over a stubbed session proves the PREDICATE. ⛔ Neither half alone is the gate |
+| ⭐ **two Details windows on one perspective would share the borrowed `EntityInspectorPanel`'s search filter** | ⚠ `R-120` is not breached *(the shared state lives at the root and is handed in)*, but it is a real limit. ⛔ Cannot occur today — Scenario hosts one `DetailsWindow` |
+| ⚠ **the brain signal calls `GetAvailableBehaviors` from a per-frame predicate** | ⭐ Same order of cost as today: `MissionPanel.DrawContent` already calls it every frame. ⛔ If the service ever becomes expensive, the signal is the one place to memoise |
 
 ---
 

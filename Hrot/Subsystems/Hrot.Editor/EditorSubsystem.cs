@@ -342,6 +342,31 @@ namespace Hrot.Editor
         private PerspectiveWorkspaceRegistrar? _btreeRegistrar;
         private PerspectiveWorkspaceRegistrar? _hsmRegistrar;
         private PerspectiveWorkspaceRegistrar? _blueprintRegistrar;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>L6.1c</c> — the SCENARIO perspective's workspace.</b>
+        /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §6 <c>L6</c> stage 2 · §5.
+        ///
+        /// <para>⛔⛔ <b>Not a <c>PerspectiveWorkspaceRegistrar</c>, and that is the point of
+        /// <c>L6.1a</c>.</b> 📐 §5: the registrar's constructor is a <b>21-parameter AI-authoring
+        /// service bag</b> — validators, breakpoints, blackboard aggregation, facet drawers, live
+        /// value providers. ⚠ Scenario has none of those; ⭐ it needs only the GENERIC half, which is
+        /// exactly what <see cref="Hrot.Editor.AiShared.Shell.PerspectiveWorkspace"/> now is.</para>
+        ///
+        /// <para>⛔ <b>The persisted key stays <c>"Editor"</c></b> — 📌 §5/§6: the rename to
+        /// <c>"Scenario"</c> is <c>L6.1b</c>, DEFERRED, because <c>CurrentPerspective</c> and every
+        /// <c>OwningPerspective</c> are persisted and a bare rename silently resets saved layouts.
+        /// ⭐ <c>RegisterPerspectiveLabel("Editor", "Scenario")</c> already makes it read right.</para>
+        /// </summary>
+        private Hrot.Editor.AiShared.Shell.PerspectiveWorkspace? _scenarioWorkspace;
+
+        /// <summary>⭐ <c>L6.1c</c> — the Scenario perspective's Details panel. ⭐ Exposed for rails:
+        /// 📌 <c>R-67</c>, a rail must reach the CONSTRUCTED object.</summary>
+        internal Hrot.Editor.AiShared.Windows.DetailsWindow? ScenarioDetails { get; private set; }
+
+        /// <summary>⭐ <c>L6.1c</c> — exposed so a rail can assert the Scenario workspace was built and
+        /// carries a REAL entity source *(<c>R-67</c>)</summary>
+        internal Hrot.Editor.AiShared.Shell.PerspectiveWorkspace? ScenarioWorkspace => _scenarioWorkspace;
         private AssetBrowserDockedWindow?       _aiAssetBrowser;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
         private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
@@ -2288,13 +2313,24 @@ namespace Hrot.Editor
             // ⭐ PerspectiveWorkspaceServices REQUIRES facetEditService and both clock signals, so the
             //   omission is no longer expressible. What stays below is what genuinely differs per
             //   perspective.
+            // ⭐⭐⭐ L6.1c — THE TWO CLOCK SIGNALS ARE HOISTED, so Scenario reads the SAME rule.
+            //   ⛔ Not copied: 📌 R-13/ruling 9 — a second pair of predicates on the Scenario side is
+            //     how "is the sim up?" comes to have two answers, and M-38/M-40 already cost this
+            //     programme three sessions over exactly that.
+            //   ⚠ Behaviour is unchanged for the AI perspectives: these ARE the lambdas that were
+            //     inline in the call below, moved out verbatim.
+            Func<bool> isSimUpSignal  = () => _previewController?.IsInPreviewMode ?? false;
+            Func<bool> isFrozenSignal = () => (_bpManager?.IsPaused ?? false)
+                                           || (_bpTimeAdapter?.IsPausedByDebugger ?? false)
+                                           || ClockIsHalted();
+
             var perspectiveServices = new Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceServices(
                 catalog, refactorService, debugRegistry, facetEditService,
                 // ⭐⭐ R-66 — the run state comes from the CLOCK, not from "is a document open".
                 //    IPreviewController.IsInPreviewMode is what "the sim is up" means in this editor:
                 //    EnterPreviewMode switches the clock to continuous, ExitPreviewMode switches it
                 //    back to deterministic.
-                isSimUp:  () => _previewController?.IsInPreviewMode ?? false,
+                isSimUp:  isSimUpSignal,
                 // ⭐ Ruling 15's two arms: a breakpoint pause OR deterministic stepping. ⛔ Read
                 //   through the SAME adapter the Blueprint debugger uses -- not a second rule.
                 // ⭐⭐⭐ THIRD ARM (2026-08-21, M-40) -- THE SIMULATION CLOCK ITSELF.
@@ -2318,9 +2354,7 @@ namespace Hrot.Editor
                 // ⭐⭐⭐ The clock's real answer is DeltaTime on the ECS singleton the kernel pushes
                 //    every frame (ModuleHostKernel.UpdateInternal). `_world` IS the kernel's live world
                 //    (:661), so this reads the same struct every system sees this tick.
-                isFrozen: () => (_bpManager?.IsPaused ?? false)
-                             || (_bpTimeAdapter?.IsPausedByDebugger ?? false)
-                             || ClockIsHalted())
+                isFrozen: isFrozenSignal)
             {
                 BreakpointManager             = _bpManager,
                 SanitizerRegistry             = sanitizerRegistry,
@@ -2406,6 +2440,91 @@ namespace Hrot.Editor
                 //      happened, so the dialog names the cause instead of the "no writer installed OR it
                 //      refused" sentence that made a missing capability look like a correct gate (M-36).
                 writeLive: blueprintLiveValueWriter.WriteLive);
+
+            // ⭐⭐⭐ L6.1c — THE SCENARIO PERSPECTIVE GETS A DETAILS HOST.
+            // 📄 DESIGN_Details_Panel_View_Switching.md §6 L6 stage 2.
+            // 📐 As-built (b), measured 2026-08-22: "the Scenario perspective has NO
+            //    PerspectiveWorkspaceRegistrar, no DetailsWindow, no registry — it uses a bespoke
+            //    RegisterPane and ResolveDocumentForCurrentPerspective returns null for it." ⇒ ⭐ THIS
+            //    is L6's real work, and it is only cheap because L6.1a split the generic half out.
+            // ⛔ Built from SCENARIO services, not the AI bag: a formatter, the shared clock signals,
+            //    the entity source, and nothing else. ⚠ No validators/breakpoints/blackboard —
+            //    Scenario authors entities, not AI assets.
+            // ⛔ The persisted key stays "Editor" (L6.1b is deferred) — see the field's remarks.
+            _scenarioWorkspace = new Hrot.Editor.AiShared.Shell.PerspectiveWorkspace(
+                perspectiveName: "Editor",
+                selectionStore:  _aiEditorSelectionStore,
+                // ⭐ THE SAME two clock signals the AI perspectives read (hoisted above) — ⛔ not a
+                //   second rule. 📌 M-38/M-40: this editor already had five notions of "stopped".
+                runState:        Hrot.Editor.AiShared.Variables.RunStateSource.For(
+                                     isSimUpSignal, isFrozenSignal),
+                // ⭐⭐⭐ L0.4 (R-122) — the ENTITIES come from the World, so ctx.Entities flows on
+                //   Scenario exactly as it does on the AI perspectives. ⚠ A SECOND instance, and that
+                //   is correct: the same-instance guarantee is per PERSPECTIVE (every context THIS
+                //   workspace builds reads one source), ⛔ not process-wide.
+                entitySelection: new Hrot.Editor.AiShared.Shell.WorldEntitySelectionSource(() => _world));
+
+            ScenarioDetails = new Hrot.Editor.AiShared.Windows.DetailsWindow(
+                id:                "scenario_details",
+                owningPerspective: "Editor",
+                // ⭐ Scenario has no host-specific decoder — the raw one is the honest default here,
+                //   ⛔ not a silent fallback: there is no blueprint session to decode through.
+                formatter:         new Hrot.Editor.AiShared.Variables.VariableValueFormatter(
+                                       Hrot.Editor.AiShared.Variables.RawValueDecoder.Instance),
+                views:             _scenarioWorkspace.DetailsViews,
+                context:           _scenarioWorkspace.ContextSource());
+
+            // ⭐⭐ The window CONTRIBUTES its own variables view through the claim chain — 📌 §6 L1.2
+            //    (R-67): windows self-wire, so there is nothing extra for this root to remember.
+            _scenarioWorkspace.Contribute(ScenarioDetails);
+
+            // ⭐⭐⭐ L6.3 — THE COMPONENTS VIEW, added by the ROOT and only by the root.
+            // 📄 §6 L6 stage 4 · §3's reference wall: EntityInspectorPanel is in Fdp.Presentation and
+            //    IDetailsViewInstance is in Hrot.Editor.AiShared (below it) ⇒ ⛔ this assembly is the
+            //    ONLY one that can see both, so the adapter cannot self-wire through the claim chain.
+            // ⚠ It BORROWS _fdpEntityInspector — the panel this root wires with the reflector, the
+            //   buffer-view providers, the serializer and the mutation interceptor. ⛔ A fresh panel
+            //   would render components with none of that (the 2026-08-16 silent-default shape).
+            _scenarioWorkspace.DetailsViews.Add(
+                Hrot.Editor.Scenario.ScenarioComponentsViewDescriptor.For(
+                    panel:   () => _fdpEntityInspector,
+                    // ⭐ Re-asked every frame: the repository adapter is null until a scenario is open,
+                    //   and it is REPLACED on reload — ⛔ caching it would pin a dead World.
+                    session: () => _fdpRepoAdapter));
+
+            // ⭐⭐⭐ L6.4 — THE MISSION PLAN VIEW. 📄 §6 L6 stage 5.
+            // ⛔⛔ Its OWN MissionPanel, unlike the borrowed entity inspector above — 📐 Update()
+            //    (:1810–1823) writes _missionPanel.SelectedEntityId every frame from the LEGACY
+            //    _selectionState, not the World's SelectionState that ctx.Entities reads (R-122).
+            //    ⇒ ⚠ sharing it would make the Details view and the Mission Editor window fight over
+            //    one property. ⭐ And it is free: nothing is wired into a MissionPanel after
+            //    construction, so a fresh one is fully equivalent (see the type's remarks).
+            _scenarioWorkspace.DetailsViews.Add(
+                Hrot.Editor.Scenario.ScenarioMissionViewDescriptor.For(
+                    panel:       new MissionPanel(0, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry()),
+                    service:     () => _missionService,
+                    pick:        () => _mapPickAdapter,
+                    networkIdOf: NetworkIdOf,
+                    // ⭐⭐ THE BRAIN SIGNAL, as-built (c): there is no HasBrain in this codebase — the
+                    //   behavioural fact is "the mission service offers this entity behaviours".
+                    // ⚠ Called once per frame from the predicate; the Mission panel already calls
+                    //   GetAvailableBehaviors every frame, so this is the same order of cost.
+                    hasBrain:    e => _missionService is { } svc
+                                   && NetworkIdOf(e) is var id and not 0
+                                   && svc.GetAvailableBehaviors(id).Count > 0));
+
+            // ⭐⭐ L6.4's Entity → NETWORK id translation, in ONE place (R-13).
+            // 📐 MissionPanel.SelectedEntityId is an int NETWORK id, not an Entity (MissionPanel.cs:103),
+            //    and Update() already does exactly this lookup at :1816 to feed the Mission window.
+            // ⛔ 0 is the panel's own "no selection" value, so an entity that is not replicated —
+            //    or a dead one — honestly reads as nothing selected rather than as entity zero.
+            int NetworkIdOf(Fdp.Core.Entity e)
+                => _world is { } w
+                && e != Fdp.Core.Entity.Null
+                && w.IsAlive(e)
+                && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
+                     ? (int)w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value
+                     : 0;
 
             // Document manager — activated doc drives perspective switch.
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);
@@ -2563,6 +2682,10 @@ namespace Hrot.Editor
             _btreeRegistrar.RegisterWindows(windowManager);
             _hsmRegistrar.RegisterWindows(windowManager);
             _blueprintRegistrar.RegisterWindows(windowManager);
+
+            // ⭐⭐ L6.1c — the Scenario Details panel joins the window manager beside the other three.
+            //    ⛔ Not through a registrar: Scenario has a PerspectiveWorkspace, not the AI bag.
+            if (ScenarioDetails is not null) windowManager.RegisterWindow(ScenarioDetails);
 
             // ── MVE-BATCH-03: "Run Blueprint on Selected Entity" toolbar button ────────────────
             // Register via IWindowRegistrar.RegisterToolbarEntry so the button appears in the
