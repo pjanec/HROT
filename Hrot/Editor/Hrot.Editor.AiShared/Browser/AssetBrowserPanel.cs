@@ -1,8 +1,35 @@
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using ImGuiNET;
 using Hrot.Editor.AiShared.Catalog;
 using NodeEditor.Core.Interfaces;
 
 namespace Hrot.Editor.AiShared.Browser;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — this panel's own state, dumped.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c>
+/// §Example.
+///
+/// <para>⛔ <b>This panel has no id of its own</b> — the queue's "plain <c>*Panel</c>" gotcha:
+/// <see cref="AssetBrowserPanel"/> is built and owned by whichever host embeds it
+/// (<see cref="AssetBrowserDockedWindow"/> today; <c>AssetPickerModal</c> a second, per its options
+/// doc). ⇒ ⭐ <see cref="AssetBrowserPanel.BuildViewModel"/> takes <c>panelId</c>/<c>panelKind</c> as
+/// arguments rather than owning them, and the HOST does the actual <c>PanelSnapshot.Register</c> /
+/// <c>DeclareInstrumented</c> calls — the same caller-registers shape the queue's <c>NodeEdit</c> row
+/// describes, applied to an in-assembly generic panel rather than a cross-repo one.</para>
+/// </summary>
+public sealed record AssetBrowserPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    IReadOnlyList<string> Tabs,
+    string ActiveTab,
+    string Filter,
+    string? SelectedAssetName,
+    int    VisibleAssetCount) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Bitmask filter for <see cref="AssetKind"/> values used by
@@ -493,6 +520,32 @@ public sealed class AssetBrowserPanel
     /// Used by <see cref="CurrentTabLogicalIndex"/>.
     /// </summary>
     private int _lastDrawnTabLogicalIndex;
+
+    /// <summary>⭐ U-obs-5 — the last-drawn tab, as a label ("All" or a permitted kind's name). ⚠ Before
+    /// the first draw this reads as whatever tab logical index 0 resolves to (the default the tab bar
+    /// itself opens on) — "All" when shown, else <see cref="Tabs"/>[0].</summary>
+    public string ActiveTab
+    {
+        get
+        {
+            int idx = _lastDrawnTabLogicalIndex - (Options.ShowAllTab ? 1 : 0);
+            if (idx < 0) return "All";
+            return idx < Tabs.Count ? Tabs[idx].ToString() : "All";
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ U-obs-5: the pure projection this panel builds each frame — no ImGui, no side effects.
+    /// ⛔ Not registered here — see the class remarks on <see cref="AssetBrowserPanelViewModel"/> for why
+    /// the HOST supplies the address and does the actual publish.
+    /// </summary>
+    public AssetBrowserPanelViewModel BuildViewModel(string panelId, string panelKind) =>
+        new(panelId, panelKind,
+            Tabs.Select(t => t.ToString()).ToList(),
+            ActiveTab,
+            Filter,
+            Selection?.Name,
+            FilteredFlatList().Count);
 
     /// <summary>
     /// Raises the <see cref="AssetActivated"/> event with <paramref name="asset"/>
