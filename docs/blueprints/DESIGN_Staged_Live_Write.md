@@ -193,3 +193,28 @@ those:** `_kernel.RegisterGlobalSystem(new ResumeAndDrainSystem(_bpManager))` �
 everything)* must land **only after the drain is live-wired.** ⇒ ⭐ **`MIN`'s `WriteFieldNow` STAYS until
 the wire is in** — otherwise a paused edit stages and **never applies** *(worse than today)*. ⭐⭐ **Safe
 order:** `W4` *(implement + display)* → **merge `W1`/`W2`** → **wire** → `W3` *(remove `MIN`)* → `W5`.
+
+## 9. ⭐ DEFERRED FOLLOW-UP — **rename `DataBreakpointManager` → `DebugPauseManager`** *(low priority; cosmetic)*
+
+📌 **`DEFER-1`** *(user, `2026-08-22`)* — ⛔ **not scheduled; do when a batch already touches this class.**
+
+⭐⭐ **The finding:** `DataBreakpointManager` is misnamed. Its responsibility is the whole **paused-debug
+state**, not the breakpoint list: it owns `_isPaused` / `_pausedTick`, the rewind snapshot
+`_postTickSnapshot`, the `RequestStep`/`RequestContinue`/`RequestResume` controls, **and** the
+`_pendingMutations` "edits staged while stopped, applied at the N+1 boundary" queue *(the store this
+whole design reuses, §4 fork A)*. ⭐ Breakpoints make **no** mutations — they are one *way to enter* the
+paused state; a toolbar pause is another. The staged-write queue belongs to whoever owns resume, which is
+why co-locating it here is correct even though the name undersells it.
+
+⭐ **How the name came to mislead** *(📄 [`docs/designs/breakpoints-1/DESIGN.md`](../designs/breakpoints-1/DESIGN.md) §2)*: at
+birth *(Slice 2, "Universal Breakpoints")* the manager's headline job **was** halting the sim on a
+data-condition, and "triple-buffer rewind + deferred mutations" was listed as a *secondary* orchestrator
+duty on the same box. Later work — `MIN`'s toolbar pause, this staged-write story — reused the
+pause+mutation machinery for edits that have **nothing** to do with a breakpoint firing, broadening the
+responsibility while the name stayed. ⇒ ⭐ **accurate at birth, narrow now.**
+
+⚠ **Scope of the rename:** `DataBreakpointManager` + `IDataBreakpointManager` + `DataBreakpointManagerPanel`
+and their call sites across `Hrot.Diagnostics.Breakpoints`, `Hrot.Blueprints.Editor`, `Hrot.Editor`. ⛔ Pure
+churn, mechanical, no behaviour change — ⭐ **park it, don't spend a batch on it.** *(The **assembly** name
+`Hrot.Diagnostics.Breakpoints` is a separate, larger question — the substrate really is breakpoint-centric;
+only the *manager* class overreaches. Rename the class, leave the assembly.)*
