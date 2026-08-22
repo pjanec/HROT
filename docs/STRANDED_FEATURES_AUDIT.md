@@ -9,6 +9,17 @@ known-conflict: none.
 -->
 # Stranded-features audit — disjoint branches vs the re-created trunk
 
+> ## 🔒 USER RULING, 2026-08-22 — scope narrowed to Stride, and Bullet is WANTED
+> - ⭐⭐⭐ **Only `stride-integ-1` is of interest.** Everything else is either **already had** (the
+>   linux/windows portability — the system runs in a Linux VM routinely) or **obsolete** (Doctrine, the
+>   `ios` operator-station mock, the four May prototypes). ⇒ items 2–5 below are **CLOSED — do not port.**
+> - ⛔⛔ **CORRECTION to this audit's own caveat:** the audit said "don't port Bullet, Bepu supersedes it."
+>   ⭐ **The USER wants the BRANCH's Bullet-based Stride, NOT trunk's Bepu** — *"bepu is too young and not the
+>   most proven solution; the bullet was intentional."* ⇒ **the target is the branch's Stride (Bullet).**
+> - ⭐ **The real question for the port is the INTEGRATION SIDE:** how `stride-integ-1` changed the HROT/FDP
+>   shared code, and whether that breaks current functionality — **especially the brain → stride-node
+>   ANIMATION control path.** Investigation in progress; findings will seed a proper Stride-port design.
+
 **Why this exists.** The trunk was re-created (fresh import/squash, ~2026-07-16), so ~20 branches share no
 git ancestor with it. Two features were found stranded that way (the MCP/AI-debug server; the cross-platform
 staging-root fix). This audit surveys the rest. **Key confounder:** the trunk renamed `Bagira.* → Hrot.*`
