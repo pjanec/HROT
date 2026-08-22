@@ -104,11 +104,31 @@ public sealed class TheAiOfferSetsAreUnchangedTests
     /// </remarks>
     public static TheoryData<string, string[]> FrozenOfferSets => new()
     {
-        // ⭐ FROZEN — measured before L6.1a, unchanged by S1.
-        { "BTree",     new[] { "details.blackboard", "details.variables" } },
-        { "HSM",       new[] { "details.blackboard", "details.variables" } },
-        // ⛔ RE-EXPRESSED by S1, per DESIGN_Details_Panel_View_Switching.md §7.3 ①. Was
-        //   { "details.blackboard" } while Blueprint had no shell.
+        // ⛔⛔ RE-EXPRESSED AGAIN by S2 (BP-399, 2026-08-22), per §7.3's catalogue: EVERY AI
+        //    perspective gains `details.nodeproperties` at Rank 20 — that IS the user's ask
+        //    ("selecting a node makes the Details window show its properties by default").
+        //    ⚠ It is registered by the REGISTRAR, so it appears on all three at once; the perspectives
+        //      still differ in what their predicates ANSWER, which is §7.3 ②'s whole point.
+        //    📌 Registration ORDER is asserted too, and it is MEASURED, not chosen: nodeproperties
+        //      sits between the Blackboard window's view and the shell's own variables view, because
+        //      that is where `effectiveHost` is known. ⚠ I guessed "last", then "first", and both were
+        //      wrong — which is exactly why this list is measured (the file's opening note says so).
+        //    ⭐ Harmless today: order breaks RANK TIES only, and 20 / 5 / 10 do not tie. ⛔ It is still
+        //      asserted, because the day a second Rank-20 view lands the tie-break is what decides the
+        //      default a designer sees, and a silent reshuffle would move it.
+        { "BTree",     new[] { "details.blackboard", "details.nodeproperties", "details.variables" } },
+        { "HSM",       new[] { "details.blackboard", "details.nodeproperties", "details.variables" } },
+        // ⛔⛔ BLUEPRINT HAS NO `details.nodeproperties` HERE, and that is NOT the pre-S1 state
+        //    returning — it is §7.4's TWO-CLASS picture. 📐 Blueprint's nodes are described by
+        //    IBlueprintNodeDrawer, not by an AI facet dispatcher, so its node view is
+        //    `BlueprintNodeDetailsView`, contributed by `BlueprintDetailsContribution` at the
+        //    COMPOSITION ROOT — which this rail deliberately does not run (it builds the registrar
+        //    alone). ⇒ ⭐ the id IS present on Blueprint in the real editor; see
+        //    `TheDialogOpensOnEveryHostTests`, which builds the whole EditorSubsystem.
+        // 🔴 Found by the duplicate-id GUARD at startup, not by reasoning: registering the generic view
+        //    for every perspective collided with Blueprint's own under the shared id (BP-433).
+        // ⛔ The Blueprint row was RE-EXPRESSED by S1 (§7.3 ①): it was { "details.blackboard" } while
+        //   Blueprint had no shell at all.
         { "Blueprint", new[] { "details.blackboard", "details.variables" } },
     };
 
@@ -123,23 +143,30 @@ public sealed class TheAiOfferSetsAreUnchangedTests
     /// perspective, so they asserted an absence nothing could produce. ⛔ Keeping them would be a rail
     /// that cannot redden, which is worse than no rail (<c>BP-402</c> ①).</para>
     ///
-    /// <para>⭐⭐ <b>The claim that IS reachable and IS independent of <c>FrozenOfferSets</c>:</b> the
-    /// three AI perspectives register the <b>SAME</b> set from the shared composition. 📌 That is the
-    /// property <c>S1</c> creates and the one a future edit would break — a perspective-specific view
-    /// registered into <c>PerspectiveWorkspaceRegistrar</c> instead of into its own host editor's
-    /// contribution reddens here, whatever the lists above say. ⚠ <b>Host-contributed views are
-    /// deliberately out of scope</b> — <c>details.nodeproperties</c> and <c>details.runtime.*</c> come
-    /// from the BTree/HSM/Blueprint editor registrars, which are not in this assembly.</para>
+    /// <para>⭐⭐ <b>The claim that IS reachable and IS independent of <c>FrozenOfferSets</c>:</b>
+    /// <b>BTree and HSM are IDENTICAL</b>, and <b>Blueprint differs by EXACTLY ONE view</b> — the
+    /// facet-based node view, which it does not get because its nodes are drawn by
+    /// <c>IBlueprintNodeDrawer</c> rather than mapped by an AI facet dispatcher *(§7.4's two classes,
+    /// one id)</para>
+    ///
+    /// <para>⚠⚠ <b><c>S2</c> WEAKENED THIS FROM "ALL THREE ARE EQUAL", and the weakening is the
+    /// design.</b> ⛔ It would have been easy to keep the stronger sentence by registering the generic
+    /// node view everywhere — 🔴 which is exactly what the first cut of <c>S2</c> did, and the
+    /// duplicate-id guard rejected it at startup *(<c>BP-433</c>)*. ⭐ The difference is stated as a
+    /// SET DIFFERENCE rather than dropped, so a SECOND divergence still reddens.</para>
     /// </summary>
     [Fact]
-    public void TheSharedRegistrar_OffersTheSameViewsToEveryAiPerspective()
+    public void TheSharedRegistrar_DiffersByExactlyTheFacetNodeView()
     {
         var btree     = RegisteredIds("BTree");
         var hsm       = RegisteredIds("HSM");
         var blueprint = RegisteredIds("Blueprint");
 
         Assert.Equal(btree, hsm);
-        Assert.Equal(btree, blueprint);
+        Assert.Equal(
+            new[] { "details.nodeproperties" },
+            btree.Except(blueprint).ToArray());
+        Assert.Empty(blueprint.Except(btree));
     }
 
     /// <summary>

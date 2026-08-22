@@ -48,13 +48,21 @@ public sealed class TheDialogOpensOnEveryHostTests
     // ── the real composition root ────────────────────────────────────────────
 
     private static PerspectiveWorkspaceRegistrar RegistrarOf(string perspective)
+        => ProductionEditor(perspective).Registrar;
+
+    /// <summary>⭐ The real composition root, keeping the <c>WindowManager</c> it registered into —
+    /// ⚠ <c>RegistrarOf</c> used to build one and throw it away, and the frame-overlay rail below needs
+    /// to see what production put in it.</summary>
+    private static (PerspectiveWorkspaceRegistrar Registrar, WindowManager Windows)
+        ProductionEditor(string perspective)
     {
-        var editor = new EditorSubsystem();
-        editor.RegisterWindows(new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f)));
+        var editor  = new EditorSubsystem();
+        var windows = new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f));
+        editor.RegisterWindows(windows);
 
         var reg = editor.RegistrarFor(perspective);
         Assert.NotNull(reg);
-        return reg!;
+        return (reg!, windows);
     }
 
     // ── the rows each host actually produces ─────────────────────────────────
@@ -217,6 +225,53 @@ public sealed class TheDialogOpensOnEveryHostTests
     /// of quietly building a form without one, and <b>②</b> that production actually installed a form
     /// *(<see cref="OnlyBlueprintHasAPropertiesForm"/>, asked of the CONSTRUCTED shell — 📌 <c>R-67</c>).</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-430</c> — THE PROPERTIES FORM'S <c>Draw</c> IS IN THE FRAME, asked of the REAL
+    /// composition root and WITHOUT a GL context.</b>
+    ///
+    /// <para>⛔⛔ <b>Why this rail had to exist.</b> 📌 <c>BP-327</c> has landed <b>three times</b>: a
+    /// modal built complete — field, constructor, <c>Open</c>, commit path, its own green tests — and
+    /// <b>no line calling <c>Draw()</c></b>, so the designer clicks <i>"Properties…"</i> and nothing
+    /// appears. ⭐ <c>EveryModalAWindowOwnsIsDrawnTests</c> is the insurance, ⚠ <b>but it only sees a
+    /// modal held in a FIELD OF A <c>ManagedWindow</c></b>. 📐 <c>S1</c> retired
+    /// <c>BlueprintDetailsWindow</c> and moved this form into <c>BlueprintDetailsContribution</c> as a
+    /// frame OVERLAY ⇒ it left that rail's scope. ⛔ The frame rail that replaced it
+    /// *(<c>ThePropertiesFormIsVisibleWhenOpenedTests</c>)* is a <c>SkippableFact</c> needing a real GL
+    /// context — ⚠⚠ <b>and it SKIPS on a headless gate</b>, so for one commit nothing guarded this.</para>
+    ///
+    /// <para>⭐⭐ <b>What it asserts, and why that is the right question.</b> Not <i>"a call exists in
+    /// IL"</i> *(which cannot see an early <c>return</c>)* and not <i>"a popup is on screen"</i>
+    /// *(which needs a GPU)* — but <b>"production REGISTERED this form's <c>Draw</c> as a frame
+    /// overlay"</b>. 📐 <c>WindowManager.Render</c> invokes exactly those, after every window, whether or
+    /// not any window is open — which is the property a modal needs and a client area cannot give it.</para>
+    ///
+    /// <para>⚠ <b>Stated limit</b> *(📌 <c>M-29</c>)*: this proves the overlay is REGISTERED, ⛔ not that
+    /// <c>Draw</c> renders anything — the frame rail owns that half, when a GL context exists.</para>
+    /// </summary>
+    [Fact]
+    public void ThePropertiesFormsDraw_IsRegisteredAsAFrameOverlay_ByProduction()
+    {
+        var (_, windows) = ProductionEditor("blueprint");
+
+        Assert.Contains(windows.FrameOverlays,
+            overlay => overlay.Target is Hrot.Blueprints.Editor.Windows.VariablePropertiesModal
+                    && overlay.Method.Name == "Draw");
+    }
+
+    /// <summary>
+    /// ⛔ <b>The anti-vacuity half.</b> ⚠ Without it the rail above would pass against a manager that
+    /// somehow collected every <c>Draw</c> in the process. ⭐ A manager production never touched holds
+    /// <b>no</b> overlays — so what the rail above finds was put there by the installer.
+    /// </summary>
+    [Fact]
+    public void AnUnregisteredManager_HoldsNoPropertiesForm()
+    {
+        var untouched = new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f));
+
+        Assert.DoesNotContain(untouched.FrameOverlays,
+            overlay => overlay.Target is Hrot.Blueprints.Editor.Windows.VariablePropertiesModal);
+    }
+
     [Fact]
     public void TheDetailsContribution_RefusesToInstallAFormWithNoRefactorService()
     {

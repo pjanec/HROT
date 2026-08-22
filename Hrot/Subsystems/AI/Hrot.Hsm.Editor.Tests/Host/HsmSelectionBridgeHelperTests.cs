@@ -45,14 +45,23 @@ public sealed class HsmSelectionBridgeHelperTests
         return HsmAssetProjector.Project(blob, meta, null, Guid.NewGuid(), "Simple", "", false, "");
     }
 
-    private static InspectorWindow MakeInspectorWindow(
-        EditorSelectionStore store, IFacetDispatcher? dispatcher = null)
+    /// <summary>
+    /// ⭐⭐ <b><c>S2</c> (<c>BP-399</c>) — the facet resolves through <c>NodePropertiesSource</c> now.</b>
+    /// 📄 §7.6 ②: <c>InspectorWindow</c>'s node arms were EXTRACTED to <c>details.nodeproperties</c>.
+    /// ⚠ The claim below is unchanged — it is about the BRIDGE, and the window was only the driver.
+    /// ⭐ The context is built by <c>DetailsContextBuilder</c>, the call the shell makes every frame.
+    /// </summary>
+    private static Hrot.Editor.AiShared.Shell.NodePropertiesSource MakeFacetSource(
+        IFacetDispatcher? dispatcher = null)
     {
-        var refactor    = new StubRefactor();
-        var findResults = new FindResultsWindow();
-        return new InspectorWindow(store, refactor, findResults,
-            facetDispatcher: dispatcher);
+        var source = new Hrot.Editor.AiShared.Shell.NodePropertiesSource();
+        source.SetFacetDispatcher(dispatcher);
+        return source;
     }
+
+    private static Hrot.Editor.AiShared.Shell.DetailsContext ContextOf(EditorSelectionStore store)
+        => Hrot.Editor.AiShared.Shell.DetailsContextBuilder.Build(
+               store, "HSM", Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
 
     // ── MapSelection null / empty guards ──────────────────────────────────────
 
@@ -266,7 +275,7 @@ public sealed class HsmSelectionBridgeHelperTests
     /// FIX-A end-to-end headless: confirms the full chain
     ///   SetFacetDispatcher(BuildFacetDispatcher(asset)) +
     ///   ActiveSubSelection = new HsmStateSelection(stableId)
-    ///   → inspector.GetCurrentFacet() != null.
+    ///   → source.FacetFor(ContextOf(store)) != null.
     /// This is the exact condition the lead's symptom report describes as broken.
     /// </summary>
     [Fact]
@@ -281,7 +290,7 @@ public sealed class HsmSelectionBridgeHelperTests
         var dispatcher = HsmSelectionBridgeHelper.BuildFacetDispatcher(asset);
         dispatcher.Should().NotBeNull();
 
-        var inspector = MakeInspectorWindow(store, dispatcher);
+        var source     = MakeFacetSource(dispatcher);
 
         // Simulate what AfterDraw publishes: map canvas node click → HsmStateSelection.
         var sel = new SelectionState();
@@ -289,7 +298,7 @@ public sealed class HsmSelectionBridgeHelperTests
         var subSel = HsmSelectionBridgeHelper.MapSelection(sel, asset);
         store.ActiveSubSelection = subSel;
 
-        var facet = inspector.GetCurrentFacet();
+        var facet = source.FacetFor(ContextOf(store));
 
         facet.Should().NotBeNull(
             "dispatcher + ActiveSubSelection → GetCurrentFacet must return the state facet");
@@ -303,7 +312,7 @@ public sealed class HsmSelectionBridgeHelperTests
     /// HSM-TRANS end-to-end headless: confirms the full chain
     ///   SetFacetDispatcher(BuildFacetDispatcher(asset)) +
     ///   ActiveSubSelection = new HsmTransitionSelection(visualId)
-    ///   → inspector.GetCurrentFacet() returns TransitionFacet.
+    ///   → source.FacetFor(ContextOf(store)) returns TransitionFacet.
     /// </summary>
     [Fact]
     public void GetCurrentFacet_ReturnsTransitionFacet_WhenTransitionSubSelectionIsWired()
@@ -317,7 +326,7 @@ public sealed class HsmSelectionBridgeHelperTests
         var dispatcher = HsmSelectionBridgeHelper.BuildFacetDispatcher(asset);
         dispatcher.Should().NotBeNull();
 
-        var inspector = MakeInspectorWindow(store, dispatcher);
+        var source     = MakeFacetSource(dispatcher);
 
         // Simulate what AfterDraw publishes: map canvas link click → HsmTransitionSelection.
         var sel = new SelectionState();
@@ -325,7 +334,7 @@ public sealed class HsmSelectionBridgeHelperTests
         var subSel = HsmSelectionBridgeHelper.MapSelection(sel, asset);
         store.ActiveSubSelection = subSel;
 
-        var facet = inspector.GetCurrentFacet();
+        var facet = source.FacetFor(ContextOf(store));
 
         facet.Should().NotBeNull(
             "dispatcher + ActiveSubSelection → GetCurrentFacet must return the transition facet");

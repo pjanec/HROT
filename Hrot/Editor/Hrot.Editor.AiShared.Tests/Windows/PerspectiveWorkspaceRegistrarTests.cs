@@ -194,19 +194,22 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
             debugRegistry:    new DebugSessionRegistry(),
             facetEditService: editSvc);
 
-        Assert.True(reg.Inspector.HasFacetEditService,
-            "the facetEditService passed to the registrar ctor must reach the Inspector");
+        // ⭐ <c>S2</c>: the forwarding target moved from <c>Inspector</c> to <c>NodeProperties</c> — the node
+    /// arms are a Details view now *(§7.6 ②)*. ⚠ The FORWARDING claim is unchanged, and this is still
+    /// the <c>2026-08-16</c> control: asserted on the CONSTRUCTED object, ⛔ never on the ctor's source.
+        Assert.True(reg.NodeProperties.HasFacetEditService,
+            "the facetEditService passed to the registrar ctor must reach the node-properties source");
     }
 
     /// <summary>
-    /// SE1 negative control: without a facetEditService the Inspector falls back to the stub
+    /// SE1 negative control: without a facetEditService the node view falls back to the honest stub
     /// (HasFacetEditService == false), confirming the wiring is what enables live rendering.
     /// </summary>
     [Fact]
-    public void PerspectiveRegistrar_WithoutFacetEditService_InspectorHasNone()
+    public void PerspectiveRegistrar_WithoutFacetEditService_NodePropertiesHasNone()
     {
         var reg = MakeRegistrar("BTree");
-        Assert.False(reg.Inspector.HasFacetEditService);
+        Assert.False(reg.NodeProperties.HasFacetEditService);
     }
 
     /// <summary>

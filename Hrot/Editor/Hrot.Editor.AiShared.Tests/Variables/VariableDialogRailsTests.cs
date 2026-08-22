@@ -121,10 +121,17 @@ public sealed class VariableDialogRailsTests
     /// </para>
     ///
     /// <para>
-    /// 📌 <b><c>InspectorWindow</c>'s FACET session is a different concept and is TOLERATED BY NAME.</b>
+    /// 📌 <b>The FACET session is a different concept and is TOLERATED BY NAME.</b>
     /// A facet is not a variable; folding it in would make the rail about "opens any dialog", which is
     /// not what §9 says. ⛔ It is named in the expected set rather than skipped by a predicate, so a
     /// variable dialog reappearing in that type fails the test instead of being absorbed by it.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b><c>S2</c> (<c>BP-399</c>, <c>2026-08-22</c>) — the tolerated caller MOVED, and only moved.</b>
+    /// 📄 §7.6 ②: <c>InspectorWindow</c>'s node arms were EXTRACTED to
+    /// <c>NodePropertiesDetailsView</c>, so the facet session is opened in <c>DrawFacetArm</c> now.
+    /// ⚠ <b>Still exactly ONE variable-session call site</b> — that is the claim, and it is unchanged.
     /// </para>
     /// </summary>
     [Fact]
@@ -149,8 +156,8 @@ public sealed class VariableDialogRailsTests
         Assert.Equal(
             new[]
             {
-                "DefaultValueAuthoring.OpenSession",   // ⭐ THE variable edit session, both scopes
-                "InspectorWindow.DrawClientArea",      // 📌 the FACET session -- a different concept
+                "DefaultValueAuthoring.OpenSession",         // ⭐ THE variable edit session, both scopes
+                "NodePropertiesDetailsView.DrawFacetArm",   // 📌 the FACET session -- a different concept
             },
             callers);
     }
@@ -214,17 +221,21 @@ public sealed class VariableDialogRailsTests
     /// </para>
     /// </summary>
     [Fact]
-    public void TrackCsVariableDialog_NowHasAnEntryPoint_AndTheInspectorPanelStays()
+    public void TrackCsVariableDialog_NowHasAnEntryPoint_AndTheNodeScopedPanelStays()
     {
         var assembly = typeof(DefaultValueAuthoring).Assembly;
 
-        // ⭐ The panel really is wired: InspectorWindow opens a variable session through the ONE opener.
+        // ⭐ The panel really is wired: the node-properties view opens a variable session through the
+        //   ONE opener.
+        // ⭐⭐ S2 (BP-399, 2026-08-22): the panel MOVED — it is `NodePropertiesDetailsView`'s
+        //    default-value arm now, not InspectorWindow's (§7.6 ② / BP-431: both node arms had to move
+        //    together because they shared one facet cache). ⚠ The GAP this rail asserts is unchanged.
         var openSession = typeof(DefaultValueAuthoring)
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
             .First(m => m.Name == nameof(DefaultValueAuthoring.OpenSession));
         Assert.Contains(
             FindCallSites(assembly, openSession),
-            m => m.DeclaringType!.Name == "InspectorWindow");
+            m => m.DeclaringType!.Name == "NodePropertiesDetailsView");
 
         // ⭐⭐ INVERTED in Batch 75: the launcher is now CONSTRUCTED — VariableEditGestureBinder binds
         //    the table's two gestures to it, so the asset-scoped dialog has an entry point at last.

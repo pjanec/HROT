@@ -758,7 +758,44 @@ classDiagram
 
     BlueprintDetailsContribution ..> DetailsViewRegistry : adds node view
     BlueprintDetailsContribution ..> DetailsWindow : installs Properties form
+
+    NodePropertiesDetailsView o-- NodePropertiesSource
+    PerspectiveWorkspaceRegistrar *-- NodePropertiesSource
 ```
+
+#### ⛔ AS-BUILT (`S2`, `2026-08-22`) — **`NodePropertiesSource`, and why the view is not enough**
+
+| | |
+|---|---|
+| ⭐⭐ **the box** | `Shell/NodePropertiesSource` — the facet dispatcher, the StructEdit edit service, its custom drawers, the `ExpressionTargetField` accessor, **and the one facet cache** |
+| ⭐ **why not on the view** | 📌 `R-120`: a view instance is per-**WINDOW** *(docked · float · pin)*, but these services are per-**PERSPECTIVE** and the composition root re-wires them when the document changes. ⛔ On the instance, one document switch would have to reach N windows |
+| ⭐⭐⭐ **why the CACHE is there too** | the **predicate** asks *"can I map this selection to a facet?"* and the **draw** asks the same question ⇒ ⛔ two caches would be two answers *(ruling 9)*, and the failure is a view that claims the panel and renders nothing — `R-117` one floor down |
+| ⚠ **what stays per-instance** | both StructEdit **sessions** — §1: *"an uncommitted edit buffer … the view instance, legitimately"*. ⚠ **Stated `L4` consequence:** a docked panel and a float of this view hold two sessions over one facet and the last dirty frame wins. ⭐ Same class of limit `VariablesDetailsView` records; ⛔ not introduced here and not solved here |
+| ⭐ **how a re-wire reaches the instances** | a `Generation` counter the view compares — 📌 `R-126`'s pull: the retired window dropped its session *inside* `SetFacetEditService`, and there is no such call to hook when N instances exist |
+
+⛔⛔ **AND TWO ARMS MOVED, NOT ONE** *(`BP-431`)* — §7.6 ② named only the **facet** arm. 📐 Measured: the
+**default-value (`B-3`)** arm read the *same* `_currentFacet` field, so extracting one alone would force a
+second facet cache. ⭐ Batch 74's own record settles that it belongs here: *"the surface earns itself: it
+is **NODE-scoped** (you see the default of the variable this node writes) where Track C's table is
+**ASSET-scoped**."* ⇒ **it IS node properties.**
+
+⛔⛔ **AND WHO REGISTERS IT — measured the hard way** *(`BP-433`)*. §7.4 draws **two classes under one
+id**; ⚠ registering the generic one for every perspective **collided with Blueprint's own** and
+`DetailsViewRegistry.Add` **threw at startup** *(Batch 81's guard, first live catch)*.
+
+| perspective | node view | registered by |
+|---|---|---|
+| **BTree · HSM** | `NodePropertiesDetailsView` *(facet-based)* | ⭐ the **registrar**, gated on `effectiveHost != null` |
+| **Blueprint** | `BlueprintNodeDetailsView` *(drawer-based)* | ⭐ `BlueprintDetailsContribution`, at the root |
+
+⭐⭐ **That gate is NOT §7.3 ③'s mistake repeated.** ③ objects to `HostKindOf` gating **the SHELL** —
+*"which blackboard host is this?"* has nothing to do with deserving a Details panel. ⛔ It has
+**everything** to do with whether a perspective's nodes are described by **facets**: the facet dispatcher
+is a BTree/HSM concept, and Blueprint's nodes are drawn by `IBlueprintNodeDrawer`.
+
+⚠ **`InspectorWindow` still exists** — its asset header *(Find References · Rename…)*, parameter-sync arm
+*(`S4`)*, utility stub *(`S3`)* and collision strip stay. ⛔ **`S5` cannot delete it until the header and
+the strip have a home** *(`BP-431`)*.
 
 #### ⛔ AS-BUILT (`S1`, `2026-08-22`) — **two boxes the design did not have, and why**
 
@@ -813,7 +850,7 @@ sequenceDiagram
 | # | item | why here |
 |---|---|---|
 | **①** | ✅ **BUILT `2026-08-22` (`BP-428`)** — ⭐⭐⭐ **Blueprint gets the real shell**; `Details` no longer gated on `HostKindOf`, the id is kept, `BlueprintDetailsWindow` **deleted**, its node arm now `BlueprintNodeDetailsView` at `details.nodeproperties`/**Rank 20** | ⛔ **first**: until Blueprint has the shell, "node properties" has two homes and the extraction target is ambiguous. ⚠ **Atomic by necessity** — the old window claims `ai_details_blueprint` and `RegisterCore` throws on a duplicate |
-| **②** | ⭐⭐ **`details.nodeproperties`** — extracted from `InspectorWindow`'s facet arm **and** `BlueprintDetailsWindow`'s node arm | ⭐ one view, three perspectives; ⚠ the two sources must be reconciled, which is why ① comes first |
+| **②** | ✅ **BUILT `2026-08-22` (`BP-432`)** — ⭐⭐ **`details.nodeproperties` on BTree + HSM**, `Shell/NodePropertiesDetailsView` + `Shell/NodePropertiesSource`, registered by the registrar for every perspective | ⭐ one view id, three perspectives; ⚠ the two sources reconciled as ① promised. ⛔⛔ **TWO of `InspectorWindow`'s arms moved, not one** — see the as-built note below |
 | **③** | ⭐ **`details.utility`** — from `InspectorWindow`'s utility arm | ⚠ 📐 that arm is a **STUB** *(a heading and `"Option N, Consideration M"`, then `// Curve inspector panel wired in a later phase`)* ⇒ ⭐ port it honestly as a stub, ⛔ do not pretend it is a feature |
 | **④** | ⛔ **`details.parametersync`** — from `InspectorWindow`'s `PARAMETER SYNCHRONIZATION` arm | ⚠ **LAST**, after the orchestrator wiring *(`R-99`)* — unchanged |
 | **⑤** | ⭐ **`L5` retires both windows** and removes `ai_inspector_*` from the shipped default layout | 📌 `L5`: *"per item, after its replacement is live"* |

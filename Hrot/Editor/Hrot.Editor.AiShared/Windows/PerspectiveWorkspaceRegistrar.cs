@@ -46,6 +46,15 @@ public class PerspectiveWorkspaceRegistrar
     /// <summary>The Inspector window for this perspective.</summary>
     public InspectorWindow Inspector { get; }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>S2</c> — this perspective's NODE-PROPERTIES services.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.3's catalogue · §7.6 ②.
+    /// <para>⚠ <b>The composition root wires the facet DISPATCHER through this</b>, not through
+    /// <see cref="Inspector"/> any more — the node arms are a Details view now
+    /// *(<c>Shell.NodePropertiesDetailsView</c>)</para>
+    /// </summary>
+    public Shell.NodePropertiesSource NodeProperties { get; }
+
     /// <summary>The Runtime Inspector window for this perspective.</summary>
     public RuntimeInspectorWindow RuntimeInspector { get; }
 
@@ -271,9 +280,6 @@ public class PerspectiveWorkspaceRegistrar
             idOverride:                    $"ai_inspector_{suffix}",
             owningPerspective:             perspectiveName,
             schemaExporter:                schemaExporter,
-            facetEditService:              facetEditService,
-            facetCustomDrawers:            facetCustomDrawers,
-            expressionTargetFieldAccessor: expressionTargetFieldAccessor,
             // ⭐⭐⭐ Batch 92 (92d) — THE SILENT-DEFAULT PATTERN, textbook shape.
             // 🔴 This is the ONLY production construction of InspectorWindow, and it omitted the
             //    resolver while HOLDING the catalog that answers it two lines up ⇒ the PARAMETER
@@ -283,6 +289,37 @@ public class PerspectiveWorkspaceRegistrar
             //    a constructor argument; nothing new is introduced here.
             // ⚠ Coherent only now: 92b makes the bindings this panel authors actually execute.
             subAssetResolver:              id => catalog.FindByAssetId(id) as IBlackboardManagedAsset);
+
+        // ⭐⭐⭐ S2 (BP-399) — THE NODE-PROPERTIES SERVICES, and the ONE facet cache.
+        //    📄 DESIGN_Details_Panel_View_Switching.md §7.3's catalogue · §7.6 ②.
+        // 🔴 These four used to be InspectorWindow constructor arguments, which is why the composition
+        //    root re-wired the DISPATCHER by calling `registrar.Inspector.SetFacetDispatcher(...)`.
+        //    ⛔ The node arms are a VIEW now, and a view instance is per-WINDOW (docked · float · pin)
+        //    while these services are per-PERSPECTIVE — so they live here, once (R-120).
+        // ⭐ Registered into THIS perspective's catalogue immediately, so the root has nothing extra to
+        //   remember (R-67). ⚠ The descriptor's predicate asks the source whether it can map the
+        //   selection at all, so a perspective with no dispatcher simply never offers the view.
+        NodeProperties = new Shell.NodePropertiesSource();
+        NodeProperties.SetFacetEditService(facetEditService, facetCustomDrawers);
+        NodeProperties.SetExpressionTargetFieldAccessor(expressionTargetFieldAccessor);
+
+        // ⛔⛔ REGISTERED FOR THE FACET-DISPATCHING HOSTS ONLY — and this is NOT §7.3 ③'s mistake
+        //    repeated, it is a DIFFERENT question with the same test.
+        // 📐 FOUND BY THE ID GUARD, at startup, on the first full-editor run of S2: registering this
+        //    unconditionally collided with BlueprintDetailsContribution's own `details.nodeproperties`
+        //    (§7.4 draws them as TWO classes — NodePropertiesDetailsView from InspectorWindow and
+        //    BlueprintNodeDetailsView from BlueprintDetailsWindow — and §7.6 ② gives them ONE id).
+        //    ⭐ Batch 81's duplicate-id guard did exactly its job: loud at construction, not a silent
+        //       shadow (the G4 precedent).
+        // ⭐⭐ WHY THE GATE IS HONEST HERE: §7.3 ③ objects to HostKindOf gating THE SHELL, because
+        //    "which blackboard host is this?" has nothing to do with whether a perspective deserves a
+        //    Details panel. ⛔ But it has EVERYTHING to do with whether a perspective's nodes are
+        //    described by FACETS: the facet dispatcher is a BTree/HSM concept, and EditorSubsystem
+        //    wires one for exactly those two. ⇒ Blueprint's nodes are described by IBlueprintNodeDrawer
+        //    instead, and its own root contributes that view.
+        // ⚠ Without the gate this was harmless at DRAW time (Blueprint has no dispatcher, so CanShow
+        //   is always false) and fatal at REGISTRATION time — which is the better place to fail.
+        // ⭐ The registration itself is a few lines down, where `effectiveHost` is computed.
 
         RuntimeInspector = new RuntimeInspectorWindow(
             store:             selectionStore,
@@ -404,6 +441,11 @@ public class PerspectiveWorkspaceRegistrar
         //    let EditorSubsystem forget it for both AI perspectives while the tests passed.
         //    ⛔ The parameter survives as an OVERRIDE, so an unusual perspective name can still say so.
         var effectiveHost = hostKind ?? HostKindOf(perspectiveName);
+
+        // ⭐⭐⭐ S2 — the generic NODE-PROPERTIES view, for the facet-dispatching hosts (see the note
+        //    beside NodeProperties above for why this gate is honest and §7.3 ③'s is not).
+        if (effectiveHost != null)
+            DetailsViews.Add(Shell.NodePropertiesDetailsViewDescriptor.For(NodeProperties));
 
         // ⛔ The Blueprint perspective already has BlueprintMyBlueprintWindow; a second outline there
         //    would be two panels for one concept. BTree and HSM had none at all -- that is the gap.

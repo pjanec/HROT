@@ -2656,11 +2656,14 @@ namespace Hrot.Editor
                     var btreeCtx     = new BTreeFacetFqnContext();
                     var btreeDrawers = BTreePickerDrawerFactory.BuildDrawers(
                         btreeAsset, _behaviorRegistry, sharedSchemaExporter, btreeCtx);
-                    _btreeRegistrar?.Inspector.SetFacetEditService(facetEditService, btreeDrawers);
+                    _btreeRegistrar?.NodeProperties.SetFacetEditService(facetEditService, btreeDrawers);
                     // FIX-A + BB1D: wire the per-asset facet dispatcher with the shared context
-                    // so InspectorWindow.GetCurrentFacet() returns a non-null facet and
-                    // the picker reads the updated FQN on the same frame.
-                    _btreeRegistrar?.Inspector.SetFacetDispatcher(
+                    // so NodePropertiesSource.FacetFor() returns a non-null facet and the picker
+                    // reads the updated FQN on the same frame.
+                    // ⭐ S2: this used to be `Inspector.SetFacetDispatcher`. The node arms are a Details
+                    //   VIEW now (details.nodeproperties, Rank 20), and a view instance is per-window —
+                    //   so the per-PERSPECTIVE services live on the registrar's NodeProperties source.
+                    _btreeRegistrar?.NodeProperties.SetFacetDispatcher(
                         BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, btreeCtx));
                 }
                 else if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm
@@ -2672,22 +2675,25 @@ namespace Hrot.Editor
                     var hsmCtx     = new HsmFacetFqnContext();
                     var hsmDrawers = HsmPickerDrawerFactory.BuildDrawers(
                         hsmAsset, sharedSchemaExporter, hsmCtx);
-                    _hsmRegistrar?.Inspector.SetFacetEditService(facetEditService, hsmDrawers);
+                    _hsmRegistrar?.NodeProperties.SetFacetEditService(facetEditService, hsmDrawers);
                     // FIX-A + BB1D: wire the per-asset facet dispatcher with the shared context
-                    // so InspectorWindow.GetCurrentFacet() returns a non-null facet and
-                    // the picker reads the updated FQN on the same frame.
-                    _hsmRegistrar?.Inspector.SetFacetDispatcher(
+                    // so NodePropertiesSource.FacetFor() returns a non-null facet and the picker
+                    // reads the updated FQN on the same frame.
+                    // ⭐ S2: this used to be `Inspector.SetFacetDispatcher`. The node arms are a Details
+                    //   VIEW now (details.nodeproperties, Rank 20), and a view instance is per-window —
+                    //   so the per-PERSPECTIVE services live on the registrar's NodeProperties source.
+                    _hsmRegistrar?.NodeProperties.SetFacetDispatcher(
                         HsmSelectionBridgeHelper.BuildFacetDispatcher(hsmAsset, hsmCtx));
                 }
                 else
                 {
                     // Switching to Blueprint or clearing: reset pickers to null (plain-text fallback).
                     // The edit service itself remains so the inspector still renders struct fields.
-                    _btreeRegistrar?.Inspector.SetFacetEditService(facetEditService, null);
-                    _hsmRegistrar?.Inspector.SetFacetEditService(facetEditService, null);
+                    _btreeRegistrar?.NodeProperties.SetFacetEditService(facetEditService, null);
+                    _hsmRegistrar?.NodeProperties.SetFacetEditService(facetEditService, null);
                     // FIX-A: clear facet dispatchers when no BTree/HSM is active.
-                    _btreeRegistrar?.Inspector.SetFacetDispatcher(null);
-                    _hsmRegistrar?.Inspector.SetFacetDispatcher(null);
+                    _btreeRegistrar?.NodeProperties.SetFacetDispatcher(null);
+                    _hsmRegistrar?.NodeProperties.SetFacetDispatcher(null);
                 }
 
                 // AIE-047/048: Retarget Blueprint-specific windows.
