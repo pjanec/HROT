@@ -129,21 +129,36 @@ component/offset. This is the SAME resolver the staged-write yellow already uses
 🔒 **User:** *"building/editing missions … add a new mission task with all the behavior specs/parameters,
 clear tasks to allow adding tasks, run/restart mission."* ⭐ Missions are the *proper* way behaviors attach to
 entities (as tasks). `IMissionEditorService` *(Hrot.ExCon)* already has **read**: `GetMissionSnapshot(entityId)`
-→ `(MissionPlan?, Version)`, `GetAvailableBehaviors(entityId)`, and `SendControlCommand(...)`. ⚠ The **write**
-ops (add-task-with-params, clear) likely need adding to the mission-edit path — *this is the "might not exist
-yet" the user flagged.*
+→ `(MissionPlan?, Version)`, `GetAvailableBehaviors(entityId)`, and `SendControlCommand(...)`.
+
+### ⭐⭐⭐ P.0 — behaviour DISCOVERY WITH SCHEMA *(the load-bearing piece — user, 2026-08-22)*
+
+🔒 **User:** *"an endpoint listing available behaviors (those shown in the mission task combo), each with the
+schema of its parameter json (extracted from the param DTO structure) … entity TKB type might limit behaviors
+so the query should include entity TKB type. AI model will then know exactly what is available."*
+
+| endpoint | does |
+|---|---|
+| `GET /behaviors?tkbType=<entityTkbType>` | the behaviours **valid for that entity TKB type** *(same list the mission-task combo shows)*, each with **`{ id, name, paramSchema }`** where `paramSchema` is the JSON schema of the behaviour's **param DTO**. ⇒ **the agent knows exactly what it can author and how to shape the params.** |
+
+⚠ **Schema extraction** is by reflection over the param DTO struct. ⭐ It *may need new self-describing
+attributes* on the DTOs *(e.g. `[ParamDoc("…")]`/range/units)* so a DTO can be **described in code at authoring
+time and extracted at runtime** — a small, general engine addition *(task `MX4a`)*. ⭐ The value/param encoding
+reuses the **scenario JSON serializer** *(structs + customization — decision 3)*, so the schema the agent sees
+and the bytes the engine reads are the same mechanism.
+
+### P.1 — read / edit / run
 
 | endpoint | does | status |
 |---|---|---|
 | `GET /missions/{id}` | the entity's mission plan (tasks + specs) | ✅ `GetMissionSnapshot` |
-| `GET /missions/{id}/behaviors` | behaviors that can be added | ✅ `GetAvailableBehaviors` |
-| `POST /missions/{id}/task` `{behavior, params}` | **add a mission task** with its behavior spec + parameters | ⚠ needs a mission-edit write op |
-| `DELETE /missions/{id}/tasks` | **clear tasks** (to re-add) | ⚠ needs a mission-edit write op |
-| `POST /missions/{id}/run` `{restart?}` | **run / restart** the mission | ⚠ maybe `SendControlCommand`; confirm |
+| `POST /missions/{id}/task` `{behavior, params}` | **add a mission task** — `params` is JSON per P.0's schema, decoded by the scenario serializer | ⭐ via the **mission intent bus** *(decision 2)* |
+| `DELETE /missions/{id}/tasks` | **clear tasks** (to re-add) | ⭐ via the intent bus |
+| `POST /missions/{id}/run` `{restart?}` | **run / restart** the mission | `SendControlCommand`; confirm restart |
 
-⭐⭐ **DISCUSS:** the task-spec/parameter shape (how an agent expresses a behavior + its params in JSON), and
-whether mission-edit writes go through `IMissionEditorService` (extend it) or the same intent bus the editor's
-Mission panel uses. **This is the biggest new surface and the most powerful authoring feature.**
+⭐⭐ **Resolved (see Open decisions):** writes go through the **existing mission intent bus** *(the same path the
+editor's Mission panel uses — one path, not a parallel API)*; params encode via the **scenario JSON
+serialization**; the AI discovers the param shape via **P.0**.
 
 ## Group Q — Blueprint hot-attach — ⭐ **mechanism EXISTS, just expose it**
 
@@ -181,7 +196,8 @@ graph TD
 | **MX1** | **Group O — variable addressing** (read/list/stage by `(asset,path,entity)` + pending) | reuses the staged-write seam; `DebugApiService` already has the session + bpManager |
 | **MX2** | **Group Q — blueprint hot-attach/detach** | wrap `AttachInstanceBlueprintEvent`/`AssignBehaviorEvent` |
 | **MX3** | **Group R — entity state dump** | thin convenience over `GetEntity` |
-| **MX4** | **Group P — mission editing** | read exists; **add/clear/run need mission-edit write ops** — design the task-spec JSON first (DISCUSS) |
+| **MX4a** | **behaviour DISCOVERY WITH SCHEMA** (P.0) — `GET /behaviors?tkbType=`, param-DTO → JSON schema; add self-describing DTO attributes where needed | ⭐ the load-bearing authoring piece; reflection + scenario-serializer schema |
+| **MX4b** | **Group P — mission editing** — add-task / clear / run via the **mission intent bus**, params decoded by the scenario serializer | depends on MX4a's schema |
 | **MX5** | MCP-server (Node) tool wrappers + `SKILL.md` regen for O/P/Q/R | the agent-facing side |
 | **MX6** | harness smoke cases for each new group | feeds `DESIGN_MCP_System_Test_Harness.md` H4 |
 
@@ -193,11 +209,15 @@ graph TD
   variable read/write.**
 - ⚠ **Group P is the one needing new engine/service surface** and a JSON task-spec decision — discuss before build.
 
-## Open decisions (discuss)
+## Decisions — RESOLVED (user, 2026-08-22)
 
-1. **Mission task-spec JSON** — how an agent expresses a behavior + its parameters (Group P). The single most
-   important shape to get right; drives the whole authoring surface.
-2. **Mission-edit path** — extend `IMissionEditorService` with write ops, or route through the editor's mission
-   intent bus?
-3. **Variable value encoding** — typed JSON (number/bool/vector) → bytes via the field's type, mirroring the
-   editor's `VariableEditCommit` conversion (reuse it, don't re-implement).
+1. ✅ **Mission task-spec + behaviour discovery** — an agent expresses `{behavior, params}` where `params` is
+   JSON matching the behaviour's **param-DTO schema**, and the agent *discovers* that schema via **P.0**
+   `GET /behaviors?tkbType=…` *(behaviours valid for the entity's TKB type, each with its param JSON schema)*.
+   ⇒ the AI knows exactly what is available and how to shape it. ⚠ Schema extraction may need small
+   **self-describing DTO attributes** *(task `MX4a`)*.
+2. ✅ **Mission-edit path = the existing mission INTENT BUS** — the same path the editor's Mission panel uses.
+   ⛔ Do NOT build a parallel write API; reuse the one path.
+3. ✅ **Value / param encoding = the SCENARIO JSON serialization** *(structs + customization)* — for both
+   Group O variable values and Group P behaviour params. ⛔ Do not hand-roll a converter; reuse the scenario
+   serializer that already works for structs and supports customization.
