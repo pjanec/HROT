@@ -69,7 +69,9 @@ internal delegate Vector2 SpatialPositionDelegate<T>(ref T component) where T : 
 ///   0 → 1: calls <see cref="DebugSnapshotProvider.SetEnabled(bool)"/> with true.
 ///   1 → 0: calls SetEnabled with false.
 /// </summary>
-public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewProvider, IMutationInterceptor
+public sealed class DataBreakpointManager
+    : IDataBreakpointManager, IActiveViewProvider, IMutationInterceptor,
+      Fdp.ModuleHost.Abstractions.IStagedWrites
 {
     private readonly EntityRepository _liveRepo;
     private readonly EntityRepository _preTickSnapshot;
@@ -685,6 +687,76 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     /// The ECB will be applied at the next tick boundary (when the kernel calls Tick()).
     /// No-op when the queue is empty.
     /// </summary>
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ W4 — IStagedWrites. 📄 DESIGN_Staged_Live_Write.md §5 (the seam) · §4 (fork A).
+    //    ⭐ This type ALREADY owned the staged set; W4 does not add a store, it EXPOSES the one that
+    //      exists — 📌 R-13 "route, don't duplicate", and the whole reason fork A was chosen.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public bool HasPending => _pendingMutations.Count > 0;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <b>This IS <see cref="IsPaused"/></b>, and the seam names it <c>IsRewound</c> because that is
+    /// what the drain cares about: 📌 <c>R-63</c> — while a breakpoint holds, the LIVE repo has been
+    /// REWOUND to the pre-tick snapshot, and <c>RequestContinue</c> restores the post-tick one and
+    /// drains itself. ⛔ A drain here would be overwritten by that restore.
+    /// <para>⚠ Two names for one fact is deliberate: <c>IsPaused</c> is what the EDITOR asks,
+    /// <c>IsRewound</c> is what the DRAIN asks, and they mean the same thing only because this
+    /// implementation pauses by rewinding.</para>
+    /// </remarks>
+    public bool IsRewound => _isPaused;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐ The public face of the existing private drain. ⛔ Not a second implementation — 📌 <c>M-41</c>
+    /// measured <c>DrainPendingMutations</c> as having no production caller OUTSIDE this class; this is
+    /// the seam that finally gives it one.
+    /// </remarks>
+    public void DrainInto(Fdp.ModuleHost.Abstractions.ISimulationView view)
+    {
+        if (view is null) throw new ArgumentNullException(nameof(view));
+        if (view is EntityRepository repo) { DrainPendingMutations(repo); return; }
+
+        throw new ArgumentException(
+            $"DrainInto expects the live EntityRepository; got {view.GetType().Name}.", nameof(view));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐⭐ <b>THE QUERY BEHIND THE YELLOW</b> — 📄 §4's fork A, and 📌 <c>R-130</c> in one line:
+    /// <i>pending ⟺ a mutation for this field sits un-drained.</i>
+    ///
+    /// <para>⭐⭐ <b>LAST WRITE WINS, and that is not an accident.</b> The queue may hold several
+    /// mutations for one field *(a designer edits, then edits again, before the drain)*. ⛔ The FIRST
+    /// match is the OLDEST — showing it would put a superseded number on screen in yellow. ⭐ The drain
+    /// applies them in order, so the LAST one is what the field will actually become ⇒ that is what the
+    /// panel must show.</para>
+    ///
+    /// <para>⚠ <b>Whole-component writes never match</b> *(<c>ByteOffset == -1</c>)*: this asks about a
+    /// FIELD, and a whole-component stage does not tell us which fields the designer meant. ⛔ Claiming
+    /// them all would yellow rows nobody touched.</para>
+    /// </remarks>
+    public bool TryGetPending(Entity entity, int typeId, int byteOffset, out byte[] bytes)
+    {
+        bytes = Array.Empty<byte>();
+        if (_pendingMutations.Count == 0) return false;
+
+        bool found = false;
+        foreach (var m in _pendingMutations)
+        {
+            if (!m.IsFieldWrite) continue;
+            if (m.ComponentTypeId != typeId || m.ByteOffset != byteOffset) continue;
+            if (!m.Target.Equals(entity)) continue;
+            if (m.Payload is not byte[] payload) continue;
+
+            bytes = payload;   // ⭐ keep going — the LAST match wins
+            found = true;
+        }
+        return found;
+    }
+
     private unsafe void DrainPendingMutations(EntityRepository repo)
     {
         if (_pendingMutations.Count == 0) return;

@@ -155,6 +155,12 @@ public sealed class EveryTableHostIsGestureBoundTests : IDisposable
         /// touched is the cost that rule deliberately charges.</summary>
         public VariableTableGestures Gestures => VariableTableGestures.Default;
 
+        /// <summary>⭐ <c>W4</c> — a real model, so the forwarding rail can assert the shared
+        /// <c>StagedWriteView</c> actually reached it. ⛔ Not <c>null</c>: a double that answers "I have
+        /// no model" would make the forwarding untestable through this host.</summary>
+        public VariableTableModel? TableModel { get; } =
+            new(new FixedVariableRowSource(System.Array.Empty<VariableRow>()), VariableTableColumns.Details);
+
         protected override void DrawClientArea() { }
     }
 
@@ -201,6 +207,9 @@ public sealed class EveryTableHostIsGestureBoundTests : IDisposable
         /// <summary>⭐ Batch 100 (<c>100f</c>) — irrelevant here (there is no table to put a menu on),
         /// ⛔ but still answered rather than defaulted away.</summary>
         public VariableTableGestures Gestures => VariableTableGestures.Default;
+
+        /// <summary>⭐ <c>W4</c> — no table, no model. ⚠ This is the shape the rail above exists for.</summary>
+        public VariableTableModel? TableModel => null;
     }
 
     private sealed class StubRefactorService : IRefactorService

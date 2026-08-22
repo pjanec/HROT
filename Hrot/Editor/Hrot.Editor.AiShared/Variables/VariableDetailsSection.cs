@@ -89,6 +89,10 @@ public sealed class VariableDetailsSection : IVariableTableHost
     /// </remarks>
     VariableTableControl? IVariableTableHost.VariableTable => _control;
 
+    /// <inheritdoc/>
+    /// <remarks>⭐ <c>W4</c> — this section IS the Details half of §7's "both panels agree".</remarks>
+    VariableTableModel? IVariableTableHost.TableModel => _model;
+
     /// <summary>
     /// What the current list is — e.g. <c>"Variables"</c> or <c>"Local Variables — Tick"</c>.
     /// ⭐ Null when nothing is shown. ⛔ The heading is not decoration: ruling 2 routes between a

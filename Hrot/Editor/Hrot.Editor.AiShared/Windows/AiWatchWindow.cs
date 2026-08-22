@@ -101,6 +101,12 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
     /// </remarks>
     public VariableTableControl? VariableTable => _control;
 
+    /// <inheritdoc/>
+    /// <remarks>⭐⭐ <c>W4</c> — this model is the WATCH half of §7's <i>"both panels show the SAME
+    /// staged bytes"</i>. ⚠ <c>null</c> when the Watch has no variable panel, exactly as
+    /// <see cref="VariableTable"/> is.</remarks>
+    public VariableTableModel? TableModel => _variables;
+
     private Func<VariableRunState>? _runState;
 
     /// <summary>

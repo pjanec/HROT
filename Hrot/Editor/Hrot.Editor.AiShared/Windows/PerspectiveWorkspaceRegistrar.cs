@@ -213,8 +213,15 @@ public class PerspectiveWorkspaceRegistrar
         Func<bool>? isSimUp = null,
         Func<bool>? isFrozen = null,
         WriteLiveValue? writeLive = null,
-        Shell.IEntitySelectionSource? entitySelection = null)
+        Shell.IEntitySelectionSource? entitySelection = null,
+        StagedWriteView? stagedWrites = null)
     {
+        // ⭐⭐⭐ W4 — assigned FIRST, before any host is built. ⛔ AttachEditGestures forwards it, and
+        //    this constructor calls that method several times below; a later assignment would wire the
+        //    hosts built before it with null — 📌 exactly L3.3's construction-order defect, which the
+        //    production-built rail caught on its first run.
+        _stagedWrites = stagedWrites;
+
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
         if (selectionStore is null) throw new ArgumentNullException(nameof(selectionStore));
@@ -802,6 +809,16 @@ public class PerspectiveWorkspaceRegistrar
     /// </summary>
     public Shell.IEntitySelectionSource? EntitySelection => _entitySelection;
 
+    /// <summary>⭐ <c>W4</c>'s shared staged set — see <c>PerspectiveWorkspaceServices.StagedWrites</c>.</summary>
+    private readonly StagedWriteView? _stagedWrites;
+
+    /// <summary>
+    /// ⭐ Exposed so a rail can assert on the CONSTRUCTED registrar that production passed a REAL view,
+    /// and that the SAME instance reached both a Details-shaped and a Watch-shaped model —
+    /// 📌 <c>R-67</c>, and the <c>2026-08-16</c> rule's prescribed control.
+    /// </summary>
+    public StagedWriteView? StagedWrites => _stagedWrites;
+
     private readonly HashSet<Shell.IDetailsViewSource> _viewSources = new();
 
     /// <summary>
@@ -912,7 +929,19 @@ public class PerspectiveWorkspaceRegistrar
 
     private void AttachEditGestures(IVariableTableHost? host)
     {
-        if (host?.VariableTable is not { } table) return;
+        if (host is null) return;
+
+        // ⭐⭐⭐ W4 — THE SHARED YELLOW REACHES EVERY TABLE HOST FROM HERE.
+        // 📄 DESIGN_Staged_Live_Write.md §7: Details and Watch must show the SAME staged bytes ⇒ they
+        //    must read the SAME StagedWriteView instance. ⛔ Not four assignments beside four
+        //    constructors — 📌 the reason IVariableTableHost exists at all: "a fifth host added later
+        //    must not depend on someone remembering a fourth Attach line." There are SIX now.
+        // ⚠ Deliberately BEFORE the `VariableTable is null` guard below: a host can own a MODEL without
+        //   yet owning a control, and a model with no yellow is precisely the silent default this
+        //   forwarding exists to prevent.
+        if (host.TableModel is { } model) model.StagedWrites = _stagedWrites;
+
+        if (host.VariableTable is not { } table) return;
 
         // ⭐⭐⭐ Batch 100 (100f) — THE HOST'S OWN ANSWER, carried to its table.
         // 🔴 This method used to give EVERY table host EVERY gesture, because it had nothing to ask.

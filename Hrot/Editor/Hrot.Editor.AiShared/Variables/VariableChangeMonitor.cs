@@ -67,7 +67,6 @@ public sealed class VariableChangeMonitor
         public uint   LastChangedAssetTick;
         public bool   Seen;
         public bool   HasEverChanged;
-        public bool   Pending;
 
         /// <summary>⭐ Batch 97 (97d) — the BINDING generation this entry's baseline belongs to.</summary>
         public uint   AtBinding;
@@ -92,14 +91,34 @@ public sealed class VariableChangeMonitor
     /// happened under a different mode.
     /// </para>
     /// </summary>
-    public RowHighlight Observe(VariableRow row, VariableRunState runState)
+    /// <param name="staged">
+    /// ⭐⭐⭐ <b><c>W4</c> — the SHARED staged set, and the ONLY source of 🟡 yellow.</b>
+    /// 📄 <c>DESIGN_Staged_Live_Write.md</c> §4 fork A.
+    ///
+    /// <para>⚠⚠ <b>Passed per call, not held as a field, and that is the point.</b> This monitor is
+    /// <b>per panel</b> *(the user's ruling — a Watch row and a Details row are independent memories)*;
+    /// the staged set is <b>shared by the whole editor</b> *(<c>R-120</c>)*. ⛔ Storing it here would
+    /// make a shared query look like panel state, which is exactly the confusion <c>I2</c> measured.</para>
+    ///
+    /// <para>⭐ <c>null</c> ⇒ nothing can be pending, so nothing yellows. ⚠ That is the honest answer for
+    /// a host with no staged-write source *(a rail's hand-built model, an authoring-only surface)* —
+    /// ⛔ NOT a silent default: there is genuinely no staged set to consult.</para>
+    /// </param>
+    public RowHighlight Observe(VariableRow row, VariableRunState runState, StagedWriteView? staged = null)
     {
         if (runState == VariableRunState.Planning) return RowHighlight.None;
 
-        // ⛔ No tick source ⇒ INERT. Recording without a tick would make the "changed" state permanent,
-        //    because nothing could ever advance past LastChangedAssetTick.
+        // ⭐⭐⭐ W4 — PENDING IS COMPUTED FIRST, and it is NOT gated on the tick or on the byte compare.
+        // 🔴 Both guards below exist to stop the RED cache recording a change it cannot later clear —
+        //    ⛔ neither has anything to say about a staged edit. A row with no asset tick that the
+        //    designer has just edited is still pending, and returning RowHighlight.None for it would
+        //    lose the one colour the user asked for by name.
+        bool pending = staged?.IsPending(row.Origin) == true;
+
+        // ⛔ No tick source ⇒ the RED half is INERT. Recording without a tick would make the "changed"
+        //    state permanent, because nothing could ever advance past LastChangedAssetTick.
         uint? tick = row.AssetTick?.Invoke();
-        if (tick is null) return RowHighlight.None;
+        if (tick is null) return new RowHighlight(false, pending);
 
         var key = row.Origin.Key;
         if (!_byRow.TryGetValue(key, out var entry))
@@ -134,7 +153,7 @@ public sealed class VariableChangeMonitor
         // ⚠ A type the serializer cannot handle yields null, which means "this row never
         //   highlights" — ⛔ NOT "unchanged", so it must not be folded into the empty-array case.
         byte[]? currentOrNull = ValueBytesOf(row);
-        if (currentOrNull is null) return new RowHighlight(false, entry.Pending);
+        if (currentOrNull is null) return new RowHighlight(false, pending);
 
         ReadOnlySpan<byte> current = currentOrNull;
         if (!entry.Seen)
@@ -154,7 +173,17 @@ public sealed class VariableChangeMonitor
         // ⭐ The predicate, and it is the whole rule: highlighted while this row's asset tick still
         //   equals the tick on which it last changed. Frozen (no asset tick) ⇒ still equal ⇒ still red.
         bool changed = entry.HasEverChanged && tick.Value == entry.LastChangedAssetTick;
-        return new RowHighlight(changed, entry.Pending);
+
+        // ⭐⭐⭐ W4 — BOTH STAY REPRESENTABLE, and the reason is worth stating because the design's
+        //    sentence reads at first like the opposite.
+        // 📄 §1: "A row is never red and yellow FOR THE SAME CAUSE — a user edit is yellow, never red."
+        //    ⭐ That is honoured UPSTREAM, not here: `changed` is computed from the SAMPLED bytes, and
+        //    VariableTableModel.Build applies the staged override only AFTER this call ⇒ a designer's
+        //    own edit can never be the thing that sets `changed`.
+        // ⛔ Collapsing them here would be a DIFFERENT claim — "the sim moved this while your edit was
+        //    still staged" is a real, distinct fact, and 📌 RowHighlight exists precisely so the
+        //    renderer, not the monitor, decides which colour wins.
+        return new RowHighlight(changed, pending);
     }
 
     /// <summary>
@@ -184,24 +213,20 @@ public sealed class VariableChangeMonitor
         return _managed.TryGetBytes(value);
     }
 
-    /// <summary>§6 — optimistic display: the edit is painted immediately and staged; this marks the row
-    /// yellow until the staged write lands at the N+1 boundary.</summary>
-    public void MarkPending(VariableRowOrigin origin)
-    {
-        var key = origin.Key;
-        if (!_byRow.TryGetValue(key, out var entry)) _byRow[key] = entry = new Entry();
-        entry.Pending = true;
-    }
-
-    /// <summary>Clears the pending flag when the staged write lands.</summary>
-    public void ClearPending(VariableRowOrigin origin)
-    {
-        if (_byRow.TryGetValue(origin.Key, out var entry)) entry.Pending = false;
-    }
-
-    /// <summary>Test/diagnostic read of the current state without observing.</summary>
-    public bool IsPending(VariableRowOrigin origin)
-        => _byRow.TryGetValue(origin.Key, out var e) && e.Pending;
+    // ⛔⛔⛔ W4 — `MarkPending` / `ClearPending` / `IsPending` and `Entry.Pending` are GONE.
+    //
+    // 📄 DESIGN_Staged_Live_Write.md §4 fork A, verbatim: "⛔ the unwired MarkPending/ClearPending flag
+    //    is NOT wired — it is collapsed into the query (R-13: route, don't duplicate)."
+    // 📐 Measured before deleting (§2, I3): "0 production callers" — built-but-unwired since Batch 84.
+    //    Its only callers were three rails, re-expressed against the shared query in the same commit.
+    // ⭐⭐ Why DELETING and not wiring, stated because "keep it, it's harmless" is the tempting answer:
+    //    a flag must be CLEARED by whoever applies the write, and 📌 R-126 made the drain a PULL from
+    //    the tick loop for exactly the reason that "no path can forget to raise what is never raised."
+    //    A flag here would have put the forgettable half straight back in.
+    // ⇒ ⭐ StagedWriteView answers "is this row pending?" from the ONE staged set, so the auto-clear IS
+    //    the mutation leaving the queue. There is nothing left here to keep in sync — and 📌 R-130
+    //    ("pending ⟺ a mutation for this field sits un-drained") becomes true by construction rather
+    //    than by every caller remembering to say so.
 
     /// <summary>Rows tracked. ⭐ Used by the heterogeneous-source rail to prove two rows of the same
     /// asset on two entities occupy two cache slots.</summary>

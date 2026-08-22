@@ -103,6 +103,12 @@ public sealed class WatchPanelWindow : BlueprintEditorWindowBase,
     /// </remarks>
     public VariableTableControl? VariableTable => _table;
 
+    /// <inheritdoc/>
+    /// <remarks>⭐ <c>W4</c> — the SECOND watch surface's model. ⚠ 📌 <c>BP-405</c>: this window is not
+    /// retired yet *(<c>Q44-B</c> has not run)</c>, so it must get the shared staged set too — ⛔ a
+    /// surface a designer can still open must not be the one that disagrees about what is pending.</remarks>
+    public VariableTableModel? TableModel => _model;
+
     /// <summary>
     /// ⭐⭐ <b>Batch 100 (<c>100f</c>) — the row gestures this surface offers.</b>
     /// ⛔⛔ MONITORING, so NO "Properties…" — the same answer <c>AiWatchWindow</c> gives.

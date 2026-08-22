@@ -73,6 +73,9 @@ public sealed class AiVariablesWindow : ManagedWindow, Variables.IVariableTableH
     /// the interface is how the registrar reaches EVERY host without knowing their concrete types.</remarks>
     VariableTableControl? Variables.IVariableTableHost.VariableTable => _control;
 
+    /// <inheritdoc/>
+    Variables.VariableTableModel? Variables.IVariableTableHost.TableModel => _model;
+
     /// <summary>
     /// ⭐⭐⭐ <b>Whether this window's row gestures are ATTACHED</b> — 📌 <c>R-67</c>. A rail that pulls
     /// this window out of the real <see cref="Fdp.Presentation.WindowManager.WindowManager"/> can now

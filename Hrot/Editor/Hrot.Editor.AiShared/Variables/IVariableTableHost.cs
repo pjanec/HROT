@@ -45,4 +45,29 @@ public interface IVariableTableHost
     /// host must answer — <b>and that cost IS the feature.</b></para>
     /// </summary>
     VariableTableGestures Gestures { get; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W4</c> — the MODEL behind that table, or <c>null</c> when this host has none.</b>
+    ///
+    /// <para>📄 <c>DESIGN_Staged_Live_Write.md</c> §4 fork A needs ONE shared
+    /// <see cref="StagedWriteView"/> to reach EVERY variable surface — ⛔ otherwise Details and Watch
+    /// disagree about what is pending, which is the divergence §7 exists to remove.</para>
+    ///
+    /// <para>⭐⭐ <b>Why an interface member and not four assignments at the registrar.</b> 📌 The same
+    /// reason <see cref="VariableTable"/> is one: the handoff for Batch 87 knew of THREE hosts and the
+    /// graph found FOUR. ⚠ Today it is <b>SIX</b> — <c>VariableDetailsSection</c>,
+    /// <c>AiVariablesWindow</c>, <c>AiWatchWindow</c>, <c>DetailsWindow</c>,
+    /// <c>BlueprintDetailsWindow</c>, <c>WatchPanelWindow</c>. ⇒ ⭐ a seventh host added later is wired
+    /// with NO new line anywhere, and the <c>2026-08-16</c> rule *(a production caller that HAS a
+    /// dependency must PASS it)</c> is kept by construction instead of by care.</para>
+    ///
+    /// <para>⛔⛔ <b>NO DEFAULT BODY</b>, for the same reason <see cref="Gestures"/> has none —
+    /// 📌 <c>U-5</c>/<c>BP-230</c>: <i>"a default body is the interface volunteering to lie on an
+    /// implementer's behalf."</i> ⚠ A <c>=&gt; null</c> here would silently leave a new surface out of
+    /// the shared yellow, and it would look exactly like a host that legitimately has no table.</para>
+    ///
+    /// <para>⭐ <b>A READ, not a setter</b> — the registrar does the forwarding, so a rail can assert on
+    /// the CONSTRUCTED model *(<c>R-67</c>)</c> rather than on the registrar's source.</para>
+    /// </summary>
+    VariableTableModel? TableModel { get; }
 }

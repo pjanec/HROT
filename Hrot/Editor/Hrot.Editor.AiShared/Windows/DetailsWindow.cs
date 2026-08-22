@@ -135,6 +135,12 @@ public sealed class DetailsWindow
         => ((Variables.IVariableTableHost)_variables).VariableTable;
 
     /// <inheritdoc/>
+    /// <remarks>⭐ <c>W4</c> — forwarded for the same reason and by the same route as the table above.
+    /// ⛔ Not a second model.</remarks>
+    Variables.VariableTableModel? Variables.IVariableTableHost.TableModel
+        => ((Variables.IVariableTableHost)_variables).TableModel;
+
+    /// <inheritdoc/>
     /// <remarks>⭐ Row 58 — forwarded to the hosted list, which is what renders the Value column.</remarks>
     public void SetRunStateSource(Func<VariableRunState> runState)
         => _variables.SetRunStateSource(runState);

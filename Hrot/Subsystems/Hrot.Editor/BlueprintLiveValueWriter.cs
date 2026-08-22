@@ -80,6 +80,47 @@ public sealed class BlueprintLiveValueWriter
     public bool Write(VariableRow row, ReadOnlySpan<byte> bytes) => TryWrite(row, bytes).Ok;
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>W4</c> — the YELLOW's address resolver, and it is <see cref="TryWrite"/>'s OWN step 3.</b>
+    /// 📄 <c>DESIGN_Staged_Live_Write.md</c> §4 fork A: the pending display queries
+    /// <c>IStagedWrites.TryGetPending(entity, typeId, byteOffset, …)</c>, which needs the same address
+    /// the write staged at.
+    ///
+    /// <para>⛔⛔ <b>Why HERE and not a lambda at the composition root.</b> 📌 This class's own remarks:
+    /// <i>"a narrowing delegate pair here would have put the resolve→write join in an unrailed adapter
+    /// at the composition root — exactly the <c>R-67</c> shape this class exists to close."</i>
+    /// ⚠ A second resolver would be worse than unrailed: if the yellow resolved a field by any other
+    /// route, a row could paint a value the write never staged, or stay white over one it did.
+    /// ⇒ ⭐ <b>one resolver, two readers</b> *(<c>R-13</c>: route, don't duplicate)*.</para>
+    ///
+    /// <para>⭐ <b><c>ComponentTypeRegistry.GetId</c> is the SAME id the stager uses</b> — 📐 measured at
+    /// <c>DataBreakpointManager.StageFieldMutation</c>, whose <c>GuardFieldWrite</c> derives the typeId
+    /// exactly this way. ⛔ Any other numbering would silently never match.</para>
+    ///
+    /// <para>⚠ <c>null</c> = <i>"no live address"</i> — no session, an unresolvable name, or a dispatch
+    /// kind whose layout nobody has measured. ⭐ Those rows never yellow, which is correct: they cannot
+    /// be written either.</para>
+    /// </summary>
+    public StagedFieldAddress? ResolveStagedField(VariableRowOrigin origin, Entity entity)
+    {
+        var session = _sessionFactory();
+        var field   = session?.ResolveWorkingStateField(entity, origin.AssetId, origin.VariablePath);
+        if (field is null) return null;
+
+        return new StagedFieldAddress(
+            ComponentTypeRegistry.GetId(field.ComponentType),
+            field.ComponentOffsetBytes,
+            field.SizeBytes);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The entity the WRITE targets</b>, exposed so <c>StagedWriteView</c> asks the SAME object.
+    /// ⛔ 📌 <c>R-78</c>: a Details row's origin carries the chameleon sentinel, so the yellow must not
+    /// read it either. ⚠ See the class remarks — if the read, the write and the yellow ever disagreed
+    /// about the entity, a designer would edit one and watch another.
+    /// </summary>
+    public Entity? SelectedEntity => _store.SelectedEntity;
+
+    /// <summary>
     /// ⭐⭐⭐ <b>Batch 102 (<c>102b</c>) — THE production <see cref="WriteLiveValue"/>, and it carries
     /// the REASON across the assembly boundary.</b>
     ///

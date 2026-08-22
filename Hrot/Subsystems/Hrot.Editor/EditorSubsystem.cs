@@ -2254,6 +2254,23 @@ namespace Hrot.Editor
             // the core win.
             var facetEditService = new ComponentEditServiceBuilder().Build();
 
+            // ⭐⭐⭐ Batch 97 (97c) — THE WRITE SIDE, and the reason a paused edit never landed.
+            //    🔴🔴 Measured by Batch 96: TryWriteWorkingStateField (Batch 84) and the WriteLiveValue
+            //    delegate both shipped with ZERO production call sites, so VariableEditCommit.Commit
+            //    answered LiveWriteUnavailable for every paused edit on every host. ⛔ R-67's seventh
+            //    instance -- and it hid for six batches because a refusal is a LEGITIMATE outcome, so a
+            //    refusing editor is indistinguishable from a correctly-gated one.
+            //    ⭐ Same store as the READ (blueprintLiveValueProvider, below), deliberately: the write
+            //      must target whatever the read displayed. See BlueprintLiveValueWriter's remarks
+            //      (R-78's chameleon sentinel).
+            // ⭐⭐⭐ W4 (2026-08-21) — MOVED UP from beside the Blueprint registrar, because the shared
+            //    yellow needs it BEFORE perspectiveServices is built: StagedWriteView resolves a row's
+            //    address through THIS object, so that the yellow and the write cannot disagree about
+            //    where a variable lives (R-13). ⛔ Nothing else about it changed.
+            var blueprintLiveValueWriter = new BlueprintLiveValueWriter(
+                sessionFactory: () => debugRegistry.ActiveSession as IBlueprintDebugSession,
+                store:          _blueprintSelectionStore);
+
             // ⭐⭐⭐ BATCH 84 / R-67 — ONE shared-service bundle instead of three hand-written argument
             //    lists. 🔴🔴 The lists had diverged: facetEditService went to BTree and HSM and NOT to
             //    Blueprint, so "Edit value…" and "Properties…" did nothing on the Blueprint
@@ -2310,6 +2327,21 @@ namespace Hrot.Editor
                 // ⭐ `_world` IS the kernel's live world (:661) — the same one SelectionInteractionSystem
                 //   writes and the ring gizmos read. ⛔ A production caller that HAS it must PASS it.
                 EntitySelection               = new Hrot.Editor.AiShared.Shell.WorldEntitySelectionSource(() => _world),
+
+                // ⭐⭐⭐ W4 — THE ONE SHARED STAGED SET, built here and nowhere else.
+                //    📄 DESIGN_Staged_Live_Write.md §4 fork A / §7; 📌 R-120 (shared state lives at the
+                //    composition root, not in a view).
+                // 🔒 User, 2026-08-21: "both yellow, both showing the same staged value, immediately
+                //    after user edit." ⇒ ONE instance, forwarded to every IVariableTableHost by the
+                //    registrar — ⛔ one per perspective would let two surfaces disagree.
+                // ⭐⭐ All three arms are RESOLVED AT CALL TIME, not captured: _bpManager is assigned at
+                //    :1127, AFTER this bag is built. ⛔ Capturing it here would bind null for the
+                //    editor's whole lifetime and nothing would ever go yellow — 📌 the same
+                //    construction-order shape as L0.4's world and L3.3's first wiring.
+                StagedWrites                  = new Hrot.Editor.AiShared.Variables.StagedWriteView(
+                    writes:         () => _bpManager,
+                    resolve:        blueprintLiveValueWriter.ResolveStagedField,
+                    selectedEntity: () => blueprintLiveValueWriter.SelectedEntity),
             };
 
             _btreeRegistrar    = perspectiveServices.CreateRegistrar(
@@ -2349,17 +2381,9 @@ namespace Hrot.Editor
                     : null,
                 store: _blueprintSelectionStore);
 
-            // ⭐⭐⭐ Batch 97 (97c) — THE WRITE SIDE, and the reason a paused edit never landed.
-            //    🔴🔴 Measured by Batch 96: TryWriteWorkingStateField (Batch 84) and the WriteLiveValue
-            //    delegate both shipped with ZERO production call sites, so VariableEditCommit.Commit
-            //    answered LiveWriteUnavailable for every paused edit on every host. ⛔ R-67's seventh
-            //    instance -- and it hid for six batches because a refusal is a LEGITIMATE outcome, so a
-            //    refusing editor is indistinguishable from a correctly-gated one.
-            //    ⭐ Same store as the READ above, deliberately: the write must target whatever the read
-            //      displayed. See BlueprintLiveValueWriter's remarks (R-78's chameleon sentinel).
-            var blueprintLiveValueWriter = new BlueprintLiveValueWriter(
-                sessionFactory: () => debugRegistry.ActiveSession as IBlueprintDebugSession,
-                store:          _blueprintSelectionStore);
+            // ⭐ `blueprintLiveValueWriter` is built ABOVE, beside `facetEditService` — W4 moved it so
+            //   the shared StagedWriteView could resolve addresses through the same object the write
+            //   uses. See its comment there.
 
             // ⭐ Blueprint still has no host-specific validator -- and it SAYS so, rather than
             //   expressing that by omitting a whole argument list's worth of shared services.

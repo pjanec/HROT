@@ -147,6 +147,12 @@ public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost
     public Hrot.Editor.AiShared.Variables.VariableTableControl? VariableTable
         => ((Hrot.Editor.AiShared.Variables.IVariableTableHost)_variables).VariableTable;
 
+    /// <inheritdoc/>
+    /// <remarks>⭐ <c>W4</c> — forwarded from the hosted section, by the same route and for the same
+    /// reason as the table above. ⛔ Not a second model.</remarks>
+    public Hrot.Editor.AiShared.Variables.VariableTableModel? TableModel
+        => ((Hrot.Editor.AiShared.Variables.IVariableTableHost)_variables).TableModel;
+
     /// <summary>
     /// ⭐⭐ <b>Batch 100 (<c>100f</c>) — the row gestures this surface offers.</b>
     /// ⭐ An AUTHORING surface: this panel is where a designer edits a declaration, and it hosts the

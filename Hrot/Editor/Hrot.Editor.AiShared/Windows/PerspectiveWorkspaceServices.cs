@@ -96,6 +96,23 @@ public sealed class PerspectiveWorkspaceServices
     /// </summary>
     public Shell.IEntitySelectionSource? EntitySelection { get; init; }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W4</c> — the ONE staged-write query every variable surface reads.</b>
+    /// 📄 <c>DESIGN_Staged_Live_Write.md</c> §4 fork A, §7 *(<c>R-120</c>)*.
+    ///
+    /// <para>⛔⛔ <b>In THIS bag for the same reason <see cref="EntitySelection"/> is:</b> what is
+    /// staged is <b>one fact about the editor</b>, not a per-perspective one. ⚠ A per-perspective
+    /// staged set would let a Blueprint Details panel and a Blueprint Watch — built by the same
+    /// registrar — still agree, while the same variable on another perspective's surface disagreed;
+    /// 📌 §7 is explicit that the surfaces <b>do NOT diverge</b>.</para>
+    ///
+    /// <para>⚠ Optional, because a headless host has no <c>DataBreakpointManager</c> and nothing can be
+    /// staged. ⛔ But a production caller that HAS one must pass it *(the <c>2026-08-16</c> rule)*, and
+    /// the rail asserts that on the CONSTRUCTED models — Details and Watch holding the SAME
+    /// instance — ⛔ never on this declaration.</para>
+    /// </summary>
+    public Variables.StagedWriteView? StagedWrites { get; init; }
+
     /// <summary>Shared breakpoint manager; drives the per-perspective Watch + Breakpoints windows.</summary>
     public IDataBreakpointManager? BreakpointManager { get; init; }
 
@@ -194,5 +211,6 @@ public sealed class PerspectiveWorkspaceServices
             isSimUp:                       IsSimUp,
             isFrozen:                      IsFrozen,
             writeLive:                     writeLive,
-            entitySelection:               EntitySelection);
+            entitySelection:               EntitySelection,
+            stagedWrites:                  StagedWrites);
 }
