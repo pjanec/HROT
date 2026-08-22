@@ -631,9 +631,12 @@ public class PerspectiveWorkspaceRegistrar
         if (Details != null)
         {
             RegisterCore(windowManager, Details);
-            // ⭐⭐ L4.4 — the shell needs the manager to REGISTER a float/pin. ⛔ Not a new root
-            //    argument: this is the same call the root already makes (R-67).
-            Details.AttachWindowManager(windowManager);
+            // ⭐⭐⭐ VC-1 — the explicit AttachWindowManager call that used to sit HERE is GONE.
+            //    🔴 It had exactly one caller — this line — so the Scenario Details host, built at the
+            //       composition root instead of through this registrar, never got a manager and its
+            //       float/pin buttons could not draw (the user's VC-1 finding).
+            //    ⭐ DetailsWindow now self-wires from ManagedWindow.OnRegistered, which RegisterCore's
+            //       RegisterWindow call raises for EVERY path ⇒ no root can forget (R-126's PULL shape).
         }
 
         // ⭐⭐⭐ Batch 89 (BP-327, REOPENED) — THE MODAL JOINS THE FRAME.

@@ -98,6 +98,15 @@ public class WindowManager
     public WindowManager(IconAtlas atlas)
     {
         _atlas = atlas;
+
+        // ⭐⭐⭐ VC-2 — THE ONE `Settings` MENU, and it lives in GlobalMenu.
+        // 📐 Measured 2026-08-22: the menu bar renders TWO independent models side by side —
+        //    RenderGlobalMenu(GlobalMenu.Root) and ImGuiMenuRenderer.DrawMenus(BuildHostMenuDtos()).
+        //    `Settings` used to be a DTO block here, so a host registering "Settings/…" through
+        //    GlobalMenu would have produced a SECOND top-level menu with the same name, side by side.
+        // ⇒ ⭐ this item moves into GlobalMenu (route, don't duplicate) so `Settings` is ONE menu that
+        //    hosts can extend — which is what the layout items now do.
+        GlobalMenu.RegisterItem("Settings/UI Scale & Fonts…", () => _openSettingsModal = true);
     }
 
     /// <summary>The icon atlas supplied at construction time.</summary>
@@ -109,9 +118,19 @@ public class WindowManager
     /// Registers a window with this manager, keyed by <see cref="ManagedWindow.Id"/>.
     /// Re-registering the same Id overwrites the previous entry.
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>VC-1</c> — registration NOTIFIES the window</b> *(<see cref="ManagedWindow.OnRegistered"/>)*.
+    /// 📐 Measured <c>2026-08-22</c>: <c>DetailsWindow.AttachWindowManager</c> had exactly ONE caller
+    /// *(<c>PerspectiveWorkspaceRegistrar</c>)*, so the Scenario Details host — built directly at the
+    /// composition root — never got a manager and its float/pin buttons could not draw at all.
+    /// ⇒ ⭐ a window that needs its manager now RECEIVES it, and ⛔ no registration path can forget:
+    /// 📌 the same PULL argument <c>R-126</c> makes for the staged-write drain — <i>"no path can forget
+    /// to raise what is never raised."</i>
+    /// </remarks>
     public void RegisterWindow(ManagedWindow window)
     {
         _windows[window.Id] = window;
+        window.OnRegistered(this);
     }
 
     /// <summary>
@@ -716,6 +735,10 @@ public class WindowManager
             _openAboutModal = true;
             return;
         }
+        // ⚠ VC-2: no DTO produces ActionSettings any more — the Settings item is a GlobalMenu entry,
+        //   which calls the same flag directly. ⛔ NOT deleted on my own initiative: it is DORMANT, not
+        //   harmful (a unique id that overwrites nothing), and 📌 "unreferenced is not unintentional" —
+        //   the three-way call is the user's. A host wanting a DTO-driven Settings item still works.
         if (actionId == ActionSettings)
         {
             _openSettingsModal = true;
@@ -731,6 +754,17 @@ public class WindowManager
             }
         }
     }
+    /// <summary>
+    /// ⭐⭐ <b><c>VC-2</c> — the TOP-LEVEL labels the DTO half of the menu bar contributes.</b>
+    ///
+    /// <para>⭐ A RAIL SURFACE, and a narrow one on purpose: the bar is drawn by two independent
+    /// models, so <i>"is there exactly one <c>Settings</c> menu?"</i> cannot be answered from
+    /// <c>GlobalMenu</c> alone. ⛔ Exposing the DTOs themselves would invite rails about their shape;
+    /// ⭐ the labels are the only part another model can COLLIDE with.</para>
+    /// </summary>
+    public IReadOnlyList<string> HostMenuLabelsForRail()
+        => BuildHostMenuDtos().Select(m => m.Label ?? "").ToList();
+
     private IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto> BuildHostMenuDtos()
     {
         var menus = new List<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>();
@@ -769,17 +803,11 @@ public class WindowManager
             Icon = "folder",
             Children = winChildren.ToArray()
         });
-        menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
-        {
-            Label = "Settings",
-            Priority = 95,
-            Icon = "asset/utility",
-            Children = new[]
-            {
-                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
-                { Id = ActionSettings, Label = "UI Scale & Fonts…", Icon = "asset/utility" }
-            }
-        });
+        // ⛔⛔ VC-2 — the `Settings` DTO block that used to sit HERE is GONE. It is now a GlobalMenu
+        //    item registered in the constructor, so `Settings` is ONE extensible menu rather than a
+        //    fixed framework block that a host's "Settings/…" registration would sit BESIDE.
+        //    ⚠ Visible consequence, stated: RenderGlobalMenu runs before these DTOs, so `Settings` now
+        //      appears to the LEFT of `Windows` instead of between `Windows` and `Help`.
         menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
         {
             Label = "Help",

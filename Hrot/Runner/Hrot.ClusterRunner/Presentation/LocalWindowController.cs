@@ -139,13 +139,29 @@ internal sealed class LocalWindowController
     /// in the LABEL, through <c>DynamicLabel</c>. ⛔ Teaching the shared renderer about tooltips is a
     /// change with every menu in the app downstream of it — not this batch's to make.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐ <b><c>VC-2</c> — the layout items live under <c>Settings</c>, not <c>File</c>.</b>
+    /// 🔒 <b>User, visual check <c>2026-08-22</c>:</b> <i>"move <c>File ▸ Layout</c> to a
+    /// <c>Settings</c> main menu."</i>
+    ///
+    /// <para>⭐⭐ <b>It joins the EXISTING <c>Settings</c> menu</b> — 📐 measured: the framework already
+    /// had one *(<c>UI Scale &amp; Fonts…</c>)*, and <c>WindowManager</c> now registers it through
+    /// <c>GlobalMenu</c> for exactly this reason. ⛔ Registering <c>"Settings/…"</c> while that item was
+    /// still a DTO block would have drawn <b>two</b> top-level menus both called <c>Settings</c>, side
+    /// by side — the two menu models render independently into one bar. 📌 <c>R-13</c>: route, do not
+    /// duplicate.</para>
+    ///
+    /// <para>⚠ <b>No design record existed for this</b> — searched <c>docs/</c> and <c>.dev/</c> for a
+    /// menu-placement design and found none; it is a user preference, recorded here and in the
+    /// batch report rather than invented into a design doc.</para>
+    /// </summary>
     private void RegisterLayoutMenu(Fdp.Presentation.WindowManager.WindowManager wm)
     {
         // ⭐ The mode INDICATOR — checkable, so the current state is visible at a glance. ⚠ Toggling it
         //   changes the NEXT run: the reset already happened before ImGui was set up, and pretending
         //   otherwise would be a control that lies about when it acts.
         wm.GlobalMenu.RegisterCheckableItem(
-            "File/Layout/Reset to default on start",
+            "Settings/Layout/Reset to default on start",
             () => _options.ResetLayoutOnRun,
             v =>
             {
@@ -154,9 +170,9 @@ internal sealed class LocalWindowController
                     $"[Layout] Reset-on-start is now {(v ? "ON" : "OFF")} — it applies from the next run.");
             });
 
-        wm.GlobalMenu.RegisterSeparator("File/Layout/sep_save_default");
+        wm.GlobalMenu.RegisterSeparator("Settings/Layout/sep_save_default");
 
-        wm.GlobalMenu.RegisterItem("File/Layout/Save current as default", () =>
+        wm.GlobalMenu.RegisterItem("Settings/Layout/Save current as default", () =>
         {
             // ⭐⭐ Flush BOTH halves first — 📌 "the layout" is the pair, and saving one of them is the
             //    half-reset this batch exists to end.
@@ -176,7 +192,7 @@ internal sealed class LocalWindowController
 
         // ⛔ The command STAYS VISIBLE outside a checkout and says why it cannot run.
         var saveNode = wm.GlobalMenu.Root
-            .Children["File"].Children["Layout"].Children["Save current as default"];
+            .Children["Settings"].Children["Layout"].Children["Save current as default"];
         saveNode.GetEnabled    = () => LayoutPaths.TryFindSourceLayoutDirectory() != null;
         saveNode.DynamicLabel  = () => LayoutPaths.TryFindSourceLayoutDirectory() != null
             ? "Save current as default"
