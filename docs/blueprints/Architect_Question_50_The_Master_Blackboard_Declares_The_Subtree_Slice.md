@@ -1,8 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (option A approved by the user 2026-08-22 and shipped, BP-444..447) —
-  WITH ONE MEASURED LIMIT the options table did not foresee, recorded in the AS-BUILT section.
+build-state: BUILT (option A approved by the user 2026-08-22 and shipped, BP-444..447) — WITH A
+  LIMIT that RE-MEASUREMENT on 2026-08-22 showed is BIGGER and DIFFERENT than first recorded, and
+  which the user has POSTPONED on this record. See "THE LIMIT — re-measured".
 updated: 2026-08-22
+stale-below: the "## ⛔ HISTORY" section at the foot of this file — it names the WRONG cause for the
+  Category-2 limit (resolution, not the byte budget) and proposes a fix that would not have worked.
+known-rot: DESIGN_Details_Panel_View_Switching.md §7.6 ④ said S4's bindings "reach the runtime";
+  corrected 2026-08-22 — no binding the panel can AUTHOR is emittable yet (see THE REACH).
 current-answer: the whole file — does the MASTER blackboard DECLARE the auto-allocated sub-tree slice
   `{SubtreeName}_{DtoTypeName}`, and who SIZES it? This is BP-342 gap (2), and it is the LAST thing
   blocking BP-399's S4 (details.parametersync) and therefore S5. Options A/B/C with a recommended lean.
@@ -110,41 +115,141 @@ require: 📌 ruling 9, and it makes *"a group without its field"* — the non-c
 | **`BTreeJsonGenerator`** | declares the slices **before** the blackboard is sized or packed, then passes the real groups to the emit core. ⛔ The *"a generator provably has no groups to pass"* note is gone — both of its reasons are closed |
 | **rails** | 7 projection + 3 generator, incl. an **end-to-end two-sibling** rail asserting the declared field IS the field the orchestrator writes |
 
-### ⛔⛔ THE LIMIT THE RAILS FOUND — **and it is not in the options table**
+### ⛔⛔⛔ THE LIMIT — **re-measured `2026-08-22`, and the first description of it was WRONG**
 
-📐 The slice's type is the **CALLEE's blackboard**. ⇒ ⚠ **when that is a GENERATED (Category-2) struct
-it does not exist in the master's compilation** — 📌 the same wall `GeneratedBlueprintSchemaCatalog`
-exists for: *sibling generators cannot see each other's generated output within one pass.*
+> ⚠⚠ **The prior text of this section is SUPERSEDED and moved to [`## ⛔ HISTORY`](#-history).** ⛔ It named
+> *"the callee's blackboard type cannot be resolved in the master's compilation"* as the cause. 📐 **That
+> cause never fires on any real asset.** ⭐ The outcome it claimed *(a safe skip)* is right; ⛔ **the
+> mechanism, the reach and the remaining work are all different.**
 
-⭐⭐⭐ **The existing validator already handles it correctly, which is why this is safe to ship:** the
-asset is **SKIPPED** with an actionable `BTREE0002` *("managed blackboard variable 'X' has type 'Y'
-which cannot be resolved in the compilation")* — ⛔ **never emitted half-formed.** ⇒ the worst case is a
-skipped asset with a named reason, ⛔ **not** `BP-306`'s non-compiling output.
+#### ① What the slice's type actually is
 
-| ⭐ so, today | |
+📐 `SubtreeSyncProjection:105` types the slice with the callee's **asset-level `BlackboardTypeName`** —
+⛔ **not** the generated `{Name}_{Blackboard.TypeName}` struct, and ⛔ not `Blackboard.TypeName`.
+
+| measured over **every** `*.btree.json` in the repo | |
 |---|---|
-| callee blackboard **resolvable** *(Category-1, or any referenced type)* | ✅ **works end to end** — railed |
-| callee blackboard **generated** *(Category-2)* | ⚠ asset skipped, loudly. ⭐ The fix is to derive the callee's SHAPE from its JSON rather than reference its type — **the blueprint *"Option A"* route, already shipped for `*.bp.json`**. ⛔ Not built |
-| **also required** | the MASTER blackboard must be **`Managed`** — a Category-1 master is a hand-written struct that cannot gain a field. ⇒ no managed master ⇒ no groups, silently and completely |
+| managed assets *(Category-2)* | **15** |
+| distinct asset-level `BlackboardTypeName` among them | ⭐ **ONE** — `Fdp.Toolkit.Behavior.Components.BrainBlackboard` |
+| is that type resolvable from the master's compilation? | ✅ **yes** — it is an ordinary referenced toolkit type |
 
-⚠ **Two of those three constraints were found by a rail, not by reading** — 📌 and one of the rails was
-itself defective first: it searched ALL generated trees, so the orchestrator's own `ref master.X`
-satisfied it and a revert-probe reddened **nothing** *(`BP-402` ①)*. ⭐ It now reads only the trees that
-DECLARE.
+⇒ ⛔⛔ **a Category-2 callee never hits the "cannot be resolved" skip.** ⭐ And it cannot: the callee's own
+interpreter is built as `BTreeBuilder<BrainBlackboard, …>` *(`BTreeEmitCore:377`)*, so the **blob is the
+blackboard the sub-tick wants** — the generated `{Name}_BrainBlackboard` struct is the *named view* of
+what is packed inside it, not the interpreter's parameter type.
+
+#### ② What it hits instead — ⭐⭐ **the byte budget, and this is architectural**
+
+| | |
+|---|---|
+| `BrainBlackboard` | **128 bytes** *(`BehaviorConstants:19`)* |
+| the master's inline budget | **100 bytes** *(`BTreeBlackboardPackHelper:20`)* |
+
+⇒ ⭐⭐⭐ **embedding it as a field ALWAYS overflows** ⇒ the asset is skipped with the *budget* `BTREE0002`,
+not the resolution one. ⛔⛔ **So option A's "the master DECLARES the slice as a field" can never hold a
+Category-2 callee** — ⚠ **that is a property of the model, not a missing helper**, and ⛔ **the fix this
+section previously recorded *(a size fallback mirroring `TryResolveParamsSize`)* would not change it.**
+
+#### ③ ⛔⛔ THE REACH — **the authorable set and the emittable set are DISJOINT**
+
+📐 `ParameterSyncSource.ModelFor:219` offers `subAsset.BlackboardVariables` and refuses with *"Sub-tree has
+no blackboard variables."* when empty. 📐 And the corpus splits perfectly: **managed ⟺ has variables**
+*(15 with, 11 without, no mixed case)*.
+
+| | callee is **Category-2** *(managed, has variables)* | callee is **Category-1** *(hand-written struct)* |
+|---|---|---|
+| ⭐ the panel can author a binding | ✅ **yes** — it is the only case it can | ⛔ **no** — refused, no variables to list |
+| ⭐ the generator can emit for it | ⛔ **no** — 128 > 100, skipped | ✅ yes *(if the bound names are real fields)* |
+
+⇒ 🔴 **every binding the panel can author today ends in a skipped asset.** ⚠ **This is the honest
+statement of `S4`'s status, and it is weaker than the one I wrote in `§7.6 ④`** — the panel authors real
+persisted data through a real seam, ⛔ **but no authorable binding reaches the runtime yet.**
+
+#### ④ ⛔ An UNGUARDED defect, independent of all the above — **`BP-451`**
+
+📐 **Nothing validates that a binding's `FieldName` is a member of the callee's blackboard type.** A callee
+whose type is resolvable **and** fits the budget **and** lacks the bound names emits
+`subDto.{FieldName} = …` ⇒ **CS1061** — 📌 **`BP-306`'s exact shape.**
+
+⚠⚠ **And this repository's own rail is that fixture:** `TheOrchestratorIsGeneratedTests:304` sets
+`callee.BlackboardTypeName = "System.Guid"` and binds `Health`. ⭐ It passes because it asserts on generated
+**text**, ⛔ never on compilation. ⇒ **unreachable through the UI** *(③ makes the authorable set skip first)*,
+⛔ **but reachable by hand-edited JSON**, and a build break is the one outcome worse than a skip.
+
+### ⭐⭐ THE OPEN DESIGN CALL — **where a Category-2 callee's blackboard LIVES during the sub-tick**
+
+⛔ Its variables are packed **inside** the blob; `BrainBlackboard` exposes only `BehaviorParameters` plus
+three interrupt bytes ⇒ ⭐ **the copy is a projection, not field assignment.**
+
+| # | route | ⭐ pro | ⛔ con |
+|---|---|---|---|
+| **A′** | **project, don't embed** — tick the callee against the entity's own `BrainBlackboard` component, copy through `Unsafe.As<BrainBlackboard, {Callee}_{TypeName}>` *(the idiom already at `BTreeOrchestratorEmitCore:142`)* | ⭐ no layout change, no budget problem, existing idiom | ⚠ callee and master then **share one blackboard** ⇒ needs an aliasing / re-entrancy ruling |
+| **B′** | **embed the NAMED struct** and cast up to `ref BrainBlackboard` for the Tick | ⭐ fits the budget; sub-state isolated per call site | ⛔⛔ **memory-unsafe** — the interpreter reads 128 bytes off a ~12-byte field. **Not recommended** |
+| ⭐ **C′** | **declare the slice `Role = State`** — `Pack:140` and `WouldOverflow:188` **already** exclude State-role variables from the inline layout *and* the budget, sizing them at runtime in the partition tier | ⭐⭐ **reuses a seam built for exactly this class of thing** — a sub-tree's whole blackboard is per-behaviour state, not inline params | ⚠ a State-role variable is not a field of the emitted struct ⇒ `ref master.{slice}` **changes shape**; the emitted body must reach it through the partition accessor |
+
+⭐ **Recommended lean: `C′`.** ⛔ It is not a code detail — it moves the emitted body — so it wants an
+explicit nod before anything is built.
+
+### ⭐ POSTPONED — **user, `2026-08-22`, on this record**
+
+🔒 *"is that safely postponable, providing you record it thoroughly as such?"* ⇒ ⭐ **yes, and this section
+is that record.** ⚠ **What makes it safe, stated so nobody has to re-derive it:**
+
+| ⭐ | |
+|---|---|
+| **no silent wrongness** | every failure mode is a **build-time `BTREE0002` + a wholly skipped asset** — ⛔ never a partial emit, never a bad copy at runtime |
+| **zero current exposure** | 📐 **no corpus asset has a sync binding** ⇒ nothing regresses by waiting |
+| **the panel is not lying** | it writes real persisted data through a real seam; ⛔ what it cannot yet do is *reach the runtime* — ⭐ ③ above, not a UI defect |
+| ⚠ **the one carve-out** | ④ / **`BP-451`** is a **defect, not a gap** — postponable only because the UI cannot reach it. ⛔ It should be closed in the next batch that touches this generator, and the rail's `System.Guid` fixture replaced |
 
 ### ⭐ What this unblocks
 
-⇒ ⭐⭐ **`S4`** *(promote `details.parametersync`)* is no longer promoting an inert panel **for the
-resolvable-callee case**, and ⭐ **`S5`** follows it. ⚠ Whether `S4` should ship before the Category-2
-callee route exists is the next call — ⛔ this document does not decide it.
+⇒ ⭐ **`S4`/`S5` shipped and stay shipped** — ⛔ but see ③: `S4`'s justification in
+`DESIGN_Details_Panel_View_Switching.md` §7.6 ④ has been **corrected**, not withdrawn.
 
 ---
 
 ## To resolve
 
-⭐ **One decision from the user: approve A, or name B/C.**
-⚠ **The one measurement the build session runs first if A is approved:** *does adding an
-auto-allocated entry move `StructureHash` or any golden on the current corpus?* — expected **no**
-*(no asset has a sync binding)*, and it is a gate row either way, ⛔ not an assumption.
+⭐ **A/B/C are SETTLED — A was approved and shipped `2026-08-22`.** ⇒ ⛔ **the open decision is no longer
+A/B/C**; it is **`A′`/`B′`/`C′`** above *(where a Category-2 callee's blackboard lives during the
+sub-tick)*, and the user has **POSTPONED** it on this record.
 
-📌 **Owner when resolved:** the UI / BTree-editor lane. Tracked against **`BP-342` gap ②**.
+⚠ **The measurement that WAS owed here is done:** *"does declaring the slice move `StructureHash` or any
+golden?"* — 📐 **no**, and now with a reason rather than a hope: **no corpus asset has a sync binding**,
+and the one shape that would declare a slice is skipped by the budget before it can.
+
+📌 **Owner when resumed:** the UI / BTree-editor lane. Tracked against **`BP-342` gap ②**, **`BP-451`**
+*(the unguarded `FieldName` defect)* and **`BP-452`** *(the `A′`/`B′`/`C′` call)*.
+
+---
+
+## ⛔ HISTORY
+
+⚠ **Superseded `2026-08-22` by *"THE LIMIT — re-measured"* above. ⛔ DO NOT QUOTE THIS AS CURRENT** — it
+names a cause that never fires, and its *"the fix is a size fallback"* line points at work that would not
+have fixed anything. ⭐ Kept because the *shape* of the reasoning is the thing the correction is against.
+
+> ### ⛔⛔ THE LIMIT THE RAILS FOUND — **and it is not in the options table**
+>
+> 📐 The slice's type is the **CALLEE's blackboard**. ⇒ ⚠ **when that is a GENERATED (Category-2) struct
+> it does not exist in the master's compilation** — 📌 the same wall `GeneratedBlueprintSchemaCatalog`
+> exists for: *sibling generators cannot see each other's generated output within one pass.*
+>
+> ⭐⭐⭐ **The existing validator already handles it correctly, which is why this is safe to ship:** the
+> asset is **SKIPPED** with an actionable `BTREE0002` *("managed blackboard variable 'X' has type 'Y'
+> which cannot be resolved in the compilation")* — ⛔ **never emitted half-formed.**
+>
+> | ⭐ so, today | |
+> |---|---|
+> | callee blackboard **resolvable** *(Category-1, or any referenced type)* | ✅ **works end to end** — railed |
+> | callee blackboard **generated** *(Category-2)* | ⚠ asset skipped, loudly. ⭐ The fix is to derive the callee's SHAPE from its JSON — **the blueprint *"Option A"* route**. ⛔ Not built |
+> | **also required** | the MASTER blackboard must be **`Managed`** |
+
+⭐⭐ **The one row of it that SURVIVES**, and it was never in doubt: **the master must be `Managed`** — a
+Category-1 master is a hand-written struct that cannot gain a field ⇒ no managed master, no groups.
+
+⭐ **Why it was wrong, in one line — 📌 worth keeping as a lesson:** ⛔ **I described a limit from the
+rail's synthetic fixture rather than from the corpus.** ⚠ The fixture used an unresolvable type, so
+*"unresolvable"* looked like the boundary; ⭐ **15 real assets say the boundary is the byte budget.**
+📌 The same shape as `BP-450` *(an absence claimed from a pattern rather than measured)* two items earlier.

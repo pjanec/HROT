@@ -76,7 +76,7 @@ load-bearing rule. ⭐ Umbrella context: [`../DESIGN_Headless_Testability.md`](.
 | ⭐ **tiers** | `T0` `scripts/quick-check.sh <csproj> [filter]` while working; the **full gate table ONCE, at the end** |
 | ⭐⭐ **the gate report substitutes for the coordinator's run** | 8-row contract: per-gate command + counts + delta · a `--no-build` column · goldens as a **diff shape** · every red **confirmed pre-existing against the base sha** · clean tree · both quarantine counts · `tracker-counts.py --check` + ids allocated · the **integration suite** for a cross-cutting change *(or why it cannot gate)* |
 | ⭐⭐⭐ **obligation ⑤** | a deviation goes **back into the owning DESIGN doc**, prior state marked SUPERSEDED — ⛔ the report is ephemeral, the design is not |
-| ⭐ **I allocate the ids** | state them in the report. **Next free: `BP-451`** |
+| ⭐ **I allocate the ids** | state them in the report. **Next free: `BP-453`** |
 | ⛔ **no PR** unless the user asks | there has never been one in this programme |
 | ⭐ **links for mobile** | `https://github.com/pjanec/HROT/blob/claude/hrot-implementation-j1jvin/<path>` — ⚠ **push first** |
 | ⛔ **plain-text questions** | never the multiple-choice widget |
@@ -106,15 +106,18 @@ written by the coordinator, **amended by this lane `2026-08-22`**:
 |---|---|
 | ✅ **`Q49` option C is BUILT** *(`BP-440`–`BP-442`)* | the identity is recomputed from the catalog resolver already wired at `PerspectiveWorkspaceRegistrar:289`, through ONE derivation *(`SubtreeSyncIdentity`)*, pulled from inside `Emit` so no path can forget *(`R-126`)* |
 | ✅ **`Q50` option A + `Q49` option D are BUILT** *(`BP-444`–`BP-447`)* | 🔒 user: *"i hoped the editor automatically adds the subtree's data."* ⭐⭐ **A and D turned out to be the SAME change**: every input is persisted, so it is a **generator-side projection over a document** — no editor, no ordering. `SubtreeSyncProjection` does one walk yielding both the groups and the slice fields, so *"a group without its field"* is unrepresentable |
-| ⚠⚠ **BUT there is a MEASURED LIMIT — read before touching `S4`** *(`BP-446`)* | the slice's type is the **callee's** blackboard; a **generated (Category-2)** callee blackboard **does not exist in the master's compilation** *(sibling generators can't see each other's output)*. ⭐ The validator **skips the asset with `BTREE0002`** — safe, loud, never broken code. ⇒ ⭐ **resolvable callee: works end to end. Generated callee: needs its SHAPE derived from JSON** *(the blueprint "Option A" route)* — ⛔ **not built** |
-| ⚠ also required | the **master** blackboard must be `Managed`; a Category-1 master cannot gain a field |
-| 🛑 **`S4`'s remaining call — the user's** | promote `details.parametersync` now *(it works for resolvable callees)*, or wait for the Category-2 route? ⛔ `Q50` deliberately does not decide it. **`S5` follows `S4`** |
+| ⛔⛔⛔ **RE-MEASURED `2026-08-22` — `BP-446`'s LIMIT WAS DESCRIBED WRONG. 📄 Read [`Q50`](Architect_Question_50_The_Master_Blackboard_Declares_The_Subtree_Slice.md) *"THE LIMIT — re-measured"* BEFORE reasoning about this area** | ⛔ *(was: "a generated Category-2 callee blackboard does not exist in the master's compilation")* — 📐 **all 15 managed assets declare `BrainBlackboard`, an ordinary resolvable type; that skip never fires.** ⭐⭐ **The real wall is the BYTE BUDGET** — 128 bytes vs a 100-byte inline budget ⇒ **"declare the slice as a field" can never hold a Category-2 callee.** ⚠ Architectural, ⛔ not a missing helper |
+| 🔴 **THE REACH — the honest state of `S4`** | the panel can only author against a **Category-2** callee *(it needs `BlackboardVariables`)*, and the generator skips **every** Category-2 callee ⇒ ⛔ **the authorable and emittable sets are DISJOINT today.** ⭐ The panel is real and writes real persisted data; ⛔ no authorable binding reaches the runtime yet |
+| ✅ **POSTPONED BY THE USER, ON THE RECORD** *(`BP-452`)* | 🔒 *"is that safely postponable, providing you record it thoroughly as such?"* ⇒ ⭐ **yes**: every failure is a **build-time skip**, never a partial emit or a bad runtime copy; 📐 **no corpus asset has a sync binding.** ⭐ Three routes with a lean *(`C′` — declare the slice `Role = State`, reusing the partition tier that already escapes the budget)* — ⚠ it moves the emitted body, so it wants a nod |
+| ⛔ **ONE REAL DEFECT, not postponable indefinitely** *(`BP-451`)* | **nothing validates a binding's `FieldName` against the callee's type** ⇒ the generator **can emit CS1061** — 📌 `BP-306` re-armed. ⭐ Unreachable through the UI, reachable by hand-edited JSON. 🛠 Small, needs no design call ⇒ **do it in the next batch touching this generator** |
+| ⚠ also required | the **master** blackboard must be `Managed`; a Category-1 master cannot gain a field *(the one claim of `BP-446` that survived)* |
 | ⚠ still awaiting a nod | `Q49`'s open sub-question — a **MISSING** subtree at load. ⭐ Recommended: a diagnostic row. Built behaviour: identity left alone, never erased |
 
 ### ⚠ Other open `BP-` rows
 
 `BP-405` · `BP-407` · `BP-411` · `BP-416` · `BP-418` · `BP-419` · `BP-426` *(needs a running editor)* ·
-`BP-427` · `BP-342` · `BP-399`. ⭐ Tracker: **open 90 / done 295**.
+`BP-427` · `BP-342` · `BP-399` · ⭐ **`BP-451`** *(a real defect — see above)* · ⭐ **`BP-452`**
+*(postponed on the record)*. ⭐ Tracker: **open 92 / done 295**.
 
 ### ⭐ The other lanes — **do not touch their files**
 
