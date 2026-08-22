@@ -1,10 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING
+build-state: BUILT
 updated: 2026-08-22
-current-answer: this whole file — the status of porting the AI-debug API + MCP server from
-  origin/feat/ai-debug-api onto the trunk (coordinator) line. Production code ported and building;
-  wiring + test-harness reconciliation tracked below.
+current-answer: this whole file — the AI-debug API + MCP server is PORTED, WIRED, and VERIFIED
+  end-to-end on headless Linux. Two follow-ups remain (DEBT-MCP-001 tests, DEBT-MCP-002 tracer).
 known-conflict: none.
 -->
 # AI-debug API + MCP server — integration status
@@ -43,11 +42,33 @@ mutation / fault injection.
 
 ## Remaining
 
+### ✅ Wiring — DONE
+
+`EditorSubsystem` constructs the `DebugApiHost` + `DebugApiService` after the preview controller, and pumps
+its `MainThreadJobQueue` once per frame in `Update`. **Enabled by setting `HROT_DEBUG_API_PORT`** to a port;
+off (zero cost) otherwise. Two collaborators were adapted: `EditorApplication.CurrentClusterState` was
+exposed (getter added over the existing field); `editorTracer` and `rrController` are omitted (see
+DEBT-MCP-002 / no `EcsRecordReplayController` in this root), degrading only the behavior-trace and
+record/replay endpoints.
+
+### ✅ End-to-end verification — DONE (2026-08-22)
+
+Ran `HROT_DEBUG_API_PORT=8137 xvfb-run … dotnet Hrot.ClusterRunner.dll --mode editor`; the loopback API came
+up in ~3s and answered:
+```
+GET /status    → clusterState:"Idle", simTime:0, isPaused:true, entityCount:0
+GET /scenarios → ["hill-attack","test-fire","test-move"]   (also proves the curated-scenario seeding)
+GET /sim/state → isPaused:true, inPreview:false
+GET /entities  → []
+```
+
+### Follow-ups
+
 | item | status |
 |---|---|
-| **`DEBT-MCP-001` — the 15 harness-dependent integration tests** | ⛔ **DEFERRED, excluded from the build** (`.csproj <Compile Remove>`). They call `EditorHarness.BuildDebugApiService(...)`, which needs 9 collaborators trunk's diverged `EditorHarness` lacks (`_serializer`, `History`, `_tkbDb`, `_geoTransform`, `_bpManager`, `_rrController`, `EditorTracer`, `BTreeSession`, `HsmSession`). Reconciling the harness is its own task. |
-| **The `EditorSubsystem` wiring** | the field + construction of `DebugApiHost`/`DebugApiService`. Same collaborator-resolution problem as the harness, in the composition root. Done LAST (see below). |
-| **End-to-end verification** | run the editor headless under Xvfb, hit the loopback API, drive one MCP tool. This is the interim gate in place of the deferred unit tests. |
+| **`DEBT-MCP-001` — the 15 harness-dependent integration tests** | ⛔ **DEFERRED, excluded from the build** (`.csproj <Compile Remove>`). They call `EditorHarness.BuildDebugApiService(...)`, which needs 9 collaborators trunk's diverged `EditorHarness` lacks. Reconciling the harness is its own task; the end-to-end drive above is the interim gate. |
+| **`DEBT-MCP-002` — duplicate `EditorAiTracerCoordinator`** | trunk already has `Hrot.Editor.Debug.EditorAiTracerCoordinator` (ctor takes `_timeCommands`); the port added `Hrot.Editor.DebugApi.EditorAiTracerCoordinator` (ctor takes the world). `DebugApiService` depends on the latter's type, so `editorTracer` is passed `null` for now. Reconcile to one, then wire the tracer so behavior-trace endpoints work. |
+| **`rrController` (record/replay)** | trunk has no `EcsRecordReplayController` in the editor root — the `/recording/*` endpoints are inert until one is provided. |
 
 ## Notes
 

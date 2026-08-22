@@ -44,6 +44,10 @@ public sealed class EditorApplication : IEditorLogic
     private readonly string[]                   _aiProjectPathSegments;
     private SimHostMode _currentMode = SimHostMode.Internal;
     private Fdp.Toolkit.Orchestration.ClusterState _currentClusterState = Fdp.Toolkit.Orchestration.ClusterState.Idle;
+
+    /// <summary>The current cluster lifecycle state. Exposed for the AI-debug API (MCP) host.</summary>
+    public Fdp.Toolkit.Orchestration.ClusterState CurrentClusterState => _currentClusterState;
+
     private string? _pendingScenarioLoad;
     private bool _waitingForIdle;
 

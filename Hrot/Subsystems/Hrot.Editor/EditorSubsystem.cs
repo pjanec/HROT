@@ -242,6 +242,13 @@ namespace Hrot.Editor
         private FdpEventBrowserPanel                 _fdpEventBrowser    = null!;
         private DiagnosticEventHistoryService        _fdpEventHistory    = new();
         private FdpRepositoryAdapter?   _fdpRepoAdapter;
+
+        // ── AI-debug API (MCP) host — ported from feat/ai-debug-api. Enabled by setting the
+        //    HROT_DEBUG_API_PORT environment variable to a port number; off otherwise, so it costs
+        //    nothing in normal runs. The MCP server (tools/ai-debug-mcp) is an out-of-process client
+        //    of this loopback HttpListener. See docs/MCP_Integration.md.
+        private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiJobQueue;
+        private Hrot.Editor.DebugApi.DebugApiHost?       _debugApiHost;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
         private Hrot.SimHost.Modules.CognitiveSpatialModule? _perceptionMod;
@@ -1538,6 +1545,46 @@ namespace Hrot.Editor
             // ?? 8. Preview controller (works headless too ? no canvas dep) ????
             _previewController = new EditorPreviewController(_world, _timeController!);
 
+            // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
+            //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; the MCP server
+            //    (tools/ai-debug-mcp) is an out-of-process client of this loopback HttpListener.
+            //    editorTracer and rrController are OMITTED on purpose: trunk's tracer coordinator is a
+            //    different type (Hrot.Editor.Debug.*, DEBT-MCP-002) and EcsRecordReplayController is not in
+            //    this composition root — so the behavior-trace and record/replay endpoints are degraded,
+            //    while scenario/entity/time/preview/checkpoint remain live. See docs/MCP_Integration.md.
+            {
+                var portEnv = System.Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT");
+                if (!string.IsNullOrWhiteSpace(portEnv) && int.TryParse(portEnv, out var debugApiPort) && debugApiPort > 0)
+                {
+                    _debugApiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+                    _debugApiHost     = new Hrot.Editor.DebugApi.DebugApiHost(debugApiPort, _debugApiJobQueue, () => { });
+
+                    var debugExtraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap!, scenarioSerializer);
+                    var debugTimeFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController!, _timeController!, _world);
+
+                    var debugService = new Hrot.Editor.DebugApi.DebugApiService(
+                        _world,
+                        _entityMap!,
+                        debugExtraction,
+                        debugTimeFacade,
+                        _previewController!,
+                        _editorLogic!,
+                        _fdpEventHistory,
+                        _timeController!,
+                        clusterState: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                        tkbDb:            tkbDb,
+                        geoTransform:     _geoTransform,
+                        bpManager:        _bpManager,
+                        btreeSession:     _btreeDebugSession,
+                        hsmSession:       _hsmDebugSession,
+                        primitiveBuffer:  _gizmoBuffer);
+
+                    _debugApiHost.AttachService(debugService);
+                    _debugApiHost.Start();
+                    System.Console.WriteLine($"[DebugApi] AI-debug API (MCP control plane) listening on http://localhost:{debugApiPort}/");
+                }
+            }
+
             // ?? 9. Mission service (no canvas dependency) ?????????????????????
             _missionService = new EditorMissionService(_world.Bus, _world, behaviorRegistry);
 
@@ -1728,6 +1775,10 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Update(float deltaTime)
         {
+            // Pump AI-debug API (MCP) jobs onto the main thread once per frame, before anything else,
+            // so a queued API call sees a consistent world for this frame. No-op when the host is off.
+            _debugApiJobQueue?.DrainAll();
+
             // Process input pipeline BEFORE kernel update so authored tools
             // (CreationTool, ObstaclePlacementTool, etc.) receive mouse events this frame.
             _canvas?.Update(deltaTime);
@@ -4042,6 +4093,8 @@ namespace Hrot.Editor
             _mapPickAdapter   = null;
             _zoneAdapter      = null;
             _contextMenuHandler = null;
+            _debugApiHost?.Dispose();
+            _debugApiHost     = null;
             _previewController  = null;
             _mapViewConfig      = null;
             _spawnerPanel     = null;
