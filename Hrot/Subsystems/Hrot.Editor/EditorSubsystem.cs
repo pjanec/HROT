@@ -1132,6 +1132,13 @@ namespace Hrot.Editor
             _kernel.RegisterGlobalSystem(_bpSnapshotProvider);
             _kernel.RegisterGlobalSystem(_bpSystem);
 
+            // ⭐⭐⭐ THE STAGED-WRITE DRAIN WIRE. 📄 DESIGN_Staged_Live_Write.md §8.
+            //   The PreFrame drain (time lane's W1/W2) is fed the breakpoint manager AS IStagedWrites
+            //   (its W4 role) and the kernel's publishing signal (closes AS-10's replay-prep residual).
+            //   ⇒ a staged live edit is PULLED into the repo at the next advancing tick — R-126.
+            _kernel.RegisterGlobalSystem(new Fdp.ModuleHost.Time.ResumeAndDrainSystem(
+                _bpManager, () => _kernel.IsPublishingGlobalTime));
+
             // ── Blueprint debug session bridge (UBP-P10T6) ───────────────────────────────────
             var bpBlueprintSession = new Hrot.Blueprints.Core.Debug.BlueprintDebugSession(
                 _blueprintRegistry, _world!, bpTimeAdapter);
