@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using Fdp.Core.Logging;
 
 namespace Hrot.ClusterRunner.Presentation;
 
@@ -182,13 +183,31 @@ internal sealed class RaylibPresentationShell : IPresentationShell
     {
         byte[] pngBytes = Fdp.Presentation.Icons.EmbeddedAtlasResources.GetSilkAtlasPngBytes();
         var img = Raylib_cs.Raylib.LoadImageFromMemory(".png", pngBytes);
+        // Dimensions from the DECODED image (a CPU operation, valid even if the GPU upload below
+        // fails) so the atlas UV math has a correct, non-zero divisor regardless.
+        int atlasWidth = img.Width, atlasHeight = img.Height;
         _atlasTexture = Raylib_cs.Raylib.LoadTextureFromImage(img);
+        Raylib_cs.Raylib.UnloadImage(img);
+
+        // A headless machine whose Xvfb provides no GL driver returns texture id 0 here — the
+        // "null icon-atlas handle" case. It is not fatal: raylib's id 0 is the built-in 1x1 white
+        // texture, so icons draw as blank quads rather than crashing. Say so once, keep the decoded
+        // dimensions, and run on. (With a real GL context — hardware or Xvfb+Mesa/llvmpipe — id != 0
+        // and this path is not taken.)
+        if (_atlasTexture.Id == 0)
+        {
+            FdpLog<RaylibPresentationShell>.Warn(
+                "[Icons] The icon atlas texture failed to upload (GPU texture id 0). The editor will "
+              + "run with blank icons. On a headless Linux host, launch under Xvfb with a GL driver "
+              + "(e.g. LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe xvfb-run …).");
+            return new Fdp.Presentation.Icons.IconAtlas((nint)0, atlasWidth, atlasHeight, 16f);
+        }
+
         // Bilinear filtering so 16x16 silk cells resample smoothly when drawn larger than
         // native (DPI-scaled menu gutters, the blueprint node picker, etc.) instead of the
         // default nearest/point sampling that shows blocky pixels on upscale. At 1:1 (16px)
         // it is identical to point sampling, so no downside for native-size icons.
         Raylib_cs.Raylib.SetTextureFilter(_atlasTexture, Raylib_cs.TextureFilter.Bilinear);
-        Raylib_cs.Raylib.UnloadImage(img);
         return new Fdp.Presentation.Icons.IconAtlas(
             (nint)_atlasTexture.Id, _atlasTexture.Width, _atlasTexture.Height, 16f);
     }
