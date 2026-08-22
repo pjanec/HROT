@@ -423,12 +423,29 @@ sequenceDiagram
 | **MX1** | **Group O — variable addressing** (read/list/stage by `(asset,path,entity)` + pending) | reuses the staged-write seam; `DebugApiService` already has the session + bpManager |
 | **MX2** | **Group Q — blueprint hot-attach/detach** | wrap `AttachInstanceBlueprintEvent`/`AssignBehaviorEvent` |
 | **MX3** | **Group R — entity state dump** | thin convenience over `GetEntity` |
-| **MX4a** | **behaviour DISCOVERY WITH SCHEMA** (P.0) — `GET /behaviors?tkbType=`, param-DTO → JSON schema. ⭐⭐ **REUSE `BehaviorUiRegistry`/`BehaviorSchemaDiscovery`** (the registry the mission panel already renders from) for behaviourId→DTO; the `BehaviorParamSchemaExtractor` emits the schema from the same property walk `BehaviorUiCompiler.Compile` does. `[ParamDoc]` attributes OPTIONAL enrichment only | ⭐ the load-bearing authoring piece; **mostly reuse, not new reflection** |
+| **MX4a** | **behaviour DISCOVERY WITH SCHEMA** (P.0) — `GET /behaviors?tkbType=`, param-DTO → JSON schema. ⭐⭐ **REUSE `BehaviorUiRegistry`/`BehaviorSchemaDiscovery`** (the registry the mission panel already renders from) for behaviourId→DTO; the shared `DtoJsonSchemaExtractor` emits the schema from the same property walk `BehaviorUiCompiler.Compile` does. `[ParamDoc]` attributes OPTIONAL enrichment only | ⭐ the load-bearing authoring piece; **mostly reuse, not new reflection** |
 | **MX4b** | **Group P — mission editing** — add-task / clear / run via **`IMissionEditorService.CommitMissionAsync`** (read-snapshot → modify → commit with OCC version) + `SendControlCommand` for run/restart; params decoded by `ScenarioSerializer`. ⭐ Inject `IMissionEditorService` into `DebugApiService` (additive, like `_blueprintSession`) | depends on MX4a's schema |
 | **MX5** | MCP-server (Node) tool wrappers + `SKILL.md` regen for O/P/Q/R | the agent-facing side |
 | **MX7** | **Group S — breakpoint-type discovery** — `GET /breakpoint-types` reflecting the `SearchPredicateDto` `[JsonDerivedType]` union → `{ $type, paramSchema }[]`. ⭐ **REUSES the same `DtoJsonSchemaExtractor` as `MX4a`**; ⛔ no new encoding *(conditions round-trip through the existing `SearchPredicateJsonOptions`)*. Set/list/remove/hits already exist (Group G) | pairs with `MX4a`; cheapest of the discovery pieces |
 | **MX8** | **self-describing errors** — add a structured `hint` to the `ApiResponse`/`RouteResult` envelope, a central `DebugApiHints` category→endpoint map, back-fill existing prose hints, and attach one to every schema-shaped validation failure *(condition/behaviour/mission/variable)* | ⭐ cross-cutting; promotes an existing prose habit into a machine-readable field |
 | **MX6** | harness smoke cases for each new group | feeds `DESIGN_MCP_System_Test_Harness.md` H4 |
+
+## Sequencing — build slices *(user, 2026-08-22: pull `MX7` forward next to `MX4a`)*
+
+⭐⭐ **Slice 1 is the DISCOVERY + SELF-CORRECTION spine** — the pieces that let an agent *author* correctly and
+*recover* when it doesn't. `MX4a` and `MX7` **share the `DtoJsonSchemaExtractor`**, so building them together is
+strictly cheaper than apart; `MX8` gives both their payoff *(a bad request's error names the discovery endpoint)*.
+
+| slice | items | why here | proves |
+|---|---|---|---|
+| **① discovery + self-correction** | ⭐ **`MX4a`** (behaviour schema) · ⭐ **`MX7`** (breakpoint-type schema) · ⭐ **`MX8`** (self-describing errors) | one shared extractor for `MX4a`+`MX7`; `MX8` back-fills existing hints + wires the two new categories ⇒ **author → err → hint → discover → retry** closes in one slice | H4: `GET /behaviors` + `GET /breakpoint-types` return schemas; a bad condition's error carries `hint.seeEndpoint` |
+| **② cheap reuse endpoints** | **`MX1`** (Group O, variable addressing) · **`MX3`** (Group R, entity state) · **`MX2`** (Group Q, hot-attach) | all reuse existing seams, no new engine surface; `MX8` gains the `variable` hint category once `MX1` lands | H4: stage a variable + read pending; entity-state dump; attach/detach |
+| **③ mission authoring** | **`MX4b`** (Group P, mission editing) | depends on `MX4a`'s schema + injects `IMissionEditorService`; the one piece touching a new service seam | H4/H5: discover → add-task → run, assert the entity acts |
+| **⤫ every slice** | **`MX5`** (Node wrappers + `SKILL.md`) · **`MX6`** (harness smoke) | ⛔ not a trailing phase — each slice ships its own Node tool wrappers and its H4 smoke case | each new group is agent-callable + smoke-gated as it lands |
+
+⛔ **`MX8`'s envelope + central map are buildable immediately** *(they back-fill the existing prose hints)*; the
+per-category attach for `behavior`/`condition` lands with slice ①, `variable`/`missionTask` as slices ②/③ add
+those endpoints. ⚠ **No slice ships an endpoint without its `MX5` wrapper and `MX6` smoke** — that is the anti-rot rail.
 
 ## Dependencies & lane
 
