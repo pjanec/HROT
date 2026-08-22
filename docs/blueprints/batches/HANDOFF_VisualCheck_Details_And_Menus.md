@@ -9,7 +9,7 @@ known-conflict: none.
 -->
 # HANDOFF — UI lane · **visual-check findings (Details views, float/pin, menus)**
 
-> 📌 **Dispatched at `<DISPATCH_SHA>`.** ⭐ Branch from it *(rule 7)*; **rule 1b: started-marker FIRST.**
+> 📌 **Dispatched at `4e346705e`.** ⭐ Branch from it *(rule 7)*; **rule 1b: started-marker FIRST.**
 > ⭐ Lane: UI / variable *(`claude/hrot-implementation-j1jvin`)* — ids **`BP-`**, tracker `A`–`G`. **Rule 3: your own ids.**
 > ⛔ **Scope FROZEN at this sha.** ⭐ **These are the USER's findings from the visual pass on the merged
 > baseline** — each is already designed; **you own the detailed analysis** (the coordinator did only a light
