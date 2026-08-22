@@ -1,8 +1,28 @@
 using System;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Variables;
 
 namespace Hrot.Editor.AiShared.Shell;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 2) — which target kind this pane is, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example; <c>BP-462</c>.
+///
+/// <para>⭐ <b><see cref="PanelKind"/> carries the KIND</b> — <c>RuntimeDetailsViewDescriptor.ViewIdFor</c>
+/// already bakes <see cref="Fdp.Diagnostics.Contracts.Panels.PanelIds"/>-style identity into the view id
+/// (<c>details.runtime.&lt;kind&gt;</c>), so this record's kind and id agree with the descriptor's own
+/// duplicate-guard *(<c>DetailsViewRegistry.Add</c>)* by construction.</para>
+/// </summary>
+public sealed record RuntimeDetailsViewPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    string TargetKind) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>L3.1</c> — THE RUNTIME VIEW: three panes stop being a KIND LOOKUP and become three
@@ -36,6 +56,27 @@ public sealed class RuntimeDetailsView : IDetailsViewInstance
     public RuntimeDetailsView(IRuntimeInspectorPane pane)
         => _pane = pane ?? throw new ArgumentNullException(nameof(pane));
 
+    /// <summary>⭐⭐⭐ U-obs-5: BUILD · CAPTURE. ⛔⛔ Ahead of <c>_pane.Draw()</c>, which — unlike its
+    /// siblings' delegates — carries NO headless guard of its own (it is called only from a live
+    /// <c>ManagedWindow.Render</c> today), so this is the one view in the family where the capture
+    /// portion MUST be reachable without ever calling the render portion.</summary>
+    private RuntimeDetailsViewPanelViewModel BuildAndPublish(string idScope)
+    {
+        var targetKind = _pane.TargetKind;
+        var viewId     = RuntimeDetailsViewDescriptor.ViewIdFor(targetKind);
+        var panelId    = $"{idScope}/{viewId}";
+        PanelSnapshot.DeclareInstrumented(panelId);
+
+        var vm = new RuntimeDetailsViewPanelViewModel(panelId, viewId, targetKind.ToString());
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context. ⛔ Do
+    /// NOT call <see cref="Draw"/> from a headless test — <c>_pane.Draw()</c> is not guarded.</summary>
+    internal RuntimeDetailsViewPanelViewModel SimulateDraw(string idScope) => BuildAndPublish(idScope);
+
     /// <summary>
     /// ⭐ Delegates to the pane's existing <c>Draw()</c> — ⛔ not a rewrite. 📌 ruling 9: the pane is the
     /// one implementation of *"what a live BTree/HSM/Blueprint looks like"*, and it already had a
@@ -46,7 +87,11 @@ public sealed class RuntimeDetailsView : IDetailsViewInstance
     /// the root wired. ⭐ Re-pointing panes at the context is not in §6 — ⛔ and inventing it here would
     /// be design work in an implementation batch.
     /// </remarks>
-    public void Draw(DetailsContext context, string idScope) => _pane.Draw();
+    public void Draw(DetailsContext context, string idScope)
+    {
+        BuildAndPublish(idScope);
+        _pane.Draw();
+    }
 
     /// <summary>⛔ Deliberately empty — the pane is BORROWED. See the class remarks.</summary>
     public void Dispose() { }

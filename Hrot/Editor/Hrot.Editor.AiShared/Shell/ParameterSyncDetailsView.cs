@@ -1,10 +1,30 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.AiEditor.Persistence.Emit;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Selection;
 
 namespace Hrot.Editor.AiShared.Shell;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 2) — the table's decision, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example; <c>BP-462</c>.
+/// ⭐ <see cref="SubVariableCount"/> is a projection of <see cref="ParameterSyncModel.SubVariables"/>,
+/// not the list itself — the queue's own gotcha against reflecting/dumping a model that can carry
+/// non-JSON-shaped members (here, entries that reference field-type CLR objects).
+/// </summary>
+public sealed record ParameterSyncDetailsViewPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    Guid?  NodeVisualId,
+    string? Refusal,
+    int    SubVariableCount) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>S4</c> — PARAMETER SYNCHRONIZATION, as a Details view.</b>
@@ -49,21 +69,45 @@ public sealed class ParameterSyncDetailsView : IDetailsViewInstance
     /// </summary>
     public ParameterSyncModel? Model(DetailsContext context) => _source.ModelFor(context);
 
+    /// <summary>⭐⭐⭐ U-obs-5: BUILD · CAPTURE. ⛔⛔ CORRECTED ORDER vs. the original body — the old code
+    /// opened with the ImGui-context guard, so a headless call never reached <see cref="Model"/> at all.
+    /// 📄 Same deviation as the design's own AS-BUILT ①.</summary>
+    private (ParameterSyncModel? Model, ParameterSyncDetailsViewPanelViewModel Vm) BuildAndPublish(
+        DetailsContext context, string idScope)
+    {
+        var model   = Model(context);
+        var panelId = $"{idScope}/{ParameterSyncDetailsViewDescriptor.ViewId}";
+        PanelSnapshot.DeclareInstrumented(panelId);
+
+        var vm = new ParameterSyncDetailsViewPanelViewModel(
+            panelId, ParameterSyncDetailsViewDescriptor.ViewId,
+            model?.NodeVisualId, model?.Refusal, model?.SubVariables?.Count ?? 0);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return (model, vm);
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal ParameterSyncDetailsViewPanelViewModel SimulateDraw(DetailsContext context, string idScope)
+        => BuildAndPublish(context, idScope).Vm;
+
     /// <inheritdoc/>
     public void Draw(DetailsContext context, string idScope)
     {
+        var (model, _) = BuildAndPublish(context, idScope);
+
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
-        if (Model(context) is not { } model) return;
+        if (model is not { } m) return;
 
         ImGuiNET.ImGui.TextUnformatted("PARAMETER SYNCHRONIZATION");
 
-        if (model.Refusal is { } refusal)
+        if (m.Refusal is { } refusal)
         {
             ImGuiNET.ImGui.TextDisabled(refusal);
             return;
         }
 
-        DrawTable(model);
+        DrawTable(m);
     }
 
     /// <summary>⭐ The table, moved verbatim from <c>InspectorWindow.DrawSyncBindingsTable</c>.</summary>

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Editing;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Inspector;
@@ -8,6 +10,25 @@ using Hrot.Editor.AiShared.Selection;
 using StructEdit.Core;
 
 namespace Hrot.Editor.AiShared.Shell;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 2) — whether a facet is showing and which variable it binds, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example; <c>BP-462</c>. ⭐ The StructEdit sessions
+/// themselves are NOT dumped — they carry delegates and open documents, exactly the "do not reflect over
+/// a model carrying delegates" gotcha the queue names; <see cref="FacetTypeName"/> is the projected,
+/// displayed shape instead.
+/// </summary>
+public sealed record NodePropertiesDetailsViewPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool   HasFacet,
+    string? FacetTypeName,
+    string? BoundVariableName,
+    bool   HasEditService) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>S2</c> — <c>InspectorWindow</c>'S NODE ARMS, AS A DETAILS VIEW.</b>
@@ -101,10 +122,39 @@ public sealed class NodePropertiesDetailsView : IDetailsViewInstance
         return accessor(_source.FacetFor(context));
     }
 
+    /// <summary>⭐⭐⭐ U-obs-5: BUILD · CAPTURE. ⛔⛔ Ahead of every raw ImGui call in <see cref="Draw"/> —
+    /// the original body called <c>ImGui.TextDisabled</c>/<c>DrawFacetArm</c>/<c>DrawDefaultValueArm</c>
+    /// with no context guard at all, so a headless call would have hit native ImGui with no context.
+    /// <see cref="NodePropertiesSource.FacetFor"/> is a pure cache read — safe to call here without the
+    /// session-generation bookkeeping <see cref="Draw"/> also does.</summary>
+    private NodePropertiesDetailsViewPanelViewModel BuildAndPublish(DetailsContext context, string idScope)
+    {
+        var facet        = _source.FacetFor(context);
+        var boundVarName = facet is not null ? BoundVariableName(context) : null;
+        var panelId      = $"{idScope}/{NodePropertiesDetailsViewDescriptor.ViewId}";
+        PanelSnapshot.DeclareInstrumented(panelId);
+
+        var vm = new NodePropertiesDetailsViewPanelViewModel(
+            panelId, NodePropertiesDetailsViewDescriptor.ViewId,
+            HasFacet: facet is not null,
+            FacetTypeName: facet?.GetType().Name,
+            BoundVariableName: boundVarName,
+            HasEditService: _source.EditService is not null);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context. ⛔ Do
+    /// NOT call <see cref="Draw"/> from a headless test — its render arms are unguarded.</summary>
+    internal NodePropertiesDetailsViewPanelViewModel SimulateDraw(DetailsContext context, string idScope)
+        => BuildAndPublish(context, idScope);
+
     /// <inheritdoc/>
     public void Draw(DetailsContext context, string idScope)
     {
         ArgumentNullException.ThrowIfNull(context);
+        BuildAndPublish(context, idScope);
 
         // ⚠ A re-wired service invalidates both sessions — see _sessionGeneration.
         if (_sessionGeneration != _source.Generation)

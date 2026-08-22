@@ -1,8 +1,32 @@
 using System;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Variables;
 
 namespace Hrot.Editor.AiShared.Shell;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 2) — what this hosted view shows, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example; <c>BP-462</c>.
+///
+/// <para>⭐ <b>The ADDRESS is composed, not owned</b> — this view has no id of its own *(the CALLER-owns
+/// -identity shape the queue names for group 2)*: <c>PanelId = idScope + "/" + ViewId</c>, where
+/// <c>idScope</c> is the HOSTING window's own scope string *(<c>DetailsWindow._drawId</c> for the docked
+/// shell, <c>DetailsViewWindow.Id</c> for a float/pin)*. ⇒ ⭐⭐ a docked instance and a floating instance
+/// of this same view are two DIFFERENT addresses, exactly as two live panels must be *(<c>U1d</c>)*.
+/// <c>PanelKind = ViewId</c> — identical across hosts, matching <c>DetailsViewWindowPanelViewModel</c>'s
+/// own resolution of the same question.</para>
+/// </summary>
+public sealed record VariablesDetailsViewPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool   HasContent,
+    string? Heading) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>L1.3</c> — THE FIRST DESCRIPTOR: the variables table becomes a Details VIEW.</b>
@@ -35,13 +59,48 @@ public sealed class VariablesDetailsView : IDetailsViewInstance
         => _section = section ?? throw new ArgumentNullException(nameof(section));
 
     /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5: BUILD · CAPTURE.</b> ⛔⛔ No ImGui — <see cref="VariableDetailsSection.HasContent"/>
+    /// and <see cref="VariableDetailsSection.Heading"/> are already pure, published before the section's
+    /// own (guarded) render.
+    ///
+    /// <para>⚠ <b>Declared on first DRAW, not at construction</b> — the deviation this whole family
+    /// shares: the address needs <paramref name="idScope"/>, which a hosted view only learns when the
+    /// host calls <see cref="Draw"/>. ⛔ There is no meaningful "constructed but never drawn" gap here —
+    /// <see cref="DetailsViewDescriptor.Create"/> builds this instance immediately before the host draws
+    /// it (see <c>DetailsWindow.InstanceFor</c>) — so declaring here is still unconditional and still
+    /// independent of <see cref="PanelSnapshot.CaptureEnabled"/>, which is the property the recipe's
+    /// obligation actually protects.</para>
+    /// </summary>
+    private VariablesDetailsViewPanelViewModel BuildAndPublish(string idScope)
+    {
+        var panelId = $"{idScope}/{VariablesDetailsViewDescriptor.ViewId}";
+        PanelSnapshot.DeclareInstrumented(panelId);
+
+        var vm = new VariablesDetailsViewPanelViewModel(
+            panelId, VariablesDetailsViewDescriptor.ViewId, _section.HasContent, _section.Heading);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion. ⚠ Unlike its siblings this one is not
+    /// strictly required for headless safety (<see cref="VariableDetailsSection.Draw"/> already guards
+    /// on the ImGui context itself) — kept anyway so every view in this family exposes the same shape.
+    /// </summary>
+    internal VariablesDetailsViewPanelViewModel SimulateDraw(string idScope) => BuildAndPublish(idScope);
+
+    /// <summary>
     /// ⭐ Delegates to the existing panel.
     /// ⚠ <paramref name="context"/> is not passed through: the section reads the SAME store the context
     /// was built from, so handing it both would be two answers to one question. ⛔ Re-pointing the
     /// section at the context is <c>L3</c>'s job *(§6: "migrate the views — the delegation layer")*,
     /// ⭐ and doing it here would make <c>L1</c> depend on <c>L3</c>.
     /// </summary>
-    public void Draw(DetailsContext context, string idScope) => _section.Draw(idScope);
+    public void Draw(DetailsContext context, string idScope)
+    {
+        BuildAndPublish(idScope);
+        _section.Draw(idScope);
+    }
 
     /// <summary>⛔ Deliberately empty — the section is BORROWED. See the class remarks.</summary>
     public void Dispose() { }

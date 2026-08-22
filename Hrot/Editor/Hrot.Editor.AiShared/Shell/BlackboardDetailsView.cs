@@ -1,7 +1,29 @@
 using System;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Editor.AiShared.Windows;
 
 namespace Hrot.Editor.AiShared.Shell;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 2) — the hosted-view identity, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example; <c>BP-462</c>.
+///
+/// <para>⭐ <b>Deliberately thin</b> — the borrowed <see cref="BlackboardAuthoringWindow"/> already
+/// self-publishes its FULL content, under its OWN address, every time <c>DrawContent()</c> runs
+/// (including from here). ⛔ Duplicating that whole model under a second address would be ruling 9's
+/// mistake — two dumps of one truth that can drift. ⭐ What this record adds is the thing the window's
+/// own dump cannot say: WHICH hosted slot is showing it — carried as <see cref="HostWindowId"/>, so a
+/// reader can join the two.</para>
+/// </summary>
+public sealed record BlackboardDetailsViewPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    string HostWindowId) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>L3.3</c> — the Blackboard authoring panel becomes a Details VIEW.</b>
@@ -30,9 +52,34 @@ public sealed class BlackboardDetailsView : IDetailsViewInstance
     public BlackboardDetailsView(BlackboardAuthoringWindow window)
         => _window = window ?? throw new ArgumentNullException(nameof(window));
 
+    /// <summary>⭐⭐⭐ U-obs-5: BUILD · CAPTURE — this view's own thin address, ahead of the borrowed
+    /// window's body. ⚠ Declared on first draw, not at construction — see
+    /// <c>VariablesDetailsView.BuildAndPublish</c>'s remarks for why that is still the recipe's
+    /// obligation, just resolved at the point the address becomes known.</summary>
+    private BlackboardDetailsViewPanelViewModel BuildAndPublish(string idScope)
+    {
+        var panelId = $"{idScope}/{BlackboardDetailsViewDescriptor.ViewId}";
+        PanelSnapshot.DeclareInstrumented(panelId);
+
+        var vm = new BlackboardDetailsViewPanelViewModel(
+            panelId, BlackboardDetailsViewDescriptor.ViewId, _window.Id);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion. ⚠ Not strictly required for headless safety
+    /// here either (<c>BlackboardAuthoringWindow.DrawContent</c> already guards on the ImGui context) —
+    /// kept for the same family-shape reason as its siblings.</summary>
+    internal BlackboardDetailsViewPanelViewModel SimulateDraw(string idScope) => BuildAndPublish(idScope);
+
     /// <summary>⭐ Draws the window's own body through the <c>DrawContent</c> seam. ⛔ One body, two
     /// hosts.</summary>
-    public void Draw(DetailsContext context, string idScope) => _window.DrawContent();
+    public void Draw(DetailsContext context, string idScope)
+    {
+        BuildAndPublish(idScope);
+        _window.DrawContent();
+    }
 
     /// <summary>⛔ Deliberately empty — the window is BORROWED. See the class remarks.</summary>
     public void Dispose() { }
