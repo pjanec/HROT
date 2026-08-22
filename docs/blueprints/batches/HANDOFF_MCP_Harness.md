@@ -3,20 +3,31 @@ state: LIVE
 build-state: DISPATCH
 updated: 2026-08-22
 current-answer: dispatch pointer for the implementation session (the repurposed TIME/Stride lane, now idle
-  after the parked Stride port) to BUILD the MCP-driven system-test harness. THE DESIGN is
-  DESIGN_MCP_System_Test_Harness.md; build from its §3 classDiagram + §4 sequenceDiagram (obligation ①).
+  after the parked Stride port). TWO PHASES in one continuous run: PHASE 1 build the MCP-driven system-test
+  harness (DESIGN_MCP_System_Test_Harness.md), push it GREEN as a checkpoint, then PHASE 2 continue to MCP
+  extensions SLICE 1 (MX4a+MX7+MX8, MCP_Integration.md §"UML"/§"Sequencing"). Build each from its diagrams (obligation ①).
 known-conflict: none.
 -->
-# HANDOFF — implementation session · **build the MCP-driven system-test harness**
+# HANDOFF — implementation session · **harness (phase 1) → MCP extensions slice 1 (phase 2)**
+
+> ⭐⭐⭐ **ONE run, TWO phases, with a CHECKPOINT between.** ⭐ **Phase 1 = the harness**; when its smoke suite is
+> GREEN headless, **push a `chore: harness green at <sha>` checkpoint + a short status in the batch doc, then
+> CONTINUE — do NOT idle waiting for the coordinator.** ⭐ **Phase 2 = MCP extensions slice 1** (MX4a+MX7+MX8),
+> built ON the now-green harness. ⚠ **Why the checkpoint:** the harness is the *test instrument* for the
+> extensions — a green foundation means a red in phase 2 is the endpoint, not the harness.
 
 > 📌 **Dispatched at `14b3f8867`** *(re-stamped from `619b90756` while unstarted, rule 1a — this head adds the
 > finalized MCP-extensions design and the ScenarioMenuTests fix; neither changes the harness scope)*. ⭐ Branch
 > **fresh from the coordinator branch** *(rule 7)*; **rule 1b: started-marker FIRST.** ⛔ **Scope FROZEN at this sha.**
-> ⚠⚠ **NEW WORK AREA — not Stride, not time.** ids **`HN-`** *(new prefix)*, a **new tracker area**
-> *(Area J — MCP harness)*; ⛔ NOT Area H (time), NOT Area I (Stride), NOT A–G (UI/variable).
+> ⚠⚠ **NEW WORK AREA — not Stride, not time.** a **new tracker area** *(Area J — MCP harness + extensions)*;
+> ⛔ NOT Area H (time), NOT Area I (Stride), NOT A–G (UI/variable). ⭐ ids: **`HN-`** for phase-1 harness rows,
+> **`MX-`** for phase-2 extension rows *(the design's `MX4a`/`MX7`/`MX8` task ids)*.
 > 🅿 **The Stride port is PARKED at `claude/stride-port` (`b9ab83b0e`)** for the user's Windows visual test.
-> ⛔⛔ **DO NOT branch from it and do NOT build on it** — branch from the coordinator line `619b90756`,
-> which does **not** contain the Stride commits. The harness targets the **editor**, not Stride.
+> ⛔⛔ **DO NOT branch from it and do NOT build on it** — branch from the coordinator line `14b3f8867`,
+> which does **not** contain the Stride commits. Phase 1 targets the **editor** from outside; phase 2 extends the
+> **MCP server** (see the phase-2 scope in §4).
+
+# ═══ PHASE 1 — the harness ═══
 
 ## 0. ⛔⛔ READ THE DESIGN FIRST — it holds the class diagram, the sequence, the decisions and the tasks
 
@@ -48,6 +59,12 @@ It **references** `Hrot.ClusterRunner` *(so the editor binary is on disk to laun
 
 ⛔ **`H7` (declarative scenario-script DSL) is OUT OF SCOPE** — its own future design *(§8)*.
 
+### ⭐⭐ THE CHECKPOINT — push harness-green, then continue to phase 2
+
+⭐ When `H1`–`H6` are green headless: **push `chore: harness green at <sha>`** and write a 1-paragraph status in
+this batch doc *(the gates table for phase 1)*. ⛔ **Then CONTINUE to phase 2 in the same run — do NOT wait for a
+coordinator review.** ⭐ The checkpoint is a clean commit the coordinator can glance at, not a barrier.
+
 ## 2. ⭐⭐ THE PROVEN GROUND — reuse it, do not re-derive it
 
 ⭐ The manual drive this harness automates is **already proven end-to-end headless** and written up. Build H4
@@ -68,28 +85,54 @@ GALLIUM_DRIVER=llvmpipe`)*. ⭐ **`H1` resolves the binary from the referenced p
 📄 **Curated worlds** — `CuratedScenarios` seeds `hill-attack`/`test-fire`/`test-move` from git on start; the
 layout defaults seed the curated UI. ⭐ These are the deterministic worlds H4/H5 assert against.
 
-## 3. ⛔ LANE & NOT-THIS-BATCH
+## 3. ⛔ PHASE-1 LANE — the harness edits NOTHING but its own project
 
-⛔ **Do not touch:** the UI/variable frozen area *(`Hrot.Editor.AiShared`, variables, blackboard, Details)*,
-the UI lane's Details/menu files, the coordinator's MCP wiring in `EditorSubsystem`/`DebugApi/*`, or the
-parked Stride tree. ⭐ **Your surface:** the new `Hrot.SystemTests` project + its CI job, and *(if strictly
+⛔ **Phase 1 does not touch:** the UI/variable frozen area *(`Hrot.Editor.AiShared`, variables, blackboard,
+Details)*, the UI lane's Details/menu files, the coordinator's MCP wiring in `EditorSubsystem`/`DebugApi/*`, or
+the parked Stride tree. ⭐ **Phase-1 surface:** the new `Hrot.SystemTests` project + its CI job, and *(if strictly
 needed for a stable smoke)* additive test-only helpers **inside that project only**.
-⚠ **A cross-lane edit is a STOP-and-report** *(`R-128`)*. ⛔ **If a smoke case needs an API change, STOP and
-report it** — that is the MCP-extensions batch *(next)*, not this one.
+⚠ **A cross-lane edit is a STOP-and-report** *(`R-128`)*. ⛔ **In phase 1, if a smoke case needs an API change,
+DON'T patch it here — note it; phase 2 adds the endpoint** *(the harness's own missing-capability cases become
+phase-2 work)*.
 
-## 4. ⭐ NEXT BATCH (not now) — the MCP server extensions
+# ═══ PHASE 2 — MCP extensions, SLICE 1 (after the harness checkpoint) ═══
 
-⭐ Once the harness is green, the **MCP extensions** *(Groups O–R: full variable addressing/watch parity,
-mission editing via the intent bus, behavior discovery with param-DTO schema, entity-state dump)* follow as a
-**separate handoff**, built against **[`docs/MCP_Integration.md`](../../MCP_Integration.md)**'s extension design
-*(`MX1`–`MX6`)*. ⛔ **Not this batch** — the harness first, so the extensions land with a smoke suite to prove them.
+## 4. ⭐⭐ WHAT TO BUILD — the discovery + self-correction spine (MX4a · MX7 · MX8)
 
-## 5. GATES
+📄 **[`docs/MCP_Integration.md`](../../MCP_Integration.md)** — read **§"MCP EXTENSIONS"** through **§"Sequencing"**.
+⭐⭐⭐ **§"UML — the build contract"** carries the **`classDiagram` + `sequenceDiagram`** — build to them
+*(obligation ③: report the match/deviation; obligation ⑤: fold any deviation back into that doc, marking the
+prior state superseded, before the batch closes)*. ⭐ **§"Sequencing"** puts these three in **slice ①**.
+
+| # | task | design ref | gate |
+|---|---|---|---|
+| **MX4a** | **`GET /behaviors?tkbType=`** → `{id,name,paramSchema}[]`. ⭐⭐ **REUSE** `BehaviorUiRegistry`/`BehaviorSchemaDiscovery` (behaviourId→DTO, already TKB-filtered via `IMissionEditorService.GetAvailableBehaviors`); a **shared `DtoJsonSchemaExtractor`** emits the schema from the same property walk `BehaviorUiCompiler.Compile` does. `[ParamDoc]` OPTIONAL enrichment only | §"Group P/P.0", §UML | endpoint returns schemas for a known TKB type; MX6 smoke |
+| **MX7** | **`GET /breakpoint-types`** → `{$type,paramSchema}[]` by reflecting the `SearchPredicateDto` `[JsonDerivedType]` **closed 12-arm union**. ⭐ **SAME `DtoJsonSchemaExtractor`** as MX4a; ⛔ **no new encoding** (conditions round-trip via the existing `SearchPredicateJsonOptions`). Set/list/remove/hits already exist (Group G) | §"Group S", §INVENTORY, §UML | endpoint lists the arms + schemas; MX6 smoke |
+| **MX8** | **self-describing errors** — add `JsonNode? Hint` to the `ApiResponse`/`RouteResult` envelope; a central **`DebugApiHints`** category→endpoint map; **back-fill the existing prose hints**; attach the right hint to every schema-shaped validation failure *(condition→`/breakpoint-types`, behaviour→`/behaviors`)* | §"Self-describing errors", §UML | a bad condition's error carries `hint.seeEndpoint`; MX6 smoke |
+| **MX5** | Node MCP-server tool wrappers + `SKILL.md` regen **for these three** *(behaviors, breakpoint-types; hint surfaced in tool errors)* | §"Sequencing ⤫" | the new tools are agent-callable |
+| **MX6** | **harness smoke cases for slice 1** — `GET /behaviors` returns a schema · `GET /breakpoint-types` returns the arms · **POST a bad condition ⇒ error `hint.seeEndpoint == "GET /breakpoint-types"`** | §"Sequencing ⤫", H4 | all green headless on the phase-1 harness |
+
+## 4b. ⛔ PHASE-2 LANE — extends the MCP server, still bans the frozen area
+
+⭐ **Phase 2 MAY edit** *(additively)*: `Hrot.Editor/DebugApi/*` *(`DebugApiService`, `DebugApiHost`, the envelope)*,
+and the **MCP wiring in `EditorSubsystem`** *(inject collaborators the new endpoints need — like the existing
+`_blueprintSession`)*, plus `tools/ai-debug-mcp/` *(Node wrappers)*. ⭐ **REUSE the existing seams** named above
+*(obligation ②: `BehaviorUiRegistry`, `SearchPredicateDto`, `SearchPredicateJsonOptions`)* — ⛔ do NOT build a
+parallel registry or a second schema walk. ⛔ **Still DO NOT touch** the frozen variable model
+*(`Hrot.Editor.AiShared`, variables, blackboard, Details)* or the UI lane's Details/menu files — ⚠ a cross-lane
+edit is STOP-and-report *(`R-128`)*. ⛔ **NOT this batch:** extensions slices ② *(MX1/MX3/MX2)* and ③ *(MX4b)* —
+a follow-up handoff.
+
+## 5. GATES — report per phase
 
 ⭐ Standing contract *(rule 8)*: one row per gate · verbatim command · pass/fail/skip · delta vs base · the
 `--no-build` column · every RED confirmed pre-existing against the base sha `14b3f8867` · goldens as a diff
-shape · `tracker-counts.py --check` · `rulings-check.py` · the **`HN-` ids you allocated** · `R-106` verdicts.
-⭐⭐ **Row 8 — the integration invariant IS this suite:** the harness's own smoke run *(`H4`, headless under
-Xvfb, green)* is the system-level proof; report it as the integration row, with the exact `--filter` and the
-Xvfb launch used. ⭐ Rule 4/7: re-sync + pull the coordinator branch around the batch. ⭐ Rule 1b: push the
-started-marker before writing code.
+shape · `tracker-counts.py --check` · `rulings-check.py` · the **`HN-`/`MX-` ids you allocated** · `R-106` verdicts ·
+`design-digest.py --check` · `mermaid-check.mjs` on any design you fold a deviation into *(obligation ⑤)*.
+- ⭐⭐ **Phase 1 — Row 8 integration invariant IS the harness itself:** the `H4` smoke suite, headless under Xvfb,
+  green — report it with the exact `--filter` and the Xvfb launch used. **This is what the checkpoint pushes.**
+- ⭐⭐ **Phase 2 — Row 8:** the **slice-1 MX6 smoke cases** running green **on that same harness** *(behaviors +
+  breakpoint-types return schemas; a bad condition's error carries the `hint`)* — the system-level proof the
+  endpoints work end-to-end. Plus the touched-project unit suites for `Hrot.Editor`/`DebugApi`.
+⭐ Rule 4/7: re-sync + pull the coordinator branch around the batch. ⭐ Rule 1b: push the started-marker before
+writing code *(phase 1)*; ⭐ push the harness-green checkpoint before phase 2 *(§1's checkpoint rule)*.
