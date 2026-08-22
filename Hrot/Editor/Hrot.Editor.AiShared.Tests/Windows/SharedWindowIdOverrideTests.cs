@@ -45,10 +45,7 @@ public class SharedWindowIdOverrideTests
     [Fact]
     public void InspectorWindow_DefaultCtor_UsesDefaultIdAndPerspective()
     {
-        var w = new InspectorWindow(
-            new EditorSelectionStore(),
-            StubRefactor(),
-            new FindResultsWindow());
+        var w = new InspectorWindow(new EditorSelectionStore());
 
         Assert.Equal("ai_inspector", w.Id);
         Assert.Equal("Authoring", w.OwningPerspective);
@@ -58,11 +55,11 @@ public class SharedWindowIdOverrideTests
     public void InspectorWindow_IdOverride_ProducesDistinctId()
     {
         var w1 = new InspectorWindow(
-            new EditorSelectionStore(), StubRefactor(), new FindResultsWindow(),
+            new EditorSelectionStore(),
             idOverride: "ai_inspector_btree", owningPerspective: "BTree");
 
         var w2 = new InspectorWindow(
-            new EditorSelectionStore(), StubRefactor(), new FindResultsWindow(),
+            new EditorSelectionStore(),
             idOverride: "ai_inspector_hsm", owningPerspective: "HSM");
 
         Assert.Equal("ai_inspector_btree", w1.Id);
@@ -81,10 +78,10 @@ public class SharedWindowIdOverrideTests
     {
         var registry = new DebugSessionRegistry();
         var w1 = new InspectorWindow(
-            new EditorSelectionStore(), StubRefactor(), new FindResultsWindow(),
+            new EditorSelectionStore(),
             idOverride: "ai_inspector_btree", owningPerspective: "BTree");
         var w2 = new InspectorWindow(
-            new EditorSelectionStore(), StubRefactor(), new FindResultsWindow(),
+            new EditorSelectionStore(),
             idOverride: "ai_inspector_hsm", owningPerspective: "HSM");
 
         Assert.NotEqual(w1.Id, w2.Id);
@@ -178,7 +175,7 @@ public class SharedWindowIdOverrideTests
         var registry = new DebugSessionRegistry();
         var catalog  = new AssetCatalog();
 
-        var inspector  = new InspectorWindow(new EditorSelectionStore(), StubRefactor(), new FindResultsWindow());
+        var inspector  = new InspectorWindow(new EditorSelectionStore());
         var runtime    = new RuntimeInspectorWindow(new EditorSelectionStore(), registry);
         var timeline   = new TraceTimelineWindow(new EditorSelectionStore(), registry);
         var findResult = new FindResultsWindow();

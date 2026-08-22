@@ -101,18 +101,30 @@ one cache.
 
 | # | arm | lines | §7.6 says |
 |---|---|---:|---|
-| ① | **asset header** — name, *Find References*, *Rename…*, *Go to Definition* | 192–256 | ⛔ **nothing** |
+| ① | **asset header** — name, *Find References*, *Rename…*, *Go to Definition* | 192–256 | ✅ **Asset Browser row menu** *(`S2b`, `BP-436`/`BP-437`)* — ⛔ **not a view** |
 | ② | ⭐ **facet / StructEdit** — the selected node's editable fields | 258–324 | ✅ `details.nodeproperties` *(`S2`)* |
-| ③ | ⚠ **default-value editor (`B-3`)** — the default of the variable the selected node WRITES | 326–434 | ⛔ **nothing** |
+| ③ | ⚠ **default-value editor (`B-3`)** — the default of the variable the selected node WRITES | 326–434 | ✅ `details.nodeproperties` *(`S2`, `BP-431`)* — ⛔ §7.6 ② named only ②; it shares ②'s cache |
 | ④ | **parameter synchronization** | 436–466 | ✅ `details.parametersync` — ⛔ deferred *(`S4`/`R-99`)* |
 | ⑤ | **utility consideration** *(a stub)* | 468–476 | ✅ `details.utility` *(`S3`)* |
-| ⑥ | **sub-element collision strip** | 182 | ⛔ **nothing** |
+| ⑥ | **sub-element collision strip** | 182 | ✅ **Diagnostics window** *(`S2b`, `BP-435`)* — ⛔ **not a view** |
 
-### ✅ RESOLVED `2026-08-22` — **② and ③ moved together; ① and ⑥ are `S5`'s question**
+### ✅ RESOLVED `2026-08-22` — **② and ③ moved together; ① and ⑥ ROUTED OUT OF THE PANEL (`S2b`)**
 
-⭐ **Built as recommended.** ⛔ `S5` remains **blocked**: arms ① *(asset header — Find References ·
-Rename…)* and ⑥ *(collision strip)* are **asset**-scoped, have no home in §7.6, and deleting the window
-would delete them.
+⭐ **② + ③ built as recommended** *(`BP-432`)*.
+
+⭐⭐⭐ **① and ⑥ are answered, and the answer was NOT a Details view** — 🔒 **user, `2026-08-22`:** *"asset
+related context menu items then, still nothing for a details panel view"* · *"it need to be routed to
+where the collision can be seen or fixed"* · *"picker should not have that menu."*
+📄 **The routing and the as-built live in [`DESIGN_Details_Panel_View_Switching.md`](../DESIGN_Details_Panel_View_Switching.md) §7.4a**;
+⛔ **not restated here** — this file is ephemeral, the design is not.
+
+| arm | went to | id |
+|---|---|---|
+| ⑥ collision strip | **Diagnostics**, `AIE053` at `Info` — ⚠ **the old strip was DEAD** *(`GetBindingAmbiguities` returns empty unconditionally)* | `BP-435` |
+| ① Rename… · Find References | **Asset Browser row context menu**, opt-in per host ⇒ the picker gets none | `BP-436` |
+| ① Go to Definition | **deleted** — an empty placeholder; `CommandCatalog.GoToDefinition` is the real one | `BP-437` |
+
+⇒ ⭐⭐ **`S5` is no longer blocked on `BP-431`. It is blocked on `S3` alone** *(the utility stub).*
 
 ### ⭐⭐ The question — **② and ③ are ONE surface sharing ONE cache**
 

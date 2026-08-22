@@ -35,8 +35,8 @@ namespace Hrot.Editor.AiShared.Windows;
 public sealed class InspectorWindow : ManagedWindow
 {
     private readonly EditorSelectionStore _store;
-    private readonly IRefactorService _refactorService;
-    private readonly FindResultsWindow _findResults;
+    // ⛔ S5-prep: the refactor service and the Find Results window left with the asset header —
+    //    their only consumers were "Find References" and "Rename…", now on the Asset Browser row menu.
     private readonly Func<Guid, IBlackboardManagedAsset?>? _subAssetResolver;
 
     // Optional schema exporter for sub-element collision diagnostics (AIE-053).
@@ -46,13 +46,7 @@ public sealed class InspectorWindow : ManagedWindow
     //    ExpressionTargetField accessor, both sessions and the facet cache are GONE from this window —
     //    they are Shell/NodePropertiesSource now. See the note in DrawClientArea.
 
-    private string? _pendingRenameKey;
-    private readonly byte[] _renameBuf = new byte[512];
-    private bool _openRenameModal;
-
     /// <param name="store">Editor selection store for this perspective.</param>
-    /// <param name="refactorService">Refactoring service.</param>
-    /// <param name="findResults">Find-results window.</param>
     /// <param name="subAssetResolver">Optional sub-asset resolver for blackboard data.</param>
     /// <param name="idOverride">
     ///   Optional stable ImGui id override. When supplied, the window uses this id
@@ -64,8 +58,6 @@ public sealed class InspectorWindow : ManagedWindow
     /// </param>
     public InspectorWindow(
         EditorSelectionStore store,
-        IRefactorService refactorService,
-        FindResultsWindow findResults,
         Func<Guid, IBlackboardManagedAsset?>? subAssetResolver = null,
         string? idOverride = null,
         string? owningPerspective = null,
@@ -74,16 +66,20 @@ public sealed class InspectorWindow : ManagedWindow
                owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
         _store = store;
-        _refactorService = refactorService;
-        _findResults = findResults;
         _subAssetResolver = subAssetResolver;
         _schemaExporter = schemaExporter;
     }
 
     protected override void DrawClientArea()
     {
-        // Render the diagnostic strip for SubElementCollisions (AIE-053).
-        DrawCollisionDiagnosticStrip();
+        // ⛔⛔ AIE-053's collision strip is GONE from here (2026-08-22).
+        //    🔒 User ruling: "it need to be routed to where the collision can be seen or fixed."
+        //    ⭐ It is now a row in the DiagnosticsWindow's issue table — the shared window
+        //      docs/designs/blueprint-integ-1/DESIGN.md §5.7 names — via SubElementCollisionDiagnostics.
+        //    ⚠⚠ And the strip that stood here was DEAD: it called GetBindingAmbiguities, which returns
+        //      Array.Empty UNCONDITIONALLY, so it could never draw on any input. The Diagnostics rows
+        //      use GetCollisions — the real data — at Info severity, which is what the detector's own
+        //      doc says the difference is.
 
         if (_store.ActiveAsset is null)
         {
@@ -91,73 +87,19 @@ public sealed class InspectorWindow : ManagedWindow
             return;
         }
 
-        var asset = _store.ActiveAsset;
-
-        ImGuiNET.ImGui.Selectable(asset.Name);
-        if (ImGuiNET.ImGui.BeginPopupContextItem("##insp_ctx"))
-        {
-            if (ImGuiNET.ImGui.MenuItem("Find References"))
-            {
-                var refs = _refactorService.FindReferences(asset.Name);
-                _findResults.ShowReferences(asset.Name, refs);
-            }
-            if (ImGuiNET.ImGui.MenuItem("Rename..."))
-            {
-                _pendingRenameKey = asset.Name;
-                _openRenameModal = true;
-                Array.Clear(_renameBuf, 0, _renameBuf.Length);
-            }
-            if (ImGuiNET.ImGui.MenuItem("Go to Definition"))
-            {
-                // placeholder -- navigation wired in a later phase
-            }
-            ImGuiNET.ImGui.EndPopup();
-        }
-
-        if (_openRenameModal)
-        {
-            ImGuiNET.ImGui.OpenPopup("Rename##insp");
-            _openRenameModal = false;
-        }
-
-        if (_pendingRenameKey != null)
-        {
-            var renameOpen = true;
-            if (ImGuiNET.ImGui.BeginPopupModal("Rename##insp", ref renameOpen,
-                ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize))
-            {
-                ImGuiNET.ImGui.Text($"Rename: {_pendingRenameKey}");
-                ImGuiNET.ImGui.Text("New name:");
-                ImGuiNET.ImGui.SameLine();
-                ImGuiNET.ImGui.InputText("##rname_insp", _renameBuf, (uint)_renameBuf.Length);
-                if (ImGuiNET.ImGui.Button("OK"))
-                {
-                    var newKey = Fdp.Presentation.Utils.ImGuiBufferText.Decode(_renameBuf);
-                    if (!string.IsNullOrWhiteSpace(newKey))
-                    {
-                        var preview = _refactorService.PreviewRename(
-                            _pendingRenameKey, newKey, new RefactorOptions());
-                        _findResults.ShowRenamePreview(preview);
-                    }
-                    _pendingRenameKey = null;
-                    Array.Clear(_renameBuf, 0, _renameBuf.Length);
-                    ImGuiNET.ImGui.CloseCurrentPopup();
-                }
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Cancel"))
-                {
-                    _pendingRenameKey = null;
-                    Array.Clear(_renameBuf, 0, _renameBuf.Length);
-                    ImGuiNET.ImGui.CloseCurrentPopup();
-                }
-                ImGuiNET.ImGui.EndPopup();
-            }
-            if (!renameOpen)
-            {
-                _pendingRenameKey = null;
-                Array.Clear(_renameBuf, 0, _renameBuf.Length);
-            }
-        }
+        // ⛔⛔ THE ASSET HEADER IS GONE FROM HERE (2026-08-22).
+        //    🔒 User ruling: "go to definition and rename and find references, these all sound like
+        //       context menu items … asset related context menu items then, still nothing for a
+        //       details panel view." · "picker should not have that menu."
+        //    📄 AI_Editor_Shared_Infrastructure.md §16.1 agrees in its own words: Find References is
+        //       "Used by THE RIGHT-CLICK MENU, the Find Results window, and indirectly by the rename
+        //       preview" — operations 1 and 4 of five.
+        //    ⭐ "Find References" and "Rename…" now live on the ASSET BROWSER's row context menu, which
+        //      is where a designer points at an asset (AssetBrowserPanel.DrawRowContextMenu, opt-in via
+        //      AssetBrowserPanelOptions.RowCommands so the PICKER does not get them).
+        //    ⛔ "Go to Definition" did NOT move: measured, its body here was EMPTY ("placeholder --
+        //      navigation wired in a later phase") while CommandCatalog.GoToDefinition on the graph is
+        //      the real one (BP-76). A dead duplicate of a built feature is deleted, not relocated.
 
         // ⛔⛔ S2 (BP-399 / BP-431) — THE FACET ARM AND THE DEFAULT-VALUE ARM ARE GONE FROM HERE.
         //    📄 DESIGN_Details_Panel_View_Switching.md §7.3's catalogue · §7.6 ② · §7.4's classDiagram
@@ -217,14 +159,6 @@ public sealed class InspectorWindow : ManagedWindow
     }
 
     /// <summary>
-    /// Returns the current list of sub-element collisions without requiring an ImGui context.
-    /// Returns null if no schema exporter was injected.
-    /// Used by tests to verify collision detection headlessly.
-    /// </summary>
-    internal IReadOnlyList<ActionCollision>? GetCollisions() =>
-        _schemaExporter is null ? null : SubElementCollisionDetector.GetCollisions(_schemaExporter);
-
-    /// <summary>
     /// ⭐⭐⭐ Batch 92 (<c>92d</c>) — true when a sub-asset resolver has been wired.
     ///
     /// <para>⛔ Asserted on the CONSTRUCTED object, never on the registrar's source — 📌 <c>R-67</c>:
@@ -242,39 +176,6 @@ public sealed class InspectorWindow : ManagedWindow
     /// </summary>
     internal IBlackboardManagedAsset? ResolveSubAssetForRail(Guid assetId)
         => _subAssetResolver?.Invoke(assetId);
-
-    private void DrawCollisionDiagnosticStrip()
-    {
-        if (_schemaExporter is null) return;
-
-        // GetBindingAmbiguities returns only genuine ambiguities for FQN-based binding.
-        // Short-name collisions between distinct FQNs are harmless when binding is always
-        // by full FQN — using GetBindingAmbiguities avoids false-positive error strips.
-        var collisions = SubElementCollisionDetector.GetBindingAmbiguities(_schemaExporter);
-        if (collisions.Count == 0) return;
-
-        ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.ChildBg, new System.Numerics.Vector4(0.2f, 0.05f, 0.05f, 1f));
-        ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Border,  new System.Numerics.Vector4(1f,   0.2f,  0.2f,  1f));
-
-        if (ImGuiNET.ImGui.BeginChild("SubElementCollisions",
-                new System.Numerics.Vector2(0, 30 + (collisions.Count * 20)),
-                ImGuiNET.ImGuiChildFlags.Borders))
-        {
-            ImGuiNET.ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f),
-                "⚠ SUB-ELEMENT COLLISIONS DETECTED");
-
-            foreach (var collision in collisions)
-            {
-                ImGuiNET.ImGui.TextWrapped(
-                    $"Short name '{collision.ShortName}' has multiple FQN claimants: " +
-                    string.Join(", ", collision.ClaimingFqns));
-            }
-        }
-        ImGuiNET.ImGui.EndChild();
-
-        ImGuiNET.ImGui.PopStyleColor(2);
-        ImGuiNET.ImGui.Spacing();
-    }
 
     private void DrawSyncBindingsTable(
         Guid nodeVisualId,

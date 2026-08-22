@@ -263,6 +263,46 @@ public sealed class TheDialogOpensOnEveryHostTests
     /// somehow collected every <c>Draw</c> in the process. ⭐ A manager production never touched holds
     /// <b>no</b> overlays — so what the rail above finds was put there by the installer.
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE ASSET BROWSER'S ROW MENU IS WIRED BY PRODUCTION.</b>
+    /// 🔒 User, <c>2026-08-22</c>: <i>"asset related context menu items then"</i> · <i>"picker should
+    /// not have that menu."</i> 📄 <c>AI_Editor_Shared_Infrastructure.md</c> §16.1.
+    ///
+    /// <para>⛔ Asked of the REAL <c>EditorSubsystem</c> — 📌 <c>R-67</c>: a rail that builds its own
+    /// browser cannot see the root forgetting to opt in. ⚠ And it must be the root: the docked window
+    /// is constructed in <b>two</b> places *(here and the DI extension)</para>
+    ///
+    /// <para>⭐ Both commands are named, so DROPPING one fails — ⛔ a bare <c>NotEmpty</c> would pass
+    /// with only "Find References" and lose "Rename…" silently.</para>
+    /// </summary>
+    [Fact]
+    public void TheDockedAssetBrowser_OffersTheRefactorRowCommands()
+    {
+        var editor  = new EditorSubsystem();
+        var windows = new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f));
+        editor.RegisterWindows(windows);
+
+        var browser = editor.AssetBrowserForTest;
+        Assert.NotNull(browser);
+
+        var labels = browser!.Panel.Options.RowCommands.Select(c => c.Label).ToArray();
+        Assert.Contains("Find References", labels);
+        Assert.Contains("Rename…",         labels);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>AND THE DIAGNOSTICS WINDOW GOT ITS SCHEMA SOURCE.</b>
+    /// 🔒 User: <i>"ok to diag window."</i> 📄 <c>blueprint-integ-1/DESIGN.md</c> §5.7 (<c>AIE-053</c>).
+    /// ⚠ Asked of the CONSTRUCTED window — ⛔ the strip it replaces was dead precisely because nobody
+    /// checked what its data source returned.
+    /// </summary>
+    [Theory]
+    [InlineData("btree")]
+    [InlineData("hsm")]
+    [InlineData("blueprint")]
+    public void EveryPerspectivesDiagnosticsWindow_HasItsSchemaSource(string perspective)
+        => Assert.True(RegistrarOf(perspective).Diagnostics.HasSchemaDiagnostics);
+
     [Fact]
     public void AnUnregisteredManager_HoldsNoPropertiesForm()
     {

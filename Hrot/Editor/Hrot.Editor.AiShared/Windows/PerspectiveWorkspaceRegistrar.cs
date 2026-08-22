@@ -275,8 +275,6 @@ public class PerspectiveWorkspaceRegistrar
 
         Inspector = new InspectorWindow(
             store:                         selectionStore,
-            refactorService:               refactorService,
-            findResults:                   FindResults,
             idOverride:                    $"ai_inspector_{suffix}",
             owningPerspective:             perspectiveName,
             schemaExporter:                schemaExporter,
@@ -363,7 +361,16 @@ public class PerspectiveWorkspaceRegistrar
             catalog:           catalog,
             validators:        vl,
             idOverride:        $"ai_diagnostics_{suffix}",
-            owningPerspective: perspectiveName);
+            owningPerspective: perspectiveName,
+            // ⭐⭐⭐ AIE-053 — the short-name collision rows land in the ISSUE TABLE.
+            // 🔒 User, 2026-08-22: "if collision strip is a warning about naming collision or
+            //    something, it need to be routed to where the collision can be seen or fixed."
+            // 📄 docs/designs/blueprint-integ-1/DESIGN.md §5.7: "surface SubElementCollision
+            //    diagnostics … in the shared windows."
+            // ⚠ The strip this replaces was DEAD — it called GetBindingAmbiguities, which returns
+            //   Array.Empty unconditionally. See SubElementCollisionDiagnostics.
+            // ⭐ PASSED, not defaulted: this registrar HOLDS the exporter (2026-08-16 rule).
+            schemaDiagnostics: () => Validation.SubElementCollisionDiagnostics.For(schemaExporter));
 
         // ⭐⭐ Track C, WIRED (Batch 79). Everything below was built, tested and hosted by NOTHING
         //    until this batch -- the table, its dialog launcher, the tick highlight and the outline.

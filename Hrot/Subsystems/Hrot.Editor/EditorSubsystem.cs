@@ -377,6 +377,10 @@ namespace Hrot.Editor
         /// carries a REAL entity source *(<c>R-67</c>)</summary>
         internal Hrot.Editor.AiShared.Shell.PerspectiveWorkspace? ScenarioWorkspace => _scenarioWorkspace;
         private AssetBrowserDockedWindow?       _aiAssetBrowser;
+
+        /// <summary>⭐ The docked Asset Browser production built — 📌 <c>R-67</c>: a rail asks the
+        /// CONSTRUCTED window which row commands this root opted into, ⛔ never the call site.</summary>
+        internal AssetBrowserDockedWindow? AssetBrowserForTest => _aiAssetBrowser;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
         private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
         /// <summary>
@@ -2746,14 +2750,52 @@ namespace Hrot.Editor
             };
 
             // Global Asset Browser — single instance, Global scope, shows Open-docs section.
+            // ⚠⚠ MEASURED 2026-08-22: this window was CONSTRUCTED HERE AND NEVER USED — zero other
+            //    references, never registered, so no find-references result could ever be seen. It is
+            //    the destination §16.1 names, and it finally has both a caller and a registration.
             var assetBrowserFindResults = new FindResultsWindow(
                 idOverride:        "ai_asset_browser_find_results",
                 owningPerspective: "Global");
+            windowManager.RegisterWindow(assetBrowserFindResults);
+
+            // ⭐⭐⭐ THE ASSET ROW'S RIGHT-CLICK MENU (2026-08-22).
+            // 🔒 User: "go to definition and rename and find references, these all sound like context
+            //    menu items … asset related context menu items then, still nothing for a details panel
+            //    view." · "picker should not have that menu."
+            // 📄 AI_Editor_Shared_Infrastructure.md §16.1: "Find References … Used by THE RIGHT-CLICK
+            //    MENU, the Find Results window, and indirectly by the rename preview" — operations 1
+            //    and 4. ⇒ this is the design's own home for them, not a new idea.
+            // ⛔ These two moved OFF InspectorWindow's asset header, which is deleted in this commit.
+            //    Its third item — "Go to Definition" — is NOT here: it was a placeholder with an empty
+            //    body, and the real one is CommandCatalog.GoToDefinition on the graph (BP-76).
+            var assetRenameModal = new Hrot.Editor.AiShared.Browser.AssetRenameModal(
+                refactorService: refactorService,
+                showPreview:     assetBrowserFindResults.ShowRenamePreview);
+            windowManager.RegisterFrameOverlay(assetRenameModal.Draw);
+
+            var assetRowCommands = new[]
+            {
+                new Hrot.Editor.AiShared.Browser.AssetRowCommand(
+                    Label:  "Find References",
+                    Invoke: a => assetBrowserFindResults.ShowReferences(
+                                     a.Name, refactorService.FindReferences(a.Name))),
+                new Hrot.Editor.AiShared.Browser.AssetRowCommand(
+                    Label:  "Rename…",
+                    Invoke: a => assetRenameModal.Open(a.Name)),
+            };
+
             var assetBrowserIconProvider = new SilkIconProvider(windowManager.Atlas);
             _aiAssetBrowser = new AssetBrowserDockedWindow(
                 catalog:          catalog,
                 icons:            assetBrowserIconProvider,
-                options:          new AssetBrowserPanelOptions { Kinds = AssetKindFilter.All, ShowAllTab = false },
+                // ⭐ The DOCKED browser opts IN. ⛔ AssetPickerModal does not — it shares this panel but
+                //   only PICKS an asset, and "Rename…" mid-pick is a different job (user ruling).
+                options:          new AssetBrowserPanelOptions
+                                  {
+                                      Kinds       = AssetKindFilter.All,
+                                      ShowAllTab  = false,
+                                      RowCommands = assetRowCommands,
+                                  },
                 onAssetActivated: asset => _aiDocumentManager?.Open(asset),
                 id:               "ai_asset_browser"); // prior global Asset Browser id (MTB-P7-T4: register docked host with the prior id/scope)
 

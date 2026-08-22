@@ -793,9 +793,47 @@ id**; ⚠ registering the generic one for every perspective **collided with Blue
 **everything** to do with whether a perspective's nodes are described by **facets**: the facet dispatcher
 is a BTree/HSM concept, and Blueprint's nodes are drawn by `IBlueprintNodeDrawer`.
 
-⚠ **`InspectorWindow` still exists** — its asset header *(Find References · Rename…)*, parameter-sync arm
-*(`S4`)*, utility stub *(`S3`)* and collision strip stay. ⛔ **`S5` cannot delete it until the header and
-the strip have a home** *(`BP-431`)*.
+⚠ **`InspectorWindow` still exists** — its parameter-sync arm *(`S4`)* and utility stub *(`S3`)* stay.
+⭐⭐ **Its asset header and collision strip are GONE as of `S2b`** — see §7.4a; ⛔ the sentence that stood
+here *("`S5` cannot delete it until the header and the strip have a home")* is **SUPERSEDED**: they have
+homes, and ⛔ **neither home is a Details view.**
+
+#### 7.4a ⭐⭐⭐ AS-BUILT (`S2b`, `2026-08-22`, `BP-434`–`BP-437`) — **the asset-scoped arms are NOT Details views**
+
+🔒 **User ruling, `2026-08-22`, verbatim:** *"go to definition and rename and find references, these all
+sound like context menu items of a blueprint graph node and not anything to put to a details panel
+view."* … *"oh i see, asset related context menu items then, still nothing for a details panel view."*
+… *"if collision strip is a warning about naming collision or something, it need to be routed to where
+the collision can be seen or fixed."* … *"picker should not have that menu."*
+
+⛔⛔ **`BP-431` assumed these arms needed a HOME IN THE SHELL, and that premise was wrong.** ⭐ A gesture
+that acts on **the asset you are pointing at** belongs on the thing you point at; a **warning** belongs
+in the window that lists warnings. ⇒ ⭐⭐ **the routing, not the relocation, is the design content:**
+
+| arm | ⭐ where it went | why there |
+|---|---|---|
+| ⑥ **collision strip** | ⭐⭐ **`DiagnosticsWindow`**, as `AIE053` rows at **`Info`** severity *(`SubElementCollisionDiagnostics`)* | 📄 `docs/designs/blueprint-integ-1/DESIGN.md` §5.7: *"surface `SubElementCollision` diagnostics … **in the shared windows**"* — ⭐ this is that document's own home, not a new idea |
+| ① **Find References · Rename…** | ⭐⭐ **the Asset Browser's row context menu**, opt-in per host via `AssetBrowserPanelOptions.RowCommands` | 📄 `AI_Editor_Shared_Infrastructure.md` §16.1: Find References is *"Used by **the right-click menu**, the Find Results window, and indirectly by the rename preview"* |
+| ① **Go to Definition** | ⛔ **DELETED** | 📐 the Inspector's was an **empty placeholder body**; the real one is `CommandCatalog.GoToDefinition` on the graph *(`BP-76`)* ⇒ ⭐ ruling 9: there was never a second implementation to preserve |
+
+⛔⛔ **THE STRIP WAS DEAD, and that is the load-bearing finding — not the move** *(`BP-435`)*. 📐 Measured:
+`DrawCollisionDiagnosticStrip` called `SubElementCollisionDetector.GetBindingAmbiguities`, which returns
+`Array.Empty` **unconditionally** *(by its own doc — surfacing it as a runtime error would be a false
+positive)*. ⇒ ⚠ **the red strip could never draw, on any input, since it was written.** ⭐ The new rows
+use `GetCollisions`, which the same doc invites, at **`Info`** — ⛔ bindings resolve by full FQN, so a
+shared short name is never ambiguous at runtime, and an `Error` would be exactly the false positive the
+detector refuses.
+
+⭐⭐⭐ **ONE panel, TWO hosts, and the default is the SAFE one** *(`BP-436`)*. 📐 `AssetBrowserPanel` is the
+**single** implementation *(in-degree 10)*, hosted by `AssetBrowserDockedWindow` **and**
+`AssetPickerModal`. ⇒ ⛔ a menu added to the panel would appear in **both**, and *"Rename…"* mid-pick is
+a different job wearing the same widget. ⭐ **`RowCommands` defaults to EMPTY**, so the picker is correct
+**by omission** rather than by someone remembering to opt out — ⚠ the silent-default shape pointed the
+safe way round, and railed on the **constructed** modal *(`R-67`)*.
+
+⚠ **`AssetRenameModal` is EXTRACTED, not rewritten** *(§7.4's `..>`)*, and it keeps §16.2's split: OK
+computes a **PREVIEW** into the Find Results window; ⛔ it never calls `ApplyRename`. ⭐ Drawn as a
+**frame overlay** *(`BP-327`, fourth occurrence guarded)*.
 
 #### ⛔ AS-BUILT (`S1`, `2026-08-22`) — **two boxes the design did not have, and why**
 
@@ -851,6 +889,7 @@ sequenceDiagram
 |---|---|---|
 | **①** | ✅ **BUILT `2026-08-22` (`BP-428`)** — ⭐⭐⭐ **Blueprint gets the real shell**; `Details` no longer gated on `HostKindOf`, the id is kept, `BlueprintDetailsWindow` **deleted**, its node arm now `BlueprintNodeDetailsView` at `details.nodeproperties`/**Rank 20** | ⛔ **first**: until Blueprint has the shell, "node properties" has two homes and the extraction target is ambiguous. ⚠ **Atomic by necessity** — the old window claims `ai_details_blueprint` and `RegisterCore` throws on a duplicate |
 | **②** | ✅ **BUILT `2026-08-22` (`BP-432`)** — ⭐⭐ **`details.nodeproperties` on BTree + HSM**, `Shell/NodePropertiesDetailsView` + `Shell/NodePropertiesSource`, registered by the registrar for every perspective | ⭐ one view id, three perspectives; ⚠ the two sources reconciled as ① promised. ⛔⛔ **TWO of `InspectorWindow`'s arms moved, not one** — see the as-built note below |
+| **②b** | ✅ **BUILT `2026-08-22` (`BP-434`–`BP-437`)** — ⭐⭐⭐ **the asset-scoped arms leave `InspectorWindow`, and NONE of them becomes a Details view**: collision strip → **Diagnostics**, Rename…/Find References → **the Asset Browser row menu**, Go to Definition → **deleted**. 📄 **§7.4a** carries the routing and the user's ruling | ⛔⛔ **Not in `BP-399`'s original five rows, and it had to be:** `BP-431` measured that `S5` would strand them. ⭐ Doing it here is what **unblocks ⑤** |
 | **③** | ⭐ **`details.utility`** — from `InspectorWindow`'s utility arm | ⚠ 📐 that arm is a **STUB** *(a heading and `"Option N, Consideration M"`, then `// Curve inspector panel wired in a later phase`)* ⇒ ⭐ port it honestly as a stub, ⛔ do not pretend it is a feature |
 | **④** | ⛔ **`details.parametersync`** — from `InspectorWindow`'s `PARAMETER SYNCHRONIZATION` arm | ⚠ **LAST**, after the orchestrator wiring *(`R-99`)* — unchanged |
 | **⑤** | ⭐ **`L5` retires both windows** and removes `ai_inspector_*` from the shipped default layout | 📌 `L5`: *"per item, after its replacement is live"* |
@@ -871,6 +910,7 @@ existed to prevent.
 |---|---|
 | §4's row *"`BlueprintDetailsWindow` … ⚠ both arms become views"* | ⭐ **still true** — §7.3 ① makes it a dated, ordered commitment rather than an aside |
 | §6 `L3`'s *"Node properties"* row | ⭐ **superseded by §7.6 ②** — the row named two sources and no order; §7.6 gives both |
+| §7.4's *"`S5` cannot delete it until the header and the strip have a home (`BP-431`)"* | ⛔⛔ **SUPERSEDED by §7.4a.** ⭐ They have homes as of `S2b` — ⛔ and the premise underneath it *("a home" meant "a Details view")* was **wrong**: the user routed all three OUT of the panel. ⇒ ⭐ `S5` is blocked on `S3` alone |
 | `BP-427`'s claim that *"the design gates two of `BP-399`'s five rows"* | ⛔⛔ **WRONG, corrected here.** *"Do not delegate this one"* is a **strategy** constraint *(extract, don't wrap)*, ⛔ not a blocker. Only **parameter sync** is genuinely sequenced |
 
 ---
