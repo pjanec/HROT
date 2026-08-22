@@ -53,4 +53,18 @@ public static class PanelIds
     /// perspective, plus the Blueprints host's own ⇒ ⛔ **each needs its own address**; this is the KIND
     /// they share.</summary>
     public const string Watch = "watch";
+
+    /// <summary>
+    /// ⭐ The Details shell. ⚠⚠ <b>Earns a constant because a SECOND CLASS must agree with it</b> —
+    /// <c>DetailsViewWindow</c> is the float/pin twin of <c>DetailsWindow</c>. ⛔ Two literals that happen
+    /// to match today are not the same thing as one constant they both cite.
+    /// </summary>
+    public const string Details = "details";
+
+    /// <summary>
+    /// ⭐ The "My Blueprint" outline. ⚠⚠ <b>Two DIFFERENT implementations must agree</b>:
+    /// <c>AiMyBlueprintWindow</c> (BTree/HSM) and <c>BlueprintMyBlueprintWindow</c> (Blueprint host).
+    /// ⛔ The second is not converted yet — ⭐ when it is, it must cite THIS, not repeat the string.
+    /// </summary>
+    public const string MyBlueprint = "my-blueprint";
 }

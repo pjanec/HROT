@@ -78,7 +78,7 @@ public sealed class DetailsWindow
     /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Local literal, not a <c>PanelIds</c> constant — adding a
     /// cross-host constant is a <c>PanelIds.cs</c> change, which the sweep's STOP-AND-REPORT list names
     /// explicitly; flagged in the final report rather than done unilaterally.</summary>
-    internal const string Kind = "details";
+    internal const string Kind = Fdp.Diagnostics.Contracts.Panels.PanelIds.Details;
 
     // ────────────────────────────────────────────────────────────────────────────────────────────
     // ⭐⭐⭐ S1 — THE "PROPERTIES…" FORM, AS AN INJECTED DELEGATE.

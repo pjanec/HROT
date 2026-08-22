@@ -20,6 +20,7 @@ namespace Hrot.Blueprints.Tests.Editor;
 /// <para>⚠ <b>ONE class</b>: <c>PanelSnapshot</c> is process-global static state and xunit
 /// parallelises across CLASSES. Every case opens by resetting it.</para>
 /// </summary>
+[Collection(PanelSnapshotTestCollection.Name)]
 public sealed class TheBlueprintWatchDumpsItsRowsTests : IDisposable
 {
     public TheBlueprintWatchDumpsItsRowsTests()

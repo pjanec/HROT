@@ -152,7 +152,7 @@ public sealed class AiMyBlueprintWindow : ManagedWindow, Selection.IDetailsSurfa
     /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Cross-host by rights (Blueprint has its own equivalent
     /// window), but stays a local literal rather than a <c>PanelIds</c> constant — <c>PanelIds.cs</c> is
     /// on the sweep's STOP-AND-REPORT list; flagged in the final report rather than edited unilaterally.</summary>
-    internal const string Kind = "my-blueprint";
+    internal const string Kind = Fdp.Diagnostics.Contracts.Panels.PanelIds.MyBlueprint;
 
     private readonly BlackboardHostKind    _host;
     private readonly EditorSelectionStore? _store;
