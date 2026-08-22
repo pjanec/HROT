@@ -45,7 +45,7 @@ namespace Hrot.Editor.DebugApi
     /// scenario-list reads are thread-safe and may run off-thread.
     /// </para>
     /// </summary>
-    public sealed class DebugApiService
+    public sealed partial class DebugApiService
     {
         private readonly EntityRepository                _world;
         private readonly NetworkEntityMap                _entityMap;
@@ -92,6 +92,11 @@ namespace Hrot.Editor.DebugApi
         private readonly Hrot.BTree.Editor.Debug.BTreeDebugSession?    _btreeSession;
         private readonly Hrot.Hsm.Editor.Debug.HsmDebugSession?        _hsmSession;
         private readonly Hrot.Blueprints.Core.Debug.BlueprintDebugSession? _blueprintSession;
+
+        // MX1 (Group O) — id→(assetId, name) for the blueprints attached to an entity's blackboard.
+        // BlueprintTierSummary.Read needs it to turn a slot's int blueprintId into the asset Guid the
+        // debug session addresses variables by.
+        private readonly Fdp.Toolkit.Blueprints.BlueprintRegistry? _blueprintRegistry;
 
         // Group L — Attribute patch + StructEdit component edit
         private readonly JsonAttributeCompiler _attributeCompiler;
@@ -230,7 +235,8 @@ namespace Hrot.Editor.DebugApi
             IComponentEditService?                        componentEditSvc  = null,
             DebugPrimitiveBuffer?                         primitiveBuffer   = null,
             Fdp.Toolkit.Behavior.BehaviorRegistry?        behaviorRegistry  = null,
-            Hrot.UI.Common.Facades.IMissionEditorService? missionService    = null)
+            Hrot.UI.Common.Facades.IMissionEditorService? missionService    = null,
+            Fdp.Toolkit.Blueprints.BlueprintRegistry?     blueprintRegistry = null)
         {
             _world            = world            ?? throw new ArgumentNullException(nameof(world));
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
@@ -251,6 +257,7 @@ namespace Hrot.Editor.DebugApi
             _bpManager         = bpManager;
             _behaviorRegistry  = behaviorRegistry;
             _missionService    = missionService;
+            _blueprintRegistry = blueprintRegistry;
             _diffService       = diffService ?? new ComponentDiffService();
             _rrController      = rrController;
             _logSinks          = logSinks ?? Array.Empty<IMessageLogSource>();

@@ -290,6 +290,31 @@ public sealed class McpClient : IDisposable
             ["patch"] = patch.DeepClone(),
         }, ct);
 
+    // ── Group O — variable addressing (the watch's tuple, over HTTP) ───────────
+    //
+    // `asset` is the blueprint's NAME or its asset Guid, and may be omitted when the entity carries
+    // exactly one blueprint.
+
+    public Task<ApiResult> GetEntityVariablesAsync(long networkId, string? asset = null, CancellationToken ct = default)
+        => GetAsync($"/entities/{networkId}/variables"
+                    + (string.IsNullOrWhiteSpace(asset) ? "" : $"?asset={Uri.EscapeDataString(asset)}"), ct);
+
+    public Task<ApiResult> GetEntityVariableAsync(long networkId, string path, string? asset = null, CancellationToken ct = default)
+    {
+        var q = new List<string> { $"path={Uri.EscapeDataString(path)}" };
+        if (!string.IsNullOrWhiteSpace(asset)) q.Add($"asset={Uri.EscapeDataString(asset)}");
+        return GetAsync($"/entities/{networkId}/variable?" + string.Join("&", q), ct);
+    }
+
+    /// <summary>STAGES the write — it lands on the next advancing tick, not on the response.</summary>
+    public Task<ApiResult> StageEntityVariableAsync(
+        long networkId, string path, JsonNode value, string? asset = null, CancellationToken ct = default)
+    {
+        var body = new JsonObject { ["path"] = path, ["value"] = value.DeepClone() };
+        if (!string.IsNullOrWhiteSpace(asset)) body["asset"] = asset;
+        return PostAsync($"/entities/{networkId}/variable", body, ct);
+    }
+
     // ── Group M — focus / annotations ──────────────────────────────────────────
 
     public Task<ApiResult> FocusEntityAsync(long networkId, CancellationToken ct = default)

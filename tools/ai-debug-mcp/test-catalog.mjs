@@ -30,6 +30,10 @@ const EXPECTED_TOOLS = [
   'observe_trace', 'get_entity_trace',
   'get_attributes_schema', 'patch_attribute', 'edit_component',
   'focus_entity', 'add_annotation',
+  // Slice ① — discovery with schema (MX4a / MX7).
+  'list_behaviors', 'list_breakpoint_types',
+  // Slice ② — Group O, variable addressing (MX1): the watch's own tuple, over HTTP.
+  'list_entity_variables', 'get_entity_variable', 'stage_entity_variable',
 ];
 
 let passed = 0;

@@ -1637,11 +1637,19 @@ namespace Hrot.Editor
                         editorTracer:     _debugApiTracer,
                         btreeSession:     _btreeDebugSession,
                         hsmSession:       _hsmDebugSession,
+                        // ⛔ MX1 measured this MISSING: BTree and HSM were handed their sessions here
+                        // and Blueprint's — built ~400 lines above — was not, so every Group O call
+                        // answered "no blueprint debug session is available in this editor". A held
+                        // dependency that is not passed is the silent-default defect, not a default.
+                        blueprintSession: _blueprintDebugSession,
                         primitiveBuffer:  _gizmoBuffer,
                         // MX4a — behaviour discovery. The registry carries behaviourId -> ParamsDtoType,
                         // so GET /behaviors emits the schema from the same definition the runtime parses
                         // params with. Held here already; passing it is the whole wiring.
-                        behaviorRegistry: behaviorRegistry);
+                        behaviorRegistry: behaviorRegistry,
+                        // MX1 (Group O): turns a blackboard slot's int blueprintId into the asset Guid
+                        // the debug session addresses variables by.
+                        blueprintRegistry: _blueprintRegistry);
 
                     _debugApiService = debugService;
                     _debugApiHost.AttachService(debugService);

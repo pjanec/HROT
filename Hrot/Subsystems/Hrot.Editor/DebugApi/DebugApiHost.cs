@@ -543,6 +543,59 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(400, error, DebugApiHints.Component) : Ok(node);
             }));
 
+            // ── Group O — Variable addressing (MX1): the watch's own tuple, over HTTP ─────────
+            //
+            // A variable is addressed as (entity, asset, path) — never as a component and a byte
+            // offset — so an agent reads and writes what the designer sees in the Details panel.
+            // `asset` accepts the blueprint's NAME or its asset Guid, and may be omitted when the
+            // entity carries exactly one blueprint.
+            _routes.Add(new("GET", "/entities/{networkId}/variables", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                var asset = ctx.Query("asset");
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetEntityVariables(id, asset);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Variable)
+                        : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("GET", "/entities/{networkId}/variable", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                var asset = ctx.Query("asset");
+                var path  = ctx.Query("path");
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetEntityVariable(id, asset, path);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Variable)
+                        : Ok(result);
+                });
+            }));
+
+            // ⭐ STAGES, never writes through: the value lands on the next advancing tick, exactly as
+            //   a Details-panel edit does. Answering 200 with pending:true is the honest report.
+            _routes.Add(new("POST", "/entities/{networkId}/variable", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                var asset = ctx.Body?["asset"]?.GetValue<string>();
+                var path  = ctx.Body?["path"]?.GetValue<string>();
+                var value = ctx.Body?["value"];
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.StageEntityVariable(id, asset, path, value);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Variable)
+                        : Ok(result);
+                });
+            }));
+
             // Group M — Focus + Annotations (ADA-BATCH-14)
             _routes.Add(new("POST", "/entities/{networkId}/focus", async ctx =>
             {
