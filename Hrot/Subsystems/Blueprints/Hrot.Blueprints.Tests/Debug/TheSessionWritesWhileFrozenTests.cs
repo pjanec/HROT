@@ -67,16 +67,27 @@ public sealed class TheSessionWritesWhileFrozenTests
     /// source of "paused". ⛔ <b>Not a weakening</b>: a running simulation is still refused, and
     /// <see cref="TheSessionsOwnPauseFlagIsNoLongerTheGate"/> pins the half that changed.</para>
     /// </summary>
+    /// <remarks>
+    /// ⚠⚠ <b><c>W3</c> INVERTED THIS RAIL.</b> It asserted <i>"while the clock advances the write is
+    /// REFUSED and nothing is staged"</i>. 📌 <c>R-126</c>, the user: <i>"running is not a reason to
+    /// refuse, it is a reason to STAGE"</i> ⇒ the refusal is deleted and the bytes queue for the
+    /// kernel's drain. ⭐ <b>The half worth keeping is asserted harder</b>: the payload must be the
+    /// designer's, at their offset — a "stages something" rail would pass for an implementation that
+    /// queued the wrong bytes.
+    /// </remarks>
     [Fact]
-    public void WhileTheClockAdvances_TheWriteIsRefused_AndNothingIsStaged()
+    public void WhileTheClockAdvances_TheWriteIsAcceptedAndStaged()
     {
         var (session, manager) = Session(
             clockHalted: false, breakpointHolding: false, sessionPaused: false);
 
-        Assert.False(session.TryWriteWorkingStateField(
-            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, new byte[4]));
-        Assert.Empty(manager.Staged);
-        Assert.Empty(manager.WroteNow);
+        Assert.True(session.TryWriteWorkingStateField(
+            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, BitConverter.GetBytes(7)));
+
+        var staged = Assert.Single(manager.Staged);
+        Assert.Equal(typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), staged.ComponentType);
+        Assert.Equal(4, staged.ByteOffset);
+        Assert.Equal(7, BitConverter.ToInt32(staged.Bytes));
     }
 
     /// <summary>
@@ -85,16 +96,26 @@ public sealed class TheSessionWritesWhileFrozenTests
     /// one flag for another, it moved the question to the clock — so a stale session flag can no longer
     /// admit a write into an advancing simulation either.
     /// </summary>
-    [Fact]
-    public void WhileTheClockAdvances_AStaleSessionPauseFlagDoesNotAdmitTheWrite()
+    /// <remarks>
+    /// ⭐⭐ <b><c>W3</c> kept this rail's POINT and reversed its sign.</b> It asserted that a stale
+    /// session flag could not ADMIT a write; now nothing is refused, so the checkable property is the
+    /// stronger one: <b>the session's flag changes NOTHING in either direction</b> — the same bytes
+    /// stage whether it claims paused or not. ⛔ A gate re-introduced on that flag reddens here.
+    /// </remarks>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheSessionsOwnPauseFlagChangesNothing(bool sessionPaused)
     {
         var (session, manager) = Session(
-            clockHalted: false, breakpointHolding: false, sessionPaused: true);
+            clockHalted: false, breakpointHolding: false, sessionPaused: sessionPaused);
 
-        Assert.False(session.TryWriteWorkingStateField(
-            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, new byte[4]));
-        Assert.Empty(manager.Staged);
-        Assert.Empty(manager.WroteNow);
+        Assert.True(session.TryWriteWorkingStateField(
+            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, BitConverter.GetBytes(7)));
+
+        var staged = Assert.Single(manager.Staged);
+        Assert.Equal(4, staged.ByteOffset);
+        Assert.Equal(7, BitConverter.ToInt32(staged.Bytes));
     }
 
     /// <summary>
@@ -127,12 +148,15 @@ public sealed class TheSessionWritesWhileFrozenTests
     /// closes: <i>edit a working-state variable while paused from the toolbar → the value does not
     /// change</i>.</para>
     ///
-    /// <para>⛔ <b>Staging here would be the bug, not a safe alternative</b> — nothing drains under a
-    /// toolbar pause *(<c>AS-5</c>)*, so a staged write sits in the queue until the next breakpoint
-    /// step, which may never come. ⇒ ⭐ the rail asserts BOTH halves: it landed, and it did not queue.</para>
+    /// <para>⚠⚠ <b><c>W3</c> REVERSED THIS, and the reversal is the batch's user-visible change.</b>
+    /// 📌 <c>MIN</c>'s rail said <i>"it landed, and it did not queue"</i>, because <c>AS-5</c> had
+    /// measured that <b>nothing drained under a toolbar pause</b> — so staging would have been a write
+    /// that never happens. ⭐ The kernel's <c>PreFrame</c> drain now exists *(design §8)*, so staging is
+    /// the honest path and <c>R-130</c>'s yellow becomes true. ⛔ <c>WriteFieldNow</c> is gone; there is
+    /// no "lands now" arm to assert.</para>
     /// </summary>
     [Fact]
-    public void UnderAToolbarPause_TheWriteLandsNow_AndIsNotStaged()
+    public void UnderAToolbarPause_TheWriteIsStagedRatherThanApplied()
     {
         var (session, manager) = Session(
             clockHalted: true, breakpointHolding: false, sessionPaused: false);
@@ -140,14 +164,10 @@ public sealed class TheSessionWritesWhileFrozenTests
         Assert.True(session.TryWriteWorkingStateField(
             default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, BitConverter.GetBytes(7)));
 
-        var wrote = Assert.Single(manager.WroteNow);
-        Assert.Equal(typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), wrote.ComponentType);
-        Assert.Equal(4, wrote.ByteOffset);
-        Assert.Equal(7, BitConverter.ToInt32(wrote.Bytes));
-
-        // ⛔⛔ AS-5: nothing drains the queue under a toolbar pause, so a staged write would be a
-        //    write that never happens — the exact symptom MIN exists to end.
-        Assert.Empty(manager.Staged);
+        var staged = Assert.Single(manager.Staged);
+        Assert.Equal(typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), staged.ComponentType);
+        Assert.Equal(4, staged.ByteOffset);
+        Assert.Equal(7, BitConverter.ToInt32(staged.Bytes));
     }
 
     /// <summary>
@@ -169,7 +189,7 @@ public sealed class TheSessionWritesWhileFrozenTests
 
         Assert.True(session.TryWriteWorkingStateField(
             default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 0, new byte[4]));
-        Assert.Single(manager.WroteNow);
+        Assert.Single(manager.Staged);   // ⭐ W3: staged, not written-now — WriteFieldNow is gone
     }
 
     /// <summary>
@@ -290,8 +310,9 @@ public sealed class TheSessionWritesWhileFrozenTests
 
         public bool IsClockHalted() => ClockHalted;
 
-        public void WriteFieldNow(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
-            => WroteNow.Add((componentType, byteOffset, bytes.ToArray()));
+        // ⛔ W3 — `WriteFieldNow` is gone from IDataBreakpointManager, so this double no longer
+        //    implements it. ⭐ `WroteNow` is kept and stays EMPTY by construction: a rail asserting
+        //    "nothing was written immediately" is now guaranteed by the compiler, not by the fake.
 
         public void StageMutation(Entity entity, Type componentType, object componentValue)
             => throw new InvalidOperationException(

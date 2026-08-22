@@ -74,10 +74,18 @@ public static class VariableEditCommit
         Ok,
 
         /// <summary>
-        /// ⛔ The sim is up. ⭐ Not an error — the LIVE target is row <c>59c</c>'s, and refusing is the
-        /// honest answer until the surgical write exists.
+        /// ⛔ <b>The run state does not route the edit to the arm that was asked for.</b>
+        ///
+        /// <para>⭐⭐⭐ <b><c>W3</c> renamed this from <c>RefusedRunning</c>, and the rename IS the
+        /// change</b> — 📌 <c>R-126</c> deletes <i>"the sim is running"</i> as a reason to refuse, so a
+        /// member still called <c>RefusedRunning</c> would name a rule that no longer exists.</para>
+        ///
+        /// <para>⭐ <b>Two sites produce it, and both are honest:</b> <see cref="CommitInitialValue"/>
+        /// asked for the JSON arm while the run state routes live; and <see cref="Commit"/>'s
+        /// <c>Replay</c> arm, which has no production producer *(see <see cref="Target.Nowhere"/>)*.
+        /// ⛔ <b>Running no longer reaches either.</b></para>
         /// </summary>
-        RefusedRunning,
+        RefusedRunState,
 
         /// <summary>⛔ The row cannot be written at all — node-owned, passthrough, or stale.</summary>
         RefusedReadOnly,
@@ -106,7 +114,7 @@ public static class VariableEditCommit
 
         /// <summary>
         /// ⛔ The write target was the LIVE blackboard and no live writer was supplied, or it refused.
-        /// ⭐ Distinct from <see cref="RefusedRunning"/>: the run state ALLOWED the write and the
+        /// ⭐ Distinct from <see cref="RefusedRunState"/>: the run state ALLOWED the write and the
         /// mechanism did not arrive — 📌 exactly the silent-default shape, so it gets its own word.
         /// </summary>
         LiveWriteUnavailable,
@@ -131,10 +139,27 @@ public static class VariableEditCommit
         /// <summary>⭐ Not running ⇒ the declaration's initial value, as JSON.</summary>
         InitialValue,
 
-        /// <summary>⭐ Frozen on a breakpoint or stepping ⇒ the live blackboard, surgically.</summary>
+        /// <summary>
+        /// ⭐ <b>The live blackboard, surgically — STAGED.</b>
+        /// ⭐⭐⭐ <c>W3</c>: this is now the target for <b>running as well as paused</b>
+        /// *(<c>R-126</c>)*, and the bytes are pulled in by the kernel's <c>PreFrame</c> drain at the
+        /// next advancing tick rather than written on the spot.
+        /// </summary>
         LiveBlackboard,
 
-        /// <summary>⛔ Free-running or replaying ⇒ nowhere. 📌 Ruling 15.</summary>
+        /// <summary>
+        /// ⛔ <b>Replay ⇒ nowhere.</b>
+        ///
+        /// <para>⚠⚠ <b><c>W3</c> NARROWED this arm — it used to catch free-running too.</b>
+        /// 📌 <c>R-126</c>: <i>"running is not a reason to refuse, it is a reason to STAGE."</i></para>
+        ///
+        /// <para>📐 <b>Measured, and stated so nobody reads this arm as live behaviour:</b>
+        /// <c>RunStateSource.Resolve</c> yields only <c>Planning</c> / <c>Paused</c> / <c>Running</c> —
+        /// ⛔ <b><c>Replay</c> has NO production producer</b>. ⭐ The arm is kept because
+        /// <c>VariableEditPolicy.Resolve</c> already denies the dialog outright in <c>Replay</c>, and a
+        /// second gate agreeing with the first costs nothing; ⛔ it is not a claim that anyone can
+        /// reach it.</para>
+        /// </summary>
         Nowhere,
     }
 
@@ -152,10 +177,27 @@ public static class VariableEditCommit
     /// the one thing <c>ModeFor</c> does NOT answer — it asks <i>"which value?"</i>, this asks
     /// <i>"may I, and where?"</i> — so it is layered ON TOP rather than duplicated.</para>
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>W3</c> (<c>2026-08-22</c>) — RUNNING NOW LANDS ON THE LIVE ARM.</b>
+    /// 📄 <c>DESIGN_Staged_Live_Write.md</c> §1's run-state table *(<b>running</b>: before <i>refused</i>,
+    /// after <i>stages → yellow → drains next tick</i>)*.
+    ///
+    /// <para>⚠⚠ <b>This SUPERSEDES ruling 15's narrowing, which the summary above still quotes.</b>
+    /// 🔒 Ruling 15 said the edit <i>"makes sense ONLY if sim is paused… at that time nothing else
+    /// changes the blackboard."</i> ⛔ <b><c>R-126</c>, later and from the same user, overrules it
+    /// directly:</b> <i>"I do not understand how comes that something can be unwritable… we should be
+    /// able to write anything anywhere"</i> ⇒ <i>"<c>RefusedRunning</c> and
+    /// <c>LiveWriteRefusal.NotFrozen</c> are deleted."</i></para>
+    ///
+    /// <para>⭐ <b>Ruling 15's REASON is honoured rather than discarded.</b> Its worry was that a
+    /// running sim overwrites the designer's bytes. ⚠ It does not any more: the write STAGES, and the
+    /// kernel's <c>PreFrame</c> drain applies it at the top of a tick — <b>before</b> <c>Input</c> and
+    /// before any behaviour runs. ⇒ nothing races it within that tick.</para>
+    /// </remarks>
     public static Target TargetFor(VariableRunState runState)
         => VariableValue.ModeFor(runState) == VariableValueMode.Initial ? Target.InitialValue
-         : runState == VariableRunState.Paused                          ? Target.LiveBlackboard
-         :                                                                Target.Nowhere;
+         : runState == VariableRunState.Replay                          ? Target.Nowhere
+         :                                                                Target.LiveBlackboard;
 
     /// <summary>
     /// ⭐⭐ Commits <paramref name="session"/> and writes the result as the declaration's INITIAL
@@ -183,7 +225,7 @@ public static class VariableEditCommit
         if (!row.CanEverBeWritten) return Outcome.RefusedReadOnly;
 
         // ⭐ ONE question, asked in one place: is the initial value what this edit means?
-        if (TargetFor(runState) != Target.InitialValue) return Outcome.RefusedRunning;
+        if (TargetFor(runState) != Target.InitialValue) return Outcome.RefusedRunState;
 
         // ⭐⭐⭐ Batch 98 (98a) — ASK THE ROW FIRST, exactly as ResolveEntry does for READING.
         // 🔴🔴 Measured: the asset arm below type-tests store.ActiveAsset against
@@ -298,8 +340,10 @@ public static class VariableEditCommit
                     : new Result(Outcome.LiveWriteUnavailable, attempt.Reason);
 
             default:
-                // ⛔ Free-running or replaying. 📌 Ruling 15 — a decision, not a gap.
-                return Result.Of(Outcome.RefusedRunning);
+                // ⛔ REPLAY ONLY, since W3. 📌 R-126 deleted the free-running refusal; and 📐 Replay has
+                //    no production producer (RunStateSource.Resolve yields Planning/Paused/Running), so
+                //    this arm is a second agreement with VariableEditPolicy rather than a live path.
+                return Result.Of(Outcome.RefusedRunState);
         }
     }
 }

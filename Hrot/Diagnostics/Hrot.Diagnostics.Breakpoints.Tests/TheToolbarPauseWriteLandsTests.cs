@@ -52,32 +52,36 @@ public sealed class TheToolbarPauseWriteLandsTests
     /// and it stands in for the toolbar, which sets the scale to zero.</summary>
     private sealed class FixedDeltaClock : ITimeController
     {
-        private readonly float _dt;
         private long _frame;
-        public FixedDeltaClock(float dt) => _dt = dt;
+        public FixedDeltaClock(float dt) => Dt = dt;
+
+        /// <summary>⭐ <c>W3</c>/<c>W5</c> made this SETTABLE: the whole point of a staged write is that
+        /// it waits for an ADVANCING frame, so a rail has to be able to start the clock.</summary>
+        public float Dt { get; set; }
 
         public GlobalTime Update()
         {
             _frame++;
             return new GlobalTime
             {
-                DeltaTime   = _dt,
-                TotalTime   = _dt * _frame,
+                DeltaTime   = Dt,
+                TotalTime   = Dt * _frame,
                 FrameNumber = _frame,
-                TimeScale   = _dt > 0f ? 1f : 0f,
+                TimeScale   = Dt > 0f ? 1f : 0f,
             };
         }
 
         public void SetTimeScale(float scale) { }
-        public float GetTimeScale() => _dt > 0f ? 1f : 0f;
+        public float GetTimeScale() => Dt > 0f ? 1f : 0f;
         public TimeMode GetMode() => TimeMode.Continuous;
-        public GlobalTime GetCurrentState() => new GlobalTime { DeltaTime = _dt, FrameNumber = _frame };
+        public GlobalTime GetCurrentState() => new GlobalTime { DeltaTime = Dt, FrameNumber = _frame };
         public void SeedState(GlobalTime state) { }
         public void Dispose() { }
     }
 
     private sealed record Rig(
-        DataBreakpointManager Manager, EntityRepository Live, ModuleHostKernel Kernel, Entity Target);
+        DataBreakpointManager Manager, EntityRepository Live, ModuleHostKernel Kernel, Entity Target,
+        FixedDeltaClock Clock);
 
     /// <summary>
     /// ⭐ A world whose clock is stopped the way the TOOLBAR stops it: <c>DeltaTime = 0</c> pushed into
@@ -85,7 +89,12 @@ public sealed class TheToolbarPauseWriteLandsTests
     /// <see cref="DataBreakpointManager.IsPaused"/> stays <c>false</c> and <c>ActiveView</c> IS the live
     /// repository — which is the whole reason the immediate arm is safe here.
     /// </summary>
-    private static Rig Halted(float dt = 0f)
+    /// <param name="drain">
+    /// ⭐⭐⭐ <c>W3</c>/<c>W5</c> — whether this host registers the kernel's <c>ResumeAndDrainSystem</c>,
+    /// exactly as <c>EditorSubsystem</c> does *(design §8)*. ⛔ <c>false</c> is not a convenience: it is
+    /// the NEGATIVE control for a host that forgot the wire, and one rail below drives it deliberately.
+    /// </param>
+    private static Rig Halted(float dt = 0f, bool drain = true)
     {
         ComponentTypeRegistry.Clear();
         var live    = new EntityRepository();
@@ -100,14 +109,21 @@ public sealed class TheToolbarPauseWriteLandsTests
         live.AddComponent(entity, new ToolbarPausedComp { Edited = 1, Untouched = 10 });
         preTick.SyncFrom(live);
 
+        var clock  = new FixedDeltaClock(dt);
         var kernel = new ModuleHostKernel(live, new EventAccumulator());
-        kernel.SetTimeController(new FixedDeltaClock(dt));
-        kernel.Initialize();
+        kernel.SetTimeController(clock);
 
         var manager = new DataBreakpointManager(
             live, preTick, new DebugSnapshotProvider(preTick), new MockDebugTimeController());
 
-        return new Rig(manager, live, kernel, entity);
+        // ⭐⭐ The production wire, mirrored — 📌 R-67: a rail that builds its own composition root
+        //    cannot see a composition-root defect, so this rig registers what EditorSubsystem:1139
+        //    registers rather than reaching past it.
+        if (drain) kernel.RegisterGlobalSystem(new ResumeAndDrainSystem(manager));
+
+        kernel.Initialize();
+
+        return new Rig(manager, live, kernel, entity, clock);
     }
 
     // ══ the clock is the one source of "paused" (R-126 / AS-1b) ══════════════
@@ -148,23 +164,31 @@ public sealed class TheToolbarPauseWriteLandsTests
         Assert.True(manager.IsClockHalted());
     }
 
-    // ══ THE ONE THAT MATTERS: it lands, and it STAYS ═════════════════════════
+    // ══ THE ONE THAT MATTERS: it STAGES, and it lands when the clock moves ═══
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The write lands, and it is still there N paused frames later.</b>
+    /// ⭐⭐⭐ <b><c>W3</c> — a toolbar-paused edit STAGES, stays staged while the clock is stopped, and
+    /// lands on the first ADVANCING frame.</b>
     ///
-    /// <para>📌 <c>P6′</c> — nothing recomputes at <c>dt = 0</c>, so a value written under a toolbar
-    /// pause must not drift. ⚠ <b>Both halves are asserted deliberately</b>: a rail that only checked
-    /// frame 1 would pass for an implementation that lands the write and then lets the next frame
-    /// overwrite it, which is precisely the failure mode a direct write into a ticking world would
-    /// have.</para>
+    /// <para>⚠⚠ <b>THIS RAIL WAS INVERTED BY <c>W3</c>, deliberately, and the old claim was not
+    /// wrong — it was superseded.</b> It used to assert
+    /// <i>"<c>WriteFieldNow</c> lands immediately and stays across N paused frames"</i>.
+    /// 📄 <c>DESIGN_Staged_Live_Write.md</c> §1's table replaces that behaviour on purpose:
+    /// <b>paused ⇒ stages → 🟡 yellow → drains on the next step/resume</b>. 📌 <c>R-130</c> is why —
+    /// <i>"yellow is an indication of staged change; makes no sense if the value is directly written
+    /// now"</i> — a direct write is never in the pending set, so the panel could never show it.</para>
+    ///
+    /// <para>⭐ <b>Both halves still matter, for the mirrored reason.</b> The old rail checked the value
+    /// did not DRIFT after landing; this one checks it does not LAND EARLY — a drain that ignored
+    /// <c>deltaTime</c> would apply the edit while the designer was still paused, which defeats
+    /// staging and would make the yellow lie in the other direction.</para>
     ///
     /// <para>⭐ And the neighbouring field is checked too — 📌 <c>R-65</c>: <c>Blackboard1024</c> is ONE
     /// component shared by BTree, HSM and Blueprint at disjoint offsets, so a write that quietly took
     /// the whole-component path would revert another subsystem's bytes with no diagnostic.</para>
     /// </summary>
     [Fact]
-    public void UnderAToolbarPause_TheWriteLands_AndStaysAcrossPausedFrames()
+    public void UnderAToolbarPause_TheEditStages_AndLandsOnTheFirstAdvancingFrame()
     {
         var rig = Halted();
 
@@ -173,68 +197,75 @@ public sealed class TheToolbarPauseWriteLandsTests
         Assert.True(rig.Manager.IsClockHalted());
         Assert.Same(rig.Live, rig.Manager.ActiveView);
 
-        rig.Manager.WriteFieldNow(
+        rig.Manager.StageFieldMutation(
             rig.Target, typeof(ToolbarPausedComp), Edited, BitConverter.GetBytes(4242));
 
-        // ⭐⭐⭐ NO FRAME HAS RUN, and it is already there — EntityCommandBuffer.Playback is
-        //    SYNCHRONOUS, so WriteFieldNow flushes its own scratch buffer before returning.
-        // ⛔ This assertion is the one that distinguishes the two mechanisms: the rejected variant
-        //    (record into the repository's per-thread buffer and let the kernel flush it) would be
-        //    RED here and green one Update() later.
-        Assert.Equal(4242, rig.Live.GetComponent<ToolbarPausedComp>(rig.Target).Edited);
-
-        rig.Kernel.Update();
-        Assert.Equal(4242, rig.Live.GetComponent<ToolbarPausedComp>(rig.Target).Edited);
-
-        // ⭐ …and it is still 4242 several paused frames later.
+        // ⭐⭐⭐ STAGED, NOT APPLIED — and it stays that way for as long as the clock is stopped.
+        //    📌 R-130: this is exactly the window in which StagedWriteView paints the row yellow.
+        Assert.Equal(1, rig.Manager.PendingMutationsCount);
         for (int i = 0; i < 5; i++) rig.Kernel.Update();
+        Assert.Equal(1,    rig.Manager.PendingMutationsCount);
+        Assert.Equal(1,    rig.Live.GetComponent<ToolbarPausedComp>(rig.Target).Edited);
+
+        // ⭐⭐ The designer un-pauses. ONE advancing frame is enough.
+        rig.Clock.Dt = 0.016f;
+        rig.Kernel.Update();
+
         var after = rig.Live.GetComponent<ToolbarPausedComp>(rig.Target);
         Assert.Equal(4242, after.Edited);
+        Assert.Equal(0,    rig.Manager.PendingMutationsCount);   // ⭐ the auto-clear W4's yellow rides on
 
         // ⛔ R-65: the field beside it is untouched — the write was surgical, not a component clobber.
         Assert.Equal(10, after.Untouched);
     }
 
     /// <summary>
-    /// ⛔⛔ <b>It does NOT go through the pending queue.</b> 📌 <c>AS-5</c>: nothing drains that queue
-    /// under a toolbar pause — the drain runs only on <c>RequestStep</c>/<c>RequestContinue</c>. ⇒ ⭐ a
-    /// staged write here would be a write that never happens, which is the exact symptom <c>MIN</c>
-    /// exists to end, so "it landed" is not enough: it must not have queued.
+    /// ⛔⛔ <b>A HOST THAT DID NOT WIRE THE DRAIN NEVER APPLIES THE EDIT — and that is the cost of
+    /// <c>W3</c>, stated rather than discovered later.</b>
+    ///
+    /// <para>⚠⚠ <b>This rail replaces <c>TheImmediateWriteDoesNotQueueAnythingForADrainThatWillNeverRun</c>,
+    /// whose premise <c>W3</c> reversed.</b> That rail existed because <c>AS-5</c> measured that
+    /// <b>nothing drained the queue under a toolbar pause</b> — so <c>MIN</c> wrote immediately rather
+    /// than queue into a void. ⭐ The drain now exists, so queueing is right; ⛔ <b>but only where it is
+    /// registered.</b></para>
+    ///
+    /// <para>📐 <b>Measured, and it is a real second host:</b> <c>CgfSubsystem</c> builds a
+    /// <c>DataBreakpointManager</c> and registers <c>DebugSnapshotProvider</c> + <c>DataBreakpointSystem</c>
+    /// — 📌 <b>this batch added its <c>ResumeAndDrainSystem</c> registration for exactly this
+    /// reason.</b> ⭐ A third host added later reddens here rather than losing edits silently.</para>
     /// </summary>
     [Fact]
-    public void TheImmediateWriteDoesNotQueueAnythingForADrainThatWillNeverRun()
+    public void WithNoDrainRegistered_AStagedEditNeverLands()
     {
-        var rig = Halted();
+        var rig = Halted(dt: 0.016f, drain: false);
 
-        rig.Manager.WriteFieldNow(
+        rig.Manager.StageFieldMutation(
             rig.Target, typeof(ToolbarPausedComp), Edited, BitConverter.GetBytes(4242));
 
-        Assert.Equal(0, rig.Manager.PendingMutationsCount);
+        for (int i = 0; i < 5; i++) rig.Kernel.Update();
+
+        Assert.Equal(1, rig.Manager.PendingMutationsCount);   // ⛔ still waiting, for ever
+        Assert.Equal(1, rig.Live.GetComponent<ToolbarPausedComp>(rig.Target).Edited);
     }
 
     /// <summary>
-    /// ⭐⭐ <b>The BREAKPOINT arm still STAGES — <c>MIN</c>'s new branch did not take its work away.</b>
+    /// ⭐⭐ <b>The BREAKPOINT path still works, and <c>W5</c> made its old caveat obsolete.</b>
     ///
-    /// <para>📌 <c>R-63</c>, and it is the reason the two arms exist: <c>OnHit</c> rewinds the live repo
-    /// to the pre-tick snapshot, and <c>RequestStep</c>/<c>RequestContinue</c> restore it from the
-    /// POST-tick snapshot and drain <b>afterwards</b>. ⇒ ⛔ a direct write under a breakpoint would be
-    /// erased by that restore. ⚠ This rail is here because <c>MIN</c> introduced a second path out of
-    /// the same method, and "the other arm still behaves" is exactly what a new branch can break.</para>
+    /// <para>📌 <c>R-63</c>: <c>OnHit</c> rewinds the live repo to the pre-tick snapshot, and
+    /// <c>RequestContinue</c> restores it from the POST-tick snapshot. ⇒ ⛔ a direct write under a
+    /// breakpoint would be erased by that restore, which is why staging was always right here.</para>
     ///
-    /// <para>⚠⚠ <b>WHAT THIS RAIL DOES NOT COVER, stated so nobody reads it as more than it is</b>
-    /// *(📌 <c>M-29</c>)*: it calls <see cref="DataBreakpointManager.RequestContinue"/> <b>directly</b>.
-    /// 📐 <b>Re-measured for <c>MIN</c></b> *(<c>M-41</c>, §M — measured, not quoted)</b>:
-    /// <c>DrainPendingMutations</c> has <b>two</b> call sites, both inside this class
-    /// *(<c>RequestStep</c>, <c>RequestContinue</c>)*, and <b>no production code outside
-    /// <c>DataBreakpointManager</c> calls either request</b> — the editor's own Continue goes through
-    /// <c>_timeController.RequestResume()</c> and never tells the queue. ⇒ ⛔ <b>this rail proves the
-    /// MANAGER's path works; it cannot prove the designer's Continue button reaches it.</b>
-    /// ⭐⭐ <b>That is precisely why the TOOLBAR arm writes instead of staging</b>: staging there would
-    /// have turned <i>"refused with a wrong reason"</i> into <i>"accepted and silently discarded"</i>.
-    /// 📌 The breakpoint half is <c>Q48-C</c> / <c>W1</c>–<c>W5</c>, ⛔ explicitly not <c>MIN</c>'s.</para>
+    /// <para>⭐⭐⭐ <b><c>W5</c> RESOLVED THE CAVEAT THIS RAIL USED TO CARRY.</b> It said, at length:
+    /// <i>"no production code outside <c>DataBreakpointManager</c> calls either request — the editor's
+    /// own Continue goes through <c>_timeController.RequestResume()</c> and never tells the queue ⇒ this
+    /// rail proves the MANAGER's path works; it cannot prove the designer's Continue button reaches
+    /// it."</i> ⚠ That was true while the drain lived INSIDE <c>RequestContinue</c>. ⭐ <c>W5</c> moved
+    /// it out: the drain is a <b>PULL from the tick loop</b> *(<c>R-126</c>)*, so it does not matter
+    /// which path un-paused the clock — ⛔ <b>there is no longer a button that can fail to reach
+    /// it.</b></para>
     /// </summary>
     [Fact]
-    public void UnderABreakpoint_TheWriteIsStillStagedAndSurvivesTheResumeRestore()
+    public void UnderABreakpoint_TheEditIsStagedAndSurvivesTheResumeRestore()
     {
         var rig = Halted();
 
@@ -250,10 +281,48 @@ public sealed class TheToolbarPauseWriteLandsTests
             rig.Target, typeof(ToolbarPausedComp), Edited, BitConverter.GetBytes(4242));
         Assert.Equal(1, rig.Manager.PendingMutationsCount);
 
-        // ⭐ Resume restores from the post-tick snapshot and THEN drains; the kernel's flush applies it.
+        // ⭐⭐ Resume restores from the post-tick snapshot and does NOT drain (W5). The clock then
+        //    advances and the kernel's PreFrame system pulls the edit in.
         rig.Manager.RequestContinue();
+        Assert.Equal(1, rig.Manager.PendingMutationsCount);   // ⛔ the resume path wrote nothing
+
+        rig.Clock.Dt = 0.016f;
         rig.Kernel.Update();
 
+        Assert.Equal(4242, rig.Live.GetComponent<ToolbarPausedComp>(rig.Target).Edited);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W5</c> — THE DRAIN SKIPS WHILE A BREAKPOINT HOLDS A REWOUND VIEW.</b>
+    /// 📌 <c>R-63</c>: while paused, <c>_liveRepo</c> IS the pre-tick snapshot, and
+    /// <c>RequestStep</c>/<c>RequestContinue</c> overwrite it wholesale from the post-tick one.
+    /// ⇒ ⛔ bytes drained into it before the restore are erased with no diagnostic.
+    ///
+    /// <para>⚠ Reachable for real: deterministic stepping advances the clock <b>while</b> a breakpoint
+    /// holds. ⭐ <c>ResumeAndDrainSystem</c> asks <c>IsRewound</c> for exactly this, and this rail is
+    /// what stops that guard being deleted as "defensive".</para>
+    /// </summary>
+    [Fact]
+    public void WhileABreakpointHoldsARewoundView_TheDrainWaits()
+    {
+        var rig = Halted(dt: 0.016f);
+
+        var bpId = rig.Manager.Add(new Breakpoint
+        {
+            Id = BreakpointId.Invalid, Enabled = true, OccurrenceThreshold = 1, DisplayName = "w5",
+        });
+        rig.Manager.OnHit(rig.Manager.AllBreakpoints.First(b => b.Id == bpId), rig.Target);
+        Assert.True(rig.Manager.IsPaused);
+
+        rig.Manager.StageFieldMutation(
+            rig.Target, typeof(ToolbarPausedComp), Edited, BitConverter.GetBytes(4242));
+
+        // ⛔ The clock is advancing, but the view is rewound — the drain must NOT run.
+        for (int i = 0; i < 3; i++) rig.Kernel.Update();
+        Assert.Equal(1, rig.Manager.PendingMutationsCount);
+
+        rig.Manager.RequestContinue();
+        rig.Kernel.Update();
         Assert.Equal(4242, rig.Live.GetComponent<ToolbarPausedComp>(rig.Target).Edited);
     }
 
@@ -261,30 +330,31 @@ public sealed class TheToolbarPauseWriteLandsTests
 
     /// <summary>
     /// 🔴🔴 <b>An out-of-range write is MEMORY CORRUPTION, not a wrong value</b> *(📌 <c>Q32</c> §2.1)*.
-    /// ⭐ <c>MIN</c> extracted the bounds check so the staging arm and the write-now arm share ONE
-    /// notion of "in range" — ⛔ two copies would be two answers, and the wrong one scribbles into the
-    /// next component.
+    ///
+    /// <para>⚠ <b><c>W3</c> re-pointed this at the staging arm</b>, which is now the only arm. ⭐ The
+    /// guard itself is unmoved: <c>MIN</c> extracted <c>GuardFieldWrite</c> so both arms shared ONE
+    /// notion of "in range", and removing the second arm did not change the first.</para>
     /// </summary>
     [Theory]
     [InlineData(-1)]
     [InlineData(1024)]
-    public void AnOutOfRangeImmediateWrite_ThrowsRatherThanScribbling(int byteOffset)
+    public void AnOutOfRangeStagedWrite_ThrowsRatherThanScribbling(int byteOffset)
     {
         var rig = Halted();
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => rig.Manager.WriteFieldNow(
+        Assert.Throws<ArgumentOutOfRangeException>(() => rig.Manager.StageFieldMutation(
             rig.Target, typeof(ToolbarPausedComp), byteOffset, BitConverter.GetBytes(4242)));
     }
 
-    /// <summary>⛔ A managed component has no byte layout to patch — loud, on both arms, because
-    /// forwarding to a whole-component write is <c>R-65</c>'s clobber wearing the surgical path's
-    /// name.</summary>
+    /// <summary>⛔ A managed component has no byte layout to patch — loud, because forwarding to a
+    /// whole-component write is <c>R-65</c>'s clobber wearing the surgical path's name.
+    /// ⚠ <c>W3</c> re-pointed this at the staging arm; the refusal is the same one.</summary>
     [Fact]
-    public void AManagedComponent_IsRefusedLoudlyByTheImmediateArmToo()
+    public void AManagedComponent_IsRefusedLoudlyByTheStagingArm()
     {
         var rig = Halted();
 
-        Assert.Throws<ArgumentException>(() => rig.Manager.WriteFieldNow(
+        Assert.Throws<ArgumentException>(() => rig.Manager.StageFieldMutation(
             rig.Target, typeof(string), 0, BitConverter.GetBytes(4242)));
     }
 }

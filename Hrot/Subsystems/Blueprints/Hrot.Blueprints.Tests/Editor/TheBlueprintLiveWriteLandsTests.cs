@@ -322,13 +322,16 @@ public sealed class TheBlueprintLiveWriteLandsTests
     /// makes the single source of "the simulation is not stopped".</para>
     /// </summary>
     [Fact]
-    public void WhileTheClockAdvances_NothingIsStaged()
+    public void WhileTheClockAdvances_TheWriteStagesThroughTheProductionWriter()
     {
+        // ⚠⚠ W3 INVERTED THIS. 📌 R-126: running is a reason to STAGE, so the writer must now succeed
+        //    and the bytes must be the designer's — see the sibling in TheSessionWritesWhileFrozenTests.
         var h = Harness(paused: false, clockHalted: false);
 
-        Assert.False(h.Writer.Write(Row(h.AssetId), BitConverter.GetBytes(4242)));
-        Assert.Empty(h.Manager.Staged);
-        Assert.Empty(h.Manager.WroteNow);
+        Assert.True(h.Writer.Write(Row(h.AssetId), BitConverter.GetBytes(4242)));
+
+        var staged = Assert.Single(h.Manager.Staged);
+        Assert.Equal(4242, BitConverter.ToInt32(staged.Bytes));
     }
 
     /// <summary>⛔ No active blueprint session ⇒ <c>false</c>, never a throw into the dialog.</summary>
@@ -411,14 +414,14 @@ public sealed class TheBlueprintLiveWriteLandsTests
         //    compiled offsets describe a layout it no longer has. ⭐ The read refuses this too.
         yield return ("stale layout", Harness(storedHash: StructureHash ^ 1));
 
-        // ⛔ The SIMULATION IS ADVANCING. ⭐ The one refusal the designer can act on, and the sentence
-        //    must be the one that says how.
-        // ⚠⚠ MIN CHANGED WHAT INDUCES THIS. It used to be `Harness(paused: false)` — the SESSION's own
-        //    pause flag. 📐 That flag is not the gate any more (R-126/AS-3): a toolbar pause never set
-        //    it, so this cause fired while the designer was demonstrably stopped and the sentence had
-        //    to be made deliberately vague to stay honest. ⇒ ⭐ inducing it through the CLOCK is what
-        //    lets the sentence say "pause it" again and be TRUE.
-        yield return ("simulation advancing", Harness(paused: false, clockHalted: false));
+        // ⛔ NO STAGING TARGET — the session holds no DataBreakpointManager, so there is nowhere to
+        //    queue the write.
+        // ⚠⚠ W3 REPLACED THE FOURTH CAUSE. It was "the simulation is advancing", induced through the
+        //    clock. 📌 R-126 DELETED that refusal outright — running now stages — so the cause no
+        //    longer exists and a rail inducing it would be asserting a rule the design removed.
+        // ⭐ The count stays FOUR because a real fourth cause took its place, ⛔ not because the rail
+        //   was relaxed: this one is the honest remainder of `TryWriteWorkingStateField`'s `false`.
+        yield return ("no staging target", Harness(withManager: false));
     }
 
     /// <summary>
@@ -478,10 +481,12 @@ public sealed class TheBlueprintLiveWriteLandsTests
         BlueprintDispatchKind kind = BlueprintDispatchKind.AiPrimitive,
         int? mapOffset = null,
         ulong? storedHash = null,
-        // ⭐ MIN — the run-state gate is the CLOCK now (R-126/AS-3), so a rail that wants a REFUSAL
-        //   must stop the pretending and start the simulation. ⚠ Default halted, so every rail written
-        //   before MIN keeps the behaviour it was written against.
-        bool clockHalted = true)
+        // ⭐ MIN — the run-state gate WAS the clock. ⚠ W3 deleted that gate entirely (R-126), so this
+        //   no longer induces a refusal; it is kept because rails still describe the world they run in.
+        bool clockHalted = true,
+        // ⭐⭐ W3 — build the session WITHOUT a staging target, which is the only `false`
+        //   TryWriteWorkingStateField can still return. ⛔ Default true: every existing rail is unchanged.
+        bool withManager = true)
     {
         var assetId = Guid.NewGuid();
 
@@ -521,7 +526,7 @@ public sealed class TheBlueprintLiveWriteLandsTests
         {
             ClockHalted = clockHalted,
         };
-        session.SetDataBreakpointManager(manager);
+        if (withManager) session.SetDataBreakpointManager(manager);
         if (paused) session.Pause();
 
         if (mapOffset is { } m)

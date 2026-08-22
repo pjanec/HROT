@@ -488,6 +488,41 @@ public sealed class DataBreakpointManager
 
     // ---- Step / Continue ------------------------------------------------
 
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ W5 — THE RESUME PATH IS NO LONGER A WRITE PATH. It restores; it does not drain.
+    //
+    // 📄 DESIGN_Staged_Live_Write.md §6's W5 row · DESIGN_Time_Architecture.md §10; 📌 R-63.
+    //
+    // 🔴 What stood here: BOTH methods restored the post-tick snapshot AND called
+    //    DrainPendingMutations. ⛔ After the kernel's PreFrame ResumeAndDrainSystem was wired
+    //    (design §8) that made TWO implementations of "apply the staged bytes" — ruling 9's exact
+    //    shape, and the one that is easy to miss because both were correct in isolation.
+    //
+    // ⭐⭐ Removing the drain here changes NO observable timing. 📐 Measured: DrainPendingMutations
+    //    writes into `((ISimulationView)repo).GetCommandBuffer()`, which the kernel plays back during
+    //    the tick — so the bytes already landed at the START OF THE NEXT TICK, which is exactly where
+    //    the PreFrame drain puts them. ⇒ same boundary, one implementation.
+    //
+    // ⭐⭐⭐ And it is what makes the TOOLBAR pause work at all (W3). A toolbar pause never calls
+    //    RequestStep/RequestContinue — no breakpoint is holding — so a drain that lived only here
+    //    could never apply that designer's edit. 📌 R-126's reason for making the drain a PULL:
+    //    "no path can forget to raise what is never raised."
+    //
+    // ⛔⛔ THE RESTORE STAYS, and that half of W5 is REPORTED rather than built. Three measured
+    //    reasons, in the order they were found:
+    //    ① 📐 THE SEAM IT WOULD MOVE THROUGH NO LONGER EXISTS. DESIGN_Time_Architecture.md §10 once
+    //       drew `ResumeAndDrainSystem --> IStagedWrites : restore-then-drain` with a
+    //       `RestorePostTick()` member — and that member was DELIBERATELY TRIMMED on 2026-08-21 while
+    //       W1/W2 were built. The shipped IStagedWrites is HasPending · IsRewound · DrainInto ·
+    //       TryGetPending. Putting it back means editing Fdp.Core AND ResumeAndDrainSystem.
+    //    ② ⛔ THAT IS A CROSS-LANE EDIT (R-128) — ResumeAndDrainSystem is the TIME lane's, and a
+    //       cross-lane edit is a STOP-and-report, not a judgement call.
+    //    ③ ⭐⭐ AND IT IS NOT A STAGED-WRITE CONCERN. The restore undoes THIS class's OWN rewind
+    //       (OnHit rewound _liveRepo to _preTickSnapshot); it is the manager's bookkeeping, not the
+    //       editor's write. R-63 reads "the resume path restores the post-tick snapshot AND DRAINS
+    //       ITSELF" — ⭐ the duplicate is the second half, and that is the half this batch removed.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
     /// <inheritdoc/>
     public void RequestStep()
     {
@@ -496,14 +531,12 @@ public sealed class DataBreakpointManager
         // Restore end-of-tick state (clean step -- no resimulation, no event injection).
         _liveRepo.SyncFrom(_postTickSnapshot);
 
-        // Apply staged mutations at the N+1 boundary.
-        DrainPendingMutations(_liveRepo);
-
         _timeController.RequestStepOneTick();
         _isPaused = false;
         _pausedTick = 0L;
-        // _pendingMutations is empty after drain; no explicit clear needed.
 
+        // ⭐ Anything staged is drained by the kernel's PreFrame system on the tick this steps into.
+        //   ⛔ Not here: see the W5 note above.
         OnPauseStateChanged?.Invoke(false);
     }
 
@@ -515,14 +548,12 @@ public sealed class DataBreakpointManager
         // Restore end-of-tick state before resuming.
         _liveRepo.SyncFrom(_postTickSnapshot);
 
-        // Apply staged mutations at the N+1 boundary.
-        DrainPendingMutations(_liveRepo);
-
         _timeController.RequestResume();
         _isPaused = false;
         _pausedTick = 0L;
-        // _pendingMutations is empty after drain; no explicit clear needed.
 
+        // ⭐ Anything staged is drained by the kernel's PreFrame system on the next advancing tick.
+        //   ⛔ Not here: see the W5 note above.
         OnPauseStateChanged?.Invoke(false);
     }
 
@@ -613,29 +644,17 @@ public sealed class DataBreakpointManager
         => !_liveRepo.HasSingletonUnmanaged<GlobalTime>()
            || _liveRepo.GetSingletonUnmanaged<GlobalTime>().DeltaTime <= 0f;
 
-    /// <inheritdoc/>
-    public unsafe void WriteFieldNow(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
-    {
-        int typeId = GuardFieldWrite(componentType, byteOffset, bytes.Length);
-
-        // ⭐⭐⭐ THE SAME SURGICAL WRITER THE DRAIN USES — 📌 R-65/ruling 9: one implementation of
-        //    "patch these bytes of this component", not two. ⛔ The rejected fallback was
-        //    EntityRepository.SetComponentFieldRaw direct, which is `internal` to Fdp.Core and would
-        //    have needed either InternalsVisibleTo or a SECOND public surgical-write surface.
-        //
-        // ⭐⭐ A SCRATCH BUFFER, FLUSHED HERE — 📌 EntityCommandBuffer.Playback IS SYNCHRONOUS
-        //    (EntityCommandBuffer.cs:331): it applies every recorded op to the repo AT THE CALL, on
-        //    the main thread. ⇒ the write has landed before this method returns.
-        // ⛔⛔ DELIBERATELY *NOT* the repository's own per-thread buffer. That one is flushed by the
-        //    kernel in BeforeSync — measured to happen even at dt = 0, so it WOULD have worked — but
-        //    it makes a designer's edit depend on a kernel behaviour that could change silently, and
-        //    it lands a frame late. ⭐ A scratch buffer owes the kernel nothing.
-        // ⚠ Scoped: the buffer is disposed, so a partial write cannot leak into a later playback.
-        using var ecb = new EntityCommandBuffer();
-        fixed (byte* src = bytes)
-            ecb.SetComponentFieldRaw(entity, typeId, byteOffset, src, bytes.Length);
-        ecb.Playback(_liveRepo);
-    }
+    // ⛔⛔⛔ W3 — `WriteFieldNow` IS GONE. 📄 DESIGN_Staged_Live_Write.md §1's run-state table and §6's
+    //    W3 row; 📌 R-130, verbatim: "yellow is an indication of staged change. makes no sense if value
+    //    is directly written now."
+    // 📐 It was MIN's stopgap for a missing drain: with nothing emptying the pending queue, a
+    //    toolbar-paused edit had to land immediately or be lost. ⭐ The kernel's PreFrame
+    //    ResumeAndDrainSystem now pulls staged writes at the next advancing tick (design §8), so the
+    //    stopgap's precondition is gone and keeping it would leave TWO ways a designer's edit reaches
+    //    the repository — one of which is invisible to the yellow.
+    // ⚠ The scratch-buffer trick it used (a private EntityCommandBuffer, played back synchronously) is
+    //    NOT lost knowledge: TheToolbarPauseWriteLandsTests still measures the kernel's dt=0 flush
+    //    behaviour it was built against.
 
     /// <summary>
     /// ⛔⛔ <b>The corruption gate, owned ONCE.</b> 📌 <c>Q32</c> §2.1: <i>"an out-of-range offset/size

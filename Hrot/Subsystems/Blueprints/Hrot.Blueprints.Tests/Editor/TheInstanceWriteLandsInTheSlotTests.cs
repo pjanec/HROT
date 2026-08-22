@@ -134,30 +134,35 @@ public sealed class TheInstanceWriteLandsInTheSlotTests
     /// still asserted to stage nothing AND write nothing.</para>
     /// </summary>
     [Fact]
-    public void WhileTheClockAdvances_TheInstanceWriteStagesNothing()
+    public void WhileTheClockAdvances_TheInstanceWriteStagesAtTheSlotOffset()
     {
+        // ⚠⚠ W3 INVERTED THIS (R-126: running stages). ⭐ The ADDRESS is the half that corrupts if it
+        //    is wrong (Q32 §2.1), so the rail now asserts the offset rather than an empty queue.
         var rig = Attach(paused: false, clockHalted: false);
 
         var field = rig.Session.ResolveWorkingStateField(rig.Entity, rig.AssetId, FieldName);
         Assert.NotNull(field);   // ⭐ resolving is not writing — the address is knowable either way
 
-        Assert.False(rig.Session.TryWriteWorkingStateField(
+        Assert.True(rig.Session.TryWriteWorkingStateField(
             rig.Entity, field!.ComponentType, field.ComponentOffsetBytes, BitConverter.GetBytes(4242)));
-        Assert.Empty(rig.Manager.Staged);
-        Assert.Empty(rig.Manager.WroteNow);
+
+        var staged = Assert.Single(rig.Manager.Staged);
+        Assert.Equal(field.ComponentOffsetBytes, staged.ByteOffset);
+        Assert.Equal(4242, BitConverter.ToInt32(staged.Bytes, 0));
     }
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>MIN</c> — the Instance arm under a TOOLBAR pause lands at the SAME address it would
     /// have staged at.</b>
     ///
-    /// <para>⛔ The address is the half that corrupts if it is wrong *(<c>Q32</c> §2.1)*, and
-    /// <c>MIN</c> introduced a SECOND way out of the session. ⇒ ⭐ this asserts the two arms agree on
-    /// the allocator's own slot offset — ⚠ computed the way the READ computes it, not re-run from the
+    /// <para>⛔ The address is the half that corrupts if it is wrong *(<c>Q32</c> §2.1)*.
+    /// ⚠⚠ <b><c>W3</c> COLLAPSED THE TWO ARMS INTO ONE</b> — <c>MIN</c>'s <c>WriteFieldNow</c> is gone —
+    /// ⭐ <b>so the claim becomes the stronger one it was approximating</b>: the staged offset equals
+    /// the allocator's own slot offset, computed the way the READ computes it and ⛔ not re-run from the
     /// resolver's arithmetic.</para>
     /// </summary>
     [Fact]
-    public unsafe void UnderAToolbarPause_TheInstanceWriteLandsAtTheSameAddressItWouldHaveStagedAt()
+    public unsafe void UnderAToolbarPause_TheInstanceWriteStagesAtTheAllocatorsSlotOffset()
     {
         var rig = Attach(paused: false, clockHalted: true);
         rig.Manager.BreakpointHolding = false;          // ⭐ toolbar, not breakpoint
@@ -168,11 +173,10 @@ public sealed class TheInstanceWriteLandsInTheSlotTests
         Assert.True(rig.Session.TryWriteWorkingStateField(
             rig.Entity, field.ComponentType, field.ComponentOffsetBytes, BitConverter.GetBytes(4242)));
 
-        var wrote = Assert.Single(rig.Manager.WroteNow);
-        Assert.Equal(typeof(BlueprintBlackboard1024), wrote.ComponentType);
-        Assert.Equal(expected, wrote.ByteOffset);
-        Assert.Equal(4242, BitConverter.ToInt32(wrote.Bytes, 0));
-        Assert.Empty(rig.Manager.Staged);
+        var staged = Assert.Single(rig.Manager.Staged);
+        Assert.Equal(typeof(BlueprintBlackboard1024), staged.ComponentType);
+        Assert.Equal(expected, staged.ByteOffset);
+        Assert.Equal(4242, BitConverter.ToInt32(staged.Bytes, 0));
     }
 
     /// <summary>

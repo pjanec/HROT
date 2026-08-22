@@ -897,33 +897,37 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     // ---- IBlueprintDebugSession -- live write (Batch 84, row 59c) -----------
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The live write, STAGED.</b> 📌 <c>R-63</c> — measured <c>2026-08-18</c>: while paused
-    /// <c>ActiveView</c> IS the pre-tick snapshot, and <c>RequestStep</c>/<c>RequestContinue</c>
-    /// restore the live repo from the POST-tick snapshot and drain AFTERWARDS. ⇒ ⛔ a direct write to
-    /// the view is overwritten on resume; ⭐ a staged write lands on top of the restored state.
+    /// ⭐⭐⭐ <b><c>W3</c> — THE LIVE WRITE, AND THERE IS NOW EXACTLY ONE WAY IT HAPPENS: IT STAGES.</b>
+    /// 📄 <c>DESIGN_Staged_Live_Write.md</c> §1 *(the run-state table)* · §6 <c>W3</c>.
+    ///
+    /// <para>🔒 <b><c>R-126</c>, the user, verbatim:</b> <i>"I do not understand how comes that something
+    /// can be unwritable… we should be able to write anything anywhere"</i> ⇒ ⭐⭐⭐ <b>RUNNING IS NOT A
+    /// REASON TO REFUSE, IT IS A REASON TO STAGE.</b> The staged bytes are PULLED into the repository by
+    /// the kernel's <c>PreFrame</c> drain at the next advancing tick.</para>
     ///
     /// <para>⭐ <b>The manager is DERIVED, not a new argument</b> — <see cref="SetDataBreakpointManager"/>
     /// already hands it to this session for breakpoints.</para>
     ///
-    /// <para>⭐⭐⭐ <b><c>MIN</c> (<c>2026-08-21</c>) — THE GATE IS THE CLOCK, NOT THE SESSION FLAG.</b>
-    /// 🔒 The user's ruling <c>R-126</c>: <i>"time is paused OR debugger hit a breakpoint — in both
-    /// cases the simulation is stopped and we can write new values."</i>
-    /// 🔴 What stood here was <c>if (!_isPaused) return false;</c> — a <b>session-local</b> flag set
-    /// only by this session's own <c>Pause()</c> or a breakpoint hit. ⇒ ⛔ a designer who paused time
-    /// from the TOOLBAR was stopped, the Details panel correctly read <c>Paused</c>, and the write was
-    /// still refused. 📌 <c>AS-3</c>.</para>
-    ///
-    /// <para>⭐ <b>Three ways now, and which one is right is decided by <c>ActiveView</c>:</b>
+    /// <para>⛔⛔ <b>WHAT <c>W3</c> DELETED, and why each deletion is safe NOW and was not before:</b>
     /// <list type="table">
-    ///   <item><term>clock ADVANCING</term><description>⛔ refuse. A direct write is overwritten by the
-    ///   next tick, and staging has nothing to drain it — that is <c>W1</c>/<c>W2</c>'s job.</description></item>
-    ///   <item><term>halted, breakpoint HOLDING</term><description>⭐ STAGE, exactly as before. 📌
-    ///   <c>R-63</c>: <c>RequestStep</c>/<c>RequestContinue</c> restore the live repo from the POST-tick
-    ///   snapshot and drain <i>afterwards</i>, so a direct write would be lost on resume.</description></item>
-    ///   <item><term>halted, TOOLBAR pause</term><description>⭐⭐ write NOW. <c>ActiveView</c> IS the
-    ///   live repo, there is no restore to survive, and <c>P6′</c>: nothing recomputes at
-    ///   <c>dt = 0</c>.</description></item>
+    ///   <item><term><c>!IsClockHalted() ⇒ refuse</c></term><description>⭐ <c>R-126</c> deletes it. It
+    ///   was correct only while nothing drained a staged write: refusing was better than staging into a
+    ///   queue nobody emptied. ⇒ the drain wire *(design §8)* is what makes staging the honest
+    ///   answer.</description></item>
+    ///   <item><term><c>MIN</c>'s <c>WriteFieldNow</c> arm</term><description>⭐⭐ <c>R-130</c>:
+    ///   <i>"yellow is an indication of staged change… makes no sense if value is directly written
+    ///   now"</i> — a direct write is never in the pending set, so it never yellows, and the two paths
+    ///   disagreed about what a designer's edit looks like. ⚠ <b>The BEHAVIOUR changes and that is
+    ///   intended</b> *(§1's table)*: a toolbar-paused edit now stays 🟡 <b>staged</b> until the clock
+    ///   advances, instead of landing immediately and invisibly.</description></item>
+    ///   <item><term>the <c>IsPaused</c> three-way</term><description>⭐ there is no longer anything to
+    ///   choose between. 📌 <c>R-63</c> still holds and is still the reason staging is right while a
+    ///   breakpoint holds a rewound view — it is simply no longer a special case.</description></item>
     /// </list></para>
+    ///
+    /// <para>⭐ <b>What survives is DATA-shaped only</b> *(<c>R-126</c>)*: no manager to stage into, and
+    /// the negative-offset guard. ⚠ The other three — no entity, unresolvable field, size mismatch —
+    /// are the CALLER's *(<c>BlueprintLiveValueWriter</c>)*, and <c>Q32</c> §2.1's size gate must stay.</para>
     /// </summary>
     public bool TryWriteWorkingStateField(
         Entity entity, Type componentType, int componentOffsetBytes, ReadOnlySpan<byte> bytes)
@@ -931,11 +935,9 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         if (componentType is null) throw new ArgumentNullException(nameof(componentType));
 
         // ⭐ false, not an exception — the caller turns this answer into a sentence for the designer.
+        //   ⚠ This is now the ONLY `false` this method can return: a session with no manager has
+        //     nowhere to stage. Everything else either lands or throws.
         if (_dataBreakpointManager is null) return false;
-
-        // ⛔⛔ The ONE refusal that survives MIN: the simulation is actually advancing. ⭐ Everything
-        //    else below lands, which is what lets the message name a real, actionable cause again.
-        if (!_dataBreakpointManager.IsClockHalted()) return false;
 
         // ⭐⭐⭐ Batch 102 (102a) — THE OFFSET ARRIVES FULLY RESOLVED, and this method no longer
         //    transforms it. ⛔ It used to apply WorkingStateLayout.ComponentOffsetOf (+8)
@@ -949,18 +951,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
             throw new ArgumentOutOfRangeException(nameof(componentOffsetBytes),
                 $"A component offset must not be negative (was {componentOffsetBytes}).");
 
-        // ⭐⭐ The BREAKPOINT arm — staged, because the resume path restores the live repo from the
-        //    post-tick snapshot and drains after it (R-63). ⚠ Asked of the MANAGER, not of this
-        //    session's `_isPaused`: the manager owns the rewind, so it owns the question.
-        if (_dataBreakpointManager.IsPaused)
-        {
-            _dataBreakpointManager.StageFieldMutation(entity, componentType, componentOffsetBytes, bytes);
-            return true;
-        }
-
-        // ⭐⭐⭐ The TOOLBAR arm — halted with no breakpoint holding a rewound tick, so ActiveView is
-        //    the live repo and the write can simply land.
-        _dataBreakpointManager.WriteFieldNow(entity, componentType, componentOffsetBytes, bytes);
+        // ⭐⭐⭐ ONE PATH, EVERY RUN STATE. The kernel's PreFrame ResumeAndDrainSystem pulls this into
+        //    the repository on the next advancing tick — and until it does, StagedWriteView reports the
+        //    row 🟡 pending and shows these very bytes (W4). 📌 R-130 is true by construction.
+        _dataBreakpointManager.StageFieldMutation(entity, componentType, componentOffsetBytes, bytes);
         return true;
     }
 
