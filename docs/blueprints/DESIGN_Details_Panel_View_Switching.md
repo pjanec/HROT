@@ -796,7 +796,14 @@ is a BTree/HSM concept, and Blueprint's nodes are drawn by `IBlueprintNodeDrawer
 ⚠ **`InspectorWindow` still exists** — its parameter-sync arm *(`S4`)* and utility stub *(`S3`)* stay.
 ⭐⭐ **Its asset header and collision strip are GONE as of `S2b`** — see §7.4a; ⛔ the sentence that stood
 here *("`S5` cannot delete it until the header and the strip have a home")* is **SUPERSEDED**: they have
-homes, and ⛔ **neither home is a Details view.**
+homes, and ⛔ **neither home is a Details view.** ⭐ **Its utility stub is gone as of `S3`** — §7.4b.
+
+⛔⛔ **AND `S5` IS BLOCKED ON `S4`, NOT ON `S3` — correcting a claim I made in the `S2b` report**
+*(`BP-439`)*. 📐 Measured after `S3`: `InspectorWindow` is **301 lines with exactly ONE arm left** —
+`PARAMETER SYNCHRONIZATION`. ⇒ ⭐ deleting the window deletes that arm, and §7.6 ④ **defers it by design**
+*(`R-99`, after the orchestrator wiring)*. ⚠ §7.7's own row already said it: *"Only **parameter sync** is
+genuinely sequenced."* ⇒ ⛔ **the `S2b` report's *"`S5` blocked on `S3` alone"* was wrong**, and §7.6's
+④-before-⑤ order was right all along.
 
 #### 7.4a ⭐⭐⭐ AS-BUILT (`S2b`, `2026-08-22`, `BP-434`–`BP-437`) — **the asset-scoped arms are NOT Details views**
 
@@ -859,6 +866,33 @@ called, so the timing is unchanged.
 697-line and 350-line windows standing as the implementation, which is the duplication this section
 exists to end.
 
+#### 7.4b ⭐⭐ AS-BUILT (`S3`, `2026-08-22`, `BP-438`) — **a stub that is honest, and DORMANT rather than dead**
+
+📐 **The enumeration, before the port** *(`search_graph(name_pattern=".*UtilityConsideration.*")` ⇒ 7 nodes,
+plus a repo-wide grep)*: `UtilityConsiderationSelection` has **exactly TWO** C# sites — its own record
+declaration and the `if` in `InspectorWindow`. ⇒ ⛔⛔ **nothing in this repo RAISES it**, so the arm had
+**never drawn**. 📐 A second query — `.*Utility.*` under `Hrot/` — returns **zero** nodes: there is no
+utility-AI editor surface here at all.
+
+⭐⭐⭐ **Which is exactly why it is PORTED and not DELETED** — 📌 the `2026-08-15` rule *("unreferenced is
+not unintentional")*, and the design record claims it in three places:
+
+| where | what it says |
+|---|---|
+| `docs/designs/utility-ai/Utility_AI_Design_v1_1.md` | a **LIVE** architecture document for the whole layer |
+| `.dev/_DONE/utility-ai/Utility_AI_Editor_Wireframes.md` | specifies the **two-pane option × consideration host** this arm belongs to |
+| `.dev/_DONE/utility-ai/batches/BATCH-14-INSTRUCTIONS.md` §1d | *"Add `UtilityConsiderationSelection` + inspector dispatch arm"* — ⭐ the arm was added **deliberately**, ahead of its producer |
+
+⇒ ⭐ **DORMANT** *(a designed capability whose producer is unbuilt)*, not **DEAD** — 📌 the two-property
+distinction: it overwrites nothing and harms nothing.
+
+| ⭐ decision | why |
+|---|---|
+| ⭐⭐ **registered UNGATED** | its predicate is the SELECTION's existence, which is a **sharper** statement than any host-kind gate ⇒ a gate would be a second, weaker copy of the same rule. ⚠ No `R-117` risk: it never claims the panel while nothing raises the selection |
+| ⭐⭐⭐ **it SAYS it is not built, and names the design** | ⛔ the retired arm drew a heading + an index pair and stopped, which reads as *"loading"*. ⚠ It also cited **`P5-02`**, a phase id that **does not exist** in the utility-AI record *(the corpus's only `P5-02` hits belong to `group-maneuvers`)* |
+| ⭐ **Rank 20, same as node properties** | a consideration IS the selected element. ⚠ **Never a tie** — `details.nodeproperties` also needs its perspective's facet dispatcher to map the selection, and a consideration is not a graph node |
+| ⭐ **the load-bearing rail is REGISTRATION, not behaviour** | ⛔ every behavioural rail on this view describes a case production cannot reach today ⇒ the assertion that matters is *"the REAL editor registers it"* — otherwise the port is a class nobody constructs *(`BP-327`'s shape)* |
+
 ### 7.5 ⭐ THE SEQUENCE — **selecting a BTree node**
 
 ```mermaid
@@ -890,7 +924,7 @@ sequenceDiagram
 | **①** | ✅ **BUILT `2026-08-22` (`BP-428`)** — ⭐⭐⭐ **Blueprint gets the real shell**; `Details` no longer gated on `HostKindOf`, the id is kept, `BlueprintDetailsWindow` **deleted**, its node arm now `BlueprintNodeDetailsView` at `details.nodeproperties`/**Rank 20** | ⛔ **first**: until Blueprint has the shell, "node properties" has two homes and the extraction target is ambiguous. ⚠ **Atomic by necessity** — the old window claims `ai_details_blueprint` and `RegisterCore` throws on a duplicate |
 | **②** | ✅ **BUILT `2026-08-22` (`BP-432`)** — ⭐⭐ **`details.nodeproperties` on BTree + HSM**, `Shell/NodePropertiesDetailsView` + `Shell/NodePropertiesSource`, registered by the registrar for every perspective | ⭐ one view id, three perspectives; ⚠ the two sources reconciled as ① promised. ⛔⛔ **TWO of `InspectorWindow`'s arms moved, not one** — see the as-built note below |
 | **②b** | ✅ **BUILT `2026-08-22` (`BP-434`–`BP-437`)** — ⭐⭐⭐ **the asset-scoped arms leave `InspectorWindow`, and NONE of them becomes a Details view**: collision strip → **Diagnostics**, Rename…/Find References → **the Asset Browser row menu**, Go to Definition → **deleted**. 📄 **§7.4a** carries the routing and the user's ruling | ⛔⛔ **Not in `BP-399`'s original five rows, and it had to be:** `BP-431` measured that `S5` would strand them. ⭐ Doing it here is what **unblocks ⑤** |
-| **③** | ⭐ **`details.utility`** — from `InspectorWindow`'s utility arm | ⚠ 📐 that arm is a **STUB** *(a heading and `"Option N, Consideration M"`, then `// Curve inspector panel wired in a later phase`)* ⇒ ⭐ port it honestly as a stub, ⛔ do not pretend it is a feature |
+| **③** | ✅ **BUILT `2026-08-22` (`BP-438`)** — ⭐ **`details.utility`**, `Shell/UtilityConsiderationDetailsView`, registered UNGATED on every AI perspective | ⭐ ported as the stub it is, and it now **SAYS SO** — ⛔⛔ **it was also UNREACHABLE**, see §7.4b |
 | **④** | ⛔ **`details.parametersync`** — from `InspectorWindow`'s `PARAMETER SYNCHRONIZATION` arm | ⚠ **LAST**, after the orchestrator wiring *(`R-99`)* — unchanged |
 | **⑤** | ⭐ **`L5` retires both windows** and removes `ai_inspector_*` from the shipped default layout | 📌 `L5`: *"per item, after its replacement is live"* |
 

@@ -454,6 +454,16 @@ public class PerspectiveWorkspaceRegistrar
         if (effectiveHost != null)
             DetailsViews.Add(Shell.NodePropertiesDetailsViewDescriptor.For(NodeProperties));
 
+        // ⭐⭐ S3 (§7.6 ③) — the UTILITY CONSIDERATION stub, ported honestly as a stub.
+        //    ⛔ UNGATED, and that is the point: its predicate is the SELECTION's existence, so it offers
+        //       itself only where a consideration can be selected. Gating it by host kind would be a
+        //       second, weaker statement of the same rule (§7.3 ③'s objection), and the selection
+        //       already answers it exactly.
+        //    ⚠ Measured 2026-08-22: nothing in this repo RAISES UtilityConsiderationSelection, so this
+        //      view never claims the panel today. It is DORMANT, not dead — the utility-AI editor is
+        //      designed (docs/designs/utility-ai/) and unbuilt. See the view's own remarks.
+        DetailsViews.Add(Shell.UtilityConsiderationDetailsViewDescriptor.For());
+
         // ⛔ The Blueprint perspective already has BlueprintMyBlueprintWindow; a second outline there
         //    would be two panels for one concept. BTree and HSM had none at all -- that is the gap.
         if (effectiveHost != null)

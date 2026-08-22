@@ -303,6 +303,28 @@ public sealed class TheDialogOpensOnEveryHostTests
     public void EveryPerspectivesDiagnosticsWindow_HasItsSchemaSource(string perspective)
         => Assert.True(RegistrarOf(perspective).Diagnostics.HasSchemaDiagnostics);
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>S3</c> — <c>details.utility</c> IS REGISTERED BY THE REAL EDITOR.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.6 ③.
+    ///
+    /// <para>⛔⛔ <b>This rail is the whole point of porting rather than deleting.</b> 📐 Measured
+    /// <c>2026-08-22</c>: nothing in this repo raises <c>UtilityConsiderationSelection</c>, so the view
+    /// never claims the panel today. ⚠ That makes every BEHAVIOURAL rail on it a statement about a case
+    /// production cannot reach — ⭐ so the load-bearing assertion is this one: <b>the real editor
+    /// REGISTERS it</b>, which is what makes it appear the day the utility canvas raises a selection.
+    /// ⛔ Without this, the port would be a class nobody constructs — 📌 <c>BP-327</c>'s shape.</para>
+    ///
+    /// <para>⚠ Asked of the CONSTRUCTED registrar *(<c>R-67</c>)*, not of a registrar the test builds.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("btree")]
+    [InlineData("hsm")]
+    [InlineData("blueprint")]
+    public void EveryPerspective_OffersTheUtilityConsiderationView(string perspective)
+        => Assert.Contains(
+            RegistrarOf(perspective).DetailsViews.All,
+            d => d.Id == Hrot.Editor.AiShared.Shell.UtilityConsiderationDetailsViewDescriptor.ViewId);
+
     [Fact]
     public void AnUnregisteredManager_HoldsNoPropertiesForm()
     {

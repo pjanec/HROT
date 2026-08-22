@@ -147,15 +147,14 @@ public sealed class InspectorWindow : ManagedWindow
             }
         }
 
-        // ---- Utility consideration inspector panel ----------------------------
-        if (_store.ActiveSubSelection is UtilityConsiderationSelection utilSel)
-        {
-            ImGuiNET.ImGui.Separator();
-            ImGuiNET.ImGui.Text("UTILITY CONSIDERATION");
-            ImGuiNET.ImGui.TextDisabled(
-                $"Option {utilSel.OptionIndex}, Consideration {utilSel.ConsiderationIndex}");
-            // Curve inspector panel wired in a later phase (P5-02).
-        }
+        // ⛔⛔ S3 (BP-399, 2026-08-22) — THE UTILITY CONSIDERATION ARM IS GONE FROM HERE.
+        //    📄 DESIGN_Details_Panel_View_Switching.md §7.6 ③: "port it honestly as a stub, do not
+        //       pretend it is a feature." It is now Shell/UtilityConsiderationDetailsView, offered as
+        //       `details.utility`.
+        //    ⚠ It was UNREACHABLE here and still is there — nothing raises UtilityConsiderationSelection
+        //      (measured: two C# sites in the repo, both of them declarations). ⭐ PORTED not DELETED
+        //      because the design record claims it: docs/designs/utility-ai/ specifies the editor, and
+        //      .dev/_DONE/utility-ai/batches/BATCH-14-INSTRUCTIONS.md §1d added this very arm on purpose.
     }
 
     /// <summary>

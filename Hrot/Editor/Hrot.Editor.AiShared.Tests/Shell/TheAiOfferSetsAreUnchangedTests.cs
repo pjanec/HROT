@@ -116,8 +116,14 @@ public sealed class TheAiOfferSetsAreUnchangedTests
         //    ⭐ Harmless today: order breaks RANK TIES only, and 20 / 5 / 10 do not tie. ⛔ It is still
         //      asserted, because the day a second Rank-20 view lands the tie-break is what decides the
         //      default a designer sees, and a silent reshuffle would move it.
-        { "BTree",     new[] { "details.blackboard", "details.nodeproperties", "details.variables" } },
-        { "HSM",       new[] { "details.blackboard", "details.nodeproperties", "details.variables" } },
+        // ⭐⭐ S3 ADDED `details.utility` TO EVERY ROW — and the DIRECTION was established before this
+        //    table moved (📌 B101c). §7.6 ③ commissions the view; it is registered UNGATED because its
+        //    predicate is the SELECTION's existence, which is a sharper statement of the same rule than
+        //    any host-kind gate. ⇒ this is a designed addition, not an expectation relaxed to hide a red.
+        //    📐 Its POSITION is measured (between nodeproperties and variables — where the Add call
+        //      sits), not chosen. ⚠ Same discipline as the note above: I do not guess this list.
+        { "BTree",     new[] { "details.blackboard", "details.nodeproperties", "details.utility", "details.variables" } },
+        { "HSM",       new[] { "details.blackboard", "details.nodeproperties", "details.utility", "details.variables" } },
         // ⛔⛔ BLUEPRINT HAS NO `details.nodeproperties` HERE, and that is NOT the pre-S1 state
         //    returning — it is §7.4's TWO-CLASS picture. 📐 Blueprint's nodes are described by
         //    IBlueprintNodeDrawer, not by an AI facet dispatcher, so its node view is
@@ -129,7 +135,7 @@ public sealed class TheAiOfferSetsAreUnchangedTests
         //    for every perspective collided with Blueprint's own under the shared id (BP-433).
         // ⛔ The Blueprint row was RE-EXPRESSED by S1 (§7.3 ①): it was { "details.blackboard" } while
         //   Blueprint had no shell at all.
-        { "Blueprint", new[] { "details.blackboard", "details.variables" } },
+        { "Blueprint", new[] { "details.blackboard", "details.utility", "details.variables" } },
     };
 
     /// <summary>
