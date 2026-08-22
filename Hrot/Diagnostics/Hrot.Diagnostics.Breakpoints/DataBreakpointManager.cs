@@ -893,6 +893,15 @@ public sealed class DataBreakpointManager
                 break;
             }
 
+            // ⛔ Do NOT add a "ComponentType is null -> skip mounting" arm here. It looks like the
+            //    natural third guard against the empty-breakpoint crash, and it is wrong: skipping
+            //    the compile also skips the throw that LoadWatches catches to mark the entry
+            //    BROKEN, so a watch whose component no longer resolves would come back silently
+            //    unmounted instead of visibly broken. That convention is deliberate and test-locked
+            //    (WatchPersistenceTests.Watches_Restore_FailsGracefullyOnDriftedSchema:
+            //    "present but marked broken, not silently discarded"). The crash is prevented
+            //    upstream instead -- PredicateCompiler.AddIfResolvable keeps the null out of
+            //    MandatoryComponents, and ComponentTypeRegistry.GetId tolerates null.
             case PropertyMatchDto _:
             case CompoundPredicateDto _:
             case BehaviorParamPredicateDto _:
