@@ -1545,6 +1545,11 @@ namespace Hrot.Editor
                 EditorBootstrap.ScenariosRoot,
                 diagnosticsAggregator);
             _logMergeWorker = new DiagnosticLogMergeWorker(_orchestrationBus!);
+            // Curated test scenarios: copy the git-committed set into the working NAS folder on start,
+            // overwriting ONLY those names (non-curated scenarios are never touched, nothing is deleted).
+            // No-op in a deployed build — there is no source tree to copy from. See
+            // Hrot.ScenarioEditor.Services.CuratedScenarios.
+            Hrot.ScenarioEditor.Services.CuratedScenarios.SeedIntoWorking(EditorBootstrap.ScenariosRoot);
             app.SetAvailableScenariosSource(() => ScenarioEnumeration.EnumerateRelPaths(EditorBootstrap.ScenariosRoot));
 
             // ?? 7. Map canvas + camera (skipped in headless) ??????????????????
@@ -3228,6 +3233,16 @@ namespace Hrot.Editor
                         ? "[Migration] No sidecars found for current scenario."
                         : $"[Migration] {sidecars.Count} sidecar(s): "
                           + string.Join(", ", sidecars.Select(s => $"{s.Kind} v{s.Version}"));
+                },
+                // Curated test scenarios: enabled only from a source checkout; copies the working copies of
+                // the git-committed set back into git. No-op/disabled in a deployed build.
+                isCuratedSaveEnabled: () => Hrot.ScenarioEditor.Services.CuratedScenarios.CanSaveToGit(),
+                saveCuratedToGit:     () =>
+                {
+                    var written = Hrot.ScenarioEditor.Services.CuratedScenarios.SaveWorkingToGit(EditorBootstrap.ScenariosRoot);
+                    _saveAllStatus = written.Count == 0
+                        ? "[Curated] No curated scenarios saved (not a source checkout, or none present)."
+                        : $"[Curated] Saved {written.Count} scenario(s) to git: " + string.Join(", ", written);
                 });
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
