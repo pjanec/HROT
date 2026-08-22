@@ -145,7 +145,6 @@ public sealed class WindowIdentityIsDistinctTests
     private static readonly (string Perspective, string Id)[] KnownWindowIds =
     [
         // ── the per-perspective core set (PerspectiveWorkspaceRegistrar.RegisterWindows) ──
-        ("BTree",     "ai_inspector_btree"),
         ("BTree",     "ai_runtime_inspector_btree"),
         ("BTree",     "ai_trace_timeline_btree"),
         ("BTree",     "ai_find_results_btree"),
@@ -154,8 +153,6 @@ public sealed class WindowIdentityIsDistinctTests
         ("BTree",     "ai_variable_values_btree"),
         ("BTree",     "ai_my_blueprint_btree"),
         ("BTree",     "ai_canvas_btree"),
-
-        ("HSM",       "ai_inspector_hsm"),
         ("HSM",       "ai_runtime_inspector_hsm"),
         ("HSM",       "ai_trace_timeline_hsm"),
         ("HSM",       "ai_find_results_hsm"),
@@ -164,8 +161,6 @@ public sealed class WindowIdentityIsDistinctTests
         ("HSM",       "ai_variable_values_hsm"),
         ("HSM",       "ai_my_blueprint_hsm"),
         ("HSM",       "ai_canvas_hsm"),
-
-        ("Blueprint", "ai_inspector_blueprint"),
         ("Blueprint", "ai_runtime_inspector_blueprint"),
         ("Blueprint", "ai_trace_timeline_blueprint"),
         ("Blueprint", "ai_find_results_blueprint"),

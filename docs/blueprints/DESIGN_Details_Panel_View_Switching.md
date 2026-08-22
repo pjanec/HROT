@@ -793,7 +793,9 @@ id**; ⚠ registering the generic one for every perspective **collided with Blue
 **everything** to do with whether a perspective's nodes are described by **facets**: the facet dispatcher
 is a BTree/HSM concept, and Blueprint's nodes are drawn by `IBlueprintNodeDrawer`.
 
-⚠ **`InspectorWindow` still exists** — its parameter-sync arm *(`S4`)* and utility stub *(`S3`)* stay.
+⛔⛔ **`InspectorWindow` NO LONGER EXISTS** *(`S5`, `2026-08-22`)* — ⚠ *(was: "still exists — its
+parameter-sync arm (`S4`) and utility stub (`S3`) stay")*. ⭐ All six arms are Details views or
+asset-row menu items; after `S4` it drew nothing at all. 📄 §7.6 ④⑤.
 ⭐⭐ **Its asset header and collision strip are GONE as of `S2b`** — see §7.4a; ⛔ the sentence that stood
 here *("`S5` cannot delete it until the header and the strip have a home")* is **SUPERSEDED**: they have
 homes, and ⛔ **neither home is a Details view.** ⭐ **Its utility stub is gone as of `S3`** — §7.4b.
@@ -925,8 +927,8 @@ sequenceDiagram
 | **②** | ✅ **BUILT `2026-08-22` (`BP-432`)** — ⭐⭐ **`details.nodeproperties` on BTree + HSM**, `Shell/NodePropertiesDetailsView` + `Shell/NodePropertiesSource`, registered by the registrar for every perspective | ⭐ one view id, three perspectives; ⚠ the two sources reconciled as ① promised. ⛔⛔ **TWO of `InspectorWindow`'s arms moved, not one** — see the as-built note below |
 | **②b** | ✅ **BUILT `2026-08-22` (`BP-434`–`BP-437`)** — ⭐⭐⭐ **the asset-scoped arms leave `InspectorWindow`, and NONE of them becomes a Details view**: collision strip → **Diagnostics**, Rename…/Find References → **the Asset Browser row menu**, Go to Definition → **deleted**. 📄 **§7.4a** carries the routing and the user's ruling | ⛔⛔ **Not in `BP-399`'s original five rows, and it had to be:** `BP-431` measured that `S5` would strand them. ⭐ Doing it here is what **unblocks ⑤** |
 | **③** | ✅ **BUILT `2026-08-22` (`BP-438`)** — ⭐ **`details.utility`**, `Shell/UtilityConsiderationDetailsView`, registered UNGATED on every AI perspective | ⭐ ported as the stub it is, and it now **SAYS SO** — ⛔⛔ **it was also UNREACHABLE**, see §7.4b |
-| **④** | ⛔ **`details.parametersync`** — from `InspectorWindow`'s `PARAMETER SYNCHRONIZATION` arm | ⚠ **LAST**, after the orchestrator wiring *(`R-99`)* — unchanged |
-| **⑤** | ⭐ **`L5` retires both windows** and removes `ai_inspector_*` from the shipped default layout | 📌 `L5`: *"per item, after its replacement is live"* |
+| **④** | ✅ **BUILT `2026-08-22` (`BP-448`)** — ⭐ **`details.parametersync`** at **Rank 15**, `Shell/ParameterSyncDetailsView` + `ParameterSyncSource` | ⭐⭐ **`R-99` SATISFIED, not waived**: `Q49` made the sub-tree identity survive a reload and `Q50` made the master declare the slice ⇒ the bindings reach the runtime. ⚠ One limit stands *(`BP-446`)* |
+| **⑤** | ✅ **BUILT `2026-08-22` (`BP-449`, `BP-450`)** — ⭐⭐ **`InspectorWindow` is DELETED**, and `ai_inspector_*` is out of `layout/default/imgui.ini` **and** `fdp_windows.json` | ⭐ After ④ the window drew **nothing**, so retiring it was the completion, not an extra. ⚠ **`BP-450`: I first claimed the layout half was a no-op and was WRONG** — the stale-layout rail caught it |
 
 ⚠ **Not in this list, deliberately:** the **Diagnostics** and **Layout/byte-budget · Asset settings** rows.
 📐 `BlackboardAuthoringWindow` already contributes `details.blackboard`; ⇒ ⭐ **measure whether those rows

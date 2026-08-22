@@ -23,7 +23,6 @@ public sealed class EditorSubsystemBlueprintWindowsTests
 
     private static readonly string[] BTreeWindowIds =
     [
-        "ai_inspector_btree",
         "ai_runtime_inspector_btree",
         "ai_trace_timeline_btree",
         "ai_find_results_btree",
@@ -33,7 +32,6 @@ public sealed class EditorSubsystemBlueprintWindowsTests
 
     private static readonly string[] HsmWindowIds =
     [
-        "ai_inspector_hsm",
         "ai_runtime_inspector_hsm",
         "ai_trace_timeline_hsm",
         "ai_find_results_hsm",
@@ -43,7 +41,6 @@ public sealed class EditorSubsystemBlueprintWindowsTests
 
     private static readonly string[] BlueprintWindowIds =
     [
-        "ai_inspector_blueprint",
         "ai_runtime_inspector_blueprint",
         "ai_trace_timeline_blueprint",
         "ai_find_results_blueprint",

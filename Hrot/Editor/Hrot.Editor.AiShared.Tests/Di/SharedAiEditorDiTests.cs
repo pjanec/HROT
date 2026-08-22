@@ -46,12 +46,9 @@ public class SharedAiEditorDiTests
         Assert.Equal("AssetBrowser", w.Id);
     }
 
-    [Fact]
-    public void AddSharedAiEditor_Resolves_InspectorWindow()
-    {
-        using var sp = BuildSp();
-        Assert.NotNull(sp.GetRequiredService<InspectorWindow>());
-    }
+    // ⛔ S5 (2026-08-22): AddSharedAiEditor_Resolves_InspectorWindow is GONE with its subject — the
+    //    window is retired (§7.6 ⑤) and the DI extension no longer registers it. The Details views that
+    //    replaced its arms are registered by PerspectiveWorkspaceRegistrar, not by this extension.
 
     [Fact]
     public void AddSharedAiEditor_Resolves_RuntimeInspectorWindow()

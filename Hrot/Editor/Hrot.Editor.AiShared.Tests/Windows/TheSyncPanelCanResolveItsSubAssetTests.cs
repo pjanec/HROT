@@ -16,6 +16,11 @@ namespace Hrot.Editor.AiShared.Tests.Windows;
 /// <summary>
 /// ⭐⭐⭐ <b>Batch 92 (<c>92d</c>) — the PARAMETER SYNCHRONIZATION panel can resolve a sub-asset.</b>
 ///
+/// <para>⛔⛔ <b><c>S4</c> (<c>2026-08-22</c>) — RE-POINTED, not weakened.</b> The seam moved from
+/// <c>InspectorWindow</c> to <c>Shell/ParameterSyncSource</c> when the arm became
+/// <c>details.parametersync</c>; ⭐ every assertion below is unchanged and still asks the CONSTRUCTED
+/// object *(<c>R-67</c>)*. ⚠ The original finding stands and is why these exist:</para>
+///
 /// <para>🔴🔴 <b>The defect, measured.</b> <c>InspectorWindow._subAssetResolver</c> is
 /// <c>readonly</c>, constructor-only, with no setter. <c>PerspectiveWorkspaceRegistrar</c> — the ONLY
 /// production construction — omitted it, so <c>InspectorWindow:449</c> rendered
@@ -58,11 +63,11 @@ public sealed class TheSyncPanelCanResolveItsSubAssetTests
     [InlineData("BTree")]
     [InlineData("HSM")]
     [InlineData("Blueprint")]
-    public void EveryPerspectiveGivesTheInspectorASubAssetResolver(string perspective)
+    public void EveryPerspectiveGivesTheParameterSyncViewASubAssetResolver(string perspective)
     {
         var (catalog, _) = CatalogWithOneSubAsset();
 
-        Assert.True(MakeRegistrar(perspective, catalog).Inspector.HasSubAssetResolver,
+        Assert.True(MakeRegistrar(perspective, catalog).ParameterSync.HasSubAssetResolver,
             "without a resolver the PARAMETER SYNCHRONIZATION panel renders "
             + "\"Sub-asset resolver not configured.\" and no sync binding can be authored");
     }
@@ -77,7 +82,7 @@ public sealed class TheSyncPanelCanResolveItsSubAssetTests
     {
         var (catalog, asset) = CatalogWithOneSubAsset();
 
-        var resolved = MakeRegistrar("BTree", catalog).Inspector.ResolveSubAssetForRail(asset.AssetId);
+        var resolved = MakeRegistrar("BTree", catalog).ParameterSync.ResolveSubAsset(asset.AssetId);
 
         Assert.Same(asset, resolved);
     }
@@ -92,7 +97,7 @@ public sealed class TheSyncPanelCanResolveItsSubAssetTests
     {
         var (catalog, _) = CatalogWithOneSubAsset();
 
-        Assert.Null(MakeRegistrar("BTree", catalog).Inspector.ResolveSubAssetForRail(Guid.NewGuid()));
+        Assert.Null(MakeRegistrar("BTree", catalog).ParameterSync.ResolveSubAsset(Guid.NewGuid()));
     }
 
     /// <summary>
@@ -106,7 +111,7 @@ public sealed class TheSyncPanelCanResolveItsSubAssetTests
         var catalog = new AssetCatalog();
         catalog.AddContributor(new OneAssetContributor(plain));
 
-        Assert.Null(MakeRegistrar("BTree", catalog).Inspector.ResolveSubAssetForRail(plain.AssetId));
+        Assert.Null(MakeRegistrar("BTree", catalog).ParameterSync.ResolveSubAsset(plain.AssetId));
     }
 
     // ── Fakes ────────────────────────────────────────────────────────────────
