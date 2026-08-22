@@ -1,13 +1,16 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD
-updated: 2026-08-20
-current-answer: this whole file — what exists for user-level smoke testing, what is
-  missing, and the three-tier design. Section 5 is the task breakdown.
+updated: 2026-08-22
+current-answer: this whole file — the SINGLE-HOST layered smoke COMPONENT (the in-process EditorHarness
+  fixture + the T1/T2/T3 tiers + gating the 174). It now sits under the umbrella methodology
+  DESIGN_Headless_Testability.md. Section 5 is the task breakdown.
 stale-below: nothing.
-known-rot: S1 as originally written ("add it to the gate table") is IMPOSSIBLE and is
-  struck through in section 5 — Batch 101 measured that the 174-test suite aborts every
-  run. Superseded by S1' (a separate small project) and S1" (revive the 174).
+known-rot: (1) S1 as originally written ("add it to the gate table") is IMPOSSIBLE — Batch 101 measured
+  the 174-test suite aborts every run; superseded by S1' (a separate small project) and S1" (revive the
+  174). (2) ⛔ G-c/S3 as written ("give EditorHarness its own panel graph + VariableTableModels") is
+  SUPERSEDED by the PanelSnapshot design — T2 now READS the shared PanelSnapshot singleton, it does not
+  build a bespoke panel layer. See DESIGN_UI_Observability_Snapshot.md and the umbrella §Sequencing step 4.
 known-conflict: none.
 -->
 # ⭐⭐⭐ DESIGN — **the SMOKE SUITE: one entity, one behaviour, "is it obviously broken?"**
@@ -56,7 +59,7 @@ search_graph / grep: PerspectiveWorkspaceRegistrar in EditorHarness       → �
 |---|---|---|
 | ⛔⛔⛔ **G-a** | **IT IS NOT GATED.** `Hrot.ClusterRunner.Integration.Tests` appears in **no** batch gate table — not Batch 99's, not any. ⇒ ⭐⭐ **174 tests that nobody runs**, while every batch runs ~8 000 unit tests | grep of `REPORT_Batch99` §6 |
 | ⛔⛔ **G-b** | **IT IS RED.** A sampled filter gives **9 failures / 15**, and the counter tests are wrong by **exactly one, every time** — `1→0`, `3→2`, `10→9` | `BlueprintKernelRunTests:61` |
-| ⛔ **G-c** | **NO PANEL LAYER.** `EditorHarness` mirrors `EditorSubsystem`'s **runtime** wiring and builds **no `WindowManager`, no `PerspectiveWorkspaceRegistrar`, no `VariableTableModel`** ⇒ ⛔ **it cannot see what the user sees** | 0 hits in the harness |
+| ⛔ **G-c** | **NO PANEL LAYER.** `EditorHarness` mirrors `EditorSubsystem`'s **runtime** wiring and builds **no `WindowManager`, no `PerspectiveWorkspaceRegistrar`, no `VariableTableModel`** ⇒ ⛔ **it cannot see what the user sees**. ⚠⚠ **RESOLUTION CHANGED 2026-08-22:** ⛔ do NOT close this by building a bespoke panel graph in `EditorHarness` *(old `S3`)*. ⭐ **T2 now reads the shared `PanelSnapshot` singleton** — panels register their view-model there and the harness reads it. 📄 `DESIGN_UI_Observability_Snapshot.md`; umbrella `DESIGN_Headless_Testability.md` §Sequencing step 4 | 0 hits in the harness |
 
 > ### ⚠⚠ `G-b` IS A FINDING IN ITS OWN RIGHT — **and it must not be assumed benign**
 > 📐 `BlueprintKernelRunTests.cs` and `EditorHarness.cs` were **last touched long ago** *(`877fc7c74` /
@@ -101,12 +104,10 @@ classDiagram
         +BlueprintRegistry BlueprintRegistry
         +PumpFrames(int frames) void
     }
-    class EditorPanels {
-        <<NEW - the G-c gap>>
-        +PerspectiveWorkspace Workspace
-        +VariableTableModel DetailsRows
-        +VariableTableModel WatchRows
-        +RowText(string variable) string
+    class PanelViewModels {
+        <<T2 source - the shared IPanelViewModel, built without drawing>>
+        +BuildViewModel(panelId) IPanelViewModel
+        +RowText(panelId, variable) string
     }
     class UiFrameSession {
         <<Batch 100 100a>>
@@ -114,9 +115,9 @@ classDiagram
         +Screenshot(string path) void
     }
     SmokeFixture *-- EditorHarness
-    SmokeFixture *-- EditorPanels
+    SmokeFixture ..> PanelViewModels : T2 reads models
     SmokeFixture ..> UiFrameSession : T3 only
-    EditorPanels ..> EditorHarness : reads the same world
+    PanelViewModels ..> EditorHarness : builds from the same world
 ```
 
 ```mermaid
@@ -125,7 +126,7 @@ sequenceDiagram
     participant T as smoke test
     participant F as SmokeFixture
     participant H as EditorHarness
-    participant P as EditorPanels
+    participant P as PanelViewModels
     participant U as UiFrameSession
 
     T->>F: Load("Count4")
@@ -192,7 +193,7 @@ conclusion `FINDINGS_VisualCheck_PostBatch99.md` §6 reached from the other dire
 | ⭐⭐⭐ **`S1′`** | **A SEPARATE, SMALL smoke project** — its own `.csproj`, a handful of scenarios, **gated from day one** because it is small enough to finish | ⭐ this is the deliverable the user asked for, and `BP-378` says it cannot be a corner of the existing project |
 | ⭐⭐ **`S1″`** | **Make the 174 RUNNABLE — per-class or per-chunk with a fresh host**, and gate *that* | ⚠ the real fix is the `EntityRepository` accumulation *(`MAX_ENTITIES = 1_000_000` per harness)*; ⛔ a chunked runner is the workaround, not the cure |
 | ⭐⭐ **`S2`** | **TRIAGE the reds.** ⛔ **Do not adjust expectations.** ⭐ For the off-by-one, establish the DIRECTION *(is the counter wrong, or the expectation?)* — bisect, or read the splice order at `EditorHarness:226` | ⚠ it may be a real regression that landed unseen |
-| ⭐⭐⭐ **`S3`** | **CLOSE `G-c`: give `EditorHarness` the PANEL GRAPH** — the registrar + the windows + their `VariableTableModel`s, ⭐ **built through the same composition path production uses** *(`R-67`)*, ⛔ not a hand-assembled copy | ⭐ **this is what unlocks T2**, the highest-value tier |
+| ⭐⭐⭐ **`S3`** *(SUPERSEDED 2026-08-22)* | ⛔ **OLD:** give `EditorHarness` its own panel graph + `VariableTableModel`s. ⭐⭐ **NEW:** close `G-c` by **reading the shared `PanelSnapshot`** — panels register their view-model to the singleton *(observability slice `U-obs-1`)*, and T2 reads it in-proc *(or over `GET /panels` for the subprocess fixture)*. ⛔ **Do not hand-assemble a parallel panel layer** — that is exactly the duplication the observability design removes. 📄 `DESIGN_UI_Observability_Snapshot.md` | ⭐ **still what unlocks T2**, now via the shared model |
 | ⭐⭐ **`S4`** | **The first smoke test: `Count4`** — T1 + T2, with the row texts printed on failure | ⭐ the user's sentence, executable |
 | ⭐ **`S5`** | **T3**, once Batch 100's `100a` lands — the same fixture, one rendered frame | ⛔ blocked on Batch 100 |
 | ⭐ **`S6`** | **A `--mode smoke`** in the ClusterRunner that runs the suite and exits non-zero | ⭐ `--mode ci` already proves the shape; ⛔ **last — the xUnit suite is the deliverable, this is packaging** |

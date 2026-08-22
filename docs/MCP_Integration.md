@@ -228,6 +228,24 @@ encoding at all** *(cheaper than P.0, which needed the scenario serializer)*.
 and this. ⭐ And `[PropertyPathPicker]` is an **existing self-describing attribute** — the in-repo precedent that
 the optional `[ParamDoc]` enrichment *(MX4a)* is following, not inventing.
 
+## Group T — Panel snapshot read — ⭐⭐ **the UI made machine-readable, no pixels** *(depends on the UI-observability programme)*
+
+🔒 **Design: [`DESIGN_UI_Observability_Snapshot.md`](DESIGN_UI_Observability_Snapshot.md).** Every panel builds a
+whole **view-model**, renders **only** from it, and registers it to the **`PanelSnapshot`** singleton once per
+frame *(flag-gated)*. This group simply **exposes that snapshot** — it is a thin read surface, not new logic.
+
+| endpoint | does |
+|---|---|
+| `GET /panels` | the panel ids captured this frame **and** which panels are instrumented at all *(so "not converted" ≠ "empty")* |
+| `GET /panels/{id}` | that panel's dumped view-model as JSON |
+| `GET /panels/_gizmo` | the `DebugPrimitiveBuffer.GetFrame()` primitives — the map/gizmo model, the same snapshot one layer down |
+
+⭐⭐ **What it unlocks:** pixel-free smoke assertions *(read a panel's model, assert its fields)* and **cross-host
+conformance** *(diff a panel's model across editor/CGF/SimHost)*. ⭐ Interaction stays the command bus
+*(`POST /commands/{id}/invoke` over `IEditorCommands`)* — this group is read-only.
+⚠⚠ **DEPENDS on `PanelSnapshot` existing** *(observability slice `U-obs-1`)* — ⛔ **sequence AFTER that, not with
+O–S**; the endpoint is trivial, the singleton it reads is the real work, and it lives in a different design.
+
 ## Self-describing errors — every mistake POINTS at the discovery endpoint *(cross-cutting; `MX8`)*
 
 🔒 **User:** *"if the agent makes a mistake in the request (breakpoint, behaviour, etc.), the MCP error sent
@@ -292,6 +310,13 @@ classDiagram
         +DetachBlueprint(id, slot) ApiResult
         +GetEntityState(id) EntityStateDto
         +GetBreakpointTypes() BreakpointTypeDto[]
+        +ListPanels() JsonNode
+        +GetPanel(panelId) JsonNode
+    }
+    class PanelSnapshot {
+        <<exists after U-obs-1 · see DESIGN_UI_Observability_Snapshot>>
+        +TryGet(panelId) IPanelViewModel
+        +DumpAll() JsonNode
     }
     class BlueprintDebugSession {
         <<exists · Hrot.Blueprints.Core.Debug>>
@@ -382,6 +407,7 @@ classDiagram
     DebugApiService ..> BreakpointTypeDto : returns (S)
     DebugApiService ..> DebugApiHints : on a mistake, attach hint (MX8)
     DebugApiHints ..> ApiResponse : fills the Hint field
+    DebugApiService ..> PanelSnapshot : reads (Group T)
 ```
 
 ### Sequence — behaviour discovery then mission add-task *(the one genuinely new flow)*
@@ -428,6 +454,7 @@ sequenceDiagram
 | **MX5** | MCP-server (Node) tool wrappers + `SKILL.md` regen for O/P/Q/R | the agent-facing side |
 | **MX7** | **Group S — breakpoint-type discovery** — `GET /breakpoint-types` reflecting the `SearchPredicateDto` `[JsonDerivedType]` union → `{ $type, paramSchema }[]`. ⭐ **REUSES the same `DtoJsonSchemaExtractor` as `MX4a`**; ⛔ no new encoding *(conditions round-trip through the existing `SearchPredicateJsonOptions`)*. Set/list/remove/hits already exist (Group G) | pairs with `MX4a`; cheapest of the discovery pieces |
 | **MX8** | **self-describing errors** — add a structured `hint` to the `ApiResponse`/`RouteResult` envelope, a central `DebugApiHints` category→endpoint map, back-fill existing prose hints, and attach one to every schema-shaped validation failure *(condition/behaviour/mission/variable)* | ⭐ cross-cutting; promotes an existing prose habit into a machine-readable field |
+| **MX9** | **Group T — panel snapshot read** — `GET /panels`, `GET /panels/{id}`, `GET /panels/_gizmo` over the `PanelSnapshot` singleton | ⚠ **DEPENDS on `U-obs-1`** *(DESIGN_UI_Observability_Snapshot.md)* — thin endpoint, real work is the singleton |
 | **MX6** | harness smoke cases for each new group | feeds `DESIGN_MCP_System_Test_Harness.md` H4 |
 
 ## Sequencing — build slices *(user, 2026-08-22: pull `MX7` forward next to `MX4a`)*
@@ -441,6 +468,7 @@ strictly cheaper than apart; `MX8` gives both their payoff *(a bad request's err
 | **① discovery + self-correction** | ⭐ **`MX4a`** (behaviour schema) · ⭐ **`MX7`** (breakpoint-type schema) · ⭐ **`MX8`** (self-describing errors) | one shared extractor for `MX4a`+`MX7`; `MX8` back-fills existing hints + wires the two new categories ⇒ **author → err → hint → discover → retry** closes in one slice | H4: `GET /behaviors` + `GET /breakpoint-types` return schemas; a bad condition's error carries `hint.seeEndpoint` |
 | **② cheap reuse endpoints** | **`MX1`** (Group O, variable addressing) · **`MX3`** (Group R, entity state) · **`MX2`** (Group Q, hot-attach) | all reuse existing seams, no new engine surface; `MX8` gains the `variable` hint category once `MX1` lands | H4: stage a variable + read pending; entity-state dump; attach/detach |
 | **③ mission authoring** | **`MX4b`** (Group P, mission editing) | depends on `MX4a`'s schema + injects `IMissionEditorService`; the one piece touching a new service seam | H4/H5: discover → add-task → run, assert the entity acts |
+| **④ panel read** | **`MX9`** (Group T) | ⚠ **gated on the UI-observability programme** *(`U-obs-1`: the `PanelSnapshot` singleton)* — the endpoint is trivial, the singleton is a separate design/effort | H4/conformance: read a panel's model; diff it across hosts |
 | **⤫ every slice** | **`MX5`** (Node wrappers + `SKILL.md`) · **`MX6`** (harness smoke) | ⛔ not a trailing phase — each slice ships its own Node tool wrappers and its H4 smoke case | each new group is agent-callable + smoke-gated as it lands |
 
 ⛔ **`MX8`'s envelope + central map are buildable immediately** *(they back-fill the existing prose hints)*; the
