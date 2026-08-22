@@ -454,6 +454,29 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             return Expression.Constant(true);
         }
 
+        /// <summary>
+        /// Adds <paramref name="componentType"/> to <paramref name="result"/> unless it is null or
+        /// already present.
+        ///
+        /// <para>
+        /// ⚠ The null check is load-bearing. <c>PropertyMatchDto.ComponentType</c> is declared
+        /// <c>null!</c> and is genuinely null in two ordinary situations: a predicate the designer
+        /// created but has not yet given a component type (the panel's "Add" builds a bare
+        /// <c>new PropertyMatchDto()</c>), and one deserialized from a type name that no longer
+        /// resolves — <c>TypeNameJsonConverter.Read</c> returns null for those by design. Letting
+        /// either into this list put a null into <c>CompiledComponentPredicate.MandatoryComponents</c>,
+        /// which <c>DataBreakpointSystem</c> then passed to <c>ComponentTypeRegistry.GetId</c> every
+        /// frame. A single empty "New Breakpoint", once saved to the debug session, killed the
+        /// editor on every subsequent launch.
+        /// </para>
+        /// </summary>
+        private static void AddIfResolvable(Type? componentType, List<Type> result)
+        {
+            if (componentType is null) return;
+            if (result.Contains(componentType)) return;
+            result.Add(componentType);
+        }
+
         private static void CollectMandatoryComponents(SearchPredicateDto dto, List<Type> result)
         {
             if (dto is CompoundPredicateDto compound && compound.Operator == LogicalOperator.And)
@@ -462,8 +485,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 {
                     if (condition is PropertyMatchDto propMatch)
                     {
-                        if (!result.Contains(propMatch.ComponentType))
-                            result.Add(propMatch.ComponentType);
+                        AddIfResolvable(propMatch.ComponentType, result);
                     }
                     else if (condition is CompoundPredicateDto nested)
                     {
@@ -473,8 +495,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             }
             else if (dto is PropertyMatchDto single)
             {
-                if (!result.Contains(single.ComponentType))
-                    result.Add(single.ComponentType);
+                AddIfResolvable(single.ComponentType, result);
             }
             else if (dto is BehaviorParamPredicateDto behaviorParam)
             {
