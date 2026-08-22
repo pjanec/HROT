@@ -272,7 +272,7 @@ whether a batch succeeds: **which types exist · which ALREADY exist · what cal
 ⭐⭐⭐ **A class diagram cannot.** Drawing one forces a name, a home, a multiplicity and an owner for every
 box — and **an existing class drawn on the same canvas as a proposed one makes the duplicate obvious.**
 
-### ⭐ The rule — **four obligations**
+### ⭐ The rule — **five obligations**
 
 | # | ⭐ obligation | owner |
 |---|---|---|
@@ -281,6 +281,7 @@ box — and **an existing class drawn on the same canvas as a proposed one makes
 | **②** | ⭐⭐⭐ **DRAW THEM AFTER THE ENUMERATION, NEVER BEFORE** — 📌 the `INVENTORY` rule feeds this one. ⭐⭐ **Every box that already exists is drawn as existing, with its file**, so a proposed class that duplicates it is visible on the same page. ⛔ **Any possibility for reuse must be UTILISED, not noted** | **coordinator** |
 | **③** | ⭐⭐ **An implementing task CHECKS the diagrams before building**, and reports it: *"the design carries N classes and M sequences; what I built matches / deviates HERE and why."* ⚠ **A deviation is a finding, not a silent choice** — ⭐ argue it in the report, as every good batch already does | **implementation** |
 | **④** | ⛔⛔ **A design with no UML is NOT ready to dispatch.** ⭐ A handoff citing one is a defect of the COORDINATOR — 📌 the same class of miss as `BP-355` *(named in a report, never turned into an item)* | **coordinator** |
+| **⑤** | ⛔⛔⛔ **WHEN THE BUILD DEVIATES, FOLD THE AS-BUILT TRUTH BACK INTO THE OWNING DESIGN — before the batch closes**, marking the prior state SUPERSEDED. ⭐ Its own section below, *"THE DESIGN MUST REFLECT THE AS-BUILT"* | **implementation** |
 
 ### ⛔⛔⛔ THE DIAGRAMS LIVE IN THE DESIGN, NEVER IN THE BATCH — **a handoff REFERENCES them** *(user, `2026-08-21`)*
 
@@ -313,6 +314,37 @@ MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file>   # every block par
 
 ⛔ **The gate cannot check that the diagram is TRUE** — ⭐ that is obligation ③'s job, and it is why the
 implementing session reports the match rather than the coordinator asserting it.
+
+### ⛔⛔⛔ THE DESIGN MUST REFLECT THE AS-BUILT — **a deviation goes BACK INTO THE DESIGN, not just the report** *(user, `2026-08-22`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"we need to update the design if the implementation went different direction.
+> The implementor must make sure the design reflects the recent changes, marking the previous state
+> there as superseded."*
+
+⛔⛔ **Obligation ③ says a deviation is a FINDING argued in the report. That is necessary and NOT
+sufficient** — 📌 **the report is EPHEMERAL** *(it lives in `docs/blueprints/batches/` and is not read
+again after the batch closes — the same fact that put the DIAGRAMS in the design, not the batch)*.
+⇒ ⭐⭐⭐ **a deviation recorded ONLY in the report leaves the design LYING**, and the next session reasons
+off a design the code already left behind — 📌 exactly the *"code is behind the design"* disease inverted:
+here the DESIGN is behind the code.
+
+| ⭐ the rule — **the implementing session, before the batch closes** | |
+|---|---|
+| ⭐⭐⭐ **UPDATE the owning `DESIGN_*` / `Architect_Question_*` doc to the AS-BUILT** | ⛔ the classes, the sequences, the seam members, the run-state table — whatever the build changed. ⭐ **The diagram is TRUE again**, which is what obligation ③ can only assert, not fix |
+| ⭐⭐ **MARK the prior state SUPERSEDED — do not silently overwrite** | ⭐ use the STATUS block *(`known-rot` / `stale-below` / `superseded-by`)* and move dead content to a `## ⛔ HISTORY` heading, or delete it — 📌 the *"DESIGN DOCUMENT FORMAT"* rules. ⚠ **A reader must never quote the pre-deviation state as current** |
+| ⭐⭐ **CITE the design edit in the report** | *"deviated HERE; design updated at §N, prior state moved to HISTORY"* — ⛔ the report POINTS to the durable record; it does not BE it |
+| ⚠ **the coordinator VERIFIES the design was updated on merge** | ⛔ a report that argues a deviation but leaves the design stale is an INCOMPLETE batch — send it back, do not merge the lie |
+
+⭐⭐ **Why this is the implementor's job and not the coordinator's** *(same logic as obligation ③)*: only
+the session that wrote the code knows exactly how it diverged and why. ⛔ **The coordinator asserting the
+as-built from a diff is the mirror error** — it reasons from *how it IS* without the *why*. ⇒ ⭐ **the
+builder writes the truth into the design; the coordinator checks it is there.**
+
+📌 **Good precedent already exists — name it so it becomes the norm, not the exception:** the TIME lane
+folded its `RestorePostTick()`-seam trim and the drain-as-PULL correction back into
+`DESIGN_Time_Architecture.md` §10 *(its report says "§10 carries the correction in its own words")*.
+⭐ **That is the behaviour;** this rule makes it an OBLIGATION rather than a good habit some batches keep
+and others forget.
 
 ## ⭐⭐⭐ THE THREE TEST TIERS — **run what the change earns** *(user, `2026-08-20`)*
 
@@ -435,6 +467,15 @@ me** — that is the contract below, and **a missing row is the one thing that s
 | **5** | ⭐ **the working tree is CLEAN after every suite run** | ⛔ otherwise a golden was regenerated by a test and nobody noticed |
 | **6** | ⭐ **both quarantine counts**, and ⛔ **a new skip is a finding, not a fix** | |
 | **7** | ⭐ **`tracker-counts.py --check`** and **every id allocated** | |
+| **8** | ⛔⛔⛔ **A CROSS-CUTTING / SYSTEM-LEVEL change NAMES the INTEGRATION suite that exercises its invariant, and reports RUNNING it** — or states, with evidence, WHY it cannot gate | ⭐ **unit rails prove a class; only an integration suite proves the SYSTEM still holds together.** 📌 `2026-08-22`: the TIME lane changed cluster-time control and gated `Fdp.ModuleHost.Tests` + filtered rails but **never named `SimTimeSyncIntegrationTests` / `ClusterRunner.Integration.Tests`** — the suites that assert *nodes stay time-synced*. ⇒ the coordinator had to run them to answer *"did cluster time rot?"* |
+
+⛔⛔ **Row 8, stated as a checkable habit:** if the change touches the clock, the kernel schedule, the
+orchestrator, transport, or anything cross-node, the §Gates table has a row for the INTEGRATION suite
+that would break if the invariant broke — run in ISOLATION if the full suite is flaky *(`--filter` the
+sync tests)* — ⭐ **and if that suite CANNOT gate** *(a pre-existing crash, non-deterministic discovery)*,
+⛔ **that is itself a reported FINDING with the base-sha proof**, not a silent omission. 📌 The
+`ClusterRunner.Integration.Tests` DDS-allocator crash is exactly such a finding: it makes the suite
+un-gateable and it is **pre-existing** — say so, do not let its noise stand in for *"verified."*
 
 #### ⭐ What the coordinator still does — ⛔ **narrow, and NOT a gate re-run**
 
