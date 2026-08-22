@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD
-updated: 2026-08-21
+build-state: BUILT
+updated: 2026-08-22
 current-answer: this whole file — the uniform staged-live-write model (replaces MIN's direct write),
-  its drain, its shared yellow "pending" display, and the W-task lane split.
+  its drain, its shared yellow "pending" display, and the W-task lane split. BUILT + merged at
+  coordinator d56e2ba3c; §6 carries the build-state note and the W5 restore-half closure.
 stale-below: nothing.
-known-rot: none. ⚠ MIN's WriteFieldNow (direct _liveRepo write) is SUPERSEDED by W3 here — kept only
-  until W1/W2's drain lands, then removed.
+known-rot: none. ✅ MIN's WriteFieldNow is now REMOVED (W3); every live edit stages and the PreFrame
+  drain applies it. The one thing NOT yet done is a real editor visual-check of the yellow behaviour.
 known-conflict: none. This CONSOLIDATES the drain (DESIGN_Time_Architecture §10) and the optimistic
   display (DESIGN_Variable_Details_And_Editing §4a/§6) — it references their diagrams, does not redraw.
 design-basis: R-126 (one source of paused; staged writes drain from the sim tick loop — PULL) · R-130
@@ -155,7 +156,23 @@ implements it; `StagedWriteView` *(UI lane)* queries it for the display.
 | **`W2`** | `ResumeAndDrainSystem` — `DrainInto` when advancing, skip while rewound *(§10, gate on the `dt` PARAMETER — `AS-10`)* | ⭐ TIME lane |
 | **`W3`** | uniform staging: drop the `_isPaused`/`NotFrozen` refusal, **remove `MIN`'s `WriteFieldNow`**, stage in every writable run state | ⭐ UI lane |
 | **`W4`** | the shared yellow: `DataBreakpointManager` implements `IStagedWrites`; `StagedWriteView` + `VariableChangeMonitor` derive `Pending`/typed value from it *(fork A)* | ⭐ UI lane |
-| **`W5`** | move the restore out of `RequestStep`/`RequestContinue` *(`R-63`; `W0`'s rail settles it)* | ⭐ UI lane |
+| **`W5`** | ~~move the restore out of `RequestStep`/`RequestContinue`~~ → drain-removal BUILT; **restore-move CLOSED** *(below)* | ⭐ UI lane |
+
+> ✅ **BUILD-STATE `2026-08-22` — the whole W-story is BUILT and merged** *(coordinator head `d56e2ba3c`)*.
+> `W1`/`W2` *(drain)* · `W3` *(uniform staging, `MIN`'s `WriteFieldNow` removed)* · `W4` *(shared yellow)* ·
+> `W5` *(the duplicate drain removed from `RequestStep`/`RequestContinue`)*. Wired at **both** manager hosts
+> — `EditorSubsystem` **and** `CgfSubsystem` *(`BP-410`: the second host would have silently lost every
+> staged edit; now railed as a negative)*.
+>
+> ⭐⭐ **`W5`'s "move the restore" half is CLOSED, not deferred** *(coordinator, endorsing the report's §3
+> lean)*: the restore is `DataBreakpointManager`'s **own** rewind bookkeeping *(`OnHit` rewound
+> `_liveRepo ← _preTickSnapshot`; the resume restores `_liveRepo ← _postTickSnapshot` and unpauses)*, and
+> the `PreFrame` drain **already** waits on `IStagedWrites.IsRewound` — so the restore provably runs before
+> the drain **by construction**, on the first advancing frame after the unpause. Moving it into
+> `ResumeAndDrainSystem` would re-introduce a `RestorePostTick()` seam member the TIME lane deliberately
+> trimmed on `2026-08-21` *(`DESIGN_Time_Architecture.md` §10)* — a cross-lane change *(`R-128`)* that buys
+> ordering the `IsRewound` gate already guarantees. ⇒ ⛔ **no further work; the `R-63` hazard is closed by
+> the staging path + the `IsRewound` gate, not by relocating the restore.**
 
 ⛔⛔ **Sequencing:** `W1`+`W2` *(drain)* must land before `W3` flips writes to staging — **or an edit
 stages and never applies.** ⇒ ⭐ **the drain goes to the time lane FIRST** *(their next batch after
