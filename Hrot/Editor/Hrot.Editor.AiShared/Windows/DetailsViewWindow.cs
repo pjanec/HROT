@@ -1,8 +1,41 @@
 using System;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Shell;
 
 namespace Hrot.Editor.AiShared.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — this window's OWN state, dumped.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c>
+/// §Example.
+///
+/// <para>⚠ <b>Deliberately narrower than the hosted view's full paint.</b> The content is delegated to
+/// an <c>IDetailsViewInstance.Draw</c> with no returned model — that instance is one of the
+/// <c>*DetailsView</c> family (group 2 of the sweep), a separate conversion. ⭐ What IS this shell's own
+/// state — which view, whether its predicate applies, the resolved context's summary — is captured
+/// whole.</para>
+///
+/// <para>⭐ <b><see cref="PanelKind"/> is the view id itself</b> — one <see cref="DetailsViewWindow"/>
+/// hosts exactly one view for its whole life (multiplicity "1"), so the descriptor's id IS the stable
+/// logical name conformance would group by.</para>
+/// </summary>
+public sealed record DetailsViewWindowPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool Applies,
+    string? EmptyState,
+    Guid? AssetId,
+    string? AssetName,
+    string Perspective,
+    string Mode,
+    string Focus,
+    int SelectionCount,
+    int EntityCount) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>L4.1</c> — ONE VIEW, IN ITS OWN WINDOW. Float and pin are the same class.</b>
@@ -64,6 +97,9 @@ public sealed class DetailsViewWindow : ManagedWindow, IDisposable
         //   float is a placement the designer chose and SHOULD be listed there.
         ShowInMenu = !isVolatile;
         IsOpen           = true;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>⭐ Which view this window shows. A rail surface.</summary>
@@ -99,10 +135,29 @@ public sealed class DetailsViewWindow : ManagedWindow, IDisposable
             applies ? null : DetailsEmptyState.ForInapplicableFloat(Title));
     }
 
-    /// <remarks>⭐⭐ A thin renderer over <see cref="Frame"/> — ⛔ it decides nothing.</remarks>
-    protected override void DrawClientArea()
+    /// <summary>⭐⭐⭐ BUILD · CAPTURE. ⛔⛔ No ImGui — <see cref="Frame"/> was already pure.</summary>
+    private (FloatFrame Frame, DetailsViewWindowPanelViewModel Vm) BuildAndPublish()
     {
         var frame = Frame();
+        var ctx   = frame.Context;
+
+        var vm = new DetailsViewWindowPanelViewModel(
+            Id, ViewId, frame.Applies, frame.EmptyState,
+            ctx.Asset?.AssetId, ctx.Asset?.Name, ctx.Perspective,
+            ctx.Mode.ToString(), ctx.Focus.ToString(),
+            ctx.Selection.Count, ctx.Entities.Count);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return (frame, vm);
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal DetailsViewWindowPanelViewModel SimulateDrawClientArea() => BuildAndPublish().Vm;
+
+    /// <remarks>⭐⭐ A thin renderer over <see cref="BuildAndPublish"/> — ⛔ it decides nothing.</remarks>
+    protected override void DrawClientArea()
+    {
+        var (frame, _) = BuildAndPublish();
 
         if (frame.EmptyState != null)
         {
