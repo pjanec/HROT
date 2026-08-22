@@ -189,13 +189,11 @@ public sealed class InspectorWindow : ManagedWindow
         }
 
         // Record sub-tree identity metadata for the orchestrator emitter.
-        string shortDtoTypeName = ShortTypeName(subAsset.BlackboardTypeName);
-        string? dtoTypeNs = NsOf(subAsset.BlackboardTypeName);
-        syncAsset.RecordSubtreeNodeMeta(
-            nodeVisualId,
-            SanitizeIdentifier(subAsset.Name),
-            shortDtoTypeName,
-            dtoTypeNs);
+        // ⭐ Q49: ONE derivation, shared with the reload-time recompute (see SubtreeSyncIdentity).
+        var (subtreeName, shortDtoTypeName, dtoTypeNs) =
+            Hrot.AiEditor.Persistence.Emit.SubtreeSyncIdentity.Derive(
+                subAsset.Name, subAsset.BlackboardTypeName);
+        syncAsset.RecordSubtreeNodeMeta(nodeVisualId, subtreeName, shortDtoTypeName, dtoTypeNs);
 
         var existingBindings = syncAsset.GetSyncBindings(nodeVisualId);
         var bindingMap = new Dictionary<string, SubtreeSyncBinding>(existingBindings.Count);
@@ -275,27 +273,11 @@ public sealed class InspectorWindow : ManagedWindow
         }
     }
 
-    // ---- Identifier/type helpers ----
-
-    private static string ShortTypeName(string fqn)
-    {
-        int last = fqn.LastIndexOf('.');
-        return last >= 0 ? fqn[(last + 1)..] : fqn;
-    }
-
-    private static string? NsOf(string fqn)
-    {
-        int last = fqn.LastIndexOf('.');
-        return last > 0 ? fqn[..last] : null;
-    }
-
-    private static string SanitizeIdentifier(string name)
-    {
-        var sb = new System.Text.StringBuilder();
-        foreach (char c in name)
-            if (char.IsLetterOrDigit(c) || c == '_') sb.Append(c);
-        if (sb.Length == 0) return "Asset";
-        if (char.IsDigit(sb[0])) sb.Insert(0, '_');
-        return sb.ToString();
-    }
+    // ⛔⛔ Q49 (2026-08-22): the three identifier/type helpers that lived here are GONE.
+    //    They are Hrot.AiEditor.Persistence.Emit.SubtreeSyncIdentity now, because the RELOAD path
+    //    (BehaviorTreeAsset.RecomputeSubtreeSyncIdentity) must derive the SAME identity this panel
+    //    authors. ⭐ Two copies would be two things to disagree (ruling 9), and the failure would be
+    //    silent: an emitted field name that differs by a character from the one the panel showed.
+    //    ⭐ Measured: Hrot.AiEditor.Persistence is netstandard2.0 and referenced by this assembly, by
+    //      Hrot.BTree.Editor AND by the source generator ⇒ one implementation reaches all three arms.
 }

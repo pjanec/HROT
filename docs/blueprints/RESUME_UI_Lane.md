@@ -75,7 +75,7 @@ load-bearing rule. ⭐ Umbrella context: [`../DESIGN_Headless_Testability.md`](.
 | ⭐ **tiers** | `T0` `scripts/quick-check.sh <csproj> [filter]` while working; the **full gate table ONCE, at the end** |
 | ⭐⭐ **the gate report substitutes for the coordinator's run** | 8-row contract: per-gate command + counts + delta · a `--no-build` column · goldens as a **diff shape** · every red **confirmed pre-existing against the base sha** · clean tree · both quarantine counts · `tracker-counts.py --check` + ids allocated · the **integration suite** for a cross-cutting change *(or why it cannot gate)* |
 | ⭐⭐⭐ **obligation ⑤** | a deviation goes **back into the owning DESIGN doc**, prior state marked SUPERSEDED — ⛔ the report is ephemeral, the design is not |
-| ⭐ **I allocate the ids** | state them in the report. **Next free: `BP-440`** |
+| ⭐ **I allocate the ids** | state them in the report. **Next free: `BP-444`** |
 | ⛔ **no PR** unless the user asks | there has never been one in this programme |
 | ⭐ **links for mobile** | `https://github.com/pjanec/HROT/blob/claude/hrot-implementation-j1jvin/<path>` — ⚠ **push first** |
 | ⛔ **plain-text questions** | never the multiple-choice widget |
@@ -103,15 +103,15 @@ written by the coordinator, **amended by this lane `2026-08-22`**:
 
 | | |
 |---|---|
-| ✅ **the C-vs-A measurement is ANSWERED** | `SubtreeAssetId` *(`BehaviorTreeAssetDto:233`)* and the sub-asset's `BlackboardTypeName` *(`:342`)* are **both persisted**, both plain data ⇒ **option C is feasible**, no compilation needed |
-| ⭐ **option D was missing, and it matters** | C is an **editor-side** load-time recompute, but `Q45` ruled the **source generator** owns the sidecar and a generator **cannot load assets**. ⇒ the generator needs a `*.btree.json` `AdditionalTexts` catalog — the precedent is already shipped for `*.bp.json`. **The answer is C *and* D**, sharing one derivation *(ruling 9)* |
-| ⛔⛔ **and `Q49` covers `BP-342` gap ① ONLY** | **gap ②** — the Approach-B body writes `ref master.{Subtree}_{DtoType}`, a slice `GetAutoAllocatedVariables()` produces that **no blackboard emitter declares**. `BP-342`'s own words: *"widening the DTO would NOT be sufficient while ② stands."* ⇒ **`S4` stays blocked** |
-| ⭐ **what is owed** | a **`Q50`** for gap ②: *does the master blackboard declare the auto-allocated sub-tree slice, and who sizes it?* — ⚠ a **blackboard-emission** decision, ⛔ not an identity one. **Plus** the user's nod on `Q49`'s one open sub-question *(what happens when the subtree asset is MISSING at load — recommended: a diagnostic row)* |
+| ✅ **option C is BUILT** *(`2026-08-22`, `BP-440`–`BP-442`)* | user approved; the identity is recomputed from the catalog resolver already wired at `PerspectiveWorkspaceRegistrar:289`, through ONE derivation *(`SubtreeSyncIdentity`, in `netstandard2.0` persistence — reachable from generator, AiShared **and** BTree.Editor)*, pulled from inside `Emit` so no path can forget *(`R-126`)*. 11 rails, revert-probed |
+| ⛔ **option D is DESIGNED and GATED** | the generator's load path is the `*.btree.json` `AdditionalTexts` it **already receives** — a second projection, not new plumbing. ⛔ **NOT wired**: it would emit `ref master.{Subtree}_{DtoType}` for a field nothing declares ⇒ non-compiling generated code the moment a designer makes a sync binding *(`BP-306`'s shape)* |
+| 🛑 **`S4` is blocked on ONE ruling — [`Q50`](Architect_Question_50_The_Master_Blackboard_Declares_The_Subtree_Slice.md)** *(`BP-443`)* | *does the master blackboard DECLARE the auto-allocated slice, and who SIZES it?* ⭐ **Recommended: A (declare it)** — its two deferral reasons have **expired**: *"needs catalog integration"* ⇒ `Q49` delivered it, and *"size unknown until build"* is false in the generator *(`StructSizeResolver.Resolve`)*. 📐 **Zero corpus assets have a sync binding ⇒ byte-identical today.** ⇒ **`Q50` → D → `S4` → `S5` → `BP-399` closes** |
+| ⚠ also awaiting a nod | `Q49`'s one open sub-question — what happens when a subtree asset is **MISSING** at load. ⭐ Recommended: a **diagnostic row**. ⭐ Built behaviour today: the identity is **left alone, never erased** |
 
 ### ⚠ Other open `BP-` rows
 
 `BP-405` · `BP-407` · `BP-411` · `BP-416` · `BP-418` · `BP-419` · `BP-426` *(needs a running editor)* ·
-`BP-427` · `BP-342` · `BP-399`. ⭐ Tracker: **open 91 / done 283**.
+`BP-427` · `BP-342` · `BP-399`. ⭐ Tracker: **open 92 / done 286**.
 
 ### ⭐ The other lanes — **do not touch their files**
 

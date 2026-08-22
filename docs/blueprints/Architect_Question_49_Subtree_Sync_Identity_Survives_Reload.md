@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (the C-vs-A measurement is ANSWERED 2026-08-22 => C; ONE sub-question left for the
+build-state: BUILT (option C, 2026-08-22 — BP-440..442). Option D is DESIGNED and GATED on Q50.
+  The C-vs-A measurement is ANSWERED => C; ONE sub-question left for the
   user: what happens when the subtree asset is MISSING at load. ALSO AMENDED 2026-08-22 by the UI lane:
   this question covers BP-342 gap (1) ONLY — gap (2) (the master blackboard does not declare the
   auto-allocated slice) still blocks S4, and needs its own question. Option D added.)
@@ -94,6 +95,40 @@ MISSING at load** *(deleted, renamed, not in the catalog)* — does the node kee
 nothing *(silent)*, or does it raise a diagnostic row? ⭐ **Recommended: a diagnostic row** — 📌 `AIE053`
 just established that the Diagnostics window is where an unresolvable authoring reference belongs, and a
 silent skip is precisely the failure mode this whole question exists to end.
+
+## ✅ BUILT — **option C shipped `2026-08-22`** *(`BP-440`–`BP-442`)*
+
+🔒 **User, `2026-08-22`:** *"I agree with the recommended solution."*
+
+### ⭐ Where the load path comes from — **the question asked, answered concretely**
+
+| arm | the resolver | status |
+|---|---|---|
+| ⭐⭐ **editor (C)** | `catalog.FindByAssetId(id)` — **already wired**, at `PerspectiveWorkspaceRegistrar:289`, for the Inspector's sync panel. ⇒ ⛔ nothing new to plumb | ✅ **BUILT** |
+| ⭐⭐ **generator (D)** | the **`*.btree.json` `AdditionalTexts` the generator ALREADY receives** *(`BTreeJsonGenerator:30`)*, second-projected exactly as `GeneratedBlueprintSchemaCatalog` does for `*.bp.json`. ⇒ ⭐ **cheaper than this document implied** — not new plumbing, a second read of texts already in hand | ⛔ **GATED on `Q50`** — see below |
+
+### ⭐⭐ What shipped
+
+| | |
+|---|---|
+| **`SubtreeSyncIdentity`** *(new, `Hrot.AiEditor.Persistence/Emit/`)* | ⭐⭐⭐ **THE derivation, once.** 📐 **Measured: there is no netstandard2.0/net8.0 wall on this path** — that assembly is `netstandard2.0` and is referenced by the **generator**, by `Hrot.Editor.AiShared` **and** by `Hrot.BTree.Editor` ⇒ ruling 9's *"one implementation"* is achievable, and `BATCH-03-REPORT.md:100`'s duplication hazard does not apply. ⚠ **`InspectorWindow`'s three private helpers are DELETED** — the panel and the reload now derive identically **by construction** |
+| **`BehaviorTreeAsset.RecomputeSubtreeSyncIdentity(resolve)`** | walks the nodes that HAVE bindings, resolves each callee, re-records. ⭐ Idempotent; ⚠ a **missing** callee is left ALONE, never cleared *(a half-loaded catalog must not destroy a designer's session)* |
+| ⭐⭐⭐ **the PULL** | `BTreeOrchestratorEmitter.Emit(asset, resolveSubAsset)` — the resolver is **REQUIRED** and the recompute happens **inside** `Emit`. 📌 `R-126`: *"no path can forget to raise what is never raised."* ⛔ An **optional** resolver would have rebuilt the exact failure mode this fixes — an identity only some callers bother to supply |
+| **rails** | 11 new, incl. one that **pins the defect** *(a reloaded asset yields no groups until recomputed)* so the fix cannot become vacuous. Revert-probed: removing the recompute reddens the emit-path rail **and nothing else** |
+
+⚠ **Stated limit, measured:** the editor emit path *(`BTreeOrchestratorEmitter`)* currently has **no
+production caller** — `WriteOrchestratorFile`'s site is the Category-1 hand-authored path, deliberately
+unwired *(`BP-340`)*. ⇒ ⭐ C makes the identity **correct wherever it is read**; it does not by itself
+make anything ship. **That is D's job, and D is gated.**
+
+### ⛔⛔ Why option D is NOT wired yet — **measured, not cautious**
+
+📐 `BTreeOrchestratorEmitCore:165` emits `ref var subDto = ref master.{sliceField};` where `sliceField`
+is `{SubtreeName}_{DtoTypeName}` — ⛔ **a field no blackboard emitter declares** *(gap ②)*. ⇒ ⚠ **wiring
+D would make the generator emit non-compiling code the moment a designer creates a sync binding** —
+📌 exactly `BP-306`'s shape. ⭐ **D lands immediately after [`Q50`](Architect_Question_50_The_Master_Blackboard_Declares_The_Subtree_Slice.md).**
+
+---
 
 ## ⛔⛔ AMENDMENT — **this question covers `BP-342` gap ① ONLY, and ① alone does NOT unblock `S4`**
 

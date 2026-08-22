@@ -701,6 +701,58 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
         => _syncNodeMeta[nodeVisualId] = (subTreeName, subDtoTypeName, subDtoTypeNs);
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>Q49</c> OPTION C — RECOMPUTE the sub-tree identity from the resolved callee.</b>
+    /// 📄 <c>Architect_Question_49_Subtree_Sync_Identity_Survives_Reload.md</c>, approved by the user
+    /// <c>2026-08-22</c>. Closes <c>BP-342</c> gap ① for the EDITOR arm.
+    ///
+    /// <para>⛔⛔ <b>The defect:</b> <see cref="_syncNodeMeta"/>'s only writer was a UI draw
+    /// *(<c>InspectorWindow:194</c>)* ⇒ after a reload <see cref="GetApproachBSyncGroups"/> skipped every
+    /// node and Approach-B emitted <b>nothing</b> until a designer re-opened the panel on each one.</para>
+    ///
+    /// <para>⭐⭐ <b>Why RECOMPUTE and not PERSIST</b> *(option A, rejected)*: <c>SubDtoTypeName</c>/<c>Ns</c>
+    /// describe the <b>CALLEE</b>. Persisting them in the CALLER duplicates the subtree's own DTO type and
+    /// can <b>drift</b> when the subtree changes — and it would redden
+    /// <c>BTreeDtoRuntimeFieldExclusionTests</c>, which was <b>right</b> to keep derived data out of the
+    /// DTO. ⇒ ⭐ nothing is persisted and the rail is untouched.</para>
+    ///
+    /// <para>⚠ <b>ORDERING — the one real constraint</b>, and it is why this is a METHOD rather than
+    /// something the deserialiser does: the callee must already be LOADED. ⇒ ⛔ this cannot run inside
+    /// this asset's own deserialisation; it runs once the catalog is populated, from the composition root
+    /// that already holds the resolver.</para>
+    ///
+    /// <para>⭐ <b>Idempotent and additive</b> — it overwrites only what it can resolve. ⚠ A node whose
+    /// subtree is MISSING is left ALONE rather than cleared: a designer's in-session identity must not be
+    /// destroyed by a catalog that has not finished loading.</para>
+    /// </summary>
+    /// <param name="resolve">
+    /// ⭐⭐ Answers <i>"what are this subtree asset's name and blackboard type?"</i> — in production
+    /// <c>catalog.FindByAssetId(id)</c> *(see <c>PerspectiveWorkspaceRegistrar</c>)*.
+    /// ⛔ <b>REQUIRED</b>: 📌 the silent-default rule — a caller that HAS the resolver must pass it, and a
+    /// <c>null</c> arm here would silently restore exactly the do-nothing behaviour this fixes.
+    /// </param>
+    /// <returns>How many nodes had their identity recomputed — ⭐ the value a rail asserts.</returns>
+    public int RecomputeSubtreeSyncIdentity(Func<Guid, (string Name, string BlackboardTypeName)?> resolve)
+    {
+        if (resolve is null) throw new ArgumentNullException(nameof(resolve));
+
+        int recomputed = 0;
+        foreach (var nodeId in _syncBindings.Keys)
+        {
+            var info = GetSubtreeNodeInfo(nodeId);
+            if (info is null || info.SubtreeAssetId == Guid.Empty) continue;
+
+            var sub = resolve(info.SubtreeAssetId);
+            if (sub is null) continue;   // ⚠ missing callee: leave any in-session identity alone.
+
+            var (name, dtoType, dtoNs) = Hrot.AiEditor.Persistence.Emit.SubtreeSyncIdentity.Derive(
+                sub.Value.Name, sub.Value.BlackboardTypeName);
+            RecordSubtreeNodeMeta(nodeId, name, dtoType, dtoNs);
+            recomputed++;
+        }
+        return recomputed;
+    }
+
+    /// <summary>
     /// Returns Approach B sync groups: subtree nodes with at least one active sync binding
     /// whose sub-tree identity has been recorded via RecordSubtreeNodeMeta.
     /// </summary>
