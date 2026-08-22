@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-22
-current-answer: §1's per-item ledger — this is a LIVING report, updated after every item, so an
-  interruption leaves the state visible (handoff §2b step ⑤).
+current-answer: §1's per-item ledger (all five items BUILT) + §8's gate table. This was a LIVING
+  report, updated after every item; it is now CLOSED.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
+blocked: BP-416 — L6.3's "delete the HashSet" half needs UXI-11 (§6.2).
 design-basis: DESIGN_Details_Panel_View_Switching.md §6 L6 (re-staged 2026-08-22) · §5 · §2's
   classDiagram · §6's L6 sequenceDiagram · HANDOFF_L6_Entity_Views_On_Scenario.md §1/§2/§2b.
 -->
@@ -27,9 +28,12 @@ design-basis: DESIGN_Details_Panel_View_Switching.md §6 L6 (re-staged 2026-08-2
 | **2** | `L6.1c` — Scenario gets a host | ✅ **built** *(4/4)* | §4 |
 | **3** | `L6.5` — the predicate helper | ✅ **built** *(6/6)* | §5 |
 | **4** | `L6.3` — Components view | ✅ **built** *(7/7)* · ⚠ **one half BLOCKED** | §6 |
-| **5** | `L6.4` — Mission plan view | ⏳ **in progress** | |
+| **5** | `L6.4` — Mission plan view | ✅ **built** *(8/8)* | §7 |
+| — | ⭐ **close-out** — gates ONCE · probes · tracker · design fold-back · rule-4 merge | ✅ **done** | §8 · §9 |
 
-⭐ **IDs allocated:** *(filled as items close)*
+⇒ ⭐⭐ **All five §1 items BUILT.** ⛔ One HALF of item 4 blocked and recorded *(`R-106`)* — see below.
+
+⭐ **IDs allocated:** **`BP-412`** … **`BP-419`** — the table is in §8.
 
 ### ⛔ `R-106` verdicts — **the blocked half, stated where it cannot be missed**
 
@@ -270,7 +274,7 @@ deliberate *("so that tests can verify the call without a render context")*.
 |---|---|---|---|---|---|
 | **1** | solution build | `dotnet build IOS-IG-SimHost.sln --no-restore` | ⭐ **0 errors** | ⛔ builds | — |
 | **2** | `Hrot.Editor.AiShared.Tests` | `dotnet test … --no-build` | ⭐ **1858 pass / 0 fail / 1 skip — 1859 total** | ✅ in solution | **+13** *(1846 → 1859: `L6.1a`'s 7 stage-gate rails + `L6.5`'s 6 predicate rails)* |
-| **3** | `Hrot.Blueprints.Tests` | `dotnet test … --no-build` | *see §8b* | ✅ in solution | **+19** *(4 + 7 + 8 new)* |
+| **3** | `Hrot.Blueprints.Tests` | `dotnet test … --no-build` | ⭐ **3898 pass / 0 fail / 18 skip — 3916 total** | ✅ in solution | **+19** *(`L6.1c` 4 · `L6.3` 7 · `L6.4` 8)* |
 | **4** | ⛔⛔ `Fdp.Presentation.Tests` | ⛔ **CANNOT run whole — `BP-419`** | 🛑 **test host CRASHES mid-run, at BASE TOO** | — | — |
 | **4b** | ⭐ …by filter instead | `dotnet test … --filter "FullyQualifiedName~EntityInspector"` | ⚠ **27 / 3 / 30** | ✅ | ⭐ **IDENTICAL at base — 27 / 3 / 30** |
 | **5** | `tracker-counts.py --check` | ⭐ **OK — open 90 / done 264 (+1 refuted)** | — | — | — |
@@ -326,3 +330,25 @@ InvalidSearch_ReturnsAllWithLimit}`. 📐 My entire diff to `EntityInspectorPane
 | **the coordinator merge-review** | one round-trip, at the end, as §2b says |
 | **`L6.1b`** | the persisted-key rename + layout migration — DEFERRED, and now **pinned by a rail** |
 | **`BP-399` · `DerEntityInspectorPanel`** | explicitly not this batch |
+
+---
+
+## 9. ⭐ RULE 4 — **the coordinator pull, at the end**
+
+📐 `git fetch` at close: the coordinator moved **`f968e693` → `a5770f0e`** *(two commits: curated test
+scenarios; an icon-atlas zero-handle guard + headless-Xvfb doc)*.
+
+| ⭐ | |
+|---|---|
+| **no design or handoff file relevant to `L6` changed** | ⇒ 📌 *"scope is FROZEN at the dispatch sha"* had nothing to bite on. ⛔ Nothing adapted, nothing reverted |
+| ⚠ **but they touched `EditorSubsystem.cs` (+15)** — the same file `L6.1c`/`L6.3`/`L6.4` edit | ⇒ ⭐ **merged rather than left for the coordinator**: an un-merged textual overlap in the composition root is exactly the collision the two-session rules exist to prevent |
+| ⭐ **post-merge re-gate** | ⭐ **solution build: 0 errors** · ⭐ **`Hrot.Editor.AiShared.Tests`: 1858 / 0 / 1 skip — IDENTICAL to pre-merge** · ⭐ **`TheScenario*` (19 rails): 19 / 0** ⇒ the merge changed nothing L6 depends on. ⚠ §8's `Hrot.Blueprints.Tests` row is the **pre-merge** full-suite number; ⛔ stated rather than silently relabelled — the post-merge re-run is in flight and the 19 L6 rails are already green against the merged tree |
+
+## 10. ⭐⭐ WHAT THE COORDINATOR SHOULD LOOK AT FIRST
+
+| ⭐ | where |
+|---|---|
+| ⭐⭐⭐ **the `BP-416` blocker** — is *"the `HashSet` deletion is `UXI-11`'s"* the right call? | §6.2 |
+| ⭐⭐ **the borrow-vs-own asymmetry** *(as-built (e))* — it is the one place I chose differently for two sibling items | §7 · design §2's `o--`/`*--` |
+| ⭐⭐ **`BP-419`** — a suite that aborts and still prints `Passed!` | §8b |
+| ⭐ **the gate SPLIT for `L6.3`** — I could not rail the offer half on the production root | §6.3 · `BP-418` |
