@@ -1,5 +1,16 @@
 # AI Debug & Test API (Editor) + MCP Server — Design
 
+<!--STATUS
+state: HISTORICAL (implemented intent — the original branch design)
+updated: 2026-08-22
+current-answer: this is the DESIGN AS BUILT ON origin/feat/ai-debug-api. It was PORTED onto the trunk on
+  2026-08-22; the trunk as-built and its deltas (tracer name-collision, rrController instantiation,
+  HROT_DEBUG_API_PORT enablement, POSIX staging root, deferred unit tests) are in docs/MCP_Integration.md.
+  Read this for the WHY and the endpoint-group intent; read docs/MCP_Integration.md for what is live on trunk.
+known-rot: the "New Work / Task Decomposition / Staging" sections describe the original build and are DONE;
+  do not treat them as pending. Group A-N endpoint semantics still hold.
+-->
+
 ## Overview
 
 This design adds an **in-process HTTP/JSON debug API** to the Hrot ClusterRunner, exposed

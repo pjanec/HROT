@@ -1,12 +1,26 @@
 # AI Debug API + MCP server — port plan
 
-> **Status: DESCRIPTION ONLY, 2026-08-06. Nothing done. Not scoped to a session yet.**
-> Written because the work interacts with this programme in four load-bearing ways
-> ([below](#why-the-ux-programme-cares)), and because the branch topology makes the obvious approach —
-> `git merge` — **impossible**, which is worth knowing before anyone tries it.
->
-> This is **infrastructure work**, not UX work. It probably belongs to its own session/programme; it is
-> recorded here because this session found the facts and the UX programme has a stake in the outcome.
+<!--STATUS
+state: SUPERSEDED
+updated: 2026-08-22
+current-answer: ✅ DONE — the port was executed 2026-08-22. The CURRENT as-built state, verification, and
+  the open follow-ups live in docs/MCP_Integration.md. This file is kept as the record of the port plan
+  and the topology finding; do not read its "what remains" as current.
+superseded-by: ../MCP_Integration.md
+-->
+
+> ✅ **DONE (2026-08-22).** The port described below was executed onto the coordinator branch. Production
+> `DebugApi` code, the Node MCP server, and the `.dev/ai-debug-api/` corpus were ported; 3 shared-file
+> drifts were reconciled; the host was wired into `EditorSubsystem` (incl. behavior-trace tracer +
+> record/replay controller) and **verified end-to-end headless** (record→replay, breakpoints, watch,
+> entities). ⇒ **The live state is [`docs/MCP_Integration.md`](../MCP_Integration.md).** The open
+> question "which branch receives the port" was answered: the coordinator branch. Deferred: the 15
+> harness-dependent unit tests (`DEBT-MCP-001`). Everything below is the ORIGINAL plan, kept for the
+> record and for its topology finding.
+
+> **[Original status] DESCRIPTION ONLY, 2026-08-06.** Written because the work interacts with this
+> programme in four load-bearing ways ([below](#why-the-ux-programme-cares)), and because the branch
+> topology makes the obvious approach — `git merge` — **impossible**.
 
 ## What exists, and where
 
