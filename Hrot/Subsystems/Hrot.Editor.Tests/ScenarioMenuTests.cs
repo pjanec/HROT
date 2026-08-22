@@ -148,23 +148,30 @@ public sealed class ScenarioMenuTests
         Assert.True(fileNode.Children.ContainsKey("Scenario"));
         var scenarioNode = fileNode.Children["Scenario"];
 
-        // Five sub-items expected: New Scenario, Load Scenario, Save Scenario, Save Scenario As, Migration History.
-        Assert.Equal(5, scenarioNode.Children.Count);
+        // ⭐⭐ SIX sub-items — the sixth is `Save Curated Scenarios to Git`, added by the curated-test-
+        //    scenarios feature (docs/UX/UX_Feature_Curated_Scenarios.md). ⚠ This rail and the one below
+        //    still said FIVE and had been RED since that commit; ⛔ updating the count records what the
+        //    feature deliberately added, it does not relax an expectation (📌 B101c's rule: establish
+        //    the DIRECTION first — the sixth command is designed, documented and reachable).
+        Assert.Equal(6, scenarioNode.Children.Count);
         Assert.True(scenarioNode.Children.ContainsKey("New Scenario"));
         Assert.True(scenarioNode.Children.ContainsKey("Load Scenario"));
         Assert.True(scenarioNode.Children.ContainsKey("Save Scenario"));
         Assert.True(scenarioNode.Children.ContainsKey("Save Scenario As"));
         Assert.True(scenarioNode.Children.ContainsKey("Migration History"));
+        Assert.True(scenarioNode.Children.ContainsKey("Save Curated Scenarios to Git"));
     }
 
-    // ── FiveCommands_Registered_InCommandSet ─────────────────────────────────
+    // ── SixCommands_Registered_InCommandSet ──────────────────────────────────
 
+    /// <summary>⭐ Renamed from <c>FiveCommands…</c>: the curated-scenarios feature made it six.
+    /// ⚠ A count in a test NAME is a rail that lies the moment the count moves.</summary>
     [Fact]
-    public void FiveCommands_Registered_InCommandSet()
+    public void SixCommands_Registered_InCommandSet()
     {
         var (_, commands, _, _, _, _) = CreateRegistrar();
 
-        Assert.Equal(5, commands.RegisterCallCount);
+        Assert.Equal(6, commands.RegisterCallCount);
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveId));
