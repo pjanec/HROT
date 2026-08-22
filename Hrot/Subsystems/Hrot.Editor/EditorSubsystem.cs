@@ -379,10 +379,23 @@ namespace Hrot.Editor
         /// carries a REAL entity source *(<c>R-67</c>)</summary>
         internal Hrot.Editor.AiShared.Shell.PerspectiveWorkspace? ScenarioWorkspace => _scenarioWorkspace;
         private AssetBrowserDockedWindow?       _aiAssetBrowser;
+
+        /// <summary>⭐ The docked Asset Browser production built — 📌 <c>R-67</c>: a rail asks the
+        /// CONSTRUCTED window which row commands this root opted into, ⛔ never the call site.</summary>
+        internal AssetBrowserDockedWindow? AssetBrowserForTest => _aiAssetBrowser;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
         private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
-        // AIE-048: Blueprint Details + Variables windows.
-        private Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow? _blueprintDetailsWindow;
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>S1</c> — the active Blueprint asset, PULLED by the node Details view.</b>
+        /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.3 ①.
+        ///
+        /// <para>⚠⚠ <b>This field replaces <c>BlueprintDetailsWindow.Retarget(bpAsset)</c>.</b>
+        /// 🔴 That was a PUSH the composition root had to remember; ⭐ 📌 <c>R-126</c> —
+        /// <i>"no path can forget to raise what is never raised"</i> — so the view asks for the asset on
+        /// the frame it needs it. ⛔ The ASSIGNMENT still happens in the same place
+        /// *(<c>ActiveChanged</c>)*, so the timing is unchanged; only the direction is.</para>
+        /// </summary>
+        private Hrot.Blueprints.Core.Assets.BlueprintAsset? _blueprintActiveAsset;
         // BATCH-03D2: Graph Signature window (edits Function graph Inputs/Outputs).
         private Hrot.Blueprints.Editor.Windows.GraphSignatureWindow? _blueprintSignatureWindow;
         // AIE-048: legacy selection store bridging AiShared → BlueprintVariablesWindow.
@@ -2659,11 +2672,14 @@ namespace Hrot.Editor
                     var btreeCtx     = new BTreeFacetFqnContext();
                     var btreeDrawers = BTreePickerDrawerFactory.BuildDrawers(
                         btreeAsset, _behaviorRegistry, sharedSchemaExporter, btreeCtx);
-                    _btreeRegistrar?.Inspector.SetFacetEditService(facetEditService, btreeDrawers);
+                    _btreeRegistrar?.NodeProperties.SetFacetEditService(facetEditService, btreeDrawers);
                     // FIX-A + BB1D: wire the per-asset facet dispatcher with the shared context
-                    // so InspectorWindow.GetCurrentFacet() returns a non-null facet and
-                    // the picker reads the updated FQN on the same frame.
-                    _btreeRegistrar?.Inspector.SetFacetDispatcher(
+                    // so NodePropertiesSource.FacetFor() returns a non-null facet and the picker
+                    // reads the updated FQN on the same frame.
+                    // ⭐ S2: this used to be `Inspector.SetFacetDispatcher`. The node arms are a Details
+                    //   VIEW now (details.nodeproperties, Rank 20), and a view instance is per-window —
+                    //   so the per-PERSPECTIVE services live on the registrar's NodeProperties source.
+                    _btreeRegistrar?.NodeProperties.SetFacetDispatcher(
                         BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, btreeCtx));
                 }
                 else if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm
@@ -2675,22 +2691,25 @@ namespace Hrot.Editor
                     var hsmCtx     = new HsmFacetFqnContext();
                     var hsmDrawers = HsmPickerDrawerFactory.BuildDrawers(
                         hsmAsset, sharedSchemaExporter, hsmCtx);
-                    _hsmRegistrar?.Inspector.SetFacetEditService(facetEditService, hsmDrawers);
+                    _hsmRegistrar?.NodeProperties.SetFacetEditService(facetEditService, hsmDrawers);
                     // FIX-A + BB1D: wire the per-asset facet dispatcher with the shared context
-                    // so InspectorWindow.GetCurrentFacet() returns a non-null facet and
-                    // the picker reads the updated FQN on the same frame.
-                    _hsmRegistrar?.Inspector.SetFacetDispatcher(
+                    // so NodePropertiesSource.FacetFor() returns a non-null facet and the picker
+                    // reads the updated FQN on the same frame.
+                    // ⭐ S2: this used to be `Inspector.SetFacetDispatcher`. The node arms are a Details
+                    //   VIEW now (details.nodeproperties, Rank 20), and a view instance is per-window —
+                    //   so the per-PERSPECTIVE services live on the registrar's NodeProperties source.
+                    _hsmRegistrar?.NodeProperties.SetFacetDispatcher(
                         HsmSelectionBridgeHelper.BuildFacetDispatcher(hsmAsset, hsmCtx));
                 }
                 else
                 {
                     // Switching to Blueprint or clearing: reset pickers to null (plain-text fallback).
                     // The edit service itself remains so the inspector still renders struct fields.
-                    _btreeRegistrar?.Inspector.SetFacetEditService(facetEditService, null);
-                    _hsmRegistrar?.Inspector.SetFacetEditService(facetEditService, null);
+                    _btreeRegistrar?.NodeProperties.SetFacetEditService(facetEditService, null);
+                    _hsmRegistrar?.NodeProperties.SetFacetEditService(facetEditService, null);
                     // FIX-A: clear facet dispatchers when no BTree/HSM is active.
-                    _btreeRegistrar?.Inspector.SetFacetDispatcher(null);
-                    _hsmRegistrar?.Inspector.SetFacetDispatcher(null);
+                    _btreeRegistrar?.NodeProperties.SetFacetDispatcher(null);
+                    _hsmRegistrar?.NodeProperties.SetFacetDispatcher(null);
                 }
 
                 // AIE-047/048: Retarget Blueprint-specific windows.
@@ -2718,8 +2737,9 @@ namespace Hrot.Editor
                         // BP-223: where the locals "+" refusal on a macro graph is drawn.
                         indicators:     ctx?.Indicators);
 
-                    // Retarget Details window (just needs the BlueprintAsset).
-                    _blueprintDetailsWindow?.Retarget(bpAsset);
+                    // ⭐ S1 — the Details node view PULLS this (see the field's remarks); the assignment
+                    //   stays exactly where BlueprintDetailsWindow.Retarget(bpAsset) used to be.
+                    _blueprintActiveAsset = bpAsset;
 
                     // Retarget Variables window via legacy bridge store.
                     _blueprintLegacySelectionStore.SelectAsset(bpAsset);
@@ -2735,21 +2755,59 @@ namespace Hrot.Editor
                 {
                     // Clear Blueprint windows when switching away from Blueprint perspective.
                     _blueprintMyBlueprintWindow?.Retarget(null, null, null, null);
-                    _blueprintDetailsWindow?.Retarget(null);
+                    _blueprintActiveAsset = null;
                     _blueprintLegacySelectionStore.SelectAsset(null);
                     _blueprintSignatureWindow?.Retarget(null);
                 }
             };
 
             // Global Asset Browser — single instance, Global scope, shows Open-docs section.
+            // ⚠⚠ MEASURED 2026-08-22: this window was CONSTRUCTED HERE AND NEVER USED — zero other
+            //    references, never registered, so no find-references result could ever be seen. It is
+            //    the destination §16.1 names, and it finally has both a caller and a registration.
             var assetBrowserFindResults = new FindResultsWindow(
                 idOverride:        "ai_asset_browser_find_results",
                 owningPerspective: "Global");
+            windowManager.RegisterWindow(assetBrowserFindResults);
+
+            // ⭐⭐⭐ THE ASSET ROW'S RIGHT-CLICK MENU (2026-08-22).
+            // 🔒 User: "go to definition and rename and find references, these all sound like context
+            //    menu items … asset related context menu items then, still nothing for a details panel
+            //    view." · "picker should not have that menu."
+            // 📄 AI_Editor_Shared_Infrastructure.md §16.1: "Find References … Used by THE RIGHT-CLICK
+            //    MENU, the Find Results window, and indirectly by the rename preview" — operations 1
+            //    and 4. ⇒ this is the design's own home for them, not a new idea.
+            // ⛔ These two moved OFF InspectorWindow's asset header, which is deleted in this commit.
+            //    Its third item — "Go to Definition" — is NOT here: it was a placeholder with an empty
+            //    body, and the real one is CommandCatalog.GoToDefinition on the graph (BP-76).
+            var assetRenameModal = new Hrot.Editor.AiShared.Browser.AssetRenameModal(
+                refactorService: refactorService,
+                showPreview:     assetBrowserFindResults.ShowRenamePreview);
+            windowManager.RegisterFrameOverlay(assetRenameModal.Draw);
+
+            var assetRowCommands = new[]
+            {
+                new Hrot.Editor.AiShared.Browser.AssetRowCommand(
+                    Label:  "Find References",
+                    Invoke: a => assetBrowserFindResults.ShowReferences(
+                                     a.Name, refactorService.FindReferences(a.Name))),
+                new Hrot.Editor.AiShared.Browser.AssetRowCommand(
+                    Label:  "Rename…",
+                    Invoke: a => assetRenameModal.Open(a.Name)),
+            };
+
             var assetBrowserIconProvider = new SilkIconProvider(windowManager.Atlas);
             _aiAssetBrowser = new AssetBrowserDockedWindow(
                 catalog:          catalog,
                 icons:            assetBrowserIconProvider,
-                options:          new AssetBrowserPanelOptions { Kinds = AssetKindFilter.All, ShowAllTab = false },
+                // ⭐ The DOCKED browser opts IN. ⛔ AssetPickerModal does not — it shares this panel but
+                //   only PICKS an asset, and "Rename…" mid-pick is a different job (user ruling).
+                options:          new AssetBrowserPanelOptions
+                                  {
+                                      Kinds       = AssetKindFilter.All,
+                                      ShowAllTab  = false,
+                                      RowCommands = assetRowCommands,
+                                  },
                 onAssetActivated: asset => _aiDocumentManager?.Open(asset),
                 id:               "ai_asset_browser"); // prior global Asset Browser id (MTB-P7-T4: register docked host with the prior id/scope)
 
@@ -3424,16 +3482,27 @@ namespace Hrot.Editor
                 new Hrot.Blueprints.Editor.Windows.BlueprintBookmarksWindow(_aiDocumentManager!);
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, blueprintBookmarksWindow);
 
-            // ── AIE-048: Blueprint Details + Variables windows ────────────────────────────────
-            _blueprintDetailsWindow = new Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow(
-                selectionStore:  _blueprintSelectionStore,
+            // ── ⭐⭐⭐ S1 (BP-399) — BLUEPRINT'S DETAILS IS THE SHARED SHELL ────────────────────
+            // 📄 DESIGN_Details_Panel_View_Switching.md §7.3 ① — one DetailsWindow class on all four
+            //    perspectives; BlueprintDetailsWindow is DELETED and its node arm is now a view.
+            // ⛔⛔ The shell is already built and registered by _blueprintRegistrar (it keeps the SAME
+            //    persisted id, `ai_details_blueprint` — §7.3 ④). ⇒ nothing is constructed here; what
+            //    this root supplies is the two things the reference wall keeps out of AiShared: the
+            //    node view and the Properties form. 📌 One call, so a rail on the constructed editor
+            //    covers all of it (the 2026-08-16 control).
+            Hrot.Blueprints.Editor.Windows.BlueprintDetailsContribution.InstallInto(
+                registrar:       _blueprintRegistrar!,
+                windowManager:   windowManager,
+                // ⭐ Re-asked every frame — R-126's pull. Set in ActiveChanged, exactly where the
+                //   retired Retarget(bpAsset) call stood.
+                asset:           () => _blueprintActiveAsset,
                 drawerRegistry:  _blueprintNodeDrawers ?? new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry(),
                 // ⭐⭐ Batch 99 (99a) — the Properties form's RENAME runs this. 📌 The silent-default
                 //    ruling: "a production caller that HAS a dependency must PASS it" — this method
                 //    hands the SAME service to BlueprintVariablesManagedWindow seven lines below, and
-                //    the first draft of 99a left this one defaulted to null.
+                //    the first draft of 99a left this one defaulted to null. ⭐ S1 made the parameter
+                //    REQUIRED, so that mistake is now unrepresentable.
                 refactorService: refactorService);
-            _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintDetailsWindow);
 
             // ⛔⛔ L5 — BlueprintVariablesManagedWindow / BlueprintVariablesWindow are RETIRED
             //    (Q38's retire list). ⭐ Their replacement is LIVE and that is the precondition §6 L5

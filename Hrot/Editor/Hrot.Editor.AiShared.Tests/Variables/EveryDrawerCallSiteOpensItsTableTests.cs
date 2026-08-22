@@ -43,7 +43,9 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
         "FDP/Engine/Fdp.Presentation/ImGui/Editing/ComponentEditWindow.cs",
         "FDP/Engine/Fdp.Presentation/ImGui/Utils/ComponentReflector.cs",
         "FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ReplaySearchPanel.cs",
-        "Hrot/Editor/Hrot.Editor.AiShared/Windows/InspectorWindow.cs",
+        // ⭐ S2 (BP-399): was Windows/InspectorWindow.cs — the node arms were EXTRACTED to a
+        //   Details view (§7.6 ②). ⚠ Still TWO drawer calls in one file, both in tables.
+        "Hrot/Editor/Hrot.Editor.AiShared/Shell/NodePropertiesDetailsView.cs",
         "Hrot/Editor/Hrot.Editor.AiShared/Variables/VariableEditModal.cs",
     };
 

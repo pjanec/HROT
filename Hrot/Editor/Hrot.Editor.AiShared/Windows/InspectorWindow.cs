@@ -13,54 +13,40 @@ using StructEdit.Core;
 namespace Hrot.Editor.AiShared.Windows;
 
 /// <summary>
-/// Inspector window -- shows properties for the currently-selected sub-element.
-/// StructEdit-driven dispatch by asset type; subsystems supply facet structs.
-/// This is a shell; per-subsystem inspector panels are added in later phases.
+/// Inspector window -- the asset header, plus the two sub-element panels that have not moved yet.
+///
+/// <para>⛔⛔ <b><c>S2</c> (<c>BP-399</c>, <c>2026-08-22</c>) — THE NODE ARMS ARE GONE FROM HERE.</b>
+/// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.6 ②: the facet arm and the <c>B-3</c>
+/// default-value arm were <b>EXTRACTED</b> to <c>Shell/NodePropertiesDetailsView</c> and are offered as
+/// <c>details.nodeproperties</c> at Rank 20, so a selected node makes the <b>Details</b> panel show them
+/// by default. ⇒ this window no longer dispatches facets and holds none of those services.</para>
+///
+/// <para>⚠ <b>What is STILL here, and why the class survives</b> *(📌 <c>BP-431</c>)*:
+/// <list type="bullet">
+///   <item>the <b>asset header</b> — name, <i>Find References</i>, <i>Rename…</i> — ⛔ ASSET-scoped, and
+///   §7.6 gives it no home;</item>
+///   <item>the <b>sub-element collision strip</b> — likewise a diagnostic with no home yet;</item>
+///   <item><b>PARAMETER SYNCHRONIZATION</b> — <c>S4</c>, deliberately deferred until after the
+///   orchestrator wiring *(<c>R-99</c>)*;</item>
+///   <item>the <b>utility consideration</b> stub — <c>S3</c>.</item>
+/// </list>
+/// ⇒ ⛔ <b><c>S5</c> cannot delete this class until the first two have somewhere to go.</b></para>
 /// </summary>
 public sealed class InspectorWindow : ManagedWindow
 {
     private readonly EditorSelectionStore _store;
-    private readonly IRefactorService _refactorService;
-    private readonly FindResultsWindow _findResults;
+    // ⛔ S5-prep: the refactor service and the Find Results window left with the asset header —
+    //    their only consumers were "Find References" and "Rename…", now on the Asset Browser row menu.
     private readonly Func<Guid, IBlackboardManagedAsset?>? _subAssetResolver;
 
     // Optional schema exporter for sub-element collision diagnostics (AIE-053).
     private readonly IActionSchemaExporter? _schemaExporter;
 
-    // Optional facet dispatcher injected from composition root (keeps AiShared dep-clean).
-    private IFacetDispatcher? _facetDispatcher;
-
-    // StructEdit edit-service + per-type session cache (SE1).
-    // The edit service is injected from outside (keeps AiShared dep-clean from picker assemblies).
-    private IComponentEditService? _facetEditService;
-    private IReadOnlyDictionary<Type, IImGuiFieldDrawer>? _facetCustomDrawers;
-
-    // Active StructEdit session for the current facet. Keyed by BOTH the facet type AND the
-    // sub-selection it was opened for, so selecting a different node of the SAME facet type
-    // (e.g. Wait(1s) -> Wait(2s)) rebuilds the session against that node's values rather than
-    // reusing the stale first node's session.
-    private IEditSession? _facetSession;
-    private Type? _facetSessionType;
-    private IAssetSubSelection? _facetSessionSub;
-
-    // B-3: StructEdit session for the bound variable's DefaultValueJson.
-    // Delegate that extracts ExpressionTargetField from a boxed facet (injected from composition root).
-    private Func<object?, string?>? _expressionTargetFieldAccessor;
-    // Active session for the bound variable's default value.
-    private IEditSession? _defaultValueSession;
-    private string? _defaultValueSessionVarName;   // variable name the session was opened for
-
-    // Cached facet state (one boxed struct per frame that has an active sub-selection).
-    private object? _currentFacet;
-    private IAssetSubSelection? _currentFacetSelection;
-
-    private string? _pendingRenameKey;
-    private readonly byte[] _renameBuf = new byte[512];
-    private bool _openRenameModal;
+    // ⛔ S2: the facet dispatcher, the StructEdit edit service, its custom drawers, the
+    //    ExpressionTargetField accessor, both sessions and the facet cache are GONE from this window —
+    //    they are Shell/NodePropertiesSource now. See the note in DrawClientArea.
 
     /// <param name="store">Editor selection store for this perspective.</param>
-    /// <param name="refactorService">Refactoring service.</param>
-    /// <param name="findResults">Find-results window.</param>
     /// <param name="subAssetResolver">Optional sub-asset resolver for blackboard data.</param>
     /// <param name="idOverride">
     ///   Optional stable ImGui id override. When supplied, the window uses this id
@@ -70,116 +56,30 @@ public sealed class InspectorWindow : ManagedWindow
     /// <param name="owningPerspective">
     ///   Perspective that owns this instance. Defaults to <c>"Authoring"</c>.
     /// </param>
-    /// <param name="facetDispatcher">
-    ///   Optional per-perspective facet dispatcher (injected from composition root).
-    ///   When supplied, sub-selections are routed through it for StructEdit rendering.
-    /// </param>
-    /// <param name="facetEditService">
-    ///   Optional StructEdit <see cref="IComponentEditService"/> used to open edit sessions for
-    ///   boxed facet structs. When null, the stub "Apply" button is shown instead.
-    ///   Injected from the composition root with all picker drawers pre-registered (SE1).
-    /// </param>
-    /// <param name="facetCustomDrawers">
-    ///   Optional map of CLR type → <see cref="IImGuiFieldDrawer"/> forwarded to
-    ///   <see cref="ComponentEditDrawer"/>. Carries the HSM and BTree picker drawers
-    ///   (registered by the composition root; keeps AiShared dep-clean).
-    /// </param>
-    /// <param name="expressionTargetFieldAccessor">
-    ///   Optional delegate (injected from composition root) that reads the
-    ///   <c>ExpressionTargetField</c> value from a boxed facet struct (B-3).
-    ///   When supplied and non-null, enables the "Static Parameters" default-value
-    ///   StructEdit panel below the action facet.
-    /// </param>
     public InspectorWindow(
         EditorSelectionStore store,
-        IRefactorService refactorService,
-        FindResultsWindow findResults,
         Func<Guid, IBlackboardManagedAsset?>? subAssetResolver = null,
         string? idOverride = null,
         string? owningPerspective = null,
-        IFacetDispatcher? facetDispatcher = null,
-        IActionSchemaExporter? schemaExporter = null,
-        IComponentEditService? facetEditService = null,
-        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? facetCustomDrawers = null,
-        Func<object?, string?>? expressionTargetFieldAccessor = null)
+        IActionSchemaExporter? schemaExporter = null)
         : base(idOverride ?? "ai_inspector", "Inspector",
                owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
         _store = store;
-        _refactorService = refactorService;
-        _findResults = findResults;
         _subAssetResolver = subAssetResolver;
-        _facetDispatcher = facetDispatcher;
         _schemaExporter = schemaExporter;
-        _facetEditService = facetEditService;
-        _facetCustomDrawers = facetCustomDrawers;
-        _expressionTargetFieldAccessor = expressionTargetFieldAccessor;
-    }
-
-    /// <summary>
-    /// Wires (or replaces) the facet dispatcher at runtime.
-    /// Called from the composition root after construction when the dispatcher
-    /// is built with the asset-specific mapper.
-    /// </summary>
-    public void SetFacetDispatcher(IFacetDispatcher? dispatcher)
-    {
-        _facetDispatcher = dispatcher;
-        // Invalidate cached facet when dispatcher changes.
-        _currentFacet          = null;
-        _currentFacetSelection = null;
-        DisposeAndClearFacetSession();
-    }
-
-    /// <summary>
-    /// Wires (or replaces) the StructEdit edit service and custom field drawers at runtime (SE1).
-    /// Safe to call after construction — invalidates the cached session so the next render
-    /// opens a fresh one.
-    /// </summary>
-    public void SetFacetEditService(
-        IComponentEditService? editService,
-        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null)
-    {
-        _facetEditService   = editService;
-        _facetCustomDrawers = customDrawers;
-        DisposeAndClearFacetSession();
-    }
-
-    /// <summary>
-    /// Returns the boxed facet for the current sub-selection (if any).
-    /// Used by tests to verify dispatch without triggering ImGui.
-    /// </summary>
-    internal object? GetCurrentFacet()
-    {
-        var sub = _store.ActiveSubSelection;
-        if (_facetDispatcher is null || sub is null) return null;
-        if (!ReferenceEquals(sub, _currentFacetSelection))
-        {
-            _currentFacet          = _facetDispatcher.GetFacet(sub);
-            _currentFacetSelection = sub;
-        }
-        return _currentFacet;
-    }
-
-    /// <summary>
-    /// Commits the current facet (applies edited values back to the asset).
-    /// Safe to call from tests — does not require ImGui.
-    /// </summary>
-    internal void CommitCurrentFacet(object editedFacet)
-    {
-        var sub = _store.ActiveSubSelection;
-        if (_facetDispatcher is null || sub is null) return;
-        _facetDispatcher.ApplyFacet(sub, editedFacet);
-        // Invalidate cache so next GetCurrentFacet re-reads from asset.
-        _currentFacet          = null;
-        _currentFacetSelection = null;
-        // Also drop the StructEdit session so it is rebuilt from the freshly committed values.
-        DisposeAndClearFacetSession();
     }
 
     protected override void DrawClientArea()
     {
-        // Render the diagnostic strip for SubElementCollisions (AIE-053).
-        DrawCollisionDiagnosticStrip();
+        // ⛔⛔ AIE-053's collision strip is GONE from here (2026-08-22).
+        //    🔒 User ruling: "it need to be routed to where the collision can be seen or fixed."
+        //    ⭐ It is now a row in the DiagnosticsWindow's issue table — the shared window
+        //      docs/designs/blueprint-integ-1/DESIGN.md §5.7 names — via SubElementCollisionDiagnostics.
+        //    ⚠⚠ And the strip that stood here was DEAD: it called GetBindingAmbiguities, which returns
+        //      Array.Empty UNCONDITIONALLY, so it could never draw on any input. The Diagnostics rows
+        //      use GetCollisions — the real data — at Info severity, which is what the detector's own
+        //      doc says the difference is.
 
         if (_store.ActiveAsset is null)
         {
@@ -187,251 +87,33 @@ public sealed class InspectorWindow : ManagedWindow
             return;
         }
 
-        var asset = _store.ActiveAsset;
+        // ⛔⛔ THE ASSET HEADER IS GONE FROM HERE (2026-08-22).
+        //    🔒 User ruling: "go to definition and rename and find references, these all sound like
+        //       context menu items … asset related context menu items then, still nothing for a
+        //       details panel view." · "picker should not have that menu."
+        //    📄 AI_Editor_Shared_Infrastructure.md §16.1 agrees in its own words: Find References is
+        //       "Used by THE RIGHT-CLICK MENU, the Find Results window, and indirectly by the rename
+        //       preview" — operations 1 and 4 of five.
+        //    ⭐ "Find References" and "Rename…" now live on the ASSET BROWSER's row context menu, which
+        //      is where a designer points at an asset (AssetBrowserPanel.DrawRowContextMenu, opt-in via
+        //      AssetBrowserPanelOptions.RowCommands so the PICKER does not get them).
+        //    ⛔ "Go to Definition" did NOT move: measured, its body here was EMPTY ("placeholder --
+        //      navigation wired in a later phase") while CommandCatalog.GoToDefinition on the graph is
+        //      the real one (BP-76). A dead duplicate of a built feature is deleted, not relocated.
 
-        ImGuiNET.ImGui.Selectable(asset.Name);
-        if (ImGuiNET.ImGui.BeginPopupContextItem("##insp_ctx"))
-        {
-            if (ImGuiNET.ImGui.MenuItem("Find References"))
-            {
-                var refs = _refactorService.FindReferences(asset.Name);
-                _findResults.ShowReferences(asset.Name, refs);
-            }
-            if (ImGuiNET.ImGui.MenuItem("Rename..."))
-            {
-                _pendingRenameKey = asset.Name;
-                _openRenameModal = true;
-                Array.Clear(_renameBuf, 0, _renameBuf.Length);
-            }
-            if (ImGuiNET.ImGui.MenuItem("Go to Definition"))
-            {
-                // placeholder -- navigation wired in a later phase
-            }
-            ImGuiNET.ImGui.EndPopup();
-        }
+        // ⛔⛔ S2 (BP-399 / BP-431) — THE FACET ARM AND THE DEFAULT-VALUE ARM ARE GONE FROM HERE.
+        //    📄 DESIGN_Details_Panel_View_Switching.md §7.3's catalogue · §7.6 ② · §7.4's classDiagram
+        //       (InspectorWindow ..> NodePropertiesDetailsView : content EXTRACTED to).
+        //    ⭐ They are now Shell/NodePropertiesDetailsView, offered as `details.nodeproperties` at
+        //       Rank 20 — so a selected node makes the Details panel show them BY DEFAULT, which is the
+        //       user's 2026-08-22 ask.
+        //    ⚠ BOTH arms moved together and that was measured, not assumed: the default-value arm read
+        //      the SAME _currentFacet field this window cached, so extracting one alone would have
+        //      forced a second facet cache (ruling 9). See BP-431.
+        //    ⛔ The services that fed them (facet dispatcher, StructEdit edit service, custom drawers,
+        //       the ExpressionTargetField accessor) moved to Shell/NodePropertiesSource, which the
+        //       registrar owns and the composition root wires — this window no longer holds any of them.
 
-        if (_openRenameModal)
-        {
-            ImGuiNET.ImGui.OpenPopup("Rename##insp");
-            _openRenameModal = false;
-        }
-
-        if (_pendingRenameKey != null)
-        {
-            var renameOpen = true;
-            if (ImGuiNET.ImGui.BeginPopupModal("Rename##insp", ref renameOpen,
-                ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize))
-            {
-                ImGuiNET.ImGui.Text($"Rename: {_pendingRenameKey}");
-                ImGuiNET.ImGui.Text("New name:");
-                ImGuiNET.ImGui.SameLine();
-                ImGuiNET.ImGui.InputText("##rname_insp", _renameBuf, (uint)_renameBuf.Length);
-                if (ImGuiNET.ImGui.Button("OK"))
-                {
-                    var newKey = Fdp.Presentation.Utils.ImGuiBufferText.Decode(_renameBuf);
-                    if (!string.IsNullOrWhiteSpace(newKey))
-                    {
-                        var preview = _refactorService.PreviewRename(
-                            _pendingRenameKey, newKey, new RefactorOptions());
-                        _findResults.ShowRenamePreview(preview);
-                    }
-                    _pendingRenameKey = null;
-                    Array.Clear(_renameBuf, 0, _renameBuf.Length);
-                    ImGuiNET.ImGui.CloseCurrentPopup();
-                }
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Cancel"))
-                {
-                    _pendingRenameKey = null;
-                    Array.Clear(_renameBuf, 0, _renameBuf.Length);
-                    ImGuiNET.ImGui.CloseCurrentPopup();
-                }
-                ImGuiNET.ImGui.EndPopup();
-            }
-            if (!renameOpen)
-            {
-                _pendingRenameKey = null;
-                Array.Clear(_renameBuf, 0, _renameBuf.Length);
-            }
-        }
-
-        // ---- Facet dispatch + StructEdit render (AIE-023, SE1) ----------------------
-        // All ImGui calls are inside this block so headless tests can call GetCurrentFacet()
-        // and CommitCurrentFacet() without an ImGui context.
-        if (ImGuiNET.ImGui.GetCurrentContext() != IntPtr.Zero
-            && _facetDispatcher is not null
-            && _store.ActiveSubSelection is { } activeSub)
-        {
-            var facet = GetCurrentFacet();
-            if (facet is not null)
-            {
-                ImGuiNET.ImGui.Separator();
-
-                if (_facetEditService is not null)
-                {
-                    // SE1: real StructEdit render.
-                    // Open (or reuse) the session for this facet type.
-                    var facetType = facet.GetType();
-                    // Rebuild when the facet TYPE changes OR the selected node changes (records →
-                    // value equality), so per-node values are shown/edited correctly.
-                    if (_facetSession is null
-                        || _facetSessionType != facetType
-                        || !Equals(_facetSessionSub, activeSub))
-                    {
-                        DisposeAndClearFacetSession();
-                        _facetSession     = _facetEditService.Open(facet, facetType);
-                        _facetSessionType = facetType;
-                        _facetSessionSub  = activeSub;
-                    }
-
-                    // If the session requests a structural rebuild, honor it.
-                    if (_facetSession.RebuildState == EditRebuildState.RebuildRequired)
-                        _facetSession.RebuildDocument();
-
-                    var drawers = _facetCustomDrawers
-                        ?? new Dictionary<Type, IImGuiFieldDrawer>();
-
-                    var drawer = new ComponentEditDrawer(_facetSession, pickerCtx: null, drawers);
-
-                    // Two-column "Property | Value" table (matches ComponentEditWindow layout).
-                    if (ImGuiNET.ImGui.BeginTable("##facet_edit", 2,
-                        ImGuiNET.ImGuiTableFlags.SizingStretchProp))
-                    {
-                        ImGuiNET.ImGui.TableSetupColumn("Property", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.4f);
-                        ImGuiNET.ImGui.TableSetupColumn("Value",    ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.6f);
-
-                        drawer.DrawEditNode(_facetSession.Document.Root);
-
-                        ImGuiNET.ImGui.EndTable();
-                    }
-
-                    // Commit on every dirty frame so edits flow back to the asset continuously.
-                    if (_facetSession.IsDirty)
-                    {
-                        var committed = _facetSession.Commit();
-                        CommitCurrentFacet(committed);
-                        // CommitCurrentFacet disposes and clears _facetSession; session is null now.
-                    }
-                }
-                else
-                {
-                    // Fallback stub when no edit service is wired.
-                    ImGuiNET.ImGui.Text($"[{facet.GetType().Name}]");
-                    if (ImGuiNET.ImGui.Button("Apply##facet"))
-                        CommitCurrentFacet(facet);
-                }
-            }
-        }
-
-        // ---- B-3: the DEFAULT-VALUE editor for the selected node's ExpressionTargetField ----
-        //
-        // ⭐⭐ WHAT THIS IS (recorded Batch 74; it was carried as "retire STATIC PARAMETERS" since
-        //    Batch 69 on a label nobody had measured). ⛔ It has nothing to do with parameters. When
-        //    the selected BTree/HSM node's facet carries an ExpressionTargetField -- the OUTPUT
-        //    binding, i.e. the blackboard variable that receives the action's expression result --
-        //    this section edits THAT VARIABLE'S DEFAULT VALUE inline via StructEdit, persisting
-        //    through UpdateVariableDefaultValueJson. Contextual default-value authoring for the
-        //    variable the selected node writes. The old label named none of that.
-        //
-        // ⭐ WHY IT IS KEPT, not retired (user ruling 2026-08-17: "no rush removals"):
-        //   - the duplicate CODE half is already gone -- Batch 68 (BP-267) routed this through
-        //     DefaultValueAuthoring.OpenSession, so what remains is a duplicate SURFACE, not a
-        //     second implementation, and ExactlyOneCallSite_OpensAVariableEditSession pins that;
-        //   - the surface earns itself: it is NODE-scoped (you see the default of the variable this
-        //     node writes) where Track C's table is ASSET-scoped;
-        //   - Track C's replacement (VariableEditLauncher) is constructed by nothing yet, so
-        //     retiring this would delete the only live surface -- see
-        //     TrackCsVariableDialog_HasNoEntryPointYet_SoTheInspectorPanelIsTheLiveOne, which
-        //     INVERTS when the Track C menu lands.
-        //
-        // Shown when: an expressionTargetFieldAccessor is wired, the current facet carries a
-        // non-null ExpressionTargetField, the active asset implements IBlackboardManagedAsset,
-        // and an edit service is available.
-        if (ImGuiNET.ImGui.GetCurrentContext() != IntPtr.Zero
-            && _expressionTargetFieldAccessor is not null
-            && _facetEditService is not null
-            && _currentFacet is not null
-            && _store.ActiveAsset is IBlackboardManagedAsset bbAsset)
-        {
-            string? boundVarName = _expressionTargetFieldAccessor(_currentFacet);
-            if (!string.IsNullOrEmpty(boundVarName))
-            {
-                // Find the variable entry in the asset's blackboard.
-                BlackboardVariableEntry? varEntry = null;
-                foreach (var v in bbAsset.BlackboardVariables)
-                {
-                    if (v.Name == boundVarName) { varEntry = v; break; }
-                }
-
-                if (varEntry is not null)
-                {
-                    // Rebuild the session when the bound variable changes.
-                    if (_defaultValueSession is null || _defaultValueSessionVarName != boundVarName)
-                    {
-                        DisposeAndClearDefaultValueSession();
-                        // ⭐⭐ C-dialog (Batch 68): this used to inline its OWN copy of
-                        // DefaultValueAuthoring.Hydrate -- the same deserialize-or-Activator try/catch --
-                        // and then call Open itself, so a variable default-value session had TWO
-                        // implementations. ⛔ §9's rail is that exactly ONE call site opens one; it
-                        // failed here. Routed, not rebuilt.
-                        // ⭐⭐ C-dialog (Batch 68): this used to inline its OWN copy of
-                        // DefaultValueAuthoring.Hydrate -- the same deserialize-or-Activator try/catch --
-                        // and then call Open itself, so a variable default-value session had TWO
-                        // implementations. ⛔ §9's rail is that exactly ONE call site opens one; it
-                        // failed here. Routed, not rebuilt.
-                        _defaultValueSession        = DefaultValueAuthoring.OpenSession(_facetEditService, varEntry);
-                        _defaultValueSessionVarName = boundVarName;
-                    }
-
-                    if (_defaultValueSession.RebuildState == EditRebuildState.RebuildRequired)
-                        _defaultValueSession.RebuildDocument();
-
-                    ImGuiNET.ImGui.Separator();
-                    // ⭐ Batch 74: the label now names what the section does. Free to change --
-                    //   no test asserted the old string.
-                    ImGuiNET.ImGui.Text($"DEFAULT VALUE — {boundVarName}");
-                    ImGuiNET.ImGui.TextDisabled("the variable this node writes (ExpressionTargetField)");
-
-                    var drawers2 = _facetCustomDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
-                    var drawer2  = new ComponentEditDrawer(_defaultValueSession, pickerCtx: null, drawers2);
-
-                    if (ImGuiNET.ImGui.BeginTable("##defval_edit", 2,
-                        ImGuiNET.ImGuiTableFlags.SizingStretchProp))
-                    {
-                        ImGuiNET.ImGui.TableSetupColumn("Field", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.4f);
-                        ImGuiNET.ImGui.TableSetupColumn("Value", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.6f);
-
-                        drawer2.DrawEditNode(_defaultValueSession.Document.Root);
-
-                        ImGuiNET.ImGui.EndTable();
-                    }
-
-                    if (_defaultValueSession.IsDirty)
-                    {
-                        var committed = _defaultValueSession.Commit();
-                        string json;
-                        try   { json = JsonSerializer.Serialize(committed, varEntry.FieldType, DefaultValueAuthoring.JsonOptions); }
-                        catch { json = "{}"; }
-                        bbAsset.UpdateVariableDefaultValueJson(boundVarName, json);
-                        // Drop and rebuild next frame so the session reflects the persisted JSON.
-                        DisposeAndClearDefaultValueSession();
-                    }
-                }
-                else
-                {
-                    // Variable referenced by facet not found in asset blackboard.
-                    // Clear any stale session.
-                    if (_defaultValueSession is not null)
-                        DisposeAndClearDefaultValueSession();
-                }
-            }
-            else
-            {
-                // No bound variable — clear any leftover session.
-                if (_defaultValueSession is not null)
-                    DisposeAndClearDefaultValueSession();
-            }
-        }
 
         // ---- Subtree parameter synchronization panel (1e-01, 1e-02) ----
         if (_store.ActiveSubSelection is BTreeNodeSelection nodeSel
@@ -465,45 +147,15 @@ public sealed class InspectorWindow : ManagedWindow
             }
         }
 
-        // ---- Utility consideration inspector panel ----------------------------
-        if (_store.ActiveSubSelection is UtilityConsiderationSelection utilSel)
-        {
-            ImGuiNET.ImGui.Separator();
-            ImGuiNET.ImGui.Text("UTILITY CONSIDERATION");
-            ImGuiNET.ImGui.TextDisabled(
-                $"Option {utilSel.OptionIndex}, Consideration {utilSel.ConsiderationIndex}");
-            // Curve inspector panel wired in a later phase (P5-02).
-        }
+        // ⛔⛔ S3 (BP-399, 2026-08-22) — THE UTILITY CONSIDERATION ARM IS GONE FROM HERE.
+        //    📄 DESIGN_Details_Panel_View_Switching.md §7.6 ③: "port it honestly as a stub, do not
+        //       pretend it is a feature." It is now Shell/UtilityConsiderationDetailsView, offered as
+        //       `details.utility`.
+        //    ⚠ It was UNREACHABLE here and still is there — nothing raises UtilityConsiderationSelection
+        //      (measured: two C# sites in the repo, both of them declarations). ⭐ PORTED not DELETED
+        //      because the design record claims it: docs/designs/utility-ai/ specifies the editor, and
+        //      .dev/_DONE/utility-ai/batches/BATCH-14-INSTRUCTIONS.md §1d added this very arm on purpose.
     }
-
-    /// <summary>
-    /// Returns the current list of sub-element collisions without requiring an ImGui context.
-    /// Returns null if no schema exporter was injected.
-    /// Used by tests to verify collision detection headlessly.
-    /// </summary>
-    internal IReadOnlyList<ActionCollision>? GetCollisions() =>
-        _schemaExporter is null ? null : SubElementCollisionDetector.GetCollisions(_schemaExporter);
-
-    /// <summary>
-    /// Exposes the currently cached StructEdit session for headless tests (SE1).
-    /// Non-null only when a facet is active and an edit service is wired.
-    /// </summary>
-    internal IEditSession? GetFacetSession() => _facetSession;
-
-    /// <summary>
-    /// True when a StructEdit <see cref="IComponentEditService"/> has been wired (via the
-    /// constructor or <see cref="SetFacetEditService"/>). Used by headless tests to verify
-    /// the composition root forwarded the edit service so the Inspector renders live facet
-    /// fields instead of the fallback stub (SE1 live-wiring).
-    /// </summary>
-    internal bool HasFacetEditService => _facetEditService is not null;
-
-    /// <summary>
-    /// True when an <c>expressionTargetFieldAccessor</c> delegate has been wired (B-3).
-    /// Used by headless tests to verify the composition root forwarded the accessor so the
-    /// "Static Parameters" panel is active for Action/Transition facets.
-    /// </summary>
-    internal bool HasExpressionTargetFieldAccessor => _expressionTargetFieldAccessor is not null;
 
     /// <summary>
     /// ⭐⭐⭐ Batch 92 (<c>92d</c>) — true when a sub-asset resolver has been wired.
@@ -523,73 +175,6 @@ public sealed class InspectorWindow : ManagedWindow
     /// </summary>
     internal IBlackboardManagedAsset? ResolveSubAssetForRail(Guid assetId)
         => _subAssetResolver?.Invoke(assetId);
-
-    /// <summary>
-    /// Returns the bound variable name for the current facet (if any) using the wired
-    /// <c>expressionTargetFieldAccessor</c>. Returns null when no accessor is wired or the
-    /// current facet does not carry an ExpressionTargetField. Safe to call from headless
-    /// tests — does not require an ImGui context.
-    /// </summary>
-    internal string? GetCurrentExpressionTargetField()
-    {
-        if (_expressionTargetFieldAccessor is null) return null;
-        var facet = GetCurrentFacet();
-        return _expressionTargetFieldAccessor(facet);
-    }
-
-    /// <summary>
-    /// Exposes the currently cached default-value StructEdit session for headless tests (B-3).
-    /// Non-null only when a bound variable is active and an edit service is wired.
-    /// </summary>
-    internal IEditSession? GetDefaultValueSession() => _defaultValueSession;
-
-    private void DisposeAndClearFacetSession()
-    {
-        _facetSession?.Dispose();
-        _facetSession     = null;
-        _facetSessionType = null;
-        _facetSessionSub  = null;
-    }
-
-    private void DisposeAndClearDefaultValueSession()
-    {
-        _defaultValueSession?.Dispose();
-        _defaultValueSession        = null;
-        _defaultValueSessionVarName = null;
-    }
-
-    private void DrawCollisionDiagnosticStrip()
-    {
-        if (_schemaExporter is null) return;
-
-        // GetBindingAmbiguities returns only genuine ambiguities for FQN-based binding.
-        // Short-name collisions between distinct FQNs are harmless when binding is always
-        // by full FQN — using GetBindingAmbiguities avoids false-positive error strips.
-        var collisions = SubElementCollisionDetector.GetBindingAmbiguities(_schemaExporter);
-        if (collisions.Count == 0) return;
-
-        ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.ChildBg, new System.Numerics.Vector4(0.2f, 0.05f, 0.05f, 1f));
-        ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Border,  new System.Numerics.Vector4(1f,   0.2f,  0.2f,  1f));
-
-        if (ImGuiNET.ImGui.BeginChild("SubElementCollisions",
-                new System.Numerics.Vector2(0, 30 + (collisions.Count * 20)),
-                ImGuiNET.ImGuiChildFlags.Borders))
-        {
-            ImGuiNET.ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f),
-                "⚠ SUB-ELEMENT COLLISIONS DETECTED");
-
-            foreach (var collision in collisions)
-            {
-                ImGuiNET.ImGui.TextWrapped(
-                    $"Short name '{collision.ShortName}' has multiple FQN claimants: " +
-                    string.Join(", ", collision.ClaimingFqns));
-            }
-        }
-        ImGuiNET.ImGui.EndChild();
-
-        ImGuiNET.ImGui.PopStyleColor(2);
-        ImGuiNET.ImGui.Spacing();
-    }
 
     private void DrawSyncBindingsTable(
         Guid nodeVisualId,

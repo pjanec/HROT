@@ -167,7 +167,15 @@ public static class ScenarioMenuCommands
             UpdateCuratedId, "Save Curated Scenarios to Git",
             "Copy the curated test scenarios' working copies back into the git-committed set (only when running from a source checkout)",
             isEnabled: isCuratedSaveEnabled ?? (() => false),
-            handler: _ => saveCuratedToGit?.Invoke());
+            handler: _ => saveCuratedToGit?.Invoke(),
+            // ⭐⭐⭐ VC-3 — SAY WHY when it cannot run, word for word in the shape the layout feature's
+            //    "Save current as default" already uses. 📌 The user's 2026-08-17 ruling: an explanatory
+            //    label beats a control that looks broken. 📐 Measured: RenderGlobalMenu DOES draw a
+            //    disabled leaf (greyed, :707) — so the item was never hidden; it simply said nothing,
+            //    which is indistinguishable from "not implemented" to someone looking for it.
+            dynamicDisplayName: () => (isCuratedSaveEnabled ?? (() => false))()
+                ? "Save Curated Scenarios to Git"
+                : "Save Curated Scenarios to Git (unavailable — not running from the source tree)");
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────
@@ -180,7 +188,8 @@ public static class ScenarioMenuCommands
         string displayName,
         string description,
         Func<bool> isEnabled,
-        Action<EditorCommandContext> handler)
+        Action<EditorCommandContext> handler,
+        Func<string>? dynamicDisplayName = null)
     {
         var descriptor = new EditorCommandDescriptor(
             Id:          commandId,
@@ -189,7 +198,11 @@ public static class ScenarioMenuCommands
             Description: description,
             IconKey:     null,
             DefaultKey:  null,
-            IsEnabled:   isEnabled);
+            IsEnabled:   isEnabled,
+            // ⭐⭐ VC-3 — a DISABLED item must say WHY. MenuCommandAdapter.ApplyLeafNode copies this
+            //    onto the menu node's DynamicLabel; leaving it null is what made "Save Curated
+            //    Scenarios to Git" read as MISSING rather than as unavailable.
+            DynamicDisplayName: dynamicDisplayName);
 
         registerCommand(descriptor, handler);
 

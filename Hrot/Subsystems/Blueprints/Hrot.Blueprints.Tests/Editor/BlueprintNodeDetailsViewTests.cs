@@ -4,16 +4,46 @@ using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor.Windows;
 using Hrot.Editor.AiShared.Selection;
-using EditorSelectionStore = Hrot.Editor.AiShared.Selection.EditorSelectionStore;
+using Hrot.Editor.AiShared.Shell;
 
 namespace Hrot.Blueprints.Tests.Editor;
 
 /// <summary>
-/// Behavioral tests for <see cref="BlueprintDetailsWindow"/> (AIE-048).
+/// Behavioral tests for <see cref="BlueprintNodeDetailsView"/> (AIE-048).
 /// All tests are headless — no ImGui calls; only the projection logic is exercised.
+///
+/// <para>⭐⭐ <b><c>S1</c> (<c>BP-399</c>, <c>2026-08-22</c>) — PORTED from
+/// <c>BlueprintDetailsWindowTests</c>, unchanged in substance.</b>
+/// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.4: the node arm's content was <b>EXTRACTED</b>
+/// to a Details view and <c>BlueprintDetailsWindow</c> deleted. ⇒ ⭐ every scenario below still asserts
+/// the SAME projection — a selection resolves a drawer and a session — through the view.</para>
+///
+/// <para>⚠ <b>Two mechanical differences, both consequences of the extraction:</b>
+/// <list type="number">
+///   <item>⭐ <b>The selection arrives in a <see cref="DetailsContext"/></b>, not by writing
+///   <c>store.ActiveSubSelection</c> — 📌 §2: <i>"only the workspace builds a context"</i>. ⭐ The store
+///   is gone from this file entirely.</item>
+///   <item>⭐ <b>The asset is PULLED through a <c>Func</c></b>, so <c>SC6</c>'s <i>"Retarget clears the
+///   session"</i> is now <i>"a DIFFERENT asset clears the session"</i> — ⚠ the same claim, with nothing
+///   for a caller to forget to call.</item>
+/// </list></para>
 /// </summary>
-public sealed class BlueprintDetailsWindowTests
+public sealed class BlueprintNodeDetailsViewTests
 {
+    // ── the context, in the shape the shell hands one to a view ───────────────
+
+    /// <summary>⭐ A context with exactly one node selected — what the descriptor's predicate admits.</summary>
+    private static DetailsContext NodeSelected(Guid graphId, Guid nodeId, Guid assetId)
+        => new(SelectionOrigin.GraphCanvas,
+               new IAssetSubSelection[] { new BlueprintNodeSelection(graphId, nodeId) },
+               Array.Empty<Fdp.Core.Entity>(),
+               new FakeEditableAsset(assetId),
+               "Blueprint",
+               Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
+
+    /// <summary>⭐ Nothing selected.</summary>
+    private static DetailsContext NothingSelected() => DetailsContext.Empty("Blueprint");
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -30,14 +60,20 @@ public sealed class BlueprintDetailsWindowTests
         return registry;
     }
 
-    private static (BlueprintDetailsWindow window, EditorSelectionStore store)
-        MakeWindow(BlueprintAsset? asset = null)
+    /// <summary>⭐ The view over a MUTABLE asset holder, so <c>SC6</c> can swap the document the way
+    /// <c>ActiveChanged</c> does — ⛔ without a <c>Retarget</c> anyone must remember to call.</summary>
+    private sealed class AssetHolder
     {
-        var store    = new EditorSelectionStore();
-        var registry = MakeRegistry();
-        var window   = new BlueprintDetailsWindow(store, registry);
-        if (asset != null) window.Retarget(asset);
-        return (window, store);
+        public BlueprintAsset? Asset;
+        public BlueprintAsset? Get() => Asset;
+    }
+
+    private static (BlueprintNodeDetailsView view, AssetHolder assets)
+        MakeView(BlueprintAsset? asset = null)
+    {
+        var assets = new AssetHolder { Asset = asset };
+        var view   = new BlueprintNodeDetailsView(assets.Get, MakeRegistry());
+        return (view, assets);
     }
 
     private static BlueprintAsset MakeAsset()
@@ -56,16 +92,12 @@ public sealed class BlueprintDetailsWindowTests
         graph.Nodes.Add(whenNode);
         asset.Graphs.Add(graph);
 
-        var (window, store) = MakeWindow(asset);
+        var (view, _) = MakeView(asset);
 
-        // Set active asset + sub-selection.
-        store.ActiveAsset          = new FakeEditableAsset(asset.AssetId);
-        store.ActiveSubSelection   = new BlueprintNodeSelection(graphId, nodeId);
-
-        var session = window.ResolveSession();
+        var session = view.ResolveSession(NodeSelected(graphId, nodeId, asset.AssetId));
 
         Assert.NotNull(session);
-        Assert.Equal(typeof(StubDrawer<WhenNode>), window.ResolvedDrawerKind);
+        Assert.Equal(typeof(StubDrawer<WhenNode>), view.ResolvedDrawerKind);
     }
 
     // ── SC2: ReadEqsResultNode resolves to its drawer ─────────────────────────
@@ -81,14 +113,12 @@ public sealed class BlueprintDetailsWindowTests
         graph.Nodes.Add(node);
         asset.Graphs.Add(graph);
 
-        var (window, store) = MakeWindow(asset);
-        store.ActiveAsset        = new FakeEditableAsset(asset.AssetId);
-        store.ActiveSubSelection = new BlueprintNodeSelection(graphId, nodeId);
+        var (view, _) = MakeView(asset);
 
-        var session = window.ResolveSession();
+        var session = view.ResolveSession(NodeSelected(graphId, nodeId, asset.AssetId));
 
         Assert.NotNull(session);
-        Assert.Equal(typeof(StubDrawer<ReadEqsResultNode>), window.ResolvedDrawerKind);
+        Assert.Equal(typeof(StubDrawer<ReadEqsResultNode>), view.ResolvedDrawerKind);
     }
 
     // ── SC3: SpawnEqsSensorNode resolves to its drawer ────────────────────────
@@ -104,14 +134,12 @@ public sealed class BlueprintDetailsWindowTests
         graph.Nodes.Add(node);
         asset.Graphs.Add(graph);
 
-        var (window, store) = MakeWindow(asset);
-        store.ActiveAsset        = new FakeEditableAsset(asset.AssetId);
-        store.ActiveSubSelection = new BlueprintNodeSelection(graphId, nodeId);
+        var (view, _) = MakeView(asset);
 
-        var session = window.ResolveSession();
+        var session = view.ResolveSession(NodeSelected(graphId, nodeId, asset.AssetId));
 
         Assert.NotNull(session);
-        Assert.Equal(typeof(StubDrawer<SpawnEqsSensorNode>), window.ResolvedDrawerKind);
+        Assert.Equal(typeof(StubDrawer<SpawnEqsSensorNode>), view.ResolvedDrawerKind);
     }
 
     // ── SC4: unregistered node type → no drawer, null session ─────────────────
@@ -128,14 +156,12 @@ public sealed class BlueprintDetailsWindowTests
         graph.Nodes.Add(node);
         asset.Graphs.Add(graph);
 
-        var (window, store) = MakeWindow(asset);
-        store.ActiveAsset        = new FakeEditableAsset(asset.AssetId);
-        store.ActiveSubSelection = new BlueprintNodeSelection(graphId, nodeId);
+        var (view, _) = MakeView(asset);
 
-        var session = window.ResolveSession();
+        var session = view.ResolveSession(NodeSelected(graphId, nodeId, asset.AssetId));
 
         Assert.Null(session);
-        Assert.Null(window.ResolvedDrawerKind);
+        Assert.Null(view.ResolvedDrawerKind);
     }
 
     // ── SC5: no selection → null session ─────────────────────────────────────
@@ -143,17 +169,20 @@ public sealed class BlueprintDetailsWindowTests
     [Fact]
     public void BlueprintDetails_NoSelection_ReturnsNullSession()
     {
-        var (window, _) = MakeWindow(MakeAsset());
+        var (view, _) = MakeView(MakeAsset());
 
-        var session = window.ResolveSession();
+        var session = view.ResolveSession(NothingSelected());
 
         Assert.Null(session);
     }
 
-    // ── SC6: retarget clears session ──────────────────────────────────────────
+    // ── SC6: a DIFFERENT asset clears the session ─────────────────────────────
 
+    /// <remarks>⭐ <c>S1</c>: was <c>BlueprintDetails_Retarget_ClearsSession</c>. ⚠ Same claim — a
+    /// document switch must not leave a session pointing into the old asset — ⛔ but there is no
+    /// <c>Retarget</c> to forget: the view compares the asset it resolved against.</remarks>
     [Fact]
-    public void BlueprintDetails_Retarget_ClearsSession()
+    public void BlueprintNodeDetails_ADifferentAsset_ClearsSession()
     {
         var asset1  = MakeAsset();
         var graphId = Guid.NewGuid();
@@ -163,20 +192,18 @@ public sealed class BlueprintDetailsWindowTests
         graph.Nodes.Add(node);
         asset1.Graphs.Add(graph);
 
-        var (window, store) = MakeWindow(asset1);
-        store.ActiveAsset        = new FakeEditableAsset(asset1.AssetId);
-        store.ActiveSubSelection = new BlueprintNodeSelection(graphId, nodeId);
+        var (view, assets) = MakeView(asset1);
+        var context = NodeSelected(graphId, nodeId, asset1.AssetId);
 
         // Establish a session.
-        var session1 = window.ResolveSession();
+        var session1 = view.ResolveSession(context);
         Assert.NotNull(session1);
 
-        // Retarget to a different asset — session must be cleared.
-        var asset2 = MakeAsset();
-        window.Retarget(asset2);
+        // The document switches — the session must be cleared.
+        assets.Asset = MakeAsset();
 
         // Same sub-selection still present but asset changed — node not found → null.
-        var session2 = window.ResolveSession();
+        var session2 = view.ResolveSession(context);
         Assert.Null(session2);
     }
 
@@ -193,12 +220,11 @@ public sealed class BlueprintDetailsWindowTests
         graph.Nodes.Add(node);
         asset.Graphs.Add(graph);
 
-        var (window, store) = MakeWindow(asset);
-        store.ActiveAsset        = new FakeEditableAsset(asset.AssetId);
-        store.ActiveSubSelection = new BlueprintNodeSelection(graphId, nodeId);
+        var (view, _) = MakeView(asset);
+        var context = NodeSelected(graphId, nodeId, asset.AssetId);
 
-        var session1 = window.ResolveSession();
-        var session2 = window.ResolveSession();
+        var session1 = view.ResolveSession(context);
+        var session2 = view.ResolveSession(context);
 
         Assert.Same(session1, session2);
     }
@@ -206,7 +232,7 @@ public sealed class BlueprintDetailsWindowTests
     // ── BF-BATCH-TESTASSET: ChannelCommand drawer diagnostic ─────────────────
 
     /// <summary>
-    /// BF-TA-01 (drawer diagnostic): Given a <see cref="BlueprintDetailsWindow"/> backed by the
+    /// BF-TA-01 (drawer diagnostic): Given a <see cref="BlueprintNodeDetailsView"/> backed by the
     /// real registry from <see cref="BlueprintEditorBootstrap.CreateNodeDrawerRegistry"/>,
     /// selecting a <see cref="ChannelCommandNode"/> in the asset graph must resolve a NON-NULL
     /// session whose drawer is <see cref="ChannelCommandNodeDrawer"/>.
@@ -240,18 +266,14 @@ public sealed class BlueprintDetailsWindowTests
         var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "TestBP" };
         asset.Graphs.Add(graph);
 
-        var store  = new EditorSelectionStore();
-        var window = new BlueprintDetailsWindow(store, registry);
-        window.Retarget(asset);
-        store.ActiveAsset        = new FakeEditableAsset(asset.AssetId);
-        store.ActiveSubSelection = new BlueprintNodeSelection(graphId, nodeId);
+        var view = new BlueprintNodeDetailsView(() => asset, registry);
 
         // Act
-        var session = window.ResolveSession();
+        var session = view.ResolveSession(NodeSelected(graphId, nodeId, asset.AssetId));
 
         // Assert — session is non-null and backed by ChannelCommandNodeDrawer.
         Assert.NotNull(session);
-        Assert.Equal(typeof(ChannelCommandNodeDrawer), window.ResolvedDrawerKind);
+        Assert.Equal(typeof(ChannelCommandNodeDrawer), view.ResolvedDrawerKind);
     }
 
     // ── inner fakes ───────────────────────────────────────────────────────────

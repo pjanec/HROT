@@ -45,14 +45,26 @@ public sealed class BTreeFacetMapperTests
             Guid.NewGuid(), blob.TreeName, "/test.cs", false,
             string.Empty, string.Empty);
 
-    private static InspectorWindow MakeInspectorWindow(
-        EditorSelectionStore store, IFacetDispatcher? dispatcher = null)
+    /// <summary>
+    /// ⭐⭐ <b><c>S2</c> (<c>BP-399</c>) — the facet now resolves through
+    /// <c>NodePropertiesSource</c>, not through <c>InspectorWindow</c>.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.6 ②: the node arms were EXTRACTED to
+    /// <c>details.nodeproperties</c>. ⚠ The claim each test below makes is UNCHANGED — it was always
+    /// about the MAPPER; the window was only a convenient driver.
+    /// <para>⭐ And the port is closer to production: the context is built by
+    /// <c>DetailsContextBuilder</c>, the same call the shell makes every frame.</para>
+    /// </summary>
+    private static Hrot.Editor.AiShared.Shell.NodePropertiesSource MakeFacetSource(
+        IFacetDispatcher? dispatcher = null)
     {
-        var refactor = new StubRefactor();
-        var findResults = new FindResultsWindow();
-        return new InspectorWindow(store, refactor, findResults,
-            facetDispatcher: dispatcher);
+        var source = new Hrot.Editor.AiShared.Shell.NodePropertiesSource();
+        source.SetFacetDispatcher(dispatcher);
+        return source;
     }
+
+    private static Hrot.Editor.AiShared.Shell.DetailsContext ContextOf(EditorSelectionStore store)
+        => Hrot.Editor.AiShared.Shell.DetailsContextBuilder.Build(
+               store, "BTree", Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
 
     // ── BTreeFacetMapper tests ────────────────────────────────────────────────
 
@@ -140,10 +152,10 @@ public sealed class BTreeFacetMapperTests
         store.ActiveAsset = asset;
         // No sub-selection set.
 
-        var window = MakeInspectorWindow(store, mapper);
+        var source = MakeFacetSource(mapper);
 
-        // GetCurrentFacet should return null when no sub-selection.
-        window.GetCurrentFacet().Should().BeNull(
+        // FacetFor should return null when no sub-selection.
+        source.FacetFor(ContextOf(store)).Should().BeNull(
             "no sub-selection means no facet returned");
     }
 
@@ -161,7 +173,7 @@ public sealed class BTreeFacetMapperTests
     }
 
     [Fact]
-    public void Inspector_GetCurrentFacet_MatchesDirectMapperOutput()
+    public void Inspector_FacetForContext_MatchesDirectMapperOutput()
     {
         var asset  = MakeAsset(RootSequence2Actions());
         var mapper = new BTreeFacetMapper(asset);
@@ -172,14 +184,14 @@ public sealed class BTreeFacetMapperTests
         var sel = new BTreeNodeSelection(actionNode.VisualId);
         store.ActiveSubSelection = sel;
 
-        var window = MakeInspectorWindow(store, mapper);
+        var source = MakeFacetSource(mapper);
 
-        // InspectorWindow.GetCurrentFacet() must return the same type as direct mapper call.
-        var windowFacet = window.GetCurrentFacet();
+        // NodePropertiesSource.FacetFor() must return the same type as a direct mapper call.
+        var sourceFacet = source.FacetFor(ContextOf(store));
         var directFacet = mapper.GetFacet(sel);
 
-        windowFacet.Should().NotBeNull();
-        windowFacet!.GetType().Should().Be(directFacet!.GetType());
+        sourceFacet.Should().NotBeNull();
+        sourceFacet!.GetType().Should().Be(directFacet!.GetType());
     }
 
     // ── stub helpers ──────────────────────────────────────────────────────────

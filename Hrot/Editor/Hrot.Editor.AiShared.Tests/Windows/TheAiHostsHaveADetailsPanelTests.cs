@@ -64,9 +64,16 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     /// <b>no window titled "Details" was registered on any AI perspective</b> — measured by
     /// <c>search_graph</c> (gate 8): exactly one such window existed, on Blueprint.
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <b><c>S1</c> (<c>BP-399</c>, <c>2026-08-22</c>) added the <c>Blueprint</c> row.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.3 ①: the shell is built for EVERY perspective.
+    /// ⚠ Blueprint used to be the <b>negative</b> control here — see
+    /// <see cref="TheBlueprintPerspective_KeepsItsPersistedWindowId"/> for what replaced it and why.
+    /// </remarks>
     [Theory]
     [InlineData("BTree")]
     [InlineData("HSM")]
+    [InlineData("Blueprint")]
     public void AnAiPerspective_GetsADetailsPanel(string perspective)
     {
         var reg = AsTheEditorBuildsIt(perspective, new EditorSelectionStore());
@@ -77,14 +84,25 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
     }
 
     /// <summary>
-    /// ⛔ <b>The negative control, and it is a design claim, not a formality.</b> Blueprint already has
-    /// <c>BlueprintDetailsWindow</c>; a second Details there would be <b>two panels for one
-    /// concept</b> — 📌 ruling 9. ⚠ It would also collide on the window id, which <c>RegisterCore</c>
-    /// now refuses at startup.
+    /// ⛔⛔ <b>RE-EXPRESSED at <c>S1</c> — the claim INVERTED, and the ruling behind it did not.</b>
+    ///
+    /// <para>📌 <b>What this rail used to say:</b> <i>"Blueprint gets NO ai details panel — it already has
+    /// <c>BlueprintDetailsWindow</c>; a second Details there would be two panels for one concept
+    /// (ruling 9), and it would collide on the window id."</i> ⭐ <b>Both halves were correct and both are
+    /// now satisfied the other way round:</b> §7.3 ①③ keeps ONE panel by <b>retiring</b>
+    /// <c>BlueprintDetailsWindow</c> and handing Blueprint the SAME shell — ⛔ not by leaving Blueprint
+    /// without one.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>So the reachable claim moved to the id</b>, which is the half that can still break
+    /// silently. 📄 §5 / <c>TASKS_One_Shell_BP399.md</c> §4: <i>"the persisted ids are KEPT —
+    /// <c>ai_details_blueprint</c> stays"</i>, because a bare key rename <b>silently resets every saved
+    /// layout</b>. ⚠ Nothing else in the suite pins that string, and a refactor that regenerated the id
+    /// from the perspective name would produce a working editor with everyone's docking lost.</para>
     /// </summary>
     [Fact]
-    public void TheBlueprintPerspective_GetsNoAiDetailsPanel()
-        => Assert.Null(AsTheEditorBuildsIt("Blueprint", new EditorSelectionStore()).Details);
+    public void TheBlueprintPerspective_KeepsItsPersistedWindowId()
+        => Assert.Equal("ai_details_blueprint",
+                        AsTheEditorBuildsIt("Blueprint", new EditorSelectionStore()).Details!.Id);
 
     /// <summary>
     /// ⭐⭐ <b>Registered by <c>RegisterWindows</c>, not left to the host.</b> 🔴 Asked of the
@@ -104,15 +122,20 @@ public sealed class TheAiHostsHaveADetailsPanelTests : IDisposable
         Assert.Same(reg.Details, found);
     }
 
-    /// <summary>⚠ The two AI hosts must not share an id — both perspectives exist at once, and the
-    /// later registration would evict the earlier window.</summary>
+    /// <summary>⚠ The AI hosts must not share an id — all three perspectives exist at once, and the
+    /// later registration would evict the earlier window.
+    /// <para>⭐ <b><c>S1</c> widened this from two to THREE</b>: Blueprint's shell now goes through the
+    /// same registrar, so it joins the same collision surface. 📌 <c>RegisterCore</c> throws on a
+    /// duplicate id (Batch 81's guard) — which is exactly why <c>S1</c> could not be staged as "add the
+    /// shell now, retire the old window later" (<c>TASKS_One_Shell_BP399.md</c> §3).</para></summary>
     [Fact]
-    public void TheTwoAiDetailsPanels_HaveDistinctIds()
+    public void TheAiDetailsPanels_HaveDistinctIds()
     {
-        var bt = AsTheEditorBuildsIt("BTree", new EditorSelectionStore()).Details!;
-        var hs = AsTheEditorBuildsIt("HSM",   new EditorSelectionStore()).Details!;
+        var ids = new[] { "BTree", "HSM", "Blueprint" }
+                  .Select(p => AsTheEditorBuildsIt(p, new EditorSelectionStore()).Details!.Id)
+                  .ToArray();
 
-        Assert.NotEqual(bt.Id, hs.Id);
+        Assert.Equal(ids.Length, ids.Distinct().Count());
     }
 
     // ══ the routing — outline click → the panel's ROWS ═══════════════════════

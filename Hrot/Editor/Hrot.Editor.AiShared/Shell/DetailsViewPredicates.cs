@@ -38,6 +38,33 @@ public static class DetailsViewPredicates
         => context.Selection is { Count: 1 } one && one[0] is T;
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>S1</c> — <see cref="ExactlyOne{T}"/> <b>AND</b> the designer is not working in the
+    /// variable outline.</b> 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.3's catalogue row for
+    /// <c>details.nodeproperties</c>, ⚠ <b>with one clause the table's one-line summary does not
+    /// carry</b> — see §7.3's <c>S1</c> note.
+    ///
+    /// <para>⛔⛔ <b>Why the extra clause exists, measured rather than assumed.</b> §7.3 gives the node
+    /// view <b>Rank 20</b> and Variables <b>Rank 10</b>, so with only <c>ExactlyOne&lt;T&gt;</c> a node
+    /// selected on the canvas would outrank the variables list <b>even while the designer is clicking
+    /// rows in the outline</b> — 📌 and that is exactly what <c>Q32</c> ruling 2 *("selection routes")*
+    /// and batches 79–87 built the outline→Details routing to prevent. 📐 The retired
+    /// <c>BlueprintDetailsWindow.ShowingVariables</c> encoded the same rule as
+    /// <c>focus != GraphCanvas</c>; ⭐ this is that rule, stated from the node view's side.</para>
+    ///
+    /// <para>⭐⭐ <b>It lives HERE, not in one descriptor</b> *(<c>R-13</c>)*: <c>S1</c> uses it for
+    /// Blueprint's node arm and <c>S2</c> uses it for BTree/HSM's, and two copies would be two places to
+    /// disagree about when a node view yields the panel.</para>
+    ///
+    /// <para>⚠ <b>Stated limit:</b> it reads the FOCUS latch only — ⛔ it says nothing about whether the
+    /// outline has rows to show. That half is the Variables view's own predicate
+    /// *(<c>section.HasContent</c>)*, and if BOTH decline the shell draws <c>R-117</c>'s grey line
+    /// rather than a blank.</para>
+    /// </summary>
+    public static bool ExactlyOneNodeNotInTheOutline<T>(DetailsContext context)
+        where T : IAssetSubSelection
+        => ExactlyOne<T>(context) && !FocusIs(context, SelectionOrigin.VariableOutline);
+
+    /// <summary>
     /// ⭐⭐ <b>At least one selected element is a <typeparamref name="T"/>.</b>
     /// ⚠ Distinct from <see cref="ExactlyOne{T}"/> **on purpose**: a view that can present a SET
     /// *(a list, a byte budget, a diff)* is exactly the case <c>L0.2</c>'s set exists to enable —

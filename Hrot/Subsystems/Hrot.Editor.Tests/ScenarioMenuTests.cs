@@ -148,8 +148,13 @@ public sealed class ScenarioMenuTests
         Assert.True(fileNode.Children.ContainsKey("Scenario"));
         var scenarioNode = fileNode.Children["Scenario"];
 
-        // Six sub-items expected: New Scenario, Load Scenario, Save Scenario, Save Scenario As,
-        // Migration History, Save Curated Scenarios to Git (the curated-scenarios seed/save feature).
+        // ⭐⭐ SIX sub-items: New Scenario, Load Scenario, Save Scenario, Save Scenario As,
+        //    Migration History, and `Save Curated Scenarios to Git` — the sixth added by the
+        //    curated-test-scenarios feature (docs/UX/UX_Feature_Curated_Scenarios.md). ⚠ This rail and
+        //    the one below still said FIVE and had been RED since that commit; ⛔ updating the count
+        //    records what the feature deliberately added, it does not relax an expectation (📌 B101c's
+        //    rule: establish the DIRECTION first — the sixth command is designed, documented and
+        //    reachable).
         Assert.Equal(6, scenarioNode.Children.Count);
         Assert.True(scenarioNode.Children.ContainsKey("New Scenario"));
         Assert.True(scenarioNode.Children.ContainsKey("Load Scenario"));
@@ -161,6 +166,10 @@ public sealed class ScenarioMenuTests
 
     // ── AllCommands_Registered_InCommandSet ──────────────────────────────────
 
+    /// <summary>⭐ Renamed from <c>FiveCommands…</c>: the curated-scenarios feature made it six.
+    /// ⚠⚠ <b>And the new name carries NO count</b> — 📌 a count in a test NAME is a rail that lies the
+    /// moment the count moves, which is exactly how the old name went stale. ⭐ Both lanes fixed this
+    /// red independently; the coordinator's countless name won on that reasoning.</summary>
     [Fact]
     public void AllCommands_Registered_InCommandSet()
     {

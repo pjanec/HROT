@@ -43,6 +43,10 @@ public sealed class AssetBrowserDockedWindow : ManagedWindow
     public const string DefaultTitle = "Asset Browser";
 
     private readonly AssetBrowserPanel _panel;
+
+    /// <summary>⭐ The panel this window hosts — 📌 <c>R-67</c>: a rail asks the CONSTRUCTED window
+    /// which options its host opted into, ⛔ never the call site that built it.</summary>
+    public AssetBrowserPanel Panel => _panel;
     private readonly Action<IEditableAsset> _onAssetActivated;
 
     /// <summary>

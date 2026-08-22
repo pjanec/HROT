@@ -39,8 +39,56 @@ namespace Hrot.Editor.AiShared.Windows;
 /// as <c>VariablesDetailsView</c>.</para>
 /// </summary>
 public sealed class DetailsWindow
-    : ManagedWindow, IVariableDetailsHost, Variables.IVariableTableHost, Shell.IDetailsViewSource
+    : ManagedWindow, IVariableDetailsHost, Variables.IVariableTableHost, Shell.IDetailsViewSource,
+      Variables.IVariablePropertiesFormHost
 {
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ S1 — THE "PROPERTIES…" FORM, AS AN INJECTED DELEGATE.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <b>The host's custom Properties form, or <see langword="null"/> when this perspective has
+    /// none.</b> 📌 <c>R-109</c>: Properties is a CUSTOM form, ⛔ not a StructEdit session, so the
+    /// gesture binder cannot open one and the host that HAS one must.
+    ///
+    /// <para>⛔⛔ <b>A DELEGATE, and that is a reference-wall fact rather than a preference.</b>
+    /// 📐 <c>VariablePropertiesModal</c> lives in <c>Hrot.Blueprints.Editor</c> and depends on
+    /// <c>Hrot.Blueprints.Core.Compiler.Catalogs</c> — <b>ABOVE</b> this assembly *(§3's reference
+    /// wall)*. ⇒ ⭐ the host supplies the form; this shell never learns what a blueprint type is.
+    /// 📌 Exactly the shape <c>W4</c>'s <c>ResolveStagedField</c> and <c>L6.5</c>'s brain signal use,
+    /// for the same reason.</para>
+    ///
+    /// <para>⚠ <b>Retired with <c>BlueprintDetailsWindow</c>:</b> that class implemented
+    /// <see cref="Variables.IVariablePropertiesFormHost"/> directly and OWNED the modal. ⭐ The form
+    /// itself did not move — only who holds the reference.</para>
+    /// </summary>
+    private Func<Variables.VariableRow, bool, bool>? _propertiesForm;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Install this perspective's Properties form.</b> ⚠ Called even with <see langword="null"/>
+    /// is <b>not</b> the contract — ⛔ a host with no form simply never calls this, and
+    /// <see cref="HasPropertiesForm"/> is then honestly <c>false</c>.
+    /// </summary>
+    public void SetPropertiesForm(Func<Variables.VariableRow, bool, bool> form)
+        => _propertiesForm = form ?? throw new ArgumentNullException(nameof(form));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Does this shell actually have a form?</b> ⛔ Asked of the CONSTRUCTED object, which is the
+    /// control the <c>2026-08-16</c> silent-default rule prescribes.
+    ///
+    /// <para>⚠⚠ <b>This replaces a TYPE test.</b> 📌 <c>TheDialogOpensOnEveryHostTests</c> used to ask
+    /// <c>window is IVariablePropertiesFormHost</c>, which worked only while Blueprint had a
+    /// <b>different window class</b>. ⭐ One shell for four perspectives makes the type test meaningless
+    /// and this one strictly better: it reads what the composition root actually wired.</para>
+    /// </summary>
+    public bool HasPropertiesForm => _propertiesForm is not null;
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ <c>false</c> when no form was installed — 📌 the interface's own contract: <i>"no host
+    /// ⇒ the gesture opens nothing, and that is honest"</i>. ⛔ Never a dialog that does nothing.</remarks>
+    public bool OpenVariableProperties(Variables.VariableRow row, bool editable)
+        => _propertiesForm is { } form && form(row, editable);
+
     /// <summary>
     /// ⭐⭐ <b>Batch 100 (<c>100f</c>) — the row gestures this surface offers.</b>
     /// ⭐ An AUTHORING surface — the Details panel is where a designer edits a declaration.
@@ -290,6 +338,43 @@ public sealed class DetailsWindow
     /// <para>⛔ Returns <see langword="null"/> when nothing is showing — ⚠ there is no view to float,
     /// and 📌 <c>R-117</c>'s grey line is already the shell's answer.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐ <b><c>VC-1</c> — the descriptor this shell is showing right now, or <see langword="null"/>.</b>
+    /// ⭐ Extracted so the View-menu items can be greyed with a REASON rather than acting and failing
+    /// silently — 📌 the user's <c>2026-08-17</c> tooltip ruling. ⛔ It is the SAME question
+    /// <see cref="OpenFloat"/> asks, so there is one answer, not two *(<c>R-13</c>)*.
+    /// </summary>
+    public DetailsViewDescriptor? CurrentDescriptor() => Frame().Choice.View;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>VC-1</c> — DOES THE TOOLBAR DRAW THE VIEW SWITCH?</b> ⭐ More than one view applies.
+    /// ⚠ With a single offer the row would be one permanently-pressed button that does nothing, and the
+    /// view's own heading already names it. ⛔ Nothing is lost — the SELECTOR still runs, so the moment
+    /// a second view claims the context the switch appears.
+    /// </summary>
+    public bool ShowsViewSwitch(in DetailsFrame frame) => frame.Choice.Offered.Count >= 2;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>VC-1</c> — DOES THE TOOLBAR DRAW FLOAT AND PIN?</b> A view is showing and this shell
+    /// has a manager to register the new window with.
+    ///
+    /// <para>⛔⛔ <b>These two questions used to be ONE.</b> 📐 <c>DrawToolbar</c> opened with
+    /// <c>if (offered.Count &lt; 2) return;</c> — written for the SWITCH — and the float/pin block sat
+    /// below it, so a context offering exactly one view had neither affordance. ⚠ That is the user's
+    /// <c>VC-1</c> finding on any single-view context, and §6 <c>L4.4</c>'s reason for entry points
+    /// *("so a float is reachable")* says nothing about how many views apply.</para>
+    ///
+    /// <para>⭐⭐ <b>Why a PROPERTY and not just fixed control flow:</b> 📌 <c>R-21</c>/<c>R-62</c> — the
+    /// draw itself cannot be railed, so a fix living only in the draw is a fix a probe cannot redden
+    /// *(<c>BP-402</c> ①: my first attempt at this rail was exactly that, and it stayed green through
+    /// the reverted bug)*. ⭐ Naming the decision moves it into the MODEL, where re-fusing it with
+    /// <see cref="ShowsViewSwitch"/> turns red.</para>
+    ///
+    /// <para>⚠ <b>Stated limit:</b> this proves the DECISION, ⛔ not that a button appears on screen —
+    /// that half stays with the visual check.</para>
+    /// </summary>
+    public bool ShowsFloatAndPin => _windowManager is not null && CurrentDescriptor() is not null;
+
     public DetailsViewWindow? OpenFloat(WindowManager windowManager)
     {
         ArgumentNullException.ThrowIfNull(windowManager);
@@ -359,16 +444,26 @@ public sealed class DetailsWindow
     /// <summary>
     /// ⭐⭐ <b><c>L2.2</c> — the toolbar.</b> 📌 <c>R-98</c>: <i>"the toolbar is a panel switch."</i>
     ///
-    /// <para>⚠ <b>Drawn only when more than one view applies</b> — ⭐ a judgement call, stated: with a
-    /// single offer the row would be one permanently-pressed button that does nothing, and the view's
-    /// own heading already names it. ⛔ Nothing is lost — the SELECTOR still runs, so the moment a
-    /// second view claims the context the switch appears.</para>
+    /// <para>⚠ <b>The SWITCH is drawn only when more than one view applies</b> — ⭐ a judgement call,
+    /// stated: with a single offer the row would be one permanently-pressed button that does nothing,
+    /// and the view's own heading already names it. ⛔ Nothing is lost — the SELECTOR still runs, so
+    /// the moment a second view claims the context the switch appears.</para>
+    ///
+    /// <para>⛔⛔ <b><c>VC-1</c> — that rule used to swallow the FLOAT/PIN affordances too, and that was
+    /// wrong.</b> 📐 The early return sat above both, so a context offering exactly ONE view had no
+    /// float and no pin. ⚠ Floating is at its most useful precisely there — one view, and the designer
+    /// wants it beside something else rather than docked — and §6 <c>L4.4</c>'s reason for entry points
+    /// is <i>"so a float is reachable"</i>, which says nothing about how many views apply.
+    /// ⇒ ⭐ the guard now covers the SWITCH ONLY; float/pin draw whenever a view is showing.</para>
     /// </summary>
     private void DrawToolbar(in DetailsFrame frame)
     {
         var offered = frame.Choice.Offered;
-        if (offered.Count < 2) return;
 
+        // ⭐⭐⭐ VC-1 — the two decisions are NAMED and INDEPENDENT (see the properties below).
+        //   ⛔ They used to be one `if (offered.Count < 2) return;` above both blocks, which is exactly
+        //      how the switch's rule came to govern the float.
+        if (ShowsViewSwitch(frame))
         for (int i = 0; i < offered.Count; i++)
         {
             var d = offered[i];
@@ -387,13 +482,15 @@ public sealed class DetailsWindow
 
         // ⭐⭐ L4.4 — the float/pin affordances live on the toolbar, at the right edge.
         //   ⚠ A DRAW, and unrailed by construction (R-21/R-62) — everything it DOES is OpenFloat/Pin,
-        //     which are railed directly.
-        if (_windowManager != null)
+        //     which are railed directly; WHETHER it draws is ShowsFloatAndPin, which is railed too.
+        // ⚠ The `is { } wm` half is the compiler's, not a second rule — ShowsFloatAndPin already
+        //   requires a manager, but flow analysis cannot carry that across a property.
+        if (ShowsFloatAndPin && _windowManager is { } wm)
         {
             ImGuiNET.ImGui.SameLine();
-            if (ImGuiNET.ImGui.SmallButton($"float##{Id}_float")) OpenFloat(_windowManager);
+            if (ImGuiNET.ImGui.SmallButton($"float##{Id}_float")) OpenFloat(wm);
             ImGuiNET.ImGui.SameLine();
-            if (ImGuiNET.ImGui.SmallButton($"pin##{Id}_pin"))     Pin(_windowManager);
+            if (ImGuiNET.ImGui.SmallButton($"pin##{Id}_pin"))     Pin(wm);
         }
 
         ImGuiNET.ImGui.Separator();
@@ -401,13 +498,88 @@ public sealed class DetailsWindow
 
     /// <summary>
     /// ⭐⭐ <b><c>L4.4</c> — the window manager the float/pin affordances act on.</b>
-    /// ⚠ Set by the registrar when it registers this window; ⛔ null in the standalone constructions
-    /// that predate <c>L4</c>, in which case the toolbar simply offers no float button — ⭐ the
+    /// ⭐ Set by <see cref="OnRegistered"/>, so <b>every</b> registration path supplies it.
+    /// ⛔ Still nullable: a hand-built <c>DetailsWindow</c> in a rail is never registered, and the
     /// gestures themselves take the manager as an argument and are railed without this.
     /// </summary>
     private WindowManager? _windowManager;
 
-    /// <summary>⭐ Called by the registrar at registration — ⛔ not a service the root must remember.</summary>
-    public void AttachWindowManager(WindowManager windowManager)
-        => _windowManager = windowManager ?? throw new ArgumentNullException(nameof(windowManager));
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>VC-1</c> — the shell SELF-WIRES on registration.</b>
+    ///
+    /// <para>🔴 <b>The defect this replaces, measured <c>2026-08-22</c>:</b> the manager arrived through
+    /// an explicit <c>AttachWindowManager</c> call with <b>exactly one caller</b>
+    /// *(<c>PerspectiveWorkspaceRegistrar</c>)*. ⛔ The Scenario Details host is built at the composition
+    /// root instead, so it never got one ⇒ <b>its float/pin buttons could not draw at all</b> — the
+    /// user's <c>VC-1</c> finding. ⚠ That is the <c>2026-08-16</c> silent-default shape again *(the
+    /// caller HELD the manager and did not pass it)*, and it was MY omission in <c>L6.1c</c>.</para>
+    ///
+    /// <para>⭐⭐ <b>Registration is the one event both roots already perform</b>, so hanging the wiring
+    /// off it makes forgetting unrepresentable — 📌 <c>R-126</c>'s PULL argument, one floor up.</para>
+    ///
+    /// <para>⭐⭐ It also contributes <c>L4.4</c>'s <b>View-menu</b> entry points *(<c>BP-403</c>)* —
+    /// see <see cref="RegisterViewMenu"/>.</para>
+    /// </summary>
+    public override void OnRegistered(WindowManager manager)
+    {
+        _windowManager = manager ?? throw new ArgumentNullException(nameof(manager));
+        RegisterViewMenu(manager);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>L4.4</c>'s SECOND entry point — <c>BP-403</c>, the View menu.</b>
+    /// 📄 §6 <c>L4.4</c>, verbatim: <i>"entry points — toolbar affordance <b>+ the View menu, so a float
+    /// is reachable with Details closed</b>."</i>
+    ///
+    /// <para>⭐⭐⭐ <b>ONE pair of items for ALL perspectives, resolved at CLICK time.</b> ⛔ Not one pair
+    /// per <c>DetailsWindow</c>: 📐 three perspectives host one each, so a per-window path would put
+    /// three near-identical entries in the bar and a shared path would have the last registration win
+    /// — ⚠ silently pointing the menu at whichever perspective happened to register last. ⭐ Resolving
+    /// from <c>CurrentPerspective</c> at click time is the only shape that is correct for all three
+    /// <b>and</b> keeps working when a fourth is added.</para>
+    ///
+    /// <para>⭐ <b>Idempotent by construction</b> — <c>RegisterItem</c> keys on the path, so N windows
+    /// registering the same two paths leave exactly two items *(<see cref="OnRegistered"/>'s
+    /// contract)*.</para>
+    ///
+    /// <para>⚠ <b>Greyed with a REASON rather than hidden</b> when nothing is showing — 📌 the user's
+    /// <c>2026-08-17</c> ruling: <i>"showing explanatory tooltip would be better than allowing user to
+    /// click the button and then saying that it is not possible."</i> ⛔ A vanishing menu item teaches
+    /// nothing.</para>
+    /// </summary>
+    private static void RegisterViewMenu(WindowManager manager)
+    {
+        manager.GlobalMenu.RegisterItem(
+            "View/Details/Float current view",
+            () => ActiveDetails(manager)?.OpenFloat(manager));
+
+        manager.GlobalMenu.RegisterItem(
+            "View/Details/Pin current view",
+            () => ActiveDetails(manager)?.Pin(manager));
+
+        foreach (var (name, verb) in new[] { ("Float current view", "float"), ("Pin current view", "pin") })
+        {
+            var node = manager.GlobalMenu.Root.Children["View"].Children["Details"].Children[name];
+            node.GetEnabled   = () => ActiveDetails(manager)?.CurrentDescriptor() is not null;
+            node.DynamicLabel = () => ActiveDetails(manager)?.CurrentDescriptor() is { } d
+                ? $"{name} ({d.Title})"
+                : $"{name} (nothing to {verb} — no view is showing)";
+        }
+    }
+
+    /// <summary>
+    /// ⭐ The <see cref="DetailsWindow"/> of the perspective the designer is actually in, or
+    /// <see langword="null"/>. ⚠ Scans the registered windows because the manager keys by id and this
+    /// question is about the OWNING PERSPECTIVE — ⛔ and the id is per-host *(`scenario_details`,
+    /// `btree_details`, …)*, so it cannot be derived.
+    /// </summary>
+    private static DetailsWindow? ActiveDetails(WindowManager manager)
+    {
+        foreach (var id in manager.RegisteredWindowIds)
+            if (manager.TryGetWindow(id, out var w)
+             && w is DetailsWindow d
+             && d.OwningPerspective == manager.CurrentPerspective)
+                return d;
+        return null;
+    }
 }

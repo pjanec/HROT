@@ -48,13 +48,21 @@ public sealed class TheDialogOpensOnEveryHostTests
     // ── the real composition root ────────────────────────────────────────────
 
     private static PerspectiveWorkspaceRegistrar RegistrarOf(string perspective)
+        => ProductionEditor(perspective).Registrar;
+
+    /// <summary>⭐ The real composition root, keeping the <c>WindowManager</c> it registered into —
+    /// ⚠ <c>RegistrarOf</c> used to build one and throw it away, and the frame-overlay rail below needs
+    /// to see what production put in it.</summary>
+    private static (PerspectiveWorkspaceRegistrar Registrar, WindowManager Windows)
+        ProductionEditor(string perspective)
     {
-        var editor = new EditorSubsystem();
-        editor.RegisterWindows(new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f)));
+        var editor  = new EditorSubsystem();
+        var windows = new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f));
+        editor.RegisterWindows(windows);
 
         var reg = editor.RegistrarFor(perspective);
         Assert.NotNull(reg);
-        return reg!;
+        return (reg!, windows);
     }
 
     // ── the rows each host actually produces ─────────────────────────────────
@@ -173,17 +181,26 @@ public sealed class TheDialogOpensOnEveryHostTests
     /// composition-root defect."</i> ⇒ this asks the registrar production built, after production's own
     /// <c>RegisterWindows</c> pass — ⛔ it does not call <c>RegisterExtraWindow</c> itself.</para>
     ///
-    /// <para>⭐⭐ <b>The asymmetry is the FINDING, not an omission:</b> only <c>BlueprintDetailsWindow</c>
-    /// implements <c>IVariablePropertiesFormHost</c>, so BTree and HSM raise the gesture and
-    /// <b>nothing opens</b> — 📌 <c>BP-317</c>, <b>filed, not faked</b>. ⚠ Pinning it here means the day
-    /// an AI host grows a form, THIS rail is what says so.</para>
+    /// <para>⭐⭐ <b>The asymmetry is the FINDING, not an omission:</b> only Blueprint has a Properties
+    /// form, so BTree and HSM raise the gesture and <b>nothing opens</b> — 📌 <c>BP-317</c>,
+    /// <b>filed, not faked</b>. ⚠ Pinning it here means the day an AI host grows a form, THIS rail is
+    /// what says so.</para>
+    ///
+    /// <para>⛔⛔ <b><c>S1</c> (<c>BP-399</c>, <c>2026-08-22</c>) — THE QUESTION MOVED FROM THE TYPE TO
+    /// THE OBJECT, and that is an improvement.</b> 📐 This used to read
+    /// <c>EditGestures.HasPropertiesHost</c>, which was true exactly when a registered window
+    /// IMPLEMENTED <c>IVariablePropertiesFormHost</c> — ⚠ a claim that only worked while Blueprint had a
+    /// <b>different window class</b>. 📄 §7.3 ① gives all four perspectives the SAME shell, so the type
+    /// test now answers <c>true</c> everywhere and says nothing. ⭐ <c>HasPropertiesForm</c> reads
+    /// whether a form was actually INSTALLED on the constructed shell — 📌 exactly the control the
+    /// <c>2026-08-16</c> rule prescribes, and it still separates the three perspectives.</para>
     /// </summary>
     [Theory]
     [InlineData("btree",     false)]
     [InlineData("hsm",       false)]
     [InlineData("blueprint", true)]
-    public void OnlyBlueprintHasAPropertiesFormHost(string perspective, bool expected)
-        => Assert.Equal(expected, RegistrarOf(perspective).EditGestures!.HasPropertiesHost);
+    public void OnlyBlueprintHasAPropertiesForm(string perspective, bool expected)
+        => Assert.Equal(expected, RegistrarOf(perspective).Details!.HasPropertiesForm);
 
     /// <summary>
     /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — THE FORWARDING RAIL, and it caught its own author.</b>
@@ -198,21 +215,137 @@ public sealed class TheDialogOpensOnEveryHostTests
     /// holds a <c>refactorService</c> and hands it to <c>BlueprintVariablesManagedWindow</c> seven lines
     /// below. ⚠ <b>The eighth instance of that shape in this programme, and the first that was mine.</b></para>
     ///
-    /// <para>⭐ Asked of the window PRODUCTION built, reached through the registrar's own registered
-    /// list — ⛔ <c>new BlueprintDetailsWindow(...)</c> here would assert the default, not the wiring
-    /// *(📌 <c>R-67</c>)*.</para>
+    /// <para>⛔⛔ <b><c>S1</c> — RE-EXPRESSED IN TWO HALVES, and the defect became UNREPRESENTABLE.</b>
+    /// 📐 The form is no longer a field on a window a rail can find; it lives inside
+    /// <see cref="Hrot.Blueprints.Editor.Windows.BlueprintDetailsContribution"/>, whose
+    /// <c>refactorService</c> parameter is <b>REQUIRED</b> and forwarded straight into the modal.
+    /// ⇒ ⭐ <b>the original mistake — defaulting it to <c>null</c> while the caller holds one — is now a
+    /// COMPILE ERROR</b>, which is a stronger guarantee than any rail. ⚠ Stated rather than assumed:
+    /// what remains checkable at runtime is <b>①</b> that the installer refuses a null service instead
+    /// of quietly building a form without one, and <b>②</b> that production actually installed a form
+    /// *(<see cref="OnlyBlueprintHasAPropertiesForm"/>, asked of the CONSTRUCTED shell — 📌 <c>R-67</c>).</para>
+    /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-430</c> — THE PROPERTIES FORM'S <c>Draw</c> IS IN THE FRAME, asked of the REAL
+    /// composition root and WITHOUT a GL context.</b>
+    ///
+    /// <para>⛔⛔ <b>Why this rail had to exist.</b> 📌 <c>BP-327</c> has landed <b>three times</b>: a
+    /// modal built complete — field, constructor, <c>Open</c>, commit path, its own green tests — and
+    /// <b>no line calling <c>Draw()</c></b>, so the designer clicks <i>"Properties…"</i> and nothing
+    /// appears. ⭐ <c>EveryModalAWindowOwnsIsDrawnTests</c> is the insurance, ⚠ <b>but it only sees a
+    /// modal held in a FIELD OF A <c>ManagedWindow</c></b>. 📐 <c>S1</c> retired
+    /// <c>BlueprintDetailsWindow</c> and moved this form into <c>BlueprintDetailsContribution</c> as a
+    /// frame OVERLAY ⇒ it left that rail's scope. ⛔ The frame rail that replaced it
+    /// *(<c>ThePropertiesFormIsVisibleWhenOpenedTests</c>)* is a <c>SkippableFact</c> needing a real GL
+    /// context — ⚠⚠ <b>and it SKIPS on a headless gate</b>, so for one commit nothing guarded this.</para>
+    ///
+    /// <para>⭐⭐ <b>What it asserts, and why that is the right question.</b> Not <i>"a call exists in
+    /// IL"</i> *(which cannot see an early <c>return</c>)* and not <i>"a popup is on screen"</i>
+    /// *(which needs a GPU)* — but <b>"production REGISTERED this form's <c>Draw</c> as a frame
+    /// overlay"</b>. 📐 <c>WindowManager.Render</c> invokes exactly those, after every window, whether or
+    /// not any window is open — which is the property a modal needs and a client area cannot give it.</para>
+    ///
+    /// <para>⚠ <b>Stated limit</b> *(📌 <c>M-29</c>)*: this proves the overlay is REGISTERED, ⛔ not that
+    /// <c>Draw</c> renders anything — the frame rail owns that half, when a GL context exists.</para>
     /// </summary>
     [Fact]
-    public void TheProductionDetailsWindowIsHandedTheRefactorService()
+    public void ThePropertiesFormsDraw_IsRegisteredAsAFrameOverlay_ByProduction()
     {
-        var details = RegistrarOf("blueprint").RegisteredWindows
-                          .OfType<Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow>()
-                          .SingleOrDefault();
+        var (_, windows) = ProductionEditor("blueprint");
 
-        Assert.NotNull(details);
-        Assert.True(details!.PropertiesForm.HasRefactorService,
-            "EditorSubsystem holds a RefactorService and must hand it to the Details window's " +
-            "Properties form — a rename that skips it dangles the binding on BTree/HSM (M-15).");
+        Assert.Contains(windows.FrameOverlays,
+            overlay => overlay.Target is Hrot.Blueprints.Editor.Windows.VariablePropertiesModal
+                    && overlay.Method.Name == "Draw");
+    }
+
+    /// <summary>
+    /// ⛔ <b>The anti-vacuity half.</b> ⚠ Without it the rail above would pass against a manager that
+    /// somehow collected every <c>Draw</c> in the process. ⭐ A manager production never touched holds
+    /// <b>no</b> overlays — so what the rail above finds was put there by the installer.
+    /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE ASSET BROWSER'S ROW MENU IS WIRED BY PRODUCTION.</b>
+    /// 🔒 User, <c>2026-08-22</c>: <i>"asset related context menu items then"</i> · <i>"picker should
+    /// not have that menu."</i> 📄 <c>AI_Editor_Shared_Infrastructure.md</c> §16.1.
+    ///
+    /// <para>⛔ Asked of the REAL <c>EditorSubsystem</c> — 📌 <c>R-67</c>: a rail that builds its own
+    /// browser cannot see the root forgetting to opt in. ⚠ And it must be the root: the docked window
+    /// is constructed in <b>two</b> places *(here and the DI extension)</para>
+    ///
+    /// <para>⭐ Both commands are named, so DROPPING one fails — ⛔ a bare <c>NotEmpty</c> would pass
+    /// with only "Find References" and lose "Rename…" silently.</para>
+    /// </summary>
+    [Fact]
+    public void TheDockedAssetBrowser_OffersTheRefactorRowCommands()
+    {
+        var editor  = new EditorSubsystem();
+        var windows = new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f));
+        editor.RegisterWindows(windows);
+
+        var browser = editor.AssetBrowserForTest;
+        Assert.NotNull(browser);
+
+        var labels = browser!.Panel.Options.RowCommands.Select(c => c.Label).ToArray();
+        Assert.Contains("Find References", labels);
+        Assert.Contains("Rename…",         labels);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>AND THE DIAGNOSTICS WINDOW GOT ITS SCHEMA SOURCE.</b>
+    /// 🔒 User: <i>"ok to diag window."</i> 📄 <c>blueprint-integ-1/DESIGN.md</c> §5.7 (<c>AIE-053</c>).
+    /// ⚠ Asked of the CONSTRUCTED window — ⛔ the strip it replaces was dead precisely because nobody
+    /// checked what its data source returned.
+    /// </summary>
+    [Theory]
+    [InlineData("btree")]
+    [InlineData("hsm")]
+    [InlineData("blueprint")]
+    public void EveryPerspectivesDiagnosticsWindow_HasItsSchemaSource(string perspective)
+        => Assert.True(RegistrarOf(perspective).Diagnostics.HasSchemaDiagnostics);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>S3</c> — <c>details.utility</c> IS REGISTERED BY THE REAL EDITOR.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.6 ③.
+    ///
+    /// <para>⛔⛔ <b>This rail is the whole point of porting rather than deleting.</b> 📐 Measured
+    /// <c>2026-08-22</c>: nothing in this repo raises <c>UtilityConsiderationSelection</c>, so the view
+    /// never claims the panel today. ⚠ That makes every BEHAVIOURAL rail on it a statement about a case
+    /// production cannot reach — ⭐ so the load-bearing assertion is this one: <b>the real editor
+    /// REGISTERS it</b>, which is what makes it appear the day the utility canvas raises a selection.
+    /// ⛔ Without this, the port would be a class nobody constructs — 📌 <c>BP-327</c>'s shape.</para>
+    ///
+    /// <para>⚠ Asked of the CONSTRUCTED registrar *(<c>R-67</c>)*, not of a registrar the test builds.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("btree")]
+    [InlineData("hsm")]
+    [InlineData("blueprint")]
+    public void EveryPerspective_OffersTheUtilityConsiderationView(string perspective)
+        => Assert.Contains(
+            RegistrarOf(perspective).DetailsViews.All,
+            d => d.Id == Hrot.Editor.AiShared.Shell.UtilityConsiderationDetailsViewDescriptor.ViewId);
+
+    [Fact]
+    public void AnUnregisteredManager_HoldsNoPropertiesForm()
+    {
+        var untouched = new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f));
+
+        Assert.DoesNotContain(untouched.FrameOverlays,
+            overlay => overlay.Target is Hrot.Blueprints.Editor.Windows.VariablePropertiesModal);
+    }
+
+    [Fact]
+    public void TheDetailsContribution_RefusesToInstallAFormWithNoRefactorService()
+    {
+        var registrar = RegistrarOf("blueprint");
+
+        Assert.Throws<ArgumentNullException>(() =>
+            Hrot.Blueprints.Editor.Windows.BlueprintDetailsContribution.InstallInto(
+                registrar:       registrar,
+                windowManager:   new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f)),
+                asset:           () => null,
+                drawerRegistry:  new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry(),
+                refactorService: null!));
     }
 
     /// <summary>

@@ -66,8 +66,50 @@ public static class AssetKindFilterMapping
 /// Options for <see cref="AssetBrowserPanel"/>. Define all fields now so later
 /// batches do not change the shape; only <see cref="Kinds"/> is wired in this batch.
 /// </summary>
+/// <summary>
+/// ⭐⭐⭐ <b>ONE right-click item on an asset row.</b>
+/// 🔒 <b>User ruling, <c>2026-08-22</c>:</b> <i>"asset related context menu items then, still nothing
+/// for a details panel view."</i> 📄 And the design agrees —
+/// <c>AI_Editor_Shared_Infrastructure.md</c> §16.1: <i>"Find References … Used by <b>the right-click
+/// menu</b>, the Find Results window, and indirectly by the rename preview."</i>
+///
+/// <para>⭐⭐ <b>A LIST of commands, not two hard-coded items.</b> §16.1 names <b>five</b> refactor
+/// operations *(find references · rename action · rename event · rename asset · delete with
+/// dangling-reference report)*; ⛔ hard-coding today's two would make the third a panel edit. ⭐ The
+/// panel stays ignorant of what a refactor IS — it draws labels and invokes callbacks.</para>
+///
+/// <para>⚠ <b>Greying carries a REASON</b> — 📌 the user's <c>2026-08-17</c> ruling: <i>"showing
+/// explanatory tooltip would be better than allowing user to click the button and then saying that it
+/// is not possible."</i> ⛔ A hidden item teaches nothing.</para>
+/// </summary>
+/// <param name="Label">⭐ What the menu shows.</param>
+/// <param name="Invoke">⭐ What it does to that asset.</param>
+/// <param name="IsEnabled">⚠ <see langword="null"/> ⇒ always enabled.</param>
+/// <param name="DisabledReason">
+///   ⭐ Shown as a tooltip when <paramref name="IsEnabled"/> says no. ⛔ A refusal without a reason is
+///   the thing the ruling above forbids.
+/// </param>
+public sealed record AssetRowCommand(
+    string                        Label,
+    Action<IEditableAsset>        Invoke,
+    Func<IEditableAsset, bool>?   IsEnabled      = null,
+    Func<IEditableAsset, string>? DisabledReason = null);
+
 public sealed class AssetBrowserPanelOptions
 {
+    /// <summary>
+    /// ⭐⭐⭐ <b>The asset-row right-click menu — OPT-IN, per host.</b>
+    ///
+    /// <para>🔒 <b>User ruling, <c>2026-08-22</c>:</b> <i>"picker should not have that menu."</i>
+    /// 📐 And that is why it is an OPTION rather than a panel feature: <b>one panel, two hosts</b> —
+    /// the docked Asset Browser MANAGES assets, the <c>AssetPickerModal</c> only PICKS one. ⛔ Offering
+    /// <i>"Rename…"</i> mid-pick is a different job wearing the same widget.</para>
+    ///
+    /// <para>⭐ Empty by default, so a host that says nothing gets no menu — ⚠ which makes the picker
+    /// correct by omission rather than by remembering to opt out.</para>
+    /// </summary>
+    public IReadOnlyList<AssetRowCommand> RowCommands { get; init; } = Array.Empty<AssetRowCommand>();
+
     /// <summary>
     /// Which asset kinds are permitted. Defaults to <see cref="AssetKindFilter.All"/>.
     /// <b>Wired in this batch (MTB-P4-T3).</b>
@@ -114,6 +156,10 @@ public sealed class AssetBrowserPanel
     private readonly IAssetCatalog _catalog;
     private readonly IIconProvider _icons;
     private readonly AssetBrowserPanelOptions _options;
+
+    /// <summary>⭐ The options this panel was BUILT with — 📌 <c>R-67</c>: a rail asks the constructed
+    /// object which commands its host opted into, ⛔ never the call site that built it.</summary>
+    public AssetBrowserPanelOptions Options => _options;
     private int _activeTabIndex;
     private string _filter = "";
 
@@ -658,6 +704,42 @@ public sealed class AssetBrowserPanel
         {
             ActivateAsset(asset);
         }
+        DrawRowContextMenu(asset);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The right-click menu for one asset row.</b> ⚠ ONE implementation, called from BOTH row
+    /// draws *(the per-kind tree leaf and the flat "All" row)* — 📌 ruling 9; two copies is how one of
+    /// them quietly loses an item.
+    ///
+    /// <para>⛔ Draws nothing when the host registered no commands — see
+    /// <see cref="AssetBrowserPanelOptions.RowCommands"/> for why that is the picker's correct state.</para>
+    ///
+    /// <para>⚠ <b>Right-clicking also SELECTS</b>, so the menu and the highlight agree about which asset
+    /// is being acted on. ⛔ Without it a designer can right-click row B while row A is highlighted and
+    /// read the wrong name off the screen — 📌 <c>R-78</c>'s chameleon shape.</para>
+    /// </summary>
+    private void DrawRowContextMenu(IEditableAsset asset)
+    {
+        if (_options.RowCommands.Count == 0) return;
+
+        if (!ImGui.BeginPopupContextItem($"##asset_ctx_{asset.AssetId:N}")) return;
+
+        SelectAsset(asset);
+
+        foreach (var command in _options.RowCommands)
+        {
+            bool enabled = command.IsEnabled?.Invoke(asset) ?? true;
+
+            if (ImGui.MenuItem(command.Label, enabled: enabled) && enabled)
+                command.Invoke(asset);
+
+            if (!enabled && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)
+                         && command.DisabledReason is { } reason)
+                ImGui.SetTooltip(reason(asset));
+        }
+
+        ImGui.EndPopup();
     }
 
     private void DrawFlatRow(IEditableAsset asset)
@@ -696,6 +778,7 @@ public sealed class AssetBrowserPanel
         {
             ActivateAsset(asset);
         }
+        DrawRowContextMenu(asset);
     }
 
     // ── Internals ──────────────────────────────────────────────────────

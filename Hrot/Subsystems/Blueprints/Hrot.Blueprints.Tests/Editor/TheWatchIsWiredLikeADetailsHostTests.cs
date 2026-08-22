@@ -156,7 +156,7 @@ public sealed class TheWatchIsWiredLikeADetailsHostTests
     {
         var hosts = new[]
             {
-                typeof(Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow).Assembly,
+                typeof(Hrot.Blueprints.Editor.Windows.BlueprintNodeDetailsView).Assembly,
                 typeof(VariableTableControl).Assembly,
             }
             .Distinct()

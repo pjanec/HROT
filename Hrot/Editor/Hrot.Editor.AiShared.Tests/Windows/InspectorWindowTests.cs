@@ -26,11 +26,11 @@ file sealed class StubRefactorServiceInsp : IRefactorService
 
 public class InspectorWindowTests
 {
+    /// <remarks>⭐ <c>2026-08-22</c>: the refactor service and the Find Results window left
+    /// <c>InspectorWindow</c> with the asset header — <i>"Find References"</i> and <i>"Rename…"</i> are
+    /// the Asset Browser's row context menu now *(user ruling)</remarks>
     private static InspectorWindow CreateWindow() =>
-        new InspectorWindow(
-            new EditorSelectionStore(),
-            new StubRefactorServiceInsp(),
-            new FindResultsWindow());
+        new InspectorWindow(new EditorSelectionStore());
 
     [Fact]
     public void Constructor_SetsId()
