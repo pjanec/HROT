@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD
-updated: 2026-08-20
+build-state: BUILDING
+updated: 2026-08-22
 current-answer: sections 1-6. Section 1 is the PLACEMENT SPEC (where every type lives and
-  who owns it); section 6 is the task breakdown. Everything from "## HISTORY" down is the
-  record of how the answer was reached, including leans that were withdrawn.
+  who owns it); section 6 is the task breakdown. L0-L5 are BUILT (L3 partial: 4 views migrated,
+  its remaining 4 are BP-399); L6 is RE-STAGED as-built (see §6 L6 and its sequence). Everything
+  from "## HISTORY" down is the record of how the answer was reached, including withdrawn leans.
 stale-below: "## HISTORY" and everything under it. Do NOT quote it as the design.
-known-rot: none.
+known-rot: none. L6's original wording (entity already-in-context, brain-equipped predicate exists,
+  L6.1 as one item) was corrected 2026-08-22 in §6 L6 against the as-built; the prior phrasing is in HISTORY.
 known-conflict: Q38's live answer says "RuntimeInspectorWindow IS the shell". Section 1
   places the shell in AiDetailsWindow's line instead: the WINDOW's chrome is reusable, its
   PANE REGISTRY keys on asset kind, and R-112 rules that a feed difference. Stated here
@@ -414,6 +416,13 @@ a workspace carrying scenario services.** ⭐ **Same mechanism, different conten
 ⇒ rename it — ⛔ **with a load migration**, because `CurrentPerspective` and every `OwningPerspective`
 are **persisted** and a bare rename silently resets layouts.
 
+> 📐 **AS-BUILT `2026-08-22`:** `PerspectiveWorkspace` **does NOT exist yet** — `PerspectiveWorkspaceRegistrar`
+> still holds the registry *(`.DetailsViews`)*, the `LiveContextSource` builder lambda, the entity source
+> *(`.EntitySelection`)* and the `IDetailsViewSource` claim chain directly *(the `L1`/`L2` "stated placement
+> deviation")*. ⭐ **`L6.1a` is the extraction** *(§6)*, and it is split from the risky key rename *(now
+> `L6.1b`, deferred)*. ⚠ **The rename is COSMETIC today** — a `RegisterPerspectiveLabel("Editor","Scenario")`
+> map; the persisted key is still `"Editor"`, so the workspace can be stood up on Scenario without touching it.
+
 ---
 
 ## 6. ⭐⭐⭐ THE LAYERS — **the task breakdown**
@@ -474,14 +483,35 @@ designer's floating placement.
 ⚠ **MOVED, not retired:** the breakpoint-watch list → Breakpoints *(`Q44`)*.
 ⛔ **Stays standalone:** `AiWatchWindow` — a curated list kept across selections *(`R-112`)*.
 
-### `L6` — Scenario + the entity context *(`Q47`)*
+### `L6` — Scenario + the entity context *(`Q47`)* — ⭐⭐ **RE-STAGED `2026-08-22`, as-built reconciled**
 
-`L6.1` extract `PerspectiveWorkspace`, give Scenario one, **rename the key with a layout migration** ·
-`L6.2` register the entity arm · `L6.3` **Components** view wrapping `EntityInspectorPanel` *(⭐ its
-`HashSet` is deleted here; `EntityInspectorPanelMultiSelectTests` re-points at the World)* ·
-`L6.4` **Mission plan** view wrapping `MissionPanel`, predicate = brain-equipped *(`R-116`)* ·
-`L6.5` the **TKB/component predicate helper**, so each entity-type view is a one-line predicate.
-⛔ **Out of scope:** `DerEntityInspectorPanel` — IOS/ExCon only.
+⚠⚠ **The as-built moved three premises this section rested on — measured `2026-08-22`, folded in here
+per obligation ⑤** *(prior wording moved to `## ⛔ HISTORY`)*:
+
+| # | ⛔ what L6 assumed | 📐 as-built truth |
+|---|---|---|
+| **a** | *"register the entity arm"* implies the entity is not yet in context | ✅ **`DetailsContext.Entities` ALREADY carries the selected entities** *(`L0.4`, from the World via `IEntitySelectionSource`)* — every AI perspective's builder populates it today. ⇒ ⛔ nothing to add to the context; what is missing is DESCRIPTORS that READ `ctx.Entities` |
+| **b** | the views hang off the existing details panel | ⛔⛔ **the Scenario perspective has NO `PerspectiveWorkspaceRegistrar`, no `DetailsWindow`, no registry** — it uses a bespoke `RegisterPane` and `ResolveDocumentForCurrentPerspective` returns null for it. ⇒ ⭐ **the real work is STANDING UP a details host on Scenario**, which is exactly what extracting `PerspectiveWorkspace` enables |
+| **c** | *"predicate = brain-equipped"* names an existing check | ⛔ **no `HasBrain`/`IsBrainEquipped` exists.** ⭐ The behavioural signal is `IMissionEditorService.GetMissionSnapshot`/`GetAvailableBehaviors` returning empty ⇒ `L6.5`'s helper writes the predicate FRESH |
+
+⭐⭐⭐ **And the risk is SPLIT** *(`no rush removals`)*: `L6.1` bundled a **persisted-key rename +
+layout migration** *(§5: `"Editor"`→`"Scenario"`, which silently resets saved layouts)* with the
+workspace extraction. ⛔ **These are separated.** The rename is `L6.1b`, DEFERRED to its own gated task —
+the workspace and the entity views ship WITHOUT touching the persisted key.
+
+#### ⭐ The optimal order — **each item independently gated; a STAGE GATE after the enabling refactor**
+
+| stage | item | what | visible? |
+|---|---|---|---|
+| **1 · enabling** | ⭐⭐ **`L6.1a`** | **extract `PerspectiveWorkspace`** — split the registrar's GENERIC half *(the `DetailsViewRegistry`, the `LiveContextSource` builder, the entity source, the `IDetailsViewSource` claim chain)* from its 21-param AI service bag *(§5)*. ⛔ **Pure refactor of the THREE existing AI perspectives** *(BTree/HSM/Blueprint)* — no behaviour change, railed on the unchanged offer sets. ⭐ **STAGE GATE: all three perspectives still host their views before proceeding** | ⛔ no |
+| **2 · the host** | ⭐⭐ **`L6.1c`** | **give the Scenario perspective a `PerspectiveWorkspace` + `DetailsWindow`**, built from SCENARIO services, not the AI bag. ⛔ Does NOT rename the persisted key *(`L6.1b`)*. + wire `WorldEntitySelectionSource` into its context builder so `ctx.Entities` flows on Scenario too *(the old `L6.2`, now trivial — the source already exists)* | ✅ **Scenario gains a details panel** |
+| **3 · the views** | ⭐⭐ **`L6.5`** *(before `L6.4`)* | the **entity/component predicate helper** — `ctx.Entities is [{ }]` and the behavioural brain signal — so each entity-type view is a one-line predicate. ⛔ Built BEFORE the view that needs it | ⛔ no |
+| **3 · the views** | ⭐⭐⭐ **`L6.3`** | **Components view** — an **adapter in the composition root** *(`Hrot.Editor`/`Scenario/` — the ONLY assembly seeing both `Fdp.Presentation`'s `EntityInspectorPanel` and `AiShared`'s `IDetailsViewSource`; §3's reference wall)* wrapping the FDP `EntityInspectorPanel`. ⚠ **That panel OWNS its selection via a `HashSet`** — ⭐ the adapter feeds it `ctx.Entities` instead, the `HashSet` is DELETED, and `EntityInspectorPanelMultiSelectTests` re-points at the World | ✅ **Components in Scenario** |
+| **3 · the views** | ⭐⭐⭐ **`L6.4`** | **Mission plan view** — an adapter *(same comp-root rule)* wrapping `Hrot.Presentation`'s `MissionPanel`; it selects by `SelectedEntityId` *(int)*, so the adapter sets it from `ctx.Entities[0]`; predicate = `L6.5`'s brain signal | ✅ **Mission in Scenario** |
+| ⛔ **DEFERRED** | ⚠ **`L6.1b`** | the persisted-key rename `"Editor"`→`"Scenario"` **+ layout migration** — its own gated task *(silently resets layouts; §5)*. ⛔ **NOT in the L6 batch** | — |
+
+⛔ **Out of scope:** `DerEntityInspectorPanel` *(IOS/ExCon only)*. ⛔ **Not this batch:** `BP-399` *(L3's
+remaining AI-authoring views — Node properties/Utility/Parameter sync — a SEPARATE migration)*.
 
 ### ⭐ Dependency graph
 
@@ -489,10 +519,39 @@ designer's floating placement.
 L0.1 ─┬─ L0.2 ──┐
       └─ L0.3 ──┴─ L1.1 ─ L1.2 ─┬─ L1.3 / L1.4 ─ L2.1 ─ L2.2 ─ L2.3 ─┬─ L3.* (parallel) ─ L5.*
 L0.4 ─────────────────────────── └─ L4.1 ─ L4.2 ─ L4.3 ─ L4.4 ────────┘
-                                                    L6.1 ─ L6.2 ─ L6.3 / L6.4 / L6.5
+              (L6, re-staged 2026-08-22)   L6.1a ─ L6.1c ─ L6.5 ─┬─ L6.3
+                                           [STAGE GATE]           └─ L6.4        (L6.1b deferred)
 ```
 
-⭐ `L0` is the only bottleneck · ⭐ `L3` fans out completely · ⚠ `L6.1` gates all of `Q47`.
+⭐ `L0` is the only bottleneck · ⭐ `L3` fans out completely · ⚠ `L6.1a` gates all of `Q47` and is the
+enabling refactor — the STAGE GATE holds until the three AI perspectives still host their views.
+
+### ⭐⭐ `L6` SEQUENCE — **the Scenario host builds a context, and the entity views are offered**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Designer
+    participant Sc as Scenario canvas
+    participant W as PerspectiveWorkspace (Scenario)
+    participant Wo as World
+    participant R as DetailsViewRegistry
+    participant D as DetailsWindow (Scenario)
+    participant CV as ComponentsView / MissionView
+
+    U->>Sc: select an entity
+    Sc->>Wo: SelectionState set on the entity
+    D->>W: BuildContext()
+    W->>Wo: read SelectionState (primary first)
+    W-->>D: ctx (Entities = [e])
+    D->>R: OfferSet(ctx)
+    loop each descriptor
+        R->>R: AppliesTo(ctx) : ctx.Entities is [.] (and brain signal for Mission)
+    end
+    R-->>D: [Components, Mission]
+    D->>CV: Draw(ctx, id)
+    Note over CV: adapter feeds ctx.Entities<br/>to EntityInspectorPanel / MissionPanel
+```
 
 ### ⚠ Limits — **stated, not discovered later**
 
