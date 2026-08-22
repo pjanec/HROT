@@ -192,6 +192,42 @@ the quick-experiment path (vs the proper mission path P). 📐 The runtime mecha
 `SimVelocity`, grounded, current behavior)* so an assertion reads `state.position.x` rather than digging the
 component JSON. A convenience over `GET /entities/{id}`.
 
+## Group S — Breakpoint-type discovery — ⭐⭐ **set/list/remove ALREADY EXIST (Group G); only DISCOVERY is missing**
+
+🔒 **User:** *"do we support setting data breakpoints? they have a sophisticated UI to define the condition, so
+it might be needed to provide available breakpoint types and the schemas for their params to the MCP on demand."*
+
+📐 **Measured — Group G is already built** *(`DebugApiService`, `IDataBreakpointManager`)*:
+
+| endpoint | does | status |
+|---|---|---|
+| `POST /breakpoints` `{condition, filterEntity?, occurrenceThreshold?, name?}` | register a data breakpoint; `condition` is a polymorphic **`SearchPredicateDto`** | ✅ built |
+| `GET /breakpoints` | list all, each with a human `conditionSummary` *(`BreakpointConditionSummarizer.Summarize`)* | ✅ built |
+| `DELETE /breakpoints/{id}` · `GET /breakpoints/hits` | remove · pause-state + last-hit *(fed by `OnBreakpointHit`)* | ✅ built |
+
+⛔ **The gap is exactly the P.0 gap, for conditions:** the agent must author a `SearchPredicateDto` **blind** —
+nothing tells it which condition types exist or their param shapes.
+
+### INVENTORY — the condition union is CLOSED and self-declaring *(measured 2026-08-22)*
+
+📐 `SearchPredicateDto` *(`Fdp.Toolkits/ReplayBrowser/Search/SearchPredicateDto.cs`)* is
+`[JsonPolymorphic($type)]` with **12 registered `[JsonDerivedType]` arms** — the complete set, by construction:
+`Compound` · `PropertyMatch` · `Numeric` · `String` · `TransientEvent` · `Lifecycle` · `SpatialBounding` ·
+`Structural` · `BehaviorParam` · `TraceBufferScan` · `BlueprintVariable` · `ExternalHitTag`. ⚠ `EnumPredicateDto<TEnum>`
+is intentionally **not** registered *(generic — use `String`/a concrete arm)*. Params are plain STJ properties
+*(`double`/`string`/`bool`/`Guid`/`SearchOperator` enum / nested `SearchPredicateDto`)* — so a schema is pure
+reflection, and the condition already **round-trips through the existing `SearchPredicateJsonOptions`** ⇒ **no new
+encoding at all** *(cheaper than P.0, which needed the scenario serializer)*.
+
+| endpoint | does |
+|---|---|
+| `GET /breakpoint-types` | reflect the `[JsonDerivedType]` arms → for each `{ $type, paramSchema }`, where `paramSchema` is the JSON schema of that arm's properties *(nested predicates as a `$ref` to the union; enums enumerated; a `PropertyPath` marked by the existing `[PropertyPathPicker]` attribute)`. ⇒ the agent knows every condition it can set and how to shape it. |
+
+⭐⭐⭐ **REUSE — it is the SAME schema extractor as P.0.** Behaviour params and predicate arms both reduce to
+*"reflect a DTO's properties into a JSON schema"* ⇒ **one shared `DtoJsonSchemaExtractor`** serves both `MX4a`
+and this. ⭐ And `[PropertyPathPicker]` is an **existing self-describing attribute** — the in-repo precedent that
+the optional `[ParamDoc]` enrichment *(MX4a)* is following, not inventing.
+
 ## Reuse — Group O flow (the cheap, high-value one)
 
 ```mermaid
@@ -229,6 +265,7 @@ classDiagram
         +AttachBlueprint(id, blueprint) ApiResult
         +DetachBlueprint(id, slot) ApiResult
         +GetEntityState(id) EntityStateDto
+        +GetBreakpointTypes() BreakpointTypeDto[]
     }
     class BlueprintDebugSession {
         <<exists · Hrot.Blueprints.Core.Debug>>
@@ -256,12 +293,22 @@ classDiagram
         +Encode(structValue) json
         +Decode(json, dtoType) struct
     }
-    class BehaviorParamSchemaExtractor {
-        <<new · MX4a>>
-        +Extract(dtoType) paramSchema
+    class DtoJsonSchemaExtractor {
+        <<new · MX4a, SHARED by behaviours + breakpoints>>
+        +ExtractParams(behaviorDtoType) paramSchema
+        +ExtractPredicateUnion() BreakpointTypeDto[]
+    }
+    class SearchPredicateDto {
+        <<exists · Fdp.Toolkits/ReplayBrowser/Search>>
+        +JsonDerivedType arms (12, closed)
     }
     class ParamDocAttribute {
-        <<new · MX4a, OPTIONAL enrichment>>
+        <<new · MX4a, OPTIONAL — mirrors existing PropertyPathPicker>>
+    }
+    class BreakpointTypeDto {
+        <<new record>>
+        +string type
+        +JsonNode paramSchema
     }
     class VariableDto {
         <<new record>>
@@ -287,13 +334,15 @@ classDiagram
     DebugApiService ..> BlueprintDebugSession : O reuses resolver
     BlueprintDebugSession ..> DataBreakpointManager : stages the write
     DebugApiService ..> IMissionEditorService : P reuses (NEW injection)
-    DebugApiService ..> BehaviorParamSchemaExtractor : P0 uses
-    BehaviorParamSchemaExtractor ..> BehaviorUiRegistry : reads DTO type
-    BehaviorParamSchemaExtractor ..> ParamDocAttribute : reads if present
+    DebugApiService ..> DtoJsonSchemaExtractor : P0 and S use
+    DtoJsonSchemaExtractor ..> BehaviorUiRegistry : reads behaviour DTO type
+    DtoJsonSchemaExtractor ..> SearchPredicateDto : reflects the closed union (S)
+    DtoJsonSchemaExtractor ..> ParamDocAttribute : reads if present
     DebugApiService ..> ScenarioSerializer : O and P encode
     DebugApiService ..> VariableDto : returns
     DebugApiService ..> BehaviorSchemaDto : returns
     DebugApiService ..> EntityStateDto : returns
+    DebugApiService ..> BreakpointTypeDto : returns (S)
 ```
 
 ### Sequence — behaviour discovery then mission add-task *(the one genuinely new flow)*
@@ -304,7 +353,7 @@ sequenceDiagram
     participant AG as agent or harness
     participant H as DebugApiHost
     participant S as DebugApiService
-    participant X as BehaviorParamSchemaExtractor
+    participant X as DtoJsonSchemaExtractor
     participant R as BehaviorUiRegistry
     participant M as IMissionEditorService
     participant CGF as CGF
@@ -338,6 +387,7 @@ sequenceDiagram
 | **MX4a** | **behaviour DISCOVERY WITH SCHEMA** (P.0) — `GET /behaviors?tkbType=`, param-DTO → JSON schema. ⭐⭐ **REUSE `BehaviorUiRegistry`/`BehaviorSchemaDiscovery`** (the registry the mission panel already renders from) for behaviourId→DTO; the `BehaviorParamSchemaExtractor` emits the schema from the same property walk `BehaviorUiCompiler.Compile` does. `[ParamDoc]` attributes OPTIONAL enrichment only | ⭐ the load-bearing authoring piece; **mostly reuse, not new reflection** |
 | **MX4b** | **Group P — mission editing** — add-task / clear / run via **`IMissionEditorService.CommitMissionAsync`** (read-snapshot → modify → commit with OCC version) + `SendControlCommand` for run/restart; params decoded by `ScenarioSerializer`. ⭐ Inject `IMissionEditorService` into `DebugApiService` (additive, like `_blueprintSession`) | depends on MX4a's schema |
 | **MX5** | MCP-server (Node) tool wrappers + `SKILL.md` regen for O/P/Q/R | the agent-facing side |
+| **MX7** | **Group S — breakpoint-type discovery** — `GET /breakpoint-types` reflecting the `SearchPredicateDto` `[JsonDerivedType]` union → `{ $type, paramSchema }[]`. ⭐ **REUSES the same `DtoJsonSchemaExtractor` as `MX4a`**; ⛔ no new encoding *(conditions round-trip through the existing `SearchPredicateJsonOptions`)*. Set/list/remove/hits already exist (Group G) | pairs with `MX4a`; cheapest of the discovery pieces |
 | **MX6** | harness smoke cases for each new group | feeds `DESIGN_MCP_System_Test_Harness.md` H4 |
 
 ## Dependencies & lane
