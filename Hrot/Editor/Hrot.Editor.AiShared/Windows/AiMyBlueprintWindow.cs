@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Selection;
@@ -9,6 +11,112 @@ using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Panels;
 
 namespace Hrot.Editor.AiShared.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — THE CALLER-REGISTERS RULE, applied.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c>
+/// §Adoption's <c>2026-08-22</c> extension: <c>MyBlueprintPanel</c> is a generic NodeEdit panel with no
+/// panel identity of its own — it renders whatever <see cref="IMyBlueprintModel"/> it is handed. ⇒ this
+/// window, the CALLER, registers <b>the structure it passed in</b> — <see cref="BlackboardMyBlueprintModel"/>
+/// — rather than reaching into the generic panel.
+/// </summary>
+public sealed record MyBlueprintItemVM(
+    string ItemId, string DisplayName, string? BadgeText,
+    bool IsRenamable, bool IsDeletable, bool IsHostDefined,
+    IReadOnlyList<MyBlueprintItemVM>? Children);
+
+/// <summary>⭐ One section of the outline, with its resolved items.</summary>
+public sealed record MyBlueprintSectionVM(
+    string Id, string DisplayName, int SortOrder, bool CanCreateItems,
+    IReadOnlyList<MyBlueprintItemVM> Items);
+
+/// <summary>
+/// ⭐⭐⭐ <b>The whole of what <see cref="AiMyBlueprintWindow"/> shows, this frame.</b>
+/// ⛔⛔ Hand-written <see cref="Dump"/>: <see cref="MyBlueprintItem"/> is a NodeEdit type and this
+/// window has no business assuming its shape stays reflection-friendly (📄 the queue's gotcha —
+/// project the DISPLAYED shape by hand).
+/// </summary>
+public sealed class AiMyBlueprintPanelViewModel : IPanelViewModel
+{
+    private readonly BlackboardMyBlueprintModel? _model;
+
+    public AiMyBlueprintPanelViewModel(
+        string panelId, string panelKind, BlackboardMyBlueprintModel? model,
+        bool hasPanel, string? emptyReason)
+    {
+        PanelId     = panelId;
+        PanelKind   = panelKind;
+        _model      = model;
+        HasPanel    = hasPanel;
+        EmptyReason = emptyReason;
+    }
+
+    /// <inheritdoc/>
+    public string PanelId { get; }
+
+    /// <inheritdoc/>
+    public string PanelKind { get; }
+
+    /// <summary>⭐ True once the panel has host services and can draw — mirrors <see cref="AiMyBlueprintWindow.HasPanel"/>.</summary>
+    public bool HasPanel { get; }
+
+    /// <summary>⭐ Why nothing is drawn, or null when <see cref="HasPanel"/> is true.</summary>
+    public string? EmptyReason { get; }
+
+    /// <inheritdoc/>
+    public JsonNode Dump()
+    {
+        var sections = new JsonArray();
+        if (_model != null)
+        {
+            foreach (var s in _model.Sections)
+            {
+                var items = new JsonArray();
+                foreach (var it in _model.GetItems(s.Id))
+                    items.Add(DumpItem(it));
+
+                sections.Add(new JsonObject
+                {
+                    ["id"]             = s.Id,
+                    ["displayName"]    = s.DisplayName,
+                    ["sortOrder"]      = s.SortOrder,
+                    ["canCreateItems"] = s.CanCreateItems,
+                    ["items"]          = items,
+                });
+            }
+        }
+
+        return new JsonObject
+        {
+            ["panelId"]     = PanelId,
+            ["panelKind"]   = PanelKind,
+            ["host"]        = _model?.Host.ToString(),
+            ["hasPanel"]    = HasPanel,
+            ["emptyReason"] = EmptyReason,
+            ["sections"]    = sections,
+        };
+    }
+
+    private static JsonObject DumpItem(MyBlueprintItem it)
+    {
+        JsonArray? children = null;
+        if (it.Children != null)
+        {
+            children = new JsonArray();
+            foreach (var c in it.Children) children.Add(DumpItem(c));
+        }
+
+        return new JsonObject
+        {
+            ["itemId"]        = it.ItemId,
+            ["displayName"]   = it.DisplayName,
+            ["badgeText"]     = it.BadgeText,
+            ["isRenamable"]   = it.IsRenamable,
+            ["isDeletable"]   = it.IsDeletable,
+            ["isHostDefined"] = it.IsHostDefined,
+            ["children"]      = (JsonNode?)children,
+        };
+    }
+}
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>C-outline</c>, HOSTED.</b> The BTree and HSM perspectives get the same My Blueprint
@@ -41,6 +149,11 @@ namespace Hrot.Editor.AiShared.Windows;
 public sealed class AiMyBlueprintWindow : ManagedWindow, Selection.IDetailsSurfaceClaimant,
                                           IVariableOutlineSelectionSource
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Cross-host by rights (Blueprint has its own equivalent
+    /// window), but stays a local literal rather than a <c>PanelIds</c> constant — <c>PanelIds.cs</c> is
+    /// on the sweep's STOP-AND-REPORT list; flagged in the final report rather than edited unilaterally.</summary>
+    internal const string Kind = "my-blueprint";
+
     private readonly BlackboardHostKind    _host;
     private readonly EditorSelectionStore? _store;
     private object?                        _lastAsset;
@@ -89,6 +202,9 @@ public sealed class AiMyBlueprintWindow : ManagedWindow, Selection.IDetailsSurfa
         _host  = host;
         _store = store;
         IsOpen = false;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>
@@ -303,20 +419,38 @@ public sealed class AiMyBlueprintWindow : ManagedWindow, Selection.IDetailsSurfa
     public Hrot.Editor.AiShared.Selection.SelectionOrigin DetailsOrigin
         => Hrot.Editor.AiShared.Selection.SelectionOrigin.VariableOutline;
 
+    /// <summary>
+    /// ⭐⭐⭐ U-obs-5: BUILD · CAPTURE. ⛔⛔ <see cref="SyncToSelection"/> is ImGui-free, so this runs
+    /// (and publishes) before the focus check below — the pilot's own capture-before-render deviation.
+    /// </summary>
+    private AiMyBlueprintPanelViewModel BuildAndPublish()
+    {
+        SyncToSelection();
+
+        string? emptyReason = _panel != null ? null
+            : _model == null ? "No asset selected."
+            : "Editor host services not available for this perspective yet.";
+
+        var vm = new AiMyBlueprintPanelViewModel(Id, Kind, _model, HasPanel, emptyReason);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal AiMyBlueprintPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
     protected override void DrawClientArea()
     {
+        var vm = BuildAndPublish();
+
         // ⭐⭐⭐ Batch 87 — claim the Details panel for the OUTLINE while this window holds focus
         //    (user ruling, 2026-08-18). ⛔ A LEVEL, not an edge — see AiGraphCanvasWindow.
         if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.ChildWindows))
             NotifyFocusClaim?.Invoke();
 
-        SyncToSelection();
-
         if (_panel == null)
         {
-            ImGuiNET.ImGui.TextDisabled(_model == null
-                ? "No asset selected."
-                : "Editor host services not available for this perspective yet.");
+            ImGuiNET.ImGui.TextDisabled(vm.EmptyReason ?? string.Empty);
             return;
         }
         _panel.Draw();
