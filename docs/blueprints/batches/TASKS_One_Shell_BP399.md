@@ -23,7 +23,7 @@ design-basis: DESIGN_Details_Panel_View_Switching.md §7 (target state, approved
 |---|---|---|---|---|
 | **S0** | ⭐ **MEASURE before building**: are §6 `L3`'s *Diagnostics* and *Layout/byte-budget · Asset settings* rows already satisfied by `details.blackboard`? | §7.6's closing note | a written answer + `search_graph` totals; ⛔ **no code** | ✅ **YES — both already satisfied.** 📐 `BlackboardDetailsView`'s own header records that §6 `L3`'s **three** rows ship as **ONE** view: `BlackboardAuthoringWindow.DrawClientArea` is one flowing body with **no seam** to split, and `VariablesPanelControl`'s host **IS** that window *(`:509`)*. ⇒ ⛔ **no code**, and adding views for those rows would duplicate `details.blackboard` |
 | **S1** | ⭐⭐⭐ **Blueprint gets the real shell** — `DetailsWindow` under the existing id, `BlueprintDetailsWindow` retired, its node arm ported | §7.3 ①③④ · §7.6 ① | ⛔⛔ **STAGE GATE**, see §2 | ✅ **BUILT** — `BP-428` · `BP-429` · `BP-430`. Stage gate ①–⑤ all hold *(§2 below, annotated)* |
-| **S2** | ⭐⭐⭐ **`details.nodeproperties` on BTree + HSM** — extracted from `InspectorWindow`'s facet arm, **Rank 20** | §7.3's catalogue · §7.6 ② | selecting a BTree node makes it the **default**; Blackboard Variables is the other toolbar entry | |
+| **S2** | ⭐⭐⭐ **`details.nodeproperties` on BTree + HSM** — extracted from `InspectorWindow`'s facet arm, **Rank 20** | §7.3's catalogue · §7.6 ② | selecting a BTree node makes it the **default**; Blackboard Variables is the other toolbar entry | 🛑 **MEASURED, NOT BUILT — one scope question first, see §6** |
 | **S3** | ⭐ **`details.utility`** — from `InspectorWindow`'s utility arm | §7.6 ③ | offered on a utility-consideration selection; ⚠ **ported as the stub it is** | |
 | **S4** | ⛔ **`details.parametersync`** — **NOT THIS BATCH** | §7.6 ④ · `R-99` | — | ⛔ **deferred, by design** |
 | **S5** | ⭐⭐ **`L5` retire** — delete `InspectorWindow`, drop `ai_inspector_*` from the shipped default layout | §7.6 ⑤ · §6 `L5` | the layout rail *(`BP-103b`)* stays green; no orphaned ids | |
@@ -89,3 +89,39 @@ test-host crash)* — gate it by filter. Four coordinator design docs fail `desi
 
 ⭐ **`R-27`:** the visible outcome is a visual check. ⛔ Deliver rail-green **to** visual-check; do not
 report *"works"* for what a headless run cannot see.
+
+
+---
+
+## 6. 🛑 `S2`'s SCOPE QUESTION — **measured `2026-08-22`, before building**
+
+📐 **`InspectorWindow.DrawClientArea` is 366 lines and has SIX arms, not four.** §7.6 names **three** of
+them. ⇒ ⛔ **`S5` ("retire `InspectorWindow`") would strand the other three**, and two of the six share
+one cache.
+
+| # | arm | lines | §7.6 says |
+|---|---|---:|---|
+| ① | **asset header** — name, *Find References*, *Rename…*, *Go to Definition* | 192–256 | ⛔ **nothing** |
+| ② | ⭐ **facet / StructEdit** — the selected node's editable fields | 258–324 | ✅ `details.nodeproperties` *(`S2`)* |
+| ③ | ⚠ **default-value editor (`B-3`)** — the default of the variable the selected node WRITES | 326–434 | ⛔ **nothing** |
+| ④ | **parameter synchronization** | 436–466 | ✅ `details.parametersync` — ⛔ deferred *(`S4`/`R-99`)* |
+| ⑤ | **utility consideration** *(a stub)* | 468–476 | ✅ `details.utility` *(`S3`)* |
+| ⑥ | **sub-element collision strip** | 182 | ⛔ **nothing** |
+
+### ⭐⭐ The question — **② and ③ are ONE surface sharing ONE cache**
+
+📐 `GetCurrentFacet()` populates `_currentFacet`; ③ reads **that same field** *(`:356`)*.
+⇒ ⛔ **extracting ② alone forces a SECOND facet cache** in the view while the window keeps its own —
+📌 ruling 9, two implementations of one concept, which is what §7 exists to end.
+
+⭐⭐⭐ **My recommendation: extract ② and ③ TOGETHER as `details.nodeproperties`.**
+📄 Batch 74's own record of ③ *(`InspectorWindow.cs:340`)*: *"the surface earns itself: it is
+**NODE-scoped** (you see the default of the variable this node writes) where Track C's table is
+**ASSET-scoped**"* ⇒ ⭐ **it IS node properties**, by the design's own words. ⛔ The alternative — a
+separate `details.defaultvalue` view — puts two views on one selection that a designer would expect in
+one panel, and still leaves the shared cache to solve.
+
+⚠ **Arms ① and ⑥ are a SEPARATE question, and it is `S5`'s, not `S2`'s** — they are **asset**-scoped,
+not node-scoped. ⭐ Neither is in §7.6, so `S5` cannot delete the window until they have a home:
+`Find References`/`Rename…` are a refactor entry point *(the `FindResultsWindow` already exists)*, and
+the collision strip is a diagnostic. 🔒 **Recorded as `BP-431`; this needs a decision, not a guess.**
