@@ -1,8 +1,12 @@
 <!--STATUS
-state: LIVE
+state: SUPERSEDED
 updated: 2026-08-22
-current-answer: the whole file. Written for a FRESH session after compaction; assumes no prior
-  conversation. This is the TIME lane session, repurposed to Stride and next to the MCP harness.
+superseded-by: RESUME_Mcp_Lane_Session.md
+current-answer: ⛔ NOT this file for lane identity or the next task — the lane moved on to the MCP /
+  headless-testability work. ⭐ What is still LIVE here: §6 (the PARKED Stride tree's status) and the
+  Stride/time GATE BASELINES in §4, which apply to the parked branch claude/stride-port (b9ab83b0e).
+stale-below: §0's "head at write time", §2's "next task" (the MCP harness — since BUILT and merged),
+  and §3's batch list. Read RESUME_Mcp_Lane_Session.md instead.
 known-conflict: none.
 -->
 # RESUME — the **TIME → STRIDE** implementation session
