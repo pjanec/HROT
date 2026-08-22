@@ -148,28 +148,32 @@ public sealed class ScenarioMenuTests
         Assert.True(fileNode.Children.ContainsKey("Scenario"));
         var scenarioNode = fileNode.Children["Scenario"];
 
-        // Five sub-items expected: New Scenario, Load Scenario, Save Scenario, Save Scenario As, Migration History.
-        Assert.Equal(5, scenarioNode.Children.Count);
+        // Six sub-items expected: New Scenario, Load Scenario, Save Scenario, Save Scenario As,
+        // Migration History, Save Curated Scenarios to Git (the curated-scenarios seed/save feature).
+        Assert.Equal(6, scenarioNode.Children.Count);
         Assert.True(scenarioNode.Children.ContainsKey("New Scenario"));
         Assert.True(scenarioNode.Children.ContainsKey("Load Scenario"));
         Assert.True(scenarioNode.Children.ContainsKey("Save Scenario"));
         Assert.True(scenarioNode.Children.ContainsKey("Save Scenario As"));
         Assert.True(scenarioNode.Children.ContainsKey("Migration History"));
+        Assert.True(scenarioNode.Children.ContainsKey("Save Curated Scenarios to Git"));
     }
 
-    // ── FiveCommands_Registered_InCommandSet ─────────────────────────────────
+    // ── AllCommands_Registered_InCommandSet ──────────────────────────────────
 
     [Fact]
-    public void FiveCommands_Registered_InCommandSet()
+    public void AllCommands_Registered_InCommandSet()
     {
         var (_, commands, _, _, _, _) = CreateRegistrar();
 
-        Assert.Equal(5, commands.RegisterCallCount);
+        // Six commands: the original five + scenario.updateCurated (Save Curated Scenarios to Git).
+        Assert.Equal(6, commands.RegisterCallCount);
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveAsId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.MigrationHistoryId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.UpdateCuratedId));
     }
 
     [Fact]
