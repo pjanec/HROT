@@ -194,27 +194,37 @@ everything)* must land **only after the drain is live-wired.** ⇒ ⭐ **`MIN`'s
 the wire is in** — otherwise a paused edit stages and **never applies** *(worse than today)*. ⭐⭐ **Safe
 order:** `W4` *(implement + display)* → **merge `W1`/`W2`** → **wire** → `W3` *(remove `MIN`)* → `W5`.
 
-## 9. ⭐ DEFERRED FOLLOW-UP — **rename `DataBreakpointManager` → `DebugPauseManager`** *(low priority; cosmetic)*
+## 9. ⭐ DEFERRED FOLLOW-UP — **`DataBreakpointManager` conflates two responsibilities** *(low priority)*
 
-📌 **`DEFER-1`** *(user, `2026-08-22`)* — ⛔ **not scheduled; do when a batch already touches this class.**
+📌 **`DEFER-1`** *(user, `2026-08-22`)* — ⛔ **not scheduled; a SPLIT, not a rename; do only if a batch is
+already deep in this class.**
 
-⭐⭐ **The finding:** `DataBreakpointManager` is misnamed. Its responsibility is the whole **paused-debug
-state**, not the breakpoint list: it owns `_isPaused` / `_pausedTick`, the rewind snapshot
-`_postTickSnapshot`, the `RequestStep`/`RequestContinue`/`RequestResume` controls, **and** the
-`_pendingMutations` "edits staged while stopped, applied at the N+1 boundary" queue *(the store this
-whole design reuses, §4 fork A)*. ⭐ Breakpoints make **no** mutations — they are one *way to enter* the
-paused state; a toolbar pause is another. The staged-write queue belongs to whoever owns resume, which is
-why co-locating it here is correct even though the name undersells it.
+⚠⚠ **Correction of a false first framing** *(`2026-08-22`)*: this note first said the class is *misnamed*
+— *"it is the pause manager, not the breakpoint list."* ⛔ **That was wrong, and it contradicts
+[`docs/designs/breakpoints-1/DESIGN.md`](../designs/breakpoints-1/DESIGN.md) §2 because the design is
+right:** 📐 measured, the class genuinely **IS** the breakpoint registry — `_breakpoints`
+*(`DataBreakpointManager.cs:85`)*, `Add`/`AddBreakpoint`/`Remove`/`SetEnabled`/`AllBreakpoints`
+*(`:261`–`:353`)*, the compiled component-predicates and event-scanners that DETECT hits.
 
-⭐ **How the name came to mislead** *(📄 [`docs/designs/breakpoints-1/DESIGN.md`](../designs/breakpoints-1/DESIGN.md) §2)*: at
-birth *(Slice 2, "Universal Breakpoints")* the manager's headline job **was** halting the sim on a
-data-condition, and "triple-buffer rewind + deferred mutations" was listed as a *secondary* orchestrator
-duty on the same box. Later work — `MIN`'s toolbar pause, this staged-write story — reused the
-pause+mutation machinery for edits that have **nothing** to do with a breakpoint firing, broadening the
-responsibility while the name stayed. ⇒ ⭐ **accurate at birth, narrow now.**
+⭐⭐ **The real finding — TWO jobs in one class:**
 
-⚠ **Scope of the rename:** `DataBreakpointManager` + `IDataBreakpointManager` + `DataBreakpointManagerPanel`
-and their call sites across `Hrot.Diagnostics.Breakpoints`, `Hrot.Blueprints.Editor`, `Hrot.Editor`. ⛔ Pure
-churn, mechanical, no behaviour change — ⭐ **park it, don't spend a batch on it.** *(The **assembly** name
-`Hrot.Diagnostics.Breakpoints` is a separate, larger question — the substrate really is breakpoint-centric;
-only the *manager* class overreaches. Rename the class, leave the assembly.)*
+| responsibility | members | a fair name for it |
+|---|---|---|
+| **breakpoint registry + detection** | `_breakpoints`, `Add`/`Remove`/`SetEnabled`, compiled predicates/scanners, mounts the detection system | `DataBreakpointManager` ✓ |
+| **paused-debug state + staged edits** | `_isPaused`/`_pausedTick`, `_postTickSnapshot`, `RequestStep`/`RequestContinue`/`RequestResume`, `_pendingMutations` *(the queue §4 fork A reuses)* | `DebugPauseManager` |
+
+⇒ ⭐ **The name is not *narrow*, it is a fair name for ONE of two jobs.** ⛔ **A rename to
+`DebugPauseManager` fixes nothing — it just moves which half the name hides.** ⭐⭐ **If ever addressed,
+the fix is a SPLIT:** extract the pause / rewind / staged-edit machinery into its own type that **both**
+the breakpoint manager and the toolbar pause depend on — breakpoints make no mutations, they are one
+*way to enter* the paused state, and a toolbar pause is another.
+
+⭐ **Regardless of any split, `_pendingMutations` living with the pause owner is CORRECT** — staged edits
+must apply at the same N+1 boundary the resume restores from *(`R-63`)*, so they belong to whoever owns
+resume. ⇒ ⛔ **this design's reuse of that queue *(§4 fork A)* is not in question; only the class's
+double duty is.**
+
+⚠ **Cost of the split:** touches `IDataBreakpointManager` and every call site across
+`Hrot.Diagnostics.Breakpoints`, `Hrot.Blueprints.Editor`, `Hrot.Editor` — a real refactor, not churn.
+⭐ **Park it.** *(The **assembly** name `Hrot.Diagnostics.Breakpoints` is fine — the substrate is genuinely
+breakpoint-centric; it is only the *class* that carries a second job.)*
