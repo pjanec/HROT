@@ -173,30 +173,14 @@ public interface IDataBreakpointManager
             + "simulation is advancing. Answering 'not halted' by default would refuse every live "
             + "edit and blame the designer for it.");
 
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>MIN</c> — the write that lands NOW, for a TOOLBAR pause.</b>
-    ///
-    /// <para>⭐ <b>When this is the right arm:</b> the clock is halted *(<see cref="IsClockHalted"/>)*
-    /// and <see cref="IsPaused"/> is <c>false</c> ⇒ no breakpoint is holding a rewound tick, so
-    /// <see cref="ActiveView"/> IS the live repository and there is no post-tick restore to survive.
-    /// ⛔ <b>Under a BREAKPOINT pause use <see cref="StageFieldMutation"/> instead</b> — 📌 <c>R-63</c>:
-    /// <c>RequestStep</c>/<c>RequestContinue</c> restore the live repo from the POST-tick snapshot and
-    /// drain <i>afterwards</i>, so a direct write there is overwritten on resume.</para>
-    ///
-    /// <para>⚠ <b>"Now" means "this frame's flush", not "before this call returns".</b> 📐 Measured
-    /// against a real <c>ModuleHostKernel</c> at <c>dt = 0</c>: the kernel plays the per-thread command
-    /// buffer back in <c>BeforeSync</c> <b>unconditionally</b>, so the write lands on the next kernel
-    /// frame and then stays *(<c>P6′</c>: no behaviour ticks at <c>dt = 0</c>, so nothing overwrites
-    /// it)*. ⭐ That dependency is pinned by a rail rather than trusted.</para>
-    ///
-    /// <para>⛔ Same corruption gate as <see cref="StageFieldMutation"/>: bounds-checked against the
-    /// registered component size, and managed components are refused loudly *(📌 <c>Q32</c> §2.1)*.</para>
-    /// </summary>
-    void WriteFieldNow(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
-        => throw new NotSupportedException(
-            $"{GetType().Name} does not implement WriteFieldNow, so a live edit under a toolbar pause "
-            + "has nowhere to land. Staging it instead would queue a write that nothing drains.");
-
+    // ⛔⛔⛔ W3 — `WriteFieldNow` IS GONE from this interface. 📄 DESIGN_Staged_Live_Write.md §6's W3
+    //    row; 📌 R-130 ("yellow makes no sense if the value is directly written now").
+    // ⭐ Every live edit now goes through StageFieldMutation, in every run state, and the kernel's
+    //   PreFrame ResumeAndDrainSystem pulls it into the repository at the next advancing tick.
+    // ⚠ IsClockHalted above SURVIVES deliberately: it answers "is the simulation advancing?", which is
+    //   a truthful general question about the clock (R-126 names the clock as the one source of
+    //   "paused"), and it is railed. ⛔ Losing its last caller does not make a predicate wrong —
+    //   📌 CLAUDE.md: "unreferenced is not unintentional."
 
     // ---- Hit callback (called by DataBreakpointSystem) -----------------
 

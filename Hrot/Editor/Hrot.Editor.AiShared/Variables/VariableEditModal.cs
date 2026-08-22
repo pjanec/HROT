@@ -38,7 +38,7 @@ namespace Hrot.Editor.AiShared.Variables;
 /// <c>2026-08-17</c>:</b> <i>"showing explanatory tooltip would be better than allowing user to click
 /// the button and then saying that it is not possible — same information value, no false
 /// expectations."</i> ⇒ ⭐ <see cref="VariableEditCommit.TargetFor"/> is asked BEFORE the button is
-/// drawn, so <c>RefusedRunning</c> greys OK up front; ⚠ <c>LiveWriteUnavailable</c> cannot be known in
+/// drawn, so <c>RefusedRunState</c> greys OK up front; ⚠ <c>LiveWriteUnavailable</c> cannot be known in
 /// advance — the run state ALLOWED the write and the mechanism did not arrive — so it is rendered
 /// AFTER the attempt, which is the honest ordering for each.</para>
 /// </summary>
@@ -272,9 +272,10 @@ public sealed class VariableEditModal
         VariableEditCommit.Outcome.LiveWriteUnavailable =>
             "The edit could not be written to the live blackboard: no live writer is installed for "
             + "this host, or it refused the write. Nothing was changed.",
-        VariableEditCommit.Outcome.RefusedRunning =>
-            "The simulation is running, so the edit was not applied. Pause on a breakpoint or step, "
-            + "then try again.",
+        // ⭐⭐⭐ W3 — the sentence no longer tells the designer to pause. 📌 R-126: running is a
+        //    reason to STAGE. This arm survives only for the run states that route nowhere at all.
+        VariableEditCommit.Outcome.RefusedRunState =>
+            "This run state has nowhere to put the edit, so nothing was changed.",
         VariableEditCommit.Outcome.RefusedReadOnly =>
             "This row cannot be written — it is node-owned, a passthrough, or stale.",
         _ => null,

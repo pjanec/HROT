@@ -85,13 +85,19 @@ public sealed class TheEditDialogIsDrawnTests
     }
 
     /// <summary>
-    /// ⭐⭐ <b>The OTHER refusal keeps its greyed OK and its tooltip</b> — 📌 the <c>2026-08-17</c>
-    /// ruling. ⚠ <b>The two are different and must stay different:</b> a free-running refusal is
-    /// ACTIONABLE *(pause and it works)*, so the button belongs; a row that can never be written has
-    /// nothing to act on, so it does not.
+    /// ⭐⭐⭐ <b><c>W3</c> INVERTED THIS RAIL, and it is the user-visible half of the whole batch.</b>
+    ///
+    /// <para>⚠⚠ It used to assert <i>"a free-running refusal still greys OK rather than hiding it"</i>.
+    /// 📌 <c>R-126</c>, the user: <i>"I do not understand how comes that something can be unwritable…
+    /// we should be able to write anything anywhere"</i> ⇒ ⛔ <b>there is no free-running refusal any
+    /// more</b>: the edit STAGES and the kernel's drain applies it at the next advancing tick.</para>
+    ///
+    /// <para>⭐ <b>The distinction the old rail protected SURVIVES and is still asserted</b> — a row that
+    /// can never be written opens as a VIEW with no OK at all *(the rail above)*, which is a different
+    /// thing from an editor whose OK is live. ⛔ That was the pairing worth keeping.</para>
     /// </summary>
     [Fact]
-    public void AFreeRunningRefusalStillGreysOkRatherThanHidingIt()
+    public void WhileFreeRunning_TheDialogIsAnEditorWithALiveOk()
     {
         var (modal, binder) = Make(VariableRunState.Running);
 
@@ -99,8 +105,8 @@ public sealed class TheEditDialogIsDrawnTests
 
         Assert.True(modal.IsOpen);
         Assert.False(modal.IsReadOnlyView);                  // ⭐ an editor, not a view
-        Assert.False(modal.CanCommit);                       // ⭐ …with OK greyed
-        Assert.False(string.IsNullOrWhiteSpace(modal.CommitRefusalReason));
+        Assert.True(modal.CanCommit);                        // ⭐⭐ …and OK is LIVE (W3)
+        Assert.Null(modal.CommitRefusalReason);
         Assert.Null(modal.ReadOnlyReason);
     }
 
@@ -145,21 +151,56 @@ public sealed class TheEditDialogIsDrawnTests
     /// click the button and then saying that it is not possible — same information value, no false
     /// expectations."</i>
     /// </summary>
+    /// <summary>
+    /// ⛔ <b><c>Replay</c> offers no live OK.</b> ⚠ 📐 It has no production producer
+    /// *(<c>RunStateSource.Resolve</c> yields only Planning/Paused/Running)*, so this pins a DECISION,
+    /// not a reachable path.
+    /// </summary>
     [Fact]
-    public void WhileRunningTheCommitIsGreyedWithAReason()
+    public void WhileReplaying_TheDialogOffersNoLiveOk()
     {
-        var (modal, binder) = Make(VariableRunState.Running);
+        var (modal, binder) = Make(VariableRunState.Replay);
         binder.OnEditValue(Row());
 
         Assert.False(modal.CanCommit);
-        Assert.False(string.IsNullOrWhiteSpace(modal.CommitRefusalReason));
     }
 
-    /// <summary>⭐ Planning and Paused both COMMIT — ⛔ the greying must be the exception, or the dialog
-    /// is useless in the states ruling 15 allows.</summary>
+    /// <summary>
+    /// ⚠⚠⚠ <b>A FINDING, RAILED: after <c>W3</c> NO run state produces a greyed-OK-with-tooltip.</b>
+    ///
+    /// <para>📐 <b>Measured.</b> <c>CommitRefusalReason</c> needs an ACTIVE SESSION <b>and</b>
+    /// <c>TargetFor(...) == Nowhere</c>. ⭐ <c>W3</c> left <c>Nowhere</c> to <c>Replay</c> alone, and
+    /// <c>VariableEditPolicy.Resolve</c> answers <c>Denied</c> for <c>Replay</c> — so no session opens
+    /// and the tooltip can never be produced. ⇒ ⛔ <b>the greying path is now unreachable for the value
+    /// dialog.</b></para>
+    ///
+    /// <para>⭐⭐ <b>It is NOT deleted, and that is deliberate</b> — 📌 <c>CLAUDE.md</c>'s
+    /// <i>"unreferenced is not unintentional"</i>: the affordance exists because of a USER RULING
+    /// *(<c>2026-08-17</c>: "showing explanatory tooltip would be better than allowing user to click the
+    /// button and then saying that it is not possible")*, which nothing retracts. ⚠ Filed as
+    /// <c>BP-411</c> for a decision, ⛔ not removed on my own initiative.</para>
+    ///
+    /// <para>⭐ <b>This rail is the tripwire:</b> it reddens the moment a run state routes to
+    /// <c>Nowhere</c> AND opens a session again — which is exactly when the machinery would matter.</para>
+    /// </summary>
+    [Fact]
+    public void AfterW3_NoRunStateProducesAGreyedOkTooltip()
+    {
+        foreach (VariableRunState run in Enum.GetValues(typeof(VariableRunState)))
+        {
+            var (modal, binder) = Make(run);
+            binder.OnEditValue(Row());
+
+            Assert.Null(modal.CommitRefusalReason);
+        }
+    }
+
+    /// <summary>⭐ Planning, Paused AND (since <c>W3</c>) Running all COMMIT — ⛔ the greying must be the
+    /// exception, or the dialog is useless in the states the design allows.</summary>
     [Theory]
     [InlineData(VariableRunState.Planning)]
     [InlineData(VariableRunState.Paused)]
+    [InlineData(VariableRunState.Running)]
     public void WhenTheRunStateAllowsIt_TheCommitIsLive(VariableRunState runState)
     {
         var (modal, binder) = Make(runState);

@@ -29,13 +29,19 @@ public sealed class TheWriteWhilePausedTests
     // ══ the target matrix — ruling 15 ════════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>Planning ⇒ the declaration · Paused ⇒ the live blackboard · Running / Replay ⇒
-    /// NOWHERE.</b> 📌 Ruling 15's narrowing of ruling 7, in one table.
+    /// ⭐⭐⭐ <b>Planning ⇒ the declaration · Paused AND Running ⇒ the live blackboard · Replay ⇒
+    /// NOWHERE.</b>
+    ///
+    /// <para>⚠⚠ <b><c>W3</c> moved the <c>Running</c> row</b>, and this table is where the change is
+    /// most legible. 📌 <c>R-126</c> overrules ruling 15's narrowing: <i>"running is not a reason to
+    /// refuse, it is a reason to STAGE."</i> ⭐ Ruling 15's REASON — that a running sim would overwrite
+    /// the bytes — is answered by the mechanism rather than discarded: the write stages and the
+    /// kernel's <c>PreFrame</c> drain applies it at the top of a tick, before any behaviour runs.</para>
     /// </summary>
     [Theory]
     [InlineData(VariableRunState.Planning, VariableEditCommit.Target.InitialValue)]
     [InlineData(VariableRunState.Paused,   VariableEditCommit.Target.LiveBlackboard)]
-    [InlineData(VariableRunState.Running,  VariableEditCommit.Target.Nowhere)]
+    [InlineData(VariableRunState.Running,  VariableEditCommit.Target.LiveBlackboard)]
     [InlineData(VariableRunState.Replay,   VariableEditCommit.Target.Nowhere)]
     public void TheWriteTargetFollowsTheRunState(VariableRunState run, VariableEditCommit.Target expected)
         => Assert.Equal(expected, VariableEditCommit.TargetFor(run));
@@ -84,28 +90,50 @@ public sealed class TheWriteWhilePausedTests
     /// only true while frozen; a write into a running sim races the systems that own the field.
     /// ⭐ And the writer is never even consulted.
     /// </summary>
-    [Theory]
-    [InlineData(VariableRunState.Running)]
-    [InlineData(VariableRunState.Replay)]
-    public void WhileFreeRunning_TheLiveWriteRefuses_AndTheWriterIsNotCalled(VariableRunState run)
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>W3</c> SPLIT THIS RAIL, because its two cases stopped agreeing.</b>
+    /// 📌 <c>R-126</c>, the user: <i>"running is not a reason to refuse, it is a reason to STAGE"</i>
+    /// ⇒ ⛔ <c>Running</c> must now REACH the writer. ⚠ Deleting the rail would have thrown away the
+    /// <c>Replay</c> half, which still holds — so it is split, not dropped.
+    /// </remarks>
+    [Fact]
+    public void WhileFreeRunning_TheLiveWriteNowSTAGES_AndTheWriterIsCalled()
     {
         var called = false;
         using var session = new ComponentEditServiceBuilder().Build()
             .Open(1, typeof(int), EditScope.WholeComponent);
 
         var outcome = VariableEditCommit.Commit(
-            session, Asset(), Row("Health", typeof(int)), typeof(int), run,
+            session, Asset(), Row("Health", typeof(int)), typeof(int), VariableRunState.Running,
             writeLive: (_, __) => { called = true; return LiveWriteOutcome.Landed; });
 
-        Assert.Equal(VariableEditCommit.Outcome.RefusedRunning, outcome);
-        Assert.False(called, "Ruling 15 forbids a live write while free-running; the writer must not run.");
+        Assert.Equal(VariableEditCommit.Outcome.Ok, outcome);
+        Assert.True(called, "R-126: running routes to the live arm, which stages. The writer must run.");
+    }
+
+    /// <summary>⛔ <c>Replay</c> still routes nowhere. ⚠ 📐 And it has NO production producer —
+    /// <c>RunStateSource.Resolve</c> yields only Planning/Paused/Running — so this pins a decision
+    /// rather than a reachable path.</summary>
+    [Fact]
+    public void WhileReplaying_TheLiveWriteStillRefuses_AndTheWriterIsNotCalled()
+    {
+        var called = false;
+        using var session = new ComponentEditServiceBuilder().Build()
+            .Open(1, typeof(int), EditScope.WholeComponent);
+
+        var outcome = VariableEditCommit.Commit(
+            session, Asset(), Row("Health", typeof(int)), typeof(int), VariableRunState.Replay,
+            writeLive: (_, __) => { called = true; return LiveWriteOutcome.Landed; });
+
+        Assert.Equal(VariableEditCommit.Outcome.RefusedRunState, outcome);
+        Assert.False(called, "There is nothing to edit in a recording; the writer must not run.");
     }
 
     /// <summary>
     /// ⭐⭐⭐ <b>A missing live writer is <c>LiveWriteUnavailable</c>, ⛔ NOT a quiet refusal.</b>
     ///
     /// <para>📌 <c>CLAUDE.md</c>'s silent-default pattern: the run state SAID the write may land and
-    /// the mechanism did not arrive. ⚠ Collapsing that into <c>RefusedRunning</c> would make an
+    /// the mechanism did not arrive. ⚠ Collapsing that into <c>RefusedRunState</c> would make an
     /// unwired host look like a correctly-refusing one — which is how four batches of this programme
     /// shipped capabilities nothing constructed.</para>
     /// </summary>

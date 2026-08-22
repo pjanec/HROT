@@ -593,6 +593,18 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         _context.Kernel.RegisterGlobalSystem(_bpSnapshotProvider);
         _context.Kernel.RegisterGlobalSystem(_bpSystem);
+
+        // ⭐⭐⭐ W3/W5 — THE STAGED-WRITE DRAIN, and this host needs it for the same reason the editor
+        //    does. 📄 DESIGN_Staged_Live_Write.md §8.
+        // 🔴 W5 removed the drain from DataBreakpointManager.RequestStep/RequestContinue, because the
+        //    kernel's PreFrame pull is the one implementation (ruling 9) and a toolbar pause never
+        //    calls either method. ⇒ ⛔ WITHOUT THIS LINE a staged edit in a CGF world would queue and
+        //    never apply — 📌 exactly the "accepted and silently discarded" failure MIN was built to
+        //    end, moved to a second host.
+        // 📐 Measured: this is the ONLY other production site that constructs a DataBreakpointManager.
+        //    ⚠ Railed by WithNoDrainRegistered_AStagedEditNeverLands, which drives the negative.
+        _context.Kernel.RegisterGlobalSystem(
+            new Fdp.ModuleHost.Time.ResumeAndDrainSystem(_bpManager));
         // ─────────────────────────────────────────────────────────────────────────
 
         _context.Kernel.Initialize();

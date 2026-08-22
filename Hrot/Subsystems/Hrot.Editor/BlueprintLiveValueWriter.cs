@@ -170,14 +170,16 @@ public sealed class BlueprintLiveValueWriter
         if (bytes.Length != field.SizeBytes)
             return LiveWriteAttempt.Refused(LiveWriteRefusal.SizeMismatch, bytes.Length, field.SizeBytes);
 
-        // ⭐ 5 — the CLOCK gate is the only remaining way this returns false. 📌 MIN: it used to be the
-        //    session's own `_isPaused`, which a toolbar pause never set — so this arm fired while the
-        //    designer was demonstrably stopped. ⇒ a `false` here now means one thing, and the sentence
-        //    below can say it.
+        // ⭐⭐⭐ 5 — W3: THE RUN-STATE GATE IS GONE. 📌 R-126, the user: "running is not a reason to
+        //    refuse, it is a reason to STAGE." The write now stages in every run state and the kernel's
+        //    PreFrame drain applies it at the next advancing tick.
+        // ⚠ `false` survives, but it means ONE thing now — the session has no DataBreakpointManager, so
+        //   there is nowhere to stage. ⛔ That is a missing capability on this host, not a property of
+        //   the variable and not something the designer can act on, which is why the sentence says so.
         return session.TryWriteWorkingStateField(
                    entity.Value, field.ComponentType, field.ComponentOffsetBytes, bytes)
             ? LiveWriteAttempt.Succeeded
-            : LiveWriteAttempt.Refused(LiveWriteRefusal.SimulationAdvancing);
+            : LiveWriteAttempt.Refused(LiveWriteRefusal.StagingUnavailable);
     }
 }
 
@@ -209,15 +211,24 @@ public enum LiveWriteRefusal
     SizeMismatch,
 
     /// <summary>
-    /// ⛔ <b>The simulation clock is ADVANCING.</b> ⭐ The one refusal a designer can undo, and since
-    /// <c>MIN</c> the only one the session's gate can produce.
+    /// ⛔ <b>This editor has no staging target</b> — the blueprint session holds no
+    /// <c>DataBreakpointManager</c>, so there is nothing to queue the write into.
     ///
-    /// <para>⚠⚠ <b>Renamed from <c>NotFrozen</c> deliberately</b>, so the compiler revisited every
-    /// reader. 📌 <c>NotFrozen</c> named a SESSION FLAG *(<c>BlueprintDebugSession._isPaused</c>)*, and
-    /// that flag is exactly what <c>MIN</c> stopped gating on — a name that still said "frozen" would
-    /// keep pointing at the mechanism <c>AS-3</c> removed.</para>
+    /// <para>⭐⭐⭐ <b><c>W3</c> — this REPLACES <c>SimulationAdvancing</c>, which replaced
+    /// <c>NotFrozen</c>.</b> 📌 <c>R-126</c>, the user: <i>"I do not understand how comes that something
+    /// can be unwritable… we should be able to write anything anywhere"</i> ⇒ <b>running is not a reason
+    /// to refuse, it is a reason to STAGE</b>, and the run-state refusal is deleted outright.</para>
+    ///
+    /// <para>⚠⚠ <b>Renamed rather than deleted, deliberately</b>, and for the third time on the same
+    /// member — the technique is the point: 📌 each rename made the compiler revisit every reader, so a
+    /// sentence describing a mechanism that no longer exists cannot survive. ⛔ A member that kept
+    /// saying <i>"the simulation is running"</i> would now be a lie: staging works while it runs.</para>
+    ///
+    /// <para>⭐ <b>The remaining four are all DATA-shaped</b>, exactly as <c>R-126</c> requires:
+    /// no entity · no document · the field does not resolve · the width is wrong
+    /// *(<c>Q32</c> §2.1's corruption gate, which must stay)*.</para>
     /// </summary>
-    SimulationAdvancing,
+    StagingUnavailable,
 }
 
 /// <summary>⭐ The outcome of one live-write attempt, with the numbers a size mismatch needs.</summary>
@@ -252,19 +263,20 @@ public readonly record struct LiveWriteAttempt(bool Ok, LiveWriteRefusal Refusal
                                              + $"{Expected}-byte field, so the write was refused rather than "
                                              +  "risk the neighbouring value.",
 
-        // ⭐⭐⭐ MIN (2026-08-21) — THE SENTENCE CAN TELL THE TRUTH AGAIN, because the GATE now does.
-        // 📌 The history, kept because it is the point: the original read "The simulation is running —
-        //    pause it to edit a live value", which was FALSE — the gate behind it was
-        //    BlueprintDebugSession._isPaused, a SESSION-LOCAL flag a toolbar pause never sets, so it
-        //    told a designer who HAD paused to pause. Batch 102's honest-refusal work then replaced it
-        //    with a sentence describing that MECHANISM instead, deliberately vague about what to do,
-        //    because at the time nothing drained a toolbar-paused write.
-        // ⇒ ⭐⭐ MIN made the gate `!IsClockHalted()` — one source of "paused", the clock (R-126) — so
-        //    this arm now means exactly what it says, and the actionable instruction is true for BOTH
-        //    ways of stopping. ⛔ It is no longer a description of a limitation; it is a fact about the
-        //    simulation.
-        LiveWriteRefusal.SimulationAdvancing => "The simulation is running — pause it (the toolbar's "
-                                             + "pause, or a breakpoint) to edit a live value.",
+        // ⭐⭐⭐ W3 (2026-08-22) — AND NOW THERE IS NO RUN-STATE SENTENCE AT ALL, because there is no
+        //    run-state gate. 📌 The history of this one line is the whole feature in miniature:
+        //      ① "The simulation is running — pause it" — FALSE: the gate behind it was
+        //         BlueprintDebugSession._isPaused, which a toolbar pause never sets, so it told a
+        //         designer who HAD paused to pause.
+        //      ② Batch 102 replaced it with a description of that MECHANISM, deliberately vague about
+        //         what to do, because at the time nothing drained a toolbar-paused write.
+        //      ③ MIN made the gate the CLOCK (R-126's one source), so the instruction became true.
+        //      ④ W3 DELETES the gate: running is a reason to STAGE. ⇒ the only refusal left on this
+        //         path is a host with no staging target, and a designer cannot act on that — so the
+        //         sentence says whose problem it is instead of inventing an instruction.
+        LiveWriteRefusal.StagingUnavailable => "This editor has no staged-write target, so a live edit "
+                                             + "has nowhere to go. This is a missing capability on "
+                                             + "this host, not a property of the variable.",
         _                                   => "The live write was refused.",
     };
 }
