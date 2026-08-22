@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT
+doc-type: runbook (a launch recipe, not a class/sequence design — no build-state, no UML gate)
 updated: 2026-08-22
 current-answer: this whole file — how to run the GUI editor on a headless Linux host under Xvfb, and the
   measured status of the "null IconAtlas handle" blocker.

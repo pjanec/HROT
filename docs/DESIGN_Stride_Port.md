@@ -39,6 +39,21 @@ data, **byte-identical on both branches**; the Stride node is just a new consume
 > freeze. ⭐ Keeping the change **authority-conditional** is still tidy defensive hygiene *(so a future
 > non-Stride node could get a real FDP crowd)*, but it is NOT the load-bearing risk it was framed as.
 
+## INVENTORY — what was enumerated, and how *(the graph could not; the branch is disjoint + unindexed)*
+
+⚠ **`search_graph` does not cover `origin/stride-integ-1`** — it is a disjoint-history branch, not indexed into
+the codebase-memory graph. ⇒ the enumeration was by **git against the branch**, stated so it is checkable:
+
+| query run | total | result |
+|---|---|---|
+| `git ls-tree -r --name-only origin/stride-integ-1 -- Stride/Hrot.Stride.Core Stride/Hrot.Stride.Animation` | **38 files** | the two new projects — 34 in `.Core` (Bullet motor + reverse-sync, DotRecast navmesh/crowd, vehicle nav, 3D debug render), 4 in `.Animation` |
+| `git diff --stat origin/stride-integ-1 <coord> -- FDP/Toolkits/Fdp.Toolkits/Navigation FDP/Toolkits/Fdp.Toolkits/Physics Hrot.MuscleCharacter.Animation` | *(the seam table below)* | the shared-file deltas — the crowd/raycast/animation seams |
+| grep for each shared symbol across trunk under any name *(the rename confounder)* | — | confirmed which "absent" pieces are truly new vs merely renamed |
+
+⭐ **The seam table in §1 IS this inventory's shared-side half**; §3 is the delta half. ⛔ The as-built §6
+records the two enumeration MISSES the port surfaced *(`IRaycastBackend`, the id-265 reservation)* — proof that a
+git-diff enumeration, like a graph one, is only as complete as the paths it was pointed at.
+
 ## 1. The integration seams — all shared, all already on our branch (byte-identical)
 
 | seam | type | file (same path both branches) | on coord? |
