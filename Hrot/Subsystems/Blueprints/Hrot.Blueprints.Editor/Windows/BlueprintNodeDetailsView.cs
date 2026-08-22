@@ -1,12 +1,34 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Shell;
 
 namespace Hrot.Blueprints.Editor.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 3) — whether a drawer resolved for the selected node, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example; <c>BP-462</c>.
+///
+/// <para>⭐ <c>PanelKind</c> is <see cref="BlueprintNodeDetailsViewDescriptor.ViewId"/> —
+/// <c>"details.nodeproperties"</c> — the SAME id the AI-host <c>NodePropertiesDetailsView</c> already
+/// cites (group 2 of this sweep), so the two independent node-properties implementations are
+/// comparable by construction.</para>
+/// </summary>
+public sealed record BlueprintNodeDetailsViewPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool   HasSession,
+    string? ResolvedDrawerKindName,
+    bool   HasNodeWithNoDrawer) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>S1</c> — BLUEPRINT'S NODE ARM, AS A DETAILS VIEW.</b>
@@ -151,9 +173,37 @@ public sealed class BlueprintNodeDetailsView : IDetailsViewInstance
     private static BlueprintNodeSelection? SelectedNodeRef(DetailsContext context)
         => context.Selection is { Count: 1 } one ? one[0] as BlueprintNodeSelection : null;
 
+    /// <summary>⭐⭐⭐ U-obs-5: BUILD · CAPTURE. ⛔⛔ Ahead of every raw ImGui call in <see cref="Draw"/> —
+    /// <see cref="ResolveSession"/> and <see cref="TryGetSelectedNode"/> are already pure. ⚠ Declared
+    /// on first draw, not at construction — see <c>VariablesDetailsView.BuildAndPublish</c>'s remarks
+    /// for why that is still the recipe's obligation, just resolved once the address is known.</summary>
+    private BlueprintNodeDetailsViewPanelViewModel BuildAndPublish(DetailsContext context, string idScope)
+    {
+        var session = ResolveSession(context);
+        var node    = session is null ? TryGetSelectedNode(context) : null;
+        var panelId = $"{idScope}/{BlueprintNodeDetailsViewDescriptor.ViewId}";
+        PanelSnapshot.DeclareInstrumented(panelId);
+
+        var vm = new BlueprintNodeDetailsViewPanelViewModel(
+            panelId, BlueprintNodeDetailsViewDescriptor.ViewId,
+            HasSession: session is not null,
+            ResolvedDrawerKindName: ResolvedDrawerKind?.Name,
+            HasNodeWithNoDrawer: session is null && node is not null);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context. ⛔ Do
+    /// NOT call <see cref="Draw"/> from a headless test — its render arms are unguarded.</summary>
+    internal BlueprintNodeDetailsViewPanelViewModel SimulateDraw(DetailsContext context, string idScope)
+        => BuildAndPublish(context, idScope);
+
     /// <inheritdoc/>
     public void Draw(DetailsContext context, string idScope)
     {
+        BuildAndPublish(context, idScope);
+
         var session = ResolveSession(context);
         if (session != null)
         {
