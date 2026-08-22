@@ -1,15 +1,3 @@
-// ST-PORT (cross-lane): the HOSTED-REAL-EDITOR mode is compiled out on this line.
-//
-// That mode boots a real EditorSubsystem inside the Stride window and drives it. It needs twelve
-// public members on Hrot.Editor.EditorSubsystem that the coordinator line does not have --
-// PreKernelUpdateHook, PostKernelUpdateHook, EditorLogic, MuscleModuleFactory, World, Kernel,
-// TimeController, EntityCreationRequestSource, TkbDatabase, Selection2DVersion, Selected2DEntity,
-// SetSelection2D. Measured absent, not renamed. Adding them edits the UI lane's live file, which is
-// a STOP-and-report (R-128), so the mode is GUARDED rather than deleted or half-ported.
-//
-// The STANDALONE Stride host (HostRealEditor == false) is unaffected -- it is what this batch
-// delivers. To re-enable once those members land: define HROT_HOSTED_EDITOR in
-// HrotStrideApp.Game.csproj and rebuild. The guarded code below is the branch's, unmodified.
 #nullable enable
 using System;
 using System.Collections.Generic;
@@ -439,11 +427,7 @@ public sealed class EditorStrideSubsystem : IDisposable
     /// Non-null only when <see cref="HostRealEditor"/> is <c>true</c> AND
     /// <see cref="Initialize"/> has been called.
     /// </summary>
-#if HROT_HOSTED_EDITOR
     public IEditorLogic? HostedEditorLogic => _editor?.EditorLogic;
-#else
-    public IEditorLogic? HostedEditorLogic => null;   // ST-PORT: hosted mode not built
-#endif
 
     /// <summary>
     /// The hosted <see cref="EditorSubsystem"/> instance (implements
@@ -892,7 +876,6 @@ public sealed class EditorStrideSubsystem : IDisposable
         Hrot.Stride.Core.IDebugDrawSink3D? debugDrawSink,
         bool buildEditorUi = false)
     {
-#if HROT_HOSTED_EDITOR
         // ── H1. Build deferred crowd and EditorSubsystem ─────────────────
         // Mirror EditorStrideSubsystem.Initialize step 7 + boot-test recipe.
         var deferredCrowd = new DotRecastDtCrowdProvider(maxAgentRadius: 0.4f);
@@ -1111,13 +1094,6 @@ public sealed class EditorStrideSubsystem : IDisposable
         var effectiveSink = debugDrawSink ?? (Hrot.Stride.Core.IDebugDrawSink3D)new LoggingDebugDrawSink3D();
         _debugDrawSinkDisposable = effectiveSink as IDisposable;
         GizmoRenderer3D = new Hrot.Stride.Core.DebugPrimitiveRenderer3D(effectiveSink);
-#else
-        throw new NotSupportedException(
-            "[EditorStrideSubsystem] Hosted-real-editor mode is not built on this line -- it needs "
-            + "twelve members on EditorSubsystem that do not exist here (see the ST-PORT note at "
-            + "the top of this file). Use the standalone Stride host, or define HROT_HOSTED_EDITOR "
-            + "once those members land.");
-#endif
     }
 
     /// <summary>
@@ -1422,7 +1398,6 @@ public sealed class EditorStrideSubsystem : IDisposable
     /// </summary>
     private void SyncSelection2D3D()
     {
-#if HROT_HOSTED_EDITOR
         if (_editor == null) return;
         int v2d = _editor.Selection2DVersion;
         if (v2d != _last2dSelVersion)
@@ -1443,9 +1418,6 @@ public sealed class EditorStrideSubsystem : IDisposable
             _editor.SetSelection2D(SelectionState.HasSelection ? SelectionState.SelectedEntity : (Fdp.Core.Entity?)null);
             _last2dSelVersion = _editor.Selection2DVersion; // sync tracker
         }
-#else
-        // ST-PORT: the 2D<->3D selection bridge belongs to the hosted-editor mode.
-#endif
     }
 
     /// <summary>

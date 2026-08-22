@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (S1-S3 + S5's regression gate; S4 partial — see §6)
+build-state: BUILT (S1-S4 + S5's regression gate; one stop remains — §6.5b)
 updated: 2026-08-22
 current-answer: the whole file — how to port the Bullet-based Stride from origin/stride-integ-1 onto the
   coordinator line, what the integration changed on the HROT/FDP shared side, and the one real breakage
@@ -159,18 +159,45 @@ node-level flag would be a second thing to keep in step with the first, and its 
 silent — an agent that stops moving with nothing to point at. 📐 Railed with a **mixed world**: one
 agent of each kind in one repository, both resolved correctly.
 
-### ⛔⛔ 6.5 `S4` IS PARTIAL — **the hosted-real-editor mode is cross-lane** *(`ST-007`)*
+### ✅ 6.5 `S4` — **the hosted-real-editor mode BUILDS. My first verdict was wrong** *(`ST-007` → `ST-010`)*
 
-📐 `EditorStrideSubsystem`'s optional hosted mode needs **twelve** public members on
-`EditorSubsystem` that the coordinator line **does not have** — `PreKernelUpdateHook` ·
-`PostKernelUpdateHook` · `EditorLogic` · `MuscleModuleFactory` · `World` · `Kernel` ·
-`TimeController` · `EntityCreationRequestSource` · `TkbDatabase` · `Selection2DVersion` ·
-`Selected2DEntity` · `SetSelection2D`. ⭐ **Measured ABSENT, not renamed** *(0 hits each)*.
+⛔⛔ **I first reported this as "cross-lane, stop": the mode needs twelve `EditorSubsystem` members
+this line lacks, so I guarded it out.** 🔒 **The user challenged that** — *"were they added on the
+stride branch? what does that have to do with the UI branch, can't you do it yourself?"* — ⭐⭐ **and
+the measurement vindicated the challenge.** 📌 I had applied the file-level lane rule **without
+measuring what the change actually was.**
 
-⛔ Adding them edits the **UI lane's live file** ⇒ **`R-128` STOP-and-report.** ⇒ ⭐⭐ **guarded behind
-`HROT_HOSTED_EDITOR`, not deleted**: the branch's code is intact, one csproj property re-enables it,
-and the guarded path throws a message naming the twelve. ⭐ **The STANDALONE Stride host is
-unaffected** — that is what shipped.
+| 📐 measured | |
+|---|---|
+| **① they are the PORT's own seam** | the branch's block header: *"Public host-integration surface … for external host assemblies (e.g. `HrotStrideApp.Game`) to reach the live ECS world, kernel, and time controller **without reflection**"* ⇒ ⛔ **not UI-lane work that merely shares a file** |
+| **② five of twelve ALREADY EXIST here, as `internal`** | `World` · `Kernel` · `EditorLogic` · `TimeController` · `PreviewController` ⇒ the change is **`internal` → `public`**, and the branch says so itself: *"behavior is identical to the former internal accessors"* |
+| **③ the UI lane has NO live edit to collide with** | `git diff HEAD origin/claude/hrot-implementation-j1jvin -- EditorSubsystem.cs` is **EMPTY**, and their batch is Details/menus — a different region |
+
+⇒ ⭐⭐⭐ **the guard is removed and the mode compiles.** ⭐ Two pieces the "twelve" had missed came with
+it: **`MuscleModuleContext`** *(a 2-field record)* and **`DefaultSelectionState.Version`**
+*(a monotonic counter in `Fdp.Presentation`)*.
+
+⭐⭐ **The one member with a behaviour branch is `MuscleModuleFactory`, and its null arm is kept
+BYTE-FOR-BYTE** — an editor that sets nothing cannot be affected by it. ⛔ **Deliberate deviation from
+the branch**: it registers every muscle module in a `foreach` on BOTH arms, which on the default path
+would register **one module more** than this line does *(HEAD registers `perceptionMod` only and
+splices `simHostCorePack`'s system lists)*. ⇒ the `foreach` runs on the **injected arm only**.
+
+📐 **Proof it breaks nothing**: `Hrot.Blueprints.Tests` Editor namespace — the suites that actually
+**construct** `EditorSubsystem` — **1032 / 0**; `BreakpointSubsystemWiringTests` **25 / 0**;
+`TimeControlIntegrationTests` **9 / 0**.
+
+### ⛔ 6.5b THE REMAINING STOP — **the animation DESCRIPTOR DTOs** *(`ST-011`)*
+
+⚠⚠ **This one qualifies the headline in 6.1.** *"The animation contract is byte-identical"* is true of
+the **RUNTIME** contract — ⛔ **but the DESCRIPTOR family is branch-only**:
+`CharacterAnimationDefDto` · `SlotDefDto` · `MontageDefDto` · `MontageNotifyRefDto` ·
+`NotifyMarkerDefDto` · `StanceTransitionDto` · `SlotCompositingMode` · `AnimNotifyCategory` —
+**none exists on this line.**
+
+⛔ On the branch their consumers include **`Hrot.Editor.AiShared/Catalog`**, the **frozen** area ⇒
+⭐ **a genuine STOP**, unlike 6.5. ⚠ **Consequence for the visual test**: the mannequin templates carry
+no animation descriptor, so idle/walk/run may not blend until this family lands.
 
 ### ⚠⚠ 6.6 THE ENVIRONMENT LIMIT — **compile-verified, NOT run-verified** *(`ST-006`)*
 

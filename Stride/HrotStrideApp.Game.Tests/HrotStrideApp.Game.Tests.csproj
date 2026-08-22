@@ -37,15 +37,14 @@
   </ItemGroup>
 
 
-  <!-- ST-PORT (cross-lane): these suites exercise the HOSTED-REAL-EDITOR mode, which is compiled
-       out on this line (see the note atop EditorStrideSubsystem.cs). They are excluded rather than
-       deleted; they are the proof the mode works, and they compile again the moment the twelve
-       EditorSubsystem members land and HROT_HOSTED_EDITOR is defined.
-       MannequinAnimationDefIntegrationTests additionally needs
-       UrbanCombatNewScenario.BuildMannequinAnimationDef, which this line does not have. -->
-  <ItemGroup Condition="'$(DefineConstants.Contains(HROT_HOSTED_EDITOR))' != 'true'">
-    <Compile Remove="EditorSubsystemHeadlessBootTests.cs" />
-    <Compile Remove="StrideEditorUiHostTests.cs" />
+
+
+  <!-- ST-011: this ONE suite needs UrbanCombatNewScenario.BuildMannequinAnimationDef, which returns
+       a CharacterAnimationDefDto. That DTO family (CharacterAnimationDefDto, SlotDefDto, MontageDefDto,
+       MontageNotifyRefDto, NotifyMarkerDefDto, StanceTransitionDto, SlotCompositingMode,
+       AnimNotifyCategory) does not exist on this line at all, and on the branch its consumers include
+       Hrot.Editor.AiShared/Catalog, the FROZEN area. Out of scope here; see the batch report. -->
+  <ItemGroup>
     <Compile Remove="MannequinAnimationDefIntegrationTests.cs" />
   </ItemGroup>
 

@@ -20,7 +20,7 @@ known-conflict: none.
 | **`S1`** | the two Bullet/Stride libraries | ✅ **done** *(`ST-001`)* — `Animation` needed ZERO reconciliation; `Core` needed ONE |
 | **`S2`** | the additive nav pieces | ✅ **done** *(`ST-002`)* — ⚠ **plus a third the design did not name** *(`ST-003`)* |
 | **`S3`** | `CrowdAgentUpdateSystem` authority-conditional | ✅ **done** *(`ST-004`)* — per ENTITY, 3 rails |
-| **`S4`** | Stride visual binding + animation backend on a host | ⚠ **PARTIAL** — standalone host ✅; ⛔ hosted-real-editor mode **cross-lane** *(`ST-007`)* |
+| **`S4`** | Stride visual binding + animation backend on a host | ✅ **done** — standalone host ✅ **and** the hosted-real-editor mode, after the user challenged my first verdict *(`ST-007` → `ST-010`)*. ⛔ One stop remains: the animation DESCRIPTOR DTOs *(`ST-011`)* |
 | **`S5`** | verify nothing broke + a runnable host | ✅ regression gate green; ⚠ "runnable" is **Windows-only and always was** *(`ST-006`)* |
 
 ## ⭐⭐ The port method, and what it actually cost
@@ -32,7 +32,7 @@ drifts**. 📐 It surfaced **four**, all reconciled measured rather than guessed
 |---|---|---|
 | `IRaycastBackend` missing | ⛔ **not an API drift — a design GAP**: a third shared-side file §1 never listed | ported it + its `RaycastSolverSystem` consumer *(`ST-003`)* |
 | `CycloneDDS.NET` 0.2.3 → **0.3.2** | needs Roslyn ≥ 4.8.0; `Stride.Core.Assets.CompilerApp` pins **= 3.6.0** *(NU1107 × 3 projects)* | NuGet's own named remedy — pin 4.8.0 directly *(`ST-009`)* |
-| 26 errors in `EditorStrideSubsystem` | ⛔ **twelve `EditorSubsystem` members that do not exist here** | guarded, **not deleted** *(`ST-007`)* |
+| 26 errors in `EditorStrideSubsystem` | ⛔ **twelve `EditorSubsystem` members that do not exist here** | ⚠ first guarded *(`ST-007`)*, then **PORTED** once measured *(`ST-010`)* |
 | `app.manifest` missing | ⚠ gitignored, committed on **neither** branch | `<ApplicationManifest>` made conditional *(`ST-008`)* |
 
 ⭐⭐ **Only the second is a true drift.** ⛔ The first is a design gap, the third a lane boundary, the
@@ -71,6 +71,11 @@ nothing to point at. 📐 Railed with a **mixed world** — one agent of each ki
 | ⭐⭐ **animation contract ZERO-DIFF** | — | — | ✅ **no change** under `Hrot.MuscleCharacter.Animation/`, `Fdp.Core/CoreComponents/`, `Fdp.Toolkits/Behavior/Components/` | — |
 | `Hrot.SimHost.Tests` **FILTERED** *(`TM-036`)* | `--no-build` | stable core 8 red | ✅ **63 / 8**, same 8 names | **0** |
 | time standing gates *(`~ClusterTimeObservation\|~HaltReason\|~MasterSyncController`)* | `--no-build` | 64 / 0 | ✅ **64 / 0** | **0** |
+| ⭐⭐⭐ **`Hrot.Blueprints.Tests` — `~Hrot.Blueprints.Tests.Editor`** *(NEW row: the suites that CONSTRUCT `EditorSubsystem` — the `ST-010` gate)* | `--no-build` | — | ✅ **1032 / 0**, 9 skipped | — |
+| ⭐ **`BreakpointSubsystemWiringTests`** *(integration, builds a real editor)* | `--no-build` | — | ✅ **25 / 0** | — |
+| ⭐ **`TimeControlIntegrationTests`** *(rule 8 row 8 — the cross-node invariant)* | `--no-build` | 9 / 0 | ✅ **9 / 0** | **0** |
+| ⚠ **`Hrot.Editor.Tests`** | `--no-build` | ⛔ **the 209 / 0 was STALE — see `ST-012`** | ⚠ **207 / 2**, both **confirmed pre-existing by stash + REBUILD** | **0** |
+| ⭐ `Hrot.Presentation.Tests` filtered *(+`~Selection`, for `DefaultSelectionState.Version`)* | `--no-build` | — | ✅ **27 / 0** | — |
 | ⭐ **`Hrot.Stride.Core` build** | `-p:EnableWindowsTargeting=true` | — | ✅ **0 errors** | new |
 | ⭐ **`Hrot.Stride.Animation` build** | idem | — | ✅ **0 errors** | new |
 | ⭐ **`HrotStrideApp.Game` build** | idem | — | ✅ **0 errors** | new |
@@ -105,7 +110,41 @@ three suites will be on the user's Windows machine.
 
 | ⛔ | why |
 |---|---|
-| add the twelve members to `EditorSubsystem` | **`R-128` cross-lane** — the UI lane's live file *(`ST-007`)* |
+| ~~add the twelve members to `EditorSubsystem`~~ | ⚠ **RETRACTED — I DID, after the user challenged it.** See the correction below *(`ST-010`)* |
+| port the animation DESCRIPTOR DTOs | ⛔ **a genuine stop** — the family does not exist here and its branch consumers include the frozen `AiShared/Catalog` *(`ST-011`)* |
 | adopt Bepu | ⛔ `SD2`, user ruling: **Bullet** |
 | wire the MCP harness | out of scope by instruction |
-| delete the hosted-editor code | ⛔ *"unreferenced is not unintentional"* — it is a **capability**, guarded and one property from returning |
+| delete the hosted-editor code | ⛔ *"unreferenced is not unintentional"* — and it is now **built**, not merely preserved |
+
+
+## ⛔⛔ THE CORRECTION — **`ST-007` was wrong, and the user caught it**
+
+🔒 **User:** *"were they added on the original stride integration branch? what does that have to do
+with the UI branch, can't you do it yourself? (UI branch is solving the Details window stuff, largely
+orthogonal)"*
+
+⭐⭐ **All three implied claims were right, and I had measured none of them.** 📌 I applied the
+file-level lane rule *("no cross-lane files")* **without measuring what the change actually was.**
+
+| 📐 then measured | |
+|---|---|
+| **① added BY the Stride integration, FOR this** | the branch's own header: *"Public host-integration surface … for external host assemblies … **without reflection**"* |
+| **② five of twelve already existed here, as `internal`** | ⇒ the change is **`internal` → `public`** — the branch says *"behavior is identical to the former internal accessors"* |
+| **③ the UI lane has no live edit on that file** | `git diff HEAD origin/claude/hrot-implementation-j1jvin -- EditorSubsystem.cs` ⇒ **EMPTY** |
+
+⇒ ⭐ **Ported. Guard removed. Two hosted-mode suites re-enabled.** ⚠ The one behaviour branch
+(`MuscleModuleFactory`) keeps its null arm **byte-for-byte**, and ⛔ I did **not** adopt the branch's
+`foreach RegisterModule` on the default arm — it would have registered one module more than this line
+does.
+
+⭐⭐ **The lesson, stated plainly: "same file" is not "same work."** ⛔ A lane rule about FILES is a
+proxy; the real question is what the edit does and whether anyone is standing on it — and both are
+measurable in two commands.
+
+### ⚠⚠ `ST-012` — **and the gate that said 209 / 0 was a STALE GREEN**
+
+📐 I recorded `Hrot.Editor.Tests` **209 / 0** during the port gates. ⛔ **That dll predated the
+coordinator merge** — nothing in the port touched `Hrot.Editor`, so `--no-build` never rebuilt it. The
+moment `ST-010` changed `EditorSubsystem.cs`, the project rebuilt and **`ScenarioMenuTests` went 2 red**.
+⭐⭐ **Confirmed pre-existing**: stashed, **rebuilt**, same two failures. ⇒ ⚠ **a `--no-build` green is
+only as fresh as the last thing that forced a rebuild** — 📌 second catch of this shape in one session.
