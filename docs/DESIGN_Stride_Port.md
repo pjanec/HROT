@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (porting-risk map + strategy — NOT approved to build)
+build-state: BUILT (S1-S3 + S5's regression gate; S4 partial — see §6)
 updated: 2026-08-22
 current-answer: the whole file — how to port the Bullet-based Stride from origin/stride-integ-1 onto the
   coordinator line, what the integration changed on the HROT/FDP shared side, and the one real breakage
@@ -116,3 +116,72 @@ crowd a stub-replacement — with no live functionality on the coordinator that 
 | **SD3** | the crowd system | **authority-conditional** (§3), never wholesale replace | 
 | **SD4** | scope of v1 | S1–S3 + a regression rail (S5); the Stride host wiring (S4) can follow |
 | **SD5** | relationship to trunk's `Stride/BepuSample` | leave it; the ported Bullet Stride is a separate host path — decide later whether Bepu sample stays |
+
+
+---
+
+## 6. ⭐⭐⭐ AS-BUILT — **what the port measured, including two premises of this map that were FALSE**
+
+> 📄 Batch: [`blueprints/batches/BATCH_ST101_The_Stride_Port.md`](blueprints/batches/BATCH_ST101_The_Stride_Port.md) ·
+> ids **`ST-001`…`ST-009`**, tracker **Area I**.
+
+### ⭐⭐ 6.1 The headline held — **and is now proven, not asserted**
+
+⭐ *"The animation contract is CLEAN and ADDITIVE"* — ✅ **proven by a ZERO DIFF**: after the whole
+port, `git status` reports **no change** under `Hrot.MuscleCharacter.Animation/`,
+`Fdp.Core/CoreComponents/` or `Fdp.Toolkits/Behavior/Components/`. Suites **195 / 0 · 15 / 0 · 31 / 0**.
+
+### ⛔⛔ 6.2 CORRECTION — **`id 265` was NOT free** *(`ST-005`)*
+
+📐 §3 says *"id 265 is FREE — coord ids stop at 264"*. ⛔ **It looked only at `GlobalComponentIds` and
+`NavigationContractsComponentIds`.** `NavFakeIds` declares its block as **262–279** and had RESERVED
+**265** for `FakeVolumetricState`. ⭐ Measured: that constant has **no component attached** — its own
+declaration is its only reference — so it is a reservation, not a live claim. ⇒ **moved to 269**;
+265 now has exactly one claimant. ⚠ Left alone, a fake volumetric state built later would have
+collided with a production component, silently.
+
+### ⛔⛔ 6.3 CORRECTION — **the §1 seam table is INCOMPLETE: `IRaycastBackend` is a third piece** *(`ST-003`)*
+
+📐 It surfaced as the **only** compile drift in `Hrot.Stride.Core`. `Fdp.Toolkits/Physics/IRaycastBackend.cs`
+exists on the branch and **not at all** on the coordinator line, and `RaycastSolverSystem` gains a
+nullable `RaycastBackend` property plus an early-return branch. ⭐⭐ **Additive and null on every
+non-Stride node** ⇒ identical behaviour; Physics **31 / 0**. ⇒ ⚠ **`S2` should have named it.**
+
+### ⭐⭐⭐ 6.4 `S3` AS BUILT — **the authority marker is the COMPONENT, per entity** *(`ST-004`)*
+
+⭐ §3 asked for *"authority-conditional"* without saying what selects the arm. ⇒ **the entity's
+`CrowdMotorIntent`**: present ⇒ write the intent only *(physics owns the pose)*; absent ⇒ the
+pre-port `SimVelocity` + `SimTransform` integration, unchanged.
+
+⭐⭐ **Per ENTITY, not per node**, and that is the substantive design choice: the component is added
+only by the host that also runs the motor and the reverse-sync, so **its presence IS the marker**. A
+node-level flag would be a second thing to keep in step with the first, and its failure mode is
+silent — an agent that stops moving with nothing to point at. 📐 Railed with a **mixed world**: one
+agent of each kind in one repository, both resolved correctly.
+
+### ⛔⛔ 6.5 `S4` IS PARTIAL — **the hosted-real-editor mode is cross-lane** *(`ST-007`)*
+
+📐 `EditorStrideSubsystem`'s optional hosted mode needs **twelve** public members on
+`EditorSubsystem` that the coordinator line **does not have** — `PreKernelUpdateHook` ·
+`PostKernelUpdateHook` · `EditorLogic` · `MuscleModuleFactory` · `World` · `Kernel` ·
+`TimeController` · `EntityCreationRequestSource` · `TkbDatabase` · `Selection2DVersion` ·
+`Selected2DEntity` · `SetSelection2D`. ⭐ **Measured ABSENT, not renamed** *(0 hits each)*.
+
+⛔ Adding them edits the **UI lane's live file** ⇒ **`R-128` STOP-and-report.** ⇒ ⭐⭐ **guarded behind
+`HROT_HOSTED_EDITOR`, not deleted**: the branch's code is intact, one csproj property re-enables it,
+and the guarded path throws a message naming the twelve. ⭐ **The STANDALONE Stride host is
+unaffected** — that is what shipped.
+
+### ⚠⚠ 6.6 THE ENVIRONMENT LIMIT — **compile-verified, NOT run-verified** *(`ST-006`)*
+
+| 📐 measured | |
+|---|---|
+| `net8.0-windows` builds on Linux | ⭐ **only** with `-p:EnableWindowsTargeting=true`, on **restore AND build** |
+| the Stride suites **cannot run** | ⛔ the test host needs the `Microsoft.WindowsDesktop.App` **runtime**; there is no linux-x64 build *("No frameworks were found")* |
+| `HrotStrideApp.Windows` **cannot build** | ⛔ `Stride.Core.Assets.CompilerApp` runs `--platform=Windows --compile-property:StrideGraphicsApi=Direct3D11`, exit **150** |
+
+⭐⭐⭐ **The third was CONFIRMED PRE-EXISTING** by building the base commit `128eb68c` in a worktree —
+same failure, before a single port file existed. ⇒ ⛔ **the port did not regress it.**
+
+⇒ 📄 **[`Stride_Host_Visual_Test.md`](Stride_Host_Visual_Test.md)** carries the Windows launch
+command and what a human should see.
