@@ -39,6 +39,9 @@ public static class ScenarioMenuCommands
     /// <summary>Id for the Migration History command: <c>"scenario.migrationHistory"</c>.</summary>
     public const string MigrationHistoryId = "scenario.migrationHistory";
 
+    /// <summary>Id for the Save Curated Scenarios to Git command: <c>"scenario.updateCurated"</c>.</summary>
+    public const string UpdateCuratedId = "scenario.updateCurated";
+
     // ── Menu path prefix ───────────────────────────────────────────────────────
 
     /// <summary>Menu path prefix: items land under <b>File → Scenario</b>.</summary>
@@ -88,7 +91,9 @@ public static class ScenarioMenuCommands
         IEditorLogic                                              editorLogic,
         Action<AssetKindFilter, Action<IEditableAsset?>>          openPicker,
         Action<Action<string>>                                    openSaveAsDialog,
-        Action<IReadOnlyList<SidecarFileInfo>>?                   showMigrationHistory = null)
+        Action<IReadOnlyList<SidecarFileInfo>>?                   showMigrationHistory = null,
+        Func<bool>?                                               isCuratedSaveEnabled = null,
+        Action?                                                   saveCuratedToGit = null)
     {
         if (registerCommand    is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu               is null) throw new ArgumentNullException(nameof(menu));
@@ -151,6 +156,18 @@ public static class ScenarioMenuCommands
                 var sidecars = editorLogic.GetMigrationSidecarsForCurrentScenario();
                 showMigrationHistory?.Invoke(sidecars);
             });
+
+        // ── scenario.updateCurated ─────────────────────────────────────────────
+        // Copies the curated test scenarios' working copies back into the git-committed set. Enabled only
+        // when running from a checkout (a source tree exists); disabled-with-reason otherwise, exactly as
+        // the layout feature's "Save current as default" is. Always registered so the absence is
+        // explainable rather than the item silently missing.
+        RegisterCommand(
+            registerCommand, menu, commands,
+            UpdateCuratedId, "Save Curated Scenarios to Git",
+            "Copy the curated test scenarios' working copies back into the git-committed set (only when running from a source checkout)",
+            isEnabled: isCuratedSaveEnabled ?? (() => false),
+            handler: _ => saveCuratedToGit?.Invoke());
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────
