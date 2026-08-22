@@ -112,25 +112,25 @@ sequenceDiagram
     autonumber
     participant TR as xUnit runner
     participant F as EditorProcessFixture
-    participant P as Editor process (Xvfb)
+    participant P as Editor process
     participant C as McpClient
     participant T as a test
 
-    TR->>F: InitializeAsync (once per collection)
+    TR->>F: InitializeAsync once per collection
     F->>F: allocate free port, make temp staging dir
-    F->>P: launch (HROT_DEBUG_API_PORT, FDP_STAGING_ROOT, xvfb on Linux)
-    loop until 200 or timeout
-        F->>C: GET /status
+    F->>P: launch editor headless with port and staging env
+    loop until status ok or timeout
+        F->>C: GET status
     end
-    Note over F: editor is up; API live
-    TR->>T: run test (shares F)
-    T->>C: LoadScenario -> EnterPreview -> AddBreakpoint -> Play
+    Note over F: editor is up, API live
+    TR->>T: run test, shares F
+    T->>C: LoadScenario, EnterPreview, AddBreakpoint, Play
     loop poll
-        T->>C: GET /breakpoints/hits
+        T->>C: GET breakpoints hits
     end
-    T->>C: GetEntity / DiffCompare / record->replay
+    T->>C: GetEntity, DiffCompare, record then replay
     T->>T: assert outcomes
-    TR->>F: DisposeAsync -> kill process tree + Xvfb, delete staging
+    TR->>F: DisposeAsync kills process tree and Xvfb, deletes staging
 ```
 
 ## 5. DECISIONS FOR REVIEW — *(recommended leans; change any before build)*
