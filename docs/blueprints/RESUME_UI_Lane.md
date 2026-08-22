@@ -14,7 +14,7 @@ known-conflict: none.
 
 ---
 
-## 1. ⭐ WHERE WE ARE — `BP-399` *("one shell")* is **4 of 5 done**
+## 1. ✅ WHERE WE ARE — `BP-399` *("one shell")* is **DONE**
 
 📄 **The design: [`DESIGN_Details_Panel_View_Switching.md` §7](DESIGN_Details_Panel_View_Switching.md).**
 📄 **The dispatch: [`batches/TASKS_One_Shell_BP399.md`](batches/TASKS_One_Shell_BP399.md).**
@@ -26,16 +26,17 @@ known-conflict: none.
 | **S2** | `details.nodeproperties` on BTree + HSM at Rank 20 | ✅ `BP-431`–`BP-433` |
 | **S2b** | the asset-scoped arms leave `InspectorWindow` **as menus, not views** | ✅ `BP-434`–`BP-437` |
 | **S3** | `details.utility`, ported honestly as the stub it is | ✅ `BP-438` |
-| **S4** | `details.parametersync` | ⛔ **deferred by design** *(`R-99`)* — see §4 |
-| **S5** | retire `InspectorWindow` | ⛔ **blocked on `S4`** *(`BP-439`)* |
+| **S4** | `details.parametersync`, Rank 15 | ✅ `BP-448` — `R-99` **satisfied**, not waived |
+| **S5** | retire `InspectorWindow` | ✅ `BP-449`, `BP-450` — the class is **deleted** |
 
-⭐ `InspectorWindow` is **301 lines with exactly ONE arm left** — `PARAMETER SYNCHRONIZATION`.
+⛔ **`InspectorWindow` no longer exists.** All six arms are Details views or asset-row menu items.
 
 ### ⚠ Two corrections this lane made to its own claims — **do not re-introduce either**
 
 | ⛔ the wrong claim | ⭐ the truth |
 |---|---|
-| *"`S5` is blocked on `S3` alone"* *(`S2b` report)* | **`BP-439`** — blocked on **`S4`**; §7.6's ④-before-⑤ order was right. ⚠ The mechanism was the **mirror error**: cleared one blocker, inferred the remainder instead of re-reading the sequence |
+| *"`S5` is blocked on `S3` alone"* *(`S2b` report)* | **`BP-439`** — it was **`S4`**; §7.6's ④-before-⑤ order was right. ⚠ The **mirror error**: cleared one blocker, inferred the remainder instead of re-reading the sequence |
+| *"`ai_inspector_*` is in no layout file"* *(`S5`)* | **`BP-450`** — ⛔ **FALSE.** My grep used `--include=*.cs`, excluding the very file types a layout lives in. `BP-103b`'s stale-layout rail caught it. ⚠ **An absence claim from grep is an absence in your PATTERN** |
 | *"arms ① and ⑥ need a home in the Details panel"* *(`BP-431`)* | 🔒 The user routed all three **OUT**: collisions → Diagnostics, Rename…/Find References → the Asset Browser row menu, Go to Definition → **deleted**. §7.4a |
 
 ---
@@ -75,7 +76,7 @@ load-bearing rule. ⭐ Umbrella context: [`../DESIGN_Headless_Testability.md`](.
 | ⭐ **tiers** | `T0` `scripts/quick-check.sh <csproj> [filter]` while working; the **full gate table ONCE, at the end** |
 | ⭐⭐ **the gate report substitutes for the coordinator's run** | 8-row contract: per-gate command + counts + delta · a `--no-build` column · goldens as a **diff shape** · every red **confirmed pre-existing against the base sha** · clean tree · both quarantine counts · `tracker-counts.py --check` + ids allocated · the **integration suite** for a cross-cutting change *(or why it cannot gate)* |
 | ⭐⭐⭐ **obligation ⑤** | a deviation goes **back into the owning DESIGN doc**, prior state marked SUPERSEDED — ⛔ the report is ephemeral, the design is not |
-| ⭐ **I allocate the ids** | state them in the report. **Next free: `BP-448`** |
+| ⭐ **I allocate the ids** | state them in the report. **Next free: `BP-451`** |
 | ⛔ **no PR** unless the user asks | there has never been one in this programme |
 | ⭐ **links for mobile** | `https://github.com/pjanec/HROT/blob/claude/hrot-implementation-j1jvin/<path>` — ⚠ **push first** |
 | ⛔ **plain-text questions** | never the multiple-choice widget |
@@ -113,7 +114,7 @@ written by the coordinator, **amended by this lane `2026-08-22`**:
 ### ⚠ Other open `BP-` rows
 
 `BP-405` · `BP-407` · `BP-411` · `BP-416` · `BP-418` · `BP-419` · `BP-426` *(needs a running editor)* ·
-`BP-427` · `BP-342` · `BP-399`. ⭐ Tracker: **open 91 / done 291**.
+`BP-427` · `BP-342` · `BP-399`. ⭐ Tracker: **open 90 / done 295**.
 
 ### ⭐ The other lanes — **do not touch their files**
 
