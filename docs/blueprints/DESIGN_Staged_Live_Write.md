@@ -164,6 +164,14 @@ implements it; `StagedWriteView` *(UI lane)* queries it for the display.
 > — `EditorSubsystem` **and** `CgfSubsystem` *(`BP-410`: the second host would have silently lost every
 > staged edit; now railed as a negative)*.
 >
+> 🧹 **QUEUED for the next UI batch — `BP-411` resolved: REMOVE** *(user, `2026-08-22`)*: the
+> greyed-OK-with-tooltip affordance is dead dead code now — every run state stages, and the only refusing
+> state *(`Replay`)* denies opening the dialog outright, so no state opens the dialog with a dead OK.
+> 🔒 **User:** *"the greyed ok was a nonsense from the beginning (we should not have allowed the edit
+> dialog to open in the first place), ok to remove."* ⇒ delete the greyed-OK/tooltip path in
+> `VariableEditModal`/`VariableEditCommit`; the existing `AfterW3_NoRunStateProducesAGreyedOkTooltip`
+> tripwire stays true.
+>
 > ⭐⭐ **`W5`'s "move the restore" half is CLOSED, not deferred** *(coordinator, endorsing the report's §3
 > lean)*: the restore is `DataBreakpointManager`'s **own** rewind bookkeeping *(`OnHit` rewound
 > `_liveRepo ← _preTickSnapshot`; the resume restores `_liveRepo ← _postTickSnapshot` and unpauses)*, and
