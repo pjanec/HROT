@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Variables;
 
@@ -60,6 +61,14 @@ public sealed class AiVariablesWindow : ManagedWindow, Variables.IVariableTableH
             columns ?? VariableTableColumns.Details);
 
         IsOpen = false;
+
+        // ⭐⭐⭐ U1b — DECLARED AT CONSTRUCTION, ALWAYS, and NOT gated on CaptureEnabled.
+        //    ⛔ A window nobody opens never draws; if instrumentation were declared by DRAWING, this
+        //      panel would be indistinguishable from one nobody converted ⇒ the reader could not tell
+        //      "showed nothing" from "not instrumented". 📌 Mirrors EntityBlueprintsPanel (U-obs-1's
+        //      pilot) — the address here is the window's own id, unique among the three per-perspective
+        //      hosts (📄 PanelIds.cs — Id is the ADDRESS, PanelIds.Variables is the KIND).
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>⭐ The constructed model — a rail asserts on THIS, not on the registrar's source.</summary>
@@ -139,11 +148,32 @@ public sealed class AiVariablesWindow : ManagedWindow, Variables.IVariableTableH
         set => _model.GroupBy = value;
     }
 
-    protected override void DrawClientArea()
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>U-obs-1</c>: BUILD · CAPTURE.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c>
+    /// §Example, mirroring <c>EntityBlueprintsPanel.DrawUI</c> (the pilot).
+    ///
+    /// <para>⚠⚠ <b>Runs with NO ImGui context required</b> — unlike the pilot, this window is a
+    /// <see cref="ManagedWindow"/>, whose <see cref="ManagedWindow.Render"/> already calls
+    /// <c>Gui.Begin</c> before <see cref="DrawClientArea"/> is ever reached, so a headless caller cannot
+    /// go through <c>Render</c> at all. ⇒ ⭐ this method IS the headless entry point: it is called first
+    /// from <see cref="DrawClientArea"/> (before that method's ImGui-only calls), and directly by
+    /// <c>SimulateDrawClientArea</c> for tests — 📌 the same split <c>AiGraphCanvasWindow</c> uses.</para>
+    /// </summary>
+    private VariableTableView BuildAndPublish()
     {
         SyncRunState();
 
         var view = _model.Build();
+        if (PanelSnapshot.CaptureEnabled)
+            PanelSnapshot.Register(new VariableTablePanelViewModel(Id, PanelIds.Variables, view));
+
+        return view;
+    }
+
+    protected override void DrawClientArea()
+    {
+        var view = BuildAndPublish();
+
         if (view.AllRows.Count == 0)
         {
             // ⚠ EMPTY rather than ABSENT — the same rule the sections follow. A table that vanishes
@@ -155,4 +185,10 @@ public sealed class AiVariablesWindow : ManagedWindow, Variables.IVariableTableH
         }
         _control.Draw(Id, view);
     }
+
+    /// <summary>
+    /// ⭐ Test hook — runs the BUILD + CAPTURE portion of <see cref="DrawClientArea"/> without requiring
+    /// a live ImGui context. 📌 Mirrors <c>AiGraphCanvasWindow.SimulateDrawClientArea</c>.
+    /// </summary>
+    internal VariableTableView SimulateDrawClientArea() => BuildAndPublish();
 }

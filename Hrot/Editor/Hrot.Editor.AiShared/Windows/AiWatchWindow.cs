@@ -1,3 +1,4 @@
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor.AiShared.Variables;
@@ -78,6 +79,14 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
             _variables = new VariableTableModel(_pinned, VariableTableColumns.Watch);
         }
         IsOpen = false;
+
+        // ⭐⭐⭐ U-obs-2 / U1b — DECLARED AT CONSTRUCTION, ALWAYS: never gated on CaptureEnabled, and
+        //    never gated on whether a formatter was supplied. ⛔ A window whose formatter is null has
+        //    nothing to PUBLISH (no VariableTableModel — see HasVariableWatch), but it is still an
+        //    INSTRUMENTED watch: a reader must be able to tell "this host never converted its Watch"
+        //    from "this host's Watch has nothing to show" — 📄 DESIGN_UI_Observability_Snapshot.md
+        //    AS-BUILT deviation ④, mirrored from EntityBlueprintsPanel's pilot.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>Exposes the manager for test verification (shared-instance check).</summary>
@@ -144,27 +153,60 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
         if (_runState != null && _variables != null) _variables.RunState = _runState();
     }
 
-    protected override void DrawClientArea()
+    protected override void DrawClientArea() => DrawContent();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-2 — BUILD · CAPTURE · the ImGui-context guard · RENDER.</b>
+    /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example, mirroring
+    /// <c>EntityBlueprintsPanel.DrawUI</c> exactly.
+    ///
+    /// <para>⛔⛔ <b>Extracted from <see cref="DrawClientArea"/> so it is callable HEADLESS</b> — the
+    /// base <c>ManagedWindow.Render</c> calls <c>Gui.Begin</c> before <c>DrawClientArea</c>, so a test
+    /// cannot reach the protected override without a live context. 📌 Same shape as
+    /// <c>GraphSignatureWindow.DrawContent</c> / <c>AiGraphCanvasWindow.SimulateDrawClientArea</c> —
+    /// an established seam in this codebase, not a new idiom.</para>
+    ///
+    /// <para>⚠⚠ <b>ONE DEVIATION FROM THE OBVIOUS ORDER, and it is deliberate — the pinned-variables VIEW
+    /// is built and PUBLISHED before the ImGui-context guard, not after.</b> ⛔ If the capture sat after
+    /// the guard, a headless run would observe NOTHING and the dump would depend on a live GPU context —
+    /// exactly the pilot's own correction (§Example's AS-BUILT deviation ①). ⇒ ⭐ the model is this
+    /// panel's truth whether or not anyone paints it.</para>
+    /// </summary>
+    internal void DrawContent()
     {
+        // 1. BUILD — a pure-ish projection of the pinned rows. This IS the dumpable model.
+        //    ⛔ null when the variables half is not wired (no formatter was supplied) — there is
+        //    nothing to publish, but the window is still DECLARED instrumented (constructor).
+        VariableTableView? view = null;
+        if (_variables != null && _control != null)
+        {
+            // ⭐⭐ Batch 100 (100e) — per frame, ⛔ not captured once: the sim starts and pauses under
+            //    the designer, and a stale snapshot would keep showing authored defaults during a run.
+            SyncRunState();
+            view = _variables.Build();
+        }
+
+        // 2. CAPTURE — flag-gated, and BEFORE the render guard so a headless run still observes it.
+        if (PanelSnapshot.CaptureEnabled && view != null)
+            PanelSnapshot.Register(new VariableTablePanelViewModel(Id, PanelIds.Watch, view));
+
+        // 3. RENDER — only from here on do we touch ImGui, and only with a live context.
+        if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
+
         DrawBreakpointWatches();
 
-        if (_variables == null || _control == null) return;
-
-        // ⭐⭐ Batch 100 (100e) — per frame, ⛔ not captured once: the sim starts and pauses under the
-        //    designer, and a stale snapshot would keep showing authored defaults during a run.
-        SyncRunState();
+        if (view == null) return;
 
         ImGuiNET.ImGui.Separator();
         // ⭐ Named, so the two lists cannot read as one feature with an odd column set.
         ImGuiNET.ImGui.TextDisabled("Pinned variables");
 
-        var view = _variables.Build();
         if (view.AllRows.Count == 0)
         {
             ImGuiNET.ImGui.TextDisabled("No pinned variables. Pin one from the Variables table.");
             return;
         }
-        _control.Draw(Id + "_vars", view);
+        _control!.Draw(Id + "_vars", view);
     }
 
     private void DrawBreakpointWatches()
