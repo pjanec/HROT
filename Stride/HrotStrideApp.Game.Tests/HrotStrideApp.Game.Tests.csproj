@@ -39,13 +39,5 @@
 
 
 
-  <!-- ST-011: this ONE suite needs UrbanCombatNewScenario.BuildMannequinAnimationDef, which returns
-       a CharacterAnimationDefDto. That DTO family (CharacterAnimationDefDto, SlotDefDto, MontageDefDto,
-       MontageNotifyRefDto, NotifyMarkerDefDto, StanceTransitionDto, SlotCompositingMode,
-       AnimNotifyCategory) does not exist on this line at all, and on the branch its consumers include
-       Hrot.Editor.AiShared/Catalog, the FROZEN area. Out of scope here; see the batch report. -->
-  <ItemGroup>
-    <Compile Remove="MannequinAnimationDefIntegrationTests.cs" />
-  </ItemGroup>
 
 </Project>

@@ -20,7 +20,7 @@ known-conflict: none.
 | **`S1`** | the two Bullet/Stride libraries | ✅ **done** *(`ST-001`)* — `Animation` needed ZERO reconciliation; `Core` needed ONE |
 | **`S2`** | the additive nav pieces | ✅ **done** *(`ST-002`)* — ⚠ **plus a third the design did not name** *(`ST-003`)* |
 | **`S3`** | `CrowdAgentUpdateSystem` authority-conditional | ✅ **done** *(`ST-004`)* — per ENTITY, 3 rails |
-| **`S4`** | Stride visual binding + animation backend on a host | ✅ **done** — standalone host ✅ **and** the hosted-real-editor mode, after the user challenged my first verdict *(`ST-007` → `ST-010`)*. ⛔ One stop remains: the animation DESCRIPTOR DTOs *(`ST-011`)* |
+| **`S4`** | Stride visual binding + animation backend on a host | ✅ **done** — standalone host ✅ **and** the hosted-real-editor mode, after the user challenged my first verdict *(`ST-007` → `ST-010`)*. ⭐ and the mannequin's animation descriptor *(`ST-011`)* — **no stops remain** |
 | **`S5`** | verify nothing broke + a runnable host | ✅ regression gate green; ⚠ "runnable" is **Windows-only and always was** *(`ST-006`)* |
 
 ## ⭐⭐ The port method, and what it actually cost
@@ -76,6 +76,8 @@ nothing to point at. 📐 Railed with a **mixed world** — one agent of each ki
 | ⭐ **`TimeControlIntegrationTests`** *(rule 8 row 8 — the cross-node invariant)* | `--no-build` | 9 / 0 | ✅ **9 / 0** | **0** |
 | ⚠ **`Hrot.Editor.Tests`** | `--no-build` | ⛔ **the 209 / 0 was STALE — see `ST-012`** | ⚠ **207 / 2**, both **confirmed pre-existing by stash + REBUILD** | **0** |
 | ⭐ `Hrot.Presentation.Tests` filtered *(+`~Selection`, for `DefaultSelectionState.Version`)* | `--no-build` | — | ✅ **27 / 0** | — |
+| ⭐ **`Fdp.Examples.Scenarios.Tests`** *(NEW row — `ST-011` changes that project)* | `--no-build` | — | ✅ **56 / 0**, 12 skipped | — |
+| ⭐⭐ **all 3 Stride test projects compile with ZERO `<Compile Remove>`** | idem | ⛔ 3 files excluded | ✅ **none excluded** | **−3** |
 | ⭐ **`Hrot.Stride.Core` build** | `-p:EnableWindowsTargeting=true` | — | ✅ **0 errors** | new |
 | ⭐ **`Hrot.Stride.Animation` build** | idem | — | ✅ **0 errors** | new |
 | ⭐ **`HrotStrideApp.Game` build** | idem | — | ✅ **0 errors** | new |
@@ -111,7 +113,7 @@ three suites will be on the user's Windows machine.
 | ⛔ | why |
 |---|---|
 | ~~add the twelve members to `EditorSubsystem`~~ | ⚠ **RETRACTED — I DID, after the user challenged it.** See the correction below *(`ST-010`)* |
-| port the animation DESCRIPTOR DTOs | ⛔ **a genuine stop** — the family does not exist here and its branch consumers include the frozen `AiShared/Catalog` *(`ST-011`)* |
+| ~~port the animation DESCRIPTOR DTOs~~ | ⛔⛔ **RETRACTED — the family was ALREADY HERE.** My "does not exist" came from grepping only `FDP/Toolkits/`. The real gap was one method *(`ST-011`)* |
 | adopt Bepu | ⛔ `SD2`, user ruling: **Bullet** |
 | wire the MCP harness | out of scope by instruction |
 | delete the hosted-editor code | ⛔ *"unreferenced is not unintentional"* — and it is now **built**, not merely preserved |
@@ -148,3 +150,17 @@ coordinator merge** — nothing in the port touched `Hrot.Editor`, so `--no-buil
 moment `ST-010` changed `EditorSubsystem.cs`, the project rebuilt and **`ScenarioMenuTests` went 2 red**.
 ⭐⭐ **Confirmed pre-existing**: stashed, **rebuilt**, same two failures. ⇒ ⚠ **a `--no-build` green is
 only as fresh as the last thing that forced a rebuild** — 📌 second catch of this shape in one session.
+
+
+## ⛔⛔ AND A SECOND RETRACTION — **`ST-011` was my own false negative**
+
+📌 I reported the `CharacterAnimationDefDto` family as *"does not exist on this line at all"* and
+called it a genuine stop. 📐 **It exists, byte-identically** — the descriptor file's diff against the
+branch is **empty**. ⛔ **I had grepped only `FDP/Toolkits/`; it lives in `Hrot/Subsystems/`.**
+
+⚠⚠ **That is TWICE in one batch that a design-blocking absence claim was made without the
+enumeration to back it** — §6.2's id 265 *(the design's)* and this one *(mine)*. ⭐ Both were caught by
+the same move: **look where the thing actually lives before saying it is not there.**
+
+⇒ ✅ The real gap was **one static factory + four call sites + one project reference**, and
+`HrotStrideApp.Game.Tests` now builds with **zero exclusions**.

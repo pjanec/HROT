@@ -40,12 +40,11 @@ your tree still references one, delete the stale `obj/` and rebuild.
 
 | ⛔ | why |
 |---|---|
-| ⚠ **the mannequin's ANIMATION DESCRIPTOR** | `ST-011` — the `CharacterAnimationDefDto` family does not exist on this line, so the humanoid templates carry no montage/slot definitions. ⭐⭐ **Expect ② and ③ below to be the weak spots**: entities should still render and move, but idle/walk/run may not blend and the jump montage may not fire. **That is a known gap, not a new bug** |
+| ⚠ **CIVILIANS animating** | `ST-013` — `CivilianPedestrian` renders as a mannequin but the source branch gives it **no** animation descriptor; only `InfantrySoldier` and `Insurgent` get one. ⇒ **expect civilians to render and move but not blend.** A known gap matched from the branch, not a new bug |
 | **the MCP-driven test harness** | out of scope by instruction — this batch only makes the host launchable |
 
-⭐ **The hosted-real-editor mode IS built** *(`ST-010`)* — the twelve `EditorSubsystem` members it needs
-were ported after measuring that they are the Stride integration's own host seam, five of them already
-existed here as `internal`, and the UI lane had no conflicting edit.
+⭐ **The hosted-real-editor mode IS built** *(`ST-010`)*, and ⭐⭐ **the mannequin's animation descriptor
+IS present** *(`ST-011`)* — so ② and ③ below should genuinely work for soldiers and insurgents.
 
 ## 4. If something looks wrong
 

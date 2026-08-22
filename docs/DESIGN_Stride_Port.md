@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (S1-S4 + S5's regression gate; one stop remains — §6.5b)
+build-state: BUILT (S1-S5; no stops remain on this line)
 updated: 2026-08-22
 current-answer: the whole file — how to port the Bullet-based Stride from origin/stride-integ-1 onto the
   coordinator line, what the integration changed on the HROT/FDP shared side, and the one real breakage
@@ -187,17 +187,29 @@ splices `simHostCorePack`'s system lists)*. ⇒ the `foreach` runs on the **inje
 **construct** `EditorSubsystem` — **1032 / 0**; `BreakpointSubsystemWiringTests` **25 / 0**;
 `TimeControlIntegrationTests` **9 / 0**.
 
-### ⛔ 6.5b THE REMAINING STOP — **the animation DESCRIPTOR DTOs** *(`ST-011`)*
+### ✅ 6.5b THE "REMAINING STOP" WAS A FALSE NEGATIVE OF MINE *(`ST-011`)*
 
-⚠⚠ **This one qualifies the headline in 6.1.** *"The animation contract is byte-identical"* is true of
-the **RUNTIME** contract — ⛔ **but the DESCRIPTOR family is branch-only**:
-`CharacterAnimationDefDto` · `SlotDefDto` · `MontageDefDto` · `MontageNotifyRefDto` ·
-`NotifyMarkerDefDto` · `StanceTransitionDto` · `SlotCompositingMode` · `AnimNotifyCategory` —
-**none exists on this line.**
+⛔⛔ **I wrote that the `CharacterAnimationDefDto` family *"does not exist on this line at all"*.
+📐 It does — byte-identically.** `git diff` on
+`Hrot.MuscleCharacter.Animation/Descriptors/CharacterAnimationDefDto.cs` is **EMPTY**, and all eight
+types are present. ⛔ **I had grepped only `FDP/Toolkits/`; the family lives in `Hrot/Subsystems/`.**
 
-⛔ On the branch their consumers include **`Hrot.Editor.AiShared/Catalog`**, the **frozen** area ⇒
-⭐ **a genuine STOP**, unlike 6.5. ⚠ **Consequence for the visual test**: the mannequin templates carry
-no animation descriptor, so idle/walk/run may not blend until this family lands.
+⇒ 📌 **A SCOPED grep read as an ABSENCE claim** — the failure CLAUDE.md names in one line
+*("an absence claim from grep is an absence in your pattern, not in the repo")* — ⚠⚠ **and the second
+time in this batch I asserted a design-blocking absence I had not enumerated.** *(The first was
+§6.2's id 265, where the design made the same mistake and I caught it; here I made it myself.)*
+
+⭐ **The real gap was one method.** `UrbanCombatNewScenario.BuildMannequinAnimationDef()` — a static
+factory returning the mannequin's descriptor *(6 montages: idle/walk/run on slot 0 = Locomotion,
+Jump_Start/Loop/End on slot 100 = FullBody; 2 slots; 2 footstep notify markers)* — plus **four**
+`AddDescriptor` call sites on the **`InfantrySoldier`** and **`Insurgent`** templates, and a
+`ProjectReference` from `Fdp.Examples.Scenarios` → `Hrot.MuscleCharacter.Animation` *(the same one the
+branch added; `HrotStrideApp.Game` already depends on that project, so the direction is consistent)*.
+
+⇒ ⭐⭐ **`HrotStrideApp.Game.Tests` now compiles with ZERO exclusions** — the whole ported test surface
+is present. ⚠ **`ST-013`**: `CivilianPedestrian` renders as a mannequin but gets **no** descriptor —
+the branch attaches it to the two combatant templates only, and I matched the branch rather than
+deviating unprompted.
 
 ### ⚠⚠ 6.6 THE ENVIRONMENT LIMIT — **compile-verified, NOT run-verified** *(`ST-006`)*
 
