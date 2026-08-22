@@ -17,6 +17,7 @@ namespace Fdp.Presentation.Tests.ImGui.Panels;
 /// <para>⭐⭐ Mirrors <c>ThePilotPanelDumpsWhatItDrawsTests</c> — same BUILD/CAPTURE shape, same headless
 /// rationale. ⚠ <c>PanelSnapshot</c> is process-global static state; every case resets it.</para>
 /// </summary>
+[Collection(PanelSnapshotTestCollection.Name)]
 public sealed class MessageLogWindowDumpsItsTabsTests : IDisposable
 {
     public MessageLogWindowDumpsItsTabsTests()

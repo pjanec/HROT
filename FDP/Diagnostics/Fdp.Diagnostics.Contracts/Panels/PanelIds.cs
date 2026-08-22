@@ -67,4 +67,19 @@ public static class PanelIds
     /// ⛔ The second is not converted yet — ⭐ when it is, it must cite THIS, not repeat the string.
     /// </summary>
     public const string MyBlueprint = "my-blueprint";
+
+    /// <summary>
+    /// ⭐ <c>U-obs-5</c>, group 4/5 — the generic ECS entity inspector. ⚠⚠ <b>TWO window classes of the
+    /// same name host the same <c>EntityInspectorPanel</c></b>: <c>Fdp.Presentation.Windows.ReplayBrowser
+    /// .FdpEntityInspectorWindow</c> and <c>Hrot.Presentation.Windows.FdpEntityInspectorWindow</c> — a
+    /// second host, not a duplicate panel. Both must agree on the kind.
+    /// </summary>
+    public const string EntityInspector = "entity-inspector";
+
+    /// <summary>
+    /// ⭐ <c>U-obs-5</c>, group 4/5 — the generic diagnostic event browser. ⚠⚠ Two window classes named
+    /// <c>FdpEventBrowserWindow</c> (in <c>Fdp.Presentation.Windows.ReplayBrowser</c> and
+    /// <c>Hrot.Presentation.Windows</c>) host the same <c>EventBrowserPanel</c>; both must agree.
+    /// </summary>
+    public const string EventBrowser = "event-browser";
 }

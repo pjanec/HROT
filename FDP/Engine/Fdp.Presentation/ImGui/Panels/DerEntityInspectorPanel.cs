@@ -1,13 +1,38 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Nodes;
 using Fdp.Toolkit.DER;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Utils;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
 namespace Fdp.Presentation.Panels;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="DerEntityInspectorPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⚠ <b>This panel has no window host inside <c>Fdp.Presentation</c></b> — its only production
+/// caller (measured) is <c>Hrot.ExCon.ExConMock</c>, a non-<c>ManagedWindow</c> root class in the
+/// group-6 assembly. ⇒ per the queue's caller-registers rule, <c>BuildViewModel</c> lives here (the
+/// panel's own assembly); the <c>DeclareInstrumented</c>/<c>Register</c> call sites are wired at the
+/// caller when that group is converted.</para>
+/// </summary>
+public sealed record DerEntityInspectorPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    int TotalEntityCount,
+    string SearchFilter,
+    IReadOnlyList<int> EntityIds,
+    int SelectedEntityId,
+    IReadOnlyList<string> SelectedDescriptorHeaders) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Generic DER (Dynamic Entity Repository) entity inspector panel.
@@ -97,6 +122,33 @@ public sealed class DerEntityInspectorPanel
             if (i > 0) builder.AddSeparator();
             _contextMenuHandlers[i].PopulateMenu(entity, builder);
         }
+    }
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>
+    /// ⭐⭐⭐ <b>BUILD — a pure projection of the entity list and selected descriptors. No ImGui.</b>
+    /// ⭐ Reuses <see cref="FilterEntities"/> — the SAME filter <see cref="DrawEntityList"/> uses.
+    /// </summary>
+    public DerEntityInspectorPanelViewModel BuildViewModel(IDerRepo repo, string panelId, string panelKind)
+    {
+        ArgumentNullException.ThrowIfNull(repo);
+
+        var entities = FilterEntities(repo, _searchFilter);
+        var ids = entities.Select(e => e.EntityId).ToList();
+
+        var headers = new List<string>();
+        if (_selectedEntityId != NoSelection)
+        {
+            var selected = repo.GetEntity(_selectedEntityId);
+            if (selected != null)
+            {
+                foreach (var (type, partId, _) in selected.GetAllRawDescriptors())
+                    headers.Add(partId == 0 ? type.Name : $"{type.Name}[{partId}]");
+            }
+        }
+
+        return new DerEntityInspectorPanelViewModel(
+            panelId, panelKind, repo.GetAllEntities().Count(), _searchFilter, ids, _selectedEntityId, headers);
     }
 
     // ── Draw ──────────────────────────────────────────────────────────────────
