@@ -9,7 +9,7 @@ known-conflict: none.
 -->
 # HANDOFF — TIME-lane session · **port the (Bullet) Stride integration**
 
-> 📌 **Dispatched at `<DISPATCH_SHA>`.** ⭐ Branch from the coordinator branch *(rule 7)*; **rule 1b:
+> 📌 **Dispatched at `fedab5937`.** ⭐ Branch from the coordinator branch *(rule 7)*; **rule 1b:
 > started-marker FIRST.** ⛔ **Scope FROZEN at this sha.**
 > ⚠⚠ **NEW WORK AREA — not time work.** This session is *repurposed* for Stride; ids **`ST-`** *(not `TM-`)*,
 > a **new tracker area**, ⛔ **NOT Area H**. The variable-model freeze does not touch this; the UI lane is on
