@@ -1,0 +1,68 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Hrot.SystemTests — the MCP-driven system-test harness (DESIGN_MCP_System_Test_Harness.md).
+
+    This project boots the REAL editor as a subprocess (headless, Xvfb on Linux) and drives it
+    over the AI-debug HTTP API. It is deliberately a SEPARATE project from the fast
+    *.Integration.Tests suites (design D1): its lifecycle is slow (seconds per editor boot) and
+    it needs a display server, so mixing it into a fast suite would tax every edit.
+
+    It is IN the solution on purpose: an out-of-solution test project silently runs a STALE
+    binary whenever a test run skips the build, which has produced false greens in this repo. Being
+    in the solution means it always rebuilds with everything else. The suite stays off the fast
+    path by TRAIT instead: every case is [Trait("Category","SystemSmoke")], and the cases
+    skip themselves with a stated reason when the host cannot run an editor (see
+    SystemTestEnvironment).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>xUnit1030;xUnit1031</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The editor binary we launch. The reference is what puts Hrot.ClusterRunner on disk; the
+      fixture launches it from the ClusterRunner's OWN output directory, because a referenced
+      exe's runtimeconfig.json is not copied into a referencing project's output.
+    -->
+    <ProjectReference Include="..\Hrot.ClusterRunner\Hrot.ClusterRunner.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!--
+    Hand the ClusterRunner's output directory to the fixture as assembly metadata, so the binary
+    is resolved from the referenced project's build output rather than a path hard-coded in C#
+    (design §7 "Binary path"). Configuration-aware, so a Release run finds the Release editor.
+    SystemTestEnvironment still falls back to an upward search, and an explicit
+    HROT_EDITOR_DLL always wins.
+  -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>ClusterRunnerOutputDir</_Parameter1>
+      <_Parameter2>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../Hrot.ClusterRunner/bin/$(Configuration)/net8.0/'))</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

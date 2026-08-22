@@ -296,6 +296,8 @@ namespace Hrot.Editor
         // ?? Behavior registry (promoted for tooltip rendering) ?????????????????
 
         private BehaviorRegistry? _behaviorRegistry;
+        /// <summary>The AI-debug service, kept so late-built collaborators can be handed to it.</summary>
+        private Hrot.Editor.DebugApi.DebugApiService? _debugApiService;
 
         // ?? AI behavior hot-reload coordinator ?????????????????????????????????
 
@@ -1611,8 +1613,13 @@ namespace Hrot.Editor
                         editorTracer:     _debugApiTracer,
                         btreeSession:     _btreeDebugSession,
                         hsmSession:       _hsmDebugSession,
-                        primitiveBuffer:  _gizmoBuffer);
+                        primitiveBuffer:  _gizmoBuffer,
+                        // MX4a — behaviour discovery. The registry carries behaviourId -> ParamsDtoType,
+                        // so GET /behaviors emits the schema from the same definition the runtime parses
+                        // params with. Held here already; passing it is the whole wiring.
+                        behaviorRegistry: behaviorRegistry);
 
+                    _debugApiService = debugService;
                     _debugApiHost.AttachService(debugService);
                     _debugApiHost.Start();
                     System.Console.WriteLine($"[DebugApi] AI-debug API (MCP control plane) listening on http://localhost:{debugApiPort}/");
@@ -1621,6 +1628,11 @@ namespace Hrot.Editor
 
             // ?? 9. Mission service (no canvas dependency) ?????????????????????
             _missionService = new EditorMissionService(_world.Bus, _world, behaviorRegistry);
+            // MX4a: GET /behaviors?entityId= answers with the SAME list the mission-task combo shows
+            // only if it goes through this service. Built after the API host, so it is handed over
+            // here rather than passed to the constructor.
+            if (_debugApiService is not null)
+                _debugApiService.MissionService = _missionService;
 
             // ?? 10. Canvas-dependent adapters, layers, and interaction tool ???
             if (!_headless)
