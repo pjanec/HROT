@@ -1,10 +1,43 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Shell;
 using Hrot.Editor.AiShared.Variables;
 
 namespace Hrot.Editor.AiShared.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — this shell's OWN decision, dumped.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c>
+/// §Example.
+///
+/// <para>⚠ <b>Deliberately narrower than the chosen view's full paint</b> — the same limit
+/// <see cref="DetailsViewWindow"/>'s conversion states: the content is delegated to an
+/// <c>IDetailsViewInstance.Draw</c> with no returned model, a separate conversion (group 2). ⭐ What IS
+/// this shell's own decision — which view is chosen, the whole offer set, the empty-state reason, the
+/// toolbar affordances' visibility, and the resolved context's summary — is captured whole.</para>
+/// </summary>
+public sealed record DetailsWindowPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    string? ChosenViewId,
+    IReadOnlyList<string> OfferedViewIds,
+    string? EmptyState,
+    bool ShowsViewSwitch,
+    bool ShowsFloatAndPin,
+    Guid? AssetId,
+    string? AssetName,
+    string Perspective,
+    string Mode,
+    string Focus,
+    int SelectionCount,
+    int EntityCount) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>L2.1</c> — THE DETAILS SHELL: one window, N views, chosen by a predicate.</b>
@@ -42,6 +75,11 @@ public sealed class DetailsWindow
     : ManagedWindow, IVariableDetailsHost, Variables.IVariableTableHost, Shell.IDetailsViewSource,
       Variables.IVariablePropertiesFormHost
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Local literal, not a <c>PanelIds</c> constant — adding a
+    /// cross-host constant is a <c>PanelIds.cs</c> change, which the sweep's STOP-AND-REPORT list names
+    /// explicitly; flagged in the final report rather than done unilaterally.</summary>
+    internal const string Kind = "details";
+
     // ────────────────────────────────────────────────────────────────────────────────────────────
     // ⭐⭐⭐ S1 — THE "PROPERTIES…" FORM, AS AN INJECTED DELEGATE.
     // ────────────────────────────────────────────────────────────────────────────────────────────
@@ -142,6 +180,9 @@ public sealed class DetailsWindow
         _variables = new VariableDetailsSection(formatter, columns);
         _drawId    = $"{id}_variables";
         IsOpen     = false;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>
@@ -282,6 +323,32 @@ public sealed class DetailsWindow
         return _instance;
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5: BUILD · CAPTURE.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+    /// ⛔⛔ No ImGui — <see cref="Frame"/>, <see cref="ShowsViewSwitch"/> and <see cref="ShowsFloatAndPin"/>
+    /// were already pure, published before any render call.
+    /// </summary>
+    private DetailsWindowPanelViewModel BuildAndPublish(in DetailsFrame frame)
+    {
+        var ctx = frame.Context;
+        var vm = new DetailsWindowPanelViewModel(
+            Id, Kind,
+            frame.Choice.View?.Id,
+            frame.Choice.Offered.Select(d => d.Id).ToList(),
+            frame.EmptyState,
+            ShowsViewSwitch(frame),
+            ShowsFloatAndPin,
+            ctx.Asset?.AssetId, ctx.Asset?.Name, ctx.Perspective,
+            ctx.Mode.ToString(), ctx.Focus.ToString(),
+            ctx.Selection.Count, ctx.Entities.Count);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal DetailsWindowPanelViewModel SimulateDrawClientArea() => BuildAndPublish(Frame());
+
     /// <remarks>
     /// ⭐⭐⭐ <b>A thin renderer over <see cref="Frame"/>.</b> ⛔ It decides nothing — every branch below
     /// is a rendering of a value a rail can build itself.
@@ -289,6 +356,7 @@ public sealed class DetailsWindow
     protected override void DrawClientArea()
     {
         var frame = Frame();
+        BuildAndPublish(frame);
 
         if (frame.EmptyState != null)
         {
