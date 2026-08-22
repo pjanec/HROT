@@ -6,8 +6,11 @@ build-state: BUILT for U-obs-1 (the contract + snapshot singleton + the EntityBl
 updated: 2026-08-22
 stale-below: the "## ⛔ HISTORY" section at the foot of this file — the open questions as first written.
   Question ② was resolved AGAINST its lean; do not quote the leans as current.
-known-rot: §"Perf & correctness" still says "use the window-manager registration id". That is
-  CONTRADICTED by §Example and by measurement — see AS-BUILT deviation ②; PanelIds carries the real rule.
+known-rot: none outstanding. The two source sections the build deviated from were CORRECTED IN PLACE
+  on 2026-08-22, each carrying its own correction banner: §Example's code block (capture now precedes
+  the render guard) and §"Perf & correctness" → "Id stability" (a declared literal, not a window id).
+  Both were still showing the superseded guidance for one commit after AS-BUILT recorded the deviation;
+  that gap is closed. The AS-BUILT deviations table remains the fuller account.
 current-answer: the whole file — the decision to make every panel render from a whole, dumpable view-model
   handed to a per-frame snapshot singleton (approach C), so the UI becomes machine-readable for tests, MCP,
   and cross-host conformance without pixels. §UML is the build contract; §APIs + §Example are the shape.
@@ -175,26 +178,34 @@ ImGui.Text($"Current tier: {_model.GetCurrentTier()}");
 foreach (var def in attached) ImGui.Text($"{def.Name} (attached)");
 ```
 
-**After** *(approach C — build, render-from-VM, capture)*:
+**After** *(approach C — ⭐⭐ **BUILD · CAPTURE · render-from-VM**, corrected `2026-08-22`)*:
+
+> ⛔⛔ **CORRECTED — this block previously ordered it build → render → CAPTURE, and that order is WRONG.**
+> 📐 A real panel's draw opens with a render guard *(`if (ImGui.GetCurrentContext() == IntPtr.Zero) return;`)*,
+> so a capture placed after the render **never runs headless** ⇒ the dump would need a live GPU context and
+> this programme would only work where a display already does. ⭐ **Capture is published BEFORE the guard.**
+> 📌 Measured on the pilot: the old order reddens **4 of 6** rails. 📄 AS-BUILT deviation ①.
 
 ```csharp
 // 1. BUILD — a pure function of state. This IS the dumpable model.
 var vm = new EntityBlueprintsViewModel {
-    PanelId  = "entity-blueprints",
+    PanelId  = PanelIds.EntityBlueprints,   // ⭐ a DECLARED literal — see "Id stability" below
     Title    = "Entity Blueprints",
     SimState = _isRunning ? "Running" : "Paused",
     Tier     = _model.GetCurrentTier(),
     Rows     = attached.Select(d => new BlueprintRowVM(d.Name, "attached")).ToList(),
 };
 
-// 2. RENDER — draw ONLY from vm (the invariant). Nothing shown that isn't in vm.
+// 2. CAPTURE — flag-gated (free when off), and BEFORE the render guard so a headless
+//    run still observes the panel. ⛔ Not after the render: see the correction above.
+if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+
+// 3. RENDER — draw ONLY from vm (the invariant). Nothing shown that isn't in vm.
+if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
 ImGui.Text(vm.Title);
 ImGui.Text($"Sim: {vm.SimState}");
 ImGui.Text($"Current tier: {vm.Tier}");
 foreach (var r in vm.Rows) ImGui.Text($"{r.Name} ({r.State})");
-
-// 3. CAPTURE — once per frame, flag-gated (free when off).
-if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
 ```
 
 **What MCP / the test reads** (`GET /panels/entity-blueprints`):
@@ -262,7 +273,7 @@ panels stays on pixels/human until touched.
 | **Build cost** | the VM is built every frame anyway *(the draw needs it)* — the same compute the inline draw already does, materialized into an object. `VariableTableModel` already pays this. Pool/reuse if a hot panel shows allocation pressure. |
 | **Flag gates the DUMP, not the build** | production still builds VMs to draw; it just does not `Register`. Cost when off = one branch per panel. |
 | **Opt-in registry** | `RegisteredPanels` distinguishes *"panel drew an empty model"* from *"panel not converted"* — ⛔ else un-converted panels produce false greens. |
-| **Id stability** | `PanelId` must be stable across frames and identical across hosts *(use the window-manager registration id)* — conformance depends on it. |
+| **Id stability** | `PanelId` must be stable across frames and identical across hosts — conformance depends on it. ⛔⛔ **CORRECTED `2026-08-22`: this row used to say *"use the window-manager registration id"*, and that is WRONG.** 📐 Half the panels have no window id at all *(`BlueprintEditorWindowBase` declares `Title` and nothing else)*, and where ids exist they are **perspective-suffixed** *(`ai_runtime_inspector_btree`)* to be unique per dock slot ⇒ ⭐⭐ **a window id is UNIQUE by construction; a panel id must be STABLE by construction.** ⇒ ⭐ **a declared lower-kebab-case literal**, cross-host ones as constants on `PanelIds`. 📄 AS-BUILT deviation ②. |
 | **Thread** | panels draw on the UI/sim thread; the snapshot is written there and read by MCP via the existing `MainThreadJobQueue` — no new threading. |
 
 ## Alternatives considered (the ADR record)
