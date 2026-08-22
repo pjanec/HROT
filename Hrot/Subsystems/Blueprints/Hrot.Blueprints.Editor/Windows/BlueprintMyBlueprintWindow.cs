@@ -3,16 +3,94 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
 using System;
 using System.Linq;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Blueprints.Core.Compiler.Ir;   // VariableKind — one vocabulary for the three lists
 using Hrot.Blueprints.Editor.Variables;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Variables;
+using Hrot.Editor.AiShared.Windows;   // MyBlueprintItemDump — the shared hand-written dump
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Action;
 using NodeEditor.UI.Panels;
 
 namespace Hrot.Blueprints.Editor.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 3) — this window's own state, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⛔⛔ Hand-written <see cref="Dump"/>, and it reuses
+/// <see cref="Hrot.Editor.AiShared.Windows.MyBlueprintItemDump"/> for every item rather than
+/// re-deriving the projection: <c>MyBlueprintItem</c> is the SAME NodeEdit type
+/// <c>AiMyBlueprintWindow</c>'s view-model already projects by hand (the queue's gotcha against
+/// reflecting over a NodeEdit type), so writing a second hand projection here would be ruling 9's
+/// duplicate mechanism.</para>
+///
+/// <para>⭐ <c>PanelKind</c> cites <see cref="PanelIds.MyBlueprint"/> — the SAME constant
+/// <c>AiMyBlueprintWindow.Kind</c> cites — 📄 <c>PanelIds.cs</c>'s own remarks: <i>"a second
+/// implementation must agree… when it is converted, it must cite THIS, not repeat the string."</i></para>
+/// </summary>
+public sealed class BlueprintMyBlueprintPanelViewModel : IPanelViewModel
+{
+    private readonly BlueprintMyBlueprintModel _model;
+
+    public BlueprintMyBlueprintPanelViewModel(
+        string panelId, string panelKind, BlueprintMyBlueprintModel model,
+        bool hasPanel, string? emptyReason)
+    {
+        PanelId     = panelId;
+        PanelKind   = panelKind;
+        _model      = model;
+        HasPanel    = hasPanel;
+        EmptyReason = emptyReason;
+    }
+
+    /// <inheritdoc/>
+    public string PanelId { get; }
+
+    /// <inheritdoc/>
+    public string PanelKind { get; }
+
+    /// <summary>⭐ True once host services and commands are wired and the panel can draw — mirrors
+    /// <see cref="BlueprintMyBlueprintWindow.HasPanel"/>.</summary>
+    public bool HasPanel { get; }
+
+    /// <summary>⭐ Why nothing is drawn, or null when <see cref="HasPanel"/> is true.</summary>
+    public string? EmptyReason { get; }
+
+    /// <inheritdoc/>
+    public JsonNode Dump()
+    {
+        var sections = new JsonArray();
+        foreach (var s in _model.Sections)
+        {
+            var items = new JsonArray();
+            foreach (var it in _model.GetItems(s.Id))
+                items.Add(MyBlueprintItemDump.Of(it));
+
+            sections.Add(new JsonObject
+            {
+                ["id"]             = s.Id,
+                ["displayName"]    = s.DisplayName,
+                ["sortOrder"]      = s.SortOrder,
+                ["canCreateItems"] = s.CanCreateItems,
+                ["items"]          = items,
+            });
+        }
+
+        return new JsonObject
+        {
+            ["panelId"]          = PanelId,
+            ["panelKind"]        = PanelKind,
+            ["hasEditableAsset"] = _model.EditableAsset != null,
+            ["hasPanel"]         = HasPanel,
+            ["emptyReason"]      = EmptyReason,
+            ["sections"]         = sections,
+        };
+    }
+}
 
 /// <summary>
 /// <see cref="ManagedWindow"/> that hosts the NodeEdit <see cref="MyBlueprintPanel"/>
@@ -28,6 +106,9 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
                                                  ILiveVariableProjectionHost,
                                                  Hrot.Editor.AiShared.Variables.IVariableWatchToggleHost
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⭐⭐⭐ Cites <see cref="PanelIds.MyBlueprint"/> — see the
+    /// class remarks on <see cref="BlueprintMyBlueprintPanelViewModel"/>.</summary>
+    internal const string Kind = PanelIds.MyBlueprint;
     // ── 98c: BP-360, the outline's watch entry ───────────────────────────────
 
     private Action<Hrot.Editor.AiShared.Variables.VariableRow>? _watchToggle;
@@ -210,6 +291,8 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
                owningPerspective ?? "Blueprint",
                WindowScope.PerspectiveBound)
     {
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -599,8 +682,28 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
     public Hrot.Editor.AiShared.Selection.SelectionOrigin DetailsOrigin
         => Hrot.Editor.AiShared.Selection.SelectionOrigin.VariableOutline;
 
+    /// <summary>
+    /// ⭐⭐⭐ U-obs-5: BUILD · CAPTURE. ⛔⛔ No ImGui — <c>_model</c> is never null (a readonly field
+    /// initialised at construction), so the empty-reason logic only needs the host-services/commands
+    /// check, exactly mirroring <c>_panel == null</c>'s own condition below.
+    /// </summary>
+    private BlueprintMyBlueprintPanelViewModel BuildAndPublish()
+    {
+        bool hasPanel = _hostServices != null && _commands != null;
+        string? emptyReason = hasPanel ? null : "No blueprint open.";
+
+        var vm = new BlueprintMyBlueprintPanelViewModel(Id, Kind, _model, hasPanel, emptyReason);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal BlueprintMyBlueprintPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
     protected override void DrawClientArea()
     {
+        var vm = BuildAndPublish();
+
         // ⭐⭐⭐ Batch 87 — claim the Details panel for the OUTLINE while this window holds focus
         //    (user ruling, 2026-08-18). ⛔ A LEVEL, not an edge — see AiGraphCanvasWindow.
         if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.ChildWindows))
@@ -608,7 +711,7 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
 
         if (_model == null || _hostServices == null || _commands == null)
         {
-            ImGuiNET.ImGui.TextDisabled("No blueprint open.");
+            ImGuiNET.ImGui.TextDisabled(vm.EmptyReason ?? "No blueprint open.");
             return;
         }
 

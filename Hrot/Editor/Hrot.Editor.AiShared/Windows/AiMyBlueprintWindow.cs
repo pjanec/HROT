@@ -96,13 +96,26 @@ public sealed class AiMyBlueprintPanelViewModel : IPanelViewModel
         };
     }
 
-    private static JsonObject DumpItem(MyBlueprintItem it)
+    private static JsonObject DumpItem(MyBlueprintItem it) => MyBlueprintItemDump.Of(it);
+}
+
+/// <summary>
+/// ⭐⭐ <b>U-obs-5 — the shared hand-written dump for a NodeEdit <see cref="MyBlueprintItem"/>.</b>
+/// ⛔⛔ <c>MyBlueprintItem</c> is a NodeEdit type, so no My Blueprint view-model may reflect over it
+/// (📄 the queue's gotcha — project the DISPLAYED shape by hand) — every host needs the SAME hand
+/// projection, so it lives here once rather than once per host. 📌 ruling 9: <c>BlueprintMyBlueprintWindow</c>
+/// (a sibling assembly) reuses this rather than re-deriving it.
+/// </summary>
+public static class MyBlueprintItemDump
+{
+    /// <inheritdoc cref="MyBlueprintItemDump"/>
+    public static JsonObject Of(MyBlueprintItem it)
     {
         JsonArray? children = null;
         if (it.Children != null)
         {
             children = new JsonArray();
-            foreach (var c in it.Children) children.Add(DumpItem(c));
+            foreach (var c in it.Children) children.Add(Of(c));
         }
 
         return new JsonObject
