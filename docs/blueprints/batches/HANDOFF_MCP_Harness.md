@@ -9,8 +9,9 @@ known-conflict: none.
 -->
 # HANDOFF — implementation session · **build the MCP-driven system-test harness**
 
-> 📌 **Dispatched at `619b90756`.** ⭐ Branch **fresh from the coordinator branch** *(rule 7)*; **rule 1b:
-> started-marker FIRST.** ⛔ **Scope FROZEN at this sha.**
+> 📌 **Dispatched at `14b3f8867`** *(re-stamped from `619b90756` while unstarted, rule 1a — this head adds the
+> finalized MCP-extensions design and the ScenarioMenuTests fix; neither changes the harness scope)*. ⭐ Branch
+> **fresh from the coordinator branch** *(rule 7)*; **rule 1b: started-marker FIRST.** ⛔ **Scope FROZEN at this sha.**
 > ⚠⚠ **NEW WORK AREA — not Stride, not time.** ids **`HN-`** *(new prefix)*, a **new tracker area**
 > *(Area J — MCP harness)*; ⛔ NOT Area H (time), NOT Area I (Stride), NOT A–G (UI/variable).
 > 🅿 **The Stride port is PARKED at `claude/stride-port` (`b9ab83b0e`)** for the user's Windows visual test.
@@ -86,7 +87,7 @@ mission editing via the intent bus, behavior discovery with param-DTO schema, en
 ## 5. GATES
 
 ⭐ Standing contract *(rule 8)*: one row per gate · verbatim command · pass/fail/skip · delta vs base · the
-`--no-build` column · every RED confirmed pre-existing against the base sha `619b90756` · goldens as a diff
+`--no-build` column · every RED confirmed pre-existing against the base sha `14b3f8867` · goldens as a diff
 shape · `tracker-counts.py --check` · `rulings-check.py` · the **`HN-` ids you allocated** · `R-106` verdicts.
 ⭐⭐ **Row 8 — the integration invariant IS this suite:** the harness's own smoke run *(`H4`, headless under
 Xvfb, green)* is the system-level proof; report it as the integration row, with the exact `--filter` and the
