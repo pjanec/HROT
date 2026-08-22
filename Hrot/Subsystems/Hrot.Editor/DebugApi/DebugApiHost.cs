@@ -67,10 +67,18 @@ namespace Hrot.Editor.DebugApi
 
         private sealed record RouteEntry(string Method, string Template, RouteHandler Handler);
 
-        private readonly record struct RouteResult(int Status, JsonNode? Data, string? Error);
+        private readonly record struct RouteResult(int Status, JsonNode? Data, string? Error, JsonNode? Hint = null);
 
         private static RouteResult Ok(JsonNode? data) => new(200, data, null);
-        private static RouteResult Fail(int status, string error) => new(status, null, error);
+
+        /// <summary>
+        /// Fails a request, optionally attaching the machine-readable pointer for
+        /// <paramref name="hintCategory"/> (<c>MX8</c>). ⭐ Pass a category wherever the caller could
+        /// have got the input right by asking the API first — a bad condition, an unknown entity, an
+        /// unregistered component. ⛔ Never hand-write a <c>seeEndpoint</c> here; the map owns them.
+        /// </summary>
+        private static RouteResult Fail(int status, string error, string? hintCategory = null)
+            => new(status, null, error, DebugApiHints.For(hintCategory));
 
         private void BuildRoutes()
         {
@@ -89,7 +97,9 @@ namespace Hrot.Editor.DebugApi
                 if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().DumpEntity(id)).ConfigureAwait(false);
-                return node is null ? Fail(404, $"Entity {id} not found. List entities with GET /entities.") : Ok(node);
+                return node is null
+                    ? Fail(404, $"Entity {id} not found. List entities with GET /entities.", DebugApiHints.Entity)
+                    : Ok(node);
             }));
 
             // Group C — event history (retrieval + DTO mapping are thread-safe → no marshalling)
@@ -139,7 +149,7 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/scenario/save", ctx =>
             {
                 var name = ctx.Body?["name"]?.GetValue<string>();
-                if (string.IsNullOrWhiteSpace(name)) return Task.FromResult(Fail(400, "name is required."));
+                if (string.IsNullOrWhiteSpace(name)) return Task.FromResult(Fail(400, "name is required.", DebugApiHints.Scenario));
                 return RunMain(s => s.SaveScenario(name!));
             }));
 
@@ -156,7 +166,7 @@ namespace Hrot.Editor.DebugApi
             {
                 var eventType = ctx.Body?["eventType"]?.GetValue<string>();
                 if (string.IsNullOrWhiteSpace(eventType))
-                    return Fail(400, "eventType is required.");
+                    return Fail(400, "eventType is required.", DebugApiHints.Event);
                 var payload = ctx.Body?["payload"];
                 bool wait   = ctx.Body?["wait"]?.GetValue<bool>() ?? false;
 
@@ -164,14 +174,14 @@ namespace Hrot.Editor.DebugApi
                     Service().SendCommand(eventType!, payload, wait)).ConfigureAwait(false);
 
                 if (error != null)
-                    return Fail(400, error);
+                    return Fail(400, error, DebugApiHints.Event);
                 return Ok(result);
             }));
 
             _routes.Add(new("POST", "/entities/spawn", async ctx =>
             {
                 if (!long.TryParse(ctx.Body?["tkbType"]?.ToString(), out var tkbType))
-                    return Fail(400, "tkbType (long) is required.");
+                    return Fail(400, "tkbType (long) is required.", DebugApiHints.TkbType);
 
                 var transform      = ctx.Body?["transform"];
                 var components     = ctx.Body?["components"];
@@ -182,6 +192,27 @@ namespace Hrot.Editor.DebugApi
                     .ConfigureAwait(false);
                 return Ok(node);
             }));
+
+            // Group P.0 / S — discovery WITH SCHEMA (MX4a, MX7). These exist so an agent never has
+            // to author a behaviour's params or a breakpoint condition blind; DebugApiHints points
+            // every schema-shaped rejection back at them.
+            _routes.Add(new("GET", "/behaviors", ctx =>
+            {
+                long? tkbType  = long.TryParse(ctx.Query("tkbType"),  out var t) ? t : null;
+                long? entityId = long.TryParse(ctx.Query("entityId"), out var e) ? e : null;
+
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetBehaviors(tkbType, entityId);
+                    // The right pointer depends on WHAT was wrong — a bad entity id sends the caller
+                    // to /entities, not to the behaviour catalog — so the service names the category.
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Behavior)
+                        : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("GET", "/breakpoint-types", _ => RunMain(s => s.GetBreakpointTypes())));
 
             // Group M — TKB catalog
             _routes.Add(new("GET", "/tkb/types", ctx =>
@@ -195,7 +226,9 @@ namespace Hrot.Editor.DebugApi
                 if (!long.TryParse(ctx.RouteValue("tkbType"), out var tkbType))
                     return Task.FromResult(Fail(400, "Invalid tkbType."));
                 var node = Service().GetTkbType(tkbType);
-                return Task.FromResult(node is null ? Fail(404, $"TKB type {tkbType} not found.") : Ok(node));
+                return Task.FromResult(node is null
+                    ? Fail(404, $"TKB type {tkbType} not found.", DebugApiHints.TkbType)
+                    : Ok(node));
             }));
 
             // Group N — world/coordinate info
@@ -243,7 +276,8 @@ namespace Hrot.Editor.DebugApi
                     try { return (Service().AddBreakpoint(ctx.Body), null); }
                     catch (ArgumentException ex) { return (null, ex.Message); }
                 }).ConfigureAwait(false);
-                return error != null ? Fail(400, error) : Ok(node);
+                // MX8: authoring a SearchPredicateDto blind is the mistake this hint exists for.
+                return error != null ? Fail(400, error, DebugApiHints.Condition) : Ok(node);
             }));
 
             _routes.Add(new("GET", "/breakpoints", _ => RunMain(s => s.ListBreakpoints())));
@@ -251,13 +285,13 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("DELETE", "/breakpoints/{id}", async ctx =>
             {
                 var idStr = ctx.RouteValue("id");
-                if (string.IsNullOrWhiteSpace(idStr)) return Fail(400, "breakpoint id is required.");
+                if (string.IsNullOrWhiteSpace(idStr)) return Fail(400, "breakpoint id is required.", DebugApiHints.Breakpoint);
                 var error = await _jobQueue.RunOnMainThread<string?>(() =>
                 {
                     try { Service().RemoveBreakpoint(idStr!); return null; }
                     catch (ArgumentException ex) { return ex.Message; }
                 }).ConfigureAwait(false);
-                return error != null ? Fail(404, error) : Ok(new JsonObject { ["removed"] = idStr });
+                return error != null ? Fail(404, error, DebugApiHints.Breakpoint) : Ok(new JsonObject { ["removed"] = idStr });
             }));
 
             // Group H — Checkpoint / Restore / Diff (ADA-BATCH-08)
@@ -308,7 +342,7 @@ namespace Hrot.Editor.DebugApi
             {
                 var baselineId = ctx.Body?["baselineId"]?.GetValue<string>();
                 if (string.IsNullOrWhiteSpace(baselineId))
-                    return Fail(400, "baselineId is required.");
+                    return Fail(400, "baselineId is required.", DebugApiHints.Baseline);
                 List<long>? ids = null;
                 if (ctx.Body?["entities"] is JsonArray eArr2)
                 {
@@ -322,7 +356,7 @@ namespace Hrot.Editor.DebugApi
                     catch (ArgumentException ex) { return (null, ex.Message); }
                     catch (Exception ex) { return (null, ex.Message); }
                 }).ConfigureAwait(false);
-                return error != null ? Fail(400, error) : Ok(node);
+                return error != null ? Fail(400, error, DebugApiHints.Baseline) : Ok(node);
             }));
 
             // Group I — Recording + Replay (ADA-BATCH-10)
@@ -379,7 +413,7 @@ namespace Hrot.Editor.DebugApi
                 {
                     fdpPath = await Service().CompleteRecordingStopAsync().ConfigureAwait(false);
                 }
-                catch (InvalidOperationException ex) { return Fail(400, ex.Message); }
+                catch (InvalidOperationException ex) { return Fail(400, ex.Message, DebugApiHints.Recording); }
                 catch (Exception ex) { return Fail(500, ex.Message); }
 
                 // Phase 2 (main thread): exit preview (triggers rewind), return status.
@@ -391,7 +425,7 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/replay/load", async ctx =>
             {
                 var fdpPath = ctx.Body?["fdpPath"]?.GetValue<string>();
-                if (string.IsNullOrWhiteSpace(fdpPath)) return Fail(400, "fdpPath is required.");
+                if (string.IsNullOrWhiteSpace(fdpPath)) return Fail(400, "fdpPath is required.", DebugApiHints.Recording);
                 var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
                 {
                     try { return (Service().LoadReplay(fdpPath!), null); }
@@ -503,10 +537,10 @@ namespace Hrot.Editor.DebugApi
                 var componentType = ctx.Body?["componentType"]?.GetValue<string>();
                 var patch         = ctx.Body?["patch"];
                 if (string.IsNullOrWhiteSpace(componentType))
-                    return Fail(400, "componentType is required.");
+                    return Fail(400, "componentType is required.", DebugApiHints.Component);
                 var (node, error) = await _jobQueue.RunOnMainThread(() =>
                     Service().EditEntityComponent(id, componentType!, patch)).ConfigureAwait(false);
-                return error != null ? Fail(400, error) : Ok(node);
+                return error != null ? Fail(400, error, DebugApiHints.Component) : Ok(node);
             }));
 
             // Group M — Focus + Annotations (ADA-BATCH-14)
@@ -561,6 +595,14 @@ namespace Hrot.Editor.DebugApi
 
         private Task<RouteResult> RunMain(Func<DebugApiService, JsonNode?> fn)
             => _jobQueue.RunOnMainThread(() => Ok(fn(Service())));
+
+        /// <summary>
+        /// Like <see cref="RunMain"/>, but the handler builds its OWN <see cref="RouteResult"/> —
+        /// for world-touching endpoints that can fail with a status and a hint rather than only
+        /// returning a payload.
+        /// </summary>
+        private Task<RouteResult> RunMainResult(Func<DebugApiService, RouteResult> fn)
+            => _jobQueue.RunOnMainThread(() => fn(Service()));
 
         // ── Accept / dispatch loop ────────────────────────────────────────────
 
@@ -630,7 +672,7 @@ namespace Hrot.Editor.DebugApi
 
                 var envelope = result.Error is null
                     ? new ApiResponse(true, Data: result.Data)
-                    : new ApiResponse(false, Error: result.Error);
+                    : new ApiResponse(false, Error: result.Error, Hint: result.Hint);
                 await WriteResponseAsync(ctx, result.Status, envelope).ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -725,6 +767,13 @@ namespace Hrot.Editor.DebugApi
         }
     }
 
-    /// <summary>Standard API response envelope. <c>Data</c> is a <see cref="JsonNode"/> embedded verbatim.</summary>
-    public record ApiResponse(bool Ok, JsonNode? Data = null, string? Error = null, bool? Awaited = null);
+    /// <summary>
+    /// Standard API response envelope. <c>Data</c> is a <see cref="JsonNode"/> embedded verbatim.
+    ///
+    /// <para><c>Hint</c> (<c>MX8</c>) is the machine-readable half of an error: where a caller that
+    /// got the input wrong should look — <c>{ seeEndpoint, why }</c>, filled from
+    /// <see cref="DebugApiHints"/>. ⭐ The prose in <c>Error</c> is unchanged and still carries the
+    /// human explanation; this spares an agent parsing an endpoint name out of a sentence.</para>
+    /// </summary>
+    public record ApiResponse(bool Ok, JsonNode? Data = null, string? Error = null, bool? Awaited = null, JsonNode? Hint = null);
 }

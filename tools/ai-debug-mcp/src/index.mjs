@@ -263,13 +263,21 @@ function toolSuccess(envelope) {
 }
 
 function toolError(message, envelope, toolName) {
-  const hint = toolName ? HINTS[toolName] : undefined;
+  // Two different hints, and they must not collide.
+  //
+  //  - `hint`  comes from the SERVER (MX8): a structured { seeEndpoint, why } naming the endpoint
+  //            that answers this particular mistake. It is the whole point of the extension.
+  //  - `usage` is this catalog's STATIC per-tool reminder of the tool's own parameters.
+  //
+  // Spreading the envelope and then writing `hint` from the catalog would silently overwrite the
+  // server's pointer with a local usage string — exactly where the agent most needs the pointer.
+  const usage = toolName ? HINTS[toolName] : undefined;
   return {
     content: [{ type: 'text', text: JSON.stringify({
       ok: false,
       error: message,
       ...(envelope || {}),
-      ...(hint ? { hint } : {}),
+      ...(usage ? { usage } : {}),
       docs: 'ai-debug-sim skill — see the tool reference',
     }, null, 2) }],
     isError: true,
@@ -625,6 +633,31 @@ const TOOLS = [
         if (toolArgs.name != null) body.name = toolArgs.name;
         return toolSuccess(await callApi('POST', '/breakpoints', body));
       } catch (err) { return toolError(err.message, err.envelope, 'set_breakpoint'); }
+    },
+  },
+
+  {
+    name: 'list_breakpoint_types',
+    description: TOOL_DEFS['list_breakpoint_types'].description,
+    inputSchema: TOOL_DEFS['list_breakpoint_types'].inputSchema,
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/breakpoint-types')); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_breakpoint_types'); }
+    },
+  },
+
+  {
+    name: 'list_behaviors',
+    description: TOOL_DEFS['list_behaviors'].description,
+    inputSchema: TOOL_DEFS['list_behaviors'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const query = [];
+        if (toolArgs?.tkbType != null) query.push(`tkbType=${encodeURIComponent(toolArgs.tkbType)}`);
+        if (toolArgs?.entityId != null) query.push(`entityId=${encodeURIComponent(toolArgs.entityId)}`);
+        const suffix = query.length ? `?${query.join('&')}` : '';
+        return toolSuccess(await callApi('GET', `/behaviors${suffix}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'list_behaviors'); }
     },
   },
 

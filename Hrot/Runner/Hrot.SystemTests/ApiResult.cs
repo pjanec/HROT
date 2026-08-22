@@ -14,8 +14,17 @@ namespace Hrot.SystemTests;
 /// readers handles both; a DTO per endpoint would have to encode that split twice and would rot
 /// against a payload change the test does not otherwise care about.</para>
 /// </summary>
-public sealed record ApiResult(int StatusCode, bool Ok, JsonNode? Data, string? Error)
+public sealed record ApiResult(int StatusCode, bool Ok, JsonNode? Data, string? Error, JsonNode? Hint = null)
 {
+    /// <summary>
+    /// The endpoint the server says to consult after this mistake (<c>MX8</c>), or
+    /// <see langword="null"/> when the failure carries no structured hint.
+    /// </summary>
+    public string? HintEndpoint => Hint?["seeEndpoint"]?.GetValue<string>();
+
+    /// <summary>Why that endpoint helps — the human half of the hint.</summary>
+    public string? HintWhy => Hint?["why"]?.GetValue<string>();
+
     private static readonly JsonSerializerOptions CaseInsensitive = new()
     {
         PropertyNameCaseInsensitive = true,

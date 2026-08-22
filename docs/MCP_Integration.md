@@ -1,11 +1,16 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (integration §A–N) │ READY-TO-BUILD (MCP EXTENSIONS §O–R, MX1–MX6)
+build-state: BUILT (integration §A–N; extensions SLICE ① = MX4a+MX7+MX8+MX5+MX6, Batch HN-120) │ READY-TO-BUILD (slices ②/③: MX1, MX2, MX3, MX4b)
 updated: 2026-08-22
-current-answer: two parts. (1) The AI-debug API + MCP server is PORTED, WIRED, VERIFIED end-to-end on
-  headless Linux (§ up to Notes). (2) The MCP EXTENSIONS design (Groups O–R) is APPROVED and READY-TO-BUILD:
-  §"UML — the build contract" carries the classDiagram + sequenceDiagram (obligation ①); MX1–MX6 are the build.
+current-answer: three parts. (1) The AI-debug API + MCP server is PORTED, WIRED, VERIFIED end-to-end on
+  headless Linux (§ up to Notes). (2) The MCP EXTENSIONS design (Groups O–R). (3) ⭐ §"AS-BUILT — SLICE ①"
+  at the END is the CURRENT truth for MX4a/MX7/MX8 where it differs from §"UML" — read it before quoting a seam.
 stale-below: nothing — the extensions section supersedes the earlier "mission intent bus" phrasing in place (see §"UML").
+known-rot: §"Group P.0" and §"UML" say MX4a REUSES `BehaviorUiRegistry` for behaviourId→DTO. ⛔ MEASURED FALSE —
+  that registry stores only ImGui DRAW DELEGATES and never retains the DTO type. The real seam is
+  `BehaviorRegistry.BehaviorDefinition.ParamsDtoType`. §"AS-BUILT — SLICE ①" carries the correction.
+  §"UML" also draws IMissionEditorService as `<<exists · Hrot.ExCon>>`; the editor path implements a
+  DIFFERENT same-named interface (`Hrot.UI.Common.Facades`) — see AS-BUILT.
 known-conflict: none.
 -->
 # AI-debug API + MCP server — integration status
@@ -469,3 +474,60 @@ those endpoints. ⚠ **No slice ships an endpoint without its `MX5` wrapper and 
 3. ✅ **Value / param encoding = the SCENARIO JSON serialization** *(structs + customization)* — for both
    Group O variable values and Group P behaviour params. ⛔ Do not hand-roll a converter; reuse the scenario
    serializer that already works for structs and supports customization.
+
+---
+
+# AS-BUILT — **SLICE ① (`MX4a` · `MX7` · `MX8` · `MX5` · `MX6`)**, Batch HN-120, `2026-08-22`
+
+⭐⭐ **Where this section and §"Group P.0"/§"UML" disagree, THIS is current** *(obligation ⑤)*.
+📐 Gated by **27 passing system-smoke cases** driving a real editor headless.
+
+## ⛔⛔ The premise that did not survive measurement — **`BehaviorUiRegistry` cannot answer behaviourId→DTO**
+
+| | |
+|---|---|
+| ⛔ **the design said** | *"`MX4a` REUSES this registry … given `tkbType`, look up each DTO type in the registry"* |
+| 📐 **measured** | `BehaviorUiRegistry.Register<TDto>(id)` **compiles a draw delegate and discards the type**; `TryGet` returns a `BehaviorUiDrawDelegate`. ⇒ ⛔ **the DTO type is not retained anywhere in it** |
+| ⭐⭐⭐ **the real seam, and it is BETTER** | **`BehaviorRegistry.BehaviorDefinition.ParamsDtoType`** *(`Fdp.Toolkits/Behavior/BehaviorRegistry.cs`)* — behaviourId → **the very DTO the RUNTIME parses params with**. ⇒ ⭐ the schema an agent authors against and the bytes the engine reads come from **one declaration**, which is what the design wanted and a UI registry could never have given |
+| ⭐ **the TKB filter** | **`BehaviorCatalog.GetValidBehaviors(tkbType)`** — already takes a `tkbType`, and is the same call `EditorMissionService` makes. ⛔ `IMissionEditorService.GetAvailableBehaviors` takes an **entityId**, not a tkbType, so it could not serve the `?tkbType=` form the design specified |
+
+⚠ **Three interfaces are named `IMissionEditorService`** — `Hrot.ExCon.Services` *(drawn in §"UML")*,
+**`Hrot.UI.Common.Facades`** *(the one `EditorMissionService` actually implements, and the one wired
+here)*, and `Hrot.Presentation.Facades`. ⇒ ⭐ **quoting "the" mission service is ambiguous**; the editor
+path is the `UI.Common` one.
+
+## ⭐ What was built
+
+| # | endpoint / piece | as-built |
+|---|---|---|
+| **`MX4a`** | **`GET /behaviors`** | ⭐⭐ **Two keys, not one.** `?tkbType=` → `BehaviorCatalog` *(what this KIND of entity can do)*; `?entityId=` → the mission service *(exact mission-combo parity, incl. its editor-authored BTree entries)*; **neither** → every registered behaviour, so an agent can learn the vocabulary before it has an entity. Each row: `{ id, name, brainTier, paramSchema }`. ⛔ Only behaviours **registered in the live registry** are offered — a catalog name with no definition cannot be run, so advertising it would be a lie |
+| **`MX7`** | **`GET /breakpoint-types`** | the **12** `[JsonDerivedType]` arms, each `{ $type, clrType, paramSchema }`, read from the union's own attributes ⇒ ⛔ **cannot drift from what `POST /breakpoints` accepts** — both read the same declarations |
+| ⭐ **shared** | **`DtoJsonSchemaExtractor`** *(`Hrot.Editor/DebugApi/`)* | one property walk serving both. Enums emit their values; a nested predicate emits **`{$ref:"SearchPredicateDto"}`** *(⛔ inlining would recurse forever on `Compound`)*; `Type`-valued fields say they want a **bare type NAME** *(the `TypeNameJsonConverter` contract)* and point at `GET /components`; the **existing** `[PropertyPathPicker]`/`[MapPickable*]`/`[RemapNetworkId]` attributes surface as `picker`/`remapNetworkId` |
+| **`MX8`** | **structured `hint`** | `ApiResponse` and `RouteResult` gained `JsonNode? Hint`; `Fail(status, error, hintCategory)` fills it from the central **`DebugApiHints`** map *(12 categories)*. **15 existing failures back-filled.** ⭐ The prose stays in `error` for humans |
+| **`MX5`** | Node wrappers | `list_behaviors` + `list_breakpoint_types` in `tool-catalog.mjs` + `src/index.mjs`; `SKILL.md` regenerated. ⭐ **49 → 51 tools**, server starts clean |
+| **`MX6`** | smoke | **8 cases** in `DiscoveryAndHintTests`, incl. the loop the slice exists to close *(below)* |
+
+## ⭐⭐ Three decisions worth keeping
+
+| | |
+|---|---|
+| ⭐⭐⭐ **An unknown `entityId` is a 404, not an empty list** | the mission service answers an unknown id with an **empty list** — right for a UI combo, ⛔ **wrong over HTTP**, where *"no such entity"* and *"this entity can do nothing"* would be the same response and an agent would take the wrong lesson. The id is resolved at the boundary and the hint points at **`GET /entities`** — where the mistake actually was. ⇒ ⭐ **the hint CATEGORY is chosen by the service, not the route**, because only the service knows what was wrong |
+| ⚠ **`MissionService` is a settable property, not a constructor arg** | ⛔ **construction ORDER, not optionality**: `EditorSubsystem` builds its mission service **after** the API host, so the composition root hands it over as soon as it exists. ⚠ Leaving it null would be the silent-default trap — *a caller that HAS the dependency must pass it* |
+| 🔴 **The Node `toolError` had a hint-key COLLISION** | it spread the server envelope *(which now carries `hint`)* and then wrote `hint` from the catalog's **static per-tool usage string** ⇒ ⛔ **the local reminder OVERWROTE the server's structured pointer, exactly where an agent needs it.** ⭐ Fixed: the server's structured pointer keeps **`hint`**; the catalog's usage string moved to **`usage`** |
+
+## ⛔ NOT built, deliberately
+
+⭐ **`[ParamDoc]`** — the design marks it *"OPTIONAL enrichment only"*, and the base schema *(name, type,
+enum values, picker kind)* is fully derivable from what the panel already reads. ⇒ ⛔ **no new attribute
+vocabulary was invented** for a description string nothing yet consumes.
+
+## ⭐⭐⭐ The proof the slice works — **author → err → hint → discover → retry**
+
+`An_agent_can_recover_from_a_bad_condition_using_only_the_hint` walks it with **no prior knowledge of the
+condition vocabulary**: post a bogus `$type` → read `hint.seeEndpoint` *(machine-readable, no prose
+parsing)* → `GET /breakpoint-types` → take the `Lifecycle` arm and its enum values → post a condition
+shaped by what discovery returned → **accepted**.
+⇒ ⭐⭐ **That loop closing is the slice's actual claim**, and it is what the case asserts.
+
+⚠ **A live rail guards the union's size:** the 12-arm count is asserted, so an arm added or removed shows
+up as a failing test rather than a silently shorter list.

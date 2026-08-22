@@ -396,6 +396,43 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    name: 'list_breakpoint_types',
+    group: 'S — Discovery with schema',
+    summary: 'List every condition type a breakpoint can use, each with the JSON schema of its parameters. Call this BEFORE set_breakpoint instead of guessing a $type.',
+    http: { method: 'GET', path: '/breakpoint-types' },
+    params: [],
+    returns: '[{ $type, clrType, paramSchema }]  — paramSchema is { type:"object", properties:{...} }',
+    notes: [
+      'The condition union is CLOSED: these are exactly the $type values set_breakpoint accepts.',
+      'A nested predicate appears as { $ref: "SearchPredicateDto" } — fill it with another arm from this same list.',
+      'Enum-valued params carry their allowed values in "enum"; a param marked picker:"propertyPath" wants a dotted field path such as "Position.X".',
+    ],
+    example: { args: {}, gist: 'discover the valid condition $type values and their parameter shapes' },
+    hint: 'No params. Example: list_breakpoint_types({})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'list_behaviors',
+    group: 'P — Discovery with schema',
+    summary: 'List the behaviours available, each with the JSON schema of its parameter DTO. Key by tkbType (what this KIND of entity can do) or entityId (what THIS entity can do); omit both for every registered behaviour.',
+    http: { method: 'GET', path: '/behaviors' },
+    params: [
+      { name: 'tkbType', type: 'number', required: false, description: 'TKB template id — returns the behaviours valid for that entity type (see list_tkb_types)' },
+      { name: 'entityId', type: 'number', required: false, description: 'Network id — returns exactly what the editor mission-task combo offers for that entity' },
+    ],
+    returns: '[{ id, name, brainTier, paramSchema }]',
+    notes: [
+      'paramSchema is derived from the behaviour definition the runtime itself parses params with, so what you author matches what the engine reads.',
+      'An unknown entityId is a 404 whose hint points at GET /entities — it is not answered with an empty list.',
+      'A behaviour with no parameters returns an empty properties object, never null.',
+    ],
+    example: { args: { entityId: 1000 }, gist: 'discover what entity 1000 can be told to do, and how to shape the params' },
+    hint: 'Optional: tkbType or entityId. Example: list_behaviors({entityId:1000})',
+    manualVerify: false,
+  },
+
+  {
     name: 'list_breakpoints',
     group: 'G — Breakpoints',
     summary: 'List all registered breakpoints.',

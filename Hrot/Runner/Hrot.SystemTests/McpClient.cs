@@ -151,6 +151,29 @@ public sealed class McpClient : IDisposable
             ["attributesJson"] = attributesJson,
         }, ct);
 
+    // ── Group P.0 / S — discovery WITH SCHEMA (MX4a, MX7) ──────────────────────
+
+    /// <summary>
+    /// <c>GET /behaviors</c> — the behaviours available, each with its param-DTO JSON schema.
+    /// Key it by <paramref name="tkbType"/> ("what can this KIND of entity do") or by
+    /// <paramref name="entityId"/> ("what can THIS entity do" — mission-combo parity); with neither,
+    /// every registered behaviour.
+    /// </summary>
+    public Task<ApiResult> GetBehaviorsAsync(long? tkbType = null, long? entityId = null, CancellationToken ct = default)
+    {
+        var q = new List<string>();
+        if (tkbType is not null) q.Add($"tkbType={tkbType}");
+        if (entityId is not null) q.Add($"entityId={entityId}");
+        return GetAsync("/behaviors" + (q.Count > 0 ? "?" + string.Join("&", q) : ""), ct);
+    }
+
+    /// <summary>
+    /// <c>GET /breakpoint-types</c> — every condition arm a breakpoint may use, with its param
+    /// schema. This is what turns authoring a <c>SearchPredicateDto</c> from guesswork into lookup.
+    /// </summary>
+    public Task<ApiResult> GetBreakpointTypesAsync(CancellationToken ct = default)
+        => GetAsync("/breakpoint-types", ct);
+
     // ── Group M — TKB catalog ──────────────────────────────────────────────────
 
     public Task<ApiResult> ListTkbTypesAsync(string? category = null, CancellationToken ct = default)
@@ -315,8 +338,12 @@ public sealed class McpClient : IDisposable
             bool ok = envelope?["ok"]?.GetValue<bool>() ?? response.IsSuccessStatusCode;
             var data = envelope?["data"];
             var error = envelope?["error"]?.GetValue<string>();
+            var hint = envelope?["hint"];
 
-            return new ApiResult((int)response.StatusCode, ok, data?.DeepClone(), error) { Request = label };
+            return new ApiResult((int)response.StatusCode, ok, data?.DeepClone(), error, hint?.DeepClone())
+            {
+                Request = label,
+            };
         }
     }
 

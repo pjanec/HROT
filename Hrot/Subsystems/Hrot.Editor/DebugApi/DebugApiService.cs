@@ -166,6 +166,27 @@ namespace Hrot.Editor.DebugApi
         /// <summary>Default upper bound for event-history queries.</summary>
         public const int DefaultMaxEvents = 200;
 
+        // MX4a — behaviour discovery. The registry already holds behaviourId -> ParamsDtoType, so
+        // the schema comes from the SAME definition the runtime parses params with; the mission
+        // service (optional) gives exact parity with the editor's mission-task combo for an entity.
+        private readonly Fdp.Toolkit.Behavior.BehaviorRegistry? _behaviorRegistry;
+        private Hrot.UI.Common.Facades.IMissionEditorService? _missionService;
+
+        /// <summary>
+        /// The editor's mission service, used by <c>GET /behaviors?entityId=</c> for exact parity
+        /// with the mission-task combo.
+        ///
+        /// <para><b>Settable because of construction ORDER, not optionality.</b> The editor builds
+        /// its mission service AFTER this API host, so the constructor cannot receive it; the
+        /// composition root hands it over as soon as it exists. ⚠ Leaving it null would be the
+        /// silent-default trap — a caller that HAS the dependency must pass it.</para>
+        /// </summary>
+        public Hrot.UI.Common.Facades.IMissionEditorService? MissionService
+        {
+            get => _missionService;
+            set => _missionService = value;
+        }
+
         public DebugApiService(
             EntityRepository                world,
             NetworkEntityMap                entityMap,
@@ -193,7 +214,9 @@ namespace Hrot.Editor.DebugApi
             Hrot.Blueprints.Core.Debug.BlueprintDebugSession? blueprintSession = null,
             JsonAttributeCompiler?                        attributeCompiler = null,
             IComponentEditService?                        componentEditSvc  = null,
-            DebugPrimitiveBuffer?                         primitiveBuffer   = null)
+            DebugPrimitiveBuffer?                         primitiveBuffer   = null,
+            Fdp.Toolkit.Behavior.BehaviorRegistry?        behaviorRegistry  = null,
+            Hrot.UI.Common.Facades.IMissionEditorService? missionService    = null)
         {
             _world            = world            ?? throw new ArgumentNullException(nameof(world));
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
@@ -212,6 +235,8 @@ namespace Hrot.Editor.DebugApi
             _spatialGridWidth    = spatialGridWidth;
             _spatialGridHeight   = spatialGridHeight;
             _bpManager         = bpManager;
+            _behaviorRegistry  = behaviorRegistry;
+            _missionService    = missionService;
             _diffService       = diffService ?? new ComponentDiffService();
             _rrController      = rrController;
             _logSinks          = logSinks ?? Array.Empty<IMessageLogSource>();
@@ -1037,6 +1062,95 @@ namespace Hrot.Editor.DebugApi
             // Node's JSON.parse and any RFC-8259 parser.
             return JsonSerializer.SerializeToNode(dump, DebugApiDumpOptions)!;
         }
+
+        // ── Group P.0 / S — discovery with schema (MX4a, MX7) ─────────────────
+
+        /// <summary>
+        /// <c>GET /behaviors?tkbType=</c> (or <c>?entityId=</c>) — the behaviours an entity of that
+        /// type may run, each with the JSON schema of its parameter DTO (<c>MX4a</c>).
+        ///
+        /// <para><b>Reuse, not a new registry.</b> <see cref="BehaviorDefinition.ParamsDtoType"/>
+        /// already holds behaviourId → param DTO — the very type the runtime parses params with — so
+        /// the schema an agent authors against and the bytes the engine reads come from ONE
+        /// declaration. ⛔ Nothing here maintains a second list.</para>
+        ///
+        /// <para><b>Two keys, because two questions.</b> <c>tkbType</c> answers "what can a vehicle of
+        /// this type do" from <c>BehaviorCatalog</c> — the same catalog the mission panel filters by.
+        /// <c>entityId</c> answers "what can THIS entity do" by delegating to the mission service, so
+        /// it matches the editor's mission-task combo exactly, including its editor-authored BTree
+        /// entries. ⚠ Without a mission service wired, the entityId form resolves the entity's own
+        /// TkbType and falls back to the catalog — same answer minus those BTree extras.</para>
+        /// </summary>
+        public (JsonNode? result, string? error, string? hintCategory) GetBehaviors(long? tkbType, long? entityId)
+        {
+            if (_behaviorRegistry is null)
+                return (null, "Behavior registry not available.", null);
+
+            IReadOnlyList<string> names;
+
+            if (entityId is not null)
+            {
+                // Resolve the entity FIRST, whichever path serves the list. The mission service
+                // answers an unknown id with an EMPTY list — correct for a UI combo, but over HTTP it
+                // is indistinguishable from "this entity can do nothing", and an agent would take the
+                // wrong lesson from it. A missing entity is a mistake about the ID, so it is reported
+                // as one, with the hint that names GET /entities.
+                if (!_entityMap.TryGetEntity(entityId.Value, out var entity))
+                    return (null, $"Entity {entityId.Value} not found. List entities with GET /entities.", DebugApiHints.Entity);
+
+                if (_missionService is not null)
+                {
+                    names = _missionService.GetAvailableBehaviors(entityId.Value);
+                }
+                else
+                {
+                    if (!_world.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity))
+                        return (null, $"Entity {entityId.Value} has no TkbIdentity, so it has no behaviour catalog.", DebugApiHints.TkbType);
+                    names = Hrot.Map.Definitions.Tkb.BehaviorCatalog.GetValidBehaviors(
+                        _world.GetComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity).TkbType);
+                }
+            }
+            else if (tkbType is not null)
+            {
+                names = Hrot.Map.Definitions.Tkb.BehaviorCatalog.GetValidBehaviors(tkbType.Value);
+            }
+            else
+            {
+                // No key at all: every REGISTERED behaviour, so an agent can still discover the
+                // vocabulary before it has an entity to ask about.
+                names = _behaviorRegistry.GetRegisteredNames();
+            }
+
+            var arr = new JsonArray();
+            foreach (var name in names)
+            {
+                // Only behaviours actually registered in the live registry are offered — a catalog
+                // name with no definition cannot be run, so advertising it would be a lie.
+                if (!_behaviorRegistry.TryGetId(name, out int id)) continue;
+                if (!_behaviorRegistry.TryGetDefinition(id, out var definition) || definition is null) continue;
+
+                arr.Add(new JsonObject
+                {
+                    ["id"]          = name,
+                    ["name"]        = definition.Name,
+                    ["brainTier"]   = definition.BrainTier,
+                    ["paramSchema"] = DtoJsonSchemaExtractor.ExtractParams(definition.ParamsDtoType),
+                });
+            }
+
+            return (arr, null, null);
+        }
+
+        /// <summary>
+        /// <c>GET /breakpoint-types</c> — every condition arm a breakpoint may use, with its param
+        /// schema (<c>MX7</c>).
+        ///
+        /// <para>Set/list/remove already existed (Group G); the gap was that an agent had to author a
+        /// <c>SearchPredicateDto</c> <b>blind</b>. The arms are read from the union's own
+        /// <c>[JsonDerivedType]</c> attributes — the same declarations the deserializer binds — so
+        /// this list cannot drift from what <c>POST /breakpoints</c> accepts.</para>
+        /// </summary>
+        public JsonNode GetBreakpointTypes() => DtoJsonSchemaExtractor.ExtractPredicateUnion();
 
         // ── Group M — TKB catalog ──────────────────────────────────────────────
 

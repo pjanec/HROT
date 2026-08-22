@@ -125,9 +125,32 @@ public abstract class SystemTestBase
         if (status.Ok && status.Bool("replayActive"))
             await Mcp.UnloadReplayAsync().ConfigureAwait(false);
 
+        await ClearBreakpointsAsync().ConfigureAwait(false);
+
         var sim = await Mcp.GetSimStateAsync().ConfigureAwait(false);
         if (sim.Ok && !sim.Bool("isPaused"))
             await Mcp.PauseAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Removes every registered breakpoint.
+    ///
+    /// <para>⚠ <b>A breakpoint outlives the case that set it, and its effects outlive the
+    /// breakpoint.</b> A hit PAUSES the simulation, and that pause survives removing the breakpoint —
+    /// enough to stop a later case's scenario load from ever reaching <c>OperatingEdit</c>. Measured,
+    /// not theorised: it cost two cases before it was cleaned up here.</para>
+    /// </summary>
+    protected async Task ClearBreakpointsAsync()
+    {
+        var listed = await Mcp.ListBreakpointsAsync().ConfigureAwait(false);
+        if (!listed.Ok) return;
+
+        foreach (var entry in listed.Array())
+        {
+            var id = entry?["id"]?.GetValue<string>() ?? entry?["Id"]?.GetValue<string>();
+            if (!string.IsNullOrWhiteSpace(id))
+                await Mcp.RemoveBreakpointAsync(id!).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Picks a curated scenario that this build actually seeds, preferring <paramref name="wanted"/>.</summary>

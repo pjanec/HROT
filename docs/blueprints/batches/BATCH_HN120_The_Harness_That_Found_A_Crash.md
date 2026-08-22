@@ -88,3 +88,74 @@ so there is nothing whose behaviour this batch could have changed. The system su
 each forced by a measurement, each argued and **folded back into the design at §9** with the prior state
 marked in the STATUS block's `known-rot`. ⇒ ⭐⭐ **the diagrams are true again**, rather than merely
 reported as untrue here.
+
+---
+
+# ═══ PHASE 2 — MCP extensions, SLICE ① ═══
+
+> 📄 **Design + as-built:** [`MCP_Integration.md`](../../MCP_Integration.md) §"AS-BUILT — SLICE ①".
+> ⭐ Built ON the phase-1 harness, exactly as the handoff intended: **every claim below is gated by a
+> smoke case driving a real editor**, so a red in phase 2 is the endpoint, not the instrument.
+
+## 7. ⭐ What landed
+
+| # | |
+|---|---|
+| **`MX4a`** | **`GET /behaviors`** — `?tkbType=` · `?entityId=` · neither. Each row `{id, name, brainTier, paramSchema}` |
+| **`MX7`** | **`GET /breakpoint-types`** — the 12-arm closed union, each with its param schema |
+| ⭐ **shared** | **`DtoJsonSchemaExtractor`** — one property walk serving both, as the design required |
+| **`MX8`** | **`Hint` on the envelope** + the central **`DebugApiHints`** map *(12 categories)*; **15 existing failures back-filled** |
+| **`MX5`** | `list_behaviors` + `list_breakpoint_types` Node wrappers; `SKILL.md` regenerated. **49 → 51 tools** |
+| **`MX6`** | **8 smoke cases**, including the loop the slice exists to close |
+
+## 8. ⛔⛔ The design premise that was FALSE — **and measuring it produced a better seam**
+
+⭐⭐⭐ **`BehaviorUiRegistry` cannot answer behaviourId→DTO.** `Register<TDto>(id)` compiles an ImGui
+**draw delegate** and discards the type. ⇒ the design's *"look up each DTO type in the registry"* was
+unbuildable as written.
+⭐⭐ **The real seam — `BehaviorRegistry.BehaviorDefinition.ParamsDtoType`** — is the DTO the **runtime
+itself parses params with** ⇒ ⭐ **one declaration** behind both the schema and the bytes, which is what
+the design *wanted* and a UI registry could never have given.
+📄 Corrected in the design's `known-rot` + AS-BUILT §; recorded as **`MX-001`**.
+
+## 9. ⭐ Ids allocated in phase 2
+
+| id | |
+|---|---|
+| ✅ **`MX-001`** | slice ① built; the `BehaviorUiRegistry` premise corrected to `ParamsDtoType` |
+| ⚠ **`MX-002`** | **three** interfaces named `IMissionEditorService`; the UML cites the wrong one ⇒ **`MX4b` must name the namespace** |
+| 🔴 ✅ **`MX-003`** | the Node `toolError` hint-key collision that would have silently defeated `MX8` |
+
+## 10. GATES — phase 2 *(all `--no-build` runs are against a freshly built solution)*
+
+| gate | command | result | vs base `14b3f8867` |
+|---|---|---|---|
+| ⭐⭐ **Row 8 — slice-1 smoke on the phase-1 harness** | `dotnet test …/Hrot.SystemTests.csproj` | ⭐ **27 passed · 0 failed · 2 skipped**, ~15 s | **+9** *(18 → 27; the 2 skips are still only `HN-001` and what it blocks)* |
+| ⭐ **`Hrot.Editor.Tests`** *(production code changed here)* | `dotnet test …/Hrot.Editor.Tests.csproj --no-build` | ⭐ **209 passed · 0 failed** | ⭐⭐ **IMPROVED — baseline was 207/2.** The 2 `ScenarioMenuTests` reds were fixed by the **coordinator's** merge, not by this batch |
+| ⭐⭐ **`Hrot.Blueprints.Tests` `~Editor`** *(THE `EditorSubsystem` gate)* | `--filter "FullyQualifiedName~Hrot.Blueprints.Tests.Editor" --no-build` | **1032 passed · 0 failed · 9 skipped** | **unchanged** |
+| ⭐ **`ClusterRunner.Integration` `~TimeControlIntegrationTests`** *(cross-node invariant)* | `--filter "FullyQualifiedName~TimeControlIntegrationTests" --no-build` | **9 passed · 0 failed** | **unchanged** |
+| solution | `dotnet build IOS-IG-SimHost.sln` | **0 errors** | unchanged |
+| Node server | `node src/index.mjs` | ⭐ **starts clean, 51 tools** *(was 49)* | **+2** |
+| Node `SKILL.md` | `node generate-skill.mjs` | **written, 337 lines** | regenerated |
+| ⚠ Node `verify.mjs` | `node verify.mjs` | ⛔ **FAILS — `MCP error -32000: Connection closed`** | ⭐⭐ **PRE-EXISTING, proved by stash:** it fails identically at clean HEAD *(reporting 49 tools)*. ⚠ It also needed `npm install` — `node_modules` had never been installed in this tree *(and stays gitignored)* |
+| designs · ledger · tracker · mermaid | as phase 1 | **all pass** | unchanged |
+
+⭐ **No golden files moved · working tree clean after every run · no new skip** beyond phase 1's two.
+
+## 11. ⚠ Two interference bugs the harness caught **in its own tests** — worth recording
+
+| | |
+|---|---|
+| 🔴 **An armed breakpoint outlives the case that set it, and its EFFECT outlives the breakpoint.** My recovery case armed a `Lifecycle` breakpoint on `"Bradley"` — and hill-attack really contains an **M2 Bradley IFV**. It tripped during a LATER case's scenario load, paused the sim, and the cluster never reached `OperatingEdit` ⇒ a **504 on `/scenario/load`** in a case that had nothing to do with breakpoints. ⭐ Fixed twice over: the case now targets a name that matches nothing *(it tests ACCEPTANCE, not firing)*, and `ResetToIdleAsync` clears breakpoints |
+| ⚠ **Reload churn.** Loading the scenario per case rebuilds entities with fresh network ids, so listing while another case's reload settles yields an id the map has already dropped. ⭐ The world is now loaded **once per editor** |
+
+⭐⭐ **Both are the shared-editor cost of `D6`** *(one editor per collection)*, and both are cheap to
+avoid once named — ⛔ neither is a product defect.
+
+## 12. Obligation ③ — **diagrams checked, phase 2**
+
+⭐ Built against §"UML"'s `classDiagram` + `sequenceDiagram`. **`DtoJsonSchemaExtractor`, `DebugApiHints`,
+the `Hint` field and the new `DebugApiService` members all match the drawn contract.** ⛔ **One box does
+not:** `DtoJsonSchemaExtractor ..> BehaviorUiRegistry : reads behaviour DTO type` — **that edge cannot
+exist**, and the extractor reads `BehaviorRegistry.ParamsDtoType` instead. ⇒ ⭐ **folded back into the
+design** *(`known-rot` + AS-BUILT §)*, not merely reported here.
