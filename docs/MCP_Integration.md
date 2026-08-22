@@ -228,6 +228,32 @@ encoding at all** *(cheaper than P.0, which needed the scenario serializer)*.
 and this. ⭐ And `[PropertyPathPicker]` is an **existing self-describing attribute** — the in-repo precedent that
 the optional `[ParamDoc]` enrichment *(MX4a)* is following, not inventing.
 
+## Self-describing errors — every mistake POINTS at the discovery endpoint *(cross-cutting; `MX8`)*
+
+🔒 **User:** *"if the agent makes a mistake in the request (breakpoint, behaviour, etc.), the MCP error sent
+back should contain hints where to find the schemas/info and what endpoint to use. Something like that already
+exists, just might need extending."*
+
+📐 **Measured — the precedent exists, as PROSE, and is INCONSISTENT.** Several errors already name the endpoint
+that fixes them: *"Entity {id} not found. **List entities with GET /entities.**"* · *"Unknown eventType… **List
+publishable events with GET /commands.**"* · *"Breakpoint '{id}' not found. **List with GET /breakpoints.**"* ·
+*"Unknown baselineId… **Capture one with POST /diff/capture.**"* · *"Unknown component type… **GET /components.**"*
+⛔ But **many don't** — `AddBreakpoint`'s *"Invalid condition: …"* has **no** pointer to `GET /breakpoint-types`,
+and the future behaviour/mission validation errors would be blind too — and the hint is **buried in a prose string**
+an agent must parse.
+
+⭐ **The extension — three parts, all reuse-shaped:**
+
+| # | | |
+|---|---|---|
+| **①** | ⭐⭐ **a structured `hint` on the response envelope** | extend `ApiResponse(Ok, Data, Error, Awaited)` → **`+ JsonNode? Hint`** and `RouteResult` likewise; `Fail(status, error, hint?)`. Body becomes `{ ok:false, error:"…", hint:{ seeEndpoint:"GET /breakpoint-types", why:"valid condition $type values + param schemas" } }` ⇒ **machine-readable, not prose to parse** |
+| **②** | ⭐⭐⭐ **ONE central `DebugApiHints` map** *(category → endpoint + why)* | the single source of truth, ⛔ not a string scattered per throw-site. Categories: `entity` → `GET /entities` · `component` → `GET /components` · `event` → `GET /commands` · **`condition` → `GET /breakpoint-types`** · **`behavior` → `GET /behaviors?tkbType=`** · **`missionTask` → `GET /behaviors?tkbType=` (+ `GET /missions/{id}`)** · **`variable` → `GET /entities/{id}/variables`** · `baseline` → `POST /diff/capture` |
+| **③** | ⭐ **back-fill the existing prose hints into the field** and attach one to **every schema-shaped validation failure** | the condition/behaviour/mission/variable inputs that `MX1`/`MX4a`/`MX4b`/`MX7` add are exactly where a blind agent errs ⇒ each attaches its category's hint |
+
+⭐⭐ **Reuse, not a new mechanism:** it PROMOTES the prose-suffix habit already in the code into a structured field
+and a single map. ⛔ The prose stays in `error` for humans; `hint` is the machine half. ⚠ **Row 8 note:** the harness
+*(`MX6`/H4)* asserts the hint round-trips — e.g. POST a bad condition, expect `hint.seeEndpoint == "GET /breakpoint-types"`.
+
 ## Reuse — Group O flow (the cheap, high-value one)
 
 ```mermaid
@@ -310,6 +336,17 @@ classDiagram
         +string type
         +JsonNode paramSchema
     }
+    class ApiResponse {
+        <<exists · envelope, +Hint field MX8>>
+        +bool Ok
+        +JsonNode Data
+        +string Error
+        +JsonNode Hint
+    }
+    class DebugApiHints {
+        <<new · MX8, one source of truth>>
+        +For(category) hint
+    }
     class VariableDto {
         <<new record>>
         +string path
@@ -343,6 +380,8 @@ classDiagram
     DebugApiService ..> BehaviorSchemaDto : returns
     DebugApiService ..> EntityStateDto : returns
     DebugApiService ..> BreakpointTypeDto : returns (S)
+    DebugApiService ..> DebugApiHints : on a mistake, attach hint (MX8)
+    DebugApiHints ..> ApiResponse : fills the Hint field
 ```
 
 ### Sequence — behaviour discovery then mission add-task *(the one genuinely new flow)*
@@ -388,6 +427,7 @@ sequenceDiagram
 | **MX4b** | **Group P — mission editing** — add-task / clear / run via **`IMissionEditorService.CommitMissionAsync`** (read-snapshot → modify → commit with OCC version) + `SendControlCommand` for run/restart; params decoded by `ScenarioSerializer`. ⭐ Inject `IMissionEditorService` into `DebugApiService` (additive, like `_blueprintSession`) | depends on MX4a's schema |
 | **MX5** | MCP-server (Node) tool wrappers + `SKILL.md` regen for O/P/Q/R | the agent-facing side |
 | **MX7** | **Group S — breakpoint-type discovery** — `GET /breakpoint-types` reflecting the `SearchPredicateDto` `[JsonDerivedType]` union → `{ $type, paramSchema }[]`. ⭐ **REUSES the same `DtoJsonSchemaExtractor` as `MX4a`**; ⛔ no new encoding *(conditions round-trip through the existing `SearchPredicateJsonOptions`)*. Set/list/remove/hits already exist (Group G) | pairs with `MX4a`; cheapest of the discovery pieces |
+| **MX8** | **self-describing errors** — add a structured `hint` to the `ApiResponse`/`RouteResult` envelope, a central `DebugApiHints` category→endpoint map, back-fill existing prose hints, and attach one to every schema-shaped validation failure *(condition/behaviour/mission/variable)* | ⭐ cross-cutting; promotes an existing prose habit into a machine-readable field |
 | **MX6** | harness smoke cases for each new group | feeds `DESIGN_MCP_System_Test_Harness.md` H4 |
 
 ## Dependencies & lane
