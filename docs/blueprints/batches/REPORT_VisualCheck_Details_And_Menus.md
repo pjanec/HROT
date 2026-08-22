@@ -163,12 +163,12 @@ surfaces are live — and scaling the work down is the user's call, not mine.
 
 | # | gate | result | `--no-build`? | Δ |
 |---|---|---|---|---|
-| **1** | `dotnet build IOS-IG-SimHost.sln --no-restore` | *filled below* | ⛔ builds | — |
-| **2** | `Hrot.Editor.AiShared.Tests` | *filled below* | ✅ in solution | **+8** *(`VC-1`)* |
-| **3** | `Hrot.Blueprints.Tests` | *filled below* | ✅ in solution | **+3** *(`VC-4`)* |
-| **4** | `Hrot.Editor.Tests` | *filled below* | ✅ in solution | **+5** *(`VC-3`)* · ⭐ **2 pre-existing reds FIXED** |
+| **1** | `dotnet build IOS-IG-SimHost.sln --no-restore` | ⭐ **0 errors** | ⛔ builds | — |
+| **2** | `Hrot.Editor.AiShared.Tests` | ⭐ **1866 pass / 0 fail / 1 skip — 1867 total** | ✅ in solution | **+8** *(1859 → 1867, `VC-1`)* |
+| **3** | `Hrot.Blueprints.Tests` | ⭐ **3901 / 0 / 18 skip — 3919 total** | ✅ in solution | **+3** *(3916 → 3919, `VC-4`)* |
+| **4** | `Hrot.Editor.Tests` | ⭐ **214 / 0 / 0** | ✅ in solution | **+5** *(`VC-3`)* · ⭐⭐ **and 2 PRE-EXISTING REDS FIXED** *(`BP-425`)* |
 | **5** | ⛔ `Fdp.Presentation.Tests` | ⛔ **whole suite un-gateable — `BP-419`** *(host crash, pre-existing)* | — | — |
-| **5b** | …by filter | *filled below* | ✅ | — |
+| **5b** | …by filter *(`~WindowManager\|~EntityInspector\|~MenuCommandAdapter`)* | ⚠ **187 / 3 / 190** | ✅ | ⭐ **the 3 are `GetFilteredEntities_{FiltersById, RespectsLimit, InvalidSearch…}`** — baselined RED at `f968e693` during `L6`, untouched here |
 | **6** | `tracker-counts.py --check` | ⭐ **OK — open 91 / done 271** | — | — |
 | **7** | `rulings-check.py` | ⭐ **22/22** | — | ⚠ 1 staleness WARN on `.claude/CLAUDE.md` *(pre-existing)* |
 | **8** | goldens | ⭐ **none moved** — only `.cs`/`.md` | — | zero |
