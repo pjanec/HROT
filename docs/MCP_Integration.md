@@ -1,12 +1,17 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (integration §A–N; extensions SLICE ① = MX4a+MX7+MX8+MX5+MX6, Batch HN-120) │ READY-TO-BUILD (slices ②/③: MX1, MX2, MX3, MX4b)
+build-state: BUILT (integration §A–N; SLICE ① = MX4a+MX7+MX8+MX5+MX6, Batch HN-120; SLICE ② = MX1
+  Group O + wrappers + smoke, Batch HN-121) │ READY-TO-BUILD (slice ③: MX2, MX3, MX4b) │ BLOCKED (Group T
+  needs the UI lane's U-obs-1)
 updated: 2026-08-22
 current-answer: three parts. (1) The AI-debug API + MCP server is PORTED, WIRED, VERIFIED end-to-end on
   headless Linux (§ up to Notes). (2) The MCP EXTENSIONS design (Groups O–R). (3) ⭐ §"AS-BUILT — SLICE ①"
-  at the END is the CURRENT truth for MX4a/MX7/MX8 where it differs from §"UML" — read it before quoting a seam.
+  and §"AS-BUILT — SLICE ②" at the END are the CURRENT truth where they differ from §"Group O"/§"UML" —
+  read them before quoting a seam.
 stale-below: nothing — the extensions section supersedes the earlier "mission intent bus" phrasing in place (see §"UML").
-known-rot: §"Group P.0" and §"UML" say MX4a REUSES `BehaviorUiRegistry` for behaviourId→DTO. ⛔ MEASURED FALSE —
+known-rot: §"Group O" says DebugApiService "already holds _blueprintSession". ⛔ MEASURED FALSE — the
+  PARAMETER existed; the composition root never passed it, so every Group O call refused. See
+  §"AS-BUILT — SLICE ②". · §"Group P.0" and §"UML" say MX4a REUSES `BehaviorUiRegistry` for behaviourId→DTO. ⛔ MEASURED FALSE —
   that registry stores only ImGui DRAW DELEGATES and never retains the DTO type. The real seam is
   `BehaviorRegistry.BehaviorDefinition.ParamsDtoType`. §"AS-BUILT — SLICE ①" carries the correction.
   §"UML" also draws IMissionEditorService as `<<exists · Hrot.ExCon>>`; the editor path implements a
@@ -559,3 +564,52 @@ shaped by what discovery returned → **accepted**.
 
 ⚠ **A live rail guards the union's size:** the 12-arm count is asserted, so an arm added or removed shows
 up as a failing test rather than a silently shorter list.
+
+---
+
+# AS-BUILT — **SLICE ② (`MX1` Group O · `MX5` · `MX6`)**, Batch HN-121, `2026-08-22`
+
+⭐⭐ **Where this section and §"Group O"/§"UML" disagree, THIS is current** *(obligation ⑤)*.
+📐 Gated by **34 passing system-smoke cases** driving a real editor headless, and by
+`Hrot.Editor.Tests` **218/0**.
+
+## ⛔⛔ The premise that did not survive measurement — **`_blueprintSession` was NOT injected**
+
+| | |
+|---|---|
+| ⛔ **the design said** | *"`DebugApiService` already holds `_blueprintSession` + `bpManager`"*, and §2 of the handoff repeated it: *"it only CONSUMES the existing debug-session seam (already injected)"* |
+| 📐 **measured, by running it** | the **parameter** existed; the **composition root never passed it.** `EditorSubsystem` handed `DebugApiService` BTree's and HSM's sessions and not Blueprint's — built **~400 lines above** the call. ⇒ every Group O request answered *"No blueprint debug session is available in this editor."* |
+| ⭐⭐ **why nothing caught it** | ⛔ **the silent-default pattern.** The parameter is optional so tests and lightweight hosts need not supply it; a host that never passes it looks exactly like one that legitimately has none. 📌 *A production caller that HAS a dependency must PASS it* |
+| ⭐ **the control** | **`DebugApiCompositionTests`** *(`Hrot.Editor.Tests`)* — a TEXT rail over the composition root, one case **per dependency** *(`blueprintSession` · `blueprintRegistry` · `behaviorRegistry` · `bpManager`)*, each naming the CONSEQUENCE of its absence. ⚠ Verified by removing the line: exactly that case goes red. ⛔ A behavioural rail cannot see this — `EditorSubsystem` cannot be constructed headless, so every other rail builds its own composition root and is blind to what the real one forgot |
+
+## ⭐ What was built — and the four places it deviates from §"Group O"
+
+| # | as-built | vs the design |
+|---|---|---|
+| **`GET /entities/{id}/variables?asset=`** | `{ networkId, asset, assetId, dispatch, variables:[…] }` | ⭐ **`asset` is now OPTIONAL and accepts a NAME as well as a Guid.** The design specified `?asset=<assetId>` only — ⛔ but an agent that knows an entity id cannot guess a Guid. Omitted ⇒ the entity's single blueprint; ambiguous ⇒ a 400 that **names the choices** |
+| ⭐⭐ **entity → asset discovery** | **`BlueprintTierSummary.Read`** over the entity's `BlueprintBlackboard{1024,4096,16384}`, which yields `(AssetId, BlueprintId, Name)` per attached slot | ⭐ **not in the design's UML at all** — it is the scan the Entity Inspector already uses. ⛔ Without it there is no path from "an entity id" to "an asset Guid": the registry is keyed by the **hashed int**, and `BlueprintIdHash` is one-way |
+| **`GET /entities/{id}/variable?asset=&path=`** | `{ path, type, value, writable, pending, pendingValue? }` | ⭐ **`writable` and `pendingValue` are additions.** `writable:false` = readable but not addressable *(a dispatch kind whose layout the resolver does not map)*; `pendingValue` decodes the staged bytes so a queued write can be **reported**, not merely flagged |
+| **`POST /entities/{id}/variable`** | resolve → convert to the field's runtime type → `ComponentBytes` → `TryWriteWorkingStateField` ⇒ `{ staged:true, pending:true }` | ⭐ **The field's TYPE comes from the value the snapshot already decoded**, not from a layout table the API would have to keep in step with the compiler's. ⭐ Refusals are all data-shaped *(`R-126`: running is a reason to STAGE, not to refuse)*; the width check is `Q32` §2.1's corruption gate |
+
+⭐ **`MX5`:** `list_entity_variables` · `get_entity_variable` · `stage_entity_variable` — **51 → 54 tools**,
+`SKILL.md` regenerated, catalog tests **379/0**.
+⚠ **`test-catalog.mjs` was RED at the base commit** *(its hard-coded list still said 49 while slice ①
+had added two tools)* — ⭐ fixed here, and it is now the gate that would have caught slice ①'s omission.
+
+## ⚠⚠ What is NOT proven — **the write path has no end-to-end rail**
+
+📐 **Measured, by probing the running editor:** in `hill-attack` exactly **one** of eight entities carries
+a blueprint at all, it is **`Library`-dispatch**, and a Library blueprint has **no working state** ⇒
+`variables: []`. ⇒ ⛔ **no curated scenario exercises the stage → pending → drain → land loop.**
+
+⭐ **What IS proven:** the read path, the asset resolution *(by name and by Guid)*, the empty-list case,
+the unknown-variable rejection **with its hint**, and — via `DebugApiCompositionTests` — that the seam is
+wired at all. ⚠ **The staging call itself is reached only by code review**, and this section says so
+rather than letting a green suite imply otherwise.
+⇒ 📌 Tracker **`HN-006`**: a curated scenario carrying an `Instance`-dispatch blueprint would close it;
+that is scenario content, not API work.
+
+## ⛔ The wall — Group T is NOT built
+
+⭐ `GET /panels` reads the `PanelSnapshot` the UI lane is building in `U-obs-1`. ⛔ Deliberately not
+started here; the batch stopped at the wall as dispatched.

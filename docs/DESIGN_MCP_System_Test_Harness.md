@@ -1,13 +1,15 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (H1–H6, Batch HN-120, 2026-08-22)
+build-state: BUILT (H1–H6, Batch HN-120; extended + the found defects FIXED, Batch HN-121, 2026-08-22)
 updated: 2026-08-22
 current-answer: §3 classDiagram + §4 sequenceDiagram remain the contract, AS AMENDED BY §9 "AS-BUILT".
   ⭐ §9 is the current truth where it differs from §3/§5 — read it before quoting a member signature or D5.
   §5 decisions D1–D11 and §6 tasks H1–H7 are the build; H7 remains out of scope.
 known-rot: §3's classDiagram shows per-endpoint DTO returns (StatusDto, EntityDto, …) — the build returns
   one ApiResult envelope instead; §5 D5 says "Xvfb-wrap on Linux" — the build owns the Xvfb server directly.
-  Both are corrected in §9 with the measurements that forced them.
+  Both are corrected in §9 with the measurements that forced them. ⚠ §9 itself was AMENDED by Batch
+  HN-121: /shutdown is no longer inert (teardown asks before it kills), KnownDefectRails is now
+  PreviewLifecycleRails with both rails un-skipped, and the H4 ladder's two uncovered rows are closed.
 known-conflict: none.
 design-basis: docs/MCP_Integration.md (the wired, verified API) · docs/Editor_Headless_Xvfb.md (headless
   launch) · UX_Feature_Curated_Scenarios.md (curated worlds) · UX_Feature_Layout_Defaults.md (curated UI).
@@ -195,7 +197,7 @@ single-process by design).
 |---|---|---|---|
 | **①** | ⭐ §3: typed returns per endpoint — `GetStatusAsync() StatusDto`, `GetEntityAsync() EntityDto`, … | ⭐⭐ **every method returns one `ApiResult(StatusCode, Ok, Data, Error)`**; `StatusDto`/`SimStateDto`/`EntityRowDto`/`ReplayStatusDto` exist as records for typed reads where wanted | ⛔ **Two measurements killed the per-endpoint DTO.** ① **The payload casing is MIXED by construction**: hand-built `JsonObject`s use lowercase keys (`clusterState`), while entity dumps serialize from a DTO and keep **PascalCase** (`NetworkId`) — the host embeds each handler's payload *verbatim*. ② **Six smoke cases assert on a REJECTION** *(bad condition, unknown entity, unknown baseline, missing recording)*; a client typed to the success shape makes the negative cases the awkward path. ⇒ one envelope + case-insensitive readers |
 | **②** | ⭐ §5 `D5`: *"Xvfb-wrap on Linux"* — i.e. `xvfb-run` | ⭐⭐⭐ **the fixture starts and stops the `Xvfb` SERVER itself** on a display it picks | 🔴 **Measured leak:** `xvfb-run` is a shell script that stops its Xvfb from an **EXIT trap**, and `Process.Kill` sends **SIGKILL** ⇒ the trap never runs. **Four orphaned `Xvfb` processes and four `/tmp/.X<n>-lock` files** accumulated across this session's runs — on a CI lane that is display exhaustion. ⭐ After the change: **0 orphans, 0 locks**, verified. ⭐ The *environment* is unchanged from the proven recipe *(1600x1000x24, `LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=llvmpipe`)* — only the **lifetime** is owned |
-| **③** | §4: teardown *"kills process tree and Xvfb"* — via a graceful stop | ⭐ **tree-kill only; `POST /shutdown` is NOT used** | 📐 **`/shutdown` is INERT**: `EditorSubsystem:1585` passes `() => { }` as the shutdown callback, so it answers `{ok:true}` and stops nothing *(`HN-003`)*. ⚠ Killing mid-frame can print `free(): corrupted unsorted chunks` — a documented teardown artifact, not a fault |
+| **③** | §4: teardown *"kills process tree and Xvfb"* — via a graceful stop | ⭐⭐ **ASKS first, kills second** — `POST /shutdown`, then a tree-kill if the editor is still there after 10 s | ⚠⚠ **CORRECTED `2026-08-22` (Batch HN-121).** ⛔ The original as-built said *"tree-kill only; `/shutdown` is NOT used"* because 📐 `/shutdown` was **INERT** — `EditorSubsystem` passed `() => { }` *(`HN-003`)*. ⭐ It now ends the runner's frame loop, so the editor tears down in order and the logs end with `[Runner] Shutdown complete.` ⇒ the `free(): corrupted unsorted chunks` kill artifact is gone from the normal path. ⭐ The kill stays as the fallback: teardown must never HANG on a wedged editor |
 | **④** | §4: fixture *"polls `/status`"* | ⭐⭐ **polls until `/status` answers `ok` WITH A PAYLOAD** | ⛔ **A bare 200 is not readiness.** The host answers a minimal `{ok:true}` before its service is attached, and `/status`'s payload is served through `MainThreadJobQueue` ⇒ **a payload proves the editor's main loop is DRAINING JOBS** — i.e. actually ticking, which is what every case depends on |
 
 ### 9.2 Added beyond the design — **both because the harness found something**
@@ -203,7 +205,9 @@ single-process by design).
 | what | why it exists |
 |---|---|
 | ⭐ **`SystemSmokeFactAttribute`** — a `FactAttribute` that self-skips with a stated reason | the suite needs a real editor and, on Linux, a display server. On a host without one, a red would say *"the system is broken"* when it means *"this machine cannot host the test"*. ⚠ **Environment limits only** — a boot FAILURE still fails loudly and is never converted into a skip |
-| ⭐⭐ **`KnownDefectRails`** + its own collection *(a second editor)* | the harness **found a crash on its first full run** *(`HN-001`)*. A defect recorded only in a batch report is invisible by the next batch; a rail names it, carries the repro, and **becomes a live assertion the day it is fixed.** ⛔ Its own collection because the defect **kills the editor** and would take every other case with it |
+| ⭐⭐ **`PreviewLifecycleRails`** + its own collection *(a second editor)* | the harness **found a crash on its first full run** *(`HN-001`)*. A defect recorded only in a batch report is invisible by the next batch; a rail names it, carries the repro, and **becomes a live assertion the day it is fixed.** ⚠⚠ **RENAMED `2026-08-22` from `KnownDefectRails`**: `HN-001` is FIXED and both rails are **un-skipped**, so a class called *"known defects"* would have been a lie. ⭐ It keeps its own collection — a regression here still kills the editor |
+| ⭐ **`ShutdownRail`** + its own collection *(Batch HN-121)* | `HN-003`'s fix needs a rail that **ends its own editor**, which no shared collection can host. ⭐ It asserts the editor answers **before** the request and is **gone after** it — otherwise "it exited" would prove nothing |
+| ⭐⭐ **`VariableAddressingTests`** *(Batch HN-121)* | `MX1`'s Group O cases, and the **`HN-005`** watch case the H4 ladder owed. ⚠ **Discovery-driven** — which curated entity carries which blueprint is scenario content, so the cases FIND a blueprint-carrying entity rather than hard-coding one |
 
 ### 9.3 The `H4` capability ladder — **what is covered, and the two that are not**
 
@@ -214,15 +218,19 @@ attribute schema *(Group L)* · trace observe · command/component catalogs · r
 missing-recording rejection · **hill-attack advances the assault force** *(`H5`)* · **pause holds the
 world still**.
 
-| ⛔ NOT covered | why, and where it lands |
+| ⚠⚠ **CLOSED `2026-08-22`, Batch HN-121** | as-built |
 |---|---|
-| ⭐ **"watch read + write a VARIABLE"** | **the Group O endpoints do not exist.** 📐 Enumerated from `DebugApiHost.BuildRoutes` — the **single** route-registration site — **47 routes, none matching `/variables`** ⇒ that is `MX1`, **slice ②**. ⭐ Substituted the nearest BUILT capability *(`POST /entities/{id}/component` write + read-back)*; ⛔ the watch-vocabulary case is still owed *(`HN-005`)* |
-| ⭐ **record → replay 48 frames** | ⛔ **blocked by `HN-001`** — `/recording/stop` exits preview, which aborts the editor. ⭐ **Written out in full and skipped**, so it runs the day the defect is fixed |
+| ⭐ **"watch read + write a VARIABLE"** *(was: the Group O endpoints do not exist)* | ⭐⭐ **built and railed** — `VariableAddressingTests` reads an entity's blueprint variables by `(entity, asset, path)`, asserts the pending flag is always answered, and rejects an unknown name with its hint. ⚠ **The WRITE half is reached only by code review**: 📐 measured, no curated scenario carries a blueprint with working state *(hill-attack's one blueprint entity is `Library`-dispatch ⇒ no variables)* ⇒ **`HN-006`** |
+| ⭐ **record → replay 48 frames** *(was: blocked by `HN-001`)* | ⭐⭐ **un-skipped and GREEN** — `PreviewLifecycleRails.Record_then_replay_round_trips_frames` runs the whole round trip against the real editor now that the rewind restores managed payloads |
 
 ### 9.4 Notes that change how the suite is USED
 
-- ⭐⭐ **`ResetToIdleAsync` deliberately does NOT exit preview** — `HN-001` would kill the shared editor
-  and turn one product defect into a cascade of unrelated red. ⚠ **That is isolation, not avoidance:**
+- ⭐⭐ **`ResetToIdleAsync` deliberately does NOT exit preview.** ⚠⚠ **The REASON changed `2026-08-22`:**
+  it began as isolation from `HN-001` *(leaving preview aborted the editor)*, which is **fixed** — ⭐ but
+  the practice stands on its own now: the shared editor is loaded once per fixture, and dropping out of
+  preview between cases rebuilds the world with fresh network ids, invalidating addresses other cases
+  just resolved. ⭐ Leaving preview is exercised where it belongs — `PreviewLifecycleRails`, on its own
+  editor. ⚠ **The original wording, kept because the lesson survives:**
   the defect has its own rail.
 - ⭐ **The world is loaded ONCE per editor**, not per case. 📌 Reloading rebuilds entities with fresh
   network ids, so a case listing entities while another's reload settles holds an id the map has already

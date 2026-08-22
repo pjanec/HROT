@@ -2324,6 +2324,16 @@ OS-imposed inbound SMB connection limits.
 > `liveRepo.SyncFrom(snap)` to blast the backup back into the live repository, exactly
 > rewinding the world to the pre-dry-run state.  RAM is freed after the restore.
 
+> ⚠ **AS-BUILT, `2026-08-22` (`HN-001`) — the rewind is only "exact" while every managed mutation
+> bumps its chunk version.** 📐 Measured: the editor's own preview handler passes
+> `includeTransient: true` in **both** directions, so a transient managed component is captured and
+> restored — but `SyncFrom` copies the **entity index unconditionally** *(`ApplyComponentFilter`
+> bumps its versions every sync)* while a component **table** is copied only when its chunk version
+> differs. ⇒ a removal that skipped the bump *(the command-buffer path, `ManagedComponentTable.ClearRaw`)*
+> restored the **presence bit without the payload**, and the next tick aborted the process.
+> ⭐ Fixed in the table, not in the handler — 📄 the invariant is stated in
+> [`docs/projects/FDP/Core/Fdp.Core.md`](../../projects/FDP/Core/Fdp.Core.md) §`ManagedComponentTable<T>`.
+
 ---
 
 ## 10. Stories — Multi-Tenant Micro-Scenarios
