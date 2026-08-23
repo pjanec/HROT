@@ -54,7 +54,7 @@ editor's precedent, not inventing a mechanism.**
 | subsystem | perspectives | measured |
 |---|---|---|
 | ⭐ **editor** *(standalone)* | **`Scenario` · `BTree` · `HSM` · `Blueprint`** | 📐 today `Editor` + the other three ⇒ **a SINGLE rename**; the other three already carry the right ids |
-| ⭐⭐ **cgf** | **the same four** — `Scenario · BTree · HSM · Blueprint`, and ⛔ **NO `CGF` perspective at all** | ⭐⭐⭐ **USER DECISION `2026-08-23`, superseding my "add, don't replace" lean:** *"once cgf gets all 4 perspectives, we should remove the cgf perspective completely. Maybe we should simply and immediately rename CGF perspective to the 'Scenario' perspective, and add the 3 others right away."* ⇒ **do it NOW, not at the end** — its four diagnostics windows move to `Scenario`. 📌 **See §1e: declaring the three empty ones needs a mechanism that does not exist** |
+| ⭐⭐ **cgf** | **the same four** — `Scenario · BTree · HSM · Blueprint`, and ⛔ **NO `CGF` perspective at all** | ⭐⭐⭐ **USER DECISION `2026-08-23`, superseding my "add, don't replace" lean:** *"once cgf gets all 4 perspectives, we should remove the cgf perspective completely. Maybe we should simply and immediately rename CGF perspective to the 'Scenario' perspective, and add the 3 others right away."* ⇒ **do it NOW, not at the end** — its four diagnostics windows move to `Scenario`. 📌 **§1e: the three need NO `perspectiveMap` entry and NO placeholder — they simply appear with their first window** |
 | **simhost** | `SimHost` | 📐 2 windows |
 | **ig** | `IG` | 📐 5 windows |
 | **excon** | `ExCon` | 📐 7 windows |
@@ -149,30 +149,42 @@ graph TD
     D -->|no| NL["contributes nothing to the list · NO icon"]
 ```
 
-## 1e. ⛔⛔⛔ AN EMPTY PERSPECTIVE IS NOT REPRESENTABLE — **the user's plan needs a new mechanism**
+## 1e. ⭐⭐ AN EMPTY PERSPECTIVE IS FINE — **and it needs neither a placeholder nor a map entry**
 
-> ⭐⭐ **User, `2026-08-23`:** *"add the 3 others right away (maybe with no windows until the features are
-> migrated)"*
+> ⭐⭐⭐ **User, `2026-08-23`, correcting me twice over:** *"why Many-to-one perspective? Makes little sense.
+> Because we want to show the 'Btree not available yet'? no need. It is not wrong that at exists without
+> windows. does not feel wrong. And the windows will come soon anyway."*
 
-⛔⛔ **As stated this is mechanically impossible today, and the reason is §2:** `GetPerspectives()` returns
-the distinct `OwningPerspective` of **REGISTERED** windows. ⇒ ⭐ **a perspective with no windows does not
-exist** — it cannot be listed, cannot get an icon, and cannot be switched to.
+### ⛔ What I got wrong, and it was two things at once
 
-### ⭐⭐⭐ The fix is the SAME mechanism §1d already demands
-
-⭐ **Add `WindowManager.DeclarePerspective(string name)`**, and make `GetPerspectives()` return
-**declared ∪ derived-from-windows**.
-
-| ⭐ why this is not scope creep | |
+| ⛔ my proposal | ✅ the correction |
 |---|---|
-| ⭐⭐⭐ **§1d needs exactly this** | it requires `NOT-PRESENT-HERE` to be **DECLARED, never inferred from absence**. ⇒ *"CGF declares `BTree` and registers zero windows in it"* is precisely that declaration — **an assertable fact instead of a silence** |
-| ⭐⭐ **it makes the migration target VISIBLE** | the four icons appear in CGF on day one; each fills up as its feature lands ⇒ **progress is legible in the UI and to the harness** |
-| ⭐ **it keeps `GetPerspectives()` honest** | derived-only was never a design decision — it is what falls out of having no declaration API |
+| *"map all four CGF perspectives → the CGF subsystem"* — which I labelled **many→one** | ⛔ **Unnecessary, and the label oversold it.** `perspectiveMap` exists for ONE job: handing the **map canvas** to a subsystem when focus changes. ⭐⭐ **The three asset perspectives do not own a map** — they own a graph canvas — so 📐 **the editor's `BTree`/`HSM`/`Blueprint` are deliberately ABSENT from `perspectiveMap` today**, and CGF's should be too. ⇒ ⭐ **exactly ONE new entry: `Scenario` → `CGF`** |
+| *"a declared-but-empty perspective needs a placeholder"* | ⛔ **No.** An empty perspective is **not a defect**, and the windows arrive shortly. ⚠ A placeholder would be UI invented to explain a transient state |
 
-⚠ **One UX consequence to handle, or it reads as a bug:** switching to a declared-but-empty perspective
-shows **nothing**. ⇒ ⭐⭐ **render a placeholder** — *"BTree editing is not available in this host yet"* —
-which is also the honest surface for `D3`/`D4`'s absent capabilities. ⛔ **A blank screen is the same
-failure mode as the phantom `Global` perspective**, and we should not trade one for the other.
+### ⭐⭐⭐ And the simplification that follows — **`DeclarePerspective` is NOT needed**
+
+⭐ I had argued a declaration API did double duty: it would let an empty perspective exist **and** serve
+§1d's *"`NOT-PRESENT` must be DECLARED"*. ⛔⛔ **The second half was wrong.** *"What this host offers"* belongs
+to the **capability manifest** *(charter `D4`)* — that is its whole purpose. ⭐ An empty perspective is a weak
+proxy for it, and using one as the signal would put host capability in the window manager.
+
+⇒ ⭐⭐ **Decision: no declaration API.** `GetPerspectives()` keeps its single rule — **derived from registered
+windows** — and CGF's `BTree`/`HSM`/`Blueprint` appear the moment their first window lands. ⛔ **One rule, not
+a `declared ∪ derived` duality to keep consistent.**
+⚠ **If the four icons are ever wanted visible before the windows exist, that is one small API away** — but
+it buys visibility only, and nothing depends on it.
+
+### ⭐ A risk I invented and have now removed
+
+📐 `PerspectiveCoordinatorSystem.ProcessPendingEvents` does the gizmo transfer **and** `SwitchMapOwner`
+**inside** `if (_perspectiveToSubsystemName.TryGetValue(...))`. ⇒ ⭐⭐ **an UNMAPPED perspective skips the whole
+block** *(only `_currentPerspective` updates)*.
+⇒ ⛔ **`§6-R1` (gizmo `Remove`→`Add` on the same controllable) and `§6-R2` (`SwitchMapOwner` re-firing) existed
+ONLY because I proposed mapping all four.** ⭐ **With three unmapped, both are gone** — an intra-CGF
+`Scenario → BTree` switch touches neither the gizmo listeners nor map ownership.
+⚠ **The one behaviour to be aware of** *(not a defect — it is what the editor does today)*: switching straight
+from `IG` to CGF's `BTree` leaves the map owned by whoever had it, because no entry fires.
 
 ## 1f. ⛔⛔ STRIDEMOCK — **remove the subsystem, but `StrideNodeBootstrapper` MUST SURVIVE**
 
@@ -375,8 +387,8 @@ sequenceDiagram
 
 | # | risk | the measurement |
 |---|---|---|
-| **R1** | ⭐ **gizmo listener churn on an intra-subsystem switch.** With four perspectives mapped to one CGF controllable, `Scenario → BTree` does `RemoveListener` then `AddListener` on the **same object** | does a listener count reaching 0 have any side effect *(teardown, buffer clear)*? ⛔ If yes, the gizmo feed dies on every intra-CGF switch |
-| **R2** | **`SwitchMapOwner("CGF")` fires on every intra-CGF switch** | is it idempotent w.r.t. camera and selection, or does it reset them? |
+| ~~**R1**~~ | ✅ **WITHDRAWN `2026-08-23`** — gizmo listener churn on an intra-CGF switch | ⛔ **It only existed because I proposed mapping all four perspectives.** 📐 An unmapped perspective skips the transfer entirely *(§1e)* ⇒ nothing to measure |
+| ~~**R2**~~ | ✅ **WITHDRAWN `2026-08-23`** — `SwitchMapOwner` re-firing intra-CGF | ⛔ same cause, same removal. ⭐ Only `Scenario` is mapped, so the map path behaves exactly as it does for `IG`/`SimHost`/`ExCon` today |
 | **R3** | ⚠ **`PerspectiveWorkspaceServices`' dependency set in CGF** | construct it in a CGF-shaped host and see what is genuinely absent ⇒ feeds charter **D3**/**D4** |
 
 ## 7. ⭐ WHAT THIS BUYS
@@ -392,7 +404,7 @@ sequenceDiagram
 | # | question | ⭐ my lean |
 |---|---|---|
 | **51b-A** | Build **A0 before A1**? | ✅ **DECIDED (coordinator, `2026-08-23`) — yes.** ⭐ It is a **dependency, not a preference**: without it the rename can brick a developer's UI silently, so no ordering discussion is available |
-| **51b-B** | CGF **adds** asset perspectives and **keeps** `CGF` for diagnostics? | ⛔⛔ **ANSWERED BY THE USER, against my lean: NO — remove `CGF` entirely, rename it to `Scenario` immediately, and declare the other three now.** ⭐ My "add, don't replace" reasoning *(the four windows are diagnostics, not asset-scoped)* was **outweighed**: a lingering `CGF` perspective is a name the editor will never have, so conformance would carry a permanent exception. ⇒ **§1b + A9.** ⚠ **And it exposed a real gap** — declaring an empty perspective is impossible today *(§1e)* |
+| **51b-B** | CGF **adds** asset perspectives and **keeps** `CGF` for diagnostics? | ⛔⛔ **ANSWERED BY THE USER, against my lean: NO — remove `CGF` entirely, rename it to `Scenario` immediately, and declare the other three now.** ⭐ My "add, don't replace" reasoning *(the four windows are diagnostics, not asset-scoped)* was **outweighed**: a lingering `CGF` perspective is a name the editor will never have, so conformance would carry a permanent exception. ⇒ **§1b + A9.** ⚠ **My follow-on proposals were then BOTH cut back by the user** *(§1e)*: no `perspectiveMap` entries for the three, no placeholder, and **no declaration API** — an empty perspective is simply fine |
 | **51b-C** | Part B touches `Hrot.Editor.AiShared` — the **frozen** area *(`R-128`)*. Whose lane? | ⚠ **the UI/variable lane's**, or the freeze is narrowed for this. ⛔ **Do not have two sessions build it** — that is the exact thing the freeze exists to prevent |
 | **51b-D** | Does Part A wait for the lanes to be idle? | ✅ **DECIDED (coordinator, `2026-08-23`) — no, and the question is moot: 📐 BOTH LANES ARE IDLE RIGHT NOW** *(verified by ancestry, not by claim)*. ⇒ ⭐ **dispatch immediately** — waiting only raises the chance a lane starts something that collides. ⚠ **Part B still waits** on `51b-C` |
 | **51b-F** | ⭐ **`StrideMock`** keeps its own single perspective? | ⛔ **NO — user ruled the whole subsystem obsolete** *(the real Stride port superseded it)*. ⚠ **But it is not a clean delete: `StrideNodeBootstrapper` is load-bearing for the real Stride app** ⇒ **split-and-relocate, in its OWN batch** — **§1f** |
