@@ -106,6 +106,7 @@ user which to dispatch first** — do not dispatch unasked.
 | **1** | `GET /perspectives` *(list)* + `POST /perspective {name}` *(switch)* on the DebugApi | `TESTING_Harness_And_Goldens.md` §3 · `DESIGN_Headless_Testability.md` step 5 |
 | **2** | ⭐⭐ **Lift `DebugApiHost` one level up** — from `EditorSubsystem` to the `ClusterRunner` host *(mode-independent)* so `/panels` + `/perspective` answer in **`--mode cluster`** too. ⛔ **NOT a second editor-only endpoint** | `TESTING_Harness_And_Goldens.md` §1 *("wire the existing DebugApiHost one level up")* · step 6 |
 | **3** | `ClusterRunnerFixture(mode)` + the differential conformance suite — same scenario, two modes, **diff by `PanelKind`** *(reference IS the other mode's live dump; no golden to maintain)* | `TESTING_Harness_And_Goldens.md` §5 · step 7 |
+| **4** | ⭐ **`BP-487` — wire `ClearCaptured` + the gizmo publish across the FOUR gizmo hosts** *(IG · CGF · ReplayBrowser · SimHost)*, not just `EditorSubsystem`. ⚠ **Not a defect today** *(the debug API is Editor-only; a host that never clears keeps the latest-wins default)* — ⛔ **it becomes one the moment conformance drives two hosts**, so it belongs with whoever owns cross-host *(this lane)*. ⭐ **BP-485's address/kind split is what makes this wiring safe** | `MCP_Integration.md` *(Group T)* · filed by UI lane, BP-485 commit |
 
 ### Batch B — MIGRATION / CLEANUP
 
@@ -129,7 +130,8 @@ behind Batch B.
 | **BP-399 tail** | Q49 *(subtree-sync identity — option **C**, recompute at load)* + Q50 *(master-blackboard slice — option **A**, declare)* both **resolved + built**. The `L0–L6` view-switching tail *(`DESIGN_Details_Panel_View_Switching.md`)* is the UI lane's, parked by the user |
 | **Time-lane MX-011** | switch `GET /panels/_gizmo` to read the snapshot entry *(U-obs-3 now registers the gizmo buffer into PanelSnapshot)* — a small follow-up, not urgent |
 | **Two open architect sub-questions** | Q49 missing-subtree-asset-at-load *(lean: diagnostic row)* · Q50 postponed Category-2 generated-callee limit — the user's call, no rush |
-| **Carried gap** | T2-via-snapshot covers the **Watch** but not yet the **Details table** *(Details publishes only shell model + `HasContent`/`Heading`, no rows)* |
+
+✅ **Closed since first draft** — the carried **Details-table** gap is GONE: `BP-484` *(UI lane, merged `b1082417c`)* now publishes the Details table's rows through the same `VariableTablePanelViewModel` as the Watch, so **T2-via-snapshot covers the Details table too**. Rail `BothPanelsAgreeThroughTheSnapshot`.
 
 ---
 
