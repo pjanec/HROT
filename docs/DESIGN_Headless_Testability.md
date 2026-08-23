@@ -246,6 +246,43 @@ is process-wide.
 > Method: read of the named symbols + the single wiring site *(only `EditorSubsystem` constructs `DebugApiHost`)*.
 > The three ⛔ gaps are the conformance work; everything else is substrate that already exists and is reused.
 
+## ⭐⭐⭐ Existing test mechanisms — the housekeeping verdicts *(user, 2026-08-23)*
+
+⭐ Audit of every automated-testing mechanism, and what happens to it now the subprocess harness exists.
+
+| mechanism | verdict |
+|---|---|
+| **59 xUnit projects** *(unit + per-class integration)* | ✅ **KEEP** — the unit layer |
+| **MCP harness** *(`Hrot.SystemTests`, subprocess + HTTP)* | ✅ **KEEP — the go-forward spine** for system/capability/conformance |
+| **`Hrot.Smoke.Tests`** *(in-process `EditorHarness`, T1/T2, gated)* | ✅ **KEEP** — the fast single-host layer. ⛔ **migrate its `EditorPanels` → `PanelSnapshot`** *(`U-obs-4`)* to kill the duplicate panel-model path |
+| **JSON TestScript engine** *(`Fdp.Toolkits/Runner/Testing` + 6 `e2e_*.json`)* | ⛔ **CONVERT + RETIRE** *(user: "convert/reimplement existing json driven e2e stuff to the new harness")* — the 6 record/replay/checkpoint scripts become harness cases; the engine's e2e role ends. ⇒ ⛔ the harness's `H7` is NOT a new DSL |
+| **`--mode ci` / `MinimalCIScenario`** | ⚠ **RETIRE once the harness is proven** *(user)* — ⭐ **keep ONLY if it is different or MUCH faster** than a full MCP-driven test; otherwise it goes |
+| **Frame rail / ui-probe** *(pixels, T3)* | ✅ **KEEP** — the only pixel path, for the rare tail |
+| **Domain goldens** *(blueprint codegen · generator · EQS)* | ✅ **KEEP** — different domains; the new panel/state goldens follow the SAME `<FAMILY>_GOLDEN_CAPTURE` env convention *(not a second mechanism)* |
+
+### ⛔⛔⛔ A crashing / un-gateable test is a DEFECT to RESOLVE — never a permanent filter-around *(user, 2026-08-23)*
+
+> ⭐⭐⭐ **User, verbatim:** *"if [a test] crashes it means it needs analyzing/rethinking/fixing/justified-removal,
+> not generic refusal."*
+
+📌 **The cases:** `Hrot.ClusterRunner.Integration.Tests` *(`BP-378` — 89/75/117-of-174, aborts: `MAX_ENTITIES=1M`
+**per repository, one per test** → OOM; CycloneDDS `dds_take -3`; module timeouts)* and `Fdp.Presentation.Tests`
+*(`BP-419` — host crashes ~18–20 cases in)*. ⛔ **They have been gated by FILTER only for ~40 batches — that is
+the "generic refusal" this ruling ends.** ⇒ ⭐ **each such suite gets: root-cause analysis → FIX** *(e.g. make
+`MAX_ENTITIES` test-configurable / dispose the repository between tests / fix the DDS-allocator teardown)* **→ or
+a JUSTIFIED removal**, ⛔ **not indefinite avoidance.** ⚠ The subprocess harness *relieves* the e2e portion
+*(fresh process per collection ⇒ no accumulation)*, but ⛔ **that does not excuse leaving the in-process suites
+broken** — the ruling is about resolving them, not routing around them.
+
+### The migration, sequenced
+
+| # | move | note |
+|---|---|---|
+| **M1** | the 6 `e2e_*.json` scripts → harness capability cases | they test record/replay/checkpoint — the harness ladder already covers the shape |
+| **M2** | ⛔ **fix or justify-remove `BP-378` / `BP-419`** *(the crash roots)* — not filter-forever | the user ruling above; a named remediation, its own batch |
+| **M3** | smoke `EditorPanels` → `PanelSnapshot` | `U-obs-4` |
+| **M4** | retire the JSON TestScript engine's e2e role · retire `--mode ci` | ⭐ **only after** the harness proves the coverage; keep `--mode ci` iff faster/different |
+
 ## Open questions (resolve with the user)
 
 1. **Conformance coverage** — which perspectives/panels first? *(Lean: the unified variable/Details/blackboard panels — where the unification risk concentrates.)*

@@ -96,7 +96,7 @@ Two styles, used for different jobs:
 | step | how |
 |---|---|
 | **location** | `Hrot.SystemTests/Goldens/<scenario>/<perspective>.json` *(one per scenario × perspective)* — checked into git |
-| **create/update** | run with **`UPDATE_GOLDENS=1`** *(env)* → the test writes the dump instead of comparing |
+| **create/update** | ⭐ follow the **existing** per-family env convention *(`EQS_GOLDEN_CAPTURE` is the precedent)* — set **`PANEL_GOLDEN_CAPTURE=1`** and the test writes the dump instead of comparing. ⛔ **Do not invent a new golden mechanism** — reuse the `<FAMILY>_GOLDEN_CAPTURE` shape |
 | ⛔⛔ **review the diff** | a regenerated golden is a **DIFF you must read**, never a rubber-stamp — 📌 the rule-8 gate already demands *"golden movement as a diff shape"* |
 | ⭐ **ship it with the feature** | ⛔ **a change that alters what a panel shows regenerates its golden IN THE SAME BATCH** — see §6 |
 
