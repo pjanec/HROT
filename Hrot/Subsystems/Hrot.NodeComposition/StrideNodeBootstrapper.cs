@@ -172,18 +172,25 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         Context.SlaveTranslator?.Tick();
         Context.ClusterSlave.Tick();
 
-        // Forward dt directly — SlaveSyncController needs network sync events to advance
-        // deterministically, which are absent in headless/offline mode.
+        // ST-021: the TIME CONTROLLER owns time, not the caller's frame delta.
         //
-        // ⚠ ST-014: the ORIGINAL justification for the legacy Update(float) overload was that "this
-        // bootstrapper is explicitly a mock/test-only harness, not a live DDS-connected node". That
-        // premise is now FALSE — the mock is retired and this is the real Stride app's composition
-        // root, which can be DDS-connected. The call is left exactly as it was: this batch only moved
-        // the type, and re-deciding the tick path is a behaviour change that needs its own review.
-        // Filed rather than silently patched or silently kept — see the batch report.
-#pragma warning disable CS0618
-        Context.Kernel.Update(dt);
-#pragma warning restore CS0618
+        // This used to call the [Obsolete] Update(float) overload behind a #pragma, justified as "a
+        // mock/test-only harness, not a live DDS-connected node". Both halves of that were wrong once
+        // the mock was retired: this is the real Stride app's composition root, and the overload's own
+        // attribute says it "will cause deterministic desync" -- it fabricates a GlobalTime (synthetic
+        // FrameNumber, TotalTime approximated as simTime+dt) and leaves the real controller's state
+        // behind, which is exactly the divergence the regression net rests on not happening.
+        //
+        // The comment also claimed SlaveSyncController "needs network sync events to advance ... absent
+        // in headless/offline mode". ⚠ MEASURED FALSE: AdvanceContinuousTime derives elapsed from
+        // SyncedWallTicks = _getTick() + _masterWallClockOffset, where _getTick defaults to the local
+        // HighResUtcClock and the offset is simply 0 until a master answers. Sync events CORRECT the
+        // offset; they do not gate advancement. So offline this node advances on its own wall clock and
+        // silently starts tracking the master when one appears -- which is the intended behaviour.
+        //
+        // `dt` is still the caller's frame delta for the gizmo producer buffer above; only the kernel
+        // stops being driven by it. Same shape CgfSubsystem already uses.
+        Context.Kernel.Update();
         Context.EventBus.SwapBuffers();
 
         // _gizmoIngress?.PollAndApply();  // fills ConsumerBuffer from DDS — wire in SM-006

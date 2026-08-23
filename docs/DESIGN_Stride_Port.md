@@ -308,7 +308,32 @@ update to be reported as *"REVIEWED, NOT COMPILED"*. 📐 It **compiles**: with
 `Microsoft.WindowsDesktop.App` 8.0.0 and reports *"No frameworks were found"*. ⇒ `StrideGameReferenceTests`
 was **updated to the new home and compiles, but has not been executed anywhere.**
 
-## 8. ⛔⛔ `ST-018` RE-GRADED BY THE COORDINATOR — **it is a DESYNC hazard, not a stale comment** *(`2026-08-23`)*
+## 8. ✅ `ST-018` RESOLVED — **the desyncing tick path is gone** *(`ST-021`, Batch runner-tick)*
+
+> ⭐⭐ **Outcome:** `StrideNodeBootstrapper.Tick` now calls `Context.Kernel.Update()` and the
+> `#pragma warning disable CS0618` is **deleted**. ⭐ With `TreatWarningsAsErrors=true` on
+> `Hrot.NodeComposition`, the obsolete overload would now be a hard **error** there, not a warning — the
+> suppression cannot creep back silently.
+>
+> ⛔⛔ **AND ONE PREMISE OF THE RE-GRADE'S OWN CONTEXT WAS FALSE.** The code comment being replaced said
+> *"`SlaveSyncController` needs network sync events to advance deterministically, which are absent in
+> headless/offline mode"* — 📐 **measured FALSE**: `AdvanceContinuousTime` derives elapsed from
+> `SyncedWallTicks = _getTick() + _masterWallClockOffset`, where `_getTick` defaults to the local
+> `HighResUtcClock` and the offset is **0** until a master answers. ⇒ ⭐⭐ **sync events CORRECT the
+> offset; they do not GATE advancement.** Offline the node advances on its own wall clock and starts
+> tracking a master when one appears.
+>
+> ⭐⭐⭐ **This is the only reason `T1` was a clean fix rather than a STOP.** The dispatch said *"if the
+> stepping path needs state this bootstrapper does not have, STOP and report — do not invent a time
+> source."* ⚠ Had the old comment been true, `Update()` would have frozen an offline Stride node and the
+> right answer would have been to report, not to patch. ⇒ 📌 **the premise had to be measured before the
+> one-line change could be justified**, and `SteppingTimeController` was NOT needed: the controller the
+> node already has does the right thing.
+>
+> ⛔ **Gate limit:** `HrotStrideApp.Game` **compiles** (`-p:EnableWindowsTargeting=true`) but the Stride
+> suites cannot RUN here (`ST-006`) ⇒ **owed a Windows check**.
+
+### ⛔ HISTORY — the re-grade as written
 
 ⭐ **The batch filed `ST-018` correctly and left the call byte-for-byte** — ⭐⭐ that was the right call for a
 batch whose remit was to MOVE the type. ⛔ **But the finding is more serious than its report implies, and the
@@ -333,3 +358,21 @@ cluster**, and that is before, not after, we would notice.
 ⇒ ⭐⭐ **Scheduled as its own item** *(with the runner's mode rails — they share a gate: "does each mode start
 AND tick correctly?")*, ⛔ **not folded into the test-infrastructure batch**: changing a kernel tick path is a
 behaviour change and wants the time/integration suites, not a golden.
+
+
+---
+
+## ⭐⭐ 9. THE MODE RAILS — **where "every mode starts and ticks" now lives** *(`ST-019`)*
+
+📄 **`Hrot/Runner/Hrot.SystemTests/ModeStartupRails.cs`** — eight cases, each booting the **real**
+`Hrot.ClusterRunner` in one mode and holding it for a window (10 s default, `HROT_MODE_RAIL_WINDOW`).
+⭐ Replaces a MANUAL gate row that had been asked for and not delivered, which is how `--mode all` came to
+die on frame one in front of the user with every unit rail green.
+
+| ⭐ | |
+|---|---|
+| **reuse, not a second launcher** | the Xvfb-ownership logic was **private** to `EditorProcessFixture`; it is extracted to **`XvfbDisplay.cs`** and the fixture delegates. ⛔ Two copies of the orphan-avoidance was the alternative — ⚠ `xvfb-run` stops its server from an EXIT trap that `Process.Kill` never runs, so each copy that got it wrong would leak a display per run |
+| **why a WINDOW and not a launch check** | under `--mode all` each subsystem gets its **own isolated `FdpEventBus`** — the documented design, and the reason that crash existed. The fault appears on the first **publish**, not at startup ⇒ a launch-only check would have stayed green through it |
+| ⭐⭐ **the banner is expected PER MODE** | `--mode all` is an **alias**: the runner echoes what it **expanded to** (`mode=orchestrator,simhost,ig,excon,cgf`). ⇒ this **pins the five-subsystem expansion at process level**, the fact the charter had to measure by hand. 📌 The rail's first version asserted `mode=all` and reddened a healthy mode |
+| ⚠ **what it does NOT prove** | a mode **composes and survives**; ⛔ **not forward progress.** A subsystem that ticks once then silently stalls passes — frame counting needs a per-mode control plane and only the editor has one (`GET /status`, covered by `PanelSnapshotTests`) |
+| ⭐ **`ig` is quarantined WITH A TRIPWIRE** | `R-131` forbids a permanent filter-around ⇒ a case asserts `ig` is **still** broken and **FAILS the day it is fixed**, naming `ST-020`. ⛔ `stridemock` is absent by design — that token now throws (`ST-015`) |
