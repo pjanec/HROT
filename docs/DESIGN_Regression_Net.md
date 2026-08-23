@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — the UML is §5/§6, the items are §7. ⚠ `N0` has an external prerequisite
-  (`A0`, the unknown-perspective refusal, in the perspectives batch); everything else is self-contained.
+build-state: BUILDING — `N0` is BUILT (2026-08-23, MX-012, plus HN-007/HN-008 found while building it);
+  `N1`-`N6` are in flight. The UML is §5/§6, the items are §7, and §7's AS-BUILT rows carry what the build
+  actually did.
 updated: 2026-08-23
 current-answer: the whole file. §4 is the decision that shapes everything (D7); §7 is what to build, in
   dependency order; §8 is the step that makes the net trustworthy rather than merely green.
@@ -12,6 +13,9 @@ design-basis: PROGRAMME_Unification_And_Harness.md §2 (the four jobs, user's wo
 known-conflict: none. ⭐ §4b REFINES charter D5 (golden key: PanelId, not PanelKind) — a sharpening of the
   same granularity requirement, not a reversal. §9-R3 records that this design does NOT yet cover
   cross-host conformance; that stays in DESIGN_Headless_Testability.md.
+known-rot: §2's inventory row "the frame boundary ... Fine here" was WRONG about the reader and is
+  corrected in place (HN-007). It listed ClearCaptured() as an asset; measured, its ORDER relative to the
+  API job drain made every HTTP panel read return an empty set.
 -->
 # DESIGN — **the regression net**: what protects the unification, and how we know it works
 
@@ -45,7 +49,7 @@ grep -rn "\.Reset(" --include=*.cs FDP/ Hrot/ | grep -v Tests # id-allocator res
 | ✅ | **the subprocess harness** — boots the real binary headless under Xvfb, drives it over HTTP | `Hrot.SystemTests/` — `EditorProcessFixture` · `McpClient` · `ApiResult` · `SystemTestBase` |
 | ✅ | existing rails to extend, not replace | `CapabilitySmokeTests` · `ScenarioBehaviorTests` · `PanelSnapshotTests` · `VariableAddressingTests` · `PreviewLifecycleRails` · `ShutdownRail` |
 | ✅ | **the panel read surface** | `GET /panels` *(registered · captured · kinds · captureEnabled)* · `GET /panels/{id}` · `GET /panels/_gizmo` |
-| ✅ | **the frame boundary** | `PanelSnapshot.ClearCaptured()` — ⚠ **one production caller, the editor's frame loop.** Fine here: this net is editor-only |
+| 🔴🔴 | **the frame boundary — CORRECTED (as-built, `2026-08-23`, `HN-007`)** | ⛔⛔ **THIS ROW SAID *"Fine here"* AND IT WAS THE DEFECT THAT WOULD HAVE MADE EVERY GOLDEN VACUOUS.** 📐 `ClearCaptured()` does exist and is called once per frame — ⭐ but it ran **one line BEFORE** `_debugApiJobQueue.DrainAll()`, i.e. before the drain that executes every HTTP request. ⇒ 🔴 **every out-of-band reader saw an EMPTY captured set, always**, and `GET /panels/{id}` answered `null` for every panel. ⚠ The mechanism is an ORDERING, not a missing feature — which is why an inventory that asks *"does it exist?"* rated it ✅. ✅ **Fixed: the drain runs BEFORE the clear**, so a reader sees the previous COMPLETE frame. 📌 **This is design §3's first failure mode caught in the act** — a green suite over a dead read path — and it was found by baselining the harness before writing a golden, which is the order §8 asks for |
 | ✅ | the two-set distinction the net depends on | `RegisteredPanels` *(instrumented at all)* vs `CapturedPanels` *(published this frame)* — ⛔ collapsing them is the false green `U1b` exists to prevent |
 | ✅ | curated worlds | `hill-attack` · `test-fire` · `test-move` |
 | ✅ | **the golden convention to reuse** | `EQS_GOLDEN_CAPTURE=1` ⇒ ⭐ **`PANEL_GOLDEN_CAPTURE=1`.** ⛔ Do not invent a second mechanism |
@@ -244,24 +248,48 @@ sequenceDiagram
     T->>T: and assert the 1 to 3 fields that MEAN something
 ```
 
-## 6. ⭐ THE CAPTURE PROTOCOL — three calls, and why each is load-bearing
+## 6. ⭐⭐⭐ THE CAPTURE PROTOCOL — **A CONTRACT, NOT ADVICE** *(hardened by `HN-007`, `2026-08-23`)*
+
+> ⛔⛔ **UPGRADED FROM CONVENTION TO CONTRACT.** ⚠ This section used to read as good practice — *"the switch
+> takes effect on the next frame"* — and a reader could skip the step and usually get away with it.
+> 📐 **`HN-007` measured why they cannot:** the API's main-thread job queue drains **at the top of the
+> frame, BEFORE the panels draw.** ⇒ ⭐⭐⭐ **an out-of-band reader NEVER sees the frame it is inside; it
+> sees the PREVIOUS one.** ⛔ **Act, step a tick, then read is now the only correct order** — skipping the
+> step does not merely risk staleness, it reads a different frame than the one the action affected.
 
 | step | ⭐ why it cannot be skipped |
 |---|---|
-| `POST /perspective {name}` | ⭐⭐ **a panel publishes only when its DRAW runs, and only the active perspective draws** ⇒ without this, 3 of the 4 editor perspectives are invisible |
-| `POST /sim/step {ticks:N}` | the switch takes effect on the **next frame** — the panels register during it |
+| `POST /perspective {name}` | ⭐⭐ **a panel publishes only when its DRAW runs, and only the active perspective draws** ⇒ without this, 3 of the 4 editor perspectives are invisible. ✅ Built as `N0` *(`MX-012`)* |
+| ⭐⭐⭐ `POST /sim/step {ticks:N}` | ⛔⛔ **MANDATORY, not a settling courtesy.** The switch takes effect on the next frame AND the reader is served before that frame's panels draw ⇒ **two reasons, both structural.** 📌 `McpClient.SwitchPerspectiveAndSettleAsync` exists so no test has to remember |
 | `GET /panels/{id}` | now captured. ⚠ **`null` means "nothing captured"** — ⭐ ask `registered` to learn whether it is *not instrumented* or *did not draw*. ⛔ Those are different findings |
+
+### ⛔⛔ The consequence `N1` must respect
+
+⭐⭐ **A same-frame read returns the EMPTY PREFIX of the current frame.** ⇒ 🔴 **two such reads would diff as
+"identical" and prove nothing** — a determinism rail built on them would be green and vacuous, which is
+design §3's failure mode wearing the costume of a success. ⭐ **Every capture `N1` diffs must come after a
+step.**
 
 ## 7. ⭐⭐ THE ITEMS — **dependency order, and N1 gates everything after it**
 
 | # | item | depends on | done when |
 |---|---|---|---|
-| ⭐⭐ **N0** | **`GET /perspectives` + `POST /perspective {name}`** on the DebugApi, over the existing `WindowManager.GetPerspectives()` / `SwitchPerspective` / `CurrentPerspective`. ⛔ **Validate the name and 400 with the list** | ⚠ **`A0`** *(the perspectives batch's unknown-id refusal)* — ⭐ it makes this validation a two-line delegation instead of a reimplementation | a rail switches to each of the four editor perspectives and captures a panel that was previously unreachable |
+| ✅ **N0** | **`GET /perspectives` + `POST /perspective {name}`** on the DebugApi, over the existing `WindowManager.GetPerspectives()` / `SwitchPerspective` / `CurrentPerspective`. ⛔ **Validate the name and 400 with the list** | ⚠ **`A0`** *(the perspectives batch's unknown-id refusal)* — ⭐ it makes this validation a two-line delegation instead of a reimplementation | ✅ **BUILT `2026-08-23` — `MX-012`.** See the AS-BUILT below |
 | 🔴🔴 **N1** | ⭐⭐⭐ **THE DETERMINISM RAIL — before any golden exists.** ① wire the **id-allocator reset** on `WorldResetEvent` *(charter **D6**, and mind its four caveats)*; ② load one scenario in **two fresh processes**, step the same N, and diff **the whole id→entity mapping and every captured panel dump** | N0 | **byte-identical**, twice, in fresh processes. ⛔ **If not: find the source and FIX IT** — 📌 the causes to expect are float formatting, dictionary order, wall-clock stamps and spawn order. ⛔⛔ **Do NOT reach for normalisation to hide non-determinism** *(D6 caveat ①)* |
 | ⭐ **N2** | **`GoldenStore` + `PanelNormalizer`.** `PANEL_GOLDEN_CAPTURE=1` writes, else compares. `Goldens/<scenario>/<panelId>.json` *(§4b)*. ⭐ The ignore-list is **explicit, documented and SHORT** | N1 green | a deliberate one-field change produces a diff **naming the JSON path**, not a wall of text |
 | ⭐⭐ **N3** | **The first slice of goldens** — ⛔ **a budget, not a sweep** *(§4's trap)*. ⭐ Lean: **`hill-attack` × the four editor perspectives × only the large-dump panels**, each paired per **D7** | N2 | every golden has its pairing assertions; **the count is stated in the report**, with what was left out and why |
 | 🔴🔴 **N4** | ⭐⭐⭐ **THE MUTATION PROOF — §8.** ⛔ Without it the net is unproven | N3 | for each mutation: **exactly** the expected golden/assertion reddens, everything else stays green — **reported as a table** |
 | ⭐⭐ **N5** | **Behaviour assertions on the curated scenarios** — `/entities/{id}/state`, `/events`, `/breakpoints/hits`. ⭐ **First case: the `R-132` defect** — *the platoon approaches the computed baseline, not the origin* | N0 | that assertion **fails** on a tree with `ApplyResolverOverlay` reverted, and passes now — ⭐ **state both results** |
+
+### ✅ AS-BUILT — `N0` *(`MX-012`)*, and the seam decision worth not re-litigating
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **NO SECOND SEAM.** `IPerspectiveSwitcher` *(`Hrot.Editor.AiShared/Documents/`)* was EXTENDED with `GetPerspectives()` and `CurrentPerspective` | 📐 It already existed, already wrapped the `WindowManager`, and was already constructed at `EditorSubsystem.RegisterWindows:2471` — **the only moment the window manager exists.** ⭐ One production implementor, no test fakes ⇒ extending it broke nothing and `AiDocumentManager` compiled unchanged. 📌 The seam law again: *"we need a shared X"* meant X existed and was under-adopted |
+| ⚠⚠ **THE DEPENDENCY ARRIVES LATE, AND THAT IS FORCED** | 📐 `DebugApiService` is constructed in `Initialize` (~`:1767`); the window manager does not exist until `RegisterWindows` (`:2451`). ⇒ ⛔ **a constructor parameter is not available to be passed** — `AttachPerspectives(...)` is the only shape. ⚠ **That is the silent-default shape**, so two controls: the call sits on the line AFTER the switcher is constructed *(not in a later block a refactor can drift away from)*, and a rail asserts the **REACH**, not the wiring |
+| ⭐ **Validation delegated, status codes split** | `503` = *not wired* *(a composition-root defect)*; `400` = *that perspective does not exist*, **with the claimed set named in the message.** ⛔ Collapsing them would make a wiring defect read as a bad request |
+| ⭐⭐ **The reach, measured** | **Scenario 12 · BTree 9 · HSM 7 · Blueprint 13** captured; **11 panels reachable only from Blueprint** *(`ai_*_blueprint` + `entity-blueprints`)*. ⇒ ⭐ §2's *"~11 of 47 reachable"* is closed, and **`N3` should spend its budget ACROSS perspectives** |
+| ⭐⭐ **The rail asserts a SET DIFFERENCE** | ⛔ Three weaker forms would each pass on a broken build: *"the switch returned 200"* *(`A0` no-ops silently)*, *"current changed"* *(a perspective can change without drawing)*, *"captured is non-empty"* *(the previous perspective's capture satisfies it)*. ⚠ It checks non-identity, ⛔ **not disjointness** — `WindowScope.Global` and pinned windows appear in every perspective by design |
 
 ## 8. ⭐⭐⭐ N4 — **HOW WE PROVE THE NET WORKS** *(charter step 3's "make sure the harness works")*
 

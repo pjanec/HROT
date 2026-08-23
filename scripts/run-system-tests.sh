@@ -7,7 +7,7 @@
 # for that. Expect ~20-30 s plus the build.
 #
 # Usage:
-#   scripts/run-system-tests.sh                     # the whole SystemSmoke suite
+#   scripts/run-system-tests.sh                     # the whole suite (SystemSmoke + SystemModes)
 #   scripts/run-system-tests.sh Playing_hill_attack # only cases matching a name
 #   scripts/run-system-tests.sh --no-build          # skip the build (only when nothing changed)
 #
@@ -53,9 +53,24 @@ if [[ $BUILD -eq 1 ]]; then
 fi
 
 # ── Run ──────────────────────────────────────────────────────────────────────
-FILTER='Category=SystemSmoke'
+# HN-009: the filter covers BOTH categories, and it did not.
+#
+# Measured 2026-08-23: the project holds 52 cases; this script ran 44. ModeStartupRails.cs carries only
+# [Trait("Category","SystemModes")], so its 8 rails -- including the --mode ig TRIPWIRE that is meant to
+# fail the day ST-020 is fixed -- were never run by the project's own runner. A rail the standard gate
+# does not execute is a rail nobody will see fire, which is the same disease as HN-007: green because
+# nothing looked.
+#
+# Widened here rather than by editing ModeStartupRails.cs: that file belongs to the runner batch, and a
+# trait added to it would be a cross-lane edit for a problem that is the SCRIPT's.
+# Cost, measured: SystemSmoke 44 cases ~29 s; SystemModes 8 cases ~62 s (each boots a runner in a
+# different mode). ~90 s total. This is the slow lane on purpose (D10) -- scripts/quick-check.sh is the
+# per-edit gate -- so covering both is the right trade.
+FILTER='Category=SystemSmoke|Category=SystemModes'
 if [[ -n "$NAME_FILTER" ]]; then
-  FILTER="$FILTER&FullyQualifiedName~$NAME_FILTER"
+  # A name filter applies to both categories, so it must distribute over the OR rather than bind to the
+  # last clause: "A|B&Name~x" would filter only B.
+  FILTER="(Category=SystemSmoke|Category=SystemModes)&FullyQualifiedName~$NAME_FILTER"
 fi
 
 echo "== running: $FILTER =="

@@ -2035,7 +2035,7 @@ namespace Hrot.Editor
 
             // ⭐⭐⭐ Pump AI-debug API (MCP) jobs onto the main thread once per frame.
             //
-            // 🔴🔴 MOVED ABOVE ClearCaptured() — 2026-08-23, HN-xxx. It used to sit one line BELOW it, so
+            // 🔴🔴 MOVED ABOVE ClearCaptured() — 2026-08-23, HN-007. It used to sit one line BELOW it, so
             //    EVERY `GET /panels` served through this queue ran exactly one statement after the
             //    captured set was emptied and BEFORE anything refilled it (the gizmo feed publishes later
             //    in this method; every panel publishes in DrawUI(), later still).
