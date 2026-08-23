@@ -12,7 +12,11 @@ known-conflict: none. §1b is the user-confirmed target model. ⚠ An earlier re
   six editor perspectives (adding Authoring/Analysis); that was WRONG and is corrected in §1 — those two
   are never registered in production, so the glossary's four was right all along.
 -->
-# DESIGN — perspective unification: make the editor's and the cluster's perspective names the same
+# DESIGN — **the perspective model**, and unifying it across the editor and CGF
+
+> ⭐⭐⭐ **This is THE perspective design doc.** It owns: what a perspective IS and how one comes to exist,
+> which subsystem provides which, what "Global" means *(and does not)*, and the cross-host unification.
+> ⛔ Handoffs **reference** this file; they do not restate it.
 
 > ⭐⭐⭐ **Why:** conformance can only compare like with like. Today the editor shows
 > `Editor · BTree · HSM · Blueprint` and a CGF-hosting runner shows `CGF`. ⇒ **nothing lines up**, and a
@@ -69,6 +73,82 @@ withdrawn Batch A was designed around.
 **co-running** subsystems must never claim the same perspective name. 📐 Not a problem for any legal mode
 combination today.
 
+## 1c. ⛔⛔⛔ "GLOBAL" IS NOT A PERSPECTIVE — *(user ruling `2026-08-23`, from a visual check)*
+
+> ⭐⭐⭐ **User, verbatim:** *"a new perspective ICON called 'Global' which i never asked for. The global
+> perspective should have no icon, it is just place for windows that do not belong to any specific
+> perspective but are available globally, pinnable to any other perspective."*
+
+### ⭐⭐ The rule
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **A globally-available window is `WindowScope.Global` with an EMPTY `OwningPerspective`** | 📐 **the pattern already exists and is correct** — `OrchestratorWindow` / `DiagnosticsWindow` use `base(id, title, string.Empty, WindowScope.Global)` ⇒ always visible, and **invisible to `GetPerspectives()`**, which filters to `PerspectiveBound` |
+| ⛔⛔ **"Global" must NEVER be an `OwningPerspective` VALUE** | it is a **scope**, not a place. ⭐ A window whose perspective is the *string* `"Global"` becomes a real perspective with a real icon |
+| ✅ **the Windows MENU's "Global" group is CORRECT — keep it** | 📐 `WindowManager.cs:787-798` groups `WindowScope.Global` windows under the label `"Global"` in the Windows menu. ⭐ That is a **menu grouping**, not a perspective, and it is exactly the *"place for windows that do not belong to any specific perspective"* the user describes |
+
+### 🔴 The defect this ruling names — **two bugs in one line**
+
+📐 `EditorSubsystem.cs:2995-2998` registers the asset-browser Find-Results window as:
+
+```csharp
+// Global Asset Browser -- single instance, Global scope, shows Open-docs section.
+var assetBrowserFindResults = new FindResultsWindow(
+    idOverride:        "ai_asset_browser_find_results",
+    owningPerspective: "Global");            // 🔴 the SCOPE was meant; the PERSPECTIVE was passed
+windowManager.RegisterWindow(assetBrowserFindResults);
+```
+
+⚠ **The comment says *"Global scope"* — the intent was `WindowScope.Global`.** ⛔ But `FindResultsWindow`
+hard-codes `WindowScope.PerspectiveBound`, so the string landed in the **perspective** slot:
+
+| # | consequence | how it shows |
+|---|---|---|
+| **①** | ⭐ **a phantom perspective named `Global`** | `GetPerspectives()` returns it *(`WindowManager.cs:248`)* ⇒ `PerspectiveToolbarSection.cs:92` iterates that list and draws **an icon per entry** ⇒ **the icon the user never asked for** |
+| **②** | 🔴 **and the window is NOT globally available** — the opposite of its intent | a `PerspectiveBound` window is visible only when its perspective is current ⇒ the asset browser's find-results is reachable **only from the phantom perspective** |
+
+⭐ **Fix:** give it `WindowScope.Global` + an empty perspective *(the Orchestrator pattern)*. ⚠ That needs a
+**scope parameter on `FindResultsWindow`**, which hard-codes `PerspectiveBound` today.
+
+### ⚠ And the LATENT generator behind it — **remove the default, not just this call site**
+
+📐 `FindResultsWindow`'s signature is `owningPerspective = null` → `?? "Authoring"`.
+⇒ ⛔⛔ **any caller that omits the perspective silently invents one.** ⭐ Today no production caller omits it
+*(`PerspectiveWorkspaceRegistrar.cs:286-287` passes `perspectiveName`)*, ⛔ **but that is luck, not a
+control** — and `"Global"` is what the same shape looks like when it fires.
+⇒ ⭐⭐ **Make `owningPerspective` REQUIRED.** A phantom perspective then becomes **unconstructible**, rather
+than something a reviewer has to notice. 📌 The same reasoning as `CLAUDE.md`'s silent-default rule.
+
+## 1d. ⭐⭐ THE PERSPECTIVES ARE STANDALONE — **absence is a legitimate answer** *(user, `2026-08-23`)*
+
+> ⭐⭐ **User, verbatim:** *"note they are still standalone perspectives, and cgf can show (currently
+> enabled) different set of windows than the editor so the snapshots taken from one perspective can find no
+> corresponding data in the other perspective."*
+
+⇒ ⛔⛔ **Sharing a perspective NAME does not mean sharing a window SET.** `Scenario` in the editor and
+`Scenario` in CGF are **two independent workspaces** that happen to be comparable.
+
+| ⭐⭐ the consequence for conformance — **this is the important one** | |
+|---|---|
+| ⛔⛔ **A two-way diff is WRONG.** *"Present in A, absent in B"* is **not** a divergence | it is the **expected** state for every feature not yet ported |
+| ⭐⭐⭐ **The verdict must be THREE-way** | **SAME** · **DIFFERENT** · ⭐ **NOT-PRESENT-HERE** |
+| ⛔⛔ **And `NOT-PRESENT` must be DECLARED, never inferred from absence** | ⚠ **otherwise a genuinely BROKEN panel reads as *"not implemented yet"* forever** — the exact false green this programme exists to prevent. ⇒ ⭐⭐ **this is what the capability manifest is for** *(charter `D4`)*: the host states what it offers, the harness asserts against the statement, and a panel that should be there and is not becomes a **failure** rather than a shrug |
+
+```mermaid
+graph TD
+    W["a registered window"] --> S{"Scope == Global?"}
+    S -->|yes| VIS["visible in every perspective · contributes NO perspective"]
+    S -->|no| P{"IsPinned?"}
+    P -->|yes| VIS2["visible outside its own perspective"]
+    P -->|no| M{"OwningPerspective == Current?"}
+    M -->|yes| VIS3["visible"]
+    M -->|no| HID["hidden"]
+    W --> D{"Scope == PerspectiveBound?"}
+    D -->|yes| L["its OwningPerspective joins GetPerspectives"]
+    L --> T["PerspectiveToolbarSection draws ONE ICON per entry"]
+    D -->|no| NL["contributes nothing to the list · NO icon"]
+```
+
 ## 2. ⭐⭐ THE MECHANISM — how a perspective comes to exist
 
 ⭐⭐⭐ **A perspective is not declared anywhere. It exists because a window claims it.**
@@ -115,8 +195,16 @@ until it is green.**
 | **A3** | update `layout/default/fdp_windows.json` **only if** the shipped default should open on Scenario | 📐 it currently says `"Blueprint"`, so **no migration is required** — ⛔ do not invent one |
 | **A4** | follow the rename through the **44 test occurrences** | ⭐ several assert the perspective list; ⚠ **and any test asserting "four perspectives" is already wrong** *(§1)* — fix the count to the measured set, do not delete the assertion |
 
-⭐⭐ **Not in Part A:** ⛔ the `Authoring`/`Analysis` perspectives are left exactly as they are. They are a
-separate finding *(§8-E)*; renaming them is not required to make editor and CGF agree.
+### A5–A7 — the phantom perspectives *(added `2026-08-23` after the visual check)*
+
+| # | step | design basis |
+|---|---|---|
+| **A5** | 🔴 **Kill the phantom `Global` perspective** — give the asset-browser Find-Results window `WindowScope.Global` + an **empty** `OwningPerspective` *(the Orchestrator pattern)*. ⚠ Needs a **scope parameter** on `FindResultsWindow`, which hard-codes `PerspectiveBound`. ⭐ **Two fixes in one**: the icon goes away **and** the window becomes globally available, which was its stated intent | **§1c** |
+| **A6** | ⭐⭐ **Make `owningPerspective` REQUIRED on `FindResultsWindow`** — delete the `?? "Authoring"` default | **§1c**'s latent generator. ⛔ Without this, A5 fixes one call site and leaves the mechanism |
+| **A7** | ⭐ **Delete the dead `Authoring` and `Analysis` perspectives** — user ruled them never used. 📐 Neither is live *(§1)*, so no list changes and nothing is re-homed. ⛔ **The two COMPARISON panels are HELD** pending the user's confirmation *(§8-E)* — asset comparison reads like a designed-but-unwired capability | **§1** · user ruling |
+
+⭐⭐ **Ordering inside Part A:** **A0 first** *(nothing else is safe without it)*, then **A6 before A5**
+*(remove the generator, then fix the instance)*, then A1–A4, then A7.
 
 ## 4. ⭐⭐ PART B — CGF grows the asset perspectives *(`DESIGN`)*
 
@@ -241,4 +329,5 @@ sequenceDiagram
 | **51b-B** | CGF **adds** asset perspectives and **keeps** `CGF` for diagnostics? | ⭐⭐ **yes** — its four windows are not asset-scoped, nothing has to move, and each new perspective appears with its first window |
 | **51b-C** | Part B touches `Hrot.Editor.AiShared` — the **frozen** area *(`R-128`)*. Whose lane? | ⚠ **the UI/variable lane's**, or the freeze is narrowed for this. ⛔ **Do not have two sessions build it** — that is the exact thing the freeze exists to prevent |
 | **51b-D** | Does Part A wait for the lanes to be idle? | ⭐ **no** — 8 registration sites plus tests is small and touches nothing either lane is in. ⚠ **Part B does** |
+| **51b-F** | ⭐ **`StrideMock`** keeps its own single perspective? | ⭐ **yes, unchanged** — it is a legal mode with its own subsystem; nothing about it needs to move |
 | **51b-E** | **`Authoring`** / **`Analysis`** — ⭐ user ruled `2026-08-23`: never used, safe to delete | ⭐⭐ **delete.** 📐 Neither is a live perspective *(§1's corrected row)*, so nothing has to be re-homed and no list changes. ⚠ **But the four WINDOWS are then dead code, and `docs/` carries no design record for either feature** — ⭐ so delete the two `Authoring` windows outright, and ⛔ **confirm the two COMPARISON panels before deleting them**: asset comparison reads like a designed-but-unwired capability, which is the one case where deletion removes a feature rather than a mistake |
