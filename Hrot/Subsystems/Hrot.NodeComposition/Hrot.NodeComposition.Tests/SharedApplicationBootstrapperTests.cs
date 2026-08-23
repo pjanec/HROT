@@ -31,7 +31,7 @@ using Hrot.Network.Infrastructure;
 // Hrot.Common.Infrastructure (HrotNodeContext) and Hrot.Core.Network (INetworkFactory).
 using IOrchestrationTranslator = Hrot.Core.Network.IOrchestrationTranslator;
 
-namespace Hrot.StrideMock.Tests;
+namespace Hrot.NodeComposition.Tests;
 
 /// <summary>
 /// Tests for SharedApplicationBootstrapper covering all 10 SC_SM002_x success conditions.

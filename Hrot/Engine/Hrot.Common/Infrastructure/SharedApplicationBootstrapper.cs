@@ -19,7 +19,9 @@ namespace Hrot.Common.Infrastructure;
 
 /// <summary>
 /// Template-method base class that locks the 7-phase node initialization order,
-/// eliminating duplication across SimHost, IG, and StrideMock.
+/// eliminating duplication across SimHost, IG, and the Stride-hosted node (ST-014: the StrideMock
+/// subsystem that was the third consumer is retired; StrideNodeBootstrapper now lives in
+/// Hrot.NodeComposition).
 ///
 /// <para>
 /// Subclasses implement the abstract hooks listed below. The sealed

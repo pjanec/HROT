@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <!-- Library under test -->
-    <ProjectReference Include="..\Hrot.StrideMock.csproj" />
+    <ProjectReference Include="..\Hrot.NodeComposition.csproj" />
     <!-- NodeBootstrapper and HrotScenarioSerializerFactory -->
     <ProjectReference Include="..\..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <!-- SharedApplicationBootstrapper and HrotNodeBuilder -->

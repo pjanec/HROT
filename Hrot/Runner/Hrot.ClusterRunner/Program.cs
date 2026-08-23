@@ -426,7 +426,8 @@ class Program
             "ORCHESTRATOR" => 300,
             "CGF"          => 400,
             "CI"           => 500,
-            "STRIDEMOCK"   => 700,
+            // ST-015: the "STRIDEMOCK" => 700 arm went with the subsystem. Not in the dispatch's
+            // table, which recorded Program.cs:256 as the only StrideMock line in this file.
             _              => 600,
         };
         return baseNodeId + offset;

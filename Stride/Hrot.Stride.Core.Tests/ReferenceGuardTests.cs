@@ -8,12 +8,21 @@ namespace Hrot.Stride.Core.Tests;
 
 /// <summary>
 /// Guard tests ensuring Hrot.Stride.Core's assembly reference closure is free of
-/// Raylib, rlImGui, and Hrot.StrideMock — per design §3 / BATCH-01 STR-P0-T1.
+/// Raylib, rlImGui, and the node composition root — per design §3 / BATCH-01 STR-P0-T1.
+///
+/// <para>
+/// ST-016: the third clause used to name <c>Hrot.StrideMock</c>. That assembly no longer exists, so
+/// the clause had gone VACUOUS — it could never match again and would have sat here reading like a
+/// live guard. It is repointed at <c>Hrot.NodeComposition</c>, the project StrideNodeBootstrapper
+/// moved to, which keeps the clause MEANINGFUL: the invariant was always "the pure Stride core does
+/// not reach back into the host that composes nodes", and that host still exists under a new name.
+/// Only <c>HrotStrideApp.Game</c> may reference it. The clause was NOT dropped.
+/// </para>
 /// </summary>
 public class ReferenceGuardTests
 {
     [Fact]
-    public void Hrot_Stride_Core_References_No_Raylib_Or_StrideMock()
+    public void Hrot_Stride_Core_References_No_Raylib_Or_NodeComposition()
     {
         // Load the real assembly and inspect its referenced assemblies at runtime.
         var asm = typeof(StrideCorePlaceholder).Assembly;
@@ -24,12 +33,12 @@ public class ReferenceGuardTests
         var forbidden = refs.Where(n =>
             n.Contains("Raylib",      StringComparison.OrdinalIgnoreCase) ||
             n.Contains("rlImGui",     StringComparison.OrdinalIgnoreCase) ||
-            n.Contains("StrideMock",  StringComparison.OrdinalIgnoreCase))
+            n.Contains("NodeComposition", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
         Assert.True(
             forbidden.Length == 0,
-            $"Hrot.Stride.Core must not reference Raylib, rlImGui, or Hrot.StrideMock. " +
+            $"Hrot.Stride.Core must not reference Raylib, rlImGui, or Hrot.NodeComposition. " +
             $"Found: {string.Join(", ", forbidden)}");
     }
 
