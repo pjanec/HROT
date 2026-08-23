@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Suppress CycloneDDS code-generator: pulled in transitively but not used here -->
+    <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit"                  Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector" Version="6.0.4">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- Test target: EditorStrideSubsystem lives here -->
+  <ItemGroup>
+    <ProjectReference Include="..\HrotStrideApp.Game\HrotStrideApp.Game.csproj" />
+  </ItemGroup>
+  <!-- ST-PORT drift: the coordinator line moved CycloneDDS.NET 0.2.3 -> 0.3.2, which requires
+       Microsoft.CodeAnalysis.Common >= 4.8.0, while Stride.Core.Assets.CompilerApp 4.2.1.2487 pins
+       it at = 3.6.0 (NU1107). NuGet's own named resolution: reference the higher version directly.
+       A build-graph pin only; the asset compiler is IncludeAssets="build". -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.8.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+  </ItemGroup>
+
+
+
+
+
+</Project>

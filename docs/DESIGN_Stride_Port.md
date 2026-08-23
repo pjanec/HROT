@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (porting-risk map + strategy — NOT approved to build)
+build-state: BUILT (S1-S5; no stops remain on this line)
 updated: 2026-08-22
 current-answer: the whole file — how to port the Bullet-based Stride from origin/stride-integ-1 onto the
   coordinator line, what the integration changed on the HROT/FDP shared side, and the one real breakage
@@ -131,3 +131,111 @@ crowd a stub-replacement — with no live functionality on the coordinator that 
 | **SD3** | the crowd system | **authority-conditional** (§3), never wholesale replace | 
 | **SD4** | scope of v1 | S1–S3 + a regression rail (S5); the Stride host wiring (S4) can follow |
 | **SD5** | relationship to trunk's `Stride/BepuSample` | leave it; the ported Bullet Stride is a separate host path — decide later whether Bepu sample stays |
+
+
+---
+
+## 6. ⭐⭐⭐ AS-BUILT — **what the port measured, including two premises of this map that were FALSE**
+
+> 📄 Batch: [`blueprints/batches/BATCH_ST101_The_Stride_Port.md`](blueprints/batches/BATCH_ST101_The_Stride_Port.md) ·
+> ids **`ST-001`…`ST-009`**, tracker **Area I**.
+
+### ⭐⭐ 6.1 The headline held — **and is now proven, not asserted**
+
+⭐ *"The animation contract is CLEAN and ADDITIVE"* — ✅ **proven by a ZERO DIFF**: after the whole
+port, `git status` reports **no change** under `Hrot.MuscleCharacter.Animation/`,
+`Fdp.Core/CoreComponents/` or `Fdp.Toolkits/Behavior/Components/`. Suites **195 / 0 · 15 / 0 · 31 / 0**.
+
+### ⛔⛔ 6.2 CORRECTION — **`id 265` was NOT free** *(`ST-005`)*
+
+📐 §3 says *"id 265 is FREE — coord ids stop at 264"*. ⛔ **It looked only at `GlobalComponentIds` and
+`NavigationContractsComponentIds`.** `NavFakeIds` declares its block as **262–279** and had RESERVED
+**265** for `FakeVolumetricState`. ⭐ Measured: that constant has **no component attached** — its own
+declaration is its only reference — so it is a reservation, not a live claim. ⇒ **moved to 269**;
+265 now has exactly one claimant. ⚠ Left alone, a fake volumetric state built later would have
+collided with a production component, silently.
+
+### ⛔⛔ 6.3 CORRECTION — **the §1 seam table is INCOMPLETE: `IRaycastBackend` is a third piece** *(`ST-003`)*
+
+📐 It surfaced as the **only** compile drift in `Hrot.Stride.Core`. `Fdp.Toolkits/Physics/IRaycastBackend.cs`
+exists on the branch and **not at all** on the coordinator line, and `RaycastSolverSystem` gains a
+nullable `RaycastBackend` property plus an early-return branch. ⭐⭐ **Additive and null on every
+non-Stride node** ⇒ identical behaviour; Physics **31 / 0**. ⇒ ⚠ **`S2` should have named it.**
+
+### ⭐⭐⭐ 6.4 `S3` AS BUILT — **the authority marker is the COMPONENT, per entity** *(`ST-004`)*
+
+⭐ §3 asked for *"authority-conditional"* without saying what selects the arm. ⇒ **the entity's
+`CrowdMotorIntent`**: present ⇒ write the intent only *(physics owns the pose)*; absent ⇒ the
+pre-port `SimVelocity` + `SimTransform` integration, unchanged.
+
+⭐⭐ **Per ENTITY, not per node**, and that is the substantive design choice: the component is added
+only by the host that also runs the motor and the reverse-sync, so **its presence IS the marker**. A
+node-level flag would be a second thing to keep in step with the first, and its failure mode is
+silent — an agent that stops moving with nothing to point at. 📐 Railed with a **mixed world**: one
+agent of each kind in one repository, both resolved correctly.
+
+### ✅ 6.5 `S4` — **the hosted-real-editor mode BUILDS. My first verdict was wrong** *(`ST-007` → `ST-010`)*
+
+⛔⛔ **I first reported this as "cross-lane, stop": the mode needs twelve `EditorSubsystem` members
+this line lacks, so I guarded it out.** 🔒 **The user challenged that** — *"were they added on the
+stride branch? what does that have to do with the UI branch, can't you do it yourself?"* — ⭐⭐ **and
+the measurement vindicated the challenge.** 📌 I had applied the file-level lane rule **without
+measuring what the change actually was.**
+
+| 📐 measured | |
+|---|---|
+| **① they are the PORT's own seam** | the branch's block header: *"Public host-integration surface … for external host assemblies (e.g. `HrotStrideApp.Game`) to reach the live ECS world, kernel, and time controller **without reflection**"* ⇒ ⛔ **not UI-lane work that merely shares a file** |
+| **② five of twelve ALREADY EXIST here, as `internal`** | `World` · `Kernel` · `EditorLogic` · `TimeController` · `PreviewController` ⇒ the change is **`internal` → `public`**, and the branch says so itself: *"behavior is identical to the former internal accessors"* |
+| **③ the UI lane has NO live edit to collide with** | `git diff HEAD origin/claude/hrot-implementation-j1jvin -- EditorSubsystem.cs` is **EMPTY**, and their batch is Details/menus — a different region |
+
+⇒ ⭐⭐⭐ **the guard is removed and the mode compiles.** ⭐ Two pieces the "twelve" had missed came with
+it: **`MuscleModuleContext`** *(a 2-field record)* and **`DefaultSelectionState.Version`**
+*(a monotonic counter in `Fdp.Presentation`)*.
+
+⭐⭐ **The one member with a behaviour branch is `MuscleModuleFactory`, and its null arm is kept
+BYTE-FOR-BYTE** — an editor that sets nothing cannot be affected by it. ⛔ **Deliberate deviation from
+the branch**: it registers every muscle module in a `foreach` on BOTH arms, which on the default path
+would register **one module more** than this line does *(HEAD registers `perceptionMod` only and
+splices `simHostCorePack`'s system lists)*. ⇒ the `foreach` runs on the **injected arm only**.
+
+📐 **Proof it breaks nothing**: `Hrot.Blueprints.Tests` Editor namespace — the suites that actually
+**construct** `EditorSubsystem` — **1032 / 0**; `BreakpointSubsystemWiringTests` **25 / 0**;
+`TimeControlIntegrationTests` **9 / 0**.
+
+### ✅ 6.5b THE "REMAINING STOP" WAS A FALSE NEGATIVE OF MINE *(`ST-011`)*
+
+⛔⛔ **I wrote that the `CharacterAnimationDefDto` family *"does not exist on this line at all"*.
+📐 It does — byte-identically.** `git diff` on
+`Hrot.MuscleCharacter.Animation/Descriptors/CharacterAnimationDefDto.cs` is **EMPTY**, and all eight
+types are present. ⛔ **I had grepped only `FDP/Toolkits/`; the family lives in `Hrot/Subsystems/`.**
+
+⇒ 📌 **A SCOPED grep read as an ABSENCE claim** — the failure CLAUDE.md names in one line
+*("an absence claim from grep is an absence in your pattern, not in the repo")* — ⚠⚠ **and the second
+time in this batch I asserted a design-blocking absence I had not enumerated.** *(The first was
+§6.2's id 265, where the design made the same mistake and I caught it; here I made it myself.)*
+
+⭐ **The real gap was one method.** `UrbanCombatNewScenario.BuildMannequinAnimationDef()` — a static
+factory returning the mannequin's descriptor *(6 montages: idle/walk/run on slot 0 = Locomotion,
+Jump_Start/Loop/End on slot 100 = FullBody; 2 slots; 2 footstep notify markers)* — plus **four**
+`AddDescriptor` call sites on the **`InfantrySoldier`** and **`Insurgent`** templates, and a
+`ProjectReference` from `Fdp.Examples.Scenarios` → `Hrot.MuscleCharacter.Animation` *(the same one the
+branch added; `HrotStrideApp.Game` already depends on that project, so the direction is consistent)*.
+
+⇒ ⭐⭐ **`HrotStrideApp.Game.Tests` now compiles with ZERO exclusions** — the whole ported test surface
+is present. ⚠ **`ST-013`**: `CivilianPedestrian` renders as a mannequin but gets **no** descriptor —
+the branch attaches it to the two combatant templates only, and I matched the branch rather than
+deviating unprompted.
+
+### ⚠⚠ 6.6 THE ENVIRONMENT LIMIT — **compile-verified, NOT run-verified** *(`ST-006`)*
+
+| 📐 measured | |
+|---|---|
+| `net8.0-windows` builds on Linux | ⭐ **only** with `-p:EnableWindowsTargeting=true`, on **restore AND build** |
+| the Stride suites **cannot run** | ⛔ the test host needs the `Microsoft.WindowsDesktop.App` **runtime**; there is no linux-x64 build *("No frameworks were found")* |
+| `HrotStrideApp.Windows` **cannot build** | ⛔ `Stride.Core.Assets.CompilerApp` runs `--platform=Windows --compile-property:StrideGraphicsApi=Direct3D11`, exit **150** |
+
+⭐⭐⭐ **The third was CONFIRMED PRE-EXISTING** by building the base commit `128eb68c` in a worktree —
+same failure, before a single port file existed. ⇒ ⛔ **the port did not regress it.**
+
+⇒ 📄 **[`Stride_Host_Visual_Test.md`](Stride_Host_Visual_Test.md)** carries the Windows launch
+command and what a human should see.

@@ -258,6 +258,11 @@ namespace Hrot.Editor
         private uint                    _fdpFrameCount;
         private Hrot.SimHost.Modules.CognitiveSpatialModule? _perceptionMod;
 
+        // `ST-010` backing fields: both were locals inside Initialize; promoted so the
+        // host-integration accessors above can project them. Nothing else reads them.
+        private ScenarioEntityCreationRequestSource? _scenarioLoadSource;
+        private Fdp.Toolkit.Tkb.TkbDatabase?        _tkbDatabase;
+
         // ?? Offline orchestrator (single-node scenario listing) ???????????????????
 
         private FdpEventBus?           _orchestrationBus;
@@ -554,16 +559,17 @@ namespace Hrot.Editor
 
         // ?? Internal test accessors ???????????????????????????????????????????
 
-        /// <summary>Internal test hook: direct access to the ECS world.</summary>
-        internal EntityRepository World =>
+        /// <summary>Host-integration (`ST-010`): the live ECS world. Was an internal test hook; the
+        /// Stride host reaches it across an assembly boundary, and reflection would be worse.</summary>
+        public EntityRepository World =>
             _world ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
-        /// <summary>Internal test hook: direct access to the kernel.</summary>
-        internal ModuleHostKernel Kernel =>
+        /// <summary>Host-integration (`ST-010`): the module-host kernel.</summary>
+        public ModuleHostKernel Kernel =>
             _kernel ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
-        /// <summary>Internal test hook: direct access to the editor logic facade.</summary>
-        internal IEditorLogic EditorLogic =>
+        /// <summary>Host-integration (`ST-010`): the editor logic facade.</summary>
+        public IEditorLogic EditorLogic =>
             _editorLogic ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
         /// <summary>
@@ -604,13 +610,108 @@ namespace Hrot.Editor
                 _           => null,
             };
 
-        /// <summary>Internal test hook: direct access to the time controller.</summary>
-        internal MasterSyncController TimeController =>
+        /// <summary>Host-integration (`ST-010`): the master time controller.</summary>
+        public MasterSyncController TimeController =>
             _timeController ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
-        /// <summary>Internal test hook: direct access to the preview controller.</summary>
-        internal IPreviewController PreviewController =>
+        /// <summary>Host-integration (`ST-010`): the preview controller.</summary>
+        public IPreviewController PreviewController =>
             _previewController ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
+
+        // ── Host-integration surface (`ST-010`) ──────────────────────────────────────
+        // Added by the Stride integration on origin/stride-integ-1 FOR THIS PURPOSE: the seam an
+        // external host assembly (HrotStrideApp.Game) uses to reach the live ECS world, kernel and
+        // time controller without reflection. Ported here so the hosted-editor mode can build.
+        // Every member below is either a widened accessor or a read-only projection of state that
+        // already existed -- none of them changes what the editor does.
+
+        /// <summary>
+        /// True when the subsystem was initialized headless (no MapCanvas, no ImGui panels).
+        /// Exposed so the Stride layer can assert on it without a GPU context.
+        /// </summary>
+        public bool IsHeadless => _headless;
+
+        /// <summary>
+        /// The entity-creation request source: enqueue an <c>EntityCreationRequest</c> here to spawn
+        /// through the production <c>CreateEntityRequestSystem -> NetworkSpawningSystem</c> pipeline.
+        /// Null until <see cref="Initialize"/> has run.
+        /// </summary>
+        public ScenarioEntityCreationRequestSource? EntityCreationRequestSource => _scenarioLoadSource;
+
+        /// <summary>
+        /// The editor's authoritative spawn TKB (NED catalog + UrbanCombat templates) -- the instance
+        /// <c>NetworkSpawningSystem</c> and every <c>ITkbEntityTranslator</c> resolve from. Exposed so
+        /// an in-process host binds to the SAME database rather than a duplicate, which is what
+        /// template-resolution drift would otherwise look like. Null until <see cref="Initialize"/>.
+        /// </summary>
+        public Fdp.Toolkit.Tkb.TkbDatabase? TkbDatabase => _tkbDatabase;
+
+        /// <summary>
+        /// Invoked with the frame delta immediately BEFORE <c>Kernel.Update()</c>. Null by default,
+        /// so an editor with no host attached behaves exactly as before.
+        /// </summary>
+        public Action<float>? PreKernelUpdateHook { get; set; }
+
+        /// <summary>
+        /// Invoked immediately AFTER <c>Kernel.Update()</c>. Null by default.
+        /// </summary>
+        public Action? PostKernelUpdateHook { get; set; }
+
+        /// <summary>
+        /// The primary selected entity in the 2D editor map. Null when nothing is selected or in
+        /// headless mode.
+        /// </summary>
+        public Fdp.Core.Entity? Selected2DEntity
+        {
+            get => _selectionState?.PrimarySelected;
+            set { if (_selectionState != null) _selectionState.PrimarySelected = value; }
+        }
+
+        /// <summary>Monotonic version of the 2D selection; 0 in headless.</summary>
+        public int Selection2DVersion => _selectionState?.Version ?? 0;
+
+        /// <summary>
+        /// Sets the 2D editor selection to <paramref name="entity"/> (or clears it when null),
+        /// updating BOTH the UI-level primary AND the ECS <c>SelectionState</c> components the 2D map
+        /// overlay renders -- i.e. exactly what an in-map click does. Used by the 3D-to-2D sync.
+        /// </summary>
+        public void SetSelection2D(Fdp.Core.Entity? entity)
+        {
+            if (_world == null) return;
+
+            // Clear existing ECS selection flags.
+            var q = _world.Query().With<Hrot.IG.Components.SelectionState>()
+                .WithLifecycle(Fdp.Core.EntityLifecycle.All).Build();
+            foreach (var e in q)
+            {
+                var st = _world.GetComponent<Hrot.IG.Components.SelectionState>(e);
+                if (st.IsSelected || st.IsPrimarySelection)
+                    _world.SetComponent(e, new Hrot.IG.Components.SelectionState { IsSelected = false, IsPrimarySelection = false });
+            }
+
+            // Set the new primary selection (ECS component) when a live entity is given.
+            if (entity.HasValue && entity.Value != Fdp.Core.Entity.Null && _world.IsAlive(entity.Value))
+            {
+                if (!_world.HasComponent<Hrot.IG.Components.SelectionState>(entity.Value))
+                    _world.AddComponent(entity.Value, new Hrot.IG.Components.SelectionState());
+                _world.SetComponent(entity.Value, new Hrot.IG.Components.SelectionState { IsSelected = true, IsPrimarySelection = true });
+            }
+
+            // Keep the UI-level primary in sync (drives inspector/tools).
+            if (_selectionState != null)
+                _selectionState.PrimarySelected = entity;
+        }
+
+        /// <summary>
+        /// Replaces the muscle module set built during <see cref="Initialize"/>.
+        ///
+        /// <para><b>Null is the default and means "exactly today's behaviour"</b> --
+        /// <c>SimHostCoreLogicPack</c> + <c>CognitiveSpatialModule</c>, registered as they always
+        /// were. Non-null means a host (the Stride muscle, with Bullet physics and DotRecast nav)
+        /// supplies the replacement set. The default arm is kept byte-for-byte rather than routed
+        /// through the factory, so an editor that sets nothing cannot be affected by this at all.</para>
+        /// </summary>
+        public Func<MuscleModuleContext, IReadOnlyList<IEcsModule>>? MuscleModuleFactory { get; set; }
 
         /// <summary>Internal test hook: exposes the data breakpoint manager (UBP-P10T1).</summary>
         internal IDataBreakpointManager? DataBreakpointManager => _bpManager;
@@ -977,6 +1078,7 @@ namespace Hrot.Editor
 
             // ?? 3b. TKB + ELM + offline spawning ?????????????????????????????
             var tkbDb       = HrotEnvironment.CreateTkb();
+            _tkbDatabase    = tkbDb;   // `ST-010`: expose the authoritative spawn DB to in-process hosts
             // Register Urban Combat entity blueprints (TKB types 1001?2003) so the
             // ScenarioSerializer can resolve MilitaryApc, InfantrySoldier, and Insurgent.
             UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
@@ -994,6 +1096,7 @@ namespace Hrot.Editor
             var idAllocator       = new SequentialIdAllocator();
             var spawnSys          = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: EditorNodeId, translators: translators);
             var scenarioLoadSource = new ScenarioEntityCreationRequestSource();
+            _scenarioLoadSource    = scenarioLoadSource;   // `ST-010`
             var extractor          = new StagingEntityExtractor();
             string isolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(EditorNodeId);
 
@@ -1029,13 +1132,36 @@ namespace Hrot.Editor
                 }));
 
             // ?? 4. Module registration (offline ? no translator packs) ????????
-            var simHostCorePack  = new SimHostCoreLogicPack(entityMap);
-            var perceptionMod    = new CognitiveSpatialModule(
-                _world,
-                colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
-                    ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
-                    : 0f);
-            _perceptionMod = perceptionMod;
+            // ── Muscle module set (`ST-010`: injectable; defaults to SimHost) ─────────────
+            // MuscleModuleFactory == null -> EXACTLY the code that was here before, unchanged.
+            // MuscleModuleFactory != null -> a host supplies the replacement set (the Stride muscle:
+            //                                Bullet physics + DotRecast nav).
+            IReadOnlyList<IEcsModuleSystem> muscleInputSystems   = Array.Empty<IEcsModuleSystem>();
+            IReadOnlyList<IEcsModuleSystem> muscleSimSystems     = Array.Empty<IEcsModuleSystem>();
+            IReadOnlyList<IEcsModuleSystem> musclePostSimSystems = Array.Empty<IEcsModuleSystem>();
+            IReadOnlyList<IEcsModule>       injectedMuscleModules = Array.Empty<IEcsModule>();
+
+            SimHostCoreLogicPack?    simHostCorePack = null;
+            CognitiveSpatialModule?  perceptionMod   = null;
+
+            if (MuscleModuleFactory == null)
+            {
+                simHostCorePack  = new SimHostCoreLogicPack(entityMap);
+                perceptionMod    = new CognitiveSpatialModule(
+                    _world,
+                    colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
+                        ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
+                        : 0f);
+                _perceptionMod = perceptionMod;
+
+                muscleInputSystems   = simHostCorePack.InputSystems;
+                muscleSimSystems     = simHostCorePack.SimulationSystems;
+                musclePostSimSystems = simHostCorePack.PostSimulationSystems;
+            }
+            else
+            {
+                injectedMuscleModules = MuscleModuleFactory(new MuscleModuleContext(_world!, entityMap));
+            }
             var mapperRegistry = new TacticalIntentMapperRegistry();
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
@@ -1045,7 +1171,7 @@ namespace Hrot.Editor
 
             var toggleInput = new TogglableInputGroup(
                 "EditorInput",
-                cgfLogicPackInst.InputSystems.Concat(simHostCorePack.InputSystems).ToArray());
+                cgfLogicPackInst.InputSystems.Concat(muscleInputSystems).ToArray());
 
             // ── Blueprint runtime (MVE-BATCH-02) ──────────────────────────────────────
             // Wire the Instance-Blueprint runtime into THIS kernel (the real composition the
@@ -1067,16 +1193,20 @@ namespace Hrot.Editor
             var toggleSim = new TogglableSimulationGroup(
                 "EditorSim",
                 Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.SpliceIntoSimulation(
-                    cgfLogicPackInst.SimulationSystems.Concat(simHostCorePack.SimulationSystems), bpTick).ToArray());
+                    cgfLogicPackInst.SimulationSystems.Concat(muscleSimSystems), bpTick).ToArray());
 
             var togglePostSim = new TogglablePostSimulationGroup(
                 "EditorPostSim",
-                simHostCorePack.PostSimulationSystems.ToArray());
+                musclePostSimSystems.ToArray());
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
             var scenarioMod      = new ScenarioEditorModule(fileService);
 
             _kernel.RegisterModule(new BehaviorDiagnosticsModule());
-            _kernel.RegisterModule(perceptionMod);
+            // `ST-010`: the default arm registers exactly what it always did. The injected arm
+            // registers the host's set instead -- note the default does NOT register
+            // simHostCorePack (it never did; only its system lists are spliced above).
+            if (perceptionMod != null) _kernel.RegisterModule(perceptionMod);
+            foreach (var mod in injectedMuscleModules) _kernel.RegisterModule(mod);
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.AreaQueryResultMaterializationSystem());
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
@@ -1147,7 +1277,10 @@ namespace Hrot.Editor
             _world!.RegisterEvent<Fdp.Toolkit.Blueprints.Events.RemoveInstanceBlueprintEvent>();
 
             // ?? 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ??
-            var logicPacks = new List<IEcsModule> { simHostCorePack, perceptionMod, cgfLogicPackInst };
+            var logicPacks = new List<IEcsModule> { cgfLogicPackInst };
+            if (simHostCorePack != null) logicPacks.Insert(0, simHostCorePack);
+            if (perceptionMod   != null) logicPacks.Insert(1, perceptionMod);
+            foreach (var mod in injectedMuscleModules) logicPacks.Insert(0, mod);
 
             // ?? 4d. MapLayerAssignmentSystem ? must be registered BEFORE Initialize() ??
             // Stamps MapDisplayComponent.LayerMask on each entity so the DebugGizmoLayer
@@ -1938,7 +2071,9 @@ namespace Hrot.Editor
             _gizmoBuffer?.EndFrame(deltaTime);
 
             // Kernel.Update() internally calls bus.SwapBuffers() then ticks registered modules.
+            PreKernelUpdateHook?.Invoke(deltaTime);
             _kernel?.Update();
+            PostKernelUpdateHook?.Invoke();
 
             // Drain AI hot-reload callbacks safely on the main thread.
             // Any BTreeInterpreter pointer swaps queued by the background ALC worker

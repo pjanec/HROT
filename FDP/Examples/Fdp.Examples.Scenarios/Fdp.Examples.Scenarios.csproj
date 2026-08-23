@@ -10,5 +10,10 @@
     <ProjectReference Include="..\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
     <ProjectReference Include="..\Fdp.Examples.DDS\Fdp.Examples.DDS.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
-    <ProjectReference Include="..\..\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />  </ItemGroup>
+    <ProjectReference Include="..\..\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- ST-011: CharacterAnimationDefDto and friends, for the humanoid templates'
+         animation descriptor. Same reference the Stride branch added; HrotStrideApp.Game
+         already depends on this project, so the direction is consistent. -->
+    <ProjectReference Include="..\..\..\Hrot\Subsystems\Hrot.MuscleCharacter.Animation\Hrot.MuscleCharacter.Animation.csproj" />
+  </ItemGroup>
 </Project>

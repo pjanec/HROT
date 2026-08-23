@@ -1,10 +1,22 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net8.0-windows</TargetFrameworks>
     <RootNamespace>HrotStrideApp</RootNamespace>
+    <!-- HrotStrideApp.Game does not define any CycloneDDS IDL topics itself.
+         The CycloneDDS.NET.targets code-generator is pulled in transitively through
+         Hrot.StrideMock → Fdp.Toolkits → CycloneDDS.NET, but fails on this project
+         because the generator is passed all Stride DLLs on the command line which
+         causes "The system cannot execute the specified program" (command-line length
+         or platform limitation). Suppress the generator target — the DDS topic types
+         are compiled in Fdp.Toolkits where they are defined. -->
+    <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
   </PropertyGroup>
   <ItemGroup>
+    <!-- BATCH-11 (STR-LOG-1): direct NLog ref for StrideLogging file-logging bootstrap.
+         Matches the version used across the HROT/FDP solution (NLog 5.2.8). NLog is also
+         pulled transitively via Fdp.Core, but a direct reference here is cleaner. -->
+    <PackageReference Include="NLog" Version="5.2.8" />
     <PackageReference Include="Stride.Core" Version="4.2.1.2487" PrivateAssets="contentfiles;analyzers" />
     <PackageReference Include="Stride.Core.Assets.CompilerApp" Version="4.2.1.2487" PrivateAssets="contentfiles;analyzers" IncludeAssets="build" />
     <PackageReference Include="Stride.Engine" Version="4.2.1.2487" PrivateAssets="contentfiles;analyzers" />
@@ -12,4 +24,47 @@
     <PackageReference Include="Stride.Physics" Version="4.2.1.2487" PrivateAssets="contentfiles;analyzers" />
     <PackageReference Include="Stride.UI" Version="4.2.1.2487" PrivateAssets="contentfiles;analyzers" />
   </ItemGroup>
+
+  <!-- Stride integration class libraries (BATCH-01 STR-P0-T3) -->
+  <ItemGroup>
+    <!-- Real Stride physics/navmesh/perception core — no Raylib -->
+    <ProjectReference Include="..\Hrot.Stride.Core\Hrot.Stride.Core.csproj" />
+    <!-- Real Stride animation backend — P4 stub today -->
+    <ProjectReference Include="..\Hrot.Stride.Animation\Hrot.Stride.Animation.csproj" />
+    <!-- StrideNodeBootstrapper reuse seam (brings Raylib tag-along: design §1.1, §8.3 accepted) -->
+    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.StrideMock\Hrot.StrideMock.csproj" />
+  </ItemGroup>
+
+  <!-- EditorStrideSubsystem composition dependencies (BATCH-02 STR-P0-T6) -->
+  <!-- These are the same assemblies referenced by EditorSubsystem / EditorHarness.          -->
+  <!-- The Raylib/WinForms tag-alongs from Hrot.Editor are accepted per design §1.1/§8.3.   -->
+  <ItemGroup>
+    <!-- OfflineNetworkFactory, EditorApplication facade -->
+    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.Editor\Hrot.Editor.csproj" />
+    <!-- ClusterMaster, ClusterConfiguration, OrchestrationLogicPack, OrchestratorEventRegistry -->
+    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
+    <!-- CgfLogicPack, CgfComponentRegistry, CreateEntityRequestSystem -->
+    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.CGF\Hrot.CGF.csproj" />
+    <!-- SimHostCoreLogicPack, SimHostComponentRegistry, NetworkSpawningSystem, etc. -->
+    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.SimHost\Hrot.SimHost.csproj" />
+    <!-- HrotSharedComponentRegistry, HrotEnvironment, SequentialIdAllocator -->
+    <ProjectReference Include="..\..\Hrot\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <!-- ScenarioEntityCreationRequestSource, NullEntityAckSink, HrotNodeConfig -->
+    <ProjectReference Include="..\..\Hrot\Engine\Hrot.Core\Hrot.Core.csproj" />
+    <!-- ITkbEntityTranslator, EntityRepository (direct reference for EditorStrideSubsystem) -->
+    <ProjectReference Include="..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- AI behavior mappers (DefendAreaMapper, HullDownAttackMapper) used by CgfLogicPack -->
+    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
+    <!-- UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates (STR-D8, BATCH-03 T8) -->
+    <ProjectReference Include="..\..\FDP\Examples\Fdp.Examples.Scenarios\Fdp.Examples.Scenarios.csproj" />
+  </ItemGroup>
+  <!-- ST-PORT drift: the coordinator line moved CycloneDDS.NET 0.2.3 -> 0.3.2, which requires
+       Microsoft.CodeAnalysis.Common >= 4.8.0, while Stride.Core.Assets.CompilerApp 4.2.1.2487 pins
+       it at = 3.6.0 (NU1107). NuGet's own named resolution: reference the higher version directly.
+       A build-graph pin only; the asset compiler is IncludeAssets="build". -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.8.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+  </ItemGroup>
+
 </Project>
