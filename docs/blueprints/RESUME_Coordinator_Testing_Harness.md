@@ -24,9 +24,9 @@ supersedes-for-status: RESUME_START_HERE.md (older top block, ends 2026-08-18) �
 | | |
 |---|---|
 | **You are** | the **COORDINATOR** — you own design, handoffs, verification, merges. ⛔ **You do NOT write feature code** |
-| **Your branch** *(push here, always)* | ⭐ **`claude/blueprint-authoring-status-gm0akp`** |
-| **HEAD at handoff** | `cb0d2dc2e` — builds clean *(0 errors)*, all gates green, both lanes merged |
-| **Both implementation lanes** | ⭐ **IDLE — nothing in flight.** All batches merged into your HEAD |
+| **Your branch** *(push here, always)* | ⭐ **`claude/blueprint-authoring-status-6sr5ld`** *(user ruling `2026-08-23`: the coordinator's native branch. ⚠ `…-gm0akp` is an ANCESTOR of it — identical content, no divergence; it is history, not a second head)* |
+| **HEAD** | ⭐ **`80a98f627`** — ⛔ **not `cb0d2dc2e`**, which this row claimed while §4 already contradicted it. 📐 Verified `2026-08-23`: solution builds **0 errors / 12 warnings** *(all NuGet `NU1902/1903` advisories on MessagePack 3.1.4 in `Fdp.Core.Tests`; **zero compiler warnings**)*, `rulings-check` 23/23, `design-digest --check` clean, `tracker-counts --check` OK *(open 99 / done 323)* |
+| **Both implementation lanes** | ⭐ Verified idle by ANCESTRY at `80a98f627` *(⛔ not by claim — both lane heads are ancestors)*. ⚠ **Batch A is now DISPATCHED to the MCP lane** — see §3 |
 
 ### The two implementation lanes *(from `.claude/CLAUDE.md`, still binding)*
 
@@ -46,10 +46,10 @@ first commit's parent is one of yours is a live lane.
 | **Never** put a model identifier in a commit message, PR body, code comment, or any pushed artefact | chat replies only |
 | Push only to `claude/blueprint-authoring-status-gm0akp` via `git push -u origin <branch>`; **`git pull --rebase` first** | the user's own Windows visual-check session also pushes here *(not a lane violation)* |
 | Ask in **plain prose**, never the multiple-choice widget | |
-| **Always give GitHub links** on the current branch *(user is on mobile)* | `https://github.com/pjanec/HROT/blob/claude/blueprint-authoring-status-gm0akp/<path>` — push first, an unpushed link 404s |
+| ⭐ **GitHub links belong in CHAT, ⛔ almost never in a persisted document** *(user ruling `2026-08-23`)* | the user reads on mobile, so **give absolute links in the conversation** — `https://github.com/pjanec/HROT/blob/<branch>/<path>`, push first or it 404s. ⛔ **In docs use repo-relative paths**: a branch-encoded URL rots the moment the branch does |
 | **Validate every Mermaid block before pushing** | `MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file>` |
 | **Rule 8 — the coordinator does NOT re-run the impl session's gates** | the report substitutes; spot-verify only SURPRISING claims. ⭐ **BUT after a cross-branch merge, DO build the combined state** *(a state neither session tested)* |
-| Commit footer *(verbatim)* | `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>` then `Claude-Session: https://claude.ai/code/session_015HdXr83WacDQJB6gNp8WZV` |
+| Commit footer | ⭐ use **your own session's** `Co-Authored-By:` + `Claude-Session:` trailers, exactly as your harness states them. ⛔ Do not copy a previous session's — the attribution would be false |
 
 ---
 
@@ -73,7 +73,8 @@ SUSPENDED; this stack is the sanctioned substitute *(model-diff, not pixels)*.
 ⛔ **There is ONE binary — `Hrot.ClusterRunner` — and `--mode` selects the subsystem(s).** The editor is
 **not** a separate executable; it is the cluster runner hosting the **editor** subsystem.
 - `--mode editor` → the editor subsystem *(fixture built, HN-120)*
-- `--mode cluster` → **CGF + SimHost + Orchestrator in ONE process**; to snapshot a submodule's panels you
+- ⭐ **`--mode all`** → **`orchestrator,simhost,ig,excon,cgf` — FIVE subsystems in ONE process** *(⚠ CORRECTED
+  `2026-08-23`: there is **no `--mode cluster`** — it throws)*; to snapshot a submodule's panels you
   **switch perspective** *(`PerspectiveCoordinatorSystem`)*.
 
 ⭐⭐ **Perspective-scoped capture:** a panel registers to `PanelSnapshot` only when its DRAW runs, and only
@@ -86,25 +87,32 @@ the ACTIVE perspective draws *(measured ~11 of 47 captured at once)*. Protocol: 
 
 | doc | holds | link |
 |---|---|---|
-| ⭐⭐⭐ **`DESIGN_Headless_Testability.md`** | the umbrella taxonomy + architecture *(one-binary/`--mode`, perspective-scoped capture, conformance = two modes diff by PanelKind)*. **Sequencing steps 5/6/7 are the pending work** | [link](https://github.com/pjanec/HROT/blob/claude/blueprint-authoring-status-gm0akp/docs/DESIGN_Headless_Testability.md) |
-| ⭐⭐⭐ **`DESIGN_UI_Observability_Snapshot.md`** | the PanelSnapshot ADR *(approach C)*, `build-state: BUILT`. The `IPanelViewModel` / `PanelSnapshot` contract | [link](https://github.com/pjanec/HROT/blob/claude/blueprint-authoring-status-gm0akp/docs/DESIGN_UI_Observability_Snapshot.md) |
-| ⭐⭐⭐ **`TESTING_Harness_And_Goldens.md`** | ⭐ **the RUNBOOK handoffs CITE** — how the harness drives over HTTP, the smoke-test shape, the perspective protocol, golden creation/maintenance *(`PANEL_GOLDEN_CAPTURE`)*, conformance, and §6 the per-batch obligation | [link](https://github.com/pjanec/HROT/blob/claude/blueprint-authoring-status-gm0akp/docs/TESTING_Harness_And_Goldens.md) |
-| ⭐⭐ **`MCP_Integration.md`** | the MCP extensions design — Groups O–T *(variable addressing · mission editing · hot-attach · entity-state · breakpoint-type discovery · panel-snapshot read)*, tasks MX1–MX9, the self-describing-error map. Carries AS-BUILT sections + `known-rot` | [link](https://github.com/pjanec/HROT/blob/claude/blueprint-authoring-status-gm0akp/docs/MCP_Integration.md) |
-| ⭐ **`DESIGN_MCP_System_Test_Harness.md`** | the harness itself *(fixture, McpClient, capability ladder)* | [link](https://github.com/pjanec/HROT/blob/claude/blueprint-authoring-status-gm0akp/docs/DESIGN_MCP_System_Test_Harness.md) |
+| ⭐⭐⭐ **`DESIGN_Headless_Testability.md`** | the umbrella taxonomy + architecture *(one-binary/`--mode`, perspective-scoped capture, conformance = two modes diff by PanelKind)*. **Sequencing steps 5/6/7 are the pending work** | [`DESIGN_Headless_Testability.md`](../../docs/DESIGN_Headless_Testability.md) |
+| ⭐⭐⭐ **`DESIGN_UI_Observability_Snapshot.md`** | the PanelSnapshot ADR *(approach C)*, `build-state: BUILT`. The `IPanelViewModel` / `PanelSnapshot` contract | [`DESIGN_UI_Observability_Snapshot.md`](../../docs/DESIGN_UI_Observability_Snapshot.md) |
+| ⭐⭐⭐ **`TESTING_Harness_And_Goldens.md`** | ⭐ **the RUNBOOK handoffs CITE** — how the harness drives over HTTP, the smoke-test shape, the perspective protocol, golden creation/maintenance *(`PANEL_GOLDEN_CAPTURE`)*, conformance, and §6 the per-batch obligation | [`TESTING_Harness_And_Goldens.md`](../../docs/TESTING_Harness_And_Goldens.md) |
+| ⭐⭐ **`MCP_Integration.md`** | the MCP extensions design — Groups O–T *(variable addressing · mission editing · hot-attach · entity-state · breakpoint-type discovery · panel-snapshot read)*, tasks MX1–MX9, the self-describing-error map. Carries AS-BUILT sections + `known-rot` | [`MCP_Integration.md`](../../docs/MCP_Integration.md) |
+| ⭐ **`DESIGN_MCP_System_Test_Harness.md`** | the harness itself *(fixture, McpClient, capability ladder)* | [`DESIGN_MCP_System_Test_Harness.md`](../../docs/DESIGN_MCP_System_Test_Harness.md) |
 
 ---
 
-## 3. ⭐⭐⭐ WHAT TO DO NEXT — two teed-up TIME-lane batches, dispatch on the user's word
+## 3. ⭐⭐⭐ BATCH A IS DISPATCHED; BATCH B IS TEED UP
 
-Both are drafted-but-not-dispatched, both scoped, both cite the runbook + taxonomy above. ⭐ **Ask the
-user which to dispatch first** — do not dispatch unasked.
+⭐ **User chose A first (`2026-08-23`).** 📄 **Dispatched at `80a98f627`:**
+[`HANDOFF_Batch_A_Conformance_Prerequisites.md`](batches/HANDOFF_Batch_A_Conformance_Prerequisites.md)
+— ⛔ **never amend it** *(rule 1)*; new findings go in the NEXT handoff.
+
+⚠⚠ **The pre-dispatch review changed Batch A's shape — the table below is the ORIGINAL framing, kept for
+the record. The handoff's §1 supersedes it**, on ten measured points. The three that matter most:
+⛔ **`--mode cluster` does not exist** *(it is `--mode all`, five subsystems)*; ⛔ **item 2 is FOUR wiring
+points, not one** *(and the missing per-frame `DrainAll` would hang every route)*; ⭐⭐ **item 4's frame
+boundary is a PREREQUISITE of item 3, not a trailing extra** — without it the diff invents divergence.
 
 ### Batch A — CONFORMANCE *(the prerequisite chain)*
 
 | # | item | design basis |
 |---|---|---|
 | **1** | `GET /perspectives` *(list)* + `POST /perspective {name}` *(switch)* on the DebugApi | `TESTING_Harness_And_Goldens.md` §3 · `DESIGN_Headless_Testability.md` step 5 |
-| **2** | ⭐⭐ **Lift `DebugApiHost` one level up** — from `EditorSubsystem` to the `ClusterRunner` host *(mode-independent)* so `/panels` + `/perspective` answer in **`--mode cluster`** too. ⛔ **NOT a second editor-only endpoint** | `TESTING_Harness_And_Goldens.md` §1 *("wire the existing DebugApiHost one level up")* · step 6 |
+| **2** | ⭐⭐ **Lift `DebugApiHost` one level up** — from `EditorSubsystem` to the `ClusterRunner` host *(mode-independent)* so `/panels` + `/perspective` answer in **`--mode all`** too. ⛔ **NOT a second editor-only endpoint** | `TESTING_Harness_And_Goldens.md` §1 *("wire the existing DebugApiHost one level up")* · step 6 |
 | **3** | `ClusterRunnerFixture(mode)` + the differential conformance suite — same scenario, two modes, **diff by `PanelKind`** *(reference IS the other mode's live dump; no golden to maintain)* | `TESTING_Harness_And_Goldens.md` §5 · step 7 |
 | **4** | ⭐ **`BP-487` — wire `ClearCaptured` + the gizmo publish across the FOUR gizmo hosts** *(IG · CGF · ReplayBrowser · SimHost)*, not just `EditorSubsystem`. ⚠ **Not a defect today** *(the debug API is Editor-only; a host that never clears keeps the latest-wins default)* — ⛔ **it becomes one the moment conformance drives two hosts**, so it belongs with whoever owns cross-host *(this lane)*. ⭐ **BP-485's address/kind split is what makes this wiring safe** | `MCP_Integration.md` *(Group T)* · filed by UI lane, BP-485 commit |
 

@@ -31,7 +31,11 @@ fixture, parameterised by mode**:
 | `--mode` | subsystem(s) in the process | perspectives you can snapshot |
 |---|---|---|
 | **editor** *(fixture built, HN-120)* | the **editor** subsystem | the editor's perspectives |
-| **cluster** *(to reach for conformance)* | **CGF + SimHost + Orchestrator** in ONE process | each submodule, **by switching perspective** *(`PerspectiveCoordinatorSystem`)* |
+| ⭐ **all** *(to reach for conformance)* | **`orchestrator,simhost,ig,excon,cgf` — FIVE subsystems** in ONE process | each submodule, **by switching perspective** *(`PerspectiveCoordinatorSystem`)* |
+
+⚠⚠ **CORRECTED `2026-08-23`: there is NO `--mode cluster`.** The shorthand is **`all`** *(= `demo`)*; an unknown
+mode **throws** *(`HrotRunnerConfiguration.cs:104-123`)*. ⛔ And the two modes' perspective sets are **disjoint**,
+so conformance **discovers** them per mode rather than switching both to one name.
 
 ⭐⭐ **Consequence for the read-API:** `PanelSnapshot` is a **process-wide static singleton** — it already exists
 in every mode. What is editor-only today is the **`DebugApiHost` wiring** *(constructed in `EditorSubsystem`)*.
@@ -114,7 +118,7 @@ flakes is worse than none.
 
 ```
 proc A (--mode editor):  load S → switch to the perspective with panel K → step → dump K
-proc B (--mode cluster): load S → switch to the CGF perspective with panel K → step → dump K
+proc B (--mode all):     load S → switch to the CGF perspective with panel K → step → dump K
 assert:                  dump_A[K]  ==  dump_B[K]     // same binary, two modes; diff by PanelKind
 ```
 

@@ -75,8 +75,10 @@ graph TD
 
 ## ⭐⭐⭐ The architecture — one binary, one read model, perspective-scoped capture
 
-⭐⭐ **The editor is not a separate program** — it is `Hrot.ClusterRunner --mode editor`. `--mode cluster` runs
-**CGF + SimHost + Orchestrator** in one process. `PanelSnapshot` is a **process-wide static singleton**, so it is
+⭐⭐ **The editor is not a separate program** — it is `Hrot.ClusterRunner --mode editor`. ⭐⭐ **`--mode all`** runs
+**`orchestrator,simhost,ig,excon,cgf` — FIVE subsystems** in one process *(⚠ CORRECTED `2026-08-23`: this doc
+said `--mode cluster`, which **does not exist** and throws; and it named three of the five.
+📐 `HrotRunnerConfiguration.cs:104-123`)*. `PanelSnapshot` is a **process-wide static singleton**, so it is
 present in *every* mode; what is editor-only today is the **`DebugApiHost` wiring** *(constructed in
 `EditorSubsystem`)*. ⇒ the read-API is **lifted one level up** *(to the `ClusterRunner` host)*, not re-added per host.
 
@@ -123,7 +125,7 @@ classDiagram
         +SwitchPerspective(name) void
     }
     class PerspectiveCoordinatorSystem {
-        <<exists · cluster mode: perspective maps to submodule>>
+        <<exists · mode all: perspective maps to submodule>>
         +string CurrentPerspective
     }
     class GoldenStore {
@@ -137,7 +139,7 @@ classDiagram
     DebugApiHost ..> DebugApiService : dispatches
     DebugApiService ..> PanelSnapshot : reads
     DebugApiService ..> WindowManager : NEW switch endpoint
-    WindowManager ..> PerspectiveCoordinatorSystem : cluster mode
+    WindowManager ..> PerspectiveCoordinatorSystem : mode all
     ClusterRunnerFixture ..> GoldenStore : smoke compares/updates
 ```
 
@@ -178,7 +180,7 @@ sequenceDiagram
     autonumber
     participant T as conformance test
     participant A as proc editor mode
-    participant B as proc cluster mode
+    participant B as proc mode all
 
     Note over T: same binary, same scenario S, same PanelKind K
     T->>A: load S, switch to K's perspective, step, dump K
@@ -221,7 +223,7 @@ coordinator verifies it on merge *(rule 8 + obligation ⑤)*.
 | **3** | Group T *(`GET /panels*`)* | ✅ **BUILT** *(HN-122)* |
 | **4** | gizmo feed *(U-obs-3)* + smoke-suite T2 reads `PanelSnapshot` *(U-obs-4)* | ⏳ **in the UI lane's current batch** |
 | **5** | ⛔⛔ **`GET/POST /perspective` endpoint** *(switch capability)* | ⛔ **NEW — the first conformance prerequisite** |
-| **6** | ⛔⛔ **lift `DebugApiHost` to the `ClusterRunner` host** *(answers in `--mode cluster`)* | ⛔ **the second prerequisite** — one wiring move, not a per-host port |
+| **6** | ⛔⛔ **lift `DebugApiHost` to the `ClusterRunner` host** *(answers in `--mode all`)* | ⛔ **the second prerequisite.** ⚠ **CORRECTED `2026-08-23`: it is FOUR wiring points, not "one wiring move"** — capture-enable, host construct/attach/start, the `ClearCaptured` frame boundary, **and the per-frame `MainThreadJobQueue.DrainAll()`; forget the last and every `RunMain` route hangs** |
 | **7** | ⭐⭐⭐ **conformance suite** — `ClusterRunnerFixture(mode)`, two modes, diff by `PanelKind` | steps 5–6 |
 | **8** | convert further panels **as touched**; pixels only for the rare tail | standing rule |
 
@@ -285,6 +287,6 @@ broken** — the ruling is about resolving them, not routing around them.
 
 ## Open questions (resolve with the user)
 
-1. **Conformance coverage** — which perspectives/panels first? *(Lean: the unified variable/Details/blackboard panels — where the unification risk concentrates.)*
-2. **Read-only in cluster mode?** — expose the full `DebugApiHost` in `--mode cluster`, or a read-only route set? *(Lean: reuse the host with a read-only route filter — one implementation.)*
+1. **Conformance coverage** — which perspectives/panels first? ⛔⛔ **the earlier lean — *"the unified variable/Details/blackboard panels"* — is IMPOSSIBLE.** 📐 `2026-08-23`: those live in `Hrot/Editor/Hrot.Editor.AiShared/{Windows,Variables}`, **editor-only assemblies `--mode all` cannot host** *(and `editor` may not be combined with the cluster flags — it throws)* ⇒ following it yields an **EMPTY** comparison set. ⭐⭐ New lean: **the shared-presentation panels both hosts draw** — `Hrot/Engine/Hrot.Presentation/Panels` *(`MissionPanel` · `SpawnerPanel` · `PreviewPanel` · `DataBreakpointManagerPanel` · `ZoneEditorPanel` · `ConfigPanel` · `SharedOrbatPanel`)* and `FDP/Engine/Fdp.Presentation/ImGui/Panels`. ⚠ **And the perspective SETS are disjoint** *(editor `{Editor,BTree,HSM,Blueprint}` vs `{IG,SimHost,ExCon,CGF,StrideMock}`)* ⇒ conformance must **discover** per-mode, never assume a shared perspective name.
+2. **Read-only in `--mode all`?** ⛔⛔ **the earlier lean — *"reuse the host with a read-only route filter"* — is MEASURED WRONG and does not solve this.** 📐 `2026-08-23`: `DebugApiService` has **9 required ctor params** including editor-only `IPreviewController`/`IEditorLogic`, all `throw`-guarded ⇒ **it cannot be constructed in `--mode all` at all**, and a *route* filter still needs a constructed service. ⭐⭐ **But `GetPanels()`/`GetPanel(id)` touch ZERO instance state** *(pure static `PanelSnapshot` reads; only `GetGizmoFrame` uses `_primitiveBuffer`)* ⇒ ⭐⭐⭐ **the split is by DEPENDENCY, not by verb.** New lean: extract the dependency-free handlers behind a small interface the editor service also satisfies — **one implementation of "what a panel shows"**.
 3. **Conformance tolerance** — exact model equality, or a per-field ignore-list for legitimately host-specific bits *(window chrome, host name)*? *(Lean: exact by default, explicit documented ignores.)*
