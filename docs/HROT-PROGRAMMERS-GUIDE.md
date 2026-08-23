@@ -638,7 +638,7 @@ noted. All are named constants in code (cite shown).
   `VehicleState` stripping, frustration skips belong in the **Stride muscle**
   (`InfantryVehicleStateStripTkbTranslator`), never in shared `NavigationExecutionSystem`
   (commit `8b8cc439` did this and broke non-Stride tank routing — reverted). Reference-guard
-  tests enforce `Hrot.Stride.Core` has no Raylib/rlImGui/StrideMock deps. `Stride/Hrot.Stride.Core/InfantryVehicleStateStripTkbTranslator.cs:16`, `Stride/Hrot.Stride.Core.Tests/ReferenceGuardTests.cs:32`
+  tests enforce `Hrot.Stride.Core` has no Raylib/rlImGui/NodeComposition deps. `Stride/Hrot.Stride.Core/InfantryVehicleStateStripTkbTranslator.cs:16`, `Stride/Hrot.Stride.Core.Tests/ReferenceGuardTests.cs:41`
 - 🔴 **`BulletReverseSyncSystem` must be `TogglablePostSimulationGroup`-wrapped (off during
   replay) and only process `.WithOwned<SimTransform>()`** — else it overwrites restored/ghost
   positions. Capsule (character) velocity is derived from **pose delta**, not

@@ -307,7 +307,6 @@ transparently.
 | `Hrot.BTree.Editor` | (embedded) | Visual BTree authoring with live debug overlay |
 | `Hrot.Hsm.Editor` | (embedded) | Visual HSM authoring with live debug overlay |
 | `Hrot.ReplayBrowser` | `replaybrowser` | Offline recording inspection, search, and JSON export |
-| `Hrot.StrideMock` | `stridemock` | Stride engine mock node for CI / GPU-free environments |
 | `Hrot.ClusterRunner` | -- | Single entry-point executable for the entire cluster |
 
 ### 5.5 HROT Engine Layer
@@ -348,7 +347,6 @@ Selection is configuration-time: higher-level code is protocol-agnostic.
 
 **Runner:**
 - [Hrot.ClusterRunner](Hrot/Runner/Hrot.ClusterRunner.md)
-- [Hrot.FakeStrideApp](Hrot/Runner/Hrot.FakeStrideApp.md)
 
 **Subsystems:**
 - [Hrot.Orchestrator](Hrot/Subsystems/Hrot.Orchestrator.md)
@@ -359,7 +357,7 @@ Selection is configuration-time: higher-level code is protocol-agnostic.
 - [Hrot.Editor](Hrot/Subsystems/Hrot.Editor.md)
 - [Hrot.AI.Behaviors](Hrot/Subsystems/Hrot.AI.Behaviors.md)
 - [Hrot.ReplayBrowser](Hrot/Subsystems/Hrot.ReplayBrowser.md)
-- [Hrot.StrideMock](Hrot/Subsystems/Hrot.StrideMock.md)
+- [Hrot.NodeComposition](Hrot/Subsystems/Hrot.NodeComposition.md)
 
 **Blueprints:**
 - [Hrot.Blueprints.Core](Hrot/Blueprints/Hrot.Blueprints.Core.md)
@@ -710,7 +708,6 @@ See [AI Behavior Authoring](relationships/AI-Behavior-Authoring.md) and
 | Project | Category | Description | Doc |
 |---------|----------|-------------|-----|
 | `Hrot.ClusterRunner` | Executable | Single entry point for the entire cluster; polyglot runner | [link](Hrot/Runner/Hrot.ClusterRunner.md) |
-| `Hrot.FakeStrideApp` | Executable | Standalone Raylib host for StrideMock subsystem | [link](Hrot/Runner/Hrot.FakeStrideApp.md) |
 
 ### 9.10 HROT Subsystems
 
@@ -724,7 +721,7 @@ See [AI Behavior Authoring](relationships/AI-Behavior-Authoring.md) and
 | `Hrot.Editor` | Subsystem | Offline scenario authoring, entity placement, mission planning, zone authoring | [link](Hrot/Subsystems/Hrot.Editor.md) |
 | `Hrot.AI.Behaviors` | Subsystem / Library | 8 runtime AI behaviors; BTree + HSM definitions, tactical order mappers | [link](Hrot/Subsystems/Hrot.AI.Behaviors.md) |
 | `Hrot.ReplayBrowser` | Subsystem | Offline recording inspection, search, diff, JSON export, causality jump | [link](Hrot/Subsystems/Hrot.ReplayBrowser.md) |
-| `Hrot.StrideMock` | Subsystem | Stride engine mock node (GPU-free, CI-friendly) | [link](Hrot/Subsystems/Hrot.StrideMock.md) |
+| `Hrot.NodeComposition` | Subsystem | Node composition root (`StrideNodeBootstrapper`) consumed by the real Stride host | [link](Hrot/Subsystems/Hrot.NodeComposition.md) |
 
 ### 9.11 HROT Blueprints
 
@@ -893,7 +890,6 @@ All generated documentation lives under `docs/`.
 | Document | Project |
 |----------|---------|
 | [Hrot.ClusterRunner](Hrot/Runner/Hrot.ClusterRunner.md) | Cluster executable entry point |
-| [Hrot.FakeStrideApp](Hrot/Runner/Hrot.FakeStrideApp.md) | Standalone StrideMock host |
 
 ### 12.6 HROT Subsystem Documents
 
@@ -907,7 +903,7 @@ All generated documentation lives under `docs/`.
 | [Hrot.Editor](Hrot/Subsystems/Hrot.Editor.md) | Scenario editor |
 | [Hrot.AI.Behaviors](Hrot/Subsystems/Hrot.AI.Behaviors.md) | Runtime AI behaviors |
 | [Hrot.ReplayBrowser](Hrot/Subsystems/Hrot.ReplayBrowser.md) | Replay inspection tool |
-| [Hrot.StrideMock](Hrot/Subsystems/Hrot.StrideMock.md) | Stride engine mock |
+| [Hrot.NodeComposition](Hrot/Subsystems/Hrot.NodeComposition.md) | Node composition root for the real Stride host |
 
 ### 12.7 HROT Blueprint Documents
 

@@ -239,3 +239,71 @@ same failure, before a single port file existed. ⇒ ⛔ **the port did not regr
 
 ⇒ 📄 **[`Stride_Host_Visual_Test.md`](Stride_Host_Visual_Test.md)** carries the Windows launch
 command and what a human should see.
+
+---
+
+## ⭐⭐⭐ 7. AS-BUILT — **the StrideMock removal, and where `StrideNodeBootstrapper` lives now**
+
+> 📄 Dispatch: [`blueprints/batches/HANDOFF_Stride_Cleanup.md`](blueprints/batches/HANDOFF_Stride_Cleanup.md).
+> ids `ST-014`…`ST-018`, tracker Area I. 🔒 **User, `2026-08-23`:** *"StrideMock is not needed anymore, it
+> was just a temporary submodule used in place of the real stride. we can remove whole subsystem (unless
+> you find something great it provides we should keep)."*
+
+### ⛔⛔ 7.1 The relocation target in `1f`/`S1` was **IMPOSSIBLE**, not merely second-best *(`ST-014`)*
+
+Both this doc and the dispatch leaned on *"beside `SharedApplicationBootstrapper` in
+`Hrot.Common.Infrastructure`"*, on the strength of that class's own *"eliminating duplication across
+SimHost, IG, and StrideMock"* comment. ⛔ **The comment points at the base class; it does not license
+moving the concrete root.**
+
+| 📐 measured | |
+|---|---|
+| `StrideNodeBootstrapper` uses | `Hrot.SimHost{,.Modules,.Serializers,.Systems}` · `Hrot.IG.{Components,Systems}` · `Hrot.Map.Common` · `Hrot.Network.Infrastructure` |
+| `Hrot.SimHost` → `Hrot.Common` | ✅ already |
+| `Hrot.IG` → `Hrot.Common` | ✅ already |
+| ⇒ `Hrot.Common` → `Hrot.SimHost` | 🔴 **project-reference CYCLE** |
+
+⭐⭐ **The rule this establishes:** a **composition root sits ABOVE the subsystems it composes**, so it can
+never live in the engine layer those subsystems depend on. The *abstract base* belongs in `Hrot.Common`;
+the *concrete root* cannot follow it down. ⚠ Any future "move it next to its base class" instinct hits the
+same wall.
+
+⇒ ✅ **As built:** `Hrot.StrideMock` was **renamed** to **`Hrot.NodeComposition`**
+(`Hrot/Subsystems/Hrot.NodeComposition/`, `git mv` so history follows) and gutted to the single surviving
+type. ⭐ This keeps the exact reference set that already compiled — no new edge anywhere in the graph —
+and gives the type a home the Stride app may reference. ⭐ References **trimmed to what the type uses**:
+`Fdp.Presentation`, `Fdp.Examples.Scenarios`, `Raylib-cs` and `rlImGui-cs` were the *mock's* rendering
+shell and demo scenario. ⚠ The class comment has always read *"must not reference Raylib, ImGui"* — so
+those four were untrue of **it** even before the mock went.
+
+### ⭐⭐ 7.2 `S2` as written would have deleted tests of a SURVIVING type *(`ST-014`)*
+
+📐 `Hrot.StrideMock.Tests` held **44** facts, and **22 of them test types that survive** —
+`StrideNodeBootstrapperTests` (12, the very type `S1` preserves) and `SharedApplicationBootstrapperTests`
+(10, a `Hrot.Common` type). ⇒ ⭐ both kept, in the renamed `Hrot.NodeComposition.Tests` (**22 / 0**); only
+the 22 mock-only facts went. ⚠ Splitting `SharedApplicationBootstrapperTests` out into
+`Hrot.Common.Tests` was **rejected**: both survivors need `OfflineNetworkFactory`, which would have forced
+`Hrot.Common.Tests` → `Hrot.Editor` (Raylib) — a heavy edge onto a low-level test project.
+
+### 📐 7.3 What was removed, and the numbers
+
+| | |
+|---|---|
+| deleted types | `StrideMockSubsystem` · `FakeStrideEntity` · `FakeStrideEffect` · `FakeStrideScript` · `SyncFdpToStrideScript` |
+| deleted projects | `Hrot.FakeStrideApp` + `.Tests` (outright) |
+| renamed projects | `Hrot.StrideMock` → `Hrot.NodeComposition`; `.Tests` likewise (**GUIDs kept**, so solution configs and nesting stayed valid) |
+| solution | **122 → 120** projects — 4 entries touched: **2 removed**, **2 renamed in place** |
+| mode token | `stridemock` gone from **6** sites, not the 4 the dispatch measured — see `ST-015` |
+| grants | both `InternalsVisibleTo Hrot.StrideMock.Tests` dropped (`Hrot.Common`, `Hrot.Presentation`) |
+
+### ⚠⚠ 7.4 What `S1` could and could NOT be verified against *(extends §6.6 / `ST-006`)*
+
+⭐⭐ **Better than the dispatch expected.** §3 of the handoff asked for the `HrotStrideApp.Game` reference
+update to be reported as *"REVIEWED, NOT COMPILED"*. 📐 It **compiles**: with
+`-p:EnableWindowsTargeting=true`, **`HrotStrideApp.Game` and `Hrot.Stride.Core.Tests` both build 0 errors**
+— and those are precisely the two projects whose `ProjectReference` was repointed. ⇒ the relocation is
+**compile-verified end to end on Linux.**
+
+⛔ **Still owed a Windows check:** *running* the Stride suites. Re-confirmed here — the test host wants
+`Microsoft.WindowsDesktop.App` 8.0.0 and reports *"No frameworks were found"*. ⇒ `StrideGameReferenceTests`
+was **updated to the new home and compiles, but has not been executed anywhere.**
