@@ -4219,6 +4219,12 @@ namespace Hrot.Editor
                     new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
                         new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_kernel)),
                     EditorWindowColor.TitleBar));
+
+                // BP-327 — global window: the module/system execution-stats profiler.
+                windowManager.RegisterWindow(new SystemProfilerWindow(
+                    "editor_system_profiler", "Editor System Profiler", "Editor",
+                    () => _kernel?.GetExecutionStats(),
+                    EditorWindowColor.TitleBar));
             }
 
             // ?? Time transport controls in status bar ?????????????????????????

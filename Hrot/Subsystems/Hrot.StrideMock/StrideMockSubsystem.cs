@@ -95,6 +95,14 @@ public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider, IWindo
                 new ArchitectureDiagnosticsService(() => _core.Context.Kernel)),
             TitleBarColor));
 
+        // BP-327 — global window: the module/system execution-stats profiler.
+        windowManager.RegisterWindow(new SystemProfilerWindow(
+            "stridemock_system_profiler",
+            "StrideMock System Profiler",
+            "StrideMock",
+            () => _core.Context.Kernel?.GetExecutionStats(),
+            TitleBarColor));
+
         // Ensure the repository adapter is created once the world exists
         _fdpRepoAdapter ??= new RepositoryAdapter(_core.Context.World);
 

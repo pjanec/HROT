@@ -251,6 +251,12 @@ namespace Hrot.SimHost
                     new ArchitectureDiagnosticsService(() => _app?.Kernel)),
                 SimHostWindowColor.TitleBar));
 
+            // BP-327 — global window: the module/system execution-stats profiler.
+            windowManager.RegisterWindow(new SystemProfilerWindow(
+                "simhost_system_profiler", "SimHost System Profiler", "SimHost",
+                () => _app?.Kernel?.GetExecutionStats(),
+                SimHostWindowColor.TitleBar));
+
             windowManager.RegisterWindow(new FakeNavigationInspectorWindow(
                 () => _app?.WorldOrNull));
 

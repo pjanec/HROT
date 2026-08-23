@@ -3,6 +3,10 @@ state: LIVE
 build-state: BUILT — U-obs-1, U-obs-2 and U-obs-5 (the full panel sweep) are COMPLETE as of
   2026-08-23: 53 panels declare, 48 publish (BP-453..471). FIVE DEVIATIONS are recorded in the AS-BUILT
   section and all five are folded back into the sections they deviate from.
+  ⭐ 2026-08-23 (later): the no-host set (BP-467) is CLOSED — two panels deleted, four given real hosts
+  (BP-472..476), so 5 more panels now publish. §"The invariant, stated as a review rule" gained a new
+  sub-section naming the TWO CONCRETE FAILURE SHAPES that violate it (re-sample; nested Begin) — both
+  were found in review of BP-476's first cut, and NEITHER is catchable by a rail.
   ⛔ STILL UNBUILT: U-obs-3 (the gizmo peer feed) and U-obs-4 (the smoke suite reading PanelSnapshot).
   The GET /panels endpoints are the TIME lane's. ⚠ So the snapshot currently has NO consumer.
 updated: 2026-08-23
@@ -247,6 +251,21 @@ AssertJson.Equal(onEditor, onCgf);   // any diverging field is pinpointed by pat
 ⭐ **The reviewable smell:** any drawn value that did not come from the VM. This is the C-equivalent of B's
 "capture must be a byproduct of the draw" — here it is achieved by making the VM the *complete* description of
 what the panel shows, and the draw a pure function of it.
+
+### ⛔⛔ TWO CONCRETE FAILURE SHAPES — **added `2026-08-23`, both caught in review, neither catchable by a rail**
+
+📌 **`SystemProfilerWindow` (`BP-476`) shipped its first cut with both.** ⭐ They are written down because the
+rule above states the principle and a reviewer still has to *recognise* the violation in a diff.
+
+| ⛔ shape | what it looks like | why no rail sees it |
+|---|---|---|
+| ⭐⭐ **RE-SAMPLE** — the draw reads the SOURCE again instead of the model | `BuildAndPublish(); Panel.Draw(_provider());` — ⚠ **two calls to `_provider()` in one frame** | ⭐ the dump is well-formed and the pixels are well-formed; they simply describe **different samples**. ⇒ ⛔ the snapshot becomes evidence about a frame nobody saw. ⭐ **The fix is a shape, not a value:** `Panel.DrawContent(BuildAndPublish())` — one sample, structurally |
+| ⭐⭐⭐ **NESTED `Begin`** — the panel opens its own ImGui window inside a `ManagedWindow` | calling a `Draw(...)` overload that wraps `ImGuiApi.Begin`/`End` | 📐 `ManagedWindow.Render` calls `Gui.Begin` (`:202`) **before** `DrawClientArea` (`:221`) and `Gui.End` at `:224` ⇒ **the managed window renders EMPTY and a stray floating panel appears beside it.** ⛔ Every headless rail still passes — the VM is built and published correctly; only the *pixels* are wrong |
+
+⇒ ⭐⭐ **The naming convention that makes this reviewable: a panel method a `ManagedWindow` may call is named
+`DrawContent`, never `Draw`.** ⭐ `ArchitectureDiagnosticsPanel` established it; `SystemProfilerPanel` now
+follows it, with its standalone `Draw` **routing to** `DrawContent` rather than repeating the table — ⛔ so the
+two renderings can never drift.
 
 ## Cross-host conformance — why this layer
 
