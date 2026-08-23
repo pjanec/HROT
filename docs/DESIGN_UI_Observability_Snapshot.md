@@ -1,7 +1,18 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (slice 1: the contract + snapshot singleton + one pilot panel + MCP read; rollout is incremental)
-updated: 2026-08-22
+build-state: BUILT — U-obs-1, U-obs-2 and U-obs-5 (the full panel sweep) are COMPLETE as of
+  2026-08-23: 53 panels declare, 48 publish (BP-453..471). FIVE DEVIATIONS are recorded in the AS-BUILT
+  section and all five are folded back into the sections they deviate from.
+  ⛔ STILL UNBUILT: U-obs-3 (the gizmo peer feed) and U-obs-4 (the smoke suite reading PanelSnapshot).
+  The GET /panels endpoints are the TIME lane's. ⚠ So the snapshot currently has NO consumer.
+updated: 2026-08-23
+stale-below: the "## ⛔ HISTORY" section at the foot of this file — the open questions as first written.
+  Question ② was resolved AGAINST its lean; do not quote the leans as current.
+known-rot: none outstanding. The two source sections the build deviated from were CORRECTED IN PLACE
+  on 2026-08-22, each carrying its own correction banner: §Example's code block (capture now precedes
+  the render guard) and §"Perf & correctness" → "Id stability" (a declared literal, not a window id).
+  Both were still showing the superseded guidance for one commit after AS-BUILT recorded the deviation;
+  that gap is closed. The AS-BUILT deviations table remains the fuller account.
 current-answer: the whole file — the decision to make every panel render from a whole, dumpable view-model
   handed to a per-frame snapshot singleton (approach C), so the UI becomes machine-readable for tests, MCP,
   and cross-host conformance without pixels. §UML is the build contract; §APIs + §Example are the shape.
@@ -169,26 +180,34 @@ ImGui.Text($"Current tier: {_model.GetCurrentTier()}");
 foreach (var def in attached) ImGui.Text($"{def.Name} (attached)");
 ```
 
-**After** *(approach C — build, render-from-VM, capture)*:
+**After** *(approach C — ⭐⭐ **BUILD · CAPTURE · render-from-VM**, corrected `2026-08-22`)*:
+
+> ⛔⛔ **CORRECTED — this block previously ordered it build → render → CAPTURE, and that order is WRONG.**
+> 📐 A real panel's draw opens with a render guard *(`if (ImGui.GetCurrentContext() == IntPtr.Zero) return;`)*,
+> so a capture placed after the render **never runs headless** ⇒ the dump would need a live GPU context and
+> this programme would only work where a display already does. ⭐ **Capture is published BEFORE the guard.**
+> 📌 Measured on the pilot: the old order reddens **4 of 6** rails. 📄 AS-BUILT deviation ①.
 
 ```csharp
 // 1. BUILD — a pure function of state. This IS the dumpable model.
 var vm = new EntityBlueprintsViewModel {
-    PanelId  = "entity-blueprints",
+    PanelId  = PanelIds.EntityBlueprints,   // ⭐ a DECLARED literal — see "Id stability" below
     Title    = "Entity Blueprints",
     SimState = _isRunning ? "Running" : "Paused",
     Tier     = _model.GetCurrentTier(),
     Rows     = attached.Select(d => new BlueprintRowVM(d.Name, "attached")).ToList(),
 };
 
-// 2. RENDER — draw ONLY from vm (the invariant). Nothing shown that isn't in vm.
+// 2. CAPTURE — flag-gated (free when off), and BEFORE the render guard so a headless
+//    run still observes the panel. ⛔ Not after the render: see the correction above.
+if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+
+// 3. RENDER — draw ONLY from vm (the invariant). Nothing shown that isn't in vm.
+if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
 ImGui.Text(vm.Title);
 ImGui.Text($"Sim: {vm.SimState}");
 ImGui.Text($"Current tier: {vm.Tier}");
 foreach (var r in vm.Rows) ImGui.Text($"{r.Name} ({r.State})");
-
-// 3. CAPTURE — once per frame, flag-gated (free when off).
-if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
 ```
 
 **What MCP / the test reads** (`GET /panels/entity-blueprints`):
@@ -246,8 +265,39 @@ the structured diff names the exact field. ⇒ **assert at the VM layer, not the
 | **U-obs-4** | the **smoke suite T2** reads `PanelSnapshot` instead of a bespoke `EditorPanels` *(supersedes `DESIGN_Smoke_Suite.md` G-c)* | one snapshot, many consumers |
 | **U-obs-5+** | convert further panels **as they are touched** *(a standing rule, not a big-bang sweep)*; new/unified panels are born on the contract | value-ordered; never refactor a static label |
 
-⛔ **Not required:** converting every one of the hundreds of panels up front. The long tail of static/cosmetic
-panels stays on pixels/human until touched.
+⛔ *(was: **Not required:** converting every one of the hundreds of panels up front. The long tail of
+static/cosmetic panels stays on pixels/human until touched.)*
+
+### ⭐⭐⭐ SUPERSEDED `2026-08-22` — **the user ordered a FULL SWEEP**
+
+🔒 **User, verbatim:** *"pls work autonomously overnight, take it as far as possible, migrate all panels"*
+
+⇒ ⭐⭐ **`U-obs-5`'s *"as they are touched"* is WITHDRAWN as the operating policy.** ⛔ The value-ordered
+trickle was a cost-control choice; the user has priced it differently and wants the fleet converted.
+
+| ⭐ what survives the override — ⛔ and it is not a loophole | |
+|---|---|
+| ⭐⭐⭐ **"never refactor a static label" STILL HOLDS** | ⛔ a panel whose draw is fixed chrome — constant captions, a button that only invokes a command, an about box — has **nothing a test could assert beyond a constant** ⇒ converting it adds a view-model that can never fail. ⭐ **So "all panels" is read as "every panel that shows STATE"** |
+| ⭐⭐ **the skipped set is REPORTED, never silent** | ⛔ a sweep that quietly drops files is indistinguishable from one that missed them ⇒ ⭐ every `SKIP` is listed with its one-line reason, so the user can overrule any of them |
+| ⚠ **one bucket is genuinely out** | **`FDP/Examples/`** — sample apps, not editor panels |
+| ⭐⭐⭐ **and `NodeEdit` is NOT blocked — THE CALLER REGISTERS** *(user, `2026-08-22`)* | 🔒 **verbatim:** *"nodeEdit itself does not need conversion, it is editing given structure reference, but its caller can register the model (the struct) in the singleton snapshot registry."* ⇒ ⛔ **my "cannot be converted" claim was wrong**, and it was wrong because I reasoned from the DEPENDENCY GRAPH instead of from what the panel IS |
+
+#### ⭐⭐ THE CALLER-REGISTERS RULE — **a generic panel does not own a panel identity**
+
+📐 A `NodeEdit` panel *(`DetailsPanel`, `MyBlueprintPanel`, `BookmarksPanel`, `FindResultsPanel`,
+`PickerWindow`)* **edits a structure it is handed.** ⇒ ⭐⭐ it has **no identity of its own to publish**:
+the same `DetailsPanel` renders a different thing in every host that calls it.
+
+| ⭐ so the split is the same one `PanelId`/`PanelKind` already makes | |
+|---|---|
+| ⭐⭐ **the CALLER owns the address, the kind, and the registration** | it is the one that knows *which* panel this is and *what* it was handed |
+| ⭐ **the generic panel owns only the RENDERING** | ⛔ it needs no reference to the contracts assembly at all ⇒ **the layering objection dissolves rather than being worked around** |
+| ⭐⭐ **what gets registered is THE STRUCTURE THE CALLER PASSED IN** | ⚠ which is the honest model anyway: the panel's whole visible content is a projection of that argument |
+
+⇒ ⛔ **`BP-453`'s recorded limit is NARROWED, not deleted:** a NodeEdit panel still cannot *call*
+`PanelSnapshot` — ⭐ but nothing needs it to. 📌 **The limit was real; the conclusion drawn from it was not.**
+
+📐 **Scope measured `2026-08-22`:** **91** `*Panel.cs` / `*Window.cs` files outside tests, across ~20 assemblies.
 
 ## Perf & correctness details
 
@@ -256,7 +306,7 @@ panels stays on pixels/human until touched.
 | **Build cost** | the VM is built every frame anyway *(the draw needs it)* — the same compute the inline draw already does, materialized into an object. `VariableTableModel` already pays this. Pool/reuse if a hot panel shows allocation pressure. |
 | **Flag gates the DUMP, not the build** | production still builds VMs to draw; it just does not `Register`. Cost when off = one branch per panel. |
 | **Opt-in registry** | `RegisteredPanels` distinguishes *"panel drew an empty model"* from *"panel not converted"* — ⛔ else un-converted panels produce false greens. |
-| **Id stability** | `PanelId` must be stable across frames and identical across hosts *(use the window-manager registration id)* — conformance depends on it. |
+| **Id stability** | ⭐⭐⭐ **TWO FIELDS, because this row and §Example were asking for two different things.** ⭐ **`PanelId` — the ADDRESS**: what `GET /panels/{id}` resolves and the snapshot is keyed by ⇒ **unique among live panels**; a per-perspective window uses **its own registration id** *(this row's original advice, and it was right for this half)*. ⭐ **`PanelKind` — the LOGICAL NAME**: `watch` · `variables` ⇒ **identical across hosts**, and what conformance groups by *(§Example's literal, right for the other half)*. ⚠⚠ **Unique-by-construction and stable-by-construction are OPPOSITE properties**, so one field could never carry both. 📄 AS-BUILT deviation ② — ⛔ which first resolved this the wrong way, in favour of §Example alone. |
 | **Thread** | panels draw on the UI/sim thread; the snapshot is written there and read by MCP via the existing `MainThreadJobQueue` — no new threading. |
 
 ## Alternatives considered (the ADR record)
@@ -269,8 +319,54 @@ panels stays on pixels/human until touched.
 | **Pixel comparison** | ⭐ kept as a rare backstop | cheap to build, expensive to use *(token/human cost, brittle)*. Allocate by check-frequency: model for frequent/regression/conformance; pixels for the rare tail. |
 | ⭐ **C — whole VM per panel, dumped per frame** | ✅ **chosen** | structured, high-fidelity, single-source-of-truth by the invariant, well-posed for cross-host, and the `VariableTableModel` pattern already proves it. |
 
-## Open questions (for the build session to resolve, argued in-report)
+## ✅ AS-BUILT — `U-obs-1` shipped `2026-08-22` (`BP-453`–`BP-457`)
 
-1. **`Dump()` shape** — hand-written per VM, or reflection/`System.Text.Json` over the VM's properties? *(Lean: STJ over the VM, like the rest of the MCP surface, with a hook for custom cases — matches decision 3 of the extensions.)*
-2. **Registration mechanics** — does the panel call `PanelSnapshot.Register` itself, or does the window-manager wrap `Draw()` and register the returned VM? *(Lean: the window-manager wraps, so a panel cannot forget — but that needs panels to RETURN their VM from a build step; decide with the pilot.)*
-3. **In-panel input** — defer until a concrete need, or design the actionable-item id scheme now? *(Lean: defer; the command bus covers the near-term.)*
+> ⭐ **What exists:** `IPanelViewModel` · `PanelDump` · `PanelSnapshot` · `PanelIds` in
+> **`Fdp.Diagnostics.Contracts`** *(namespace `Fdp.Diagnostics.Contracts.Panels`)*, and
+> **`EntityBlueprintsPanel`** converted end-to-end as the pilot. ⚠ **Five deviations from §UML/§Example
+> below — read them before mirroring the pilot.**
+
+### ⭐ The home, confirmed by measurement *(the handoff asked for this)*
+
+📐 `Fdp.Diagnostics.Contracts` → only `Fdp.Core` + `GizmoMap.Contracts`; and **every Hrot editor panel
+assembly reaches it transitively** *(`Hrot.Blueprints.Editor` → `Fdp.Toolkits` → it;
+`Hrot.Editor.AiShared` → `Fdp.Presentation` → `Fdp.Toolkits` → it)* ⇒ ⭐ **no new ProjectReference was
+needed anywhere.** ⚠ **One limit, stated:** the `FDP/ExtDeps/NodeEdit` tree references **nothing** from
+FDP, so a NodeEditor-owned panel cannot see this contract ⇒ ⛔ it would need a host-side shim rather than
+inverting that layering. 📌 Not a problem for `U-obs-2`'s targets, which all live in `Hrot.Editor.AiShared`.
+
+### ⛔⛔ DEVIATIONS — **each one measured, none cosmetic**
+
+| # | §says | ⭐ as built, and why |
+|---|---|---|
+| **①** | §Example orders it **build → render → capture** | ⭐⭐⭐ **CAPTURE HAPPENS BEFORE THE RENDER GUARD.** 📐 The pilot's draw opens `if (ImGui.GetCurrentContext() == IntPtr.Zero) return;` ⇒ capturing after it makes the dump **depend on a live GPU context**, and ⛔ **a headless run would observe NOTHING** — which defeats `DESIGN_Headless_Testability.md`, the very reason this programme exists. ⇒ ⭐ **the model is the panel's truth whether or not anyone paints it.** 📌 Probed: moving the capture back after the guard reddens **4 of 6** pilot rails |
+| **②** | §"Perf &amp; correctness" says *"use the window-manager registration id"*; §Example's payload says `"panelId": "entity-blueprints"` | ⛔⛔⛔ **THIS ROW WAS RESOLVED WRONG ONCE — corrected `2026-08-22` after the user asked the question that broke it.** ⚠ *(was: "§Example is right, §Perf is wrong; a panel id is a declared literal.")* 🔒 **User:** *"how will the MCP server know what the panel id to ask for if the panel does not have unique id no matter what model it is showing?"* ⇒ ⭐⭐⭐ **the two sections are NOT rivals — they are two different JOBS one field was being asked to do.** ⭐ **`PanelId` = the ADDRESS** *(unique among live panels, or `GET /panels/{id}` is ambiguous and the dump clobbers — §Perf was right here)*; ⭐ **`PanelKind` = the LOGICAL NAME** *(identical across hosts, what conformance groups by — §Example was right here)*. 📐 **Measured on the real corpus:** three watches are live at once, one per perspective ⇒ a shared id **overwrites two of them**. ⚠ **Invisible on the pilot because a singleton's address and kind are the same string** — which is exactly how the first cut passed its own rails. ⛔ Railed now: `ThreeLivePanelsOfOneKind_StayIndividuallyAddressable` |
+| **③** | §APIs lists **one** member, `RegisteredPanels` | ⭐⭐ **TWO SETS**: `RegisteredPanels` *(instrumented at all)* + `CapturedPanels` *(actually dumped)*. ⛔ One set cannot express both halves — ⭐ and §"MCP read surface" already **requires** both: *"the panel ids captured this frame, **and** which panels are instrumented at all"* |
+| **④** | *(unspecified)* | ⭐⭐⭐ **`DeclareInstrumented` is called at CONSTRUCTION, always, ungated by `CaptureEnabled`.** ⛔ If instrumentation were declared by **drawing**, a panel whose window nobody opened would be indistinguishable from a panel nobody converted — 📌 exactly the false green the opt-in registry exists to prevent. Probed: moving it into the draw reddens 2 rails |
+| **⑤** | *(unspecified)* | ⚠⚠ **THERE IS NO FRAME BOUNDARY.** Entries are **latest-wins** and persist until overwritten ⇒ ⛔ a panel that stops drawing leaves its last model visible. ⭐ Clearing per frame needs a call site in the frame loop *(`EditorSubsystem`)*, which this lane must not touch ⇒ 📌 **`BP-456`, for whoever owns the loop.** A tripwire rail pins the current behaviour so the limit and the code change together |
+
+### ⭐ The open questions, RESOLVED
+
+| # | resolution |
+|---|---|
+| **①** `Dump()` shape | ⭐ **The design's own lean, taken:** `PanelDump.Of(this)` — STJ over the VM, camelCase, with a VM free to write its own `JsonNode` for a custom shape |
+| **②** registration mechanics | ⭐⭐ **THE PANEL CALLS IT** — ⛔ *not* a window-manager wrapper, and the lean was wrong for a measured reason: **there is no single wrapper to put it in.** 📐 `IBlueprintEditorWindow` and `Fdp.Presentation.WindowManager`'s windows are **two unrelated families with no common base** ⇒ a wrapper would have to be written twice, which is the duplicate-mechanism ruling 9 forbids. ⚠ The cost is real and accepted: **a panel CAN forget to register** — ⭐ which is what the opt-in registry surfaces, rather than hides |
+| **③** in-panel input | ⭐ **Deferred**, as the lean said. Nothing here needs it |
+
+### ⚠ What `U-obs-1` does NOT give you
+
+⛔ **No rail can enforce the INVARIANT.** 📐 A draw that reads `_model.GetCurrentTier()` instead of
+`vm.Tier` renders the *same characters*, so no assertion over the dump can see the difference. ⇒ ⭐⭐ **the
+invariant stays a REVIEW rule** — which is what §Invariant already says, and it is why phase 2's Opus review
+gate is *"any drawn value that did not come from the VM"* rather than a test.
+
+---
+
+## ⛔ HISTORY — the open questions as first written
+
+⚠ **Superseded by *"The open questions, RESOLVED"* above. ⛔ Do not quote the leans as current** — ② was
+resolved **against** its lean, on a measurement the lean did not have.
+
+> 1. **`Dump()` shape** — hand-written per VM, or reflection/`System.Text.Json` over the VM's properties? *(Lean: STJ over the VM, like the rest of the MCP surface, with a hook for custom cases — matches decision 3 of the extensions.)*
+> 2. **Registration mechanics** — does the panel call `PanelSnapshot.Register` itself, or does the window-manager wrap `Draw()` and register the returned VM? *(Lean: the window-manager wraps, so a panel cannot forget — but that needs panels to RETURN their VM from a build step; decide with the pilot.)*
+> 3. **In-panel input** — defer until a concrete need, or design the actionable-item id scheme now? *(Lean: defer; the command bus covers the near-term.)*

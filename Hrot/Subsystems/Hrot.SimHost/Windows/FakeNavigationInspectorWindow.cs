@@ -1,12 +1,27 @@
 using System;
+using System.Text.Json.Nodes;
 using ImGuiNET;
 using Fdp.Core;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.EngineBacked;
 using Fdp.Toolkit.Navigation.Fake;
 
 namespace Hrot.SimHost.Windows;
+
+/// <summary>⭐⭐⭐ U-obs-5 (group 6) — the whole of what <see cref="FakeNavigationInspectorWindow"/>
+/// shows, this frame. ⚠ Captures the header (world presence, detected backend) and the corridor-preview
+/// COUNT — a real, headless-safe field reusing <see cref="FakeNavigationInspectorWindow.CountCorridorPreviews"/>,
+/// the same query <c>DrawCorridorPreviewTable</c> iterates. ⛔ The per-tab detail tables stay
+/// "(not yet implemented)" stubs today (measured — every branch is a static string), so there is no
+/// further real state to project out of them yet.</summary>
+public sealed record FakeNavigationInspectorPanelViewModel(
+    string PanelId, string PanelKind, bool HasWorld, string BackendLabel, int CorridorPreviewCount) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// NAV-P7-T1: Four-tab ImGui diagnostic window for fake navigation backends.
@@ -21,10 +36,33 @@ internal sealed class FakeNavigationInspectorWindow : ManagedWindow
         : base("fake_nav_inspector", "Fake Navigation Backends", "SimHost", WindowScope.PerspectiveBound)
     {
         _repoGetter = repoGetter;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of <see cref="_repoGetter"/>'s current world. No ImGui —
+    /// safe to call headless.</summary>
+    private FakeNavigationInspectorPanelViewModel BuildViewModel()
+    {
+        var repo = _repoGetter();
+        if (repo == null) return new(Id, Kind, false, "No world available.", 0);
+        return new(Id, Kind, true, ComputeBackendLabel(repo), CountCorridorPreviews(repo));
+    }
+
+    internal const string Kind = "fake-nav-inspector";
+
+    private FakeNavigationInspectorPanelViewModel BuildAndPublish()
+    {
+        var vm = BuildViewModel();
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal FakeNavigationInspectorPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
 
     protected override void DrawClientArea()
     {
+        BuildAndPublish();
+
         var repo = _repoGetter();
         if (repo == null)
         {
@@ -44,18 +82,34 @@ internal sealed class FakeNavigationInspectorWindow : ManagedWindow
         }
     }
 
-    private void DrawHeader(EntityRepository repo)
+    /// <summary>⭐ Extracted so <see cref="BuildViewModel"/> and <see cref="DrawHeader"/> read the SAME
+    /// classification — the invariant: no drawn value that did not come from the model.</summary>
+    private static string ComputeBackendLabel(EntityRepository repo)
     {
         // NAV-P6-T7: detect active backend at draw time via INavmeshProvider singleton.
         var navmesh = repo.GetSingletonManaged<INavmeshProvider>();
-        string backendLabel = navmesh switch
+        return navmesh switch
         {
             EngineBackedNavmeshProvider => "Backend: EngineBacked (road graph + direct-line)",
             FakeNavmeshProvider         => "Backend: Fake (FakeNavmeshProvider + FakeDtCrowdProvider + FakeVolumetricPathProvider)",
             null                        => "Backend: none (no providers registered)",
             _                           => $"Backend: {navmesh.GetType().Name}",
         };
-        ImGui.TextDisabled(backendLabel);
+    }
+
+    /// <summary>⭐ Extracted so <see cref="BuildViewModel"/> and <see cref="DrawCorridorPreviewTable"/>
+    /// count the SAME set — the entities <c>DrawPathsTab</c>'s table iterates.</summary>
+    private static int CountCorridorPreviews(EntityRepository repo)
+    {
+        var query = repo.Query().With<NavigationCorridorPreview>().Build();
+        int count = 0;
+        foreach (var _ in query) count++;
+        return count;
+    }
+
+    private void DrawHeader(EntityRepository repo)
+    {
+        ImGui.TextDisabled(ComputeBackendLabel(repo));
         ImGui.Separator();
     }
 

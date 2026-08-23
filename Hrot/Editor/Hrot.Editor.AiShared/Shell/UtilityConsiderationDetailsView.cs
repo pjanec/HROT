@@ -1,7 +1,22 @@
 using System;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Editor.AiShared.Selection;
 
 namespace Hrot.Editor.AiShared.Shell;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 2) — the stub's one sentence, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example; <c>BP-462</c>.
+/// </summary>
+public sealed record UtilityConsiderationDetailsViewPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    string? Description) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ⭐⭐ <b><c>S3</c> — the UTILITY CONSIDERATION arm, moved out of <c>InspectorWindow</c>.</b>
@@ -60,11 +75,34 @@ public sealed class UtilityConsiderationDetailsView : IDetailsViewInstance
     private static UtilityConsiderationSelection? Selected(DetailsContext context)
         => context.Selection is { Count: 1 } one ? one[0] as UtilityConsiderationSelection : null;
 
+    /// <summary>⭐⭐⭐ U-obs-5: BUILD · CAPTURE. ⛔⛔ CORRECTED ORDER vs. the original body — the old code
+    /// opened with the ImGui-context guard, so a headless call never even reached <see cref="Describe"/>.
+    /// 📄 Same deviation as the design's own AS-BUILT ①: capture must precede the render guard, not
+    /// follow it.</summary>
+    private UtilityConsiderationDetailsViewPanelViewModel BuildAndPublish(DetailsContext context, string idScope)
+    {
+        var line     = Describe(context);
+        var panelId  = $"{idScope}/{UtilityConsiderationDetailsViewDescriptor.ViewId}";
+        PanelSnapshot.DeclareInstrumented(panelId);
+
+        var vm = new UtilityConsiderationDetailsViewPanelViewModel(
+            panelId, UtilityConsiderationDetailsViewDescriptor.ViewId, line);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal UtilityConsiderationDetailsViewPanelViewModel SimulateDraw(DetailsContext context, string idScope)
+        => BuildAndPublish(context, idScope);
+
     /// <inheritdoc/>
     public void Draw(DetailsContext context, string idScope)
     {
+        var vm = BuildAndPublish(context, idScope);
+
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
-        if (Describe(context) is not { } line) return;
+        if (vm.Description is not { } line) return;
 
         ImGuiNET.ImGui.TextUnformatted(line);
         ImGuiNET.ImGui.Separator();

@@ -1,9 +1,31 @@
 using System;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Selection;
 
 namespace Hrot.Editor.AiShared.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the window's OWN decision, dumped.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c>
+/// §Example.
+///
+/// <para>⚠ <b>Deliberately narrower than the panel's full paint.</b> <see cref="RuntimeInspectorWindow"/>
+/// delegates its content to an opaque <c>IRuntimeInspectorPane.Draw()</c> with no returned model — that
+/// pane's own content is a separate subsystem's concern, not this shell's. ⭐ What IS this shell's own
+/// state — which grey line is shown, or which pane kind claimed the selection — is captured whole.</para>
+/// </summary>
+public sealed record RuntimeInspectorPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    string? EmptyState,
+    string? ActivePaneKind,
+    int RegisteredPaneCount) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Shell for the shared runtime inspector. Renders the entity-lifecycle status,
@@ -14,6 +36,9 @@ namespace Hrot.Editor.AiShared.Windows;
 /// </summary>
 public sealed class RuntimeInspectorWindow : ManagedWindow
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Single-host: stays a local literal.</summary>
+    internal const string Kind = "runtime-inspector";
+
     private readonly EditorSelectionStore _store;
     private readonly IDebugSessionRegistry _registry;
     private readonly List<IRuntimeInspectorPane> _panes = new();
@@ -48,6 +73,9 @@ public sealed class RuntimeInspectorWindow : ManagedWindow
         _store = store;
         _registry = registry;
         _detailsViews = detailsViews;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     private readonly Shell.DetailsViewRegistry? _detailsViews;
@@ -111,13 +139,31 @@ public sealed class RuntimeInspectorWindow : ManagedWindow
             : null;
     }
 
+    /// <summary>⭐⭐⭐ BUILD · CAPTURE. ⛔⛔ No ImGui — <see cref="EmptyState"/> was already pure.</summary>
+    private RuntimeInspectorPanelViewModel BuildAndPublish()
+    {
+        var empty = EmptyState();
+        var activePane = empty == null
+            ? _panes.Find(p => p.TargetKind == _store.ActiveAsset!.Kind)
+            : null;
+
+        var vm = new RuntimeInspectorPanelViewModel(
+            Id, Kind, empty, activePane?.TargetKind.ToString(), _panes.Count);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal RuntimeInspectorPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
     protected override void DrawClientArea()
     {
-        // ⭐ A thin renderer over EmptyState() — ⛔ it decides nothing the rail cannot check.
-        var empty = EmptyState();
-        if (empty != null)
+        // ⭐ A thin renderer over BuildAndPublish() — ⛔ it decides nothing the rail cannot check.
+        var vm = BuildAndPublish();
+        if (vm.EmptyState != null)
         {
-            ImGuiNET.ImGui.TextDisabled(empty);
+            ImGuiNET.ImGui.TextDisabled(vm.EmptyState);
             return;
         }
 

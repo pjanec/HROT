@@ -793,7 +793,9 @@ id**; ⚠ registering the generic one for every perspective **collided with Blue
 **everything** to do with whether a perspective's nodes are described by **facets**: the facet dispatcher
 is a BTree/HSM concept, and Blueprint's nodes are drawn by `IBlueprintNodeDrawer`.
 
-⚠ **`InspectorWindow` still exists** — its parameter-sync arm *(`S4`)* and utility stub *(`S3`)* stay.
+⛔⛔ **`InspectorWindow` NO LONGER EXISTS** *(`S5`, `2026-08-22`)* — ⚠ *(was: "still exists — its
+parameter-sync arm (`S4`) and utility stub (`S3`) stay")*. ⭐ All six arms are Details views or
+asset-row menu items; after `S4` it drew nothing at all. 📄 §7.6 ④⑤.
 ⭐⭐ **Its asset header and collision strip are GONE as of `S2b`** — see §7.4a; ⛔ the sentence that stood
 here *("`S5` cannot delete it until the header and the strip have a home")* is **SUPERSEDED**: they have
 homes, and ⛔ **neither home is a Details view.** ⭐ **Its utility stub is gone as of `S3`** — §7.4b.
@@ -925,8 +927,34 @@ sequenceDiagram
 | **②** | ✅ **BUILT `2026-08-22` (`BP-432`)** — ⭐⭐ **`details.nodeproperties` on BTree + HSM**, `Shell/NodePropertiesDetailsView` + `Shell/NodePropertiesSource`, registered by the registrar for every perspective | ⭐ one view id, three perspectives; ⚠ the two sources reconciled as ① promised. ⛔⛔ **TWO of `InspectorWindow`'s arms moved, not one** — see the as-built note below |
 | **②b** | ✅ **BUILT `2026-08-22` (`BP-434`–`BP-437`)** — ⭐⭐⭐ **the asset-scoped arms leave `InspectorWindow`, and NONE of them becomes a Details view**: collision strip → **Diagnostics**, Rename…/Find References → **the Asset Browser row menu**, Go to Definition → **deleted**. 📄 **§7.4a** carries the routing and the user's ruling | ⛔⛔ **Not in `BP-399`'s original five rows, and it had to be:** `BP-431` measured that `S5` would strand them. ⭐ Doing it here is what **unblocks ⑤** |
 | **③** | ✅ **BUILT `2026-08-22` (`BP-438`)** — ⭐ **`details.utility`**, `Shell/UtilityConsiderationDetailsView`, registered UNGATED on every AI perspective | ⭐ ported as the stub it is, and it now **SAYS SO** — ⛔⛔ **it was also UNREACHABLE**, see §7.4b |
-| **④** | ⛔ **`details.parametersync`** — from `InspectorWindow`'s `PARAMETER SYNCHRONIZATION` arm | ⚠ **LAST**, after the orchestrator wiring *(`R-99`)* — unchanged |
-| **⑤** | ⭐ **`L5` retires both windows** and removes `ai_inspector_*` from the shipped default layout | 📌 `L5`: *"per item, after its replacement is live"* |
+| **④** | ✅ **BUILT `2026-08-22` (`BP-448`)** — ⭐ **`details.parametersync`** at **Rank 15**, `Shell/ParameterSyncDetailsView` + `ParameterSyncSource` | ⚠⚠ **CORRECTED `2026-08-22` — see the note below.** ⛔ This cell read *"the bindings reach the runtime"*; 📐 **re-measured, no binding the panel can AUTHOR is emittable yet** |
+| **⑤** | ✅ **BUILT `2026-08-22` (`BP-449`, `BP-450`)** — ⭐⭐ **`InspectorWindow` is DELETED**, and `ai_inspector_*` is out of `layout/default/imgui.ini` **and** `fdp_windows.json` | ⭐ After ④ the window drew **nothing**, so retiring it was the completion, not an extra. ⚠ **`BP-450`: I first claimed the layout half was a no-op and was WRONG** — the stale-layout rail caught it |
+
+#### 7.6a ⛔⛔ AS-BUILT CORRECTION (`2026-08-22`) — **what `S4`'s panel can and cannot do**
+
+⚠⚠ **④ above overstated `R-99`'s satisfaction, and the overstatement was MINE.** ⭐ The claim was
+*"`Q49` + `Q50` made the bindings reach the runtime."* 📐 **Re-measured against the corpus rather than
+against a test fixture:**
+
+| measured | |
+|---|---|
+| the panel offers `subAsset.BlackboardVariables` and refuses without them | `ParameterSyncSource.ModelFor:219` |
+| corpus split — **managed ⟺ has variables** | **15** managed *(all with variables)* · **11** not *(all without)*, no mixed case |
+| ⇒ ⭐ **the panel can only author against a Category-2 callee** | its blackboard type is `BrainBlackboard` = **128 bytes** |
+| ⛔ the master's inline budget is **100 bytes** | ⇒ **the generator skips every such asset** with a `BTREE0002` |
+
+⇒ 🔴 **the authorable set and the emittable set are DISJOINT today.** ⭐ 📄 The full measurement, the three
+candidate routes and the user's decision to postpone live in
+**[`Architect_Question_50`](Architect_Question_50_The_Master_Blackboard_Declares_The_Subtree_Slice.md)**
+*("THE LIMIT — re-measured")* — ⛔ not restated here.
+
+⭐⭐ **What ④ still gets right, and why it is NOT withdrawn** *(📌 the mirror error — measure what the diff
+BUILT before pulling it)*: the panel is **not** the inert surface `R-99` warned about. It reads a real
+asset, writes real persisted bindings through `IBTreeSyncableAsset`, and **says which of four refusals
+fired** instead of collapsing them. ⛔ **What it cannot do is make the generator emit** — ⭐ and that is a
+generator-side design call, **not a defect of this view.**
+
+⚠ **`S5` is unaffected**: `InspectorWindow`'s arm had the *same* reach, and strictly less of it.
 
 ⚠ **Not in this list, deliberately:** the **Diagnostics** and **Layout/byte-budget · Asset settings** rows.
 📐 `BlackboardAuthoringWindow` already contributes `details.blackboard`; ⇒ ⭐ **measure whether those rows

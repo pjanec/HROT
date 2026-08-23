@@ -1,3 +1,4 @@
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Catalog;
 using NodeEditor.Core.Interfaces;
@@ -36,6 +37,11 @@ public sealed class AssetBrowserDockedWindow : ManagedWindow
     /// <c>ShowWindow</c>, <c>FocusWindow</c>, etc.
     /// </summary>
     public const string ExpectedId = "AssetBrowser";
+
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Local literal: this is the one docked host for
+    /// <see cref="AssetBrowserPanel"/> today — see the panel's own remarks (a second host, e.g. a
+    /// picker modal, would supply its own address/kind at its own call site).</summary>
+    internal const string Kind = "asset-browser";
 
     /// <summary>
     /// Default title shown in the window title bar.
@@ -96,6 +102,9 @@ public sealed class AssetBrowserDockedWindow : ManagedWindow
             options ?? throw new ArgumentNullException(nameof(options)));
 
         _panel.AssetActivated += OnPanelAssetActivated;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>
@@ -106,9 +115,28 @@ public sealed class AssetBrowserDockedWindow : ManagedWindow
 
     // ── ManagedWindow overrides ────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5: BUILD · CAPTURE.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+    /// ⛔⛔ No ImGui — <see cref="AssetBrowserPanel.BuildViewModel"/> is a pure projection, published
+    /// before <see cref="AssetBrowserPanel.DrawContent"/> (which, unlike its siblings converted so far,
+    /// carries NO headless guard of its own — it calls <c>ImGui.BeginTabBar</c> unconditionally).
+    /// </summary>
+    private AssetBrowserPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, Kind);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context. ⛔ Do
+    /// NOT call <see cref="AssetBrowserPanel.DrawContent"/> from a headless test — it is unguarded.
+    /// </summary>
+    internal AssetBrowserPanelViewModel SimulateBuildAndPublish() => BuildAndPublish();
+
     /// <inheritdoc />
     protected override void DrawClientArea()
     {
+        BuildAndPublish();
         CustomToolbarDraw?.Invoke();
         _panel.DrawContent();
     }

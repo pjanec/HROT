@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Toolkit.DER;
 using ImGuiNET;
 
@@ -11,6 +13,20 @@ namespace Hrot.ExCon.Panels;
 /// <param name="Field">The public field name within that descriptor.</param>
 /// <param name="Value">String representation of the field value.</param>
 public sealed record InspectorLine(string Category, string Field, string Value);
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="InspectorPanel"/> shows, this frame.
+/// ⚠⚠ <b>[Obsolete] AND genuinely dead — measured, not assumed.</b> The queue flagged this as "live";
+/// searching for <c>new InspectorPanel(</c> anywhere in production code (including
+/// <c>ExConMock.cs</c>, its only plausible host) finds ZERO constructions — only
+/// <c>DerEntityInspectorPanel</c> (its replacement) is ever built there. ⇒ same shape as
+/// <c>SystemProfilerPanel</c>: no host to declare/register from. Reported as a correction to the
+/// queue's premise, not silently accepted.</summary>
+public sealed record InspectorPanelViewModel(
+    string PanelId, string PanelKind, int CachedEntityId, IReadOnlyList<InspectorLine> Lines) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ExCon UI panel that shows the raw field values of every ECS descriptor
@@ -156,6 +172,10 @@ public sealed class InspectorPanel
 
         return lines;
     }
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the cached descriptor lines. No ImGui.</summary>
+    public InspectorPanelViewModel BuildViewModel(string panelId, string panelKind) =>
+        new(panelId, panelKind, _cachedEntityId, _cachedLines);
 
     // ── Draw stub ─────────────────────────────────────────────────────────────
 

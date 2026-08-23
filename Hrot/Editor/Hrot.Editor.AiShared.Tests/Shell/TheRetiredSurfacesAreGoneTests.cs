@@ -105,9 +105,20 @@ public sealed class TheRetiredSurfacesAreGoneTests
     /// stub, different type, and §6 <c>L3</c> says of it: <i>"⛔ do not delegate this one."</i>
     /// ⭐ Railed because two classes sharing a name is exactly how the wrong one gets deleted next time.
     /// </summary>
+    /// <summary>
+    /// ⛔⛔ <b>SUPERSEDED <c>2026-08-22</c> BY <c>S5</c> — the AiShared <c>InspectorWindow</c> is now
+    /// RETIRED TOO, and this rail is INVERTED rather than deleted.</b>
+    /// <para>⚠ <i>(was: "TheAiSharedInspectorWindow_Survives" — it guarded against deleting the wrong one
+    /// of two same-named classes when the Blueprint 70-line stub went. That was RIGHT at the time and is
+    /// simply no longer the state.)</i></para>
+    /// <para>⭐ 📄 §7.6 ⑤: all six of its arms became Details views or asset-row menu items, and after
+    /// <c>S4</c> it drew nothing. ⛔ Asserted by NAME through reflection so this rail keeps working with
+    /// the type gone — a compile-time reference would simply not build.</para>
+    /// </summary>
     [Fact]
-    public void TheAiSharedInspectorWindow_Survives()
-        => Assert.NotNull(typeof(Hrot.Editor.AiShared.Windows.InspectorWindow));
+    public void TheAiSharedInspectorWindow_IsRetired()
+        => Assert.Null(typeof(Hrot.Editor.AiShared.Shell.ParameterSyncSource).Assembly
+            .GetType("Hrot.Editor.AiShared.Windows.InspectorWindow"));
 
     /// <summary>
     /// ⭐⭐⭐ <b>The two types that SHARED <c>BlueprintVariablesWindow</c>'s FILE survive.</b>

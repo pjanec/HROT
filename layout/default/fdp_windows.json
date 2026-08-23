@@ -4,7 +4,6 @@
   "Windows": {
     "fdp_message_log": { "IsOpen": true, "IsPinned": false },
     "ai_find_results_btree": { "IsOpen": false, "IsPinned": false },
-    "ai_inspector_btree": { "IsOpen": true, "IsPinned": false },
     "ai_runtime_inspector_btree": { "IsOpen": true, "IsPinned": false },
     "ai_trace_timeline_btree": { "IsOpen": false, "IsPinned": false },
     "ai_blackboard_variables_btree": { "IsOpen": true, "IsPinned": false },
@@ -15,7 +14,6 @@
     "ai_my_blueprint_btree": { "IsOpen": true, "IsPinned": false },
     "ai_details_btree": { "IsOpen": true, "IsPinned": false },
     "ai_find_results_hsm": { "IsOpen": false, "IsPinned": false },
-    "ai_inspector_hsm": { "IsOpen": true, "IsPinned": false },
     "ai_runtime_inspector_hsm": { "IsOpen": false, "IsPinned": false },
     "ai_trace_timeline_hsm": { "IsOpen": false, "IsPinned": false },
     "ai_blackboard_variables_hsm": { "IsOpen": true, "IsPinned": false },
@@ -26,7 +24,6 @@
     "ai_my_blueprint_hsm": { "IsOpen": true, "IsPinned": false },
     "ai_details_hsm": { "IsOpen": false, "IsPinned": false },
     "ai_find_results_blueprint": { "IsOpen": false, "IsPinned": false },
-    "ai_inspector_blueprint": { "IsOpen": true, "IsPinned": false },
     "ai_runtime_inspector_blueprint": { "IsOpen": true, "IsPinned": false },
     "ai_trace_timeline_blueprint": { "IsOpen": false, "IsPinned": false },
     "ai_blackboard_variables_blueprint": { "IsOpen": true, "IsPinned": false },

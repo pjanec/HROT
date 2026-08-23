@@ -70,7 +70,8 @@ public static class SharedAiEditorServiceCollectionExtensions
                 new AssetBrowserPanelOptions { Kinds = AssetKindFilter.All, ShowAllTab = false },
                 onAssetActivated ?? (_ => { }));
         });
-        services.AddSingleton<InspectorWindow>();
+        // ⛔ S5 (2026-08-22): InspectorWindow is RETIRED — all six of its arms became Details views
+        //    or asset-row menu items (BP-399 §7.6 ⑤). Nothing to register.
         services.AddSingleton<RuntimeInspectorWindow>();
         services.AddSingleton<TraceTimelineWindow>();
         services.AddSingleton<FindResultsWindow>();

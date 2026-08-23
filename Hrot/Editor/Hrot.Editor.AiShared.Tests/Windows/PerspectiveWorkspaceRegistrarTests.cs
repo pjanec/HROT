@@ -154,8 +154,14 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         //    is retired in the same commit — it HAD to be, because it claims the same
         //    `ai_details_blueprint` id and RegisterCore throws on a duplicate).
         //    ⭐ The property under test is distinctness, and it still holds.
-        Assert.Equal(26, allIds.Count);
-        Assert.Equal(26, allIds.Distinct().Count());
+        // ⛔⛔ 26 → 23 (S5 / BP-399, 2026-08-22: §7.6 ⑤ — InspectorWindow is RETIRED, so each of the
+        //    three perspectives loses one window. ⭐ MINUS 3, and that is the whole shape of the change:
+        //    all six of its arms are Details VIEWS or asset-row menu items now, and after S4 removed the
+        //    last one the window drew nothing at all.
+        //    📌 B101c: the DIRECTION was established before this number moved — the design commissions
+        //    the retirement, so this is a designed loss, ⛔ not an expectation relaxed to hide a red.)
+        Assert.Equal(23, allIds.Count);
+        Assert.Equal(23, allIds.Distinct().Count());
     }
 
     /// <summary>
@@ -167,7 +173,10 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         var reg = MakeRegistrar("BTree");
 
         Assert.NotNull(reg.FindResults);
-        Assert.NotNull(reg.Inspector);
+        // ⛔ S5: reg.Inspector is GONE — the window is retired (§7.6 ⑤). Its replacement services are
+        //    per-perspective sources on this same registrar, asserted just below.
+        Assert.NotNull(reg.ParameterSync);
+        Assert.NotNull(reg.NodeProperties);
         Assert.NotNull(reg.RuntimeInspector);
         Assert.NotNull(reg.TraceTimeline);
         Assert.NotNull(reg.BlackboardAuthoring);

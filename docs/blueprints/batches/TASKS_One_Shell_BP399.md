@@ -12,6 +12,10 @@ design-basis: DESIGN_Details_Panel_View_Switching.md §7 (target state, approved
 -->
 # ⭐⭐⭐ TASKS — **`BP-399`: one shell, and the Inspector's views become Details views**
 
+> ✅ **COMPLETE `2026-08-22`.** All five rows built *(`S0`–`S5`, ids `BP-428`–`BP-450`)*; `InspectorWindow`
+> is deleted. ⭐ Two rows landed differently from the plan and the design records both: the asset-scoped
+> arms were routed to **menus, not views** *(user ruling — §7.4a)*, and `S4` needed `Q49`+`Q50` first.
+
 > 📄 **THE DESIGN IS [`DESIGN_Details_Panel_View_Switching.md` §7](../DESIGN_Details_Panel_View_Switching.md).**
 > ⛔ **Nothing here restates it and no diagram is redrawn** — 📌 *"the diagrams live in the design, never
 > in the batch."* Every item below cites the section it builds.
@@ -25,8 +29,8 @@ design-basis: DESIGN_Details_Panel_View_Switching.md §7 (target state, approved
 | **S1** | ⭐⭐⭐ **Blueprint gets the real shell** — `DetailsWindow` under the existing id, `BlueprintDetailsWindow` retired, its node arm ported | §7.3 ①③④ · §7.6 ① | ⛔⛔ **STAGE GATE**, see §2 | ✅ **BUILT** — `BP-428` · `BP-429` · `BP-430`. Stage gate ①–⑤ all hold *(§2 below, annotated)* |
 | **S2** | ⭐⭐⭐ **`details.nodeproperties` on BTree + HSM** — extracted from `InspectorWindow`'s facet arm, **Rank 20** | §7.3's catalogue · §7.6 ② | selecting a BTree node makes it the **default**; Blackboard Variables is the other toolbar entry | ✅ **BUILT** — `BP-432`. ⚠ **Scope extended by one arm** *(`BP-431`, §6)*: the facet arm and the `B-3` default-value arm shared one cache and moved together |
 | **S3** | ⭐ **`details.utility`** — from `InspectorWindow`'s utility arm | §7.6 ③ | offered on a utility-consideration selection; ⚠ **ported as the stub it is** | ✅ **BUILT** — `BP-438`. ⛔⛔ **And the arm had NEVER DRAWN**: nothing raises `UtilityConsiderationSelection`. ⭐ Ported anyway — the design corpus claims it *(§7.4b)* |
-| **S4** | ⛔ **`details.parametersync`** — **NOT THIS BATCH** | §7.6 ④ · `R-99` | — | ⛔ **deferred, by design** |
-| **S5** | ⭐⭐ **`L5` retire** — delete `InspectorWindow`, drop `ai_inspector_*` from the shipped default layout | §7.6 ⑤ · §6 `L5` | the layout rail *(`BP-103b`)* stays green; no orphaned ids | ⛔ **BLOCKED ON `S4`** *(`BP-439`)* — 📐 one arm left, `PARAMETER SYNCHRONIZATION`, deferred by `R-99` |
+| **S4** | ⭐ **`details.parametersync`** | §7.6 ④ · `R-99` | the panel is no longer inert | ✅ **BUILT** — `BP-448`. ⭐ `R-99` **satisfied**: `Q49`+`Q50` made the bindings reach the runtime. Rank 15; the four refusals are a VALUE now |
+| **S5** | ⭐⭐ **`L5` retire** — delete `InspectorWindow`, drop `ai_inspector_*` from the shipped default layout | §7.6 ⑤ · §6 `L5` | the layout rail *(`BP-103b`)* stays green; no orphaned ids | ✅ **BUILT** — `BP-449`. ⚠ **`BP-450`: I claimed the layout half was a no-op and was WRONG** — the stale-layout rail caught it; both layout files updated |
 
 ---
 

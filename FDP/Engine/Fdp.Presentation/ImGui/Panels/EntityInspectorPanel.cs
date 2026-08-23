@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Core.Serialization;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Utils;
@@ -16,6 +17,40 @@ using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
 namespace Fdp.Presentation.Panels;
+
+/// <summary>⭐ One entity row, projected for the dump. 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c>
+/// §Example, U-obs-5. Mirrors <see cref="EntityInspectorPanel.GetEntityDisplayString"/>'s three parts by
+/// hand rather than as one formatted string, so a test can assert the network id independently of the
+/// label text.</summary>
+public sealed record EntityInspectorRowViewModel(string Label, long? NetworkId, string? Name);
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="EntityInspectorPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⚠⚠ <b>The gotcha table forbids reflecting over a model carrying delegates/<c>System.Type</c>.</b>
+/// <see cref="ComponentReflector"/> renders each component's fields via runtime reflection over
+/// arbitrary component structs — projecting THAT recursively into a dumpable shape would mean
+/// reimplementing the reflector as a second pure model-builder, which is out of scope for this sweep.
+/// ⇒ ⭐ this VM captures the <b>addressable</b> state — which entities are listed, which is selected,
+/// and which component TYPES are attached to it (by name) — and leaves per-field component values to
+/// <see cref="ComponentReflector"/>'s own (unconverted) draw. 📌 Same shape of deviation as
+/// <c>MessageLogPanelViewModel</c>'s "all tabs, not just the active one" note: a superset of what is
+/// addressable, not a full pixel dump.</para>
+/// </summary>
+public sealed record EntityInspectorPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    int TotalEntityCount,
+    string SearchFilter,
+    IReadOnlyList<EntityInspectorRowViewModel> Entities,
+    int SelectedCount,
+    string? SelectedEntityLabel,
+    IReadOnlyList<string> SelectedComponentTypeNames) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Entity inspection panel with entity list and component details.
@@ -147,6 +182,48 @@ public class EntityInspectorPanel
     {
         for (int i = 0; i < _contextMenuHandlers.Count; i++)
             _contextMenuHandlers[i].PopulateMenu(entity, builder);
+    }
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>
+    /// ⭐⭐⭐ <b>BUILD — a pure projection of the entity list and current selection. No ImGui.</b>
+    /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⭐ Reuses
+    /// <see cref="GetFilteredEntities"/> and <see cref="GetEntityDisplayString"/> — the SAME filter and
+    /// label logic <see cref="DrawEntityList"/> uses — so the dump is never a fork of the render logic.
+    /// </summary>
+    public EntityInspectorPanelViewModel BuildViewModel(IInspectableSession session, IInspectorContext context, string panelId, string panelKind)
+    {
+        var filtered = GetFilteredEntities(session, _searchFilter);
+        var rows = new List<EntityInspectorRowViewModel>(filtered.Count);
+        foreach (var entity in filtered)
+        {
+            string label = GetEntityDisplayString(session, entity, out long? netId, out string? name);
+            rows.Add(new EntityInspectorRowViewModel(label, netId, name));
+        }
+
+        // ⭐ Mirrors DrawEntityDetails's own arbitration exactly: the multi-select set wins when
+        // non-empty; otherwise the single context selection is the fallback (and counts as 1).
+        int rawMultiCount = _selectedEntities.Count;
+        Entity? soleSelected = rawMultiCount == 1 ? _selectedEntities.First()
+            : (rawMultiCount == 0 && context.SelectedEntity != null ? context.SelectedEntity : null);
+        int selectedCount = rawMultiCount > 0 ? rawMultiCount : (context.SelectedEntity != null ? 1 : 0);
+
+        string? selectedLabel = null;
+        var selectedComponentTypeNames = (IReadOnlyList<string>)System.Array.Empty<string>();
+        if (soleSelected != null)
+        {
+            selectedLabel = GetEntityDisplayString(session, soleSelected.Value, out _, out _);
+            var names = new List<string>();
+            foreach (var t in session.GetAllComponentTypes())
+                if (session.HasComponent(soleSelected.Value, t))
+                    names.Add(t.Name);
+            names.Sort(System.StringComparer.Ordinal);
+            selectedComponentTypeNames = names;
+        }
+
+        return new EntityInspectorPanelViewModel(
+            panelId, panelKind, session.EntityCount, _searchFilter, rows,
+            selectedCount, selectedLabel, selectedComponentTypeNames);
     }
 
     /// <summary>

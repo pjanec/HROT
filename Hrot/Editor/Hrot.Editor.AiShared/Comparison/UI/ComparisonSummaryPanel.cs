@@ -1,8 +1,32 @@
 using System.Numerics;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using ImGuiNET;
 
 namespace Hrot.Editor.AiShared.Comparison.UI;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="ComparisonSummaryPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⭐ Mirrors <see cref="ComparisonSummaryPanelState"/>
+/// field for field, but dumpable — the state class wraps a live <see cref="ComparisonSessionState"/> and
+/// exposes a mutation method (<c>ToggleSeverity</c>), so it cannot itself be the snapshot's model.
+/// </summary>
+public sealed record ComparisonSummaryPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool HasSession,
+    string AssetName,
+    bool HasMigrationNotice,
+    string? MigrationNotice,
+    string? TopSummary,
+    string? HumanSummary,
+    IReadOnlyList<string> EnabledSeverities,
+    IReadOnlyList<string> AllSeverities) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 // ---- State model ------------------------------------------------------------
 
@@ -51,6 +75,9 @@ public sealed class ComparisonSummaryPanelState
 /// </summary>
 public sealed class ComparisonSummaryPanel : ManagedWindow
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Single-host: stays a local literal.</summary>
+    internal const string Kind = "comparison-summary";
+
     private static readonly Vector4 YellowColor = new(1f, 0.9f, 0.2f, 1f);
 
     private static readonly string[] Severities =
@@ -64,6 +91,9 @@ public sealed class ComparisonSummaryPanel : ManagedWindow
         : base("ai_comparison_summary", "Comparison Summary", "Analysis", WindowScope.PerspectiveBound)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>Sets which asset this panel is summarising.</summary>
@@ -73,41 +103,76 @@ public sealed class ComparisonSummaryPanel : ManagedWindow
         _activeAssetName = assetName;
     }
 
-    protected override void DrawClientArea()
+    /// <summary>
+    /// ⭐⭐⭐ BUILD · CAPTURE. ⛔⛔ No ImGui — reads the session state the same way the old draw did,
+    /// published before any render call. ⚠ Returns the wrapped <see cref="ComparisonSummaryPanelState"/>
+    /// too, since <c>ToggleSeverity</c> (a mutation, not a display value) still needs it.
+    /// </summary>
+    private (ComparisonSummaryPanelViewModel Vm, ComparisonSummaryPanelState? State) BuildAndPublish()
     {
         var session = _registry.GetSession(_activeAssetId);
+        ComparisonSummaryPanelViewModel vm;
+        ComparisonSummaryPanelState? state = null;
+
         if (session == null)
+        {
+            vm = new ComparisonSummaryPanelViewModel(
+                Id, Kind, HasSession: false, _activeAssetName,
+                HasMigrationNotice: false, MigrationNotice: null,
+                TopSummary: null, HumanSummary: null,
+                EnabledSeverities: Array.Empty<string>(), AllSeverities: Severities);
+        }
+        else
+        {
+            state = new ComparisonSummaryPanelState(session, _activeAssetName);
+            vm = new ComparisonSummaryPanelViewModel(
+                Id, Kind, HasSession: true, state.AssetName,
+                state.HasMigrationNotice, state.MigrationNotice,
+                state.TopSummary, state.HumanSummary,
+                state.EnabledSeverities.ToList(), Severities);
+        }
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return (vm, state);
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal ComparisonSummaryPanelViewModel SimulateDrawClientArea() => BuildAndPublish().Vm;
+
+    protected override void DrawClientArea()
+    {
+        var (vm, state) = BuildAndPublish();
+
+        if (!vm.HasSession)
         {
             ImGui.TextDisabled("No comparison active.");
             return;
         }
 
-        var state = new ComparisonSummaryPanelState(session, _activeAssetName);
-
         // Asset title.
-        ImGui.Text(state.AssetName);
+        ImGui.Text(vm.AssetName);
 
         // Migration notice.
-        if (state.HasMigrationNotice)
-            ImGui.TextColored(YellowColor, "Migration: " + state.MigrationNotice);
+        if (vm.HasMigrationNotice)
+            ImGui.TextColored(YellowColor, "Migration: " + vm.MigrationNotice);
 
         // One-sentence summary.
-        ImGui.TextWrapped(state.TopSummary);
+        ImGui.TextWrapped(vm.TopSummary);
 
         ImGui.Separator();
 
         // Full prose (scrollable).
-        if (state.HumanSummary != null)
-            ImGui.TextWrapped(state.HumanSummary);
+        if (vm.HumanSummary != null)
+            ImGui.TextWrapped(vm.HumanSummary);
 
         ImGui.Separator();
 
         // Severity filter checkboxes.
-        foreach (var sev in Severities)
+        foreach (var sev in vm.AllSeverities)
         {
-            bool enabled = state.EnabledSeverities.Contains(sev);
+            bool enabled = vm.EnabledSeverities.Contains(sev);
             if (ImGui.Checkbox(sev, ref enabled))
-                state.ToggleSeverity(sev);
+                state!.ToggleSeverity(sev);
         }
     }
 }

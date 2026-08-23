@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Fonts;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Documents;
@@ -14,6 +16,30 @@ using NodeEditor.Primitives;
 using NodeEditor.UI.Find;
 
 namespace Hrot.Editor.AiShared.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — this window's own state, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⚠ <b>Deliberately narrower than the hosted canvas's full paint</b> — the actual graph content
+/// (nodes, wires, layout) is rendered by the NodeEdit canvas pipeline through
+/// <see cref="ICanvasRenderSeam"/>, which is a THIRD-PARTY component (<c>FDP/ExtDeps/NodeEdit</c>) this
+/// sweep does not own or convert. ⭐ What IS this window's own decision — which document is active, how
+/// many tabs are open, and the breadcrumb it derives — is captured whole.</para>
+/// </summary>
+public sealed record AiGraphCanvasWindowPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    string AssetKind,
+    bool   HasActiveDocument,
+    string? ActiveDocumentName,
+    bool   ActiveDocumentDirty,
+    int    OpenDocumentCount,
+    string? Breadcrumb) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 // ── Canvas context ────────────────────────────────────────────────────────────
 
@@ -147,6 +173,12 @@ public interface ICanvasRenderSeam
 /// </summary>
 public sealed class AiGraphCanvasWindow : ManagedWindow
 {
+    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Local literal, not a <c>PanelIds</c> constant: this
+    /// class is instantiated per-perspective (BTree/HSM/Blueprint each construct their own), so the
+    /// SAME kind already means "a graph canvas" without a cross-assembly constant — there is only one
+    /// class, so there is nothing two literals could drift apart on.</summary>
+    internal const string Kind = "graph-canvas";
+
     private readonly AiDocumentManager _docManager;
     private readonly string            _assetKind;
     private readonly ICanvasRenderSeam _renderer;
@@ -278,6 +310,9 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         _baseTitle    = $"{assetKind} Canvas";
 
         IsOpen = true;
+
+        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
     /// <summary>
@@ -313,6 +348,31 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
 
     // ── ManagedWindow implementation ─────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5: BUILD · CAPTURE.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+    /// ⛔⛔ No ImGui — every field is a plain read of <see cref="AiDocument"/>/<see cref="AiCanvasContext"/>
+    /// state, published before the render guard so a headless run still observes this window.
+    /// </summary>
+    private AiGraphCanvasWindowPanelViewModel BuildAndPublish(AiDocument? doc)
+    {
+        var context    = doc?.ViewState as AiCanvasContext;
+        var breadcrumb = doc != null ? BuildBreadcrumb(doc, context?.View.Model) : null;
+
+        var vm = new AiGraphCanvasWindowPanelViewModel(
+            Id, Kind, _assetKind,
+            HasActiveDocument:   doc != null,
+            ActiveDocumentName:  doc?.Asset.Name,
+            ActiveDocumentDirty: doc?.Asset.IsDirty ?? false,
+            OpenDocumentCount:   TabDocuments.Count,
+            Breadcrumb:          string.IsNullOrEmpty(breadcrumb) ? null : breadcrumb);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+    internal AiGraphCanvasWindowPanelViewModel SimulateBuildAndPublish() => BuildAndPublish(ActiveDocument);
+
     /// <inheritdoc/>
     protected override void DrawClientArea()
     {
@@ -320,6 +380,7 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         // different from the last activation, call Activate.  Gate the ImGui call for
         // headless safety.
         var doc = ActiveDocument;
+        BuildAndPublish(doc);
 
         if (ImGuiAvailable())
         {

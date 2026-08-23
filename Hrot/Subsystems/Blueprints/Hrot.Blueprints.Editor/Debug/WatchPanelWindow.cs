@@ -1,4 +1,5 @@
 using ImGuiNET;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Editor.AiShared.Variables;
 
@@ -39,6 +40,18 @@ public sealed class WatchPanelWindow : BlueprintEditorWindowBase,
     private readonly VariableTableControl   _table;
     private readonly VariableTableModel     _model;
     private readonly FixedVariableRowSource _empty = new(Array.Empty<VariableRow>());
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-2 — THE ADDRESS.</b> ⛔ <c>BlueprintEditorWindowBase</c> declares only <c>Title</c>,
+    /// no window id, and this host registers exactly ONE <see cref="WatchPanelWindow"/> (the
+    /// <c>"Watch Panel"</c> entry in <c>BlueprintWindowRegistrar</c>) ⇒ a literal is safe, exactly the
+    /// case 📄 <c>PanelIds.cs</c> itself calls out: <i>"a singleton there declares a literal … if such a
+    /// panel ever becomes multi-instance it must gain a real address first."</i> ⚠ Deliberately NOT the
+    /// same string as <see cref="PanelIds.Watch"/> — that is the KIND this window SHARES with the
+    /// AiShared per-perspective watch windows (📄 <c>PanelIds.cs</c> — address and kind are opposite
+    /// requirements), and this literal must not collide with any of theirs.
+    /// </summary>
+    public const string PanelId = "blueprints-watch";
 
     public override string Title => "Watches";
 
@@ -81,6 +94,13 @@ public sealed class WatchPanelWindow : BlueprintEditorWindowBase,
             RunState = VariableRunState.Running,
         };
         LastView = _model.Build();
+
+        // ⭐⭐⭐ U1b — DECLARED AT CONSTRUCTION, ALWAYS, and NOT gated on CaptureEnabled. Mirrors
+        //    EntityBlueprintsPanel (U-obs-1's pilot) and AiVariablesWindow (U-obs-2): a window nobody
+        //    opens never draws; if instrumentation were declared by DRAWING, this panel would be
+        //    indistinguishable from one nobody converted ⇒ the reader could not tell "showed nothing"
+        //    from "not instrumented".
+        PanelSnapshot.DeclareInstrumented(PanelId);
     }
 
     /// <summary>
@@ -164,9 +184,21 @@ public sealed class WatchPanelWindow : BlueprintEditorWindowBase,
         LastView      = _model.Build();
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-1/2 — BUILD (in <see cref="Refresh"/>) · CAPTURE · RENDER.</b>
+    /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+    ///
+    /// <para>⚠⚠ <b>Capture happens BEFORE the ImGui-context guard, not after the render</b> — mirrors
+    /// <see cref="Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsPanel.DrawUI"/>: if it sat after
+    /// the render, a headless run would observe nothing, defeating the whole point of a snapshot that is
+    /// checkable without a display.</para>
+    /// </summary>
     public override void DrawUI()
     {
         Refresh();
+
+        if (PanelSnapshot.CaptureEnabled)
+            PanelSnapshot.Register(new VariableTablePanelViewModel(PanelId, PanelIds.Watch, LastView));
 
         // ImGui rendering requires a live context; skip in headless / test environments.
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;

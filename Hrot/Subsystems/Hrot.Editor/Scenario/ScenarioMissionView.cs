@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Editor.AiShared.Shell;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
@@ -61,20 +62,39 @@ public sealed class ScenarioMissionView : IDetailsViewInstance
     /// and this type must not hold one. ⛔ <c>0</c> means *"no selection"* to the panel, which is the
     /// honest answer for an entity that is not replicated.</para>
     ///
-    /// <para>⚠ <paramref name="idScope"/> is unused: this panel is this view's alone, so nothing else
-    /// can collide with its ImGui ids.</para>
+    /// <para>⚠ <paramref name="idScope"/> is used only to compose the <c>PanelSnapshot</c> address
+    /// (<c>U-obs-5</c>) — the panel's own ImGui ids are unaffected, exactly as before.</para>
     /// </summary>
     public void Draw(DetailsContext context, string idScope)
     {
-        if (context.Entities is not { Count: 1 }) return;
+        if (context.Entities is { Count: 1 } && _service() is { } service && _pick() is { } pick)
+        {
+            Panel.SelectedEntityId = _networkIdOf(context.Entities[0]);
+            BuildAndPublish(idScope);
+            Panel.DrawContent(service, pick);
+            return;
+        }
 
-        var service = _service();
-        var pick    = _pick();
-        if (service is null || pick is null) return;
-
-        Panel.SelectedEntityId = _networkIdOf(context.Entities[0]);
-        Panel.DrawContent(service, pick);
+        BuildAndPublish(idScope);
     }
+
+    /// <summary>⭐⭐⭐ U-obs-5: BUILD · CAPTURE — reuses <see cref="MissionPanel.BuildViewModel"/>
+    /// verbatim (📄 ruling 9, one implementation) rather than re-modelling the panel's own state here.
+    /// ⛔ Not gated on any of <see cref="Draw"/>'s guards, so a headless run still observes the panel
+    /// even on a frame where it declines to render.</summary>
+    private MissionPanelViewModel BuildAndPublish(string idScope)
+    {
+        var panelId = $"{idScope}/{ScenarioMissionViewDescriptor.ViewId}";
+        PanelSnapshot.DeclareInstrumented(panelId);
+
+        var vm = Panel.BuildViewModel(panelId, ScenarioMissionViewDescriptor.ViewId);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐⭐ Test hook — the BUILD + CAPTURE portion, callable with no service/pick wired.</summary>
+    internal MissionPanelViewModel SimulateDraw(string idScope) => BuildAndPublish(idScope);
 
     /// <summary>⛔ Deliberately empty — <see cref="MissionPanel"/> holds only draft and pick state,
     /// and owns no unmanaged resource.</summary>

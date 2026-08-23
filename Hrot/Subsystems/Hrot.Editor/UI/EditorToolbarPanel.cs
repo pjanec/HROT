@@ -1,7 +1,20 @@
 using ImGuiNET;
 using System.Numerics;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 
 namespace Hrot.Editor.UI;
+
+/// <summary>⭐⭐⭐ U-obs-5 (group 6) — the whole of what <see cref="EditorToolbarPanel"/> shows, this
+/// frame. ⚠ A plain panel: no <see cref="PanelId"/>/<see cref="PanelKind"/> of its own — the HOST
+/// (<c>EditorToolbarWindow</c>) supplies both. ⭐ Not static chrome: <c>CurrentMode</c> drives the
+/// toggle button's label, so the panel has real, testable state.</summary>
+public sealed record EditorToolbarPanelViewModel(
+    string PanelId, string PanelKind, string CurrentMode) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Editor toolbar panel for tool mode selection.
@@ -25,6 +38,10 @@ public sealed class EditorToolbarPanel
     }
 
     public void HandleReloadAIClick(IEditorLogic logic) => logic.RebuildAndReloadAI();
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of <see cref="IEditorLogic.CurrentMode"/>. No ImGui.</summary>
+    public EditorToolbarPanelViewModel BuildViewModel(IEditorLogic logic, string panelId, string panelKind) =>
+        new(panelId, panelKind, logic.CurrentMode.ToString());
 
     // ── ImGui rendering ───────────────────────────────────────────────────────
 

@@ -1,7 +1,28 @@
 using System;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Editor.AiShared.Shell;
 
 namespace Hrot.Blueprints.Editor.Windows;
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 (group 3) — the hosted-view identity, dumped.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example; <c>BP-462</c>.
+///
+/// <para>⭐ <b>Deliberately thin</b> — the borrowed <see cref="GraphSignatureWindow"/> already
+/// self-publishes its FULL content under its OWN address every time <c>DrawContent()</c> runs
+/// (including from here). ⛔ Duplicating that whole model under a second address would be ruling 9's
+/// mistake. ⭐ What this record adds is WHICH hosted slot is showing it, via
+/// <see cref="HostWindowId"/> — the same shape <c>BlackboardDetailsViewPanelViewModel</c> uses.</para>
+/// </summary>
+public sealed record GraphSignatureDetailsViewPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    string HostWindowId) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>L3.2</c> — the Graph-signature panel becomes a Details VIEW.</b>
@@ -30,6 +51,26 @@ public sealed class GraphSignatureDetailsView : IDetailsViewInstance
     public GraphSignatureDetailsView(GraphSignatureWindow window)
         => _window = window ?? throw new ArgumentNullException(nameof(window));
 
+    private const string ViewId = GraphSignatureDetailsViewDescriptor.ViewId;
+
+    /// <summary>⭐⭐⭐ U-obs-5: BUILD · CAPTURE — this view's own thin address, ahead of the borrowed
+    /// window's body. ⚠ Declared on first draw, not at construction — see
+    /// <c>VariablesDetailsView.BuildAndPublish</c>'s remarks for why that is still the recipe's
+    /// obligation, just resolved at the point the address becomes known.</summary>
+    private GraphSignatureDetailsViewPanelViewModel BuildAndPublish(string idScope)
+    {
+        var panelId = $"{idScope}/{ViewId}";
+        PanelSnapshot.DeclareInstrumented(panelId);
+
+        var vm = new GraphSignatureDetailsViewPanelViewModel(panelId, ViewId, _window.Id);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion.</summary>
+    internal GraphSignatureDetailsViewPanelViewModel SimulateDraw(string idScope) => BuildAndPublish(idScope);
+
     /// <summary>
     /// ⭐ Draws the window's own client-area body through the <c>DrawContent</c> seam <c>L3.2</c>
     /// opened. ⛔ There is still exactly ONE body: the window's <c>DrawClientArea</c> calls the same
@@ -40,7 +81,11 @@ public sealed class GraphSignatureDetailsView : IDetailsViewInstance
     /// canvas *(<c>ResolveSelectedGraph</c>, <c>BP-72</c>)*, and the context carries no graph — see
     /// <see cref="GraphSignatureWindow.AppliesTo"/> for the measurement.
     /// </remarks>
-    public void Draw(DetailsContext context, string idScope) => _window.DrawContent();
+    public void Draw(DetailsContext context, string idScope)
+    {
+        BuildAndPublish(idScope);
+        _window.DrawContent();
+    }
 
     /// <summary>⛔ Deliberately empty — the window is BORROWED. See the class remarks.</summary>
     public void Dispose() { }

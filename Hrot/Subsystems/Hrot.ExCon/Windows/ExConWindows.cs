@@ -1,4 +1,5 @@
 using System.Numerics;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.ExCon;
 using Hrot.ExCon.Panels;
@@ -16,7 +17,9 @@ internal static class ExConWindowColor
     internal static readonly Vector4 TitleBar = new(0.32f, 0.08f, 0.48f, 1f);
 }
 
-/// <summary>ExCon Map Configuration panel as a perspective-bound managed window.</summary>
+/// <summary>ExCon Map Configuration panel as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Config"/>, shared with
+/// <c>Hrot.Editor</c>'s <c>EditorConfigWindow</c>.</summary>
 internal sealed class ExConConfigWindow : ManagedWindow
 {
     private readonly ConfigPanel         _panel;
@@ -29,14 +32,33 @@ internal sealed class ExConConfigWindow : ManagedWindow
         _ctrl  = ctrl;
         IsOpen = true;
         TitleBarColor = ExConWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_ctrl);
+    private ConfigPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, PanelIds.Config);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal ConfigPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_ctrl);
+    }
 }
 
-/// <summary>ExCon ORBAT Tree panel as a perspective-bound managed window.</summary>
+/// <summary>ExCon ORBAT Tree panel as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers. ⚠ No sibling host: single host, kind stays a local literal.
+/// Not the same panel as <c>SharedOrbatPanel</c> (group 5) — see <c>OrbatPanelViewModel</c>'s own
+/// remarks.</summary>
 internal sealed class ExConOrbatWindow : ManagedWindow
 {
+    internal const string Kind = "excon-orbat";
+
     private readonly OrbatPanel  _panel;
     private readonly IExConLogic _logic;
 
@@ -47,12 +69,28 @@ internal sealed class ExConOrbatWindow : ManagedWindow
         _logic = logic;
         IsOpen = true;
         TitleBarColor = ExConWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_logic);
+    private OrbatPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(_logic, Id, Kind);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal OrbatPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_logic);
+    }
 }
 
-/// <summary>ExCon Selection &amp; Mission panel as a perspective-bound managed window.</summary>
+/// <summary>ExCon Selection &amp; Mission panel as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Mission"/>, shared with
+/// <c>Hrot.Editor</c>'s <c>EditorMissionWindow</c>.</summary>
 internal sealed class ExConMissionWindow : ManagedWindow
 {
     private readonly MissionPanel         _panel;
@@ -67,14 +105,31 @@ internal sealed class ExConMissionWindow : ManagedWindow
         _pick  = pick;
         IsOpen = true;
         TitleBarColor = ExConWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_svc, _pick);
+    private MissionPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, PanelIds.Mission);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal MissionPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_svc, _pick);
+    }
 }
 
-/// <summary>ExCon Data Monitor (interaction log) panel as a perspective-bound managed window.</summary>
+/// <summary>ExCon Data Monitor (interaction log) panel as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers. ⚠ No sibling host: single host, kind stays a local literal.</summary>
 internal sealed class ExConDataMonitorWindow : ManagedWindow
 {
+    internal const string Kind = "excon-data-monitor";
+
     private readonly InteractionPanel _panel;
     private readonly IExConLogic      _logic;
 
@@ -85,12 +140,28 @@ internal sealed class ExConDataMonitorWindow : ManagedWindow
         _logic = logic;
         IsOpen = true;
         TitleBarColor = ExConWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_logic);
+    private InteractionPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, Kind);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal InteractionPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_logic);
+    }
 }
 
-/// <summary>ExCon Entity Spawner panel as a perspective-bound managed window.</summary>
+/// <summary>ExCon Entity Spawner panel as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Spawner"/>, shared with
+/// <c>Hrot.Editor</c>'s <c>EditorSpawnerWindow</c>.</summary>
 internal sealed class ExConSpawnerWindow : ManagedWindow
 {
     private readonly SpawnerPanel   _panel;
@@ -103,14 +174,31 @@ internal sealed class ExConSpawnerWindow : ManagedWindow
         _spawn = spawn;
         IsOpen = true;
         TitleBarColor = ExConWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_spawn);
+    private SpawnerPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, PanelIds.Spawner);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal SpawnerPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_spawn);
+    }
 }
 
-/// <summary>ExCon Diagnostics panel as a perspective-bound managed window.</summary>
+/// <summary>ExCon Diagnostics panel as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers. ⚠ No sibling host: single host, kind stays a local literal.</summary>
 internal sealed class ExConDiagnosticsWindow : ManagedWindow
 {
+    internal const string Kind = "excon-diagnostics";
+
     private readonly DiagnosticsPanel _panel;
     private readonly IExConLogic      _logic;
 
@@ -121,7 +209,21 @@ internal sealed class ExConDiagnosticsWindow : ManagedWindow
         _logic = logic;
         IsOpen = true;
         TitleBarColor = ExConWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_logic);
+    private DiagnosticsPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(_logic, Id, Kind);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal DiagnosticsPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_logic);
+    }
 }

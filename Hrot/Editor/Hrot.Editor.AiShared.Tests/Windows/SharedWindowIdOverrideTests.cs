@@ -40,56 +40,16 @@ public class SharedWindowIdOverrideTests
             Task.FromResult(ApplyRename(p));
     }
 
-    // ── InspectorWindow ───────────────────────────────────────────────────────
+    // ⛔⛔ S5 (2026-08-22): the three InspectorWindow id rails are GONE WITH THEIR SUBJECT.
+    //    📄 §7.6 ⑤ — the window is retired; all six arms are Details views or asset-row menu items.
+    //    ⚠ The PROPERTY they guarded (a per-perspective id override yields distinct dock slots) is NOT
+    //      lost: the rails below still assert it for RuntimeInspector, TraceTimeline, FindResults and
+    //      the rest, and the shell's own id rails cover the Details panel.
 
-    [Fact]
-    public void InspectorWindow_DefaultCtor_UsesDefaultIdAndPerspective()
-    {
-        var w = new InspectorWindow(new EditorSelectionStore());
 
-        Assert.Equal("ai_inspector", w.Id);
-        Assert.Equal("Authoring", w.OwningPerspective);
-    }
-
-    [Fact]
-    public void InspectorWindow_IdOverride_ProducesDistinctId()
-    {
-        var w1 = new InspectorWindow(
-            new EditorSelectionStore(),
-            idOverride: "ai_inspector_btree", owningPerspective: "BTree");
-
-        var w2 = new InspectorWindow(
-            new EditorSelectionStore(),
-            idOverride: "ai_inspector_hsm", owningPerspective: "HSM");
-
-        Assert.Equal("ai_inspector_btree", w1.Id);
-        Assert.Equal("BTree",              w1.OwningPerspective);
-
-        Assert.Equal("ai_inspector_hsm", w2.Id);
-        Assert.Equal("HSM",              w2.OwningPerspective);
-
-        Assert.NotEqual(w1.Id, w2.Id);
-    }
 
     // ── SharedWindow_IdOverride_ProducesDistinctId (all window types) ─────────
 
-    [Fact]
-    public void SharedWindow_IdOverride_ProducesDistinctId_InspectorWindow()
-    {
-        var registry = new DebugSessionRegistry();
-        var w1 = new InspectorWindow(
-            new EditorSelectionStore(),
-            idOverride: "ai_inspector_btree", owningPerspective: "BTree");
-        var w2 = new InspectorWindow(
-            new EditorSelectionStore(),
-            idOverride: "ai_inspector_hsm", owningPerspective: "HSM");
-
-        Assert.NotEqual(w1.Id, w2.Id);
-        Assert.Equal("BTree", w1.OwningPerspective);
-        Assert.Equal("HSM",   w2.OwningPerspective);
-        Assert.Equal(WindowScope.PerspectiveBound, w1.Scope);
-        Assert.Equal(WindowScope.PerspectiveBound, w2.Scope);
-    }
 
     [Fact]
     public void SharedWindow_IdOverride_ProducesDistinctId_RuntimeInspectorWindow()
@@ -175,15 +135,14 @@ public class SharedWindowIdOverrideTests
         var registry = new DebugSessionRegistry();
         var catalog  = new AssetCatalog();
 
-        var inspector  = new InspectorWindow(new EditorSelectionStore());
         var runtime    = new RuntimeInspectorWindow(new EditorSelectionStore(), registry);
         var timeline   = new TraceTimelineWindow(new EditorSelectionStore(), registry);
         var findResult = new FindResultsWindow();
         var blackboard = new BlackboardAuthoringWindow(new EditorSelectionStore(), StubRefactor());
         var diag       = new DiagnosticsWindow(catalog, Array.Empty<IAssetValidator>());
 
-        Assert.Equal("ai_inspector",            inspector.Id);
-        Assert.Equal("Authoring",               inspector.OwningPerspective);
+        // ⛔ S5: the Inspector's two back-compat assertions are GONE with the window (§7.6 ⑤).
+        //    ⚠ Every other default below is UNCHANGED — that is the point of keeping this rail.
 
         Assert.Equal("ai_runtime_inspector",    runtime.Id);
         Assert.Equal("Authoring",               runtime.OwningPerspective);

@@ -179,7 +179,11 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         //    DERIVED from that name rather than passed — which is the whole fix, since EditorSubsystem
         //    never passed it. ⇒ it gets a My Blueprint outline too (7 → 8).
         // ⚠ Batch 88b: BP-317 -- the AI Details panel, on the same derived host kind (8 → 9).
-        Assert.Equal(9, reg.RegisteredWindows.Count);
+        // ⛔⛔ S5 (BP-399, 2026-08-22): MINUS ONE per perspective — InspectorWindow is RETIRED
+        //    (§7.6 ⑤). All six of its arms are Details views or asset-row menu items now, and after S4
+        //    removed the last one it drew nothing. 📌 B101c: the design commissions the retirement, so
+        //    this is a designed loss, ⛔ not an expectation relaxed to hide a red.
+        Assert.Equal(8, reg.RegisteredWindows.Count);
     }
 
     // ── AIE-034 SC4: With manager, 8 windows per perspective (+1 in Batch 79) ─
@@ -196,7 +200,11 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         //    → 11 (Batch 88b, BP-317: the AI Details panel).
         // ⭐ The name of this test is kept so the AIE-034 scenario stays traceable; the count is what
         //    moved, deliberately, in all three batches.
-        Assert.Equal(11, reg.RegisteredWindows.Count);
+        // ⛔⛔ S5 (BP-399, 2026-08-22): MINUS ONE per perspective — InspectorWindow is RETIRED
+        //    (§7.6 ⑤). All six of its arms are Details views or asset-row menu items now, and after S4
+        //    removed the last one it drew nothing. 📌 B101c: the design commissions the retirement, so
+        //    this is a designed loss, ⛔ not an expectation relaxed to hide a red.
+        Assert.Equal(10, reg.RegisteredWindows.Count);
     }
 
     // ── AIE-034 SC5: All ids are distinct across three perspectives ───────────
@@ -232,8 +240,12 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         //    same id, and RegisterCore throws on a duplicate).
         // ⭐ What this test is ABOUT is unchanged — every id is still distinct across perspectives,
         //    the property that would break if a new window forgot its perspective suffix.
-        Assert.Equal(32, allIds.Count);
-        Assert.Equal(32, allIds.Distinct().Count());
+        // ⛔⛔ S5 (BP-399, 2026-08-22): MINUS ONE per perspective — InspectorWindow is RETIRED
+        //    (§7.6 ⑤). All six of its arms are Details views or asset-row menu items now, and after S4
+        //    removed the last one it drew nothing. 📌 B101c: the design commissions the retirement, so
+        //    this is a designed loss, ⛔ not an expectation relaxed to hide a red.
+        Assert.Equal(29, allIds.Count);
+        Assert.Equal(29, allIds.Distinct().Count());
     }
 
     // ── AIE-034 SC6: Diagnostics window carries the correct id suffix ─────────

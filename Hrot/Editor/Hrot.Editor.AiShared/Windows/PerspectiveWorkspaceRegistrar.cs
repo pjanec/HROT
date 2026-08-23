@@ -43,8 +43,15 @@ public class PerspectiveWorkspaceRegistrar
     /// <summary>The Find-Results window for this perspective.</summary>
     public FindResultsWindow FindResults { get; }
 
-    /// <summary>The Inspector window for this perspective.</summary>
-    public InspectorWindow Inspector { get; }
+    // ⛔⛔ S5 (BP-399, 2026-08-22) — THE INSPECTOR WINDOW IS RETIRED.
+    //    📄 DESIGN_Details_Panel_View_Switching.md §7.6 ⑤ / §6 L5 ("per item, after its replacement is
+    //       live"). All six of its arms are Details views or menu items now; after S4 removed the last
+    //       one it drew nothing at all, so keeping it registered would have shipped an empty window.
+    //    ⚠⚠ AND THE LAYOUT HALF IS REAL — I first claimed it was a no-op and was WRONG. A grep over
+    //       *.cs found only this file, so I concluded `ai_inspector_*` was in no layout. 🔴
+    //       TheDefaultLayoutIsNotStaleTests caught it: the ids ARE in layout/default/imgui.ini and
+    //       layout/default/fdp_windows.json, and both are now updated. ⭐ B103b's stale-layout rail is
+    //       exactly the control that was supposed to catch this, and it did — on the first run.
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>S2</c> — this perspective's NODE-PROPERTIES services.</b>
@@ -54,6 +61,13 @@ public class PerspectiveWorkspaceRegistrar
     /// *(<c>Shell.NodePropertiesDetailsView</c>)</para>
     /// </summary>
     public Shell.NodePropertiesSource NodeProperties { get; }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>S4</c> — the PARAMETER SYNCHRONIZATION services for this perspective.</b>
+    /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.6 ④. ⛔ Per-PERSPECTIVE, not per-window
+    /// *(<c>R-120</c>)* — the composition root re-wires the resolver when the document changes.
+    /// </summary>
+    public Shell.ParameterSyncSource ParameterSync { get; } = new();
 
     /// <summary>The Runtime Inspector window for this perspective.</summary>
     public RuntimeInspectorWindow RuntimeInspector { get; }
@@ -273,20 +287,12 @@ public class PerspectiveWorkspaceRegistrar
             idOverride:        $"ai_find_results_{suffix}",
             owningPerspective: perspectiveName);
 
-        Inspector = new InspectorWindow(
-            store:                         selectionStore,
-            idOverride:                    $"ai_inspector_{suffix}",
-            owningPerspective:             perspectiveName,
-            schemaExporter:                schemaExporter,
-            // ⭐⭐⭐ Batch 92 (92d) — THE SILENT-DEFAULT PATTERN, textbook shape.
-            // 🔴 This is the ONLY production construction of InspectorWindow, and it omitted the
-            //    resolver while HOLDING the catalog that answers it two lines up ⇒ the PARAMETER
-            //    SYNCHRONIZATION panel rendered "Sub-asset resolver not configured." everywhere
-            //    (InspectorWindow:449), so no designer could author a sync binding at all.
-            // ⭐ The rule: "a production caller that HAS a dependency must PASS it." The catalog is
-            //    a constructor argument; nothing new is introduced here.
-            // ⚠ Coherent only now: 92b makes the bindings this panel authors actually execute.
-            subAssetResolver:              id => catalog.FindByAssetId(id) as IBlackboardManagedAsset);
+        // ⭐⭐⭐ S4: the sub-asset resolver feeds the PARAMETER SYNCHRONIZATION Details view.
+        //    📌 The 2026-08-16 rule — this registrar HOLDS the catalog, so it passes it.
+        //    🔴 92d is this seam's own history of NOT doing so: the (now-retired) InspectorWindow was
+        //       constructed here without it while the catalog sat two lines up, and every designer saw
+        //       "Sub-asset resolver not configured." Kept as a named refusal, and railed.
+        ParameterSync.SetSubAssetResolver(id => catalog.FindByAssetId(id) as IBlackboardManagedAsset);
 
         // ⭐⭐⭐ S2 (BP-399) — THE NODE-PROPERTIES SERVICES, and the ONE facet cache.
         //    📄 DESIGN_Details_Panel_View_Switching.md §7.3's catalogue · §7.6 ②.
@@ -463,6 +469,14 @@ public class PerspectiveWorkspaceRegistrar
         //      view never claims the panel today. It is DORMANT, not dead — the utility-AI editor is
         //      designed (docs/designs/utility-ai/) and unbuilt. See the view's own remarks.
         DetailsViews.Add(Shell.UtilityConsiderationDetailsViewDescriptor.For());
+
+        // ⭐⭐⭐ S4 (§7.6 ④) — PARAMETER SYNCHRONIZATION, the last of BP-399's five rows.
+        //    ⛔ UNGATED for the same reason as S3: the predicate asks whether the SELECTION is a subtree
+        //       node on an IBTreeSyncableAsset, which is a sharper statement than any host-kind gate and
+        //       is exactly the condition the retired arm tested.
+        //    ⚠ R-99 is satisfied now, not waived: the bindings this table authors reach the runtime
+        //      since Q49 (identity survives a reload) and Q50 (the master declares the slice).
+        DetailsViews.Add(Shell.ParameterSyncDetailsViewDescriptor.For(ParameterSync));
 
         // ⛔ The Blueprint perspective already has BlueprintMyBlueprintWindow; a second outline there
         //    would be two panels for one concept. BTree and HSM had none at all -- that is the gap.
@@ -670,9 +684,8 @@ public class PerspectiveWorkspaceRegistrar
     {
         if (windowManager is null) throw new ArgumentNullException(nameof(windowManager));
 
-        // Register the six core side-panels.
+        // ⭐ S5: FIVE core side-panels now — the Inspector is retired (§7.6 ⑤).
         RegisterCore(windowManager, FindResults);
-        RegisterCore(windowManager, Inspector);
         RegisterCore(windowManager, RuntimeInspector);
         RegisterCore(windowManager, TraceTimeline);
         RegisterCore(windowManager, BlackboardAuthoring);
