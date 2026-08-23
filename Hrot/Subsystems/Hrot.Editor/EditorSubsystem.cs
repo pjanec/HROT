@@ -1929,7 +1929,11 @@ namespace Hrot.Editor
             //      frame; the publish inherits that placement, so it reports the primitives the
             //      PREVIOUS Update produced — which is exactly what is on screen right now.
             if (_gizmoBuffer != null)
-                Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer);
+                Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(
+                    _gizmoBuffer,
+                    // ⭐ BP-485 — the ADDRESS names the host; the KIND stays shared, so a
+                    //   cross-host conformance diff can still group every host's map feed.
+                    Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.AddressFor("editor"));
 
             _gizmoBuffer?.EndFrame(deltaTime);
 

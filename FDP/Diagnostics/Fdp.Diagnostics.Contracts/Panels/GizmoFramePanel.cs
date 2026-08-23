@@ -87,6 +87,22 @@ public static class GizmoFramePanel
     public const int DefaultMax = 500;
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-485</c> — THE ADDRESS OF A HOST'S MAP FEED.</b> <c>"{host}/_gizmo"</c>.
+    ///
+    /// <para>⛔⛔ <b>The first cut DEFAULTED the address to the KIND</b> — <c>Publish(buffer)</c> wrote
+    /// under the literal <c>"_gizmo"</c>. ⚠ Harmless with ONE publisher, and 📌 <b>invisible for exactly
+    /// the reason <c>U1d</c>'s original defect was invisible: for a singleton the address and the kind
+    /// are the same string.</b> ⇒ the moment a second host published — which is what the cross-host
+    /// conformance work asks for — both would key the same entry and one would silently overwrite the
+    /// other. ⛔ That is the precise failure <c>PanelIds</c>'s address/kind split exists to prevent, and
+    /// the default reintroduced it. ⇒ ⭐ <b>there is no default any more: a caller NAMES its host.</b></para>
+    /// </summary>
+    public static string AddressFor(string host)
+        => string.IsNullOrWhiteSpace(host)
+            ? throw new ArgumentException("A gizmo feed's address needs its host's name.", nameof(host))
+            : $"{host}/{GizmoFrameViewModel.Kind}";
+
+    /// <summary>
     /// ⭐⭐⭐ <b>BUILD — a pure projection of the frame. No ImGui, no side effects.</b>
     ///
     /// <para>⛔⛔ <b>Projected PER SHAPE, never serialized wholesale.</b> 📐 <c>DebugPrimitive</c> is a
@@ -95,7 +111,7 @@ public static class GizmoFramePanel
     /// reported as ITSELF with a note — ⛔ inventing fields for it would not be true.</para>
     /// </summary>
     public static GizmoFrameViewModel BuildViewModel(
-        DebugPrimitiveBuffer buffer, string panelId = GizmoFrameViewModel.Kind, int max = DefaultMax)
+        DebugPrimitiveBuffer buffer, string panelId, int max = DefaultMax)
     {
         ArgumentNullException.ThrowIfNull(buffer);
 
@@ -115,8 +131,13 @@ public static class GizmoFramePanel
     /// write cursor, so a call afterwards would publish an empty frame every time.
     /// </summary>
     public static GizmoFrameViewModel Publish(
-        DebugPrimitiveBuffer buffer, string panelId = GizmoFrameViewModel.Kind, int max = DefaultMax)
+        DebugPrimitiveBuffer buffer, string panelId, int max = DefaultMax)
     {
+        if (string.IsNullOrWhiteSpace(panelId))
+            throw new ArgumentException(
+                "A gizmo feed needs its HOST's address — see AddressFor. A shared literal would make "
+              + "two hosts overwrite each other in the snapshot.", nameof(panelId));
+
         // ⭐⭐⭐ DECLARED ALWAYS, ungated on CaptureEnabled — same rule as every converted panel:
         //   a feed nobody captured must stay distinguishable from a feed nobody instrumented.
         PanelSnapshot.DeclareInstrumented(panelId);
