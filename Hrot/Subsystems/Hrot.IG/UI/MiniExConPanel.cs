@@ -1,9 +1,22 @@
 using System;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Core.Network;
 using Fdp.Core;
 using ImGuiNET;
 
 namespace Hrot.IG.UI;
+
+/// <summary>⭐⭐⭐ U-obs-5 (group 6) — the whole of what <see cref="MiniExConPanel"/> shows, this frame.
+/// ⚠ A plain panel: no <see cref="PanelId"/>/<see cref="PanelKind"/> of its own — the HOST
+/// (<c>IgMiniExConWindow</c>) supplies both.</summary>
+public sealed record MiniExConPanelViewModel(
+    string PanelId, string PanelKind, long TkbType, string Affiliation,
+    bool UseSpecificCoordinates, float PositionX, float PositionY, float RandomSpawnRadius) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ImGui panel providing a lightweight ExCon-style entity spawner (IG.5.3).
@@ -53,6 +66,11 @@ public class MiniExConPanel
         DrawContent();
         ImGui.End();
     }
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of <see cref="MiniExConPanelState"/>. No ImGui.</summary>
+    public MiniExConPanelViewModel BuildViewModel(string panelId, string panelKind) => new(
+        panelId, panelKind, _state.TkbType, _state.Affiliation.ToString(),
+        _state.UseSpecificCoordinates, _state.PositionX, _state.PositionY, _state.RandomSpawnRadius);
 
     /// <summary>
     /// Renders the panel content without the outer <c>ImGui.Begin/End</c> wrapper.
