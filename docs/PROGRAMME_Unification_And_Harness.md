@@ -40,8 +40,8 @@ known-conflict: none.
 
 | # | step | why HERE |
 |---|---|---|
-| **0** | ⭐⭐ **Integrate the Stride branch** *(`claude/stride-port`)* | 🔒 *"so that we can do bigger (namespace/project structure) refactors freely"* — ⛔ do it **before** the refactors, not after, or every one of them conflicts with it |
-| **1** | ⭐⭐ **Unify the perspective naming**, and **allow for the features CGF does not have yet** | this is what makes editor and cluster **comparable at all** *(§4)* |
+| **0** | ✅ **DONE `2026-08-23`** — Stride integrated at `477b31f52`; visual check run by the user, one defect found and fixed *(`R-132`)* | 🔒 *"so that we can do bigger (namespace/project structure) refactors freely"* — ⛔ do it **before** the refactors, not after, or every one of them conflicts with it |
+| **1** | ⭐⭐ **Unify the perspective naming**, and **allow for the features CGF does not have yet** — 📄 **DESIGNED**: [`DESIGN_Perspective_Unification.md`](DESIGN_Perspective_Unification.md) | this is what makes editor and cluster **comparable at all** *(§4)* |
 | **2** | ⭐ **Keep building the harness** so it supports §2's four jobs | — |
 | **3** | ⭐⭐ **Set up the baseline + tests, generate the goldens — and prove the harness actually works** | ⛔ **the net must be trusted before it is relied on**; a green suite that encodes nothing is worse than none |
 | **4** | **Then** decide **which features to port when** | 🔒 *"Only then we will start thinking what features to port when"* — ⛔ **not before**, or we port without a net |
@@ -80,5 +80,7 @@ the first half of the work.**
 | [`TESTING_Harness_And_Goldens.md`](TESTING_Harness_And_Goldens.md) | ⭐ the runbook — how to write a test, the perspective protocol, golden maintenance |
 | [`DESIGN_UI_Observability_Snapshot.md`](DESIGN_UI_Observability_Snapshot.md) | the `PanelSnapshot` contract *(the pixel-free read model)* |
 | [`MCP_Integration.md`](MCP_Integration.md) | the debug/MCP API surface |
-| [`DESIGN_Stride_Port.md`](DESIGN_Stride_Port.md) | step 0 |
+| [`DESIGN_Perspective_Unification.md`](DESIGN_Perspective_Unification.md) | ⭐⭐ **step 1** — `D1`/`D2` designed: Part A *(the rename + the unknown-id refusal it depends on)* is `READY-TO-BUILD`; Part B *(CGF grows the asset perspectives)* is the target |
+| [`blueprints/Architect_Question_51_Project_Consolidation.md`](blueprints/Architect_Question_51_Project_Consolidation.md) | ⛔ **project consolidation — DECLINED by the user `2026-08-23`** *(the measured win was ~10–15 s of MSBuild overhead; not worth the disruption)*. Kept for its measurements: the DAG is 17 deep, and depth not count is what costs build time |
+| [`DESIGN_Stride_Port.md`](DESIGN_Stride_Port.md) | step 0 — ✅ **INTEGRATED `2026-08-23`** (`477b31f52`) |
 | [`UX/`](UX/) | ⭐⭐ **the unification intent per feature** — start at [`UX_Glossary_Host_Mode_Subsystem.md`](UX/UX_Glossary_Host_Mode_Subsystem.md) *(process · mode · subsystem · perspective)* and [`UX_Feature_Cgf_Brain_Diagnostics.md`](UX/UX_Feature_Cgf_Brain_Diagnostics.md) |
