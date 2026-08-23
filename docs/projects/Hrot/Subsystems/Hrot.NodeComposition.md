@@ -1,3 +1,11 @@
+<!--STATUS
+state: LIVE
+doc-type: project reference — what this assembly is and why it exists. Not a buildable design, so no
+  build-state/UML gate; the owning design is docs/DESIGN_Stride_Port.md §7.
+updated: 2026-08-23
+current-answer: the whole file.
+known-conflict: none.
+-->
 # Hrot.NodeComposition
 
 **Project path:** `Hrot/Subsystems/Hrot.NodeComposition/`
