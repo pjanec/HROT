@@ -165,7 +165,7 @@ public sealed class AiVariablesWindow : ManagedWindow, Variables.IVariableTableH
 
         var view = _model.Build();
         if (PanelSnapshot.CaptureEnabled)
-            PanelSnapshot.Register(new VariableTablePanelViewModel(Id, PanelIds.Variables, view));
+            PanelSnapshot.Register(new VariableTablePanelViewModel(Id, PanelIds.Variables, view, _control.Formatter));
 
         return view;
     }

@@ -198,7 +198,7 @@ public sealed class WatchPanelWindow : BlueprintEditorWindowBase,
         Refresh();
 
         if (PanelSnapshot.CaptureEnabled)
-            PanelSnapshot.Register(new VariableTablePanelViewModel(PanelId, PanelIds.Watch, LastView));
+            PanelSnapshot.Register(new VariableTablePanelViewModel(PanelId, PanelIds.Watch, LastView, _formatter));
 
         // ImGui rendering requires a live context; skip in headless / test environments.
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;

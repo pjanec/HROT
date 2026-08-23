@@ -119,6 +119,15 @@ public sealed class VariableTableControl
         => _formatter = formatter ?? throw new ArgumentNullException(nameof(formatter));
 
     /// <summary>
+    /// ⭐⭐ <b>The formatter this control renders cells with — exposed so the panel's DUMP can produce
+    /// the SAME string the draw produces.</b>
+    /// ⛔ Not a second formatter and not a copy: 📌 a dump that formatted values its own way could
+    /// agree with itself while disagreeing with the screen, which is the failure the observability
+    /// contract exists to prevent.
+    /// </summary>
+    public VariableValueFormatter Formatter => _formatter;
+
+    /// <summary>
     /// ⭐⭐⭐ <b>Exactly what this control will draw for one row — the ARTEFACT's own answer.</b>
     ///
     /// <para>🔴🔴 <b><c>B3</c>, and why the rail has to live here.</b> 📐 Measured: the selection chain

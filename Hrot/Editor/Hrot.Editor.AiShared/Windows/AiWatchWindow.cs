@@ -188,7 +188,7 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
 
         // 2. CAPTURE — flag-gated, and BEFORE the render guard so a headless run still observes it.
         if (PanelSnapshot.CaptureEnabled && view != null)
-            PanelSnapshot.Register(new VariableTablePanelViewModel(Id, PanelIds.Watch, view));
+            PanelSnapshot.Register(new VariableTablePanelViewModel(Id, PanelIds.Watch, view, _control?.Formatter));
 
         // 3. RENDER — only from here on do we touch ImGui, and only with a live context.
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
