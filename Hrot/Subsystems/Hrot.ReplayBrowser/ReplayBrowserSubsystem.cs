@@ -56,6 +56,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private TransientMasterBuilder? _transientBuilder;
     private FederationPanel? _federationPanel;
 
+    /// <summary>⭐⭐⭐ U-obs-5 follow-up — kept so <c>OnLoadGroup</c> can RE-REGISTER
+    /// <see cref="Fdp.Presentation.Windows.ReplayBrowser.FederationWindow"/> under the same id every
+    /// time <see cref="_federationPanel"/> is replaced by a fresh group load; <c>RegisterWindows</c> is
+    /// called only once, before any group is loaded, so this is the only place that can do it.</summary>
+    private WindowManager? _windowManager;
+
     // ── Internal accessors for testing ────────────────────────────────────
 
     internal FederatedReplayManager? Manager => _manager;
@@ -263,11 +269,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                     _manager = FederatedReplayManager.LoadGroup(paths);
                     _manager.OnTimeChanged += OnManagerTimeChanged;
 
-                    // Create/replace the federation panel for the new manager.
-                    if (_federationPanel != null)
-                        _federationPanel.OnViewModeChanged -= SetViewMode;
-                    _federationPanel = new FederationPanel(_manager);
-                    _federationPanel.OnViewModeChanged += SetViewMode;
+                    CreateOrReplaceFederationPanel();
 
                     OnManagerTimeChanged();
                     _timelinePanel?.SetManager(_manager!);
@@ -536,7 +538,28 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _manager = FederatedReplayManager.LoadGroup(paths);
         _manager.OnTimeChanged += OnManagerTimeChanged;
         _timelinePanel?.SetManager(_manager);
+
+        CreateOrReplaceFederationPanel();
+
         OnManagerTimeChanged();
+    }
+
+    /// <summary>⭐⭐⭐ U-obs-5 follow-up — creates (or replaces, on a subsequent group load) the
+    /// <see cref="FederationPanel"/> for the CURRENT <see cref="_manager"/>, and — when
+    /// <see cref="_windowManager"/> is already known (i.e. <see cref="RegisterWindows"/> already ran) —
+    /// (re)registers <see cref="Fdp.Presentation.Windows.ReplayBrowser.FederationWindow"/> under the
+    /// same id so <c>WindowManager</c>'s replace-by-id semantics swap in the new panel. Shared by the
+    /// real <c>OnLoadGroup</c> delegate and the <see cref="LoadFdpGroupForTest"/> test seam so both
+    /// paths exercise the identical wiring.</summary>
+    private void CreateOrReplaceFederationPanel()
+    {
+        if (_federationPanel != null)
+            _federationPanel.OnViewModeChanged -= SetViewMode;
+        _federationPanel = new FederationPanel(_manager!);
+        _federationPanel.OnViewModeChanged += SetViewMode;
+
+        if (_windowManager != null)
+            RegisterFederationWindow(_windowManager, _federationPanel);
     }
 
     private void RebindActiveRepo(EntityRepository repo)
@@ -564,13 +587,15 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     public void RegisterWindows(WindowManager windowManager)
     {
         if (_headless) return;
+        _windowManager = windowManager;
         RegisterWindowsCore(
             windowManager,
             _timelinePanel!,
             _inspectorPanel!,
             _diffPanel!,
             _eventPanel!,
-            _searchPanel!);
+            _searchPanel!,
+            _federationPanel);
 
         // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
         // Harmless no-op for the Win32 backend: WindowManager only draws the service
@@ -580,17 +605,20 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     }
 
     /// <summary>
-    /// Test seam: registers the five replay-browser windows using caller-supplied
+    /// Test seam: registers the replay-browser windows using caller-supplied
     /// panel instances. Skips the headless guard so tests can exercise window
     /// registration without initialising Raylib.
     /// </summary>
+    /// <param name="federationPanel">⭐⭐⭐ U-obs-5 follow-up — <c>null</c> until a replay group has
+    /// been loaded (the panel is created lazily); when non-null its window is registered too.</param>
     internal void RegisterWindowsCore(
         WindowManager windowManager,
         ReplayTimelinePanel timelinePanel,
         EntityInspectorPanel inspectorPanel,
         ComponentDiffPanel diffPanel,
         EventBrowserPanel eventPanel,
-        ReplaySearchPanel searchPanel)
+        ReplaySearchPanel searchPanel,
+        FederationPanel? federationPanel = null)
     {
         string perspective = "ReplayBrowser";
         Vector4 color = TitleBarColor;
@@ -616,7 +644,17 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ReplaySearchWindow(
             "rb_search", "Replay Search", perspective, searchPanel, color));
+
+        if (federationPanel != null)
+            RegisterFederationWindow(windowManager, federationPanel);
     }
+
+    /// <summary>⭐⭐⭐ U-obs-5 follow-up — shared by <see cref="RegisterWindowsCore"/> (the initial
+    /// registration, when a group happened to already be loaded) and <c>OnLoadGroup</c> (every
+    /// subsequent group load, which replaces <see cref="_federationPanel"/>).</summary>
+    private void RegisterFederationWindow(WindowManager windowManager, FederationPanel panel)
+        => windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.FederationWindow(
+            "rb_federation", "Federation", "ReplayBrowser", panel, TitleBarColor));
 
     // ── Delegate wiring ───────────────────────────────────────────────────
 
