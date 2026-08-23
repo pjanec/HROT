@@ -2,7 +2,8 @@
 state: LIVE
 build-state: DESIGN — ⛔ NO LONGER READY-TO-BUILD. Item ⓪'s enumeration (§2b, measured 2026-08-23) found
   THREE stale participants and TWO preview handlers, and item ③ is measurably impossible as written (§4b).
-  ⇒ §4's items ①–③ need re-shaping before they are built. §2b is the new required reading.
+  ⇒ §4's items ①–③ need re-shaping before they are built. §2b and §4c are the new required reading —
+  §4c is the USER-CHOSEN approach (2026-08-23) and it supersedes §4 ③ and §4b's recommendation.
 updated: 2026-08-23
 current-answer: §1 — the requirement is PREVIEW, and it is "a preview leaves no trace". The allocator
   counter is a trace it currently leaves. §3 the seam gap, §4 the design, §5 the UML, §6 the rails.
@@ -148,6 +149,61 @@ the contract is *"the value that, passed to the restore, puts this allocator bac
 widened universal interface — the three scalar allocators implement it, the two pooled ones do not, and the
 preview bracket then **reports** that this node cannot guarantee reproducible ids. ⛔ A universal member
 that two implementations cannot honour is a lie the type system would stop advertising.
+
+## 4c. ⭐⭐⭐ THE CHOSEN APPROACH — **each node restores its OWN pool; the central allocator does not move** *(user, `2026-08-23`)*
+
+> 🔒 **User, verbatim:** *"maybe each node needs to remember the ids/chunks used during the run and on world
+> reset to simply reset to their beginning while the central allocatore stays where it is for potential
+> fresh allocations? nodes will allocated form their already reserved pools, with high chance that they will
+> repeat same allocations in same way?"*
+
+⭐⭐⭐ **ACCEPTED, and it is better than both options this document previously carried.** ⛔ It supersedes §4
+③'s `Reset(Read())` **and** §4b's *"pooled allocators opt out"* recommendation — ⚠ **that recommendation was
+mine and it was the weaker answer:** it excluded the two pooled allocators from the mechanism, where this
+framing lets them participate.
+
+### ⭐⭐ Why it fits the measured mechanics exactly
+
+📐 `DdsIdAllocator`: `Queue<long> _availableIds`; a chunk arrives as a **contiguous range**
+*(`_availableIds.Enqueue(response.Start + i)`)*; `AllocateId` dequeues **FIFO**; a refill fires at
+`Count < LOW_WATER_MARK (10)` for `CHUNK_SIZE (100)`.
+📐 `BlockIdManager`: the same shape — `Queue<long> _localPool`, `AddBlock(start, count)`.
+
+⇒ ⭐⭐ **"remember what I held, put it back"** is a queue snapshot and restore. ⛔ **No server call, no
+`Req_Reset`, no broadcast.**
+
+| ⭐ what this buys, that neither earlier option did | |
+|---|---|
+| ⭐⭐⭐ **ONE concept covers ALL FIVE implementations** | the two pooled ones restore a **queue prefix**; the three scalar ones restore an **integer** — 📌 *"restore my own issuing position"* is the same idea at both ends, which is exactly what §4 ③ could not express |
+| ⭐⭐⭐ **The central authority is never touched** | ⇒ ⛔ the §2c hazard is **designed out, not managed**: no backward global reset, no flushing another node's pool, no fighting §7's deliberately-FORWARD high-water mark |
+| ⭐⭐ **Cluster-wide by the mechanism that already exists** | the master broadcasts `PrepareState(LoadingPreview/UnloadingPreview)`; **each node restores its own pool locally** ⇒ 🔒 *"reset must be cluster wide"* is satisfied with **no new protocol** |
+| ⭐ **Nothing is hardwired to the editor** | the editor is one node whose pool happens to be a bare counter |
+
+### ⭐⭐⭐ The guarantee, stated EXACTLY — ⛔ it is not "high chance"
+
+⚠ **The user's own caveat deserves a precise answer rather than a hopeful one.** 📐 Because the pool is FIFO
+and the restore is a snapshot, the outcome splits cleanly at one boundary:
+
+| case | guarantee |
+|---|---|
+| ⭐⭐ **the preview consumes ≤ the ids the node HELD at enter** | ✅ **EXACT, not probabilistic** — the same ids in the same order, because the queue is restored byte-for-byte and `AllocateId` is FIFO. ⭐ Combined with `HN-010`'s measured stable spawn ORDER, preview N+1 is identical to preview N |
+| ⛔ **the preview EXHAUSTS the pool and pulls a fresh chunk mid-run** | ⚠ **the prefix repeats; the tail legitimately differs.** ⛔⛔ **And the ids obtained MID-PREVIEW must NOT be re-issued** — the server's high-water mark advanced past them and may have handed that range to another node ⇒ re-issuing them is a genuine cross-node collision. ⇒ ⭐ **restore only what was held at ENTER** |
+
+⇒ ⭐⭐ **So the contract is: *"ids repeat exactly while a preview stays within the ids the node already
+held; past that they diverge, and the boundary is REPORTED."*** ⛔ A silent crossing of that boundary is the
+one thing this must not do — 📌 it would be reproducible-looking and occasionally wrong, the worst of both.
+⭐ 📐 Sizing it: `CHUNK_SIZE` is **100**, so a preview spawning fewer than ~100 entities is inside the exact
+case; the editor's scalar allocator has no boundary at all.
+
+### 🔴🔴 AND IT MAKES `HN-013` A HARD PREREQUISITE, not a nice-to-have
+
+⛔⛔ **The better the id determinism, the harder the map collision bites.** 📐 §2b: `NetworkEntityMap.Register`
+throws on a duplicate and the editor never prunes. ⇒ ⭐⭐ **exact id repetition makes that throw CERTAIN on
+preview 2**, where today's drift merely hides it. ⚠ **This approach does not dodge the map — it removes the
+last excuse for not fixing it.**
+
+⇒ ⭐ **Build order: the map (and `EntityLifecycleModule`) rewind FIRST, or together. ⛔ Never the allocator
+alone.**
 
 ## 3. ⛔⛔ THE SEAM GAP — **the counter cannot be READ**
 
