@@ -367,6 +367,77 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 
 ---
 
+## 5b. Field notes — learned by using this against a real defect (2026-08-23)
+
+> Added after diagnosing "the platoon drives to (0,0) instead of the computed baseline" through this
+> API. Everything below cost time to discover and is not covered above.
+
+### ⛔ Enablement is an ENV VAR, not a CLI flag — and launch mode is broken
+
+| | |
+|---|---|
+| ✅ **works** | `HROT_DEBUG_API_PORT=8099` on the runner's environment. That is the **only** thing `EditorSubsystem` §8b checks. `Hrot.SystemTests/EditorProcessFixture.cs` does exactly this |
+| ⛔ **does not work** | `--debug-api` / `--debug-api-port`. 📐 **Measured:** no such option exists in `HrotRunnerConfiguration` or `RunnerOptions` — the flags were designed in `.dev/ai-debug-api/` and never landed on trunk |
+| 🔴 **consequence** | `src/index.mjs:64-65` spawns the runner with those dead flags, so **`start_simulation` produces a runner with the API off** and then polls `/status` until timeout. **Attach mode (`--url`) is fine.** Fix is one line — set the env var on the spawn — but it is a code change, so it is recorded here rather than assumed |
+
+⇒ ⭐ **Until that is fixed, drive the API directly over HTTP** (`localhost` only) against a runner you
+started yourself with the env var set. Every endpoint in §4 works that way; the MCP layer is a wrapper,
+not a requirement.
+
+### ⭐⭐ Free-running loses the evidence — step, always
+
+§3.B already prescribes `enter_preview{startPaused:true}` → `step{count:N}`. ⚠ **The reason matters:**
+a behaviour under test may **complete before you can ask about it**. Free-running the hill-attack
+scenario, every query returned the *post-hoc* state (all subordinates "arrived"), which hides the
+dispatch that is the actual subject. Stepping 20 ticks caught it mid-flight.
+
+### ⚠ Entity `networkId`s are REASSIGNED by `load_scenario`
+
+Reloading the same scenario renumbered the platoon `1000-1007` → `1008-1015`. ⛔ Ids held across a
+reload silently return **empty component dumps**, which reads like "the field is gone" rather than
+"wrong entity". ⇒ ⭐ **re-run `list_entities` after every load**, never cache an id across one.
+
+### ⚠ `/logs` can return zero entries — the real log is on disk
+
+`GET /logs?max=300` returned `count: 0` on a live editor that was logging heavily. The behaviour trail
+was in the NLog file: `<runner-bin>/logs/editor_{nodeId}.log`. ⇒ ⭐ **treat `/logs` as best-effort and
+grep the file** when it comes back empty; that file is where `Behavior | Node:[…]` lines live, and they
+are what identified which tree was actually running.
+
+### ⭐⭐ `/world/geo-to-local` is a parameter ORACLE
+
+Geo-authored parameters (`[lat, lon]` pairs in a mission plan) can be validated **independently of the
+behaviour**: convert them yourself and compare against what the entity received.
+
+```
+POST /world/geo-to-local {"lat":52.523603,"lon":13.412705}  ->  {"x":523.0,"y":401.0}
+```
+
+That one call proved the geo transform was healthy and moved suspicion onto the parameter plumbing —
+without it, "the coordinates are wrong" and "the transform is wrong" are indistinguishable.
+
+### ⭐⭐⭐ An all-zero params block: read the CLAMPED field first
+
+When a params dump is all zeros, the question is *parsed-badly* vs **never-parsed**. ⭐ Look for a field
+the parser cannot leave at zero — a clamp or a fallback:
+
+```csharp
+TankSpacing = dto.TankSpacing > 0f ? dto.TankSpacing : 30f;   // can never yield 0
+```
+
+`TankSpacing == 0` in the live dump therefore **proved the resolver never ran**, in one step, with no
+breakpoints. ⛔ Absence of a `ParseError` in the log said the same thing and is easy to misread as
+"parsing succeeded". ⇒ ⭐ **a clamped field reading zero is the cheapest "this code never executed"
+probe available.**
+
+### ⚠ Blueprint-tier entities have no trace
+
+`observe_trace` + `get_entity_trace` on a Blueprint-tier entity returns
+`{"tier":"Blueprint","note":"Blueprint trace: assetId resolution not available via Debug API."}` —
+armed successfully, but empty. Not a failure to report; use `get_entity` component dumps instead.
+
+---
+
 ## 6. Discover before you guess
 
 The API is self-describing — prefer discovery over assumptions:

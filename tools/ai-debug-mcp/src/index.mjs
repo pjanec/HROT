@@ -12,6 +12,7 @@
  * Usage:
  *   Launch mode (server spawns runner):
  *     node src/index.mjs --runner-dll <path/to/Hrot.ClusterRunner.dll> --port <N> [--headless]
+ *     (enables the API via HROT_DEBUG_API_PORT on the child — there are no --debug-api CLI flags)
  *
  *   Attach mode (runner already running):
  *     node src/index.mjs --url http://localhost:<N>
@@ -58,17 +59,19 @@ const GRACEFUL_KILL_TIMEOUT_MS = 10_000;
  * @param {boolean} headless  Pass --headless flag
  */
 async function launchRunner(runnerDll, port, headless) {
-  const dllArgs = [
-    runnerDll,
-    '-m', 'editor',
-    '--debug-api',
-    '--debug-api-port', String(port),
-  ];
+  // ⛔ Do NOT pass --debug-api / --debug-api-port. Those flags were designed in
+  //    .dev/ai-debug-api/ and NEVER LANDED: no such option exists in HrotRunnerConfiguration or
+  //    RunnerOptions. Passing them produced a runner with the API OFF, after which the /status poll
+  //    below could only time out — launch mode had never worked.
+  // ⭐ The one and only switch is the env var HROT_DEBUG_API_PORT, read by EditorSubsystem §8b.
+  //    Hrot.SystemTests/EditorProcessFixture.cs does the same thing.
+  const dllArgs = [runnerDll, '-m', 'editor', '--no-wait'];
   if (headless) dllArgs.push('--headless');
 
   runnerChild = spawn('dotnet', dllArgs, {
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    env: { ...process.env, HROT_DEBUG_API_PORT: String(port) },
   });
 
   runnerChild.stdout.on('data', (d) => process.stderr.write(`[runner stdout] ${d}`));
