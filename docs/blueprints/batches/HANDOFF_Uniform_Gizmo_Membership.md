@@ -10,7 +10,7 @@ known-conflict: none. The preview-rewind batch (HN-, Area J) owns PreviewCluster
 -->
 # HANDOFF — **uniform gizmo membership** *(every host, every family)*
 
-> 📌 **Dispatched at `<STAMP>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `ba472e0ce`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`ST-`**, tracker **Area I** — 📐 the series stands at **`ST-026`**, so start at
 > `ST-027`.
