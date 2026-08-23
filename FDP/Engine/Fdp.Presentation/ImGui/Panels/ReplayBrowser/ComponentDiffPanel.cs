@@ -3,13 +3,37 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.Utils.ReplayBrowser;
 using Fdp.Toolkit.ReplayBrowser.Diff;
 using ImGuiNET;
 
 namespace Fdp.Presentation.Panels.ReplayBrowser;
+
+/// <summary>⭐ One visible diff row, flattened (not a tree — the tree structure is ImGui-only
+/// nesting/indent, not information the model needs to duplicate). A group row has null
+/// Old/NewValue; a leaf row carries both.</summary>
+public sealed record ComponentDiffRowViewModel(string Name, bool IsGroup, string? OldValue, string? NewValue, string? ValueTypeKind);
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="ComponentDiffPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⭐ Built from
+/// <see cref="ComponentDiffPanel.CollectVisibleNodes"/> — the SAME filter <see cref="DrawContent(System.Collections.Generic.IReadOnlyList{Fdp.Toolkit.ReplayBrowser.Diff.DiffNode})"/>
+/// walks, already exposed as a testable helper before this conversion.
+/// </summary>
+public sealed record ComponentDiffPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    bool IgnoreEpsilon,
+    bool HideUnchanged,
+    IReadOnlyList<ComponentDiffRowViewModel> Rows) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Renders a hierarchical diff tree showing per-field changes between two consecutive
@@ -49,6 +73,20 @@ public sealed class ComponentDiffPanel
     /// <summary>Test helper: returns true when seek-to-change should be enabled.</summary>
     internal static bool IsSeekToChangeEnabled(bool isSearching, bool isMerged)
         => !isSearching && !isMerged;
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure, flattened projection of the visible diff rows. No ImGui.
+    /// ⭐ Reuses <see cref="CollectVisibleNodes"/>, exactly the set <see cref="DrawContent(System.Collections.Generic.IReadOnlyList{Fdp.Toolkit.ReplayBrowser.Diff.DiffNode})"/>
+    /// visits.</summary>
+    public ComponentDiffPanelViewModel BuildViewModel(string panelId, string panelKind)
+    {
+        var visible = CollectVisibleNodes(CurrentDiffs, _hideUnchanged);
+        var rows = visible.Select(n => n is DiffValue v
+            ? new ComponentDiffRowViewModel(v.Name, false, v.OldValue, v.NewValue, v.ValueType.ToString())
+            : new ComponentDiffRowViewModel(n.Name, true, null, null, null))
+            .ToList();
+        return new ComponentDiffPanelViewModel(panelId, panelKind, _ignoreEpsilon, _hideUnchanged, rows);
+    }
 
     // ── Draw entry point ──────────────────────────────────────────────────
 
