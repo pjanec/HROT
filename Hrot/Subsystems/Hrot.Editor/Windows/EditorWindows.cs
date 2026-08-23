@@ -1,4 +1,5 @@
 using System.Numerics;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor;
 using Hrot.Editor.UI;
@@ -49,7 +50,9 @@ internal sealed class EditorOrbatWindow : ManagedWindow
     protected override void DrawClientArea() => _panel.DrawContent(_logic);
 }
 
-/// <summary>Entity spawner panel (shared with ExCon) as a perspective-bound managed window.</summary>
+/// <summary>Entity spawner panel (shared with ExCon) as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Spawner"/>, shared with the
+/// (not yet converted) ExCon host of the same <see cref="SpawnerPanel"/>.</summary>
 internal sealed class EditorSpawnerWindow : ManagedWindow
 {
     private readonly SpawnerPanel    _panel;
@@ -62,9 +65,23 @@ internal sealed class EditorSpawnerWindow : ManagedWindow
         _spawn = spawn;
         IsOpen        = true;
         TitleBarColor = EditorWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_spawn);
+    private SpawnerPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, PanelIds.Spawner);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal SpawnerPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_spawn);
+    }
 }
 
 /// <summary>Mission editor panel (shared) as a perspective-bound managed window.</summary>
@@ -87,7 +104,9 @@ internal sealed class EditorMissionWindow : ManagedWindow
     protected override void DrawClientArea() => _panel.DrawContent(_svc, _pick);
 }
 
-/// <summary>Map layer / grid configuration panel (shared) as a perspective-bound managed window.</summary>
+/// <summary>Map layer / grid configuration panel (shared) as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Config"/>, shared with the
+/// (not yet converted) ExCon host of the same <see cref="ConfigPanel"/>.</summary>
 internal sealed class EditorConfigWindow : ManagedWindow
 {
     private readonly ConfigPanel         _panel;
@@ -100,12 +119,28 @@ internal sealed class EditorConfigWindow : ManagedWindow
         _ctrl  = ctrl;
         IsOpen        = true;
         TitleBarColor = EditorWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_ctrl);
+    private ConfigPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, PanelIds.Config);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal ConfigPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_ctrl);
+    }
 }
 
-/// <summary>Shared ORBAT tree with drag-and-drop embarkation as a perspective-bound managed window.</summary>
+/// <summary>Shared ORBAT tree with drag-and-drop embarkation as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.SharedOrbat"/>, shared with the
+/// (not yet converted) ExCon host of the same <see cref="SharedOrbatPanel"/>.</summary>
 internal sealed class EditorSharedOrbatWindow : ManagedWindow
 {
     private readonly SharedOrbatPanel   _panel;
@@ -120,12 +155,28 @@ internal sealed class EditorSharedOrbatWindow : ManagedWindow
         _ctrl  = ctrl;
         IsOpen        = true;
         TitleBarColor = EditorWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_data, _ctrl);
+    private SharedOrbatPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(_data, Id, PanelIds.SharedOrbat);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal SharedOrbatPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_data, _ctrl);
+    }
 }
 
-/// <summary>Preview/Edit mode toggle panel as a perspective-bound managed window.</summary>
+/// <summary>Preview/Edit mode toggle panel as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Preview"/>, shared with the
+/// (not yet converted) ExCon host of the same <see cref="PreviewPanel"/>.</summary>
 internal sealed class EditorPreviewWindow : ManagedWindow
 {
     private readonly PreviewPanel       _panel;
@@ -138,12 +189,29 @@ internal sealed class EditorPreviewWindow : ManagedWindow
         _ctrl  = ctrl;
         IsOpen        = true;
         TitleBarColor = EditorWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_ctrl);
+    private PreviewPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(_ctrl, Id, PanelIds.Preview);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal PreviewPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_ctrl);
+    }
 }
 
-/// <summary>Zone editor (road network + LOS obstacle placement) as a perspective-bound managed window.</summary>
+/// <summary>Zone editor (road network + LOS obstacle placement) as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.ZoneEditor"/>. ⚠ No ExCon host
+/// exists for this one (measured) — single host, but the constant already lives in
+/// <c>PanelIds</c> alongside its four siblings for consistency.</summary>
 internal sealed class EditorZoneEditorWindow : ManagedWindow
 {
     private readonly ZoneEditorPanel          _panel;
@@ -156,7 +224,21 @@ internal sealed class EditorZoneEditorWindow : ManagedWindow
         _ctrl  = ctrl;
         IsOpen        = true;
         TitleBarColor = EditorWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_ctrl);
+    private ZoneEditorPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, PanelIds.ZoneEditor);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal ZoneEditorPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_ctrl);
+    }
 }

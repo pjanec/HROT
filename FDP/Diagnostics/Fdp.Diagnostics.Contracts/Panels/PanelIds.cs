@@ -82,4 +82,29 @@ public static class PanelIds
     /// <c>Hrot.Presentation.Windows</c>) host the same <c>EventBrowserPanel</c>; both must agree.
     /// </summary>
     public const string EventBrowser = "event-browser";
+
+    // ── group-5 twin panels (Hrot.UI.Common.Panels, shipped from Hrot.Presentation) ─────────────
+    //
+    // ⚠⚠ Each of these panels is hosted by BOTH the Editor perspective (Hrot.Editor's
+    // EditorWindows.cs) and the ExCon perspective (Hrot.ExCon's ExConWindows.cs /
+    // ExConMock.cs) — two DIFFERENT window classes wrapping the SAME panel class, exactly the
+    // "PanelKind must agree" case this file exists for. 📄 QUEUE_Panel_Observability_Sweep.md
+    // group 5's twin-diff finding: a SEPARATE, unreferenced Hrot.UI.Common PROJECT holds a
+    // stale copy of the same source under an identical namespace — that copy is dead (zero
+    // ProjectReferences, absent from IOS-IG-SimHost.sln) and is NOT part of this kind scheme.
+
+    /// <summary>⭐ The map-layer visibility config panel.</summary>
+    public const string Config = "config";
+
+    /// <summary>⭐ The TKB entity-catalog spawner panel.</summary>
+    public const string Spawner = "spawner";
+
+    /// <summary>⭐ The ORBAT drag-and-drop tree panel.</summary>
+    public const string SharedOrbat = "shared-orbat";
+
+    /// <summary>⭐ The Edit/Preview mode toggle panel.</summary>
+    public const string Preview = "preview";
+
+    /// <summary>⭐ The zone/road-network authoring panel.</summary>
+    public const string ZoneEditor = "zone-editor";
 }

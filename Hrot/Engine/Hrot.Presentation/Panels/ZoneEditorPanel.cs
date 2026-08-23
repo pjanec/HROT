@@ -1,7 +1,18 @@
+using System.Text.Json.Nodes;
 using ImGuiNET;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 
 namespace Hrot.UI.Common.Panels;
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="ZoneEditorPanel"/> shows, this frame. ⚠ See
+/// <c>ConfigPanel</c>'s remarks for the group-5 twin finding.</summary>
+public sealed record ZoneEditorPanelViewModel(
+    string PanelId, string PanelKind, string ZoneName, string RoadNetworkPath, float ObstacleRadius) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Panel for static zone authoring: road network configuration and
@@ -48,6 +59,11 @@ public sealed class ZoneEditorPanel
         get => _obstacleRadius;
         set => _obstacleRadius = Math.Clamp(value, ObstacleRadiusMin, ObstacleRadiusMax);
     }
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of current state. No ImGui.</summary>
+    public ZoneEditorPanelViewModel BuildViewModel(string panelId, string panelKind) =>
+        new(panelId, panelKind, _zoneName, _roadNetworkPath, _obstacleRadius);
 
     // ── Render ────────────────────────────────────────────────────────────────
 
