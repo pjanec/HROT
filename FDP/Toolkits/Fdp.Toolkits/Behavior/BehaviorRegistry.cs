@@ -268,7 +268,13 @@ namespace Fdp.Toolkit.Behavior
         /// <para>
         /// Binding is order-independent: if the behavior's <see cref="BehaviorDefinition"/> is already
         /// registered, the overlay is applied immediately; otherwise it is stored and applied when the
-        /// topology registers. A property already set on the definition is never overwritten.
+        /// topology registers.
+        /// </para>
+        /// <para>
+        /// ⭐ <b>The overlay WINS over anything the topology registered</b> — a hand-authored resolver
+        /// outranks a generated one (user ruling, 2026-08-23). See
+        /// <see cref="ApplyResolverOverlay"/> for why the previous "never overwrite" rule silently
+        /// broke <c>PlatoonHillAttack</c>.
         /// </para>
         /// </summary>
         public void RegisterResolver(string name, ParseParamsDelegate resolver, Type? paramsDtoType = null)
@@ -287,15 +293,40 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>
-        /// Applies a named resolver overlay to a definition without clobbering properties the
-        /// definition already carries (a topology def that set its own ParseParams wins).
+        /// Applies a named resolver overlay to a definition. ⭐ <b>The overlay WINS</b> — a
+        /// hand-authored resolver outranks whatever the topology registered.
+        ///
+        /// <para>
+        /// 📌 <b>User ruling (2026-08-23):</b> <i>"if curated (hand-authored) exists, then no other is
+        /// needed — having automatically generated is undesired in such a case."</i>
+        /// <see cref="RegisterResolver"/> is reached ONLY from the curated registrar
+        /// (<c>CgfCuratedBehaviorRegistrar</c>); generated registrars never call it. So the presence
+        /// of an overlay is itself the signal that a human wrote a resolver for this behavior.
+        /// </para>
+        ///
+        /// <para>
+        /// 🔴 <b>This used to read <c>if (def.ParseParams == null)</c></b>, i.e. the generated
+        /// <c>ParseParams</c> won. That silently discarded the curated resolver, and only the curated
+        /// one understands the geo-authored parameter shape — <c>PlatoonHillAttack</c>'s
+        /// <c>firingLineStart</c>/<c>baselineStart</c> arrive as <c>[lat, lon]</c> and must go through
+        /// <c>geoTransform.ToCartesian</c>. The generated lambda knows nothing of them, so the
+        /// commander's <c>PlatoonHillAttackParams</c> stayed all-zero, the baseline collapsed to the
+        /// origin, and the platoon drove to (0,0). Observed in the running editor; the tell was
+        /// <c>TankSpacing == 0</c>, a value the curated parser cannot produce (it clamps to 30).
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠ <b>Why it appeared only recently:</b> <c>DEBT-AIB-021</c> (Batch 70) widened the
+        /// generated emit guard from "≥1 variable with a default" to "≥1 packed managed variable", so
+        /// generated registrars began emitting <c>ParseParams</c> for assets that previously had none
+        /// — quietly shadowing every curated resolver whose behavior also has a generated registrar.
+        /// </para>
         /// </summary>
         private static void ApplyResolverOverlay(
             BehaviorDefinition def, (ParseParamsDelegate Resolver, Type? ParamsDtoType) overlay)
         {
-            if (def.ParseParams == null)
-                def.ParseParams = overlay.Resolver;
-            if (def.ParamsDtoType == null && overlay.ParamsDtoType != null)
+            def.ParseParams = overlay.Resolver;
+            if (overlay.ParamsDtoType != null)
                 def.ParamsDtoType = overlay.ParamsDtoType;
         }
 

@@ -369,6 +369,69 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(typeof(int), d2.ParamsDtoType);
         }
 
+        // ── Test 10b — the curated overlay OUTRANKS a generated ParseParams ──
+        /// <summary>
+        /// 📌 <b>User ruling (2026-08-23):</b> <i>"if curated (hand-authored) exists, then no other is
+        /// needed — having automatically generated is undesired in such a case."</i>
+        ///
+        /// <para>
+        /// 🔴 <b>The regression this locks.</b> <c>ApplyResolverOverlay</c> used to read
+        /// <c>if (def.ParseParams == null)</c>, so a generated registrar that set its own
+        /// <c>ParseParams</c> silently discarded the curated resolver. Only the curated one
+        /// understands geo-authored parameters, so <c>PlatoonHillAttack</c>'s commander params stayed
+        /// all-zero and the platoon drove to (0,0) instead of the computed baseline. Observed live;
+        /// the tell was <c>TankSpacing == 0</c>, which the curated parser cannot emit.
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠ Both orders are asserted: the generated registrar may run before OR after the curated
+        /// one, and the ruling must not depend on which.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void RegisterResolver_OverridesAGeneratedParseParams_InEitherOrder()
+        {
+            static BehaviorDefinition WithGeneratedParseParams(ParseParamsDelegate generated) => new()
+            {
+                Name          = "Z",
+                BrainTier     = BehaviorConstants.BrainTierBTree,
+                ParseParams   = generated,          // what a generated registrar emits
+                ParamsDtoType = typeof(long),       // and its own DTO type
+            };
+
+            bool generatedRan;
+            bool curatedRan;
+
+            ParseParamsDelegate MakeGenerated() =>
+                (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => generatedRan = true;
+            ParseParamsDelegate MakeCurated() =>
+                (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => curatedRan = true;
+
+            // ── generated topology FIRST, curated resolver second ──
+            generatedRan = false; curatedRan = false;
+            var r1 = new BehaviorRegistry();
+            r1.Register("Z", WithGeneratedParseParams(MakeGenerated()));
+            r1.RegisterResolver("Z", MakeCurated(), typeof(int));
+
+            Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Z"), out var d1));
+            d1!.ParseParams!(string.Empty, null, null!, default, null);
+            Assert.True(curatedRan,    "the curated resolver must win over a generated ParseParams");
+            Assert.False(generatedRan, "the generated ParseParams must not run once a curated one exists");
+            Assert.Equal(typeof(int), d1.ParamsDtoType);   // the curated DTO type wins too
+
+            // ── curated resolver FIRST, generated topology second ──
+            generatedRan = false; curatedRan = false;
+            var r2 = new BehaviorRegistry();
+            r2.RegisterResolver("Z", MakeCurated(), typeof(int));
+            r2.Register("Z", WithGeneratedParseParams(MakeGenerated()));
+
+            Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Z"), out var d2));
+            d2!.ParseParams!(string.Empty, null, null!, default, null);
+            Assert.True(curatedRan,    "order must not decide which resolver wins");
+            Assert.False(generatedRan);
+            Assert.Equal(typeof(int), d2.ParamsDtoType);
+        }
+
         // ── Test 11 — name-based Register overload derives id from name ─────
         /// <summary>
         /// The name-based <see cref="BehaviorRegistry.Register(string, BehaviorDefinition)"/>
