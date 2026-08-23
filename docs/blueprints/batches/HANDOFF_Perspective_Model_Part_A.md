@@ -9,7 +9,7 @@ known-conflict: none.
 -->
 # HANDOFF — **perspective model, Part A**
 
-> 📌 **Dispatched at `<STAMP>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `f39cf0c87`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: push the started-marker BEFORE any
 > code.** ⛔ **No PR.** ⭐ **You allocate the ids** *(rule 3)* — `A0…A7` below are **placeholders**.
 
