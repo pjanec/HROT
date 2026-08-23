@@ -18,12 +18,12 @@ public sealed record DataBreakpointRowViewModel(string Id, bool Enabled, string 
 
 /// <summary>
 /// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="DataBreakpointManagerPanel"/> shows, this frame.</b>
-/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⚠ Does not embed
-/// <c>TemporalStatusBannerPanel</c>'s own state — that panel is a separate group-6 queue item with its
-/// own conversion; this dump carries only whether a selection exists.</summary>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⭐ <see cref="Banner"/> embeds
+/// <c>TemporalStatusBannerPanel</c>'s own dump — that sub-panel has no standalone window anywhere
+/// (group-6 queue item; caller-registers rule), so its ONLY caller embeds it here.</summary>
 public sealed record DataBreakpointManagerPanelViewModel(
     string PanelId, string PanelKind, string? SelectedId,
-    IReadOnlyList<DataBreakpointRowViewModel> Breakpoints) : IPanelViewModel
+    IReadOnlyList<DataBreakpointRowViewModel> Breakpoints, TemporalStatusBannerViewModel Banner) : IPanelViewModel
 {
     /// <inheritdoc/>
     public JsonNode Dump() => PanelDump.Of(this);
@@ -82,7 +82,7 @@ public sealed class DataBreakpointManagerPanel
             bp.HitCount)).ToList();
 
         return new DataBreakpointManagerPanelViewModel(
-            panelId, panelKind, _selectedId.IsValid ? _selectedId.ToString() : null, rows);
+            panelId, panelKind, _selectedId.IsValid ? _selectedId.ToString() : null, rows, _bannerPanel.BuildViewModel());
     }
 
     // ── Internal action seams (used by tests) ─────────────────────────────────

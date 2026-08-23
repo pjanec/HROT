@@ -41,7 +41,7 @@ public sealed class DataBreakpointManagerWindowDumpsItsGridTests : IDisposable
         public readonly List<DpBreakpoint> Bps = new();
         public IReadOnlyList<DpBreakpoint> AllBreakpoints => Bps;
 
-        public bool IsPaused => false;
+        public bool IsPaused { get; set; }
         public long PausedTick => 0;
         public int PendingMutationsCount => 0;
         public bool HasMountedDelegates => false;
@@ -112,10 +112,33 @@ public sealed class DataBreakpointManagerWindowDumpsItsGridTests : IDisposable
         Assert.Equal("data_bp_test", vm!.PanelId);
         Assert.Equal(DataBreakpointManagerWindow.Kind, vm.PanelKind);
 
-        var rows = vm.Dump()["breakpoints"]!.AsArray();
+        var dump = vm.Dump();
+        var rows = dump["breakpoints"]!.AsArray();
         Assert.Single(rows);
         Assert.True(rows[0]!["enabled"]!.GetValue<bool>());
         Assert.Equal(3, rows[0]!["hitCount"]!.GetValue<int>());
+
+        // ⭐ TemporalStatusBannerPanel has no standalone window (group-6 finding) — its state is
+        // embedded here, the only caller that ever constructs it.
+        Assert.False(dump["banner"]!["shouldRender"]!.GetValue<bool>());
+    }
+
+    /// <summary>⭐⭐ <c>TemporalStatusBannerPanel</c>'s state, embedded via its one caller: verifies
+    /// <see cref="TemporalStatusBannerState.Refresh"/> feeds through to the dump.</summary>
+    [Fact]
+    public void WhenTheManagerIsPaused_TheBannerDumpShowsShouldRender()
+    {
+        PanelSnapshot.CaptureEnabled = true;
+        var manager = new StubBreakpointManager { IsPaused = true };
+        var bannerState = new TemporalStatusBannerState();
+        bannerState.Refresh(manager);
+        var window = new DataBreakpointManagerWindow("data_bp_banner_test", "test-perspective",
+            new DataBreakpointManagerPanel(manager, bannerState));
+
+        window.SimulateDrawClientArea();
+
+        var dump = PanelSnapshot.TryGet("data_bp_banner_test")!.Dump();
+        Assert.True(dump["banner"]!["shouldRender"]!.GetValue<bool>());
     }
 
     // ── Rail 3 — the flag gates the DUMP, not the BUILD ──────────────────────────────────────────
