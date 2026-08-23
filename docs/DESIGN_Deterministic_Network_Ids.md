@@ -1,6 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD
+build-state: DESIGN — ⛔ NO LONGER READY-TO-BUILD. Item ⓪'s enumeration (§2b, measured 2026-08-23) found
+  THREE stale participants and TWO preview handlers, and item ③ is measurably impossible as written (§4b).
+  ⇒ §4's items ①–③ need re-shaping before they are built. §2b is the new required reading.
 updated: 2026-08-23
 current-answer: §1 — the requirement is PREVIEW, and it is "a preview leaves no trace". The allocator
   counter is a trace it currently leaves. §3 the seam gap, §4 the design, §5 the UML, §6 the rails.
@@ -9,6 +11,10 @@ design-basis: 🔒 user 2026-08-23 (§1) · docs/designs/mgmt-1/DESIGN.md §5.7 
   PROGRAMME_Unification_And_Harness.md D6 (the original decision) · HN-010 (DeterminismRails).
 known-conflict: ⚠ charter D6 names `RegisterWorldResetObserver` as the seam. 📐 MEASURED WRONG for this
   use: preview exit publishes NO WorldResetEvent (§2). D6's requirement stands; its seam does not.
+known-rot: ⛔ §4 ④ says "hook it in PreviewClusterOpHandler so 'what preview saves' has ONE home" — 📐 that
+  handler is registered on NO ClusterSlave and is EDITOR-ONLY (§2b). ⛔ §4 ③'s "Reset(Read()) is an identity
+  on EVERY implementation" is IMPOSSIBLE for the two pooled allocators (§4b). Both corrected below; do not
+  quote §4 ③/④ without §2b and §4b.
 -->
 # DESIGN — **a preview must leave no trace** *(the network-id counter, and what else)*
 
@@ -51,6 +57,97 @@ it** ⇒ **preview N and preview N+1 produce identical ids.**
 | **`entityMap`** *(`NetworkEntityMap`, `:895`)* | ✅ yes | ⚠ **UNKNOWN — enumerate before building** *(§4 item ⓪)*. ⭐ A comment on the record/replay path says `EcsRecordReplayController` *"rebuilds the map"* — ⛔ **that is a different path**, not preview |
 
 ⇒ ⭐⭐ **Fixing only the allocator would leave the same defect standing next door.** ⛔ **`⓪` comes first.**
+
+## 2b. ⭐⭐⭐ ITEM ⓪ — **THE ENUMERATION** *(measured `2026-08-23`; this is what §2 twice failed to state)*
+
+### ⭐⭐ What `NetworkSpawningSystem` holds outside the `EntityRepository`
+
+📐 Its constructor takes four non-repo things *(`:37-44`)*, and the editor's call site is `:1102`:
+
+| outside the repo | mutable? | rewound by preview? | 🔴 consequence |
+|---|---|---|---|
+| ⭐ **`INetworkIdAllocator`** *(`:1101`)* | ✅ | 🔴 **NO** | the reported defect — ids drift |
+| 🔴🔴 **`NetworkEntityMap`** *(`:895`)* | ✅ | 🔴 **NO** | ⛔⛔ **and `Register` THROWS on a duplicate id** — see below |
+| 🔴 **`EntityLifecycleModule`** | ✅ | 🔴 **NO** | `_pendingConstruction` / `_pendingDestruction` are keyed by **`Entity` handles the rewind invalidates**, plus `_blueprintRequirements` |
+| ✅ `ITkbDatabase` | ⛔ read-only catalogue | n/a | fine |
+
+⇒ ⭐⭐ **THREE participants, not one.** 📌 §4 ⑤ said *"two justifies a small list; one does not"* — **three
+settles it**, and the list is the deliverable, not a general `IPreviewStateCapture` vocabulary.
+
+### 🔴🔴🔴 THE FINDING THAT STOPS THE BUILD — **fixing the allocator ALONE makes it WORSE**
+
+📐 `NetworkEntityMap.Register` *(`:36-38`)*:
+
+```csharp
+if (_netToEntity.ContainsKey(netId))
+     throw new InvalidOperationException($"NetworkId {netId} already registered");
+```
+
+📐 And the editor **never prunes the map**: `PruneDeadEntities`' only production caller on this path is
+`DisposalMonitoringSystem`, registered by `ReplicationLogicModule` / `NedReplicationModule` — ⛔ but the
+editor uses **`OfflineNetworkFactory`**, whose `CreateReplicationModule()` returns a
+**`NullReplicationModule`** *(and that even builds its own throwaway `new NetworkEntityMap()` for
+`GhostCreationSystem`, not the editor's)*.
+
+⇒ ⛔⛔⛔ **Today the DRIFT is what HIDES the map leak.** Restore the allocator and preview 2 re-issues
+preview 1's ids into a map that still holds them ⇒ **`InvalidOperationException` on the spawn.** ⭐ Not
+"possible" — **certain**, in the editor, on the second preview that spawns anything.
+⇒ ⭐⭐ **item ① MUST NOT ship without the map.** 📌 Exactly what item ⓪ exists to catch.
+
+### 🔴🔴 AND THERE ARE **TWO** PREVIEW HANDLERS — one concept, already diverging
+
+| | `ReferencePreviewHandler` | `PreviewClusterOpHandler` |
+|---|---|---|
+| home | `Fdp.Toolkits/Orchestration/Handlers/` | `Hrot.Common/Orchestration/Handlers/` |
+| interface | `IClusterStateHandler` | `IClusterOpHandler` |
+| ⭐ **registered on a ClusterSlave** | ✅ **5 production sites** — IG, CGF ×2, SimHost, ExCon | 🔴 **NONE** |
+| driven by | the **2PC broadcast** | the editor, directly via `TriggerLoadingPreview/Unloading` |
+| the snapshot | `snap.SyncFrom(_liveRepo)` | `SyncFrom(_liveRepo, includeTransient: **true**)` |
+
+⇒ ⛔⛔ **§4 ④'s *"one home"* names the EDITOR-ONLY handler.** ⭐ Hooking the save/restore there would give
+the editor the fix and leave every cluster node without it — ⚠ **the precise hardwiring §2c forbids.**
+⭐ They already disagree on `includeTransient`, so this is a live ruling-9 duplicate, not a latent one.
+
+## 2c. ⭐⭐⭐ USER RULING — **PREVIEW IS NOT EDITOR-ONLY, AND THE RESET MUST BE CLUSTER-WIDE** *(`2026-08-23`)*
+
+> 🔒 **User, verbatim:** *"note the preview could work also in distributed env so no hardwiring directly
+> just for editor, reset must be cluster wide"*
+
+⭐⭐ **Measured consequences, and one of them inverts §7's advice:**
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **The cluster-wide mechanism ALREADY EXISTS and needs no new broadcast** | 📐 both handlers are `PrepareState` handlers for `LoadingPreview`/`UnloadingPreview` — **the master broadcasts, every node commits LOCALLY.** ⇒ ⭐ a per-node capture/restore inside the handler **is** the cluster-wide reset. ⛔ Do not add a second broadcast |
+| ⛔⛔ **But the editor's preview never goes through 2PC** | 📐 `EditorPreviewController` calls `Trigger*` directly, and `PreviewClusterOpHandler` is on no slave ⇒ ⭐⭐ **the fix must live where BOTH entry points pass** — the private commit helpers — ⛔ never in `EditorPreviewController` |
+| 🔴🔴 **`INetworkIdAllocator.Reset` IS ALREADY CLUSTER-WIDE — and that is exactly why it is the WRONG primitive here** | 📐 `DdsIdAllocator.Reset(startId)` **writes a global `Req_Reset` to the server**, which broadcasts to every client and flushes their pools. ⇒ ⛔ using it to restore a preview would reset the **whole cluster's** id authority BACKWARD and flush pools other nodes are mid-way through — and §7's `Resp_Reset` is designed to move the high-water mark **FORWARD** for collision avoidance. ⭐⭐ **Two intents, one method — now with the measurement that makes §7's warning concrete** |
+| ⚠ **`BlockIdManager.Reset` ignores its argument** | 📐 it `_localPool.Clear()`s and its own comments admit the semantics are unsettled. ⇒ there is no scalar position to restore |
+
+⇒ ⭐⭐⭐ **The shape the steer implies:** the preview bracket restores **each node's own allocator position**,
+driven by the existing 2PC; ⛔ it is **not** expressed as `INetworkIdAllocator.Reset`; and ⭐ an allocator
+that cannot express a restorable position *(pooled/DDS)* must **say so** rather than silently do the wrong
+thing.
+
+## 4b. ⛔⛔ ITEM ③ IS IMPOSSIBLE AS WRITTEN — **`Reset(Read())` cannot be an identity on every implementation**
+
+📐 Measured across all five:
+
+| implementation | init | `AllocateId()` | `Reset(s)` | `Reset(Read())` identity? |
+|---|---|---|---|---|
+| `Hrot.Core.Network.SequentialIdAllocator` | `_next = 1` | `Interlocked.Increment` ⇒ **pre**, first id **2** | `_next = s` | ✅ |
+| `EditorSubsystem`'s **private nested** | `_next = 1000` | `_next++` ⇒ **post**, first id **1000** | `_next = s` | ✅ |
+| `IgSequentialIdAllocator` | `_nextId = 1` | `Interlocked.Increment` | `_nextId = s` | ✅ |
+| 🔴 **`BlockIdManager`** | a **`Queue<long>` of leased ids** | `Dequeue()` | ⛔ **`Clear()`, argument IGNORED** | ⛔ **NO — the pool IS the state and `Reset` destroys it** |
+| 🔴🔴 **`DdsIdAllocator`** | local `Queue<long>` **+ server state** | `Dequeue()` | ⛔ **global DDS broadcast + clear** | ⛔ **NO — and it mutates the whole cluster** |
+
+⭐⭐ **The three scalar ones agree on the identity even though they DISAGREE on the meaning** *(last-issued
+vs next-to-issue)* — ⇒ ⭐ **a read member must be defined BY THE IDENTITY, not by "the next id":** a name
+like `PeekNextId()` is false for one and `LastIssuedId()` is false for the others. ⛔ Neither name is safe;
+the contract is *"the value that, passed to the restore, puts this allocator back"*.
+
+⇒ ⭐⭐ **Recommendation for the coordinator:** make restorability an **opt-in capability** rather than a
+widened universal interface — the three scalar allocators implement it, the two pooled ones do not, and the
+preview bracket then **reports** that this node cannot guarantee reproducible ids. ⛔ A universal member
+that two implementations cannot honour is a lie the type system would stop advertising.
 
 ## 3. ⛔⛔ THE SEAM GAP — **the counter cannot be READ**
 
