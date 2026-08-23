@@ -209,9 +209,8 @@ public sealed class CapabilitySmokeTests : SystemTestBase
         {
             var entity = await FirstEntityWithComponentAsync("SimTransform");
 
-            // ⚠ Asymmetric shapes, measured: the DUMP serializes Vector3 as [x,y,z], but the PATCH
-            // parser goes through StructEdit and wants the field object {X,Y,Z}. Writing the array
-            // form back is rejected with "expected Vector3" — an easy and costly assumption.
+            // Both Vector3 shapes are accepted (HN-002): the {X,Y,Z} object here, and the [x,y,z]
+            // array the dump emits — pinned by A_component_dump_can_be_written_back_unchanged.
             var patch = new JsonObject
             {
                 ["Position"] = new JsonObject { ["X"] = 1234.5, ["Y"] = 0.0, ["Z"] = -678.25 },
@@ -225,6 +224,49 @@ public sealed class CapabilitySmokeTests : SystemTestBase
                 $"entity {entity} to carry the written SimTransform.Position.X");
 
             Output.WriteLine($"wrote and read back Position.X={PositionX(readBack)}");
+        }
+        finally
+        {
+            await ResetToIdleAsync();
+        }
+    }
+
+    /// <summary>
+    /// <b>HN-002 — read-modify-write must round-trip.</b> The single most ordinary thing an agent
+    /// does with this API: read a component, change one number, write the whole value back. It used
+    /// to fail, because <c>GET</c> emitted <c>Position: [x,y,z]</c> while the patch parser accepted
+    /// only <c>{X,Y,Z}</c>. This case feeds the dump's OWN output straight back in, so it fails
+    /// again the moment the two shapes drift apart.
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task A_component_dump_can_be_written_back_unchanged()
+    {
+        await LoadAndPreviewAsync(await AnyCuratedScenarioAsync(PreferredScenario), startPaused: true);
+        try
+        {
+            var entity = await FirstEntityWithComponentAsync("SimTransform");
+
+            var dump = (await Mcp.GetEntityAsync(entity)).EnsureOk();
+            var position = dump.Field("Components")?["SimTransform"]?["Position"];
+            Assert.NotNull(position);
+            // The shape the API actually hands out — assert it, so a change of emitted shape is a
+            // finding here rather than a silent drift.
+            Assert.IsType<JsonArray>(position);
+
+            // Modify one component and send the value back in the shape it arrived in.
+            var edited = position!.DeepClone().AsArray();
+            edited[0] = 4321.5;
+
+            var write = await Mcp.SetComponentAsync(
+                entity, "SimTransform", new JsonObject { ["Position"] = edited });
+            write.EnsureOk();
+
+            var readBack = await WaitUntilAsync(
+                () => Mcp.GetEntityAsync(entity),
+                r => r.Ok && PositionX(r) is > 4321.0 and < 4322.0,
+                $"entity {entity} to carry the array-shaped Position written back");
+
+            Output.WriteLine($"round-tripped the dump's own [x,y,z]: Position.X={PositionX(readBack)}");
         }
         finally
         {
@@ -270,10 +312,10 @@ public sealed class CapabilitySmokeTests : SystemTestBase
 
     // ── ⑧ replay ───────────────────────────────────────────────────────────────
     //
-    // ⛔ The record→replay ROUND TRIP is pinned in KnownDefectRails, not here: /recording/stop
-    // exits preview, which currently aborts the editor (HN-001). What is still assertable — and
-    // worth asserting, because it is the surface an agent hits first — is that the replay group
-    // answers coherently and refuses a bad load with a usable error.
+    // ⛔ The record→replay ROUND TRIP is pinned in PreviewLifecycleRails, not here: /recording/stop
+    // exits preview, and this suite's editor is shared — a case that leaves preview would rebuild
+    // the world under every other case. What belongs here — and is the surface an agent hits first —
+    // is that the replay group answers coherently and refuses a bad load with a usable error.
 
     [SystemSmokeFact]
     public async Task The_replay_surface_reports_no_replay_until_one_is_loaded()

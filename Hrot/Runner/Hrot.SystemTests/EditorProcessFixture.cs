@@ -59,6 +59,27 @@ public class EditorProcessFixture : IAsyncLifetime
         return $"the editor exited with code {_process.ExitCode}.{OutputTail()}";
     }
 
+    /// <summary>True once the editor process is gone. False while it is running or never started.</summary>
+    public bool HasExited => _process is not null && _process.HasExited;
+
+    /// <summary>
+    /// Waits for the editor to exit, returning false on timeout. Used by the shutdown rail and by
+    /// this fixture's own graceful teardown.
+    /// </summary>
+    public async Task<bool> WaitForExitAsync(TimeSpan timeout)
+    {
+        if (_process is null) return true;
+        try
+        {
+            await _process.WaitForExitAsync(new CancellationTokenSource(timeout).Token).ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
     public async Task InitializeAsync()
     {
         if (SystemTestEnvironment.SkipReason is { } reason)
@@ -284,18 +305,27 @@ public class EditorProcessFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        Client?.Dispose();
-
+        // ⛔ The client is disposed AFTER the graceful stop below, not before it — asking the editor
+        // to exit needs a live HTTP client.
         if (_process is not null)
         {
             try
             {
+                // Ask first, kill second. POST /shutdown now ends the runner's frame loop, so the
+                // editor tears its subsystems down in order instead of dying mid-frame — which is
+                // what used to print "free(): corrupted unsorted chunks" (a kill artifact
+                // documented in Editor_Headless_Xvfb.md, never a fault). The kill stays as the
+                // fallback: teardown must not hang on an editor that is wedged or already broken.
+                if (!_process.HasExited && Client is not null)
+                {
+                    try { await Client.ShutdownAsync().ConfigureAwait(false); }
+                    catch { /* unreachable or already dying — the kill below settles it */ }
+
+                    await WaitForExitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+                }
+
                 if (!_process.HasExited)
                 {
-                    // POST /shutdown is inert in the editor's wiring (its callback is a no-op), so
-                    // the tree kill IS the teardown. Killing mid-frame can print
-                    // "free(): corrupted unsorted chunks" — a teardown artifact of being killed
-                    // inside a render frame, documented in Editor_Headless_Xvfb.md, not a fault.
                     _process.Kill(entireProcessTree: true);
                     await _process.WaitForExitAsync(new CancellationTokenSource(TimeSpan.FromSeconds(20)).Token)
                                   .ConfigureAwait(false);
@@ -312,6 +342,8 @@ public class EditorProcessFixture : IAsyncLifetime
                 _process = null;
             }
         }
+
+        Client?.Dispose();
 
         // The display server outlives the editor, so it is stopped explicitly. Leaking one per run
         // exhausts display numbers on a machine that runs the suite repeatedly — which is exactly

@@ -662,6 +662,44 @@ const TOOLS = [
   },
 
   {
+    name: 'list_entity_variables',
+    description: TOOL_DEFS['list_entity_variables'].description,
+    inputSchema: TOOL_DEFS['list_entity_variables'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const suffix = toolArgs?.asset != null ? `?asset=${encodeURIComponent(toolArgs.asset)}` : '';
+        return toolSuccess(await callApi('GET', `/entities/${toolArgs.networkId}/variables${suffix}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'list_entity_variables'); }
+    },
+  },
+
+  {
+    name: 'get_entity_variable',
+    description: TOOL_DEFS['get_entity_variable'].description,
+    inputSchema: TOOL_DEFS['get_entity_variable'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const query = [`path=${encodeURIComponent(toolArgs.path)}`];
+        if (toolArgs?.asset != null) query.push(`asset=${encodeURIComponent(toolArgs.asset)}`);
+        return toolSuccess(await callApi('GET', `/entities/${toolArgs.networkId}/variable?${query.join('&')}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_entity_variable'); }
+    },
+  },
+
+  {
+    name: 'stage_entity_variable',
+    description: TOOL_DEFS['stage_entity_variable'].description,
+    inputSchema: TOOL_DEFS['stage_entity_variable'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const body = { path: toolArgs.path, value: toolArgs.value };
+        if (toolArgs?.asset != null) body.asset = toolArgs.asset;
+        return toolSuccess(await callApi('POST', `/entities/${toolArgs.networkId}/variable`, body));
+      } catch (err) { return toolError(err.message, err.envelope, 'stage_entity_variable'); }
+    },
+  },
+
+  {
     name: 'list_breakpoints',
     description: TOOL_DEFS['list_breakpoints'].description,
     inputSchema: TOOL_DEFS['list_breakpoints'].inputSchema,

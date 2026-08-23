@@ -433,6 +433,67 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    name: 'list_entity_variables',
+    group: 'O — Variables (the watch, over HTTP)',
+    summary: "List an entity's blueprint variables — the same (entity, asset, path) addressing a Details/watch row uses, with each variable's live value and whether a staged write is still pending on it.",
+    http: { method: 'GET', path: '/entities/{networkId}/variables' },
+    params: [
+      { name: 'networkId', type: 'number', required: true, description: 'Network id of the entity (see list_entities)' },
+      { name: 'asset', type: 'string', required: false, description: "Blueprint NAME or asset Guid. Omit when the entity carries exactly one blueprint; the error names the choices when it carries several." },
+    ],
+    returns: '{ networkId, asset, assetId, dispatch, variables: [{ path, type, value, writable, pending, pendingValue? }] }',
+    notes: [
+      'pending: true means a staged write for that variable has not been applied yet, so value is still the OLD number — the machine half of the editor\'s yellow.',
+      'writable: false means the variable has no live address (its blueprint\'s dispatch kind has no staged-write layout), so it can be read but not staged.',
+      'A Library-dispatch blueprint legitimately has no working-state variables and returns an empty list, not an error.',
+    ],
+    example: { args: { networkId: 1000 }, gist: "read every blueprint variable on entity 1000" },
+    hint: 'Required: networkId. Optional: asset. Example: list_entity_variables({networkId:1000})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'get_entity_variable',
+    group: 'O — Variables (the watch, over HTTP)',
+    summary: 'Read one blueprint variable by name, with its live value and its pending (staged-but-not-yet-applied) value if a write is queued.',
+    http: { method: 'GET', path: '/entities/{networkId}/variable' },
+    params: [
+      { name: 'networkId', type: 'number', required: true, description: 'Network id of the entity' },
+      { name: 'path', type: 'string', required: true, description: "The variable's name, as list_entity_variables reports it" },
+      { name: 'asset', type: 'string', required: false, description: 'Blueprint NAME or asset Guid; omit when the entity carries exactly one' },
+    ],
+    returns: '{ networkId, asset, assetId, path, type, value, writable, pending, pendingValue? }',
+    notes: [
+      'An unknown variable name is a 400 pointing back at list_entity_variables — never an empty success.',
+    ],
+    example: { args: { networkId: 1000, path: 'Health' }, gist: "read entity 1000's Health variable and whether an edit is still queued" },
+    hint: 'Required: networkId, path. Example: get_entity_variable({networkId:1000, path:"Health"})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'stage_entity_variable',
+    group: 'O — Variables (the watch, over HTTP)',
+    summary: 'STAGE a write to one blueprint variable, through the same seam the editor\'s Details panel uses. The value lands on the next advancing tick — not on this response.',
+    http: { method: 'POST', path: '/entities/{networkId}/variable' },
+    params: [
+      { name: 'networkId', type: 'number', required: true, description: 'Network id of the entity' },
+      { name: 'path', type: 'string', required: true, description: "The variable's name" },
+      { name: 'value', type: 'any', required: true, description: "The new value, in the same JSON shape the read reports (a number for a numeric variable, [x,y,z] for a vector)" },
+      { name: 'asset', type: 'string', required: false, description: 'Blueprint NAME or asset Guid; omit when the entity carries exactly one' },
+    ],
+    returns: '{ networkId, asset, assetId, path, staged: true, pending: true, note }',
+    notes: [
+      'Running is not a reason to refuse — it is a reason to stage. There is no "pause first" step.',
+      'Until the world advances, get_entity_variable still reports the OLD value with pending: true. Step or play to make it land.',
+      'A value whose width does not match the field is refused rather than written: the blackboard is shared between subsystems, so an overrun would corrupt a neighbour.',
+    ],
+    example: { args: { networkId: 1000, path: 'Health', value: 42 }, gist: "queue Health = 42; it applies on the next advancing tick" },
+    hint: 'Required: networkId, path, value. Example: stage_entity_variable({networkId:1000, path:"Health", value:42})',
+    manualVerify: false,
+  },
+
+  {
     name: 'list_breakpoints',
     group: 'G — Breakpoints',
     summary: 'List all registered breakpoints.',

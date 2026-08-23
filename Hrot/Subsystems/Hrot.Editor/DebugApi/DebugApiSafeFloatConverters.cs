@@ -110,6 +110,62 @@ namespace Hrot.Editor.DebugApi
             "-Infinity" => float.NegativeInfinity,
             _           => float.Parse(s, CultureInfo.InvariantCulture),
         };
+
+        /// <summary>
+        /// Reads <paramref name="count"/> components of a vector/quaternion in EITHER shape:
+        /// the compact array these converters write (<c>[x, y, z]</c>) or the named-field object
+        /// (<c>{"X":…,"Y":…,"Z":…}</c>) that plain System.Text.Json and the editor's StructEdit
+        /// surfaces produce. Missing object fields read as 0; unknown fields are skipped.
+        /// </summary>
+        /// <remarks>
+        /// HN-002 — the read side used to accept only the array, so a caller could not write back
+        /// what <c>GET /entities/{id}</c> had just handed it, and the object form a caller reached
+        /// for instead only worked by accident of default serialization. Accepting both here keeps
+        /// ONE pair of converters authoritative for the whole DebugApi scope, in both directions.
+        /// </remarks>
+        internal static void ReadComponents(ref Utf8JsonReader reader, scoped Span<float> components, string typeName)
+        {
+            if (reader.TokenType == JsonTokenType.StartArray)
+            {
+                for (int i = 0; i < components.Length; i++)
+                {
+                    if (!reader.Read() || reader.TokenType == JsonTokenType.EndArray)
+                        throw new JsonException(
+                            $"{typeName} needs {components.Length} components; the array had fewer.");
+                    components[i] = ReadComponent(ref reader);
+                }
+                reader.Read(); // EndArray (or the first surplus element — see below)
+                if (reader.TokenType != JsonTokenType.EndArray)
+                    throw new JsonException(
+                        $"{typeName} needs exactly {components.Length} components; the array had more.");
+                return;
+            }
+
+            if (reader.TokenType == JsonTokenType.StartObject)
+            {
+                components.Clear();
+                while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+                {
+                    if (reader.TokenType != JsonTokenType.PropertyName) continue;
+                    var name = reader.GetString();
+                    reader.Read();
+                    int index = name?.ToUpperInvariant() switch
+                    {
+                        "X" => 0, "Y" => 1, "Z" => 2, "W" => 3,
+                        _   => -1,
+                    };
+                    if (index >= 0 && index < components.Length)
+                        components[index] = ReadComponent(ref reader);
+                    else
+                        reader.Skip();
+                }
+                return;
+            }
+
+            throw new JsonException(
+                $"{typeName} must be an array [x, y, …] or an object {{\"X\":…}}, "
+                + $"but the value was {reader.TokenType}.");
+        }
     }
 
     /// <summary>NaN-safe <see cref="Vector2"/> converter for the DebugApi serialization scope.</summary>
@@ -117,10 +173,9 @@ namespace Hrot.Editor.DebugApi
     {
         public override Vector2 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            reader.Read(); float x = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); float y = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); // EndArray
-            return new Vector2(x, y);
+            Span<float> c = stackalloc float[2];
+            DebugApiConverterHelpers.ReadComponents(ref reader, c, nameof(Vector2));
+            return new Vector2(c[0], c[1]);
         }
 
         public override void Write(Utf8JsonWriter writer, Vector2 value, JsonSerializerOptions options)
@@ -137,11 +192,9 @@ namespace Hrot.Editor.DebugApi
     {
         public override Vector3 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            reader.Read(); float x = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); float y = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); float z = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); // EndArray
-            return new Vector3(x, y, z);
+            Span<float> c = stackalloc float[3];
+            DebugApiConverterHelpers.ReadComponents(ref reader, c, nameof(Vector3));
+            return new Vector3(c[0], c[1], c[2]);
         }
 
         public override void Write(Utf8JsonWriter writer, Vector3 value, JsonSerializerOptions options)
@@ -159,12 +212,9 @@ namespace Hrot.Editor.DebugApi
     {
         public override Vector4 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            reader.Read(); float x = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); float y = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); float z = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); float w = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); // EndArray
-            return new Vector4(x, y, z, w);
+            Span<float> c = stackalloc float[4];
+            DebugApiConverterHelpers.ReadComponents(ref reader, c, nameof(Vector4));
+            return new Vector4(c[0], c[1], c[2], c[3]);
         }
 
         public override void Write(Utf8JsonWriter writer, Vector4 value, JsonSerializerOptions options)
@@ -183,12 +233,9 @@ namespace Hrot.Editor.DebugApi
     {
         public override Quaternion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            reader.Read(); float x = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); float y = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); float z = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); float w = DebugApiConverterHelpers.ReadComponent(ref reader);
-            reader.Read(); // EndArray
-            return new Quaternion(x, y, z, w);
+            Span<float> c = stackalloc float[4];
+            DebugApiConverterHelpers.ReadComponents(ref reader, c, nameof(Quaternion));
+            return new Quaternion(c[0], c[1], c[2], c[3]);
         }
 
         public override void Write(Utf8JsonWriter writer, Quaternion value, JsonSerializerOptions options)

@@ -110,14 +110,14 @@ public abstract class SystemTestBase
     /// Returns the world to a known state between cases. The collection shares ONE editor, so a
     /// case that leaves the clock running is a case that breaks the next one.
     ///
-    /// <para>⛔ <b>It deliberately does NOT exit preview.</b> <c>POST /preview/exit</c> currently
-    /// ABORTS the editor process (finding <c>HN-001</c>: the preview rewind restores a managed
-    /// component's presence bit without its payload, and the next tick's
-    /// <c>GenesisMaterializationSystem</c> dereferences it). Exiting here would kill the shared
-    /// editor and turn one product defect into a cascade of unrelated red.</para>
+    /// <para>⛔ <b>It deliberately does NOT exit preview.</b> That began as isolation from
+    /// <c>HN-001</c> (leaving preview aborted the editor), which is now FIXED — but the reason to
+    /// keep it stands on its own: the shared editor is loaded once per fixture, and dropping out of
+    /// preview between cases would rebuild the world with fresh network ids and invalidate entity
+    /// addresses other cases just resolved.</para>
     ///
-    /// <para>⚠ <b>This is isolation, not avoidance</b> — the defect is pinned by its own rail in
-    /// <c>KnownDefectRails</c>, which fails the moment it is no longer true.</para>
+    /// <para>⭐ Leaving preview is exercised where it belongs — <c>PreviewLifecycleRails</c>, on its
+    /// own editor.</para>
     /// </summary>
     protected async Task ResetToIdleAsync()
     {
