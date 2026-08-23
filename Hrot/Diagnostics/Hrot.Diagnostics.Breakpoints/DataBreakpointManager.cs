@@ -110,6 +110,12 @@ public sealed class DataBreakpointManager
     private int _activeBreakpointCount;
     private bool _isPaused;
     private long _pausedTick;
+
+    /// ⭐⭐ <c>MX-009</c> — WHICH breakpoint is holding the pause. Meaningful only while
+    /// <see cref="_isPaused"/>; <see cref="BreakpointId.Invalid"/> otherwise. ⛔ Set in exactly one
+    /// place (<see cref="OnHit"/>) and cleared in exactly one place (<see cref="ClearPausedState"/>),
+    /// so it cannot drift out of step with <see cref="_isPaused"/>.
+    private BreakpointId _pausedBy = BreakpointId.Invalid;
     private readonly Queue<PendingDebugMutation> _pendingMutations = new();
 
     // Cache of component type -> CLR managed size (Unsafe.SizeOf<T>() via ComponentType<T>.Size).
@@ -306,6 +312,10 @@ public sealed class DataBreakpointManager
 
         if (bp.Enabled)
             AdjustGate(-1);
+
+        // ⭐⭐⭐ MX-009 — the breakpoint that was HOLDING the pause is gone ⇒ nothing holds it.
+        //    See the ReleaseIfHeldBy note below for why this is a full resume and not a flag clear.
+        ReleaseIfHeldBy(id);
     }
 
     /// <inheritdoc/>
@@ -328,7 +338,73 @@ public sealed class DataBreakpointManager
         {
             UnmountDelegate(id);
             AdjustGate(-1);
+
+            // ⭐⭐ MX-009 — disabling the holder is the same act as removing it, from the
+            //    simulation's point of view: it can no longer fire, so it can no longer hold.
+            ReleaseIfHeldBy(id);
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ MX-009 — **THE PAUSE IS HELD BY A SPECIFIC BREAKPOINT, AND ONLY IT CAN STOP HOLDING IT.**
+    //
+    // 🔴 THE BUG, measured by the time lane (HN-122): after ANY breakpoint fired, `_isPaused` stayed
+    //    true unless RequestStep/RequestContinue were called explicitly. Removing the breakpoint —
+    //    the natural operator gesture for "I'm done with this one" — left it set. `IsRewound` is
+    //    `_isPaused`, and the kernel's ResumeAndDrainSystem returns early on `IsRewound` ⇒ ⛔ EVERY
+    //    later staged write reported `pending = true` FOREVER. 📌 That is M-41's "accepted and
+    //    silently discarded" in its worst form: the write is accepted, shown as pending, and the
+    //    thing that would apply it is switched off with no way back.
+    //
+    // ⭐⭐ WHY A FULL RESUME AND NOT `_isPaused = false`. ⛔ The flag is not the state; it is a LABEL
+    //    for the state. When it is set, `_liveRepo` has been rewound to `_preTickSnapshot` (OnHit)
+    //    and the clock is halted. Clearing the flag alone would leave the world silently rewound and
+    //    time stopped — ⚠ a worse bug than the one being fixed, and one that looks fixed from the
+    //    drain's point of view. ⇒ ⭐ RequestContinue IS the release: restore post-tick, resume the
+    //    clock, clear the flags, raise OnPauseStateChanged. One implementation, per ruling 9.
+    //
+    // ⭐⭐ WHY *HELD-BY* AND NOT "no enabled breakpoints remain". 📐 Both fix the reported repro
+    //    (arm one, fire, delete it). They differ when TWO are armed: you are stopped at A, and you
+    //    delete B. ⛔ "None remain" keeps you stuck — the same bug, just rarer and harder to find.
+    //    ⛔ "Any removal resumes" would rip the world out from under an operator still reading it.
+    //    ⭐ Held-by is the only rule that is right in both: it resumes exactly when the thing you
+    //    are stopped AT stops existing. 📐 Safe because EVERY pause goes through OnHit with a
+    //    registered breakpoint — OnExternalHit routes through it too (:823), so the holder is never
+    //    unknown.
+    //
+    // ⚠ NO DESIGN RECORD COVERS THIS CASE. Searched `docs/designs/breakpoints-1/DESIGN.md` §9.1
+    //    ("Routing during a pause"), `universal-breakpoints-DESIGN.md`, and
+    //    `docs/UX/Design_Question_30_Debug_Pause_Resume.md` (which answers the CLUSTER question, not
+    //    this one): the design names exactly two release paths, Clean Step and Continue, and is
+    //    silent on removal. ⇒ ⭐ this rule is NEW, and it is recorded in the design by this batch
+    //    rather than left implicit in the code (obligation ⑤).
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ Releases the pause if — and only if — <paramref name="id"/> is the breakpoint currently
+    /// holding it. ⛔ A no-op when not paused, or when some OTHER breakpoint is the holder.
+    /// </summary>
+    private void ReleaseIfHeldBy(BreakpointId id)
+    {
+        if (!_isPaused || _pausedBy != id) return;
+
+        // ⭐ RequestContinue clears _pausedBy via ClearPausedState — the single release path.
+        RequestContinue();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>MX-009</c> — <b>THE ONE PLACE THE PAUSED STATE IS CLEARED.</b> ⛔ Both
+    /// <see cref="RequestStep"/> and <see cref="RequestContinue"/> route through it, so
+    /// <see cref="_pausedBy"/> can never survive a resume and strand a later
+    /// <see cref="ReleaseIfHeldBy"/> against a stale id. ⚠ It clears the BOOKKEEPING only — the
+    /// snapshot restore and the clock call belong to the caller, because they differ between step
+    /// and continue.
+    /// </summary>
+    private void ClearPausedState()
+    {
+        _isPaused   = false;
+        _pausedTick = 0L;
+        _pausedBy   = BreakpointId.Invalid;
     }
 
     /// <inheritdoc/>
@@ -477,6 +553,8 @@ public sealed class DataBreakpointManager
         // Halt the clock.
         _timeController.RequestPause();
         _isPaused = true;
+        // ⭐⭐ MX-009 — record the HOLDER. The only write to this field.
+        _pausedBy = updated.Id;
         _pausedTick = _liveRepo.HasSingletonUnmanaged<GlobalTime>()
             ? _liveRepo.GetSingletonUnmanaged<GlobalTime>().TotalWallTicks
             : (long)_preTickSnapshot.SimulationTick; // fallback: frame clock (not memory clock)
@@ -532,8 +610,7 @@ public sealed class DataBreakpointManager
         _liveRepo.SyncFrom(_postTickSnapshot);
 
         _timeController.RequestStepOneTick();
-        _isPaused = false;
-        _pausedTick = 0L;
+        ClearPausedState();
 
         // ⭐ Anything staged is drained by the kernel's PreFrame system on the tick this steps into.
         //   ⛔ Not here: see the W5 note above.
@@ -549,8 +626,7 @@ public sealed class DataBreakpointManager
         _liveRepo.SyncFrom(_postTickSnapshot);
 
         _timeController.RequestResume();
-        _isPaused = false;
-        _pausedTick = 0L;
+        ClearPausedState();
 
         // ⭐ Anything staged is drained by the kernel's PreFrame system on the next advancing tick.
         //   ⛔ Not here: see the W5 note above.

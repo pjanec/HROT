@@ -13,6 +13,7 @@ namespace Fdp.Diagnostics.Contracts.Tests;
 /// separate CLASSES in parallel ⇒ ⛔ splitting these across classes would make them flake against each
 /// other. ⭐ Every case opens with <c>Clear()</c> and restores <c>CaptureEnabled</c>.</para>
 /// </summary>
+[Collection(PanelSnapshotTestCollection.Name)]
 public class PanelSnapshotTests
 {
     // ── A minimal view-model, standing in for a converted panel ────────────────────────────────
@@ -230,11 +231,16 @@ public class PanelSnapshotTests
     }
 
     /// <summary>
-    /// ⚠⚠ <b>A TRIPWIRE ON A KNOWN LIMIT, not an endorsement of it.</b> 📐 There is no frame boundary in
-    /// <c>PanelSnapshot</c> — clearing per frame needs a call site in the frame loop *(<c>EditorSubsystem</c>)*,
-    /// which this lane must not touch. ⇒ ⛔ a panel that stops drawing leaves its LAST model visible.
-    /// ⭐ <b>This rail pins that as the current behaviour</b>: when someone adds a frame boundary it goes RED,
-    /// and the limit gets removed from the design at the same moment the code changes.
+    /// ⚠⚠ <b>THE DEFAULT IS STILL LATEST-WINS — and after <c>MX-006</c> that is a CHOICE, not a limit.</b>
+    ///
+    /// <para>⭐ <b>Superseded premise, kept visible:</b> this rail was written saying <i>"clearing per frame
+    /// needs a call site in the frame loop (EditorSubsystem), which this lane must not touch"</i>. ⛔ That is
+    /// no longer true — the frame boundary shipped as <see cref="PanelSnapshot.ClearCaptured"/> and the
+    /// editor calls it. ⇒ ⚠ the rail did NOT go red, because nothing calls it IMPLICITLY.</para>
+    ///
+    /// <para>⭐⭐ <b>And that is deliberate.</b> A host that never calls <c>ClearCaptured</c> keeps the old
+    /// behaviour rather than silently losing models — ⛔ so this case pins the DEFAULT, and
+    /// <c>ClearCaptured_DropsLastFramesModels_ButKeepsTheInstrumentedSet</c> pins the boundary.</para>
     /// </summary>
     [Fact]
     public void WithNoFrameBoundary_AModelSurvivesUntilOverwritten()
@@ -248,6 +254,64 @@ public class PanelSnapshotTests
         var stale = Assert.IsType<FakePanelVm>(PanelSnapshot.TryGet("epsilon"));
         Assert.Equal("frame one", stale.Title);
         Assert.Single(PanelSnapshot.CapturedPanels.Where(id => id == "epsilon"));
+
+        Reset();
+    }
+
+    // ── MX-006 — the frame boundary ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>MX-006</c> — a panel that did not draw THIS frame is absent from
+    /// <see cref="PanelSnapshot.CapturedPanels"/>.</b> 📄 The time lane measured the ghost over
+    /// <c>GET /panels</c> (<c>HN-122</c>): a closed window kept reporting its last model forever.
+    ///
+    /// <para>⛔⛔ <b>The second assertion is the whole reason this is not just <c>Clear()</c>.</b>
+    /// <c>RegisteredPanels</c> must SURVIVE — it is declared once at construction, so a per-frame
+    /// <c>Clear()</c> would empty it permanently after frame one and collapse the two sets the opt-in
+    /// registry exists to keep apart.</para>
+    /// </summary>
+    [Fact]
+    public void ClearCaptured_DropsLastFramesModels_ButKeepsTheInstrumentedSet()
+    {
+        Reset();
+        PanelSnapshot.DeclareInstrumented("zeta");
+        PanelSnapshot.DeclareInstrumented("eta");
+        PanelSnapshot.CaptureEnabled = true;
+
+        // Frame one: both draw.
+        PanelSnapshot.Register(new FakePanelVm("zeta", "frame one"));
+        PanelSnapshot.Register(new FakePanelVm("eta",  "frame one"));
+        Assert.Equal(2, PanelSnapshot.CapturedPanels.Count);
+
+        // Frame two: eta's window is closed, so only zeta draws.
+        PanelSnapshot.ClearCaptured();
+        PanelSnapshot.Register(new FakePanelVm("zeta", "frame two"));
+
+        Assert.Contains("zeta", PanelSnapshot.CapturedPanels);
+        Assert.DoesNotContain("eta", PanelSnapshot.CapturedPanels);   // ⭐ the ghost is gone
+        Assert.Null(PanelSnapshot.TryGet("eta"));
+
+        // ⛔ …and BOTH are still instrumented. This is what Clear() would have destroyed.
+        Assert.Contains("zeta", PanelSnapshot.RegisteredPanels);
+        Assert.Contains("eta",  PanelSnapshot.RegisteredPanels);
+
+        Reset();
+    }
+
+    /// <summary>⚠ Anti-vacuity for the rail above: <c>Clear()</c> DOES drop the instrumented set, so the
+    /// two methods are genuinely different and the distinction is not decorative.</summary>
+    [Fact]
+    public void Clear_UnlikeClearCaptured_AlsoDropsTheInstrumentedSet()
+    {
+        Reset();
+        PanelSnapshot.DeclareInstrumented("theta");
+        Assert.Contains("theta", PanelSnapshot.RegisteredPanels);
+
+        PanelSnapshot.ClearCaptured();
+        Assert.Contains("theta", PanelSnapshot.RegisteredPanels);
+
+        PanelSnapshot.Clear();
+        Assert.DoesNotContain("theta", PanelSnapshot.RegisteredPanels);
 
         Reset();
     }

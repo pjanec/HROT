@@ -1872,6 +1872,26 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Update(float deltaTime)
         {
+            // ⭐⭐⭐ MX-006 — THE FRAME BOUNDARY for the panel snapshot. FIRST LINE OF THE FRAME.
+            //   📄 DESIGN_UI_Observability_Snapshot.md §"Perf & correctness".
+            //   🔴 Why: the snapshot is latest-wins, so a panel whose window the user CLOSED kept
+            //      reporting its last model forever — measured by the time lane over GET /panels
+            //      (HN-122). An agent could not tell a live panel from a ghost.
+            //   ⭐⭐ CLEAR-THEN-FILL, not fill-then-clear: everything published later THIS frame — the
+            //      gizmo feed below, then every panel in DrawUI() — refills it, so a reader between
+            //      frames always sees a COMPLETE frame. ⛔ Clearing at the END would leave it empty
+            //      exactly when an out-of-band consumer (the HTTP endpoint, a test) actually looks.
+            //   ⛔⛔ IT MUST BE HERE, NOT IN DrawUI(). The gizmo feed publishes inside THIS method
+            //      (:~1901, before EndFrame); DrawUI runs afterwards ⇒ clearing there would wipe the
+            //      map feed every single frame, and it would look like the feed was never wired.
+            //      📌 Written that way first and caught by tracing the order, not by a rail — no rail
+            //      spans Update and DrawUI.
+            //   ⛔⛔ ClearCaptured, NEVER Clear: Clear() drops the INSTRUMENTED set too, and that set is
+            //      declared once at each panel's CONSTRUCTION ⇒ calling it per frame would empty
+            //      RegisteredPanels permanently after frame one, collapsing the two sets the opt-in
+            //      registry exists to keep apart.
+            Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
+
             // Pump AI-debug API (MCP) jobs onto the main thread once per frame, before anything else,
             // so a queued API call sees a consistent world for this frame. No-op when the host is off.
             _debugApiJobQueue?.DrainAll();
@@ -1898,6 +1918,19 @@ namespace Hrot.Editor
             // This must happen before kernel.Update() and after canvas.Update() so that
             // tool-emitted primitives (written during canvas.Update ? ActiveTool.Draw) are
             // already in the buffer when StatelessGizmoSystem runs.
+            // ⭐⭐⭐ U-obs-3 — PUBLISH THE MAP FEED BEFORE THE BUFFER IS RESET.
+            //   📄 DESIGN_UI_Observability_Snapshot.md §Adoption U-obs-3 — the peer feed its §UML has
+            //      drawn since the design was written (DebugPrimitiveBuffer ..> PanelSnapshotService).
+            //   ⛔⛔ ORDER IS LOAD-BEARING AND FRAGILE: EndFrame resets the transient write cursor, so
+            //      publishing after it would register an EMPTY frame every single time — and it would
+            //      look perfectly healthy (the id present, the model well-formed, `count: 0`). ⇒ the
+            //      one line above this is the whole correctness argument.
+            //   ⚠ The comment above explains why EndFrame sits HERE rather than at the end of the
+            //      frame; the publish inherits that placement, so it reports the primitives the
+            //      PREVIOUS Update produced — which is exactly what is on screen right now.
+            if (_gizmoBuffer != null)
+                Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(_gizmoBuffer);
+
             _gizmoBuffer?.EndFrame(deltaTime);
 
             // Kernel.Update() internally calls bus.SwapBuffers() then ticks registered modules.

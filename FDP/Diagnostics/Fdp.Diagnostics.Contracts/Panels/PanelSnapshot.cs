@@ -125,8 +125,37 @@ public static class PanelSnapshot
     public static IReadOnlyCollection<string> CapturedPanels => (IReadOnlyCollection<string>)Captured.Keys;
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>MX-006</c> — THE FRAME BOUNDARY.</b> Drops the CAPTURED models and nothing else, so
+    /// after the frame's draws <see cref="CapturedPanels"/> describes <b>this</b> frame.
+    ///
+    /// <para>🔴 <b>The defect this exists for</b>, measured by the time lane over <c>GET /panels</c>
+    /// (<c>HN-122</c>): the snapshot is <b>latest-wins with no frame boundary</b>, so a panel whose
+    /// window the user CLOSED kept reporting its last model forever. ⛔ An agent reading
+    /// <c>DumpAll()</c> could not tell a live panel from a ghost.</para>
+    ///
+    /// <para>⛔⛔ <b><see cref="Clear"/> CANNOT serve as the frame boundary, and the reason is
+    /// structural, not stylistic:</b> it drops <see cref="Instrumented"/> too — and that set is
+    /// declared ONCE, at each panel's CONSTRUCTION. ⇒ calling it per frame would empty
+    /// <see cref="RegisteredPanels"/> permanently after the first frame, collapsing the two sets the
+    /// opt-in registry exists to keep apart *("instrumented at all" vs "published this frame")* and
+    /// manufacturing exactly the false green the design warns about.</para>
+    ///
+    /// <para>⚠ <b>Call it BEFORE the frame's draws, not after.</b> Clearing at the end of a frame
+    /// leaves the snapshot empty for anything that reads between frames — which is when an out-of-band
+    /// consumer (the HTTP endpoint, a test) actually looks. ⭐ Clear-then-fill leaves a complete frame
+    /// standing at all times.</para>
+    ///
+    /// <para>⚠ <b>The call site is the CONSUMER's, not this class's.</b> A panel cannot know it is the
+    /// first draw of a frame, and this assembly has no frame loop. ⇒ whoever drives the frame calls
+    /// this; ⛔ nothing here calls it implicitly, so a host that never calls it keeps the old
+    /// latest-wins behaviour rather than silently losing models.</para>
+    /// </summary>
+    public static void ClearCaptured() => Captured.Clear();
+
+    /// <summary>
     /// ⭐ Drop everything — <b>both</b> sets. ⚠ For tests: this is process-global state, so a test that reads
     /// the snapshot must clear it first or inherit another test's panels.
+    /// ⛔ <b>Not the per-frame call</b> — see <see cref="ClearCaptured"/> for why.
     /// </summary>
     public static void Clear()
     {
