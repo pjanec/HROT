@@ -1,6 +1,6 @@
 <!--STATUS
-state: LIVE
-build-state: DISPATCH
+state: WITHDRAWN
+build-state: WITHDRAWN-BEFORE-START
 updated: 2026-08-23
 current-answer: dispatch pointer for the MCP / headless-testability lane — Batch A, the cross-host
   conformance PREREQUISITE chain: the perspective endpoint, lifting the debug API to the runner host,
@@ -9,6 +9,30 @@ current-answer: dispatch pointer for the MCP / headless-testability lane — Bat
 known-conflict: none. §1-F1 corrects a mode name that three design docs got wrong; the corrections
   landed in those docs in the same commit as this handoff, so canon and this dispatch agree.
 -->
+# ⛔⛔ WITHDRAWN BEFORE START — do NOT execute this handoff
+
+> ⛔⛔⛔ **WITHDRAWN `2026-08-23`, before the lane started it** *(verified: `80a98f627` is NOT an ancestor
+> of the lane branch, and no started-marker exists ⇒ rule 1a, not rule 1c)*.
+>
+> ⭐⭐ **Why:** the user corrected the PREMISE, not the execution. This handoff took the editor's and the
+> cluster's perspective sets as **permanently disjoint** and worked around it *(discover per mode, diff by
+> `PanelKind`)*. ⛔ **The actual intent is the opposite: make the perspective names COMPATIBLE** — when the
+> runner hosts CGF it should present the **asset perspectives** *(Scenario · BTree · HSM · Blueprint)*
+> rather than one `CGF` perspective, because CGF is meant to be as capable as the editor in a distributed
+> setup. ⇒ **conformance then compares like with like**, and my workaround becomes unnecessary.
+>
+> ⭐⭐ **And the ORDERING was wrong.** This batch went straight at cross-host conformance. ⛔ The regression
+> net that protects the refactor is **editor-mode only** and blocked on nothing — it must come first.
+>
+> ⭐ **§1's ten measured findings REMAIN VALID and are the reason this was catchable** — they carry forward
+> into the replacement dispatch. ⛔ Nothing below is deleted; it is kept for the record.
+>
+> 📄 **Replaced by:** the Phase-0 dispatch *(editor-mode perspective reach + the granular regression net)*,
+> plus a design round on the perspective-compatibility question. ⚠ **`F10` is SOFTENED** — see the
+> replacement: a shared `PanelIds` constant class already exists and cross-host hosts already cite it.
+
+## ⛔ HISTORY — the withdrawn dispatch follows, unedited
+
 # HANDOFF — MCP lane · **Batch A: the conformance prerequisite chain**
 
 > 📌 **Dispatched at `80a98f627`.** ⛔ **Scope FROZEN at this sha.** ⭐ Branch fresh from the coordinator
