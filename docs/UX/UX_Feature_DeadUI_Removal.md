@@ -1,3 +1,16 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-23
+current-answer: §3 "Scope — In: delete entirely". Two of its four rows are now DONE and marked so
+  inline; the other two (EditorOrbatPanel, EntityPropertyInspector) are still open and still
+  condemned — no ruling has touched them.
+known-rot: §3's InspectorPanel/DataMonitorPanel row justified the deletion with "ExCon uses
+  DerEntityInspectorPanel", which was FALSE on 2026-08-10 and stayed false until 2026-08-23
+  (the panel had test-only construction). The row now carries the correction rather than the
+  original sentence. The deletion itself was correct.
+known-conflict: none.
+stale-below: nothing — this file has no superseded sections.
+-->
 # Feature design — Removing superseded UI, and the namespace that lies
 
 > **Design for [UXI-01](UX_Issues.md#uxi-01) 🔴 · drafted 2026-08-10 · needs no architect round.**
@@ -98,8 +111,8 @@ an 87-file rename is neither, and merging the two makes the safe change carry th
 
 | Item | Size | Why it is safe |
 |---|--:|---|
-| `Hrot/Engine/Hrot.UI.Common/` (whole project, 20 files) | 1,171 L | In no `.csproj`, no `.sln`. Cannot be referenced |
-| `Hrot.ExCon/Panels/InspectorPanel.cs` + `DataMonitorPanel.cs` | 435 L | `[Obsolete]`, *"retained only for reference"*; zero non-test instantiations. ExCon uses `DerEntityInspectorPanel` |
+| ✅ **DONE `2026-08-23`** — `Hrot/Engine/Hrot.UI.Common/` (whole project, 21 files) | 1,171 L | In no `.csproj`, no `.sln`. Cannot be referenced. ⭐ Re-verified before deleting: every one of its 20 source files had a live counterpart in `Hrot.Presentation` **declaring the `Hrot.UI.Common.*` namespaces itself** |
+| ✅ **DONE `2026-08-23`** — `Hrot.ExCon/Panels/InspectorPanel.cs` + `DataMonitorPanel.cs` | 435 L | `[Obsolete]`, *"retained only for reference"*; zero non-test instantiations. ⚠⚠ **This row's ORIGINAL reason — *"ExCon uses `DerEntityInspectorPanel`"* — WAS FALSE WHEN WRITTEN** (📐 `2026-08-23`: that panel was constructed only in tests, so ExCon had no entity inspector at all). ⭐ It became true the same day: `ExConDerEntityInspectorWindow`, registered at `ExConSubsystem.cs:434` (`BP-473`). 📌 Kept visible rather than quietly rewritten — the conclusion was right and the reasoning was not, and that is the combination worth flagging |
 | `Hrot.Editor/UI/EditorOrbatPanel.cs` + `EditorOrbatWindow` | ~40 L | Constructed at `EditorSubsystem.cs:1559`, **never registered**. `EditorSharedOrbatWindow` is the live one |
 | `Hrot.Editor/UI/EntityPropertyInspector.cs` | 48 L | Never instantiated |
 
