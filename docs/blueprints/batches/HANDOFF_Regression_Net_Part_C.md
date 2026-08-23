@@ -10,7 +10,7 @@ known-conflict: none. The gizmo-schema batch (ST-, Area I) may run in parallel a
 -->
 # HANDOFF — **the regression net, part C** *(`N2`–`N6`)*
 
-> 📌 **Dispatched at `6a450bfc7`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `2166c1760` *(re-stamped — rule 1a amendment)*.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`HN-`**/**`MX-`**, tracker **Area J** — 📐 the series stands at **`HN-011`** /
 > **`MX-012`**, so start at `HN-012` / `MX-013`.
