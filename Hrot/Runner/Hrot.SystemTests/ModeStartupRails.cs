@@ -44,10 +44,12 @@ public sealed class ModeStartupRails
     /// come up. ⛔ <c>stridemock</c> is deliberately absent — the subsystem was retired (<c>ST-015</c>)
     /// and that token now throws.
     ///
-    /// <para>⚠ <b><c>ig</c> is quarantined WITH A TRIPWIRE, not filtered.</b> <c>R-131</c> forbids a
-    /// permanent filter-around, so <see cref="AQuarantinedMode_IsStillBroken"/> asserts the opposite of
-    /// health for it: the day it starts cleanly, that case FAILS and tells you to move it back. A
-    /// quarantine that cannot outlive its defect is a ledger entry, not a filter.</para>
+    /// <para>⭐ <b><c>ig</c> was quarantined here and is now healthy (<c>ST-020</c> → <c>ST-022</c>).</b> It
+    /// carried a TRIPWIRE rather than a skip — a case asserting it was STILL broken, which would fail the
+    /// day it was fixed. ⭐⭐ <b>That is exactly how it left quarantine</b>: the schema fix landed, the
+    /// tripwire failed as designed, and both it and the quarantine table were deleted in the same batch.
+    /// <c>R-131</c> forbids a permanent filter-around; a quarantine that cannot outlive its defect is a
+    /// ledger entry, not a filter, and this one did not outlive it.</para>
     /// </summary>
     /// <remarks>
     /// The second column is the mode string the runner is expected to ECHO in its startup banner, which
@@ -65,13 +67,8 @@ public sealed class ModeStartupRails
         { "cgf",           "mode=cgf,"           },
         { "excon",         "mode=excon,"         },
         { "orchestrator",  "mode=orchestrator,"  },
+        { "ig",            "mode=ig,"            },
         { "replaybrowser", "mode=replaybrowser," },
-    };
-
-    /// <summary>Modes known broken, with the finding that owns each. See <see cref="HealthyModes"/>.</summary>
-    public static TheoryData<string, string> QuarantinedModes => new()
-    {
-        { "ig", "ST-020" },
     };
 
     [SystemSmokeTheory]
@@ -93,23 +90,6 @@ public sealed class ModeStartupRails
         Assert.True(run.StillAlive,
             $"--mode {mode} exited on its own with code {run.ExitCode} inside {WindowSeconds}s. It is "
             + $"expected to keep running until stopped.{run.OutputTail()}");
-    }
-
-    /// <summary>
-    /// The tripwire on <see cref="QuarantinedModes"/>. ⚠ <b>A failure here is GOOD NEWS</b> — it means the
-    /// mode was fixed and its entry must move to <see cref="HealthyModes"/>.
-    /// </summary>
-    [SystemSmokeTheory]
-    [MemberData(nameof(QuarantinedModes))]
-    public async Task AQuarantinedMode_IsStillBroken(string mode, string finding)
-    {
-        var run = await RunModeAsync(mode).ConfigureAwait(false);
-        _output.WriteLine(run.Describe());
-
-        Assert.True(run.Crashed || !run.StillAlive,
-            $"--mode {mode} now starts cleanly, so {finding} appears to be FIXED. ⭐ This case failing is "
-            + $"the intended signal: move \"{mode}\" from QuarantinedModes to HealthyModes and close "
-            + $"{finding}. Do not delete this assertion to make it pass.{run.OutputTail()}");
     }
 
     // ── the launch ────────────────────────────────────────────────────────────────────────────────
