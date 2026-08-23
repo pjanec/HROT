@@ -40,7 +40,7 @@ per-projector tier taxonomy)*. ⛔ Both are gone; ⭐ this is the answer.
 | query run | total | result |
 |---|---|---|
 | `grep ProjectReference Hrot/Subsystems/Hrot.IG/Hrot.IG.csproj` | **9** | ⭐ **`Hrot.SimHost` is NOT among them** ⇒ ⛔ a `Hrot.IG` → `Hrot.SimHost` edge is not an option |
-| `grep -rh "GizmoProjector(" Hrot.{Common,AI.Behaviors,IG,ScenarioEditor}` | **11** | `Hrot.Common` **7** · `Hrot.AI.Behaviors` **1** · `Hrot.IG` **3** · 🔴 **`Hrot.ScenarioEditor` ZERO** |
+| `grep -rh "GizmoProjector(" Hrot.{Common,AI.Behaviors,IG,ScenarioEditor}` | **11** | `Hrot.Common` **7** · `Hrot.AI.Behaviors` **1** · `Hrot.IG` **3** · ⛔⛔ **`Hrot.ScenarioEditor` ZERO — WRONG, see §6.3.** 📐 There is **no `Hrot.ScenarioEditor` PROJECT**; the **namespace** lives inside `Hrot.Presentation` and holds **7** projector files. ⇒ 🔴 **my grep searched for a DIRECTORY and read the miss as an absence** — the exact failure CLAUDE.md names *("an absence claim from grep is an absence in your pattern, not in the repo")*. ⭐ The real total is **18**, not 11 |
 | `grep Register Hrot/Subsystems/Hrot.IG/Gizmos/GizmoRegistrar.cs` | **4 families** | IG declares **all four** |
 | `grep RegisterComponent .../IgRoleComponentRegistry.cs` | ~20 | style · culling · selection · trails · effects · overlays · perception · weapon visuals |
 | the 4 components those 11 projectors need and IG lacks | **4** | ⛔ `BrainBlackboard` · `BehaviorState` · `EqsSensor` · `BallisticProjectile` · `NavigationIntent` **(5 with the intent)** |
@@ -51,7 +51,7 @@ per-projector tier taxonomy)*. ⛔ Both are gone; ⭐ this is the answer.
 | 🔴 | |
 |---|---|
 | ⭐⭐⭐ **TWO of the unsatisfied projectors are IG's OWN** | `EqsSensorGizmo` and `ProjectilePresentationGizmo` live in `Hrot/Subsystems/Hrot.IG/Gizmos/` and read `EqsSensor` / `BallisticProjectile`, which IG **never registers**. ⇒ ⛔ **IG declares projectors it cannot satisfy in its own assembly** — a plain omission, no policy |
-| ⚠ **`Hrot.ScenarioEditor` declares ZERO projectors** | ⇒ that registrar call is a **no-op today**. ⭐ Under §0 it **stays** *(support all)*; ⛔ it was never the problem |
+| ⛔⛔ **~~`Hrot.ScenarioEditor` declares ZERO projectors~~ — RETRACTED** | 🔴 **it declares 7** *(§6.3)*. ⇒ my *"that registrar call is a no-op today"* and the whole of `D`'s answer *("drop it, and say in the commit that it fixed nothing")* were **false**. ⭐⭐ **The fix survived because it does not depend on this** — `MapSchemaPack` registers what the projectors need either way; ⛔ **but the RAIL would have inherited the error**, which is what §6.3 caught |
 | ⭐ **why `--mode all` hides it** | SimHost's `Cognitive`/`Combat`/`MuscleRole` registries put the missing schema on the shared world ⇒ IG's declaration is satisfied **by accident of co-tenancy** |
 | ⭐ **why the lane's mirror-pattern fix "cascaded"** | it added **one** component at a time. 📐 **The set is 5. It was finite; it just was not enumerated** |
 
