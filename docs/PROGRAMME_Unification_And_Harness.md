@@ -84,3 +84,20 @@ the first half of the work.**
 | [`blueprints/Architect_Question_51_Project_Consolidation.md`](blueprints/Architect_Question_51_Project_Consolidation.md) | ⛔ **project consolidation — DECLINED by the user `2026-08-23`** *(the measured win was ~10–15 s of MSBuild overhead; not worth the disruption)*. Kept for its measurements: the DAG is 17 deep, and depth not count is what costs build time |
 | [`DESIGN_Stride_Port.md`](DESIGN_Stride_Port.md) | step 0 — ✅ **INTEGRATED `2026-08-23`** (`477b31f52`) |
 | [`UX/`](UX/) | ⭐⭐ **the unification intent per feature** — start at [`UX_Glossary_Host_Mode_Subsystem.md`](UX/UX_Glossary_Host_Mode_Subsystem.md) *(process · mode · subsystem · perspective)* and [`UX_Feature_Cgf_Brain_Diagnostics.md`](UX/UX_Feature_Cgf_Brain_Diagnostics.md) |
+
+## 7. ⭐ BACKLOG — **wanted, designed enough to start, deliberately NOT scheduled**
+
+⛔ **No ids here** *(rule 3 — the implementing session numbers them)*. ⭐ Each row says what it is, why it is
+valuable, and what it is waiting for.
+
+| item | ⭐ why it is worth doing | waiting on |
+|---|---|---|
+| ⭐⭐⭐ **The ANIMATION INTENT diagnostic** — a CGF/editor panel showing **what animations SHOULD be running** on the IG/Stride side | 🔒 **User, `2026-08-23`:** *"that would be of high value."* ⭐⭐ **And it needs NO new data model** — 📐 `Hrot.MuscleCharacter.Animation/Components/ReplicatedComponents.cs` already carries the backend-agnostic truth: **`AnimationChannel`** *(action id · issuing behaviour instance · instance token · lifecycle status · 32-byte action params · 32-byte executor state — playback progress and blend weights)*, **`LookAtChannel`**, and stance *(Standing/Crouched/Prone + transition phase)*; `AnimationStateReporterSystem` emits `MontageStarted`/`Ended`/`SectionAdvanced`/`StanceChanged` in `PostSimulation`. ⇒ ⭐⭐⭐ **it gives a real parity axis: INTENT (CGF) vs PLAYBACK (Stride)** — exactly this programme's shape | ⭐ **§3 step 3** — the net. ⚠ It is **new capability, not a port**, so building it now means building it with no golden to catch its regressions. ⛔ Cheap and additive, so this is a sequencing call rather than a risk |
+| ⚠ **The four DORMANT windows** — register them, or retire them | 📄 `DESIGN_Perspective_Unification.md` **§1g**: ⛔ **they are NOT deletable** — the comparison feature's backend *(`sanitizerRegistry` · `exportBuilder`)* is passed into **every** perspective registrar, and `UtilityDecisionWindow`'s project is referenced by `Fdp.Toolkits`. ⭐ **ROUTE, don't DELETE** | a decision on whether each feature is wanted |
+
+⚠⚠ **On the animation panel, one thing measured and worth not re-deriving:** ⛔ **do NOT convert
+`FakeAnimBackendInspectorWindow` into it.** 📐 It reads `repo.GetComponentRO<FakeAnimBackendState>(e)` — the
+**Fake backend's own component**, which does not exist on a node running the real Stride backend. ⭐ **Reuse
+its SHAPE** *(entity list · selected-entity detail · "Copy JSON Snapshot"; it already publishes to
+`PanelSnapshot`)*, ⛔ **not its data source.** ⚠ And note it was *designed* to be registered by
+`SimHostSubsystem.RegisterWindows` *(`DD-Fake` §7.3)* and never was — so it is built-and-unwired, not dead.

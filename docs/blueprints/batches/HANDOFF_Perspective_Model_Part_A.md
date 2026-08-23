@@ -13,9 +13,11 @@ known-conflict: none.
 > lane branches: `f39cf0c87` is an ancestor of neither)*. ⭐ **Added `A9`** after the user answered the design's
 > open questions; a proposed `A8` was then withdrawn by the user *(§1e)*. ⛔ Prior stamp `f39cf0c87` is void.
 >
-> 📌 **Dispatched at `c3b55b56a`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `<PENDING>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: push the started-marker BEFORE any
-> code.** ⛔ **No PR.** ⭐ **You allocate the ids** *(rule 3)* — `A0…A9` below are **placeholders**.
+> code.** ⛔ **No PR.** ⭐ ids **`BP-`**, tracker **areas A–G** — ⛔ never `ST-` *(the **StrideMock cleanup**
+> batch runs in PARALLEL and owns those)*. ⭐ **You allocate the ids** *(rule 3)* — `A0…A10` are
+> **placeholders**.
 
 ## 0. ⛔⛔ THE DESIGN IS THE SOURCE — this file is a POINTER
 
@@ -45,7 +47,14 @@ the report is ephemeral, the design is not.
 | **A4** | Follow the rename through the **44** test occurrences | **§3 A4** | ⛔ **a test asserting a perspective COUNT must be corrected to the measured set, not deleted** |
 | ⭐⭐ **A9** | **CGF: rename its perspective `CGF` → `Scenario`** — its four diagnostics windows move with it — and change `perspectiveMap["CGF"]` to **`perspectiveMap["Scenario"] = "CGF"`**. ⛔ **No `CGF` perspective remains.** ⭐⭐ **`BTree`/`HSM`/`Blueprint` need NOTHING here**: no `perspectiveMap` entry *(they own no map — the editor's three are absent too)*, no declaration, no placeholder. They appear with their first window | **§1b** · **§1e** · charter **D1** | `--mode all` reports `Scenario` for CGF and ⛔ **not** `CGF`; the map still follows focus into CGF |
 
-⛔⛔ **A0 before everything. A6 before A5** *(remove the generator, then fix the instance)*, then A1–A4, then **A9**.
+| ⭐ **A10** | ⚠ **COURTESY ITEM for the parallel lane — one line.** While editing `perspectiveMap` for `A9`, also **delete `["StrideMock"] = "StrideMock"`** *(`Program.cs:256`)*. 📐 **It is the ONLY StrideMock line in `Program.cs`**, and the StrideMock-cleanup batch is explicitly forbidden from touching this literal ⇒ ⭐ **you deleting it is what keeps the two batches conflict-free** | **§1b** · `HANDOFF_Stride_Cleanup.md` §2 | `GetPerspectives()`/`perspectiveMap` carry no `StrideMock`; ⛔ **do NOT delete the `stridemock` MODE token or the project — that is the other lane's** |
+
+⛔⛔ **A0 before everything. A6 before A5** *(remove the generator, then fix the instance)*, then A1–A4, then **A9** *(with **A10** in the same edit)*.
+
+⚠⚠ **A PARALLEL BATCH EXISTS.** 📄 `HANDOFF_Stride_Cleanup.md` *(ids `ST-`, tracker **Area I**)* is running at
+the same time. ⭐⭐ **The ONLY file you both touch is `Program.cs`, and `A10` is how that is resolved** — you
+own the whole `perspectiveMap` literal. ⚠ **The other contact point is `CgfSubsystem.RegisterWindows`**: they
+do not edit it in this batch, but ⭐ **rule 4 still applies — pull before your final commit.**
 
 ⚠ **`A7` (delete the `Authoring`/`Analysis` perspectives) is WITHDRAWN — there is nothing to delete.** 📐
 Neither name reaches runtime, so no perspective, list entry or icon exists to remove. ⛔⛔ **And do NOT delete
