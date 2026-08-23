@@ -10,7 +10,7 @@ known-conflict: none. The parallel runner batch has CLOSED (ST-019/020/021 merge
 -->
 # HANDOFF — **the regression net, part B** *(`N1`–`N6`)*
 
-> 📌 **Dispatched at `<STAMPED BELOW>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Re-sync from
+> 📌 **Dispatched at `7677478f4`.** ⛔ **Scope FROZEN at that sha.** ⭐ Re-sync from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`HN-`**/**`MX-`**, tracker **Area J**. ⭐ **You allocate them** *(rule 3)* — 📐 the
 > series stands at **`HN-006`** and **`MX-011`**, so start at `HN-007` / `MX-012`.
