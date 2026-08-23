@@ -49,6 +49,11 @@ public sealed class GizmoSchemaFollowsDeclarationRails
     /// <para>⚠ Both halves are MEASURED from the host's own code, not assumed — the declarations from its
     /// <c>GizmoRegistrar</c> call site, the registration from its bootstrap. A drift in either is the thing
     /// this rail exists to catch, so it must not be paraphrased.</para>
+    ///
+    /// <para>⚠⚠ <b>These profiles must be kept in step with the production call sites</b>, and a stale one
+    /// is not harmless: an earlier version stopped short of <c>EditorSubsystem</c>'s inline registrations
+    /// and reddened a host that was perfectly healthy (<c>ST-024</c>). <c>ST-027</c> added
+    /// <c>MapSchemaPack</c> to simhost, cgf and the editor, so all four profiles carry it now.</para>
     /// </summary>
     private sealed record HostProfile(
         string Name,
@@ -94,12 +99,20 @@ public sealed class GizmoSchemaFollowsDeclarationRails
         // SimHostApp.cs:337-342 · registration: SimHostNodeBootstrapper.RegisterDomainComponents
         new("simhost",
             ["Hrot.SimHost.Gizmos", "Hrot.Presentation.Gizmos"],
-            w => Hrot.SimHost.SimHostComponentRegistry.RegisterAll(w)),
+            w =>
+            {
+                Hrot.SimHost.SimHostComponentRegistry.RegisterAll(w);
+                Hrot.Common.Diagnostics.Gizmos.MapSchemaPack.RegisterAll(w);
+            }),
 
         // CgfSubsystem.cs:526-528 · registration: CgfApplication.cs:125 / CgfSubsystem.cs:266
         new("cgf",
             ["Hrot.CGF.Gizmos", "Hrot.Presentation.Gizmos"],
-            w => Hrot.CGF.CgfComponentRegistry.RegisterAll(w)),
+            w =>
+            {
+                Hrot.CGF.CgfComponentRegistry.RegisterAll(w);
+                Hrot.Common.Diagnostics.Gizmos.MapSchemaPack.RegisterAll(w);
+            }),
 
         // EditorSubsystem.cs:1431-1445 · registration: EditorSubsystem.cs:857-858
         new("editor",
@@ -116,6 +129,7 @@ public sealed class GizmoSchemaFollowsDeclarationRails
                 // of calling IgRoleComponentRegistry, so this list is a second place that can drift.
                 Hrot.SimHost.SimHostComponentRegistry.RegisterAll(w);
                 Hrot.CGF.CgfComponentRegistry.RegisterAll(w);
+                Hrot.Common.Diagnostics.Gizmos.MapSchemaPack.RegisterAll(w);
                 w.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
                 w.RegisterComponent<Fdp.Toolkit.Vis2D.Components.MapDisplayComponent>();
                 w.RegisterComponent<Hrot.IG.Components.CullingState>();
