@@ -84,9 +84,13 @@ internal sealed class EditorSpawnerWindow : ManagedWindow
     }
 }
 
-/// <summary>Mission editor panel (shared) as a perspective-bound managed window.</summary>
+/// <summary>Mission editor panel (shared) as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5 — the HOST registers. ⚠ No ExCon host exists for this panel (measured): single
+/// host, kind stays a local literal.</summary>
 internal sealed class EditorMissionWindow : ManagedWindow
 {
+    internal const string Kind = "mission";
+
     private readonly MissionPanel          _panel;
     private readonly IMissionEditorService _svc;
     private readonly IMapPickService       _pick;
@@ -99,9 +103,23 @@ internal sealed class EditorMissionWindow : ManagedWindow
         _pick  = pick;
         IsOpen        = true;
         TitleBarColor = EditorWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_svc, _pick);
+    private MissionPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, Kind);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal MissionPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_svc, _pick);
+    }
 }
 
 /// <summary>Map layer / grid configuration panel (shared) as a perspective-bound managed window.

@@ -1,12 +1,33 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Hrot.Diagnostics.Breakpoints;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
 namespace Hrot.Presentation.Panels.Breakpoints;
+
+/// <summary>⭐ One breakpoint row, projected for the dump. Mirrors <see cref="DataBreakpointManagerPanel.DrawGrid"/>'s
+/// columns; <c>TypeName</c>/<c>Summary</c> reuse the SAME <see cref="DataBreakpointManagerPanel.GetTypeName"/>
+/// and <c>BreakpointConditionSummarizer.Summarize</c> the draw calls.</summary>
+public sealed record DataBreakpointRowViewModel(string Id, bool Enabled, string Scope, string TypeName, string Summary, int HitCount);
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="DataBreakpointManagerPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example. ⚠ Does not embed
+/// <c>TemporalStatusBannerPanel</c>'s own state — that panel is a separate group-6 queue item with its
+/// own conversion; this dump carries only whether a selection exists.</summary>
+public sealed record DataBreakpointManagerPanelViewModel(
+    string PanelId, string PanelKind, string? SelectedId,
+    IReadOnlyList<DataBreakpointRowViewModel> Breakpoints) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Data-grid panel for the Data Breakpoint Manager window.
@@ -44,6 +65,24 @@ public sealed class DataBreakpointManagerPanel
         DrawGrid();
         DrawPredicateEditor();
         DrawBanner();
+    }
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the breakpoint grid. No ImGui. ⭐ Reuses
+    /// <see cref="GetTypeName"/> and <c>BreakpointConditionSummarizer.Summarize</c>, the SAME
+    /// functions <see cref="DrawGrid"/> calls.</summary>
+    public DataBreakpointManagerPanelViewModel BuildViewModel(string panelId, string panelKind)
+    {
+        var rows = _manager.AllBreakpoints.Select(bp => new DataBreakpointRowViewModel(
+            bp.Id.ToString(),
+            bp.Enabled,
+            bp.FilterEntity.HasValue ? $"Entity {bp.FilterEntity.Value}" : "Global",
+            GetTypeName(bp.Condition),
+            BreakpointConditionSummarizer.Summarize(bp.Condition),
+            bp.HitCount)).ToList();
+
+        return new DataBreakpointManagerPanelViewModel(
+            panelId, panelKind, _selectedId.IsValid ? _selectedId.ToString() : null, rows);
     }
 
     // ── Internal action seams (used by tests) ─────────────────────────────────
