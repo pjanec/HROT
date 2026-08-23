@@ -307,3 +307,29 @@ update to be reported as *"REVIEWED, NOT COMPILED"*. 📐 It **compiles**: with
 ⛔ **Still owed a Windows check:** *running* the Stride suites. Re-confirmed here — the test host wants
 `Microsoft.WindowsDesktop.App` 8.0.0 and reports *"No frameworks were found"*. ⇒ `StrideGameReferenceTests`
 was **updated to the new home and compiles, but has not been executed anywhere.**
+
+## 8. ⛔⛔ `ST-018` RE-GRADED BY THE COORDINATOR — **it is a DESYNC hazard, not a stale comment** *(`2026-08-23`)*
+
+⭐ **The batch filed `ST-018` correctly and left the call byte-for-byte** — ⭐⭐ that was the right call for a
+batch whose remit was to MOVE the type. ⛔ **But the finding is more serious than its report implies, and the
+reason is in the attribute the `#pragma` suppresses:**
+
+```csharp
+[Obsolete("Use Update() utilizing SteppingTimeController instead. "
+        + "This legacy overload will cause deterministic desync.", false)]
+public void Update(float deltaTime)          // ModuleHostKernel.cs:464-465
+```
+
+| 📐 | |
+|---|---|
+| ⛔⛔ **the engine itself says the overload causes DETERMINISTIC DESYNC** | ⇒ this is a **correctness** hazard, not a lint |
+| 🔴 **and the type it sits in is now the REAL Stride app's composition root** | 📌 exactly the premise change `ST-018` identified — *"not a live DDS-connected node"* is what died with the mock |
+| ⭐⭐⭐ **it collides with charter `D6`** | the whole regression net rests on determinism; ⛔ **a composition root that deterministically desyncs is precisely what the net cannot tolerate** |
+
+⚠ **Stated fairly — severity is LATENT, not live:** `HrotStrideApp` cannot even build on Linux *(`ST-006`)*, so
+the Stride node is not in daily distributed use. ⇒ ⭐ **the hazard arms itself the moment a Stride node joins a
+cluster**, and that is before, not after, we would notice.
+
+⇒ ⭐⭐ **Scheduled as its own item** *(with the runner's mode rails — they share a gate: "does each mode start
+AND tick correctly?")*, ⛔ **not folded into the test-infrastructure batch**: changing a kernel tick path is a
+behaviour change and wants the time/integration suites, not a golden.
