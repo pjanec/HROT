@@ -401,7 +401,8 @@ in the other's lane.
 | Lane | Branch | owns |
 |---|---|---|
 | **Coordinator** (handoffs, design, gates) | ⭐ **`claude/blueprint-authoring-status-gm0akp`** | — |
-| ⭐⭐ **UI / VARIABLE lane** *(the frozen area)* | ⭐ **`claude/hrot-implementation-j1jvin`** | variables · working state · blackboard · `AiShared` · Q38/Details · ⭐ **`MIN`**. ⭐ ids **`BP-`**, tracker areas **`A`–`G`** |
+| ⭐⭐ **UI lane** *(incl. the frozen variable area)* | ⭐⭐ **`claude/reset-working-branch-qd1qpv`** *(recorded `2026-08-23`; started perspective Part A at `89acf0f20`)*. ⚠ **MOVED from `claude/hrot-implementation-j1jvin`** | variables · working state · blackboard · `AiShared` · Q38/Details · ⭐ **`MIN`** · ⭐ **the perspective model**. ⭐ ids **`BP-`**, tracker areas **`A`–`G`** |
+| ⭐⭐ **BACKEND lane** *(new `2026-08-23`)* | ⭐⭐ **`claude/blueprint-macro-feature-sdmspn`** *(started the StrideMock removal at `89acf0f20`)*. ⚠ **The NAME is historical** — it was the Batch-29-era implementation branch, reused | project/reference structure · the Stride cleanup. ⭐ ids **`ST-`**, tracker area **`I` only** |
 | ⭐⭐ **TIME lane** *(approved `2026-08-21`)* | ⭐ **`claude/time-system-refactor-batch-104-gp617x`** *(recorded `2026-08-21`, started Batch 104 at `404f95e9a`, branched from dispatch `34deca154`)*; 📌 still confirm by ancestry, not by name | `Fdp.Toolkits/Time/` · `Hrot.Orchestrator` · `ModuleHostKernel` · `Hrot.ClusterRunner.Integration.Tests`. ⭐ ids **`TM-`**, tracker area **`H` only** |
 
 > ⛔⛔ **TWO IMPLEMENTATION LANES, `2026-08-21` — the three rules that keep them apart**
@@ -415,7 +416,10 @@ in the other's lane.
 `claude/blueprint-authoring-status-6sr5ld`; that was a **different, now-retired session**. Any document
 still naming `6sr5ld` as the coordinator branch is **stale** — this table wins.
 
-⚠ **The implementation lane moved too** (Batch 29, from `claude/blueprint-macro-feature-sdmspn`).
+⚠⚠ **BOTH implementation lanes were re-pointed by the user on `2026-08-23`** — see the table above. ⭐ The
+UI lane moved `j1jvin` → **`reset-working-branch-qd1qpv`**, and **`blueprint-macro-feature-sdmspn`** *(an old
+Batch-29-era name)* was reused for a **new BACKEND lane**. 📌 Both pushed correct rule-1b started-markers
+naming the dispatch sha, so ancestry — not the name — remains the way to confirm.
 ⭐ **The coordinator must not assume the name** — locate their branch by which one's first commit
 descends from a coordinator commit, not by the name in this table.
 
