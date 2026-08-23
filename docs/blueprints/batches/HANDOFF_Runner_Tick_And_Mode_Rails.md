@@ -10,7 +10,7 @@ known-conflict: none. Runs in parallel with the regression-net batch; no shared 
 -->
 # HANDOFF — **the runner's tick path and its mode rails**
 
-> 📌 **Dispatched at `<STAMP>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `5963fffd4`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`ST-`**, tracker **Area I** — ⛔ never `HN-`/`MX-` *(the regression-net batch runs in
 > parallel and owns those)*, never `BP-`. ⭐ **You allocate the ids** *(rule 3)* — `T1`/`T2` are placeholders.

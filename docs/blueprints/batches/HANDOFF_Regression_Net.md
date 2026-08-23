@@ -9,7 +9,7 @@ known-conflict: none. Runs in parallel with HANDOFF_Runner_Tick_And_Mode_Rails.m
 -->
 # HANDOFF — **the regression net** *(charter steps 2–3)*
 
-> 📌 **Dispatched at `<STAMP>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `5963fffd4`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`HN-`**/**`MX-`**, tracker **Area J** — ⛔ never `ST-` *(the parallel runner batch owns
 > those)*, never `BP-`. ⭐ **You allocate the ids** *(rule 3)*.
