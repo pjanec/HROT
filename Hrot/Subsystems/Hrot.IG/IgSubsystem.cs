@@ -141,6 +141,11 @@ namespace Hrot.IG
                 new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
                     new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _app.Kernel)),
                 IgWindowColor.TitleBar));
+            // BP-327 — global window: the module/system execution-stats profiler.
+            windowManager.RegisterWindow(new SystemProfilerWindow(
+                "ig_system_profiler", "IG System Profiler", "IG",
+                () => _app.Kernel?.GetExecutionStats(),
+                IgWindowColor.TitleBar));
             // Signal IgApplication that these panels must not be double-rendered.
             _app.SetPanelsWindowManaged();
         }

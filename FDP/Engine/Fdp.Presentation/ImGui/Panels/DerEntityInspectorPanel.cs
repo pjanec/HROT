@@ -15,11 +15,11 @@ namespace Fdp.Presentation.Panels;
 /// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="DerEntityInspectorPanel"/> shows, this frame.</b>
 /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
 ///
-/// <para>⚠ <b>This panel has no window host inside <c>Fdp.Presentation</c></b> — its only production
-/// caller (measured) is <c>Hrot.ExCon.ExConMock</c>, a non-<c>ManagedWindow</c> root class in the
-/// group-6 assembly. ⇒ per the queue's caller-registers rule, <c>BuildViewModel</c> lives here (the
-/// panel's own assembly); the <c>DeclareInstrumented</c>/<c>Register</c> call sites are wired at the
-/// caller when that group is converted.</para>
+/// <para>⭐ <b>Wired as an ExCon window.</b> Its only production caller is
+/// <c>Hrot.ExCon</c> — <c>ExConDerEntityInspectorWindow</c> (in <c>Hrot.ExCon.Windows</c>) hosts it as a
+/// perspective-bound <c>ManagedWindow</c>. Per the queue's caller-registers rule, <c>BuildViewModel</c>
+/// lives here (the panel's own assembly); the <c>DeclareInstrumented</c>/<c>Register</c> call sites live
+/// at that host.</para>
 /// </summary>
 public sealed record DerEntityInspectorPanelViewModel(
     string PanelId,
@@ -170,6 +170,20 @@ public sealed class DerEntityInspectorPanel
             return;
         }
 
+        DrawContent(repo);
+
+        ImGuiApi.End();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>U-obs-5 — the panel BODY only (no <c>ImGui.Begin</c>/<c>End</c>).</b> Called by
+    /// <c>ExConDerEntityInspectorWindow</c> when this panel is hosted as a managed window; also used
+    /// by <see cref="Draw"/> for the standalone (non-window-managed) path.
+    /// </summary>
+    public void DrawContent(IDerRepo repo)
+    {
+        ArgumentNullException.ThrowIfNull(repo);
+
         // Search / filter input above the two-column layout.
         ImGuiApi.InputTextWithHint("##DerSearch", "Filter by ID...", ref _searchFilter, 64);
         ImGuiApi.Separator();
@@ -190,8 +204,6 @@ public sealed class DerEntityInspectorPanel
 
             ImGuiApi.EndTable();
         }
-
-        ImGuiApi.End();
     }
 
     // ── Private rendering ─────────────────────────────────────────────────────

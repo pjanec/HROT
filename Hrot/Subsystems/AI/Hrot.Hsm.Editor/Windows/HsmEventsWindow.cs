@@ -14,21 +14,20 @@ namespace Hrot.Hsm.Editor.Windows;
 public sealed record HsmEventRowViewModel(int EventId, string Name, int PayloadSize, bool IsIndirect, bool HasGlobalTransition);
 
 /// <summary>
-/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="HsmEventsWindow"/> shows, this frame.</b>
+/// ⭐⭐⭐ <b>U-obs-5 follow-up — the whole of what <see cref="HsmEventsWindow"/> shows, this frame.</b>
 /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
 ///
-/// <para>⚠⚠ <b>Reported per the queue's explicit flag — this class has neither <c>Id</c> nor
-/// <c>Title</c>, only an unused <c>WindowId</c> const.</b> 📐 Measured: it is not a
-/// <see cref="Fdp.Presentation.WindowManager.ManagedWindow"/> subclass at all — a plain class with a
-/// bare <c>Render()</c> method — and it has ZERO callers anywhere in the repository (never
-/// constructed, <c>Render()</c> never invoked, <c>WindowId</c> never referenced outside its own
-/// declaration). ⇒ same shape as <c>SystemProfilerPanel</c>/<c>FederationPanel</c>: no host exists to
-/// call <c>DeclareInstrumented</c>/<c>Register</c> from. <b>How this is addressed:</b> a
-/// <see cref="BuildViewModel"/> is added so the projection is ready the moment a host is written;
-/// <c>WindowId</c> is reused as BOTH the address and the kind should that host ever exist (a
-/// singleton declares a literal for both roles, per <c>PanelIds.cs</c>'s own precedent for
-/// <c>BlueprintEditorWindowBase</c>-family panels). Not wired into <c>PanelSnapshot</c> — reported as a
-/// finding rather than silently skipped.</para>
+/// <para>⭐ <b>Converted to the <c>Hrot.Editor.AiShared/Shell/*DetailsView</c> family</b> — see
+/// <see cref="HsmEventsDetailsView"/>, which wraps this class and supplies the composed
+/// <c>{idScope}/{ViewId}</c> address the family uses (<see cref="BuildViewModel(string,string)"/>).
+/// <c>BuildViewModel()</c> (no args) keeps <c>WindowId</c> for both roles, for the STANDALONE
+/// (not-yet-hosted) shape callers used before this conversion.</para>
+///
+/// <para>⛔⛔ <b>Registration into the live HSM perspective is NOT wired — reported, not done.</b>
+/// 📐 Measured: the only composition root that assembles the HSM <c>PerspectiveWorkspaceRegistrar</c>
+/// and could add <c>HsmEventsDetailsViewDescriptor</c> to its <c>DetailsViews</c> catalogue is
+/// <c>EditorSubsystem.cs</c> — explicitly on the STOP-AND-REPORT list for this batch. See the batch
+/// report for the full finding.</para>
 /// </summary>
 public sealed record HsmEventsWindowViewModel(
     string PanelId, string PanelKind, IReadOnlyList<HsmEventRowViewModel> Events) : IPanelViewModel
@@ -62,10 +61,16 @@ public sealed class HsmEventsWindow
         _findResults = findResults;
     }
 
-    /// <summary>⭐⭐⭐ BUILD — a pure projection of the asset's event declarations. No ImGui. ⚠ Not wired
-    /// to any host yet — see the view-model's own remarks.</summary>
-    public HsmEventsWindowViewModel BuildViewModel() => new(
-        WindowId, WindowId,
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the asset's event declarations. No ImGui. ⚠ The
+    /// STANDALONE shape — <c>WindowId</c> for both address and kind. <see cref="HsmEventsDetailsView"/>
+    /// uses the <see cref="BuildViewModel(string,string)"/> overload instead, composing the address
+    /// from its hosting window's <c>idScope</c>.</summary>
+    public HsmEventsWindowViewModel BuildViewModel() => BuildViewModel(WindowId, WindowId);
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the asset's event declarations, under a
+    /// caller-supplied identity. No ImGui.</summary>
+    public HsmEventsWindowViewModel BuildViewModel(string panelId, string panelKind) => new(
+        panelId, panelKind,
         _asset.AllEvents.Select(ev => new HsmEventRowViewModel(
             ev.EventId, ev.Name, ev.PayloadSize, ev.IsIndirect, ev.HasGlobalTransition)).ToList());
 

@@ -3,16 +3,19 @@ state: LIVE
 build-state: BUILT — U-obs-1, U-obs-2 and U-obs-5 (the full panel sweep) are COMPLETE as of
   2026-08-23: 53 panels declare, 48 publish (BP-453..471). FIVE DEVIATIONS are recorded in the AS-BUILT
   section and all five are folded back into the sections they deviate from.
-  ⭐⭐ UPDATED 2026-08-23 (MCP lane, Batch HN-122): the snapshot HAS a consumer now — GET /panels,
-  GET /panels/{id} and GET /panels/_gizmo are built, and the debug API turns CaptureEnabled on.
-  ⚠ U-obs-3 is NOT thereby done: /panels/_gizmo reads DebugPrimitiveBuffer DIRECTLY and projects it
-  per shape; U-obs-3 asks for the buffer to be REGISTERED INTO PanelSnapshot so one DumpAll() carries
-  it beside the panels. Those are different things, and when U-obs-3 lands the endpoint should read
-  the snapshot entry rather than the buffer, so there is one path to the data (MX-011).
-  U-obs-4 remains this lane's: the MCP harness reads the snapshot over HTTP, the smoke suite reads it
-  in-process — complementary, as the dispatch says.
-  ⚠ ONE FINDING FOR THIS LANE, recorded in §"Perf & correctness" below: there is no frame boundary,
-  and PanelSnapshot.Clear() cannot serve as one (MX-006).
+  ⭐⭐ UPDATED 2026-08-23: (MCP lane, Batch HN-122) the snapshot HAS a consumer now — GET /panels,
+  GET /panels/{id} and GET /panels/_gizmo are built and the debug API turns CaptureEnabled on
+  (supersedes the earlier "no consumer" note). (UI lane) the no-host set (BP-467) is CLOSED — two panels
+  deleted, four given real hosts (BP-472..476), so 5 more panels publish; §"The invariant" gained a
+  sub-section naming TWO CONCRETE FAILURE SHAPES (re-sample; nested Begin), neither rail-catchable, found
+  reviewing BP-476.
+  ⛔ STILL UNBUILT: U-obs-3 (the gizmo peer feed) and U-obs-4 (the smoke suite reading PanelSnapshot).
+  ⚠ U-obs-3 is NOT done by Group T: /panels/_gizmo reads DebugPrimitiveBuffer DIRECTLY and projects it
+  per shape; U-obs-3 asks the buffer be REGISTERED INTO PanelSnapshot so one DumpAll() carries it, and the
+  endpoint should then read the snapshot entry — one path to the data (MX-011). U-obs-4 remains this lane's
+  (the in-process smoke suite; the MCP harness reads over HTTP — complementary).
+  ⚠ FINDING FOR THIS LANE (§"Perf & correctness"): the snapshot has no frame boundary and
+  PanelSnapshot.Clear() cannot serve as one (MX-006).
 updated: 2026-08-23
 stale-below: the "## ⛔ HISTORY" section at the foot of this file — the open questions as first written.
   Question ② was resolved AGAINST its lean; do not quote the leans as current.
@@ -255,6 +258,21 @@ AssertJson.Equal(onEditor, onCgf);   // any diverging field is pinpointed by pat
 ⭐ **The reviewable smell:** any drawn value that did not come from the VM. This is the C-equivalent of B's
 "capture must be a byproduct of the draw" — here it is achieved by making the VM the *complete* description of
 what the panel shows, and the draw a pure function of it.
+
+### ⛔⛔ TWO CONCRETE FAILURE SHAPES — **added `2026-08-23`, both caught in review, neither catchable by a rail**
+
+📌 **`SystemProfilerWindow` (`BP-476`) shipped its first cut with both.** ⭐ They are written down because the
+rule above states the principle and a reviewer still has to *recognise* the violation in a diff.
+
+| ⛔ shape | what it looks like | why no rail sees it |
+|---|---|---|
+| ⭐⭐ **RE-SAMPLE** — the draw reads the SOURCE again instead of the model | `BuildAndPublish(); Panel.Draw(_provider());` — ⚠ **two calls to `_provider()` in one frame** | ⭐ the dump is well-formed and the pixels are well-formed; they simply describe **different samples**. ⇒ ⛔ the snapshot becomes evidence about a frame nobody saw. ⭐ **The fix is a shape, not a value:** `Panel.DrawContent(BuildAndPublish())` — one sample, structurally |
+| ⭐⭐⭐ **NESTED `Begin`** — the panel opens its own ImGui window inside a `ManagedWindow` | calling a `Draw(...)` overload that wraps `ImGuiApi.Begin`/`End` | 📐 `ManagedWindow.Render` calls `Gui.Begin` (`:202`) **before** `DrawClientArea` (`:221`) and `Gui.End` at `:224` ⇒ **the managed window renders EMPTY and a stray floating panel appears beside it.** ⛔ Every headless rail still passes — the VM is built and published correctly; only the *pixels* are wrong |
+
+⇒ ⭐⭐ **The naming convention that makes this reviewable: a panel method a `ManagedWindow` may call is named
+`DrawContent`, never `Draw`.** ⭐ `ArchitectureDiagnosticsPanel` established it; `SystemProfilerPanel` now
+follows it, with its standalone `Draw` **routing to** `DrawContent` rather than repeating the table — ⛔ so the
+two renderings can never drift.
 
 ## Cross-host conformance — why this layer
 

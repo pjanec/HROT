@@ -115,4 +115,12 @@ public static class PanelIds
     /// checked <c>MissionPanel</c> usages everywhere EXCEPT <c>ExConWindows.cs</c>, which does host it.
     /// Both hosts now cite this constant.</summary>
     public const string Mission = "mission";
+
+    /// <summary>
+    /// ⭐ <c>BP-327</c> follow-up — the module/system execution-stats profiler
+    /// (<c>SystemProfilerPanel</c>, in <c>Fdp.Presentation</c>). ⚠⚠ Hosted by
+    /// <c>SystemProfilerWindow</c> in MORE THAN ONE host (<c>Hrot.SimHost</c>, <c>Hrot.StrideMock</c>,
+    /// <c>Hrot.CGF</c>, <c>Hrot.IG</c>, <c>Hrot.Editor</c>) — every registration must agree on this kind.
+    /// </summary>
+    public const string SystemProfiler = "system-profiler";
 }

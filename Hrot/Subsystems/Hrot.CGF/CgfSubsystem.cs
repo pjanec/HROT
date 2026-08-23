@@ -767,6 +767,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _context?.Kernel)),
             TitleBarColor));
 
+        // BP-327 — global window: the module/system execution-stats profiler.
+        windowManager.RegisterWindow(new SystemProfilerWindow(
+            "cgf_system_profiler", "CGF System Profiler", "CGF",
+            () => _context?.Kernel?.GetExecutionStats(),
+            TitleBarColor));
+
         // ── Time transport controls in status bar ─────────────────────────
         var bus = _context?.EventBus;
         if (bus != null)

@@ -2531,6 +2531,23 @@ namespace Hrot.Editor
                         sharedScopeKeys:   SharedScopeKeysOfAsset),
                 },
                 liveValueProvider: hsmLiveValueProvider);
+
+            // ⭐⭐⭐ THE HSM EVENTS DETAILS VIEW, added by the ROOT and only by the root.
+            // 🔒 User ruling, 2026-08-23: *"the hsm event one is a good candidate for details panel
+            //    view if hsm details panel."*
+            // ⛔⛔ Why it cannot self-wire through the claim chain — the SAME reference wall the
+            //    Scenario Components view hits (:2570): `HsmEventsDetailsView` lives in
+            //    `Hrot.Hsm.Editor`, `IDetailsViewInstance` and `PerspectiveWorkspaceRegistrar` live in
+            //    `Hrot.Editor.AiShared` BELOW it, and AiShared does NOT reference Hsm.Editor (its only
+            //    mention is an InternalsVisibleTo). ⇒ ⭐ this assembly is the ONLY one that can see
+            //    both, so the registration belongs here by construction, not by convenience.
+            // ⚠⚠ Without this line the view is BUILT AND UNREACHABLE — 📌 BP-327's shape, the defect
+            //    this whole programme keeps finding. The conversion is not done until it is REGISTERED.
+            _hsmRegistrar.DetailsViews.Add(
+                Hrot.Hsm.Editor.Windows.HsmEventsDetailsViewDescriptor.For(
+                    refactorService: refactorService,
+                    findResults:     _hsmRegistrar.FindResults));
+
             // ⭐⭐⭐ Batch 88a — Blueprint's live-value provider, row 58's unbuilt half.
             //    🔴 This call used to say "no live-value provider yet" and pass none, so the Details
             //    Value column rendered (pending) forever — the DESIGNED output for a source with no
@@ -4239,6 +4256,12 @@ namespace Hrot.Editor
                     "editor_architecture_diagnostics", "Editor Architecture Diagnostics", "Editor",
                     new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
                         new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_kernel)),
+                    EditorWindowColor.TitleBar));
+
+                // BP-327 — global window: the module/system execution-stats profiler.
+                windowManager.RegisterWindow(new SystemProfilerWindow(
+                    "editor_system_profiler", "Editor System Profiler", "Editor",
+                    () => _kernel?.GetExecutionStats(),
                     EditorWindowColor.TitleBar));
             }
 
