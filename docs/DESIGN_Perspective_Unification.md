@@ -211,6 +211,24 @@ mode token, the `StrideMock` perspective and its `perspectiveMap` entry, `Hrot.F
 ⛔⛔ **Its own batch, not this one** — it is a project/reference change with a different blast radius from a
 perspective rename, and bundling them would make one revert impossible.
 
+## 1g. ⛔⛔ THE FOUR DORMANT WINDOWS — **do NOT delete them; their features are LIVE**
+
+⚠⚠ **I twice recommended deleting these and was wrong both times.** ⭐ The user's ruling *(`"Authoring` and
+`Analysis` … never ever used, it is safe to delete them"*)* is about the **PERSPECTIVES**, and it is already
+satisfied: 📐 neither name reaches runtime, so **nothing needs deleting.** ⛔ The **windows** are a different
+question, and the measurement answers it the other way.
+
+| window | 📐 measured | verdict |
+|---|---|---|
+| `ComparisonSummaryPanel` · `ComparisonSidebar` | ⭐⭐⭐ **the UI half of a 26-file feature** — `Comparison/` holds **19** files *(LLM response parser · export builder · sanitizer registry · migration adapter · companion-file discovery · stale-badge watcher · session state)* + **7** in `Comparison/UI/`. ⛔⛔ **AND ITS BACKEND IS WIRED INTO PRODUCTION:** `PerspectiveWorkspaceServices.CreateRegistrar` passes **`sanitizerRegistry`** and **`exportBuilder`** *(`:200-201`)* into **every** perspective's registrar | 🔴 **KEEP.** Deleting the panels would decapitate a feature whose backend every perspective already receives |
+| `UtilityDecisionWindow` | 📐 lives in **`Hrot.Utility.Editor`** — a whole subsystem *(Catalog · Comparison · Curve · Emit · FieldEdit · Loading · Model · Preview · Tracing)* — which is **referenced by `Fdp.Toolkits`**, the highest-fan-in project in the repo | ⭐ **KEEP.** The window is dormant; the project it belongs to is anything but |
+| `FakeAnimBackendInspectorWindow` | a debug inspector for the **Fake** animation backend, in `Hrot.MuscleCharacter.Animation.Fake` | ⚠ **probably obsolete now the real Stride animation backend landed** — ⛔ but that is a **Stride-cleanup** question, not a perspective one |
+
+⇒ ⭐⭐ **This is the `ROUTE, don't DELETE` precedent exactly** *(`CLAUDE.md`: *"what is not used does not mean
+it is existing without reason"*)*. ⭐ These are **built-but-unregistered UI**; if the features are wanted, the
+fix is to **register them in a real perspective**, not to remove them. ⛔ **Out of scope for this design** —
+filed here so the next reader does not repeat my mistake.
+
 ## 2. ⭐⭐ THE MECHANISM — how a perspective comes to exist
 
 ⭐⭐⭐ **A perspective is not declared anywhere. It exists because a window claims it.**
@@ -263,7 +281,7 @@ until it is green.**
 |---|---|---|
 | **A5** | 🔴 **Kill the phantom `Global` perspective** — give the asset-browser Find-Results window `WindowScope.Global` + an **empty** `OwningPerspective` *(the Orchestrator pattern)*. ⚠ Needs a **scope parameter** on `FindResultsWindow`, which hard-codes `PerspectiveBound`. ⭐ **Two fixes in one**: the icon goes away **and** the window becomes globally available, which was its stated intent | **§1c** |
 | **A6** | ⭐⭐ **Make `owningPerspective` REQUIRED on `FindResultsWindow`** — delete the `?? "Authoring"` default | **§1c**'s latent generator. ⛔ Without this, A5 fixes one call site and leaves the mechanism |
-| **A7** | ⭐ **Delete the dead `Authoring` and `Analysis` perspectives** — user ruled them never used. 📐 Neither is live *(§1)*, so no list changes and nothing is re-homed. ⛔ **The two COMPARISON panels are HELD** pending the user's confirmation *(§8-E)* — asset comparison reads like a designed-but-unwired capability | **§1** · user ruling |
+| ⛔ ~~**A7**~~ | ✅ **DISSOLVED `2026-08-23` — there is nothing to delete.** 📐 Neither name appears at runtime *(§1)*, so there is no perspective, no list entry and no icon to remove; the user's *"safe to delete"* is satisfied **by construction**. ⚠⚠ **And deleting the four dormant WINDOWS would be wrong — measured below** | **§1g** |
 
 ### A8–A9 — the CGF side of the NAMING *(added `2026-08-23`; the user's "immediately")*
 
@@ -281,7 +299,7 @@ an intra-CGF switch now does `RemoveListener`→`AddListener` on the **same** co
 `SwitchMapOwner("CGF")`. ⛔ **If either has a side effect, that is a finding to report, not to paper over.**
 
 ⭐⭐ **Ordering inside Part A:** **A0 first** *(nothing else is safe without it)*, then **A6 before A5**
-*(remove the generator, then fix the instance)*, then A1–A4, then **A8 before A9**, then A7.
+*(remove the generator, then fix the instance)*, then A1–A4, then **A9**.
 ⛔ **StrideMock removal is NOT in this batch** — §1f says why.
 
 ## 4. ⭐⭐ PART B — CGF grows the asset perspectives *(`DESIGN`)*
@@ -405,7 +423,7 @@ sequenceDiagram
 |---|---|---|
 | **51b-A** | Build **A0 before A1**? | ✅ **DECIDED (coordinator, `2026-08-23`) — yes.** ⭐ It is a **dependency, not a preference**: without it the rename can brick a developer's UI silently, so no ordering discussion is available |
 | **51b-B** | CGF **adds** asset perspectives and **keeps** `CGF` for diagnostics? | ⛔⛔ **ANSWERED BY THE USER, against my lean: NO — remove `CGF` entirely, rename it to `Scenario` immediately, and declare the other three now.** ⭐ My "add, don't replace" reasoning *(the four windows are diagnostics, not asset-scoped)* was **outweighed**: a lingering `CGF` perspective is a name the editor will never have, so conformance would carry a permanent exception. ⇒ **§1b + A9.** ⚠ **My follow-on proposals were then BOTH cut back by the user** *(§1e)*: no `perspectiveMap` entries for the three, no placeholder, and **no declaration API** — an empty perspective is simply fine |
-| **51b-C** | Part B touches `Hrot.Editor.AiShared` — the **frozen** area *(`R-128`)*. Whose lane? | ⚠ **the UI/variable lane's**, or the freeze is narrowed for this. ⛔ **Do not have two sessions build it** — that is the exact thing the freeze exists to prevent |
+| ⭐ **51b-C** | Part B touches `Hrot.Editor.AiShared` — the **frozen** area *(`R-128`)*. Whose lane, and is the freeze still needed? | ⭐⭐ **SPLIT into two, and only the second is the user's:** **①** *who builds it* — ✅ **DECIDED (coordinator): the UI/variable lane**, which owns `AiShared` and is idle. ⭐ **The freeze says ONE session builds that area; it does not forbid the work** ⇒ routing is enough and **no freeze change is required.** **②** *is the freeze still needed at all* — ⛔ **the user's call**, and it turns on whether the unified variable-model programme is finished. ⚠ **I will MEASURE that before recommending** rather than guess |
 | **51b-D** | Does Part A wait for the lanes to be idle? | ✅ **DECIDED (coordinator, `2026-08-23`) — no, and the question is moot: 📐 BOTH LANES ARE IDLE RIGHT NOW** *(verified by ancestry, not by claim)*. ⇒ ⭐ **dispatch immediately** — waiting only raises the chance a lane starts something that collides. ⚠ **Part B still waits** on `51b-C` |
 | **51b-F** | ⭐ **`StrideMock`** keeps its own single perspective? | ⛔ **NO — user ruled the whole subsystem obsolete** *(the real Stride port superseded it)*. ⚠ **But it is not a clean delete: `StrideNodeBootstrapper` is load-bearing for the real Stride app** ⇒ **split-and-relocate, in its OWN batch** — **§1f** |
-| **51b-E** | **`Authoring`** / **`Analysis`** — ⭐ user ruled `2026-08-23`: never used, safe to delete | ⭐⭐ **delete.** 📐 Neither is a live perspective *(§1's corrected row)*, so nothing has to be re-homed and no list changes. ⚠ **But the four WINDOWS are then dead code, and `docs/` carries no design record for either feature** — ⭐ so delete the two `Authoring` windows outright, and ⛔ **confirm the two COMPARISON panels before deleting them**: asset comparison reads like a designed-but-unwired capability, which is the one case where deletion removes a feature rather than a mistake |
+| ✅ **51b-E** | **`Authoring`** / **`Analysis`** | ✅ **CLOSED — no action needed.** 📐 Neither is live, so the deletion is already true. ⛔⛔ **And the four dormant WINDOWS must NOT be deleted** — §1g: the comparison feature's backend is wired into every registrar, and `UtilityDecisionWindow`'s project is referenced by `Fdp.Toolkits`. ⚠ **I recommended deleting them twice; both times I had not measured the backend** |

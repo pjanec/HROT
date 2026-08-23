@@ -13,9 +13,9 @@ known-conflict: none.
 > lane branches: `f39cf0c87` is an ancestor of neither)*. ⭐ **Added `A9`** after the user answered the design's
 > open questions; a proposed `A8` was then withdrawn by the user *(§1e)*. ⛔ Prior stamp `f39cf0c87` is void.
 >
-> 📌 **Dispatched at `4061cd262`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `<STAMP4>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: push the started-marker BEFORE any
-> code.** ⛔ **No PR.** ⭐ **You allocate the ids** *(rule 3)* — `A0…A7` below are **placeholders**.
+> code.** ⛔ **No PR.** ⭐ **You allocate the ids** *(rule 3)* — `A0…A9` below are **placeholders**.
 
 ## 0. ⛔⛔ THE DESIGN IS THE SOURCE — this file is a POINTER
 
@@ -44,9 +44,13 @@ the report is ephemeral, the design is not.
 | **A3** | ⚠ **Touch `layout/default/*` ONLY if the shipped default should open on Scenario** | **§3 A3** — 📐 `ActivePerspective` is currently `"Blueprint"` ⇒ **no migration is required.** ⛔ Do not invent one | the stale-layout rail stays green |
 | **A4** | Follow the rename through the **44** test occurrences | **§3 A4** | ⛔ **a test asserting a perspective COUNT must be corrected to the measured set, not deleted** |
 | ⭐⭐ **A9** | **CGF: rename its perspective `CGF` → `Scenario`** — its four diagnostics windows move with it — and change `perspectiveMap["CGF"]` to **`perspectiveMap["Scenario"] = "CGF"`**. ⛔ **No `CGF` perspective remains.** ⭐⭐ **`BTree`/`HSM`/`Blueprint` need NOTHING here**: no `perspectiveMap` entry *(they own no map — the editor's three are absent too)*, no declaration, no placeholder. They appear with their first window | **§1b** · **§1e** · charter **D1** | `--mode all` reports `Scenario` for CGF and ⛔ **not** `CGF`; the map still follows focus into CGF |
-| **A7** | ⭐ **Delete the dead `Authoring` and `Analysis` perspectives** + the two `Authoring` windows. ⛔ **HOLD the two COMPARISON panels** — the user has not confirmed deleting that feature | **§3 A7** · **§8-E** | `GetPerspectives()` is unchanged by this *(neither was ever live — §1)* |
 
-⛔⛔ **A0 before everything. A6 before A5** *(remove the generator, then fix the instance)*. **A7 last.**
+⛔⛔ **A0 before everything. A6 before A5** *(remove the generator, then fix the instance)*, then A1–A4, then **A9**.
+
+⚠ **`A7` (delete the `Authoring`/`Analysis` perspectives) is WITHDRAWN — there is nothing to delete.** 📐
+Neither name reaches runtime, so no perspective, list entry or icon exists to remove. ⛔⛔ **And do NOT delete
+the four dormant windows** *(§1g)*: the comparison feature's backend is passed into **every** registrar, and
+`UtilityDecisionWindow`'s project is referenced by `Fdp.Toolkits`. ⭐ **ROUTE, don't DELETE.**
 
 ⚠ **`A8` (a `DeclarePerspective` API) was in an earlier revision of this handoff and is WITHDRAWN** — ⭐ the
 user ruled an empty perspective is fine as-is, so `GetPerspectives()` keeps its single derived-from-windows
