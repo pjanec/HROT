@@ -137,6 +137,16 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         {
             _activeRepo = new EntityRepository();
             Fdp.Toolkit.ReplayBrowser.Federation.RepositoryPriming.RegisterDiscoveredComponents(_activeRepo);
+            // ST-027 (and the answer to ST-024's open question): THIS is replaybrowser's registration
+            // path. It has no hand-written ComponentRegistry -- RepositoryPriming reflects every loaded
+            // non-system assembly and registers each [ComponentId] type, which is why a grep for
+            // RegisterComponent</ComponentRegistry across this subsystem finds nothing yet it boots.
+            //
+            // ⚠ Priming ALREADY covers all 15 projector-required types (all 15 carry [ComponentId]), so
+            // this call adds no type here today. It is still worth making: priming only sees assemblies
+            // ALREADY LOADED at this moment, so the 15 that gizmo registration depends on would
+            // otherwise rest on assembly load order. This states them explicitly. Idempotent.
+            Hrot.Common.Diagnostics.Gizmos.MapSchemaPack.RegisterAll(_activeRepo);
             _canvas = new MapCanvas();
 
             _inspectorState = new InspectorState();

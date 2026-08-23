@@ -856,6 +856,11 @@ namespace Hrot.Editor
             // first ? otherwise the serializer schema is empty and Save/Load is a no-op.
             SimHostComponentRegistry.RegisterAll(_world);
             CgfComponentRegistry.RegisterAll(_world);
+            // ST-027: the projector-required schema, for uniform gizmo membership. The editor already
+            // declared all six families, so this is not what unblocks it -- but it is the one place the
+            // set is stated, and the inline CullingState/VisualEffectState registrations just below are
+            // now redundant with it (ST-024; left in place deliberately, not this batch's business).
+            Hrot.Common.Diagnostics.Gizmos.MapSchemaPack.RegisterAll(_world);
             _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
             // MapDisplayComponent is used by MapLayerAssignmentSystem to tag entities
             // with the layer bitmask used by the DebugGizmoLayer for visibility culling.

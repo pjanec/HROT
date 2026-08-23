@@ -123,6 +123,8 @@ namespace Hrot.CGF
             // Initialize() is deferred until first Tick() so callers can Install() modules first.
             _world  = new EntityRepository();
             CgfComponentRegistry.RegisterAll(_world);
+            // ST-027: projector-required schema before any gizmo registrar. See MapSchemaPack.
+            Hrot.Common.Diagnostics.Gizmos.MapSchemaPack.RegisterAll(_world);
             _kernel = new ModuleHostKernel(_world, new EventAccumulator());
             _kernel.SetTimeController(new SlaveSyncController(_eventBus, nodeId));
             // Note: _kernel.Initialize() is deferred until first Tick()

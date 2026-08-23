@@ -1,6 +1,13 @@
 using System.Runtime.InteropServices;
 using Fdp.Core;
 
+// ST-027: this file lives in Hrot.Core, not Hrot.IG, while keeping the Hrot.IG.Components NAMESPACE --
+// exactly as its four siblings already do (CullingState, IgHealthState, MapOverlayStyle, SelectionState in
+// Hrot/Engine/Hrot.Core/Components/Map/). It was the ONLY one of the 15 gizmo-projector component types
+// that sat in the Hrot.IG assembly, and MapSchemaPack (Hrot.Common) cannot reach it there: Hrot.IG already
+// references Hrot.Common, so the reverse edge is a cycle. Uniform gizmo membership needs every host able to
+// register all 15, so the outlier moved to where the others were. Namespace unchanged => no using changed,
+// and the [ComponentId] values are unchanged, so nothing on disk or on the wire moves.
 namespace Hrot.IG.Components;
 
 /// <summary>Identifies the visual rendering type of a temporary effect entity.</summary>
@@ -15,9 +22,9 @@ public enum EffectType : byte
 
 /// <summary>
 /// ECS component holding the lifecycle and rendering state of a temporary visual
-/// effect entity spawned by <see cref="Hrot.IG.Systems.EventToEffectSystem"/>.
+/// effect entity spawned by <c>Hrot.IG.Systems.EventToEffectSystem</c>.
 ///
-/// <see cref="Hrot.IG.Systems.VisualEffectCleanupSystem"/> increments
+/// <c>Hrot.IG.Systems.VisualEffectCleanupSystem</c> increments
 /// <see cref="ElapsedTime"/> each frame and destroys the entity once
 /// <see cref="IsExpired"/> returns <c>true</c>.
 ///

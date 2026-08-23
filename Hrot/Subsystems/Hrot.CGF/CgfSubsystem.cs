@@ -264,6 +264,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         if (_context.GeoTransform != null)
             _context.World.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_context.GeoTransform);
         CgfComponentRegistry.RegisterAll(_context.World);
+        // ST-027: the projector-required schema, for uniform gizmo membership. Every host now
+        // declares every gizmo family (MapGizmoPack), and StatelessGizmoRegistry throws on a
+        // required component it does not know -- so the schema must be in place BEFORE the
+        // registrars run. ST-020 is what happens when declaration outruns schema.
+        Hrot.Common.Diagnostics.Gizmos.MapSchemaPack.RegisterAll(_context.World);
 
         // ── Register base infrastructure modules ───────────────────────────────
         foreach (var m in _context.BaseModules)
