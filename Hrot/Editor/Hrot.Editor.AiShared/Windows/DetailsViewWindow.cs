@@ -151,8 +151,27 @@ public sealed class DetailsViewWindow : ManagedWindow, IDisposable
         return (frame, vm);
     }
 
-    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
-    internal DetailsViewWindowPanelViewModel SimulateDrawClientArea() => BuildAndPublish().Vm;
+    /// <summary>
+    /// ⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.
+    ///
+    /// <para>⚠⚠ <b><c>BP-485</c> — it drives the HOSTED VIEW's publish too.</b> 📐 Before this it
+    /// published only this window's own model, so a headless reader learned WHICH view was floated and
+    /// never what that view SHOWS — ⛔ the hosted view's <c>BuildAndPublish</c> runs inside
+    /// <see cref="IDetailsViewInstance.Draw"/>, which only <see cref="DrawClientArea"/> called.
+    /// 📌 The identical gap <c>BP-484</c> fixed in <c>DetailsWindow</c>; ⚠ <b>I fixed one of the two
+    /// twins and this one sat unmeasured</b> — exactly what <c>PanelIds.Details</c>'s own remark warns
+    /// about *("a SECOND CLASS must agree with it")*.</para>
+    /// </summary>
+    internal DetailsViewWindowPanelViewModel SimulateDrawClientArea()
+    {
+        var (frame, vm) = BuildAndPublish();
+
+        // ⛔ An empty frame hosts nothing — inventing an entry would claim a panel nobody can see.
+        if (frame.EmptyState == null)
+            _instance.Draw(frame.Context, Id);
+
+        return vm;
+    }
 
     /// <remarks>⭐⭐ A thin renderer over <see cref="BuildAndPublish"/> — ⛔ it decides nothing.</remarks>
     protected override void DrawClientArea()

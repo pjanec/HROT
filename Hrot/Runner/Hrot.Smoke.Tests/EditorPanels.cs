@@ -250,6 +250,42 @@ public sealed class EditorPanels : IDisposable
     public string? WatchKindFromSnapshot()
         => Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.TryGet(Watch.Id)?.PanelKind;
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-484</c> — T2 via the snapshot for the DETAILS table too.</b>
+    /// ⚠ The address is the hosted view's own sub-address; ⭐ the fixture composes it from the SAME
+    /// public constant the view uses, ⛔ never a repeated literal.
+    /// </summary>
+    /// <summary>⭐ The kind the Details TABLE published under — see the rail that asserts it.</summary>
+    public string? DetailsTableKindFromSnapshot()
+        => Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.TryGet(DetailsTableAddress())?.PanelKind;
+
+    private string DetailsTableAddress()
+        => $"{Details.VariablesIdScope}/"
+         + $"{Hrot.Editor.AiShared.Shell.VariablesDetailsViewDescriptor.ViewId}/table";
+
+    public string? DetailsValueFromSnapshot(string variable)
+    {
+        SyncPanels();
+        Details.SimulateDrawClientArea();
+
+        var address = DetailsTableAddress();
+
+        var vm = Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.TryGet(address);
+        if (vm is null)
+            throw new InvalidOperationException(
+                $"The Details table published nothing at '{address}'. Captured: "
+              + string.Join(", ", Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CapturedPanels));
+
+        foreach (var row in vm.Dump()["rows"]!.AsArray())
+        {
+            if (row is null) continue;
+            if (!string.Equals(row["shortName"]?.GetValue<string>(), variable, StringComparison.Ordinal))
+                continue;
+            return row["value"] is null ? null : row["value"]!.GetValue<string>();
+        }
+        return null;
+    }
+
     /// <summary>⭐ Pins the Details row into the Watch — the gesture a designer makes. ⛔ The Watch is a
     /// PINNED view; nothing appears in it by itself.</summary>
     public void PinToWatch(string variable)

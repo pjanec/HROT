@@ -346,8 +346,37 @@ public sealed class DetailsWindow
         return vm;
     }
 
-    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
-    internal DetailsWindowPanelViewModel SimulateDrawClientArea() => BuildAndPublish(Frame());
+    /// <summary>
+    /// ⭐⭐ <c>BP-484</c> — the id scope this shell hands its hosted views, so a reader can COMPOSE a
+    /// view's address instead of guessing it. ⛔ Exposed rather than duplicated: the composition rule
+    /// (<c>idScope + "/" + ViewId</c>) has one owner.
+    /// </summary>
+    public string VariablesIdScope => _drawId;
+
+    /// <summary>
+    /// ⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.
+    ///
+    /// <para>⚠⚠ <b><c>BP-484</c> — it now drives the CHOSEN VIEW's publish too, and that was a real
+    /// gap.</b> 📐 Before this it published only the SHELL's model, so a headless reader saw which view
+    /// was chosen and never what that view SHOWS — ⛔ the hosted view's own <c>BuildAndPublish</c> runs
+    /// inside <see cref="IDetailsViewInstance.Draw"/>, which only <see cref="DrawClientArea"/> called.
+    /// ⇒ the hook claimed to be "the BUILD + CAPTURE portion" while capturing half of it.</para>
+    ///
+    /// <para>⭐ Safe headless: every view in this family publishes BEFORE its own ImGui guard, which is
+    /// the AS-BUILT deviation ① the whole contract rests on.</para>
+    /// </summary>
+    internal DetailsWindowPanelViewModel SimulateDrawClientArea()
+    {
+        var frame = Frame();
+        var vm    = BuildAndPublish(frame);
+
+        // ⛔ An empty shell hosts no view — there is nothing further to publish, and inventing an entry
+        //   would claim a panel the user cannot see.
+        if (frame.EmptyState == null && frame.Choice.View != null)
+            InstanceFor(frame.Choice.View).Draw(frame.Context, _drawId);
+
+        return vm;
+    }
 
     /// <remarks>
     /// ⭐⭐⭐ <b>A thin renderer over <see cref="Frame"/>.</b> ⛔ It decides nothing — every branch below

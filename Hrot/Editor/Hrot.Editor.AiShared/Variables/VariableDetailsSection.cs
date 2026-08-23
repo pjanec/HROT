@@ -156,7 +156,23 @@ public sealed class VariableDetailsSection : IVariableTableHost
     /// Draws the heading and the table. ⛔ No-op when nothing is shown — the HOST decides what to draw
     /// instead, because "nothing selected" reads differently in a node inspector than in a table.
     /// </summary>
-    public void Draw(string id)
+    public void Draw(string id) => Draw(id, prebuilt: null);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-484</c> — draw from a view the CALLER already built and PUBLISHED.</b>
+    ///
+    /// <para>⛔⛔ <b>Why this overload exists rather than a second <c>Build()</c>.</b> The hosted
+    /// <c>VariablesDetailsView</c> must build the table's view BEFORE the ImGui guard so it can publish
+    /// it headlessly *(§Example's AS-BUILT deviation ①)*. ⇒ if this method then called
+    /// <c>_model.Build()</c> again, the frame would hold <b>two views</b> — and the one the user SEES
+    /// would not be the one the snapshot PUBLISHED. ⚠ They would agree today and that is precisely the
+    /// trap: nothing would ever show the divergence, and the observability contract's whole claim is
+    /// that the dump describes what is on screen.</para>
+    ///
+    /// <para>⭐ <paramref name="prebuilt"/> null keeps the original single-caller behaviour for any host
+    /// that does not publish.</para>
+    /// </summary>
+    internal void Draw(string id, VariableTableView? prebuilt)
     {
         SyncRunState();
 
@@ -165,6 +181,6 @@ public sealed class VariableDetailsSection : IVariableTableHost
 
         ImGuiNET.ImGui.TextUnformatted(Heading!);
         ImGuiNET.ImGui.Separator();
-        _control.Draw(id, _model.Build());
+        _control.Draw(id, prebuilt ?? _model.Build());
     }
 }

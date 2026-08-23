@@ -158,4 +158,81 @@ public sealed class Count4SmokeTests
             PanelSnapshot.CaptureEnabled = false;
         }
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-484</c> — DEFECT #4's ACTUAL SIGNATURE, now visible THROUGH THE SNAPSHOT.</b>
+    ///
+    /// <para>🔴 What the human found on <c>2026-08-20</c> was not "the Watch is wrong" in isolation — it
+    /// was <b>two panels disagreeing about one variable</b>. ⇒ ⭐ that comparison is the strongest signal
+    /// this design produces, and until now an agent reading <c>GET /panels</c> could only see ONE side:
+    /// the Watch published rows, the Details table published none.</para>
+    ///
+    /// <para>⭐⭐ <b>Why this is the tier that matters.</b> <see cref="BothPanelsShowTheRunningValue"/>
+    /// compares two models the FIXTURE formatted itself — ⛔ a second formatting path that can agree
+    /// with itself while disagreeing with what either panel publishes. This one compares the two
+    /// strings the PANELS put into the snapshot, which is exactly what an agent is served.</para>
+    /// </summary>
+    [Fact]
+    public void BothPanelsAgreeThroughTheSnapshot()
+    {
+        using var smoke = new SmokeFixture();
+        PanelSnapshot.Clear();
+        PanelSnapshot.CaptureEnabled = true;
+        try
+        {
+            smoke.PumpFrames(4);
+            smoke.Panels.SelectInOutline(Variable);
+            smoke.Panels.PinToWatch(Variable);
+
+            var details = smoke.Panels.DetailsValueFromSnapshot(Variable);
+            var watch   = smoke.Panels.WatchValueFromSnapshot(Variable);
+            var live    = smoke.Count;
+
+            var seen = $"blackboard={live}, Details published \"{details}\", Watch published \"{watch}\"";
+
+            Assert.False(details is null,
+                $"The DETAILS table published no value for '{Variable}'. {seen}. That is the BP-483 gap: "
+              + "an agent cannot see the Details half of the comparison at all.");
+
+            Assert.True(details == watch,
+                $"The two panels PUBLISHED different values for one variable: {seen}. "
+              + "One is reading the wrong arm, or a stale sample.");
+
+            Assert.True(details == live.ToString(),
+                $"The published values do not match the running blackboard: {seen}.");
+        }
+        finally
+        {
+            PanelSnapshot.Clear();
+            PanelSnapshot.CaptureEnabled = false;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The KIND, and why it is <c>variables</c> and not something Details-specific.</b>
+    /// ⚠ The Details table is the SAME logical panel as the standalone variables window — all of an
+    /// asset's variables, Details columns. ⇒ ⭐ when <c>U-16</c> retires that window the kind SURVIVES
+    /// here, so a cross-host conformance diff keyed on <c>variables</c> keeps its subject instead of
+    /// silently losing it. ⛔ A Details-only kind would have made that diff vanish with the window.
+    /// </summary>
+    [Fact]
+    public void TheDetailsTablePublishesUnderTheVariablesKind()
+    {
+        using var smoke = new SmokeFixture();
+        PanelSnapshot.Clear();
+        PanelSnapshot.CaptureEnabled = true;
+        try
+        {
+            smoke.PumpFrames(4);
+            smoke.Panels.SelectInOutline(Variable);
+            _ = smoke.Panels.DetailsValueFromSnapshot(Variable);
+
+            Assert.Equal(PanelIds.Variables, smoke.Panels.DetailsTableKindFromSnapshot());
+        }
+        finally
+        {
+            PanelSnapshot.Clear();
+            PanelSnapshot.CaptureEnabled = false;
+        }
+    }
 }
