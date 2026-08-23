@@ -139,6 +139,20 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 
         IgRoleComponentRegistry.RegisterAll(world);
 
+        // ST-022 (Q52 §2): the schema the GIZMO PROJECTOR FAMILIES require, as opposed to the schema
+        // this node's own role needs. IG declares four projector families in Phase 6d and
+        // StatelessGizmoRegistry validates each projector's required components against the world --
+        // so this must run first, and Phase 2 is where it belongs.
+        //
+        // ⭐ Registering these types does NOT put brain/combat data on an IG entity, and is not meant to:
+        // 🔒 "support all and decide on current presence of component". No IG entity carries
+        // BrainBlackboard, so HillAttackGizmo matches nothing and never draws -- the ruling holds by DATA,
+        // not by the host curating which families it declares.
+        //
+        // ⛔ Without it, --mode ig died in bootstrap (ST-020). --mode all masked that, because SimHost's
+        // registries supply the same schema on the shared world.
+        Hrot.Common.Diagnostics.Gizmos.MapSchemaPack.RegisterAll(world);
+
         // SimCombatDef, TkbCompositionDef, VisualData, lifecycle events, and
         // FireInteractionEvent are all handled by HrotSharedComponentRegistry above.
     }
