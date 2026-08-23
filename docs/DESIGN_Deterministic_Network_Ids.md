@@ -49,6 +49,35 @@ dispatchable; the regression net's diagrams cover the golden harness, ⛔ **not 
 | ⭐⭐ **two fresh processes agree byte-for-byte** | 8 entities, ids **1000–1007** ⇒ allocation order is deterministic **without intervention** |
 | ⭐⭐ **36 of 41 panel dumps identical; exactly 2 kinds drift**, both wall-clock feeds | ⭐ a **control rail** pins the volatile set to exactly those two **in both directions** ⇒ `D6` caveat ① is honoured **structurally**, not by discipline |
 
+### ⭐⭐⭐ WHY they repeat — **the ids are DATA, not ALLOCATIONS** *(traced `2026-08-23`)*
+
+⚠ **`HN-010` measured THAT they repeat; it did not say WHY.** ⭐ Traced, because *"it happens to repeat"*
+is a much weaker foundation for a golden than *"it repeats by construction"*:
+
+| 📐 | |
+|---|---|
+| ⭐⭐⭐ **`scenarios/hill-attack/scenario.json` CONTAINS the ids** | 📐 **eight `NetworkIdentity` blocks, values `1000`–`1007`** — ⭐ **exactly what `N1` measured.** ⇒ **the ids are authored data in the file** |
+| ⭐⭐ **the load path restores them** | `ScenarioFileService.LoadScenario` → `SoftClear` *(empty the repo)* → deserialise the DOM → each entity's `NetworkIdentity` comes back **as authored** ⇒ ⭐ **same file, same ids — any process, any number of reloads** |
+| ⭐⭐⭐ **and the allocator is NEVER CONSULTED on this path** | 📐 the `AllocateId()` call *(`StagingEntityExtractor.cs:216` → `PreAllocatedNetworkId`)* sits behind **`HrotEditLoadHandler`**, and 🔴 **`grep "HrotEditLoadHandler" --include=*.cs` finds NO production construction site — only tests.** ⇒ that is the **orchestrated cluster edit-load** path, ⛔ **not the editor's file-open path** |
+
+⇒ ⭐⭐⭐ **`D6` asked *"can we reset the allocator so the ids repeat?"* — the ids repeat because they were
+NEVER ALLOCATED.** ⛔ The reset would have had nothing to do.
+
+### 🔴🔴 THE CAVEAT THIS EXPOSES — **it holds for AUTHORED entities, NOT for RUNTIME SPAWNS**
+
+⭐⭐ **This is the part worth carrying forward, and it is a limit on the goldens, not on the reset:**
+
+| | authored entities *(in the file)* | ⛔ entities SPAWNED during the run |
+|---|---|---|
+| id source | ⭐ **the scenario JSON** | 🔴 **`NetworkSpawningSystem` → `AllocateId()`** *(it is constructed **with** the allocator, `EditorSubsystem.cs:1102`)* |
+| two fresh processes | ⭐ identical | ⭐ identical *(each starts at `1000`)* |
+| ⛔ **a RELOAD in one process** | ⭐ identical | 🔴 **DRIFTS** — the allocator is created once in `Initialize` and **nothing resets it** |
+
+⇒ ⭐⭐⭐ **A golden over a scenario that spawns entities at runtime is safe across fresh processes and
+NOT safe across a reload.** ⛔ **That is the case in which `D6` comes back** — and 📄 §3's hazards are
+what it would have to respect. ⚠ **Not a problem today** *(`hill-attack` is fully authored)*; ⭐ **a
+problem the moment a curated scenario spawns.**
+
 ### ⛔ The error was MINE, and it is worth naming precisely
 
 ⭐ **This design's hazard analysis was right and is still useful.** ⛔ **Its PREMISE was never measured.**
