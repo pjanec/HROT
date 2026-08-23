@@ -35,10 +35,16 @@ public class PerspectiveLabelTests : IDisposable
         Assert.Equal("BTree", wm.GetPerspectiveLabel("BTree"));
     }
 
+    /// <summary>
+    /// ⭐⭐ Amended by <c>A0</c> (<c>2026-08-23</c>): a window now has to CLAIM the id, because
+    /// <c>SwitchPerspective</c> refuses an unclaimed one. ⭐ That strengthens the point rather than
+    /// weakening it — the LABEL is still not a perspective even though a window claims the id.
+    /// </summary>
     [Fact]
     public void SelectPerspective_UsesId_NotLabel()
     {
         var wm = CreateManager();
+        wm.RegisterWindow(new ClaimingWindow("w_editor", "Editor"));
 
         wm.RegisterPerspectiveLabel("Editor", "Scenario");
 
@@ -48,5 +54,61 @@ public class PerspectiveLabelTests : IDisposable
         Assert.True(wm.IsPerspectiveActive("Editor"));
         // The label "Scenario" is NOT a valid perspective.
         Assert.False(wm.IsPerspectiveActive("Scenario"));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>A0</c> — AN UNKNOWN PERSPECTIVE IS REFUSED, and the label is not a back door.</b>
+    /// 📄 <c>DESIGN_Perspective_Unification.md</c> §3 <c>A0</c>.
+    ///
+    /// <para>⛔ Without this, a stored or hand-edited name that no window claims is accepted, every
+    /// <see cref="WindowScope.PerspectiveBound"/> window fails its visibility gate, and 🔴 the UI comes
+    /// up blank with no error and no log line.</para>
+    /// </summary>
+    [Fact]
+    public void SwitchPerspective_RefusesAnUnclaimedName()
+    {
+        var wm = CreateManager();
+        var claimed = new ClaimingWindow("w_scenario", "Scenario");
+        wm.RegisterWindow(claimed);
+        wm.SelectPerspective("Scenario");
+        wm.ShowWindow("w_scenario");
+
+        wm.SwitchPerspective("NoSuchPerspective");
+
+        // ⭐ Unchanged — the refusal is a no-op, not a partial switch.
+        Assert.Equal("Scenario", wm.CurrentPerspective);
+        // ⭐⭐ And the window that WAS visible still is. 📌 THIS is the defect being railed: had the switch
+        //   been accepted, the visibility gate (Global || IsPinned || owning == current) would have gone
+        //   false for every perspective-bound window and the UI would have come up blank.
+        Assert.True(claimed.IsOpen);
+        Assert.Equal(wm.CurrentPerspective, claimed.OwningPerspective);
+        Assert.False(claimed.IsPinned);   // ⛔ not saved by an accidental pin
+        Assert.Contains("Scenario", wm.GetPerspectives());
+        Assert.DoesNotContain("NoSuchPerspective", wm.GetPerspectives());
+    }
+
+    /// <summary>
+    /// ⚠ <c>A0</c> — a DISPLAY LABEL never makes a perspective real. 📌 The label mechanism exists so the
+    /// id can stay stable while the menu reads well; ⛔ it is not a second registry.
+    /// </summary>
+    [Fact]
+    public void ALabelDoesNotMakeAPerspectiveSwitchable()
+    {
+        var wm = CreateManager();
+        wm.RegisterWindow(new ClaimingWindow("w_editor", "Editor"));
+        wm.RegisterPerspectiveLabel("Editor", "Scenario");
+        wm.SelectPerspective("Editor");
+
+        wm.SwitchPerspective("Scenario");   // the LABEL, not the id
+
+        Assert.Equal("Editor", wm.CurrentPerspective);
+    }
+
+    private sealed class ClaimingWindow : ManagedWindow
+    {
+        public ClaimingWindow(string id, string perspective)
+            : base(id, id, perspective, WindowScope.PerspectiveBound) { }
+
+        protected override void DrawClientArea() { }
     }
 }

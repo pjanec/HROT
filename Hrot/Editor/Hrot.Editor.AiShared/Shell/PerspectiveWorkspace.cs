@@ -37,8 +37,8 @@ public sealed class PerspectiveWorkspace
     private readonly System.Collections.Generic.HashSet<IDetailsViewSource> _viewSources = new();
 
     /// <param name="perspectiveName">
-    /// ⚠ The PERSISTED key, not a label. ⛔ Scenario's is still <c>"Editor"</c> today *(§5)* — this type
-    /// does not care, and <c>L6.1b</c> is what changes it, with a migration.
+    /// ⚠ The PERSISTED key, not a label. ⭐ Scenario's is <c>"Scenario"</c> since <c>A1</c>
+    /// *(<c>2026-08-23</c>)*; this type never cared either way.
     /// </param>
     /// <param name="selectionStore">The asset/sub-selection half of a context.</param>
     /// <param name="runState">⭐ Read at BUILD time, never cached — a context is one frame's answer.</param>

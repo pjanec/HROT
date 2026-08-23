@@ -74,7 +74,17 @@ public static class SharedAiEditorServiceCollectionExtensions
         //    or asset-row menu items (BP-399 §7.6 ⑤). Nothing to register.
         services.AddSingleton<RuntimeInspectorWindow>();
         services.AddSingleton<TraceTimelineWindow>();
-        services.AddSingleton<FindResultsWindow>();
+        // ⭐⭐⭐ A6 (2026-08-23) — THE PERSPECTIVE IS PASSED, and this registration is WHY the rule was
+        //    worth having. 📄 DESIGN_Perspective_Unification.md §1c "the LATENT generator".
+        // 🔴 `AddSingleton<FindResultsWindow>()` resolved the ctor with every argument defaulted, so it
+        //    was a SECOND site that silently invented a perspective — §1c said no production caller
+        //    omitted it, and this container is the one that did. ⚠ Only harmless because
+        //    AddSharedAiEditor has no production caller today (measured: tests only) — ⛔ i.e. luck.
+        // ⭐ "Authoring" is passed EXPLICITLY to preserve the exact prior behaviour and to match its
+        //    siblings above (RuntimeInspectorWindow/TraceTimelineWindow default to the same name).
+        //    ⚠ Note "Authoring" is NOT a live perspective (§1): no production registration claims it.
+        //    ⇒ a host adopting this container must pass its own perspective, and now it CANNOT forget.
+        services.AddSingleton<FindResultsWindow>(_ => new FindResultsWindow("Authoring"));
         services.AddSingleton<ComparisonSummaryPanel>();
         services.AddSingleton<ComparisonSidebar>();
         services.AddSingleton<BlackboardAuthoringWindow>(sp =>

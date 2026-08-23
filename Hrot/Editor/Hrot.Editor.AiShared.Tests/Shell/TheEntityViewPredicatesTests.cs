@@ -31,7 +31,7 @@ public sealed class TheEntityViewPredicatesTests
 
     private static DetailsContext Context(params Entity[] entities)
         => DetailsContextBuilder.Build(
-            new EditorSelectionStore(), "Editor", VariableRunState.Planning, new Selected(entities));
+            new EditorSelectionStore(), "Scenario", VariableRunState.Planning, new Selected(entities));
 
     private static readonly Entity One = new(7, 1);
     private static readonly Entity Two = new(9, 1);

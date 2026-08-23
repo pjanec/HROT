@@ -82,7 +82,7 @@ public sealed class ScenarioMissionViewDumpsItsPanelTests : IDisposable
         var view = new ScenarioMissionView(
             NewPanel(), () => new RecordingMissions("Patrol"), () => new NoPicking(), e => e == One ? 4242 : 0);
 
-        view.Draw(DetailsContext.Empty("Editor") with { Entities = new[] { One } }, "host1");
+        view.Draw(DetailsContext.Empty("Scenario") with { Entities = new[] { One } }, "host1");
 
         var stored = PanelSnapshot.TryGet(Addr("host1"));
         Assert.NotNull(stored);
@@ -112,7 +112,7 @@ public sealed class ScenarioMissionViewDumpsItsPanelTests : IDisposable
 
         // ⭐ A multi-selection declines to draw (predicate territory) — capture must still run, per the
         // recipe: BUILD → CAPTURE happens before any of Draw's guards.
-        view.Draw(DetailsContext.Empty("Editor") with { Entities = new[] { One, One } }, "host1");
+        view.Draw(DetailsContext.Empty("Scenario") with { Entities = new[] { One, One } }, "host1");
 
         var stored = PanelSnapshot.TryGet(Addr("host1"));
         Assert.NotNull(stored);

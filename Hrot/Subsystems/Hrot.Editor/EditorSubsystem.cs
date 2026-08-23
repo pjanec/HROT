@@ -372,10 +372,15 @@ namespace Hrot.Editor
         /// value providers. ⚠ Scenario has none of those; ⭐ it needs only the GENERIC half, which is
         /// exactly what <see cref="Hrot.Editor.AiShared.Shell.PerspectiveWorkspace"/> now is.</para>
         ///
-        /// <para>⛔ <b>The persisted key stays <c>"Editor"</c></b> — 📌 §5/§6: the rename to
-        /// <c>"Scenario"</c> is <c>L6.1b</c>, DEFERRED, because <c>CurrentPerspective</c> and every
-        /// <c>OwningPerspective</c> are persisted and a bare rename silently resets saved layouts.
-        /// ⭐ <c>RegisterPerspectiveLabel("Editor", "Scenario")</c> already makes it read right.</para>
+        /// <para>⭐⭐⭐ <b>The persisted key is <c>"Scenario"</c> — <c>L6.1b</c> is DONE</b>
+        /// *(<c>A1</c>, <c>2026-08-23</c>; charter <c>D2</c>)*.
+        /// ⚠⚠ <b>The deferral's stated reason was measurably WRONG and is recorded so nobody re-defers
+        /// on it:</b> it claimed <i>"<c>CurrentPerspective</c> and every <c>OwningPerspective</c> are
+        /// persisted"</i>. 📐 Measured: <c>WindowManagerSettings</c> persists window <b>ids</b> plus
+        /// <c>IsOpen</c>/<c>IsPinned</c>, and <b>exactly ONE</b> perspective name —
+        /// <c>ActivePerspective</c>; <c>ManagedWindow.WindowInternalName</c> is
+        /// <c>$"{Title}###{Id}"</c>, so the ImGui ini carries no perspective either. ⇒ ⭐ the rename
+        /// orphans ONE string, and <c>A0</c>'s validated restore is what handles it.</para>
         /// </summary>
         private Hrot.Editor.AiShared.Shell.PerspectiveWorkspace? _scenarioWorkspace;
 
@@ -2767,9 +2772,10 @@ namespace Hrot.Editor
             // ⛔ Built from SCENARIO services, not the AI bag: a formatter, the shared clock signals,
             //    the entity source, and nothing else. ⚠ No validators/breakpoints/blackboard —
             //    Scenario authors entities, not AI assets.
-            // ⛔ The persisted key stays "Editor" (L6.1b is deferred) — see the field's remarks.
+            // ⭐⭐⭐ A1 — the persisted key IS "Scenario" now: L6.1b is DONE, not deferred.
+            //    📄 DESIGN_Perspective_Unification.md §3 A1 · charter D2.
             _scenarioWorkspace = new Hrot.Editor.AiShared.Shell.PerspectiveWorkspace(
-                perspectiveName: "Editor",
+                perspectiveName: "Scenario",
                 selectionStore:  _aiEditorSelectionStore,
                 // ⭐ THE SAME two clock signals the AI perspectives read (hoisted above) — ⛔ not a
                 //   second rule. 📌 M-38/M-40: this editor already had five notions of "stopped".
@@ -2783,7 +2789,7 @@ namespace Hrot.Editor
 
             ScenarioDetails = new Hrot.Editor.AiShared.Windows.DetailsWindow(
                 id:                "scenario_details",
-                owningPerspective: "Editor",
+                owningPerspective: "Scenario",
                 // ⭐ Scenario has no host-specific decoder — the raw one is the honest default here,
                 //   ⛔ not a silent fallback: there is no blueprint session to decode through.
                 formatter:         new Hrot.Editor.AiShared.Variables.VariableValueFormatter(
@@ -2992,9 +2998,24 @@ namespace Hrot.Editor
             // ⚠⚠ MEASURED 2026-08-22: this window was CONSTRUCTED HERE AND NEVER USED — zero other
             //    references, never registered, so no find-references result could ever be seen. It is
             //    the destination §16.1 names, and it finally has both a caller and a registration.
+            // ⭐⭐⭐ A5 — GLOBAL SCOPE, EMPTY PERSPECTIVE. 📄 DESIGN_Perspective_Unification.md §1c.
+            // 🔴 It used to pass owningPerspective: "Global" — the comment above says "Global scope", so
+            //    WindowScope.Global was the intent, but FindResultsWindow hard-coded PerspectiveBound and
+            //    the string landed in the PERSPECTIVE slot. TWO bugs from one line:
+            //      ① a phantom perspective named "Global" — GetPerspectives() returned it and
+            //         PerspectiveToolbarSection drew one icon per entry ⇒ the icon the user never asked
+            //         for ("the global perspective should have no icon");
+            //      ② the window was NOT globally available — a PerspectiveBound window shows only while
+            //         its perspective is current, so the asset browser's results were reachable ONLY
+            //         from the phantom.
+            // ⭐ This is the OrchestratorWindow/DiagnosticsWindow pattern: Global + string.Empty ⇒ always
+            //    visible, and invisible to GetPerspectives() (which filters to PerspectiveBound).
+            // ⛔ Do NOT "fix" the Windows menu's "Global" GROUP — that is a menu grouping of Global-scope
+            //    windows and it is exactly right (§1c).
             var assetBrowserFindResults = new FindResultsWindow(
+                owningPerspective: string.Empty,
                 idOverride:        "ai_asset_browser_find_results",
-                owningPerspective: "Global");
+                scope:             Fdp.Presentation.WindowManager.WindowScope.Global);
             windowManager.RegisterWindow(assetBrowserFindResults);
 
             // ⭐⭐⭐ THE ASSET ROW'S RIGHT-CLICK MENU (2026-08-22).
@@ -3330,13 +3351,13 @@ namespace Hrot.Editor
                     });
                 },
                 report:               msg => _saveAllStatus = msg,
-                isScenarioContext:    () => windowManager.CurrentPerspective == "Editor",
+                isScenarioContext:    () => windowManager.CurrentPerspective == "Scenario",
                 hasLoadedScenario:    () => !string.IsNullOrEmpty(_editorLogic?.LoadedScenarioName),
                 saveScenarioAction:   () => { _editorLogic?.SaveCurrentScenario(); _saveAllStatus = $"[OK] Saved scenario '{_editorLogic?.LoadedScenarioName}'."; },
                 requestScenarioSaveAs: openScenarioSaveAs,
                 describeActiveTarget: () =>
                 {
-                    if (windowManager.CurrentPerspective == "Editor")
+                    if (windowManager.CurrentPerspective == "Scenario")
                     {
                         var n = _editorLogic?.LoadedScenarioName;
                         return string.IsNullOrEmpty(n) ? "Save Scenario" : $"Save [scenario: {n}]";
@@ -4219,10 +4240,15 @@ namespace Hrot.Editor
                 windowManager.RegisterPerspectiveIconKey("HSM",        "asset/hsm");
                 windowManager.RegisterPerspectiveIconKey("Blueprint",  "asset/blueprint");
                 windowManager.RegisterPerspectiveIconKey("Blueprints", "asset/blueprint");
-                windowManager.RegisterPerspectiveIconKey("Editor",     "perspective/editor");
+                windowManager.RegisterPerspectiveIconKey("Scenario",   "perspective/editor");
 
-                // MTB2-T5: Show "Editor" perspective as "Scenario" in the Perspective menu.
-                windowManager.RegisterPerspectiveLabel("Editor", "Scenario");
+                // ⭐⭐ A2 — NO LABEL ALIAS. 📄 DESIGN_Perspective_Unification.md §3 A2.
+                // 📐 MTB2-T5 registered RegisterPerspectiveLabel("Editor", "Scenario") because the id and
+                //    the display name disagreed. ⭐ A1 renamed the ID, so they now agree and
+                //    GetPerspectiveLabel's pass-through returns "Scenario" on its own.
+                // ⛔ Re-adding an alias would be a second name for one thing — and the icon KEY keeps its
+                //    "perspective/editor" asset path deliberately: that is an atlas key, not a
+                //    perspective, and renaming it would be an unrelated asset rename.
 
                 // ── A. Perspective group (§8, sortOrder range 20–29) ──────────────────────
                 _perspectiveToolbarSection = new PerspectiveToolbarSection(
@@ -4332,7 +4358,7 @@ namespace Hrot.Editor
                 var bpPanel       = new Hrot.Presentation.Panels.Breakpoints.DataBreakpointManagerPanel(
                     _bpManager, bpBannerState);
                 var bpWin         = new Hrot.Presentation.Windows.DataBreakpointManagerWindow(
-                    "editor_bp_manager", "Editor", bpPanel, EditorWindowColor.TitleBar);
+                    "editor_bp_manager", "Scenario", bpPanel, EditorWindowColor.TitleBar);
                 windowManager.RegisterWindow(bpWin);
             }
 
@@ -4363,7 +4389,7 @@ namespace Hrot.Editor
 
             // ?? FDP framework panels (entity inspector + event browser) ???????
             windowManager.RegisterWindow(new FdpEntityInspectorWindow(
-                "editor_fdp_inspector", "Editor Entity Inspector", "Editor",
+                "editor_fdp_inspector", "Editor Entity Inspector", "Scenario",
                 _fdpEntityInspector,
                 () => _fdpRepoAdapter,
                 () => _fdpInspectorState,
@@ -4373,10 +4399,18 @@ namespace Hrot.Editor
             MapPickServiceBridge? editorPickBridge = _mapPickAdapter != null && _world != null
                 ? new MapPickServiceBridge(_mapPickAdapter, _world)
                 : null;
+            // ⭐⭐ A1 — this argument IS the perspective, despite its old "ownerName" spelling.
+            // 📐 Measured 2026-08-23: FdpEntityInspectorHelper assigns it to
+            //    Reflector.EditOwningPerspective AND passes it as the FdpEntityWatchWindow's
+            //    owningPerspective, and derives the spawned window's id prefix from it. ⇒ ⛔ leaving
+            //    "Editor" here would spawn every "Inspect..." watch window into a perspective NO window
+            //    claims — invisible, with nothing to explain why.
+            // ⚠ The id prefix moves editor_watch_* → scenario_watch_*: harmless, because those ids embed
+            //    a fresh Guid.NewGuid() per window and so were never restorable from a layout file.
             FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
                 _fdpEntityInspector,
                 windowManager,
-                "Editor",
+                "Scenario",
                 () => _fdpRepoAdapter,
                 editorPickBridge,
                 EditorWindowColor.TitleBar);
@@ -4409,7 +4443,7 @@ namespace Hrot.Editor
             };
 
             windowManager.RegisterWindow(new FdpEventBrowserWindow(
-                "editor_fdp_events", "Editor Event Browser", "Editor",
+                "editor_fdp_events", "Editor Event Browser", "Scenario",
                 _fdpEventBrowser,
                 EditorWindowColor.TitleBar));
 
@@ -4425,14 +4459,14 @@ namespace Hrot.Editor
             if (_kernel != null)
             {
                 windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
-                    "editor_architecture_diagnostics", "Editor Architecture Diagnostics", "Editor",
+                    "editor_architecture_diagnostics", "Editor Architecture Diagnostics", "Scenario",
                     new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
                         new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_kernel)),
                     EditorWindowColor.TitleBar));
 
                 // BP-327 — global window: the module/system execution-stats profiler.
                 windowManager.RegisterWindow(new SystemProfilerWindow(
-                    "editor_system_profiler", "Editor System Profiler", "Editor",
+                    "editor_system_profiler", "Editor System Profiler", "Scenario",
                     () => _kernel?.GetExecutionStats(),
                     EditorWindowColor.TitleBar));
             }
@@ -4447,7 +4481,7 @@ namespace Hrot.Editor
                     id:             "editor_time_controls",
                     sortOrder:      100,
                     renderDelegate: timeControls.Render,
-                    perspective:    "Editor");
+                    perspective:    "Scenario");
 
                 // ── BATCH-24: Main toolbar time-control group (§7, sortOrder range 0–9) ──
                 var timeTransportFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(
@@ -4915,8 +4949,8 @@ namespace Hrot.Editor
 
         /// <summary>
         /// BUG-A12: Resolves the open document that belongs to the CURRENT canvas perspective.
-        /// Returns null when the current perspective is the Scenario/"Editor" perspective (the
-        /// scenario branch handles it) or when no document of the matching kind is open.
+        /// Returns null when the current perspective is <c>"Scenario"</c> (the scenario branch handles
+        /// it) or when no document of the matching kind is open.
         /// <para>
         /// Path: <c>windowManager.CurrentPerspective</c> (string) → canonical
         /// <see cref="AssetKind"/> via reverse of <see cref="AssetKindExtensions.ToPerspectiveName"/>
@@ -4931,7 +4965,7 @@ namespace Hrot.Editor
             if (docManager == null) return null;
 
             // Map the current perspective name back to an AssetKind.
-            // "Editor" (Scenario perspective) is handled by the scenario branch — return null here.
+            // ⭐ "Scenario" is handled by the scenario branch and has no arm below — return null here.
             var perspectiveName = windowManager.CurrentPerspective;
             Hrot.Editor.AiShared.AssetKind? targetKind = perspectiveName switch
             {

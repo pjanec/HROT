@@ -72,19 +72,28 @@ public sealed class TheScenarioPerspectiveHasADetailsHostTests
     }
 
     /// <summary>
-    /// ⭐⭐ <b>It is bound to the SCENARIO perspective, under its PERSISTED key.</b>
-    /// ⛔ 📌 §5/§6: the key is still <c>"Editor"</c> — the rename to <c>"Scenario"</c> is <c>L6.1b</c>,
-    /// DEFERRED, because <c>CurrentPerspective</c> and every <c>OwningPerspective</c> are persisted and
-    /// a bare rename silently resets saved layouts. ⚠ <b>This rail pins the deferral</b>: if someone
-    /// "tidies" the key without the migration, it reddens here rather than in a user's lost layout.
+    /// ⭐⭐ <b>It is bound to the SCENARIO perspective, under its PERSISTED key — which is now
+    /// <c>"Scenario"</c>.</b> 📄 <c>DESIGN_Perspective_Unification.md</c> §3 <c>A1</c> · charter
+    /// <c>D2</c>.
+    ///
+    /// <para>⭐⭐⭐ <b>INVERTED by <c>A1</c>, <c>2026-08-23</c>: this rail used to pin the DEFERRAL</b>
+    /// *(<c>L6.1b</c>)* and named its reason — <i>"<c>CurrentPerspective</c> and every
+    /// <c>OwningPerspective</c> are persisted and a bare rename silently resets saved layouts"</i>.
+    /// ⛔⛔ <b>That reason was measurably FALSE.</b> 📐 <c>WindowManagerSettings</c> persists window
+    /// <b>ids</b> with <c>IsOpen</c>/<c>IsPinned</c>, and <b>exactly one</b> perspective name —
+    /// <c>ActivePerspective</c>; <c>WindowInternalName</c> is <c>$"{Title}###{Id}"</c>, so the ImGui ini
+    /// holds none. ⇒ ⭐ one orphaned string, handled by <c>A0</c>'s validated restore.</para>
+    ///
+    /// <para>⚠ It still pins the same thing in the same way — ⭐ only the expected value moved, so a
+    /// half-done rename reddens HERE rather than in a designer's blank window.</para>
     /// </summary>
     [Fact]
-    public void TheScenarioHost_UsesThePersistedEditorKey_BecauseL61bIsDeferred()
+    public void TheScenarioHost_UsesTheScenarioKey()
     {
         var editor = RealEditor();
 
-        Assert.Equal("Editor", editor.ScenarioWorkspace!.PerspectiveName);
-        Assert.Equal("Editor", editor.ScenarioDetails!.OwningPerspective);
+        Assert.Equal("Scenario", editor.ScenarioWorkspace!.PerspectiveName);
+        Assert.Equal("Scenario", editor.ScenarioDetails!.OwningPerspective);
     }
 
     /// <summary>
@@ -134,7 +143,7 @@ public sealed class TheScenarioPerspectiveHasADetailsHostTests
             var ctx = editor.ScenarioWorkspace!.BuildContext();
 
             Assert.Equal(new[] { entity }, ctx.Entities.ToArray());
-            Assert.Equal("Editor", ctx.Perspective);
+            Assert.Equal("Scenario", ctx.Perspective);
         }
         finally
         {

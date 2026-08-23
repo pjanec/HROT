@@ -87,9 +87,9 @@ public class SharedWindowIdOverrideTests
     public void SharedWindow_IdOverride_ProducesDistinctId_FindResultsWindow()
     {
         var w1 = new FindResultsWindow(
-            idOverride: "ai_find_results_btree", owningPerspective: "BTree");
+            owningPerspective: "BTree", idOverride: "ai_find_results_btree");
         var w2 = new FindResultsWindow(
-            idOverride: "ai_find_results_hsm", owningPerspective: "HSM");
+            owningPerspective: "HSM", idOverride: "ai_find_results_hsm");
 
         Assert.NotEqual(w1.Id, w2.Id);
         Assert.Equal("BTree", w1.OwningPerspective);
@@ -137,7 +137,12 @@ public class SharedWindowIdOverrideTests
 
         var runtime    = new RuntimeInspectorWindow(new EditorSelectionStore(), registry);
         var timeline   = new TraceTimelineWindow(new EditorSelectionStore(), registry);
-        var findResult = new FindResultsWindow();
+        // ⭐⭐ A6 — there is no longer a "no overrides" case for this window: owningPerspective is
+        //    REQUIRED, so the old ?? "Authoring" default it used to assert BELOW cannot exist.
+        //    📄 DESIGN_Perspective_Unification.md §1c — that default is §1c's "LATENT generator", and
+        //    "Global" is what it looked like when it fired. ⇒ the back-compat pair is replaced by an
+        //    explicit pair, and the two REFUSAL rails live in FindResultsWindowScopeTests.
+        var findResult = new FindResultsWindow("Authoring");
         var blackboard = new BlackboardAuthoringWindow(new EditorSelectionStore(), StubRefactor());
         var diag       = new DiagnosticsWindow(catalog, Array.Empty<IAssetValidator>());
 
