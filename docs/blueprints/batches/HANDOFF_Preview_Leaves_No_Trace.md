@@ -10,7 +10,7 @@ known-conflict: none. ⚠ Touches EditorSubsystem.cs and Hrot.Network.Orchestrat
 -->
 # HANDOFF — **a preview must leave no trace** *(the network-id counter, and item ⓪)*
 
-> 📌 **Dispatched at `<STAMP>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `e12000021`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`HN-`**, tracker **Area J** — 📐 the series stands at **`HN-011`**, so start at
 > `HN-012`. ⚠ **Coordinate with part C, which also allocates `HN-`** — ⭐ take a block from `HN-020`.
