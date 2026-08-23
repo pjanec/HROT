@@ -67,6 +67,23 @@ public interface INetworkIdAllocator : IDisposable
 interface needs a read member. ⛔ **And you cannot fake it with `AllocateId()`** — that burns an id, and
 📐 **it returns a different thing on each implementation** *(next-to-issue vs last-issued — §4's hazard)*.
 
+## 3b. INVENTORY — **the queries, and what they found**
+
+| query run | total | result |
+|---|---|---|
+| `search_graph(name_pattern=".*IdAllocator.*\|.*IdManager.*")` | **171** | ⭐⭐ **what grep could not do**: surfaced `DdsIdAllocatorServer` *(in-degree **11**)* **and the design sections that own it** — `docs/designs/mgmt-1/DESIGN.md` §5.7, `hexag-2` §4.2.5 *(§7)*. ⛔ Charter `D6` cited neither |
+| `search_graph(name_pattern="LoadScenarioByName\|LoadScenario", label="Method")` | **42** | ⭐ traced the **authored** load path to `ScenarioFileService.LoadScenario` *(`SoftClear` → deserialise)*, ⛔ **not** through the allocator |
+| `grep "interface INetworkIdAllocator"` | **1** | 🔴 **two members, neither readable** — `AllocateId()` · `Reset(startId)` *(§3)* |
+| `grep -rn "class SequentialIdAllocator"` | **3** | 🔴 `Hrot.Core.Network` · **`EditorSubsystem` private nested** · `EditorHarness` test nested *(§4 ③)* |
+| `grep "HrotEditLoadHandler"` *(non-definition)* | **11** | 🔴 **all tests — NO production construction site.** ⇒ the `StagingEntityExtractor.Extract(…, idAllocator)` path *(`:216`)* is not live |
+| `grep "WorldReset\|SoftClear\|Snapshot\|Restore"` in `PreviewClusterOpHandler.cs` | **3** | ⭐⭐⭐ **only `_snap.Dispose()`** — ⛔ **no `WorldResetEvent`, no `SoftClear`.** The rewind is `_liveRepo.SyncFrom(_snap)` and nothing else *(§2)* |
+| `grep "NetworkEntityMap\|entityMap"` in `PreviewClusterOpHandler.cs` | **0** | 🔴 **preview does not touch the entity map** ⇒ §2's class-of-bug, and item ⓪ |
+| `grep "new NetworkEntityMap\|new SequentialIdAllocator"` in `EditorSubsystem.cs` | **2** | `:895` and `:1101` — ⭐ **both in `Initialize`, both outside the repo, both handed to `NetworkSpawningSystem` `:1102`** |
+
+⚠ **What the enumeration did NOT cover, stated so nobody over-reads it:** ⛔ **other subsystems' preview
+paths** *(this measured the EDITOR's)*, and ⛔ **non-ECS state held by modules rather than by `Initialize`**
+— ⭐ **that is exactly what item ⓪ is for.**
+
 ## 4. ⭐⭐⭐ THE DESIGN
 
 | # | ⭐ |
