@@ -1,5 +1,6 @@
 using System.Numerics;
 using Fdp.Diagnostics.Contracts.Panels;
+using Fdp.Presentation.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.ExCon;
 using Hrot.ExCon.Panels;
@@ -225,5 +226,42 @@ internal sealed class ExConDiagnosticsWindow : ManagedWindow
     {
         BuildAndPublish();
         _panel.DrawContent(_logic);
+    }
+}
+
+/// <summary>ExCon DER Entity Inspector panel as a perspective-bound managed window.
+/// ⭐⭐⭐ U-obs-5, follow-up — <c>DerEntityInspectorPanel</c> had no production host anywhere
+/// (measured as one of the six no-host panels, <c>BP-467</c>); this is that host. ⚠ No sibling host:
+/// single host, kind stays a local literal.</summary>
+internal sealed class ExConDerEntityInspectorWindow : ManagedWindow
+{
+    internal const string Kind = "excon-der-entity-inspector";
+
+    private readonly DerEntityInspectorPanel _panel;
+    private readonly IExConLogic             _logic;
+
+    public ExConDerEntityInspectorWindow(DerEntityInspectorPanel panel, IExConLogic logic)
+        : base("excon_der_entity_inspector", "DER Entity Inspector", "ExCon", WindowScope.PerspectiveBound)
+    {
+        _panel = panel;
+        _logic = logic;
+        IsOpen = true;
+        TitleBarColor = ExConWindowColor.TitleBar;
+        PanelSnapshot.DeclareInstrumented(Id);
+    }
+
+    private DerEntityInspectorPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(_logic.Repo, Id, Kind);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    internal DerEntityInspectorPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent(_logic.Repo);
     }
 }

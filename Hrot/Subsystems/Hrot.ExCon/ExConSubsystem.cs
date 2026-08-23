@@ -431,6 +431,7 @@ namespace Hrot.ExCon
                 windowManager.RegisterWindow(new ExConSpawnerWindow(_mock.GetSpawnerPanel(), _mock.SpawnController));
                 windowManager.RegisterWindow(new ExConConfigWindow(_mock.GetConfigPanel(), _mock.MapConfigAdapter));
                 windowManager.RegisterWindow(new ExConDiagnosticsWindow(_mock.GetDiagnosticsPanel(), logic));
+                windowManager.RegisterWindow(new ExConDerEntityInspectorWindow(_mock.GetDerEntityInspectorPanel(), logic));
                 _mock.SetPanelsWindowManaged();
             }
 
