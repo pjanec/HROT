@@ -23,8 +23,9 @@ namespace Hrot.SystemTests;
 public class EditorProcessFixture : IAsyncLifetime
 {
     private Process? _process;
-    private Process? _xvfb;
-    private int _display = -1;
+    // ST-019: the display's lifetime logic moved to XvfbDisplay so the mode rails can reuse it
+    // rather than carry a second copy of the orphan-avoidance.
+    private XvfbDisplay? _xvfb;
     private readonly StringBuilder _output = new();
     private readonly object _outputLock = new();
 
@@ -140,17 +141,8 @@ public class EditorProcessFixture : IAsyncLifetime
 
         if (!SystemTestEnvironment.IsWindows)
         {
-            // ⛔ NOT `xvfb-run`, and the reason is measured: xvfb-run is a shell script that stops
-            // its Xvfb from an EXIT trap, and Process.Kill sends SIGKILL — the trap never runs, so
-            // every torn-down editor ORPHANS an Xvfb process and its /tmp/.X<n>-lock. A run leaked
-            // one display each time until this was owned directly.
-            //
-            // Same environment as the proven recipe in docs/Editor_Headless_Xvfb.md (a 1600x1000x24
-            // screen and Mesa's software rasteriser); only the lifetime is ours now.
-            _xvfb = StartXvfb(out int display);
-            psi.Environment["DISPLAY"] = $":{display}";
-            psi.Environment["LIBGL_ALWAYS_SOFTWARE"] = "1";
-            psi.Environment["GALLIUM_DRIVER"] = "llvmpipe";
+            _xvfb = new XvfbDisplay();
+            _xvfb.ApplyTo(psi);
         }
 
         psi.ArgumentList.Add("--mode");
@@ -170,72 +162,6 @@ public class EditorProcessFixture : IAsyncLifetime
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         return process;
-    }
-
-    /// <summary>
-    /// Starts our own Xvfb on a free display and returns once it is actually accepting clients.
-    ///
-    /// <para>Display numbers are claimed by <c>/tmp/.X&lt;n&gt;-lock</c>, and two collections start
-    /// at nearly the same moment, so the free-looking number can be taken between the check and the
-    /// spawn. Rather than lock, it simply tries the next one — cheap, and it converges.</para>
-    /// </summary>
-    private Process StartXvfb(out int display)
-    {
-        const int firstDisplay = 90;
-        const int lastDisplay = 220;
-
-        for (int candidate = firstDisplay; candidate <= lastDisplay; candidate++)
-        {
-            if (File.Exists($"/tmp/.X{candidate}-lock")) continue;
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = "Xvfb",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            psi.ArgumentList.Add($":{candidate}");
-            psi.ArgumentList.Add("-screen");
-            psi.ArgumentList.Add("0");
-            psi.ArgumentList.Add("1600x1000x24");
-            psi.ArgumentList.Add("-nolisten");
-            psi.ArgumentList.Add("tcp");
-
-            Process? server = null;
-            try
-            {
-                server = Process.Start(psi);
-                if (server is null) continue;
-
-                // The X socket appearing is the signal that it is ready for clients; starting the
-                // editor before that produces a "cannot open display" that looks like an editor
-                // fault and is not one.
-                var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
-                while (DateTime.UtcNow < deadline)
-                {
-                    if (server.HasExited) break;                       // display taken — try the next
-                    if (File.Exists($"/tmp/.X11-unix/X{candidate}"))
-                    {
-                        display = _display = candidate;
-                        return server;
-                    }
-                    Thread.Sleep(50);
-                }
-
-                try { if (!server.HasExited) server.Kill(entireProcessTree: true); } catch { }
-                server.Dispose();
-            }
-            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
-            {
-                server?.Dispose();
-                throw new InvalidOperationException(
-                    $"Could not start Xvfb (needed to run the editor headless): {ex.Message}", ex);
-            }
-        }
-
-        throw new InvalidOperationException(
-            $"No free X display between :{firstDisplay} and :{lastDisplay} — are stale Xvfb processes running?");
     }
 
     private void Capture(string? line)
@@ -345,33 +271,9 @@ public class EditorProcessFixture : IAsyncLifetime
 
         Client?.Dispose();
 
-        // The display server outlives the editor, so it is stopped explicitly. Leaking one per run
-        // exhausts display numbers on a machine that runs the suite repeatedly — which is exactly
-        // what a CI lane does.
-        if (_xvfb is not null)
-        {
-            try
-            {
-                if (!_xvfb.HasExited)
-                {
-                    _xvfb.Kill(entireProcessTree: true);
-                    _xvfb.WaitForExit(10_000);
-                }
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException) { }
-            finally
-            {
-                _xvfb.Dispose();
-                _xvfb = null;
-            }
-
-            // Xvfb removes its own lock on a clean stop but not always on a kill.
-            if (_display >= 0)
-            {
-                try { File.Delete($"/tmp/.X{_display}-lock"); }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-            }
-        }
+        // ST-019: one Dispose, and XvfbDisplay owns the kill + lock cleanup.
+        _xvfb?.Dispose();
+        _xvfb = null;
 
         if (!string.IsNullOrEmpty(StagingRoot) && Directory.Exists(StagingRoot))
         {
