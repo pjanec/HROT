@@ -1,4 +1,5 @@
 using System;
+using Fdp.Diagnostics.Contracts.Panels;
 
 namespace Hrot.Smoke.Tests;
 
@@ -104,5 +105,57 @@ public sealed class Count4SmokeTests
         Assert.True(details == live.ToString(),
             $"The panels do not show the running value: {seen}. "
           + "The sim moved and the panel did not.");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>U-obs-4</c> — T2 THROUGH THE SHARED SNAPSHOT, closing <c>G-c</c>.</b>
+    /// 📄 <c>DESIGN_Smoke_Suite.md</c> <c>G-c</c>/<c>S3</c> *(SUPERSEDED <c>2026-08-22</c>)*:
+    /// <i>"T2 now reads the shared <c>PanelSnapshot</c> singleton — panels register their view-model
+    /// there and the harness reads it."</i>
+    ///
+    /// <para>⭐⭐ <b>Why this is stronger than the direct-model test above, not a duplicate of it.</b>
+    /// <see cref="BothPanelsShowTheRunningValue"/> reaches into <c>Watch.Variables</c> and formats the
+    /// cell ITSELF. ⇒ ⛔ it proves the MODEL is right; it cannot prove the panel PUBLISHES that model,
+    /// nor that what it publishes carries the value at all. ⭐ This one asserts the string the panel
+    /// itself put into the snapshot — the same bytes <c>GET /panels/{id}</c> serves to an agent.</para>
+    ///
+    /// <para>⚠⚠ <b>It would have been <c>null</c> before this batch.</b> 📐 Measured: the row dump
+    /// carried name, type, kind, stale, highlight and selected — ⛔ <b>and no VALUE</b>. All three
+    /// publish sites HELD a formatter and none passed it *(the silent-default rule; tenth instance)*.
+    /// ⇒ 📌 the dump could not express defect #4 — <i>the Watch reading <c>0</c></i> — which is the
+    /// single defect this whole suite was built for.</para>
+    /// </summary>
+    [Fact]
+    public void TheWatchPublishesItsValueToTheSnapshot()
+    {
+        using var smoke = new SmokeFixture();
+        PanelSnapshot.Clear();
+        PanelSnapshot.CaptureEnabled = true;
+        try
+        {
+            smoke.PumpFrames(4);
+            smoke.Panels.SelectInOutline(Variable);
+            smoke.Panels.PinToWatch(Variable);
+
+            var published = smoke.Panels.WatchValueFromSnapshot(Variable);
+            var live      = smoke.Count;
+
+            Assert.False(published is null,
+                $"The Watch published a row for '{Variable}' with NO value. The dump cannot express "
+              + "defect #4 (the Watch reading 0 while the sim ran), so a green here would be vacuous.");
+
+            Assert.True(published == live.ToString(),
+                $"The Watch PUBLISHED \"{published}\" while the blackboard held {live}. "
+              + "An agent reading GET /panels would be told the wrong number.");
+
+            // ⭐ And the KIND is what a cross-host conformance diff groups by — a wrong kind would make
+            //   it compare the watch against the variables table.
+            Assert.Equal(PanelIds.Watch, smoke.Panels.WatchKindFromSnapshot());
+        }
+        finally
+        {
+            PanelSnapshot.Clear();
+            PanelSnapshot.CaptureEnabled = false;
+        }
     }
 }

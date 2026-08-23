@@ -192,6 +192,64 @@ public sealed class EditorPanels : IDisposable
         return RowText(Watch.Variables!, variable);
     }
 
+    // ── U-obs-4 — T2 THROUGH THE SHARED SNAPSHOT ───────────────────────────────────────────────
+    //
+    // ⭐⭐⭐ 📄 DESIGN_Smoke_Suite.md G-c/S3, SUPERSEDED 2026-08-22: "T2 now reads the shared
+    //    PanelSnapshot singleton — panels register their view-model there and the harness reads it."
+    //
+    // ⭐⭐ THE DESIGN CALL THE HANDOFF FLAGGED — "call BuildViewModel directly, vs run a headless
+    //    frame". 📐 Measured, it is NEITHER:
+    //      ⛔ A headless FRAME is impossible: ManagedWindow.Render calls Gui.Begin (:202) before
+    //         DrawClientArea (:221), so the draw override is unreachable without a live context.
+    //      ⛔ Calling BuildViewModel from the fixture would make the FIXTURE choose the panel's
+    //         address, kind and capture gating — i.e. a second implementation of the identity rules,
+    //         which is the duplication the observability design removes.
+    //      ⭐ So: drive the panel's OWN publish hook (DrawContent / SimulateDrawClientArea), which
+    //         every converted panel exposes for exactly this. The fixture then reads what the PANEL
+    //         wrote, not a lookalike it assembled.
+    //
+    // ⚠⚠ WHAT THIS DOES NOT COVER, stated rather than implied: the DETAILS panel publishes its SHELL
+    //    model (chosen view, empty state, counts) and its variables VIEW publishes HasContent/Heading
+    //    — ⛔ neither carries ROWS. ⇒ T2-via-snapshot is available for the WATCH today and not for the
+    //    Details table; the direct-model assertions below stay until that gap closes. Filed as a
+    //    finding rather than worked around here.
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>T2 via the snapshot: the value the WATCH published for <paramref name="variable"/>,
+    /// read back out of <c>PanelSnapshot</c>.</b>
+    /// ⛔ Returns <c>null</c> when the panel published no row for it — ⚠ distinguishable from a row
+    /// whose value is the empty string, which is a different claim.
+    /// </summary>
+    public string? WatchValueFromSnapshot(string variable)
+    {
+        SyncPanels();
+
+        // ⭐ The panel's OWN publish path. ⛔ Not a fixture-built view-model.
+        Watch.DrawContent();
+
+        var vm = Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.TryGet(Watch.Id);
+        if (vm is null)
+            throw new InvalidOperationException(
+                "The Watch published nothing to PanelSnapshot. Instrumented panels: "
+              + string.Join(", ", Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.RegisteredPanels)
+              + " | captured: "
+              + string.Join(", ", Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CapturedPanels));
+
+        var rows = vm.Dump()["rows"]!.AsArray();
+        foreach (var row in rows)
+        {
+            if (row is null) continue;
+            if (!string.Equals(row["shortName"]?.GetValue<string>(), variable, StringComparison.Ordinal))
+                continue;
+            return row["value"] is null ? null : row["value"]!.GetValue<string>();
+        }
+        return null;
+    }
+
+    /// <summary>⭐ The kind the Watch published under — what a cross-host conformance diff groups by.</summary>
+    public string? WatchKindFromSnapshot()
+        => Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.TryGet(Watch.Id)?.PanelKind;
+
     /// <summary>⭐ Pins the Details row into the Watch — the gesture a designer makes. ⛔ The Watch is a
     /// PINNED view; nothing appears in it by itself.</summary>
     public void PinToWatch(string variable)

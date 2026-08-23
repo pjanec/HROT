@@ -35,18 +35,27 @@ namespace Hrot.Editor.AiShared.Variables;
 public sealed class VariableTablePanelViewModel : IPanelViewModel
 {
     private readonly VariableTableView _view;
+    private readonly VariableValueFormatter? _formatter;
 
     /// <param name="panelId">⭐ The ADDRESS — the host window's own id, unique among live panels.</param>
     /// <param name="panelKind">⭐ The KIND — <see cref="PanelIds.Variables"/> or <see cref="PanelIds.Watch"/>.</param>
     /// <param name="view">The frame's built view. ⚠ Wrapped, never copied — the wrapper adds identity only.</param>
-    public VariableTablePanelViewModel(string panelId, string panelKind, VariableTableView view)
+    /// <param name="formatter">
+    /// ⭐⭐⭐ <b>The production value formatter — what turns a row into the CELL THE USER READS.</b>
+    /// ⚠ Optional only because a host may genuinely have none *(the variables half unwired)*; ⛔ <b>a
+    /// caller that HAS one must pass it</b> — 📌 the silent-default rule, and this argument exists
+    /// because all three publish sites held a formatter and none passed it.
+    /// </param>
+    public VariableTablePanelViewModel(
+        string panelId, string panelKind, VariableTableView view, VariableValueFormatter? formatter = null)
     {
         if (string.IsNullOrWhiteSpace(panelId))   throw new ArgumentException("A panel address is required.", nameof(panelId));
         if (string.IsNullOrWhiteSpace(panelKind)) throw new ArgumentException("A panel kind is required.", nameof(panelKind));
 
         PanelId   = panelId;
         PanelKind = panelKind;
-        _view     = view ?? throw new ArgumentNullException(nameof(view));
+        _view      = view ?? throw new ArgumentNullException(nameof(view));
+        _formatter = formatter;
     }
 
     /// <inheritdoc/>
@@ -80,6 +89,15 @@ public sealed class VariableTablePanelViewModel : IPanelViewModel
                 ["written"]   = row.HasEverBeenWritten,
                 ["highlight"] = _view.HighlightOf(row).ToString(),
                 ["selected"]  = _view.IsSelected(row),
+                // ⭐⭐⭐ THE CELL THE USER READS. 📌 Defect #4 was the Watch showing "0" while the sim
+                //    held 11 — ⛔ every other field in this row was correct that day. ⇒ a dump without
+                //    the VALUE cannot express the defect this whole suite exists to catch, and
+                //    GET /panels/watch could not answer "what number is on screen?".
+                // ⚠ null, not "", when no formatter was supplied: ⛔ absent and empty are different
+                //    claims, and an assertion must be able to tell them apart.
+                ["value"]     = _formatter is null
+                    ? null
+                    : JsonValue.Create(_formatter.Cell(row, _view.ValueMode)),
             });
         }
 

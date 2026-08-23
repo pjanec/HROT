@@ -9,7 +9,19 @@ build-state: BUILT — U-obs-1, U-obs-2 and U-obs-5 (the full panel sweep) are C
   deleted, four given real hosts (BP-472..476), so 5 more panels publish; §"The invariant" gained a
   sub-section naming TWO CONCRETE FAILURE SHAPES (re-sample; nested Begin), neither rail-catchable, found
   reviewing BP-476.
-  ⛔ STILL UNBUILT: U-obs-3 (the gizmo peer feed) and U-obs-4 (the smoke suite reading PanelSnapshot).
+  ⭐⭐⭐ 2026-08-23 (UI lane, MX batch): U-obs-3 AND U-obs-4 ARE NOW BUILT — the programme is complete
+  on the editor host. §UML's last unbuilt edge (DebugPrimitiveBuffer ..> PanelSnapshotService) is real:
+  GizmoFramePanel.Publish registers the map feed under kind "_gizmo" from EditorSubsystem.Update, before
+  the buffer's EndFrame. MX-006's frame boundary (PanelSnapshot.ClearCaptured) ships and is called on
+  the FIRST line of Update — NOT DrawUI, because the gizmo feed publishes inside Update and clearing
+  later would wipe it every frame. U-obs-4: the smoke suite's T2 drives each panel's OWN publish hook
+  (DrawContent/SimulateDrawClientArea) and reads the snapshot back — neither "BuildViewModel from the
+  fixture" (which would duplicate the identity rules) nor "a headless frame" (impossible: Gui.Begin
+  precedes DrawClientArea). §APIs below now understates the contract: it omits ClearCaptured.
+  ⚠ CARRIED GAP: the row dump gained a "value" field (BP-482 — all three publish sites held a formatter
+  and none passed it), but the DETAILS panel still publishes only its shell model and its variables view
+  only HasContent/Heading — NEITHER carries rows. So T2-via-snapshot covers the Watch and not yet the
+  Details table.
   ⚠ U-obs-3 is NOT done by Group T: /panels/_gizmo reads DebugPrimitiveBuffer DIRECTLY and projects it
   per shape; U-obs-3 asks the buffer be REGISTERED INTO PanelSnapshot so one DumpAll() carries it, and the
   endpoint should then read the snapshot entry — one path to the data (MX-011). U-obs-4 remains this lane's
