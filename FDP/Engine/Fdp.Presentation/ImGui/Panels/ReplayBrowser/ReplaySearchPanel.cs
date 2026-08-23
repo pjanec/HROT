@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Editing;
 using Fdp.Presentation.Panels.ReplayBrowser.Drawers;
 using Fdp.Presentation.Utils.ReplayBrowser;
@@ -16,6 +19,36 @@ using StructEdit.Core;
 namespace Fdp.Presentation.Panels.ReplayBrowser;
 
 using ImGuiApi = ImGuiNET.ImGui;
+
+/// <summary>⭐ One match row, projected by hand (entity flattened to index/generation).</summary>
+public sealed record ReplaySearchResultRowViewModel(int FrameIndex, long WallClockTicks, int EntityIndex, int EntityGeneration, string ContextMessage);
+
+/// <summary>⭐ One lifecycle-match row, projected by hand.</summary>
+public sealed record ReplaySearchLifecycleRowViewModel(int EntityIndex, int EntityGeneration, int StartFrame, int EndFrame, string MatchContext);
+
+/// <summary>
+/// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="ReplaySearchPanel"/> shows, this frame.</b>
+/// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
+///
+/// <para>⚠ <b>Deliberately does not walk the predicate <c>Document.Root</c> field-by-field</b> — the
+/// same StructEdit.Core generic edit-node tree <see cref="ComponentEditWindow"/> treats the same way
+/// (a third-party editor's own model, not this sweep's to reimplement). This VM captures the
+/// addressable/assertable state: which mode, the results, and the status/validation lines.</para>
+/// </summary>
+public sealed record ReplaySearchPanelViewModel(
+    string PanelId,
+    string PanelKind,
+    string Mode,
+    bool IsMergedViewActive,
+    bool IsSearching,
+    string StatusLine,
+    string ValidationError,
+    IReadOnlyList<ReplaySearchResultRowViewModel> Results,
+    IReadOnlyList<ReplaySearchLifecycleRowViewModel> LifecycleResults) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// Search panel for the replay browser. Hosts a StructEdit session editing a
@@ -116,6 +149,32 @@ public sealed class ReplaySearchPanel
         _behaviorRegistry = behaviorRegistry ?? new BehaviorRegistry();
         _getSelectedEntity = getSelectedEntity;
         _getSelectedNetworkId = getSelectedNetworkId;
+    }
+
+    // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of mode/status/results. No ImGui. ⚠ Locks
+    /// <c>_resultsLock</c> exactly as <see cref="DrawResultsGrid"/> does before reading the results
+    /// lists, since a background search task can be writing them concurrently.</summary>
+    public ReplaySearchPanelViewModel BuildViewModel(string panelId, string panelKind)
+    {
+        IReadOnlyList<SearchResultDto> results;
+        IReadOnlyList<LifecycleSearchResultDto> lifecycleResults;
+        lock (_resultsLock)
+        {
+            results = _results;
+            lifecycleResults = _lifecycleResults;
+        }
+
+        bool isSearching = _searchTask != null && !_searchTask.IsCompleted;
+
+        var resultRows = results.Select(r => new ReplaySearchResultRowViewModel(
+            r.FrameIndex, r.WallClockTicks, r.Entity.Index, r.Entity.Generation, r.ContextMessage)).ToList();
+        var lifecycleRows = lifecycleResults.Select(r => new ReplaySearchLifecycleRowViewModel(
+            r.Entity.Index, r.Entity.Generation, r.StartFrame, r.EndFrame, r.MatchContext)).ToList();
+
+        return new ReplaySearchPanelViewModel(
+            panelId, panelKind, _mode.ToString(), IsMergedViewActive, isSearching,
+            _statusLine, _validationError, resultRows, lifecycleRows);
     }
 
     // ── Public draw entry point ───────────────────────────────────────────
