@@ -1,15 +1,19 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (integration §A–N; SLICE ① = MX4a+MX7+MX8+MX5+MX6, Batch HN-120; SLICE ② = MX1
-  Group O + wrappers + smoke, Batch HN-121) │ READY-TO-BUILD (slice ③: MX2, MX3, MX4b) │ BLOCKED (Group T
-  needs the UI lane's U-obs-1)
+  Group O, Batch HN-121; SLICE ③ = MX9 Group T + MX2 Group Q + MX3 Group R + the breakpoint resume,
+  Batch HN-122) │ READY-TO-BUILD (MX4b, once MX-002's namespace ambiguity is resolved)
 updated: 2026-08-22
 current-answer: three parts. (1) The AI-debug API + MCP server is PORTED, WIRED, VERIFIED end-to-end on
   headless Linux (§ up to Notes). (2) The MCP EXTENSIONS design (Groups O–R). (3) ⭐ §"AS-BUILT — SLICE ①"
-  and §"AS-BUILT — SLICE ②" at the END are the CURRENT truth where they differ from §"Group O"/§"UML" —
-  read them before quoting a seam.
+  §"AS-BUILT — SLICE ②" and §"AS-BUILT — SLICE ③" at the END are the CURRENT truth where they differ
+  from §"Group O"/§"Group Q"/§"Group R"/§"Group T"/§"UML" — read them before quoting a seam.
 stale-below: nothing — the extensions section supersedes the earlier "mission intent bus" phrasing in place (see §"UML").
-known-rot: §"Group O" says DebugApiService "already holds _blueprintSession". ⛔ MEASURED FALSE — the
+known-rot: §"Group Q" says the runtime hot-attach mechanism "already exists; just expose it" — ⛔ the
+  CONSUMER did, but nothing registered its events on the editor's bus, so no caller could publish one
+  (MX-008). · §"Group R" lists a "grounded" field with no component to read it from (MX-007). ·
+  §"Group T" does not mention that the snapshot has no frame boundary (MX-006). · §"Group O" says
+  DebugApiService "already holds _blueprintSession". ⛔ MEASURED FALSE — the
   PARAMETER existed; the composition root never passed it, so every Group O call refused. See
   §"AS-BUILT — SLICE ②". · §"Group P.0" and §"UML" say MX4a REUSES `BehaviorUiRegistry` for behaviourId→DTO. ⛔ MEASURED FALSE —
   that registry stores only ImGui DRAW DELEGATES and never retains the DTO type. The real seam is
@@ -613,3 +617,43 @@ that is scenario content, not API work.
 
 ⭐ `GET /panels` reads the `PanelSnapshot` the UI lane is building in `U-obs-1`. ⛔ Deliberately not
 started here; the batch stopped at the wall as dispatched.
+
+---
+
+# AS-BUILT — **SLICE ③ (`MX9` Group T · `MX2` Group Q · `MX3` Group R · `MX5`/`MX6`)**, Batch HN-122, `2026-08-23`
+
+⭐⭐ **Where this section and §"Group T"/§"Group Q"/§"Group R" disagree, THIS is current** *(obligation ⑤)*.
+📐 Gated by **40 passing system-smoke cases** driving a real editor headless.
+
+## ⭐ What was built, and the six places it deviates from the design
+
+| # | as-built | vs the design |
+|---|---|---|
+| **`GET /panels`** | `{ captureEnabled, registered, captured, kinds, staleness }` | ⭐ **`captureEnabled` and `kinds` are additions.** With capture off, `captured` is empty for a reason that has nothing to do with the UI — reporting the flag stops that reading as "the UI showed nothing". `kinds` groups the live addresses by `PanelKind`, which is what the next batch's cross-host diff needs and costs one pass |
+| **`GET /panels/{id}`** | `{ panelId, panelKind, model }`; a miss says WHICH miss | ⭐ **Two distinct 404s**, because "nobody instrumented this" and "instrumented but its window is closed" have different fixes |
+| **`GET /panels/_gizmo`** | per-shape projection + `{count, emitted, truncated, dropped}` | ⭐ **`DebugPrimitive` is a 64-byte union whose payload fields OVERLAP by shape** — a blanket serialization would emit whichever field aliased the bytes and it would read as data. ⭐ Truncation is reported, never silent |
+| ⭐⭐ **`GET /blueprints`** | the compiled catalogue, with `attachable` | ⛔ **not in the design at all** — but attach takes a NAME, so without it an agent must guess, and an endpoint's own refusal is the wrong place to learn a vocabulary |
+| **`POST /entities/{id}/attach-blueprint`** | publishes the lifecycle event; `{staged/attached, note}` | ⭐ Applies on the NEXT tick *(the ingress system owns slot allocation, tier promotion and the params pipeline)*, and the reply says so rather than implying it already happened |
+| **`GET /entities/{id}/state`** | position · rotation *(yaw/pitch/roll)* · velocity · **speed** · behaviour *(hash + NAME + tier)* | ⚠⚠ **`grounded` is in the design's field list and is NOT built:** 📐 measured — this engine has **no ground-contact component** to read it from. ⛔ Deriving it from the position would be a guess wearing a fact's name ⇒ **`MX-007`**. ⭐ `speed` was added instead: it is what a "did it move?" assertion actually wants, computed one way for every caller |
+
+⭐ **`MX5`:** 8 new tools — **54 → 62**, `SKILL.md` regenerated, catalog tests **497/0**.
+
+## ⛔⛔ Two premises that did not survive contact — **both found by RUNNING it**
+
+| | |
+|---|---|
+| ⛔ **"the runtime mechanism already exists; just expose it"** *(§Group Q)* | ⭐ **Half true, and the missing half made it unreachable.** The CONSUMER exists *(`BlueprintEventIngressSystem`, registered by the editor)* — but **nothing declared `AttachInstanceBlueprintEvent` on the editor's bus**, and the bus is strict, so the publish threw. ⚠⚠ **Not only the API's problem:** the editor's own `EntityBlueprints` panel publishes the same events on its non-paused branch *(`EntityBlueprintsPanel:291-295`)* ⇒ **runtime hot-attach was unreachable in this host from ANY caller.** ⭐ Declared beside the systems that drain it ⇒ **`MX-008`** |
+| 🔴🔴 **the staged-write drain silently stops after ANY breakpoint hit** | 📐 **`ResumeAndDrainSystem` returns early on `_staged.IsRewound`**, and **deleting a breakpoint does not resume** — only `RequestContinue`/`RequestStep` clear it. ⇒ ⛔ **after a hit that is dismissed by deleting the breakpoint, every later live variable write is accepted, queued, and never applied.** ⭐ **Reproduced in one probe:** stage→step on a clean world ⇒ `value=42, pending=false`; arm a `Lifecycle` breakpoint, let it fire, delete it, stage→step×5 ⇒ `pending=true` forever *(and `/breakpoints/hits` still reports `isPaused:true`)*. ⇒ **`MX-009`** — the fix is in `DataBreakpointManager` *(UI lane)*; ⭐ **what this batch did instead: gave the API a way OUT** *(`POST /breakpoints/continue` · `/breakpoints/step`)* and made `POST …/variable` report **`willDrain:false`** rather than claim a write that cannot land |
+
+## ⭐⭐ `HN-006` is CLOSED — by `MX2`, not by scenario content
+
+📌 The previous batch filed it because **no curated scenario carries a blueprint with working state**
+*(hill-attack's one blueprint entity is `Library`-dispatch ⇒ no variables)*, so Group O's WRITE path had
+no end-to-end rail. ⭐⭐ **With hot-attach, the harness arranges its own world:** attach the first
+attachable `Instance` blueprint, then stage → pending → step → land, measured
+**`LoopLastItem: 0 → staged 17 → after the drain 17`**. ⛔ The case does not hard-code a blueprint name.
+
+## ⛔ Still NOT built
+
+⭐ **`MX4b`** *(mission editing)* — gated on the `IMissionEditorService` namespace ambiguity *(`MX-002`)*.
+⭐ **Cross-host conformance** — the next batch; it needs the read-API subset on CGF/SimHost.

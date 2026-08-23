@@ -269,6 +269,22 @@ namespace Hrot.Editor.DebugApi
             // so it matches before the parameterized DELETE route.
             _routes.Add(new("GET", "/breakpoints/hits", _ => RunMain(s => s.GetBreakpointStatus())));
 
+            // ⭐ Resume after a hit. Measured while building MX1/MX9: the API could ENTER the paused
+            // state (arm a breakpoint, let it fire) and had no way OUT of it — and the staged-write
+            // drain is gated on the debugger not being rewound, so every later live write was queued
+            // and never applied. Deleting the breakpoint does NOT resume; only these do. See MX-009.
+            _routes.Add(new("POST", "/breakpoints/continue", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ContinueFromBreakpoint(step: false);
+                return error != null ? Fail(400, error, hintCategory ?? DebugApiHints.Breakpoint) : Ok(result);
+            })));
+
+            _routes.Add(new("POST", "/breakpoints/step", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ContinueFromBreakpoint(step: true);
+                return error != null ? Fail(400, error, hintCategory ?? DebugApiHints.Breakpoint) : Ok(result);
+            })));
+
             _routes.Add(new("POST", "/breakpoints", async ctx =>
             {
                 var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
@@ -593,6 +609,87 @@ namespace Hrot.Editor.DebugApi
                     return error != null
                         ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Variable)
                         : Ok(result);
+                });
+            }));
+
+            // ── Group Q — blueprint hot-attach (MX2) ──────────────────────────────────────────
+            //
+            // The runtime mechanism already exists; these publish the same lifecycle events the ingress
+            // system consumes, so an attach behaves exactly as one authored in the editor would.
+            _routes.Add(new("GET", "/blueprints", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.GetBlueprints();
+                return error != null ? Fail(400, error, hintCategory ?? DebugApiHints.Blueprint) : Ok(result);
+            })));
+
+            _routes.Add(new("POST", "/entities/{networkId}/attach-blueprint", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                var blueprint  = ctx.Body?["blueprint"]?.GetValue<string>();
+                var paramsJson = ctx.Body?["paramsJson"]?.ToJsonString();
+                // A JSON object is accepted as well as a string — an agent should not have to escape.
+                if (ctx.Body?["paramsJson"] is System.Text.Json.Nodes.JsonValue pv
+                    && pv.TryGetValue<string>(out var raw)) paramsJson = raw;
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.AttachBlueprint(id, blueprint, paramsJson);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Blueprint)
+                        : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("POST", "/entities/{networkId}/detach-blueprint", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                var blueprint = ctx.Body?["blueprint"]?.GetValue<string>();
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.DetachBlueprint(id, blueprint);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Blueprint)
+                        : Ok(result);
+                });
+            }));
+
+            // ── Group R — the entity state dump (MX3) ─────────────────────────────────────────
+            _routes.Add(new("GET", "/entities/{networkId}/state", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetEntityState(id);
+                    return error != null ? Fail(404, error, hintCategory ?? DebugApiHints.Entity) : Ok(result);
+                });
+            }));
+
+            // ── Group T — the panel snapshot, read (MX9) ──────────────────────────────────────
+            //
+            // The UI made machine-readable without pixels. ⚠ ROUTE ORDER MATTERS: TryMatch takes the
+            // FIRST template whose segment count and literals match, so "_gizmo" must be registered
+            // BEFORE "{panelId}" or it would be captured as a panel id.
+            _routes.Add(new("GET", "/panels", _ => RunMain(s => s.GetPanels())));
+
+            _routes.Add(new("GET", "/panels/_gizmo", ctx =>
+            {
+                int max = int.TryParse(ctx.Query("max"), out var m) ? m : 500;
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetGizmoFrame(max);
+                    return error != null ? Fail(404, error, hintCategory ?? DebugApiHints.Panel) : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("GET", "/panels/{panelId}", ctx =>
+            {
+                var panelId = ctx.RouteValue("panelId");
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetPanel(panelId);
+                    return error != null ? Fail(404, error, hintCategory ?? DebugApiHints.Panel) : Ok(result);
                 });
             }));
 

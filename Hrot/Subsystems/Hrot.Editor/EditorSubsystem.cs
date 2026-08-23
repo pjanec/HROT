@@ -1134,6 +1134,18 @@ namespace Hrot.Editor
             Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(
                 _kernel, _blueprintRegistry);
 
+            // ⛔ MX2 measured this MISSING, and it is not only the API's problem. The ingress system
+            // registered above CONSUMES these two events, but nothing declared them on this world's bus
+            // — and the bus is strict, so any publish throws
+            // "Managed event type 'AttachInstanceBlueprintEvent' was published without being explicitly
+            // registered". ⇒ the runtime attach path was unreachable in this host: not just from
+            // POST /entities/{id}/attach-blueprint, but from the editor's own EntityBlueprints panel,
+            // whose non-paused commit branch publishes exactly these (EntityBlueprintsPanel:291-295).
+            // ⭐ Declared HERE, beside the systems that drain them, so the schema and its consumer
+            // cannot drift apart. See MX-008.
+            _world!.RegisterManagedEvent<Fdp.Toolkit.Blueprints.Events.AttachInstanceBlueprintEvent>();
+            _world!.RegisterEvent<Fdp.Toolkit.Blueprints.Events.RemoveInstanceBlueprintEvent>();
+
             // ?? 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ??
             var logicPacks = new List<IEcsModule> { simHostCorePack, perceptionMod, cgfLogicPackInst };
 
@@ -1600,6 +1612,13 @@ namespace Hrot.Editor
                 var portEnv = System.Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT");
                 if (!string.IsNullOrWhiteSpace(portEnv) && int.TryParse(portEnv, out var debugApiPort) && debugApiPort > 0)
                 {
+                    // MX9-cap — panels publish their view-models only while this is on, and the UI lane
+                    // deliberately left the flag for the consumer to own. The debug API being enabled
+                    // IS the "somebody wants dumps" signal, so it is turned on here and nowhere else:
+                    // a normal run never sets HROT_DEBUG_API_PORT, so production stays off and pays
+                    // one branch per panel per frame.
+                    Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = true;
+
                     _debugApiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
                     // POST /shutdown asks the HOST RUNNER to leave its frame loop, so the process
                     // exits through the same ordered teardown as the window's [X] — subsystems get

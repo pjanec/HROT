@@ -67,23 +67,41 @@ public sealed class VariableAddressingTests : SystemTestBase
     }
 
     /// <summary>
-    /// <b>The owed watch case.</b> Stage a write through the same seam the Details editor uses, see
-    /// it reported as pending while the world is paused, then advance the world and see it land.
+    /// <b>The owed watch case (HN-005), end to end.</b> Stage a write through the same seam the Details
+    /// editor uses, see it reported as pending while the world is paused, then advance the world and
+    /// see it land.
+    ///
+    /// <para>⭐ <b>The case ARRANGES its own world.</b> Measured: no curated scenario carries a blueprint
+    /// with working state — <c>hill-attack</c>'s one blueprint entity is <c>Library</c>-dispatch, which
+    /// has no variables at all — so this case attaches an <c>Instance</c> blueprint through
+    /// <c>POST /entities/{id}/attach-blueprint</c> (Group Q) and exercises the write against that.
+    /// ⛔ It does not hard-code a blueprint name: it takes the first attachable one the editor reports,
+    /// so new content cannot silently orphan the case.</para>
     /// </summary>
     [SystemSmokeFact]
     public async Task A_staged_variable_write_is_pending_then_lands()
     {
         await LoadAndPreviewAsync(await AnyCuratedScenarioAsync(PreferredScenario), startPaused: true);
+        string? attached = null;
+        long entity = 0;
         try
         {
-            var found = await FindBlueprintEntityAsync();
-            if (found is null)
+            entity = await FirstListedEntityAsync();
+            attached = await AttachAnyInstanceBlueprintAsync(entity);
+            if (attached is null)
             {
-                await AssertHonestRefusalAsync();
+                Output.WriteLine("this editor compiled no attachable Instance blueprint — the write "
+                                 + "path cannot be arranged, so only the read path is asserted here.");
                 return;
             }
 
-            var (entity, variables) = found.Value;
+            // ⚠ NAME the asset: the entity may already carry a blueprint of its own, and the API
+            //   refuses an ambiguous address rather than guessing which one was meant.
+            var listed = await WaitUntilAsync(
+                () => Mcp.GetEntityVariablesAsync(entity, attached),
+                r => r.Ok && (r.Field("variables") as JsonArray)?.Count > 0,
+                $"blueprint '{attached}' to appear on entity {entity} after the attach");
+            var variables = (listed.Field("variables") as JsonArray)!.ToList();
 
             // A numeric, writable variable — the one kind this case can set to a value it can then
             // recognise. Non-numeric or unaddressable variables are a legitimate part of the list.
@@ -91,33 +109,34 @@ public sealed class VariableAddressingTests : SystemTestBase
                 (v?["writable"]?.GetValue<bool>() ?? false)
                 && v?["value"] is JsonValue jv && jv.TryGetValue<double>(out _));
 
-            if (target is null)
-            {
-                Output.WriteLine("no writable numeric variable on this entity — read path asserted, "
-                                 + "write path not exercised by this world.");
-                return;
-            }
+            Assert.NotNull(target);
 
-            var path     = target["path"]!.GetValue<string>();
+            var path     = target!["path"]!.GetValue<string>();
             var original = target["value"]!.GetValue<double>();
             var written  = original + 17.0;
 
-            var staged = (await Mcp.StageEntityVariableAsync(entity, path, JsonValue.Create(written)))
+            var staged = (await Mcp.StageEntityVariableAsync(entity, path, JsonValue.Create(written), attached))
                 .EnsureOk();
             Assert.True(staged.Bool("staged"));
 
             // While the world is paused, the write is QUEUED, not applied: the read still reports the
             // old value and flags it pending. That is the whole contract — a staged write that
             // claimed to have landed would be a lie the panel's yellow exists to prevent.
-            var whilePaused = (await Mcp.GetEntityVariableAsync(entity, path)).EnsureOk();
+            var whilePaused = (await Mcp.GetEntityVariableAsync(entity, path, attached)).EnsureOk();
             Assert.True(whilePaused.Bool("pending"),
                 $"the staged write on '{path}' was not reported pending: {whilePaused.Data?.ToJsonString()}");
 
-            // Advance the world — the kernel's drain applies staged writes at the next advancing tick.
-            (await Mcp.PlayAsync()).EnsureOk();
-
+            // Advance the world — the kernel's drain applies staged writes at the next ADVANCING tick.
+            // ⭐ Deterministic STEPS, not play: this suite's editor is shared, so whether free-running
+            //   play actually advances depends on what an earlier case left behind. A step advances by
+            //   construction, which is what this assertion needs. (Measured: with play, the case passed
+            //   in isolation and hung in the full suite — a real dependence on run order, not a flake.)
             var landed = await WaitUntilAsync(
-                () => Mcp.GetEntityVariableAsync(entity, path),
+                async () =>
+                {
+                    await Mcp.StepAsync(2).ConfigureAwait(false);
+                    return await Mcp.GetEntityVariableAsync(entity, path, attached).ConfigureAwait(false);
+                },
                 r => r.Ok && !r.Bool("pending"),
                 $"the staged write on '{path}' to drain once the world advanced");
 
@@ -126,8 +145,31 @@ public sealed class VariableAddressingTests : SystemTestBase
         }
         finally
         {
+            // Put the world back: the editor is shared, and a blueprint this case attached would
+            // otherwise change what every later case reads.
+            if (attached is not null) await Mcp.DetachBlueprintAsync(entity, attached);
             await ResetToIdleAsync();
         }
+    }
+
+    /// <summary>
+    /// Attaches the first <c>Instance</c>-dispatch blueprint this editor compiled, or null when there
+    /// is none. Returns its name so the caller can detach it again.
+    /// </summary>
+    private async Task<string?> AttachAnyInstanceBlueprintAsync(long entity)
+    {
+        var blueprints = (await Mcp.GetBlueprintsAsync()).EnsureOk();
+        var attachable = (blueprints.Field("blueprints") as JsonArray)?
+            .FirstOrDefault(b => (b?["attachable"]?.GetValue<bool>() ?? false)
+                                 && (b?["stateSize"]?.GetValue<int>() ?? 0) > 16);
+        if (attachable is null) return null;
+
+        var name = attachable["name"]!.GetValue<string>();
+        (await Mcp.AttachBlueprintAsync(entity, name)).EnsureOk();
+
+        // The attach is applied by the ingress system on the next tick, so give the world one.
+        (await Mcp.StepAsync(3)).EnsureOk();
+        return name;
     }
 
     /// <summary>

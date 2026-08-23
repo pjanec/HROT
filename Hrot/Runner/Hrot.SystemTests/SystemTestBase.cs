@@ -127,6 +127,13 @@ public abstract class SystemTestBase
 
         await ClearBreakpointsAsync().ConfigureAwait(false);
 
+        // ⛔⛔ Clearing the breakpoints is NOT enough, and this cost a real diagnosis: a breakpoint that
+        //    HIT leaves the debugger REWOUND, deleting it does not resume, and the staged-write drain
+        //    is gated on not being rewound — so every later case's live write was queued and silently
+        //    never applied. ⭐ The effect outlives the breakpoint, so the reset must resume too.
+        //    (The product-side finding is MX-009; this line is the harness's own isolation.)
+        await Mcp.ContinueFromBreakpointAsync().ConfigureAwait(false);
+
         var sim = await Mcp.GetSimStateAsync().ConfigureAwait(false);
         if (sim.Ok && !sim.Bool("isPaused"))
             await Mcp.PauseAsync().ConfigureAwait(false);
