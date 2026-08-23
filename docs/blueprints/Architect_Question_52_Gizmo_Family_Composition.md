@@ -74,7 +74,7 @@ registry.** ⛔ Not a comment, not a checklist.
 
 | ⭐ | |
 |---|---|
-| ⭐⭐ **it covers every host for free** | editor · simhost · cgf · ig · replaybrowser — ⚠ **and it may redden others on first run.** ⭐⭐ **Each red is a FINDING** *(the same omission, elsewhere)*, ⛔ not a number to tune down |
+| ⭐⭐ **it covers every host for free** | editor · simhost · cgf · ig · replaybrowser — ⚠ **and it may redden others on first run.** ⭐⭐ **Each red is a FINDING** *(the same omission, elsewhere)*, ⛔ not a number to tune down. ⚠⚠ **SUPERSEDED IN SCOPE `2026-08-23`:** this rail checks invariant **A** *(schema follows declaration)* and ⛔ **not invariant B** *(the declaration is COMPLETE)* — 📐 measured: **the editor declares 6 of 6 families and every other host declares a SUBSET** *(simhost and cgf **1 of 6**, missing the SEVEN-projector `Common` family)*. ⇒ 📄 **[`DESIGN_Uniform_Gizmo_Membership.md`](../DESIGN_Uniform_Gizmo_Membership.md)** carries `B` and the matrix, on the user ruling *"replaybrowser is no exception… same for ig"* |
 | ⭐ **it is the acceptance case `MapInteractionPack` will need** | ⇒ ⛔ **do not write a second one later** |
 | ⚠ **what it does NOT check** | that a gizmo ever **draws** — ⭐ that is runtime presence, and under §0 it is *supposed* to be empty on IG |
 
