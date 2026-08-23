@@ -8,9 +8,9 @@ current-answer: the whole file. §3 is what to build now; §4 is the target it b
 design-basis: PROGRAMME_Unification_And_Harness.md D1+D2 (user decisions, 2026-08-23) ·
   UX/UX_Glossary_Host_Mode_Subsystem.md (process · mode · subsystem · perspective — perspective is the
   finer key) · UX/UX_Feature_Perspective_Restore.md §3 (the unknown-id refusal, designed, never built).
-known-conflict: none. ⚠ This doc's INVENTORY contradicts the perspective LIST implied by
-  UX_Glossary_Host_Mode_Subsystem.md and UX_Feature_Perspective_Restore.md — see §1's ⚠ row; those docs
-  name four editor perspectives and there are six.
+known-conflict: none. §1b is the user-confirmed target model. ⚠ An earlier revision of this file claimed
+  six editor perspectives (adding Authoring/Analysis); that was WRONG and is corrected in §1 — those two
+  are never registered in production, so the glossary's four was right all along.
 -->
 # DESIGN — perspective unification: make the editor's and the cluster's perspective names the same
 
@@ -32,7 +32,7 @@ grep -rn "CreateRegistrar(" --include=*.cs Hrot/ | grep -v Tests     # the asset
 | ⭐⭐⭐ **`GetPerspectives()` DERIVES the list** | distinct `OwningPerspective` over registered `PerspectiveBound` windows ⇒ ⛔ **no registry to extend, and an EMPTY perspective is not representable** |
 | **visibility rule** | `Global \|\| isPinned \|\| OwningPerspective == currentPerspective` *(`ManagedWindow.cs:160-162`)* — plain string equality |
 | ⚠⚠ **perspective literals in PRODUCTION** | `Editor` **8** · `ExCon` **7** · `IG` **5** · `SimHost` **2** · **`Authoring` 2** · **`Analysis` 2** · `Blueprint` **1** · `CGF` **4** *(multi-line registrations)* |
-| ⚠⚠ **⇒ there are SIX editor-side perspectives, not four** | 🔴 **`Authoring`** *(`anim_backend_inspector` · `utility_decision_editor`)* and **`Analysis`** *(`ai_comparison_summary` · `ai_comparison_sidebar`)* are **undocumented, have no `perspectiveMap` entry**, and `GetPerspectives()` returns them. ⛔ Any rename inventory or per-perspective golden that assumes four is already wrong |
+| ⛔⛔ **CORRECTED `2026-08-23` — `Authoring` and `Analysis` are NOT live perspectives** | ⚠⚠ **An earlier revision of this row claimed *"there are SIX editor-side perspectives, not four"* and that `GetPerspectives()` returns them. 🔴 THAT WAS WRONG.** 📐 Re-measured: **none of the four windows claiming them** *(`FakeAnimBackendInspectorWindow` · `UtilityDecisionWindow` · `ComparisonSummaryPanel` · `ComparisonSidebar`)* **has a production registration site** — the only hits are their own internal view-model construction. ⭐ `GetPerspectives()` derives from **REGISTERED** windows ⇒ ✅ **these two names never appear at runtime.** 📌 **The error's shape is the one this repo keeps paying for:** I read **constructor literals** as a claim about **runtime**. ⇒ user ruling `2026-08-23`: *"never ever used, it is safe to delete them"* — ⭐ and deletion needs **no re-homing**, because no perspective disappears from any live list |
 | ⭐⭐ **the asset perspectives are created by a PARAMETERISED registrar** | `PerspectiveWorkspaceServices.CreateRegistrar(perspectiveName, …)`, called **three times** — `EditorSubsystem.cs:2688` *(BTree)*, `:2696` *(HSM)*, `:2748` *(Blueprint)*. ⭐ Its doc: *"binding each to … the correct `OwningPerspective` so each perspective remembers its own dock layout independently"* |
 | **CGF's windows** | 4, all perspective `"CGF"` — `cgf_fdp_inspector` · `cgf_fdp_events` · `cgf_architecture_diagnostics` · `cgf_system_profiler`. ⚠ **All DIAGNOSTICS, none an asset editor** |
 | ⛔ **CGF does NOT reference `Hrot.Editor.AiShared`** | it *does* reference `Hrot.Blueprints.Editor` ⇒ the blueprint asset editor is already reachable; the shared side-panels are not |
@@ -40,6 +40,34 @@ grep -rn "CreateRegistrar(" --include=*.cs Hrot/ | grep -v Tests     # the asset
 | **gizmo follow** | `PerspectiveCoordinatorSystem` keeps `gizmoControllables` **keyed by perspective**, and on each switch does `RemoveListener(outgoing)` then `AddListener(incoming)` |
 | **persisted layout** | `layout/default/fdp_windows.json` names a perspective in **exactly one field** — `ActivePerspective` *(currently `"Blueprint"`)*; per-window entries are `IsOpen`/`IsPinned` only. `layout/default/imgui.ini` names **none** |
 | ⭐ **rename size** | **8** window registrations use `"Editor"`; **33** non-test and **44** test occurrences of the literal `"Editor"` overall *(⚠ not all are the perspective — needs per-site judgement, not sed)* |
+
+## 1b. ⭐⭐⭐ THE TARGET MODEL — **subsystem → perspectives** *(user-confirmed `2026-08-23`, measured against code)*
+
+⭐⭐ **The rule: a subsystem provides ONE OR MORE perspectives. It used to be one-of-the-same-name, and the
+editor already broke that pattern** *(it provides four today)*. ⇒ **CGF adopting four is following the
+editor's precedent, not inventing a mechanism.**
+
+| subsystem | perspectives | measured |
+|---|---|---|
+| ⭐ **editor** *(standalone)* | **`Scenario` · `BTree` · `HSM` · `Blueprint`** | 📐 today `Editor` + the other three ⇒ **a SINGLE rename**; the other three already carry the right ids |
+| ⭐⭐ **cgf** | **the same four** — `Scenario · BTree · HSM · Blueprint` | ⛔ today one `CGF`; the four appear **as each ported window lands** *(§2)*. ⭐ Recommend keeping `CGF` for its four existing DIAGNOSTICS windows |
+| **simhost** | `SimHost` | 📐 2 windows |
+| **ig** | `IG` | 📐 5 windows |
+| **excon** | `ExCon` | 📐 7 windows |
+| **replaybrowser** *(standalone)* | `ReplayBrowser` | 📐 confirmed — `string perspective = "ReplayBrowser"`, e.g. `rb_federation` |
+| ⚠ **stridemock** | **`StrideMock`** | 📐 `perspectiveMap["StrideMock"]`, and `stridemock` is a valid `--mode` token. ⚠ **Not in the user's list — flagged, not assumed away** |
+| ⭐ **orchestrator** | ⛔ **NONE** ✅ | 📐 **and the mechanism is explicit**: both its windows are `WindowScope.Global` with `OwningPerspective = string.Empty` ⇒ always visible, and `GetPerspectives()` *(which filters to `PerspectiveBound`)* never sees them |
+
+### ⭐⭐ A consequence worth designing FOR, not around
+
+⛔ **`editor` and `cgf` can never share a process** *(the runner throws if you combine them)*. ⇒ ⭐⭐⭐ **CGF's
+asset windows may reuse the EDITOR'S WINDOW IDS verbatim**, because the two never co-exist. ⇒ two payoffs:
+**① one layout file serves both hosts**, and **② the conformance diff can compare ADDRESS-for-address
+(`PanelId`), not merely kind-for-kind** — 📌 which is strictly stronger than the `PanelKind` grouping the
+withdrawn Batch A was designed around.
+⚠ **The one constraint to respect:** `perspectiveMap` maps a perspective to **exactly one** subsystem, so two
+**co-running** subsystems must never claim the same perspective name. 📐 Not a problem for any legal mode
+combination today.
 
 ## 2. ⭐⭐ THE MECHANISM — how a perspective comes to exist
 
@@ -213,4 +241,4 @@ sequenceDiagram
 | **51b-B** | CGF **adds** asset perspectives and **keeps** `CGF` for diagnostics? | ⭐⭐ **yes** — its four windows are not asset-scoped, nothing has to move, and each new perspective appears with its first window |
 | **51b-C** | Part B touches `Hrot.Editor.AiShared` — the **frozen** area *(`R-128`)*. Whose lane? | ⚠ **the UI/variable lane's**, or the freeze is narrowed for this. ⛔ **Do not have two sessions build it** — that is the exact thing the freeze exists to prevent |
 | **51b-D** | Does Part A wait for the lanes to be idle? | ⭐ **no** — 8 registration sites plus tests is small and touches nothing either lane is in. ⚠ **Part B does** |
-| **51b-E** | The undocumented **`Authoring`** / **`Analysis`** perspectives | ⭐ **leave them, document them, and fix any test that assumes four.** ⛔ Not part of this design — but ⚠ **they will show up in `GET /perspectives` and in per-perspective goldens**, so they must stop being a surprise |
+| **51b-E** | **`Authoring`** / **`Analysis`** — ⭐ user ruled `2026-08-23`: never used, safe to delete | ⭐⭐ **delete.** 📐 Neither is a live perspective *(§1's corrected row)*, so nothing has to be re-homed and no list changes. ⚠ **But the four WINDOWS are then dead code, and `docs/` carries no design record for either feature** — ⭐ so delete the two `Authoring` windows outright, and ⛔ **confirm the two COMPARISON panels before deleting them**: asset comparison reads like a designed-but-unwired capability, which is the one case where deletion removes a feature rather than a mistake |
