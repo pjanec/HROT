@@ -70,6 +70,7 @@ namespace Fdp.Toolkit.Orchestration
             _nodeId        = nodeId;
             _subsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
             _eventBus      = eventBus;
+            EnsureOrchestrationEventsRegistered(eventBus);
         }
 
         // ── Test-only constructor ─────────────────────────────────────────────
@@ -83,6 +84,37 @@ namespace Fdp.Toolkit.Orchestration
             _nodeId        = nodeId;
             _subsystemName = subsystemName;
             _eventBus      = eventBus;
+            EnsureOrchestrationEventsRegistered(eventBus);
+        }
+
+        /// <summary>
+        /// ⭐ Registers the orchestration event vocabulary on the bus this slave was handed, so a
+        /// <see cref="ClusterSlave"/> can always publish what it publishes.
+        ///
+        /// <para>
+        /// 🔴 <b>Why it lives here and not in each subsystem's bootstrap.</b> Under <c>--mode all</c>
+        /// every subsystem gets its OWN isolated <see cref="FdpEventBus"/>, so
+        /// <c>OrchestrationEventRegistry.RegisterAll</c> called during one subsystem's bootstrap does
+        /// nothing for another's. It was called by <c>CgfApplication</c>, <c>EditorSubsystem</c> and
+        /// <c>HrotNodeBuilder</c> — and NOT by IG. The first <c>Tick()</c> therefore published
+        /// <c>NodeHeartbeatEvent</c> on an unregistered stream and strict mode killed the whole
+        /// process on frame one:
+        /// <c>"Strict Mode Violation: Managed event type 'NodeHeartbeatEvent' was published without
+        /// being explicitly registered."</c>
+        /// </para>
+        ///
+        /// <para>
+        /// ⭐ Registering from the constructor makes the guarantee follow the publisher instead of
+        /// relying on every present and future host to remember. The existing bootstrap calls stay
+        /// correct and harmless — registration is <c>GetOrCreate</c>, so it is idempotent.
+        /// </para>
+        ///
+        /// <para>⚠ A null bus means "no I/O" (test/offline shape) and needs nothing registered.</para>
+        /// </summary>
+        private static void EnsureOrchestrationEventsRegistered(FdpEventBus? eventBus)
+        {
+            if (eventBus is null) return;
+            OrchestrationEventRegistry.RegisterAll(eventBus);
         }
 
         // ── Handler registration ──────────────────────────────────────────────
