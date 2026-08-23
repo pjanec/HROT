@@ -1,6 +1,7 @@
 <!--STATUS
-state: LIVE
-build-state: DISPATCH
+state: CLOSED
+build-state: PARTIALLY BUILT — N0's doc debt + N1 delivered, then the session was STOPPED by the user
+superseded-by: HANDOFF_Regression_Net_Part_C.md   (N2–N6 re-dispatched as a FRESH batch)
 updated: 2026-08-23
 current-answer: dispatch pointer for the REST of the regression net — N1..N6 of DESIGN_Regression_Net.md,
   which the first run did not reach, plus the doc debt N0 left behind (§0b). ⛔ Carries no design: every
@@ -8,7 +9,14 @@ current-answer: dispatch pointer for the REST of the regression net — N1..N6 o
 known-conflict: none. The parallel runner batch has CLOSED (ST-019/020/021 merged); Hrot.SystemTests is
   now yours alone. ⚠ But read §3 — it landed XvfbDisplay.cs and ModeStartupRails.cs in your project.
 -->
-# HANDOFF — **the regression net, part B** *(`N1`–`N6`)*
+# ⛔ CLOSED — **the regression net, part B** *(`N1`–`N6`)*
+
+> ⛔⛔ **CLOSED `2026-08-23`, part-delivered.** ✅ **Item zero + `N1` shipped** *(`HN-007`, `HN-008`,
+> `HN-009`, `HN-010`, `HN-011`, `MX-012`)*; the user then **paused and stopped** the session.
+> ⇒ ⭐ **`N2`–`N6` are re-dispatched as a FRESH batch, not a resumption** — 📄
+> **[`HANDOFF_Regression_Net_Part_C.md`](HANDOFF_Regression_Net_Part_C.md)**, with `N1`'s measurements as
+> the new baseline. ⛔ **Do not resume this file: its scope sha and its `N1` row are both out of date**
+> *(`N1` refuted charter `D6` — 📄 `DESIGN_Deterministic_Network_Ids.md` §0b)*.
 
 > 📌 **Dispatched at `7677478f4`.** ⛔ **Scope FROZEN at that sha.** ⭐ Re-sync from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: started-marker BEFORE any code.**

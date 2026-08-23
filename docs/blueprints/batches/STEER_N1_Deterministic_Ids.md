@@ -1,13 +1,29 @@
 <!--STATUS
-state: LIVE
-build-state: STEER
+state: WITHDRAWN
+build-state: STEER — ⛔ NEVER RELAYED, AND OBSOLETE BEFORE IT COULD BE
+superseded-by: ../../DESIGN_Deterministic_Network_Ids.md §0b
 updated: 2026-08-23
 current-answer: the whole file — a rule-1c steer for N1 ONLY, issued while part B is running. N1 gains
   an owning design it did not have; ⛔ every other item is UNCHANGED.
 known-conflict: none. ⛔ This is NOT an amendment to HANDOFF_Regression_Net_Part_B.md — that file is
   untouched (rule 1). The steer is additive: N1 now has a design to build against.
 -->
-# STEER — **`N1` has a design now** *(rule 1c, additive)*
+# ⛔ WITHDRAWN STEER — **`N1` has a design now** *(rule 1c, additive)*
+
+> ⛔⛔⛔ **WITHDRAWN `2026-08-23`, UNRELAYED AND UNNEEDED.** 📐 The implementation session finished `N1`
+> **before this could reach it** and **measured the premise false**: ⭐⭐⭐ **the ids already repeat across a
+> reload, so no allocator reset is needed at all.** ⇒ ⛔ **§2's hazard ① — the thing I wrote this file to
+> warn about — never applied**, because nothing was ever going to call `Reset`.
+>
+> ⭐⭐ **And the deeper point, recorded rather than buried:** 🔴 **a steer that arrives after the work is
+> not a steer, it is a guess.** 📌 Both facts were available to me *(the started-marker said they were
+> running; `N1`'s own text bundled two claims one of which could not test the other)* — ⭐ **the cheaper
+> move was to ASK what they had measured, not to write 80 lines of hazard analysis for a mechanism that
+> turned out not to be in the path.**
+>
+> 📄 **The surviving value is in [`DESIGN_Deterministic_Network_Ids.md`](../../DESIGN_Deterministic_Network_Ids.md)**
+> §0 *(the reset IS built — `mgmt-1` §5.7)*, §2 *(two intents, opposite directions)* and §3 *(the hazards,
+> for whoever ever does call it)*. ⛔ **Nothing below is an instruction. Kept for the record only.**
 
 > 📌 **Part B was dispatched at `7677478f4` and IS RUNNING** *(started-marker `fd0eb02b9`)*. ⇒ ⛔ **rule 1
 > forbids amending the handoff and rule 1a does not apply.** ⭐ This is the legal form: a separate file,

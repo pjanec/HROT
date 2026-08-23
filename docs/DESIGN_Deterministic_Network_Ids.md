@@ -1,10 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD
+build-state: NOT-NEEDED-FOR-THE-HARNESS
 updated: 2026-08-23
-current-answer: the whole file. §0 answers "where is the design" honestly: the ALLOCATOR and its RESET
-  are designed AND BUILT (docs/designs/mgmt-1/DESIGN.md §5.7); what did NOT exist until now is the
-  DETERMINISTIC reset, which charter D6 decided and N1 dispatched with no design behind it.
+current-answer: ⛔⛔ READ §0b FIRST — N1 MEASURED THE PREMISE AND IT IS FALSE. The ids already repeat
+  across a reload, so no reset is needed and §4's rules are NOT to be built. What survives is §0's
+  record (the reset IS designed and built, in mgmt-1 §5.7), §2's two-intents insight and §3's hazards —
+  which apply to whoever ever does need a reset (cluster LoadingLive), not to the harness.
+stale-below: ⛔ §4 (the five rules) and §6 (what N1 must assert) are SUPERSEDED by §0b. §5's UML
+  describes a wiring that was measured unnecessary — kept as the record of what was considered.
 design-basis: ⭐⭐⭐ docs/designs/mgmt-1/DESIGN.md §5.7 "Centralized Network Identity Authority" (the
   owning design — master-owned, 2PC-triggered, DDS-broadcast reset) · §14 "Deterministic Batch Runs" ·
   docs/designs/hexag-2/DESIGN.md §4.2.5 (DdsIdAllocatorServer lifecycle) ·
@@ -33,6 +36,40 @@ reasoned from **how it IS**. ⇒ ⛔ **`D6` reads as *"a dormant local capabilit
 truth: **a built cluster protocol with a designed owner, trigger and broadcast.** ⚠ **And `N1` was
 dispatched on that reading — twice** *(the design's own UML obligation ④ says a design with no UML is not
 dispatchable; the regression net's diagrams cover the golden harness, ⛔ **not this**)*.
+
+## 0b. ⛔⛔⛔ AS-BUILT — **`N1` MEASURED THE PREMISE AND IT IS FALSE. NOTHING HERE IS TO BE BUILT.**
+
+> 📐 **`HN-010`, `DeterminismRails.cs`, `2026-08-23`** — measured by the implementation session
+> **before** it ever saw this file *(it was pushed after their last merge)*.
+
+| 📐 measured | ⇒ |
+|---|---|
+| ⭐⭐⭐ **the ids ALREADY repeat across a reload in ONE process** | ⛔⛔ **no reset is needed. `D6`'s four caveats are not paid, and §4's five rules are NOT to be built** |
+| ⭐⭐⭐ **and `N1` as specified could never have tested a reset anyway** | 🔴 the item bundled *"wire the reset on `WorldResetEvent`"* with *"two fresh processes"* — 📐 but **two fresh processes each start their allocator at its own baseline**, so that comparison exercises allocation **ORDER**, never the **RESET.** ⭐ Their rail **split the two claims** and measured each |
+| ⭐⭐ **two fresh processes agree byte-for-byte** | 8 entities, ids **1000–1007** ⇒ allocation order is deterministic **without intervention** |
+| ⭐⭐ **36 of 41 panel dumps identical; exactly 2 kinds drift**, both wall-clock feeds | ⭐ a **control rail** pins the volatile set to exactly those two **in both directions** ⇒ `D6` caveat ① is honoured **structurally**, not by discipline |
+
+### ⛔ The error was MINE, and it is worth naming precisely
+
+⭐ **This design's hazard analysis was right and is still useful.** ⛔ **Its PREMISE was never measured.**
+📐 I measured the allocator's mechanics exhaustively — three shadowing types, pre- vs post-increment,
+`Reset()`'s default, §5.7's broadcast — and **never asked the one question that decides whether any of it
+matters**: ⭐⭐⭐ *is the allocator even in the path that assigns ids to scenario-loaded entities?*
+⇒ 📐 **It is not, for repeatability purposes** — the ids already repeat.
+
+⚠⚠ **That is the mirror of the failure this file opens by naming.** §0 says `D6` reasoned from *how the
+code IS* without reading the owning design. ⛔ **§4 then reasoned from the DESIGN without measuring
+whether the mechanism was needed.** ⭐⭐ **Both halves need checking — the design for intent, the code for
+fact** — and I did each one in the round where the other was required.
+
+### ⭐ What SURVIVES, and for whom
+
+| ⭐ keeps its value | why |
+|---|---|
+| ⭐⭐⭐ **§0's record: the reset IS designed and BUILT** *(`mgmt-1` §5.7 — master-owned, DDS-broadcast)* | ⛔ `D6`'s *"dormant local capability"* description is still **wrong**, and the next person to want a reset must not re-derive that |
+| ⭐⭐ **§2's two-intents insight** *(collision-avoidance goes FORWARD; determinism goes BACK — same method, contradictory)* | ⭐ this is the thing that would cause real damage if someone "unified" the two call sites |
+| ⭐⭐ **§3's hazards ①–③** | ⭐ they bind **whoever ever calls `Reset` in anger** — 📌 hazard ① *(`Reset()`'s default ≠ the construction value, differently on each allocator)* is a live trap in a **built** protocol |
+| ⛔ **§4, §5, §6** | **superseded.** ⭐ Kept as the record of what was considered and why it was not needed — ⛔ **not as instructions** |
 
 ## 1. INVENTORY — **the queries, and what they found**
 
