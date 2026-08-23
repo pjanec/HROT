@@ -24,11 +24,20 @@ control plane, C# client.
 [Fact] test  →  McpClient (HTTP)  →  DebugApiHost :port  →  DebugApiService (sim thread)  →  the process
 ```
 
-| fixture | boots | reaches panels of |
-|---|---|---|
-| **`EditorProcessFixture`** *(built, HN-120)* | `Hrot.ClusterRunner --mode editor` | the editor's perspectives |
-| **`ClusterRunnerFixture`** *(to build — conformance)* | the cluster runner *(CGF + SimHost + Orchestrator in ONE process)* | each submodule, **by switching perspective** |
+⭐⭐ **It is ONE binary — `Hrot.ClusterRunner` — and `--mode` selects which subsystem(s) run.** The editor is
+not a different executable; it is the cluster runner hosting the **editor** subsystem. ⇒ there is really **one
+fixture, parameterised by mode**:
 
+| `--mode` | subsystem(s) in the process | perspectives you can snapshot |
+|---|---|---|
+| **editor** *(fixture built, HN-120)* | the **editor** subsystem | the editor's perspectives |
+| **cluster** *(to reach for conformance)* | **CGF + SimHost + Orchestrator** in ONE process | each submodule, **by switching perspective** *(`PerspectiveCoordinatorSystem`)* |
+
+⭐⭐ **Consequence for the read-API:** `PanelSnapshot` is a **process-wide static singleton** — it already exists
+in every mode. What is editor-only today is the **`DebugApiHost` wiring** *(constructed in `EditorSubsystem`)*.
+⇒ the conformance prerequisite is NOT *"add the API to two more hosts"* — it is **wire the existing
+`DebugApiHost` one level up** *(the `ClusterRunner` host, mode-independent)* so `/panels`, `/perspective` etc.
+answer in **cluster** mode too. One implementation, enabled in every mode.
 ⭐ One process per test-collection; tests share it; scenarios load **sequentially** within the collection.
 
 ## 2. Writing a smoke test — the shape
@@ -104,9 +113,9 @@ flakes is worse than none.
 | ⭐ **conformance** | host X and host Y show the SAME thing | ⛔ **none** — the reference IS the other host's live dump |
 
 ```
-editor:         load S → switch to the perspective with panel K → step → dump K
-cluster runner: load S → switch to the CGF perspective with panel K → step → dump K
-assert:         dump_editor[K]  ==  dump_cgf[K]     // diff by PanelKind
+proc A (--mode editor):  load S → switch to the perspective with panel K → step → dump K
+proc B (--mode cluster): load S → switch to the CGF perspective with panel K → step → dump K
+assert:                  dump_A[K]  ==  dump_B[K]     // same binary, two modes; diff by PanelKind
 ```
 
 ⭐ **No golden to maintain for conformance** — both hosts change together when a feature changes; if they DON'T,
