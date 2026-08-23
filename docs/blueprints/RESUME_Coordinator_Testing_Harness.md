@@ -10,7 +10,12 @@ supersedes-for-status: RESUME_START_HERE.md (older top block, ends 2026-08-18) �
 
 # ⭐⭐⭐ RESUME — Coordinator, the TESTING-HARNESS / OBSERVABILITY / MCP programme
 
-> ## ⭐⭐⭐ FIRST ACTION — `RELEARN` before you touch anything
+> ## ⭐⭐⭐ READ THE PROGRAMME CHARTER FIRST — [`PROGRAMME_Unification_And_Harness.md`](../PROGRAMME_Unification_And_Harness.md)
+> ⭐⭐ **It says WHAT we are doing and in WHICH ORDER, in the user's own framing** *(`2026-08-23`)*, and it
+> carries the decisions `D1`–`D5`. ⛔ **This file is the coordinator's operating detail; the charter is the
+> goal.** ⚠ Where they disagree, **the charter wins** — and §3 of it supersedes §3 below.
+>
+> ## ⭐⭐⭐ THEN — `RELEARN` before you touch anything
 > ⛔ **Ground yourself in the design canon before acting.** In order:
 > 1. Read [`RULINGS.md`](RULINGS.md) **in full** *(it is short — lean on purpose)*.
 > 2. Read [`.claude/CLAUDE.md`](../../.claude/CLAUDE.md) — the two-session protocol + process rules.
@@ -95,7 +100,16 @@ the ACTIVE perspective draws *(measured ~11 of 47 captured at once)*. Protocol: 
 
 ---
 
-## 3. ⭐⭐⭐ BATCH A IS DISPATCHED; BATCH B IS TEED UP
+## 3. ⛔ SUPERSEDED BY THE CHARTER'S ORDER — Batch A was WITHDRAWN
+
+> ⛔⛔ **Batch A was WITHDRAWN before the lane started it** *(`2026-08-23`)* — its premise *(the two modes'
+> perspectives are permanently disjoint)* was wrong, and its ordering put cross-host conformance before the
+> editor-mode regression net. ⭐ **The running order is now the charter's §3: Stride → perspective naming +
+> absent-capability tolerance → harness → baseline/goldens → decide what to port.**
+> 📄 The withdrawn dispatch, with its ten still-valid measured findings:
+> [`HANDOFF_Batch_A_Conformance_Prerequisites.md`](batches/HANDOFF_Batch_A_Conformance_Prerequisites.md).
+
+### ⛔ HISTORY — the pre-charter framing
 
 ⭐ **User chose A first (`2026-08-23`).** 📄 **Dispatched at `80a98f627`:**
 [`HANDOFF_Batch_A_Conformance_Prerequisites.md`](batches/HANDOFF_Batch_A_Conformance_Prerequisites.md)
