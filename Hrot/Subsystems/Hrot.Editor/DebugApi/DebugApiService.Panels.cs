@@ -62,12 +62,19 @@ namespace Hrot.Editor.DebugApi
                 ["registered"]     = registered,
                 ["captured"]       = captured,
                 ["kinds"]          = kinds,
-                // ⚠ Stated, not hidden: the snapshot has no frame boundary. Entries are latest-wins and
-                // persist until overwritten, so a panel whose window was CLOSED still reports its last
-                // model. See MX-006 — clearing per frame needs a captured-only clear the contract does
-                // not yet expose, and PanelSnapshot.Clear() would also drop the declarations.
-                ["staleness"]      = "captured entries are latest-wins and are not cleared per frame; a "
-                                   + "panel that stopped drawing still reports its last model",
+                // ⭐⭐⭐ CORRECTED 2026-08-23 — THIS FIELD WAS TELLING CALLERS THE OPPOSITE OF THE TRUTH.
+                //   ⛔ It said "not cleared per frame", describing the state BEFORE MX-006 landed. 📐
+                //      MX-006 built exactly the captured-only clear this text calls unavailable, and
+                //      EditorSubsystem.Update calls PanelSnapshot.ClearCaptured() every frame.
+                //   ⚠⚠ An API that describes its own semantics wrongly is worse than one that says
+                //      nothing: a caller reasons "a stale entry may be a closed window" and writes an
+                //      ignore-list for a staleness that cannot occur.
+                //   ⭐ The real contract, and the one thing a caller must know: the captured set is a
+                //      SINGLE FRAME, and the reader sees the PREVIOUS complete frame (the job queue
+                //      drains before the clear — see EditorSubsystem.Update).
+                ["staleness"]      = "captured is a single frame: it is cleared at the top of every frame "
+                                   + "and refilled as panels draw. An out-of-band reader sees the previous "
+                                   + "COMPLETE frame, so act, step a tick, then read.",
             };
         }
 

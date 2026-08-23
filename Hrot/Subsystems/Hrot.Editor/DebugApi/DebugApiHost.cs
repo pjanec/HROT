@@ -693,6 +693,29 @@ namespace Hrot.Editor.DebugApi
                 });
             }));
 
+            // ── N0 — the perspective, read and switched ───────────────────────────────────────
+            //
+            // ⭐⭐⭐ This is what makes three of the four editor perspectives reachable at all: a panel
+            //    publishes only when its draw runs, and only the ACTIVE perspective draws.
+            // ⚠ ROUTE ORDER: "/perspectives" (GET, plural) and "/perspective" (POST, singular) are
+            //    different templates with different verbs, so neither can shadow the other.
+            _routes.Add(new("GET", "/perspectives", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.GetPerspectives();
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+
+            _routes.Add(new("POST", "/perspective", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.SwitchPerspective(ctx.Body);
+                // ⭐ 503 means "not wired" and 400 means "you asked for a perspective that does not
+                //   exist" — ⛔ collapsing them would make a composition-root defect look like a bad
+                //   request, which is the reading error that costs an afternoon.
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No perspective access", StringComparison.Ordinal) ? 503 : 400,
+                            error, hintCategory);
+            })));
+
             // Group M — Focus + Annotations (ADA-BATCH-14)
             _routes.Add(new("POST", "/entities/{networkId}/focus", async ctx =>
             {

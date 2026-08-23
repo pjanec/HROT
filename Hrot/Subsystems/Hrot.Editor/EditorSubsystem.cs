@@ -2028,11 +2028,32 @@ namespace Hrot.Editor
             //      declared once at each panel's CONSTRUCTION ⇒ calling it per frame would empty
             //      RegisteredPanels permanently after frame one, collapsing the two sets the opt-in
             //      registry exists to keep apart.
-            Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
+            //   ⛔⛔⛔ AND THE DRAIN MUST COME FIRST — measured 2026-08-23, see the block below.
+            //      The comment above says a reader "between frames always sees a COMPLETE frame". 🔴 That
+            //      was TRUE of the intent and FALSE of the only reader it names: the HTTP reader does not
+            //      run between frames, it runs INSIDE this one, on the very next line.
 
-            // Pump AI-debug API (MCP) jobs onto the main thread once per frame, before anything else,
-            // so a queued API call sees a consistent world for this frame. No-op when the host is off.
+            // ⭐⭐⭐ Pump AI-debug API (MCP) jobs onto the main thread once per frame.
+            //
+            // 🔴🔴 MOVED ABOVE ClearCaptured() — 2026-08-23, HN-xxx. It used to sit one line BELOW it, so
+            //    EVERY `GET /panels` served through this queue ran exactly one statement after the
+            //    captured set was emptied and BEFORE anything refilled it (the gizmo feed publishes later
+            //    in this method; every panel publishes in DrawUI(), later still).
+            // ⇒ ⛔⛔ `captured` was STRUCTURALLY ALWAYS EMPTY for every out-of-band reader, and
+            //    `GET /panels/{id}` therefore answered null for every panel that exists. 📌 Measured, not
+            //    reasoned: PanelSnapshotTests.A_panels_model_can_be_read_and_a_field_asserted failed on
+            //    `Assert.NotEmpty(captured)` — and it failed identically before the perspective rename, so
+            //    it is older than that batch.
+            // ⭐⭐ Draining FIRST does not weaken the "consistent world" guarantee the old comment claimed:
+            //    nothing else has run yet either way. It only changes WHICH frame's capture the reader
+            //    sees — the previous, COMPLETE one instead of this one's empty prefix. ⭐ That is exactly
+            //    what DESIGN_Regression_Net.md §6's capture protocol already assumes: act, step a tick,
+            //    then read.
+            // ⚠ The cost, stated: a reader sees a capture one frame old. ⛔ The alternative — reading a
+            //    half-built frame — is worse, and reading an EMPTY one is what we had.
             _debugApiJobQueue?.DrainAll();
+
+            Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
 
             // Process input pipeline BEFORE kernel update so authored tools
             // (CreationTool, ObstaclePlacementTool, etc.) receive mouse events this frame.
@@ -2469,6 +2490,19 @@ namespace Hrot.Editor
             // Wire the perspective switcher to the window manager so manual toolbar
             // switches can activate the most-recently-opened doc of that kind.
             _perspectiveSwitcher = new WindowManagerPerspectiveSwitcher(windowManager);
+
+            // ⭐⭐⭐ N0 — HAND IT TO THE DEBUG API, ON THE NEXT LINE, DELIBERATELY.
+            //   📄 DESIGN_Regression_Net.md §7 N0.
+            // ⛔⛔ This is the 2026-08-16 silent-default rule made structural: DebugApiService is built in
+            //    Initialize, where the window manager does not exist yet, so the dependency HAS to arrive
+            //    late — and "arrives late" is exactly how HsmValidator, BlackboardAuthoringWindow and
+            //    ParameterSync each ended up holding an inert default. ⭐ The checkable rule is "a
+            //    production caller that HAS a dependency must PASS it", so the pass sits on the line
+            //    after the construction where a reader cannot miss it, ⛔ not in a later wiring block.
+            // ⚠ Null when the debug API is off (no HROT_DEBUG_API_PORT) — that is the correct no-op, and
+            //   it is why the rail asserts through a service that EXISTS rather than asserting non-null
+            //   unconditionally.
+            _debugApiService?.AttachPerspectives(_perspectiveSwitcher);
 
             // Build shared services needed by registrars.
             var catalog = _aiCatalogBuilder?.Catalog ?? new AssetCatalog();

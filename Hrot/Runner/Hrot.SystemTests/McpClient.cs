@@ -357,6 +357,32 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> GetGizmoFrameAsync(int? max = null, CancellationToken ct = default)
         => GetAsync("/panels/_gizmo" + (max is null ? "" : $"?max={max}"), ct);
 
+    // ── N0 — the perspective: the reach the whole net depends on ───────────────
+    //
+    // ⭐⭐⭐ Only the ACTIVE perspective draws, and a panel publishes only when it draws ⇒ without these
+    //    two calls the harness can see one perspective's panels and no others.
+
+    public Task<ApiResult> ListPerspectivesAsync(CancellationToken ct = default)
+        => GetAsync("/perspectives", ct);
+
+    public Task<ApiResult> SwitchPerspectiveAsync(string name, CancellationToken ct = default)
+        => PostAsync("/perspective", new JsonObject { ["name"] = name }, ct);
+
+    /// <summary>
+    /// ⭐⭐ Switch, then STEP so the new perspective's panels actually draw and publish.
+    /// <para>⛔ The step is not politeness — the switch takes effect on the next frame, so a switch
+    /// followed immediately by <c>GET /panels</c> reads the OLD perspective's capture and would silently
+    /// bless it as the new one's golden. 📄 <c>DESIGN_Regression_Net.md</c> §6.</para>
+    /// </summary>
+    public async Task<ApiResult> SwitchPerspectiveAndSettleAsync(
+        string name, int ticks = 2, CancellationToken ct = default)
+    {
+        var switched = await SwitchPerspectiveAsync(name, ct).ConfigureAwait(false);
+        if (!switched.Ok) return switched;
+        await StepAsync(ticks, ct).ConfigureAwait(false);
+        return switched;
+    }
+
     // ── Group M — focus / annotations ──────────────────────────────────────────
 
     public Task<ApiResult> FocusEntityAsync(long networkId, CancellationToken ct = default)
