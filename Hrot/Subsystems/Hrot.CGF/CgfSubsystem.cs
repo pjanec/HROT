@@ -714,16 +714,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             ? new MapPickServiceBridge(cgfCanvasAdapter, _context!.World)
             : null;
 
+        // ⭐⭐ A9 — this argument is the PERSPECTIVE (see the helper's own doc), so it moves with the
+        //    rename; the spawned watch windows' id prefix moves cgf_watch_* → scenario_watch_* and that
+        //    is harmless (those ids embed a fresh Guid). ⭐ Sharing ids with the editor is SAFE and
+        //    intended: §1b — editor and cgf can never run in one process.
         FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
             _fdpEntityInspector,
             windowManager,
-            "CGF",
+            "Scenario",
             () => _fdpRepoAdapter,
             cgfPickBridge,
             TitleBarColor);
 
         windowManager.RegisterWindow(new FdpEntityInspectorWindow(
-            "cgf_fdp_inspector", "CGF Entity Inspector", "CGF",
+            "cgf_fdp_inspector", "CGF Entity Inspector", "Scenario",
             _fdpEntityInspector,
             () => _fdpRepoAdapter,
             () => _fdpInspectorState,
@@ -757,19 +761,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         };
 
         windowManager.RegisterWindow(new FdpEventBrowserWindow(
-            "cgf_fdp_events", "CGF Event Browser", "CGF",
+            "cgf_fdp_events", "CGF Event Browser", "Scenario",
             _fdpEventBrowser,
             TitleBarColor));
 
         windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
-            "cgf_architecture_diagnostics", "CGF Architecture Diagnostics", "CGF",
+            "cgf_architecture_diagnostics", "CGF Architecture Diagnostics", "Scenario",
             new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
                 new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _context?.Kernel)),
             TitleBarColor));
 
         // BP-327 — global window: the module/system execution-stats profiler.
         windowManager.RegisterWindow(new SystemProfilerWindow(
-            "cgf_system_profiler", "CGF System Profiler", "CGF",
+            "cgf_system_profiler", "CGF System Profiler", "Scenario",
             () => _context?.Kernel?.GetExecutionStats(),
             TitleBarColor));
 
@@ -784,7 +788,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 id:             "cgf_time_controls",
                 sortOrder:      100,
                 renderDelegate: timeSection.Render,
-                perspective:    "CGF");
+                perspective:    "Scenario");
         }
 
         // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).

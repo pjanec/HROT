@@ -64,7 +64,7 @@ public sealed class HsmEventsWindowBuildsItsModelTests
         {
             new("OnDamage", 1) { PayloadSize = 8, IsIndirect = true, HasGlobalTransition = false },
         };
-        var window = new HsmEventsWindow(MakeAsset(events), new StubRefactor(), new FindResultsWindow());
+        var window = new HsmEventsWindow(MakeAsset(events), new StubRefactor(), new FindResultsWindow("HSM"));
 
         var vm = window.BuildViewModel();
 

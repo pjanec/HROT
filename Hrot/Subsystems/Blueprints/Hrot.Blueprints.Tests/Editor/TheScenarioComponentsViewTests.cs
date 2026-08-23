@@ -72,7 +72,7 @@ public sealed class TheScenarioComponentsViewTests
 
     private static DetailsContext Context(params Entity[] entities)
         => DetailsContextBuilder.Build(
-            new EditorSelectionStore(), "Editor", VariableRunState.Planning, new Selected(entities));
+            new EditorSelectionStore(), "Scenario", VariableRunState.Planning, new Selected(entities));
 
     /// <summary>⭐ The smallest session that answers what the view asks: <c>IsAlive</c>.
     /// ⛔ Everything else throws — a rail that let the view wander further would stop being about

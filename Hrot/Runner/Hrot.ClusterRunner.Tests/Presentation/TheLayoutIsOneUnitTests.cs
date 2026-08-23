@@ -34,22 +34,30 @@ public sealed class TheLayoutIsOneUnitTests
     /// <b>document-driven — never restored</b>, because no document survives a restart and restoring one
     /// lands the user in an empty graph workspace.</para>
     ///
-    /// <para>📐 <b>MEASURED: it falls back, and the OUTCOME is right.</b> ⛔ <b>But the MECHANISM is not
-    /// the ruling</b> — <c>LocalWindowController</c> validates the persisted name against
-    /// <c>ISubsystem.Name</c>, ⛔ not against <c>WindowManager.GetPerspectives()</c> and ⛔ not against
-    /// any notion of "durable". ⇒ ⭐ <c>"Blueprint"</c> is rejected because no SUBSYSTEM is called
-    /// Blueprint, ⚠ which would reject a durable perspective just as readily.</para>
+    /// <para>⭐⭐⭐ <b>REWRITTEN by <c>A0</c>, <c>2026-08-23</c> — it now rails the MECHANISM, not just
+    /// the outcome.</b> ⚠⚠ The previous version said so itself: <i>"the MECHANISM is not the ruling —
+    /// <c>LocalWindowController</c> validates the persisted name against <c>ISubsystem.Name</c> … which
+    /// would reject a durable perspective just as readily"</i>, and it asserted the fallback was
+    /// <c>"Editor"</c>, a SUBSYSTEM name. ⇒ 📐 It passed for the wrong reason, and it could not have
+    /// caught the blank <c>--mode all</c> first launch.</para>
     ///
-    /// <para>⭐ This rail pins the OUTCOME the ruling wants, so the shipped default cannot start landing
-    /// people in an empty graph workspace. ⛔ It does NOT bless the mechanism — 📌 the same design
-    /// already files that as its own defect *("the default perspective can be a non-perspective")*.</para>
+    /// <para>⭐⭐ <b>The fakes now REGISTER WINDOWS</b>, so <c>GetPerspectives()</c> is populated and the
+    /// real rule runs: the shipped <c>"Blueprint"</c> is claimed but document-driven ⇒ rejected, and the
+    /// answer is the durable perspective — ⛔ NOT the subsystem's name, which is deliberately different
+    /// here *(<c>"Editor"</c> owns the <c>"Scenario"</c> perspective, exactly as production does after
+    /// <c>A1</c>)*.</para>
     /// </summary>
     [Fact]
     public void AColdStartDoesNotRestoreADocumentDrivenPerspective()
     {
         var shell = new GZH012_Tests.FakePresentationShell();
-        var subsystems = new ISubsystem[] { new NamedSubsystem("PerspectiveCoordinator"),
-                                           new NamedSubsystem("Editor") };
+        // ⭐ The editor subsystem is named "Editor" and owns the "Scenario" perspective plus the three
+        //   document-driven ones — the production shape after A1.
+        var subsystems = new ISubsystem[]
+        {
+            new NamedSubsystem("PerspectiveCoordinator"),
+            new NamedSubsystem("Editor", "Scenario", "BTree", "HSM", "Blueprint"),
+        };
 
         var ctrl = new LocalWindowController(
             shell, subsystems, new RunnerOptions { ResetLayoutOnRun = false }, null);
@@ -65,9 +73,85 @@ public sealed class TheLayoutIsOneUnitTests
           + "restart, so this is an empty graph workspace — UX_Feature_Perspective_Restore.md rules "
           + "these must never be restored.");
 
-        // ⭐ And it landed on the first real subsystem, which is the documented fallback.
-        Assert.Equal("Editor", actual);
+        // ⭐⭐ And it landed on the DURABLE PERSPECTIVE — ⛔ not on the subsystem's name.
+        Assert.Equal("Scenario", actual);
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>A0</c> — THE DEFAULT IS A REAL PERSPECTIVE, WHICH IS THE 22-WINDOW BLANK FIRST
+    /// LAUNCH.</b> 📄 <c>UX_Feature_Perspective_Restore.md</c> §"First launch of <c>--mode all</c>".
+    ///
+    /// <para>📐 The composition for <c>--mode all</c> is
+    /// <c>[PerspectiveCoordinator, Orchestrator, SimHost, IG, ExCon, CGF]</c>, and the old
+    /// <c>Skip(1).First().Name</c> answered <b><c>"Orchestrator"</c></b> — whose windows are all
+    /// <see cref="WindowScope.Global"/> with an empty perspective, so it claims NOTHING. ⇒ 🔴 every
+    /// perspective-bound window failed its visibility gate and the app came up looking broken.</para>
+    ///
+    /// <para>⭐ With the claimed set as the source, the orchestrator cannot be chosen at all — and the
+    /// answer is the first REQUESTED subsystem that actually owns a durable perspective.</para>
+    /// </summary>
+    [Fact]
+    public void TheDefaultIsNeverASubsystemThatClaimsNoPerspective()
+    {
+        var shell = new GZH012_Tests.FakePresentationShell();
+        var subsystems = new ISubsystem[]
+        {
+            new NamedSubsystem("PerspectiveCoordinator"),
+            new NamedSubsystem("Orchestrator"),          // ⛔ Global windows only — claims nothing.
+            new NamedSubsystem("SimHost", "SimHost"),
+            new NamedSubsystem("IG", "IG"),
+            new NamedSubsystem("ExCon", "ExCon"),
+            new NamedSubsystem("CGF", "Scenario"),       // ⭐ A9: CGF's perspective is "Scenario".
+        };
+
+        var ctrl = new LocalWindowController(
+            shell, subsystems, new RunnerOptions { ResetLayoutOnRun = false }, null);
+
+        ctrl.OpenLocalWindow();
+        var actual = ctrl.WindowManager!.CurrentPerspective;
+
+        Assert.NotEqual("Orchestrator", actual);
+        Assert.NotEqual("Default", actual);
+        Assert.Contains(actual, ctrl.WindowManager!.GetPerspectives());
+        // ⭐ Composition order still decides between durable perspectives.
+        Assert.Equal("SimHost", actual);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>A0</c> — the pure rule, driven directly. ⛔ No shell, no files.
+    /// </summary>
+    [Theory]
+    // ⭐ a claimed, durable stored value is honoured…
+    [InlineData("Scenario", "Scenario")]
+    // ⛔ …a document-driven one is not, even though it IS claimed…
+    [InlineData("Blueprint", "SimHost")]
+    // ⛔ …nor is a subsystem name that claims no perspective (the old false positive)…
+    [InlineData("Orchestrator", "SimHost")]
+    // ⛔ …nor an orphan left behind by the rename.
+    [InlineData("Editor", "SimHost")]
+    [InlineData(null, "SimHost")]
+    public void TheStoredPerspectiveIsHonouredOnlyWhenClaimedAndDurable(string? persisted, string expected)
+    {
+        // ⭐ Alphabetical, as GetPerspectives() returns it.
+        var claimed = new[] { "BTree", "Blueprint", "HSM", "Scenario", "SimHost" };
+        var order   = new[] { "PerspectiveCoordinator", "Orchestrator", "SimHost", "CGF" };
+
+        Assert.Equal(
+            expected,
+            LocalWindowController.ResolveStartupPerspective(claimed, order, persisted));
+    }
+
+    /// <summary>
+    /// ⚠ <c>A0</c> — when only document-driven perspectives are claimed there is no honest answer, so it
+    /// returns <c>"Default"</c>, ⭐ which <c>SwitchPerspective</c> then refuses LOUDLY rather than
+    /// dropping the user into an empty graph workspace silently.
+    /// </summary>
+    [Fact]
+    public void WithOnlyDocumentDrivenPerspectivesItRefusesToGuess()
+        => Assert.Equal(
+               "Default",
+               LocalWindowController.ResolveStartupPerspective(
+                   new[] { "BTree", "Blueprint", "HSM" }, new[] { "Editor" }, "Blueprint"));
 
     // ══ the ORDER, driven rather than read ═══════════════════════════════════
 
@@ -161,9 +245,35 @@ public sealed class TheLayoutIsOneUnitTests
 
     /// <summary>⭐ A subsystem that is nothing but a NAME — which is exactly what the perspective
     /// validity check looks at, and the point of the rail above.</summary>
-    private sealed class NamedSubsystem : ISubsystem
+    /// <summary>
+    /// ⭐⭐ A subsystem that also CLAIMS PERSPECTIVES, by registering one window per name.
+    /// ⛔ Without this the fakes claimed nothing, so <c>GetPerspectives()</c> was empty and the rail
+    /// could only ever observe the subsystem-name fallback it was meant to be testing away from.
+    /// </summary>
+    private sealed class NamedSubsystem : ISubsystem, IWindowRegistrar
     {
-        public NamedSubsystem(string name) => Name = name;
+        private readonly string[] _perspectives;
+
+        public NamedSubsystem(string name, params string[] perspectives)
+        {
+            Name          = name;
+            _perspectives = perspectives;
+        }
+
+        public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager wm)
+        {
+            foreach (var p in _perspectives)
+                wm.RegisterWindow(new ClaimingWindow($"{Name.ToLowerInvariant()}_{p.ToLowerInvariant()}", p));
+        }
+
+        private sealed class ClaimingWindow : ManagedWindow
+        {
+            public ClaimingWindow(string id, string perspective)
+                : base(id, id, perspective, WindowScope.PerspectiveBound) { }
+
+            protected override void DrawClientArea() { }
+        }
+
         public string Name { get; }
         public System.Numerics.Vector4 TitleBarColor => default;
         public void Initialize(SubsystemConfig config) { }

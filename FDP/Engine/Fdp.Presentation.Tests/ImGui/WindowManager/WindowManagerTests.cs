@@ -108,9 +108,11 @@ public class WindowManagerTests : IDisposable
     public void ShowWindow_SamePerspective_DoesNotChangeIsPinned()
     {
         var wm = CreateManager();
-        wm.SwitchPerspective("IG");
+        // ⭐ A0 — register BEFORE switching: a perspective exists because a window claims it, so an
+        //   unclaimed name is now refused. 📄 DESIGN_Perspective_Unification.md §2/§3 A0.
         var win = MakePerspectiveBound("w3", "IG");
         wm.RegisterWindow(win);
+        wm.SwitchPerspective("IG");
         win.IsPinned = false;
 
         wm.ShowWindow("w3");
@@ -216,6 +218,9 @@ public class WindowManagerTests : IDisposable
     public void SwitchPerspective_UpdatesCurrentPerspective()
     {
         var wm = CreateManager();
+        // ⭐ A0 — the target has to be CLAIMED. ⛔ Switching to an unclaimed name is now a logged no-op,
+        //   because it would hide every perspective-bound window and say nothing.
+        wm.RegisterWindow(MakePerspectiveBound("w_excon", "ExCon"));
 
         wm.SwitchPerspective("ExCon");
 
@@ -228,6 +233,7 @@ public class WindowManagerTests : IDisposable
     public void SwitchPerspective_FiresOnPerspectiveChangedWithOldAndNew()
     {
         var wm = CreateManager();
+        wm.RegisterWindow(MakePerspectiveBound("w_excon", "ExCon"));   // ⭐ A0 — claimed first
         string? capturedOld = null;
         string? capturedNew = null;
         wm.OnPerspectiveChanged += (old, @new) =>

@@ -43,7 +43,7 @@ public sealed class EditorSystemProfilerWindowDumpsItsModelTests : IDisposable
             new ModuleStats { ModuleName = "EditorBehaviorModule", ExecutionCount = 5, FailureCount = 2 },
         };
         var window = new SystemProfilerWindow(
-            "editor_system_profiler_test", "Editor System Profiler", "Editor", () => stats);
+            "editor_system_profiler_test", "Editor System Profiler", "Scenario", () => stats);
 
         Assert.Contains("editor_system_profiler_test", PanelSnapshot.RegisteredPanels);
         window.SimulateDrawClientArea();
@@ -61,7 +61,7 @@ public sealed class EditorSystemProfilerWindowDumpsItsModelTests : IDisposable
     public void Window_WithCaptureOff_PublishesNothing_ButStaysRegistered()
     {
         var window = new SystemProfilerWindow(
-            "editor_system_profiler_test", "Editor System Profiler", "Editor", () => new List<ModuleStats>());
+            "editor_system_profiler_test", "Editor System Profiler", "Scenario", () => new List<ModuleStats>());
 
         Assert.Contains("editor_system_profiler_test", PanelSnapshot.RegisteredPanels);
         var vm = window.SimulateDrawClientArea();

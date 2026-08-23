@@ -35,7 +35,7 @@ public sealed class FindResultsWindowDumpsItsResultsTests : IDisposable
         const string id = "ai_find_results_rail1";
         Assert.DoesNotContain(id, PanelSnapshot.RegisteredPanels);   // ⛔ anti-vacuity
 
-        var window = new FindResultsWindow(idOverride: id);
+        var window = new FindResultsWindow("Blueprint", idOverride: id);
 
         Assert.Contains(id, PanelSnapshot.RegisteredPanels);
         Assert.DoesNotContain(id, PanelSnapshot.CapturedPanels);
@@ -48,7 +48,7 @@ public sealed class FindResultsWindowDumpsItsResultsTests : IDisposable
     {
         const string id = "ai_find_results_rail2";
         PanelSnapshot.CaptureEnabled = true;
-        var window = new FindResultsWindow(idOverride: id);
+        var window = new FindResultsWindow("Blueprint", idOverride: id);
         window.ShowReferences("Health", new[] { MakeRef("Health") });
 
         window.SimulateDrawClientArea();
@@ -70,7 +70,7 @@ public sealed class FindResultsWindowDumpsItsResultsTests : IDisposable
     {
         const string id = "ai_find_results_rail4";
         PanelSnapshot.CaptureEnabled = true;
-        var window = new FindResultsWindow(idOverride: id);
+        var window = new FindResultsWindow("Blueprint", idOverride: id);
         var preview = new RefactorPreview(
             "Old", "New",
             new[] { new RefactorFileEdit("/a.cs", Guid.NewGuid(), new[] { new RefactorLineEdit(3, "Old", "New", "ctx") }) },
@@ -92,7 +92,7 @@ public sealed class FindResultsWindowDumpsItsResultsTests : IDisposable
     public void WithCaptureOff_TheProductionPathPublishesNothing()
     {
         const string id = "ai_find_results_rail3";
-        var window = new FindResultsWindow(idOverride: id);
+        var window = new FindResultsWindow("Blueprint", idOverride: id);
         window.ShowReferences("Health", new[] { MakeRef() });   // CaptureEnabled stays false
 
         var vm = window.SimulateDrawClientArea();

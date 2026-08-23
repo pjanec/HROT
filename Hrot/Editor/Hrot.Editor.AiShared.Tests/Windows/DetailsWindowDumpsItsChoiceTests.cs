@@ -44,11 +44,11 @@ public sealed class DetailsWindowDumpsItsChoiceTests : IDisposable
         var store = new EditorSelectionStore();
         return new DetailsWindow(
             id:                id,
-            owningPerspective: "Editor",
+            owningPerspective: "Scenario",
             formatter:         new VariableValueFormatter(RawValueDecoder.Instance),
             views:             views,
             context:           new LiveContextSource(() => DetailsContextBuilder.Build(
-                                   store, "Editor", VariableRunState.Planning)));
+                                   store, "Scenario", VariableRunState.Planning)));
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class DetailsWindowDumpsItsChoiceTests : IDisposable
         Assert.Equal(2, dump["offeredViewIds"]!.AsArray().Count);
         Assert.Null(dump["emptyState"]);
         Assert.True(dump["showsViewSwitch"]!.GetValue<bool>());
-        Assert.Equal("Editor", dump["perspective"]!.GetValue<string>());
+        Assert.Equal("Scenario", dump["perspective"]!.GetValue<string>());
     }
 
     [Fact]

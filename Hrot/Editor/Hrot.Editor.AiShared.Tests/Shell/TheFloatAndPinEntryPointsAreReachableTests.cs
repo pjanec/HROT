@@ -53,11 +53,11 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
         var store = new EditorSelectionStore();
         var shell = new DetailsWindow(
             id:                "scenario_details",
-            owningPerspective: "Editor",
+            owningPerspective: "Scenario",
             formatter:         new VariableValueFormatter(RawValueDecoder.Instance),
             views:             views,
             context:           new LiveContextSource(() => DetailsContextBuilder.Build(
-                                   store, "Editor", VariableRunState.Planning)));
+                                   store, "Scenario", VariableRunState.Planning)));
         return (shell, views);
     }
 
@@ -85,11 +85,11 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
 
         // ⭐ The View-menu entry acts on the registered shell; that it opens a float proves the
         //   manager reached it, because OpenFloat registers into the manager it was handed.
-        wm.SwitchPerspective("Editor");
+        wm.SwitchPerspective("Scenario");
         Invoke(wm, "View/Details/Float current view");
 
         Assert.Contains(wm.RegisteredWindowIds,
-                        id => id == DetailsWindow.FloatIdFor("Editor", "v0"));
+                        id => id == DetailsWindow.FloatIdFor("Scenario", "v0"));
     }
 
     // ══ ② one offer is enough to float ═══════════════════════════════════════
@@ -183,7 +183,7 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
     public void ManyShells_LeaveExactlyTwoMenuEntries()
     {
         var wm = Wm();
-        foreach (var p in new[] { "Editor", "BTree", "HSM" })
+        foreach (var p in new[] { "Scenario", "BTree", "HSM" })
         {
             var views = new DetailsViewRegistry();
             views.Add(View("v0", _ => true));
@@ -209,7 +209,7 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
     public void TheMenuFloats_ThePerspectiveTheDesignerIsIn()
     {
         var wm = Wm();
-        foreach (var p in new[] { "Editor", "BTree" })
+        foreach (var p in new[] { "Scenario", "BTree" })
         {
             var views = new DetailsViewRegistry();
             views.Add(View($"only.{p}", _ => true));
@@ -226,7 +226,7 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
         Invoke(wm, "View/Details/Float current view");
 
         Assert.Contains   (wm.RegisteredWindowIds, id => id == DetailsWindow.FloatIdFor("BTree",  "only.BTree"));
-        Assert.DoesNotContain(wm.RegisteredWindowIds, id => id == DetailsWindow.FloatIdFor("Editor", "only.Editor"));
+        Assert.DoesNotContain(wm.RegisteredWindowIds, id => id == DetailsWindow.FloatIdFor("Scenario", "only.Scenario"));
     }
 
     /// <summary>
@@ -241,7 +241,7 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
     {
         var wm = Wm();
         wm.RegisterWindow(StandaloneShell(viewCount: 0).shell);
-        wm.SwitchPerspective("Editor");
+        wm.SwitchPerspective("Scenario");
 
         var node = wm.GlobalMenu.Root.Children["View"].Children["Details"].Children["Float current view"];
 

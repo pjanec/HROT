@@ -24,7 +24,7 @@ internal sealed class EditorToolbarWindow : ManagedWindow
     private readonly IEditorLogic       _logic;
 
     public EditorToolbarWindow(EditorToolbarPanel panel, IEditorLogic logic)
-        : base("editor_toolbar", "Editor Toolbar", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_toolbar", "Editor Toolbar", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _logic = logic;
@@ -56,7 +56,7 @@ internal sealed class EditorOrbatWindow : ManagedWindow
     private readonly IEditorLogic     _logic;
 
     public EditorOrbatWindow(EditorOrbatPanel panel, IEditorLogic logic)
-        : base("editor_orbat", "Editor ORBAT", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_orbat", "Editor ORBAT", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _logic = logic;
@@ -76,7 +76,7 @@ internal sealed class EditorSpawnerWindow : ManagedWindow
     private readonly ISpawnController _spawn;
 
     public EditorSpawnerWindow(SpawnerPanel panel, ISpawnController spawn)
-        : base("editor_spawner", "Entity Spawner", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_spawner", "Entity Spawner", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _spawn = spawn;
@@ -115,7 +115,7 @@ internal sealed class EditorMissionWindow : ManagedWindow
     private readonly IMapPickService       _pick;
 
     public EditorMissionWindow(MissionPanel panel, IMissionEditorService svc, IMapPickService pick)
-        : base("editor_mission", "Mission Editor", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_mission", "Mission Editor", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _svc   = svc;
@@ -150,7 +150,7 @@ internal sealed class EditorConfigWindow : ManagedWindow
     private readonly IMapConfigController _ctrl;
 
     public EditorConfigWindow(ConfigPanel panel, IMapConfigController ctrl)
-        : base("editor_config", "Map Configuration", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_config", "Map Configuration", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _ctrl  = ctrl;
@@ -185,7 +185,7 @@ internal sealed class EditorSharedOrbatWindow : ManagedWindow
     private readonly IOrbatController   _ctrl;
 
     public EditorSharedOrbatWindow(SharedOrbatPanel panel, IOrbatDataProvider data, IOrbatController ctrl)
-        : base("editor_shared_orbat", "ORBAT Tree", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_shared_orbat", "ORBAT Tree", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _data  = data;
@@ -220,7 +220,7 @@ internal sealed class EditorPreviewWindow : ManagedWindow
     private readonly IPreviewController _ctrl;
 
     public EditorPreviewWindow(PreviewPanel panel, IPreviewController ctrl)
-        : base("editor_preview", "Preview", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_preview", "Preview", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _ctrl  = ctrl;
@@ -255,7 +255,7 @@ internal sealed class EditorZoneEditorWindow : ManagedWindow
     private readonly IZoneAuthoringController _ctrl;
 
     public EditorZoneEditorWindow(ZoneEditorPanel panel, IZoneAuthoringController ctrl)
-        : base("editor_zone_editor", "Zone Editor", "Editor", WindowScope.PerspectiveBound)
+        : base("editor_zone_editor", "Zone Editor", "Scenario", WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _ctrl  = ctrl;

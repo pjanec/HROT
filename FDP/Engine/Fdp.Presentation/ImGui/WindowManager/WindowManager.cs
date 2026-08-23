@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Fdp.Core.Logging;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.Panels;
@@ -230,15 +231,47 @@ public class WindowManager
     /// <summary>
     /// Switches to <paramref name="newPerspective"/> and fires <see cref="OnPerspectiveChanged"/>.
     /// No-op (event not fired) if <paramref name="newPerspective"/> equals <see cref="CurrentPerspective"/>.
+    ///
+    /// <para>⭐⭐⭐ <b><c>A0</c> — AN UNKNOWN PERSPECTIVE IS REFUSED: logged once, then a no-op.</b>
+    /// 📄 <c>DESIGN_Perspective_Unification.md</c> §3 <c>A0</c> · <c>UX/UX_Feature_Perspective_Restore.md</c>
+    /// §3 <i>("Log and no-op instead of silently hiding every bound window")</i>.</para>
+    ///
+    /// <para>⛔⛔ <b>Why this is a prerequisite and not a nicety.</b> A perspective exists only because a
+    /// window CLAIMS it *(§2)*, so a name no window claims fails every
+    /// <see cref="ManagedWindow"/>'s visibility gate — 🔴 <b>the UI comes up BLANK, with no error and no
+    /// log line.</b> 📐 The reachable path is a stored <c>ActivePerspective</c> that a rename has orphaned,
+    /// or a hand-edited layout file.</para>
+    ///
+    /// <para>⚠ <b>The refusal is logged ONCE per name</b> — the caller may be a per-frame toolbar, and a
+    /// refusal that floods the log is a refusal nobody reads.</para>
     /// </summary>
     public void SwitchPerspective(string newPerspective)
     {
         if (newPerspective == CurrentPerspective) return;
 
+        // ⭐⭐⭐ A0 — the claimed set is the only legal set. ⛔ Do NOT relax this to "non-empty string":
+        //    the whole defect is that an unclaimed name is syntactically fine and semantically blank.
+        if (!GetPerspectives().Contains(newPerspective))
+        {
+            if (_refusedPerspectives.Add(newPerspective))
+                FdpLog<WindowManager>.Warn(
+                    "[WindowManager] Refused to switch to unknown perspective '{0}' — "
+                    + "no registered window claims it. Staying on '{1}'. Claimed: [{2}].",
+                    newPerspective,
+                    CurrentPerspective,
+                    string.Join(", ", GetPerspectives()));
+            return;
+        }
+
         var old = CurrentPerspective;
         CurrentPerspective = newPerspective;
         OnPerspectiveChanged?.Invoke(old, newPerspective);
     }
+
+    /// <summary>
+    /// ⭐ <c>A0</c> — names already refused, so the warning is logged once each rather than per frame.
+    /// </summary>
+    private readonly HashSet<string> _refusedPerspectives = new();
 
     /// <summary>
     /// Returns the distinct <see cref="ManagedWindow.OwningPerspective"/> values of all

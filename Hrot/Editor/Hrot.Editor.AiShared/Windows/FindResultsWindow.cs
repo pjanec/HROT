@@ -44,7 +44,10 @@ public sealed record FindResultsPanelViewModel(
 
 /// <summary>
 /// Shared window for find-references results and refactor preview.
-/// Registered as "ai_find_results" in the Authoring perspective.
+/// <para>⭐ Registered per perspective by <c>PerspectiveWorkspaceRegistrar</c> as
+/// <c>ai_find_results_&lt;perspective&gt;</c>, plus ONE <see cref="WindowScope.Global"/> instance for the
+/// asset browser *(<c>ai_asset_browser_find_results</c>)*. ⛔ The old <c>"Authoring"</c> default is gone —
+/// §1c/<c>A6</c>.</para>
 /// </summary>
 public sealed class FindResultsWindow : ManagedWindow
 {
@@ -55,21 +58,83 @@ public sealed class FindResultsWindow : ManagedWindow
     private IReadOnlyList<AssetReferenceInfo>? _results;
     private RefactorPreview? _renamePreview;
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>A6</c> — <paramref name="owningPerspective"/> is REQUIRED, and <c>A5</c> —
+    /// <paramref name="scope"/> is a PARAMETER.</b>
+    /// 📄 <c>DESIGN_Perspective_Unification.md</c> §1c *("the LATENT generator" · the two bugs in one
+    /// line)* · §3 <c>A5</c>/<c>A6</c>.
+    ///
+    /// <para>⛔⛔ <b>What the removed default did.</b> 📐 The signature was
+    /// <c>owningPerspective = null</c> → <c>?? "Authoring"</c>, so <b>any caller that omitted the
+    /// perspective silently INVENTED one.</b> ⭐ No production caller omitted it — ⛔ but that was luck,
+    /// not a control, and 🔴 <c>"Global"</c> is what the same shape looks like when it fires: passing a
+    /// SCOPE into the PERSPECTIVE slot produced a phantom perspective WITH A TOOLBAR ICON, and left the
+    /// window reachable only from that phantom — the opposite of its stated intent.
+    /// ⇒ ⭐⭐ <b>with the default gone, a phantom perspective is UNCONSTRUCTIBLE</b> rather than
+    /// something a reviewer has to notice. 📌 The same reasoning as <c>CLAUDE.md</c>'s silent-default
+    /// rule.</para>
+    ///
+    /// <para>⭐⭐ <b>And the scope had to become a parameter for <c>A5</c> to be possible at all</b> —
+    /// 📐 this class HARD-CODED <see cref="WindowScope.PerspectiveBound"/>, so the globally-available
+    /// asset-browser instance could not be expressed by changing an argument.</para>
+    /// </summary>
+    /// <param name="owningPerspective">
+    ///   ⛔ <b>REQUIRED.</b> The perspective that owns this instance — or
+    ///   <see cref="string.Empty"/> when <paramref name="scope"/> is <see cref="WindowScope.Global"/>
+    ///   *(the <c>OrchestratorWindow</c> pattern: always visible, and invisible to
+    ///   <c>GetPerspectives()</c>)*.
+    /// </param>
     /// <param name="idOverride">
     ///   Optional stable ImGui id override (e.g. <c>"ai_find_results_btree"</c>)
     ///   for per-perspective instances with independent dock layouts.
     /// </param>
-    /// <param name="owningPerspective">
-    ///   Perspective that owns this instance. Defaults to <c>"Authoring"</c>.
+    /// <param name="scope">
+    ///   Visibility scope. Defaults to <see cref="WindowScope.PerspectiveBound"/> — the per-perspective
+    ///   instances the registrar creates.
     /// </param>
+    /// <exception cref="ArgumentException">
+    ///   ⭐⭐ The two states that produced §1c's defect, refused at construction:
+    ///   a <see cref="WindowScope.PerspectiveBound"/> window with no perspective *(blank — it can never
+    ///   pass its own visibility gate)*, and a <see cref="WindowScope.Global"/> window that names one
+    ///   *(misleading — <c>"Global"</c> is a scope, never a place)*.
+    /// </exception>
     public FindResultsWindow(
+        string owningPerspective,
         string? idOverride = null,
-        string? owningPerspective = null)
+        WindowScope scope = WindowScope.PerspectiveBound)
         : base(idOverride ?? "ai_find_results", "Find Results",
-               owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
+               Validated(owningPerspective, scope), scope)
     {
         // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
         PanelSnapshot.DeclareInstrumented(Id);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>A5</c>/<c>A6</c> — the scope/perspective pair must agree. ⛔ A base-call argument, so the
+    /// refusal happens before a half-built window exists.
+    /// </summary>
+    private static string Validated(string owningPerspective, WindowScope scope)
+    {
+        if (owningPerspective == null)
+            throw new ArgumentNullException(nameof(owningPerspective));
+
+        bool named = owningPerspective.Length > 0;
+
+        if (scope == WindowScope.PerspectiveBound && !named)
+            throw new ArgumentException(
+                "A PerspectiveBound FindResultsWindow needs a perspective — an empty one can never pass "
+                + "its own visibility gate, so the window would be permanently invisible. "
+                + "Pass WindowScope.Global for a globally-available instance.",
+                nameof(owningPerspective));
+
+        if (scope == WindowScope.Global && named)
+            throw new ArgumentException(
+                $"A Global FindResultsWindow must have an EMPTY perspective, got '{owningPerspective}'. "
+                + "\"Global\" is a scope, not a place: a Global window is already visible everywhere, and "
+                + "naming a perspective here only misleads the next reader.",
+                nameof(owningPerspective));
+
+        return owningPerspective;
     }
 
     /// <summary>

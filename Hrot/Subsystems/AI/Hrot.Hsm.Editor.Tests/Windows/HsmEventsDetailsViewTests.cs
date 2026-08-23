@@ -86,7 +86,7 @@ public sealed class HsmEventsDetailsViewTests : IDisposable
     {
         // ⚠ Unlike a ManagedWindow (address known at construction), a hosted view only learns its
         // idScope from the caller's Draw — mirrors VariablesDetailsView's own deviation note.
-        var view = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow());
+        var view = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow("HSM"));
         Assert.NotNull(view);
     }
 
@@ -97,7 +97,7 @@ public sealed class HsmEventsDetailsViewTests : IDisposable
 
         var events = new List<EventDefinition> { new("OnDamage", 1) { PayloadSize = 8 } };
         var asset  = MakeAsset(events);
-        var view   = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow());
+        var view   = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow("HSM"));
 
         view.SimulateDraw(asset, "scope1");
 
@@ -115,7 +115,7 @@ public sealed class HsmEventsDetailsViewTests : IDisposable
             new("OnDamage", 1) { PayloadSize = 8, IsIndirect = true, HasGlobalTransition = false },
         };
         var asset = MakeAsset(events);
-        var view  = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow());
+        var view  = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow("HSM"));
 
         view.SimulateDraw(asset, "scope1");
 
@@ -134,7 +134,7 @@ public sealed class HsmEventsDetailsViewTests : IDisposable
     public void WithCaptureOff_PublishesNothing_ButStaysRegistered()
     {
         var asset = MakeAsset(new List<EventDefinition> { new("OnDamage", 1) });
-        var view  = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow());
+        var view  = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow("HSM"));
 
         var vm = view.SimulateDraw(asset, "scope1");
 
@@ -150,8 +150,8 @@ public sealed class HsmEventsDetailsViewTests : IDisposable
     {
         PanelSnapshot.CaptureEnabled = true;
         var asset = MakeAsset(new List<EventDefinition> { new("OnDamage", 1) });
-        var docked = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow());
-        var floated = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow());
+        var docked = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow("HSM"));
+        var floated = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow("HSM"));
 
         docked.SimulateDraw(asset, "ai_details_hsm");
         floated.SimulateDraw(asset, "ai_details_hsm_float_1");
@@ -188,7 +188,7 @@ public sealed class HsmEventsDetailsViewTests : IDisposable
     public void SimulateDraw_OnANewAsset_ReflectsTheNewAssetsEvents()
     {
         PanelSnapshot.CaptureEnabled = true;
-        var view = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow());
+        var view = new HsmEventsDetailsView(new StubRefactor(), new FindResultsWindow("HSM"));
 
         var asset1 = MakeAsset(new List<EventDefinition> { new("OnDamage", 1) });
         view.SimulateDraw(asset1, "scope1");

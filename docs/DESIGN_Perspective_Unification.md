@@ -1,10 +1,15 @@
 <!--STATUS
 state: LIVE
-build-state: SPLIT — §3 (Part A, the rename + the validation prerequisite) is READY-TO-BUILD and carries
-  the UML in §5. §4 (Part B, CGF grows asset perspectives) is DESIGN: it lands feature by feature with the
-  unification, and its first slice needs the freeze decision in §8.
+build-state: SPLIT — §3 (Part A) is BUILT (2026-08-23, BP-488..BP-497); its as-built notes are inline and
+  marked "AS-BUILT". §4 (Part B, CGF grows asset perspectives) is DESIGN: it lands feature by feature with
+  the unification, and its first slice needs the freeze decision in §8.
 updated: 2026-08-23
-current-answer: the whole file. §3 is what to build now; §4 is the target it builds toward.
+current-answer: the whole file. §3 is BUILT — read its AS-BUILT rows before re-deriving anything; §4 is the
+  target it builds toward.
+known-rot: three of MY OWN measurements in §1 were wrong and are corrected in place, each marked
+  "CORRECTED (as-built)": the rename size (8 -> 21 perspective sites), the gizmo-follow row (the map was
+  keyed by SUBSYSTEM name while read by PERSPECTIVE), and §5's sequence note listing Authoring/Analysis as
+  claimed perspectives.
 design-basis: PROGRAMME_Unification_And_Harness.md D1+D2 (user decisions, 2026-08-23) ·
   UX/UX_Glossary_Host_Mode_Subsystem.md (process · mode · subsystem · perspective — perspective is the
   finer key) · UX/UX_Feature_Perspective_Restore.md §3 (the unknown-id refusal, designed, never built).
@@ -41,9 +46,9 @@ grep -rn "CreateRegistrar(" --include=*.cs Hrot/ | grep -v Tests     # the asset
 | **CGF's windows** | 4, all perspective `"CGF"` — `cgf_fdp_inspector` · `cgf_fdp_events` · `cgf_architecture_diagnostics` · `cgf_system_profiler`. ⚠ **All DIAGNOSTICS, none an asset editor** |
 | ⛔ **CGF does NOT reference `Hrot.Editor.AiShared`** | it *does* reference `Hrot.Blueprints.Editor` ⇒ the blueprint asset editor is already reachable; the shared side-panels are not |
 | **map ownership** | `perspectiveMap` *(`Program.cs:248-254`)* = `{IG, SimHost, ExCon, CGF, StrideMock}` → subsystem name, a `Dictionary<string,string>` ⇒ ⭐ **many perspectives → one subsystem is already the supported shape** |
-| **gizmo follow** | `PerspectiveCoordinatorSystem` keeps `gizmoControllables` **keyed by perspective**, and on each switch does `RemoveListener(outgoing)` then `AddListener(incoming)` |
+| 🔴 **gizmo follow — CORRECTED (as-built, `2026-08-23`)** | ⛔⛔ **THIS ROW SAID *"keyed by perspective"*. THE FIELD'S DOC SAID SO TOO. THE CODE DID NOT.** 📐 `PerspectiveCoordinatorSystem` READS it with `evt.OldPerspective`/`evt.NewPerspective`, but `Program.cs` BUILT it from `((ISubsystem)s).Name`. ⭐ Invisible only because every perspective happened to be spelled like its subsystem — 📌 **the same coincidence class as `BP-485`'s address≡kind: a set of one-to-one names cannot demonstrate a keying rule.** ⇒ 🔴 **`A9` would have shipped a silent regression:** the lookup `["Scenario"]` misses a dictionary keyed `["CGF"]`, while `SwitchMapOwner` keeps working *(it takes the mapped VALUE)* ⇒ **the map still follows focus and the gizmo hand-over is dead.** ✅ **Fixed in `BP-496`:** the dictionary is now DERIVED from `perspectiveMap`, so the relation is declared once. ⭐ The switch still does `RemoveListener(outgoing)` then `AddListener(incoming)` |
 | **persisted layout** | `layout/default/fdp_windows.json` names a perspective in **exactly one field** — `ActivePerspective` *(currently `"Blueprint"`)*; per-window entries are `IsOpen`/`IsPinned` only. `layout/default/imgui.ini` names **none** |
-| ⭐ **rename size** | **8** window registrations use `"Editor"`; **33** non-test and **44** test occurrences of the literal `"Editor"` overall *(⚠ not all are the perspective — needs per-site judgement, not sed)* |
+| 🔴🔴 **rename size — CORRECTED (as-built, `2026-08-23`)** | ⛔⛔ **THIS ROW SAID *"8 window registrations"* AND THAT WAS AN UNDERCOUNT: it is 21 PERSPECTIVE SITES.** 📐 The `8` came from a `: base("id", "title", "Editor", …)` grep, so it saw only `EditorWindows.cs`. ⚠ It MISSED **13** sites in `EditorSubsystem.cs` that pass the perspective as an ordinary ctor ARGUMENT or compare it: `FdpEntityInspectorWindow` · `FdpEventBrowserWindow` · `ArchitectureDiagnosticsWindow` · `SystemProfilerWindow` · `DataBreakpointManagerWindow` · the status-bar section's `perspective:` · `PerspectiveWorkspace(perspectiveName:)` · `DetailsWindow(owningPerspective:)` · `RegisterPerspectiveIconKey` · `RegisterPerspectiveLabel` · **two** `CurrentPerspective == "Editor"` gates · and 🔴 **`FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu`'s third argument**, which was NAMED `ownerName` and documented as *"subsystem name shown in watch-window titles"* — 📐 both false: the titles never use it, and it is assigned to `Reflector.EditOwningPerspective` and passed as the spawned watch window's `owningPerspective`. ⇒ ⭐ **the counts that stand: 33 non-test occurrences, of which 21 are the perspective and 4 are subsystem/node/log names** *(the rest are comments)*; **45** test occurrences. 📌 **The lesson is this file's own:** a grep confirms a guessed SHAPE, it cannot enumerate a CONCEPT |
 
 ## 1b. ⭐⭐⭐ THE TARGET MODEL — **subsystem → perspectives** *(user-confirmed `2026-08-23`, measured against code)*
 
@@ -244,7 +249,24 @@ filed here so the next reader does not repeat my mistake.
 feature, as each ported window lands with the right name.** ⛔ There is no "create the perspective" step to
 schedule, and no half-built empty perspective to worry about.
 
-## 3. ⭐⭐⭐ PART A — the rename *(`READY-TO-BUILD`)*
+## 3. ⭐⭐⭐ PART A — the rename *(✅ **BUILT** `2026-08-23`, `BP-488`–`BP-497`)*
+
+> ✅ **AS-BUILT SUMMARY.** ⭐ Every item below landed; the per-item **AS-BUILT** notes record where the build
+> DEVIATED from what this section said, and each deviation is a correction of MY measurement, not a
+> shortcut. ⛔ **Read them before re-deriving anything here.**
+>
+> | item | ✅ | the deviation, if any |
+> |---|---|---|
+> | `A0` | `BP-488` + `BP-489` | ⚠ **two halves, and the second is bigger than described** — see `A0`'s AS-BUILT |
+> | `A6` | `BP-490` | ⚠ **a SECOND silent-default site existed** *(the DI container)* — found only by the signature break |
+> | `A5` | `BP-491` | none |
+> | `A1` | `BP-492` | 🔴 **21 sites, not 8** *(§1's corrected row)*; and the `L6.1b` deferral's stated reason was FALSE |
+> | `A2` | `BP-493` | none |
+> | `A3` | `BP-492` | none — ⭐ confirmed **no migration**, as this section predicted |
+> | `A4` | `BP-494` | ⭐ one rail INVERTED rather than deleted; ⚠ four unrelated rails needed a register-then-switch reorder |
+> | `A9` | `BP-495` | 🔴 **`BP-496`** — the gizmo map's KEY *(§1's corrected row)* |
+> | `A10` | `BP-497` | none |
+> | `A7`/`A8` | — | ⛔ withdrawn before the build; nothing was done |
 
 > ⭐ Charter **D2**: rename the editor's perspective **id** `Editor` → `Scenario`. Today `"Scenario"` is
 > only a display **label** over the `Editor` id, so ids would not have matched across hosts.
@@ -266,6 +288,25 @@ until it is green.**
 | **rail** | switch to `"NoSuchPerspective"` ⇒ `CurrentPerspective` **unchanged**, one log line, windows still drawn |
 | ⚠ **lane** | `WindowManager` is `FDP/Engine/Fdp.Presentation` — **shared**. This is a deliberate, sanctioned edit *(it is A0's whole point)*, ⛔ not a drive-by |
 
+#### ✅ AS-BUILT — `A0` is TWO items, and the second is the one that was already broken
+
+⭐⭐ **`BP-488` — the refusal** is as specified, plus **log ONCE PER NAME**: the caller can be a per-frame
+toolbar, and a refusal that floods the log is a refusal nobody reads.
+
+⭐⭐⭐ **`BP-489` — the restore/default path**, and this sentence *(*"also make the layout-restore path fall
+back"*)* undersold it. 📐 `LocalWindowController` validated the persisted value against **`ISubsystem.Name`**
+and defaulted to `_subsystems.Skip(1).First().Name`. ⛔⛔ **A subsystem name is not a perspective:** for
+`--mode all` that resolved to **`"Orchestrator"`**, which claims nothing ⇒ 🔴 **the 22-window blank first
+launch** `UX_Feature_Perspective_Restore.md` documents — ⭐ **a defect that exists TODAY, independent of the
+rename**, on the `demo` shorthand a new user runs first.
+
+| ⚠ **THE ONE REAL DEVIATION, and it only bites after `A1`** | |
+|---|---|
+| 📄 `UX_Feature_Perspective_Restore.md` §1 says the DEFAULT is `known.FirstOrDefault()`, and excludes document-driven names from **RESTORE only** *(§2)* | ⛔ **Measured `2026-08-23`: that is wrong once the editor's id is `Scenario`.** 📐 `GetPerspectives()` is `OrderBy(p => p)` — **culture** comparison, not ordinal — so `--mode editor` sorts to **`[Blueprint, BTree, HSM, Scenario]`** ⇒ ⭐ a bare `known.First()` opens the editor in an **empty Blueprint graph**, the exact outcome that design exists to prevent |
+| ✅ **As built:** document-driven names are excluded from **BOTH** halves, then composition order PREFERS one durable perspective over another *(preserving §1's "first requested subsystem that owns one" intent)*, then the first durable one wins | ⚠ **The order preference is now a PREFERENCE, not the rule** — after `A1` the editor's subsystem is `"Editor"` while its perspective is `"Scenario"`, so the name match legitimately finds nothing |
+| ⭐ **New: `AssetKindExtensions.DocumentDrivenPerspectiveNames`** — the set §2 asked for | ⭐ **derived from `ToPerspectiveName()`**, so there is no second literal list to keep in step; ⛔ deliberately NOT "every `AssetKind`" *(`Blackboard`/`Utility` register no perspective, and `Scenario` is the durable one it protects)* |
+| ⚠ **When only document-driven perspectives are claimed** | it returns `"Default"` — ⭐ which `SwitchPerspective` then refuses LOUDLY, rather than guessing an empty graph workspace silently |
+
 ### A1–A4 — the rename itself
 
 | # | step | note |
@@ -275,12 +316,47 @@ until it is green.**
 | **A3** | update `layout/default/fdp_windows.json` **only if** the shipped default should open on Scenario | 📐 it currently says `"Blueprint"`, so **no migration is required** — ⛔ do not invent one |
 | **A4** | follow the rename through the **44 test occurrences** | ⭐ several assert the perspective list; ⚠ **and any test asserting "four perspectives" is already wrong** *(§1)* — fix the count to the measured set, do not delete the assertion |
 
+#### ✅ AS-BUILT — `A1`–`A4`
+
+| ⭐ | |
+|---|---|
+| 🔴 **`A1` was 21 sites, not 8** | §1's corrected `rename size` row carries the enumeration. ⭐ The **4** subsystem/node/log-name occurrences are UNCHANGED — per-site judgement, as this section demanded |
+| ⭐⭐⭐ **The `L6.1b` deferral was held on a FALSE premise, and it is worth naming** | 📐 `EditorSubsystem.cs`'s own remark said the rename was deferred because *"`CurrentPerspective` and every `OwningPerspective` are persisted and a bare rename silently resets saved layouts."* ⛔⛔ **Measured: `WindowManagerSettings` persists window IDS with `IsOpen`/`IsPinned`, and EXACTLY ONE perspective name — `ActivePerspective`.** `ManagedWindow.WindowInternalName` is `$"{Title}###{Id}"`, so the ImGui ini carries none either. ⇒ ⭐ **the rename orphans ONE string**, and `A0` is what handles it. 📌 The remark and the rail that pinned it are both corrected in place |
+| ⭐ **A hidden perspective site: `FdpEntityInspectorHelper`** | its third parameter was `ownerName`, documented *"subsystem name shown in watch-window titles"* — 📐 **both halves false.** ⇒ renamed to `owningPerspective` with the measurement in its doc. ⚠ Consequence: the spawned watch windows' id prefix moves `editor_watch_*` → `scenario_watch_*` *(and `cgf_watch_*` → `scenario_watch_*`)* — **harmless, because those ids embed a fresh `Guid.NewGuid()` and were never restorable from a layout file** |
+| ✅ **`A3` confirmed: NO migration** | the shipped `ActivePerspective` is `"Blueprint"`, rejected before *(no subsystem of that name)* and rejected now *(document-driven)* ⇒ ⭐ **the same landing, for a correct reason** |
+| ⭐⭐ **`A4` — one rail INVERTED, not deleted** | `TheScenarioHost_UsesThePersistedEditorKey_BecauseL61bIsDeferred` existed to PIN the deferral. ⭐ It is now `TheScenarioHost_UsesTheScenarioKey` — same subject, same strength, value moved |
+| ⚠⚠ **`A4` cost more than the rename: FOUR unrelated rails switched perspective BEFORE registering the window that claims it** | 📐 `WindowManagerTests` ×3 and `PerspectiveLabelTests` ×1 passed only because no check existed. ⇒ ⭐ **register-then-switch is now the order**, and that ordering IS `A0`'s rule showing through — a perspective cannot be selected before something claims it |
+| ⭐ **New rails: `ThePerspectiveNamesAreUnifiedTests`** | drives the REAL `RegisterWindows` of both subsystems into a real `WindowManager` and asserts the SETS. ⛔ Not a source scan — 📌 that is §1's own *"I read constructor literals as a claim about runtime"* error |
+
 ### A5–A7 — the phantom perspectives *(added `2026-08-23` after the visual check)*
 
 | # | step | design basis |
 |---|---|---|
 | **A5** | 🔴 **Kill the phantom `Global` perspective** — give the asset-browser Find-Results window `WindowScope.Global` + an **empty** `OwningPerspective` *(the Orchestrator pattern)*. ⚠ Needs a **scope parameter** on `FindResultsWindow`, which hard-codes `PerspectiveBound`. ⭐ **Two fixes in one**: the icon goes away **and** the window becomes globally available, which was its stated intent | **§1c** |
 | **A6** | ⭐⭐ **Make `owningPerspective` REQUIRED on `FindResultsWindow`** — delete the `?? "Authoring"` default | **§1c**'s latent generator. ⛔ Without this, A5 fixes one call site and leaves the mechanism |
+
+#### ✅ AS-BUILT — `A5`/`A6`, and §1c's *"that is luck, not a control"* was optimistic
+
+⭐ **`A5` as specified** — `WindowScope.Global` + `string.Empty`, the Orchestrator pattern, with the scope
+now a constructor parameter. ⭐ **Two separate rails**, because either bug could have been fixed while the
+other survived: `GetPerspectives()` does not contain `"Global"`, **and** the window is visible from another
+perspective.
+
+⛔⛔ **`A6` FOUND A SECOND SITE, and only the signature change could have found it.** §1c says *"today no
+production caller omits it — but that is luck, not a control."* 📐 It was not even luck:
+
+```csharp
+services.AddSingleton<FindResultsWindow>();      // SharedAiEditorServiceCollectionExtensions:77
+```
+
+⇒ ⭐⭐ **a DI registration resolving every argument to its default** — the generator firing in a second
+place, unnoticed. ⚠ Harmless only because `AddSharedAiEditor` has **no production caller** *(measured:
+tests only)*; it now passes the name explicitly.
+
+⭐⭐ **Round-out beyond the item:** the ctor also REFUSES the two incoherent pairings — a
+`PerspectiveBound` window with an empty perspective *(permanently invisible: it can never pass its own
+visibility gate)* and a `Global` window that NAMES one *(merely misleading)*. ⇒ ⛔ **the phantom is
+unconstructible in both directions**, not only when a caller forgets.
 | ⛔ ~~**A7**~~ | ✅ **DISSOLVED `2026-08-23` — there is nothing to delete.** 📐 Neither name appears at runtime *(§1)*, so there is no perspective, no list entry and no icon to remove; the user's *"safe to delete"* is satisfied **by construction**. ⚠⚠ **And deleting the four dormant WINDOWS would be wrong — measured below** | **§1g** |
 
 ### A8–A9 — the CGF side of the NAMING *(added `2026-08-23`; the user's "immediately")*
@@ -297,6 +373,21 @@ unification does not have to wait on the freeze decision that Part B needs.
 ⚠ **A9 makes `perspectiveMap` many→one for real** *(four names → `"CGF"`)* ⇒ ⭐ **measure §6-R1/R2 here**:
 an intra-CGF switch now does `RemoveListener`→`AddListener` on the **same** controllable and re-fires
 `SwitchMapOwner("CGF")`. ⛔ **If either has a side effect, that is a finding to report, not to paper over.**
+
+#### ✅ AS-BUILT — `A9`, and the finding §1e's withdrawal walked past
+
+⭐ **Built as specified:** CGF's four diagnostics windows moved to `Scenario`, `perspectiveMap["CGF"]` became
+`["Scenario"] = "CGF"`, and `BTree`/`HSM`/`Blueprint` got **nothing** — no entry, no placeholder, no
+declaration API, exactly as §1e rules. ⭐ It is now the **only** entry whose key and value differ; §1b's one
+constraint holds because the runner refuses to combine editor and cgf.
+
+🔴🔴 **THE FINDING — `BP-496`, and §1e's own withdrawal is what hid it.** §1e removed `R1`/`R2` on the
+grounds that *"an UNMAPPED perspective skips the whole block"* — ⭐ **true, and it reasoned about the VALUE
+side while the defect was on the KEY side.** 📐 `gizmoControllables` was keyed by `ISubsystem.Name` and read
+by `evt.NewPerspective`. ⇒ after the rename `["Scenario"]` misses a dictionary keyed `["CGF"]`, so
+**`SwitchMapOwner` keeps working and the gizmo hand-over dies silently.** ✅ Fixed by DERIVING the dictionary
+from `perspectiveMap`. 📌 §1's `gizmo follow` row carries the correction; ⚠ **the withdrawal of `R1`/`R2`
+still stands** — nothing here reinstates them.
 
 ⭐⭐ **Ordering inside Part A:** **A0 first** *(nothing else is safe without it)*, then **A6 before A5**
 *(remove the generator, then fix the instance)*, then A1–A4, then **A9**.
@@ -339,12 +430,26 @@ classDiagram
         +bool IsPinned
     }
     class WindowManager {
-        <<exists · same folder · A0 EDITS THIS>>
+        <<exists · same folder · A0 EDITED THIS>>
         +string CurrentPerspective
         +GetPerspectives() IReadOnlyList
         +SwitchPerspective(name) void
         +RegisterPerspectiveLabel(p, label) void
         +IsPerspectiveActive(p) bool
+        -HashSet refusedPerspectives
+    }
+    class LocalWindowController {
+        <<exists · Hrot.ClusterRunner/Presentation · A0 EDITED THIS>>
+        +ResolveStartupPerspective(claimed, order, persisted) string
+    }
+    class FindResultsWindow {
+        <<exists · Hrot.Editor.AiShared/Windows · A5 A6 EDITED THIS>>
+        +ctor(owningPerspective, idOverride, scope)
+    }
+    class AssetKindExtensions {
+        <<exists · Hrot.Editor.AiShared/Identity · A0 ADDED A MEMBER>>
+        +ToPerspectiveName(kind) string
+        +DocumentDrivenPerspectiveNames IReadOnlyList
     }
     class PerspectiveWorkspaceServices {
         <<exists · Hrot.Editor.AiShared/Windows>>
@@ -369,6 +474,9 @@ classDiagram
     }
 
     WindowManager "1" *-- "many" ManagedWindow : owns
+    ManagedWindow <|-- FindResultsWindow
+    LocalWindowController ..> WindowManager : resolves the startup perspective
+    LocalWindowController ..> AssetKindExtensions : which names are document-driven
     PerspectiveWorkspaceServices ..> PerspectiveWorkspaceRegistrar : creates per perspective
     PerspectiveWorkspaceRegistrar ..> ManagedWindow : registers with OwningPerspective
     EditorSubsystem ..> PerspectiveWorkspaceServices : BTree HSM Blueprint
@@ -388,8 +496,8 @@ sequenceDiagram
     Note over U,W: A0 — the refusal that Part A depends on
     U->>W: SwitchPerspective "Editor" (a stale stored id)
     W->>G: is it a claimed perspective?
-    G-->>W: no — claimed set is Scenario BTree HSM Blueprint Authoring Analysis
-    W-->>U: log and no-op, CurrentPerspective unchanged
+    G-->>W: no — claimed set is Blueprint BTree HSM Scenario
+    W-->>U: log once and no-op, CurrentPerspective unchanged
     Note over W,M: without A0 this would succeed and every bound window would hide
 
     U->>W: SwitchPerspective "Scenario"

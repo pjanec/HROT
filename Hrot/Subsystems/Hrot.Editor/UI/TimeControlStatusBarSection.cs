@@ -13,7 +13,7 @@ namespace Hrot.Editor.UI
     ///
     /// <para>Registered by <see cref="EditorSubsystem"/> via
     /// <see cref="Fdp.Presentation.WindowManager.StatusBarManager.RegisterSection"/>
-    /// and bound to the "Editor" perspective so it is hidden when switching away.</para>
+    /// and bound to the "Scenario" perspective so it is hidden when switching away.</para>
     ///
     /// <para>Rendering is delegated to the shared <see cref="ClusterTimeControlStatusBarSection"/>
     /// via an <see cref="EditorTimeTransportFacade"/>.</para>

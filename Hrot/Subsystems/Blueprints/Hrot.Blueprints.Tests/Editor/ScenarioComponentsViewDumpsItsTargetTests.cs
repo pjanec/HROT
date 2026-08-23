@@ -33,7 +33,7 @@ public sealed class ScenarioComponentsViewDumpsItsTargetTests : IDisposable
     private static readonly Entity One = new(31, 1);
 
     private static DetailsContext OneEntityContext(Entity e) =>
-        DetailsContext.Empty("Editor") with { Entities = new[] { e } };
+        DetailsContext.Empty("Scenario") with { Entities = new[] { e } };
 
     [Fact]
     public void FirstDraw_DeclaresItInstrumented_AtTheComposedAddress()
@@ -81,7 +81,7 @@ public sealed class ScenarioComponentsViewDumpsItsTargetTests : IDisposable
         PanelSnapshot.CaptureEnabled = true;
         var view = new ScenarioComponentsView(session: () => null, draw: (_, _) => { });
 
-        var vm = view.SimulateDraw(DetailsContext.Empty("Editor"), "host1");
+        var vm = view.SimulateDraw(DetailsContext.Empty("Scenario"), "host1");
 
         Assert.False(vm.HasTarget);
         Assert.Equal(-1, vm.EntityIndex);

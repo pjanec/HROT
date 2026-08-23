@@ -50,7 +50,7 @@ public sealed class TheScenarioMissionViewTests
 
     private static DetailsContext Context(params Entity[] entities)
         => DetailsContextBuilder.Build(
-            new EditorSelectionStore(), "Editor", VariableRunState.Planning, new Selected(entities));
+            new EditorSelectionStore(), "Scenario", VariableRunState.Planning, new Selected(entities));
 
     /// <summary>⭐ A mission service that records who it was asked about — the brain signal and the
     /// panel both go through it, so one recorder covers both directions.</summary>

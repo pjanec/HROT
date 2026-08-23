@@ -116,13 +116,88 @@ internal sealed class LocalWindowController
         // persisted UI-scale multiplier (queues a one-off rebake on the first frame if != 1).
         wm.FontService = _shell.FontService;
         _shell.FontService.SetUserScale(wm.UiScale);
-        var first = _subsystems.Skip(1).FirstOrDefault();
-        string defaultPersp = first?.Name ?? "Default";
-        bool valid = !string.IsNullOrEmpty(persisted) && _subsystems.Any(s => s.Name == persisted);
-        wm.SwitchPerspective(valid ? persisted! : defaultPersp);
+        wm.SwitchPerspective(ResolveStartupPerspective(wm, persisted));
 
         WindowManager = wm;
         _isLocalWindowOpen = true;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>A0</c> — WHICH PERSPECTIVE THE APP OPENS ON, and it is a REAL one.</b>
+    /// 📄 <c>docs/UX/UX_Feature_Perspective_Restore.md</c> §1–§2 · <c>DESIGN_Perspective_Unification.md</c>
+    /// §3 <c>A0</c>.
+    ///
+    /// <para>🔴 <b>What was here before was measurably broken, and the rename would have made it
+    /// fatal.</b> 📐 The old two lines picked <c>_subsystems.Skip(1).First().Name</c> — an
+    /// <see cref="ISubsystem"/> NAME — and validated the persisted value against subsystem names too.
+    /// ⛔⛔ <b>A subsystem name is not a perspective:</b> for <c>--mode all</c> it resolved to
+    /// <c>"Orchestrator"</c>, whose three windows are all <see cref="WindowScope.Global"/> with an empty
+    /// perspective ⇒ 🔴 <b>the documented 22-window blank first launch</b> *(§"First launch of
+    /// <c>--mode all</c>")*. ⚠ <c>Skip(1)</c> also encoded <i>"skip the injected coordinator"</i>
+    /// POSITIONALLY — reorder composition and the default silently moved.</para>
+    ///
+    /// <para>⭐⭐ <b>The claimed set is now the only source</b> *(<see cref="WindowManager.GetPerspectives"/>,
+    /// its own doc: "the testable seam for perspective enumeration")*, and <c>RegisterWindows</c> has
+    /// already run ~30 lines above, so it is populated. ⇒ ⛔ the coordinator cannot appear in it, which is
+    /// what makes <c>Skip(1)</c> unnecessary rather than merely ugly.</para>
+    ///
+    /// <para>⛔⛔ <b>Document-driven perspectives are excluded from BOTH halves</b>
+    /// *(<see cref="Hrot.Editor.AiShared.AssetKindExtensions.DocumentDrivenPerspectiveNames"/>)*.
+    /// ⚠⚠ <b>The restore design only demanded it for RESTORE — measured `2026-08-23`, the DEFAULT needs it
+    /// too, and only after <c>A1</c>:</b> 📐 <c>GetPerspectives()</c> is <c>OrderBy(p =&gt; p)</c>, so for
+    /// <c>--mode editor</c> the claimed set sorts to <c>[Blueprint, BTree, HSM, Scenario]</c>
+    /// *(culture comparison, so <c>Blueprint</c> precedes <c>BTree</c> — measured)* ⇒ a bare
+    /// <c>known.First()</c> would open the editor in an <b>empty Blueprint graph</b>. 📌 That is a DEVIATION
+    /// from §1 of the restore design, folded back into it.</para>
+    ///
+    /// <para>⭐ <b>Among the durable ones, composition order still wins</b> — it preserves today's
+    /// <i>"first requested subsystem that owns one"</i> intent *(§1's recommendation)*. ⚠ It is now a
+    /// PREFERENCE, not the rule: after <c>A1</c> the editor's subsystem is <c>"Editor"</c> while its
+    /// perspective is <c>"Scenario"</c>, so the name match legitimately finds nothing and the first
+    /// durable perspective is the answer.</para>
+    /// </summary>
+    private string ResolveStartupPerspective(
+        Fdp.Presentation.WindowManager.WindowManager wm,
+        string? persisted)
+        => ResolveStartupPerspective(
+               wm.GetPerspectives(),
+               _subsystems.Select(s => s.Name).ToList(),
+               persisted);
+
+    /// <summary>
+    /// ⭐⭐ <c>A0</c> — the pure decision, split out so a rail can drive it. ⛔ No ImGui, no shell.
+    /// </summary>
+    /// <param name="claimed">
+    ///   <see cref="WindowManager.GetPerspectives"/> — the perspectives some registered window claims.
+    /// </param>
+    /// <param name="subsystemNamesInOrder">
+    ///   Composition order, used only to PREFER one durable perspective over another. <c>null</c> at the
+    ///   production call site is filled in from the live subsystem list.
+    /// </param>
+    /// <param name="persisted">The stored <c>ActivePerspective</c>, or <c>null</c>.</param>
+    internal static string ResolveStartupPerspective(
+        IReadOnlyList<string> claimed,
+        IReadOnlyList<string>? subsystemNamesInOrder,
+        string? persisted)
+    {
+        var documentDriven = Hrot.Editor.AiShared.AssetKindExtensions.DocumentDrivenPerspectiveNames;
+        var durable = claimed.Where(p => !documentDriven.Contains(p)).ToList();
+
+        // ⭐ 1 — honour the stored value, but only if it is CLAIMED and DURABLE.
+        if (!string.IsNullOrEmpty(persisted)
+            && claimed.Contains(persisted!)
+            && !documentDriven.Contains(persisted!))
+            return persisted!;
+
+        // ⭐ 2 — otherwise the first durable perspective a requested subsystem owns…
+        if (subsystemNamesInOrder != null)
+            foreach (var name in subsystemNamesInOrder)
+                if (durable.Contains(name))
+                    return name;
+
+        // ⭐ 3 — …else simply the first durable one. ⚠ Falling through to a document-driven name is
+        //   worse than "Default": at least "Default" is refused LOUDLY by A0.
+        return durable.FirstOrDefault() ?? "Default";
     }
 
     /// <summary>

@@ -247,22 +247,54 @@ class Program
 
             // WM-S703: Wire up PerspectiveCoordinatorSystem now that the orchestrator exists.
             // Maps perspective names to subsystem names used by SwitchMapOwner.
+            //
+            // ⭐⭐⭐ A9 — CGF's perspective is "Scenario", so THE KEY MOVED AND THE VALUE DID NOT.
+            // 📄 DESIGN_Perspective_Unification.md §1b (charter D1: cgf and the editor share one
+            //    perspective vocabulary) · §1e (exactly ONE new entry — BTree/HSM/Blueprint own a GRAPH
+            //    canvas, not a map, so they are deliberately absent here, exactly as the editor's three
+            //    already are). ⛔ There is no "CGF" perspective any more.
+            // ⭐ This is also the FIRST entry whose key and value differ — 📌 §1b's one constraint:
+            //    a perspective maps to exactly ONE subsystem, so two CO-RUNNING subsystems must never
+            //    claim the same name. ⚠ Safe here because the runner refuses to combine editor and cgf.
+            //
+            // ⭐ A10 — the ["StrideMock"] entry is GONE. 📌 A one-line courtesy to the parallel
+            //    StrideMock-cleanup batch: it was the only StrideMock line in this file and that batch is
+            //    forbidden to touch this literal, so deleting it here is what keeps the two conflict-free.
             var perspectiveMap = new Dictionary<string, string>
             {
                 ["IG"]        = "IG",
                 ["SimHost"]   = "SimHost",
                 ["ExCon"]     = "ExCon",
-                ["CGF"]       = "CGF",
-                ["StrideMock"] = "StrideMock",
+                ["Scenario"]  = "CGF",
             };
-            // GZH-014: build gizmo-controllable map keyed by perspective name.
-            var gizmoControllables = subsystems
-                .OfType<Hrot.Common.Diagnostics.Gizmos.IGizmoControllable>()
-                .Where(s => (ISubsystem)s != perspSubsystem)
-                .ToDictionary(
-                    s => ((ISubsystem)s).Name,
-                    s => s,
-                    StringComparer.OrdinalIgnoreCase);
+
+            // ⭐⭐⭐ GZH-014 — KEYED BY PERSPECTIVE, which is what it is looked up by.
+            //
+            // 🔴🔴 A9 FINDING, measured 2026-08-23. This dictionary's field doc says "map from perspective
+            //    name to IGizmoControllable subsystem" and PerspectiveCoordinatorSystem looks it up with
+            //    evt.OldPerspective / evt.NewPerspective — ⛔ but it was BUILT from ISubsystem.Name. That
+            //    was invisible only because every perspective happened to be spelled like its subsystem.
+            //    ⇒ renaming CGF's perspective to "Scenario" would have left the gizmo listener transfer
+            //    silently dead (SwitchMapOwner would still work, since it takes the mapped VALUE), i.e.
+            //    exactly the kind of green-but-broken the naming unification exists to remove.
+            // ⭐ Derived from perspectiveMap so the two can no longer drift: one map declares the
+            //    perspective→subsystem relation, and this resolves it to the instance.
+            // 📐 Nothing is lost: the old subsystem-name keys were only ever reachable INSIDE
+            //    PerspectiveCoordinatorSystem's `perspectiveMap.TryGetValue(NewPerspective)` guard, so a
+            //    key that is not a mapped perspective could never be hit.
+            var gizmoByPerspective = new Dictionary<string, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var (perspective, subsystemName) in perspectiveMap)
+            {
+                var owner = subsystems
+                    .OfType<Hrot.Common.Diagnostics.Gizmos.IGizmoControllable>()
+                    .FirstOrDefault(s => (ISubsystem)s != perspSubsystem
+                                      && string.Equals(((ISubsystem)s).Name, subsystemName,
+                                                       StringComparison.OrdinalIgnoreCase));
+                // ⭐ Absent is normal — the mode simply does not run that subsystem.
+                if (owner != null) gizmoByPerspective[perspective] = owner;
+            }
+            var gizmoControllables = gizmoByPerspective;
             var coordinator = new PerspectiveCoordinatorSystem(orchestrator, perspectiveMap, gizmoControllables);
             perspSubsystem.Coordinator = coordinator;
 
