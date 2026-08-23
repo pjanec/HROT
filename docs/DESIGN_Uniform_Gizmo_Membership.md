@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD
+build-state: PARTIALLY-BUILT
 updated: 2026-08-23
-current-answer: the whole file — UXI-23 §3.2's GIZMO HALF, made concrete. §1's matrix is the measurement
+current-answer: §7 is the AS-BUILT and it SUPERSEDES §1's inventory and §3 ②'s home. The rest of the file — UXI-23 §3.2's GIZMO HALF, made concrete. §1's matrix is the measurement
   that matters: the editor declares all six projector families and every other host declares a subset.
   §3 the design, §4 the UML, §5 the rails, §6 the risks.
 design-basis: 🔒 user 2026-08-23 ("replaybrowser is no exception… same full set of gizmos as everyone
@@ -171,3 +171,79 @@ sequenceDiagram
 | ⚠ **`replaybrowser` has no registration path** | ⭐ **item ⓪** — find it, report it, then wire. ⛔ **A guessed entry point is worse than a filed gap** |
 | ⚠ **CGF is mid-flight in the perspective/unification work** | ⭐ **gizmo families are additive and CGF's own perspective work does not touch them** — ⛔ but say so in the report if it turns out otherwise |
 | ⚠ **does a host declaring a family it has no SYSTEMS for cost anything at runtime?** | 📐 A projector with no matching entity **draws nothing**; the cost is a registry entry and a per-frame query miss. ⭐ **Expected negligible — ⛔ but MEASURE the mode-rail startup time and say so**, because *"it is free"* is exactly the sort of claim this programme keeps having to retract |
+
+
+---
+
+## ⭐⭐⭐ 7. AS-BUILT *(`ST-027`…`ST-030`, Batch uniform-membership)* — **the schema half landed, the declaration half is BLOCKED**
+
+⭐ **Obligation ③:** this design carried **1 `classDiagram` (10 boxes)** + **1 `sequenceDiagram`**. The
+sequence is built as drawn *(Phase 2 schema, then Phase 6d declaration)*. ⛔ **The class diagram's
+`MapGizmoPack` is NOT built** — §7.3 says why, and it is not a matter of choosing a different home.
+
+### ✅ 7.1 Items ⓪ and ① — DONE
+
+| | |
+|---|---|
+| ⭐⭐⭐ **ⓠ ANSWERED: `replaybrowser`'s registration path** | **`RepositoryPriming.RegisterDiscoveredComponents`** *(`ReplayBrowserSubsystem.cs:139`, inside `if (!_headless)`)* — it reflects every loaded non-system assembly and registers each `[ComponentId]` type. ⭐ That is why `ST-024`'s grep found nothing while the host boots. 📐 **All 15 carry `[ComponentId]`, so priming already covered them** ⇒ the explicit call adds no type today, but removes a dependence on **assembly load order** |
+| ⭐⭐ **① `MapSchemaPack` = 15, called by every host** | SimHost Phase 2 · CGF *(both worlds)* · Editor · IG · ReplayBrowser. **Landed alone and proven first**, per §6 |
+| 🔴 **the one obstacle, and it is `ST-014`'s lesson again** | `VisualEffectState` was the only one of the 15 in the **`Hrot.IG` assembly**, which `Hrot.Common` cannot reference *(`Hrot.IG` → `Hrot.Common` already ⇒ cycle)*. ⇒ **moved to `Hrot.Core`** beside its four siblings, which already sit there **under the same `Hrot.IG.Components` namespace** ⇒ namespace and `[ComponentId]` unchanged |
+| ⭐ **§6's cost question, MEASURED** | bootstrap span *(banner → `SlaveSyncController` initialised, `--mode simhost`, n=3)*: **before 172/178/176 ms · after 172/173/191 ms** ⇒ **indistinguishable, inside variance.** ⛔ *"it is free"* is now measured for the SCHEMA half; the declaration half is unmeasured because it is unbuilt |
+
+### ⛔⛔ 7.2 §1's INVENTORY IS SUPERSEDED — **22 projectors across SEVEN namespaces** *(`ST-029`)*
+
+| namespace | assembly | ⭐ actual | design said |
+|---|---|---|---|
+| `Hrot.Common.Diagnostics.Gizmos` | `Hrot.Common` | **8** | 7 |
+| `Hrot.ScenarioEditor.Gizmos` | `Hrot.Presentation` | **7** | 5 |
+| `Hrot.IG.Gizmos` | `Hrot.IG` | **3** | 3 ✓ |
+| `Hrot.SimHost.Gizmos` | `Hrot.SimHost` | **1** | 1 ✓ |
+| `Hrot.CGF.Gizmos` | `Hrot.CGF` | **1** | 1 ✓ |
+| `Hrot.AI.Behaviors.Gizmos` | `Hrot.AI.Behaviors` | **1** | 1 ✓ |
+| 🔴 **`Hrot.Presentation.Gizmos`** | `Hrot.Presentation` | **1** — `CanvasContextMenuGizmo` | ⛔ *"holds ZERO projectors"*, excluded from the six |
+
+⇒ ⭐⭐ **This answers §6's other open question:** `Hrot.Presentation.Gizmos` is **not** settings-only, it is a
+**seventh family**, and all five hosts already call it ⇒ **uniform membership must include it.**
+⚠ Two grep false positives were discarded — the literal `[GizmoProjector]` inside a **comment** at
+`CgfSubsystem.cs:530` and `Hrot.IG/Gizmos/GizmoRegistrar.cs:15`. 📌 **Third inventory correction here in two
+batches, and all three came from FILE-LEVEL GREPS while the reflective rail was right every time** ⇒ ⭐ quote
+the rail's enumeration.
+
+### 🔴🔴 7.3 ITEM ② IS BLOCKED — **the reference graph forbids ANY single compile-time pack** *(`ST-028`)*
+
+§3 ② fixes the home as `Hrot.Common.Diagnostics.Gizmos`, *"for the reason `ST-022` already argued."*
+⚠ **That reason holds for the SCHEMA and fails for the DECLARATION:** component types are low-level; a
+declaration must reference the **projector assemblies**.
+
+| 📐 measured | |
+|---|---|
+| `Hrot.IG` · `Hrot.SimHost` · `Hrot.CGF` **all →** `Hrot.Common` | ⇒ a pack in `Hrot.Common` cannot reach three of the seven families |
+| **no assembly references all six** family assemblies | `Hrot.CGF` is closest *(AI.Behaviors, Common, Presentation, SimHost)* and still misses `Hrot.IG` |
+| ⭐⭐⭐ **the contradiction, stated generally** | the pack must be **referenced BY** every host *(so it sits BELOW them)* while **referencing** IG/SimHost/CGF *(which ARE hosts)*. `Hrot.Presentation` fails identically — IG/SimHost/CGF all → Presentation |
+
+⇒ ⛔ **NOT BUILT, and no entry point guessed** — the same discipline §3 ④ demanded for `replaybrowser`.
+
+#### ⭐⭐ The path forward — measured, and non-cyclic
+
+📐 **The five projectors inside host assemblies are barely coupled to them:** `EqsSensorGizmo` and
+`ProjectilePresentationGizmo` have **no `Hrot.*` usings**; `EffectPresentationGizmo` needs only
+`Hrot.IG.Components` *(**now in `Hrot.Core`** after `ST-027`)*; `SimHostEntityPresentationGizmo` and
+`CgfEntityPresentationGizmo` need only `Hrot.ScenarioEditor.Gizmos` *(**already in `Hrot.Presentation`**)*.
+
+⇒ ⭐ **Consolidate the projector FILES into `Hrot.Presentation`, KEEPING their namespaces.** The generator
+groups by **namespace, not assembly**, so `Hrot.IG.Gizmos.GizmoRegistrar` keeps its name and every existing
+call site still compiles — ⭐ exactly as `VisualEffectState` kept its namespace across an assembly move.
+Then add **`Hrot.Presentation` → `Hrot.Common`** and **→ `Hrot.AI.Behaviors`**: 📐 **neither is a cycle**
+*(`Hrot.Common` → Core/Blueprints.Schema/Network.Orchestration only; ⭐ **`Hrot.AI.Behaviors` does NOT
+reference `Hrot.Common`** — it → Core/Blueprints/AiEditor)*. The pack then lives in `Hrot.Presentation` and
+is callable by **all five hosts**.
+
+⚠⚠ **That is 5 cross-assembly file moves + 2 new project edges** — a materially different blast radius from
+*"one new file in `Hrot.Common`"* ⇒ ⭐ **the coordinator's call.**
+
+### ⛔ 7.4 Items ③ and ④ — held, and why
+
+| | |
+|---|---|
+| ⛔ **③ invariant `B` NOT added** | `B` asserts *"every host declares all six"* — 📐 **false on four of five hosts** until ② lands, so adding it now is a **permanent red**, which `R-131` forbids. ⭐ `B` is ②'s lock and belongs in ②'s batch. ⚠ **And it must assert SEVEN, not six** *(§7.2)* |
+| ⭐ **④ invariant `A` re-proven red** | removing `EqsSensor` from the widened pack reddens **exactly the `ig` case**, naming *"EqsSensor (required by EqsSensorGizmo in Hrot.IG.Gizmos)"*. ⚠ **A discriminating probe matters:** removing `TargetMemory` first changed **nothing** — `IgRoleComponentRegistry` and SimHost's registries also supply it, so the host is still satisfied. ⭐ **That is the rail being right**, and it means a red-probe must pick a component **only the pack provides** |
