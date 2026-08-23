@@ -12,6 +12,7 @@
  */
 
 import { TOOLS_CATALOG } from './tool-catalog.mjs';
+import { readFileSync } from 'node:fs';
 
 const EXPECTED_TOOLS = [
   'start_simulation', 'stop_simulation', 'get_status',
@@ -34,6 +35,11 @@ const EXPECTED_TOOLS = [
   'list_behaviors', 'list_breakpoint_types',
   // Slice ② — Group O, variable addressing (MX1): the watch's own tuple, over HTTP.
   'list_entity_variables', 'get_entity_variable', 'stage_entity_variable',
+  // Slice ③ — the panel snapshot (MX9), blueprint hot-attach (MX2), entity state (MX3),
+  // and the breakpoint resume the staged-write drain turned out to depend on.
+  'list_panels', 'get_panel', 'get_gizmo_frame',
+  'list_blueprints', 'attach_blueprint', 'detach_blueprint',
+  'get_entity_state', 'continue_from_breakpoint',
 ];
 
 let passed = 0;
@@ -81,6 +87,22 @@ for (const entry of TOOLS_CATALOG) {
 console.log('\n-- Total count --');
 assert(TOOLS_CATALOG.length === EXPECTED_TOOLS.length,
   `Catalog has exactly ${EXPECTED_TOOLS.length} entries (got ${TOOLS_CATALOG.length})`);
+
+// ── The server actually EXPOSES every catalogued tool ────────────────────────
+//
+// ⛔ This rail exists because its absence let a real slip through: eight tools were added to the
+//    catalog and to SKILL.md while the shell command that was supposed to add their HANDLERS failed
+//    silently. Every assertion above still passed — they check the CATALOG against a list, and the
+//    catalog was right. The server was the thing that was wrong, and nothing looked at it.
+//
+// ⚠ Read as TEXT rather than imported: src/index.mjs starts a server and connects a stdio transport
+//   at import time, so a test cannot pull its TOOLS array out without launching it.
+console.log('\n-- The server exposes every catalogued tool --');
+const serverSource = readFileSync(new URL('./src/index.mjs', import.meta.url), 'utf8');
+for (const entry of TOOLS_CATALOG) {
+  assert(serverSource.includes(`name: '${entry.name}'`),
+    `src/index.mjs registers a handler for '${entry.name}'`);
+}
 
 console.log(`\nPassed: ${passed}, Failed: ${failed}`);
 if (failed > 0) {

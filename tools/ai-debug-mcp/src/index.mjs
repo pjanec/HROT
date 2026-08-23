@@ -700,6 +700,96 @@ const TOOLS = [
   },
 
   {
+    name: 'list_panels',
+    description: TOOL_DEFS['list_panels'].description,
+    inputSchema: TOOL_DEFS['list_panels'].inputSchema,
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/panels')); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_panels'); }
+    },
+  },
+
+  {
+    name: 'get_panel',
+    description: TOOL_DEFS['get_panel'].description,
+    inputSchema: TOOL_DEFS['get_panel'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('GET', `/panels/${encodeURIComponent(toolArgs.panelId)}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_panel'); }
+    },
+  },
+
+  {
+    name: 'get_gizmo_frame',
+    description: TOOL_DEFS['get_gizmo_frame'].description,
+    inputSchema: TOOL_DEFS['get_gizmo_frame'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const suffix = toolArgs?.max != null ? `?max=${encodeURIComponent(toolArgs.max)}` : '';
+        return toolSuccess(await callApi('GET', `/panels/_gizmo${suffix}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_gizmo_frame'); }
+    },
+  },
+
+  {
+    name: 'list_blueprints',
+    description: TOOL_DEFS['list_blueprints'].description,
+    inputSchema: TOOL_DEFS['list_blueprints'].inputSchema,
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/blueprints')); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_blueprints'); }
+    },
+  },
+
+  {
+    name: 'attach_blueprint',
+    description: TOOL_DEFS['attach_blueprint'].description,
+    inputSchema: TOOL_DEFS['attach_blueprint'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const body = { blueprint: toolArgs.blueprint };
+        if (toolArgs?.paramsJson != null) body.paramsJson = toolArgs.paramsJson;
+        return toolSuccess(await callApi('POST', `/entities/${toolArgs.networkId}/attach-blueprint`, body));
+      } catch (err) { return toolError(err.message, err.envelope, 'attach_blueprint'); }
+    },
+  },
+
+  {
+    name: 'detach_blueprint',
+    description: TOOL_DEFS['detach_blueprint'].description,
+    inputSchema: TOOL_DEFS['detach_blueprint'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', `/entities/${toolArgs.networkId}/detach-blueprint`,
+                                         { blueprint: toolArgs.blueprint }));
+      } catch (err) { return toolError(err.message, err.envelope, 'detach_blueprint'); }
+    },
+  },
+
+  {
+    name: 'get_entity_state',
+    description: TOOL_DEFS['get_entity_state'].description,
+    inputSchema: TOOL_DEFS['get_entity_state'].inputSchema,
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('GET', `/entities/${toolArgs.networkId}/state`)); }
+      catch (err) { return toolError(err.message, err.envelope, 'get_entity_state'); }
+    },
+  },
+
+  {
+    name: 'continue_from_breakpoint',
+    description: TOOL_DEFS['continue_from_breakpoint'].description,
+    inputSchema: TOOL_DEFS['continue_from_breakpoint'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const path = toolArgs?.step === true ? '/breakpoints/step' : '/breakpoints/continue';
+        return toolSuccess(await callApi('POST', path));
+      } catch (err) { return toolError(err.message, err.envelope, 'continue_from_breakpoint'); }
+    },
+  },
+
+  {
     name: 'list_breakpoints',
     description: TOOL_DEFS['list_breakpoints'].description,
     inputSchema: TOOL_DEFS['list_breakpoints'].inputSchema,

@@ -3,8 +3,16 @@ state: LIVE
 build-state: BUILT — U-obs-1, U-obs-2 and U-obs-5 (the full panel sweep) are COMPLETE as of
   2026-08-23: 53 panels declare, 48 publish (BP-453..471). FIVE DEVIATIONS are recorded in the AS-BUILT
   section and all five are folded back into the sections they deviate from.
-  ⛔ STILL UNBUILT: U-obs-3 (the gizmo peer feed) and U-obs-4 (the smoke suite reading PanelSnapshot).
-  The GET /panels endpoints are the TIME lane's. ⚠ So the snapshot currently has NO consumer.
+  ⭐⭐ UPDATED 2026-08-23 (MCP lane, Batch HN-122): the snapshot HAS a consumer now — GET /panels,
+  GET /panels/{id} and GET /panels/_gizmo are built, and the debug API turns CaptureEnabled on.
+  ⚠ U-obs-3 is NOT thereby done: /panels/_gizmo reads DebugPrimitiveBuffer DIRECTLY and projects it
+  per shape; U-obs-3 asks for the buffer to be REGISTERED INTO PanelSnapshot so one DumpAll() carries
+  it beside the panels. Those are different things, and when U-obs-3 lands the endpoint should read
+  the snapshot entry rather than the buffer, so there is one path to the data (MX-011).
+  U-obs-4 remains this lane's: the MCP harness reads the snapshot over HTTP, the smoke suite reads it
+  in-process — complementary, as the dispatch says.
+  ⚠ ONE FINDING FOR THIS LANE, recorded in §"Perf & correctness" below: there is no frame boundary,
+  and PanelSnapshot.Clear() cannot serve as one (MX-006).
 updated: 2026-08-23
 stale-below: the "## ⛔ HISTORY" section at the foot of this file — the open questions as first written.
   Question ② was resolved AGAINST its lean; do not quote the leans as current.
@@ -306,6 +314,7 @@ the same `DetailsPanel` renders a different thing in every host that calls it.
 | **Build cost** | the VM is built every frame anyway *(the draw needs it)* — the same compute the inline draw already does, materialized into an object. `VariableTableModel` already pays this. Pool/reuse if a hot panel shows allocation pressure. |
 | **Flag gates the DUMP, not the build** | production still builds VMs to draw; it just does not `Register`. Cost when off = one branch per panel. |
 | **Opt-in registry** | `RegisteredPanels` distinguishes *"panel drew an empty model"* from *"panel not converted"* — ⛔ else un-converted panels produce false greens. |
+| 🔴 **No frame boundary — and `Clear()` cannot be one** *(finding from the CONSUMER, `MX-006`, `2026-08-23`)* | ⭐⭐ Captured entries are **latest-wins and persist until overwritten**, so a panel whose window CLOSED still reports its last model, and `GET /panels` cannot tell a reader that it is stale. ⛔⛔ **The obvious fix does not work:** `PanelSnapshot.Clear()` drops **both** sets, and `RegisteredPanels` is declared **once at construction** — clearing it per frame would permanently lose every panel that is instrumented but not currently drawing, which is precisely the false green the two-set split exists to prevent. ⇒ ⭐ **what is needed is a captured-only clear** *(e.g. `ClearCaptured()`)* that the frame loop can call, leaving the declarations alone. ⚠ **The MCP lane did not add it** — the contract is this lane's *(handoff: "do not modify `IPanelViewModel`/`PanelSnapshot`")*. ⭐ Until then `GET /panels` reports a `staleness` note rather than implying freshness it cannot promise |
 | **Id stability** | ⭐⭐⭐ **TWO FIELDS, because this row and §Example were asking for two different things.** ⭐ **`PanelId` — the ADDRESS**: what `GET /panels/{id}` resolves and the snapshot is keyed by ⇒ **unique among live panels**; a per-perspective window uses **its own registration id** *(this row's original advice, and it was right for this half)*. ⭐ **`PanelKind` — the LOGICAL NAME**: `watch` · `variables` ⇒ **identical across hosts**, and what conformance groups by *(§Example's literal, right for the other half)*. ⚠⚠ **Unique-by-construction and stable-by-construction are OPPOSITE properties**, so one field could never carry both. 📄 AS-BUILT deviation ② — ⛔ which first resolved this the wrong way, in favour of §Example alone. |
 | **Thread** | panels draw on the UI/sim thread; the snapshot is written there and read by MCP via the existing `MainThreadJobQueue` — no new threading. |
 

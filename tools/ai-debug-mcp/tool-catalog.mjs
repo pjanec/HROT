@@ -494,6 +494,146 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    name: 'list_panels',
+    group: 'T — Panels (the UI as data)',
+    summary: "What the editor's UI is showing, without pixels: which panels are instrumented at all, and which published a view-model this frame.",
+    http: { method: 'GET', path: '/panels' },
+    params: [],
+    returns: '{ captureEnabled, registered:[panelId], captured:[panelId], kinds:{kind:[panelId]}, staleness }',
+    notes: [
+      "registered vs captured is the load-bearing distinction: a panel nobody instrumented and a panel whose window is closed are different facts, and only the second is fixed by opening a window.",
+      'kinds groups the live panels by their logical name — the key a cross-host comparison uses, since panel ids are unique per instance by design.',
+      'captured entries are latest-wins and are NOT cleared per frame: a panel that stopped drawing still reports its last model.',
+    ],
+    example: { args: {}, gist: 'see which panels are live and what kinds they are' },
+    hint: 'No params. Example: list_panels({})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'get_panel',
+    group: 'T — Panels (the UI as data)',
+    summary: "One panel's dumped view-model — the same object its draw renders from, so a field here is a field the designer sees.",
+    http: { method: 'GET', path: '/panels/{panelId}' },
+    params: [
+      { name: 'panelId', type: 'string', required: true, description: 'Panel address from list_panels (e.g. "editor_bp_manager")' },
+    ],
+    returns: '{ panelId, panelKind, model }',
+    notes: [
+      'The model is structured JSON, never a formatted blob — assert a field, do not parse prose.',
+      'A miss says WHICH kind of miss it is: not instrumented, or instrumented but not drawing.',
+    ],
+    example: { args: { panelId: 'editor_bp_manager' }, gist: "read the breakpoint panel's model and assert what it lists" },
+    hint: 'Required: panelId. Example: get_panel({panelId:"editor_bp_manager"})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'get_gizmo_frame',
+    group: 'T — Panels (the UI as data)',
+    summary: 'What the map is drawing this frame, as data: the debug primitives, projected per shape.',
+    http: { method: 'GET', path: '/panels/_gizmo' },
+    params: [
+      { name: 'max', type: 'number', required: false, description: 'Cap the number of primitives returned (default 500)' },
+    ],
+    returns: '{ count, dropped, emitted, truncated, primitives:[{shape, space, layer, color, ...shape-specific}] }',
+    notes: [
+      'truncated tells you the frame was clipped by max — without it a cap would read as the end of the frame.',
+      'A shape with no field projection yet is reported by name with a note, never as aliased bytes.',
+    ],
+    example: { args: { max: 50 }, gist: 'inspect what the map is drawing without taking a screenshot' },
+    hint: 'Optional: max. Example: get_gizmo_frame({max:50})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'list_blueprints',
+    group: 'Q — Blueprint hot-attach',
+    summary: 'Every blueprint this editor compiled, with whether it can be attached to an entity.',
+    http: { method: 'GET', path: '/blueprints' },
+    params: [],
+    returns: '{ count, blueprints:[{ blueprintId, name, assetId, kind, stateSize, attachable }] }',
+    notes: [
+      'Only Instance-dispatch blueprints occupy a slot on an entity; attachable says so up front rather than through a refusal.',
+    ],
+    example: { args: {}, gist: 'find a blueprint to try on a running entity' },
+    hint: 'No params. Example: list_blueprints({})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'attach_blueprint',
+    group: 'Q — Blueprint hot-attach',
+    summary: 'Attach an Instance blueprint to a running entity — the quick way to try a behaviour without authoring a mission.',
+    http: { method: 'POST', path: '/entities/{networkId}/attach-blueprint' },
+    params: [
+      { name: 'networkId', type: 'number', required: true, description: 'Network id of the entity' },
+      { name: 'blueprint', type: 'string', required: true, description: 'Blueprint name, asset Guid, or numeric blueprintId (see list_blueprints)' },
+      { name: 'paramsJson', type: 'object', required: false, description: "Parameters for the blueprint, keyed by name; omit for its declared defaults" },
+    ],
+    returns: '{ networkId, blueprint, blueprintId, attached:true, note }',
+    notes: [
+      'Queued: the ingress system applies it on the NEXT tick, so step or play once before reading it back.',
+      "After it lands, the entity's variables appear in list_entity_variables — name the asset, since the entity may now carry more than one.",
+    ],
+    example: { args: { networkId: 1001, blueprint: 'ComponentCollectionDemo' }, gist: 'try a blueprint on entity 1001 right now' },
+    hint: 'Required: networkId, blueprint. Example: attach_blueprint({networkId:1001, blueprint:"ComponentCollectionDemo"})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'detach_blueprint',
+    group: 'Q — Blueprint hot-attach',
+    summary: 'Detach an Instance blueprint from an entity.',
+    http: { method: 'POST', path: '/entities/{networkId}/detach-blueprint' },
+    params: [
+      { name: 'networkId', type: 'number', required: true, description: 'Network id of the entity' },
+      { name: 'blueprint', type: 'string', required: true, description: 'Blueprint name, asset Guid, or numeric blueprintId' },
+    ],
+    returns: '{ networkId, blueprint, blueprintId, detached:true, note }',
+    notes: ['Queued like the attach — applied on the next tick.'],
+    example: { args: { networkId: 1001, blueprint: 'ComponentCollectionDemo' }, gist: 'put the entity back how you found it' },
+    hint: 'Required: networkId, blueprint. Example: detach_blueprint({networkId:1001, blueprint:"ComponentCollectionDemo"})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'get_entity_state',
+    group: 'R — Entity state',
+    summary: 'The well-known fields parsed out — position, rotation, velocity, speed, current behaviour — so an assertion reads state.position.x instead of digging through component JSON.',
+    http: { method: 'GET', path: '/entities/{networkId}/state' },
+    params: [
+      { name: 'networkId', type: 'number', required: true, description: 'Network id of the entity' },
+    ],
+    returns: '{ networkId, alive, position:{x,y,z}, rotation:{yawDeg,pitchDeg,rollDeg}, velocity:{x,y,z}, speed, behavior:{hash,name,brainTier} }',
+    notes: [
+      'A field whose component the entity does not carry is OMITTED, never defaulted — a zero position would be indistinguishable from the origin.',
+      'A convenience over get_entity, reading the same components: the two cannot disagree.',
+    ],
+    example: { args: { networkId: 1000 }, gist: 'where is entity 1000, how fast, doing what' },
+    hint: 'Required: networkId. Example: get_entity_state({networkId:1000})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'continue_from_breakpoint',
+    group: 'G — Breakpoints',
+    summary: 'Resume the debugger after a breakpoint hit. Also what applies any live variable writes staged while it was stopped.',
+    http: { method: 'POST', path: '/breakpoints/continue' },
+    params: [
+      { name: 'step', type: 'boolean', required: false, description: 'Advance one step instead of running on' },
+    ],
+    returns: '{ wasPaused, action, isPaused, note }',
+    notes: [
+      "⚠ Deleting a breakpoint does NOT resume: the debugger stays stopped, and while it is stopped every staged variable write is queued and never applied. Call this after a hit, not remove_breakpoint.",
+      'Harmless when nothing is stopped — it answers wasPaused:false.',
+    ],
+    example: { args: {}, gist: 'let the world run again after a breakpoint fired' },
+    hint: 'Optional: step. Example: continue_from_breakpoint({})',
+    manualVerify: false,
+  },
+
+  {
     name: 'list_breakpoints',
     group: 'G — Breakpoints',
     summary: 'List all registered breakpoints.',
