@@ -1,9 +1,11 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT for U-obs-1 (the contract + snapshot singleton + the EntityBlueprints pilot, 2026-08-22,
-  BP-453..457) WITH FIVE DEVIATIONS recorded in the AS-BUILT section; U-obs-2+ remain READY-TO-BUILD.
-  The GET /panels endpoints are the TIME lane's, after U-obs-1 merges.
-updated: 2026-08-22
+build-state: BUILT — U-obs-1, U-obs-2 and U-obs-5 (the full panel sweep) are COMPLETE as of
+  2026-08-23: 53 panels declare, 48 publish (BP-453..471). FIVE DEVIATIONS are recorded in the AS-BUILT
+  section and all five are folded back into the sections they deviate from.
+  ⛔ STILL UNBUILT: U-obs-3 (the gizmo peer feed) and U-obs-4 (the smoke suite reading PanelSnapshot).
+  The GET /panels endpoints are the TIME lane's. ⚠ So the snapshot currently has NO consumer.
+updated: 2026-08-23
 stale-below: the "## ⛔ HISTORY" section at the foot of this file — the open questions as first written.
   Question ② was resolved AGAINST its lean; do not quote the leans as current.
 known-rot: none outstanding. The two source sections the build deviated from were CORRECTED IN PLACE

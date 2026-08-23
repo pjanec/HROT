@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING (U-obs-5, the full sweep; the user ordered it 2026-08-22)
-updated: 2026-08-22
+build-state: ✅ COMPLETE (U-obs-5, 2026-08-23). 53 panels DECLARE, 48 REGISTER — the gap is the
+  measured no-host set (BP-467), which is the opt-in registry doing its job. Groups 1-6 all closed.
+  See "✅ SWEEP CLOSED" below for what is genuinely left, and it is not conversions.
+updated: 2026-08-23
 current-answer: this file is the WORK QUEUE for the panel sweep — the recipe, the ordered list, the
   exclusions, and the tick-off state. The DESIGN is docs/DESIGN_UI_Observability_Snapshot.md; this
   file holds no design content, only the queue and the accumulated gotchas.
@@ -93,6 +95,28 @@ probe **restored**.
 ⚠⚠ **Group 5's twins are a RULING-9 question, not a copy-paste job:** 📐 several are **byte-identical**
 across the two assemblies. ⛔ **Do not convert the same panel twice** — ⭐ report the duplication and
 convert once if they can share, or state why they cannot.
+
+## ✅ SWEEP CLOSED — `2026-08-23`
+
+⭐ **Every group is done.** 📐 **53 panels declare instrumentation; 48 publish a model.** ⚠ The gap is
+deliberate and measured: **six panels have no production host at all** *(`BP-467`)*, so they carry a
+`BuildViewModel` and no registration — ⭐ **that is precisely the distinction the opt-in registry exists
+to make**, and it would have been invisible under a single-set design.
+
+### ⛔ What is left is NOT conversions — four calls for the user
+
+| # | | |
+|---|---|---|
+| **①** | **`BP-468` — the `Hrot.UI.Common` orphan** | 📐 zero project references, absent from the solution, while `Hrot.Presentation/Panels/` ships the same source under **that project's own namespace**. ⛔ Delete the orphan, or wire it up and delete the duplicate — ⚠ **it must not stay**: the next reader edits the dead file and sees nothing change |
+| **②** | **`BP-467` — the six hostless panels** | ⛔ **not deleted** *(unreferenced ≠ unintentional)*, ⭐ but they are exactly the candidates that rule's design-corpus sweep is for |
+| **③** | ⭐⭐ **`EditorOrbatPanel` + `EntityPropertyInspector`** | 📄 **[`UX_Feature_DeadUI_Removal.md`](../../UX/UX_Feature_DeadUI_Removal.md) already condemns both.** ⛔ A worker **refused to instrument them** and cited it — ⭐ correct, and a miss in MY triage, which never cross-checked the panel list against that document |
+| **④** | **`BP-469` + `BP-471` — two suites that cannot gate** | `Hrot.Presentation.Tests` *(3 reds, pre-existing, never in a gate table)*; `Hrot.SimHost.Tests` *(**non-deterministic** — 17/10/9 failures on one binary)*. ⛔ **A count is not a signal until a suite is deterministic** |
+
+### ⭐ And the phase-2 half nobody has built
+
+⛔ **`U-obs-3`** *(the gizmo/map peer feed)* and **`U-obs-4`** *(the smoke suite reading `PanelSnapshot`)*
+are **untouched** — ⚠ and `GET /panels*` is the **TIME lane's**, after this merges. 📌 The snapshot is
+full of models that **no consumer reads yet**.
 
 ## ⭐ PER-PANEL DEFINITION OF DONE
 
