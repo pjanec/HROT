@@ -72,15 +72,73 @@ public sealed class VariablesDetailsView : IDetailsViewInstance
     /// obligation actually protects.</para>
     /// </summary>
     private VariablesDetailsViewPanelViewModel BuildAndPublish(string idScope)
+        => BuildAndPublish(idScope, out _);
+
+    /// <summary>⭐ <c>BP-484</c>'s overload — also hands back the TABLE view it published, so
+    /// <see cref="Draw"/> can render from the very object the snapshot carries.</summary>
+    private VariablesDetailsViewPanelViewModel BuildAndPublish(string idScope, out VariableTableView? table)
     {
         var panelId = $"{idScope}/{VariablesDetailsViewDescriptor.ViewId}";
         PanelSnapshot.DeclareInstrumented(panelId);
+        PanelSnapshot.DeclareInstrumented(TableAddress(idScope));
 
         var vm = new VariablesDetailsViewPanelViewModel(
             panelId, VariablesDetailsViewDescriptor.ViewId, _section.HasContent, _section.Heading);
 
         if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+
+        table = PublishTable(idScope);
         return vm;
+    }
+
+    // ── BP-484 — THE ROWS, not just the shell ──────────────────────────────────────────────────
+    //
+    // ⛔⛔ THE GAP THIS CLOSES. The VM above describes the VIEW (has content, heading); DetailsWindow's
+    //    describes the SHELL (chosen view, empty state, counts). ⇒ NEITHER carried a single ROW, so
+    //    GET /panels could not answer "what does the Details panel show for variable X?" — and the
+    //    variables table's PRIMARY home is this view (U-6), with the standalone AiVariablesWindow on
+    //    U-16's retirement path. ⚠ The blind spot was scheduled to GROW.
+    //
+    // ⭐⭐⭐ ONE PROJECTION, NOT A SECOND ONE. The rows are published through the SAME
+    //    VariableTablePanelViewModel the Watch and the standalone window use — ⛔ not a rows array
+    //    bolted onto VariablesDetailsViewPanelViewModel, which would be a second implementation of
+    //    "how a variable table dumps" and would drift on the thing that matters: which rows are shown.
+    //    📌 Ruling 9, and the same argument this view's own remarks make about the table itself.
+    //
+    // ⭐⭐ ADDRESS vs KIND, applied (U1d):
+    //    ADDRESS = "{idScope}/{ViewId}/table" — unique per live instance, so a DOCKED Details and a
+    //              FLOATING one publish two distinct tables instead of overwriting each other.
+    //    KIND    = PanelIds.Variables — DELIBERATELY the same kind as AiVariablesWindow, because it is
+    //              the same logical panel (all of an asset's variables, Details columns). ⇒ when U-16
+    //              retires the standalone window the KIND SURVIVES here, and a cross-host conformance
+    //              diff keyed on "variables" keeps working instead of silently losing its subject.
+
+    /// <summary>⭐ The table's own address — a sub-address of the view that hosts it.</summary>
+    private static string TableAddress(string idScope)
+        => $"{idScope}/{VariablesDetailsViewDescriptor.ViewId}/table";
+
+    /// <summary>
+    /// ⭐⭐ Builds and publishes the ROW model. ⛔ Returns null — and registers nothing — when the
+    /// section has no content: ⚠ the table is genuinely not on screen then, and publishing an empty one
+    /// would claim a panel the user cannot see. 📌 The address stays DECLARED either way, which is
+    /// exactly the distinction the opt-in registry exists to keep ("instrumented" vs "captured").
+    /// </summary>
+    private VariableTableView? PublishTable(string idScope)
+    {
+        // ⭐ The run state decides which ARM the Value column reads. The section's own Draw syncs it —
+        //   ⛔ but the publish happens BEFORE that draw, so a snapshot taken without this would report
+        //   the INITIAL arm during a run. 📌 Exactly the trap the smoke fixture hit and documented.
+        _section.SyncRunState();
+
+        if (!_section.HasContent) return null;
+
+        var view = _section.Model.Build();
+
+        if (PanelSnapshot.CaptureEnabled)
+            PanelSnapshot.Register(new VariableTablePanelViewModel(
+                TableAddress(idScope), PanelIds.Variables, view, _section.Control.Formatter));
+
+        return view;
     }
 
     /// <summary>⭐ Test hook — the BUILD + CAPTURE portion. ⚠ Unlike its siblings this one is not
@@ -98,8 +156,12 @@ public sealed class VariablesDetailsView : IDetailsViewInstance
     /// </summary>
     public void Draw(DetailsContext context, string idScope)
     {
-        BuildAndPublish(idScope);
-        _section.Draw(idScope);
+        BuildAndPublish(idScope, out var table);
+
+        // ⭐⭐⭐ BP-484 — RENDER FROM THE PUBLISHED VIEW. ⛔ Not a second Build(): the frame must hold
+        //    ONE view, or what the user sees and what the snapshot carries are different objects that
+        //    merely happen to agree.
+        _section.Draw(idScope, table);
     }
 
     /// <summary>⛔ Deliberately empty — the section is BORROWED. See the class remarks.</summary>

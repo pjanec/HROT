@@ -18,10 +18,14 @@ build-state: BUILT — U-obs-1, U-obs-2 and U-obs-5 (the full panel sweep) are C
   (DrawContent/SimulateDrawClientArea) and reads the snapshot back — neither "BuildViewModel from the
   fixture" (which would duplicate the identity rules) nor "a headless frame" (impossible: Gui.Begin
   precedes DrawClientArea). §APIs below now understates the contract: it omits ClearCaptured.
-  ⚠ CARRIED GAP: the row dump gained a "value" field (BP-482 — all three publish sites held a formatter
-  and none passed it), but the DETAILS panel still publishes only its shell model and its variables view
-  only HasContent/Heading — NEITHER carries rows. So T2-via-snapshot covers the Watch and not yet the
-  Details table.
+  ⭐⭐ 2026-08-23 (later, BP-484 — the carried gap is CLOSED): the Details variables table now publishes
+  its ROWS at {idScope}/{ViewId}/table under kind PanelIds.Variables — the SAME
+  VariableTablePanelViewModel the Watch uses, so there is one row projection, not two. The kind is
+  deliberately shared with AiVariablesWindow: when U-16 retires that window the kind survives here and a
+  conformance diff keyed on "variables" keeps its subject. Two silent gaps surfaced while fixing it and
+  are also closed: VariableDetailsSection.Draw would have built a SECOND view (so the user's view and
+  the published view would be different objects that merely agree), and DetailsWindow's test hook
+  published only the shell, never the hosted view it had chosen.
   ⚠ U-obs-3 is NOT done by Group T: /panels/_gizmo reads DebugPrimitiveBuffer DIRECTLY and projects it
   per shape; U-obs-3 asks the buffer be REGISTERED INTO PanelSnapshot so one DumpAll() carries it, and the
   endpoint should then read the snapshot entry — one path to the data (MX-011). U-obs-4 remains this lane's
