@@ -9,7 +9,11 @@ known-conflict: none.
 -->
 # HANDOFF — **perspective model, Part A**
 
-> 📌 **Dispatched at `f39cf0c87`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> ⚠ **RE-STAMPED `2026-08-23` under rule 1a** — amended while **UNSTARTED** *(verified by ancestry on both
+> lane branches: `f39cf0c87` is an ancestor of neither)*. ⭐ **Added `A8`/`A9`** after the user answered the
+> design's open questions. ⛔ Prior stamp `f39cf0c87` is void.
+>
+> 📌 **Dispatched at `<STAMP2>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: push the started-marker BEFORE any
 > code.** ⛔ **No PR.** ⭐ **You allocate the ids** *(rule 3)* — `A0…A7` below are **placeholders**.
 
@@ -39,9 +43,17 @@ the report is ephemeral, the design is not.
 | **A2** | Keep the display label correct — the id and the label now agree, so drop the redundant alias if one remains | **§3 A2** | the toolbar/menu still reads "Scenario" |
 | **A3** | ⚠ **Touch `layout/default/*` ONLY if the shipped default should open on Scenario** | **§3 A3** — 📐 `ActivePerspective` is currently `"Blueprint"` ⇒ **no migration is required.** ⛔ Do not invent one | the stale-layout rail stays green |
 | **A4** | Follow the rename through the **44** test occurrences | **§3 A4** | ⛔ **a test asserting a perspective COUNT must be corrected to the measured set, not deleted** |
+| ⭐⭐ **A8** | **`WindowManager.DeclarePerspective(name)`** — `GetPerspectives()` returns **declared ∪ derived**, so a perspective with **no windows** can exist. ⭐ Plus a **placeholder** in a declared-but-empty perspective — ⛔ **never a blank screen** | **§1e** | declare `"X"` with zero windows ⇒ `GetPerspectives()` contains `X`, switching to it works, and the placeholder draws |
+| ⭐⭐ **A9** | **CGF: rename `CGF` → `Scenario`** *(its four diagnostics windows move with it)*, **declare `BTree`/`HSM`/`Blueprint`**, and point all four at the `CGF` subsystem in `perspectiveMap`. ⛔ **No `CGF` perspective remains** | **§1b** · **§1e** · charter **D1** | `--mode all` reports `Scenario · BTree · HSM · Blueprint` for CGF, and ⛔ **not** `CGF` |
 | **A7** | ⭐ **Delete the dead `Authoring` and `Analysis` perspectives** + the two `Authoring` windows. ⛔ **HOLD the two COMPARISON panels** — the user has not confirmed deleting that feature | **§3 A7** · **§8-E** | `GetPerspectives()` is unchanged by this *(neither was ever live — §1)* |
 
-⛔⛔ **A0 before everything. A6 before A5** *(remove the generator, then fix the instance)*.
+⛔⛔ **A0 before everything. A6 before A5** *(remove the generator, then fix the instance)*. **A8 before A9**
+*(the mechanism, then its first user)*. **A7 last.**
+
+⚠⚠ **A9 is the first REAL many→one `perspectiveMap`** *(four names → `"CGF"`)* ⇒ ⭐⭐ **measure §6-R1 and
+§6-R2 while you are there**: an intra-CGF switch now does `RemoveListener` then `AddListener` on the **same**
+controllable, and re-fires `SwitchMapOwner("CGF")`. ⛔ **If either has a side effect — a dropped gizmo feed,
+a reset camera or selection — that is a FINDING to report, not something to work around.**
 
 ## 2. ⚠ WHAT WILL BITE — measured, so you do not re-derive it
 
@@ -64,8 +76,14 @@ are sanctioned here** because they are **window-registration plumbing, not the v
 an item turns into editing the variable model, the Details panel, or the blackboard surface, STOP and
 report.**
 
-⛔ **Not this batch:** Part B *(CGF growing the asset perspectives)* — it needs the freeze decision in
-**§8 51b-C**. ⛔ Nothing about the harness, goldens or conformance.
+⭐⭐ **A8/A9 are OUTSIDE the freeze** — 📐 they touch `CgfSubsystem`, `WindowManager` and `perspectiveMap`,
+and **nothing in `Hrot.Editor.AiShared`** ⇒ the naming unification does not wait on the freeze decision.
+
+⛔ **Not this batch:** **① Part B** — CGF actually HOSTING the editor's asset panels *(that needs the
+`Hrot.Editor.AiShared` reference and the freeze decision, **§8 51b-C**)*. ⭐ A9 gives CGF the perspective
+NAMES; Part B fills them with windows. **② the StrideMock removal** — **§1f**: it is a project/reference
+change with a different blast radius, and `StrideNodeBootstrapper` must be relocated rather than deleted
+because the real Stride app depends on it. **③** anything about the harness, goldens or conformance.
 
 ## 4. GATES
 

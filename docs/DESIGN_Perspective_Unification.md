@@ -54,12 +54,12 @@ editor's precedent, not inventing a mechanism.**
 | subsystem | perspectives | measured |
 |---|---|---|
 | ⭐ **editor** *(standalone)* | **`Scenario` · `BTree` · `HSM` · `Blueprint`** | 📐 today `Editor` + the other three ⇒ **a SINGLE rename**; the other three already carry the right ids |
-| ⭐⭐ **cgf** | **the same four** — `Scenario · BTree · HSM · Blueprint` | ⛔ today one `CGF`; the four appear **as each ported window lands** *(§2)*. ⭐ Recommend keeping `CGF` for its four existing DIAGNOSTICS windows |
+| ⭐⭐ **cgf** | **the same four** — `Scenario · BTree · HSM · Blueprint`, and ⛔ **NO `CGF` perspective at all** | ⭐⭐⭐ **USER DECISION `2026-08-23`, superseding my "add, don't replace" lean:** *"once cgf gets all 4 perspectives, we should remove the cgf perspective completely. Maybe we should simply and immediately rename CGF perspective to the 'Scenario' perspective, and add the 3 others right away."* ⇒ **do it NOW, not at the end** — its four diagnostics windows move to `Scenario`. 📌 **See §1e: declaring the three empty ones needs a mechanism that does not exist** |
 | **simhost** | `SimHost` | 📐 2 windows |
 | **ig** | `IG` | 📐 5 windows |
 | **excon** | `ExCon` | 📐 7 windows |
 | **replaybrowser** *(standalone)* | `ReplayBrowser` | 📐 confirmed — `string perspective = "ReplayBrowser"`, e.g. `rb_federation` |
-| ⚠ **stridemock** | **`StrideMock`** | 📐 `perspectiveMap["StrideMock"]`, and `stridemock` is a valid `--mode` token. ⚠ **Not in the user's list — flagged, not assumed away** |
+| ⛔ **stridemock** | **REMOVED** — user ruling `2026-08-23` | ⚠ **but NOT a clean delete — see §1f.** `StrideNodeBootstrapper` is load-bearing for the REAL Stride app |
 | ⭐ **orchestrator** | ⛔ **NONE** ✅ | 📐 **and the mechanism is explicit**: both its windows are `WindowScope.Global` with `OwningPerspective = string.Empty` ⇒ always visible, and `GetPerspectives()` *(which filters to `PerspectiveBound`)* never sees them |
 
 ### ⭐⭐ A consequence worth designing FOR, not around
@@ -149,6 +149,56 @@ graph TD
     D -->|no| NL["contributes nothing to the list · NO icon"]
 ```
 
+## 1e. ⛔⛔⛔ AN EMPTY PERSPECTIVE IS NOT REPRESENTABLE — **the user's plan needs a new mechanism**
+
+> ⭐⭐ **User, `2026-08-23`:** *"add the 3 others right away (maybe with no windows until the features are
+> migrated)"*
+
+⛔⛔ **As stated this is mechanically impossible today, and the reason is §2:** `GetPerspectives()` returns
+the distinct `OwningPerspective` of **REGISTERED** windows. ⇒ ⭐ **a perspective with no windows does not
+exist** — it cannot be listed, cannot get an icon, and cannot be switched to.
+
+### ⭐⭐⭐ The fix is the SAME mechanism §1d already demands
+
+⭐ **Add `WindowManager.DeclarePerspective(string name)`**, and make `GetPerspectives()` return
+**declared ∪ derived-from-windows**.
+
+| ⭐ why this is not scope creep | |
+|---|---|
+| ⭐⭐⭐ **§1d needs exactly this** | it requires `NOT-PRESENT-HERE` to be **DECLARED, never inferred from absence**. ⇒ *"CGF declares `BTree` and registers zero windows in it"* is precisely that declaration — **an assertable fact instead of a silence** |
+| ⭐⭐ **it makes the migration target VISIBLE** | the four icons appear in CGF on day one; each fills up as its feature lands ⇒ **progress is legible in the UI and to the harness** |
+| ⭐ **it keeps `GetPerspectives()` honest** | derived-only was never a design decision — it is what falls out of having no declaration API |
+
+⚠ **One UX consequence to handle, or it reads as a bug:** switching to a declared-but-empty perspective
+shows **nothing**. ⇒ ⭐⭐ **render a placeholder** — *"BTree editing is not available in this host yet"* —
+which is also the honest surface for `D3`/`D4`'s absent capabilities. ⛔ **A blank screen is the same
+failure mode as the phantom `Global` perspective**, and we should not trade one for the other.
+
+## 1f. ⛔⛔ STRIDEMOCK — **remove the subsystem, but `StrideNodeBootstrapper` MUST SURVIVE**
+
+> ⭐ **User, `2026-08-23`:** *"StrideMock is not needed anymore… we can remove whole subsystem (unless you
+> find something great it provides we should keep)"*
+
+⭐⭐ **There IS something.** 📐 Measured:
+
+| finding | consequence |
+|---|---|
+| ⭐⭐⭐ **`StrideNodeBootstrapper` is used by the REAL Stride app** | `StrideHrotGame` holds one *(`:96`)*, exposes it *(`:103`)* and takes it via `AttachBootstrapper(...)` *(`:266`)*; `Hrot.Stride.Core.Tests/StrideGameReferenceTests` asserts it *"is resolvable"*. ⛔ **Deleting the project breaks the Stride port that just landed** |
+| ⭐ It is a **node composition root**, not mock scaffolding | it wires ModuleHost scheduling, behavior, combat, gizmos, lifecycle, network spawning, orchestration, scenario, IG and SimHost systems |
+| ✅ **`Hrot.Common` / `Hrot.Presentation` are NOT dependents** | 📐 their only mention is `InternalsVisibleTo Hrot.StrideMock.Tests` — trivially removable |
+| ✅ **`Hrot.CGF` / `PanelIds` are NOT dependents** | 📐 comments only |
+| ⭐ **`Hrot.Stride.Core` must NOT reference it** | a deliberate layering guard — `ReferenceGuardTests` enforces it ⇒ the dependency is confined to `HrotStrideApp.Game` |
+
+⇒ ⭐⭐ **The removal is a SPLIT-AND-RELOCATE, not a delete:**
+**①** move `StrideNodeBootstrapper` to a home the Stride app may reference *(lean: beside
+`SharedApplicationBootstrapper` in `Hrot.Common.Infrastructure`, which is where the "eliminating
+duplication across SimHost, IG and StrideMock" comment already points)*; **②** then delete
+`StrideMockSubsystem`, `FakeStrideEntity`/`Effect`/`Script`, `SyncFdpToStrideScript`, the `stridemock`
+mode token, the `StrideMock` perspective and its `perspectiveMap` entry, `Hrot.FakeStrideApp`, and the two
+`InternalsVisibleTo` grants.
+⛔⛔ **Its own batch, not this one** — it is a project/reference change with a different blast radius from a
+perspective rename, and bundling them would make one revert impossible.
+
 ## 2. ⭐⭐ THE MECHANISM — how a perspective comes to exist
 
 ⭐⭐⭐ **A perspective is not declared anywhere. It exists because a window claims it.**
@@ -203,8 +253,24 @@ until it is green.**
 | **A6** | ⭐⭐ **Make `owningPerspective` REQUIRED on `FindResultsWindow`** — delete the `?? "Authoring"` default | **§1c**'s latent generator. ⛔ Without this, A5 fixes one call site and leaves the mechanism |
 | **A7** | ⭐ **Delete the dead `Authoring` and `Analysis` perspectives** — user ruled them never used. 📐 Neither is live *(§1)*, so no list changes and nothing is re-homed. ⛔ **The two COMPARISON panels are HELD** pending the user's confirmation *(§8-E)* — asset comparison reads like a designed-but-unwired capability | **§1** · user ruling |
 
+### A8–A9 — the CGF side of the NAMING *(added `2026-08-23`; the user's "immediately")*
+
+⭐⭐⭐ **These belong in Part A, not Part B** — 📐 **they touch `CgfSubsystem`, `WindowManager` and
+`perspectiveMap`, and NOTHING in `Hrot.Editor.AiShared`** ⇒ ⛔ **they are outside the freeze**, so the naming
+unification does not have to wait on the freeze decision that Part B needs.
+
+| # | step | design basis |
+|---|---|---|
+| ⭐⭐ **A8** | **`WindowManager.DeclarePerspective(name)`**, and `GetPerspectives()` returns **declared ∪ derived**. ⭐ Plus a **placeholder** for a declared-but-empty perspective — ⛔ never a blank screen | **§1e** |
+| ⭐⭐ **A9** | **CGF: rename its perspective `CGF` → `Scenario`** *(its four diagnostics windows move with it)*, **declare `BTree`/`HSM`/`Blueprint`**, and update `perspectiveMap` so all four map to the `CGF` subsystem | **§1b** · **§1e** · charter **D1** |
+
+⚠ **A9 makes `perspectiveMap` many→one for real** *(four names → `"CGF"`)* ⇒ ⭐ **measure §6-R1/R2 here**:
+an intra-CGF switch now does `RemoveListener`→`AddListener` on the **same** controllable and re-fires
+`SwitchMapOwner("CGF")`. ⛔ **If either has a side effect, that is a finding to report, not to paper over.**
+
 ⭐⭐ **Ordering inside Part A:** **A0 first** *(nothing else is safe without it)*, then **A6 before A5**
-*(remove the generator, then fix the instance)*, then A1–A4, then A7.
+*(remove the generator, then fix the instance)*, then A1–A4, then **A8 before A9**, then A7.
+⛔ **StrideMock removal is NOT in this batch** — §1f says why.
 
 ## 4. ⭐⭐ PART B — CGF grows the asset perspectives *(`DESIGN`)*
 
@@ -325,9 +391,9 @@ sequenceDiagram
 
 | # | question | ⭐ my lean |
 |---|---|---|
-| **51b-A** | Build **A0 before A1**? | ⭐⭐⭐ **yes, and it is not optional** — without it the rename can brick a developer's UI silently |
-| **51b-B** | CGF **adds** asset perspectives and **keeps** `CGF` for diagnostics? | ⭐⭐ **yes** — its four windows are not asset-scoped, nothing has to move, and each new perspective appears with its first window |
+| **51b-A** | Build **A0 before A1**? | ✅ **DECIDED (coordinator, `2026-08-23`) — yes.** ⭐ It is a **dependency, not a preference**: without it the rename can brick a developer's UI silently, so no ordering discussion is available |
+| **51b-B** | CGF **adds** asset perspectives and **keeps** `CGF` for diagnostics? | ⛔⛔ **ANSWERED BY THE USER, against my lean: NO — remove `CGF` entirely, rename it to `Scenario` immediately, and declare the other three now.** ⭐ My "add, don't replace" reasoning *(the four windows are diagnostics, not asset-scoped)* was **outweighed**: a lingering `CGF` perspective is a name the editor will never have, so conformance would carry a permanent exception. ⇒ **§1b + A9.** ⚠ **And it exposed a real gap** — declaring an empty perspective is impossible today *(§1e)* |
 | **51b-C** | Part B touches `Hrot.Editor.AiShared` — the **frozen** area *(`R-128`)*. Whose lane? | ⚠ **the UI/variable lane's**, or the freeze is narrowed for this. ⛔ **Do not have two sessions build it** — that is the exact thing the freeze exists to prevent |
-| **51b-D** | Does Part A wait for the lanes to be idle? | ⭐ **no** — 8 registration sites plus tests is small and touches nothing either lane is in. ⚠ **Part B does** |
-| **51b-F** | ⭐ **`StrideMock`** keeps its own single perspective? | ⭐ **yes, unchanged** — it is a legal mode with its own subsystem; nothing about it needs to move |
+| **51b-D** | Does Part A wait for the lanes to be idle? | ✅ **DECIDED (coordinator, `2026-08-23`) — no, and the question is moot: 📐 BOTH LANES ARE IDLE RIGHT NOW** *(verified by ancestry, not by claim)*. ⇒ ⭐ **dispatch immediately** — waiting only raises the chance a lane starts something that collides. ⚠ **Part B still waits** on `51b-C` |
+| **51b-F** | ⭐ **`StrideMock`** keeps its own single perspective? | ⛔ **NO — user ruled the whole subsystem obsolete** *(the real Stride port superseded it)*. ⚠ **But it is not a clean delete: `StrideNodeBootstrapper` is load-bearing for the real Stride app** ⇒ **split-and-relocate, in its OWN batch** — **§1f** |
 | **51b-E** | **`Authoring`** / **`Analysis`** — ⭐ user ruled `2026-08-23`: never used, safe to delete | ⭐⭐ **delete.** 📐 Neither is a live perspective *(§1's corrected row)*, so nothing has to be re-homed and no list changes. ⚠ **But the four WINDOWS are then dead code, and `docs/` carries no design record for either feature** — ⭐ so delete the two `Authoring` windows outright, and ⛔ **confirm the two COMPARISON panels before deleting them**: asset comparison reads like a designed-but-unwired capability, which is the one case where deletion removes a feature rather than a mistake |
