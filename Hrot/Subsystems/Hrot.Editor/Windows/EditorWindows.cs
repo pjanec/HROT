@@ -85,11 +85,13 @@ internal sealed class EditorSpawnerWindow : ManagedWindow
 }
 
 /// <summary>Mission editor panel (shared) as a perspective-bound managed window.
-/// ⭐⭐⭐ U-obs-5 — the HOST registers. ⚠ No ExCon host exists for this panel (measured): single
-/// host, kind stays a local literal.</summary>
+/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Mission"/>. ⚠⚠ CORRECTED — an
+/// earlier commit in this sweep claimed no ExCon host exists for this panel; that was a false
+/// negative (checked usages everywhere except <c>ExConWindows.cs</c>, which hosts it as
+/// <c>ExConMissionWindow</c>). Both hosts now cite the shared constant.</summary>
 internal sealed class EditorMissionWindow : ManagedWindow
 {
-    internal const string Kind = "mission";
+    internal const string Kind = PanelIds.Mission;
 
     private readonly MissionPanel          _panel;
     private readonly IMissionEditorService _svc;
