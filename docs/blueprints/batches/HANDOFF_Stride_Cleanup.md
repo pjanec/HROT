@@ -11,7 +11,7 @@ known-conflict: none. ⚠ It shares ONE file with the perspectives batch — Pro
 -->
 # HANDOFF — **StrideMock removal** *(the real Stride port superseded it)*
 
-> 📌 **Dispatched at `<PENDING>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `89acf0f20`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`ST-`**, tracker **Area I** *(both already exist from the Stride port)* — ⛔ never
 > `BP-` *(the perspectives lane, running in parallel)*, never `HN-`/`MX-`/`TM-`. ⭐ **You allocate the ids**
