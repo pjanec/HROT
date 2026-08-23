@@ -13,7 +13,7 @@ known-conflict: none.
 > lane branches: `f39cf0c87` is an ancestor of neither)*. ⭐ **Added `A9`** after the user answered the design's
 > open questions; a proposed `A8` was then withdrawn by the user *(§1e)*. ⛔ Prior stamp `f39cf0c87` is void.
 >
-> 📌 **Dispatched at `<STAMP4>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `c3b55b56a`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: push the started-marker BEFORE any
 > code.** ⛔ **No PR.** ⭐ **You allocate the ids** *(rule 3)* — `A0…A9` below are **placeholders**.
 
