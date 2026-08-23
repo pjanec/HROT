@@ -1028,7 +1028,6 @@ configured `--log-dir`. Log entries include the node ID in scope context:
 | Full distributed | `orchestrator,excon` + `simhost` + `cgf` + `ig` | Production cluster |
 | Replay browser | `replaybrowser` | Offline replay analysis without live DDS |
 | Scenario editor | `editor` | Scenario authoring without simulation |
-| StrideMock | `stridemock` | 3-D visualization stub |
 
 ---
 

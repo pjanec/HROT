@@ -32,8 +32,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Stride.Core\Hrot.Stride.Core.csproj" />
-    <!-- Required to load Hrot.StrideMock assembly for T3 reference-closure tests -->
-    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.StrideMock\Hrot.StrideMock.csproj" />
+    <!-- Required to load Hrot.NodeComposition assembly for T3 reference-closure tests (ST-014: was Hrot.StrideMock) -->
+    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.NodeComposition\Hrot.NodeComposition.csproj" />
     <!-- Required for FakeNavmeshProvider/FakeNavLayer/NavPolygon in T2 contract-parity tests -->
     <ProjectReference Include="..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
   </ItemGroup>

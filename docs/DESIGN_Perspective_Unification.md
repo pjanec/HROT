@@ -64,7 +64,7 @@ editor's precedent, not inventing a mechanism.**
 | **ig** | `IG` | 📐 5 windows |
 | **excon** | `ExCon` | 📐 7 windows |
 | **replaybrowser** *(standalone)* | `ReplayBrowser` | 📐 confirmed — `string perspective = "ReplayBrowser"`, e.g. `rb_federation` |
-| ⛔ **stridemock** | **REMOVED** — user ruling `2026-08-23` | ⚠ **but NOT a clean delete — see §1f.** `StrideNodeBootstrapper` is load-bearing for the REAL Stride app |
+| ⛔ **stridemock** | ✅ **REMOVED-AS-BUILT** *(`ST-014`…`ST-018`)* — user ruling `2026-08-23` | ⭐ Done as a **split-and-relocate**, per §1f: `StrideNodeBootstrapper` survives in the renamed **`Hrot.NodeComposition`**. ⚠ The `perspectiveMap` entry is the ONE piece deliberately left to the perspectives lane |
 | ⭐ **orchestrator** | ⛔ **NONE** ✅ | 📐 **and the mechanism is explicit**: both its windows are `WindowScope.Global` with `OwningPerspective = string.Empty` ⇒ always visible, and `GetPerspectives()` *(which filters to `PerspectiveBound`)* never sees them |
 
 ### ⭐⭐ A consequence worth designing FOR, not around
@@ -207,14 +207,31 @@ from `IG` to CGF's `BTree` leaves the map owned by whoever had it, because no en
 | ⭐ **`Hrot.Stride.Core` must NOT reference it** | a deliberate layering guard — `ReferenceGuardTests` enforces it ⇒ the dependency is confined to `HrotStrideApp.Game` |
 
 ⇒ ⭐⭐ **The removal is a SPLIT-AND-RELOCATE, not a delete:**
-**①** move `StrideNodeBootstrapper` to a home the Stride app may reference *(lean: beside
-`SharedApplicationBootstrapper` in `Hrot.Common.Infrastructure`, which is where the "eliminating
-duplication across SimHost, IG and StrideMock" comment already points)*; **②** then delete
+**①** move `StrideNodeBootstrapper` to a home the Stride app may reference; **②** then delete
 `StrideMockSubsystem`, `FakeStrideEntity`/`Effect`/`Script`, `SyncFdpToStrideScript`, the `stridemock`
 mode token, the `StrideMock` perspective and its `perspectiveMap` entry, `Hrot.FakeStrideApp`, and the two
 `InternalsVisibleTo` grants.
 ⛔⛔ **Its own batch, not this one** — it is a project/reference change with a different blast radius from a
 perspective rename, and bundling them would make one revert impossible.
+
+### ✅ AS-BUILT *(`ST-014`…`ST-018`)* — 📄 the owning record is [`DESIGN_Stride_Port.md`](DESIGN_Stride_Port.md) §7
+
+⛔⛔ **THIS SECTION'S RELOCATION LEAN WAS IMPOSSIBLE, and the strikeout matters more than the fix.** The
+parenthetical above used to read *"lean: beside `SharedApplicationBootstrapper` in
+`Hrot.Common.Infrastructure`, which is where the 'eliminating duplication across SimHost, IG and
+StrideMock' comment already points"*. 📐 `StrideNodeBootstrapper` composes `Hrot.SimHost` and `Hrot.IG`
+systems, and **both already reference `Hrot.Common`** ⇒ moving it there is a **project-reference CYCLE**.
+⭐⭐ The comment points at the **base class**; it does not license moving the **concrete root**, which by
+definition sits ABOVE the subsystems it composes. ⇒ ✅ `Hrot.StrideMock` was **renamed** to
+**`Hrot.NodeComposition`** and gutted to that one type — same reference set, no new edge, valid home.
+
+| step | as built |
+|---|---|
+| **①** relocate | ✅ `Hrot.NodeComposition` (renamed project, `git mv`). ⭐ Its tests came too — **22 of the 44 facts in `Hrot.StrideMock.Tests` test SURVIVING types**, so deleting that project wholesale (as `S2` said) would have dropped real coverage |
+| **②** delete the mock | ✅ all five types, `Hrot.FakeStrideApp` + `.Tests`, solution **122 → 120** |
+| the `stridemock` mode token | ✅ gone — from **6** sites, ⛔ **not the 4 the dispatch measured** *(`ST-015`)* |
+| the two `InternalsVisibleTo` grants | ✅ both dropped |
+| 🔴 **the `StrideMock` perspective + `perspectiveMap` entry** | ⛔ **NOT DONE — deliberately.** `Program.cs:256` was allocated to the parallel perspectives lane, which is editing that same dictionary literal. ⚠ **It was still present at the end of this batch** |
 
 ## 1g. ⛔⛔ THE FOUR DORMANT WINDOWS — **do NOT delete them; their features are LIVE**
 

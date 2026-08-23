@@ -11,7 +11,7 @@ using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Stride.Core;
 using Hrot.Stride.Core.TestHarness;
-using Hrot.StrideMock;
+using Hrot.NodeComposition;
 using Stride.Core.Mathematics;
 using Stride.Engine;
 using Stride.Engine.Processors;

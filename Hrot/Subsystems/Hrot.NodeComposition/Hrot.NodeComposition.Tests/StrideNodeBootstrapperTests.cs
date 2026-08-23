@@ -13,7 +13,7 @@ using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Xunit;
 
-namespace Hrot.StrideMock.Tests;
+namespace Hrot.NodeComposition.Tests;
 
 /// <summary>
 /// Tests for StrideNodeBootstrapper covering all SC_SM003_x and SC_SM005_x

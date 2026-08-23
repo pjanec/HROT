@@ -7,27 +7,32 @@ namespace Hrot.Stride.Core.Tests;
 
 /// <summary>
 /// Task 3 tests: verifies that HrotStrideApp.Game transitively references
-/// Hrot.StrideMock and that StrideNodeBootstrapper is resolvable from that
+/// Hrot.NodeComposition and that StrideNodeBootstrapper is resolvable from that
 /// reference closure (BATCH-01 STR-P0-T3).
+///
+/// ST-014: the bootstrapper moved from Hrot.StrideMock to Hrot.NodeComposition when the mock was
+/// retired. These assertions are UPDATED to the new home, not weakened — the point of the test is
+/// that the real Stride app can still reach its composition root, which is exactly what the move
+/// had to preserve.
 ///
 /// Because HrotStrideApp.Game is a Stride game project (asset-compiled, not just
 /// a .NET library), we verify reachability via its ProjectReference chain rather
 /// than loading the game assembly. The test projects in this solution reference
 /// Hrot.Stride.Core which is ProjectReferenced from HrotStrideApp.Game;
-/// StrideNodeBootstrapper is verified reachable via the loaded Hrot.StrideMock assembly.
+/// StrideNodeBootstrapper is verified reachable via the loaded Hrot.NodeComposition assembly.
 /// </summary>
 public class StrideGameReferenceTests
 {
     [Fact]
-    public void StrideNodeBootstrapper_TypeIsResolvable_FromStrideMockAssembly()
+    public void StrideNodeBootstrapper_TypeIsResolvable_FromNodeCompositionAssembly()
     {
-        // The StrideNodeBootstrapper lives in Hrot.StrideMock.
-        // HrotStrideApp.Game has a ProjectReference to Hrot.StrideMock (Task 3).
+        // The StrideNodeBootstrapper lives in Hrot.NodeComposition (ST-014; was Hrot.StrideMock).
+        // HrotStrideApp.Game has a ProjectReference to Hrot.NodeComposition (Task 3).
         // Verify the type exists and is loadable (runtime proof that the reference closure works).
-        var type = Type.GetType("Hrot.StrideMock.StrideNodeBootstrapper, Hrot.StrideMock");
+        var type = Type.GetType("Hrot.NodeComposition.StrideNodeBootstrapper, Hrot.NodeComposition");
         Assert.NotNull(type);
         Assert.Equal("StrideNodeBootstrapper", type!.Name);
-        Assert.Equal("Hrot.StrideMock", type.Namespace);
+        Assert.Equal("Hrot.NodeComposition", type.Namespace);
     }
 
     [Fact]
@@ -40,22 +45,22 @@ public class StrideGameReferenceTests
     }
 
     [Fact]
-    public void HrotStrideApp_Game_References_Hrot_StrideMock_ViaReflection()
+    public void HrotStrideApp_Game_References_Hrot_NodeComposition_ViaReflection()
     {
-        // Load Hrot.StrideMock assembly to verify the type is reachable in the test process
+        // Load Hrot.NodeComposition assembly to verify the type is reachable in the test process
         // (the test project depends on Hrot.Stride.Core which is in the Game closure).
         // Perform a runtime lookup of the bootstrapper type.
-        var strideMockAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(a => a.GetName().Name == "Hrot.StrideMock");
+        var compositionAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "Hrot.NodeComposition");
 
         // If not loaded yet, try loading it explicitly.
-        if (strideMockAssembly == null)
+        if (compositionAssembly == null)
         {
-            strideMockAssembly = Assembly.Load("Hrot.StrideMock");
+            compositionAssembly = Assembly.Load("Hrot.NodeComposition");
         }
 
-        Assert.NotNull(strideMockAssembly);
-        var bootType = strideMockAssembly!.GetType("Hrot.StrideMock.StrideNodeBootstrapper");
+        Assert.NotNull(compositionAssembly);
+        var bootType = compositionAssembly!.GetType("Hrot.NodeComposition.StrideNodeBootstrapper");
         Assert.NotNull(bootType);
     }
 }

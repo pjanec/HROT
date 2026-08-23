@@ -24,10 +24,19 @@ using Hrot.SimHost.Modules;
 using Hrot.SimHost.Serializers;
 using Hrot.SimHost.Systems;
 
-namespace Hrot.StrideMock;
+namespace Hrot.NodeComposition;
 
 /// <summary>
-/// Concrete <see cref="SharedApplicationBootstrapper"/> for the Stride mock node.
+/// Concrete <see cref="SharedApplicationBootstrapper"/> for the Stride-hosted simulation node.
+///
+/// <para>
+/// ST-014: this type used to live in <c>Hrot.StrideMock</c> and outlived it. The mock was temporary
+/// scaffolding standing in for the real Stride app; this is the node composition root that app
+/// actually consumes (<c>StrideHrotGame</c> holds it and takes it via <c>AttachBootstrapper</c>).
+/// It could not move down into <c>Hrot.Common</c> with <see cref="SharedApplicationBootstrapper"/>,
+/// because it composes <c>Hrot.SimHost</c> and <c>Hrot.IG</c> systems and both of those reference
+/// <c>Hrot.Common</c> - that edge would be a cycle. See <c>DESIGN_Stride_Port.md</c>.
+/// </para>
 ///
 /// <para>
 /// Implements all abstract hooks to produce a headless-compatible simulation node
@@ -51,7 +60,7 @@ namespace Hrot.StrideMock;
 /// </summary>
 public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDisposable
 {
-    /// <summary>Combined node role for all Stride mock responsibilities.</summary>
+    /// <summary>Combined node role for all Stride-hosted node responsibilities.</summary>
     public static readonly NodeRole Role =
         NodeRole.MuscleGround | NodeRole.Perception |
         NodeRole.NavigationSolver | NodeRole.ImageGenerator;
@@ -164,9 +173,14 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         Context.ClusterSlave.Tick();
 
         // Forward dt directly — SlaveSyncController needs network sync events to advance
-        // deterministically, which are absent in headless/offline mode.  The legacy
-        // Update(float) overload is the correct choice here because this bootstrapper
-        // is explicitly a mock/test-only harness, not a live DDS-connected node.
+        // deterministically, which are absent in headless/offline mode.
+        //
+        // ⚠ ST-014: the ORIGINAL justification for the legacy Update(float) overload was that "this
+        // bootstrapper is explicitly a mock/test-only harness, not a live DDS-connected node". That
+        // premise is now FALSE — the mock is retired and this is the real Stride app's composition
+        // root, which can be DDS-connected. The call is left exactly as it was: this batch only moved
+        // the type, and re-deciding the tick path is a behaviour change that needs its own review.
+        // Filed rather than silently patched or silently kept — see the batch report.
 #pragma warning disable CS0618
         Context.Kernel.Update(dt);
 #pragma warning restore CS0618
@@ -269,7 +283,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             participant:         context.Participant,
             subsystemName:       _savedConfig!.SubsystemName,
             eventBus:            context.EventBus,
-            scenarioSerializer:  null,    // StrideMock does not load/save scenarios
+            scenarioSerializer:  null,    // this node does not load/save scenarios
             localTempRoot:       _savedConfig.LocalTempRoot,
             simGroup:            simGroup,
             postSimGroup:        postSimGroup,

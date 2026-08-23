@@ -22,10 +22,6 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.Diagnostics.Breakpoints.Tests</_Parameter1>
     </AssemblyAttribute>
-    <!-- BP-327: SystemProfilerWindow's SimulateDrawClientArea test hook, for each host's composition-root rail. -->
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>Hrot.StrideMock.Tests</_Parameter1>
-    </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.Editor.Tests</_Parameter1>
     </AssemblyAttribute>

@@ -4,10 +4,6 @@
       "commandName": "Project",
       "commandLineArgs": "-m all"
     },
-    "All w/Stride (ExCon+CGF+StrideMock)": {
-      "commandName": "Project",
-      "commandLineArgs": "-m orchestrator,excon,cgf,stridemock  --no-wait"
-    },
     "IG": {
       "commandName": "Project",
       "commandLineArgs": "-m ig --no-wait"

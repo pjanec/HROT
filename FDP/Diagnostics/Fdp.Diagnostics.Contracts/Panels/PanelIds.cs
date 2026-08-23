@@ -119,8 +119,11 @@ public static class PanelIds
     /// <summary>
     /// ⭐ <c>BP-327</c> follow-up — the module/system execution-stats profiler
     /// (<c>SystemProfilerPanel</c>, in <c>Fdp.Presentation</c>). ⚠⚠ Hosted by
-    /// <c>SystemProfilerWindow</c> in MORE THAN ONE host (<c>Hrot.SimHost</c>, <c>Hrot.StrideMock</c>,
-    /// <c>Hrot.CGF</c>, <c>Hrot.IG</c>, <c>Hrot.Editor</c>) — every registration must agree on this kind.
+    /// <c>SystemProfilerWindow</c> in MORE THAN ONE host (<c>Hrot.SimHost</c>, <c>Hrot.CGF</c>,
+    /// <c>Hrot.IG</c>, <c>Hrot.Editor</c>) — every registration must agree on this kind.
+    /// ⚠ <c>ST-017</c>: <c>Hrot.StrideMock</c> was a FIFTH host and is retired. Four remain, so the
+    /// cross-host kind agreement this comment describes is still comparing more than one host — but
+    /// the snapshot rail that covered the mock's registration went with it.
     /// </summary>
     public const string SystemProfiler = "system-profiler";
 }

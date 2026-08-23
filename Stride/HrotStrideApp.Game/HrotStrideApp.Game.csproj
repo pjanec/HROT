@@ -5,7 +5,7 @@
     <RootNamespace>HrotStrideApp</RootNamespace>
     <!-- HrotStrideApp.Game does not define any CycloneDDS IDL topics itself.
          The CycloneDDS.NET.targets code-generator is pulled in transitively through
-         Hrot.StrideMock → Fdp.Toolkits → CycloneDDS.NET, but fails on this project
+         Hrot.NodeComposition → Fdp.Toolkits → CycloneDDS.NET, but fails on this project
          because the generator is passed all Stride DLLs on the command line which
          causes "The system cannot execute the specified program" (command-line length
          or platform limitation). Suppress the generator target — the DDS topic types
@@ -31,8 +31,8 @@
     <ProjectReference Include="..\Hrot.Stride.Core\Hrot.Stride.Core.csproj" />
     <!-- Real Stride animation backend — P4 stub today -->
     <ProjectReference Include="..\Hrot.Stride.Animation\Hrot.Stride.Animation.csproj" />
-    <!-- StrideNodeBootstrapper reuse seam (brings Raylib tag-along: design §1.1, §8.3 accepted) -->
-    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.StrideMock\Hrot.StrideMock.csproj" />
+    <!-- StrideNodeBootstrapper reuse seam — ST-014: moved out of the retired Hrot.StrideMock -->
+    <ProjectReference Include="..\..\Hrot\Subsystems\Hrot.NodeComposition\Hrot.NodeComposition.csproj" />
   </ItemGroup>
 
   <!-- EditorStrideSubsystem composition dependencies (BATCH-02 STR-P0-T6) -->
