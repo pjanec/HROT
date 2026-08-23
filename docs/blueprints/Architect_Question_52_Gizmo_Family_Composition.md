@@ -2,9 +2,15 @@
 state: LIVE
 build-state: DESIGN
 updated: 2026-08-23
-current-answer: §4 — the recommended answers per sub-question. §2 is the measurement that changes the
-  question's shape (the implementation session had three options; the measurement produces a fourth,
-  and the fourth is clean).
+current-answer: ⛔⛔ READ §0 FIRST. The user's RULING (A/C) stands; the MECHANISM I proposed to implement
+  it does NOT. Three live designs in docs/UX/ — which this question never searched — settle the same
+  problem a different and better way. §4 records the approval; §0 records what invalidates its mechanism.
+  ⛔ NOT dispatchable: reconciliation is owed before any UML.
+stale-below: ⛔ §2b's per-projector "verdict" column and §4-A's blast radius — both assume the host
+  curates its own declaration, which UXI-23's 2026-08-10 ruling forbids. Read §0 before quoting either.
+known-conflict: docs/UX/UX_Feature_Map_Parity.md §3.2 (uniform membership) ·
+  docs/UX/UX_Feature_Map_Layers.md §2.2 (per-gizmo TagMask) · docs/UX/UX_Tasks_Detail.md Correction 47
+  (registering a component TYPE is not an entity carrying it). §0 states the reconciliation.
 design-basis: ST-020 (Blueprint_Issues_Tracker Area I) · DESIGN_Stride_Port.md §9 (the rail that found it)
   · docs/designs/gizmos-1/DESIGN.md · docs/projects/Hrot/Subsystems/Hrot.IG.md §"Namespace Hrot.IG.Gizmos"
   · PROGRAMME_Unification_And_Harness.md D6.
@@ -17,7 +23,63 @@ known-conflict: none. ⚠ Hrot.IG.md:305 documents the wide aggregation as AS-BU
 > their first run. The implementation session **correctly refused the policy call** and quarantined the
 > mode with a tripwire. This is that call.
 
-## 0. ⭐ THE ONE-LINE QUESTION
+## 0. ⛔⛔⛔ ON HOLD — **`docs/UX/` ALREADY SOLVED THIS, AND BETTER. THE RULING STANDS; MY MECHANISM DOES NOT.**
+
+> 🔒 **User, `2026-08-23`:** *"could you pls look in docs/UX documents? I think i have been already
+> solving the issue what the map should look like once everything is unified"* — ⭐⭐⭐ **they had.**
+> ⛔⛔ **This question was written without searching `docs/UX/` at all** — a **37-issue, 21-designed**
+> programme with its own tracker, rulings ledger and corrections log. 📌 **`R-129`'s exact failure**: I
+> read the code's mechanism and reasoned from *how it IS*.
+
+### ⭐ What survives untouched
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **The user's ruling** — *"ig is not meant to draw brain tier gizmos. brain components are not instantiated on IG."* | ✅ **stands, and the UX designs SATISFY it** — see the reconciliation |
+| ⭐⭐⭐ **`C` — no loosening** | ✅ **stands, and is now MORE load-bearing.** The registry's throw is the only thing that detects an incomplete schema pack |
+| ⭐⭐ **`§2b`'s ENUMERATION** *(4 projectors, 4 components, `ScenarioEditor` declares zero)* | ✅ **the facts hold.** ⛔ Only its *verdict* column is void |
+
+### ⛔ What is invalidated — **three live designs, none of which this question cites**
+
+| 📄 | what it says | ⇒ why my mechanism is wrong |
+|---|---|---|
+| **`UX_Feature_Map_Parity.md` §3.2** *(UXI-23, `☑ designed`)* | 🔒 **ruled `2026-08-10`:** *"all hosts share the **FULL set**; differences are **data availability** or host rules, **never set membership**"* ⇒ *"the pack decides; **the host does not curate**"*, via a **`MapInteractionPack`** that performs the four gizmo registrars for all five hosts | ⛔⛔ **`§4-A` — "IG drops the brain family call" — IS THE HOST CURATING.** ⚠ And it runs **against the direction of travel**: UXI-22/23's headline defect is that **CGF and SimHost are MISSING `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar`** ⇒ the design wants **more** hosts calling **more** registrars, from one place |
+| **`UX_Feature_Map_Layers.md` §2.2** *(UXI-28, `☑ designed`)* | ⭐⭐ **visual kinds — *entities · perception · **ai-helpers*** — are declared **per gizmo type** as a **`TagMask`**, and a tag is hidden with **ALL-semantics** *(hidden if any tag is hidden; untagged always visible)* | ⭐⭐⭐ **THE MECHANISM FOR "IG DOES NOT SHOW BRAIN GIZMOS" ALREADY EXISTS AND IS A LAYER TAG.** ⛔ Not a dropped registrar call. `ai-helpers` is **literally one of the named kinds** |
+| **`UX_Tasks_Detail.md` Correction 47** *(`2026-08-14`)* | ⭐⭐⭐ *"`RegisterComponent<T>()` registers a **type with the world**; I read that as both **entity-level presence** and serializer scope. **Two conflations in one sentence**"* | ⛔⛔⛔ **`§2b` COMMITS THAT EXACT CONFLATION** — nine days after it was written down and corrected |
+
+### ⭐⭐⭐ THE RECONCILIATION — **and the user's own wording is the hinge**
+
+🔒 **They wrote *"brain components are not INSTANTIATED on IG."*** ⭐⭐⭐ **Instantiated — not registered.**
+📐 Per Correction 47 those are **different facts**, and the difference is the whole answer:
+
+| | |
+|---|---|
+| ⭐⭐ **register the component TYPE on IG's world** | cheap, uniform, and it makes `StatelessGizmoRegistry`'s contract **satisfiable** ⇒ **bootstrap stops dying** |
+| ⭐⭐⭐ **no IG entity ever CARRIES `BrainBlackboard`/`BehaviorState`** | ⇒ `HillAttackGizmo` **matches nothing and never draws.** 🔒 **The ruling holds VERBATIM — by data availability, exactly as UXI-23 §3.2 says it should be** |
+| ⭐⭐ **and if it must be hidden even where the data EXISTS** | ⇒ **UXI-28's `TagMask`** — tag it `ai-helpers`, hide the tag. ⭐ *Membership uniform, visibility earned* |
+
+⇒ ⭐⭐⭐ **The bootstrap crash is fixed by making the SCHEMA uniform, not the DECLARATION narrow.** 📐 The
+defect's real shape: **the registrar call was shared and copied while the component registration was left
+per-host.** ⛔ `MapInteractionPack` as designed would **crash all five hosts** the day it lands, for the
+same reason `--mode ig` crashes now ⇒ ⭐⭐ **it needs a schema half — and that, not a rail, is `B`'s answer.**
+
+### ⛔ What is owed before this is dispatchable
+
+| | |
+|---|---|
+| **①** | ⭐⭐ **Re-answer `A`/`B`/`D` on the UX mechanism** — schema pack + `TagMask`, ⛔ not per-host curation. ⭐ `C` and `E` need no change |
+| **②** | ⭐⭐⭐ **Decide whether this belongs to `Q52` AT ALL, or is a task under UXI-23** — 📐 `MapInteractionPack` is **designed and NOT BUILT** *(zero occurrences in `.cs`)*, so `--mode ig` may simply be **its first acceptance case**. ⚠ **A `Q52` that duplicates UXI-23 is exactly the two-designs-for-one-concept failure ruling 9 forbids** |
+| **③** | ⭐ **the tripwire stays armed** *(`ST-020`)* — ⛔ nothing here is a reason to disarm it |
+
+⚠⚠ **AND A PROGRAMME-LEVEL FINDING, WORSE THAN A MISSING POINTER:** ⛔⛔ **the pointer was already there.**
+📐 `PROGRAMME_Unification_And_Harness.md` §6's **last row is `UX/`**, and it names
+**`UX_Feature_Cgf_Brain_Diagnostics.md` explicitly**; §5 already cites `UX_Feature_Perspective_Restore.md`
+§3. ⇒ 🔴 **I wrote that row and then never opened what it points at.** ⭐⭐ So this is **not** *"the corpus
+was undiscoverable"* — ⛔ **it is "a `docs/` row in my own charter did not survive my own compaction."**
+📄 `docs/UX/SHARED_SURFACES.md` closes by asking *"⚠ Open: does the other side read this?"* and answering
+*"**that link has not been added**."* 🔴 **I am the other side; the answer was no.**
+
+## 1b. ⭐ THE ONE-LINE QUESTION *(as originally framed — read §0 first)*
 
 ⭐⭐ **`StatelessGizmoRegistry` throws when a projector's required component is absent from the world.**
 ⛔ IG declares projector families whose components IG's world never registers. ⇒ **either the declaration
@@ -53,6 +115,41 @@ ask **how**. ⭐⭐ The inventory says the premise is the thing to check:
 ⛔⛔ **`Hrot.IG.md:305** documents the four-family aggregation — ⚠ **but as AS-BUILT, not as a rationale**
 *(the project docs describe files; they do not carry intent — `R-129`)*. ⛔ **Do not read it as a ruling.**
 
+## 2b. ⛔⛔⛔ THE PER-PROJECTOR ENUMERATION — **and it corrects `§4-A`'s blast radius, which was WRONG**
+
+> ⭐⭐ **This is the measurement `D` asked for, run after approval.** ⛔ It does not overturn `A`, `B` or
+> `C` — ⭐ it **refines** them, and it corrects a number I stated too confidently.
+
+📐 **Every `[GizmoProjector]` in the four families IG declares, against `IgRoleComponentRegistry`'s ~20:**
+
+| family | projectors | ⛔ unsatisfied in IG's world |
+|---|---|---|
+| **`Hrot.Common`** | **7** — `SelectionState+SimTransform` · `NetworkIdentity` · `SimTransform+PerceptionReceptor` · `IgHealthState` · **`NavigationIntent+SimTransform`** · `SimTransform` · `TargetMemory+SimTransform` | ⛔ **1** — `NavigationIntent` |
+| **`Hrot.AI.Behaviors`** | **1** — `HillAttackGizmo`: `BrainBlackboard+BehaviorState+SimTransform` | ⛔ **1** — both brain components |
+| **`Hrot.IG`** *(its OWN)* | **3** — `EqsSensorGizmo`: `SimTransform+`**`EqsSensor`** · `SimTransform+VisualEffectState` · `ProjectilePresentationGizmo`: **`BallisticProjectile`**`+SimTransform` | 🔴🔴 **2 — IG'S OWN GIZMOS** |
+| **`Hrot.ScenarioEditor`** | 🔴 **ZERO** | — |
+
+### ⭐⭐⭐ What that changes
+
+| ⛔ | |
+|---|---|
+| 🔴🔴 **`§4-A` said *"drop one call line, blast radius small."* THAT WAS WRONG.** | 📐 Dropping the brain family fixes **1 of 4** unsatisfied projectors. ⛔ **Three survive**, and ⭐⭐⭐ **TWO ARE IG'S OWN GIZMOS** — `EqsSensorGizmo` and `ProjectilePresentationGizmo` live in `Hrot/Subsystems/Hrot.IG/Gizmos/`, read `EqsSensor` / `BallisticProjectile`, and IG **never registers either**. ⇒ **IG declares projectors it cannot satisfy in its own assembly** |
+| ⭐⭐ **so the cascade was FINITE, and is now bounded** | 📌 The lane measured *"a cascade, not a one-liner"* and stopped — ⭐ **right to stop, and the enumeration is what bounds it: exactly 4 projectors, 4 components.** ⛔ It is **not** the unbounded slide toward hosting the AI tier that made me reach for a family-level answer |
+| ⭐⭐⭐ **THE FAMILY IS THE WRONG GRANULARITY — measured, not argued** | 📐 `Hrot.Common`'s 7 projectors span IG-visual *(`IgHealthState`!)*, shared *(`NetworkIdentity`)* **and** one Brain-owned command. ⇒ ⛔ **no family-level keep/drop can express the right answer**, because the family bundles tiers. ⭐⭐ **This STRENGTHENS `B`**: the invariant and its rail must be **per-projector** |
+| ⭐ **`D` is answered, and not as I leaned** | 📐 `Hrot.ScenarioEditor` declares **zero** projectors ⇒ the call is a **no-op today**. ⛔ So dropping it is **hygiene, not a fix** — ⚠ but it is a **latent trap**: the day an authoring projector is added there, IG inherits it silently. ⇒ ⭐ **drop it, and say in the commit that it fixed nothing today** |
+
+### ⭐ The per-projector verdict
+
+| projector | missing | ⭐ verdict | why |
+|---|---|---|---|
+| `HillAttackGizmo` *(AI.Behaviors)* | `BrainBlackboard`, `BehaviorState` | ⛔⛔ **DROP the family call** | 🔒 **user, `2026-08-23`:** *"ig is not meant to draw brain tier gizmos. brain components are not instantiated on IG."* |
+| `EqsSensorGizmo` *(**IG's own**)* | `EqsSensor` | ✅ **REGISTER** | ⭐ IG's own gizmo over an `Fdp.Toolkits` type in a project IG already references. ⛔ Zero policy — it is a plain omission |
+| `ProjectilePresentationGizmo` *(**IG's own**)* | `BallisticProjectile` | ✅ **REGISTER** | ⭐ same, and IG **already** registers the projectile's visual peers *(`TracerTarget`, `VisualEffectState`)* ⇒ the omission is visible against its own neighbours |
+| `NavigationTargetGizmo` *(`Hrot.Common`)* | `NavigationIntent` | ⚠ **REGISTER — and this is the ONE place I am INTERPRETING the ruling, not applying it** | 📐 `NavigationIntent` is a **replicated DDS descriptor** *(`dtNavigationIntent = 52`, `Hrot.Network.NED` — an IG reference)*, so IG legitimately **receives** it. ⭐ The ruling names *brain components*; `BrainBlackboard`/`BehaviorState`/`BrainBTreeState` are brain **working memory**, whereas this is the **published navigation goal**. ⛔ **The alternative is splitting `Hrot.Common`'s shared family for one projector** — worse. ⚠ **If the user reads `NavigationIntent` as brain-tier, this flips and the family must split** |
+
+⇒ ⭐⭐ **`C` is untouched and now better supported:** 🔒 **user: *"no losening."*** 📐 The registry throwing is
+the only reason all four of these are known at all — **two of them IG's own bugs, live for however long.**
+
 ## 3. ⭐⭐ THE SUB-QUESTIONS
 
 | # | question |
@@ -63,7 +160,19 @@ ask **how**. ⭐⭐ The inventory says the premise is the thing to check:
 | **D** | **Does `Hrot.ScenarioEditor`'s family belong in IG?** ⚠ Raised by the same line and never asked |
 | **E** | **Sequencing** — before or after the regression net's `N1`? |
 
-## 4. ⭐⭐⭐ RECOMMENDED ANSWERS — **the user approves or names the one to change**
+## 4. ⭐⭐⭐ ANSWERS — ✅ **APPROVED BY THE USER, `2026-08-23`**
+
+> 🔒 **User, verbatim:** *"approved recommended responses to architect questions 52. ig is not meant to
+> draw brain tier gizmos. brain components are not instantiated on IG. no losening."*
+
+⭐⭐ **All five recommendations stand as written below.** ⭐ The reply settles `A` and `C` **explicitly and
+independently** — ⛔ not merely as assent to my reasoning, which matters because `§2b` then found my
+`A` blast radius wrong: ⭐⭐⭐ **the RULING held while my SIZING did not.**
+
+⚠ **One open interpretation, flagged not buried:** `NavigationIntent` — `§2b`'s last row. ⭐ I read
+*"brain components"* as brain **working memory** and register it; ⛔ if it should read as brain **tier**,
+that projector flips to a drop and `Hrot.Common`'s family must split.
+
 
 | # | ⭐ recommendation | reasoning | blast radius |
 |---|---|---|---|
