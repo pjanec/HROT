@@ -30,6 +30,12 @@ namespace Hrot.Editor.DebugApi
         public const string TkbType     = "tkbType";
         public const string Recording   = "recording";
 
+        /// <summary>MX9 — the panel snapshot: a bad panel id, or a read while capture is off.</summary>
+        public const string Panel       = "panel";
+
+        /// <summary>MX2 — blueprint hot-attach: a blueprint name the registry does not know.</summary>
+        public const string Blueprint   = "blueprint";
+
         /// <summary>
         /// The hint for a category: which endpoint to call and what it answers. Returns
         /// <see langword="null"/> for an unknown category, so an un-mapped failure simply carries no
@@ -49,6 +55,8 @@ namespace Hrot.Editor.DebugApi
             Scenario    => Hint("GET /scenarios",        "the scenarios this build can load"),
             TkbType     => Hint("GET /tkb/types",        "the TKB templates and their tkbType ids"),
             Recording   => Hint("POST /recording/start", "start a recording before stopping or replaying one"),
+            Panel       => Hint("GET /panels", "which panels are instrumented, and which published a model this frame"),
+            Blueprint   => Hint("GET /blueprints", "the blueprints this editor has compiled, by name"),
             _           => null,
         };
 

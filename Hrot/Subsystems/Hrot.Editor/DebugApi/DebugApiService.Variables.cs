@@ -323,7 +323,13 @@ namespace Hrot.Editor.DebugApi
                     + "That is a missing capability on this host, not a property of the variable.",
                     DebugApiHints.Variable);
 
-            return (new JsonObject
+            // ⚠ The drain is gated on the debugger not being REWOUND, so a write staged while stopped
+            //   at a breakpoint is queued and goes nowhere until someone resumes. Reporting
+            //   `staged: true` and nothing else would be the silent-discard the pending flag exists to
+            //   prevent — so the reply says whether this write can actually land. (MX-009.)
+            bool stopped = _bpManager?.IsPaused ?? false;
+
+            var result = new JsonObject
             {
                 ["networkId"] = networkId,
                 ["asset"]     = slot.Name,
@@ -331,9 +337,14 @@ namespace Hrot.Editor.DebugApi
                 ["path"]      = path,
                 ["staged"]    = true,
                 ["pending"]   = true,
-                ["note"]      = "Staged. It lands on the next advancing tick; until then the read "
-                              + "reports the old value with pending: true.",
-            }, null, null);
+                ["willDrain"] = !stopped,
+                ["note"]      = stopped
+                    ? "Staged, but the debugger is stopped at a breakpoint and the drain is gated on "
+                    + "resuming — POST /breakpoints/continue, or this write stays pending forever."
+                    : "Staged. It lands on the next advancing tick; until then the read reports the "
+                    + "old value with pending: true.",
+            };
+            return (result, null, null);
         }
 
         // ── shared plumbing ───────────────────────────────────────────────────

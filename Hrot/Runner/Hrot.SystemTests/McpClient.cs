@@ -7,7 +7,8 @@ namespace Hrot.SystemTests;
 
 /// <summary>
 /// Typed HTTP wrapper over the AI-debug (MCP) API — one method per route registered in
-/// <c>DebugApiHost.BuildRoutes</c> (47 routes, enumerated from that single registration site).
+/// <c>DebugApiHost.BuildRoutes</c> — the single route-registration site, which is where to enumerate
+/// the surface rather than guessing at it.
 ///
 /// <para><b>This client is where the paid-for gotchas live</b>, so no test rediscovers them:
 /// <c>/replay/load</c> takes <c>fdpPath</c> (not <c>path</c>); <c>/scenario/load</c> can await
@@ -44,9 +45,9 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> GetStatusAsync(CancellationToken ct = default) => GetAsync("/status", ct);
 
     /// <summary>
-    /// <c>POST /shutdown</c>. ⚠ In the editor's wiring the shutdown callback is a no-op, so this
-    /// answers <c>ok</c> without stopping anything — the fixture kills the process tree instead.
-    /// Kept for completeness of the surface, not used for teardown.
+    /// <c>POST /shutdown</c> — asks the runner to leave its frame loop, so the editor tears its
+    /// subsystems down in order. The fixture calls this FIRST at teardown and keeps the tree-kill only
+    /// as the fallback for an editor that is wedged.
     /// </summary>
     public Task<ApiResult> ShutdownAsync(CancellationToken ct = default) => PostAsync("/shutdown", null, ct);
 
@@ -314,6 +315,47 @@ public sealed class McpClient : IDisposable
         if (!string.IsNullOrWhiteSpace(asset)) body["asset"] = asset;
         return PostAsync($"/entities/{networkId}/variable", body, ct);
     }
+
+    /// <summary>Resume the debugger after a hit — also what drains anything staged while it was stopped.</summary>
+    public Task<ApiResult> ContinueFromBreakpointAsync(CancellationToken ct = default)
+        => PostAsync("/breakpoints/continue", null, ct);
+
+    public Task<ApiResult> StepFromBreakpointAsync(CancellationToken ct = default)
+        => PostAsync("/breakpoints/step", null, ct);
+
+    // ── Group Q — blueprint hot-attach ─────────────────────────────────────────
+
+    public Task<ApiResult> GetBlueprintsAsync(CancellationToken ct = default)
+        => GetAsync("/blueprints", ct);
+
+    /// <summary>Queued — the ingress system applies it on the next tick, not on the response.</summary>
+    public Task<ApiResult> AttachBlueprintAsync(
+        long networkId, string blueprint, JsonNode? paramsJson = null, CancellationToken ct = default)
+    {
+        var body = new JsonObject { ["blueprint"] = blueprint };
+        if (paramsJson is not null) body["paramsJson"] = paramsJson.DeepClone();
+        return PostAsync($"/entities/{networkId}/attach-blueprint", body, ct);
+    }
+
+    public Task<ApiResult> DetachBlueprintAsync(long networkId, string blueprint, CancellationToken ct = default)
+        => PostAsync($"/entities/{networkId}/detach-blueprint",
+                     new JsonObject { ["blueprint"] = blueprint }, ct);
+
+    // ── Group R — the entity state dump ────────────────────────────────────────
+
+    public Task<ApiResult> GetEntityStateAsync(long networkId, CancellationToken ct = default)
+        => GetAsync($"/entities/{networkId}/state", ct);
+
+    // ── Group T — the panel snapshot ───────────────────────────────────────────
+
+    public Task<ApiResult> GetPanelsAsync(CancellationToken ct = default)
+        => GetAsync("/panels", ct);
+
+    public Task<ApiResult> GetPanelAsync(string panelId, CancellationToken ct = default)
+        => GetAsync($"/panels/{Uri.EscapeDataString(panelId)}", ct);
+
+    public Task<ApiResult> GetGizmoFrameAsync(int? max = null, CancellationToken ct = default)
+        => GetAsync("/panels/_gizmo" + (max is null ? "" : $"?max={max}"), ct);
 
     // ── Group M — focus / annotations ──────────────────────────────────────────
 
