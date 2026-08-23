@@ -1,11 +1,26 @@
 using System.Numerics;
 using System.Reflection;
+using System.Text.Json.Nodes;
+using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Core.Network;
 using Fdp.Toolkit.DER;
 using Fdp.Presentation.Utils;
 using ImGuiNET;
 
 namespace Hrot.ExCon.Panels;
+
+/// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="DataMonitorPanel"/> shows, this frame.
+/// ⚠⚠ <b>[Obsolete] AND genuinely dead — measured, not assumed.</b> Same finding as
+/// <c>InspectorPanel</c>: zero constructions anywhere in production code. ⭐ Descriptor names only,
+/// not the raw boxed <c>object Data</c> — the gotcha table's "project the displayed shape by hand"
+/// (a boxed struct is not a safe dump target sight-unseen).</summary>
+public sealed record DataMonitorPanelViewModel(
+    string PanelId, string PanelKind, IReadOnlyList<int> EntityIds,
+    int SelectedEntityId, IReadOnlyList<string> SelectedDescriptorNames) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ExCon Data Monitor panel — shows all DER entities in a left-list and a rich,
@@ -171,6 +186,19 @@ public sealed class DataMonitorPanel
         }
 
         ImGui.EndChild();
+    }
+
+    /// <summary>⭐⭐⭐ BUILD — a pure projection of the entity list and selected descriptor names. No
+    /// ImGui. ⭐ Reuses <see cref="GetEntityListRows"/>, the SAME source <see cref="Draw"/> uses.</summary>
+    public DataMonitorPanelViewModel BuildViewModel(IExConLogic logic, string panelId, string panelKind)
+    {
+        var ids = GetEntityListRows(logic.Repo);
+        var entity = _selectedEntityId != PanelConstants.InspectorNoSelection
+            ? logic.Repo.GetEntity(_selectedEntityId) : null;
+        var names = entity != null
+            ? entity.GetAllDescriptorTypes().Select(t => t.Name).ToList()
+            : new List<string>();
+        return new DataMonitorPanelViewModel(panelId, panelKind, ids, _selectedEntityId, names);
     }
 
     // ── Helpers (public for testing) ──────────────────────────────────────────
