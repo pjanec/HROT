@@ -1,10 +1,25 @@
 using System;
+using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Panels;
 using Hrot.Editor.AiShared.Shell;
 
 namespace Hrot.Editor.Scenario;
+
+/// <summary>⭐⭐⭐ U-obs-5 (group 6) — WHICH entity <see cref="ScenarioComponentsView"/> is drawing
+/// about, this frame. 📄 <c>DESIGN_UI_Observability_Snapshot.md</c> §Example; mirrors
+/// <c>RuntimeDetailsViewPanelViewModel</c>'s composed address. ⭐ Deliberately captures the
+/// TARGETED entity, not the components themselves — the panel is BORROWED (see the class remarks) and
+/// its component list is already <c>EntityInspectorPanel</c>'s own concern; what THIS view adds is the
+/// entity/session routing that <c>R-78</c>'s chameleon failure is about.</summary>
+public sealed record ScenarioComponentsViewPanelViewModel(
+    string PanelId, string PanelKind, bool HasTarget, int EntityIndex) : IPanelViewModel
+{
+    /// <inheritdoc/>
+    public JsonNode Dump() => PanelDump.Of(this);
+}
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>L6.3</c> — THE COMPONENTS VIEW: the entity inspector's component column, as a Details
@@ -53,6 +68,26 @@ public sealed class ScenarioComponentsView : IDetailsViewInstance
         _draw    = draw    ?? throw new ArgumentNullException(nameof(draw));
     }
 
+    /// <summary>⭐⭐⭐ U-obs-5: BUILD · CAPTURE — before any of <see cref="Draw"/>'s guards, so a headless
+    /// run still observes WHICH entity this view was pointed at, even when it declines to draw.</summary>
+    private ScenarioComponentsViewPanelViewModel BuildAndPublish(DetailsContext context, string idScope)
+    {
+        var panelId = $"{idScope}/{ScenarioComponentsViewDescriptor.ViewId}";
+        PanelSnapshot.DeclareInstrumented(panelId);
+
+        bool hasTarget   = context.Entities is { Count: 1 };
+        int  entityIndex = hasTarget ? context.Entities[0].Index : -1;
+        var vm = new ScenarioComponentsViewPanelViewModel(
+            panelId, ScenarioComponentsViewDescriptor.ViewId, hasTarget, entityIndex);
+
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐⭐ Test hook — the BUILD + CAPTURE portion, callable with no session/panel wired.</summary>
+    internal ScenarioComponentsViewPanelViewModel SimulateDraw(DetailsContext context, string idScope) =>
+        BuildAndPublish(context, idScope);
+
     /// <summary>
     /// ⭐⭐⭐ <b>Draws the components of <c>ctx.Entities[0]</c> — the World's selected entity
     /// *(<c>L0.4</c>/<c>R-122</c>)*, not the panel's own <c>HashSet</c>.</b>
@@ -63,12 +98,14 @@ public sealed class ScenarioComponentsView : IDetailsViewInstance
     /// one voice; these are the belt-and-braces half, and reaching them means the predicate and the
     /// draw disagree.</para>
     ///
-    /// <para>⚠ <paramref name="idScope"/> is unused, as in <c>RuntimeDetailsView</c>: the borrowed
-    /// panel owns its own ImGui ids. ⛔ Pushing a scope here would change the ids of a panel the
-    /// Entity Inspector window also draws, and layout state keyed on them would reset.</para>
+    /// <para>⚠ <paramref name="idScope"/> is used only to compose the <c>PanelSnapshot</c> address —
+    /// the borrowed panel still owns its own ImGui ids. ⛔ Pushing a scope there would change the ids of
+    /// a panel the Entity Inspector window also draws, and layout state keyed on them would reset.</para>
     /// </summary>
     public void Draw(DetailsContext context, string idScope)
     {
+        BuildAndPublish(context, idScope);
+
         if (context.Entities is not { Count: 1 }) return;
 
         var session = _session();
