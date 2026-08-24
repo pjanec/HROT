@@ -5,6 +5,16 @@ namespace Fdp.Toolkit.NetworkSpawning
     public interface INetworkIdAllocator : IDisposable
     {
         long AllocateId();
+
+        /// <summary>
+        /// ⭐⭐ <b>After this returns, the next id issued is <paramref name="startId"/>.</b>
+        /// <para>📌 <c>HN-037</c> stated this contract in terms of the OBSERVABLE, because it was not true of
+        /// every implementation: the two pre-increment allocators returned <c>startId + 1</c>. They were
+        /// corrected; <see cref="IWorldIdAuthority.ResetToBase"/> carries the measurement.</para>
+        /// <para>⚠ <c>BlockIdManager</c> is the one production allocator that still cannot honour it — it is
+        /// a POOL with no authority to seed from, so it clears and waits for a block. ⛔ It is not on any
+        /// authored-id path; see its own remarks.</para>
+        /// </summary>
         void Reset( long startId = 0 );
     }
 

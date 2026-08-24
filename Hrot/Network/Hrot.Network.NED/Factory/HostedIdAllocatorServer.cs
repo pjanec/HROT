@@ -13,7 +13,7 @@ namespace Hrot.Network.NED.Factory;
 /// is destroyed.
 /// Created and owned by <see cref="NedNetworkFactory.CreateIdAllocatorServer"/>.
 /// </summary>
-internal sealed class HostedIdAllocatorServer : IDisposable
+internal sealed class HostedIdAllocatorServer : IDisposable, Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority
 {
     private readonly DdsIdAllocatorServer       _server;
     private readonly CancellationTokenSource    _cts;
@@ -32,6 +32,17 @@ internal sealed class HostedIdAllocatorServer : IDisposable
         };
         _thread.Start();
     }
+
+    /// <summary>
+    /// ⭐ <c>HN-037</c> — forwards the world-boundary reset to the hosted authority.
+    /// <para>⭐⭐ This is the reason <c>CreateIdAllocatorServer</c>'s <see cref="IDisposable"/> handle is
+    /// TYPE-TESTED for <see cref="Fdp.Toolkits.NetworkSpawning.IWorldIdAuthority"/> by the orchestrator
+    /// rather than the factory signature being widened: 📐 four factories implement
+    /// <c>INetworkFactory</c> and only this one hosts a real authority — a widened return type would force
+    /// three null implementations that mean <i>"I am not an authority"</i>, which is exactly what a failed
+    /// type-test already says. 📌 Same idiom as <c>IRestorableIdAllocator</c>.</para>
+    /// </summary>
+    public void ResetToBase(long firstId) => _server.ResetToBase(firstId);
 
     /// <summary>
     /// Cancels the polling thread and waits (up to 2 seconds) for it to exit,

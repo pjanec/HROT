@@ -36,7 +36,6 @@ public sealed class ScenarioMenuTests
         public void Update() { }
         public void NewScenario() => NewScenarioCallCount++;
         public void SaveScenario(string filePath) { }
-        public void LoadScenario(string filePath) { }
         public void LoadScenarioByName(string scenarioName) => LoadScenarioByNameCalls.Add(scenarioName);
         public void SaveCurrentScenario() => SaveCurrentScenarioCallCount++;
         public void SaveScenarioAs(string scenarioName) => SaveScenarioAsCalls.Add(scenarioName);

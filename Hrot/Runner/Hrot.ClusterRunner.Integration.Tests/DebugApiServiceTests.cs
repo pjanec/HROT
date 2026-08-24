@@ -289,7 +289,10 @@ public sealed class DebugApiServiceTests
 
             // Reload into a fresh harness and confirm the entity set is non-empty / equivalent count.
             using var h2 = new EditorHarness();
-            h2.Editor.LoadScenario(file);
+            // ⭐ HN-037 Part B: reload through the serializer — the comment above already says this test
+            //   deliberately exercises "the same serializer path the API uses", so it now says it in code.
+            new ScenarioSerializerBuilder("Hrot.Scenario").Build()
+                .Deserialize(h2.Repo, File.ReadAllText(file));
             Assert.True(h2.PumpUntil(() => h2.Repo.EntityCount >= 1, PumpTimeoutMs),
                 "Reloaded scenario should re-materialize at least one entity.");
         }
