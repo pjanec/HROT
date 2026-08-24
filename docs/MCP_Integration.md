@@ -313,6 +313,28 @@ preview *(`PreviewClusterOpHandler` is a snapshot/rewind bracket, NOT a file loa
 conformance *"load S in both, then diff"* sequence becomes executable ⇒ `entity-inspector` upgrades from DECLARED
 to a real content comparison.
 
+## ⭐⭐ Follow-up — GENERATE `tool-catalog.mjs` from the routes *(the catalog is the last hand-maintained mirror; `HN-030`)*
+
+📌 **Filed `2026-08-24` (user).** ⛔ `tools/ai-debug-mcp/tool-catalog.mjs` is a **hand-maintained mirror of the
+HTTP routes** — the exact *"hand-authored vs derived"* rot the `/capabilities` manifest was built to kill
+*(Q54-1 / D4)*. 📌 **The evidence is `HN-029` item ⑧ itself:** HN-025/026/027 changed the MCP API *(`/capabilities`,
+`NOT_SUPPORTED_HERE`, `--mode all`)* and the catalog silently fell out of sync — nobody had to forget, the mirror
+just drifted. ⚠ `gen:skill:check` catches **`SKILL.md`-vs-catalog** drift, but **NOT catalog-vs-actual-routes** —
+the source itself can lie.
+
+⇒ ⭐⭐⭐ **Derive the catalog from the same route-table description `/capabilities` already emits.** The manifest
+enumerates every endpoint with its params/response schema *(from the route registrations + DTO attributes)*; the
+MCP tool catalog is a projection of exactly that. Sketch: dump `/capabilities` from a booted instance *(or emit
+the route description at build time)*, transform to the catalog shape, then `gen:skill` from it ⇒ **one
+route-derived source, three consumers** *(the manifest, the catalog, `SKILL.md`)*, none hand-authored.
+
+| | |
+|---|---|
+| ⭐ **size** | `RW-M` — a build/gen step + the transform; the hard part *(route+schema enumeration)* is already done by the manifest |
+| ⚠ **the one wrinkle** | the manifest is emitted in-process *(C#)*; the catalog is consumed by Node at gen time ⇒ the seam is a **dumped manifest artefact** the JS gen reads, not a live call |
+| ⛔ **not now** | it does not block `HN-029`; item ⑧ keeps the catalog correct by hand for this batch. This follow-up removes the *need* to |
+| 📄 **home** | this section; tracker row **`HN-030`** *(Area J)* |
+
 ## Self-describing errors — every mistake POINTS at the discovery endpoint *(cross-cutting; `MX8`)*
 
 🔒 **User:** *"if the agent makes a mistake in the request (breakpoint, behaviour, etc.), the MCP error sent
