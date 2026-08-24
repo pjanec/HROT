@@ -10,7 +10,7 @@ known-conflict: none. Replaces the WITHDRAWN HANDOFF_Reflection_World_Priming.md
 -->
 # HANDOFF — **gizmo membership by reflection** *(finish §7.3, correct `ST-027`)*
 
-> 📌 **Dispatched at `<STAMP>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `5db5c60bc`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`ST-`**, tracker **Area I** — 📐 series stands at **`ST-030`**, so start at `ST-031`.
 
