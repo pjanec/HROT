@@ -76,7 +76,16 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
         if (formatter != null)
         {
             _control   = new VariableTableControl(formatter);
-            _variables = new VariableTableModel(_pinned, VariableTableColumns.Watch);
+            // ⭐⭐⭐ BP-499 — GROUPED BY DEFAULT. 📄 DESIGN_Variable_Watch_Pinning.md §1/§1b.
+            //    ⛔ This argument was simply never passed, so the model fell back to DetailsDefault
+            //    (`[]`) and the Watch rendered ONE FLAT LIST — the one surface that mixes assets and
+            //    entities by design, showing no headers to tell them apart.
+            // ⭐ The grouping engine and the control's header rendering were already built and in use by
+            //   the Variables window; this is a wiring line, ⛔ not a second grouping path.
+            // ⭐⭐ `WatchDefault` is `[Asset, Entity]`, and a UNIFORM facet emits NO header — so watching
+            //   one asset shows no asset header by itself, with no setting to turn off.
+            _variables = new VariableTableModel(_pinned, VariableTableColumns.Watch,
+                                                VariableRowGrouping.WatchDefault);
         }
         IsOpen = false;
 
@@ -200,6 +209,16 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
         ImGuiNET.ImGui.Separator();
         // ⭐ Named, so the two lists cannot read as one feature with an odd column set.
         ImGuiNET.ImGui.TextDisabled("Pinned variables");
+
+        // ⭐⭐ BP-500 — the group-by selector (§1b). ⛔ Drawn from the MODEL's current facets, never from a
+        //    local copy: the model is the truth and a cached index would drift from it.
+        // ⚠ Changing the grouping does not rebuild the view already built above — the change lands on the
+        //   NEXT frame. ⭐ Correct rather than lazy: rebuilding mid-draw would publish a PanelSnapshot that
+        //   disagrees with what was painted this frame.
+        ImGuiNET.ImGui.SameLine();
+        // ⚠ Fully qualified: this class has a `Variables` PROPERTY (the model), which shadows the
+        //   `Hrot.Editor.AiShared.Variables` namespace at this site.
+        Hrot.Editor.AiShared.Variables.VariableGroupBySelector.Draw("Group by##" + Id, _variables!);
 
         if (view.AllRows.Count == 0)
         {

@@ -1,6 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-19
+build-state: BUILT — slices 94a–94f plus the finalization (BP-499..BP-502, 2026-08-24).
+  ⭐ READ "AS-BUILT — the watch-list finalization" FIRST: it carries five deviations, and two of them
+  matter to a reader (the binding lives on the PIN not the row; a concrete pin does NOT survive a
+  scenario restart yet).
+updated: 2026-08-24
 current-answer: this whole file - it is the consolidated design, written to be built from
 stale-below: nothing. History and the decision trail live in Architect_Question_40, which
   accumulated four rounds of correction and must NOT be read as a spec.
@@ -221,6 +225,47 @@ callback sink on the extractor, wired to the bus by the subsystem.**
 | one row per live entity | ⛔ **user: *"unbearable — thousands of entities"*** |
 | a panel-wide tick | 📌 *"rows tick at different rates"* |
 | touching `EntityWatchPanel` / `FdpEntityWatchWindow` | ⭐ **different concept** — entity components |
+
+## ⭐⭐⭐ AS-BUILT — **the watch-list finalization (`BP-499`…`BP-502`), `2026-08-24`**
+
+> ⭐⭐ Obligation ⑤. ⛔ Where this disagrees with §1/§1b/§3/§5 above, **it wins** — those are the design,
+> this is what the code does.
+
+### ⭐ What shipped
+
+| # | | where |
+|---|---|---|
+| **`BP-499`** | ⭐⭐ **§1's grouping is WIRED into the Watch** — the window built its model with no `groupBy`, so it fell back to `DetailsDefault` (`[]`) and rendered **one flat list** on the one surface that mixes assets and entities by design | `AiWatchWindow` ctor |
+| **`BP-500`** | ⭐⭐ **§1b's group-by selector**, as a SHARED control — the four modes as FACET LISTS | `VariableGroupBySelector` |
+| **`BP-501`** | ⭐⭐⭐ **§3's two kinds, with a real shape and a CHOICE** | `EntityBinding` · `PinnedVariableRowSource.Pin(row, binding)` |
+| **`BP-502`** | ⭐⭐ **§5's pin set persists** — a fourth list in the existing debug-session file | `PinnedVariableEntry` · `PinnedVariablePersistence` |
+
+### ⛔⛔ The deviations
+
+| # | the design said | 📐 what was measured, and what was built |
+|---|---|---|
+| **①** | *(the dispatch)* mirror the group-by control on `AiVariablesWindow.GroupBy` | ⛔ **There was nothing to mirror.** 📐 That member is a **property forwarding to `_model.GroupBy`**, and a repo-wide search for a writer found only the model's constructor ⇒ **no group-by UI existed anywhere**. ⭐ So it was built **shared** rather than inside the Watch, since the Variables window needs the identical control *(ruling 9)*. ⚠ Wired to the **Watch only** — adopting it in Variables is a one-line change that window's own batch can make; ⛔ not done to it unasked |
+| **②** | §3: the binding lives on the row | ⭐ **It lives on the PIN.** `VariableRowOrigin` is unchanged; `PinnedVariableRowSource` keeps a parallel `(Guid, Entity, string) → EntityBinding` map. ⭐ The binding is a property of *the choice a designer made*, not of a row in general — a section source's rows are always *"the entity this panel is about"*, and widening the row identity would have touched every construction site and the highlight-cache key for a fact only the Watch has |
+| **③** | §3: concrete stores the **STAGING** `NetworkIdentity`, resolved through the published `oldToNewMap` | ⚠⚠ **It stores the RUNTIME `NetworkIdentity`, so a concrete pin does NOT survive a scenario RESTART.** ⛔ The remap is still a local inside `StagingEntityExtractor` and publishing it edits `EditorSubsystem`/`EditorApplication` — files the concurrent allocator batch owns. ⇒ deferred by the dispatching handoff §2, and said out loud in `EntityBinding`'s own remarks so nobody reads *"persisted"* as *"restart-proof"* |
+| **④** | *(unstated)* the chameleon needs a new encoding | ⭐ **It reuses the sentinel already in place.** `EntityBinding.OriginEntity` projects a chameleon to `default(Entity)` — exactly what `StagedWriteView.EntityFor` and `VariableChangeMonitor` already read as *"ask the selection"*. ⇒ ⛔ nothing downstream changed, and there is no second way to say *"follow the selection"* |
+| **⑤** | §5: *"extend `SaveWatches`/`LoadWatches`"* | ⛔ **Those route to the `[Obsolete]` `WatchPersistence` and are breakpoint-only.** `DebugSessionPersistence` was extended instead *(as the dispatch directed)*. 🔴 **And it has NO PRODUCTION CALLER** — measured: only tests call `Save`; the editor's live path still uses the obsolete `SaveWatches`. ⇒ ⭐ **a pin set is now savable and restorable, but nothing in the editor saves one yet** — wiring it edits `EditorSubsystem`, carved out for the same collision reason as ③ |
+
+### ⭐ Two honesty rules the persistence layer enforces
+
+| ⭐ | |
+|---|---|
+| **an unpersistable pin is SKIPPED and COUNTED** | a concrete pin on an entity with no `NetworkIdentity` has nothing durable to key on. ⛔ Writing it as `NetworkId 0` would restore a pin pointing at nothing, which reads as data loss rather than the within-session pin it always was |
+| **an unknown `BindingKind` is SKIPPED, not coerced** | ⛔ the enum's zero value is `Concrete`, so a silent `Enum.TryParse` failure would turn a future kind into a concrete pin on entity 0 and show the wrong entity's value |
+
+### 🔴 Still open after this batch
+
+| ⛔ | ⭐ |
+|---|---|
+| **restart survival / the `NetworkId` remap** *(slice `94g`)* | ⚠ **not disjoint from the allocator batch** — sequence after it. A concrete pin does not survive a scenario reload until then |
+| **the MAP-PICKER for an arbitrary concrete entity** *(§9c)* | ⚠ §9c is *"a lead, not a decision"* ⇒ needs a short architect nod. ⭐ `BP-501` ships the *"current selection"* concrete case, which needs no picker |
+| **no production save/load of the pin set** | ⭐ the mechanism exists and round-trips; the wiring is one call in `EditorSubsystem` once the allocator batch lands |
+| ⚠ **the group-by selector is not adopted by the Variables window** | ⭐ deliberate — see deviation ① |
+
 
 ## 10. ⚠ Open
 
