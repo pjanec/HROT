@@ -1,13 +1,14 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT — ⭐⭐⭐ §4c SHIPPED `2026-08-24`. ⭐ §4d is the AS-BUILT record and it is the section to
-  read first; §5 carries the AS-BUILT UML. ⛔ §4's items ①–⑤ and §4b's recommendation are the PRE-BUILD
-  design and are SUPERSEDED where §4c/§4d disagree with them — do not quote §4 ③/④ or §4b's
-  "pooled allocators opt out" as current.
+build-state: SPLIT — the PREVIEW half (§4c/§4d) is BUILT `2026-08-24`. ⭐⭐ The SCENARIO-LOAD half (§11 —
+  one id authority per world, reset to 1000 at world reset, HN-037) is NEW and READY-TO-BUILD, with its
+  current-vs-new UML in §11a/§11b. ⛔ §4's items ①–⑤ and §4b's recommendation are the PRE-BUILD preview
+  design and are SUPERSEDED where §4c/§4d disagree — do not quote §4 ③/④ or §4b's "pooled allocators opt out".
 updated: 2026-08-24
-current-answer: §4d — THE AS-BUILT. §1 is the requirement, §2b the enumeration, §4c the chosen approach,
-  §4d what was actually built and what was deliberately NOT, §5 the as-built UML, §6 the rails as shipped.
-  §7 stands. §8–§9 are the history of two earlier wrong framings, kept for their measured facts.
+current-answer: TWO halves. PREVIEW (BUILT): §4d — the as-built; §1 requirement, §2b enumeration, §4c approach,
+  §5 as-built UML, §6 rails. SCENARIO-LOAD (READY-TO-BUILD): §11 — one authority per world reset to 1000 at
+  the world boundary; §11c is the three-reset-policy reconciliation, §11d the lane-tagged change points.
+  §7 stands (now with a third policy, see §11c). §8–§10 are history of earlier wrong framings.
 design-basis: 🔒 user 2026-08-23 (§1) · 🔒 user 2026-08-23 (§2c, §4c) · 🔒 user 2026-08-23 ("update the id
   allocator's home design doc to keep it in sync with the new state" ⇒ §4d) · docs/designs/mgmt-1/DESIGN.md
   §5.7 (the cluster reset, built) · PROGRAMME_Unification_And_Harness.md D6 · HN-010 (DeterminismRails).
@@ -506,6 +507,184 @@ high-water mark *(collision avoidance, deliberately not reproducible)*; ⭐ **pr
 captured value.** ⛔ Same method, contradictory purposes.
 
 ⚠ **And `D6`'s *"zero production callers"* is true of the CALLERS, not of the mechanism.**
+
+⭐⭐ **UPDATED `2026-08-24` — there is now a THIRD reset policy, and it does NOT break this rule.** §11 adds
+*world-reset → reset BACKWARD to 1000*. It is a distinct call site from §5.7's forward replay reset and from
+§4d's local preview restore — ⭐ **same mechanism family, three policies, kept apart** *(the reconciliation
+table is §11)*. ⛔ §7's warning stands: do not merge the call sites; ⭐ it is not violated by adding one.
+
+## 11. ⭐⭐⭐ THE SCENARIO-LOAD ALLOCATOR UNIFICATION — **one authority per world, reset on world reset** *(`HN-037`, user `2026-08-24`)*
+
+<!--build-state: READY-TO-BUILD — DESIGN. Carries the current-vs-new UML below. Sibling to §4d (preview, BUILT).-->
+
+> 🔒 **User, `2026-08-24`:** *"there should be one single allocation path in both [edit and live] cases.
+> Editor is no exception… both should use same allocator that resets to initial value (1000 for the first
+> entity allocated) whenever whole 'world' resets (which should be happening at the beginning of scenario
+> load)… I still do not see any reason for 2 separate allocators."*
+
+### 11a. ⭐⭐ THE MEASURED CURRENT STATE — **it is two allocators split by PURPOSE, and the editor uses a different INSTANCE**
+
+📐 Measured `2026-08-24` *(the authored-allocation trace)*:
+
+| fact | evidence |
+|---|---|
+| ⭐⭐⭐ **authored allocation is ALREADY single-authority** | in `--mode all` **only CGF** runs `StagingEntityExtractor` and allocates authored ids *(`CgfSubsystem.cs:490-495`)*; SimHost passes `scenarioSerializer:null` *(`SimHostNodeBootstrapper.cs:250`)*, IG/ExCon register no scenario handler. Peers receive the entities as **ghosts carrying CGF's id** *(`SpawnEntityCommand{NetworkId, InitType=AllPeers}`)*. ⇒ ⛔ **there is NO per-node-independent authored allocation to reconcile** |
+| 🔴 **the split is per-PURPOSE on one node** | CGF holds **two** allocators — `_context.IdAllocator` *(the DDS runtime client)* and a local `cgfIdAllocator = new SequentialIdAllocator()` *(scenario load, seed 1 ⇒ first id 2)* *(`CgfSubsystem.cs:488`)* |
+| 🔴 **the editor uses a DIFFERENT instance + seed** | its private nested `SequentialIdAllocator` *(seed 1000, post-increment ⇒ first id 1000)* serves **both** authored and runtime *(`EditorSubsystem.cs:1127`)* — ⭐ the editor ALREADY proves one allocator can serve both |
+| 🔴🔴 **`HN-037`: same scenario, different ids** | editor `1000–1007`, `--mode all` `2–9` — purely the two seeds, not two authorities |
+| 🔴 **nothing resets on load** | a second `LoadScenarioByName` in one process allocates `1008–1015` — the drift |
+
+```mermaid
+classDiagram
+    direction LR
+    class EditorNestedAllocator {
+        <<editor · seed 1000 · NO reset on load>>
+        +AllocateId() long
+    }
+    class CgfLocalAllocator {
+        <<CGF · SequentialIdAllocator seed 1 · scenario load>>
+        +AllocateId() long
+    }
+    class DdsIdAllocatorServer {
+        <<orchestrator · runtime spawns · forward-only>>
+        +HandleReset(Start)
+    }
+    class EditorScenarioLoad {
+        <<HrotScenarioLoadHandler + HrotEditLoadHandler>>
+    }
+    class CgfScenarioLoad {
+        <<CgfScenarioLoadHandler>>
+    }
+    class CgfRuntimeSpawn {
+        <<CreateEntityRequestSystem>>
+    }
+    EditorScenarioLoad --> EditorNestedAllocator : authored 1000-1007
+    CgfScenarioLoad --> CgfLocalAllocator : authored 2-9  (HN-037)
+    CgfRuntimeSpawn --> DdsIdAllocatorServer : runtime ids
+    note for CgfLocalAllocator "distinct instance + seed from the editor → the divergence"
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant L as scenario load
+    participant EA as editor nested allocator
+    participant CA as CGF local allocator
+    Note over L,CA: SAME scenario, TWO answers, and neither resets
+    L->>EA: load in editor (no reset)
+    EA-->>L: 1000,1001,... 1007
+    L->>CA: load in --mode all (no reset)
+    CA-->>L: 2,3,... 9
+    Note over EA,CA: reload in one process -> 1008+ (drift). Cross-host -> 1000 vs 2 (HN-037)
+```
+
+### 11b. ⭐⭐⭐ THE NEW STATE — **ONE authority per world, reset to 1000 at the world boundary**
+
+⭐⭐ **One id authority per world** — an **offline** implementation in the editor's one-node cluster, the
+**DDS master** in `--mode all` — **reset to 1000 at every world reset** *(the start of scenario load, after
+`SoftClear`)*, assigning **authored** ids *(at load)* and **runtime** ids *(after)* from **one monotonic
+sequence**. Authored entities are still allocated on the single loader *(CGF / the editor node)* and
+replicated; because the authority is reset first, the first authored entity is **1000 on every host** — so
+the reproducible 1000-block AND cross-host parity fall out of the same reset.
+
+⭐⭐ **Why resetting the master BACKWARD is safe here and not in preview:** the world is **cleared** at load
+*(`SoftClear`)*, so a cluster-wide `Req_Reset(1000)` that flushes every node's pool collides with nothing —
+the exact opposite of preview *(§4d)*, which does **not** clear the world and therefore must restore its own
+pool locally. ⇒ ⛔ **the master reset is used ONLY at a world boundary; never mid-exercise** — that guard is
+the whole safety argument.
+
+```mermaid
+classDiagram
+    direction LR
+    class IIdAuthority {
+        <<one per world · reset at world boundary>>
+        +AllocateId() long
+        +ResetToBase(1000)
+    }
+    class OfflineIdAuthority {
+        <<editor one-node cluster>>
+    }
+    class DdsIdAllocatorServer {
+        <<--mode all · master on orchestrator>>
+        +HandleReset(Start=1000)
+    }
+    class ScenarioLoad {
+        <<editor + CGF · authored at load>>
+    }
+    class RuntimeSpawn {
+        <<CreateEntityRequestSystem · after load>>
+    }
+    class WorldReset {
+        <<SoftClear at scenario-load start>>
+    }
+    IIdAuthority <|.. OfflineIdAuthority
+    IIdAuthority <|.. DdsIdAllocatorServer
+    ScenarioLoad --> IIdAuthority : authored 1000-1007
+    RuntimeSpawn --> IIdAuthority : runtime 1008+
+    WorldReset --> IIdAuthority : ResetToBase(1000)
+    note for IIdAuthority "one sequence: authored then runtime. No band, no HN-037"
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as ClusterMaster or offline
+    participant A as id authority
+    participant C as CGF or editor node
+    participant N as peer nodes
+    Note over M,N: scenario load is the world boundary
+    M->>A: ResetToBase 1000 -- Req_Reset backward, safe because world cleared
+    A-->>N: flush pools cluster-wide via existing Resp_Reset
+    C->>A: allocate authored ids
+    A-->>C: 1000,1001 .. 1007 -- first chunk from 1000
+    C->>N: replicate entities carrying those ids
+    Note over N: every host sees 1000-1007, parity, HN-037 gone
+    C->>A: runtime spawn after OperatingLive
+    A-->>C: 1008+ one continuing sequence
+```
+
+### 11c. ⭐⭐ THE THREE RESET POLICIES — **one mechanism family, kept as distinct call sites**
+
+| situation | world state | reset target | direction | mechanism | § |
+|---|---|---|---|---|---|
+| ⭐⭐ **scenario load / world reset** *(NEW)* | **cleared** | **1000** *(constant)* | backward | master `Req_Reset(1000)` *(cluster)* · offline reset *(editor)* — safe: nothing survives | **§11** |
+| **replay load** | pre-populated | high-water | forward | master `Req_Reset(high-water)` | §7 / mgmt-1 §5.7 |
+| **preview** | **not** cleared | captured position | backward, **LOCAL** | per-node `CaptureIssuingPosition`/`Restore` — ⛔ never touches the master | §4d |
+
+⛔ **§7 still holds — do not MERGE these call sites.** ⭐ They share the `Req_Reset`/reset machinery for the
+two cluster-authority cases, but the *policy* (value, direction, and whether it is safe) is decided by the
+world state, and preview is deliberately local.
+
+### 11d. ⭐ THE CHANGE POINTS — **small, and lane-tagged**
+
+| # | change | where | lane |
+|---|---|---|---|
+| ⭐ **①** | reset the single offline allocator to 1000 at world reset | editor — the one allocator already serves both paths *(`EditorSubsystem.cs:1127`)*; add the reset | **editor/UI lane** |
+| ⭐⭐ **②** | point `CgfScenarioLoadHandler` at `_context.IdAllocator` *(the DDS client)*; **retire the standalone `cgfIdAllocator`** *(`CgfSubsystem.cs:488`)* — authored ids now come from the one authority | CGF | **CGF lane** |
+| 🔴🔴 **③** | fire `Req_Reset(Start=1000)` on the **world-reset / load fan-out**, **guarded to the world boundary only** — never mid-exercise | orchestrator / `ClusterMaster` + the DDS server | ⛔ **replication / orchestrator lane** *(cross-lane, like `HN-028`)* |
+
+⚠ **The load-bearing guard (item ③):** `Req_Reset` is cluster-wide-destructive by design *(§2c)*. It is
+**correct** at a world reset *(world gone)* and **catastrophic** mid-exercise *(it would fight §5.7's forward
+high-water and clobber live pools)*. ⇒ ⛔ **it must be reachable ONLY from the world-reset/scenario-load
+path**, asserted by a rail. 📌 This is why item ③ is cross-lane and coordinated, not a drive-by.
+
+### 11e. ⭐⭐ WHAT IT ELIMINATES
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **`HN-037`** | one authority reset to 1000 ⇒ editor and cluster both start at 1000 ⇒ cross-host id parity **by construction**. The `HN-037` tripwire rail flips green-as-improvement and is deleted |
+| ⭐⭐ **the authored/runtime band-collision** | one monotonic sequence *(authored 1000-1007, runtime 1008+)* ⇒ no reserved band to police, no collision between the CGF `2-9` scenario ids and the DDS runtime pool from 1 |
+| ⭐⭐ **the editor-special split** | the editor becomes the offline one-node instance of the same authority — the *"editor is a one-node cluster"* principle applied to id allocation, as it already is to time stepping and scenario load |
+
+### 11f. ⚠ THE ONE SUBTLETY TO VERIFY AT BUILD — **CGF must pull the first chunk after the reset**
+
+📐 The DDS client is **chunked** *(`CHUNK_SIZE=100`)*. For authored ids to be `1000-1007`, CGF must pull the
+first chunk *(`[1000-1099]`)* **after** the world-reset `Req_Reset(1000)` and **before** any other node draws
+a runtime chunk. ⭐ Measured-safe today: during `LoadingLive`, only CGF allocates *(authored is CGF-only,
+peers get ghosts)* and runtime spawns do not start until `OperatingLive` ⇒ no node races CGF for the first
+chunk. ⛔ **The build must assert this ordering** *(a rail: after a load, the lowest authored id is 1000 on
+every host)* rather than assume it — 📌 an out-of-order chunk pull is exactly the silent-divergence shape
+`HN-037` was.
 
 ## ⛔ HISTORY — **two earlier framings of this file, both wrong, each with a fact worth keeping**
 
