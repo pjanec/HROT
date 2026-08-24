@@ -2,17 +2,20 @@
 state: LIVE
 build-state: READY-TO-BUILD
 updated: 2026-08-24
-current-answer: the whole file. §3 is the design — ONE reflection scan, N pluggable handlers, generalising
-  the existing RepositoryPriming rather than paralleling it. §4 the UML, §5 the rails (the completeness
-  rail is what buys back the static check reflection gives up), §6 the batch scope, §7 the trade-off and
-  the aggregation backlog.
-design-basis: 🔒 user 2026-08-24 (Option A approved: "one class with pluggable handlers of components,
-  gizmos, various DTOs") · Architect_Question_53 §3b/§4 (the decision + why reflection is layout-safe) ·
-  Architect_Question_52 §0 (support all, presence decides) · DESIGN_Uniform_Gizmo_Membership.md (the
-  matrix this collapses) · ComponentType.cs:119 (explicit [ComponentId]) · RepositoryPriming.cs (the
-  mechanism this generalises).
-known-conflict: none. ⭐ This SUPERSEDES DESIGN_Uniform_Gizmo_Membership.md §3 ② (the compile-time
-  MapGizmoPack) — the pack is now a reflection handler, not an assembly that references all families.
+current-answer: ⛔⛔ READ §2c FIRST — REVISED 2026-08-24 after the user surfaced the downsides of
+  registering all COMPONENTS everywhere, and the coordinator MEASURED them true. The split: GIZMOS
+  reflection-all (they are data-free — a projector with no entity draws nothing, and needs only the
+  static component ID, not a repo table); COMPONENTS stay ROLE-GATED (a repo table costs TkbTemplate
+  skip, SoD memory, recorder/save schema, and the sync mask — all measured). §3 is the revised design.
+design-basis: 🔒 user 2026-08-24 (Option A) · 🔒 user 2026-08-24 (the downsides critique, §2c) ·
+  Architect_Question_53 · Architect_Question_52 §0 · ComponentType.cs:119 (explicit [ComponentId]) ·
+  ComponentType.cs:GetOrRegisterManaged (lazy/on-demand static registry) · StatelessGizmoSystem.cs:103
+  (gizmo iterates by component-mask bit) · EntityRepository.Sync.cs:179 + AsyncRecorder.cs:326 (recorder
+  reads the STATIC registry) · CombatTkbTranslator/BehaviorTkbTranslator (IsComponentTypeRegistered skip).
+known-conflict: ⛔ §3's PRE-REVISION form ("component + event handlers by reflection, every host") is
+  SUPERSEDED by §2c/§3 — components are role-gated, only the gizmo handler reflects. ⚠ ST-027's shipped
+  MapSchemaPack (repo tables for 15 components on every host) is likely HEAVIER than needed and possibly
+  a regression — §2d; the batch's item ⓪ measures it.
 -->
 # DESIGN — **reflection world-priming** *(one scan, pluggable handlers)*
 
@@ -43,28 +46,92 @@ host bootstrap heavily."*
 compiler stages and pickers *(`MontagePicker`, `MapPickable*`, `ImGuiRenderer`)* are their own tooling and
 are **out of scope** — §6 lists what is in.
 
-## 3. ⭐⭐⭐ THE DESIGN
+## 2c. ⛔⛔⛔ THE REVISION — **register-all is right for GIZMOS, wrong for COMPONENTS** *(measured `2026-08-24`)*
 
-### 3.1 One scan, N handlers
+> 🔒 **User:** *"i asked about downsides of registering all components everywhere… if we keep a whitelist
+> of components per subsystem and still register components as found globally via reflection, will it
+> eliminate the downsides?"*
+
+⭐⭐⭐ **The critique is CORRECT where it matters, and the coordinator verified every load-bearing claim
+against the code** — ⛔ this is not accepted on persuasion; it is measured.
+
+| # | claim | 📐 verified |
+|---|---|---|
+| **1** | **TkbTemplate skip uses `IsComponentTypeRegistered`** | ✅ `CombatTkbTranslator.cs:40/49/73` · `BehaviorTkbTranslator.cs:30-78` gate `apply` on `repo.IsComponentTypeRegistered<T>()`. ⇒ registering a server component on IG's repo makes IG **materialize** it |
+| **2** | **`CreateFullMask` syncs ALL registered** | ✅ `ModuleHostKernel.cs:350-378` — a module with no explicit mask defaults to `CreateFullMask()` |
+| **3** | **recorder/save read the STATIC registry, not the repo** | ✅✅ `EntityRepository.GetRecordableMask` *(`Sync.cs:179`)* and `AsyncRecorder.BuildSchemaManifest` *(`:326`)* both iterate `ComponentTypeRegistry.GetRecordableTypeIds()` — ⛔ **`GetRecordableMask` does not even intersect with the repo.** ⇒ **a repo whitelist CANNOT stop schema pollution** |
+| **4** | **the static registry is LAZY/on-demand** | ✅ `ComponentTypeRegistry.GetOrRegisterManaged` — populated only when someone registers a type, **not** an attribute scan. ⇒ **gating genuinely controls the process-wide registry**; reflect-all pollutes it |
+| **5** | **lazy assembly load ⇒ cross-node drift** | ⚠ plausible and consistent with #4 — a node that never loads an assembly never registers its types ⇒ two nodes' static registries differ ⇒ DDS layout-hash skew |
+
+⇒ ⭐⭐⭐ **The whitelist HYBRID does NOT save it** — #3 and #5 are process-wide *(the static registry)*, unaffected
+by a local repo whitelist. **The critique's own conclusion holds: components stay role-gated.**
+
+### ⭐⭐⭐ BUT THE CRITIQUE CONFLATES COMPONENTS WITH GIZMOS — **and the asymmetry is PRINCIPLED**
+
+📐 **Every downside is COMPONENT-specific.** A gizmo projector is **not** a component:
+
+| 📐 measured | ⇒ |
+|---|---|
+| ⭐⭐⭐ **a gizmo needs only the static component ID, NOT a repo table** | `StatelessGizmoRegistry.Register` calls `ComponentTypeRegistry.GetId` *(`:73`)*; `StatelessGizmoSystem` iterates by the entity's **component-mask bit** *(`:103` `BitMask512.HasAll(compSG, rule.RequiredMask)`)*. ⇒ **no table, no `IsComponentTypeRegistered`, no TkbTemplate materialization, no SoD table** |
+| ⭐⭐ **a projector matching no entity draws NOTHING** | the mask never matches ⇒ a query miss, nothing more |
+| ⭐ **gizmos are not in the component mask / recorder / DDS layout** | ⇒ **none of downsides 1–5 apply to a gizmo** |
+
+⇒ ⭐⭐⭐ **THE RULE:** register-all-by-reflection is **safe for GIZMOS** *(data-free; presence decides
+drawing — the `Q52` ruling)* and **unsafe for COMPONENTS** *(a table costs memory, mask, recorder and
+network layout)*. ⛔ **The asymmetry is not a compromise — it is the difference between a thing that costs
+nothing when absent and a thing that costs on every node that registers it.**
+
+| what | how it is primed |
+|---|---|
+| ⭐ **GIZMOS** | **reflection-all, every host** — the gizmo handler; its component dependency satisfied by the **static id only** *(`GetOrRegisterManaged`, id-only — NOT a recordable repo table on a host that does not simulate it)* |
+| ⭐ **COMPONENTS + EVENTS** | **role-gated static group registries** — `HrotSharedComponentRegistry` *(all nodes)* · `Cognitive`/`Combat` *(Brain)* · `MuscleRole` *(Muscle)* · `IgRole` *(IG)* — ⛔ **NOT reflection.** These already exist and are the clean per-role subset |
+| ⭐⭐ **`replaybrowser` = the INSPECTION EXCEPTION** | it reflects-all *(`RepositoryPriming`)* **on purpose** — a read-only host that must deserialize ANY recording, and never simulates or records ⇒ it genuinely wants the full registry. ⭐ This is *"data availability / host rules"*, exactly the `UXI-23` distinction |
+
+## 2d. ⚠⚠ ST-027 EXPOSURE — **the shipped `MapSchemaPack` is heavier than the gizmo needs**
+
+📐 `ST-027`'s `MapSchemaPack` does `world.RegisterComponent<T>()` for **15 components on every host** — a full
+**repo table** *(recordable + saveable + `IsComponentTypeRegistered=true`)*, when §2c shows the gizmo needs
+only the **static id**. ⇒ on IG/SimHost/CGF the brain-tier ones *(`BrainBlackboard`, `BehaviorState`,
+`NavigationIntent`)* now:
+
+| 🔴 | |
+|---|---|
+| **make `IsComponentTypeRegistered<BrainBlackboard>()` TRUE** on hosts that do not simulate a brain | ⇒ a TkbTemplate/translator path could materialize them — **MEASURE whether any runs on IG/SimHost** |
+| **default to recordable/saveable in the static registry** | ⇒ **recorder/checkpoint schema pollution** on those nodes *(no `SetRecordable(false)`)* |
+
+⚠ **Likely LATENT, not proven live** *(IG may run no behavior translator)* — ⛔ but it is the exact class of
+bug §2c describes, in shipped code. ⇒ ⭐ **the batch's item ⓪ MEASURES it**, and the fix is *id-only for the
+components a host does not simulate* — or fold `MapSchemaPack` into the gizmo handler's id-only dependency.
+
+## 3. ⭐⭐⭐ THE DESIGN *(revised — see §2c)*
+
+⛔⛔ **PRE-REVISION NOTE:** the items below originally converted **component + event** registration to
+reflection too. 📐 §2c supersedes that: **only the gizmo handler reflects.** The primer + pluggable-handler
+structure stays *(the shared bootstrap the user wants)*, but the **component/event handler is fed the node's
+ROLE-GATED set, not a blind scan.** The unification is in the STRUCTURE, not in "reflect everything."
+
+### 3.1 The shared bootstrap — one entry, handlers of two KINDS
 
 | # | ⭐ |
 |---|---|
-| **①** | ⭐⭐⭐ **`ReflectionPrimer` does the EXPENSIVE scan ONCE** — `AppDomain.GetAssemblies() → GetTypes()` over ~40 assemblies, System/Microsoft filtered, `ReflectionTypeLoadException`-safe — and caches the type list. ⛔ Today that scan is paid once *per* pass; the win is **one pass, many handlers** |
-| **②** | ⭐⭐⭐ **`IReflectionPrimingHandler.Offer(Type)`** — each handler inspects a type, claims it if it carries the handler's attribute, and registers it into **its own sink.** ⛔ The primer knows nothing about components or gizmos; the handler owns its attribute **and** its target |
-| **③** | 🔴🔴 **HANDLERS RUN IN PHASES — schema before declaration.** ⭐ Component + event handlers *(phase 1)* register the world's types **before** the gizmo handler *(phase 2)* validates projectors against them — 📌 `StatelessGizmoRegistry` throws on an unregistered component, exactly `ST-020`. ⇒ **the load-bearing order from `Q52`/uniform-gizmo now lives INSIDE the primer**, not in each host |
-| **④** | ⭐⭐ **Generalise `RepositoryPriming`, do NOT parallel it** *(ruling 9)* — its component+event logic **becomes** the first two handlers; `RegisterDiscoveredComponents` stays as a thin call into the primer so `replaybrowser`'s existing site keeps working |
-| **⑤** | ⭐⭐ **Every host calls the SAME primer with the SAME handler list** — the uniform bootstrap. ⛔ A host does not curate the handler list any more than it curates the gizmo families *(the `Q52` ruling, now structural)* |
+| **①** | ⭐⭐⭐ **`HostBootstrapPrimer` is the ONE bootstrap entry every host calls.** It runs its handlers in phase order and, when any REFLECTING handler is present, does the `AppDomain`/`GetTypes` scan **once** and shares the cached type list — ⛔ not once per handler |
+| **②** | ⭐⭐ **`IPrimingHandler` — two kinds:** ⭐ a **REFLECTING** handler *(offered every scanned type; claims by attribute)*, and ⭐ a **GATED** handler *(given an explicit type set; registers exactly it)*. ⛔ The primer is agnostic; the handler owns its source AND its sink |
+| **③** | 🔴🔴 **PHASES — schema before declaration.** Component + event *(phase 1, GATED)* register the node's role subset **before** the gizmo handler *(phase 2, REFLECTING)* resolves projector ids against the static registry — 📌 `ST-020`. ⇒ the load-bearing order lives INSIDE the primer |
+| **④** | ⭐⭐ **The gizmo handler's component dependency is ID-ONLY** *(§2c)* — it makes each required component's id resolvable via `ComponentTypeRegistry.GetOrRegisterManaged` **without** a repo table, so a host that does not simulate a component still satisfies the projector **without** the TkbTemplate/recorder cost of a table |
+| **⑤** | ⭐⭐ **The uniform part is the STRUCTURE** — every host calls the same primer with the same **handler set**; the DIFFERENCE is the **role profile** handed to the component handler *(Brain / Muscle / IG / full-inspection)*. ⛔ That is *"data availability / host rules"*, the `UXI-23` distinction — ⚠ **NOT** "reflect everything" |
 
-### 3.2 The three handlers in this batch
+### 3.2 The handlers in this batch
 
-| handler | claims | sink |
-|---|---|---|
-| ⭐ **`ComponentPrimingHandler`** | `[ComponentId]` | `EntityRepository.RegisterComponent<T>` |
-| ⭐ **`EventPrimingHandler`** | `[EventId]` | `FdpEventBus` |
-| ⭐ **`GizmoPrimingHandler`** | `[GizmoProjector]` | `GizmoRegistry` · `StatelessGizmoRegistry` · `GizmoSettingsRegistry` |
+| handler | kind | source | sink |
+|---|---|---|---|
+| ⭐⭐⭐ **`GizmoPrimingHandler`** | **REFLECTING** | every `[GizmoProjector]`, any assembly | `GizmoRegistry` · `StatelessGizmoRegistry` · `GizmoSettingsRegistry`; component ids via `GetOrRegisterManaged` **(id-only, §2c ④)** |
+| ⭐ **`ComponentPrimingHandler`** | **GATED** | the node's **role profile** *(the existing `HrotShared`/`Cognitive`/`Combat`/`MuscleRole`/`IgRole` sets)* | `EntityRepository.RegisterComponent<T>` *(real table — this host simulates it)* |
+| ⭐ **`EventPrimingHandler`** | **GATED** | the node's role profile | `FdpEventBus` |
+| ⚠ **`replaybrowser` component handler** | **REFLECTING** *(exception)* | every `[ComponentId]`/`[EventId]` — `RepositoryPriming` as-is | the inspection repo |
 
-⭐⭐ **Deferred handlers, pattern-ready** *(§6)*: `BlueprintRegistrar`, `TkbDescriptor`, the polymorphic-DTO
-set. ⛔ **Not built now** — the interface is the extension point.
+⭐⭐ **Deferred handlers** *(§6)*: `BlueprintRegistrar`, `TkbDescriptor`, polymorphic DTOs — ⛔ not built; the
+interface is the extension point. ⚠ **Each future handler must be classed REFLECTING or GATED by whether its
+target costs per-node** — the §2c test.
 
 ## 4. ⭐⭐⭐ THE UML
 
@@ -72,107 +139,109 @@ set. ⛔ **Not built now** — the interface is the extension point.
 
 ```mermaid
 classDiagram
-    class ReflectionPrimer {
+    class HostBootstrapPrimer {
         <<new, Fdp.Toolkits>>
-        +ReflectionPrimer(handlers)
-        +Prime()
+        +Prime(handlers)
         -ScanLoadedAssemblies() Type[]
     }
-    class IReflectionPrimingHandler {
+    class IPrimingHandler {
         <<interface>>
         +Phase int
-        +Offer(type) void
-    }
-    class ComponentPrimingHandler {
-        <<new — was RepositoryPriming>>
-        +Phase 1
-        +Offer(type)
-    }
-    class EventPrimingHandler {
-        <<new — was RepositoryPriming>>
-        +Phase 1
-        +Offer(type)
+        +Reflecting bool
+        +Prime(scannedTypes)
     }
     class GizmoPrimingHandler {
-        <<new — was the 5 host lists>>
+        <<new — REFLECTING, replaces the 5 host lists>>
         +Phase 2
-        +Offer(type)
+        +Reflecting true
     }
-    class EntityRepository {
-        <<existing sink>>
+    class ComponentPrimingHandler {
+        <<new — GATED by role profile>>
+        +Phase 1
+        +Reflecting false
     }
-    class FdpEventBus {
-        <<existing sink>>
+    class EventPrimingHandler {
+        <<new — GATED by role profile>>
+        +Phase 1
+        +Reflecting false
+    }
+    class RoleProfile {
+        <<the node's component set: Brain / Muscle / IG / full>>
+    }
+    class ComponentTypeRegistry {
+        <<static — GetOrRegisterManaged: id-only, no table>>
     }
     class StatelessGizmoRegistry {
-        <<existing sink — throws on unknown component>>
+        <<existing sink — needs the id, not a table>>
     }
     class RepositoryPriming {
-        <<existing — becomes a thin call>>
-        +RegisterDiscoveredComponents(repo, bus)
+        <<existing — replaybrowser INSPECTION exception, reflects all>>
     }
 
-    ReflectionPrimer o-- IReflectionPrimingHandler : runs in phase order
-    IReflectionPrimingHandler <|.. ComponentPrimingHandler
-    IReflectionPrimingHandler <|.. EventPrimingHandler
-    IReflectionPrimingHandler <|.. GizmoPrimingHandler
-    ComponentPrimingHandler --> EntityRepository
-    EventPrimingHandler --> FdpEventBus
+    HostBootstrapPrimer o-- IPrimingHandler : runs in phase order
+    IPrimingHandler <|.. GizmoPrimingHandler
+    IPrimingHandler <|.. ComponentPrimingHandler
+    IPrimingHandler <|.. EventPrimingHandler
+    ComponentPrimingHandler --> RoleProfile : gated set
+    GizmoPrimingHandler ..> ComponentTypeRegistry : id-only dependency
     GizmoPrimingHandler --> StatelessGizmoRegistry
-    RepositoryPriming ..> ReflectionPrimer : delegates
+    RepositoryPriming ..> HostBootstrapPrimer : replaybrowser only
+    note for GizmoPrimingHandler "reflect-all is safe: a projector with no entity draws nothing"
+    note for ComponentPrimingHandler "role-gated: a table costs mask, memory, recorder, DDS layout"
 ```
 
-### 4.2 Sequence — ⭐⭐ **one scan, phased dispatch, and why the phase matters**
+### 4.2 Sequence — ⭐⭐ **gated components, reflected gizmos, and why the phase matters**
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Host as any host bootstrap
-    participant P as ReflectionPrimer
-    participant C as ComponentPrimingHandler
-    participant E as EventPrimingHandler
-    participant G as GizmoPrimingHandler
+    participant P as HostBootstrapPrimer
+    participant C as ComponentPrimingHandler (GATED)
+    participant G as GizmoPrimingHandler (REFLECTING)
     participant Reg as StatelessGizmoRegistry
+    participant CTR as ComponentTypeRegistry
 
-    Host->>P: Prime()
-    P->>P: GetAssemblies + GetTypes (ONCE, cached)
+    Host->>P: Prime(roleProfile, handlers)
 
-    Note over P,E: PHASE 1 - schema
-    loop each type
-        P->>C: Offer(type)
-        P->>E: Offer(type)
-    end
+    Note over P,C: PHASE 1 - schema, ROLE-GATED (not reflection)
+    P->>C: Prime(roleProfile.Components)
+    C->>C: RegisterComponent for THIS node's role only
 
-    Note over P,Reg: PHASE 2 - declaration, validates against phase 1
-    loop each type
-        P->>G: Offer(type)
+    Note over P,Reg: PHASE 2 - gizmos, REFLECTING
+    P->>P: GetAssemblies + GetTypes (once, cached)
+    loop each [GizmoProjector] type
+        G->>CTR: GetOrRegisterManaged(required components) - ID ONLY
         G->>Reg: Register(projector)
-        Reg-->>G: ok (component types already present)
+        Reg-->>G: ok (ids resolvable)
     end
-    Note over Reg: phase 2 before phase 1 would throw - ST-020
+    Note over C,Reg: a brain gizmo on IG: id known, no entity carries it, draws nothing
+    Note over Reg: phase 2 before phase 1 still fine - gizmo needs id, which it registers itself
 ```
 
-## 5. ⭐⭐ THE RAILS — **the completeness rail BUYS BACK the static check reflection gives up**
+## 5. ⭐⭐ THE RAILS
 
 | ⭐ | |
 |---|---|
-| 🔴🔴 **COMPLETENESS — the load-bearing rail** | ⭐⭐⭐ **source-scan count vs runtime count**: a test greps the source tree for `[ComponentId]`/`[EventId]`/`[GizmoProjector]` and asserts the primer registered **exactly that many** in **every mode**. ⛔ This is the guarantee the compile-time registrars gave for free and reflection gives up — 🔒 the user named it *("aggregation might get back the static checks we are giving away")* ⇒ **the rail is the substitute until/unless aggregation restores the compile-time form** |
-| ⭐⭐ **LOAD-ORDER is the real risk** | reflection sees only **loaded** assemblies ⇒ a type whose assembly no host references transitively is **invisible**. ⭐ The completeness rail **catches exactly this** — a miss in some mode means that mode did not load that assembly ⇒ a load-order finding, ⛔ never an ignore-list |
-| ⭐ **cross-node layout identical** | 📐 `[ComponentId]` is explicit, so two nodes priming different **loaded** subsets still agree on every registered bit index. ⭐ A rail asserts two modes' component→id maps agree on their intersection |
-| ⚠ **COST — measure, do not assume** | 📐 `ST-027` showed the *schema* half is free; a full reflect-every-assembly at every boot is **not obviously** free ⇒ ⭐ report the mode-rail startup delta before/after |
-| ⭐ **the gizmo rails survive** | invariant `A` *(`GizmoSchemaFollowsDeclarationRails`)* still holds; invariant `B` *(completeness)* is now **the primer's completeness rail** — one mechanism |
+| 🔴🔴 **GIZMO COMPLETENESS — the load-bearing rail** | ⭐⭐⭐ **source-scan count vs runtime count for `[GizmoProjector]`**: grep the source, assert every projector is registered in **every mode**. ⛔ This is the static check the generated `RegisterAll` gave for free and reflection gives up ⇒ the substitute until aggregation restores the compile-time form. ⭐ Also catches the load-order risk *(a projector whose assembly a mode never loads)* |
+| ⭐⭐ **COMPONENT NON-BLOAT — the NEW rail this revision demands** | ⛔⛔ **assert a MUSCLE/IG node's static registry does NOT contain brain-tier components as RECORDABLE tables** — 📌 the §2c downside made checkable. ⭐ e.g. `--mode ig`'s `ComponentTypeRegistry.GetRecordableTypeIds()` excludes `BrainBlackboard`/`BehaviorState`. ⛔ **A gizmo's id-only dependency must NOT show up here as recordable** — that is the §2d exposure, gated |
+| ⭐ **cross-node layout identical** | 📐 `[ComponentId]` is explicit, so nodes with different role subsets still agree on every id. ⭐ Assert two modes' component→id maps agree on their intersection |
+| ⚠ **COST — measure** | ⭐ report the mode-rail startup delta before/after — the gizmo reflection scan is the only new per-boot cost *(components are unchanged, still role-gated)* |
+| ⭐ **the gizmo rails survive** | invariant `A` *(`GizmoSchemaFollowsDeclarationRails`)* holds; the gizmo-completeness rail is invariant `B` — one mechanism |
 
 ## 6. ⛔ BATCH SCOPE
 
 | ⭐ in | ⛔ deferred / out |
 |---|---|
-| `ReflectionPrimer` + `IReflectionPrimingHandler` in `Fdp.Toolkits` | ⛔ `BlueprintRegistrar` / `TkbDescriptor` / DTO handlers — pattern-ready, **not built** |
-| the 3 handlers *(component, event, gizmo)* | ⛔ editor node-drawer / hot-reload / picker scans — separate tooling |
-| every host calls the primer; **retire** the per-role registries + the 5 gizmo lists + the `MapSchemaPack`/`MapGizmoPack` split | ⛔ `MapInteractionPack`'s non-gizmo half *(UXI-23 actions/selection/rubber-band)* |
-| the completeness + cost + cross-node rails | ⛔ aggregation *(§7 — backlog)* |
+| `HostBootstrapPrimer` + `IPrimingHandler` *(reflecting/gated)* in `Fdp.Toolkits` | ⛔ `BlueprintRegistrar` / `TkbDescriptor` / DTO handlers — pattern-ready, **not built** |
+| the **gizmo** handler *(reflecting)* replacing the 5 hand-rolled gizmo lists | ⛔ editor node-drawer / hot-reload / picker scans |
+| ⭐ the **component/event** handlers *(GATED — wrap the EXISTING role registries; ⛔ do NOT convert to reflection, ⛔ do NOT retire them)* | ⛔ `MapInteractionPack`'s non-gizmo half *(UXI-23)* |
+| ⓪ **MEASURE + FIX the `ST-027` exposure** *(§2d)* — the 15 components' repo tables on hosts that don't simulate them ⇒ id-only, or folded into the gizmo handler | ⛔ aggregation *(§7 — backlog)* |
+| the gizmo-completeness + component-non-bloat + cost rails | |
 
-⚠ **`MapSchemaPack` (`ST-027`, shipped) is SUBSUMED** — the component handler registers all `[ComponentId]`
-types, of which the 15 it hand-lists are a subset. ⭐ Delete it once the primer covers them, and say so.
+⚠ **`MapSchemaPack` (`ST-027`, shipped) is NOT simply "subsumed" — it is CORRECTED** *(§2d)*: its 15
+`repo.RegisterComponent` calls become the gizmo handler's **id-only** dependency for the components a host
+does not simulate. ⭐ The component-non-bloat rail proves the correction.
 
 ## 7. ⭐⭐ THE TRADE-OFF, AND THE AGGREGATION BACKLOG
 

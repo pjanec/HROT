@@ -2,11 +2,11 @@
 state: LIVE
 build-state: DISPATCH
 updated: 2026-08-24
-current-answer: dispatch pointer — one ReflectionPrimer with pluggable handlers, replacing the per-role
-  component registries, the 5 gizmo lists, and the MapSchemaPack/MapGizmoPack split. ⛔ Carries no design:
-  see DESIGN_Reflection_World_Priming.md.
-known-conflict: ⚠ SUBSUMES ST-027's MapSchemaPack (retire it) and CLOSES Q53's MapGizmoPack (never build
-  it — the primer IS the answer). Both are this batch's to fold in.
+current-answer: ⛔ REVISED 2026-08-24 — GIZMOS reflect-all; COMPONENTS/EVENTS stay ROLE-GATED (the
+  existing group registries — NOT converted to reflection). See DESIGN_Reflection_World_Priming.md §2c/§2d
+  for why, MEASURED against code. This handoff carries no design.
+known-conflict: ⚠ CORRECTS (not subsumes) ST-027's MapSchemaPack — its 15 repo tables become id-only
+  (§2d, item ⓪); CLOSES Q53's MapGizmoPack (the gizmo handler is the answer).
 -->
 # HANDOFF — **reflection world-priming** *(one scan, pluggable handlers)*
 
@@ -21,22 +21,30 @@ known-conflict: ⚠ SUBSUMES ST-027's MapSchemaPack (retire it) and CLOSES Q53's
 §7 the trade-off.** 📄 The decision that led here: [`Architect_Question_53`](../Architect_Question_53_Gizmo_Pack_Home.md)
 *(Option A, ruled)*. ⭐ Report per obligation ③; ⭐⭐ **fold deviations into the design** *(obligation ⑤)*.
 
-⭐⭐ **This is your own thread's payoff.** `ST-020` → `ST-022` *(schema pack)* → `ST-027` *(widened to 15)* →
-`ST-028` *(the pack home is a cycle)* → **the answer is not a lower assembly, it is no compile-time
-reference at all.**
+⭐⭐ **This is your own thread's payoff** — `ST-020` → `ST-022`/`ST-027` *(schema pack)* → `ST-028`
+*(the pack home is a cycle)* → **the answer is no compile-time reference: the gizmo handler reflects.**
+
+⛔⛔ **READ [`DESIGN_Reflection_World_Priming.md`](../../DESIGN_Reflection_World_Priming.md) §2c FIRST.** The
+design was **revised `2026-08-24`** after the user surfaced the downsides of registering all *components*
+everywhere and the coordinator **measured them true**: the recorder/save schema read the **static**
+`ComponentTypeRegistry` *(not the repo)*, `IsComponentTypeRegistered` drives TkbTemplate materialisation,
+and the static registry is lazy/on-demand ⇒ ⛔ **a repo whitelist does NOT save it, and reflect-all-components
+is HARMFUL on simulation hosts.** ⭐⭐ **But a GIZMO needs only the static component ID, not a table** *(it
+iterates by mask bit; a projector with no entity draws nothing)* — so the asymmetry is principled.
 
 ## 1. ⭐⭐⭐ THE ITEMS
 
 | # | task | design | gate |
 |---|---|---|---|
-| ⭐⭐ **①** | **`ReflectionPrimer` + `IReflectionPrimingHandler` in `Fdp.Toolkits`** — one cached `AppDomain`/`GetTypes` scan *(System-filtered, `ReflectionTypeLoadException`-safe)*, offering each type to each handler **in phase order** | §3.1 | it compiles and the scan runs once *(assert the scan is not repeated per handler)* |
-| ⭐⭐ **②** | **The 3 handlers — component `[ComponentId]`, event `[EventId]`, gizmo `[GizmoProjector]`.** ⭐⭐⭐ **Generalise `RepositoryPriming`, do NOT parallel it** *(ruling 9)* — its component+event logic **becomes** handlers 1–2; `RegisterDiscoveredComponents` stays as a thin call so replaybrowser's site keeps working | §3.2, §3.1 ④ | phase 1 *(component+event)* before phase 2 *(gizmo)* — 📌 reversed throws, `ST-020` |
-| 🔴🔴 **③** | ⭐⭐⭐ **Every host calls the primer with the SAME handler list**, retiring: the per-role component registries *(`IgRole`/`Cognitive`/`Combat`/`MuscleRole`/`HrotSharedComponentRegistry`)*, the **5 hand-rolled gizmo lists**, and **`MapSchemaPack`** *(`ST-027` — now subsumed; DELETE it and say so)* | §3.1 ⑤, §6 | ⭐⭐ `ModeStartupRails` **8 / 8** after each host is converted — ⛔ convert + prove per host, not big-bang |
-| 🔴🔴 **④** | ⭐⭐⭐ **THE COMPLETENESS RAIL — source-scan count vs runtime count, EVERY mode.** Grep the source for `[ComponentId]`/`[EventId]`/`[GizmoProjector]`, assert the primer registered exactly that many in every mode | §5 | ⛔⛔ **This is the static check reflection gives up — it must be seen to FAIL** *(remove one attribute in a scratch edit ⇒ the rail reddens naming the type)*. ⭐ It also catches the load-order risk |
-| ⭐ **⑤** | ⭐⭐ **The two other rails: cross-node layout identical** *(two modes agree on their component→id intersection)* **and cost** *(mode-rail startup delta before/after)* | §5 | ⛔ *"it is free"* is measured, not asserted — 📌 the claim this programme keeps retracting |
+| 🔴🔴 **⓪** | ⭐⭐⭐ **MEASURE + CORRECT the `ST-027` exposure** *(§2d)*. 📐 `MapSchemaPack` does `repo.RegisterComponent<T>()` for **15 components on every host** — full recordable tables. On IG/SimHost/CGF the brain ones *(`BrainBlackboard`/`BehaviorState`/`NavigationIntent`)* now make `IsComponentTypeRegistered` **true** *(TkbTemplate risk)* and default **recordable** *(schema pollution)*. ⇒ **report whether either is live**, then make them **id-only** *(`ComponentTypeRegistry.GetOrRegisterManaged`, no table)* for hosts that do not simulate them | §2c, §2d | ⭐ the measurement stated; the brain components **gone from `--mode ig`'s recordable set** |
+| ⭐⭐ **①** | **`HostBootstrapPrimer` + `IPrimingHandler` in `Fdp.Toolkits`** — reflecting/gated handler kinds, phase order, one cached scan when a reflecting handler is present | §3.1 | it compiles; the scan runs once |
+| 🔴🔴 **②** | ⭐⭐⭐ **The GIZMO handler (REFLECTING)** — discovers every `[GizmoProjector]`, registers it, resolves required component ids **id-only** *(§3.1 ④)*. Replaces the 5 hand-rolled gizmo lists. ⛔⛔ **The component + event handlers are GATED — wrap the EXISTING role registries** *(`HrotShared`/`Cognitive`/`Combat`/`MuscleRole`/`IgRole`)*; ⛔ **do NOT convert them to reflection and do NOT retire them** | §3.2, §2c | `ModeStartupRails` **8 / 8** per host converted — ⛔ per host, not big-bang |
+| 🔴🔴 **③** | ⭐⭐⭐ **THE GIZMO-COMPLETENESS RAIL** — source `[GizmoProjector]` count vs runtime, every mode | §5 | ⛔ seen to FAIL *(remove one projector ⇒ reddens naming it)* |
+| 🔴 **④** | ⭐⭐⭐ **THE COMPONENT-NON-BLOAT RAIL** — assert `--mode ig`/`--mode simhost` static recordable set **excludes** brain-tier components | §5, §2d | ⛔ this is the rail that proves the revision — it must pass only after item ⓪ |
+| ⭐ **⑤** | **cost + cross-node rails** — startup delta; two modes agree on their id-map intersection | §5 | reported, not asserted-free |
 
-⭐ `GizmoSchemaFollowsDeclarationRails` *(invariant `A`, `ST-023`)* **stays**; invariant `B` **becomes** ④'s
-completeness rail — ⭐ one mechanism, ⛔ do not keep two.
+⭐ `replaybrowser` keeps `RepositoryPriming`'s reflect-all as the **inspection exception** *(§3.2)* — ⛔ do not
+gate it.
 
 ## 2. ⚠⚠ WHAT WILL BITE
 
