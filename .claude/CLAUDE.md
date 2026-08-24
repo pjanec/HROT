@@ -393,14 +393,26 @@ assertions** — 📌 those would have caught **4 of the 7** the user found.
 
 ### ⛔⛔⛔ `2026-08-24` — **BUILD ONCE · RUN ONCE · NEVER RE-RUN THE SLOW SUITE "TO BE SURE"** *(user: "cant continue like that")*
 
-📌 **The case, measured.** `HN-037`'s tail spent **~30 min** — not on the deletion, on the **E2E system
-suite run building-from-source, twice** *(mid-batch to find a bug, then again at the end)*. ⭐⭐ **Its 9
-reds were ALL one bug**, which the **targeted rails** *(`DeterminismRails` 5/0, `The_two_hosts` 2/0)* and
-**five inverse-edit red-proofs** already pinned. ⇒ ⛔⛔ **the second full run added NOTHING the targeted
-rails did not** — it was pure wall-clock.
+📌 **The case, MEASURED `2026-08-24` — and the first guess was wrong.** `HN-037`'s tail spent **~30 min**,
+and it was **NOT the tests** *(they run `--no-build` in 3–8 s)*. 📐 **The sink was the BUILD:** the report's
+Gate 1 is `dotnet build IOS-IG-SimHost.sln` — the **whole 149-project solution** — and deleting
+`ScenarioFileService.LoadScenario` broke that file **plus ~8 test files across several projects**, so the
+compile-cascade was chased with **repeated full-solution builds.** ⛔⛔ **Measured on this repo, warm,
+`--no-restore`:**
 
-| ⭐ the rule — **three parts, all checkable** | |
+| build | wall-clock |
 |---|---|
+| ⛔ **full solution** *(149 projects — the Gate-1 command)* | 🔴 **115 s** *(more cold / with restore)* |
+| ⭐ **just the affected project** *(`Hrot.Editor`)* | ✅ **8 s** |
+
+⇒ ⭐⭐⭐ **14×.** Six-to-eight cascade iterations at ~2 min each **is the 30 minutes** — plus the E2E suite
+run twice *(building-from-source)* on top. ⚠ **Both are one disease: rebuilding/re-running far more than the
+change touched.** *(The E2E double-run added nothing — its 9 reds were all one bug the targeted rails
+`DeterminismRails` 5/0 + five inverse-edit red-proofs already pinned.)*
+
+| ⭐ the rule — **FOUR parts, all checkable** | |
+|---|---|
+| **⓪** 🔴🔴🔴 **NEVER full-solution-build inside the fix loop — build the AFFECTED PROJECT** | 📐 **115 s → 8 s, measured.** ⛔ `dotnet build <the.sln>` to answer *"does it compile now?"* is the single most expensive habit here. ⭐ `dotnet build <proj> --no-restore` *(or `quick-check.sh <proj>`)* — the project you touched + the specific test projects that reference it, each ~8 s. ⛔⛔ **A batch §Gates row that says `dotnet build <the.sln>` invites exactly this** — the full-solution build belongs at most ONCE, at the end, or in CI |
 | **①** ⭐⭐⭐ **BUILD ONCE per batch, then `--no-build` for EVERY run after** | 📐 restore = **79 s**, `--no-restore` = 16 s, `--no-build` run = seconds. ⛔ **A suite invoked without `--no-build` after the first build is a self-inflicted 79 s.** ⭐ `run-system-tests.sh --no-build` and `quick-check.sh` exist for exactly this — 📌 `HN-037` ran the system suite WITHOUT `--no-build`, so each run re-restored |
 | **②** ⭐⭐⭐ **A fix is PROVEN through the rail that reddened for it — NOT by re-running the whole suite** | ⛔⛔ once the targeted/new rail that reproduces a failure is green *(ideally with an inverse-edit red-proof, `HN-037` §5)*, the fix is verified. ⚠ **Re-running the full E2E suite to "confirm" is theater** — 📌 the tally: batches 94–101, the full regression suite caught **nothing** a new rail did not |
 | **③** ⭐⭐ **The E2E/system suite is `T3` — ASYNC, never a foreground blocker** | ⭐ background it or leave it to CI; its result lands in the report or the next session. ⛔ **A session must NEVER sit idle waiting on `run-system-tests.sh`.** ⚠ **For an overnight batch this is doubly true** — the slow lane runs unattended by definition |
