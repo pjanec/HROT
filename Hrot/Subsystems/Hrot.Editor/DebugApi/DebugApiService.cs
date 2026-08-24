@@ -605,6 +605,26 @@ namespace Hrot.Editor.DebugApi
             return GetSimState();
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE ACK-GATE'S TRUTH — <c>true</c> while a step has been issued and some roster node has
+        /// not yet acknowledged it.</b>
+        /// 📄 <c>DESIGN_Headless_Testability.md</c> §6c *(the correctness hazard)* ·
+        /// <c>Architect_Question_54</c> Q54-2 *(issue where the user is, confirm where the truth is)*.
+        ///
+        /// <para>⛔⛔ <b>Why this is a READ and the wait is NOT inside <see cref="Step"/>.</b> 📐 Measured:
+        /// <c>MasterSyncController.Update()</c> — the method that drains the ACKs — runs on the MAIN THREAD
+        /// from the orchestrator's per-frame update, and <see cref="Step"/> is itself executed on the main
+        /// thread through <c>MainThreadJobQueue</c>. ⇒ 🔴 <b>a blocking wait inside <c>Step()</c> would
+        /// deadlock the very loop that clears the flag.</b> ⭐ So the gate lives in the HTTP handler, which
+        /// polls this across frames — the RETURN CONTRACT the design asks for is preserved *(the request
+        /// completes only when the tick is acknowledged cluster-wide)*; only the location differs.</para>
+        ///
+        /// <para>⭐ <b>Editor mode answers <c>false</c> immediately</b> — the standalone master has an EMPTY
+        /// slave roster, so there is nothing to wait for. ⇒ ⭐⭐ the harness code is identical in both modes,
+        /// which is the whole point of the conformance seam.</para>
+        /// </summary>
+        public bool IsAwaitingStepAcks => _timeController.IsAwaitingStepAcks;
+
         /// <summary><c>POST /sim/timescale {scale}</c> (main thread).</summary>
         public JsonNode SetTimeScale(float scale)
         {
@@ -661,6 +681,26 @@ namespace Hrot.Editor.DebugApi
         /// deliberately NOT used as the completion signal (set at frame 0).
         /// </summary>
         public bool PollClusterStateIsOperatingEdit() => CurrentClusterState() == ClusterState.OperatingEdit;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The world's entity count — the LOAD EDGE the readiness check needs.</b>
+        /// 📄 <c>DESIGN_Headless_Testability.md</c> §6b *(the stepping law)*; the defect it fixes is recorded
+        /// in the design's as-built section.
+        ///
+        /// <para>🔴🔴 <b>Why <see cref="PollClusterStateIsOperatingEdit"/> is not sufficient on a RELOAD, and
+        /// this is measured, not theoretical.</b> 📐 `2026-08-24`: <c>OperatingEdit</c> is a LEVEL, and a
+        /// reload starts from it ⇒ the very first poll can answer <i>"ready"</i> while the previous world is
+        /// still standing and the new one has not been built. ⚠⚠ <b>The two <c>DeterminismRails</c> reload
+        /// cases were passing on a ONE-FRAME margin</b>: adding a single extra main-thread job to
+        /// <c>POST /sim/step</c> *(the ack-gate)* was enough to make the subsequent read observe an EMPTY
+        /// world. ⇒ ⛔ they were measuring a race, not a property.</para>
+        ///
+        /// <para>⭐⭐ So the host waits for an <b>EDGE</b>: the count must be seen to CHANGE from what it was
+        /// when the load was requested *(a load does <c>SoftClear</c> then re-creates, so 8 → 0 → 8 is
+        /// observable when polling every frame)*, and then settle. ⛔ Not <c>ListEntities()</c> — that
+        /// extracts every component of every entity, per poll, per frame.</para>
+        /// </summary>
+        public int WorldEntityCount => _world.EntityCount;
 
         /// <summary><c>POST /scenario/save {name}</c> — persists the authored world (main thread).</summary>
         public JsonNode SaveScenario(string name)

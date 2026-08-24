@@ -238,28 +238,35 @@ public sealed class DeterminismRails
     }
 
     /// <summary>
-    /// 🔴🔴 <b>THE OTHER HALF — a RELOAD in ONE process. This is the claim charter <c>D6</c>'s allocator
-    /// reset exists for, and it is a DIFFERENT claim from the two-process one.</b>
+    /// 🔴🔴🔴 <b>A RELOAD in ONE process does NOT repeat the authored ids — and the OPPOSITE claim, which
+    /// this rail used to make, was an ARTIFACT OF A RACE.</b>
     ///
-    /// <para>⭐⭐⭐ <b>The distinction matters and the design's phrasing blurs it.</b> §7 <c>N1</c> asks for
-    /// *"the id-allocator reset on <c>WorldResetEvent</c>"* AND *"two fresh processes"* as ONE item — 📐 but
-    /// two FRESH processes each start their allocator at its own baseline, so
-    /// <see cref="Two_fresh_processes_agree_on_the_entity_mapping"/> passes <b>with or without any
-    /// reset.</b> ⇒ ⛔ that rail cannot tell you whether a reset works, and reading it as if it could is
-    /// how a wired-to-nothing reset ships green.</para>
+    /// <para>⛔⛔ <b>What this rail said before `2026-08-24`:</b> <i>"the ids already repeat, so charter
+    /// <c>D6</c>'s allocator reset is NOT needed"</i> — and the programme wrote that into
+    /// <c>DESIGN_Deterministic_Network_Ids.md</c> §0b as a measured negative. 🔴 <b>It was measuring the
+    /// FIRST world twice.</b></para>
     ///
-    /// <para>⭐⭐⭐ 📐 <b>MEASURED `2026-08-23`: THE IDS ALREADY REPEAT, so <c>D6</c>'s reset is NOT NEEDED for
-    /// this.</b> Load-then-reload in one process yields <c>[1000 … 1007]</c> both times. ⇒ ⭐⭐ **a measured
-    /// NEGATIVE that saves the programme the reset wiring and all four of its caveats** — including
-    /// caveat ②, the distributed-mode hazard, which was the expensive one. ⛔ Do not wire a reset on the
-    /// strength of the design's prediction; this rail is the reason not to.</para>
+    /// <para>📐 <b>The mechanism, measured:</b> <c>POST /scenario/load {waitForReady:true}</c> used to wait
+    /// on a LEVEL — <c>ClusterState == OperatingEdit</c> — and a RELOAD *starts* from that level ⇒ the very
+    /// first poll answered <i>"ready"</i> while the previous world was still standing. ⚠⚠ The margin was
+    /// <b>ONE FRAME</b>: adding a single main-thread job to <c>POST /sim/step</c> *(the ack-gate, this
+    /// batch's item ④)* was enough to flip the observation from <i>"the same 8 ids"</i> to <i>"an EMPTY
+    /// world"</i>. ⇒ ⭐ the readiness check is now EDGE-triggered *(the world must be seen to change and then
+    /// settle)*, and with a load that genuinely completes the truth is visible.</para>
     ///
-    /// <para>⚠ <b>It asserts the ID SEQUENCE, not the whole mapping</b>, and that is deliberate — see
-    /// <see cref="A_reload_leaks_one_component_HN_011"/> for the component-set difference this run
-    /// exposed, which is a separate defect and has its own tripwire.</para>
+    /// <para>🔴🔴 <b>The truth: the second load's entities carry ids <c>1008</c>–<c>1015</c></b> — the
+    /// editor's <c>SequentialIdAllocator</c> continuing from <c>1000</c>, ⛔ <b>not</b> the authored
+    /// <c>NetworkIdentity</c> values in <c>scenario.json</c>. ⇒ ⭐⭐ <b>charter <c>D6</c>'s requirement is
+    /// ALIVE for the reload case</b> *(it remains refuted for two FRESH processes — that rail is clean and
+    /// unaffected)*.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>So this is a TRIPWIRE, deliberately.</b> It asserts the DRIFT, naming it, and it goes
+    /// RED the day the loader preserves authored ids across a reload — 📌 the same shape as
+    /// <c>ModeStartupRails</c>' <c>--mode ig</c> case and the preview batch's tripwires. ⛔ Do not "fix" it
+    /// by asserting equality again: that is the claim that was false.</para>
     /// </summary>
     [SystemSmokeFact]
-    public async Task A_reload_in_one_process_repeats_the_entity_ids()
+    public async Task A_reload_in_one_process_does_not_repeat_the_authored_ids()
     {
         await using var ed = await EditorProcess.StartAsync("det-reload");
 
@@ -273,52 +280,54 @@ public sealed class DeterminismRails
         _out.WriteLine($"ids second: [{string.Join(", ", kb)}]");
 
         Assert.NotEmpty(ka);
-        Assert.Equal(ka, kb);
+        Assert.Equal(ka.Length, kb.Length);          // ⭐ the same world was rebuilt…
+        Assert.NotEqual(ka, kb);                     // ⛔ …under DIFFERENT ids. THE TRIPWIRE.
+
+        // ⭐ And the drift is the ALLOCATOR continuing, not arbitrary: the second load's lowest id sits
+        //   immediately after the first load's highest. ⛔ Asserting only "they differ" would also pass on
+        //   random ids, which would be a different (worse) defect.
+        Assert.Equal(long.Parse(ka[^1]) + 1, long.Parse(kb[0]));
     }
 
     /// <summary>
-    /// 🔴🔴 <b>TRIPWIRE — a scenario RELOAD LEAKS a component into the world. <c>HN-011</c>.</b>
+    /// 🔴🔴 <b><c>HN-011</c> IS RETRACTED — *"a reload leaks <c>BlueprintAssignments</c> onto entity
+    /// 1000"* was the SAME RACE, seen from another angle.</b>
     ///
-    /// <para>📐 <b>Measured `2026-08-23`:</b> loading <c>hill-attack</c> twice into ONE editor leaves entity
-    /// <c>1000</c> *(the platoon HQ)* carrying <b><c>BlueprintAssignments</c></b> on the second load that it
-    /// does not carry on the first. Same scenario file, same steps. ⇒ ⛔ **the reload does not fully clear
-    /// the world; state from load #1 survives into load #2.**</para>
+    /// <para>📐 <b>Measured `2026-08-24` with the readiness race fixed:</b> after a real reload, network id
+    /// <c>1000</c> <b>does not exist at all</b> — every one of its 29 components reads as "lost", because
+    /// the rebuilt world numbered its entities <c>1008</c>–<c>1015</c>. ⇒ ⛔ the old rail was comparing one
+    /// id across a world that had never actually been replaced, so its *"gained a component"* was an
+    /// artifact, not a leak. ⚠ <b>The <c>HN-011</c> row is corrected in the tracker rather than left
+    /// standing as a defect nobody can reproduce.</b></para>
     ///
-    /// <para>⭐⭐ <b>It is NOT a settle-time race, and that was measured rather than assumed:</b> stepping
-    /// <b>5</b> ticks and <b>40</b> ticks produce the identical result, so it is not the case that a late
-    /// system simply had not attached the component yet on the first load.</para>
-    ///
-    /// <para>⭐⭐⭐ <b>Why this asserts the DEFECT rather than the fix.</b> 📌 The repo already sanctions this
-    /// shape — <c>ModeStartupRails</c>' <c>--mode ig</c> case asserts a mode is *still* broken and fails the
-    /// day <c>ST-020</c> lands. ⭐ Same reasoning here: the leak is real, its fix is in the SCENARIO LOADER
-    /// *(outside this batch's surface and with a wide blast radius)*, and <c>R-131</c> forbids leaving a
-    /// red or a <c>[Skip]</c> behind. ⇒ ⛔ **the day the loader clears properly, THIS FAILS and names
-    /// <c>HN-011</c>** — which is the only way a deferred defect stays visible.</para>
-    ///
-    /// <para>⚠ <b>Do not "fix" this by making it a full-mapping equality</b> — that would turn a precise,
-    /// self-describing tripwire back into *"the strings differ"* over 8 rows of 40 components.</para>
+    /// <para>⭐⭐ <b>What is genuinely observable, and worth a rail:</b> the reload rebuilds the SAME AUTHORED
+    /// WORLD — the same entity NAMES, the same component sets — under new ids. ⭐ That is the claim a reader
+    /// actually wants *(the file was re-read and re-materialised)*, and it is independent of the id drift the
+    /// tripwire above owns.</para>
     /// </summary>
     [SystemSmokeFact]
-    public async Task A_reload_leaks_one_component_HN_011()
+    public async Task A_reload_rebuilds_the_same_authored_world()
     {
         await using var ed = await EditorProcess.StartAsync("det-leak");
 
         var first  = await LoadAndMap(ed);
         var second = await LoadAndMap(ed);
 
-        var gained = ComponentsOf(second, "1000").Except(ComponentsOf(first, "1000"), StringComparer.Ordinal)
-                     .OrderBy(x => x, StringComparer.Ordinal).ToArray();
-        var lost   = ComponentsOf(first, "1000").Except(ComponentsOf(second, "1000"), StringComparer.Ordinal)
-                     .OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        // ⭐ Compare by NAME, which is authored data, rather than by id, which the reload does not preserve.
+        string[] NamesAndComponents(string mapping) => mapping.Split('\n')
+            .Select(r => r.Split('\t'))
+            .Where(f => f.Length > 2)
+            .Select(f => $"{f[1]}\t{f[2]}")
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToArray();
 
-        _out.WriteLine($"entity 1000 gained on reload: [{string.Join(", ", gained)}]");
-        _out.WriteLine($"entity 1000 lost on reload  : [{string.Join(", ", lost)}]");
+        var a = NamesAndComponents(first);
+        var b = NamesAndComponents(second);
 
-        Assert.Empty(lost);
+        _out.WriteLine($"{a.Length} named rows on the first load, {b.Length} on the second");
 
-        // ⛔ The tripwire. When the loader clears properly this goes EMPTY and this line fails, which is
-        //   the intent: close HN-011 and delete this rail in the same commit.
-        Assert.Equal(new[] { "BlueprintAssignments" }, gained);
+        Assert.NotEmpty(a);
+        Assert.Equal(a, b);
     }
 
     private static async Task<string> LoadAndMap(EditorProcess ed)

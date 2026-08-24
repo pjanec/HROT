@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -150,10 +151,38 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET",  "/sim/state",     _   => RunMain(s => s.GetSimState())));
             _routes.Add(new("POST", "/sim/play",      _   => RunMain(s => s.Play())));
             _routes.Add(new("POST", "/sim/pause",     _   => RunMain(s => s.Pause())));
-            _routes.Add(new("POST", "/sim/step",      ctx =>
+            // ⭐⭐⭐ THE ACK-GATED STEP. 📄 DESIGN_Headless_Testability.md §6b/§6c · Architect_Question_54 Q54-2.
+            //
+            // ⛔⛔ A step is ASYNCHRONOUS under the hood: `Step()` publishes a StepTimeIntent, the master
+            //    fans out AdvanceFrameIntent, and the tick is complete only when every roster node has
+            //    published FrameStepCompletedEvent. ⇒ 🔴 returning as soon as the intent is published lets
+            //    the next read observe a HALF-STEPPED cluster — "a golden of a race" (§6c).
+            //
+            // ⭐⭐ So this route returns only when the master reports the ACKs cleared. ⛔ NOT a sleep and
+            //    NOT a fixed settle: those are what §6c names as the thing to replace.
+            //
+            // ⚠⚠ The wait CANNOT live inside `Step()` — see DebugApiService.IsAwaitingStepAcks: the drain
+            //    runs on the main thread, so blocking a main-thread job would deadlock the loop that clears
+            //    the flag. ⭐ Here we are on the HTTP thread and can await across frames, which keeps the
+            //    design's return contract while being executable.
+            _routes.Add(new("POST", "/sim/step",      async ctx =>
             {
                 int count = ctx.Body?["count"]?.GetValue<int>() ?? 1;
-                return RunMain(s => s.Step(count));
+
+                var issued = await RunMain(s => s.Step(count)).ConfigureAwait(false);
+                if (issued.Status != 200) return issued;
+
+                var settled = await AwaitStepAcksAsync().ConfigureAwait(false);
+                if (settled is { } failure) return failure;
+
+                // ⚠⚠ THE PAYLOAD IS THE ISSUING JOB'S STATE, deliberately — ⛔ NOT a second
+                //    `GetSimState()` read after the gate. 📐 Measured `2026-08-24`: adding that extra
+                //    main-thread round trip reddened `DeterminismRails.A_reload_*`, because
+                //    `POST /scenario/load`'s readiness check is LEVEL-triggered on `OperatingEdit` and a
+                //    RELOAD can satisfy it before the new world exists (filed as a finding). ⇒ ⭐ the gate
+                //    itself is what the design asks for; a second read buys nothing and perturbs the very
+                //    timing that exposes an unrelated defect.
+                return issued;
             }));
             _routes.Add(new("POST", "/sim/timescale", ctx =>
             {
@@ -771,24 +800,95 @@ namespace Hrot.Editor.DebugApi
             if (!waitForReady)
                 return Ok(new JsonObject { ["loading"] = name, ["awaited"] = false });
 
-            // Poll across kernel ticks until OperatingEdit or wall-clock timeout.
-            // Each RunOnMainThread call yields to the main thread for one drain cycle,
-            // so the kernel ticks naturally between polls.
+            // ⭐⭐⭐ READINESS IS AN EDGE, NOT A LEVEL. 📄 See DebugApiService.WorldEntityCount for the
+            //    measurement: `OperatingEdit` is where a RELOAD starts, so a level check can answer "ready"
+            //    while the PREVIOUS world is still standing — and the two DeterminismRails reload cases
+            //    were passing on a one-frame margin because of it.
+            //
+            // ⭐⭐ So: the state must be OperatingEdit AND the world must have been observed CHANGING since
+            //    the request (a load SoftClears and re-creates, so the count moves) AND then settling.
+            //
+            // ⚠ The grace fallback exists for the one case the edge cannot see: loading a scenario whose
+            //   entity count never differs from the current one at any polled frame (e.g. empty → empty).
+            //   ⛔ It is a FALLBACK, not the mechanism — it only relaxes the edge requirement, never the
+            //   OperatingEdit one.
+            const double EdgeGraceSeconds = 2.0;
+
             var sw = System.Diagnostics.Stopwatch.StartNew();
             int pollCount = 0;
+            int countAtRequest = await _jobQueue.RunOnMainThread(() => Service().WorldEntityCount)
+                                                .ConfigureAwait(false);
+            int previous = countAtRequest;
+            bool sawChange = false;
+
             while (sw.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
             {
-                bool ready = await _jobQueue.RunOnMainThread(() => Service().PollClusterStateIsOperatingEdit())
-                                            .ConfigureAwait(false);
+                var (ready, count) = await _jobQueue
+                    .RunOnMainThread(() => (Service().PollClusterStateIsOperatingEdit(), Service().WorldEntityCount))
+                    .ConfigureAwait(false);
                 pollCount++;
-                if (ready)
-                    return Ok(new JsonObject { ["loaded"] = name, ["awaited"] = true });
+
+                if (count != countAtRequest) sawChange = true;
+                bool settled = count == previous;
+                previous = count;
+
+                if (ready && settled && (sawChange || sw.Elapsed.TotalSeconds > EdgeGraceSeconds))
+                    return Ok(new JsonObject
+                    {
+                        ["loaded"]      = name,
+                        ["awaited"]     = true,
+                        ["entityCount"] = count,
+                        // ⭐ Reported so a caller can tell a genuine edge from the grace fallback — a load
+                        //   that only ever passed on grace is worth knowing about.
+                        ["sawWorldChange"] = sawChange,
+                    });
             }
-            return Fail(504, $"Scenario '{name}' did not reach OperatingEdit within {ScenarioReadyTimeoutSeconds}s ({pollCount} polls).");
+            return Fail(504, $"Scenario '{name}' did not reach a settled OperatingEdit within "
+                           + $"{ScenarioReadyTimeoutSeconds}s ({pollCount} polls, entityCount {previous}, "
+                           + $"sawWorldChange={sawChange}).");
         }
 
         private DebugApiService Service()
             => _service ?? throw new InvalidOperationException("Debug API service not attached yet.");
+
+        /// <summary>⭐ How long the ack-gate waits before calling the cluster stuck. Generous: a lockstep tick
+        /// over DDS is milliseconds, so anything near this is a real stall, not slowness.</summary>
+        private const double StepAckTimeoutSeconds = 20.0;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Waits until the master reports the step acknowledged cluster-wide.</b> Returns
+        /// <see langword="null"/> on success, or the failure result to send.
+        ///
+        /// <para>⭐ <b>Polled through the main-thread queue</b>, so each read is a consistent observation
+        /// between frames — ⛔ never a direct cross-thread field read of the controller.</para>
+        ///
+        /// <para>⭐⭐ <b>In editor mode the first read is already <c>false</c></b> *(empty slave roster)*, so
+        /// this costs one queued job and returns — ⚠ the same code path in both modes, deliberately.</para>
+        ///
+        /// <para>⛔⛔ A timeout is a <b>FAILURE</b>, not a shrug: it means a roster node never acknowledged,
+        /// and every read after it would describe a half-stepped cluster. 📌 Reporting it as 504 with the
+        /// elapsed time is what makes that visible instead of flaky.</para>
+        /// </summary>
+        private async Task<RouteResult?> AwaitStepAcksAsync()
+        {
+            var sw = Stopwatch.StartNew();
+
+            while (true)
+            {
+                bool awaiting = await _jobQueue.RunOnMainThread(() => Service().IsAwaitingStepAcks)
+                                               .ConfigureAwait(false);
+                if (!awaiting) return null;
+
+                if (sw.Elapsed.TotalSeconds > StepAckTimeoutSeconds)
+                    return Fail(504,
+                        $"The step was issued but the cluster did not acknowledge it within "
+                      + $"{StepAckTimeoutSeconds:0}s (master still reports awaitingStepAcks). A roster node "
+                      + "(SimHost/IG/CGF) is not advancing; any read now would describe a half-stepped "
+                      + "cluster.");
+
+                await Task.Delay(2).ConfigureAwait(false);
+            }
+        }
 
         private Task<RouteResult> RunMain(Func<DebugApiService, JsonNode?> fn)
             => _jobQueue.RunOnMainThread(() => Ok(fn(Service())));
