@@ -40,6 +40,7 @@ per-subsystem capability providers, with a manifest that DECLARES what the curre
 | **Q54-1** | ✅ **Option C** — the capability manifest, three-way conformance verdict *(SAME/DIFFERENT/NOT-PRESENT)*, typed `NOT_SUPPORTED_HERE` |
 | **Q54-2** | ✅ **Option B + C** — perspective-scoped dispatch over per-subsystem providers, **plus** the optional `?perspective=` override, ack-gated on the master |
 | ⭐⭐⭐ **Manifest scope** | ✅ **FULL FROM DAY ONE** *(user, against my incremental lean)* — see below |
+| ⭐⭐⭐ **Q54-3 — scenario load** | ✅ **TWO endpoints — `scenario/load/live` + `scenario/load/edit` — both CLUSTER-WIDE via 2PC, on ANY host** *(user, `2026-08-24`)*. ⛔ `scenario/load` is the wrong abstraction; ⛔ the editor is **not special** — a one-node cluster that also uses 2PC. See "§ Scenario load" below |
 
 ### ⭐⭐⭐ The manifest is DESCRIPTION × AVAILABILITY — describe every endpoint now; only the matrix changes
 
@@ -87,6 +88,71 @@ modes UNLESS its cell is in the baseline.** Then:
 📌 This is the **golden pattern applied to capability**: the runtime manifest is the *live dump*, the baseline is
 the *golden*, and a diff is either a reviewed port or a regression. ⭐ Same shape as the gizmo
 completeness rail *(source count vs runtime)* already in the repo.
+
+## ⭐⭐⭐ Q54-3 — Scenario load: two modes, cluster-wide, editor NOT special
+
+> 🔒 **User, `2026-08-24`:** *"scenario/load is wrong abstraction. there are 2 load modes — live and edit, and
+> both are possible in editor and in future maybe also in cgf subsystem. better having separate
+> scenario/load/live and scenario/load/edit endpoints. both should be cluster wide. editor is not special, also
+> uses 2pc for its single process."*
+
+📐 **Measured `2026-08-24` — the user is right, and the abstraction ALREADY EXISTS:** scenario loading is one
+2PC cluster mechanism *(`ClusterMaster`/`ClusterSlave`, driven by a `TransitionStateIntent` →
+`ClusterOpRequest(TransitionState)`)*. The editor's **endpoint** path already uses it —
+`EditorApplication.LoadScenarioByName` *(`:160-171`)* publishes `TransitionStateIntent{TargetState=OperatingEdit,
+ScenarioId}` into a **one-node** `ClusterMaster`. ⛔ **The state machine is NOT this doc's to design — it is owned
+by [`docs/designs/mgmt-1/DESIGN.md`](../designs/mgmt-1/DESIGN.md) §12 *(scenario editing / 2PC)* + §5.5
+*(transition planner BFS)*; `docs/HROT architecture.md:414` shows the promote-edit-to-live trajectory.** This
+section only adds the **MCP surface** over it.
+
+⭐⭐ **LIVE and EDIT already exist as distinct cluster states + handlers, registered on editor AND SimHost:**
+
+| mode | states | op | handler(s) | what it is |
+|---|---|---|---|---|
+| ⭐ **edit** | `LoadingEdit → OperatingEdit` | `PrepareEdit` | `HrotEditLoadHandler` *(editor `:1142`, SimHost `:288`)* · `ReferenceEditLoadHandler` | authoring world, **no recording**, time frozen |
+| ⭐ **live** | `LoadingLive → OperatingLive` | `PrepareLive` | `HrotScenarioLoadHandler` + `ReferenceLiveLoadHandler` *(SimHost `:281/:298`, CGF `:487/:496`, editor `:1144/:1268`)* | running exercise **+ recording** |
+| ⚠ **preview** *(NOT a load)* | `LoadingPreview / UnloadingPreview` | — | `PreviewClusterOpHandler` | snapshot/rewind bracket of already-loaded state — ⛔ **edit ≠ preview** |
+
+### ⭐⭐ The design — both endpoints publish the SAME host-agnostic intent
+
+⛔ **The one real gap:** today `POST /scenario/load` is hardwired to `IEditorLogic.LoadScenarioByName`
+*(`DebugApiService.cs:824`)* — an **editor-only** capability, which is why `--mode all` answers
+`NOT_SUPPORTED_HERE(editor.authoring)`. ⇒ ⭐⭐⭐ **the two new endpoints must publish `TransitionStateIntent`
+to whichever `ClusterMaster` the host owns — NOT touch `IEditorLogic`.** That one change is host-agnostic by
+construction: identical for the editor's one-node cluster, the orchestrator's N-node cluster, and a future CGF host.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant H as harness (MCP)
+    participant D as PerspectiveScopedDispatcher
+    participant M as ClusterMaster (this host)
+    participant P as TransitionPlanner
+    participant N as slaves (self, or SimHost·CGF·…)
+
+    H->>D: POST scenario/load/edit {scenario}
+    D->>M: TransitionStateIntent(TargetState=OperatingEdit, ScenarioId)
+    M->>P: plan trajectory to OperatingEdit
+    P-->>M: LoadingEdit then OperatingEdit
+    M->>N: FanOut PrepareEdit, then CommitState
+    N-->>M: prepared, committed
+    Note over M,N: same shape for load/live -> PrepareLive (+ recording)
+    D->>M: gate on cluster state == OperatingEdit (readiness)
+    M-->>H: loaded (world equalised for conformance)
+```
+
+### ⚠ What is built vs the gaps
+
+| endpoint | editor | `--mode all` | gap |
+|---|---|---|---|
+| ⭐ **`scenario/load/live`** | ✅ handlers registered *(one-node)* | ✅ **fully built** *(SimHost + CGF live handlers exist)* | **only the endpoint plumbing** *(publish the intent, `OperatingLive` readiness gate)* — no new handler |
+| ⭐ **`scenario/load/edit`** | ✅ works today | ⚠ SimHost yes, **CGF has NO edit-load handler** *(`CgfSubsystem` has live + preview only)* | endpoint plumbing **+** a CGF edit-load handler *(blessed by `UXI-37` ruling 65; needed only for edit-on-CGF, a follow-up — not blocking live conformance)* |
+
+⇒ ⭐⭐ **For conformance's "load S in both, then diff" to become executable, `scenario/load/live` is the shortest
+path** — all handlers exist; it is the endpoint that is missing. `entity-inspector` then upgrades from
+**DECLARED** to a real content comparison. ⚠ Both endpoints must handle the reload level-vs-edge readiness race
+already documented at `DebugApiService.cs:841-849`, and the `OperatingEdit`/`OperatingLive` bit is flattened in at
+least one status surface *(`REPORT_Batch102 §358`)* — split it if the endpoint reports mode.
 
 ## INVENTORY — measured `2026-08-24` at `878cf022d`
 
