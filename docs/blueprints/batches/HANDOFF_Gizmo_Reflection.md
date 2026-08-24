@@ -1,5 +1,5 @@
 <!--STATUS
-state: ON-HOLD
+state: LIVE
 build-state: DISPATCH
 updated: 2026-08-24
 current-answer: dispatch pointer — finish uniform gizmo membership via REFLECTION (Q53 Option A), and
@@ -8,10 +8,6 @@ current-answer: dispatch pointer — finish uniform gizmo membership via REFLECT
 known-conflict: none. Replaces the WITHDRAWN HANDOFF_Reflection_World_Priming.md; unblocks that design's
   §7.3 (item ②).
 -->
-# ⏸ ON HOLD — gizmo membership by reflection
-
-> ⏸ **HELD `2026-08-24`, before start.** The NotebookLM architect review *(verified — 📄 `Architect_Question_53` §5)* surfaced two mechanism-INDEPENDENT costs of uniform gizmo membership on **headless** nodes — recorder-schema pollution *(P3)* and ungated DDS publishing *(P5)* — that outrank the A-vs-B mechanism choice. 📄 `DESIGN_Uniform_Gizmo_Membership.md` §8.5. ⛔ **Do not start until the user rules on the headless-node question.**
-
 # HANDOFF — **gizmo membership by reflection** *(finish §7.3, correct `ST-027`)*
 
 > 📌 **Dispatched at `5db5c60bc`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
@@ -24,6 +20,8 @@ known-conflict: none. Replaces the WITHDRAWN HANDOFF_Reflection_World_Priming.md
 ⭐ §8.1 why reflection is safe for gizmos *(and NOT components)*, §8.2 the design, §8.3 the UML, §8.4 the
 `ST-027` correction. 📄 The decision: [`Architect_Question_53`](../Architect_Question_53_Gizmo_Pack_Home.md)
 *(Option A)*. ⭐ Report per obligation ③; ⭐⭐ fold deviations into the design *(obligation ⑤)*.
+
+✅ **User ruled `2026-08-24`:** Option A (reflection) confirmed *(Option B retired; aggregation is the backlog alternative)*; headless publishing **capability stays** *(gating optional — 📄 design §8.5b/§8.7, NOT this batch)*. ⛔ **The P3 recorder fix (item ⓪) still stands** — it is `.fdp` bloat, separate from the accepted DDS cost.
 
 ⛔⛔ **GIZMOS ONLY.** Components/events are **role-gated and untouched** — 📄
 [`DESIGN_Reflection_World_Priming.md`](../../DESIGN_Reflection_World_Priming.md) records why *(a component

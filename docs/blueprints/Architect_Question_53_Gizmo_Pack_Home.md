@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: ON HOLD — §5 (architect review, coordinator-verified) reopened it. §8.5 of the gizmo design
-  raises a mechanism-INDEPENDENT question (should headless nodes carry the full set?) that outranks A vs B.
+build-state: RESOLVED 2026-08-24 — Option A (reflection). Option B RETIRED; csproj aggregation is the
+  backlog alternative. Headless publishing capability stays (gating optional). Build in HANDOFF_Gizmo_Reflection.md.
 updated: 2026-08-24
 current-answer: §4 — recommendation is Option A (reflect-and-register-all, extended to components+events+
   gizmos as ONE bootstrap step), decisively after two measured findings in §1 (component IDs are explicit;
   the reflection path already ships in RepositoryPriming). §3b answers the user's layering question and
-  frames aggregation (Option C) as a separate reopening of Q51. ⚠ Option A was ruled 2026-08-24, then the architect review (§5) surfaced P3 (recorder pollution, inherent
-  to uniform membership) and P5 (headless DDS bandwidth) — BOTH mechanism-independent. HELD for the user.
+  frames aggregation (Option C) as a separate reopening of Q51. ✅ RESOLVED 2026-08-24: (a) headless publish capability STAYS, gating optional (design §8.5b); (b) Option A
+  reflection, Option B retired, aggregation = backlog alternative. P3 recorder fix stands (item ⓪).
 design-basis: 🔒 user 2026-08-23 (uniform membership) · REPORT_Uniform_Gizmo_Membership.md §2 (the block,
   measured) · DESIGN_Uniform_Gizmo_Membership.md §7.3 (the lane's proposed way out) ·
   Architect_Question_52 §0 (support all, presence decides).

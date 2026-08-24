@@ -355,14 +355,35 @@ same families on the same nodes.** ⛔ So NotebookLM's *"therefore Option B"* do
 points; they are a separate question: **should the headless sim nodes carry/execute/publish the full gizmo set
 at all, or should that be DEMAND-GATED** *(visibility-policy-off-by-default, or publish-only-when-subscribed)*?
 
-⭐⭐ **A likely reconciliation** *(for the user to rule):* the CAPABILITY is uniform *(every node CAN produce
-every gizmo when a terminal observes it)*, but EXECUTION + PUBLISHING on a headless node is **demand-gated** —
-which is exactly `IGizmoVisibilityPolicy` *(already exists)* defaulted OFF on headless nodes, plus a
-subscription check at the publisher. ⇒ this satisfies the operator need *(observe any node)* without the 60 Hz
-tax when nobody is watching.
+### ✅ 8.5b USER RULING — **the capability stays; gating is optional** *(`2026-08-24`)*
 
-### ⛔ 8.6 STATUS — **HELD pending the user's ruling on §8.5**
+> 🔒 **User:** *"cgf and simhosts rarely need to publish the gizmos. Useful when (1) a headless node is
+> monitored by an operator remotely… (2) gizmos are shown on IG as debug/diagnostic. Not a limiting
+> factor, both uses accept the cost; moreover if no one is listening on dds, nothing is really sent. So
+> the capability of publishing the gizmos over network should stay, might be gated. It of course must
+> stay for local rendering on the local 2d map if not in headless mode."*
 
-⚠ **The gizmo-reflection build is ON HOLD** *(batch not started)*. The A-vs-B mechanism choice is now
-secondary to §8.5's question, which reshapes what "every host" means for headless nodes. 📄 Review verdicts,
-verified, in [`Architect_Question_53` §5](blueprints/Architect_Question_53_Gizmo_Pack_Home.md).
+| ⭐ ruled | |
+|---|---|
+| ⭐⭐⭐ **the publishing capability STAYS on every node** | two real uses accept the cost: remote operator monitoring *(the planned "stream the 2D map + imgui, render remotely")* and IG-side debug/diagnostic overlays |
+| ⭐⭐ **DDS self-limits the WIRE** | 📐 verified: `_writer.Write` runs, but with **no matched reader DDS transmits nothing** ⇒ *"if no one is listening, nothing is really sent."* The residual is **local CPU** *(draw + marshal)*, paid because `VisibilityPolicy` defaults `AlwaysVisiblePolicy` *(`StatelessGizmoRegistry.cs:87`)* |
+| ⭐ **gating is OPTIONAL, not this batch** | *"might be gated"* — the cheap gate is `IGizmoVisibilityPolicy` **off-by-default on headless nodes** *(kills the residual CPU)* and/or a subscription check at the publisher. 📌 **Backlog** *(§8.7)*, not a blocker |
+| ⭐⭐ **local rendering ALWAYS keeps gizmos** | ⛔ the gate must never touch a non-headless node's local 2D map |
+| ⚠ **P3 is SEPARATE and still fixed** | 🔒 the accepted cost is DDS/CPU; the **recorder-schema pollution (§8.4)** is `.fdp` file bloat / version-skew, unaddressed by the DDS point ⇒ **item ⓪ still marks gizmo-only component ids non-recordable** |
+
+### ✅ 8.6 STATUS — **BUILD RESUMES: Option A (reflection); Option B RETIRED**
+
+🔒 **User, `2026-08-24`:** *"reflection option A still looks elegant; i would put the csproj aggregation as
+an alternative (not B)."*
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **Option A (reflection) is the mechanism** — `GizmoReflectionRegistrar`, §8.2/§8.3 | build **un-held** |
+| ⛔ **Option B (move 5 files + 2 edges) is RETIRED** | ⭐ superseded by §8; the file moves are not done |
+| ⭐⭐ **the ALTERNATIVE is csproj AGGREGATION**, not B | 📄 `Architect_Question_51` — fewer assemblies dissolve the cycle **and** restore the compile-time check reflection gives up. ⛔ Backlog, decided once the bootstrap is already unified; reflection does not block it |
+
+### ⭐ 8.7 BACKLOG — **optional headless publish-gate**
+
+⭐ Default `IGizmoVisibilityPolicy` **off on headless nodes** *(and/or gate the publisher on a matched
+subscriber)* to remove the residual per-frame draw+marshal CPU on SimHost/CGF when unobserved. ⛔ **Not this
+batch** *(the user ruled the cost acceptable)*; recorded so it is not lost.
