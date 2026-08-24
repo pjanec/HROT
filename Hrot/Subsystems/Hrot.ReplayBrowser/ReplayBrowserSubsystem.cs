@@ -137,16 +137,6 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         {
             _activeRepo = new EntityRepository();
             Fdp.Toolkit.ReplayBrowser.Federation.RepositoryPriming.RegisterDiscoveredComponents(_activeRepo);
-            // ST-027 (and the answer to ST-024's open question): THIS is replaybrowser's registration
-            // path. It has no hand-written ComponentRegistry -- RepositoryPriming reflects every loaded
-            // non-system assembly and registers each [ComponentId] type, which is why a grep for
-            // RegisterComponent</ComponentRegistry across this subsystem finds nothing yet it boots.
-            //
-            // ⚠ Priming ALREADY covers all 15 projector-required types (all 15 carry [ComponentId]), so
-            // this call adds no type here today. It is still worth making: priming only sees assemblies
-            // ALREADY LOADED at this moment, so the 15 that gizmo registration depends on would
-            // otherwise rest on assembly load order. This states them explicitly. Idempotent.
-            Hrot.Common.Diagnostics.Gizmos.MapSchemaPack.RegisterAll(_activeRepo);
             _canvas = new MapCanvas();
 
             _inspectorState = new InspectorState();
@@ -171,19 +161,19 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             var statelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
             var settingsRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
 
-            // 1. Register SimHost presentation gizmos (safe for SandboxRepo: relies on SimTransform, skips CullingState)
-            Hrot.SimHost.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
-            // 2. Register Common diagnostics (LayerControl, SelectionHighlight, etc)
-            Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
-            // 3. Register Canvas context menu
-            Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
-            // 4. Register AI behavior gizmos
-            Hrot.AI.Behaviors.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
+            // ST-031: ONE reflection call replaces four generated-registrar calls AND the three manual
+            // ScenarioEditor registrations below it -- MapOverlayGizmo, RouteGizmo and TacticalAreaGizmo
+            // all carry [GizmoProjector], so reflection finds them and leaving the manual calls would
+            // register each projector TWICE and draw it twice.
+            //
+            // ⚠ The two that remain below are deliberately attribute-LESS and must stay manual:
+            // EntityEditorLabelGizmo's constructor needs a BehaviorRegistry (its own source says
+            // "No [GizmoProjector] because the constructor requires BehaviorRegistry"), and
+            // EntityEditorPolylineGizmo likewise. Reflection cannot supply those arguments, and correctly
+            // skips both rather than guessing.
+            Fdp.Toolkit.Diagnostics.Gizmos.GizmoReflectionRegistrar.RegisterAll(
+                gizmoRegistry, statelessRegistry, settingsRegistry);
 
-            // 5. Register specific ScenarioEditor gizmos manually (Overlays, Routes, Areas)
-            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.MapOverlayGizmo(), new[] { typeof(Fdp.Core.SimTransform), typeof(Hrot.IG.Components.MapOverlayStyle) });
-            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.RouteGizmo(), new[] { typeof(Fdp.Toolkit.Replication.Components.TkbIdentity) });
-            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.TacticalAreaGizmo(), new[] { typeof(Fdp.Toolkit.Replication.Components.TkbIdentity) });
             statelessRegistry.Register(
                 new Hrot.ScenarioEditor.Gizmos.EntityEditorPolylineGizmo(),
                 new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });

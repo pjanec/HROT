@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: PARTIALLY-BUILT
+build-state: BUILT
 updated: 2026-08-23
-current-answer: §7 is the AS-BUILT and it SUPERSEDES §1's inventory and §3 ②'s home. The rest of the file — UXI-23 §3.2's GIZMO HALF, made concrete. §1's matrix is the measurement
+current-answer: §9 is the AS-BUILT and it CLOSES §7.3/§7.4; §8 is the mechanism, §7.2 still corrects §1's inventory. The rest of the file — UXI-23 §3.2's GIZMO HALF, made concrete. §1's matrix is the measurement
   that matters: the editor declares all six projector families and every other host declares a subset.
   §3 the design, §4 the UML, §5 the rails, §6 the risks.
 design-basis: 🔒 user 2026-08-23 ("replaybrowser is no exception… same full set of gizmos as everyone
@@ -387,3 +387,71 @@ an alternative (not B)."*
 ⭐ Default `IGizmoVisibilityPolicy` **off on headless nodes** *(and/or gate the publisher on a matched
 subscriber)* to remove the residual per-frame draw+marshal CPU on SimHost/CGF when unobserved. ⛔ **Not this
 batch** *(the user ruled the cost acceptable)*; recorded so it is not lost.
+
+
+---
+
+## ⭐⭐⭐ 9. AS-BUILT *(`ST-031`…`ST-035`, Batch gizmo-reflection)* — **§8 is true; §7.3 and §7.4 are CLOSED**
+
+⭐ **Obligation ③:** §8.3 carried **1 `classDiagram` (5 boxes)** + **1 `sequenceDiagram`**. Both are built as
+drawn — one `RegisterAll` per host, ids resolved id-only against `ComponentTypeRegistry`, the draw decision
+left to entity data. **One addition** to the class view, recorded in §9.4.
+
+### ✅ 9.1 What landed
+
+| item | as built |
+|---|---|
+| **① `GizmoReflectionRegistrar`** | `FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/`. ⭐ Mirrors the generator exactly — `requiresSettings` = *has a ctor taking `GizmoSettingsRegistry`* (`GizmoRegistrarGenerator.cs:118-125`), `IGlobalStatelessGizmo` → `RegisterGlobal`, non-`IStatelessGizmo` skipped as the generator's diagnostic does ⇒ ⛔ **not stricter than the path it replaces** |
+| **③ all five hosts** | converted **one at a time, each verified to start** before the next: `ig` → `simhost` → `cgf` (+`all`) → `editor` → `replaybrowser`. 📐 **The matrix is now 7/7 everywhere** (was editor 7, ig 5, replaybrowser 4, simhost 2, cgf 2) |
+| **② completeness rail** | `ST-033`, **enumerated** — no hardcoded count. Red proven: dropping a projector names `HealthBarGizmo` |
+| **③ non-bloat rails** | `ST-034`. Red proven. ⚠ **The first version was a vacuous green** — §9.3 |
+| **④ cost** | bootstrap span (`--mode simhost`, n=3) **172/189 ms** vs **172/178/176 ms** at the dispatch sha ⇒ **inside variance** |
+| **`MapGizmoPack` / Option B** | ⛔ **CLOSED by §8**, as §8.6 ruled. Neither built; the 5 file moves are not done |
+
+### 🔴🔴 9.2 `ST-027`'s exposure — **both halves were LIVE** *(§8.4 confirmed, item ⓪)*
+
+| 📐 measured | |
+|---|---|
+| 🔴 **the TkbTemplate risk was NOT theoretical** | `IsComponentTypeRegistered` is literally `_componentTables.ContainsKey(typeof(T))` — **table-based** — and **five** translators read exactly that as licence to ADD the component: `BehaviorTkbTranslator:52,100` · `PerceptionTkbTranslator:29,39` · `VehicleKinematicsTkbTranslator:56`. ⇒ ⛔ spawned entities on IG/SimHost/CGF/replaybrowser **would have gained brain and perception components they never carried** |
+| 🔴 **id-only really is insufficient** | `AsyncRecorder.BuildSchemaManifest` iterates `GetRecordableTypeIds()` — **by ID, not by table** — and `GetOrRegisterManaged` defaults both flags to `true` (`ComponentType.cs:157-158`) |
+| ✅ **fix** | `MapSchemaPack` **deleted with all six call sites**; the registrar resolves ids itself, id-only, immediately before registering ⇒ **no Phase-2 schema pre-pass exists to get wrong**, and §3 ③'s ordering constraint dissolves with it |
+
+#### ⭐⭐⭐ 9.2a The refinement §8.4 needed — **clear the flags ONLY for ids the gizmo path CREATES**
+
+⛔ §8.4 says *"mark non-recordable on nodes that do not simulate them"* — ⚠ **not directly expressible**:
+`SetRecordable` is **process-global**, so under `--mode all` a co-tenant may genuinely simulate one of these
+and clearing unconditionally would **drop that host's real data from the recording.**
+
+⇒ ⭐ **The registrar checks `GetId(type) == -1` first.** 📐 That is order-safe **both** ways: if a simulating
+host registered it earlier we leave its policy alone; if it registers later, `RegisterComponent` re-applies
+`SetRecordable`/`SetSaveable` from the DataPolicy on **every** call, so the real policy wins.
+
+### ⚠⚠ 9.3 THE VACUOUS GREEN — **the near-miss worth keeping** *(`ST-034`)*
+
+📐 The first non-bloat rail asserted over the **production** components and **stayed GREEN with the
+production flag-clearing REMOVED**: by the time it ran, all 7 projector-required components visible in that
+process were already registered, so the set it checked was **empty**. ⇒ ⛔ **a rail that cannot fail reports
+safety it never established**, and only the revert-probe exposed it.
+
+⇒ ✅ Fixed **by construction**: a **test-only projector** requiring a **test-only component**
+(`[ComponentId(500)]` — far above the highest production id, **264**), which nothing in production can
+register, and which still travels the real discovery path. ⚠ A *"not yet registered"* precondition then
+passed in isolation and failed in the suite (a sibling case runs `RegisterAll` first) ⇒ the assertion is on
+the **outcome**, which is order-independent.
+
+### ⭐ 9.4 Addition to §8.3's class view, and one hazard §8 did not name
+
+⭐ `RegisterAll` **returns the projector types it registered** — not in the diagram. Without it the
+completeness rail could only count, not name; with it a failure says *which* projector was dropped.
+
+⚠ **`ST-035` — reflection can PIN a collectible `AssemblyLoadContext`.** The registrar walks
+`AppDomain.CurrentDomain.GetAssemblies()` and hands types to `ComponentTypeRegistry`, which holds them in
+**process-global statics** ⇒ a `[GizmoProjector]` inside a collectible ALC would be pinned forever, and the
+editor's AI hot-reload uses exactly such ALCs. ⭐⭐ **Not triggered today, measured:** the shipped projectors
+live in permanently-loaded assemblies, and **nothing in `Hrot.Editor.Tests` calls any gizmo registrar**. ⇒
+recorded because it arms itself the day a hot-reloaded assembly carries a projector.
+
+### ⛔ 9.5 Still open, deliberately
+
+⭐ **§8.7's headless publish-gate** — the user ruled the cost acceptable and gating optional; untouched.
+⭐ **§8.5's uncosted-publishing finding** stands as recorded; this batch changed **membership**, not gating.

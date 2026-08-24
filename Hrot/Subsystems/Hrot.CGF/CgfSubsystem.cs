@@ -264,11 +264,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         if (_context.GeoTransform != null)
             _context.World.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_context.GeoTransform);
         CgfComponentRegistry.RegisterAll(_context.World);
-        // ST-027: the projector-required schema, for uniform gizmo membership. Every host now
-        // declares every gizmo family (MapGizmoPack), and StatelessGizmoRegistry throws on a
-        // required component it does not know -- so the schema must be in place BEFORE the
-        // registrars run. ST-020 is what happens when declaration outruns schema.
-        Hrot.Common.Diagnostics.Gizmos.MapSchemaPack.RegisterAll(_context.World);
 
         // ── Register base infrastructure modules ───────────────────────────────
         foreach (var m in _context.BaseModules)
@@ -545,10 +540,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var cgfStatelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
         var cgfGizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
         var cgfSettingsRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
-        // Auto-register all [GizmoProjector]-decorated gizmos in Hrot.CGF.
-        Hrot.CGF.Gizmos.GizmoRegistrar.RegisterAll(cgfGizmoRegistry, cgfStatelessRegistry, cgfSettingsRegistry);
-        // Register CanvasContextMenuGizmo for empty-space right-click context menus.
-        Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(cgfGizmoRegistry, cgfStatelessRegistry, cgfSettingsRegistry);
+        // ST-031: ONE reflection call replaces the hand-rolled family list. Like SimHost, CGF declared
+        // only its own family plus Presentation and was missing Common's eight projectors entirely
+        // (UXI-22). Uniform membership: it declares everything, and component presence decides what draws.
+        Fdp.Toolkit.Diagnostics.Gizmos.GizmoReflectionRegistrar.RegisterAll(
+            cgfGizmoRegistry, cgfStatelessRegistry, cgfSettingsRegistry);
         _cgfDataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
                 cgfGizmoRegistry, _cgfGizmoBuffer, isSelectedPredicate: null, interactionBus: _cgfInteractionBus);
         // Route gizmo interaction translators and publisher through the network factory
