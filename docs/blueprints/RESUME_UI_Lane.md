@@ -2,9 +2,9 @@
 state: LIVE
 updated: 2026-08-24
 current-answer: this whole file. It is the UI implementation lane's resumption document — written ahead of
-  a compaction so the next window starts grounded. §0 is the MOST RECENT batch (HN-017, the preview
-  rewind), §0b is the perspective model Part A, §1–§2 are the BP-399 / Panel-observability history, §3 is
-  the standing protocol, §4 is what is carried open.
+  a compaction so the next window starts grounded. §0 is the MOST RECENT batch (the regression net part C),
+  §0b is the preview rewind (HN-017), §0c is the perspective model Part A, §1–§2 are the BP-399 /
+  Panel-observability history, §3 is the standing protocol, §4 is what is carried open.
 stale-below: §1 and §2 are HISTORY as of 2026-08-23 — both landed. Read §0 first.
 known-conflict: none.
 -->
@@ -22,7 +22,28 @@ known-conflict: none.
 
 ---
 
-## 0. ✅ MOST RECENT — **a preview leaves no trace** is DONE *(`HN-017`, `2026-08-24`)*
+## 0. ✅ MOST RECENT — **the regression net, part C** *(`N2`–`N6`)* is DONE *(`2026-08-24`)*
+
+📄 **Design *(and the AS-BUILT — read §7b and §8b FIRST)*:
+[`../DESIGN_Regression_Net.md`](../DESIGN_Regression_Net.md)** — now `BUILT`.
+📄 **Report: [`batches/REPORT_Regression_Net_Part_C.md`](batches/REPORT_Regression_Net_Part_C.md)**.
+
+⭐ **Ids: `HN-020`/`HN-021`/`HN-022` done; `HN-023`, `HN-024`, `MX-013` open.** ⭐ Next free: `HN-025` / `MX-014`.
+⭐ **Suite: `58 → 76`, all green.**
+
+### ⛔⛔ The five facts a later session must not re-derive
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **A GOLDEN IS CAPTURED ON A FIRST LOAD IN A FRESH PROCESS** | ⛔ `HN-011`: a reload leaves entity `1000` carrying `BlueprintAssignments` ⇒ a golden captured after one **bakes the defect in**. `GoldenCaptureFixture` owns a private editor and loads **once**; ⛔ the shared collection fixture may not be used for captures |
+| ⭐⭐⭐ **THE NORMALIZER'S IGNORE-LIST IS EMPTY, AND THAT IS MEASURED** | 📐 Across all 41 dumps a path and a `timestamp` appear in **one** panel *(`fdp_message_log`)* and a `frame` in one more — both already declared-volatile. ⛔ **Never widen it to go green**; a control rail re-derives the claim from the committed goldens |
+| ⛔⛔ **A PANEL ID CAN CONTAIN A SLASH** | `editor/_gizmo` — it threw `DirectoryNotFoundException` on the first capture. Encoded `/`→`~`, with an injectivity rail |
+| 🔴🔴 **THE SHARED EDITOR CAN HIDE A LIVE DEFECT** | 📐 With `9aa790d57` reverted, the `R-132` assertion **passed in the full suite** and **failed in its own process**. ⇒ ⭐ a falsifiable behaviour claim gets a **fresh process** *(design `Q1` overturned)* |
+| ⚠⚠ **THE AUTHORING PERSPECTIVES CAN ONLY BE CAPTURED EMPTY** | 📐 **48 routes; none opens an AI asset** ⇒ 30 of 41 panels are pinned only in their no-asset shape. `MX-013` is the highest-value addition to the harness |
+
+---
+
+## 0b. ✅ **a preview leaves no trace** is DONE *(`HN-017`, `2026-08-24`)*
 
 📄 **Design *(and the AS-BUILT record — read §4d FIRST)*:
 [`../DESIGN_Deterministic_Network_Ids.md`](../DESIGN_Deterministic_Network_Ids.md)** — now `BUILT`.
@@ -42,7 +63,7 @@ known-conflict: none.
 
 ---
 
-## 0b. ✅ **the perspective model, Part A** is DONE *(`2026-08-23`)*
+## 0c. ✅ **the perspective model, Part A** is DONE *(`2026-08-23`)*
 
 📄 **Design: [`../DESIGN_Perspective_Unification.md`](../DESIGN_Perspective_Unification.md) §3** — now
 `BUILT`, with per-item **AS-BUILT** notes folded in *(obligation ⑤)*.

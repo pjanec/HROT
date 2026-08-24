@@ -1,11 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — `N0` is BUILT (2026-08-23, MX-012, plus HN-007/HN-008 found while building it);
-  `N1`-`N6` are in flight. The UML is §5/§6, the items are §7, and §7's AS-BUILT rows carry what the build
-  actually did.
-updated: 2026-08-23
-current-answer: the whole file. §4 is the decision that shapes everything (D7); §7 is what to build, in
-  dependency order; §8 is the step that makes the net trustworthy rather than merely green.
+build-state: BUILT — `N0`-`N6` are all BUILT (`N0`/`N1` 2026-08-23; `N2`-`N6` 2026-08-24). The UML is
+  §5/§6, the items are §7, and §7's AS-BUILT rows carry what the build actually did — read §7b FIRST, it
+  carries the six deviations, two of which overturn decisions written above (§4's field-count rule of thumb
+  and §9's Q1).
+updated: 2026-08-24
+current-answer: §7b — THE AS-BUILT for N2-N6, including the deviations. §4 is still the decision that
+  shapes everything (D7); §7 is the item table with per-item state; §8 is the mutation method and §8b is
+  the mutation TABLE that proves the net can fail.
 design-basis: PROGRAMME_Unification_And_Harness.md §2 (the four jobs, user's words) · §3 steps 2–3 ·
   D5 (golden granularity) · D6 (deterministic network ids) · D7 (golden vs assertion, resolved with the
   user 2026-08-23) · TESTING_Harness_And_Goldens.md (the runbook this implements) ·
@@ -142,7 +144,7 @@ graph TD
         STORE["GoldenStore · N2"]
         GRAIL["PanelGoldenRails · N3"]
         ASSERT["ScenarioAssertions · N5"]
-        MUT["MutationProof · N4"]
+        MUT["MutationProof · N4 (a TABLE, not a class — §8b)"]
     end
     FIX --> MCP
     MCP --> API
@@ -160,66 +162,86 @@ graph TD
 classDiagram
     direction LR
 
-    class EditorProcessFixture {
-        <<exists · Hrot.SystemTests>>
+    class EditorProcess {
+        <<exists · one real editor, Xvfb>>
         +McpClient Client
-        +InitializeAsync() Task
-        +LoadAndPreviewAsync(scenario) Task
+        +StartAsync(label) EditorProcess
+    }
+    class EditorProcessFixture {
+        <<exists · ONE per COLLECTION, shared>>
+        +McpClient Client
+    }
+    class GoldenCaptureFixture {
+        <<AS-BUILT N3 · fresh editor, ONE load>>
+        +McpClient Client
+        +Scenario string
     }
     class McpClient {
-        <<exists · extend with two calls>>
-        +GetPanelAsync(id) JsonNode
-        +ListPanelsAsync() JsonNode
-        +GetEntityStateAsync(id) JsonNode
-        +StepAsync(ticks) Task
-        +ListPerspectivesAsync() JsonNode
-        +SwitchPerspectiveAsync(name) Task
+        <<exists · extended by N0>>
+        +GetPanelAsync(id) ApiResult
+        +GetPanelsAsync() ApiResult
+        +SwitchPerspectiveAndSettleAsync(name, ticks) ApiResult
+        +GeoToLocalAsync(lat, lon) ApiResult
     }
     class PanelSnapshot {
         <<exists · static · Fdp.Diagnostics.Contracts>>
-        +bool CaptureEnabled
         +TryGet(panelId) IPanelViewModel
-        +PanelsOfKind(kind) IReadOnlyList
         +ClearCaptured() void
     }
     class GoldenStore {
-        <<new · N2>>
-        +bool CaptureMode
-        +Path(scenario, panelId) string
-        +CompareOrWrite(scenario, panelId, dump) Diff
+        <<AS-BUILT N2>>
+        +CaptureMode bool
+        +PathFor(scenario, panelId) string
+        +FileNameFor(panelId) string
+        +CompareOrWrite(scenario, panelId, model) list
+        +Committed(scenario) list
     }
     class PanelNormalizer {
-        <<new · N2 · the documented ignore-list>>
-        +Normalize(dump) JsonNode
-        +IReadOnlyList IgnoredPaths
+        <<AS-BUILT N2 · ignore-list is EMPTY>>
+        +IgnoredPaths list
+        +Canonical(model) string
+        +Diff(golden, actual) list
+        +Leaves(node, path) list
+        +WallClockFieldNames array
     }
-    class DeterminismRail {
-        <<new · N1 · GATES the goldens>>
-        +TwoFreshProcessesAgree(scenario) void
-        +IdAllocationOrderIsStable(scenario) void
+    class DeterminismRails {
+        <<AS-BUILT N1 · GATES the goldens>>
+        +VolatileKinds set
     }
     class PanelGoldenRails {
-        <<new · N3 · breadth>>
-        +PanelMatchesGolden(scenario, panelId) void
+        <<AS-BUILT N3 · 6 goldens + 3 controls>>
+        +Budget array
+        +Panel_matches_its_golden(p, id)
+        +No_golden_carries_machine_or_wall_clock_content()
+        +The_golden_file_name_encoding_is_injective_over_the_budget()
+        +Every_golden_in_the_budget_is_paired_with_assertions()
     }
-    class ScenarioAssertions {
-        <<new · N5 · meaning>>
-        +PlatoonReachesBaseline() void
-        +PairedWithEveryGolden() void
+    class PlatoonBaselineRails {
+        <<AS-BUILT N5 · own FRESH process>>
+        +Playing_hill_attack_moves_the_platoon_toward_the_authored_baseline_not_the_origin()
     }
-    class MutationProof {
-        <<new · N4 · proves it can FAIL>>
-        +MutationRedensExactlyOneGolden() void
+    class CrossHostPanelKindRails {
+        <<AS-BUILT N6 · ST-017 replacement>>
+        +A_host_cannot_disagree_about_the_kind()
+        +Every_production_host_that_registers_the_profiler_is_accounted_for()
     }
 
-    EditorProcessFixture *-- McpClient : owns
+    EditorProcess *-- McpClient : owns
+    EditorProcessFixture --> EditorProcess : delegates
+    GoldenCaptureFixture --> EditorProcess : owns a PRIVATE one
     McpClient ..> PanelSnapshot : reads via HTTP
+    PanelGoldenRails --> GoldenCaptureFixture : IClassFixture
     PanelGoldenRails ..> GoldenStore : compares
-    GoldenStore ..> PanelNormalizer : applies first
-    DeterminismRail ..> GoldenStore : must be green before any write
-    PanelGoldenRails ..> ScenarioAssertions : pairing rule D7
-    MutationProof ..> PanelGoldenRails : deliberately breaks
+    GoldenStore ..> PanelNormalizer : canonical form and diff
+    DeterminismRails ..> GoldenStore : must be green before any write
+    PlatoonBaselineRails --> EditorProcess : starts its own
 ```
+
+⚠⚠ **AS-BUILT correction, `2026-08-24`:** the pre-build version of this diagram carried a **`MutationProof`
+class** and a `ScenarioAssertions` class. ⛔ **Neither exists and neither should:** `N4` is a **method plus a
+table** *(§8b)*, not a type — a class named after a proof would be a rail that cannot fail — and the
+behaviour assertion is `PlatoonBaselineRails`, which owns its own process for the measured reason in
+§7b ⑤. ⭐ Boxes marked `AS-BUILT` are real types in `Hrot.SystemTests`.
 
 ```mermaid
 sequenceDiagram
@@ -262,6 +284,7 @@ sequenceDiagram
 | `POST /perspective {name}` | ⭐⭐ **a panel publishes only when its DRAW runs, and only the active perspective draws** ⇒ without this, 3 of the 4 editor perspectives are invisible. ✅ Built as `N0` *(`MX-012`)* |
 | ⭐⭐⭐ `POST /sim/step {ticks:N}` | ⛔⛔ **MANDATORY, not a settling courtesy.** The switch takes effect on the next frame AND the reader is served before that frame's panels draw ⇒ **two reasons, both structural.** 📌 `McpClient.SwitchPerspectiveAndSettleAsync` exists so no test has to remember |
 | `GET /panels/{id}` | now captured. ⚠ **`null` means "nothing captured"** — ⭐ ask `registered` to learn whether it is *not instrumented* or *did not draw*. ⛔ Those are different findings |
+| ⭐⭐⭐ **CAPTURE ON A FIRST LOAD, IN A FRESH PROCESS** *(added `2026-08-24`, `N3`'s as-built)* | ⛔⛔ **`HN-011`: a RELOAD leaves entity `1000` carrying `BlueprintAssignments` it does not carry on a first load** *(measured; not a settle race — 5 ticks and 40 ticks agree)*. ⇒ 🔴 **a golden captured after a reload bakes the defect in**, and the day the loader is fixed EVERY such golden reddens for a reason unrelated to the change under test. ⭐ `GoldenCaptureFixture` owns a private editor and issues **exactly one** `POST /scenario/load`; ⛔ the shared collection fixture may not be used for captures |
 
 ### ⛔⛔ The consequence `N1` must respect
 
@@ -275,11 +298,11 @@ step.**
 | # | item | depends on | done when |
 |---|---|---|---|
 | ✅ **N0** | **`GET /perspectives` + `POST /perspective {name}`** on the DebugApi, over the existing `WindowManager.GetPerspectives()` / `SwitchPerspective` / `CurrentPerspective`. ⛔ **Validate the name and 400 with the list** | ⚠ **`A0`** *(the perspectives batch's unknown-id refusal)* — ⭐ it makes this validation a two-line delegation instead of a reimplementation | ✅ **BUILT `2026-08-23` — `MX-012`.** See the AS-BUILT below |
-| 🔴🔴 **N1** | ⭐⭐⭐ **THE DETERMINISM RAIL — before any golden exists.** ① wire the **id-allocator reset** on `WorldResetEvent` *(charter **D6**, and mind its four caveats)*; ② load one scenario in **two fresh processes**, step the same N, and diff **the whole id→entity mapping and every captured panel dump** | N0 | **byte-identical**, twice, in fresh processes. ⛔ **If not: find the source and FIX IT** — 📌 the causes to expect are float formatting, dictionary order, wall-clock stamps and spawn order. ⛔⛔ **Do NOT reach for normalisation to hide non-determinism** *(D6 caveat ①)* |
-| ⭐ **N2** | **`GoldenStore` + `PanelNormalizer`.** `PANEL_GOLDEN_CAPTURE=1` writes, else compares. `Goldens/<scenario>/<panelId>.json` *(§4b)*. ⭐ The ignore-list is **explicit, documented and SHORT** | N1 green | a deliberate one-field change produces a diff **naming the JSON path**, not a wall of text |
-| ⭐⭐ **N3** | **The first slice of goldens** — ⛔ **a budget, not a sweep** *(§4's trap)*. ⭐ Lean: **`hill-attack` × the four editor perspectives × only the large-dump panels**, each paired per **D7** | N2 | every golden has its pairing assertions; **the count is stated in the report**, with what was left out and why |
-| 🔴🔴 **N4** | ⭐⭐⭐ **THE MUTATION PROOF — §8.** ⛔ Without it the net is unproven | N3 | for each mutation: **exactly** the expected golden/assertion reddens, everything else stays green — **reported as a table** |
-| ⭐⭐ **N5** | **Behaviour assertions on the curated scenarios** — `/entities/{id}/state`, `/events`, `/breakpoints/hits`. ⭐ **First case: the `R-132` defect** — *the platoon approaches the computed baseline, not the origin* | N0 | that assertion **fails** on a tree with `ApplyResolverOverlay` reverted, and passes now — ⭐ **state both results** |
+| ✅ **N1** | ⭐⭐⭐ **THE DETERMINISM RAIL — before any golden exists.** ① wire the **id-allocator reset** on `WorldResetEvent` *(charter **D6**, and mind its four caveats)*; ② load one scenario in **two fresh processes**, step the same N, and diff **the whole id→entity mapping and every captured panel dump** | N0 | **byte-identical**, twice, in fresh processes. ⛔ **If not: find the source and FIX IT** — 📌 the causes to expect are float formatting, dictionary order, wall-clock stamps and spawn order. ⛔⛔ **Do NOT reach for normalisation to hide non-determinism** *(D6 caveat ①)* |
+| ✅ **N2** | **`GoldenStore` + `PanelNormalizer`.** `PANEL_GOLDEN_CAPTURE=1` writes, else compares. `Goldens/<scenario>/<panelId>.json` *(§4b)*. ⭐ The ignore-list is **explicit, documented and SHORT** | N1 green | a deliberate one-field change produces a diff **naming the JSON path**, not a wall of text |
+| ✅ **N3** | **The first slice of goldens** — ⛔ **a budget, not a sweep** *(§4's trap)*. ⭐ Lean: **`hill-attack` × the four editor perspectives × only the large-dump panels**, each paired per **D7** | N2 | every golden has its pairing assertions; **the count is stated in the report**, with what was left out and why |
+| ✅ **N4** | ⭐⭐⭐ **THE MUTATION PROOF — §8.** ⛔ Without it the net is unproven | N3 | for each mutation: **exactly** the expected golden/assertion reddens, everything else stays green — **reported as a table** |
+| ✅ **N5** | **Behaviour assertions on the curated scenarios** — `/entities/{id}/state`, `/events`, `/breakpoints/hits`. ⭐ **First case: the `R-132` defect** — *the platoon approaches the computed baseline, not the origin* | N0 | that assertion **fails** on a tree with `ApplyResolverOverlay` reverted, and passes now — ⭐ **state both results** |
 
 ### ✅ AS-BUILT — `N0` *(`MX-012`)*, and the seam decision worth not re-litigating
 
@@ -290,6 +313,42 @@ step.**
 | ⭐ **Validation delegated, status codes split** | `503` = *not wired* *(a composition-root defect)*; `400` = *that perspective does not exist*, **with the claimed set named in the message.** ⛔ Collapsing them would make a wiring defect read as a bad request |
 | ⭐⭐ **The reach, measured** | **Scenario 12 · BTree 9 · HSM 7 · Blueprint 13** captured; **11 panels reachable only from Blueprint** *(`ai_*_blueprint` + `entity-blueprints`)*. ⇒ ⭐ §2's *"~11 of 47 reachable"* is closed, and **`N3` should spend its budget ACROSS perspectives** |
 | ⭐⭐ **The rail asserts a SET DIFFERENCE** | ⛔ Three weaker forms would each pass on a broken build: *"the switch returned 200"* *(`A0` no-ops silently)*, *"current changed"* *(a perspective can change without drawing)*, *"captured is non-empty"* *(the previous perspective's capture satisfies it)*. ⚠ It checks non-identity, ⛔ **not disjointness** — `WindowScope.Global` and pinned windows appear in every perspective by design |
+
+## 7b. ⭐⭐⭐ AS-BUILT — **`N2`–`N6`, `2026-08-24`, and the SIX deviations**
+
+> ⭐⭐ Obligation ⑤: the build went a different way in six places, and the design says so rather than the
+> report saying it alone. ⛔ Two of them **overturn decisions written above** — §4's rule of thumb and §9's
+> `Q1`. ⚠ Read this section before quoting either.
+
+### ⭐ What exists now
+
+| item | where | what it is |
+|---|---|---|
+| ✅ **`N2`** | `Hrot.SystemTests/Goldens/PanelNormalizer.cs` · `GoldenStore.cs` · `GoldenCaptureFixture.cs` | canonical form *(object keys sorted; array order PRESERVED — an array's order is a claim about the world)*, `PANEL_GOLDEN_CAPTURE=1`, and a diff that **names the JSON path** |
+| ✅ **`N3`** | `Hrot.SystemTests/PanelGoldenRails.cs` + `Goldens/hill-attack/*.json` | ⭐ **SIX goldens across all four perspectives**, each paired per `D7`, plus **three CONTROL rails** |
+| ✅ **`N4`** | §8b below | the mutation table — **two mutations, each reddening exactly one case** |
+| ✅ **`N5`** | `Hrot.SystemTests/PlatoonBaselineRails.cs` | *the platoon approaches the computed baseline, not the origin* — **shown red on the reverted tree, twice** |
+| ✅ **`N6`** | `Hrot.SystemTests/CrossHostPanelKindRails.cs` | `ST-017`'s replacement — ⛔ **not "four instead of five"**; see deviation ⑥ |
+
+### ⛔⛔ The six deviations
+
+| # | the design said | 📐 what was measured, and what was built |
+|---|---|---|
+| **①** | §4b: `Goldens/<scenario>/<panelId>.json` | ⛔ **a panel id can contain a SLASH** — `editor/_gizmo` is a real captured id and it threw `DirectoryNotFoundException` on the first capture. ⇒ ⭐ the id is encoded `/` → `~` in `GoldenStore.FileNameFor`, **and a rail asserts the encoding is injective over the budget** *(no budgeted id contains `~`, no two share a file)* — ⛔ a silent overwrite of one golden by another is invisible in the file |
+| **②** | §4: *"golden the large derived structure (200 rows); assert the 3–10 field panels"* | ⚠⚠ **applied to the measurement, that rule yields almost NO goldens.** 📐 Of **41** captured dumps only **two** exceed 10 KB — `editor/_gizmo` *(128 KB)* and `fdp_message_log` *(19–30 KB)* — and **both are excluded** *(volatile kind · §9 `Q2`)*; the rest are **86 B – 4.1 KB**. ⇒ ⭐ the budget is six mid-size structural panels, and ⭐⭐ **the rule of thumb needs restating as SEMANTIC DENSITY, not byte size** |
+| **③** | §7 `N2`: *"the ignore-list is explicit, documented and SHORT"* | ⭐⭐⭐ **it is EMPTY, and that is measured.** 📐 Across all 41 dumps, an absolute path appears in **one** panel and a `timestamp` in **the same one** *(`fdp_message_log`)*; a `frame` counter in `editor_fdp_events` — both already declared volatile by `N1`. ⇒ ⛔ nothing to exempt, and ⭐ `No_golden_carries_machine_or_wall_clock_content` **re-derives that from the committed files on every run** rather than trusting it |
+| **④** | §6 named the capture contract *(switch · step · read)* | ⭐⭐ **A FOURTH RULE WAS FORCED BY `HN-011`: capture on a FIRST load in a FRESH process.** 📐 A reload leaves entity `1000` carrying `BlueprintAssignments` it does not carry on a first load ⇒ a golden captured after a reload **bakes the defect in**, and every golden reddens the day the loader is fixed. ⇒ `GoldenCaptureFixture` owns a private editor and issues **exactly one** `POST /scenario/load`; cases only switch perspective. ⭐ Folded into §6 below |
+| **⑤** | §9 `Q1`: *"extend `ScenarioBehaviorTests`"* | ⛔⛔ **OVERTURNED, and by a measurement that matters.** 📐 With `9aa790d57` reverted, `N5` on the shared collection editor **PASSED in the full suite** while **FAILING** in its own process and in its own class *(closest-to-origin `613.9 m → 0.4 m`)*. ⇒ 🔴 **something earlier in the suite makes the defect invisible** — the shared editor has by then loaded other scenarios, staged variable writes and cycled preview. ⭐ `N5` lives in its own class with a **fresh process**, like `DeterminismRails` and for the same reason. ⚠ **A flagship falsifiable claim that passes while the defect is live is §3's failure mode in a success costume** |
+| **⑥** | `N6`: replace the rail `StrideMock` took with it | ⭐⭐⭐ **the kind-agreement half is now true BY CONSTRUCTION, which is stronger than any per-host assertion**: `SystemProfilerWindow` holds `internal const Kind = PanelIds.SystemProfiler` and its ctor takes **no kind parameter**, so a host has nothing to disagree with — ⭐ `A_host_cannot_disagree_about_the_kind` asserts that STRUCTURE, so re-opening the divergence reddens. ⭐ And `Every_production_host_that_registers_the_profiler_is_accounted_for` **enumerates the production construction sites** *(4: SimHost · CGF · IG · Editor)*, so retiring a host reddens and NAMES it. ⚠ **What is still genuinely uncovered: SimHost and CGF have no per-host snapshot rail — and never had one, before or after the mock** *(`HN-022`)*. ⛔ Stated, not implied |
+
+### ⚠⚠ THE CEILING THIS BATCH FOUND — **the authoring perspectives can only be captured EMPTY**
+
+📐 **48 API routes enumerated; not one opens an AI asset.** `POST /scenario/load` is the only content-loading
+route ⇒ the BTree / HSM / Blueprint panels publish their **no-asset** state, and a golden of them pins the
+skeleton *(section list, byte budgets, empty-state contract)* — ⭐ all real regressions if they move, ⛔ but
+**not coverage of authoring**, which is where a designer actually works.
+⇒ ⭐⭐ **`MX-013`: an endpoint that opens an asset is the single highest-value addition to the net**, because
+it converts 30 of the 41 panels from *"the empty shape is stable"* into *"the populated shape is stable"*.
 
 ## 8. ⭐⭐⭐ N4 — **HOW WE PROVE THE NET WORKS** *(charter step 3's "make sure the harness works")*
 
@@ -305,6 +364,31 @@ step.**
 ⭐⭐ **Report it as a table: mutation → what reddened → was that expected.** ⛔ **A net with no mutation table
 has not been shown to work**, and this programme has the tally to prove that matters: batches 94–101,
 **zero** defects caught by ~8 000 existing regression tests.
+
+## 8b. ⭐⭐⭐ THE MUTATION TABLE — **`N4`, run `2026-08-24`. The net CAN fail, and it fails NARROWLY.**
+
+> ⭐⭐ §8: *"a golden nobody has ever seen fail is indistinguishable from one that is not wired up."*
+> ⇒ ⛔ this table is the artefact; without it the net is unproven.
+
+📐 **Baseline for every row: `bash scripts/run-system-tests.sh` ⇒ `76 / 76` green** *(58 before this batch,
++18 from `N3`/`N5`/`N6`)*.
+
+| # | the mutation *(reverted after)* | what reddened | expected? |
+|---|---|---|---|
+| **①** | ⭐⭐⭐ **`9aa790d57` reverted** — `ApplyResolverOverlay` back to `if (def.ParseParams == null)`, i.e. a generated `ParseParams` outranks the curated geo resolver *(the `R-132` defect, restored on purpose)* | ⭐ **exactly ONE case: `PlatoonBaselineRails.Playing_hill_attack_moves_the_platoon_toward_the_authored_baseline_not_the_origin`.** 75 passed. ⭐⭐ The message named the defect: *"closest 98.5 m, was 77.6 m before the run; distance to the local origin went 613.5 m → **2.6 m**"* | ✅ **yes** |
+| **②** | ⭐⭐ **one un-asserted panel field flipped** — `EditorOrbatAdapter`'s `CanAcceptSubordinates: _world.HasComponent<UnitRoster>(entity)` → `false` | ⭐ **exactly ONE case: `PanelGoldenRails.Panel_matches_its_golden(Scenario, editor_shared_orbat)`.** 75 passed. ⭐⭐⭐ The diff named the path: **`$.nodes[0].canAcceptSubordinates: golden=true actual=false`** | ✅ **yes** |
+
+### ⭐⭐⭐ What row ② demonstrates that nothing else in this design does
+
+⛔ **`canAcceptSubordinates` is NOT covered by any pairing assertion** — the ORBAT's assertions pin the node
+count, the root count and the child count. ⇒ ⭐⭐ **the golden caught a field nobody thought to name**, which
+is §4's entire argument for keeping goldens beside assertions, demonstrated rather than asserted.
+⭐ And row ① is the mirror: the **assertion** caught a defect a golden could not have caught *(no golden
+covers a moving vehicle's position — and it would be non-deterministic if it did)*.
+
+⚠ **Neither mutation reddened more than one case** — 📌 §8: *"a mutation that reddens 40 files means the
+goldens are coupled to something they should not see, which is itself the finding."* ⭐ Measured: they are
+not.
 
 ## 9. ⚠ RISKS & OPEN QUESTIONS — **recommendation each**
 

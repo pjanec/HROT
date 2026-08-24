@@ -1,0 +1,58 @@
+{
+  "emptyReason": "No blueprint open.",
+  "hasEditableAsset": false,
+  "hasPanel": false,
+  "panelId": "ai_my_blueprint_blueprint",
+  "panelKind": "my-blueprint",
+  "sections": [
+    {
+      "canCreateItems": false,
+      "displayName": "Graphs",
+      "id": "graphs",
+      "items": [],
+      "sortOrder": 0
+    },
+    {
+      "canCreateItems": true,
+      "displayName": "Functions",
+      "id": "functions",
+      "items": [],
+      "sortOrder": 1
+    },
+    {
+      "canCreateItems": true,
+      "displayName": "Macros",
+      "id": "macros",
+      "items": [],
+      "sortOrder": 2
+    },
+    {
+      "canCreateItems": true,
+      "displayName": "Custom Events",
+      "id": "customevents",
+      "items": [],
+      "sortOrder": 3
+    },
+    {
+      "canCreateItems": true,
+      "displayName": "Variables",
+      "id": "variables",
+      "items": [],
+      "sortOrder": 4
+    },
+    {
+      "canCreateItems": true,
+      "displayName": "Local Variables",
+      "id": "localvariables",
+      "items": [],
+      "sortOrder": 5
+    },
+    {
+      "canCreateItems": true,
+      "displayName": "Inputs",
+      "id": "parameters",
+      "items": [],
+      "sortOrder": 6
+    }
+  ]
+}
