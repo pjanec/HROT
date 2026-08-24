@@ -165,3 +165,19 @@ folder, **merge it**.
 | **51-C** | Keep the 5 vendored libraries as separate projects? | ⭐⭐ **yes** — `R-47`/`R-48`; merge only their examples/demos out of the build |
 | **51-D** | Merge `Hrot.Editor` into the HROT assembly, or keep it separate? | ⚠ **keep separate for now** — ⛔ the unification programme is actively moving features **out** of it; merging mid-programme would hide exactly the boundary we are trying to observe |
 | **51-E** | Is a lane freeze acceptable for step 3? | ⭐ **it must be** — otherwise step 3 does not happen at all |
+
+---
+
+## ⭐⭐ REOPENED ON A NEW AXIS — `2026-08-24` — **the cycle tax + the static check**
+
+⚠ **This question was declined on BUILD-TIME grounds** *("~10–15 s is not worth it")*. 🔒 **Q53 and the
+user's `2026-08-24` reframe surface a different axis it never weighed:**
+
+| ⭐ new argument | |
+|---|---|
+| ⭐⭐⭐ **the CYCLE TAX** | the assembly boundaries produce a **recurring** cross-assembly-cycle cost: 📌 `ST-014` *(the Stride bootstrapper could not move down)*, my `Hrot.Common.Infrastructure` lean *(refuted as a cycle)*, `ST-028` *(no assembly can reference all 7 gizmo families)*. ⭐ Aggregation removes the boundaries ⇒ **no edges to cycle** |
+| ⭐⭐ **the STATIC CHECK** | 🔒 user: *"aggregation might get back the static checks we are giving away with reflection."* 📄 `DESIGN_Reflection_World_Priming.md` trades a compile-time registration guarantee for a runtime completeness rail; ⭐ fewer assemblies ⇒ a compile-time `RegisterAll` could see all types without a cycle, restoring the guarantee |
+| ⛔ **NOT urgent** | ⭐ reflection *(Q53 Option A)* solves the immediate need cycle-free and **does not block** aggregation — an aggregated future turns the primer into an ordinary loop. ⇒ **backlog, decided when the bootstrap is already unified** *(which makes the aggregation smaller)* |
+
+⇒ ⭐ **`51-B`'s "~25–30 projects" answer stands as the build-time target; this reopen is about whether the
+cycle-tax + static-check make a DEEPER cut worth it — a separate, later call.**

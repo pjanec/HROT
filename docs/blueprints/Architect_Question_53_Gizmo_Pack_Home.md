@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN
+build-state: ANSWERED (Option A) — buildable design is DESIGN_Reflection_World_Priming.md
 updated: 2026-08-24
 current-answer: §4 — recommendation is Option A (reflect-and-register-all, extended to components+events+
   gizmos as ONE bootstrap step), decisively after two measured findings in §1 (component IDs are explicit;
   the reflection path already ships in RepositoryPriming). §3b answers the user's layering question and
-  frames aggregation (Option C) as a separate reopening of Q51. Awaiting the user's ruling.
+  frames aggregation (Option C) as a separate reopening of Q51. ✅ RULED 2026-08-24: Option A, built as
+  DESIGN_Reflection_World_Priming.md; Option C (aggregation) to backlog.
 design-basis: 🔒 user 2026-08-23 (uniform membership) · REPORT_Uniform_Gizmo_Membership.md §2 (the block,
   measured) · DESIGN_Uniform_Gizmo_Membership.md §7.3 (the lane's proposed way out) ·
   Architect_Question_52 §0 (support all, presence decides).
@@ -116,6 +117,17 @@ boundaries themselves. ⇒ ⭐ **this reopens `Q51` on a different axis**, but a
 bootstrap unification NOW, cycle-free, no restructure.** ⭐⭐ **Aggregation (C) is the deeper answer that
 removes the cycle class** — worth reopening as a strategic decision on the cycle-tax argument, and **A does
 not block it**: an aggregated future would simply make the reflection an ordinary loop over one assembly.
+
+## ✅ RULED `2026-08-24` — **Option A, as a pluggable-handler primer**
+
+> 🔒 **User:** *"lets go option A (with proper design); unifying/sharing the reflection scan
+> (component/gizmos/others…) across hosts; maybe one class with pluggable handlers… The aggregation to
+> assemblies… is still something to keep in the backlog."*
+
+⇒ ⭐⭐⭐ **The buildable design is [`DESIGN_Reflection_World_Priming.md`](../DESIGN_Reflection_World_Priming.md)**
+*(`READY-TO-BUILD`)* — one scan, N pluggable handlers, generalising `RepositoryPriming`. ⭐ **Option C
+(aggregation) is BACKLOG**, reopening `Q51` on the cycle-tax + static-check axis. ⭐ Option B is retired
+*(reflection makes the moves unnecessary)*. §4 below is the reasoning that led here.
 
 ## 4. ⭐⭐⭐ RECOMMENDATION — **the user rules**
 
