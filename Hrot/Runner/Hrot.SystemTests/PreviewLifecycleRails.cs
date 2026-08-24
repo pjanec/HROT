@@ -48,7 +48,7 @@ public sealed class PreviewLifecycleRails
     [Fact]
     public async Task Exiting_preview_does_not_abort_the_editor()
     {
-        (await Mcp.LoadScenarioAsync("hill-attack")).EnsureOk();
+        (await Mcp.LoadScenarioEditAsync("hill-attack")).EnsureOk();
         (await Mcp.EnterPreviewIfNeededAsync(startPaused: true)).EnsureOk();
 
         (await Mcp.ExitPreviewAsync()).EnsureOk();
@@ -68,7 +68,7 @@ public sealed class PreviewLifecycleRails
     [Fact]
     public async Task Record_then_replay_round_trips_frames()
     {
-        (await Mcp.LoadScenarioAsync("hill-attack")).EnsureOk();
+        (await Mcp.LoadScenarioEditAsync("hill-attack")).EnsureOk();
 
         // /recording/start enters preview itself and REJECTS a session already previewing.
         var start = (await Mcp.StartRecordingAsync("preview")).EnsureOk();

@@ -2,7 +2,7 @@
  * ADA-BATCH-11 verification script (extends ADA-BATCH-06 through ADA-BATCH-10)
  *
  * Drives a real end-to-end flow over MCP (stdio) using the actual Hrot ClusterRunner:
- *   start_simulation → get_status → load_scenario(test-move) → list_entities →
+ *   start_simulation → get_status → load_scenario_edit(test-move) → list_entities →
  *   get_entity → get_world_info → get_tkb_types → spawn_entity →
  *   get_status (entityCount grew) → stop_simulation
  *
@@ -108,8 +108,7 @@ async function main() {
     'start_simulation', 'stop_simulation', 'get_status', 'get_capabilities', 'list_perspectives', 'switch_perspective',
     'list_entities', 'get_entity', 'list_component_types', 'list_scenarios',
     'get_event_history', 'get_sim_state', 'play', 'pause', 'step', 'set_time_scale',
-    'enter_preview', 'stop_preview', 'load_scenario_edit', 'load_scenario_live',
-    'load_scenario', 'save_scenario',
+    'enter_preview', 'stop_preview', 'load_scenario_edit', 'load_scenario_live', 'save_scenario',
     'list_commands', 'send_entity_command', 'spawn_entity',
     'list_entity_types', 'get_entity_type',
     'get_world_info', 'geo_to_local', 'local_to_geo',
@@ -147,14 +146,14 @@ async function main() {
   console.log(`  Status data: ${JSON.stringify(statusData)}`);
   console.log('');
 
-  // ── Step 4: load_scenario ─────────────────────────────────────────────────
-  console.log('--- Step 4: load_scenario(test-move, waitForReady:true) ---');
-  const loadResult = await callTool(client, 'load_scenario', {
+  // ── Step 4: load_scenario_edit ─────────────────────────────────────────────
+  console.log('--- Step 4: load_scenario_edit(test-move, waitForReady:true) ---');
+  const loadResult = await callTool(client, 'load_scenario_edit', {
     name: 'test-move',
     waitForReady: true,
   });
-  assert(!loadResult.isError, 'load_scenario succeeded');
-  assert(loadResult.parsed?.ok === true, 'load_scenario ok:true');
+  assert(!loadResult.isError, 'load_scenario_edit succeeded');
+  assert(loadResult.parsed?.ok === true, 'load_scenario_edit ok:true');
   console.log(`  Load result: ${JSON.stringify(loadResult.parsed?.data)}`);
   console.log('');
 

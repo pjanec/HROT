@@ -175,7 +175,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`list_component_types`** — Enumerate registered ECS component types with field schemas. No params. Returns All registered component types + field schemas (for use with edit_component).
   Notes: Use this to discover component type names before calling edit_component..
   Example: `list_component_types({})` — list all ECS component types and their schemas.
-- **`list_scenarios`** — List available scenarios by relative path. No params. Returns Available scenario names (relative paths) for use with load_scenario.
+- **`list_scenarios`** — List available scenarios by relative path. No params. Returns Available scenario names (relative paths) for use with load_scenario_edit / load_scenario_live.
   Example: `list_scenarios({})` — discover loadable scenario names.
 
 ### Group C — Event history
@@ -213,9 +213,6 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`load_scenario_live`** — Load a scenario for RUNNING (Live state), cluster-wide, on any host. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.
   Notes: Set waitForReady:true to block until the cluster reaches OperatingLive (recommended).; Every host has live-load handlers, so this is the mode that loads on ALL nodes — use it when the world must be the same everywhere.; A live load starts a new exercise run (a fresh ExerciseId), which is what recording and replay key off..
   Example: `load_scenario_live({"name":"test-move","waitForReady":true})` — load test-move live across the cluster and wait for ready.
-- **`load_scenario`** — Deprecated alias for load_scenario_edit. Prefer naming the mode. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope.
-  Notes: Kept so existing callers keep working; it behaves exactly like load_scenario_edit.; There are two load modes — edit (authoring) and live (running). Say which you mean..
-  Example: `load_scenario({"name":"test-move","waitForReady":true})` — load test-move (edit) and wait for ready.
 - **`save_scenario`** — Save the current authored world as a scenario. Req `name` (string). Returns ok:true envelope.
   Example: `save_scenario({"name":"my-scenario"})` — save current world as my-scenario.
 

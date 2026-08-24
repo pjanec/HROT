@@ -254,10 +254,11 @@ namespace Hrot.Editor.DebugApi
             //    edit … both should be cluster wide. editor is not special, also uses 2pc for its single
             //    process."
             //
-            // ⛔ `/scenario/load` is kept as an ALIAS for `load/edit` — its existing editor behaviour was
-            //    OperatingEdit, and GoldenCaptureFixture / McpClient.LoadScenarioAsync author in EDIT. ⭐ The
-            //    alias changes NOTHING for an existing caller; new callers should name the mode.
-            _routes.Add(new("POST", "/scenario/load",      ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)));
+            // ⛔⛔ THERE IS NO MODE-LESS `/scenario/load` — 🔒 user, `2026-08-24`: *"there should be no
+            //    alias."* ⭐ A caller must say which of the two loads it means; the batch that introduced
+            //    these endpoints kept an alias for one revision and the 14 harness call sites were migrated
+            //    to `load/edit` explicitly instead. ⚠ An old client calling `/scenario/load` now gets a clean
+            //    404, which is the honest answer — ⛔ better than silently choosing a mode for it.
             _routes.Add(new("POST", "/scenario/load/edit", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)));
             _routes.Add(new("POST", "/scenario/load/live", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)));
             _routes.Add(new("POST", "/scenario/save", ctx =>

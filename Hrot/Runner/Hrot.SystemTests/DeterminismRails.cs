@@ -175,8 +175,8 @@ public sealed class DeterminismRails
         await using var a = await EditorProcess.StartAsync("det-a");
         await using var b = await EditorProcess.StartAsync("det-b");
 
-        (await a.Client.LoadScenarioAsync(Scenario)).EnsureOk();
-        (await b.Client.LoadScenarioAsync(Scenario)).EnsureOk();
+        (await a.Client.LoadScenarioEditAsync(Scenario)).EnsureOk();
+        (await b.Client.LoadScenarioEditAsync(Scenario)).EnsureOk();
         (await a.Client.StepAsync(SettleTicks)).EnsureOk();
         (await b.Client.StepAsync(SettleTicks)).EnsureOk();
 
@@ -211,8 +211,8 @@ public sealed class DeterminismRails
         await using var a = await EditorProcess.StartAsync("det-pa");
         await using var b = await EditorProcess.StartAsync("det-pb");
 
-        (await a.Client.LoadScenarioAsync(Scenario)).EnsureOk();
-        (await b.Client.LoadScenarioAsync(Scenario)).EnsureOk();
+        (await a.Client.LoadScenarioEditAsync(Scenario)).EnsureOk();
+        (await b.Client.LoadScenarioEditAsync(Scenario)).EnsureOk();
 
         var da = await PanelDumpsOf(a);
         var db = await PanelDumpsOf(b);
@@ -332,7 +332,7 @@ public sealed class DeterminismRails
 
     private static async Task<string> LoadAndMap(EditorProcess ed)
     {
-        (await ed.Client.LoadScenarioAsync(Scenario)).EnsureOk();
+        (await ed.Client.LoadScenarioEditAsync(Scenario)).EnsureOk();
         (await ed.Client.StepAsync(SettleTicks)).EnsureOk();
         return await MappingOf(ed);
     }
@@ -369,8 +369,8 @@ public sealed class DeterminismRails
         await using var a = await EditorProcess.StartAsync("det-va");
         await using var b = await EditorProcess.StartAsync("det-vb");
 
-        (await a.Client.LoadScenarioAsync(Scenario)).EnsureOk();
-        (await b.Client.LoadScenarioAsync(Scenario)).EnsureOk();
+        (await a.Client.LoadScenarioEditAsync(Scenario)).EnsureOk();
+        (await b.Client.LoadScenarioEditAsync(Scenario)).EnsureOk();
 
         var da = await PanelDumpsOf(a);
         var db = await PanelDumpsOf(b);

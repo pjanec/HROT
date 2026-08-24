@@ -45,7 +45,7 @@ public sealed class GoldenCaptureFixture : IAsyncLifetime
         Client = _editor.Client;
 
         // ⭐ THE FIRST AND ONLY LOAD. See the class remarks — HN-011 makes this load-count part of the contract.
-        (await Client.LoadScenarioAsync(Scenario).ConfigureAwait(false)).EnsureOk();
+        (await Client.LoadScenarioEditAsync(Scenario).ConfigureAwait(false)).EnsureOk();
         Ready = true;
     }
 

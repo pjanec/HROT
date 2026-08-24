@@ -284,7 +284,7 @@ publishes `TransitionStateIntent{OperatingEdit}` into a ONE-node `ClusterMaster`
 |---|---|---|
 | `POST /scenario/load/live` | `TransitionStateIntent{TargetState=OperatingLive, ScenarioId, ExerciseId?}` | `HrotScenarioLoadHandler` + `ReferenceLiveLoadHandler` — SimHost·CGF·editor. ⭐ **no new handler** |
 | `POST /scenario/load/edit` | `TransitionStateIntent{TargetState=OperatingEdit, ScenarioId}` | `HrotEditLoadHandler` — editor·SimHost. ⚠ **CGF has none** ⇒ declared absent in the manifest baseline; a CGF edit-load handler is a follow-up *(`UXI-37` ruling 65)* |
-| `POST /scenario/load` | *(alias → `load/edit`, its current editor behaviour)* | keeps `GoldenCaptureFixture`/`McpClient.LoadScenarioAsync` working — or migrate callers and retire it |
+| ⛔ ~~`POST /scenario/load`~~ | *(RETIRED — no alias)* | 🔒 **User, `2026-08-24`: *"there should be no alias."*** The 14 harness call sites were migrated to `load/edit` explicitly; an old client now gets a clean **404**, which is honest — ⛔ better than silently choosing a mode for it |
 
 ⭐⭐ **Both endpoints publish the host-agnostic intent to whichever `ClusterMaster` the host owns — NOT
 `IEditorLogic`.** Host-agnostic by construction: editor one-node, orchestrator N-node, future CGF alike.
@@ -357,7 +357,7 @@ one through `NodeBootstrapper:194-200`; ExCon through `ExConSubsystem:332`)*. �
 |---|---|
 | ⭐ **`GET /scenarios` answers in a cluster host** | from the same cached inventory. ⛔ Otherwise `load/live` worked while the endpoint that tells you WHAT to load refused — a surface an agent cannot use |
 | ⭐⭐ **`scenario.load` is its own capability key** | ⛔ NOT `editor.authoring`. 📌 A cluster refusal used to read *"authoring is absent here"* — true of the editor's DRIVER, but easily misread as *"a cluster cannot load scenarios"*, which is false |
-| ⚠ **`/scenario/load` is an alias for `load/edit`** | callers were NOT migrated; the alias keeps `GoldenCaptureFixture` and `McpClient.LoadScenarioAsync` bit-identical. ⭐ The MCP catalog marks `load_scenario` deprecated and ships `load_scenario_edit` / `load_scenario_live` |
+| ⛔⛔ **THERE IS NO `/scenario/load`** | 🔒 **User, `2026-08-24`: *"there should be no alias."*** ⭐ Retired the revision after it shipped: the route, the `load_scenario` tool and `McpClient.LoadScenarioAsync` are gone, and **14 call sites across 7 harness files** plus `DebugApiHeadlessSmokeTests` now name `load/edit`. ⇒ ⭐ the API has exactly two loads and a caller must say which |
 
 #### 🔴 Open, with the batch that owns them
 

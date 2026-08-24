@@ -157,7 +157,9 @@ public sealed class DebugApiHeadlessSmokeTests
             var loadBody = new StringContent(
                 "{\"name\":\"test-move\",\"waitForReady\":true}",
                 Encoding.UTF8, "application/json");
-            var loadResp = await client.PostAsync($"{baseUrl}/scenario/load", loadBody);
+            // ⚠ `/scenario/load/edit`, not `/scenario/load` — the mode-less route was retired
+            //   (user, 2026-08-24: "there should be no alias"). A caller names the load mode.
+            var loadResp = await client.PostAsync($"{baseUrl}/scenario/load/edit", loadBody);
             Assert.Equal(System.Net.HttpStatusCode.OK, loadResp.StatusCode);
 
             // Now check entityCount has grown from the scenario load.

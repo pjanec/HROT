@@ -50,7 +50,7 @@ public sealed class PlatoonBaselineRails
         await using var ed = await EditorProcess.StartAsync("baseline");
         var mcp = ed.Client;
 
-        (await mcp.LoadScenarioAsync("hill-attack")).EnsureOk();
+        (await mcp.LoadScenarioEditAsync("hill-attack")).EnsureOk();
         (await mcp.EnterPreviewIfNeededAsync(startPaused: true)).EnsureOk();
 
         var (a, b) = await BaselineLocalAsync(mcp);

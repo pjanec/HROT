@@ -119,19 +119,19 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> ListScenariosAsync(CancellationToken ct = default) => GetAsync("/scenarios", ct);
 
     /// <summary>
-    /// <c>POST /scenario/load</c>. With <paramref name="waitForReady"/> the HOST polls the cluster
-    /// state to <c>OperatingEdit</c> across kernel ticks (30 s cap) and answers only when the world
-    /// is actually loaded — always prefer it over polling from the test, which cannot see the
-    /// cluster state directly.
-    /// </summary>
-    public Task<ApiResult> LoadScenarioAsync(string name, bool waitForReady = true, CancellationToken ct = default)
-        => PostAsync("/scenario/load", new JsonObject { ["name"] = name, ["waitForReady"] = waitForReady }, ct);
-
-    /// <summary>
     /// ⭐⭐ <c>POST /scenario/load/edit</c> — load for AUTHORING, cluster-wide. 📄 <c>MCP_Integration.md</c>
-    /// § Group U. ⚠ In <c>--mode all</c> this is PARTIAL: CGF has no edit-load handler yet *(a CGF-lane
+    /// § Group U.
+    ///
+    /// <para>⭐ With <paramref name="waitForReady"/> the HOST polls the cluster state to
+    /// <c>OperatingEdit</c> across kernel ticks (30 s cap) and answers only when the world is actually
+    /// loaded — always prefer it over polling from the test, which cannot see the cluster state directly.</para>
+    ///
+    /// <para>⚠ In <c>--mode all</c> this is PARTIAL: CGF has no edit-load handler yet *(a CGF-lane
     /// follow-up)*, so SimHost loads and CGF does not. ⭐ Use <see cref="LoadScenarioLiveAsync"/> when the two
-    /// hosts' worlds must actually match.
+    /// hosts' worlds must actually match.</para>
+    ///
+    /// <para>📌 There is deliberately NO mode-less <c>LoadScenarioAsync</c> *(user, `2026-08-24`: "there
+    /// should be no alias")* — a caller must say which of the two load modes it means.</para>
     /// </summary>
     public Task<ApiResult> LoadScenarioEditAsync(string name, bool waitForReady = true, CancellationToken ct = default)
         => PostAsync("/scenario/load/edit", new JsonObject { ["name"] = name, ["waitForReady"] = waitForReady }, ct);

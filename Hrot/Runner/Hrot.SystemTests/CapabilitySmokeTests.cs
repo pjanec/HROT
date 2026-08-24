@@ -45,7 +45,7 @@ public sealed class CapabilitySmokeTests : SystemTestBase
         Assert.NotEmpty(scenarios);
 
         var name = await AnyCuratedScenarioAsync(PreferredScenario);
-        var load = (await Mcp.LoadScenarioAsync(name)).EnsureOk();
+        var load = (await Mcp.LoadScenarioEditAsync(name)).EnsureOk();
 
         // waitForReady means the HOST polled the cluster to OperatingEdit before answering, so a
         // successful return is the load completing — not merely being accepted.

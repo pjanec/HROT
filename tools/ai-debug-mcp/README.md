@@ -30,7 +30,8 @@ and will be added in their own batches as those API endpoints land.
 | `set_time_scale` | `POST /sim/timescale` | D |
 | `enter_preview` | `POST /preview/enter` | D |
 | `stop_preview` | `POST /preview/exit` | D |
-| `load_scenario` | `POST /scenario/load` | E |
+| `load_scenario_edit` | `POST /scenario/load/edit` | E |
+| `load_scenario_live` | `POST /scenario/load/live` | E |
 | `save_scenario` | `POST /scenario/save` | E |
 | `list_commands` | `GET /commands` | F |
 | `send_entity_command` | `POST /entities/command` | F |
@@ -179,7 +180,7 @@ End-to-end flow over MCP using the real runner:
 1. **Tool registration** — all 42 expected tool names present (including `get_logs`)
 2. **`start_simulation`** — spawns runner, polls until ready
 3. **`get_status`** — liveness, ok:true
-4. **`load_scenario("test-move", waitForReady:true)`** — blocks until OperatingEdit
+4. **`load_scenario_edit("test-move", waitForReady:true)`** — blocks until OperatingEdit
 5. **`list_entities`** — entityCount > 0 after scenario load
 6. **`get_entity`** — full dump for first entity
 7. **`get_world_info`** — Berlin origin + spatial grid

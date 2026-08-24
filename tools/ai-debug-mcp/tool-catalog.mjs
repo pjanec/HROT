@@ -176,7 +176,7 @@ export const TOOLS_CATALOG = [
     summary: 'List available scenarios by relative path.',
     http: { method: 'GET', path: '/scenarios' },
     params: [],
-    returns: 'Available scenario names (relative paths) for use with load_scenario.',
+    returns: 'Available scenario names (relative paths) for use with load_scenario_edit / load_scenario_live.',
     notes: [],
     example: { args: {}, gist: 'discover loadable scenario names' },
     hint: 'No params. Example: list_scenarios({})',
@@ -359,25 +359,6 @@ export const TOOLS_CATALOG = [
     ],
     example: { args: { name: 'test-move', waitForReady: true }, gist: 'load test-move live across the cluster and wait for ready' },
     hint: 'Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_live({name:"test-move",waitForReady:true})',
-    manualVerify: false,
-  },
-
-  {
-    name: 'load_scenario',
-    group: 'E — Scenario',
-    summary: 'Deprecated alias for load_scenario_edit. Prefer naming the mode.',
-    http: { method: 'POST', path: '/scenario/load' },
-    params: [
-      { name: 'name', type: 'string', required: true, description: 'Scenario name (relative path)' },
-      { name: 'waitForReady', type: 'boolean', required: false, description: 'Wait for the cluster to reach OperatingEdit before returning', default: false },
-    ],
-    returns: 'ok:true envelope.',
-    notes: [
-      'Kept so existing callers keep working; it behaves exactly like load_scenario_edit.',
-      'There are two load modes — edit (authoring) and live (running). Say which you mean.',
-    ],
-    example: { args: { name: 'test-move', waitForReady: true }, gist: 'load test-move (edit) and wait for ready' },
-    hint: 'Prefer load_scenario_edit / load_scenario_live. Example: load_scenario({name:"test-move",waitForReady:true})',
     manualVerify: false,
   },
 

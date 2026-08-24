@@ -551,21 +551,6 @@ const TOOLS = [
     },
   },
 
-  // Deprecated alias, kept so existing callers keep working. Behaves like load_scenario_edit.
-  {
-    name: 'load_scenario',
-    description: TOOL_DEFS['load_scenario'].description,
-    inputSchema: TOOL_DEFS['load_scenario'].inputSchema,
-    async handler(toolArgs) {
-      try {
-        return toolSuccess(await callApi('POST', '/scenario/load', {
-          name: toolArgs.name,
-          waitForReady: toolArgs.waitForReady ?? false,
-        }));
-      } catch (err) { return toolError(err.message, err.envelope, 'load_scenario'); }
-    },
-  },
-
   {
     name: 'save_scenario',
     description: TOOL_DEFS['save_scenario'].description,

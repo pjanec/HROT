@@ -101,7 +101,7 @@ public abstract class SystemTestBase
         var status = (await Mcp.GetStatusAsync().ConfigureAwait(false)).EnsureOk();
 
         if (!string.Equals(status.String("scenario"), scenario, StringComparison.Ordinal))
-            (await Mcp.LoadScenarioAsync(scenario).ConfigureAwait(false)).EnsureOk();
+            (await Mcp.LoadScenarioEditAsync(scenario).ConfigureAwait(false)).EnsureOk();
 
         (await Mcp.EnterPreviewIfNeededAsync(startPaused).ConfigureAwait(false)).EnsureOk();
     }
