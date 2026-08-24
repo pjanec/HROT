@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — decision-shaped, RECOMMENDED ANSWERS below; awaiting the user's approval (I analyse/suggest, user approves). READY-TO-BUILD on approval (carries classDiagram + sequenceDiagram).
+build-state: READY-TO-BUILD — user APPROVED all recommended answers Q55-A..E (2026-08-24). Carries classDiagram + sequenceDiagram.
 updated: 2026-08-24
 current-answer: the whole file — how a watch row binds to an ARBITRARY concrete entity (one that is NOT the
   current selection). §"RESOLVED" carries the recommended answers; the sub-questions carry the reasoning.
@@ -43,7 +43,7 @@ grep MapPickableEntityAttribute · IMapPickService · PickEntityAsync
 is adopted everywhere, and **already returns the NetworkId the watch binding needs.** This is a reuse question,
 not a build.
 
-## ✅ RESOLVED — recommended answers *(user approves)*
+## ✅ RESOLVED — recommended answers *(✅ APPROVED by the user 2026-08-24)*
 
 | # | sub-question | ✅ recommended answer |
 |---|---|---|

@@ -372,7 +372,8 @@ prints `PASSED`. ⚠ **That happened twice in one session**; both times it looke
 |---|---|---|
 | **T0** ~8 s | ⭐ **every edit** | `quick-check.sh` — the touched project, filtered to the touched concept |
 | **T1** ~1 min | ⭐ **before a push** | the touched project's **whole** suite, `--no-build` |
-| **T2** minutes | ⭐⭐ **the BATCH gate, once** — the implementation session's table | everything. ⛔ **Not per fix** |
+| **T2** minutes | ⭐⭐ **the BATCH gate, once** — the implementation session's table | ⭐ the **fast** everything *(unit suites of touched projects, `--no-build`)* + the batch's **new rails** + the **targeted rails that reproduce any bug found**. ⛔ **Not per fix.** ⛔⛔ **The E2E/system suite is NOT here — see T3** |
+| ⭐⭐ **T3** *(the E2E slow lane)* | ⛔⛔ **NEVER a foreground blocker** | ⭐ `run-system-tests.sh` *(boots the real editor headless per case)* runs **async** — backgrounded, or in CI/nightly — its result lands in the report or the next session. ⛔ **Never sit on it; never re-run it "to be sure"** |
 
 ### ⚠⚠ The second half of the complaint is TRUE, and the tally is worth keeping
 
@@ -389,6 +390,29 @@ catch, and that cannot be measured. ⛔ **But it is not worth 80 s per edit.**
 
 ⭐⭐ **Where the real signal is: `R-124`'s frame rails and `DESIGN_Smoke_Suite.md`'s T2 panel-model
 assertions** — 📌 those would have caught **4 of the 7** the user found.
+
+### ⛔⛔⛔ `2026-08-24` — **BUILD ONCE · RUN ONCE · NEVER RE-RUN THE SLOW SUITE "TO BE SURE"** *(user: "cant continue like that")*
+
+📌 **The case, measured.** `HN-037`'s tail spent **~30 min** — not on the deletion, on the **E2E system
+suite run building-from-source, twice** *(mid-batch to find a bug, then again at the end)*. ⭐⭐ **Its 9
+reds were ALL one bug**, which the **targeted rails** *(`DeterminismRails` 5/0, `The_two_hosts` 2/0)* and
+**five inverse-edit red-proofs** already pinned. ⇒ ⛔⛔ **the second full run added NOTHING the targeted
+rails did not** — it was pure wall-clock.
+
+| ⭐ the rule — **three parts, all checkable** | |
+|---|---|
+| **①** ⭐⭐⭐ **BUILD ONCE per batch, then `--no-build` for EVERY run after** | 📐 restore = **79 s**, `--no-restore` = 16 s, `--no-build` run = seconds. ⛔ **A suite invoked without `--no-build` after the first build is a self-inflicted 79 s.** ⭐ `run-system-tests.sh --no-build` and `quick-check.sh` exist for exactly this — 📌 `HN-037` ran the system suite WITHOUT `--no-build`, so each run re-restored |
+| **②** ⭐⭐⭐ **A fix is PROVEN through the rail that reddened for it — NOT by re-running the whole suite** | ⛔⛔ once the targeted/new rail that reproduces a failure is green *(ideally with an inverse-edit red-proof, `HN-037` §5)*, the fix is verified. ⚠ **Re-running the full E2E suite to "confirm" is theater** — 📌 the tally: batches 94–101, the full regression suite caught **nothing** a new rail did not |
+| **③** ⭐⭐ **The E2E/system suite is `T3` — ASYNC, never a foreground blocker** | ⭐ background it or leave it to CI; its result lands in the report or the next session. ⛔ **A session must NEVER sit idle waiting on `run-system-tests.sh`.** ⚠ **For an overnight batch this is doubly true** — the slow lane runs unattended by definition |
+
+⭐⭐ **The coordinator's half — DELETION SCOPING** *(the `HN-037` mislabel)*: ⛔⛔ **before calling any
+deletion "simple / mechanical," MEASURE THE TEST SURFACE, not just production callers.** 📌 `HN-037` Part
+B was verified deletion-safe on **production** *(zero callers bar the facade)* and dispatched as *"simple
+deletion of unused code"* — but **8 test callers each asserted a claim that had to be RE-HOMED to a
+different owning component** *(round-trips → `ScenarioSerializer.Deserialize`, headers →
+`ValidateSubsystemType`, zones → `IZoneManagerService.LoadZones`)*. ⇒ ⭐ **`grep`/`search_graph` the
+symbol in TEST assemblies too and classify: mechanical `s/old/new/` *(minutes)* vs re-home-each-claim
+*(real work)*.** ⛔ **A re-home reroute is NOT a "1-minute deletion" — do not estimate it as one.**
 
 ## Two-session protocol (coordinator ⇄ implementation) — **binding on both sessions**
 
