@@ -1,10 +1,12 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — decision-shaped, awaiting the user's approval on the leans (I analyse/suggest, user approves)
+build-state: RESOLVED — user accepted the leans `2026-08-24` (Q54-1 Option C, Q54-2 Option B + C override) AND
+  ruled the manifest FULL from day one (§ Manifest scope). READY-TO-BUILD; carries classDiagram + sequenceDiagram.
 updated: 2026-08-24
 current-answer: the whole file — the `--mode all` MCP/DebugApi contract: (Q54-1) how missing / not-yet-ported /
   not-desired features are handled via the capability manifest, and (Q54-2) how perspective-dependent commands
-  are routed from the currently-selected perspective's subsystem context.
+  are routed from the currently-selected perspective's subsystem context. ⭐ The RESOLUTION is in the
+  "✅ RESOLVED" section; the sub-questions below are kept as the reasoning of record.
 design-basis: PROGRAMME_Unification_And_Harness.md D3 (lifted API accepts absent capabilities) + D4 (the
   capability manifest is a teaching surface that makes absence assertable) · DESIGN_Perspective_Unification.md
   §1d (three-way verdict SAME/DIFFERENT/NOT-PRESENT, declared not inferred) + §1b (perspective is the finer
@@ -28,6 +30,56 @@ service for `--mode all`."* 📌 **That framing was wrong for the unification:**
 editor-only — they **migrate into the subsystems** *(charter D3)*, and a single frozen "cluster service" would
 have to be re-split every time one lands. ⇒ ⭐⭐ **The right shape is a PERSPECTIVE-SCOPED DISPATCHER over
 per-subsystem capability providers, with a manifest that DECLARES what the current context offers.**
+
+## ✅ RESOLVED — user, `2026-08-24`
+
+| # | decision |
+|---|---|
+| **Q54-1** | ✅ **Option C** — the capability manifest, three-way conformance verdict *(SAME/DIFFERENT/NOT-PRESENT)*, typed `NOT_SUPPORTED_HERE` |
+| **Q54-2** | ✅ **Option B + C** — perspective-scoped dispatch over per-subsystem providers, **plus** the optional `?perspective=` override, ack-gated on the master |
+| ⭐⭐⭐ **Manifest scope** | ✅ **FULL FROM DAY ONE** *(user, against my incremental lean)* — see below |
+
+### ⭐⭐⭐ The manifest is DESCRIPTION × AVAILABILITY — describe every endpoint now; only the matrix changes
+
+> 🔒 **User, verbatim:** *"all endpoints are known, is there any risk doing it at once? the only thing what we
+> do not know is when the capabilities will be supported on what subsystem. The manifest could likely be
+> describing all the apis, implemented internally just with some matrix what works where - and the matrix will
+> change but not the manifest itself (once fully covering the endpoints)."*
+
+⭐⭐ **Accepted, and it is the better model.** Two layers that change at different rates:
+
+| layer | rate | source of truth |
+|---|---|---|
+| ⭐ **DESCRIPTION** — every endpoint: what it does · params · response schema | ⛔ **STATIC** *(all 48 routes exist today)* — write it ONCE, complete | ⭐⭐ derive the request/response schema from the **DTO types** where the shape is fixed *(precedent: `GET /behaviors` emits schema from the registry the runtime parses with)*; for panel dumps the schema is honestly *"a model JSON per `PanelId`"* — state it as dynamic, do not fake a rigid contract |
+| ⭐⭐ **AVAILABILITY MATRIX** — `(capability × perspective/subsystem) → present?` | ⚠ **MUTABLE** — cells flip absent→present as features migrate *(D3)* | 🔴🔴 **MEASURED AT RUNTIME, never hand-authored** — see the risk below |
+
+### ⛔⛔ The ONE real risk — **a hand-authored matrix is the "green-and-false" rot**
+
+📌 **Not a risk of doing it at once** *(there is none — the endpoints are all known)*. The risk is **where the
+matrix's truth lives.** ⛔ A hand-written *"works here / not there"* table is exactly `CLAUDE.md` §M's
+*"the ledger may not assert what the code is"* — it stays green while the code drifts *(the `R-04`/`R-25`
+class)*. ⇒ ⭐⭐⭐ **each provider DERIVES its own cells from ground truth** — *is the dependency actually wired*
+*(CGF preview absent = the preview controller is `null`, not because a table said so)*. The manifest reports
+what the host **actually** exposes.
+
+### ⭐⭐ The gap the measured matrix leaves, and the cheap fix — a REVIEWED known-absent baseline
+
+⛔ During migration, *"absent in `--mode all`"* is the **expected** state ⇒ conformance cannot treat
+cluster-absence as failure ⇒ a **silently-broken** capability *(wired-but-defaulted-to-`null`, the
+silent-default defect)* would read as *"not ported yet"* forever — the exact false green D4 exists to kill.
+
+⇒ ⭐⭐ **Pair the measured matrix with a small COMMITTED `known-absent` baseline** *(the `(perspective,
+capability)` cells legitimately not yet present)*. Conformance asserts: **every capability is present in both
+modes UNLESS its cell is in the baseline.** Then:
+
+| event | outcome |
+|---|---|
+| ⭐ a genuine port lands | remove one cell from the baseline — ⭐⭐ **a reviewed one-line diff** *(D4's "the flip is a deliberate, reviewed change")* |
+| 🔴 a capability that SHOULD be present is measured absent AND is not in the baseline | ⛔ **FAILS** — the silent-default regression is caught, not shrugged at |
+
+📌 This is the **golden pattern applied to capability**: the runtime manifest is the *live dump*, the baseline is
+the *golden*, and a diff is either a reviewed port or a regression. ⭐ Same shape as the gizmo
+completeness rail *(source count vs runtime)* already in the repo.
 
 ## INVENTORY — measured `2026-08-24` at `878cf022d`
 

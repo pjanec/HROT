@@ -221,12 +221,14 @@ free-running clock is a golden of a race.
 ### ⛔⛔ 6a — the lift is a DEPENDENCY SPLIT, not a move *(measured `2026-08-24`)*
 
 > ⚠⚠ **RE-POINTED `2026-08-24` — the "one minimal `ClusterReadDriveService`" framing below is SUPERSEDED by
-> [`Architect_Question_54`](blueprints/Architect_Question_54_Cluster_Mcp_Contract.md).** 📌 A single frozen
-> cluster service would have to be re-split every time an editor-only feature migrates into a subsystem
-> *(charter D3 — they DO migrate)*. ⭐ **The as-designed shape is a PERSPECTIVE-SCOPED DISPATCHER over
-> per-subsystem `ISubsystemDebugProvider`s + a capability manifest** *(Q54-1 Option C, Q54-2 Option B)*. The
-> dependency-split insight below still holds — the read surface must not carry editor-only deps — but it lands
-> as *one provider per subsystem*, not one cluster service. ⛔ Build against Q54 once approved.
+> [`Architect_Question_54`](blueprints/Architect_Question_54_Cluster_Mcp_Contract.md) (RESOLVED, user-approved).**
+> 📌 A single frozen cluster service would have to be re-split every time an editor-only feature migrates into a
+> subsystem *(charter D3 — they DO migrate)*. ⭐ **The as-designed shape is a PERSPECTIVE-SCOPED DISPATCHER over
+> per-subsystem `ISubsystemDebugProvider`s + a capability manifest** *(Q54-1 Option C, Q54-2 Option B+C)*, and the
+> manifest is **FULL from day one** — a complete static DESCRIPTION of every endpoint × a runtime-MEASURED
+> availability matrix + a reviewed known-absent baseline. The dependency-split insight below still holds — the
+> read surface must not carry editor-only deps — but it lands as *one provider per subsystem*. ⛔ **Build against
+> Q54.**
 
 📐 `DebugApiService` has **editor-only** constructor deps — `IPreviewController`, `IEditorLogic`, the three AI
 debug sessions — all `throw`-guarded *(EditorSubsystem.cs:1804-1833)*, so it **cannot be constructed in
