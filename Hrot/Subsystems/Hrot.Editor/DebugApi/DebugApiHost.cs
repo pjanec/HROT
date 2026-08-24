@@ -105,7 +105,21 @@ namespace Hrot.Editor.DebugApi
 
         private delegate Task<RouteResult> RouteHandler(RequestContext ctx);
 
-        private sealed record RouteEntry(string Method, string Template, RouteHandler Handler);
+        /// <param name="NeedsService">
+        /// ⭐ <see langword="false"/> for a route that answers without the service layer, so the
+        /// *"Debug API not ready"* 503 gate below does not apply to it. ⛔ Only <c>/shutdown</c> today.
+        /// </param>
+        /// <param name="AfterResponse">
+        /// ⭐⭐ Runs AFTER the response has been written. ⛔ Exists for exactly one reason: <c>/shutdown</c>
+        /// must answer <b>before</b> it tears the process down, and a handler that shut down first would kill
+        /// the process with the client still waiting for its 200.
+        /// </param>
+        private sealed record RouteEntry(
+            string Method,
+            string Template,
+            RouteHandler Handler,
+            bool NeedsService = true,
+            Action? AfterResponse = null);
 
         private readonly record struct RouteResult(int Status, JsonNode? Data, string? Error, JsonNode? Hint = null);
 
@@ -124,6 +138,15 @@ namespace Hrot.Editor.DebugApi
         {
             // Group A — status
             _routes.Add(new("GET", "/status", _ => RunMain(s => s.GetStatus())));
+
+            // ⭐⭐ /shutdown IS A ROUTE. 📌 It used to be handled inline before route dispatch, which made it
+            //    invisible to GET /capabilities — a real endpoint the manifest did not list, in the very
+            //    surface whose whole claim is "enumerated from the live route table, so it cannot drift".
+            // ⭐ Two flags carry what the inline path was really doing: it answers with no service attached,
+            //    and it tears the process down only AFTER the 200 has been written.
+            _routes.Add(new("POST", "/shutdown", _ => Task.FromResult(Ok(null)),
+                NeedsService:   false,
+                AfterResponse:  () => _shutdownCallback?.Invoke()));
 
             // ⭐⭐⭐ GET /capabilities — D4's teaching surface. 📄 Architect_Question_54 § Manifest scope.
             // ⛔ The DESCRIPTION is enumerated from `_routes` itself, so it cannot drift from the code; the
@@ -1048,14 +1071,6 @@ namespace Hrot.Editor.DebugApi
                 var method = ctx.Request.HttpMethod.ToUpperInvariant();
                 var path   = ctx.Request.Url?.AbsolutePath ?? "/";
 
-                // /shutdown is handled inline (no service needed).
-                if (method == "POST" && path == "/shutdown")
-                {
-                    await WriteResponseAsync(ctx, 200, new ApiResponse(true)).ConfigureAwait(false);
-                    _shutdownCallback?.Invoke();
-                    return;
-                }
-
                 // Before the service is attached (early startup, or foundation-only hosting),
                 // /status answers with a minimal { ok:true } so liveness checks succeed.
                 if (method == "GET" && path == "/status" && _service is null)
@@ -1070,7 +1085,7 @@ namespace Hrot.Editor.DebugApi
                     return;
                 }
 
-                if (_service is null)
+                if (_service is null && entry.NeedsService)
                 {
                     await WriteResponseAsync(ctx, 503, new ApiResponse(false, Error: "Debug API not ready")).ConfigureAwait(false);
                     return;
@@ -1116,6 +1131,10 @@ namespace Hrot.Editor.DebugApi
                     ? new ApiResponse(true, Data: result.Data)
                     : new ApiResponse(false, Error: result.Error, Hint: result.Hint);
                 await WriteResponseAsync(ctx, result.Status, envelope).ConfigureAwait(false);
+
+                // ⭐ Post-response hook — see RouteEntry.AfterResponse. Only /shutdown uses it, and only
+                //   because tearing the process down must not race the 200 it just promised.
+                if (result.Status == 200) entry.AfterResponse?.Invoke();
             }
             catch (Exception ex)
             {

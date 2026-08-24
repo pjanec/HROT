@@ -16,20 +16,23 @@ export const TOOLS_CATALOG = [
   {
     name: 'start_simulation',
     group: 'A — Lifecycle & status',
-    summary: 'Launch the Hrot ClusterRunner in editor mode with the AI Debug API enabled. Polls /status until ready.',
+    summary: 'Launch the Hrot ClusterRunner with the AI Debug API enabled, in editor or cluster mode. Polls /status until ready.',
     http: null,
     params: [
       { name: 'runnerDll', type: 'string', required: false, description: 'Absolute path to Hrot.ClusterRunner.dll (overrides --runner-dll CLI arg)' },
       { name: 'port', type: 'number', required: false, description: 'Debug API port (overrides --port CLI arg). Default: 8099', default: 8099 },
-      { name: 'headless', type: 'boolean', required: false, description: 'Pass --headless to the runner. Default: false', default: false },
+      { name: 'mode', type: 'string', required: false, description: 'Runner mode: "editor" (one node, everything local) or a cluster mode such as "all" (orchestrator + simhost + ig + excon + cgf). Default: editor', default: 'editor' },
+      { name: 'headless', type: 'boolean', required: false, description: 'Pass --headless to the runner. Editor mode only — see notes. Default: false', default: false },
     ],
-    returns: '{ url, pid }',
+    returns: '{ url, pid, mode }',
     notes: [
       'MCP-side lifecycle tool — no HTTP endpoint.',
       'runnerDll is required unless the server was started with --runner-dll.',
+      'A cluster mode ("all") serves the same API but commands act in the currently selected perspective — call get_capabilities and switch_perspective.',
+      'headless is REFUSED for a cluster mode: a panel publishes only when it draws, and the headless runner loop never draws, so every panel dump would come back empty. Launch it windowed (under Xvfb on Linux).',
     ],
-    example: { args: { runnerDll: '/path/to/Hrot.ClusterRunner.dll', port: 8099, headless: true }, gist: 'launch runner headless on default port' },
-    hint: 'Required (if no --runner-dll on server): runnerDll (string). Example: start_simulation({runnerDll:"/path/to/dll", headless:true})',
+    example: { args: { runnerDll: '/path/to/Hrot.ClusterRunner.dll', port: 8099, mode: 'all' }, gist: 'launch the whole cluster in one process on the default port' },
+    hint: 'Required (if no --runner-dll on server): runnerDll (string). Optional: mode ("editor"|"all"), port, headless. Example: start_simulation({runnerDll:"/path/to/dll", mode:"all"})',
     manualVerify: false,
   },
 

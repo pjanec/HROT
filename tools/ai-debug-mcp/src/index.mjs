@@ -11,7 +11,7 @@
  *
  * Usage:
  *   Launch mode (server spawns runner):
- *     node src/index.mjs --runner-dll <path/to/Hrot.ClusterRunner.dll> --port <N> [--headless]
+ *     node src/index.mjs --runner-dll <path/to/Hrot.ClusterRunner.dll> --port <N> [--mode all] [--headless]
  *     (enables the API via HROT_DEBUG_API_PORT on the child — there are no --debug-api CLI flags)
  *
  *   Attach mode (runner already running):
@@ -37,6 +37,7 @@ const { values: args } = parseArgs({
     'runner-dll': { type: 'string' },
     port: { type: 'string' },
     headless: { type: 'boolean', default: false },
+    mode: { type: 'string' },
   },
   strict: false,
 });
@@ -57,16 +58,30 @@ const GRACEFUL_KILL_TIMEOUT_MS = 10_000;
  * @param {string} runnerDll  Path to Hrot.ClusterRunner.dll
  * @param {number} port       Debug API port
  * @param {boolean} headless  Pass --headless flag
+ * @param {string} mode       Runner mode: 'editor' (one node) or a cluster mode such as 'all'
  */
-async function launchRunner(runnerDll, port, headless) {
+async function launchRunner(runnerDll, port, headless, mode) {
   // ⛔ Do NOT pass --debug-api / --debug-api-port. Those flags were designed in
   //    .dev/ai-debug-api/ and NEVER LANDED: no such option exists in HrotRunnerConfiguration or
   //    RunnerOptions. Passing them produced a runner with the API OFF, after which the /status poll
   //    below could only time out — launch mode had never worked.
   // ⭐ The one and only switch is the env var HROT_DEBUG_API_PORT, read by EditorSubsystem §8b.
   //    Hrot.SystemTests/EditorProcessFixture.cs does the same thing.
-  const dllArgs = [runnerDll, '-m', 'editor', '--no-wait'];
-  if (headless) dllArgs.push('--headless');
+  // ⭐⭐ THE MODE IS A PARAMETER, not a constant. 📌 It was hard-coded to 'editor', so launch mode could
+  //    never reach a cluster host — and --mode all serves this same API. (Attach mode via --url was
+  //    unaffected, which is why nothing broke; it just meant an agent that LAUNCHES gets only an editor.)
+  // ⚠ A cluster mode must NOT be headless: a panel publishes only when it DRAWS, and the headless runner
+  //   loop never calls DrawUIAll, so every /panels dump would come back empty. Say so rather than
+  //   silently producing an empty surface.
+  const dllArgs = [runnerDll, '-m', mode, '--no-wait'];
+  if (headless) {
+    if (mode !== 'editor') {
+      throw new McpToolError(
+        `mode '${mode}' cannot run headless: panels publish only when they draw, and the headless runner ` +
+        `loop never draws, so every panel dump would be empty. Launch it windowed (under Xvfb on Linux).`);
+    }
+    dllArgs.push('--headless');
+  }
 
   runnerChild = spawn('dotnet', dllArgs, {
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -309,8 +324,9 @@ const TOOLS = [
         if (!dll) throw new McpToolError('runnerDll is required (or pass --runner-dll to the server)');
         const port = toolArgs.port ?? (args.port ? Number(args.port) : 8099);
         const headless = toolArgs.headless ?? args.headless ?? false;
-        await launchRunner(dll, port, headless);
-        return toolSuccess({ ok: true, data: { url: baseUrl, pid: runnerChild?.pid } });
+        const mode = toolArgs.mode ?? args.mode ?? 'editor';
+        await launchRunner(dll, port, headless, mode);
+        return toolSuccess({ ok: true, data: { url: baseUrl, pid: runnerChild?.pid, mode } });
       } catch (err) {
         return toolError(err.message, err.envelope, 'start_simulation');
       }

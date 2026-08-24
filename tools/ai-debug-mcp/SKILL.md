@@ -146,9 +146,9 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 Conventions: **Req** = required param. Coordinates are local ECS metres unless stated; `networkId` is a long.
 
 ### Group A — Lifecycle & status
-- **`start_simulation`** — Launch the Hrot ClusterRunner in editor mode with the AI Debug API enabled. Polls /status until ready. `runnerDll?` (string), `port?` (number, def 8099), `headless?` (boolean, def false). Returns { url, pid }
-  Notes: MCP-side lifecycle tool — no HTTP endpoint.; runnerDll is required unless the server was started with --runner-dll..
-  Example: `start_simulation({"runnerDll":"/path/to/Hrot.ClusterRunner.dll","port":8099,"headless":true})` — launch runner headless on default port.
+- **`start_simulation`** — Launch the Hrot ClusterRunner with the AI Debug API enabled, in editor or cluster mode. Polls /status until ready. `runnerDll?` (string), `port?` (number, def 8099), `mode?` (string, def "editor"), `headless?` (boolean, def false). Returns { url, pid, mode }
+  Notes: MCP-side lifecycle tool — no HTTP endpoint.; runnerDll is required unless the server was started with --runner-dll.; A cluster mode ("all") serves the same API but commands act in the currently selected perspective — call get_capabilities and switch_perspective.; headless is REFUSED for a cluster mode: a panel publishes only when it draws, and the headless runner loop never draws, so every panel dump would come back empty. Launch it windowed (under Xvfb on Linux)..
+  Example: `start_simulation({"runnerDll":"/path/to/Hrot.ClusterRunner.dll","port":8099,"mode":"all"})` — launch the whole cluster in one process on the default port.
 - **`stop_simulation`** — Shut down the runner gracefully via POST /shutdown, then hard-kill if needed. No params. Returns The /shutdown envelope, or { note: "runner already gone" }
   Notes: MCP-side lifecycle tool — also calls the /shutdown HTTP endpoint.; Always call when done to avoid orphan runner processes..
   Example: `stop_simulation({})` — graceful runner shutdown.
