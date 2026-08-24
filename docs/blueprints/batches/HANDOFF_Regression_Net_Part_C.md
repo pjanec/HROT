@@ -10,15 +10,20 @@ known-conflict: none. The gizmo-schema batch (ST-, Area I) may run in parallel a
 -->
 # HANDOFF — **the regression net, part C** *(`N2`–`N6`)*
 
-> 📌 **Dispatched at `2166c1760` *(re-stamped — rule 1a amendment)*.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `07fad323e` *(re-stamped 2026-08-24 — rule 1a, still unstarted)*.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`HN-`**/**`MX-`**, tracker **Area J** — 📐 the series stands at **`HN-011`** /
 > **`MX-012`**, so start at `HN-012` / `MX-013`.
 
+> 🔒 **User, `2026-08-24`:** *"we are already refactoring without the harness… we need to focus on the
+> harness."* ⇒ ⭐⭐⭐ **THIS BATCH IS THE FOCUS.** N2–N6 are the harness core *(charter steps 2–3)*; the
+> unification work *(gizmos, preview)* has been running AHEAD of the net, which is the risk the charter's
+> order exists to prevent. ⛔ **This is the priority for the UI lane now.**
+
 ## 0. ⭐⭐⭐ WHERE PART B GOT TO — **and it got further than the items say**
 
 ⭐⭐ **`N0` and `N1` are DONE and merged.** 📐 Verified on the merged tree: build **0 errors**,
-`Hrot.SystemTests` **57 / 57**. ⭐ The item-zero doc debt is closed *(`HN-007`, `HN-008`, `MX-012`)*, §6 of
+`Hrot.SystemTests` **58 / 58** *(the preview lane's `HN-017` added the 58th)*. ⭐ The item-zero doc debt is closed *(`HN-007`, `HN-008`, `MX-012`)*, §6 of
 the design is a **CONTRACT** now, and `EditorProcess` is extracted from `EditorProcessFixture` so `N1`'s
 two-process launch is not a second copy of launch-and-wait.
 
@@ -81,7 +86,7 @@ every id you allocate, in the same commit that uses it.**
 
 ⭐⭐ **Row 8 — the integration invariant.** ⭐ **This batch IS the integration gate**: report
 `bash scripts/run-system-tests.sh` *(⭐ it now covers **both** categories — `HN-009`)* **plus `N4`'s
-mutation table.** 📐 **Your baseline is `57 / 57`** — ⛔ any red is yours until proven otherwise.
+mutation table.** 📐 **Your baseline is `58 / 58`** — ⛔ any red is yours until proven otherwise.
 
 ⚠ **Known baseline quirks — do not re-derive:** `tracker-counts.py --check` is **blind to `HN-`/`MX-` rows**.
 `tools/ai-debug-mcp` `verify.mjs` fails pre-existing *(needs `npm install`)*. `Fdp.Presentation.Tests`
