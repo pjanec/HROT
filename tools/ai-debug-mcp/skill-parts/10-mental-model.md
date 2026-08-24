@@ -2,16 +2,35 @@
 
 ## 1. Mental model (read this first — most mistakes come from skipping it)
 
-**One process, one world.** Brain (AI) and muscle (physics/spawning) share one ECS `EntityRepository`. There
-is no network/cluster to reason about. Entities are identified by a stable `networkId` (a long, e.g. `1000`).
+**Usually one process, one world.** In the editor, brain (AI) and muscle (physics/spawning) share one ECS
+`EntityRepository` and there is no cluster to reason about. Entities are identified by a stable `networkId`
+(a long, e.g. `1000`).
 
-**Three run states** — almost every "why didn't that work" is a run-state mistake:
+**But check which host you are talking to — `get_capabilities` tells you.** The same API is also served by a
+multi-subsystem cluster host (`mode: "all"` = orchestrator + simhost + ig + excon + cgf). There:
+
+- commands act **in the context of the currently selected perspective** (`switch_perspective`), because that
+  is how an operator would drive it — so a read answers for *that node*, not for "the world";
+- capabilities differ per perspective. A call the active perspective cannot serve answers **HTTP 501
+  `NOT_SUPPORTED_HERE`** with the capability key that is missing (e.g. `time.drive`, `world.read`,
+  `scenario.load`). That is a truthful "not here", **not** a bug and not a crash — ask `get_capabilities` and
+  either switch perspective or use a different endpoint;
+- `networkId`s are **not portable between hosts**: the editor and a cluster allocate them from different
+  authorities, so the same scenario yields different ids in each. Match entities by name across hosts.
+
+**Four run states** — almost every "why didn't that work" is a run-state mistake:
 
 | State | What it means | Time advances? | How you got here |
 |-------|---------------|----------------|------------------|
-| **Edit** | Authoring; world is static | No | After `load_scenario` |
+| **Edit** | Authoring; world is static | No | `load_scenario_edit` |
+| **Live** | A real run on every node | Yes | `load_scenario_live` |
 | **Preview** | A revertible run from a RAM snapshot | Only when **unpaused** | `enter_preview`, `play`, `checkpoint`, or `start_recording{preview}` |
 | **Replay** | Read-only playback of a `.fdp` in an isolated sandbox | N/A (you seek frames) | `load_replay` |
+
+**Two load modes, and they are not the same operation.** `load_scenario_edit` freezes time for authoring;
+`load_scenario_live` starts an exercise run. Both are cluster-wide two-phase-commit transitions — the editor
+is not special, it is a one-node cluster. ⚠ In `mode: "all"` an *edit* load is currently partial (CGF has no
+edit-load handler yet), so use **live** when every node must hold the world.
 
 - **Time only advances when `inPreview == true` AND `isPaused == false`.** In Edit state the sim is frozen —
   `step`/commands that need ticks won't progress until you enter preview and unpause. Always check

@@ -111,6 +111,36 @@ public sealed class PerspectiveScopedDispatcher
     public ITimeTransportFacade? Drive => Active()?.Drive;
 
     /// <summary>
+    /// ⭐⭐ The active perspective's cluster-transition publisher, or <see langword="null"/> ⇒
+    /// <c>NOT_SUPPORTED_HERE(scenario.load)</c>. 📄 <c>MCP_Integration.md</c> § Group U.
+    /// <para>⭐ Perspective-scoped for the same reason a step is: the request travels the path the operator's
+    /// own button takes on that node — its bus, then DDS to the master.</para>
+    /// </summary>
+    public Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? RequestTransition
+        => Active()?.RequestTransition;
+
+    /// <summary>
+    /// ⭐⭐ <b>The cluster's state, from whichever node tracks it</b> — the readiness gate for
+    /// <c>scenario/load/*</c>. <see langword="null"/> when no node here does.
+    ///
+    /// <para>⚠⚠ <b>This is the ONE member that deliberately falls back past the active perspective</b>, and the
+    /// reason is not convenience: ⭐ <b>there is one cluster and one cluster state.</b> A node's
+    /// <c>ClusterUiCache</c> is a CACHE OF A GLOBAL FACT, not that node's own data — so reading it from
+    /// whichever node keeps one answers the same question. ⛔ Contrast <see cref="World"/>: falling back there
+    /// would answer about the WRONG NODE, which is exactly what Q54-2 forbids. 📌 Measured: in
+    /// <c>--mode all</c> only ExCon builds a cache, so without this fallback a load from the <c>Scenario</c> or
+    /// <c>SimHost</c> perspective could never observe its own completion.</para>
+    /// </summary>
+    public Fdp.Toolkit.Orchestration.ClusterState? ClusterStateAnyNode
+        => Active()?.ClusterState
+           ?? _providers.Select(p => p.ClusterState).FirstOrDefault(s => s is not null);
+
+    /// <summary>⭐ Scenario inventory from whichever node caches it — same rationale as <see cref="ClusterStateAnyNode"/>.</summary>
+    public IReadOnlyList<string>? AvailableScenariosAnyNode
+        => Active()?.AvailableScenarios
+           ?? _providers.Select(p => p.AvailableScenarios).FirstOrDefault(s => s is not null);
+
+    /// <summary>
     /// ⭐⭐ <b>The measured availability matrix — <c>(perspective × capability) → present</c>.</b>
     /// 📄 Q54 § Manifest scope. ⛔ Every cell comes from a provider's own wired-dependency check; nothing
     /// here is authored.

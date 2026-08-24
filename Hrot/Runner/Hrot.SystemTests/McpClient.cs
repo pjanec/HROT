@@ -127,6 +127,23 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> LoadScenarioAsync(string name, bool waitForReady = true, CancellationToken ct = default)
         => PostAsync("/scenario/load", new JsonObject { ["name"] = name, ["waitForReady"] = waitForReady }, ct);
 
+    /// <summary>
+    /// ⭐⭐ <c>POST /scenario/load/edit</c> — load for AUTHORING, cluster-wide. 📄 <c>MCP_Integration.md</c>
+    /// § Group U. ⚠ In <c>--mode all</c> this is PARTIAL: CGF has no edit-load handler yet *(a CGF-lane
+    /// follow-up)*, so SimHost loads and CGF does not. ⭐ Use <see cref="LoadScenarioLiveAsync"/> when the two
+    /// hosts' worlds must actually match.
+    /// </summary>
+    public Task<ApiResult> LoadScenarioEditAsync(string name, bool waitForReady = true, CancellationToken ct = default)
+        => PostAsync("/scenario/load/edit", new JsonObject { ["name"] = name, ["waitForReady"] = waitForReady }, ct);
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>POST /scenario/load/live</c> — load for RUNNING, cluster-wide, on ANY host.
+    /// 📄 <c>MCP_Integration.md</c> § Group U. ⭐ Every host has live-load handlers, so this is the mode that
+    /// can equalise two hosts' worlds — which is what makes the conformance content diff executable.
+    /// </summary>
+    public Task<ApiResult> LoadScenarioLiveAsync(string name, bool waitForReady = true, CancellationToken ct = default)
+        => PostAsync("/scenario/load/live", new JsonObject { ["name"] = name, ["waitForReady"] = waitForReady }, ct);
+
     public Task<ApiResult> SaveScenarioAsync(string name, CancellationToken ct = default)
         => PostAsync("/scenario/save", new JsonObject { ["name"] = name }, ct);
 

@@ -150,7 +150,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             perspective:   "Scenario",
             world:         () => _context?.World,
             entityMap:     () => _entityMap,
-            drive:         () => _clusterTimeAdapter);
+            drive:         () => _clusterTimeAdapter,
+            // ⭐⭐ HN-029: the node's own orchestration bus — the same one its ClusterSlave and
+            //    ClusterOpEgressTranslator sit on, so a transition requested here reaches the master by the
+            //    path the operator's own "Load into Live" button takes.
+            requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                   .TransitionsVia(() => _context?.EventBus));
 
     /// <inheritdoc/>
     public System.Numerics.Vector4 TitleBarColor => new(0.57f, 0.47f, 0.04f, 1f);

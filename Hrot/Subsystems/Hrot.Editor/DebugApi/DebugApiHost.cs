@@ -146,6 +146,9 @@ namespace Hrot.Editor.DebugApi
                               [Hrot.Presentation.DebugApi.DebugCapabilities.GizmoFrame]       = true,
                               [Hrot.Presentation.DebugApi.DebugCapabilities.Preview]          = true,
                               [Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring]  = true,
+                              // ⭐ HN-029: the editor is a ONE-NODE cluster and its own ClusterMaster reads
+                              //   the bus the composition root hands over ⇒ it can request a transition.
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad]     = true,
                           }
                         : null)))));
 
@@ -245,7 +248,18 @@ namespace Hrot.Editor.DebugApi
 
             // Group E — scenarios
             _routes.Add(new("GET",  "/scenarios", _ => RunMain(s => s.ListScenarios())));
-            _routes.Add(new("POST", "/scenario/load", HandleScenarioLoad));
+            // ⭐⭐⭐ TWO LOAD MODES, BOTH CLUSTER-WIDE (HN-029). 📄 MCP_Integration.md § Group U.
+            //
+            // 🔒 User, 2026-08-24: "scenario/load is wrong abstraction. there are 2 load modes — live and
+            //    edit … both should be cluster wide. editor is not special, also uses 2pc for its single
+            //    process."
+            //
+            // ⛔ `/scenario/load` is kept as an ALIAS for `load/edit` — its existing editor behaviour was
+            //    OperatingEdit, and GoldenCaptureFixture / McpClient.LoadScenarioAsync author in EDIT. ⭐ The
+            //    alias changes NOTHING for an existing caller; new callers should name the mode.
+            _routes.Add(new("POST", "/scenario/load",      ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)));
+            _routes.Add(new("POST", "/scenario/load/edit", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)));
+            _routes.Add(new("POST", "/scenario/load/live", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)));
             _routes.Add(new("POST", "/scenario/save", ctx =>
             {
                 var name = ctx.Body?["name"]?.GetValue<string>();
@@ -833,7 +847,12 @@ namespace Hrot.Editor.DebugApi
             }));
         }
 
-        private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx)
+        /// <summary>
+        /// ⭐⭐⭐ <b>One handler, two modes</b> — <c>target</c> is <c>OperatingEdit</c> or <c>OperatingLive</c>.
+        /// 📄 <c>MCP_Integration.md</c> § Group U. ⛔ Not two handlers: the readiness contract is identical and
+        /// duplicating it is how the two modes would drift apart.
+        /// </summary>
+        private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx, Fdp.Toolkit.Orchestration.ClusterState target)
         {
             var name = ctx.Body?["name"]?.GetValue<string>();
             if (string.IsNullOrWhiteSpace(name))
@@ -841,18 +860,26 @@ namespace Hrot.Editor.DebugApi
 
             bool waitForReady = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
 
-            await _jobQueue.RunOnMainThread<object?>(() => { Service().BeginLoadScenario(name!); return null; })
-                           .ConfigureAwait(false);
+            var requested = await _jobQueue.RunOnMainThread(() =>
+                target == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive
+                    ? Service().LoadScenarioLive(name!)
+                    : Service().LoadScenarioEdit(name!)).ConfigureAwait(false);
 
             if (!waitForReady)
-                return Ok(new JsonObject { ["loading"] = name, ["awaited"] = false });
+                return Ok(new JsonObject
+                {
+                    ["loading"] = name,
+                    ["awaited"] = false,
+                    ["target"]  = target.ToString(),
+                    ["via"]     = requested?["via"]?.GetValue<string>(),
+                });
 
             // ⭐⭐⭐ READINESS IS AN EDGE, NOT A LEVEL. 📄 See DebugApiService.WorldEntityCount for the
-            //    measurement: `OperatingEdit` is where a RELOAD starts, so a level check can answer "ready"
+            //    measurement: the TARGET state is where a RELOAD starts, so a level check can answer "ready"
             //    while the PREVIOUS world is still standing — and the two DeterminismRails reload cases
             //    were passing on a one-frame margin because of it.
             //
-            // ⭐⭐ So: the state must be OperatingEdit AND the world must have been observed CHANGING since
+            // ⭐⭐ So: the state must be `target` AND the world must have been observed CHANGING since
             //    the request (a load SoftClears and re-creates, so the count moves) AND then settling.
             //
             // ⚠ The grace fallback exists for the one case the edge cannot see: loading a scenario whose
@@ -863,15 +890,19 @@ namespace Hrot.Editor.DebugApi
 
             var sw = System.Diagnostics.Stopwatch.StartNew();
             int pollCount = 0;
-            int countAtRequest = await _jobQueue.RunOnMainThread(() => Service().WorldEntityCount)
+            int? countAtRequest = await _jobQueue.RunOnMainThread(() => Service().WorldEntityCountOrNull())
                                                 .ConfigureAwait(false);
-            int previous = countAtRequest;
+            int? previous = countAtRequest;
             bool sawChange = false;
+
+            // ⚠ A host with NO world (ExCon) has no count to watch, so the edge is unobservable there and the
+            //   state is all there is. ⛔ Reported in the payload rather than silently treated as an edge.
+            bool haveAnchor = countAtRequest is not null;
 
             while (sw.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
             {
                 var (ready, count) = await _jobQueue
-                    .RunOnMainThread(() => (Service().PollClusterStateIsOperatingEdit(), Service().WorldEntityCount))
+                    .RunOnMainThread(() => (Service().PollClusterStateIs(target), Service().WorldEntityCountOrNull()))
                     .ConfigureAwait(false);
                 pollCount++;
 
@@ -879,20 +910,22 @@ namespace Hrot.Editor.DebugApi
                 bool settled = count == previous;
                 previous = count;
 
-                if (ready && settled && (sawChange || sw.Elapsed.TotalSeconds > EdgeGraceSeconds))
+                if (ready && settled && (sawChange || !haveAnchor || sw.Elapsed.TotalSeconds > EdgeGraceSeconds))
                     return Ok(new JsonObject
                     {
                         ["loaded"]      = name,
                         ["awaited"]     = true,
+                        ["target"]      = target.ToString(),
                         ["entityCount"] = count,
                         // ⭐ Reported so a caller can tell a genuine edge from the grace fallback — a load
                         //   that only ever passed on grace is worth knowing about.
                         ["sawWorldChange"] = sawChange,
+                        ["hadWorldAnchor"] = haveAnchor,
                     });
             }
-            return Fail(504, $"Scenario '{name}' did not reach a settled OperatingEdit within "
+            return Fail(504, $"Scenario '{name}' did not reach a settled {target} within "
                            + $"{ScenarioReadyTimeoutSeconds}s ({pollCount} polls, entityCount {previous}, "
-                           + $"sawWorldChange={sawChange}).");
+                           + $"sawWorldChange={sawChange}, hadWorldAnchor={haveAnchor}).");
         }
 
         private DebugApiService Service()

@@ -349,6 +349,16 @@ const TOOLS = [
     },
   },
 
+  {
+    name: 'get_capabilities',
+    description: TOOL_DEFS['get_capabilities'].description,
+    inputSchema: TOOL_DEFS['get_capabilities'].inputSchema,
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/capabilities')); }
+      catch (err) { return toolError(err.message, err.envelope, 'get_capabilities'); }
+    },
+  },
+
   // ── Group B — Queries ─────────────────────────────────────────────────────
 
   {
@@ -493,6 +503,35 @@ const TOOLS = [
 
   // ── Group E — Scenario Load ───────────────────────────────────────────────
 
+  {
+    name: 'load_scenario_edit',
+    description: TOOL_DEFS['load_scenario_edit'].description,
+    inputSchema: TOOL_DEFS['load_scenario_edit'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/scenario/load/edit', {
+          name: toolArgs.name,
+          waitForReady: toolArgs.waitForReady ?? false,
+        }));
+      } catch (err) { return toolError(err.message, err.envelope, 'load_scenario_edit'); }
+    },
+  },
+
+  {
+    name: 'load_scenario_live',
+    description: TOOL_DEFS['load_scenario_live'].description,
+    inputSchema: TOOL_DEFS['load_scenario_live'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/scenario/load/live', {
+          name: toolArgs.name,
+          waitForReady: toolArgs.waitForReady ?? false,
+        }));
+      } catch (err) { return toolError(err.message, err.envelope, 'load_scenario_live'); }
+    },
+  },
+
+  // Deprecated alias, kept so existing callers keep working. Behaves like load_scenario_edit.
   {
     name: 'load_scenario',
     description: TOOL_DEFS['load_scenario'].description,

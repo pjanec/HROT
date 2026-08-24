@@ -13,16 +13,35 @@ real logic. This guide teaches the mental model, the canonical workflows, and ev
 
 ## 1. Mental model (read this first — most mistakes come from skipping it)
 
-**One process, one world.** Brain (AI) and muscle (physics/spawning) share one ECS `EntityRepository`. There
-is no network/cluster to reason about. Entities are identified by a stable `networkId` (a long, e.g. `1000`).
+**Usually one process, one world.** In the editor, brain (AI) and muscle (physics/spawning) share one ECS
+`EntityRepository` and there is no cluster to reason about. Entities are identified by a stable `networkId`
+(a long, e.g. `1000`).
 
-**Three run states** — almost every "why didn't that work" is a run-state mistake:
+**But check which host you are talking to — `get_capabilities` tells you.** The same API is also served by a
+multi-subsystem cluster host (`mode: "all"` = orchestrator + simhost + ig + excon + cgf). There:
+
+- commands act **in the context of the currently selected perspective** (`switch_perspective`), because that
+  is how an operator would drive it — so a read answers for *that node*, not for "the world";
+- capabilities differ per perspective. A call the active perspective cannot serve answers **HTTP 501
+  `NOT_SUPPORTED_HERE`** with the capability key that is missing (e.g. `time.drive`, `world.read`,
+  `scenario.load`). That is a truthful "not here", **not** a bug and not a crash — ask `get_capabilities` and
+  either switch perspective or use a different endpoint;
+- `networkId`s are **not portable between hosts**: the editor and a cluster allocate them from different
+  authorities, so the same scenario yields different ids in each. Match entities by name across hosts.
+
+**Four run states** — almost every "why didn't that work" is a run-state mistake:
 
 | State | What it means | Time advances? | How you got here |
 |-------|---------------|----------------|------------------|
-| **Edit** | Authoring; world is static | No | After `load_scenario` |
+| **Edit** | Authoring; world is static | No | `load_scenario_edit` |
+| **Live** | A real run on every node | Yes | `load_scenario_live` |
 | **Preview** | A revertible run from a RAM snapshot | Only when **unpaused** | `enter_preview`, `play`, `checkpoint`, or `start_recording{preview}` |
 | **Replay** | Read-only playback of a `.fdp` in an isolated sandbox | N/A (you seek frames) | `load_replay` |
+
+**Two load modes, and they are not the same operation.** `load_scenario_edit` freezes time for authoring;
+`load_scenario_live` starts an exercise run. Both are cluster-wide two-phase-commit transitions — the editor
+is not special, it is a one-node cluster. ⚠ In `mode: "all"` an *edit* load is currently partial (CGF has no
+edit-load handler yet), so use **live** when every node must hold the world.
 
 - **Time only advances when `inPreview == true` AND `isPaused == false`.** In Edit state the sim is frozen —
   `step`/commands that need ticks won't progress until you enter preview and unpause. Always check
@@ -62,7 +81,9 @@ Typical close: `stop_simulation`. Never leave a runner running between unrelated
 ## 3. Canonical workflows (compose these — they are the point of the API)
 
 ### A. Load and inspect
-1. `load_scenario {name:"test-move", waitForReady:true}` — blocks until the world is loaded (Edit state).
+1. `load_scenario_edit {name:"test-move", waitForReady:true}` — blocks until the world is loaded (Edit state).
+   Use `load_scenario_live` instead when you want a real run, or when you are on a cluster host and every node
+   must hold the world.
 2. `list_entities` → pick a `networkId`. (Filter with `component` / `near` to avoid dumping everything.)
 3. `get_entity {networkId}` → full component dump.
 
@@ -134,6 +155,9 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`get_status`** — Runner liveness + sim state summary. No params. Returns { scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording }
   Notes: Use this to verify the runner is alive and check current run state before driving the sim..
   Example: `get_status({})` — check runner liveness and sim state.
+- **`get_capabilities`** — What THIS host can actually do — every endpoint, and the measured per-perspective matrix. No params. Returns { mode, host{hasMaster,currentPerspective,routablePerspectives}, endpoints[], matrix{perspective:{capability:bool}}, unclassifiedRoutes[] }
+  Notes: ASK THIS FIRST when a call answers 501 NOT_SUPPORTED_HERE — the matrix says which capabilities the active perspective offers, so you can switch perspective or pick another endpoint instead of guessing.; mode tells you how the process was started: "editor" (one context, everything local) or a cluster mode such as "all" (orchestrator + simhost + ig + excon + cgf).; The matrix is MEASURED from wired dependencies, not declared — a false cell is a bug, not a stale table.; host.hasMaster:false means a step cannot be confirmed cluster-wide on this host..
+  Example: `get_capabilities({})` — find out what this host supports before driving it.
 
 ### Group B — Queries
 - **`list_entities`** — List all entities with networkId, name, and component names. `component?` (string), `near?` (string). Returns [{networkId, name, components:[names]}]
@@ -177,9 +201,15 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `stop_preview({})` — exit preview and revert all changes since entering preview.
 
 ### Group E — Scenario
-- **`load_scenario`** — Load a scenario by name. Puts the world into Edit state. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope.
-  Notes: Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).; Loads into Edit state — sim is static until enter_preview or play..
-  Example: `load_scenario({"name":"test-move","waitForReady":true})` — load test-move scenario and wait for ready.
+- **`load_scenario_edit`** — Load a scenario for AUTHORING (Edit state), cluster-wide. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.
+  Notes: Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).; Edit state freezes sim time — nothing ticks until enter_preview or play.; In --mode all this load is PARTIAL: CGF has no edit-load handler yet, so SimHost loads and CGF does not. Use load_scenario_live when every node must hold the world..
+  Example: `load_scenario_edit({"name":"test-move","waitForReady":true})` — load test-move for authoring and wait for ready.
+- **`load_scenario_live`** — Load a scenario for RUNNING (Live state), cluster-wide, on any host. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.
+  Notes: Set waitForReady:true to block until the cluster reaches OperatingLive (recommended).; Every host has live-load handlers, so this is the mode that loads on ALL nodes — use it when the world must be the same everywhere.; A live load starts a new exercise run (a fresh ExerciseId), which is what recording and replay key off..
+  Example: `load_scenario_live({"name":"test-move","waitForReady":true})` — load test-move live across the cluster and wait for ready.
+- **`load_scenario`** — Deprecated alias for load_scenario_edit. Prefer naming the mode. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope.
+  Notes: Kept so existing callers keep working; it behaves exactly like load_scenario_edit.; There are two load modes — edit (authoring) and live (running). Say which you mean..
+  Example: `load_scenario({"name":"test-move","waitForReady":true})` — load test-move (edit) and wait for ready.
 - **`save_scenario`** — Save the current authored world as a scenario. Req `name` (string). Returns ok:true envelope.
   Example: `save_scenario({"name":"my-scenario"})` — save current world as my-scenario.
 
@@ -350,6 +380,13 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 
 1. **Time is frozen in Edit state.** `step`/commands do nothing visible until `enter_preview` + `play`.
    Check `get_sim_state.inPreview`.
+1b. **A 501 `NOT_SUPPORTED_HERE` is an answer, not a fault.** It names the missing capability
+   (`time.drive`, `world.read`, `scenario.load`, …) and means *the active perspective cannot serve this*.
+   Call `get_capabilities`, then `switch_perspective` to one whose matrix row has that capability — do not
+   retry the same call.
+1c. **Pick the load mode deliberately.** `load_scenario_edit` = authoring, time frozen.
+   `load_scenario_live` = a real run on every node. On a cluster host an *edit* load is partial today
+   (CGF has no edit-load handler), so prefer **live** when the whole cluster must hold the world.
 2. **Arm traces first.** `get_entity_trace` is empty unless you `observe_trace{on:true}` and then step.
 3. **`awaited:false, reason:"sim not running"` is not an error** — it means time wasn't advancing; pause-step
    to observe results instead of waiting.
@@ -364,77 +401,6 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 8. **Spawns/commands while paused are queued** — they take effect on the next `step`/`play`.
 9. **`live` recording is unavailable** in editor mode; use `mode:"preview"`.
 10. **Always `stop_simulation`** when finished so no runner process is left behind.
-
----
-
-## 5b. Field notes — learned by using this against a real defect (2026-08-23)
-
-> Added after diagnosing "the platoon drives to (0,0) instead of the computed baseline" through this
-> API. Everything below cost time to discover and is not covered above.
-
-### ⛔ Enablement is an ENV VAR, not a CLI flag — and launch mode is broken
-
-| | |
-|---|---|
-| ✅ **works** | `HROT_DEBUG_API_PORT=8099` on the runner's environment. That is the **only** thing `EditorSubsystem` §8b checks. `Hrot.SystemTests/EditorProcessFixture.cs` does exactly this |
-| ⛔ **does not work** | `--debug-api` / `--debug-api-port`. 📐 **Measured:** no such option exists in `HrotRunnerConfiguration` or `RunnerOptions` — the flags were designed in `.dev/ai-debug-api/` and never landed on trunk |
-| 🔴 **consequence** | `src/index.mjs:64-65` spawns the runner with those dead flags, so **`start_simulation` produces a runner with the API off** and then polls `/status` until timeout. **Attach mode (`--url`) is fine.** Fix is one line — set the env var on the spawn — but it is a code change, so it is recorded here rather than assumed |
-
-⇒ ⭐ **Until that is fixed, drive the API directly over HTTP** (`localhost` only) against a runner you
-started yourself with the env var set. Every endpoint in §4 works that way; the MCP layer is a wrapper,
-not a requirement.
-
-### ⭐⭐ Free-running loses the evidence — step, always
-
-§3.B already prescribes `enter_preview{startPaused:true}` → `step{count:N}`. ⚠ **The reason matters:**
-a behaviour under test may **complete before you can ask about it**. Free-running the hill-attack
-scenario, every query returned the *post-hoc* state (all subordinates "arrived"), which hides the
-dispatch that is the actual subject. Stepping 20 ticks caught it mid-flight.
-
-### ⚠ Entity `networkId`s are REASSIGNED by `load_scenario`
-
-Reloading the same scenario renumbered the platoon `1000-1007` → `1008-1015`. ⛔ Ids held across a
-reload silently return **empty component dumps**, which reads like "the field is gone" rather than
-"wrong entity". ⇒ ⭐ **re-run `list_entities` after every load**, never cache an id across one.
-
-### ⚠ `/logs` can return zero entries — the real log is on disk
-
-`GET /logs?max=300` returned `count: 0` on a live editor that was logging heavily. The behaviour trail
-was in the NLog file: `<runner-bin>/logs/editor_{nodeId}.log`. ⇒ ⭐ **treat `/logs` as best-effort and
-grep the file** when it comes back empty; that file is where `Behavior | Node:[…]` lines live, and they
-are what identified which tree was actually running.
-
-### ⭐⭐ `/world/geo-to-local` is a parameter ORACLE
-
-Geo-authored parameters (`[lat, lon]` pairs in a mission plan) can be validated **independently of the
-behaviour**: convert them yourself and compare against what the entity received.
-
-```
-POST /world/geo-to-local {"lat":52.523603,"lon":13.412705}  ->  {"x":523.0,"y":401.0}
-```
-
-That one call proved the geo transform was healthy and moved suspicion onto the parameter plumbing —
-without it, "the coordinates are wrong" and "the transform is wrong" are indistinguishable.
-
-### ⭐⭐⭐ An all-zero params block: read the CLAMPED field first
-
-When a params dump is all zeros, the question is *parsed-badly* vs **never-parsed**. ⭐ Look for a field
-the parser cannot leave at zero — a clamp or a fallback:
-
-```csharp
-TankSpacing = dto.TankSpacing > 0f ? dto.TankSpacing : 30f;   // can never yield 0
-```
-
-`TankSpacing == 0` in the live dump therefore **proved the resolver never ran**, in one step, with no
-breakpoints. ⛔ Absence of a `ParseError` in the log said the same thing and is easy to misread as
-"parsing succeeded". ⇒ ⭐ **a clamped field reading zero is the cheapest "this code never executed"
-probe available.**
-
-### ⚠ Blueprint-tier entities have no trace
-
-`observe_trace` + `get_entity_trace` on a Blueprint-tier entity returns
-`{"tier":"Blueprint","note":"Blueprint trace: assetId resolution not available via Debug API."}` —
-armed successfully, but empty. Not a failure to report; use `get_entity` component dumps instead.
 
 ---
 

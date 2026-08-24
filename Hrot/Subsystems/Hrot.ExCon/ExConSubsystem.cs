@@ -74,7 +74,26 @@ namespace Hrot.ExCon
                 perspective:   "ExCon",
                 world:         null,
                 entityMap:     null,
-                drive:         null);
+                drive:         null,
+                // ⭐⭐ HN-029: ExCon has NO ECS kernel — no world, no clock — but it DOES have an orchestration
+                //    bus with an egress translator, which is exactly why it hosts a ClusterScenarioPanel today.
+                //    ⇒ it can request a cluster-wide load without being able to read or step one. 📌 A neat
+                //    demonstration that the capabilities are genuinely independent, not one "is it wired" bit.
+                requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                       .TransitionsVia(() => _bus),
+                // ⭐⭐ HN-029: ExCon is the only subsystem in `--mode all` that builds and PUMPS a
+                //    ClusterUiCache (`_uiCache?.Update()` per frame), and that cache is where
+                //    ClusterStateUpdateEvent lands. ⇒ it supplies the readiness gate's state — and the
+                //    scenario inventory — for the whole host. 📄 See PerspectiveScopedDispatcher
+                //    .ClusterStateAnyNode for why reading it from another perspective is legitimate.
+                // ⚠ TWO `ClusterState` enums exist — `Hrot.NED.Descriptors.Orchestration` (the wire
+                //   descriptor, which the cache holds) and `Fdp.Toolkit.Orchestration` (the toolkit's). ⛔ Not
+                //   a bug to fix here: `ClusterScenarioPanel` bridges them the same way, by int, and the two
+                //   are kept numerically identical on purpose (OperatingLive == 31 in both).
+                clusterState:       () => _uiCache is null
+                                          ? null
+                                          : (Fdp.Toolkit.Orchestration.ClusterState)(int)_uiCache.CurrentState,
+                availableScenarios: () => _uiCache?.AvailableScenarios);
 
         /// <inheritdoc/>
         /// <remarks>Violet — distinct from IG (green) and SimHost (red).</remarks>

@@ -3,8 +3,10 @@ state: LIVE
 build-state: BUILT (integration §A–N; SLICE ① = MX4a+MX7+MX8+MX5+MX6, Batch HN-120; SLICE ② = MX1
   Group O, Batch HN-121; SLICE ③ = MX9 Group T + MX2 Group Q + MX3 Group R + the breakpoint resume,
   Batch HN-122) │ READY-TO-BUILD (MX4b, once MX-002's namespace ambiguity is resolved)
-updated: 2026-08-22
-current-answer: three parts. (1) The AI-debug API + MCP server is PORTED, WIRED, VERIFIED end-to-end on
+updated: 2026-08-24
+current-answer: FOUR parts. (0) ⭐ §"Group U" + its §"AS-BUILT" carry the scenario-load
+  modes (HN-029, BUILT 2026-08-24) — read the AS-BUILT first, it has six deviations.
+current-answer-cont: three parts. (1) The AI-debug API + MCP server is PORTED, WIRED, VERIFIED end-to-end on
   headless Linux (§ up to Notes). (2) The MCP EXTENSIONS design (Groups O–R). (3) ⭐ §"AS-BUILT — SLICE ①"
   §"AS-BUILT — SLICE ②" and §"AS-BUILT — SLICE ③" at the END are the CURRENT truth where they differ
   from §"Group O"/§"Group Q"/§"Group R"/§"Group T"/§"UML" — read them before quoting a seam.
@@ -312,6 +314,57 @@ sequenceDiagram
 preview *(`PreviewClusterOpHandler` is a snapshot/rewind bracket, NOT a file load)*. ⭐⭐ **Payoff:** the
 conformance *"load S in both, then diff"* sequence becomes executable ⇒ `entity-inspector` upgrades from DECLARED
 to a real content comparison.
+
+### ⭐⭐⭐ AS-BUILT — **`2026-08-24`, and the six things measurement changed** *(obligation ⑤)*
+
+> ⛔ Where this disagrees with the section above, **it wins.** 📐 `--mode all` now loads `hill-attack` live and
+> materialises **8 entities**, `clusterState: OperatingLive`.
+
+#### ⭐ The seam that shipped — **a per-provider publisher, not a bus**
+
+```csharp
+// ISubsystemDebugProvider
+Action<TransitionStateIntent>? RequestTransition { get; }   // null => NOT_SUPPORTED_HERE(scenario.load)
+ClusterState?                  ClusterState      { get; }   // the readiness gate's fact
+IReadOnlyList<string>?         AvailableScenarios{ get; }   // so GET /scenarios answers in a cluster too
+```
+
+📐 **Measured, and it is why nothing new had to be built:** every host already publishes `TransitionStateIntent`
+onto its own orchestration bus, and every one of those buses already reaches a `ClusterMaster` — **directly**
+where the host owns one *(the orchestrator's `_bus`; the editor's own ONE-NODE master on `_orchestrationBus`)*,
+or via `ClusterOpEgressTranslator` → DDS → `ClusterOpMasterTranslator` on a slave *(CGF · SimHost · IG all wire
+one through `NodeBootstrapper:194-200`; ExCon through `ExConSubsystem:332`)*. ⇒ ⭐ one shared helper,
+`SubsystemDebugProvider.TransitionsVia(Func<FdpEventBus?>)`, is the single implementation.
+
+⭐ **The intent's shape is copied from the orchestrator's own UI**, not invented: `ClusterScenarioPanel`'s
+**"Load into Edit"** *(`OperatingEdit`, `ExerciseId = Guid.Empty`)* and **"Load into Live"**
+*(`OperatingLive`, a fresh `ExerciseId`)* buttons.
+
+#### ⛔⛔ The six deviations
+
+| # | the design said | 📐 what was measured, and what was built |
+|---|---|---|
+| **①** | *"the editor is not special"* | ⭐ **True of the MECHANISM, and `load/live` has no special case at all.** ⚠ But `load/edit` still prefers `IEditorLogic.LoadScenarioByName` when present: it transitions to `Idle` and does a **local wipe** *(`NewScenario()` → `WorldResetEvent` + `SoftClear`)* first, which on a multi-node cluster is each node's own `HrotEditLoadHandler`'s job. ⇒ same intent, one extra hop that has nothing to do elsewhere *(and it keeps every existing caller bit-identical)* |
+| **②** | *(implicit)* the endpoint just needs a publisher | 🔴🔴 **It also needs the cluster STATE, and that was missing.** 📐 The first cluster load PUBLISHED fine — master accepted, fan-out to 5 nodes — and then answered **`NOT_SUPPORTED_HERE(cluster.state)`**: only the readiness READ was unwired. ⚠ Deviation ⑤'s shape *(a response making a supported command look unsupported)*, one layer up. ⇒ `ClusterStateAnyNode` on the dispatcher, from ExCon's pumped `ClusterUiCache` |
+| **③** | *(unstated)* | 🔴🔴 **The scenario was not on the NAS.** `AssetPrefetchProcessManager` failed: *"NAS source directory '<staging>/shared/scenarios/hill-attack' does not exist"*. ⭐ Fixed by REUSE — `CuratedScenarios.SeedIntoWorking`, whose own doc already said *"the logic is host-agnostic … so CGF or any other host can call the same helper"*, was simply never called by the runner. ⛔ **Gated on `HROT_DEBUG_API_PORT`**: the seed force-overwrites curated NAMES in the operator's working NAS, and a developer running the cluster beside their own edited scenarios must not have them replaced |
+| **④** | `entity-inspector` upgrades DECLARED → SAME | ⚠⚠ **It upgrades DECLARED → DIAGNOSED, not to SAME.** 📐 With the same scenario live in both, the IG node's inspector lists **10 rows to the editor's 9**: it carries a **node-local entity** *(networkId 0, unnamed)*. ⇒ the entry survives, but its reason is now a measured host fact instead of a tooling gap, and the **scenario content is compared for real** by `The_two_hosts_hold_the_same_loaded_world` |
+| **⑤** | *(unstated)* the loaded worlds are comparable by id | 🔴🔴 **THE IDS DIFFER: editor `1000–1007`, cluster `2–9`** — same seven entities, same names, same order, **different allocator authorities** *(the editor's offline allocator vs the centralised `DdsIdAllocatorServer`, `mgmt-1` §5.7)*. ⇒ ⭐ names are what a shared scenario guarantees; a `networkId` is **not a portable name across hosts**. Pinned by `The_two_hosts_allocate_ids_from_different_authorities`, which reddens *and is deleted* if charter `D6` ever unifies them |
+| **⑥** | *(unstated)* equalise the worlds inside the existing diff | ⛔ **Two rails, not one.** 📐 Loading inside the structural diff made `mission` newly DIFFERENT *(`selectedEntityId` 0 vs 9, `commitButtonEnabled` false vs true)* — ExCon's mission panel carries a **local selection** once there is something to select. ⚠ Local selection is per-host by nature, so folding it in would have forced a whole-panel exemption and hidden real regressions inside `mission`. ⇒ structural rail asks *"same panel STRUCTURE"*, content rail asks *"same loaded WORLD"* |
+
+#### ⭐ Also shipped, and worth naming
+
+| | |
+|---|---|
+| ⭐ **`GET /scenarios` answers in a cluster host** | from the same cached inventory. ⛔ Otherwise `load/live` worked while the endpoint that tells you WHAT to load refused — a surface an agent cannot use |
+| ⭐⭐ **`scenario.load` is its own capability key** | ⛔ NOT `editor.authoring`. 📌 A cluster refusal used to read *"authoring is absent here"* — true of the editor's DRIVER, but easily misread as *"a cluster cannot load scenarios"*, which is false |
+| ⚠ **`/scenario/load` is an alias for `load/edit`** | callers were NOT migrated; the alias keeps `GoldenCaptureFixture` and `McpClient.LoadScenarioAsync` bit-identical. ⭐ The MCP catalog marks `load_scenario` deprecated and ships `load_scenario_edit` / `load_scenario_live` |
+
+#### 🔴 Open, with the batch that owns them
+
+| | |
+|---|---|
+| ⛔ **CGF has no edit-load handler** | ⇒ an *edit* load in `--mode all` is PARTIAL *(SimHost loads, CGF does not)*. ⭐ Declared, not crashed; the content diff therefore uses **live**. A CGF-lane follow-up *(`UXI-37` ruling 65)* |
+| ⚠ **`OwnershipUpdate` strict-mode violation** | 📐 During a cluster live load: *"Unmanaged event type 'OwnershipUpdate' (ID: 9030) was published without being explicitly registered"* in `NedReplication`. ⛔ **Newly OBSERVABLE, not newly introduced** — no cluster live load was possible here before. ⚠ Non-fatal *(the load completed with all 8 entities)*; editor-side is unaffected *(`OfflineNetworkFactory`, no NedReplication)* |
 
 ## ⭐⭐ Follow-up — GENERATE `tool-catalog.mjs` from the routes *(the catalog is the last hand-maintained mirror; `HN-030`)*
 

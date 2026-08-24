@@ -52,6 +52,12 @@ public static class CapabilityManifest
 
         if (path.StartsWith("/preview", StringComparison.Ordinal))    return DebugCapabilities.Preview;
         if (path.StartsWith("/sim", StringComparison.Ordinal))         return DebugCapabilities.TimeDrive;
+        // ⭐⭐ HN-029: the LOAD routes are their OWN capability, not `editor.authoring`.
+        //    📌 While `/scenario/load` was hardwired to IEditorLogic, a cluster refusal read "authoring is
+        //    absent here" — true of the editor's DRIVER, but easily misread as "a cluster cannot load
+        //    scenarios", which is false: it loads them all the time, through 2PC. ⛔ Ordered BEFORE the
+        //    /scenario prefix below, which still covers save/list.
+        if (path.StartsWith("/scenario/load", StringComparison.Ordinal)) return DebugCapabilities.ScenarioLoad;
         if (path.StartsWith("/scenario", StringComparison.Ordinal))    return DebugCapabilities.EditorAuthoring;
         if (path.StartsWith("/scenarios", StringComparison.Ordinal))   return DebugCapabilities.EditorAuthoring;
         if (path.StartsWith("/recording", StringComparison.Ordinal))   return DebugCapabilities.EditorAuthoring;

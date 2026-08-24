@@ -64,6 +64,24 @@ export const TOOLS_CATALOG = [
     manualVerify: false,
   },
 
+  {
+    name: 'get_capabilities',
+    group: 'A — Lifecycle & status',
+    summary: 'What THIS host can actually do — every endpoint, and the measured per-perspective matrix.',
+    http: { method: 'GET', path: '/capabilities' },
+    params: [],
+    returns: '{ mode, host{hasMaster,currentPerspective,routablePerspectives}, endpoints[], matrix{perspective:{capability:bool}}, unclassifiedRoutes[] }',
+    notes: [
+      'ASK THIS FIRST when a call answers 501 NOT_SUPPORTED_HERE — the matrix says which capabilities the active perspective offers, so you can switch perspective or pick another endpoint instead of guessing.',
+      'mode tells you how the process was started: "editor" (one context, everything local) or a cluster mode such as "all" (orchestrator + simhost + ig + excon + cgf).',
+      'The matrix is MEASURED from wired dependencies, not declared — a false cell is a bug, not a stale table.',
+      'host.hasMaster:false means a step cannot be confirmed cluster-wide on this host.',
+    ],
+    example: { args: {}, gist: 'find out what this host supports before driving it' },
+    hint: 'No params. Example: get_capabilities({})',
+    manualVerify: false,
+  },
+
   // ── Group B — Queries ────────────────────────────────────────────────────────
 
   {
@@ -269,21 +287,61 @@ export const TOOLS_CATALOG = [
   // ── Group E — Scenario ───────────────────────────────────────────────────────
 
   {
+    name: 'load_scenario_edit',
+    group: 'E — Scenario',
+    summary: 'Load a scenario for AUTHORING (Edit state), cluster-wide.',
+    http: { method: 'POST', path: '/scenario/load/edit' },
+    params: [
+      { name: 'name', type: 'string', required: true, description: 'Scenario name (relative path)' },
+      { name: 'waitForReady', type: 'boolean', required: false, description: 'Wait for the cluster to reach OperatingEdit before returning', default: false },
+    ],
+    returns: 'ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.',
+    notes: [
+      'Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).',
+      'Edit state freezes sim time — nothing ticks until enter_preview or play.',
+      'In --mode all this load is PARTIAL: CGF has no edit-load handler yet, so SimHost loads and CGF does not. Use load_scenario_live when every node must hold the world.',
+    ],
+    example: { args: { name: 'test-move', waitForReady: true }, gist: 'load test-move for authoring and wait for ready' },
+    hint: 'Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_edit({name:"test-move",waitForReady:true})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'load_scenario_live',
+    group: 'E — Scenario',
+    summary: 'Load a scenario for RUNNING (Live state), cluster-wide, on any host.',
+    http: { method: 'POST', path: '/scenario/load/live' },
+    params: [
+      { name: 'name', type: 'string', required: true, description: 'Scenario name (relative path)' },
+      { name: 'waitForReady', type: 'boolean', required: false, description: 'Wait for the cluster to reach OperatingLive before returning', default: false },
+    ],
+    returns: 'ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.',
+    notes: [
+      'Set waitForReady:true to block until the cluster reaches OperatingLive (recommended).',
+      'Every host has live-load handlers, so this is the mode that loads on ALL nodes — use it when the world must be the same everywhere.',
+      'A live load starts a new exercise run (a fresh ExerciseId), which is what recording and replay key off.',
+    ],
+    example: { args: { name: 'test-move', waitForReady: true }, gist: 'load test-move live across the cluster and wait for ready' },
+    hint: 'Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_live({name:"test-move",waitForReady:true})',
+    manualVerify: false,
+  },
+
+  {
     name: 'load_scenario',
     group: 'E — Scenario',
-    summary: 'Load a scenario by name. Puts the world into Edit state.',
+    summary: 'Deprecated alias for load_scenario_edit. Prefer naming the mode.',
     http: { method: 'POST', path: '/scenario/load' },
     params: [
       { name: 'name', type: 'string', required: true, description: 'Scenario name (relative path)' },
-      { name: 'waitForReady', type: 'boolean', required: false, description: 'Wait for cluster to reach OperatingEdit before returning', default: false },
+      { name: 'waitForReady', type: 'boolean', required: false, description: 'Wait for the cluster to reach OperatingEdit before returning', default: false },
     ],
     returns: 'ok:true envelope.',
     notes: [
-      'Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).',
-      'Loads into Edit state — sim is static until enter_preview or play.',
+      'Kept so existing callers keep working; it behaves exactly like load_scenario_edit.',
+      'There are two load modes — edit (authoring) and live (running). Say which you mean.',
     ],
-    example: { args: { name: 'test-move', waitForReady: true }, gist: 'load test-move scenario and wait for ready' },
-    hint: 'Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario({name:"test-move",waitForReady:true})',
+    example: { args: { name: 'test-move', waitForReady: true }, gist: 'load test-move (edit) and wait for ready' },
+    hint: 'Prefer load_scenario_edit / load_scenario_live. Example: load_scenario({name:"test-move",waitForReady:true})',
     manualVerify: false,
   },
 

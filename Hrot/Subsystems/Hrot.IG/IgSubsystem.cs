@@ -53,7 +53,11 @@ namespace Hrot.IG
                 perspective:   "IG",
                 world:         () => _app?.World,
                 entityMap:     null,
-                drive:         null);
+                drive:         null,
+                // ⭐⭐ HN-029 — IG cannot DRIVE time (no facade) but it CAN request a cluster transition; see
+                //    IgApplication.OrchestrationBus.
+                requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                       .TransitionsVia(() => _app?.OrchestrationBus));
 
         /// <inheritdoc/>
         /// <remarks>Forest green — distinct from SimHost (red) and ExCon (violet).</remarks>

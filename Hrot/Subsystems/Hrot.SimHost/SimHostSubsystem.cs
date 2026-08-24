@@ -56,7 +56,10 @@ namespace Hrot.SimHost
                 perspective:   "SimHost",
                 world:         () => _app?.WorldOrNull,
                 entityMap:     () => _app?.WorldOrNull is null ? null : _app!.TestHook_EntityMap,
-                drive:         () => _clusterTimeAdapter);
+                drive:         () => _clusterTimeAdapter,
+                // ⭐⭐ HN-029 — the node's own control-plane bus; see SimHostApp.OrchestrationBus.
+                requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                       .TransitionsVia(() => _app?.OrchestrationBus));
 
         /// <inheritdoc/>
         /// <remarks>Dark red — distinct from IG (green) and ExCon (violet).</remarks>

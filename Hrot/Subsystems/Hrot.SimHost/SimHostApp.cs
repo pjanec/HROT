@@ -169,6 +169,16 @@ namespace Hrot.SimHost
         /// <summary>Internal test hook: exposes the NedReplicationModule after initialization.</summary>
         internal Hrot.Common.Abstractions.INedReplicationModule? TestHook_NedReplication => _context?.NedReplication;
 
+        /// <summary>
+        /// ⭐⭐ <b>This node's CONTROL-PLANE bus</b> — the one its <c>ClusterSlave</c> and
+        /// <c>ClusterOpEgressTranslator</c> sit on *(`NodeBootstrapper:194-200`)*, so a
+        /// <c>TransitionStateIntent</c> published here reaches the master over DDS. 📄 <c>HN-029</c>,
+        /// <c>MCP_Integration.md</c> § Group U.
+        /// <para>⛔ Not a test hook — the debug API's <c>scenario/load/*</c> uses it in production.
+        /// ⚠ <see langword="null"/> before <c>Initialize</c> and after <c>Shutdown</c>; read it, never latch it.</para>
+        /// </summary>
+        internal FdpEventBus? OrchestrationBus => _context?.EventBus;
+
         // ── Network factory (injected from composition root) ───────────────────
         private INetworkFactory? _networkFactory;
         // ── Perception module (stored to expose ScopedBus to the event browser) ───

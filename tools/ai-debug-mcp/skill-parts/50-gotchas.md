@@ -4,6 +4,13 @@
 
 1. **Time is frozen in Edit state.** `step`/commands do nothing visible until `enter_preview` + `play`.
    Check `get_sim_state.inPreview`.
+1b. **A 501 `NOT_SUPPORTED_HERE` is an answer, not a fault.** It names the missing capability
+   (`time.drive`, `world.read`, `scenario.load`, …) and means *the active perspective cannot serve this*.
+   Call `get_capabilities`, then `switch_perspective` to one whose matrix row has that capability — do not
+   retry the same call.
+1c. **Pick the load mode deliberately.** `load_scenario_edit` = authoring, time frozen.
+   `load_scenario_live` = a real run on every node. On a cluster host an *edit* load is partial today
+   (CGF has no edit-load handler), so prefer **live** when the whole cluster must hold the world.
 2. **Arm traces first.** `get_entity_trace` is empty unless you `observe_trace{on:true}` and then step.
 3. **`awaited:false, reason:"sim not running"` is not an error** — it means time wasn't advancing; pause-step
    to observe results instead of waiting.

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.UI.Common.Facades;
 
@@ -56,6 +57,49 @@ public interface ISubsystemDebugProvider
     ITimeTransportFacade? Drive { get; }
 
     /// <summary>
+    /// ⭐⭐⭐ <b>REQUEST A CLUSTER-WIDE STATE TRANSITION from this node</b> — the host-agnostic scenario-load
+    /// seam. 📄 <c>MCP_Integration.md</c> § Group U.
+    ///
+    /// <para>🔒 <b>User, `2026-08-24`:</b> <i>"both should be cluster wide. editor is not special, also uses
+    /// 2pc for its single process."</i></para>
+    ///
+    /// <para>⭐⭐ <b>This introduces NO new mechanism.</b> 📐 Measured: every host already publishes
+    /// <c>TransitionStateIntent</c> onto its own orchestration bus, and every one of those buses already
+    /// reaches a <c>ClusterMaster</c> — <b>directly</b> where the host owns one *(the orchestrator's
+    /// <c>_bus</c>; the editor's own ONE-NODE master on <c>_orchestrationBus</c>)*, or via
+    /// <c>ClusterOpEgressTranslator</c> → DDS → <c>ClusterOpMasterTranslator</c> on a slave
+    /// *(CGF · SimHost · IG · ExCon all wire one)*. ⇒ ⭐ this member SELECTS that existing seam per
+    /// perspective, exactly as <see cref="Drive"/> does for stepping.</para>
+    ///
+    /// <para>⭐ <b>Deliberately narrower than "the bus".</b> The endpoint needs to request a transition, not
+    /// to publish arbitrary events; handing out an <c>FdpEventBus</c> would let the debug host inject
+    /// anything into a node's control plane. 📌 The same reasoning that made <c>HN-028</c> expose one
+    /// <c>bool?</c> instead of the whole <c>MasterSyncController</c>.</para>
+    ///
+    /// <para>⛔ <see langword="null"/> when this node cannot request one ⇒ <c>NOT_SUPPORTED_HERE</c>.</para>
+    /// </summary>
+    Action<TransitionStateIntent>? RequestTransition { get; }
+
+    /// <summary>
+    /// ⭐⭐ <b>This node's view of the CLUSTER's state</b> — what the scenario-load readiness gate waits on.
+    /// <see langword="null"/> when this node tracks no such view.
+    ///
+    /// <para>⚠⚠ <b>Unlike every other member here, this is NOT per-perspective data</b> — there is one cluster
+    /// and one state. ⭐ It is exposed per provider only because the CQRS read-model that caches it
+    /// *(<c>ClusterUiCache</c>, fed by <c>ClusterStateUpdateEvent</c>)* is built by whichever subsystems happen
+    /// to render cluster UI. ⇒ see <c>PerspectiveScopedDispatcher.ClusterStateAnyNode</c> for why falling back
+    /// to another provider is legitimate HERE and nowhere else.</para>
+    /// </summary>
+    ClusterState? ClusterState { get; }
+
+    /// <summary>
+    /// ⭐ The scenario names this node knows about, or <see langword="null"/> when it tracks none — so
+    /// <c>GET /scenarios</c> can answer in a cluster host, not only in the editor.
+    /// <para>⚠ Same caveat as <see cref="ClusterState"/>: it is cluster-wide inventory, cached per node.</para>
+    /// </summary>
+    IReadOnlyList<string>? AvailableScenarios { get; }
+
+    /// <summary>
     /// ⭐⭐ <b>What this subsystem CAN do, measured from wired dependencies — never a hand-authored table.</b>
     /// 📄 Q54 § Manifest scope: <i>"each provider DERIVES its own cells from ground truth"</i>; a
     /// hand-written *"works here / not there"* table is `CLAUDE.md` §M's green-and-false rot.
@@ -85,6 +129,9 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<EntityRepository?>? _world;
     private readonly Func<NetworkEntityMap?>? _entityMap;
     private readonly Func<ITimeTransportFacade?>? _drive;
+    private readonly Func<Action<TransitionStateIntent>?>? _requestTransition;
+    private readonly Func<ClusterState?>? _clusterState;
+    private readonly Func<IReadOnlyList<string>?>? _availableScenarios;
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE ACCESSORS ARE LAZY, AND THAT IS MEASURED — NOT DEFENSIVE STYLE.</b>
@@ -105,13 +152,43 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         string perspective,
         Func<EntityRepository?>? world = null,
         Func<NetworkEntityMap?>? entityMap = null,
-        Func<ITimeTransportFacade?>? drive = null)
+        Func<ITimeTransportFacade?>? drive = null,
+        Func<Action<TransitionStateIntent>?>? requestTransition = null,
+        Func<ClusterState?>? clusterState = null,
+        Func<IReadOnlyList<string>?>? availableScenarios = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
         _world        = world;
         _entityMap    = entityMap;
         _drive        = drive;
+        _requestTransition = requestTransition;
+        _clusterState = clusterState;
+        _availableScenarios = availableScenarios;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The ONE way a subsystem contributes <see cref="ISubsystemDebugProvider.RequestTransition"/>:
+    /// publish onto its own orchestration bus.</b> 📄 <c>MCP_Integration.md</c> § Group U.
+    ///
+    /// <para>⭐ Every host does exactly this and nothing else — 📐 measured: the orchestrator's <c>_bus</c> and
+    /// the editor's <c>_orchestrationBus</c> are read DIRECTLY by their own <c>ClusterMaster</c>; CGF · SimHost ·
+    /// IG *(all three via <c>NodeBootstrapper</c>)* and ExCon each wire a <c>ClusterOpEgressTranslator</c> onto
+    /// theirs, which carries the intent to the master over DDS. ⇒ ⛔ four hand-written copies of one lambda
+    /// would be four places for it to drift; this is the single implementation *(ruling 9)*.</para>
+    ///
+    /// <para>⚠ The bus is fetched through a <see cref="Func{T}"/> and re-read on every access — subsystem buses
+    /// are created in <c>Initialize</c> and NULLED in <c>Shutdown</c>. 📌 The same lesson as the lazy capability
+    /// accessors below, and as <c>HN-028</c>'s master read.</para>
+    /// </summary>
+    public static Func<Action<TransitionStateIntent>?> TransitionsVia(Func<FdpEventBus?> orchestrationBus)
+    {
+        if (orchestrationBus is null) throw new ArgumentNullException(nameof(orchestrationBus));
+        return () =>
+        {
+            var bus = orchestrationBus();
+            return bus is null ? null : intent => bus.PublishManaged(intent);
+        };
     }
 
     public string SubsystemName { get; }
@@ -119,6 +196,9 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public EntityRepository? World => _world?.Invoke();
     public NetworkEntityMap? EntityMap => _entityMap?.Invoke();
     public ITimeTransportFacade? Drive => _drive?.Invoke();
+    public Action<TransitionStateIntent>? RequestTransition => _requestTransition?.Invoke();
+    public ClusterState? ClusterState => _clusterState?.Invoke();
+    public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
 
     /// <summary>
     /// ⭐⭐⭐ <b>MEASURED from what is wired</b> — ⛔ never declared. 📌 Q54's one real risk: a hand-authored
@@ -129,6 +209,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         [DebugCapabilities.WorldRead]   = World is not null,
         [DebugCapabilities.EntityMap]   = EntityMap is not null,
         [DebugCapabilities.TimeDrive]   = Drive is not null,
+        [DebugCapabilities.ScenarioLoad] = RequestTransition is not null,
         // ⭐ Panels and the gizmo frame are PROCESS-WIDE statics (PanelSnapshot / the primitive buffer), so
         //   they are not a per-provider capability — the dispatcher reports them once. ⛔ Claiming them here
         //   per subsystem would suggest a routing that does not exist.
@@ -145,4 +226,13 @@ public static class DebugCapabilities
     public const string GizmoFrame = "panels.gizmo";
     public const string Preview   = "preview.control";
     public const string EditorAuthoring = "editor.authoring";
+
+    /// <summary>
+    /// ⭐⭐ <b>Requesting a cluster-wide scenario load</b> — <c>scenario/load/live</c> · <c>scenario/load/edit</c>.
+    /// <para>⛔ Deliberately NOT <see cref="EditorAuthoring"/>: 📌 while `/scenario/load` was hardwired to
+    /// <c>IEditorLogic</c>, a cluster refusal read *"authoring is absent here"* — true of the editor's DRIVER
+    /// but easily misread as *"a cluster cannot load scenarios"*, which is false. ⭐ Its own key says which
+    /// capability is actually missing.</para>
+    /// </summary>
+    public const string ScenarioLoad = "scenario.load";
 }

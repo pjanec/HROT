@@ -1633,6 +1633,17 @@ public class IgApplication : IDisposable
     /// </summary>
     internal Fdp.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => _clusterSlave;
 
+    /// <summary>
+    /// ⭐⭐ <b>This node's CONTROL-PLANE bus</b> — the one its <c>ClusterSlave</c> and
+    /// <c>ClusterOpEgressTranslator</c> sit on *(`NodeBootstrapper:194-200`, shared by SimHost · CGF · IG)*, so
+    /// a <c>TransitionStateIntent</c> published here reaches the master over DDS. 📄 <c>HN-029</c>.
+    /// <para>⛔ Not a test hook — the debug API's <c>scenario/load/*</c> uses it in production. ⚠ Read it, never
+    /// latch it: <see langword="null"/> before <c>Initialize</c> and after <c>Shutdown</c>.</para>
+    /// <para>⭐ Note IG offers this while offering NO clock *(<c>drive: null</c>)* — 📌 the capabilities are
+    /// genuinely independent.</para>
+    /// </summary>
+    internal Fdp.Core.FdpEventBus? OrchestrationBus => _context?.EventBus;
+
     /// <summary>Current kernel sim time in seconds ? available in both headless and normal mode.</summary>
     internal double TestHook_CurrentSimTime => _kernel.CurrentTime.TotalTime;
 

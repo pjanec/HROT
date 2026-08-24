@@ -3,7 +3,9 @@
 ## 3. Canonical workflows (compose these — they are the point of the API)
 
 ### A. Load and inspect
-1. `load_scenario {name:"test-move", waitForReady:true}` — blocks until the world is loaded (Edit state).
+1. `load_scenario_edit {name:"test-move", waitForReady:true}` — blocks until the world is loaded (Edit state).
+   Use `load_scenario_live` instead when you want a real run, or when you are on a cluster host and every node
+   must hold the world.
 2. `list_entities` → pick a `networkId`. (Filter with `component` / `near` to avoid dumping everything.)
 3. `get_entity {networkId}` → full component dump.
 

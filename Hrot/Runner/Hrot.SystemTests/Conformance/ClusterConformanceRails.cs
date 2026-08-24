@@ -40,6 +40,29 @@ public sealed class ClusterConformanceRails
 
     private const int SettleTicks = 3;
 
+    /// <summary>⭐ The curated scenario both hosts are given, so their worlds are comparable.</summary>
+    private const string ConformanceScenario = "hill-attack";
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>EQUALISE THE WORLDS — the sequence the design always specified and could not execute.</b>
+    /// 📄 <c>DESIGN_Headless_Testability.md</c> §Conformance *("load S in BOTH, then diff")* ·
+    /// <c>MCP_Integration.md</c> § Group U.
+    ///
+    /// <para>⛔⛔ Until <c>HN-029</c> this was impossible: <c>POST /scenario/load</c> was hardwired to
+    /// <c>IEditorLogic</c>, so <c>--mode all</c> answered <c>NOT_SUPPORTED_HERE(editor.authoring)</c> and
+    /// <c>entity-inspector</c> could only be DECLARED divergent, never diagnosed.</para>
+    ///
+    /// <para>⭐ <b>LIVE, not edit</b> — deliberate: every host has live-load handlers, whereas <b>CGF has no
+    /// edit-load handler</b> *(`UXI-37` ruling 65, a CGF-lane follow-up)*, so an edit load in
+    /// <c>--mode all</c> is PARTIAL and would compare a half-loaded cluster.</para>
+    /// </summary>
+    private static async Task LoadLiveAsync(EditorProcess host, ITestOutputHelper output)
+    {
+        var r = await host.Client.LoadScenarioLiveAsync(ConformanceScenario, waitForReady: true);
+        r.EnsureOk();
+        output.WriteLine($"[{host.Mode}] loaded live: {r.Data?.ToJsonString()}");
+    }
+
     // ══ the shared machinery ══════════════════════════════════════════════════
 
     /// <summary>⭐ Every captured panel in one host, keyed by KIND, with its id and canonical model.</summary>
@@ -146,9 +169,16 @@ public sealed class ClusterConformanceRails
     /// </summary>
     private static readonly Dictionary<string, string> DivergesByDesign = new(StringComparer.Ordinal)
     {
-        ["entity-inspector"] = "the two hosts hold different worlds and the cluster cannot be given the "
-                             + "editor's scenario (POST /scenario/load => NOT_SUPPORTED_HERE(editor.authoring)) "
-                             + "- a FINDING, and the reason this entry exists",
+        // ⭐⭐ REASON REPLACED `2026-08-24` (HN-029). It used to say the worlds "cannot be equalised" because
+        //    POST /scenario/load answered NOT_SUPPORTED_HERE(editor.authoring). ⛔ That tooling gap is GONE:
+        //    both hosts now load the same scenario live, and the entry survives for a MEASURED reason instead.
+        // 📐 With hill-attack loaded live in both (8 entities each), the IG node's inspector lists 10 rows to
+        //    the editor's 9: it carries a NODE-LOCAL entity (networkId 0, name null) the editor has no
+        //    counterpart for. ⇒ the panel's row LIST legitimately differs even when the SCENARIO content
+        //    matches — which `The_two_hosts_hold_the_same_loaded_world` now asserts directly.
+        ["entity-inspector"] = "the IG node's inspector also lists node-local entities (networkId 0, unnamed) "
+                             + "that the editor has no counterpart for; the SCENARIO content is compared for "
+                             + "real by The_two_hosts_hold_the_same_loaded_world",
         ["spawner"]          = "host-specific catalogue: the editor offers platforms, ExCon offers composites",
     };
 
@@ -168,6 +198,17 @@ public sealed class ClusterConformanceRails
         await using var editor  = await EditorProcess.StartAsync("conf-editor");
         await using var cluster = await EditorProcess.StartAsync("conf-all", mode: "all");
 
+        // ⛔⛔ THIS RAIL DELIBERATELY DOES *NOT* LOAD A SCENARIO — and that is a measured decision, not an
+        //    omission. 📄 The loaded-world comparison is its own rail now
+        //    (`The_two_hosts_hold_the_same_loaded_world`, HN-029).
+        //
+        // 📐 Measured `2026-08-24`: equalising the worlds HERE made `mission` newly DIFFERENT
+        //    (`selectedEntityId` 0 vs 9, `commitButtonEnabled` false vs true) — ⭐ ExCon's mission panel
+        //    carries a LOCAL SELECTION once there is something to select. ⚠ Local selection is per-host by
+        //    nature (a user clicks in one host, not the other), so folding it in here would have forced a
+        //    whole-panel exemption for `mission` and hidden any real regression inside it.
+        // ⇒ ⭐⭐ this rail asks "do the two hosts publish the same panel STRUCTURE", the other asks "did they
+        //    load the same WORLD". Two questions, two rails, neither weakened to accommodate the other.
         var a = await CaptureByKindAsync(editor,  _out);
         var b = await CaptureByKindAsync(cluster, _out);
 
@@ -352,6 +393,136 @@ public sealed class ClusterConformanceRails
 
         // ⚠ Documented, not asserted as a defect: IG exposes no clock because it builds no facade.
         Assert.Null(ig);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE PAYOFF OF <c>HN-029</c>: the two hosts are given the SAME scenario and their loaded worlds
+    /// are compared FOR REAL.</b> 📄 <c>DESIGN_Headless_Testability.md</c> §Conformance *("load S in BOTH, then
+    /// diff")* · <c>MCP_Integration.md</c> § Group U.
+    ///
+    /// <para>⛔⛔ <b>This sequence was NOT EXECUTABLE before.</b> <c>POST /scenario/load</c> was hardwired to
+    /// <c>IEditorLogic</c>, so <c>--mode all</c> answered <c>NOT_SUPPORTED_HERE(editor.authoring)</c> and the
+    /// only honest verdict available for world content was *"declared divergent"*. ⇒ ⭐ this rail is the
+    /// difference between an exemption and a measurement.</para>
+    ///
+    /// <para>⭐⭐ <b>What it compares, and why not the raw panel.</b> The inspector's row list is NOT the right
+    /// unit: 📐 measured, the IG node also lists a NODE-LOCAL entity *(networkId 0, unnamed)* the editor has no
+    /// counterpart for. ⛔ Comparing raw rows would therefore fail forever on a true difference and teach
+    /// everyone to ignore it. ⭐ The SCENARIO's content is the set of <b>networked, named</b> entities — the
+    /// ones <c>NetworkSpawningSystem</c> replicated from the same file — so those are what is asserted.</para>
+    ///
+    /// <para>🔴🔴 <b>And the ids are NOT compared, for a measured reason — this rail found it.</b> 📐 Both
+    /// hosts load the same seven entities, in the same order, with the same names; their <c>networkId</c>s are
+    /// <b>editor 1000–1007 vs cluster 2–9</b>, because the ids come from DIFFERENT ALLOCATOR AUTHORITIES *(the
+    /// editor's offline allocator vs the cluster's centralised <c>DdsIdAllocatorServer</c> — `mgmt-1` §5.7)*.
+    /// ⇒ ⭐ the NAMES are what a shared scenario guarantees; the id bases are a separate, filed finding, and
+    /// <see cref="The_two_hosts_allocate_ids_from_different_authorities"/> pins the difference so it cannot
+    /// change unnoticed.</para>
+    ///
+    /// <para>⚠ Deliberately NOT an ignore-list entry: an ignored JSON path would hide any regression under it.
+    /// ⭐ Selecting the comparable SUBSET states positively what must match.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_two_hosts_hold_the_same_loaded_world()
+    {
+        await using var editor  = await EditorProcess.StartAsync("conf-world-editor");
+        await using var cluster = await EditorProcess.StartAsync("conf-world-all", mode: "all");
+
+        await LoadLiveAsync(editor,  _out);
+        await LoadLiveAsync(cluster, _out);
+
+        var inEditor  = await NetworkedEntitiesAsync(editor,  _out);
+        var inCluster = await NetworkedEntitiesAsync(cluster, _out);
+
+        _out.WriteLine($"editor  ({inEditor.Count}): {string.Join(", ", inEditor.Select(e => $"{e.Id}:{e.Name}"))}");
+        _out.WriteLine($"cluster ({inCluster.Count}): {string.Join(", ", inCluster.Select(e => $"{e.Id}:{e.Name}"))}");
+
+        // ⛔ Anti-vacuity: two empty sets agree perfectly. 📌 The same trap HN-007 set for the panel diff.
+        Assert.True(inEditor.Count >= 5,
+            $"the editor loaded only {inEditor.Count} networked entities from '{ConformanceScenario}' — too "
+          + "few for this comparison to mean anything. ⭐ Check the load actually materialised the scenario.");
+
+        var namesEditor  = inEditor.Select(e => e.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray();
+        var namesCluster = inCluster.Select(e => e.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray();
+
+        Assert.True(namesEditor.SequenceEqual(namesCluster, StringComparer.Ordinal),
+            $"the two hosts loaded '{ConformanceScenario}' and do NOT hold the same networked entities.\n"
+          + $"  only in the EDITOR : [{string.Join(", ", namesEditor.Except(namesCluster, StringComparer.Ordinal))}]\n"
+          + $"  only in --mode all : [{string.Join(", ", namesCluster.Except(namesEditor, StringComparer.Ordinal))}]\n"
+          + "⭐ Both went through the same 2PC TransitionStateIntent{OperatingLive} on the same scenario file, "
+          + "so a difference here is a genuine divergence in what the load produced — not a harness artefact.");
+    }
+
+    /// <summary>
+    /// ⚠⚠ <b>THE TRIPWIRE ON A FILED FINDING: the two hosts number the same entities differently.</b>
+    /// 📄 charter <c>D6</c> *(deterministic network ids)* · <c>docs/DESIGN_Deterministic_Network_Ids.md</c> ·
+    /// <c>docs/designs/mgmt-1/DESIGN.md</c> §5.7 *(the centralised allocator)*.
+    ///
+    /// <para>📐 Measured `2026-08-24`, same scenario loaded live in both: the editor's ids start at <b>1000</b>
+    /// and the cluster's at <b>2</b>. ⭐ Each host is internally deterministic — ⛔ but a network id is NOT a
+    /// portable name for an entity ACROSS hosts, which matters to anything that records an id in one host and
+    /// replays it in another.</para>
+    ///
+    /// <para>⭐⭐ Asserted rather than merely noted, in the same spirit as the declared-divergence control: if
+    /// the two authorities are ever unified this rail REDDENS and is deleted — which is how a known gap gets
+    /// closed on purpose instead of drifting.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_two_hosts_allocate_ids_from_different_authorities()
+    {
+        await using var editor  = await EditorProcess.StartAsync("conf-ids-editor");
+        await using var cluster = await EditorProcess.StartAsync("conf-ids-all", mode: "all");
+
+        await LoadLiveAsync(editor,  _out);
+        await LoadLiveAsync(cluster, _out);
+
+        var idsEditor  = (await NetworkedEntitiesAsync(editor,  _out)).Select(e => e.Id).OrderBy(i => i).ToArray();
+        var idsCluster = (await NetworkedEntitiesAsync(cluster, _out)).Select(e => e.Id).OrderBy(i => i).ToArray();
+
+        _out.WriteLine($"editor ids : [{string.Join(", ", idsEditor)}]");
+        _out.WriteLine($"cluster ids: [{string.Join(", ", idsCluster)}]");
+
+        Assert.NotEmpty(idsEditor);
+        Assert.NotEmpty(idsCluster);
+
+        // ⭐ Each host must at least be self-consistent: ids unique within a host.
+        Assert.Equal(idsEditor.Length,  idsEditor.Distinct().Count());
+        Assert.Equal(idsCluster.Length, idsCluster.Distinct().Count());
+
+        Assert.False(idsEditor.SequenceEqual(idsCluster),
+            "the editor and --mode all now allocate the SAME network ids for the same scenario. ⭐ That is an "
+          + "IMPROVEMENT, not a failure: the two allocator authorities have been unified (charter D6). "
+          + "⛔ Delete this rail and remove the id-divergence finding from the tracker.");
+    }
+
+    /// <summary>
+    /// ⭐ The SCENARIO-derived entities from the entity-inspector panel model.
+    /// <para>⛔ Filters out node-local rows *(networkId 0 or no name)*: those are per-host by construction and
+    /// are exactly what makes the raw row list incomparable.</para>
+    /// </summary>
+    private static async Task<List<(long Id, string Name)>> NetworkedEntitiesAsync(
+        EditorProcess host, ITestOutputHelper output)
+    {
+        var byKind = await CaptureByKindAsync(host, output);
+
+        Assert.True(byKind.TryGetValue("entity-inspector", out var inspector),
+            $"[{host.Mode}] published no entity-inspector panel, so there is no world to compare. "
+          + $"Kinds seen: [{string.Join(", ", byKind.Keys.OrderBy(k => k, StringComparer.Ordinal))}]");
+
+        var model = JsonNode.Parse(inspector.Model);
+        var rows  = model?["entities"] as JsonArray;
+        Assert.NotNull(rows);
+
+        var list = new List<(long, string)>();
+        foreach (var row in rows!)
+        {
+            long id    = row?["networkId"]?.GetValue<long>() ?? 0;
+            string? nm = row?["name"]?.GetValueKind() == System.Text.Json.JsonValueKind.String
+                         ? row!["name"]!.GetValue<string>() : null;
+            if (id == 0 || string.IsNullOrEmpty(nm)) continue;   // node-local, not scenario content
+            list.Add((id, nm!));
+        }
+        return list;
     }
 
     /// <summary>

@@ -67,6 +67,7 @@ namespace Hrot.Editor.DebugApi
         private readonly ITimeTransportFacade?           _editorTime;
         private readonly IPreviewController?             _editorPreview;
         private readonly IEditorLogic?                   _editorLogic;
+        private readonly Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? _editorRequestTransition;
         private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
         private readonly MasterSyncController?            _timeController;
         private readonly Func<ClusterState>?             _clusterStateGetter;
@@ -97,6 +98,15 @@ namespace Hrot.Editor.DebugApi
         private IEditorLogic _editor
             => _editorLogic
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring);
+
+        /// <summary>
+        /// ⭐⭐ <b>The host-agnostic cluster-transition publisher</b> — the editor's own bus, or the active
+        /// perspective's node bus in <c>--mode all</c>. 📄 <c>MCP_Integration.md</c> § Group U.
+        /// </summary>
+        private Action<Fdp.Toolkit.Orchestration.TransitionStateIntent> _requestTransition
+            => _editorRequestTransition
+               ?? _dispatcher?.RequestTransition
+               ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad);
 
         private IDiagnosticEventHistoryService _eventHistory
             => _editorEventHistory
@@ -315,7 +325,8 @@ namespace Hrot.Editor.DebugApi
             DebugPrimitiveBuffer?                         primitiveBuffer   = null,
             Fdp.Toolkit.Behavior.BehaviorRegistry?        behaviorRegistry  = null,
             Hrot.UI.Common.Facades.IMissionEditorService? missionService    = null,
-            Fdp.Toolkit.Blueprints.BlueprintRegistry?     blueprintRegistry = null)
+            Fdp.Toolkit.Blueprints.BlueprintRegistry?     blueprintRegistry = null,
+            Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? requestTransition = null)
         {
             // ⭐ The EDITOR shape still requires all nine — ⛔ this ctor has not become permissive. The
             //   cluster shape is a SEPARATE ctor below, so an editor wiring bug still fails loudly at boot.
@@ -328,6 +339,12 @@ namespace Hrot.Editor.DebugApi
             _editorEventHistory = eventHistory     ?? throw new ArgumentNullException(nameof(eventHistory));
             _timeController     = timeController   ?? throw new ArgumentNullException(nameof(timeController));
             _clusterStateGetter = clusterState     ?? throw new ArgumentNullException(nameof(clusterState));
+            // ⭐⭐ HN-029: OPTIONAL, and legitimately so — the editor's `scenario/load/edit` goes through
+            //    IEditorLogic (which drives the same intent plus a local wipe), so a host that wires no
+            //    publisher still loads in EDIT. ⛔ `load/live` then answers NOT_SUPPORTED_HERE(scenario.load)
+            //    rather than pretending. ⚠ The production caller MUST pass it (CLAUDE.md's silent-default rule:
+            //    a caller that HAS the dependency must pass it) — EditorSubsystem does.
+            _editorRequestTransition = requestTransition;
             _tkbDb             = tkbDb            ?? new TkbDatabase();
             _geoTransform      = geoTransform     ?? new Fdp.Modules.Geographic.Transforms.WGS84Transform();
             _spatialGridCellSize = spatialGridCellSize;
@@ -828,10 +845,19 @@ namespace Hrot.Editor.DebugApi
         // ── Group E — Scenario list / load / save ──────────────────────────────
 
         /// <summary><c>GET /scenarios</c> — available scenario names (thread-safe enough; main thread used).</summary>
+        /// <remarks>
+        /// ⭐⭐ HN-029: answers in a CLUSTER host too, from whichever node caches the inventory. ⛔ Otherwise
+        /// <c>scenario/load/live</c> would work in <c>--mode all</c> while the endpoint that tells you WHAT to
+        /// load refused — a surface an agent cannot actually use.
+        /// </remarks>
         public JsonNode ListScenarios()
         {
+            var names = _editorLogic?.AvailableScenarios
+                        ?? _dispatcher?.AvailableScenariosAnyNode
+                        ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring);
+
             var arr = new JsonArray();
-            foreach (var s in _editor.AvailableScenarios)
+            foreach (var s in names)
                 arr.Add(s);
             return arr;
         }
@@ -851,6 +877,77 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
+        /// ⭐⭐⭐ <b><c>POST /scenario/load/edit</c> — load for AUTHORING, cluster-wide.</b>
+        /// 📄 <c>MCP_Integration.md</c> § Group U · state machine owned by <c>docs/designs/mgmt-1/DESIGN.md</c>
+        /// §12/§5.5.
+        ///
+        /// <para>🔒 <b>User, `2026-08-24`:</b> <i>"there are 2 load modes — live and edit … both should be
+        /// cluster wide. editor is not special, also uses 2pc for its single process."</i></para>
+        ///
+        /// <para>⭐⭐ <b>Both arms end in the SAME <c>TransitionStateIntent{OperatingEdit}</c> on a
+        /// <c>ClusterMaster</c>.</b> ⚠ Where they differ is the DRIVER, and the difference is real, not
+        /// editor-favouritism: <see cref="IEditorLogic.LoadScenarioByName"/> first transitions to
+        /// <c>Idle</c> and does a LOCAL wipe *(<c>NewScenario()</c> → <c>WorldResetEvent</c> + <c>SoftClear</c>)*
+        /// before requesting <c>OperatingEdit</c>. ⛔ On a multi-node cluster that clearing is each node's own
+        /// <c>HrotEditLoadHandler</c>'s job, so the extra hop has nothing to do. ⇒ ⭐ when the editor driver is
+        /// present it is used *(also keeping `GoldenCaptureFixture` and every existing rail bit-identical)*;
+        /// otherwise the intent is published directly.</para>
+        ///
+        /// <para>⚠⚠ <b>CGF has NO edit-load handler</b> *(`UXI-37` ruling 65 — a CGF-lane follow-up)*, so in
+        /// <c>--mode all</c> an edit load is PARTIAL: SimHost loads, CGF does not. ⛔ Declared in the
+        /// conformance baseline rather than crashing — which is why the content diff uses LIVE.</para>
+        /// </summary>
+        public JsonNode LoadScenarioEdit(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Scenario name is required.", nameof(name));
+
+            if (_editorLogic is not null)
+            {
+                _editorLogic.LoadScenarioByName(name);
+                return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "editor-driver" };
+            }
+
+            _requestTransition(new Fdp.Toolkit.Orchestration.TransitionStateIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetState   = ClusterState.OperatingEdit,
+                ScenarioId    = name,
+                // ⭐ Guid.Empty, mirroring the orchestrator panel's own "Load into Edit" button: authoring is
+                //   not an exercise run, so it gets no ExerciseId.
+                ExerciseId    = Guid.Empty,
+            });
+            return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "cluster-intent" };
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>POST /scenario/load/live</c> — load for RUNNING, cluster-wide.</b>
+        /// 📄 <c>MCP_Integration.md</c> § Group U.
+        ///
+        /// <para>⭐ Uniform in every host — ⛔ there is no editor-only live-load driver to prefer, so this arm
+        /// has no special case at all. 📐 Handlers exist everywhere *(`HrotScenarioLoadHandler` +
+        /// `ReferenceLiveLoadHandler` on SimHost · CGF · editor)*, so this is endpoint plumbing and a readiness
+        /// contract — **no new handler**.</para>
+        ///
+        /// <para>⭐ A fresh <c>ExerciseId</c> per load, mirroring the orchestrator panel's "Load into Live"
+        /// button: a live load IS a new exercise run, and the id is what recording/replay keys off.</para>
+        /// </summary>
+        public JsonNode LoadScenarioLive(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Scenario name is required.", nameof(name));
+
+            _requestTransition(new Fdp.Toolkit.Orchestration.TransitionStateIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetState   = ClusterState.OperatingLive,
+                ScenarioId    = name,
+                ExerciseId    = Guid.NewGuid(),
+            });
+            return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent" };
+        }
+
+        /// <summary>
         /// Reads the orchestration bus for the latest cluster-state and returns true once it is
         /// <see cref="ClusterState.OperatingEdit"/>. <b>Must run on the main thread</b> — it both
         /// drives <c>IEditorLogic.Update()</c> (which consumes the orchestration events and advances
@@ -858,6 +955,25 @@ namespace Hrot.Editor.DebugApi
         /// deliberately NOT used as the completion signal (set at frame 0).
         /// </summary>
         public bool PollClusterStateIsOperatingEdit() => CurrentClusterState() == ClusterState.OperatingEdit;
+
+        /// <summary>
+        /// ⭐⭐ <b>The same poll, for ANY target state</b> — <c>HN-029</c> needs <c>OperatingLive</c> as well as
+        /// <c>OperatingEdit</c>. ⛔ Must run on the main thread, for the reason
+        /// <see cref="PollClusterStateIsOperatingEdit"/> gives: it drives the update that consumes the
+        /// orchestration events as well as reading their result.
+        /// </summary>
+        public bool PollClusterStateIs(ClusterState target) => CurrentClusterState() == target;
+
+        /// <summary>
+        /// ⭐ <see cref="WorldEntityCount"/>, degrading to <see langword="null"/> on a host with no world
+        /// *(ExCon)*. ⚠ The load-edge check needs a count; without one it can only watch the STATE, and the
+        /// caller must know which of the two it got rather than reading `0` as "empty world".
+        /// </summary>
+        public int? WorldEntityCountOrNull()
+        {
+            try { return _world.EntityCount; }
+            catch (Hrot.Presentation.DebugApi.NotSupportedHereException) { return null; }
+        }
 
         /// <summary>
         /// ⭐⭐⭐ <b>The world's entity count — the LOAD EDGE the readiness check needs.</b>
@@ -1249,8 +1365,17 @@ namespace Hrot.Editor.DebugApi
 
         // ── Helpers ─────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// ⭐⭐ The cluster's state — the editor's own getter, else whichever cluster node caches it.
+        /// <para>📐 Measured `2026-08-24`: without the dispatcher arm, <c>POST /scenario/load/live</c> in
+        /// <c>--mode all</c> published its intent, the master accepted it and fanned out to 5 nodes, and the
+        /// endpoint then answered <c>NOT_SUPPORTED_HERE(cluster.state)</c> — ⛔ the load WORKED and the reply
+        /// said it was unsupported, because only the READINESS read was missing. ⚠ Exactly deviation ⑤'s shape
+        /// *(a response payload making a supported command look unsupported)*, one layer up.</para>
+        /// </summary>
         private ClusterState CurrentClusterState()
             => _clusterStateGetter?.Invoke()
+               ?? _dispatcher?.ClusterStateAnyNode
                ?? throw NotSupportedHere("cluster.state");
 
         /// <summary>

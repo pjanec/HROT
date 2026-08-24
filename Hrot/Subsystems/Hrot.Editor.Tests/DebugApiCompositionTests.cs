@@ -34,6 +34,10 @@ public sealed class DebugApiCompositionTests
     [InlineData("behaviorRegistry:", "GET /behaviors cannot report any behaviour's parameter schema")]
     // The staged-write queue is also what the pending (yellow) flag is read from.
     [InlineData("bpManager:", "breakpoints and the pending-write flag are both unavailable")]
+    // HN-029: the editor's own one-node ClusterMaster sits on _orchestrationBus, so the editor CAN
+    // request a cluster transition. Without the hand-off POST /scenario/load/live answers
+    // NOT_SUPPORTED_HERE(scenario.load) in the EDITOR — the mode that has always been able to load.
+    [InlineData("requestTransition:", "POST /scenario/load/live refuses in the editor")]
     public void TheDebugApiServiceIsHandedItsDependencies(string argument, string consequence)
     {
         var call = DebugApiServiceConstruction();

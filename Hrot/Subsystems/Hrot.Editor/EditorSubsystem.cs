@@ -1830,7 +1830,15 @@ namespace Hrot.Editor
                         behaviorRegistry: behaviorRegistry,
                         // MX1 (Group O): turns a blackboard slot's int blueprintId into the asset Guid
                         // the debug session addresses variables by.
-                        blueprintRegistry: _blueprintRegistry);
+                        blueprintRegistry: _blueprintRegistry,
+                        // ⭐⭐ HN-029: the editor is NOT special — it is a ONE-NODE cluster whose own
+                        //    ClusterMaster reads this very bus (_clusterMaster = new ClusterMaster(
+                        //    _orchestrationBus, offlineConfig)). ⇒ publishing a TransitionStateIntent here is
+                        //    the SAME 2PC path a multi-node cluster takes, which is exactly what makes
+                        //    scenario/load/live work in the editor at all.
+                        // ⛔ The editor holds this bus, so not passing it would be the silent-default defect —
+                        //    the forwarding rail in DebugApiCompositionTests asserts this argument by name.
+                        requestTransition: intent => _orchestrationBus!.PublishManaged(intent));
 
                     _debugApiService = debugService;
                     _debugApiHost.AttachService(debugService);
