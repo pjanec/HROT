@@ -1,6 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: DISPATCH
+build-state: DESIGN-GATED — ⛔ NOT dispatchable until Architect_Question_54 is approved; the §6a framing this
+  handoff cited (one minimal ClusterReadDriveService) is SUPERSEDED by Q54 (perspective-scoped dispatcher +
+  capability manifest). Re-stamp and re-issue on approval (rule 1a — verified unstarted in all impl branches
+  2026-08-24).
 updated: 2026-08-24
 current-answer: dispatch pointer for the cross-host conformance harness — steps 6+7 of
   DESIGN_Headless_Testability.md. Lift the read+drive API to the ClusterRunner host so --mode all answers
@@ -13,7 +16,16 @@ known-conflict: none in the harness lane. ⛔ CROSS-LANE BOUNDARY: the Lookahead
 -->
 # HANDOFF — **the cross-host conformance harness** *(steps 6+7)*
 
-> 📌 **Dispatched at `878cf022d`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> ⛔⛔ **HELD `2026-08-24` — DO NOT DISPATCH YET.** 📄 The user raised two architectural requirements
+> *(capability discovery for unported/undesired features; perspective-scoped command routing in `--mode all`)*
+> now captured in **[`Architect_Question_54`](../Architect_Question_54_Cluster_Mcp_Contract.md)**. ⭐ Item ① below
+> *(the read+drive split)* is **re-shaped by Q54** into a perspective-scoped dispatcher + per-subsystem providers
+> + a capability manifest, and item ④ *(conformance)* becomes a **THREE-way** verdict. ⛔ **This handoff is
+> re-issued (re-stamped, rule 1a) once the user approves Q54's leans** — building it as written would build the
+> superseded framing. ⭐ Items ③/⑤/⑥/⑦ *(ack-gated step, mutation proof, goldens re-proof, lockstep rail)* are
+> unaffected and survive the re-issue.
+
+> 📌 **Original dispatch stamp `878cf022d` — VOID until re-issue.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: push the started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`HN-`**/**`MX-`**, tracker **Area J** — 📐 the Area-J series stands at **`HN-025`** *(net)* /
 > **`HN-122`** *(MCP-harness)* / **`MX-014`**. ⭐ **Rule 3: you allocate the ids; state them (rule 5).**

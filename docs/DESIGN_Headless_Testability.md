@@ -199,6 +199,13 @@ when a feature changes, and if they DON'T, that divergence is the bug conformanc
 ⭐ **Why the model layer, not pixels:** the draw is per-host; the thing being *unified* is the model-building
 logic. A model diff names *what* differed; a pixel diff only says *that* it did, and drowns in font/AA noise.
 
+⛔⛔ **The verdict is THREE-way, not two.** *"Present in editor, absent in `--mode all`"* is the **expected** state
+for every feature not yet ported ⇒ a two-way diff is wrong. The verdict is **SAME · DIFFERENT · NOT-PRESENT**,
+and ⭐⭐ **NOT-PRESENT is READ FROM THE CAPABILITY MANIFEST** *(charter D4)*, **never inferred from a missing
+panel** — otherwise a genuinely broken panel reads as *"not ported yet"* forever. 📄 The manifest + the
+perspective-scoped command routing are [`Architect_Question_54`](blueprints/Architect_Question_54_Cluster_Mcp_Contract.md);
+📄 the verdict is `DESIGN_Perspective_Unification.md` §1d.
+
 ## ⭐⭐⭐ Step 6 — the lifted read+drive API, and the ONE stepping law both modes obey
 
 > 🔒 **User, `2026-08-24`:** *"do not forget also about the goldens based tests (editor showing same stuff as
@@ -213,13 +220,21 @@ free-running clock is a golden of a race.
 
 ### ⛔⛔ 6a — the lift is a DEPENDENCY SPLIT, not a move *(measured `2026-08-24`)*
 
+> ⚠⚠ **RE-POINTED `2026-08-24` — the "one minimal `ClusterReadDriveService`" framing below is SUPERSEDED by
+> [`Architect_Question_54`](blueprints/Architect_Question_54_Cluster_Mcp_Contract.md).** 📌 A single frozen
+> cluster service would have to be re-split every time an editor-only feature migrates into a subsystem
+> *(charter D3 — they DO migrate)*. ⭐ **The as-designed shape is a PERSPECTIVE-SCOPED DISPATCHER over
+> per-subsystem `ISubsystemDebugProvider`s + a capability manifest** *(Q54-1 Option C, Q54-2 Option B)*. The
+> dependency-split insight below still holds — the read surface must not carry editor-only deps — but it lands
+> as *one provider per subsystem*, not one cluster service. ⛔ Build against Q54 once approved.
+
 📐 `DebugApiService` has **editor-only** constructor deps — `IPreviewController`, `IEditorLogic`, the three AI
 debug sessions — all `throw`-guarded *(EditorSubsystem.cs:1804-1833)*, so it **cannot be constructed in
 `--mode all`** *(open question 2, now settled)*. ⭐⭐ **But the read+drive surface conformance needs touches
 almost none of them:** `GetPanels()/GetPanel(id)` are pure static `PanelSnapshot` reads, `GetGizmoFrame()`
 reads the injected `DebugPrimitiveBuffer`, and `Step()` goes through the mode-agnostic time seam below.
-⇒ ⭐⭐⭐ **extract that surface behind a small interface the editor service ALSO satisfies — one definition of
-"what a panel shows / how the world is driven", two hosts.**
+⇒ ⭐⭐⭐ **extract that surface behind a small interface — realised per-subsystem *(Q54)* so each subsystem
+contributes its own provider as its features land, not as one monolith.**
 
 ```mermaid
 classDiagram
