@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE
+state: WITHDRAWN
 build-state: DISPATCH
 updated: 2026-08-24
 current-answer: ⛔ REVISED 2026-08-24 — GIZMOS reflect-all; COMPONENTS/EVENTS stay ROLE-GATED (the
@@ -8,6 +8,13 @@ current-answer: ⛔ REVISED 2026-08-24 — GIZMOS reflect-all; COMPONENTS/EVENTS
 known-conflict: ⚠ CORRECTS (not subsumes) ST-027's MapSchemaPack — its 15 repo tables become id-only
   (§2d, item ⓪); CLOSES Q53's MapGizmoPack (the gizmo handler is the answer).
 -->
+# ⛔ WITHDRAWN — reflection world-priming
+
+> ⛔⛔ **WITHDRAWN `2026-08-24`, before any code.** The user scoped the reflection idea to what it was
+> ever about — **components**, which we are NOT reflecting *(role-gated stays; 📄 `DESIGN_Reflection_World_Priming.md`)*. ⭐ The only live piece — **gizmo discovery by reflection** —
+> is now a focused gizmo batch: 📄 **`HANDOFF_Gizmo_Reflection.md`**, pointing at
+> `DESIGN_Uniform_Gizmo_Membership.md` §8. ⛔ Do not build this file.
+
 # HANDOFF — **reflection world-priming** *(one scan, pluggable handlers)*
 
 > 📌 **Dispatched at `2364c6c2d` *(re-stamped — rule 1a revision)*.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from

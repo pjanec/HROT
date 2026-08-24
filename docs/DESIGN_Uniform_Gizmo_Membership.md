@@ -247,3 +247,83 @@ is callable by **all five hosts**.
 |---|---|
 | ⛔ **③ invariant `B` NOT added** | `B` asserts *"every host declares all six"* — 📐 **false on four of five hosts** until ② lands, so adding it now is a **permanent red**, which `R-131` forbids. ⭐ `B` is ②'s lock and belongs in ②'s batch. ⚠ **And it must assert SEVEN, not six** *(§7.2)* |
 | ⭐ **④ invariant `A` re-proven red** | removing `EqsSensor` from the widened pack reddens **exactly the `ig` case**, naming *"EqsSensor (required by EqsSensorGizmo in Hrot.IG.Gizmos)"*. ⚠ **A discriminating probe matters:** removing `TargetMemory` first changed **nothing** — `IgRoleComponentRegistry` and SimHost's registries also supply it, so the host is still satisfied. ⭐ **That is the rail being right**, and it means a red-probe must pick a component **only the pack provides** |
+
+---
+
+## ⭐⭐⭐ 8. THE RESOLUTION — **gizmo families discovered by REFLECTION** *(Q53 Option A, ruled `2026-08-24`)*
+
+> ⭐⭐ **This SUPERSEDES §3 ② and §4's `MapGizmoPack`** *(the compile-time pack)* and **§7.3's Option B**
+> *(the 5 file moves)*. 🔒 The user ruled **Option A** — reflection — and then, on the component-scan
+> critique, scoped it to **gizmos only**: 📄 **components are NOT reflected** *(see
+> [`DESIGN_Reflection_World_Priming.md`](DESIGN_Reflection_World_Priming.md) — role-gated, measured
+> downsides)*. ⭐ This section is gizmos alone.
+
+### 8.1 Why reflection is safe HERE and not for components
+
+📐 Measured `2026-08-24`: a gizmo is **data-free** — none of the component downsides touch it.
+
+| | gizmo projector | ECS component |
+|---|---|---|
+| needs a repo **table**? | ⛔ **no** — `StatelessGizmoRegistry.Register` needs only the static **id** *(`GetId`, `:73`)*; `StatelessGizmoSystem` iterates by the entity's **component-mask bit** *(`:103`)* | ✅ yes — a table costs memory + SoD |
+| a host with no matching entity | ⭐ **draws nothing** *(mask never matches)* | — |
+| in the recorder / save / DDS layout / `CreateFullMask`? | ⛔ **no** | ✅ yes — the §-`Reflection_World_Priming` downsides |
+
+⇒ ⭐⭐⭐ **reflect-all gizmos is free; reflect-all components is not.** The two decisions are unrelated.
+
+### 8.2 The design
+
+| # | ⭐ |
+|---|---|
+| **①** | ⭐⭐⭐ **`GizmoReflectionRegistrar.RegisterAll(gizmoReg, statelessReg, settings)` in `Fdp.Toolkits`** — reflects loaded assemblies, finds every `[GizmoProjector]`, registers it. ⛔ No compile-time reference to any host assembly ⇒ **the cycle never arises** *(the whole point of Option A over B)* |
+| **②** | ⭐⭐ **required component ids resolved ID-ONLY** — `ComponentTypeRegistry.GetOrRegisterManaged`, ⛔ **NOT `repo.RegisterComponent`** — so a host that does not simulate a component satisfies the projector **without** a recordable table *(this is the `ST-027`/`MapSchemaPack` correction — §8.4)* |
+| **③** | ⭐ **every host calls it** in place of its hand-rolled family list ⇒ uniform membership, presence decides drawing |
+| **④** | ⭐⭐ **the completeness rail** — source `[GizmoProjector]` count vs runtime, every mode; catches the one real reflection risk *(a projector whose assembly a mode never loads)*. ⛔ Seen to fail |
+
+### 8.3 UML
+
+```mermaid
+classDiagram
+    class GizmoReflectionRegistrar {
+        <<new, Fdp.Toolkits>>
+        +RegisterAll(gizmoReg, statelessReg, settings)
+        -ScanForProjectors() Type[]
+    }
+    class ComponentTypeRegistry {
+        <<static — GetOrRegisterManaged: id-only, no table>>
+    }
+    class StatelessGizmoRegistry {
+        <<existing — needs the id, not a table>>
+    }
+    class Host {
+        <<editor / ig / simhost / cgf / replaybrowser>>
+    }
+    Host --> GizmoReflectionRegistrar : one call, replaces the hand-rolled list
+    GizmoReflectionRegistrar ..> ComponentTypeRegistry : id-only dependency
+    GizmoReflectionRegistrar --> StatelessGizmoRegistry : Register per projector
+    note for GizmoReflectionRegistrar "reflect-all is safe: a projector with no entity draws nothing"
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant H as any host bootstrap
+    participant R as GizmoReflectionRegistrar
+    participant CTR as ComponentTypeRegistry
+    participant Reg as StatelessGizmoRegistry
+
+    H->>R: RegisterAll(...)
+    R->>R: scan loaded assemblies for [GizmoProjector]
+    loop each projector
+        R->>CTR: GetOrRegisterManaged(required components) — ID ONLY
+        R->>Reg: Register(projector)
+    end
+    Note over CTR,Reg: a brain gizmo on IG: id known, no entity carries it, draws nothing
+```
+
+### 8.4 ⚠ THE `ST-027` CORRECTION — **MapSchemaPack registered TABLES; the gizmo needs only IDS**
+
+📐 `ST-027`'s `MapSchemaPack` does `repo.RegisterComponent<T>()` for 15 components on **every** host — full
+**recordable tables**. On IG/SimHost that makes brain components `IsComponentTypeRegistered`-true *(TkbTemplate
+risk)* and **recordable** *(schema pollution)* — the exact component downside. ⇒ ⭐⭐ **replace it with the
+id-only dependency (§8.2 ②)** for components a host does not simulate, and **assert** a Muscle/IG node's
+recordable set excludes brain-tier components. ⭐ **Item ⓪ of the build measures whether it is live first.**
