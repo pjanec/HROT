@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -64,12 +65,26 @@ namespace Hrot.Editor.DebugApi
             WriteIndented = false
         };
 
-        public DebugApiHost(int port, MainThreadJobQueue jobQueue, Action shutdownCallback)
+        /// <summary>⭐ How this process was started — reported by <c>GET /capabilities</c>. See its remarks.</summary>
+        private readonly string _mode;
+
+        /// <summary>⭐ Cluster mode only: supplies the MEASURED per-perspective capability matrix.</summary>
+        private Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher? _dispatcher;
+
+        public DebugApiHost(int port, MainThreadJobQueue jobQueue, Action shutdownCallback, string mode = "editor")
         {
             _port = port;
             _jobQueue = jobQueue;
             _shutdownCallback = shutdownCallback;
+            _mode = mode;
         }
+
+        /// <summary>
+        /// ⭐⭐ Cluster mode: hands the host the dispatcher so <c>GET /capabilities</c> can report the
+        /// per-perspective matrix it MEASURES. ⛔ Not needed in editor mode *(one context)*.
+        /// </summary>
+        public void AttachDispatcher(Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher dispatcher)
+            => _dispatcher = dispatcher;
 
         /// <summary>
         /// Supplies the service layer once the editor has finished initializing. Until this is
@@ -109,6 +124,30 @@ namespace Hrot.Editor.DebugApi
         {
             // Group A — status
             _routes.Add(new("GET", "/status", _ => RunMain(s => s.GetStatus())));
+
+            // ⭐⭐⭐ GET /capabilities — D4's teaching surface. 📄 Architect_Question_54 § Manifest scope.
+            // ⛔ The DESCRIPTION is enumerated from `_routes` itself, so it cannot drift from the code; the
+            //    AVAILABILITY matrix is measured from wired dependencies. ⚠ Registered here but evaluated
+            //    per request, so it always describes the COMPLETE table (including routes added below).
+            _routes.Add(new("GET", "/capabilities", _ => Task.FromResult(Ok(
+                CapabilityManifest.Build(
+                    _routes.Select(r => (r.Method, r.Template)),
+                    _mode,
+                    _dispatcher,
+                    // ⭐ Editor mode: one context, and every cell is measured from the service being
+                    //   constructible with those deps at all.
+                    _dispatcher is null
+                        ? new Dictionary<string, bool>(StringComparer.Ordinal)
+                          {
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead]        = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.EntityMap]        = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.TimeDrive]        = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.Panels]           = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.GizmoFrame]       = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.Preview]          = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring]  = true,
+                          }
+                        : null)))));
 
             // Group B — entities (with optional ?component= and ?near= filters)
             _routes.Add(new("GET", "/entities", ctx =>
@@ -961,6 +1000,29 @@ namespace Hrot.Editor.DebugApi
                 try
                 {
                     result = await entry.Handler(reqCtx).ConfigureAwait(false);
+                }
+                catch (Hrot.Presentation.DebugApi.NotSupportedHereException nsh)
+                {
+                    // ⭐⭐⭐ THE TYPED ABSENCE. 📄 Architect_Question_54 Q54-1 Option C.
+                    // ⛔ NOT a 404 ("a 404 to interpret" — a broken panel and an unported one look the same)
+                    //    and ⛔ NOT an empty model (the false green D4 exists to kill).
+                    // ⭐ 501 + the capability KEY, so conformance can read absence instead of inferring it.
+                    result = new RouteResult(501, new JsonObject
+                    {
+                        ["code"]       = "NOT_SUPPORTED_HERE",
+                        ["capability"] = nsh.Capability,
+                    }, nsh.Message);
+                }
+                catch (AggregateException agg)
+                    when (agg.InnerException is Hrot.Presentation.DebugApi.NotSupportedHereException inner)
+                {
+                    // ⚠ The main-thread job queue surfaces a job's throw wrapped; unwrap so a capability
+                    //   absence does not read as a 500 just because it crossed a Task boundary.
+                    result = new RouteResult(501, new JsonObject
+                    {
+                        ["code"]       = "NOT_SUPPORTED_HERE",
+                        ["capability"] = inner.Capability,
+                    }, inner.Message);
                 }
                 catch (Exception ex)
                 {

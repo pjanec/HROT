@@ -2,9 +2,9 @@
 state: LIVE
 updated: 2026-08-24
 current-answer: this whole file. It is the UI implementation lane's resumption document — written ahead of
-  a compaction so the next window starts grounded. §0 is the MOST RECENT batch (the regression net part C),
-  §0b is the preview rewind (HN-017), §0c is the perspective model Part A, §1–§2 are the BP-399 /
-  Panel-observability history, §3 is the standing protocol, §4 is what is carried open.
+  a compaction so the next window starts grounded. §0 is the MOST RECENT batch (the conformance harness),
+  §0b the regression net part C, §0c the preview rewind (HN-017), §0d the perspective model Part A, §1–§2 are
+  the BP-399 / Panel-observability history, §3 is the standing protocol, §4 is what is carried open.
 stale-below: §1 and §2 are HISTORY as of 2026-08-23 — both landed. Read §0 first.
 known-conflict: none.
 -->
@@ -22,7 +22,30 @@ known-conflict: none.
 
 ---
 
-## 0. ✅ MOST RECENT — **the regression net, part C** *(`N2`–`N6`)* is DONE *(`2026-08-24`)*
+## 0. ✅ MOST RECENT — **the cross-host conformance harness** is DONE *(`2026-08-24`)*
+
+📄 **Designs *(the AS-BUILT records — read these FIRST)*:
+[`../blueprints/Architect_Question_54_Cluster_Mcp_Contract.md`](Architect_Question_54_Cluster_Mcp_Contract.md) § AS-BUILT ·
+[`../DESIGN_Headless_Testability.md`](../DESIGN_Headless_Testability.md) §6e + § conformance AS-BUILT.**
+📄 **Report: [`batches/REPORT_Conformance_Harness.md`](batches/REPORT_Conformance_Harness.md)**.
+
+⭐ **Ids: `HN-025`/`026`/`027` done; `HN-028`, `HN-029`, `MX-014` open.** ⭐ Next free: `HN-030` / `MX-015`.
+⭐ **Suite: `76 → 80`, all green.** ⭐⭐ **`--mode all` answers MCP.**
+
+### ⛔⛔ The six facts a later session must not re-derive
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **`--mode all` MUST run WINDOWED (Xvfb), never headless** | 📐 a panel publishes only when it DRAWS and the headless runner loop never calls `DrawUIAll` ⇒ every dump would be empty. `EditorProcess.StartAsync(mode: "all")` does this |
+| ⭐⭐⭐ **A PROVIDER'S DEPS MUST BE LAZY** | 📐 `_clusterTimeAdapter` is built in `RegisterWindows` — AFTER the composition root builds providers ⇒ a value-captured provider reported `time.drive:false` for SimHost and CGF, i.e. **the manifest lying in the safe-looking direction** |
+| ⭐⭐⭐ **The conformance diff IGNORES `panelId`; the GOLDENS keep it** | 📐 a VM contains its own id ⇒ two hosts publishing one KIND can never be byte-identical *(a first cut reported 6 of 6 DIFFERENT entirely on the address)*. ⛔ Goldens are keyed BY id, so there it is content |
+| 🔴🔴 **The cluster CANNOT be given the editor's scenario** | `POST /scenario/load` ⇒ `NOT_SUPPORTED_HERE(editor.authoring)` — a cluster loads via the orchestrator's 2PC. ⇒ the design's *"load S in both, then diff"* is not executable; only world-INDEPENDENT structure is comparable *(`HN-029`)* |
+| 🔴🔴 **The ack-gate's cluster half is CROSS-LANE** | `MasterSyncController` is private in `OrchestratorSubsystem` *(TIME lane)* ⇒ `hasMaster:false` in the manifest, **asserted by a rail** so it reddens when the TIME lane exposes it *(`HN-028`)* |
+| ⚠ **Comparing clocks on a FREE-RUNNING cluster measures harness latency** | 📐 the first lockstep attempt read a ~3-tick gap that was elapsed wall time. ⭐ Pause, then step, then read — CGF and SimHost are then bit-identical |
+
+---
+
+## 0b. ✅ **the regression net, part C** *(`N2`–`N6`)* is DONE *(`2026-08-24`)*
 
 📄 **Design *(and the AS-BUILT — read §7b and §8b FIRST)*:
 [`../DESIGN_Regression_Net.md`](../DESIGN_Regression_Net.md)** — now `BUILT`.
@@ -43,7 +66,7 @@ known-conflict: none.
 
 ---
 
-## 0b. ✅ **a preview leaves no trace** is DONE *(`HN-017`, `2026-08-24`)*
+## 0c. ✅ **a preview leaves no trace** is DONE *(`HN-017`, `2026-08-24`)*
 
 📄 **Design *(and the AS-BUILT record — read §4d FIRST)*:
 [`../DESIGN_Deterministic_Network_Ids.md`](../DESIGN_Deterministic_Network_Ids.md)** — now `BUILT`.
@@ -63,7 +86,7 @@ known-conflict: none.
 
 ---
 
-## 0c. ✅ **the perspective model, Part A** is DONE *(`2026-08-23`)*
+## 0d. ✅ **the perspective model, Part A** is DONE *(`2026-08-23`)*
 
 📄 **Design: [`../DESIGN_Perspective_Unification.md`](../DESIGN_Perspective_Unification.md) §3** — now
 `BUILT`, with per-item **AS-BUILT** notes folded in *(obligation ⑤)*.

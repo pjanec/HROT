@@ -1,8 +1,11 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN overall; ⭐ §"Step 6" (6a-6d) and §Conformance are READY-TO-BUILD (carry classDiagram + sequenceDiagram)
+build-state: §"Step 6" and §Conformance are BUILT (2026-08-24) — see §6e and the conformance AS-BUILT for
+  what shipped and its five deviations; the rest of the file is DESIGN. Steps 6+7 of the sequencing table
+  are DONE except the cross-lane ack-gate half (TIME lane) and the cluster scenario load.
 updated: 2026-08-24
-current-answer: the whole file — the methodology AND architecture for de-risking the cross-host unification with
+current-answer: §6e and the conformance AS-BUILT (both added 2026-08-24) are what SHIPPED — read them
+  before §6a's class diagram, which shows the superseded one-service shape. Otherwise: the whole file — the methodology AND architecture for de-risking the cross-host unification with
   FULL HEADLESS testability. Test-type taxonomy · the shared substrate · the ONE-BINARY/--mode model · the
   PERSPECTIVE-SCOPED capture protocol · cross-host conformance · the UML. ⭐ Step 6 (the API lift + the ONE
   deterministic cluster-wide stepping law both modes obey) is the current buildable front — §"Step 6". The
@@ -206,6 +209,19 @@ panel** — otherwise a genuinely broken panel reads as *"not ported yet"* forev
 perspective-scoped command routing are [`Architect_Question_54`](blueprints/Architect_Question_54_Cluster_Mcp_Contract.md);
 📄 the verdict is `DESIGN_Perspective_Unification.md` §1d.
 
+### ✅ AS-BUILT — **the conformance suite, and what it can and cannot claim** *(`2026-08-24`)*
+
+📄 `Hrot.SystemTests/Conformance/ClusterConformanceRails.cs` — **4 rails, all green.**
+
+| ⭐ measured | |
+|---|---|
+| ⭐⭐ **editor: 24 panel kinds · `--mode all`: 14** | 4 comparable shared kinds *(after excluding the two declared-volatile ones — the same exclusion the goldens use, for the same wall-clock reason)* |
+| ⭐ **verdicts** | **SAME 2 · DIFFERENT 0 · DIFFERENT-BY-DESIGN 2 · NOT-PRESENT 18 editor-only + 8 cluster-only**, every absence DECLARED |
+| ⭐⭐⭐ **the diff is by `PanelKind` and IGNORES `panelId`** | 📐 a VM contains its own id, so two hosts publishing one kind can never be byte-identical; a first cut reported *6 of 6 DIFFERENT* entirely on the address. ⛔ The goldens keep the id — there it is the storage key |
+| 🔴🔴 **the worlds cannot be equalised** | `POST /scenario/load` ⇒ `NOT_SUPPORTED_HERE(editor.authoring)` in the cluster ⇒ ⛔ this design's own sequence *"load S in both"* is **not executable yet**, and world-CONTENT diffs are out of reach |
+| ⭐⭐ **both failure modes PROVEN** | ① a hand-authored matrix cell ⇒ the manifest rail reddens *("the matrix claims 'IG' can drive time, but POST /sim/step answered 501")*; ② a host-specific panel divergence ⇒ **exactly one** DIFFERENT, naming `$.grid` |
+| ⭐ **lockstep** | after a PAUSED cluster-wide step, CGF and SimHost report **identical** sim time. ⚠ Only those two expose a clock *(IG builds no `ITimeTransportFacade`)*; ⛔ comparing a FREE-RUNNING cluster measures harness latency, not lockstep — 📐 that first attempt read a ~3-tick gap that was elapsed wall time |
+
 ## ⭐⭐⭐ Step 6 — the lifted read+drive API, and the ONE stepping law both modes obey
 
 > 🔒 **User, `2026-08-24`:** *"do not forget also about the goldens based tests (editor showing same stuff as
@@ -360,6 +376,19 @@ sequenceDiagram
 > ⭐ The harness batch does **not** need it for correctness *(the ack-gate + frozen barrier carry that)*, so it
 > is **out of the harness lane's scope**: if the 200 ms one-time latency proves painful, it is a small TIME-lane
 > follow-up, coordinated — ⛔ **not a cross-lane edit smuggled into the harness batch.**
+
+### ✅ 6e — AS-BUILT *(`2026-08-24`)* — **what step 6 actually became**
+
+> ⭐⭐ Obligation ⑤. 📄 The full deviation list is **[`Architect_Question_54`](blueprints/Architect_Question_54_Cluster_Mcp_Contract.md) § AS-BUILT**; this section records what it means for THIS design.
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **§6a's four wiring points are BUILT in `Program.cs`** | gated on `HROT_DEBUG_API_PORT` **and** on the editor subsystem being absent *(it owns the API in its own mode)*. 📐 `--mode all` answers `/status`, `/capabilities`, `/perspectives`, `/perspective`, `/panels`, `/panels/{id}`, `/sim/*` |
+| ⛔⛔ **the lift is NOT a `ClusterReadDriveService`** | ⭐ as `Q54` ruled: a **dispatcher over per-subsystem providers**. ⚠ §6a's class diagram above still shows the superseded shape — read `Q54`'s UML instead |
+| 🔴🔴 **§6c's *"gate INSIDE `Step()`"* is IMPOSSIBLE** | the ACK drain and `Step()` are both main-thread ⇒ deadlock. ⭐ The gate is in the HTTP handler; the return contract is unchanged |
+| 🔴🔴 **the cluster half of the gate is BLOCKED CROSS-LANE** | `MasterSyncController` is private in `OrchestratorSubsystem` *(TIME lane)*. ⇒ `hasMaster:false` in the manifest, asserted by a rail so the gap cannot be forgotten |
+| ⛔⛔ **`--mode all` must run WINDOWED (Xvfb), not headless** | 📐 measured: a panel publishes only when it DRAWS, and the headless runner loop never calls `DrawUIAll` ⇒ every dump would be empty. ⭐ Same reason the editor harness has always run under Xvfb |
+| ⭐ **§6d's goldens re-proof: DONE** | `bash scripts/run-system-tests.sh` ⇒ **80 / 80**, including `PanelGoldenRails`. ⭐ Their stepping is the same `POST /sim/step` seam `--mode all` uses — now ack-gated |
 
 ### ⭐⭐ 6d — the goldens must be RE-PROVEN under this, not assumed
 

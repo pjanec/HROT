@@ -47,15 +47,94 @@ namespace Hrot.Editor.DebugApi
     /// </summary>
     public sealed partial class DebugApiService
     {
-        private readonly EntityRepository                _world;
-        private readonly NetworkEntityMap                _entityMap;
-        private readonly IEntityStateExtractionService   _extraction;
-        private readonly ITimeTransportFacade            _time;
-        private readonly IPreviewController              _preview;
-        private readonly IEditorLogic                    _editor;
-        private readonly IDiagnosticEventHistoryService  _eventHistory;
-        private readonly MasterSyncController             _timeController;
-        private readonly Func<ClusterState>              _clusterState;
+        // ══ THE DEPENDENCY SPLIT — editor-supplied, or resolved per ACTIVE PERSPECTIVE ═════════════
+        //
+        // ⭐⭐⭐ 📄 Architect_Question_54 (RESOLVED) · DESIGN_Headless_Testability.md §6a.
+        //
+        // ⛔⛔ WHY THIS SHAPE. Measured: this service's nine required deps made it UNCONSTRUCTIBLE in
+        //    `--mode all` — `IPreviewController`/`IEditorLogic` are editor-only, and `world`/`entityMap`/
+        //    `time` are PER-SUBSYSTEM there (each subsystem gets its own repo, map and bus). ⇒ ⭐ the deps
+        //    that differ per perspective are resolved through the dispatcher, and the editor-only ones
+        //    answer NOT_SUPPORTED_HERE instead of being faked (charter D3/D4).
+        //
+        // ⭐⭐ The `_x` members below are PROPERTIES, not fields, on purpose: ~108 call sites read them and
+        //    the resolution belongs in ONE place, so the sites are unchanged and cannot each invent a
+        //    fallback. ⚠ The leading underscore is kept deliberately — renaming 108 reads would have been a
+        //    bigger diff than the change itself, and every one of them still means "my dependency".
+        private readonly EntityRepository?               _editorWorld;
+        private readonly NetworkEntityMap?               _editorEntityMap;
+        private readonly IEntityStateExtractionService?  _editorExtraction;
+        private readonly ITimeTransportFacade?           _editorTime;
+        private readonly IPreviewController?             _editorPreview;
+        private readonly IEditorLogic?                   _editorLogic;
+        private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
+        private readonly MasterSyncController?            _timeController;
+        private readonly Func<ClusterState>?             _clusterStateGetter;
+
+        /// <summary>⭐ Set only in the CLUSTER shape; null in the editor. See the block above.</summary>
+        private readonly Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher? _dispatcher;
+
+        /// <summary>⭐ Built lazily per active perspective in cluster mode; the editor supplies its own.</summary>
+        private IEntityStateExtractionService? _clusterExtraction;
+        private EntityRepository? _clusterExtractionFor;
+
+        private EntityRepository _world
+            => _editorWorld ?? _dispatcher?.World
+               ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead);
+
+        private NetworkEntityMap _entityMap
+            => _editorEntityMap ?? _dispatcher?.EntityMap
+               ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.EntityMap);
+
+        private ITimeTransportFacade _time
+            => _editorTime ?? _dispatcher?.Drive
+               ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.TimeDrive);
+
+        private IPreviewController _preview
+            => _editorPreview
+               ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.Preview);
+
+        private IEditorLogic _editor
+            => _editorLogic
+               ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring);
+
+        private IDiagnosticEventHistoryService _eventHistory
+            => _editorEventHistory
+               ?? throw NotSupportedHere("events.read");
+
+        /// <summary>
+        /// ⭐ The extraction service for the world currently in scope. In cluster mode it is rebuilt when the
+        /// active perspective's world changes — ⛔ never cached across perspectives, which would answer for
+        /// the wrong node.
+        /// </summary>
+        private IEntityStateExtractionService _extraction
+        {
+            get
+            {
+                if (_editorExtraction is not null) return _editorExtraction;
+
+                var world = _dispatcher?.World
+                            ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead);
+                var map   = _dispatcher?.EntityMap
+                            ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.EntityMap);
+
+                if (!ReferenceEquals(world, _clusterExtractionFor) || _clusterExtraction is null)
+                {
+                    _clusterExtraction    = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(world, map);
+                    _clusterExtractionFor = world;
+                }
+                return _clusterExtraction;
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The typed *"this host does not offer that"* signal</b> — 📄 Q54-1 Option C: a command against
+        /// an absent capability answers <c>NOT_SUPPORTED_HERE</c>, ⛔ never a bare 404 and ⛔ never a silent
+        /// empty model. 📌 <c>D4</c>: absence must be ASSERTABLE, or a broken panel reads as "not ported yet"
+        /// forever.
+        /// </summary>
+        private static Hrot.Presentation.DebugApi.NotSupportedHereException NotSupportedHere(string capability)
+            => new Hrot.Presentation.DebugApi.NotSupportedHereException(capability);
 
         // Group M / N dependencies
         private readonly TkbDatabase           _tkbDb;
@@ -238,15 +317,17 @@ namespace Hrot.Editor.DebugApi
             Hrot.UI.Common.Facades.IMissionEditorService? missionService    = null,
             Fdp.Toolkit.Blueprints.BlueprintRegistry?     blueprintRegistry = null)
         {
-            _world            = world            ?? throw new ArgumentNullException(nameof(world));
-            _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
-            _extraction       = extraction       ?? throw new ArgumentNullException(nameof(extraction));
-            _time             = time             ?? throw new ArgumentNullException(nameof(time));
-            _preview          = preview          ?? throw new ArgumentNullException(nameof(preview));
-            _editor           = editor           ?? throw new ArgumentNullException(nameof(editor));
-            _eventHistory     = eventHistory     ?? throw new ArgumentNullException(nameof(eventHistory));
-            _timeController   = timeController   ?? throw new ArgumentNullException(nameof(timeController));
-            _clusterState     = clusterState     ?? throw new ArgumentNullException(nameof(clusterState));
+            // ⭐ The EDITOR shape still requires all nine — ⛔ this ctor has not become permissive. The
+            //   cluster shape is a SEPARATE ctor below, so an editor wiring bug still fails loudly at boot.
+            _editorWorld        = world            ?? throw new ArgumentNullException(nameof(world));
+            _editorEntityMap    = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
+            _editorExtraction   = extraction       ?? throw new ArgumentNullException(nameof(extraction));
+            _editorTime         = time             ?? throw new ArgumentNullException(nameof(time));
+            _editorPreview      = preview          ?? throw new ArgumentNullException(nameof(preview));
+            _editorLogic        = editor           ?? throw new ArgumentNullException(nameof(editor));
+            _editorEventHistory = eventHistory     ?? throw new ArgumentNullException(nameof(eventHistory));
+            _timeController     = timeController   ?? throw new ArgumentNullException(nameof(timeController));
+            _clusterStateGetter = clusterState     ?? throw new ArgumentNullException(nameof(clusterState));
             _tkbDb             = tkbDb            ?? new TkbDatabase();
             _geoTransform      = geoTransform     ?? new Fdp.Modules.Geographic.Transforms.WGS84Transform();
             _spatialGridCellSize = spatialGridCellSize;
@@ -278,22 +359,85 @@ namespace Hrot.Editor.DebugApi
             }
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE CLUSTER SHAPE — <c>--mode all</c>.</b> Everything that differs per node is resolved
+        /// through the <paramref name="dispatcher"/> *(the ACTIVE perspective's own world, map and drive
+        /// facade)*; everything editor-only is simply absent and answers <c>NOT_SUPPORTED_HERE</c>.
+        /// 📄 <c>Architect_Question_54</c> Q54-2 · charter <c>D3</c> *("the lifted API accepts absent
+        /// capabilities")*.
+        ///
+        /// <para>⛔⛔ <b>This is a SEPARATE constructor, deliberately.</b> ⭐ The editor ctor still demands all
+        /// nine deps, so an editor wiring bug still fails loudly at boot — 📌 relaxing THAT would have turned
+        /// a composition-root defect into a runtime 501, which is the silent-default shape.</para>
+        /// </summary>
+        public DebugApiService(
+            Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher dispatcher,
+            Func<ClusterState>?                           clusterState      = null,
+            TkbDatabase?                                  tkbDb             = null,
+            IGeographicTransform?                         geoTransform      = null,
+            DebugPrimitiveBuffer?                         primitiveBuffer   = null,
+            IReadOnlyList<IMessageLogSource>?             logSinks          = null,
+            Fdp.Toolkit.Behavior.BehaviorRegistry?        behaviorRegistry  = null)
+        {
+            _dispatcher         = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+            _clusterStateGetter = clusterState;
+
+            _tkbDb        = tkbDb        ?? new TkbDatabase();
+            _geoTransform = geoTransform ?? new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+
+            _spatialGridCellSize = 5.0f;
+            _spatialGridOriginX  = 0f;
+            _spatialGridOriginY  = 0f;
+            _spatialGridWidth    = 200;
+            _spatialGridHeight   = 200;
+
+            _diffService       = new ComponentDiffService();
+            _logSinks          = logSinks ?? Array.Empty<IMessageLogSource>();
+            _attributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
+            _componentEditSvc  = new ComponentEditServiceBuilder().Build();
+            _primitiveBuffer   = primitiveBuffer;
+            _behaviorRegistry  = behaviorRegistry;
+        }
+
         // ── Group A — Status ──────────────────────────────────────────────────
 
         /// <summary><c>GET /status</c> — full status payload (main thread).</summary>
         public JsonNode GetStatus()
         {
+            // ⭐⭐⭐ /status DEGRADES, it does not throw. 📄 Architect_Question_54 Q54-1 + charter D4.
+            //
+            // ⛔⛔ This endpoint is the harness's READINESS PROBE and the first thing an agent calls, so in
+            //    `--mode all` it must answer even though `scenario`/`inPreview` are editor-only and the
+            //    active perspective may offer no world. ⇒ ⭐ an absent field is JSON `null` HERE — and
+            //    `GET /capabilities` is what says WHY it is absent. ⚠ A null in /status is never the
+            //    "silent empty model" Q54 rejects: it is paired with a manifest that declares the absence.
+            //
+            // ⭐ Every other endpoint still THROWS NotSupportedHere ⇒ 501 with the capability key. Status is
+            //   the one deliberate exception, because a probe that 501s tells you nothing about the host.
             return new JsonObject
             {
-                ["scenario"]     = _editor.LoadedScenarioName,
-                ["clusterState"] = CurrentClusterState().ToString(),
-                ["simTime"]      = _time.TotalTime,
-                ["timeScale"]    = _time.TimeScale,
-                ["isPaused"]     = _time.IsPaused,
-                ["inPreview"]    = _preview.IsInPreviewMode,
-                ["entityCount"]  = _world.EntityCount,
+                ["scenario"]     = TryRead(() => (JsonNode?)_editor.LoadedScenarioName),
+                ["clusterState"] = TryRead(() => (JsonNode?)CurrentClusterState().ToString()),
+                ["simTime"]      = TryRead(() => (JsonNode?)_time.TotalTime),
+                ["timeScale"]    = TryRead(() => (JsonNode?)_time.TimeScale),
+                ["isPaused"]     = TryRead(() => (JsonNode?)_time.IsPaused),
+                ["inPreview"]    = TryRead(() => (JsonNode?)_preview.IsInPreviewMode),
+                ["entityCount"]  = TryRead(() => (JsonNode?)_world.EntityCount),
                 ["recording"]    = _isRecording,
+                // ⭐ Which context these numbers describe — ⛔ without it, a cluster status is ambiguous
+                //   about WHOSE world it counted.
+                ["perspective"]  = _dispatcher?.CurrentPerspective,
             };
+        }
+
+        /// <summary>
+        /// ⭐ Reads one status field, or <see langword="null"/> when this host does not offer it.
+        /// ⛔ Catches ONLY <c>NotSupportedHereException</c> — a real fault must still surface as a 500.
+        /// </summary>
+        private static JsonNode? TryRead(Func<JsonNode?> read)
+        {
+            try { return read(); }
+            catch (Hrot.Presentation.DebugApi.NotSupportedHereException) { return null; }
         }
 
         // ── Group B — Entity queries ───────────────────────────────────────────
@@ -573,10 +717,16 @@ namespace Hrot.Editor.DebugApi
         /// <summary><c>GET /sim/state</c> (main thread).</summary>
         public JsonNode GetSimState() => new JsonObject
         {
-            ["isPaused"]  = _time.IsPaused,
-            ["inPreview"] = _preview.IsInPreviewMode,
-            ["totalTime"] = _time.TotalTime,
-            ["timeScale"] = _time.TimeScale,
+            // ⭐⭐⭐ DEGRADES, like /status — and this one was found the hard way. 📐 Measured `2026-08-24` in
+            //    `--mode all`: `POST /sim/step` answered NOT_SUPPORTED_HERE(preview.control) even though the
+            //    step ITSELF was fully supported, because the RESPONSE PAYLOAD read `_preview`.
+            // ⛔⛔ A state payload must never make a supported command look unsupported: that is absence
+            //    reported about the wrong thing, which is worse than no answer. ⭐ An absent field is null and
+            //    GET /capabilities says why.
+            ["isPaused"]  = TryRead(() => (JsonNode?)_time.IsPaused),
+            ["inPreview"] = TryRead(() => (JsonNode?)_preview.IsInPreviewMode),
+            ["totalTime"] = TryRead(() => (JsonNode?)_time.TotalTime),
+            ["timeScale"] = TryRead(() => (JsonNode?)_time.TimeScale),
         };
 
         /// <summary><c>POST /sim/play</c> — explicit resume; idempotent (never blind-toggles) (main thread).</summary>
@@ -623,7 +773,8 @@ namespace Hrot.Editor.DebugApi
         /// slave roster, so there is nothing to wait for. ⇒ ⭐⭐ the harness code is identical in both modes,
         /// which is the whole point of the conformance seam.</para>
         /// </summary>
-        public bool IsAwaitingStepAcks => _timeController.IsAwaitingStepAcks;
+        public bool IsAwaitingStepAcks
+            => _timeController?.IsAwaitingStepAcks ?? _dispatcher?.IsAwaitingStepAcks ?? false;
 
         /// <summary><c>POST /sim/timescale {scale}</c> (main thread).</summary>
         public JsonNode SetTimeScale(float scale)
@@ -1072,7 +1223,9 @@ namespace Hrot.Editor.DebugApi
 
         // ── Helpers ─────────────────────────────────────────────────────────────
 
-        private ClusterState CurrentClusterState() => _clusterState();
+        private ClusterState CurrentClusterState()
+            => _clusterStateGetter?.Invoke()
+               ?? throw NotSupportedHere("cluster.state");
 
         /// <summary>
         /// Publishes an event object to <c>_world.Bus</c> using reflection to call the

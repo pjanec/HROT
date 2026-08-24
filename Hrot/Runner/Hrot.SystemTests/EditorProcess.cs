@@ -46,6 +46,9 @@ public sealed class EditorProcess : IAsyncDisposable
     /// <summary>Everything the editor wrote to stdout/stderr.</summary>
     public string EditorOutput { get { lock (_outputLock) return _output.ToString(); } }
 
+    /// <summary>⭐ The runner mode this process was started in — <c>"editor"</c> or <c>"all"</c>.</summary>
+    public string Mode { get; private set; } = "editor";
+
     /// <summary>True once the process is gone. False while running or never started.</summary>
     public bool HasExited => _process is not null && _process.HasExited;
 
@@ -68,9 +71,21 @@ public sealed class EditorProcess : IAsyncDisposable
     /// log name would interleave them into one unreadable file.
     /// </param>
     /// <param name="bootTimeout">Overrides the environment's boot budget.</param>
-    public static async Task<EditorProcess> StartAsync(string? label = null, TimeSpan? bootTimeout = null)
+    /// <param name="mode">
+    /// ⭐⭐⭐ <b>Which runner mode to boot</b> — <c>"editor"</c> *(the default, one node)* or <c>"all"</c>
+    /// *(the five-subsystem cluster over DDS)*.
+    /// <para>⭐ Added by the conformance batch so the SAME launch-and-wait recipe serves both modes — 📌 the
+    /// <c>ST-019</c>/<c>N1</c> lesson: a second copy of "start it and wait for /status" is how two paths
+    /// drift apart, and conformance compares them for a living.</para>
+    /// <para>⚠⚠ <b>The cluster mode must run WINDOWED (Xvfb), not headless</b> — 📐 measured: a panel
+    /// publishes only when it DRAWS, and the headless runner loop never calls <c>DrawUIAll</c> ⇒ every panel
+    /// dump would be empty. ⭐ Same reason the editor harness has always run under Xvfb.</para>
+    /// </param>
+    public static async Task<EditorProcess> StartAsync(
+        string? label = null, TimeSpan? bootTimeout = null, string mode = "editor")
     {
         var ed = new EditorProcess();
+        ed.Mode = mode;
         int port = AllocateFreePort();
 
         ed.StagingRoot = Path.Combine(Path.GetTempPath(), "hrot-systemtests-" + Guid.NewGuid().ToString("N")[..12]);
@@ -88,8 +103,12 @@ public sealed class EditorProcess : IAsyncDisposable
         ed.Client = new McpClient(ed.BaseUrl) { DiagnoseUnreachable = ed.ExitDiagnostics };
 
         ed._process = ed.Launch(port, ed.StagingRoot);
-        await ed.WaitForStatusAsync(
-            bootTimeout ?? TimeSpan.FromSeconds(SystemTestEnvironment.BootTimeoutSeconds)).ConfigureAwait(false);
+        // ⚠ The cluster boots five subsystems and enrols them over DDS, so it needs a wider budget than the
+        //   editor's single node. 📐 Measured ~35-50 s to serve /status on this class of machine.
+        var budget = bootTimeout
+                     ?? TimeSpan.FromSeconds(SystemTestEnvironment.BootTimeoutSeconds
+                                             * (mode == "editor" ? 1 : 3));
+        await ed.WaitForStatusAsync(budget).ConfigureAwait(false);
         return ed;
     }
 
@@ -131,7 +150,7 @@ public sealed class EditorProcess : IAsyncDisposable
         }
 
         psi.ArgumentList.Add("--mode");
-        psi.ArgumentList.Add("editor");
+        psi.ArgumentList.Add(Mode);
 
         // Enables the loopback control plane; without it the editor runs with no API at all.
         psi.Environment["HROT_DEBUG_API_PORT"] = port.ToString();

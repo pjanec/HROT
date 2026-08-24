@@ -27,10 +27,33 @@ namespace Hrot.IG
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class IgSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
+    public sealed class IgSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
+        Hrot.Presentation.DebugApi.IProvidesDebugSurface
     {
         /// <inheritdoc/>
         public string Name => "IG";
+
+        /// <summary>
+        /// ⭐⭐ <b><c>Q54</c> — IG's debug surface: a world to READ, and NO drive facade.</b>
+        /// 📄 <c>Architect_Question_54</c> Q54-2 + charter <c>D3</c>.
+        ///
+        /// <para>⚠⚠ <b><c>drive: null</c> is MEASURED, not an oversight.</b> 📐 `2026-08-24`: a repo-wide grep
+        /// for <c>new ClusterTimeTransportAdapter</c> finds it in <b>CGF and SimHost only</b> — IG builds
+        /// none. ⇒ ⭐ the manifest reports <c>time.drive</c> ABSENT for the IG perspective and a step issued
+        /// there answers <c>NOT_SUPPORTED_HERE</c>, which is exactly what <c>D4</c> asks for: absence that is
+        /// declared and assertable. ⛔ Fabricating an adapter here would invent a control path the operator's
+        /// UI does not have.</para>
+        ///
+        /// <para>⭐ IG is still a full ACK participant in the roster — 📌 <c>PARTICIPATE ≠ OBSERVE</c>: it
+        /// executes the master's ticks, it just does not ISSUE them.</para>
+        /// </summary>
+        public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
+            => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
+                subsystemName: Name,
+                perspective:   "IG",
+                world:         () => _app?.World,
+                entityMap:     null,
+                drive:         null);
 
         /// <inheritdoc/>
         /// <remarks>Forest green — distinct from SimHost (red) and ExCon (violet).</remarks>

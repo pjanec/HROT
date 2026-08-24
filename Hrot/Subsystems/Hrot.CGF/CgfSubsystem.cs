@@ -70,7 +70,8 @@ namespace Hrot.CGF;
 /// Hosts the CGF (Computer Generated Forces) subsystem under the Runner process.
 /// Migrated in EAM-M003 to use <see cref="HrotNodeBuilder"/> instead of <see cref="CgfApplication"/>.
 /// </summary>
-public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
+public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider,
+    Hrot.Presentation.DebugApi.IProvidesDebugSurface, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
 {
     private HrotNodeContext?  _context;
     private NetworkEntityMap? _entityMap;
@@ -130,6 +131,26 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     /// <inheritdoc/>
     public string Name => "CGF";
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q54</c> — CGF's debug surface: its own world, its own map, and its OWN drive adapter.</b>
+    /// 📄 <c>Architect_Question_54</c> Q54-2 *(perspective-scoped dispatch over per-subsystem providers)*.
+    ///
+    /// <para>⚠⚠ <b>The perspective is <c>"Scenario"</c>, NOT <c>"CGF"</c></b> — 📐 <c>perspectiveMap</c>'s one
+    /// entry whose key and value differ *(<c>DESIGN_Perspective_Unification.md</c> §1b/§1e)*. ⛔ Using the
+    /// subsystem name here would make the dispatcher unable to resolve the live perspective.</para>
+    ///
+    /// <para>⭐ The drive facade is the SAME <c>ClusterTimeTransportAdapter</c> the operator's toolbar uses, so
+    /// a step issued through this provider travels the operator's own path: intent → this subsystem's bus →
+    /// DDS → the master. ⛔ Nothing new is introduced here.</para>
+    /// </summary>
+    public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
+        => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
+            subsystemName: Name,
+            perspective:   "Scenario",
+            world:         () => _context?.World,
+            entityMap:     () => _entityMap,
+            drive:         () => _clusterTimeAdapter);
 
     /// <inheritdoc/>
     public System.Numerics.Vector4 TitleBarColor => new(0.57f, 0.47f, 0.04f, 1f);

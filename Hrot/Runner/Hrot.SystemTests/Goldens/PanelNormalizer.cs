@@ -140,6 +140,32 @@ public static class PanelNormalizer
         return s.Length <= 120 ? s : s[..117] + "...";
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>The CONFORMANCE projection — the same canonical form, minus the panel's own ADDRESS.</b>
+    /// 📄 <c>DESIGN_Headless_Testability.md</c> § *"Cross-host conformance"* · §4b *(id = storage key,
+    /// kind = conformance grouping key)*.
+    ///
+    /// <para>📐 <b>Measured `2026-08-24`, and it is why this exists:</b> a panel's view-model CONTAINS its own
+    /// <c>panelId</c> *(and <c>panelKind</c>)*. ⇒ 🔴 two hosts publishing the same KIND can never be
+    /// byte-identical — the editor says <c>editor_fdp_inspector</c> where the cluster says
+    /// <c>cgf_fdp_inspector</c>. A first cut diffed the raw models and reported <b>6 of 6 shared kinds
+    /// DIFFERENT</b>, entirely on the address.</para>
+    ///
+    /// <para>⛔⛔ <b>This is NOT the golden ignore-list, and must not become it.</b> ⭐ A golden is keyed BY
+    /// <c>panelId</c>, so there the id is load-bearing content and dropping it would hide a panel answering
+    /// under the wrong address. ⭐ Conformance is keyed by KIND, so there the id is the one field that is
+    /// EXPECTED to differ. ⇒ two projections, one canonical form.</para>
+    /// </summary>
+    public static string CanonicalForConformance(JsonNode? model)
+    {
+        if (model is not JsonObject obj) return Canonical(model);
+
+        var copy = (JsonObject)obj.DeepClone();
+        copy.Remove("panelId");
+        copy.Remove("panelKind");
+        return Canonical(copy);
+    }
+
     // ── the control's raw material ────────────────────────────────────────────
 
     /// <summary>

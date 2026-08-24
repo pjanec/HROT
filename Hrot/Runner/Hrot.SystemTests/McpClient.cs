@@ -365,6 +365,15 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> ListPerspectivesAsync(CancellationToken ct = default)
         => GetAsync("/perspectives", ct);
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>GET /capabilities</c> — the manifest: every endpoint this host serves *(enumerated from its own
+    /// route table)* × the MEASURED availability matrix per perspective.
+    /// 📄 <c>Architect_Question_54</c> § Manifest scope · charter <c>D4</c>.
+    /// <para>⭐ Conformance reads NOT-PRESENT from here, ⛔ never infers it from a missing panel.</para>
+    /// </summary>
+    public Task<ApiResult> GetCapabilitiesAsync(CancellationToken ct = default)
+        => GetAsync("/capabilities", ct);
+
     public Task<ApiResult> SwitchPerspectiveAsync(string name, CancellationToken ct = default)
         => PostAsync("/perspective", new JsonObject { ["name"] = name }, ct);
 

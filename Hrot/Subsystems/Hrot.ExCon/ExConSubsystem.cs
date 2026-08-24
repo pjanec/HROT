@@ -49,10 +49,32 @@ namespace Hrot.ExCon
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class ExConSubsystem : ISubsystem, IWindowRegistrar
+    public sealed class ExConSubsystem : ISubsystem, IWindowRegistrar,
+        Hrot.Presentation.DebugApi.IProvidesDebugSurface
     {
         /// <inheritdoc/>
         public string Name => "ExCon";
+
+        /// <summary>
+        /// ⭐⭐ <b><c>Q54</c> — ExCon's debug surface, and it is deliberately THIN.</b>
+        /// 📄 <c>Architect_Question_54</c> § <c>PARTICIPATE ≠ OBSERVE</c>.
+        ///
+        /// <para>📐 ExCon has <b>no ECS kernel</b> — it is the operator console, registered on the cluster with
+        /// <c>liveRepo: null</c>. ⇒ ⭐ no world, no map, no drive: the provider exists so the PERSPECTIVE is
+        /// routable *(its panels are readable, and the manifest says what is absent)*, ⛔ not so it can pretend
+        /// to own a simulation.</para>
+        ///
+        /// <para>⛔⛔ <b>And it must never be added to the step roster</b> — with no frame to execute it can
+        /// never publish <c>FrameStepCompletedEvent</c>, so the cluster would wait forever. ⭐ A step issued
+        /// while the ExCon perspective is active is still CONFIRMED, because the gate reads the MASTER.</para>
+        /// </summary>
+        public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
+            => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
+                subsystemName: Name,
+                perspective:   "ExCon",
+                world:         null,
+                entityMap:     null,
+                drive:         null);
 
         /// <inheritdoc/>
         /// <remarks>Violet — distinct from IG (green) and SimHost (red).</remarks>

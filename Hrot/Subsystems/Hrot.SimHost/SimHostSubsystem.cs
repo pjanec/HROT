@@ -35,12 +35,28 @@ namespace Hrot.SimHost
     /// <para>This follows the same "thin adapter" pattern as <see cref="IgSubsystem"/>:
     /// the core application class is the single source of truth for its own wiring.</para>
     /// </summary>
-    public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
+    public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
+        Hrot.Presentation.DebugApi.IProvidesDebugSurface
     {
         // ── Subsystem identity ────────────────────────────────────────────────
 
         /// <inheritdoc/>
         public string Name => "SimHost";
+
+        /// <summary>
+        /// ⭐⭐ <b><c>Q54</c> — SimHost's debug surface.</b> 📄 <c>Architect_Question_54</c> Q54-2.
+        /// ⭐ Its perspective and its subsystem name agree here; the drive facade is its own cluster adapter
+        /// *(the one that publishes <c>StepTimeIntent</c> onto its bus)*.
+        /// <para>⚠ <c>World</c> is null until <c>Initialize</c> has run — the provider is built after boot,
+        /// which is why <c>CreateDebugProvider</c> exists instead of the subsystem BEING a provider.</para>
+        /// </summary>
+        public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
+            => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
+                subsystemName: Name,
+                perspective:   "SimHost",
+                world:         () => _app?.WorldOrNull,
+                entityMap:     () => _app?.WorldOrNull is null ? null : _app!.TestHook_EntityMap,
+                drive:         () => _clusterTimeAdapter);
 
         /// <inheritdoc/>
         /// <remarks>Dark red — distinct from IG (green) and ExCon (violet).</remarks>

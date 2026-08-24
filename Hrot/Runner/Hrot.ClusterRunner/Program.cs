@@ -241,6 +241,10 @@ class Program
         // ── Create + run orchestrator ─────────────────────────────────────────
         var orchestrator = new SubsystemOrchestrator(subsystems, options);
         Hrot.ClusterRunner.Presentation.LocalWindowController? windowCtrl = null;
+        // ⭐ Declared out here so the `finally` below can dispose the host — see the wiring block inside.
+        Hrot.Editor.DebugApi.MainThreadJobQueue? clusterApiQueue = null;
+        Hrot.Editor.DebugApi.DebugApiHost?       clusterApiHost  = null;
+        Hrot.Editor.DebugApi.DebugApiService?    clusterApiService = null;
         try
         {
             orchestrator.Initialize();
@@ -302,8 +306,88 @@ class Program
             windowCtrl = new Hrot.ClusterRunner.Presentation.LocalWindowController(
                 shell, subsystems, options, coordinator);
 
+            // ══ THE LIFTED DEBUG API — item ② of the conformance harness ═══════════════════════════════
+            //
+            // ⭐⭐⭐ 📄 Architect_Question_54 (RESOLVED) · DESIGN_Headless_Testability.md §6a's four wiring
+            //    points. 🔒 User: "MCP in 'mode all' should work from the context of the currently selected
+            //    perspective to be closest to how the user would control it."
+            //
+            // ⛔⛔ GATED TWICE, and both guards matter:
+            //    ① HROT_DEBUG_API_PORT — costs nothing in a normal run, exactly like the editor's;
+            //    ② the EDITOR SUBSYSTEM MUST BE ABSENT — it wires its own host on the same port, so doing
+            //       it here too would fight for the listener. ⭐ `--mode editor` keeps its existing path
+            //       untouched; this is the CLUSTER path only.
+            var clusterApiPort = Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT");
+            bool hasEditorSubsystem = subsystems.OfType<Hrot.Editor.EditorSubsystem>().Any();
+
+            if (!string.IsNullOrWhiteSpace(clusterApiPort)
+                && int.TryParse(clusterApiPort, out var clusterPort)
+                && !hasEditorSubsystem)
+            {
+                // ① Capture must be ON before any panel draws, or every dump is empty.
+                Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = true;
+
+                // ⭐⭐ The providers — one per subsystem that contributes a read+drive surface (Q54-2).
+                //    ⚠ Built AFTER orchestrator.Initialize(), because a provider carries the subsystem's
+                //      world and its cluster time adapter, and neither exists before Initialize.
+                var debugProviders = subsystems
+                    .OfType<Hrot.Presentation.DebugApi.IProvidesDebugSurface>()
+                    .Select(p => p.CreateDebugProvider())
+                    .Where(p => p != null)
+                    .Select(p => p!)
+                    .ToList();
+
+                // ⛔⛔ CROSS-LANE BLOCKER, REPORTED NOT WORKED AROUND: the ack-gate's truth is
+                //    MasterSyncController.IsAwaitingStepAcks, and the only instance lives in a PRIVATE field
+                //    of OrchestratorSubsystem — a TIME-lane file (Area H) this batch may not edit
+                //    (HANDOFF_Conformance_Harness.md §3). ⇒ `master: null` here, which makes
+                //    GET /capabilities report `hasMaster:false` so the limitation is VISIBLE rather than
+                //    silent. ⭐ The fix is a one-line accessor in the TIME lane; a conformance rail asserts
+                //    the manifest tells the truth about it meanwhile.
+                var dispatcher = new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
+                    debugProviders,
+                    currentPerspective: () => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty,
+                    master: null);
+
+                // ② construct + attach + start.
+                clusterApiQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+                clusterApiHost  = new Hrot.Editor.DebugApi.DebugApiHost(
+                    clusterPort, clusterApiQueue, () => orchestrator.Stop(), mode: config.ModeString);
+                clusterApiHost.AttachDispatcher(dispatcher);
+                clusterApiService = new Hrot.Editor.DebugApi.DebugApiService(dispatcher);
+                clusterApiHost.AttachService(clusterApiService);
+                clusterApiHost.Start();
+
+                FdpLog<Program>.Info(
+                    "[Runner] Debug API listening on {0} — mode={1}, providers=[{2}], perspectives=[{3}].",
+                    clusterPort, config.ModeString,
+                    string.Join(", ", debugProviders.Select(p => p.SubsystemName)),
+                    string.Join(", ", dispatcher.RoutablePerspectives));
+            }
+            else if (!string.IsNullOrWhiteSpace(clusterApiPort) && hasEditorSubsystem)
+            {
+                // ⭐ Not a warning: the editor OWNS the API in its own mode. Said out loud so nobody hunts
+                //   for a second host that deliberately does not exist.
+                FdpLog<Program>.Info("[Runner] Debug API left to EditorSubsystem (mode includes the editor).");
+            }
+
             if (!config.Headless)
                 windowCtrl.OpenLocalWindow();
+
+            // ⭐⭐⭐ PERSPECTIVE ACCESS — attached HERE because this is the first moment the WindowManager
+            //    exists. 📄 DESIGN_Regression_Net.md §7 N0's as-built said the same thing about the editor:
+            //    "the dependency arrives late, and that is forced".
+            // ⭐ Reusing the EXISTING WindowManagerPerspectiveSwitcher (Hrot.Editor.AiShared) — ⛔ not a
+            //   second switcher: it already wraps GetPerspectives/CurrentPerspective/SwitchPerspective, and
+            //   a cluster copy would be the duplicate ruling 9 forbids.
+            // ⚠ Without this, GET /perspectives answers 503 "not wired" — which is honest, but it would make
+            //   the conformance suite unable to reach 3 of 4 perspectives' panels.
+            if (clusterApiService is not null && windowCtrl.WindowManager is not null)
+            {
+                clusterApiService.AttachPerspectives(
+                    new Hrot.Editor.AiShared.Documents.WindowManagerPerspectiveSwitcher(windowCtrl.WindowManager));
+                FdpLog<Program>.Info("[Runner] Debug API perspective access attached.");
+            }
 
             using var consoleSvc = new ConsoleCommandService();
             consoleSvc.RegisterCommand("open",  "Open the local Raylib window",
@@ -333,6 +417,16 @@ class Program
 
                 while (!exiting)
                 {
+                    // ③ + ④ — THE FRAME BOUNDARY. 🔴 ORDER MATTERS (HN-007): the API's jobs drain FIRST,
+                    //    serving the PREVIOUS frame's complete captures, and only then is the captured set
+                    //    cleared for this frame. ⛔ Clearing first is the defect that made every out-of-band
+                    //    panel read return an empty set in the editor, and it would do the same here.
+                    if (clusterApiQueue is not null)
+                    {
+                        clusterApiQueue.DrainAll();
+                        Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
+                    }
+
                     // Before input is polled: replay anything the previous frame dropped.
                     clickLatch.Tick(
                         Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Left),
@@ -433,6 +527,7 @@ class Program
         }
         finally
         {
+            clusterApiHost?.Dispose();
             orchestrator.Shutdown();
             if (windowCtrl?.IsLocalWindowOpen == true)
                 windowCtrl.CloseLocalWindow();

@@ -1,9 +1,11 @@
 <!--STATUS
 state: LIVE
-build-state: RESOLVED — user accepted the leans `2026-08-24` (Q54-1 Option C, Q54-2 Option B + C override) AND
-  ruled the manifest FULL from day one (§ Manifest scope). READY-TO-BUILD; carries classDiagram + sequenceDiagram.
+build-state: BUILT — `2026-08-24`. Q54-1 (Option C) and Q54-2 (Option B + C) shipped; `--mode all` answers
+  MCP. ⭐ READ § AS-BUILT FIRST: it carries FIVE deviations, one of them a CROSS-LANE BLOCKER (the ack-gate's
+  cluster half) and one a FOURTH VERDICT the three-way scheme did not have.
 updated: 2026-08-24
-current-answer: the whole file — the `--mode all` MCP/DebugApi contract: (Q54-1) how missing / not-yet-ported /
+current-answer: § AS-BUILT (at the end) is what SHIPPED and where it deviated. The rest of the file — the
+  `--mode all` MCP/DebugApi contract: (Q54-1) how missing / not-yet-ported /
   not-desired features are handled via the capability manifest, and (Q54-2) how perspective-dependent commands
   are routed from the currently-selected perspective's subsystem context. ⭐ The RESOLUTION is in the
   "✅ RESOLVED" section; the sub-questions below are kept as the reasoning of record.
@@ -267,3 +269,43 @@ sequenceDiagram
 drive seam, the per-subsystem adapters and the perspective→subsystem map all exist. ⛔ **On approval:**
 `DESIGN_Headless_Testability.md` §6a is re-pointed to this contract, and the conformance handoff *(unstarted)* is
 re-issued against it.
+
+---
+
+## ⭐⭐⭐ AS-BUILT — **`2026-08-24`, and the five deviations**
+
+> ⭐⭐ Obligation ⑤. ⛔ Where this section disagrees with the reasoning above, **it wins** — the sub-questions
+> are the reasoning of record, this is what the code does.
+
+### ⭐ What shipped
+
+| piece | where | note |
+|---|---|---|
+| ⭐⭐⭐ **`ISubsystemDebugProvider`** · **`SubsystemDebugProvider`** · **`IProvidesDebugSurface`** | `Hrot.Presentation/DebugApi/` | one per subsystem; **CGF · SimHost · IG · ExCon** all contribute |
+| ⭐⭐⭐ **`PerspectiveScopedDispatcher`** | *(same folder)* | resolves the LIVE perspective → provider; `Resolve(name)` is `Q54-2`'s `?perspective=` override |
+| ⭐⭐ **`NotSupportedHereException`** → **HTTP 501** `{code:"NOT_SUPPORTED_HERE", capability}` | `Hrot.Presentation/DebugApi/` + `DebugApiHost` | `Q54-1` Option C, typed and machine-readable |
+| ⭐⭐⭐ **`GET /capabilities`** | `Hrot.Editor/DebugApi/CapabilityManifest.cs` | **64 endpoints enumerated from the live route table**, `unclassifiedRoutes: []`, matrix MEASURED per perspective |
+| ⭐⭐ **the API lifted to the ClusterRunner host** | `Program.cs` | the four wiring points, gated on `HROT_DEBUG_API_PORT` **and** on the editor subsystem being absent |
+| ⭐⭐ **the dependency split** | `DebugApiService` | a SECOND constructor for the cluster shape; the nine editor deps became resolving members |
+
+📐 **Measured, on a real `--mode all` boot:** `routablePerspectives = [ExCon, IG, Scenario, SimHost]`;
+`POST /sim/step` **200** from `Scenario`/`SimHost` and **501 `NOT_SUPPORTED_HERE(time.drive)`** from
+`IG`/`ExCon`; `/panels/cgf_fdp_inspector` returns a real model. ⇒ ⭐ perspective-scoped dispatch works as
+designed, including its refusals.
+
+### ⛔⛔ The five deviations
+
+| # | the design said | 📐 what was measured, and what was built |
+|---|---|---|
+| **①** | §6c: *"the ack-gate lives INSIDE `Step()` (preferred — one return contract)"* | ⛔⛔ **IMPOSSIBLE.** `MasterSyncController.Update()` drains the ACKs on the MAIN THREAD and `Step()` is itself a main-thread job ⇒ a blocking wait there deadlocks the loop that clears the flag. ⭐ The gate lives in the HTTP handler, which polls across frames — **the return contract is preserved**, only the location moved |
+| **②** | *(the cluster half of the gate)* | 🔴🔴 **CROSS-LANE BLOCKER, reported not worked around.** `IsAwaitingStepAcks` is only reachable from the `MasterSyncController` INSTANCE, and the only one lives in a **private field of `OrchestratorSubsystem`** — a TIME-lane file this batch may not edit. ⇒ ⭐ the dispatcher takes `master: null`, `GET /capabilities` reports **`hasMaster:false`**, and a conformance rail ASSERTS it says so. ⛔ The fix is a one-line accessor in the TIME lane; ⭐ the rail reddens the day it lands, which is how the gap stays visible |
+| **③** | Q54-2's provider carries its deps | ⛔ **A VALUE-CAPTURED provider LIES.** 📐 The first cut reported `time.drive:false` for **SimHost and CGF** — the two that definitely have adapters — because `_clusterTimeAdapter` is built in **`RegisterWindows`**, which runs AFTER the composition root builds providers. ⇒ ⭐ the accessors are `Func<>`s and the matrix measures at READ time. ⚠ A manifest lying in the *safe-looking* direction is worse than one lying loudly |
+| **④** | Q54-1: three-way SAME / DIFFERENT / NOT-PRESENT | ⭐⭐⭐ **A FOURTH VERDICT WAS FORCED: *"DIFFERENT BY DESIGN"*.** 📐 Of four comparable shared kinds, two diverge for non-regression reasons — `entity-inspector` *(the hosts hold different worlds)* and `spawner` *(the editor offers platforms, ExCon offers composites)*. ⇒ ⭐ a **declared** set with a REASON per entry, plus a control that reddens if a declared divergence starts AGREEING *(an exemption nothing needs must be deleted)* |
+| **⑤** | *(implicit)* the state payloads are readable anywhere | ⛔ **`/status` AND `/sim/state` had to DEGRADE.** 📐 `POST /sim/step` first answered `NOT_SUPPORTED_HERE(preview.control)` on a **fully supported** step, because the RESPONSE read `_preview`. ⇒ ⭐ absent fields are `null` in those two payloads *(and only those two)*; every other endpoint still 501s with the key. ⚠ Absence reported about the wrong thing is worse than no answer |
+
+### 🔴🔴 What the manifest cannot yet describe — **two measured gaps**
+
+| ⛔ | 📐 |
+|---|---|
+| **`POST /scenario/load` in `--mode all` ⇒ `NOT_SUPPORTED_HERE(editor.authoring)`** | a cluster loads through the orchestrator's 2PC `PrepareLive`, not `IEditorLogic`. ⇒ ⭐⭐ **the conformance sequence *"load S in BOTH, then diff"* is NOT EXECUTABLE today**, so only world-INDEPENDENT structure is comparable. ⚠ This is the single biggest limit on what conformance can currently claim |
+| **no cluster host publishes a gizmo frame** | 📐 kind `_gizmo` is editor-only; the handoff's *"dump K **+ the gizmo frame**"* is therefore half-done. ⭐ Declared in the baseline so the suite is green and the gap is visible |
