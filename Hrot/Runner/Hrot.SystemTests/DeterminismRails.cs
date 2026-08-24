@@ -238,35 +238,35 @@ public sealed class DeterminismRails
     }
 
     /// <summary>
-    /// 🔴🔴🔴 <b>A RELOAD in ONE process does NOT repeat the authored ids — and the OPPOSITE claim, which
-    /// this rail used to make, was an ARTIFACT OF A RACE.</b>
+    /// ⭐⭐⭐ <b>A RELOAD in ONE process REPEATS the authored ids — <c>HN-037</c> closed, and this rail is the
+    /// third framing of the same question.</b> 📄 <c>docs/DESIGN_Deterministic_Network_Ids.md</c> §11.
     ///
-    /// <para>⛔⛔ <b>What this rail said before `2026-08-24`:</b> <i>"the ids already repeat, so charter
-    /// <c>D6</c>'s allocator reset is NOT needed"</i> — and the programme wrote that into
-    /// <c>DESIGN_Deterministic_Network_Ids.md</c> §0b as a measured negative. 🔴 <b>It was measuring the
-    /// FIRST world twice.</b></para>
+    /// <para>⚠⚠ <b>The history matters, because two of the three framings were wrong for different
+    /// reasons</b> — and the file records them rather than quietly overwriting:</para>
+    /// <list type="number">
+    ///   <item>⛔ <b>*"the ids already repeat, so <c>D6</c>'s reset is not needed"*.</b> 🔴 It was measuring
+    ///   the FIRST world twice: <c>waitForReady</c> waited on a LEVEL (<c>ClusterState == OperatingEdit</c>)
+    ///   and a reload STARTS from that level, so the first poll answered "ready" while the previous world
+    ///   still stood. ⭐ Readiness is edge-triggered now.</item>
+    ///   <item>⛔ <b>*"the ids drift to <c>1008</c>–<c>1015</c>, and that is the truth"*.</b> ⭐ TRUE as a
+    ///   measurement, and it was the tripwire this rail carried — asserting the drift so that fixing it
+    ///   would be noticed. 📌 It reddened on `2026-08-24`, exactly as designed.</item>
+    ///   <item>⭐⭐ <b>NOW: the world boundary resets the ONE id authority to 1000</b>, so a reload rebuilds
+    ///   the same world under the SAME ids. 🔒 User: <i>"resets to initial value (1000 for the first entity
+    ///   allocated) whenever whole 'world' resets"</i>.</item>
+    /// </list>
     ///
-    /// <para>📐 <b>The mechanism, measured:</b> <c>POST /scenario/load {waitForReady:true}</c> used to wait
-    /// on a LEVEL — <c>ClusterState == OperatingEdit</c> — and a RELOAD *starts* from that level ⇒ the very
-    /// first poll answered <i>"ready"</i> while the previous world was still standing. ⚠⚠ The margin was
-    /// <b>ONE FRAME</b>: adding a single main-thread job to <c>POST /sim/step</c> *(the ack-gate, this
-    /// batch's item ④)* was enough to flip the observation from <i>"the same 8 ids"</i> to <i>"an EMPTY
-    /// world"</i>. ⇒ ⭐ the readiness check is now EDGE-triggered *(the world must be seen to change and then
-    /// settle)*, and with a load that genuinely completes the truth is visible.</para>
-    ///
-    /// <para>🔴🔴 <b>The truth: the second load's entities carry ids <c>1008</c>–<c>1015</c></b> — the
-    /// editor's <c>SequentialIdAllocator</c> continuing from <c>1000</c>, ⛔ <b>not</b> the authored
-    /// <c>NetworkIdentity</c> values in <c>scenario.json</c>. ⇒ ⭐⭐ <b>charter <c>D6</c>'s requirement is
-    /// ALIVE for the reload case</b> *(it remains refuted for two FRESH processes — that rail is clean and
-    /// unaffected)*.</para>
-    ///
-    /// <para>⭐⭐⭐ <b>So this is a TRIPWIRE, deliberately.</b> It asserts the DRIFT, naming it, and it goes
-    /// RED the day the loader preserves authored ids across a reload — 📌 the same shape as
-    /// <c>ModeStartupRails</c>' <c>--mode ig</c> case and the preview batch's tripwires. ⛔ Do not "fix" it
-    /// by asserting equality again: that is the claim that was false.</para>
+    /// <para>🔴🔴 <b>AND THIS RAIL GUARDS THE TRAP THAT CAME WITH THE FIX.</b> 📐 Measured while building:
+    /// the drift was the only reason a reload worked at all. <c>EntityRepository.SoftClear</c> does not
+    /// touch <c>NetworkEntityMap</c>, and <c>NetworkSpawningSystem</c>'s duplicate guard <b>silently
+    /// drops</b> a spawn whose id is already mapped. ⇒ resetting to 1000 without clearing the map gave
+    /// <b>8 entities on the first load and 0 on the second</b> — no exception, no log line, and seven
+    /// unrelated system rails failed with an empty world. ⚠ That is why <c>ka.Length == kb.Length</c> and
+    /// <c>NotEmpty(kb)</c> are asserted BEFORE the equality: an empty second world would otherwise satisfy
+    /// "no drift" trivially.</para>
     /// </summary>
     [SystemSmokeFact]
-    public async Task A_reload_in_one_process_does_not_repeat_the_authored_ids()
+    public async Task A_reload_in_one_process_repeats_the_authored_ids()
     {
         await using var ed = await EditorProcess.StartAsync("det-reload");
 
@@ -279,14 +279,18 @@ public sealed class DeterminismRails
         _out.WriteLine($"ids first : [{string.Join(", ", ka)}]");
         _out.WriteLine($"ids second: [{string.Join(", ", kb)}]");
 
+        // ⛔ Anti-vacuity FIRST: the failure mode this fix introduced is an EMPTY second world, and an empty
+        //   set drifts from nothing. 📌 Assert the world exists before asserting what it is numbered.
         Assert.NotEmpty(ka);
-        Assert.Equal(ka.Length, kb.Length);          // ⭐ the same world was rebuilt…
-        Assert.NotEqual(ka, kb);                     // ⛔ …under DIFFERENT ids. THE TRIPWIRE.
+        Assert.NotEmpty(kb);
+        Assert.Equal(ka.Length, kb.Length);
 
-        // ⭐ And the drift is the ALLOCATOR continuing, not arbitrary: the second load's lowest id sits
-        //   immediately after the first load's highest. ⛔ Asserting only "they differ" would also pass on
-        //   random ids, which would be a different (worse) defect.
-        Assert.Equal(long.Parse(ka[^1]) + 1, long.Parse(kb[0]));
+        Assert.Equal(ka, kb);
+
+        // ⭐ And the block starts where the user asked it to, not merely "the same place twice": both loads
+        //   must begin at 1000, which is what makes the ids reproducible ACROSS processes and hosts too.
+        Assert.Equal("1000", ka[0]);
+        Assert.Equal("1000", kb[0]);
     }
 
     /// <summary>
@@ -294,16 +298,23 @@ public sealed class DeterminismRails
     /// 1000"* was the SAME RACE, seen from another angle.</b>
     ///
     /// <para>📐 <b>Measured `2026-08-24` with the readiness race fixed:</b> after a real reload, network id
-    /// <c>1000</c> <b>does not exist at all</b> — every one of its 29 components reads as "lost", because
-    /// the rebuilt world numbered its entities <c>1008</c>–<c>1015</c>. ⇒ ⛔ the old rail was comparing one
-    /// id across a world that had never actually been replaced, so its *"gained a component"* was an
-    /// artifact, not a leak. ⚠ <b>The <c>HN-011</c> row is corrected in the tracker rather than left
-    /// standing as a defect nobody can reproduce.</b></para>
+    /// <c>1000</c> <b>did not exist at all</b> — every one of its 29 components read as "lost", because the
+    /// rebuilt world numbered its entities <c>1008</c>–<c>1015</c>. ⇒ ⛔ the old rail was comparing one id
+    /// across a world that had never actually been replaced, so its *"gained a component"* was an artifact,
+    /// not a leak. ⚠ <b>The <c>HN-011</c> row is corrected in the tracker rather than left standing as a
+    /// defect nobody can reproduce.</b></para>
     ///
-    /// <para>⭐⭐ <b>What is genuinely observable, and worth a rail:</b> the reload rebuilds the SAME AUTHORED
-    /// WORLD — the same entity NAMES, the same component sets — under new ids. ⭐ That is the claim a reader
-    /// actually wants *(the file was re-read and re-materialised)*, and it is independent of the id drift the
-    /// tripwire above owns.</para>
+    /// <para>⚠⚠ <b>UPDATED `2026-08-24` (<c>HN-037</c>): the drift is GONE, and the retraction still
+    /// stands.</b> A reload now rebuilds under the SAME ids (<c>1000</c>–<c>1007</c>), so id <c>1000</c>
+    /// exists on both loads — ⛔ but that does NOT resurrect <c>HN-011</c>: the leak claim was refuted by the
+    /// readiness race, not by the numbering, and <c>A_reload_in_one_process_repeats_the_authored_ids</c>
+    /// asserts the components match id-for-id. ⭐ Reinstating a leak claim would need a fresh
+    /// measurement.</para>
+    ///
+    /// <para>⭐⭐ <b>What this rail owns:</b> the reload rebuilds the SAME AUTHORED WORLD — the same entity
+    /// NAMES, the same component sets. ⭐ Compared BY NAME on purpose: it is authored data, so this rail
+    /// stays true and stays meaningful whatever the numbering policy is. 📌 That independence is why it
+    /// survived the policy change above unedited.</para>
     /// </summary>
     [SystemSmokeFact]
     public async Task A_reload_rebuilds_the_same_authored_world()
@@ -313,7 +324,8 @@ public sealed class DeterminismRails
         var first  = await LoadAndMap(ed);
         var second = await LoadAndMap(ed);
 
-        // ⭐ Compare by NAME, which is authored data, rather than by id, which the reload does not preserve.
+        // ⭐ Compare by NAME, which is authored data. ⚠ Since HN-037 the ids ARE preserved across a reload,
+        //   but comparing by name keeps this rail independent of that policy — deliberately.
         string[] NamesAndComponents(string mapping) => mapping.Split('\n')
             .Select(r => r.Split('\t'))
             .Where(f => f.Length > 2)

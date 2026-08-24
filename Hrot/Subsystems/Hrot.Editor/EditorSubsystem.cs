@@ -1103,6 +1103,19 @@ namespace Hrot.Editor
             // Inject bus and zoneService so file ops trigger WorldResetEvent and persist zone data.
             var fileService = new ScenarioFileService(scenarioSerializer, _world.Bus, zoneService);
 
+            // ⭐⭐⭐ HN-037 — the world boundary must forget the network id → entity index too.
+            // 📄 docs/DESIGN_Deterministic_Network_Ids.md §11 (the as-built §11g).
+            // 🔴 Measured `2026-08-24`: with the authority reset to 1000 the SECOND load re-issues 1000–1007,
+            //    and NetworkSpawningSystem's duplicate guard ("silently drop if already spawned") drops every
+            //    one of them — 8 entities on the first load, 0 on the second, no exception, no log.
+            //    SoftClear does not touch this map, and the old id DRIFT was the only reason that never
+            //    showed. ⇒ unifying the allocator required closing this at the same time.
+            // ⭐ RegisterWorldResetObserver is the seam that already exists for exactly this — its contract is
+            //   "flush cached entity handles before the repo is wiped", and this map IS cached entity handles.
+            //   ⛔ No new mechanism, and it fires on BOTH NewScenario and LoadScenario, which are the two
+            //   world boundaries this service owns.
+            fileService.RegisterWorldResetObserver(() => _entityMap?.Clear());
+
             // ?? 3b. TKB + ELM + offline spawning ?????????????????????????????
             var tkbDb       = HrotEnvironment.CreateTkb();
             _tkbDatabase    = tkbDb;   // `ST-010`: expose the authoritative spawn DB to in-process hosts
@@ -1700,6 +1713,14 @@ namespace Hrot.Editor
             // ?? 6b. Offline orchestrator ? scenario listing via ClusterMaster + UICache ??
             var offlineConfig = new ClusterConfiguration { Mandatory = Array.Empty<string>() };
             _clusterMaster  = new ClusterMaster(_orchestrationBus!, offlineConfig);
+
+            // ⭐⭐⭐ HN-037 — the editor's ONE allocator IS its world's authority, and this master resets it at
+            //    a scenario load exactly as the orchestrator's resets the DDS server.
+            //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11. 🔒 User: "Editor is no exception".
+            // ⭐ Same allocator instance the load handlers and NetworkSpawningSystem were given at :1123, so
+            //   authored and runtime ids come from one monotonic sequence that starts at 1000 after a load.
+            _clusterMaster.IdAuthority =
+                Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!);
 
             // Register the seek aggregator and process manager so the clock snaps on seek
             _seekProcessManager = new ReplaySeekProcessManager(_orchestrationBus!, _timeController);

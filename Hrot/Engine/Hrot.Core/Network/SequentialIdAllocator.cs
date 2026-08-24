@@ -17,7 +17,17 @@ public sealed class SequentialIdAllocator : INetworkIdAllocator, IRestorableIdAl
     public long AllocateId() => Interlocked.Increment(ref _next);
 
     /// <inheritdoc/>
-    public void Reset(long startId = 0) => Interlocked.Exchange(ref _next, startId);
+    /// <remarks>
+    /// ⭐⭐ <b><c>HN-037</c>: the contract is <i>"the next id issued is <paramref name="startId"/>"</i></b>, and
+    /// this allocator PRE-increments — so the counter is parked one BELOW the requested id.
+    /// <para>📐 Measured `2026-08-24`: before this correction <c>Reset(1000)</c> here handed out <c>1001</c>
+    /// while the editor's post-increment allocator handed out <c>1000</c> for the same call. ⛔ Two
+    /// meanings for one method is the divergence <c>HN-037</c> already was, one level down.</para>
+    /// <para>⚠ Zero production callers existed at the time of the change *(measured: two tests, both on the
+    /// DDS path, both already asserting the "next id is startId" meaning)*, so this corrects a latent
+    /// disagreement rather than changing behaviour anything depended on.</para>
+    /// </remarks>
+    public void Reset(long startId = 0) => Interlocked.Exchange(ref _next, startId - 1);
 
     /// <inheritdoc/>
     /// <remarks>

@@ -485,9 +485,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // 2. CGF-Authoritative Scenario and Episode Load Handlers (must be BEFORE ReferenceLiveLoadHandler)
         var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(_behaviorRegistry!);
         var scenarioLoader     = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
-        var cgfIdAllocator     = new SequentialIdAllocator();
         var behaviorRemapper   = CgfBehaviorSetup.CreateBehaviorRemapper();
         var extractor          = new Hrot.CGF.Orchestration.StagingEntityExtractor();
+
+        // ⭐⭐⭐ HN-037 — AUTHORED IDS COME FROM THE ONE AUTHORITY, not from a second local allocator.
+        // 📄 docs/DESIGN_Deterministic_Network_Ids.md §11d ②.
+        // 📐 What the standalone `cgfIdAllocator = new SequentialIdAllocator()` cost, measured 2026-08-24:
+        //    it seeded at 1 and pre-incremented, so the same scenario that gave the editor 1000–1007 gave
+        //    --mode all 2–9 — HN-037, and it was PURELY the second seed, not a second authority. ⛔ It also
+        //    put authored ids in the runtime allocator's band, since nothing kept the two apart.
+        // ⭐ `_context.IdAllocator` is the DDS client of the master the orchestrator hosts; the master
+        //    resets it to 1000 at the world boundary (ClusterMaster.ResetIdAuthorityIfWorldBoundary), so
+        //    authored (at load) and runtime (after) now come from ONE monotonic sequence.
+        var cgfIdAllocator     = idAllocator;
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World,
@@ -510,16 +520,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    ⛔ nothing here touches the central id authority.
         // ⚠ Both participants or neither: the allocator alone guarantees a duplicate-id throw from
         //    NetworkEntityMap.Register on the second preview (§2b).
-        // ⚠⚠ CGF HAS **TWO** ALLOCATORS, measured 2026-08-23 — and restoring one would leave the other
-        //    drifting, which is the inert-fix shape: `_context.IdAllocator` serves the runtime spawn path
-        //    (:191, :355) while the LOCAL `cgfIdAllocator` (:462) is handed to the scenario-load handlers.
-        //    ⭐ This is exactly why the bracket takes a LIST rather than a fixed pair.
+        // ⚠⚠ SUPERSEDED BY HN-037 — this comment used to warn that "CGF HAS **TWO** ALLOCATORS" and that
+        //    restoring one would leave the other drifting. 📐 As of HN-037 there is ONE: the scenario-load
+        //    handlers were pointed at `_context.IdAllocator`, the same instance the runtime spawn path
+        //    (:217, :381) uses. ⇒ ⭐ registering it TWICE here would capture and restore the same allocator
+        //    twice per preview — harmless today (idempotent replace) but a lie about the participant count,
+        //    so it is registered once.
+        // ⭐ The bracket still takes a LIST: the map is a second participant, and "both or neither" still
+        //   holds (§2b — the allocator alone guarantees a duplicate-id throw from NetworkEntityMap.Register
+        //   on the second preview).
         var cgfRewindables = new System.Collections.Generic.List<Fdp.Toolkit.Orchestration.Preview.IPreviewRewindable>();
         if (_entityMap != null)
         {
             if (_context.IdAllocator != null)
                 cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(_context.IdAllocator));
-            cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(cgfIdAllocator));
             cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap));
         }
         newClusterSlave.RegisterHandler(new ReferencePreviewHandler(_context.World, cgfRewindables));
