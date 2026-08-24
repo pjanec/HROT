@@ -2,8 +2,10 @@
 state: LIVE
 build-state: DESIGN
 updated: 2026-08-24
-current-answer: §4 — the recommendation (Option A: reflection-driven, zero moves) and the alternative
-  (Option B: move 5 projectors down + 2 edges). Awaiting the user's ruling.
+current-answer: §4 — recommendation is Option A (reflect-and-register-all, extended to components+events+
+  gizmos as ONE bootstrap step), decisively after two measured findings in §1 (component IDs are explicit;
+  the reflection path already ships in RepositoryPriming). §3b answers the user's layering question and
+  frames aggregation (Option C) as a separate reopening of Q51. Awaiting the user's ruling.
 design-basis: 🔒 user 2026-08-23 (uniform membership) · REPORT_Uniform_Gizmo_Membership.md §2 (the block,
   measured) · DESIGN_Uniform_Gizmo_Membership.md §7.3 (the lane's proposed way out) ·
   Architect_Question_52 §0 (support all, presence decides).
@@ -34,6 +36,8 @@ This is a real architectural fork, so it is yours to rule on.
 | the 5 projectors **inside host assemblies** | `IG`: `EffectPresentationGizmo` · `EqsSensorGizmo` · `ProjectilePresentationGizmo` · `SimHost`: `SimHostEntityPresentationGizmo` · `CGF`: `CgfEntityPresentationGizmo` |
 | 🔒 **cycle check for Option B** *(coordinator)* | `Hrot.Common` does **not** reference `Hrot.Presentation`; `Hrot.AI.Behaviors` does **not** reference `Hrot.Presentation` ⇒ **`Presentation → Common` and `Presentation → AI.Behaviors` are both cycle-free** |
 | ⭐ the generator groups by **namespace, not assembly** | ⇒ a projector file can move assemblies **keeping its namespace**, and every existing `GizmoRegistrar.RegisterAll` call site still compiles — 📐 `VisualEffectState` just demonstrated this in `ST-027` |
+| ⭐⭐⭐ **component IDs are EXPLICIT, not registration-order** *(coordinator, `2026-08-24`)* | 📐 `ComponentType.cs:119` — *"explicit `[ComponentId]` attribute **required for ALL types**"*, and it **throws** on a duplicate id *(`:133`)*. ⇒ ⭐⭐ **reflect-and-register-all is SAFE for cross-node layout** — the id is baked into the type, so registration order and host subset are irrelevant to the bit index. ⛔ This removes the one hazard that would have killed the reflection idea |
+| ⭐⭐⭐ **the reflection mechanism ALREADY EXISTS and is IN PRODUCTION** *(coordinator, `2026-08-24`)* | 📐 `Fdp.Toolkits/ReplayBrowser/Federation/RepositoryPriming.RegisterDiscoveredComponents` — *"reflects all loaded (non-System) assemblies and registers every `[ComponentId]`-annotated type … and every `[EventId]`-annotated struct"*, handling `ReflectionTypeLoadException`, calling the generic `RegisterComponent<T>` via `MakeGenericMethod`. ⭐ **`replaybrowser` already boots this way** *(`ReplayBrowserSubsystem.cs:139`)* — it is how `ST-027` found its registration path. ⛔ So "each host registers all found by reflection" is **adopt an existing path everywhere**, not build a new one |
 
 ## 2. ⭐⭐ OPTION A — **reflection-driven pack, ZERO moves** *(coordinator's addition)*
 
@@ -60,18 +64,76 @@ then lives in `Hrot.Presentation`, references all seven families, and is referen
 | ⭐⭐ **`MapGizmoPack` is an ordinary static call**, like every existing registrar | ⚠ **moves domain-presentation code** *(projectiles, EQS, entity symbols)* **into the engine-presentation layer** — a layering smell of its own |
 | ⭐ the 5 projectors are **barely coupled** to their host *(1 `[GizmoProjector]` each, no host-internal state)* | ⚠ **`git mv` × 5** across assemblies — history follows, but reviewers must check each |
 
+## 3b. ⭐⭐⭐ THE USER'S REFRAME *(`2026-08-24`)* — **reflection is bigger than gizmos, and aggregation dissolves the CLASS**
+
+> 🔒 **User:** *"let each host register all components that are found by reflection, as a shared code, plain
+> and simple? Would go together with registering all gizmos found by reflection… we will need to unify the
+> host bootstrap code heavily… this would be just another step towards it. Other point of view: if we
+> aggregated the csprojs into a much smaller number of assemblies… couldn't the assembly referencing
+> problem disappear? where is the layering problem?"*
+
+### ⭐⭐ Reflection is ONE mechanism for BOTH — and it is a bootstrap-unification step
+
+📐 `RegisterDiscoveredComponents` **already registers components AND events by reflection**; the gizmo pack
+is the **same principle, one type-attribute over**. ⇒ ⭐⭐⭐ **"prime the world by reflection"** — components,
+events, gizmos — is a **single shared bootstrap step every host calls**, replacing the per-role component
+registries *(`Ig/Cognitive/Combat/MuscleRole…`)* **and** the five hand-rolled gizmo lists at once. ⭐ That
+is exactly the *"unify the host bootstrap heavily"* the user names, and Option A is its gizmo third.
+
+⚠ **The ONE shared risk, stated plainly:** reflection sees only **loaded** assemblies. A component or gizmo
+whose assembly no host references transitively is **invisible** to it. ⇒ ⭐⭐ **the same rail guards both**:
+*"every `[ComponentId]`/`[GizmoProjector]` in the source tree is present at runtime, in every mode"* — a
+miss is a load-order finding, ⛔ not a thing to ignore-list.
+
+### ⭐⭐⭐ WHERE the layering problem IS — and the user is right that aggregation dissolves it
+
+⭐ **The layering problem is ENTIRELY a compile-time cross-assembly reference CYCLE.** The rule: *a
+referenced assembly cannot reference back.* Today the graph is
+`Fdp.Core → Fdp.Toolkits → Hrot.Common → Hrot.AI.Behaviors → {Hrot.IG · Hrot.SimHost · Hrot.CGF} → composition`.
+
+| ⛔ the squeeze | |
+|---|---|
+| a shared pack that **hosts CALL** must sit **below** them *(they reference it)* | ⇒ at/under `Hrot.Common` |
+| a pack that **references all 7 families** must sit **above** `Hrot.IG/SimHost/CGF` *(it references them)* | ⇒ above the hosts |
+| ⭐⭐⭐ **no assembly can be both below and above the hosts** | ⇒ **that is the cycle, and it is the whole problem** |
+
+⭐⭐ **Three escapes, and they are not equivalent:**
+
+| escape | how it kills the cycle | cost |
+|---|---|---|
+| ⭐⭐ **reflection** *(Option A)* | ⭐ **removes the compile-time reference entirely** — runtime discovery has no edge to cycle | ⭐ near-zero; the load-order rail |
+| ⭐ **move files down** *(Option B)* | rearranges which assembly holds what, so one assembly *can* reference all 7 | 5 moves + 2 edges |
+| ⭐⭐⭐ **aggregate assemblies** *(Option C — the user's)* | ⭐⭐ **removes the assembly BOUNDARIES** ⇒ within one assembly there are **no reference edges to cycle** — 🔒 **the user is exactly right** | large, structural, its own programme |
+
+⭐⭐ **And Option C dissolves the whole RECURRING CLASS, not just this instance:** 📌 `ST-014` *(the Stride
+bootstrapper could not move down — cycle)*, 📌 my own `Hrot.Common.Infrastructure` lean *(refuted as a
+cycle)*, 📌 `ST-028` *(this)*. ⚠ **Aggregation was declined `2026-08-23` on BUILD-TIME grounds** *("10–15 s
+is not worth it" — `Q51`)*; ⛔ **that framing missed the CYCLE TAX** — the recurring design cost of the
+boundaries themselves. ⇒ ⭐ **this reopens `Q51` on a different axis**, but as its **own** large decision —
+⛔ **not bundled into the gizmo pack.**
+
+⭐⭐⭐ **The synthesis:** ⭐ **reflection (A) is the cheap answer that serves the gizmo pack AND the broader
+bootstrap unification NOW, cycle-free, no restructure.** ⭐⭐ **Aggregation (C) is the deeper answer that
+removes the cycle class** — worth reopening as a strategic decision on the cycle-tax argument, and **A does
+not block it**: an aggregated future would simply make the reflection an ordinary loop over one assembly.
+
 ## 4. ⭐⭐⭐ RECOMMENDATION — **the user rules**
 
 | # | ⭐ recommendation | why |
 |---|---|---|
-| **A vs B** | ⚠ **LEAN A, but it is genuinely close** — ⭐ Option A because the completeness rail *(invariant `B`)* **must reflect over `[GizmoProjector]` anyway**, so A makes the pack and its own check **one mechanism** and costs nothing structural. ⛔ **The load-order hazard is the only real risk**, and it is testable by `ModeStartupRails` — if any mode boots with a family unloaded, A fails loudly and we fall back to B | ⭐ smallest blast radius that satisfies *"the pack decides, the host does not curate"* |
-| **the fallback is CHEAP** | ⭐ **build A first; if a mode's bootstrap cannot see a family's assembly, B is the escape** — and A's reflection code is the same enumeration `B`'s rail needs, so little is wasted | ⛔ do not pre-commit to B's moves before A is measured |
+| ⭐⭐⭐ **A — now decisively, not "close"** | 📐 The two findings in §1 tip it: component IDs are **explicit** *(so reflection is layout-safe)* and the reflection path **already exists and ships** *(`RegisterDiscoveredComponents`, replaybrowser)*. ⇒ A is *"extend a production mechanism by one attribute"*, not *"write a novel pack"* | ⭐ smallest blast radius, and it is the **bootstrap-unification step** the user wants, not a gizmo-only fix |
+| ⭐⭐ **do it as ONE "prime the world" step** | components + events + gizmos, one shared call every host makes, ⛔ retiring the per-role component registries and the five gizmo lists **together** | 🔒 *"unify the host bootstrap heavily… another step toward it"* |
+| ⭐ **B is the fallback, and cheap** | ⛔ only if the load-order rail shows a family's assembly is not loaded in some mode. A's reflection is the same enumeration B would need | ⛔ do not pre-commit to B's moves |
+| ⭐⭐ **C (aggregation) — reopen SEPARATELY** | ⭐ it dissolves the cycle **class** *(§3b)*, but it is a large structural programme; ⛔ **not this batch.** A does not block it | ⚠ reopens `Q51` on the cycle-tax axis, not build-time |
 | ⛔ **NOT** *"keep the per-host lists"* | 🔒 the user's ruling forbids it — *"replaybrowser is no exception… the host does not curate"* | — |
 
-⚠ **What I do NOT know and A must prove:** whether every family assembly is **loaded** at the point the
-pack runs, on **every** mode. ⭐ Reflection over `AppDomain` loaded assemblies is only complete if they are
-loaded — a type never referenced can be absent. ⇒ ⭐⭐ **A's first rail is "the pack finds all 7 families in
-every mode"**, and a miss there is the signal to switch to B, not to widen an ignore-list.
+⚠ **What A must PROVE — the one real risk:** every `[ComponentId]`/`[GizmoProjector]` assembly is **loaded**
+at the point the priming runs, in **every** mode. 📐 Reflection over `AppDomain.GetAssemblies()` sees only
+loaded assemblies — a type in an assembly no host references transitively is **absent**. ⇒ ⭐⭐ **the first
+rail is "priming finds every `[ComponentId]`/`[GizmoProjector]` in the source tree, in every mode"** *(a
+source-scan count vs the runtime count)*; a miss is a load-order finding, ⛔ never an ignore-list.
+⚠ **And measure the cost** — `ST-027` showed the schema half is free; the full reflection over every
+assembly at every boot is **not obviously** free ⇒ report the mode-rail startup delta.
 
 ## 5. ⛔ NOT READY TO BUILD
 
