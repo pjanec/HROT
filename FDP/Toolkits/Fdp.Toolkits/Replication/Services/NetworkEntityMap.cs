@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Replication.Services
         private readonly Dictionary<long, Entity> _netToEntity = new();
         private readonly Dictionary<Entity, long> _entityToNet = new();
         
-        private struct GraveyardEntry
+        internal struct GraveyardEntry
         {
             public long NetworkId;
             public uint DeathFrame;
@@ -32,6 +32,58 @@ namespace Fdp.Toolkit.Replication.Services
         }
 
         public IReadOnlyDictionary<long, Entity> Entries => _netToEntity;
+
+        // ── Preview dry-run capture / restore ─────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ An opaque snapshot of this map's whole state. ⛔ Only <see cref="RestoreState"/> reads it.
+        /// </summary>
+        public sealed class State
+        {
+            internal Dictionary<long, Entity> NetToEntity = new();
+            internal Dictionary<Entity, long> EntityToNet = new();
+            internal List<GraveyardEntry>     Graveyard   = new();
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Captures the map so a preview can put it back.</b>
+        /// 📄 <c>docs/DESIGN_Deterministic_Network_Ids.md</c> §2b.
+        ///
+        /// <para>⛔⛔ <b>Why the MAP and not just the allocator.</b> 📐 <see cref="Register"/> THROWS on a
+        /// duplicate id, and a preview's rewind *(<c>liveRepo.SyncFrom(snapshot)</c>)* does not touch this
+        /// map — so entries from preview 1 survive into preview 2. ⚠ Today the id allocator's DRIFT is the
+        /// only thing that stops preview 2 colliding; ⇒ the moment ids repeat exactly, they collide.
+        /// ⭐ These two ship together or not at all.</para>
+        ///
+        /// <para>⚠ <b>The <c>EntityRegistered</c> event is deliberately NOT captured</b> — subscriptions are
+        /// wiring, not state, and a preview does not re-wire anything. ⛔ Restoring them would double-fire
+        /// on the next registration.</para>
+        /// </summary>
+        public State CaptureState() => new State
+        {
+            NetToEntity = new Dictionary<long, Entity>(_netToEntity),
+            EntityToNet = new Dictionary<Entity, long>(_entityToNet),
+            Graveyard   = new List<GraveyardEntry>(_graveyard),
+        };
+
+        /// <summary>
+        /// ⭐ Puts back a <see cref="CaptureState"/> snapshot.
+        /// <para>⛔ Replaces rather than merges: a preview's entries must be GONE, and a merge would keep
+        /// exactly the ones that cause <see cref="Register"/> to throw.</para>
+        /// </summary>
+        public void RestoreState(State state)
+        {
+            if (state is null) throw new ArgumentNullException(nameof(state));
+
+            _netToEntity.Clear();
+            foreach (var kv in state.NetToEntity) _netToEntity[kv.Key] = kv.Value;
+
+            _entityToNet.Clear();
+            foreach (var kv in state.EntityToNet) _entityToNet[kv.Key] = kv.Value;
+
+            _graveyard.Clear();
+            _graveyard.AddRange(state.Graveyard);
+        }
 
         public void Register(long netId, Entity entity)
         {

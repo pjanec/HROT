@@ -483,7 +483,25 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             storageDirectory: isolatedTempRoot));
 
         // 4. Utility handlers
-        newClusterSlave.RegisterHandler(new ReferencePreviewHandler(_context.World));
+        // ⭐⭐⭐ HN-017 — this node restores its OWN allocator and map on the master's UnloadingPreview.
+        // 📄 DESIGN_Deterministic_Network_Ids.md §4c. 🔒 User: "reset must be cluster wide" — and it IS,
+        //    because the 2PC broadcast reaches every node and each commits locally. ⛔ No new protocol, and
+        //    ⛔ nothing here touches the central id authority.
+        // ⚠ Both participants or neither: the allocator alone guarantees a duplicate-id throw from
+        //    NetworkEntityMap.Register on the second preview (§2b).
+        // ⚠⚠ CGF HAS **TWO** ALLOCATORS, measured 2026-08-23 — and restoring one would leave the other
+        //    drifting, which is the inert-fix shape: `_context.IdAllocator` serves the runtime spawn path
+        //    (:191, :355) while the LOCAL `cgfIdAllocator` (:462) is handed to the scenario-load handlers.
+        //    ⭐ This is exactly why the bracket takes a LIST rather than a fixed pair.
+        var cgfRewindables = new System.Collections.Generic.List<Fdp.Toolkit.Orchestration.Preview.IPreviewRewindable>();
+        if (_entityMap != null)
+        {
+            if (_context.IdAllocator != null)
+                cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(_context.IdAllocator));
+            cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(cgfIdAllocator));
+            cgfRewindables.Add(Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap));
+        }
+        newClusterSlave.RegisterHandler(new ReferencePreviewHandler(_context.World, cgfRewindables));
         newClusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
         newClusterSlave.RegisterHandler(new ReferenceArchiveHandler(
             isolatedTempRoot, _context.NodeId));

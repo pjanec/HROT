@@ -33,6 +33,30 @@ namespace Hrot.Editor.DebugApi
         /// <summary>Maximum wall-clock seconds to wait for a scenario load to reach OperatingEdit.</summary>
         private const double ScenarioReadyTimeoutSeconds = 30.0;
 
+        /// <summary>
+        /// ⚠⚠ <b><c>HN-015</c> — REGISTERING THE SAFE-FLOAT CONVERTERS HERE DOES NOT FIX THE 500. Measured,
+        /// and recorded so nobody repeats the attempt.</b>
+        ///
+        /// <para>📐 <b>The symptom:</b> spawn one entity at runtime, then <c>GET /entities</c> ⇒ HTTP 500,
+        /// <i>"positive and negative infinity cannot be written as valid JSON"</i>. ⇒ one entity with a
+        /// non-finite float takes down the WHOLE listing.</para>
+        ///
+        /// <para>⛔⛔ <b>But the throw is UPSTREAM of this options object.</b> 📐 The payload reaches the host
+        /// as an already-built <c>JsonNode</c> *(see the class remarks — deliberately, so keys are not
+        /// re-cased)*, and the write that fails happens inside
+        /// <c>EntityStateExtractionService.ExtractEntities</c> → <c>ScenarioSerializer.SerializeEntity</c>.
+        /// ⇒ ⛔ converters added to the HOST's options are never consulted for it. 📌 <b>Tried and measured
+        /// on `2026-08-23`: the 500 was unchanged</b>, so the registration was reverted rather than left in
+        /// place looking like a fix.</para>
+        ///
+        /// <para>⭐⭐ <b>Where the real fix has to go, and why it is not a drive-by:</b> either the SCENARIO
+        /// SERIALIZER learns sentinels *(⚠ that changes the on-disk scenario format — persistence blast
+        /// radius)*, or <c>ExtractEntities</c> becomes resilient PER ENTITY so one bad row cannot kill the
+        /// listing *(⭐ the containment fix, and the disproportionate part of the defect)*, or the
+        /// un-initialised transform that carries the <c>Infinity</c> is fixed at the source. ⇒ ⭐ a design
+        /// call, not a serialisation tweak — 📌 <c>DebugApiSafeFloatConverters.cs</c> still has ZERO
+        /// application sites, and that remains a real finding.</para>
+        /// </summary>
         private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

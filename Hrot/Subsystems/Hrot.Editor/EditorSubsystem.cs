@@ -251,6 +251,9 @@ namespace Hrot.Editor
         //    nothing in normal runs. The MCP server (tools/ai-debug-mcp) is an out-of-process client
         //    of this loopback HttpListener. See docs/MCP_Integration.md.
         private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiJobQueue;
+
+        /// <summary>⭐ <c>HN-017</c> — the offline id allocator, held so the preview bracket can restore it.</summary>
+        private Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator? _idAllocator;
         private Hrot.Editor.DebugApi.DebugApiHost?       _debugApiHost;
         private Hrot.Editor.DebugApi.EditorAiTracerCoordinator?          _debugApiTracer;
         private Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _debugApiRrController;
@@ -528,9 +531,20 @@ namespace Hrot.Editor
             private readonly MasterSyncController    _timeController;
             private bool _inPreview;
 
-            internal EditorPreviewController(EntityRepository world, MasterSyncController timeController)
+            /// <param name="rewindables">
+            /// ⭐⭐ <b><c>HN-017</c> — the non-ECS state the preview must also put back.</b>
+            /// 📄 <c>DESIGN_Deterministic_Network_Ids.md</c> §2b/§4c.
+            /// <para>⛔⛔ Passed from <c>Initialize</c>, where the allocator and the entity map are BUILT —
+            /// 📌 the <c>2026-08-16</c> rule: a production caller that HAS a dependency must PASS it. ⚠ This
+            /// controller is constructed in the same method, a few lines later, which is why the list is a
+            /// constructor argument and not something attached afterwards.</para>
+            /// </param>
+            internal EditorPreviewController(
+                EntityRepository world,
+                MasterSyncController timeController,
+                System.Collections.Generic.IEnumerable<Fdp.Toolkit.Orchestration.Preview.IPreviewRewindable> rewindables)
             {
-                _handler        = new PreviewClusterOpHandler(world);
+                _handler        = new PreviewClusterOpHandler(world, rewindables);
                 _timeController = timeController;
             }
 
@@ -554,11 +568,19 @@ namespace Hrot.Editor
 
         // ?? Nested helper: offline sequential ID allocator ????????????????????
 
-        private sealed class SequentialIdAllocator : INetworkIdAllocator
+        private sealed class SequentialIdAllocator : INetworkIdAllocator, IRestorableIdAllocator
         {
             private long _next = 1000;
             public long AllocateId()            => _next++;
             public void Reset(long startId = 0) => _next = startId;
+
+            // ⭐⭐ HN-017 — the preview dry-run position. 📄 DESIGN_Deterministic_Network_Ids.md §4c.
+            // ⚠ POST-increment here, so `_next` is the NEXT id to issue — the Hrot.Core one pre-increments
+            //   and holds the LAST issued. 📌 §4b: both satisfy "restore my position"; no single NAME for
+            //   the value would be true of both, which is why the contract is the restore, not the read.
+            public object? CaptureIssuingPosition()               => _next;
+            public void RestoreIssuingPosition(object snapshot)    { if (snapshot is long v) _next = v; }
+
             public void Dispose() { }
         }
 
@@ -1104,6 +1126,9 @@ namespace Hrot.Editor
             var elm               = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
             elm.SetTranslators(translators);
             var idAllocator       = new SequentialIdAllocator();
+            // ⭐ HN-017 — held so the preview bracket can be given it at :8. 📌 The 2026-08-16 rule: a
+            //   production caller that HAS a dependency must PASS it, and it cannot pass what it dropped.
+            _idAllocator = idAllocator;
             var spawnSys          = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: EditorNodeId, translators: translators);
             var scenarioLoadSource = new ScenarioEntityCreationRequestSource();
             _scenarioLoadSource    = scenarioLoadSource;   // `ST-010`
@@ -1744,7 +1769,17 @@ namespace Hrot.Editor
             }
 
             // ?? 8. Preview controller (works headless too ? no canvas dep) ????
-            _previewController = new EditorPreviewController(_world, _timeController!);
+            // ⭐⭐⭐ HN-017 — THE PREVIEW'S "PUT IT BACK" LIST, and it is BOTH participants or neither.
+            // 📄 DESIGN_Deterministic_Network_Ids.md §2b (the enumeration) · §4c (the user's approach).
+            // ⛔⛔ The allocator ALONE would be worse than nothing: NetworkEntityMap.Register throws on a
+            //    duplicate id, and the allocator's drift is currently the only thing stopping preview 2
+            //    from colliding ⇒ exact id repetition without the map rewind is a guaranteed exception.
+            var previewRewindables = new[]
+            {
+                Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(_idAllocator!),
+                Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMap(_entityMap!),
+            };
+            _previewController = new EditorPreviewController(_world, _timeController!, previewRewindables);
 
             // ── 8b. AI-debug API (MCP) host — ported from feat/ai-debug-api. Works headless. Enabled only
             //    when HROT_DEBUG_API_PORT names a port, so it costs nothing in normal runs; the MCP server
