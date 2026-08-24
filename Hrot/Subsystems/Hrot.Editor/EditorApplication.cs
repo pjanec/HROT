@@ -150,13 +150,6 @@ public sealed class EditorApplication : IEditorLogic
     public void SaveScenario(string filePath) => _fileService.SaveScenario(_world, filePath);
 
     /// <inheritdoc/>
-    public void LoadScenario(string filePath)
-    {
-        _fileService.LoadScenario(_world, filePath);
-        _alertManager.OnScenarioLoaded(_fileService.LastLoadResult);
-    }
-
-    /// <inheritdoc/>
     public void LoadScenarioByName(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;

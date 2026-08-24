@@ -42,7 +42,6 @@ public sealed class EditorToolbarWindowDumpsItsModeTests : IDisposable
         public void Update() => throw new NotSupportedException();
         public void NewScenario() => throw new NotSupportedException();
         public void SaveScenario(string filePath) => throw new NotSupportedException();
-        public void LoadScenario(string filePath) => throw new NotSupportedException();
         public void LoadScenarioByName(string scenarioName) => throw new NotSupportedException();
         public void SaveCurrentScenario() => throw new NotSupportedException();
         public void SaveScenarioAs(string scenarioName) => throw new NotSupportedException();
