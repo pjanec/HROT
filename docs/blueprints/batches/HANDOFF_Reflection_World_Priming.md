@@ -10,7 +10,7 @@ known-conflict: ⚠ SUBSUMES ST-027's MapSchemaPack (retire it) and CLOSES Q53's
 -->
 # HANDOFF — **reflection world-priming** *(one scan, pluggable handlers)*
 
-> 📌 **Dispatched at `<STAMP>`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `ceefa1252`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`ST-`**, tracker **Area I** — 📐 series stands at **`ST-030`**, so start at `ST-031`.
 
