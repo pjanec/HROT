@@ -14,7 +14,8 @@ known-conflict: none in the harness lane. ⛔ CROSS-LANE BOUNDARY: the Lookahead
 -->
 # HANDOFF — **the cross-host conformance harness** *(steps 6+7, on the Q54 contract)*
 
-> 📌 **Dispatched at `dc7df8b1b`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `045773154`** *(re-stamped `2026-08-24` — rule 1a, verified unstarted; added the
+> PARTICIPATE≠OBSERVE clarification for ExCon, no scope change)*. ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: push the started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`HN-`**/**`MX-`**, tracker **Area J** — 📐 the Area-J series stands at **`HN-025`** *(net)* /
 > **`HN-122`** *(MCP-harness)* / **`MX-014`**. ⭐ **Rule 3: you allocate the ids; state them (rule 5).**
@@ -61,7 +62,7 @@ MCP contract: the perspective-scoped dispatcher, the per-subsystem providers, th
 | ⭐⭐ **route by the ACTIVE perspective, not a global stepper** | in `--mode all` every selectable perspective is a SLAVE context *(orchestrator has none)* ⇒ a step goes slave-adapter → DDS → master. ⛔ do not hard-code the master path |
 | ⚠ **the matrix must reflect GROUND TRUTH** | ⛔ if you write a static table you have reintroduced the rot D4 exists to remove. ⭐ derive from wiring |
 | ⚠ **the 200 ms enter-deterministic barrier** | `LookaheadWallTicks` crossed against the real clock ⇒ pump-until-paused once. ⭐ LATENCY, not non-determinism *(sim frozen during the barrier, §6c)*. ⛔ zeroing it edits TIME-lane files — §3 |
-| ⚠ **`ExCon` never ACKs steps** | roster is **SimHost·IG·CGF** — ⛔ do not wait on an ExCon ACK |
+| ⚠ **`ExCon` never ACKs steps — but the MCP still knows completion** | roster is **SimHost·IG·CGF** *(`OrchestratorSubsystem.cs:309-313`)*. ⭐ ExCon uses the **same** `SlaveSyncController` API — it just has **no ECS kernel**, so it can't be a barrier *participant*. ⛔ **PARTICIPATE ≠ OBSERVE** *(Q54 Q54-2)*: completion is OBSERVED by reading the **master's** `IsAwaitingStepAcks` *(the gate reads the master, not the issuer)*, so a step issued from ANY perspective — ExCon included — is confirmed. ⛔ do not wait on an ExCon ACK, and do NOT add ExCon to the roster *(the cluster would stall on an ACK it can't produce)*. ⚠ if you read ExCon's OWN panels, the settle ticks let it catch up *(one frame behind the roster)* |
 | ⚠ **capture is perspective-scoped** | switch, **step**, then read *(`HN-007`)*; a same-frame read returns the empty prefix |
 | ⚠ **authoring perspectives capture EMPTY** | no debug route opens an AI asset *(`MX-013`)* ⇒ BTree/HSM/Blueprint compare skeletons. ⭐ say so |
 
@@ -88,6 +89,7 @@ read-only `awaitingStepAcks` field)*.
 ⭐ Standing contract *(rule 8)*: one row per gate · verbatim command · pass/fail/skip · **delta vs `dc7df8b1b`** ·
 a `--no-build` column · every RED confirmed pre-existing **by name** · `tracker-counts.py --check` ·
 `rulings-check.py` · `design-digest.py --check` · **the ids you allocated** *(rule 5, same commit)*.
+⚠ delta is **vs `045773154`** *(the re-stamped dispatch sha)*.
 
 ⭐⭐ **Row 8 — this batch IS an integration gate** *(it stands up `--mode all`)*: report
 `bash scripts/run-system-tests.sh` *(baseline `58 / 58` + the new conformance/lockstep/manifest cases)*, **item
