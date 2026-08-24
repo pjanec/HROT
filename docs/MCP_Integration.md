@@ -260,6 +260,59 @@ conformance** *(diff a panel's model across editor/CGF/SimHost)*. ⭐ Interactio
 ⚠⚠ **DEPENDS on `PanelSnapshot` existing** *(observability slice `U-obs-1`)* — ⛔ **sequence AFTER that, not with
 O–S**; the endpoint is trivial, the singleton it reads is the real work, and it lives in a different design.
 
+## Group U — Scenario load modes (live + edit), cluster-wide — ⭐⭐ **fixes a wrong endpoint shape, reuses existing 2PC** *(`HN-029`, user `2026-08-24`)*
+
+> 🔒 **User, `2026-08-24`:** *"scenario/load is wrong abstraction. there are 2 load modes — live and edit …
+> better having separate scenario/load/live and scenario/load/edit endpoints. both should be cluster wide.
+> editor is not special, also uses 2pc for its single process."*
+
+⛔ **This is an ENDPOINT-DESIGN fix, not a new system** — the load state machine already exists and is **owned by
+[`docs/designs/mgmt-1/DESIGN.md` §12/§5.5](designs/mgmt-1/DESIGN.md)** *(2PC · transition planner)*;
+`docs/HROT architecture.md:414` shows the promote-edit-to-live trajectory. This group only reshapes the MCP surface.
+
+📐 **Measured — loading is already ONE unified 2PC mechanism** *(`TransitionStateIntent` →
+`ClusterOpRequest(TransitionState)` → `ClusterMaster` → `TransitionPlanner` → per-step `FanOut(PrepareEdit|
+PrepareLive)` + `CommitState`)*, and the **editor already uses it** *(`EditorApplication.LoadScenarioByName:160-171`
+publishes `TransitionStateIntent{OperatingEdit}` into a ONE-node `ClusterMaster`)*. ⛔ **The editor is not special.**
+
+⛔ **The one real gap:** `POST /scenario/load` is hardwired to `IEditorLogic.LoadScenarioByName`
+*(`DebugApiService.cs:824`, `editor.authoring`)* ⇒ `--mode all` answers `NOT_SUPPORTED_HERE(editor.authoring)`.
+
+| endpoint | publishes | handlers *(all exist unless noted)* |
+|---|---|---|
+| `POST /scenario/load/live` | `TransitionStateIntent{TargetState=OperatingLive, ScenarioId, ExerciseId?}` | `HrotScenarioLoadHandler` + `ReferenceLiveLoadHandler` — SimHost·CGF·editor. ⭐ **no new handler** |
+| `POST /scenario/load/edit` | `TransitionStateIntent{TargetState=OperatingEdit, ScenarioId}` | `HrotEditLoadHandler` — editor·SimHost. ⚠ **CGF has none** ⇒ declared absent in the manifest baseline; a CGF edit-load handler is a follow-up *(`UXI-37` ruling 65)* |
+| `POST /scenario/load` | *(alias → `load/edit`, its current editor behaviour)* | keeps `GoldenCaptureFixture`/`McpClient.LoadScenarioAsync` working — or migrate callers and retire it |
+
+⭐⭐ **Both endpoints publish the host-agnostic intent to whichever `ClusterMaster` the host owns — NOT
+`IEditorLogic`.** Host-agnostic by construction: editor one-node, orchestrator N-node, future CGF alike.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant H as harness (MCP)
+    participant D as PerspectiveScopedDispatcher
+    participant M as ClusterMaster (this host)
+    participant P as TransitionPlanner
+    participant N as slaves (self, or SimHost·CGF·…)
+
+    H->>D: POST scenario/load/edit {scenario}
+    D->>M: TransitionStateIntent(TargetState=OperatingEdit, ScenarioId)
+    M->>P: plan trajectory to OperatingEdit
+    P-->>M: LoadingEdit then OperatingEdit
+    M->>N: FanOut PrepareEdit, then CommitState
+    N-->>M: prepared, committed
+    Note over M,N: same shape for load/live -> PrepareLive (+ recording)
+    D->>M: gate on cluster state == OperatingEdit (readiness)
+    M-->>H: loaded (world equalised for conformance)
+```
+
+⚠ **Readiness:** gate on `OperatingLive`/`OperatingEdit`, and **handle the reload level-vs-edge race** at
+`DebugApiService.cs:841-849` *(a reload can satisfy a bare state check before the new world exists)*. ⚠ edit ≠
+preview *(`PreviewClusterOpHandler` is a snapshot/rewind bracket, NOT a file load)*. ⭐⭐ **Payoff:** the
+conformance *"load S in both, then diff"* sequence becomes executable ⇒ `entity-inspector` upgrades from DECLARED
+to a real content comparison.
+
 ## Self-describing errors — every mistake POINTS at the discovery endpoint *(cross-cutting; `MX8`)*
 
 🔒 **User:** *"if the agent makes a mistake in the request (breakpoint, behaviour, etc.), the MCP error sent
