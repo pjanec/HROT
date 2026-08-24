@@ -50,8 +50,13 @@ per-subsystem capability providers, with a manifest that DECLARES what the curre
 
 | layer | rate | source of truth |
 |---|---|---|
-| ⭐ **DESCRIPTION** — every endpoint: what it does · params · response schema | ⛔ **STATIC** *(all 48 routes exist today)* — write it ONCE, complete | ⭐⭐ derive the request/response schema from the **DTO types** where the shape is fixed *(precedent: `GET /behaviors` emits schema from the registry the runtime parses with)*; for panel dumps the schema is honestly *"a model JSON per `PanelId`"* — state it as dynamic, do not fake a rigid contract |
+| ⭐ **DESCRIPTION** — every endpoint: what it does · params · response schema | ⛔ **STATIC** = complete and config-independent *(all 48 routes exist today)*, ⛔ **NOT hardcoded** | 🔴🔴 **DERIVED FROM CODE** *(user, `2026-08-24`)* — reflected from the **route registrations** and their **request/response DTO types + attributes** *(precedent: `GET /behaviors` emits schema from the registry the runtime parses with)*. ⇒ ⭐⭐ **add a route, the manifest grows itself; nothing to keep in sync.** For panel dumps the response is honestly *"a model JSON per `PanelId`"* — state it as dynamic, do not fake a rigid contract |
 | ⭐⭐ **AVAILABILITY MATRIX** — `(capability × perspective/subsystem) → present?` | ⚠ **MUTABLE** — cells flip absent→present as features migrate *(D3)* | 🔴🔴 **MEASURED AT RUNTIME, never hand-authored** — see the risk below |
+
+⭐⭐⭐ **The unifying principle across BOTH layers: NOTHING is hand-authored.** The description is derived from the
+**route + DTO attributes** in code; the matrix is derived from **wired-dependency** ground truth. ⇒ ⛔ **the
+manifest cannot drift from the code** — neither *what the API is* nor *what this host offers* is a document
+someone must remember to update.
 
 ### ⛔⛔ The ONE real risk — **a hand-authored matrix is the "green-and-false" rot**
 
