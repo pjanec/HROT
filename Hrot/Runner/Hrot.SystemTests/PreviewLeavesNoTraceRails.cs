@@ -54,6 +54,18 @@ public sealed class PreviewLeavesNoTraceRails : SystemTestBase
         return t;
     }
 
+    // ⭐⭐⭐ HN-017's END-TO-END RAIL IS NOT HERE, AND THAT IS MEASURED, NOT LAZY.
+    //
+    // 📄 The requirement — "two consecutive previews produce the same ids" — is asserted in
+    //    Fdp.Toolkits.Tests/Orchestration/APreviewLeavesNoTraceTests, against the REAL PreviewStateBracket
+    //    and the REAL allocators, and 4 of its 9 rails were shown to go RED on a revert probe.
+    //
+    // ⛔⛔ A system-level version was WRITTEN AND REMOVED: it must read the allocated ids from
+    //    GET /entities (POST /entities/spawn carries none — HN-014), and HN-015 makes that endpoint answer
+    //    500 after any runtime spawn. ⇒ the rail could only ever be red for a reason unrelated to its own
+    //    claim, and R-131 forbids shipping that.
+    // ⭐ The tripwire below is what keeps HN-015 visible; invert it, then re-add the end-to-end rail.
+
     /// <summary>
     /// 🔴🔴🔴 <b>TRIPWIRE — <c>HN-015</c>: ONE runtime-spawned entity breaks <c>GET /entities</c> ENTIRELY.</b>
     ///

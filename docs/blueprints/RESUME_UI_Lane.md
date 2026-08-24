@@ -1,9 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-23
+updated: 2026-08-24
 current-answer: this whole file. It is the UI implementation lane's resumption document — written ahead of
-  a compaction so the next window starts grounded. §0 is the MOST RECENT batch, §1–§2 are the BP-399 /
-  Panel-observability history, §3 is the standing protocol, §4 is what is carried open.
+  a compaction so the next window starts grounded. §0 is the MOST RECENT batch (HN-017, the preview
+  rewind), §0b is the perspective model Part A, §1–§2 are the BP-399 / Panel-observability history, §3 is
+  the standing protocol, §4 is what is carried open.
 stale-below: §1 and §2 are HISTORY as of 2026-08-23 — both landed. Read §0 first.
 known-conflict: none.
 -->
@@ -21,7 +22,27 @@ known-conflict: none.
 
 ---
 
-## 0. ✅ MOST RECENT — **the perspective model, Part A** is DONE *(`2026-08-23`)*
+## 0. ✅ MOST RECENT — **a preview leaves no trace** is DONE *(`HN-017`, `2026-08-24`)*
+
+📄 **Design *(and the AS-BUILT record — read §4d FIRST)*:
+[`../DESIGN_Deterministic_Network_Ids.md`](../DESIGN_Deterministic_Network_Ids.md)** — now `BUILT`.
+📄 **Report: [`batches/REPORT_Preview_Leaves_No_Trace.md`](batches/REPORT_Preview_Leaves_No_Trace.md)**.
+
+⭐ **Ids: `HN-017` done; `HN-018`, `HN-019` filed open; `HN-012`/`HN-013` closed.** ⭐ Next free: `HN-020`.
+
+### ⛔⛔ The five facts a later session must not re-derive
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **"what preview saves" lives in `Fdp.Toolkits/Orchestration/Preview/`** | ⛔ **NOT in either handler.** 📐 There are **two** preview handlers *(`HN-016`)* and the design named the **editor-only** one as the "one home" — that would have been exactly the hardwiring the user's steer forbids |
+| ⭐⭐⭐ **A pooled allocator's issuing position IS ITS QUEUE** | ⇒ ⛔ `Reset(Read())` was never possible *(`BlockIdManager.Reset` ignores its argument; `DdsIdAllocator.Reset` writes a **global** `Req_Reset`)*. ⭐ All five allocators implement `IRestorableIdAllocator`, and ⛔ **none of them talks to the central authority** |
+| ⭐⭐⭐ **The allocator may NEVER be restored without the map** | 📐 `NetworkEntityMap.Register` throws on a duplicate id and the editor never prunes ⇒ exact id repetition makes that throw **certain** on preview 2. ⭐ The drift was the only thing hiding the leak |
+| ⭐⭐ **Cluster-wide needed NO new protocol** | both handlers answer `PrepareState(LoadingPreview/UnloadingPreview)`: the master broadcasts, **each node restores its own reservation locally** |
+| ⚠⚠ **`Hrot.SimHost.Tests` and `Fdp.Toolkits.Tests` BOTH have rotating order-dependent reds** | 📐 Proved on a **stashed** tree: 4 then 11 failures over two identical runs. ⇒ ⛔⛔ **a full-suite red/green there is not evidence about your change** — isolate. `HN-019`, and `DEBT-AIB-030`'s shape |
+
+---
+
+## 0b. ✅ **the perspective model, Part A** is DONE *(`2026-08-23`)*
 
 📄 **Design: [`../DESIGN_Perspective_Unification.md`](../DESIGN_Perspective_Unification.md) §3** — now
 `BUILT`, with per-item **AS-BUILT** notes folded in *(obligation ⑤)*.

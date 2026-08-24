@@ -232,7 +232,26 @@ namespace Hrot.SimHost
                     checkpointWorker, world, eventAccumulator ?? new Fdp.Core.EventAccumulator()));
 
             // Wire ReferencePreviewHandler for LoadingPreview / UnloadingPreview (CGF1-S0309).
-            clusterSlave.RegisterHandler(new ReferencePreviewHandler(world));
+            // ⭐⭐⭐ HN-017 — and this node restores its OWN id pool and entity map.
+            // 📄 docs/DESIGN_Deterministic_Network_Ids.md §2b (the enumeration) · §4c (the approach) · §4d
+            //    (as-built). 🔒 User `2026-08-23`: "the reset must be cluster wide" — the master's
+            //    PrepareState broadcast reaches every node and each commits LOCALLY, so a per-node
+            //    capture/restore here IS the cluster-wide reset. ⛔ No new protocol, and ⛔ nothing here
+            //    talks to the central id authority.
+            // ⚠⚠ THIS SITE HAD BOTH DEPENDENCIES AND PASSED NEITHER — the 2026-08-16 silent-default shape:
+            //    `scenarioIdAllocator` is a parameter of this very method (used at the scenario handlers
+            //    below) and the map is reachable through `world`. Leaving them out would have shipped a
+            //    capability that does nothing on the one production node that runs the 2PC preview with a
+            //    real repo.
+            // ⚠ The map is resolved LATE (see EntityMapFromRepository): SimHostApp sets the singleton AFTER
+            //   this method returns, so an eager lookup here would throw.
+            var previewRewindables = new List<Fdp.Toolkit.Orchestration.Preview.IPreviewRewindable>();
+            if (scenarioIdAllocator != null)
+                previewRewindables.Add(
+                    Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.IdAllocator(scenarioIdAllocator));
+            previewRewindables.Add(
+                Fdp.Toolkit.Orchestration.Preview.PreviewParticipants.EntityMapFromRepository(world));
+            clusterSlave.RegisterHandler(new ReferencePreviewHandler(world, previewRewindables));
 
             // Wire ReferencePrefetchHandler so this node can stage scenario files and ACK.
             clusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
