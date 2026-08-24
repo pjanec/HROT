@@ -85,6 +85,34 @@ namespace Fdp.Toolkit.Replication.Services
             _graveyard.AddRange(state.Graveyard);
         }
 
+        /// <summary>
+        /// 🔴🔴 <b>Forgets every mapping — the WORLD BOUNDARY operation.</b> 📄
+        /// <c>docs/DESIGN_Deterministic_Network_Ids.md</c> §11 *(<c>HN-037</c>)*.
+        ///
+        /// <para>⭐⭐⭐ <b>Why this had to exist before the allocator could be unified.</b> This map is a
+        /// node-local index OF the world, and <c>EntityRepository.SoftClear</c> does not touch it. That was
+        /// invisible while a reload allocated FRESH ids *(§11a's drift: the second load in one process got
+        /// <c>1008–1015</c>)* — every id was new, so no stale entry could match. ⛔ The moment the world
+        /// boundary resets the authority to 1000, the second load re-issues <c>1000–1007</c> and
+        /// <c>NetworkSpawningSystem</c>'s duplicate guard *(<i>"silently drop if already spawned"</i>)</c>
+        /// drops <b>every single spawn</b> — 📐 measured `2026-08-24`: 8 entities on the first load, <b>0</b>
+        /// on the second, with no exception and no log line.</para>
+        ///
+        /// <para>⇒ ⭐⭐ <b>The drift was not merely a cosmetic divergence; it was standing in for this
+        /// clear.</b> Removing it without adding this turns a visible id difference into a silently empty
+        /// world — strictly worse. 📌 Stated here rather than only in the design because the next person to
+        /// find this method will be wondering why a map needs a Clear at all.</para>
+        ///
+        /// <para>⛔ NOT for preview: preview does not clear the world, and its participant captures and
+        /// restores state instead *(<see cref="CaptureState"/> / <see cref="RestoreState"/>, §4d)*.</para>
+        /// </summary>
+        public void Clear()
+        {
+            _netToEntity.Clear();
+            _entityToNet.Clear();
+            _graveyard.Clear();
+        }
+
         public void Register(long netId, Entity entity)
         {
             if (_netToEntity.ContainsKey(netId))

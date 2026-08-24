@@ -22,7 +22,12 @@ internal sealed class IgSequentialIdAllocator : INetworkIdAllocator, IRestorable
     public long AllocateId() => Interlocked.Increment(ref _nextId);
 
     /// <inheritdoc/>
-    public void Reset(long startId = 0) => Interlocked.Exchange(ref _nextId, startId);
+    /// <remarks>
+    /// ⭐ <c>HN-037</c>: <i>"the next id issued is <paramref name="startId"/>"</i>. Pre-increment, so the
+    /// counter parks one below. ⚠ IG is ghost-only and never allocates an authored id — corrected anyway so
+    /// the contract holds across all five production allocators rather than only the two on the load path.
+    /// </remarks>
+    public void Reset(long startId = 0) => Interlocked.Exchange(ref _nextId, startId - 1);
 
     /// <inheritdoc/>
     /// <remarks>⭐ Scalar: the position is the counter. Pre-increment, so this is the last id issued.</remarks>

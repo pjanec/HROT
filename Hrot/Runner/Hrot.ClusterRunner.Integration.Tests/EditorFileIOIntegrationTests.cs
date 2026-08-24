@@ -96,7 +96,12 @@ public sealed class EditorFileIOIntegrationTests
                 """;
             File.WriteAllText(tempPath, minimalJson);
 
-            var ex = Record.Exception(() => harness.Editor.LoadScenario(tempPath));
+            // ⭐ HN-037 Part B: the direct load path is gone; the claim under test was always the HEADER
+            //   check, so it targets that directly. ⛔ Not weakened — ValidateSubsystemType IS the code the
+            //   removed method ran, now public for exactly this reason.
+            var ex = Record.Exception(
+                () => Hrot.ScenarioEditor.Services.ScenarioFileService.ValidateSubsystemType(
+                    File.ReadAllText(tempPath)));
             Assert.Null(ex);
         }
         finally { File.Delete(tempPath); }
@@ -119,8 +124,10 @@ public sealed class EditorFileIOIntegrationTests
                 """;
             File.WriteAllText(tempPath, badJson);
 
-            Assert.Throws<System.InvalidOperationException>(() => harness.Editor.LoadScenario(tempPath));
-            // Repo should remain empty (validation happens before clear)
+            Assert.Throws<System.InvalidOperationException>(
+                () => Hrot.ScenarioEditor.Services.ScenarioFileService.ValidateSubsystemType(
+                    File.ReadAllText(tempPath)));
+            // ⭐ And the world is untouched — validation is a pure header check, so nothing was cleared.
             Assert.Equal(0, harness.Repo.EntityCount);
         }
         finally { File.Delete(tempPath); }

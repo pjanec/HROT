@@ -515,7 +515,7 @@ table is §11)*. ⛔ §7's warning stands: do not merge the call sites; ⭐ it i
 
 ## 11. ⭐⭐⭐ THE SCENARIO-LOAD ALLOCATOR UNIFICATION — **one authority per world, reset on world reset** *(`HN-037`, user `2026-08-24`)*
 
-<!--build-state: READY-TO-BUILD — DESIGN. Carries the current-vs-new UML below. Sibling to §4d (preview, BUILT).-->
+<!--build-state: BUILT `2026-08-24` (HN-050..HN-056). §11a-§11f are the DESIGN as dispatched; §11g is the AS-BUILT and SUPERSEDES §11d's two-change-point split and §11c's three-policy table where they differ. Sibling to §4d (preview, BUILT).-->
 
 > 🔒 **User, `2026-08-24`:** *"there should be one single allocation path in both [edit and live] cases.
 > Editor is no exception… both should use same allocator that resets to initial value (1000 for the first
@@ -685,6 +685,119 @@ peers get ghosts)* and runtime spawns do not start until `OperatingLive` ⇒ no 
 chunk. ⛔ **The build must assert this ordering** *(a rail: after a load, the lowest authored id is 1000 on
 every host)* rather than assume it — 📌 an out-of-order chunk pull is exactly the silent-divergence shape
 `HN-037` was.
+
+### 11g. ⭐⭐⭐ THE AS-BUILT — **what shipped `2026-08-24`, and the three places it deviated**
+
+> ⭐ Obligation ⑤. §11a–§11f above are the design as dispatched; **where this section disagrees with them, this
+> section wins.**
+
+📐 **The headline measurement, end to end:** the same scenario loaded live in both hosts now gives
+**`[1000, 1001, 1002, 1003, 1004, 1006, 1007]` on the editor AND on `--mode all`** — identical. Before:
+editor `1000–1007`, cluster `2–9`.
+
+#### ⭐ 11g.1 What landed
+
+| # | | where |
+|---|---|---|
+| **①** | `IWorldIdAuthority.ResetToBase(firstId)` · `WorldIdAuthority.WorldBase = 1000` · `FromAllocator` | `Fdp.Toolkits/NetworkSpawning/Abstractions/IWorldIdAuthority.cs` |
+| **②** | the guarded hook, and `WorldIdResetCount` so NON-firing is observable | `ClusterMaster.ResetIdAuthorityIfWorldBoundary` |
+| **③** | orchestrator type-tests its server handle; `DdsIdAllocatorServer.ResetToBase` + an `_idLock` around `_nextId` | `OrchestratorSubsystem` · `DdsIdAllocatorServer` · `HostedIdAllocatorServer` |
+| **④** | the editor adapts its single offline allocator | `EditorSubsystem` |
+| **⑤** | CGF's authored ids come from `_context.IdAllocator`; the standalone allocator is retired | `CgfSubsystem` |
+| **⑥** | `NetworkEntityMap.Clear()`, wired to the world reset | `Fdp.Toolkits/Replication/Services` · `EditorSubsystem` |
+
+#### 🔴🔴 11g.2 DEVIATION 1 — **`Reset(X)` meant THREE things, so §11 could not have worked as written**
+
+📐 Measured across the five production allocators:
+
+| `Reset(1000)` ⇒ first id | allocators |
+|---|---|
+| **1000** ✅ | the editor's nested one · `DdsIdAllocator` *(server-assigned)* |
+| **1001** ⛔ | `Hrot.Core.SequentialIdAllocator` · `IgSequentialIdAllocator` — **pre-increment** |
+| **throws** ⛔ | `BlockIdManager` — a pool with no authority to seed from |
+
+⇒ ⛔ *"one single allocation path"* is not achievable while the reset means three things: the SAME
+`ResetToBase(1000)` yields a first authored id of **1000** on a DDS cluster and **1001** headless, and the
+parity rail would only catch it in whichever configuration it happens to run in.
+⭐⭐ **The contract is now stated in terms of the OBSERVABLE — *the next id issued* — and the two
+pre-increment allocators were CORRECTED**, not compensated for at the call site *(a per-caller adjustment is
+exactly the silent divergence `HN-037` already was)*. ⚠ Safe: **zero production callers of `Reset` existed**;
+the two tests that call it are both on the DDS path and both already asserted the new meaning.
+⛔ `BlockIdManager` still cannot honour it and is documented as such — it is on no authored-id path.
+
+#### ⭐⭐ 11g.3 DEVIATION 2 — **ONE hook, not §11d's two**
+
+§11d ① and ③ are two change points: an editor-local reset and an orchestrator reset.
+📐 **Measured: the editor runs its own `ClusterMaster`** *(`EditorSubsystem.cs:1702` — "the editor is a
+ONE-NODE cluster")*, so both hosts already share that class. ⇒ **one guarded hook, two authorities.**
+⭐ That is §11e's claim *("the editor becomes the offline one-node instance of the same authority")* expressed
+in code rather than asserted in prose; ⛔ two hooks would have been two implementations of one rule.
+
+#### 🔴🔴🔴 11g.4 DEVIATION 3 — **§11c's table is INCOMPLETE: a `LoadingLive` step is not sufficient**
+
+⛔ The state graph carries **`OperatingReplay → LoadingLive`** — the **live-from-replay branch**
+*(`CGF1-S0305`)*. There, `ReferenceReplayLoadHandler` claims `PrepareLive` because a replay session is
+active, so `CgfScenarioLoadHandler` never runs and nothing is extracted from a file: ⛔ **the world is NOT
+cleared — it CONTINUES from the replayed state**, with entities already holding ids in the 1000-block.
+⇒ resetting there re-issues ids that live entities hold — **precisely the mid-exercise catastrophe the guard
+exists to prevent, wearing a `LoadingLive` label.**
+
+⭐⭐⭐ **The rule as built: a `Loading{Live,Edit}` step entered FROM `Idle`.** `Idle` is the only state with no
+world, so it is the only place a load CREATES one instead of branching from one. ⚠ It walks the trajectory
+rather than checking the source state, because `OperatingEdit → OperatingLive` plans
+`UnloadingEdit → Idle → LoadingLive → OperatingLive` — the qualifying `Idle` is in the MIDDLE.
+
+⇒ **§11c gains a fourth row:**
+
+| situation | world state | reset? |
+|---|---|---|
+| ⛔ **live-from-replay branch** *(`OperatingReplay → LoadingLive`)* | **NOT cleared** — continues from the replayed state | ⛔ **NO** |
+
+⚠ **The guard rail also corrected its own first case:** `Idle → OperatingPreview` plans
+`Idle → LoadingEdit → OperatingEdit → LoadingPreview → OperatingPreview` — it drags a real edit LOAD along,
+so resetting there is CORRECT. ⭐ The preview that must not reset is the one a user actually takes, from a
+world already loaded. 📌 **The rail was fixed to ask the real question; the guard was not loosened to pass
+the wrong one.**
+
+#### 🔴🔴🔴 11g.5 THE TRAP THE FIX UNCOVERED — **the drift was standing in for a missing map clear**
+
+⛔ `EntityRepository.SoftClear` **does not touch `NetworkEntityMap`**, and `NetworkSpawningSystem`'s
+duplicate guard *("silently drop if already spawned", step 2) **drops** a spawn whose id is already mapped.
+
+📐 **Measured:** with the authority reset to 1000, the SECOND load in one process gave **8 entities, then 0**
+— *no exception, no log line* — and **seven unrelated system rails failed with an empty world.**
+
+⇒ ⭐⭐⭐ **The old id drift was not merely a cosmetic divergence: it was the only reason a reload worked.**
+Every id was new, so no stale entry could ever match. ⛔ **Removing the drift without adding the clear turns
+a visible id difference into a silently empty world — strictly worse than the bug being fixed.**
+⭐ Closed through `RegisterWorldResetObserver`, whose contract is already *"flush cached entity handles
+before the repo is wiped"* — and this map IS cached entity handles. ⛔ No new mechanism.
+
+📌 **§2b predicted exactly this for PREVIEW** *("the allocator alone guarantees a duplicate-id throw from
+`NetworkEntityMap.Register` on the second preview")* — ⚠ and the same sentence was true of a reload, which
+nothing had connected. The failure mode differs only because the spawn path drops silently where the map
+throws.
+
+#### ⭐ 11g.6 What Part B removed *(the obsolete direct load path)*
+
+⛔ `ScenarioFileService.LoadScenario` · `IEditorLogic.LoadScenario` · `EditorApplication`'s impl. 📐 Zero
+production callers but the facade itself. ⭐⭐ **Two capabilities lived only there and were ROUTED, not
+dropped:** `ValidateSubsystemType` is public now *(the genesis loader answers the same question by SKIPPING a
+non-matching file — this stays the only THROWING form)*, and the `GlobalTime` reset belongs to
+`NewScenario`, which is the boundary the real load already passes through.
+
+⚠ **Three things it orphaned, filed as `HN-057` rather than cascaded into deletions** — and 📐 all three were
+**already inert**: `EditorBootstrap.CreateFileService` has **zero production callers** and `EditorSubsystem`
+builds the service with `migrationServices: null`, so the persistent migration adapter **never ran in the
+shipped editor**, before or after.
+
+#### ⚠ 11g.7 STILL OPEN
+
+| | |
+|---|---|
+| **`HN-058`** | §11f's chunk-ordering race is **asserted, not solved** — and a client that never calls `AllocateId` never drains the broadcast `Resp_Reset`, so it keeps a stale pre-reset pool. ⛔ Not reachable today; it arms itself the day a second node allocates during load |
+| **`HN-057`** | the migration adapter has no live path; wiring it into the genesis load is a design question |
+| **`HN-038`** | untouched — the `OwnershipUpdate` strict-mode gap is a separate, replication-lane finding |
 
 ## ⛔ HISTORY — **two earlier framings of this file, both wrong, each with a fact worth keeping**
 

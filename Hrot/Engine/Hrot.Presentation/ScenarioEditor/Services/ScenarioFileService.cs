@@ -19,14 +19,14 @@ using Hrot.Common.Events;
 namespace Hrot.ScenarioEditor.Services;
 
 /// <summary>
-/// Provides local scenario file operations: <see cref="NewScenario"/>,
-/// <see cref="SaveScenario"/>, and <see cref="LoadScenario"/>.
+/// Provides local scenario file operations: <see cref="NewScenario"/> and <see cref="SaveScenario"/>.
 ///
-/// <para>
-/// All three operations that modify world state publish a <see cref="WorldResetEvent"/>
-/// synchronously BEFORE calling <c>repo.Clear()</c> to let consumers (selection managers,
-/// active tools) flush any cached <see cref="Entity"/> handles before the repository is wiped.
-/// </para>
+/// <para><see cref="NewScenario"/> publishes a <see cref="WorldResetEvent"/> synchronously BEFORE calling
+/// <c>repo.SoftClear()</c> so consumers (selection managers, active tools, the network id map) can flush
+/// cached <see cref="Entity"/> handles before the repository is wiped.</para>
+///
+/// <para>⚠ It used to carry a third operation, <c>LoadScenario</c> — a direct file→repo load that bypassed
+/// the genesis pipeline. ⛔ Removed `2026-08-24` (HN-037 Part B); see the note where it stood.</para>
 /// </summary>
 public sealed class ScenarioFileService
 {
@@ -56,9 +56,14 @@ public sealed class ScenarioFileService
         OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
     /// <summary>
-    /// The <see cref="MigrationLoadResult"/> from the most recent
-    /// <see cref="LoadScenario"/> call that went through the persistent adapter,
-    /// or <c>null</c> if no migration-aware load has occurred.
+    /// The <see cref="MigrationLoadResult"/> from the most recent migration-aware load, or <c>null</c>.
+    /// <para>⚠⚠ <b>Always <c>null</c> since HN-037 Part B, and it was already inert before it.</b> Only the
+    /// removed <c>LoadScenario</c> ever set it — and 📐 measured, production builds this service with
+    /// <c>migrationServices: null</c> (<c>EditorSubsystem</c>), so the persistent adapter never ran in the
+    /// editor anyway. ⇒ <see cref="SaveScenario"/>'s round-trip-journal branch is unreachable in production
+    /// and was before this change. ⛔ Left standing rather than cascaded into a deletion: re-wiring the
+    /// migration adapter to the genesis load path is a design question, not a mechanical consequence of
+    /// removing a facade. Filed as an open finding.</para>
     /// </summary>
     public MigrationLoadResult? LastLoadResult => _lastLoadResult;
 
@@ -78,8 +83,9 @@ public sealed class ScenarioFileService
 
     /// <summary>
     /// Register a synchronous callback that is invoked immediately before
-    /// <c>repo.Clear()</c> in <see cref="NewScenario"/> and <see cref="LoadScenario"/>.
-    /// Use this to flush cached entity handles.
+    /// <c>repo.SoftClear()</c> in <see cref="NewScenario"/>. Use this to flush cached entity handles.
+    /// <para>⭐ <c>HN-037</c>: the editor registers the <c>NetworkEntityMap</c> clear here — that map IS
+    /// cached entity handles, and nothing else clears it at a world boundary.</para>
     /// </summary>
     public void RegisterWorldResetObserver(Action callback)
     {
@@ -142,74 +148,17 @@ public sealed class ScenarioFileService
         }
     }
 
-    /// <summary>
-    /// Loads a scenario from a JSON file into <paramref name="repo"/>.
-    /// Fires reset observers and clears repo before deserializing.
-    /// When an <see cref="IZoneManagerService"/> was supplied, zone data is loaded
-    /// before entity deserialization using a single JSON parse (no double-parse).
-    /// </summary>
-    /// <exception cref="InvalidOperationException">
-    /// When the file's <c>SubsystemType</c> header is not recognized.
-    /// </exception>
-    public void LoadScenario(EntityRepository repo, string filePath)
-    {
-        if (repo == null)     throw new ArgumentNullException(nameof(repo));
-        if (filePath == null) throw new ArgumentNullException(nameof(filePath));
-
-        var jsonText = File.ReadAllText(filePath);
-
-        JsonObject? dom = null;
-
-        if (_migrationServices != null)
-        {
-            // Phase 4 path: use the persistent adapter so that snapshots are written
-            // before up-migration and journals are written on down-migration.
-            // MigrationLoadResult carries WasMigrated / IsDegraded for UI alerts.
-            var result = _migrationServices.Persistent
-                .LoadAndMigrateAsync(filePath)
-                .GetAwaiter().GetResult();
-            _lastLoadResult = result;
-            _lastLoadPath   = filePath;
-            dom = result.Dom;
-        }
-        else
-        {
-            _lastLoadResult = null;
-            _lastLoadPath   = null;
-            // Legacy path: validate subsystem type header before destructively clearing.
-            ValidateSubsystemType(jsonText);
-        }
-
-        _worldResetObservers?.Invoke();   // synchronous callbacks BEFORE clear
-        repo.SoftClear();                 // also clears Bus — so we publish bus event AFTER this
-        // Reset simulation time: SoftClear() does not touch singletons.
-        if (repo.HasSingletonUnmanaged<GlobalTime>())
-            repo.SetSingletonUnmanaged(default(GlobalTime));
-        _bus?.Publish(new WorldResetEvent()); // bus event survives because it's after ClearAll
-
-        if (_zoneService != null)
-        {
-            // Single JSON parse discipline: parse once, use DOM for both DTOs and FDP serializer.
-            dom ??= JsonNode.Parse(jsonText)?.AsObject();
-            var envelope = dom?.Deserialize<HrotScenarioEnvelopeDto>(HrotSerializerOptions.HrotJsonOptions);
-
-            if (envelope?.Zones != null)
-                _zoneService.LoadZones(repo, envelope.Zones);
-
-            // Only call Deserialize when an Entities section is present.
-            // Zone-only scenarios omit the Entities key (WhenWritingNull) and ScenarioSerializer
-            // would throw on a missing Entities node, so we guard here.
-            if (dom != null && (dom["Entities"] != null || dom["entities"] != null))
-                _serializer.Deserialize(repo, dom);
-        }
-        else
-        {
-            if (dom != null)
-                _serializer.Deserialize(repo, dom);
-            else
-                _serializer.Deserialize(repo, jsonText);
-        }
-    }
+    // ⛔⛔ `LoadScenario(EntityRepository, string)` was REMOVED `2026-08-24` (HN-037 Part B).
+    //    📐 Measured: zero production callers but the IEditorLogic facade, which went with it.
+    //    ⛔ Why it was a trap, not merely unused: it bypassed the EntityLifecycleModule handshake (no
+    //    Constructing phase, no AuthorityMask), left the transient genesis Intents
+    //    (InitialVehicleIntent/InitialPassengersIntent/...) dangling because GenesisMaterializationSystem
+    //    never ran, and never synced the id allocator — so a later spawn could collide. ⭐ It is exactly the
+    //    class of bug the allocator unification exists to prevent.
+    //    ⭐ Nothing is lost: LoadScenarioByName IS the editor's load (the genesis pipeline through
+    //    HrotEditLoadHandler), and a raw deserialize belongs to ScenarioSerializer.Deserialize.
+    //    ⚠ ValidateSubsystemType survives below as a PUBLIC static — the header check was the one capability
+    //    that lived only here in throwing form, and routing it beats losing it.
 
     /// <summary>
     /// Returns sidecar files (snapshots and journals) for the most recently
@@ -234,7 +183,15 @@ public sealed class ScenarioFileService
         _bus?.Publish(new WorldResetEvent());
     }
 
-    private static void ValidateSubsystemType(string jsonText)
+    /// <summary>
+    /// ⭐ Throws unless the file's <c>$meta.docType</c> (or legacy <c>Header.SubsystemType</c>) is one this
+    /// application accepts.
+    /// <para>⭐⭐ Public since <c>HN-037</c> Part B: it used to be a private step of <c>LoadScenario</c>, and
+    /// keeping it is what makes that removal lossless. ⚠ The genesis load path answers the same question in
+    /// a different SHAPE — <c>HrotScenarioLoader</c> SKIPS a non-matching file rather than throwing — so this
+    /// remains the only throwing form, which is why it was routed rather than deleted.</para>
+    /// </summary>
+    public static void ValidateSubsystemType(string jsonText)
     {
         // Quick header peek: check $meta.docType (Phase 2) or Header.SubsystemType (legacy).
         // Support both PascalCase (FDP serializer output) and camelCase (HrotSerializerOptions output).

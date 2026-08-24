@@ -160,6 +160,15 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _idAllocatorServerHandle = _networkFactory?.CreateIdAllocatorServer()
                                    ?? new NullDisposable();
 
+        // ⭐⭐⭐ HN-037 — hand the master the world's ONE id authority, so a scenario load resets it to 1000.
+        // 📄 docs/DESIGN_Deterministic_Network_Ids.md §11. ⭐ Type-tested rather than widening
+        //    INetworkFactory.CreateIdAllocatorServer's return type: only the NED factory hosts a real
+        //    authority, and a failed type-test already says "this host has none" (the IRestorableIdAllocator
+        //    idiom). ⚠ The 2026-08-16 rule — a production caller that HAS the dependency must PASS it — is
+        //    why this is wired here and not left for a later batch: the handle is in hand, two lines up.
+        _clusterMaster.IdAuthority =
+            _idAllocatorServerHandle as Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority;
+
         // ── Time controller setup (CGF1-A.1, BATCH-09) ─────────────────────
         // Must be created before _timeTranslators so the initial SwitchTimeModeEvent{Continuous}
         // is published to _bus PENDING. Swap it immediately so the first ScanAndPublish can

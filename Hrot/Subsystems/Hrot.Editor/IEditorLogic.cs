@@ -22,10 +22,12 @@ public interface IEditorLogic
     /// <summary>Serializes current world state to <paramref name="filePath"/>.</summary>
     void SaveScenario(string filePath);
 
-    /// <summary>
-    /// Clears the world, then deserializes entities from <paramref name="filePath"/>.
-    /// </summary>
-    void LoadScenario(string filePath);
+    // ⛔ `void LoadScenario(string filePath)` was REMOVED `2026-08-24` (HN-037 Part B). It bypassed the
+    //    EntityLifecycleModule handshake (no Constructing phase, no AuthorityMask), left the transient
+    //    genesis Intents dangling because GenesisMaterializationSystem never ran, and never synced the id
+    //    allocator — so a later spawn could collide. ⭐ No capability is lost: LoadScenarioByName IS the
+    //    editor's load (genesis pipeline via HrotEditLoadHandler), and a raw file round-trip belongs to
+    //    ScenarioSerializer. 📐 Measured: zero production callers but the facade itself.
 
     /// <summary>
     /// Loads a scenario by name from the scenarios root directory.

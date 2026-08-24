@@ -151,12 +151,13 @@ public sealed class ClusterConformanceRails
     /// <para>🔴🔴 <b>The measurement, `2026-08-24`:</b> of the four comparable shared kinds, TWO diverge for
     /// reasons that are not regressions:
     /// <list type="bullet">
-    /// <item><c>entity-inspector</c> — the editor's world is empty at boot and the IG node's already holds one
-    /// entity. ⛔⛔ <b>And the worlds CANNOT be equalised today:</b> <c>POST /scenario/load</c> in
-    /// <c>--mode all</c> answers <c>NOT_SUPPORTED_HERE(editor.authoring)</c> — measured — because a cluster
-    /// loads through the orchestrator's 2PC <c>PrepareLive</c>, not through <c>IEditorLogic</c>. ⇒ ⭐ the
-    /// design's own sequence *("load S in both, then diff")* is <b>not executable yet</b>, so any
-    /// world-CONTENT diff would be comparing two different worlds;</item>
+    /// <item><c>entity-inspector</c> — ⚠⚠ <b>SUPERSEDED REASON, kept visible because it was quoted for a
+    /// day.</b> It used to read <i>"the worlds CANNOT be equalised: <c>POST /scenario/load</c> in
+    /// <c>--mode all</c> answers <c>NOT_SUPPORTED_HERE(editor.authoring)</c>"</i>. ⛔ That tooling gap is
+    /// gone (<c>HN-029</c>) and so is the id divergence that replaced it as a second reason
+    /// (<c>HN-037</c>, `2026-08-24`: both hosts now number <c>1000–1007</c>). ⭐ <b>The entry survives on ONE
+    /// remaining, measured reason</b> — the IG node's inspector also lists a NODE-LOCAL entity
+    /// (<c>networkId 0</c>, unnamed) the editor has no counterpart for. See the dictionary below;</item>
     /// <item><c>spawner</c> — the editor offers <b>14</b> TKB entries *(platforms)*, ExCon offers <b>9</b>
     /// *(composites: "Tank Platoon (Empty)", "Infantry Squad (Empty)")*. ⭐ A host-specific catalogue is the
     /// operator's business, not a unification bug.</item>
@@ -176,9 +177,13 @@ public sealed class ClusterConformanceRails
         //    the editor's 9: it carries a NODE-LOCAL entity (networkId 0, name null) the editor has no
         //    counterpart for. ⇒ the panel's row LIST legitimately differs even when the SCENARIO content
         //    matches — which `The_two_hosts_hold_the_same_loaded_world` now asserts directly.
+        // ⭐⭐ HN-037, `2026-08-24`: the id divergence is GONE — both hosts number the same scenario
+        //    1000-1007, asserted by The_two_hosts_number_the_same_entities_identically. ⇒ ONE reason remains,
+        //    and it is named here so nobody re-reads this entry as still covering ids.
         ["entity-inspector"] = "the IG node's inspector also lists node-local entities (networkId 0, unnamed) "
-                             + "that the editor has no counterpart for; the SCENARIO content is compared for "
-                             + "real by The_two_hosts_hold_the_same_loaded_world",
+                             + "that the editor has no counterpart for. NOT ids: those match since HN-037. "
+                             + "The SCENARIO content is compared for real by The_two_hosts_hold_the_same_loaded_world "
+                             + "and its ids by The_two_hosts_number_the_same_entities_identically",
         ["spawner"]          = "host-specific catalogue: the editor offers platforms, ExCon offers composites",
     };
 
@@ -411,13 +416,12 @@ public sealed class ClusterConformanceRails
     /// everyone to ignore it. ⭐ The SCENARIO's content is the set of <b>networked, named</b> entities — the
     /// ones <c>NetworkSpawningSystem</c> replicated from the same file — so those are what is asserted.</para>
     ///
-    /// <para>🔴🔴 <b>And the ids are NOT compared, for a measured reason — this rail found it.</b> 📐 Both
-    /// hosts load the same seven entities, in the same order, with the same names; their <c>networkId</c>s are
-    /// <b>editor 1000–1007 vs cluster 2–9</b>, because the ids come from DIFFERENT ALLOCATOR AUTHORITIES *(the
-    /// editor's offline allocator vs the cluster's centralised <c>DdsIdAllocatorServer</c> — `mgmt-1` §5.7)*.
-    /// ⇒ ⭐ the NAMES are what a shared scenario guarantees; the id bases are a separate, filed finding, and
-    /// <see cref="The_two_hosts_allocate_ids_from_different_authorities"/> pins the difference so it cannot
-    /// change unnoticed.</para>
+    /// <para>⭐⭐ <b>The ids are compared by a SEPARATE rail, and as of <c>HN-037</c> they MATCH.</b> ⚠ This
+    /// paragraph used to say the opposite and it is worth keeping the correction visible: 📐 measured
+    /// `2026-08-24`, the two hosts gave <b>editor 1000–1007 vs cluster 2–9</b> because authored ids came from
+    /// two allocator INSTANCES with two seeds. §11 unified them onto one authority reset to 1000 at the world
+    /// boundary; ⇒ <see cref="The_two_hosts_number_the_same_entities_identically"/> now asserts the equality
+    /// this rail once had to exclude.</para>
     ///
     /// <para>⚠ Deliberately NOT an ignore-list entry: an ignored JSON path would hide any regression under it.
     /// ⭐ Selecting the comparable SUBSET states positively what must match.</para>
@@ -454,21 +458,36 @@ public sealed class ClusterConformanceRails
     }
 
     /// <summary>
-    /// ⚠⚠ <b>THE TRIPWIRE ON A FILED FINDING: the two hosts number the same entities differently.</b>
-    /// 📄 charter <c>D6</c> *(deterministic network ids)* · <c>docs/DESIGN_Deterministic_Network_Ids.md</c> ·
-    /// <c>docs/designs/mgmt-1/DESIGN.md</c> §5.7 *(the centralised allocator)*.
+    /// ⭐⭐⭐ <b><c>HN-037</c> CLOSED — THE ORDERING + PARITY RAIL.</b> 📄
+    /// <c>docs/DESIGN_Deterministic_Network_Ids.md</c> §11f · handoff item ④.
     ///
-    /// <para>📐 Measured `2026-08-24`, same scenario loaded live in both: the editor's ids start at <b>1000</b>
-    /// and the cluster's at <b>2</b>. ⭐ Each host is internally deterministic — ⛔ but a network id is NOT a
-    /// portable name for an entity ACROSS hosts, which matters to anything that records an id in one host and
-    /// replays it in another.</para>
+    /// <para><b>What it replaces.</b> A tripwire, <c>The_two_hosts_allocate_ids_from_different_authorities</c>,
+    /// asserted that the ids DIFFER — pinning a filed gap so it could not change unnoticed, and instructing
+    /// its own deletion the day the authorities were unified. 📐 That day was `2026-08-24`: it reddened with
+    /// <c>editor ids : [1000..1007] / cluster ids: [1000..1007]</c>, and is deleted here as it asked to be.
+    /// ⭐ The gap is not merely un-pinned — it is replaced by the assertion that the gap is CLOSED, which is
+    /// the difference between forgetting a finding and finishing it.</para>
     ///
-    /// <para>⭐⭐ Asserted rather than merely noted, in the same spirit as the declared-divergence control: if
-    /// the two authorities are ever unified this rail REDDENS and is deleted — which is how a known gap gets
-    /// closed on purpose instead of drifting.</para>
+    /// <para>⭐⭐ <b>Two properties, and the first is the one that could silently rot.</b></para>
+    /// <list type="number">
+    ///   <item><b>ORDERING</b> — the lowest authored id is exactly <c>1000</c> on BOTH hosts. ⚠⚠ This is
+    ///   §11f's subtlety and it is a RACE, not an invariant: the cluster's <c>DdsIdAllocator</c> is CHUNKED
+    ///   (<c>CHUNK_SIZE = 100</c>), so CGF gets <c>1000–1007</c> only if it pulls the first chunk AFTER the
+    ///   world-boundary reset and BEFORE any other node draws one. ⭐ Measured-safe today (during
+    ///   <c>LoadingLive</c> only CGF allocates; runtime spawns wait for <c>OperatingLive</c>) — ⛔ but "safe
+    ///   today" is exactly the kind of claim that decays, and an out-of-order chunk pull would show up here
+    ///   as <c>1100</c>, silently.</item>
+    ///   <item><b>PARITY</b> — the two hosts produce the SAME id set for the same scenario. ⭐ A network id
+    ///   is a portable name again: what is recorded on one host resolves on another.</item>
+    /// </list>
+    ///
+    /// <para>⛔ <b>Deliberately asserted against <c>1000</c> as a literal, not against
+    /// "whatever the editor produced".</b> Comparing the hosts to each other alone would stay green if BOTH
+    /// drifted to 1100 — the reproducible block and the cross-host parity are two claims, and §11b derives
+    /// them from one number precisely so both can be checked.</para>
     /// </summary>
     [SystemSmokeFact]
-    public async Task The_two_hosts_allocate_ids_from_different_authorities()
+    public async Task The_two_hosts_number_the_same_entities_identically()
     {
         await using var editor  = await EditorProcess.StartAsync("conf-ids-editor");
         await using var cluster = await EditorProcess.StartAsync("conf-ids-all", mode: "all");
@@ -482,18 +501,39 @@ public sealed class ClusterConformanceRails
         _out.WriteLine($"editor ids : [{string.Join(", ", idsEditor)}]");
         _out.WriteLine($"cluster ids: [{string.Join(", ", idsCluster)}]");
 
-        Assert.NotEmpty(idsEditor);
-        Assert.NotEmpty(idsCluster);
+        // ⛔ Anti-vacuity: two empty sets are identical and start at nothing.
+        Assert.True(idsEditor.Length >= 5,
+            $"the editor produced only {idsEditor.Length} networked ids — too few for this to mean anything.");
+        Assert.True(idsCluster.Length >= 5,
+            $"--mode all produced only {idsCluster.Length} networked ids — too few for this to mean anything.");
 
-        // ⭐ Each host must at least be self-consistent: ids unique within a host.
+        // ⭐ Each host must still be self-consistent.
         Assert.Equal(idsEditor.Length,  idsEditor.Distinct().Count());
         Assert.Equal(idsCluster.Length, idsCluster.Distinct().Count());
 
-        Assert.False(idsEditor.SequenceEqual(idsCluster),
-            "the editor and --mode all now allocate the SAME network ids for the same scenario. ⭐ That is an "
-          + "IMPROVEMENT, not a failure: the two allocator authorities have been unified (charter D6). "
-          + "⛔ Delete this rail and remove the id-divergence finding from the tracker.");
+        Assert.True(idsEditor[0] == WorldIdBase,
+            $"the editor's lowest authored id is {idsEditor[0]}, not {WorldIdBase}. ⭐ The world-boundary "
+          + "reset either did not fire or did not reach the allocator the load handlers use "
+          + "(ClusterMaster.ResetIdAuthorityIfWorldBoundary -> WorldIdAuthority.FromAllocator).");
+
+        Assert.True(idsCluster[0] == WorldIdBase,
+            $"--mode all's lowest authored id is {idsCluster[0]}, not {WorldIdBase}. ⚠ If it is {WorldIdBase + 100} "
+          + "or higher, THIS IS THE CHUNK-ORDERING RACE (§11f): some node drew a chunk from the DDS master "
+          + "between the world-boundary Req_Reset and CGF's first authored allocation. ⛔ That is a real "
+          + "ordering defect, not a flaky test — fix the ordering, do not relax this bound.");
+
+        Assert.True(idsEditor.SequenceEqual(idsCluster),
+            "the editor and --mode all number the same scenario DIFFERENTLY — HN-037 has regressed.\n"
+          + $"  editor : [{string.Join(", ", idsEditor)}]\n"
+          + $"  cluster: [{string.Join(", ", idsCluster)}]\n"
+          + "⭐ Both hosts reset the ONE id authority to 1000 at the world boundary, so the same scenario "
+          + "must number identically. A difference means one host is allocating from something else.");
     }
+
+    /// <summary>⭐ The first id every world hands out. Mirrors <c>WorldIdAuthority.WorldBase</c>, restated
+    /// here as a literal on purpose: a rail that imported the production constant would follow it if someone
+    /// changed it, and the whole point is that this number is a promise to the user.</summary>
+    private const long WorldIdBase = 1000;
 
     /// <summary>
     /// ⭐ The SCENARIO-derived entities from the entity-inspector panel model.
