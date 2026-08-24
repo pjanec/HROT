@@ -82,6 +82,42 @@ export const TOOLS_CATALOG = [
     manualVerify: false,
   },
 
+  {
+    name: 'list_perspectives',
+    group: 'A — Lifecycle & status',
+    summary: 'Every perspective a registered window claims, plus the active one.',
+    http: { method: 'GET', path: '/perspectives' },
+    params: [],
+    returns: '{ current, perspectives[] }',
+    notes: [
+      'A perspective exists because a window CLAIMS it — this list is derived, not configured.',
+      'current is reported alongside the list because it is the only honest answer to "did my switch take?".',
+    ],
+    example: { args: {}, gist: 'see which perspectives this host can route to' },
+    hint: 'No params. Example: list_perspectives({})',
+    manualVerify: false,
+  },
+
+  {
+    name: 'switch_perspective',
+    group: 'A — Lifecycle & status',
+    summary: 'Switch the active perspective, then report what actually happened.',
+    http: { method: 'POST', path: '/perspective' },
+    params: [
+      { name: 'name', type: 'string', required: true, description: 'Perspective to activate — must be one list_perspectives returns' },
+    ],
+    returns: '{ current, note }',
+    notes: [
+      'ALWAYS read `current` back — an unknown name is a no-op, so trusting the 200 would leave you reading the WRONG perspective\'s panels.',
+      'A 400 names the claimed set; a 503 means perspective access is not wired on this host.',
+      'The new perspective publishes its panels on the NEXT frame — step a tick before get_panels, or you read the previous one.',
+      'In a cluster host (mode "all") this is how you choose which node subsequent commands act on.',
+    ],
+    example: { args: { name: 'SimHost' }, gist: 'act in the SimHost node\'s context' },
+    hint: 'Req: name (string, from list_perspectives). Example: switch_perspective({name:"SimHost"})',
+    manualVerify: false,
+  },
+
   // ── Group B — Queries ────────────────────────────────────────────────────────
 
   {
@@ -685,6 +721,7 @@ export const TOOLS_CATALOG = [
     notes: [
       "⚠ Deleting a breakpoint does NOT resume: the debugger stays stopped, and while it is stopped every staged variable write is queued and never applied. Call this after a hit, not remove_breakpoint.",
       'Harmless when nothing is stopped — it answers wasPaused:false.',
+      'The host also serves POST /breakpoints/step, which is exactly this call with step:true. Deliberately ONE tool, not two — use continue_from_breakpoint({step:true}).',
     ],
     example: { args: {}, gist: 'let the world run again after a breakpoint fired' },
     hint: 'Optional: step. Example: continue_from_breakpoint({})',

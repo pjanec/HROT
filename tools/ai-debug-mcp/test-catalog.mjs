@@ -15,7 +15,7 @@ import { TOOLS_CATALOG } from './tool-catalog.mjs';
 import { readFileSync } from 'node:fs';
 
 const EXPECTED_TOOLS = [
-  'start_simulation', 'stop_simulation', 'get_status', 'get_capabilities',
+  'start_simulation', 'stop_simulation', 'get_status', 'get_capabilities', 'list_perspectives', 'switch_perspective',
   'list_entities', 'get_entity', 'list_component_types', 'list_scenarios',
   'get_event_history',
   'get_sim_state', 'play', 'pause', 'step', 'set_time_scale', 'enter_preview', 'stop_preview',

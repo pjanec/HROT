@@ -359,6 +359,26 @@ const TOOLS = [
     },
   },
 
+  {
+    name: 'list_perspectives',
+    description: TOOL_DEFS['list_perspectives'].description,
+    inputSchema: TOOL_DEFS['list_perspectives'].inputSchema,
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/perspectives')); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_perspectives'); }
+    },
+  },
+
+  {
+    name: 'switch_perspective',
+    description: TOOL_DEFS['switch_perspective'].description,
+    inputSchema: TOOL_DEFS['switch_perspective'].inputSchema,
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/perspective', { name: toolArgs.name })); }
+      catch (err) { return toolError(err.message, err.envelope, 'switch_perspective'); }
+    },
+  },
+
   // ── Group B — Queries ─────────────────────────────────────────────────────
 
   {

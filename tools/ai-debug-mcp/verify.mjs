@@ -105,7 +105,7 @@ async function main() {
   const toolNames = toolList.tools.map((t) => t.name);
   console.log(`  Tools registered: ${toolNames.length}`);
   const requiredTools = [
-    'start_simulation', 'stop_simulation', 'get_status', 'get_capabilities',
+    'start_simulation', 'stop_simulation', 'get_status', 'get_capabilities', 'list_perspectives', 'switch_perspective',
     'list_entities', 'get_entity', 'list_component_types', 'list_scenarios',
     'get_event_history', 'get_sim_state', 'play', 'pause', 'step', 'set_time_scale',
     'enter_preview', 'stop_preview', 'load_scenario_edit', 'load_scenario_live',
