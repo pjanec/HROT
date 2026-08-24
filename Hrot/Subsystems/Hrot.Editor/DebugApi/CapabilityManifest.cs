@@ -87,6 +87,77 @@ public static class CapabilityManifest
     }
 
     /// <summary>
+    /// ⭐ Projects a <see cref="RouteDoc"/> into the manifest. ⛔ Deliberately flat and lossless: the JS
+    /// generator's job is a rename, not an interpretation, so anything it needs has to survive this hop.
+    /// <para>⚠ <c>exampleArgs</c> and a param's <c>default</c> are re-parsed from their JSON literals so the
+    /// dump carries real JSON values rather than strings containing JSON — otherwise every consumer would
+    /// have to parse them again.</para>
+    /// </summary>
+    private static JsonNode DocToJson(RouteDoc doc)
+    {
+        var o = new JsonObject
+        {
+            ["tool"]    = doc.Tool,
+            ["group"]   = doc.Group,
+            ["summary"] = doc.Summary,
+            ["returns"] = doc.Returns,
+            ["hint"]    = doc.Hint,
+        };
+
+        if (doc.NotATool)     o["notATool"]     = true;
+        if (doc.ManualVerify) o["manualVerify"] = true;
+
+        if (doc.Params is { Length: > 0 })
+        {
+            var ps = new JsonArray();
+            foreach (var p in doc.Params)
+            {
+                var po = new JsonObject
+                {
+                    ["name"]        = p.Name,
+                    ["required"]    = p.Required,
+                    ["description"] = p.Description,
+                };
+                // ⭐ Omitted, not null, when the param deliberately accepts several shapes — see RouteParam.Type.
+                if (p.Type is not null) po["type"] = p.Type;
+                if (p.DefaultJson    is not null) po["default"]    = ParseOrString(p.DefaultJson);
+                // ⚠ These three reach the agent's inputSchema. 📌 An earlier cut omitted them and the
+                //   regenerated catalog silently lost five `enum` constraints, two `items` and one
+                //   `properties` — tools that would then have accepted anything. The round-trip diff caught it.
+                if (p.EnumJson       is not null) po["enum"]       = ParseOrString(p.EnumJson);
+                if (p.ItemsJson      is not null) po["items"]      = ParseOrString(p.ItemsJson);
+                if (p.PropertiesJson is not null) po["properties"] = ParseOrString(p.PropertiesJson);
+                ps.Add(po);
+            }
+            o["params"] = ps;
+        }
+
+        if (doc.Notes is { Length: > 0 })
+        {
+            var ns = new JsonArray();
+            foreach (var n in doc.Notes) ns.Add(n);
+            o["notes"] = ns;
+        }
+
+        if (doc.ExampleArgsJson is not null || doc.ExampleGist is not null)
+        {
+            var ex = new JsonObject();
+            if (doc.ExampleArgsJson is not null) ex["args"] = ParseOrString(doc.ExampleArgsJson);
+            if (doc.ExampleGist is not null)     ex["gist"] = doc.ExampleGist;
+            o["example"] = ex;
+        }
+
+        return o;
+    }
+
+    /// <summary>⭐ Parse a JSON literal; fall back to the raw text so a malformed literal is visible, not fatal.</summary>
+    private static JsonNode? ParseOrString(string literal)
+    {
+        try { return JsonNode.Parse(literal); }
+        catch (System.Text.Json.JsonException) { return JsonValue.Create(literal); }
+    }
+
+    /// <summary>
     /// ⭐⭐ Builds the manifest for this host.
     /// </summary>
     /// <param name="routes">⭐ The LIVE route table — the description's only source.</param>
@@ -109,12 +180,22 @@ public static class CapabilityManifest
                                                  .ThenBy(r => r.Method, StringComparer.Ordinal))
         {
             var capability = CapabilityFor(template);
-            endpoints.Add(new JsonObject
+            var entry = new JsonObject
             {
                 ["method"]     = method,
                 ["path"]       = template,
                 ["capability"] = capability,
-            });
+            };
+
+            // ⭐⭐⭐ HN-030: THE AGENT-FACING DOC, emitted from the SAME route table as the description above.
+            //    ⇒ `tools/ai-debug-mcp/tool-catalog.mjs` is GENERATED from this dump instead of being a
+            //    hand-maintained mirror of the same routes. 📄 MCP_Integration.md § Follow-up.
+            // ⛔ Absent rather than empty when a route carries no doc: EveryRouteIsDocumentedTests fails in
+            //    that case, so a null here is a defect the gate names — not a shape a consumer must handle.
+            if (DebugApiRouteDocs.ByRoute.TryGetValue((method, template), out var doc))
+                entry["doc"] = DocToJson(doc);
+
+            endpoints.Add(entry);
             if (capability is null)
                 unclassified.Add(template);
         }

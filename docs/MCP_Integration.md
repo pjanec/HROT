@@ -5,7 +5,9 @@ build-state: BUILT (integration §A–N; SLICE ① = MX4a+MX7+MX8+MX5+MX6, Batch
   Batch HN-122) │ READY-TO-BUILD (MX4b, once MX-002's namespace ambiguity is resolved)
 updated: 2026-08-24
 current-answer: FOUR parts. (0) ⭐ §"Group U" + its §"AS-BUILT" carry the scenario-load
-  modes (HN-029, BUILT 2026-08-24) — read the AS-BUILT first, it has six deviations.
+  modes (HN-029, BUILT 2026-08-24) — read the AS-BUILT first, it has six deviations. ⭐⭐ §"BUILT — the
+  catalog is GENERATED from the routes" (HN-030) is what replaced the hand-maintained tool-catalog.mjs:
+  tool-catalog.mjs is now GENERATED and editing it by hand is lost on the next gen:catalog.
 current-answer-cont: three parts. (1) The AI-debug API + MCP server is PORTED, WIRED, VERIFIED end-to-end on
   headless Linux (§ up to Notes). (2) The MCP EXTENSIONS design (Groups O–R). (3) ⭐ §"AS-BUILT — SLICE ①"
   §"AS-BUILT — SLICE ②" and §"AS-BUILT — SLICE ③" at the END are the CURRENT truth where they differ
@@ -366,27 +368,57 @@ one through `NodeBootstrapper:194-200`; ExCon through `ExConSubsystem:332`)*. �
 | ⛔ **CGF has no edit-load handler** | ⇒ an *edit* load in `--mode all` is PARTIAL *(SimHost loads, CGF does not)*. ⭐ Declared, not crashed; the content diff therefore uses **live**. A CGF-lane follow-up *(`UXI-37` ruling 65)* |
 | ⚠ **`OwnershipUpdate` strict-mode violation** | 📐 During a cluster live load: *"Unmanaged event type 'OwnershipUpdate' (ID: 9030) was published without being explicitly registered"* in `NedReplication`. ⛔ **Newly OBSERVABLE, not newly introduced** — no cluster live load was possible here before. ⚠ Non-fatal *(the load completed with all 8 entities)*; editor-side is unaffected *(`OfflineNetworkFactory`, no NedReplication)* |
 
-## ⭐⭐ Follow-up — GENERATE `tool-catalog.mjs` from the routes *(the catalog is the last hand-maintained mirror; `HN-030`)*
+## ⭐⭐⭐ BUILT — the catalog is GENERATED from the routes *(`HN-030`, `2026-08-24`)*
 
-📌 **Filed `2026-08-24` (user).** ⛔ `tools/ai-debug-mcp/tool-catalog.mjs` is a **hand-maintained mirror of the
-HTTP routes** — the exact *"hand-authored vs derived"* rot the `/capabilities` manifest was built to kill
-*(Q54-1 / D4)*. 📌 **The evidence is `HN-029` item ⑧ itself:** HN-025/026/027 changed the MCP API *(`/capabilities`,
-`NOT_SUPPORTED_HERE`, `--mode all`)* and the catalog silently fell out of sync — nobody had to forget, the mirror
-just drifted. ⚠ `gen:skill:check` catches **`SKILL.md`-vs-catalog** drift, but **NOT catalog-vs-actual-routes** —
-the source itself can lie.
+📌 **Filed `2026-08-24` (user), built the same day.** ⛔ `tools/ai-debug-mcp/tool-catalog.mjs` **was** a
+hand-maintained mirror of the HTTP routes — the exact *"hand-authored vs derived"* rot the `/capabilities`
+manifest was built to kill *(Q54-1 / D4)*. 📌 **And it had already rotted:** HN-025/026/027 shipped
+`/capabilities`, `/perspectives` and `/perspective` with no catalog entry, and **`HN-029`'s own skill prose
+then told agents to call a `switch_perspective` tool that did not exist.** ⚠ Nobody forgot a step; there was
+nothing that could fail.
 
-⇒ ⭐⭐⭐ **Derive the catalog from the same route-table description `/capabilities` already emits.** The manifest
-enumerates every endpoint with its params/response schema *(from the route registrations + DTO attributes)*; the
-MCP tool catalog is a projection of exactly that. Sketch: dump `/capabilities` from a booted instance *(or emit
-the route description at build time)*, transform to the catalog shape, then `gen:skill` from it ⇒ **one
-route-derived source, three consumers** *(the manifest, the catalog, `SKILL.md`)*, none hand-authored.
+### ⭐ The shape that shipped — **four moving parts, one direction of flow**
 
-| | |
+```
+RouteDoc beside each route            Hrot.Editor/DebugApi/DebugApiRouteDocs.cs   (66 entries, authored)
+        │  emitted by
+        ▼
+GET /capabilities  ·  --mode dump-api                                            (endpoints[].doc)
+        │  projected by
+        ▼
+gen-catalog.mjs  +  catalog-supplement.mjs    ⇒  tool-catalog.mjs   (GENERATED)
+        │  as before
+        ▼
+generate-skill.mjs                            ⇒  SKILL.md
+```
+
+| piece | |
 |---|---|
-| ⭐ **size** | `RW-M` — a build/gen step + the transform; the hard part *(route+schema enumeration)* is already done by the manifest |
-| ⚠ **the one wrinkle** | the manifest is emitted in-process *(C#)*; the catalog is consumed by Node at gen time ⇒ the seam is a **dumped manifest artefact** the JS gen reads, not a live call |
-| ⛔ **not now** | it does not block `HN-029`; item ⑧ keeps the catalog correct by hand for this batch. This follow-up removes the *need* to |
-| 📄 **home** | this section; tracker row **`HN-030`** *(Area J)* |
+| ⭐⭐ **`RouteDoc` / `RouteParam`** | the endpoint's agent-facing contract — tool name, group, summary, params *(with `enum`/`items`/`properties`)*, returns, notes, example, hint. ⭐ `NotATool` marks an endpoint deliberately not exposed |
+| ⭐⭐ **`--mode dump-api`** | prints the manifest and exits, **booting nothing** — `DebugApiHost.EnumerateRouteTemplates` only builds closures, so the API describes itself in milliseconds with no DDS, window or world. ⇒ `gen:catalog` needs no running editor |
+| ⭐⭐ **`gen-catalog.mjs`** | projects the dump into the catalog. `npm run gen:catalog` writes it; **`gen:catalog:check`** fails when the committed catalog is stale |
+| ⭐⭐⭐ **`EveryRouteIsDocumentedTests`** | **the part that actually kills the drift.** Four rails: every route has a doc · no doc describes a dead route · no doc field is blank · tool names are unique |
+
+### ⛔⛔ What measurement changed about the plan
+
+| # | the plan said | 📐 what was found |
+|---|---|---|
+| **①** | *"the hard part (route+schema enumeration) is already done by the manifest"* | ⛔ **False, and it was the load-bearing assumption.** 📐 The manifest's `endpoints[]` carried **three** fields *(method, path, capability)*; the route table is `RouteEntry(Method, Template, Handler)`. Of 92 catalog params only **14** were derivable *(path params)* — the other 78 live as string literals inside handler lambdas *(`ctx.Body?["count"]`, `ctx.Query("near")`)*. ⇒ ⭐ the real work is MOVING the docs, and it was cheap only because the content already existed and was correct |
+| **②** | *(implicit)* the move can be verified by reading it | 🔴🔴 **No — it was verified by REGENERATING and DIFFING against the hand-written catalog, and the diff found real losses.** 📐 The first cut of `RouteParam` silently dropped **5 `enum`s** *(`get_event_history.bus`, `start_recording.mode`, `step_replay.dir`, `get_logs.level`, `add_annotation.type`)*, **2 `items`** and **3 `properties`** — tools that would then have accepted anything, with nothing failing. ⚠ And one param *(`patch_attribute.patchJson`)* deliberately has **no** `type`, which a non-nullable field turned into the literal string `"undefined"`. ⇒ ⭐⭐ **final round-trip: 66 tools, ZERO content differences** |
+| **③** | *(unstated)* the docs go on each `_routes.Add` call | ⚠ **They went in a keyed table instead** — `BuildRoutes` is already 535 lines and the docs are ~1000 more, and inlining would bury the route ORDER that matters. ⭐⭐ **Proximity was the goal but ENFORCEMENT is the mechanism:** the rail is what stops the two moving apart. ⚠ Stated as a trade — an inline-per-route variant remains legitimate |
+| **④** | *(unstated)* | ⭐ **Two host holes fixed on the way.** `start_simulation` was hard-coded to `-m editor`, so LAUNCH mode could never reach a cluster host *(attach mode via `--url` was fine, which is why nothing broke)*; and `/shutdown` was handled inline before route dispatch, so it never entered `_routes` and was **missing from `/capabilities`** — a real endpoint absent from the surface whose whole claim is that it cannot drift |
+
+### ⚠⚠ What this does NOT buy — **stated so nobody over-trusts it**
+
+⛔ **The prose is still written by hand** — 92 param descriptions, 66 `returns`/`hint`/`example`, 57 `notes`.
+⭐ It is TEACHING content and cannot be derived from a method signature; what changed is **where** it is
+authored *(beside the route)* and that a route without it **fails a rail**.
+⚠ **One tool can never be route-derived:** `start_simulation` spawns the runner from inside the MCP server and
+has no endpoint. ⇒ it lives in `catalog-supplement.mjs`, and **that supplement is the one thing generation
+cannot police** — which is why `test-catalog.mjs` still reconciles the whole catalog against the route table.
+
+📐 **Proven red by mutation:** an undocumented route ⇒ rail names it · an orphan doc ⇒ rail names it ·
+a hand-edited catalog ⇒ `gen:catalog:check` fails and says what to run.
 
 ## Self-describing errors — every mistake POINTS at the discovery endpoint *(cross-cutting; `MX8`)*
 

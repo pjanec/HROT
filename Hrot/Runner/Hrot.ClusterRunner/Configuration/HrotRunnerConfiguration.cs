@@ -113,17 +113,20 @@ namespace Hrot.ClusterRunner.Configuration
                 // ST-015: "stridemock" is gone with the mock subsystem. Dropping it from this set is
                 // what makes `--mode stridemock` throw again instead of composing a subsystem that no
                 // longer exists.
+                // ⭐ HN-030: "dump-api" prints the debug-API manifest and exits — the artefact
+                //   tools/ai-debug-mcp generates its tool catalog from. It composes NO subsystem (see
+                //   Program.cs), which is why it sits beside "ci" and "migrate" rather than in the roster.
                 var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                     { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor",
-                      "replaybrowser", "migrate" };
+                      "replaybrowser", "migrate", "dump-api" };
                 if (!validNames.Contains(normalized))
                     throw new InvalidOperationException(
-                        $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, ci, migrate, replaybrowser, or comma-separated combination.");
+                        $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, ci, migrate, dump-api, replaybrowser, or comma-separated combination.");
                 RequestedSubsystems.Add(normalized);
             }
             if (RequestedSubsystems.Count == 0)
                 throw new InvalidOperationException(
-                    $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, ci, migrate, replaybrowser, or comma-separated combination.");
+                    $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, ci, migrate, dump-api, replaybrowser, or comma-separated combination.");
 
             // Parse wait-for list -> WaitForPeers
             if (!string.IsNullOrWhiteSpace(WaitForString))
@@ -172,6 +175,11 @@ namespace Hrot.ClusterRunner.Configuration
 
             // Editor and ReplayBrowser modes are always standalone (no peer synchronisation required).
             if (RequestedSubsystems.Contains("editor") || RequestedSubsystems.Contains("replaybrowser")) return;
+
+            // ⭐ HN-030: dump-api composes no subsystem at all — it prints the API manifest and exits — so
+            //   there is nothing to synchronise with and no --no-wait to demand. ⛔ Without this it fell into
+            //   the single-subsystem peer-wait rule below and refused to run.
+            if (RequestedSubsystems.Contains("dump-api")) return;
 
             // When launching a single subsystem that must synchronise with others,
             // --wait-for must be supplied (unless --no-wait suppresses synchronisation).

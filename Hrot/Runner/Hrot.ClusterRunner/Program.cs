@@ -96,6 +96,21 @@ class Program
             return 1;
         }
 
+        // ── Dump-api mode: print the debug-API manifest and exit ────────────────────────────────
+        //
+        // ⭐⭐⭐ HN-030: this is what `tools/ai-debug-mcp` generates its tool catalog from, so the catalog
+        //    stops being a hand-maintained mirror of these routes. 📄 MCP_Integration.md § Follow-up.
+        //
+        // ⭐ Boots NOTHING — no DDS, no window, no world. DebugApiHost.EnumerateRouteTemplates only builds
+        //   closures, so the whole API can describe itself in-process in milliseconds. ⇒ `npm run gen:skill`
+        //   can regenerate from source without an editor running.
+        // ⛔ Ask a LIVE GET /capabilities for what a given host can DO; a dump answers only what the API IS.
+        if (config.RequestedSubsystems.Contains("dump-api"))
+        {
+            Console.Out.Write(Hrot.Editor.DebugApi.DebugApiHost.DumpManifestJson());
+            return 0;
+        }
+
         Console.WriteLine($"[Runner] Starting – mode={string.Join(",", config.RequestedSubsystems)}, domain={config.DomainId}, headless={config.Headless}");
 
         // Add NLog file target when LogDirectory is configured

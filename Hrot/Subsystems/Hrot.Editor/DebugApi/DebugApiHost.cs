@@ -134,6 +134,60 @@ namespace Hrot.Editor.DebugApi
         private static RouteResult Fail(int status, string error, string? hintCategory = null)
             => new(status, null, error, DebugApiHints.For(hintCategory));
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>The route table, without binding a port or booting anything</b> — <c>HN-030</c>'s enabling
+        /// seam, and the reason generation is cheap.
+        ///
+        /// <para>📐 <see cref="BuildRoutes"/> only CREATES closures; nothing in it touches the service, the
+        /// world or the listener. ⇒ ⭐ a throwaway host can enumerate the complete table in-process, which is
+        /// what both <c>EveryRouteIsDocumentedTests</c> and <c>--mode dump-api</c> need. ⛔ Neither has to run
+        /// an editor to ask what the API looks like.</para>
+        /// </summary>
+        public static IReadOnlyList<(string Method, string Template)> EnumerateRouteTemplates()
+        {
+            var probe = new DebugApiHost(0, new MainThreadJobQueue(), static () => { });
+            probe.BuildRoutes();
+            return probe._routes.Select(r => (r.Method, r.Template)).ToList();
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The manifest as a JSON string, for <c>--mode dump-api</c></b> — the artefact
+        /// <c>tools/ai-debug-mcp</c> generates its catalog from.
+        ///
+        /// <para>⭐ The DESCRIPTION half *(endpoints + their <see cref="RouteDoc"/>s)* is all the generator
+        /// reads, and it is host-independent. ⚠ The AVAILABILITY half is deliberately reported as
+        /// <c>"dump"</c> mode with every editor cell <see langword="true"/>: a dump is not a running host and
+        /// must not be mistaken for one. ⛔ Ask a LIVE <c>GET /capabilities</c> for what a host can actually
+        /// do.</para>
+        /// </summary>
+        public static string DumpManifestJson()
+        {
+            var caps = new Dictionary<string, bool>(StringComparer.Ordinal);
+            foreach (var key in new[]
+                     {
+                         Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.EntityMap,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.TimeDrive,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.Panels,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.GizmoFrame,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.Preview,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring,
+                         Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad,
+                     })
+                caps[key] = true;
+
+            var manifest = CapabilityManifest.Build(
+                EnumerateRouteTemplates(), "dump", dispatcher: null, editorCapabilities: caps);
+
+            // ⚠ JsonSerializer.Serialize, NOT node.ToJsonString(options). 📐 Measured: passing a fresh
+            //   JsonSerializerOptions to ToJsonString marks it read-only WITHOUT attaching the default
+            //   reflection-based TypeInfoResolver, and the write then throws
+            //   "JsonSerializerOptions instance must specify a TypeInfoResolver". ⭐ Going through
+            //   JsonSerializer attaches it. 📌 Which is why the HTTP path, which serializes the same nodes
+            //   through JsonSerializer, never hit this.
+            return JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
+        }
+
         private void BuildRoutes()
         {
             // Group A — status
