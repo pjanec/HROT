@@ -18,10 +18,9 @@ known-conflict: ✅ RESOLVED `2026-08-24` — the UI lane LANDED (merged at `33c
 > ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from `claude/blueprint-authoring-status-6sr5ld` *(rule 7)*.
 > **Rule 1b: push the started-marker BEFORE any code.** ⛔ **No PR.**
 >
-> ⭐ **IDs — collision-avoidance, READ THIS:** the UI lane is **concurrently** allocating in the `HN-` series
-> *(HN-030 + a few for start_simulation / the alias removal — likely `HN-040..HN-04x`)*. ⇒ ⛔ to stay clear,
-> **allocate your code rows starting at `HN-050`**, **state every id** *(rule 5)*, and **rule-4-pull before your
-> final commit** so a collision is caught at merge. The gap this closes is **`HN-037`**; ⭐ also close **`HN-038`**
+> ⭐ **IDs:** the UI lane has **landed** and used **`HN-040..HN-044`**. ⇒ **allocate your code rows starting at
+> `HN-050`** *(clear of that block, and of any lane that starts while you run)*, **state every id** *(rule 5)*,
+> and **rule-4-pull before your final commit**. The gap this closes is **`HN-037`**; ⭐ also close **`HN-038`**
 > if you touch the replication bootstrap *(§2 item ⑥ is optional)*. Tracker **Area J**.
 
 > 🔒 **User, `2026-08-24`:** *"one single allocation path in both [edit and live] cases. Editor is no exception…
