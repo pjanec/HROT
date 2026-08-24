@@ -727,6 +727,13 @@ namespace Hrot.Editor.DebugApi
             ["inPreview"] = TryRead(() => (JsonNode?)_preview.IsInPreviewMode),
             ["totalTime"] = TryRead(() => (JsonNode?)_time.TotalTime),
             ["timeScale"] = TryRead(() => (JsonNode?)_time.TimeScale),
+
+            // ⭐⭐ HN-028: the ack-gate's own state, so a caller can SEE what POST /sim/step waited for.
+            //    ⛔ Not decoration: with the gate wired, this is false by the time a step answers; a true here
+            //    right after a 200 means the step returned with the tick still un-acknowledged somewhere on the
+            //    roster. ⚠ In --mode all it reads the master through the dispatcher; in the editor it reads the
+            //    local controller. Never throws (both arms end in `?? false`), so no TryRead.
+            ["isAwaitingStepAcks"] = IsAwaitingStepAcks,
         };
 
         /// <summary><c>POST /sim/play</c> — explicit resume; idempotent (never blind-toggles) (main thread).</summary>
@@ -775,6 +782,25 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public bool IsAwaitingStepAcks
             => _timeController?.IsAwaitingStepAcks ?? _dispatcher?.IsAwaitingStepAcks ?? false;
+
+        /// <summary>
+        /// ⭐⭐ The active perspective's sim clock, or <see langword="null"/> when this host offers no clock
+        /// *(IG and ExCon in <c>--mode all</c>: no time facade)*.
+        ///
+        /// <para>⭐⭐⭐ <b>Why the ack-gate needs it.</b> <see cref="IsAwaitingStepAcks"/> is
+        /// <see langword="false"/> for TWO different reasons — *"the barrier has drained"* and *"the barrier has
+        /// not begun"*. 📐 Measured <c>2026-08-24</c> in <c>--mode all</c>: a step is published as an INTENT that
+        /// travels over DDS, so 2 ms after issuing it the master has not entered <c>Stepping</c> yet and the flag
+        /// still reads <see langword="false"/> ⇒ a gate that waits only on this flag returns having confirmed
+        /// NOTHING. ⛔ The same level-vs-edge shape as the scenario-load readiness race
+        /// *(see <see cref="BeginLoadScenario"/>)*.
+        /// ⇒ ⭐ the clock supplies the MONOTONE PROGRESS the flag cannot: a step that has landed has moved it.</para>
+        /// </summary>
+        public double? TotalTimeOrNull()
+        {
+            try { return _time.TotalTime; }
+            catch (Hrot.Presentation.DebugApi.NotSupportedHereException) { return null; }
+        }
 
         /// <summary><c>POST /sim/timescale {scale}</c> (main thread).</summary>
         public JsonNode SetTimeScale(float scale)

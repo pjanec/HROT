@@ -242,11 +242,11 @@ public sealed class ClusterConformanceRails
     /// <c>time.drive:false</c> must really refuse a step, and one that reports <c>true</c> must really take
     /// it)*.</para>
     ///
-    /// <para>⛔⛔ <b>And it pins the CROSS-LANE GAP honestly:</b> <c>hasMaster</c> is <c>false</c> in
-    /// <c>--mode all</c> today, because the ack-gate's truth lives in a private field of
-    /// <c>OrchestratorSubsystem</c> — a TIME-lane file this batch may not edit. ⇒ ⭐ the manifest SAYS the
-    /// cluster step cannot be confirmed here, and this rail asserts it says so. 📌 The day the TIME lane
-    /// exposes the master, this line reddens and is deleted — which is how a deferred gap stays visible.</para>
+    /// <para>⭐⭐⭐ <b><c>hasMaster</c> is now <c>true</c> — <c>HN-028</c> closed.</b> 📌 It was <c>false</c>
+    /// while the ack-gate's truth sat in a private field of <c>OrchestratorSubsystem</c>; that subsystem now
+    /// exposes the one fact as <c>bool?</c> and the dispatcher reads it live. ⭐ The assertion did not go away
+    /// when the gap closed — it INVERTED, so a regression that silently unwires the master reddens here rather
+    /// than turning every cluster step back into an unconfirmed one.</para>
     /// </summary>
     [SystemSmokeFact]
     public async Task The_manifest_describes_this_host_truthfully()
@@ -271,10 +271,13 @@ public sealed class ClusterConformanceRails
         _out.WriteLine($"routable: [{string.Join(", ", perspectives)}]");
         Assert.Equal(new[] { "ExCon", "IG", "Scenario", "SimHost" }, perspectives);
 
-        // ⛔ The cross-lane gap, asserted so it cannot be forgotten.
-        Assert.False(m["host"]!["hasMaster"]!.GetValue<bool>(),
-            "the cluster manifest now reports a master — the TIME lane must have exposed "
-          + "MasterSyncController. ⭐ Wire the dispatcher's ack-gate to it and delete this assertion.");
+        // ⭐⭐ HN-028: the ack-gate is confirmable cluster-wide here. ⛔ If this reddens, the dispatcher lost its
+        //    live read of OrchestratorSubsystem.IsAwaitingStepAcks and every /sim/step went back to being
+        //    issued-but-unconfirmed — silent, and exactly what the gate exists to prevent.
+        Assert.True(m["host"]!["hasMaster"]!.GetValue<bool>(),
+            "--mode all reports NO master, so a step cannot be confirmed cluster-wide. ⭐ Check the "
+          + "`acksPending` lambda in ClusterRunner/Program.cs still resolves OrchestratorSubsystem, and that "
+          + "OrchestratorSubsystem.IsAwaitingStepAcks is non-null once Initialize() has run.");
 
         // ⭐⭐ THE MATRIX AGREES WITH BEHAVIOUR — the half that makes it a measurement and not a claim.
         var matrix = (m["matrix"] as JsonObject)!;
@@ -349,6 +352,59 @@ public sealed class ClusterConformanceRails
 
         // ⚠ Documented, not asserted as a defect: IG exposes no clock because it builds no facade.
         Assert.Null(ig);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>A cluster step is CONFIRMED, not merely issued — <c>HN-028</c>'s postcondition.</b>
+    /// 📄 <c>Architect_Question_54</c> § AS-BUILT *(deviation ①: the gate lives in the HTTP handler, because
+    /// the ACK drain and <c>Step()</c> are both main-thread and gating inside <c>Step()</c> deadlocks)*.
+    ///
+    /// <para>⭐⭐ The promise <c>POST /sim/step</c> makes in <c>--mode all</c> is that when it answers, the tick
+    /// has been acknowledged by every roster node. ⇒ the checkable postcondition is
+    /// <c>isAwaitingStepAcks == false</c> AT THE MOMENT THE RESPONSE LANDS, together with a master being present
+    /// to have answered at all.</para>
+    ///
+    /// <para>⚠⚠ <b>Stated honestly — this rail is a POSTCONDITION, not a proof the wait happened.</b> An
+    /// un-wired gate can also read <c>false</c> here, by racing ahead of the intent instead of behind the ACKs.
+    /// ⭐ What separates the two is the MUTATION recorded in the report: pinning the master to
+    /// "always awaiting" must turn this step into a <c>504</c>. ⛔ A green here alone would not have earned the
+    /// claim, and the report says so rather than letting the rail imply more than it measures.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task A_cluster_step_is_ack_confirmed_before_it_answers()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-ackgate", mode: "all");
+
+        // ⭐ A master must exist, or "confirmed" is not a question this host can answer (HN-028's whole point).
+        var manifest = (await cluster.Client.GetCapabilitiesAsync()).EnsureOk().DataOrThrow();
+        Assert.True(manifest["host"]!["hasMaster"]!.GetValue<bool>(),
+            "no master on this host — a step here is issued-but-unconfirmed, so the postcondition below is "
+          + "vacuous. ⭐ Fix the `acksPending` wiring before reading anything into this rail.");
+
+        (await cluster.Client.SwitchPerspectiveAsync("SimHost")).EnsureOk();
+        (await cluster.Client.PauseAsync()).EnsureOk();
+        await Task.Delay(500);                        // let the pause reach the roster
+
+        var before = await cluster.Client.GetSimStateAsync();
+        double t0  = before.Field("totalTime")!.GetValue<double>();
+
+        var step = await cluster.Client.StepAsync(1);
+        step.EnsureOk();
+
+        var after = await cluster.Client.GetSimStateAsync();
+        double t1 = after.Field("totalTime")!.GetValue<double>();
+        bool awaiting = after.Field("isAwaitingStepAcks")!.GetValue<bool>();
+
+        _out.WriteLine($"step: t={t0} -> {t1}, awaitingAcks after the answer = {awaiting}");
+
+        Assert.False(awaiting,
+            "POST /sim/step answered while the master was STILL awaiting step ACKs — the tick had not landed "
+          + "on every roster node, so the gate either drained the wrong thing or was bypassed.");
+
+        // ⭐ And the step actually moved the clock — a gate over a no-op would satisfy the line above.
+        Assert.True(t1 > t0,
+            $"the cluster step was confirmed but sim time did not advance ({t0} -> {t1}) — the gate is "
+          + "watching a step that never executed.");
     }
 
     /// <summary>

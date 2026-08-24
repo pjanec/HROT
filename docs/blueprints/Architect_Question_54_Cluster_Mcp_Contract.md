@@ -1,10 +1,13 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT — `2026-08-24`. Q54-1 (Option C) and Q54-2 (Option B + C) shipped; `--mode all` answers
-  MCP. ⭐ READ § AS-BUILT FIRST: it carries FIVE deviations, one of them a CROSS-LANE BLOCKER (the ack-gate's
-  cluster half) and one a FOURTH VERDICT the three-way scheme did not have.
+  MCP. ⭐ READ § AS-BUILT then § AS-BUILT-2 FIRST: five deviations, one a FOURTH VERDICT the three-way scheme
+  did not have. ⭐⭐ AS-BUILT-2 (HN-028) closes the ack-gate's cluster half AND corrects the gate's condition:
+  it was level-triggered and confirmed nothing in --mode all.
 updated: 2026-08-24
-current-answer: § AS-BUILT (at the end) is what SHIPPED and where it deviated. The rest of the file — the
+stale-below: § AS-BUILT deviation ② describes the ack-gate as CROSS-LANE BLOCKED — SUPERSEDED by
+  § AS-BUILT-2; the row says so and keeps the prior state for history only.
+current-answer: § AS-BUILT + § AS-BUILT-2 (at the end) are what SHIPPED and where it deviated. The rest of the file — the
   `--mode all` MCP/DebugApi contract: (Q54-1) how missing / not-yet-ported /
   not-desired features are handled via the capability manifest, and (Q54-2) how perspective-dependent commands
   are routed from the currently-selected perspective's subsystem context. ⭐ The RESOLUTION is in the
@@ -310,7 +313,7 @@ designed, including its refusals.
 | # | the design said | 📐 what was measured, and what was built |
 |---|---|---|
 | **①** | §6c: *"the ack-gate lives INSIDE `Step()` (preferred — one return contract)"* | ⛔⛔ **IMPOSSIBLE.** `MasterSyncController.Update()` drains the ACKs on the MAIN THREAD and `Step()` is itself a main-thread job ⇒ a blocking wait there deadlocks the loop that clears the flag. ⭐ The gate lives in the HTTP handler, which polls across frames — **the return contract is preserved**, only the location moved |
-| **②** | *(the cluster half of the gate)* | 🔴🔴 **CROSS-LANE BLOCKER, reported not worked around.** `IsAwaitingStepAcks` is only reachable from the `MasterSyncController` INSTANCE, and the only one lives in a **private field of `OrchestratorSubsystem`** — a TIME-lane file this batch may not edit. ⇒ ⭐ the dispatcher takes `master: null`, `GET /capabilities` reports **`hasMaster:false`**, and a conformance rail ASSERTS it says so. ⛔ The fix is a one-line accessor in the TIME lane; ⭐ the rail reddens the day it lands, which is how the gap stays visible |
+| **②** | *(the cluster half of the gate)* | ⭐⭐⭐ **RESOLVED `2026-08-24` — see §AS-BUILT-2 below.** *(Prior state, SUPERSEDED: a cross-lane blocker — `IsAwaitingStepAcks` was reachable only through the `MasterSyncController` instance in a private field of `OrchestratorSubsystem`, so the dispatcher took `master: null` and the manifest reported `hasMaster:false` with a rail asserting it.)* |
 | **③** | Q54-2's provider carries its deps | ⛔ **A VALUE-CAPTURED provider LIES.** 📐 The first cut reported `time.drive:false` for **SimHost and CGF** — the two that definitely have adapters — because `_clusterTimeAdapter` is built in **`RegisterWindows`**, which runs AFTER the composition root builds providers. ⇒ ⭐ the accessors are `Func<>`s and the matrix measures at READ time. ⚠ A manifest lying in the *safe-looking* direction is worse than one lying loudly |
 | **④** | Q54-1: three-way SAME / DIFFERENT / NOT-PRESENT | ⭐⭐⭐ **A FOURTH VERDICT WAS FORCED: *"DIFFERENT BY DESIGN"*.** 📐 Of four comparable shared kinds, two diverge for non-regression reasons — `entity-inspector` *(the hosts hold different worlds)* and `spawner` *(the editor offers platforms, ExCon offers composites)*. ⇒ ⭐ a **declared** set with a REASON per entry, plus a control that reddens if a declared divergence starts AGREEING *(an exemption nothing needs must be deleted)* |
 | **⑤** | *(implicit)* the state payloads are readable anywhere | ⛔ **`/status` AND `/sim/state` had to DEGRADE.** 📐 `POST /sim/step` first answered `NOT_SUPPORTED_HERE(preview.control)` on a **fully supported** step, because the RESPONSE read `_preview`. ⇒ ⭐ absent fields are `null` in those two payloads *(and only those two)*; every other endpoint still 501s with the key. ⚠ Absence reported about the wrong thing is worse than no answer |
@@ -321,3 +324,52 @@ designed, including its refusals.
 |---|---|
 | **`POST /scenario/load` in `--mode all` ⇒ `NOT_SUPPORTED_HERE(editor.authoring)`** | a cluster loads through the orchestrator's 2PC `PrepareLive`, not `IEditorLogic`. ⇒ ⭐⭐ **the conformance sequence *"load S in BOTH, then diff"* is NOT EXECUTABLE today**, so only world-INDEPENDENT structure is comparable. ⚠ This is the single biggest limit on what conformance can currently claim |
 | **no cluster host publishes a gizmo frame** | 📐 kind `_gizmo` is editor-only; the handoff's *"dump K **+ the gizmo frame**"* is therefore half-done. ⭐ Declared in the baseline so the suite is green and the gap is visible |
+
+## ⭐⭐⭐ AS-BUILT-2 — **`HN-028`: the ack-gate confirms cluster-wide, and the gate itself was WRONG** *(`2026-08-24`)*
+
+> ⭐⭐ Obligation ⑤. ⛔ This SUPERSEDES deviation ② above **and** amends deviation ①: the gate's *location* was
+> right, its *condition* was not.
+
+### ⭐ The exposure — one property, deliberately not the controller
+
+```csharp
+// OrchestratorSubsystem.cs, beside the TestHook_ accessors
+public bool? IsAwaitingStepAcks => _masterSync?.IsAwaitingStepAcks;
+```
+
+| ⭐ | |
+|---|---|
+| **`bool?`, not `bool`** | `null` ⇒ **no master on this node** *(headless construction, or after `Shutdown` disposes it)*. ⇒ ⭐ absence is ASSERTABLE, the same idiom as charter `D3`/`D4`, and `HasMaster` needs no second member |
+| ⛔ **not `MasterSyncController`** | that type also exposes `Step`/`SetTimeScale`; handing it to the debug host invites driving time directly, **bypassing the perspective-scoped drive facade `Q54-2` established**. ⚠ Narrowness here prevents an architectural wrong turn, it is not tidiness |
+| ⚠ **read LIVE through a lambda** | `PerspectiveScopedDispatcher` now takes `Func<bool?>? acksPending`, not a value. 📌 `_masterSync` is created in `Initialize` and **set to `null` in `Shutdown`** ⇒ a captured value lies. **This is deviation ③ repeating**, caught before it shipped this time |
+
+### 🔴🔴 The real finding — **the gate was LEVEL-triggered, so in `--mode all` it confirmed NOTHING**
+
+📐 **Measured `2026-08-24`, `--mode all`, paused, one step:** `isAwaitingStepAcks` read **`false` 2 ms after
+issuing** and `totalTime` was **unchanged**; the tick appeared **~0.5 s later**.
+
+⛔⛔ **Because `false` means two different things** — *"the barrier drained"* and *"the barrier has not
+begun"*. A step is published as an **intent that crosses DDS**, so the flag is reliably in the second state
+when the old gate polled it. ⇒ ⭐⭐ **wiring the master in was necessary and not sufficient: the gate would
+have returned instantly, looking like a guarantee.** 📌 **The same level-vs-edge defect as the scenario-load
+readiness race** — found the same way, one batch apart.
+
+⭐⭐⭐ **The fix is an AND with a MONOTONE observable, not an edge on the flag:**
+
+```
+return when   !IsAwaitingStepAcks   &&   totalTime > totalTime-before-the-step
+```
+
+⛔ **An edge-trigger *("wait for awaiting to go true, then false")* cannot work in both hosts:** the editor's
+standalone master has an **empty roster** and is never observably awaiting, so phase one would always time
+out. ⭐ Clock progress is the one signal that means the same thing in the editor and in the cluster.
+⚠ **Degrades deliberately:** a host with no clock *(IG/ExCon — `TotalTimeOrNull()` is `null`)* falls back to
+the flag alone rather than hanging; those perspectives `501` before reaching the gate today.
+
+### ⭐ What now holds, and what is only a postcondition
+
+| | |
+|---|---|
+| ⭐⭐ `GET /capabilities` reports **`hasMaster:true`** in `--mode all` | the rail did not disappear when the gap closed — it **INVERTED**, so silently unwiring the master reddens |
+| ⭐⭐ `POST /sim/step` returns only once the tick **landed** | new field **`isAwaitingStepAcks` on `/sim/state`** makes the gate's own state observable |
+| ⚠⚠ **the rail is a POSTCONDITION, not proof the wait happened** | ⭐ what proves the gate is load-bearing is the MUTATION: pinning the master to *"always awaiting"* turns the step into a **`504`** naming the stalled roster. ⛔ Stated so nobody reads more into the green than it earned |

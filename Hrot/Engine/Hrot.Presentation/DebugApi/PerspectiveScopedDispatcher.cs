@@ -35,27 +35,32 @@ public sealed class PerspectiveScopedDispatcher
 {
     private readonly IReadOnlyList<ISubsystemDebugProvider> _providers;
     private readonly Func<string> _currentPerspective;
-    private readonly MasterSyncController? _master;
+    private readonly Func<bool?>? _acksPending;
 
     /// <param name="providers">One per contributing subsystem. ⚠ An empty list is legal — the manifest then honestly reports nothing routable.</param>
     /// <param name="currentPerspective">
     /// ⭐ Reads the LIVE perspective *(the window manager's)*, never a cached copy — 📌 <c>R-126</c>'s shape:
     /// read the source, do not latch it.
     /// </param>
-    /// <param name="master">
-    /// ⭐⭐ The cluster master's controller, for the ack-gate. ⛔ <see langword="null"/> when this host runs no
-    /// master *(then a step cannot be confirmed cluster-wide, and <see cref="IsAwaitingStepAcks"/> says so by
-    /// answering <see langword="false"/> — ⚠ documented rather than silently pretending)*.
+    /// <param name="acksPending">
+    /// ⭐⭐ <b>The ack-gate's live read: <see langword="null"/> ⇒ no master on this host, otherwise the master's
+    /// own "still awaiting step ACKs?".</b> 📄 <c>HN-028</c>. ⭐ A <see cref="Func{T}"/> of
+    /// <see cref="Nullable{Boolean}"/>, not a controller and not a latched value, for three measured reasons:
+    /// the master is created after the composition root and destroyed before it *(a captured reference lies —
+    /// 📌 exactly deviation ③ of the conformance batch)*; <see langword="null"/> makes ABSENCE assertable
+    /// *(charter `D3`/`D4`)*; and it withholds <c>Step</c>/<c>SetTimeScale</c>, which belong to the
+    /// perspective-scoped drive facade *(Q54-2)*, not to the gate.
+    /// ⛔ Pass <see langword="null"/> when this host has no orchestrator at all.
     /// </param>
     public PerspectiveScopedDispatcher(
         IEnumerable<ISubsystemDebugProvider> providers,
         Func<string> currentPerspective,
-        MasterSyncController? master)
+        Func<bool?>? acksPending)
     {
         _providers = (providers ?? throw new ArgumentNullException(nameof(providers)))
                      .Where(p => p != null).ToList();
         _currentPerspective = currentPerspective ?? throw new ArgumentNullException(nameof(currentPerspective));
-        _master = master;
+        _acksPending = acksPending;
     }
 
     /// <summary>⭐ The perspectives this dispatcher can route to, for the manifest and for diagnostics.</summary>
@@ -85,10 +90,14 @@ public sealed class PerspectiveScopedDispatcher
     /// master: nothing here can be confirmed cluster-wide, and answering <see langword="true"/> forever would
     /// hang every step.
     /// </summary>
-    public bool IsAwaitingStepAcks => _master?.IsAwaitingStepAcks ?? false;
+    public bool IsAwaitingStepAcks => _acksPending?.Invoke() ?? false;
 
-    /// <summary>⭐ True when a master is present, so the manifest can say whether a step is confirmable here.</summary>
-    public bool HasMaster => _master is not null;
+    /// <summary>
+    /// ⭐ True when a master is present, so the manifest can say whether a step is confirmable here.
+    /// ⚠ Evaluated LIVE — the master exists only between the orchestrator's <c>Initialize</c> and
+    /// <c>Shutdown</c>, so this is a question with a different answer at different times, not a constant.
+    /// </summary>
+    public bool HasMaster => _acksPending?.Invoke() is not null;
 
     // ── the read/drive surface, per active perspective ────────────────────────
 

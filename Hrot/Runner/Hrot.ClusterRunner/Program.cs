@@ -337,17 +337,28 @@ class Program
                     .Select(p => p!)
                     .ToList();
 
-                // ⛔⛔ CROSS-LANE BLOCKER, REPORTED NOT WORKED AROUND: the ack-gate's truth is
-                //    MasterSyncController.IsAwaitingStepAcks, and the only instance lives in a PRIVATE field
-                //    of OrchestratorSubsystem — a TIME-lane file (Area H) this batch may not edit
-                //    (HANDOFF_Conformance_Harness.md §3). ⇒ `master: null` here, which makes
-                //    GET /capabilities report `hasMaster:false` so the limitation is VISIBLE rather than
-                //    silent. ⭐ The fix is a one-line accessor in the TIME lane; a conformance rail asserts
-                //    the manifest tells the truth about it meanwhile.
+                // ⭐⭐⭐ THE ACK-GATE, NOW CONFIRMABLE CLUSTER-WIDE (HN-028 — was the conformance batch's one
+                //    cross-lane blocker). The gate's truth is MasterSyncController.IsAwaitingStepAcks, and the
+                //    only instance is private to OrchestratorSubsystem; it now exposes exactly that one fact as
+                //    `bool?` — null meaning "no master on this node".
+                //
+                // ⚠ Read through a LAMBDA, not a captured value: the master is built in Initialize() and
+                //   disposed in Shutdown(), so a latched copy would answer for a controller that no longer
+                //   exists. 📌 This is deviation ③ of the conformance batch (a value-captured provider LIES);
+                //   the same mistake was already paid for once with time.drive.
+                //
+                // ⭐ `--mode all` includes the orchestrator, so this resolves; a mode without it passes null and
+                //   GET /capabilities honestly reports hasMaster:false.
+                var orchestratorSubsystem = subsystems
+                    .OfType<Hrot.Orchestrator.OrchestratorSubsystem>()
+                    .FirstOrDefault();
+
                 var dispatcher = new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
                     debugProviders,
                     currentPerspective: () => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty,
-                    master: null);
+                    acksPending: orchestratorSubsystem is null
+                        ? null
+                        : () => orchestratorSubsystem.IsAwaitingStepAcks);
 
                 // ② construct + attach + start.
                 clusterApiQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();

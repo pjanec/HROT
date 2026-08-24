@@ -197,8 +197,10 @@ namespace Hrot.Editor.DebugApi
             //    published FrameStepCompletedEvent. ⇒ 🔴 returning as soon as the intent is published lets
             //    the next read observe a HALF-STEPPED cluster — "a golden of a race" (§6c).
             //
-            // ⭐⭐ So this route returns only when the master reports the ACKs cleared. ⛔ NOT a sleep and
-            //    NOT a fixed settle: those are what §6c names as the thing to replace.
+            // ⭐⭐ So this route returns only when the step has LANDED — the master is not mid-barrier AND the
+            //    clock has moved. ⛔ NOT a sleep and NOT a fixed settle: those are what §6c names as the thing
+            //    to replace. ⚠ And NOT the ACK flag alone: 📐 measured, that flag reads `false` before the
+            //    master has even begun, so waiting on it confirmed nothing (see AwaitStepLandedAsync).
             //
             // ⚠⚠ The wait CANNOT live inside `Step()` — see DebugApiService.IsAwaitingStepAcks: the drain
             //    runs on the main thread, so blocking a main-thread job would deadlock the loop that clears
@@ -208,10 +210,16 @@ namespace Hrot.Editor.DebugApi
             {
                 int count = ctx.Body?["count"]?.GetValue<int>() ?? 1;
 
+                // ⭐⭐⭐ The pre-step clock is the gate's PROGRESS ANCHOR — read BEFORE issuing, on the main
+                //    thread, so it cannot already include the step. 📄 See AwaitStepLandedAsync: the ACK flag
+                //    alone cannot tell "drained" from "not begun", and in --mode all it is reliably the latter.
+                double? before = await _jobQueue.RunOnMainThread(() => Service().TotalTimeOrNull())
+                                                .ConfigureAwait(false);
+
                 var issued = await RunMain(s => s.Step(count)).ConfigureAwait(false);
                 if (issued.Status != 200) return issued;
 
-                var settled = await AwaitStepAcksAsync().ConfigureAwait(false);
+                var settled = await AwaitStepLandedAsync(before).ConfigureAwait(false);
                 if (settled is { } failure) return failure;
 
                 // ⚠⚠ THE PAYLOAD IS THE ISSUING JOB'S STATE, deliberately — ⛔ NOT a second
@@ -908,22 +916,63 @@ namespace Hrot.Editor.DebugApi
         /// and every read after it would describe a half-stepped cluster. 📌 Reporting it as 504 with the
         /// elapsed time is what makes that visible instead of flaky.</para>
         /// </summary>
-        private async Task<RouteResult?> AwaitStepAcksAsync()
+        /// <summary>
+        /// ⭐⭐⭐ <b>Blocks until the issued step has LANDED: the master is not mid-barrier AND the clock moved.</b>
+        ///
+        /// <para>⛔⛔ <b>Why the ACK flag alone is not a gate.</b> 📐 Measured <c>2026-08-24</c>, <c>--mode all</c>,
+        /// paused, one step: <c>isAwaitingStepAcks</c> read <c>false</c> 2 ms after issuing and <c>totalTime</c>
+        /// was UNCHANGED; the tick appeared ~0.5 s later. ⇒ the flag was <c>false</c> because the master had not
+        /// STARTED — the step is published as an intent that crosses DDS. ⭐ A wait on
+        /// <c>!IsAwaitingStepAcks</c> therefore returned having confirmed nothing at all, which is worse than no
+        /// gate: it looks like a guarantee. 📌 The same level-vs-edge defect as the scenario-load readiness race,
+        /// found the same way.</para>
+        ///
+        /// <para>⭐⭐ <b>The fix is an AND with a MONOTONE observable</b> rather than an edge on the flag. An
+        /// edge-trigger *("wait for awaiting to go true, then false")* cannot work in both hosts: the editor's
+        /// standalone master has an EMPTY roster and is never observably awaiting, so phase one would always
+        /// time out. ⭐ Clock progress is the one signal that means the same thing in both — a step that landed
+        /// moved it.</para>
+        ///
+        /// <para>⚠ <b>Degrades deliberately:</b> when the host offers no clock *(IG / ExCon — <c>TotalTimeOrNull</c>
+        /// is <see langword="null"/>)* there is no progress to anchor on, so this falls back to the flag alone and
+        /// says so in the timeout text. ⛔ Those perspectives answer <c>501</c> before reaching here today; the
+        /// fallback exists so a future clockless-but-drivable host degrades rather than hanging for 20 s.</para>
+        ///
+        /// <para>⚠ <c>count &gt; 1</c> is gated as "at least one tick, and the barrier drained" — the master
+        /// stays in <c>Stepping</c> until every requested tick is acknowledged, so the flag covers the remainder
+        /// without this needing to know the tick length.</para>
+        /// </summary>
+        private async Task<RouteResult?> AwaitStepLandedAsync(double? before)
         {
             var sw = Stopwatch.StartNew();
+            bool sawBarrier = false;
 
             while (true)
             {
-                bool awaiting = await _jobQueue.RunOnMainThread(() => Service().IsAwaitingStepAcks)
-                                               .ConfigureAwait(false);
-                if (!awaiting) return null;
+                var (awaiting, now) = await _jobQueue
+                    .RunOnMainThread(() => (Service().IsAwaitingStepAcks, Service().TotalTimeOrNull()))
+                    .ConfigureAwait(false);
+
+                if (awaiting) sawBarrier = true;
+
+                // ⭐ No anchor (clockless host, or the clock vanished mid-step) ⇒ the flag is all there is.
+                bool advanced = before is null || now is null || now.Value > before.Value;
+
+                if (!awaiting && advanced) return null;
 
                 if (sw.Elapsed.TotalSeconds > StepAckTimeoutSeconds)
                     return Fail(504,
-                        $"The step was issued but the cluster did not acknowledge it within "
-                      + $"{StepAckTimeoutSeconds:0}s (master still reports awaitingStepAcks). A roster node "
-                      + "(SimHost/IG/CGF) is not advancing; any read now would describe a half-stepped "
-                      + "cluster.");
+                        $"The step was issued but did not land within {StepAckTimeoutSeconds:0}s — "
+                      + (awaiting
+                            ? "the master still reports awaitingStepAcks, so a roster node (SimHost/IG/CGF) is "
+                            + "not advancing"
+                            : sawBarrier
+                                ? "the barrier drained but the clock never advanced past "
+                                + $"{before?.ToString() ?? "(no anchor)"}, so the tick was acknowledged without "
+                                + "being executed"
+                                : "the master never entered the step barrier and the clock never advanced, so "
+                                + "the step intent appears not to have reached it")
+                      + ". Any read now would describe a half-stepped cluster.");
 
                 await Task.Delay(2).ConfigureAwait(false);
             }

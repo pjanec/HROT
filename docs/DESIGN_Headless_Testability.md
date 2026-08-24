@@ -2,7 +2,8 @@
 state: LIVE
 build-state: §"Step 6" and §Conformance are BUILT (2026-08-24) — see §6e and the conformance AS-BUILT for
   what shipped and its five deviations; the rest of the file is DESIGN. Steps 6+7 of the sequencing table
-  are DONE except the cross-lane ack-gate half (TIME lane) and the cluster scenario load.
+  are DONE. ⭐ The ack-gate's cluster half is CLOSED (HN-028) and its CONDITION corrected — the flag alone
+  was level-triggered and confirmed nothing; see §6e.
 updated: 2026-08-24
 current-answer: §6e and the conformance AS-BUILT (both added 2026-08-24) are what SHIPPED — read them
   before §6a's class diagram, which shows the superseded one-service shape. Otherwise: the whole file — the methodology AND architecture for de-risking the cross-host unification with
@@ -352,7 +353,7 @@ sequenceDiagram
     M->>N: AdvanceFrameIntent (one tick, all slaves)
     N-->>M: FrameStepCompletedEvent (ACK per node)
     Note over M: UpdateStepping drains ACKs until _pendingAcks empty
-    S->>M: gate on IsAwaitingStepAcks == false
+    S->>M: gate: not awaiting ACKs AND clock advanced
     M-->>S: tick complete cluster-wide
     S-->>H: SimState (step done everywhere)
     H->>S: GET /panels/{id}
@@ -364,7 +365,7 @@ sequenceDiagram
 
 | hazard | why it bites | the design fix |
 |---|---|---|
-| ⭐⭐⭐ **ack-completion vs fixed sleeps** *(the CORRECTNESS one)* | the existing integration tests approximate sync with `Settle(80 frames)` + `Thread.Sleep` ⇒ flaky, and a panel read between `Step()` and the last ACK captures a **half-stepped** cluster — a golden of a race | ⭐⭐ **`POST /sim/step` returns only when the tick is acknowledged cluster-wide** — gate on `MasterSyncController.IsAwaitingStepAcks == false` *(exposed for exactly this, `MasterSyncController.cs:204`)*, not a sleep. ⭐ **Same return contract in both modes** ⇒ the harness code is identical, which is the whole conformance point. 🔴 **This one is non-negotiable** |
+| ⭐⭐⭐ **ack-completion vs fixed sleeps** *(the CORRECTNESS one)* | the existing integration tests approximate sync with `Settle(80 frames)` + `Thread.Sleep` ⇒ flaky, and a panel read between `Step()` and the last ACK captures a **half-stepped** cluster — a golden of a race | ⭐⭐ **`POST /sim/step` returns only when the tick has LANDED cluster-wide**, not a sleep. ⚠⚠ **As-built the condition is `!IsAwaitingStepAcks` AND the clock advanced** — ⛔ the flag ALONE is not a gate, because `false` also means *"the barrier has not begun"* and in `--mode all` that is reliably the case when it is first polled *(§6e; `Architect_Question_54` § AS-BUILT-2)*. ⭐ **Same return contract in both modes** ⇒ the harness code is identical, which is the whole conformance point. 🔴 **This one is non-negotiable** |
 | ⚠ **wall-clock barrier** *(a LATENCY/flakiness one, not a correctness breaker)* | `SwitchToDeterministic` arms the barrier at `_getTick() + LookaheadWallTicks` *(200 ms default, `TimeConfig.cs:75`)*, crossed against the **physical** clock ⇒ ~200 ms per *enter-deterministic* and a reliance on real time passing | ⭐ **correctness holds without touching it:** sim time is FROZEN from the instant `SwitchToDeterministic` is called *(master `UpdateBarrierPending`; slaves freeze in `BarrierPending`)*, so the barrier window advances no state — pump-until-paused *(as the integration tests do)* is sufficient. ⭐⭐ **Zeroing `LookaheadWallTicks` is a speed/flakiness OPTIMISATION**, not a determinism fix |
 
 ⚠ **`GET /sim/state` does not expose `isAwaitingStepAcks` today** *(measured — `GetStatus` returns `simTime`/
@@ -386,7 +387,8 @@ sequenceDiagram
 | ⭐⭐⭐ **§6a's four wiring points are BUILT in `Program.cs`** | gated on `HROT_DEBUG_API_PORT` **and** on the editor subsystem being absent *(it owns the API in its own mode)*. 📐 `--mode all` answers `/status`, `/capabilities`, `/perspectives`, `/perspective`, `/panels`, `/panels/{id}`, `/sim/*` |
 | ⛔⛔ **the lift is NOT a `ClusterReadDriveService`** | ⭐ as `Q54` ruled: a **dispatcher over per-subsystem providers**. ⚠ §6a's class diagram above still shows the superseded shape — read `Q54`'s UML instead |
 | 🔴🔴 **§6c's *"gate INSIDE `Step()`"* is IMPOSSIBLE** | the ACK drain and `Step()` are both main-thread ⇒ deadlock. ⭐ The gate is in the HTTP handler; the return contract is unchanged |
-| 🔴🔴 **the cluster half of the gate is BLOCKED CROSS-LANE** | `MasterSyncController` is private in `OrchestratorSubsystem` *(TIME lane)*. ⇒ `hasMaster:false` in the manifest, asserted by a rail so the gap cannot be forgotten |
+| ⭐⭐⭐ **the cluster half of the gate is CLOSED** *(`HN-028`, `2026-08-24`)* | `OrchestratorSubsystem` now exposes the one fact as `public bool? IsAwaitingStepAcks` *(`null` ⇒ no master)*, read LIVE through a `Func<bool?>`. ⇒ **`hasMaster:true`** in `--mode all`, and the rail INVERTED rather than being deleted. *(Prior state, SUPERSEDED: blocked cross-lane, `hasMaster:false` asserted.)* |
+| 🔴🔴 **§6c's gate CONDITION was wrong — level-triggered** | 📐 measured: `isAwaitingStepAcks` reads `false` **2 ms after issuing** because the step is an intent crossing DDS and the master has not begun ⇒ the old gate confirmed **nothing**. ⭐ The condition is now **`!awaiting && totalTime > before`** — an AND with a monotone observable. ⛔ An edge-trigger cannot work: the editor's roster is empty and never observably awaits. 📄 Full reasoning: `Architect_Question_54` § AS-BUILT-2 |
 | ⛔⛔ **`--mode all` must run WINDOWED (Xvfb), not headless** | 📐 measured: a panel publishes only when it DRAWS, and the headless runner loop never calls `DrawUIAll` ⇒ every dump would be empty. ⭐ Same reason the editor harness has always run under Xvfb |
 | ⭐ **§6d's goldens re-proof: DONE** | `bash scripts/run-system-tests.sh` ⇒ **80 / 80**, including `PanelGoldenRails`. ⭐ Their stepping is the same `POST /sim/step` seam `--mode all` uses — now ack-gated |
 

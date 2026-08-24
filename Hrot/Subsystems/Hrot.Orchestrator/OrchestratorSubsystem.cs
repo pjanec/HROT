@@ -84,6 +84,20 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     /// </summary>
     internal float TestHook_TimeScale => _masterSync?.GetTimeScale() ?? 0.0f;
 
+    /// <summary>
+    /// ⭐⭐ <b>The ONE fact the debug API's ack-gate needs: is the master still awaiting step ACKs?</b>
+    /// <para><see langword="null"/> ⇒ <b>this node hosts no master</b> (parameterless/headless construction, or
+    /// after <see cref="Shutdown"/> disposes it) ⇒ a step cannot be confirmed cluster-wide here.
+    /// <see langword="true"/>/<see langword="false"/> ⇒ the master's own answer.</para>
+    /// <para>⭐ Deliberately the NARROWEST surface rather than the controller itself:
+    /// <see cref="MasterSyncController"/> also exposes <c>Step</c>/<c>SetTimeScale</c>, and handing those to the
+    /// debug host would invite it to drive time directly — bypassing the perspective-scoped drive facade that
+    /// <c>Architect_Question_54</c> Q54-2 established ("issue where the user is, confirm where the truth is").</para>
+    /// <para>⚠ Read LIVE, never latched: <c>_masterSync</c> is created in <see cref="Initialize"/> and set back to
+    /// <see langword="null"/> in <see cref="Shutdown"/>, so a captured reference would outlive the master and lie.</para>
+    /// </summary>
+    public bool? IsAwaitingStepAcks => _masterSync?.IsAwaitingStepAcks;
+
     public string Name => "Orchestrator";
 
     public System.Numerics.Vector4 TitleBarColor => new(0.72f, 0.64f, 0.47f, 1f);  // S0501: beige
