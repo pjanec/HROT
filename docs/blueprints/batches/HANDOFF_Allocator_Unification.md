@@ -6,17 +6,17 @@ current-answer: dispatch pointer for HN-037 (backend lane, one session, overnigh
   allocator to ONE authority per world reset to 1000 at the world boundary, AND delete the obsolete direct
   scenario-load path (ScenarioFileService.LoadScenario + the IEditorLogic facade). Carries no design: cites
   DESIGN_Deterministic_Network_Ids.md §11.
-known-conflict: ⚠ the UI lane is running CONCURRENTLY (HN-030 catalog-from-routes · start_simulation mode
-  param · REMOVING the /scenario/load alias) and edits EditorApplication.cs + the DebugApi scenario routes.
-  This batch also edits EditorApplication.cs (Path-B deletion). See §4 — rule-4-pull and reconcile, or
-  STOP-and-report on the overlap.
+known-conflict: ✅ RESOLVED `2026-08-24` — the UI lane LANDED (merged at `33c819a13`: HN-030 catalog-from-routes ·
+  start_simulation mode param · the /scenario/load alias RETIRED). 📐 Measured: it did NOT touch
+  EditorApplication.cs, so Part B's facade deletion has no overlap; the mode-less alias is already gone. Branch
+  from `33c819a13` and Part B proceeds clean. See §4.
 -->
 # HANDOFF — **HN-037: unify the network-id allocator + delete the obsolete load path** *(backend lane, overnight)*
 
-> 📌 **Dispatched at `dbdff90f3`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from the **LATEST**
-> `claude/blueprint-authoring-status-6sr5ld` *(rule 7 — the UI lane's HN-030 may have merged by the time you
-> start overnight; branching from the latest head is expected and desired)*. **Rule 1b: push the started-marker
-> BEFORE any code.** ⛔ **No PR.**
+> 📌 **Dispatched at `33c819a13`** *(re-stamped `2026-08-24` — rule 1a, verified unstarted; the concurrent UI
+> lane has now LANDED, so the earlier known-conflict is resolved and this head already contains it)*.
+> ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from `claude/blueprint-authoring-status-6sr5ld` *(rule 7)*.
+> **Rule 1b: push the started-marker BEFORE any code.** ⛔ **No PR.**
 >
 > ⭐ **IDs — collision-avoidance, READ THIS:** the UI lane is **concurrently** allocating in the `HN-` series
 > *(HN-030 + a few for start_simulation / the alias removal — likely `HN-040..HN-04x`)*. ⇒ ⛔ to stay clear,
@@ -89,23 +89,23 @@ item STOPs-and-reports; ⛔ **it does not stop Part A** *(`R-106` — do every u
 
 ⭐ **Yours (backend lane, one session):** `EditorSubsystem`/editor allocator · `CgfSubsystem` + `CgfScenarioLoadHandler` · the orchestrator/`ClusterMaster` + DDS `Req_Reset` world-reset wiring · the conformance/ordering rails · Part B *(`IEditorLogic`, `EditorApplication`, `ScenarioFileService`, the ~8 tests)*.
 
-⛔⛔ **CONCURRENT UI LANE — the real coordination risk:** the UI session is running **HN-030** *(generate the
-tool-catalog from routes)*, making **`start_simulation` take a `mode` parameter** *(was always `--mode editor`)*,
-and **REMOVING the `/scenario/load` alias**. That work edits **`EditorApplication.cs`** and the **DebugApi
-scenario routes** — files Part B also edits.
-- ⭐ **Rule 4: pull the coordinator branch before your final commit** and read what the UI lane merged.
-- ⛔ **If Part B's `EditorApplication`/`IEditorLogic` edits collide with the UI lane's alias/`start_simulation`
-  changes, RECONCILE onto their merged version** *(they land first — this is overnight)*; if the reconcile is
-  ambiguous, **STOP-and-report that item**, don't guess.
-- ⚠ The `/scenario/load` alias removal is THEIRS — ⛔ do not also remove it; Part B removes the **direct file
-  loader** *(`ScenarioFileService.LoadScenario`)*, a different thing from the HTTP alias.
+✅ **UI LANE LANDED `2026-08-24` — the earlier coordination risk is RESOLVED** *(you branch from `33c819a13`,
+which already contains it)*. The UI lane shipped HN-030 *(catalog generated from routes)*, `start_simulation`'s
+`mode` param, and **retired the `/scenario/load` alias** *(now only `/scenario/load/edit` + `/scenario/load/live`
+exist; `GoldenCaptureFixture`/`McpClient` migrated to `LoadScenarioEditAsync`)*.
+- 📐 **Measured: the UI lane did NOT touch `EditorApplication.cs`** ⇒ Part B's facade deletion *(⑥)* has **no
+  overlap** — proceed.
+- ⚠ The mode-less `/scenario/load` HTTP route is **already gone** — ⛔ do not look for it; Part B removes the
+  **direct file loader** `ScenarioFileService.LoadScenario` *(a different thing)*.
+- ⭐ **Rule 4 still applies**: pull the coordinator branch before your final commit *(the TIME lane or others may
+  land while you run overnight)*.
 
 ⛔ **STOP-and-report, do not silently cross:** if you cannot reconcile a UI-lane overlap, or if a Part-B test
 reveals a live capability. ⭐ Everything else proceeds *(`R-106`)*.
 
 ## 5. GATES
 
-⭐ Standing contract *(rule 8)*: one row per gate · verbatim command · pass/fail/skip · **delta vs `dbdff90f3`
+⭐ Standing contract *(rule 8)*: one row per gate · verbatim command · pass/fail/skip · **delta vs `33c819a13`
 and vs your started-marker** · a `--no-build` column · every RED pre-existing **by name** · golden movement as
 a diff shape · `tracker-counts.py --check` · `rulings-check.py` · `design-digest.py --check` ·
 `mermaid-check.mjs` on §11 if you edit it · **the ids you allocated** *(rule 5)*.
