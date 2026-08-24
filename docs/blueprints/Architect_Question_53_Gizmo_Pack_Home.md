@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: ANSWERED (Option A) — buildable design is DESIGN_Reflection_World_Priming.md
+build-state: ON HOLD — §5 (architect review, coordinator-verified) reopened it. §8.5 of the gizmo design
+  raises a mechanism-INDEPENDENT question (should headless nodes carry the full set?) that outranks A vs B.
 updated: 2026-08-24
 current-answer: §4 — recommendation is Option A (reflect-and-register-all, extended to components+events+
   gizmos as ONE bootstrap step), decisively after two measured findings in §1 (component IDs are explicit;
   the reflection path already ships in RepositoryPriming). §3b answers the user's layering question and
-  frames aggregation (Option C) as a separate reopening of Q51. ✅ RULED 2026-08-24: Option A, built as
-  DESIGN_Reflection_World_Priming.md; Option C (aggregation) to backlog.
+  frames aggregation (Option C) as a separate reopening of Q51. ⚠ Option A was ruled 2026-08-24, then the architect review (§5) surfaced P3 (recorder pollution, inherent
+  to uniform membership) and P5 (headless DDS bandwidth) — BOTH mechanism-independent. HELD for the user.
 design-basis: 🔒 user 2026-08-23 (uniform membership) · REPORT_Uniform_Gizmo_Membership.md §2 (the block,
   measured) · DESIGN_Uniform_Gizmo_Membership.md §7.3 (the lane's proposed way out) ·
   Architect_Question_52 §0 (support all, presence decides).
@@ -151,3 +152,36 @@ assembly at every boot is **not obviously** free ⇒ report the mode-rail startu
 
 ⭐ `build-state: DESIGN` — once A or B is chosen this gains the `classDiagram`/`sequenceDiagram` for the
 chosen mechanism and becomes `READY-TO-BUILD`, and invariant `B`'s rail *(`ST-028` item ③)* ships with it.
+
+---
+
+## ⭐⭐ 5. ARCHITECT REVIEW (NotebookLM) + COORDINATOR VERIFICATION — `2026-08-24`
+
+⭐ The NotebookLM architect reviewed the reflection proposal. Each claim **verified against code** *(it has
+been inexact before)*:
+
+| # | claim | verdict | evidence |
+|---|---|---|---|
+| **P2** | the generator injects `GizmoSettingsRegistry` into ctors; a naive `Activator.CreateInstance` would break settings-registering gizmos | ✅ **TRUE** | `GizmoRegistrarGenerator.cs:118-124` detects a `GizmoSettingsRegistry` ctor param and emits `new Gizmo(settings)` vs `new Gizmo()`. ⇒ a reflection loop **must replicate the ctor-injection rule** — real complexity, manageable |
+| **P3** | "id-only" registration still pollutes the recorder schema | ✅ **TRUE, and stronger than framed** | `GetOrRegisterManaged` defaults `_isRecordable=true`; `GetRecordableMask`/`BuildSchemaManifest` read the **static** registry. ⇒ ⭐ **my §8.4 was incomplete — id-only needs `SetRecordable(false)` too.** ⛔ AND it is INHERENT to uniform membership *(any host registering a gizmo must resolve its component ids)*, not to reflection |
+| **P5** | headless nodes stream gizmos over DDS ⇒ bandwidth | ✅ **TRUE, and previously unconsidered** | SimHost/CGF register `StatelessGizmoSystem`; `DebugPrimitivesBatchPublisherSystem.cs:37` publishes whenever the buffer is non-empty — ⛔ **not demand-gated.** ⚠ **BUT misfiled as A-vs-B** — Option B has the IDENTICAL runtime profile. 📄 The real finding: `DESIGN_Uniform_Gizmo_Membership.md` §8.5 |
+| **P1** | reflection misses lazily-loaded assemblies | ⚠ **BOUNDED today** | gizmos live in **statically-referenced** assemblies the host touches at bootstrap; the per-mode completeness rail catches gaps. 🔴 **Real for the FUTURE** — a `[GizmoProjector]` in a hot-reloaded behavior assembly *(`AiHotReloadCoordinator`)* would be missed |
+| **P4** | reflection blocks NativeAOT/trimming | ⚠ **TRUE but NOT decisive** | 📐 runtime reflection is **already pervasive** — **47** production files use `GetAssemblies`/`Activator`/`MakeGenericMethod`, and `RepositoryPriming` already reflects. ⇒ the platform is **already** not AOT/trim-compatible; Option A adds no NEW category of debt |
+
+### ⭐⭐⭐ THE RE-READ — **the two strongest points do NOT decide A vs B**
+
+⛔ **NotebookLM concluded "therefore Option B."** 📐 But **P3 and P5 — its strongest points — apply
+identically to A and B** *(both register all families on all hosts; both resolve all required component ids;
+both execute+publish on headless nodes)*. ⇒ they are not an argument for code-move over reflection; they are
+an argument about **whether headless nodes should carry the full set at all** *(§8.5)*.
+
+| ⭐ what genuinely bears on A vs B | |
+|---|---|
+| **P2** — reflection must replicate ctor-injection | ⭐ mild edge to **B** *(generator stays authoritative)* |
+| **P1-future** — hot-reloaded gizmos | ⭐ mild edge to **B** |
+| **P4** — AOT | ⛔ **moot** *(already not AOT)* |
+| **the cost of B** | ⚠ 5 cross-assembly file moves + 2 project edges |
+
+⇒ ⭐⭐ **Two decisions, now separated:** **(a)** the §8.5 headless-node question *(mechanism-independent, the
+one that matters)*; **(b)** A vs B, where B has a mild correctness edge if we accept the file moves. ⛔ **Both
+are the user's to rule** — the build is HELD *(§8.6)*.

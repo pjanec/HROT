@@ -324,6 +324,45 @@ sequenceDiagram
 
 📐 `ST-027`'s `MapSchemaPack` does `repo.RegisterComponent<T>()` for 15 components on **every** host — full
 **recordable tables**. On IG/SimHost that makes brain components `IsComponentTypeRegistered`-true *(TkbTemplate
-risk)* and **recordable** *(schema pollution)* — the exact component downside. ⇒ ⭐⭐ **replace it with the
-id-only dependency (§8.2 ②)** for components a host does not simulate, and **assert** a Muscle/IG node's
-recordable set excludes brain-tier components. ⭐ **Item ⓪ of the build measures whether it is live first.**
+risk)* and **recordable** *(schema pollution)* — the exact component downside. ⇒ ⭐⭐ **id-only is NECESSARY BUT NOT SUFFICIENT** *(architect review, `2026-08-24`, coordinator-verified)*:
+📐 `GetOrRegisterManaged` defaults `_isRecordable = true` in the **static** registry, and the recorder
+reads the static registry *(§`Reflection_World_Priming` #3)* ⇒ **id-only avoids the TABLE (SoD, TkbTemplate
+skip) but STILL pollutes the recorder schema** unless the gizmo-only component ids are also marked
+**`SetRecordable(false)`/`SetSaveable(false)`** on nodes that do not simulate them. ⛔ **My earlier
+*"id-only fixes it"* was incomplete.** ⇒ item ⓪: id-only **AND** non-recordable; the non-bloat rail proves it.
+
+
+### ⭐⭐⭐ 8.5 THE FINDING WE BOTH MISSED — **uniform membership on HEADLESS nodes is uncosted** *(architect review + coordinator verification, `2026-08-24`)*
+
+⛔⛔ **This is orthogonal to reflection-vs-code-move — it applies to BOTH options equally**, and it challenges
+the *uniform-membership* premise itself on the headless simulation nodes.
+
+📐 **Verified:** SimHost *(`SimHostApp.cs:419`)* and CGF *(`CgfSubsystem.cs:580`)* **register
+`StatelessGizmoSystem` and a `GizmoInteractionModule`**, and `DebugPrimitivesBatchPublisherSystem` publishes
+the gizmo buffer over DDS. ⛔ **The publisher is NOT demand-gated** — 📐 its only guard is
+*`if (frame.Length == 0) return;`* *(skip when empty)*; it does **not** check whether any remote terminal is
+subscribed. ⇒ ⭐⭐ **a headless node that registers + executes a heavy visualiser** *(EQS spheres, LOS cones,
+path sweeps)* **for entities it hosts will pack and publish those primitives every frame, regardless of
+whether anyone is looking.**
+
+| ⭐ the two costs of giving a HEADLESS node a gizmo family | |
+|---|---|
+| 🔴 **DDS bandwidth** | executed + published at frame rate, ungated by subscription — `DebugPrimitivesBatchPublisherSystem.cs:37` |
+| 🔴 **recorder schema** | resolving the gizmo's required component ids marks them recordable on that node *(§8.4)* |
+
+⇒ ⭐⭐⭐ **The registration MECHANISM (A reflection / B code-move) does not change either cost — both register the
+same families on the same nodes.** ⛔ So NotebookLM's *"therefore Option B"* does **not** follow from these two
+points; they are a separate question: **should the headless sim nodes carry/execute/publish the full gizmo set
+at all, or should that be DEMAND-GATED** *(visibility-policy-off-by-default, or publish-only-when-subscribed)*?
+
+⭐⭐ **A likely reconciliation** *(for the user to rule):* the CAPABILITY is uniform *(every node CAN produce
+every gizmo when a terminal observes it)*, but EXECUTION + PUBLISHING on a headless node is **demand-gated** —
+which is exactly `IGizmoVisibilityPolicy` *(already exists)* defaulted OFF on headless nodes, plus a
+subscription check at the publisher. ⇒ this satisfies the operator need *(observe any node)* without the 60 Hz
+tax when nobody is watching.
+
+### ⛔ 8.6 STATUS — **HELD pending the user's ruling on §8.5**
+
+⚠ **The gizmo-reflection build is ON HOLD** *(batch not started)*. The A-vs-B mechanism choice is now
+secondary to §8.5's question, which reshapes what "every host" means for headless nodes. 📄 Review verdicts,
+verified, in [`Architect_Question_53` §5](blueprints/Architect_Question_53_Gizmo_Pack_Home.md).

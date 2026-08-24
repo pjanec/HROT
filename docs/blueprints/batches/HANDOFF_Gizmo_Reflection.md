@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE
+state: ON-HOLD
 build-state: DISPATCH
 updated: 2026-08-24
 current-answer: dispatch pointer — finish uniform gizmo membership via REFLECTION (Q53 Option A), and
@@ -8,6 +8,10 @@ current-answer: dispatch pointer — finish uniform gizmo membership via REFLECT
 known-conflict: none. Replaces the WITHDRAWN HANDOFF_Reflection_World_Priming.md; unblocks that design's
   §7.3 (item ②).
 -->
+# ⏸ ON HOLD — gizmo membership by reflection
+
+> ⏸ **HELD `2026-08-24`, before start.** The NotebookLM architect review *(verified — 📄 `Architect_Question_53` §5)* surfaced two mechanism-INDEPENDENT costs of uniform gizmo membership on **headless** nodes — recorder-schema pollution *(P3)* and ungated DDS publishing *(P5)* — that outrank the A-vs-B mechanism choice. 📄 `DESIGN_Uniform_Gizmo_Membership.md` §8.5. ⛔ **Do not start until the user rules on the headless-node question.**
+
 # HANDOFF — **gizmo membership by reflection** *(finish §7.3, correct `ST-027`)*
 
 > 📌 **Dispatched at `5db5c60bc`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
