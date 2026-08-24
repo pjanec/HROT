@@ -12,13 +12,16 @@ namespace Hrot.IG.Gizmos
             StatelessGizmoRegistry statelessRegistry,
             GizmoSettingsRegistry settings)
         {
-            // Generated registrars handle all classes decorated with [GizmoProjector].
-            Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar.RegisterAll(registry, statelessRegistry, settings);
-            Hrot.AI.Behaviors.Gizmos.GizmoRegistrar.RegisterAll(registry, statelessRegistry, settings);
-
-            // GZ058: IG-local effect gizmo + ScenarioEditor gizmos (entity, route, map overlay).
-            RegisterAll(registry, statelessRegistry, settings);
-            Hrot.ScenarioEditor.Gizmos.GizmoRegistrar.RegisterAll(registry, statelessRegistry, settings);
+            // ST-031: ONE reflection call replaces the hand-rolled family list. This host used to name
+            // five generated registrars (Common, AI.Behaviors, its own, ScenarioEditor, Presentation) and
+            // therefore declared a curated SUBSET -- it was missing SimHost's and CGF's families, which is
+            // what the uniform-membership ruling forbids: "support all and decide on current presence of
+            // component".
+            //
+            // Reflection is what makes that possible at all. A compile-time pack would have to reference
+            // Hrot.SimHost and Hrot.CGF, and both already reference Hrot.Common, so there is no assembly
+            // that can hold it (ST-028). Discovering the projectors instead has no compile-time edge.
+            GizmoReflectionRegistrar.RegisterAll(registry, statelessRegistry, settings);
 
             // Measure tool gizmo adapter settings (not a migrated gizmo; stays in Hrot.IG).
             MeasureToolGizmoSettings.Register(settings);

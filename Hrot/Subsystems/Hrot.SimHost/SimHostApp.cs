@@ -333,13 +333,12 @@ namespace Hrot.SimHost
                 _gizmoBuffer = new DebugPrimitiveBuffer();
                 _gizmoRegistry = new GizmoRegistry();
                 _statelessGizmoRegistry = new StatelessGizmoRegistry();
-                // GZ057: register entity presentation gizmos for SimHost.
-                Hrot.SimHost.Gizmos.GizmoRegistrar.RegisterAll(
-                    _gizmoRegistry,
-                    _statelessGizmoRegistry,
-                    settings: new GizmoSettingsRegistry());
-                // Register CanvasContextMenuGizmo for empty-space right-click context menus.
-                Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(
+                // ST-031: ONE reflection call replaces the hand-rolled family list. This host declared
+                // the narrowest subset of all five -- its own family plus Presentation -- so it was missing
+                // Common's eight projectors entirely (the selection ring, health bars, LOS, vis-cone,
+                // spatial grid: UXI-22, confirmed by measurement). Uniform membership means it declares
+                // everything and component presence decides what draws.
+                GizmoReflectionRegistrar.RegisterAll(
                     _gizmoRegistry,
                     _statelessGizmoRegistry,
                     settings: new GizmoSettingsRegistry());

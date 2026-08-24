@@ -176,11 +176,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     protected override void RegisterDomainComponents(EntityRepository world)
     {
         SimHostComponentRegistry.RegisterAll(world);
-        // ST-027: the projector-required schema, for uniform gizmo membership. Every host now
-        // declares every gizmo family (MapGizmoPack), and StatelessGizmoRegistry throws on a
-        // required component it does not know -- so the schema must be in place BEFORE the
-        // registrars run. ST-020 is what happens when declaration outruns schema.
-        Hrot.Common.Diagnostics.Gizmos.MapSchemaPack.RegisterAll(world);
         world.SetSingletonManaged<ITkbDatabase>(_tkbDb!);  // TKB-015
     }
 
