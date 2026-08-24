@@ -146,6 +146,28 @@ be evaluated on the **master**, even when the command entered through a slave ad
 via the slave provider but **gates on the master's `MasterSyncController`** — the one place that knows the tick
 is done cluster-wide. ⭐ Not a contradiction: issue-where-the-user-is, confirm-where-the-truth-is.
 
+### ⛔⛔ PARTICIPATE ≠ OBSERVE — **why ExCon is not in the roster, and why the MCP still knows the step finished**
+
+📌 **The confusion this heads off** *(user, `2026-08-24`)*: *"ExCon never ACKs — does that mean it can't tell the
+step finished? does it need an ECS core? the MCP must know completion."* ⭐ **Two different things:**
+
+| | PARTICIPATE — send a `FrameStepCompletedEvent` per tick | OBSERVE — know the cluster-wide step finished |
+|---|---|---|
+| means | *"I executed this frame"* | *"the simulating nodes are done"* |
+| needs | ⛔ an **ECS kernel** with a frame to execute | ⭐ only a **read of the master's aggregate state** |
+| who | **SimHost · IG · CGF** *(the roster)* | ⭐ **anyone** — the master, ExCon, the MCP, from any perspective |
+
+⇒ ⭐⭐⭐ **The MCP learns completion by OBSERVING, not by ACKing.** The authoritative signal is the master's
+`IsAwaitingStepAcks` clearing *(all roster nodes applied the tick)*, which the dispatcher reads in-process
+regardless of the active perspective. ⛔ **ExCon needs NO kernel to know the step finished** — a kernel would
+only make it a barrier *participant*, and putting a console in the roster would **stall the cluster forever**
+waiting on an ACK it has no frame to produce. ⇒ ⛔ **do not "fix" ExCon into the roster.**
+
+⚠ **The genuine second-order point:** ExCon's own `SlaveSyncController` snaps to the master's sim time one drained
+frame behind the roster ⇒ if the MCP reads **ExCon's own panels** right after a step, the **settle ticks**
+*(switch → step → settle(N) → read)* are what let the observing node catch up. ⭐ Irrelevant to the
+editor-vs-cluster diff *(disjoint perspective sets — editor has no ExCon perspective)*.
+
 ## ⭐ UML — the contract
 
 ```mermaid
