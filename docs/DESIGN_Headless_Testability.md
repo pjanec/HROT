@@ -221,14 +221,13 @@ coordinator verifies it on merge *(rule 8 + obligation ⑤)*.
 | **1** | MCP capability harness *(H1–H6)* | ✅ **BUILT** *(HN-120)* |
 | **2** | `PanelSnapshot` contract + panel sweep *(U-obs-1/2/5)* | ✅ **BUILT** |
 | **3** | Group T *(`GET /panels*`)* | ✅ **BUILT** *(HN-122)* |
-| **4** | gizmo feed *(U-obs-3)* + smoke-suite T2 reads `PanelSnapshot` *(U-obs-4)* | ⏳ **in the UI lane's current batch** |
-| **5** | ⛔⛔ **`GET/POST /perspective` endpoint** *(switch capability)* | ⛔ **NEW — the first conformance prerequisite** |
-| **6** | ⛔⛔ **lift `DebugApiHost` to the `ClusterRunner` host** *(answers in `--mode all`)* | ⛔ **the second prerequisite.** ⚠ **CORRECTED `2026-08-23`: it is FOUR wiring points, not "one wiring move"** — capture-enable, host construct/attach/start, the `ClearCaptured` frame boundary, **and the per-frame `MainThreadJobQueue.DrainAll()`; forget the last and every `RunMain` route hangs** |
+| **4** | gizmo feed *(U-obs-3)* + smoke-suite T2 reads `PanelSnapshot` *(U-obs-4)* | ✅ **read path BUILT** — `GET /panels/_gizmo` → `GetGizmoFrame` projects the `DebugPrimitiveBuffer` |
+| **5** | **`GET/POST /perspective` endpoint** *(switch capability)* | ✅ **BUILT `2026-08-24`** — net part B `N0` *(`MX-012`)* |
+| **6** | ⛔⛔ **lift `DebugApiHost` to the `ClusterRunner` host** *(answers in `--mode all`)* | ⛔ **NOW THE CRITICAL BLOCKER** *(user asked `2026-08-24` to drive `--mode all` via MCP)* — this is charter **D3/D4** *(the lifted API accepts nulls)*. ⚠ **CORRECTED `2026-08-23`: it is FOUR wiring points, not "one wiring move"** — capture-enable, host construct/attach/start, the `ClearCaptured` frame boundary, **and the per-frame `MainThreadJobQueue.DrainAll()`; forget the last and every `RunMain` route hangs** |
 | **7** | ⭐⭐⭐ **conformance suite** — `ClusterRunnerFixture(mode)`, two modes, diff by `PanelKind` | steps 5–6 |
 | **8** | convert further panels **as touched**; pixels only for the rare tail | standing rule |
 
-⭐ **The critical path to conformance is steps 5 + 6** — both small now that it is one binary and `PanelSnapshot`
-is process-wide.
+⭐ **Step 5 is DONE; the critical path is now step 6 → step 7.** 🔒 **User, `2026-08-24`:** *"run `--mode all` via MCP so you can drive it yourself; check the gizmos look the same as the editor."* ⇒ ⭐⭐ **step 6 lifts the API onto the cluster host** *(the MCP drive-it-yourself)*, **step 7 is the conformance suite** *(editor-mode vs `--mode all`, diff panels + the gizmo frame by `PanelKind`)*. ⛔ Both small; both unblocked now the net exists and gizmo membership is uniform.
 
 ## INVENTORY — the mechanisms, measured 2026-08-23
 
