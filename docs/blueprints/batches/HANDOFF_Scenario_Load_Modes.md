@@ -5,12 +5,13 @@ updated: 2026-08-24
 current-answer: dispatch pointer for HN-029 — two host-agnostic scenario-load endpoints
   (scenario/load/live + scenario/load/edit), both cluster-wide via 2PC, replacing the IEditorLogic-hardwired
   /scenario/load; then upgrade conformance's entity-inspector from DECLARED to a real content diff. Carries no
-  design: cites MCP § Group U + mgmt-1 §12.
+  design: cites MCP § Group U + mgmt-1 §12. Item ⑧ reconciles the agent-facing MCP surface (SKILL.md).
 known-conflict: none. Independent of HN-028 (TIME lane, a read-only accessor on a different file).
 -->
 # HANDOFF — **HN-029: scenario load modes (live + edit), cluster-wide** *(harness lane)*
 
-> 📌 **Dispatched at `73f53e11a`.** ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
+> 📌 **Dispatched at `396337d74`** *(re-stamped `2026-08-24` — rule 1a, verified unstarted; added item ⑧, the
+> agent-facing MCP surface / `SKILL.md`)*. ⛔ **Scope FROZEN at that sha.** ⭐ Branch fresh from
 > **`claude/blueprint-authoring-status-6sr5ld`** *(rule 7)*; **rule 1b: push the started-marker BEFORE any code.**
 > ⛔ **No PR.** ⭐ ids **`HN-`**/**`MX-`**, tracker **Area J** — 📐 series stands at **`HN-029`** *(this gap)* /
 > **`MX-014`**; allocate from there and state them (rules 3/5). ⚠ `HN-029` is the GAP's tracking id; your CODE
@@ -52,6 +53,7 @@ parts)* *(obligation ⑤)*.
 | 🔴🔴 **⑤** | ⭐⭐⭐ **Upgrade conformance: `entity-inspector` DECLARED → REAL CONTENT DIFF** — load the SAME scenario **live in BOTH** editor and `--mode all`, then diff | Q54 · §Conformance | ⭐⭐ this is the payoff — the *"load S in both, then diff"* sequence becomes executable. ⛔ remove `entity-inspector` from the DECLARED/known-absent set once it compares for real |
 | 🔴🔴 **⑥** | ⭐⭐⭐ **PROVE the content diff FAILS on demand** — perturb one world's loaded content, confirm the `entity-inspector` diff reddens naming the path, revert | §8-style | ⛔ **mutation table** *(the `N4` standard)*; **rebuild before concluding** *(stale-binary trap)*. ⛔ a content diff never seen red is decoration |
 | ⭐ **⑦** | **manifest describes the new endpoints** | Q54 § manifest | ⭐ they are enumerated from the route table **automatically** — ⛔ do not hand-author them. ⚠ confirm `unclassifiedRoutes: []` still holds; classify the two routes if the classifier needs it |
+| 🔴🔴 **⑧** | ⭐⭐⭐ **RECONCILE THE AGENT-FACING MCP SURFACE — `tools/ai-debug-mcp/`** *(user, `2026-08-24`: "the mcp api change needs fixing in skills.md")* | MCP § Group U | ⛔⛔ **`SKILL.md` is GENERATED — do NOT hand-edit it.** ⭐ Edit **`tool-catalog.mjs`** *(the source)* + the `skill-parts/` partials, then **`npm run gen:skill`**. **(a)** split `load_scenario` *(`:272`, `→ /scenario/load`, `OperatingEdit`)* into **`load_scenario_live`** *(`→ /scenario/load/live`, waits `OperatingLive`)* + **`load_scenario_edit`** *(`→ /scenario/load/edit`, waits `OperatingEdit`)*, keeping `load_scenario` as the edit alias or migrating it *(match item ③)*; fix the **run-states table** *(`skill-parts/`: Edit ← `load_scenario_edit`, **Live** ← `load_scenario_live`)*. **(b)** ⚠ **the ALREADY-MERGED surface is also undocumented** — add a **`get_capabilities`** tool *(`→ /capabilities`)*, and document **`NOT_SUPPORTED_HERE`/501** and **`--mode all` perspective-scoped commands** *(HN-025/026/027 shipped these with NO catalog update — grep: `SKILL.md` mentions none)*. **(c)** update **`test-catalog.mjs` `EXPECTED_TOOLS`** + **`verify.mjs` `requiredTools`** |
 
 ## 3. ⚠ WHAT WILL BITE
 
@@ -66,7 +68,8 @@ parts)* *(obligation ⑤)*.
 
 ⭐ **Yours (harness/editor lane, Area J):** `Hrot.Editor/DebugApi/*` *(the two endpoints, the alias, readiness)* ·
 the ClusterRunner-host publish-seam wiring *(`Program.cs`)* · `Hrot.SystemTests/Conformance/*` +
-`McpClient`/fixtures · the capability manifest classification.
+`McpClient`/fixtures · the capability manifest classification · ⭐ **`tools/ai-debug-mcp/`** *(item ⑧ — the MCP
+tool catalog, the generated `SKILL.md`, `test-catalog.mjs`, `verify.mjs`)*.
 
 ⛔⛔ **NOT yours — STOP-and-report:**
 - ⛔ **`OrchestratorSubsystem.cs` / `ClusterMaster` / `Fdp.Toolkits/Time` internals** — you PUBLISH an intent, you do not edit the master *(that keeps this host-agnostic; it is also the HN-028 boundary)*.
@@ -78,9 +81,10 @@ the ClusterRunner-host publish-seam wiring *(`Program.cs`)* · `Hrot.SystemTests
 
 ## 5. GATES
 
-⭐ Standing contract *(rule 8)*: one row per gate · verbatim command · pass/fail/skip · **delta vs `73f53e11a`** ·
+⭐ Standing contract *(rule 8)*: one row per gate · verbatim command · pass/fail/skip · **delta vs `396337d74`** ·
 `--no-build` column · every RED pre-existing **by name** · golden movement as a diff shape · `tracker-counts.py
---check` · `rulings-check.py` · `design-digest.py --check` · **the ids you allocated**.
+--check` · `rulings-check.py` · `design-digest.py --check` · ⭐ **`npm run gen:skill:check`** *(item ⑧ — fails if
+`SKILL.md` is stale vs `tool-catalog.mjs`)* · **the ids you allocated**.
 
 ⭐⭐ **Row 8 — integration:** `bash scripts/run-system-tests.sh` *(baseline `80/80`)* + **item ⑥'s content-diff
 mutation table** + a run that **loads live in `--mode all` and in editor and diffs `entity-inspector`**. 📐 name
