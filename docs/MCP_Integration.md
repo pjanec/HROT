@@ -42,6 +42,11 @@ Endpoints: `load_scenario` · `spawn_entity` · `play`/`pause`/`step` · `enter_
 `restore_checkpoint` · `diff_state` · `focus_entity` · `send_entity_command` · behavior traces · live
 mutation / fault injection.
 
+⭐ **Sibling MCP design docs:** [`DESIGN_Mcp_Authoring.md`](DESIGN_Mcp_Authoring.md) *(AI-asset + scenario +
+UI-command authoring)* · [`DESIGN_Mcp_Diagnostics_Federation.md`](DESIGN_Mcp_Diagnostics_Federation.md)
+*(the per-node FEDERATION — each node hosts its own DebugApi with mode-gated capabilities — and the
+diagnostics surface: per-node logs, per-node architecture snapshot, cluster-wide collection)*.
+
 ## Landed (builds clean)
 
 | piece | where |

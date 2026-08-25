@@ -43,10 +43,24 @@ grep and present the result with the same confidence.
 > not connected or `dotnet` is missing, this is a fresh cloud VM — run the
 > `/cloud-bootstrap` skill (or `bash scripts/cloud-bootstrap.sh`) to install the
 > .NET 8 SDK and the codebase-memory-mcp server. Note: if the binary is installed
-> mid-session, the graph tools connect on the **next** session (MCP servers spawn
+> mid-session, the graph **MCP tools** connect on the **next** session (MCP servers spawn
 > at session start). For session-#1 tools, run the bootstrap from the environment's
 > Setup script. Details: `docs/cloud-codebase-memory-mcp.md`. (Local Windows/VS Code
 > sessions already have the tools — skip this.)
+>
+> 🔴 **BUT the MCP tools not being connected is NOT a reason to downgrade to grep-only**
+> *(session complaint, `2026-08-25`)*. **The same binary has a CLI mode** — run any graph
+> tool through Bash: **`codebase-memory-mcp cli <tool> '<json-args>'`** *(binary at
+> `/opt/codebase-memory-mcp/codebase-memory-mcp`, or `~/.local/bin/codebase-memory-mcp`,
+> or `$CODEBASE_MEMORY_MCP_BIN`; `cli <tool> --help` shows the flag form)*. ⭐ Every
+> `mcp__codebase-memory-mcp__*` tool is available this way — `list_projects`,
+> `search_graph`, `query_graph`, `trace_path`, `get_code_snippet`, `index_repository`, … —
+> so the **INVENTORY-before-design** rule still holds in a session where the MCP server
+> never connected. ⚠ If `list_projects` returns empty, `codebase-memory-mcp cli
+> index_repository '{"repo_path":"<repo root>"}'` first *(tens of seconds)*. Example:
+> `codebase-memory-mcp cli search_graph '{"project":"<name>","name_pattern":".*Foo.*","label":"Class"}'`.
+> ⇒ ⛔ **A report that says "codebase-memory MCP was not connected, so I used grep" is now
+> a MISS** — the CLI was available; use it and say so.
 
 Always call `list_projects` first when you do not already know the project name, then use the `display_name` or exact `name` returned by that tool.
 

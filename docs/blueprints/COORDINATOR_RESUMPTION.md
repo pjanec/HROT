@@ -63,7 +63,13 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 - ⭐ **schema-exporter on CGF** — MCP `paramsSource` reports `none:no-exporter-wired` on CGF *(no `IActionSchemaExporter` wired there)*; a one-line CGF-lane follow-up.
 - ⚠ **doc-prose coverage sweep** — `EditDoc` makes 100% node/param prose POSSIBLE; filling it across the catalog is a sweep, not done. The rail prints the % to ratchet.
 
+## 3c. ⭐ MERGED `2026-08-25` (later) + their follow-ups
+- ✅ **MCP create-from-recipe** *(MA-019..023)* — CGF creates assets; `GET /assets/recipes`; `POST /assets` gained optional `recipe`. 📄 AQ57 AS-BUILT.
+- ✅ **Axis-B first cut** *(AX-001..006)* — registration-time authority gate + `GeoHeading=13` + the attempt-then-check write router + subsystem-agnostic rotator. 📄 `DESIGN_Cgf_AxisB_Rotation_Slice.md` §9. 🔴 **open:** **AX-005** *(no production SENDER of binary attribute records — the DDS egress for `UpdateEntityAttributeRequest.AttributeRecords` is separate work; needed for real cross-node rotation)* · **AX-006** *(`Hrot.Editor` never calls `SetAuthority`, so writes look unowned there — a later "wire the writer everywhere" slice must grant authority on the creating host first)*.
+- 📄 **NEW MCP capability designed:** `DESIGN_Mcp_Diagnostics_Federation.md` *(per-node federation + logs/architecture/cluster diagnostics)* + `HANDOFF_Mcp_Diagnostics_Federation.md` *(ready to dispatch)*.
+
 ## 4. ⭐ NEXT, QUEUED
+0. ⭐⭐ **MCP DIAGNOSTICS slice** *(handoff ready)* — fix `get_logs` sink-wiring on BOTH composition roots *(the SimHost-node gap)* · `GET /diagnostics/architecture` per node · cluster-wide *(reuse dump-diag + an aggregator)*. 📄 `HANDOFF_Mcp_Diagnostics_Federation.md`. ⚠ owns the catalog regen — serialize with any concurrent authoring MCP slice.
 1. ⭐ **`cgf==editor` — the remaining EDITING conversions still need design decisions** *(NOT autonomous-safe — flagged out of the overnight run)*: **AQ25 authoring shell / role-&-mode gating / undo / autosave** *(architect-UNANSWERED)* · **Q25-C behavior-affinity registry** *(can `BehaviorUiCompiler` be schema-driven?)* · **`Hrot.Editor` catalog/`NewAssetService` packaging** *(move-to-shared vs reference)*. ⇒ these want an Architect_Question pass with the user before build.
 2. **Axis B** *(map/entity parity — UXI-11/23/10/29)* — gated on the **UXI-30** engine-authority-gate design *(no design doc yet)*.
 3. ⭐ **The small follow-ups in §3b** — batchable into any CGF-lane run.
