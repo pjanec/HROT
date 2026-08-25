@@ -127,6 +127,30 @@ namespace Hrot.CGF.Orchestration
         /// </summary>
         internal Action? StagingRepositoryDisposedCallback { get; set; }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-509</c> — the staging→runtime id table, handed OUT.</b>
+        /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5 · §8 ① · §8a.
+        ///
+        /// <para>⛔⛔ <b>Pass 1's <c>oldToNewMap</c> was a LOCAL that died here</b>, so anything keyed on a
+        /// runtime network id — a watch pin, a breakpoint — broke on every scenario reload with no way to
+        /// recover the correspondence. ⭐ This publishes the table; ⛔ <b>the remap CODE does not move and
+        /// is not copied</b> *(ruling 9 · <c>R-79</c>)</b>.</para>
+        ///
+        /// <para>⭐⭐ <b>A CALLBACK, not a bus</b> — 🔒 the user's ruling, <c>2026-08-19</c>. ⛔ Taking an
+        /// <c>FdpEventBus</c> here would give <c>Hrot.CGF</c> a dependency for one line and stop this
+        /// class being a pure transform; ⭐ <b>the subsystem</b> wires the sink to its own bus, which keeps
+        /// <c>R-79</c> *(editor and CGF separately deployable)* intact. ⚠ Same shape as
+        /// <see cref="StagingRepositoryDisposedCallback"/> one line up — ⛔ not a new idea in this class.</para>
+        ///
+        /// <para>⚠ <b>Invoked once per successful extraction, AFTER the requests are built</b> — ⛔ not
+        /// after Pass 1: a load that throws in Pass 2 produced no entities, and publishing its table
+        /// would advertise a correspondence that never came to exist.</para>
+        ///
+        /// <para>⚠ <b>Public</b>, unlike the disposal callback: that one is a test hook, this one is
+        /// production wiring.</para>
+        /// </summary>
+        public Action<IReadOnlyDictionary<long, long>>? OnRemap { get; set; }
+
         // ── IScenarioEntityExtractor ───────────────────────────────────────────────
 
         /// <inheritdoc cref="IScenarioEntityExtractor.Extract"/>
@@ -329,6 +353,12 @@ namespace Hrot.CGF.Orchestration
                         ChildComponentOverrides = childOverrides,
                     });
                 }
+
+                // ⭐⭐ BP-509 — hand out Pass 1's translation table now that the extraction SUCCEEDED.
+                //    ⛔ A copy, not the live dictionary: the subscriber keeps it for the lifetime of the
+                //    load and this one is a local that Pass 2 read from — handing out the instance would
+                //    make a future edit to Pass 2 visible to a reader that already published it.
+                OnRemap?.Invoke(new Dictionary<long, long>(oldToNewMap));
 
                 return results;
             }

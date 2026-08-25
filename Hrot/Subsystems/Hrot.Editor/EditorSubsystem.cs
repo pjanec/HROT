@@ -1141,6 +1141,21 @@ namespace Hrot.Editor
             var scenarioLoadSource = new ScenarioEntityCreationRequestSource();
             _scenarioLoadSource    = scenarioLoadSource;   // `ST-010`
             var extractor          = new StagingEntityExtractor();
+
+            // ⭐⭐⭐ BP-509 — the staging→runtime id table reaches the control-plane bus.
+            // 📄 DESIGN_Variable_Watch_Pinning.md §5/§8①/§8a. 🔒 User ruling 2026-08-19: a CALLBACK SINK
+            //    on the extractor, wired to the bus BY THE SUBSYSTEM.
+            // ⭐ The bus and not a field on this class, even though the editor's extractor is in-process:
+            //    R-79 makes CGF separately deployable, so in a cluster run the extraction happens in
+            //    another process and the map must arrive the same way. ⛔ Two channels for one fact is
+            //    how the in-process one stays right while the distributed one silently reads nothing.
+            extractor.OnRemap = map => _orchestrationBus?.PublishManaged(
+                new Fdp.Toolkit.Orchestration.StagingRemapPublishedEvent
+                {
+                    StagingToRuntime = map,
+                    SourceNodeId     = EditorNodeId,
+                });
+
             string isolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(EditorNodeId);
 
             // ?? 3c. Offline scenario load handler ?????????????????????????????
@@ -2106,6 +2121,8 @@ namespace Hrot.Editor
             //    half-built frame — is worse, and reading an EMPTY one is what we had.
             _debugApiJobQueue?.DrainAll();
 
+            DrainStagingRemap();
+
             Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
 
             // Process input pipeline BEFORE kernel update so authored tools
@@ -2486,19 +2503,12 @@ namespace Hrot.Editor
                     // Find entity by network id, read existing EntityInfo and update name.
                     if (_world != null)
                     {
-                        var q = _world.Query()
-                            .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                            .With<EntityInfo>()
-                            .Build();
-						EntityInfo updatedInfo = default;
-                        foreach (var e in q)
-                        {
-                            if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == _renameTargetNetworkId)
-                            {
-                                updatedInfo = _world.GetComponent<EntityInfo>(e);
-                                break;
-                            }
-                        }
+                        // ⭐ BP-508 — the ONE resolver (R-77). ⛔ This was an inline lookup loop, the same
+                        //   shape as the four named copies and invisible to a search for their name.
+                        EntityInfo updatedInfo = default;
+                        var target = FindEntityByNetworkId(_renameTargetNetworkId);
+                        if (!target.IsNull && _world.HasComponent<EntityInfo>(target))
+                            updatedInfo = _world.GetComponent<EntityInfo>(target);
                         updatedInfo.Name = new Fdp.Core.FixedString64(_renameBuffer.Trim());
                         _editorLogic?.CommitPropertyEdit(_renameTargetNetworkId, new List<object> { updatedInfo });
                     }
@@ -2783,6 +2793,16 @@ namespace Hrot.Editor
                 //   bind whatever it is now, which is the construction-order shape StagedWrites' own
                 //   comment two lines up warns about.
                 EntityPicker                  = PickWatchEntityBindingAsync,
+
+                // ⭐⭐⭐ BP-511 — the staging⇄runtime identity bridge every Watch needs for a pin to
+                //    survive a scenario reload. 📄 DESIGN_Variable_Watch_Pinning.md §5/§8a.
+                // ⭐ Method groups again, for the same construction-order reason as EntityPicker above:
+                //   `_world` is assigned before this bag is built but nulled on shutdown, so the field is
+                //   read AT CALL TIME rather than captured.
+                EntityIdentity                = new Hrot.Editor.AiShared.Variables.WatchEntityIdentity(
+                    _stagingRemap,
+                    runtimeId => FindEntityByNetworkId(runtimeId),
+                    RuntimeNetworkIdOf),
             };
 
             _btreeRegistrar    = perspectiveServices.CreateRegistrar(
@@ -4708,6 +4728,67 @@ namespace Hrot.Editor
         /// Called once per frame from <see cref="Update"/> (non-headless only).
         /// </summary>
         /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-511</c> — the editor's view of the current load's staging⇄runtime id table.</b>
+        /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5 · §8a.
+        ///
+        /// <para>⭐ Held ONCE and shared with every perspective's Watch through the services bag: the
+        /// table is <b>one fact about the loaded world</b>, ⛔ not a per-perspective one — the same
+        /// argument that puts <c>EntitySelection</c> and <c>StagedWrites</c> in that bag.</para>
+        /// </summary>
+        private readonly Hrot.Editor.AiShared.Variables.StagingRemapView _stagingRemap = new();
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-511</c> — the load boundary: a new id table arrived, so re-bind every concrete
+        /// pin.</b>
+        ///
+        /// <para>⭐⭐ <b>This is the ONE place resolution happens</b> — 📌 §4's <b>two-clocks rule</b>: a
+        /// binding resolves on a LOAD or a selection change, ⛔ <b>never on the tick</b>. A per-frame
+        /// resolve would be O(pins × entities) per frame, which is why <c>NetworkIdResolver</c> refuses to
+        /// carry a cache.</para>
+        ///
+        /// <para>⚠ <b>Drained here and not in <c>EditorApplication</c></b>, even though that class already
+        /// reads this bus: the three Watch windows hang off THIS class's registrars. ⭐ Reads are
+        /// non-destructive *(the bus clears on swap)*, so nothing is taken from another reader.</para>
+        ///
+        /// <para>⚠ <b>Every published table is applied, last-wins within a frame.</b> A multi-node run can
+        /// publish more than one; ⛔ merging them would keep a previous world's ids alive, which is the
+        /// wrong-entity failure the whole mechanism removes.</para>
+        /// </summary>
+        private void DrainStagingRemap()
+        {
+            if (_orchestrationBus == null) return;
+
+            bool published = false;
+            foreach (var ev in _orchestrationBus.ReadManaged<Fdp.Toolkit.Orchestration.StagingRemapPublishedEvent>())
+            {
+                _stagingRemap.Publish(ev.StagingToRuntime);
+                published = true;
+            }
+            if (!published) return;
+
+            int rebound = 0;
+            foreach (var registrar in PerspectiveRegistrars)
+                rebound += registrar?.Watch?.RebindConcretePins() ?? 0;
+
+            Console.WriteLine($"[94g] staging remap published ({_stagingRemap.Generation}); {rebound} watch pin(s) re-bound.");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>BP-511</c> — the runtime <c>NetworkIdentity.Value</c> of a live entity, or <c>0</c>.</b>
+        /// ⭐ The inverse direction of <see cref="FindEntityByNetworkId"/>, and the half
+        /// <c>WatchEntityIdentity</c> needs to make a pin durable at PIN time.
+        /// ⚠ <c>0</c> for the sentinel entity, a dead handle, or an entity with no <c>NetworkIdentity</c>
+        /// — ⛔ all three mean "nothing durable to key on", which the pin reports rather than hides.
+        /// </summary>
+        private long RuntimeNetworkIdOf(Entity entity)
+        {
+            if (_world == null || entity.Equals(default(Entity)) || !_world.IsAlive(entity)) return 0;
+            return _world.HasComponent<NetworkIdentity>(entity)
+                ? _world.GetComponentRO<NetworkIdentity>(entity).Value
+                : 0;
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <b><c>AQ55</c> — the composition root's half of the "pin on entity…" gesture.</b>
         /// 📄 <c>Architect_Question_55_Watch_Concrete_Entity_Picker.md</c> *(<c>Q55-A</c>: REUSE)*.
         ///
@@ -4737,18 +4818,22 @@ namespace Hrot.Editor
             var entity = FindEntityByNetworkId(netId);
             if (!_world.IsAlive(entity)) return null;
 
-            return Hrot.Editor.AiShared.Variables.EntityBinding.Concrete(netId, entity);
+            // ⭐⭐⭐ BP-511 — the pin stores the AUTHORED id, not the runtime one the pick returned.
+            // ⛔⛔ `PickEntityAsync` answers with THIS LOAD's runtime id, and Pass 1 hands out fresh ones
+            //    every load ⇒ storing it would point the pin at a different entity after a reload.
+            // ⚠ 0 is a legitimate answer (a runtime-spawned entity has no authored ancestor); the pin is
+            //   then within-session, which `IsPersistable` reports and the save path skips-and-counts.
+            long stagingId = _stagingRemap.ToStaging(netId);
+
+            return Hrot.Editor.AiShared.Variables.EntityBinding.Concrete(stagingId, entity);
         }
 
+        /// <summary>
+        /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⛔ This copy used
+        /// <c>GetComponent</c> *(a struct copy)* and had no non-positive-id guard.
+        /// </summary>
         private Entity FindEntityByNetworkId(long networkId)
-        {
-            if (_world == null) return default;
-            var query = _world.Query().With<NetworkIdentity>().Build();
-            foreach (var e in query)
-                if (_world.GetComponent<NetworkIdentity>(e).Value == networkId)
-                    return e;
-            return default;
-        }
+            => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_world, networkId);
 
         private void DrainToolActivationEvents()
         {
@@ -4845,18 +4930,12 @@ namespace Hrot.Editor
             foreach (ref readonly var cmd in _world.Bus.Read<Hrot.Editor.Commands.CenterOnEntityCommand>())
             {
                 if (_camera == null) continue;
-                var q = _world.Query()
-                    .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                    .With<Fdp.Core.SimTransform>()
-                    .Build();
-                foreach (var e in q)
+                // ⭐ BP-508 — the ONE resolver (R-77); this was an inline lookup loop.
+                var target = FindEntityByNetworkId(cmd.NetworkId);
+                if (!target.IsNull && _world.HasComponent<Fdp.Core.SimTransform>(target))
                 {
-                    if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
-                    {
-                        ref readonly var tf = ref _world.GetComponentRO<Fdp.Core.SimTransform>(e);
-                        _camera.FocusOn(new System.Numerics.Vector2(tf.Position.X, tf.Position.Y));
-                        break;
-                    }
+                    ref readonly var tf = ref _world.GetComponentRO<Fdp.Core.SimTransform>(target);
+                    _camera.FocusOn(new System.Numerics.Vector2(tf.Position.X, tf.Position.Y));
                 }
             }
 
@@ -4868,18 +4947,10 @@ namespace Hrot.Editor
                 _renameBuffer             = string.Empty;
 
                 // Pre-fill buffer with the entity's current name.
-                var q = _world.Query()
-                    .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                    .With<EntityInfo>()
-                    .Build();
-                foreach (var e in q)
-                {
-                    if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
-                    {
-                        _renameBuffer = _world.GetComponent<EntityInfo>(e).Name.ToString();
-                        break;
-                    }
-                }
+                // ⭐ BP-508 — the ONE resolver (R-77); this was an inline lookup loop.
+                var named = FindEntityByNetworkId(cmd.NetworkId);
+                if (!named.IsNull && _world.HasComponent<EntityInfo>(named))
+                    _renameBuffer = _world.GetComponent<EntityInfo>(named).Name.ToString();
             }
         }
 

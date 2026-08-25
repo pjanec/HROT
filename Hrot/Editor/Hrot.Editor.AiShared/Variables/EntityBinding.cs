@@ -27,24 +27,31 @@ public enum EntityBindingKind
 ///
 /// <para>⭐⭐ <b>Two identities, on purpose:</b>
 /// <list type="bullet">
-///   <item>⭐ <see cref="NetworkId"/> — the durable one *(<c>NetworkIdentity.Value</c>)*, used for
-///   PERSISTENCE and for telling one concrete pin from another;</item>
+///   <item>⭐ <see cref="StagingNetworkId"/> — the durable one *(the AUTHORED
+///   <c>NetworkIdentity.Value</c>)*, used for PERSISTENCE and for telling one concrete pin from another;</item>
 ///   <item>⭐ <see cref="Captured"/> — the in-session <c>Entity</c>, used to RESOLVE the value this
 ///   session, because that is what every reader downstream already takes.</item>
 /// </list></para>
 ///
-/// <para>⚠⚠ <b>RESTART SURVIVAL IS NOT BUILT HERE, and saying so is the point.</b> §5 keys a concrete
-/// pin on the <b>STAGING</b> id and re-resolves it through <c>StagingEntityExtractor</c>'s
-/// <c>oldToNewMap</c> published on the orchestration bus. ⛔ That map is still a local that dies inside
-/// the extractor, and wiring it edits <c>EditorSubsystem</c>/<c>EditorApplication</c> — files the
-/// concurrent allocator batch owns. ⇒ ⭐ this stores the id it CAN see *(the runtime
-/// <c>NetworkIdentity</c>)*, and a concrete pin therefore <b>does not survive a scenario restart yet</b>.
-/// 📌 Deferred deliberately by the dispatching handoff §2, not overlooked.</para>
+/// <para>⭐⭐⭐ <b>RESTART SURVIVAL, built by <c>94g</c> (<c>BP-511</c>).</b> §5 keys a concrete pin on the
+/// <b>STAGING</b> id and re-resolves it through the <c>oldToNewMap</c> the extractor now publishes on the
+/// control-plane bus *(<c>StagingRemapPublishedEvent</c>)</b> → <see cref="StagingRemapView"/> →
+/// <c>NetworkIdResolver</c>.
+/// ⚠⚠ <b>SUPERSEDES the earlier remark here</b>, which said this stored the RUNTIME id and therefore did
+/// not survive a reload — 📐 true at <c>BP-501</c>, and the reason was that publishing the map edited
+/// files a concurrent batch owned. ⭐ That batch (<c>HN-037</c>) has merged.</para>
+///
+/// <para>⚠ <b>The staging id can legitimately be <c>0</c>:</b> an entity spawned at RUNTIME has no
+/// authored ancestor, so it has nothing durable to key on. ⭐ <see cref="IsPersistable"/> reports that,
+/// and the save path skips-and-counts it — ⛔ it is not an error and not a within-session failure.</para>
 /// </summary>
 /// <param name="Kind">Concrete or chameleon.</param>
-/// <param name="NetworkId">
-/// ⭐ The durable entity id for a concrete binding; <c>0</c> for a chameleon *(which is bound to a
-/// ROLE, not an entity, so it has no id to store)*.
+/// <param name="StagingNetworkId">
+/// ⭐⭐ <b>The AUTHORED (staging) <c>NetworkIdentity.Value</c></b> — the durable key for a concrete
+/// binding; <c>0</c> for a chameleon *(bound to a ROLE, not an entity)* and <c>0</c> for a runtime-spawned
+/// entity that has no authored ancestor.
+/// ⛔⛔ <b>NOT the runtime id.</b> Pass 1 of every load hands out fresh runtime ids, so a runtime key
+/// points at a different entity after a reload — see the class remarks.
 /// </param>
 /// <param name="Captured">
 /// ⭐ The in-session handle for a concrete binding; <c>default</c> for a chameleon.
@@ -52,7 +59,7 @@ public enum EntityBindingKind
 /// </param>
 public readonly record struct EntityBinding(
     EntityBindingKind Kind,
-    long              NetworkId,
+    long              StagingNetworkId,
     Entity            Captured)
 {
     /// <summary>⭐⭐ *"This variable, on whoever is selected."*</summary>
@@ -60,13 +67,25 @@ public readonly record struct EntityBinding(
         new(EntityBindingKind.Chameleon, 0, default);
 
     /// <summary>
-    /// ⭐ *"This variable, on the entity selected right now."*
-    /// <param name="networkId">⚠ <c>0</c> when the entity carries no <c>NetworkIdentity</c> — legal, and
-    /// it means the pin cannot be persisted. <see cref="IsPersistable"/> says so rather than the caller
-    /// having to know.</param>
+    /// ⭐ *"This variable, on THIS entity."*
+    /// <param name="stagingNetworkId">
+    /// ⭐⭐ The <b>AUTHORED</b> id — a caller holding a RUNTIME id translates it first
+    /// *(<see cref="StagingRemapView.ToStaging"/>)</b>. ⚠ <c>0</c> when the entity carries no
+    /// <c>NetworkIdentity</c> or has no authored ancestor — legal, and it means the pin is
+    /// within-session. <see cref="IsPersistable"/> says so rather than the caller having to know.
+    /// </param>
     /// </summary>
-    public static EntityBinding Concrete(long networkId, Entity captured)
-        => new(EntityBindingKind.Concrete, networkId, captured);
+    public static EntityBinding Concrete(long stagingNetworkId, Entity captured)
+        => new(EntityBindingKind.Concrete, stagingNetworkId, captured);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-511</c> — the same binding, re-bound to a new load's entity.</b>
+    /// ⭐ Keeps the durable key and replaces only the in-session handle, so a rebind cannot quietly
+    /// change WHICH authored entity the pin is about. ⛔ Chameleons are returned unchanged — they carry no
+    /// id and follow the selection.
+    /// </summary>
+    public EntityBinding RebindTo(Entity captured)
+        => Kind == EntityBindingKind.Chameleon ? this : this with { Captured = captured };
 
     /// <summary>
     /// ⭐⭐⭐ <b>The entity a <c>VariableRowOrigin</c> should carry for this binding</b> — and the reason
@@ -83,14 +102,14 @@ public readonly record struct EntityBinding(
     /// <summary>
     /// ⭐ True when this binding can be written to a file and read back meaningfully.
     /// <para>⭐ A chameleon always can — it stores a ROLE, not an entity. ⚠ A concrete binding can only
-    /// when its entity actually had a <c>NetworkIdentity</c>; an editor-only entity has none, and a pin
+    /// when its entity has an AUTHORED id; an editor-only or runtime-spawned entity has none, and a pin
     /// on it is a within-session pin. ⛔ Reported, never silently dropped.</para>
     /// </summary>
-    public bool IsPersistable => Kind == EntityBindingKind.Chameleon || NetworkId != 0;
+    public bool IsPersistable => Kind == EntityBindingKind.Chameleon || StagingNetworkId != 0;
 
     /// <summary>⭐ Short text for a tooltip or a header — ⛔ not a format anything parses.</summary>
     public override string ToString()
         => Kind == EntityBindingKind.Chameleon
             ? "chameleon (follows selection)"
-            : NetworkId != 0 ? $"entity #{NetworkId}" : "entity (no network id)";
+            : StagingNetworkId != 0 ? $"entity #{StagingNetworkId}" : "entity (no authored id)";
 }

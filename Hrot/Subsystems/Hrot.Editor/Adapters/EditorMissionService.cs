@@ -51,16 +51,12 @@ namespace Hrot.Editor.Adapters
 
         // ── Private entity resolution ─────────────────────────────────────────
 
+        /// <summary>
+        /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⛔ This copy used
+        /// <c>GetComponent</c> *(a struct copy)* and had no null-repo guard.
+        /// </summary>
         private Entity FindEntityByNetworkId(long networkId)
-        {
-            var query = _repo.Query().With<NetworkIdentity>().Build();
-            foreach (var e in query)
-            {
-                if (_repo.GetComponent<NetworkIdentity>(e).Value == networkId)
-                    return e;
-            }
-            return Entity.Null;
-        }
+            => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_repo, networkId);
 
         /// <inheritdoc/>
         public IReadOnlyList<string> GetAvailableBehaviors(long entityId)

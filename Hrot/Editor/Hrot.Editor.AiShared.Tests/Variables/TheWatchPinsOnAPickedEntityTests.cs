@@ -94,7 +94,7 @@ public sealed class TheWatchPinsOnAPickedEntityTests
 
         var (row, binding) = Assert.Single(watch.Pinned.PinnedWithBindings());
         Assert.Equal(EntityBindingKind.Concrete, binding.Kind);
-        Assert.Equal(PickedNetworkId, binding.NetworkId);
+        Assert.Equal(PickedNetworkId, binding.StagingNetworkId);
         Assert.Equal(Ent(7), binding.Captured);
         Assert.Equal(Ent(7), row.Origin.Entity);
         Assert.True(binding.IsPersistable);

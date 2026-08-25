@@ -1,3 +1,4 @@
+using Fdp.Core;
 using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Diagnostics.Breakpoints;
@@ -170,6 +171,89 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
     /// a shell with no IG)*, which is why <see cref="PinOnPickedEntityAsync"/> answers rather than
     /// throws. ⭐ Asserted on the CONSTRUCTED window *(📌 <c>R-67</c>)*.</summary>
     public bool HasEntityPicker => _entityPicker != null;
+
+    private WatchEntityIdentity? _identity;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-511</c> — installs the two halves a concrete pin needs to survive a scenario
+    /// reload.</b> 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5 · §8a.
+    ///
+    /// <para>⭐ Same host-installed-seam shape as <see cref="SetRunStateSource"/> and
+    /// <see cref="SetEntityPicker"/>; the registrar that BUILDS this window installs it in the same pass,
+    /// so ⛔ there is nothing new for <c>EditorSubsystem</c> to forget *(📌 <c>R-67</c>)</b>.
+    /// ⭐ ONE object rather than three delegates — see <see cref="WatchEntityIdentity"/>'s remarks.</para>
+    /// </summary>
+    public void SetEntityIdentity(WatchEntityIdentity identity)
+        => _identity = identity ?? throw new ArgumentNullException(nameof(identity));
+
+    /// <summary>⭐ True once the identity bridge is installed. ⭐ Asserted on the CONSTRUCTED window
+    /// *(📌 <c>R-67</c>)*, ⛔ never on the registrar's source line.</summary>
+    public bool HasEntityIdentity => _identity != null;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-511</c> — THE ACCEPTANCE CRITERION: re-bind every concrete pin to the entity the
+    /// CURRENT load gave its authored id.</b>
+    ///
+    /// <para>⭐⭐ <b>Called on the LOAD boundary, never on the tick</b> — 📌 §4's two-clocks rule. A load
+    /// publishes a new table *(<see cref="StagingRemapView.Generation"/> bumps)</b> and the host calls
+    /// this once. ⛔ Resolving per frame would be O(pins × entities) per frame, which is the thing
+    /// <c>NetworkIdResolver</c>'s own remarks refuse to cache around.</para>
+    ///
+    /// <para>⚠⚠ <b>A pin that cannot be re-bound is marked STALE, not dropped and not silently left on
+    /// its old handle.</b> ⛔ Keeping the dead handle would show the value of whatever entity now occupies
+    /// that slot — the wrong-entity failure this whole mechanism exists to remove; ⛔ dropping the row
+    /// would look to the designer like their pin was lost. ⭐ Stale is the honest third answer, and the
+    /// table already greys it.</para>
+    ///
+    /// <para>⛔ Chameleons are untouched — they carry no id and follow the selection.</para>
+    /// </summary>
+    /// <returns>How many concrete pins were re-bound to a live entity.</returns>
+    public int RebindConcretePins()
+    {
+        if (_identity is not { } identity) return 0;
+
+        int rebound = 0;
+        foreach (var (row, binding) in _pinned.PinnedWithBindings())
+        {
+            if (binding.Kind != EntityBindingKind.Concrete) continue;
+            if (binding.StagingNetworkId == 0) continue;   // ⚠ within-session pin — nothing durable to translate
+
+            var entity = identity.EntityForStagingId(binding.StagingNetworkId);
+
+            if (entity.Equals(default(Entity)))
+            {
+                // ⛔ Not in this world: the scenario changed, or the entity was removed from it.
+                _pinned.MarkStale(row.Origin);
+                continue;
+            }
+
+            // ⭐ Re-pin under the NEW origin entity. Pin() rewrites Origin.Entity from the binding, so the
+            //   stored row and its binding cannot disagree — and the old key must go first or the store
+            //   would hold both.
+            _pinned.Unpin(row.Origin);
+            _pinned.Pin(row, binding.RebindTo(entity));
+            rebound++;
+        }
+
+        return rebound;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-511</c> — the binding an ORDINARY "Watch this variable" should create for
+    /// <paramref name="entity"/>.</b>
+    ///
+    /// <para>⛔⛔ <b>Without this the main pin gesture produced a pin that could never persist.</b> 📐
+    /// <c>PinnedVariableRowSource.Pin(row)</c> with no binding INFERS one, and its concrete arm has no id
+    /// source, so it wrote <c>Concrete(0, entity)</c> — ⚠ honest *(<c>IsPersistable</c> said false)</b>
+    /// but it meant the gesture a designer actually uses made a within-session pin, every time.</para>
+    ///
+    /// <para>⭐ The sentinel entity still yields a chameleon, so the existing inference is preserved where
+    /// it was right — ⛔ this only fills in the id the inference could not see.</para>
+    /// </summary>
+    public EntityBinding BindingFor(Entity entity)
+        => entity.Equals(default(Entity))
+            ? EntityBinding.Chameleon
+            : EntityBinding.Concrete(_identity?.StagingIdOf(entity) ?? 0, entity);
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>AQ55</c>'s <c>PinOnPickedEntity</c> — pin <paramref name="row"/> to an entity the

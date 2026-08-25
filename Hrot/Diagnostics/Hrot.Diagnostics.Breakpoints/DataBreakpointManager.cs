@@ -1330,10 +1330,33 @@ public sealed class DataBreakpointManager
         return cur is float f ? f : (cur is double d ? (float)d : 0f);
     }
 
-    /// <exception cref="NotSupportedException">
-    /// Thrown when <paramref name="dto"/> uses <see cref="EntityIdentifierType.NetworkId"/>,
-    /// which requires an <c>INetworkEntityMap</c> that is not yet wired into this manager.
-    /// </exception>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-512</c> — all three identifier kinds now ANSWER; none throws.</b>
+    /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §8a's open decision.
+    ///
+    /// <para>⛔⛔ <b>The <c>NetworkId</c> arm used to <c>throw NotSupportedException</c></b>, with a comment
+    /// prescribing *"pass an <c>INetworkEntityMap</c> to the constructor"*. ⚠⚠ <b>Measured
+    /// <c>2026-08-25</c>: <c>INetworkEntityMap</c> DOES NOT EXIST</b> — that name appears only in this
+    /// file's own comments. ⇒ ⭐ the prescription was a lead, never a seam.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>THE DECISION §8a asked for, and it is NEITHER option it offered.</b> The design named
+    /// two candidates — the consolidated <c>NetworkIdResolver</c> scan, or the maintained
+    /// <c>NetworkEntityMap</c> index — and asked which the call site wants.
+    /// 📐 <b>Measured:</b> <see cref="EvaluateLifecycleTrackers"/> calls this <b>once per active entity,
+    /// per tracker, per tick</b>. ⇒ ⛔ <b>the scan is out</b> *(O(entities²) per tick)</b>, and
+    /// ⭐⭐ <b>the index is unnecessary</b>: this predicate does not ask *"which entity has id N?"* — it
+    /// asks *"is THIS entity the one with id N?"*, which the entity's own <c>NetworkIdentity</c> answers in
+    /// <b>O(1)</b> with no map to keep in step and nothing to go stale.</para>
+    ///
+    /// <para>⭐ It is also the shape the other two arms already have: <c>EcsHandle</c> compares the handle,
+    /// <c>NameSubstring</c> reads the entity's own name component. ⇒ ⛔ a lookup service here would have
+    /// been the only arm that reached outside the entity it was handed.</para>
+    ///
+    /// <para>⚠ <b><c>TargetValue</c> is a string</b>, as it is for every arm. A value that is not a
+    /// <c>long</c> matches nothing — ⛔ it does not throw: a malformed DTO must not take down the tick
+    /// loop, and 📄 <c>FINDINGS_Empty_Breakpoint_Bricks_The_Editor.md</c> is what happens when a
+    /// half-authored breakpoint reaches this path.</para>
+    /// </summary>
     private static bool MatchesLifecycleCriteria(EntityRepository repo, Entity entity, LifecyclePredicateDto dto)
     {
         return dto.IdentifierType switch
@@ -1348,13 +1371,15 @@ public sealed class DataBreakpointManager
                       n.Contains(dto.TargetValue, StringComparison.OrdinalIgnoreCase)
                     : entity.ToString().Contains(dto.TargetValue, StringComparison.OrdinalIgnoreCase),
 
-            // Network-id lookup requires INetworkEntityMap, which is not injected into this manager.
-            // To support this, pass an INetworkEntityMap to the DataBreakpointManager constructor
-            // and resolve the entity in this branch. Until then, using NetworkId as identifier will throw.
-            EntityIdentifierType.NetworkId => throw new NotSupportedException(
-                "LifecyclePredicateDto with EntityIdentifierType.NetworkId requires an INetworkEntityMap " +
-                "injected into DataBreakpointManager. Wire the network map via the constructor, " +
-                "or use EcsHandle or NameSubstring instead."),
+            // ⭐⭐⭐ BP-512 — asked of the ENTITY, not of a map. See the method remarks for why this is
+            //    neither of the two options the design offered: the predicate is "is THIS entity id N?",
+            //    which is O(1) off the entity's own component, and this runs per-entity-per-tick.
+            EntityIdentifierType.NetworkId =>
+                long.TryParse(dto.TargetValue, out long wanted) &&
+                wanted != 0 &&
+                repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity) &&
+                repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value == wanted,
+
             _ => false
         };
     }
