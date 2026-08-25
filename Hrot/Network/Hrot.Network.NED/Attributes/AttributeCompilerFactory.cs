@@ -142,7 +142,12 @@ public static class AttributeCompilerFactory
     public static BinaryInterpreter<AttributeRecord> BuildBinaryInterpreter(IGeographicTransform? geoTransform)
     {
         var builder = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
-            .AddInstaller(new EntityDataAttributeInstaller());
+            .AddInstaller(new EntityDataAttributeInstaller())
+            // ⭐⭐ Axis-B item ② — heading. ⚠ Added UNCONDITIONALLY, unlike the position installer:
+            //    📐 it needs no IGeographicTransform, because a compass heading is already in the units
+            //    SimTransformBridgeSystem.HeadingDegToRotation takes. ⇒ ⭐ heading works on a host with no
+            //    geo transform, and gating it behind one would refuse rotation for no reason.
+            .AddInstaller(new SimTransformHeadingInstaller());
 
         if (geoTransform != null)
             builder.AddInstaller(new SimTransformAttributeInstaller(geoTransform));

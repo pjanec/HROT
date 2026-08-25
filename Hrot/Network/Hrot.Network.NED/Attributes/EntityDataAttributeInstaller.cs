@@ -27,17 +27,16 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<Att
     /// <inheritdoc/>
     public void Install(BinaryInterpreterBuilder<AttributeRecord> builder)
     {
-        builder.RegisterHandler(AttributeIds.Name, HandleName);
-        builder.RegisterHandler(AttributeIds.Affiliation, HandleAffiliation);
+        // ⭐⭐⭐ UXI-30 — the typed overload applies the authority gate; see the note in
+        //    SimTransformAttributeInstaller.Install and BinaryInterpreterBuilder.RegisterHandler<T>.
+        builder.RegisterHandler<Fdp.Core.EntityInfo>(AttributeIds.Name, HandleName);
+        builder.RegisterHandler<Fdp.Core.EntityInfo>(AttributeIds.Affiliation, HandleAffiliation);
     }
 
     // ── Handlers ──────────────────────────────────────────────────────────────
 
     private static void HandleName(BinaryPatchContext ctx, AttributeRecord record)
     {
-        if (!ctx.PatchContext.CanWrite<Fdp.Core.EntityInfo>())
-            return;
-
 		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
         data.Name = record.Value.StringValue ?? string.Empty;
 
@@ -46,9 +45,6 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<Att
 
     private static void HandleAffiliation(BinaryPatchContext ctx, AttributeRecord record)
     {
-        if (!ctx.PatchContext.CanWrite<Fdp.Core.EntityInfo>())
-            return;
-
 		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
 
         data.ForceId = record.Value.ValueType == AttributeValueType.KindInt32

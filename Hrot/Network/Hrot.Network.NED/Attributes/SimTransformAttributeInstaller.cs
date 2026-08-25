@@ -80,9 +80,14 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<A
         // unchanged coordinates without an Initialized flag inside the hot dispatch loop.
         builder.RegisterPreApplyHandler(PreFillFromCurrentPosition);
 
-        builder.RegisterHandler(AttributeIds.GeoLat, HandleGeoLat);
-        builder.RegisterHandler(AttributeIds.GeoLon, HandleGeoLon);
-        builder.RegisterHandler(AttributeIds.GeoAlt, HandleGeoAlt);
+        // ⭐⭐⭐ UXI-30 — registered through the TYPED overload, so the authority gate is applied by the
+        //    registration and the handler bodies need no guard of their own. 📌 The hand-written
+        //    `if (!CanWrite<SimTransform>()) return;` that used to open each of the three is GONE: it was
+        //    correct, and it was also per-installer and therefore forgettable — which is what UXI-30 is
+        //    actually about. 📄 BinaryInterpreterBuilder.RegisterHandler<TComponent>.
+        builder.RegisterHandler<SimTransform>(AttributeIds.GeoLat, HandleGeoLat);
+        builder.RegisterHandler<SimTransform>(AttributeIds.GeoLon, HandleGeoLon);
+        builder.RegisterHandler<SimTransform>(AttributeIds.GeoAlt, HandleGeoAlt);
         builder.RegisterSubsystemFlusher(GeoFlushBit, FlushGeo);
     }
 
@@ -90,7 +95,6 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<A
 
     private void HandleGeoLat(BinaryPatchContext ctx, AttributeRecord record)
     {
-        if (!ctx.PatchContext.CanWrite<SimTransform>()) return;
         ref GeoCoordScratchpad scratch = ref ctx.GetScratchpad<GeoCoordScratchpad>(_scratchpadOffset);
         scratch.Lat = record.Value.DoubleValue;
         ctx.MarkSubsystemDirty(GeoFlushBit);
@@ -98,7 +102,6 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<A
 
     private void HandleGeoLon(BinaryPatchContext ctx, AttributeRecord record)
     {
-        if (!ctx.PatchContext.CanWrite<SimTransform>()) return;
         ref GeoCoordScratchpad scratch = ref ctx.GetScratchpad<GeoCoordScratchpad>(_scratchpadOffset);
         scratch.Lon = record.Value.DoubleValue;
         ctx.MarkSubsystemDirty(GeoFlushBit);
@@ -106,7 +109,6 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<A
 
     private void HandleGeoAlt(BinaryPatchContext ctx, AttributeRecord record)
     {
-        if (!ctx.PatchContext.CanWrite<SimTransform>()) return;
         ref GeoCoordScratchpad scratch = ref ctx.GetScratchpad<GeoCoordScratchpad>(_scratchpadOffset);
         scratch.Alt = record.Value.DoubleValue;
         ctx.MarkSubsystemDirty(GeoFlushBit);

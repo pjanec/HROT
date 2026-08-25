@@ -4,6 +4,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
+using Fdp.Toolkit.Replication.Patching;
 
 namespace Hrot.SimHost.Gizmos
 {
@@ -22,6 +23,16 @@ namespace Hrot.SimHost.Gizmos
         private readonly Entity _entity;
         private readonly Action _onRemove;
 
+        // ⭐⭐⭐ Axis-B item ④ — the subsystem-agnostic commit path.
+        //    📄 docs/DESIGN_Cgf_AxisB_Rotation_Slice.md §2 (the routing model) · §6 ④.
+        //    ⭐ When supplied, the commit goes through the shared writer: owned -> direct ECS write,
+        //      unowned -> a change-request the OWNER applies. ⛔ Without it the gizmo could only ever
+        //      work on a node that owns the entity — the SimHost-only ECS poke this slice removes.
+        //    ⚠ OPTIONAL, and that is a deliberate compatibility choice rather than a silent default:
+        //      the existing SimHost call site is unchanged and keeps the direct write it always had.
+        //      📌 A production caller that HAS a writer must pass it — CgfSubsystem does.
+        private readonly Hrot.SimHost.Installers.IEntityComponentWriter? _writer;
+
         private Vector3 _entityPos;
         private Vector3 _currentCursorPos;
         private float _currentYawRad;
@@ -34,8 +45,13 @@ namespace Hrot.SimHost.Gizmos
 
         // view must be an EntityRepository (all SimHost ECS views are).
         // onRemove is called when the gizmo wants to stop (commit or cancel).
-        public EntityRotatorGizmo(ISimulationView view, Entity entity, Action onRemove)
+        public EntityRotatorGizmo(
+            ISimulationView view,
+            Entity entity,
+            Action onRemove,
+            Hrot.SimHost.Installers.IEntityComponentWriter? writer = null)
         {
+            _writer = writer;
             _repo    = view as EntityRepository
                 ?? throw new ArgumentException("EntityRotatorGizmo requires direct EntityRepository access.", nameof(view));
             _entity  = entity;
@@ -117,6 +133,22 @@ namespace Hrot.SimHost.Gizmos
             if (!_repo.IsAlive(_entity)) return;
             if (!_repo.HasComponent<SimTransform>(_entity)) return;
 
+            // ⭐⭐⭐ Axis-B: route through the shared writer when one was supplied.
+            //    ⭐ It converts via the installer's own HeadingDegToRotation — ⛔ NOT a second copy of the
+            //      compass convention — and decides owned-vs-unowned itself.
+            //    ⚠ COMPASS DEGREES, not math yaw: the attribute is defined in the convention the wire and
+            //      the DebugApi already use, and SimMath.YawRadToCompassDeg is the conversion this file
+            //      ALREADY uses to draw its own label. ⛔ Sending radians here would be a second unit on
+            //      one path.
+            if (_writer != null)
+            {
+                float compassDeg = SimMath.YawRadToCompassDeg(_currentYawRad);
+                _writer.Write(_entity, AttributeIds.GeoHeading, compassDeg);
+                return;
+            }
+
+            // ⚠ Legacy direct path, for a caller that supplied no writer. 📐 Correct only where this node
+            //   owns SimTransform — which is why the writer exists.
             ref var tf = ref _repo.GetComponentRW<SimTransform>(_entity);
             tf.Rotation = SimMath.FromYaw(_currentYawRad);
         }

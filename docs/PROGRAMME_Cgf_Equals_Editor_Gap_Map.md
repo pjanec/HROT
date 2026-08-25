@@ -105,6 +105,16 @@ graph TD
 
 ### Axis B — map / entity interaction parity (CGF's Scenario/map perspective)
 
+> ⭐⭐ **FIRST CUT LANDED `2026-08-25`** — 📄 [`DESIGN_Cgf_AxisB_Rotation_Slice.md`](DESIGN_Cgf_AxisB_Rotation_Slice.md)
+> *(read §9 AS-BUILT first)*, ids **`AX-001`…`AX-006`** in tracker **Area M**. ⭐ Delivered: the `UXI-30`
+> gate made structural · `AttributeIds.GeoHeading` routed to the EXISTING compass conversion · the
+> subsystem-agnostic `IEntityComponentWriter` *(owned→direct / unowned→request)* · `EntityRotatorGizmo`
+> committing through it.
+> ⛔ **NOT delivered, and both are measured rather than assumed:** the `--mode all` rotation round-trip
+> *(`AX-005` — there is no production SENDER of binary attribute records)*, and the fact that *"owned"*
+> is an authority bit **only SimHost and the replication path ever set** *(`AX-006` — `Hrot.Editor` never
+> calls `SetAuthority`)*, which is why the gizmo's writer is opt-in.
+
 | capability | owning design | status | note |
 |---|---|:--:|---|
 | CGF `GlobalActionRegistry` + dispatch + `MapInteractionPack` | UXI-23 | 🔌 | *"two constructor arguments, not scaffolding"*; ordered behind ↓ |
@@ -117,7 +127,7 @@ graph TD
 | Cross-surface actions / CGF map menu | UXI-04 | 📐 | designed; CGF migrated first |
 | Commanding / `MissionPanel` on CGF | UXI-32 / Q29 | 📐 | Q29 answered; CGF must host the panel (owns the brain) |
 | Authority-aware writes (CGF writes as request) | UXI-29 | 📐 | designed |
-| **Engine authority gate on the binary attribute path** | **UXI-30** | 🕳️ | **OPEN, no design** — prerequisite for UXI-29; zero production senders (latent) |
+| **Engine authority gate on the binary attribute path** | **UXI-30** | ✅ **BUILT `2026-08-25`** *(`AX-001`)* | ⛔⛔ **Its premise was FALSE and measuring it produced a better fix.** 📐 Both production installers ALREADY gated every handler on `CanWrite<T>()` ⇒ the binary path WAS authority-gated, per handler — ⭐ which is the JSON path's own architecture *(its gate lives in the typed `ValueInvoker<T>`, not the router)*. ⭐⭐⭐ **The real defect: the gate was PER-INSTALLER and therefore forgettable.** ⇒ moved into `BinaryInterpreterBuilder.RegisterHandler<TComponent>`, both installers migrated onto it and their hand-written checks deleted. ✅ *"Zero production senders"* independently verified. 📄 [design §9.1](DESIGN_Cgf_AxisB_Rotation_Slice.md) |
 | Confirmation / progress (CGF = the "knowing node") | UXI-16/27 | 📐 | designed; editor drops the network hops, dispatcher byte-identical |
 
 ### ⚖️ DIVERGENT — ruled per-host, **do NOT try to unify** (these are the endpoint, not gaps)
@@ -142,7 +152,7 @@ graph TD
 
 | # | blocker | axis | kind |
 |---|---|---|---|
-| 1 | **UXI-30** engine authority gate — OPEN, no design; prereq for CGF authority-aware writes | B | design-a-fix |
+| 1 | ~~**UXI-30** engine authority gate~~ — ✅ **BUILT `2026-08-25`** *(`AX-001`)*; the gate is now structural, not per-installer. ⚠ `AX-005`/`AX-006` are what remains: no production request SENDER exists, and *"owned"* is an authority bit only SimHost and replication ever set | B | ~~design-a-fix~~ done |
 | 2 | **Asset-root walk-up** → `null` on a deployed node (ruling 67 has the fix) | A (editing) | build |
 | 3 | **AQ25** authoring shell + role/mode gating — architect-**unanswered** | A (editing) | resolve-with-user |
 | 4 | **Behavior-affinity registry** (Q25-C) + the schema-driven-`BehaviorUiCompiler` unknown | A (editing) | design |
