@@ -138,7 +138,7 @@ file, as the handoff instructed)*.
 | 3 | ClusterRunner unit | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Tests/… --no-build` | ✅ | ⚠ **271 / 2 / 0** | unchanged — both pre-existing |
 | 4 | ⭐⭐⭐ **integration — the barrier rail** | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/… --no-build --filter "TheBarrierHaltsEveryNodeTests"` | ✅ | ✅ **1 / 0** | **+1** (new) |
 | 5 | ⭐ integration — full suite *(baseline)* | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/… --no-build` | ✅ | ⚠ **27 / 29** | see §5a — `BP-378`'s long-standing state |
-| 6 | ⭐⭐ **`T3` system suite** *(real `--mode all`, includes both new CE-016 rails)* | `bash scripts/run-system-tests.sh --no-build` **(BACKGROUNDED)** | ✅ | see §6 | — |
+| 6 | ⭐⭐ **`T3` system suite** *(real `--mode all`, includes both new CE-016 rails)* | `bash scripts/run-system-tests.sh --no-build` **(BACKGROUNDED)** | ✅ | ✅✅ **99 / 0 / 0**, exit 0, 9 m 29 s | **+2** (both new) vs the coordinator's 97 |
 | 7 | tracker | `python3 scripts/tracker-counts.py --check` | — | ✅ **OK — 102 / 346** | unchanged: `BP-` only |
 | 8 | ledger | `python3 scripts/rulings-check.py` | — | ✅ **25/25** | 1 pre-existing staleness WARN |
 | 9 | design gate | `python3 scripts/design-digest.py --check` | — | ✅ **OK, 86 docs** | +3 docs touched |
@@ -176,11 +176,15 @@ batches *(`R-131`)*.
 
 ⭐ `CE-033`'s rail needed no inverse edit: it went red **as the defect**, before the fix.
 
-## 6. ⭐ `T3` — the system suite
+## 6. ✅✅ `T3` — the system suite: **99 / 0**, exit 0, 9 m 29 s
 
-⚠ Backgrounded per the build rules and **never sat on**. Its result and the two `CE-016` rails' verdict
-are recorded here on completion; if it lands after this batch closes, it lands in the next session, which
-is what `T3` means.
+⭐ Backgrounded per the build rules and never sat on; it completed within the batch.
+
+| | |
+|---|---|
+| ⭐⭐⭐ **`99 / 0 / 0`** | up from **97** on the coordinator *(slice 4's 95 + the MCP slice's 2)* ⇒ **+2, both mine**, and **zero reds** |
+| ⭐⭐ **`CE-016` is PROVEN on a real cluster** | `The_time_transport_is_on_the_toolbar_of_both_hosts` and `The_runtime_nodes_toolbar_is_not_empty` both pass against a live `--mode all` — so `TimeControlGroup` is registered **and visible in the active perspective** on the runtime node, not merely in the table |
+| ⭐ **no regression from ruling 67** | the whole conformance + smoke set is green with `AssetRoots` now config-aware *(unset here, which is the byte-identical path)* |
 
 ## 7. ⚠ WHAT IS STILL OPEN
 
