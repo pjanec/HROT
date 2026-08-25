@@ -1,8 +1,11 @@
 <!--STATUS
 state: LIVE
-build-state: RESOLVED — Q56-A/C/D resolved with the user `2026-08-25`; B/E/F are reuse-leans. ⭐ GRADUATED
-  to a buildable design: 📄 **[`docs/DESIGN_Mcp_Authoring.md`](../DESIGN_Mcp_Authoring.md)** carries the UML
-  and is the record to build from. ⛔ This file is now the DECISION TRAIL, not the spec.
+build-state: BUILT — `2026-08-25`, ids `MA-001`…`MA-010` (tracker Area M). Q56-A/C/D were resolved with
+  the user; B/E/F were reuse-leans. ⭐ The AS-BUILT is 📄 **[`docs/DESIGN_Mcp_Authoring.md`](../DESIGN_Mcp_Authoring.md) §10**
+  — read that for what exists. ⛔ This file is the DECISION TRAIL, not the spec, and not the as-built.
+  ⚠ Q56-E's lean says a structure change is "a classified Hard reload, confirmed"; BOTH halves are false on
+  the path that exists (CE-023: QuickReloadResult carries no classification; CE-024/ruling 53: a headless
+  origin never pre-flights). Nothing was built against that half.
 superseded-for-implementation: ../DESIGN_Mcp_Authoring.md
 updated: 2026-08-25
 current-answer: the sub-questions Q56-A..F + their recommended leans. Awaiting the user's resolution.

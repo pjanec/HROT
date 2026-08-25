@@ -1219,6 +1219,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     // Scenario / Blackboard / Utility are not document-backed kinds.
                     break;
             }
+
+            // ⭐⭐⭐ MA-003 — MARK THE DOCUMENT DIRTY WHEN ITS ASSET CHANGES.
+            // 📄 docs/DESIGN_Mcp_Authoring.md §10.4.
+            //
+            // 🔴🔴 MEASURED `2026-08-25`, and it made CGF's save a SILENT NO-OP after any edit.
+            //    📐 `SaveAllAiDocumentsCommand.Execute` skips a document whose `IsDirty` is false, and
+            //    `AiDocument.MarkDirty` had exactly ONE production caller in the repo — the EDITOR's
+            //    `DocumentOpened` factory (`EditorSubsystem:4016`), which subscribes `Asset.Changed`
+            //    ⛔ and does so only when a regeneration scheduler exists. ⇒ CGF, which has none and
+            //    never subscribed, could edit a graph and then write NOTHING, reporting success.
+            // ⭐ This is the editor's subscription trimmed to what this host has: no scheduler (CGF
+            //   regenerates nothing — the reload pipeline recompiles from the in-memory asset), just
+            //   the dirty mark that makes CE-020's save reach the file.
+            doc.Asset.Changed += () => doc.MarkDirty();
         };
 
         // ── RETARGET ON ACTIVE-DOCUMENT CHANGE (CE-015b) ───────────────────────

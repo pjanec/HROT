@@ -880,6 +880,114 @@ const TOOLS = [
     },
   },
 
+  // ── Group W — AI-asset AUTHORING (AQ56 / DESIGN_Mcp_Authoring.md) ─────────────
+  //
+  // ⭐⭐⭐ Read-then-edit-by-guid. read_asset_graph FIRST, always: the ids these tools take are the
+  //    editor's IN-MEMORY guids, never the ones written into the .json on disk.
+
+  {
+    name: 'read_asset_graph',
+    description: TOOL_DEFS['read_asset_graph'].description,
+    inputSchema: TOOL_DEFS['read_asset_graph'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'GET', `/assets/${encodeURIComponent(toolArgs.assetId)}/graph`));
+      } catch (err) { return toolError(err.message, err.envelope, 'read_asset_graph'); }
+    },
+  },
+
+  {
+    name: 'list_node_kinds',
+    description: TOOL_DEFS['list_node_kinds'].description,
+    inputSchema: TOOL_DEFS['list_node_kinds'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const suffix = toolArgs?.filter != null
+          ? `?filter=${encodeURIComponent(toolArgs.filter)}` : '';
+        return toolSuccess(await callApi(
+          'GET', `/assets/${encodeURIComponent(toolArgs.assetId)}/graph/catalog${suffix}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'list_node_kinds'); }
+    },
+  },
+
+  {
+    name: 'add_graph_node',
+    description: TOOL_DEFS['add_graph_node'].description,
+    inputSchema: TOOL_DEFS['add_graph_node'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'POST', `/assets/${encodeURIComponent(toolArgs.assetId)}/graph/nodes`,
+          { kind: toolArgs.kind, x: toolArgs.x ?? 0, y: toolArgs.y ?? 0 }));
+      } catch (err) { return toolError(err.message, err.envelope, 'add_graph_node'); }
+    },
+  },
+
+  {
+    name: 'add_graph_link',
+    description: TOOL_DEFS['add_graph_link'].description,
+    inputSchema: TOOL_DEFS['add_graph_link'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'POST', `/assets/${encodeURIComponent(toolArgs.assetId)}/graph/links`,
+          { fromPin: toolArgs.fromPin, toPin: toolArgs.toPin }));
+      } catch (err) { return toolError(err.message, err.envelope, 'add_graph_link'); }
+    },
+  },
+
+  {
+    name: 'set_graph_param',
+    description: TOOL_DEFS['set_graph_param'].description,
+    inputSchema: TOOL_DEFS['set_graph_param'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'POST', `/assets/${encodeURIComponent(toolArgs.assetId)}/graph/params`,
+          { pinId: toolArgs.pinId, value: toolArgs.value }));
+      } catch (err) { return toolError(err.message, err.envelope, 'set_graph_param'); }
+    },
+  },
+
+  {
+    name: 'remove_graph_elements',
+    description: TOOL_DEFS['remove_graph_elements'].description,
+    inputSchema: TOOL_DEFS['remove_graph_elements'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'POST', `/assets/${encodeURIComponent(toolArgs.assetId)}/graph/remove`,
+          { nodes: toolArgs.nodes ?? [], links: toolArgs.links ?? [] }));
+      } catch (err) { return toolError(err.message, err.envelope, 'remove_graph_elements'); }
+    },
+  },
+
+  {
+    name: 'create_asset',
+    description: TOOL_DEFS['create_asset'].description,
+    inputSchema: TOOL_DEFS['create_asset'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/assets', {
+          kind: toolArgs.kind, name: toolArgs.name, path: toolArgs.path ?? '',
+        }));
+      } catch (err) { return toolError(err.message, err.envelope, 'create_asset'); }
+    },
+  },
+
+  {
+    name: 'delete_entity',
+    description: TOOL_DEFS['delete_entity'].description,
+    inputSchema: TOOL_DEFS['delete_entity'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'DELETE', `/entities/${encodeURIComponent(toolArgs.networkId)}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'delete_entity'); }
+    },
+  },
+
   {
     name: 'get_gizmo_frame',
     description: TOOL_DEFS['get_gizmo_frame'].description,

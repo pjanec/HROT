@@ -2531,4 +2531,349 @@ export const TOOLS_CATALOG = [
     "manualVerify": false
   },
 
+  // ── Group W — AI-asset authoring ────────────────────────────────────────────
+
+  {
+    "name": "create_asset",
+    "group": "W — AI-asset authoring",
+    "summary": "Create a new AI asset (BTree / HSM / Blueprint) through the host's own New-Asset path, then open it as a document.",
+    "http": {
+      "method": "POST",
+      "path": "/assets"
+    },
+    "params": [
+      {
+        "name": "kind",
+        "type": "string",
+        "required": true,
+        "description": "BTree | Hsm | Blueprint"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "Asset name"
+      },
+      {
+        "name": "path",
+        "type": "string",
+        "required": false,
+        "description": "Subfolder relative to the kind's asset root (default: the root)"
+      }
+    ],
+    "returns": "{ assetId, name, kind, status, sourceFilePath, note }",
+    "notes": [
+      "It runs the same per-kind INewAssetService the New-Asset dialog runs, writes the file and refreshes the catalog — so the result appears in list_assets by the same rebuild a dialog-created asset does.",
+      "The new asset is opened as a document, so you can author it immediately with read_asset_graph and the graph tools.",
+      "A host that composes no create path answers 503 explaining that EDITING an existing asset does not need it."
+    ],
+    "example": {
+      "args": {
+        "kind": "BTree",
+        "name": "PatrolTree"
+      },
+      "gist": "create a new behaviour tree asset"
+    },
+    "hint": "Req: kind, name. Optional: path (subfolder). Example: create_asset({kind:\"BTree\",name:\"Patrol\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "read_asset_graph",
+    "group": "W — AI-asset authoring",
+    "summary": "Read an open AI asset's graph as JSON: nodes, pins, links and comments, keyed by the in-memory guids the edit tools take.",
+    "http": {
+      "method": "GET",
+      "path": "/assets/{assetId}/graph"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document (open_asset / list_documents)"
+      }
+    ],
+    "returns": "{ assetId, name, kind, graphId, displayName, graphKind, nodeCount, linkCount, nodes[{nodeId,kind,title,position,pins[{pinId,label,direction,kind,type,default}]}], links[{linkId,fromPin,toPin,fromNode,toNode}], comments[], note }",
+    "notes": [
+      "THIS IS THE FIRST CALL of any authoring session: you never predict an id, you read the ones the edit tools accept.",
+      "The ids are the IN-MEMORY guids. The saved .json binds links by deterministic name-derived pin ids instead — an id copied out of the file addresses nothing here.",
+      "Re-read after each edit rather than caching: adding a node can reproject another node's pins.",
+      "Only the graph-document kinds (BTree, HSM, Blueprint) have a graph; a Scenario or Blackboard asset is a 404 explaining that."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "read the whole graph before editing it"
+    },
+    "hint": "Req: assetId (GUID of an OPEN document — open_asset first). Example: read_asset_graph({assetId:\"...\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "list_node_kinds",
+    "group": "W — AI-asset authoring",
+    "summary": "The node kinds this graph can add, with their pin signatures. Call this instead of guessing a kind id for add_graph_node.",
+    "http": {
+      "method": "GET",
+      "path": "/assets/{assetId}/graph/catalog"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document"
+      },
+      {
+        "name": "filter",
+        "type": "string",
+        "required": false,
+        "description": "Case-insensitive substring matched against the kind id AND the display name"
+      }
+    ],
+    "returns": "{ count, total, kinds[{kind,displayName,category,description,isDeprecated,inputs[],outputs[]}], note }",
+    "notes": [
+      "The catalog is PER GRAPH — a BTree graph and a Blueprint graph offer different kinds, so read the one you are editing.",
+      "`kind` is what add_graph_node takes verbatim. An unknown kind is refused with this endpoint named, not silently ignored.",
+      "`inputs`/`outputs` are the declared pin SIGNATURES; the actual pin guids only exist once the node is added."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "discover what node kinds this graph accepts"
+    },
+    "hint": "Req: assetId. Optional: filter (substring over kind id and display name). Example: list_node_kinds({assetId:\"...\",filter:\"branch\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "add_graph_link",
+    "group": "W — AI-asset authoring",
+    "summary": "Connect two pins in an open graph. The host's own link validator runs first, so an illegal wire is refused for the same reason a dragged one would be.",
+    "http": {
+      "method": "POST",
+      "path": "/assets/{assetId}/graph/links"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document"
+      },
+      {
+        "name": "fromPin",
+        "type": "string",
+        "required": true,
+        "description": "Source (output-side) pin GUID"
+      },
+      {
+        "name": "toPin",
+        "type": "string",
+        "required": true,
+        "description": "Target (input-side) pin GUID"
+      }
+    ],
+    "returns": "{ linkId, fromPin, toPin, requiresCast, note }",
+    "notes": [
+      "The validator is the SAME one the canvas consults while dragging a wire, so MCP can never author a graph the editor would reject.",
+      "A refusal is a 400 carrying the host's own reason text — it is a legitimate answer, not a server error.",
+      "When the validator classes the pair ValidWithCast the canvas would auto-insert a cast node; this route connects them directly and says so in `note`."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000",
+        "fromPin": "11111111-1111-1111-1111-111111111111",
+        "toPin": "22222222-2222-2222-2222-222222222222"
+      },
+      "gist": "wire two pins together"
+    },
+    "hint": "Req: assetId, fromPin, toPin (pin GUIDs from read_asset_graph or add_graph_node). Example: add_graph_link({assetId:\"...\",fromPin:\"...\",toPin:\"...\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "add_graph_node",
+    "group": "W — AI-asset authoring",
+    "summary": "Add a node to an open graph through the same command sink human editing uses. Returns the new node's guid and its pins.",
+    "http": {
+      "method": "POST",
+      "path": "/assets/{assetId}/graph/nodes"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document"
+      },
+      {
+        "name": "kind",
+        "type": "string",
+        "required": true,
+        "description": "Node kind id — take one verbatim from list_node_kinds"
+      },
+      {
+        "name": "x",
+        "type": "number",
+        "required": false,
+        "description": "Canvas X position (default 0)",
+        "default": 0
+      },
+      {
+        "name": "y",
+        "type": "number",
+        "required": false,
+        "description": "Canvas Y position (default 0)",
+        "default": 0
+      }
+    ],
+    "returns": "{ nodeId, kind, title, pins[{pinId,label,direction,kind,type}], note }",
+    "notes": [
+      "The edit goes through the editor's undo stack, so it is undoable exactly like a node dropped on the canvas.",
+      "The response carries the new node's PINS because linking needs them — you do not have to re-read the whole graph to wire it up.",
+      "An unknown kind is a 400 naming list_node_kinds: the host sink can report success and build nothing, so this route re-reads the model and refuses rather than returning a guid that addresses nothing."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000",
+        "kind": "bt.selector",
+        "x": 120,
+        "y": 40
+      },
+      "gist": "add a node and get back its guid"
+    },
+    "hint": "Req: assetId, kind (from list_node_kinds). Optional: x, y. Example: add_graph_node({assetId:\"...\",kind:\"bt.selector\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_graph_param",
+    "group": "W — AI-asset authoring",
+    "summary": "Set the literal default value on an input data pin of an open graph.",
+    "http": {
+      "method": "POST",
+      "path": "/assets/{assetId}/graph/params"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document"
+      },
+      {
+        "name": "pinId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an INPUT DATA pin (from read_asset_graph)"
+      },
+      {
+        "name": "value",
+        "type": "string",
+        "required": true,
+        "description": "The new default. Sent as JSON and converted to the CLR type the pin's current default already holds; an explicit null clears it"
+      }
+    ],
+    "returns": "{ pinId, label, previousValue, value, note }",
+    "notes": [
+      "This is a PIN default, not a free-form node property: the pin default is the one edit whose inverse can be built from the model, so it is the one that stays undoable.",
+      "An exec pin or an output pin is refused — an exec pin has no value and an output's value is computed.",
+      "`value` in the response is RE-READ from the model after the edit, so it shows what the host actually stored rather than what you sent."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000",
+        "pinId": "11111111-1111-1111-1111-111111111111",
+        "value": 3.5
+      },
+      "gist": "set a literal on an input pin"
+    },
+    "hint": "Req: assetId, pinId, value. Example: set_graph_param({assetId:\"...\",pinId:\"...\",value:3.5})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "remove_graph_elements",
+    "group": "W — AI-asset authoring",
+    "summary": "Remove nodes and/or links from an open graph by invoking the editor's own Delete command.",
+    "http": {
+      "method": "POST",
+      "path": "/assets/{assetId}/graph/remove"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document"
+      },
+      {
+        "name": "nodes",
+        "type": "array",
+        "required": false,
+        "description": "Node GUIDs to remove"
+      },
+      {
+        "name": "links",
+        "type": "array",
+        "required": false,
+        "description": "Link GUIDs to remove"
+      }
+    ],
+    "returns": "{ removedNodes, removedLinks, nodeCount, linkCount, note }",
+    "notes": [
+      "It invokes the editor's shared Delete command rather than building its own removal, so incident links, reroute waypoints and attachments are handled and the undo restores nodes before the links that reference them.",
+      "`removedLinks` counts the links deleted IMPLICITLY with their nodes, so it is usually larger than the list you named.",
+      "An id that is not in the graph refuses the WHOLE call — a partial delete would be worse than a refusal.",
+      "The canvas selection is left cleared afterwards, exactly as after a human delete."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000",
+        "nodes": [
+          "11111111-1111-1111-1111-111111111111"
+        ]
+      },
+      "gist": "delete a node and its wires"
+    },
+    "hint": "Req: assetId and at least one of nodes[] / links[]. Example: remove_graph_elements({assetId:\"...\",nodes:[\"...\"]})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "delete_entity",
+    "group": "W — AI-asset authoring",
+    "summary": "Remove an entity from the world through the ELM lifecycle. Scenario authoring is world manipulation, and this is its delete.",
+    "http": {
+      "method": "DELETE",
+      "path": "/entities/{networkId}"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network id of the entity to destroy"
+      }
+    ],
+    "returns": "{ networkId, queued:true, note }",
+    "notes": [
+      "There is no such thing as editing a scenario FILE: the file is a reduced snapshot of the world at save time, so authoring a scenario means spawning, configuring and deleting entities, then calling save_scenario.",
+      "Queued like spawn_entity — teardown runs on a later tick. Call step, then list_entities, before asserting the entity is gone.",
+      "An unknown networkId is a 404 rather than a queued no-op."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "delete an entity from the world"
+    },
+    "hint": "Req: networkId (from list_entities). Example: delete_entity({networkId:1000})",
+    "manualVerify": false
+  },
+
 ];
