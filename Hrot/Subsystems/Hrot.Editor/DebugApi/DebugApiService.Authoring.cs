@@ -42,9 +42,14 @@ namespace Hrot.Editor.DebugApi
         //    this API at ONE host's composition.
 
         /// <summary>Creates an asset of <c>kind</c> named <c>name</c> under <c>relPath</c>.</summary>
+        /// <param name="recipe">
+        /// ⭐⭐ <b><c>MA-021</c></b> — the name of a recipe from <c>GET /assets/recipes</c>, or
+        /// <see langword="null"/> for the kind's blank template. ⛔ An unmatched name must be REFUSED by
+        /// the host, never silently downgraded to the blank template.
+        /// </param>
         /// <returns>The minted asset id once it is in the catalog, plus a human status either way.</returns>
         public delegate (Guid? AssetId, string Status) CreateAssetDelegate(
-            string kind, string name, string relPath);
+            string kind, string name, string relPath, string? recipe);
 
         private CreateAssetDelegate? _createAsset;
 
@@ -60,6 +65,110 @@ namespace Hrot.Editor.DebugApi
           + "INewAssetService registry, the source-root override and the catalog refresh, all of which "
           + "are composed per host; the composition root must call AttachAssetAuthoring(...). Editing an "
           + "asset that ALREADY exists does not need this — open it and use /assets/{id}/graph/*.";
+
+        // ══ MA-020: recipe discovery ══════════════════════════════════════════
+        //
+        // ⭐⭐⭐ AQ57's whole finding: this registry ALREADY EXISTS. `RecipePickerSource` (AiShared) projects
+        //    `INewAssetService.AvailableRecipes()` per kind, and it is what the New-Asset picker draws from.
+        //    ⛔ So this route BUILDS NOTHING — it takes the same dictionary the picker takes and reports
+        //    the same projection over HTTP. A parallel "recipe registry" would be ruling 9's duplicate.
+
+        private IReadOnlyDictionary<Hrot.Editor.AiShared.AssetKind,
+                                    Hrot.Editor.AiShared.Recipes.INewAssetService>? _newAssetServices;
+
+        private Func<Hrot.Editor.AiShared.IEditableAsset, string?>? _recipeDescribe;
+        private Func<Hrot.Editor.AiShared.IEditableAsset, string?>? _recipeCategory;
+
+        /// <summary>
+        /// ⭐ Hands this service the host's per-kind new-asset registry, so recipes can be listed.
+        /// </summary>
+        /// <param name="services">The same dictionary the host's New-Asset picker is built from.</param>
+        /// <param name="describe">
+        /// ⭐⭐ Resolves a recipe's DESCRIPTION. ⚠ Supplied by the composition root because only it sees the
+        /// concrete per-kind adapters that carry <c>RecipeMetadata</c> — ⛔ this service must not learn
+        /// one host's asset types. A <see langword="null"/> describe reports <c>description: null</c>,
+        /// which the payload distinguishes from "not looked up".
+        /// </param>
+        /// <param name="recipeCategory">Resolves a recipe's sub-category, same reasoning.</param>
+        public void AttachRecipes(
+            IReadOnlyDictionary<Hrot.Editor.AiShared.AssetKind,
+                                Hrot.Editor.AiShared.Recipes.INewAssetService> services,
+            Func<Hrot.Editor.AiShared.IEditableAsset, string?>? describe = null,
+            Func<Hrot.Editor.AiShared.IEditableAsset, string?>? recipeCategory = null)
+        {
+            _newAssetServices = services ?? throw new ArgumentNullException(nameof(services));
+            _recipeDescribe   = describe;
+            _recipeCategory   = recipeCategory;
+        }
+
+        /// <summary>⭐ Exposed for the forwarding rail — ⛔ a rail must reach the CONSTRUCTED object.</summary>
+        internal bool HasRecipes => _newAssetServices != null;
+
+        private const string NoRecipes =
+            "This host wires no per-kind INewAssetService registry, so it can offer no recipes. The "
+          + "composition root must call AttachRecipes(...) with the same dictionary its New-Asset picker "
+          + "uses. A host with no registry also cannot create (POST /assets) — the two share it.";
+
+        /// <summary>
+        /// <c>GET /assets/recipes[?kind=BTree]</c> — the templates <c>POST /assets</c> can create from.
+        /// </summary>
+        /// <remarks>
+        /// ⭐⭐ <b>The recipe analog of <c>MA-013</c>'s node-kind discovery</b>: an agent that cannot see the
+        /// recipes can only ever create blanks. ⇒ every name here is accepted verbatim as
+        /// <c>POST /assets {"recipe": "..."}</c>.
+        /// <para>⚠ <c>AvailableRecipes()</c> is called LIVE rather than snapshotted at attach time — the
+        /// Blueprint service discovers recipes from disk, so a cached list would go stale silently.</para>
+        /// </remarks>
+        public (JsonNode? Result, string? Error, string? HintCategory) ListRecipes(string? kindFilter)
+        {
+            if (_newAssetServices == null) return (null, NoRecipes, DebugApiHints.Panel);
+
+            Hrot.Editor.AiShared.AssetKind? only = null;
+            if (!string.IsNullOrWhiteSpace(kindFilter))
+            {
+                if (!Enum.TryParse<Hrot.Editor.AiShared.AssetKind>(kindFilter, ignoreCase: true, out var k))
+                    return (null,
+                            $"'{kindFilter}' is not an AssetKind. This host offers: "
+                          + string.Join(", ", _newAssetServices.Keys) + ".",
+                            DebugApiHints.Panel);
+                only = k;
+            }
+
+            // ⭐ The SHARED projection — the picker's own ToEntry, so a recipe reads the same over HTTP as
+            //   it does in the New-Asset tree (id, name, description, category).
+            var source = new Hrot.Editor.AiShared.Browser.RecipePickerSource(
+                _newAssetServices, _recipeDescribe, _recipeCategory);
+
+            var recipes = new JsonArray();
+            foreach (var choice in source.Query(string.Empty, null))
+            {
+                if (only != null && choice.Kind != only) continue;
+                if (!_newAssetServices.TryGetValue(choice.Kind, out var service)) continue;
+
+                var entry = source.ToEntry(choice);
+                recipes.Add(new JsonObject
+                {
+                    ["id"]              = entry.Id,             // "Kind:Name" — the picker's own key
+                    ["kind"]            = choice.Kind.ToString(),
+                    ["name"]            = choice.Recipe.Name,   // ⭐ what POST /assets takes as "recipe"
+                    ["description"]     = entry.Description,
+                    ["category"]        = entry.Category,
+                    // ⭐⭐ A BLANK TEMPLATE seeds an empty asset; a CONTENT recipe clones a real one. ⛔ The
+                    //   two are not interchangeable and the caller cannot tell them apart from the name.
+                    ["isBlankTemplate"] = service.IsBlankTemplate(choice.Recipe),
+                    ["sourceFilePath"]  = (choice.Recipe.SourceFilePath ?? string.Empty).Replace('\\', '/'),
+                });
+            }
+
+            return (new JsonObject
+            {
+                ["kinds"]   = new JsonArray(_newAssetServices.Keys.Select(k => (JsonNode)k.ToString()!).ToArray()),
+                ["recipes"] = recipes,
+                ["note"]    = "create with POST /assets {\"kind\": ..., \"name\": ..., \"recipe\": \"<name>\"}. "
+                            + "Omit \"recipe\" for the kind's blank template. Descriptions are null when the "
+                            + "recipe carries no RecipeMetadata (the synthetic Empty/Starter entries do not).",
+            }, null, null);
+        }
 
         // ══ resolution ════════════════════════════════════════════════════════
 
@@ -589,12 +698,19 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(kind) || string.IsNullOrWhiteSpace(name))
                 return (null,
                         "Body must be {\"kind\": \"BTree|Hsm|Blueprint\", \"name\": \"<asset name>\", "
-                      + "\"path\": \"<optional subfolder>\"}.",
+                      + "\"path\": \"<optional subfolder>\", \"recipe\": \"<optional recipe name from "
+                      + "GET /assets/recipes>\"}.",
                         DebugApiHints.Panel);
 
             var relPath = body?["path"]?.GetValue<string>() ?? string.Empty;
 
-            var (assetId, status) = _createAsset(kind!, name!, relPath);
+            // ⭐⭐ MA-021 — the recipe, by name, from GET /assets/recipes. ⛔ Without this the create route
+            //   could only ever produce BLANKS, which would make recipe discovery a list of things the
+            //   agent cannot actually ask for — 📌 the same "reports a capability it does not have" shape
+            //   MA-017 caught on the union route.
+            var recipe = body?["recipe"]?.GetValue<string>();
+
+            var (assetId, status) = _createAsset(kind!, name!, relPath, recipe);
 
             if (assetId == null)
                 return (null, status, DebugApiHints.Panel);
@@ -604,6 +720,7 @@ namespace Hrot.Editor.DebugApi
                 ["assetId"] = assetId.Value.ToString(),
                 ["name"]    = name,
                 ["kind"]    = kind,
+                ["recipe"]  = recipe,
                 ["status"]  = status,
                 ["note"]    = "the asset is in the catalog (GET /assets) and open as a document. Author it "
                             + "with /assets/{assetId}/graph/*, then save and reload.",

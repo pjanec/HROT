@@ -520,9 +520,22 @@ public sealed class McpClient : IDisposable
 
     /// <summary>⭐ Create an asset through the host's own New-Asset path.</summary>
     public Task<ApiResult> CreateAssetAsync(
-        string kind, string name, string path = "", CancellationToken ct = default)
-        => PostAsync("/assets",
-                     new JsonObject { ["kind"] = kind, ["name"] = name, ["path"] = path }, ct);
+        string kind, string name, string path = "", string? recipe = null,
+        CancellationToken ct = default)
+    {
+        var body = new JsonObject { ["kind"] = kind, ["name"] = name, ["path"] = path };
+        // ⭐ MA-021 — OMITTED rather than null when unset, so the host's "no such recipe" refusal can
+        //   only fire on a name the caller actually asked for.
+        if (recipe != null) body["recipe"] = recipe;
+        return PostAsync("/assets", body, ct);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>MA-020</c> — the recipes <c>POST /assets</c> can build from, per kind.
+    /// ⛔ Without this an agent can only ever create BLANKS: a recipe is addressable only by NAME.
+    /// </summary>
+    public Task<ApiResult> ListAssetRecipesAsync(string? kind = null, CancellationToken ct = default)
+        => GetAsync(kind == null ? "/assets/recipes" : $"/assets/recipes?kind={Uri.EscapeDataString(kind)}", ct);
 
     /// <summary>⭐ Scenario authoring's delete — world manipulation, queued like spawn.</summary>
     public Task<ApiResult> DeleteEntityAsync(long networkId, CancellationToken ct = default)

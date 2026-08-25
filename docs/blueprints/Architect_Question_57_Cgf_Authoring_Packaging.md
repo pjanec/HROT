@@ -1,9 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — DISCUSSION. Carries a RECOMMENDED ANSWER per sub-question (coordinator "I analyse/
-  suggest, user approves"). Awaiting user approval. ⛔ Nothing is built from this until the answer is recorded here.
+build-state: BUILT — `2026-08-25`, ids `MA-019`…`MA-023`. All three recommended answers were APPROVED by
+  dispatch (HANDOFF_Mcp_Create_Recipes_Wiring.md) and are now shipped. ⭐ §"AS BUILT" carries the UML and
+  the two deviations; it WINS over the sections above it where they disagree.
 updated: 2026-08-25
-current-answer: §"RECOMMENDED ANSWERS". ⭐ REVISED `2026-08-25` by prior-art (user): recipe DISCOVERY already
+current-answer: ⭐⭐ §"AS BUILT" (the shipped shape). §"RECOMMENDED ANSWERS" remains true as the DECISION —
+  ⛔ but read the as-built for what the code actually does.
+stale-below: nothing is stale; §1–§2 are the measurement that produced the decision and still hold.
+former-answer: §"RECOMMENDED ANSWERS". ⭐ REVISED `2026-08-25` by prior-art (user): recipe DISCOVERY already
   exists (`RecipePickerSource` over `INewAssetService.AvailableRecipes`) ⇒ this is NOT a packaging decision but
   a small WIRING slice — construct the per-kind service dict at CGF's root (reuse `RecipePickerSource`) + a
   `GET /assets/recipes` MCP route. No new registry/assembly. The authoring SHELL / undo / role-gating / Q25-C
@@ -81,3 +85,165 @@ search_graph name_pattern=".*NewAssetService" · ".*(Asset)?Catalog"
 - The authoring **shell / undo / role-gating / problems-list** — **AQ25**, awaiting approval *(§0)*.
 - **Q25-C** schema-driven param UI — **AQ25**, resolved feasible-by-reuse, awaiting approval.
 - **Axis B** map/entity authoring — gated on **UXI-30** *(separate; see the gap map)*.
+
+---
+
+# ⭐⭐⭐ AS BUILT — `2026-08-25`, ids `MA-019`…`MA-023` *(obligation ⑤)*
+
+> ⭐⭐ **All three recommended answers shipped as recommended.** ⭐ Two things the design did NOT say are
+> below as **deviations**, both argued. ⛔ This section wins over §2/§"RECOMMENDED ANSWERS" on what the
+> code does.
+
+## A. ⭐ The measurement that made this cheap — **confirmed, not assumed**
+
+| §1 claimed | 📐 measured `2026-08-25` |
+|---|---|
+| CGF already references the three per-kind editor assemblies | ✅ **true** — `Hrot.CGF.csproj` lines 43/52/53. ⇒ **no reference was added; item ① was a dictionary literal** |
+| recipe discovery already exists | ✅ **true** — `RecipePickerSource` + `RecipeMetadata` + `INewAssetService.AvailableRecipes()`, all in the SHARED `Hrot.Editor.AiShared`. ⛔ **Nothing was built to enumerate recipes** |
+| `POST /assets` create is already shipped | ✅ **true** — and it gained ONE optional field, not a route |
+
+📐 **The node now offers 21 recipes across Blueprint / BTree / Hsm where it offered none.**
+
+## B. ⭐⭐ CLASSES — *existing in grey prose, NEW marked* `«new»`
+
+```mermaid
+classDiagram
+    class INewAssetService {
+        <<interface>>
+        +AssetKind Kind
+        +CreateNew(recipe, name, relPath) IEditableAsset
+        +AvailableRecipes() IReadOnlyList~IEditableAsset~
+        +IsBlankTemplate(recipe) bool
+    }
+    class RecipePickerSource {
+        +Query(text, ctx) IReadOnlyList~RecipeChoice~
+        +ToEntry(RecipeChoice) PickerEntry
+    }
+    class RecipeByName {
+        <<new, static>>
+        +Resolve(service, name) (IEditableAsset, string)
+    }
+    class RecipeMetadataAdapter {
+        <<extended, static>>
+        +ToShared(compilerMeta) RecipeMetadata
+        +SharedMetadataOf(recipe) RecipeMetadata
+        +DescribeRecipe(recipe) string
+        +RecipeCategory(recipe) string
+    }
+    class DebugApiService {
+        <<extended>>
+        +AttachAssetAuthoring(CreateAssetDelegate)
+        +AttachRecipes(services, describe, category)
+        +ListRecipes(kind) JsonNode
+        +CreateAsset(body) JsonNode
+    }
+    class CgfSubsystem {
+        <<extended>>
+        -WireAssetCreation(catalog)
+        +AssetShellCreate
+        +AssetShellNewAssetServices
+        +AssetShellSchemaExporter
+    }
+    class EditorSubsystem {
+        -CreateAssetCore(kind, recipe, name, relPath)
+    }
+    class ClusterRunnerProgram {
+        <<composition root>>
+    }
+
+    INewAssetService <|.. BlueprintNewAssetService
+    INewAssetService <|.. BTreeNewAssetService
+    INewAssetService <|.. HsmNewAssetService
+
+    RecipePickerSource o-- "1..*" INewAssetService : per kind
+    RecipeByName ..> INewAssetService : resolves from
+    RecipePickerSource ..> RecipeMetadataAdapter : describe seam
+    DebugApiService *-- RecipePickerSource : builds per call
+    DebugApiService ..> RecipeByName
+
+    CgfSubsystem o-- "1..*" INewAssetService : composes
+    EditorSubsystem o-- "1..*" INewAssetService : composes
+    ClusterRunnerProgram ..> CgfSubsystem : reads shell
+    ClusterRunnerProgram ..> DebugApiService : attaches
+```
+
+⭐⭐ **The whole diagram is REUSE except two boxes** — `RecipeByName` *(new)* and `RecipeMetadataAdapter`
+*(extended)*. ⛔ **No new registry, no new assembly** — Q57-A1 / A3 as recommended.
+
+## C. ⭐⭐ SEQUENCE — discover, then create from what you discovered
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant API as DebugApiService
+    participant Src as RecipePickerSource
+    participant Svc as INewAssetService
+    participant Host as CgfSubsystem
+    participant Cat as AssetCatalog
+
+    Agent->>API: GET /assets/recipes
+    API->>Src: Query("")
+    Src->>Svc: AvailableRecipes()
+    Svc-->>Src: recipes
+    Src-->>API: RecipeChoice + ToEntry
+    API-->>Agent: name, description, isBlankTemplate
+
+    Agent->>API: POST /assets {kind,name,recipe}
+    API->>Host: AssetShellCreate(kind,name,path,recipe)
+    Host->>Host: RecipeByName.Resolve(svc, recipe)
+    alt name not offered
+        Host-->>API: refuse + available names
+        API-->>Agent: 400
+    else resolved
+        Host->>Svc: CreateNew(recipe, name, relPath)
+        Host->>Cat: Refresh contributor for kind
+        Host->>Cat: FindByAssetId(minted)
+        alt not catalogued
+            Host-->>API: no id + asset-roots explanation
+        else
+            Host-->>API: catalogued id
+            API-->>Agent: assetId, sourceFilePath
+        end
+    end
+```
+
+⭐⭐⭐ **The two `alt` arms are the design.** ⛔ Both were built as REFUSALS rather than best-effort
+successes, because this surface has now been bitten twice by the opposite *(`MA-004` — an id that
+resolved to nothing; `MA-017` — a command accepted that built nothing)*.
+
+## D. ⚠⚠ DEVIATION 1 — **`POST /assets` gained a `recipe` field** *(`MA-021`)*
+
+⛔ §Q57-C said *"reuse the shipped create route"*, and §Q57-B said *"expose recipe discovery."*
+📐 **Taken literally, together, they are incoherent:** the shipped route resolved the kind's **blank
+template** and nothing else, so **every recipe discovery listed would have been unbuildable.**
+
+⇒ ⭐ the route takes an OPTIONAL `recipe` name. ⭐⭐ **Still not a new route** — the constraint that
+mattered *(⛔ no second create path)* holds; `CreateAssetDelegate` gained a parameter.
+⚠ **An unmatched name is an ERROR carrying the available names**, never a silent fall back to blank.
+
+## E. ⚠ DEVIATION 2 — **the `describe` seam was inert, and is now wired** *(`MA-020`)*
+
+📐 **Measured:** `RecipePickerSource(services, describe, recipeCategory)` has carried both seams since
+it was written; **`RecipeMetadataAdapter.ToShared` had ZERO production callers**; and
+`NewAssetLauncher` was constructed with neither. ⇒ **every recipe rendered with a null description
+while `BlueprintAsset.EditorMetadata.Recipe` held one** — 📌 the silent-default shape *(the caller HAD
+the value and did not pass it)*.
+
+⭐ **Wired for BOTH surfaces from one resolver** — the New-Asset picker and `GET /assets/recipes`.
+📐 **Proven, not asserted: `17 / 21` recipes now carry a description; the revert probe measures `0 / 21`.**
+⚠ The four without are the synthetic BTree/HSM `Empty` and `Starter` entries, which genuinely have none.
+
+## F. ⭐ Item ④ — the schema exporter *(`MA-022`)*
+
+⭐ CGF constructs `ActionSchemaExporter` and calls `Rebuild()` before publishing it.
+⛔ **`Rebuild()` is not optional:** the exporter is born empty and is otherwise refreshed only by
+`ActionSchemaExporterCatalogWatcher`, which CGF does not wire — ⚠ an un-rebuilt exporter would make every
+kind report an EMPTY param list, which reads as *"this kind has no params"* rather than *"nothing was
+reflected."* 📐 `paramsSource: none:no-exporter-wired` no longer occurs on a cluster node.
+
+## G. ⛔ Scenario is NOT creatable on CGF — **measured, and reported as such**
+
+📐 `ScenarioNewAssetService` takes an `IEditorLogic` session adapter; **CGF has no `IEditorLogic`.**
+⇒ `POST /assets {"kind":"Scenario"}` answers with the composition explanation.
+⭐ **The kinds a host offers are DATA** — `GET /assets/recipes` returns `kinds[]`, so an agent reads the
+difference instead of discovering it by failure.

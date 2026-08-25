@@ -1667,6 +1667,166 @@ public sealed class ClusterConformanceRails
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>MA-019</c>/<c>MA-020</c>/<c>MA-021</c>/<c>MA-022</c> — an agent DISCOVERS the recipes a
+    /// CLUSTER node offers, CREATES from one by name, and the node's catalog gains it.</b>
+    /// 📄 <c>Architect_Question_57_Cgf_Authoring_Packaging.md</c> Q57-A/B/C.
+    ///
+    /// <para>⭐⭐ <b><c>--mode all</c>, and that is the whole point.</b> 📐 <c>create_asset</c> shipped with
+    /// <c>MA-002</c> and worked ONLY on the editor host, because the per-kind
+    /// <c>INewAssetService</c> dictionary was composed behind <c>Hrot.Editor</c>. ⇒ a rail on the editor
+    /// proves nothing about this: it is the CGF composition root that had the gap.</para>
+    ///
+    /// <para>⛔⛔ <b>Discovery and create are asserted TOGETHER, deliberately.</b> A list of recipes the
+    /// create route cannot build from would be a capability reported and not held — 📌 the shape
+    /// <c>MA-004</c> caught *(an id resolving to nothing)* and <c>MA-017</c> caught again *(a command
+    /// accepted that built nothing)*. ⇒ every name this rail reads back, it then USES.</para>
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Conformance")]
+    public async Task An_agent_can_discover_recipes_and_create_from_one_on_a_cluster_node()
+    {
+        const string SentinelFolder = "__mcp_recipe_rail_tmp";
+
+        await using var cluster = await EditorProcess.StartAsync("conf-recipes", mode: "all");
+
+        // ── ① DISCOVERY ──────────────────────────────────────────────────
+        var listed = await cluster.Client.ListAssetRecipesAsync();
+        Assert.True(listed.Ok,
+            $"GET /assets/recipes was refused on a --mode all node: {listed.Error}. Before AQ57 this "
+          + "host composed no per-kind INewAssetService registry at all; a refusal here means "
+          + "AttachRecipes is no longer wired from ClusterRunner/Program.cs.");
+
+        var recipes = (listed.Field("recipes") as JsonArray)!;
+        _out.WriteLine($"kinds: {listed.Field("kinds")}");
+        _out.WriteLine($"{recipes.Count} recipe(s) offered");
+
+        Assert.True(recipes.Count > 0,
+            "the node offers ZERO recipes. Every per-kind service offers at least a blank template, so "
+          + "an empty list means the registry was attached empty rather than not attached.");
+
+        // ⭐ The two facts the payload must carry, or the list is not actionable: a NAME the create route
+        //   takes verbatim, and whether it is a blank template or a content recipe.
+        foreach (var r in recipes)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(r!["name"]?.GetValue<string>()),
+                "a recipe came back with no name — the name is what create_asset takes as `recipe`.");
+            Assert.NotNull(r["isBlankTemplate"]);
+        }
+
+        // ⭐⭐⭐ THE ANTI-VACUITY PROOF for the `describe` seam. 📌 `RecipePickerSource.describe` and
+        //    `recipeCategory` were OPTIONAL and NO production caller passed them, so every recipe carried
+        //    a null description while `BlueprintAsset.EditorMetadata.Recipe` held one — the silent-default
+        //    shape (the caller HAD the value and did not pass it).
+        // ⛔ Without this assertion the fix is unfalsifiable: a describe that always returns null would
+        //   look exactly like the un-wired state it replaced.
+        // ⚠ A FLOOR, not full coverage: the BTree/HSM Empty and Starter entries are synthetic and
+        //   genuinely carry no metadata, so demanding a description on every recipe would redden on an
+        //   honest answer.
+        var described = recipes.Count(r => !string.IsNullOrWhiteSpace(r!["description"]?.GetValue<string>()));
+        _out.WriteLine($"{described}/{recipes.Count} recipe(s) carry a description");
+
+        Assert.True(described > 0,
+            $"NOT ONE of {recipes.Count} recipes carries a description, though the Blueprint blank "
+          + "templates set EditorMetadata.Recipe.Description in their own constructor. The `describe` "
+          + "seam is not reaching RecipePickerSource — which is the exact un-wired state this slice fixed.");
+
+        // ⭐⭐ Prefer a CONTENT recipe over a blank template: creating from a blank is what the route did
+        //   BEFORE this slice, so it would not prove the by-name path is reached.
+        var pick = recipes.FirstOrDefault(r =>
+                       r!["isBlankTemplate"]!.GetValue<bool>() == false
+                    && r["kind"]!.GetValue<string>() != "Blueprint")
+                ?? recipes.FirstOrDefault(r => r!["kind"]!.GetValue<string>() != "Blueprint")
+                ?? recipes[0];
+
+        var pickKind = pick!["kind"]!.GetValue<string>();
+        var pickName = pick["name"]!.GetValue<string>();
+        var isBlank  = pick["isBlankTemplate"]!.GetValue<bool>();
+        _out.WriteLine($"picked recipe: {pickKind}/'{pickName}' (blankTemplate={isBlank}, "
+                     + $"description={pick["description"]?.GetValue<string>() ?? "<null>"})");
+
+        // ── ② CREATE FROM IT, BY NAME ────────────────────────────────────
+        var before   = (await cluster.Client.ListAssetsAsync()).EnsureOk().Int("count");
+        var assetName = $"McpRecipe{Environment.ProcessId}";
+
+        var created = await cluster.Client.CreateAssetAsync(
+            pickKind, assetName, SentinelFolder, recipe: pickName);
+        _out.WriteLine($"create: {created.StatusCode} {created.Error ?? created.String("status")}");
+
+        Assert.True(created.Ok,
+            $"POST /assets was refused on the cluster node: {created.Error}. AQ57-C is that CREATE needs "
+          + "no new route — it needs the per-kind service dict wired at THIS host's composition root.");
+
+        var newId    = created.String("assetId");
+        var filePath = created.String("sourceFilePath");
+
+        try
+        {
+            Assert.False(string.IsNullOrWhiteSpace(newId),
+                "create_asset answered ok with no assetId. The id is returned only once the CATALOG "
+              + "resolves it (MA-004), so a missing id means the file landed where this host's "
+              + "contributor does not scan — ruling 67's own failure mode.");
+
+            // ── ③ THE ROUND TRIP ─────────────────────────────────────────
+            var after = (await cluster.Client.ListAssetsAsync()).EnsureOk();
+            var ids   = ((after.Field("assets") as JsonArray)!)
+                        .Select(a => a!["assetId"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
+
+            Assert.True(ids.Contains(newId!),
+                $"the created asset {newId} ('{assetName}') is NOT in GET /assets on the node that "
+              + "created it. It exists on disk and nothing can address it.");
+            Assert.True(after.Int("count") > before,
+                $"the node's catalog did not grow ({before} -> {after.Int("count")}).");
+
+            // ⭐ And it is immediately AUTHORABLE — the reason create opens it as a document.
+            var graph = await cluster.Client.ReadAssetGraphAsync(newId!);
+            Assert.True(graph.Ok,
+                $"the created asset is catalogued but has no readable graph: {graph.Error}.");
+
+            // ── ④ AN UNKNOWN RECIPE IS REFUSED, NEVER SILENTLY BLANKED ───
+            // ⛔⛔ The single most important assertion here: falling back to the blank template would
+            //    hand the caller a DIFFERENT asset than it asked for and report success — the
+            //    silent-wrong-answer shape this surface has already been bitten by twice.
+            var bogus = await cluster.Client.CreateAssetAsync(
+                pickKind, assetName + "Bogus", SentinelFolder, recipe: "ThisRecipeDoesNotExist");
+
+            Assert.False(bogus.Ok,
+                "creating from a recipe name the host does not offer SUCCEEDED. It silently fell back to "
+              + "the blank template, so the caller got something other than what it asked for.");
+            Assert.Contains("is not a recipe", bogus.Error ?? string.Empty, StringComparison.Ordinal);
+            _out.WriteLine($"unknown recipe refused: {bogus.Error}");
+
+            // ── ⑤ MA-022 — the schema exporter is wired on THIS host ─────
+            // 📌 The overnight MCP run filed `paramsSource: none:no-exporter-wired` as a one-line
+            //    follow-up in this lane. ⚠ It is asserted as an ABSENCE of that one value, not as a
+            //    positive source: a kind that genuinely is not an action correctly reports
+            //    `none:not-an-action`, and demanding `exporter:*` would redden on honest answers.
+            var kinds = (await cluster.Client.ListNodeKindsAsync(newId!)).EnsureOk();
+            var kindArr = (kinds.Field("kinds") as JsonArray)!;
+            var sources = new List<string>();
+            foreach (var entry in kindArr.Take(8))
+            {
+                var schema = await cluster.Client.GetNodeKindSchemaAsync(
+                    newId!, entry!["kind"]!.GetValue<string>());
+                if (!schema.Ok) continue;
+                sources.Add(schema.String("paramsSource") ?? "<none>");
+            }
+
+            _out.WriteLine($"paramsSource over {sources.Count} kind(s): "
+                         + string.Join(", ", sources.Distinct()));
+
+            // ⛔ Guard the assertion against vacuity: an empty `sources` would satisfy DoesNotContain
+            //   while proving nothing at all.
+            Assert.True(sources.Count > 0,
+                "not one node kind resolved a schema, so the exporter claim below would be vacuous.");
+            Assert.DoesNotContain("none:no-exporter-wired", sources);
+        }
+        finally
+        {
+            CleanUpSentinelFolder(filePath, SentinelFolder, _out);
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ <b>Scenario authoring is WORLD manipulation: an agent can DELETE an entity, and the world
     /// loses it.</b> 📄 <c>DESIGN_Mcp_Authoring.md</c> §1 · §7 ④ *(`Q56-C`, resolved with the user:
     /// there is no such thing as editing a scenario FILE)*.

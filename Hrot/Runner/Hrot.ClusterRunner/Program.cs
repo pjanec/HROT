@@ -479,6 +479,39 @@ class Program
                         clusterApiService.AttachAssetEditing(save, reload);
                         FdpLog<Program>.Info("[Runner] Debug API asset save/reload attached.");
                     }
+
+                    // ⭐⭐⭐ AQ57 / MA-019 — CREATE, attached here for the third time for the same
+                    //    reference-wall reason: this is the only composition root that sees both halves.
+                    // ⛔ Not "CGF gets its own create": it is the SAME per-kind INewAssetService contract
+                    //   the editor's New-Asset dialog runs, composed at CGF's root (Q57-A1).
+                    if (cgfShell.AssetShellCreate is { } create)
+                    {
+                        clusterApiService.AttachAssetAuthoring(
+                            (kind, name, relPath, recipe) => create(kind, name, relPath, recipe));
+                        FdpLog<Program>.Info("[Runner] Debug API asset creation attached.");
+                    }
+
+                    // ⭐⭐ MA-020 — recipe discovery reads the SAME registry create does. ⚠ If one is
+                    //    attached and the other is not, GET /assets/recipes would list templates that
+                    //    POST /assets could not build — so they are wired from the one source, together.
+                    if (cgfShell.AssetShellNewAssetServices is { } newAssetServices)
+                    {
+                        clusterApiService.AttachRecipes(
+                            newAssetServices,
+                            Hrot.Blueprints.Editor.RecipeMetadataAdapter.DescribeRecipe,
+                            Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory);
+                        FdpLog<Program>.Info(
+                            "[Runner] Debug API recipe discovery attached — kinds [{0}].",
+                            string.Join(", ", newAssetServices.Keys));
+                    }
+
+                    // ⭐ MA-022 — the action-schema exporter, so get_node_kind_schema reports real DTO
+                    //   fields here instead of `paramsSource: none:no-exporter-wired`.
+                    if (cgfShell.AssetShellSchemaExporter is { } schemaExporter)
+                    {
+                        clusterApiService.AttachSchemaExporter(schemaExporter);
+                        FdpLog<Program>.Info("[Runner] Debug API action-schema exporter attached.");
+                    }
                 }
                 else
                 {

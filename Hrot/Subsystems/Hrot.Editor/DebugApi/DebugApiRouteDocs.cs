@@ -309,22 +309,45 @@ namespace Hrot.Editor.DebugApi
             Tool:    "create_asset",
             Group:   "W — AI-asset authoring",
             Summary: "Create a new AI asset (BTree / HSM / Blueprint) through the host's own New-Asset path, then open it as a document.",
-            Returns: "{ assetId, name, kind, status, sourceFilePath, note }",
-            Hint:    "Req: kind, name. Optional: path (subfolder). Example: create_asset({kind:\"BTree\",name:\"Patrol\"})",
+            Returns: "{ assetId, name, kind, recipe, status, sourceFilePath, note }",
+            Hint:    "Req: kind, name. Optional: path (subfolder), recipe (from list_asset_recipes). Example: create_asset({kind:\"BTree\",name:\"Patrol\"})",
             Params: new RouteParam[]
             {
                 new("kind", "string", true, "BTree | Hsm | Blueprint"),
                 new("name", "string", true, "Asset name"),
                 new("path", "string", false, "Subfolder relative to the kind's asset root (default: the root)"),
+                new("recipe", "string", false, "Recipe NAME from list_asset_recipes (default: the kind's blank template)"),
             },
             Notes: new[]
             {
                 "It runs the same per-kind INewAssetService the New-Asset dialog runs, writes the file and refreshes the catalog — so the result appears in list_assets by the same rebuild a dialog-created asset does.",
                 "The new asset is opened as a document, so you can author it immediately with read_asset_graph and the graph tools.",
                 "A host that composes no create path answers 503 explaining that EDITING an existing asset does not need it.",
+                "Call list_asset_recipes first to see what this host can create from. A recipe name it does not offer is REFUSED with the available names — it never silently falls back to a blank asset.",
             },
             ExampleArgsJson: "{\"kind\":\"BTree\",\"name\":\"PatrolTree\"}",
             ExampleGist: "create a new behaviour tree asset"),
+
+        [("GET", "/assets/recipes")] = new RouteDoc(
+            Tool:    "list_asset_recipes",
+            Group:   "W — AI-asset authoring",
+            Summary: "List the recipes and blank templates create_asset can build from, per asset kind.",
+            Returns: "{ kinds[], recipes[{ id, kind, name, description, category, isBlankTemplate, sourceFilePath }], note }",
+            Hint:    "Optional: kind (filter). Example: list_asset_recipes({kind:\"Blueprint\"})",
+            Params: new RouteParam[]
+            {
+                new("kind", "string", false, "Restrict to one AssetKind (BTree | Hsm | Blueprint)"),
+            },
+            Notes: new[]
+            {
+                "`name` is exactly what create_asset takes as its `recipe` argument.",
+                "`isBlankTemplate` separates a synthetic empty starting point (Empty, Starter) from a CONTENT recipe cloned from a real asset — the two are not interchangeable and the name alone does not tell you which it is.",
+                "The list is read live from each kind's INewAssetService, so recipes added to disk appear without restarting the host.",
+                "`description` is null for recipes that carry no RecipeMetadata — the synthetic Empty/Starter entries do not.",
+                "A host that composes no per-kind new-asset registry answers 503; the same registry backs create_asset, so if this is 503 then create is too.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "see what kinds of asset this host can create"),
 
         [("DELETE", "/entities/{networkId}")] = new RouteDoc(
             Tool:    "delete_entity",

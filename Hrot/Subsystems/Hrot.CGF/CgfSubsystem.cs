@@ -165,6 +165,51 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     internal Func<string, string>? AssetShellReload { get; private set; }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>MA-019</c> — CREATE, the last authoring verb CGF did not have.</b>
+    /// 📄 <c>Architect_Question_57_Cgf_Authoring_Packaging.md</c> Q57-A/Q57-C.
+    ///
+    /// <para>⭐⭐ <b>Published, not pushed — the same reference wall as the shell above:</b> <c>Hrot.CGF</c>
+    /// cannot see <c>DebugApiService</c>, so <c>ClusterRunner/Program.cs</c> — the one composition root
+    /// that sees both — hands this to <c>AttachAssetAuthoring</c>. ⛔ Not a second create implementation:
+    /// it is the SAME per-kind <see cref="Hrot.Editor.AiShared.Recipes.INewAssetService"/> contract the
+    /// editor's New-Asset dialog runs, composed at THIS host's root.</para>
+    ///
+    /// <para>⚠ <c>(kind, name, relPath, recipe)</c> → <c>(mintedId | null, status)</c>. ⛔ The id is
+    /// returned ONLY once the asset is in the catalog — the <c>MA-004</c> rule.</para>
+    /// </summary>
+    internal Func<string, string, string, string?, (Guid? AssetId, string Status)>? AssetShellCreate { get; private set; }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>MA-020</c> — the per-kind service registry itself</b>, published so the debug API can
+    /// project RECIPES from it through the shared <c>RecipePickerSource</c>.
+    /// ⛔ Deliberately the registry and not a pre-baked list: <c>AvailableRecipes()</c> re-reads disk on
+    /// every call, so a snapshot taken at composition time would go stale the moment a recipe is added.
+    /// </summary>
+    internal IReadOnlyDictionary<Hrot.Editor.AiShared.AssetKind,
+                                 Hrot.Editor.AiShared.Recipes.INewAssetService>? AssetShellNewAssetServices { get; private set; }
+
+    /// <summary>
+    /// ⭐ <b><c>MA-022</c></b> — the action-schema exporter, so MCP's <c>get_node_kind_schema</c> answers
+    /// with real DTO fields on CGF instead of <c>paramsSource: none:no-exporter-wired</c>.
+    /// ⚠ Constructed and <c>Rebuild()</c>-ed here for the same reason the editor does it *(the exporter is
+    /// otherwise empty until a catalog watcher fires, and CGF wires no watcher)*.
+    /// </summary>
+    internal Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? AssetShellSchemaExporter { get; private set; }
+
+    // ── MA-019: the host-composition facts CREATE needs, hoisted out of BuildAssetCatalog ──
+    // ⛔ Not conveniences: the editor's own create path shows a duplicate gets exactly these four wrong
+    //    (the Blueprint SOURCE root, the per-contributor Refresh, the assembly refresh, and only THEN
+    //    FindByAssetId). ⇒ CGF must hold the same handles to run the same lines.
+    private string? _bpRootDir;
+    private string? _btreeJsonRootDir;
+    private string? _hsmJsonRootDir;
+    private Hrot.BTree.Editor.Catalog.BTreeJsonAssetContributor? _btreeJsonContrib;
+    private Hrot.Hsm.Editor.Catalog.HsmJsonAssetContributor?     _hsmJsonContrib;
+
+    private Dictionary<Hrot.Editor.AiShared.AssetKind,
+                       Hrot.Editor.AiShared.Recipes.INewAssetService>? _newAssetServices;
+
+    /// <summary>
     /// ⭐ Make the named asset's open document the ACTIVE one. ⚠ A no-op when it is not open — the
     /// caller *(the API route)* has already refused that case with a typed hint, and duplicating the
     /// refusal here would give two answers to one question.
@@ -1381,10 +1426,111 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             return ReloadActiveAiDocument();
         };
 
+        WireAssetCreation(catalog);
+
         FdpLog<CgfSubsystem>.Info(
             "[CGF] AiShared shell built — {0} asset(s) indexed, perspectives now include [{1}].",
             catalog.All.Count,
             string.Join(", ", windowManager.GetPerspectives()));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>MA-019</c>/<c>MA-020</c>/<c>MA-022</c> — CREATE on CGF.</b>
+    /// 📄 <c>Architect_Question_57_Cgf_Authoring_Packaging.md</c> Q57-A *(construct the per-kind service
+    /// dict at THIS root)* and Q57-C *(create reuses the shipped <c>POST /assets</c>)*.
+    ///
+    /// <para>⭐⭐ <b>The whole of Q57 turned out to be wiring.</b> 📐 Measured: the seam
+    /// *(<c>INewAssetService</c>)*, recipe discovery *(<c>RecipePickerSource</c>)* and create-from-recipe
+    /// all already live in the SHARED <c>Hrot.Editor.AiShared</c>, and CGF already references the three
+    /// per-kind editor assemblies that implement them. ⛔ The only thing behind <c>Hrot.Editor</c> was the
+    /// <b>dictionary literal</b> — so no new registry, no new assembly, no new reference *(Q57-A1)*.</para>
+    ///
+    /// <para>⛔⛔ <b>Scenario is deliberately absent, and that is a measurement, not an omission.</b> 📐
+    /// <c>ScenarioNewAssetService</c> takes an <c>IEditorLogic</c> session adapter; CGF has no
+    /// <c>IEditorLogic</c>. ⇒ <c>POST /assets {"kind":"Scenario"}</c> answers with the composition
+    /// explanation rather than creating something this host cannot open — ⚠ the third-and-fourth kinds
+    /// differ per host, and saying so is the honest answer.</para>
+    /// </summary>
+    private void WireAssetCreation(Hrot.Editor.AiShared.Catalog.AssetCatalog catalog)
+    {
+        // ⭐ Q57-A1 — the dictionary the editor keeps behind Hrot.Editor, built from services CGF can
+        //   already see. ⚠ The JSON roots are passed for the same BUG-A6 reason the editor passes them:
+        //   CreateNew must write where THIS host's contributor scans, not into bin/.
+        _newAssetServices = new Dictionary<Hrot.Editor.AiShared.AssetKind,
+                                           Hrot.Editor.AiShared.Recipes.INewAssetService>
+        {
+            [Hrot.Editor.AiShared.AssetKind.Blueprint] = new Hrot.Blueprints.Editor.BlueprintNewAssetService(),
+            [Hrot.Editor.AiShared.AssetKind.BTree]     = new Hrot.BTree.Editor.BTreeNewAssetService(_btreeJsonRootDir),
+            [Hrot.Editor.AiShared.AssetKind.Hsm]       = new Hrot.Hsm.Editor.HsmNewAssetService(_hsmJsonRootDir),
+        };
+
+        AssetShellNewAssetServices = _newAssetServices;
+
+        // ⭐⭐ MA-022 — the schema exporter. ⚠ Rebuild() NOW: the exporter is constructed empty and is
+        //   otherwise only refreshed by ActionSchemaExporterCatalogWatcher, which this host does not wire.
+        //   ⛔ Attaching an un-rebuilt exporter would be worse than none — every kind would report an
+        //   EMPTY param list, which reads as "this kind has no params" rather than "nothing reflected".
+        var schemaExporter = new Hrot.Editor.AiShared.Blackboard.ActionSchemaExporter();
+        schemaExporter.Rebuild();
+        AssetShellSchemaExporter = schemaExporter;
+
+        AssetShellCreate = (kindText, name, relPath, recipeName) =>
+        {
+            if (!Enum.TryParse<Hrot.Editor.AiShared.AssetKind>(kindText, ignoreCase: true, out var kind))
+                return (null, $"[ERROR] '{kindText}' is not an AssetKind. Use BTree, Hsm or Blueprint.");
+
+            if (_newAssetServices == null || !_newAssetServices.TryGetValue(kind, out var service))
+                return (null, $"[ERROR] This host composes no INewAssetService for {kind}.");
+
+            // ⭐⭐ The recipe is resolved from the kind's OWN AvailableRecipes(), by name — the same list
+            //   GET /assets/recipes publishes. ⛔ An unmatched name is REFUSED with the available names
+            //   rather than silently falling back to the blank template: creating something other than
+            //   what was asked for is the silent-wrong-answer shape MA-004 and MA-017 both caught.
+            var (recipe, recipeError) =
+                Hrot.Editor.AiShared.Recipes.RecipeByName.Resolve(service, recipeName);
+            if (recipeError != null) return (null, recipeError);
+
+            var minted = service.CreateNew(recipe, name, relPath);
+
+            // ⭐ Blueprint is mint-only — the file is written here, at the SOURCE root the contributor
+            //   scans. BTree/HSM persist inside CreateNew.
+            if (kind == Hrot.Editor.AiShared.AssetKind.Blueprint
+             && minted is Hrot.Blueprints.Editor.Variables.BlueprintEditableAssetAdapter adapter)
+            {
+                var bpPath = Hrot.Editor.AiShared.AssetSavePath.Compose(
+                    Hrot.Editor.AiShared.AssetKind.Blueprint, relPath, name,
+                    assetRootOverride: _bpRootDir);
+                Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(adapter.Asset, bpPath);
+            }
+
+            // ⭐ Refresh the assembly contributors, then the JSON contributor for THIS kind — the editor's
+            //   BUG-A6 note: RefreshFromAssembly alone leaves a just-written .btree.json undiscovered.
+            var aiAsm = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
+            if (aiAsm != null) _aiCatalogBuilder?.RefreshFromAssembly(aiAsm);
+
+            if (kind == Hrot.Editor.AiShared.AssetKind.BTree && _btreeJsonRootDir != null)
+                _btreeJsonContrib?.Refresh(rootDirectory: _btreeJsonRootDir);
+            if (kind == Hrot.Editor.AiShared.AssetKind.Hsm && _hsmJsonRootDir != null)
+                _hsmJsonContrib?.Refresh(rootDirectory: _hsmJsonRootDir);
+
+            // ⚠⚠ The id is returned ONLY once the catalog can resolve it (MA-004). ⛔ Answering with the
+            //   minted id before that hands the caller an id GET /assets cannot find.
+            var catalogued = catalog.FindByAssetId(minted.AssetId);
+            if (catalogued == null)
+                return (null,
+                        $"[INFO] Created '{minted.Name}', but it is not in the catalog. The file was written "
+                      + "outside the directory this host's contributor scans, so nothing can address it — "
+                      + "check the asset roots (ruling 67: pass --asset-root on a deployed node).");
+
+            _aiDocumentManager?.Open(catalogued);
+            return (catalogued.AssetId, $"[OK] Created {kind}: '{minted.Name}'.");
+        };
+
+        FdpLog<CgfSubsystem>.Info(
+            "[CGF] Asset creation wired — kinds [{0}], {1} recipe(s) offered.",
+            string.Join(", ", _newAssetServices.Keys),
+            _newAssetServices.Values.Sum(s => s.AvailableRecipes().Count));
     }
 
     /// <summary>
@@ -1674,6 +1820,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         var btreeJsonRoot = RootFor(Hrot.Editor.AiShared.AssetKind.BTree);
         var hsmJsonRoot   = RootFor(Hrot.Editor.AiShared.AssetKind.Hsm);
+
+        // ⭐ MA-019 — keep the roots and the two JSON contributors reachable: CREATE has to write into the
+        //   SAME directory this catalog scans and then Refresh the SAME contributor, or the minted asset
+        //   exists on disk and cannot be addressed (the editor's BUG-A6, and ruling 67's own failure mode).
+        _bpRootDir        = bpRootDir;
+        _btreeJsonRootDir = btreeJsonRoot;
+        _hsmJsonRootDir   = hsmJsonRoot;
+        _btreeJsonContrib = btreeJsonContrib;
+        _hsmJsonContrib   = hsmJsonContrib;
 
         // ⚠ The null arms are gone: ruling 67's ResolveBase always answers a directory, so "is it there"
         //   is the only remaining question — and a missing root is still worth a warning, since with a
