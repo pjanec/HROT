@@ -2,16 +2,24 @@
 state: LIVE
 build-state: BUILT — `2026-08-25`, ids `MA-001`…`MA-010`. §10 IS THE AS-BUILT and wins over anything above
   it that disagrees. §5's classDiagram has been REDRAWN to the as-built; the dispatched version is in
-  §11 HISTORY. Carries classDiagram + sequenceDiagram (§5/§6). Part of the MCP design docs (sibling of
+  §13 HISTORY. Carries classDiagram + sequenceDiagram (§5/§6). Part of the MCP design docs (sibling of
   MCP_Integration.md).
 updated: 2026-08-25
-current-answer: §10 for what exists; §5/§6 for the shape; §1–§4 for the WHY, which the build did not change.
-known-rot: ⚠ §3's "closer analog to reuse: BlueprintClipboard" is WRONG and §10.1 supersedes it — measured,
+current-answer: ⭐ §12 for WHAT EXISTS (the as-built of the mutation batch, `MA-001`…`MA-010`);
+  §5/§6 for its shape; §1–§4 for the WHY, which the build did not change.
+  ⭐ §10 (the DISCOVERY surface) and §11 (COMPLETENESS — the whole GraphCommand union) are the NEXT
+  slices, written AFTER the mutation batch was dispatched. ⛔ They describe work NOT YET BUILT.
+known-rot: ⚠ §3's "closer analog to reuse: BlueprintClipboard" is WRONG and §12.1 supersedes it — measured,
   the clipboard round-trips Blueprint ASSET nodes and carries no PinId at all. The RULE §3 states (two id
   spaces; expose the in-memory ids) is CORRECT and load-bearing; only the named analog was wrong.
   ⚠ §7's item list is missing the node-kind CATALOG route, which building the edit routes proved necessary
-  (§10.2). ⚠ §7 ④ said "extend /entities/* for the gaps (place/configure/assign)"; measured, those three
-  already had routes and DELETE was the only gap (§10.5).
+  (§12.2). ⚠ §7 ④ said "extend /entities/* for the gaps (place/configure/assign)"; measured, those three
+  already had routes and DELETE was the only gap (§12.5).
+known-conflict: 🔴🔴 §11 (added AFTER dispatch `8cf450cec`) says "the edit surface is the WHOLE GraphCommand
+  union via ONE generic route — build §11's shape, not §7's". §12 IS §7's shape: 4 typed verbs, built and
+  shipped before §11 existed. ⛔ NOT adapted — scope was frozen at the dispatch sha; reported instead
+  (REPORT_Mcp_Authoring.md §8). ⚠ §10.2 ①'s proposed `GET /assets/{id}/nodetypes` is the SAME capability
+  as the SHIPPED `GET /assets/{id}/graph/catalog` (§12.2, MA-004) — building both is ruling 9's duplicate.
 design-basis: Architect_Question_56_Mcp_Authoring_Surface.md (the decision trail — Q56-A..F resolved with
   the user; this doc is its graduation to a buildable design) · CE-009 (open + read/switch — the
   precondition) · CE-011 (save + QuickReload — the runtime effect) · AQ10 (deterministic pin/link ids on
@@ -56,7 +64,7 @@ reference)*, NOT the on-disk deterministic ones. ⇒ ⭐⭐ **reuse the JSON FOR
 links · params — the shape)* but ⛔ **not the save transform**.
 
 > ⛔⛔ **SUPERSEDED — do not quote the next sentence as current.** ~~*Closer analog to reuse:
-> `BlueprintClipboard`.*~~ 📐 **Measured `2026-08-25` (§10.1): the clipboard round-trips Blueprint ASSET
+> `BlueprintClipboard`.*~~ 📐 **Measured `2026-08-25` (§12.1): the clipboard round-trips Blueprint ASSET
 > nodes and carries no `PinId` at all**, so it cannot express this id space. ⭐ **The built answer is
 > `InMemoryGraphSerializer`, projecting `IGraphModel`** — host-agnostic, and exposing exactly the ids the
 > commands take. ⚠ **The RULE above this box is unchanged and load-bearing.**
@@ -64,7 +72,7 @@ links · params — the shape)* but ⛔ **not the save transform**.
 | the rule | |
 |---|---|
 | ⭐⭐⭐ **read and edit share ONE id space — the IN-MEMORY guids** | ⛔ never return the on-disk deterministic ids to the agent, or its edit-by-guid targets nothing |
-| ⭐ **the read is an in-memory-faithful serialization** *(pins present, in-memory guids)* | ⚠ NOT `SaveActiveBlueprintCommand`'s output. ⭐ **As built: `InMemoryGraphSerializer` over `IGraphModel`** *(§10.1)* — ⛔ not clipboard-style |
+| ⭐ **the read is an in-memory-faithful serialization** *(pins present, in-memory guids)* | ⚠ NOT `SaveActiveBlueprintCommand`'s output. ⭐ **As built: `InMemoryGraphSerializer` over `IGraphModel`** *(§12.1)* — ⛔ not clipboard-style |
 | ⭐ the on-disk deterministic ids stay a **persistence** concern | AQ10 owns them; MCP authoring never sees them |
 
 ## 4. ⭐ DETERMINISM — **not an authoring problem** *(Q56-D, resolved)*
@@ -72,7 +80,7 @@ links · params — the shape)* but ⛔ **not the save transform**.
 **edits by** them, and the server **returns** any new guid *(add-node)*. For TESTS the harness already
 normalizes ids *(conformance ignores `panelId`; goldens treat ids as storage keys)*.
 
-## 5. ⭐⭐⭐ CLASS DIAGRAM — **AS BUILT** *(`2026-08-25`; the dispatched version is §11 HISTORY)*
+## 5. ⭐⭐⭐ CLASS DIAGRAM — **AS BUILT** *(`2026-08-25`; the dispatched version is §13 HISTORY)*
 
 > ⭐⭐ **Three names changed and one box was added.** The seam is **`IGraphCommandSink`**, not `ICommandSink`;
 > the apply goes through **`GraphView.Execute`** *(the undo stack)*, not the sink directly; the serializer
@@ -144,8 +152,8 @@ classDiagram
 ## 6. ⭐⭐⭐ SEQUENCE DIAGRAM *(AI-asset authoring)* — **AS BUILT**
 
 > ⭐⭐ **Two steps the dispatched sequence did not have, both forced by measurement:** the **catalog**
-> read *(the agent cannot invent a node-kind id — §10.2)*, and the **model re-read after AddNode**
-> *(the sink can answer success and build nothing — §10.2)*.
+> read *(the agent cannot invent a node-kind id — §12.2)*, and the **model re-read after AddNode**
+> *(the sink can answer success and build nothing — §12.2)*.
 
 ```mermaid
 sequenceDiagram
@@ -197,7 +205,254 @@ sequenceDiagram
 ## 9. GATES
 rule 8 + build/test rules. **Row 8 rails:** a conformance/rail that **round-trips** — read graph → add a node+link over MCP → the read now shows them → save+reload → the running brain reflects it; the add-node returns a resolvable guid; a create-asset appears in `GET /assets`; scenario authoring places an entity that `scenario/save` then snapshots. ⛔ `gen:catalog`/`gen:skill`/`test-catalog` green for every new route+handler; conformance suite as the integration gate.
 
-## 10. ⭐⭐⭐ AS BUILT — `2026-08-25`, ids `MA-001`…`MA-010` *(obligation ⑤)*
+## 10. ⭐⭐⭐ THE DISCOVERY SURFACE *(user, `2026-08-25`)* — **"what the user can SEE and change, the MCP can too"**
+> 🎯 **User:** *"the MCP needs to add nodes to graphs, read/set their properties (shown in the detail panel),
+> list all available nodes, and for a given node know its properties schema — all auto-discovered from
+> various registries."* ⭐ **This is a READ companion to surface ① (mutation).** The add-node/set-param half
+> is §7②; ⛔ what was missing is the **DISCOVERY** — the agent can't add a node without knowing *which kinds
+> exist* and *what params a kind takes.* ⭐⭐ **The parity rule:** the palette + Details panel already read
+> these registries; MCP reads the SAME ones. ⛔ Nothing is hand-authored — R-133's discipline *(the manifest
+> is MEASURED from the routes)* applied to node kinds + schema.
+
+### 10.1 ⭐⭐ INVENTORY — the registries, measured `2026-08-25` *(NOT one registry — several)*
+| ✅ the registry | where | what it yields | the user's phrase it answers |
+|---|---|---|---|
+| ⭐⭐⭐ **`INodeCatalog.All`** *(→ `NodeCatalogEntry`)* | `NodeEditor.Core/Interfaces/INodeCatalog.cs` *(in-deg 63)*; populated per host by `BlueprintNodeCatalog` · `BTreeNodeCatalog` · `HsmNodeCatalog` | **every node KIND** with `DisplayName`, `Description`, `CategoryPath`, `Keywords`, flags *(`IsPure`/`IsLatent`/`IsDeprecated`)*, and ⭐ **`Inputs`/`Outputs` (`PinSignature`)** | ⭐ *"list all available nodes"* **and** the pin half of *"its properties schema"* |
+| ⭐⭐ **`IActionSchemaExporter`** *(→ `ActionSchemaEntry.DtoFields`)* | `Hrot.Editor.AiShared/Blackboard/IActionSchemaExporter.cs` | for an **action/condition** kind: the reflected **editable DTO fields** `DtoFieldDescriptor(Name, Type)` + `Access` *(ReadOnly/ReadWrite)* + `Hosting` | ⭐ the **param half** of *"its properties schema"* — the fields the Details/Variables panel shows |
+| ⚠ node **param model / drawer** *(`NodeDrawers/*`, `Inspector/DrawerRegistry`)* | `Hrot.Blueprints.Editor` | for **structural** kinds *(non-action)*: the editable config fields the inspector draws | the param half for non-action nodes |
+| ⛔ `DetailsViewRegistry.OfferSet` *(which PANEL to draw)* | `Hrot.Editor.AiShared/Shell` | **NOT exposed** — it selects a UI *view*, not data | — *(scope line: MCP returns the property DATA, not the panel chrome)* |
+
+⇒ ⭐⭐⭐ **"various registries" is literal:** kinds+pins from `INodeCatalog`, editable params from `IActionSchemaExporter` *(action nodes)* or the drawer *(structural nodes)*. ⭐ **The catalog is PER OPEN DOCUMENT** *(the host's palette)* — so discovery keys off the **same open-document handle the §7 mutation routes already require**; ⚠ the impl confirms the open `AiDocument`/host exposes its `INodeCatalog` *(thread it from the catalog builder if not)*.
+
+### 10.2 ⭐ THE ROUTES *(read-only; mutation is §7)*
+| # | route | reads | returns |
+|---|---|---|---|
+| ⭐ **①** | **`GET /assets/{id}/nodetypes`** | the open document's `INodeCatalog.All` | every kind: `kind`, `displayName`, `description`, `categoryPath`, flags, `inputs`/`outputs` *(name·direction·type)* — ⭐ **the palette the user sees** |
+| ⭐ **②** | **`GET /assets/{id}/nodetypes/{kind}/schema`** | the catalog entry *(pins)* **+** `IActionSchemaExporter.Lookup(fqn)` *(DTO fields)* or the drawer *(structural params)* | `pins` + `params` *(name·type·enum-values if enum·readOnly)* — ⭐ **the properties schema for one kind** |
+| ⭐ **③** | **`GET /assets/{id}/graph/nodes/{nodeGuid}/properties`** | §7①'s graph read *(current param VALUES by guid)* **joined** with ②'s schema | the node's current properties **as the Details panel shows them** *(schema + value)* — ⭐ the *read* half of *"read/set properties shown in the detail panel"* |
+
+⭐⭐ **The SET half is already §7② `POST /assets/{id}/graph/params`** *(`SetNodeProperty` via the command sink)* — discovery adds the SCHEMA + the node-scoped read that makes that set target the right field with the right type. ⇒ **the full loop:** `list kinds → read a kind's schema → add a node of that kind → read its properties → set a param → save+reload.`
+
+### 10.3 ⭐⭐⭐ DISCOVERY CLASS DIAGRAM
+```mermaid
+classDiagram
+    direction LR
+    class DebugApiDiscovery {
+        <<NEW · DebugApiService.Authoring.cs · read-only routes>>
+        +ListNodeTypes(assetId)
+        +GetNodeTypeSchema(assetId, kind)
+        +GetNodeProperties(assetId, nodeGuid)
+    }
+    class INodeCatalog {
+        <<exists · NodeEditor.Core · the palette source, per host>>
+        +All IReadOnlyList~NodeCatalogEntry~
+        +Query(NodeSearchQuery)
+    }
+    class NodeCatalogEntry {
+        <<exists · kind + pins + flags>>
+        +Kind NodeKindKey
+        +DisplayName string
+        +Inputs IReadOnlyList~PinSignature~
+        +Outputs IReadOnlyList~PinSignature~
+    }
+    class IActionSchemaExporter {
+        <<exists · reflected editable DTO fields for action/condition kinds>>
+        +Lookup(fqn) ActionSchemaEntry
+    }
+    class ActionSchemaEntry {
+        <<exists · DtoFields = the editable params>>
+        +DtoFields IReadOnlyList~DtoFieldDescriptor~
+        +Access BlackboardAccess
+    }
+    class AiDocumentManager {
+        <<exists · CE-009 · the open document holds its INodeCatalog>>
+    }
+    DebugApiDiscovery ..> AiDocumentManager : the open document (same handle as §7)
+    DebugApiDiscovery ..> INodeCatalog : ListNodeTypes reads All
+    INodeCatalog ..> NodeCatalogEntry : yields
+    DebugApiDiscovery ..> IActionSchemaExporter : GetNodeTypeSchema (param half)
+    IActionSchemaExporter ..> ActionSchemaEntry : yields
+    note for DebugApiDiscovery "MEASURED from the registries, never hand-authored (R-133). DetailsViewRegistry (which PANEL) is NOT exposed — MCP returns the property DATA, not the view."
+```
+
+### 10.4 ⭐⭐⭐ DISCOVERY SEQUENCE DIAGRAM *(the full authoring loop discovery unlocks)*
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as AI agent (MCP)
+    participant Api as DebugApiDiscovery / Authoring
+    participant Cat as INodeCatalog (open doc)
+    participant Sx as IActionSchemaExporter
+    participant Sink as ICommandSink
+
+    A->>Api: GET /assets/{id}/nodetypes
+    Api->>Cat: All
+    Cat-->>A: kinds + pins + categories (the palette)
+    A->>Api: GET /assets/{id}/nodetypes/{kind}/schema
+    Api->>Cat: entry(kind) for pins
+    Api->>Sx: Lookup(fqn) for editable DTO fields
+    Sx-->>A: pins + params (name, type, enum, readOnly)
+    A->>Api: POST /assets/{id}/graph/nodes with kind
+    Api->>Sink: Apply AddNode
+    Api-->>A: the new node guid
+    A->>Api: GET /assets/{id}/graph/nodes/{guid}/properties
+    Api-->>A: schema + current values (as the Details panel shows)
+    A->>Api: POST /assets/{id}/graph/params (set one, §7②)
+    Api->>Sink: Apply SetNodeProperty
+    Note over A,Sink: then save+reload (§6) — the running brain reflects the authored node
+```
+
+### 10.5 ⭐ ITEMS & GATES *(the follow-up slice)*
+| # | task | the one thing not to get wrong |
+|---|---|---|
+| ⭐ **①** | the three read routes *(10.2)* off the open document's `INodeCatalog` + `IActionSchemaExporter` | ⛔ **read the registries — never a hand-authored kind/param list** *(R-133; a hard-coded list rots the moment a node kind is added)* |
+| ⭐ **②** | each route: a `RouteDoc` + a handler in `src/index.mjs`; `gen:catalog`/`gen:skill`/`test-catalog` green | 📌 CE-009 §4c — advertised-but-unreachable tools |
+| ⭐ **③** | **schema-coverage rail:** for **every** kind in `INodeCatalog.All`, `GET .../{kind}/schema` returns without error | ⭐⭐ **this is the auto-discovery proof** — it fails the moment a registry adds a kind the route can't describe, which is exactly what "measured, not authored" must guarantee |
+| ⚠ **④** | ⚠ **sequenced AFTER the mutation batch (§8)** — shares `DebugApiService.Authoring.cs` + the generated catalog; ⛔ not concurrent | branch from a base that includes the merged mutation slice |
+
+### 10.6 ⭐⭐⭐ USAGE DOCS — **harvested from descriptive attributes, NOT hand-authored** *(user, `2026-08-25`)*
+> 🎯 **User:** *"discovery must provide schemas AND enough docs on how to use — gathered from code via
+> descriptive attributes, as elsewhere."* ⭐⭐ **"as elsewhere" = the `RouteDoc` pattern** *(`RouteDoc.cs`:
+> `Summary`·`Returns`·`Hint`·`Params[]`·`Notes[]`·`ExampleArgsJson` — a colocated descriptor harvested at
+> runtime; SKILL.md is GENERATED from it, R-133/HN-030)*. ⇒ ⭐⭐⭐ **discovery returns the same doc SHAPE for
+> node kinds + params, harvested — never a second hand-written catalog.**
+
+**The harvest sources, measured `2026-08-25`:**
+| doc need | ✅ harvest source | kind |
+|---|---|---|
+| kind display name · description · keywords · category | `NodeCatalogEntry` *(already populated per host)* | structural, ✅ auto |
+| ⭐ **which hosts a primitive is valid in** *(BTree action/condition · HSM action/guard · Blueprint call)* | **`GeneratedAiPrimitiveActionAttribute`** flags | structural, ✅ auto |
+| action binding *(DTO type + field)* | `SharedAiActionAttribute(DtoType, FieldName)` + `ActionSchemaEntry` | structural, ✅ auto |
+| ⭐ **param display name · range · unit · read-only · buffer shape** | **StructEdit `Edit*Attribute` family** *(`EditDisplayName`·`EditRange`·`EditUnit`·`EditReadOnly`·`InlineArrayHint`·`FixedBufferHint`)* — the SAME the Details editor reads | structural, ✅ auto |
+| pin name + type + tooltip | `PinSignature` + the pin-tooltip builder | structural, ✅ auto |
+| the discovery ROUTES themselves | **`RouteDoc`** *(self-documenting, like every DebugApi route)* | ✅ auto |
+
+⚠🔴 **THE ONE GAP — free-text "how to use" prose.** ⛔ The attributes above carry **structural** doc; a
+free-text *description/how-to* is NOT in any attribute today — it lives in **XML `/// <summary>` comments.**
+⇒ ⭐ **Recommended lean:** harvest the XML `<summary>` *(ship the doc-XML or extract it)* for the prose half,
+and for kinds/params that lack one add a small **`[Doc("…")]` attribute to the StructEdit family** *(additive,
+one line, exactly the `RouteDoc.Summary` idea at field granularity)*. ⛔ **Do NOT hand-author a parallel doc
+table** — that is the rot `RouteDoc` was built to avoid.
+
+⇒ ⭐⭐ **DOC-COVERAGE RAIL** *(extends 10.5③, mirrors `test-catalog`/`gen:catalog`)*: **every** node kind in
+`INodeCatalog.All` and **every** editable param resolves a non-empty **schema + doc** *(structural always;
+prose from `<summary>`/`[Doc]`)* — the rail REDS on a kind/param that discovery cannot describe **or** document.
+⭐ **That is the machine proof of "enough docs, measured not authored."**
+
+## 11. 🔴🔴🔴 COMPLETENESS — **the WHOLE command union, and the host specifics** *(user, `2026-08-25`; measured)*
+> 🎯 **User:** *"the goal is to make the graphs and AI assets editable AND monitorable by an AI agent so we
+> can automatically test all the authoring features — and there's not just blueprints but BTree and HSM
+> graphs, and they have specifics: regions, decorators, etc."* ⛔⛔ **This exposes a real gap in §7:** §7②
+> named only `nodes/links/params/remove` — **4 of a ~35-variant union.** ⭐⭐⭐ **That subset cannot express a
+> BTree decorator or an HSM region** — exactly the host specifics called out.
+
+### 11.1 ⭐⭐⭐ THE FINDING — editing is ONE closed union through ONE seam *(measured `2026-08-25`)*
+📐 `GraphCommand` *(`NodeEditor.Core/Commands/GraphCommand.cs`, in-deg 126)* is an **abstract record with ~35
+`sealed record` variants**, applied through the **single** seam `IGraphCommandSink.Apply(GraphCommand)` —
+implemented by **all three** sinks: `BlueprintCommandSink` *(1466 ln)* · `BTreeCommandSink` *(641 ln)* ·
+`HsmCommandSink` *(443 ln)*. ⇒ ⭐⭐ **the edit vocabulary is host-NEUTRAL and complete already;** each sink
+interprets the same commands for its host. The full union, grouped:
+
+| group | variants | ⭐ the host it matters most for |
+|---|---|---|
+| **nodes** | `AddNode` · `RemoveNodes` · `MoveNodes` · `SetNodeProperty` · `SetNode{Collapsed,AdvancedShown,Disabled}` | all |
+| **links / pins** | `AddLink` · `RemoveLinks` · `ReplaceLinkEndpoint` · `SetPinDefault` | ⭐ Blueprint *(exec vs data pins)* · HSM *(a transition IS a link + guard/event props)* |
+| ⭐⭐ **attachments** | `AddAttachment` · `RemoveAttachments` · `SetAttachmentProperty` · `ReorderAttachments` · `MoveAttachment` | ⭐⭐⭐ **BTree DECORATORS / condition pills** *(`BTreePillAttachmentModel`)* · `HsmAttachment` |
+| ⭐⭐ **containers / regions** | `AddRegion` · `RemoveRegion` · `ReorderRegions` · `SetRegionProperty` · `ChangeParent` · `ChangeParentMultiple` · `SetContainerCollapsed` | ⭐⭐⭐ **HSM parallel REGIONS** *(`RegionNode`/`RegionDescriptor`)* · BTree tree reparenting |
+| **comments / reroutes** | `AddComment` · `UpdateComment` · `RemoveComment` · `InsertReroute` · `MoveReroute` · `RemoveReroute` | all *(cosmetic)* |
+| **refactor** | `PromoteToVariable` · `CollapseToFunction` · `CollapseToMacro` · `CollapseToComment` · `ExpandNode` | Blueprint |
+| **atomic** | `Batch(label, commands[])` | all |
+
+### 11.2 ⭐⭐⭐ THE DECISION — **expose the union, don't curate verbs** *(recommended lean)*
+⛔⛔ **A hand-picked verb list WILL lag the union** — 📌 it already did *(this section is that miss)*. ⭐⭐ Since
+every sink is `Apply(GraphCommand)` and the union is **closed + discriminated + host-neutral**, the backbone is
+**one generic route**:
+
+| route | shape |
+|---|---|
+| ⭐⭐⭐ **`POST /assets/{id}/graph/command`** | body = **one serialized `GraphCommand`** *(a `type` tag + the variant's fields; ids/enums as strings)* → deserialize → `Apply` → return the `GraphCommandResult` + any new ids. ⭐ **`Batch` gives atomic multi-step for free** |
+| ⭐ sugar *(optional)* — `.../nodes`, `.../links`, `.../params` | thin helpers that BUILD the union command; ⛔ never a parallel model — they call the same route |
+
+⇒ ⭐⭐⭐ **This is the parity guarantee:** the MCP edit surface IS the human edit surface, because it dispatches
+the same union to the same sink — decorators, regions, transitions, reparenting, refactors, all three hosts,
+**zero per-host MCP code.** ⚠ **Tiering for the rail:** *semantic* variants *(AddNode/AddLink/AddAttachment/
+AddRegion/SetNodeProperty/SetPinDefault/reparent/refactor)* must round-trip **and** survive save→reload;
+*cosmetic* variants *(collapsed/advanced/move/reroute/comment-color)* must round-trip in the read but need not
+change the running brain.
+
+### 11.3 ⭐⭐ THE READ + DISCOVER MUST MATCH THE UNION — else the round-trip can't verify the host specifics
+| surface | §-was | ⛔ the gap | ✅ the fix |
+|---|---|---|---|
+| **read** *(§7①)* | "nodes/pins/links/params" | ⛔ omits attachments · regions/containers · comments/reroutes · **HSM transition guard/event on links** | ⭐ the in-memory serializer emits the **full** structure — so a decorator/region edit is READ-BACKABLE *(the round-trip proof)* |
+| **discover** *(§10)* | kinds + pins + params | ⛔ omits **which kinds are region CONTAINERS** *(`IContainerNodeModel`)* · **which accept ATTACHMENTS and of what `AttachmentCategory`** · **pin KIND** *(exec vs data, single vs collection)* | ⭐ discovery reports host-structure capability, not just kinds — so the agent knows a state is parallel-capable / a BTree node takes a decorator |
+
+### 11.4 ⭐⭐ MONITORABLE — **runtime read-back, so an authoring test can assert the EFFECT** *(the user's "auto-test")*
+⭐ Structural read-back *(11.3)* proves *"the edit landed in the model."* **Monitoring** proves *"the running brain
+changed."* Name the runtime surfaces per host and confirm each is MCP-readable per graph *(mostly EXISTS —
+CE-001..024 + slice-4)*:
+
+| host | the live signal to expose | source |
+|---|---|---|
+| all | node runtime status *(active/ticking/last-result)* · breakpoint + pause state | the debug session + slice-4 |
+| ⭐ **HSM** | **active states per region · `HsmTransitionFired` · `HsmRegionConflict`** | `Hsm.Editor/Debug/HsmDebugTypes` |
+| ⭐ **BTree** | **per-node tick status overlay** | `BTreeHostServices` runtime overlay |
+| all | blackboard / watch VALUES · validation results | the watch *(BP-508..512)* · `IAssetValidator` |
+
+⇒ ⭐⭐ **The auto-test loop the user wants:** discover kinds+structure → author via the union → **read back the
+structure** *(landed?)* → save+reload → **read the runtime signal** *(took effect?)* → assert. ⛔ Any host specific
+missing from read/discover/monitor is a hole the authoring test cannot cover — 11.1–11.4 close them for all three.
+
+### 11.5 ⭐⭐⭐ COMPLETENESS CLASS DIAGRAM
+```mermaid
+classDiagram
+    direction LR
+    class GraphCommand {
+        <<exists · abstract record · ~35 sealed-record variants · host-neutral>>
+    }
+    class AddNode { <<node>> }
+    class AddLink { <<link · exec/data/transition>> }
+    class AddAttachment { <<BTree decorator / pill>> }
+    class AddRegion { <<HSM parallel region>> }
+    class ChangeParentMultiple { <<tree reparent>> }
+    class Batch { <<atomic multi-step>> }
+    class IGraphCommandSink {
+        <<exists · the ONE seam>>
+        +Apply(GraphCommand) GraphCommandResult
+    }
+    class BlueprintCommandSink { <<exists · 1466 ln>> }
+    class BTreeCommandSink { <<exists · 641 ln>> }
+    class HsmCommandSink { <<exists · 443 ln>> }
+    class DebugApiAuthoring {
+        <<NEW · POST assets graph command>>
+        +ApplyCommand(assetId, json) result
+    }
+    GraphCommand <|-- AddNode
+    GraphCommand <|-- AddLink
+    GraphCommand <|-- AddAttachment
+    GraphCommand <|-- AddRegion
+    GraphCommand <|-- ChangeParentMultiple
+    GraphCommand <|-- Batch
+    IGraphCommandSink <|.. BlueprintCommandSink
+    IGraphCommandSink <|.. BTreeCommandSink
+    IGraphCommandSink <|.. HsmCommandSink
+    DebugApiAuthoring ..> GraphCommand : deserialize any variant
+    DebugApiAuthoring ..> IGraphCommandSink : Apply (host resolved by open doc)
+    note for DebugApiAuthoring "One route carries the whole union to the host's sink — decorators, regions, transitions, reparenting, all three hosts, zero per-host MCP code. A coverage rail asserts every variant round-trips."
+```
+
+⇒ ⭐ **§7② is superseded by §11.2** *(generic union route + sugar)*; §7① and §10 are extended by §11.3; the
+runtime surfaces are §11.4. ⛔ **The implementing session builds §11's shape, not §7's 4-verb sketch** — §7
+stays as the narrative; §11 is the completeness contract.
+
+---
+
+> ⛔⛔ **§12 and §13 below are the AS-BUILT of the MUTATION batch (`MA-001`…`MA-010`, dispatch
+> `8cf450cec`).** ⭐ §10 and §11 above were written **after** that dispatch and describe **NOT-YET-BUILT**
+> follow-up slices. ⚠ Where they disagree — notably §11's *"one generic union route, not §7's 4 verbs"* —
+> **§12 records what SHIPPED and §11 records what is NEXT.** 📄 The reconciliation is
+> [`REPORT_Mcp_Authoring.md`](blueprints/batches/REPORT_Mcp_Authoring.md) §8.
+
+## 12. ⭐⭐⭐ AS BUILT — `2026-08-25`, ids `MA-001`…`MA-010` *(obligation ⑤)*
 
 > ⭐⭐ **This section wins over anything above it that disagrees.** The `STATUS` block's `known-rot` lists
 > the three places the dispatched text is now wrong; each is corrected below in its own words.
@@ -207,7 +462,7 @@ rule 8 + build/test rules. **Row 8 rails:** a conformance/rail that **round-trip
 | route | tool | what it does |
 |---|---|---|
 | `GET /assets/{id}/graph` | `read_asset_graph` | the in-memory-faithful projection — **the first call of any session** |
-| `GET /assets/{id}/graph/catalog` | `list_node_kinds` | ⚠ **NOT in §7** — see §10.2 |
+| `GET /assets/{id}/graph/catalog` | `list_node_kinds` | ⚠ **NOT in §7** — see §12.2 |
 | `POST /assets/{id}/graph/nodes` | `add_graph_node` | returns the new guid **and its pins** |
 | `POST /assets/{id}/graph/links` | `add_graph_link` | validator first, then the sink |
 | `POST /assets/{id}/graph/params` | `set_graph_param` | an input DATA pin's default |
@@ -304,9 +559,9 @@ an `MA-` one.
 
 ---
 
-## 11. ⛔ HISTORY — the dispatched class diagram *(SUPERSEDED by §5)*
+## 13. ⛔ HISTORY — the dispatched class diagram *(SUPERSEDED by §5)*
 
-> ⚠ Kept because the handoff cites it. ⛔ **Do not quote it as current** — §10.1/§10.3 say what changed.
+> ⚠ Kept because the handoff cites it. ⛔ **Do not quote it as current** — §12.1/§12.3 say what changed.
 
 ```mermaid
 classDiagram
@@ -336,6 +591,5 @@ classDiagram
     DebugApiAuthoring ..> ICommandSink : Apply
 ```
 
-## 12. ⭐ WHEN DONE
-Fold the as-built here *(§10 — done)*; state the ids *(its own lane/prefix — `MA-`, tracker **Area M**)*;
-the report points here. ⭐ **`AQ56` is BUILT.**
+## 14. ⭐ WHEN DONE
+Fold the as-built here; state the ids *(its own lane/prefix)*; the report points here. Mark `AQ56` BUILT. ⭐ The discovery slice *(§10)* folds its as-built into §10 and flips the parity claim *("what the user sees, MCP reads")* from designed to built. ⭐⭐ **The completeness rail *(§11)* — every semantic `GraphCommand` variant round-trips across all three hosts — is the machine proof that "editable = whatever the human can do."**

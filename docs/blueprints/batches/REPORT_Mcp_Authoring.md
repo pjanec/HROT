@@ -3,15 +3,18 @@ state: LIVE
 doc-type: batch report (ephemeral — the durable record is the DESIGN)
 updated: 2026-08-25
 current-answer: the whole file. ⛔ No design content: the as-built lives in
-  docs/DESIGN_Mcp_Authoring.md §10 (obligation ⑤); this report POINTS there.
+  docs/DESIGN_Mcp_Authoring.md §12 (obligation ⑤); this report POINTS there.
+  ⚠ §8 reconciles a post-dispatch design change that SUPERSEDES what this batch built.
 -->
 # REPORT — **the MCP authoring surface** *(AQ56 — AI-asset editing + scenario authoring)*
 
 > 📌 **Dispatch `8cf450cec`** · started-marker `393612b60` · **ids `MA-001`…`MA-010`** *(rule 5; new tracker
 > **Area M**)*.
 > 📄 **The design is the record:** [`DESIGN_Mcp_Authoring.md`](../../DESIGN_Mcp_Authoring.md) —
-> **§10 is new and is the AS-BUILT**; §5/§6's diagrams are REDRAWN; the dispatched class diagram is §11
+> **§12 is new and is the AS-BUILT**; §5/§6's diagrams are REDRAWN; the dispatched class diagram is §13
 > HISTORY. `AQ56` is marked **BUILT**.
+> ⚠⚠ **The design gained §10/§11 AFTER this batch was dispatched, and §11 supersedes the shape §7 asked
+> for. Nothing was adapted — see §8.**
 
 ## 1. ⭐⭐⭐ THE RESULT
 
@@ -43,7 +46,7 @@ them.**
 ## 3. ⭐ OBLIGATION ③ — the diagrams vs what was built
 
 > §5 carried **9 classes**, §6 **1 sequence**. ⭐ **The direction of every dependency was right.**
-> ⚠ **Four deviations, each argued and each folded into the design** *(obligation ⑤ — §10.1–§10.5, and
+> ⚠ **Four deviations, each argued and each folded into the design** *(obligation ⑤ — §12.1–§12.5, and
 > §5/§6 are REDRAWN so the diagram is TRUE again rather than merely annotated)*.
 
 | # | the design said | measured | what shipped |
@@ -55,7 +58,7 @@ them.**
 
 ⚠ **And one item's premise was already true:** §7 ④ asked to extend `/entities/*` for *place / configure /
 assign*; 📐 all three already had routes *(`spawn` · `attribute`+`component` · `attach-blueprint`)* and
-**delete had none** ⇒ `DELETE /entities/{networkId}` is the whole of item ④ *(§10.5)*.
+**delete had none** ⇒ `DELETE /entities/{networkId}` is the whole of item ④ *(§12.5)*.
 
 ## 4. ⭐⭐ THE RAILS, AND THE PROBE THAT CAUGHT MY OWN RAIL
 
@@ -137,9 +140,33 @@ assets differ in shape from what the editor writes)*.
 
 | | |
 |---|---|
-| ⛔ **`create_asset` on CGF** | 📐 the path needs the per-kind `INewAssetService` registry, the Blueprint source-root override *(`BUG-A6`)* and the per-contributor `Refresh`; **CGF composes none**. ⇒ it answers **503** saying so, and pointing out that EDITING an existing asset needs none of it. ⚠ Declared in design §10.7 — ⭐ closing it is a `CE-` item, not an `MA-` one |
+| ⛔ **`create_asset` on CGF** | 📐 the path needs the per-kind `INewAssetService` registry, the Blueprint source-root override *(`BUG-A6`)* and the per-contributor `Refresh`; **CGF composes none**. ⇒ it answers **503** saying so, and pointing out that EDITING an existing asset needs none of it. ⚠ Declared in design §12.7 — ⭐ closing it is a `CE-` item, not an `MA-` one |
 | ⛔ **the `IAssetValidator` set** *(design item ⑤'s other half)* | those validate a WHOLE asset at save/authoring-window time; this surface validates a single edit, where `ILinkValidator` is the right level. ⚠ Stated, not silently skipped |
 | ⛔ **node PROPERTIES as a free-form key/value edit** | `CommandBuilder` has no `SetNodeProperty` and `INodeModel` no property bag ⇒ **no inverse could be built**, so it would be the one un-undoable edit in the set. ⭐ Pin defaults cover the authoring case that matters |
 | ⛔ **changing `DELETE /entities/{id}`'s capability class** | it classifies `WorldRead` like every other `/entities/*` WRITE *(`spawn`, `command`, `attribute`)*. ⚠ Special-casing delete would make the table inconsistent — flagged for whoever revisits write-capability granularity |
 | ⛔ **`DebugApiService.Assets.cs`** | ⭐⭐ **the collision boundary HELD from this side**: the 8 routes went in a NEW `DebugApiService.Authoring.cs`, which CALLS `Assets.cs`'s private `ResolveOpenDocument` *(one partial class)* and re-implements none of it. ⛔ Not one line of that file changed |
 | ⛔ **`Hrot.Editor.AiShared`** | untouched, additively or otherwise — 2016 / 0 unchanged proves it |
+
+## 8. ⚠⚠ RULE 4 — **the design CHANGED under this batch, and one change SUPERSEDES what it built**
+
+📐 **Re-fetched `claude/blueprint-authoring-status-6sr5ld` before the final commit** *(rule 4)*: **6 new
+commits**, three of them editing **`DESIGN_Mcp_Authoring.md` — the very file this batch builds from —
+by +252 lines, AFTER the dispatch sha `8cf450cec`.**
+
+> ⛔⛔ **Scope is FROZEN at the dispatch sha, and the rule for a later document that invalidates an item is
+> *"STOP and REPORT IT. ⛔ Do NOT adapt, do NOT revert."*** ⇒ ⭐ **nothing was rebuilt.** This section is
+> the report.
+
+| the post-dispatch change | verdict for THIS batch |
+|---|---|
+| 🔴🔴 **§11 COMPLETENESS**: *"SUPERSEDES §7②'s 4-verb sketch — the edit surface is the WHOLE `GraphCommand` union *(~35 variants incl. BTree decorators + HSM regions)* via ONE generic route. ⛔ Build §11's shape, not §7's."* | ⛔⛔ **This batch IS §7's shape** — four typed verbs — **built and shipped before §11 existed.** ⭐ **It is not, however, a parallel model**: §11.2's own parity argument holds already, because each verb dispatches the SAME `GraphCommand` union to the SAME sink. ⇒ ⭐⭐ **what is missing is COVERAGE (~31 more variants), not architecture** — and §11.2 explicitly allows typed helpers *"so long as they are never a parallel model"*. ⚠ **Reconciling them is the NEXT batch's job, and it is a small one**: add `POST …/graph/command`, and either keep these four as its sugar or route them through it |
+| ⭐ **§10 DISCOVERY** *(list node kinds + a kind's property schema)* | ⭐ **a FOLLOW-UP SLICE by its own STATUS line** *(*"sequenced AFTER the mutation batch… CANNOT run concurrently"*)* ⇒ FYI |
+| 🔴 **§10.2 ① proposes `GET /assets/{id}/nodetypes`** | ⛔⛔ **THAT CAPABILITY SHIPPED IN THIS BATCH** as **`GET /assets/{id}/graph/catalog`** *(`MA-004`)* — independently arrived at, for the measured reason that the sink builds nothing for an unknown kind while reporting success. ⇒ ⚠⚠ **building `nodetypes` as well would be ruling 9's duplicate.** ⭐ The follow-up should EXTEND the shipped route *(§11.3 wants container/attachment capability and pin KIND added to it)*, ⛔ not add a second one |
+| ⚠ **§11.3: the read must emit the FULL structure** *(attachments · regions/containers · comments/reroutes · HSM transition guard/event)* | 📐 **The shipped serializer emits nodes · pins · links · comments** — ⛔ **not attachments, not regions.** ⚠ A genuine gap **against the NEW design**, ⭐ not a defect of the delivered one *(the dispatched §7① said *"nodes/pins/links/params"*, which is what was built)*. ⭐ `InMemoryGraphSerializer` is one method over `IGraphModel`, and `IGraphModel` already exposes `Attachments`/`GetAttachmentsForNode` ⇒ **extending it is additive** |
+
+⇒ ⭐⭐ **Nothing in the six commits makes the shipped code WRONG** — it makes it **incomplete against a
+design written after it was dispatched.** ⛔ That distinction is why this is a report and not a revert.
+
+⚠ **The merge:** `DESIGN_Mcp_Authoring.md` conflicted *(both sides added a §10)*. ⭐ Resolved by **keeping
+BOTH**: their §10/§11 stay as the next slices, the as-built moved to **§12/§13**, and a banner between them
+says which is SHIPPED and which is NEXT — ⛔ so no reader can quote the not-yet-built half as current.
