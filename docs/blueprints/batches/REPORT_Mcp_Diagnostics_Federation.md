@@ -105,7 +105,7 @@ book that does not exist. ⚠ Recorded in the design so the next slice does not 
 | 3 | ⭐⭐⭐ **revert probe A** *(item ①, the SimHost gap)* | drop `logSinks:` from `ClusterRunner/Program.cs`, rebuild it, re-run | ✅ | ✅ 🔴 **red: `logs: 0 record(s)`** — ⭐ **that zero IS the pre-fix state on every cluster-limited node** | — |
 | 4 | ⭐⭐ **revert probe B** *(item ②)* | null out `architecture:` in `SimHostSubsystem`'s provider, rebuild, re-run | ✅ | ✅ 🔴 **red**, the route refusing and naming the missing accessor | — |
 | 5 | **the editor unit suite** *(carries `EveryRouteIsDocumentedTests` + `CapabilityManifestRails` — the gates the new route and the new `/diagnostics` prefix had to satisfy)* | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/…csproj --no-build -v q --nologo` | ✅ | ✅ **251 / 0 / 1 skipped** | **none** |
-| 6 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — a route on the shared table, a new member on a seam FOUR subsystems implement, and changes at BOTH composition roots ⇒ nothing smaller can show the cross-host contract holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | **§4b** | **+1 rail** |
+| 6 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — a route on the shared table, a new member on a seam FOUR subsystems implement, and changes at BOTH composition roots ⇒ nothing smaller can show the cross-host contract holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | ✅ **104 / 0**, 6 m 32 s — §4b | **+1 rail** |
 | 7 | **the MCP catalog is GENERATED** | `npm run gen:catalog` · `npm run gen:skill` | — | ✅ **90 → 91 tools** from 91 endpoints; `SKILL.md` regenerated *(501 lines)*. ⚠ **The generator reads the BUILT binary** — the first regen produced 90 because `Hrot.ClusterRunner` had not been rebuilt | **+1 tool** |
 | 8 | **every catalogued tool has a handler** | `node test-catalog.mjs` | — | ✅ **729 / 0** | **+8 assertions** |
 | 9 | **golden movement** | — | — | ⭐ **ZERO** | **none** |
@@ -117,9 +117,21 @@ book that does not exist. ⚠ Recorded in the design so the next slice does not 
 | 15 | **mermaid parses** | `MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs docs/DESIGN_Mcp_Diagnostics_Federation.md` | — | ✅ **2 / 2** | — |
 | 16 | ⭐ **capability manifest** *(`R-133`)* | — | — | ⭐⭐ The new `/diagnostics` prefix required a `CapabilityManifest` line — **the designed inversion**, an unclassified prefix REDDENS `CapabilityManifestRails`. ⛔ Not a hand-authored cell: it returns the SAME key the providers derive from a non-null kernel | — |
 
-### 4b. ⏳ The full T3 suite
+### 4b. ⭐ The full T3 suite
 
-*(filled in from the background run before the batch closes — §4 row 6.)*
+📐 **`scripts/run-system-tests.sh --no-build` — `104 / 0 / 0 skipped`, 6 m 32 s.**
+
+⭐ **`103 → 104`: the one new coverage rail, nothing removed and nothing skipped.**
+
+⚠⚠ **This row carried more weight here than in any recent batch, and the reason is the SHAPE of the
+change, not its size.** ⛔ It was not a route added beside other routes: it changed
+`DebugApiService`'s `logSinks` **parameter type** *(a list → a `Func<>`)*, added a **member to
+`ISubsystemDebugProvider`** — a seam **FOUR subsystems implement** — and edited **both** composition
+roots plus `EditorProcess`'s launch arguments. ⇒ ⭐⭐ every existing rail runs against a host built by one
+of those two roots, so this suite is the only thing that shows the editor-owned surface *(authoring,
+assets, save/reload, the union backbone, perspectives)* still holds after a seam moved underneath it.
+
+📐 **Tree re-checked CLEAN after the suite**, not only after the filtered runs.
 
 ## 5. ⭐ IDS ALLOCATED *(rule 5)*
 
