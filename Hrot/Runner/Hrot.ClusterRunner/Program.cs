@@ -235,6 +235,16 @@ class Program
             subsystems.Add(sub);
         }
 
+        // ⭐⭐⭐ RULING 67 — the configured authoring root, applied ONCE for EVERY host.
+        //    🔒 "we need a config file provided asset path for the CGF as well as the Editor (same
+        //       shared code), with fallback to the repo source as of now." (user, 2026-08-14)
+        //    ⇒ ⭐ ONE call, before any Initialize(): AssetRoots is the codebase's stated single authority
+        //      for roots, so configuring it here reaches every host that asks it a question — ⛔ rather
+        //      than each subsystem growing its own notion of where the assets live, which is the third
+        //      competing path authority ruling 67 warns against.
+        //    ⚠ A configured-but-missing directory THROWS here, at startup, by design.
+        Hrot.Editor.AiShared.AssetRoots.Configure(config.AssetRoot);
+
         // Propagate configurable AI project path to the editor subsystem before Initialize().
         foreach (var sub in subsystems.OfType<Hrot.Editor.EditorSubsystem>())
             sub.AiBehaviorsProjectPath = config.AiBehaviorsProjectPath;

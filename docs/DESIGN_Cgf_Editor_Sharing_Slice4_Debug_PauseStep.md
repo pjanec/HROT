@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT `2026-08-25` (CE-025..CE-030)
+build-state: BUILT `2026-08-25` (CE-025..CE-030); barrier PROVEN + `k` MEASURED (CE-031)
 updated: 2026-08-25
 current-answer: ⭐⭐⭐ READ §10 "AS-BUILT" FIRST. It supersedes §4 (classDiagram) and §6 items ①/②/③
   where they disagree, and it carries the TRUE diagrams. Slice 4 of cgf==editor (the DQ30 debug
@@ -9,7 +9,8 @@ current-answer: ⭐⭐⭐ READ §10 "AS-BUILT" FIRST. It supersedes §4 (classDi
 stale-below: §4's classDiagram edge `CgfClusterDebugTimeController ..> MasterSyncController` and §6
   item ①'s "with the REAL cluster roster" are NOT BUILDABLE — CGF holds a SlaveSyncController and no
   roster. §6 item ②'s "drain the k queued ingress ticks" describes DQ30-B's REJECTED option B.
-  §7's "the barrier is only real with slaves" still stands and is NOT discharged. Read §10.
+  ⭐⭐ §10.7's row "the cluster-wide barrier with real slaves — NOT discharged" is SUPERSEDED by §10.8:
+  it IS discharged, `2026-08-25`, and `k` is measured. Read §10.8.
 known-rot: §2's inventory line numbers (`CgfSubsystem.cs:825-834`, `:330-334`) drifted with slice 3;
   the no-op was at `:1710` when this batch retired it.
 design-basis: UX/UX_Feature_Cgf_Brain_Diagnostics.md (UXI-37 — "the fix is ONE class") · Design_Question_30
@@ -301,3 +302,66 @@ sequenceDiagram
 | **The cluster-wide barrier with real slaves** | §7 asked for it and it is **NOT discharged.** The rails drive a real `FdpEventBus` and real togglable groups, so they prove the halt, the latch and the intent traffic — ⛔ not that `k` converges or that every node stops at the same tick |
 | **`k`** | unmeasured — `CE-029` |
 | **The remaining four ingress registrations' translator classes** | only the three TIME translators are marked; everything else takes the `WorldState` default. ⭐ That is CORRECT for replication/perception/pathfinding, ⚠ but the **auxiliary** pack *(combat, mission-control)* was not audited translator by translator — if any of it is control plane it now stops with the sim |
+
+---
+
+## 11. ⭐⭐⭐ §10.8 — THE BARRIER IS DISCHARGED, AND `k` IS MEASURED *(`CE-031`, `2026-08-25`)*
+
+> ⭐⭐ **This supersedes §10.7's first two rows.** They said the cluster-wide barrier was *"NOT
+> discharged"* and `k` *"unmeasured"*, on the premise that it *"needs a live multi-node cluster, which no
+> suite here boots."* 🔴 **That premise was FALSE**, and the user said so directly: *"`--mode all` is
+> multi-node."*
+
+### 11.1 ⛔ Why the earlier report got it wrong
+
+📐 `HrotRunnerHarness` *(`Hrot.ClusterRunner.Integration.Tests`)* boots **`Orchestrator` + `SimHost` +
+`IG` + `ExCon` + `CGF`** as separate subsystems on **one real CycloneDDS domain**. The orchestrator holds
+the only `MasterSyncController`; CGF and SimHost hold `SlaveSyncController`s. ⇒ ⭐ **that is the
+multi-node cluster.** ⚠ The suite's `CgfHarness` tests were marked `[Fact(Skip = "Requires CycloneDDS")]`
+and that skip was read as *"no DDS here"* — but `libddsc.so` is present and they pass.
+
+### 11.2 ⭐⭐⭐ What the rail proves that the unit rails cannot
+
+📄 `Hrot.ClusterRunner.Integration.Tests/TheBarrierHaltsEveryNodeTests.cs`.
+
+| ⭐ asserted | why only a real cluster can |
+|---|---|
+| **the halt** is exact and local at the hit tick | — *(the unit rails cover this)* |
+| ⭐⭐⭐ **the cluster ANSWERS** | the round trip **CGF → `ClusterOpEgressTranslator` → DDS → orchestrator → `MasterSyncController.SwitchToDeterministic(roster)` → DDS → `SwitchTimeModeEvent` on CGF's bus**. ⛔ In-process rails can only prove an intent was PUBLISHED, never that it was CARRIED |
+| ⭐⭐ **every node halts on the same SIMULATION tick** | CGF and SimHost clocks both `IsHalted`, sim times within 0.5 s — 📐 measured **5.32 vs 5.36** and **5.56 vs 5.59** |
+| **the step latch** is down again and the cluster is still deterministic | — |
+| **resume** re-enables the brain | — |
+
+### 11.3 ⭐⭐⭐ `k`, MEASURED — and `DQ30`'s assumption was OPTIMISTIC
+
+⭐ `k = SwitchTimeModeEvent.BarrierWallTicks − IDataBreakpointManager.PausedTick`, both
+`GlobalTime.TotalWallTicks` in 100-ns units ⇒ directly comparable.
+
+| run | `k` |
+|---|---|
+| 1 | **352.3 ms** |
+| 2 | **252.3 ms** |
+
+⚠⚠ **`DQ30` §3 risk 3 says *"k is expected small, still unmeasured"* and §B reasons from *"tens of
+ms"*.** 📐 **Measured: 250–350 ms — roughly an order of magnitude larger.** ⭐ Most of it is *designed*:
+§1 notes the barrier carries **≈200 ms of deliberate lookahead**, so the convergence part is ~50–150 ms.
+⇒ ⛔ **the conclusion does not collapse, but the number it rested on was wrong**, and §B's *"negligible
+for a deliberative brain"* now means *~15–21 ticks at 60 Hz*, not two or three. ⭐ `DQ30`'s own
+instruction — *"do not treat 'small' as verified"* — was right to insist.
+
+### 11.4 🔴 The accepted discontinuity is REAL, and it made a wrong assertion red first
+
+⭐ The rail first asserted *"a step must never move simulation time BACKWARDS"* and went **RED**:
+`5.5553 → 5.4872`, a **68 ms** backwards jump. ⛔ **The assertion was wrong and §B says so**: *"a cooldown
+or timer started at T is instantly k ticks **older** when the clock snaps … it is a real discontinuity,
+and it is the price of not rewinding the world."* ⇒ ⭐⭐ the rail now pins the discontinuity as **bounded**
+rather than absent, which is the claim §B actually makes. ⚠ It varies run to run *(68 ms, then 0 ms)*.
+
+### 11.5 ⚠ A measured contract worth naming: `RequestContinue` cannot resume a STEPPED node
+
+📐 `DataBreakpointManager.RequestStep()` calls `ClearPausedState()`, so `IsPaused` is **false** after a
+step ⇒ `RequestContinue()`'s opening `if (!_isPaused) return;` makes it a **no-op**, and the brain would
+stay halted. ⭐ **Production does not use it**: `BlueprintDebugSession.Continue()` goes straight to
+`_timeController.RequestResume()` — 📌 the same shape `M-41` measured for the drain, where the manager's
+request pair is bypassed by the surface that actually drives it. ⇒ the rail resumes through the
+controller, and the gap is filed rather than fixed here *(out of this slice's scope)*.

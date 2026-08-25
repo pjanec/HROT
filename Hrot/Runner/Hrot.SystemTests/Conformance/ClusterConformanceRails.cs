@@ -66,7 +66,13 @@ public sealed class ClusterConformanceRails
     // ══ the shared machinery ══════════════════════════════════════════════════
 
     /// <summary>⭐ Every captured panel in one host, keyed by KIND, with its id and canonical model.</summary>
-    private static async Task<Dictionary<string, (string Id, string Model)>> CaptureByKindAsync(
+    /// <remarks>
+    /// ⭐ <c>internal</c>, not <c>private</c>, since <c>CE-016</c>: a second conformance file needs the
+    /// same capture and a copy of it would be two implementations of one mechanism (ruling 9).
+    /// ⚠ Deliberately the ONLY change this batch makes to this file — it is edited concurrently by
+    /// another session, so the smallest possible edit was chosen over adding a method here.
+    /// </remarks>
+    internal static async Task<Dictionary<string, (string Id, string Model)>> CaptureByKindAsync(
         EditorProcess host, ITestOutputHelper output)
     {
         var byKind = new Dictionary<string, (string, string)>(StringComparer.Ordinal);

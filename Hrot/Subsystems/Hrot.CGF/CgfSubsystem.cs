@@ -97,6 +97,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// </summary>
     private Hrot.CGF.Debug.CgfClusterDebugTimeController? _debugTimeController;
 
+    /// <summary>
+    /// ⭐ The debug time controller, for integration rails that need the cluster barrier anchor
+    /// *(`CE-029`: `k = ClusterBarrierWallTicks − PausedTick`)*. ⚠ Mirrors the existing
+    /// <see cref="DataBreakpointManager"/> accessor's shape — internal, not public: it is
+    /// observability, not a supported host API.
+    /// </summary>
+    internal Hrot.CGF.Debug.CgfClusterDebugTimeController? DebugTimeController => _debugTimeController;
+
     // ── cgf==editor slice 1: the AiShared shell ───────────────────────────────
     // 📄 docs/DESIGN_Cgf_Editor_Sharing_Slice1_Shell_Adoption.md §3 (classDiagram) / §4 (sequenceDiagram).
     // ⭐⭐ The ENTIRE slice is a composition block: every type below already exists in
@@ -1003,6 +1011,28 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 sortOrder:      100,
                 renderDelegate: timeSection.Render,
                 perspective:    "Scenario");
+
+            // ⭐⭐⭐ CE-016 — the TOOLBAR transport, and this is a silent-default fix, not a new feature.
+            //    📐 Measured `2026-08-25`: the editor registers `MainToolbarTimeControlSection` on its
+            //    toolbar (`EditorSubsystem:4715`) AND a status-bar section; CGF and SimHost had only the
+            //    status-bar one — ⛔ while HOLDING the very dependency the toolbar section needs, two
+            //    lines up. 📌 "A production caller that HAS a dependency must PASS it."
+            //    ⭐ Same shared section class, same `ITimeTransportFacade` seam, same ids and sort orders
+            //    as the editor — ⛔ nothing invented: a runtime node that can be paused by a breakpoint
+            //    (slice 4) plainly wants the transport where the editor puts it.
+            if (windowManager.MainToolbar != null)
+            {
+                var toolbarTimeSection =
+                    new Hrot.UI.Common.Panels.MainToolbarTimeControlSection(_clusterTimeAdapter);
+
+                windowManager.MainToolbar.RegisterEntry(
+                    "TimeControlGroup", sortOrder: 0,
+                    declaredHeight: Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight,
+                    toolbarTimeSection.Render);
+
+                windowManager.MainToolbar.RegisterSeparator(
+                    "ToolbarSep_TimeToPersp", sortOrder: 10);
+            }
         }
 
         // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
@@ -1607,25 +1637,32 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// </summary>
     private Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder BuildAssetCatalog()
     {
-        // ⭐ ONE walk-up, in AiShared's stated "single authority for roots" — ⛔ not a third private copy
-        //   (EditorSubsystem still holds two inline; re-routing them is filed as CE-018, another lane's file).
-        var aiRootDir = Hrot.Editor.AiShared.AssetRoots.ResolveProjectDir(AiBehaviorsProjectPath);
+        // ⭐⭐⭐ RULING 67 RESOLVED — config → source walk-up → output directory, in AiShared's stated
+        //    "single authority for roots". ⛔ The bare walk-up that used to be here answered null on a
+        //    DEPLOYED node, which is what made authoring on CGF impossible; the config arm is the fix.
+        //    ⚠ Always non-null now, so the old "the catalog will be EMPTY" warning is replaced by a
+        //    statement of WHICH arm answered — 📌 "empty" and "pointed elsewhere" are different problems
+        //    and the log has to distinguish them.
+        var aiRootDir = Hrot.Editor.AiShared.AssetRoots.ResolveBase(AiBehaviorsProjectPath);
 
-        if (aiRootDir == null)
+        FdpLog<CgfSubsystem>.Info(
+            "[CGF] Authoring root resolved from {0}.",
+            Hrot.Editor.AiShared.AssetRoots.DescribeBase(AiBehaviorsProjectPath));
+
+        if (Hrot.Editor.AiShared.AssetRoots.ConfiguredRoot == null &&
+            Hrot.Editor.AiShared.AssetRoots.ResolveProjectDir(AiBehaviorsProjectPath) == null)
         {
             FdpLog<CgfSubsystem>.Warn(
-                "[CGF] Hrot.AI.Behaviors project dir NOT found (searched up from CWD + BaseDirectory for "
-              + "'{0}'). The asset catalog will be EMPTY — this is ruling 67 (asset roots must come from "
-              + "config on a deployed node), not a missing capability.",
+                "[CGF] No configured asset root and no source tree (searched up from CWD + BaseDirectory "
+              + "for '{0}'). Falling back to the output directory, so the catalog will be empty unless "
+              + "assets were deployed beside the binary. ⇒ ruling 67: pass --asset-root on a deployed node.",
                 System.IO.Path.Combine(AiBehaviorsProjectPath));
         }
 
-        string? RootFor(Hrot.Editor.AiShared.AssetKind kind) => aiRootDir == null
-            ? null
-            : System.IO.Path.Combine(aiRootDir, Hrot.Editor.AiShared.AssetRoots.AssetsRelative(kind));
+        string RootFor(Hrot.Editor.AiShared.AssetKind kind) =>
+            System.IO.Path.Combine(aiRootDir, Hrot.Editor.AiShared.AssetRoots.AssetsRelative(kind));
 
-        var bpRootDir = RootFor(Hrot.Editor.AiShared.AssetKind.Blueprint)
-                     ?? System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "Blueprints");
+        var bpRootDir = RootFor(Hrot.Editor.AiShared.AssetKind.Blueprint);
 
         // ⚠ No debug session on this host, so BTree symbolication is not wired — the contributor takes it
         //   as an optional argument and CGF genuinely has none (slice 1 §9.4). ⛔ Not a silent default.
@@ -1638,14 +1675,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var btreeJsonRoot = RootFor(Hrot.Editor.AiShared.AssetKind.BTree);
         var hsmJsonRoot   = RootFor(Hrot.Editor.AiShared.AssetKind.Hsm);
 
-        if (btreeJsonRoot != null && System.IO.Directory.Exists(btreeJsonRoot))
+        // ⚠ The null arms are gone: ruling 67's ResolveBase always answers a directory, so "is it there"
+        //   is the only remaining question — and a missing root is still worth a warning, since with a
+        //   CONFIGURED root it means the config points at a tree with no assets in it.
+        if (System.IO.Directory.Exists(btreeJsonRoot))
             btreeJsonContrib.Refresh(rootDirectory: btreeJsonRoot);
-        else if (btreeJsonRoot != null)
+        else
             FdpLog<CgfSubsystem>.Warn("[CGF] BTree JSON root not found: {0}", btreeJsonRoot);
 
-        if (hsmJsonRoot != null && System.IO.Directory.Exists(hsmJsonRoot))
+        if (System.IO.Directory.Exists(hsmJsonRoot))
             hsmJsonContrib.Refresh(rootDirectory: hsmJsonRoot);
-        else if (hsmJsonRoot != null)
+        else
             FdpLog<CgfSubsystem>.Warn("[CGF] HSM JSON root not found: {0}", hsmJsonRoot);
 
         var builder = new Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder(

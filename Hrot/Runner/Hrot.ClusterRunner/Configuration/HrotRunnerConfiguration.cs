@@ -69,6 +69,26 @@ namespace Hrot.ClusterRunner.Configuration
         /// </summary>
         public string[] AiBehaviorsProjectPath { get; set; } = new[] { "Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj" };
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>Ruling 67 — the configured authoring root, for a DEPLOYED node where there is no
+        /// source tree to walk up to.</b>
+        ///
+        /// <para>🔒 <b>User, <c>2026-08-14</c>:</b> *"we need a <b>config file provided asset path</b> for
+        /// the CGF as well as the Editor (<b>same shared code</b>), with <b>fallback to the repo source</b>
+        /// as of now."* ⇒ empty means *"unset"*, and resolution falls through to
+        /// <see cref="AiBehaviorsProjectPath"/>'s walk-up and then the output directory — ⭐ so a dev box
+        /// behaves exactly as before.</para>
+        ///
+        /// <para>⚠ <b>A value that names a missing directory THROWS at startup</b>
+        /// *(<c>AssetRoots.Configure</c>)* — the ruling's own call: silently falling through *"would
+        /// reintroduce 'it worked on the dev box'."*</para>
+        /// </summary>
+        [Option("asset-root", Required = false,
+                HelpText = "Absolute path to the authoring asset root (Assets/ and Recipes/ live under "
+                         + "it). Ruling 67: required on a deployed node, where there is no source tree "
+                         + "to discover. Unset = fall back to the source walk-up, then the output dir.")]
+        public string AssetRoot { get; set; } = string.Empty;
+
         /// <summary>Target schema version for --mode migrate. -1 means current registered version.</summary>
         [Option("target-version", Required = false, Default = -1, HelpText = "Target schema version (-1 = current) for --mode migrate")]
         public int TargetVersion { get; set; } = -1;
