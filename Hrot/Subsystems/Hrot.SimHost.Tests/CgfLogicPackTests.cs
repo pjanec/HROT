@@ -113,7 +113,10 @@ namespace Hrot.SimHost.Tests
             // (DebugStatePatchSystem removed from CognitiveRuntimeModule — TH-3/A)
             // SimulationSystems: 18 (unchanged)
             Assert.Equal(2,  pack.InputSystems.Count);
-            Assert.Equal(18, pack.SimulationSystems.Count);
+            // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
+            //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
+            //   📌 A hard-coded count is a tripwire for exactly this, and it fired; nobody read it.
+            Assert.Equal(19, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -291,8 +294,10 @@ namespace Hrot.SimHost.Tests
             // InputSystems: MissionControlExecutionSystem + BehaviorIngressSystem = 2
             // (DebugStatePatchSystem removed from CognitiveRuntimeModule — TH-3/A)
             Assert.Equal(2,  pack.InputSystems.Count);
-            // SimulationSystems: 18 (unchanged)
-            Assert.Equal(18, pack.SimulationSystems.Count);
+            // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
+            //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
+            //   📌 A hard-coded count is a tripwire for exactly this, and it fired; nobody read it.
+            Assert.Equal(19, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -311,8 +316,8 @@ namespace Hrot.SimHost.Tests
 
             var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
                 new TacticalIntentMapperRegistry());
-            // Total systems across both phases equals 20 (2 input + 18 sim).
-            Assert.Equal(20, pack.InputSystems.Count + pack.SimulationSystems.Count);
+            // Total systems across both phases equals 21 (2 input + 19 sim) — see the note above.
+            Assert.Equal(21, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
     }
 }

@@ -37,7 +37,7 @@ It is wiring plus a few shared fixes, none of them a new design:
 |---|---|
 | construct the AiShared shell + register the windows on CGF *(watch · MyBlueprint · graph canvas · breakpoints · inspector)* | **wiring** |
 | perspective-default fix (UXI-06) | **bug** |
-| debug pause/step: one `CgfClusterDebugTimeController` adapter | **small build** *(protocol already built both sides)* |
+| ~~debug pause/step: one `CgfClusterDebugTimeController` adapter~~ | ✅✅ **BUILT `2026-08-25`** — slice 4, `CE-025`…`CE-028`. ⚠ It was **not** a mirror of the editor adapter: CGF is a slave, so it REQUESTS via the time intents and the orchestrator's master supplies the roster |
 | hot-reload editing: construct `QuickReloadService` on CGF | **wiring** *(Cosmetic/Soft/Hard already designed)* |
 | R-52 whole-component blackboard write → `SetComponentFieldRaw` | **shared bug** *(bites the editor too)* |
 | asset roots from config (ruling 67) | **build, designed** *(only blocks a DEPLOYED node; dev works)* |
@@ -95,7 +95,7 @@ graph TD
 | Perspective-default fix (so `--mode all` doesn't hide CGF's windows) | UXI-06 | ✅ | ⭐ **already BUILT** *(`LocalWindowController.ResolveStartupPerspective` derives the default from `GetPerspectives()` and EXCLUDES document-driven ones)*. 📐 **Confirmed by slice 1, `2026-08-25`:** adding BTree/HSM/Blueprint to the claimed set did **not** move the startup perspective — `--mode all` still opens on a durable one. ⛔ The old *"do this first"* ordering ruling is DISCHARGED, not pending |
 | Menu + toolbar on CGF + menu-follows-focus | UXI-05/35 | 🔌 | discoverability soft-prereq for the windows |
 | Curated-scenario reuse on CGF | `UX_Feature_Curated_Scenarios.md` | 🔌 | shared helper; editor-wired only today |
-| **Debug pause / step on the CGF node** (DQ30 A–E) | UXI-37 / DQ30 | 🔌 | fully decided AND **UNBLOCKED** (Correction 45, `2026-08-14`; the `.dev` debug programmes last touched `2026-07-16`). Fix is *"ONE class — a CGF time-controller adapter requesting a cluster-wide freeze via the master"* (replaces the empty `CgfNoOpTimeController`); the distributed pause/step protocol is **already built on both sides**. The rest is the same AiShared wiring as the row above |
+| **Debug pause / step on the CGF node** (DQ30 A–E) | UXI-37 / DQ30 | ✅ **BUILT `2026-08-25`** *(slice 4 — `CE-025`…`CE-028`; `CE-029` open: `k` unmeasured, and the real-slave barrier is NOT discharged)* | fully decided AND **UNBLOCKED** (Correction 45, `2026-08-14`; the `.dev` debug programmes last touched `2026-07-16`). Fix is *"ONE class — a CGF time-controller adapter requesting a cluster-wide freeze via the master"* (replaces the empty `CgfNoOpTimeController`); the distributed pause/step protocol is **already built on both sides**. The rest is the same AiShared wiring as the row above |
 | Behavior/scenario **authoring** on CGF (ruling 65/66) | UXI-37 §5b | 🔌 | welcome; needs the construct-diff **and** the blockers below |
 | **Asset roots from config** (delete the `.csproj` walk-up) | ruling 67 | 🕳️ | the **one true authoring blocker** — roots are `null` on a deployed node |
 | Behavior-affinity registry for asset-authored behaviors (Q25-C) | AQ25 | 📐 | pivotal unknown: can `BehaviorUiCompiler` be schema-driven? |
@@ -133,7 +133,7 @@ graph TD
 
 ## 3. ⭐ THE ONLY GENUINELY-NEW CODE (everything else is wiring)
 
-1. `CgfClusterDebugTimeController` (replace the empty `CgfNoOpTimeController`) **+ an ingress translator category** (DQ30-C).
+1. ~~`CgfClusterDebugTimeController` (replace the empty `CgfNoOpTimeController`) **+ an ingress translator category** (DQ30-C).~~ ✅ **DONE `2026-08-25`** — the no-op is retired; `TranslatorClass` + the `Category` default member + the `CycloneNetworkIngressSystem` gate all landed. 📄 [as-built §10](DESIGN_Cgf_Editor_Sharing_Slice4_Debug_PauseStep.md).
 2. `EntityActionDescriptor.WrittenComponents` — one field (UXI-03 / shell parity).
 3. **Config-into-`AssetRoots`** (ruling 67) — the one true authoring blocker.
 4. The **tool-controller abstraction** (UXI-07) — net-new, but Axis B, not needed for your chain.

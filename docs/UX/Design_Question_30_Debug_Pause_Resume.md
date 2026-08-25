@@ -97,6 +97,24 @@ the world-state ones. ⚠ **Fail-safe default: a translator with no explicit cat
 (it stops). A missed control-plane translator then shows up as *"resume does not work"* — loud and immediate —
 whereas the opposite default leaks live world data into a frozen snapshot **silently**.
 
+> ✅✅ **BUILT `2026-08-25`** (`CE-028`). `TranslatorClass {WorldState=0, ControlPlane=1}` sits beside
+> `TranslatorDirection`, and `Category` is a **default interface member on `INetworkTranslator`** — so
+> every existing implementation inherits the fail-safe answer without being edited. ⭐ The three time
+> translators are marked `ControlPlane`; an enumeration rail asserts they are the ONLY overrides, because
+> the default protects against a FORGOTTEN mark and nothing protected against a WRONG one.
+>
+> ⛔⛔ **Two corrections to this section, measured:** ① the gating target named above and in
+> [UXI-37 §1a](UX_Feature_Cgf_Brain_Diagnostics.md) is **`CycloneIngressSystem`**, which has **zero
+> production registrations** — the real class is **`CycloneNetworkIngressSystem`**; ② it is not one
+> system but **12 production constructions across 9 files in 6 assemblies**, five of them on CGF, and
+> **one of those five carries only the three time translators**. ⇒ ⭐⭐ the category is load-bearing for a
+> sharper reason than stated here: the gate is applied to **every** ingress system on the node, so only
+> `Category` keeps [question A](#a--does-the-debug-halt-stop-the-kernel-tick-or-only-the-simulation-systems)'s
+> deadlock away. 📄 [`…Slice4_Debug_PauseStep.md` §10.3](../DESIGN_Cgf_Editor_Sharing_Slice4_Debug_PauseStep.md).
+>
+> ⚠ **Not audited translator-by-translator:** the NED **auxiliary** pack (combat, mission-control). If any
+> of it is control plane it now stops with the sim — a follow-up, not a claim.
+
 ⚠ **Surface it in the UI**: while paused, CGF's remote-entity view is **stale by up to k ticks**. The paused
 view should say so rather than imply live data.
 
