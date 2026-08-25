@@ -88,7 +88,7 @@ on an honest answer.
 | 5 | **the editor unit suite** *(carries `EveryRouteIsDocumentedTests` + `CapabilityManifestRails` — the two gates the new route had to satisfy)* | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/Hrot.Editor.Tests.csproj --no-build -v q --nologo` | ✅ | ✅ **251 / 0 / 1 skipped** — ⚠ **the known `TwoReloadCycles_OldAlcIsCollected` GC/ALC flake PASSED this run**; ⛔ neither colour is evidence *(A/B'd `3 red of 6` on a base binary, `ST-035`)* | **+1 pass** |
 | 6 | **the AiShared unit suite** *(a NEW type, `RecipeByName`, landed here)* | `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/…csproj --no-build -v q --nologo` | ✅ | ✅ **2025 / 0 / 1 skipped**, 20 s | **none** |
 | 7 | **the Blueprints unit suite** *(`RecipeMetadataAdapter` extended)* | `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/…csproj --no-build -v q --nologo` | ✅ | ✅ **3958 / 0 / 18 skipped**, 2 m 6 s | **none** |
-| 8 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — a new route on the shared route table + composition-root changes in TWO hosts ⇒ `ClusterConformanceRails` is the only thing that shows the cross-host contract still holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | **§4b** | **+1 rail** |
+| 8 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — a new route on the shared route table + composition-root changes in TWO hosts ⇒ `ClusterConformanceRails` is the only thing that shows the cross-host contract still holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | ✅ **103 / 0**, 6 m 15 s — §4b | **+1 rail** |
 | 9 | **the MCP catalog is GENERATED** | `npm run gen:catalog` · `npm run gen:skill` | — | ✅ **89 → 90 tools** from 90 endpoints; `SKILL.md` regenerated *(496 lines)*. ⚠ `node`/`npm` at `/opt/node22/bin`, OFF `PATH` | **+1 tool** |
 | 10 | **every catalogued tool has a handler** | `node test-catalog.mjs` | — | ✅ **721 / 0** | **+8 assertions** |
 | 11 | **golden movement** | — | — | ⭐ **ZERO** — no file under `Goldens/` added, removed or modified | **none** |
@@ -100,9 +100,19 @@ on an honest answer.
 | 17 | **mermaid parses** | `MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs docs/blueprints/Architect_Question_57_Cgf_Authoring_Packaging.md` | — | ✅ **2 / 2** | — |
 | 18 | ⭐ **capability manifest** *(`R-133`)* | — | — | ⭐⭐ **NO manifest edit was needed, and that is the evidence**: `/assets` is already classified `EditorAuthoring`, so `/assets/recipes` inherits by PREFIX. ⛔ Not a hand-authored availability cell — an unclassified prefix would have REDDENED `CapabilityManifestRails` | **none** |
 
-### 4b. ⏳ The full T3 suite
+### 4b. ⭐ The full T3 suite
 
-*(filled in from the background run before the batch closes — §4 row 8.)*
+📐 **`scripts/run-system-tests.sh --no-build` — `103 / 0 / 0 skipped`, 6 m 15 s.**
+
+⭐ **`102 → 103`: the one new coverage rail, and nothing removed or skipped.**
+⚠ **This is the row that matters most here** and it is why it was named rather than waived: the batch adds
+a route to the **shared `DebugApiHost` route table**, changes `CreateAssetDelegate` — which **BOTH** hosts
+implement — and edits **two composition roots**. ⛔ Unit rails prove a class; only this suite shows that
+the editor's own create path, the asset shell, save/reload and the union backbone all still hold across
+hosts after a seam signature changed under them.
+
+📐 **Tree re-checked CLEAN after the suite**, not only after the filtered runs — the create rails write
+real assets, and the previous batch's §4b is exactly where that cost a committed file 372 lines.
 
 ## 5. ⭐ IDS ALLOCATED *(rule 5)*
 
