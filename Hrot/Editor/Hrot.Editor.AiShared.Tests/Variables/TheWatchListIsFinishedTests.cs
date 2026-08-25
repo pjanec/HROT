@@ -121,7 +121,7 @@ public sealed class TheWatchListIsFinishedTests
         // ⭐ The concrete row is pinned to the entity that was selected — it does not move.
         Assert.Equal(target, concrete.Origin.Entity);
         Assert.Equal(EntityBindingKind.Concrete, pinned.BindingOf(concrete.Origin)!.Value.Kind);
-        Assert.Equal(4242, pinned.BindingOf(concrete.Origin)!.Value.NetworkId);
+        Assert.Equal(4242, pinned.BindingOf(concrete.Origin)!.Value.StagingNetworkId);
 
         // ⭐⭐ The chameleon carries the SENTINEL, which is what makes it follow the selection downstream.
         Assert.Equal(default(Entity), chameleon.Origin.Entity);
@@ -200,13 +200,13 @@ public sealed class TheWatchListIsFinishedTests
             Assert.Equal(AssetA, concrete.AssetId);
             Assert.Equal("Alpha", concrete.AssetName);
             Assert.Equal(EntityBindingKind.Concrete, concrete.Binding.Kind);
-            Assert.Equal(4242, concrete.Binding.NetworkId);
+            Assert.Equal(4242, concrete.Binding.StagingNetworkId);
             // ⛔ The in-session handle is NOT in the file — the caller resolves NetworkId.
             Assert.Equal(default(Entity), concrete.Binding.Captured);
 
             var chameleon = restored.Single(p => p.VariablePath == "Ammo");
             Assert.Equal(EntityBindingKind.Chameleon, chameleon.Binding.Kind);
-            Assert.Equal(0, chameleon.Binding.NetworkId);
+            Assert.Equal(0, chameleon.Binding.StagingNetworkId);
         }
         finally
         {

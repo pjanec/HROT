@@ -968,17 +968,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         return repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value;
     }
 
+    /// <summary>
+    /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⛔ This copy scanned
+    /// <b>every</b> entity and asked <c>HasComponent</c> per entity; the shared one filters the query.
+    /// </summary>
     private Entity FindEntityByNetworkId(long networkId)
-    {
-        if (_activeRepo == null) return Entity.Null;
-        foreach (var e in _activeRepo.Query().Build())
-        {
-            if (_activeRepo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) &&
-                _activeRepo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == networkId)
-                return e;
-        }
-        return Entity.Null;
-    }
+        => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_activeRepo, networkId);
 
     // ── Null service stubs (used until real implementations are injected) ──
 

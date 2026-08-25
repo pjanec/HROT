@@ -488,6 +488,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var behaviorRemapper   = CgfBehaviorSetup.CreateBehaviorRemapper();
         var extractor          = new Hrot.CGF.Orchestration.StagingEntityExtractor();
 
+        // ⭐⭐⭐ BP-509 — the staging→runtime id table reaches the control-plane bus.
+        // 📄 DESIGN_Variable_Watch_Pinning.md §5/§8①/§8a. 🔒 User ruling 2026-08-19: the sink lives on the
+        //    extractor and THE SUBSYSTEM wires it — ⛔ the extractor never learns about a bus, which is
+        //    what keeps Hrot.CGF separately deployable (R-79).
+        // ⭐ `_context.EventBus` is the node's own orchestration bus — the same one its ClusterSlave
+        //   drains (HN-029's TransitionsVia reads it too), ⛔ not the CGF interaction bus.
+        extractor.OnRemap = map => _context.EventBus.PublishManaged(
+            new Fdp.Toolkit.Orchestration.StagingRemapPublishedEvent
+            {
+                StagingToRuntime = map,
+                SourceNodeId     = _context.NodeId,
+            });
+
         // ⭐⭐⭐ HN-037 — AUTHORED IDS COME FROM THE ONE AUTHORITY, not from a second local allocator.
         // 📄 docs/DESIGN_Deterministic_Network_Ids.md §11d ②.
         // 📐 What the standalone `cgfIdAllocator = new SequentialIdAllocator()` cost, measured 2026-08-24:

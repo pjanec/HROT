@@ -151,6 +151,17 @@ public sealed class PerspectiveWorkspaceServices
     /// </summary>
     public Variables.WatchEntityPicker? EntityPicker { get; init; }
 
+    /// <summary>
+    /// ⭐⭐ <b><c>BP-511</c> — the staging⇄runtime identity bridge</b> every perspective's Watch needs for a
+    /// pin to survive a scenario reload. 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5 · §8a.
+    ///
+    /// <para>⚠ Optional: a headless host has no world to resolve an id against, and a pin is then
+    /// within-session — which the persistence layer already reports rather than hiding. ⛔ But a
+    /// composition root that HAS a world must pass it, and the rail asserts that on the CONSTRUCTED
+    /// window's <c>HasEntityIdentity</c>.</para>
+    /// </summary>
+    public Variables.WatchEntityIdentity? EntityIdentity { get; init; }
+
     /// <param name="facetEditService">
     ///   ⛔ <b>Throws when null.</b> 📌 <c>R-67</c> — the omission this type exists to make impossible.
     /// </param>
@@ -224,5 +235,6 @@ public sealed class PerspectiveWorkspaceServices
             writeLive:                     writeLive,
             entitySelection:               EntitySelection,
             stagedWrites:                  StagedWrites,
-            entityPicker:                  EntityPicker);
+            entityPicker:                  EntityPicker,
+            entityIdentity:                EntityIdentity);
 }

@@ -1,9 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT for slices 94a-94f, the finalization (BP-499..BP-502) and the entity-pinning
-  finish (BP-505..BP-507, 2026-08-25). ⭐ SLICE 3 (94g — restart survival) is READY-TO-BUILD:
-  §5 + §8 carry the mechanism (the user-ruled callback sink) and §8a now carries the classDiagram +
-  sequenceDiagram (added 2026-08-25 for the NO-IMPLEMENTATION-WITHOUT-UML rule).
+build-state: BUILT — slices 94a-94f, the finalization (BP-499..BP-502), the entity-pinning finish
+  (BP-505..BP-507) and SLICE 3 / 94g (BP-508..BP-512, 2026-08-25). Nothing in this design is
+  unbuilt; what remains is filed as BP-513/BP-514 and named in the LAST as-built section.
+  ⭐ READ THE LAST AS-BUILT SECTION FIRST (94g) — it supersedes §3/§5/§8/§8a where they disagree, and
+  it resolves §8a's open decision differently from BOTH options that section offered.
   ⭐ READ "AS-BUILT — the watch-list finalization" FIRST: it carries five deviations, and two of them
   matter to a reader (the binding lives on the PIN not the row; a concrete pin does NOT survive a
   scenario reload yet). 🔴 Deviation 5 of THAT section carries a CORRECTION: its claim that
@@ -414,6 +415,59 @@ are still open and untouched, as it directed.
 | **a concrete pin does not survive a scenario RELOAD** *(slice `94g`, `BP-503`)* | ⭐ **now UNBLOCKED** — `HN-037`'s world-boundary/id-remap merged — but it edits `DataBreakpointManager` *(`:1354` still throws for `NetworkId`)* and consumes that remap ⇒ its own slice |
 | ⚠ **a restored pin is not re-attached to a Watch window** | `PinnedVariablePersistence.Restore` produces descriptors and nothing consumes them: a row can only be rebuilt by the source that owns its asset, once that asset is open ⇒ the **same** resolution problem as `94g` |
 | ⚠ **the two ruling-9 duplicates** *(two `IMapPickService`, two `MapPickableEntityAttribute`)* | `AQ55` §"Two ruling-9 duplicates" — each its own cleanup |
+
+
+## ⭐⭐⭐ AS-BUILT — **slice 3 / `94g`: a concrete pin survives a reload (`BP-508`…`BP-512`), `2026-08-25`**
+
+> ⭐⭐ Obligation ⑤. ⛔ Where this disagrees with §3/§5/§8/§8a above, **it wins.**
+> ⭐ §8a's `classDiagram` + `sequenceDiagram` were built as drawn, with **one box renamed** and **one open
+> decision resolved differently from both options offered** — both argued below.
+
+### ⭐ What shipped
+
+| # | | where |
+|---|---|---|
+| **`BP-508`** | ⭐⭐ **ONE `NetworkIdResolver`** — the four `FindEntityByNetworkId` copies route through it | `Fdp.Toolkits/Replication/Services/NetworkIdResolver.cs` |
+| **`BP-509`** | ⭐⭐⭐ **`oldToNewMap` is PUBLISHED** — a callback sink on the extractor, wired to the control-plane bus by **all three** subsystems that construct one | `StagingEntityExtractor.OnRemap` · `StagingRemapPublishedEvent` |
+| **`BP-510`** | ⭐⭐ **The editor's view of the table**, both directions | `StagingRemapView` |
+| **`BP-511`** | ⭐⭐⭐ **A concrete pin stores the AUTHORED id and RE-BINDS on a reload** | `EntityBinding.StagingNetworkId` · `WatchEntityIdentity` · `AiWatchWindow.RebindConcretePins` |
+| **`BP-512`** | ⭐⭐ **`DataBreakpointManager`'s `NetworkId` arm ANSWERS instead of throwing** | `MatchesLifecycleCriteria` |
+
+### ⛔⛔ The deviations, argued
+
+| # | the design said | 📐 what was measured, and what was built |
+|---|---|---|
+| **①** | §8a draws `EntityBinding ..> EditorApplication : staging to runtime via published map` | ⛔ **`EditorApplication` is not in the path.** 📐 `EntityBinding` is a `readonly record struct` in `Hrot.Editor.AiShared` and cannot reach the application layer. ⭐ Built as **`StagingRemapView`** *(the pure table, in `AiShared`)* + **`WatchEntityIdentity`** *(the table plus two host ECS delegates)*, and **`EditorSubsystem`** — not `EditorApplication` — drains the bus, because **the three Watch windows hang off its registrars**. ⭐ The FLOW the diagram draws is unchanged; only the box that owns the table moved |
+| **②** | §8a: *"whether `DataBreakpointManager:1354` wants the `NetworkIdResolver` scan or the `NetworkEntityMap` index — report which you chose and WHY"* | ⭐⭐⭐ **NEITHER.** 📐 Measured: `EvaluateLifecycleTrackers` calls it **once per active entity, per tracker, per tick** ⇒ ⛔ the scan is O(entities²)/tick and ⛔ the index is unnecessary — the predicate asks *"is THIS entity id N?"*, not *"which entity has id N?"*, which the entity's **own** `NetworkIdentity` answers in **O(1)** with nothing to keep in step. ⭐ It is also the shape the sibling arms already have *(`EcsHandle` compares the handle; `NameSubstring` reads the entity's own component)*. ⚠⚠ **And the comment prescribing an `INetworkEntityMap` was a dead lead — 📐 that interface DOES NOT EXIST**; the name appears only in that file's own comments |
+| **③** | §8 ②: *"there are FOUR copies"* *(`R-77`, already once corrected)* | ⚠⚠ **STILL AN UNDERCOUNT.** 📐 A scan for the lookup SHAPE *(a `NetworkIdentity` read whose `.Value` is compared)* rather than the method NAME found more, including **three INLINE loops in `EditorSubsystem.cs` itself** — the same file that also held a named copy. ⭐ Those three are routed; ⚠ the rest are named in the rail's own allow-list with reasons *(`BP-514`)*. ⇒ ⭐⭐ **the lesson generalises: a name scan cannot count a duplicated MECHANISM** |
+| **④** | *(unstated)* the pin gesture already produces a durable binding | 🔴🔴 **It did not.** 📐 `PinnedVariableRowSource.Pin(row)` with no binding INFERS one, and its concrete arm has **no id source**, so it wrote `Concrete(0, entity)` ⇒ **the gesture a designer actually uses made a within-session pin, every time** — honest *(`IsPersistable` said false)* and useless. ⭐ `AiWatchWindow.BindingFor` now supplies the authored id and the registrar's `ToggleWatch` PASSES it |
+| **⑤** | §5 / handoff ⑤: *"re-attach a RESTORED pin to its Watch window"* | ⛔ **SPLIT — it is not a wiring line, and the handoff said to say so.** 📐 Measured: row sources are constructed **inside window draw paths** *(`BlueprintMyBlueprintWindow:567/600`; the registrar's `_sectionSource` factory is keyed by SECTION, not asset)*, so **nothing can answer *"give me the row for (asset, section, path)"***. ⇒ a deferred-pin queue drained by sources, or an asset-keyed row-source registry — a design decision with lifetime questions *(what happens when the asset closes?)*. Filed as **`BP-513`** |
+
+### ⭐ The two places the mechanism deliberately refuses to guess
+
+| ⭐ | |
+|---|---|
+| **an unknown id translates to `0`, ⛔ never to itself** | staging and runtime ids are drawn from ONE numeric space, so a pass-through would look like a successful translation and resolve to whichever entity happens to hold that number — 📌 **the exact wrong-entity failure this slice removes** |
+| **a pin whose authored entity is absent goes STALE** | ⛔ not dropped *(reads as data loss)* and ⛔ not left on its dead handle *(shows another entity's value)*. ⭐ Stale is the honest third answer and the table already greys it |
+
+### ⭐ Where each piece lives, as built
+
+| the flow | |
+|---|---|
+| **publish** | `StagingEntityExtractor.OnRemap` *(a copy of Pass 1's table, invoked after a SUCCESSFUL extraction)* → the subsystem → `FdpEventBus.PublishManaged(StagingRemapPublishedEvent)` |
+| **wired by** | ⭐ **all three** construction sites: `EditorSubsystem:1143`, `CgfSubsystem:489`, `CgfApplication:186`. ⛔ A site that constructs the extractor and does not pass the sink is the silent-default shape |
+| **read** | `EditorSubsystem.DrainStagingRemap()` *(once per frame, before the panel-snapshot clear)* → `StagingRemapView.Publish` → `RebindConcretePins()` on every perspective's Watch |
+| **resolve** | `WatchEntityIdentity` → `NetworkIdResolver.FindEntityByNetworkId` over the live world |
+| ⛔ **when** | **on the LOAD boundary only** — 📌 §4's two clocks. ⛔ Never on the tick, which is why `NetworkIdResolver` carries no cache |
+
+### 🔴 Still open after THIS slice
+
+| ⛔ | ⭐ |
+|---|---|
+| **a RESTORED pin *(from the session file)* is not re-attached to a window** *(`BP-513`)* | see deviation ⑤ — a row can only be rebuilt by the source that owns its asset, and no asset-keyed source registry exists |
+| **more inline entity-by-network-id lookups outside the UI lane** *(`BP-514`)* | two `MissionControlBehaviorParamsHelper` copies *(a duplicated FILE across `Hrot.SimHost` and `Hrot.Core`)* + two parent-of lookups over `PartMetadata` *(a different shape)*. ⭐ The anti-fifth rail names each with its reason and reddens on a NEW one |
+| **the two ruling-9 duplicates `AQ55` flagged** | two `IMapPickService`, two `MapPickableEntityAttribute` — each its own cleanup |
+| **`HsmDebugSession`/`BTreeDebugSession` wiring** *(§8 slice 4, `R-70`)* | unchanged by this slice |
 
 
 ## 10. ⚠ Open

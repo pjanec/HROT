@@ -30,6 +30,9 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<LoadZoneIntent>();
             bus.RegisterManaged<ExecuteDiagnosticDumpIntent>();
 
+            // ⭐ BP-509 — the scenario load's staging→runtime id table (a managed Dictionary).
+            bus.RegisterManaged<StagingRemapPublishedEvent>();
+
             // Time Control Intents (Domain)
             bus.RegisterManaged<PauseTimeIntent>();
             bus.RegisterManaged<ResumeTimeIntent>();

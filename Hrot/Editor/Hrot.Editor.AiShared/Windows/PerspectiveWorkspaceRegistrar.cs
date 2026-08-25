@@ -238,7 +238,8 @@ public class PerspectiveWorkspaceRegistrar
         WriteLiveValue? writeLive = null,
         Shell.IEntitySelectionSource? entitySelection = null,
         StagedWriteView? stagedWrites = null,
-        WatchEntityPicker? entityPicker = null)
+        WatchEntityPicker? entityPicker = null,
+        WatchEntityIdentity? entityIdentity = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -628,6 +629,12 @@ public class PerspectiveWorkspaceRegistrar
             //   HasEntityPicker is the rail surface that says whether it did — asserted on the
             //   CONSTRUCTED window, never on this line (R-67).
             if (entityPicker != null) Watch.SetEntityPicker(entityPicker);
+
+            // ⭐⭐⭐ BP-511 — the staging⇄runtime identity bridge, PASSED in the pass that builds the
+            //    window. 📄 DESIGN_Variable_Watch_Pinning.md §5/§8a.
+            // ⚠ Optional because a headless host has no world to resolve against; ⛔ but a composition
+            //   root that HAS one must pass it, and HasEntityIdentity is the rail surface (R-67).
+            if (entityIdentity != null) Watch.SetEntityIdentity(entityIdentity);
 
             // ⭐⭐ Batch 87 — the Watch is built AFTER the binder, so it gets its own attach call here
             //    rather than a re-ordering of the constructor. ⛔ BP-330: its table was private with no
@@ -1135,7 +1142,13 @@ public class PerspectiveWorkspaceRegistrar
     {
         if (Watch is not { } watch) return;
         // ⭐ Unpin FIRST: a toggle resolved against the store, ⛔ never a remembered flag.
-        if (!watch.Pinned.Unpin(row.Origin)) watch.Pinned.Pin(row);
+        // ⭐⭐⭐ BP-511 — the BINDING IS PASSED, not inferred. 📄 DESIGN_Variable_Watch_Pinning.md §5.
+        //    ⛔⛔ `Pin(row)` with no binding infers one, and its concrete arm has NO id source ⇒ it wrote
+        //    `Concrete(0, entity)`, so THE GESTURE A DESIGNER ACTUALLY USES made a pin that could never
+        //    persist — honest (IsPersistable said false) and useless. ⭐ `BindingFor` fills in the
+        //    AUTHORED id from the load's published table, and still yields a chameleon for the sentinel.
+        if (!watch.Pinned.Unpin(row.Origin))
+            watch.Pinned.Pin(row, watch.BindingFor(row.Origin.Entity));
     }
 
     /// <summary>

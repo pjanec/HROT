@@ -184,6 +184,18 @@ namespace Hrot.CGF
                 var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
                 var cgfIdAllocator = new SequentialIdAllocator();
                 var extractor      = new Hrot.CGF.Orchestration.StagingEntityExtractor();
+
+                // ⭐⭐ BP-509 — the third and last extractor construction site publishes the same table
+                //    on the same channel. 📄 DESIGN_Variable_Watch_Pinning.md §5/§8①.
+                // ⛔ Wired here rather than left out: a site that constructs the extractor and does NOT
+                //    pass the sink is the silent-default shape — the map would simply never arrive for
+                //    this host, and nothing would say so.
+                extractor.OnRemap = map => _orchestrationBus.PublishManaged(
+                    new Fdp.Toolkit.Orchestration.StagingRemapPublishedEvent
+                    {
+                        StagingToRuntime = map,
+                        SourceNodeId     = nodeId,
+                    });
                 // D005: create the remapper once and share it between both load handlers.
                 var behaviorRemapper = CgfBehaviorSetup.CreateBehaviorRemapper();
 

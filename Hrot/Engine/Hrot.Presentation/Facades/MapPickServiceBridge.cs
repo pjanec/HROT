@@ -21,9 +21,6 @@ public sealed class MapPickServiceBridge : IComponentPickerContext
     private Task<int>? _entityPickTask;
     private Task<Hrot.Core.Mission.GeoPoint>? _locationPickTask;
 
-    // Cached live query over entities that carry a NetworkIdentity component.
-    private EntityQuery? _networkQuery;
-
     /// <summary>
     /// Creates a <see cref="MapPickServiceBridge"/>.
     /// </summary>
@@ -118,18 +115,12 @@ public sealed class MapPickServiceBridge : IComponentPickerContext
 
     // ── Entity reverse-lookup ─────────────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⚠ This copy was the closest to
+    /// right and its guards are the ones the shared resolver keeps. ⛔ Its cached <c>_networkQuery</c> is
+    /// dropped: 📐 an <c>EntityQuery</c> holds masks plus the repo and walks it live, so <c>Build()</c>
+    /// costs a constructor — ⭐ the cache bought nothing and made the field look like a snapshot.
+    /// </summary>
     private Entity FindEntityByNetworkId(long networkId)
-    {
-        if (_repo == null || networkId <= 0) return Entity.Null;
-
-        _networkQuery ??= _repo.Query().With<NetworkIdentity>().Build();
-
-        foreach (var e in _networkQuery)
-        {
-            if (_repo.GetComponentRO<NetworkIdentity>(e).Value == networkId)
-                return e;
-        }
-
-        return Entity.Null;
-    }
+        => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_repo, networkId);
 }
