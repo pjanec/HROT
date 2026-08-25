@@ -24,45 +24,24 @@ namespace Hrot.SimHost.Tests
     {
         // ── Helpers ───────────────────────────────────────────────────────────
 
-        private static AttributeRecord StringRecord(ushort id, string value) =>
-            new AttributeRecord
-            {
-                AttributeId = id,
-                Value       = new AttributeValueUnion
-                {
-                    ValueType   = AttributeValueType.KindString,
-                    StringValue = value
-                }
-            };
+        // ⭐⭐ AX-005a — these build the FDP-INTERNAL record, not the DDS `AttributeRecord`. 📌 R-134: the
+        //    installers no longer speak a network type, so neither do their rails. The DDS shape is
+        //    exercised where it belongs — at the boundary, in AttributeRecordConversionTests.
+        private static EntityAttributeChange StringRecord(ushort id, string value) =>
+            new EntityAttributeChange { AttributeId = id, Value = AttributeValue.FromString(value) };
 
-        private static AttributeRecord Int32Record(ushort id, int value) =>
-            new AttributeRecord
-            {
-                AttributeId = id,
-                Value       = new AttributeValueUnion
-                {
-                    ValueType = AttributeValueType.KindInt32,
-                    IntValue  = value
-                }
-            };
+        private static EntityAttributeChange Int32Record(ushort id, int value) =>
+            new EntityAttributeChange { AttributeId = id, Value = AttributeValue.FromInt(value) };
 
-        private static AttributeRecord Float64Record(ushort id, double value) =>
-            new AttributeRecord
-            {
-                AttributeId = id,
-                Value       = new AttributeValueUnion
-                {
-                    ValueType   = AttributeValueType.KindFloat64,
-                    DoubleValue = value
-                }
-            };
+        private static EntityAttributeChange Float64Record(ushort id, double value) =>
+            new EntityAttributeChange { AttributeId = id, Value = AttributeValue.FromDouble(value) };
 
         // ── EntityDataAttributeInstaller — P4T1 ───────────────────────────────
 
         [Fact]
         public void EntityData_Name_WrittenToComponent()
         {
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -77,7 +56,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void EntityData_Affiliation_StringVariant_WrittenToComponent()
         {
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -94,7 +73,7 @@ namespace Hrot.SimHost.Tests
         {
             // Use the FORCE_FRIENDLY enum int value to avoid calling the internal factory method.
             int friendlyInt = (int)eForceIdentifier.FORCE_FRIENDLY;
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -109,7 +88,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void EntityData_AuthorityGuard_NoWriteWhenDenied()
         {
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -124,7 +103,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void EntityData_DescriptorDirtyBit_SetAfterNameWrite()
         {
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -143,7 +122,7 @@ namespace Hrot.SimHost.Tests
         public void SimTransform_FullUpdate_CartesianPositionWritten()
         {
             var geo         = new FactoryTestGeoTransform(); // lat→Y, lon→X, alt→Z
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new SimTransformAttributeInstaller(geo))
                 .Build();
 
@@ -170,7 +149,7 @@ namespace Hrot.SimHost.Tests
             var listCtx = new ListPatchContext(new List<object> { seedTransform });
 
             var geo         = new FactoryTestGeoTransform(); // lat→Y, lon→X, alt→Z
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new SimTransformAttributeInstaller(geo))
                 .Build();
 
@@ -187,7 +166,7 @@ namespace Hrot.SimHost.Tests
         public void SimTransform_MultipleRecordsSameApply_ToCartesianCalledOnce()
         {
             var geo         = new CountingGeoTransform();
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new SimTransformAttributeInstaller(geo))
                 .Build();
 
@@ -207,7 +186,7 @@ namespace Hrot.SimHost.Tests
         public void SimTransform_AuthorityGuard_NoWriteWhenDenied()
         {
             var geo          = new CountingGeoTransform();
-            var interpreter  = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter  = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new SimTransformAttributeInstaller(geo))
                 .Build();
 
@@ -222,7 +201,7 @@ namespace Hrot.SimHost.Tests
         public void SimTransform_DescriptorDirtyBit_SetAfterPositionFlush()
         {
             var geo         = new FactoryTestGeoTransform();
-            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+            var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
                 .AddInstaller(new SimTransformAttributeInstaller(geo))
                 .Build();
 

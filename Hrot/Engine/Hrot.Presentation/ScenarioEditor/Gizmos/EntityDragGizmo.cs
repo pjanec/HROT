@@ -6,6 +6,8 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Patching;
+using Fdp.Modules.Geographic;
 
 namespace Hrot.ScenarioEditor.Gizmos;
 
@@ -39,6 +41,12 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     private readonly ISimulationView _view;
     private readonly Entity          _entity;
 
+    // ⭐⭐⭐ AX-007 — the COMMIT goes through the same router the rotate gizmo uses, so a move made on a
+    //    node that does not own the entity reaches the node that does. 📄 DESIGN_Cgf_AxisB_Rotation_Slice.md §11.
+    //    ⚠ OPTIONAL: without it the gizmo keeps the direct ECS write it always had, which is correct on a
+    //      one-node editor. 📌 A production caller that HAS a writer must pass it — the definition does.
+    private readonly IEntityComponentWriter? _writer;
+
     private bool    _isDragging;
     private Vector3 _originalPos;
     private Vector3 _currentDragPos;
@@ -54,10 +62,11 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     public bool RequiresExclusiveFocus => false;
     public bool IsFocused { get; private set; }
 
-    public EntityDragGizmo(ISimulationView view, Entity entity)
+    public EntityDragGizmo(ISimulationView view, Entity entity, IEntityComponentWriter? writer = null)
     {
         _view   = view;
         _entity = entity;
+        _writer = writer;
     }
 
     public void Dispose() { }
@@ -127,7 +136,7 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
 
         if (_isDragging)
         {
-            ApplyPosition(_currentDragPos);
+            CommitPosition(_currentDragPos);
             OnDragCommitted?.Invoke(_entity, new Vector2(_currentDragPos.X, _currentDragPos.Y));
         }
 
@@ -146,6 +155,64 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     public void OnKeyEvent(MapKeyboardKey key, bool isPressed) { }
 
     // -- Helpers ---------------------------------------------------------------
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>AX-007</c> — the COMMIT, routed through <see cref="IEntityComponentWriter"/>.</b>
+    ///
+    /// <para>⭐⭐ <b>Why only the commit, and not <see cref="OnDragUpdate"/>.</b> The live drag write is a
+    /// LOCAL PREVIEW — it runs on every mouse-move so the entity follows the cursor. ⛔ Routing it would
+    /// put one change-request per mouse-move on the wire, and on an unowned entity the owner would fight
+    /// the preview back every replication tick. ⭐ The preview stays a direct ECS poke; the RELEASE is what
+    /// asks the owner. ⚠ On an unowned entity that means the preview is visibly reverted by replication
+    /// until the request lands — which is the honest picture of a distributed edit, not a defect.</para>
+    ///
+    /// <para>⭐⭐ <b>Both coordinates in ONE write</b> *(see the interface's remarks)*: <c>GeoLat</c> and
+    /// <c>GeoLon</c> are one geodetic point, and the installer converts them in a single flush.</para>
+    ///
+    /// <para>⚠ <b>Falls back to the direct write when there is no writer OR no geodetic frame.</b> The
+    /// attributes are geodetic, so a world with no <see cref="IGeographicTransform"/> singleton has no way
+    /// to express this position as <c>GeoLat</c>/<c>GeoLon</c> — ⛔ and inventing a Cartesian attribute pair
+    /// here would be a second position vocabulary. ⭐ Such a world is single-node by construction, where the
+    /// direct write is exactly right.</para>
+    /// </summary>
+    private void CommitPosition(Vector3 worldPos)
+    {
+        if (_writer == null || _view is not EntityRepository repo)
+        {
+            ApplyPosition(worldPos);
+            return;
+        }
+
+        var geo = repo.GetSingletonManaged<IGeographicTransform>();
+        if (geo == null)
+        {
+            ApplyPosition(worldPos);
+            return;
+        }
+
+        // ⚠ Z comes from the CURRENT transform, not from the drag: a 2D map drag moves the entity in the
+        //   horizontal plane and must not silently flatten its altitude.
+        float z = worldPos.Z;
+        if (repo.IsAlive(_entity) && repo.HasComponent<SimTransform>(_entity))
+            z = repo.GetComponentRO<SimTransform>(_entity).Position.Z;
+
+        var (lat, lon, alt) = geo.ToGeodetic(new Vector3(worldPos.X, worldPos.Y, z));
+
+        var route = _writer.Write(_entity, new[]
+        {
+            EntityAttributeChange.Double(AttributeIds.GeoLat, lat),
+            EntityAttributeChange.Double(AttributeIds.GeoLon, lon),
+        });
+
+        // ⭐ Refused means nothing was written and nobody was asked (no request sink, or a dead entity).
+        //   ⛔ Leaving the preview standing would show a move that never happened ⇒ put it back.
+        if (route == EntityWriteRoute.Refused)
+            ApplyPosition(_originalPos);
+
+        // ⚠ `alt` is read and deliberately not sent — the drag did not change it, and GeoAlt's partial-update
+        //   pre-fill already preserves it on the owner.
+        _ = alt;
+    }
 
     private void ApplyPosition(Vector3 worldPos)
     {
@@ -169,6 +236,16 @@ public sealed class EntityDragGizmoDefinition : IGizmoDefinition
 {
     private readonly Action<Entity, Vector2>? _onDragCommitted;
 
+    /// <summary>
+    /// ⭐⭐ <c>AX-007</c> — builds the write router for the world the gizmo is created against.
+    ///
+    /// <para>⭐ A FACTORY rather than a writer instance because <see cref="CreateInstance"/> is handed the
+    /// view, and one definition serves every entity on that host. ⛔ A host on the presentation side cannot
+    /// name <c>EntityWriteRouter</c> *(it lives in the network assembly)*, so it passes the method group:
+    /// <c>new EntityDragGizmoDefinition(writerFactory: EntityWriteRouter.For)</c>.</para>
+    /// </summary>
+    private readonly Func<EntityRepository, IEntityComponentWriter>? _writerFactory;
+
     public Type[] RequiredComponents { get; } =
     {
         typeof(NetworkIdentity),
@@ -180,14 +257,21 @@ public sealed class EntityDragGizmoDefinition : IGizmoDefinition
     // FNV-1a hash of the fully-qualified type name — used as composite routing key.
     public uint GizmoTypeId { get; } = Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry.ComputeHash(typeof(EntityDragGizmoDefinition).FullName!);
 
-    public EntityDragGizmoDefinition(Action<Entity, Vector2>? onDragCommitted = null)
+    public EntityDragGizmoDefinition(
+        Action<Entity, Vector2>? onDragCommitted = null,
+        Func<EntityRepository, IEntityComponentWriter>? writerFactory = null)
     {
         _onDragCommitted = onDragCommitted;
+        _writerFactory   = writerFactory;
     }
 
     public IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity)
     {
-        var gizmo = new EntityDragGizmo(view, entity);
+        var writer = _writerFactory != null && view is EntityRepository repo
+            ? _writerFactory(repo)
+            : null;
+
+        var gizmo = new EntityDragGizmo(view, entity, writer);
         if (_onDragCommitted != null)
             gizmo.OnDragCommitted += _onDragCommitted;
         return gizmo;

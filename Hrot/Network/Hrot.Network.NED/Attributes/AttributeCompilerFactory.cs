@@ -139,9 +139,9 @@ public static class AttributeCompilerFactory
     /// <see cref="SimTransformAttributeInstaller"/> is not added and geo-position attribute
     /// records are silently ignored.
     /// </param>
-    public static BinaryInterpreter<AttributeRecord> BuildBinaryInterpreter(IGeographicTransform? geoTransform)
+    public static BinaryInterpreter<EntityAttributeChange> BuildBinaryInterpreter(IGeographicTransform? geoTransform)
     {
-        var builder = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+        var builder = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
             .AddInstaller(new EntityDataAttributeInstaller())
             // ⭐⭐ Axis-B item ② — heading. ⚠ Added UNCONDITIONALLY, unlike the position installer:
             //    📐 it needs no IGeographicTransform, because a compass heading is already in the units

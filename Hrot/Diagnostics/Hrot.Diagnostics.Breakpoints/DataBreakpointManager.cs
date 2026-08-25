@@ -617,15 +617,48 @@ public sealed class DataBreakpointManager
         OnPauseStateChanged?.Invoke(false);
     }
 
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ CE-035 — **CONTINUE AFTER A STEP WAS A NO-OP, AND THE OPERATOR STAYED HALTED.**
+    //
+    // 🔴 Measured `2026-08-25` by the CE-029 barrier rail, which had to write `controller.RequestResume()`
+    //    instead of `bp.RequestContinue()` and say so in a comment: `RequestStep` calls
+    //    `ClearPausedState()`, so `_isPaused` is FALSE immediately afterwards — while the CLOCK is not
+    //    running. 📐 The rail asserts exactly that: after a step, `SimGroupsEnabled == false` and
+    //    `ClusterPauseRequested == true`. ⇒ the guard below returned early on the one gesture that
+    //    matters most: *step, look, continue*.
+    //
+    // ⭐⭐ WHY NOT "make RequestStep leave _isPaused true". ⛔ Because the flag is a LABEL for the rewound
+    //    world (see MX-009 above): while it is set, `_liveRepo` is rewound to `_preTickSnapshot` and
+    //    `IsRewound` switches the kernel's drain off. A step deliberately restores the POST-tick state and
+    //    advances ⇒ the world is NOT rewound and the flag is correctly false. ⭐ The bug was never the
+    //    flag; it was `RequestContinue` reading it as *"is time running?"* when it means *"is the world
+    //    rewound?"*.
+    //
+    // ⇒ ⭐⭐ The split below: the REWIND-UNDO half is conditional on `_isPaused`; the RESUME half is
+    //    unconditional, because the time controller is the thing that knows whether it is halted
+    //    (`RequestResume` is idempotent — it publishes a ResumeTimeIntent, or re-enables the sim groups
+    //    on an offline node). ⛔ A `RequestContinue` on a genuinely running world stays a no-op in effect,
+    //    which is what it always was.
+    // ────────────────────────────────────────────────────────────────────────────────────────────
+
     /// <inheritdoc/>
     public void RequestContinue()
     {
-        if (!_isPaused) return;
-
-        // Restore end-of-tick state before resuming.
-        _liveRepo.SyncFrom(_postTickSnapshot);
+        if (_isPaused)
+        {
+            // Restore end-of-tick state before resuming — only meaningful while the world is rewound.
+            _liveRepo.SyncFrom(_postTickSnapshot);
+        }
 
         _timeController.RequestResume();
+
+        if (!_isPaused)
+        {
+            // ⭐ CE-035 — the after-a-step path: nothing to restore, nothing to clear, and no state
+            //   change to announce. The resume above is the whole act.
+            return;
+        }
+
         ClearPausedState();
 
         // ⭐ Anything staged is drained by the kernel's PreFrame system on the next advancing tick.
