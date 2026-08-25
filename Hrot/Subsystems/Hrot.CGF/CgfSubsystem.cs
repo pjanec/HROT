@@ -1026,10 +1026,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    references neither and has no such capability, so the Watch's "pick an entity…" entry
             //    is ABSENT here rather than dead (the property's own remark asks for exactly that).
             //
-            // ⛔⛔ StagedWrites is absent for the same kind of reason: it resolves a row's address
-            //    through BlueprintLiveValueWriter, which needs an IBlueprintDebugSession. CGF has no
-            //    blueprint debug session — and slice 1 is READ/diagnostics anyway (charter D3), so the
-            //    write side stays out by design, not by omission.
+            // ⛔⛔ StagedWrites is absent for two reasons, and BOTH are load-bearing:
+            //    ① it resolves a row's address through BlueprintLiveValueWriter, which needs an
+            //      IBlueprintDebugSession — CGF constructs none, so a writer here could only refuse;
+            //    ② 🔒 the 2026-08-25 STEER keeps the LIVE VARIABLE-VALUE write off this host on purpose:
+            //      it carries R-52, a whole-component write that clobbers a tick of BTree/HSM state
+            //      (a live-corruption bug that bites the editor too, needing SetComponentFieldRaw), and
+            //      it is the variable-model lane's frozen territory.
+            //    ⚠⚠ NOT because "slice 1 is read-only" — that framing is SUPERSEDED (design §10). The
+            //      windows are taken WHOLESALE; ⭐ this is the ONE place a gate is honest, and the reason
+            //      is CORRUPTION, not policy.
         };
 
         // ── One selection store per perspective, over ONE shared entity selection ──
@@ -1080,8 +1086,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         renderWithFindBar: (view, fb, cmds) => renderer.Render(view, fb, cmds)),
                     pickers: adapters.PickerRegistry,
                     input:   adapters.InputSource));
-                    // ⛔ saveDocument is absent by design: slice 1 is VIEWING/DIAGNOSTICS, and asset
-                    //   editing/hot-reload writes on CGF are explicitly a later slice (§1).
+                    // ⛔ saveDocument is absent, and ⚠⚠ NOT as a gate on editing — 🔒 the 2026-08-25
+                    //   STEER forbids gating, and this is not one. 📐 Measured: it is the
+                    //   save-on-CLOSE callback for a DIRTY OPEN DOCUMENT, and CGF can open no document
+                    //   at all — no document factories are registered with the AiDocumentManager and
+                    //   the AssetCatalog is empty (CE-009). ⇒ ⭐ it could never fire, so a delegate here
+                    //   would be unreachable code, not a capability.
+                    // ⚠ It is passed the day CGF can open an asset — the same day CE-009 closes.
         }
 
         // ── The Blueprint perspective's two host-specific windows ──────────────

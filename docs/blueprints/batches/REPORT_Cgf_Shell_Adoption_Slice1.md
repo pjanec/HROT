@@ -134,6 +134,25 @@ committed; the verification run afterwards left the tree untouched.
 ⚠ **Quarantine/skip counts:** `Hrot.Editor.Tests` 1 · `Hrot.Editor.AiShared.Tests` 1 ·
 `Hrot.SimHost.Tests` 1 — ⭐ **all unchanged; this batch adds no skip.**
 
+## 4c. 🔒 THE MID-BATCH STEER *(rule 1c, `2026-08-25`)*
+
+📄 [`STEER_Cgf_Shell_Adoption_Slice1.md`](STEER_Cgf_Shell_Adoption_Slice1.md) — ⭐ found on the
+coordinator branch during the **rule-4 re-pull** before the final commit, and merged.
+⭐⭐ **Outcome and evidence live in the DESIGN, §10** *(obligation ⑤ — ⛔ the report points, it does not
+restate)*. In one line each:
+
+| the steer | outcome |
+|---|---|
+| ⛔ add no gating code | ✅ **nothing to undo** — no gate had been added |
+| 🔴 keep the live variable-value write OFF *(`R-52`)* | ✅ already so — ⚠ **the REASON was rewritten** in code and design: `R-52` + the lane freeze, ⛔ not *"read-only slice"* |
+| ⭐ wire the reload pipeline if cheap, else report | ⛔ **reported — `CE-011`.** 📐 The editor wires it *(`:4042`/`:4096`)*, but on CGF its `bpDir` is ruling 67's `.csproj` walk-up, its `session` does not exist, and ⭐⭐ **its TRIGGER needs a dirty OPEN document, which CGF cannot have** ⇒ wiring it would rebuild `BP-327`'s *"built and unreachable"* on purpose |
+| ⚠ ruling 67's deployed-node asset root | ⛔ **not reached** — downstream of `CE-009`: nothing can be opened, so nothing can be saved, dev or deployed |
+| ⭐⭐ manifest honesty | ✅ by construction — no edit endpoint is reported present, and availability is **measured** |
+
+⚠⚠ **The `saveDocument: null` on the canvases is NOT a gate** — 📐 measured: it is the save-on-CLOSE
+callback for a dirty OPEN document, and CGF can open none *(`CE-009`)*. ⭐ Passing a delegate would have
+been unreachable code, not a capability; the comment at the call site says so.
+
 ## 5. ⭐ IDS ALLOCATED *(rule 5)*
 
 **`CE-001` … `CE-010`**, in the tracker's **new Area L — cgf == editor**.
@@ -142,7 +161,12 @@ passed/null decisions · `CE-005` item ③'s deviation · `CE-006` the `my-bluep
 `CE-007` the three declared divergences · `CE-008` the rails + goldens.
 ⚠ Open: **`CE-009`** *(CGF's `AssetCatalog` is EMPTY — the shell is real but every window can only show its
 empty state; indexing is a design question colliding with ruling 67)* · **`CE-010`** *(the `_gizmo` frame is
-still editor-only — `BP-487`'s wiring, which its own text hands to whoever owns cross-host)*.
+still editor-only — `BP-487`'s wiring, which its own text hands to whoever owns cross-host)* ·
+**`CE-011`** *(the steer's reload-pipeline measurement — not wired, and it would be inert until `CE-009`
+closes)*.
+
+⭐⭐ **All three open rows have ONE root: CGF cannot open an asset.** ⛔ Worth saying once rather than three
+times — `CE-009` is the next slice, and `CE-011` falls out of it for free.
 
 ## 6. ⛔ WHAT THIS SLICE DID **NOT** DO
 
@@ -150,7 +174,7 @@ still editor-only — `BP-487`'s wiring, which its own text hands to whoever own
 
 | | |
 |---|---|
-| ⛔ **asset editing / hot-reload writes on CGF** | later slice *(design §1)* |
+| ⚠ **asset editing / hot-reload writes on CGF** | ⛔ **NOT gated** *(the steer forbids that, and none was added)* — but **not reachable either**, because nothing can be opened. `CE-009` / `CE-011` |
 | ⛔ **map / entity parity** | Axis B of the gap map |
 | ⛔ **anything that would populate those windows** | ⚠ **this is the honest limit** — `CE-009`. The shell is constructed and asserted; there is no asset catalog behind it, and no debug-API endpoint that opens an AI asset *(`MX-013`)* ⇒ the panels publish their empty state on **both** hosts, which is what makes them comparable and also what bounds the claim |
 | ⛔ **`Hrot.Editor.AiShared`** | untouched, by construction — the freeze owner is the variable-model lane |

@@ -6,15 +6,18 @@ build-state: BUILT (2026-08-25, backend/CGF lane, ids CE-001..CE-010). Carries c
   (watch -> MyBlueprint -> asset graphs) on CGF.
 updated: 2026-08-25
 current-answer: §3/§4 (the diagrams, TRUE as built) + §9 (AS-BUILT — what landed, and the five places
-  the build deviated from §5). Read §9 before quoting §5's items: item ③ in particular asked for
-  something that does not exist in the shape it describes.
+  the build deviated from §5) + §10 (the mid-batch STEER and its measured outcome). Read §9 before
+  quoting §5's items: item ③ in particular asked for something that does not exist in the shape it
+  describes. Read §10 before quoting §1's "NOT this slice: asset editing" — that framing is SUPERSEDED.
 design-basis: PROGRAMME_Unification_And_Harness.md (charter; editor = one-node cluster; Step 4) ·
   PROGRAMME_Cgf_Equals_Editor_Gap_Map.md §0.5 (pure-sharing framing: this slice has NO open design) ·
   UX/UX_Feature_Cgf_Brain_Diagnostics.md §5b (the verified construct diff, UXI-37) ·
   DESIGN_Perspective_Unification.md Part B (CreateRegistrar is the reuse vehicle; A0/A1 default fix BUILT) ·
   Architect_Question_54 (capability manifest — flip a cell absent->present) ·
   DESIGN_Regression_Net.md (the net every port runs against).
-known-rot: §1's table row and §2's closing line both say "flip the capability-manifest cells
+known-rot: §1's NOT-row "asset EDITING / hot-reload writes" and §5 item ③'s "leave write/edit cells
+  absent" are SUPERSEDED by the 2026-08-25 STEER (§10): take the windows wholesale, add no gating.
+  §1's table row and §2's closing line both say "flip the capability-manifest cells
   absent->present". MEASURED FALSE while building (§9.2): the manifest's availability layer is derived
   from the live route table and from what is actually wired, and CapabilityManifest's own doc places the
   known-absent BASELINE in the HARNESS. There is no hand-authored cell. The real act is the nine
@@ -308,3 +311,39 @@ shape this codebase keeps paying for.
 | `The_ported_kinds_are_really_published_by_the_cluster` | the baseline shrank by exactly what CGF publishes — ⭐ the control that runs **opposite** to `A_declared_divergence_that_stopped_diverging_is_deleted` |
 | ⭐⭐ **two new goldens** — `ai_canvas_blueprint`, `ai_watch_blueprint` *(+ their D7 pairing assertions)* | ⛔ the conformance rail compares the two hosts **to each other**, so it stays green if BOTH regress — and after this slice both render from the SAME AiShared classes, which makes an identical regression the LIKELY shape |
 
+
+## 10. ⭐⭐⭐ THE STEER, AND WHAT IT CHANGED *(`2026-08-25`, rule 1c — mid-batch)*
+
+📄 [`batches/STEER_Cgf_Shell_Adoption_Slice1.md`](blueprints/batches/STEER_Cgf_Shell_Adoption_Slice1.md)
+🔒 **User:** *"the editor never disallowed asset editing, so it is easier to take wholesale WITH editing
+than to refuse one artificially."* ⇒ ⛔ the *"read/diagnostics only"* framing in §1's NOT-row and §5 item ③
+is **SUPERSEDED**: register the windows wholesale, add no code that gates their editing.
+
+| the steer asked | ⭐ measured outcome |
+|---|---|
+| ⛔ **add no gating code** | ✅ **nothing to undo** — the windows were registered as-is. 📐 The only `null`s passed are ones the host genuinely cannot supply *(§9.4)*; ⛔ none of them is a refusal added on top of a working capability |
+| 🔴 **keep the live variable-VALUE write OFF** *(`R-52` corruption, variable-model lane's territory)* | ✅ already so — `writeLive` and `StagedWrites` are null. ⚠ **The REASON in §9.4 is now the steer's**: `R-52` + the freeze, ⛔ **not** *"this is a read-only slice"* |
+| ⭐ **measure the reload pipeline; wire it if cheap, else report** | ⛔ **NOT WIRED — reported instead**, see below. `CE-011` |
+| ⚠ **ruling 67's deployed-node asset root** | ⛔ **not reached.** It is downstream of `CE-009`: with no catalog and no document factories, no asset can be opened on CGF, so there is nothing to save anywhere — deployed or dev |
+| ⭐⭐ **manifest honesty — never report an edit endpoint present if it no-ops** | ✅ holds by construction: no edit capability is reported present on CGF, and the availability layer is **measured**, not declared *(§9.2)* |
+
+### 10.1 ⛔ Why `QuickReloadService` was NOT wired on CGF — **it would be inert**
+
+📐 **Measured `2026-08-25`.** The editor DOES wire it *(`EditorSubsystem.cs:4042`, triggered at `:4096`)*,
+so this is a real editor↔CGF gap, ⛔ not a phantom. ⭐ But three of its inputs do not exist on CGF:
+
+| the editor's input | on CGF |
+|---|---|
+| `BlueprintPeerSource(bpDir)` where `bpDir` comes from a **`.csproj` walk-up** *(`AiBehaviorsProjectPath`)* | ⛔ **this IS ruling 67's blocker**, verbatim — the walk-up the gap map calls *"the one true authoring blocker"* |
+| `session: _blueprintDebugSession` *(the auto-instrumentation callback hangs off it)* | ⛔ CGF constructs none *(§9.4)* |
+| ⭐⭐⭐ **the TRIGGER** — the RegenerationScheduler flushing a **dirty open document** | ⛔⛔ **CGF can open no document**: no document factories are registered and the catalog is empty *(`CE-009`)* |
+
+⇒ ⭐⭐ **Wiring it today produces a service nothing can call** — 📌 precisely the *"built and unreachable"*
+shape this codebase keeps finding *(`BP-327`'s sentence)*. ⛔ **The steer says *"if it is a cheap construct,
+wire it; if not, report it"* — it is not cheap, and worse, it would be inert.** ⭐ **`CE-011` files it with
+this measurement, and it belongs with `CE-009`: the reload pipeline becomes wireable the same moment CGF
+can open an asset at all.**
+
+⚠ **Stated plainly so nobody reads the slice as more than it is:** ⭐ CGF now hosts the editor's windows,
+and **nothing artificially stops them editing** — ⛔ but there is no asset for them to edit yet. **That is
+`CE-009`, and it is the next slice's headline.**
