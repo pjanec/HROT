@@ -43,6 +43,19 @@ category (§4); everything else is an adapter, a registration, or an assembly re
 > hand-pumped translator, so [DQ30 A](Design_Question_30_Debug_Pause_Resume.md)'s deadlock **cannot** occur
 > through the ingress path — the two classes are already on different pumps.
 
+> ⛔⛔ **SUPERSEDED `2026-08-25` by the slice-4 build** *(`CE-028`; see
+> [`DESIGN_Cgf_Editor_Sharing_Slice4_Debug_PauseStep.md`](../DESIGN_Cgf_Editor_Sharing_Slice4_Debug_PauseStep.md)
+> §10.3)*. **The paragraph below named the wrong class and undercounted the systems.** 📐 Measured:
+> **`CycloneIngressSystem` has ZERO production registrations** — CGF's ingress is
+> **`CycloneNetworkIngressSystem`**, constructed at **12 production sites across 9 files in 6
+> assemblies**, of which **five** are registrations on CGF. ⭐⭐ And **one of those five is purely
+> CONTROL PLANE** *(`SlaveTimeTranslatorRegistration` registers its own ingress system holding only the
+> three time translators)*. ⇒ ⭐⭐⭐ **the conclusion below is right and its reason is now sharper**: the
+> freeze gate is handed to EVERY ingress system on the node, control-plane one included, and **only the
+> per-translator `Category` stops that being [DQ30 A](Design_Question_30_Debug_Pause_Resume.md)'s
+> deadlock.** ⚠ The closing *"verify at implementation time"* instruction was carried out; its answer is
+> §10.3.
+
 🔴 **But `CycloneIngressSystem` is all-or-nothing**: one system, one array, one `Execute`. It is **not** part of
 `CgfLogicPack`'s togglable groups, so freezing the brain does **not** stop it — and gating the whole system
 would also stall any control-plane traffic registered inside it (orchestration commands, lifecycle acks).
@@ -75,6 +88,14 @@ step actuator (§3b).
 ## 3. The freeze — replace the no-op with a master-driven adapter
 
 ### 3a. `CgfClusterDebugTimeController : IEngineDebugTimeController`
+
+> ✅✅ **BUILT `2026-08-25`** — `CE-025`…`CE-027`, in `Hrot/Subsystems/Hrot.CGF/Debug/`. ⭐⭐ **This
+> section's framing was the correct one and the slice design's `classDiagram` was not:** it drew the
+> controller calling `MasterSyncController` directly, which is not buildable on a slave. 📄 The as-built
+> is [`DESIGN_Cgf_Editor_Sharing_Slice4_Debug_PauseStep.md`](../DESIGN_Cgf_Editor_Sharing_Slice4_Debug_PauseStep.md)
+> §10, whose diagrams supersede it. ⭐ The one ADDITION beyond the table below: **with no participant,
+> `RequestResume` applies locally and at once** — the mirror of §3c, without which an offline node could
+> never be un-frozen.
 
 Mirrors `MasterSyncTimeControllerAdapter`, but CGF is a **slave**: it cannot switch modes, only **request**.
 

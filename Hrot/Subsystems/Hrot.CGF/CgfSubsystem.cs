@@ -90,6 +90,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private DataBreakpointManager?  _bpManager;
     private DataBreakpointSystem?   _bpSystem;
 
+    /// <summary>
+    /// ⭐⭐⭐ Slice 4 (<c>DQ30</c>) — the debug time controller, hoisted to a field because
+    /// <see cref="Update"/> has to bracket the kernel update with its step latch. ⛔ Without that
+    /// bracket "step one tick" cannot be exactly one tick.
+    /// </summary>
+    private Hrot.CGF.Debug.CgfClusterDebugTimeController? _debugTimeController;
+
     // ── cgf==editor slice 1: the AiShared shell ───────────────────────────────
     // 📄 docs/DESIGN_Cgf_Editor_Sharing_Slice1_Shell_Adoption.md §3 (classDiagram) / §4 (sequenceDiagram).
     // ⭐⭐ The ENTIRE slice is a composition block: every type below already exists in
@@ -744,12 +751,26 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
 
         // ── Universal breakpoints (UBP-P10T2) ────────────────────────────────────
-        // CGF uses a SlaveSyncController so we supply a no-op time adapter.
-        // The breakpoint manager still collects data; pause/step are no-ops for slave nodes.
+        // ⭐⭐⭐ cgf==editor SLICE 4 (DQ30) — the no-op time adapter is RETIRED.
+        //    📄 docs/DESIGN_Cgf_Editor_Sharing_Slice4_Debug_PauseStep.md §6 item ① ·
+        //       docs/UX/UX_Feature_Cgf_Brain_Diagnostics.md §3a · Design_Question_30 §A-§E.
+        //    ⛔ It used to read "pause/step are no-ops for slave nodes" — which described the
+        //    IMPLEMENTATION, not the intent: ruling 62 says a breakpoint hit on CGF freezes the WHOLE
+        //    cluster, and being a slave is why the request travels as an INTENT rather than why it
+        //    cannot happen.
         _bpPreTickSnapshot = new EntityRepository();
         CgfComponentRegistry.RegisterAll(_bpPreTickSnapshot);
 
-        var bpTimeAdapter          = new CgfNoOpTimeController();
+        // ⭐⭐ The halt actuator is the pair of togglable groups built at :461-462; the request path is
+        //    the node's orchestration bus, which ClusterOpEgressTranslator already forwards to the
+        //    orchestrator's MasterSyncController (the only node holding a roster).
+        var bpTimeAdapter          = new Hrot.CGF.Debug.CgfClusterDebugTimeController(
+            controlBus:  _context.EventBus,
+            inputGroup:  _toggleInput,
+            simGroup:    _toggleSim,
+            hasCluster:  () => _context?.Participant != null,
+            log:         msg => FdpLog<CgfSubsystem>.Warn("[CGF-DEBUG] {0}", msg));
+        _debugTimeController        = bpTimeAdapter;
         // ⭐⭐ Slice 1 — HOISTED to a field, not because the breakpoint compiler needed it there, but
         //    because the AiShared shell REQUIRES an IComponentEditService and building a second one in
         //    RegisterWindows would be two implementations of one concept (ruling 9).
@@ -783,6 +804,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ─────────────────────────────────────────────────────────────────────────
 
         _context.Kernel.Initialize();
+
+        // ⭐⭐⭐ Slice 4 item ③ — DQ30-C: no WORLD-STATE ingress while the debugger holds the world
+        //    frozen; the CONTROL PLANE keeps polling so the resume can arrive.
+        //    ⚠ AFTER Kernel.Initialize() on purpose: modules register their ingress systems from
+        //    RegisterSystems(), so before this line the scheduler does not yet hold them all.
+        WireWorldStateFreezeGate();
+
         // ── Visualization (non-headless only) ─────────────────────────────────────
         if (!_headless)
         {
@@ -836,6 +864,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context?.ClusterSlave.Tick();
         _clusterTimeAdapter?.Update();
 
+        // ⭐⭐⭐ Slice 4 (DQ30) — fold the cluster's mode decision and apply DQ30-E's unanswered-freeze
+        //    rule. Runs alongside _clusterTimeAdapter.Update() and reads the same non-destructive
+        //    buffer; the two are different roles (toolbar transport vs breakpoint freeze), not a
+        //    duplicate — see the controller's class remarks.
+        _debugTimeController?.ObserveClusterTime();
+
         // Evict transient primitives and advance persistence clock before backend population.
         _cgfGizmoBuffer?.EndFrame(deltaTime);
 
@@ -843,7 +877,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // wall-clock delta between frames.  The legacy Update(float) path would receive
         // dt=0 from the SubsystemOrchestrator in headless mode, zeroing out every
         // DeltaTime-dependent system (e.g. ThreatEvaluationSystem boost/decay).
+        // ⭐⭐⭐ Slice 4 §3b — the step actuator brackets EXACTLY ONE kernel update. ⛔ A re-enable that
+        //    outlived this bracket would be a silent resume the operator reads as "one step".
+        _debugTimeController?.BeginFrame();
         _context?.Kernel.Update();
+        _debugTimeController?.EndFrame();
+
         if (!_headless && _context != null)
         {
             _fdpFrameCount++;
@@ -1720,17 +1759,49 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         public void Tick(ISimulationView view, float deltaTime) { }
     }
 
-    // No-op IEngineDebugTimeController for CGF (slave node; pause/step are not applicable).
-    private sealed class CgfNoOpTimeController : Hrot.Blueprints.Core.Debug.IEngineDebugTimeController
+    /// <summary>
+    /// ⭐⭐⭐ <b>Slice 4 item ③ (<c>DQ30-C</c>) — hands every ingress system on this node the debug
+    /// freeze gate.</b> Returns how many it reached.
+    ///
+    /// <para>⭐⭐ <b>Why a sweep and not a constructor argument.</b> 📐 Measured <c>2026-08-25</c>: CGF's
+    /// ingress arrives through <b>five</b> separate registrations — the NED replication module, the
+    /// auxiliary / perception / pathfinding translator packs, and
+    /// <c>SlaveTimeTranslatorRegistration</c> — and every one of those helpers is shared with SimHost
+    /// and IG, which have no debugger to hand over. ⇒ threading a parameter through them would
+    /// default it at almost every site, which is exactly the silent-default shape; and it would still
+    /// miss any pack added later. ⭐ This reaches all of them, including future ones.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>It gates the CONTROL PLANE too, and that is safe only because of the category.</b>
+    /// <c>SlaveTimeTranslatorRegistration</c>'s ingress system holds the three time translators, all
+    /// three now marked <c>ControlPlane</c>, so the gate skips nothing there. ⛔ Were any of them left
+    /// at the <c>WorldState</c> default, this node would freeze and never hear its own resume —
+    /// <c>DQ30-A</c>'s deadlock. ⚠ That is why the fail-safe default fails LOUDLY, and why the rail
+    /// asserts the time translators keep polling rather than merely that world state stops.</para>
+    /// </summary>
+    private int WireWorldStateFreezeGate()
     {
-        private IDataBreakpointManager? _bpManager;
-        // D-BP-01: return real pause state from the breakpoint manager instead of hardcoded false.
-        public bool IsPausedByDebugger => _bpManager?.IsPaused ?? false;
-        public void RequestPause() { }
-        public void RequestResume() { }
-        public void RequestStepOneTick() { }
-        public void SetManager(IDataBreakpointManager manager) => _bpManager = manager;
+        if (_context == null || _debugTimeController == null) return 0;
+
+        var gate = _debugTimeController;
+        int wired = 0;
+
+        foreach (var system in _context.Kernel.SystemScheduler.GetAllSystems())
+        {
+            if (system is not Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem ingress) continue;
+
+            ingress.IsWorldStateFrozen = () => gate.IsWorldStateFrozen;
+            wired++;
+        }
+
+        FdpLog<CgfSubsystem>.Info(
+            "[CGF-DEBUG] DQ30-C world-state freeze gate wired onto {0} ingress system(s).", wired);
+        return wired;
     }
+
+    // ⛔⛔ RETIRED by cgf==editor slice 4 (DQ30): CgfNoOpTimeController lived here, with all three
+    //    request methods empty and only IsPausedByDebugger returning real state — the "interface
+    //    called every frame with a dead parameter" variant of the seam law, named as such in UXI-37.
+    //    ⭐ Replaced by Hrot.CGF.Debug.CgfClusterDebugTimeController, constructed in Initialize().
 }
 
 
