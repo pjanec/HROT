@@ -25,7 +25,7 @@ known-conflict: none. CONSUMES Hrot.Editor.AiShared; must NOT modify it (freeze 
 | ✅ IN | ⛔ NOT (recorded below) |
 |---|---|
 | **Populate CGF's `AssetCatalog`** via an `AiAssetCatalogBuilder` with the cluster-appropriate contributors *(index the BTree/HSM/Blueprint assets)* | ⛔ **Asset EDITING / hot-reload writes** *(CE-011; needs the reload pipeline — §7)* |
-| **MCP: open an AI asset** — `POST /assets/{assetId}/open` → `AiDocumentManager.Open(catalog.FindByAssetId)` *(MX-013)* | ⛔ **Live variable-VALUE write** *(R-52; variable-model lane)* |
+| **MCP: discover + open an AI asset** — `GET /assets` · `POST /assets/{assetId}/open` *(Guid)* · `POST /assets/open {path}` *(relative folder path, §3a; MX-013)* | ⛔ **Live variable-VALUE write** *(R-52; variable-model lane)* |
 | **MCP: list + switch graph tabs** — `GET /documents`, `POST /documents/{assetId}/activate` *(the tab model already exists — §3)* | ⛔ **Map / entity parity** *(Axis B)* |
 | **MCP: focus a concrete window/panel** — `POST /panels/{panelId}/focus` | ⛔ **MCP AUTHORING** *(create assets, add/wire nodes — §8 FUTURE, recorded)* |
 | **Instrument the main TOOLBAR as a readable `PanelKind`** so focus→toolbar is observable | |
@@ -54,6 +54,21 @@ legitimately drive **different Details content and different toolbar buttons** �
 must be observable now, even if the consequences are small today. ⇒ open · list/switch tabs · focus ·
 read-toolbar are **part of this slice**, not a later nicety.
 
+## 3a. ⭐⭐⭐ ASSET ADDRESSING & FOLDERS *(user, `2026-08-25`)*
+
+📐 **Measured identity model** *(`IEditableAsset`)*: `Guid AssetId` *(the catalog key — `AssetCatalog._byId`
+is `Dictionary<Guid,…>`)* · `string Name` · `AssetKind Kind` · **`string SourceFilePath`** · `IsDirty`.
+
+| the concern | ⭐ the resolution |
+|---|---|
+| ⚠ *"isn't the id a file path, unsafe in a URL?"* | ⛔ **No — the id is a `Guid`** ⇒ `POST /assets/{assetId}/open` **is** URL-safe as written. But a Guid is **not discoverable or memorable**, which is the real problem |
+| ⭐⭐ **assets MUST organize into SUBFOLDERS** *(`blueprint/subfolder/blueprint1.bp.json`)* | ⭐ that structure already lives in **`SourceFilePath`**. ⛔ **The catalog contributor MUST index RECURSIVELY** across subfolders *(not one flat folder)*, and `SourceFilePath` preserves the **relative folder path** |
+| ⭐ **address by the human PATH, not just the Guid** | ⛔ a raw path in a URL SEGMENT is unsafe *(slashes/dots)* ⇒ ⭐⭐ **two safe forms:** ① `GET /assets` **discovery** returns every asset's `{assetId, name, kind, sourceFilePath}` so a client resolves path→Guid itself; ② `POST /assets/open { path: "blueprint/subfolder/blueprint1.bp.json" }` — the path travels in the **BODY** *(no URL-encoding)*, resolved via a new `AssetCatalog.FindBySourceFilePath`. Open-by-Guid stays the URL-segment form |
+| ⚠ `FindByName` is ambiguous across subfolders | ⛔ two folders may hold `blueprint1.bp.json` ⇒ **`Name` cannot be the address; the relative `SourceFilePath` is the human key**, the `Guid` is the stable one |
+
+⇒ ⭐⭐ **Three ways in, all safe:** the `Guid` *(stable, URL-segment)* · the relative `SourceFilePath`
+*(human, in the body)* · discovery via `GET /assets`. ⭐ The `RouteDoc`s document all three.
+
 ## 4. ⭐⭐⭐ CLASS DIAGRAM
 
 ```mermaid
@@ -67,8 +82,10 @@ classDiagram
         <<exists · AiShared · contributors to catalog>>
     }
     class AssetCatalog {
-        <<exists · AiShared>>
+        <<exists · AiShared · gains a path resolver>>
         +FindByAssetId(guid) IEditableAsset
+        +FindBySourceFilePath(path) IEditableAsset
+        +All IReadOnlyList
     }
     class AiDocumentManager {
         <<exists · AiShared · the TAB model — no code change>>
@@ -79,7 +96,9 @@ classDiagram
     }
     class DebugApiService {
         <<exists · gains routes · each carries a RouteDoc>>
-        +OpenAsset(assetId)
+        +ListAssets()
+        +OpenAssetById(assetId)
+        +OpenAssetByPath(path)
         +ListDocuments()
         +ActivateDocument(assetId)
         +FocusPanel(panelId)
@@ -96,7 +115,7 @@ classDiagram
     DebugApiService ..> AiDocumentManager : Open / Activate / list
     DebugApiService ..> PanelSnapshot : FocusPanel + read
     ToolbarPanelViewModel ..> PanelSnapshot : Register (new instrumentation)
-    note for DebugApiService "new routes: POST /assets/{id}/open · GET /documents · POST /documents/{id}/activate · POST /panels/{id}/focus"
+    note for DebugApiService "new routes: GET /assets · POST /assets/{id}/open (Guid) · POST /assets/open {path} · GET /documents · POST /documents/{id}/activate · POST /panels/{id}/focus"
 ```
 
 ## 5. ⭐⭐⭐ SEQUENCE DIAGRAM
@@ -131,8 +150,8 @@ sequenceDiagram
 ## 6. ⭐⭐ THE ITEMS
 | # | task | the one thing not to get wrong |
 |---|---|---|
-| ⭐ **①** | **Populate the catalog** — construct `AiAssetCatalogBuilder` on CGF with the cluster-appropriate contributors; replace the bare `new AssetCatalog()` | ⛔ index only what CGF legitimately hosts; ⚠ asset-root resolution on a DEPLOYED node is ruling 67 — report if it bites, do not silent-fail |
-| ⭐ **②** | **`POST /assets/{assetId}/open`** → `Open(catalog.FindByAssetId)` | ⭐ carry a `RouteDoc`; ⛔ a bad/absent id returns a typed hint, not a 500 |
+| ⭐ **①** | **Populate the catalog** — construct `AiAssetCatalogBuilder` on CGF with the cluster-appropriate contributors; replace the bare `new AssetCatalog()`. ⭐⭐ **Index RECURSIVELY across subfolders** *(§3a)*; `SourceFilePath` preserves the relative folder path | ⛔ index only what CGF legitimately hosts; ⛔ **not a single flat folder** — subfolders are required; ⚠ asset-root resolution on a DEPLOYED node is ruling 67 — report if it bites, do not silent-fail |
+| ⭐ **②** | **Open + discover** *(§3a)*: `GET /assets` *(list `{assetId, name, kind, sourceFilePath}`)* · `POST /assets/{assetId}/open` *(Guid, URL-safe)* · `POST /assets/open {path}` *(relative path in the BODY → new `AssetCatalog.FindBySourceFilePath`)* → `AiDocumentManager.Open` | ⭐ each carries a `RouteDoc`; ⛔ a bad/absent id or path returns a typed hint, not a 500; ⛔ **never put a raw path in a URL segment** |
 | ⭐ **③** | **`GET /documents` + `POST /documents/{assetId}/activate`** over `OpenDocuments`/`Active`/`Activate` | ⭐ the model EXISTS — expose it, ⛔ don't reimplement tabs |
 | ⭐ **④** | **`POST /panels/{panelId}/focus`** → WindowManager focus/open | ⭐ RouteDoc; make it a no-op-safe on an unknown panel with a hint |
 | ⭐ **⑤** | **Instrument the main toolbar as a `PanelKind`** *(a `ToolbarPanelViewModel` registered to `PanelSnapshot`)* | ⭐⭐ this is the observability the user asked for — buttons readable per focus; ⛔ don't gate, just publish what is there |
