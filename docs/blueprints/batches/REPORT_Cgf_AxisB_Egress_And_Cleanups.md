@@ -67,6 +67,7 @@ working tree, rebuilding with **0 errors**, and running. ⛔ Not inferred from a
 | 11 | `MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs docs/DESIGN_Cgf_AxisB_Rotation_Slice.md` | — | — | **all 6 blocks parse** | +2 *(§12.2/§12.3)* |
 | 12 | **golden movement** | — | — | ⭐ **NONE — zero golden files touched.** This batch moves no asset, corpus or emitter output | — |
 | 13 | **working tree clean after every suite** | `git status --short` | — | ✅ only this batch's own edits and new files; **no test regenerated anything** | — |
+| ⭐ **T3** | **system / E2E suite** *(the slow lane — backgrounded, never a foreground blocker)* | `bash scripts/run-system-tests.sh --no-build` *(`Category=SystemSmoke\|Category=SystemModes`)* | ✅ | ⭐⭐ **102 total · 102 passed · 0 failed · 0 skipped** · 6 m 56 s | **unchanged** — the Axis-B first cut also reported 102/102. ⇒ ⛔ nothing this batch touched moved the system lane |
 | 14 | **quarantine** | — | — | **`Hrot.SimHost.Tests` 3 skipped** *(unchanged)* · **`Hrot.Editor.AiShared.Tests` 1 skipped** *(unchanged)* · ⭐⭐ **`Hrot.ClusterRunner.Integration.Tests` 3 → 0** *(`CE-036`)*. ⛔ **No new skip was added anywhere** | −3 |
 
 ### ⭐⭐ RED-PROOFS — **by inverse edit, never `git checkout --`**
