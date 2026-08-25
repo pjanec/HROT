@@ -116,7 +116,7 @@ enters the path. ⭐⭐ **Railed that the two conversions are exact inverses**
 | 2 | SimHost *(the rails' home)* | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/… --no-build` | ✅ | ⚠ **691 / 1 / 3** *(run 1)*, **687 / 5 / 3** *(run 2)* | **+19 total**; reds are the characterised order flake |
 | 3 | ⭐⭐ **the replication INVERSE** *(anti-regression)* | `dotnet test Hrot/Engine/Hrot.Map.Common.Tests/… --no-build --filter "GeoSpatialIngressTranslatorTests"` | ✅ | ✅ **4 / 0** | 0 — ghosts still receive owner state |
 | 4 | affected-project builds | `dotnet build {Fdp.Toolkits, Hrot.Network.NED, Hrot.SimHost} --no-restore` | — | ✅ all green | — |
-| 5 | ⭐ **`T3` system suite** | `bash scripts/run-system-tests.sh` **(BACKGROUNDED)** | build-once | see §8 | — |
+| 5 | ⭐ **`T3` system suite** | `bash scripts/run-system-tests.sh` **(BACKGROUNDED)** | build-once | ✅✅ **102 / 0 / 0**, exit 0, 6 m 39 s | **0** — unchanged, as predicted |
 | 6 | tracker | `python3 scripts/tracker-counts.py --check` | — | ✅ **OK — 102 / 346** | unchanged: `BP-` only |
 | 7 | ledger | `python3 scripts/rulings-check.py` | — | ✅ **25/25** | 1 pre-existing staleness WARN |
 | 8 | design gate | `python3 scripts/design-digest.py --check` | — | ✅ **OK, 86 docs** | — |
@@ -143,12 +143,15 @@ enters the path. ⭐⭐ **Railed that the two conversions are exact inverses**
 ⭐ **One inverse edit reddens the gate, the router's unowned branch and the `AX-006` characterization at
 once** — which is the honest shape here: they are all consequences of the same gate.
 
-## 8. `T3` — the system suite
+## 8. ✅✅ `T3` — the system suite: **102 / 0**, exit 0, 6 m 39 s
 
-⚠ Backgrounded per the build rules and **never sat on**. ⭐ Expected unaffected: the installer migration is
-behaviour-preserving, the heading installer is additive, and the gizmo's writer is opt-in with the
-existing call site unchanged. Result recorded on completion; if it lands after this batch closes it lands
-in the next session, which is what `T3` means.
+⭐ Backgrounded per the build rules and never sat on; it completed within the batch.
+
+| | |
+|---|---|
+| ⭐⭐ **`102 / 0 / 0`** | the same count the coordinator's MCP batch reported ⇒ **zero delta, zero reds** |
+| ⭐⭐⭐ **and zero delta is the RIGHT result here** | 📐 predicted before the run, on three grounds: the installer migration is **behaviour-preserving** *(the same check, moved)*, the heading installer is purely **additive** *(a previously-unhandled attribute id)*, and the gizmo's writer is **opt-in** with the existing SimHost call site untouched. ⇒ ⭐ a CHANGED count would have meant one of those three claims was wrong |
+| ⚠ **what it does NOT prove** | ⛔ it does not exercise the new heading attribute or the router at all — nothing on the `--mode all` path sends an attribute record *(`AX-005`)*. ⭐ Its value here is purely **anti-regression on the paths the migration touched** |
 
 ## 9. ⚠ OPEN
 
