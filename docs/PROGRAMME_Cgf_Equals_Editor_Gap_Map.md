@@ -65,7 +65,7 @@ graph TD
 | Perspective-default fix (so `--mode all` doesn't hide CGF's windows) | UXI-06 | 🔌 | do **first** (else 22 windows blank); ordering ruling |
 | Menu + toolbar on CGF + menu-follows-focus | UXI-05/35 | 🔌 | discoverability soft-prereq for the windows |
 | Curated-scenario reuse on CGF | `UX_Feature_Curated_Scenarios.md` | 🔌 | shared helper; editor-wired only today |
-| **Debug pause / step on the CGF node** (DQ30 A–E) | UXI-37 / DQ30 | 📐🔒 | fully decided; `CgfNoOpTimeController` empty; **BLOCKED** on 3 active `.dev` programmes |
+| **Debug pause / step on the CGF node** (DQ30 A–E) | UXI-37 / DQ30 | 🔌 | fully decided AND **UNBLOCKED** (Correction 45, `2026-08-14`; the `.dev` debug programmes last touched `2026-07-16`). Fix is *"ONE class — a CGF time-controller adapter requesting a cluster-wide freeze via the master"* (replaces the empty `CgfNoOpTimeController`); the distributed pause/step protocol is **already built on both sides**. The rest is the same AiShared wiring as the row above |
 | Behavior/scenario **authoring** on CGF (ruling 65/66) | UXI-37 §5b | 🔌 | welcome; needs the construct-diff **and** the blockers below |
 | **Asset roots from config** (delete the `.csproj` walk-up) | ruling 67 | 🕳️ | the **one true authoring blocker** — roots are `null` on a deployed node |
 | Behavior-affinity registry for asset-authored behaviors (Q25-C) | AQ25 | 📐 | pivotal unknown: can `BehaviorUiCompiler` be schema-driven? |
@@ -117,7 +117,7 @@ graph TD
 | 3 | **AQ25** authoring shell + role/mode gating — architect-**unanswered** | A (editing) | resolve-with-user |
 | 4 | **Behavior-affinity registry** (Q25-C) + the schema-driven-`BehaviorUiCompiler` unknown | A (editing) | design |
 | 5 | **Graph-asset editing on a runtime node** (structure-hash/blackboard/staged writes) — undesigned | A (editing) | design |
-| 6 | Debug pause/step **BLOCKED** on `blueprint-dbg-1/-2`, `ai-hsm-btree-vis-edit-2` | A (diag) | wait/coordinate |
+| 6 | ~~Debug pause/step blocked on `.dev` programmes~~ — **NOT a blocker** (Correction 45 unblocked it `2026-08-14`; programmes finished `2026-07-16`). It is Axis-A wiring + one new CGF time-controller adapter class | A (diag) | ~~wait~~ build |
 | 7 | Packaging of `Hrot.Editor`'s catalog/save services | A | decide-at-impl |
 
 ⭐⭐ **Note the split:** blockers 2–5 are all on the **editing/authoring** side. **Viewing/diagnostics** (your watch → MyBlueprint → asset-graph chain) has **none of them** — it is wiring.
