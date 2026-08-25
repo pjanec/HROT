@@ -67,7 +67,7 @@ typed verb could**, and prints the refusals when it cannot.
 | 4 | **the AiShared unit suite** | `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj --no-build -v q --nologo` | ✅ | ✅ **2016 / 0 / 1 skipped** — ⭐ **unchanged, and it must be: `Hrot.Editor.AiShared` was NOT touched** *(handoff §4's freeze)* | **none** |
 | 5 | ⭐⭐ **the three T3 coverage rails** | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter "…union…|…node_kind…|…command_bus…"` | ✅ | ✅ **3 / 3** *(union round-trip per host · schema coverage over every catalogued kind · the command bus incl. the 409 parity assertion)* | **+3 rails** |
 | 6 | ⚠ **the one RED, A/B'd earlier this session** | `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` | ✅ | ⛔ **PRE-EXISTING GC/ALC timing flake.** 📐 A/B'd today at an earlier base: **3 red of 6 runs on the BASE binary**. Recorded under `ST-035` and in four prior batch reports. ⚠ It passed on one run of this batch and failed on another — ⭐ neither colour is evidence | **none** |
-| 7 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — 7 routes on a shared route table + a composition-root change ⇒ `ClusterConformanceRails` is the only thing that can show the cross-host contract still holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | **§4b** | **+3 rails** |
+| 7 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — 7 routes on a shared route table + a composition-root change ⇒ `ClusterConformanceRails` is the only thing that can show the cross-host contract still holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | ✅ **102 / 0**, 6 m 8 s — §4b | **+3 rails** *(99 → 102)* |
 | 8 | ⭐⭐ **the revert probe** | delete the `AddRegion` row from `GraphCommandJson.Schema`, rebuild, re-run the unit rail | ✅ | ✅ 🔴 **red, naming it**: *"1 GraphCommand variant(s) are unreachable over MCP and undeclared: AddRegion"* | — |
 | 9 | **golden movement** | — | — | ⭐ **ZERO** — no file under `Goldens/` added, removed or modified. These rails assert behaviour over MCP, not snapshots | **none** |
 | 10 | 🔴 **tree CLEAN after every suite run** | `git status --short --untracked-files=all` | — | ✅ **only this batch's own files.** ⚠ Not a formality: the previous batch's §4b cost a committed asset 372 deleted lines, and **every rail here edits IN MEMORY and never saves** | — |
@@ -79,9 +79,16 @@ typed verb could**, and prints the refusals when it cannot.
 | 16 | **design-doc format + UML** | `python3 scripts/design-digest.py --check` | — | ✅ **86 documents**: STATUS headers, INVENTORY blocks, class + sequence diagrams on every buildable design | — |
 | 17 | **mermaid parses** | `MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs docs/DESIGN_Mcp_Authoring.md` | — | ✅ **7 / 7** | — |
 
-### 4b. ⏳ The full T3 suite
+### 4b. ✅ The full T3 suite
 
-*(filled in from the background run before the batch closes — §4 row 7.)*
+📐 **`scripts/run-system-tests.sh --no-build` — `102 / 0 / 0 skipped`, 6 m 8 s.**
+
+| | |
+|---|---|
+| ⭐ **delta** | the mutation batch closed at **99 / 0**; this one adds **3 rails** ⇒ **102**. ⛔ **No test removed, renamed away, or skipped** |
+| ⭐⭐ **why it matters here** | this batch adds **7 routes to a shared `DebugApiHost` route table**, a new `/editor` capability prefix, and a composition-root change in `EditorSubsystem`. ⇒ `ClusterConformanceRails` is the only thing that can show the **cross-host contract** *(the same binary in `editor` and `--mode all`, diffed by `PanelKind`)* survived all of it |
+| 🔴 **tree CLEAN afterwards** | ✅ `git status --short --untracked-files=all` = **empty**. ⚠ Checked again HERE, not only after the filtered runs — 📌 the previous batch's lesson: the suite that mutilated a committed asset was a suite that had just reported green |
+| ⚠ **BACKGROUNDED** | T3 is never a foreground blocker. Started before the docs were written, read back when it landed |
 
 ## 5. ⭐ IDS ALLOCATED *(rule 5)*
 
