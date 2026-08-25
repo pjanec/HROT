@@ -1,6 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT `2026-08-25` (AX-001..AX-006) — read §9 AS-BUILT FIRST. Carries classDiagram + sequenceDiagram (§4/§5). Axis-B FIRST CUT: a subsystem-
+build-state: BUILT `2026-08-25` (AX-001..AX-006) for the first cut; ⭐ §11 is READY-TO-BUILD (AX-005 successor:
+  the cross-node egress under STRICT NETWORK SEPARATION + drag gizmo + CE-035/036/018) — carries its own
+  classDiagram + sequenceDiagram (§11.4/§11.5). Read §9 AS-BUILT and §11 before building. Carries classDiagram + sequenceDiagram (§4/§5). Axis-B FIRST CUT: a subsystem-
   agnostic entity-write path proven with ROTATION. Delivers UXI-30 (the binary authority gate) + a rotation
   attribute id + a subsystem-agnostic write helper the rotator gizmo drives. ⛔ NOT all of Axis B — one slice
   that establishes the owned→direct / unowned→request routing so later attribute gizmos reuse it.
@@ -240,3 +242,107 @@ built, ⛔ but §2's routing model reads as though ownership were self-evident, 
 fails the day a replication ingress translator is routed through the change-request builder — the
 plausible *"let us unify the two write paths"* refactor — and the shipped
 `GeoSpatialIngressTranslatorTests` *(4/4)* remain the behavioural half.
+
+## 11. ⭐⭐⭐ AX-005 SUCCESSOR — the cross-node egress, under **STRICT NETWORK SEPARATION** *(user ruling `2026-08-25`)*
+
+> ⭐⭐⭐ **USER RULING, verbatim intent:** *"the gizmo should NEVER EVER use any DDS structure directly.
+> Network must be strictly separated from internal FDP event processing — even at the cost of keeping the
+> same enum duplicated in two namespaces (still numerically identical). The intent FDP-bus record uses its
+> OWN enum; the egress translator converts to the network enum."*
+
+### 11.1 ⛔⛔ THE RULING — a load-bearing engine invariant
+⭐⭐ **No DDS/network type crosses into the FDP-internal event path.** The gizmo → write-router → FDP-bus
+intent side speaks **FDP-internal types only**; the **egress translator is the SOLE boundary crosser**,
+converting the internal record to the DDS wire message *(and the internal enum to the network enum)*.
+⭐ **The precedent is established and named:** `Fdp.Toolkits.Navigation.NavigationIntent` *(internal ECS)*
+vs `Hrot.Network.NED…NavigationIntent` *(wire)*, converted only inside `NavigationIntentEgressTranslator`.
+⭐⭐⭐ **The two enums ALREADY EXIST for attributes:** **`AttributeValueKind`** *(FDP-internal —
+`Fdp.Toolkits/Replication/Patching/AttributeValueKind.cs`)* and **`AttributeValueType`** *(network —
+`Hrot.Network.NED/GenericMessages.cs`)* — numerically identical by design. ⛔ **Duplication here is the
+CORRECT pattern, not debt.**
+
+### 11.2 🔴 AS-BUILT FINDING — the merged writer took the shortcut this ruling forbids
+📐 `AttributeEntityComponentWriter.Write` *(AX-003, merged)* builds a **`AttributeRecord` + `AttributeValueUnion`
++ `AttributeValueType.KindFloat64`** — **network/DDS types** — inside the FDP-internal write path, and applies
+them through `BinaryInterpreter<AttributeRecord>`. ⇒ ⛔ **the FDP-internal side is currently coupled to the DDS
+record shape.** ⭐ **AX-005 corrects this:** the router/gizmo operate on an **FDP-internal** change record
+*(own `AttributeValueKind`)*; ⇒ ⚠ **verify + move** the network types out of the internal path — either the
+local-apply mechanism switches to an internal representation, or the internal record converts to the DDS record
+**only at the egress boundary**. 📌 Record which, and why, in the report.
+
+### 11.3 ⭐⭐ THE CORRECTED INTENT PATH *(what AX-005 builds)*
+| step | speaks | where |
+|---|---|---|
+| ⭐ gizmo commits *(heading deg / position)* → router | ⭐ **FDP-internal only** — an `EntityAttributeChangeIntent { networkId/entity, attributeId, value, `**`AttributeValueKind`**` }` | `Hrot.SimHost`/FDP toolkit |
+| ⭐ owned → apply to ECS locally | FDP-internal | the installer/interpreter, internal side |
+| ⭐ unowned → publish the **FDP-bus intent** *(NOT a DDS struct)* | ⭐⭐ **FDP-internal enum** | the write router's `_publishRequest` |
+| ⭐⭐⭐ **the egress translator** subscribes to the intent, resolves entity→`NetworkId` *(`NetworkEntityMap`)*, and writes DDS `UpdateEntityAttributeRequest{AttributeRecords}` — **converting `AttributeValueKind` → `AttributeValueType`** | ⛔ **the ONLY place DDS appears** | `Hrot.Network.NED/…/Egress` — mirrors `UpdateEntityAttributeCommandEgressTranslator` |
+| ⭐ owner receives → applies, ownership-gated | network in, ECS out | `DdsUpdateEntityAttributeRequestSource` → `UpdateEntityAttributeRequestSystem` binary branch *(AX-001 gate)* |
+
+⚠ **Direction note:** this is a **change-request** *(non-owner → owner, event-driven on mouse-release)* — ⛔ NOT
+the per-tick replication egress *(owner → ghosts)* like `NavigationIntentEgressTranslator`'s component scan. It
+mirrors the **command** egress shape, not the descriptor-scan shape.
+
+### 11.4 ⭐⭐ CLASS DIAGRAM
+```mermaid
+classDiagram
+    direction LR
+    class EntityGizmo {
+        <<rotator / drag · FDP-internal only>>
+    }
+    class WriteRouter {
+        <<owned -> local ECS · unowned -> publish FDP intent>>
+    }
+    class EntityAttributeChangeIntent {
+        <<NEW · FDP-internal record · uses AttributeValueKind>>
+    }
+    class AttributeRequestEgress {
+        <<NEW · the ONLY DDS boundary · converts Kind to Type>>
+    }
+    class UpdateEntityAttributeRequest {
+        <<exists · DDS wire · AttributeRecords + AttributeValueType>>
+    }
+    class UpdateEntityAttributeRequestSystem {
+        <<exists · owner applies · gated by AX-001>>
+    }
+    EntityGizmo ..> WriteRouter : commit value
+    WriteRouter ..> EntityAttributeChangeIntent : unowned -> publish on FDP bus
+    AttributeRequestEgress ..> EntityAttributeChangeIntent : subscribe (FDP-internal)
+    AttributeRequestEgress ..> UpdateEntityAttributeRequest : convert Kind to Type, resolve NetworkId
+    UpdateEntityAttributeRequestSystem ..> UpdateEntityAttributeRequest : receive + apply gated
+    note for AttributeRequestEgress "STRICT SEPARATION: DDS types (AttributeRecord, AttributeValueType, UpdateEntityAttributeRequest) appear ONLY here. The gizmo/router/intent are FDP-internal (AttributeValueKind). Precedent: NavigationIntent internal-vs-wire, converted in its egress."
+```
+
+### 11.5 ⭐⭐ SEQUENCE DIAGRAM
+```mermaid
+sequenceDiagram
+    autonumber
+    participant G as Gizmo (FDP-internal)
+    participant R as WriteRouter
+    participant Bus as FDP event bus
+    participant E as AttributeRequestEgress
+    participant O as owner node
+
+    G->>R: commit entity attributeId value
+    alt owned locally
+        R->>R: apply to ECS directly
+    else unowned
+        R->>Bus: publish EntityAttributeChangeIntent (AttributeValueKind)
+        Bus->>E: intent (FDP-internal)
+        E->>E: resolve NetworkId, convert Kind to Type
+        E->>O: DDS UpdateEntityAttributeRequest AttributeRecords
+        O->>O: apply, ownership-gated (AX-001)
+    end
+```
+
+### 11.6 ⭐⭐ THE BUNDLED SLICE *(user: "do all at once")*
+| # | item | note |
+|---|---|---|
+| ⭐ **AX-005** | the FDP-internal intent + the request egress *(11.3)* + fix the as-built coupling *(11.2)*; register the egress via the **network module**, ⛔ not `Program.cs` | round-trip rail on a real `--mode all` cluster: a non-owning node rotates a SimHost-owned entity → SimHost applies it, gated |
+| ⭐ **AX-007** | **`EntityDragGizmo`** *(exists)* commits **position** through the same router *(`GeoLat`/`GeoLon`)* — move + rotate on one path | ruling 32 already wanted drag on the attribute channel |
+| ⭐ **CE-035** | `RequestContinue`-after-step no-op → route through `RequestResume` | neutral-assembly; small |
+| ⭐ **CE-036** | the stale `Requires CycloneDDS` skips — real cause: **domain id 250 out of range** | un-skip + fix or re-document |
+| ⭐ **CE-018** | `EditorSubsystem`'s two inline `.csproj` walk-ups → `AssetRoots` | ⚠ same file the MCP-diagnostics slice touches for log-sink wiring — **different region**; coordinate |
+
+⚠ **Parallel-safety with the running MCP-diagnostics slice:** disjoint bar `EditorSubsystem.cs` *(CE-018 walk-up
+region vs the diagnostics log-sink pass)* — keep to distinct regions; rule 4 re-pull.
