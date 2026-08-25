@@ -80,7 +80,7 @@ was not loosened to pass the wrong one.**
 | 2 | `dotnet test Hrot/Subsystems/Hrot.Orchestrator.Tests --filter TheWorldBoundary…\|TheResetContract…` | `--no-build` | ✅ **14 / 0** | **+14 new** |
 | 3 | `bash scripts/run-system-tests.sh DeterminismRails` | builds | ✅ **5 / 0** | none — ⚠ 2 were RED mid-batch; §2 |
 | 4 | `bash scripts/run-system-tests.sh The_two_hosts` | builds | ✅ **2 / 0** | none |
-| 5 | `bash scripts/run-system-tests.sh` *(whole, 83 cases)* | builds | ⏳ **see the note below — the final run is IN FLIGHT at the time of writing** | — |
+| 5 | `bash scripts/run-system-tests.sh` *(whole, 83 cases)* | `--no-build` | ⚠ **82 / 1** — the one red is an editor-process CRASH at startup, not an assertion. Row C | ⭐ **the other 82 = the stated baseline** |
 | 6 | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests` | `--no-build` | ✅ **239 / 0**, 1 skip | none |
 | 7 | `dotnet test Hrot/Engine/Hrot.Presentation.Tests` | `--no-build` | ⚠ **117 / 3** | **none — pre-existing, A/B'd. Row B** |
 | 8 | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --filter <the 5 touched classes>` | `--no-build` | ⚠ **5 / 2** | **none — pre-existing, A/B'd. Row A** |
@@ -88,12 +88,10 @@ was not loosened to pass the wrong one.**
 | 10 | `python3 scripts/rulings-check.py` | n/a | ✅ **24/24** | 3 known staleness WARNs, not mine |
 | 11 | `python3 scripts/design-digest.py --check` | n/a | ✅ clean *(81 docs; every buildable design carries both diagrams)* | none |
 
-🔴 **Row 5, stated exactly.** The full suite was run **once, mid-batch: 74 / 9.** All nine were the same
-defect — §2's empty second world — and the fix was verified through the two rails that reproduce it
-*(`DeterminismRails` 5/0, `The_two_hosts` 2/0)*. ⛔ **I have NOT re-run all 83 since**, so the other seven
-*(`CapabilitySmokeTests` ×4, `PanelSnapshotTests` ×2, `DiscoveryAndHintTests`)* are inferred-green from a
-shared root cause, not measured green. ⚠ **Treat row 5 as unverified until it is filled in.** *(A full run
-was started as this was written; if it landed, the line above says so.)*
+⭐ **Row 5's history, kept because the intermediate state is the evidence for §2.** Mid-batch the suite ran
+**74 / 9** — all nine the same defect, §2's empty second world. The final run is **82 / 1**, and the seven
+collateral rails *(`CapabilitySmokeTests` ×4, `PanelSnapshotTests` ×2, `DiscoveryAndHintTests`)* are now
+**measured** green rather than inferred green from a shared root cause.
 
 ⚠ **`mermaid-check.mjs` SKIPPED** *(needs an `npm install` this session lacks)*. ⭐ **§11g is prose and
 tables — no Mermaid block added or edited**, so nothing new is unvalidated.
@@ -105,8 +103,10 @@ tables — no Mermaid block added or edited**, so nothing new is unvalidated.
 | **A** | `DistributedScenarioLoadTests.DistributedLoad_TranslatesNetworkIds_…` *("Cluster must reach OperatingLive (31). Current: 0")* · `EditorFileIOIntegrationTests.SaveScenario_SubsystemTypeIsHrotScenario` | 📐 **Same 2 failures, same names, same 5/2 count at `ea02fe25f`.** ⚠ The handoff asked me to update this suite's authored-id expectations — ⛔ **I could not: it never reaches `OperatingLive`, and did not before this batch either.** That is a reported finding, not a silent skip |
 | **B** | `EntityDragGizmoTests` ×3 *(pick token, drag position 50 vs 60)* | 📐 **Same 3 at `ea02fe25f`**, and reproducible in isolation *(3/7 twice)*. Unrelated to ids |
 
-⚠ **One flake seen and not reproduced:** `Hrot.Presentation.Tests` aborted once with *"Test host process
-crashed"* after 29 of 120 cases; the next two runs completed 120/120 with only row B failing. ⛔ Recorded, not
+| **C** | `DeterminismRails.Two_fresh_processes_agree_on_every_stable_panel` | ⛔ **NOT an assertion failure — the editor process died before serving `/status`** *(exit `134` = SIGABRT)*: `Unhandled exception. System.ArgumentNullException at System.Threading.Monitor.ReliableEnter → System.Net.HttpEndPointListener.ProcessAccept`. ⭐ That is the embedded debug server's socket-accept path, and this is the one rail that starts **two** editor processes at once. 📐 **Re-run twice immediately after: 2/2 green, twice.** It also passed in the filtered `DeterminismRails` run *(5/0)* and did not appear in the mid-batch run's nine. ⇒ **flaky harness infrastructure, unrelated to id allocation** — ⚠ recorded, not explained, and worth a row if it recurs |
+
+⚠ **A second flake, same shape:** `Hrot.Presentation.Tests` aborted once with *"Test host process crashed"*
+after 29 of 120 cases; the next two runs completed 120/120 with only row B failing. ⛔ Recorded, not
 explained.
 
 ⭐ **Working tree CLEAN after every suite run.** No golden added or touched; **no skips added** *(the one
