@@ -27,8 +27,10 @@ known-conflict: ✅ parallel-safe with the MCP create-recipes session (disjoint 
 | `EntityRotatorGizmo` *(reads `SimTransform`, `onCommit(yawRad)`)* | 🔴 **`Hrot.SimHost/Gizmos`** *(SimHost-bound)* | ⭐ the gizmo to make **subsystem-agnostic** — its commit must go through the shared write path, not a SimHost-only ECS poke |
 | `IEntityPatchContext.CanWrite()` — native component authority | `Fdp.Toolkits/Replication/Patching` | ⭐⭐ **the gate the JSON path uses** *(`JsonAttributeCompiler:40,58`)* — the check to MIRROR |
 | 🔴 `BinaryInterpreter.Apply` — **no authority gate** | `Fdp.Toolkits/Replication/Patching/BinaryInterpreter.cs:102-128` | ⛔ **UXI-30**: dispatches every record to its handler with no `CanWrite` |
-| `SimTransformAttributeInstaller` *(position)*; `AttributeCompilerFactory.BuildBinaryInterpreter` | `Hrot.Network.NED/Attributes` | ⭐ the installer to MIRROR for rotation |
-| 🔴 `AttributeIds` — **5 constants, NO rotation** *(Name/Affiliation/GeoLat/GeoLon/GeoAlt)* | `Fdp.Toolkits/Replication/Patching/AttributeIds.cs` | ⛔ Rotate cannot be expressed on this channel today *(gap 2)* |
+| `SimTransformAttributeInstaller` *(position)*; `AttributeCompilerFactory.BuildBinaryInterpreter` | `Hrot.Network.NED/Attributes` | ⭐ the installer to MIRROR for heading |
+| ⭐⭐⭐ **`SimTransformBridgeSystem.HeadingDegToRotation(headingDeg)`** + `RotationToHeadingDeg` — *"Compass heading in degrees (0=North, 90=East, clockwise)"* | `Fdp.Toolkits/Geographic/Systems` | ⭐⭐ **the convention + conversion ALREADY EXIST** *(user was right)* — the installer REUSES this; ⛔ no new math |
+| ⭐ **`EulerOri.Heading`** *(wire)* · `GeoSpatialEgressTranslator` already does **yaw → compass heading** *(`HeadingConversion_YawToCompass`)*; the DebugApi already takes `headingDeg` *(`GeoToLocal_WithHeadingDeg_IncludesRotation`)* | `Hrot.Network.NED/Common` · `Hrot.SimHost` | ⭐ heading is a first-class wire concept already |
+| 🔴 `AttributeIds` — `Name/Affiliation/GeoLat=10/GeoLon=11/GeoAlt=12`, **NO `GeoHeading`** | `Fdp.Toolkits/Replication/Patching/AttributeIds.cs` | ⛔ **the ONLY gap: add `GeoHeading` to the Geo* family** — the convention/conversion/wire all exist |
 | `UpdateEntityAttributeRequestSystem` *(binary branch)* — the receiving applier | `Hrot.*` | ⭐ where the gated request lands |
 | `SimTransform` egress translator — **diffs `lastSent` every tick** | replication egress | ⚠ ⇒ a direct ECS write of rotation needs **NO change flag** *(user)* |
 | ⛔ replication ingress *(`GeoSpatialIngressTranslator:85-89`)* writes unowned **by design** | replication | 🔒 **the inverse — do NOT gate it** *(Part 0 rule 8; the trap)* |
@@ -39,7 +41,7 @@ helper** decides:
 | case | action |
 |---|---|
 | ⭐ target component **owned locally** | **write ECS directly** *(+ set the component's change flag IF its egress translator needs one; ⭐ `SimTransform` does NOT — it diffs `lastSent`)* |
-| ⭐ target component **NOT owned** | **publish a change-request** *(an `AttributeRecord` with the new `Rotation` id → `UpdateEntityAttributeRequest`)* — the OWNER receives it |
+| ⭐ target component **NOT owned** | **publish a change-request** *(an `AttributeRecord` with the new `GeoHeading` id, in degrees → `UpdateEntityAttributeRequest`)* — the OWNER receives it |
 | 🔒 the receiver | **UXI-30**: `BinaryInterpreter.Apply` now gates on `CanWrite` ⇒ applies the request **only to the component it owns**; a request for an unowned component is **skipped** |
 | ⛔ replication ingress | **untouched** — still writes unowned ghosts by design *(the inverse gate; Part 0 rule 8)* |
 
@@ -47,7 +49,7 @@ helper** decides:
 | ✅ IN | ⛔ NOT |
 |---|---|
 | **UXI-30**: the `CanWrite` gate on `BinaryInterpreter.Apply` *(mirror the JSON path)* | ⛔ touching replication ingress translators *(the inverse — breaking ghost updates is the trap)* |
-| **Rotation attribute id** in `AttributeIds` + a `SimTransformRotation` installer *(mirror position)* | ⛔ a full attribute vocabulary — just rotation, the motivating case |
+| **`GeoHeading` attribute id** *(degrees, 0=N/90=E)* in `AttributeIds` + a `SimTransformHeading` installer that **reuses `HeadingDegToRotation`** | ⛔ a full attribute vocabulary — just heading, the motivating case; ⛔ no new conversion math *(it exists)* |
 | **the subsystem-agnostic write helper** *(owned→direct / unowned→request)* the rotator gizmo drives | ⛔ vertex/route gizmos *(they keep the descriptor channel — ruling)* |
 | **make `EntityRotatorGizmo` subsystem-agnostic** *(commit through the helper)* + reusable from CGF | ⛔ selection/symbology/tools *(later Axis-B slices)* |
 
@@ -72,20 +74,20 @@ classDiagram
         +Apply(record)
     }
     class AttributeIds {
-        <<exists · ADD Rotation id>>
+        <<exists · ADD GeoHeading id · degrees 0=N 90=E>>
     }
-    class SimTransformRotationInstaller {
-        <<NEW · mirror the position installer>>
+    class SimTransformHeadingInstaller {
+        <<NEW · reuses HeadingDegToRotation · no new math>>
     }
     class UpdateEntityAttributeRequestSystem {
         <<exists · receives the request, now gated>>
     }
     EntityRotatorGizmo ..> IEntityComponentWriter : OnCommit
     IEntityComponentWriter ..> IEntityPatchContext : CanWrite? (owned)
-    IEntityComponentWriter ..> AttributeIds : unowned -> AttributeRecord(Rotation)
+    IEntityComponentWriter ..> AttributeIds : unowned -> AttributeRecord GeoHeading
     UpdateEntityAttributeRequestSystem ..> BinaryInterpreter : Apply(record)
     BinaryInterpreter ..> IEntityPatchContext : UXI-30 gate
-    BinaryInterpreter ..> SimTransformRotationInstaller : rotation handler
+    BinaryInterpreter ..> SimTransformHeadingInstaller : heading handler
     note for IEntityComponentWriter "owned -> direct ECS write (SimTransform needs no change flag; egress diffs lastSent). unowned -> publish change-request. Replication ingress is NOT gated (the inverse)."
 ```
 
@@ -98,16 +100,16 @@ sequenceDiagram
     participant PC as PatchContext
     participant BI as BinaryInterpreter
 
-    G->>W: Write entity Rotation yaw
+    G->>W: Write entity GeoHeading degrees
     W->>PC: CanWrite owned locally
     alt owned locally
-        W->>W: write SimTransform Rotation directly
+        W->>W: HeadingDegToRotation then write SimTransform Rotation
         Note over W: no change flag - egress diffs lastSent
     else not owned
-        W->>BI: publish AttributeRecord Rotation as request
+        W->>BI: publish AttributeRecord GeoHeading as request
         BI->>PC: CanWrite UXI-30 gate
         alt owner owns it
-            BI->>BI: write SimTransform Rotation
+            BI->>BI: HeadingDegToRotation then write SimTransform
         else not owned here
             BI->>BI: skip - guarded no unowned write
         end
@@ -118,7 +120,7 @@ sequenceDiagram
 | # | task | the one thing not to get wrong |
 |---|---|---|
 | ⭐ **①** | **UXI-30** — add the `CanWrite` gate to `BinaryInterpreter.Apply` | ⛔ gate **change-request** appliers only; ⛔ **do NOT** touch replication ingress *(the inverse; Part 0 rule 8)*. ⭐ zero production senders ⇒ no compat surface |
-| ⭐ **②** | **`AttributeIds.Rotation`** + `SimTransformRotation` installer | mirror the position installer; a yaw/heading scalar is enough for this cut |
+| ⭐ **②** | **`AttributeIds.GeoHeading`** *(degrees, 0=N/90=E)* + a `SimTransformHeading` installer that **reuses `HeadingDegToRotation`** *(+ `RotationToHeadingDeg` for read-back)* | ⛔ **no new conversion math — it exists**; a `Float32`/`Float64` heading-degrees scalar in the Geo* family |
 | ⭐ **③** | **`IEntityComponentWriter`** — the owned→direct / unowned→request router | ⭐ SimTransform direct write sets **no change flag** *(egress diffs lastSent)*; ⚠ other components may need one — the helper asks the component, it does not assume |
 | ⭐ **④** | **`EntityRotatorGizmo` subsystem-agnostic** — commit through the helper; usable from CGF | ⛔ no SimHost-only ECS poke in the commit path |
 

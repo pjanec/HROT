@@ -30,7 +30,7 @@ solution in the fix loop; build once then `--no-build`; the system/integration s
 | # | task | the one thing not to get wrong |
 |---|---|---|
 | ⭐ **①** | **UXI-30** — add the `CanWrite` gate to `BinaryInterpreter.Apply`, mirroring the JSON path *(`IEntityPatchContext.CanWrite`)* | ⛔⛔ gate **change-request** appliers ONLY. ⛔ **Do NOT touch replication ingress** *(`GeoSpatialIngressTranslator` writes unowned by design — the INVERSE; breaking it corrupts ghosts repo-wide — Part 0 rule 8)*. ⭐ zero production senders ⇒ safe to switch on |
-| ⭐ **②** | **`AttributeIds.Rotation`** + a `SimTransformRotation` installer *(mirror `SimTransformAttributeInstaller`)* | a yaw/heading scalar is enough for this cut |
+| ⭐ **②** | **`AttributeIds.GeoHeading`** *(degrees, 0=N/90=E — the Geo* family)* + a `SimTransformHeading` installer that **reuses `SimTransformBridgeSystem.HeadingDegToRotation`** *(+ `RotationToHeadingDeg` for read-back)* | ⛔ **do NOT write new conversion math — the compass convention + conversion + wire field (`EulerOri.Heading`, `GeoSpatialEgressTranslator`) all exist.** The ONLY gap is the `AttributeIds` constant + a thin installer |
 | ⭐ **③** | **`IEntityComponentWriter`** — owned→direct ECS write / unowned→`AttributeRecord(Rotation)` request | ⭐ SimTransform direct write sets **NO change flag** *(egress diffs `lastSent`)*; ⚠ the helper ASKS the component whether it needs one — ⛔ does not assume |
 | ⭐ **④** | make **`EntityRotatorGizmo` subsystem-agnostic** — commit through the helper; drivable from CGF | ⛔ no SimHost-only ECS poke in the commit path |
 
