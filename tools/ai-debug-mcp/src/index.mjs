@@ -783,6 +783,79 @@ const TOOLS = [
     },
   },
 
+  // ── Group V — the AI-asset drive surface (cgf==editor slice 2) ──────────────
+  //
+  // 📄 docs/DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md §3a — three addresses, and none of them
+  //    puts a raw path in a URL segment: the GUID is a segment, the human path travels in the BODY.
+
+  {
+    name: 'list_assets',
+    description: TOOL_DEFS['list_assets'].description,
+    inputSchema: TOOL_DEFS['list_assets'].inputSchema,
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/assets')); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_assets'); }
+    },
+  },
+
+  {
+    name: 'open_asset',
+    description: TOOL_DEFS['open_asset'].description,
+    inputSchema: TOOL_DEFS['open_asset'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'POST', `/assets/${encodeURIComponent(toolArgs.assetId)}/open`));
+      } catch (err) { return toolError(err.message, err.envelope, 'open_asset'); }
+    },
+  },
+
+  {
+    name: 'open_asset_by_path',
+    description: TOOL_DEFS['open_asset_by_path'].description,
+    inputSchema: TOOL_DEFS['open_asset_by_path'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        // ⭐ In the BODY, deliberately — a relative path has slashes and dots.
+        return toolSuccess(await callApi('POST', '/assets/open', { path: toolArgs.path }));
+      } catch (err) { return toolError(err.message, err.envelope, 'open_asset_by_path'); }
+    },
+  },
+
+  {
+    name: 'list_documents',
+    description: TOOL_DEFS['list_documents'].description,
+    inputSchema: TOOL_DEFS['list_documents'].inputSchema,
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/documents')); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_documents'); }
+    },
+  },
+
+  {
+    name: 'activate_document',
+    description: TOOL_DEFS['activate_document'].description,
+    inputSchema: TOOL_DEFS['activate_document'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'POST', `/documents/${encodeURIComponent(toolArgs.assetId)}/activate`));
+      } catch (err) { return toolError(err.message, err.envelope, 'activate_document'); }
+    },
+  },
+
+  {
+    name: 'focus_panel',
+    description: TOOL_DEFS['focus_panel'].description,
+    inputSchema: TOOL_DEFS['focus_panel'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'POST', `/panels/${encodeURIComponent(toolArgs.panelId)}/focus`));
+      } catch (err) { return toolError(err.message, err.envelope, 'focus_panel'); }
+    },
+  },
+
   {
     name: 'get_gizmo_frame',
     description: TOOL_DEFS['get_gizmo_frame'].description,

@@ -40,6 +40,11 @@ const EXPECTED_TOOLS = [
   'list_panels', 'get_panel', 'get_gizmo_frame',
   'list_blueprints', 'attach_blueprint', 'detach_blueprint',
   'get_entity_state', 'continue_from_breakpoint',
+  // Slice ④ — Group V, the AI-asset drive surface (cgf==editor slice 2).
+  // ⭐ Three addresses (§3a): the GUID in a URL segment, the human sourceFilePath in the BODY,
+  //   and discovery via list_assets. ⛔ Never a raw path in a segment.
+  'list_assets', 'open_asset', 'open_asset_by_path',
+  'list_documents', 'activate_document', 'focus_panel',
 ];
 
 let passed = 0;

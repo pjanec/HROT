@@ -227,9 +227,17 @@ public sealed class ClusterConformanceRails
         //    this rail deliberately does not pause or equalise the two (see its own comment).
         //    ⛔ Making CGF answer "Paused" would be a constant standing in for a clock reading — the
         //    silent-default shape this codebase keeps paying for.
-        ["details"] = "run state genuinely differs (the editor is halted/Planning, the cluster node's "
-                    + "world ticks) and focus follows from which panes each host has. This rail does not "
-                    + "equalise the clocks by design.",
+        // ⚠⚠ REASON EXTENDED `2026-08-25` (slice 2). The `focus` half is GONE — with an asset open on
+        //    both hosts the Details panel now names the SAME asset and the same focused pane, which
+        //    `The_same_opened_asset_looks_the_same_on_both_hosts` asserts directly. ⭐ TWO measured
+        //    reasons remain, and each names the capability whose absence causes it.
+        ["details"] = "two measured reasons, both pre-dating slice 2: (1) $.mode Paused vs Running — the "
+                    + "editor has a PLANNING state with a halted clock while a cluster node's world ticks "
+                    + "from boot (CE-003), and the three-way rail deliberately does not equalise them; "
+                    + "(2) $.offeredViewIds 3 vs 1 — details.runtime.Blueprint requires an "
+                    + "IBlueprintDebugSession and CGF constructs none (CE-004). Reason (2) is deleted "
+                    + "when debug sessions reach CGF. The panel DOES name the opened asset on both hosts "
+                    + "since slice 2 — that half is asserted, not exempted.",
 
         // ══ cgf==editor SLICE 2, `2026-08-25` — the toolbar becomes SHARED and differs ═════════════
         // 📐 Measured: the editor publishes a populated main toolbar, `--mode all` publishes an EMPTY
@@ -884,6 +892,14 @@ public sealed class ClusterConformanceRails
 
         output.WriteLine($"[{a.Mode}] assets: {ia.Count}   [{b.Mode}] assets: {ib.Count}");
 
+        // ⭐⭐ NAME the difference rather than leaving two counts to be reasoned about. 📌 A count gap is
+        //    exactly the kind of thing a report guesses at ("probably the scenario contributor") — ⛔ this
+        //    prints the actual paths, so the next reader measures instead of inferring.
+        foreach (var only in ia.Keys.Except(ib.Keys, StringComparer.Ordinal).OrderBy(p => p, StringComparer.Ordinal))
+            output.WriteLine($"  only in {a.Mode}: {only}  (kind {ia[only].Kind})");
+        foreach (var only in ib.Keys.Except(ia.Keys, StringComparer.Ordinal).OrderBy(p => p, StringComparer.Ordinal))
+            output.WriteLine($"  only in {b.Mode}: {only}  (kind {ib[only].Kind})");
+
         var shared = ia.Keys.Intersect(ib.Keys, StringComparer.Ordinal)
                        .OrderBy(p => p, StringComparer.Ordinal).ToArray();
         if (shared.Length == 0) return null;
@@ -944,9 +960,10 @@ public sealed class ClusterConformanceRails
         var a = await CaptureByKindAsync(editor,  _out);
         var b = await CaptureByKindAsync(cluster, _out);
 
-        string[] kinds = { "graph-canvas", "my-blueprint", "details" };
+        // \u2b50\u2b50 The two panels whose CONTENT this slice delivers \u2014 compared whole, with no exemption.
+        string[] kinds = { "graph-canvas", "my-blueprint" };
 
-        foreach (var k in kinds)
+        foreach (var k in kinds.Concat(new[] { "details" }))
         {
             Assert.True(a.ContainsKey(k), $"the EDITOR did not publish '{k}' \u2014 the reference side is missing.");
             Assert.True(b.ContainsKey(k), $"--mode all did not publish '{k}'.");
@@ -976,6 +993,30 @@ public sealed class ClusterConformanceRails
         Assert.True(differing.Count == 0,
             $"with '{path}' OPEN on both hosts, panel(s) DIFFER:\n  " + string.Join("\n  ", differing)
           + "\n\u26d4 This is content, not empty state \u2014 do not exempt it.");
+
+        // \u2b50\u2b50\u2b50 DETAILS \u2014 asserted for what this slice can honestly claim about it, and NOT more.
+        //
+        // \u26d4\u26d4 Its WHOLE-MODEL verdict is already a DECLARED divergence (`DivergesByDesign["details"]`),
+        //    for two roots that both PRE-DATE slice 2 and neither of which slice 2 touches:
+        //      \u00b7 `$.mode` Paused vs Running \u2014 the hosts' clocks genuinely differ (CE-003);
+        //      \u00b7 `$.offeredViewIds` 3 vs 1 \u2014 `details.runtime.Blueprint` needs an IBlueprintDebugSession
+        //        and CGF constructs none (CE-004/CE-007).
+        // \u26d4 Re-asserting the whole model here would just restate that declaration; \u26d4 and comparing it
+        //    with those fields filtered out would be the narrowing the design forbids.
+        // \u2b50\u2b50 So this asserts the STRONGER, NEW thing instead: after slice 2 the Details panel is about
+        //    THE OPENED ASSET on both hosts. \ud83d\udccc Before this batch it read `assetId: null` and
+        //    "No document is open." on the cluster \u2014 that is the regression this line catches.
+        foreach (var (label, cap) in new[] { ("editor", a), ("cluster", b) })
+        {
+            var det = JsonNode.Parse(cap["details"].Model)!;
+
+            Assert.Equal(assetId, det["assetId"]?.GetValue<string>());
+            Assert.False(string.IsNullOrWhiteSpace(det["assetName"]?.GetValue<string>()),
+                $"[{label}] Details published no assetName for the opened asset.");
+            var empty = det["emptyState"];
+            Assert.True(empty is null || empty.GetValueKind() == System.Text.Json.JsonValueKind.Null,
+                $"[{label}] Details is in an EMPTY state ('{empty}') while {path} is open.");
+        }
     }
 
     /// <summary>
