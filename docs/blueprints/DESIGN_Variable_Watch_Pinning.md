@@ -1,6 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-19
+build-state: BUILT — slices 94a-94f, the finalization (BP-499..BP-502) and the entity-pinning
+  finish (BP-505..BP-507, 2026-08-25).
+  ⭐ READ "AS-BUILT — the watch-list finalization" FIRST: it carries five deviations, and two of them
+  matter to a reader (the binding lives on the PIN not the row; a concrete pin does NOT survive a
+  scenario reload yet). 🔴 Deviation 5 of THAT section carries a CORRECTION: its claim that
+  DebugSessionPersistence.Save had no production caller was FALSE. Then read the SECOND AS-BUILT
+  section (BP-505..BP-507) — it supersedes the first where they disagree.
+updated: 2026-08-25
 current-answer: this whole file - it is the consolidated design, written to be built from
 stale-below: nothing. History and the decision trail live in Architect_Question_40, which
   accumulated four rounds of correction and must NOT be read as a spec.
@@ -221,6 +228,116 @@ callback sink on the extractor, wired to the bus by the subsystem.**
 | one row per live entity | ⛔ **user: *"unbearable — thousands of entities"*** |
 | a panel-wide tick | 📌 *"rows tick at different rates"* |
 | touching `EntityWatchPanel` / `FdpEntityWatchWindow` | ⭐ **different concept** — entity components |
+
+## ⭐⭐⭐ AS-BUILT — **the watch-list finalization (`BP-499`…`BP-502`), `2026-08-24`**
+
+> ⭐⭐ Obligation ⑤. ⛔ Where this disagrees with §1/§1b/§3/§5 above, **it wins** — those are the design,
+> this is what the code does.
+
+### ⭐ What shipped
+
+| # | | where |
+|---|---|---|
+| **`BP-499`** | ⭐⭐ **§1's grouping is WIRED into the Watch** — the window built its model with no `groupBy`, so it fell back to `DetailsDefault` (`[]`) and rendered **one flat list** on the one surface that mixes assets and entities by design | `AiWatchWindow` ctor |
+| **`BP-500`** | ⭐⭐ **§1b's group-by selector**, as a SHARED control — the four modes as FACET LISTS | `VariableGroupBySelector` |
+| **`BP-501`** | ⭐⭐⭐ **§3's two kinds, with a real shape and a CHOICE** | `EntityBinding` · `PinnedVariableRowSource.Pin(row, binding)` |
+| **`BP-502`** | ⭐⭐ **§5's pin set persists** — a fourth list in the existing debug-session file | `PinnedVariableEntry` · `PinnedVariablePersistence` |
+
+### ⛔⛔ The deviations
+
+| # | the design said | 📐 what was measured, and what was built |
+|---|---|---|
+| **①** | *(the dispatch)* mirror the group-by control on `AiVariablesWindow.GroupBy` | ⛔ **There was nothing to mirror.** 📐 That member is a **property forwarding to `_model.GroupBy`**, and a repo-wide search for a writer found only the model's constructor ⇒ **no group-by UI existed anywhere**. ⭐ So it was built **shared** rather than inside the Watch, since the Variables window needs the identical control *(ruling 9)*. ⚠ Wired to the **Watch only** — adopting it in Variables is a one-line change that window's own batch can make; ⛔ not done to it unasked |
+| **②** | §3: the binding lives on the row | ⭐ **It lives on the PIN.** `VariableRowOrigin` is unchanged; `PinnedVariableRowSource` keeps a parallel `(Guid, Entity, string) → EntityBinding` map. ⭐ The binding is a property of *the choice a designer made*, not of a row in general — a section source's rows are always *"the entity this panel is about"*, and widening the row identity would have touched every construction site and the highlight-cache key for a fact only the Watch has |
+| **③** | §3: concrete stores the **STAGING** `NetworkIdentity`, resolved through the published `oldToNewMap` | ⚠⚠ **It stores the RUNTIME `NetworkIdentity`, so a concrete pin does NOT survive a scenario RESTART.** ⛔ The remap is still a local inside `StagingEntityExtractor` and publishing it edits `EditorSubsystem`/`EditorApplication` — files the concurrent allocator batch owns. ⇒ deferred by the dispatching handoff §2, and said out loud in `EntityBinding`'s own remarks so nobody reads *"persisted"* as *"restart-proof"* |
+| **④** | *(unstated)* the chameleon needs a new encoding | ⭐ **It reuses the sentinel already in place.** `EntityBinding.OriginEntity` projects a chameleon to `default(Entity)` — exactly what `StagedWriteView.EntityFor` and `VariableChangeMonitor` already read as *"ask the selection"*. ⇒ ⛔ nothing downstream changed, and there is no second way to say *"follow the selection"* |
+| **⑤** | §5: *"extend `SaveWatches`/`LoadWatches`"* | ⛔ **Those route to the `[Obsolete]` `WatchPersistence` and are breakpoint-only.** `DebugSessionPersistence` was extended instead *(as the dispatch directed)*. ⚠⚠ **The rest of this row was WRONG and is SUPERSEDED — see the correction immediately below.** |
+
+> ## 🔴🔴 **CORRECTION to deviation ⑤ — `2026-08-25`** *(and it was written into three places)*
+>
+> ⛔ **The claim was:** *"`DebugSessionPersistence.Save` has NO PRODUCTION CALLER — only tests call it;
+> the editor's live path still uses the obsolete `SaveWatches`."*
+> 🔴 **FALSE.** 📐 `EditorSubsystem.SaveDebugSession()` has called it since `CF-8`, on a 500 ms debounce
+> and again at shutdown. ⚠ **The measurement that "proved" otherwise was a `grep` piped through `head`,
+> truncated at ten test-file hits before it reached `EditorSubsystem.cs`** — a truncated search presented
+> as an exhaustive claim, which is exactly what [`CLAUDE.md`'s inventory rule](../../.claude/CLAUDE.md)
+> forbids.
+>
+> ⭐⭐ **What was actually wrong is narrower and more familiar:** the caller existed and **did not pass the
+> optional `pinnedVariables` argument** ⇒ **the SILENT-DEFAULT PATTERN**, not a missing wire.
+> ⇒ ⭐ fixed by `BP-506` below; the correction also lands in `PinnedVariablePersistence`'s own remarks.
+
+### ⭐ Two honesty rules the persistence layer enforces
+
+| ⭐ | |
+|---|---|
+| **an unpersistable pin is SKIPPED and COUNTED** | a concrete pin on an entity with no `NetworkIdentity` has nothing durable to key on. ⛔ Writing it as `NetworkId 0` would restore a pin pointing at nothing, which reads as data loss rather than the within-session pin it always was |
+| **an unknown `BindingKind` is SKIPPED, not coerced** | ⛔ the enum's zero value is `Concrete`, so a silent `Enum.TryParse` failure would turn a future kind into a concrete pin on entity 0 and show the wrong entity's value |
+
+### 🔴 Still open after this batch
+
+| ⛔ | ⭐ |
+|---|---|
+| **restart survival / the `NetworkId` remap** *(slice `94g`)* | ⚠ **not disjoint from the allocator batch** — sequence after it. A concrete pin does not survive a scenario reload until then |
+| ~~**the MAP-PICKER for an arbitrary concrete entity** *(§9c)*~~ | ✅ **BUILT** — `AQ55` settled it and `BP-507` shipped it. See the next AS-BUILT section |
+| ~~**no production save/load of the pin set**~~ | ✅ **SAVE is WIRED** *(`BP-506`)*. ⚠ LOAD-into-a-window is not — see below |
+| ⚠ **the group-by selector is not adopted by the Variables window** | ⭐ deliberate — see deviation ① |
+
+## ⭐⭐⭐ AS-BUILT — **the entity-pinning finish (`BP-505`…`BP-507`), `2026-08-25`**
+
+> ⭐⭐ Obligation ⑤. ⛔ Where this disagrees with anything above, **it wins.**
+
+### ⭐ What shipped
+
+| # | | where |
+|---|---|---|
+| **`BP-505`** | ⭐⭐⭐ **The session file lives in the USER-LOCAL folder and is force-reset from a git-maintained curated copy on start** | `DebugSessionPaths` · `debug/default/bpsession.json` · `EditorSubsystem.RestoreDebugSession` |
+| **`BP-506`** | ⭐⭐⭐ **§5's pin set is actually WRITTEN** — the silent default closed | `EditorSubsystem.WriteDebugSession` / `CapturePinnedVariables` |
+| **`BP-507`** | ⭐⭐ **`AQ55`'s "Watch this variable on entity…"** | `WatchEntityPicker` · `AiWatchWindow.PinOnPickedEntityAsync` · `VariableWatchGesture.DecidePinOnEntity` |
+
+### ⭐⭐ `BP-505` — where the file lives
+
+🔒 **User, `2026-08-24`:** *"ad file path - user local folder; BUT during development we need clean env
+controlled from git only. let's apply same rule as for curated scenarios and imgui.ini - always overwrite
+the user's copy with git maintained curated copy on start."*
+
+| ⭐ | |
+|---|---|
+| **from** | `<repo>/.debug/bpsession.json` *(`CF-8`'s choice)* |
+| **to** | `LocalApplicationData/HROT/bpsession.json` — ⭐ the alternative the same `CF-8` design already named *(`.dev/blueprint-dbg-1/TASK-DETAIL.md:699`: "a gitignored path … **or the editor's per-user data dir**")* |
+| ⛔ **why the move was FORCED, not chosen** | 📐 **`.gitignore:65` ignores `.debug/`** ⇒ that location cannot host a git-maintained curated copy. The ruling's two halves are only satisfiable together by moving the user copy out |
+| ⭐⭐ **which pattern** | the **`imgui.ini`** one — `LayoutPaths.TryResetUserLayout` copies from the **output directory**, so the reset holds in a deployed build and in CI. ⛔ **Not** `CuratedScenarios`, which walks up to the source tree and is dev-only by construction: a deterministic clean environment is wanted everywhere, which is the point of the ruling |
+| ⭐ **the git home** | `debug/default/bpsession.json`, copied to `<output>/debug/` by `Hrot.ClusterRunner.csproj` — ⛔ the same `Content … Link` shape `layout/default/*` already uses |
+| ⚠⚠ **a side effect worth naming** | 📄 [`FINDINGS_Empty_Breakpoint_Bricks_The_Editor.md`](FINDINGS_Empty_Breakpoint_Bricks_The_Editor.md): a poisoned session file killed the editor on **every** launch and *"the only recovery was deleting a gitignored file by hand"*. ⭐ With the reset, the poison survives at most one run |
+
+### ⭐⭐ `BP-506` — the pins reach the file
+
+⛔ **The defect was a SILENT DEFAULT, not a missing wire** — see the correction to deviation ⑤ above.
+⭐ **The control** is a rail on the **CONSTRUCTED FILE** *(`R-67`)*, which is why `SaveDebugSession` was
+split into a fully-parameterised `WriteDebugSession`: the rail drives the real production path rather
+than a re-implementation, and the delegation left behind has **no defaultable argument to forget**.
+
+### ⛔ `BP-507` — the ONE deviation from `AQ55`, argued
+
+| | |
+|---|---|
+| **`AQ55` drew** | `AiWatchWindow ..> IMapPickService : PickEntityAsync` |
+| **built** | `AiWatchWindow` takes a `WatchEntityPicker` **delegate**; the composition root implements it by calling `IMapPickService.PickEntityAsync()` and resolving the id through `FindEntityByNetworkId` |
+| 📐 **why** | `IMapPickService` lives in `Hrot.Presentation`, which `Hrot.Editor.AiShared` does **not** reference. Adding that edge points the shared editor library at the application layer that composes it. ⭐ This codebase already has a settled shape for *"an AiShared window needs a host capability"* — a host-installed delegate *(`SetRunStateSource`, `SetFacetEditService`, `SetFacetDispatcher`)* |
+| ⭐ **what is NOT lost** | `Q55-A`'s ruling was **REUSE the existing pick service** — and it is reused, unchanged, from the composition root. Only the way its type crosses an assembly boundary differs |
+
+⭐ **`Q55-B`** *(the `Hrot.Presentation/Facades` twin)*, **`Q55-D`** *(⛔ not the attribute path)* and
+**`Q55-E`** *(no filter in v1)* are built exactly as ruled. ⚠ The two ruling-9 duplicates AQ55 surfaced
+are still open and untouched, as it directed.
+
+### 🔴 Still open after THIS batch
+
+| ⛔ | ⭐ |
+|---|---|
+| **a concrete pin does not survive a scenario RELOAD** *(slice `94g`, `BP-503`)* | ⭐ **now UNBLOCKED** — `HN-037`'s world-boundary/id-remap merged — but it edits `DataBreakpointManager` *(`:1354` still throws for `NetworkId`)* and consumes that remap ⇒ its own slice |
+| ⚠ **a restored pin is not re-attached to a Watch window** | `PinnedVariablePersistence.Restore` produces descriptors and nothing consumes them: a row can only be rebuilt by the source that owns its asset, once that asset is open ⇒ the **same** resolution problem as `94g` |
+| ⚠ **the two ruling-9 duplicates** *(two `IMapPickService`, two `MapPickableEntityAttribute`)* | `AQ55` §"Two ruling-9 duplicates" — each its own cleanup |
+
 
 ## 10. ⚠ Open
 

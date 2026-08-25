@@ -128,6 +128,29 @@ public sealed class TheWatchPanelDumpsItsPinnedRowsTests : IDisposable
         public IReadOnlyDictionary<Guid, int>? GetParallelRegionMap() => null;
     }
 
+    /// <summary>
+    /// 🔴 <b><c>BP-499</c> — the Watch groups by <c>[Asset, Entity]</c> by default.</b>
+    /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §1/§1b.
+    ///
+    /// <para>⛔ Before <c>BP-499</c> this window built its <c>VariableTableModel</c> with no
+    /// <c>groupBy</c>, so it fell back to <c>DetailsDefault</c> (<c>[]</c>) and rendered ONE FLAT LIST —
+    /// on the one surface that mixes assets and entities by design.</para>
+    ///
+    /// <para>⭐ Asserted on the CONSTRUCTED window, ⛔ never on the registrar — 📌 <c>R-67</c>. ⭐ It lives
+    /// in THIS file because the fixture is here: 📐 seven copies of <c>StubBreakpointManager</c> already
+    /// exist in the repo and an eighth to host one assertion would be the wrong trade.</para>
+    /// </summary>
+    [Fact]
+    public void TheWatchWindowGroupsByAssetThenEntity()
+    {
+        var window = MakeWindow("ai_watch_grouping");
+
+        Assert.True(window.HasVariableWatch,
+            "the variables half is not wired, so this rail cannot mean anything");
+        Assert.Equal(Hrot.Editor.AiShared.Variables.VariableRowGrouping.WatchDefault,
+                     window.Variables!.GroupBy);
+    }
+
     private static AiWatchWindow MakeWindow(string id, string perspective = "BTree")
         => new(id, perspective, new StubBreakpointManager(),
                new VariableValueFormatter(RawValueDecoder.Instance));

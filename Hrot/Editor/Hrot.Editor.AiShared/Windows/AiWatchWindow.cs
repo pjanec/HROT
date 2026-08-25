@@ -76,7 +76,16 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
         if (formatter != null)
         {
             _control   = new VariableTableControl(formatter);
-            _variables = new VariableTableModel(_pinned, VariableTableColumns.Watch);
+            // ⭐⭐⭐ BP-499 — GROUPED BY DEFAULT. 📄 DESIGN_Variable_Watch_Pinning.md §1/§1b.
+            //    ⛔ This argument was simply never passed, so the model fell back to DetailsDefault
+            //    (`[]`) and the Watch rendered ONE FLAT LIST — the one surface that mixes assets and
+            //    entities by design, showing no headers to tell them apart.
+            // ⭐ The grouping engine and the control's header rendering were already built and in use by
+            //   the Variables window; this is a wiring line, ⛔ not a second grouping path.
+            // ⭐⭐ `WatchDefault` is `[Asset, Entity]`, and a UNIFORM facet emits NO header — so watching
+            //   one asset shows no asset header by itself, with no setting to turn off.
+            _variables = new VariableTableModel(_pinned, VariableTableColumns.Watch,
+                                                VariableRowGrouping.WatchDefault);
         }
         IsOpen = false;
 
@@ -143,6 +152,66 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
     /// CONSTRUCTED window, ⛔ never on the registrar's source *(📌 <c>R-67</c>)*.</summary>
     public bool HasRunStateSource => _runState != null;
 
+    private WatchEntityPicker? _entityPicker;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-507</c> / <c>AQ55</c> — installs the host's "point at an entity" capability.</b>
+    /// 📄 <c>Architect_Question_55_Watch_Concrete_Entity_Picker.md</c>.
+    ///
+    /// <para>⭐ Same seam shape as <see cref="SetRunStateSource"/>, deliberately: the registrar that
+    /// BUILDS this window installs it in the same pass, so ⛔ there is nothing new for
+    /// <c>EditorSubsystem</c> to forget *(📌 <c>R-67</c>, and the ninth-silent-default lesson two
+    /// methods up)*.</para>
+    /// </summary>
+    public void SetEntityPicker(WatchEntityPicker picker)
+        => _entityPicker = picker ?? throw new ArgumentNullException(nameof(picker));
+
+    /// <summary>⭐ True once a picker is installed — ⛔ false in a host with no map *(a headless rail,
+    /// a shell with no IG)*, which is why <see cref="PinOnPickedEntityAsync"/> answers rather than
+    /// throws. ⭐ Asserted on the CONSTRUCTED window *(📌 <c>R-67</c>)*.</summary>
+    public bool HasEntityPicker => _entityPicker != null;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>AQ55</c>'s <c>PinOnPickedEntity</c> — pin <paramref name="row"/> to an entity the
+    /// designer points at, rather than to the one that happens to be selected.</b>
+    ///
+    /// <para>⭐⭐ <b>The pin is CONCRETE and carries the picked entity's <c>NetworkId</c></b>, which is
+    /// what makes it outlive the session *(§3: never an <c>Entity</c> handle — those are recycled)</b>.
+    /// The in-session <c>Entity</c> rides along for display, exactly as a pin made from the current
+    /// selection does.</para>
+    ///
+    /// <para>⚠ <b>A concrete pin does NOT yet survive a scenario RELOAD</b> — the stored id is the
+    /// runtime <c>NetworkIdentity</c> and the staging remap is slice <c>94g</c>. 📌 Said out loud here
+    /// and in <c>EntityBinding</c> so *"persisted"* is never read as *"restart-proof"*.</para>
+    ///
+    /// <para>⛔ Cancelling the pick pins NOTHING — ⚠ it does not fall back to the selection. A gesture
+    /// that silently does something else than it offered is worse than one that does nothing.</para>
+    /// </summary>
+    /// <returns><c>true</c> when a pin was created.</returns>
+    public async Task<bool> PinOnPickedEntityAsync(VariableRow row, CancellationToken ct = default)
+    {
+        if (row is null) throw new ArgumentNullException(nameof(row));
+        if (_entityPicker is null) return false;
+
+        EntityBinding? binding;
+        try
+        {
+            binding = await _entityPicker(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return false;      // ⭐ the designer walked away from the pick — not an error
+        }
+
+        // ⛔ Never coerce a null or a chameleon into a concrete pin: the gesture PROMISED a specific
+        //    entity, and pinning "whoever is selected" instead would be the wrong entity's values under
+        //    the label the designer asked for.
+        if (binding is not { Kind: EntityBindingKind.Concrete } concrete) return false;
+
+        _pinned.Pin(row, concrete);
+        return true;
+    }
+
     /// <summary>
     /// ⭐ Re-reads the run state onto the model. ⚠ Called every frame from <see cref="DrawClientArea"/>
     /// AND directly by rails — ⛔ the draw path goes through ImGui, and a rail that could only reach
@@ -200,6 +269,16 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
         ImGuiNET.ImGui.Separator();
         // ⭐ Named, so the two lists cannot read as one feature with an odd column set.
         ImGuiNET.ImGui.TextDisabled("Pinned variables");
+
+        // ⭐⭐ BP-500 — the group-by selector (§1b). ⛔ Drawn from the MODEL's current facets, never from a
+        //    local copy: the model is the truth and a cached index would drift from it.
+        // ⚠ Changing the grouping does not rebuild the view already built above — the change lands on the
+        //   NEXT frame. ⭐ Correct rather than lazy: rebuilding mid-draw would publish a PanelSnapshot that
+        //   disagrees with what was painted this frame.
+        ImGuiNET.ImGui.SameLine();
+        // ⚠ Fully qualified: this class has a `Variables` PROPERTY (the model), which shadows the
+        //   `Hrot.Editor.AiShared.Variables` namespace at this site.
+        Hrot.Editor.AiShared.Variables.VariableGroupBySelector.Draw("Group by##" + Id, _variables!);
 
         if (view.AllRows.Count == 0)
         {

@@ -280,19 +280,64 @@ public sealed class PinnedVariableRowSource : IVariableRowSource
 {
     private readonly List<VariableRow> _pinned = new();
 
-    /// <summary>Pins a row. ⚠ Re-pinning the same identity replaces it rather than duplicating.</summary>
-    public void Pin(VariableRow row)
+    /// <summary>
+    /// ⭐⭐ <b><c>BP-501</c> — the BINDING each pinned row was made with</b>, parallel to <see cref="_pinned"/>
+    /// and keyed by the same row identity. 📄 §3.
+    ///
+    /// <para>⛔ Why not a field on <c>VariableRowOrigin</c>: the binding is a property of the PIN — the
+    /// choice a designer made — not of a row in general. ⭐ A section source's rows are always *"the entity
+    /// this panel is about"*, with no choice involved, and widening the row identity would have touched
+    /// every construction site and the highlight cache key for a fact only the Watch has.</para>
+    /// </summary>
+    private readonly Dictionary<(Guid, Entity, string), EntityBinding> _bindings = new();
+
+    /// <summary>
+    /// Pins a row. ⚠ Re-pinning the same identity replaces it rather than duplicating.
+    ///
+    /// <para>⭐⭐ <b><c>binding</c> is the designer's CHOICE (§3)</b>: <c>Concrete</c> keeps the row on the
+    /// entity that was selected when they pinned it; <c>Chameleon</c> makes it follow the selection.
+    /// ⚠ <see langword="null"/> INFERS the kind from the row — chameleon when the row already carries the
+    /// sentinel, concrete otherwise — which is what every pre-<c>BP-501</c> caller meant and keeps them
+    /// working unchanged.</para>
+    ///
+    /// <para>⛔ The row's <c>Origin.Entity</c> is rewritten to <see cref="EntityBinding.OriginEntity"/> so
+    /// the stored row and its binding cannot disagree — a concrete row carrying the sentinel would follow
+    /// the selection while its binding claimed otherwise.</para>
+    /// </summary>
+    public void Pin(VariableRow row, EntityBinding? binding = null)
     {
-        int existing = _pinned.FindIndex(r => r.Origin.Key.Equals(row.Origin.Key));
-        if (existing >= 0) _pinned[existing] = row;
-        else               _pinned.Add(row);
+        var bind = binding ?? (row.Origin.Entity.Equals(default(Entity))
+            ? EntityBinding.Chameleon
+            // ⚠ NetworkId 0: an inferred pin has no id source. It is a within-session pin, and
+            //   IsPersistable reports that rather than the save path guessing.
+            : EntityBinding.Concrete(0, row.Origin.Entity));
+
+        var stored = bind.OriginEntity.Equals(row.Origin.Entity)
+            ? row
+            : row with { Origin = row.Origin with { Entity = bind.OriginEntity } };
+
+        int existing = _pinned.FindIndex(r => r.Origin.Key.Equals(stored.Origin.Key));
+        if (existing >= 0) _pinned[existing] = stored;
+        else               _pinned.Add(stored);
+
+        _bindings[stored.Origin.Key] = bind;
     }
+
+    /// <summary>⭐ The binding a row was pinned with, or <see langword="null"/> when it is not pinned.</summary>
+    public EntityBinding? BindingOf(VariableRowOrigin origin)
+        => _bindings.TryGetValue(origin.Key, out var b) ? b : null;
+
+    /// <summary>⭐ Every pinned row with its binding — what the persistence layer saves.</summary>
+    public IReadOnlyList<(VariableRow Row, EntityBinding Binding)> PinnedWithBindings()
+        => _pinned.Select(r => (r, _bindings.TryGetValue(r.Origin.Key, out var b)
+                                   ? b : EntityBinding.Concrete(0, r.Origin.Entity))).ToList();
 
     public bool Unpin(VariableRowOrigin origin)
     {
         int i = _pinned.FindIndex(r => r.Origin.Key.Equals(origin.Key));
         if (i < 0) return false;
         _pinned.RemoveAt(i);
+        _bindings.Remove(origin.Key);   // ⛔ or the map grows for the lifetime of the session
         return true;
     }
 
