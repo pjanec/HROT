@@ -1273,4 +1273,459 @@ public sealed class ClusterConformanceRails
           + "is reachable on CGF. ⛔ That is R-52's whole-component clobber, and the steer keeps it OFF "
           + "on this host until the variable-model lane lands SetComponentFieldRaw.");
     }
+    // ══════════════════════════════════════════════════════════════════════════
+    // ⭐⭐⭐ GROUP W — THE MCP AUTHORING RAILS (AQ56 / DESIGN_Mcp_Authoring.md §9)
+    //
+    // ⛔⛔ A RULE THESE RAILS LEARNED THE HARD WAY, and it is written here rather than in each of them:
+    //    ⭐⭐⭐ NEVER `save` a COMMITTED asset from a rail. 📐 Measured `2026-08-25` — the first cut did,
+    //    and `git status` came back with **372 deleted lines** in `ComponentCollectionDemo.bp.json`.
+    //    ⚠ That is NOT a defect this batch introduced: `SaveActiveBlueprintCommand` STRIPS the projected
+    //    pins and rewrites link endpoints to deterministic name-derived ids on the way to disk (design
+    //    §3), so what the editor writes legitimately differs in SHAPE from the fatter committed file.
+    //    ⇒ any save of any blueprint through the editor dirties the tree; slice 3's rail never noticed
+    //    because it saved a CLEAN document, which is a no-op.
+    // ⇒ ⭐ The save/reload half is exercised on an asset the rail CREATES and then DELETES, and the
+    //    edit half runs against committed assets WITHOUT saving.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE HEADLINE: an agent READS a graph by its in-memory guids, EDITS it over MCP, the
+    /// re-read shows the edit, and the edited graph still hot-reloads.</b>
+    /// 📄 <c>DESIGN_Mcp_Authoring.md</c> §6 *(the sequence this walks, step for step)* · §9.
+    ///
+    /// <para>⭐⭐ <b>The round trip is the claim, and it is the only one that can be trusted.</b> ⛔ A rail
+    /// that asserted only <i>"add-node answered 200"</i> would pass against a route that returns a fresh
+    /// guid and mutates nothing — 📌 the exact shape of the <c>AddNode</c> failure
+    /// <c>AuthoringPath.AddNode</c> documents. ⇒ every id this rail receives is spent on a RE-READ.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>It also pins the VALIDATOR (design item ⑤) with a guaranteed negative.</b> Linking a
+    /// pin to ITSELF has no legal reading in any host, so the refusal is deterministic — ⛔ unlike a
+    /// legal wire, which depends on which two pins a given asset happens to offer. ⚠ That the refusal
+    /// carries the HOST's own reason text is what proves the host validator ran rather than a check
+    /// invented here.</para>
+    ///
+    /// <para>⚠⚠ <b>It REMOVES the node before reloading, and that is not tidying — it is the assertion.</b>
+    /// 📐 Measured: adding a bare <c>WhenNode</c> to a committed blueprint makes it stop compiling
+    /// (<i>"Blueprint compile failed: AST compilation failed"</i>) — correctly, because an unwired
+    /// statement node is not a valid graph. ⇒ ⭐ reloading AFTER the removal asserts the thing worth
+    /// asserting: <b>the edit path leaves the asset in a state the compiler still accepts</b>, and the
+    /// remove genuinely restored it. ⛔ Reloading with the node still there would assert that the
+    /// compiler rejects invalid graphs, which is not this surface's claim.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task An_agent_can_read_and_edit_a_graph_over_mcp()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-authoring-all", mode: "all");
+
+        var assets = (await cluster.Client.ListAssetsAsync()).EnsureOk();
+        var list   = (assets.Field("assets") as JsonArray)!;
+        Assert.True(list.Count > 0,
+            "GET /assets returned nothing - slice 2's catalog population regressed, so there is no "
+          + "graph to author.");
+
+        var pick = list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "Blueprint") ?? list[0];
+        var id   = pick!["assetId"]!.GetValue<string>();
+        var name = pick["name"]!.GetValue<string>();
+        _out.WriteLine($"authoring target: {name} ({pick["kind"]}) {id}");
+
+        // A closed asset has no in-memory graph - that refusal is the contract, so assert it first.
+        var beforeOpen = await cluster.Client.ReadAssetGraphAsync(id);
+        Assert.Equal(404, beforeOpen.StatusCode);
+
+        (await cluster.Client.OpenAssetAndSettleAsync(id)).EnsureOk();
+
+        // ── the READ ──────────────────────────────────────────────────────────
+        var graph = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
+        var nodesBefore = graph.Int("nodeCount");
+        var linksBefore = graph.Int("linkCount");
+        _out.WriteLine($"read: {nodesBefore} node(s), {linksBefore} link(s)");
+
+        Assert.NotNull(graph.Field("nodes"));
+        Assert.Equal(id, graph.String("assetId"));
+        Assert.True(nodesBefore > 0,
+            $"'{name}' reads as an EMPTY graph. Either the serializer projects nothing, or the document "
+          + "opened with no view state - the CE-015 shape, where an 'open' that leaves ViewState null is "
+          + "indistinguishable from a working one at the canvas level.");
+
+        // ── the CATALOG - what stops an agent guessing a kind id ──────────────
+        var kinds = (await cluster.Client.ListNodeKindsAsync(id)).EnsureOk();
+        var kindArr = (kinds.Field("kinds") as JsonArray)!;
+        Assert.True(kindArr.Count > 0,
+            $"the node catalog for '{name}' is EMPTY, so no node can be added by any means - human or "
+          + "MCP. That is a host-composition defect, not an authoring one.");
+
+        // ── the ADD - try catalog entries until one is accepted ───────────────
+        //
+        // A kind can be legitimately un-addable in a given graph (a container-only entry, a decorator
+        // that needs a selected host). Walking a bounded prefix and asserting at least ONE succeeded is
+        // the honest form of "an agent can add a node"; asserting a specific kind would pin an asset's
+        // contents rather than the capability.
+        string? addedNodeId = null, addedKind = null;
+        JsonArray? addedPins = null;
+        var refusals = new List<string>();
+
+        foreach (var entry in kindArr.Take(12))
+        {
+            var kind = entry!["kind"]!.GetValue<string>();
+            if (entry["isDeprecated"]?.GetValue<bool>() == true) continue;
+
+            var added = await cluster.Client.AddGraphNodeAsync(id, kind, 64f, 64f);
+            if (!added.Ok) { refusals.Add($"{kind}: {added.Error}"); continue; }
+
+            addedNodeId = added.String("nodeId");
+            addedKind   = added.String("kind");
+            addedPins   = added.Field("pins") as JsonArray;
+            break;
+        }
+
+        Assert.True(addedNodeId != null,
+            $"every one of the first catalogued kinds was refused for '{name}'. The refusals were:\n  "
+          + string.Join("\n  ", refusals)
+          + "\nEach refusal is the host sink's own answer, so this is either a catalog that advertises "
+          + "kinds the sink cannot build, or the add route no longer reaches the sink.");
+
+        _out.WriteLine($"added {addedKind} -> {addedNodeId} with {addedPins?.Count ?? 0} pin(s)");
+
+        // ⭐⭐⭐ THE ROUND TRIP - the returned guid must RESOLVE in a fresh read.
+        var afterAdd = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
+        var nodeIds  = ((afterAdd.Field("nodes") as JsonArray)!)
+                       .Select(n => n!["nodeId"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
+
+        Assert.True(nodeIds.Contains(addedNodeId!),
+            $"add_graph_node returned {addedNodeId} and a fresh read does NOT contain it. The route "
+          + "handed back an id that addresses nothing - which is exactly the failure the route's own "
+          + "model re-read is supposed to catch before answering.");
+
+        Assert.Equal(nodesBefore + 1, afterAdd.Int("nodeCount"));
+
+        // ── the VALIDATOR (item 5) - a guaranteed-illegal wire, refused WITH A REASON ──
+        Assert.True(addedPins is { Count: > 0 },
+            "the add-node response carried no pins, so the link half of this rail cannot be driven. "
+          + "The response carries pins deliberately - linking needs them.");
+
+        var selfPin  = addedPins![0]!["pinId"]!.GetValue<string>();
+        var selfLink = await cluster.Client.AddGraphLinkAsync(id, selfPin, selfPin);
+
+        Assert.False(selfLink.Ok,
+            "linking a pin to ITSELF was ACCEPTED. The host's ILinkValidator is not being consulted, "
+          + "so MCP can author a graph the editor itself would reject.");
+        Assert.Equal(400, selfLink.StatusCode);
+        Assert.False(string.IsNullOrWhiteSpace(selfLink.Error),
+            "the wire was refused with no reason. The reason is the host validator's own text, and "
+          + "without it the caller cannot tell a validator refusal from a transport failure.");
+
+        // ⛔⛔ IT MUST BE THE VALIDATOR THAT REFUSED, not the sink downstream of it.
+        // 📐 Measured by a revert probe: disabling the ILinkValidator pre-check left this rail GREEN,
+        //    because BlueprintCommandSink refuses a self-link too and the route 400s on that as well.
+        //    ⇒ asserting only "it was refused" cannot tell the two apart, and the design's item ⑤ claim
+        //    is specifically that the HOST VALIDATOR runs - the same check a dragged wire gets.
+        // ⭐ "The editor refuses" is the validator arm's own prefix; the sink arm says "The host sink
+        //    refused the link". The prefixes are the discriminator.
+        Assert.StartsWith("The editor refuses", selfLink.Error!, StringComparison.Ordinal);
+        _out.WriteLine($"validator refused a self-link: {selfLink.Error}");
+
+        // ── RESTORE, then RELOAD ─────────────────────────────────────────────
+        (await cluster.Client.RemoveGraphElementsAsync(id, nodes: new[] { addedNodeId! })).EnsureOk();
+
+        var restored = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
+        Assert.Equal(nodesBefore, restored.Int("nodeCount"));
+        Assert.Equal(linksBefore, restored.Int("linkCount"));
+
+        // ⭐ Reload compiles from the IN-MEMORY asset, so this asserts the edit+remove round trip left a
+        //   graph the compiler still accepts. ⛔ No save: that would rewrite a COMMITTED file (see the
+        //   block comment above this region).
+        var reloaded = (await cluster.Client.ReloadAssetAsync(id)).EnsureOk();
+        var status   = reloaded.String("status") ?? string.Empty;
+        _out.WriteLine($"reload status: {status}");
+
+        // The compiler's own verdict - NOT the status code, which is 200 for a failed compile on purpose.
+        Assert.False(string.IsNullOrWhiteSpace(status), "the reload reported no status at all.");
+        Assert.DoesNotContain("failed", status, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("threw",  status, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(name, status, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>An agent can REMOVE what it added, and the removal goes through the editor's own Delete
+    /// command.</b> 📄 <c>DESIGN_Mcp_Authoring.md</c> §7 ② · §10.
+    ///
+    /// <para>⭐ <b>Why a separate rail.</b> Remove is the one edit that does NOT build its own command -
+    /// it SELECTS and invokes <c>editor.delete-selection</c>, so that incident links, reroutes and
+    /// attachments are handled by the code that already knows about them. ⇒ what this pins is that the
+    /// invocation actually reaches that command, ⛔ not that a <c>RemoveNodes</c> was applied.</para>
+    ///
+    /// <para>⚠ It also pins the ALL-OR-NOTHING refusal: naming one id that is not in the graph must
+    /// remove NOTHING, because a partial delete is worse than a refusal.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task An_agent_can_remove_what_it_added_over_mcp()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-authoring-remove-all", mode: "all");
+
+        var assets = (await cluster.Client.ListAssetsAsync()).EnsureOk();
+        var list   = (assets.Field("assets") as JsonArray)!;
+        Assert.True(list.Count > 0, "GET /assets returned nothing - no graph to author.");
+
+        var pick = list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "Blueprint") ?? list[0];
+        var id   = pick!["assetId"]!.GetValue<string>();
+
+        (await cluster.Client.OpenAssetAndSettleAsync(id)).EnsureOk();
+
+        var kinds   = (await cluster.Client.ListNodeKindsAsync(id)).EnsureOk();
+        var kindArr = (kinds.Field("kinds") as JsonArray)!;
+        Assert.True(kindArr.Count > 0, "the node catalog is empty - nothing can be added, so nothing removed.");
+
+        string? nodeId = null;
+        foreach (var entry in kindArr.Take(12))
+        {
+            if (entry!["isDeprecated"]?.GetValue<bool>() == true) continue;
+            var added = await cluster.Client.AddGraphNodeAsync(id, entry["kind"]!.GetValue<string>());
+            if (!added.Ok) continue;
+            nodeId = added.String("nodeId");
+            break;
+        }
+        Assert.True(nodeId != null, "could not add any node, so the removal half cannot be driven.");
+
+        var before = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk().Int("nodeCount");
+
+        // ⛔ ALL-OR-NOTHING: a real id plus an id that is not here must remove NOTHING.
+        var bogus   = Guid.NewGuid().ToString();
+        var partial = await cluster.Client.RemoveGraphElementsAsync(id, nodes: new[] { nodeId!, bogus });
+        Assert.False(partial.Ok,
+            "a remove naming one id that is NOT in the graph was accepted. A partial delete leaves the "
+          + "caller unable to tell what happened - the whole call must be refused.");
+        Assert.Equal(before, (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk().Int("nodeCount"));
+
+        // ⭐ The real removal.
+        var removed = (await cluster.Client.RemoveGraphElementsAsync(id, nodes: new[] { nodeId! })).EnsureOk();
+        _out.WriteLine($"removed {removed.Int("removedNodes")} node(s), {removed.Int("removedLinks")} link(s)");
+
+        Assert.Equal(1, removed.Int("removedNodes"));
+
+        var after   = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
+        var nodeIds = ((after.Field("nodes") as JsonArray)!)
+                      .Select(n => n!["nodeId"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
+
+        Assert.False(nodeIds.Contains(nodeId!),
+            $"remove_graph_elements reported success and node {nodeId} is STILL in the graph. The "
+          + "editor's Delete command was not reached, or it acted on a different selection.");
+        Assert.Equal(before - 1, after.Int("nodeCount"));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>An agent can CREATE an asset, it appears in the catalog, and the full
+    /// create → edit → save → reload cycle runs on it.</b>
+    /// 📄 <c>DESIGN_Mcp_Authoring.md</c> §6 *(the sequence, end to end)* · §7 ③ · §10.
+    ///
+    /// <para>⭐⭐⭐ <b>"Appears in GET /assets" is not ceremony.</b> 📐 The catalog is CONTRIBUTOR-driven:
+    /// it rebuilds from what the contributors enumerate, so an asset written outside the directory this
+    /// host's contributor scans is invisible to every other route. ⇒ ⛔ a create that answered 200
+    /// without this would hand back an id nothing can open. ⭐ That is why the create path returns the
+    /// id only AFTER <c>FindByAssetId</c> resolves it.</para>
+    ///
+    /// <para>⭐⭐ <b>This is also the only rail that SAVES, and that is deliberate</b> — it saves an asset
+    /// it created itself, in a sentinel folder it deletes afterwards. ⛔ Saving a COMMITTED asset
+    /// rewrites it (see this region's block comment), so the save half of the design's sequence can only
+    /// be asserted honestly on an asset the rail owns.</para>
+    ///
+    /// <para>⚠ <b>EDITOR mode, deliberately.</b> The create path needs the per-kind
+    /// <c>INewAssetService</c> registry, the Blueprint source-root override and the per-contributor
+    /// refresh; CGF composes none of them and answers 503 saying so. ⛔ That divergence is stated in the
+    /// design (§10.3), not hidden by running this only where it passes.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task An_agent_can_create_edit_save_and_reload_its_own_asset()
+    {
+        const string SentinelFolder = "__mcp_rail_tmp";
+
+        await using var editor = await EditorProcess.StartAsync("conf-authoring-create", mode: "editor");
+
+        var before = (await editor.Client.ListAssetsAsync()).EnsureOk().Int("count");
+
+        // A name derived from the process so a rerun in a dirty working tree does not fight leftovers.
+        var name = $"McpAuthored{Environment.ProcessId}";
+
+        var created = await editor.Client.CreateAssetAsync("BTree", name, SentinelFolder);
+        _out.WriteLine($"create: {created.StatusCode} {created.Error ?? created.String("status")}");
+
+        Assert.True(created.Ok,
+            $"create_asset was refused on the EDITOR host: {created.Error}. This host composes the "
+          + "INewAssetService registry, so a refusal here means the create path is no longer wired - "
+          + "AttachAssetAuthoring is not being called, or the extraction from the New-Asset dialog "
+          + "callback drifted.");
+
+        var newId    = created.String("assetId");
+        var filePath = created.String("sourceFilePath");
+
+        try
+        {
+            Assert.False(string.IsNullOrWhiteSpace(newId),
+                "create_asset answered ok with no assetId. The path returns the id only once the catalog "
+              + "resolves it, so a missing id means it never got there.");
+
+            var after = (await editor.Client.ListAssetsAsync()).EnsureOk();
+            var ids   = ((after.Field("assets") as JsonArray)!)
+                        .Select(a => a!["assetId"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
+
+            Assert.True(ids.Contains(newId!),
+                $"the created asset {newId} ('{name}') is NOT in GET /assets. It was written somewhere the "
+              + "contributor does not scan, so nothing can open or edit it (ruling 67 - asset roots).");
+            Assert.True(after.Int("count") > before,
+                $"the catalog count did not grow ({before} -> {after.Int("count")}).");
+
+            // ⭐ It is immediately authorable - which is the point of creating it.
+            var graph = await editor.Client.ReadAssetGraphAsync(newId!);
+            Assert.True(graph.Ok,
+                $"the created asset is in the catalog but has no readable graph: {graph.Error}. "
+              + "create_asset opens the new asset as a document precisely so authoring can start "
+              + "without a second call.");
+
+            // ── EDIT -> SAVE -> RELOAD on the rail's OWN asset ────────────────
+            var kinds   = (await editor.Client.ListNodeKindsAsync(newId!)).EnsureOk();
+            var kindArr = (kinds.Field("kinds") as JsonArray)!;
+            Assert.True(kindArr.Count > 0, "the new asset's node catalog is empty - nothing can be authored.");
+
+            string? nodeId = null;
+            foreach (var entry in kindArr.Take(12))
+            {
+                if (entry!["isDeprecated"]?.GetValue<bool>() == true) continue;
+                var added = await editor.Client.AddGraphNodeAsync(newId!, entry["kind"]!.GetValue<string>());
+                if (!added.Ok) continue;
+                nodeId = added.String("nodeId");
+                break;
+            }
+            Assert.True(nodeId != null, "no catalogued kind could be added to the freshly created asset.");
+
+            var reread = (await editor.Client.ReadAssetGraphAsync(newId!)).EnsureOk();
+            Assert.Contains(((reread.Field("nodes") as JsonArray)!)
+                                .Select(n => n!["nodeId"]!.GetValue<string>()),
+                            nid => string.Equals(nid, nodeId, StringComparison.Ordinal));
+
+            var saved = (await editor.Client.SaveAssetAsync(newId!)).EnsureOk();
+            _out.WriteLine($"save status: {saved.String("status")}");
+
+            Assert.False(saved.Bool("stillDirty"),
+                $"the created asset is STILL dirty after save: {saved.String("status")}. Either the "
+              + "document was never marked dirty by the edit, or it has no source path and the shared "
+              + "Save-All command skipped it with a warning.");
+
+            var reloaded = (await editor.Client.ReloadAssetAsync(newId!)).EnsureOk();
+            var status   = reloaded.String("status") ?? string.Empty;
+            _out.WriteLine($"reload status: {status}");
+            Assert.False(string.IsNullOrWhiteSpace(status), "the reload reported no status at all.");
+            Assert.DoesNotContain("threw", status, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            // ⭐⭐ Leave the working tree as it was found. ⛔ Name-guarded: nothing is deleted unless the
+            //    path really sits inside the sentinel folder this rail asked create_asset to write to.
+            CleanUpSentinelFolder(filePath, SentinelFolder, _out);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ Deletes the throwaway folder a create-rail asked for, and NOTHING else.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Three guards, because a test that deletes directories is worth being paranoid about: the path
+    /// must be non-empty, the directory's own NAME must equal the sentinel, and it must still exist.
+    /// ⛔ A path that fails any of them is REPORTED to the test output rather than guessed at.
+    /// </remarks>
+    private static void CleanUpSentinelFolder(string? assetPath, string sentinel, ITestOutputHelper output)
+    {
+        if (string.IsNullOrWhiteSpace(assetPath))
+        {
+            output.WriteLine($"[cleanup] no sourceFilePath was reported - '{sentinel}' may be left behind.");
+            return;
+        }
+
+        try
+        {
+            var dir = System.IO.Path.GetDirectoryName(assetPath.Replace('/', System.IO.Path.DirectorySeparatorChar));
+            if (dir == null || !string.Equals(System.IO.Path.GetFileName(dir), sentinel, StringComparison.Ordinal))
+            {
+                output.WriteLine($"[cleanup] '{assetPath}' is not inside '{sentinel}' - leaving it alone.");
+                return;
+            }
+
+            if (System.IO.Directory.Exists(dir))
+            {
+                System.IO.Directory.Delete(dir, recursive: true);
+                output.WriteLine($"[cleanup] removed {dir}");
+            }
+        }
+        catch (Exception ex)
+        {
+            output.WriteLine($"[cleanup] could not remove the sentinel folder: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Scenario authoring is WORLD manipulation: an agent can DELETE an entity, and the world
+    /// loses it.</b> 📄 <c>DESIGN_Mcp_Authoring.md</c> §1 · §7 ④ *(`Q56-C`, resolved with the user:
+    /// there is no such thing as editing a scenario FILE)*.
+    ///
+    /// <para>⭐⭐⭐ <b>Why delete and nothing else.</b> 📐 Measuring the existing <c>/entities/*</c> set
+    /// against the four authoring verbs found three already built - <b>place</b> is
+    /// <c>POST /entities/spawn</c>, <b>configure</b> is <c>/attribute</c> and <c>/component</c>,
+    /// <b>assign</b> is <c>/attach-blueprint</c> - and <b>delete had no route at all.</b> ⇒ this rail
+    /// covers the one op the surface was missing.</para>
+    ///
+    /// <para>⚠ <b>It LOADS a scenario first, and the first cut did not.</b> 📐 A bare editor boots with an
+    /// EMPTY world, so the rail failed on <i>"GET /entities is empty"</i> — ⛔ which said nothing about
+    /// the delete route. ⭐ <c>hill-attack</c> is the harness's standard world, as
+    /// <c>DeterminismRails</c> and <c>CapabilitySmokeTests</c> already use it.</para>
+    ///
+    /// <para>⚠ <b>What it does NOT assert, stated rather than implied:</b> it does not read the saved
+    /// scenario file back. ⭐ It asserts the WORLD lost the entity and that <c>scenario/save</c> then
+    /// succeeds — and by `Q56-C` the file IS a snapshot of that world. ⛔ Parsing the written file would
+    /// pin this rail to a serialization format that is not this batch's subject. ⭐ The save writes under
+    /// the NAS base path, ⛔ not into the repo, so it leaves no working-tree change.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task An_agent_can_delete_an_entity_and_the_world_loses_it()
+    {
+        await using var editor = await EditorProcess.StartAsync("conf-authoring-delete", mode: "editor");
+
+        (await editor.Client.LoadScenarioEditAsync("hill-attack")).EnsureOk();
+        (await editor.Client.StepAsync(3)).EnsureOk();
+
+        var entities = (await editor.Client.ListEntitiesAsync()).EnsureOk();
+        var rows     = entities.Data as JsonArray ?? (entities.Field("entities") as JsonArray) ?? new JsonArray();
+
+        Assert.True(rows.Count > 0,
+            "GET /entities is empty after loading hill-attack, so there is no entity to delete. That is "
+          + "a scenario-loading finding, not a delete-route one.");
+
+        var victim = rows[0]!["networkId"]!.GetValue<long>();
+        _out.WriteLine($"deleting entity {victim} of {rows.Count}");
+
+        // ⛔ An unknown id is refused, NOT queued against nothing.
+        var ghost = await editor.Client.DeleteEntityAsync(victim + 9_000_000);
+        Assert.False(ghost.Ok, "deleting an entity that does not exist was accepted.");
+        Assert.Equal(404, ghost.StatusCode);
+
+        var deleted = (await editor.Client.DeleteEntityAsync(victim)).EnsureOk();
+        Assert.True(deleted.Bool("queued"),
+            "the delete did not report itself as queued. Teardown runs through the ELM lifecycle on a "
+          + "later tick, and saying otherwise invites a caller to assert too early.");
+
+        // Queued like spawn - step before asserting.
+        (await editor.Client.StepAsync(5)).EnsureOk();
+
+        var afterRows  = (await editor.Client.ListEntitiesAsync()).EnsureOk();
+        var remaining  = afterRows.Data as JsonArray
+                      ?? (afterRows.Field("entities") as JsonArray) ?? new JsonArray();
+        var stillThere = remaining.Any(r => r!["networkId"]!.GetValue<long>() == victim);
+
+        Assert.False(stillThere,
+            $"entity {victim} is still in the world after DELETE + 5 ticks. The DestroyEntityCommand "
+          + "was published but ELM teardown did not run, or it was published on a bus nothing reads.");
+
+        // ⭐ And a snapshot taken now is a snapshot of THIS world - Q56-C's whole point.
+        var savedScenario = await editor.Client.SaveScenarioAsync($"mcp-authoring-{Environment.ProcessId}");
+        Assert.True(savedScenario.Ok,
+            $"scenario/save failed after the delete: {savedScenario.Error}. Scenario authoring is world "
+          + "manipulation followed by a snapshot, so a save that cannot run makes the delete pointless.");
+    }
 }

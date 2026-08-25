@@ -47,6 +47,16 @@ const EXPECTED_TOOLS = [
   'list_documents', 'activate_document', 'focus_panel',
   // Slice ⑤ — cgf==editor slice 3: the edit -> save -> reload cycle, drivable headlessly.
   'save_ai_asset', 'reload_ai_asset',
+  // Slice ⑥ — Group W, the AUTHORING surface (AQ56 / DESIGN_Mcp_Authoring.md).
+  // ⭐ read_asset_graph is the entry point: read the IN-MEMORY guids, then edit BY them.
+  //   list_node_kinds is what stops an agent guessing a kind id — an unknown kind is refused,
+  //   but only this list is guaranteed valid for a given graph.
+  'read_asset_graph', 'list_node_kinds',
+  'add_graph_node', 'add_graph_link', 'set_graph_param', 'remove_graph_elements',
+  'create_asset',
+  // ⭐ Scenario authoring is WORLD manipulation (Q56-C): place/configure/assign already had
+  //   routes; delete was the one gap.
+  'delete_entity',
 ];
 
 let passed = 0;

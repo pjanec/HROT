@@ -135,6 +135,39 @@ namespace Hrot.Editor.DebugApi
             => new(status, null, error, DebugApiHints.For(hintCategory));
 
         /// <summary>
+        /// ⭐⭐ The status classification the AUTHORING routes share *(Group W)*, in one place so six
+        /// handlers cannot disagree about what a given refusal MEANS.
+        /// </summary>
+        /// <remarks>
+        /// ⭐ Three distinct causes, three codes — 📌 the <c>/perspective</c> lesson: collapsing them makes
+        /// a wiring defect look like a bad request.
+        /// <list type="bullet">
+        ///   <item><b>503</b> — the host wires no asset shell / no create path. A COMPOSITION defect; the
+        ///   caller could not have avoided it.</item>
+        ///   <item><b>404</b> — the asset is not open, or the id names nothing. An addressing mistake the
+        ///   caller fixes by opening the asset or re-reading the graph.</item>
+        ///   <item><b>400</b> — the body is malformed, or the EDITOR ITSELF refused the edit *(an invalid
+        ///   wire, an unknown node kind, a value the pin cannot hold)*. ⚠ A refusal by the validator is a
+        ///   legitimate answer, ⛔ not a server error.</item>
+        /// </list>
+        /// </remarks>
+        private static RouteResult AuthoringResult(JsonNode? result, string? error, string? hintCategory)
+        {
+            if (error == null) return Ok(result);
+
+            if (error.StartsWith("No AI-asset shell", StringComparison.Ordinal)
+             || error.StartsWith("This host wires no", StringComparison.Ordinal))
+                return Fail(503, error, hintCategory);
+
+            if (error.StartsWith("No OPEN document", StringComparison.Ordinal)
+             || error.Contains("is not a pin in this graph", StringComparison.Ordinal)
+             || error.StartsWith("Not in this graph", StringComparison.Ordinal))
+                return Fail(404, error, hintCategory);
+
+            return Fail(400, error, hintCategory);
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <b>The route table, without binding a port or booting anything</b> — <c>HN-030</c>'s enabling
         /// seam, and the reason generation is cheap.
         ///
@@ -947,6 +980,76 @@ namespace Hrot.Editor.DebugApi
                 if (error == null) return Ok(result);
                 return Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 404,
                             error, hintCategory);
+            })));
+
+            // ── Group W — the AI-ASSET AUTHORING surface (AQ56 / DESIGN_Mcp_Authoring.md) ────
+            //
+            // ⭐⭐⭐ Read-then-edit-by-guid: GET the graph with its IN-MEMORY ids, then mutate through the
+            //    SAME command sink human editing uses. 📄 DESIGN_Mcp_Authoring.md §5/§6/§7.
+            // ⚠ ROUTE ORDER: "/assets/{assetId}/graph" (3 segments) cannot shadow
+            //    "/assets/{assetId}/graph/{verb}" (4 segments) — different lengths — but the read is
+            //    written first because it is the one an agent must call before any of the others.
+            // ⛔⛔ THE COLLISION BOUNDARY (§8), from this side: every handler below lives in
+            //    DebugApiService.Authoring.cs. ⛔ Nothing here touches DebugApiService.Assets.cs.
+
+            _routes.Add(new("GET", "/assets/{assetId}/graph", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ReadGraph(ctx.RouteValue("assetId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("GET", "/assets/{assetId}/graph/catalog", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) =
+                    s.ListGraphNodeKinds(ctx.RouteValue("assetId"), ctx.Query("filter"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/graph/nodes", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.AddGraphNode(ctx.RouteValue("assetId"), ctx.Body);
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/graph/links", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.AddGraphLink(ctx.RouteValue("assetId"), ctx.Body);
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/graph/params", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.SetGraphParam(ctx.RouteValue("assetId"), ctx.Body);
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/graph/remove", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.RemoveGraphElements(ctx.RouteValue("assetId"), ctx.Body);
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.CreateAsset(ctx.Body);
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 400,
+                            error, hintCategory);
+            })));
+
+            // ⭐ Scenario authoring = world manipulation (Q56-C). This is the ONE op the existing
+            //   /entities/* set was missing — place/configure/assign already had routes, delete did not.
+            _routes.Add(new("DELETE", "/entities/{networkId}", ctx => RunMainResult(s =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var netId))
+                    return Fail(400, "networkId must be a number. List entities with GET /entities.",
+                                DebugApiHints.Entity);
+                var (result, error, hintCategory) = s.DeleteEntity(netId);
+                return error != null ? Fail(404, error, hintCategory) : Ok(result);
             })));
 
             _routes.Add(new("POST", "/panels/{panelId}/focus", ctx => RunMainResult(s =>

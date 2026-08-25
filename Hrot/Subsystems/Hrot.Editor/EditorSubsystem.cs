@@ -3711,45 +3711,100 @@ namespace Hrot.Editor
                 _saveAsBrowser?.Open(request, result =>
                 {
                     if (!result.Confirmed) return;
-                    var minted = _newAssetServices![kind].CreateNew(recipe, result.Name, result.DestinationPath);
-                    // Blueprint is mint-only — write its file at the chosen folder;
-                    // BTree/HSM/Scenario persist in CreateNew.
-                    if (kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
-                    {
-                        // BUG-A6: pass _bpRootDir as the asset-root override so the file
-                        // lands in the SOURCE project dir that BlueprintAssetContributor
-                        // scans (_bpRootDir), not the bin/output dir (AssetRoots.AssetsFor).
-                        var bpPath = Hrot.Editor.AiShared.AssetSavePath.Compose(
-                            Hrot.Editor.AiShared.AssetKind.Blueprint,
-                            result.DestinationPath, result.Name,
-                            assetRootOverride: _bpRootDir);
-                        saveAsBlueprintToFile(minted, bpPath);
-                    }
-                    // Refresh the catalog then open the catalogued (concrete) asset (document kinds).
-                    if (kind is Hrot.Editor.AiShared.AssetKind.Blueprint
-                        or Hrot.Editor.AiShared.AssetKind.BTree
-                        or Hrot.Editor.AiShared.AssetKind.Hsm)
-                    {
-                        var aiAsm = AppDomain.CurrentDomain.GetAssemblies()
-                            .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
-                        if (aiAsm != null) _aiCatalogBuilder?.RefreshFromAssembly(aiAsm);
-                        // BUG-A6: RefreshFromAssembly only refreshes assembly-based contributors;
-                        // JSON contributors must be refreshed separately so the newly-written
-                        // .btree.json / .hsm.json file is discovered and FindByAssetId succeeds.
-                        if (kind == Hrot.Editor.AiShared.AssetKind.BTree && _btreeJsonRootDir != null)
-                            _btreeJsonContrib?.Refresh(rootDirectory: _btreeJsonRootDir);
-                        if (kind == Hrot.Editor.AiShared.AssetKind.Hsm && _hsmJsonRootDir != null)
-                            _hsmJsonContrib?.Refresh(rootDirectory: _hsmJsonRootDir);
-                        var catalogued = _aiCatalogBuilder?.Catalog?.FindByAssetId(minted.AssetId);
-                        if (catalogued != null)
-                            _aiDocumentManager?.Open(catalogued);
-                        else
-                            _saveAllStatus = $"[INFO] Created '{minted.Name}'.";
-                    }
-                    else
-                        _saveAllStatus = $"[OK] Created {kind}: '{minted.Name}'.";
+                    var (_, status) = CreateAssetCore(kind, recipe, result.Name, result.DestinationPath);
+                    _saveAllStatus  = status;
                 });
             }
+
+            // ⭐⭐⭐ AQ56 / MA-001 — THE CREATE PATH, extracted from the dialog callback so it has TWO
+            //    surfaces and ONE implementation. 📄 docs/DESIGN_Mcp_Authoring.md §7 ③.
+            //
+            // ⛔⛔ Why extraction rather than a second create for MCP: this body is not "call CreateNew".
+            //    📐 It is FOUR host-composition facts a duplicate would get wrong — Blueprint is mint-only
+            //    and needs its file written at `_bpRootDir` (BUG-A6: the SOURCE dir the contributor scans,
+            //    not bin/), `RefreshFromAssembly` refreshes only the assembly contributors, the JSON
+            //    contributors must be refreshed SEPARATELY per kind, and only then does `FindByAssetId`
+            //    succeed. ⇒ ⭐ ruling 9: the MCP route and the New-Asset dialog run the SAME lines.
+            //
+            // ⚠ It returns the minted id ONLY once the asset is in the catalog. ⛔ Returning it earlier
+            //   would hand MCP an id that `GET /assets` cannot resolve — the silent-wrong-answer shape.
+            (Guid? AssetId, string Status) CreateAssetCore(
+                Hrot.Editor.AiShared.AssetKind kind,
+                Hrot.Editor.AiShared.IEditableAsset? recipe,
+                string name,
+                string relPath)
+            {
+                if (_newAssetServices == null || !_newAssetServices.ContainsKey(kind))
+                    return (null, $"[ERROR] This host composes no INewAssetService for {kind}.");
+
+                var minted = _newAssetServices[kind].CreateNew(recipe, name, relPath);
+
+                // Blueprint is mint-only — write its file at the chosen folder;
+                // BTree/HSM/Scenario persist in CreateNew.
+                if (kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
+                {
+                    // BUG-A6: pass _bpRootDir as the asset-root override so the file
+                    // lands in the SOURCE project dir that BlueprintAssetContributor
+                    // scans (_bpRootDir), not the bin/output dir (AssetRoots.AssetsFor).
+                    var bpPath = Hrot.Editor.AiShared.AssetSavePath.Compose(
+                        Hrot.Editor.AiShared.AssetKind.Blueprint,
+                        relPath, name,
+                        assetRootOverride: _bpRootDir);
+                    saveAsBlueprintToFile(minted, bpPath);
+                }
+
+                // Refresh the catalog then open the catalogued (concrete) asset (document kinds).
+                if (kind is Hrot.Editor.AiShared.AssetKind.Blueprint
+                    or Hrot.Editor.AiShared.AssetKind.BTree
+                    or Hrot.Editor.AiShared.AssetKind.Hsm)
+                {
+                    var aiAsm = AppDomain.CurrentDomain.GetAssemblies()
+                        .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
+                    if (aiAsm != null) _aiCatalogBuilder?.RefreshFromAssembly(aiAsm);
+                    // BUG-A6: RefreshFromAssembly only refreshes assembly-based contributors;
+                    // JSON contributors must be refreshed separately so the newly-written
+                    // .btree.json / .hsm.json file is discovered and FindByAssetId succeeds.
+                    if (kind == Hrot.Editor.AiShared.AssetKind.BTree && _btreeJsonRootDir != null)
+                        _btreeJsonContrib?.Refresh(rootDirectory: _btreeJsonRootDir);
+                    if (kind == Hrot.Editor.AiShared.AssetKind.Hsm && _hsmJsonRootDir != null)
+                        _hsmJsonContrib?.Refresh(rootDirectory: _hsmJsonRootDir);
+
+                    var catalogued = _aiCatalogBuilder?.Catalog?.FindByAssetId(minted.AssetId);
+                    if (catalogued != null)
+                    {
+                        _aiDocumentManager?.Open(catalogued);
+                        return (catalogued.AssetId, $"[OK] Created {kind}: '{minted.Name}'.");
+                    }
+
+                    return (null,
+                            $"[INFO] Created '{minted.Name}', but it is not in the catalog yet. The file was "
+                          + "written outside the directory this host's contributor scans, so nothing can "
+                          + "address it — check the asset roots (ruling 67).");
+                }
+
+                return (minted.AssetId, $"[OK] Created {kind}: '{minted.Name}'.");
+            }
+
+            // ⭐⭐ AQ56 / MA-002 — hand the create path to the debug API.
+            // ⛔ The kind arrives as a STRING over HTTP and the RECIPE is resolved HERE, to the kind's own
+            //   BLANK TEMPLATE — 📌 `AuthoringPath.NewAsset` establishes that picking the blank template
+            //   from `AvailableRecipes()` is the authoring-path-correct way to say "empty", ⛔ rather than
+            //   assigning the asset's fields directly.
+            _debugApiService?.AttachAssetAuthoring((kindText, name, relPath) =>
+            {
+                if (!Enum.TryParse<Hrot.Editor.AiShared.AssetKind>(kindText, ignoreCase: true, out var kind))
+                    return (null,
+                            $"[ERROR] '{kindText}' is not an AssetKind. Use BTree, Hsm or Blueprint.");
+
+                if (_newAssetServices == null || !_newAssetServices.TryGetValue(kind, out var service))
+                    return (null, $"[ERROR] This host composes no INewAssetService for {kind}.");
+
+                Hrot.Editor.AiShared.IEditableAsset? blank = null;
+                foreach (var candidate in service.AvailableRecipes())
+                    if (service.IsBlankTemplate(candidate)) { blank = candidate; break; }
+
+                return CreateAssetCore(kind, blank, name, relPath ?? string.Empty);
+            });
 
             var newAssetLauncher = _newAssetServices != null
                 ? new Hrot.Editor.NewAssetLauncher(

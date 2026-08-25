@@ -472,6 +472,62 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> AddAnnotationAsync(JsonNode body, CancellationToken ct = default)
         => PostAsync("/annotations", body, ct);
 
+    // ── Group W — AI-asset AUTHORING (AQ56 / DESIGN_Mcp_Authoring.md) ──────────
+    //
+    // ⭐⭐⭐ Read-then-edit-by-guid. ⛔ Every id below is the editor's IN-MEMORY guid; the ids in the
+    //    saved .json are deterministic name-derived ones and address nothing here (§3).
+
+    /// <summary>⭐ The whole graph, by in-memory guid — the first call of any authoring sequence.</summary>
+    public Task<ApiResult> ReadAssetGraphAsync(string assetId, CancellationToken ct = default)
+        => GetAsync($"/assets/{Uri.EscapeDataString(assetId)}/graph", ct);
+
+    /// <summary>⭐ The node kinds THIS graph accepts — ⛔ never guess a kind id.</summary>
+    public Task<ApiResult> ListNodeKindsAsync(
+        string assetId, string? filter = null, CancellationToken ct = default)
+        => GetAsync($"/assets/{Uri.EscapeDataString(assetId)}/graph/catalog"
+                  + (filter is null ? "" : $"?filter={Uri.EscapeDataString(filter)}"), ct);
+
+    /// <summary>⭐ Add a node; the response carries its new guid AND its pins.</summary>
+    public Task<ApiResult> AddGraphNodeAsync(
+        string assetId, string kind, float x = 0, float y = 0, CancellationToken ct = default)
+        => PostAsync($"/assets/{Uri.EscapeDataString(assetId)}/graph/nodes",
+                     new JsonObject { ["kind"] = kind, ["x"] = x, ["y"] = y }, ct);
+
+    /// <summary>⭐ Connect two pins — the host's own link validator runs first.</summary>
+    public Task<ApiResult> AddGraphLinkAsync(
+        string assetId, string fromPin, string toPin, CancellationToken ct = default)
+        => PostAsync($"/assets/{Uri.EscapeDataString(assetId)}/graph/links",
+                     new JsonObject { ["fromPin"] = fromPin, ["toPin"] = toPin }, ct);
+
+    /// <summary>⭐ Set an input data pin's literal default.</summary>
+    public Task<ApiResult> SetGraphParamAsync(
+        string assetId, string pinId, JsonNode? value, CancellationToken ct = default)
+        => PostAsync($"/assets/{Uri.EscapeDataString(assetId)}/graph/params",
+                     new JsonObject { ["pinId"] = pinId, ["value"] = value }, ct);
+
+    /// <summary>⭐ Remove nodes / links through the editor's own Delete command.</summary>
+    public Task<ApiResult> RemoveGraphElementsAsync(
+        string assetId, IEnumerable<string>? nodes = null, IEnumerable<string>? links = null,
+        CancellationToken ct = default)
+    {
+        var body = new JsonObject
+        {
+            ["nodes"] = new JsonArray((nodes ?? Array.Empty<string>()).Select(n => (JsonNode)n!).ToArray()),
+            ["links"] = new JsonArray((links ?? Array.Empty<string>()).Select(l => (JsonNode)l!).ToArray()),
+        };
+        return PostAsync($"/assets/{Uri.EscapeDataString(assetId)}/graph/remove", body, ct);
+    }
+
+    /// <summary>⭐ Create an asset through the host's own New-Asset path.</summary>
+    public Task<ApiResult> CreateAssetAsync(
+        string kind, string name, string path = "", CancellationToken ct = default)
+        => PostAsync("/assets",
+                     new JsonObject { ["kind"] = kind, ["name"] = name, ["path"] = path }, ct);
+
+    /// <summary>⭐ Scenario authoring's delete — world manipulation, queued like spawn.</summary>
+    public Task<ApiResult> DeleteEntityAsync(long networkId, CancellationToken ct = default)
+        => SendAsync(HttpMethod.Delete, $"/entities/{networkId}", null, ct);
+
     // ── Transport ──────────────────────────────────────────────────────────────
 
     private Task<ApiResult> GetAsync(string path, CancellationToken ct) => SendAsync(HttpMethod.Get, path, null, ct);

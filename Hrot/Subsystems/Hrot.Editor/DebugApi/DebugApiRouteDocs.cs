@@ -174,6 +174,177 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\"}",
             ExampleGist: "hot-apply an edited graph to the running brain"),
 
+        // ── Group W — AI-asset AUTHORING (AQ56 / DESIGN_Mcp_Authoring.md) ────────────────────
+        //
+        // ⭐⭐⭐ The read-then-edit-by-guid loop. ⛔ The ids in these payloads are the IN-MEMORY ones the
+        //    command sink edits by — NEVER the deterministic ids the save path writes to the file.
+
+        [("GET", "/assets/{assetId}/graph")] = new RouteDoc(
+            Tool:    "read_asset_graph",
+            Group:   "W — AI-asset authoring",
+            Summary: "Read an open AI asset's graph as JSON: nodes, pins, links and comments, keyed by the in-memory guids the edit tools take.",
+            Returns: "{ assetId, name, kind, graphId, displayName, graphKind, nodeCount, linkCount, nodes[{nodeId,kind,title,position,pins[{pinId,label,direction,kind,type,default}]}], links[{linkId,fromPin,toPin,fromNode,toNode}], comments[], note }",
+            Hint:    "Req: assetId (GUID of an OPEN document — open_asset first). Example: read_asset_graph({assetId:\"...\"})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document (open_asset / list_documents)"),
+            },
+            Notes: new[]
+            {
+                "THIS IS THE FIRST CALL of any authoring session: you never predict an id, you read the ones the edit tools accept.",
+                "The ids are the IN-MEMORY guids. The saved .json binds links by deterministic name-derived pin ids instead — an id copied out of the file addresses nothing here.",
+                "Re-read after each edit rather than caching: adding a node can reproject another node's pins.",
+                "Only the graph-document kinds (BTree, HSM, Blueprint) have a graph; a Scenario or Blackboard asset is a 404 explaining that.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "read the whole graph before editing it"),
+
+        [("GET", "/assets/{assetId}/graph/catalog")] = new RouteDoc(
+            Tool:    "list_node_kinds",
+            Group:   "W — AI-asset authoring",
+            Summary: "The node kinds this graph can add, with their pin signatures. Call this instead of guessing a kind id for add_graph_node.",
+            Returns: "{ count, total, kinds[{kind,displayName,category,description,isDeprecated,inputs[],outputs[]}], note }",
+            Hint:    "Req: assetId. Optional: filter (substring over kind id and display name). Example: list_node_kinds({assetId:\"...\",filter:\"branch\"})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document"),
+                new("filter", "string", false, "Case-insensitive substring matched against the kind id AND the display name"),
+            },
+            Notes: new[]
+            {
+                "The catalog is PER GRAPH — a BTree graph and a Blueprint graph offer different kinds, so read the one you are editing.",
+                "`kind` is what add_graph_node takes verbatim. An unknown kind is refused with this endpoint named, not silently ignored.",
+                "`inputs`/`outputs` are the declared pin SIGNATURES; the actual pin guids only exist once the node is added.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "discover what node kinds this graph accepts"),
+
+        [("POST", "/assets/{assetId}/graph/nodes")] = new RouteDoc(
+            Tool:    "add_graph_node",
+            Group:   "W — AI-asset authoring",
+            Summary: "Add a node to an open graph through the same command sink human editing uses. Returns the new node's guid and its pins.",
+            Returns: "{ nodeId, kind, title, pins[{pinId,label,direction,kind,type}], note }",
+            Hint:    "Req: assetId, kind (from list_node_kinds). Optional: x, y. Example: add_graph_node({assetId:\"...\",kind:\"bt.selector\"})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document"),
+                new("kind", "string", true, "Node kind id — take one verbatim from list_node_kinds"),
+                new("x", "number", false, "Canvas X position (default 0)", DefaultJson: "0"),
+                new("y", "number", false, "Canvas Y position (default 0)", DefaultJson: "0"),
+            },
+            Notes: new[]
+            {
+                "The edit goes through the editor's undo stack, so it is undoable exactly like a node dropped on the canvas.",
+                "The response carries the new node's PINS because linking needs them — you do not have to re-read the whole graph to wire it up.",
+                "An unknown kind is a 400 naming list_node_kinds: the host sink can report success and build nothing, so this route re-reads the model and refuses rather than returning a guid that addresses nothing.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\",\"kind\":\"bt.selector\",\"x\":120,\"y\":40}",
+            ExampleGist: "add a node and get back its guid"),
+
+        [("POST", "/assets/{assetId}/graph/links")] = new RouteDoc(
+            Tool:    "add_graph_link",
+            Group:   "W — AI-asset authoring",
+            Summary: "Connect two pins in an open graph. The host's own link validator runs first, so an illegal wire is refused for the same reason a dragged one would be.",
+            Returns: "{ linkId, fromPin, toPin, requiresCast, note }",
+            Hint:    "Req: assetId, fromPin, toPin (pin GUIDs from read_asset_graph or add_graph_node). Example: add_graph_link({assetId:\"...\",fromPin:\"...\",toPin:\"...\"})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document"),
+                new("fromPin", "string", true, "Source (output-side) pin GUID"),
+                new("toPin", "string", true, "Target (input-side) pin GUID"),
+            },
+            Notes: new[]
+            {
+                "The validator is the SAME one the canvas consults while dragging a wire, so MCP can never author a graph the editor would reject.",
+                "A refusal is a 400 carrying the host's own reason text — it is a legitimate answer, not a server error.",
+                "When the validator classes the pair ValidWithCast the canvas would auto-insert a cast node; this route connects them directly and says so in `note`.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\",\"fromPin\":\"11111111-1111-1111-1111-111111111111\",\"toPin\":\"22222222-2222-2222-2222-222222222222\"}",
+            ExampleGist: "wire two pins together"),
+
+        [("POST", "/assets/{assetId}/graph/params")] = new RouteDoc(
+            Tool:    "set_graph_param",
+            Group:   "W — AI-asset authoring",
+            Summary: "Set the literal default value on an input data pin of an open graph.",
+            Returns: "{ pinId, label, previousValue, value, note }",
+            Hint:    "Req: assetId, pinId, value. Example: set_graph_param({assetId:\"...\",pinId:\"...\",value:3.5})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document"),
+                new("pinId", "string", true, "GUID of an INPUT DATA pin (from read_asset_graph)"),
+                new("value", "string", true, "The new default. Sent as JSON and converted to the CLR type the pin's current default already holds; an explicit null clears it"),
+            },
+            Notes: new[]
+            {
+                "This is a PIN default, not a free-form node property: the pin default is the one edit whose inverse can be built from the model, so it is the one that stays undoable.",
+                "An exec pin or an output pin is refused — an exec pin has no value and an output's value is computed.",
+                "`value` in the response is RE-READ from the model after the edit, so it shows what the host actually stored rather than what you sent.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\",\"pinId\":\"11111111-1111-1111-1111-111111111111\",\"value\":3.5}",
+            ExampleGist: "set a literal on an input pin"),
+
+        [("POST", "/assets/{assetId}/graph/remove")] = new RouteDoc(
+            Tool:    "remove_graph_elements",
+            Group:   "W — AI-asset authoring",
+            Summary: "Remove nodes and/or links from an open graph by invoking the editor's own Delete command.",
+            Returns: "{ removedNodes, removedLinks, nodeCount, linkCount, note }",
+            Hint:    "Req: assetId and at least one of nodes[] / links[]. Example: remove_graph_elements({assetId:\"...\",nodes:[\"...\"]})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document"),
+                new("nodes", "array", false, "Node GUIDs to remove"),
+                new("links", "array", false, "Link GUIDs to remove"),
+            },
+            Notes: new[]
+            {
+                "It invokes the editor's shared Delete command rather than building its own removal, so incident links, reroute waypoints and attachments are handled and the undo restores nodes before the links that reference them.",
+                "`removedLinks` counts the links deleted IMPLICITLY with their nodes, so it is usually larger than the list you named.",
+                "An id that is not in the graph refuses the WHOLE call — a partial delete would be worse than a refusal.",
+                "The canvas selection is left cleared afterwards, exactly as after a human delete.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\",\"nodes\":[\"11111111-1111-1111-1111-111111111111\"]}",
+            ExampleGist: "delete a node and its wires"),
+
+        [("POST", "/assets")] = new RouteDoc(
+            Tool:    "create_asset",
+            Group:   "W — AI-asset authoring",
+            Summary: "Create a new AI asset (BTree / HSM / Blueprint) through the host's own New-Asset path, then open it as a document.",
+            Returns: "{ assetId, name, kind, status, sourceFilePath, note }",
+            Hint:    "Req: kind, name. Optional: path (subfolder). Example: create_asset({kind:\"BTree\",name:\"Patrol\"})",
+            Params: new RouteParam[]
+            {
+                new("kind", "string", true, "BTree | Hsm | Blueprint"),
+                new("name", "string", true, "Asset name"),
+                new("path", "string", false, "Subfolder relative to the kind's asset root (default: the root)"),
+            },
+            Notes: new[]
+            {
+                "It runs the same per-kind INewAssetService the New-Asset dialog runs, writes the file and refreshes the catalog — so the result appears in list_assets by the same rebuild a dialog-created asset does.",
+                "The new asset is opened as a document, so you can author it immediately with read_asset_graph and the graph tools.",
+                "A host that composes no create path answers 503 explaining that EDITING an existing asset does not need it.",
+            },
+            ExampleArgsJson: "{\"kind\":\"BTree\",\"name\":\"PatrolTree\"}",
+            ExampleGist: "create a new behaviour tree asset"),
+
+        [("DELETE", "/entities/{networkId}")] = new RouteDoc(
+            Tool:    "delete_entity",
+            Group:   "W — AI-asset authoring",
+            Summary: "Remove an entity from the world through the ELM lifecycle. Scenario authoring is world manipulation, and this is its delete.",
+            Returns: "{ networkId, queued:true, note }",
+            Hint:    "Req: networkId (from list_entities). Example: delete_entity({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network id of the entity to destroy"),
+            },
+            Notes: new[]
+            {
+                "There is no such thing as editing a scenario FILE: the file is a reduced snapshot of the world at save time, so authoring a scenario means spawning, configuring and deleting entities, then calling save_scenario.",
+                "Queued like spawn_entity — teardown runs on a later tick. Call step, then list_entities, before asserting the entity is gone.",
+                "An unknown networkId is a 404 rather than a queued no-op.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "delete an entity from the world"),
+
         [("GET", "/documents")] = new RouteDoc(
             Tool:    "list_documents",
             Group:   "V — AI assets & graph tabs",
