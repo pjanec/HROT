@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT — slices 94a-94f, the finalization (BP-499..BP-502) and the entity-pinning
-  finish (BP-505..BP-507, 2026-08-25).
+build-state: BUILT for slices 94a-94f, the finalization (BP-499..BP-502) and the entity-pinning
+  finish (BP-505..BP-507, 2026-08-25). ⭐ SLICE 3 (94g — restart survival) is READY-TO-BUILD:
+  §5 + §8 carry the mechanism (the user-ruled callback sink) and §8a now carries the classDiagram +
+  sequenceDiagram (added 2026-08-25 for the NO-IMPLEMENTATION-WITHOUT-UML rule).
   ⭐ READ "AS-BUILT — the watch-list finalization" FIRST: it carries five deviations, and two of them
   matter to a reader (the binding lives on the PIN not the row; a concrete pin does NOT survive a
   scenario reload yet). 🔴 Deviation 5 of THAT section carries a CORRECTION: its claim that
@@ -216,6 +218,81 @@ that `+8` in one place, not two"* the running write is held to. ⭐ **Solve once
 ✅✅ **The one real decision is RULED** *(user, `2026-08-19`: "callback sink")* — ⭐ **an optional
 callback sink on the extractor, wired to the bus by the subsystem.**
 ⇒ ⭐⭐⭐ **Slices 1–3 are now ONE batch.** ⛔ Splitting was only worth it while slice 3 was unsized.
+⚠ **As built, slices 1–2 shipped (BP-499..507); slice 3 (94g) is the remainder — its UML is §8a.**
+
+### ⭐⭐ §8a — UML for slice 3 (94g), the publish→resolve→rebind flow *(added `2026-08-25`)*
+
+> ⭐ Drawn AFTER the §5/§8 enumeration. **Existing classes are marked `exists` with their home** so a
+> proposed duplicate is visible on the same canvas *(there is none — every box but `NetworkIdResolver`
+> already exists; that one CONSOLIDATES the four `FindEntityByNetworkId` copies, it does not add a fifth)*.
+
+```mermaid
+classDiagram
+    direction LR
+    class StagingEntityExtractor {
+        <<exists · Hrot.CGF · pure transform>>
+        +Action~IReadOnlyDictionary~ OnRemap
+        +Extract() requests
+    }
+    class ICgfEditorSubsystem {
+        <<exists · wires the sink to the bus · R-79 keeps CGF bus-free>>
+        +WireRemapSink()
+    }
+    class FdpEventBus {
+        <<exists · PublishManaged / ReadManaged a managed dict>>
+    }
+    class EditorApplication {
+        <<exists · already reads the bus · holds current stagingToRuntime>>
+    }
+    class NetworkIdResolver {
+        <<NEW · Fdp.Toolkits/Replication · consolidates the FOUR FindEntityByNetworkId>>
+        +FindEntityByNetworkId(runtimeId) Entity
+    }
+    class EntityBinding {
+        <<exists · BP-501 · concrete pin>>
+        +long StagingNetworkId
+        +Resolve() Entity
+    }
+    class DataBreakpointManager {
+        <<exists · Hrot.Diagnostics.Breakpoints · line 1354 THROWS for NetworkId>>
+    }
+    StagingEntityExtractor ..> ICgfEditorSubsystem : OnRemap invoked with oldToNewMap
+    ICgfEditorSubsystem ..> FdpEventBus : PublishManaged StagingRemapPublished
+    EditorApplication ..> FdpEventBus : ReadManaged
+    EntityBinding ..> EditorApplication : staging to runtime via published map
+    EntityBinding ..> NetworkIdResolver : runtime id to Entity
+    DataBreakpointManager ..> NetworkIdResolver : runtime id to Entity
+    note for EntityBinding "stores the STAGING id (stable authoring artefact); resolves at BIND time only per the two-clocks rule"
+    note for NetworkIdResolver "best-of-four: filtered query + GetComponentRO + null guard. NO index, NO cache"
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant L as scenario load
+    participant X as StagingEntityExtractor
+    participant S as Cgf/Editor subsystem
+    participant B as FdpEventBus
+    participant A as EditorApplication
+    participant Pin as EntityBinding
+    participant R as NetworkIdResolver
+
+    L->>X: Extract (Pass 1 allocates new runtime ids)
+    X->>S: OnRemap sink with oldToNewMap
+    S->>B: PublishManaged StagingRemapPublished
+    B-->>A: ReadManaged -> store stagingToRuntime
+    Note over Pin: on selection change or load only, never on the tick
+    Pin->>A: translate staging id to runtime id
+    Pin->>R: FindEntityByNetworkId runtime id
+    R-->>Pin: Entity
+    Note over R: DataBreakpointManager resolves NetworkId through the same R instead of throwing
+```
+
+⚠ **One decision the impl must confirm, not the diagram:** whether `DataBreakpointManager:1354` wants the
+consolidated `NetworkIdResolver` scan or the maintained `NetworkEntityMap` index *(a different existing
+seam, in-degree 131)*. ⭐ Both map a runtime id to an entity; the scan is correct editor-side per the
+two-clocks rule, but if the breakpoint path runs per-tick it wants the index. ⛔ **Report which, and why —
+do not silently pick.**
 
 ## 9. ⛔ What must NOT be built
 
