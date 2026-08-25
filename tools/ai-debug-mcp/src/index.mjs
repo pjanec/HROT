@@ -988,6 +988,103 @@ const TOOLS = [
     },
   },
 
+  // ── Group X — the union backbone, discovery and the editor command bus ───────
+  //
+  // ⭐⭐⭐ apply_graph_command is the WHOLE GraphCommand union — the BTree decorators and HSM regions
+  //    the four typed verbs cannot express. list_graph_command_types tells you every variant's fields.
+
+  {
+    name: 'list_graph_command_types',
+    description: TOOL_DEFS['list_graph_command_types'].description,
+    inputSchema: TOOL_DEFS['list_graph_command_types'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'GET', `/assets/${encodeURIComponent(toolArgs.assetId)}/graph/command`));
+      } catch (err) { return toolError(err.message, err.envelope, 'list_graph_command_types'); }
+    },
+  },
+
+  {
+    name: 'apply_graph_command',
+    description: TOOL_DEFS['apply_graph_command'].description,
+    inputSchema: TOOL_DEFS['apply_graph_command'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        // ⭐ Every field EXCEPT assetId belongs to the variant — the union's shape is per-variant, so
+        //   the body is forwarded whole rather than picked apart here. ⛔ A per-variant allow-list in
+        //   this layer would be a second model that lags the union, which is the thing being avoided.
+        const { assetId, ...command } = toolArgs;
+        return toolSuccess(await callApi(
+          'POST', `/assets/${encodeURIComponent(assetId)}/graph/command`, command));
+      } catch (err) { return toolError(err.message, err.envelope, 'apply_graph_command'); }
+    },
+  },
+
+  {
+    name: 'get_node_kind_schema',
+    description: TOOL_DEFS['get_node_kind_schema'].description,
+    inputSchema: TOOL_DEFS['get_node_kind_schema'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'GET', `/assets/${encodeURIComponent(toolArgs.assetId)}`
+               + `/graph/catalog/${encodeURIComponent(toolArgs.kind)}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_node_kind_schema'); }
+    },
+  },
+
+  {
+    name: 'get_node_properties',
+    description: TOOL_DEFS['get_node_properties'].description,
+    inputSchema: TOOL_DEFS['get_node_properties'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'GET', `/assets/${encodeURIComponent(toolArgs.assetId)}`
+               + `/graph/nodes/${encodeURIComponent(toolArgs.nodeId)}/properties`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_node_properties'); }
+    },
+  },
+
+  {
+    name: 'list_editor_commands',
+    description: TOOL_DEFS['list_editor_commands'].description,
+    inputSchema: TOOL_DEFS['list_editor_commands'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const suffix = toolArgs?.category != null
+          ? `?category=${encodeURIComponent(toolArgs.category)}` : '';
+        return toolSuccess(await callApi('GET', `/editor/commands${suffix}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'list_editor_commands'); }
+    },
+  },
+
+  {
+    name: 'get_editor_command',
+    description: TOOL_DEFS['get_editor_command'].description,
+    inputSchema: TOOL_DEFS['get_editor_command'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'GET', `/editor/commands/${encodeURIComponent(toolArgs.commandId)}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_editor_command'); }
+    },
+  },
+
+  {
+    name: 'invoke_editor_command',
+    description: TOOL_DEFS['invoke_editor_command'].description,
+    inputSchema: TOOL_DEFS['invoke_editor_command'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'POST', `/editor/commands/${encodeURIComponent(toolArgs.commandId)}/invoke`,
+          { args: toolArgs.args ?? {}, canvasPos: toolArgs.canvasPos ?? null }));
+      } catch (err) { return toolError(err.message, err.envelope, 'invoke_editor_command'); }
+    },
+  },
+
   {
     name: 'get_gizmo_frame',
     description: TOOL_DEFS['get_gizmo_frame'].description,

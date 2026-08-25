@@ -58,6 +58,14 @@ public static class CapabilityManifest
         if (path.StartsWith("/assets", StringComparison.Ordinal))     return DebugCapabilities.EditorAuthoring;
         if (path.StartsWith("/documents", StringComparison.Ordinal))  return DebugCapabilities.EditorAuthoring;
 
+        // ⭐⭐ AQ56 §10.7 — the EDITOR command bus (list · describe · invoke). ⛔ A different surface from
+        //   `/commands`, which enumerates publishable FDP EVENT types; the prefix keeps them apart and
+        //   keeps `send_entity_command`'s discovery working.
+        // ⚠ Classified `EditorAuthoring` for the same reason `/assets` is: these act on the AUTHORING
+        //   shell — the toolbar/menu/hotkey command set of an open document — ⛔ not on the simulated
+        //   world. 📌 A cluster node with no shell honestly reports it cannot serve them.
+        if (path.StartsWith("/editor", StringComparison.Ordinal))     return DebugCapabilities.EditorAuthoring;
+
         if (path.StartsWith("/preview", StringComparison.Ordinal))    return DebugCapabilities.Preview;
         if (path.StartsWith("/sim", StringComparison.Ordinal))         return DebugCapabilities.TimeDrive;
         // ⭐⭐ HN-029: the LOAD routes are their OWN capability, not `editor.authoring`.

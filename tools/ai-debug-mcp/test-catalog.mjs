@@ -57,6 +57,15 @@ const EXPECTED_TOOLS = [
   // ⭐ Scenario authoring is WORLD manipulation (Q56-C): place/configure/assign already had
   //   routes; delete was the one gap.
   'delete_entity',
+  // Slice ⑦ — Group X, the UNION backbone + discovery + the editor command bus (AQ56 §10/§10.7/§11).
+  // ⭐⭐ apply_graph_command carries the WHOLE ~35-variant GraphCommand union, so BTree decorators
+  //   (attachments) and HSM parallel regions become reachable — the four typed verbs cannot express
+  //   either, and a curated verb list WILL lag the union.
+  'list_graph_command_types', 'apply_graph_command',
+  'get_node_kind_schema', 'get_node_properties',
+  // ⛔ list_editor_commands is NOT list_commands: the latter enumerates publishable FDP event types
+  //   and send_entity_command depends on it. Two different buses, two different prefixes.
+  'list_editor_commands', 'get_editor_command', 'invoke_editor_command',
 ];
 
 let passed = 0;

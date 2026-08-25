@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
@@ -490,6 +491,25 @@ namespace Hrot.Editor.DebugApi
                         $"The host refused '{body?["type"]}': {result.Message ?? "no reason given"}.",
                         DebugApiHints.Panel);
 
+            // ⭐⭐⭐ THE POST-CONDITION — generalised from `MA-004`'s add-node lesson to the WHOLE union.
+            // 🔴 MEASURED `2026-08-25`: `AddAttachment` on a BLUEPRINT returns Success with no message and
+            //    builds NOTHING — attachments are a BTree/HSM concept (decorators, condition pills) and
+            //    `BlueprintCommandSink` has no arm for them. ⇒ ⛔ trusting `GraphCommandResult.Success`
+            //    would hand back an attachmentId that addresses nothing, which is the exact silent-wrong
+            //    answer this surface exists to prevent.
+            // ⭐ So: every id the command MINTED must resolve in the model afterwards. A host that cannot
+            //   serve a variant now says so, instead of appearing to.
+            var unresolved = UnresolvedMintedIds(parsed.NewIds, view.Model);
+            if (unresolved.Count > 0)
+                return (null,
+                        $"The host ACCEPTED '{body?["type"]}' and built nothing: "
+                      + string.Join(", ", unresolved)
+                      + $" cannot be found in the graph afterwards. This host's sink has no arm for that "
+                      + "variant — attachments are a BTree/HSM concept and regions an HSM one, so a "
+                      + "Blueprint refuses them silently. Call GET /assets/{assetId}/graph/command for the "
+                      + "variants, and apply host-specific ones to an asset of that kind.",
+                        DebugApiHints.Panel);
+
             MarkEdited(doc!);
 
             var newIds = new JsonObject();
@@ -511,6 +531,43 @@ namespace Hrot.Editor.DebugApi
                                 + "`undoable:false` means no inverse could be derived from the read-only "
                                 + "model, so the edit applied but the undo stack has no entry for it.",
             }, null, null);
+        }
+
+        /// <summary>
+        /// ⭐⭐ Which of the ids a command MINTED cannot be found in the model afterwards.
+        /// </summary>
+        /// <remarks>
+        /// ⚠ Keys are the ones <c>GraphCommandJson</c> mints — <c>nodeId</c> · <c>linkId</c> ·
+        /// <c>attachmentId</c> · <c>commentId</c>, and the <c>key[i]</c> form a <c>Batch</c> produces.
+        /// ⛔ An unrecognised key is IGNORED rather than guessed at: a false "built nothing" would be
+        /// worse than the silence it is meant to catch.
+        /// </remarks>
+        private static List<string> UnresolvedMintedIds(
+            IReadOnlyDictionary<string, string> minted, IGraphModel model)
+        {
+            var missing = new List<string>();
+
+            foreach (var kv in minted)
+            {
+                if (!Guid.TryParse(kv.Value, out var g)) continue;
+
+                // A Batch reports "nodeId[0]" etc; the prefix before '[' is the kind of id.
+                var bracket = kv.Key.IndexOf('[');
+                var key     = bracket < 0 ? kv.Key : kv.Key[..bracket];
+
+                var found = key switch
+                {
+                    "nodeId"       => model.FindNode(new NodeId(g)) != null,
+                    "linkId"       => model.FindLink(new LinkId(g)) != null,
+                    "attachmentId" => model.FindAttachment(new AttachmentId(g)) != null,
+                    "commentId"    => model.Comments.Any(c => c.Id.Value == g),
+                    _              => true,   // not an id shape this check understands
+                };
+
+                if (!found) missing.Add($"{kv.Key} {g}");
+            }
+
+            return missing;
         }
 
         // ══ ③ create ══════════════════════════════════════════════════════════
@@ -864,13 +921,78 @@ namespace Hrot.Editor.DebugApi
                 return (arr, "none:dto-fields-not-reflected");
 
             foreach (var f in fields)
-                arr.Add(new JsonObject
-                {
-                    ["name"] = f.Name,
-                    ["type"] = f.FieldType.Name,
-                });
+                arr.Add(DescribeDtoField(resolved.DtoType, f));
 
             return (arr, source);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE DOC HARVEST (`MA-016`) — a param's documentation read off the SAME attributes the
+        /// Details editor reads.</b> 📄 <c>DESIGN_Mcp_Authoring.md</c> §10.6.
+        /// </summary>
+        /// <remarks>
+        /// ⭐⭐ <b>"As elsewhere" means the <c>RouteDoc</c> pattern at FIELD granularity</b>: a colocated
+        /// descriptor, harvested at runtime. ⛔ Never a parallel hand-written doc table — 📌 that is the rot
+        /// <c>RouteDoc</c> was built to avoid; it goes stale the first time a field is renamed and nothing
+        /// fails when it does.
+        ///
+        /// <para>📐 <b>The sources, measured:</b> <c>EditDisplayName</c> *(the label)* ·
+        /// <c>EditRange</c> *(min/max)* · <c>EditUnit</c> · <c>EditReadOnly</c> ·
+        /// <c>InlineArrayHint</c>/<c>FixedBufferHint</c> *(buffer shape)* — and ⭐ <c>EditDoc</c>, added by
+        /// this slice for the free-text half §10.6 measured as absent from every attribute.</para>
+        ///
+        /// <para>⚠ <b>Reflection is wrapped</b>: a DTO type that fails to reflect *(a generic parameter, a
+        /// ref struct)* must degrade to name+type, ⛔ not take the whole schema route down with it.</para>
+        /// </remarks>
+        private static JsonObject DescribeDtoField(
+            Type dtoType, Hrot.Editor.AiShared.Blackboard.DtoFieldDescriptor f)
+        {
+            var o = new JsonObject
+            {
+                ["name"] = f.Name,
+                ["type"] = f.FieldType.Name,
+            };
+
+            try
+            {
+                var member = (System.Reflection.MemberInfo?)dtoType.GetField(f.Name)
+                          ?? dtoType.GetProperty(f.Name);
+                if (member == null) return o;
+
+                if (member.GetCustomAttribute<StructEdit.Core.Attributes.EditDisplayNameAttribute>()
+                    is { } dn) o["displayName"] = dn.Name;
+
+                if (member.GetCustomAttribute<StructEdit.Core.Attributes.EditDocAttribute>()
+                    is { } doc) o["doc"] = doc.Summary;
+
+                if (member.GetCustomAttribute<StructEdit.Core.Attributes.EditRangeAttribute>()
+                    is { } r) { o["rangeMin"] = r.Min; o["rangeMax"] = r.Max; }
+
+                if (member.GetCustomAttribute<StructEdit.Core.Attributes.EditUnitAttribute>()
+                    is { } u) o["unit"] = u.Unit;
+
+                if (member.GetCustomAttribute<StructEdit.Core.Attributes.EditReadOnlyAttribute>() != null)
+                    o["readOnly"] = true;
+
+                if (member.GetCustomAttribute<StructEdit.Core.Attributes.InlineArrayHintAttribute>()
+                    is not null) o["isInlineArray"] = true;
+
+                if (member.GetCustomAttribute<StructEdit.Core.Attributes.FixedBufferHintAttribute>()
+                    is { } fb) { o["isFixedBuffer"] = true; o["bufferLength"] = fb.Length; }
+
+                // ⭐ An enum's legal values, so an agent setting this param never has to guess one.
+                if (f.FieldType.IsEnum)
+                    o["enumValues"] = new JsonArray(
+                        Enum.GetNames(f.FieldType).Select(n => (JsonNode)n!).ToArray());
+            }
+            catch (Exception ex)
+            {
+                // ⚠ Reported on the field, not thrown: one un-reflectable field must not cost the caller
+                //   the whole schema.
+                o["docHarvestError"] = ex.Message;
+            }
+
+            return o;
         }
 
         // ══ ⑧ UI-COMMAND ACTIONS (MA-015) ═════════════════════════════════════

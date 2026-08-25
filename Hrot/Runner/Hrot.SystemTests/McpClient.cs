@@ -528,6 +528,45 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> DeleteEntityAsync(long networkId, CancellationToken ct = default)
         => SendAsync(HttpMethod.Delete, $"/entities/{networkId}", null, ct);
 
+    // ── Group X — the union backbone, discovery and the editor command bus ────
+    //
+    // ⭐⭐⭐ apply_graph_command is the WHOLE GraphCommand union — the variants the four typed verbs
+    //    cannot express (BTree decorators, HSM regions, reparenting, comments, reroutes, refactors).
+
+    /// <summary>⭐ Every command variant this host accepts, with each one's fields.</summary>
+    public Task<ApiResult> ListGraphCommandTypesAsync(string assetId, CancellationToken ct = default)
+        => GetAsync($"/assets/{Uri.EscapeDataString(assetId)}/graph/command", ct);
+
+    /// <summary>⭐⭐ Apply ONE serialized <c>GraphCommand</c>. The body IS the command.</summary>
+    public Task<ApiResult> ApplyGraphCommandAsync(
+        string assetId, JsonNode command, CancellationToken ct = default)
+        => PostAsync($"/assets/{Uri.EscapeDataString(assetId)}/graph/command", command, ct);
+
+    /// <summary>⭐ One node kind's full schema and documentation.</summary>
+    public Task<ApiResult> GetNodeKindSchemaAsync(
+        string assetId, string kind, CancellationToken ct = default)
+        => GetAsync($"/assets/{Uri.EscapeDataString(assetId)}/graph/catalog/{Uri.EscapeDataString(kind)}", ct);
+
+    /// <summary>⭐ One node's editable properties with their CURRENT values.</summary>
+    public Task<ApiResult> GetNodePropertiesAsync(
+        string assetId, string nodeId, CancellationToken ct = default)
+        => GetAsync($"/assets/{Uri.EscapeDataString(assetId)}/graph/nodes/{Uri.EscapeDataString(nodeId)}/properties", ct);
+
+    /// <summary>⭐ The EDITOR command bus — ⛔ not <c>/commands</c>, which lists FDP event types.</summary>
+    public Task<ApiResult> ListEditorCommandsAsync(string? category = null, CancellationToken ct = default)
+        => GetAsync("/editor/commands"
+                  + (category is null ? "" : $"?category={Uri.EscapeDataString(category)}"), ct);
+
+    /// <summary>⭐ Describe one editor command.</summary>
+    public Task<ApiResult> GetEditorCommandAsync(string commandId, CancellationToken ct = default)
+        => GetAsync($"/editor/commands/{Uri.EscapeDataString(commandId)}", ct);
+
+    /// <summary>⭐ Run an editor command through the seam the toolbar and hotkeys use.</summary>
+    public Task<ApiResult> InvokeEditorCommandAsync(
+        string commandId, JsonNode? args = null, CancellationToken ct = default)
+        => PostAsync($"/editor/commands/{Uri.EscapeDataString(commandId)}/invoke",
+                     new JsonObject { ["args"] = args ?? new JsonObject() }, ct);
+
     // ── Transport ──────────────────────────────────────────────────────────────
 
     private Task<ApiResult> GetAsync(string path, CancellationToken ct) => SendAsync(HttpMethod.Get, path, null, ct);

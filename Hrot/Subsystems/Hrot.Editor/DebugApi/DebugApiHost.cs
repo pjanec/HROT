@@ -1033,6 +1033,70 @@ namespace Hrot.Editor.DebugApi
                 return AuthoringResult(result, error, hintCategory);
             })));
 
+            // ── Group X — the UNION backbone, discovery and the editor command bus ───────────
+            //
+            // ⭐⭐⭐ 📄 DESIGN_Mcp_Authoring.md §10 (discovery) · §10.7 (UI commands) · §11 (the union).
+            // ⚠ ROUTE ORDER: "/assets/{assetId}/graph/command" and "/assets/{assetId}/graph/catalog" are
+            //   both 4 segments with distinct literals in the last one, so neither can shadow the other;
+            //   "/assets/{assetId}/graph/catalog/{kind}" is 5 and cannot shadow either.
+
+            _routes.Add(new("GET", "/assets/{assetId}/graph/command", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.DescribeGraphCommands(ctx.RouteValue("assetId"));
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/graph/command", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ApplyGraphCommand(ctx.RouteValue("assetId"), ctx.Body);
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("GET", "/assets/{assetId}/graph/catalog/{kind}", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) =
+                    s.GetNodeKindSchema(ctx.RouteValue("assetId"), ctx.RouteValue("kind"));
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            _routes.Add(new("GET", "/assets/{assetId}/graph/nodes/{nodeId}/properties", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) =
+                    s.GetNodeProperties(ctx.RouteValue("assetId"), ctx.RouteValue("nodeId"));
+                return AuthoringResult(result, error, hintCategory);
+            })));
+
+            // ⛔⛔ `/editor/commands`, NOT `/commands` — the latter has enumerated publishable FDP event
+            //    types since Group F and `send_entity_command` depends on it. See the service's remarks.
+            _routes.Add(new("GET", "/editor/commands", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ListEditorCommands(ctx.Query("category"));
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+
+            _routes.Add(new("GET", "/editor/commands/{commandId}", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.DescribeEditorCommandById(ctx.RouteValue("commandId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No editor-command dispatcher", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/editor/commands/{commandId}/invoke", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) =
+                    s.InvokeEditorCommand(ctx.RouteValue("commandId"), ctx.Body);
+                if (error == null) return Ok(result);
+                if (error.StartsWith("No editor-command dispatcher", StringComparison.Ordinal))
+                    return Fail(503, error, hintCategory);
+                if (error.StartsWith("No editor command", StringComparison.Ordinal))
+                    return Fail(404, error, hintCategory);
+                // ⭐ A DISABLED command is a 409, not a 400: the request was well-formed and the id real —
+                //   the editor's live state refuses it, and a caller can retry after changing that state.
+                return Fail(error.Contains("is DISABLED right now", StringComparison.Ordinal) ? 409 : 400,
+                            error, hintCategory);
+            })));
+
             _routes.Add(new("POST", "/assets", ctx => RunMainResult(s =>
             {
                 var (result, error, hintCategory) = s.CreateAsset(ctx.Body);

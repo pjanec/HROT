@@ -2876,4 +2876,278 @@ export const TOOLS_CATALOG = [
     "manualVerify": false
   },
 
+  // ── Group X — Graph command union & discovery ───────────────────────────────
+
+  {
+    "name": "get_node_kind_schema",
+    "group": "X — Graph command union & discovery",
+    "summary": "One node kind's full schema and documentation: pins, flags, palette behaviour, and the reflected DTO params when the kind resolves to an action.",
+    "http": {
+      "method": "GET",
+      "path": "/assets/{assetId}/graph/catalog/{kind}"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document"
+      },
+      {
+        "name": "kind",
+        "type": "string",
+        "required": true,
+        "description": "Node kind id, verbatim from list_node_kinds"
+      }
+    ],
+    "returns": "{ kind, displayName, category, doc, isPure, isLatent, isDeprecated, paletteAction, isAttachmentKind?, attachmentCategory?, keywords[], inputs[], outputs[], paramsSource, params[], note }",
+    "notes": [
+      "MEASURED from the host's own INodeCatalog and action-schema exporter — never a hand-authored kind table, which would rot the moment a node kind is added and nothing would fail.",
+      "`paramsSource` says where params came from: exporter:exact, exporter:suffix (a probable match, not a certain one), none:not-an-action, none:dto-fields-not-reflected, or none:no-exporter-wired. An empty list WITHOUT that field would read as 'this kind has no params', which is a different and often false claim.",
+      "The catalog cannot say whether a kind is a CONTAINER — container-ness belongs to an instantiated node. Read container/region structure per node from read_asset_graph.",
+      "`paletteAction` is the kind-level structure fact the catalog does have: CreateNode makes a node, AttachToSelected makes an ATTACHMENT on the selected node."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000",
+        "kind": "bt.selector"
+      },
+      "gist": "read one node kind's pins, params and docs"
+    },
+    "hint": "Req: assetId, kind (verbatim from list_node_kinds). Example: get_node_kind_schema({assetId:\"...\",kind:\"bt.selector\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "list_graph_command_types",
+    "group": "X — Graph command union & discovery",
+    "summary": "Every GraphCommand variant apply_graph_command accepts, with the fields each one takes.",
+    "http": {
+      "method": "GET",
+      "path": "/assets/{assetId}/graph/command"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document"
+      }
+    ],
+    "returns": "{ count, variants[{type,fields[]}], unsupported[{type,reason}], note }",
+    "notes": [
+      "Call this before apply_graph_command instead of guessing a payload shape — the variant names match the nested record names in NodeEditor.Core.Commands.GraphCommand exactly.",
+      "A field suffixed '?' is optional. Ids are GUID strings from read_asset_graph.",
+      "'Batch' takes {commands:[...]} and applies them as ONE undo entry, with the inverses reversed so nodes are restored before the links that reference them.",
+      "The 'unsupported' list is normally empty; an entry there is a deliberate decision with its reason, not an oversight."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "discover every graph-edit command and its fields"
+    },
+    "hint": "Req: assetId (GUID of an OPEN document). Example: list_graph_command_types({assetId:\"...\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "apply_graph_command",
+    "group": "X — Graph command union & discovery",
+    "summary": "Apply ONE GraphCommand to an open graph — the whole ~35-variant union, including BTree decorators (attachments) and HSM parallel regions the typed verbs cannot express.",
+    "http": {
+      "method": "POST",
+      "path": "/assets/{assetId}/graph/command"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document"
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "description": "The GraphCommand variant name, e.g. AddNode / AddAttachment / AddRegion / Batch"
+      },
+      {
+        "name": "commands",
+        "type": "array",
+        "required": false,
+        "description": "For type:\"Batch\" — the nested commands, applied as one atomic undo entry"
+      }
+    ],
+    "returns": "{ type, applied, undoable, message, newIds{}, nodeCount, linkCount, nodeDelta, linkDelta, note }",
+    "notes": [
+      "THE PARITY GUARANTEE: the command goes through GraphView.Execute — the same undo stack and the same host sink a canvas gesture uses. There is no MCP-only mutation path, on any of the three hosts, with zero per-host code.",
+      "The typed verbs (add_graph_node, add_graph_link, set_graph_param, remove_graph_elements) are sugar over this same union — they are not a parallel model.",
+      "`newIds` carries any id the command MINTED (nodeId / linkId / attachmentId / commentId), so you can address what you just created.",
+      "`undoable:false` means no inverse could be derived from the read-only model (the refactor ops, SetNodeProperty, RemoveRegion). The edit still applied; the undo stack simply has no entry. A wrong inverse would corrupt the graph silently, so none is recorded.",
+      "A refusal is the HOST's own answer (an invalid wire, an unknown kind) and comes back 400 with its reason — it is a legitimate outcome of editing, not a server error."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000",
+        "type": "AddNode",
+        "kind": "bt.selector",
+        "position": {
+          "x": 80,
+          "y": 40
+        }
+      },
+      "gist": "add a node through the union route and get its new guid"
+    },
+    "hint": "Req: assetId, type (from list_graph_command_types) + that variant's fields. Example: apply_graph_command({assetId:\"...\",type:\"AddAttachment\",host:\"<nodeGuid>\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_node_properties",
+    "group": "X — Graph command union & discovery",
+    "summary": "One node's editable properties with their CURRENT values — what the Details panel shows.",
+    "http": {
+      "method": "GET",
+      "path": "/assets/{assetId}/graph/nodes/{nodeId}/properties"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document"
+      },
+      {
+        "name": "nodeId",
+        "type": "string",
+        "required": true,
+        "description": "Node GUID from read_asset_graph or add_graph_node"
+      }
+    ],
+    "returns": "{ assetId, nodeId, kind, title, doc, count, properties[{pinId,name,type,value,hasValue,doc?,rangeMin?,rangeMax?,unit?,picker?}], note }",
+    "notes": [
+      "Values come from the MODEL and schema from the CATALOG, joined here — so a value is never reported without the type and constraints needed to change it correctly.",
+      "Only INPUT DATA pins appear: an exec pin has no value and an output's is computed, so listing them would invite a set that must be refused.",
+      "Set one with set_graph_param, or apply_graph_command type:\"SetPinDefault\".",
+      "Range / unit / picker metadata is the same the Details editor itself reads — it is carried on the pin's default descriptor, not re-derived here."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000",
+        "nodeId": "11111111-1111-1111-1111-111111111111"
+      },
+      "gist": "read a node's current property values and their schema"
+    },
+    "hint": "Req: assetId, nodeId (GUID from read_asset_graph). Example: get_node_properties({assetId:\"...\",nodeId:\"...\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "list_editor_commands",
+    "group": "X — Graph command union & discovery",
+    "summary": "The EDITOR command bus — every toolbar/menu/hotkey command with its live enabled and checked state.",
+    "http": {
+      "method": "GET",
+      "path": "/editor/commands"
+    },
+    "params": [
+      {
+        "name": "category",
+        "type": "string",
+        "required": false,
+        "description": "Filter to one category, e.g. \"Edit\""
+      }
+    ],
+    "returns": "{ count, total, commands[{id,displayName,category,doc,defaultKey?,isEnabled,isChecked?}], note }",
+    "notes": [
+      "This is NOT list_commands — that one enumerates publishable FDP EVENT types for send_entity_command. These are the editor's own commands, invoked with invoke_editor_command.",
+      "isEnabled/isChecked are evaluated NOW over live editor state (is there a selection? is the undo stack empty?), so they are a snapshot.",
+      "The command set is per OPEN DOCUMENT — it is built by the per-kind document factory, so opening a different asset kind changes it. Open an AI asset first.",
+      "The descriptors are self-documenting: DisplayName, Category, Description and DefaultKey are carried inline, so no attribute harvest is needed here."
+    ],
+    "example": {
+      "args": {},
+      "gist": "list the editor commands and which are currently enabled"
+    },
+    "hint": "Optional: category. Example: list_editor_commands({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_editor_command",
+    "group": "X — Graph command union & discovery",
+    "summary": "Describe one editor command.",
+    "http": {
+      "method": "GET",
+      "path": "/editor/commands/{commandId}"
+    },
+    "params": [
+      {
+        "name": "commandId",
+        "type": "string",
+        "required": true,
+        "description": "Command id, e.g. \"editor.delete-selection\""
+      }
+    ],
+    "returns": "{ id, displayName, category, doc, defaultKey?, isEnabled, isChecked? }",
+    "notes": [
+      "Ids look like 'editor.delete-selection'. The available set depends on which document kind is open.",
+      "A 404 here means the id is not registered for the currently open document — not that it never exists."
+    ],
+    "example": {
+      "args": {
+        "commandId": "editor.delete-selection"
+      },
+      "gist": "describe one editor command before invoking it"
+    },
+    "hint": "Req: commandId (from list_editor_commands). Example: get_editor_command({commandId:\"editor.delete-selection\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "invoke_editor_command",
+    "group": "X — Graph command union & discovery",
+    "summary": "Run an editor command through the same seam the toolbar, menu and hotkey use.",
+    "http": {
+      "method": "POST",
+      "path": "/editor/commands/{commandId}/invoke"
+    },
+    "params": [
+      {
+        "name": "commandId",
+        "type": "string",
+        "required": true,
+        "description": "Command id from list_editor_commands"
+      },
+      {
+        "name": "args",
+        "type": "object",
+        "required": false,
+        "description": "Parameters, delivered as EditorCommandContext.Args"
+      },
+      {
+        "name": "canvasPos",
+        "type": "object",
+        "required": false,
+        "description": "Canvas position {x,y} for context-menu-style commands"
+      }
+    ],
+    "returns": "{ commandId, displayName, invoked, success, message, note }",
+    "notes": [
+      "A DISABLED command is refused with 409 BEFORE it is invoked. The editor greys it out for the same reason — usually an empty selection or an empty undo stack — and running it anyway would be the one path that accepts what the editor refuses.",
+      "Read list_editor_commands for the live enabled state, and set up the precondition first (e.g. select something).",
+      "A headless origin never pre-flights a confirmation (ruling 53): the command runs directly and the origin-side LOG is the safety net. The host logs every invocation.",
+      "Effects that redraw appear on the NEXT frame — step a tick before reading get_panels."
+    ],
+    "example": {
+      "args": {
+        "commandId": "editor.select-all"
+      },
+      "gist": "run an editor command headlessly"
+    },
+    "hint": "Req: commandId. Optional: args (object), canvasPos {x,y}. Example: invoke_editor_command({commandId:\"editor.select-all\"})",
+    "manualVerify": false
+  },
+
 ];

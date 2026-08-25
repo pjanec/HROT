@@ -345,6 +345,157 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "delete an entity from the world"),
 
+        // ── Group X — the UNION backbone, discovery and the editor command bus ──────────────
+        //
+        // ⭐⭐⭐ 📄 DESIGN_Mcp_Authoring.md §10 · §10.7 · §11. These complete the authoring surface: the
+        //    whole GraphCommand union, the schema/doc discovery that makes it usable, and the editor
+        //    command bus as a THIRD invoke surface through the same discover→invoke shape.
+
+        [("GET", "/assets/{assetId}/graph/command")] = new RouteDoc(
+            Tool:    "list_graph_command_types",
+            Group:   "X — Graph command union & discovery",
+            Summary: "Every GraphCommand variant apply_graph_command accepts, with the fields each one takes.",
+            Returns: "{ count, variants[{type,fields[]}], unsupported[{type,reason}], note }",
+            Hint:    "Req: assetId (GUID of an OPEN document). Example: list_graph_command_types({assetId:\"...\"})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document"),
+            },
+            Notes: new[]
+            {
+                "Call this before apply_graph_command instead of guessing a payload shape — the variant names match the nested record names in NodeEditor.Core.Commands.GraphCommand exactly.",
+                "A field suffixed '?' is optional. Ids are GUID strings from read_asset_graph.",
+                "'Batch' takes {commands:[...]} and applies them as ONE undo entry, with the inverses reversed so nodes are restored before the links that reference them.",
+                "The 'unsupported' list is normally empty; an entry there is a deliberate decision with its reason, not an oversight.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "discover every graph-edit command and its fields"),
+
+        [("POST", "/assets/{assetId}/graph/command")] = new RouteDoc(
+            Tool:    "apply_graph_command",
+            Group:   "X — Graph command union & discovery",
+            Summary: "Apply ONE GraphCommand to an open graph — the whole ~35-variant union, including BTree decorators (attachments) and HSM parallel regions the typed verbs cannot express.",
+            Returns: "{ type, applied, undoable, message, newIds{}, nodeCount, linkCount, nodeDelta, linkDelta, note }",
+            Hint:    "Req: assetId, type (from list_graph_command_types) + that variant's fields. Example: apply_graph_command({assetId:\"...\",type:\"AddAttachment\",host:\"<nodeGuid>\"})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document"),
+                new("type", "string", true, "The GraphCommand variant name, e.g. AddNode / AddAttachment / AddRegion / Batch"),
+                new("commands", "array", false, "For type:\"Batch\" — the nested commands, applied as one atomic undo entry"),
+            },
+            Notes: new[]
+            {
+                "THE PARITY GUARANTEE: the command goes through GraphView.Execute — the same undo stack and the same host sink a canvas gesture uses. There is no MCP-only mutation path, on any of the three hosts, with zero per-host code.",
+                "The typed verbs (add_graph_node, add_graph_link, set_graph_param, remove_graph_elements) are sugar over this same union — they are not a parallel model.",
+                "`newIds` carries any id the command MINTED (nodeId / linkId / attachmentId / commentId), so you can address what you just created.",
+                "`undoable:false` means no inverse could be derived from the read-only model (the refactor ops, SetNodeProperty, RemoveRegion). The edit still applied; the undo stack simply has no entry. A wrong inverse would corrupt the graph silently, so none is recorded.",
+                "A refusal is the HOST's own answer (an invalid wire, an unknown kind) and comes back 400 with its reason — it is a legitimate outcome of editing, not a server error.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\",\"type\":\"AddNode\",\"kind\":\"bt.selector\",\"position\":{\"x\":80,\"y\":40}}",
+            ExampleGist: "add a node through the union route and get its new guid"),
+
+        [("GET", "/assets/{assetId}/graph/catalog/{kind}")] = new RouteDoc(
+            Tool:    "get_node_kind_schema",
+            Group:   "X — Graph command union & discovery",
+            Summary: "One node kind's full schema and documentation: pins, flags, palette behaviour, and the reflected DTO params when the kind resolves to an action.",
+            Returns: "{ kind, displayName, category, doc, isPure, isLatent, isDeprecated, paletteAction, isAttachmentKind?, attachmentCategory?, keywords[], inputs[], outputs[], paramsSource, params[], note }",
+            Hint:    "Req: assetId, kind (verbatim from list_node_kinds). Example: get_node_kind_schema({assetId:\"...\",kind:\"bt.selector\"})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document"),
+                new("kind", "string", true, "Node kind id, verbatim from list_node_kinds"),
+            },
+            Notes: new[]
+            {
+                "MEASURED from the host's own INodeCatalog and action-schema exporter — never a hand-authored kind table, which would rot the moment a node kind is added and nothing would fail.",
+                "`paramsSource` says where params came from: exporter:exact, exporter:suffix (a probable match, not a certain one), none:not-an-action, none:dto-fields-not-reflected, or none:no-exporter-wired. An empty list WITHOUT that field would read as 'this kind has no params', which is a different and often false claim.",
+                "The catalog cannot say whether a kind is a CONTAINER — container-ness belongs to an instantiated node. Read container/region structure per node from read_asset_graph.",
+                "`paletteAction` is the kind-level structure fact the catalog does have: CreateNode makes a node, AttachToSelected makes an ATTACHMENT on the selected node.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\",\"kind\":\"bt.selector\"}",
+            ExampleGist: "read one node kind's pins, params and docs"),
+
+        [("GET", "/assets/{assetId}/graph/nodes/{nodeId}/properties")] = new RouteDoc(
+            Tool:    "get_node_properties",
+            Group:   "X — Graph command union & discovery",
+            Summary: "One node's editable properties with their CURRENT values — what the Details panel shows.",
+            Returns: "{ assetId, nodeId, kind, title, doc, count, properties[{pinId,name,type,value,hasValue,doc?,rangeMin?,rangeMax?,unit?,picker?}], note }",
+            Hint:    "Req: assetId, nodeId (GUID from read_asset_graph). Example: get_node_properties({assetId:\"...\",nodeId:\"...\"})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document"),
+                new("nodeId", "string", true, "Node GUID from read_asset_graph or add_graph_node"),
+            },
+            Notes: new[]
+            {
+                "Values come from the MODEL and schema from the CATALOG, joined here — so a value is never reported without the type and constraints needed to change it correctly.",
+                "Only INPUT DATA pins appear: an exec pin has no value and an output's is computed, so listing them would invite a set that must be refused.",
+                "Set one with set_graph_param, or apply_graph_command type:\"SetPinDefault\".",
+                "Range / unit / picker metadata is the same the Details editor itself reads — it is carried on the pin's default descriptor, not re-derived here.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\",\"nodeId\":\"11111111-1111-1111-1111-111111111111\"}",
+            ExampleGist: "read a node's current property values and their schema"),
+
+        [("GET", "/editor/commands")] = new RouteDoc(
+            Tool:    "list_editor_commands",
+            Group:   "X — Graph command union & discovery",
+            Summary: "The EDITOR command bus — every toolbar/menu/hotkey command with its live enabled and checked state.",
+            Returns: "{ count, total, commands[{id,displayName,category,doc,defaultKey?,isEnabled,isChecked?}], note }",
+            Hint:    "Optional: category. Example: list_editor_commands({})",
+            Params: new RouteParam[]
+            {
+                new("category", "string", false, "Filter to one category, e.g. \"Edit\""),
+            },
+            Notes: new[]
+            {
+                "This is NOT list_commands — that one enumerates publishable FDP EVENT types for send_entity_command. These are the editor's own commands, invoked with invoke_editor_command.",
+                "isEnabled/isChecked are evaluated NOW over live editor state (is there a selection? is the undo stack empty?), so they are a snapshot.",
+                "The command set is per OPEN DOCUMENT — it is built by the per-kind document factory, so opening a different asset kind changes it. Open an AI asset first.",
+                "The descriptors are self-documenting: DisplayName, Category, Description and DefaultKey are carried inline, so no attribute harvest is needed here.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "list the editor commands and which are currently enabled"),
+
+        [("GET", "/editor/commands/{commandId}")] = new RouteDoc(
+            Tool:    "get_editor_command",
+            Group:   "X — Graph command union & discovery",
+            Summary: "Describe one editor command.",
+            Returns: "{ id, displayName, category, doc, defaultKey?, isEnabled, isChecked? }",
+            Hint:    "Req: commandId (from list_editor_commands). Example: get_editor_command({commandId:\"editor.delete-selection\"})",
+            Params: new RouteParam[]
+            {
+                new("commandId", "string", true, "Command id, e.g. \"editor.delete-selection\""),
+            },
+            Notes: new[]
+            {
+                "Ids look like 'editor.delete-selection'. The available set depends on which document kind is open.",
+                "A 404 here means the id is not registered for the currently open document — not that it never exists.",
+            },
+            ExampleArgsJson: "{\"commandId\":\"editor.delete-selection\"}",
+            ExampleGist: "describe one editor command before invoking it"),
+
+        [("POST", "/editor/commands/{commandId}/invoke")] = new RouteDoc(
+            Tool:    "invoke_editor_command",
+            Group:   "X — Graph command union & discovery",
+            Summary: "Run an editor command through the same seam the toolbar, menu and hotkey use.",
+            Returns: "{ commandId, displayName, invoked, success, message, note }",
+            Hint:    "Req: commandId. Optional: args (object), canvasPos {x,y}. Example: invoke_editor_command({commandId:\"editor.select-all\"})",
+            Params: new RouteParam[]
+            {
+                new("commandId", "string", true, "Command id from list_editor_commands"),
+                new("args", "object", false, "Parameters, delivered as EditorCommandContext.Args"),
+                new("canvasPos", "object", false, "Canvas position {x,y} for context-menu-style commands"),
+            },
+            Notes: new[]
+            {
+                "A DISABLED command is refused with 409 BEFORE it is invoked. The editor greys it out for the same reason — usually an empty selection or an empty undo stack — and running it anyway would be the one path that accepts what the editor refuses.",
+                "Read list_editor_commands for the live enabled state, and set up the precondition first (e.g. select something).",
+                "A headless origin never pre-flights a confirmation (ruling 53): the command runs directly and the origin-side LOG is the safety net. The host logs every invocation.",
+                "Effects that redraw appear on the NEXT frame — step a tick before reading get_panels.",
+            },
+            ExampleArgsJson: "{\"commandId\":\"editor.select-all\"}",
+            ExampleGist: "run an editor command headlessly"),
+
         [("GET", "/documents")] = new RouteDoc(
             Tool:    "list_documents",
             Group:   "V — AI assets & graph tabs",
