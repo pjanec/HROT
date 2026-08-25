@@ -1134,16 +1134,143 @@ public sealed class ClusterConformanceRails
             Assert.False(string.IsNullOrWhiteSpace(e!["id"]?.GetValue<string>()),
                 "a toolbar item published with no id \u2014 the id is what \u00a77 asserts an affordance by.");
 
-        // \u2b50\u2b50\u2b50 THE MEASURED STATE, ASSERTED AS IT IS \u2014 `2026-08-25`: the cluster's toolbar is EMPTY,
-        //    because `EditorSubsystem` is the ONLY production caller of MainToolbar.RegisterEntry /
-        //    RegisterSeparator. \u26d4 That is a FEATURE gap (CE-016), not an instrumentation gap, and slice
-        //    2's job was to make it VISIBLE rather than to fill it \u2014 \u00a77 hands the filling to whichever
-        //    later slice ports a toolbar-controlled feature.
-        // \u26a0 Asserted as == 0 on purpose: the day CGF registers its first entry this rail REDDENS and
-        //   names \u00a77, which is precisely when someone should be checking the affordance is SAME.
-        Assert.True(clusterEntries.Count == 0,
-            $"--mode all now publishes {clusterEntries.Count} main-toolbar entr(y/ies) \u2014 up from 0. \u2b50 Good "
-          + "news: update this rail to compare the affordances against the editor's, and delete the "
-          + "'main-toolbar' entry from DivergesByDesign if they now agree (\u00a77).");
+        // \u2b50\u2b50\u2b50 \u00a77 DISCHARGED, FOR THE FIRST TIME \u2014 `2026-08-25`, slice 3.
+        //
+        // \u26a0\u26a0 THIS ASSERTION USED TO READ `clusterEntries.Count == 0`, and that was CORRECT at the time:
+        //    slice 2 measured `EditorSubsystem` as the ONLY caller of MainToolbar.RegisterEntry, so
+        //    CGF's toolbar was legitimately empty, and the rail was written to REDDEN the day CGF
+        //    registered its first entry. \u2b50\u2b50 It did exactly that \u2014 slice 3 added save + reload \u2014 which
+        //    is the hand-off design \u00a77 was written to produce, working as intended.
+        //
+        // \u2b50 \u00a77's standing rule: *"a feature CONTROLLED FROM THE TOOLBAR must be wired AND instrumented
+        //   on CGF too\u2026 every feature slice's acceptance must include 'its toolbar affordance is
+        //   present and SAME on CGF'."* \u21d2 this now asserts the AFFORDANCES BY ID.
+        var clusterIds = clusterEntries.Select(e => e!["id"]!.GetValue<string>()).ToArray();
+        _out.WriteLine($"cluster toolbar ids: [{string.Join(", ", clusterIds)}]");
+
+        foreach (var required in new[] { "SaveAllAiDocuments", "QuickReloadAiAsset" })
+            Assert.True(clusterIds.Contains(required, StringComparer.Ordinal),
+                $"--mode all's main toolbar does not offer '{required}'. \u2b50 Slice 3 wires save + hot "
+              + "reload on CGF, and design \u00a77 requires a toolbar-controlled feature to be wired AND "
+              + "instrumented here \u2014 not just its underlying command.");
+
+        // \u26d4 And they must be VISIBLE, not registered-but-filtered-away: an entry bound to a
+        //   perspective CGF never shows would satisfy the id check and offer the operator nothing.
+        foreach (var e in clusterEntries)
+        {
+            var id = e!["id"]!.GetValue<string>();
+            if (id is not ("SaveAllAiDocuments" or "QuickReloadAiAsset")) continue;
+            Assert.True(e["visible"]!.GetValue<bool>(),
+                $"toolbar entry '{id}' is registered on --mode all but NOT visible in the active "
+              + "perspective \u2014 the affordance exists in the table and not on screen.");
+        }
+    }
+
+    // ══ cgf==editor SLICE 3 — editing, save and hot reload ════════════════════
+    // 📄 docs/DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md §7.
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>SLICE 3'S HEADLINE — the cluster can SAVE and RELOAD an open asset over MCP.</b>
+    /// 📄 §7 *("POST /assets/{id}/save persists; POST /assets/{id}/reload hot-applies")*.
+    ///
+    /// <para>⭐⭐ <b>It asserts the CYCLE, on the CLUSTER</b> — open, save, reload, and read the
+    /// compiler's own verdict back. ⛔ A 200 alone would prove nothing: the route answers 200 for a
+    /// FAILED compile too *(a failed compile is a legitimate outcome of editing, not an HTTP error)*,
+    /// so the rail reads <c>status</c>.</para>
+    ///
+    /// <para>⚠⚠ <b>What it deliberately does NOT assert: that a SOFT reload keeps state and a HARD one
+    /// resets it.</b> 📐 Measured `2026-08-25`: <c>QuickReloadResult</c> carries only
+    /// <c>Succeeded</c>/<c>ErrorMessage</c>/<c>DurationMs</c> — ⛔ <b>no Cosmetic/Soft/Hard
+    /// classification at all</b> — and <c>AiHotReloadCoordinator.OnHardReloadCompleted</c> is
+    /// documented <i>"NOT fired for Quick Reloads"</i>. ⇒ that distinction lives on the ALC
+    /// file-watcher path, which this slice does not wire. ⭐ Filed as <c>CE-023</c>; ⛔ asserting it
+    /// here would be asserting a fact the code cannot produce.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_cluster_can_save_and_reload_an_open_asset()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-reload-all", mode: "all");
+
+        var assets = (await cluster.Client.ListAssetsAsync()).EnsureOk();
+        var list   = (assets.Field("assets") as JsonArray)!;
+
+        Assert.True(list.Count > 0,
+            "GET /assets returned nothing on --mode all - slice 2's catalog population regressed, so "
+          + "there is no asset to save or reload.");
+
+        // ⭐ A Blueprint: its reload path compiles the in-memory asset directly, so a success verdict
+        //   says the most. ⚠ Falls back rather than skipping.
+        var pick = list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "Blueprint") ?? list[0];
+        var id   = pick!["assetId"]!.GetValue<string>();
+        var name = pick["name"]!.GetValue<string>();
+        _out.WriteLine($"save/reload target: {name} ({pick["kind"]}) {id}");
+
+        // ⛔ Save and reload act on OPEN documents, not on files - assert that refusal FIRST, because
+        //   it is the contract that makes the id meaningful rather than decorative.
+        var beforeOpen = await cluster.Client.ReloadAssetAsync(id);
+        Assert.Equal(404, beforeOpen.StatusCode);
+
+        (await cluster.Client.OpenAssetAndSettleAsync(id)).EnsureOk();
+
+        var saved = (await cluster.Client.SaveAssetAsync(id)).EnsureOk();
+        Assert.Equal(id, saved.String("assetId"));
+        _out.WriteLine($"save status: {saved.String("status")}");
+
+        // ⛔ A CLEAN document is not written - that is the shared command's contract, so this asserts
+        //   the call was accepted and reported, ⛔ not that bytes changed. 📌 Asserting a write would
+        //   need an EDIT first, and MCP cannot author one yet (AQ56's track).
+        Assert.NotNull(saved.Field("sourceFilePath"));
+
+        var reloaded = (await cluster.Client.ReloadAssetAsync(id)).EnsureOk();
+        var status   = reloaded.String("status") ?? string.Empty;
+        _out.WriteLine($"reload status: {status}");
+
+        Assert.Equal(id, reloaded.String("assetId"));
+
+        // ⭐⭐ THE VERDICT, from the compiler's own message. ⛔ Not `Ok` - the route answers 200 for a
+        //    failed compile on purpose, so trusting the status code would bless a red compile.
+        Assert.False(string.IsNullOrWhiteSpace(status), "the reload reported no status at all.");
+        Assert.DoesNotContain("failed", status, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("threw",  status, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("no active", status, StringComparison.OrdinalIgnoreCase);
+
+        // ⭐ And it compiled THIS asset - a status naming something else would mean the
+        //   activate-then-reload step recompiled the wrong graph.
+        Assert.Contains(name, status, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE LIVE VARIABLE-VALUE WRITE IS STILL OFF ON THE CLUSTER.</b>
+    /// 📄 §7 *(fourth rail)* · the `2026-08-25` STEER *(the ONE place a gate is honest - the reason is
+    /// <c>R-52</c> CORRUPTION, not policy)*.
+    ///
+    /// <para>⛔⛔ <b>Why this rail exists.</b> Slice 3 takes asset editing WHOLESALE, and the two write
+    /// paths look similar from outside - ⚠ but the asset path writes a FILE and recompiles, while the
+    /// live path stages a whole-component <c>Blackboard1024</c> write that clobbers a tick of BTree/HSM
+    /// state. ⇒ a later slice that "turns on editing" could enable the wrong one, and nothing else
+    /// would notice.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_live_variable_value_write_is_still_off_on_the_cluster()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-nolivewrite-all", mode: "all");
+
+        var byKind = await CaptureByKindAsync(cluster, _out);
+
+        Assert.True(byKind.ContainsKey("watch"),
+            "--mode all does not publish 'watch' - slice 1's shell regressed, and this rail cannot "
+          + "speak for the write path without it.");
+
+        var watch = JsonNode.Parse(byKind["watch"].Model)!;
+        var rows  = (watch["rows"] as JsonArray) ?? new JsonArray();
+
+        var staged = rows.Where(r => string.Equals(
+                             r!["highlight"]?.GetValue<string>(), "Staged", StringComparison.OrdinalIgnoreCase))
+                         .ToArray();
+
+        Assert.True(staged.Length == 0,
+            $"the cluster's watch shows {staged.Length} STAGED row(s) - a live variable-value write path "
+          + "is reachable on CGF. ⛔ That is R-52's whole-component clobber, and the steer keeps it OFF "
+          + "on this host until the variable-model lane lands SetComponentFieldRaw.");
     }
 }

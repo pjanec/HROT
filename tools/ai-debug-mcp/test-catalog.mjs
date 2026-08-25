@@ -45,6 +45,8 @@ const EXPECTED_TOOLS = [
   //   and discovery via list_assets. ⛔ Never a raw path in a segment.
   'list_assets', 'open_asset', 'open_asset_by_path',
   'list_documents', 'activate_document', 'focus_panel',
+  // Slice ⑤ — cgf==editor slice 3: the edit -> save -> reload cycle, drivable headlessly.
+  'save_ai_asset', 'reload_ai_asset',
 ];
 
 let passed = 0;
