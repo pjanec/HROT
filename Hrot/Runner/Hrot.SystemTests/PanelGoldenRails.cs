@@ -75,6 +75,17 @@ public sealed class PanelGoldenRails : IClassFixture<GoldenCaptureFixture>
         ("BTree",     "ai_blackboard_variables_btree"),
         ("HSM",       "ai_blackboard_variables_hsm"),
         ("Blueprint", "ai_my_blueprint_blueprint"),    // the seven-section skeleton
+        // ⭐⭐⭐ cgf==editor SLICE 1, `2026-08-25` — A DELIBERATE WIDENING BY TWO, and the reason is a
+        //    real hole rather than "more coverage is better" (the trap this table's own doc names).
+        // 📐 The slice's acceptance is `ClusterConformanceRails.The_asset_panels_are_the_same_on_both_hosts`
+        //    — graph-canvas · my-blueprint · watch, editor vs `--mode all`. ⛔ That rail compares the two
+        //    hosts to EACH OTHER, so it stays green if BOTH regress the same way — and after this slice
+        //    both hosts render those panels from the SAME AiShared classes, which makes an identical
+        //    regression the LIKELY shape, not a far-fetched one.
+        // ⭐ my-blueprint already had its reference here; these two did not. ⇒ two goldens close the
+        //   third side of the triangle: the editor's own dump, pinned.
+        ("Blueprint", "ai_canvas_blueprint"),          // the canvas's no-document state
+        ("Blueprint", "ai_watch_blueprint"),           // the watch's empty table + column set
     };
 
     public static TheoryData<string, string> BudgetCases()
@@ -227,6 +238,55 @@ public sealed class PanelGoldenRails : IClassFixture<GoldenCaptureFixture>
         Assert.Equal(order.OrderBy(x => x).ToArray(), order);
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>The canvas's NO-DOCUMENT contract</b> — the state both hosts publish before anything is
+    /// opened, and the one slice 1 compares editor-vs-cluster.
+    ///
+    /// <para>⭐ The fields that MEAN something here are the three that say *"there is nothing open"*:
+    /// ⛔ a canvas reporting <c>hasActiveDocument</c> with a null name, or a non-zero
+    /// <c>openDocumentCount</c> with no active document, is an inconsistency the byte-diff would happily
+    /// re-bless. ⚠ <c>assetKind</c> is pinned because it is what makes this canvas the BLUEPRINT one — the
+    /// three canvases differ by nothing else in the empty state.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task Meaning_the_blueprint_canvas_publishes_its_empty_state()
+    {
+        var m = await DumpAsync("Blueprint", "ai_canvas_blueprint");
+
+        Assert.Equal("Blueprint", m!["assetKind"]!.GetValue<string>());
+
+        // ⛔ The three must AGREE. 📐 The debug API has no endpoint that opens an AI asset
+        //    (PanelGoldenRails' own "ceiling" remark), so the empty state is the only reachable one —
+        //    ⭐ which makes its internal consistency the whole of what this panel can be asserted on.
+        Assert.False(m["hasActiveDocument"]!.GetValue<bool>());
+        Assert.Equal(0, m["openDocumentCount"]!.GetValue<int>());
+        Assert.Null(m["activeDocumentName"]?.GetValue<string>());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The watch's EMPTY-TABLE contract.</b> 📌 <c>BP-511</c>/<c>94g</c> made pinned rows durable, so
+    /// *"nothing is pinned"* is now a claim with a persistence layer behind it — ⛔ a watch that came up
+    /// with rows in a fresh process would mean a leaked session file, and the byte-diff alone would just
+    /// bless it.
+    ///
+    /// <para>⭐ <c>valueMode</c> is the second claim and it is NOT decoration: 📌 Batch 100 (100e) — a watch
+    /// left at the wrong run state picks <c>VariableValue.ModeFor</c>'s INITIAL arm and renders the
+    /// authored default for ever while the sim holds a different number. ⇒ pinning the mode pins the
+    /// defect's signature.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task Meaning_the_blueprint_watch_publishes_an_empty_table()
+    {
+        var m = await DumpAsync("Blueprint", "ai_watch_blueprint");
+
+        Assert.Equal(0, m!["rowCount"]!.GetValue<int>());
+        Assert.Empty((m["rows"] as JsonArray)!);
+        Assert.Null(m["selectedPath"]?.GetValue<string>());
+
+        // ⭐ `Current`, not `Initial` — see the remarks; this is 100e's signature field.
+        Assert.Equal("Current", m["valueMode"]!.GetValue<string>());
+    }
+
     // ══ the controls — what keeps the goldens honest ═══════════════════════════
 
     /// <summary>
@@ -305,6 +365,10 @@ public sealed class PanelGoldenRails : IClassFixture<GoldenCaptureFixture>
             "ai_blackboard_variables_btree",
             "ai_blackboard_variables_hsm",
             "ai_my_blueprint_blueprint",
+            // ⭐ cgf==editor slice 1 — paired by Meaning_the_blueprint_canvas_publishes_its_empty_state
+            //   and Meaning_the_blueprint_watch_publishes_an_empty_table.
+            "ai_canvas_blueprint",
+            "ai_watch_blueprint",
         };
 
         var unpaired = Budget.Select(b => b.PanelId).Where(id => !paired.Contains(id)).ToArray();

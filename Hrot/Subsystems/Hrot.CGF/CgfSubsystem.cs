@@ -90,6 +90,45 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private DataBreakpointManager?  _bpManager;
     private DataBreakpointSystem?   _bpSystem;
 
+    // ── cgf==editor slice 1: the AiShared shell ───────────────────────────────
+    // 📄 docs/DESIGN_Cgf_Editor_Sharing_Slice1_Shell_Adoption.md §3 (classDiagram) / §4 (sequenceDiagram).
+    // ⭐⭐ The ENTIRE slice is a composition block: every type below already exists in
+    //    Hrot.Editor.AiShared and is CONSTRUCTED here, never modified (§7 — AiShared is the
+    //    variable-model lane's, and this lane only consumes it).
+
+    /// <summary>
+    /// ⭐⭐⭐ The StructEdit edit service, hoisted out of <c>Initialize</c> so the AiShared shell gets
+    /// <b>the same instance</b> the breakpoint predicate compiler already uses.
+    /// <para>⛔ A second <c>ComponentEditServiceBuilder().Build()</c> in <c>RegisterWindows</c> would be
+    /// two implementations of one concept *(ruling 9)*, and <c>PerspectiveWorkspaceServices</c> REQUIRES
+    /// this argument — so "I forgot" would have been expressible as "I built a fresh one".</para>
+    /// </summary>
+    private StructEdit.Core.IComponentEditService? _facetEditService;
+
+    /// <summary>
+    /// ⭐⭐ <c>BP-510</c> — this node's view of the current load's staging⇄runtime id table.
+    /// <para>⭐ CGF is the SOURCE of that table *(<c>StagingEntityExtractor.OnRemap</c>)*, so unlike the
+    /// editor it does not subscribe to the published event — it fills this view on the same line that
+    /// publishes it.</para>
+    /// </summary>
+    private readonly Hrot.Editor.AiShared.Variables.StagingRemapView _stagingRemap = new();
+
+    /// <summary>⭐ One shared entity selection behind every perspective's store, exactly as the editor
+    /// does *(<c>EditorSubsystem</c> <c>:304</c>/<c>:834</c>)</summary>
+    private readonly Hrot.Editor.AiShared.Selection.SharedEntitySelection _sharedEntitySelection = new();
+
+    private Hrot.Editor.AiShared.Documents.WindowManagerPerspectiveSwitcher? _perspectiveSwitcher;
+    private Hrot.Editor.AiShared.Documents.AiDocumentManager?                _aiDocumentManager;
+    private Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?      _btreeRegistrar;
+    private Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?      _hsmRegistrar;
+    private Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?      _blueprintRegistrar;
+
+    // ⛔ NO TestHook for "which perspectives did I register". 📐 A first cut added one and nothing could
+    //    use it: the shell needs a REAL WindowManager (an ImGui atlas), so no headless unit rail can
+    //    construct it — and the claim is already asserted where it is observable, over MCP, by
+    //    ClusterConformanceRails.The_cluster_offers_the_asset_perspectives. ⚠ An internal accessor with
+    //    no caller is the "built and unreachable" shape this codebase keeps finding; ⭐ better absent.
+
     // ── Scenario entity creation source (shared with load handlers in Phases 3-4) ──
     private ScenarioEntityCreationRequestSource? _scenarioSource;
 
@@ -494,12 +533,22 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    what keeps Hrot.CGF separately deployable (R-79).
         // ⭐ `_context.EventBus` is the node's own orchestration bus — the same one its ClusterSlave
         //   drains (HN-029's TransitionsVia reads it too), ⛔ not the CGF interaction bus.
-        extractor.OnRemap = map => _context.EventBus.PublishManaged(
-            new Fdp.Toolkit.Orchestration.StagingRemapPublishedEvent
-            {
-                StagingToRuntime = map,
-                SourceNodeId     = _context.NodeId,
-            });
+        extractor.OnRemap = map =>
+        {
+            // ⭐⭐ Slice 1 — this node's OWN Watch needs the same table it publishes to the cluster.
+            //    ⛔ Not a second copy of the remap: StagingRemapView holds the map the extractor
+            //    published and computes only its inverse (R-79 — the remap LOGIC stays in the
+            //    extractor). ⚠ Filled on the SAME line that publishes, so a load can never update one
+            //    and not the other.
+            _stagingRemap.Publish(map);
+
+            _context.EventBus.PublishManaged(
+                new Fdp.Toolkit.Orchestration.StagingRemapPublishedEvent
+                {
+                    StagingToRuntime = map,
+                    SourceNodeId     = _context.NodeId,
+                });
+        };
 
         // ⭐⭐⭐ HN-037 — AUTHORED IDS COME FROM THE ONE AUTHORITY, not from a second local allocator.
         // 📄 docs/DESIGN_Deterministic_Network_Ids.md §11d ②.
@@ -651,7 +700,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         CgfComponentRegistry.RegisterAll(_bpPreTickSnapshot);
 
         var bpTimeAdapter          = new CgfNoOpTimeController();
+        // ⭐⭐ Slice 1 — HOISTED to a field, not because the breakpoint compiler needed it there, but
+        //    because the AiShared shell REQUIRES an IComponentEditService and building a second one in
+        //    RegisterWindows would be two implementations of one concept (ruling 9).
         var bpEditSvc              = new ComponentEditServiceBuilder().Build();
+        _facetEditService          = bpEditSvc;
         // See BP-29: without _blueprintRegistry, CompileBlueprintVariablePredicate returns a
         // constant-false delegate and blueprint conditional breakpoints silently never fire.
         var bpPredicateCompiler    = new PredicateCompiler(bpEditSvc, _behaviorRegistry, _blueprintRegistry);
@@ -865,7 +918,215 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
         windowManager.MessageLogRegistry?.RegisterSource(AiBehaviorLogTarget.SharedInstance);
+
+        // ⭐⭐⭐ cgf==editor SLICE 1 — the AiShared shell. 📄 §3/§4 of the owning design.
+        BuildAiShell(windowManager);
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>cgf==editor slice 1 — CGF constructs the SAME AiShared shell the editor builds, and
+    /// registers the SAME windows under the asset perspectives.</b>
+    /// 📄 <c>docs/DESIGN_Cgf_Editor_Sharing_Slice1_Shell_Adoption.md</c> §3 *(classDiagram)* · §4
+    /// *(sequenceDiagram)* · §5 *(the items)*.
+    ///
+    /// <para>⭐⭐ <b>Every type here already exists</b> — this method CONSTRUCTS and REGISTERS, and
+    /// modifies nothing inside <c>Hrot.Editor.AiShared</c> *(§7: that assembly belongs to the
+    /// variable-model lane; an AiShared change is a STOP-and-coordinate, not an edit)*. ⇒ the whole
+    /// slice is a composition block, mirroring <c>EditorSubsystem.RegisterWindows</c>
+    /// <c>:2545-2948</c>.</para>
+    ///
+    /// <para>⭐⭐ <b>The perspectives are EMERGENT.</b> ⛔ Nothing here declares a perspective list:
+    /// <c>WindowManager.GetPerspectives()</c> derives it from what the registrars registered, and
+    /// <c>LocalWindowController.ResolveStartupPerspective</c> then picks a real one *(<c>UXI-06</c>,
+    /// already built)</para>
+    ///
+    /// <para>⚠ <b>Ids are shared with the editor deliberately</b> — 📐 the runner throws if both are in
+    /// one process *(§7 "process exclusivity")*, so <c>ai_watch_btree</c> here and in the editor can
+    /// never collide. ⭐ And the conformance suite compares by <c>PanelKind</c>, not by id.</para>
+    /// </summary>
+    private void BuildAiShell(Fdp.Presentation.WindowManager.WindowManager windowManager)
+    {
+        if (_context == null || _facetEditService == null) return;
+
+        // ── The switcher (§2 :2545) ────────────────────────────────────────────
+        // ⭐ The SAME type ClusterRunner/Program.cs already wraps this WindowManager in for
+        //   GET /perspectives — ⛔ not a second switcher; this one drives the document manager.
+        _perspectiveSwitcher = new Hrot.Editor.AiShared.Documents.WindowManagerPerspectiveSwitcher(windowManager);
+
+        // ── The shared services (§2 :2561 / :2719) ─────────────────────────────
+        // ⚠ CGF has no AiCatalogBuilder — it does not author assets — so the catalog is EMPTY rather
+        //   than absent. ⭐ Honest: the shell needs a catalog to exist, and "no assets indexed" is a
+        //   true statement about this host, not a silent default.
+        var catalog = new Hrot.Editor.AiShared.Catalog.AssetCatalog();
+
+        // ⚠ ONE contributor, and that is a measured limit rather than an omission: CGF references
+        //   Hrot.Blueprints.Editor, ⛔ not the BTree/HSM editor assemblies, so their contributors are
+        //   not reachable from this assembly. ⭐ Stated here so a reader does not read the short list
+        //   as a forgotten argument (the 2026-08-16 rule cuts both ways: a caller that does NOT have a
+        //   dependency must not pretend to).
+        var referenceCatalog = new Hrot.Editor.AiShared.References.ReferenceCatalog(
+            catalog,
+            new Hrot.Editor.AiShared.References.IReferenceCatalogContributor[]
+            {
+                new Hrot.Blueprints.Editor.Catalog.BlueprintReferenceContributor(),
+            });
+
+        var refactorService = new Hrot.Editor.AiShared.Refactor.RefactorService(
+            referenceCatalog, catalog, new Hrot.Editor.AiShared.Refactor.AtomicMultiFileWriter());
+
+        var debugRegistry = new Hrot.Editor.AiShared.Debug.DebugSessionRegistry();
+
+        // ⭐ The behaviour-action schema, reflected from the already-loaded game assemblies — the same
+        //   Rebuild() the editor performs at :2610. CGF loads Hrot.AI.Behaviors, so this is populated.
+        var schemaExporter = new Hrot.Editor.AiShared.Blackboard.ActionSchemaExporter();
+        schemaExporter.Rebuild();
+
+        // ── The two clock signals (§5 item ①) ──────────────────────────────────
+        // ⭐⭐⭐ REQUIRED by PerspectiveWorkspaceServices, and supplied from CGF's REAL state — ⛔ never
+        //    a silent default (the 2026-08-16 rule; the ctor throws on null anyway).
+        // ⚠⚠ NOTE THE HONEST DIFFERENCE FROM THE EDITOR. The editor's `isSimUp` is
+        //    IPreviewController.IsInPreviewMode: it has a PLANNING state in which no world ticks.
+        //    ⛔ CGF has no planning state — it is a cluster node whose world ticks from boot — so the
+        //    truthful answer here is "the simulation systems are enabled". ⇒ this host reads Running
+        //    where the editor reads Planning, and that is a real difference between the hosts, ⛔ not
+        //    a wiring gap to paper over with a constant.
+        Func<bool> isSimUpSignal  = () => _context != null && (_toggleSim?.Enabled ?? false);
+        // ⭐ Both arms of ruling 15, read through the SAME objects the CGF debugger uses: a breakpoint
+        //   pause, or the clock itself being halted (deterministic stepping / a cluster pause).
+        Func<bool> isFrozenSignal = () => (_bpManager?.IsPaused ?? false)
+                                       || Fdp.Toolkit.Time.SimClock.Of(_context?.World).IsHalted;
+
+        var perspectiveServices = new Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceServices(
+            catalog, refactorService, debugRegistry, _facetEditService,
+            isSimUp:  isSimUpSignal,
+            isFrozen: isFrozenSignal)
+        {
+            // ⭐ CGF HAS a breakpoint manager, so it is PASSED — this is what makes the Watch and
+            //   Breakpoints windows exist at all (the registrar builds them only when it is non-null).
+            BreakpointManager = _bpManager,
+            SchemaExporter    = schemaExporter,
+
+            // ⭐⭐ L0.4 (R-122) — the Details context reads entity selection from the WORLD. `_context`
+            //    is nulled on shutdown, so the world is resolved AT CALL TIME rather than captured.
+            EntitySelection = new Hrot.Editor.AiShared.Shell.WorldEntitySelectionSource(
+                () => _context?.World),
+
+            // ⭐⭐ BP-511 — the staging⇄runtime bridge. CGF HAS both halves (it PUBLISHES the table and
+            //    owns the world), so it passes them; ⛔ the resolver is Fdp.Toolkits' one
+            //    NetworkIdResolver, not a second lookup.
+            EntityIdentity = new Hrot.Editor.AiShared.Variables.WatchEntityIdentity(
+                _stagingRemap,
+                runtimeId => Fdp.Toolkit.Replication.Services.NetworkIdResolver
+                                 .FindEntityByNetworkId(_context?.World, runtimeId),
+                RuntimeNetworkIdOf),
+
+            // ⛔⛔ EntityPicker is deliberately ABSENT, and it is NOT a silent default: 📐 measured —
+            //    AQ55's pick is IMapPickService.PickEntityAsync, which lives in Hrot.ExCon and is
+            //    implemented only by the editor's EditorMapPickAdapter and ExCon's own logic. CGF
+            //    references neither and has no such capability, so the Watch's "pick an entity…" entry
+            //    is ABSENT here rather than dead (the property's own remark asks for exactly that).
+            //
+            // ⛔⛔ StagedWrites is absent for two reasons, and BOTH are load-bearing:
+            //    ① it resolves a row's address through BlueprintLiveValueWriter, which needs an
+            //      IBlueprintDebugSession — CGF constructs none, so a writer here could only refuse;
+            //    ② 🔒 the 2026-08-25 STEER keeps the LIVE VARIABLE-VALUE write off this host on purpose:
+            //      it carries R-52, a whole-component write that clobbers a tick of BTree/HSM state
+            //      (a live-corruption bug that bites the editor too, needing SetComponentFieldRaw), and
+            //      it is the variable-model lane's frozen territory.
+            //    ⚠⚠ NOT because "slice 1 is read-only" — that framing is SUPERSEDED (design §10). The
+            //      windows are taken WHOLESALE; ⭐ this is the ONE place a gate is honest, and the reason
+            //      is CORRUPTION, not policy.
+        };
+
+        // ── One selection store per perspective, over ONE shared entity selection ──
+        var btreeStore     = new Hrot.Editor.AiShared.Selection.EditorSelectionStore(_sharedEntitySelection);
+        var hsmStore       = new Hrot.Editor.AiShared.Selection.EditorSelectionStore(_sharedEntitySelection);
+        var blueprintStore = new Hrot.Editor.AiShared.Selection.EditorSelectionStore(_sharedEntitySelection);
+
+        // ── CreateRegistrar per asset perspective (§5 item ②) ──────────────────
+        // ⚠ NO validators on any of the three, and each SAYS so rather than expressing it by omitting
+        //   an argument: the BTree/HSM validators live in editor assemblies CGF does not reference,
+        //   and Blueprint has none on either host.
+        // ⚠ NO liveValueProvider / writeLive on BTree and HSM — the honest answer per the signature.
+        //   ⛔ Blueprint gets none EITHER on this host, and that differs from the editor for a measured
+        //   reason: BlueprintLiveValueProvider reads through debugRegistry.ActiveSession, and nothing
+        //   on CGF ever puts an IBlueprintDebugSession there (there is no document manager driving
+        //   SyncActiveDebugSession). ⭐ Passing one would be a provider that can only answer null.
+        var noValidators = System.Array.Empty<Hrot.Editor.AiShared.Validation.IAssetValidator>();
+
+        _btreeRegistrar     = perspectiveServices.CreateRegistrar("BTree",     btreeStore,     noValidators);
+        _hsmRegistrar       = perspectiveServices.CreateRegistrar("HSM",       hsmStore,       noValidators);
+        _blueprintRegistrar = perspectiveServices.CreateRegistrar("Blueprint", blueprintStore, noValidators);
+
+        _btreeRegistrar.RegisterWindows(windowManager);
+        _hsmRegistrar.RegisterWindows(windowManager);
+        _blueprintRegistrar.RegisterWindows(windowManager);
+
+        // ── The document manager + the graph canvases (§2 :2948) ───────────────
+        _aiDocumentManager = new Hrot.Editor.AiShared.Documents.AiDocumentManager(_perspectiveSwitcher);
+        _perspectiveSwitcher.SetDocumentManager(_aiDocumentManager);
+
+        // ⭐ The canvas's whole dependency is the document manager; the renderer is stateless, so one
+        //   per perspective is what the editor does too (:3740).
+        var adapters = new Hrot.Editor.AiShared.Adapters.AiEditorAdapterBundle(windowManager.Atlas);
+
+        RegisterCanvas(_btreeRegistrar,     "BTree");
+        RegisterCanvas(_hsmRegistrar,       "HSM");
+        RegisterCanvas(_blueprintRegistrar, "Blueprint");
+
+        void RegisterCanvas(Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar registrar, string kind)
+        {
+            var renderer = new NodeEditor.UI.Canvas.CanvasRenderer();
+            registrar.RegisterExtraWindow(windowManager,
+                new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
+                    assetKind:  kind,
+                    docManager: _aiDocumentManager!,
+                    renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
+                        renderDelegate:    view => renderer.Render(view, null),
+                        renderWithFindBar: (view, fb, cmds) => renderer.Render(view, fb, cmds)),
+                    pickers: adapters.PickerRegistry,
+                    input:   adapters.InputSource));
+                    // ⛔ saveDocument is absent, and ⚠⚠ NOT as a gate on editing — 🔒 the 2026-08-25
+                    //   STEER forbids gating, and this is not one. 📐 Measured: it is the
+                    //   save-on-CLOSE callback for a DIRTY OPEN DOCUMENT, and CGF can open no document
+                    //   at all — no document factories are registered with the AiDocumentManager and
+                    //   the AssetCatalog is empty (CE-009). ⇒ ⭐ it could never fire, so a delegate here
+                    //   would be unreachable code, not a capability.
+                    // ⚠ It is passed the day CGF can open an asset — the same day CE-009 closes.
+        }
+
+        // ── The Blueprint perspective's two host-specific windows ──────────────
+        // ⭐⭐⭐ MEASURED `2026-08-25`, and this is why they are here rather than left to the registrar:
+        //    the conformance diff reported `my-blueprint` DIFFERENT — the editor publishes
+        //    BlueprintMyBlueprintWindow (7 sections, "No blueprint open.") under the id
+        //    `ai_my_blueprint_blueprint`, which REPLACES the registrar's generic AiMyBlueprintWindow at
+        //    the same id, while this host published only the generic one ("No asset selected.", 0
+        //    sections). ⇒ ⛔ the SAME KIND was being served by two different classes on the two hosts.
+        // ⭐ Both live in Hrot.Blueprints.Editor, which this assembly already references — so the port
+        //   is a construction, not a new capability.
+        _blueprintRegistrar.RegisterExtraWindow(windowManager,
+            new Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow());
+        _blueprintRegistrar.RegisterExtraWindow(windowManager,
+            new Hrot.Blueprints.Editor.Windows.BlueprintBookmarksWindow(_aiDocumentManager));
+
+        FdpLog<CgfSubsystem>.Info(
+            "[CGF] AiShared shell built — perspectives now include [{0}].",
+            string.Join(", ", windowManager.GetPerspectives()));
+    }
+
+    /// <summary>
+    /// ⭐ The runtime <c>NetworkIdentity</c> of an entity, or <c>0</c>. 📌 The inverse direction of
+    /// <c>NetworkIdResolver.FindEntityByNetworkId</c>, and the half <c>WatchEntityIdentity</c> needs at
+    /// PIN time. ⛔ <c>0</c> for an unreplicated or dead entity — the same "nothing" the editor's own
+    /// <c>RuntimeNetworkIdOf</c> answers.
+    /// </summary>
+    private long RuntimeNetworkIdOf(Entity entity)
+        => _context?.World is { } w
+        && entity != Entity.Null
+        && w.IsAlive(entity)
+        && w.HasComponent<NetworkIdentity>(entity)
+             ? w.GetComponentRO<NetworkIdentity>(entity).Value
+             : 0;
 
     // ── Private helpers ────────────────────────────────────────────────────────
 

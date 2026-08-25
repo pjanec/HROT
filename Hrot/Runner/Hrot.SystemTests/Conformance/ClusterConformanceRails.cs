@@ -118,10 +118,22 @@ public sealed class ClusterConformanceRails
     /// </summary>
     private static readonly HashSet<string> EditorOnlyKinds = new(StringComparer.Ordinal)
     {
-        // ⭐ AUTHORING — the editor's reason to exist; none of it is ported to a cluster node yet (D3).
-        "blackboard-authoring", "my-blueprint", "graph-signature", "variables", "watch", "bookmarks",
-        "ai-breakpoints", "graph-canvas", "details", "runtime-inspector", "diagnostics",
-        "entity-blueprints", "data-breakpoint-manager",
+        // ⭐⭐⭐ cgf==editor SLICE 1, `2026-08-25` — NINE ENTRIES DELETED, and the deletion is the
+        //    deliverable. 📄 docs/DESIGN_Cgf_Editor_Sharing_Slice1_Shell_Adoption.md §5/§6.
+        //    📐 `CgfSubsystem.BuildAiShell` now constructs the AiShared shell and registers the same
+        //    windows under the same asset perspectives, so `--mode all` publishes:
+        //      blackboard-authoring · my-blueprint · variables · watch · ai-breakpoints ·
+        //      graph-canvas · details · runtime-inspector · diagnostics · bookmarks
+        //    ⇒ each of those is now a SHARED kind and is DIFFED for real rather than exempted.
+        //    ⛔ This is the "reviewed one-line deletion" this baseline's own doc describes; nothing was
+        //    added to it in exchange (the three kinds that still differ are declared in
+        //    DivergesByDesign, WITH their measured reason, ⛔ not hidden back in here).
+        //
+        // ⭐ WHAT REMAINS EDITOR-ONLY, and why each is genuinely not ported by slice 1:
+        //    · graph-signature / entity-blueprints — Blueprint AUTHORING surfaces; slice 1 is
+        //      viewing/diagnostics (§1: asset editing is a later slice).
+        //    · data-breakpoint-manager — the editor's breakpoint AUTHORING window, likewise.
+        "graph-signature", "entity-blueprints", "data-breakpoint-manager",
         // ⭐ EDITOR-SHELL surfaces with no cluster counterpart.
         "preview", "zone-editor", "editor-toolbar", "shared-orbat",
         // 🔴🔴 THE ONE THAT IS A FINDING, NOT A FEATURE GAP: the GIZMO FRAME.
@@ -185,6 +197,39 @@ public sealed class ClusterConformanceRails
                              + "The SCENARIO content is compared for real by The_two_hosts_hold_the_same_loaded_world "
                              + "and its ids by The_two_hosts_number_the_same_entities_identically",
         ["spawner"]          = "host-specific catalogue: the editor offers platforms, ExCon offers composites",
+
+        // ══ cgf==editor SLICE 1, `2026-08-25` — THREE NEWLY-SHARED KINDS THAT STILL DIFFER ═══════
+        // ⭐⭐ These are here because slice 1 made them SHARED (they were exempted wholesale as
+        //    editor-only before) and each still differs for a reason that was MEASURED, not assumed.
+        // ⛔⛔ Declaring is NOT "narrowing the diff to fake a pass": every one of them names the
+        //    capability whose ABSENCE causes it, and each entry is deleted by the slice that adds it —
+        //    `A_declared_divergence_that_stopped_diverging_is_deleted` reddens the moment one agrees.
+
+        // 📐 Measured: `$.assetCount` 75 vs 0, `$.hasValidators` true vs false, 5 vs 3 diagnostics.
+        // ⭐ CGF constructs an EMPTY AssetCatalog: it has no AiCatalogBuilder because it does not
+        //   author or index assets, and the BTree/HSM validator assemblies are not referenced by
+        //   Hrot.CGF at all. ⇒ this cell moves when asset INDEXING reaches CGF, not by wiring.
+        ["diagnostics"] = "CGF indexes no authoring assets (empty AssetCatalog, no AiCatalogBuilder) and "
+                        + "references neither validator assembly, so assetCount/hasValidators are "
+                        + "legitimately 0/false there. Deleted when asset indexing reaches CGF.",
+
+        // 📐 Measured: `$.registeredPaneCount` 1 vs 0.
+        // ⭐ A runtime-inspector pane REQUIRES a debug session to bind to; the editor registers the
+        //   Blueprint pane only inside `if (_blueprintDebugSession != null)`. CGF constructs no
+        //   IBlueprintDebugSession, so a pane here could only ever answer null.
+        ["runtime-inspector"] = "a pane binds to a debug session and CGF constructs none "
+                              + "(no IBlueprintDebugSession); the editor registers its pane only when it "
+                              + "has one. Deleted when debug sessions reach CGF.",
+
+        // 📐 Measured: `$.mode` Paused vs Running, `$.focus` VariableOutline vs GraphCanvas.
+        // ⭐⭐ `mode` is a REAL difference between the hosts, not a wiring gap: the editor has a
+        //    PLANNING state with a halted clock, CGF is a cluster node whose world ticks from boot, and
+        //    this rail deliberately does not pause or equalise the two (see its own comment).
+        //    ⛔ Making CGF answer "Paused" would be a constant standing in for a clock reading — the
+        //    silent-default shape this codebase keeps paying for.
+        ["details"] = "run state genuinely differs (the editor is halted/Planning, the cluster node's "
+                    + "world ticks) and focus follows from which panes each host has. This rail does not "
+                    + "equalise the clocks by design.",
     };
 
     // ══ the rails ═════════════════════════════════════════════════════════════
@@ -642,5 +687,153 @@ public sealed class ClusterConformanceRails
             $"declared-by-design divergence(s) [{string.Join(", ", stillAgreeing)}] now AGREE between the "
           + "two modes. \u2b50 That is good news: delete the entry from DivergesByDesign so the kind is "
           + "genuinely compared from now on.");
+    }
+
+    // \u2550\u2550 cgf==editor SLICE 1 \u2014 the acceptance rails \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    // \ud83d\udcc4 docs/DESIGN_Cgf_Editor_Sharing_Slice1_Shell_Adoption.md \u00a76.
+
+    /// <summary>
+    /// \u2b50\u2b50\u2b50 <b>THE HEADLINE \u2014 the three named panels of slice 1 are <c>SAME</c> per <c>PanelKind</c>,
+    /// editor vs <c>--mode all</c>.</b>
+    /// \ud83d\udcc4 <c>DESIGN_Cgf_Editor_Sharing_Slice1_Shell_Adoption.md</c> \u00a76 *("the same panels, same content,
+    /// on CGF")*.
+    ///
+    /// <para>\u2b50\u2b50 <b>Named separately from <see cref="The_two_modes_agree_on_every_shared_panel_kind"/>
+    /// on purpose.</b> That rail asks *"has anything regressed anywhere"*; \u26d4 it would also pass if these
+    /// three kinds were quietly moved into <see cref="DivergesByDesign"/>. \u21d2 \u2b50 this one names the slice's
+    /// OWN deliverable, so narrowing the diff cannot make it green.</para>
+    ///
+    /// <para>\u26a0 <b>Shown RED by reverting the registration:</b> \ud83d\udcd0 measured `2026-08-25` \u2014 with
+    /// <c>CgfSubsystem.BuildAiShell</c> removed the cluster publishes none of these kinds and every
+    /// assertion below fails on the "did not publish" arm, not on a model mismatch.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_asset_panels_are_the_same_on_both_hosts()
+    {
+        await using var editor  = await EditorProcess.StartAsync("conf-slice1-editor");
+        await using var cluster = await EditorProcess.StartAsync("conf-slice1-all", mode: "all");
+
+        var a = await CaptureByKindAsync(editor,  _out);
+        var b = await CaptureByKindAsync(cluster, _out);
+
+        // \u2b50 The design's own three, verbatim: the watch -> MyBlueprint -> asset-graph chain.
+        string[] slice1Kinds = { "graph-canvas", "my-blueprint", "watch" };
+
+        var missingOnEditor  = slice1Kinds.Where(k => !a.ContainsKey(k)).ToArray();
+        var missingOnCluster = slice1Kinds.Where(k => !b.ContainsKey(k)).ToArray();
+
+        // \u26d4 Anti-vacuity in BOTH directions: a kind absent from the editor makes the comparison
+        //    meaningless, and one absent from the cluster is the slice simply not being wired.
+        Assert.True(missingOnEditor.Length == 0,
+            $"the EDITOR did not publish [{string.Join(", ", missingOnEditor)}] \u2014 the reference side of "
+          + "this comparison is missing, so a green here would prove nothing.");
+
+        Assert.True(missingOnCluster.Length == 0,
+            $"--mode all did not publish [{string.Join(", ", missingOnCluster)}]. \u2b50 That is slice 1's "
+          + "deliverable: CgfSubsystem.BuildAiShell must construct the AiShared shell and register the "
+          + "asset-perspective windows.");
+
+        var differing = new List<string>();
+        foreach (var kind in slice1Kinds)
+        {
+            if (string.Equals(a[kind].Model, b[kind].Model, StringComparison.Ordinal)) continue;
+            var diffs = PanelNormalizer.Diff(JsonNode.Parse(a[kind].Model), JsonNode.Parse(b[kind].Model));
+            differing.Add($"{kind} ({a[kind].Id} vs {b[kind].Id}): {string.Join(" | ", diffs.Take(4))}");
+        }
+
+        _out.WriteLine($"slice 1 kinds SAME: {slice1Kinds.Length - differing.Count}/{slice1Kinds.Length}");
+
+        Assert.True(differing.Count == 0,
+            "slice 1's own panels DIFFER between the editor and --mode all:\n  "
+          + string.Join("\n  ", differing)
+          + "\n\u26d4 Do NOT declare these in DivergesByDesign \u2014 they are the slice's acceptance "
+          + "criterion, and an exemption here would be the narrowing the design forbids.");
+    }
+
+    /// <summary>
+    /// \u2b50\u2b50 <b>The asset perspectives are REACHABLE on <c>--mode all</c>.</b>
+    /// \ud83d\udcc4 <c>DESIGN_Cgf_Editor_Sharing_Slice1_Shell_Adoption.md</c> \u00a76 *(second rail)* \u00b7 \u00a74's
+    /// <c>sequenceDiagram</c> note *("GetPerspectives now derives Scenario, BTree, HSM, Blueprint")</para>
+    ///
+    /// <para>\u2b50\u2b50\u2b50 <b>Perspectives are EMERGENT from registration</b>, so this rail is the direct
+    /// observation of the sequence diagram's claim \u2014 \u26d4 there is no list anywhere to assert against.
+    /// \u26a0 It also pins the half <see cref="The_manifest_describes_this_host_truthfully"/> does NOT cover:
+    /// <c>routablePerspectives</c> comes from the per-subsystem debug PROVIDERS and is deliberately
+    /// unchanged by this slice *(still ExCon/IG/Scenario/SimHost)*, while <c>GET /perspectives</c> comes
+    /// from the WINDOW MANAGER and grows. \ud83d\udccc Two different questions that a reader will otherwise
+    /// conflate.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_cluster_offers_the_asset_perspectives()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-persp-all", mode: "all");
+
+        var perspectives = ((await cluster.Client.ListPerspectivesAsync()).EnsureOk()
+                            .Field("perspectives") as JsonArray)!
+                           .Select(n => n!.GetValue<string>()).ToArray();
+
+        _out.WriteLine($"[all] perspectives: [{string.Join(", ", perspectives)}]");
+
+        foreach (var expected in new[] { "BTree", "HSM", "Blueprint" })
+            Assert.True(perspectives.Contains(expected, StringComparer.Ordinal),
+                $"--mode all does not offer the '{expected}' perspective. \u2b50 It is EMERGENT from window "
+              + "registration, so its absence means CgfSubsystem registered no window owning it.");
+
+        // \u2b50 And the node's own perspective is still there \u2014 \u26d4 the slice ADDS, it does not displace.
+        Assert.Contains("Scenario", perspectives);
+
+        // \u2b50\u2b50 Each asset perspective must actually be SWITCHABLE, not merely listed: a claimed
+        //    perspective nothing can activate would let the capture loop above skip it silently
+        //    (`if (!switched.Ok) continue;`) and this whole slice would read as green with no panels.
+        foreach (var p in new[] { "BTree", "HSM", "Blueprint" })
+        {
+            var switched = await cluster.Client.SwitchPerspectiveAsync(p);
+            Assert.True(switched.Ok, $"--mode all refused to switch to '{p}': {switched.Error}");
+        }
+    }
+
+    /// <summary>
+    /// \u2b50\u2b50 <b>The known-absent baseline SHRANK by exactly the kinds slice 1 ported \u2014 and by nothing
+    /// else.</b> \ud83d\udcc4 \u00a76 *(third rail)* \u00b7 <c>Architect_Question_54</c> \u00a7 *"a genuine port is a reviewed
+    /// one-line deletion from this list"</para>
+    ///
+    /// <para>\u26d4\u26d4 <b>This is the control on the DELETION, and it runs in the opposite direction to
+    /// <see cref="A_declared_divergence_that_stopped_diverging_is_deleted"/>:</b> that one catches an
+    /// exemption kept too long, this one catches a kind deleted from the baseline WITHOUT the cluster
+    /// actually publishing it \u2014 which would turn the three-way diff's "undeclared editor-only" assertion
+    /// into the thing that reddens, in a batch that has nothing to do with this slice.</para>
+    ///
+    /// <para>\u26a0 <b>Cheap and exact:</b> it asserts the cluster publishes every kind this slice claims to
+    /// have ported. \u2b50 It does NOT re-assert the models \u2014 that is the headline rail's job.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_ported_kinds_are_really_published_by_the_cluster()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-ported-all", mode: "all");
+
+        var b = await CaptureByKindAsync(cluster, _out);
+
+        // \u2b50 The nine authoring kinds deleted from EditorOnlyKinds by slice 1, plus `bookmarks`.
+        string[] ported =
+        {
+            "blackboard-authoring", "my-blueprint", "variables", "watch", "ai-breakpoints",
+            "graph-canvas", "details", "runtime-inspector", "diagnostics", "bookmarks",
+        };
+
+        var absent = ported.Where(k => !b.ContainsKey(k)).ToArray();
+
+        _out.WriteLine($"cluster kinds: {b.Count} \u2014 [{string.Join(", ", b.Keys.OrderBy(k => k, StringComparer.Ordinal))}]");
+
+        Assert.True(absent.Length == 0,
+            $"kind(s) [{string.Join(", ", absent)}] were removed from the known-absent baseline but "
+          + "--mode all does not publish them. \u26d4 The baseline is not the place to record an "
+          + "intention: either register the window on CGF, or put the entry back with its reason.");
+
+        // \u26d4 And the ones slice 1 did NOT port must still be absent \u2014 otherwise the baseline is stale in
+        //   the other direction and a real regression could hide behind a stale entry.
+        foreach (var stillEditorOnly in new[] { "graph-signature", "entity-blueprints", "data-breakpoint-manager" })
+            Assert.False(b.ContainsKey(stillEditorOnly),
+                $"--mode all now publishes '{stillEditorOnly}', which EditorOnlyKinds still declares "
+              + "editor-only. \u2b50 Delete the entry \u2014 a stale exemption hides real regressions.");
     }
 }
