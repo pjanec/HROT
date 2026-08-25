@@ -135,6 +135,26 @@ public sealed class CgfClusterDebugTimeController : IEngineDebugTimeController
     public bool SimGroupsEnabled => _simGroup?.Enabled ?? false;
 
     /// <summary>
+    /// ⭐⭐ <b>The cluster's last barrier anchor, in absolute wall ticks</b> — the master's
+    /// <c>SwitchTimeModeEvent.BarrierWallTicks</c>, as folded by <see cref="ClusterTimeObservation"/>.
+    /// <c>0</c> until a mode event has been seen.
+    ///
+    /// <para>⭐⭐⭐ <b>This is what makes <c>k</c> MEASURABLE, and it is a real diagnostic rather than test
+    /// scaffolding.</b> `DQ30` §3 demands `k` be measured once and warns *"do not treat 'small' as
+    /// verified"*. ⭐ It is directly comparable with <c>IDataBreakpointManager.PausedTick</c>, which is
+    /// also <c>GlobalTime.TotalWallTicks</c> ⇒ <b><c>k = ClusterBarrierWallTicks − PausedTick</c></b>,
+    /// in 100-ns units.</para>
+    /// </summary>
+    public long ClusterBarrierWallTicks => _clusterTime.BarrierWallTicks;
+
+    /// <summary>
+    /// ⭐ Has the cluster ANSWERED with a deterministic (pause) decision? ⚠ This is the cluster's
+    /// DECISION, ⛔ not this node's clock — see <see cref="ClusterTimeObservation"/>'s own remarks: on a
+    /// slave it runs ahead of the local clock by the barrier window, correctly.
+    /// </summary>
+    public bool ClusterPauseRequested => _clusterTime.PauseRequested;
+
+    /// <summary>
     /// ① Halt this node's brain IMMEDIATELY — exact at the breakpoint tick, per ruling 61 — and
     /// ② ask the master to freeze the cluster.
     ///
