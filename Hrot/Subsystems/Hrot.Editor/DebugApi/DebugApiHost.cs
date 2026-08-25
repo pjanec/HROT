@@ -885,6 +885,60 @@ namespace Hrot.Editor.DebugApi
                 });
             }));
 
+            // ── Group V — the AI-ASSET drive surface (cgf==editor slice 2) ────────────────────
+            //
+            // ⭐⭐⭐ 📄 DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md §3/§3a/§5. Discover · open ·
+            //    switch tab · focus — the four verbs that make a POPULATED authoring panel reachable
+            //    headlessly. ⛔ Before these, every asset panel could only ever be captured EMPTY.
+            // ⚠ ROUTE ORDER: "/assets/open" (a literal) is registered BEFORE "/assets/{assetId}/open"
+            //    — different segment counts, so neither can shadow the other, but the literal form is
+            //    written first to make the intent obvious to the next reader.
+            _routes.Add(new("GET", "/assets", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ListAssets();
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+
+            _routes.Add(new("POST", "/assets/open", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.OpenAssetByPath(ctx.Body);
+                if (error == null) return Ok(result);
+                // ⭐ 503 = not wired; 400 = the caller's address was wrong or ambiguous. ⛔ Collapsing
+                //   them would make a composition defect look like a bad request (the /perspective note).
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 400,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/open", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.OpenAssetById(ctx.RouteValue("assetId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("GET", "/documents", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ListDocuments();
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+
+            _routes.Add(new("POST", "/documents/{assetId}/activate", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ActivateDocument(ctx.RouteValue("assetId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/panels/{panelId}/focus", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.FocusPanel(ctx.RouteValue("panelId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No AI-asset shell", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
             // ── N0 — the perspective, read and switched ───────────────────────────────────────
             //
             // ⭐⭐⭐ This is what makes three of the four editor perspectives reachable at all: a panel

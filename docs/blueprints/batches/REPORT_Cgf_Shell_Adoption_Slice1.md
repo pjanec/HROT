@@ -80,7 +80,15 @@ no assertions)*, so each carries its D7 pairing case.
 | 9 | `tracker-counts.py --check` | | ✅ **OK — open 102 / done 346** | n/a | unchanged *(the `CE-` rows are not `BP-`, so they do not move the counts — Area L says so)* |
 | 10 | `rulings-check.py` | | ✅ **25 / 25** | n/a | **24 → 25**: ⭐ **`R-133` added** *(rule-zero obligation 2 — a ruling found in the corpus gets a row immediately)*: *"the capability manifest is MEASURED, never declared; the known-absent baseline lives in the HARNESS."* 📌 It is what §9.2's deviation turned on, and a hand-authored availability table is §M's disease. ⚠ 4 staleness WARNs, all pre-existing *(`.claude/CLAUDE.md`, `DataBreakpointManager.cs`, `DESIGN_Headless_Testability.md`, `SOLUTION-OVERVIEW.md`)*; the 5th is `CapabilityManifest.cs`, cited by the row just added |
 | 11 | `design-digest.py --check` | | ✅ **clean** — 81 docs carry STATUS; every buildable design carries both diagrams | n/a | unchanged |
-| 12 | `mermaid-check.mjs` | | ⚠ **SKIPPED — no npm/node in this container.** ⛔ Stated, not implied: **no Mermaid block was added or edited** *(§9 is tables and prose; §3/§4's diagrams are untouched)*, so nothing new is unparsed | n/a | — |
+| 12 | `mermaid-check.mjs` | `MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs …` | ✅ **2 / 2 blocks parse** *(`classDiagram` + `sequenceDiagram`)* | n/a | — |
+
+> ⚠⚠ **CORRECTION, `2026-08-25` — row 12 originally read *"SKIPPED — no npm/node in this container."* That
+> was WRONG.** 📐 `node`/`npm` are present at **`/opt/node22/bin`**, merely **off `PATH`**; the checker's own
+> SKIP message asks for a one-off `npm install mermaid@11 jsdom` into `MERMAID_PREFIX`, which succeeds here.
+> ⭐ The row now carries a real run. ⛔ The **conclusion** was right *(this batch added no Mermaid, and §3/§4
+> parse)* — ⚠ but *"the tool is unavailable"* was a wrong reason for a right answer, and the next session
+> would have inherited it. 📌 Found while setting up slice 2, which needs the same toolchain for
+> `gen:catalog:check`.
 
 ### ⭐⭐ Row 7 — **the two reds, proven pre-existing WITHOUT the A/B rebuild dance**
 
