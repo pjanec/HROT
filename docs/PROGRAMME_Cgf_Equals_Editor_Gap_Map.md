@@ -70,7 +70,7 @@ graph TD
 | **Asset roots from config** (delete the `.csproj` walk-up) | ruling 67 | 🕳️ | the **one true authoring blocker** — roots are `null` on a deployed node |
 | Behavior-affinity registry for asset-authored behaviors (Q25-C) | AQ25 | 📐 | pivotal unknown: can `BehaviorUiCompiler` be schema-driven? |
 | Authoring **shell** / role-&-mode gating / undo / autosave / problems-list | AQ25 | 📐 | architect-**unanswered** (`Answers` table empty) |
-| **Graph-asset editing on a runtime node** (structure-hash reset, blackboard offsets, staged writes) | — | 🕳️ | **not designed anywhere** — the biggest editing-side gap |
+| **Graph-asset editing on a runtime node** (hot reload) | `AI_Editor_Shared_Infrastructure.md` §17 | 🔌 | **CORRECTED `2026-08-25` — this IS designed, and the editor is NOT special.** Hot reload is classified Cosmetic/Soft/**Hard**: a structure change → Hard = *intended* state reset (confirmed: *"reset N live instances?"*); value-only → Soft = state preserved (`BTreeHotReloadManager`/`HsmHotReloadManager`). Host-agnostic ⇒ **WIRE on CGF** (construct `QuickReloadService`, referenced-not-constructed today) + route the Hard-reload confirm to the interactive node (designed, ruling 53). ⚠ The R-52 whole-component blackboard write is a **shared LIVE DEFECT** (bites the editor too) needing `SetComponentFieldRaw` — a bug fix, not a CGF design gap |
 | Packaging: `Hrot.Editor`'s catalog/`NewAssetService` (CGF doesn't reference `Hrot.Editor`) | UXI-37 | 📐 | the one open packaging decision (move to shared vs reference) |
 
 ### Axis B — map / entity interaction parity (CGF's Scenario/map perspective)
@@ -116,7 +116,7 @@ graph TD
 | 2 | **Asset-root walk-up** → `null` on a deployed node (ruling 67 has the fix) | A (editing) | build |
 | 3 | **AQ25** authoring shell + role/mode gating — architect-**unanswered** | A (editing) | resolve-with-user |
 | 4 | **Behavior-affinity registry** (Q25-C) + the schema-driven-`BehaviorUiCompiler` unknown | A (editing) | design |
-| 5 | **Graph-asset editing on a runtime node** (structure-hash/blackboard/staged writes) — undesigned | A (editing) | design |
+| 5 | ~~Graph-asset editing on a runtime node — undesigned~~ — **NOT undesigned** (hot-reload Cosmetic/Soft/Hard, `AI_Editor_Shared_Infrastructure.md` §17; editor not special). Reduces to: wire `QuickReloadService` on CGF + fix the shared R-52 offset-write bug | A (editing) | wire + bug-fix |
 | 6 | ~~Debug pause/step blocked on `.dev` programmes~~ — **NOT a blocker** (Correction 45 unblocked it `2026-08-14`; programmes finished `2026-07-16`). It is Axis-A wiring + one new CGF time-controller adapter class | A (diag) | ~~wait~~ build |
 | 7 | Packaging of `Hrot.Editor`'s catalog/save services | A | decide-at-impl |
 

@@ -1,4 +1,34 @@
+<!--STATUS
+state: LIVE
+build-state: DESIGN — ✅ RECOMMENDED ANSWERS added 2026-08-25 (coordinator; "I analyse/suggest, user
+  approves"). Awaiting user approval. The per-Q sections below are the OPTION SPACE + Claude's lean; the
+  "✅ RECOMMENDED ANSWERS" section at the top is the live recommendation.
+updated: 2026-08-25
+current-answer: the "✅ RECOMMENDED ANSWERS" section.
+design-basis: PROGRAMME_Unification_And_Harness.md (editor = one-node cluster) · Q26 (superseded Q25-D,
+  mooted Q25-F/F′) · AI_Editor_Shared_Infrastructure.md §17 (hot-reload Cosmetic/Soft/Hard classification).
+known-conflict: Q26 supersedes Q25-D and moots Q25-F/F′ — the "new editor exe" lean (F5/UXD-08) is
+  WITHDRAWN (2026-08-10). Read §F/§F′ as historical.
+-->
 # Architect question #25 — Scenario-authoring UX: the five structural decisions
+
+## ✅ RECOMMENDED ANSWERS — awaiting user approval *(coordinator, `2026-08-25`)*
+
+> Per the "I analyse/suggest, user approves" model. Each adopts/sharpens the per-Q "Claude's lean" below,
+> informed by the charter *(the editor is a one-node cluster)* and a fresh code measurement of the C′ unknown.
+
+| # | ✅ recommended answer |
+|---|---|
+| **Q25-A** *(recoverability)* | **A2** = A1 *(autosave + Revert-to-Saved + confirm-on-destructive)* **plus** bounded single-step undo of the 4 gizmo gestures via an explicit inverse each. ⭐ Keeps the two hosts honest: the runtime host **registers no inverses** ⇒ Ctrl+Z is correctly **absent**, not lying. ⛔ Defer **A3** *(checkpoint via `PreviewClusterOpHandler` snapshot)* — that snapshot is the whole-world preview snapshot sized for the transition; a later "checkpoint before I try something," pending a cost measurement (A′). |
+| **Q25-B** *(prefabs)* | **B1** *(a template = a saved scenario-fragment via the existing translator set)* **+ B4** *(copy-on-place "stamp")* now; **B5** *(live prefab link + per-field overrides)* only if demanded. ✅ **B′: YES** — carry a template id/version field from day one *(one field now, a migration later)* so B5 stays possible. |
+| **Q25-C** *(behavior affinity + params — the pivotal one)* | **C3** *(`BehaviorRegistry` = single source of truth for the READ path; `BehaviorCatalog` consults it instead of reflecting one assembly — also fixes the static-ctor-can't-see-hot-reload bug)* **+ C1** *(the asset declares its category mask + param schema, authored in the editor)*. ⛔ Reject **C2** for the golden path *(compile-before-assignable breaks UXR-41)*. 📐 **C′ MEASURED `2026-08-25`:** `BehaviorUiCompiler.Compile<TDto>()` is **strictly CLR-type-driven** *(reflects a DTO type; switches on `PropertyType`)* ⇒ cannot consume a runtime schema as-is. ⭐ **BUT the runtime field-schema model already exists** — `BlueprintFieldDescriptor(name,type,offset,size)` + the `.bp.json`-schema path *(`GeneratedBlueprintSchemaCatalog`/`StructSizeResolver`)* — and the variable-model **Details panel already renders rows from field metadata**. ⇒ the param form is a **schema-driven sibling renderer built on the existing field-descriptor model**, NOT C2 codegen. **This closes C′: schema-driven is feasible by reuse.** |
+| **Q25-D** *(two audiences, shared panels)* | ✅ **ANSWERED by Q26** *(which supersedes it)*: **D2** *(per-host composition — the descriptor/binding split)* **+ D4** *(progressive disclosure within a panel)*; ⛔ reject **D1** *(a global surface-profile = a second perspective system)*. ⭐ The OCC conflict is resolved **in the service** *(no host renders a version modal)*; **Force Commit** = engineer-only, an SME host simply never composes it. **D′:** a live-retask conflict is **NOT** safe to silently auto-retry — *"someone else changed this unit's orders"* needs a human decision, surfaced in plain language on the SME host. |
+| **Q25-E** *(the one problems list)* | **E1 with a host-agnostic contract** *(entry = severity · message · source-ref · navigate action)*. Build editor-side first; define the contract so ExCon/CGF publish into the same model without a rewrite. ⛔ Defer **E3** *(distributed-diagnostics home)* unless we later want cross-node problem aggregation. |
+| **Q25-F** *(dedicated editor exe?)* | ✅ **ANSWERED: NO new exe.** The "new shell/exe" lean *(F5 / UXD-08)* is **WITHDRAWN (`2026-08-10`)** and the charter settles it — the editor is a **ONE-NODE CLUSTER** *(a `ClusterRunner` mode, networkless by construction, already running the cluster machinery in-process)*. The seam is **inside shared code**, not a separate host. |
+
+⭐ **Net:** the only sub-question that needed a measurement rather than a judgement was **C′**, and it resolves to **reuse** *(a schema-driven sibling of the existing field-descriptor renderer)*. Everything else adopts the standing lean, with **D** and **F** already settled by later rulings.
+
+
 
 > **Scope.** The scenario-authoring **shell** (the outer loop), not the graph canvases. Programme:
 > [`docs/UX/`](README.md). This is the first architect round of that programme and it batches every
