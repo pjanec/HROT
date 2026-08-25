@@ -409,6 +409,50 @@ public sealed class McpClient : IDisposable
         return switched;
     }
 
+    // ── Group V — the AI-asset drive surface (cgf==editor slice 2) ─────────────
+    //
+    // ⭐⭐⭐ 📄 DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md §3/§3a. Without these the harness can
+    //    only ever capture an authoring panel in its EMPTY state — the canvas draws the ACTIVE
+    //    document, and nothing could make one active over HTTP.
+
+    public Task<ApiResult> ListAssetsAsync(CancellationToken ct = default)
+        => GetAsync("/assets", ct);
+
+    /// <summary>⭐ Open by the stable GUID — the URL-segment form (§3a).</summary>
+    public Task<ApiResult> OpenAssetAsync(string assetId, CancellationToken ct = default)
+        => PostAsync($"/assets/{Uri.EscapeDataString(assetId)}/open", null, ct);
+
+    /// <summary>
+    /// ⭐ Open by the HUMAN address. ⚠ The path travels in the BODY — ⛔ a relative path in a URL
+    /// segment would need encoding, which §3a rules out.
+    /// </summary>
+    public Task<ApiResult> OpenAssetByPathAsync(string path, CancellationToken ct = default)
+        => PostAsync("/assets/open", new JsonObject { ["path"] = path }, ct);
+
+    public Task<ApiResult> ListDocumentsAsync(CancellationToken ct = default)
+        => GetAsync("/documents", ct);
+
+    public Task<ApiResult> ActivateDocumentAsync(string assetId, CancellationToken ct = default)
+        => PostAsync($"/documents/{Uri.EscapeDataString(assetId)}/activate", null, ct);
+
+    public Task<ApiResult> FocusPanelAsync(string panelId, CancellationToken ct = default)
+        => PostAsync($"/panels/{Uri.EscapeDataString(panelId)}/focus", null, ct);
+
+    /// <summary>
+    /// ⭐⭐ Open an asset and STEP, so its canvas and outline have actually drawn before anything reads
+    /// them. ⛔ The same frame-boundary contract <see cref="SwitchPerspectiveAndSettleAsync"/> exists for:
+    /// a same-frame read returns the PREVIOUS document's capture and would be blessed as this one's.
+    /// </summary>
+    public async Task<ApiResult> OpenAssetAndSettleAsync(
+        string assetId, int ticks = 3, CancellationToken ct = default)
+    {
+        var opened = await OpenAssetAsync(assetId, ct).ConfigureAwait(false);
+        if (!opened.Ok) return opened;
+        await StepAsync(ticks, ct).ConfigureAwait(false);
+        await Task.Delay(150, ct).ConfigureAwait(false);
+        return opened;
+    }
+
     // ── Group M — focus / annotations ──────────────────────────────────────────
 
     public Task<ApiResult> FocusEntityAsync(long networkId, CancellationToken ct = default)

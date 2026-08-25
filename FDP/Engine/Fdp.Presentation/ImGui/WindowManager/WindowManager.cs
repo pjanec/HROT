@@ -594,6 +594,14 @@ public class WindowManager
             // to the right of the menus. Graphical separators are drawn by
             // MainToolbarManager.DrawSeparator (registered via RegisterSeparator);
             // no ImGui.Separator() pipe character is added here.
+            // ⭐⭐⭐ cgf==editor slice 2 (CE-016) — PUBLISH THE TOOLBAR MODEL EVERY FRAME, ⛔ outside the
+            //    draw guard. 📐 Measured: only EditorSubsystem registers entries, so on a cluster host
+            //    Height is 0 and the guard below skips the render — which would have left `main-toolbar`
+            //    unpublished and made "this host offers no toolbar entries" look identical to "nobody
+            //    instrumented the toolbar". ⭐ See PublishSnapshot's own remarks for why this is a
+            //    deliberate departure from the usual publish-inside-the-draw rule.
+            _mainToolbar.PublishSnapshot(CurrentPerspective);
+
             if (_mainToolbar.Height > 0f)
                 _mainToolbar.RenderInline(CurrentPerspective);
 

@@ -227,9 +227,30 @@ public sealed class ClusterConformanceRails
         //    this rail deliberately does not pause or equalise the two (see its own comment).
         //    ⛔ Making CGF answer "Paused" would be a constant standing in for a clock reading — the
         //    silent-default shape this codebase keeps paying for.
-        ["details"] = "run state genuinely differs (the editor is halted/Planning, the cluster node's "
-                    + "world ticks) and focus follows from which panes each host has. This rail does not "
-                    + "equalise the clocks by design.",
+        // ⚠⚠ REASON EXTENDED `2026-08-25` (slice 2). The `focus` half is GONE — with an asset open on
+        //    both hosts the Details panel now names the SAME asset and the same focused pane, which
+        //    `The_same_opened_asset_looks_the_same_on_both_hosts` asserts directly. ⭐ TWO measured
+        //    reasons remain, and each names the capability whose absence causes it.
+        ["details"] = "two measured reasons, both pre-dating slice 2: (1) $.mode Paused vs Running — the "
+                    + "editor has a PLANNING state with a halted clock while a cluster node's world ticks "
+                    + "from boot (CE-003), and the three-way rail deliberately does not equalise them; "
+                    + "(2) $.offeredViewIds 3 vs 1 — details.runtime.Blueprint requires an "
+                    + "IBlueprintDebugSession and CGF constructs none (CE-004). Reason (2) is deleted "
+                    + "when debug sessions reach CGF. The panel DOES name the opened asset on both hosts "
+                    + "since slice 2 — that half is asserted, not exempted.",
+
+        // ══ cgf==editor SLICE 2, `2026-08-25` — the toolbar becomes SHARED and differs ═════════════
+        // 📐 Measured: the editor publishes a populated main toolbar, `--mode all` publishes an EMPTY
+        //    one — `EditorSubsystem` is the ONLY production caller of MainToolbar.RegisterEntry /
+        //    RegisterSeparator, so a cluster host registers nothing.
+        // ⭐⭐ Slice 2's job was to make the toolbar READABLE (it now publishes on both hosts even when
+        //    it does not draw), ⛔ NOT to give CGF entries — design §7 hands that to whichever later
+        //    slice ports a toolbar-controlled feature, and requires that slice to assert the affordance
+        //    is present and SAME on CGF.
+        ["main-toolbar"] = "the editor registers every main-toolbar entry and a cluster host registers "
+                         + "none, so CGF's toolbar is legitimately EMPTY today (CE-016). Slice 2 made it "
+                         + "readable, not populated. Deleted by the first slice that ports a "
+                         + "toolbar-controlled feature to CGF (design §7).",
     };
 
     // ══ the rails ═════════════════════════════════════════════════════════════
@@ -835,5 +856,294 @@ public sealed class ClusterConformanceRails
             Assert.False(b.ContainsKey(stillEditorOnly),
                 $"--mode all now publishes '{stillEditorOnly}', which EditorOnlyKinds still declares "
               + "editor-only. \u2b50 Delete the entry \u2014 a stale exemption hides real regressions.");
+    }
+
+    // \u2550\u2550 cgf==editor SLICE 2 \u2014 a POPULATED asset \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+    // \ud83d\udcc4 docs/DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md \u00a79.
+
+    /// <summary>\u2b50 The asset kinds slice 2's open path is asserted against, in preference order.</summary>
+    private static readonly string[] PreferredOpenKinds = { "Blueprint", "BTree", "Hsm" };
+
+    /// <summary>
+    /// \u2b50\u2b50 Pick the SAME asset on both hosts \u2014 by <c>sourceFilePath</c>, the address \u00a73a calls the human
+    /// key. \u26d4 Never by index into <c>GET /assets</c>: the two hosts' catalogs are built by the same
+    /// contributors but nothing promises the same ORDER, and comparing two different assets would be a
+    /// green that means nothing.
+    /// </summary>
+    private static async Task<(string AssetId, string Path, string Kind)?> PickSharedAssetAsync(
+        EditorProcess a, EditorProcess b, ITestOutputHelper output)
+    {
+        static async Task<Dictionary<string, (string Id, string Kind)>> IndexAsync(EditorProcess h)
+        {
+            var r = await h.Client.ListAssetsAsync();
+            if (!r.Ok) return new Dictionary<string, (string, string)>(StringComparer.Ordinal);
+
+            var map = new Dictionary<string, (string, string)>(StringComparer.Ordinal);
+            foreach (var n in (r.Field("assets") as JsonArray) ?? new JsonArray())
+            {
+                var path = n!["sourceFilePath"]!.GetValue<string>();
+                map[path] = (n["assetId"]!.GetValue<string>(), n["kind"]!.GetValue<string>());
+            }
+            return map;
+        }
+
+        var ia = await IndexAsync(a);
+        var ib = await IndexAsync(b);
+
+        output.WriteLine($"[{a.Mode}] assets: {ia.Count}   [{b.Mode}] assets: {ib.Count}");
+
+        // ⭐⭐ NAME the difference rather than leaving two counts to be reasoned about. 📌 A count gap is
+        //    exactly the kind of thing a report guesses at ("probably the scenario contributor") — ⛔ this
+        //    prints the actual paths, so the next reader measures instead of inferring.
+        foreach (var only in ia.Keys.Except(ib.Keys, StringComparer.Ordinal).OrderBy(p => p, StringComparer.Ordinal))
+            output.WriteLine($"  only in {a.Mode}: {only}  (kind {ia[only].Kind})");
+        foreach (var only in ib.Keys.Except(ia.Keys, StringComparer.Ordinal).OrderBy(p => p, StringComparer.Ordinal))
+            output.WriteLine($"  only in {b.Mode}: {only}  (kind {ib[only].Kind})");
+
+        var shared = ia.Keys.Intersect(ib.Keys, StringComparer.Ordinal)
+                       .OrderBy(p => p, StringComparer.Ordinal).ToArray();
+        if (shared.Length == 0) return null;
+
+        // \u2b50 Prefer a Blueprint: it is the kind whose Details/outline carry the most structure, so a
+        //   SAME verdict on it is the strongest available. \u26a0 Falls back rather than skipping.
+        foreach (var kind in PreferredOpenKinds)
+        {
+            var hit = shared.FirstOrDefault(p => string.Equals(ia[p].Kind, kind, StringComparison.Ordinal));
+            if (hit != null) return (ia[hit].Id, hit, ia[hit].Kind);
+        }
+
+        var any = shared[0];
+        return (ia[any].Id, any, ia[any].Kind);
+    }
+
+    /// <summary>
+    /// \u2b50\u2b50\u2b50 <b>SLICE 2'S HEADLINE \u2014 the same asset, OPENED on both hosts, and the panels agree.</b>
+    /// \ud83d\udcc4 \u00a79 *("assert graph + MyBlueprint + Details are SAME as the editor \u2014 NOT empty state")*.
+    ///
+    /// <para>\u26d4\u26d4 <b>Why slice 1's green was not enough, stated plainly.</b> \ud83d\udcd0 Slice 1 compared those
+    /// same three kinds and passed \u2014 but with **no asset open on either host**, so it compared two EMPTY
+    /// panels. \u26a0 Two empty panels agree perfectly. \u21d2 \u2b50 this rail is the first one whose SAME verdict is
+    /// about CONTENT.</para>
+    ///
+    /// <para>\u2b50\u2b50 <b>The anti-vacuity guard is the whole rail</b>: it asserts the opened panels are
+    /// non-empty BEFORE comparing them, so a regression that stops opening assets reddens here rather
+    /// than quietly returning to comparing two empty models.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_same_opened_asset_looks_the_same_on_both_hosts()
+    {
+        await using var editor  = await EditorProcess.StartAsync("conf-open-editor");
+        await using var cluster = await EditorProcess.StartAsync("conf-open-all", mode: "all");
+
+        var pick = await PickSharedAssetAsync(editor, cluster, _out);
+
+        Assert.True(pick != null,
+            "the two hosts share NO indexed asset by sourceFilePath. \u2b50 That is slice 2's deliverable: "
+          + "CgfSubsystem.BuildAssetCatalog must index the same asset tree the editor does. \u26d4 If both "
+          + "catalogs are empty the source tree was not found \u2014 check the host log for the resolution "
+          + "warning (ruling 67).");
+
+        var (assetId, path, kind) = pick!.Value;
+        _out.WriteLine($"opening {kind} '{path}' ({assetId}) on both hosts");
+
+        foreach (var host in new[] { editor, cluster })
+        {
+            var opened = await host.Client.OpenAssetAndSettleAsync(assetId);
+            Assert.True(opened.Ok, $"[{host.Mode}] could not open {assetId}: {opened.Error}");
+
+            // \u2b50 The tab really is the active one \u2014 \u26d4 otherwise the canvas draws something else and the
+            //   comparison below is about a different graph.
+            var docs = (await host.Client.ListDocumentsAsync()).EnsureOk();
+            Assert.Equal(assetId, docs.String("activeAssetId"));
+        }
+
+        var a = await CaptureByKindAsync(editor,  _out);
+        var b = await CaptureByKindAsync(cluster, _out);
+
+        // \u2b50\u2b50 The two panels whose CONTENT this slice delivers \u2014 compared whole, with no exemption.
+        string[] kinds = { "graph-canvas", "my-blueprint" };
+
+        foreach (var k in kinds.Concat(new[] { "details" }))
+        {
+            Assert.True(a.ContainsKey(k), $"the EDITOR did not publish '{k}' \u2014 the reference side is missing.");
+            Assert.True(b.ContainsKey(k), $"--mode all did not publish '{k}'.");
+        }
+
+        // \u26d4\u26d4 ANTI-VACUITY \u2014 the point of the whole rail. A graph-canvas still reporting
+        //    hasActiveDocument:false means nothing was opened, and the SAME verdict below would be the
+        //    empty-vs-empty green slice 1 already had.
+        foreach (var host in new[] { ("editor", a), ("cluster", b) })
+        {
+            var canvas = JsonNode.Parse(host.Item2["graph-canvas"].Model)!;
+            Assert.True(canvas["hasActiveDocument"]?.GetValue<bool>() == true,
+                $"[{host.Item1}] graph-canvas reports NO active document after opening {assetId} \u2014 this "
+              + "rail would then be comparing two empty panels, which is exactly what it exists to stop.");
+        }
+
+        var differing = new List<string>();
+        foreach (var k in kinds)
+        {
+            if (string.Equals(a[k].Model, b[k].Model, StringComparison.Ordinal)) continue;
+            var diffs = PanelNormalizer.Diff(JsonNode.Parse(a[k].Model), JsonNode.Parse(b[k].Model));
+            differing.Add($"{k} ({a[k].Id} vs {b[k].Id}): {string.Join(" | ", diffs.Take(4))}");
+        }
+
+        _out.WriteLine($"populated SAME: {kinds.Length - differing.Count}/{kinds.Length}");
+
+        Assert.True(differing.Count == 0,
+            $"with '{path}' OPEN on both hosts, panel(s) DIFFER:\n  " + string.Join("\n  ", differing)
+          + "\n\u26d4 This is content, not empty state \u2014 do not exempt it.");
+
+        // \u2b50\u2b50\u2b50 DETAILS \u2014 asserted for what this slice can honestly claim about it, and NOT more.
+        //
+        // \u26d4\u26d4 Its WHOLE-MODEL verdict is already a DECLARED divergence (`DivergesByDesign["details"]`),
+        //    for two roots that both PRE-DATE slice 2 and neither of which slice 2 touches:
+        //      \u00b7 `$.mode` Paused vs Running \u2014 the hosts' clocks genuinely differ (CE-003);
+        //      \u00b7 `$.offeredViewIds` 3 vs 1 \u2014 `details.runtime.Blueprint` needs an IBlueprintDebugSession
+        //        and CGF constructs none (CE-004/CE-007).
+        // \u26d4 Re-asserting the whole model here would just restate that declaration; \u26d4 and comparing it
+        //    with those fields filtered out would be the narrowing the design forbids.
+        // \u2b50\u2b50 So this asserts the STRONGER, NEW thing instead: after slice 2 the Details panel is about
+        //    THE OPENED ASSET on both hosts. \ud83d\udccc Before this batch it read `assetId: null` and
+        //    "No document is open." on the cluster \u2014 that is the regression this line catches.
+        foreach (var (label, cap) in new[] { ("editor", a), ("cluster", b) })
+        {
+            var det = JsonNode.Parse(cap["details"].Model)!;
+
+            Assert.Equal(assetId, det["assetId"]?.GetValue<string>());
+            Assert.False(string.IsNullOrWhiteSpace(det["assetName"]?.GetValue<string>()),
+                $"[{label}] Details published no assetName for the opened asset.");
+            var empty = det["emptyState"];
+            Assert.True(empty is null || empty.GetValueKind() == System.Text.Json.JsonValueKind.Null,
+                $"[{label}] Details is in an EMPTY state ('{empty}') while {path} is open.");
+        }
+    }
+
+    /// <summary>
+    /// \u2b50\u2b50 <b>The four drive verbs, end to end on the cluster</b> \u2014 discover \u00b7 open by PATH \u00b7 list tabs \u00b7
+    /// activate. \ud83d\udcc4 \u00a79 *(second rail)* \u00b7 \u00a73a *(addressing)*.
+    ///
+    /// <para>\u2b50 Deliberately exercises the <b>path</b> form, not the Guid form the headline rail uses:
+    /// \u26d4 the two addresses resolve through different code, and only one of them was covered otherwise.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_cluster_can_discover_open_and_switch_graph_tabs()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-drive-all", mode: "all");
+
+        var assets = (await cluster.Client.ListAssetsAsync()).EnsureOk();
+        var list   = (assets.Field("assets") as JsonArray)!;
+
+        Assert.True(list.Count > 0,
+            "GET /assets on --mode all returned NOTHING. \u2b50 Slice 2 populates CGF's AssetCatalog; an "
+          + "empty list means the source asset tree was not found (see the host log \u2014 ruling 67).");
+
+        // \u2b50 Every entry carries BOTH addresses \u2014 \u00a73a's contract, asserted rather than assumed.
+        foreach (var n in list)
+        {
+            Assert.True(Guid.TryParse(n!["assetId"]!.GetValue<string>(), out _),
+                "an asset's id is not a GUID \u2014 the URL-segment address must stay URL-safe.");
+            Assert.False(string.IsNullOrWhiteSpace(n["sourceFilePath"]?.GetValue<string>()),
+                $"asset '{n["name"]}' has no sourceFilePath \u2014 the HUMAN address is missing, so "
+              + "open_asset_by_path cannot reach it.");
+        }
+
+        // \u2b50\u2b50 SUBFOLDERS \u2014 \u00a73a requires recursive indexing. \u26a0 Reported rather than asserted when the
+        //    tree happens to be flat: a flat repo is not a defect, but a recursive one that indexed
+        //    only the top level IS, and this line is what would show it.
+        var subfoldered = list.Select(n => n!["sourceFilePath"]!.GetValue<string>())
+                              .Where(p => p.Count(c => c == '/') >= 2).ToArray();
+        _out.WriteLine($"assets: {list.Count}, of which {subfoldered.Length} live below the kind folder");
+
+        var first = list[0]!;
+        var path  = first["sourceFilePath"]!.GetValue<string>();
+        var id    = first["assetId"]!.GetValue<string>();
+
+        // \u2b50 Open by PATH \u2014 the body form.
+        var opened = (await cluster.Client.OpenAssetByPathAsync(path)).EnsureOk();
+        Assert.Equal(id, opened.String("assetId"));
+
+        await cluster.Client.StepAsync(SettleTicks);
+
+        var docs = (await cluster.Client.ListDocumentsAsync()).EnsureOk();
+        Assert.Equal(id, docs.String("activeAssetId"));
+        Assert.True((docs.Field("documents") as JsonArray)!.Count >= 1);
+
+        // \u2b50\u2b50 Open a SECOND asset, then switch BACK \u2014 \u26d4 activating the only open tab would pass
+        //    trivially and prove nothing about the switch.
+        if (list.Count > 1)
+        {
+            var secondId = list[1]!["assetId"]!.GetValue<string>();
+            (await cluster.Client.OpenAssetAsync(secondId)).EnsureOk();
+            await cluster.Client.StepAsync(SettleTicks);
+
+            Assert.Equal(secondId,
+                (await cluster.Client.ListDocumentsAsync()).EnsureOk().String("activeAssetId"));
+
+            (await cluster.Client.ActivateDocumentAsync(id)).EnsureOk();
+            await cluster.Client.StepAsync(SettleTicks);
+
+            Assert.Equal(id,
+                (await cluster.Client.ListDocumentsAsync()).EnsureOk().String("activeAssetId"));
+        }
+        else
+        {
+            _out.WriteLine("only one asset indexed \u2014 the tab-SWITCH half of this rail did not run");
+        }
+
+        // \u2b50 And an unknown id is a typed refusal, \u26d4 not a 500 and not a silent no-op.
+        var bogus = await cluster.Client.ActivateDocumentAsync(Guid.NewGuid().ToString());
+        Assert.Equal(404, bogus.StatusCode);
+    }
+
+    /// <summary>
+    /// \u2b50\u2b50 <b>The MAIN TOOLBAR is readable, on both hosts.</b> \ud83d\udcc4 \u00a76 item \u2464 \u00b7 \u00a77 *(the standing reminder
+    /// that every later feature's toolbar affordance must be present and SAME on CGF)*.
+    ///
+    /// <para>\u26d4 Before slice 2 <c>MainToolbarManager</c> published nothing \u2014 its entries render through
+    /// opaque delegates \u2014 so *"does this host offer that button?"* was unanswerable headlessly.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_main_toolbar_is_readable_on_both_hosts()
+    {
+        await using var editor  = await EditorProcess.StartAsync("conf-toolbar-editor");
+        await using var cluster = await EditorProcess.StartAsync("conf-toolbar-all", mode: "all");
+
+        var a = await CaptureByKindAsync(editor,  _out);
+        var b = await CaptureByKindAsync(cluster, _out);
+
+        Assert.True(a.ContainsKey("main-toolbar"),
+            "the EDITOR does not publish the 'main-toolbar' kind \u2014 MainToolbarManager.RenderEntries "
+          + "must call PublishSnapshot.");
+        Assert.True(b.ContainsKey("main-toolbar"),
+            "--mode all does not publish the 'main-toolbar' kind.");
+
+        var editorEntries  = (JsonNode.Parse(a["main-toolbar"].Model)!["entries"] as JsonArray)!;
+        var clusterEntries = (JsonNode.Parse(b["main-toolbar"].Model)!["entries"] as JsonArray)!;
+
+        _out.WriteLine($"toolbar entries \u2014 editor: {editorEntries.Count}, cluster: {clusterEntries.Count}");
+
+        // \u26d4 Anti-vacuity on the REFERENCE side: a toolbar model with no entries anywhere would make
+        //   this rail vacuous. \u26a0 The CLUSTER's count is deliberately NOT asserted \u2014 see below.
+        Assert.True(editorEntries.Count > 0,
+            "the EDITOR published a main toolbar with ZERO entries \u2014 the reference side is empty, so "
+          + "this rail would prove nothing.");
+
+        // \u2b50 Every item carries the id a later slice will assert its affordance by (\u00a77).
+        foreach (var e in editorEntries.Concat(clusterEntries))
+            Assert.False(string.IsNullOrWhiteSpace(e!["id"]?.GetValue<string>()),
+                "a toolbar item published with no id \u2014 the id is what \u00a77 asserts an affordance by.");
+
+        // \u2b50\u2b50\u2b50 THE MEASURED STATE, ASSERTED AS IT IS \u2014 `2026-08-25`: the cluster's toolbar is EMPTY,
+        //    because `EditorSubsystem` is the ONLY production caller of MainToolbar.RegisterEntry /
+        //    RegisterSeparator. \u26d4 That is a FEATURE gap (CE-016), not an instrumentation gap, and slice
+        //    2's job was to make it VISIBLE rather than to fill it \u2014 \u00a77 hands the filling to whichever
+        //    later slice ports a toolbar-controlled feature.
+        // \u26a0 Asserted as == 0 on purpose: the day CGF registers its first entry this rail REDDENS and
+        //   names \u00a77, which is precisely when someone should be checking the affordance is SAME.
+        Assert.True(clusterEntries.Count == 0,
+            $"--mode all now publishes {clusterEntries.Count} main-toolbar entr(y/ies) \u2014 up from 0. \u2b50 Good "
+          + "news: update this rail to compare the affordances against the editor's, and delete the "
+          + "'main-toolbar' entry from DivergesByDesign if they now agree (\u00a77).");
     }
 }

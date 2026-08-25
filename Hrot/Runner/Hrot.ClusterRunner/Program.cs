@@ -239,6 +239,13 @@ class Program
         foreach (var sub in subsystems.OfType<Hrot.Editor.EditorSubsystem>())
             sub.AiBehaviorsProjectPath = config.AiBehaviorsProjectPath;
 
+        // ⭐⭐ cgf==editor SLICE 2 (CE-013) — CGF indexes the SAME authoring assets, so it reads the SAME
+        //    configured project path. ⛔ Not a second notion of where the assets live: one config value,
+        //    two hosts. 📌 A production caller that HAS a dependency must pass it — the loop above already
+        //    held it, and CGF was not in it.
+        foreach (var sub in subsystems.OfType<Hrot.CGF.CgfSubsystem>())
+            sub.AiBehaviorsProjectPath = config.AiBehaviorsProjectPath;
+
         var options = new RunnerOptions
         {
             Headless       = config.Headless,
@@ -435,6 +442,31 @@ class Program
                 clusterApiService.AttachPerspectives(
                     new Hrot.Editor.AiShared.Documents.WindowManagerPerspectiveSwitcher(windowCtrl.WindowManager));
                 FdpLog<Program>.Info("[Runner] Debug API perspective access attached.");
+
+                // ⭐⭐⭐ cgf==editor SLICE 2 (CE-014) — the AI-ASSET shell, attached on the next line for
+                //    the same reason the perspectives are: this is the first moment both halves exist.
+                // ⛔⛔ It has to happen HERE and nowhere else: Hrot.CGF cannot reference Hrot.Editor
+                //    (DebugApiService's home) because Hrot.Editor already references Hrot.CGF ⇒ this
+                //    composition root is the ONLY place that can see both. 📌 The same reference-wall
+                //    argument EditorSubsystem makes for the HSM details view.
+                // ⚠ Absent on a mode without CGF, and absent on a headless one — GET /assets then
+                //   answers 503 with the wiring explanation, ⛔ not an empty list that would read as
+                //   "this host has no assets".
+                var cgfShell = subsystems.OfType<Hrot.CGF.CgfSubsystem>().FirstOrDefault();
+                if (cgfShell?.AssetShellCatalog is { } shellCatalog
+                 && cgfShell.AssetShellDocuments is { } shellDocs
+                 && cgfShell.AssetShellWindows   is { } shellWindows)
+                {
+                    clusterApiService.AttachAssetShell(shellCatalog, shellDocs, shellWindows);
+                    FdpLog<Program>.Info(
+                        "[Runner] Debug API asset shell attached — {0} asset(s) indexed on CGF.",
+                        shellCatalog.All.Count);
+                }
+                else
+                {
+                    FdpLog<Program>.Info(
+                        "[Runner] No CGF asset shell in this mode — /assets and /documents answer 503.");
+                }
             }
 
             using var consoleSvc = new ConsoleCommandService();

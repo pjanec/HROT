@@ -952,8 +952,14 @@ async function main() {
   let orphanFound = false;
   try {
     const { execSync } = await import('node:child_process');
+    // ⚠ `2>nul` is the WINDOWS null device. On Linux the shell takes it as a FILENAME and this
+    //   check leaves a junk `tools/ai-debug-mcp/nul` file in the working tree every run — measured
+    //   2026-08-25, and it shows up as an untracked file a batch is then tempted to commit.
+    //   ⭐ `2>/dev/null` is discarded correctly by cmd.exe too (it treats it as a path to NUL), so
+    //   one form works on both hosts. ⛔ The stderr redirect itself stays: the whole point is that
+    //   a missing `tasklist` must not print.
     const psOutput = execSync(
-      'tasklist /FI "IMAGENAME eq dotnet.exe" /FO CSV /NH 2>nul',
+      'tasklist /FI "IMAGENAME eq dotnet.exe" /FO CSV /NH 2>/dev/null',
       { encoding: 'utf8', timeout: 5000 },
     );
     // We can't easily check the command line on Windows with tasklist,

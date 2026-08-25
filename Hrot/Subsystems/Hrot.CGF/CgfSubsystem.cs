@@ -117,6 +117,32 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// does *(<c>EditorSubsystem</c> <c>:304</c>/<c>:834</c>)</summary>
     private readonly Hrot.Editor.AiShared.Selection.SharedEntitySelection _sharedEntitySelection = new();
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-013</c> — the POPULATED asset catalog</b> *(slice 2)*. ⚠ Slice 1 held a bare
+    /// <c>new AssetCatalog()</c>, which is why every AiShared window could only render its empty state.
+    /// </summary>
+    private Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder? _aiCatalogBuilder;
+
+    /// <summary>
+    /// ⭐⭐ Path segments of the <c>Hrot.AI.Behaviors</c> project file, used to find the SOURCE tree that
+    /// holds the authoring assets. ⛔ <b>The same property, the same default and the same propagation the
+    /// editor already has</b> *(<c>EditorSubsystem.AiBehaviorsProjectPath</c>, set from
+    /// <c>HrotRunnerConfiguration</c> in <c>Program.cs</c>)* — ⭐ one configured value, two hosts, ⛔ not a
+    /// second notion of where the assets live.
+    /// </summary>
+    public string[] AiBehaviorsProjectPath { get; set; } =
+        new[] { "Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj" };
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-014</c> — the three pieces the debug API needs to drive this host's authoring shell.</b>
+    /// 📄 slice-2 design §3/§5. ⭐ Non-null once <c>BuildAiShell</c> has run *(a non-headless host)*;
+    /// ⛔ null on a headless node, which genuinely has no shell — <c>GET /assets</c> then answers 503 with
+    /// the wiring explanation rather than an empty list that would look like "no assets here".
+    /// </summary>
+    internal Hrot.Editor.AiShared.Catalog.AssetCatalog?     AssetShellCatalog   { get; private set; }
+    internal Hrot.Editor.AiShared.Documents.AiDocumentManager? AssetShellDocuments { get; private set; }
+    internal Fdp.Presentation.WindowManager.WindowManager?  AssetShellWindows   { get; private set; }
+
     private Hrot.Editor.AiShared.Documents.WindowManagerPerspectiveSwitcher? _perspectiveSwitcher;
     private Hrot.Editor.AiShared.Documents.AiDocumentManager?                _aiDocumentManager;
     private Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?      _btreeRegistrar;
@@ -954,20 +980,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _perspectiveSwitcher = new Hrot.Editor.AiShared.Documents.WindowManagerPerspectiveSwitcher(windowManager);
 
         // ── The shared services (§2 :2561 / :2719) ─────────────────────────────
-        // ⚠ CGF has no AiCatalogBuilder — it does not author assets — so the catalog is EMPTY rather
-        //   than absent. ⭐ Honest: the shell needs a catalog to exist, and "no assets indexed" is a
-        //   true statement about this host, not a silent default.
-        var catalog = new Hrot.Editor.AiShared.Catalog.AssetCatalog();
+        // ⭐⭐⭐ SLICE 2 (CE-012/013) — the catalog is POPULATED now. ⚠ Slice 1 built a bare
+        //    `new AssetCatalog()` and said so; that is what made every window show its empty state.
+        _aiCatalogBuilder = BuildAssetCatalog();
+        var catalog       = _aiCatalogBuilder.Catalog;
 
-        // ⚠ ONE contributor, and that is a measured limit rather than an omission: CGF references
-        //   Hrot.Blueprints.Editor, ⛔ not the BTree/HSM editor assemblies, so their contributors are
-        //   not reachable from this assembly. ⭐ Stated here so a reader does not read the short list
-        //   as a forgotten argument (the 2026-08-16 rule cuts both ways: a caller that does NOT have a
-        //   dependency must not pretend to).
+        // ⭐ THREE contributors now, matching the editor: slice 1 had only Blueprint's because
+        //   Hrot.CGF did not reference the BTree/HSM editor assemblies. It does *(CE-012)*.
         var referenceCatalog = new Hrot.Editor.AiShared.References.ReferenceCatalog(
             catalog,
             new Hrot.Editor.AiShared.References.IReferenceCatalogContributor[]
             {
+                new Hrot.BTree.Editor.Catalog.BTreeBlackboardVariableContributor(),
+                new Hrot.BTree.Editor.Catalog.BTreeComposedBlueprintReferenceContributor(),
+                new Hrot.Hsm.Editor.Catalog.HsmReferenceContributor(),
                 new Hrot.Blueprints.Editor.Catalog.BlueprintReferenceContributor(),
             });
 
@@ -1104,14 +1130,210 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    sections). ⇒ ⛔ the SAME KIND was being served by two different classes on the two hosts.
         // ⭐ Both live in Hrot.Blueprints.Editor, which this assembly already references — so the port
         //   is a construction, not a new capability.
-        _blueprintRegistrar.RegisterExtraWindow(windowManager,
-            new Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow());
+        // ⚠ Kept in a local: slice 2 must RETARGET it when the active document changes, exactly as the
+        //   editor does — an outline nobody retargets renders "No blueprint open." for ever (CE-015b).
+        var blueprintOutline = new Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow();
+        _blueprintRegistrar.RegisterExtraWindow(windowManager, blueprintOutline);
         _blueprintRegistrar.RegisterExtraWindow(windowManager,
             new Hrot.Blueprints.Editor.Windows.BlueprintBookmarksWindow(_aiDocumentManager));
 
+        // ── The DOCUMENT FACTORIES (CE-015) ────────────────────────────────────
+        // ⭐⭐⭐ MEASURED `2026-08-25`, and this is the finding that separated "the asset opens" from
+        //    "the asset is USABLE". 📐 With the catalog populated and `POST /assets/{id}/open` working,
+        //    the cluster's graph-canvas reported `hasActiveDocument: true` — and MyBlueprint still said
+        //    "No blueprint open." while Details said "No document is open."
+        // 🔴 The cause: `AiDocument.ViewState` is populated by a DOCUMENT FACTORY subscribed to
+        //    `DocumentOpened`, and CGF had none. ⇒ the document existed and carried NO view state, so
+        //    every surface that reads through the canvas context saw nothing.
+        // ⭐⭐ This mirrors `EditorSubsystem` `:3916-3963` — the same three factories, the same
+        //    arguments, minus the debug sessions this host genuinely does not construct.
+        var bpChannelCatalog     = Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance;
+        var behaviorActions      = new Hrot.Blueprints.Editor.ActionCatalog.BehaviorActionCatalog(
+                                       bpChannelCatalog, schemaExporter);
+        var blueprintPalette     = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreatePaletteRegistry(
+                                       bpChannelCatalog, behaviorActionCatalog: behaviorActions);
+        var blueprintEditService = new Hrot.Blueprints.Editor.NodeDrawers.EditService();
+        var blueprintPeerCatalog = new Hrot.Blueprints.Editor.BlueprintPeerSource(
+                                       Hrot.Editor.AiShared.AssetRoots.AssetsFor(
+                                           Hrot.Editor.AiShared.AssetKind.Blueprint));
+
+        _aiDocumentManager.DocumentOpened += doc =>
+        {
+            if (doc.ViewState != null) return;   // already populated (re-open of an existing doc)
+
+            switch (doc.Kind)
+            {
+                case Hrot.Editor.AiShared.AssetKind.BTree:
+                    // ⚠ `btreeDebugSession: null` — CGF constructs none (slice 1 §9.4). ⛔ Not a silent
+                    //   default: the parameter exists so a host without one can say so.
+                    doc.ViewState = Hrot.BTree.Editor.Host.BTreeDocumentFactory.Build(
+                        doc.Asset, adapters, btreeStore,
+                        btreeDebugSession: null,
+                        breakpointManager: _bpManager,
+                        actionSchema:      schemaExporter,
+                        assetCatalog:      catalog,
+                        openBlueprint:     a => _aiDocumentManager?.Open(a));
+                    break;
+
+                case Hrot.Editor.AiShared.AssetKind.Hsm:
+                    doc.ViewState = Hrot.Hsm.Editor.Host.HsmDocumentFactory.Build(
+                        doc.Asset, adapters,
+                        hsmDebugSession:   null,
+                        breakpointManager: _bpManager);
+                    break;
+
+                case Hrot.Editor.AiShared.AssetKind.Blueprint:
+                    doc.ViewState = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.Build(
+                        doc.Asset, adapters, blueprintEditService, blueprintPalette,
+                        channelCommands:  bpChannelCatalog,
+                        peerAssetCatalog: blueprintPeerCatalog,
+                        behaviorActions:  behaviorActions,
+                        debugSession:     null);
+                    break;
+
+                default:
+                    // Scenario / Blackboard / Utility are not document-backed kinds.
+                    break;
+            }
+        };
+
+        // ── RETARGET ON ACTIVE-DOCUMENT CHANGE (CE-015b) ───────────────────────
+        // ⭐⭐⭐ MEASURED `2026-08-25`, second half of the same finding. With the factories wired the
+        //    cluster's `graph-canvas` matched the editor EXACTLY (breadcrumb and all) — and
+        //    `my-blueprint` still said "No blueprint open." and `details` still had `assetId: null`.
+        // 🔴 Cause: those two do NOT read the document manager. `DetailsContextBuilder.Build` reads the
+        //    perspective's `EditorSelectionStore.ActiveAsset`, and `BlueprintMyBlueprintWindow` holds
+        //    its own retargeted model — both of which the EDITOR feeds from an `ActiveChanged` handler
+        //    (`EditorSubsystem:3012`). ⇒ ⛔ opening a document is NOT enough; the active document has
+        //    to be PUSHED into the stores, or every asset-scoped surface reads null forever.
+        // ⭐ This is the editor's handler, trimmed to what this host has: the three stores, and the
+        //   Blueprint outline. ⛔ No picker-drawer rebuild (no facet pickers here), no legacy store,
+        //   no signature window (not registered on CGF).
+        _aiDocumentManager.ActiveChanged += () =>
+        {
+            var active = _aiDocumentManager.Active;
+
+            btreeStore.ActiveAsset     = active?.Kind == Hrot.Editor.AiShared.AssetKind.BTree     ? active.Asset : null;
+            hsmStore.ActiveAsset       = active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm       ? active.Asset : null;
+            blueprintStore.ActiveAsset = active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint ? active.Asset : null;
+
+            if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
+            {
+                // ⭐ The BlueprintAsset lives on the canvas context the factory just built.
+                var ctx = active.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+                blueprintOutline.Retarget(
+                    editableAsset:  active.Asset,
+                    blueprintAsset: ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset,
+                    hostServices:   ctx?.View.Host,
+                    commands:       ctx?.Commands ?? new NodeEditor.Core.Action.EditorCommandsImpl(),
+                    view:           ctx?.View,
+                    currentGraphId: ctx?.CurrentGraphId,
+                    indicators:     ctx?.Indicators);
+            }
+            else
+            {
+                blueprintOutline.Retarget(null, null, null, null);
+            }
+        };
+
+        // ⭐⭐⭐ SLICE 2 (CE-014) — PUBLISH THE ASSET SHELL so the debug API can be handed it.
+        // 📄 DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md §3/§5.
+        // ⛔⛔ Why this is EXPOSED rather than pushed: on CGF the debug API host is built by
+        //    ClusterRunner/Program.cs, ⛔ not by this subsystem — and Hrot.CGF cannot reference
+        //    Hrot.Editor (where DebugApiService lives) because Hrot.Editor already references THIS
+        //    assembly. ⇒ ⭐ the composition root that can see BOTH does the wiring, exactly as it
+        //    already does for AttachPerspectives.
+        // ⚠ Assigned even when the debug API is off — this is state about the shell, not about the API.
+        AssetShellCatalog   = catalog;
+        AssetShellDocuments = _aiDocumentManager;
+        AssetShellWindows   = windowManager;
+
         FdpLog<CgfSubsystem>.Info(
-            "[CGF] AiShared shell built — perspectives now include [{0}].",
+            "[CGF] AiShared shell built — {0} asset(s) indexed, perspectives now include [{1}].",
+            catalog.All.Count,
             string.Join(", ", windowManager.GetPerspectives()));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-013</c> — build the SAME asset catalog the editor builds.</b>
+    /// 📄 <c>DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md</c> §6 item ①.
+    ///
+    /// <para>⭐⭐ <b>Mirrors <c>EditorSubsystem</c> <c>:986-1061</c>, including the DUAL-LOAD strategy</b>
+    /// *(<c>PU-301</c> §3 <c>D4</c>)*: the assembly contributors first, the JSON file contributors after, so
+    /// a JSON-authored asset wins an <c>AssetId</c> collision. ⛔ Not a CGF-specific catalog — the same
+    /// builder, the same contributor set, so the two hosts cannot index differently.</para>
+    ///
+    /// <para>⭐ <b>Recursion is not something this method does</b> — 📐 measured: all three file
+    /// contributors already enumerate with <c>RecurseSubdirectories = true</c>, so §3a's *"index across
+    /// SUBFOLDERS"* holds by construction and <c>SourceFilePath</c> carries the relative folder path.</para>
+    ///
+    /// <para>🔴 <b>Ruling 67, and it is REPORTED, not silently swallowed.</b> When the source tree is not
+    /// found *(a deployed node)* <see cref="Hrot.Editor.AiShared.AssetRoots.ResolveProjectDir"/> answers
+    /// null, the JSON roots are null, and this logs a WARNING naming what it searched for. ⛔ The catalog
+    /// is then genuinely empty and <c>GET /assets</c> says so — ⚠ a silent empty list is the failure this
+    /// slice exists to end.</para>
+    /// </summary>
+    private Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder BuildAssetCatalog()
+    {
+        // ⭐ ONE walk-up, in AiShared's stated "single authority for roots" — ⛔ not a third private copy
+        //   (EditorSubsystem still holds two inline; re-routing them is filed as CE-018, another lane's file).
+        var aiRootDir = Hrot.Editor.AiShared.AssetRoots.ResolveProjectDir(AiBehaviorsProjectPath);
+
+        if (aiRootDir == null)
+        {
+            FdpLog<CgfSubsystem>.Warn(
+                "[CGF] Hrot.AI.Behaviors project dir NOT found (searched up from CWD + BaseDirectory for "
+              + "'{0}'). The asset catalog will be EMPTY — this is ruling 67 (asset roots must come from "
+              + "config on a deployed node), not a missing capability.",
+                System.IO.Path.Combine(AiBehaviorsProjectPath));
+        }
+
+        string? RootFor(Hrot.Editor.AiShared.AssetKind kind) => aiRootDir == null
+            ? null
+            : System.IO.Path.Combine(aiRootDir, Hrot.Editor.AiShared.AssetRoots.AssetsRelative(kind));
+
+        var bpRootDir = RootFor(Hrot.Editor.AiShared.AssetKind.Blueprint)
+                     ?? System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "Blueprints");
+
+        // ⚠ No debug session on this host, so BTree symbolication is not wired — the contributor takes it
+        //   as an optional argument and CGF genuinely has none (slice 1 §9.4). ⛔ Not a silent default.
+        var btreeContrib     = new Hrot.BTree.Editor.Catalog.BTreeAssetContributor(null);
+        var hsmContrib       = new Hrot.Hsm.Editor.Catalog.HsmAssetContributor();
+        var bpContrib        = new Hrot.Blueprints.Editor.Catalog.BlueprintAssetContributor(bpRootDir);
+        var btreeJsonContrib = new Hrot.BTree.Editor.Catalog.BTreeJsonAssetContributor(null);
+        var hsmJsonContrib   = new Hrot.Hsm.Editor.Catalog.HsmJsonAssetContributor();
+
+        var btreeJsonRoot = RootFor(Hrot.Editor.AiShared.AssetKind.BTree);
+        var hsmJsonRoot   = RootFor(Hrot.Editor.AiShared.AssetKind.Hsm);
+
+        if (btreeJsonRoot != null && System.IO.Directory.Exists(btreeJsonRoot))
+            btreeJsonContrib.Refresh(rootDirectory: btreeJsonRoot);
+        else if (btreeJsonRoot != null)
+            FdpLog<CgfSubsystem>.Warn("[CGF] BTree JSON root not found: {0}", btreeJsonRoot);
+
+        if (hsmJsonRoot != null && System.IO.Directory.Exists(hsmJsonRoot))
+            hsmJsonContrib.Refresh(rootDirectory: hsmJsonRoot);
+        else if (hsmJsonRoot != null)
+            FdpLog<CgfSubsystem>.Warn("[CGF] HSM JSON root not found: {0}", hsmJsonRoot);
+
+        var builder = new Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder(
+            btreeContrib, hsmContrib, bpContrib,
+            asm => btreeContrib.LoadFrom(asm),
+            asm => hsmContrib.LoadFrom(asm),
+            ()  => bpContrib.Refresh(),
+            bTreeJsonContributor: btreeJsonContrib,
+            hsmJsonContributor:   hsmJsonContrib);
+
+        // ⭐⭐ The ASSEMBLY half of the dual load: the compiled BTree/HSM definitions live in the loaded
+        //    Hrot.AI.Behaviors assembly, which CGF loads for its own brains. ⛔ Without this the catalog
+        //    would carry only the JSON-authored assets and the two hosts would index differently.
+        var aiAsm = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
+        if (aiAsm != null) builder.RefreshFromAssembly(aiAsm);
+        else FdpLog<CgfSubsystem>.Warn("[CGF] Hrot.AI.Behaviors assembly not loaded — no compiled AI assets indexed.");
+
+        FdpLog<CgfSubsystem>.Info("[CGF] Asset catalog built — {0} asset(s) indexed.", builder.Catalog.All.Count);
+        return builder;
     }
 
     /// <summary>

@@ -2968,6 +2968,19 @@ namespace Hrot.Editor
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);
             _perspectiveSwitcher.SetDocumentManager(_aiDocumentManager);
 
+            // ⭐⭐⭐ cgf==editor SLICE 2 (CE-014) — HAND THE ASSET SHELL TO THE DEBUG API, ON THE NEXT LINE.
+            //    📄 DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md §3/§5.
+            // ⛔⛔ Same structural rule as N0's AttachPerspectives twenty lines up, and for the same
+            //    measured reason: DebugApiService is built in Initialize, where none of these three
+            //    exist yet, so the dependency HAS to arrive late — and "arrives late" is exactly how a
+            //    silent default gets left behind. ⭐ The pass sits on the line after the manager is
+            //    constructed where a reader cannot miss it.
+            // ⚠ Null when the debug API is off (no HROT_DEBUG_API_PORT) — the correct no-op.
+            // ⭐ WITHOUT THIS the editor answers 503 on GET /assets, and the conformance suite could not
+            //   open the same asset on both hosts — which is slice 2's whole acceptance criterion.
+            _debugApiService?.AttachAssetShell(
+                _aiCatalogBuilder!.Catalog, _aiDocumentManager, windowManager);
+
             // Toolbar debug icons (AiDebugCommands) gate IsEnabled on debugRegistry.ActiveSession. Mirror the active
             // document's debug session into the registry so those icons enable/disable live. Side-effect-free setter
             // (NOT TryAcquire/Release) — the blueprint session is eagerly attached + is DebugProbe.Sink and must NOT be

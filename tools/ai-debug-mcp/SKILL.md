@@ -377,6 +377,26 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: The model is structured JSON, never a formatted blob — assert a field, do not parse prose.; A miss says WHICH kind of miss it is: not instrumented, or instrumented but not drawing..
   Example: `get_panel({"panelId":"editor_bp_manager"})` — read the breakpoint panel's model and assert what it lists.
 
+### Group V — AI assets & graph tabs
+- **`list_assets`** — Every AI asset (BTree/HSM/Blueprint) this host has indexed, with both of its addresses. No params. Returns { count, assets[{assetId,name,kind,sourceFilePath,isDirty}], note? }
+  Notes: CALL THIS FIRST before opening anything — it is how you turn a human path into the assetId the open-by-id route wants.; sourceFilePath is the RELATIVE path including subfolders, normalised to forward slashes; paste it verbatim into open_asset_by_path.; name is NOT an address: two subfolders may hold the same file name. Address by assetId (stable) or sourceFilePath (human).; count:0 with a note means the catalog indexed nothing — on a deployed node the source asset tree is absent (asset roots must come from config)..
+  Example: `list_assets({})` — discover which AI assets this host can open.
+- **`open_asset`** — Open an AI asset by its stable GUID; the graph canvas and outline then render it. Req `assetId` (string). Returns { assetId, name, kind, sourceFilePath, opened, activeAssetId, openDocumentCount, note }
+  Notes: The panels publish the opened asset on the NEXT frame — step a tick before get_panels, or you read the previous content.; Opening an already-open asset re-activates its tab rather than duplicating it.; Opening also switches the perspective to the asset kind (the document manager drives it), so the canvas is actually drawing..
+  Example: `open_asset({"assetId":"00000000-0000-0000-0000-000000000000"})` — open a specific asset by id and make it the active graph.
+- **`open_asset_by_path`** — Open an AI asset by its relative source file path — the human address. Req `path` (string). Returns { assetId, name, kind, sourceFilePath, opened, activeAssetId, openDocumentCount, note }
+  Notes: The path travels in the BODY on purpose — a relative path has slashes and dots, which a URL segment would need encoding for.; Matching is a path SUFFIX at a folder boundary: 'sub/x.bp.json' matches, 'x' does not, and 'my_x.bp.json' never matches a query for 'x.bp.json'.; An AMBIGUOUS path is a 400 that lists the candidates — it is never resolved by picking the first, which would silently open the wrong asset..
+  Example: `open_asset_by_path({"path":"Assets/Blueprints/hill_attack.bp.json"})` — open an asset by the path a human would read off disk.
+- **`list_documents`** — The open graph tabs and which one is active. No params. Returns { activeAssetId, count, documents[{assetId,name,kind,sourceFilePath,isDirty,isActive}] }
+  Notes: Only the ACTIVE document's canvas draws, so this is how you confirm which graph get_panels is about to show you.; This is the editor's own tab model, exposed — not a second list..
+  Example: `list_documents({})` — see which graphs are open and which one is on screen.
+- **`activate_document`** — Switch the active graph tab to an already-open document. Req `assetId` (string). Returns { activeAssetId, note }
+  Notes: Activate only switches between tabs that are ALREADY open; a closed asset is a 404, not an implicit open. Use open_asset for that.; Details and the toolbar re-publish for the newly active kind on the NEXT frame..
+  Example: `activate_document({"assetId":"00000000-0000-0000-0000-000000000000"})` — bring an already-open graph to the front.
+- **`focus_panel`** — Open and focus a window by its panel id. Req `panelId` (string). Returns { panelId, perspective, isOpen, isPinned, note }
+  Notes: An unknown id is a 404 here, deliberately — the underlying UI call is a silent no-op, which over HTTP would hand you a 200 and then the wrong panel.; A perspective-bound window belonging to another perspective is PINNED rather than switched to; the response says which happened.; Focus takes effect on the NEXT frame..
+  Example: `focus_panel({"panelId":"ai_watch_blueprint"})` — bring a specific panel on screen before reading it.
+
 ---
 
 ## 5. Gotchas (the things that actually trip agents up)

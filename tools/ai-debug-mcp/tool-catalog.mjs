@@ -2290,4 +2290,179 @@ export const TOOLS_CATALOG = [
     "manualVerify": false
   },
 
+  // ── Group V — AI assets & graph tabs ────────────────────────────────────────
+
+  {
+    "name": "list_assets",
+    "group": "V — AI assets & graph tabs",
+    "summary": "Every AI asset (BTree/HSM/Blueprint) this host has indexed, with both of its addresses.",
+    "http": {
+      "method": "GET",
+      "path": "/assets"
+    },
+    "params": [],
+    "returns": "{ count, assets[{assetId,name,kind,sourceFilePath,isDirty}], note? }",
+    "notes": [
+      "CALL THIS FIRST before opening anything — it is how you turn a human path into the assetId the open-by-id route wants.",
+      "sourceFilePath is the RELATIVE path including subfolders, normalised to forward slashes; paste it verbatim into open_asset_by_path.",
+      "name is NOT an address: two subfolders may hold the same file name. Address by assetId (stable) or sourceFilePath (human).",
+      "count:0 with a note means the catalog indexed nothing — on a deployed node the source asset tree is absent (asset roots must come from config)."
+    ],
+    "example": {
+      "args": {},
+      "gist": "discover which AI assets this host can open"
+    },
+    "hint": "No params. Example: list_assets({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "open_asset",
+    "group": "V — AI assets & graph tabs",
+    "summary": "Open an AI asset by its stable GUID; the graph canvas and outline then render it.",
+    "http": {
+      "method": "POST",
+      "path": "/assets/{assetId}/open"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of the asset to open — from list_assets"
+      }
+    ],
+    "returns": "{ assetId, name, kind, sourceFilePath, opened, activeAssetId, openDocumentCount, note }",
+    "notes": [
+      "The panels publish the opened asset on the NEXT frame — step a tick before get_panels, or you read the previous content.",
+      "Opening an already-open asset re-activates its tab rather than duplicating it.",
+      "Opening also switches the perspective to the asset kind (the document manager drives it), so the canvas is actually drawing."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "open a specific asset by id and make it the active graph"
+    },
+    "hint": "Req: assetId (GUID, from list_assets). Example: open_asset({assetId:\"...\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "open_asset_by_path",
+    "group": "V — AI assets & graph tabs",
+    "summary": "Open an AI asset by its relative source file path — the human address.",
+    "http": {
+      "method": "POST",
+      "path": "/assets/open"
+    },
+    "params": [
+      {
+        "name": "path",
+        "type": "string",
+        "required": true,
+        "description": "Relative sourceFilePath, or any suffix of it at a folder boundary"
+      }
+    ],
+    "returns": "{ assetId, name, kind, sourceFilePath, opened, activeAssetId, openDocumentCount, note }",
+    "notes": [
+      "The path travels in the BODY on purpose — a relative path has slashes and dots, which a URL segment would need encoding for.",
+      "Matching is a path SUFFIX at a folder boundary: 'sub/x.bp.json' matches, 'x' does not, and 'my_x.bp.json' never matches a query for 'x.bp.json'.",
+      "An AMBIGUOUS path is a 400 that lists the candidates — it is never resolved by picking the first, which would silently open the wrong asset."
+    ],
+    "example": {
+      "args": {
+        "path": "Assets/Blueprints/hill_attack.bp.json"
+      },
+      "gist": "open an asset by the path a human would read off disk"
+    },
+    "hint": "Req: path (string, a sourceFilePath from list_assets). Example: open_asset_by_path({path:\"Assets/Blueprints/sub/x.bp.json\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "list_documents",
+    "group": "V — AI assets & graph tabs",
+    "summary": "The open graph tabs and which one is active.",
+    "http": {
+      "method": "GET",
+      "path": "/documents"
+    },
+    "params": [],
+    "returns": "{ activeAssetId, count, documents[{assetId,name,kind,sourceFilePath,isDirty,isActive}] }",
+    "notes": [
+      "Only the ACTIVE document's canvas draws, so this is how you confirm which graph get_panels is about to show you.",
+      "This is the editor's own tab model, exposed — not a second list."
+    ],
+    "example": {
+      "args": {},
+      "gist": "see which graphs are open and which one is on screen"
+    },
+    "hint": "No params. Example: list_documents({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "activate_document",
+    "group": "V — AI assets & graph tabs",
+    "summary": "Switch the active graph tab to an already-open document.",
+    "http": {
+      "method": "POST",
+      "path": "/documents/{assetId}/activate"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document — from list_documents"
+      }
+    ],
+    "returns": "{ activeAssetId, note }",
+    "notes": [
+      "Activate only switches between tabs that are ALREADY open; a closed asset is a 404, not an implicit open. Use open_asset for that.",
+      "Details and the toolbar re-publish for the newly active kind on the NEXT frame."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "bring an already-open graph to the front"
+    },
+    "hint": "Req: assetId (GUID, from list_documents). Example: activate_document({assetId:\"...\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "focus_panel",
+    "group": "V — AI assets & graph tabs",
+    "summary": "Open and focus a window by its panel id.",
+    "http": {
+      "method": "POST",
+      "path": "/panels/{panelId}/focus"
+    },
+    "params": [
+      {
+        "name": "panelId",
+        "type": "string",
+        "required": true,
+        "description": "Registered window id — the PANEL id from get_panels, not the panel KIND"
+      }
+    ],
+    "returns": "{ panelId, perspective, isOpen, isPinned, note }",
+    "notes": [
+      "An unknown id is a 404 here, deliberately — the underlying UI call is a silent no-op, which over HTTP would hand you a 200 and then the wrong panel.",
+      "A perspective-bound window belonging to another perspective is PINNED rather than switched to; the response says which happened.",
+      "Focus takes effect on the NEXT frame."
+    ],
+    "example": {
+      "args": {
+        "panelId": "ai_watch_blueprint"
+      },
+      "gist": "bring a specific panel on screen before reading it"
+    },
+    "hint": "Req: panelId (string, from get_panels). Example: focus_panel({panelId:\"ai_watch_blueprint\"})",
+    "manualVerify": false
+  },
+
 ];

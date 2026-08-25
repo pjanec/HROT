@@ -50,6 +50,14 @@ public static class CapabilityManifest
             return path.Contains("_gizmo", StringComparison.Ordinal)
                 ? DebugCapabilities.GizmoFrame : DebugCapabilities.Panels;
 
+        // ⭐⭐ cgf==editor slice 2 — the AI-ASSET drive surface. 📄 DESIGN_..._Slice2_Open_Asset.md §3.
+        // ⚠ Classified as EditorAuthoring and NOT as WorldRead, deliberately: these endpoints act on the
+        //   AUTHORING shell (the asset catalog and the graph tabs), ⛔ not on the simulated world. 📌 The
+        //   distinction is what lets a host honestly report "I can read the world but I host no authoring
+        //   shell" — which every cluster node except CGF still is.
+        if (path.StartsWith("/assets", StringComparison.Ordinal))     return DebugCapabilities.EditorAuthoring;
+        if (path.StartsWith("/documents", StringComparison.Ordinal))  return DebugCapabilities.EditorAuthoring;
+
         if (path.StartsWith("/preview", StringComparison.Ordinal))    return DebugCapabilities.Preview;
         if (path.StartsWith("/sim", StringComparison.Ordinal))         return DebugCapabilities.TimeDrive;
         // ⭐⭐ HN-029: the LOAD routes are their OWN capability, not `editor.authoring`.

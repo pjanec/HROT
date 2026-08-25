@@ -120,4 +120,51 @@ public static class AssetRoots
     /// <inheritdoc cref="ScenariosRecipesRelative"/>
     public static string ScenariosRecipesRoot =>
         Path.Combine(AppContext.BaseDirectory, ScenariosRecipesRelative);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Resolve the SOURCE-TREE project directory that holds the authoring assets, by walking up
+    /// for its <c>.csproj</c>.</b>
+    ///
+    /// <para>⚠⚠ <b>Why a walk-up at all.</b> A host's <c>BaseDirectory</c> is its <c>bin</c> folder, not the
+    /// source tree, and the editor-owned <c>*.btree.json</c> / <c>*.hsm.json</c> / <c>*.bp.json</c> assets live
+    /// in the SOURCE tree. ⛔ A hard-coded <c>"../../../"</c> breaks the moment a host runs from a different
+    /// bin depth — 📌 measured, and it is why the editor grew this walk in the first place.</para>
+    ///
+    /// <para>⭐⭐ <b>Lifted here because a SECOND host now needs it</b> *(<c>CgfSubsystem</c>, cgf==editor
+    /// slice 2)*. ⛔ <c>AssetRoots</c> is this codebase's stated <i>"single authority"</i> for roots, so a
+    /// private copy in each composition root is the duplicate ruling 9 forbids.
+    /// ⚠⚠ <b>Two inline copies remain in <c>EditorSubsystem</c></b> *(the catalog block and the
+    /// QuickReload block)* — ⭐ they should ROUTE here, but that file belongs to another lane, so the
+    /// re-route is FILED rather than done *(<c>CE-018</c>)</para>
+    ///
+    /// <para>🔴 <b>This is ruling 67's blocker in one place.</b> On a DEPLOYED node there is no source tree,
+    /// so this answers <see langword="null"/> — ⭐ which is the honest answer, and the caller must SAY so
+    /// rather than silently indexing nothing. ⛔ The fix is config-into-roots, not a deeper walk.</para>
+    /// </summary>
+    /// <param name="csprojSegments">
+    /// ⭐ Path segments of the project file, relative to a repo root — e.g.
+    /// <c>["Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj"]</c>.
+    /// </param>
+    /// <returns>The directory containing that <c>.csproj</c>, or <see langword="null"/> when it is not found.</returns>
+    public static string? ResolveProjectDir(params string[] csprojSegments)
+    {
+        if (csprojSegments is null || csprojSegments.Length == 0) return null;
+
+        var relative = Path.Combine(csprojSegments);
+
+        // ⭐ BOTH starting points, in this order — 📐 the editor measured that neither alone is enough:
+        //   the working directory differs between `dotnet run`, a test harness and a launched binary.
+        foreach (var start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
+        {
+            var dir = start;
+            while (!string.IsNullOrEmpty(dir))
+            {
+                var candidate = Path.Combine(dir, relative);
+                if (File.Exists(candidate)) return Path.GetDirectoryName(candidate);
+                dir = Path.GetDirectoryName(dir);
+            }
+        }
+
+        return null;
+    }
 }
