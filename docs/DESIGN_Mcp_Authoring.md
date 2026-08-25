@@ -10,6 +10,8 @@ current-answer: the whole file. ⭐ §10 (the DISCOVERY surface — list node ki
   🔴 §11 (COMPLETENESS, `2026-08-25`) SUPERSEDES §7②'s 4-verb sketch: the edit surface is the WHOLE
   GraphCommand union (~35 variants incl. attachments=BTree decorators + regions=HSM parallel) via ONE generic
   route, and read/discover/monitor must match it across all three hosts. ⛔ Build §11's shape, not §7's.
+  ✅ APPROVED by the user `2026-08-25`: the union-backbone route (§11.2) + discovery ships schema AND usage
+  docs harvested from descriptive attributes, RouteDoc-style, with a doc-coverage rail (§10.6).
 design-basis: Architect_Question_56_Mcp_Authoring_Surface.md (the decision trail — Q56-A..F resolved with
   the user; this doc is its graduation to a buildable design) · CE-009 (open + read/switch — the
   precondition) · CE-011 (save + QuickReload — the runtime effect) · AQ10 (deterministic pin/link ids on
@@ -264,6 +266,35 @@ sequenceDiagram
 | ⭐ **②** | each route: a `RouteDoc` + a handler in `src/index.mjs`; `gen:catalog`/`gen:skill`/`test-catalog` green | 📌 CE-009 §4c — advertised-but-unreachable tools |
 | ⭐ **③** | **schema-coverage rail:** for **every** kind in `INodeCatalog.All`, `GET .../{kind}/schema` returns without error | ⭐⭐ **this is the auto-discovery proof** — it fails the moment a registry adds a kind the route can't describe, which is exactly what "measured, not authored" must guarantee |
 | ⚠ **④** | ⚠ **sequenced AFTER the mutation batch (§8)** — shares `DebugApiService.Authoring.cs` + the generated catalog; ⛔ not concurrent | branch from a base that includes the merged mutation slice |
+
+### 10.6 ⭐⭐⭐ USAGE DOCS — **harvested from descriptive attributes, NOT hand-authored** *(user, `2026-08-25`)*
+> 🎯 **User:** *"discovery must provide schemas AND enough docs on how to use — gathered from code via
+> descriptive attributes, as elsewhere."* ⭐⭐ **"as elsewhere" = the `RouteDoc` pattern** *(`RouteDoc.cs`:
+> `Summary`·`Returns`·`Hint`·`Params[]`·`Notes[]`·`ExampleArgsJson` — a colocated descriptor harvested at
+> runtime; SKILL.md is GENERATED from it, R-133/HN-030)*. ⇒ ⭐⭐⭐ **discovery returns the same doc SHAPE for
+> node kinds + params, harvested — never a second hand-written catalog.**
+
+**The harvest sources, measured `2026-08-25`:**
+| doc need | ✅ harvest source | kind |
+|---|---|---|
+| kind display name · description · keywords · category | `NodeCatalogEntry` *(already populated per host)* | structural, ✅ auto |
+| ⭐ **which hosts a primitive is valid in** *(BTree action/condition · HSM action/guard · Blueprint call)* | **`GeneratedAiPrimitiveActionAttribute`** flags | structural, ✅ auto |
+| action binding *(DTO type + field)* | `SharedAiActionAttribute(DtoType, FieldName)` + `ActionSchemaEntry` | structural, ✅ auto |
+| ⭐ **param display name · range · unit · read-only · buffer shape** | **StructEdit `Edit*Attribute` family** *(`EditDisplayName`·`EditRange`·`EditUnit`·`EditReadOnly`·`InlineArrayHint`·`FixedBufferHint`)* — the SAME the Details editor reads | structural, ✅ auto |
+| pin name + type + tooltip | `PinSignature` + the pin-tooltip builder | structural, ✅ auto |
+| the discovery ROUTES themselves | **`RouteDoc`** *(self-documenting, like every DebugApi route)* | ✅ auto |
+
+⚠🔴 **THE ONE GAP — free-text "how to use" prose.** ⛔ The attributes above carry **structural** doc; a
+free-text *description/how-to* is NOT in any attribute today — it lives in **XML `/// <summary>` comments.**
+⇒ ⭐ **Recommended lean:** harvest the XML `<summary>` *(ship the doc-XML or extract it)* for the prose half,
+and for kinds/params that lack one add a small **`[Doc("…")]` attribute to the StructEdit family** *(additive,
+one line, exactly the `RouteDoc.Summary` idea at field granularity)*. ⛔ **Do NOT hand-author a parallel doc
+table** — that is the rot `RouteDoc` was built to avoid.
+
+⇒ ⭐⭐ **DOC-COVERAGE RAIL** *(extends 10.5③, mirrors `test-catalog`/`gen:catalog`)*: **every** node kind in
+`INodeCatalog.All` and **every** editable param resolves a non-empty **schema + doc** *(structural always;
+prose from `<summary>`/`[Doc]`)* — the rail REDS on a kind/param that discovery cannot describe **or** document.
+⭐ **That is the machine proof of "enough docs, measured not authored."**
 
 ## 11. 🔴🔴🔴 COMPLETENESS — **the WHOLE command union, and the host specifics** *(user, `2026-08-25`; measured)*
 > 🎯 **User:** *"the goal is to make the graphs and AI assets editable AND monitorable by an AI agent so we
