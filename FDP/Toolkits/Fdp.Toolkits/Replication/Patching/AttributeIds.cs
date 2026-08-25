@@ -67,4 +67,26 @@ public static class AttributeIds
     /// Value type: <c>AttributeValueType.Float64</c>.
     /// </summary>
     public const ushort GeoAlt = 12;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Compass heading in degrees — <c>0 = North, 90 = East, clockwise</b></c> — applied to
+    /// <c>SimTransform.Rotation</c>. Value type: <c>AttributeValueType.Float64</c>.
+    ///
+    /// <para>⭐⭐ <b>This constant is the ONLY new thing heading needed.</b> 📐 Measured
+    /// <c>2026-08-25</c>: the convention, the conversion and the wire field all already exist —
+    /// <c>SimTransformBridgeSystem.HeadingDegToRotation</c> / <c>RotationToHeadingDeg</c>
+    /// *(documented with this exact convention)*, <c>EulerOri.Heading</c>, and
+    /// <c>GeoSpatialEgressTranslator</c>'s yaw→compass step. ⇒ ⛔ **no new conversion math was written**;
+    /// the installer reuses the bridge. 📄 <c>DESIGN_Cgf_AxisB_Rotation_Slice.md</c> §6 ②.</para>
+    ///
+    /// <para>⚠ <b>Degrees, not radians, and compass, not math-yaw</b> — deliberately the same units the
+    /// wire and the DebugApi already use *(<c>headingDeg</c>)*, so nothing on the path has to convert
+    /// twice. ⛔ A radians-or-math-yaw id would be a second convention for one concept.</para>
+    ///
+    /// <para>⚠ <b>Numbering:</b> the class doc reserves 100–199 for geo-spatial, but the shipped
+    /// <c>Geo*</c> ids are 10/11/12 — a pre-existing doc/value mismatch. ⭐ This follows the VALUES and
+    /// takes <c>13</c>, keeping the family contiguous; ⛔ these ids are a WIRE schema, so renumbering the
+    /// existing three to match the prose is not a free edit and is not attempted here.</para>
+    /// </summary>
+    public const ushort GeoHeading = 13;
 }
