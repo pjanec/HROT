@@ -40,15 +40,17 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 | editing + hot reload on CGF *(wholesale; live value-write OFF)* | CE-019..024 | `..._Slice3_Editing_HotReload.md` |
 | watch: concrete pin survives a reload | BP-508..512 | `DESIGN_Variable_Watch_Pinning.md` §11 |
 | network-id allocator unification + Path-B deletion | HN-050..058 | `DESIGN_Deterministic_Network_Ids.md` §11 |
+| ⭐ **MCP AI-asset authoring surface** *(8 routes; merged `2026-08-25`)* | MA-001..010 | `DESIGN_Mcp_Authoring.md` §12 *(AS-BUILT)* |
+| ⭐ **CGF debug pause/step** *(CgfClusterDebugTimeController; merged `2026-08-25`)* | CE-025..030 | `..._Slice4_Debug_PauseStep.md` §10 *(AS-BUILT)* |
 
-## 3. 🔴 IN FLIGHT — verify + merge when each returns *(snapshot `2026-08-25`)*
-| session | branch | from sha | ids | verify checklist |
-|---|---|---|---|---|
-| ⭐ **MCP authoring** *(RUNNING — started `393612b60`)* | `claude/blueprint-macro-feature-sdmspn` | `8cf450cec` | `MA-` | 📄 `DESIGN_Mcp_Authoring.md`. ⭐⭐ **the read exposes IN-MEMORY guids, NOT the save serialization** *(two id spaces — §3)*; own route file `DebugApiService.Authoring.cs`; round-trip rail *(read→add node+link→re-read shows them→save+reload)*; every route has a RouteDoc **+ a handler in `src/index.mjs`** *(CE-009 §4c gap)*; `test-catalog` green |
-| ⭐ **Debug pause/step (slice 4, DQ30)** *(handoff issued at `a0e47e518`; NOT yet started — needs a NEW branch, NOT `sdmspn` which authoring holds)* | *(new)* | `b47af0919` | `CE-` | 📄 `..._Slice4_Debug_PauseStep.md`. `CgfClusterDebugTimeController` replaces the empty `CgfNoOpTimeController`; pause→step→resume rail on a REAL `--mode all` cluster; k-tick barrier drain; DQ30-A halt sim not kernel tick; DQ30-E logs, no modal |
+## 3. ✅ NOTHING IN FLIGHT *(both `2026-08-25` batches verified + merged)*
+| merged batch | ids | verify verdict |
+|---|---|---|
+| **MCP authoring** *(was on `sdmspn`)* | MA-001..010 | ✅ rule-8 report complete: integration suite 99/0, golden ZERO, tree clean, catalog 74→82, red = pre-existing ST-035 A/B'd. Corrected my design in 4 places, folded to §12 *(obligation ⑤)*. Found + fixed **MA-003** *(CGF save was a silent no-op — editor had the dirty-subscription, CGF didn't)*. `InMemoryGraphSerializer` over `IGraphModel` = one id-space by construction *(better than the clipboard I specified)* |
+| **CGF debug pause/step** *(was on UI-lane `qd1qpv`, harness-bound — files disjoint)* | CE-025..030 | ✅ rule-8 report complete: system suite 95/0, reds attributed by git-diff. Corrected my design in 3 places *(CGF is a SLAVE → requests via intents, no roster; k-tick drain was DQ30's REJECTED option; real class `CycloneNetworkIngressSystem`)*, folded to §10. Fixed 3 long-red `CgfLogicPackTests` **CE-030**. ⚠ **open: real-slave barrier + `k` unmeasured = CE-029** |
 
-⚠ **The two are PARALLEL-SAFE** *(disjoint files: authoring = DebugApi/catalog; pause-step = CgfSubsystem/time)*.
-⛔ The one shared risk: a pause-step test-only MCP hook touching the generated catalog ⇒ coordinate the regen.
+⭐ **Merge integration checked:** both edited `CgfSubsystem.cs` in different regions — auto-merged, `Hrot.CGF` builds 0 errors.
+🔴 **ruling-9 note for the NEXT slice:** MA- already SHIPPED `GET /assets/{id}/graph/catalog` *(node-kind list, MA-004)* — the discovery/completeness slice must **EXTEND** it, ⛔ NOT build a parallel `/nodetypes`.
 
 ## 4. ⭐ NEXT, QUEUED *(all sequence AFTER the running MCP mutation batch merges — shared DebugApi/catalog)*
 1. ⭐⭐⭐ **MCP DISCOVER + COMPLETE + INVOKE slice** *(user, `2026-08-25`; the old "discovery" + "B" BUNDLED)*. One slice, one catalog regen, **three invoke surfaces on ONE pattern** *(discover-from-registry → invoke-through-one-seam → harvest docs → coverage rail)*:
