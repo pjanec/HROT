@@ -50,10 +50,13 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 ⚠ **The two are PARALLEL-SAFE** *(disjoint files: authoring = DebugApi/catalog; pause-step = CgfSubsystem/time)*.
 ⛔ The one shared risk: a pause-step test-only MCP hook touching the generated catalog ⇒ coordinate the regen.
 
-## 4. ⭐ NEXT, QUEUED
-1. **B — generic UI-command invoke over MCP** *(the user's "UI control necessity")*: `POST /commands/{id}`+params over `EditorCommandDescriptor`/`GlobalActionRegistry`. ⚠ **sequence AFTER authoring merges** *(DebugApi/catalog collision)*. Not yet designed.
-2. **Axis B** *(map/entity parity — UXI-11/23/10/29)* — gated on the **UXI-30** engine-authority-gate design *(no design doc yet)*.
-3. **Watch/variable follow-ups** *(if the UI lane resumes)*: BP-503 restore-from-file reattach; BP-504/514 ruling-9 dup cleanups.
+## 4. ⭐ NEXT, QUEUED *(all sequence AFTER the running MCP mutation batch merges — shared DebugApi/catalog)*
+1. ⭐⭐ **MCP DISCOVERY surface** *(user, `2026-08-25`)*: list node kinds + a kind's property schema + a node's current properties, **auto-discovered from the registries** *(`INodeCatalog.All` = kinds+pins; `IActionSchemaExporter.DtoFields` = editable params)* — the READ companion that makes §7② add-node/set-param usable. 📄 **`DESIGN_Mcp_Authoring.md` §10** *(READY-TO-BUILD; carries UML + a schema-coverage rail = the "measured not authored" proof)*. ⛔ handoff NOT yet issued *(the mutation batch holds the route file)*.
+2. **B — generic UI-command invoke over MCP** *(the user's "UI control necessity")*: `POST /commands/{id}`+params over `EditorCommandDescriptor`/`GlobalActionRegistry`. Not yet designed.
+3. **Axis B** *(map/entity parity — UXI-11/23/10/29)* — gated on the **UXI-30** engine-authority-gate design *(no design doc yet)*.
+4. **Watch/variable follow-ups** *(if the UI lane resumes)*: BP-503 restore-from-file reattach; BP-504/514 ruling-9 dup cleanups.
+
+⇒ ⭐ **MCP slice order:** mutation *(RUNNING, MA-)* → **discovery (§10)** → B *(UI-command invoke)*. Each branches from the prior merged base; ⛔ never concurrent on `DebugApiService.Authoring.cs` + the generated catalog.
 
 ## 5. ⭐⭐ KEY DECISIONS MADE THIS SESSION *(so they aren't re-litigated)*
 - ⭐⭐⭐ **Build-sink rule** *(`.claude/CLAUDE.md` THREE TEST TIERS, `2026-08-24`)*: ⛔ never full-solution-build in the fix loop *(115 s vs 8 s)*; build the affected PROJECT; T2 = fast everything + new rails; **E2E/system suite = T3, ASYNC, never a foreground blocker**; prove a fix through the rail that reddened, ⛔ don't re-run the whole suite.

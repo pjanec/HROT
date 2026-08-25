@@ -4,7 +4,9 @@ build-state: READY-TO-BUILD — carries classDiagram + sequenceDiagram (§5/§6)
   (sibling of MCP_Integration.md). The MCP server gains AUTHORING: AI-asset (graph document) editing and
   scenario (world) authoring. Dispatch to a SEPARATE session from a base that includes CE-011 (§8).
 updated: 2026-08-25
-current-answer: the whole file.
+current-answer: the whole file. ⭐ §11 (the DISCOVERY surface — list node kinds + read a kind's property
+  schema, auto-discovered from the registries) is a FOLLOW-UP SLICE, sequenced AFTER the mutation batch (§8):
+  it shares the DebugApi route surface + generated catalog, so it CANNOT run concurrently.
 design-basis: Architect_Question_56_Mcp_Authoring_Surface.md (the decision trail — Q56-A..F resolved with
   the user; this doc is its graduation to a buildable design) · CE-009 (open + read/switch — the
   precondition) · CE-011 (save + QuickReload — the runtime effect) · AQ10 (deterministic pin/link ids on
@@ -155,5 +157,110 @@ sequenceDiagram
 ## 9. GATES
 rule 8 + build/test rules. **Row 8 rails:** a conformance/rail that **round-trips** — read graph → add a node+link over MCP → the read now shows them → save+reload → the running brain reflects it; the add-node returns a resolvable guid; a create-asset appears in `GET /assets`; scenario authoring places an entity that `scenario/save` then snapshots. ⛔ `gen:catalog`/`gen:skill`/`test-catalog` green for every new route+handler; conformance suite as the integration gate.
 
-## 10. ⭐ WHEN DONE
-Fold the as-built here; state the ids *(its own lane/prefix)*; the report points here. Mark `AQ56` BUILT.
+## 10. ⭐⭐⭐ THE DISCOVERY SURFACE *(user, `2026-08-25`)* — **"what the user can SEE and change, the MCP can too"**
+> 🎯 **User:** *"the MCP needs to add nodes to graphs, read/set their properties (shown in the detail panel),
+> list all available nodes, and for a given node know its properties schema — all auto-discovered from
+> various registries."* ⭐ **This is a READ companion to surface ① (mutation).** The add-node/set-param half
+> is §7②; ⛔ what was missing is the **DISCOVERY** — the agent can't add a node without knowing *which kinds
+> exist* and *what params a kind takes.* ⭐⭐ **The parity rule:** the palette + Details panel already read
+> these registries; MCP reads the SAME ones. ⛔ Nothing is hand-authored — R-133's discipline *(the manifest
+> is MEASURED from the routes)* applied to node kinds + schema.
+
+### 10.1 ⭐⭐ INVENTORY — the registries, measured `2026-08-25` *(NOT one registry — several)*
+| ✅ the registry | where | what it yields | the user's phrase it answers |
+|---|---|---|---|
+| ⭐⭐⭐ **`INodeCatalog.All`** *(→ `NodeCatalogEntry`)* | `NodeEditor.Core/Interfaces/INodeCatalog.cs` *(in-deg 63)*; populated per host by `BlueprintNodeCatalog` · `BTreeNodeCatalog` · `HsmNodeCatalog` | **every node KIND** with `DisplayName`, `Description`, `CategoryPath`, `Keywords`, flags *(`IsPure`/`IsLatent`/`IsDeprecated`)*, and ⭐ **`Inputs`/`Outputs` (`PinSignature`)** | ⭐ *"list all available nodes"* **and** the pin half of *"its properties schema"* |
+| ⭐⭐ **`IActionSchemaExporter`** *(→ `ActionSchemaEntry.DtoFields`)* | `Hrot.Editor.AiShared/Blackboard/IActionSchemaExporter.cs` | for an **action/condition** kind: the reflected **editable DTO fields** `DtoFieldDescriptor(Name, Type)` + `Access` *(ReadOnly/ReadWrite)* + `Hosting` | ⭐ the **param half** of *"its properties schema"* — the fields the Details/Variables panel shows |
+| ⚠ node **param model / drawer** *(`NodeDrawers/*`, `Inspector/DrawerRegistry`)* | `Hrot.Blueprints.Editor` | for **structural** kinds *(non-action)*: the editable config fields the inspector draws | the param half for non-action nodes |
+| ⛔ `DetailsViewRegistry.OfferSet` *(which PANEL to draw)* | `Hrot.Editor.AiShared/Shell` | **NOT exposed** — it selects a UI *view*, not data | — *(scope line: MCP returns the property DATA, not the panel chrome)* |
+
+⇒ ⭐⭐⭐ **"various registries" is literal:** kinds+pins from `INodeCatalog`, editable params from `IActionSchemaExporter` *(action nodes)* or the drawer *(structural nodes)*. ⭐ **The catalog is PER OPEN DOCUMENT** *(the host's palette)* — so discovery keys off the **same open-document handle the §7 mutation routes already require**; ⚠ the impl confirms the open `AiDocument`/host exposes its `INodeCatalog` *(thread it from the catalog builder if not)*.
+
+### 10.2 ⭐ THE ROUTES *(read-only; mutation is §7)*
+| # | route | reads | returns |
+|---|---|---|---|
+| ⭐ **①** | **`GET /assets/{id}/nodetypes`** | the open document's `INodeCatalog.All` | every kind: `kind`, `displayName`, `description`, `categoryPath`, flags, `inputs`/`outputs` *(name·direction·type)* — ⭐ **the palette the user sees** |
+| ⭐ **②** | **`GET /assets/{id}/nodetypes/{kind}/schema`** | the catalog entry *(pins)* **+** `IActionSchemaExporter.Lookup(fqn)` *(DTO fields)* or the drawer *(structural params)* | `pins` + `params` *(name·type·enum-values if enum·readOnly)* — ⭐ **the properties schema for one kind** |
+| ⭐ **③** | **`GET /assets/{id}/graph/nodes/{nodeGuid}/properties`** | §7①'s graph read *(current param VALUES by guid)* **joined** with ②'s schema | the node's current properties **as the Details panel shows them** *(schema + value)* — ⭐ the *read* half of *"read/set properties shown in the detail panel"* |
+
+⭐⭐ **The SET half is already §7② `POST /assets/{id}/graph/params`** *(`SetNodeProperty` via the command sink)* — discovery adds the SCHEMA + the node-scoped read that makes that set target the right field with the right type. ⇒ **the full loop:** `list kinds → read a kind's schema → add a node of that kind → read its properties → set a param → save+reload.`
+
+### 10.3 ⭐⭐⭐ DISCOVERY CLASS DIAGRAM
+```mermaid
+classDiagram
+    direction LR
+    class DebugApiDiscovery {
+        <<NEW · DebugApiService.Authoring.cs · read-only routes>>
+        +ListNodeTypes(assetId)
+        +GetNodeTypeSchema(assetId, kind)
+        +GetNodeProperties(assetId, nodeGuid)
+    }
+    class INodeCatalog {
+        <<exists · NodeEditor.Core · the palette source, per host>>
+        +All IReadOnlyList~NodeCatalogEntry~
+        +Query(NodeSearchQuery)
+    }
+    class NodeCatalogEntry {
+        <<exists · kind + pins + flags>>
+        +Kind NodeKindKey
+        +DisplayName string
+        +Inputs IReadOnlyList~PinSignature~
+        +Outputs IReadOnlyList~PinSignature~
+    }
+    class IActionSchemaExporter {
+        <<exists · reflected editable DTO fields for action/condition kinds>>
+        +Lookup(fqn) ActionSchemaEntry
+    }
+    class ActionSchemaEntry {
+        <<exists · DtoFields = the editable params>>
+        +DtoFields IReadOnlyList~DtoFieldDescriptor~
+        +Access BlackboardAccess
+    }
+    class AiDocumentManager {
+        <<exists · CE-009 · the open document holds its INodeCatalog>>
+    }
+    DebugApiDiscovery ..> AiDocumentManager : the open document (same handle as §7)
+    DebugApiDiscovery ..> INodeCatalog : ListNodeTypes reads All
+    INodeCatalog ..> NodeCatalogEntry : yields
+    DebugApiDiscovery ..> IActionSchemaExporter : GetNodeTypeSchema (param half)
+    IActionSchemaExporter ..> ActionSchemaEntry : yields
+    note for DebugApiDiscovery "MEASURED from the registries, never hand-authored (R-133). DetailsViewRegistry (which PANEL) is NOT exposed — MCP returns the property DATA, not the view."
+```
+
+### 10.4 ⭐⭐⭐ DISCOVERY SEQUENCE DIAGRAM *(the full authoring loop discovery unlocks)*
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as AI agent (MCP)
+    participant Api as DebugApiDiscovery / Authoring
+    participant Cat as INodeCatalog (open doc)
+    participant Sx as IActionSchemaExporter
+    participant Sink as ICommandSink
+
+    A->>Api: GET /assets/{id}/nodetypes
+    Api->>Cat: All
+    Cat-->>A: kinds + pins + categories (the palette)
+    A->>Api: GET /assets/{id}/nodetypes/{kind}/schema
+    Api->>Cat: entry(kind) for pins
+    Api->>Sx: Lookup(fqn) for editable DTO fields
+    Sx-->>A: pins + params (name, type, enum, readOnly)
+    A->>Api: POST /assets/{id}/graph/nodes with kind
+    Api->>Sink: Apply AddNode
+    Api-->>A: the new node guid
+    A->>Api: GET /assets/{id}/graph/nodes/{guid}/properties
+    Api-->>A: schema + current values (as the Details panel shows)
+    A->>Api: POST /assets/{id}/graph/params (set one, §7②)
+    Api->>Sink: Apply SetNodeProperty
+    Note over A,Sink: then save+reload (§6) — the running brain reflects the authored node
+```
+
+### 10.5 ⭐ ITEMS & GATES *(the follow-up slice)*
+| # | task | the one thing not to get wrong |
+|---|---|---|
+| ⭐ **①** | the three read routes *(10.2)* off the open document's `INodeCatalog` + `IActionSchemaExporter` | ⛔ **read the registries — never a hand-authored kind/param list** *(R-133; a hard-coded list rots the moment a node kind is added)* |
+| ⭐ **②** | each route: a `RouteDoc` + a handler in `src/index.mjs`; `gen:catalog`/`gen:skill`/`test-catalog` green | 📌 CE-009 §4c — advertised-but-unreachable tools |
+| ⭐ **③** | **schema-coverage rail:** for **every** kind in `INodeCatalog.All`, `GET .../{kind}/schema` returns without error | ⭐⭐ **this is the auto-discovery proof** — it fails the moment a registry adds a kind the route can't describe, which is exactly what "measured, not authored" must guarantee |
+| ⚠ **④** | ⚠ **sequenced AFTER the mutation batch (§8)** — shares `DebugApiService.Authoring.cs` + the generated catalog; ⛔ not concurrent | branch from a base that includes the merged mutation slice |
+
+## 11. ⭐ WHEN DONE
+Fold the as-built here; state the ids *(its own lane/prefix)*; the report points here. Mark `AQ56` BUILT. ⭐ The discovery slice *(§10)* folds its as-built into §10 and flips the parity claim *("what the user sees, MCP reads")* from designed to built.
