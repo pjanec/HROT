@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — decision-shaped, RECOMMENDED LEANS below; ⛔ NOT ready-to-build. This is the BASIS
-  FOR A DISCUSSION with the user (parallel session extends the MCP server with scenario + AI-asset
-  authoring). Resolve the sub-questions WITH the user, THEN it earns UML + a handoff.
+build-state: RESOLVED — Q56-A/C/D resolved with the user `2026-08-25`; B/E/F are reuse-leans. ⭐ GRADUATED
+  to a buildable design: 📄 **[`docs/DESIGN_Mcp_Authoring.md`](../DESIGN_Mcp_Authoring.md)** carries the UML
+  and is the record to build from. ⛔ This file is now the DECISION TRAIL, not the spec.
+superseded-for-implementation: ../DESIGN_Mcp_Authoring.md
 updated: 2026-08-25
 current-answer: the sub-questions Q56-A..F + their recommended leans. Awaiting the user's resolution.
 design-basis: DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md §8 (the parallel-track collision plan) ·
