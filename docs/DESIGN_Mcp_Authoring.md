@@ -1,25 +1,24 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT — `2026-08-25`, ids `MA-001`…`MA-010`. §10 IS THE AS-BUILT and wins over anything above
-  it that disagrees. §5's classDiagram has been REDRAWN to the as-built; the dispatched version is in
-  §13 HISTORY. Carries classDiagram + sequenceDiagram (§5/§6). Part of the MCP design docs (sibling of
-  MCP_Integration.md).
+build-state: BUILT — `2026-08-25`, ids `MA-001`…`MA-018`, in TWO batches.
+  ⭐ §12 is the as-built of the mutation batch (`MA-001`…`010`); §15 is the as-built of discovery + the
+  union backbone + the editor command bus (`MA-011`…`018`). BOTH win over the sections above them that
+  they supersede. §5's classDiagram was REDRAWN to the mutation batch's as-built; the dispatched version
+  is §13 HISTORY. Part of the MCP design docs (sibling of MCP_Integration.md).
 updated: 2026-08-25
-current-answer: ⭐ §12 for WHAT EXISTS (the as-built of the mutation batch, `MA-001`…`MA-010`);
-  §5/§6 for its shape; §1–§4 for the WHY, which the build did not change.
-  ⭐ §10 (the DISCOVERY surface) and §11 (COMPLETENESS — the whole GraphCommand union) are the NEXT
-  slices, written AFTER the mutation batch was dispatched. ⛔ They describe work NOT YET BUILT.
+current-answer: ⭐ TWO as-built sections, and both are current:
+  §12 = the mutation batch (`MA-001`…`MA-010`) · §15 = discovery + the union + the editor command bus
+  (`MA-011`…`MA-018`). ⭐ §5/§6 carry the mutation batch's diagrams; §1–§4 the WHY, unchanged by either.
+  ⛔ §10/§10.6/§10.7/§11 are now BUILT — read §15 for what actually shipped where they disagree.
 known-rot: ⚠ §3's "closer analog to reuse: BlueprintClipboard" is WRONG and §12.1 supersedes it — measured,
   the clipboard round-trips Blueprint ASSET nodes and carries no PinId at all. The RULE §3 states (two id
   spaces; expose the in-memory ids) is CORRECT and load-bearing; only the named analog was wrong.
   ⚠ §7's item list is missing the node-kind CATALOG route, which building the edit routes proved necessary
   (§12.2). ⚠ §7 ④ said "extend /entities/* for the gaps (place/configure/assign)"; measured, those three
   already had routes and DELETE was the only gap (§12.5).
-known-conflict: 🔴🔴 §11 (added AFTER dispatch `8cf450cec`) says "the edit surface is the WHOLE GraphCommand
-  union via ONE generic route — build §11's shape, not §7's". §12 IS §7's shape: 4 typed verbs, built and
-  shipped before §11 existed. ⛔ NOT adapted — scope was frozen at the dispatch sha; reported instead
-  (REPORT_Mcp_Authoring.md §8). ⚠ §10.2 ①'s proposed `GET /assets/{id}/nodetypes` is the SAME capability
-  as the SHIPPED `GET /assets/{id}/graph/catalog` (§12.2, MA-004) — building both is ruling 9's duplicate.
+known-conflict: ✅ RESOLVED `2026-08-25` by the follow-up batch. §11's union route is now BUILT (§15.4)
+  and the four typed verbs remain as its sugar, which §11.2 explicitly allows. §10.2 ①'s `/nodetypes` was
+  NOT built — the shipped `graph/catalog` route was extended instead (§15.3), so ruling 9 holds.
 design-basis: Architect_Question_56_Mcp_Authoring_Surface.md (the decision trail — Q56-A..F resolved with
   the user; this doc is its graduation to a buildable design) · CE-009 (open + read/switch — the
   precondition) · CE-011 (save + QuickReload — the runtime effect) · AQ10 (deterministic pin/link ids on
@@ -649,6 +648,114 @@ classDiagram
     DebugApiAuthoring ..> CommandBuilder : build forward+inverse
     DebugApiAuthoring ..> ICommandSink : Apply
 ```
+
+---
+
+## 15. ⭐⭐⭐ AS BUILT — §10 / §10.6 / §10.7 / §11, `2026-08-25`, ids `MA-011`…`MA-018` *(obligation ⑤)*
+
+> ⭐⭐ **§10, §10.6, §10.7 and §11 are BUILT.** This section is the as-built and wins over them where they
+> disagree. ⛔ §12 remains the as-built of the earlier mutation batch *(`MA-001`…`010`)*, which this
+> EXTENDS — nothing there was replaced.
+
+### 15.1 ⭐ What shipped — seven routes
+
+| route | tool | §  |
+|---|---|---|
+| `GET /assets/{id}/graph/command` | `list_graph_command_types` | §11.2 |
+| ⭐⭐⭐ `POST /assets/{id}/graph/command` | `apply_graph_command` | §11.2 — **the union backbone** |
+| `GET /assets/{id}/graph/catalog/{kind}` | `get_node_kind_schema` | §10.2 ② |
+| `GET /assets/{id}/graph/nodes/{guid}/properties` | `get_node_properties` | §10.2 ③ |
+| `GET /editor/commands` | `list_editor_commands` | §10.7 |
+| `GET /editor/commands/{id}` | `get_editor_command` | §10.7 |
+| `POST /editor/commands/{id}/invoke` | `invoke_editor_command` | §10.7 |
+
+📐 `gen:catalog` **82 → 89 tools** · `test-catalog` **713 / 0** · the editor unit suite **248 / 0**.
+
+### 15.2 🔴🔴 `GET /commands` WAS ALREADY TAKEN — **the routes are `/editor/commands`**
+
+⛔ §10.7 proposed `GET /commands`. 📐 **Measured: it has existed since Group F** as `list_commands` —
+*"enumerate publishable FDP event types with field schemas"* — and **`send_entity_command` depends on
+it**. ⇒ ⭐ the editor command bus lives under **`/editor/commands`**, which is also the honest name: this
+is the EDITOR's command bus, ⛔ not the FDP event bus. ⚠ The new prefix required a `CapabilityManifest`
+line — ⭐ **the designed inversion** *(an unclassified prefix REDDENS `CapabilityManifestRails`)*,
+⛔ not a hand-authored availability cell, so `R-133` is intact.
+
+### 15.3 ⭐⭐ §10.2 ①'s `/nodetypes` was NOT built — the shipped catalog route was EXTENDED
+
+⭐ The handoff §1 already overrode it, and the override came from the mutation batch's own report §8.
+⇒ `GET /assets/{id}/graph/catalog` gained the shared `DescribeKind` projection and the per-kind schema
+hangs off it as `…/catalog/{kind}`. ⛔ A parallel `/nodetypes` would have been ruling 9's duplicate.
+
+### 15.4 ⭐⭐⭐ THE UNION — **35 variants, and a rail that keeps it complete**
+
+⭐ `GraphCommandJson` reads **every** `sealed record` nested in `GraphCommand` and applies it through
+`GraphView.Execute` *(the undo stack — §12.2)*. ⭐⭐ **`Batch` is atomic** and its inverses are reversed.
+
+⛔⛔ **Hand-written, not `JsonSerializer` polymorphism** — 📐 the variants are positional records over
+NodeEdit primitives *(`readonly record struct` id wrappers, `Vector2`/`Vector4`,
+`IReadOnlyDictionary<string, object?>`)*, and **`[JsonPolymorphic]` cannot be added because NodeEdit is a
+VENDORED tree this lane does not own**. ⭐ The explicit reader also lets every failure NAME the field.
+
+⚠⚠ **`undoable: false` is REPORTED, never faked.** The refactor ops, `SetNodeProperty`,
+`SetAttachmentProperty`, `SetRegionProperty` and `RemoveRegion` cannot have an inverse derived from the
+READ-ONLY model. ⛔ A wrong inverse corrupts the graph on undo, silently — so none is recorded and the
+response says so. ⭐ A `Batch` with any un-invertible step is not undoable **as a whole**: a PARTIAL
+inverse is worse than none.
+
+⇒ ⭐⭐⭐ **The permanence control is a UNIT rail**, `TheCommandRouteCoversTheWholeUnionTests` *(~5 ms)*:
+it reflects over the union and fails when a variant is **neither reachable nor declared unsupported**,
+and fails the other way on a row naming a variant that no longer exists. ⛔ Replacing four hand-picked
+verbs with thirty-five hand-written arms would otherwise re-open the same decay §11.2 diagnosed.
+
+### 15.5 🔴🔴 THE DEFECT THE FIRST RAIL RUN FOUND — **a sink can ACCEPT and build nothing**
+
+📐 **Measured `2026-08-25`:** `AddAttachment` applied to a **Blueprint** returns
+`GraphCommandResult.Success` with no message and **creates no attachment** — attachments are a BTree/HSM
+concept *(decorators, condition pills)* and `BlueprintCommandSink` has no arm for them.
+
+⇒ ⛔ trusting `Success` would hand the agent an `attachmentId` that addresses nothing — 📌 exactly the
+silent-wrong-answer `MA-004` caught for add-node, now generalised: ⭐⭐ **every id a command MINTS must
+resolve in the model before the route reports success.** A host that cannot serve a variant now says so,
+naming the variant and why.
+
+### 15.6 ⭐⭐ DISCOVERY — two measured limits, stated in the payload
+
+| ⛔ the limit | ⭐ what is reported instead |
+|---|---|
+| **The catalog cannot say whether a kind is a CONTAINER.** 📐 Container-ness is `IContainerNodeModel`, implemented by an INSTANCE; `NodeCatalogEntry` has no such flag | the kind payload carries `paletteAction` *(CreateNode vs AttachToSelected)* and `attachmentCategory` — the structure facts the catalog DOES have. ⭐ Container/region structure is reported **per node** by `GET …/graph` |
+| **`IActionSchemaExporter` is keyed by action FQN, which belongs to a node INSTANCE, not a kind.** 📐 Every production caller reads the fqn off the selected node | the route tries the kind id as an fqn, then a suffix match, and reports which in **`paramsSource`**: `exporter:exact` · `exporter:suffix` *(probable, not certain)* · `none:not-an-action` · `none:dto-fields-not-reflected` · `none:no-exporter-wired`. ⛔ An empty list without that field would read as *"this kind has no params"* — a different and often false claim |
+
+⚠ **`ActionSchemaEntry.DtoFields` is NULLABLE**, and null ≠ empty: null means the DTO was never
+reflected, empty means it was and has no editable fields. ⭐ Reported as distinct sources.
+
+### 15.7 ⭐⭐ THE DOC HARVEST — `EditDocAttribute`, and what it closes
+
+⭐ Params are documented from the **same attributes the Details editor reads**: `EditDisplayName` ·
+`EditRange` · `EditUnit` · `EditReadOnly` · `InlineArrayHint`/`FixedBufferHint`, plus enum values.
+⭐⭐⭐ **`EditDocAttribute` is NEW** *(`StructEdit.Core.Attributes`, additive)* — §10.6's measured gap: the
+free-text *"how to use"* half lives only in XML `<summary>` comments and is in **no** attribute. It is
+`RouteDoc.Summary` at field granularity. ⛔ **Never a parallel hand-authored doc table** — that is the rot
+`RouteDoc` was built to avoid.
+
+⚠⚠ **The rail asserts SCHEMA coverage at 100% and MEASURES doc coverage against a floor**, and the split
+is deliberate: a schema comes from registries the host must already populate to draw its palette ⇒ a kind
+that cannot be described is a real defect. ⛔ Prose is different — demanding 100% today would redden on a
+gap this slice **opened the door to closing** rather than one it caused. ⭐ The rail PRINTS the percentage
+so it can be ratcheted.
+
+### 15.8 ⭐ THE EDITOR COMMAND BUS — the parity assertion that matters
+
+⭐⭐⭐ **A DISABLED command is refused with `409` BEFORE it is invoked.** 📐 `EditorCommandsImpl` will run a
+handler whose `IsEnabled` is false — the UI simply never offers it. ⇒ ⛔ without the pre-check MCP would
+be **the one path that can do what the editor greys out**, which is precisely the parity this surface
+exists to preserve. ⚠ Ruling 53: the origin does not pre-flight a confirmation — it **logs** every
+invocation, which is the whole safety net.
+
+⭐ The set is resolved **per active document** through a lambda, ⛔ not captured: it is built by the
+per-kind document factory, so a captured instance would pin the API to whichever document was open when
+the composition root ran.
+
+⛔ `GlobalActionRegistry` stays OUT, as §10.7 ruled — int-keyed, no descriptor, not self-documenting.
 
 ## 14. ⭐ WHEN DONE
 Fold the as-built here; state the ids *(its own lane/prefix)*; the report points here. Mark `AQ56` BUILT. ⭐ The discovery slice *(§10)* folds its as-built into §10 and flips the parity claim *("what the user sees, MCP reads")* from designed to built. ⭐⭐ **The completeness rail *(§11)* — every semantic `GraphCommand` variant round-trips across all three hosts — is the machine proof that "editable = whatever the human can do."**

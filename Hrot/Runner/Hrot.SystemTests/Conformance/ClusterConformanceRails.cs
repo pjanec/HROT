@@ -1765,197 +1765,215 @@ public sealed class ClusterConformanceRails
         var list   = (assets.Field("assets") as JsonArray)!;
         Assert.True(list.Count > 0, "GET /assets returned nothing - no graph to author.");
 
-        // ⭐⭐⭐ A BTREE, deliberately — and finding out WHY is what this rail bought.
-        // 🔴 MEASURED `2026-08-25`: the first cut targeted a Blueprint, and `AddAttachment` came back
-        //    Success with no message having built NOTHING. Attachments are a BTree/HSM concept (decorators,
-        //    condition pills) and `BlueprintCommandSink` has no arm for them.
-        // ⇒ ⭐ TWO fixes came out of it: the union route now verifies every MINTED id resolves in the
-        //    model before reporting success (so a host that cannot serve a variant SAYS so), and this rail
-        //    applies host-specific variants to a host that owns them.
-        var pick = list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "BTree")
-                ?? list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "Hsm")
-                ?? list[0];
-        var id   = pick!["assetId"]!.GetValue<string>();
-        var name = pick["name"]!.GetValue<string>();
-        _out.WriteLine($"union target: {name} ({pick["kind"]}) {id}");
-
-        (await cluster.Client.OpenAssetAndSettleAsync(id)).EnsureOk();
-
-        // ── the route DESCRIBES itself, so nothing below guesses a payload ────
-        var types = (await cluster.Client.ListGraphCommandTypesAsync(id)).EnsureOk();
-        var variants = (types.Field("variants") as JsonArray)!;
-        _out.WriteLine($"the host advertises {variants.Count} command variant(s)");
-
-        Assert.True(variants.Count > 20,
-            $"the command route advertises only {variants.Count} variants. The union has ~35 - either the "
-          + "schema table shrank or the route is describing something else.");
-
-        var advertised = variants.Select(v => v!["type"]!.GetValue<string>())
-                                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var required in new[] { "AddAttachment", "AddRegion", "ChangeParent", "Batch", "AddComment" })
-            Assert.True(advertised.Contains(required),
-                $"'{required}' is not advertised. That is a host specific the typed verbs cannot express, "
-              + "and it is the reason the union route exists.");
-
-        var before = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
-        var hostNode = ((before.Field("nodes") as JsonArray)!).FirstOrDefault();
-        Assert.True(hostNode != null,
-            $"'{name}' reads as an empty graph, so there is no node to decorate or reparent.");
-        var hostNodeId = hostNode!["nodeId"]!.GetValue<string>();
+        // ⭐⭐⭐ PER HOST, and finding out WHY is what two red runs of this rail bought.
+        // 🔴 Run 1: `AddAttachment` on a BLUEPRINT returned Success having built NOTHING — attachments are
+        //    a BTree/HSM concept and `BlueprintCommandSink` has no arm for them.
+        // 🔴 Run 2, on a BTREE: `AddComment` came back "Unsupported: AddComment" — the BTree sink refuses
+        //    comments outright — and a bare `AddAttachment` STILL built nothing, because the sink needs
+        //    `hostProperties.paletteKind` to know WHICH concrete decorator to construct (that is what
+        //    `PaletteEntryExecutor` passes when a human picks one).
+        // ⇒ ⭐⭐ THREE things came out of it: the union route now verifies every MINTED id resolves before
+        //    reporting success; the rail drives each variant on a host that OWNS it; and the attachment is
+        //    built the way the picker builds it, from a catalog entry rather than from nothing.
+        var btree     = list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "BTree");
+        var blueprint = list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "Blueprint");
 
         var applied = new List<string>();
         var refused = new List<string>();
 
-        // ── ① AN ATTACHMENT — the BTree-decorator shape, unreachable before this slice ──
-        var addAttachment = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+        // ── ① ATTACHMENTS on a BTREE — the decorator shape the typed verbs cannot express ──
+        if (btree != null)
         {
-            ["type"]  = "AddAttachment",
-            ["host"]  = hostNodeId,
-            ["label"] = "mcp-rail",
-        });
+            var id   = btree["assetId"]!.GetValue<string>();
+            var name = btree["name"]!.GetValue<string>();
+            _out.WriteLine($"attachment target: {name} (BTree) {id}");
 
-        if (addAttachment.Ok)
-        {
-            applied.Add("AddAttachment");
-            var attachmentId = addAttachment.Field("newIds")?["attachmentId"]?.GetValue<string>();
-            Assert.False(string.IsNullOrWhiteSpace(attachmentId),
-                "AddAttachment succeeded and returned no attachmentId. The caller cannot address what it "
-              + "just created, which is the half of Q56-D that makes determinism a non-problem.");
+            (await cluster.Client.OpenAssetAndSettleAsync(id)).EnsureOk();
 
-            // ⭐⭐ THE READ-BACK — this is what `MA-011`'s serializer widening bought.
-            var afterAttach = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
-            var attachIds = ((afterAttach.Field("attachments") as JsonArray) ?? new JsonArray())
-                            .Select(a => a!["attachmentId"]!.GetValue<string>())
-                            .ToHashSet(StringComparer.Ordinal);
+            // The route describes itself first - nothing below guesses a payload.
+            var types = (await cluster.Client.ListGraphCommandTypesAsync(id)).EnsureOk();
+            var variants = (types.Field("variants") as JsonArray)!;
+            _out.WriteLine($"the host advertises {variants.Count} command variant(s)");
 
-            Assert.True(attachIds.Contains(attachmentId!),
-                $"AddAttachment returned {attachmentId} and the graph read does NOT contain it. Either the "
-              + "sink built nothing, or the serializer stopped emitting attachments - and the second would "
-              + "make every decorator edit unprovable again.");
+            Assert.True(variants.Count > 20,
+                $"the command route advertises only {variants.Count} variants; the union has ~35.");
 
-            // ⭐ And remove it, so the asset is left as found.
-            (await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+            var advertised = variants.Select(v => v!["type"]!.GetValue<string>())
+                                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var required in new[] { "AddAttachment", "AddRegion", "ChangeParent", "Batch", "AddComment" })
+                Assert.True(advertised.Contains(required),
+                    $"'{required}' is not advertised. That is a host specific the typed verbs cannot "
+                  + "express, and it is the reason the union route exists.");
+
+            var graph    = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
+            var hostNode = ((graph.Field("nodes") as JsonArray)!).FirstOrDefault();
+            Assert.True(hostNode != null, $"'{name}' reads as an empty graph - nothing to decorate.");
+            var hostNodeId = hostNode!["nodeId"]!.GetValue<string>();
+
+            // ⭐⭐ The catalog says which kinds are ATTACHMENTS: PaletteAction == AttachToSelected. ⛔ Not
+            //    guessed - this is the kind-level structure fact discovery was extended to expose.
+            var kinds = (await cluster.Client.ListNodeKindsAsync(id)).EnsureOk();
+            var attachKind = ((kinds.Field("kinds") as JsonArray)!)
+                .FirstOrDefault(k => string.Equals(k!["paletteAction"]?.GetValue<string>(),
+                                                   "AttachToSelected", StringComparison.OrdinalIgnoreCase));
+
+            if (attachKind != null)
             {
-                ["type"]        = "RemoveAttachments",
-                ["attachments"] = new JsonArray(attachmentId!),
-            })).EnsureOk();
-            applied.Add("RemoveAttachments");
-        }
-        else
-        {
-            // ⚠ LOGGED, not silently skipped (handoff §5). A host is entitled to have no arm for a
-            //   variant; what the rail refuses to allow is that refusal going unrecorded.
-            refused.Add($"AddAttachment: {addAttachment.Error}");
-        }
+                var kindId = attachKind["kind"]!.GetValue<string>();
+                _out.WriteLine($"attachment kind from the catalog: {kindId}");
 
-        // ── ② A COMMENT — round-trips on every host, so it pins the union path itself ──
-        var addComment = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
-        {
-            ["type"]     = "AddComment",
-            ["text"]     = "mcp-rail-comment",
-            ["position"] = new JsonObject { ["x"] = 400f, ["y"] = 400f },
-        });
-
-        if (addComment.Ok)
-        {
-            applied.Add("AddComment");
-            var commentId = addComment.Field("newIds")?["commentId"]?.GetValue<string>();
-            Assert.False(string.IsNullOrWhiteSpace(commentId), "AddComment returned no commentId.");
-
-            var afterComment = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
-            var commentIds = ((afterComment.Field("comments") as JsonArray) ?? new JsonArray())
-                             .Select(c => c!["commentId"]!.GetValue<string>())
-                             .ToHashSet(StringComparer.Ordinal);
-            Assert.True(commentIds.Contains(commentId!),
-                $"AddComment returned {commentId} and the read does not contain it.");
-
-            // ⭐⭐ UNDOABILITY is REPORTED, and here it must be TRUE - AddComment's inverse is derivable.
-            Assert.True(addComment.Bool("undoable"),
-                "AddComment reported undoable:false. Its inverse is a plain RemoveComment, so a false here "
-              + "means the inverse wiring regressed and the undo stack is silently losing entries.");
-
-            (await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
-            {
-                ["type"]    = "RemoveComment",
-                ["comment"] = commentId!,
-            })).EnsureOk();
-            applied.Add("RemoveComment");
-        }
-        else
-        {
-            refused.Add($"AddComment: {addComment.Error}");
-        }
-
-        // ── ③ A BATCH — atomic multi-step, the union's headline convenience ──
-        var batch = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
-        {
-            ["type"]  = "Batch",
-            ["label"] = "mcp-rail-batch",
-            ["commands"] = new JsonArray(
-                new JsonObject
+                var add = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
                 {
-                    ["type"]     = "AddComment",
-                    ["text"]     = "batched-a",
-                    ["position"] = new JsonObject { ["x"] = 500f, ["y"] = 500f },
-                },
-                new JsonObject
+                    ["type"]  = "AddAttachment",
+                    ["host"]  = hostNodeId,
+                    ["label"] = "mcp-rail",
+                    // ⭐ The host property the picker passes: without it the sink cannot know WHICH
+                    //   concrete decorator to build, and silently builds none.
+                    ["hostProperties"] = new JsonObject { ["paletteKind"] = kindId },
+                });
+
+                if (add.Ok)
                 {
-                    ["type"]     = "AddComment",
-                    ["text"]     = "batched-b",
-                    ["position"] = new JsonObject { ["x"] = 560f, ["y"] = 500f },
-                }),
-        });
+                    applied.Add("AddAttachment");
+                    var attachmentId = add.Field("newIds")?["attachmentId"]?.GetValue<string>();
+                    Assert.False(string.IsNullOrWhiteSpace(attachmentId),
+                        "AddAttachment succeeded and returned no attachmentId.");
 
-        if (batch.Ok)
-        {
-            applied.Add("Batch");
-            var newIds = batch.Field("newIds") as JsonObject ?? new JsonObject();
-            // ⭐ Batch reports each nested command's minted id, INDEXED - without that a caller cannot
-            //   address what a multi-step authoring sequence created.
-            Assert.True(newIds.Count >= 2,
-                $"Batch minted {newIds.Count} id(s) for 2 nested AddComments. The per-step ids are how a "
-              + "caller addresses what a batch created.");
+                    // ⭐⭐ THE READ-BACK - what MA-011's serializer widening bought. Before it, an
+                    //    attachment edit was unprovable.
+                    var after = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
+                    var attachIds = ((after.Field("attachments") as JsonArray) ?? new JsonArray())
+                                    .Select(a => a!["attachmentId"]!.GetValue<string>())
+                                    .ToHashSet(StringComparer.Ordinal);
+                    Assert.True(attachIds.Contains(attachmentId!),
+                        $"AddAttachment returned {attachmentId} and the read does NOT contain it - and the "
+                      + "route's own minted-id check passed, so the serializer stopped emitting attachments.");
 
-            var afterBatch = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
-            var texts = ((afterBatch.Field("comments") as JsonArray) ?? new JsonArray())
-                        .Select(c => c!["text"]?.GetValue<string>() ?? "").ToArray();
-            Assert.Contains("batched-a", texts);
-            Assert.Contains("batched-b", texts);
-
-            // Clean up both, by the ids the batch reported.
-            foreach (var kv in newIds)
+                    (await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+                    {
+                        ["type"]        = "RemoveAttachments",
+                        ["attachments"] = new JsonArray(attachmentId!),
+                    })).EnsureOk();
+                    applied.Add("RemoveAttachments");
+                }
+                else
+                {
+                    refused.Add($"AddAttachment on BTree: {add.Error}");
+                }
+            }
+            else
             {
-                var cid = kv.Value?.GetValue<string>();
-                if (string.IsNullOrWhiteSpace(cid)) continue;
+                refused.Add("no AttachToSelected kind in the BTree catalog - attachment half not driven");
+            }
+
+            // ⭐ A COSMETIC variant that every sink should take: collapse the node. Round-trip only.
+            var collapse = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+            {
+                ["type"] = "SetNodeCollapsed", ["node"] = hostNodeId, ["collapsed"] = true,
+            });
+            if (collapse.Ok)
+            {
+                applied.Add("SetNodeCollapsed");
                 await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
                 {
-                    ["type"] = "RemoveComment", ["comment"] = cid!,
+                    ["type"] = "SetNodeCollapsed", ["node"] = hostNodeId, ["collapsed"] = false,
                 });
             }
+            else refused.Add($"SetNodeCollapsed on BTree: {collapse.Error}");
         }
         else
         {
-            refused.Add($"Batch: {batch.Error}");
+            refused.Add("no BTree asset indexed - the attachment half could not be driven");
         }
 
-        // ── ④ A REFUSAL that must stay a refusal ─────────────────────────────
-        var bogus = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+        // ── ② COMMENTS + BATCH on a BLUEPRINT — the BTree sink refuses comments (measured) ──
+        if (blueprint != null)
         {
-            ["type"] = "ThisVariantDoesNotExist",
-        });
-        Assert.False(bogus.Ok, "an unknown command type was ACCEPTED.");
-        Assert.Contains("not a GraphCommand variant", bogus.Error ?? "", StringComparison.Ordinal);
+            var id = blueprint["assetId"]!.GetValue<string>();
+            _out.WriteLine($"comment target: {blueprint["name"]} (Blueprint) {id}");
+
+            (await cluster.Client.OpenAssetAndSettleAsync(id)).EnsureOk();
+
+            var batch = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+            {
+                ["type"]  = "Batch",
+                ["label"] = "mcp-rail-batch",
+                ["commands"] = new JsonArray(
+                    new JsonObject
+                    {
+                        ["type"] = "AddComment", ["text"] = "batched-a",
+                        ["position"] = new JsonObject { ["x"] = 500f, ["y"] = 500f },
+                    },
+                    new JsonObject
+                    {
+                        ["type"] = "AddComment", ["text"] = "batched-b",
+                        ["position"] = new JsonObject { ["x"] = 560f, ["y"] = 500f },
+                    }),
+            });
+
+            if (batch.Ok)
+            {
+                applied.Add("Batch(AddComment x2)");
+                var newIds = batch.Field("newIds") as JsonObject ?? new JsonObject();
+
+                // ⭐ Batch reports each nested command's minted id, INDEXED - without that a caller cannot
+                //   address what a multi-step authoring sequence created.
+                Assert.True(newIds.Count >= 2,
+                    $"Batch minted {newIds.Count} id(s) for 2 nested AddComments.");
+
+                var after = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
+                var texts = ((after.Field("comments") as JsonArray) ?? new JsonArray())
+                            .Select(c => c!["text"]?.GetValue<string>() ?? "").ToArray();
+                Assert.Contains("batched-a", texts);
+                Assert.Contains("batched-b", texts);
+
+                // ⭐⭐ Undoability is REPORTED and here it must be TRUE - both steps have derivable
+                //    inverses, so the batch as a whole does.
+                Assert.True(batch.Bool("undoable"),
+                    "the Batch reported undoable:false though every nested AddComment has a derivable "
+                  + "inverse. The inverse wiring regressed and the undo stack is silently losing entries.");
+
+                foreach (var kv in newIds)
+                {
+                    var cid = kv.Value?.GetValue<string>();
+                    if (string.IsNullOrWhiteSpace(cid)) continue;
+                    await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+                    {
+                        ["type"] = "RemoveComment", ["comment"] = cid!,
+                    });
+                }
+                applied.Add("RemoveComment");
+            }
+            else
+            {
+                refused.Add($"Batch(AddComment) on Blueprint: {batch.Error}");
+            }
+
+            // ── ③ A REFUSAL that must stay a refusal ─────────────────────────
+            var bogus = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+            {
+                ["type"] = "ThisVariantDoesNotExist",
+            });
+            Assert.False(bogus.Ok, "an unknown command type was ACCEPTED.");
+            Assert.Contains("not a GraphCommand variant", bogus.Error ?? "", StringComparison.Ordinal);
+        }
+        else
+        {
+            refused.Add("no Blueprint asset indexed - the comment/batch half could not be driven");
+        }
 
         _out.WriteLine($"applied: {string.Join(", ", applied)}");
-        if (refused.Count > 0) _out.WriteLine($"REFUSED BY HOST (logged, not skipped): {string.Join(" | ", refused)}");
+        if (refused.Count > 0)
+            _out.WriteLine($"REFUSED / NOT DRIVEN (logged, not skipped):\n  {string.Join("\n  ", refused)}");
 
-        // ⛔ The rail's floor: the union path itself must work for SOMETHING, or nothing above proved
-        //   anything. A host refusing one variant is a finding; refusing all of them is a broken route.
+        // ⛔ The floor: the union path must reach SOMETHING no typed verb could. A host refusing one
+        //   variant is a finding worth logging; reaching none of them is the route being broken.
         Assert.True(applied.Count >= 2,
-            "not one union command applied on this host. The refusals were:\n  "
+            "not one union command applied. The refusals were:\n  "
           + string.Join("\n  ", refused)
           + "\nThat is the command route failing, not a host specific.");
     }
+
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE DISCOVERY/DOC-COVERAGE RAIL — every node kind the host offers resolves a schema.</b>
