@@ -18,7 +18,7 @@ design-basis: Architect_Question_56_Mcp_Authoring_Surface.md (the decision trail
   disk) · R-133/HN-030 (routes self-document; SKILL.md generated).
 known-conflict: ⚠ shares the DebugApi surface with the CE-* editing slices — the collision plan is §8.
 -->
-# DESIGN — **the MCP authoring surface** *(AI-asset editing + scenario authoring)*
+# DESIGN — **the MCP authoring surface** *(AI-asset editing + scenario authoring + UI-command actions)*
 
 > 🎯 Turn the MCP server from **read/drive** *(open, inspect, switch tabs, save/reload — CE-009/011)* into
 > **authoring**: an AI agent creates and edits AI assets *(graphs)* and authors scenarios *(the world)* over
@@ -295,6 +295,65 @@ table** — that is the rot `RouteDoc` was built to avoid.
 `INodeCatalog.All` and **every** editable param resolves a non-empty **schema + doc** *(structural always;
 prose from `<summary>`/`[Doc]`)* — the rail REDS on a kind/param that discovery cannot describe **or** document.
 ⭐ **That is the machine proof of "enough docs, measured not authored."**
+
+### 10.7 ⭐⭐⭐ UI-COMMAND ACTIONS — **same discover+invoke shape ⇒ BUNDLED here** *(user, `2026-08-25`)*
+> 🎯 **User:** *"the MCP UI-actions discovery and use is a pretty similar task — could be bundled as well?"*
+> ✅ **Yes — measured `2026-08-25`, it is the SAME pattern**, and bundling is strictly better than the
+> separately-queued "B" *(it shares the exact collision surface — one catalog regen, one RouteDoc set, one rail)*.
+
+📐 **The parity is exact:** the editor command bus `IEditorCommands` is *discover-from-registry → invoke-through-
+ONE-seam*, identical to the graph surface:
+| | graph authoring | ⭐ UI-command actions |
+|---|---|---|
+| **list** | `INodeCatalog.All` | `IEditorCommands.All` *(in-deg 49)* |
+| **describe one** | catalog entry + attributes | `Get(id)` → **`EditorCommandDescriptor`** |
+| **doc harvest** | attributes + `<summary>` *(§10.6)* | ⭐⭐ **the descriptor already carries `DisplayName`·`Category`·`Description`·`DefaultKey` INLINE** — even easier, no reflection |
+| **invoke seam** | `IGraphCommandSink.Apply(GraphCommand)` | **`IEditorCommands.Invoke(id, ctx)`** → `EditorCommandResult` |
+| **params** | the command's fields | ⭐ **`EditorCommandContext.Args` = `IReadOnlyDictionary<string,object?>`** *(+ optional canvas/screen pos)* |
+| **live state** | node runtime status | `IsEnabled`/`IsChecked` + the `AvailabilityChanged` event |
+
+**Routes** *(mirror the graph trio):* `GET /commands` *(list descriptors + enabled/checked)* · `GET /commands/{id}`
+*(describe)* · `POST /commands/{id}/invoke` *(body = `{args, canvasPos?}` → `Invoke`)*.
+
+⚠🔴 **TWO command registries — bundle ONLY the documented one:**
+| registry | shape | verdict |
+|---|---|---|
+| ⭐⭐ **`IEditorCommands`** *(`NodeEditor.Core/Action`)* — the editor/toolbar/menu command bus | rich self-describing `EditorCommandDescriptor` + `All` + one `Invoke` seam | ✅ **BUNDLE** — self-documenting, exact same pattern |
+| ⛔ **`GlobalActionRegistry`** *(`Hrot.Common/Interactions`)* — engine gizmo/entity-context actions | `Register(int actionId, handler)` / `TryGetHandler` — ⛔ **int-keyed, NO descriptor, NO display name, NOT self-documenting** | ⛔ **OUT** — it needs an author-a-descriptor pass and belongs with the ENTITY-ACTION vocabulary / Axis-B track *(`UX_Feature_Entity_Action_Vocabulary`, Q26-C1)*, not this bundle |
+
+⇒ ⭐⭐ **The UI-command surface joins §10.6's doc-coverage rail** *(every `IEditorCommands` command is discoverable
+AND has a non-empty `Description`)* and §11.2's "invoke through one seam" backbone — ⭐ **the slice now covers THREE
+invoke surfaces through one pattern:** the graph-command union · scenario/entity ops · the editor command bus.
+
+```mermaid
+classDiagram
+    direction LR
+    class IEditorCommands {
+        <<exists · NodeEditor.Core/Action · in-deg 49>>
+        +All IReadOnlyList~EditorCommandDescriptor~
+        +Get(id) EditorCommandDescriptor
+        +Invoke(id, ctx) EditorCommandResult
+    }
+    class EditorCommandDescriptor {
+        <<exists · self-documenting>>
+        +Id string
+        +DisplayName string
+        +Category string
+        +Description string
+        +IsEnabled Func~bool~
+    }
+    class EditorCommandContext {
+        <<exists · the params bag>>
+        +Args IReadOnlyDictionary
+    }
+    class DebugApiCommands {
+        <<NEW · GET commands · GET commands id · POST commands id invoke>>
+    }
+    IEditorCommands ..> EditorCommandDescriptor : All / Get
+    DebugApiCommands ..> IEditorCommands : list / describe / Invoke
+    DebugApiCommands ..> EditorCommandContext : args from the MCP body
+    note for DebugApiCommands "Same discover+invoke+harvest pattern as the graph surface. GlobalActionRegistry (int-keyed, undocumented) is NOT bundled — it is the entity-action / Axis-B track."
+```
 
 ## 11. 🔴🔴🔴 COMPLETENESS — **the WHOLE command union, and the host specifics** *(user, `2026-08-25`; measured)*
 > 🎯 **User:** *"the goal is to make the graphs and AI assets editable AND monitorable by an AI agent so we
