@@ -42,6 +42,8 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 | network-id allocator unification + Path-B deletion | HN-050..058 | `DESIGN_Deterministic_Network_Ids.md` §11 |
 | ⭐ **MCP AI-asset authoring surface** *(8 routes; merged `2026-08-25`)* | MA-001..010 | `DESIGN_Mcp_Authoring.md` §12 *(AS-BUILT)* |
 | ⭐ **CGF debug pause/step** *(CgfClusterDebugTimeController; merged `2026-08-25`)* | CE-025..030 | `..._Slice4_Debug_PauseStep.md` §10 *(AS-BUILT)* |
+| ⭐⭐ **MCP FULL authoring capability** *(union backbone `POST /graph/command` over all 35 GraphCommand variants; read/discover completeness; `EditDoc` doc-harvest; `/editor/commands` bus; merged `2026-08-25` overnight)* | MA-011..018 | `DESIGN_Mcp_Authoring.md` §15 *(AS-BUILT)* |
+| ⭐⭐ **CGF: barrier proven + ruling 67 + CE-016** *(k measured 252–352ms; asset roots from config; time-transport on the toolbar; merged `2026-08-25` overnight)* | CE-031..036 | `..._Slice4_Debug_PauseStep.md` §11 · gap map · ruling 67 |
 
 ## 3. ✅ NOTHING IN FLIGHT *(both `2026-08-25` batches verified + merged)*
 | merged batch | ids | verify verdict |
@@ -54,7 +56,19 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 ⭐ **Merge integration checked:** both edited `CgfSubsystem.cs` in different regions — auto-merged, `Hrot.CGF` builds 0 errors.
 🔴 **ruling-9 note for the NEXT slice:** MA- already SHIPPED `GET /assets/{id}/graph/catalog` *(node-kind list, MA-004)* — the discovery/completeness slice must **EXTEND** it, ⛔ NOT build a parallel `/nodetypes`.
 
-## 4. ⭐ NEXT, QUEUED *(all sequence AFTER the running MCP mutation batch merges — shared DebugApi/catalog)*
+## 3b. ⭐ FILED FOLLOW-UPS from the overnight batches *(small, none blocking)*
+- **CE-035** — `IDataBreakpointManager.RequestContinue()` cannot resume a STEPPED node *(RequestStep clears `_isPaused`)*; production bypasses via `RequestResume()`. Neutral-assembly fix, deferred.
+- **CE-036** — the `Requires CycloneDDS` skips in `Hrot.ClusterRunner.Integration.Tests` are stale; real cause = **domain id 250 out of CycloneDDS range**, not missing DDS.
+- **CE-018** — `EditorSubsystem`'s two inline `.csproj` walk-ups still bypass `AssetRoots` *(another lane's file)*.
+- ⭐ **schema-exporter on CGF** — MCP `paramsSource` reports `none:no-exporter-wired` on CGF *(no `IActionSchemaExporter` wired there)*; a one-line CGF-lane follow-up.
+- ⚠ **doc-prose coverage sweep** — `EditDoc` makes 100% node/param prose POSSIBLE; filling it across the catalog is a sweep, not done. The rail prints the % to ratchet.
+
+## 4. ⭐ NEXT, QUEUED
+1. ⭐ **`cgf==editor` — the remaining EDITING conversions still need design decisions** *(NOT autonomous-safe — flagged out of the overnight run)*: **AQ25 authoring shell / role-&-mode gating / undo / autosave** *(architect-UNANSWERED)* · **Q25-C behavior-affinity registry** *(can `BehaviorUiCompiler` be schema-driven?)* · **`Hrot.Editor` catalog/`NewAssetService` packaging** *(move-to-shared vs reference)*. ⇒ these want an Architect_Question pass with the user before build.
+2. **Axis B** *(map/entity parity — UXI-11/23/10/29)* — gated on the **UXI-30** engine-authority-gate design *(no design doc yet)*.
+3. ⭐ **The small follow-ups in §3b** — batchable into any CGF-lane run.
+
+### ⛔ HISTORY — the completed queue *(superseded by the merges above)*
 1. ⭐⭐⭐ **MCP DISCOVER + COMPLETE + INVOKE slice** *(user, `2026-08-25`; the old "discovery" + "B" BUNDLED)*. One slice, one catalog regen, **three invoke surfaces on ONE pattern** *(discover-from-registry → invoke-through-one-seam → harvest docs → coverage rail)*:
    - ⭐ **discovery** — list node kinds + a kind's property schema + a node's current properties, from the registries *(`INodeCatalog.All`; `IActionSchemaExporter.DtoFields`)*. 📄 `DESIGN_Mcp_Authoring.md` §10.
    - ⭐ **usage docs harvested** from descriptive attributes, RouteDoc-style, + a doc-coverage rail. 📄 §10.6.
