@@ -23,7 +23,7 @@ kinds, add nodes and links, set pin defaults, remove, create an asset, delete an
 `DebugApiService.Authoring.cs`, all reaching the **same command sink, validator and undo stack the canvas
 uses** *(`Q56-A`: "MCP edits ARE human edits over the wire")*.
 
-📐 `gen:catalog` **74 → 82 tools** · `test-catalog` **657 / 0** · the four new conformance rails **5 / 5**
+📐 **the full system suite `99 / 0`** *(95 → 99: +4 rails, none removed)* · `gen:catalog` **74 → 82 tools** · `test-catalog` **657 / 0** · the four new conformance rails **5 / 5**
 *(the filter also picks up one pre-existing rail)* · revert probes **3 / 3 red**, plus a fourth that
 **stayed green and exposed a hole in my own rail** — §4.
 
@@ -109,7 +109,7 @@ the probe silently measures the old binary and reads as *"the guard is unnecessa
 | 1 | **affected-project builds** | `dotnet build {Hrot.Editor,Hrot.CGF,Hrot.ClusterRunner,Hrot.SystemTests}.csproj --no-restore -v q -nologo` | ⛔ builds *(once each)* | ✅ **0 errors**; 10–15 s each | — |
 | 2 | **the editor unit suite** *(carries `EveryRouteIsDocumentedTests` + `CapabilityManifestRails` — the two gates these 8 routes had to satisfy)* | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/Hrot.Editor.Tests.csproj --no-build -v q --nologo` | ✅ | ⚠ **247 / 1 / 1 skipped**, 3 runs of 3 — the single red is row 5 | **none** |
 | 3 | **the AiShared unit suite** | `dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj --no-build -v q --nologo` | ✅ | ✅ **2016 / 0 / 1 skipped** — ⭐ **unchanged, and it should be: `Hrot.Editor.AiShared` was NOT touched** *(handoff §4)* | **none** |
-| 4 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — `ClusterConformanceRails` is the only thing that can prove a DebugApi change did not break the cross-host contract | `scripts/run-system-tests.sh --no-build` *(**T3**, run in the BACKGROUND — ⛔ never a foreground blocker)* | ✅ | **§5b** | **+4 rails** |
+| 4 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — `ClusterConformanceRails` is the only thing that can prove a DebugApi change did not break the cross-host contract | `scripts/run-system-tests.sh --no-build` *(**T3**, run in the BACKGROUND — ⛔ never a foreground blocker)* | ✅ | ✅ **99 / 0**, 6 m 15 s — §5b | **+4 rails** *(95 → 99)* |
 | 4b | **the four new rails, filtered** | `scripts/run-system-tests.sh --no-build An_agent_can` | ✅ | ✅ **5 / 0**, 21 s *(the filter also matches one pre-existing rail)* | **+4** |
 | 5 | ⚠ **the one RED, already A/B'd this session** | `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` | ✅ | ⛔ **PRE-EXISTING GC/ALC timing flake.** 📐 A/B'd earlier today at the slice-3 base `03c65240f`: **3 red of 6 runs** on the BASE binary *(`git stash -u`, rebuilt)*. Green **16 / 16 in isolation** here. ⭐ Already recorded under `ST-035` and in three prior batch reports | **none** |
 | 6 | ⭐⭐ **golden movement** | — | — | ⭐ **ZERO. No file under `Goldens/` is added, removed or modified.** These rails assert BEHAVIOUR over MCP, not serialized snapshots | **none** |
@@ -123,9 +123,16 @@ the probe silently measures the old binary and reads as *"the guard is unnecessa
 | 14 | **design-doc format + UML** | `python3 scripts/design-digest.py --check` | — | ✅ **82 documents**: STATUS headers, INVENTORY blocks, and **every buildable design carries a class AND a sequence diagram** | — |
 | 15 | **mermaid parses** | `MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs docs/DESIGN_Mcp_Authoring.md` | — | ✅ **3 / 3** *(the redrawn classDiagram, the redrawn sequenceDiagram, and the HISTORY one)* | — |
 
-### 5b. ⏳ The full T3 suite
+### 5b. ✅ The full T3 suite
 
-*(filled in from the background run before the batch closes — §5 row 4.)*
+📐 **`scripts/run-system-tests.sh --no-build` — `99 / 0 / 0 skipped`, 6 m 15 s.**
+
+| | |
+|---|---|
+| ⭐ **delta** | slice 3 closed at **95 / 0**; this batch adds **4 rails** ⇒ **99**. ⛔ **No test was removed, renamed away, or skipped** |
+| ⭐⭐ **why it matters here** | this is rule 8 row 8's INTEGRATION gate. The change adds 8 routes to a shared `DebugApiHost` route table and edits `EditorSubsystem`'s composition root — ⭐ `ClusterConformanceRails` is the only thing that can show the cross-host contract *(the same binary in `editor` and `--mode all`, diffed by `PanelKind`)* still holds |
+| 🔴 **tree CLEAN afterwards** | ✅ `git status --short --untracked-files=all` = **empty**. ⚠ Checked again HERE, not only after the filtered run — §4b is why: the suite that mutilated a committed asset was a suite that had just reported green |
+| ⚠ **run in the BACKGROUND** | T3 is never a foreground blocker. It was started before the docs were written and read back when it landed |
 
 ## 6. ⭐ IDS ALLOCATED *(rule 5)*
 
