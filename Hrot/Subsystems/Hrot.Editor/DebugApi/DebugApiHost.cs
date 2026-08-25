@@ -931,6 +931,24 @@ namespace Hrot.Editor.DebugApi
                             error, hintCategory);
             })));
 
+            // ⭐⭐ Slice 3 — save + reload. ⛔ THE COLLISION BOUNDARY (§8): node-authoring routes go in
+            //    AQ56's own file and its own registration block, ⛔ never here.
+            _routes.Add(new("POST", "/assets/{assetId}/save", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.SaveAsset(ctx.RouteValue("assetId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("POST", "/assets/{assetId}/reload", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ReloadAsset(ctx.RouteValue("assetId"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
             _routes.Add(new("POST", "/panels/{panelId}/focus", ctx => RunMainResult(s =>
             {
                 var (result, error, hintCategory) = s.FocusPanel(ctx.RouteValue("panelId"));

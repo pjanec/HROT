@@ -134,6 +134,46 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"path\":\"Assets/Blueprints/hill_attack.bp.json\"}",
             ExampleGist: "open an asset by the path a human would read off disk"),
 
+        [("POST", "/assets/{assetId}/save")] = new RouteDoc(
+            Tool:    "save_ai_asset",
+            Group:   "V — AI assets & graph tabs",
+            Summary: "Persist edited AI assets to their source files.",
+            Returns: "{ assetId, name, sourceFilePath, status, stillDirty, note }",
+            Hint:    "Req: assetId (GUID of an OPEN document, from list_documents). Example: save_ai_asset({assetId:\"...\"})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document — save acts on open documents, not files"),
+            },
+            Notes: new[]
+            {
+                "IT SAVES EVERY DIRTY OPEN DOCUMENT, not only this one — it runs the shared Save-All command, which is what the editor's own Save All button runs.",
+                "A document with no source path is SKIPPED with a warning in `status` rather than throwing; check `stillDirty` to see whether this one was written.",
+                "Saving is NOT a precondition for reload: reload compiles from the in-memory asset, so an unsaved edit still hot-applies.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "write an edited graph back to disk"),
+
+        [("POST", "/assets/{assetId}/reload")] = new RouteDoc(
+            Tool:    "reload_ai_asset",
+            Group:   "V — AI assets & graph tabs",
+            Summary: "Recompile an edited AI asset and commit it into the running behaviour registry.",
+            Returns: "{ assetId, name, kind, status, note }",
+            Hint:    "Req: assetId (GUID of an OPEN document, from list_documents). Example: reload_ai_asset({assetId:\"...\"})",
+            Params: new RouteParam[]
+            {
+                new("assetId", "string", true, "GUID of an OPEN document to recompile"),
+            },
+            Notes: new[]
+            {
+                "Compiles from the IN-MEMORY asset, not from the file — so it reflects unsaved edits, and save is a separate intent.",
+                "The asset is ACTIVATED first: the reload pipeline acts on the active document, so reloading a background tab without activating it would recompile the wrong graph.",
+                "A SOFT reload patches lookup tables and live instances KEEP their state; a HARD (topology) reload bumps the generation and instances RESET — that reset is intended, not a bug.",
+                "A Hard reload on a live cluster is a confirmed cluster-wide reset, and the confirmation belongs to the interactive node — this call never prompts.",
+                "`status` carries the compiler's own message, including the failure text when it did not compile. A failed compile is a 200 with a failure status, not an HTTP error: it is a legitimate outcome of editing.",
+            },
+            ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "hot-apply an edited graph to the running brain"),
+
         [("GET", "/documents")] = new RouteDoc(
             Tool:    "list_documents",
             Group:   "V — AI assets & graph tabs",

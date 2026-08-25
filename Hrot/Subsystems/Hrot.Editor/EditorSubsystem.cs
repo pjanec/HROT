@@ -775,6 +775,18 @@ namespace Hrot.Editor
         /// </summary>
         private bool ClockIsHalted() => Fdp.Toolkit.Time.SimClock.Of(_world).IsHalted;
 
+        /// <summary>
+        /// ⭐ <c>CE-021</c> — make the named asset's open document ACTIVE, so save/reload act on the
+        /// document the caller meant. ⚠ A no-op when it is not open: the API route has already
+        /// refused that case with a typed hint, and answering it twice is two answers to one question.
+        /// </summary>
+        private void ActivateAiDocumentByAssetId(string assetId)
+        {
+            if (_aiDocumentManager == null || !Guid.TryParse(assetId, out var id)) return;
+            var doc = _aiDocumentManager.OpenDocuments.FirstOrDefault(d => d.Asset.AssetId == id);
+            if (doc != null) _aiDocumentManager.Activate(doc);
+        }
+
         /// <summary>Internal test hook: exposes the mutation interceptor wired to the entity inspector (UBP-P10T5).</summary>
         internal Fdp.Toolkit.Diagnostics.Gizmos.IMutationInterceptor? BpMutationInterceptor
             => _fdpEntityInspector.Reflector.MutationInterceptor;
@@ -2980,6 +2992,37 @@ namespace Hrot.Editor
             //   open the same asset on both hosts — which is slice 2's whole acceptance criterion.
             _debugApiService?.AttachAssetShell(
                 _aiCatalogBuilder!.Catalog, _aiDocumentManager, windowManager);
+
+            // ⭐⭐ cgf==editor SLICE 3 (CE-021) — the same save/reload seam on this host, so the two
+            //    can be driven identically and compared. ⭐ Both callbacks are the editor's OWN
+            //    existing ones (_saveAllCallback, _blueprintQuickReloadTrigger and the BTree/HSM
+            //    triggers) — ⛔ no second save or reload path is introduced here.
+            // ⚠ Assigned LATE (they are wired further down in this method), so the lambdas resolve
+            //   the fields AT CALL TIME rather than capturing null.
+            _debugApiService?.AttachAssetEditing(
+                saveAsset: assetId =>
+                {
+                    ActivateAiDocumentByAssetId(assetId);
+                    _saveAllCallback?.Invoke();
+                    return _saveAllStatus;
+                },
+                reloadAsset: assetId =>
+                {
+                    ActivateAiDocumentByAssetId(assetId);
+                    var active = _aiDocumentManager?.Active;
+                    switch (active?.Kind)
+                    {
+                        case Hrot.Editor.AiShared.AssetKind.Blueprint:
+                            _blueprintQuickReloadTrigger?.Invoke(active.Asset); break;
+                        case Hrot.Editor.AiShared.AssetKind.BTree:
+                            _btreeQuickReloadTrigger?.Invoke(); break;
+                        case Hrot.Editor.AiShared.AssetKind.Hsm:
+                            _hsmQuickReloadTrigger?.Invoke(); break;
+                        default:
+                            return $"'{active?.Asset.Name}' ({active?.Kind}) is not a reloadable kind.";
+                    }
+                    return _blueprintCompileStatus;
+                });
 
             // Toolbar debug icons (AiDebugCommands) gate IsEnabled on debugRegistry.ActiveSession. Mirror the active
             // document's debug session into the registry so those icons enable/disable live. Side-effect-free setter

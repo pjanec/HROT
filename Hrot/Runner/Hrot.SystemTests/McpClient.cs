@@ -438,6 +438,17 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> FocusPanelAsync(string panelId, CancellationToken ct = default)
         => PostAsync($"/panels/{Uri.EscapeDataString(panelId)}/focus", null, ct);
 
+    /// <summary>⭐ Slice 3 — persist edited assets. ⚠ Runs the shared Save-All: every DIRTY open doc.</summary>
+    public Task<ApiResult> SaveAssetAsync(string assetId, CancellationToken ct = default)
+        => PostAsync($"/assets/{Uri.EscapeDataString(assetId)}/save", null, ct);
+
+    /// <summary>
+    /// ⭐ Slice 3 — recompile and commit into the running registry. ⚠ Compiles from the IN-MEMORY
+    /// asset, ⛔ not from disk, so it reflects unsaved edits.
+    /// </summary>
+    public Task<ApiResult> ReloadAssetAsync(string assetId, CancellationToken ct = default)
+        => PostAsync($"/assets/{Uri.EscapeDataString(assetId)}/reload", null, ct);
+
     /// <summary>
     /// ⭐⭐ Open an asset and STEP, so its canvas and outline have actually drawn before anything reads
     /// them. ⛔ The same frame-boundary contract <see cref="SwitchPerspectiveAndSettleAsync"/> exists for:

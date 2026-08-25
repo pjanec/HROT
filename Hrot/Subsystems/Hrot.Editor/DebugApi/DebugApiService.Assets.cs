@@ -280,5 +280,125 @@ namespace Hrot.Editor.DebugApi
                                 + "another perspective is pinned rather than switched to.",
             }, null, null);
         }
+
+        // ══ save + reload (cgf==editor slice 3) ═══════════════════════════════
+        //
+        // ⭐⭐⭐ 📄 DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md §5/§6 ⑤. These make the
+        //    EDIT→SAVE→RELOAD cycle drivable headlessly, which is the only way the slice is provable.
+        // ⛔⛔ THE COLLISION BOUNDARY (§8): this file stays STRICTLY save/reload. Node authoring —
+        //    create an asset, add/connect nodes, edit params over MCP — belongs to AQ56's parallel
+        //    track in its OWN route file. ⚠ Adding an authoring route here is the merge conflict the
+        //    partition exists to prevent.
+
+        private Func<string, string>? _saveAsset;
+        private Func<string, string>? _reloadAsset;
+
+        /// <summary>
+        /// ⭐ Hands this service the host's save and reload actions.
+        ///
+        /// <para>⚠⚠ <b>DELEGATES, not the services themselves</b>, and for the settled reason this
+        /// codebase already uses for <c>WatchEntityPicker</c>: <c>QuickReloadService</c> lives in
+        /// <c>Hrot.Blueprints.Editor</c> and the save delegates are composed per host. ⛔ Taking the
+        /// concrete types would point this API at one host's composition — and BOTH hosts wire this.</para>
+        ///
+        /// <para>⭐ Each returns a STATUS STRING rather than a bool: a failed compile is a legitimate
+        /// outcome of editing, and *"what went wrong"* is the whole value of the response.</para>
+        /// </summary>
+        public void AttachAssetEditing(Func<string, string> saveAsset, Func<string, string> reloadAsset)
+        {
+            _saveAsset   = saveAsset   ?? throw new ArgumentNullException(nameof(saveAsset));
+            _reloadAsset = reloadAsset ?? throw new ArgumentNullException(nameof(reloadAsset));
+        }
+
+        /// <summary>⭐ Exposed for the forwarding rail — ⛔ a rail must reach the CONSTRUCTED object.</summary>
+        internal bool HasAssetEditing => _saveAsset != null && _reloadAsset != null;
+
+        private const string NoAssetEditing =
+            "This host wires no AI-asset save/reload. The composition root must call "
+            + "AttachAssetEditing(...) once the AiShared shell and the reload pipeline are built.";
+
+        /// <summary>
+        /// <c>POST /assets/{assetId}/save</c> — persist the edited asset to its source file.
+        /// </summary>
+        /// <remarks>
+        /// ⚠⚠ <b>It saves EVERY dirty open document, not only this one — stated because the route shape
+        /// suggests otherwise.</b> 📐 <c>SaveAllAiDocumentsCommand</c> is the shared save path and is
+        /// all-documents by construction *(it is what the editor's "Save All" button runs)*. ⛔ A
+        /// per-asset save here would re-implement its dirty check, its empty-path warning and its
+        /// clean-marking — ruling 9's duplicate. ⭐ The <c>assetId</c> is not decorative: it must name an
+        /// OPEN document, which is what makes the call meaningful and its refusal informative.
+        /// </remarks>
+        public (JsonNode? Result, string? Error, string? HintCategory) SaveAsset(string? assetId)
+        {
+            if (_saveAsset == null || _documents == null)
+                return (null, NoAssetEditing, DebugApiHints.Panel);
+
+            var (doc, error) = ResolveOpenDocument(assetId);
+            if (error != null) return (null, error, DebugApiHints.Panel);
+
+            var status = _saveAsset(assetId!);
+
+            return (new JsonObject
+            {
+                ["assetId"]        = assetId,
+                ["name"]           = doc!.Asset.Name,
+                ["sourceFilePath"] = (doc.Asset.SourceFilePath ?? string.Empty).Replace('\\', '/'),
+                ["status"]         = status,
+                ["stillDirty"]     = doc.IsDirty,
+                ["note"]           = "this runs the shared Save-All command, so every DIRTY open document "
+                                   + "is written, not only this one. A document with no source path is "
+                                   + "skipped with a warning rather than throwing.",
+            }, null, null);
+        }
+
+        /// <summary>
+        /// <c>POST /assets/{assetId}/reload</c> — recompile the asset and commit it into the running registry.
+        /// </summary>
+        /// <remarks>
+        /// ⭐⭐ <b>Reload compiles from the IN-MEMORY asset, ⛔ not from the file on disk</b> — the
+        /// editor's own documented behaviour. ⇒ ⚠ a reload reflects the EDIT even if it was never
+        /// saved, and saving is therefore a separate intent rather than a precondition.
+        /// <para>⭐ The asset is ACTIVATED first: the reload pipeline acts on the active document, so
+        /// reloading a background tab without activating it would silently recompile the wrong graph.</para>
+        /// <para>⚠ <b>Soft vs Hard is REPORTED, not decided here</b> *(§17)*: a Hard reload resets live
+        /// instances, and ruling 53 puts that confirmation at the INTERACTIVE node — ⛔ never a modal on
+        /// a headless host.</para>
+        /// </remarks>
+        public (JsonNode? Result, string? Error, string? HintCategory) ReloadAsset(string? assetId)
+        {
+            if (_reloadAsset == null || _documents == null)
+                return (null, NoAssetEditing, DebugApiHints.Panel);
+
+            var (doc, error) = ResolveOpenDocument(assetId);
+            if (error != null) return (null, error, DebugApiHints.Panel);
+
+            var status = _reloadAsset(assetId!);
+
+            return (new JsonObject
+            {
+                ["assetId"] = assetId,
+                ["name"]    = doc!.Asset.Name,
+                ["kind"]    = doc.Kind.ToString(),
+                ["status"]  = status,
+                ["note"]    = "compiled from the IN-MEMORY asset, so this reflects unsaved edits. A Hard "
+                            + "reload resets live instances by design; its confirmation belongs to the "
+                            + "interactive node (ruling 53), not to this call.",
+            }, null, null);
+        }
+
+        /// <summary>⭐ ONE resolution, so save and reload cannot refuse differently for the same input.</summary>
+        private (AiDocument? Doc, string? Error) ResolveOpenDocument(string? assetId)
+        {
+            if (!Guid.TryParse(assetId, out var id))
+                return (null, $"'{assetId}' is not a GUID. Call GET /documents for the open tabs.");
+
+            var doc = _documents!.OpenDocuments.FirstOrDefault(d => d.Asset.AssetId == id);
+            if (doc == null)
+                return (null,
+                        $"No OPEN document for asset {id}. Open it first (POST /assets/{{assetId}}/open) — "
+                      + "save and reload act on open documents, not on files.");
+
+            return (doc, null);
+        }
     }
 }

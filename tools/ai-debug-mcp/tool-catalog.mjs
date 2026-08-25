@@ -2349,6 +2349,72 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "reload_ai_asset",
+    "group": "V — AI assets & graph tabs",
+    "summary": "Recompile an edited AI asset and commit it into the running behaviour registry.",
+    "http": {
+      "method": "POST",
+      "path": "/assets/{assetId}/reload"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document to recompile"
+      }
+    ],
+    "returns": "{ assetId, name, kind, status, note }",
+    "notes": [
+      "Compiles from the IN-MEMORY asset, not from the file — so it reflects unsaved edits, and save is a separate intent.",
+      "The asset is ACTIVATED first: the reload pipeline acts on the active document, so reloading a background tab without activating it would recompile the wrong graph.",
+      "A SOFT reload patches lookup tables and live instances KEEP their state; a HARD (topology) reload bumps the generation and instances RESET — that reset is intended, not a bug.",
+      "A Hard reload on a live cluster is a confirmed cluster-wide reset, and the confirmation belongs to the interactive node — this call never prompts.",
+      "`status` carries the compiler's own message, including the failure text when it did not compile. A failed compile is a 200 with a failure status, not an HTTP error: it is a legitimate outcome of editing."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "hot-apply an edited graph to the running brain"
+    },
+    "hint": "Req: assetId (GUID of an OPEN document, from list_documents). Example: reload_ai_asset({assetId:\"...\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "save_ai_asset",
+    "group": "V — AI assets & graph tabs",
+    "summary": "Persist edited AI assets to their source files.",
+    "http": {
+      "method": "POST",
+      "path": "/assets/{assetId}/save"
+    },
+    "params": [
+      {
+        "name": "assetId",
+        "type": "string",
+        "required": true,
+        "description": "GUID of an OPEN document — save acts on open documents, not files"
+      }
+    ],
+    "returns": "{ assetId, name, sourceFilePath, status, stillDirty, note }",
+    "notes": [
+      "IT SAVES EVERY DIRTY OPEN DOCUMENT, not only this one — it runs the shared Save-All command, which is what the editor's own Save All button runs.",
+      "A document with no source path is SKIPPED with a warning in `status` rather than throwing; check `stillDirty` to see whether this one was written.",
+      "Saving is NOT a precondition for reload: reload compiles from the in-memory asset, so an unsaved edit still hot-applies."
+    ],
+    "example": {
+      "args": {
+        "assetId": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "write an edited graph back to disk"
+    },
+    "hint": "Req: assetId (GUID of an OPEN document, from list_documents). Example: save_ai_asset({assetId:\"...\"})",
+    "manualVerify": false
+  },
+
+  {
     "name": "open_asset_by_path",
     "group": "V — AI assets & graph tabs",
     "summary": "Open an AI asset by its relative source file path — the human address.",

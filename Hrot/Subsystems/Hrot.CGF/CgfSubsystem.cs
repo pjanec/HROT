@@ -143,6 +143,30 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     internal Hrot.Editor.AiShared.Documents.AiDocumentManager? AssetShellDocuments { get; private set; }
     internal Fdp.Presentation.WindowManager.WindowManager?  AssetShellWindows   { get; private set; }
 
+    /// <summary>⭐ <c>CE-021</c> — the save action the debug API drives *(assetId → status)*.</summary>
+    internal Func<string, string>? AssetShellSave   { get; private set; }
+
+    /// <summary>⭐ <c>CE-021</c> — the reload action the debug API drives *(assetId → status)*.</summary>
+    internal Func<string, string>? AssetShellReload { get; private set; }
+
+    /// <summary>
+    /// ⭐ Make the named asset's open document the ACTIVE one. ⚠ A no-op when it is not open — the
+    /// caller *(the API route)* has already refused that case with a typed hint, and duplicating the
+    /// refusal here would give two answers to one question.
+    /// </summary>
+    private void ActivateByAssetId(string assetId)
+    {
+        if (_aiDocumentManager == null || !Guid.TryParse(assetId, out var id)) return;
+        var doc = _aiDocumentManager.OpenDocuments.FirstOrDefault(d => d.Asset.AssetId == id);
+        if (doc != null) _aiDocumentManager.Activate(doc);
+    }
+
+    // ── SLICE 3 (CE-019/020) — the save + hot-reload pipeline ─────────────────
+    private Hrot.Blueprints.Editor.Reload.QuickReloadService? _quickReload;
+    private Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate? _saveBlueprint;
+    private Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate? _saveBTree;
+    private Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate? _saveHsm;
+
     private Hrot.Editor.AiShared.Documents.WindowManagerPerspectiveSwitcher? _perspectiveSwitcher;
     private Hrot.Editor.AiShared.Documents.AiDocumentManager?                _aiDocumentManager;
     private Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?      _btreeRegistrar;
@@ -1236,6 +1260,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             }
         };
 
+        // ── SLICE 3 (CE-019/020) — SAVE + HOT RELOAD ───────────────────────────
+        // 📄 DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md §4/§5/§6 ①②.
+        // ⭐⭐⭐ The windows' native editing is taken WHOLESALE (the 2026-08-25 steer) — ⛔ there is no
+        //    gating code here and never was. What this block adds is the RUNTIME EFFECT of an edit:
+        //    a save path, and a reload that commits the recompiled definition into the SAME registry
+        //    the kernel ticks.
+        // ⭐ Slice 1 reported this un-wireable because its TRIGGER — a dirty OPEN document — could not
+        //   exist on CGF. ⇒ CE-009 removed that blocker; this is the follow-through.
+        WireSaveAndReload(windowManager, catalog);
+
         // ⭐⭐⭐ SLICE 2 (CE-014) — PUBLISH THE ASSET SHELL so the debug API can be handed it.
         // 📄 DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md §3/§5.
         // ⛔⛔ Why this is EXPOSED rather than pushed: on CGF the debug API host is built by
@@ -1248,11 +1282,256 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         AssetShellDocuments = _aiDocumentManager;
         AssetShellWindows   = windowManager;
 
+        // ⭐⭐ SLICE 3 (CE-021) — the save/reload actions, published the same way and for the same
+        //    reference-wall reason: ClusterRunner/Program.cs is the only assembly that sees both.
+        // ⭐ ACTIVATE-then-act: the reload pipeline works on the ACTIVE document, so reloading a
+        //   background tab without activating it would recompile the wrong graph.
+        AssetShellSave = assetId =>
+        {
+            ActivateByAssetId(assetId);
+            SaveAllAiDocuments();
+            return LastSaveStatus;
+        };
+        AssetShellReload = assetId =>
+        {
+            ActivateByAssetId(assetId);
+            return ReloadActiveAiDocument();
+        };
+
         FdpLog<CgfSubsystem>.Info(
             "[CGF] AiShared shell built — {0} asset(s) indexed, perspectives now include [{1}].",
             catalog.All.Count,
             string.Join(", ", windowManager.GetPerspectives()));
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-019</c>/<c>CE-020</c> — SAVE and HOT RELOAD on CGF.</b>
+    /// 📄 <c>DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md</c> §6 items ①②④.
+    ///
+    /// <para>⭐⭐ <b>Mirrors <c>EditorSubsystem</c> <c>:3286-3341</c> *(save)* and <c>:4158-4218</c>
+    /// *(the three per-host reload triggers)*.</b> ⛔ Nothing here is new capability: the compile,
+    /// the classification *(Cosmetic/Soft/Hard, <c>§17</c>)* and the registry commit all already
+    /// exist and are per-host TRIGGERED — CGF simply did not wire the triggers.</para>
+    ///
+    /// <para>⚠⚠ <b>The two write paths stay distinct, and that is load-bearing</b> *(design §3)*:
+    /// this is the ASSET path — edit the graph, write the file, recompile, commit to the registry.
+    /// ⛔ It is NOT the live variable-VALUE write *(<c>R-52</c>'s staged <c>Blackboard1024</c>
+    /// clobber)*, which stays OFF on this host: <c>writeLive</c> and <c>StagedWrites</c> are still
+    /// null in <c>BuildAiShell</c>, and nothing below touches them.</para>
+    ///
+    /// <para>🔴 <b>Ruling 53 — a HARD reload is a confirmed cluster-wide reset, and the confirm belongs
+    /// where the OPERATOR sits.</b> ⛔ This host never pops a modal: it is headless-first, and a modal
+    /// on an unattended node is a hang, not a prompt. ⇒ the classification is REPORTED
+    /// *(<see cref="LastReloadStatus"/>, and the MCP response)* and the interactive node owns the
+    /// confirmation. ⚠ See <c>CE-021</c> — the confirm ROUTE is not built by this slice.</para>
+    /// </summary>
+    private void WireSaveAndReload(
+        Fdp.Presentation.WindowManager.WindowManager windowManager,
+        Hrot.Editor.AiShared.Catalog.AssetCatalog catalog)
+    {
+        if (_context == null || _aiDocumentManager == null) return;
+
+        // ── The reload pipeline (item ①) ───────────────────────────────────────
+        // ⭐ The LIGHTWEIGHT FDP coordinator, constructed with the SAME registry instances the kernel
+        //   ticks — ⛔ that instance-sharing is the whole mechanism: ApplyQuickReload commits into
+        //   `_blueprintRegistry`, and BlueprintTickSystem reads that exact object.
+        var reloadCoordinator = new Fdp.Toolkit.Behavior.AiHotReloadCoordinator(
+            _behaviorRegistry!, _blueprintRegistry!,
+            new Fdp.Toolkit.Behavior.AiHotReloadCoordinatorOptions());
+
+        // ⭐⭐⭐ RULING 53's ACTUAL REQUIREMENT, and it is NOT a confirm route.
+        // 📄 UX_Feature_Modal_Surfaces.md §2.0b: *"Headless never pre-flights — MCP/script/replay
+        //    dispatch the authorized request directly. ⚠ The origin still LOGS what it skipped"*, and
+        //    §"Risks": *"Headless proceeds silently on destructive work — deliberate — but it means an
+        //    MCP agent can [destroy state] with no prompt. The origin-side log IS THE WHOLE SAFETY NET,
+        //    so it is a requirement, not a nicety."*
+        // ⇒ ⛔ CGF pops NO modal *(it is headless-first; a modal on an unattended node is a hang)*, and
+        //   ⭐ this subscription is the safety net that replaces it.
+        // ⚠⚠ MEASURED LIMIT: this event is documented *"NOT fired for Quick Reloads"* — it belongs to
+        //    the ALC file-watcher path, which this slice does not wire. ⇒ it will not fire today. ⭐ It
+        //    is subscribed anyway so the log exists the moment that path is wired, ⛔ and the gap is
+        //    REPORTED (CE-023) rather than papered over with a fabricated classification.
+        reloadCoordinator.OnHardReloadCompleted += ids =>
+            FdpLog<CgfSubsystem>.Warn(
+                "[CGF] HARD reload completed — {0} behaviour(s) had live instances RESET. This node is "
+              + "headless and did not prompt (ruling 53); this log is the record.",
+                ids.Count);
+
+        // ⚠ A CONSOLE, not silence: a failed compile must say so somewhere a headless node can be
+        //   read. ⛔ The editor routes this to its message-log window; CGF has no such source, so the
+        //   system console is the honest destination — and the status string below is what MCP reads.
+        var reloadConsole  = new Hrot.Blueprints.Editor.SystemConsoleOutputConsole();
+        var reloadCatalog  = new Hrot.Blueprints.Editor.BlueprintPeerSource(
+                                 Hrot.Editor.AiShared.AssetRoots.AssetsFor(
+                                     Hrot.Editor.AiShared.AssetKind.Blueprint));
+
+        _quickReload = new Hrot.Blueprints.Editor.Reload.QuickReloadService(
+            reloadCatalog,
+            new Hrot.Blueprints.Editor.EditorState(),
+            reloadConsole,
+            new Hrot.Blueprints.Core.Compiler.BlueprintCompiler(),
+            reloadCoordinator,
+            // ⚠ No debug session on this host (slice 1 §9.4) — the parameter is optional and CGF
+            //   genuinely has none. ⛔ Not a silent default.
+            session: null);
+
+        // ── The save path (item ②) ─────────────────────────────────────────────
+        // ⭐⭐ DEVIATION from §6 ②, argued: the design says "asset→path via AssetRoots".
+        //    📐 Measured: `SaveAllAiDocumentsCommand.Execute` already resolves the path from
+        //    `asset.SourceFilePath` and SKIPS with a WARNING when it is empty. ⇒ ⛔ a second
+        //    AssetRoots-based mapping here would be a competing answer to "where does this asset
+        //    live", and the catalog already recorded the real one when it indexed the file.
+        //    ⭐ AssetRoots still resolves the reload CATALOG root above — that is a different question.
+        _saveBlueprint = (asset, path) =>
+        {
+            var doc     = _aiDocumentManager?.OpenDocuments
+                              .FirstOrDefault(d => d.Asset.AssetId == asset.AssetId);
+            var ctx     = doc?.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+            var bpAsset = ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset;
+            if (bpAsset == null) return;
+            Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(bpAsset, path);
+        };
+
+        _saveBTree = (asset, path) =>
+        {
+            if (asset is not Hrot.BTree.Editor.Model.BehaviorTreeAsset bt) return;
+            var dto  = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(bt);
+            var json = Hrot.AiEditor.Persistence.BTree.BTreeJsonServices.Serialize(dto);
+            Hrot.AiEditor.Persistence.AtomicFileWriter.Write(
+                path, Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(json));
+        };
+
+        _saveHsm = (asset, path) =>
+        {
+            if (asset is not Hrot.Hsm.Editor.Model.HsmAsset hsm) return;
+            var dto  = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsm);
+            var json = Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Serialize(dto);
+            Hrot.AiEditor.Persistence.AtomicFileWriter.Write(
+                path, Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(json));
+        };
+
+        // ── The main-toolbar affordances (item ④) ──────────────────────────────
+        // ⭐⭐⭐ CE-009 §7, discharged for the FIRST time: *"when a later slice adds a feature
+        //    CONTROLLED FROM THE TOOLBAR, its button must be wired AND instrumented on CGF too."*
+        // ⭐ Registering here makes `MainToolbarManager.Height` non-zero on this host, so the toolbar
+        //   now RENDERS as well as publishes — 📌 and the slice-2 rail that asserted CGF had ZERO
+        //   entries is updated in the same batch, which is exactly the hand-off §7 designed.
+        windowManager.MainToolbar.RegisterEntry(
+            "SaveAllAiDocuments", sortOrder: 10,
+            Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight,
+            () => { if (ImGuiNET.ImGui.Button("Save All")) SaveAllAiDocuments(); },
+            perspective: null);
+
+        windowManager.MainToolbar.RegisterEntry(
+            "QuickReloadAiAsset", sortOrder: 11,
+            Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight,
+            () => { if (ImGuiNET.ImGui.Button("Reload AI")) ReloadActiveAiDocument(); },
+            perspective: null);
+
+        FdpLog<CgfSubsystem>.Info(
+            "[CGF] Save + hot reload wired — {0} asset(s) indexed, toolbar entries registered.",
+            catalog.All.Count);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Save every dirty open document.</b> ⛔ The SAME shared command the editor uses, with the
+    /// same three per-kind delegates — ⛔ not a CGF save path.
+    /// </summary>
+    internal void SaveAllAiDocuments()
+    {
+        Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.Execute(
+            _aiDocumentManager, _saveBlueprint, _saveBTree, _saveHsm,
+            msg => { LastSaveStatus = msg; FdpLog<CgfSubsystem>.Info("[CGF] save: {0}", msg); });
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Recompile the ACTIVE document and commit it into the running registry.</b>
+    ///
+    /// <para>⭐ Three per-host arms, exactly as the editor wires them *(<c>:4158</c>/<c>:4175</c>/
+    /// <c>:4198</c>)*: Blueprint compiles from the in-memory <c>BlueprintAsset</c>; BTree and HSM emit
+    /// topology + bridge sources and compile those. ⛔ None of them reads the file from disk — ⚠ so a
+    /// reload reflects the EDIT, not the last save, which is the editor's own documented behaviour.</para>
+    ///
+    /// <para>⚠ Returns the status string rather than throwing: a failed compile is a legitimate
+    /// outcome of editing, and the caller *(toolbar or MCP)* reports it.</para>
+    /// </summary>
+    internal string ReloadActiveAiDocument()
+    {
+        var active = _aiDocumentManager?.Active;
+        var ctx    = active?.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+
+        if (_quickReload == null || active == null)
+            return LastReloadStatus = "No active AI document to reload.";
+
+        try
+        {
+            switch (ctx?.AssetRef)
+            {
+                case Hrot.Blueprints.Core.Assets.BlueprintAsset bp:
+                {
+                    var r = _quickReload.TriggerAsync(bp).GetAwaiter().GetResult();
+                    return LastReloadStatus = r.Succeeded
+                        ? $"Compiled blueprint '{bp.Name}' in {r.DurationMs}ms"
+                        : $"Blueprint compile failed: {r.ErrorMessage}";
+                }
+
+                case Hrot.BTree.Editor.Model.BehaviorTreeAsset bt:
+                {
+                    var dto      = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(bt);
+                    var topology = Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.EmitTopologyCore(dto);
+                    var bridge   = Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.EmitBridge(dto);
+                    var r = _quickReload.TriggerFromSourcesAsync(
+                        new[] { (topology, dto.Name + ".g.cs"), (bridge, dto.Name + ".Registrar.g.cs") },
+                        $"BTreePatch_{dto.AssetId:N}_{Guid.NewGuid():N}").GetAwaiter().GetResult();
+                    return LastReloadStatus = r.Succeeded
+                        ? $"Compiled BTree '{dto.Name}' in {r.DurationMs}ms"
+                        : $"BTree compile failed: {r.ErrorMessage}";
+                }
+
+                case Hrot.Hsm.Editor.Model.HsmAsset hsm:
+                {
+                    var dto      = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsm);
+                    var topology = Hrot.AiEditor.Persistence.Emit.HsmEmitCore.EmitTopologyCore(dto);
+                    var bridge   = Hrot.AiEditor.Persistence.Emit.HsmBridgeEmitCore.EmitBridge(dto);
+                    var r = _quickReload.TriggerFromSourcesAsync(
+                        new[] { (topology, dto.Name + ".g.cs"), (bridge, dto.Name + ".Registrar.g.cs") },
+                        $"HsmPatch_{dto.AssetId:N}_{Guid.NewGuid():N}").GetAwaiter().GetResult();
+                    return LastReloadStatus = r.Succeeded
+                        ? $"Compiled HSM '{dto.Name}' in {r.DurationMs}ms"
+                        : $"HSM compile failed: {r.ErrorMessage}";
+                }
+
+                default:
+                    // ⚠ A document with no canvas context cannot be recompiled — say WHICH, so the
+                    //   caller is not left guessing whether the reload ran.
+                    return LastReloadStatus =
+                        $"'{active.Asset.Name}' ({active.Kind}) has no compilable canvas context.";
+            }
+        }
+        catch (Exception ex)
+        {
+            // ⛔ A compile is user input; it must not take the node down. ⭐ Reported, not swallowed.
+            FdpLog<CgfSubsystem>.Error("[CGF] reload failed: {0}", ex.Message);
+            return LastReloadStatus = $"Reload threw: {ex.Message}";
+        }
+        finally
+        {
+            // ⭐⭐ RULING 53's origin-side log, on EVERY reload — not only the Hard ones.
+            //    ⛔ A headless node that silently recompiles the brain a live exercise is running is
+            //    exactly what the ruling's safety net is for, and the Soft/Hard distinction is NOT
+            //    available on this path (CE-023) — so the log records the ACT, not a classification
+            //    it cannot honestly make.
+            FdpLog<CgfSubsystem>.Info(
+                "[CGF] AI asset reload requested for '{0}' — {1}",
+                _aiDocumentManager?.Active?.Asset.Name ?? "(none)", LastReloadStatus);
+        }
+    }
+
+    /// <summary>⭐ The last save report — read by the MCP save route and by rails.</summary>
+    internal string LastSaveStatus { get; private set; } = string.Empty;
+
+    /// <summary>⭐ The last reload report — read by the MCP reload route and by rails.</summary>
+    internal string LastReloadStatus { get; private set; } = string.Empty;
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>CE-013</c> — build the SAME asset catalog the editor builds.</b>

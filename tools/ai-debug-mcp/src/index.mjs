@@ -857,6 +857,30 @@ const TOOLS = [
   },
 
   {
+    name: 'save_ai_asset',
+    description: TOOL_DEFS['save_ai_asset'].description,
+    inputSchema: TOOL_DEFS['save_ai_asset'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'POST', `/assets/${encodeURIComponent(toolArgs.assetId)}/save`));
+      } catch (err) { return toolError(err.message, err.envelope, 'save_ai_asset'); }
+    },
+  },
+
+  {
+    name: 'reload_ai_asset',
+    description: TOOL_DEFS['reload_ai_asset'].description,
+    inputSchema: TOOL_DEFS['reload_ai_asset'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi(
+          'POST', `/assets/${encodeURIComponent(toolArgs.assetId)}/reload`));
+      } catch (err) { return toolError(err.message, err.envelope, 'reload_ai_asset'); }
+    },
+  },
+
+  {
     name: 'get_gizmo_frame',
     description: TOOL_DEFS['get_gizmo_frame'].description,
     inputSchema: TOOL_DEFS['get_gizmo_frame'].inputSchema,

@@ -461,6 +461,14 @@ class Program
                     FdpLog<Program>.Info(
                         "[Runner] Debug API asset shell attached — {0} asset(s) indexed on CGF.",
                         shellCatalog.All.Count);
+
+                    // ⭐⭐ cgf==editor SLICE 3 (CE-021) — the save/reload actions, on the next line and
+                    //    for the same reference-wall reason as the shell above.
+                    if (cgfShell.AssetShellSave is { } save && cgfShell.AssetShellReload is { } reload)
+                    {
+                        clusterApiService.AttachAssetEditing(save, reload);
+                        FdpLog<Program>.Info("[Runner] Debug API asset save/reload attached.");
+                    }
                 }
                 else
                 {
