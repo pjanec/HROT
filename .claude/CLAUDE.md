@@ -593,7 +593,15 @@ from five documents — the cheaper side to keep, not a principled claim).
 ⭐ **Wording agreed by both sessions.** ⇒ **the same rule applies to any other cross-session numbered
 artefact, not just `BP-` rows.**
 
-### ⛔⛔ IMPLEMENTATION FREEZE — **one session builds the unified variable model** *(user, `2026-08-15`)*
+### ✅✅✅ FREEZE LIFTED — `2026-08-25` *(user: "unfreeze the variable model lane, freeze no longer needed, no one is working on variables")*
+
+> ⭐⭐⭐ **The variable-model implementation freeze below is LIFTED.** Any session may now edit variables,
+> working state, the blackboard panel, and `Hrot.Editor.AiShared` — ⛔ **do NOT re-apply the freeze** and
+> ⛔ **do NOT gate work on it.** ⚠ Ordinary coordination still applies *(two-session protocol, rule 7 re-sync,
+> non-colliding files)* — but the SINGLE-SESSION exclusivity is gone. The text below is retained as HISTORY
+> so older documents that cite "the freeze" resolve to this lifting.
+
+### ⛔ HISTORY — IMPLEMENTATION FREEZE *(user, `2026-08-15`; ✅ LIFTED `2026-08-25` — see banner above)*
 
 > ⭐⭐ **User ruling, verbatim:** *"cross host it is. one single implem session (the one we are using)
 > will be implementing for all hosts, no other session will implement until this is all done."*

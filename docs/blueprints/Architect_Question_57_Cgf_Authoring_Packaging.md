@@ -3,9 +3,11 @@ state: LIVE
 build-state: DESIGN — DISCUSSION. Carries a RECOMMENDED ANSWER per sub-question (coordinator "I analyse/
   suggest, user approves"). Awaiting user approval. ⛔ Nothing is built from this until the answer is recorded here.
 updated: 2026-08-25
-current-answer: §"RECOMMENDED ANSWERS". The one genuinely-open decision for making CGF a full AUTHORING node:
-  where the create-asset packaging (catalog + per-kind INewAssetService) lives, so CGF can CREATE — not just
-  open/edit — AI assets. The authoring SHELL / undo / role-gating / Q25-C are already recommended in AQ25 (§0).
+current-answer: §"RECOMMENDED ANSWERS". ⭐ REVISED `2026-08-25` by prior-art (user): recipe DISCOVERY already
+  exists (`RecipePickerSource` over `INewAssetService.AvailableRecipes`) ⇒ this is NOT a packaging decision but
+  a small WIRING slice — construct the per-kind service dict at CGF's root (reuse `RecipePickerSource`) + a
+  `GET /assets/recipes` MCP route. No new registry/assembly. The authoring SHELL / undo / role-gating / Q25-C
+  are already recommended in AQ25 (§0). The variable-model freeze is LIFTED (`2026-08-25`).
 design-basis: PROGRAMME_Cgf_Equals_Editor_Gap_Map.md (the two rows "Hrot.Editor catalog/NewAssetService
   packaging" + "Behavior/scenario authoring on CGF") · Architect_Question_25_Scenario_Authoring_Golden_Path.md
   (the authoring-shell decisions, recommendations awaiting approval) · AQ51 Project_Consolidation / AQ53
@@ -41,36 +43,39 @@ search_graph name_pattern=".*NewAssetService" · ".*(Asset)?Catalog"
 | **`INewAssetService`** *(the seam)* + `IAssetCatalog` / `IAssetCatalogContributor` | ⭐ **`Hrot.Editor.AiShared`** *(the SHARED assembly)* | ✅ **yes** — CGF built the shell on it |
 | `BlueprintNewAssetService` *(182 ln)* | `Hrot.Blueprints.Editor` | ⚠ partly — CGF references it for the command sink/document factory *(slices 2–3)* |
 | `BTreeNewAssetService` *(169)* · `HsmNewAssetService` | `Hrot.BTree.Editor` · `Hrot.Hsm.Editor` | ⚠ same |
-| the **catalog wiring + New-Asset dialog** that assembles the per-kind services into one create surface | 🔴 **`Hrot.Editor`** *(the editor SUBSYSTEM/app assembly)* | ⛔ **NO** — this is the gap |
+| ⭐⭐⭐ **`RecipePickerSource`** — enumerates **`INewAssetService.AvailableRecipes` per kind** *(from a `Dictionary<AssetKind, INewAssetService>`)*; `RecipeMetadata`; `NewFromRecipeService` *(create-from-recipe)* | ⭐ **`Hrot.Editor.AiShared`** *(SHARED)* | ✅ **yes** — recipe DISCOVERY + create-from-recipe already live in the shared assembly |
+| the New-Asset **dialog wiring** that constructs the `Dictionary<AssetKind, INewAssetService>` | 🔴 **`Hrot.Editor`** *(the editor SUBSYSTEM/app assembly)* | ⛔ **NO** — the only real gap |
 
-⇒ ⭐⭐ **The interfaces are already shared; the IMPL classes live in the per-subsystem AI editor assemblies; only the ASSEMBLY that stitches them into a create surface is `Hrot.Editor`, which CGF does not (and per ruling 66's spirit should not) take a dependency on.**
+⇒ ⭐⭐⭐ **PRIOR ART (user, `2026-08-25`): recipe DISCOVERY already exists.** `RecipePickerSource` over
+`INewAssetService.AvailableRecipes` **is** the "available recipes" registry — ⛔ **do NOT build a new
+`NewAssetRegistry`.** The interfaces, the recipe enumeration, and create-from-recipe are ALL in the shared
+`AiShared`. ⇒ ⭐⭐ **the decision collapses to a WIRING question:** who constructs the
+`Dictionary<AssetKind, INewAssetService>` at CGF's composition root, and expose recipe-discovery over MCP.
 
-## 2. ⭐ THE SUB-QUESTIONS
+## 2. ⭐ THE SUB-QUESTIONS *(collapsed by the recipe-discovery prior art — §1)*
 
-### Q57-A — Where does the create-asset wiring live so CGF can reach it?
-| option | what it means | trade |
-|---|---|---|
-| **A1** | ⭐ **Move the create wiring into `Hrot.Editor.AiShared`** *(a small `NewAssetRegistry` the per-kind services register into)* — CGF already references AiShared | ⭐ smallest new dependency surface; matches the AQ53 "shared home" precedent. ⚠ AiShared is under the variable-model FREEZE — the addition must be **additive + coordinated** with that lane |
-| **A2** | CGF **references `Hrot.Editor`** directly | ⛔ pulls the whole editor SUBSYSTEM into a runtime node — contradicts ruling 66's clean seam; large surface |
-| **A3** | a **new shared `Hrot.Editor.Authoring` assembly** the per-kind services register into; both `Hrot.Editor` and CGF reference it | ⭐ cleanest long-term seam; ⚠ a new project *(the AQ51 consolidation cost)* |
+### Q57-A — Who constructs the per-kind `INewAssetService` set at CGF's root?
+📐 **Measured:** the impls live in the per-subsystem AI editor assemblies *(`Hrot.Blueprints.Editor` etc.)*, which CGF **already references** for the command sinks/document factories *(slices 2–3)*. ⇒ the services can be constructed at CGF's composition root **with no new assembly dependency** — the same place slice 1 built `AssetCatalog`. The `Dictionary<AssetKind, INewAssetService>` the editor's dialog assembles is the only thing `Hrot.Editor` currently owns; CGF builds its own from services it can already see.
+| option | trade |
+|---|---|
+| ⭐ **A1 — construct the dict at CGF's root** *(mirroring slice-1's `AssetCatalog` construction)* + feed `RecipePickerSource` | ⭐ **no new assembly, no new type** — reuse `RecipePickerSource`; ⚠ confirm CGF references the three per-kind editor assemblies *(it should, post slices 2–3)* |
+| **A2 — CGF references `Hrot.Editor`** | ⛔ pulls the whole editor subsystem into a runtime node *(ruling 66)*; rejected |
+| **A3 — a new shared assembly** | ⛔ unnecessary now that recipe discovery already lives in AiShared |
 
-### Q57-B — How is the per-kind service discovered?
-| option | | trade |
-|---|---|---|
-| **B1** | ⭐ **a registry the per-kind services register into at composition** *(like `IAssetCatalogContributor` already does for the catalog)* | ⭐ mirrors an existing, working pattern; measured-not-authored |
-| **B2** | reflection over loaded assemblies | ⚠ the static-ctor-can't-see-hot-reload hazard Q25-C already named |
+### Q57-B — Expose recipe DISCOVERY over MCP *(the one genuinely-new surface)*
+`RecipePickerSource` gives the list; expose it as **`GET /assets/recipes`** *(per kind: recipe name · description from `RecipeMetadata`)* — the recipe analog of node-kind discovery *(MA-013)*, so the agent knows what it can create.
 
-### Q57-C — Does CGF create-asset go through the SAME MCP route as edit? *(MA- already ships `POST /assets` create)*
-📌 **Measured:** `MA-003`'s batch shipped **`POST /assets` create → `INewAssetService` per kind** — so the MCP create route EXISTS; it works on the editor because the services are wired there. ⇒ Q57-C is *"wire the same services on CGF via Q57-A/B"*, ⛔ not a new route.
+### Q57-C — Create goes through the SAME shipped route
+📌 **Measured:** MA- shipped **`POST /assets` create → `INewAssetService` per kind**. It works on the editor because the services are wired there. ⇒ CGF gains create the moment A1 wires the dict at its root — ⛔ no new create route.
 
 ## ✅ RECOMMENDED ANSWERS — *(coordinator; approve or redirect)*
 | # | ✅ recommended |
 |---|---|
-| **Q57-A** | **A1** — move the thin create-wiring into **`Hrot.Editor.AiShared`** as a `NewAssetRegistry`. ⭐ CGF already depends on AiShared; ⛔ A2 pulls in the whole editor subsystem *(ruling 66)*; A3 is cleaner but costs a new project we don't yet need. ⚠ **The addition is ADDITIVE and MUST be coordinated with the variable-model freeze lane** *(AiShared is frozen)* — a one-file registry + registration calls, no touch to variable/blackboard internals. |
-| **Q57-B** | **B1** — the per-kind `INewAssetService` **registers** into the shared `NewAssetRegistry` at composition, exactly as `IAssetCatalogContributor` populates the catalog today. ⛔ no reflection *(Q25-C's hazard)*. |
-| **Q57-C** | **reuse the shipped `POST /assets` create route** — CGF gains create the moment Q57-A/B wire the services at its root; ⛔ no new MCP surface. |
+| **Q57-A** | **A1 — construct the `Dictionary<AssetKind, INewAssetService>` at CGF's composition root** *(exactly where slice 1 built `AssetCatalog`)* and feed the existing **`RecipePickerSource`**. ⛔ **No `NewAssetRegistry`, no new assembly** — the recipe-discovery registry already exists in AiShared. ⚠ Only confirm CGF references the three per-kind editor assemblies *(it should, post slices 2–3)*; if one is missing that is the whole of the work. |
+| **Q57-B** | expose **`GET /assets/recipes`** over MCP from `RecipePickerSource` — the recipe analog of node-kind discovery. |
+| **Q57-C** | **reuse the shipped `POST /assets` create route** — no new MCP surface. |
 
-⇒ ⭐ **Net:** one small additive registry in AiShared + registration at CGF's composition root = CGF creates assets, over the same MCP route the editor already uses. **The blast radius is the freeze coordination, nothing structural.**
+⇒ ⭐⭐ **Net, revised: this is NOT a packaging decision — it is a WIRING slice.** Construct the per-kind service dict at CGF's root *(reusing `RecipePickerSource`)* + one `GET /assets/recipes` route. **No new registry, no new assembly, no freeze coordination** *(the freeze is lifted anyway, `2026-08-25`)*. ⇒ small enough to fold into a CGF-lane batch, ⛔ not really an architect decision — flagged here only because the overnight run correctly refused to guess the assembly boundary.
 
 ## ⛔ NOT this AQ
 - The authoring **shell / undo / role-gating / problems-list** — **AQ25**, awaiting approval *(§0)*.
