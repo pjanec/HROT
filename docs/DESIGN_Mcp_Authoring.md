@@ -4,9 +4,12 @@ build-state: READY-TO-BUILD — carries classDiagram + sequenceDiagram (§5/§6)
   (sibling of MCP_Integration.md). The MCP server gains AUTHORING: AI-asset (graph document) editing and
   scenario (world) authoring. Dispatch to a SEPARATE session from a base that includes CE-011 (§8).
 updated: 2026-08-25
-current-answer: the whole file. ⭐ §11 (the DISCOVERY surface — list node kinds + read a kind's property
+current-answer: the whole file. ⭐ §10 (the DISCOVERY surface — list node kinds + read a kind's property
   schema, auto-discovered from the registries) is a FOLLOW-UP SLICE, sequenced AFTER the mutation batch (§8):
   it shares the DebugApi route surface + generated catalog, so it CANNOT run concurrently.
+  🔴 §11 (COMPLETENESS, `2026-08-25`) SUPERSEDES §7②'s 4-verb sketch: the edit surface is the WHOLE
+  GraphCommand union (~35 variants incl. attachments=BTree decorators + regions=HSM parallel) via ONE generic
+  route, and read/discover/monitor must match it across all three hosts. ⛔ Build §11's shape, not §7's.
 design-basis: Architect_Question_56_Mcp_Authoring_Surface.md (the decision trail — Q56-A..F resolved with
   the user; this doc is its graduation to a buildable design) · CE-009 (open + read/switch — the
   precondition) · CE-011 (save + QuickReload — the runtime effect) · AQ10 (deterministic pin/link ids on
@@ -262,5 +265,110 @@ sequenceDiagram
 | ⭐ **③** | **schema-coverage rail:** for **every** kind in `INodeCatalog.All`, `GET .../{kind}/schema` returns without error | ⭐⭐ **this is the auto-discovery proof** — it fails the moment a registry adds a kind the route can't describe, which is exactly what "measured, not authored" must guarantee |
 | ⚠ **④** | ⚠ **sequenced AFTER the mutation batch (§8)** — shares `DebugApiService.Authoring.cs` + the generated catalog; ⛔ not concurrent | branch from a base that includes the merged mutation slice |
 
-## 11. ⭐ WHEN DONE
-Fold the as-built here; state the ids *(its own lane/prefix)*; the report points here. Mark `AQ56` BUILT. ⭐ The discovery slice *(§10)* folds its as-built into §10 and flips the parity claim *("what the user sees, MCP reads")* from designed to built.
+## 11. 🔴🔴🔴 COMPLETENESS — **the WHOLE command union, and the host specifics** *(user, `2026-08-25`; measured)*
+> 🎯 **User:** *"the goal is to make the graphs and AI assets editable AND monitorable by an AI agent so we
+> can automatically test all the authoring features — and there's not just blueprints but BTree and HSM
+> graphs, and they have specifics: regions, decorators, etc."* ⛔⛔ **This exposes a real gap in §7:** §7②
+> named only `nodes/links/params/remove` — **4 of a ~35-variant union.** ⭐⭐⭐ **That subset cannot express a
+> BTree decorator or an HSM region** — exactly the host specifics called out.
+
+### 11.1 ⭐⭐⭐ THE FINDING — editing is ONE closed union through ONE seam *(measured `2026-08-25`)*
+📐 `GraphCommand` *(`NodeEditor.Core/Commands/GraphCommand.cs`, in-deg 126)* is an **abstract record with ~35
+`sealed record` variants**, applied through the **single** seam `IGraphCommandSink.Apply(GraphCommand)` —
+implemented by **all three** sinks: `BlueprintCommandSink` *(1466 ln)* · `BTreeCommandSink` *(641 ln)* ·
+`HsmCommandSink` *(443 ln)*. ⇒ ⭐⭐ **the edit vocabulary is host-NEUTRAL and complete already;** each sink
+interprets the same commands for its host. The full union, grouped:
+
+| group | variants | ⭐ the host it matters most for |
+|---|---|---|
+| **nodes** | `AddNode` · `RemoveNodes` · `MoveNodes` · `SetNodeProperty` · `SetNode{Collapsed,AdvancedShown,Disabled}` | all |
+| **links / pins** | `AddLink` · `RemoveLinks` · `ReplaceLinkEndpoint` · `SetPinDefault` | ⭐ Blueprint *(exec vs data pins)* · HSM *(a transition IS a link + guard/event props)* |
+| ⭐⭐ **attachments** | `AddAttachment` · `RemoveAttachments` · `SetAttachmentProperty` · `ReorderAttachments` · `MoveAttachment` | ⭐⭐⭐ **BTree DECORATORS / condition pills** *(`BTreePillAttachmentModel`)* · `HsmAttachment` |
+| ⭐⭐ **containers / regions** | `AddRegion` · `RemoveRegion` · `ReorderRegions` · `SetRegionProperty` · `ChangeParent` · `ChangeParentMultiple` · `SetContainerCollapsed` | ⭐⭐⭐ **HSM parallel REGIONS** *(`RegionNode`/`RegionDescriptor`)* · BTree tree reparenting |
+| **comments / reroutes** | `AddComment` · `UpdateComment` · `RemoveComment` · `InsertReroute` · `MoveReroute` · `RemoveReroute` | all *(cosmetic)* |
+| **refactor** | `PromoteToVariable` · `CollapseToFunction` · `CollapseToMacro` · `CollapseToComment` · `ExpandNode` | Blueprint |
+| **atomic** | `Batch(label, commands[])` | all |
+
+### 11.2 ⭐⭐⭐ THE DECISION — **expose the union, don't curate verbs** *(recommended lean)*
+⛔⛔ **A hand-picked verb list WILL lag the union** — 📌 it already did *(this section is that miss)*. ⭐⭐ Since
+every sink is `Apply(GraphCommand)` and the union is **closed + discriminated + host-neutral**, the backbone is
+**one generic route**:
+
+| route | shape |
+|---|---|
+| ⭐⭐⭐ **`POST /assets/{id}/graph/command`** | body = **one serialized `GraphCommand`** *(a `type` tag + the variant's fields; ids/enums as strings)* → deserialize → `Apply` → return the `GraphCommandResult` + any new ids. ⭐ **`Batch` gives atomic multi-step for free** |
+| ⭐ sugar *(optional)* — `.../nodes`, `.../links`, `.../params` | thin helpers that BUILD the union command; ⛔ never a parallel model — they call the same route |
+
+⇒ ⭐⭐⭐ **This is the parity guarantee:** the MCP edit surface IS the human edit surface, because it dispatches
+the same union to the same sink — decorators, regions, transitions, reparenting, refactors, all three hosts,
+**zero per-host MCP code.** ⚠ **Tiering for the rail:** *semantic* variants *(AddNode/AddLink/AddAttachment/
+AddRegion/SetNodeProperty/SetPinDefault/reparent/refactor)* must round-trip **and** survive save→reload;
+*cosmetic* variants *(collapsed/advanced/move/reroute/comment-color)* must round-trip in the read but need not
+change the running brain.
+
+### 11.3 ⭐⭐ THE READ + DISCOVER MUST MATCH THE UNION — else the round-trip can't verify the host specifics
+| surface | §-was | ⛔ the gap | ✅ the fix |
+|---|---|---|---|
+| **read** *(§7①)* | "nodes/pins/links/params" | ⛔ omits attachments · regions/containers · comments/reroutes · **HSM transition guard/event on links** | ⭐ the in-memory serializer emits the **full** structure — so a decorator/region edit is READ-BACKABLE *(the round-trip proof)* |
+| **discover** *(§10)* | kinds + pins + params | ⛔ omits **which kinds are region CONTAINERS** *(`IContainerNodeModel`)* · **which accept ATTACHMENTS and of what `AttachmentCategory`** · **pin KIND** *(exec vs data, single vs collection)* | ⭐ discovery reports host-structure capability, not just kinds — so the agent knows a state is parallel-capable / a BTree node takes a decorator |
+
+### 11.4 ⭐⭐ MONITORABLE — **runtime read-back, so an authoring test can assert the EFFECT** *(the user's "auto-test")*
+⭐ Structural read-back *(11.3)* proves *"the edit landed in the model."* **Monitoring** proves *"the running brain
+changed."* Name the runtime surfaces per host and confirm each is MCP-readable per graph *(mostly EXISTS —
+CE-001..024 + slice-4)*:
+
+| host | the live signal to expose | source |
+|---|---|---|
+| all | node runtime status *(active/ticking/last-result)* · breakpoint + pause state | the debug session + slice-4 |
+| ⭐ **HSM** | **active states per region · `HsmTransitionFired` · `HsmRegionConflict`** | `Hsm.Editor/Debug/HsmDebugTypes` |
+| ⭐ **BTree** | **per-node tick status overlay** | `BTreeHostServices` runtime overlay |
+| all | blackboard / watch VALUES · validation results | the watch *(BP-508..512)* · `IAssetValidator` |
+
+⇒ ⭐⭐ **The auto-test loop the user wants:** discover kinds+structure → author via the union → **read back the
+structure** *(landed?)* → save+reload → **read the runtime signal** *(took effect?)* → assert. ⛔ Any host specific
+missing from read/discover/monitor is a hole the authoring test cannot cover — 11.1–11.4 close them for all three.
+
+### 11.5 ⭐⭐⭐ COMPLETENESS CLASS DIAGRAM
+```mermaid
+classDiagram
+    direction LR
+    class GraphCommand {
+        <<exists · abstract record · ~35 sealed-record variants · host-neutral>>
+    }
+    class AddNode { <<node>> }
+    class AddLink { <<link · exec/data/transition>> }
+    class AddAttachment { <<BTree decorator / pill>> }
+    class AddRegion { <<HSM parallel region>> }
+    class ChangeParentMultiple { <<tree reparent>> }
+    class Batch { <<atomic multi-step>> }
+    class IGraphCommandSink {
+        <<exists · the ONE seam>>
+        +Apply(GraphCommand) GraphCommandResult
+    }
+    class BlueprintCommandSink { <<exists · 1466 ln>> }
+    class BTreeCommandSink { <<exists · 641 ln>> }
+    class HsmCommandSink { <<exists · 443 ln>> }
+    class DebugApiAuthoring {
+        <<NEW · POST assets graph command>>
+        +ApplyCommand(assetId, json) result
+    }
+    GraphCommand <|-- AddNode
+    GraphCommand <|-- AddLink
+    GraphCommand <|-- AddAttachment
+    GraphCommand <|-- AddRegion
+    GraphCommand <|-- ChangeParentMultiple
+    GraphCommand <|-- Batch
+    IGraphCommandSink <|.. BlueprintCommandSink
+    IGraphCommandSink <|.. BTreeCommandSink
+    IGraphCommandSink <|.. HsmCommandSink
+    DebugApiAuthoring ..> GraphCommand : deserialize any variant
+    DebugApiAuthoring ..> IGraphCommandSink : Apply (host resolved by open doc)
+    note for DebugApiAuthoring "One route carries the whole union to the host's sink — decorators, regions, transitions, reparenting, all three hosts, zero per-host MCP code. A coverage rail asserts every variant round-trips."
+```
+
+⇒ ⭐ **§7② is superseded by §11.2** *(generic union route + sugar)*; §7① and §10 are extended by §11.3; the
+runtime surfaces are §11.4. ⛔ **The implementing session builds §11's shape, not §7's 4-verb sketch** — §7
+stays as the narrative; §11 is the completeness contract.
+
+## 12. ⭐ WHEN DONE
+Fold the as-built here; state the ids *(its own lane/prefix)*; the report points here. Mark `AQ56` BUILT. ⭐ The discovery slice *(§10)* folds its as-built into §10 and flips the parity claim *("what the user sees, MCP reads")* from designed to built. ⭐⭐ **The completeness rail *(§11)* — every semantic `GraphCommand` variant round-trips across all three hosts — is the machine proof that "editable = whatever the human can do."**
