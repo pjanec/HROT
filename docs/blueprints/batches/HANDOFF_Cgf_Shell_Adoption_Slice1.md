@@ -6,8 +6,11 @@ current-answer: dispatch pointer for cgf==editor SLICE 1 — CGF constructs the 
   the asset-perspective windows (watch · MyBlueprint · graph canvas · breakpoints · inspector), proven
   headlessly editor-vs-cluster via the conformance suite. Carries NO design: cites
   DESIGN_Cgf_Editor_Sharing_Slice1_Shell_Adoption.md (classDiagram + sequenceDiagram + the test method).
-known-conflict: none. Coordinator is JOINED with both lanes at the dispatch sha (94g + HN-037 all merged).
-  This slice CONSUMES Hrot.Editor.AiShared and must NOT modify it (freeze owner = the variable-model lane).
+known-conflict: ⚠ AMENDED BY STEER 2026-08-25 — STEER_Cgf_Shell_Adoption_Slice1.md supersedes the
+  "read/diagnostics only" framing (§1 NOT-row "asset editing"; §5 item ③): take the windows WHOLESALE
+  incl. their native editing; do not artificially gate. Everything else here stands.
+  Coordinator is JOINED with both lanes at the dispatch sha (94g + HN-037 all merged). This slice CONSUMES
+  Hrot.Editor.AiShared and must NOT modify it (freeze owner = the variable-model lane).
 -->
 # HANDOFF — **cgf==editor slice 1: CGF adopts the AiShared shell** *(CGF / backend lane)*
 
