@@ -22,6 +22,33 @@ known-conflict: none. Supersessions in the corpus are listed in §7 so nobody qu
 | ⚠⚠ **"Only network setup" is TRUE plus ONE corollary: AUTHORITY** | Ruling 22: *"CGF does not own `SimTransform`… it needs to send a **request** to SimHost, not change ECS directly. **Editor owns all.**"* ⇒ two **permanent, ruled** divergences that ARE the endpoint (not gaps): **(a)** CGF binds **networked** handlers, the editor **networkless** ones; **(b)** CGF writes **unowned** components as **requests**. |
 | 🔴 **Nothing is implemented yet** | the UX task register is empty; the golden-path walk (its task source) has not run; `Q25` (authoring shell) is architect-**unanswered**. `Q26`/`Q29` ARE answered. |
 
+## 0.5 ⭐⭐⭐ UNDER THE PURE-SHARING FRAMING *(user, `2026-08-25`)* — **is anything OPEN?**
+
+⭐⭐ **User's scoping:** *"share the EXISTING editing capabilities with CGF"* — ⛔ **not** *"finish the
+editor's authoring features first."* Under this lens, `AQ25-A/B/C/E` are **authoring FEATURES** *(undo,
+prefabs, behavior-affinity, problems list)* that are **missing on the editor too** ⇒ they are **shared for
+free when built later**, and are **NOT sharing prerequisites**. `AQ25-F` *(new exe)* is **ignored** — keep
+`ClusterRunner`; a shim exe that just passes params may come later.
+
+⇒ ⭐⭐⭐ **For sharing the editing + diagnostics capabilities with CGF: NO open DESIGN question remains.**
+It is wiring plus a few shared fixes, none of them a new design:
+
+| item | kind |
+|---|---|
+| construct the AiShared shell + register the windows on CGF *(watch · MyBlueprint · graph canvas · breakpoints · inspector)* | **wiring** |
+| perspective-default fix (UXI-06) | **bug** |
+| debug pause/step: one `CgfClusterDebugTimeController` adapter | **small build** *(protocol already built both sides)* |
+| hot-reload editing: construct `QuickReloadService` on CGF | **wiring** *(Cosmetic/Soft/Hard already designed)* |
+| R-52 whole-component blackboard write → `SetComponentFieldRaw` | **shared bug** *(bites the editor too)* |
+| asset roots from config (ruling 67) | **build, designed** *(only blocks a DEPLOYED node; dev works)* |
+| `Hrot.Editor` catalog/new-asset packaging | **small decision** *(only for CREATING assets on CGF)* |
+
+⭐ **The ONLY genuinely-open DESIGN item in the whole `cgf==editor` space is `UXI-30`** *(engine authority
+gate — no design doc; prerequisite for `UXI-29`)*. ⛔ **But it is Axis B** *(CGF driving map ENTITIES —
+pose/rotate/attributes)*, has **zero production senders today** *(latent)*, and is **NOT required** for
+sharing the asset-editing/diagnostics capabilities. It matters only if/when CGF should manipulate map
+entities like the editor.
+
 ## 1. ⭐⭐ TWO AXES — keep them separate
 
 ```mermaid

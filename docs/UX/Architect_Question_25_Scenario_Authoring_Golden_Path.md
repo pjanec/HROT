@@ -16,6 +16,12 @@ known-conflict: Q26 supersedes Q25-D and moots Q25-F/F′ — the "new editor ex
 
 > Per the "I analyse/suggest, user approves" model. Each adopts/sharpens the per-Q "Claude's lean" below,
 > informed by the charter *(the editor is a one-node cluster)* and a fresh code measurement of the C′ unknown.
+>
+> ⚠⚠ **SCOPING, user `2026-08-25`:** **A/B/C/E are authoring FEATURES, not prerequisites for SHARING the
+> editing capability with CGF** *(they are missing on the editor too, and get shared for free once built)*
+> ⇒ **postponable**; resolve them when the feature is actually built, not before the CGF sharing.
+> **F is IGNORED** — keep `ClusterRunner` *(a shim exe passing params may come later)*. The recommendations
+> below stand as the answers **for when each feature is built**; none blocks the pure-sharing work.
 
 | # | ✅ recommended answer |
 |---|---|
