@@ -932,6 +932,16 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(503, error, hintCategory) : Ok(result);
             })));
 
+            // ⭐⭐ MA-020 — the recipes POST /assets can create from. ⚠ ROUTE ORDER: a 2-segment LITERAL,
+            //    and no "GET /assets/{assetId}" exists to shadow it (the id-addressed reads are all 3+).
+            _routes.Add(new("GET", "/assets/recipes", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.ListRecipes(ctx.Query("kind"));
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 400,
+                            error, hintCategory);
+            })));
+
             _routes.Add(new("POST", "/assets/open", ctx => RunMainResult(s =>
             {
                 var (result, error, hintCategory) = s.OpenAssetByPath(ctx.Body);

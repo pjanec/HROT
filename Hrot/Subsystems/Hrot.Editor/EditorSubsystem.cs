@@ -3808,7 +3808,7 @@ namespace Hrot.Editor
             //   BLANK TEMPLATE — 📌 `AuthoringPath.NewAsset` establishes that picking the blank template
             //   from `AvailableRecipes()` is the authoring-path-correct way to say "empty", ⛔ rather than
             //   assigning the asset's fields directly.
-            _debugApiService?.AttachAssetAuthoring((kindText, name, relPath) =>
+            _debugApiService?.AttachAssetAuthoring((kindText, name, relPath, recipeName) =>
             {
                 if (!Enum.TryParse<Hrot.Editor.AiShared.AssetKind>(kindText, ignoreCase: true, out var kind))
                     return (null,
@@ -3817,18 +3817,33 @@ namespace Hrot.Editor
                 if (_newAssetServices == null || !_newAssetServices.TryGetValue(kind, out var service))
                     return (null, $"[ERROR] This host composes no INewAssetService for {kind}.");
 
-                Hrot.Editor.AiShared.IEditableAsset? blank = null;
-                foreach (var candidate in service.AvailableRecipes())
-                    if (service.IsBlankTemplate(candidate)) { blank = candidate; break; }
+                // ⭐⭐ MA-021 — the recipe by NAME, from the same AvailableRecipes() list
+                //   GET /assets/recipes publishes. ⛔ An unmatched name is refused with the available
+                //   names: creating a BLANK when a recipe was asked for is a silent wrong answer.
+                var (recipe, recipeError) =
+                    Hrot.Editor.AiShared.Recipes.RecipeByName.Resolve(service, recipeName);
+                if (recipeError != null) return (null, recipeError);
 
-                return CreateAssetCore(kind, blank, name, relPath ?? string.Empty);
+                return CreateAssetCore(kind, recipe, name, relPath ?? string.Empty);
             });
 
+            // ⭐⭐ MA-020 — recipe discovery over MCP reads the SAME registry the picker below does.
+            if (_newAssetServices != null)
+                _debugApiService?.AttachRecipes(
+                    _newAssetServices,
+                    Hrot.Blueprints.Editor.RecipeMetadataAdapter.DescribeRecipe,
+                    Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory);
+
+            // ⚠ MA-020 — the two describe seams were OPTIONAL and NOBODY PASSED THEM, so every recipe in
+            //   the New-Asset tree rendered with a null description while `EditorMetadata.Recipe` carried
+            //   one. 📌 The silent-default shape: the caller HAD the value and did not pass it.
             var newAssetLauncher = _newAssetServices != null
                 ? new Hrot.Editor.NewAssetLauncher(
                     openPicker:         _shellPickers.OpenPicker,
                     services:           _newAssetServices,
-                    showNewAssetDialog: ShowNewAssetDialog)
+                    showNewAssetDialog: ShowNewAssetDialog,
+                    describe:           Hrot.Blueprints.Editor.RecipeMetadataAdapter.DescribeRecipe,
+                    recipeCategory:     Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory)
                 : null;
 
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)

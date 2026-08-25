@@ -53,7 +53,9 @@ const EXPECTED_TOOLS = [
   //   but only this list is guaranteed valid for a given graph.
   'read_asset_graph', 'list_node_kinds',
   'add_graph_node', 'add_graph_link', 'set_graph_param', 'remove_graph_elements',
-  'create_asset',
+  // ⭐⭐ AQ57 / MA-020 — recipe discovery is the CREATE-side analog of list_node_kinds: without it an
+  //   agent can only ever make BLANKS, because a recipe can only be asked for BY NAME.
+  'create_asset', 'list_asset_recipes',
   // ⭐ Scenario authoring is WORLD manipulation (Q56-C): place/configure/assign already had
   //   routes; delete was the one gap.
   'delete_entity',

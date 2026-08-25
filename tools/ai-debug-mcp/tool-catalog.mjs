@@ -2559,13 +2559,20 @@ export const TOOLS_CATALOG = [
         "type": "string",
         "required": false,
         "description": "Subfolder relative to the kind's asset root (default: the root)"
+      },
+      {
+        "name": "recipe",
+        "type": "string",
+        "required": false,
+        "description": "Recipe NAME from list_asset_recipes (default: the kind's blank template)"
       }
     ],
-    "returns": "{ assetId, name, kind, status, sourceFilePath, note }",
+    "returns": "{ assetId, name, kind, recipe, status, sourceFilePath, note }",
     "notes": [
       "It runs the same per-kind INewAssetService the New-Asset dialog runs, writes the file and refreshes the catalog — so the result appears in list_assets by the same rebuild a dialog-created asset does.",
       "The new asset is opened as a document, so you can author it immediately with read_asset_graph and the graph tools.",
-      "A host that composes no create path answers 503 explaining that EDITING an existing asset does not need it."
+      "A host that composes no create path answers 503 explaining that EDITING an existing asset does not need it.",
+      "Call list_asset_recipes first to see what this host can create from. A recipe name it does not offer is REFUSED with the available names — it never silently falls back to a blank asset."
     ],
     "example": {
       "args": {
@@ -2574,7 +2581,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "create a new behaviour tree asset"
     },
-    "hint": "Req: kind, name. Optional: path (subfolder). Example: create_asset({kind:\"BTree\",name:\"Patrol\"})",
+    "hint": "Req: kind, name. Optional: path (subfolder), recipe (from list_asset_recipes). Example: create_asset({kind:\"BTree\",name:\"Patrol\"})",
     "manualVerify": false
   },
 
@@ -2841,6 +2848,38 @@ export const TOOLS_CATALOG = [
       "gist": "delete a node and its wires"
     },
     "hint": "Req: assetId and at least one of nodes[] / links[]. Example: remove_graph_elements({assetId:\"...\",nodes:[\"...\"]})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "list_asset_recipes",
+    "group": "W — AI-asset authoring",
+    "summary": "List the recipes and blank templates create_asset can build from, per asset kind.",
+    "http": {
+      "method": "GET",
+      "path": "/assets/recipes"
+    },
+    "params": [
+      {
+        "name": "kind",
+        "type": "string",
+        "required": false,
+        "description": "Restrict to one AssetKind (BTree | Hsm | Blueprint)"
+      }
+    ],
+    "returns": "{ kinds[], recipes[{ id, kind, name, description, category, isBlankTemplate, sourceFilePath }], note }",
+    "notes": [
+      "`name` is exactly what create_asset takes as its `recipe` argument.",
+      "`isBlankTemplate` separates a synthetic empty starting point (Empty, Starter) from a CONTENT recipe cloned from a real asset — the two are not interchangeable and the name alone does not tell you which it is.",
+      "The list is read live from each kind's INewAssetService, so recipes added to disk appear without restarting the host.",
+      "`description` is null for recipes that carry no RecipeMetadata — the synthetic Empty/Starter entries do not.",
+      "A host that composes no per-kind new-asset registry answers 503; the same registry backs create_asset, so if this is 503 then create is too."
+    ],
+    "example": {
+      "args": {},
+      "gist": "see what kinds of asset this host can create"
+    },
+    "hint": "Optional: kind (filter). Example: list_asset_recipes({kind:\"Blueprint\"})",
     "manualVerify": false
   },
 

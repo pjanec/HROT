@@ -971,8 +971,23 @@ const TOOLS = [
       try {
         return toolSuccess(await callApi('POST', '/assets', {
           kind: toolArgs.kind, name: toolArgs.name, path: toolArgs.path ?? '',
+          // ⭐ MA-021 — omitted rather than sent as null, so the host's "no recipe named" refusal can
+          //   only ever fire on a name the caller actually supplied.
+          ...(toolArgs.recipe ? { recipe: toolArgs.recipe } : {}),
         }));
       } catch (err) { return toolError(err.message, err.envelope, 'create_asset'); }
+    },
+  },
+
+  {
+    name: 'list_asset_recipes',
+    description: TOOL_DEFS['list_asset_recipes'].description,
+    inputSchema: TOOL_DEFS['list_asset_recipes'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const q = toolArgs.kind ? `?kind=${encodeURIComponent(toolArgs.kind)}` : '';
+        return toolSuccess(await callApi('GET', `/assets/recipes${q}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'list_asset_recipes'); }
     },
   },
 
