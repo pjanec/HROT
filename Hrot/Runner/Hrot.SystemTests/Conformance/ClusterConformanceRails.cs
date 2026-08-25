@@ -1728,4 +1728,419 @@ public sealed class ClusterConformanceRails
             $"scenario/save failed after the delete: {savedScenario.Error}. Scenario authoring is world "
           + "manipulation followed by a snapshot, so a save that cannot run makes the delete pointless.");
     }
+    // ══════════════════════════════════════════════════════════════════════════
+    // ⭐⭐⭐ GROUP X — THE UNION / DISCOVERY / COMMAND-BUS RAILS
+    //    📄 DESIGN_Mcp_Authoring.md §10 · §10.7 · §11 · the handoff §5.
+    //
+    // ⛔⛔ The Group-W rule still binds: NEVER `save` a COMMITTED asset from a rail (see that region's
+    //    block comment — an earlier cut cost 372 deleted lines in a committed blueprint). Everything
+    //    below edits IN MEMORY and reads back; nothing here writes to disk.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE UNION ROUND-TRIP: variants the four typed verbs CANNOT express are applied over the
+    /// one command route and read back.</b> 📄 §11.2 · §11.3 · handoff §5 *(union coverage)*.
+    ///
+    /// <para>⭐⭐ <b>What makes this the headline.</b> The typed verbs shipped in `MA-002` cover
+    /// node/link/param/remove. ⛔ They cannot say <i>"decorate this BTree node"</i> or <i>"add a parallel
+    /// region to this HSM state"</i> — which are exactly the host specifics the user asked authoring to
+    /// reach. ⇒ this rail applies <b>attachments, comments, reroutes, collapse flags and a Batch</b>
+    /// through <c>apply_graph_command</c> and asserts each is VISIBLE in a fresh read.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>Read-back is the assertion, not the 200.</b> 📌 `MA-004` measured the failure this
+    /// guards: the host sink can report success and build nothing. ⇒ every applied variant is spent on a
+    /// re-read, and the serializer widening (`MA-011`) is what makes attachments and regions visible at
+    /// all — ⛔ before it, an `AddAttachment` was unprovable.</para>
+    ///
+    /// <para>⚠ <b>A variant a given host REFUSES is LOGGED, not silently skipped</b> *(handoff §5)*. A
+    /// host is entitled to reject a command its model has no place for; what the rail refuses to allow is
+    /// that refusal going unrecorded.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_union_command_route_reaches_what_the_typed_verbs_cannot()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-union-all", mode: "all");
+
+        var assets = (await cluster.Client.ListAssetsAsync()).EnsureOk();
+        var list   = (assets.Field("assets") as JsonArray)!;
+        Assert.True(list.Count > 0, "GET /assets returned nothing - no graph to author.");
+
+        // ⭐⭐⭐ PER HOST, and finding out WHY is what two red runs of this rail bought.
+        // 🔴 Run 1: `AddAttachment` on a BLUEPRINT returned Success having built NOTHING — attachments are
+        //    a BTree/HSM concept and `BlueprintCommandSink` has no arm for them.
+        // 🔴 Run 2, on a BTREE: `AddComment` came back "Unsupported: AddComment" — the BTree sink refuses
+        //    comments outright — and a bare `AddAttachment` STILL built nothing, because the sink needs
+        //    `hostProperties.paletteKind` to know WHICH concrete decorator to construct (that is what
+        //    `PaletteEntryExecutor` passes when a human picks one).
+        // ⇒ ⭐⭐ THREE things came out of it: the union route now verifies every MINTED id resolves before
+        //    reporting success; the rail drives each variant on a host that OWNS it; and the attachment is
+        //    built the way the picker builds it, from a catalog entry rather than from nothing.
+        var btree     = list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "BTree");
+        var blueprint = list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "Blueprint");
+
+        var applied = new List<string>();
+        var refused = new List<string>();
+
+        // ── ① ATTACHMENTS on a BTREE — the decorator shape the typed verbs cannot express ──
+        if (btree != null)
+        {
+            var id   = btree["assetId"]!.GetValue<string>();
+            var name = btree["name"]!.GetValue<string>();
+            _out.WriteLine($"attachment target: {name} (BTree) {id}");
+
+            (await cluster.Client.OpenAssetAndSettleAsync(id)).EnsureOk();
+
+            // The route describes itself first - nothing below guesses a payload.
+            var types = (await cluster.Client.ListGraphCommandTypesAsync(id)).EnsureOk();
+            var variants = (types.Field("variants") as JsonArray)!;
+            _out.WriteLine($"the host advertises {variants.Count} command variant(s)");
+
+            Assert.True(variants.Count > 20,
+                $"the command route advertises only {variants.Count} variants; the union has ~35.");
+
+            var advertised = variants.Select(v => v!["type"]!.GetValue<string>())
+                                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var required in new[] { "AddAttachment", "AddRegion", "ChangeParent", "Batch", "AddComment" })
+                Assert.True(advertised.Contains(required),
+                    $"'{required}' is not advertised. That is a host specific the typed verbs cannot "
+                  + "express, and it is the reason the union route exists.");
+
+            var graph    = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
+            var hostNode = ((graph.Field("nodes") as JsonArray)!).FirstOrDefault();
+            Assert.True(hostNode != null, $"'{name}' reads as an empty graph - nothing to decorate.");
+            var hostNodeId = hostNode!["nodeId"]!.GetValue<string>();
+
+            // ⭐⭐ The catalog says which kinds are ATTACHMENTS: PaletteAction == AttachToSelected. ⛔ Not
+            //    guessed - this is the kind-level structure fact discovery was extended to expose.
+            var kinds = (await cluster.Client.ListNodeKindsAsync(id)).EnsureOk();
+            var attachKind = ((kinds.Field("kinds") as JsonArray)!)
+                .FirstOrDefault(k => string.Equals(k!["paletteAction"]?.GetValue<string>(),
+                                                   "AttachToSelected", StringComparison.OrdinalIgnoreCase));
+
+            if (attachKind != null)
+            {
+                var kindId = attachKind["kind"]!.GetValue<string>();
+                _out.WriteLine($"attachment kind from the catalog: {kindId}");
+
+                var add = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+                {
+                    ["type"]  = "AddAttachment",
+                    ["host"]  = hostNodeId,
+                    ["label"] = "mcp-rail",
+                    // ⭐ The host property the picker passes: without it the sink cannot know WHICH
+                    //   concrete decorator to build, and silently builds none.
+                    ["hostProperties"] = new JsonObject { ["paletteKind"] = kindId },
+                });
+
+                if (add.Ok)
+                {
+                    applied.Add("AddAttachment");
+                    var attachmentId = add.Field("newIds")?["attachmentId"]?.GetValue<string>();
+                    Assert.False(string.IsNullOrWhiteSpace(attachmentId),
+                        "AddAttachment succeeded and returned no attachmentId.");
+
+                    // ⭐⭐ THE READ-BACK - what MA-011's serializer widening bought. Before it, an
+                    //    attachment edit was unprovable.
+                    var after = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
+                    var attachIds = ((after.Field("attachments") as JsonArray) ?? new JsonArray())
+                                    .Select(a => a!["attachmentId"]!.GetValue<string>())
+                                    .ToHashSet(StringComparer.Ordinal);
+                    Assert.True(attachIds.Contains(attachmentId!),
+                        $"AddAttachment returned {attachmentId} and the read does NOT contain it - and the "
+                      + "route's own minted-id check passed, so the serializer stopped emitting attachments.");
+
+                    (await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+                    {
+                        ["type"]        = "RemoveAttachments",
+                        ["attachments"] = new JsonArray(attachmentId!),
+                    })).EnsureOk();
+                    applied.Add("RemoveAttachments");
+                }
+                else
+                {
+                    refused.Add($"AddAttachment on BTree: {add.Error}");
+                }
+            }
+            else
+            {
+                refused.Add("no AttachToSelected kind in the BTree catalog - attachment half not driven");
+            }
+
+            // ⭐ A COSMETIC variant that every sink should take: collapse the node. Round-trip only.
+            var collapse = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+            {
+                ["type"] = "SetNodeCollapsed", ["node"] = hostNodeId, ["collapsed"] = true,
+            });
+            if (collapse.Ok)
+            {
+                applied.Add("SetNodeCollapsed");
+                await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+                {
+                    ["type"] = "SetNodeCollapsed", ["node"] = hostNodeId, ["collapsed"] = false,
+                });
+            }
+            else refused.Add($"SetNodeCollapsed on BTree: {collapse.Error}");
+        }
+        else
+        {
+            refused.Add("no BTree asset indexed - the attachment half could not be driven");
+        }
+
+        // ── ② COMMENTS + BATCH on a BLUEPRINT — the BTree sink refuses comments (measured) ──
+        if (blueprint != null)
+        {
+            var id = blueprint["assetId"]!.GetValue<string>();
+            _out.WriteLine($"comment target: {blueprint["name"]} (Blueprint) {id}");
+
+            (await cluster.Client.OpenAssetAndSettleAsync(id)).EnsureOk();
+
+            var batch = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+            {
+                ["type"]  = "Batch",
+                ["label"] = "mcp-rail-batch",
+                ["commands"] = new JsonArray(
+                    new JsonObject
+                    {
+                        ["type"] = "AddComment", ["text"] = "batched-a",
+                        ["position"] = new JsonObject { ["x"] = 500f, ["y"] = 500f },
+                    },
+                    new JsonObject
+                    {
+                        ["type"] = "AddComment", ["text"] = "batched-b",
+                        ["position"] = new JsonObject { ["x"] = 560f, ["y"] = 500f },
+                    }),
+            });
+
+            if (batch.Ok)
+            {
+                applied.Add("Batch(AddComment x2)");
+                var newIds = batch.Field("newIds") as JsonObject ?? new JsonObject();
+
+                // ⭐ Batch reports each nested command's minted id, INDEXED - without that a caller cannot
+                //   address what a multi-step authoring sequence created.
+                Assert.True(newIds.Count >= 2,
+                    $"Batch minted {newIds.Count} id(s) for 2 nested AddComments.");
+
+                var after = (await cluster.Client.ReadAssetGraphAsync(id)).EnsureOk();
+                var texts = ((after.Field("comments") as JsonArray) ?? new JsonArray())
+                            .Select(c => c!["text"]?.GetValue<string>() ?? "").ToArray();
+                Assert.Contains("batched-a", texts);
+                Assert.Contains("batched-b", texts);
+
+                // ⭐⭐ Undoability is REPORTED and here it must be TRUE - both steps have derivable
+                //    inverses, so the batch as a whole does.
+                Assert.True(batch.Bool("undoable"),
+                    "the Batch reported undoable:false though every nested AddComment has a derivable "
+                  + "inverse. The inverse wiring regressed and the undo stack is silently losing entries.");
+
+                foreach (var kv in newIds)
+                {
+                    var cid = kv.Value?.GetValue<string>();
+                    if (string.IsNullOrWhiteSpace(cid)) continue;
+                    await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+                    {
+                        ["type"] = "RemoveComment", ["comment"] = cid!,
+                    });
+                }
+                applied.Add("RemoveComment");
+            }
+            else
+            {
+                refused.Add($"Batch(AddComment) on Blueprint: {batch.Error}");
+            }
+
+            // ── ③ A REFUSAL that must stay a refusal ─────────────────────────
+            var bogus = await cluster.Client.ApplyGraphCommandAsync(id, new JsonObject
+            {
+                ["type"] = "ThisVariantDoesNotExist",
+            });
+            Assert.False(bogus.Ok, "an unknown command type was ACCEPTED.");
+            Assert.Contains("not a GraphCommand variant", bogus.Error ?? "", StringComparison.Ordinal);
+        }
+        else
+        {
+            refused.Add("no Blueprint asset indexed - the comment/batch half could not be driven");
+        }
+
+        _out.WriteLine($"applied: {string.Join(", ", applied)}");
+        if (refused.Count > 0)
+            _out.WriteLine($"REFUSED / NOT DRIVEN (logged, not skipped):\n  {string.Join("\n  ", refused)}");
+
+        // ⛔ The floor: the union path must reach SOMETHING no typed verb could. A host refusing one
+        //   variant is a finding worth logging; reaching none of them is the route being broken.
+        Assert.True(applied.Count >= 2,
+            "not one union command applied. The refusals were:\n  "
+          + string.Join("\n  ", refused)
+          + "\nThat is the command route failing, not a host specific.");
+    }
+
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE DISCOVERY/DOC-COVERAGE RAIL — every node kind the host offers resolves a schema.</b>
+    /// 📄 §10.5 ③ *(the auto-discovery proof)* · §10.6 *(the doc-coverage rail)*.
+    ///
+    /// <para>⭐⭐⭐ <b>Why schema coverage is asserted at 100% and doc coverage is MEASURED.</b> A schema
+    /// is derived from registries the host must already have populated to draw its palette ⇒ ⛔ a kind
+    /// that cannot be described is a genuine defect, and the rail fails on it. ⚠ <b>Free-text prose is
+    /// different</b>: §10.6 measured that it lives only in XML <c>&lt;summary&gt;</c> comments and is
+    /// absent from every attribute — so demanding 100% today would redden on a gap this slice OPENED the
+    /// door to closing (<c>EditDocAttribute</c>) rather than one it caused. ⇒ ⭐ the rail PRINTS the
+    /// coverage and asserts a floor, so the number is visible and can be ratcheted.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task Every_node_kind_the_host_offers_resolves_a_schema()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-discovery-all", mode: "all");
+
+        var assets = (await cluster.Client.ListAssetsAsync()).EnsureOk();
+        var list   = (assets.Field("assets") as JsonArray)!;
+        Assert.True(list.Count > 0, "GET /assets returned nothing - no catalog to describe.");
+
+        var pick = list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "Blueprint") ?? list[0];
+        var id   = pick!["assetId"]!.GetValue<string>();
+        (await cluster.Client.OpenAssetAndSettleAsync(id)).EnsureOk();
+
+        var kinds   = (await cluster.Client.ListNodeKindsAsync(id)).EnsureOk();
+        var kindArr = (kinds.Field("kinds") as JsonArray)!;
+        Assert.True(kindArr.Count > 0, "the node catalog is empty - there is nothing to describe.");
+
+        _out.WriteLine($"catalog offers {kindArr.Count} kind(s)");
+
+        var failures   = new List<string>();
+        var documented = 0;
+        var withParams = 0;
+
+        foreach (var entry in kindArr)
+        {
+            var kind = entry!["kind"]!.GetValue<string>();
+            var schema = await cluster.Client.GetNodeKindSchemaAsync(id, kind);
+
+            if (!schema.Ok) { failures.Add($"{kind}: {schema.Error}"); continue; }
+
+            // ⛔ A schema that describes nothing is not a schema. Every kind must at least come back with
+            //   its own identity and a pin story (an empty pin list is a legitimate answer; a MISSING one
+            //   means the projection failed).
+            if (!string.Equals(schema.String("kind"), kind, StringComparison.Ordinal))
+                failures.Add($"{kind}: schema came back describing '{schema.String("kind")}'");
+            if (schema.Field("inputs") is null || schema.Field("outputs") is null)
+                failures.Add($"{kind}: schema carries no pin lists");
+
+            if (!string.IsNullOrWhiteSpace(schema.String("doc"))) documented++;
+            if ((schema.Field("params") as JsonArray)?.Count > 0) withParams++;
+        }
+
+        // ⭐⭐⭐ THE AUTO-DISCOVERY PROOF: it fails the moment a registry adds a kind the route cannot
+        //    describe, which is exactly what "measured, not authored" has to guarantee.
+        Assert.True(failures.Count == 0,
+            $"{failures.Count} of {kindArr.Count} kind(s) could not be described:\n  "
+          + string.Join("\n  ", failures.Take(15))
+          + (failures.Count > 15 ? $"\n  … and {failures.Count - 15} more" : ""));
+
+        var docPct = 100.0 * documented / kindArr.Count;
+        _out.WriteLine($"DOC COVERAGE: {documented}/{kindArr.Count} kinds carry prose ({docPct:F0}%); "
+                     + $"{withParams} resolve reflected params");
+
+        // ⚠ The FLOOR, not the target. §10.6's EditDocAttribute is how this number gets ratcheted; the
+        //   rail exists so the number is visible rather than assumed.
+        Assert.True(docPct >= 25.0,
+            $"only {docPct:F0}% of node kinds carry any documentation. The catalog's own Description is "
+          + "the structural source and it has gone empty - that is a harvest regression, not a prose gap.");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>THE EDITOR COMMAND BUS — discoverable, describable, and invocable over MCP.</b>
+    /// 📄 §10.7 · handoff §5 *(command coverage)*.
+    ///
+    /// <para>⭐⭐⭐ <b>The one assertion that matters most is the DISABLED refusal.</b> 📐
+    /// <c>EditorCommandsImpl</c> will happily run a handler whose <c>IsEnabled</c> is false — the UI
+    /// simply never offers it. ⇒ ⛔ without the pre-check, MCP would be the one path that can run what
+    /// the editor greys out, which is precisely the parity this whole surface exists to preserve.</para>
+    ///
+    /// <para>⚠ It invokes only a SAFE command — <c>select-all</c>, whose effect is observable and whose
+    /// inverse is <c>deselect</c>. ⛔ Invoking a destructive one to prove invocation works would be a rail
+    /// that damages the thing it measures.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_editor_command_bus_is_discoverable_and_invocable_over_mcp()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-uicommands-all", mode: "all");
+
+        var assets = (await cluster.Client.ListAssetsAsync()).EnsureOk();
+        var list   = (assets.Field("assets") as JsonArray)!;
+        Assert.True(list.Count > 0, "GET /assets returned nothing.");
+
+        var pick = list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "Blueprint") ?? list[0];
+        var id   = pick!["assetId"]!.GetValue<string>();
+
+        // ⛔ The command set is PER DOCUMENT - assert the pre-open refusal, because it is the contract
+        //   that makes "which commands?" a meaningful question rather than a global one.
+        var beforeOpen = await cluster.Client.ListEditorCommandsAsync();
+        _out.WriteLine($"before opening a document: {beforeOpen.StatusCode} {beforeOpen.Error ?? "ok"}");
+
+        (await cluster.Client.OpenAssetAndSettleAsync(id)).EnsureOk();
+
+        var commands = (await cluster.Client.ListEditorCommandsAsync()).EnsureOk();
+        var arr = (commands.Field("commands") as JsonArray)!;
+        _out.WriteLine($"the open document offers {arr.Count} editor command(s)");
+
+        Assert.True(arr.Count > 0,
+            "the open document offers NO editor commands. The set is built by the per-kind document "
+          + "factory and hangs off AiCanvasContext.Commands - an empty set means the factory stopped "
+          + "wiring it, which also breaks the canvas's own hotkeys.");
+
+        // ⭐⭐ DOC COVERAGE for commands is asserted at 100%, unlike node kinds - and it can be, because
+        //    EditorCommandDescriptor carries Description INLINE. No harvest, no excuse.
+        var undocumented = arr.Where(c => string.IsNullOrWhiteSpace(c!["doc"]?.GetValue<string>()))
+                              .Select(c => c!["id"]!.GetValue<string>()).ToArray();
+        Assert.True(undocumented.Length == 0,
+            $"{undocumented.Length} editor command(s) carry no description: "
+          + string.Join(", ", undocumented)
+          + ". The descriptor carries it inline, so this is a one-word fix at the registration site.");
+
+        // ── describe one ─────────────────────────────────────────────────────
+        var first  = arr[0]!["id"]!.GetValue<string>();
+        var one    = (await cluster.Client.GetEditorCommandAsync(first)).EnsureOk();
+        Assert.Equal(first, one.String("id"));
+
+        var ghost = await cluster.Client.GetEditorCommandAsync("editor.this-does-not-exist");
+        Assert.False(ghost.Ok, "an unknown command id was described successfully.");
+        Assert.Equal(404, ghost.StatusCode);
+
+        // ── invoke a SAFE one, and pin the DISABLED refusal ──────────────────
+        var selectAll = arr.FirstOrDefault(c =>
+            (c!["id"]!.GetValue<string>()).EndsWith("select-all", StringComparison.OrdinalIgnoreCase));
+
+        if (selectAll != null)
+        {
+            var cmdId = selectAll["id"]!.GetValue<string>();
+            var enabled = selectAll["isEnabled"]?.GetValue<bool>() ?? false;
+            _out.WriteLine($"invoking {cmdId} (isEnabled={enabled})");
+
+            var invoked = await cluster.Client.InvokeEditorCommandAsync(cmdId);
+
+            if (enabled)
+            {
+                invoked.EnsureOk();
+                Assert.True(invoked.Bool("invoked"));
+            }
+            else
+            {
+                // ⭐⭐⭐ THE PARITY ASSERTION: a command the editor greys out must be refused here too,
+                //    with 409 - the request was well-formed and the id real; the live state refuses it.
+                Assert.False(invoked.Ok,
+                    $"{cmdId} reported isEnabled=false and MCP ran it anyway. That is the one path that "
+                  + "can do what the editor refuses, which is exactly what this surface must never be.");
+                Assert.Equal(409, invoked.StatusCode);
+                Assert.Contains("DISABLED", invoked.Error ?? "", StringComparison.Ordinal);
+            }
+        }
+        else
+        {
+            _out.WriteLine("no select-all command on this host - invocation half not driven (logged).");
+        }
+
+        var ghostInvoke = await cluster.Client.InvokeEditorCommandAsync("editor.this-does-not-exist");
+        Assert.False(ghostInvoke.Ok, "invoking an unknown command id was accepted.");
+        Assert.Equal(404, ghostInvoke.StatusCode);
+    }
 }

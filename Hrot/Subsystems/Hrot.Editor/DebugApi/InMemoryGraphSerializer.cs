@@ -41,7 +41,8 @@ namespace Hrot.Editor.DebugApi
 
             var links = new JsonArray();
             foreach (var l in model.Links)
-                links.Add(new JsonObject
+            {
+                var lo = new JsonObject
                 {
                     ["linkId"]  = l.Id.Value.ToString(),
                     ["fromPin"] = l.FromPin.Value.ToString(),
@@ -50,7 +51,20 @@ namespace Hrot.Editor.DebugApi
                     //   "which node feeds which" should not have to build a pin→node index itself.
                     ["fromNode"] = model.FindPin(l.FromPin)?.OwnerNodeId.Value.ToString(),
                     ["toNode"]   = model.FindPin(l.ToPin)?.OwnerNodeId.Value.ToString(),
-                });
+                    ["style"]    = l.Style.ToString(),
+                };
+
+                // ⭐ MA-011 — REROUTE WAYPOINTS. `InsertReroute`/`MoveReroute`/`RemoveReroute` are three
+                //   variants of the union; without the waypoints in the read they are unprovable.
+                if (l.Waypoints.Count > 0)
+                {
+                    var wp = new JsonArray();
+                    foreach (var w in l.Waypoints) wp.Add(Vec(w.X, w.Y));
+                    lo["waypoints"] = wp;
+                }
+
+                links.Add(lo);
+            }
 
             var comments = new JsonArray();
             foreach (var c in model.Comments)
@@ -61,17 +75,61 @@ namespace Hrot.Editor.DebugApi
                     ["position"]  = Vec(c.Position.X, c.Position.Y),
                 });
 
+            // ⭐⭐⭐ MA-011 — the ASSET-LEVEL attachment list, in addition to the per-node one.
+            // ⛔ Both, deliberately: the per-node list is how a caller asks *"what decorates THIS node"*,
+            //    and the flat list is how it asks *"what attachments exist at all"* — which is the one a
+            //    coverage rail needs after an `AddAttachment` whose host it must not assume.
+            var attachments = new JsonArray();
+            foreach (var a in model.Attachments) attachments.Add(AttachmentToJson(a));
+
             return new JsonObject
             {
-                ["graphId"]     = model.Id.Value.ToString(),
-                ["displayName"] = model.DisplayName,
-                ["graphKind"]   = model.Kind.Id,
-                ["nodeCount"]   = nodes.Count,
-                ["linkCount"]   = links.Count,
-                ["nodes"]       = nodes,
-                ["links"]       = links,
-                ["comments"]    = comments,
+                ["graphId"]         = model.Id.Value.ToString(),
+                ["displayName"]     = model.DisplayName,
+                ["graphKind"]       = model.Kind.Id,
+                ["nodeCount"]       = nodes.Count,
+                ["linkCount"]       = links.Count,
+                ["attachmentCount"] = attachments.Count,
+                ["nodes"]           = nodes,
+                ["links"]           = links,
+                ["comments"]        = comments,
+                ["attachments"]     = attachments,
             };
+        }
+
+        /// <summary>
+        /// ⭐⭐ One attachment — a <b>BTree decorator / condition pill</b> or an <c>HsmAttachment</c>.
+        /// </summary>
+        /// <remarks>
+        /// ⭐⭐⭐ <b>Why this had to be added</b> *(design §11.3)*: the four typed verbs could not express an
+        /// attachment, so nothing read one back either. ⇒ ⛔ an `AddAttachment` over the union route would
+        /// have been <b>unprovable</b> — the round-trip rail has nothing to assert against. 📌 The read and
+        /// the write must widen TOGETHER, or the wider write is untestable.
+        /// </remarks>
+        private static JsonObject AttachmentToJson(IAttachmentModel a)
+        {
+            var o = new JsonObject
+            {
+                ["attachmentId"] = a.Id.Value.ToString(),
+                ["hostNodeId"]   = a.HostNodeId.Value.ToString(),
+                ["category"]     = a.Category.ToString(),
+                ["stackIndex"]   = a.StackIndex,
+            };
+
+            if (!string.IsNullOrEmpty(a.Glyph))   o["glyph"]   = a.Glyph;
+            if (!string.IsNullOrEmpty(a.Label))   o["label"]   = a.Label;
+            if (!string.IsNullOrEmpty(a.Tooltip)) o["tooltip"] = a.Tooltip;
+
+            // ⭐ The host's restore data — the generic delete-undo path rebuilds the attachment from it,
+            //   so an agent that reads it can reconstruct the attachment through the union route too.
+            if (a.HostProperties is { Count: > 0 } props)
+            {
+                var p = new JsonObject();
+                foreach (var kv in props) p[kv.Key] = kv.Value is null ? null : ValueToJson(kv.Value);
+                o["hostProperties"] = p;
+            }
+
+            return o;
         }
 
         private static JsonObject NodeToJson(IGraphModel model, INodeModel n)
@@ -92,6 +150,51 @@ namespace Hrot.Editor.DebugApi
 
             if (n.ParentContainerId is { } parent)
                 o["parentContainerId"] = parent.Value.ToString();
+
+            // ⚠ Emitted only when TRUE / non-default — a payload of mostly-false booleans is harder to
+            //   read than one that states only what is unusual.
+            if (n.IsCollapsed)      o["isCollapsed"]     = true;
+            if (n.ShowAdvancedPins) o["showAdvancedPins"] = true;
+
+            // ⭐⭐⭐ MA-011 — CONTAINERS AND REGIONS: the HSM parallel-region structure.
+            // 📄 design §11.3. ⛔ Without this an `AddRegion`/`ReorderRegions` edit lands in the model and
+            //    the read cannot see it ⇒ the host specific the union route exists for is unprovable.
+            if (n is IContainerNodeModel { IsContainer: true } container)
+            {
+                var regions = new JsonArray();
+                foreach (var r in container.Regions)
+                    regions.Add(new JsonObject
+                    {
+                        ["index"]    = r.Index,
+                        ["name"]     = r.Name,
+                        ["priority"] = r.Priority,
+                    });
+
+                var children = new JsonArray();
+                foreach (var childId in container.ChildNodeIds)
+                    children.Add(new JsonObject
+                    {
+                        ["nodeId"]      = childId.Value.ToString(),
+                        // ⭐ The region a child sits in — the thing a reparent edit changes, and the only
+                        //   way to tell "moved between regions" from "moved on the canvas".
+                        ["regionIndex"] = container.GetRegionIndexForChild(childId),
+                    });
+
+                o["isContainer"]       = true;
+                o["regionOrientation"] = container.RegionOrientation.ToString();
+                o["regions"]           = regions;
+                o["children"]          = children;
+            }
+
+            // ⭐ The per-node attachment stack, in StackIndex order — how a caller asks
+            //   "what decorates THIS node" without scanning the asset-level list.
+            var nodeAttachments = model.GetAttachmentsForNode(n.Id);
+            if (nodeAttachments.Count > 0)
+            {
+                var arr = new JsonArray();
+                foreach (var a in nodeAttachments) arr.Add(AttachmentToJson(a));
+                o["attachments"] = arr;
+            }
 
             return o;
         }

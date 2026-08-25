@@ -2993,6 +2993,24 @@ namespace Hrot.Editor
             _debugApiService?.AttachAssetShell(
                 _aiCatalogBuilder!.Catalog, _aiDocumentManager, windowManager);
 
+            // ⭐⭐ AQ56 §10 (MA-013) — the action-schema exporter, for the DTO-field half of a node kind's
+            //    schema. ⛔ Passed because this host HAS one: the silent-default rule says a production
+            //    caller holding a dependency must pass it, and `sharedSchemaExporter` is built earlier
+            //    in this same method for the validators and the Inspector. ⚠ Optional on the API side, so
+            //    a host without one degrades to `paramsSource: "none:no-exporter-wired"` rather than
+            //    looking param-less.
+            _debugApiService?.AttachSchemaExporter(sharedSchemaExporter);
+
+            // ⭐⭐ AQ56 §10.7 (MA-015) — the editor command bus.
+            // ⚠⚠ A LAMBDA, not the object, and the reason is measured: the command set is built PER
+            //    DOCUMENT by the per-kind factory and hangs off `AiCanvasContext.Commands`. ⇒ capturing
+            //    one instance here would pin the API to whichever document was open when this ran, and
+            //    every later invoke would target the wrong graph. ⭐ Resolving the ACTIVE document's set
+            //    at call time is what "the editor's commands" means to a caller.
+            _debugApiService?.AttachEditorCommands(() =>
+                _aiDocumentManager?.Active?.ViewState
+                    is Hrot.Editor.AiShared.Windows.AiCanvasContext ctx ? ctx.Commands : null);
+
             // ⭐⭐ cgf==editor SLICE 3 (CE-021) — the same save/reload seam on this host, so the two
             //    can be driven identically and compared. ⭐ Both callbacks are the editor's OWN
             //    existing ones (_saveAllCallback, _blueprintQuickReloadTrigger and the BTree/HSM
