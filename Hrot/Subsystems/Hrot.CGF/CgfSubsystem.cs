@@ -304,7 +304,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    ClusterOpEgressTranslator sit on, so a transition requested here reaches the master by the
             //    path the operator's own "Load into Live" button takes.
             requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                   .TransitionsVia(() => _context?.EventBus));
+                                   .TransitionsVia(() => _context?.EventBus),
+            // ⭐⭐ MD-002 — CGF's own kernel snapshot, the same one its Architecture Diagnostics window
+            //    already renders (line ~1038). ⚠ Lazy: _context is null until Initialize.
+            architecture:  () => _context?.Kernel is null
+                                 ? null
+                                 : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(
+                                       () => _context?.Kernel));
 
     /// <inheritdoc/>
     public System.Numerics.Vector4 TitleBarColor => new(0.57f, 0.47f, 0.04f, 1f);

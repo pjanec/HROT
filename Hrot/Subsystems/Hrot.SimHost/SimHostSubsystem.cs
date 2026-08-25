@@ -59,7 +59,12 @@ namespace Hrot.SimHost
                 drive:         () => _clusterTimeAdapter,
                 // ⭐⭐ HN-029 — the node's own control-plane bus; see SimHostApp.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .TransitionsVia(() => _app?.OrchestrationBus));
+                                       .TransitionsVia(() => _app?.OrchestrationBus),
+                // ⭐⭐ MD-002 — this subsystem's OWN kernel snapshot. ⚠ Lazily, like every accessor here:
+                //    the kernel is created in Initialize, after the composition root builds the provider.
+                architecture:  () => _app?.Kernel is null
+                                     ? null
+                                     : new ArchitectureDiagnosticsService(() => _app?.Kernel));
 
         /// <inheritdoc/>
         /// <remarks>Dark red — distinct from IG (green) and ExCon (violet).</remarks>

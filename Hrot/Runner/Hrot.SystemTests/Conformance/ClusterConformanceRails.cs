@@ -1667,6 +1667,94 @@ public sealed class ClusterConformanceRails
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>MD-001</c>/<c>MD-002</c>/<c>MD-003</c> — a NON-EDITOR node answers for ITSELF: its own
+    /// logs, its own architecture, its own capability cells.</b>
+    /// 📄 <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §1 · §2.1 · §2.2.
+    ///
+    /// <para>⛔⛔⛔ <b><c>--mode simhost</c>, and the mode is the whole rail.</b> 📐 Measured: on
+    /// <c>--mode all</c> the node INCLUDES the editor, and <c>Program.cs</c> hands the API to
+    /// <c>EditorSubsystem</c> — the FULL surface. ⇒ every existing conformance rail runs against the
+    /// editor-owned host, and **not one of them has ever exercised the cluster-limited
+    /// <c>DebugApiService(dispatcher)</c> path**, which is exactly where the log-sink gap lived. ⚠ A rail
+    /// on <c>--mode all</c> would have passed before this batch and proved nothing.</para>
+    ///
+    /// <para>⭐⭐ <b>This is the federation claim made checkable</b> *(§1)*: a SimHost node runs its own
+    /// MCP endpoint on its own port with LIMITED capabilities — no authoring — and must still be able to
+    /// report what it is running and what it has logged.</para>
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Conformance")]
+    public async Task A_non_editor_node_reports_its_own_logs_and_architecture()
+    {
+        // ⛔⛔ NOT bare `--mode simhost`, and the reason is measured, not stylistic: a standalone SimHost
+        //    node dies in `DdsIdAllocatorHelper.EnsureRouting` — *"Hrot.Orchestrator must be running before
+        //    this node starts"* — so a one-subsystem rail cannot boot at all in this harness.
+        // ⭐⭐ ORDER MATTERS and it is measured: `--mode all` expands to `orchestrator,simhost,ig,excon,cgf`
+        //    and the orchestrator is FIRST for exactly this reason — the id allocator needs it serving
+        //    before SimHost bootstraps. `simhost,orchestrator` dies the same way the bare mode does.
+        // ⭐⭐ `orchestrator,simhost` is the smallest mode that BOOTS and still has NO EditorSubsystem,
+        //    which is the only thing that matters here: `Program.cs` hands the API to the editor whenever
+        //    one is present, so this is the cluster-limited `DebugApiService(dispatcher)` path.
+        await using var node = await EditorProcess.StartAsync(
+            "conf-diag-cluster", mode: "orchestrator,simhost");
+
+        // ── ① THE FEDERATION — this node is NOT the editor ────────────────
+        var caps = (await node.Client.GetCapabilitiesAsync()).EnsureOk();
+        _out.WriteLine($"capabilities: {caps.Data}");
+
+        // ── ② MD-001 — GET /logs actually answers ────────────────────────
+        // ⛔⛔ Before this batch `Program.cs` built `new DebugApiService(dispatcher)` with NO sinks, so
+        //    `_logSinks` fell to Array.Empty and this returned [] on every cluster-limited node — while
+        //    the very same records fed the on-screen Message Log. 📌 The caller-had-the-value default.
+        // ⚠ No line is INJECTED first: booting a node logs plenty by itself (the runner announces its
+        //   mode, its subsystems and its API port), and a rail that had to manufacture its own input
+        //   would not be testing that the node's OWN logging reaches the route.
+        var logs = (await node.Client.GetLogsAsync(max: 50)).EnsureOk();
+        var entries = logs.Data as JsonArray;
+
+        _out.WriteLine($"logs: {entries?.Count ?? 0} record(s)");
+        Assert.True(entries is { Count: > 0 },
+            "GET /logs is EMPTY on a cluster-limited node. This node has certainly logged during boot, "
+          + "so an empty answer means its DebugApiService was constructed with no log sinks — the "
+          + "composition root is not passing MessageLogSinks.ForDiagnostics(...).");
+
+        var first = entries![0]!;
+        foreach (var field in new[] { "timestamp", "level", "logger", "message" })
+            Assert.NotNull(first[field]);
+
+        // ── ③ MD-002 — the node's OWN architecture ───────────────────────
+        var arch = await node.Client.GetArchitectureDiagnosticsAsync();
+        Assert.True(arch.Ok,
+            $"GET /diagnostics/architecture was refused on a SimHost node: {arch.Error}. Diagnostics live "
+          + "on the SHARED DebugApiService precisely so a non-editor node can answer for itself (design "
+          + "§1); a refusal here means the route was wired to the editor-only path.");
+
+        var subsystems = (arch.Field("subsystems") as JsonArray)!;
+        _out.WriteLine($"architecture: {subsystems.Count} subsystem(s)");
+        foreach (var sub in subsystems)
+            _out.WriteLine($"  {sub!["subsystem"]} — {sub["moduleCount"]} module(s), "
+                         + $"{sub["systemCount"]} system(s), {sub["translatorCount"]} translator(s)");
+
+        Assert.True(subsystems.Count > 0,
+            "the node reports ZERO subsystems. A SimHost node runs a ModuleHostKernel, so an empty list "
+          + "means SubsystemDebugProvider was built without its `architecture:` accessor.");
+
+        // ⭐⭐ The ANTI-VACUITY floor: a snapshot with no modules at all would satisfy "returns a payload"
+        //    while proving the kernel was never read. ⛔ A running SimHost node HAS modules.
+        var totalModules = subsystems.Sum(sub => sub!["moduleCount"]?.GetValue<int>() ?? 0);
+        _out.WriteLine($"total modules across subsystems: {totalModules}");
+        Assert.True(totalModules > 0,
+            "every subsystem reported 0 modules. The snapshot is being taken from a null kernel, so the "
+          + "route answers with a shape and no substance.");
+
+        // ── ④ R-133 — the capability cell is MEASURED, not declared ──────
+        // ⚠ Asserted through the manifest rather than by reading the code: an unclassified route prefix
+        //   REDDENS CapabilityManifestRails, so this cell exists only because the kernel is really there.
+        var capsRaw = caps.Data?.ToJsonString() ?? string.Empty;
+        Assert.Contains("diagnostics.architecture", capsRaw, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>MA-019</c>/<c>MA-020</c>/<c>MA-021</c>/<c>MA-022</c> — an agent DISCOVERS the recipes a
     /// CLUSTER node offers, CREATES from one by name, and the node's catalog gains it.</b>
     /// 📄 <c>Architect_Question_57_Cgf_Authoring_Packaging.md</c> Q57-A/B/C.

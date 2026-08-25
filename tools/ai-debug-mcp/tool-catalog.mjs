@@ -3189,4 +3189,38 @@ export const TOOLS_CATALOG = [
     "manualVerify": false
   },
 
+  // ── Group Y — node diagnostics ──────────────────────────────────────────────
+
+  {
+    "name": "get_architecture_diagnostics",
+    "group": "Y — node diagnostics",
+    "summary": "This NODE's modules, ECS systems and DDS translators, one entry per subsystem, read from each subsystem's own ModuleHostKernel.",
+    "http": {
+      "method": "GET",
+      "path": "/diagnostics/architecture"
+    },
+    "params": [
+      {
+        "name": "subsystem",
+        "type": "string",
+        "required": false,
+        "description": "Restrict to one subsystem or perspective name (e.g. SimHost, IG, Scenario)"
+      }
+    ],
+    "returns": "{ subsystems[{ subsystem, perspective, modules[], systems[], translators[], moduleCount, systemCount, translatorCount }], note }",
+    "notes": [
+      "Per SUBSYSTEM, not per node: a --mode all node runs SimHost, IG, CGF and the orchestrator side by side and each holds its own kernel, so one snapshot per node would have to drop the rest.",
+      "Every node hosts its own MCP endpoint. This answers for THIS node only — ask each node's own endpoint for its own architecture.",
+      "A subsystem with no ECS kernel (ExCon, an orchestrator-only node) correctly reports nothing; check the 'diagnostics.architecture' cell in get_capabilities rather than reading the absence as a wiring bug.",
+      "modules carry lifecycleState and circuitState, so a module stuck open or failing shows up here without reading logs.",
+      "It allocates the whole snapshot on every call — fine for an operator query, wrong in a loop."
+    ],
+    "example": {
+      "args": {},
+      "gist": "see what modules and translators this node is running"
+    },
+    "hint": "Optional: subsystem (filter). Example: get_architecture_diagnostics({subsystem:\"SimHost\"})",
+    "manualVerify": false
+  },
+
 ];

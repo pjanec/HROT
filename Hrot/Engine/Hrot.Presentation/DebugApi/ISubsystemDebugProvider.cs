@@ -100,6 +100,23 @@ public interface ISubsystemDebugProvider
     IReadOnlyList<string>? AvailableScenarios { get; }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>MD-002</c> — this subsystem's ARCHITECTURE snapshot: its modules, systems and
+    /// translators, read from ITS OWN <c>ModuleHostKernel</c>.</b>
+    /// 📄 <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §2.2.
+    ///
+    /// <para>⭐⭐ <b>Per SUBSYSTEM, not per node — and that is a correction the measurement forced.</b>
+    /// 📐 The design said *"each node answers for its own kernel"*, but a <c>--mode all</c> node runs
+    /// SimHost, IG, CGF and the orchestrator side by side and **each holds its own kernel**. ⇒ one
+    /// snapshot per node would have had to pick one and silently drop the rest.</para>
+    ///
+    /// <para>⚠ <see langword="null"/> for a subsystem with no kernel — 📐 measured: ExCon and the
+    /// Orchestrator construct <c>ArchitectureDiagnosticsService(() =&gt; null)</c> precisely because they
+    /// have none. ⛔ Same contract as <see cref="World"/> and <see cref="Drive"/>: absence is reported,
+    /// not fabricated.</para>
+    /// </summary>
+    Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture { get; }
+
+    /// <summary>
     /// ⭐⭐ <b>What this subsystem CAN do, measured from wired dependencies — never a hand-authored table.</b>
     /// 📄 Q54 § Manifest scope: <i>"each provider DERIVES its own cells from ground truth"</i>; a
     /// hand-written *"works here / not there"* table is `CLAUDE.md` §M's green-and-false rot.
@@ -132,6 +149,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<Action<TransitionStateIntent>?>? _requestTransition;
     private readonly Func<ClusterState?>? _clusterState;
     private readonly Func<IReadOnlyList<string>?>? _availableScenarios;
+    private readonly Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? _architecture;
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE ACCESSORS ARE LAZY, AND THAT IS MEASURED — NOT DEFENSIVE STYLE.</b>
@@ -155,7 +173,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<ITimeTransportFacade?>? drive = null,
         Func<Action<TransitionStateIntent>?>? requestTransition = null,
         Func<ClusterState?>? clusterState = null,
-        Func<IReadOnlyList<string>?>? availableScenarios = null)
+        Func<IReadOnlyList<string>?>? availableScenarios = null,
+        Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? architecture = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
@@ -165,6 +184,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _requestTransition = requestTransition;
         _clusterState = clusterState;
         _availableScenarios = availableScenarios;
+        _architecture = architecture;
     }
 
     /// <summary>
@@ -199,6 +219,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public Action<TransitionStateIntent>? RequestTransition => _requestTransition?.Invoke();
     public ClusterState? ClusterState => _clusterState?.Invoke();
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
+    public Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture => _architecture?.Invoke();
 
     /// <summary>
     /// ⭐⭐⭐ <b>MEASURED from what is wired</b> — ⛔ never declared. 📌 Q54's one real risk: a hand-authored
@@ -210,6 +231,10 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         [DebugCapabilities.EntityMap]   = EntityMap is not null,
         [DebugCapabilities.TimeDrive]   = Drive is not null,
         [DebugCapabilities.ScenarioLoad] = RequestTransition is not null,
+        // ⭐ MD-002 — per subsystem, because each holds its OWN kernel. ⚠ False for ExCon and the
+        //   Orchestrator, which genuinely have none, and that is the honest cell rather than an empty
+        //   snapshot that would read as "this subsystem runs no modules".
+        [DebugCapabilities.ArchitectureDiagnostics] = Architecture is not null,
         // ⭐ Panels and the gizmo frame are PROCESS-WIDE statics (PanelSnapshot / the primitive buffer), so
         //   they are not a per-provider capability — the dispatcher reports them once. ⛔ Claiming them here
         //   per subsystem would suggest a routing that does not exist.
@@ -226,6 +251,9 @@ public static class DebugCapabilities
     public const string GizmoFrame = "panels.gizmo";
     public const string Preview   = "preview.control";
     public const string EditorAuthoring = "editor.authoring";
+
+    /// <summary>⭐ MD-002 — this subsystem can report its modules/systems/translators (it has a kernel).</summary>
+    public const string ArchitectureDiagnostics = "diagnostics.architecture";
 
     /// <summary>
     /// ⭐⭐ <b>Requesting a cluster-wide scenario load</b> — <c>scenario/load/live</c> · <c>scenario/load/edit</c>.

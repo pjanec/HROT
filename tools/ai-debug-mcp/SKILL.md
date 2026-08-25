@@ -455,6 +455,11 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: A DISABLED command is refused with 409 BEFORE it is invoked. The editor greys it out for the same reason — usually an empty selection or an empty undo stack — and running it anyway would be the one path that accepts what the editor refuses.; Read list_editor_commands for the live enabled state, and set up the precondition first (e.g. select something).; A headless origin never pre-flights a confirmation (ruling 53): the command runs directly and the origin-side LOG is the safety net. The host logs every invocation.; Effects that redraw appear on the NEXT frame — step a tick before reading get_panels..
   Example: `invoke_editor_command({"commandId":"editor.select-all"})` — run an editor command headlessly.
 
+### Group Y — node diagnostics
+- **`get_architecture_diagnostics`** — This NODE's modules, ECS systems and DDS translators, one entry per subsystem, read from each subsystem's own ModuleHostKernel. `subsystem?` (string). Returns { subsystems[{ subsystem, perspective, modules[], systems[], translators[], moduleCount, systemCount, translatorCount }], note }
+  Notes: Per SUBSYSTEM, not per node: a --mode all node runs SimHost, IG, CGF and the orchestrator side by side and each holds its own kernel, so one snapshot per node would have to drop the rest.; Every node hosts its own MCP endpoint. This answers for THIS node only — ask each node's own endpoint for its own architecture.; A subsystem with no ECS kernel (ExCon, an orchestrator-only node) correctly reports nothing; check the 'diagnostics.architecture' cell in get_capabilities rather than reading the absence as a wiring bug.; modules carry lifecycleState and circuitState, so a module stuck open or failing shows up here without reading logs.; It allocates the whole snapshot on every call — fine for an operator query, wrong in a loop..
+  Example: `get_architecture_diagnostics({})` — see what modules and translators this node is running.
+
 ---
 
 ## 5. Gotchas (the things that actually trip agents up)

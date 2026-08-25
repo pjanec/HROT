@@ -95,6 +95,12 @@ public static class CapabilityManifest
         if (path.StartsWith("/commands", StringComparison.Ordinal))    return "registry.read";
         if (path.StartsWith("/events", StringComparison.Ordinal))      return "events.read";
         if (path.StartsWith("/logs", StringComparison.Ordinal))        return "logs.read";
+        // ⭐⭐ MD-002 — the SAME key the per-subsystem providers derive from a non-null kernel
+        //    (DebugCapabilities.ArchitectureDiagnostics). ⛔ Not a hand-authored availability cell:
+        //    R-133's inversion means an UNCLASSIFIED prefix reddens CapabilityManifestRails, and the
+        //    provider cell is measured from the kernel being there.
+        if (path.StartsWith("/diagnostics", StringComparison.Ordinal))
+            return Hrot.Presentation.DebugApi.DebugCapabilities.ArchitectureDiagnostics;
 
         // ⭐ Always available, by construction: they describe or end the host itself.
         if (path is "/" or "/status" or "/shutdown" or "/capabilities") return "host";

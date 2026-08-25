@@ -57,7 +57,12 @@ namespace Hrot.IG
                 // ⭐⭐ HN-029 — IG cannot DRIVE time (no facade) but it CAN request a cluster transition; see
                 //    IgApplication.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .TransitionsVia(() => _app?.OrchestrationBus));
+                                       .TransitionsVia(() => _app?.OrchestrationBus),
+                // ⭐⭐ MD-002 — IG's own kernel snapshot (it already builds one for its window, line ~169).
+                architecture:  () => _app?.Kernel is null
+                                     ? null
+                                     : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(
+                                           () => _app?.Kernel));
 
         /// <inheritdoc/>
         /// <remarks>Forest green — distinct from SimHost (red) and ExCon (violet).</remarks>

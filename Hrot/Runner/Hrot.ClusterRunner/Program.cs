@@ -419,7 +419,17 @@ class Program
                 clusterApiHost  = new Hrot.Editor.DebugApi.DebugApiHost(
                     clusterPort, clusterApiQueue, () => orchestrator.Stop(), mode: config.ModeString);
                 clusterApiHost.AttachDispatcher(dispatcher);
-                clusterApiService = new Hrot.Editor.DebugApi.DebugApiService(dispatcher);
+                // ⭐⭐⭐ MD-001 — the SimHost-node gap. 📄 DESIGN_Mcp_Diagnostics_Federation §2.1.
+                // ⛔⛔ This line built the service with NO log sinks, so `GET /logs` answered `[]` on every
+                //    cluster-limited node — a SimHost node could not report its own logs, which is the
+                //    whole point of each node hosting its own MCP endpoint (§1).
+                // ⚠ A Func: the window manager and its MessageLogRegistry may not exist yet (headless
+                //   nodes never build one at all), and the helper still answers with the process-wide
+                //   NLog targets that Program.Main installs for EVERY mode.
+                clusterApiService = new Hrot.Editor.DebugApi.DebugApiService(
+                    dispatcher,
+                    logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(
+                        windowCtrl?.WindowManager?.MessageLogRegistry));
                 clusterApiHost.AttachService(clusterApiService);
                 clusterApiHost.Start();
 

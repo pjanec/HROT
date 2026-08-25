@@ -980,6 +980,18 @@ const TOOLS = [
   },
 
   {
+    name: 'get_architecture_diagnostics',
+    description: TOOL_DEFS['get_architecture_diagnostics'].description,
+    inputSchema: TOOL_DEFS['get_architecture_diagnostics'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const q = toolArgs.subsystem ? `?subsystem=${encodeURIComponent(toolArgs.subsystem)}` : '';
+        return toolSuccess(await callApi('GET', `/diagnostics/architecture${q}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_architecture_diagnostics'); }
+    },
+  },
+
+  {
     name: 'list_asset_recipes',
     description: TOOL_DEFS['list_asset_recipes'].description,
     inputSchema: TOOL_DEFS['list_asset_recipes'].inputSchema,

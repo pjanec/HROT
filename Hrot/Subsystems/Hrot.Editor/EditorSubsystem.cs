@@ -1886,7 +1886,31 @@ namespace Hrot.Editor
                         //    scenario/load/live work in the editor at all.
                         // ⛔ The editor holds this bus, so not passing it would be the silent-default defect —
                         //    the forwarding rail in DebugApiCompositionTests asserts this argument by name.
-                        requestTransition: intent => _orchestrationBus!.PublishManaged(intent));
+                        requestTransition: intent => _orchestrationBus!.PublishManaged(intent),
+                        // ⭐⭐⭐ MD-001 — the sinks GET /logs reads. 📄 DESIGN_Mcp_Diagnostics_Federation §2.1.
+                        // ⛔⛔ Measured: NEITHER composition root passed this, so `_logSinks` fell to
+                        //    Array.Empty and get_logs answered [] on EVERY host — while the SAME records
+                        //    fed the on-screen Message Log window. 📌 The silent-default shape again: the
+                        //    value existed and nobody handed it over.
+                        // ⚠ The registry may be absent here (a minimally-constructed subsystem has no
+                        //   WindowManager); the helper still answers with the process-wide NLog targets.
+                        // ⚠ A Func, not a list: `_wm` is null RIGHT HERE (it is assigned in
+                        //   RegisterWindows, which has not run yet) — so an eager call would capture
+                        //   the empty pre-registration state and get_logs would stay empty forever.
+                        logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(
+                            _wm?.MessageLogRegistry));
+
+                    // ⭐⭐ MD-002 — the editor path has no PerspectiveScopedDispatcher, so it hands its own
+                    //    kernel snapshot over directly. ⛔ On the cluster path this is NOT repeated: there
+                    //    the four subsystems fill `ISubsystemDebugProvider.Architecture`, which is the seam
+                    //    that makes the answer per-SUBSYSTEM instead of per-node.
+                    // ⚠ A Func over `_kernel`, the same shape the DiagnosticsDumpClusterOpHandler above
+                    //   already uses — the kernel is replaced across a hot reload, so a captured service
+                    //   would answer for a dead one.
+                    debugService.AttachArchitectureDiagnostics(
+                        () => _kernel is null
+                              ? null
+                              : new ArchitectureDiagnosticsService(() => _kernel));
 
                     _debugApiService = debugService;
                     _debugApiHost.AttachService(debugService);

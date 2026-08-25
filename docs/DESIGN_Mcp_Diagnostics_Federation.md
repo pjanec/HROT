@@ -1,11 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — carries classDiagram + sequenceDiagram (§4/§5). A NEW MCP capability area,
+build-state: BUILT (items ①②) — `2026-08-25`, ids `MD-001`..`MD-005`. ⛔ Items ③/④ are STOPPED, each with a
+  measured blocker; see §8 AS BUILT. Carries classDiagram + sequenceDiagram (§4/§5). A NEW MCP capability area,
   sibling of DESIGN_Mcp_Authoring.md and MCP_Integration.md. Two things: (1) DOCUMENTS the per-node
   federation topology that already exists (each node hosts its own DebugApi with mode-gated capabilities);
   (2) designs the DIAGNOSTICS surface over MCP — per-node logs, per-node architecture snapshot, and
   cluster-wide collection — all on the SHARED DebugApiService so every node (incl. SimHost) exposes its own.
 updated: 2026-08-25
+current-answer: ⭐⭐ §8 AS BUILT — it WINS over §2.1/§2.2/§6 where they disagree (three premises moved).
 design-basis: Hrot.ClusterRunner/Program.cs (the per-node DebugApiHost — editor-owned vs cluster-limited) ·
   EditorSubsystem.cs (the full-surface host) · DebugApiService.GetLogs + Fdp.Core/Logging (IMessageLogSource,
   MessageLog registry, NLogMessageLogTarget) · Fdp.ModuleHost/Diagnostics (IArchitectureDiagnosticsService) ·
@@ -144,3 +146,85 @@ rule 8 + build/test rules. **Row 8 rails:** ⭐ `get_logs` non-empty after a log
 
 ## 8. ⭐ WHEN DONE
 Fold the as-built here *(obligation ⑤)*; state the ids; the report points here. ⭐ Add the diagnostics tools to the MCP catalog; note which are per-node vs orchestrator-only.
+
+---
+
+# ⭐⭐⭐ 8. AS BUILT — `2026-08-25`, ids `MD-001`…`MD-005` *(obligation ⑤)*
+
+> ⭐⭐ **Items ① and ② SHIPPED.** ⛔ **Items ③ and ④ are STOPPED, not skipped** — each has a measured
+> blocker recorded below *(autonomy protocol: stop the item, not the batch)*.
+> ⚠ **Three of this design's own premises turned out false when measured.** They are corrected here.
+
+## 8.1 ⭐ WHAT SHIPPED
+
+| item | as built | ids |
+|---|---|---|
+| ⭐⭐⭐ **①** | `MessageLogSinks.ForDiagnostics(registry?)` *(new, `Fdp.Core/Logging`)*, wired at **both** composition roots | `MD-001` |
+| ⭐⭐ **②** | `GET /diagnostics/architecture` on the shared service, fed by a new `ISubsystemDebugProvider.Architecture` member | `MD-002` |
+| ⭐ rails | `A_non_editor_node_reports_its_own_logs_and_architecture` — the first conformance rail that is NOT editor-owned | `MD-003` |
+| ⚠ ③/④ | **STOPPED** — §8.5 | `MD-004` · `MD-005` |
+
+📐 `gen:catalog` **90 → 91 tools** · `test-catalog` **729 / 0** · editor unit suite **251 / 0**.
+
+## 8.2 🔴🔴 CORRECTION 1 — **`MessageLog.Sources` DOES NOT EXIST**
+
+⛔ §2.1 says *"wire `MessageLog.Sources`"*. 📐 **Measured: there is no such static.** The registry is
+**`MessageLogRegistry`, an INSTANCE**, reached through **`WindowManager.MessageLogRegistry`**.
+
+⇒ ⭐⭐⭐ **A HEADLESS NODE HAS NO REGISTRY AT ALL** — which is precisely the SimHost case §2.1 exists to
+serve, so the named fix would not have fixed the named gap. ⭐ **What actually works:**
+`NLogMessageLogTarget.SharedInstance` and `AiBehaviorLogTarget.SharedInstance` are process-wide statics
+that **`Program.Main` installs as NLog rules for EVERY mode, headless included** ⇒ they are populated on
+a node with no window. ⭐ The helper unions those with the registry's own sources *(which carry the
+host-specific `HotReloadMessageLogSource`)*, de-duplicated **by reference** — ⚠ without that the editor
+would read the global NLog ring twice, because `MessageLogHostWiring.CreateAndRegister` seeds the
+registry with the very same instance.
+
+## 8.3 🔴🔴 CORRECTION 2 — **the seam had to become LAZY**
+
+📐 **Measured:** the editor builds its `DebugApiService` in `Initialize`; its `MessageLogRegistry` is
+created in **`RegisterWindows`, which runs LATER** — and which is also when subsystems register their own
+sources. ⇒ ⛔ an eagerly-captured `IReadOnlyList` would latch the registry *as it was before anyone had
+registered anything*, i.e. empty, forever.
+
+⇒ ⭐⭐ **`logSinks` changed from `IReadOnlyList<IMessageLogSource>?` to
+`Func<IReadOnlyList<IMessageLogSource>>?`**, re-read per request.
+📌 **The same lesson `SubsystemDebugProvider`'s lazy accessors already carry**, and for the same measured
+reason — value-capturing a composition-root dependency reports an absence the host acquires seconds later.
+
+## 8.4 🔴🔴 CORRECTION 3 — **architecture is per SUBSYSTEM, not per NODE**
+
+⛔ §2.2 says *"each node answers for its own kernel"*. 📐 **Measured: a node holds SEVERAL.**
+`--mode all` expands to `orchestrator,simhost,ig,excon,cgf` and **SimHost, IG and CGF each construct
+their own `ArchitectureDiagnosticsService`** *(6 construction sites across the subsystems)*. ⇒ one
+snapshot per node would have had to pick one kernel and drop the rest silently.
+
+⭐⭐⭐ **So the route did NOT get a new attach seam — the EXISTING per-subsystem one was extended.**
+`ISubsystemDebugProvider` already carries `World`, `EntityMap`, `Drive`, `RequestTransition`, each
+nullable-by-design and each measured into a capability cell in ONE place. ⭐ `Architecture` is the fifth,
+built the same way: a lazy `Func<>`, a `DebugCapabilities.ArchitectureDiagnostics` cell derived from it
+being non-null, and **`architecture: null` written out EXPLICITLY in ExCon** — which genuinely has no
+kernel — rather than omitted.
+⚠ The dispatcher gained **`AllProviders`**, ⛔ deliberately not `Active()`: architecture is the one read
+where *"the perspective the user is looking at"* is the wrong scope.
+
+⇒ 📐 **Measured on a real node: `SimHost — 10 modules, 56 systems, 37 translators`**, and the orchestrator
+correctly reports nothing.
+
+## 8.5 ⛔⛔ ITEMS ③ AND ④ — **STOPPED, with measured blockers**
+
+| item | 📐 the blocker | ⭐ what would unblock it |
+|---|---|---|
+| ⚠ **③** cluster dump trigger *(`MD-004`)* | ⭐ **The TRIGGER half is reachable** — `ClusterDiagnosticsPanel` publishes `ExecuteDiagnosticDumpIntent { RequestId, PayloadJson }` onto its orchestration bus, and the provider seam to mirror it is the one `RequestTransition` already uses. ⛔ **The STATUS half is not:** `DiagnosticsDumpProcessManager` exposes **only `Tick()`** — no pending/completed read-model — so `GET /cluster/diagnostics/status` would have nothing to read | ⭐ a read-model on `DiagnosticsDumpProcessManager` + a `RequestDiagnosticDump` provider member mirroring `RequestTransition`. ⚠ **`Hrot.Orchestrator` is outside this handoff's stated lane**, and a parallel session was live |
+| ⛔⛔ **④** records aggregator *(`MD-005`)* | 🔴 **There is NO node → debug-API-endpoint registry anywhere.** 📐 Each node reads `HROT_DEBUG_API_PORT` **for itself** and nothing publishes it; `ClusterUiCache.ActiveNodes` carries node ids, ⛔ not ports. ⇒ an orchestrator-side fan-out has no addresses to fan out TO | ⭐ nodes would have to announce their endpoint *(a field on the cluster-state event, or a DDS topic)*. ⚠ **That is a new cluster contract, not a route** — it belongs in its own design |
+
+⭐⭐ **§2.3 (b) said *"needs §2.1 wired first"*. True, and insufficient** — ⛔ it also needs an address book
+that does not exist. ⚠ **Recorded so the next slice does not rediscover it.**
+
+## 8.6 ⚠ A GATE THAT WAS NOT THERE
+
+📐 **`DebugApiBatch11Tests.cs` — the ONLY test that exercises the `logSinks` seam — is
+`<Compile Remove>`-excluded from its csproj**, along with nine sibling `DebugApiBatch*` files.
+⇒ ⛔ **nothing has gated this seam**, which is part of why the empty default survived. ⭐ Its call site was
+updated to the new `Func<>` shape so it is correct whenever it is re-enabled, ⚠ **but it does not compile
+today and must not be counted as coverage.**
