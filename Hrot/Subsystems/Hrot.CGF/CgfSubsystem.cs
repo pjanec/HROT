@@ -123,10 +123,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?      _hsmRegistrar;
     private Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?      _blueprintRegistrar;
 
-    /// <summary>TestHook: the asset perspectives this node registered windows under (slice 1).</summary>
-    internal IReadOnlyList<string> AiPerspectives =>
-        new[] { _btreeRegistrar, _hsmRegistrar, _blueprintRegistrar }
-            .Where(r => r != null).Select(r => r!.Workspace.PerspectiveName).ToArray();
+    // ⛔ NO TestHook for "which perspectives did I register". 📐 A first cut added one and nothing could
+    //    use it: the shell needs a REAL WindowManager (an ImGui atlas), so no headless unit rail can
+    //    construct it — and the claim is already asserted where it is observable, over MCP, by
+    //    ClusterConformanceRails.The_cluster_offers_the_asset_perspectives. ⚠ An internal accessor with
+    //    no caller is the "built and unreachable" shape this codebase keeps finding; ⭐ better absent.
 
     // ── Scenario entity creation source (shared with load handlers in Phases 3-4) ──
     private ScenarioEntityCreationRequestSource? _scenarioSource;

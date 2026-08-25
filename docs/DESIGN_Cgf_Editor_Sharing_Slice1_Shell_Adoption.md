@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (2026-08-25, backend/CGF lane, ids CE-001..CE-008). Carries classDiagram +
+build-state: BUILT (2026-08-25, backend/CGF lane, ids CE-001..CE-010). Carries classDiagram +
   sequenceDiagram (§3/§4). First slice of the cgf==editor programme: CGF constructs the AiShared shell
   and registers the asset-perspective windows, delivering the VIEWING/DIAGNOSTICS chain
   (watch -> MyBlueprint -> asset graphs) on CGF.
@@ -14,6 +14,13 @@ design-basis: PROGRAMME_Unification_And_Harness.md (charter; editor = one-node c
   DESIGN_Perspective_Unification.md Part B (CreateRegistrar is the reuse vehicle; A0/A1 default fix BUILT) ·
   Architect_Question_54 (capability manifest — flip a cell absent->present) ·
   DESIGN_Regression_Net.md (the net every port runs against).
+known-rot: §1's table row and §2's closing line both say "flip the capability-manifest cells
+  absent->present". MEASURED FALSE while building (§9.2): the manifest's availability layer is derived
+  from the live route table and from what is actually wired, and CapabilityManifest's own doc places the
+  known-absent BASELINE in the HARNESS. There is no hand-authored cell. The real act is the nine
+  deletions from ClusterConformanceRails.EditorOnlyKinds. Read §9.2 before quoting either line.
+  Likewise §2's "Blueprint has a live write path" is true of the EDITOR only: CGF constructs no
+  IBlueprintDebugSession, so all three perspectives pass null there (§9.4).
 known-conflict: none. This slice CONSUMES Hrot.Editor.AiShared; it must NOT modify it (SHARED_SURFACES:
   "place, do not touch"). Any needed AiShared change is a coordination point with the variable-model lane.
 -->
@@ -194,6 +201,14 @@ builds; T3 E2E async)*. ⭐⭐ **Row 8 — the rails that prove this slice:**
 | ✅ **process exclusivity helps** | editor and CGF **never share a process** *(the runner throws)* ⇒ CGF may reuse the editor's window ids verbatim; no id-collision design needed |
 | ⭐ **lane** | this is `CgfSubsystem` wiring + AiShared consumption ⇒ a **CGF/backend lane** slice; the handoff picks it. ⛔ Not the variable-model lane's work *(it owns AiShared internals, which this must not touch)* |
 
+## 8. ⭐ WHEN DONE — ✅ **DONE `2026-08-25`**
+⭐⭐ Fold the as-built into this file *(the construct block as built, any per-perspective null decisions, the
+manifest cells flipped)* and update the gap map §2 Axis-A rows from 🔌 to ✅ for the windows landed. ⭐ State
+the ids allocated; ⛔ the report points here, it does not restate the design.
+→ ✅ **§9 below is the as-built** · ✅ gap map Axis-A rows flipped · ✅ ids **`CE-001`…`CE-010`**
+*(tracker Area L)* · ✅ report:
+[`batches/REPORT_Cgf_Shell_Adoption_Slice1.md`](blueprints/batches/REPORT_Cgf_Shell_Adoption_Slice1.md).
+
 ## 9. ⭐⭐⭐ AS-BUILT *(`2026-08-25`, backend/CGF lane — obligation ⑤)*
 
 ### 9.1 ⭐ What landed — **one method, and §3/§4 are TRUE**
@@ -293,7 +308,3 @@ shape this codebase keeps paying for.
 | `The_ported_kinds_are_really_published_by_the_cluster` | the baseline shrank by exactly what CGF publishes — ⭐ the control that runs **opposite** to `A_declared_divergence_that_stopped_diverging_is_deleted` |
 | ⭐⭐ **two new goldens** — `ai_canvas_blueprint`, `ai_watch_blueprint` *(+ their D7 pairing assertions)* | ⛔ the conformance rail compares the two hosts **to each other**, so it stays green if BOTH regress — and after this slice both render from the SAME AiShared classes, which makes an identical regression the LIKELY shape |
 
-## 8. ⭐ WHEN DONE
-⭐⭐ Fold the as-built into this file *(the construct block as built, any per-perspective null decisions, the
-manifest cells flipped)* and update the gap map §2 Axis-A rows from 🔌 to ✅ for the windows landed. ⭐ State
-the ids allocated; ⛔ the report points here, it does not restate the design.
