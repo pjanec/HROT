@@ -73,6 +73,24 @@
     </Content>
   </ItemGroup>
 
+  <!--
+    ⭐⭐⭐ BP-505 — THE GIT-MAINTAINED CURATED DEBUG SESSION reaches the output directory.
+
+    🔒 The user's ruling, 2026-08-24: "ad file path - user local folder; BUT during development we need
+    clean env controlled from git only. let's apply same rule as for curated scenarios and imgui.ini -
+    always overwrite the user's copy with git maintained curated copy on start."
+
+    ⭐ Exactly the shape of the layout item above: the SOURCE keeps `debug/default/` so the tree says
+    which session it is; the output is flattened to `debug/` because
+    DebugSessionPaths.ShippedCuratedDirectory looks there.
+    ⛔ The old home, `<repo>/.debug/bpsession.json`, could never host this — `.gitignore:65` ignores it.
+  -->
+  <ItemGroup>
+    <Content Include="..\..\..\debug\default\bpsession.json" Link="debug\bpsession.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />

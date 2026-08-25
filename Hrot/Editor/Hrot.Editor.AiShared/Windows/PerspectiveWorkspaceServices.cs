@@ -140,6 +140,17 @@ public sealed class PerspectiveWorkspaceServices
     /// <summary>Decoder for raw blackboard bytes; shared by the table and the Watch formatter.</summary>
     public DecodeRawValue? ValueDecoder { get; init; }
 
+    /// <summary>
+    /// ⭐⭐ <b><c>AQ55</c> — the host's "point at an entity" capability</b>, handed to every
+    /// perspective's Watch window. 📄 <c>Architect_Question_55_Watch_Concrete_Entity_Picker.md</c>.
+    ///
+    /// <para>⚠ Optional: a headless host and a shell with no map have nothing to pick with, and the
+    /// menu entry is then ABSENT rather than dead. ⛔ But a composition root that HAS a map-pick
+    /// service must pass it *(the <c>2026-08-16</c> rule)*, and the rail asserts that on the
+    /// CONSTRUCTED window's <c>HasEntityPicker</c> — ⛔ never on this declaration.</para>
+    /// </summary>
+    public Variables.WatchEntityPicker? EntityPicker { get; init; }
+
     /// <param name="facetEditService">
     ///   ⛔ <b>Throws when null.</b> 📌 <c>R-67</c> — the omission this type exists to make impossible.
     /// </param>
@@ -212,5 +223,6 @@ public sealed class PerspectiveWorkspaceServices
             isFrozen:                      IsFrozen,
             writeLive:                     writeLive,
             entitySelection:               EntitySelection,
-            stagedWrites:                  StagedWrites);
+            stagedWrites:                  StagedWrites,
+            entityPicker:                  EntityPicker);
 }

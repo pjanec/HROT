@@ -237,7 +237,8 @@ public class PerspectiveWorkspaceRegistrar
         Func<bool>? isFrozen = null,
         WriteLiveValue? writeLive = null,
         Shell.IEntitySelectionSource? entitySelection = null,
-        StagedWriteView? stagedWrites = null)
+        StagedWriteView? stagedWrites = null,
+        WatchEntityPicker? entityPicker = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -620,6 +621,13 @@ public class PerspectiveWorkspaceRegistrar
             //    window. ⭐ Passed HERE, in the pass that already builds it — nothing new for
             //    EditorSubsystem to forget (R-67).
             Watch.SetRunStateSource(_runState);
+
+            // ⭐⭐⭐ AQ55 — the map picker, PASSED in the same pass that builds the window.
+            // ⚠ Optional because a headless host and a shell without an IG genuinely have no map;
+            //   ⛔ but a composition root that HAS one must pass it (the silent-default rule), and
+            //   HasEntityPicker is the rail surface that says whether it did — asserted on the
+            //   CONSTRUCTED window, never on this line (R-67).
+            if (entityPicker != null) Watch.SetEntityPicker(entityPicker);
 
             // ⭐⭐ Batch 87 — the Watch is built AFTER the binder, so it gets its own attach call here
             //    rather than a re-ordering of the constructor. ⛔ BP-330: its table was private with no
@@ -1078,6 +1086,32 @@ public class PerspectiveWorkspaceRegistrar
 
         table.IsWatched            = IsWatched;
         table.WatchToggleRequested += ToggleWatch;
+
+        // ⭐⭐⭐ AQ55 — the "…on entity…" entry, wired in the SAME place as the toggle. ⛔ Not a second
+        //    Attach line for a host to forget: IVariableTableHost exists precisely so "a fifth host
+        //    added later must not depend on someone remembering a fourth Attach line."
+        table.CanPinOnEntity        = () => Watch?.HasEntityPicker == true;
+        table.PinOnEntityRequested += PinOnPickedEntity;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>AQ55</c> — route the row to the Watch's picker.</b>
+    ///
+    /// <para>⚠ <b>Fire-and-forget, and deliberately so:</b> the pick is an async gesture that resolves
+    /// when the designer clicks the map, possibly many frames later. ⛔ Awaiting it inside a menu
+    /// callback would block the draw thread on a click that has not happened.</para>
+    ///
+    /// <para>⛔ A fault is swallowed to the console rather than left unobserved — a cancelled pick is
+    /// already <c>false</c> inside <c>PinOnPickedEntityAsync</c>, so anything reaching here is a real
+    /// failure of the host's pick service.</para>
+    /// </summary>
+    private void PinOnPickedEntity(VariableRow row)
+    {
+        if (Watch is not { } watch) return;
+
+        _ = watch.PinOnPickedEntityAsync(row).ContinueWith(
+            t => Console.WriteLine($"[AQ55] pin-on-entity failed: {t.Exception?.GetBaseException().Message}"),
+            System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
     }
 
     /// <summary>

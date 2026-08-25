@@ -314,6 +314,28 @@ public sealed class VariableTableControl
     public Func<VariableRow, bool>? IsWatched { get; set; }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>AQ55</c> — raised when the designer asks to watch this row on a PICKED entity.</b>
+    /// ⛔ The control neither picks nor pins; the host routes this to
+    /// <c>AiWatchWindow.PinOnPickedEntityAsync</c>.
+    /// </summary>
+    public event Action<VariableRow>? PinOnEntityRequested;
+
+    /// <summary>
+    /// ⭐ Asks the host whether a map pick is available at all. ⛔ Null or <c>false</c> ⇒ the entry is
+    /// ABSENT — 📌 <c>VariableWatchGesture.DecidePinOnEntity</c>'s <c>hasPicker</c> remark: a host that
+    /// will never have a map teaches nothing by showing a permanently dead item.
+    /// </summary>
+    public Func<bool>? CanPinOnEntity { get; set; }
+
+    /// <summary>
+    /// ⛔ Rails only — raises <see cref="PinOnEntityRequested"/> without an ImGui context, taking the
+    /// VIEW exactly as <see cref="RaiseWatchToggleForTest"/> and <c>DrawRowMenu</c> do *(Batch 96's
+    /// rule: a rail must take its input from the SAME OBJECT the UI takes it from)*.
+    /// </summary>
+    internal void RaisePinOnEntityForTest(VariableTableView view, VariableRow row)
+        => PinOnEntityRequested?.Invoke(view.SourceOf(row));
+
+    /// <summary>
     /// ⛔ Rails only — raises <see cref="WatchToggleRequested"/> without an ImGui context.
     /// ⭐ 📌 <c>R-21</c>/<c>R-62</c>: the menu itself cannot be driven headlessly, so the rail exercises
     /// the WIRING and <c>VariableWatchGesture</c> covers the rule the menu renders.
@@ -373,6 +395,21 @@ public sealed class VariableTableControl
         if (!watch.Enabled && watch.DisabledReason is { } why && ImGui.IsItemHovered(
                 ImGuiHoveredFlags.AllowWhenDisabled))
             ImGui.SetTooltip(why);
+
+        // ⭐⭐⭐ AQ55 — "…on entity…": the SAME command shape one line up, bound to a picked entity
+        //    instead of the selected one. ⛔ ABSENT (not greyed) when the host has no map — a host that
+        //    will never grow one teaches nothing by showing a dead item (the Batch 100 distinction).
+        // ⭐ The rule is VariableWatchGesture.DecidePinOnEntity, not this draw path — R-21/R-62.
+        if (CanPinOnEntity?.Invoke() == true)
+        {
+            var pick = VariableWatchGesture.DecidePinOnEntity(row, RunState, hasPicker: true);
+            if (ImGui.MenuItem(pick.Label, null, false, pick.Enabled) && pick.Enabled)
+                // ⭐ THE SOURCE ROW, for the same reason the toggle above takes it (96c).
+                PinOnEntityRequested?.Invoke(view.SourceOf(row));
+            if (!pick.Enabled && pick.DisabledReason is { } pickWhy && ImGui.IsItemHovered(
+                    ImGuiHoveredFlags.AllowWhenDisabled))
+                ImGui.SetTooltip(pickWhy);
+        }
 
         ImGui.EndPopup();
     }

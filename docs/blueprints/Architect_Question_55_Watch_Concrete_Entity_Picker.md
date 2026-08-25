@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — user APPROVED all recommended answers Q55-A..E (2026-08-24). Carries classDiagram + sequenceDiagram.
-updated: 2026-08-24
+build-state: BUILT — 2026-08-25 (BP-507). All of Q55-A..E built as ruled, with ONE named deviation from
+  the classDiagram: the window takes a WatchEntityPicker DELEGATE, not IMapPickService (assembly
+  boundary — see "AS-BUILT" below). Carries classDiagram + sequenceDiagram.
+updated: 2026-08-25
 current-answer: the whole file — how a watch row binds to an ARBITRARY concrete entity (one that is NOT the
   current selection). §"RESOLVED" carries the recommended answers; the sub-questions carry the reasoning.
 design-basis: DESIGN_Variable_Watch_Pinning.md §3 (the TWO-KIND binding: concrete NetworkId vs chameleon) + §9c
@@ -111,6 +113,38 @@ sequenceDiagram
 ⭐ Filed so they are not forgotten; ⛔ **out of scope for the watch reuse** *(which consumes exactly one of each)*:
 1. **`IMapPickService` ×2** — `Hrot.Presentation/Facades` vs `Hrot.ExCon/Services`, identical signature. Reconcile to one shared seam *(its own cleanup batch)*.
 2. **`MapPickableEntityAttribute` ×2** — `Fdp.Toolkits/Behavior` vs `Fdp.Presentation/ImGui`. Reconcile *(its own cleanup)*.
+
+## ✅ AS-BUILT — `2026-08-25` (`BP-507`) *(obligation ⑤)*
+
+📄 The full as-built lives in
+**[`DESIGN_Variable_Watch_Pinning.md` § AS-BUILT — the entity-pinning finish](DESIGN_Variable_Watch_Pinning.md)**.
+Here: what matched, and the one thing that did not.
+
+| ruling | as built |
+|---|---|
+| **`Q55-A`** REUSE the existing pick service | ✅ `EditorSubsystem.PickWatchEntityBindingAsync` calls `IMapPickService.PickEntityAsync()` and resolves the returned id through the existing `FindEntityByNetworkId`. ⛔ No second picker |
+| **`Q55-B`** the `Hrot.Presentation/Facades` twin | ✅ — via `EditorMapPickAdapter`, the editor's impl of that interface. ⛔ The `ExCon` twin untouched |
+| **`Q55-C`** a "pin on entity…" action creating a CONCRETE pin | ✅ `VariableWatchGesture.PinOnEntityLabel` = *"Watch this variable on entity…"*, on the variable row menu beside *"Watch this variable"* — ⭐ the only surface where a VARIABLE is chosen. The pin carries the `NetworkId` + the resolved in-session `Entity` |
+| **`Q55-D`** ⛔ not the attribute path | ✅ direct call |
+| **`Q55-E`** no filter in v1 | ✅ `PickEntityAsync(null, ct)` |
+
+### ⛔ The ONE deviation — from the `classDiagram`, argued
+
+⭐ **Drawn:** `AiWatchWindow ..> IMapPickService : PickEntityAsync`.
+⛔ **Built:** `AiWatchWindow` takes a **`WatchEntityPicker` delegate**; the composition root implements it.
+
+📐 **Why:** `IMapPickService` lives in `Hrot.Presentation`, which **`Hrot.Editor.AiShared` does not
+reference** — and adding that edge points the shared editor library at the application layer that
+composes it. ⭐ The codebase's settled shape for *"an AiShared window needs a host capability"* is a
+host-installed delegate — `SetRunStateSource`, `SetFacetEditService`, `SetFacetDispatcher`.
+⇒ ⭐⭐ **the SERVICE is reused exactly as `Q55-A` ruled; only the way its type crosses the assembly
+boundary differs.**
+
+⭐ **Two behaviours the design did not state, decided while building and worth pinning:** a **cancelled**
+pick pins NOTHING and ⛔ does not fall back to the selection; a **chameleon** returned by a picker is
+REFUSED — the gesture promised a specific entity.
+
+⚠ **The two ruling-9 duplicates below are still OPEN and untouched**, as this question directed.
 
 ## ⛔ NOT this question
 ⭐ Restart SURVIVAL of the concrete binding *(resolving the stored `NetworkId` back to a live `Entity` after a

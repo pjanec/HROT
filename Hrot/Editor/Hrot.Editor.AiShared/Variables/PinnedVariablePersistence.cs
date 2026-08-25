@@ -22,11 +22,23 @@ namespace Hrot.Editor.AiShared.Variables;
 /// loads. ⚠ Until then the pin is a request, not a row — which is why <see cref="Restore"/> returns
 /// descriptors and not rows.</para>
 ///
-/// <para>⚠ <b>Not wired to a production save yet, and that is measured, not assumed:</b> 📐
-/// <c>DebugSessionPersistence.Save</c> has <b>no production caller</b> — only tests. The editor's live
-/// path still goes through the <c>[Obsolete]</c> <c>DataBreakpointManager.SaveWatches</c>, which is
-/// breakpoint-only. ⭐ Wiring a real save touches <c>EditorSubsystem</c>, which the concurrent allocator
-/// batch owns ⇒ carved out and reported rather than raced.</para>
+/// <para>⭐⭐ <b>WIRED to the production save since <c>BP-506</c>.</b>
+/// <c>EditorSubsystem.WriteDebugSession</c> gathers every perspective's pin store through
+/// <see cref="Capture"/> and passes the result to <c>DebugSessionPersistence.Save</c>; the rail is
+/// <c>ThePinnedRowsReachTheSessionFileTests</c>, asserted on the file that is actually written.</para>
+///
+/// <para>⛔⛔ <b>A CORRECTION, recorded because it was written into three documents.</b> The prior batch
+/// claimed here and in its report that <i>"<c>DebugSessionPersistence.Save</c> has no production caller —
+/// only tests"</i>. 🔴 <b>That was FALSE.</b> The caller existed all along —
+/// <c>EditorSubsystem.SaveDebugSession</c>, on a 500 ms debounce — and the measurement that "proved"
+/// otherwise was a <c>grep</c> piped through <c>head</c>, truncated at ten test-file hits before it
+/// reached <c>EditorSubsystem.cs</c>. ⚠ <b>The defect was never a missing caller; it was a caller that
+/// did not pass the optional argument</b> — the silent-default pattern, not a gap.</para>
+///
+/// <para>⚠⚠ <b>A restored pin is not yet re-attached to a Watch window.</b> <see cref="Restore"/>
+/// produces <see cref="RestoredPin"/> descriptors and nothing consumes them yet: a row can only be
+/// rebuilt by the source that owns its asset, once that asset is open. ⇒ ⭐ pins are SAVED, and
+/// re-hydrating them is the same resolution problem as slice <c>94g</c>.</para>
 /// </summary>
 public static class PinnedVariablePersistence
 {

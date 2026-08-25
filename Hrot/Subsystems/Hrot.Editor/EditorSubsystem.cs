@@ -2775,6 +2775,14 @@ namespace Hrot.Editor
                     writes:         () => _bpManager,
                     resolve:        blueprintLiveValueWriter.ResolveStagedField,
                     selectedEntity: () => blueprintLiveValueWriter.SelectedEntity),
+
+                // ⭐⭐⭐ AQ55 — the map picker every perspective's Watch gets. 📄
+                //    Architect_Question_55_Watch_Concrete_Entity_Picker.md.
+                // ⭐ A METHOD GROUP, not a captured adapter: _mapPickAdapter is assigned at :1883 and
+                //   nulled at shutdown, so the field is read AT CALL TIME — ⛔ capturing it here would
+                //   bind whatever it is now, which is the construction-order shape StagedWrites' own
+                //   comment two lines up warns about.
+                EntityPicker                  = PickWatchEntityBindingAsync,
             };
 
             _btreeRegistrar    = perspectiveServices.CreateRegistrar(
@@ -4699,6 +4707,39 @@ namespace Hrot.Editor
         /// request to the appropriate canvas tool or adapter.
         /// Called once per frame from <see cref="Update"/> (non-headless only).
         /// </summary>
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>AQ55</c> — the composition root's half of the "pin on entity…" gesture.</b>
+        /// 📄 <c>Architect_Question_55_Watch_Concrete_Entity_Picker.md</c> *(<c>Q55-A</c>: REUSE)*.
+        ///
+        /// <para>⭐⭐ <b>Both halves are existing mechanisms</b>, which is the whole answer AQ55 gave:
+        /// <c>IMapPickService.PickEntityAsync</c> already enters map-pick mode and resolves with the
+        /// clicked entity's <b>network id</b> — §3's restart-stable identity — and
+        /// <see cref="FindEntityByNetworkId"/> already turns that id into an in-session
+        /// <c>Entity</c>, exactly as *"Mark Target for N Units…"* does at <c>:1937</c>.
+        /// ⛔ Nothing new is built here; this method only joins them.</para>
+        ///
+        /// <para>⚠ <b>No filter</b> *(<c>Q55-E</c>)*: v1 pins on any entity. <c>filterPresets</c> is
+        /// there when someone wants *"only entities of this type"*.</para>
+        ///
+        /// <para>⛔ Answers <c>null</c> — never a chameleon, never a half-built binding — when there is
+        /// no map, no world, the pick yields nothing, or the picked entity is not alive. ⭐ The Watch
+        /// then pins NOTHING rather than silently pinning something else.</para>
+        /// </summary>
+        private async Task<Hrot.Editor.AiShared.Variables.EntityBinding?> PickWatchEntityBindingAsync(
+            CancellationToken ct)
+        {
+            var pick = _mapPickAdapter;
+            if (pick == null || _world == null) return null;
+
+            int netId = await pick.PickEntityAsync(null, ct).ConfigureAwait(false);
+            if (netId == 0) return null;                       // ⭐ the adapter's own "nothing picked"
+
+            var entity = FindEntityByNetworkId(netId);
+            if (!_world.IsAlive(entity)) return null;
+
+            return Hrot.Editor.AiShared.Variables.EntityBinding.Concrete(netId, entity);
+        }
+
         private Entity FindEntityByNetworkId(long networkId)
         {
             if (_world == null) return default;
@@ -4845,25 +4886,34 @@ namespace Hrot.Editor
         // ── CF-8: Debug session persistence helpers ──────────────────────────────
 
         /// <summary>
-        /// Resolves the repo root directory by walking up from <see cref="AppDomain.CurrentDomain.BaseDirectory"/>
-        /// looking for IOS-IG-SimHost.sln.
+        /// ⭐ The per-user data folder name. ⚠ Duplicated from
+        /// <c>RaylibPresentationShell.AppFolderName</c> / <c>FdpApplication</c> because both are
+        /// <c>internal</c> to assemblies this one does not reference — ⛔ <c>Fdp.Presentation</c>
+        /// deliberately never learns the name *(<c>LayoutPaths</c>'s own documented constraint)*, so the
+        /// host carries it. ⚠ It MUST match, or the session file lands beside a different app's layout.
         /// </summary>
-        private static string? ResolveRepoRoot()
-        {
-            var dir = AppDomain.CurrentDomain.BaseDirectory;
-            while (dir != null)
-            {
-                if (File.Exists(Path.Combine(dir, "IOS-IG-SimHost.sln")))
-                    return dir;
-                dir = Path.GetDirectoryName(dir);
-            }
-            return null;
-        }
+        private const string UserAppFolderName = "HROT";
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-505</c> — the debug session file, in the USER-LOCAL folder.</b>
+        ///
+        /// <para>🔒 The user's ruling, <c>2026-08-24</c>: <i>"ad file path - user local folder"</i>.
+        /// ⚠⚠ It USED to be <c>&lt;repo-root&gt;/.debug/bpsession.json</c> *(<c>CF-8</c>)* — ⛔ that path is
+        /// gitignored *(<c>.gitignore:65</c>)*, so it could not host the git-maintained curated copy the
+        /// same ruling asks for. 📄 <c>DebugSessionPaths</c> carries the reasoning and the reset.</para>
+        /// </summary>
         private string? GetDebugSessionPath()
         {
-            var root = ResolveRepoRoot();
-            return root != null ? Path.Combine(root, ".debug", "bpsession.json") : null;
+            try
+            {
+                return DebugSessionPaths.UserPath(
+                    Fdp.Presentation.WindowManager.LayoutPaths.UserDirectory(UserAppFolderName));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CF8] Failed to resolve the debug session path: {ex.Message}");
+                return null;
+            }
         }
 
         /// <summary>
@@ -4874,24 +4924,96 @@ namespace Hrot.Editor
             var path = GetDebugSessionPath();
             if (path == null) return;
 
+            WriteDebugSession(_blueprintDebugSession, _bpManager, PerspectiveRegistrars, path);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The three per-perspective registrars as ONE sequence</b> — every place that must ask
+        /// all of them *(the session save, below)* asks here, so a fourth perspective is a change in one
+        /// place. ⛔ <c>internal</c> only so the rail can hand in registrars it built; ⚠ it is not a
+        /// mutation seam — the fields stay private and are set exactly where they are created.
+        /// </summary>
+        internal IReadOnlyList<Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?> PerspectiveRegistrars
+            => new[] { _btreeRegistrar, _hsmRegistrar, _blueprintRegistrar };
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-506</c> — writes the debug session file, PINS INCLUDED.</b>
+        ///
+        /// <para>⛔⛔ <b>Split out of <see cref="SaveDebugSession"/> so the forwarding is RAILABLE.</b>
+        /// 📌 <c>R-67</c>: the control for a silent default is an assertion on the CONSTRUCTED OBJECT —
+        /// here, on the FILE this produces — ⛔ never on the call site's source. <see cref="SaveDebugSession"/>
+        /// is now a one-line delegation with no defaultable argument left to forget.</para>
+        ///
+        /// <para>⭐ <c>static</c> and fully parameterised on purpose: everything it needs is an argument,
+        /// so a rail drives the real production path rather than a re-implementation of it.</para>
+        /// </summary>
+        internal static void WriteDebugSession(
+            Hrot.Blueprints.Core.Debug.IBlueprintDebugSession? blueprintSession,
+            Hrot.Diagnostics.Breakpoints.IDataBreakpointManager? breakpointManager,
+            IEnumerable<Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?> registrars,
+            string path)
+        {
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-                var nodeBps = _blueprintDebugSession?.GetBreakpoints();
-                var watches = _blueprintDebugSession?.GetWatches();
-                var dbmBps  = _bpManager?.AllBreakpoints;
+                var nodeBps = blueprintSession?.GetBreakpoints();
+                var watches = blueprintSession?.GetWatches();
+                var dbmBps  = breakpointManager?.AllBreakpoints;
 
                 DebugSessionPersistence.Save(
                     nodeBps ?? Array.Empty<Hrot.Blueprints.Core.Debug.Breakpoint>(),
                     watches ?? Array.Empty<Hrot.Blueprints.Core.Debug.Watch>(),
                     dbmBps  ?? Array.Empty<Hrot.Diagnostics.Breakpoints.Breakpoint>(),
-                    path);
+                    path,
+                    CapturePinnedVariables(registrars));
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[CF8] Failed to save debug session: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-506</c> — the Watch window's pinned rows, from EVERY perspective, ready for
+        /// <c>DebugSessionPersistence.Save</c>.</b> 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5.
+        ///
+        /// <para>⛔⛔ <b>This closes a SILENT DEFAULT</b> *(<c>BP-502</c>)*: <c>Save</c>'s
+        /// <c>pinnedVariables</c> parameter is optional and this — its only production caller — did not
+        /// pass it, so <b>no pin was ever written by the shipped editor</b> however complete the
+        /// persistence layer was. ⭐ The rule it broke: <i>a production caller that HAS a dependency must
+        /// PASS it</i> — and it HAD one: the three registrars are fields on this class, wired long before
+        /// the save runs.</para>
+        ///
+        /// <para>⭐ <b>THREE sources, one list.</b> Each perspective owns its own
+        /// <c>AiWatchWindow</c> and therefore its own <c>PinnedVariableRowSource</c>; the file is
+        /// perspective-agnostic because a pin is keyed by <c>AssetId</c> + section + path, which already
+        /// says which perspective owns it.</para>
+        ///
+        /// <para>⚠ <b>Unpersistable pins are skipped and COUNTED</b>, never written as
+        /// <c>NetworkId 0</c> — <c>PinnedVariablePersistence.Capture</c>'s own honesty rule. The count is
+        /// logged so a designer whose pin vanished can see why.</para>
+        /// </summary>
+        internal static IReadOnlyList<Hrot.Diagnostics.Breakpoints.PinnedVariableEntry> CapturePinnedVariables(
+            IEnumerable<Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar?> registrars)
+        {
+            var entries = new List<Hrot.Diagnostics.Breakpoints.PinnedVariableEntry>();
+            int skipped = 0;
+
+            foreach (var registrar in registrars)
+            {
+                var pinned = registrar?.Watch?.Pinned;
+                if (pinned == null) continue;
+
+                entries.AddRange(
+                    Hrot.Editor.AiShared.Variables.PinnedVariablePersistence.Capture(pinned, out var s));
+                skipped += s;
+            }
+
+            if (skipped > 0)
+                Console.WriteLine($"[CF8] {skipped} pinned variable row(s) skipped — no durable entity id to key on.");
+
+            return entries;
         }
 
         /// <summary>
@@ -4918,6 +5040,24 @@ namespace Hrot.Editor
         {
             var path = GetDebugSessionPath();
             if (path == null) return;
+
+            // ── BP-505: the git-maintained curated session overwrites the user's copy, BEFORE the load ──
+            // 🔒 The user's ruling, 2026-08-24: "during development we need clean env controlled from git
+            // only … always overwrite the user's copy with git maintained curated copy on start."
+            // ⛔ It must run BEFORE TryLoad — a copy afterwards would be ignored until the next run.
+            // ⚠ Also the standing recovery for FINDINGS_Empty_Breakpoint_Bricks_The_Editor.md: a poisoned
+            //   session now survives at most one launch instead of bricking every one.
+            try
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (dir != null && DebugSessionPaths.TryResetUserSession(dir))
+                    Console.WriteLine($"[CF8] Debug session reset to the curated copy: {path}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CF8] Failed to reset the debug session from the curated copy: {ex.Message}");
+            }
+            // ─────────────────────────────────────────────────────────────────────────────────────────────
 
             Hrot.Diagnostics.Breakpoints.DebugSessionFile? file;
             try
