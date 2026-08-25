@@ -59,7 +59,59 @@ document is open."* — the new assertion is strictly stronger than anything tha
 
 ## 4. GATES *(rule 8 contract)*
 
-*(filled in §4b before the batch closes.)*
+| # | gate | command | result | `--no-build`? | delta vs `2603adad9` |
+|---|---|---|---|---|---|
+| 1 | solution build | `dotnet build IOS-IG-SimHost.sln --no-restore` | ✅ **0 errors** | n/a | unchanged |
+| 2 | ⭐ **T0 baseline, BEFORE any edit** | `run-system-tests.sh ClusterConformanceRails` | ✅ **10 / 0** | no *(built)* | — |
+| 3 | ⭐⭐⭐ **conformance (acceptance vehicle)** | `run-system-tests.sh --no-build ClusterConformanceRails` | ✅ **13 / 0** | yes | **10 → 13**: +3 slice-2 rails, all green |
+| 4 | ⭐⭐ **full system suite** | `run-system-tests.sh --no-build` | ✅ **93 / 0**, 5 m 44 s | yes | **90 → 93** *(slice 1's run)*; ⛔ no red, no new skip |
+| 5 | ⭐ **revert probe** *(catalog population disabled)* | probe applied, rebuilt, conformance re-run | 🔴 **2 / 13 red, as designed** | yes | — |
+| 6 | `gen:catalog:check` | `node gen-catalog.mjs --check` | ✅ **PASSED (72 tools, 72 endpoints)** | n/a | **66 → 72** — the six new `RouteDoc`s |
+| 7 | `gen:skill:check` | `node generate-skill.mjs --check` | ✅ **PASSED** | n/a | `SKILL.md` regenerated *(438 lines)* |
+| 8 | `test:catalog` | `node test-catalog.mjs` | ✅ **577 / 0** | n/a | **571 → 577.** ⚠ **It caught a real gap** — §4c |
+| 9 | `Hrot.Editor.Tests` *(incl. `EveryRouteIsDocumentedTests`)* | `dotnet test … --no-build` | ✅ **248 / 0**, 1 skip | yes | unchanged ⇒ all six routes documented |
+| 10 | `Hrot.Editor.AiShared.Tests` *(the frozen assembly)* | `dotnet test … --no-build` | ✅ **2016 / 0**, 1 skip | yes | **unchanged** ⇒ the three additions broke nothing |
+| 11 | `Hrot.ClusterRunner.Tests` | `dotnet test … --no-build` | ⚠ **271 pass / 2 fail** | yes | **both PRE-EXISTING — proven by diff** *(§4d)* |
+| 12 | `tracker-counts.py --check` | | ✅ **OK — open 102 / done 346** | n/a | unchanged *(`CE-` ids are not `BP-`)* |
+| 13 | `rulings-check.py` | | ✅ **25 / 25** | n/a | unchanged |
+| 14 | `design-digest.py --check` | | ✅ **clean** | n/a | unchanged |
+| 15 | ⭐ `mermaid-check.mjs` | `MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs` | ✅ **2 / 2 blocks parse** *(slice-2 design)* | n/a | ⚠ **and it corrects slice 1's row 12** — §4e |
+
+### 4c. ⭐⭐ Gate 8 caught a REAL gap — **six advertised tools with no handler**
+
+📐 `gen:catalog` regenerated the catalog happily, but `test-catalog.mjs` also asserts *"`src/index.mjs`
+registers a handler for every catalogued tool"* — ⛔ it did not. ⇒ the six tools would have been
+**advertised over MCP and unreachable**. ⭐ Six handlers added; the hand-maintained expected-tools list is
+the one thing generation cannot derive, so it was extended deliberately *(`HN-044`'s shape)*.
+
+### 4d. ⭐ Gate 11 — **the two reds, proven pre-existing by `git diff`, not by rebuild**
+
+`DataDrivenGizmoPredicateTests.D003_*`, both `InvalidCastException: D003NoOpDrawBuilder →
+DebugPrimitiveBuffer` inside `DataDrivenGizmoSystem.Execute`. 📐 `git diff --name-only
+2603adad9..HEAD` names **19 files**, and **neither `DataDrivenGizmoSystem.cs` nor
+`DataDrivenGizmoPredicateTests.cs` is among them**. ⚠ Same pair slice 1 reported; still not this lane's.
+
+### 4e. ⚠ **Gate 15 corrects a wrong claim in the SLICE-1 report**
+
+⛔ Slice 1's row 12 read *"SKIPPED — no npm/node in this container."* **That was wrong.** 📐 `node`/`npm`
+are at **`/opt/node22/bin`**, merely off `PATH`; the checker needs a one-off
+`npm install mermaid@11 jsdom` into `MERMAID_PREFIX`, which succeeds here. ⭐ The slice-1 report is
+amended in place with a dated correction. ⚠ **Its conclusion was right** *(slice 1 added no Mermaid, and
+§3/§4 parse)* — ⛔ but *"the tool is unavailable"* was a wrong reason for a right answer, and the next
+session would have inherited it.
+
+⚠ **`verify.mjs` is NOT a gate here:** it is a LIVE end-to-end script needing a running host with a
+loaded scenario; run cold it fails 32 assertions, all of the *"nothing is running"* shape. ⭐ The design's
+T4 names `gen:catalog:check` / `gen:skill:check`, which are gates 6–7.
+
+### 4f. ⚠ The working tree, and one measurement I did NOT take
+
+✅ **Clean after every suite run** — no golden regenerated, ⛔ no new skip *(1 · 1 · 0, all unchanged)*.
+⚠ **NOT measured: WHICH asset the editor has and the cluster does not** *(73 vs 72)*. The rail prints the
+symmetric difference by path and kind — ⛔ but only on failure, and it passed. ⭐ Stated rather than
+guessed: an earlier draft of this report attributed it to the editor's `ScenarioCatalogContributor`, and
+📐 that is almost certainly wrong *(there are 3 curated scenarios, which would make the gap 3, not 1)*.
+⇒ **one asset, cause unknown, no AI asset affected.**
 
 ## 5. ⭐ IDS ALLOCATED *(rule 5)*
 
