@@ -154,6 +154,25 @@ sequenceDiagram
 | ⭐ **③** | **Flip the capability-manifest cells** absent→present for the registered read/diagnostics endpoints; update the `known-absent` baseline | ⛔ read/diagnostics only — leave write/edit cells absent *(D3)*; the flip is a reviewed one-line-per-cell diff *(AQ54)* |
 | ⚠ **④** | **The Scenario perspective on CGF** — per `DESIGN_Perspective_Unification.md` D1/D2, CGF presents the four asset perspectives *(Scenario/BTree/HSM/Blueprint)*; confirm `perspectiveMap` maps `Scenario → CGF` | ⛔ don't add a `CGF` perspective — D1 ruled the asset perspectives instead |
 
+## 5b. ⭐⭐⭐ HEADLESS TEST METHOD — **capture editor goldens FIRST, then diff CGF via MCP** *(user, `2026-08-25`)*
+
+⭐⭐ **Yes — this slice is provable headlessly over MCP, and the mechanism already exists on both hosts.**
+
+| fact — measured `2026-08-25` | consequence |
+|---|---|
+| ⭐⭐⭐ **The windows are ALREADY `PanelSnapshot`-instrumented IN AiShared** — `AiMyBlueprintWindow` (`DeclareInstrumented`+`Register`), `AiGraphCanvasWindow`, `AiWatchWindow`, `AiBreakpointsWindow`, `DetailsWindow` | ⇒ **the instrumentation TRAVELS WITH the shared window.** The moment CGF constructs+registers them (§5), they publish on CGF **for free** — no extra test wiring |
+| ⭐⭐ **`GET /panels`** *(Group T / MX9, `DebugApiService.Panels.cs`)* reads `PanelSnapshot` over HTTP | ⇒ **the panel MODEL is machine-readable over MCP** — *"live dump here, reviewed expectation there"* (`CapabilityManifest.cs:33`). `/panels` is in the manifest |
+| ⭐⭐ **Conformance = same binary, two `--mode`s, diff by `PanelKind`** *(`DESIGN_Headless_Testability.md` §Conformance; three-way SAME / DIFFERENT / NOT-PRESENT)* | ⇒ editor-mode **vs** `--mode all` (CGF) diffed **by `PanelKind`**, `panelId` ignored in the diff *(kept only as the golden storage key)* |
+| ⚠ **It is MODEL-level, not pixels** — the panel view-model, not a screenshot | ⇒ *"looks the same"* headlessly = **the panel's DATA MODEL matches**; the gizmo frame is diffed the same way. ⛔ no pixel diff at the machine layer |
+
+⭐⭐⭐ **The workflow you described is exactly charter jobs ①→④:**
+1. ⭐ **Capture editor goldens NOW** for the asset panels *(MyBlueprint · graph canvas · watch)* per `PanelKind` — job ① *"the reference behaviour, before anything moves"*. ⭐ Available today because the windows are already instrumented in the editor.
+2. Build slice 1 *(§5)*.
+3. ⭐⭐ **Run the conformance suite** *(editor-mode vs `--mode all`)* — job ④ *"once the same feature is in CGF, check it looks the same as in the editor"* ⇒ **`SAME` per `PanelKind`** is the acceptance verdict.
+4. ⭐ **The editor goldens also guard the editor** during the wiring — job ③ *"check this does not change as we refactor"*.
+
+⚠ **The one dependency:** this rides on the **conformance suite (steps 6+7 of `DESIGN_Headless_Testability.md`** — the MCP-drivable cluster host + the editor-vs-cluster diff). Confirm it is landed before dispatch; the ack-gate + cluster-load prerequisites *(HN-028/HN-029)* already are.
+
 ## 6. GATES *(the net every port runs against — DESIGN_Regression_Net.md + charter §2)*
 
 ⭐ Standing contract *(rule 8)* + the build/test rules *(`.claude/CLAUDE.md` THREE TEST TIERS: affected-project
