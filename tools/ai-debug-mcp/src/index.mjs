@@ -1237,6 +1237,17 @@ const TOOLS = [
   },
 
   {
+    name: 'list_entity_blueprints',
+    description: TOOL_DEFS['list_entity_blueprints'].description,
+    inputSchema: TOOL_DEFS['list_entity_blueprints'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('GET', `/entities/${encodeURIComponent(toolArgs.networkId)}/blueprints`));
+      } catch (err) { return toolError(err.message, err.envelope, 'list_entity_blueprints'); }
+    },
+  },
+
+  {
     name: 'get_entity_state',
     description: TOOL_DEFS['get_entity_state'].description,
     inputSchema: TOOL_DEFS['get_entity_state'].inputSchema,

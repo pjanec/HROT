@@ -73,13 +73,13 @@ namespace Hrot.SimHost.Systems
                     continue;
                 }
 
-                // Step 1: Resolve AssetIds → definitions
-                var resolved = new List<(int BlueprintId, BlueprintDefinition Def)>();
+                // Step 1: Resolve AssetIds → definitions (carry the DTO so persisted params apply below)
+                var resolved = new List<(int BlueprintId, BlueprintDefinition Def, BlueprintAssignmentDto Dto)>();
                 foreach (var dto in intent.Blueprints)
                 {
                     int bpId = BlueprintIdHash.Compute(dto.AssetId);
                     if (_registry.TryGetById(bpId, out var def) && def != null)
-                        resolved.Add((bpId, def));
+                        resolved.Add((bpId, def, dto));
                     else
                         FdpLog<BlueprintMaterializationSystem>.Warn(
                             $"[BlueprintMat] AssetId {dto.AssetId} not registered; skipping.");
@@ -94,7 +94,7 @@ namespace Hrot.SimHost.Systems
                 // Step 2: Compute aggregate → pick tier (Design §5)
                 int totalSlots = resolved.Count;
                 int totalBytes = 0;
-                foreach (var (_, def) in resolved)
+                foreach (var (_, def, _) in resolved)
                     totalBytes += def.StateSize;
 
                 // Ceiling guard (16 slots / 16096 bytes)
@@ -106,7 +106,7 @@ namespace Hrot.SimHost.Systems
                     // Truncate to ceiling capacity
                     int truncated = 0;
                     int truncatedBytes = 0;
-                    var truncatedList = new List<(int, BlueprintDefinition)>();
+                    var truncatedList = new List<(int, BlueprintDefinition, BlueprintAssignmentDto)>();
                     foreach (var r in resolved)
                     {
                         if (truncated >= BlueprintBlackboard16384.MaxSlots) break;
@@ -131,7 +131,7 @@ namespace Hrot.SimHost.Systems
                     out byte* memory, out int totalSize, out byte maxSlots);
                 BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
 
-                foreach (var (bpId, def) in resolved)
+                foreach (var (bpId, def, dto) in resolved)
                 {
                     // Check if already attached (idempotent)
                     if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, bpId, out _))
@@ -151,6 +151,25 @@ namespace Hrot.SimHost.Systems
                         ref byte payloadRef = ref Unsafe.AsRef<byte>(memory + payloadOffset);
                         var initSpan = MemoryMarshal.CreateSpan(ref payloadRef, def.StateSize);
                         def.InitDefault(initSpan);
+                    }
+
+                    // ⭐⭐ MX-032 — re-apply persisted params (the resolver-shape bytes) AFTER InitDefault,
+                    //    through the SAME writer AttachToEntity uses. Guarded by StructureHash: a blueprint
+                    //    recompiled since save has a different layout, so its stale bytes are ignored and
+                    //    the declared defaults stand (logged), rather than being read at the wrong offsets.
+                    if (dto.Params is { Length: > 0 } paramBytes && def.ParamsSize > 0)
+                    {
+                        if (dto.ParamsStructureHash == def.StructureHash)
+                        {
+                            BlueprintInstanceService.WriteParamsRegion(memory + payloadOffset, def, paramBytes);
+                        }
+                        else
+                        {
+                            FdpLog<BlueprintMaterializationSystem>.Warn(
+                                $"[BlueprintMat] Persisted params for bpId 0x{bpId:X8} on entity {entity} " +
+                                $"were saved under StructureHash {dto.ParamsStructureHash:X} but the live " +
+                                $"definition is {def.StructureHash:X}; ignoring stale params, defaults stand.");
+                        }
                     }
                 }
 

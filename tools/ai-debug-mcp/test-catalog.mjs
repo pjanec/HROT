@@ -40,7 +40,7 @@ const EXPECTED_TOOLS = [
   // Slice ③ — the panel snapshot (MX9), blueprint hot-attach (MX2), entity state (MX3),
   // and the breakpoint resume the staged-write drain turned out to depend on.
   'list_panels', 'get_panel', 'get_gizmo_frame',
-  'list_blueprints', 'attach_blueprint', 'detach_blueprint',
+  'list_blueprints', 'attach_blueprint', 'detach_blueprint', 'list_entity_blueprints',
   'get_entity_state', 'continue_from_breakpoint',
   // Slice ④ — Group V, the AI-asset drive surface (cgf==editor slice 2).
   // ⭐ Three addresses (§3a): the GUID in a URL segment, the human sourceFilePath in the BODY,

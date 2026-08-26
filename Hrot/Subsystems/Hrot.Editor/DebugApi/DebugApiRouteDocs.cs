@@ -1230,19 +1230,21 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/entities/{networkId}/attach-blueprint")] = new RouteDoc(
             Tool:    "attach_blueprint",
             Group:   "Q — Blueprint hot-attach",
-            Summary: "Attach an Instance blueprint to a running entity — the quick way to try a behaviour without authoring a mission.",
-            Returns: "{ networkId, blueprint, blueprintId, attached:true, note }",
+            Summary: "Attach an Instance blueprint to an entity — the quick way to try a behaviour without authoring a mission. Run-state-aware: lands immediately while paused/Edit, next tick while running.",
+            Returns: "{ networkId, blueprint, blueprintId, attached:true, path:\"direct\"|\"event\", applied:\"immediate\"|\"next-tick\", status?, tier?, note }",
             Hint:    "Required: networkId, blueprint. Example: attach_blueprint({networkId:1001, blueprint:\"ComponentCollectionDemo\"})",
             Params: new RouteParam[]
             {
                 new("networkId", "number", true, "Network id of the entity"),
                 new("blueprint", "string", true, "Blueprint name, asset Guid, or numeric blueprintId (see list_blueprints)"),
-                new("paramsJson", "object", false, "Parameters for the blueprint, keyed by name; omit for its declared defaults"),
+                new("paramsJson", "object", false, "Parameters for the blueprint, keyed by name (its paramSchema); omit for its declared defaults"),
             },
             Notes: new[]
             {
-                "Queued: the ingress system applies it on the NEXT tick, so step or play once before reading it back.",
-                "After it lands, the entity's variables appear in list_entity_variables — name the asset, since the entity may now carry more than one.",
+                "Run-state-aware (mirrors the editor's own panel): while time is FROZEN (Edit or paused) it attaches THIS frame (path:direct); while the sim is advancing it queues the ingress event (path:event) and you must step/play once before reading it back.",
+                "Params now PERSIST through save_scenario — an attach with non-default params survives save→reload (they ride the assignment as resolved bytes, layout-versioned by the blueprint's StructureHash).",
+                "A malformed paramsJson on the direct path is a 400 that changes nothing (parse-before-commit), not a half-applied slot.",
+                "After it lands, the entity's variables appear in list_entity_variables — name the asset, since the entity may now carry more than one. See what is attached with list_entity_blueprints.",
             },
             ExampleArgsJson: "{\"networkId\":1001,\"blueprint\":\"ComponentCollectionDemo\"}",
             ExampleGist: "try a blueprint on entity 1001 right now"),
@@ -1250,8 +1252,8 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/entities/{networkId}/detach-blueprint")] = new RouteDoc(
             Tool:    "detach_blueprint",
             Group:   "Q — Blueprint hot-attach",
-            Summary: "Detach an Instance blueprint from an entity.",
-            Returns: "{ networkId, blueprint, blueprintId, detached:true, note }",
+            Summary: "Detach an Instance blueprint from an entity. Run-state-aware, like attach_blueprint.",
+            Returns: "{ networkId, blueprint, blueprintId, detached, path:\"direct\"|\"event\", applied:\"immediate\"|\"next-tick\", note }",
             Hint:    "Required: networkId, blueprint. Example: detach_blueprint({networkId:1001, blueprint:\"ComponentCollectionDemo\"})",
             Params: new RouteParam[]
             {
@@ -1260,10 +1262,29 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
-                "Queued like the attach — applied on the next tick.",
+                "Run-state-aware: removes the slot THIS frame while time is frozen (path:direct); queues the event while the sim advances (path:event, next tick).",
+                "On the direct path, detached:false means no slot for that blueprint was on the entity — nothing to remove.",
             },
             ExampleArgsJson: "{\"networkId\":1001,\"blueprint\":\"ComponentCollectionDemo\"}",
             ExampleGist: "put the entity back how you found it"),
+
+        [("GET", "/entities/{networkId}/blueprints")] = new RouteDoc(
+            Tool:    "list_entity_blueprints",
+            Group:   "Q — Blueprint hot-attach",
+            Summary: "The Instance blueprints currently attached to an entity — see what you have assigned before editing.",
+            Returns: "{ networkId, count, blueprints:[{ blueprintId, name, assetId, payloadSize }] }",
+            Hint:    "Required: networkId. Example: list_entity_blueprints({networkId:1001})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network id of the entity"),
+            },
+            Notes: new[]
+            {
+                "Reads the same slot table save_scenario snapshots, so it shows exactly what would persist.",
+                "list_blueprints is the catalog (everything compiled); this is what is attached to ONE entity.",
+            },
+            ExampleArgsJson: "{\"networkId\":1001}",
+            ExampleGist: "see which blueprints are on entity 1001"),
 
         [("GET", "/entities/{networkId}/state")] = new RouteDoc(
             Tool:    "get_entity_state",

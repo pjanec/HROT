@@ -91,8 +91,9 @@ public static unsafe class BlueprintInstanceService
     /// <param name="paramsJson">
     /// ⭐ Params for the blueprint, as a JSON object keyed by parameter name
     /// (<c>DESIGN_Parameter_Model.md</c> §3.3). null/empty means "declared defaults only", which is the
-    /// shipped behaviour and every existing caller's answer. ⛔ This is the ONLY source of params —
-    /// there is no lookup into <c>BlueprintAssignmentDto.Overrides</c> and no side table.
+    /// shipped behaviour and every existing caller's answer. ⛔ At runtime attach this is the ONLY source
+    /// of params — no side table. (Save→reload re-applies the persisted bytes through
+    /// <see cref="WriteParamsRegion"/> from <c>BlueprintAssignmentDto.Params</c> — MX-031/032.)
     /// </param>
     /// <returns>A classified <see cref="BlueprintAttachResult"/>.</returns>
     public static BlueprintAttachResult AttachToEntity(
@@ -173,14 +174,11 @@ public static unsafe class BlueprintInstanceService
 
         // ⭐⭐ ORDER IS THE RULING (§3.3): InitDefault FIRST, then the resolved params. The reverse
         //    zeroes them and would read as a resolver bug rather than an ordering one.
-        // ⭐ The cursor at payload offset 0 is NOT touched: the copy lands at ParamsOffset (16).
+        // ⭐ The cursor at payload offset 0 is NOT touched: the copy lands at ParamsOffset (16), via the
+        //    ONE param-region writer that BlueprintMaterializationSystem also uses (persisted round-trip).
         if (resolvedParams != null)
         {
-            Buffer.MemoryCopy(
-                resolvedParams,
-                memory + payloadOffset + def.ParamsOffset,
-                def.StateSize - def.ParamsOffset,
-                paramsSize);
+            WriteParamsRegion(memory + payloadOffset, def, new ReadOnlySpan<byte>(resolvedParams, paramsSize));
         }
 
         return new BlueprintAttachResult(
@@ -245,6 +243,47 @@ public static unsafe class BlueprintInstanceService
         if (stateSize <= BlueprintBlackboard1024.PayloadSize) return BlackboardTier.B1024;
         if (stateSize <= BlueprintBlackboard4096.PayloadSize) return BlackboardTier.B4096;
         return BlackboardTier.B16384;
+    }
+
+    // ── param-region round-trip (MX-030) ─────────────────────────────────────
+    // ⭐⭐ The ONE place that knows WHERE params live inside a payload — [ParamsOffset .. +ParamsSize).
+    //    AttachToEntity writes them from resolved JSON; BlueprintStateTranslator.Extract reads them for
+    //    save; BlueprintMaterializationSystem writes the persisted bytes back on load. Centralising the
+    //    offset here keeps those three from disagreeing (ruling 9).
+
+    /// <summary>
+    /// Copies resolved param bytes into a slot payload's param region
+    /// <c>[ParamsOffset .. ParamsOffset+ParamsSize)</c>. Copies <c>min(ParamsSize, paramBytes.Length)</c>
+    /// bytes and never touches the cursor (offset 0..16) or the state region beyond params.
+    /// </summary>
+    /// <param name="payload">Pointer to the slot payload base (i.e. <c>memory + payloadOffset</c>).</param>
+    public static void WriteParamsRegion(byte* payload, BlueprintDefinition def, ReadOnlySpan<byte> paramBytes)
+    {
+        if (def.ParamsSize <= 0 || paramBytes.IsEmpty) return;
+        int n = Math.Min(def.ParamsSize, paramBytes.Length);
+        var dst = new Span<byte>(payload + def.ParamsOffset, def.ParamsSize);
+        paramBytes.Slice(0, n).CopyTo(dst);
+    }
+
+    /// <summary>Reads a slot payload's param region into a fresh array (the inverse of <see cref="WriteParamsRegion"/>).</summary>
+    /// <param name="payload">Pointer to the slot payload base (i.e. <c>memory + payloadOffset</c>).</param>
+    public static byte[] ReadParamsRegion(byte* payload, BlueprintDefinition def)
+    {
+        if (def.ParamsSize <= 0) return Array.Empty<byte>();
+        return new ReadOnlySpan<byte>(payload + def.ParamsOffset, def.ParamsSize).ToArray();
+    }
+
+    /// <summary>
+    /// The param region a freshly-<c>InitDefault</c>'d payload carries — the baseline
+    /// <c>BlueprintStateTranslator.Extract</c> diffs against, so only NON-default
+    /// params are persisted (a default assignment stays <c>{AssetId}</c> only).
+    /// </summary>
+    public static byte[] GetDefaultParamsRegion(BlueprintDefinition def)
+    {
+        if (def.ParamsSize <= 0) return Array.Empty<byte>();
+        var scratch = new byte[def.StateSize];
+        def.InitDefault?.Invoke(scratch);
+        return new ReadOnlySpan<byte>(scratch, def.ParamsOffset, def.ParamsSize).ToArray();
     }
 
     // ── private helpers ──────────────────────────────────────────────────────

@@ -55,13 +55,18 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>
         /// POST /entities/{networkId}/attach-blueprint {blueprint, paramsJson?} — attach an Instance
-        /// blueprint to a running entity. Must run on the main thread.
+        /// blueprint to an entity. <b>Run-state-aware (Q61-A/MX-034):</b> mirrors the editor's own
+        /// <c>EntityBlueprintsPanel.ExecuteCommitPlan</c> branch. Must run on the main thread.
         /// </summary>
         /// <remarks>
-        /// Publishes the event the runtime already consumes (<c>BlueprintEventIngressSystem</c>, Input
-        /// phase) rather than reaching into the blackboard: the attach allocates a slot, may promote the
-        /// blackboard tier, and runs the params pipeline — all of which the ingress system owns.
-        /// <para>It therefore takes effect on the NEXT tick, not on this response, and the reply says so.</para>
+        /// <para><b>Sim advancing</b> (in preview and not paused): publishes the lifecycle event the
+        /// runtime already consumes (<c>BlueprintEventIngressSystem</c>, Input phase) — it lands on the
+        /// NEXT tick.</para>
+        /// <para><b>Frozen / Edit / paused</b> (the authoring case): calls
+        /// <c>BlueprintInstanceService.AttachToEntity</c> directly, so the slot lands THIS frame — because
+        /// the event would otherwise wait for a tick that never comes while time is frozen. The
+        /// <see cref="BlueprintAttachStatus"/> is surfaced (a failed params parse is a 400, not a silent
+        /// no-op). Params attached here now survive save→reload (MX-031/032).</para>
         /// </remarks>
         public (JsonNode? result, string? error, string? hintCategory) AttachBlueprint(
             long networkId, string? blueprint, string? paramsJson)
@@ -76,12 +81,37 @@ namespace Hrot.Editor.DebugApi
                     + "only Instance blueprints occupy a slot. List attachable ones with GET /blueprints.",
                     DebugApiHints.Blueprint);
 
-            _world.Bus.PublishManaged(new AttachInstanceBlueprintEvent
+            var normParams = string.IsNullOrWhiteSpace(paramsJson) ? null : paramsJson;
+
+            if (SimIsAdvancing)
             {
-                Entity      = entity,
-                BlueprintId = blueprintId,
-                ParamsJson  = string.IsNullOrWhiteSpace(paramsJson) ? null : paramsJson,
-            });
+                _world.Bus.PublishManaged(new AttachInstanceBlueprintEvent
+                {
+                    Entity      = entity,
+                    BlueprintId = blueprintId,
+                    ParamsJson  = normParams,
+                });
+
+                return (new JsonObject
+                {
+                    ["networkId"]   = networkId,
+                    ["blueprint"]   = def.Name,
+                    ["blueprintId"] = blueprintId,
+                    ["attached"]    = true,
+                    ["path"]        = "event",
+                    ["applied"]     = "next-tick",
+                    ["note"]        = "Queued while the sim is advancing; the ingress system applies it on "
+                                    + $"the next tick. Read it back with GET /entities/{networkId}/variables.",
+                }, null, null);
+            }
+
+            // Frozen/Edit/paused → direct, same frame (the panel's paused branch).
+            if (_blueprintRegistry is null)
+                return (null, "This editor has no blueprint registry wired into the debug API.", DebugApiHints.Blueprint);
+
+            var res = BlueprintInstanceService.AttachToEntity(_world, _blueprintRegistry, blueprintId, entity, normParams);
+            if (!res.Success)
+                return (null, res.Message, DebugApiHints.Blueprint);
 
             return (new JsonObject
             {
@@ -89,14 +119,18 @@ namespace Hrot.Editor.DebugApi
                 ["blueprint"]   = def.Name,
                 ["blueprintId"] = blueprintId,
                 ["attached"]    = true,
-                ["note"]        = "Queued. The ingress system applies it on the next tick; read it back "
-                                + $"with GET /entities/{networkId}/variables.",
+                ["path"]        = "direct",
+                ["applied"]     = "immediate",
+                ["status"]      = res.Status.ToString(),
+                ["tier"]        = res.Tier.ToString(),
+                ["note"]        = "Attached this frame (time is frozen). Params persist through save "
+                                + $"(save_scenario). Read it back with GET /entities/{networkId}/variables.",
             }, null, null);
         }
 
         /// <summary>
         /// POST /entities/{networkId}/detach-blueprint {blueprint} — detach an Instance blueprint.
-        /// Must run on the main thread.
+        /// Run-state-aware, exactly as <see cref="AttachBlueprint"/>. Must run on the main thread.
         /// </summary>
         public (JsonNode? result, string? error, string? hintCategory) DetachBlueprint(
             long networkId, string? blueprint)
@@ -105,21 +139,81 @@ namespace Hrot.Editor.DebugApi
                                      out var def, out var error, out var hint))
                 return (null, error, hint);
 
-            _world.Bus.Publish(new RemoveInstanceBlueprintEvent
+            if (SimIsAdvancing)
             {
-                Entity      = entity,
-                BlueprintId = blueprintId,
-            });
+                _world.Bus.Publish(new RemoveInstanceBlueprintEvent
+                {
+                    Entity      = entity,
+                    BlueprintId = blueprintId,
+                });
 
+                return (new JsonObject
+                {
+                    ["networkId"]   = networkId,
+                    ["blueprint"]   = def!.Name,
+                    ["blueprintId"] = blueprintId,
+                    ["detached"]    = true,
+                    ["path"]        = "event",
+                    ["applied"]     = "next-tick",
+                    ["note"]        = "Queued while the sim is advancing; the ingress system applies it on the next tick.",
+                }, null, null);
+            }
+
+            // Frozen/Edit/paused → direct, same frame.
+            bool removed = BlueprintInstanceService.DetachFromEntity(_world, blueprintId, entity);
             return (new JsonObject
             {
                 ["networkId"]   = networkId,
                 ["blueprint"]   = def!.Name,
                 ["blueprintId"] = blueprintId,
-                ["detached"]    = true,
-                ["note"]        = "Queued. The ingress system applies it on the next tick.",
+                ["detached"]    = removed,
+                ["path"]        = "direct",
+                ["applied"]     = "immediate",
+                ["note"]        = removed
+                    ? "Detached this frame (time is frozen)."
+                    : "No slot for this blueprint was attached to the entity; nothing to detach.",
             }, null, null);
         }
+
+        /// <summary>
+        /// GET /entities/{networkId}/blueprints — the Instance blueprints currently attached to the entity
+        /// (Q61-B/MX-035), read from the same slot table <c>BlueprintStateTranslator.Extract</c> snapshots.
+        /// Lets an agent see what it has assigned before editing. Must run on the main thread.
+        /// </summary>
+        public (JsonNode? result, string? error, string? hintCategory) GetEntityBlueprints(long networkId)
+        {
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                return (null, $"Entity {networkId} not found. List entities with GET /entities.", DebugApiHints.Entity);
+
+            if (_blueprintRegistry is null)
+                return (null, "This editor has no blueprint registry wired into the debug API.", DebugApiHints.Blueprint);
+
+            var items = new JsonArray();
+            foreach (var slot in AttachedBlueprints(entity))
+            {
+                items.Add(new JsonObject
+                {
+                    ["blueprintId"] = slot.BlueprintId,
+                    ["name"]        = slot.Name,
+                    ["assetId"]     = slot.AssetId.ToString("D"),
+                    ["payloadSize"] = slot.PayloadSize,
+                });
+            }
+
+            return (new JsonObject
+            {
+                ["networkId"]  = networkId,
+                ["count"]      = items.Count,
+                ["blueprints"] = items,
+            }, null, null);
+        }
+
+        /// <summary>
+        /// ⭐ Whether the sim is actually advancing (in preview AND not paused) — the same predicate the
+        /// editor's Mission/blueprint panels use to choose event vs direct. Frozen Edit state and an
+        /// explicit pause both count as NOT advancing, so an authoring edit lands immediately.
+        /// </summary>
+        private bool SimIsAdvancing => _preview.IsInPreviewMode && !_time.IsPaused;
 
         /// <summary>
         /// Resolves the entity and the blueprint together — by name, by asset Guid, or by the raw int id.
