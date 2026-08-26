@@ -241,3 +241,29 @@ the `AX-005a` tracker row is amended in place.
 ⚠ **`AX-013` is left OPEN on purpose** — whether the apply path should move out of the DDS assembly is
 argued both ways in design §14.3, and *against* includes a real objection: the bus-intent variant adds a
 third registration that can be silently absent, which is the exact failure mode `AX-011`/`AX-012` just were.
+
+### ⭐⭐⭐ `2026-08-26` (3) — **`AX-015`/`AX-016`: steps (1) and (2) of the agreed plan; step (3) NOT started**
+
+📄 Durable record: design **§15**. 🔒 Agreed order was *"do 1 and 2, report before 3"*.
+
+| # | finding |
+|---|---|
+| **F9** | ⛔⛔ **§14.3's "against moving" argument is RETRACTED, on the user's challenge.** 📐 `MarkDescriptorDirty` sets a bit in a **local `ulong`**; nothing serialises `EDescriptorType`; the attribute update carries `AttributeId`. ⇒ *"a descriptor ordinal is wire numbering"* was **false** — **there is no wire-format obstacle to moving the apply path** *(`AX-013`)* |
+| **F10** | 🔴🔴 **`AX-015` — the binary path told SmartEgress NOTHING.** `EcsPatchContext.Create`'s ordinal map is empty, so the `FlushDirtyMarks()` that `Apply` already calls flushed nothing; the installers' `MarkDescriptorDirty` set only a local `ulong` **no production code reads**. ⚠⚠ Hidden because the only end-to-end attribute is `GeoHeading` → `SimTransform`, whose translator **diffs every tick**; `EntityInfoEgressTranslator` does not ⇒ **a binary entity RENAME on the owner was never republished** |
+| **F11** | ⭐⭐ **`AX-016` — the interpreter was built PER CALL of `EntityWriteRouter.For(repo)`**, i.e. per gizmo, not per network factory. Worse than reported: N scratchpads, and N chances for two interpreters built from different geographic transforms to convert the same attribute differently |
+| **F12** | ⚠ **`SetSingletonManaged` cannot host a service** — it throws *"missing a `[ComponentId]` attribute"*. Using it would burn two **global component-id slots** on non-entity-data, and `BinaryInterpreter<T>` is an open generic whose instantiations would share one id. ⇒ `ConditionalWeakTable` instead |
+
+| gate | result | Δ |
+|---|---|---|
+| ⭐⭐⭐ **`TheAppliersBelongToTheWorldTests`** | ✅ **8/8** | NEW *(replaces `TheBinaryArmIsWiredInProductionTests`, **deleted not weakened** — it pinned a per-network-stack instance as the contract)* |
+| ⭐⭐⭐ **`TheBinaryApplyTellsSmartEgressTests`** | ✅ **2/2** · red-proved by removing the forward | NEW |
+| `Hrot.Network.NED.Tests` | ✅ **106/106** | 98 → 101 → 103 → 106 |
+| `Hrot.SimHost.Tests` | **702 total · 1 failed** | +2 rails; the 1 red is the known rotating flake *(3–4 in earlier runs)* |
+| `Fdp.Toolkits.Tests` | ✅ **2037/2037** | ⚠ one run showed 1–2 reds in `GizmoRegistryTests`/`StatelessGizmoRegistryTests` *("expected throw for an UNREGISTERED component")* — 📐 **8/8 in isolation and 2037/2037 on repeat** ⇒ the static-registry order flake, count varying 0/1/2 across identical runs |
+| `Hrot.Core.Tests` | **134 total · 5 failed** | ⚠ all `LogArchiveExtractionServiceTests`; 📐 **identical 5 on a clean tree** ⇒ pre-existing. ⭐ `JsonAttributeCompilerTests` — the third `IEntityPatchContext` implementor — **8/8**, so the default interface member is clean |
+| round trip + shadow + drag-drop + harness smoke | ✅ **16/16** | unchanged |
+| `design-digest` · `tracker-counts` · `rulings-check` · `mermaid` | ✅ 87 docs · counts OK · 25/25 · 7 blocks | |
+
+⛔ **STEP (3) — moving the apply stack out of the DDS assembly — is NOT started**, as agreed. ⭐ `F9` removes
+its main objection, and the source-scan rail's allowlist is the ready-made proof: it shrinks to zero when the
+move lands.

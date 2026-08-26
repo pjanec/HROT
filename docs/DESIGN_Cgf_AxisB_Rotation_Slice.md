@@ -667,3 +667,86 @@ the default now builds ⇒ no behaviour change)*.
 |---|---|---|
 | ⭐⭐⭐ **the apply path's `Hrot.NED.*` dependencies are EXACTLY the declared set** | `StrictNetworkSeparationTests` *(+1, now 5)* | ✅ green · red-proved by adding one `using` |
 | ⭐⭐ **both arms defaulted from the same input** · **either still overridable** | `TheBinaryArmIsWiredInProductionTests` *(+2, now 5)* | ✅ green |
+
+---
+
+## 15. ⭐⭐⭐ AS-BUILT `2026-08-26` (3) — **`AX-015`/`AX-016`: the appliers belong to the WORLD, and the binary path now tells SmartEgress**
+
+> ⛔⛔ **§14.3's "against moving" argument is RETRACTED** — 🔒 the user challenged it and was right.
+> ⛔⛔ **§14.4's `AX-014` mechanism is SUPERSEDED** — the constructor no longer defaults either arm.
+
+### 15.1 ⛔ THE RETRACTION — **"a descriptor ordinal is wire numbering" was WRONG**
+
+📐 Measured: `MarkDescriptorDirty(long ordinal)` sets a bit in a **local `ulong`**, capped at 64.
+⭐ Nothing serialises `EDescriptorType`; the attribute update carries `AttributeId` *(`GeoHeading = 13`)*.
+⇒ ⛔ the enum was a **convenient name for a bit index**, not a wire field. **There is no wire-format obstacle
+to moving the apply path out of the DDS assembly** *(`AX-013`)*.
+
+### 15.2 🔴🔴 `AX-015` — **the binary path told SmartEgress NOTHING, and an entity RENAME was lost**
+
+| step | measured |
+|---|---|
+| the binary path builds its context with `EcsPatchContext.Create(repo, entity)` | ⛔ the **standalone** factory — its ordinal map is **EMPTY** |
+| `BinaryInterpreter.Apply` **does** call `FlushDirtyMarks()` | ⭐ but that iterates `_touchedOrdinals`, which stays empty ⇒ marks **nothing** |
+| the installers announce via `BinaryPatchContext.MarkDescriptorDirty` | ⛔ which set **only** a local `ulong` — grep: written by installers, reset by `Apply`, **read only by tests** |
+| ⇒ | 🔴 **no `SmartEgressUtil` call anywhere in the apply path** |
+
+⚠⚠ **Why it hid for so long.** 📌 `SmartEgressUtil`'s own remarks prescribe a **split** strategy: reliable
+low-frequency descriptors *(`EntityInfo`, `EntityMaster`, `EntityMission`)* use `MarkDirty`; high-frequency
+`GeoSpatial` uses **state comparison against `NetworkTransform`** instead. ⇒ ⭐ the one attribute exercised
+end-to-end — `GeoHeading` → `SimTransform` — republished anyway because its translator **diffs every tick**.
+⛔ `EntityInfoEgressTranslator` does not diff; it gates on `SmartEgressUtil.ShouldPublish(…)`.
+⇒ 🔴 **a binary rename applied on the owner landed in local ECS and was NEVER republished to any node.**
+
+⭐⭐ **Fixed at the seam, network-agnostically:** `IEntityPatchContext` gains
+`MarkDescriptorDirty(long)` — a **plain `long`, naming no DDS type and no enum** — with a **no-op default
+implementation** so `ListPatchContext` and the three test doubles need no change. `EcsPatchContext` adds the
+ordinal to the **same `HashSet`** the JSON path uses, so the existing `FlushDirtyMarks` reaches
+`SmartEgressUtil.MarkDirty` and the documented **dedup** *(both `Name` and `Affiliation` ⇒ one mark)* is kept
+rather than re-implemented. ⭐ `SmartEgressUtil` lives in `Fdp.Toolkit.Replication.Utilities` — FDP-side.
+
+### 15.3 ⭐⭐⭐ `AX-016` — **ONE applier pair per WORLD, resolved not built**
+
+🔒 **User ruling:** *"is instantiating the same interpreter in every network factory the right solution? the
+interpreter should not be bound to any network."*
+
+| before — measured | after |
+|---|---|
+| ⛔⛔ `EntityWriteRouter.For(repo)` built an interpreter **PER CALL** ⇒ **one per gizmo** *(five rotator sites + the drag definition per entity)*, each with its own scratchpad | ⭐ resolves the world's one instance |
+| `UpdateEntityAttributeRequestSystem`'s DDS ctor built another | ⭐ resolves on first `Execute` |
+| ⛔ `OfflineNetworkFactory` supplied **none** ⇒ a networkless host had no applier at all | ⭐ the world has both, with no network present |
+
+⚠ **N copies were not merely wasteful — they were N chances for two interpreters to be built from DIFFERENT
+geographic transforms and convert the same attribute differently.**
+
+⭐⭐ **`SetSingletonManaged` was tried and REJECTED on measurement:** it throws *"Component type … is missing a
+`[ComponentId]` attribute"*. ⛔ That mechanism is for ECS **components**, so it would mean burning two
+**global component-id slots** on things that are not entity data — and `BinaryInterpreter<T>` is an **open
+generic**, so every instantiation would share one id. ⇒ ⭐ a `ConditionalWeakTable<EntityRepository, …>`:
+one pair per live world, collected with the world, **no ECS coupling**.
+
+⭐ **Both arms move together** *(`AX-014`'s requirement, new mechanism)* — the binary interpreter AND the JSON
+compiler are world-scoped, so they cannot drift apart. ⚠ An explicit constructor override still wins:
+`SimHostAppTests` passes its own JSON compiler.
+
+### 15.4 ⚠ WHAT `AX-016` DOES **NOT** FIX — stated so it is not over-read
+
+⛔ **It does not make a networkless unowned write land.** 📐 Measured: on a world where nothing owns the
+component, the router publishes an intent, **nothing drains it**, and the write is lost while the router
+reports `Requested`. ⭐⭐ **A bus-side applier would NOT help** — 📐 measured `HasAppliedAny = false`: it runs
+against the **same world** with the **same authority mask**, so the same `UXI-30` gate refuses.
+⇒ ⭐ **ownership is what makes the single-node case work** *(`SetAuthority` ⇒ route becomes `Direct`)*, which
+is `AX-006`'s parked warning. ⚠ Two open items remain: **`Requested` is a false success** when nothing can
+carry the request off-node, and **`AX-006`** itself.
+
+### 15.5 ⭐ RAILS
+
+| rail | where | state |
+|---|---|---|
+| ⭐⭐⭐ **`AX-015`** — a binary `Name` apply leaves `dtEntityInfo` dirty · two attributes on one descriptor mark it **once** | `Hrot.SimHost.Tests/TheBinaryApplyTellsSmartEgressTests` *(2)* | ✅ green · red-proved by removing the forward |
+| ⭐⭐⭐ **`AX-016`** — one interpreter per world however often asked · JSON likewise · **both resolve with NO network** · none needed with no geodetic frame · the router SHARES the world's instance · two routers share one · the request system resolves both on first `Execute` · an override still wins | `Hrot.Network.NED.Tests/TheAppliersBelongToTheWorldTests` *(8)* | ✅ green |
+
+⚠ **`TheBinaryArmIsWiredInProductionTests` was DELETED, not weakened.** Its rails asserted that the DDS
+**constructor** produced a non-null interpreter — the right control for `AX-012`, but it pinned a
+per-network-stack instance as the contract. ⭐ The replacement asserts the world-scoped property instead, so
+`AX-012`'s silent-null arm is **unrepresentable** rather than merely detected.

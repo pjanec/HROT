@@ -117,6 +117,15 @@ public sealed class BinaryPatchContext
     /// </param>
     public void MarkDescriptorDirty(long ordinal)
     {
+        // ⭐⭐⭐ AX-015 — FORWARD to the patch context, which is what actually reaches SmartEgress.
+        //    🔴 This method used to set ONLY the local mask below, and nothing in production read it ⇒ the
+        //    binary path never told SmartEgress anything. ⛔ Harmless for SimTransform (its egress diffs
+        //    `lastSent` every tick) and a REAL data-loss bug for EntityInfo (its egress gates on
+        //    SmartEgressUtil.ShouldPublish) — an entity rename applied on the owner was never republished.
+        PatchContext.MarkDescriptorDirty(ordinal);
+
+        // ⭐ The local mask is KEPT: it is the ACK bitmask source, and it is what the interpreter resets
+        //   per Apply. ⚠ It is a REPORT of what this Apply touched — ⛔ not the egress mechanism.
         if (ordinal >= 0 && ordinal < 64)
             DirtyDescriptorMask |= (1UL << (int)ordinal);
     }

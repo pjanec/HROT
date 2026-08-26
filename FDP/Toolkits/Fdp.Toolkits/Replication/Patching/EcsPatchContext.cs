@@ -144,6 +144,19 @@ public sealed class EcsPatchContext : IEntityPatchContext
 
     /// <inheritdoc/>
     /// <remarks>
+    /// ⭐⭐ <c>AX-015</c> — the BINARY path's way in. The JSON path fills <c>_touchedOrdinals</c> from its
+    /// routing table on component access; ⛔ a context built by <see cref="Create"/> has an EMPTY map, so
+    /// without this the binary installers had no way to reach <see cref="FlushDirtyMarks"/>.
+    /// ⭐ Same <c>HashSet</c>, so an ordinal announced twice still produces ONE
+    /// <c>SmartEgressUtil.MarkDirty</c> call — the dedup the class remarks promise.
+    /// </remarks>
+    public void MarkDescriptorDirty(long descriptorOrdinal)
+    {
+        if (descriptorOrdinal >= 0) _touchedOrdinals.Add(descriptorOrdinal);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
     /// Looks up the ECS component type ID via the registry (O(1) cached fast-path) and
     /// checks the entity's <c>AuthorityMask</c> — the same bit used by
     /// <c>ValidateWriteAccess&lt;T&gt;</c>, preventing any mismatch between the invoker

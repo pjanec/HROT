@@ -57,6 +57,36 @@ public interface IEntityPatchContext
     void FlushDirtyMarks();
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>AX-015</c> — declares that <paramref name="descriptorOrdinal"/> must be republished, so
+    /// <see cref="FlushDirtyMarks"/> reaches <c>SmartEgressUtil.MarkDirty</c> for it.</b>
+    ///
+    /// <para>🔴🔴 <b>THE DEFECT THIS FIXES, measured `2026-08-26`.</b> The JSON path derives its ordinals
+    /// from a routing table, so <see cref="FlushDirtyMarks"/> knows what to mark. ⛔ The BINARY path builds
+    /// its context with <c>EcsPatchContext.Create(repo, entity)</c> — the standalone factory whose ordinal
+    /// map is EMPTY — and the installers announced their descriptor through
+    /// <c>BinaryPatchContext.MarkDescriptorDirty</c>, which only set a local <c>ulong</c> mask that
+    /// <b>nothing in production ever read</b> *(grep: written by the installers, reset by
+    /// <c>BinaryInterpreter.Apply</c>, read only by tests)*. ⇒ <c>FlushDirtyMarks</c> marked NOTHING and the
+    /// binary path never told SmartEgress anything.</para>
+    ///
+    /// <para>⚠⚠ <b>Why nobody noticed:</b> the one attribute exercised end-to-end is <c>GeoHeading</c> →
+    /// <c>SimTransform</c>, and <c>GeoSpatialEgressTranslator</c> <b>diffs <c>lastSent</c> every tick</b> — so
+    /// it republishes regardless of dirty marks. ⛔ <c>EntityInfoEgressTranslator</c> does NOT diff: it gates
+    /// on <c>SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, …)</c>. ⇒ 🔴 <b>a binary
+    /// attribute change to <c>EntityData</c>/<c>EntityInfo</c> — an entity RENAME, say — landed in local ECS
+    /// and was NEVER republished to any other node.</b></para>
+    ///
+    /// <para>⭐⭐ <b>Network-agnostic by construction:</b> <c>SmartEgressUtil</c> lives in
+    /// <c>Fdp.Toolkit.Replication.Utilities</c> — FDP-side. The ordinal is a plain <c>long</c> here; ⛔ this
+    /// seam names no DDS type and no enum.</para>
+    ///
+    /// <para>⭐ <b>Default implementation is a NO-OP</b> so the test doubles and <c>ListPatchContext</c> —
+    /// which have no ECS to dirty — need no change. ⚠ That is deliberate: only a context backed by a real
+    /// repository can meaningfully mark anything.</para>
+    /// </summary>
+    void MarkDescriptorDirty(long descriptorOrdinal) { }
+
+    /// <summary>
     /// Returns true if the current context has authority to write the unmanaged struct component
     /// <typeparamref name="T"/>. Always returns <c>true</c> in <see cref="ListPatchContext"/> (creation
     /// path). Delegates to <c>EntityRepository.HasAuthority&lt;T&gt;</c> in <see cref="EcsPatchContext"/>,

@@ -60,8 +60,8 @@ namespace Hrot.Map.Common.Systems
         private readonly IUpdateEntityAttributeRequestSource _requestSource;
         private readonly IUpdateEntityAttributeAckSink       _ackSink;
         private readonly NetworkEntityMap                    _entityMap;
-        private readonly JsonAttributeCompiler?              _jsonCompiler;
-        private readonly BinaryInterpreter<EntityAttributeChange>?      _binaryInterpreter;
+        private JsonAttributeCompiler?                       _jsonCompiler;
+        private BinaryInterpreter<EntityAttributeChange>?               _binaryInterpreter;
         private readonly NodeId                              _localNodeId;
 
         // ── Interface-based constructor (test-friendly) ───────────────────────
@@ -153,29 +153,17 @@ namespace Hrot.Map.Common.Systems
                 new DdsUpdateEntityAttributeRequestSource(participant),
                 new DdsUpdateEntityAttributeAckSink(participant),
                 entityMap,
-                // ⭐ AX-014 — defaulted, not required. Same source, same input as the binary arm below.
-                jsonAttributeCompiler ?? Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform),
+                // ⭐⭐ AX-016 — like the binary arm, resolved from the WORLD on first Execute, not built
+                //    here. ⭐ AX-014's requirement (both arms sourced the SAME way) is what keeps them
+                //    together; only the source changed, from "the constructor" to "the world".
+                jsonAttributeCompiler,
                 localNodeId,
-                // ⭐⭐⭐ AX-012 — THE BINARY ARM WAS DEAD IN PRODUCTION, and this one argument is why.
-                //
-                // 🔴 Measured `2026-08-26`: this constructor forwarded to the interface constructor and
-                //    STOPPED at `localNodeId`, so `binaryInterpreter` took its `null` default ⇒
-                //    `hasBinaryRecords` was permanently false ⇒ every `AttributeRecords` payload that
-                //    reached this node was **silently ignored**, and only the JSON arm ever ran. The
-                //    AX-005 cluster round-trip reached SimHost and died here, with nothing logged.
-                //
-                // 📌 THE SILENT-DEFAULT PATTERN, VERBATIM (`.claude/CLAUDE.md`): *"a production caller that
-                //    HAS a dependency must PASS it."* `NedNetworkFactory.CreateSimHostAttributeUpdateSystems`
-                //    held `_geoTransform` and built the JSON compiler from it **one line above** the
-                //    constructor call — and did not build the binary one. ⇒ ⛔ the optional parameter was
-                //    correct; the caller omitting it was the defect.
-                //
-                // ⭐⭐ BUILT HERE rather than added as a factory argument, deliberately. Passing it from the
-                //    factory fixes today's caller and leaves the next one free to forget again — the same
-                //    forgettability `AX-001`/`UXI-30` moved into the registration. `geoTransform` is already
-                //    a parameter, and `BuildBinaryInterpreter` is exactly what it is for. ⇒ no caller can
-                //    omit it, because no caller supplies it.
-                binaryInterpreter ?? Hrot.SimHost.AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform))
+                // ⭐⭐⭐ AX-016 — DELIBERATELY NOT BUILT HERE. It is resolved from the WORLD on the first
+                //    Execute (see below), because 🔒 *"the interpreter should not be bound to any network."*
+                //    ⛔ AX-012 fixed a dead arm by building one here, and AX-014 made the JSON arm match —
+                //    both were the right call at the time and both are now SUPERSEDED: a per-network-stack
+                //    instance is the thing being removed. ⚠ An explicit override still wins, for tests.
+                binaryInterpreter)
         {
         }
 
@@ -183,6 +171,15 @@ namespace Hrot.Map.Common.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // ⭐⭐⭐ AX-016 — resolve the WORLD's one interpreter, once. ⭐ Idempotent and allocation-free
+            //    after the first tick. ⛔ It cannot be absent: the provider builds it if the world has none,
+            //    so the AX-012 failure mode (a silently null arm) is unrepresentable rather than merely fixed.
+            if (view is EntityRepository repoForInterpreter)
+            {
+                _binaryInterpreter ??= AttributeInterpreterProvider.GetOrCreate(repoForInterpreter);
+                _jsonCompiler      ??= AttributeInterpreterProvider.GetOrCreateJson(repoForInterpreter);
+            }
+
             _requestSource.ProcessRequests(req => ProcessRequest(req, view, (EntityRepository)view));
         }
 
