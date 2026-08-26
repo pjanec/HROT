@@ -1,4 +1,6 @@
-﻿using System.Numerics;
+using System;
+﻿using System.Linq;
+using System.Numerics;
 using System.Text.Json;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Patching;
@@ -49,7 +51,7 @@ public static class AttributeCompilerFactory
                 "Name",
                 ( ref Fdp.Core.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
                     c.Name = r.GetString() ?? string.Empty,
-                descriptorOrdinal: EntityInfoOrdinal )
+                descriptorOrdinal: EntityInfoOrdinal, kind: KindOf("Name") )
 
             .RegisterValuePath<Fdp.Core.EntityInfo>(
                 "Affiliation",
@@ -57,7 +59,7 @@ public static class AttributeCompilerFactory
                     c.ForceId = r.TokenType == JsonTokenType.Number
                         ? MapAffiliationInt( r.GetInt32())
                         : MapAffiliationString( r.GetString()),
-                descriptorOrdinal: EntityInfoOrdinal );
+                descriptorOrdinal: EntityInfoOrdinal, kind: KindOf("Affiliation") );
 
         // ── SimTransform — unmanaged struct paths (GeoPosition) ───────────────
         if (geoTransform != null)
@@ -72,7 +74,7 @@ public static class AttributeCompilerFactory
                         acc.Lat = r.GetDouble();
                         acc.TryApply(ref st);
                     },
-                    descriptorOrdinal: GeoSpatialOrdinal)
+                    descriptorOrdinal: GeoSpatialOrdinal, kind: KindOf("GeoPosition.Latitude"))
 
                 .RegisterValuePath<SimTransform>(
                     "GeoPosition.Longitude",
@@ -81,7 +83,7 @@ public static class AttributeCompilerFactory
                         acc.Lon = r.GetDouble();
                         acc.TryApply(ref st);
                     },
-                    descriptorOrdinal: GeoSpatialOrdinal)
+                    descriptorOrdinal: GeoSpatialOrdinal, kind: KindOf("GeoPosition.Longitude"))
 
                 .RegisterValuePath<SimTransform>(
                     "GeoPosition.Altitude",
@@ -90,7 +92,7 @@ public static class AttributeCompilerFactory
                         acc.Alt = r.GetDouble();
                         acc.TryApply(ref st);
                     },
-                    descriptorOrdinal: GeoSpatialOrdinal);
+                    descriptorOrdinal: GeoSpatialOrdinal, kind: KindOf("GeoPosition.Altitude"));
         }
 
         // ── SimTransform — Heading (compass degrees, always registered) ───────
@@ -108,7 +110,7 @@ public static class AttributeCompilerFactory
                 st.Rotation = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem
                     .HeadingDegToRotation((float)r.GetDouble());
             },
-            descriptorOrdinal: GeoSpatialOrdinal);
+            descriptorOrdinal: GeoSpatialOrdinal, kind: KindOf("Heading"));
 
         return builder.Build();
     }
@@ -137,20 +139,20 @@ public static class AttributeCompilerFactory
     /// </remarks>
     public static JsonToRecordCompiler BuildEdgeCompiler()
     {
-        return new JsonToRecordCompilerBuilder()
-            .Register("Name",                   AttributeIds.Name,        AttributeValueKind.CsString)
-            // ⚠ CsString, and a NUMBER is equally valid here: ExCon's default enum serialisation emits
-            //   `2` rather than "FORCE_OPPOSING". ⭐ AX-018 made JsonToRecordCompiler honour the token, so
-            //   both forms cross — and HandleAffiliation already branched on record.Value.Kind to receive
-            //   them. 📐 Before that, {"Affiliation":2} THREW at the edge.
-            .Register("Affiliation",            AttributeIds.Affiliation, AttributeValueKind.CsString)
-            .Register("GeoPosition.Latitude",   AttributeIds.GeoLat,      AttributeValueKind.CsFloat64)
-            .Register("GeoPosition.Longitude",  AttributeIds.GeoLon,      AttributeValueKind.CsFloat64)
-            .Register("GeoPosition.Altitude",   AttributeIds.GeoAlt,      AttributeValueKind.CsFloat64)
-            // ⭐⭐ AX-018 — the missing one. Registered UNCONDITIONALLY, matching Build() and
-            //   BuildBinaryInterpreter(): a compass heading needs no IGeographicTransform.
-            .Register("Heading",                AttributeIds.Heading,  AttributeValueKind.CsFloat64)
-            .Build();
+        // ⭐⭐⭐ Q59-A1′ — DERIVED, not spelled out. This table used to re-list every path by hand, which is
+        //    how AX-018's `Heading` row came to be missing from it while Build() and BuildBinaryInterpreter()
+        //    both had one — silently, for months.
+        // ⇒ ⭐⭐ a row can no longer be missing HERE by construction; the only place to add an attribute is
+        //    AttributeVocabulary.All.
+        // ⚠ Every definition is registered, geo-gated ones included: the edge only TRANSCRIBES JSON into
+        //   records and needs no IGeographicTransform. ⛔ A host without one simply drops those records at
+        //   apply time, which is the pre-existing behaviour and is deliberate.
+        var builder = new JsonToRecordCompilerBuilder();
+
+        foreach (var d in AttributeVocabulary.All)
+            builder.Register(d.JsonPath, d.AttributeId, d.Kind);
+
+        return builder.Build();
     }
 
     /// <summary>
@@ -180,6 +182,18 @@ public static class AttributeCompilerFactory
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>Q59-A1′</c> — the declared kind for a path, so the JSON routing table and the edge table read
+    /// the SAME value. ⛔ Throws rather than defaulting: a path registered here but absent from
+    /// <see cref="AttributeVocabulary"/> is a half-registration, which is exactly what this design ends.
+    /// </summary>
+    private static AttributeValueKind KindOf(string jsonPath)
+        => AttributeVocabulary.All.SingleOrDefault(d => d.JsonPath == jsonPath)?.Kind
+           ?? throw new InvalidOperationException(
+               $"JSON path '{jsonPath}' is registered in Build() but not declared in " +
+               "AttributeVocabulary.All. Add the definition there first — it is the single declaration.");
+
 
     /// <summary>
     /// Maps a JSON affiliation string (e.g. <c>"FORCE_FRIENDLY"</c>) to a <see cref="ForceId"/>.

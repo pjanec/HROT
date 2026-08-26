@@ -193,6 +193,103 @@ public class TheFourRoutingTablesAgreeTests
         Assert.Equal(Dirty(repoA, eA), Dirty(repoB, eB));
     }
 
+    // ══ ④b Q59-A1′ — the vocabulary IS the declaration, and the rest is checked against it ══
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The local <see cref="Vocabulary"/> list and <c>AttributeVocabulary.All</c> agree.</b>
+    ///
+    /// <para>⭐⭐ <c>Q59-A1′</c> moved the declaration into production as
+    /// <c>Fdp.Toolkit.Replication.Attributes.AttributeVocabulary</c>, and the edge table is now DERIVED from
+    /// it — so <c>AX-018</c>'s missing row is unrepresentable. ⚠ This test's own list stays as an
+    /// <b>independent</b> statement of the same facts *(double-entry)*: ⛔ if the two ever disagree, one of
+    /// them was edited without thinking about the other.</para>
+    /// </summary>
+    [Fact]
+    public void TheProductionVocabularyMatchesThisTestsIndependentList()
+    {
+        Assert.Equal(
+            Vocabulary.Select(v => (v.Path, v.Id)).OrderBy(t => t.Path, StringComparer.Ordinal).ToArray(),
+            AttributeVocabulary.All.Select(d => (d.JsonPath, d.AttributeId))
+                .OrderBy(t => t.JsonPath, StringComparer.Ordinal).ToArray());
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE RAIL FOR WHAT COULD NOT BE DERIVED: every declared attribute has a BINARY HANDLER.</b>
+    ///
+    /// <para>⭐⭐ The JSON setters and binary handlers carry per-attribute logic, so they cannot be generated
+    /// from the vocabulary *(<see cref="AttributeVocabulary"/>'s remarks say so plainly)*. ⇒ ⛔ the guard has
+    /// to be a rail, and this is it: a row added to the vocabulary with no installer handler reddens here.</para>
+    ///
+    /// <para>⚠ Asserted by APPLYING each attribute and requiring the interpreter to have consumed it —
+    /// ⛔ not by reflecting over the handler dictionary, which is private and would pin an implementation
+    /// detail rather than the behaviour.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(VocabularyCases))]
+    public void EveryDeclaredAttributeHasABinaryHandler(string path, ushort id, string json)
+    {
+        var (repo, e) = OwnedEntity();
+        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(new VocabularyGeoTransform());
+        var patchCtx    = EcsPatchContext.Create(repo, e);
+        var ctx         = interpreter.CreateContext(patchCtx);
+        ctx.Repo = repo; ctx.Entity = e;
+
+        interpreter.Apply(ctx, new[]
+        {
+            new EntityAttributeChange { AttributeId = id, Value = AttributeValue.FromDouble(1.0) }
+        });
+
+        Assert.True(patchCtx.HasAppliedAny,
+            $"no binary handler consumed AttributeId {id} ('{path}'). Every AttributeVocabulary row needs " +
+            "a handler in one of the installers — the vocabulary cannot generate one.");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>And every declared attribute has a JSON SETTER</b> — the other half that cannot be derived.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(VocabularyCases))]
+    public void EveryDeclaredAttributeHasAJsonSetter(string path, ushort id, string json)
+    {
+        var compiler = AttributeCompilerFactory.Build(new VocabularyGeoTransform());
+
+        Assert.Contains(path, compiler.RegisteredPaths);
+    }
+
+    // ══ ④c Q59-N3 — the PUBLISHED schema describes the real contract ══════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The published schema has one property per FULL path, with the RIGHT type.</b>
+    ///
+    /// <para>🔴🔴 <b>Measured before the fix:</b> <c>ExportSchema</c> keyed each property on the path's root
+    /// segment, so the three <c>GeoPosition.*</c> paths collapsed and <c>"GeoPosition"</c> appeared
+    /// <b>three times in one JSON object</b>; and every type was <c>"string"</c>, including four
+    /// <c>Float64</c> paths. ⇒ a consumer saw <b>4 properties instead of 6</b>, all mistyped.</para>
+    ///
+    /// <para>⭐ Asserted by PARSING — a duplicate key silently collapses in a parsed object, which is exactly
+    /// how the defect stayed invisible. ⇒ counting parsed properties is what catches it.</para>
+    /// </summary>
+    [Fact]
+    public void ThePublishedSchemaDescribesEveryPathWithItsRealType()
+    {
+        var doc = System.Text.Json.Nodes.JsonNode.Parse(
+            AttributeCompilerFactory.Build(new VocabularyGeoTransform()).ExportSchema())!;
+
+        var props = doc["properties"]!.AsObject();
+
+        // ⭐ One property per declared path — not per root segment.
+        Assert.Equal(
+            AttributeVocabulary.All.Select(d => d.JsonPath).OrderBy(p => p, StringComparer.Ordinal).ToArray(),
+            props.Select(kv => kv.Key).OrderBy(p => p, StringComparer.Ordinal).ToArray());
+
+        // ⭐⭐ And the types are truthful: the geo paths and Heading are numbers, not strings.
+        foreach (var d in AttributeVocabulary.All)
+        {
+            string expected = d.Kind == AttributeValueKind.CsFloat64 ? "number" : "string";
+            Assert.Equal(expected, props[d.JsonPath]!["type"]!.GetValue<string>());
+        }
+    }
+
     // ══ ⑤ ruling 9 — ONE edge table, not two ══════════════════════════════════════
 
     /// <summary>

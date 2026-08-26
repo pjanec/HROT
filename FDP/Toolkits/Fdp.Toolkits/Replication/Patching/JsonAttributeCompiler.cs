@@ -83,14 +83,22 @@ internal readonly struct RoutingEntry
     /// <summary>Descriptor ordinal used by <see cref="EcsPatchContext.FlushDirtyMarks"/>.</summary>
     public readonly long DescriptorOrdinal;
 
+    /// <summary>⭐ <c>Q59-N3</c> — the declared value kind, so <see cref="JsonAttributeCompiler.ExportSchema"/>
+    /// can publish a TRUTHFUL type instead of calling every path a string.</summary>
+    public readonly AttributeValueKind Kind;
+
     /// <summary>The type-erased invoker that calls the concrete setter delegate.</summary>
     internal readonly IRoutingEntryInvoker Invoker;
 
-    internal RoutingEntry(IRoutingEntryInvoker invoker, long descriptorOrdinal = 0)
+    internal RoutingEntry(
+        IRoutingEntryInvoker invoker,
+        long descriptorOrdinal = 0,
+        AttributeValueKind kind = AttributeValueKind.CsString)
     {
         Invoker = invoker;
         ComponentType = invoker.ComponentType;
         DescriptorOrdinal = descriptorOrdinal;
+        Kind = kind;
     }
 
     internal void Dispatch(IEntityPatchContext context, scoped ReadOnlySpan<int> indices, ref Utf8JsonReader reader)
@@ -374,18 +382,27 @@ public sealed class JsonAttributeCompiler
     }
 
     /// <summary>
-    /// Returns a JSON Schema document describing all attribute paths registered with this compiler.
-    /// The document is compatible with JSON Schema Draft-07 and can be parsed by
-    /// <see cref="System.Text.Json.JsonDocument.Parse"/>.
-    /// Cold path: called once at startup; not performance-sensitive.
+    /// Returns a JSON Schema (Draft-07) document describing every attribute path registered with this
+    /// compiler, for the <c>EntityAttributeSchema</c> DDS topic and the debug API.
+    ///
+    /// <para>🔴🔴 <b><c>Q59-N3</c>/<c>F4</c> — this used to publish a MALFORMED, mistyped schema.</b>
+    /// 📐 Measured <c>2026-08-26</c>, actual output: it keyed each property on the path's <b>root segment</b>,
+    /// so the three <c>GeoPosition.*</c> paths all collapsed to <c>"GeoPosition"</c> and the key appeared
+    /// <b>THREE TIMES</b> in one object; and every <c>"type"</c> was <c>"string"</c>, including four
+    /// <c>Float64</c> paths. ⇒ a consumer saw <b>4 properties instead of 6</b>, all mistyped.</para>
+    ///
+    /// <para>⭐⭐ <b>Now:</b> one property per FULL path, typed from the route's declared
+    /// <see cref="AttributeValueKind"/>. ⭐ The flat dotted key is the right choice — the compiler accepts
+    /// <c>{"GeoPosition.Latitude": …}</c> and the nested form alike, and a flat key is what makes the
+    /// available paths <b>discoverable</b>, which is the need behind <c>Q59</c> §8.2's naming question.</para>
+    ///
+    /// <para>📌 Also removes a leaked, never-used <c>Utf8JsonWriter</c> over a throwaway
+    /// <c>MemoryStream</c> — dead code that allocated on every call.</para>
+    ///
+    /// <para>⚠ Cold path: called once at startup; not performance-sensitive.</para>
     /// </summary>
     public string ExportSchema()
     {
-        var writer = new System.Text.Json.Utf8JsonWriter(
-            new System.IO.MemoryStream(),
-            new System.Text.Json.JsonWriterOptions { Indented = false });
-
-        // We write to a MemoryStream then read it back as a string.
         using var ms = new System.IO.MemoryStream();
         using (var w = new System.Text.Json.Utf8JsonWriter(ms))
         {
@@ -393,16 +410,11 @@ public sealed class JsonAttributeCompiler
             w.WriteString("$schema", "http://json-schema.org/draft-07/schema#");
             w.WriteStartObject("properties");
 
-            foreach (string path in _registeredPaths)
+            // ⭐ Keyed by the FULL path, so no two entries can collide.
+            foreach (var (path, kind) in DescribeRoutes())
             {
-                // Each top-level segment becomes a property key.
-                // For nested paths (e.g. "GeoPosition.Latitude") use the root segment as the key.
-                int dotIndex = path.IndexOf('.');
-                string key = dotIndex >= 0 ? path[..dotIndex] : path;
-
-                // Write the property entry. Use the full path as the description.
-                w.WriteStartObject(key);
-                w.WriteString("type", "string");
+                w.WriteStartObject(path);
+                w.WriteString("type", JsonSchemaTypeFor(kind));
                 w.WriteString("description", path);
                 w.WriteEndObject();
             }
@@ -413,4 +425,32 @@ public sealed class JsonAttributeCompiler
 
         return Encoding.UTF8.GetString(ms.ToArray());
     }
+
+    /// <summary>
+    /// ⭐ Pairs each registered path with its declared kind.
+    /// ⚠ <see cref="_registeredPaths"/> is the ordered source of truth for WHICH paths exist; the routing
+    /// table supplies the kind. A path with no route (which should not happen) falls back to a string.
+    /// </summary>
+    private IEnumerable<(string Path, AttributeValueKind Kind)> DescribeRoutes()
+    {
+        foreach (string path in _registeredPaths)
+        {
+            var kind = _routes.TryGetValue(HashPath(path), out var entry)
+                ? entry.Kind
+                : AttributeValueKind.CsString;
+            yield return (path, kind);
+        }
+    }
+
+    /// <summary>⭐ The JSON Schema primitive for an FDP value kind.</summary>
+    private static string JsonSchemaTypeFor(AttributeValueKind kind) => kind switch
+    {
+        AttributeValueKind.CsInt32   => "integer",
+        AttributeValueKind.CsInt64   => "integer",
+        AttributeValueKind.CsFloat32 => "number",
+        AttributeValueKind.CsFloat64 => "number",
+        AttributeValueKind.Bool      => "boolean",
+        _                            => "string",
+    };
+
 }
