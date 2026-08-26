@@ -228,7 +228,33 @@ validator **two lines above** the window it did not hand it to.
 ⇒ ⭐ **The control: a forwarding rail PER DEPENDENCY, asserted on the CONSTRUCTED OBJECT** — not on the
 registrar's source. ⚠ **A silent default is only a defect when the caller could have done better.**
 
-## ⛔⛔ WHO DESIGNS — **the coordinator, never the implementation session** *(user ruling, `2026-08-15`)*
+## ⛔⛔ WHO DESIGNS — **AMENDED `2026-08-26`: coordinator FRAMES, sessions design the DETAILS at scale**
+
+### ⭐⭐⭐ AMENDMENT `2026-08-26` — **FRAME-DELEGATION** *(user ruling — SUPERSEDES the blanket form below)*
+> ⭐⭐⭐ **User, verbatim:** *"you are coordinating 3 sessions already. that is too much to design everything
+> for everyone, you need to delegate. Let the session do it. give them just a frame and let the details on
+> them, they can focus… you are coordinator, but you do not be a designer for all 3 sessions at once."*
+
+⛔⛔ **At multi-lane scale the coordinator does NOT author the full design *(inventory + UML + exact seams)*
+for every lane** — that made the coordinator the bottleneck. ⭐⭐ **Instead the coordinator writes a FRAME and
+the implementation session designs the details WITHIN it, as step 1 of its batch.**
+
+| ⭐ the coordinator OWNS *(the FRAME)* | ⭐ the session OWNS *(the DETAIL, within the frame)* |
+|---|---|
+| the **goal** + why · the **lane fences / cross-lane touch-points** · the **key decisions with a lean** · the **design basis to read** *(docs + prior art)* · the **acceptance shape** | the **inventory** *(its own `search_graph`)* · the **class + sequence UML** *(authored in the design doc)* · the exact seams · the item breakdown |
+| ⭐⭐ **large-blast-radius decisions still get an architect question resolved WITH the user** *(e.g. a serialization/engine contract)* — ⛔ those are NOT delegated | ⭐ ordinary design calls inside the frame — decide-and-log |
+
+⭐⭐ **Interaction with NO-IMPLEMENTATION-WITHOUT-UML:** the UML still exists before the build — but the
+**SESSION authors it** *(design doc, step 1)*, then builds against it, then folds the as-built *(obligations ③+⑤)*.
+⭐ **The coordinator VERIFIES the design+UML exists and matches on RETURN** *(obligation ④ becomes verify-on-merge)*
+— ⛔ a returned batch with no design/UML is incomplete, send it back.
+⭐ **A frame-handoff says: "investigate → write the design (with UML) in `docs/` → build → fold as-built."**
+
+⚠ **The blanket `2026-08-15` rule below still holds for a SINGLE lane / when the coordinator has bandwidth**,
+and the coordinator still does its OWN corpus sweep to SET the frame's intent *(R-129)*. ⛔ What changed: the
+coordinator no longer draws every lane's UML — it frames and verifies.
+
+### ⛔ HISTORY — the original blanket rule *(`2026-08-15`; SUPERSEDED at scale by the amendment above)*
 
 > ⭐⭐⭐ **User, verbatim:** *"you are doing the designs, not them. if you need info, do your own subagent
 > scan."*
