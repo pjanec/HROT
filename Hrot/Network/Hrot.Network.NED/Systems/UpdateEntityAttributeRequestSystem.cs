@@ -118,22 +118,43 @@ namespace Hrot.Map.Common.Systems
         /// production.</para>
         /// </param>
         /// <param name="jsonAttributeCompiler">
-        /// Optional zero-allocation JSON attribute compiler.
+        /// ⭐⭐ Optional override. ⚠ <see langword="null"/> no longer means *"no JSON arm"* — it means
+        /// *"build the standard one"*, exactly as the binary arm does. See the constructor's remarks.
         /// </param>
         /// <param name="localNodeId">
         /// This node's <see cref="NodeId"/>, embedded in every ACK as <c>RespondingNode</c>.
         /// </param>
+        // ────────────────────────────────────────────────────────────────────────────────────────────
+        // ⭐⭐⭐ AX-014 — BOTH ARMS ARE SOURCED THE SAME WAY, and the inconsistency was mine.
+        //
+        // 🔴 AX-012 fixed the dead binary arm by having this constructor BUILD its interpreter — while the
+        //    JSON arm stayed PASSED IN by the factory. ⇒ two sibling dependencies of one system, obtained by
+        //    two different conventions, from the SAME factory class and the SAME `geoTransform`. ⛔ That is
+        //    the shape that produced AX-012 in the first place: a reader cannot tell which arm is the
+        //    caller's job.
+        //
+        // ⭐⭐ Now: the constructor DEFAULTS BOTH from `geoTransform`, and either may be OVERRIDDEN.
+        //    ⇒ omitting an argument can no longer silently disable an arm — the failure mode is gone for
+        //      both, not just for the one that happened to be found.
+        //    ⚠ The override is not decoration: `SimHostAppTests` passes its own JSON compiler.
+        //
+        // 📐 Measured: `NedNetworkFactory` was the ONLY production caller, and it passed
+        //    `AttributeCompilerFactory.Build(_geoTransform)` — byte-for-byte what the default now builds.
+        //    ⇒ no behaviour change, one fewer thing for a caller to get wrong.
+        // ────────────────────────────────────────────────────────────────────────────────────────────
         public UpdateEntityAttributeRequestSystem(
             DdsParticipant        participant,
             NetworkEntityMap      entityMap,
             IGeographicTransform? geoTransform = null,
             JsonAttributeCompiler? jsonAttributeCompiler = null,
-            NodeId                 localNodeId = default)
+            NodeId                 localNodeId = default,
+            BinaryInterpreter<EntityAttributeChange>? binaryInterpreter = null)
             : this(
                 new DdsUpdateEntityAttributeRequestSource(participant),
                 new DdsUpdateEntityAttributeAckSink(participant),
                 entityMap,
-                jsonAttributeCompiler,
+                // ⭐ AX-014 — defaulted, not required. Same source, same input as the binary arm below.
+                jsonAttributeCompiler ?? Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform),
                 localNodeId,
                 // ⭐⭐⭐ AX-012 — THE BINARY ARM WAS DEAD IN PRODUCTION, and this one argument is why.
                 //
@@ -154,7 +175,7 @@ namespace Hrot.Map.Common.Systems
                 //    forgettability `AX-001`/`UXI-30` moved into the registration. `geoTransform` is already
                 //    a parameter, and `BuildBinaryInterpreter` is exactly what it is for. ⇒ no caller can
                 //    omit it, because no caller supplies it.
-                Hrot.SimHost.AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform))
+                binaryInterpreter ?? Hrot.SimHost.AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform))
         {
         }
 

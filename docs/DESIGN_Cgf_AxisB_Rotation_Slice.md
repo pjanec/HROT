@@ -590,3 +590,80 @@ control CLAUDE.md's silent-default rule asks for, and the reason `AX-012` surviv
 `21 → 24`. ⛔ **That is NOT a regression** — 📐 verified by diffing the failure SETS: **3 fixed, 0 new**. The
 6 apparent additions never RAN in the earlier pass *(the crash truncated it)*; all were re-measured on a
 clean tree at the started-marker and fail identically there.
+
+---
+
+## 14. ⭐⭐⭐ AS-BUILT `2026-08-26` (2) — **`R-134` was OVERCLAIMED; the rail could not have caught it**
+
+> ⛔⛔ **CORRECTION to §12's `AX-005a` row and to the `AX-005a` tracker row.** Both say *"no DDS type survives
+> in the FDP-internal write path"*. ⭐ **The true statement is narrower: no DDS MESSAGE type survives; a DDS
+> DESCRIPTOR-ORDINAL enum does.** Quote §14, not §12, on this point.
+
+### 14.1 🔴 WHAT WAS MEASURED
+
+```
+SimTransformHeadingInstaller.cs:37    private const long GeoSpatialOrdinal = (long)EDescriptorType.dtWorldPos;
+SimTransformAttributeInstaller.cs:37  private const long GeoSpatialOrdinal = (long)EDescriptorType.dtWorldPos;
+EntityDataAttributeInstaller.cs:25    private const long EntityInfoOrdinal = (long)EDescriptorType.dtEntityInfo;
+AttributeCompilerFactory.cs:31-32     both of the above
+```
+
+⭐ `EDescriptorType` lives in `Hrot.NED.Descriptors` *(`AllDescriptors.cs`, alongside `using CycloneDDS.Schema`)*
+— **network-layer numbering**. ⇒ the apply path is DDS-*message*-free, not DDS-free, and it physically lives
+in the DDS assembly `Hrot.Network.NED`.
+
+⭐⭐ **A free cleanup fell out of measuring it:** all four files also carried a **dead
+`using Hrot.NED.Messages;`** — leftovers from `AX-005a`'s retype, with zero remaining references. Removed.
+⇒ the coupling is now exactly `Hrot.NED.Descriptors`, and nothing else.
+
+### 14.2 ⭐⭐⭐ WHY THE EXISTING RAIL WAS BLIND — **and why no reflection rail can fix it**
+
+⛔ `StrictNetworkSeparationTests` scanned only `Hrot.NED.Messages`, and only member SIGNATURES.
+⭐ Broadening it to the whole `Hrot.NED.` prefix **left it green** — 📐 measured, not assumed.
+
+⇒ ⭐⭐⭐ **the reason is structural: `private const long X = (long)EDescriptorType.Y` is folded to a literal at
+compile time.** The assembly contains the number `2` and **no reference to the enum at all**. ⛔ Reflection
+cannot see what the compiler erased.
+
+⇒ ⭐⭐ **A SOURCE SCAN is therefore necessary, not a convenience** — `TheApplyPathsNetworkDependenciesAreExactlyTheDeclaredOnes`
+asserts the apply path's `Hrot.NED.*` dependencies as an **EQUALITY against a declared allowlist**.
+⚠ **It does NOT endorse the allowlist. It PINS it**, so the list cannot grow silently and shrinking it is a
+visible edit. ⭐ Red-proved by adding one `using`.
+
+### 14.3 ⚠ `AX-013` — **the OPEN question, stated as a question**
+
+⭐ Should the apply path move out of the DDS assembly?
+
+| for moving | against moving |
+|---|---|
+| the record type is already FDP-internal; the installers speak no wire struct | ⛔ **a descriptor ordinal IS wire numbering** — the installers exist to `MarkDescriptorDirty(ordinal)`. Moving them means injecting or duplicating the wire numbers |
+| symmetry with the egress *(drains an FDP command, writes DDS)* | ⚠ the bus-intent variant adds a hop **and a third registration that can be silently absent** — 📌 exactly the failure mode `AX-011`/`AX-012` just were |
+
+⇒ ⛔ **NOT decided here.** ⭐ It is arguable the apply path is legitimately network-layer and only the
+*language* was wrong. The rail keeps the inventory honest until someone rules.
+
+### 14.4 ⭐⭐⭐ `AX-014` — **BOTH ARMS SOURCED THE SAME WAY** *(user: "should be consistent")*
+
+🔴 **`AX-012`'s fix introduced an inconsistency, and it was mine.** 📐 Measured:
+
+| arm | before |
+|---|---|
+| JSON | **built by `NedNetworkFactory` and PASSED IN** |
+| binary | **built inside the DDS constructor** *(the `AX-012` fix)* |
+
+⇒ ⛔ two sibling dependencies of one system, from the **same factory class** and the **same
+`geoTransform`**, obtained two different ways. 📌 **That ambiguity is what let one of them be forgotten in
+the first place** — a reader cannot tell which arm is the caller's job.
+
+⭐⭐ **Now: the DDS constructor DEFAULTS BOTH, and either may be overridden.**
+⇒ omitting an argument can no longer silently disable an arm — for **either**, not just the one that
+happened to be found. ⚠ The override is not decoration: `SimHostAppTests` passes its own JSON compiler.
+⭐ `NedNetworkFactory` no longer builds either *(📐 it was the only production caller, and passed exactly what
+the default now builds ⇒ no behaviour change)*.
+
+### 14.5 ⭐ RAILS
+
+| rail | where | state |
+|---|---|---|
+| ⭐⭐⭐ **the apply path's `Hrot.NED.*` dependencies are EXACTLY the declared set** | `StrictNetworkSeparationTests` *(+1, now 5)* | ✅ green · red-proved by adding one `using` |
+| ⭐⭐ **both arms defaulted from the same input** · **either still overridable** | `TheBinaryArmIsWiredInProductionTests` *(+2, now 5)* | ✅ green |

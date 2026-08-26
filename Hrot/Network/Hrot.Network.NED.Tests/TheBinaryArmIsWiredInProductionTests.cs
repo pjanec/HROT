@@ -108,6 +108,59 @@ public class TheBinaryArmIsWiredInProductionTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>AX-014</c> — BOTH arms are defaulted, and neither can be disabled by omission.</b>
+    ///
+    /// <para>🔴 <c>AX-012</c>'s fix left an INCONSISTENCY: the binary interpreter was built by the
+    /// constructor while the JSON compiler was still passed in by the factory — two sibling dependencies of
+    /// one system, from the same factory class and the same <c>geoTransform</c>, obtained two different
+    /// ways. ⛔ That ambiguity is what let one of them be forgotten in the first place.</para>
+    ///
+    /// <para>⭐⭐ This rail constructs the system with the MINIMUM a host would naturally have — participant,
+    /// entity map, transform — and asserts <b>both</b> arms are live. ⇒ a future edit that re-introduces the
+    /// asymmetry, in either direction, reddens here.</para>
+    /// </summary>
+    [Fact]
+    public void BothArmsAreDefaultedFromTheSameInput()
+    {
+        using var participant = new DdsParticipant(TestDomain + 3);
+
+        var geo = new WGS84Transform();
+        geo.SetOrigin(52.52, 13.405, 0.0);
+
+        var system = new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
+            participant, new NetworkEntityMap(), geo);
+
+        Assert.NotNull(Field(system, "_binaryInterpreter"));
+        Assert.NotNull(Field(system, "_jsonCompiler"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>…and either may still be OVERRIDDEN</b> — ⛔ the defaults must not have taken the seam away.
+    /// ⚠ Not decoration: <c>SimHostAppTests</c> passes its own JSON compiler.
+    /// </summary>
+    [Fact]
+    public void EitherArmCanStillBeOverridden()
+    {
+        using var participant = new DdsParticipant(TestDomain + 4);
+
+        var geo = new WGS84Transform();
+        geo.SetOrigin(52.52, 13.405, 0.0);
+
+        var ownJson   = Hrot.SimHost.AttributeCompilerFactory.Build(geo);
+        var ownBinary = Hrot.SimHost.AttributeCompilerFactory.BuildBinaryInterpreter(geo);
+
+        var system = new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
+            participant, new NetworkEntityMap(), geo, ownJson, default, ownBinary);
+
+        Assert.Same(ownJson,   Field(system, "_jsonCompiler"));
+        Assert.Same(ownBinary, Field(system, "_binaryInterpreter"));
+    }
+
+    private static object? Field(object target, string name)
+        => target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
+                 ?.GetValue(target);
+
+    /// <summary>
     /// ⭐⭐ <b>The DDS constructor supplies the interpreter ITSELF, so no caller can omit it.</b>
     ///
     /// <para>⭐⭐⭐ This is the difference between fixing the caller and removing the failure mode. Passing the

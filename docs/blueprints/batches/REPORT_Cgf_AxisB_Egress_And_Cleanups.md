@@ -215,3 +215,29 @@ counts** — a crash that moves later hands you "new" failures that were always 
 
 ⚠ **Stated rather than rounded up to "102/102":** the suite did report a red, and the honest record is
 *"one display flake, isolated re-run green"* — ⛔ not a clean sweep.
+
+### ⭐⭐⭐ `2026-08-26` (2) — **`AX-013`/`AX-014`: the `R-134` claim CORRECTED, and the two arms made consistent**
+
+⛔⛔ **`AX-005a`'s claim in §12 was an OVERCLAIM.** It said *"no DDS type survives in the FDP-internal write
+path"*. 📐 Measured: **no DDS MESSAGE type survives; a DDS DESCRIPTOR-ORDINAL enum does** —
+`Hrot.NED.Descriptors.EDescriptorType`, in four apply-path files. 📄 Design **§14** is the corrected record;
+the `AX-005a` tracker row is amended in place.
+
+| # | finding |
+|---|---|
+| **F6** | ⭐⭐⭐ **THE RAIL COULD NOT HAVE CAUGHT IT, and the reason is structural.** `private const long X = (long)EDescriptorType.Y` is **folded to a literal at compile time** — the assembly holds the number and **no reference to the enum**. 📐 Proven, not assumed: broadening the reflection rail from `Hrot.NED.Messages` to the whole `Hrot.NED.` prefix **left it green**. ⇒ ⛔ **no reflection rail can ever see this class of coupling**; a SOURCE scan is necessary. ⚠ A real limit of the approach I used in this batch, not a tuning issue |
+| **F7** | ⭐⭐ **A free cleanup fell out of measuring:** all four apply-path files carried a **dead `using Hrot.NED.Messages;`** — leftovers from `AX-005a`'s retype with zero remaining references. Removed ⇒ the coupling is now exactly `Hrot.NED.Descriptors` |
+| **F8** | 🔴 **`AX-012`'s own fix introduced an inconsistency, and it was mine.** The JSON compiler was built by the factory and **passed in**; the binary interpreter was **built in the ctor**. Two siblings of one system, same factory class, same `geoTransform`, two conventions. 📌 **That ambiguity is exactly what let one be forgotten.** ⇒ `AX-014`: the ctor now defaults **both**, either overridable |
+
+| gate | result |
+|---|---|
+| ⭐⭐ **`StrictNetworkSeparationTests`** *(+1 source-scan inventory rail, now 5)* | ✅ **5/5** · red-proved by adding one `using` |
+| ⭐⭐ **`TheBinaryArmIsWiredInProductionTests`** *(+2 consistency rails, now 5)* | ✅ **5/5** |
+| `Hrot.Network.NED.Tests` | ✅ **103/103** *(98 → 101 → 103)* |
+| `Hrot.SimHost.Tests` | **700 total · 4 failed** — the known rotating `ComponentTypeRegistry` flake *(`StagingEntityExtractorTests` / `EditLoadClusterOpHandlerTests` / `FullBranchPipelineTests`, the baseline family; the count itself rotates)* |
+| round trip + shadow + drag-drop, filtered | ✅ **11/11** |
+| `design-digest --check` · `tracker-counts --check` · `rulings-check` · `mermaid-check` | ✅ 87 docs · counts OK · 25/25 · 7 blocks |
+
+⚠ **`AX-013` is left OPEN on purpose** — whether the apply path should move out of the DDS assembly is
+argued both ways in design §14.3, and *against* includes a real objection: the bus-intent variant adds a
+third registration that can be silently absent, which is the exact failure mode `AX-011`/`AX-012` just were.

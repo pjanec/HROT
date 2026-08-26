@@ -1,7 +1,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core;
 using Fdp.Modules.Geographic;

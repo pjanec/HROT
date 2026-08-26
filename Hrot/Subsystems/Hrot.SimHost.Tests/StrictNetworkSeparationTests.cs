@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.RegularExpressions;
 using System.Linq;
 using System.Reflection;
 using Fdp.Toolkit.Replication.Events;
@@ -31,6 +33,15 @@ public class StrictNetworkSeparationTests
 {
     /// <summary>⭐ The namespace every generated CycloneDDS message type lives in.</summary>
     private const string DdsMessageNamespace = "Hrot.NED.Messages";
+
+    /// <summary>
+    /// ⭐⭐ <b>Broadened `2026-08-26`: ANY <c>Hrot.NED.*</c> namespace, not just <c>Messages</c>.</b>
+    ///
+    /// <para>🔴 The original check named only <c>Hrot.NED.Messages</c>, and that is how four files in the
+    /// apply path kept a <c>Hrot.NED.Descriptors</c> dependency while the rail reported green. ⇒ the prefix
+    /// is what matters: everything under <c>Hrot.NED.</c> is network-layer.</para>
+    /// </summary>
+    private const string DdsNamespacePrefix = "Hrot.NED.";
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE ALLOWLIST — the SOLE boundary, named.</b>
@@ -129,6 +140,102 @@ public class StrictNetworkSeparationTests
         Assert.Contains(typeof(AttributeRecordConversion), TypesInWritePathMentioningDds());
     }
 
+    // ══ ③ the SOURCE scan — what reflection structurally CANNOT see ═══════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE DEPENDENCY INVENTORY of the attribute apply path, asserted as an EQUALITY.</b>
+    ///
+    /// <para>🔴🔴 <b>WHY A SOURCE SCAN AND NOT MORE REFLECTION — this is the important part.</b> The four
+    /// installers reference <c>Hrot.NED.Descriptors.EDescriptorType</c> like this:
+    /// <c>private const long GeoSpatialOrdinal = (long)EDescriptorType.dtWorldPos;</c>
+    /// ⛔ A <c>const long</c> is **folded to a literal at compile time**, so the assembly contains the number
+    /// <c>2</c> and **no reference to the enum whatsoever**. ⇒ ⭐⭐ <b>no reflection rail can ever detect this
+    /// class of coupling</b> — 📐 proven: broadening <see cref="IsDds"/> from <c>Hrot.NED.Messages</c> to the
+    /// whole <c>Hrot.NED.</c> prefix left rails ①/② green while the dependency plainly exists in source.</para>
+    ///
+    /// <para>⚠⚠ <b>THIS RAIL DOES NOT ENDORSE THE ALLOWLIST BELOW.</b> It PINS it. The
+    /// <c>Hrot.NED.Descriptors</c> entries are an <b>OPEN DESIGN QUESTION</b> *(recorded as <c>AX-013</c>)*:
+    /// a descriptor ordinal is wire numbering, so it is arguable the apply path is legitimately
+    /// network-layer — and equally arguable those ordinals should be injected so the path can move out of
+    /// the DDS assembly. ⭐ Until that is decided, the value of this rail is that the list <b>cannot grow
+    /// silently</b>, and shrinking it is a visible, deliberate edit.</para>
+    ///
+    /// <para>📌 It also corrects an OVERCLAIM: <c>AX-005a</c> was reported as *"no DDS type survives in the
+    /// FDP-internal write path"*. ⭐ The true statement is narrower — <b>no DDS MESSAGE type survives; a DDS
+    /// descriptor-ordinal enum does.</b></para>
+    /// </summary>
+    [Fact]
+    public void TheApplyPathsNetworkDependenciesAreExactlyTheDeclaredOnes()
+    {
+        var dir = AttributePathDirectory();
+
+        var actual = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var file in Directory.EnumerateFiles(dir, "*.cs", SearchOption.TopDirectoryOnly))
+        {
+            var namespaces = new SortedSet<string>(StringComparer.Ordinal);
+            foreach (var line in File.ReadAllLines(file))
+            {
+                var m = UsingHrotNed.Match(line);
+                if (m.Success) namespaces.Add(m.Groups[1].Value);
+            }
+            if (namespaces.Count > 0)
+                actual[Path.GetFileName(file)] = string.Join("+", namespaces);
+        }
+
+        Assert.Equal(DeclaredNetworkDependencies, actual);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The declared inventory. ⛔ Adding a line here is a DESIGN act, not a fix.</b>
+    ///
+    /// <list type="bullet">
+    ///   <item>⭐ <b><c>Messages</c></b> = the wire structs. Legitimate in exactly two places: the declared
+    ///   conversion boundary, and a system whose whole job is publishing a DDS schema.</item>
+    ///   <item>⚠ <b><c>Descriptors</c></b> = <c>EDescriptorType</c> ordinals, used only to mark a descriptor
+    ///   dirty. 📌 <c>AX-013</c> — the open question above.</item>
+    /// </list>
+    /// </summary>
+    private static readonly SortedDictionary<string, string> DeclaredNetworkDependencies =
+        new(StringComparer.Ordinal)
+        {
+            // ⭐ R-134's sole conversion boundary — both directions, by design.
+            ["AttributeRecordConversion.cs"]          = "Hrot.NED.Messages",
+            // ⭐ Publishes the attribute schema onto DDS; network-layer by definition.
+            ["EntityAttributeSchemaPublisherSystem.cs"] = "Hrot.NED.Messages",
+            // ⚠ AX-013 — descriptor ordinals only. See the rail's remarks.
+            ["AttributeCompilerFactory.cs"]           = "Hrot.NED.Descriptors",
+            ["EntityDataAttributeInstaller.cs"]       = "Hrot.NED.Descriptors",
+            ["SimTransformAttributeInstaller.cs"]     = "Hrot.NED.Descriptors",
+            ["SimTransformHeadingInstaller.cs"]       = "Hrot.NED.Descriptors",
+        };
+
+    private static readonly Regex UsingHrotNed =
+        new(@"^\s*using\s+(Hrot\.NED\.[A-Za-z0-9_.]+)\s*;", RegexOptions.Compiled);
+
+    /// <summary>
+    /// ⭐ Locates the apply path on disk. ⛔ Fails LOUDLY rather than skipping — a source rail that quietly
+    /// opts out when it cannot find sources reports green for ever.
+    /// </summary>
+    private static string AttributePathDirectory()
+    {
+        const string Relative = "Hrot/Network/Hrot.Network.NED/Attributes";
+
+        foreach (var start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
+        {
+            var probe = start;
+            while (!string.IsNullOrEmpty(probe))
+            {
+                var candidate = Path.Combine(probe, Relative.Replace('/', Path.DirectorySeparatorChar));
+                if (Directory.Exists(candidate)) return candidate;
+                probe = Path.GetDirectoryName(probe);
+            }
+        }
+
+        Assert.Fail($"Could not locate '{Relative}' from either the working directory or the output " +
+                    "directory. This rail scans source and cannot run without it.");
+        return string.Empty;   // unreachable
+    }
+
     // ══ helpers ══════════════════════════════════════════════════════════════════
 
     private static IEnumerable<Type> WritePathTypes()
@@ -174,6 +281,7 @@ public class StrictNetworkSeparationTests
 
         if (t.IsGenericType && t.GetGenericArguments().Any(IsDds)) return true;
 
-        return t.Namespace == DdsMessageNamespace;
+        return t.Namespace != null
+            && t.Namespace.StartsWith(DdsNamespacePrefix, StringComparison.Ordinal);
     }
 }
