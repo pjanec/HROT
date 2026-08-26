@@ -63,7 +63,8 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 
 ## 3b. ⭐ FILED FOLLOW-UPS from the overnight batches *(small, none blocking)*
 - ✅ **CE-035 / CE-036 / CE-018 — ALL MERGED `2026-08-26`** in the axis-b egress batch *(CE-035 routes continue-after-step through `RequestResume`; CE-036 fixed the domain-id skip; CE-018 replaced the two inline `.csproj` walk-ups with `AssetRoots`)*.
-- ⭐ **schema-exporter on CGF** — MCP `paramsSource` reports `none:no-exporter-wired` on CGF *(no `IActionSchemaExporter` wired there)*; a one-line CGF-lane follow-up.
+- ✅ **schema-exporter on CGF — ALREADY DONE** *(measured `2026-08-26`)*: `Program.cs:520` threads `cgfShell.AssetShellSchemaExporter` into the cluster `DebugApiService` via `AttachSchemaExporter`. The old `none:no-exporter-wired` note is stale.
+- 🔴 **NEXT-CANDIDATE (measured `2026-08-26`) — CGF `/editor/commands` is EMPTY**: the `/editor/commands` list/describe/invoke bus shipped *(MA-011..018)*, the editor feeds it via `_debugApiService.AttachEditorCommands(() => …)` *(`EditorSubsystem.cs:3028`)*, and CGF DOES build an `EditorCommandsImpl` in its canvas *(`CgfSubsystem.cs:1389`)* — but **`Program.cs` never calls `AttachEditorCommands` for the CGF cluster service** *(it does the sibling `AttachSchemaExporter` at `:520`)*. ⇒ a silent-default: expose CGF's active-canvas `IEditorCommands` as a `Func<>` and attach it, mirroring the schema-exporter precedent. UI/CGF-lane; independent of both investigations. Verify the canvas actually REGISTERS its commands *(Align/Edit/View)* so the attach isn't accept-and-report-nothing.
 - ⚠ **doc-prose coverage sweep** — `EditDoc` makes 100% node/param prose POSSIBLE; filling it across the catalog is a sweep, not done. The rail prints the % to ratchet.
 
 ## 3c. ⭐ MERGED `2026-08-25` (later) + their follow-ups
