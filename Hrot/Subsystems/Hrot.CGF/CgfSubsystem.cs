@@ -867,6 +867,31 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // Register canvas menu update so CanvasContextMenuGizmo has state to project.
         _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
 
+        // ⭐⭐⭐ CE-051 (Axis-C E3) — THE SHARED VIEWPORT INTERACTION, the same module the editor registers.
+        // 📄 docs/DESIGN_Cgf_Tool_Selection_Camera_Slice.md §3 ⑤ and §6 (the two-way reconciliation).
+        //
+        // ⭐⭐ This is the line that retires CGF's hand-rolled parallels. Before E3 this host reached the
+        //    viewport primitives through direct context-menu callbacks that had independently DRIFTED from
+        //    the editor's drain — see the deleted `CenterCameraOnEntity`'s replacement,
+        //    `CenterOnEntitySystem`, whose remarks record the live bug that drift had produced.
+        //
+        // ⚠⚠ Resolvers, not instances — and here the reason is even sharper than in the editor: `_canvas`
+        //    and `_selectionState` are created in RegisterWindows, which runs LATER than this method and
+        //    ⛔ not at all when headless. ⇒ a captured instance would be null forever on this host.
+        // ⭐ `StartPlacementMode` is deliberately NOT supplied: CGF composes no EditorSpawnAdapter, so the
+        //   Spawn tool REPORTS that rather than silently doing nothing (ruling 49 applied to a tool).
+        _context.Kernel.RegisterModule(new Hrot.ScenarioEditor.ScenarioEditorModule(
+            fileService: null,
+            interaction: new Hrot.ScenarioEditor.ScenarioEditorModule.InteractionDeps(
+                Selection:    () => _selectionState,
+                Gizmos:       () => _cgfDataDrivenGizmoSystem,
+                Camera:       () => _canvas?.Camera,
+                GlobalGizmos: () => _cgfGizmoManager,
+                // ⭐⭐ The inspector follow-through CGF's own "Select entity" item used to do inline. ⛔ It
+                //    is a host panel concern, so it stays a hook rather than being pushed into the shared
+                //    assembly — see SelectEntitySystem's `alsoSelect` remarks.
+                AlsoSelect:   entity => _fdpInspectorState.SelectedEntity = entity)));
+
         // ── Universal breakpoints (UBP-P10T2) ────────────────────────────────────
         // ⭐⭐⭐ cgf==editor SLICE 4 (DQ30) — the no-op time adapter is RETIRED.
         //    📄 docs/DESIGN_Cgf_Editor_Sharing_Slice4_Debug_PauseStep.md §6 item ① ·
@@ -949,26 +974,36 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // Register context menu handler for right-click in the entity inspector panel.
             _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
             {
-                builder.AddItem("Center on entity", () => CenterCameraOnEntity(entity));
-                builder.AddItem("Select entity", () =>
-                {
-                    _selectionState.PrimarySelected = entity;
-                    _fdpInspectorState.SelectedEntity = entity;
-                });
+                // ⭐⭐⭐ CE-051 (Axis-C E3) — EVERY ITEM HERE NOW PUBLISHES THE SHARED COMMAND. 📄
+                //    docs/DESIGN_Cgf_Tool_Selection_Camera_Slice.md §3 ⑤ / §6.
+                //
+                // 🔴🔴 What was here, and why it had to die rather than sit beside the shared path:
+                //    · "Center on entity" called a hand-rolled `CenterCameraOnEntity` that set
+                //      `Camera.Target` directly. 📐 MEASURED BROKEN: `MapCamera.Update` overwrites
+                //      `InnerCamera.Target` from `_targetTarget` every frame (EnableSmoothing defaults to
+                //      false), and CGF never set `_targetTarget` — so centring sent the camera to the
+                //      ORIGIN on the next frame. The editor's arm called `FocusOn`, which is the seam that
+                //      works. ⇒ routing through the shared system FIXES a live defect.
+                //    · "Select entity" wrote the selection state inline — the editor published a command
+                //      that NOTHING READ. ⇒ the shared SelectEntitySystem is the first real consumer, and
+                //      this host's inspector follow-through is now its `AlsoSelect` hook.
+                //    · "Rotate" duplicated the editor's gizmo block. ⭐ Its one genuine extra — selecting
+                //      the entity first — stays HERE, because the context menu acts on the clicked entity
+                //      while the toolbar acts on the selection. That is a CALLER concern, so the shared
+                //      body needs no host branch.
+                builder.AddItem("Center on entity", () => PublishForEntity(entity,
+                    netId => new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = netId }));
+                builder.AddItem("Select entity", () => PublishForEntity(entity,
+                    netId => new Hrot.Common.Events.SelectEntityCommand { NetworkId = netId }));
                 builder.AddSeparator();
                 builder.AddItem("Delete entity", () => DeleteEntity(entity));
                 if (_context!.World.HasComponent<Fdp.Core.SimTransform>(entity))
                     builder.AddItem("Rotate", () =>
                     {
+                        // ⭐ Select first (the caller concern above), then let the SHARED drain do the work.
                         _selectionState.PrimarySelected = entity;
-                        _cgfDataDrivenGizmoSystem!.DeactivateGizmo(entity);
-                        var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
-                            _context.World, entity,
-                            onRemove: () => _cgfDataDrivenGizmoSystem!.DeactivateGizmo(entity),
-                            // ⭐ AX-005b — CGF does not own SimTransform, so the direct poke would do
-                            //   nothing here; the router asks the owner instead.
-                            writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_context.World));
-                        _cgfDataDrivenGizmoSystem!.ActivateGizmo(entity, gizmo);
+                        _context.World.Bus.Publish(
+                            new Hrot.Common.Events.ActivateEditorToolEvent(Hrot.Common.EditorTool.Rotate));
                     });
             }));
         }    }
@@ -2198,28 +2233,28 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     // ── Private helpers ────────────────────────────────────────────────────────
 
-    private void CenterCameraOnEntity(Entity entity)
+    /// <summary>
+    /// ⭐⭐ <c>CE-051</c> — publishes a network-id-keyed command for a clicked entity, resolving the id
+    /// through the ONE resolver this host already exposes.
+    ///
+    /// <para>⚠ The context menu hands us an <c>Entity</c>; the shared commands are keyed by NETWORK id,
+    /// because they must work from MCP and from a remote node too. ⛔ An entity with no network identity is
+    /// skipped rather than published with <c>0</c>, which would centre on whatever happens to hold id 0.</para>
+    /// </summary>
+    private void PublishForEntity<T>(Entity entity, Func<long, T> command) where T : unmanaged
     {
-        if (_canvas == null || _context == null || !_context.World.IsAlive(entity)) return;
-
-        Vector2 pos;
-        if (_context.World.HasComponent<NetworkTransform>(entity))
-        {
-            ref readonly var nt = ref _context.World.GetComponentRO<NetworkTransform>(entity);
-            pos = new Vector2(nt.LastPosition.X, nt.LastPosition.Y);
-        }
-        else if (_context.World.HasComponent<SimTransform>(entity))
-        {
-            ref readonly var st = ref _context.World.GetComponentRO<SimTransform>(entity);
-            pos = new Vector2(st.Position.X, st.Position.Y);
-        }
-        else
-        {
-            return;
-        }
-
-        _canvas.Camera.Target = pos;
+        if (_context == null || !_context.World.IsAlive(entity)) return;
+        long netId = RuntimeNetworkIdOf(entity);
+        if (netId <= 0) return;
+        _context.World.Bus.Publish(command(netId));
     }
+
+    // ⭐⭐⭐ CE-051 (Axis-C E3) — `CenterCameraOnEntity` IS GONE. 📄 design §3 ⑤ / §6.
+    //    🔴 It was MEASURED BROKEN: it assigned `Camera.Target`, which `MapCamera.Update` overwrites from
+    //       `_targetTarget` on the very next frame — and this host never set `_targetTarget`, so centring
+    //       moved the view to the ORIGIN. ⭐ `CenterOnEntitySystem` (shared) calls `FocusOn` instead, and
+    //       it KEEPS this method's better half: NetworkTransform preferred over SimTransform, which is the
+    //       fresher position on a host that does not own the entity.
 
     private void DeleteEntity(Entity entity)
     {

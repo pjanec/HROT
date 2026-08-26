@@ -1,3 +1,4 @@
+using Hrot.Common;
 using Hrot.Editor;
 using Hrot.Editor.UI;
 using Moq;
