@@ -1087,8 +1087,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     declaredHeight: Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight,
                     toolbarTimeSection.Render);
 
-                windowManager.MainToolbar.RegisterSeparator(
-                    "ToolbarSep_TimeToPersp", sortOrder: 10);
+                // ⛔ CE-016 §7: the dangling `ToolbarSep_TimeToPersp` is DELETED. 📐 It separated the
+                //    time controls from a PERSPECTIVE group this host never registered — a rule drawn
+                //    against nothing. ⚠ The shared helper now emits separators only when the group
+                //    behind them produced an entry, so this class of defect cannot return.
             }
         }
 
@@ -1651,27 +1653,61 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 path, Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(json));
         };
 
-        // ── The main-toolbar affordances (item ④) ──────────────────────────────
-        // ⭐⭐⭐ CE-009 §7, discharged for the FIRST time: *"when a later slice adds a feature
-        //    CONTROLLED FROM THE TOOLBAR, its button must be wired AND instrumented on CGF too."*
-        // ⭐ Registering here makes `MainToolbarManager.Height` non-zero on this host, so the toolbar
-        //   now RENDERS as well as publishes — 📌 and the slice-2 rail that asserted CGF had ZERO
-        //   entries is updated in the same batch, which is exactly the hand-off §7 designed.
-        windowManager.MainToolbar.RegisterEntry(
-            "SaveAllAiDocuments", sortOrder: 10,
-            Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight,
-            () => { if (ImGuiNET.ImGui.Button("Save All")) SaveAllAiDocuments(); },
-            perspective: null);
+        // ── The main-toolbar affordances — CE-016 §7 (A2) ──────────────────────
+        // ⭐⭐⭐ THE TWO AD-HOC `ImGui.Button` ENTRIES ARE GONE. 📐 They were `"Save All"` and
+        //    `"Reload AI"` at sortOrder 10/11 — raw buttons with no icon, no command id, no enablement,
+        //    and no MCP identity. ⇒ they diverged from the editor's toolbar BY CONSTRUCTION, which is
+        //    what the `main-toolbar` known-divergence entry in the conformance rail recorded.
+        // ⭐⭐ Now CGF registers the SAME commands at the SAME ids and sort orders, through the SAME
+        //    shared table the editor uses — `CgfEditorShellToolbar` (ruling 58: one registration list).
+        // 📄 DESIGN_Cgf_Shell_Command_Toolbar_Slice.md §3 ③.
+        Hrot.Editor.AiShared.Documents.ShellSaveCommands.Register(
+            windowManager.ShellCommands.Register,
+            _aiDocumentManager!,
+            saveBlueprint: _saveBlueprint,
+            saveBTree:     _saveBTree,
+            saveHsm:       _saveHsm,
+            // ⛔ No scenario save on this host: CGF has no IEditorLogic scenario session (MA-019 §G
+            //   measured the same absence for scenario CREATE). Ruling 49 — absent, not faked.
+            saveScenario:  null,
+            // ⚠ Save-As needs a modal browser this host does not compose. ⛔ It must still be a
+            //   NO-OP-WITH-A-REASON rather than a crash: the shared command is registered either way,
+            //   and a headless node reaching it says so instead of throwing.
+            requestSaveAs: doc => FdpLog<CgfSubsystem>.Warn(
+                "[CGF] Save-As is not available on this host (no modal browser composed); "
+              + "'{0}' was not saved under a new name.", doc.Asset.Name),
+            report:        msg => FdpLog<CgfSubsystem>.Info("[CGF] {0}", msg));
 
-        windowManager.MainToolbar.RegisterEntry(
-            "QuickReloadAiAsset", sortOrder: 11,
-            Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight,
-            () => { if (ImGuiNET.ImGui.Button("Reload AI")) ReloadActiveAiDocument(); },
-            perspective: null);
+        var toolbarIcons = new Hrot.Editor.AiShared.Adapters.SilkIconProvider(windowManager.Atlas);
+
+        var toolbarIds = Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.RegisterCommonCore(
+            windowManager.ShellCommands,
+            windowManager.MainToolbar,
+            toolbarIcons,
+            new Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.HostServices(
+                // ⛔ OpenAsset / NewAsset: OMITTED. 📐 CGF composes no AssetPickerLauncher or
+                //   NewAssetLauncher — the editor builds both from catalogs + a router this host does
+                //   not wire. ⇒ ruling 49: the button is ABSENT, not a greyed one that does nothing.
+                //   ⚠ CGF *can* create assets over MCP (MA-019..023); it has no interactive picker.
+                CompileReload:        () => ReloadActiveAiDocument(),
+                CompileReloadEnabled: () => _aiDocumentManager?.Active != null));
+
+        // ⛔⛔ THE AI-DEBUG GROUP IS OMITTED, and this is a DEVIATION from the handoff's item ③,
+        //    argued. The handoff says *"debug-step handlers route through CGF's cluster debug
+        //    controller (CE-025..028)"*. 📐 Measured: those are TWO DIFFERENT CONCEPTS.
+        //    · The editor's `debug.*` ids are AI-GRAPH session stepping — `AiDebugCommands` binds every
+        //      one of them to `IDebugSessionRegistry.ActiveSession`, and CGF has NO debug session
+        //      (this very file passes `session: null` to QuickReloadService, slice 1 §9.4).
+        //    · `CgfClusterDebugTimeController` is CLUSTER-TIME control — RequestPause / RequestResume /
+        //      RequestStepOneTick over the whole cluster.
+        // ⇒ binding the time controller to `debug.continue`/`debug.pause` would make ONE ID MEAN TWO
+        //    DIFFERENT THINGS across the two hosts — and the conformance rail asserts SAME **by id**.
+        //    ⛔ That is the opposite of what this slice exists to do. ⭐ Cluster-time stepping already
+        //    has its own affordance here: `MainToolbarTimeControlSection`, registered above.
 
         FdpLog<CgfSubsystem>.Info(
-            "[CGF] Save + hot reload wired — {0} asset(s) indexed, toolbar entries registered.",
-            catalog.All.Count);
+            "[CGF] Shell toolbar adopted — {0} asset(s) indexed, entries [{1}].",
+            catalog.All.Count, string.Join(", ", toolbarIds));
     }
 
     /// <summary>

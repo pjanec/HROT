@@ -245,18 +245,16 @@ public sealed class ClusterConformanceRails
                     + "when debug sessions reach CGF. The panel DOES name the opened asset on both hosts "
                     + "since slice 2 — that half is asserted, not exempted.",
 
-        // ══ cgf==editor SLICE 2, `2026-08-25` — the toolbar becomes SHARED and differs ═════════════
-        // 📐 Measured: the editor publishes a populated main toolbar, `--mode all` publishes an EMPTY
-        //    one — `EditorSubsystem` is the ONLY production caller of MainToolbar.RegisterEntry /
-        //    RegisterSeparator, so a cluster host registers nothing.
-        // ⭐⭐ Slice 2's job was to make the toolbar READABLE (it now publishes on both hosts even when
-        //    it does not draw), ⛔ NOT to give CGF entries — design §7 hands that to whichever later
-        //    slice ports a toolbar-controlled feature, and requires that slice to assert the affordance
-        //    is present and SAME on CGF.
-        ["main-toolbar"] = "the editor registers every main-toolbar entry and a cluster host registers "
-                         + "none, so CGF's toolbar is legitimately EMPTY today (CE-016). Slice 2 made it "
-                         + "readable, not populated. Deleted by the first slice that ports a "
-                         + "toolbar-controlled feature to CGF (design §7).",
+        // ⭐⭐⭐ CE-016 §7 (A2), `2026-08-26` — the `main-toolbar` DIVERGENCE ENTRY IS DELETED.
+        // 📐 It read: *"the editor registers every main-toolbar entry and a cluster host registers none,
+        //    so CGF's toolbar is legitimately EMPTY today. Deleted by the first slice that ports a
+        //    toolbar-controlled feature to CGF (design §7)."* ⇒ ⭐ this is that slice: both hosts now
+        //    register through the ONE shared table (`CgfEditorShellToolbar`), so the shared subset is
+        //    SAME by id + sortOrder and the kind no longer needs an excuse.
+        // ⚠ The two toolbars are still not IDENTICAL, and that is correct: the editor services more
+        //   commands (Open/New pickers, fullRebuild, the AI-debug session group), so it emits more
+        //   buttons from the same table. ⛔ Those are DECLARED ABSENT on CGF (ruling 49), not greyed —
+        //   which is why the SUBSET is the right assertion and full-array identity is the wrong one.
     };
 
     // ══ the rails ═════════════════════════════════════════════════════════════
