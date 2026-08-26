@@ -3,9 +3,10 @@ state: LIVE
 build-state: DESIGN — decision-shaped; a RECOMMENDED LEAN per sub-question. Resolve JOINTLY with the user
   (no relay). Not a buildable design — no handoff until the leans (or alternatives) are approved.
 updated: 2026-08-26
-current-answer: ✅ RESOLVED `2026-08-26`. §4 = the grounded design; §4.4/§4.5 = the final calls
-  (restore deferred to Feature X; capability-gating a future layer; Slice A = the buildable outcome,
-  DESIGN_Cgf_Scenario_Session_Slice.md). §3b = the user ruling; old §4/§5 draft under `## ⛔ HISTORY`.
+current-answer: ⭐⭐⭐ §4b — the USER REFINEMENT `2026-08-26` (second) corrects §4.2 in three ways
+  (R1 whole-editor→shared, R2 distinct menu items no chameleons, R3 toolbar-customization is its own
+  design). §4b.1 = two scoping calls open for the user. §4 grounded design + §3b ruling stand except
+  where §4b supersedes. Slice A is being revised to R1–R3; old §4/§5 draft under `## ⛔ HISTORY`.
 known-conflict: none. Origin: the §6.2 handback of REPORT_Cgf_Menu_Follows_Focus.md.
 -->
 
@@ -67,7 +68,29 @@ known-conflict: none. Origin: the §6.2 handback of REPORT_Cgf_Menu_Follows_Focu
 - 🔒 **User: capability-gating is a FUTURE layer** — *"the editing features on CGF will later need to be gated by configuration so CGF can be deployed in reduced-capability setups (live-only · live+monitoring/debug · fully-headless-live-only). But FIRST unify the fully-featured setup — make CGF and editor practically the same, differing only in a few bootstrap things."* ⇒ ⭐⭐ **Slice A builds CGF FULLY-FEATURED** *(all editing on)*; ⛔ it must NOT bake host-conditionals in. ⭐ The derived-subset seam *(ruling 49 — a host shows what it can service)* is already the gating point; a later config layer restricts the SAME shared surface. 📌 Recorded as a NON-goal of Slice A and a named future item.
 
 ### 4.5 ✅ BUILDABLE OUTCOME
-⭐⭐ **Slice A** *(§4.3)* → promoted to **`DESIGN_Cgf_Scenario_Session_Slice.md`** *(READY-TO-BUILD)*. ⭐ **Feature X** *(checkpoint restore)* + **capability-gating config layer** = named future tasks, own designs.
+⭐⭐ **Slice A** *(§4.3)* → **`DESIGN_Cgf_Scenario_Session_Slice.md`**. ⭐ **Feature X** *(checkpoint restore)* + **capability-gating config layer** = named future tasks, own designs.
+
+## 4b. ⭐⭐⭐ USER REFINEMENT `2026-08-26` (second) — **corrects §4.2 in three ways** *(intent, near-verbatim)*
+> 🔒 **User:** *"(1) I hoped we'd move the WHOLE editor stuff to the shared area — are you planning to leave
+> anything editor-only? That would NOT match cgf==editor. (2) 'CGF opens scenario live by default' sounds
+> like host-conditionals — there should be SEPARATE items in the File main menu, like `Live → New Exercise`,
+> `Live → Load Scenario`, `Edit → Open Scenario`, `Edit → Open Asset`, `Edit → New Asset from Recipe` — not
+> one chameleon New/Open. (3) The toolbar commands/buttons for different actions should be logically
+> different, NOT chameleons. So the 'default' actually means just WHICH actions are exposed as toolbar
+> buttons in a given subsystem (or even a given perspective) — which is a **toolbar-customization system,
+> configurable, not hardcoded host-conditionals. That deserves a separate design."*
+
+| # | the correction | what it supersedes |
+|---|---|---|
+| **R1** | ⭐⭐⭐ **END STATE = the WHOLE editor moves to shared; NOTHING capability-level stays editor-only.** `Hrot.Editor` becomes a thin composition root like CGF; only **bootstrap/network** differs *(the in-process sim-host vs distributed)*. ⛔ My scan's *"tool/view/mode half stays editor-only"* was measured against a HEADLESS node — but **CGF fully-featured is WINDOWED** *(it runs the AiShared shell + perspectives)*, so tools/selection/camera/rename are **shareable, not editor-only**. ⇒ **Slice A is INCREMENT 1** of an *editor→shared* move, ⛔ NOT "scenario shared, rest editor-only" | **C′** *(§4.2)* — reframed: extract toward FULL sharing |
+| **R2** | ⭐⭐⭐ **Distinct File-menu items per (mode × action)** — `Live/New Exercise`, `Live/Load Scenario`, `Edit/Open Scenario`, `Edit/New Asset from Recipe`, `Save`, … — **all present on both hosts** *(shown per serviceability, ruling 49)*. ⛔ **No chameleon `New`/`Load`; no per-host "default" in the menu** | **A′ + New′** *(§4.2)* — the two-variant-with-default menu is WRONG; distinct items instead |
+| **R3** | ⭐⭐ **Toolbar-button SELECTION is a separate `toolbar-customization` design** — which of the *distinct* actions get a toolbar button per subsystem/perspective is **configurable**, ⛔ not a hardcoded host default and ⛔ not a chameleon command | the *"toolbar default per host"* idea entirely ⇒ its own future design |
+
+⇒ ⭐⭐ **Slice A is being REVISED to R1–R3** *(see `DESIGN_Cgf_Scenario_Session_Slice.md` STATUS)*: extraction framed as increment-1-of-editor→shared; distinct File-menu items *(no chameleons)*; toolbar-button selection **removed** and deferred to the new toolbar-customization design. ⚠ Two scoping calls for the user *(below)*.
+
+### 4b.1 📌 SCOPING CALLS FOR THE USER
+1. **Editor→shared: roadmap doc now, or incremental?** R1 makes this a **multi-increment programme** *(scenario · tools/selection/camera · view/inspector · … until `Hrot.Editor` is a thin root)*. ⇒ do you want a **`PROGRAMME_Editor_To_Shared.md` roadmap** enumerating the increments, or proceed increment-by-increment *(scenario = Slice A next)*?
+2. **Toolbar-customization design (R3): draft its AQ now, or note it?**
 
 <!-- ⛔ EVERYTHING BELOW (old §4/§5) IS THE PRE-RULING DRAFT — superseded by §3b + §4 above. Do NOT quote as current. -->
 ## ⛔ HISTORY — pre-ruling draft *(superseded by §3b + §4, `2026-08-26`)*

@@ -1,9 +1,11 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — Slice A of Architect_Question_60 (resolved 2026-08-26). Fully-featured
-  unification: extract a shared scenario-session facade, instantiate in both, File/Scenario on both hosts.
+build-state: DESIGN — ⚠ **BEING REVISED to the user refinement `2026-08-26` (AQ60 §4b, R1–R3)**: extraction
+  reframed as increment-1 of an editor→shared move (nothing capability-level stays editor-only); File-menu
+  items become DISTINCT per mode×action (no chameleons); toolbar-button SELECTION removed → its own
+  toolbar-customization design. ⛔ Do NOT relay until revised + a scoping call on AQ60 §4b.1. Was: READY-TO-BUILD.
 updated: 2026-08-26
-current-answer: the whole file. Decision trail + the user ruling: Architect_Question_60 (§3b, §4).
+current-answer: ⚠ §3/§4/§5 below predate AQ60 §4b and are being revised — read AQ60 §4b FIRST.
   ⛔ Checkpoint RESTORE and capability-gating are FUTURE tasks (§8), NOT this slice.
 known-conflict: extends CgfSubsystem.cs + EditorSubsystem.cs + CgfEditorShellToolbar.cs (UI/CGF lane)
   and moves EditorApplication's scenario half into Hrot.Editor.AiShared ⇒ UI/CGF lane; rule-4 re-pull.
