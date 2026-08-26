@@ -205,7 +205,7 @@ namespace Hrot.SimHost
                         if (_map == null) return;
                         // Inject EntityRotatorGizmo directly via the gizmo system.
                         _gizmoSystem!.DeactivateGizmo(entity);
-                        var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                        var gizmo = new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(
                             _repo!, entity,
                             onRemove: () => _gizmoSystem!.DeactivateGizmo(entity),
                             writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_repo!));

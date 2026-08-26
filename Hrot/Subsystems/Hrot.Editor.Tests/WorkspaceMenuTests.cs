@@ -1,3 +1,4 @@
+using Hrot.Common;
 using Fdp.Toolkit.DER;
 using Hrot.Editor;
 using Hrot.Editor.AiShared;

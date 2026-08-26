@@ -6,7 +6,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Patching;
 
-namespace Hrot.SimHost.Gizmos
+namespace Hrot.ScenarioEditor.Gizmos
 {
     // Exclusive-focus gizmo that lets the operator rotate a SimTransform entity by
     // repositioning the mouse. Triggered by context menu ActionId=20 ("Rotate").

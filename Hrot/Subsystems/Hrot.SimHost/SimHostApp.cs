@@ -389,7 +389,7 @@ namespace Hrot.SimHost
                     if (!view.HasComponent<SimTransform>(target)) return;
                     // Always start fresh: deactivate any existing gizmo, then inject the new one.
                     _dataDrivenGizmoSystem!.DeactivateGizmo(target);
-                    var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                    var gizmo = new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(
                         view, target,
                         onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target),
                         // ⭐ AX-005b — SimHost usually OWNS the entity, so this routes Direct; the writer

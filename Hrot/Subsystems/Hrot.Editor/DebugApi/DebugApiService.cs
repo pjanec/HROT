@@ -1,4 +1,5 @@
 ﻿using System;
+using Hrot.Common.Events;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -24,7 +25,6 @@ using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Hrot.Diagnostics.Breakpoints;
-using Hrot.Editor.Commands;
 using Hrot.UI.Common.Facades;
 using StructEdit.Core;
 using StructEdit.Reflection;

@@ -1,6 +1,7 @@
 using Fdp.Core;
+using Hrot.Common;
 
-namespace Hrot.Editor.Events;
+namespace Hrot.Common.Events;
 
 /// <summary>
 /// Published on <see cref="Fdp.Core.FdpEventBus"/> when the user selects a new

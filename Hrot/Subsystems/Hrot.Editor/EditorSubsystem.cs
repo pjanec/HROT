@@ -1,4 +1,5 @@
 ﻿using System;
+using Hrot.Common;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
@@ -58,7 +59,6 @@ using Hrot.Common.Scenario;
 using Hrot.Editor;
 using Hrot.Editor.Adapters;
 using Hrot.Editor.AiShared.Adapters;
-using Hrot.Editor.Events;
 using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
 using Hrot.Editor.UI;
@@ -97,7 +97,6 @@ using Fdp.Toolkit.Spatial;
 using CarKinem.Tkb;
 using Fdp.Toolkit.Behavior.Translators;
 using Fdp.Toolkit.Combat.Translators;
-using Hrot.Editor.Commands;
 using Hrot.Common.Events;
 using Hrot.Diagnostics.Breakpoints;
 using Hrot.Blueprints.Core;
@@ -524,9 +523,11 @@ namespace Hrot.Editor
 
         // ?? Rename dialog state ???????????????????????????????????????????????????
 
-        private long   _renameTargetNetworkId;
-        private bool   _openRenameModalThisFrame;
-        private string _renameBuffer = string.Empty;
+        /// <summary>
+        /// ⭐⭐ <c>CE-051</c> — the shared entity-rename modal, replacing this host's three
+        /// <c>_rename*</c> fields and its inline ImGui block. ⛔ Windowed hosts only *(ruling 49)*.
+        /// </summary>
+        private Hrot.Editor.AiShared.Browser.EntityRenameModal? _entityRenameModal;
 
         // ?? Private helpers ???????????????????????????????????????????????????
 
@@ -1270,7 +1271,22 @@ namespace Hrot.Editor
                 "EditorPostSim",
                 musclePostSimSystems.ToArray());
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
-            var scenarioMod      = new ScenarioEditorModule(fileService);
+            // ⭐⭐⭐ CE-051 (Axis-C E3) — the module's interaction systems replace this host's own
+            //    DrainToolActivationEvents + center/rename handlers. 📄
+            //    docs/DESIGN_Cgf_Tool_Selection_Camera_Slice.md §3 ②/④. Finishes PACK2-E002.
+            // ⚠⚠ EVERY dep is a RESOLVER, and that is measured, not stylistic: this line runs at :1273,
+            //    kernel.Initialize() (which calls RegisterSystems) at :1733 — but `_camera` is built at
+            //    :1801, `_spawnAdapter` at :1942 and `_selectionState` at :1945, and all three are set
+            //    back to null on teardown. ⛔ Capturing instances here would wire the systems to
+            //    permanent nulls with no error at all.
+            var scenarioMod      = new ScenarioEditorModule(
+                fileService,
+                new ScenarioEditorModule.InteractionDeps(
+                    Selection:          () => _selectionState,
+                    Gizmos:             () => _editorDataDrivenGizmoSystem,
+                    Camera:             () => _camera,
+                    GlobalGizmos:       () => _globalGizmoManager,
+                    StartPlacementMode: () => _spawnAdapter?.StartPlacementModeWithLastType()));
 
             _kernel.RegisterModule(new BehaviorDiagnosticsModule());
             // `ST-010`: the default arm registers exactly what it always did. The injected arm
@@ -1537,7 +1553,7 @@ namespace Hrot.Editor
                 if (target == Entity.Null) return;
                 if (!view.HasComponent<SimTransform>(target)) return;
                 _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
-                var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                var gizmo = new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(
                     view, target, onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target),
                     writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world!));
                 _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
@@ -1595,7 +1611,7 @@ namespace Hrot.Editor
                     ? view.GetComponentRO<NetworkIdentity>(target).Value
                     : 0L;
                 if (netId != 0)
-                    _world!.Bus.Publish(new Hrot.Editor.Commands.CenterOnEntityCommand { NetworkId = netId });
+                    _world!.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = netId });
             });
             actionRegistry.Register(GlobalActionIds.Delete, (view, target) =>
             {
@@ -1943,6 +1959,12 @@ namespace Hrot.Editor
                 _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus, _globalGizmoManager!);
                 _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig, _canvas!);
                 _selectionState   = new DefaultSelectionState();
+
+                // ⭐⭐ CE-051 — the shared rename modal. ⭐ Commits through IEditorLogic.CommitPropertyEdit,
+                //    which publishes an UpdateEntityCommand — ⛔ NOT a direct component write, which is what
+                //    keeps it correct on a host that does not own the entity (the AX-005b lesson).
+                _entityRenameModal = new Hrot.Editor.AiShared.Browser.EntityRenameModal(
+                    (netId, components) => _editorLogic?.CommitPropertyEdit(netId, components));
                 _orbatAdapter     = new EditorOrbatAdapter(_world, _world.Bus, _editorLogic, _spawnAdapter);
                 _contextMenuHandler = new JsonEntityContextMenuHandler(_world, interactionBus);
                 _fdpRepoAdapter = new FdpRepositoryAdapter(_world);
@@ -2234,9 +2256,13 @@ namespace Hrot.Editor
             _editorLogic?.Update();
             _clusterPanel?.Update(deltaTime);
 
-            // Drain ActivateEditorToolEvent ? published by toolbar / context menu.
-            if (!_headless)
-                DrainToolActivationEvents();
+            // ⭐⭐⭐ CE-051 — the drain MOVED to the shared ToolActivationDrainSystem /
+            //    SelectEntitySystem / CenterOnEntitySystem, registered by ScenarioEditorModule (:1273).
+            //    ⛔ Nothing to call here: the kernel executes them. 📄 design §3 ④.
+            // ⭐ The rename half is the one piece that could not become a system — it needs ImGui — so it
+            //   is the shared EntityRenameModal, drained just below and drawn in DrawUI.
+            if (!_headless && _world != null)
+                _entityRenameModal?.Drain(_world);
 
             // Poll mission ACKs so async CommitMissionAsync tasks can resolve.
             _missionService?.PollAcks();
@@ -2566,49 +2592,10 @@ namespace Hrot.Editor
                 }
             }
 
-            // Trigger rename modal when requested by DrainToolActivationEvents.
-            if (_openRenameModalThisFrame)
-            {
-                ImGuiNET.ImGui.OpenPopup("Rename Entity");
-                _openRenameModalThisFrame = false;
-            }
-
-            // Render the rename modal.
-            bool isRenameOpen = true;
-            if (ImGuiNET.ImGui.BeginPopupModal("Rename Entity", ref isRenameOpen, ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize))
-            {
-                if (ImGuiNET.ImGui.IsKeyPressed(ImGuiNET.ImGuiKey.Escape))
-                    ImGuiNET.ImGui.CloseCurrentPopup();
-
-                ImGuiNET.ImGui.InputText("New Name", ref _renameBuffer, 64);
-                ImGuiNET.ImGui.Separator();
-
-                bool canSave = !string.IsNullOrWhiteSpace(_renameBuffer);
-                if (!canSave) ImGuiNET.ImGui.BeginDisabled();
-                if (ImGuiNET.ImGui.Button("Save") && canSave)
-                {
-                    // Find entity by network id, read existing EntityInfo and update name.
-                    if (_world != null)
-                    {
-                        // ⭐ BP-508 — the ONE resolver (R-77). ⛔ This was an inline lookup loop, the same
-                        //   shape as the four named copies and invisible to a search for their name.
-                        EntityInfo updatedInfo = default;
-                        var target = FindEntityByNetworkId(_renameTargetNetworkId);
-                        if (!target.IsNull && _world.HasComponent<EntityInfo>(target))
-                            updatedInfo = _world.GetComponent<EntityInfo>(target);
-                        updatedInfo.Name = new Fdp.Core.FixedString64(_renameBuffer.Trim());
-                        _editorLogic?.CommitPropertyEdit(_renameTargetNetworkId, new List<object> { updatedInfo });
-                    }
-                    ImGuiNET.ImGui.CloseCurrentPopup();
-                }
-                if (!canSave) ImGuiNET.ImGui.EndDisabled();
-
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Cancel"))
-                    ImGuiNET.ImGui.CloseCurrentPopup();
-
-                ImGuiNET.ImGui.EndPopup();
-            }
+            // ⭐⭐⭐ CE-051 — the ~35-line inline rename modal MOVED to the shared
+            //    Hrot.Editor.AiShared.Browser.EntityRenameModal. 📄 design §3 ③.
+            // ⭐ CGF gains the same modal from the same type; before E3 it had no rename affordance at all.
+            if (_world != null) _entityRenameModal?.DrawFrame(_world);
 
             // BATCH-29 (MTB-P8-T3): Draw the shell-global picker frame (Open Asset via Tree layout).
             _shellPickers?.DrawFrame();
@@ -4904,125 +4891,15 @@ namespace Hrot.Editor
         private Entity FindEntityByNetworkId(long networkId)
             => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_world, networkId);
 
-        private void DrainToolActivationEvents()
-        {
-            if (_world == null || _canvas == null || _selectionState == null) return;
-
-            foreach (ref readonly var evt in _world.Bus.Read<Hrot.Editor.Events.ActivateEditorToolEvent>())
-            {
-                switch (evt.Tool)
-                {
-                    case Hrot.Editor.EditorTool.Select:
-                        // (Phase 5: _interactionTool removed; selection via ECS gizmos)
-                        break;
-
-                    case Hrot.Editor.EditorTool.Spawn:
-                        // Start placement with the last selected type (tracked by the adapter).
-                        _spawnAdapter?.StartPlacementModeWithLastType();
-                        break;
-
-                    case Hrot.Editor.EditorTool.Edit:
-                    {
-                        // Inject VertexEditGizmo directly via the gizmo system (toggle if already active).
-                        var entity = _selectionState.PrimarySelected;
-                        if (entity is { } e && e != Entity.Null && _world.HasManagedComponent<Hrot.IG.Components.EditablePolyline>(e))
-                        {
-                            if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(e))
-                            {
-                                _editorDataDrivenGizmoSystem!.DeactivateGizmo(e);
-                            }
-                            else
-                            {
-                                long netId = _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
-                                    ? _world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value
-                                    : 0L;
-                                var gizmo = new Hrot.ScenarioEditor.Gizmos.VertexEditGizmo(
-                                    _world!, e, netId,
-                                    onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e));
-                                _editorDataDrivenGizmoSystem!.ActivateGizmo(e, gizmo);
-                            }
-                        }
-                        break;
-                    }
-
-                    case Hrot.Editor.EditorTool.Route:
-                    {
-                        // Inject RouteWaypointGizmo directly via the gizmo system (toggle if already active).
-                        var entity = _selectionState.PrimarySelected;
-                        if (entity is { } e && e != Entity.Null && _world.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(e))
-                        {
-                            if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(e))
-                            {
-                                _editorDataDrivenGizmoSystem!.DeactivateGizmo(e);
-                            }
-                            else
-                            {
-                                long netId = _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
-                                    ? _world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value
-                                    : 0L;
-                                var gizmo = new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo(
-                                    _world!, e, netId,
-                                    onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e));
-                                _editorDataDrivenGizmoSystem!.ActivateGizmo(e, gizmo);
-                            }
-                        }
-                        break;
-                    }
-
-                    case Hrot.Editor.EditorTool.Measure:
-                        if (_globalGizmoManager != null)
-                        {
-                            var id = GlobalGizmoManager.NewId();
-                            var gizmo = new Hrot.ScenarioEditor.Gizmos.MeasureGizmo(onRemove: () => _globalGizmoManager?.Unregister(id));
-                            _globalGizmoManager.Register(id, gizmo);
-                        }
-                        break;
-
-                    case Hrot.Editor.EditorTool.Rotate:
-                    {
-                        // Inject EntityRotatorGizmo directly via the gizmo system.
-                        var entity = _selectionState.PrimarySelected;
-                        if (entity is { } e && e != Entity.Null && _world.HasComponent<Fdp.Core.SimTransform>(e))
-                        {
-                            _editorDataDrivenGizmoSystem!.DeactivateGizmo(e);
-                            var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
-                                _world!, e,
-                                onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e),
-                                writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world!));
-                            _editorDataDrivenGizmoSystem!.ActivateGizmo(e, gizmo);
-                        }
-                        break;
-                    }
-                }
-            }
-
-            // ?? Drain camera-center requests ??????????????????????????????????
-            foreach (ref readonly var cmd in _world.Bus.Read<Hrot.Editor.Commands.CenterOnEntityCommand>())
-            {
-                if (_camera == null) continue;
-                // ⭐ BP-508 — the ONE resolver (R-77); this was an inline lookup loop.
-                var target = FindEntityByNetworkId(cmd.NetworkId);
-                if (!target.IsNull && _world.HasComponent<Fdp.Core.SimTransform>(target))
-                {
-                    ref readonly var tf = ref _world.GetComponentRO<Fdp.Core.SimTransform>(target);
-                    _camera.FocusOn(new System.Numerics.Vector2(tf.Position.X, tf.Position.Y));
-                }
-            }
-
-            // ?? Drain rename-dialog requests ??????????????????????????????????
-            foreach (ref readonly var cmd in _world.Bus.Read<Hrot.Common.Events.OpenRenameDialogCommand>())
-            {
-                _renameTargetNetworkId    = cmd.NetworkId;
-                _openRenameModalThisFrame = true;
-                _renameBuffer             = string.Empty;
-
-                // Pre-fill buffer with the entity's current name.
-                // ⭐ BP-508 — the ONE resolver (R-77); this was an inline lookup loop.
-                var named = FindEntityByNetworkId(cmd.NetworkId);
-                if (!named.IsNull && _world.HasComponent<EntityInfo>(named))
-                    _renameBuffer = _world.GetComponent<EntityInfo>(named).Name.ToString();
-            }
-        }
+        // ⭐⭐⭐ CE-051 (Axis-C E3) — `DrainToolActivationEvents` IS GONE. Its three concerns became
+        //    shared systems in `Hrot.ScenarioEditor.Systems`, registered by `ScenarioEditorModule`:
+        //      · the EditorTool switch  -> ToolActivationDrainSystem
+        //      · CenterOnEntityCommand  -> CenterOnEntitySystem   (and it FIXED a live CGF bug — see that
+        //                                                          class's remarks on MapCamera.FocusOn)
+        //      · OpenRenameDialogCommand-> EntityRenameModal.Drain (ImGui, so not a system)
+        //    ⛔ SelectEntityCommand had NO handler here at all — measured: nothing in the repo read it, so
+        //       IEditorLogic.SelectEntity was a silent no-op. SelectEntitySystem is its first consumer.
+        //    📄 docs/DESIGN_Cgf_Tool_Selection_Camera_Slice.md §3 ②/④ and §9.
 
         // ── CF-8: Debug session persistence helpers ──────────────────────────────
 
