@@ -49,7 +49,13 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 | ⭐⭐ **Axis-B cross-node change-request egress under R-134** *(FDP-internal EntityAttributeChange + EntityWriteRouter in Fdp.Toolkits; egress translator SOLE DDS boundary; drag gizmo on same router; CE-018/035/036; merged `2026-08-26`)* | AX-005..010 · CE-018/035/036 | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §11-§12 *(AS-BUILT)* |
 | ⭐⭐⭐ **AX-009 RESOLVED + Q59 attribute-vocabulary single source** *(SimHost→IG replication fixed via NetworkTransform-shadow-at-birth ⇒ `--mode all` round-trip 3/3 GREEN; one attribute declaration + derived edge table + truthful schema; R-134 overclaim corrected; JSON/binary apply paths consistent; apply stack moved out of the DDS assembly; merged `45d1da666`)* | AX-009..024 · AQ59 | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §13-§16 *(AS-BUILT)* · `Architect_Question_59` |
 
-## 3. ✅ NOTHING IN FLIGHT *(both `2026-08-26` batches verified + merged into `d41368090`)*
+## 3. ✅ NOTHING DISPATCHED / IN FLIGHT — coordinator HEAD `dbdc5e783` *(snapshot `2026-08-26`; confirm by git)*
+> ⭐⭐ **TWO handoffs are WRITTEN + READY TO RELAY, not yet dispatched** *(the user relays; see §4)*:
+> **(1) `HANDOFF_Cgf_Scenario_Session.md`** → UI/CGF lane *(Axis-C E1, Slice A)* · **(2) `HANDOFF_Test_Suite_Reliability.md`** → BACKEND lane *(W1 crash · W2 flake · W3 stable reds)*.
+> ⚠ **Both implementation lanes' last batches are MERGED** *(UI/CGF: AX-009..024/Q59 at `45d1da666`; BACKEND: MD-006/007/008 at `8b626168d`)* ⇒ each must **rule-7 re-sync from the coordinator** before starting the next.
+> 📌 **The big win this session: AX-009 RESOLVED — the `--mode all` round-trip is GREEN** *(§3d)*. **cgf==editor now has: shell adoption · MCP authoring+diagnostics · debug pause/step · toolbar+menu shared · axis-B egress + replication.** Next capability front = **Axis-C editor→shared extraction** *(gap map §2c; E1 scenario handoff ready)*.
+
+### ⛔ HISTORY — the merge verify-verdicts *(kept for provenance; the state above is current)*
 | merged batch | ids | verify verdict |
 |---|---|---|
 | **MCP per-node diagnostics + federation** *(was on `sdmspn`, from base `0ee5305a8`)* | MD-001..005 | ✅ rule-8 report complete: system suite 104/0, editor unit 251/0/1, golden ZERO, tree clean, catalog 90→91, two revert red-proofs. CLI-indexed the graph *(192k nodes)* — the fallback rule paid off. Corrected my design in 4 places, folded to §8 *(obligation ⑤)*. **MD-004** *(cluster dump)* + **MD-005** *(aggregator)* **STOPPED with measured blockers** — see §3c |
