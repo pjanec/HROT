@@ -938,6 +938,20 @@ namespace Hrot.Editor.DebugApi
                 });
             }));
 
+            // Q61-B/MX-035 — the instance blueprints currently attached to the entity (the slot table).
+            _routes.Add(new("GET", "/entities/{networkId}/blueprints", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
+                return RunMainResult(s =>
+                {
+                    var (result, error, hintCategory) = s.GetEntityBlueprints(id);
+                    return error != null
+                        ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Blueprint)
+                        : Ok(result);
+                });
+            }));
+
             // ── Group R — the entity state dump (MX3) ─────────────────────────────────────────
             _routes.Add(new("GET", "/entities/{networkId}/state", ctx =>
             {

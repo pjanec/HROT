@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Core.Serialization;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
@@ -366,6 +367,81 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
 
         // No blackboard component injected from legacy key
         Assert.False(_repo.HasComponent<BlueprintBlackboard1024>(entity));
+    }
+
+    /// <summary>
+    /// ⭐⭐ MX-031/MX-032 round-trip rail — a NON-default param on an instance blueprint survives
+    /// Extract (save) → Inject → Materialize (reload). Before this batch, Extract wrote only AssetId and
+    /// Materialize called InitDefault only, so the param reset to its default on reload.
+    /// <para><b>Inverse-edit red-proof:</b> remove the <c>WriteParamsRegion</c> call in
+    /// <c>BlueprintMaterializationSystem</c> and the final assertion reads the default (all-zero) instead
+    /// of the saved value; drop the diff+emit in <c>BlueprintStateTranslator.Extract</c> and
+    /// <c>dtos[0].Params</c> is null.</para>
+    /// </summary>
+    [Fact]
+    public unsafe void ParamPersistence_NonDefaultParams_SurviveSaveThenReload()
+    {
+        var assetId = Guid.Parse("E50117E7-0000-0000-0000-0000000000AA");
+        int bpId = BlueprintIdHash.Compute(assetId);
+        // A blueprint with a real params region: [Cursor 16][Params 8][State 8].
+        var def = new BlueprintDefinition
+        {
+            Name          = "ParamBp",
+            Kind          = BlueprintDispatchKind.Instance,
+            StructureHash = 0xABCDEF01UL,
+            StateSize     = 32,
+            ParamsOffset  = 16,
+            ParamsSize    = 8,
+            AssetId       = assetId,
+            InitDefault   = span => span.Clear(),   // default params = all zero
+        };
+        _registry.RegisterInstance(bpId, def);
+
+        // ── Author: attach, then set a NON-default param value in the slot's param region ──
+        var src = _repo.CreateEntity();
+        _repo.AddComponent(src, default(BlueprintBlackboard1024));
+        Assert.Equal(BlueprintAttachStatus.Attached,
+            BlueprintInstanceService.AttachToEntity(_repo, _registry, bpId, src).Status);
+
+        var nonDefault = new byte[] { 42, 0, 0, 0, 7, 0, 0, 0 };
+        WriteSlotParams(_repo, src, bpId, def, nonDefault);
+        Assert.Equal(nonDefault, ReadSlotParams(_repo, src, bpId, def));
+
+        // ── Save: Extract captures the non-default params (diffed against InitDefault) + the hash ──
+        var translator = new BlueprintStateTranslator(_registry);
+        var extracted = translator.Extract(_repo, src, new StubGuidResolver());
+        var dtos = JsonSerializer.Deserialize<List<BlueprintAssignmentDto>>(
+            (JsonNode)extracted["BlueprintAssignments"], FdpJsonOptionsRegistry.DefaultRelaxed);
+        Assert.NotNull(dtos);
+        Assert.Single(dtos!);
+        Assert.Equal(nonDefault, dtos![0].Params);
+        Assert.Equal(def.StructureHash, dtos[0].ParamsStructureHash);
+
+        // ── Reload: Inject onto a FRESH entity, materialize; the param must survive (not reset) ──
+        var dst = _repo.CreateEntity();
+        translator.Inject(_repo, dst, extracted, new StubGuidResolver());
+        Assert.True(_repo.HasManagedComponent<InitialBlueprintsIntent>(dst));
+        new BlueprintMaterializationSystem(_registry).Execute(_repo, 0f);
+
+        Assert.Equal(nonDefault, ReadSlotParams(_repo, dst, bpId, def));
+    }
+
+    private static unsafe void WriteSlotParams(
+        EntityRepository repo, Entity entity, int bpId, BlueprintDefinition def, byte[] bytes)
+    {
+        ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+        byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, bpId, out int off));
+        BlueprintInstanceService.WriteParamsRegion(mem + off, def, bytes);
+    }
+
+    private static unsafe byte[] ReadSlotParams(
+        EntityRepository repo, Entity entity, int bpId, BlueprintDefinition def)
+    {
+        ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+        byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, bpId, out int off));
+        return BlueprintInstanceService.ReadParamsRegion(mem + off, def);
     }
 
     // ── BSA-402: Demo scenario fixture ───────────────────────────────────────

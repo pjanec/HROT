@@ -2232,7 +2232,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "attach_blueprint",
     "group": "Q — Blueprint hot-attach",
-    "summary": "Attach an Instance blueprint to a running entity — the quick way to try a behaviour without authoring a mission.",
+    "summary": "Attach an Instance blueprint to an entity — the quick way to try a behaviour without authoring a mission. Run-state-aware: lands immediately while paused/Edit, next tick while running.",
     "http": {
       "method": "POST",
       "path": "/entities/{networkId}/attach-blueprint"
@@ -2254,13 +2254,15 @@ export const TOOLS_CATALOG = [
         "name": "paramsJson",
         "type": "object",
         "required": false,
-        "description": "Parameters for the blueprint, keyed by name; omit for its declared defaults"
+        "description": "Parameters for the blueprint, keyed by name (its paramSchema); omit for its declared defaults"
       }
     ],
-    "returns": "{ networkId, blueprint, blueprintId, attached:true, note }",
+    "returns": "{ networkId, blueprint, blueprintId, attached:true, path:\"direct\"|\"event\", applied:\"immediate\"|\"next-tick\", status?, tier?, note }",
     "notes": [
-      "Queued: the ingress system applies it on the NEXT tick, so step or play once before reading it back.",
-      "After it lands, the entity's variables appear in list_entity_variables — name the asset, since the entity may now carry more than one."
+      "Run-state-aware (mirrors the editor's own panel): while time is FROZEN (Edit or paused) it attaches THIS frame (path:direct); while the sim is advancing it queues the ingress event (path:event) and you must step/play once before reading it back.",
+      "Params now PERSIST through save_scenario — an attach with non-default params survives save→reload (they ride the assignment as resolved bytes, layout-versioned by the blueprint's StructureHash).",
+      "A malformed paramsJson on the direct path is a 400 that changes nothing (parse-before-commit), not a half-applied slot.",
+      "After it lands, the entity's variables appear in list_entity_variables — name the asset, since the entity may now carry more than one. See what is attached with list_entity_blueprints."
     ],
     "example": {
       "args": {
@@ -2274,9 +2276,40 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "list_entity_blueprints",
+    "group": "Q — Blueprint hot-attach",
+    "summary": "The Instance blueprints currently attached to an entity — see what you have assigned before editing.",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/blueprints"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network id of the entity"
+      }
+    ],
+    "returns": "{ networkId, count, blueprints:[{ blueprintId, name, assetId, payloadSize }] }",
+    "notes": [
+      "Reads the same slot table save_scenario snapshots, so it shows exactly what would persist.",
+      "list_blueprints is the catalog (everything compiled); this is what is attached to ONE entity."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1001
+      },
+      "gist": "see which blueprints are on entity 1001"
+    },
+    "hint": "Required: networkId. Example: list_entity_blueprints({networkId:1001})",
+    "manualVerify": false
+  },
+
+  {
     "name": "detach_blueprint",
     "group": "Q — Blueprint hot-attach",
-    "summary": "Detach an Instance blueprint from an entity.",
+    "summary": "Detach an Instance blueprint from an entity. Run-state-aware, like attach_blueprint.",
     "http": {
       "method": "POST",
       "path": "/entities/{networkId}/detach-blueprint"
@@ -2295,9 +2328,10 @@ export const TOOLS_CATALOG = [
         "description": "Blueprint name, asset Guid, or numeric blueprintId"
       }
     ],
-    "returns": "{ networkId, blueprint, blueprintId, detached:true, note }",
+    "returns": "{ networkId, blueprint, blueprintId, detached, path:\"direct\"|\"event\", applied:\"immediate\"|\"next-tick\", note }",
     "notes": [
-      "Queued like the attach — applied on the next tick."
+      "Run-state-aware: removes the slot THIS frame while time is frozen (path:direct); queues the event while the sim advances (path:event, next tick).",
+      "On the direct path, detached:false means no slot for that blueprint was on the entity — nothing to remove."
     ],
     "example": {
       "args": {
