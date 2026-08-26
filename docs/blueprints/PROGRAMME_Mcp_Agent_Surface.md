@@ -67,7 +67,9 @@ void one)*. 📌 `MCP_Integration.md` §UML's `IMissionEditorService <<exists ·
 - **Handoff B = Phase 2 + Phase 3** — branches from A's as-built so the boundaries generator + new workflows
   describe **real** routes. ⛔ Not dispatched until A merges.
 
-⚠ **Who runs the doc-sufficiency gate (Phase 3 ⭐):** a session **without build-context** — a fresh agent, or the
-coordinator, driving the live MCP reading only the SKILL. ⛔ Not the session that built Phase 1/2 — testing your own
-docs with insider knowledge proves nothing. The backend session **codifies** both cycles as durable harness cases
-*(`ScenarioBehaviorTests` / `ClusterConformanceRails`)*; the naive-agent run is separate.
+⚠⚠ **Who runs the doc-sufficiency gate (Phase 3 ⭐) — user ruling `2026-08-26`:** a session **without
+build-context**. ⭐ Either a **FRESH session**, OR an **existing session AFTER a compaction** *(it has lost the
+build details, so it is effectively naive — "not exactly fresh, but not the one who implemented")*. ⛔ **NEVER the
+session that built Phase 1/2** — testing your own docs with insider knowledge proves nothing. The backend session
+**codifies** both cycles as durable harness cases *(`ScenarioBehaviorTests` / `ClusterConformanceRails`)*; the
+naive-agent doc-sufficiency run is a SEPARATE session driving the live MCP reading only `tools/ai-debug-mcp/SKILL.md`.

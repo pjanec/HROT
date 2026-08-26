@@ -49,10 +49,14 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 | ⭐⭐ **Axis-B cross-node change-request egress under R-134** *(FDP-internal EntityAttributeChange + EntityWriteRouter in Fdp.Toolkits; egress translator SOLE DDS boundary; drag gizmo on same router; CE-018/035/036; merged `2026-08-26`)* | AX-005..010 · CE-018/035/036 | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §11-§12 *(AS-BUILT)* |
 | ⭐⭐⭐ **AX-009 RESOLVED + Q59 attribute-vocabulary single source** *(SimHost→IG replication fixed via NetworkTransform-shadow-at-birth ⇒ `--mode all` round-trip 3/3 GREEN; one attribute declaration + derived edge table + truthful schema; R-134 overclaim corrected; JSON/binary apply paths consistent; apply stack moved out of the DDS assembly; merged `45d1da666`)* | AX-009..024 · AQ59 | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §13-§16 *(AS-BUILT)* · `Architect_Question_59` |
 
-## 3. ✅ NOTHING DISPATCHED / IN FLIGHT — coordinator HEAD `dbdc5e783` *(snapshot `2026-08-26`; confirm by git)*
-> ⭐⭐ **TWO handoffs are WRITTEN + READY TO RELAY, not yet dispatched** *(the user relays; see §4)*:
-> **(1) `HANDOFF_Cgf_Scenario_Session.md`** → UI/CGF lane *(Axis-C E1, Slice A)* · **(2) `HANDOFF_Test_Suite_Reliability.md`** → BACKEND lane *(W1 crash · W2 flake · W3 stable reds)*.
-> ⚠ **Both implementation lanes' last batches are MERGED** *(UI/CGF: AX-009..024/Q59 at `45d1da666`; BACKEND: MD-006/007/008 at `8b626168d`)* ⇒ each must **rule-7 re-sync from the coordinator** before starting the next.
+## 3. ⭐ STATE — coordinator HEAD advanced past `dbdc5e783` *(snapshot `2026-08-26`; confirm by git)*
+> ✅ **UI Slice A MERGED** — CGF scenario session, ids **`CE-046..048`** *(CE-046 the slice; CE-047 `MigrationAlertManager.Draw` unwired, CE-048 `LoadScenarioLive` not yet routed through the session — both OPEN)*. Shared `IScenarioSession`+`EditorScenarioSession` in `Hrot.Editor.AiShared.Scenarios`, distinct File-menu on both hosts, editor labels changed by design. Gates all green; obligation ⑤ folded into `DESIGN_Cgf_Scenario_Session_Slice.md` §9 (7 deviations). ⏳ **T3 conformance suite was backgrounded by the UI session — result pending.** ⚠ **`CE-048` overlaps the MCP programme** *(live-load routing)* — fold into Phase-1/Phase-2 sequencing.
+>
+> 🔴 **BACKEND lane IN FLIGHT: Test-Suite Reliability** — pushed only the rule-1b started-marker (`3d50fa0b5` at `dbdc5e783`), **no work commits yet** ⇒ looks stalled from outside; it is the hard investigation batch (crash root-cause). ⛔ Do NOT re-dispatch; ask it to **push incrementally**.
+>
+> ⭐⭐ **NEW programme dispatched-ready: MCP as a first-class agent surface** — `PROGRAMME_Mcp_Agent_Surface.md`. **Handoff A = `HANDOFF_Mcp_Mission_Editing.md`** (MX4b mission editing, MX-002 RESOLVED) READY TO RELAY → BACKEND lane (after test-reliability). Handoff B (SKILL usability + battle-test) written AFTER A merges. Skill trigger `.claude/skills/ai-debug-mcp/` DONE.
+>
+> ⚠ **STALE CANON — flag to user:** `.claude/CLAUDE.md`'s lane table names `gm0akp` as coordinator and calls `6sr5ld` "retired"; both the design-brief script AND the UI session (report §P2) flag it wrong — `6sr5ld` is the live coordinator lane. **One-line canon fix pending user nod.**
 > 📌 **The big win this session: AX-009 RESOLVED — the `--mode all` round-trip is GREEN** *(§3d)*. **cgf==editor now has: shell adoption · MCP authoring+diagnostics · debug pause/step · toolbar+menu shared · axis-B egress + replication.** Next capability front = **Axis-C editor→shared extraction** *(gap map §2c; E1 scenario handoff ready)*.
 
 ### ⛔ HISTORY — the merge verify-verdicts *(kept for provenance; the state above is current)*
