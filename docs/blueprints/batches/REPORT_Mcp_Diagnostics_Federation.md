@@ -145,7 +145,7 @@ parity argument)*.
 | 3 | ⭐⭐⭐ **revert probe A** *(item ①, the SimHost gap)* | drop `logSinks:` from `ClusterRunner/Program.cs`, rebuild it, re-run | ✅ | ✅ 🔴 **red: `logs: 0 record(s)`** — ⭐ **that zero IS the pre-fix state on every cluster-limited node** | — |
 | 4 | ⭐⭐ **revert probe B** *(item ②)* | null out `architecture:` in `SimHostSubsystem`'s provider, rebuild, re-run | ✅ | ✅ 🔴 **red**, the route refusing and naming the missing accessor | — |
 | 5 | **the editor unit suite** *(carries `EveryRouteIsDocumentedTests` + `CapabilityManifestRails` — the gates the new route and the new `/diagnostics` prefix had to satisfy)* | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/…csproj --no-build -v q --nologo` | ✅ | ✅ **251 / 0 / 1 skipped** | **none** |
-| 6 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — a route on the shared table, a new member on a seam FOUR subsystems implement, and changes at BOTH composition roots ⇒ nothing smaller can show the cross-host contract holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | ✅ **104 / 0**, 6 m 32 s — §4b | **+1 rail** |
+| 6 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — a route on the shared table, a new member on a seam FOUR subsystems implement, and changes at BOTH composition roots ⇒ nothing smaller can show the cross-host contract holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | ✅ **105 / 0**, 7 m 51 s — §4b | **+2 rails** |
 | 7 | **the MCP catalog is GENERATED** | `npm run gen:catalog` · `npm run gen:skill` | — | ✅ **90 → 93 tools** from 93 endpoints *(91 after `MD-001..003`, 93 after the `MD-006/007` follow-up)*; `SKILL.md` regenerated *(507 lines)*. ⚠ **The generator reads the BUILT binary** — the first regen produced 90 because `Hrot.ClusterRunner` had not been rebuilt | **+3 tools** |
 | 8 | **every catalogued tool has a handler** | `node test-catalog.mjs` | — | ✅ **745 / 0** | **+24 assertions** |
 | 9 | **golden movement** | — | — | ⭐ **ZERO** | **none** |
@@ -159,9 +159,13 @@ parity argument)*.
 
 ### 4b. ⭐ The full T3 suite
 
-📐 **`scripts/run-system-tests.sh --no-build` — `104 / 0 / 0 skipped`, 6 m 32 s.**
+📐 **`scripts/run-system-tests.sh --no-build` — `105 / 0 / 0 skipped`, 7 m 51 s** *(re-run after the
+`MD-006`/`MD-007` follow-up)*.
 
-⭐ **`103 → 104`: the one new coverage rail, nothing removed and nothing skipped.**
+⭐ **`103 → 104 → 105`: the two new coverage rails, nothing removed and nothing skipped.**
+⚠ **Re-run in full after the follow-up rather than trusting the earlier pass** — the second slice added a
+member to `ISubsystemDebugProvider` *(a seam FOUR subsystems implement)* and a new capability key, so the
+first run no longer covered the tree.
 
 ⚠⚠ **This row carried more weight here than in any recent batch, and the reason is the SHAPE of the
 change, not its size.** ⛔ It was not a route added beside other routes: it changed
