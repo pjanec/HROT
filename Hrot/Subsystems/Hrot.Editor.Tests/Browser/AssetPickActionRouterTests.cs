@@ -1,5 +1,6 @@
 using Hrot.Editor;
 using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Browser;
 
 namespace Hrot.Editor.Tests.Browser;
 

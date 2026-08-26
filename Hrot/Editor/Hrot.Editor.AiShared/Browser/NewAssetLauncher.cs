@@ -1,11 +1,10 @@
 using System;
 using Hrot.Editor.AiShared;
-using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Recipes;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
 
-namespace Hrot.Editor;
+namespace Hrot.Editor.AiShared.Browser;
 
 /// <summary>
 /// Encapsulates "build a <see cref="RecipePickerSource"/> from the per-kind

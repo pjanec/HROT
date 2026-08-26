@@ -1,11 +1,10 @@
 using System;
 using Hrot.Editor.AiShared;
-using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Catalog;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
 
-namespace Hrot.Editor;
+namespace Hrot.Editor.AiShared.Browser;
 
 /// <summary>
 /// Encapsulates "build an <see cref="AssetPickerSource"/> for the given kinds →

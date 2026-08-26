@@ -492,7 +492,7 @@ namespace Hrot.Editor
 
         // BATCH-26: Asset-pick action router — routes file kinds → AiDocumentManager.Open,
         // Scenario → IEditorLogic.LoadScenarioByName.
-        private Hrot.Editor.AssetPickActionRouter? _assetPickRouter;
+        private Hrot.Editor.AiShared.Browser.AssetPickActionRouter? _assetPickRouter;
 
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
@@ -3144,7 +3144,7 @@ namespace Hrot.Editor
             // BATCH-26: Asset-pick action router — file kinds → AiDocumentManager.Open,
             // Scenario → IEditorLogic.LoadScenarioByName. Null-safe delegates guard
             // against bare-ctor scenarios.
-            _assetPickRouter = new Hrot.Editor.AssetPickActionRouter(
+            _assetPickRouter = new Hrot.Editor.AiShared.Browser.AssetPickActionRouter(
                 openDocument: a => _aiDocumentManager?.Open(a),
                 loadScenario: name => _editorLogic?.LoadScenarioByName(name));
 
@@ -3742,55 +3742,29 @@ namespace Hrot.Editor
 
             // Null-safe guard: _assetPickRouter may be null in bare-ctor tests.
             var assetPickerLauncher = _assetPickRouter != null
-                ? new Hrot.Editor.AssetPickerLauncher(
+                ? new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(
                     openPicker: _shellPickers.OpenPicker,
                     catalog:    catalog,
                     router:     _assetPickRouter)
                 : null;
 
-            // Local helper: directory part of an asset's relative path for the given kind.
-            // Promoted from ShowNewAssetDialog so BuildSaveAsRequest can also use it.
+            // ⭐⭐ CE-049 (Axis-C E2) — both helpers now live in the shared
+            //    `Hrot.Editor.AiShared.Browser.AssetSaveAsRequests`, so CGF's Save-As dialog is the SAME
+            //    builder rather than a third copy. 📄 docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md §8.
+            //    ⭐ Kept as local wrappers so the three existing call sites below are untouched.
             static string FolderOf(
                 Hrot.Editor.AiShared.IEditableAsset a,
                 Hrot.Editor.AiShared.AssetKind k,
                 Func<Hrot.Editor.AiShared.AssetKind, string?> bf)
-            {
-                var rel = Hrot.Editor.AiShared.Browser.AssetRelPath.RelPath(a, bf(k));
-                int lastSlash = rel.LastIndexOf('/');
-                return lastSlash >= 0 ? rel.Substring(0, lastSlash) : "";
-            }
+                => Hrot.Editor.AiShared.Browser.AssetSaveAsRequests.FolderOf(a, k, bf);
 
-            // ── BATCH-43 (MTB2-T8b): shared SaveAsRequest builder for New + Save-As flows. ──
             NodeEditor.UI.Dialogs.SaveAsRequest BuildSaveAsRequest(
                 Hrot.Editor.AiShared.AssetKind kind, string title, string initialName,
                 string initialDestination, string confirmLabel,
                 Hrot.Editor.AiShared.Browser.FolderPickerState folderPicker)
-            {
-                return new NodeEditor.UI.Dialogs.SaveAsRequest
-                {
-                    Title              = title,
-                    InitialName        = initialName,
-                    InitialDestination = initialDestination,
-                    ConfirmLabel       = confirmLabel,
-                    GetFolderTree = () => Hrot.Editor.AiShared.Browser.AssetFolderDerivation.ToCategoryNode(
-                        folderPicker.FolderPaths.ToList()),
-                    GetFolderContents = folder => catalog.All
-                        .Where(a => a.Kind == kind &&
-                            FolderOf(a, kind, baseFolderFor) == folder)
-                        .Select(a => new NodeEditor.UI.Dialogs.SaveAsContentItem(
-                            a.Name,
-                            Hrot.Editor.AiShared.AssetKindIcons.GetIconKey(kind)))
-                        .ToList(),
-                    OnCreateFolder = (parent, newName) => folderPicker.AddFolder(parent, newName),
-                    NameExists = (name, dest) => catalog.All.Any(a =>
-                        a.Kind == kind &&
-                        FolderOf(a, kind, baseFolderFor) == dest &&
-                        a.Name == name),
-                    ValidateName = name => string.IsNullOrWhiteSpace(name)
-                        ? "Name must not be empty."
-                        : null,
-                };
-            }
+                => Hrot.Editor.AiShared.Browser.AssetSaveAsRequests.Build(
+                    catalog, kind, title, initialName, initialDestination, confirmLabel,
+                    folderPicker, baseFolderFor);
 
             // ── BATCH-36 (MTB2-T7): NewAssetLauncher — opens the recipe Tree picker; ──
             // on pick → ShowNewAssetDialog opens the Save-As browser (BATCH-42: MTB2-T8b).
@@ -3816,98 +3790,49 @@ namespace Hrot.Editor
                 });
             }
 
-            // ⭐⭐⭐ AQ56 / MA-001 — THE CREATE PATH, extracted from the dialog callback so it has TWO
-            //    surfaces and ONE implementation. 📄 docs/DESIGN_Mcp_Authoring.md §7 ③.
+            // ⭐⭐⭐ AQ56 / MA-001 — THE CREATE PATH: TWO surfaces, ONE implementation.
+            //    📄 docs/DESIGN_Mcp_Authoring.md §7 ③.
             //
-            // ⛔⛔ Why extraction rather than a second create for MCP: this body is not "call CreateNew".
-            //    📐 It is FOUR host-composition facts a duplicate would get wrong — Blueprint is mint-only
-            //    and needs its file written at `_bpRootDir` (BUG-A6: the SOURCE dir the contributor scans,
-            //    not bin/), `RefreshFromAssembly` refreshes only the assembly contributors, the JSON
-            //    contributors must be refreshed SEPARATELY per kind, and only then does `FindByAssetId`
-            //    succeed. ⇒ ⭐ ruling 9: the MCP route and the New-Asset dialog run the SAME lines.
+            // ⭐⭐⭐ CE-049 (Axis-C E2) — the body MOVED to the shared
+            //    `Hrot.Editor.AiShared.Browser.AssetCreateController`. 📄
+            //    docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md §3 ②.
+            //    📐 Measured: `CgfSubsystem.AssetShellCreate` was a near-verbatim RE-DERIVATION of this
+            //    body, and the two had already DRIFTED in three places (the non-document-kind branch, the
+            //    try/catch around the Blueprint write, and the "not in the catalog" remedy text). ⇒ ruling 9.
             //
-            // ⚠ It returns the minted id ONLY once the asset is in the catalog. ⛔ Returning it earlier
-            //   would hand MCP an id that `GET /assets` cannot resolve — the silent-wrong-answer shape.
+            // ⛔⛔ Why the body is not just "call CreateNew" — the four composition facts a duplicate gets
+            //    wrong (BUG-A6's source-dir write, the assembly-vs-JSON contributor split, and returning
+            //    the id only once the catalog resolves it) now live in the controller's own remarks.
+            var assetCreateController = _newAssetServices != null
+                ? new Hrot.Editor.AiShared.Browser.AssetCreateController(
+                    services:               _newAssetServices,
+                    saveMintOnlyAsset:      saveAsBlueprintToFile,
+                    findCatalogued:         id => _aiCatalogBuilder?.Catalog?.FindByAssetId(id),
+                    refreshFromAssembly:    asm => _aiCatalogBuilder?.RefreshFromAssembly(asm),
+                    refreshJsonContributor: k =>
+                    {
+                        if (k == Hrot.Editor.AiShared.AssetKind.BTree && _btreeJsonRootDir != null)
+                            _btreeJsonContrib?.Refresh(rootDirectory: _btreeJsonRootDir);
+                        if (k == Hrot.Editor.AiShared.AssetKind.Hsm && _hsmJsonRootDir != null)
+                            _hsmJsonContrib?.Refresh(rootDirectory: _hsmJsonRootDir);
+                    },
+                    openDocument:           a => _aiDocumentManager?.Open(a),
+                    blueprintRootDir:       () => _bpRootDir)
+                : null;
+
             (Guid? AssetId, string Status) CreateAssetCore(
                 Hrot.Editor.AiShared.AssetKind kind,
                 Hrot.Editor.AiShared.IEditableAsset? recipe,
                 string name,
                 string relPath)
-            {
-                if (_newAssetServices == null || !_newAssetServices.ContainsKey(kind))
-                    return (null, $"[ERROR] This host composes no INewAssetService for {kind}.");
-
-                var minted = _newAssetServices[kind].CreateNew(recipe, name, relPath);
-
-                // Blueprint is mint-only — write its file at the chosen folder;
-                // BTree/HSM/Scenario persist in CreateNew.
-                if (kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
-                {
-                    // BUG-A6: pass _bpRootDir as the asset-root override so the file
-                    // lands in the SOURCE project dir that BlueprintAssetContributor
-                    // scans (_bpRootDir), not the bin/output dir (AssetRoots.AssetsFor).
-                    var bpPath = Hrot.Editor.AiShared.AssetSavePath.Compose(
-                        Hrot.Editor.AiShared.AssetKind.Blueprint,
-                        relPath, name,
-                        assetRootOverride: _bpRootDir);
-                    saveAsBlueprintToFile(minted, bpPath);
-                }
-
-                // Refresh the catalog then open the catalogued (concrete) asset (document kinds).
-                if (kind is Hrot.Editor.AiShared.AssetKind.Blueprint
-                    or Hrot.Editor.AiShared.AssetKind.BTree
-                    or Hrot.Editor.AiShared.AssetKind.Hsm)
-                {
-                    var aiAsm = AppDomain.CurrentDomain.GetAssemblies()
-                        .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
-                    if (aiAsm != null) _aiCatalogBuilder?.RefreshFromAssembly(aiAsm);
-                    // BUG-A6: RefreshFromAssembly only refreshes assembly-based contributors;
-                    // JSON contributors must be refreshed separately so the newly-written
-                    // .btree.json / .hsm.json file is discovered and FindByAssetId succeeds.
-                    if (kind == Hrot.Editor.AiShared.AssetKind.BTree && _btreeJsonRootDir != null)
-                        _btreeJsonContrib?.Refresh(rootDirectory: _btreeJsonRootDir);
-                    if (kind == Hrot.Editor.AiShared.AssetKind.Hsm && _hsmJsonRootDir != null)
-                        _hsmJsonContrib?.Refresh(rootDirectory: _hsmJsonRootDir);
-
-                    var catalogued = _aiCatalogBuilder?.Catalog?.FindByAssetId(minted.AssetId);
-                    if (catalogued != null)
-                    {
-                        _aiDocumentManager?.Open(catalogued);
-                        return (catalogued.AssetId, $"[OK] Created {kind}: '{minted.Name}'.");
-                    }
-
-                    return (null,
-                            $"[INFO] Created '{minted.Name}', but it is not in the catalog yet. The file was "
-                          + "written outside the directory this host's contributor scans, so nothing can "
-                          + "address it — check the asset roots (ruling 67).");
-                }
-
-                return (minted.AssetId, $"[OK] Created {kind}: '{minted.Name}'.");
-            }
+                => assetCreateController?.Create(kind, recipe, name, relPath)
+                   ?? (null, $"[ERROR] This host composes no INewAssetService for {kind}.");
 
             // ⭐⭐ AQ56 / MA-002 — hand the create path to the debug API.
-            // ⛔ The kind arrives as a STRING over HTTP and the RECIPE is resolved HERE, to the kind's own
-            //   BLANK TEMPLATE — 📌 `AuthoringPath.NewAsset` establishes that picking the blank template
-            //   from `AvailableRecipes()` is the authoring-path-correct way to say "empty", ⛔ rather than
-            //   assigning the asset's fields directly.
-            _debugApiService?.AttachAssetAuthoring((kindText, name, relPath, recipeName) =>
-            {
-                if (!Enum.TryParse<Hrot.Editor.AiShared.AssetKind>(kindText, ignoreCase: true, out var kind))
-                    return (null,
-                            $"[ERROR] '{kindText}' is not an AssetKind. Use BTree, Hsm or Blueprint.");
-
-                if (_newAssetServices == null || !_newAssetServices.TryGetValue(kind, out var service))
-                    return (null, $"[ERROR] This host composes no INewAssetService for {kind}.");
-
-                // ⭐⭐ MA-021 — the recipe by NAME, from the same AvailableRecipes() list
-                //   GET /assets/recipes publishes. ⛔ An unmatched name is refused with the available
-                //   names: creating a BLANK when a recipe was asked for is a silent wrong answer.
-                var (recipe, recipeError) =
-                    Hrot.Editor.AiShared.Recipes.RecipeByName.Resolve(service, recipeName);
-                if (recipeError != null) return (null, recipeError);
-
-                return CreateAssetCore(kind, recipe, name, relPath ?? string.Empty);
-            });
+            // ⭐ The STRING surface is the controller's own `CreateByName`, so the kind-parse and the
+            //   MA-021 recipe-by-name resolve are shared with CGF rather than written twice.
+            if (assetCreateController != null)
+                _debugApiService?.AttachAssetAuthoring(assetCreateController.CreateByName);
 
             // ⭐⭐ MA-020 — recipe discovery over MCP reads the SAME registry the picker below does.
             if (_newAssetServices != null)
@@ -3920,7 +3845,7 @@ namespace Hrot.Editor
             //   the New-Asset tree rendered with a null description while `EditorMetadata.Recipe` carried
             //   one. 📌 The silent-default shape: the caller HAD the value and did not pass it.
             var newAssetLauncher = _newAssetServices != null
-                ? new Hrot.Editor.NewAssetLauncher(
+                ? new Hrot.Editor.AiShared.Browser.NewAssetLauncher(
                     openPicker:         _shellPickers.OpenPicker,
                     services:           _newAssetServices,
                     showNewAssetDialog: ShowNewAssetDialog,

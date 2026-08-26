@@ -1,27 +1,31 @@
 using System;
 using Hrot.Editor.AiShared;
 
-namespace Hrot.Editor;
+namespace Hrot.Editor.AiShared.Browser;
 
 /// <summary>
-/// Routes an asset-pick action to the appropriate editor handler based on
+/// Routes an asset-pick action to the appropriate host handler based on
 /// <see cref="AssetKind"/>. Wired as the callback at the picker / docked-host
 /// composition point (BATCH-15).
 /// </summary>
 /// <remarks>
 /// <para>
-/// Uses delegate seams (<see cref="Action{IEditableAsset}"/> /
-/// <see cref="Action{string}"/>) rather than depending on concrete types like
-/// <see cref="AiShared.Documents.AiDocumentManager"/> or <see cref="IEditorLogic"/>,
-/// so the router is unit-testable without a full editor host.
+/// Uses delegate seams (<see cref="Action{T}"/>) rather than depending on concrete types like
+/// <see cref="Documents.AiDocumentManager"/> or the editor-only <c>IEditorLogic</c>, so the router is
+/// unit-testable without a full editor host.
 /// </para>
 /// <para>
 /// In production, wire:
 /// <list type="bullet">
 ///   <item><c>openDocument</c> → <c>documentManager.Open</c></item>
-///   <item><c>loadScenario</c> → <c>editorLogic.LoadScenarioByName</c></item>
+///   <item><c>loadScenario</c> → <c>IScenarioSession.OpenForEdit</c></item>
 /// </list>
 /// </para>
+/// <para>⭐⭐ <b><c>CE-049</c> (Axis-C E2) — LIFTED here from <c>Hrot.Editor/Browser</c>.</b> 📐 Measured
+/// before the move *(HN-037 lesson: check the captures, do not <c>s/old/new/</c>)*: the class holds exactly
+/// two <see cref="Action{T}"/> fields and names no host type, so the lift is a namespace change and
+/// nothing else. ⛔ Its own doc had ALREADY promised host-independence — the file was in the wrong
+/// assembly, not the wrong shape.</para>
 /// </remarks>
 public sealed class AssetPickActionRouter
 {
