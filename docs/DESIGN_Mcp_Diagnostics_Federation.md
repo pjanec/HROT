@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (items ①②) — `2026-08-25`, ids `MD-001`..`MD-005`. ⛔ Items ③/④ are STOPPED, each with a
-  measured blocker; see §8 AS BUILT. Carries classDiagram + sequenceDiagram (§4/§5). A NEW MCP capability area,
+build-state: BUILT — `2026-08-26`, ids `MD-001`..`MD-008`. ⭐ Items ①②③ SHIPPED; ⛔ item ④ WITHDRAWN as an
+  unwanted duplicate mechanism (user ruling). See §8 AS BUILT and §9. Carries classDiagram + sequenceDiagram (§4/§5). A NEW MCP capability area,
   sibling of DESIGN_Mcp_Authoring.md and MCP_Integration.md. Two things: (1) DOCUMENTS the per-node
   federation topology that already exists (each node hosts its own DebugApi with mode-gated capabilities);
   (2) designs the DIAGNOSTICS surface over MCP — per-node logs, per-node architecture snapshot, and
@@ -211,15 +211,61 @@ where *"the perspective the user is looking at"* is the wrong scope.
 ⇒ 📐 **Measured on a real node: `SimHost — 10 modules, 56 systems, 37 translators`**, and the orchestrator
 correctly reports nothing.
 
-## 8.5 ⛔⛔ ITEMS ③ AND ④ — **STOPPED, with measured blockers**
+## 8.5 ⚠⚠ ITEMS ③ AND ④ — **CORRECTED `2026-08-25` after user challenge**
 
-| item | 📐 the blocker | ⭐ what would unblock it |
-|---|---|---|
-| ⚠ **③** cluster dump trigger *(`MD-004`)* | ⭐ **The TRIGGER half is reachable** — `ClusterDiagnosticsPanel` publishes `ExecuteDiagnosticDumpIntent { RequestId, PayloadJson }` onto its orchestration bus, and the provider seam to mirror it is the one `RequestTransition` already uses. ⛔ **The STATUS half is not:** `DiagnosticsDumpProcessManager` exposes **only `Tick()`** — no pending/completed read-model — so `GET /cluster/diagnostics/status` would have nothing to read | ⭐ a read-model on `DiagnosticsDumpProcessManager` + a `RequestDiagnosticDump` provider member mirroring `RequestTransition`. ⚠ **`Hrot.Orchestrator` is outside this handoff's stated lane**, and a parallel session was live |
-| ⛔⛔ **④** records aggregator *(`MD-005`)* | 🔴 **There is NO node → debug-API-endpoint registry anywhere.** 📐 Each node reads `HROT_DEBUG_API_PORT` **for itself** and nothing publishes it; `ClusterUiCache.ActiveNodes` carries node ids, ⛔ not ports. ⇒ an orchestrator-side fan-out has no addresses to fan out TO | ⭐ nodes would have to announce their endpoint *(a field on the cluster-state event, or a DDS topic)*. ⚠ **That is a new cluster contract, not a route** — it belongs in its own design |
+> 🔒 **User, verbatim:** *"in the UI as a user i can click and data gets collected and saved. the cluster
+> wide collection works. No further aggregation needed. What is missing from the MCP?"*
+>
+> ⛔⛔ **The first version of this section claimed both items were BLOCKED. Both claims were wrong, in two
+> different ways, and the correction is recorded here rather than silently overwritten.**
 
-⭐⭐ **§2.3 (b) said *"needs §2.1 wired first"*. True, and insufficient** — ⛔ it also needs an address book
-that does not exist. ⚠ **Recorded so the next slice does not rediscover it.**
+### ⛔ THE MISTAKE — **`MD-004`: I measured the wrong class**
+
+📐 I read `DiagnosticsDumpProcessManager` *(which does expose only `Tick()`)* and concluded *"there is no
+status read-model, so `GET /cluster/diagnostics/status` would have nothing to read."*
+
+🔴 **The panel does not read status from that class.** 📐 Measured:
+
+| the panel reads | from |
+|---|---|
+| the RESULT — the file manifest of the completed dump | ⭐ **`ClusterUiCache.LastDiagnosticManifest`** *(`ClusterDiagnosticsPanel.SyncManifestFromCache`)* |
+| in-flight / completed transactions | ⭐ **`ClusterUiCache.HasInFlightTransaction` · `TxHistory`** |
+| the target node list | ⭐ **`ClusterUiCache.ActiveNodes`** |
+| the log-merge result | `LogMergeCompletedEvent` off the bus |
+
+⇒ ⭐⭐⭐ **`ClusterUiCache` IS the CQRS read model, and the provider seam ALREADY REACHES IT** — ExCon's
+`SubsystemDebugProvider` passes `clusterState: () => _uiCache…` and
+`availableScenarios: () => _uiCache?.AvailableScenarios` from that very object, and the orchestrator holds
+one too. 📌 **The seam law again: what I called missing was already there and under-adopted.**
+
+### ⛔ THE OTHER MISTAKE — **`MD-005` is NOT BLOCKED, it is NOT NEEDED**
+
+⭐ §2.3 offered **two** cluster shapes. **(a)** trigger the built dump-diag pipeline; **(b)** an
+orchestrator-side HTTP fan-out that re-collects logs/architecture per node and merges JSON.
+⇒ 🔒 **The user's ruling settles it: (a) is the answer and (b) is not wanted** — *"the cluster wide
+collection works. No further aggregation needed."*
+
+⚠ **My "no node → endpoint registry exists" finding is factually TRUE and was IRRELEVANT** — it is a
+blocker for **(b)**, a mechanism that should not be built at all. ⛔ Reporting a true blocker for an
+unwanted item read as *"the capability is unreachable"*, which is a different and false claim.
+
+⇒ ⭐ **`MD-005` is WITHDRAWN as duplicate mechanism** *(ruling 9: the dump pipeline already collects
+cluster-wide)*, ⛔ not deferred.
+
+### ⭐⭐ WHAT IS ACTUALLY MISSING FROM MCP — **two routes, no new mechanism**
+
+| # | route | what it does | reuses |
+|---|---|---|---|
+| ⭐ **1** | `POST /cluster/diagnostics/dump` | build a `DiagnosticDumpPayloadDto` *(target node ids · dump kinds · providers · severity · max-age)* and publish `ExecuteDiagnosticDumpIntent { RequestId, PayloadJson }` on the node's orchestration bus | ⭐ **exactly what `ClusterDiagnosticsPanel`'s Execute button does.** The publish path is the one `SubsystemDebugProvider.TransitionsVia` already proves reaches a `ClusterMaster` from any host |
+| ⭐ **2** | `GET /cluster/diagnostics/status` | the in-flight transaction and the last manifest | ⭐ `ClusterUiCache` — the same object the panel renders and the provider already exposes two fields from |
+| ⚠ **3** *(free)* | node selection | `ClusterUiCache.ActiveNodes` — already reachable by the same seam | |
+
+⇒ ⭐⭐ **No new cluster contract, no endpoint registry, no aggregator.** The remaining work is a
+`RequestDiagnosticDump` member on `ISubsystemDebugProvider` *(mirroring `RequestTransition`)* plus a
+`Diagnostics` cache accessor, and the two routes above.
+⚠ **The one real coordination point stands:** `Hrot.Orchestrator` / `Hrot.ExCon` provider wiring was
+outside this handoff's §4 lane, and a parallel session was live — ⛔ that is a scheduling fact, not a
+capability gap, and the earlier text conflated the two.
 
 ## 8.6 ⚠ A GATE THAT WAS NOT THERE
 
@@ -228,3 +274,125 @@ that does not exist. ⚠ **Recorded so the next slice does not rediscover it.**
 ⇒ ⛔ **nothing has gated this seam**, which is part of why the empty default survived. ⭐ Its call site was
 updated to the new `Func<>` shape so it is correct whenever it is re-enabled, ⚠ **but it does not compile
 today and must not be counted as coverage.**
+
+---
+
+# ⭐⭐⭐ 9. AS BUILT — the cluster dump, `2026-08-26`, ids `MD-006` / `MD-007`
+
+> 🔒 **Built on the user's ruling that §8.5's "blocked" verdict was wrong.** ⭐ This section is the
+> as-built for item ③; ⛔ item ④ stays WITHDRAWN.
+
+## 9.1 ⭐⭐ TWO ROUTES, AND **NOTHING NEW COLLECTS ANYTHING**
+
+| route | tool | what it does |
+|---|---|---|
+| `POST /cluster/diagnostics/dump` | `trigger_cluster_diagnostic_dump` | ⭐ builds a `DiagnosticDumpPayloadDto` and publishes `ExecuteDiagnosticDumpIntent` — **byte-for-byte what `ClusterDiagnosticsPanel`'s Execute button publishes** |
+| `GET /cluster/diagnostics/status` | `get_cluster_diagnostic_status` | ⭐ `inFlight` + the last successful dump's manifest, read from **`ClusterUiCache` — the same read model the panel's results section renders** |
+
+📐 `gen:catalog` **91 → 93 tools** · `test-catalog` **745 / 0** · editor unit suite **251 / 0**.
+
+⇒ ⭐⭐⭐ **The dump-diag pipeline is untouched.** It already fans out over CQRS intent, gathers on every
+selected node and pulls to NAS over SMB. ⛔ These routes are a **second surface on one mechanism**, which
+is the whole reason §2.3 (b)'s aggregator is not built *(ruling 9)*.
+
+## 9.2 ⭐⭐ THE SEAM — **the fifth and sixth members of the same provider contract**
+
+```
+ISubsystemDebugProvider
+  World · EntityMap · Drive · RequestTransition · ClusterState · AvailableScenarios
+  + Architecture            (MD-002)
+  + RequestDiagnosticDump   (MD-006)  ── SubsystemDebugProvider.DumpsVia(bus), mirroring TransitionsVia
+  + DumpStatus              (MD-007)  ── a DiagnosticDumpStatus record: primitives, never the cache object
+```
+
+| ⭐ decision | why |
+|---|---|
+| **`DumpsVia` mirrors `TransitionsVia`** | 📐 every host publishes onto its own orchestration bus and every one of those buses reaches a `ClusterMaster`. ⛔ Four hand-written copies of one lambda is four places to drift |
+| **trigger on all four subsystems, status on ExCon only** | ⭐ any node may ASK *(the dump is cluster-wide by construction)*; ⛔ only a subsystem that builds and PUMPS a `ClusterUiCache` can OBSERVE — in `--mode all` that is ExCon, the same measured fact `ClusterStateAnyNode` already rests on |
+| **`DiagnosticDumpStatus` carries primitives** | ⭐ identical to how `clusterState` and `availableScenarios` are projected out of the cache ⇒ `Hrot.Presentation` needs no reference to `Hrot.Orchestrator`. ⚠ Lossless: the cached manifest carries only `RelativeDest` |
+| **`RequestDiagnosticDumpAnyNode` falls back past the active perspective** | ⛔ unlike `Drive`, where the asking node IS the answer. ⭐ A cluster-wide dump does not care which node asks |
+
+## 9.3 ⭐⭐⭐ THE ONE ASSERTION THAT EARNS THE RAIL
+
+⛔⛔ **A `200` with a transaction id proves only that the ROUTE ran.** 📌 This surface has been bitten
+twice by exactly that gap — `MA-004` *(an id resolving to nothing)* and `MA-017` *(a command accepted that
+built nothing)*.
+
+⇒ ⭐⭐ **the rail polls the node's own output for the `ClusterMaster`'s fan-out line carrying THAT
+transaction id.** 📐 Measured green:
+`ClusterMaster | [Orchestrator] Diagnostic Dump 39d84531-… fanned out to 1 node(s).`
+🔴 **Probed by making the publish a silent no-op:** the route still answers `200 queued:true`, and the rail
+**reddens** — *"the route returned queued:true … but the ClusterMaster never logged fanning it out."*
+
+⚠ **What the rail deliberately does NOT assert: that files appeared.** ⛔ There is no NAS in the harness,
+so demanding a non-empty manifest would redden on the ENVIRONMENT, not the code. ⭐ It asserts what this
+SURFACE owns — publish, fan-out, honest status, and that an empty node list is REFUSED.
+
+## 9.4 ⭐ AN EMPTY NODE LIST IS REFUSED, NOT READ AS "ALL"
+
+📐 `ClusterDiagnosticsPanel` **disables its Execute button** on an empty selection. ⇒ ⛔ accepting `[]`
+over MCP would make it **the one path that does what the UI refuses** — 📌 the same parity argument as the
+`409` on a disabled editor command *(`MA-015`)*. ⭐ And dumping every node is a materially different
+operation from dumping one.
+
+---
+
+# ⚠⚠ 10. `MD-008` — **A REPORTED GAP THAT WAS NOT ONE** *(`2026-08-26`)*
+
+> 📌 Filed by the coordinator as the next candidate: *"`/editor/commands` is empty on the CGF node —
+> `Program.cs` never calls `AttachEditorCommands` for the cluster service though CGF builds an
+> `EditorCommandsImpl`."*
+> ⛔⛔ **Measured FALSE. A CGF node answers with 68 commands.** Nothing was wired; a rail was added.
+
+## 10.1 📐 THE MEASUREMENT
+
+| the claim | 📐 measured |
+|---|---|
+| *"`Program.cs` never calls `AttachEditorCommands`"* | ✅ **TRUE** — it appears exactly once in the repo, in `EditorSubsystem` |
+| *"⇒ `/editor/commands` is empty on the CGF node"* | 🔴 **FALSE** — `GET /editor/commands` returns **68 commands** on `--mode orchestrator,cgf` |
+
+⭐⭐⭐ **Why both can be true:** `DebugApiService.ResolveEditorCommands()` checks the attached delegate
+**first** and then **falls back**:
+
+```csharp
+if (_editorCommands?.Invoke() is { } attached) return attached;
+var active = _documents?.Active;
+return active == null ? null : ContextOf(active)?.Commands;
+```
+
+⇒ ⭐ `_documents` arrives with **`AttachAssetShell`**, which **both** roots call *(`Program.cs:480`,
+`EditorSubsystem:3011`)*. ⛔ So the explicit attach computes the **same expression from the same object**
+as the fallback — it is a duplicate wiring, **not a missing one.**
+
+## 10.2 ⛔ WHAT WAS *NOT* DONE, AND WHY
+
+⚠ A first cut **did** add the attach to `Program.cs` and factored the lambda into a shared helper.
+🔴 **Its revert probe stayed GREEN** — the rail passed with the attach removed — which is what exposed the
+false premise. ⇒ ⭐⭐ **all three code edits were reverted.** Adding a second path to an answer that
+already resolves is exactly the duplication ruling 9 forbids.
+
+⭐ **`AttachEditorCommands` itself is KEPT** *(no rush removals)*: it is checked FIRST, so it is a genuine
+**override hook** for a host whose commands do not come from a document. ⚠ Both call sites now carry a
+comment saying the fallback covers the ordinary case — ⛔ so the next reader does not "fix" this again.
+
+## 10.3 ⭐⭐ WHAT SHIPPED — **the rail, and only the rail**
+
+`The_editor_command_bus_answers_on_a_non_editor_node` *(`--mode orchestrator,cgf`)*.
+📐 68 commands · describable · **the `409`-on-disabled parity arm actually driven** *(`editor.undo` is
+disabled on a freshly-opened document)*.
+
+⚠⚠ **No existing rail covered this**, and that is the real defect the episode exposed:
+`The_editor_command_bus_is_discoverable_and_invocable_over_mcp` runs on `--mode all`, which **includes the
+editor** ⇒ the API is the editor's, and the cluster path was never asked. 📌 **The third time this
+session that "`--mode all` is not a cluster-limited host" mattered** *(`MD-003`, `MD-006`, now this)*.
+
+## 10.4 ⭐⭐⭐ THE LESSON — **twice in one session, the same mistake**
+
+| | ⛔ what was measured | ⭐ what should have been |
+|---|---|---|
+| `MD-004` | `DiagnosticsDumpProcessManager` has no read-model | **what the PANEL reads** — `ClusterUiCache` |
+| `MD-008` | `AttachEditorCommands` has one call site | **what the ROUTE answers** — 68 commands |
+
+⇒ ⭐⭐⭐ **A CALL-SITE COUNT IS NOT A BEHAVIOUR.** ⛔ Both claims were literally true and both licensed a
+false conclusion. 📌 The generic form of the `2026-08-18` rule *(never claim "X is not built" without
+running the enumeration)* — extended: ⭐ **never claim "X does not work" without RUNNING X.**

@@ -98,7 +98,22 @@ namespace Hrot.ExCon
                 clusterState:       () => _uiCache is null
                                           ? null
                                           : (Fdp.Toolkit.Orchestration.ClusterState)(int)_uiCache.CurrentState,
-                availableScenarios: () => _uiCache?.AvailableScenarios);
+                availableScenarios: () => _uiCache?.AvailableScenarios,
+                // ⭐⭐ MD-006 — the dump trigger, on the same bus as requestTransition above.
+                requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                           .DumpsVia(() => _bus),
+                // ⭐⭐⭐ MD-007 — the STATUS, and ExCon is where it lives for the same measured reason the
+                //    cluster state does: it is the one subsystem in `--mode all` that builds and PUMPS a
+                //    ClusterUiCache. ⭐ This projects EXACTLY what ClusterDiagnosticsPanel renders —
+                //    `LastDiagnosticManifest` plus the in-flight flag — ⛔ NOT DiagnosticsDumpProcessManager,
+                //    which exposes only Tick() and is not what the panel reads.
+                // ⚠ Primitives, not the cache: same reason clusterState is projected to an enum above.
+                dumpStatus:         () => _uiCache is null
+                                          ? null
+                                          : new Hrot.Presentation.DebugApi.DiagnosticDumpStatus(
+                                                _uiCache.HasInFlightTransaction,
+                                                _uiCache.LastDiagnosticManifest
+                                                        .Select(e => e.RelativeDest).ToList()));
 
         /// <inheritdoc/>
         /// <remarks>Violet — distinct from IG (green) and SimHost (red).</remarks>

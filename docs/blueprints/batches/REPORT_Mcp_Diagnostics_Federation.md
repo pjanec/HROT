@@ -82,15 +82,77 @@ same shape. ⭐ **`architecture: null` is written out explicitly in ExCon** — 
 ⇒ ⛔ **nothing has ever gated this seam.** ⭐ Its call site was updated to the new `Func<>` shape so it is
 correct whenever it is re-enabled; ⚠ **it does not compile today and is NOT counted as coverage.**
 
-## 3. ⛔⛔ ITEMS ③ AND ④ — **STOPPED, not skipped**
+## 3. ⚠⚠ ITEMS ③ AND ④ — **I GOT BOTH WRONG; corrected `2026-08-25`**
 
-| item | 📐 the measured blocker | ⭐ what unblocks it |
+> 🔒 **User:** *"in the UI as a user i can click and data gets collected and saved. the cluster wide
+> collection works. No further aggregation needed. What is missing from the MCP?"*
+> ⭐⭐ **The correction lives in [`DESIGN_Mcp_Diagnostics_Federation.md`](../../DESIGN_Mcp_Diagnostics_Federation.md) §8.5** — durable, not only here.
+
+| | ⛔ what I claimed | 📐 what is true |
 |---|---|---|
-| ⚠ **③** cluster dump *(`MD-004`)* | ⭐ The **trigger** is reachable — `ClusterDiagnosticsPanel` publishes `ExecuteDiagnosticDumpIntent { RequestId, PayloadJson }`, and the provider seam mirrors `RequestTransition`. ⛔ **The status half is not: `DiagnosticsDumpProcessManager` exposes only `Tick()`** — no pending/completed read-model — so `GET /cluster/diagnostics/status` has nothing to read. ⛔⛔ Shipping the trigger alone is the **accept-and-report-nothing** shape `MA-004`/`MA-017` each caught once | a read-model on `DiagnosticsDumpProcessManager` + a `RequestDiagnosticDump` provider member. ⚠ **`Hrot.Orchestrator` is outside this handoff's §4 lane** and a parallel session was live |
-| ⛔⛔ **④** aggregator *(`MD-005`)* | 🔴 **There is NO node → debug-API-endpoint registry anywhere.** 📐 Each node reads `HROT_DEBUG_API_PORT` **for itself**; nothing publishes it. `ClusterUiCache.ActiveNodes` carries node ids, ⛔ not ports ⇒ the fan-out has no addresses | nodes must ANNOUNCE their endpoint *(a cluster-state field, or a DDS topic)*. ⚠ **That is a new cluster contract, not a route** — it needs its own design |
+| **`MD-004`** | *"no status read-model exists"* | 🔴 **I measured the wrong class.** `DiagnosticsDumpProcessManager` does expose only `Tick()` — ⛔ but the panel never reads status from it. It reads **`ClusterUiCache.LastDiagnosticManifest`**, `HasInFlightTransaction`/`TxHistory` and `ActiveNodes`. ⭐⭐⭐ **The provider seam already reaches that cache** *(ExCon passes `clusterState:` and `availableScenarios:` from it)*. 📌 The seam law: under-adopted, not missing |
+| **`MD-005`** | *"blocked — no node → endpoint registry"* | ⚠ **True, and irrelevant.** That is a blocker for the design's option **(b)** *(an HTTP fan-out aggregator)* — a duplicate of the dump pipeline that already collects cluster-wide. ⇒ ⛔ **WITHDRAWN as not needed**, not deferred |
 
-⭐⭐ The design said ④ *"needs §2.1 wired first"*. **True, and insufficient** — ⛔ it also needs an address
-book that does not exist. ⚠ Recorded in the design so the next slice does not rediscover it.
+⭐⭐⭐ **What is actually missing from MCP is two routes and no new mechanism:**
+**①** `POST /cluster/diagnostics/dump` — build the `DiagnosticDumpPayloadDto` and publish
+`ExecuteDiagnosticDumpIntent`, **exactly what the Execute button does**;
+**②** `GET /cluster/diagnostics/status` — read `ClusterUiCache`.
+⚠ The one real constraint that survives: the `Hrot.Orchestrator`/`Hrot.ExCon` provider wiring is outside
+this handoff's §4 lane — ⛔ **a scheduling fact, which the earlier text wrongly conflated with a
+capability gap.**
+
+⭐ **The general lesson, worth more than the item:** ⛔ **a correct measurement aimed at the wrong question
+still misinforms.** Both findings were individually true; both answered something nobody asked.
+
+## 3b. ⭐⭐⭐ FOLLOW-UP `2026-08-26` — **the two routes, BUILT** *(`MD-006` / `MD-007`)*
+
+⭐ Built directly on the correction in §3, after re-syncing from the coordinator *(the axis-b egress merge
+plus the recorded MCP-diagnostics merge — clean, no conflicts)*.
+
+| ⭐ | |
+|---|---|
+| `POST /cluster/diagnostics/dump` | publishes the **same `ExecuteDiagnosticDumpIntent` the ExCon's Execute button publishes** |
+| `GET /cluster/diagnostics/status` | reads the **same `ClusterUiCache` its results section renders** |
+| the seam | `RequestDiagnosticDump` *(via `DumpsVia`, mirroring `TransitionsVia`; all four subsystems — any node may ASK)* · `DumpStatus` *(ExCon only — the one that PUMPS a cache)* |
+| 📐 | catalog **91 → 93 tools** · `test-catalog` **745 / 0** · editor units **251 / 0** |
+
+⭐⭐⭐ **The rail's load-bearing assertion, and its probe.** ⛔⛔ A `200` with a transaction id proves only
+that the ROUTE ran — 📌 exactly what `MA-004` and `MA-017` each caught once. ⇒ the rail **polls the node's
+own output for the `ClusterMaster` fan-out line carrying THAT transaction id**:
+📐 `Diagnostic Dump 39d84531-… fanned out to 1 node(s)`.
+🔴 **Probed by making the publish a silent no-op** — the route still answers `200 queued:true`, and the
+rail reddens with *"the route returned queued:true … but the ClusterMaster never logged fanning it out."*
+
+⚠ **What it deliberately does NOT assert: that files appeared.** ⛔ No NAS in the harness ⇒ that would
+redden on the environment, not the code. ⭐ It asserts what this surface owns.
+
+⭐ **And an empty node list is REFUSED**, because `ClusterDiagnosticsPanel` disables its own button on the
+same condition — ⛔ accepting `[]` would make MCP the one path that does what the UI refuses *(the `MA-015`
+parity argument)*.
+
+## 3c. ⛔⛔ FOLLOW-UP `2026-08-26` — **`MD-008`: a reported gap that was not one**
+
+> 📌 Coordinator note: *"`/editor/commands` is empty on the CGF node — `Program.cs` never calls
+> `AttachEditorCommands`."* ⇒ 📐 **Measured FALSE: a CGF node answers with 68 commands.**
+
+| the claim | 📐 measured |
+|---|---|
+| `Program.cs` never calls `AttachEditorCommands` | ✅ **TRUE** — one call site in the whole repo |
+| ⇒ the route is empty on CGF | 🔴 **FALSE** — **68 commands** on `--mode orchestrator,cgf` |
+
+⭐⭐⭐ **Both true, conclusion false.** `ResolveEditorCommands` checks the attached delegate FIRST and then
+**falls back** to `_documents.Active → ContextOf(...).Commands`; `_documents` arrives with
+`AttachAssetShell`, which **both** roots call. ⇒ the explicit attach computes the same expression from the
+same object.
+
+⚠⚠ **I confirmed the premise the same wrong way** — I verified the CALL SITE and reported *"coordinator's
+premise confirmed"* before ever asking the route. ⭐ **A first cut then added the attach; its revert probe
+STAYED GREEN**, which is what exposed it. ⇒ ⛔ all three code edits reverted; `AttachEditorCommands` KEPT
+as the documented override hook *(checked first — no rush removals)*, with a comment at both call sites.
+
+⭐⭐ **What shipped is the RAIL**, and the defect it exposes is real: the existing command-bus rail runs on
+`--mode all`, which **includes the editor** ⇒ the cluster path had never been asked. 📌 **The third time
+this session that "`--mode all` is not a cluster-limited host" mattered.**
 
 ## 4. GATES *(rule 8 contract)*
 
@@ -101,13 +163,16 @@ book that does not exist. ⚠ Recorded in the design so the next slice does not 
 | # | gate | verbatim command | `--no-build`? | result | Δ vs base |
 |---|---|---|---|---|---|
 | 1 | **affected-project builds** | `dotnet build {Fdp.Core,Hrot.Presentation,Hrot.SimHost,Hrot.IG,Hrot.ExCon,Hrot.CGF,Hrot.Editor,Hrot.ClusterRunner,…Tests}.csproj --no-restore -v q -nologo` | ⛔ builds *(once each)* | ✅ **0 errors** | — |
+| 2c | ⭐⭐ **the T3 CGF command-bus rail** *(`MD-008`)* | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter "FullyQualifiedName~The_editor_command_bus_answers_on_a_non_editor_node"` | ✅ | ✅ **1 / 1, 4 s.** 📐 72 assets · **68 commands** · describable · the `409`-on-disabled arm DRIVEN *(`editor.undo`)*. ⚠ **Its revert probe stayed GREEN — that is the finding, not a rail weakness** *(§3c)* | **+1 rail** |
+| 2a | ⭐⭐⭐ **the T3 cluster-dump rail** *(`MD-006`/`MD-007`)* | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter "FullyQualifiedName~An_agent_can_drive_the_cluster_diagnostic_dump"` | ✅ | ✅ **1 / 1, 6 s.** 📐 status answers · empty selection refused · `queued:true` · **the master's fan-out line observed for that transaction id** · `inFlight` flips to `True` | **+1 rail** |
+| 2b | ⭐⭐⭐ **its revert probe** — the publish made a silent no-op | rebuild `Hrot.ClusterRunner`, re-run | ✅ | ✅ 🔴 **red on the fan-out assertion**, with the route still answering `200 queued:true` | — |
 | 2 | ⭐⭐⭐ **the T3 federation rail** — the acceptance vehicle | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter "FullyQualifiedName~A_non_editor_node_reports_its_own_logs"` | ✅ | ✅ **1 / 1, 2 s.** 📐 `17` log records · `SimHost — 10 modules / 56 systems / 37 translators` · `diagnostics.architecture` present in `/capabilities` | **+1 rail** |
 | 3 | ⭐⭐⭐ **revert probe A** *(item ①, the SimHost gap)* | drop `logSinks:` from `ClusterRunner/Program.cs`, rebuild it, re-run | ✅ | ✅ 🔴 **red: `logs: 0 record(s)`** — ⭐ **that zero IS the pre-fix state on every cluster-limited node** | — |
 | 4 | ⭐⭐ **revert probe B** *(item ②)* | null out `architecture:` in `SimHostSubsystem`'s provider, rebuild, re-run | ✅ | ✅ 🔴 **red**, the route refusing and naming the missing accessor | — |
-| 5 | **the editor unit suite** *(carries `EveryRouteIsDocumentedTests` + `CapabilityManifestRails` — the gates the new route and the new `/diagnostics` prefix had to satisfy)* | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/…csproj --no-build -v q --nologo` | ✅ | ✅ **251 / 0 / 1 skipped** | **none** |
-| 6 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — a route on the shared table, a new member on a seam FOUR subsystems implement, and changes at BOTH composition roots ⇒ nothing smaller can show the cross-host contract holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | ✅ **104 / 0**, 6 m 32 s — §4b | **+1 rail** |
-| 7 | **the MCP catalog is GENERATED** | `npm run gen:catalog` · `npm run gen:skill` | — | ✅ **90 → 91 tools** from 91 endpoints; `SKILL.md` regenerated *(501 lines)*. ⚠ **The generator reads the BUILT binary** — the first regen produced 90 because `Hrot.ClusterRunner` had not been rebuilt | **+1 tool** |
-| 8 | **every catalogued tool has a handler** | `node test-catalog.mjs` | — | ✅ **729 / 0** | **+8 assertions** |
+| 5 | **the editor unit suite** *(carries `EveryRouteIsDocumentedTests` + `CapabilityManifestRails` — the gates the new routes and the `/diagnostics` + `/cluster/diagnostics` prefixes had to satisfy)* | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/…csproj --no-build -v q --nologo` | ✅ | ⚠ **250 / 1 / 1 skipped** on the final run — the one red is `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected`, the **PRE-EXISTING GC/ALC timing flake** *(A/B'd today at 3 red of 6 runs on a BASE binary; `ST-035` + four prior reports)*. ⭐ It passed **251 / 0** on the two earlier runs this batch — ⛔ neither colour is evidence | **none** |
+| 6 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — a route on the shared table, a new member on a seam FOUR subsystems implement, and changes at BOTH composition roots ⇒ nothing smaller can show the cross-host contract holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | ✅ **105 / 0**, 7 m 51 s — §4b | **+2 rails** |
+| 7 | **the MCP catalog is GENERATED** | `npm run gen:catalog` · `npm run gen:skill` | — | ✅ **90 → 93 tools** from 93 endpoints *(91 after `MD-001..003`, 93 after the `MD-006/007` follow-up)*; `SKILL.md` regenerated *(507 lines)*. ⚠ **The generator reads the BUILT binary** — the first regen produced 90 because `Hrot.ClusterRunner` had not been rebuilt | **+3 tools** |
+| 8 | **every catalogued tool has a handler** | `node test-catalog.mjs` | — | ✅ **745 / 0** | **+24 assertions** |
 | 9 | **golden movement** | — | — | ⭐ **ZERO** | **none** |
 | 10 | 🔴 **tree CLEAN after every suite run** | `git status --short --untracked-files=all` | — | ✅ **only this batch's own files.** ⚠ The new rail reads only — it writes no asset and needs no sentinel folder | — |
 | 11 | **quarantine / skips** | — | — | ⚠ **This batch adds no skip** — ⛔ **but it FOUND one that was already there and undeclared:** `DebugApiBatch11Tests.cs` and nine siblings are `<Compile Remove>`-excluded, so the `logSinks` seam had no gate at all *(§2 ⑷)* | **none added** |
@@ -119,9 +184,13 @@ book that does not exist. ⚠ Recorded in the design so the next slice does not 
 
 ### 4b. ⭐ The full T3 suite
 
-📐 **`scripts/run-system-tests.sh --no-build` — `104 / 0 / 0 skipped`, 6 m 32 s.**
+📐 **`scripts/run-system-tests.sh --no-build` — `105 / 0 / 0 skipped`, 7 m 51 s** *(re-run after the
+`MD-006`/`MD-007` follow-up)*.
 
-⭐ **`103 → 104`: the one new coverage rail, nothing removed and nothing skipped.**
+⭐ **`103 → 104 → 105`: the two new coverage rails, nothing removed and nothing skipped.**
+⚠ **Re-run in full after the follow-up rather than trusting the earlier pass** — the second slice added a
+member to `ISubsystemDebugProvider` *(a seam FOUR subsystems implement)* and a new capability key, so the
+first run no longer covered the tree.
 
 ⚠⚠ **This row carried more weight here than in any recent batch, and the reason is the SHAPE of the
 change, not its size.** ⛔ It was not a route added beside other routes: it changed

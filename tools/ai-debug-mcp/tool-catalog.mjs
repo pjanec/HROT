@@ -3192,6 +3192,114 @@ export const TOOLS_CATALOG = [
   // ── Group Y — node diagnostics ──────────────────────────────────────────────
 
   {
+    "name": "trigger_cluster_diagnostic_dump",
+    "group": "Y — node diagnostics",
+    "summary": "Collect diagnostics on the named cluster nodes and pull them to the NAS — the same operation the ExCon's Execute Diagnostic Dump button drives.",
+    "http": {
+      "method": "POST",
+      "path": "/cluster/diagnostics/dump"
+    },
+    "params": [
+      {
+        "name": "nodes",
+        "type": "array",
+        "required": true,
+        "description": "Node ids to dump (at least one)"
+      },
+      {
+        "name": "dumpEvents",
+        "type": "boolean",
+        "required": false,
+        "description": "Include event history (default true)"
+      },
+      {
+        "name": "dumpEntities",
+        "type": "boolean",
+        "required": false,
+        "description": "Include entity state (default true)"
+      },
+      {
+        "name": "dumpArchitecture",
+        "type": "boolean",
+        "required": false,
+        "description": "Include the architecture snapshot (default true)"
+      },
+      {
+        "name": "dumpLogs",
+        "type": "boolean",
+        "required": false,
+        "description": "Include NLog files (default true)"
+      },
+      {
+        "name": "eventProviders",
+        "type": "array",
+        "required": false,
+        "description": "Restrict event dumping to these provider names"
+      },
+      {
+        "name": "useMarkdown",
+        "type": "boolean",
+        "required": false,
+        "description": "Wrap the output in a markdown report (default false)"
+      },
+      {
+        "name": "maxAgeHours",
+        "type": "number",
+        "required": false,
+        "description": "Only include log entries younger than this (default 24)"
+      },
+      {
+        "name": "severityThreshold",
+        "type": "number",
+        "required": false,
+        "description": "Minimum log severity to include (default 0)"
+      }
+    ],
+    "returns": "{ transactionId, nodes[], queued:true, note }",
+    "notes": [
+      "ASYNCHRONOUS and cluster-wide: the response confirms the request was PUBLISHED, not that files exist. Every selected node gathers, then the orchestrator pulls to the NAS over SMB.",
+      "Poll get_cluster_diagnostic_status until manifestPaths is non-empty — that is the completion signal.",
+      "An empty nodes[] is refused rather than read as 'every node': the editor's own panel disables its button on the same condition, and dumping the whole cluster is a different operation from dumping one node.",
+      "This adds no collection mechanism — it publishes the same CQRS intent the operator's button publishes, onto whichever node's orchestration bus is reachable.",
+      "The request is logged with its transaction id and target nodes: a headless origin never pre-flights a confirmation, so that log is the safety net (ruling 53)."
+    ],
+    "example": {
+      "args": {
+        "nodes": [
+          1
+        ]
+      },
+      "gist": "collect diagnostics from node 1 to the NAS"
+    },
+    "hint": "Req: nodes[] (from get_cluster_diagnostic_status). Example: trigger_cluster_diagnostic_dump({nodes:[1,2]})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_cluster_diagnostic_status",
+    "group": "Y — node diagnostics",
+    "summary": "Whether a cluster transaction is in flight, and the file manifest of the last successful diagnostic dump.",
+    "http": {
+      "method": "GET",
+      "path": "/cluster/diagnostics/status"
+    },
+    "params": [],
+    "returns": "{ inFlight, manifestPaths[], manifestCount, note }",
+    "notes": [
+      "Reads the same read model the ExCon's Cluster Diagnostics panel renders, so it answers what a human at the console would see.",
+      "manifestPaths are relative to the NAS base directory and describe the LAST SUCCESSFUL dump. EMPTY means none has completed yet — not that one failed.",
+      "inFlight covers any cluster transaction, not only a dump.",
+      "Only a node that builds and pumps a ClusterUiCache can answer (in --mode all that is ExCon); a host without one can still TRIGGER a dump but cannot observe it, and says so."
+    ],
+    "example": {
+      "args": {},
+      "gist": "check whether the diagnostic dump finished"
+    },
+    "hint": "No args. Example: get_cluster_diagnostic_status({})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_architecture_diagnostics",
     "group": "Y — node diagnostics",
     "summary": "This NODE's modules, ECS systems and DDS translators, one entry per subsystem, read from each subsystem's own ModuleHostKernel.",

@@ -60,6 +60,10 @@ const EXPECTED_TOOLS = [
   //   its own MCP endpoint, so these answer for the node you asked, and get_logs finally answers at
   //   all — neither composition root passed the sinks, so it returned [] everywhere.
   'get_architecture_diagnostics',
+  // ⭐⭐ The cluster dump is a SECOND SURFACE on the built dump-diag pipeline (CQRS intent -> per-node
+  //   gather -> SMB pull to NAS), ⛔ never a second collection mechanism. Status reads the same
+  //   ClusterUiCache the ExCon panel renders.
+  'trigger_cluster_diagnostic_dump', 'get_cluster_diagnostic_status',
   // ⭐ Scenario authoring is WORLD manipulation (Q56-C): place/configure/assign already had
   //   routes; delete was the one gap.
   'delete_entity',

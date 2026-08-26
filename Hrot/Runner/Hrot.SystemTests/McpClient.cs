@@ -531,6 +531,18 @@ public sealed class McpClient : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>MD-006</c> — trigger the CLUSTER-WIDE diagnostic dump. ⛔ Asynchronous: the response
+    /// confirms the intent was published, not that files exist.
+    /// </summary>
+    public Task<ApiResult> TriggerClusterDumpAsync(int[] nodes, CancellationToken ct = default)
+        => PostAsync("/cluster/diagnostics/dump",
+                     new JsonObject { ["nodes"] = new JsonArray(nodes.Select(n => (JsonNode)n).ToArray()) }, ct);
+
+    /// <summary>⭐⭐ <c>MD-007</c> — in-flight flag + the last successful dump's file manifest.</summary>
+    public Task<ApiResult> GetClusterDumpStatusAsync(CancellationToken ct = default)
+        => GetAsync("/cluster/diagnostics/status", ct);
+
+    /// <summary>
     /// ⭐⭐ <c>MD-002</c> — this NODE's modules/systems/translators, per subsystem.
     /// ⛔ Not cluster-wide: every node hosts its own endpoint and answers for itself.
     /// </summary>

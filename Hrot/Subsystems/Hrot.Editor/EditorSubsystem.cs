@@ -3025,6 +3025,13 @@ namespace Hrot.Editor
             //    one instance here would pin the API to whichever document was open when this ran, and
             //    every later invoke would target the wrong graph. ⭐ Resolving the ACTIVE document's set
             //    at call time is what "the editor's commands" means to a caller.
+            // ⚠⚠ MD-008 measured this call REDUNDANT: `ResolveEditorCommands` already falls back to
+            //    `_documents.Active -> ContextOf(...).Commands`, and `_documents` is the same manager
+            //    `AttachAssetShell` receives above. ⇒ this attach computes the same expression from the
+            //    same object. ⭐ KEPT rather than deleted because it is the documented OVERRIDE hook — it
+            //    is checked FIRST, so a host with a non-document command source can supply one.
+            // ⛔ Do NOT read its presence as "the fallback needs help": a cluster node has no such call
+            //   and answers 68 commands (see The_editor_command_bus_answers_on_a_non_editor_node).
             _debugApiService?.AttachEditorCommands(() =>
                 _aiDocumentManager?.Active?.ViewState
                     is Hrot.Editor.AiShared.Windows.AiCanvasContext ctx ? ctx.Commands : null);

@@ -926,6 +926,25 @@ namespace Hrot.Editor.DebugApi
             // ⚠ ROUTE ORDER: "/assets/open" (a literal) is registered BEFORE "/assets/{assetId}/open"
             //    — different segment counts, so neither can shadow the other, but the literal form is
             //    written first to make the intent obvious to the next reader.
+            // ⭐⭐⭐ MD-006/MD-007 — the CLUSTER-WIDE dump, a second SURFACE on the built dump-diag
+            //    pipeline. ⛔ Nothing is collected here; the intent is what the ExCon's Execute button
+            //    publishes, and the status is the read model its results section renders.
+            // ⚠ ROUTE ORDER: 3-segment literals; no "/cluster/{x}" pattern exists to shadow them.
+            _routes.Add(new("POST", "/cluster/diagnostics/dump", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.TriggerClusterDump(ctx.Body);
+                if (error == null) return Ok(result);
+                // ⭐ 503 = this host cannot ask at all; 400 = the caller's request was malformed.
+                return Fail(error.StartsWith("This host cannot", StringComparison.Ordinal) ? 503 : 400,
+                            error, hintCategory);
+            })));
+
+            _routes.Add(new("GET", "/cluster/diagnostics/status", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.GetClusterDumpStatus();
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+
             // ⭐⭐ MD-002 — diagnostics live on the SHARED service so a cluster-limited node (a SimHost
             //    node) answers for its OWN kernel. 📄 DESIGN_Mcp_Diagnostics_Federation §1/§2.2.
             _routes.Add(new("GET", "/diagnostics/architecture", ctx => RunMainResult(s =>

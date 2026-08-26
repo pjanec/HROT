@@ -328,6 +328,52 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"kind\":\"BTree\",\"name\":\"PatrolTree\"}",
             ExampleGist: "create a new behaviour tree asset"),
 
+        [("POST", "/cluster/diagnostics/dump")] = new RouteDoc(
+            Tool:    "trigger_cluster_diagnostic_dump",
+            Group:   "Y — node diagnostics",
+            Summary: "Collect diagnostics on the named cluster nodes and pull them to the NAS — the same operation the ExCon's Execute Diagnostic Dump button drives.",
+            Returns: "{ transactionId, nodes[], queued:true, note }",
+            Hint:    "Req: nodes[] (from get_cluster_diagnostic_status). Example: trigger_cluster_diagnostic_dump({nodes:[1,2]})",
+            Params: new RouteParam[]
+            {
+                new("nodes", "array", true, "Node ids to dump (at least one)"),
+                new("dumpEvents", "boolean", false, "Include event history (default true)"),
+                new("dumpEntities", "boolean", false, "Include entity state (default true)"),
+                new("dumpArchitecture", "boolean", false, "Include the architecture snapshot (default true)"),
+                new("dumpLogs", "boolean", false, "Include NLog files (default true)"),
+                new("eventProviders", "array", false, "Restrict event dumping to these provider names"),
+                new("useMarkdown", "boolean", false, "Wrap the output in a markdown report (default false)"),
+                new("maxAgeHours", "number", false, "Only include log entries younger than this (default 24)"),
+                new("severityThreshold", "number", false, "Minimum log severity to include (default 0)"),
+            },
+            Notes: new[]
+            {
+                "ASYNCHRONOUS and cluster-wide: the response confirms the request was PUBLISHED, not that files exist. Every selected node gathers, then the orchestrator pulls to the NAS over SMB.",
+                "Poll get_cluster_diagnostic_status until manifestPaths is non-empty — that is the completion signal.",
+                "An empty nodes[] is refused rather than read as 'every node': the editor's own panel disables its button on the same condition, and dumping the whole cluster is a different operation from dumping one node.",
+                "This adds no collection mechanism — it publishes the same CQRS intent the operator's button publishes, onto whichever node's orchestration bus is reachable.",
+                "The request is logged with its transaction id and target nodes: a headless origin never pre-flights a confirmation, so that log is the safety net (ruling 53).",
+            },
+            ExampleArgsJson: "{\"nodes\":[1]}",
+            ExampleGist: "collect diagnostics from node 1 to the NAS"),
+
+        [("GET", "/cluster/diagnostics/status")] = new RouteDoc(
+            Tool:    "get_cluster_diagnostic_status",
+            Group:   "Y — node diagnostics",
+            Summary: "Whether a cluster transaction is in flight, and the file manifest of the last successful diagnostic dump.",
+            Returns: "{ inFlight, manifestPaths[], manifestCount, note }",
+            Hint:    "No args. Example: get_cluster_diagnostic_status({})",
+            Params: System.Array.Empty<RouteParam>(),
+            Notes: new[]
+            {
+                "Reads the same read model the ExCon's Cluster Diagnostics panel renders, so it answers what a human at the console would see.",
+                "manifestPaths are relative to the NAS base directory and describe the LAST SUCCESSFUL dump. EMPTY means none has completed yet — not that one failed.",
+                "inFlight covers any cluster transaction, not only a dump.",
+                "Only a node that builds and pumps a ClusterUiCache can answer (in --mode all that is ExCon); a host without one can still TRIGGER a dump but cannot observe it, and says so.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "check whether the diagnostic dump finished"),
+
         [("GET", "/diagnostics/architecture")] = new RouteDoc(
             Tool:    "get_architecture_diagnostics",
             Group:   "Y — node diagnostics",
