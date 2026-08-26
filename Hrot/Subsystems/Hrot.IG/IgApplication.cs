@@ -746,15 +746,19 @@ public class IgApplication : IDisposable
             if (_igBootstrapper!.NetworkEnabled)
             {
                 _gizmoRegistry!.Register(
-                    new EntityDragGizmoDefinition(onDragCommitted: (entity, worldPos) =>
-                    {
-                        _lastDragWorldPos = worldPos;
-                        OnEntityDragEnded(entity);
-                    }));
+                    new EntityDragGizmoDefinition(
+                        onDragCommitted: (entity, worldPos) =>
+                        {
+                            _lastDragWorldPos = worldPos;
+                            OnEntityDragEnded(entity);
+                        },
+                        // ⭐ AX-007 — IG owns almost nothing, so a drag here is a request to the owner.
+                        writerFactory: Hrot.SimHost.Installers.EntityWriteRouter.For));
             }
             else
             {
-                _gizmoRegistry!.Register(new EntityDragGizmoDefinition());
+                _gizmoRegistry!.Register(new EntityDragGizmoDefinition(
+                    writerFactory: Hrot.SimHost.Installers.EntityWriteRouter.For));
             }
             // GZ058: manually register MissionPresentationGizmo (constructor requires IGeographicTransform).
             _statelessGizmoRegistry.Register(

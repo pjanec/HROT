@@ -42,6 +42,28 @@ public static class NetworkIdResolver
     /// simply is not present. ⛔ None of the three throws — every call site is a lookup that must be
     /// able to answer "not here" without the caller wrapping it.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b>The FORWARD direction — an entity's runtime network id, or <c>0</c>.</b>
+    ///
+    /// <para>⭐⭐ <b>Added <c>2026-08-25</c> because a THIRD caller needed it</b> *(the Axis-B change-request
+    /// egress)*, and 📐 measuring found the other two: <c>CgfSubsystem.RuntimeNetworkIdOf</c> and
+    /// <c>EditorSubsystem.RuntimeNetworkIdOf</c> — **two private, line-for-line identical copies**, each
+    /// with a comment referring to the other. ⇒ ⛔ writing a third would have been the moment a duplicate
+    /// became a convention. 📌 The same lesson as <c>R-77</c>, in the opposite direction.</para>
+    ///
+    /// <para>⚠ <b><c>0</c> is the "no durable identity" sentinel</b> — a dead entity, a null world, an
+    /// unreplicated entity and <c>Entity.Null</c> all answer it, and every caller already treats them
+    /// alike. ⛔ Deliberately not an exception: asking an unreplicated entity for its network id is a
+    /// normal question with a normal answer.</para>
+    /// </summary>
+    public static long RuntimeNetworkIdOf(EntityRepository? repo, Entity entity)
+        => repo != null
+        && !entity.Equals(default(Entity))
+        && repo.IsAlive(entity)
+        && repo.HasComponent<NetworkIdentity>(entity)
+             ? repo.GetComponentRO<NetworkIdentity>(entity).Value
+             : 0;
+
     public static Entity FindEntityByNetworkId(EntityRepository? repo, long networkId)
     {
         if (repo == null || networkId <= 0) return Entity.Null;

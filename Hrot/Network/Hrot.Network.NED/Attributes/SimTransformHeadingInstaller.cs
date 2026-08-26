@@ -32,12 +32,12 @@ namespace Hrot.SimHost.Installers;
 /// needs neither the scratchpad nor the flusher — folding it in would make a partial-update
 /// pre-fill/flush path carry a value that has nothing to do with position.</para>
 /// </summary>
-public sealed class SimTransformHeadingInstaller : IBinaryAttributeInstaller<AttributeRecord>
+public sealed class SimTransformHeadingInstaller : IBinaryAttributeInstaller<EntityAttributeChange>
 {
     private const long GeoSpatialOrdinal = (long)EDescriptorType.dtWorldPos;
 
     /// <inheritdoc/>
-    public void Install(BinaryInterpreterBuilder<AttributeRecord> builder)
+    public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)
     {
         // ⭐ UXI-30: the typed overload gates on CanWrite<SimTransform>() before the handler runs.
         builder.RegisterHandler<SimTransform>(AttributeIds.GeoHeading, HandleGeoHeading);
@@ -53,7 +53,7 @@ public sealed class SimTransformHeadingInstaller : IBinaryAttributeInstaller<Att
     /// mark, so heading and position behave identically on the way back out. ⛔ Not a contradiction of the
     /// no-flag rule: different direction, same component.</para>
     /// </summary>
-    private void HandleGeoHeading(BinaryPatchContext ctx, AttributeRecord record)
+    private void HandleGeoHeading(BinaryPatchContext ctx, EntityAttributeChange record)
     {
         // ⭐ Float64 on the wire (the Geo* family's value type); the bridge takes a float.
         float headingDeg = (float)record.Value.DoubleValue;

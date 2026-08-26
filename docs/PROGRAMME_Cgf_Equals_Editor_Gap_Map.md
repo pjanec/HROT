@@ -110,10 +110,16 @@ graph TD
 > gate made structural · `AttributeIds.GeoHeading` routed to the EXISTING compass conversion · the
 > subsystem-agnostic `IEntityComponentWriter` *(owned→direct / unowned→request)* · `EntityRotatorGizmo`
 > committing through it.
-> ⛔ **NOT delivered, and both are measured rather than assumed:** the `--mode all` rotation round-trip
-> *(`AX-005` — there is no production SENDER of binary attribute records)*, and the fact that *"owned"*
-> is an authority bit **only SimHost and the replication path ever set** *(`AX-006` — `Hrot.Editor` never
-> calls `SetAuthority`)*, which is why the gizmo's writer is opt-in.
+> ⭐⭐⭐ **SECOND CUT LANDED `2026-08-25`** — ids **`AX-005a/b/c`, `AX-007`…`AX-010`**, `CE-018/035/036`;
+> 📄 the AS-BUILT is **§12** *(⛔ §11.3–§11.5 are SUPERSEDED — the plan asked for a NEW intent and a NEW
+> egress translator; both already existed and were **EXTENDED**, ruling 9)*.
+> ⭐ Delivered: `R-134` strict network separation *(no DDS type in the FDP-internal write path, structurally
+> railed)* · the change-request egress, **proven on a real `--mode all` cluster** · `EntityDragGizmo`
+> committing POSITION through the same router · the writer wired on **all five** rotator call sites.
+> ⛔ **STILL NOT delivered, and it is measured:** the FULL round trip *(owner applies)* — 🔴 blocked on
+> `AX-009`, a **PRE-EXISTING** SimHost→IG replication failure *(21 of 51 integration tests fail identically
+> on a clean tree at `03f92fefe`)*. ⚠ And *"owned"* is still an authority bit **only SimHost and the
+> replication path ever set** *(`AX-006` — `Hrot.Editor` never calls `SetAuthority`)*.
 
 | capability | owning design | status | note |
 |---|---|:--:|---|
@@ -126,7 +132,7 @@ graph TD
 | Action vocabulary `EntityActionDescriptor` (+ `WrittenComponents` field) | UXI-03 | 📐 | designed; **one new field** is the only new code |
 | Cross-surface actions / CGF map menu | UXI-04 | 📐 | designed; CGF migrated first |
 | Commanding / `MissionPanel` on CGF | UXI-32 / Q29 | 📐 | Q29 answered; CGF must host the panel (owns the brain) |
-| Authority-aware writes (CGF writes as request) | UXI-29 | 📐 | designed |
+| **Authority-aware writes (CGF writes as request)** | **UXI-29** | ✅ **BUILT `2026-08-25`** *(`AX-003`/`AX-005a/b/c`)* | ⭐⭐⭐ **The router does NOT ask *"do I own it?"*** — that would put the attribute→component mapping in a second place beside the installers. ⭐ It attempts the local apply through the OWNER's own interpreter and asks `HasAppliedAny`: landed ⇒ `Direct`; refused by the `UXI-30` gate ⇒ publish the request ⇒ `Requested`; no sink ⇒ `Refused`. ⇒ ⭐⭐ **ONE conversion serves the local AND the remote path.** ⭐⭐ **`R-134`:** the internal path speaks `EntityAttributeChange`/`AttributeValueKind` and NO DDS type — the egress translator is the sole boundary, **structurally railed**. ⚠ The full round trip is blocked on `AX-009` *(pre-existing)*; the request **does** reach the wire on a real cluster, railed. 📄 [design §12](DESIGN_Cgf_AxisB_Rotation_Slice.md) |
 | **Engine authority gate on the binary attribute path** | **UXI-30** | ✅ **BUILT `2026-08-25`** *(`AX-001`)* | ⛔⛔ **Its premise was FALSE and measuring it produced a better fix.** 📐 Both production installers ALREADY gated every handler on `CanWrite<T>()` ⇒ the binary path WAS authority-gated, per handler — ⭐ which is the JSON path's own architecture *(its gate lives in the typed `ValueInvoker<T>`, not the router)*. ⭐⭐⭐ **The real defect: the gate was PER-INSTALLER and therefore forgettable.** ⇒ moved into `BinaryInterpreterBuilder.RegisterHandler<TComponent>`, both installers migrated onto it and their hand-written checks deleted. ✅ *"Zero production senders"* independently verified. 📄 [design §9.1](DESIGN_Cgf_AxisB_Rotation_Slice.md) |
 | Confirmation / progress (CGF = the "knowing node") | UXI-16/27 | 📐 | designed; editor drops the network hops, dispatcher byte-identical |
 

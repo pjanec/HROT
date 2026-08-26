@@ -1006,29 +1006,21 @@ namespace Hrot.Editor
             // directory the same robust way RebuildAndReloadAI does: walk up from CWD and BaseDirectory
             // looking for the .csproj (AiBehaviorsProjectPath). A hard-coded "../../../" is fragile and
             // breaks when the editor runs from a different bin depth (BATCH-11 fix).
-            static string? ResolveAiBehaviorsDir(string[] csprojSegments)
-            {
-                var relative = System.IO.Path.Combine(csprojSegments);
-                foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
-                {
-                    var dir = start;
-                    while (!string.IsNullOrEmpty(dir))
-                    {
-                        var candidate = System.IO.Path.Combine(dir, relative);
-                        if (System.IO.File.Exists(candidate))
-                            return System.IO.Path.GetDirectoryName(candidate);
-                        dir = System.IO.Path.GetDirectoryName(dir);
-                    }
-                }
-                return null;
-            }
-
-            var aiRootDir  = ResolveAiBehaviorsDir(AiBehaviorsProjectPath);
+            // ⭐⭐⭐ CE-018 — was an inline copy of the walk-up; it is now the ONE implementation.
+            //    ⭐⭐ And it is no longer only a walk-up: `ResolveProjectDir` is what a walk-up was, while
+            //    ruling 67's CONFIGURED root is honoured by `AssetRoots.ResolveBase` below — so a deployed
+            //    node told where its tree lives stops guessing from the working directory.
+            //    ⚠ `null` still means *"no source tree here"*, and the two JSON roots keep depending on
+            //      that: a deployed node has no `Trees/`/`Machines/` to scan, and pointing them at the bin
+            //      directory would make the editor watch a directory that will never exist.
+            var aiRootDir  = AssetRoots.ResolveProjectDir(AiBehaviorsProjectPath);
             // BUG-A6: store scan roots and JSON contributors as fields so RegisterWindows
             // can target new-asset writes at the source dir and refresh the right contributor.
-            _bpRootDir       = aiRootDir != null
-                ? System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.Blueprint))
-                : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Blueprints");
+            // ⭐⭐⭐ CE-018 — the three-arm resolution *(config → source walk-up → output dir)* now comes
+            //    from AssetRoots, so a node configured under ruling 67 LISTS from the tree it CREATES in.
+            //    ⛔ The hand-written pair here was `walk-up ?? BaseDirectory` — it could not see the config
+            //    at all, which is exactly the split brain ruling 67's own fix had to close elsewhere.
+            _bpRootDir       = AssetRoots.ResolveAssetsRoot(AssetKind.Blueprint, AiBehaviorsProjectPath);
             _btreeJsonRootDir = aiRootDir != null
                 ? System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.BTree))
                 : null;
@@ -1507,7 +1499,8 @@ namespace Hrot.Editor
                 new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
                 new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
             // EntityDragGizmoDefinition has an optional callback constructor ? register manually.
-            editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
+            editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
+                writerFactory: Hrot.SimHost.Installers.EntityWriteRouter.For));   // ⭐ AX-007
             // Editor has no DDS transport so no network ingress/egress translators.
             var interactionBus = new FdpEventBus();
             Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(interactionBus);
@@ -1536,7 +1529,8 @@ namespace Hrot.Editor
                 if (!view.HasComponent<SimTransform>(target)) return;
                 _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
                 var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
-                    view, target, onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target));
+                    view, target, onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target),
+                    writer: Hrot.SimHost.Installers.EntityWriteRouter.For(_world!));
                 _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
             });
             actionRegistry.Register(GlobalActionIds.Measure, (_, _) =>
@@ -4171,28 +4165,11 @@ namespace Hrot.Editor
             // .GetAwaiter().GetResult() is safe here — it never yields to the thread pool.
             // Result/diagnostics are surfaced to _blueprintCompileStatus.
             {
-                string? quickReloadProjectDir = null;
-                var quickReloadRelativeProjectPath = System.IO.Path.Combine(AiBehaviorsProjectPath);
-                foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
-                {
-                    var dir = start;
-                    while (!string.IsNullOrEmpty(dir))
-                    {
-                        var candidate = System.IO.Path.Combine(dir, quickReloadRelativeProjectPath);
-                        if (System.IO.File.Exists(candidate))
-                        {
-                            quickReloadProjectDir = System.IO.Path.GetDirectoryName(candidate);
-                            break;
-                        }
-                        dir = System.IO.Path.GetDirectoryName(dir);
-                    }
-
-                    if (quickReloadProjectDir != null)
-                        break;
-                }
-                var bpDir      = quickReloadProjectDir != null
-                    ? System.IO.Path.Combine(quickReloadProjectDir, AssetRoots.AssetsRelative(AssetKind.Blueprint))
-                    : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Blueprints");
+                // ⭐⭐⭐ CE-018 — the THIRD copy of the walk-up in this file. ⚠ The handoff named TWO;
+                //    📐 measured `2026-08-25` there were FOUR in the editor lane (three here, one in
+                //    EditorApplication). ⭐ Routed to the one implementation, which also brings ruling 67's
+                //    configured root to the quick-reload catalog — ⛔ it was the arm this copy could not see.
+                var bpDir = AssetRoots.ResolveAssetsRoot(AssetKind.Blueprint, AiBehaviorsProjectPath);
                 var qrsCatalog = new Hrot.Blueprints.Editor.BlueprintPeerSource(bpDir);
                 _blueprintAssetCatalog = qrsCatalog;
                 var qrsState   = new Hrot.Blueprints.Editor.EditorState();
@@ -4285,25 +4262,12 @@ namespace Hrot.Editor
                 }, TaskScheduler.Default);
                 // ───────────────────────────────────────────────────────────────────────────
 
-                string? fullRebuildProjectDir = null;
-                var relativeProjectPath = System.IO.Path.Combine(AiBehaviorsProjectPath);
-                foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
-                {
-                    var dir = start;
-                    while (!string.IsNullOrEmpty(dir))
-                    {
-                        var candidate = System.IO.Path.Combine(dir, relativeProjectPath);
-                        if (System.IO.File.Exists(candidate))
-                        {
-                            fullRebuildProjectDir = System.IO.Path.GetDirectoryName(candidate);
-                            break;
-                        }
-                        dir = System.IO.Path.GetDirectoryName(dir);
-                    }
-
-                    if (fullRebuildProjectDir != null)
-                        break;
-                }
+                // ⭐⭐⭐ CE-018 — the SECOND of two inline `.csproj` walk-ups this file carried, both
+                //    line-for-line copies of AssetRoots.ResolveProjectDir. 📌 Ruling 9: one implementation
+                //    per concept. ⛔ The copies also predated ruling 67's configured root, so a deployed
+                //    node that had been told where its tree lives was still walking up from CWD.
+                //    📄 Hrot.Editor.AiShared/Identity/AssetRoots.cs.
+                string? fullRebuildProjectDir = AssetRoots.ResolveProjectDir(AiBehaviorsProjectPath);
 
                 string buildTarget = fullRebuildProjectDir != null
                     ? $"\"{System.IO.Path.Combine(fullRebuildProjectDir, "Hrot.AI.Behaviors.csproj")}\""
@@ -4949,12 +4913,8 @@ namespace Hrot.Editor
         /// — ⛔ all three mean "nothing durable to key on", which the pin reports rather than hides.
         /// </summary>
         private long RuntimeNetworkIdOf(Entity entity)
-        {
-            if (_world == null || entity.Equals(default(Entity)) || !_world.IsAlive(entity)) return 0;
-            return _world.HasComponent<NetworkIdentity>(entity)
-                ? _world.GetComponentRO<NetworkIdentity>(entity).Value
-                : 0;
-        }
+            // ⭐ AX-008 — ROUTED to the shared resolver `2026-08-25`; see NetworkIdResolver's own note.
+            => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_world, entity);
 
         /// <summary>
         /// ⭐⭐⭐ <b><c>AQ55</c> — the composition root's half of the "pin on entity…" gesture.</b>
@@ -5086,7 +5046,8 @@ namespace Hrot.Editor
                             _editorDataDrivenGizmoSystem!.DeactivateGizmo(e);
                             var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
                                 _world!, e,
-                                onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e));
+                                onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e),
+                                writer: Hrot.SimHost.Installers.EntityWriteRouter.For(_world!));
                             _editorDataDrivenGizmoSystem!.ActivateGizmo(e, gizmo);
                         }
                         break;

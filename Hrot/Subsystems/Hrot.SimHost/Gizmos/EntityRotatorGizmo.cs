@@ -31,7 +31,7 @@ namespace Hrot.SimHost.Gizmos
         //    ⚠ OPTIONAL, and that is a deliberate compatibility choice rather than a silent default:
         //      the existing SimHost call site is unchanged and keeps the direct write it always had.
         //      📌 A production caller that HAS a writer must pass it — CgfSubsystem does.
-        private readonly Hrot.SimHost.Installers.IEntityComponentWriter? _writer;
+        private readonly IEntityComponentWriter? _writer;
 
         private Vector3 _entityPos;
         private Vector3 _currentCursorPos;
@@ -49,7 +49,7 @@ namespace Hrot.SimHost.Gizmos
             ISimulationView view,
             Entity entity,
             Action onRemove,
-            Hrot.SimHost.Installers.IEntityComponentWriter? writer = null)
+            IEntityComponentWriter? writer = null)
         {
             _writer = writer;
             _repo    = view as EntityRepository

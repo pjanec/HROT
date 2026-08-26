@@ -20,12 +20,12 @@ namespace Hrot.SimHost.Installers;
 /// stays in sync with the JSON pipeline's affiliation mapping logic.
 /// </para>
 /// </summary>
-public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<AttributeRecord>
+public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<EntityAttributeChange>
 {
     private const long EntityInfoOrdinal = (long)EDescriptorType.dtEntityInfo;
 
     /// <inheritdoc/>
-    public void Install(BinaryInterpreterBuilder<AttributeRecord> builder)
+    public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)
     {
         // ⭐⭐⭐ UXI-30 — the typed overload applies the authority gate; see the note in
         //    SimTransformAttributeInstaller.Install and BinaryInterpreterBuilder.RegisterHandler<T>.
@@ -35,7 +35,7 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<Att
 
     // ── Handlers ──────────────────────────────────────────────────────────────
 
-    private static void HandleName(BinaryPatchContext ctx, AttributeRecord record)
+    private static void HandleName(BinaryPatchContext ctx, EntityAttributeChange record)
     {
 		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
         data.Name = record.Value.StringValue ?? string.Empty;
@@ -43,11 +43,11 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<Att
         ctx.MarkDescriptorDirty(EntityInfoOrdinal);
     }
 
-    private static void HandleAffiliation(BinaryPatchContext ctx, AttributeRecord record)
+    private static void HandleAffiliation(BinaryPatchContext ctx, EntityAttributeChange record)
     {
 		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
 
-        data.ForceId = record.Value.ValueType == AttributeValueType.KindInt32
+        data.ForceId = record.Value.Kind == AttributeValueKind.CsInt32
             ? AttributeCompilerFactory.MapAffiliationInt(record.Value.IntValue)
             : AttributeCompilerFactory.MapAffiliationString(record.Value.StringValue);
 

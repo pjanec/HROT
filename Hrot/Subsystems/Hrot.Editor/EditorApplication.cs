@@ -300,22 +300,23 @@ public sealed class EditorApplication : IEditorLogic
     }
 
     /// <summary>
-    /// Traverses parent directories upward from <see cref="Environment.CurrentDirectory"/>
-    /// until it finds a file at <paramref name="pathSegments"/> relative to that directory.
-    /// Returns <c>null</c> if the file is not found in any ancestor.
+    /// ⭐⭐⭐ <b><c>CE-018</c> — the FOURTH copy of the <c>.csproj</c> walk-up, routed to the one
+    /// implementation</b> *(<see cref="Hrot.Editor.AiShared.AssetRoots.ResolveProjectDir"/>)*.
+    ///
+    /// <para>⚠ <b>Two behaviour changes, both wanted.</b> ① The copy searched <b>only</b> from
+    /// <c>Environment.CurrentDirectory</c>; the shared one also searches from the output directory, so a
+    /// build launched from a bin folder now finds the project instead of reporting *"not found"*.
+    /// ② A node configured under ruling 67 is honoured — the copy could not see that arm at all.</para>
+    ///
+    /// <para>⚠ Returns the <b>file</b> path, as the caller needs it for <c>dotnet build</c> — the shared
+    /// resolver answers the DIRECTORY, so the leaf segment is re-joined here.</para>
     /// </summary>
     private static string? ResolveProjectFilePath(string[] pathSegments)
     {
-        string relativePath = Path.Combine(pathSegments);
-        string? dir = Environment.CurrentDirectory;
-        while (!string.IsNullOrEmpty(dir))
-        {
-            string candidate = Path.Combine(dir, relativePath);
-            if (File.Exists(candidate))
-                return candidate;
-            dir = Path.GetDirectoryName(dir);
-        }
-        return null;
+        if (pathSegments is null || pathSegments.Length == 0) return null;
+
+        var dir = Hrot.Editor.AiShared.AssetRoots.ResolveProjectDir(pathSegments);
+        return dir == null ? null : Path.Combine(dir, pathSegments[^1]);
     }
 
     /// <inheritdoc/>
