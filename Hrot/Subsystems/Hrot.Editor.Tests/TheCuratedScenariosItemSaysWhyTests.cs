@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Presentation.WindowManager;
-using Fdp.Toolkit.DER;
+using Fdp.Toolkit.Orchestration;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Browser;
+using Hrot.Editor.AiShared.Scenarios;
 using NodeEditor.Core.Action;
 using Xunit;
 
@@ -43,33 +44,29 @@ namespace Hrot.Editor.Tests;
 /// </summary>
 public sealed class TheCuratedScenariosItemSaysWhyTests
 {
-    private const string MenuPath = "File/Scenario/Save Curated Scenarios to Git";
+    // ⭐ CE-046 — the item moved with the rest of the scenario group into the distinct `File/Edit`
+//   submenu (design §3a). ⛔ The COMMAND ID is unchanged; only the human-facing path moved.
+    private const string MenuPath = "File/Edit/Save Curated Scenarios to Git";
 
     // ── the smallest fakes that let the registrar run ────────────────────────
 
-    private sealed class NoLogic : IEditorLogic
+    /// <summary>⭐ CE-046 — the registrar now binds to <see cref="IScenarioSession"/>, so the stub shrank
+    /// from the whole 20-member editor facade to the scenario verbs alone.</summary>
+    private sealed class NoSession : IScenarioSession
     {
+        public ClusterState CurrentClusterState => ClusterState.Idle;
         public string? LoadedScenarioName => null;
-        public IReadOnlyList<string> AvailableScenarios => Array.Empty<string>();
-        public bool IsScenarioDegraded => false;
+        public bool IsDegraded => false;
         public void Update() { }
-        public void NewScenario() { }
-        public void SaveScenario(string filePath) { }
-        public void LoadScenarioByName(string scenarioName) { }
-        public void SaveCurrentScenario() { }
-        public void SaveScenarioAs(string scenarioName) { }
-        public void ActivateTool(EditorTool tool) { }
-        public void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents) { }
-        public IDerRepo View => null!;
-        public Task SwitchToExternalAsync() => Task.CompletedTask;
-        public Task SwitchToInternalAsync() => Task.CompletedTask;
-        public SimHostMode CurrentMode => SimHostMode.Internal;
-        public void CenterOnEntity(long entityId) { }
-        public void SelectEntity(long entityId) { }
-        public void OpenRenameDialog(long entityId) { }
-        public void RebuildAndReloadAI() { }
-        public IReadOnlyList<SidecarFileInfo> GetMigrationSidecarsForCurrentScenario()
-            => Array.Empty<SidecarFileInfo>();
+        public void ClearWorld() { }
+        public void NewExercise() { }
+        public void LoadForLive(string scenarioName) { }
+        public void OpenForEdit(string scenarioName) { }
+        public void SaveCurrent() { }
+        public void SaveAs(string scenarioName) { }
+        public void SaveTo(string filePath) { }
+        public void TakeCheckpoint() { }
+        public IReadOnlyList<SidecarFileInfo> GetMigrationSidecars() => Array.Empty<SidecarFileInfo>();
     }
 
     private sealed class Commands : IEditorCommands
@@ -104,7 +101,7 @@ public sealed class TheCuratedScenariosItemSaysWhyTests
             registerCommand:      (d, h) => commands.Register(d, h),
             menu:                 menu,
             commands:             commands,
-            editorLogic:          new NoLogic(),
+            session:              new NoSession(),
             openPicker:           (_, _) => { },
             openSaveAsDialog:     _ => { },
             isCuratedSaveEnabled: () => canSave,
@@ -199,7 +196,7 @@ public sealed class TheCuratedScenariosItemSaysWhyTests
             var commands = new Commands();
             ScenarioMenuCommands.Register(
                 registerCommand:      (d, h) => commands.Register(d, h),
-                menu:                 menu, commands: commands, editorLogic: new NoLogic(),
+                menu:                 menu, commands: commands, session: new NoSession(),
                 openPicker:           (_, _) => { }, openSaveAsDialog: _ => { },
                 isCuratedSaveEnabled: () => canSave,
                 saveCuratedToGit:     onSave);
