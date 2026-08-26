@@ -4440,8 +4440,8 @@ namespace Hrot.Editor
             //   `shell.newAsset` were registered out here before, so a bare EditorSubsystem (the
             //   window-registration unit tests) still gets them and their File-menu items. The helper
             //   takes a NULL toolbar and registers descriptors only in that case.
-            string openAssetId = Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.OpenAssetId;
-            string newAssetId  = Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.NewAssetId;
+            // ⭐ UXI-05 — the `openAssetId`/`newAssetId` locals are gone with the menu registrations that
+            //   used them: the helper now emits BOTH surfaces from `CgfEditorShellToolbar.Layout`.
 
             // ── BATCH-24: Main toolbar groups (Perspective §8 + AI-debug §9) ──────────────────
             // All wiring is null-safe so RegisterWindows does not throw on a bare EditorSubsystem.
@@ -4502,23 +4502,23 @@ namespace Hrot.Editor
                     CompileReloadEnabled: () => _aiDocumentManager?.Active?.Kind
                         is Hrot.Editor.AiShared.AssetKind.Blueprint
                         or Hrot.Editor.AiShared.AssetKind.BTree
-                        or Hrot.Editor.AiShared.AssetKind.Hsm));
+                        or Hrot.Editor.AiShared.AssetKind.Hsm),
+                // ⭐⭐⭐ UXI-05 — the SAME table now also emits the File menu items. ⛔ GLOBAL scope
+                //    (menuPerspective left null): design §6 — these are cross-perspective on both hosts,
+                //    and a per-perspective binding here would change the editor's menu, which item ②'s
+                //    gate forbids.
+                windowManager.GlobalMenu);
             // ───────────────────────────────────────────────────────────────────────────────────
 
-            // BATCH-26: File → Open Asset… menu item (Ctrl+O shortcut attached via descriptor).
-            MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
-                openAssetId, "File/Open Asset…");
-
-            // BATCH-36: File → New Asset… menu item (Ctrl+N shortcut attached via descriptor).
-            MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
-                newAssetId, "File/New Asset…");
+            // ⭐⭐⭐ UXI-05 — `File/Open Asset…`, `File/New Asset…` and `File/Save` are now emitted by the
+            //    SHARED helper above, from the SAME Layout table that drives the toolbar. ⛔ Registering
+            //    them again here would be a second list for one menu (ruling 58) — the very duplication
+            //    this slice removes. 📄 DESIGN_Cgf_Menu_Follows_Focus_Slice.md §3 ③.
+            // ⚠ Save-As and Save-All stay HERE: the shared common core does not carry them *(the toolbar
+            //   has no Save-All either — CE-016 §9.2)*, and they are editor-only affordances today.
 
             // ── MTB2-T5 (BATCH-34): File menu save entries ──────────────────────────
             // Guard each with Get(id) != null so the bare-ctor RegisterWindows path is null-safe.
-            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId) != null)
-                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
-                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId, "File/Save");
-
             if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAsId) != null)
                 MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
                     Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAsId, "File/Save As…");

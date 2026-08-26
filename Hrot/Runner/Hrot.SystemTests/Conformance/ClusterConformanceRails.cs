@@ -281,53 +281,89 @@ public sealed class ClusterConformanceRails
           + "the per-host subset is DERIVED from which commands that host's shell can service. The editor "
           + "services more, so it emits more entries. Every entry the cluster publishes must appear on the "
           + "editor with the same id, sortOrder and visibility.",
+
+        // ⭐⭐⭐ UXI-05 item ⑤ — the MENU is the SAME claim as the toolbar, from the SAME table.
+        ["global-menu"] =
+            "UXI-05: both hosts emit their File items from the ONE shared table (CgfEditorShellToolbar."
+          + "Layout, MenuPath) and the per-host subset is DERIVED from which commands that host's shell "
+          + "can service. Every menu path the cluster publishes must appear on the editor with the same "
+          + "visibility. ⛔ NOT compared by order: the trie has no ordering key, so item order is a "
+          + "per-host registration-order property the shared table does not promise.",
     };
 
     /// <summary>
-    /// ⭐⭐ Every way the cluster's entry list fails to be a subset of the editor's — empty when it is one.
-    /// ⚠ Compared by <c>id</c> + <c>sortOrder</c> + <c>visible</c>, ⛔ never by array position: the editor
-    /// has extra entries interleaved, so positions cannot line up and were never the claim.
+    /// ⭐⭐ Where a subset-kind's entries live and what identifies one.
+    /// <para>⚠⚠ <b><c>UXI-05</c> generalised this from the toolbar-only checker CE-040 shipped.</b> ⛔ A
+    /// second copy for the menu would be exactly the *"two implementations of one concept"* ruling 9
+    /// forbids — and the two surfaces genuinely ARE one concept here: both are derived from the SAME
+    /// <c>CgfEditorShellToolbar.Layout</c>, so the subset claim is the same claim twice.</para>
     /// </summary>
-    private static List<string> ToolbarSubsetViolations(string editorModel, string clusterModel)
+    /// <param name="ArrayProperty">The dump property holding the list (<c>entries</c> / <c>items</c>).</param>
+    /// <param name="KeyProperty">What names one element (<c>id</c> / <c>path</c>).</param>
+    /// <param name="ComparedProperties">
+    /// ⭐ The fields that must AGREE for a shared element. ⛔ Compared as raw JSON text so an int and a bool
+    /// need no separate arm — the message quotes what it read.
+    /// </param>
+    /// <param name="Noun">What to call an element in a violation message.</param>
+    private sealed record SubsetShape(
+        string ArrayProperty, string KeyProperty, string[] ComparedProperties, string Noun);
+
+    private static readonly Dictionary<string, SubsetShape> SubsetShapes = new(StringComparer.Ordinal)
     {
+        ["main-toolbar"] = new("entries", "id",   new[] { "sortOrder", "visible" }, "toolbar entry"),
+        // ⚠ NO sortOrder for the menu: `GlobalMenuRegistry` is a TRIE with no ordering key — items render
+        //   in registration order, which is a per-host composition-root property, ⛔ not something the
+        //   shared table can promise. ⭐ `visible` IS shared: it is UXI-05's resolution, and both hosts
+        //   register the common core GLOBAL, so a leaf hidden on one and shown on the other is a defect.
+        ["global-menu"]  = new("items",   "path", new[] { "visible" },              "menu item"),
+    };
+
+    /// <summary>
+    /// ⭐⭐ Every way the cluster's list fails to be a subset of the editor's — empty when it is one.
+    /// ⚠ Compared BY KEY, ⛔ never by array position: the editor has extra elements interleaved, so
+    /// positions cannot line up and were never the claim.
+    /// </summary>
+    private static List<string> SubsetViolations(string kind, string editorModel, string clusterModel)
+    {
+        var shape      = SubsetShapes[kind];
         var violations = new List<string>();
 
-        var editorEntries  = JsonNode.Parse(editorModel)!["entries"]  as JsonArray ?? new JsonArray();
-        var clusterEntries = JsonNode.Parse(clusterModel)!["entries"] as JsonArray ?? new JsonArray();
+        var editorEntries  = JsonNode.Parse(editorModel)![shape.ArrayProperty]  as JsonArray ?? new JsonArray();
+        var clusterEntries = JsonNode.Parse(clusterModel)![shape.ArrayProperty] as JsonArray ?? new JsonArray();
 
-        var editorById = editorEntries.ToDictionary(
-            e => e!["id"]!.GetValue<string>(),
-            e => (Sort: e!["sortOrder"]!.GetValue<int>(), Visible: e["visible"]!.GetValue<bool>()),
+        var editorByKey = editorEntries.ToDictionary(
+            e => e![shape.KeyProperty]!.GetValue<string>(),
+            e => e!,
             StringComparer.Ordinal);
 
         // ⛔ Anti-vacuity: an EMPTY cluster list is trivially a subset and would pass silently — which is
-        //   precisely the state this slice exists to end.
+        //   precisely the state these slices exist to end.
         if (clusterEntries.Count == 0)
         {
-            violations.Add("the cluster published ZERO toolbar entries; a subset check on an empty list "
+            violations.Add($"the cluster published ZERO {shape.Noun}s; a subset check on an empty list "
                          + "proves nothing, and CGF is supposed to register the shared common core.");
             return violations;
         }
 
         foreach (var entry in clusterEntries)
         {
-            var id = entry!["id"]!.GetValue<string>();
-            if (!editorById.TryGetValue(id, out var onEditor))
+            var key = entry![shape.KeyProperty]!.GetValue<string>();
+            if (!editorByKey.TryGetValue(key, out var onEditor))
             {
-                violations.Add($"'{id}' is on the CLUSTER toolbar and NOT on the editor's — the shared "
+                violations.Add($"'{key}' is a CLUSTER {shape.Noun} and NOT on the editor — the shared "
                              + "table cannot produce that, so it is a host-private registration.");
                 continue;
             }
 
-            var sort    = entry["sortOrder"]!.GetValue<int>();
-            var visible = entry["visible"]!.GetValue<bool>();
+            foreach (var prop in shape.ComparedProperties)
+            {
+                var mine   = entry[prop]?.ToJsonString();
+                var theirs = onEditor[prop]?.ToJsonString();
+                if (string.Equals(mine, theirs, StringComparison.Ordinal)) continue;
 
-            if (sort != onEditor.Sort)
-                violations.Add($"'{id}' sortOrder differs — editor {onEditor.Sort}, cluster {sort}. "
+                violations.Add($"'{key}' {prop} differs — editor {theirs}, cluster {mine}. "
                              + "Both come from the shared table, so they cannot legitimately disagree.");
-
-            if (visible != onEditor.Visible)
-                violations.Add($"'{id}' visibility differs — editor {onEditor.Visible}, cluster {visible}.");
+            }
         }
 
         return violations;
@@ -397,12 +433,13 @@ public sealed class ClusterConformanceRails
             // ⭐⭐ CE-016 §7 ④ — SUBSET kinds are checked by SHAPE before falling through to a verdict.
             if (SubsetByDesign.ContainsKey(kind))
             {
-                var violations = ToolbarSubsetViolations(a[kind].Model, b[kind].Model);
+                var arrayProp  = SubsetShapes[kind].ArrayProperty;
+                var violations = SubsetViolations(kind, a[kind].Model, b[kind].Model);
                 if (violations.Count == 0)
                 {
                     declaredSubset.Add($"{kind}: cluster is a subset of the editor "
-                                     + $"({(JsonNode.Parse(b[kind].Model)!["entries"] as JsonArray)?.Count} of "
-                                     + $"{(JsonNode.Parse(a[kind].Model)!["entries"] as JsonArray)?.Count} entries)");
+                                     + $"({(JsonNode.Parse(b[kind].Model)![arrayProp] as JsonArray)?.Count} of "
+                                     + $"{(JsonNode.Parse(a[kind].Model)![arrayProp] as JsonArray)?.Count} {arrayProp})");
                     continue;
                 }
                 different.Add($"{kind} SUBSET VIOLATION: {string.Join(" | ", violations.Take(4))}");
@@ -1272,6 +1309,64 @@ public sealed class ClusterConformanceRails
                 $"toolbar entry '{id}' is registered on --mode all but NOT visible in the active "
               + "perspective \u2014 the affordance exists in the table and not on screen.");
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-05</c> — the GLOBAL MENU is readable, on both hosts, and CGF's is a real subset.</b>
+    /// 📄 <c>docs/DESIGN_Cgf_Menu_Follows_Focus_Slice.md</c> §3 ④ ⑤.
+    ///
+    /// <para>⛔ Before this slice <see cref="GlobalMenuRegistry"/> published nothing — so *"which File
+    /// items does this host offer?"* was unanswerable headlessly, exactly the gap the toolbar's own model
+    /// closed in slice 2. ⭐ A cross-host verdict on an unpublished surface is not a verdict.</para>
+    ///
+    /// <para>⚠⚠ <b>What it asserts on the CLUSTER is <c>File/Save</c> and nothing more</b>, and that is a
+    /// MEASURED subset, ⛔ not a shortfall: CGF composes no asset picker and no new-asset launcher
+    /// *(CE-016 §9.4)*, so the shared table registers no descriptor for them and ruling 49 makes them
+    /// ABSENT. ⭐ The day a picker is composed they appear with no menu code written — and this rail's
+    /// SUBSET verdict, not this list, is what keeps them honest.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_global_menu_is_readable_on_both_hosts()
+    {
+        await using var editor  = await EditorProcess.StartAsync("conf-menu-editor");
+        await using var cluster = await EditorProcess.StartAsync("conf-menu-all", mode: "all");
+
+        var a = await CaptureByKindAsync(editor,  _out);
+        var b = await CaptureByKindAsync(cluster, _out);
+
+        Assert.True(a.ContainsKey("global-menu"),
+            "the EDITOR does not publish the 'global-menu' kind — WindowManager's main-menu-bar block "
+          + "must call GlobalMenu.PublishSnapshot.");
+        Assert.True(b.ContainsKey("global-menu"),
+            "--mode all does not publish the 'global-menu' kind.");
+
+        var editorItems  = (JsonNode.Parse(a["global-menu"].Model)!["items"] as JsonArray)!;
+        var clusterItems = (JsonNode.Parse(b["global-menu"].Model)!["items"] as JsonArray)!;
+
+        string[] PathsOf(JsonArray arr) =>
+            arr.Select(i => i!["path"]!.GetValue<string>()).OrderBy(p => p, StringComparer.Ordinal).ToArray();
+
+        _out.WriteLine($"menu items — editor: {editorItems.Count} [{string.Join(", ", PathsOf(editorItems))}]");
+        _out.WriteLine($"menu items — cluster: {clusterItems.Count} [{string.Join(", ", PathsOf(clusterItems))}]");
+
+        // ⛔ Anti-vacuity on the REFERENCE side.
+        Assert.True(editorItems.Count > 0,
+            "the EDITOR published a menu with ZERO items — the reference side is empty, so this rail "
+          + "would prove nothing.");
+
+        // ⭐ The SHARED common core reached the cluster's menu. ⛔ Its absence is the state this slice ends.
+        var clusterPaths = PathsOf(clusterItems);
+        Assert.True(clusterPaths.Contains("File/Save", StringComparer.Ordinal),
+            "--mode all's menu does not offer 'File/Save'. ⭐ CGF services save, so the shared table "
+          + $"(CgfEditorShellToolbar.Layout) must emit it here. Published: [{string.Join(", ", clusterPaths)}].");
+
+        // ⭐⭐ And VISIBLE, not registered-but-filtered-away: the UXI-05 model can hide a leaf silently,
+        //    which would satisfy a path check and offer the operator nothing.
+        var save = clusterItems.First(i => i!["path"]!.GetValue<string>() == "File/Save")!;
+        Assert.True(save["visible"]!.GetValue<bool>(),
+            "'File/Save' is registered on --mode all but resolves NO binding for the active perspective "
+          + "— the item exists in the trie and not on screen. ⛔ The common core is registered GLOBAL "
+          + "(design §6), so this can only mean a perspective-scoped registration crept in.");
     }
 
     // ══ cgf==editor SLICE 3 — editing, save and hot reload ════════════════════

@@ -19,7 +19,13 @@ public static class MenuCommandAdapter
     /// <param name="menuPath">Slash-separated menu path (e.g. "File/Open").</param>
     /// <exception cref="ArgumentNullException">Thrown when any argument is null.</exception>
     /// <exception cref="InvalidOperationException">Thrown when <paramref name="commandId"/> is not found in <paramref name="commands"/>.</exception>
-    public static void Register(GlobalMenuRegistry menu, IEditorCommands commands, string commandId, string menuPath)
+    /// <param name="perspective">
+    /// ⭐⭐ <b><c>UXI-05</c></b> — the perspective this item serves, or <see langword="null"/> *(default)*
+    /// for a GLOBAL item. ⛔ A pure passthrough to the registry: the adapter does not decide scope, the
+    /// caller does. ⚠ The default keeps every existing call byte-identical.
+    /// </param>
+    public static void Register(GlobalMenuRegistry menu, IEditorCommands commands, string commandId,
+                                string menuPath, string? perspective = null)
     {
         ArgumentNullException.ThrowIfNull(menu);
         ArgumentNullException.ThrowIfNull(commands);
@@ -39,7 +45,8 @@ public static class MenuCommandAdapter
                 {
                     if (descriptor.IsEnabled())
                         commands.Invoke(commandId);
-                });
+                },
+                perspective: perspective);
         }
         else
         {
@@ -50,7 +57,8 @@ public static class MenuCommandAdapter
                 {
                     if (descriptor.IsEnabled())
                         commands.Invoke(commandId);
-                });
+                },
+                perspective: perspective);
         }
 
         // Apply shortcut and enabled state to the leaf node.
