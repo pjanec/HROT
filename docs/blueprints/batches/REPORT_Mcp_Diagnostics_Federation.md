@@ -82,15 +82,27 @@ same shape. ⭐ **`architecture: null` is written out explicitly in ExCon** — 
 ⇒ ⛔ **nothing has ever gated this seam.** ⭐ Its call site was updated to the new `Func<>` shape so it is
 correct whenever it is re-enabled; ⚠ **it does not compile today and is NOT counted as coverage.**
 
-## 3. ⛔⛔ ITEMS ③ AND ④ — **STOPPED, not skipped**
+## 3. ⚠⚠ ITEMS ③ AND ④ — **I GOT BOTH WRONG; corrected `2026-08-25`**
 
-| item | 📐 the measured blocker | ⭐ what unblocks it |
+> 🔒 **User:** *"in the UI as a user i can click and data gets collected and saved. the cluster wide
+> collection works. No further aggregation needed. What is missing from the MCP?"*
+> ⭐⭐ **The correction lives in [`DESIGN_Mcp_Diagnostics_Federation.md`](../../DESIGN_Mcp_Diagnostics_Federation.md) §8.5** — durable, not only here.
+
+| | ⛔ what I claimed | 📐 what is true |
 |---|---|---|
-| ⚠ **③** cluster dump *(`MD-004`)* | ⭐ The **trigger** is reachable — `ClusterDiagnosticsPanel` publishes `ExecuteDiagnosticDumpIntent { RequestId, PayloadJson }`, and the provider seam mirrors `RequestTransition`. ⛔ **The status half is not: `DiagnosticsDumpProcessManager` exposes only `Tick()`** — no pending/completed read-model — so `GET /cluster/diagnostics/status` has nothing to read. ⛔⛔ Shipping the trigger alone is the **accept-and-report-nothing** shape `MA-004`/`MA-017` each caught once | a read-model on `DiagnosticsDumpProcessManager` + a `RequestDiagnosticDump` provider member. ⚠ **`Hrot.Orchestrator` is outside this handoff's §4 lane** and a parallel session was live |
-| ⛔⛔ **④** aggregator *(`MD-005`)* | 🔴 **There is NO node → debug-API-endpoint registry anywhere.** 📐 Each node reads `HROT_DEBUG_API_PORT` **for itself**; nothing publishes it. `ClusterUiCache.ActiveNodes` carries node ids, ⛔ not ports ⇒ the fan-out has no addresses | nodes must ANNOUNCE their endpoint *(a cluster-state field, or a DDS topic)*. ⚠ **That is a new cluster contract, not a route** — it needs its own design |
+| **`MD-004`** | *"no status read-model exists"* | 🔴 **I measured the wrong class.** `DiagnosticsDumpProcessManager` does expose only `Tick()` — ⛔ but the panel never reads status from it. It reads **`ClusterUiCache.LastDiagnosticManifest`**, `HasInFlightTransaction`/`TxHistory` and `ActiveNodes`. ⭐⭐⭐ **The provider seam already reaches that cache** *(ExCon passes `clusterState:` and `availableScenarios:` from it)*. 📌 The seam law: under-adopted, not missing |
+| **`MD-005`** | *"blocked — no node → endpoint registry"* | ⚠ **True, and irrelevant.** That is a blocker for the design's option **(b)** *(an HTTP fan-out aggregator)* — a duplicate of the dump pipeline that already collects cluster-wide. ⇒ ⛔ **WITHDRAWN as not needed**, not deferred |
 
-⭐⭐ The design said ④ *"needs §2.1 wired first"*. **True, and insufficient** — ⛔ it also needs an address
-book that does not exist. ⚠ Recorded in the design so the next slice does not rediscover it.
+⭐⭐⭐ **What is actually missing from MCP is two routes and no new mechanism:**
+**①** `POST /cluster/diagnostics/dump` — build the `DiagnosticDumpPayloadDto` and publish
+`ExecuteDiagnosticDumpIntent`, **exactly what the Execute button does**;
+**②** `GET /cluster/diagnostics/status` — read `ClusterUiCache`.
+⚠ The one real constraint that survives: the `Hrot.Orchestrator`/`Hrot.ExCon` provider wiring is outside
+this handoff's §4 lane — ⛔ **a scheduling fact, which the earlier text wrongly conflated with a
+capability gap.**
+
+⭐ **The general lesson, worth more than the item:** ⛔ **a correct measurement aimed at the wrong question
+still misinforms.** Both findings were individually true; both answered something nobody asked.
 
 ## 4. GATES *(rule 8 contract)*
 

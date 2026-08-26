@@ -211,15 +211,61 @@ where *"the perspective the user is looking at"* is the wrong scope.
 ⇒ 📐 **Measured on a real node: `SimHost — 10 modules, 56 systems, 37 translators`**, and the orchestrator
 correctly reports nothing.
 
-## 8.5 ⛔⛔ ITEMS ③ AND ④ — **STOPPED, with measured blockers**
+## 8.5 ⚠⚠ ITEMS ③ AND ④ — **CORRECTED `2026-08-25` after user challenge**
 
-| item | 📐 the blocker | ⭐ what would unblock it |
-|---|---|---|
-| ⚠ **③** cluster dump trigger *(`MD-004`)* | ⭐ **The TRIGGER half is reachable** — `ClusterDiagnosticsPanel` publishes `ExecuteDiagnosticDumpIntent { RequestId, PayloadJson }` onto its orchestration bus, and the provider seam to mirror it is the one `RequestTransition` already uses. ⛔ **The STATUS half is not:** `DiagnosticsDumpProcessManager` exposes **only `Tick()`** — no pending/completed read-model — so `GET /cluster/diagnostics/status` would have nothing to read | ⭐ a read-model on `DiagnosticsDumpProcessManager` + a `RequestDiagnosticDump` provider member mirroring `RequestTransition`. ⚠ **`Hrot.Orchestrator` is outside this handoff's stated lane**, and a parallel session was live |
-| ⛔⛔ **④** records aggregator *(`MD-005`)* | 🔴 **There is NO node → debug-API-endpoint registry anywhere.** 📐 Each node reads `HROT_DEBUG_API_PORT` **for itself** and nothing publishes it; `ClusterUiCache.ActiveNodes` carries node ids, ⛔ not ports. ⇒ an orchestrator-side fan-out has no addresses to fan out TO | ⭐ nodes would have to announce their endpoint *(a field on the cluster-state event, or a DDS topic)*. ⚠ **That is a new cluster contract, not a route** — it belongs in its own design |
+> 🔒 **User, verbatim:** *"in the UI as a user i can click and data gets collected and saved. the cluster
+> wide collection works. No further aggregation needed. What is missing from the MCP?"*
+>
+> ⛔⛔ **The first version of this section claimed both items were BLOCKED. Both claims were wrong, in two
+> different ways, and the correction is recorded here rather than silently overwritten.**
 
-⭐⭐ **§2.3 (b) said *"needs §2.1 wired first"*. True, and insufficient** — ⛔ it also needs an address book
-that does not exist. ⚠ **Recorded so the next slice does not rediscover it.**
+### ⛔ THE MISTAKE — **`MD-004`: I measured the wrong class**
+
+📐 I read `DiagnosticsDumpProcessManager` *(which does expose only `Tick()`)* and concluded *"there is no
+status read-model, so `GET /cluster/diagnostics/status` would have nothing to read."*
+
+🔴 **The panel does not read status from that class.** 📐 Measured:
+
+| the panel reads | from |
+|---|---|
+| the RESULT — the file manifest of the completed dump | ⭐ **`ClusterUiCache.LastDiagnosticManifest`** *(`ClusterDiagnosticsPanel.SyncManifestFromCache`)* |
+| in-flight / completed transactions | ⭐ **`ClusterUiCache.HasInFlightTransaction` · `TxHistory`** |
+| the target node list | ⭐ **`ClusterUiCache.ActiveNodes`** |
+| the log-merge result | `LogMergeCompletedEvent` off the bus |
+
+⇒ ⭐⭐⭐ **`ClusterUiCache` IS the CQRS read model, and the provider seam ALREADY REACHES IT** — ExCon's
+`SubsystemDebugProvider` passes `clusterState: () => _uiCache…` and
+`availableScenarios: () => _uiCache?.AvailableScenarios` from that very object, and the orchestrator holds
+one too. 📌 **The seam law again: what I called missing was already there and under-adopted.**
+
+### ⛔ THE OTHER MISTAKE — **`MD-005` is NOT BLOCKED, it is NOT NEEDED**
+
+⭐ §2.3 offered **two** cluster shapes. **(a)** trigger the built dump-diag pipeline; **(b)** an
+orchestrator-side HTTP fan-out that re-collects logs/architecture per node and merges JSON.
+⇒ 🔒 **The user's ruling settles it: (a) is the answer and (b) is not wanted** — *"the cluster wide
+collection works. No further aggregation needed."*
+
+⚠ **My "no node → endpoint registry exists" finding is factually TRUE and was IRRELEVANT** — it is a
+blocker for **(b)**, a mechanism that should not be built at all. ⛔ Reporting a true blocker for an
+unwanted item read as *"the capability is unreachable"*, which is a different and false claim.
+
+⇒ ⭐ **`MD-005` is WITHDRAWN as duplicate mechanism** *(ruling 9: the dump pipeline already collects
+cluster-wide)*, ⛔ not deferred.
+
+### ⭐⭐ WHAT IS ACTUALLY MISSING FROM MCP — **two routes, no new mechanism**
+
+| # | route | what it does | reuses |
+|---|---|---|---|
+| ⭐ **1** | `POST /cluster/diagnostics/dump` | build a `DiagnosticDumpPayloadDto` *(target node ids · dump kinds · providers · severity · max-age)* and publish `ExecuteDiagnosticDumpIntent { RequestId, PayloadJson }` on the node's orchestration bus | ⭐ **exactly what `ClusterDiagnosticsPanel`'s Execute button does.** The publish path is the one `SubsystemDebugProvider.TransitionsVia` already proves reaches a `ClusterMaster` from any host |
+| ⭐ **2** | `GET /cluster/diagnostics/status` | the in-flight transaction and the last manifest | ⭐ `ClusterUiCache` — the same object the panel renders and the provider already exposes two fields from |
+| ⚠ **3** *(free)* | node selection | `ClusterUiCache.ActiveNodes` — already reachable by the same seam | |
+
+⇒ ⭐⭐ **No new cluster contract, no endpoint registry, no aggregator.** The remaining work is a
+`RequestDiagnosticDump` member on `ISubsystemDebugProvider` *(mirroring `RequestTransition`)* plus a
+`Diagnostics` cache accessor, and the two routes above.
+⚠ **The one real coordination point stands:** `Hrot.Orchestrator` / `Hrot.ExCon` provider wiring was
+outside this handoff's §4 lane, and a parallel session was live — ⛔ that is a scheduling fact, not a
+capability gap, and the earlier text conflated the two.
 
 ## 8.6 ⚠ A GATE THAT WAS NOT THERE
 
