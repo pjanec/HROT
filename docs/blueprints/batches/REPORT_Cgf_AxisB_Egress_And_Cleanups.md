@@ -290,10 +290,31 @@ RETRACTED)*. 🔒 *"ok do (3). again, we need consistency between json and binar
 | `Hrot.Network.NED.Tests` | ✅ | ✅ **106/106** | unchanged |
 | `Hrot.SimHost.Tests` | ✅ | **717 total · 1–5 failed across 3 identical runs** | +15 rails. ⭐ **Only ONE red is stable: `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`** — 📐 **reproduced on a base worktree at `f800ae545`** *(1 red / 702)* ⇒ **PRE-EXISTING**. ⚠ The others rotate *(run 1: +4 `StagingEntityExtractorTests`; run 2: none; run 3: +1 `EditLoadClusterOpHandlerTests`)* — the known static-order flake; `StagingEntityExtractorTests` is **21/21 in isolation** and **35/35 run together with both new files** |
 | `Fdp.Toolkits.Tests` | ✅ | **2037 total · 1 failed** | ⚠ `DangerAreaProviderTests.FakeDangerAreaProvider_Refresh_ZeroAllocAfterWarmup` *("Refresh allocated heap memory")* — 📐 **fails identically on the base worktree, in isolation** ⇒ **PRE-EXISTING**, a GC-noise assertion unrelated to attributes |
-| ⭐⭐ **`Hrot.ClusterRunner.Integration.Tests`** *(row 8: the integration suite for a cross-cutting change)* | ✅ | run **async** *(T3)* — see the addendum below | the suite that would break if the apply path stopped reaching the wire |
+| ⭐⭐⭐ **`Hrot.ClusterRunner.Integration.Tests`** — **targeted: the apply path** | ✅ | ✅ **9/9** *(`AttributeChangeRequestRoundTripTests` + `TheEgressShadowExistsAtBirthTests`)* | ⭐ **the suite that would break if the apply path stopped reaching the wire** — row 8's named integration gate |
+| ⚠⚠ **`Hrot.ClusterRunner.Integration.Tests`** — **full suite** | ✅ | **34 failed / 76 · Test Run Aborted** | 🔴 **looks like a regression from the earlier 21→24 and is NOT one — proved, not asserted.** 📐 The base worktree at `f800ae545` aborts EARLIER *(18 failed / 38)*, so the two totals are not comparable. ⇒ re-ran the suspicious subsets **filtered, on BOTH trees**: `HarnessSmokeTests` + `SpawnMovingVehicle` + `TimeControl` + `GhostPromotion` = ⭐ **identical 3 failed / 18 on mine AND on base**, the same three names. ⇒ **the 19 "extra" failures are the ABORT and resource pressure, not the diff.** ⚠ `R-131` still applies to this suite *(un-gateable ⇒ a defect to resolve)* — ⛔ **not in this slice's scope, and named rather than filtered around** |
 | `design-digest --check` · `tracker-counts --check` · `rulings-check` · `mermaid-check` | — | ✅ 87 docs · counts OK **102 open / 346 done** · **25/25** · **9/9 blocks** | +2 mermaid blocks |
 
 ⭐ **IDs allocated this addendum: `AX-017`** *(one row)*.
 
 ⚠ **Working tree clean after every suite run** — no golden was regenerated. **Quarantine/skip counts unchanged**
 *(3 skipped in `Hrot.SimHost.Tests`, same as base)*; ⛔ **no new skip was added.**
+
+#### ⚠⚠ `F17` — **the integration suite's headline count is NOT comparable between two runs, and this nearly cost a false regression**
+
+📐 **Measured `2026-08-26`:** the suite **aborts** *(test-host crash)* at a **different test count each run** — `38` on the
+base worktree, `76` on mine. ⇒ ⛔ **"18/38" versus "34/76" tells you nothing**: the second run simply got
+further before dying, so it accumulated more of the same failures.
+
+⭐⭐⭐ **The only sound comparison is a FILTERED re-run of the same names on both trees.** 📐 Done:
+`HarnessSmokeTests` + `SpawnMovingVehicleIntegrationTests` + `TimeControlIntegrationTests` +
+`GhostPromotionTests` ⇒ **3 failed / 18 on BOTH**, the same three names
+*(`OutOfOrder_GeoSpatialBeforeEntityMaster_PositionPreservedAfterPromotion`,
+`SpawnMovingVehicle_IgReceivesPositionChangesWithinFewFrames`,
+`SpawnMovingVehicle_IgPositionContinuesToUpdate`)*.
+
+⭐ **And the `TimeControl`/`SimTimeSync`/`HarnessSmoke` failures from the full run are GREEN when filtered** ⇒
+🔴 **they were resource pressure, not defects** — which is exactly why the raw count misleads.
+
+⇒ ⭐⭐ **Reporting rule for this suite, worth keeping:** quote a **filtered subset run on both trees**, never
+the aborted total. ⚠ **`R-131` is unaddressed here and said so** — an un-gateable suite is a defect to
+resolve, ⛔ and this addendum does not resolve it; it only stops it manufacturing a false alarm.
