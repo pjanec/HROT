@@ -403,7 +403,52 @@ public sealed class NedReplicationModule : INedReplicationModule
 
     public void Tick(ISimulationView view, float dt)
     {
+        ContributeDescriptorPairings(view);
+
         NetworkLifecycleGroup.ExecuteGroup(view, dt);
+    }
+
+    /// <summary>⭐ Set once, on the first tick that hands this module a world.</summary>
+    private bool _contributedDescriptorPairings;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>AX-022</c> — publishes this module's descriptor↔component pairings into the WORLD, so the
+    /// attribute apply path sees everything this module knows.</b>
+    ///
+    /// <para>📄 <c>docs/blueprints/Architect_Question_59_…md</c> §13.6.</para>
+    ///
+    /// <para>🔴 <b>The gap this closes.</b> <c>AX-019</c> made the FDP attribute path resolve descriptor
+    /// ordinals from a PER-WORLD <see cref="DescriptorOwnershipMap"/>, contributed by
+    /// <c>CycloneEgressSystem</c> — i.e. from the <b>egress</b> translators only. ⛔ This module knows more:
+    /// its shared, kinematic and cognitive packs include <b>ingress</b> translators that also declare
+    /// <c>TargetComponentIds</c>. ⇒ ⚠ a component covered only by an ingress-side declaration would have been
+    /// invisible to the attribute path, and a write to it would never have been marked for republication —
+    /// the <c>AX-015</c> failure mode, reached by a different route.</para>
+    ///
+    /// <para>⭐⭐ <b>Additive, so ORDER DOES NOT MATTER.</b> <c>ContributeTranslators</c> merges, and
+    /// <c>RegisterFromTranslator</c> is idempotent per (ordinal, component) pair ⇒ this module and every
+    /// egress system can contribute in any order, any number of times, and the result is their union.</para>
+    ///
+    /// <para>⚠⚠ <b>What this deliberately does NOT do: collapse the two instances into one.</b>
+    /// <see cref="_descriptorOwnershipMap"/> stays private and stays the one handed to
+    /// <c>OwnershipIngressSystem</c>, <c>DeferredTakeoverSystem</c> and <c>LocalAuthorityYieldSystem</c> at
+    /// CONSTRUCTION — before any world exists. ⛔ Rewiring those three to resolve from the world would change
+    /// how <b>authority</b> is decided, which is far more load-bearing than the tidiness it would buy. ⭐ The
+    /// real hazard was the world's map being a SUBSET; that is what is fixed. 📌 Two instances holding the
+    /// same knowledge is cosmetic — one holding LESS was not.</para>
+    /// </summary>
+    private void ContributeDescriptorPairings(ISimulationView view)
+    {
+        if (_contributedDescriptorPairings) return;
+        if (view is not EntityRepository repo) return;   // ⭐ the established pattern in the translators
+
+        var provider = Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(repo);
+
+        foreach (int componentId in _descriptorOwnershipMap.CoveredComponentIds.ToArray())
+            foreach (long ordinal in _descriptorOwnershipMap.GetDescriptorsForComponentId(componentId))
+                provider.RegisterFromTranslator(ordinal, new[] { componentId });
+
+        _contributedDescriptorPairings = true;
     }
 
     // ── Ghost destruction system ──────────────────────────────────────────────

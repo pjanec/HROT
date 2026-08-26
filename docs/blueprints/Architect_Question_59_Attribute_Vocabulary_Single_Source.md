@@ -6,7 +6,8 @@ build-state: BUILT — ⭐⭐⭐ APPROVED and BUILT 2026-08-26. §10 is the AS-B
   ⭐ N4 was RULED on 2026-08-26 ("logged as warning and ignored, no throw") and is BUILT — §11.
   ⚠ §12 asked "is CycloneNetworkModule obsolete?" and leaned M1 (adopt). ⛔ §13 MEASURED IT AND
   OVERTURNED THAT: a successor exists (NedReplicationModule/BdcReplicationModule, both live), so the
-  module IS superseded and M2 (delete + correct the docs) is right. Read §13, not §12.4's lean.
+  module IS superseded. Read §13, not §12.4's lean. ⭐ §14 is the AS-BUILT: M2 done (module DELETED, both
+  docs corrected) plus AX-022.
   §9 carries the classDiagram + sequenceDiagram for the approved shape (obligation 1/2).
 updated: 2026-08-26
 current-answer: ⭐⭐⭐ §7 (the ATTRIBUTE / DESCRIPTOR SPLIT, user 2026-08-26) is the CURRENT answer and it
@@ -731,3 +732,63 @@ registers egress at all. ⇒ ⛔ the one-frame window is the price of host-indep
 ⛔ Not a duplicate *implementation* — the module's is private and unreachable — ⭐ but the clean end state is
 **one map per world, shared by both**. 📌 Filed, not built: the module has no world at `RegisterSystems`,
 so publishing it needs the same seam hunt `E` just did.
+
+---
+
+## 14. ⭐⭐⭐ AS-BUILT `2026-08-26` — **`AX-021` (`M2` done) and `AX-022`**
+
+> ⭐⭐ **User:** *"ok detete the superseded module. snd update docs. if ax 021 and ax 022 can be done as well,
+> even better."* ⇒ both done.
+
+### 14.1 ⭐⭐ `AX-021` — the module is DELETED, and the docs no longer contradict the code
+
+| step | |
+|---|---|
+| **①** | ⭐ **`CycloneNetworkIngressSystem` extracted to its own file** — `Fdp.Network.Cyclone/Systems/CycloneNetworkIngressSystem.cs`. ⚠ **Namespace unchanged** *(`Fdp.Network.Cyclone.Modules`)*, so **none of the 23 call sites needed a `using` edit** |
+| **②** | ⭐⭐ **`CycloneNetworkModule.cs` deleted.** 📐 14 projects rebuilt, **0 errors**; `Fdp.Network.Cyclone.Tests` **44/44** |
+| **③** | ⭐⭐⭐ **`docs/designs/IG/DESIGN-IG.md`** — the *"Do NOT register … they are private implementation details of `CycloneNetworkModule`"* note replaced by the current architecture *(ask the network factory for `CreateReplicationModule()`)*, with the old text quoted and marked stale. Its capability table rows, its time-pulse instruction and its code sample also corrected |
+| **④** | ⭐⭐ **`docs/projects/FDP/Network/Fdp.Network.Cyclone.md`** — the type table now documents the ingress system *(and why it matters)*; the module's row is replaced by a deletion note; the DDS-participant ASCII diagram now names `NedReplicationModule`/`BdcReplicationModule`; the API-reference section is marked **HISTORY** rather than removed, so a reader meeting the name in an old document can still resolve it |
+
+⭐⭐ **No new rail, and that is deliberate.** ⛔ A test asserting *"`CycloneNetworkModule` does not exist"*
+cannot even be written — it would not compile. ⇒ **the compiler is the rail** for a deletion, and the 14
+clean project builds are the evidence.
+
+⭐⭐⭐ **The lesson recorded in the extracted file's own doc comment** — because it is the reusable part:
+**one live class and one dead class sharing a file defeats every automatic check.** The file was always
+referenced, so no unused-file sweep, compiler warning or reference count could flag the module beside it.
+
+### 14.2 ⭐⭐ `AX-022` — the world's map is now a SUPERSET, not a subset
+
+🔴 **The real hazard, restated:** `AX-019` fed the per-world map from `CycloneEgressSystem` — i.e. from
+**egress** translators only. ⛔ `NedReplicationModule`'s packs also contain **ingress** translators that
+declare `TargetComponentIds`. ⇒ ⚠ **a component covered only by an ingress-side declaration was invisible to
+the attribute path**, so a write to it would never have been marked for republication — `AX-015`'s failure
+mode reached by a different route.
+
+⭐ **Fix:** `NedReplicationModule.Tick` publishes its pairings into the world's map on the first tick that
+hands it a world *(the same `view is not EntityRepository repo` pattern the translators use)*.
+
+⛔⛔ **What this deliberately does NOT do — and why refusing was the right call.** It does **not** collapse
+the two `DescriptorOwnershipMap` instances into one. The module's private instance is handed to
+`OwnershipIngressSystem`, `DeferredTakeoverSystem` and `LocalAuthorityYieldSystem` **at construction, before
+any world exists**; rewiring those three to resolve from the world would change how **authority** is decided.
+⇒ ⭐⭐ **the hazard was the world's map being a SUBSET, and that is what is fixed.** 📌 Two instances holding
+the *same* knowledge is cosmetic; one holding *less* was not.
+
+### 14.3 ⭐ RAILS — `TheDescriptorMapIsWiredTests` 4 → 7
+
+| rail | |
+|---|---|
+| ⭐⭐⭐ **registering the same pairing five times is idempotent** | ⚠ **`AX-022`'s load-bearing property.** Two sources now feed one map, so a duplicate would make `SmartEgressUtil.MarkDirty` fire N times for one change |
+| ⭐⭐ **two different ordinals on one component both survive** | 📐 real production data needs it: `SimTransform` is declared by **both** `BdcWorldPosTranslator` and `GeoSpatialEgressTranslator` |
+| ⭐ **a participant-less `NedReplicationModule` ticks safely and contributes nothing** | ⚠ **What it cannot prove, stated:** with `participant: null` the packs are empty, so this proves the tick is SAFE — ⛔ **not** that a populated module publishes. That needs a live DDS participant and belongs to the integration suite |
+
+### 14.4 ⚠ GATES — two pre-existing red sets confirmed against the previous commit
+
+| suite | result | |
+|---|---|---|
+| `Fdp.Network.Cyclone.Tests` | ✅ **44/44** | ⭐ the suite closest to the deletion |
+| `Hrot.Network.NED.Tests` | ✅ **106/106** | |
+| `Hrot.SimHost.Tests` | **771 · 3 failed** | ⚠ `HillAttackNodeTests` + `EditLoadCluster` are the rotating static-order flake — 📐 **51/51 in isolation**; `FullBranchPipeline` is the known stable pre-existing red |
+| `Hrot.ClusterRunner.Tests` | **273 · 2 failed** | 📐 **`DataDrivenGizmoPredicateTests` fails IDENTICALLY at the previous commit `2e6aa64fe`** — an `InvalidCastException` in `DataDrivenGizmoSystem`, unrelated ⇒ **PRE-EXISTING**. ⚠ First time this suite was run in the batch, so it had no baseline until now |
+| builds | ✅ **14 projects, 0 errors** | |

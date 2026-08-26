@@ -416,3 +416,29 @@ recommenaldations."*
 | `design-digest` · `tracker-counts` · `rulings-check` · `mermaid` | — | ✅ · counts OK · **25/25** · **2/2** | |
 
 ⭐ **IDs allocated: `AX-020`** *(done)* **· `AX-021`** *(OPEN — needs a decision on `M1`/`M2`)*.
+
+---
+
+### ⭐⭐⭐ `2026-08-26` (8) — **`AX-021` + `AX-022` done: the superseded module deleted, the docs corrected, the world map made a superset**
+
+📄 Durable record: `Architect_Question_59_…md` **§14**.
+
+| # | finding |
+|---|---|
+| ⭐⭐⭐ **F34** | **`AX-022` turned out to be a REAL hazard, not the tidiness item I filed it as.** 🔴 `AX-019` fed the per-world map from `CycloneEgressSystem` — **egress only** — but `NedReplicationModule`'s packs also carry **ingress** translators declaring `TargetComponentIds`. ⇒ ⚠ a component covered only ingress-side was **invisible to the attribute path**, so a write to it would never have been marked for republication: `AX-015`'s failure mode by a different route. ⭐ Filing it as "two instances, cosmetic" understated it; measuring the *contents* is what showed the world map was a **subset** |
+| ⭐⭐ **F35** | **The deletion needed no rail, and inventing one would have been theatre.** ⛔ A test asserting a deleted type does not exist cannot compile. ⇒ the compiler is the rail; 14 clean project builds plus `Fdp.Network.Cyclone.Tests` 44/44 are the evidence |
+| ⭐⭐ **F36** | **The namespace was the whole reason the file move was free.** `CycloneNetworkIngressSystem` kept `Fdp.Network.Cyclone.Modules` ⇒ **none of the 23 call sites needed a `using` edit.** ⚠ Had the move "tidied" the namespace to match the new folder, it would have been a 12-file edit for no gain |
+| ⚠ **F37** | ⛔ **I refused the tidy half of `AX-022` on purpose.** Collapsing the two `DescriptorOwnershipMap` instances means rewiring `OwnershipIngressSystem`/`DeferredTakeoverSystem`/`LocalAuthorityYieldSystem`, which receive the map **at construction, before any world exists**, and which decide **authority**. ⇒ ⭐ the hazard was the subset, and that is fixed; the instance count is cosmetic and not worth touching the authority path for |
+| ⚠ **F38** | **`Hrot.ClusterRunner.Tests` had no baseline until now** — first time it was run this batch. 📐 Its 2 reds *(`DataDrivenGizmoPredicateTests`, an `InvalidCastException` in `DataDrivenGizmoSystem`)* reproduce **identically at the previous commit** ⇒ pre-existing and unrelated. 📌 Worth recording that a suite's first run in a batch produces reds with no meaning until baselined |
+
+| gate | `--no-build` | result |
+|---|---|---|
+| ⭐⭐ **`Fdp.Network.Cyclone.Tests`** *(closest to the deletion)* | ✅ | ✅ **44/44** |
+| ⭐⭐ **`TheDescriptorMapIsWiredTests`** | ✅ | ✅ **7/7** *(4 → 7)* |
+| `Hrot.Network.NED.Tests` | ✅ | ✅ **106/106** |
+| `Hrot.SimHost.Tests` | ✅ | **771 · 3 failed** — rotating flake *(51/51 isolated)* + the known `FullBranchPipeline` red |
+| `Hrot.ClusterRunner.Tests` | ✅ | **273 · 2 failed** — 📐 identical at `2e6aa64fe` ⇒ **PRE-EXISTING** |
+| builds | — | ✅ **14 projects, 0 errors** |
+| `design-digest` · `tracker-counts` · `rulings-check` · `mermaid` | — | ✅ · counts OK · **25/25** · **2/2** |
+
+⭐ **`AX-021` and `AX-022` both CLOSED.**

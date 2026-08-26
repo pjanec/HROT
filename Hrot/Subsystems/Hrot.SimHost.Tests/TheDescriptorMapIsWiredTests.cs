@@ -96,6 +96,88 @@ public class TheDescriptorMapIsWiredTests
                 .GetDescriptorsForComponentId(GlobalComponentIds.EntityInfo).ToArray());
     }
 
+    // ══ ①c AX-022 — the property that makes multi-source contribution SAFE ════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>AX-022</c>'s load-bearing property: registration is IDEMPOTENT per (ordinal, component).</b>
+    ///
+    /// <para>⭐⭐ <c>AX-022</c> has <c>NedReplicationModule</c> publish its pairings into the same world map
+    /// that <c>CycloneEgressSystem</c> feeds — so the SAME pair arrives from two sources, and on every tick
+    /// the guard could in principle miss. ⇒ ⛔ if registration duplicated, a component would accumulate the
+    /// same ordinal repeatedly and <c>SmartEgressUtil.MarkDirty</c> would be called N times for one change.
+    /// ⭐ This pins the dedup, which is what makes contribution order and count irrelevant.</para>
+    /// </summary>
+    [Fact]
+    public void RegisteringTheSamePairingTwiceIsIdempotent()
+    {
+        using var repo = new EntityRepository();
+        Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(repo);
+
+        var map = AttributeInterpreterProvider.GetDescriptorMap(repo);
+
+        for (int i = 0; i < 5; i++)
+            map.RegisterFromTranslator(77L, new[] { GlobalComponentIds.EntityInfo });
+
+        Assert.Equal(
+            new[] { 77L },
+            map.GetDescriptorsForComponentId(GlobalComponentIds.EntityInfo).ToArray());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>And two DIFFERENT ordinals on one component both survive — the multi-valued case.</b>
+    ///
+    /// <para>📐 Measured <c>2026-08-26</c>: real production data needs this — <c>SimTransform</c> is declared
+    /// by <b>both</b> <c>BdcWorldPosTranslator</c> and <c>GeoSpatialEgressTranslator</c>. ⛔ A single-valued
+    /// map would mark the wrong descriptor for one of them.</para>
+    /// </summary>
+    [Fact]
+    public void TwoOrdinalsOnOneComponentBothSurvive()
+    {
+        using var repo = new EntityRepository();
+        Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(repo);
+
+        var map = AttributeInterpreterProvider.GetDescriptorMap(repo);
+        map.RegisterFromTranslator(2L,  new[] { GlobalComponentIds.SimTransform });
+        map.RegisterFromTranslator(99L, new[] { GlobalComponentIds.SimTransform });
+        map.RegisterFromTranslator(2L,  new[] { GlobalComponentIds.SimTransform });   // repeat
+
+        Assert.Equal(
+            new[] { 2L, 99L },
+            map.GetDescriptorsForComponentId(GlobalComponentIds.SimTransform).ToArray());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>AX-022</c> — a <c>NedReplicationModule</c> tick against a real world is safe, and a
+    /// participant-less module contributes nothing.</b>
+    ///
+    /// <para>⚠ <b>What this can and cannot prove, stated plainly.</b> With <c>participant: null</c> the
+    /// module builds EMPTY translator packs, so its own ownership map is empty and there is nothing to
+    /// publish — ⇒ this rail proves the tick is SAFE and correctly contributes nothing, ⛔ it does NOT prove
+    /// a populated module publishes. ⭐ That needs a live DDS participant and is covered by the integration
+    /// suite, not here.</para>
+    /// </summary>
+    [Fact]
+    public void AParticipantLessReplicationModuleTicksSafelyAndContributesNothing()
+    {
+        using var repo = new EntityRepository();
+        Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(repo);
+
+        var module = new Hrot.Network.Replication.NedReplicationModule(
+            participant:          null,
+            role:                 Hrot.Common.NodeRole.MuscleGround,
+            entityMap:            new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
+            geoTransform:         Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(),
+            eventBus:             new FdpEventBus(),
+            localNodeId:          1,
+            domainId:             0,
+            tkbEntityTranslators: new System.Collections.Generic.List<Fdp.Interfaces.ITkbEntityTranslator>().AsReadOnly());
+
+        var ex = Record.Exception(() => module.Tick(repo, 0.016f));
+
+        Assert.Null(ex);
+        Assert.Empty(AttributeInterpreterProvider.GetDescriptorMap(repo).CoveredComponentIds);
+    }
+
     // ══ ② every written component is covered ══════════════════════════════════════
 
     /// <summary>
