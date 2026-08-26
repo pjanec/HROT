@@ -359,3 +359,34 @@ tests where we know correct asserts?"*
 ⭐ **ID allocated: `AX-018`.** ⚠ **On `tracker-counts`:** the header tally is unchanged at **102/346** and that is
 CORRECT, not a stale gate — 📐 the script counts only rows naming a **`BP-`** id, so `AX-` rows are outside
 its scope by construction.
+
+---
+
+### ⭐⭐⭐ `2026-08-26` (6) — **`Q59` BUILT (`AX-019`): the split, one declaration, FDP's descriptor vocabulary deleted**
+
+📄 Durable record: `Architect_Question_59_…md` **§10** *(as-built, three corrections)*. 🔒 *"ok accepting
+recommenaldations."*
+
+| # | finding |
+|---|---|
+| 🔴🔴 **F24** | ⛔⛔ **I WROTE A DUPLICATE OF AN EXISTING SEAM AND ALMOST SHIPPED IT.** `ComponentDescriptorMap` was built, built clean, and wired — then `IDescriptorTranslator`'s own doc comment named `DescriptorOwnershipMap`, which 📐 **already calls itself *"the Single Source of Truth for the descriptor → component mapping"* and already has `RegisterFromTranslator`.** ⇒ deleted the rival, extended the original. ⚠⚠ **This is the seam law I have documented all session, and the rule did not save me — reading the interface's DOC did.** 📌 Worth recording as the concrete lesson: `search_graph` found the translators, but only the prose said *"this is the single source of truth"* |
+| ⭐⭐ **F25** | 📐 **The two gaps that made the existing seam LOOK missing, both real:** ① `RegisterFromTranslator` filled **only** descriptor→components, so `GetDescriptorForComponent` never saw a translator's contribution at all; ② the reverse map was **single-valued** while `SimTransform` is covered by **both** `BdcWorldPosTranslator` and `GeoSpatialEgressTranslator`. ⇒ ⭐ under-adopted, not absent — which is exactly the seam law's shape |
+| 🔴 **F26** | **`CycloneNetworkModule` is never instantiated in production** — `grep` for `new CycloneNetworkModule` finds nothing outside `bin`/`obj`. ⚠ It was my first choice of wiring seam. ⇒ the real seam is `CycloneEgressSystem`, the one type holding both the translators and the world; the translator lists are assembled in **4+ host-side places** *(a main pack plus a gizmo pack per host)*, so there is no host-side seam either |
+| ⚠ **F27** | **`A1′` delivers less than the design implied, and the difference is worth naming.** 📐 The JSON setters and binary handlers carry per-attribute logic with different delegate signatures ⇒ ⛔ **not redundancy, distinct code**. ⭐ Only the edge table and the schema are pure metadata. ⇒ the honest design is *derive those two, cross-check the rest with rails* — and saying so beats claiming a unification that would produce worse code |
+| ⚠ **F28** | **Sequencing: `A1′` and `E` swapped.** Building `E` first showed it cannot drop the routing table's ordinal until the map is wired everywhere, and **two ordinal sources meanwhile is worse than either** |
+
+| gate | `--no-build` | result | Δ |
+|---|---|---|---|
+| ⭐⭐⭐ **`TheHeadingConversionIsSharedTests`** | ✅ | ✅ **26/26** · red-proved by restoring the old formula | NEW |
+| ⭐⭐⭐ **`TheDescriptorMapIsWiredTests`** | ✅ | ✅ **4/4** · red-proved by removing the wiring hook *(**4 red**, incl. both `AX-015` rails)* | NEW |
+| ⭐⭐ **`TheFourRoutingTablesAgreeTests`** | ✅ | ✅ **26/26** | 12 → 26 |
+| ⭐⭐ **all `Q59` rails together** | ✅ | ✅ **68/68** | — |
+| ⭐⭐⭐ **`Hrot.ClusterRunner.Integration.Tests`** — the apply path | ✅ | ✅ **9/9** on a real cluster | ⭐ **the gate that matters**: it proves republication survived swapping the dirty-mark mechanism |
+| `Hrot.SimHost.Tests` | ✅ | **761 · 6 failed** | ⚠ all rotating-flake *(`Staging`×4, `EditLoadCluster`)* + the stable pre-existing `FullBranchPipeline`; 📐 **24/24 in isolation** |
+| `Hrot.Network.NED.Tests` | ✅ | ✅ **106/106** | unchanged |
+| `Fdp.Toolkits.Tests` | ✅ | ✅ **2037/2037** | ⭐ clean this run |
+| `Fdp.ModuleHost.Tests` | ✅ | **198 · 6 failed** | 📐 **identical 6, same names, at the previous commit `3f13de914`** ⇒ **PRE-EXISTING** *(`Convoy`/`SoD` scheduling, unrelated)* |
+| builds | — | ✅ 11 projects, 0 errors | incl. `Fdp.Network.Cyclone`, all four hosts |
+| `design-digest` · `tracker-counts` · `rulings-check` · `mermaid` | — | ✅ · counts OK · **25/25** · **2/2** | |
+
+⭐ **ID allocated: `AX-019`.** ⛔ **`N4` not built** — it was offered as a question needing a ruling, not a lean.

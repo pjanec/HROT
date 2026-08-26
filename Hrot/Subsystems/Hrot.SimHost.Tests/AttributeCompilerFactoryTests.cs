@@ -47,6 +47,12 @@ namespace Hrot.SimHost.Tests
             var repo = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
             repo.RegisterComponent<Fdp.Core.EntityInfo>();
+
+            // ⭐⭐⭐ Q59-E — descriptor ordinals now come from the world's DescriptorOwnershipMap, fed by the
+            //    NETWORK layer's translators, not from a constant in the JSON routing table. ⇒ a test that
+            //    asserts a dirty DESCRIPTOR must supply that declaration; without it the map is legitimately
+            //    empty (a networkless host) and nothing is marked.
+            FakeDescriptorTranslator.ContributeProductionPairings(repo);
             return repo;
         }
 

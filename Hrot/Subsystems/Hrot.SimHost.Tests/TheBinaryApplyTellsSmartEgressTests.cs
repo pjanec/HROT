@@ -21,6 +21,13 @@ namespace Hrot.SimHost.Tests;
 /// <c>BinaryPatchContext.MarkDescriptorDirty</c>, which set only a local <c>ulong</c> mask that
 /// <b>nothing in production ever read</b>. ⇒ the binary path told SmartEgress <b>nothing</b>.</para>
 ///
+/// <para>⭐⭐⭐ <b><c>Q59-E</c> re-based this protection on a better mechanism.</b> <c>AX-015</c>'s fix added
+/// <c>IEntityPatchContext.MarkDescriptorDirty</c> so an installer could announce a descriptor. ⛔ That seam
+/// member is now DELETED: the installer records only the COMPONENT it wrote, and the world's
+/// <c>DescriptorOwnershipMap</c> supplies the descriptors. ⇒ ⭐ the DEFECT these rails guard is unchanged,
+/// but they now prove the chain <b>applier → component id → map → SmartEgress</b> end to end.
+/// 📐 Red-proved: removing <c>CycloneEgressSystem</c>'s wiring hook reddens both.</para>
+///
 /// <para>⚠⚠ <b>Why it went unnoticed for so long, and why this rail is about <c>EntityInfo</c> and not
 /// <c>SimTransform</c>.</b> 📌 <c>SmartEgressUtil</c>'s own remarks prescribe a SPLIT strategy: reliable
 /// low-frequency descriptors *(<c>EntityInfo</c>, <c>EntityMaster</c>, <c>EntityMission</c>)* use
@@ -54,6 +61,11 @@ public class TheBinaryApplyTellsSmartEgressTests
         Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(repo);
         repo.RegisterComponent<EntityInfo>();
         repo.RegisterComponent<EgressPublicationState>();
+
+        // ⭐⭐⭐ Q59-E — the descriptor ordinal now comes from the world's DescriptorOwnershipMap, fed by the
+        //    NETWORK layer's translators, not from an FDP-side constant in the routing table. ⇒ a test must
+        //    supply that declaration, which makes this rail exercise the whole chain rather than a constant.
+        FakeDescriptorTranslator.ContributeProductionPairings(repo);
 
         var e = repo.CreateEntity();
         repo.AddComponent(e, default(EntityInfo));
@@ -102,6 +114,11 @@ public class TheBinaryApplyTellsSmartEgressTests
         Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(repo);
         repo.RegisterComponent<EntityInfo>();
         repo.RegisterComponent<EgressPublicationState>();
+
+        // ⭐⭐⭐ Q59-E — the descriptor ordinal now comes from the world's DescriptorOwnershipMap, fed by the
+        //    NETWORK layer's translators, not from an FDP-side constant in the routing table. ⇒ a test must
+        //    supply that declaration, which makes this rail exercise the whole chain rather than a constant.
+        FakeDescriptorTranslator.ContributeProductionPairings(repo);
 
         var e = repo.CreateEntity();
         repo.AddComponent(e, default(EntityInfo));

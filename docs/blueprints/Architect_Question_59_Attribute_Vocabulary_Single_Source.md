@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — ⭐⭐⭐ APPROVED by the user 2026-08-26 ("ok accepting recommenaldations").
+build-state: BUILT — ⭐⭐⭐ APPROVED and BUILT 2026-08-26. §10 is the AS-BUILT and carries three
+  corrections the build discovered; read it after §7/§8/§9.
   Approved set: C1 · N1 · N3/B1 · E-pre · E · A1' · D1 · F3/F4/F5. ⛔ WITHDRAWN: C2, A3, N2, D2.
   ⚠ N4 (loud unknown paths) is NOT approved — it was offered as a question needing a ruling, not a lean.
   §9 carries the classDiagram + sequenceDiagram for the approved shape (obligation 1/2).
@@ -456,3 +457,90 @@ sequenceDiagram
 ⭐⭐⭐ **The point of the sequence:** the applier's only act is touching a **component**. ⛔ No installer, no
 routing table and no FDP type names a descriptor — and on a networkless host the map is absent, so
 `OrdinalsFor` returns empty and nothing is marked, which is correct.
+
+---
+
+## 10. ⭐⭐⭐ AS-BUILT `2026-08-26` — **built as approved, with THREE corrections the build found**
+
+> ⭐⭐ Obligation ③: *"what I built matches / deviates HERE and why."* ⛔ Three deviations, all reported.
+
+### 10.1 ⛔⛔ CORRECTION 1 — **`ComponentDescriptorMap` was written and DELETED before shipping. The seam already existed.**
+
+🔴 §7.6's `E` said *"assembled from the translator registry"* and I built a new
+`Fdp.Toolkit.Replication.ComponentDescriptorMap` to hold it. ⛔ **Then `IDescriptorTranslator`'s own doc
+named the existing consumer**, and measuring it found:
+
+| 📐 `DescriptorOwnershipMap` *(`Fdp.Toolkits/Replication/Services/`)* | |
+|---|---|
+| calls itself | *"the **Single Source of Truth** for the descriptor → component mapping"* |
+| already had | `RegisterFromTranslator(ordinal, targetComponentIds)` — **the exact entry point** |
+| already had | `_componentTypeToDescriptor` — a reverse map |
+
+⇒ ⭐⭐⭐ **the rival type was deleted and the existing one EXTENDED.** 📌 **The seam law caught in the act** —
+*"we need a shared X"* meant X existed and was under-adopted. ⚠ **This is the rule I have been documenting
+all session and I still nearly shipped the duplicate;** what caught it was reading the interface's doc
+comment, not the graph.
+
+⭐ **Two genuine gaps it had, which is WHY it looked missing:**
+① `RegisterFromTranslator` filled **only** the forward direction, so `GetDescriptorForComponent` never saw
+anything from a translator — only from the manual `Type[]` overload.
+② `_componentTypeToDescriptor` is **single-valued**, and a component genuinely has several covering
+descriptors. ⇒ ⭐ added `GetDescriptorsForComponentId` *(multi-valued, keyed by the id translators actually
+declare)*, leaving the old getter untouched for its existing callers.
+
+### 10.2 ⛔ CORRECTION 2 — **the wiring seam is `CycloneEgressSystem`, not a module or a host**
+
+📐 Measured: **`CycloneNetworkModule` is never instantiated in production** *(`grep` for `new
+CycloneNetworkModule` → nothing outside `bin`/`obj`)*, and the translator lists are assembled in **4+
+host-side places** — a main pack **and** a gizmo pack per host. ⇒ ⛔ neither is a single seam.
+
+⭐⭐ **`CycloneEgressSystem` is the one type that already receives the translator array AND is handed the
+world**, so it contributes on its first `Execute` and **no host has to remember anything** — the
+`UXI-30`/`AX-001` shape. ⚠ **The one-frame window is stated, not hidden**: a patch before the first egress
+Execute would not mark, which is benign because `SmartEgressUtil.ShouldPublish` returns `true` for an entity
+with no publication state at all. ⛔ Unlike `AX-015`, nothing is *permanently* lost.
+
+### 10.3 ⛔ CORRECTION 3 — **`A1′` and `E` were SWAPPED, and `A1′`'s scope narrowed**
+
+⭐ §7.7 ordered `E` third and `A1′` fourth. 📐 Building `E` first showed it cannot remove the routing
+table's ordinal until the map is wired everywhere, and **two ordinal sources in the meantime is worse than
+either** ⇒ `A1′` *(no behavioural risk, well-railed)* went first and gave `E` a clean base.
+
+⚠⚠ **And `A1′` delivers LESS than §4 implied — measured, and worth stating plainly.** The JSON setter and the
+binary handler each carry **per-attribute logic** with different delegate signatures and shared accumulator
+state. ⇒ ⛔ **they are not redundancy, they are distinct code**, and folding them into one record produces
+something worse than three tables. ⭐ **Only the edge table and the schema are pure metadata**, and those
+two now derive; the setters are **cross-checked** by rails instead.
+
+### 10.4 ⭐ WHAT SHIPPED
+
+| item | |
+|---|---|
+| ⭐⭐⭐ **`C1`/`F3`** | `DescriptorMapper`'s wrong rotation fixed in **both** arms; the Phase-6 helper now sets `Rotation`, discharging its own `ATTR-BATCH-03` TODO |
+| ⭐⭐ **`F5`** | the JSON arm's inlined formula now CALLS the bridge — one formula, three callers |
+| ⭐⭐ **`N1`** | `AttributeIds.GeoHeading` → `Heading`; source-only, no wire impact |
+| ⭐⭐⭐ **`A1′`** | `AttributeVocabulary` + `AttributeDefinition`; the edge table DERIVED |
+| ⭐⭐ **`N3`/`F4`** | `ExportSchema` emits one property per full path with the real type; leaked writer removed |
+| ⭐⭐ **`E-pre`** | `EntityInfoEgressTranslator` declares `TargetComponentIds` — **the one gap**, not five |
+| ⭐⭐⭐ **`E`** | `DescriptorOwnershipMap` per world, wired by `CycloneEgressSystem`; **DELETED** `DescriptorOrdinal`, `DescriptorOrdinalConversion`, `IEntityPatchContext.MarkDescriptorDirty` |
+| ⭐ **`D1`** | unchanged, as approved |
+| ⛔ **`N4`** | **not built** — offered as a question needing a ruling, and none was given |
+
+### 10.5 ⭐ RAILS — **68 green across six files**
+
+| rail file | |
+|---|---|
+| `TheHeadingConversionIsSharedTests` *(26)* | JSON · binary · **descriptor** routes all agree with the bridge; compass semantics pinned; production source scan. 📐 Red-proved by restoring the old formula |
+| `TheFourRoutingTablesAgreeTests` *(26)* | edge emits every attribute · vocabulary pinned to `RegisteredPaths` · int affiliation crosses · both routes agree · **every attribute has a binary handler AND a JSON setter** · schema has one property per path with the right type · ruling-9 source scan |
+| `TheDescriptorMapIsWiredTests` *(4)* | ⭐⭐⭐ **executing the egress system populates the map with no host call** · several systems UNION · every written component is covered · **a networkless world marks nothing and does not throw**. 📐 Red-proved by removing the hook *(4 red)* |
+| `TheJsonAndBinaryPathsAgreeTests` · `TheBinaryApplyTellsSmartEgressTests` · `StrictNetworkSeparationTests` | re-based on the map; ⚠ they now **contribute a translator**, so they exercise applier → component → map → SmartEgress instead of a constant |
+
+⛔⛔ **Two tests were REMOVED, with the reason recorded in place:**
+`BinaryInstallersTests.{EntityData,SimTransform}_DescriptorDirtyBit_*` asserted that an **installer names a
+descriptor** — precisely what the ruling forbids. ⭐ The claim they protected is carried, more strongly, by
+`TheBinaryApplyTellsSmartEgressTests` *(through SmartEgress, which actually drives republication, rather
+than a local mask `AX-015` measured as read by nothing in production)*.
+
+⭐⭐ **`StrictNetworkSeparationTests`' boundary set shrank 2 → 1** — `DescriptorOrdinalConversion` is gone
+because there is nothing left to convert. 📌 **That shrink is the proof `E` landed**, exactly as the
+allowlist shrink was for `AX-017`.

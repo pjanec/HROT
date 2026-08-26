@@ -33,7 +33,6 @@ namespace Fdp.Toolkit.Replication.Attributes;
 /// </summary>
 public sealed class SimTransformHeadingInstaller : IBinaryAttributeInstaller<EntityAttributeChange>
 {
-    private const long GeoSpatialOrdinal = (long)DescriptorOrdinal.WorldPos;
 
     /// <inheritdoc/>
     public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)
@@ -59,7 +58,5 @@ public sealed class SimTransformHeadingInstaller : IBinaryAttributeInstaller<Ent
 
         ref SimTransform st = ref ctx.PatchContext.GetUnmanagedComponent<SimTransform>();
         st.Rotation = SimTransformBridgeSystem.HeadingDegToRotation(headingDeg);
-
-        ctx.MarkDescriptorDirty(GeoSpatialOrdinal);
     }
 }

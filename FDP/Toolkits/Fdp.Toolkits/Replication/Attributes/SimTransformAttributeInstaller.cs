@@ -33,7 +33,6 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<E
 {
     // ── Subsystem flusher bit ─────────────────────────────────────────────────
     private const int GeoFlushBit = 0;
-    private const long GeoSpatialOrdinal = (long)DescriptorOrdinal.WorldPos;
 
     // ── Scratchpad layout ─────────────────────────────────────────────────────
 
@@ -122,8 +121,6 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<E
         var cart = _geoTransform.ToCartesian(scratch.Lat, scratch.Lon, scratch.Alt);
         ref SimTransform st = ref ctx.PatchContext.GetUnmanagedComponent<SimTransform>();
         st.Position = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
-
-        ctx.MarkDescriptorDirty(GeoSpatialOrdinal);
     }
 
     // ── Pre-apply handler ─────────────────────────────────────────────────────

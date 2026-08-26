@@ -21,7 +21,6 @@ namespace Fdp.Toolkit.Replication.Attributes;
 /// </summary>
 public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<EntityAttributeChange>
 {
-    private const long EntityInfoOrdinal = (long)DescriptorOrdinal.EntityInfo;
 
     /// <inheritdoc/>
     public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)
@@ -38,8 +37,6 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<Ent
     {
 		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
         data.Name = record.Value.StringValue ?? string.Empty;
-
-        ctx.MarkDescriptorDirty(EntityInfoOrdinal);
     }
 
     private static void HandleAffiliation(BinaryPatchContext ctx, EntityAttributeChange record)
@@ -49,7 +46,5 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<Ent
         data.ForceId = record.Value.Kind == AttributeValueKind.CsInt32
             ? AttributeCompilerFactory.MapAffiliationInt(record.Value.IntValue)
             : AttributeCompilerFactory.MapAffiliationString(record.Value.StringValue);
-
-        ctx.MarkDescriptorDirty(EntityInfoOrdinal);
     }
 }

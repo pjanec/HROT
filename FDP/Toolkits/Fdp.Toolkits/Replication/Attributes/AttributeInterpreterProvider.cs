@@ -2,6 +2,7 @@
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Services;
 
 namespace Fdp.Toolkit.Replication.Attributes;
 
@@ -27,10 +28,19 @@ namespace Fdp.Toolkit.Replication.Attributes;
 /// <c>OfflineNetworkFactory</c> supplies none at all. ⭐ The world is the thing that actually owns entities
 /// and components, so the world is where the applier belongs. ⇒ a host with no network still has one.</para>
 ///
-/// <para>⚠ <b>What this does NOT yet fix, stated plainly:</b> this type still LIVES in
-/// <c>Hrot.Network.NED</c>, because <c>AttributeCompilerFactory</c> and the installers do. ⭐ Moving that
-/// stack out of the DDS assembly is a separate, agreed step *(`AX-013`)* — this one removes the
-/// duplication and the network binding of the interpreter's LIFETIME, not of its home.</para>
+/// <para>⭐ <b><c>AX-017</c> moved this whole stack out of the DDS assembly</b>, so the earlier caveat
+/// *("this type still lives in Hrot.Network.NED")* no longer applies.</para>
+///
+/// <para>⭐⭐⭐ <b><c>Q59-E</c> extended it: the world also owns its <see cref="DescriptorOwnershipMap"/>.</b>
+/// The appliers name components; the network layer declares which descriptors cover them. ⇒ the same per-world
+/// lifetime rule answers both, and 🔒 the user's split holds — *"attributes are entity-related, network
+/// agnostic; descriptors are a Ned network concept."*</para>
+///
+/// <para>⚠⚠ <b>A rival <c>ComponentDescriptorMap</c> was written for this and DELETED before shipping.</b>
+/// 📐 <see cref="DescriptorOwnershipMap"/> already existed, already called itself *"the Single Source of Truth
+/// for the descriptor → component mapping"*, and already had <c>RegisterFromTranslator</c>. ⇒ 📌 the seam law
+/// caught in the act: the seam existed and was under-adopted *(its reverse direction was never fed by
+/// translators)*, so it was EXTENDED rather than duplicated.</para>
 /// </summary>
 public static class AttributeInterpreterProvider
 {
@@ -63,12 +73,51 @@ public static class AttributeInterpreterProvider
     public static JsonAttributeCompiler GetOrCreateJson(EntityRepository repo)
         => Slot(repo).Json ??= AttributeCompilerFactory.Build(GeoOf(repo));
 
+    // ── Q59-E — the world's component→descriptor map ───────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Contributes a set of translators to this world's component→descriptor map.</b>
+    ///
+    /// <para>⭐⭐ <b>ADDITIVE on purpose.</b> 📐 Measured <c>2026-08-26</c>: a host registers translators in
+    /// SEVERAL lists — the main pack plus a gizmo pack — at different points *(e.g. <c>IgNodeBootstrapper</c>
+    /// and <c>IgApplication</c> both build one)*. ⇒ ⛔ a "set the map" API would have the second caller
+    /// silently erase the first. ⭐ Callers contribute; the map is the union.</para>
+    ///
+    /// <para>⭐ Called by <c>CycloneEgressSystem</c> on its first <c>Execute</c> — chosen because it is the
+    /// ONE type that already receives the translator array AND gets the world, so ⛔ no host has to remember
+    /// anything. 📌 That matters: <c>CycloneNetworkModule</c> looked like the natural home and is
+    /// <b>never instantiated in production</b> — measured, not assumed.</para>
+    /// </summary>
+    public static void ContributeTranslators(
+        EntityRepository repo,
+        System.Collections.Generic.IEnumerable<Fdp.Interfaces.IDescriptorTranslator>? translators)
+    {
+        if (translators is null) return;
+
+        var map = GetDescriptorMap(repo);
+        foreach (var t in translators)
+        {
+            if (t is null) continue;
+            map.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The world's <see cref="DescriptorOwnershipMap"/>.</b> ⚠ An EMPTY one is a legitimate answer — a
+    /// networkless host registers no translators, so nothing is republishable and marking nothing is correct.
+    /// </summary>
+    public static DescriptorOwnershipMap GetDescriptorMap(EntityRepository repo)
+        => Slot(repo).DescriptorMap ??= new DescriptorOwnershipMap();
+
     // ── the cache ─────────────────────────────────────────────────────────────
 
     private sealed class Appliers
     {
         public BinaryInterpreter<EntityAttributeChange>? Binary;
         public JsonAttributeCompiler?                    Json;
+
+        /// <summary>⭐ Accumulates every translator contribution for this world. Registration is idempotent.</summary>
+        public DescriptorOwnershipMap? DescriptorMap;
     }
 
     /// <summary>

@@ -55,10 +55,11 @@ public class StrictNetworkSeparationTests
     {
         // ⭐ The message conversion — both directions, on purpose (see its class remarks).
         "Hrot.SimHost.Installers.AttributeRecordConversion",
-        // ⭐⭐ AX-017's second boundary: the DESCRIPTOR-ORDINAL conversion. It exists for the same
-        //    reason and in the same place — the apply path now speaks Fdp.Toolkit's own
-        //    DescriptorOrdinal, and this is the sole type allowed to know the DDS enum.
-        "Hrot.SimHost.Installers.DescriptorOrdinalConversion",
+        // ⭐⭐⭐ Q59-E DELETED AX-017's second boundary. DescriptorOrdinalConversion translated between the
+        //    DDS enum and an FDP-side DescriptorOrdinal — and the FDP-side enum is gone: an attribute applier
+        //    records the COMPONENT it wrote, and DescriptorOwnershipMap (fed by the network layer's
+        //    translators) supplies the descriptors. ⇒ nothing left to convert, so the boundary shrank back
+        //    to ONE type. 📌 That shrink is the proof E landed, exactly as the allowlist shrink was for AX-017.
     };
 
     // ══ ① the STRONGEST form: the assembly cannot even see the DDS types ══════════
@@ -149,13 +150,11 @@ public class StrictNetworkSeparationTests
         Assert.NotEmpty(applyPath);
 
         Assert.Contains(boundary, t => t == typeof(AttributeRecordConversion));
-        Assert.Contains(boundary, t => t == typeof(DescriptorOrdinalConversion));
         Assert.Contains(applyPath, t => t == typeof(AttributeEntityComponentWriter));
         Assert.Contains(applyPath, t => t == typeof(SimTransformHeadingInstaller));
 
-        // ⭐ And the detector is not blind: both boundary types ARE detected as mentioning DDS.
+        // ⭐ And the detector is not blind: the boundary type IS detected as mentioning DDS.
         Assert.Contains(typeof(AttributeRecordConversion), TypesInBoundaryMentioningDds());
-        Assert.Contains(typeof(DescriptorOrdinalConversion), TypesInBoundaryMentioningDds());
     }
 
     // ══ ③ the SOURCE scan — what reflection structurally CANNOT see ═══════════════
@@ -227,8 +226,6 @@ public class StrictNetworkSeparationTests
             ["AttributeRecordConversion.cs"]            = "Hrot.NED.Messages",
             // ⭐ Publishes the attribute schema onto DDS; network-layer by definition.
             ["EntityAttributeSchemaPublisherSystem.cs"] = "Hrot.NED.Messages",
-            // ⭐⭐ AX-017's ordinal conversion — the SOLE type allowed to know EDescriptorType.
-            ["DescriptorOrdinalConversion.cs"]          = "Hrot.NED.Descriptors",
         };
 
     private const string ApplyPathRelative = "FDP/Toolkits/Fdp.Toolkits/Replication/Attributes";

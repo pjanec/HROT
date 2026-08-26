@@ -35,18 +35,23 @@ namespace Hrot.SimHost.Tests;
 /// ⭐ <c>JsonAttributeCompiler.Compile</c> now flushes itself — 📌 the same fix shape as <c>UXI-30</c>/
 /// <c>AX-001</c>, where the authority gate moved to REGISTRATION so it could not be forgotten.</para>
 ///
-/// <para>⚠ <b>The asymmetry that REMAINS, stated rather than glossed.</b> The JSON path learns its ordinal
-/// from the routing table *(implicitly, keyed by component TYPE, on component access)*; the binary path is
-/// told by the installer *(explicitly, per apply)*. ⭐ Both converge on ONE sink —
-/// <c>EcsPatchContext</c>'s ordinal <c>HashSet</c> — and both read the SAME constants from
-/// <see cref="DescriptorOrdinal"/> in <see cref="AttributeCompilerFactory"/>. ⛔ But nothing makes a
-/// divergence impossible by construction, which is why this file rails the effect rather than trusting the
-/// shared constant.</para>
+/// <para>⭐⭐⭐ <b><c>Q59-E</c> RESOLVED the asymmetry this file used to describe.</b> It said the JSON path
+/// learned its ordinal from the routing table while the binary path was told by the installer, both reading
+/// FDP-side constants. ⛔ Both of those sources are GONE: the appliers now record only the COMPONENT they
+/// wrote, and the world's <c>DescriptorOwnershipMap</c> — fed by the network layer's translators — supplies
+/// the descriptors. ⇒ ⭐⭐ <b>there is exactly ONE source for both paths</b>, and no FDP type names a
+/// descriptor at all.</para>
+///
+/// <para>⚠ <b>Which is why these rails now contribute a translator.</b> Without one the map is empty and the
+/// dirty-descriptor assertions would compare <c>{}</c> to <c>{}</c> — ⇒ ⭐ contributing one makes them
+/// exercise the whole chain instead: applier → component id → map → <c>SmartEgressUtil</c>.</para>
 /// </summary>
 public class TheJsonAndBinaryPathsAgreeTests
 {
-    private const long EntityInfoOrdinal = (long)DescriptorOrdinal.EntityInfo;
-    private const long WorldPosOrdinal   = (long)DescriptorOrdinal.WorldPos;
+    // ⭐⭐ Q59-E — the ordinals are NETWORK values now. FDP has no descriptor vocabulary any more, so a test
+    //    needing a concrete ordinal names the DDS enum, exactly as a real translator does.
+    private const long EntityInfoOrdinal = (long)Hrot.NED.Descriptors.EDescriptorType.dtEntityInfo;
+    private const long WorldPosOrdinal   = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;
 
     /// <summary>⭐ An owner-shaped entity: the components registered and authority granted, as UXI-30 needs.</summary>
     private static (EntityRepository repo, Entity entity) OwnedEntity()
@@ -55,6 +60,9 @@ public class TheJsonAndBinaryPathsAgreeTests
         Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(repo);
         repo.RegisterComponent<Fdp.Core.EntityInfo>();
         repo.RegisterComponent<EgressPublicationState>();
+
+        // ⭐⭐⭐ Q59-E — the network layer's declaration, which is where descriptor ordinals now come from.
+        FakeDescriptorTranslator.ContributeProductionPairings(repo);
 
         var e = repo.CreateEntity();
         repo.AddComponent(e, default(Fdp.Core.EntityInfo));

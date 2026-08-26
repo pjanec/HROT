@@ -28,8 +28,6 @@ namespace Fdp.Toolkit.Replication.Attributes;
 /// </summary>
 public static class AttributeCompilerFactory
 {
-    private const long EntityInfoOrdinal  = (long)DescriptorOrdinal.EntityInfo;
-    private const long GeoSpatialOrdinal  = (long)DescriptorOrdinal.WorldPos;
 
     // ── Public factory ────────────────────────────────────────────────────────
 
@@ -51,7 +49,7 @@ public static class AttributeCompilerFactory
                 "Name",
                 ( ref Fdp.Core.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
                     c.Name = r.GetString() ?? string.Empty,
-                descriptorOrdinal: EntityInfoOrdinal, kind: KindOf("Name") )
+                kind: KindOf("Name") )
 
             .RegisterValuePath<Fdp.Core.EntityInfo>(
                 "Affiliation",
@@ -59,7 +57,7 @@ public static class AttributeCompilerFactory
                     c.ForceId = r.TokenType == JsonTokenType.Number
                         ? MapAffiliationInt( r.GetInt32())
                         : MapAffiliationString( r.GetString()),
-                descriptorOrdinal: EntityInfoOrdinal, kind: KindOf("Affiliation") );
+                kind: KindOf("Affiliation") );
 
         // ── SimTransform — unmanaged struct paths (GeoPosition) ───────────────
         if (geoTransform != null)
@@ -74,7 +72,7 @@ public static class AttributeCompilerFactory
                         acc.Lat = r.GetDouble();
                         acc.TryApply(ref st);
                     },
-                    descriptorOrdinal: GeoSpatialOrdinal, kind: KindOf("GeoPosition.Latitude"))
+                    kind: KindOf("GeoPosition.Latitude"))
 
                 .RegisterValuePath<SimTransform>(
                     "GeoPosition.Longitude",
@@ -83,7 +81,7 @@ public static class AttributeCompilerFactory
                         acc.Lon = r.GetDouble();
                         acc.TryApply(ref st);
                     },
-                    descriptorOrdinal: GeoSpatialOrdinal, kind: KindOf("GeoPosition.Longitude"))
+                    kind: KindOf("GeoPosition.Longitude"))
 
                 .RegisterValuePath<SimTransform>(
                     "GeoPosition.Altitude",
@@ -92,7 +90,7 @@ public static class AttributeCompilerFactory
                         acc.Alt = r.GetDouble();
                         acc.TryApply(ref st);
                     },
-                    descriptorOrdinal: GeoSpatialOrdinal, kind: KindOf("GeoPosition.Altitude"));
+                    kind: KindOf("GeoPosition.Altitude"));
         }
 
         // ── SimTransform — Heading (compass degrees, always registered) ───────
@@ -110,7 +108,7 @@ public static class AttributeCompilerFactory
                 st.Rotation = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem
                     .HeadingDegToRotation((float)r.GetDouble());
             },
-            descriptorOrdinal: GeoSpatialOrdinal, kind: KindOf("Heading"));
+            kind: KindOf("Heading"));
 
         return builder.Build();
     }
