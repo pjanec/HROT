@@ -563,7 +563,8 @@ namespace Hrot.SimHost
         {
             Shutdown();
             // base.OnUnload() would call Kernel?.Dispose() and World?.Dispose() again;
-            // Shutdown() already handles that so we do not call base here to avoid double-dispose.
+            // Shutdown() disposes the node context (kernel THEN world — QA-001), so we do not call
+            // base here to avoid double-dispose.
         }
 
         // ── Embedded lifecycle (IgApplication pattern) ────────────────────────
@@ -614,7 +615,10 @@ namespace Hrot.SimHost
             _vis?.Dispose();
             _vis = null;
             _idAllocator?.Dispose();
-            _kernel?.Dispose();
+            // QA-001: dispose the whole node context — kernel THEN world. This used to be
+            // `_kernel?.Dispose()`, which left the EntityRepository (an int[1_000_000] free list plus
+            // one NativeChunkTable per registered component) alive for the life of the process.
+            _context?.Dispose();
 
             FdpLog<SimHostApp>.Info("[Node-{0}] Shutdown complete.", localNodeId);
 

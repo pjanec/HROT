@@ -38,7 +38,12 @@ public class EntityDragGizmoTests
         var gizmo   = new EntityDragGizmo(_repo, _entity);
         var buffer  = new DebugPrimitiveBuffer(capacity: 16);
 
-        gizmo.UpdateAndDraw(new EntityRepository(), 0f, buffer);
+        // ⭐ QA-011 — draw against the world the entity ACTUALLY lives in.
+        // ⛔ This passed `new EntityRepository()`, an empty world in which `_entity` is not alive, so
+        //    UpdateAndDraw returned at its first guard and emitted nothing. The rail then failed on
+        //    `frame.Length >= 1` and was read as a gizmo defect for many batches. The gizmo draws from
+        //    the view it is GIVEN — that is the contract, and it was being given an empty one.
+        gizmo.UpdateAndDraw(_repo, 0f, buffer);
 
         var frame = buffer.GetFrame();
         Assert.True(frame.Length >= 1);
@@ -58,11 +63,22 @@ public class EntityDragGizmoTests
     }
 
     // EDG-002: OnDragUpdate writes to SimTransform.Position.
+    /// <summary>
+    /// ⭐ <c>QA-011</c> — the grab happens ON the entity, so the drag offset is zero and the entity
+    /// lands under the cursor.
+    ///
+    /// <para>⛔ This used to grab at <c>Vector3.Zero</c> while the entity sat at <c>(10, 20)</c> and then
+    /// expect it to land exactly on the cursor — i.e. it assumed the gizmo TELEPORTS the entity's origin
+    /// to the pointer. 📐 It does not, and must not: <c>OnInteractionStarted</c> records
+    /// <c>_dragOffset = position - grabPoint</c> so the entity keeps its grab-relative offset, which is
+    /// how every drag gizmo behaves. The old expectation measured <c>(60, 80)</c> and called it a bug.
+    /// <see cref="OnDragUpdate_PreservesTheGrabOffset"/> now rails that behaviour explicitly.</para>
+    /// </summary>
     [Fact]
     public void OnDragUpdate_WritesToSimTransformPosition()
     {
         var gizmo = new EntityDragGizmo(_repo, _entity);
-        gizmo.OnInteractionStarted(default, Vector3.Zero);
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));   // grabbed ON the entity
 
         var newPos = new Vector3(50f, 60f, 0f);
         gizmo.OnDragUpdate(newPos);
@@ -70,6 +86,25 @@ public class EntityDragGizmoTests
         var tf = _repo.GetComponent<SimTransform>(_entity);
         Assert.Equal(50f, tf.Position.X, precision: 3);
         Assert.Equal(60f, tf.Position.Y, precision: 3);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>QA-011</c> — <b>the grab offset is a CONTRACT, so rail it.</b> Grabbing 10 m to the left of
+    /// an entity and moving the cursor to X must leave the entity 10 m to the right of X, not centred on
+    /// it. ⛔ Without this rail the behaviour is only implied by the corrected test above, and the next
+    /// session to see "expected 50, actual 60" would draw the same wrong conclusion.
+    /// </summary>
+    [Fact]
+    public void OnDragUpdate_PreservesTheGrabOffset()
+    {
+        var gizmo = new EntityDragGizmo(_repo, _entity);
+        gizmo.OnInteractionStarted(default, Vector3.Zero);   // grabbed at the origin, entity at (10, 20)
+
+        gizmo.OnDragUpdate(new Vector3(50f, 60f, 0f));
+
+        var tf = _repo.GetComponent<SimTransform>(_entity);
+        Assert.Equal(60f, tf.Position.X, precision: 3);   // 50 + (10 - 0)
+        Assert.Equal(80f, tf.Position.Y, precision: 3);   // 60 + (20 - 0)
     }
 
     // EDG-003: OnCommit writes final position and fires OnDragCommitted.
@@ -81,9 +116,15 @@ public class EntityDragGizmoTests
 
         var gizmo = new EntityDragGizmo(_repo, _entity);
         gizmo.OnDragCommitted += (e, p) => { cbEntity = e; cbPos = p; };
-        gizmo.OnInteractionStarted(default, Vector3.Zero);
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));   // QA-011: grabbed ON the entity
 
         var finalPos = new Vector3(100f, 200f, 0f);
+        // ⭐ QA-011 — a drag must actually HAPPEN before it can be committed.
+        // ⛔ This went straight from OnInteractionStarted to OnCommit, and OnCommit is guarded by
+        //    `if (_isDragging)` — which only OnDragUpdate sets. So the entity kept its original X of 10
+        //    and the rail failed with "Expected: 100, Actual: 10". ⭐⭐ The guard is CORRECT and must not
+        //    be relaxed: without it every plain CLICK on an entity would move it to the cursor.
+        gizmo.OnDragUpdate(finalPos);
         gizmo.OnCommit(finalPos);
 
         var tf = _repo.GetComponent<SimTransform>(_entity);
