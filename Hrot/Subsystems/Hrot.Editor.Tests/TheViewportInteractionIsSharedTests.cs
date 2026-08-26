@@ -286,16 +286,42 @@ public sealed class TheViewportInteractionIsSharedTests
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>A recording registry that asks WHAT THE REAL SCHEDULER ASKS.</b>
+    ///
+    /// <para>🔴🔴 <b>Its first cut did not, and T3 paid for it.</b> 📐 The three new systems shipped without
+    /// <c>[UpdateInPhase]</c>; <c>SystemScheduler.RegisterSystem</c> throws
+    /// <c>"System X must have [UpdateInPhase] attribute"</c>, so <c>kernel.Initialize()</c> — and the whole
+    /// editor boot — failed. ⛔ <b>Every unit rail was green</b>, because this fake accepted anything.
+    /// ⇒ ⭐⭐ the check moved HERE, where it costs nothing and runs on every future system the module
+    /// registers. ⚠ The lesson generalises: <b>a fake that is more permissive than production turns a rail
+    /// into a rubber stamp</b>, and the gap only shows in the slowest gate you have.</para>
+    /// </summary>
     private sealed class RecordingRegistry : Fdp.ModuleHost.Abstractions.ISystemRegistry
     {
         public readonly List<string> Registered = new();
 
         public void RegisterSystem<T>(T system) where T : Fdp.ModuleHost.Abstractions.IEcsModuleSystem
-            => Registered.Add(system!.GetType().Name);
+            => Registered.Add(RequirePhase(system));
 
         public Fdp.ModuleHost.Abstractions.IEcsModuleSystem RegisterManualSystem<T>(T system)
             where T : Fdp.ModuleHost.Abstractions.IEcsModuleSystem
-        { Registered.Add(system!.GetType().Name); return system; }
+        { Registered.Add(RequirePhase(system)); return system; }
+
+        /// <summary>⭐ The scheduler's own precondition, asserted at unit speed.</summary>
+        private static string RequirePhase<T>(T system) where T : Fdp.ModuleHost.Abstractions.IEcsModuleSystem
+        {
+            var type = system!.GetType();
+            var phase = type.GetCustomAttributes(
+                typeof(Fdp.ModuleHost.Abstractions.UpdateInPhaseAttribute), inherit: true);
+
+            Assert.True(phase.Length > 0,
+                $"{type.Name} has no [UpdateInPhase] attribute. SystemScheduler.RegisterSystem THROWS on "
+              + "that, so kernel.Initialize() — and the whole host boot — would fail. This rail exists "
+              + "because that shipped once and only the T3 system suite caught it.");
+
+            return type.Name;
+        }
     }
 
     /// <summary>⭐ The smallest real gizmo system — a registry + a draw buffer, nothing else needed here.</summary>
