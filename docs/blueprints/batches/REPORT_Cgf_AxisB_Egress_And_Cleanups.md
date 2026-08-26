@@ -98,3 +98,37 @@ and are registered in production, so they were extended.
 | 🔴 **the full `--mode all` round trip green** | **`F2`/`AX-009`** — pre-existing SimHost→IG replication failure, proven on a clean tree at the started-marker. The rail exists, is RED, and is documented in its own remarks as blocked on that defect. ⛔ Not skipped |
 | ⚠ **`AttributeCompilerFactory.Build`'s `"Heading"` JSON path** | it contains a **third inline copy of the compass math** *(`(90f − headingDeg) × π/180` + `CreateFromAxisAngle`)*, predating this work *(`877fc7c74`, `2026-07-16`)*. ⛔ Out of scope: it is the JSON compiler, not the binary write path, and routing it is a behaviour-preserving change that deserves its own rail. **Filed here so it is not re-derived** |
 | ⛔ **DebugApi/catalog · `Program.cs` · the diagnostics log-sink wiring** | the handoff's lane restriction — the concurrent MCP-diagnostics slice owns them. `EditorSubsystem.cs` was touched **only** in the CE-018 walk-up regions and the two gizmo-construction lines |
+
+## 7. ⭐⭐⭐ ADDENDUM `2026-08-26` — **`AX-009` root-cause narrowing, and FIVE HYPOTHESES TESTED**
+
+> ⭐ The user supplied five candidate root causes with the instruction *"do not believe, verify"*.
+> ⛔ **Four are FALSE against this codebase and one is FALSE for the failing path.** All were measured, not read.
+
+| # | hypothesis | verdict | the measurement |
+|---|---|:--:|---|
+| **RC-1** | `TkbDatabase` instantiated empty on both hosts ⇒ `[NS] Unknown TkbType` silent abort | ⛔ **FALSE** | Both hosts carry an `ITkbDatabase` singleton and `TryGetByType(100)` is **TRUE** on both. `HrotEnvironment.CreateTkb()` calls `NedTkbCatalog.RegisterAll` and both bootstrappers use it. ⚠ The prescribed `BdcTkbCatalog` **does not exist** — the FILE is named that, the class is `NedTkbCatalog` |
+| **RC-2** | `SimHostScenarioManager.SpawnVehicle` bypasses the network pipeline via `_repo.CreateEntity()` | ⛔ **FALSE for the failing path** | The failing rails use `TestHook_SpawnEntity`, which already publishes `SpawnEntityCommand` and routes through `NetworkSpawningSystem` — the prescribed fix. Measured result: `NetworkIdentity=True`, `SimTransform=True`, `NetworkAuthority=True`, lifecycle `Active`. ⚠ The claim may still hold for `SpawnVehicle`, a **different** path that no failing test uses |
+| **RC-3** | IG ingress translators silently drop unknown NetIDs instead of ghosting | ⛔ **FALSE** | `EntityMasterIngressTranslator.ProcessSample` calls `_ghostCreationSystem.CreateGhost(...)` on an unknown id. ⭐ And it demonstrably works: the IG ghost appears at **frame 2** |
+| **RC-4** | replication systems registered in the wrong kernel phase ⇒ six systems dead on arrival; remove `SimWrapper` | ⛔ **FALSE — already fixed** | `SimWrapper` survives in **one test file** and nowhere in production; `ReplicationPhaseExecutionTests` **passes**. 📄 The owning design `docs/designs/replication-fixes/REPL-DESIGN.md` is in the **`_DONE`** tree |
+| **RC-5** | SimHost must run a CGF pre-genesis / `PendingAuthorityGrants` handshake or the entity is torn down | ⛔ **FALSE for this failure** | The SimHost entity is `Active` with `HasAuthority(dtWorldPos)=True` and is never deleted. ⛔ No ELM timeout occurs — the entity simply never gets its position onto the wire |
+
+### 🔴 What the measurement DID find — **the symptom names the wrong clause**
+
+⛔⛔ The rail fails on *"IG did not receive entity"*, and **that is misleading**: 📐 the IG receives it at **frame 2**
+with `NetworkIdentity`, `NetworkAuthority` and `TkbIdentity`. ⭐⭐⭐ **The clause that actually fails is
+`HasComponent<SimTransform>`** — checked to **600 frames**, never true.
+
+⭐⭐ **Two independent stalls, and both are now the next session's starting point:**
+
+| # | stall | measured |
+|---|---|---|
+| **①** | ⭐⭐⭐ **the IG ghost is never PROMOTED** — lifecycle stays `Ghost` indefinitely | ⛔ **and `GhostPromotionSystem` IS registered**: `pureIgRole=True`, `_tkbDb`/`_lifecycleModule`/`_tkbEntityTranslators` all present, and the ghost carries the `TkbIdentity` that drives promotion. ⇒ ⭐ **promotion is reached and does nothing** |
+| **②** | ⭐⭐ **SimHost publishes ZERO `WorldPos` samples** *(independent DDS reader, 300 frames)* | ⚠ despite `SimTransform=True`, `NetworkAuthority=True`, `HasAuthority(dtWorldPos)=True`, lifecycle `Active`. ⭐ The single measured discriminator is **`DescriptorOwnership=False`** |
+
+⭐ **Proven WORKING, so nobody re-investigates it:** SimHost's spawn through `NetworkSpawningSystem` · the
+`EntityMaster` egress *(1 sample observed on the wire by an independent participant)* · the IG's
+ghost-creation ingress · the replication phase registration.
+
+⚠ **Method note:** this was measured with a throwaway reflective diagnostic test, **deleted after use** —
+⛔ it asserted `false` unconditionally to print its output and had no business staying in the tree. The
+numbers above are its output; the durable record is the `AX-009` tracker row.
