@@ -335,7 +335,7 @@ namespace Hrot.Editor
         private BTreeJsonAssetContributor?          _btreeJsonContrib;
         private HsmJsonAssetContributor?            _hsmJsonContrib;
         // MTB-P5-T2: Scenario catalog contributor (non-file-backed; refreshed on scenario list change).
-        private Hrot.Editor.Catalog.ScenarioCatalogContributor? _scenarioContributor;
+        private Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor? _scenarioContributor;
         // AIE-026: save → emit → reload scheduler (ticked in Update)
         private Hrot.Editor.AiShared.Emit.RegenerationScheduler? _regenerationScheduler;
         // AIE-026 (Blueprint): Quick Reload trigger — null until Phase 4 wires QuickReloadService.
@@ -1075,7 +1075,7 @@ namespace Hrot.Editor
                 hsmJsonContributor:   hsmJsonContrib);
 
             // MTB-P5-T2: Add scenario contributor (non-file-backed; projects AvailableScenarios).
-            _scenarioContributor = new Hrot.Editor.Catalog.ScenarioCatalogContributor(
+            _scenarioContributor = new Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor(
                 () => _editorLogic?.AvailableScenarios ?? Array.Empty<string>());
             _aiCatalogBuilder.Catalog.AddContributor(_scenarioContributor);
 

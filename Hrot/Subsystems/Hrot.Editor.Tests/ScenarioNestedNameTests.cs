@@ -1,3 +1,4 @@
+using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor;
 
 namespace Hrot.Editor.Tests;

@@ -110,6 +110,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private NodeEditor.Core.Interfaces.IIconProvider? _shellIconProvider;
     private Hrot.Editor.AiShared.Browser.AssetPickerLauncher? _assetPickerLauncher;
     private Hrot.Editor.AiShared.Browser.NewAssetLauncher? _newAssetLauncher;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-054</c> — the perspective-switch radio group. Held as a field for the same reason the
+    /// editor holds one: the section registers toolbar entries at construction and must outlive the
+    /// composition scope. ⛔ <c>null</c> on a toolbar-less host.
+    /// </summary>
+    private Fdp.Presentation.WindowManager.PerspectiveToolbarSection? _perspectiveToolbarSection;
     private Action?           _cgfNetworkPolling;
 
     // ── Headless + behavior registry ──────────────────────────────────────────
@@ -1942,6 +1949,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         var toolbarIcons = new Hrot.Editor.AiShared.Adapters.SilkIconProvider(windowManager.Atlas);
 
+        // ⭐⭐⭐ CE-054 — THE PERSPECTIVE-SWITCH BUTTONS, which this host never showed.
+        // 📄 The user's `--mode cgf` visual check, 2026-08-26, symptom 3.
+        //
+        // 🔴 MEASURED: `PerspectiveToolbarSection` was constructed in exactly ONE place repo-wide —
+        //    `EditorSubsystem.cs:4448`. ⇒ on CGF the perspective radio group simply did not exist, so a
+        //    host with several registered perspectives offered no way to switch between them.
+        // ⭐ Same type, same sortOrder 20 (§8's perspective group range 20–29), same icon provider shape —
+        //   ⛔ no CGF-private switcher, and nothing new invented.
+        // ⚠ Guarded on MainToolbar for the reason CgfEditorShellToolbar documents: a toolbar-less host
+        //   still composes commands, and the section only lays out buttons.
+        if (windowManager.MainToolbar != null)
+            _perspectiveToolbarSection = new Fdp.Presentation.WindowManager.PerspectiveToolbarSection(
+                windowManager, toolbarIcons, windowManager.MainToolbar, sortOrder: 20);
+
         var toolbarIds = Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.RegisterCommonCore(
             windowManager.ShellCommands,
             windowManager.MainToolbar,
@@ -2224,6 +2245,22 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             ()  => bpContrib.Refresh(),
             bTreeJsonContributor: btreeJsonContrib,
             hsmJsonContributor:   hsmJsonContrib);
+
+        // ⭐⭐⭐ CE-053 — THE SCENARIO CONTRIBUTOR, which this host never had.
+        // 📄 The user's `--mode cgf` visual check, 2026-08-26, symptoms 4/5/6 — ONE root, three symptoms.
+        //
+        // 🔴🔴 MEASURED: CGF's catalog carried ZERO AssetKind.Scenario entries, because
+        //    ScenarioCatalogContributor lived in Hrot.Editor. ⇒ `File/Edit/Open Scenario`,
+        //    `File/Live/Load Scenario` and `File/Open Asset`'s Scenario tab were all EMPTY.
+        //    ⚠ CE-049 wired this host's picker and never gave its catalog anything to show — the picker
+        //    worked perfectly and had nothing to list, which is why every model-level rail stayed green.
+        //
+        // ⭐ Mirrors EditorSubsystem:1078 exactly, differing only in the SOURCE of the list: the editor
+        //   projects `IEditorLogic.AvailableScenarios`; this host enumerates its own node scenarios root —
+        //   the same directory CE-046 gave EditorScenarioSession for saving, so what CGF saves it can list.
+        builder.Catalog.AddContributor(new Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor(
+            () => Hrot.Editor.AiShared.Catalog.ScenarioEnumeration.EnumerateRelPaths(
+                      OrchestrationConstants.GetNodeScenariosRoot(_context!.NodeId))));
 
         // ⭐⭐ The ASSEMBLY half of the dual load: the compiled BTree/HSM definitions live in the loaded
         //    Hrot.AI.Behaviors assembly, which CGF loads for its own brains. ⛔ Without this the catalog
