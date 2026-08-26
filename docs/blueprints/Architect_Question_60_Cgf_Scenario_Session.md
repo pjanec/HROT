@@ -1,0 +1,70 @@
+<!--STATUS
+state: LIVE
+build-state: DESIGN — decision-shaped; a RECOMMENDED LEAN per sub-question. Resolve JOINTLY with the user
+  (no relay). Not a buildable design — no handoff until the leans (or alternatives) are approved.
+updated: 2026-08-26
+current-answer: §5 (the recommendations). The DIRECTION is already ruled (58/59/65/66, §3); this doc
+  resolves the SPECIFICS the rulings leave.
+known-conflict: none. Origin: the §6.2 handback of REPORT_Cgf_Menu_Follows_Focus.md.
+-->
+# Architect Question 60 — **Does CGF host a scenario session, and how?** *(cgf==editor feature parity)*
+
+> 🎯 The menu slice *(CE-041..045)* left CGF's `File/Scenario/×6` empty because `ScenarioMenuCommands`
+> needs the editor-only `IEditorLogic`. User *(2026-08-26)*: *"I need the feature parity."* ⭐ **I analyse
+> and SUGGEST; you APPROVE** *(CLAUDE.md)*. ⚠ **The DIRECTION is already ruled** *(§3)* — this doc resolves
+> the three SPECIFICS the rulings leave open, not a yes/no.
+
+## 1. ⭐⭐⭐ INVENTORY *(graph @ 192k nodes + a read-only scan, `2026-08-26`)*
+| piece | what it does | LOAD vs SAVE | binding |
+|---|---|---|---|
+| `IEditorLogic` *(`Hrot.Editor/IEditorLogic.cs`)* | broad editor god-facade; the 6 scenario members a session needs — `NewScenario`, `LoadScenarioByName`, `SaveCurrentScenario`, `SaveScenarioAs`, `LoadedScenarioName`, `GetMigrationSidecarsForCurrentScenario` — plus tool/view/build/mode | both | ⛔ **editor-bound** *(impl `EditorApplication`)* |
+| `ScenarioMenuCommands` | registers `File/Scenario/×6`; needs those 6 members + injected picker/save-as/curated seams *(already non-`IEditorLogic`)* | both | ⛔ editor-bound *(takes `IEditorLogic`)* |
+| ⭐ `IScenarioCreationSession` *(+`EditorLogicSessionAdapter`)* | **narrow 3-method seam** New/SaveAs/LoadByName — ⭐ **the extraction is half-done** | both | editor-bound TODAY *(impl wraps `IEditorLogic`)*; the interface is narrow |
+| `IScenarioLoader` / `IScenarioStorageProvider` *(`Fdp.Toolkits/Orchestration`)* | read scenario JSON / stage files | **LOAD only** | ✅ **engine/shared** |
+| ⭐⭐ `CgfScenarioLoadHandler` + `HrotScenarioLoader` + `LocalDiskStorageProvider` *(CGF)* | cluster-slave: load JSON → extract `EntityCreationRequest`s → genesis pipeline; **"CGF-authoritative"** | **LOAD** | CGF, over the engine seams |
+| `HrotScenarioSerializerFactory.Build` *(on CGF, `CgfSubsystem.cs:432`)* | the SAVE serializer — ⭐ **already constructed on CGF**, wired into the inspector | SAVE | on CGF |
+
+⭐⭐⭐ **CGF LOADS today** *(HN-029)* — `POST /scenario/load/{edit,live}` → the orchestration bus → `CgfScenarioLoadHandler`; CGF is the cluster-default entity creator during load *(`CreateEntityRequestSystem isDefaultProcessor:true`)*. HN-029 classed load as its **own** capability *(`scenario.load`)*, ⛔ **NOT** `editor.authoring`. ⛔ **CGF does NOT SAVE** — `saveScenario: null`, scenario-CREATE absent, `DebugApiService.SaveScenario`→`_editor.SaveScenarioAs` *(editor-only)*.
+
+## 2. ⛔ THE `IEditorLogic` WALL — why the menu is empty
+`ScenarioMenuCommands` binds the whole `File/Scenario` group to `IEditorLogic`, which is one editor god-object CGF cannot supply. ⛔ Handing CGF a fake `IEditorLogic` is a parallel implementation *(ruling 9)*; a per-host scenario menu is what ruling 58 forbids. ⇒ the wiring needs a **narrow contract**, and one **already exists in embryo** — `IScenarioCreationSession`.
+
+## 3. ⭐⭐ WHAT THE RULINGS ALREADY SETTLE *(the direction — quoted, `2026-08-14`)*
+| ruling | settles |
+|---|---|
+| **66** | *"scenario loading is fully possible from CGF alone"* *(initial ECS state travels with entity creation)*; *"scenario editing joins the authoring tier; the gate collapses to **same component mask on both nodes**."* ⚠ **Correction 47 WITHDREW** the earlier save-time completeness check + serializer diff |
+| **65** | CGF scenario editing is *welcome*; ⭐ **the save machinery is already on CGF**; ⚠ residual risk: **registered-but-unpopulated** components *(VehicleState/VehicleParams/NavState registered on CGF but never authored ⇒ a naive save emits stale defaults)* |
+| **59 ②** | *"Open = cluster-wide… **the only single-node work is the editor**"* ⇒ every non-editor *Open scenario* is a **request to the master** *(a worded cluster-wide exercise restart, confirmed at origin)*, ⛔ never a local load |
+| **58** | *"all should allow **opening existing scenarios** and interactive runtime changes (limited by ECS ownership)"* |
+
+⇒ ⭐⭐ **Direction: CGF hosts scenarios. Load = the existing cluster path. Edit/Save = the authoring tier, welcome, gated.** The open work is the three specifics below.
+
+## 4. ⭐⭐⭐ THE THREE DECISIONS
+
+### 60-A — **What do CGF's `New` / `Load` MEAN?**
+| | option | |
+|---|---|---|
+| ⭐ **A1 (lean)** | `Load` → the **existing HN-029 cluster-load** *(`/scenario/load/edit`)*, confirmed-at-origin *(ruling 59)*; `New` → a cluster-wide clear-world *(same master path)* | reuses what HN-029 built; ⛔ NOT `IEditorLogic.LoadScenarioByName`. The menu item routes to the transition intent CGF already claims |
+| A2 | a CGF-local load bypassing the master | ⛔ contradicts ruling 59 *("the only single-node work is the editor")* |
+
+### 60-B — **Scenario SAVE on CGF: enable it, behind what gate?** *(the crux — the 65↔66 tension)*
+| | option | |
+|---|---|---|
+| ⭐ **B1 (lean)** | **Enable save** over CGF's already-built serializer, behind a **mask-equality gate** *(ruling 66)* PLUS an **omit-don't-emit** rule for components CGF neither owns nor live-replicates *(ruling 65's registered-but-unpopulated risk)*. A save-side rail asserts CGF's emitted component set ⊆ what it can vouch for | ⭐ reconciles 65 and 66: 66 withdrew the *heavy* completeness-check, but 65's stale-default hazard is real ⇒ the minimal guard is *"emit only what you own or replicate; refuse/omit the rest, and say so"* |
+| B2 | enable save unconditionally *(trust ruling 66's "same mask")* | ⛔ ruling 65's stale-default hazard *(VehicleState/etc.)* is measured, not hypothetical — a CGF scenario could silently reset vehicle params on load |
+| B3 | defer save; ship Load/New only | ⭐ viable as **sequencing** *(see §5)*, ⛔ not as the end state — parity means save too |
+
+### 60-C — **The wiring shape** *(so the menu is ONE list — ruling 58/9)*
+| | option | |
+|---|---|---|
+| ⭐ **C1 (lean)** | **Grow `IScenarioCreationSession`** *(or a sibling `IScenarioSession`)* to the 6 members `ScenarioMenuCommands` needs; `ScenarioMenuCommands` takes **that**, not `IEditorLogic`; the editor's impl stays `EditorLogicSessionAdapter`, CGF gets a **new impl** over its serializer + the HN-029 load path | ⭐ the extraction is **half-done already** — extend the seam, ⛔ don't invent *(prior-art discipline)*. One contract, two impls *(ruling 9)*; the `File/Scenario` menu then derives on both hosts like the toolbar/menu common-core |
+| C2 | a CGF-private scenario menu registration | ⛔ ruling 58 — no per-host menu code |
+
+## 5. ⭐⭐⭐ RECOMMENDED LEAN — **A1 · B1 · C1**, sequenced as TWO slices
+⭐ **Slice 1 *(cheap, mostly wiring)*:** C1's contract + **New/Load** *(A1)* on CGF, routing to the HN-029 cluster path. ⇒ `File/Scenario/New` + `Load` light up on CGF from the shared list, no new load machinery.
+⭐ **Slice 2 *(the careful one)*:** **Save/Save-As** *(B1)* behind the mask-equality + omit-unowned gate, with the save-side rail written **before** save is enabled *(ruling 65's "settling test")*. Migration-History + Save-Curated ride along where CGF has the data.
+⚠ **Why split:** LOAD is ruled-and-mostly-built; SAVE is the "third tier" with a measured stale-default hazard. ⛔ Bundling them lets the easy half wait on the careful half.
+
+📌 **Open sub-question for B, needs your call:** is the *"same component mask on both nodes"* gate *(ruling 66)* **already built** anywhere, or is Slice 2's first task to build it? *(I did not find a mask-equality gate in the scan — the current guard is capability-absence, not a runtime mask check.)*
+
+⇒ ⭐ **Approve `A1 · B1 · C1` + the two-slice split, or name what to change.** On approval I'll write Slice 1 as a READY-TO-BUILD design; Slice 2 stays a design until its gate question is settled.
