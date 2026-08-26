@@ -4432,61 +4432,22 @@ namespace Hrot.Editor
             // ── BATCH-29 (MTB-P8-T3): "Open Asset" command (shell.openAsset) — leftmost toolbar
             // button, File→Open Asset… menu item, Ctrl+O hotkey. Opens the Tree-layout
             // picker via AssetPickerLauncher with Kinds=All. ────────────────────────────
-            string openAssetId = "shell.openAsset";
-            windowManager.ShellCommands.Register(
-                new EditorCommandDescriptor(
-                    Id:          openAssetId,
-                    DisplayName: "Open Asset…",
-                    Category:    "File",
-                    Description: "Open an AI asset (blueprint, behavior tree, HSM, scenario, etc.)",
-                    IconKey:     "browser/open",
-                    DefaultKey:  new KeyBinding(EditorKey.O, KeyModifiers.Ctrl),
-                    IsEnabled:   () => true),
-                _ =>
-                {
-                    // BATCH-29 (MTB-P8-T3): Open Asset via the Tree-layout picker launcher.
-                    // router.Route is the default pick action (no onPicked callback).
-                    assetPickerLauncher?.Open(AssetKindFilter.All);
-                });
-
-            // ── BATCH-36 (MTB2-T7): "New Asset" command (shell.newAsset) — opens the recipe
-            // Tree picker via NewAssetLauncher. Ctrl+N hotkey. ───────────────────────
-            string newAssetId = "shell.newAsset";
-            windowManager.ShellCommands.Register(
-                new EditorCommandDescriptor(
-                    Id:          newAssetId,
-                    DisplayName: "New Asset…",
-                    Category:    "File",
-                    Description: "Create a new AI asset from a recipe",
-                    IconKey:     "asset/new",
-                    DefaultKey:  new KeyBinding(EditorKey.N, KeyModifiers.Ctrl),
-                    IsEnabled:   () => true),
-                _ =>
-                {
-                    newAssetLauncher?.Open();
-                });
+            // ⭐⭐⭐ CE-016 §7 — the descriptors and the whole toolbar LAYOUT moved to the shared
+            //    `CgfEditorShellToolbar`, which CGF calls too. 📄 DESIGN_Cgf_Shell_Command_Toolbar_Slice.md.
+            // ⛔⛔ This block used to BE the list — which made EditorSubsystem the sole writer of the shell
+            //    registries (ruling 58 / seam-law 30) and left CGF with two ad-hoc ImGui.Buttons.
+            // ⚠ Called OUTSIDE the `MainToolbar != null` guard below, deliberately: `shell.openAsset` and
+            //   `shell.newAsset` were registered out here before, so a bare EditorSubsystem (the
+            //   window-registration unit tests) still gets them and their File-menu items. The helper
+            //   takes a NULL toolbar and registers descriptors only in that case.
+            string openAssetId = Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.OpenAssetId;
+            string newAssetId  = Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.NewAssetId;
 
             // ── BATCH-24: Main toolbar groups (Perspective §8 + AI-debug §9) ──────────────────
             // All wiring is null-safe so RegisterWindows does not throw on a bare EditorSubsystem.
             if (windowManager.MainToolbar != null)
             {
                 var toolbarIconProvider = new SilkIconProvider(windowManager.Atlas);
-
-                // ── BATCH-36: "New Asset" button (sortOrder -11, left of Open Asset) ──
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    newAssetId, toolbarIconProvider, sortOrder: -11);
-
-                // ── BATCH-26: "Open Asset" button (leftmost, sortOrder -10) ─────────
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    openAssetId, toolbarIconProvider, sortOrder: -10);
-
-                // ── BATCH-31: "Save" button (sortOrder -9, right of Open Asset) ──
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId,
-                    toolbarIconProvider, sortOrder: -9);
-
-                // Separator after Open Asset + Save (between toolbar group and Perspective).
-                windowManager.MainToolbar.RegisterSeparator("ToolbarSep_OpenAsset", sortOrder: 0);
 
                 // ── A. Perspective icon keys — register before creating the section so
                 //    PerspectiveToolbarSection.BuildRadioModel() resolves icons on first frame.
@@ -4508,41 +4469,27 @@ namespace Hrot.Editor
                 _perspectiveToolbarSection = new PerspectiveToolbarSection(
                     windowManager, toolbarIconProvider, windowManager.MainToolbar, sortOrder: 20);
 
-                // Separator between Perspective and AI-debug.
-                windowManager.MainToolbar.RegisterSeparator("ToolbarSep_PerspToAiDebug", sortOrder: 30);
-
-                // ── B. AI-debug group (§9, sortOrder range 40–49) ────────────────────────
+                // ── B. AI-debug descriptors — a SHARED registrar already, so it stays a direct call.
+                //    ⛔ Duplicating these descriptors into the toolbar helper would be a second
+                //    definition of one command; the helper only lays out the BUTTONS.
                 AiDebugCommands.Register(windowManager.ShellCommands.Register, debugRegistry);
+            }
 
-                int aiSort = 40;
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.ContinueId, toolbarIconProvider, aiSort++);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.StepOverId, toolbarIconProvider, aiSort++);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.StepIntoId, toolbarIconProvider, aiSort++);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.StepOutId, toolbarIconProvider, aiSort++);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.PauseId, toolbarIconProvider, aiSort++);
-                // Blueprint-only StepBack — registered too; toolbar adapter resolves enabled state live.
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    AiDebugCommands.StepBackId, toolbarIconProvider, aiSort++);
-
-                // ── C. Build / reload (§9, sortOrder range 50–51) ──────────────────────
-                windowManager.ShellCommands.Register(
-                    new EditorCommandDescriptor(
-                        Id:          "blueprint.compileReload",
-                        DisplayName: "Compile / Reload",
-                        Category:    "Blueprint",
-                        Description: "Compile & hot-reload the active blueprint / BTree / HSM",
-                        IconKey:     "build/compile",
-                        DefaultKey:  null,
-                        IsEnabled:   () => _aiDocumentManager?.Active?.Kind
-                            is Hrot.Editor.AiShared.AssetKind.Blueprint
-                            or Hrot.Editor.AiShared.AssetKind.BTree
-                            or Hrot.Editor.AiShared.AssetKind.Hsm),
-                    _ =>
+            // ⭐⭐⭐ CE-016 §7 — THE ONE registration list, called LAST so every shared registrar has run
+            //    (ShellSaveCommands earlier in this method; AiDebugCommands just above). The helper emits
+            //    a button only for a command this shell can service, so the editor — which registers the
+            //    most — gets the most buttons, from the same table CGF calls.
+            // ⚠ OUTSIDE the guard: a bare EditorSubsystem has no MainToolbar, and openAsset/newAsset were
+            //   registered out here before so their File-menu items still work. A null toolbar means
+            //   "descriptors only".
+            Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.RegisterCommonCore(
+                windowManager.ShellCommands,
+                windowManager.MainToolbar,
+                windowManager.MainToolbar != null ? new SilkIconProvider(windowManager.Atlas) : null,
+                new Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.HostServices(
+                    OpenAsset:     () => assetPickerLauncher?.Open(AssetKindFilter.All),
+                    NewAsset:      () => newAssetLauncher?.Open(),
+                    CompileReload: () =>
                     {
                         switch (_aiDocumentManager?.Active?.Kind)
                         {
@@ -4550,25 +4497,12 @@ namespace Hrot.Editor
                             case Hrot.Editor.AiShared.AssetKind.BTree:     _btreeQuickReloadTrigger?.Invoke();  break;
                             case Hrot.Editor.AiShared.AssetKind.Hsm:       _hsmQuickReloadTrigger?.Invoke();    break;
                         }
-                    });
-
-                windowManager.ShellCommands.Register(
-                    new EditorCommandDescriptor(
-                        Id:          "blueprint.fullRebuild",
-                        DisplayName: "Full Rebuild",
-                        Category:    "Build",
-                        Description: "Rebuild all AI behavior assets",
-                        IconKey:     "build/rebuild",
-                        DefaultKey:  null,
-                        IsEnabled:   () => true),
-                    _ => _blueprintFullRebuildCallback?.Invoke());
-
-                windowManager.MainToolbar.RegisterSeparator("ToolbarSep_AiDebugToBuild", sortOrder: 49);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    "blueprint.compileReload", toolbarIconProvider, sortOrder: 50);
-                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
-                    "blueprint.fullRebuild", toolbarIconProvider, sortOrder: 51);
-            }
+                    },
+                    FullRebuild:   () => _blueprintFullRebuildCallback?.Invoke(),
+                    CompileReloadEnabled: () => _aiDocumentManager?.Active?.Kind
+                        is Hrot.Editor.AiShared.AssetKind.Blueprint
+                        or Hrot.Editor.AiShared.AssetKind.BTree
+                        or Hrot.Editor.AiShared.AssetKind.Hsm));
             // ───────────────────────────────────────────────────────────────────────────────────
 
             // BATCH-26: File → Open Asset… menu item (Ctrl+O shortcut attached via descriptor).

@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — A2 approved (user, 2026-08-26). Extract a shared TOOLBAR-only common-core
+build-state: BUILT — `2026-08-26`, ids `CE-037`..`CE-040`. ⭐ §9 AS BUILT carries three argued
+  deviations and WINS over §3 where they disagree. Was: READY-TO-BUILD — A2 approved (user, 2026-08-26). Extract a shared TOOLBAR-only common-core
   helper both hosts call; adopt on CGF with a real icon provider; defer the UXI-05 menu to its own slice.
 updated: 2026-08-26
 current-answer: the whole file. Decision trail + options: Architect_Question_58 (A2 approved).
@@ -130,3 +131,82 @@ Build the AFFECTED projects *(`Hrot.Editor.AiShared` · `Hrot.Editor` · `Hrot.C
 - **The menu (UXI-05 menu-follows-focus)** — its own slice; when built, its menu registration **extends this same helper** *(not a second list)*.
 - The canvas `/editor/commands` bus *(MD-008 — already answers on CGF)*.
 - `PerspectiveToolbarSection` on CGF is **optional here**: if the dangling `ToolbarSep_TimeToPersp` is removed, no perspective section is required for A2; adding it is a cheap round-out if CGF has a perspective switcher wired *(it does — `WindowManagerPerspectiveSwitcher`)* — implementer's call, reported either way.
+
+---
+
+# ⭐⭐⭐ 9. AS BUILT — `2026-08-26`, ids `CE-037`…`CE-040` *(obligation ⑤)*
+
+> ⭐⭐ **All four items shipped.** ⛔ **Three deviations from §3, each measured and argued** — this section
+> wins over §3 where they disagree.
+
+## 9.1 ⭐ THE MECHANISM — **derived, not declared**
+
+⭐⭐⭐ `CgfEditorShellToolbar.RegisterCommonCore` emits a toolbar entry **only for a command the host's
+shell can service** *(`IEditorCommands.Get(id) != null`)*. ⇒ ⛔ there is no CGF list and no editor list:
+the editor registers more commands, so it gets more buttons, **from the same table**.
+📌 **Ruling 49 falls out by construction** — a command a host cannot service is ABSENT because nothing
+registers an entry for it, ⛔ not greyed by a per-host branch.
+
+⭐⭐ **A separator is emitted only when the group it brackets emitted something.** ⇒ the dangling-rule
+defect this slice removes from CGF *(`ToolbarSep_TimeToPersp`)* cannot recur.
+⚠ **A separator names the group whose presence JUSTIFIES it** — it may trail that group
+*(`ToolbarSep_OpenAsset` after File)* or lead it *(`ToolbarSep_PerspToAiDebug` before AI-debug)*.
+🔴 **The first cut gave `ToolbarSep_OpenAsset` a group of its own, so nothing ever made it live and it
+vanished from the EDITOR** — caught by the byte-identical gate before anything shipped.
+
+## 9.2 ⛔⛔ DEVIATION 1 — **NO Save-All BUTTON** *(§3's subset sentence)*
+
+§3 lists the CGF subset as *"Save · SaveAll · Open Asset · New Asset · QuickReload"*.
+📐 **Measured: the editor's toolbar has NO Save-All button** — only `shell.save` at `-9`.
+⇒ ⛔ a `SaveAll` slot would emit it on the **EDITOR** too *(its shell registers `shell.saveAll`)*,
+breaking item ②'s byte-identical gate and changing a UI nobody asked to change.
+⭐ **The gate wins.** `SaveAllId` stays exposed as a constant, and the rail asserts the button's ABSENCE,
+so adding it later is a deliberate two-host decision rather than a silent drift.
+
+## 9.3 ⛔⛔⛔ DEVIATION 2 — **the AI-DEBUG GROUP IS OMITTED ON CGF**
+
+§3 ③ says *"debug-step handlers route through **CGF's cluster debug controller** (CE-025..028)"*.
+📐 **Measured: those are two different concepts.**
+
+| | binds to | means |
+|---|---|---|
+| the editor's `debug.*` ids | ⭐ **`IDebugSessionRegistry.ActiveSession`** *(`AiDebugCommands`, every one of them)* | stepping an **AI GRAPH** debug session — breakpoints in a blueprint/BTree |
+| `CgfClusterDebugTimeController` | `IEngineDebugTimeController` | **CLUSTER TIME** — `RequestPause` / `RequestResume` / `RequestStepOneTick` |
+
+⛔ **CGF has no AI debug session at all** — this very file passes `session: null` to `QuickReloadService`
+*(slice 1 §9.4)*. ⇒ ⭐⭐⭐ **binding the time controller to `debug.continue`/`debug.pause` would make ONE ID
+MEAN TWO DIFFERENT THINGS across the two hosts — and the conformance rail asserts SAME *by id*.** That is
+the opposite of what this slice exists to do.
+⭐ **Cluster-time stepping already has its own affordance on CGF:** `MainToolbarTimeControlSection`.
+⇒ if AI-debug parity is wanted later, it needs **CGF to host a debug session**, not an id re-binding.
+
+## 9.4 ⚠ DEVIATION 3 — **Open / New omitted on CGF**
+
+📐 CGF composes no `AssetPickerLauncher` and no `NewAssetLauncher` — the editor builds both from catalogs
+and a router this host does not wire. ⇒ ruling 49: **absent, not greyed**.
+⚠ **CGF can still CREATE assets over MCP** *(`MA-019`…`023`)*; what it lacks is an interactive picker.
+
+## 9.5 ⭐⭐ WHAT CGF GAINED
+
+⛔ **Deleted:** two ad-hoc `ImGui.Button` entries *(`"Save All"` / `"Reload AI"`, sortOrder 10/11 — no
+icon, no command id, no enablement, no MCP identity)* and the dangling `ToolbarSep_TimeToPersp`.
+⭐ **Registered instead:** `shell.save` *(via the shared `ShellSaveCommands.Register`)* and
+`blueprint.compileReload`, at the editor's own ids and sort orders, with real icons.
+⚠ CGF's Save-As is a **no-op with a logged reason** — it needs a modal browser this host does not compose;
+⛔ the shared command is registered either way rather than crashing a headless node.
+
+## 9.6 ⭐⭐⭐ THE GATE, AND WHAT IT CAUGHT
+
+`TheToolbarLayoutIsOneListTests` *(5 tests, headless, ~30 ms)* — the pre-extraction entry list asserted by
+**id AND sortOrder**, the derivation, the separator rule, the null-toolbar case, and the **id mirror**.
+
+⚠⚠ **It caught two real defects in the helper before anything shipped:**
+| 🔴 | |
+|---|---|
+| the separator group *(§9.1)* | `ToolbarSep_OpenAsset` disappeared from the editor |
+| **guessed ids** | the first draft wrote `"ai.debug.continue"`; the real id is **`"debug.continue"`** |
+
+⛔⛔ **The id drift is the dangerous one and it is SILENT:** the derived-subset rule means an id nothing
+registers simply yields no button ⇒ **a typo deletes the whole AI-debug toolbar group and fails nothing.**
+⭐ `The_mirrored_debug_ids_match_their_source_of_truth` is why that can happen only once — the mirror
+exists because `AiShared` sits **below** `Hrot.Blueprints.Editor` and cannot reference `AiDebugCommands`.
