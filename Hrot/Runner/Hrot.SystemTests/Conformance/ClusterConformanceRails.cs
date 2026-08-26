@@ -245,7 +245,8 @@ public sealed class ClusterConformanceRails
                     + "when debug sessions reach CGF. The panel DOES name the opened asset on both hosts "
                     + "since slice 2 — that half is asserted, not exempted.",
 
-        // ⭐⭐⭐ CE-016 §7 (A2), `2026-08-26` — the `main-toolbar` DIVERGENCE ENTRY IS DELETED.
+        // ⭐⭐⭐ CE-016 §7 (A2), `2026-08-26` — the `main-toolbar` DIVERGENCE ENTRY IS DELETED, and
+        //    REPLACED by a SUBSET verdict (see SubsetByDesign below), not by nothing.
         // 📐 It read: *"the editor registers every main-toolbar entry and a cluster host registers none,
         //    so CGF's toolbar is legitimately EMPTY today. Deleted by the first slice that ports a
         //    toolbar-controlled feature to CGF (design §7)."* ⇒ ⭐ this is that slice: both hosts now
@@ -258,6 +259,79 @@ public sealed class ClusterConformanceRails
     };
 
     // ══ the rails ═════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE FIFTH VERDICT: *"same kind, the cluster's is a SUBSET"*.</b>
+    /// 📄 <c>DESIGN_Cgf_Shell_Command_Toolbar_Slice.md</c> §3 ④.
+    ///
+    /// <para>⛔⛔ <b>Why <see cref="DivergesByDesign"/> is the WRONG tool here.</b> That set says *"these two
+    /// models differ and we accept it"* — an exemption with no shape. ⭐⭐ For the toolbar the shape is
+    /// exactly what matters: both hosts register through ONE shared table, so every entry the CLUSTER
+    /// publishes MUST also be on the editor, at the SAME sortOrder and visibility. ⇒ a subset check
+    /// catches a CGF-invented entry or a renumbered one, which a blanket exemption would wave through.</para>
+    ///
+    /// <para>⚠ <b>And full-array identity would be equally wrong:</b> the editor services more commands
+    /// *(Open/New pickers, fullRebuild, the AI-debug session group)* so it legitimately emits more
+    /// buttons — those are DECLARED ABSENT on CGF *(ruling 49)*, not a divergence.</para>
+    /// </summary>
+    private static readonly Dictionary<string, string> SubsetByDesign = new(StringComparer.Ordinal)
+    {
+        ["main-toolbar"] =
+            "CE-016 §7 (A2): both hosts register through the ONE shared table (CgfEditorShellToolbar) and "
+          + "the per-host subset is DERIVED from which commands that host's shell can service. The editor "
+          + "services more, so it emits more entries. Every entry the cluster publishes must appear on the "
+          + "editor with the same id, sortOrder and visibility.",
+    };
+
+    /// <summary>
+    /// ⭐⭐ Every way the cluster's entry list fails to be a subset of the editor's — empty when it is one.
+    /// ⚠ Compared by <c>id</c> + <c>sortOrder</c> + <c>visible</c>, ⛔ never by array position: the editor
+    /// has extra entries interleaved, so positions cannot line up and were never the claim.
+    /// </summary>
+    private static List<string> ToolbarSubsetViolations(string editorModel, string clusterModel)
+    {
+        var violations = new List<string>();
+
+        var editorEntries  = JsonNode.Parse(editorModel)!["entries"]  as JsonArray ?? new JsonArray();
+        var clusterEntries = JsonNode.Parse(clusterModel)!["entries"] as JsonArray ?? new JsonArray();
+
+        var editorById = editorEntries.ToDictionary(
+            e => e!["id"]!.GetValue<string>(),
+            e => (Sort: e!["sortOrder"]!.GetValue<int>(), Visible: e["visible"]!.GetValue<bool>()),
+            StringComparer.Ordinal);
+
+        // ⛔ Anti-vacuity: an EMPTY cluster list is trivially a subset and would pass silently — which is
+        //   precisely the state this slice exists to end.
+        if (clusterEntries.Count == 0)
+        {
+            violations.Add("the cluster published ZERO toolbar entries; a subset check on an empty list "
+                         + "proves nothing, and CGF is supposed to register the shared common core.");
+            return violations;
+        }
+
+        foreach (var entry in clusterEntries)
+        {
+            var id = entry!["id"]!.GetValue<string>();
+            if (!editorById.TryGetValue(id, out var onEditor))
+            {
+                violations.Add($"'{id}' is on the CLUSTER toolbar and NOT on the editor's — the shared "
+                             + "table cannot produce that, so it is a host-private registration.");
+                continue;
+            }
+
+            var sort    = entry["sortOrder"]!.GetValue<int>();
+            var visible = entry["visible"]!.GetValue<bool>();
+
+            if (sort != onEditor.Sort)
+                violations.Add($"'{id}' sortOrder differs — editor {onEditor.Sort}, cluster {sort}. "
+                             + "Both come from the shared table, so they cannot legitimately disagree.");
+
+            if (visible != onEditor.Visible)
+                violations.Add($"'{id}' visibility differs — editor {onEditor.Visible}, cluster {visible}.");
+        }
+
+        return violations;
+    }
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE THREE-WAY DIFF.</b> Both modes boot the same binary, publish their panels, and every kind
@@ -312,6 +386,7 @@ public sealed class ClusterConformanceRails
 
         var different = new List<string>();
         var declaredDiverged = new List<string>();
+        var declaredSubset = new List<string>();
         foreach (var kind in shared)
         {
             if (string.Equals(a[kind].Model, b[kind].Model, StringComparison.Ordinal)) continue;
@@ -319,14 +394,31 @@ public sealed class ClusterConformanceRails
             var diffs = PanelNormalizer.Diff(JsonNode.Parse(a[kind].Model), JsonNode.Parse(b[kind].Model));
             var line  = $"{kind} ({a[kind].Id} vs {b[kind].Id}): {string.Join(" | ", diffs.Take(4))}";
 
+            // ⭐⭐ CE-016 §7 ④ — SUBSET kinds are checked by SHAPE before falling through to a verdict.
+            if (SubsetByDesign.ContainsKey(kind))
+            {
+                var violations = ToolbarSubsetViolations(a[kind].Model, b[kind].Model);
+                if (violations.Count == 0)
+                {
+                    declaredSubset.Add($"{kind}: cluster is a subset of the editor "
+                                     + $"({(JsonNode.Parse(b[kind].Model)!["entries"] as JsonArray)?.Count} of "
+                                     + $"{(JsonNode.Parse(a[kind].Model)!["entries"] as JsonArray)?.Count} entries)");
+                    continue;
+                }
+                different.Add($"{kind} SUBSET VIOLATION: {string.Join(" | ", violations.Take(4))}");
+                continue;
+            }
+
             if (DivergesByDesign.ContainsKey(kind)) declaredDiverged.Add(line);
             else                                    different.Add(line);
         }
 
         foreach (var line in declaredDiverged) _out.WriteLine($"DIFFERENT-BY-DESIGN  {line}");
+        foreach (var line in declaredSubset)    _out.WriteLine($"SUBSET-BY-DESIGN     {line}");
 
-        _out.WriteLine($"SAME        : {shared.Length - different.Count - declaredDiverged.Count}");
-        _out.WriteLine($"DIFFERENT   : {different.Count} (+{declaredDiverged.Count} declared by design)");
+        _out.WriteLine($"SAME        : {shared.Length - different.Count - declaredDiverged.Count - declaredSubset.Count}");
+        _out.WriteLine($"DIFFERENT   : {different.Count} (+{declaredDiverged.Count} declared by design, "
+                     + $"+{declaredSubset.Count} declared subset)");
         _out.WriteLine($"NOT-PRESENT : {editorOnly.Length} editor-only, {clusterOnly.Length} cluster-only");
 
         // ⚪ NOT-PRESENT must be DECLARED.
@@ -1152,18 +1244,30 @@ public sealed class ClusterConformanceRails
         var clusterIds = clusterEntries.Select(e => e!["id"]!.GetValue<string>()).ToArray();
         _out.WriteLine($"cluster toolbar ids: [{string.Join(", ", clusterIds)}]");
 
-        foreach (var required in new[] { "SaveAllAiDocuments", "QuickReloadAiAsset" })
+        // ⭐⭐⭐ CE-016 §7 (A2) — THE IDS CHANGED, and that IS the slice. 📐 Before, CGF registered two
+        //    ad-hoc `ImGui.Button` entries called "SaveAllAiDocuments" / "QuickReloadAiAsset": raw
+        //    buttons with no icon, no command id and no enablement, which could not agree with the
+        //    editor's toolbar because they were not the same THINGS.
+        // ⇒ ⭐ CGF now registers the SHARED command ids at the editor's own sort orders, so the required
+        //    set is stated in the shared vocabulary — ⛔ and a rail asserting the old private names would
+        //    be asserting the very divergence this slice removed.
+        foreach (var required in new[]
+                 {
+                     Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId,
+                     Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.CompileReloadId,
+                 })
             Assert.True(clusterIds.Contains(required, StringComparer.Ordinal),
-                $"--mode all's main toolbar does not offer '{required}'. \u2b50 Slice 3 wires save + hot "
-              + "reload on CGF, and design \u00a77 requires a toolbar-controlled feature to be wired AND "
-              + "instrumented here \u2014 not just its underlying command.");
+                $"--mode all's main toolbar does not offer '{required}'. ⭐ CGF services save and "
+              + "compile/reload, so the shared table must emit both here — design §7 requires a "
+              + "toolbar-controlled feature to be wired AND instrumented on CGF, not just its command.");
 
         // \u26d4 And they must be VISIBLE, not registered-but-filtered-away: an entry bound to a
         //   perspective CGF never shows would satisfy the id check and offer the operator nothing.
         foreach (var e in clusterEntries)
         {
             var id = e!["id"]!.GetValue<string>();
-            if (id is not ("SaveAllAiDocuments" or "QuickReloadAiAsset")) continue;
+            if (id != Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId
+             && id != Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.CompileReloadId) continue;
             Assert.True(e["visible"]!.GetValue<bool>(),
                 $"toolbar entry '{id}' is registered on --mode all but NOT visible in the active "
               + "perspective \u2014 the affordance exists in the table and not on screen.");
