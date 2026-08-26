@@ -345,6 +345,20 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: paramSchema is derived from the behaviour definition the runtime itself parses params with, so what you author matches what the engine reads.; An unknown entityId is a 404 whose hint points at GET /entities — it is not answered with an empty list.; A behaviour with no parameters returns an empty properties object, never null..
   Example: `list_behaviors({"entityId":1000})` — discover what entity 1000 can be told to do, and how to shape the params.
 
+### Group P — Mission editing
+- **`get_mission`** — Read an entity's mission plan — its ordered tasks (behaviour, params, triggers, state) and the OCC version you pass back when editing. An entity with no mission returns an empty task list, not an error. Req `networkId` (integer). Returns { networkId, plan: { activeTaskId, tasks: [{ taskId, behaviorId, behaviorParams, executingEngine, state, triggers: [{ type, params }] }] }, version }
+  Notes: version is the optimistic-lock token — pass it straight back to add_mission_task / clear_mission_tasks so a concurrent edit is caught as a 409 rather than silently overwritten.; The offline editor does not yet persist a snapshot version, so it reports 0 today; the edit path still round-trips it.; An unknown networkId is a 404 whose hint points at GET /entities..
+  Example: `get_mission({"networkId":1000})` — read entity 1000's current mission before editing it.
+- **`run_mission`** — Run (or restart) an entity's mission by jumping to its first task and resetting the phase clock. run and restart are the same jump-to-start the mechanism offers. Req `networkId` (integer), `restart?` (boolean, def false). Returns { networkId, restart, committed:true, version }
+  Notes: Sends CMD_JUMP_TO_TASK to task index 0 — the mission still only advances while the sim is running (play_simulation / step_simulation)..
+  Example: `run_mission({"networkId":1000})` — start entity 1000 executing its mission from the first task.
+- **`add_mission_task`** — Append one mission task to an entity — the PROPER way a behaviour attaches (as a task). Names the behaviour pass-through and carries its params as JSON matching the behaviour's paramSchema. Commits the whole plan through the editor's own mission path with optimistic concurrency. Req `networkId` (integer), Req `behavior` (string), `params?` (object), `triggers?` (array). Returns { networkId, taskId, behavior, taskCount, committed:true, version }
+  Notes: params is passed through verbatim — the engine reads it with plain JSON, the same string the editor's Mission panel stores. Shape it to the behaviour's paramSchema (list_behaviors), not to a separate mapper.; The commit is asynchronous: it resolves when the engine acknowledges. If the sim is not being pumped at all the call returns a 504 pointing at play/step.; A stale version yields a 409 (ERR_VERSION_CONFLICT), never a silent overwrite..
+  Example: `add_mission_task({"networkId":1000,"behavior":"MoveToLocation","params":{"Latitude":50.1,"Longitude":14.4}})` — give entity 1000 a MoveToLocation task.
+- **`clear_mission_tasks`** — Clear every task from an entity's mission (so a fresh sequence can be added), by committing an empty plan through the same optimistic-concurrency path. Req `networkId` (integer). Returns { networkId, taskCount:0, committed:true, version }
+  Notes: Commits an empty plan — the same asynchronous, version-checked path as add_mission_task, so the same 409/504 rules apply..
+  Example: `clear_mission_tasks({"networkId":1000})` — wipe entity 1000's mission so a new sequence can be authored.
+
 ### Group Q — Blueprint hot-attach
 - **`list_blueprints`** — Every blueprint this editor compiled, with whether it can be attached to an entity. No params. Returns { count, blueprints:[{ blueprintId, name, assetId, kind, stateSize, attachable }] }
   Notes: Only Instance-dispatch blueprints occupy a slot on an entity; attachable says so up front rather than through a refusal..

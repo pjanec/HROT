@@ -439,6 +439,65 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("GET", "/breakpoint-types", _ => RunMain(s => s.GetBreakpointTypes())));
 
+            // Group P — mission editing (MX4b). Missions are the PROPER way a behaviour attaches to an
+            // entity (as a task). Every write is snapshot → modify → CommitMissionAsync(id, plan, version)
+            // through the same IMissionEditorService the editor's Mission panel commits through — the
+            // commit resolves ACROSS FRAMES (the editor loop's PollAcks reads the ack), so the write routes
+            // publish on the main thread and then await the returned task OFF it, with a bounded timeout.
+            _routes.Add(new("GET", "/missions/{networkId}", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Task.FromResult(Fail(400, "Invalid networkId."));
+                return RunMainResult(s =>
+                {
+                    var (result, error, hint) = s.GetMission(id);
+                    return error != null ? MissionError(error, hint) : Ok(result);
+                });
+            }));
+
+            _routes.Add(new("POST", "/missions/{networkId}/task", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var behavior = ctx.Body?["behavior"]?.GetValue<string>();
+                var pars     = ctx.Body?["params"];
+                var triggers = ctx.Body?["triggers"];
+
+                var (commit, meta, error, hint) = await _jobQueue
+                    .RunOnMainThread(() => Service().BeginAddMissionTask(id, behavior, pars, triggers))
+                    .ConfigureAwait(false);
+                if (commit is null)
+                    return MissionError(error ?? "Mission task could not be added.", hint);
+                return await AwaitMissionCommitAsync(commit, meta, "add-task").ConfigureAwait(false);
+            }));
+
+            _routes.Add(new("DELETE", "/missions/{networkId}/tasks", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+
+                var (commit, meta, error, hint) = await _jobQueue
+                    .RunOnMainThread(() => Service().BeginClearMissionTasks(id))
+                    .ConfigureAwait(false);
+                if (commit is null)
+                    return MissionError(error ?? "Mission tasks could not be cleared.", hint);
+                return await AwaitMissionCommitAsync(commit, meta, "clear").ConfigureAwait(false);
+            }));
+
+            _routes.Add(new("POST", "/missions/{networkId}/run", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                bool restart = ctx.Body?["restart"]?.GetValue<bool>() ?? false;
+
+                var (commit, meta, error, hint) = await _jobQueue
+                    .RunOnMainThread(() => Service().BeginRunMission(id, restart))
+                    .ConfigureAwait(false);
+                if (commit is null)
+                    return MissionError(error ?? "Mission could not be run.", hint);
+                return await AwaitMissionCommitAsync(commit, meta, restart ? "restart" : "run").ConfigureAwait(false);
+            }));
+
             // Group M — TKB catalog
             _routes.Add(new("GET", "/tkb/types", ctx =>
             {
@@ -1378,6 +1437,71 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         private Task<RouteResult> RunMainResult(Func<DebugApiService, RouteResult> fn)
             => _jobQueue.RunOnMainThread(() => fn(Service()));
+
+        // ── mission editing (MX4b) ────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ How long a mission commit/run may wait for its <c>MissionControlAckEvent</c> before the route
+        /// gives up. The ack normally lands within a frame or two (the execution system runs in the Input
+        /// phase every editor tick, and <c>PollAcks</c> runs right after), so a timeout means the host is
+        /// not pumping the mission-control system at all — a real, reportable condition, not a slow tick.
+        /// </summary>
+        private const double MissionAckTimeoutSeconds = 15.0;
+
+        /// <summary>
+        /// The three-code classification the mission routes share: a missing service is a COMPOSITION
+        /// defect (503) the caller could not avoid; an unknown entity is an addressing mistake (404); any
+        /// other refusal is a bad request (400). ⭐ Mirrors <see cref="AuthoringResult"/>'s intent for the
+        /// mission seam.
+        /// </summary>
+        private static RouteResult MissionError(string error, string? hintCategory)
+            => Fail(
+                hintCategory == DebugApiHints.Entity ? 404
+                    : error.StartsWith("No mission service", StringComparison.Ordinal) ? 503
+                    : 400,
+                error, hintCategory);
+
+        /// <summary>
+        /// Awaits an in-flight mission commit/control task off the main thread, bounded by
+        /// <see cref="MissionAckTimeoutSeconds"/>. Maps the resolved <c>MissionCommitResult</c>: success →
+        /// 200 with the new OCC version merged into <paramref name="meta"/>; a rejected commit (e.g.
+        /// <c>ERR_VERSION_CONFLICT</c>) → 409 — ⛔ never a silent overwrite; a timeout → 504 pointing at the
+        /// sim controls.
+        /// </summary>
+        private static async Task<RouteResult> AwaitMissionCommitAsync(
+            Task<Hrot.UI.Common.Models.MissionCommitResult> commit, JsonNode? meta, string verb)
+        {
+            var finished = await Task.WhenAny(
+                commit, Task.Delay(TimeSpan.FromSeconds(MissionAckTimeoutSeconds))).ConfigureAwait(false);
+
+            if (!ReferenceEquals(finished, commit))
+                return Fail(504,
+                    $"The mission {verb} was published but the engine did not acknowledge it within "
+                    + $"{MissionAckTimeoutSeconds:0}s — advance the sim (POST /sim/play or POST /sim/step) so "
+                    + "the mission-control system processes it.",
+                    DebugApiHints.MissionTask);
+
+            Hrot.UI.Common.Models.MissionCommitResult result;
+            try
+            {
+                result = await commit.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                return Fail(500, $"The mission {verb} threw before it acknowledged: {ex.Message}", DebugApiHints.MissionTask);
+            }
+
+            if (!result.Success)
+                return Fail(409,
+                    $"The mission {verb} was rejected: {result.ErrorMessage ?? "version conflict"}. "
+                    + "Re-read GET /missions/{networkId} for the current version and retry.",
+                    DebugApiHints.MissionTask);
+
+            var data = meta as JsonObject ?? new JsonObject();
+            data["committed"] = true;
+            data["version"]   = result.NewVersion;
+            return Ok(data);
+        }
 
         // ── Accept / dispatch loop ────────────────────────────────────────────
 
