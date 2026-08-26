@@ -205,3 +205,13 @@ test-host crash. ⛔ **Not a regression** — 📐 established by diffing the fa
 
 ⇒ ⭐ **net: 3 fixed, 0 new.** 📌 Lesson worth keeping: **on a suite that aborts, compare failure SETS, never
 counts** — a crash that moves later hands you "new" failures that were always there.
+
+#### ⭐ T3 after `AX-011`/`AX-012`
+
+| gate | result |
+|---|---|
+| ⭐ **T3 system/E2E** *(`run-system-tests.sh --no-build`, backgrounded)* | **102 total · 101 passed · 1 failed** · 7 m 16 s |
+| ⚠ the single failure | `ModeStartupRails.EveryMode_StartsAndKeepsRunning(mode: "ig")` — ⛔ **NOT a regression: an X11 DISPLAY flake.** The runner output is explicit: `WARNING: GLFW: Error 65550 … X11: Failed to open display :91` → `GLFW: Failed to initialize` → the process died with **exit code 139 (SIGSEGV)** inside GLFW, before any replication code ran. 📐 **Re-run of the whole `ModeStartupRails` class: 8/8 GREEN.** ⇒ the spawn-path change is not implicated — this rail boots the IG **non-headless** and needs a virtual display that was momentarily unavailable |
+
+⚠ **Stated rather than rounded up to "102/102":** the suite did report a red, and the honest record is
+*"one display flake, isolated re-run green"* — ⛔ not a clean sweep.
