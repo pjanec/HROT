@@ -113,17 +113,38 @@ public static class AttributeCompilerFactory
     /// binary attribute routing schema.
     /// </summary>
     /// <remarks>
-    /// Registers the same five paths as <see cref="Build"/> so that the JSON→ECS and
-    /// JSON→Binary pipelines stay in perfect sync.
+    /// <para>⭐⭐⭐ Registers the same paths as <see cref="Build"/> so that the JSON→ECS and JSON→Binary
+    /// pipelines stay in perfect sync — 📄 the owning design's own words
+    /// *(<c>docs/designs/attribs2/ATTR2-DESIGN.md</c> §3.2)*.</para>
+    ///
+    /// <para>🔴🔴 <b><c>AX-018</c> — that promise had FAILED, and nothing detected it.</b> 📐 Measured
+    /// <c>2026-08-26</c>: <c>Heading</c> was added to <see cref="Build"/> and to
+    /// <see cref="BuildBinaryInterpreter"/> *(Axis-B item ②)* and to <b>neither edge table</b>. ⇒ the
+    /// interpreter stood ready to apply <c>GeoHeading</c> that no edge table could ever emit, so a heading
+    /// crossing the JSON→binary route emitted <b>zero records</b> — ⛔ silently: no exception, no log, the
+    /// rotation simply never left the edge.</para>
+    ///
+    /// <para>⭐⭐ <b>This is now the SOLE edge table.</b> ⚠ <c>IgApplication</c> used to hand-copy these
+    /// registrations with a comment saying they must stay in sync — ⛔ ruling 9, and the comment WAS the
+    /// enforcement. ⭐ Railed by <c>TheFourRoutingTablesAgreeTests</c>: the vocabulary is pinned against
+    /// <see cref="Build"/>'s own <c>RegisteredPaths</c>, and a second builder anywhere in the tree is a
+    /// source-scan red.</para>
     /// </remarks>
     public static JsonToRecordCompiler BuildEdgeCompiler()
     {
         return new JsonToRecordCompilerBuilder()
             .Register("Name",                   AttributeIds.Name,        AttributeValueKind.CsString)
-            .Register("Affiliation",             AttributeIds.Affiliation,  AttributeValueKind.CsString)
+            // ⚠ CsString, and a NUMBER is equally valid here: ExCon's default enum serialisation emits
+            //   `2` rather than "FORCE_OPPOSING". ⭐ AX-018 made JsonToRecordCompiler honour the token, so
+            //   both forms cross — and HandleAffiliation already branched on record.Value.Kind to receive
+            //   them. 📐 Before that, {"Affiliation":2} THREW at the edge.
+            .Register("Affiliation",            AttributeIds.Affiliation, AttributeValueKind.CsString)
             .Register("GeoPosition.Latitude",   AttributeIds.GeoLat,      AttributeValueKind.CsFloat64)
             .Register("GeoPosition.Longitude",  AttributeIds.GeoLon,      AttributeValueKind.CsFloat64)
             .Register("GeoPosition.Altitude",   AttributeIds.GeoAlt,      AttributeValueKind.CsFloat64)
+            // ⭐⭐ AX-018 — the missing one. Registered UNCONDITIONALLY, matching Build() and
+            //   BuildBinaryInterpreter(): a compass heading needs no IGeographicTransform.
+            .Register("Heading",                AttributeIds.GeoHeading,  AttributeValueKind.CsFloat64)
             .Build();
     }
 

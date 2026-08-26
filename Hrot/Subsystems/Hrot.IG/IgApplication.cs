@@ -62,6 +62,7 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 
 using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.Replication.Attributes;
 
 using Fdp.Toolkit.Replication.Components;
 
@@ -685,15 +686,13 @@ public class IgApplication : IDisposable
         _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
 
         // ATTR2-DEBT-07: Build edge compiler once, shared across all CreationTool instances.
-        // Registers the same five paths used by AttributeCompilerFactory.BuildEdgeCompiler()
-        // in Hrot.SimHost so the JSON-Binary schema stays in sync on both ends of the wire.
-        _edgeCompiler = new JsonToRecordCompilerBuilder()
-            .Register("Name",                  AttributeIds.Name,        AttributeValueKind.CsString)
-            .Register("Affiliation",           AttributeIds.Affiliation,  AttributeValueKind.CsString)
-            .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,      AttributeValueKind.CsFloat64)
-            .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueKind.CsFloat64)
-            .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueKind.CsFloat64)
-            .Build();
+        //
+        // ⭐⭐⭐ AX-018 — CALL THE FACTORY. This used to re-Register the five paths by hand, with a comment
+        //    saying they must stay in sync with AttributeCompilerFactory.BuildEdgeCompiler(). 🔴 That comment
+        //    WAS the enforcement, and it had already failed: `Heading` was added to the JSON→ECS table and to
+        //    the binary interpreter and to NEITHER edge table, so IG's creation tool could not send a heading
+        //    at all — silently, no exception, no log. ⛔ Ruling 9: one implementation per concept.
+        _edgeCompiler = AttributeCompilerFactory.BuildEdgeCompiler();
 
         _igBootstrapper = new IgNodeBootstrapper(
             _networkFactory,

@@ -3,9 +3,13 @@ state: LIVE
 build-state: BUILT — the first cut (AX-001..AX-006), the AX-005 successor (AX-005a/b/c, AX-007, AX-008,
   CE-018, CE-035, CE-036) on 2026-08-25, and AX-011/AX-012 on 2026-08-26 which turned the full
   --mode all round trip GREEN, AX-015/AX-016 (§15) and AX-017 (§16) on 2026-08-26.
-  ⭐⭐⭐ §16 IS THE NEWEST AS-BUILT and carries the LIVE classDiagram + sequenceDiagram for the apply path:
+  ⭐⭐⭐ §17 IS THE NEWEST AS-BUILT (AX-018): the attribute vocabulary was declared in FOUR tables that
+  disagreed — a heading could be APPLIED but never EMITTED, an integer affiliation THREW at the edge, and
+  IgApplication hand-copied the edge table (ruling 9). ⛔ §16.5's "the asymmetry is only stylistic" is
+  SUPERSEDED by §17.1/§17.2 — it named a shape and never measured the behaviour.
+  ⭐⭐ §16 carries the LIVE classDiagram + sequenceDiagram for the apply path:
   it moved out of the DDS assembly into Fdp.Toolkit.Replication.Attributes and made the JSON and binary
-  update paths consistent. ⛔ §14.3 (AX-013, "open question") is ANSWERED by §16 and its
+  update paths consistent (§17 completes that consistency). ⛔ §14.3 (AX-013, "open question") is ANSWERED by §16 and its
   "a descriptor ordinal IS wire numbering" claim is RETRACTED — do not quote §14.3 as open.
   ⭐⭐ §12.2/§12.3 remain the LIVE diagrams for the EGRESS/request path (§16's are the APPLY path). ⛔ §11.3-§11.5 are SUPERSEDED — the plan asked for a NEW
   intent + a NEW translator; both already existed and were EXTENDED (ruling 9). Read §9 and §12.
@@ -951,3 +955,109 @@ and this is that edit.
 ⚠ **A stale comment was corrected, not just the code:** `UpdateEntityAttributeRequestSystem`'s binary arm
 said *"FlushDirtyMarks is a no-op here because the binary installer flushers drive SmartEgress themselves"*
 — 🔴 **that described the `AX-015` DEFECT as if it were the design.**
+
+---
+
+## 17. ⭐⭐⭐ AS-BUILT `2026-08-26` (5) — **`AX-018`: the vocabulary was declared FOUR times, and they disagreed**
+
+> ⭐⭐⭐ **User, `2026-08-26`:** *"is then the json path inconsistwnt with the binary one? can wr make
+> consistent, following network agnostism rules? can we fix the tests where we know correct asserts?"*
+>
+> ⭐⭐ **Answer to the first: YES, and worse than §16.5 admitted.** §16.5 named a *stylistic* asymmetry
+> *(implicit vs explicit ordinal)*. ⛔ **Measuring it properly found two SILENT DEFECTS and a ruling-9
+> violation.** 📌 This is the mirror-error rule biting me: §16.5 reasoned about the code's shape without
+> measuring its behaviour.
+
+### 17.1 🔴 FOUR TABLES, not two
+
+| # | table | has `Heading`? | callers |
+|---|---|---|---|
+| ① | `AttributeCompilerFactory.Build()` — JSON path → ECS setter | ✅ | production |
+| ② | `AttributeCompilerFactory.BuildEdgeCompiler()` — JSON path → record | ⛔ **NO** | ⚠ **tests only** |
+| ③ | 🔴 `IgApplication._edgeCompiler` — JSON path → record, **hand-copied from ②** | ⛔ **NO** | ⭐⭐ **the PRODUCTION one** |
+| ④ | `AttributeCompilerFactory.BuildBinaryInterpreter()` — record → ECS | ✅ | production |
+
+📄 The owning design **`docs/designs/attribs2/ATTR2-DESIGN.md` §3.2** states the intent plainly:
+*"stay in perfect sync."* ⛔ **Nothing checked it, and it had already failed.**
+
+### 17.2 ⛔ THE THREE DEFECTS — measured, not inferred
+
+| | defect | evidence |
+|---|---|---|
+| **`D1`** | 🔴🔴 **A heading can be APPLIED but never EMITTED.** `Heading` was added to ① and ④ *(Axis-B item ②)* and to **neither** edge table ⇒ `{"Heading":90.0}` emitted **ZERO** records | 📐 rail: `Assert.Single` on an **empty** collection; the whole-vocabulary patch produced `[1,2,10,11,12]`, missing `13` |
+| **`D2`** | 🔴🔴 **An integer affiliation THREW at the edge** — not a silent drop, an **exception on the ingress path** | 📐 `InvalidOperationException: Cannot get the value of a token type 'Number' as a string` at `JsonToRecordCompiler.EmitRecord:201`. ⚠ And `{"Affiliation":2}` is **exactly what ExCon sends** — `MapAffiliationInt` exists *because of* it, and `HandleAffiliation` **already branched on `record.Value.Kind == CsInt32`** ⇒ ⭐ **both ends were ready; only the edge refused** |
+| **`D3`** | ⛔ **Ruling 9 — two edge tables.** ③ re-`Register`ed the five paths by hand with a comment saying they must stay in sync with ② | 📌 **the comment WAS the enforcement**, and `D1` is what that buys. ⭐ Same disease as the `eForceIdentifier` triple (§16.5) |
+
+### 17.3 ⭐⭐ THE FIX — and it needs NO network reasoning at all
+
+⭐⭐⭐ **Answering the second question directly: yes, and `R-134` is not even engaged.** 📐 After `AX-017`
+**all four tables live in `Fdp.Toolkits`**; the disagreement is entirely FDP-internal. ⇒ ⛔ no DDS type is
+involved, nothing crosses the boundary, and the network-agnosticism rules simply do not bear on it.
+⭐ *(That is itself a dividend of §16: the question became answerable without touching the network layer.)*
+
+```mermaid
+classDiagram
+    class AttributeCompilerFactory {
+        +Build(geo) JsonAttributeCompiler
+        +BuildEdgeCompiler() JsonToRecordCompiler
+        +BuildBinaryInterpreter(geo) BinaryInterpreter
+        +MapAffiliationInt(int) ForceId
+        +MapAffiliationString(string) ForceId
+    }
+    class JsonToRecordCompiler {
+        -EmitRecord(token, entry)
+        -EmitNumber(token, entry)
+    }
+    class EdgeSchemaEntry {
+        +AttributeId
+        +ExpectedKind
+    }
+    class EntityDataAttributeInstaller {
+        +HandleAffiliation(ctx, record)
+    }
+    class IgApplication {
+        -_edgeCompiler
+    }
+
+    AttributeCompilerFactory --> JsonToRecordCompiler : builds the ONE edge table
+    IgApplication ..> AttributeCompilerFactory : calls BuildEdgeCompiler (was a hand-copy)
+    JsonToRecordCompiler --> EdgeSchemaEntry : width only, not category
+    AttributeCompilerFactory --> EntityDataAttributeInstaller : installs
+    EntityDataAttributeInstaller ..> AttributeCompilerFactory : reuses MapAffiliation*
+```
+
+⭐⭐⭐ **`D2`'s fix is the interesting one: THE TOKEN WINS OVER THE SCHEMA.** ⛔ `ExpectedKind` used to
+choose the reader getter unconditionally. ⭐ Its **real** job is choosing the **numeric width** — JSON has one
+number type, so nothing in `32` says `int` vs `long` vs `double`. ⇒ `EmitRecord` now dispatches on the
+**actual token** and delegates width to `EmitNumber`. ⛔ **It does NOT coerce across categories:** a string on
+a numeric route throws a **named** diagnostic naming the attribute id, instead of the opaque BCL message.
+
+⭐ **Why the token is the right authority, and this is not a weakening:** a record carries its **own**
+`AttributeValueKind`, and consumers **already** branch on it. ⇒ the pipeline was designed for a per-value
+kind all along; only this one method insisted otherwise.
+
+### 17.4 ⭐⭐ THE TESTS — *"where we know correct asserts"*
+
+| test | ⭐ was the correct assert KNOWABLE? | action |
+|---|---|---|
+| ⭐⭐⭐ `HsmBehaviorIntegrationTests.E1_…RegistersExactlySixSystemsInOrder` | ✅ **YES, and the answer was already IN THE REPO.** 📐 `Fdp.Toolkits.Tests/…/CognitiveRuntimeModuleTests` asserts **7** with `BehaviorFrameSystem` at index 6 **and is green** ⇒ the module is right, this copy was a **stale duplicate** never updated | ✅ **FIXED** → 7 + the index-6 check. ⚠ The claim is asserted twice and the owning project's copy is the better home *(it names the internal types instead of comparing strings)* — ⛔ **filed, not removed**: deleting a rail is a separate reviewable act |
+| ⭐⭐⭐ `DangerAreaProviderTests.…ZeroAllocAfterWarmup` | ✅ **YES — the INSTRUMENT was wrong, not the claim.** 🔴 It measured `GC.GetTotalMemory` *(the **whole process heap**)* with a 4096-byte fudge and a `[Trait("Stability","Flaky")]` whose comment said *"passes in isolation"* — 📐 **it fails in isolation too (8224 bytes)**. ⛔ Of course: xunit allocates on other threads, so a process-wide counter can never attribute bytes. **No value of the tolerance would have fixed that** | ✅ **FIXED** → `GC.GetAllocatedBytesForCurrentThread()`, which is thread-local. ⭐⭐ The assert is now **EXACTLY zero** — **stricter** than the fudge it replaces — the `Flaky` trait is **gone**, and `GC.Collect` is unnecessary. 📐 Red-proved: one `new object()` per iteration ⇒ **exactly 24000** |
+| ⛔ `FullBranchPipelineTests.BranchedRecording_…` | ⛔ **NO. The assert is CORRECT** *(`File.Exists` on the branched recording)* — what is unknown is **why it fails**. 📐 The temp tree is gone after the run, so it needs pipeline instrumentation, not an assert edit | ⛔ **NOT touched.** ⚠ Pre-existing *(reproduced on a base worktree)*; timing-dependent *(50 × `Task.Delay(20)` against a background kernel thread)* |
+| ⛔ `GhostPromotionTests.OutOfOrder_…` · `SpawnMovingVehicle_…` ×2 | ⛔ **NO.** *"Ghost entity was not promoted after EntityMaster descriptor arrived"* is exactly the assert one wants — 📌 the `AX-009` family. ⭐ Identical **3/18 on BOTH trees** | ⛔ **NOT touched** — a real behaviour investigation, offered rather than silently started |
+| ⚠ `StagingEntityExtractorTests` · `EditLoadClusterOpHandlerTests` · `GizmoRegistryTests` | ⛔ **NO — not an assert bug at all.** The `ComponentTypeRegistry` static-registration order is global mutable state, so the failing identity **rotates between identical runs** *(0–5 reds)* | ⛔ **NOT touched.** ⭐ `R-131` says a flaky test is a defect to resolve — ⚠ but the fix is **engine-level global state**, not a test edit |
+
+⭐⭐ **The discipline that decided every row:** ⛔ **never change an assert to match the code.** ⭐ For each
+one, establish **which side is wrong** first — `E1` by finding the green sibling rail, `ZeroAlloc` by
+measuring in isolation and recognising the instrument could not work. ⇒ **the four rows where that could not
+be established are left red and named.**
+
+### 17.5 ⭐ RAILS
+
+| rail | where | state |
+|---|---|---|
+| ⭐⭐⭐ **every declared attribute is emitted by the edge table** *(6 cases)* · the whole vocabulary in one patch emits one record each · **the declared vocabulary == `Build()`'s own `RegisteredPaths`** · an integer affiliation crosses as an **`CsInt32`** record · …and applies the **same `ForceId`** as the string form · **both routes produce the same entity state AND the same dirty descriptors** · **no one outside the factory builds an edge table** *(source scan, with its own "did the scan see anything" proof)* | `Hrot.SimHost.Tests/TheFourRoutingTablesAgreeTests` *(12)* | ✅ **12/12** — ⭐ **6 of them were RED before the fix**, which is the red-proof |
+
+⭐⭐⭐ **Note the shape of ②** *(`TheDeclaredVocabularyCoversEveryJsonRoute`)*: the declared list is pinned
+against the JSON compiler's **own** `RegisteredPaths`, so ⛔ **it cannot become a fifth stale table.** ⇒ a
+path added to one table and not the others reddens there, then ① reddens for the edge — **a new attribute
+cannot be half-registered.**

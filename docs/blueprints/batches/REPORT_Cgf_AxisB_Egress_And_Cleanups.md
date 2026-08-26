@@ -318,3 +318,44 @@ further before dying, so it accumulated more of the same failures.
 ⇒ ⭐⭐ **Reporting rule for this suite, worth keeping:** quote a **filtered subset run on both trees**, never
 the aborted total. ⚠ **`R-131` is unaddressed here and said so** — an un-gateable suite is a defect to
 resolve, ⛔ and this addendum does not resolve it; it only stops it manufacturing a false alarm.
+
+---
+
+### ⭐⭐⭐ `2026-08-26` (5) — **`AX-018`: answering "is the JSON path inconsistent?" properly, and it was**
+
+📄 Durable record: design **§17** *(classDiagram; §16.5 marked SUPERSEDED)*. 🔒 *"is then the json path
+inconsistwnt with the binary one? can wr make consistent, following network agnostism rules? can we fix the
+tests where we know correct asserts?"*
+
+| # | finding |
+|---|---|
+| **F18** | ⛔⛔ **`AX-017` §16.5 CALLED THE ASYMMETRY "STYLISTIC". THAT WAS THE MIRROR ERROR** — 📌 *"a design ruling tells you what SHOULD exist; it cannot tell you what a diff ACTUALLY DID."* ⭐ I described the SHAPE of the two paths *(implicit vs explicit ordinal)* and never measured their BEHAVIOUR. ⇒ the user's question was the right one and the honest answer is **worse than I had reported**: two silent defects and a ruling-9 violation |
+| **F19** | 🔴🔴 **FOUR routing tables, not two — and the PRODUCTION one was the hand-copy.** `IgApplication._edgeCompiler` re-`Register`ed the five paths with a comment saying they must stay in sync with `BuildEdgeCompiler()`, whose only callers are TESTS. ⇒ ⛔ **the comment was the enforcement, and it had already failed** |
+| **F20** | 🔴🔴 **`D1` — a heading could be APPLIED but never EMITTED.** `Heading` went into the JSON→ECS table and the binary interpreter *(Axis-B item ②)* and into **neither** edge table ⇒ `{"Heading":90.0}` emitted **ZERO** records, so IG's creation tool could not send a heading at all. ⚠ Silent: no exception, no log |
+| **F21** | 🔴🔴 **`D2` — `{"Affiliation":2}` THREW at the edge**, and that is **exactly what ExCon sends** *(its default enum serialisation is the underlying integer)*. ⚠⚠ **Both ends were already built for it** — `MapAffiliationInt` exists *because of* ExCon, and `HandleAffiliation` already branched on `record.Value.Kind == CsInt32`. ⇒ ⭐ **only the edge refused**, because `ExpectedKind` chose the reader getter unconditionally |
+| **F22** | ⭐⭐⭐ **The fix needed NO network reasoning, and that is a dividend of `AX-017`.** 📐 All four tables now live in `Fdp.Toolkits`, so the disagreement is entirely FDP-internal and `R-134` is not engaged. ⇒ answering *"following network agnosticism rules?"*: **the rules do not bear on it at all** — before the move, this same fix would have been a boundary argument |
+| **F23** | ⭐⭐ **`ExpectedKind`'s real job is the numeric WIDTH, not the token category.** JSON has one number type, so nothing in `32` says `int`/`long`/`double` — that is a schema question. ⛔ But the CATEGORY is in the token, and a record carries its own `AttributeValueKind` that consumers already branch on. ⇒ **the token wins**; a string on a numeric route now throws a **named** diagnostic instead of the opaque BCL message |
+
+#### ⭐⭐ The test question, answered row by row — ⛔ **never change an assert to match the code**
+
+| test | correct assert knowable? | action |
+|---|---|---|
+| `HsmBehaviorIntegrationTests.E1_…SixSystems…` | ✅ **YES — the answer was already in the repo.** `Fdp.Toolkits.Tests/…/CognitiveRuntimeModuleTests` asserts **7** with `BehaviorFrameSystem` at index 6 **and is green** ⇒ the module is right, this was a **stale duplicate** | ✅ **FIXED** → 7 + index-6 check. ⚠ Duplication **filed, not removed** |
+| `DangerAreaProviderTests.…ZeroAlloc…` | ✅ **YES — the INSTRUMENT was wrong.** `GC.GetTotalMemory` is the whole PROCESS heap; xunit allocates on other threads ⇒ **no tolerance value could ever work**. 📐 Its `Flaky` comment claimed *"passes in isolation"* — **it does not (8224 B)** | ✅ **FIXED** → thread-local `GC.GetAllocatedBytesForCurrentThread()`, assert now **EXACTLY 0** *(stricter)*, `Flaky` trait removed. Red-proved at **exactly 24000 B** |
+| `FullBranchPipelineTests.BranchedRecording_…` | ⛔ **NO — the assert is CORRECT**; why it fails is unknown | ⛔ **NOT touched.** Needs pipeline instrumentation; pre-existing |
+| `GhostPromotionTests.OutOfOrder_…` · `SpawnMovingVehicle_…`×2 | ⛔ **NO** — *"ghost was not promoted"* is the right assert *(`AX-009` family)* | ⛔ **NOT touched.** Identical **3/18 on BOTH trees**; a real investigation, offered not started |
+| `StagingEntityExtractor` · `EditLoadClusterOpHandler` · `GizmoRegistry` | ⛔ **NO — not an assert bug.** `ComponentTypeRegistry` global order ⇒ the identity ROTATES | ⛔ **NOT touched.** `R-131` applies; the fix is engine-level global state |
+
+| gate | `--no-build` | result | Δ |
+|---|---|---|---|
+| ⭐⭐⭐ **`TheFourRoutingTablesAgreeTests`** | ✅ | ✅ **12/12** | NEW — ⭐ **6 were RED before the fix**, which IS the red-proof *(zero records for `Heading`; the exception for `{"Affiliation":2}`; `["IgApplication.cs"]` from the source scan)* |
+| ⭐⭐ **`HsmBehaviorIntegrationTests`** | ✅ | ✅ **2/2** | 1 red → 0 |
+| ⭐⭐ **`Fdp.Toolkits.Tests`** | ✅ | ✅ **2037/2037** | ⭐ **2036/2037 → 2037/2037** — the `DangerArea` red is gone, and no static-order flake this run |
+| `Hrot.Network.NED.Tests` | ✅ | ✅ **106/106** | unchanged |
+| `Hrot.SimHost.Tests` | ✅ | **729 total · 4 failed** | +12 rails. ⚠ Reds are the rotating static-order set + the stable pre-existing `FullBranchPipelineTests`; ⛔ **none from the edge-compiler change** — `BinaryInstallersTests.BuildEdgeCompiler_*` and `JsonToRecordCompilerTests` all green |
+| builds | — | ✅ `Fdp.Toolkits` · `Hrot.IG` · `Hrot.SimHost` · `Hrot.CGF` · `Hrot.Editor` · `Hrot.Network.NED` | 0 errors each |
+| `design-digest --check` · `tracker-counts --check` · `rulings-check` · `mermaid-check` | — | ✅ 86 docs · counts OK · **25/25** · **10/10 blocks** | +1 mermaid block |
+
+⭐ **ID allocated: `AX-018`.** ⚠ **On `tracker-counts`:** the header tally is unchanged at **102/346** and that is
+CORRECT, not a stale gate — 📐 the script counts only rows naming a **`BP-`** id, so `AX-` rows are outside
+its scope by construction.

@@ -180,6 +180,67 @@ public sealed class JsonToRecordCompiler
         short subIndex2,
         IAttributeRecordEmitter emitter)
     {
+        // ⭐⭐⭐ AX-018 — THE TOKEN WINS OVER THE SCHEMA WHEN THE TWO DISAGREE.
+        //
+        // 🔴 Before this, ExpectedKind chose the reader getter unconditionally, so a route declared
+        //    CsString hit reader.GetString() on a Number token and threw
+        //    "Cannot get the value of a token type 'Number' as a string" — measured 2026-08-26 on
+        //    {"Affiliation":2}, which is exactly what ExCon emits (its default enum serialisation is the
+        //    underlying integer). ⛔ An exception on the ingress path, not a dropped field.
+        //
+        // ⭐⭐ Why the token is the right authority. A record carries its OWN AttributeValueKind, and the
+        //    consumers already branch on it — EntityDataAttributeInstaller.HandleAffiliation reads
+        //    record.Value.Kind == CsInt32 to pick MapAffiliationInt over MapAffiliationString. ⇒ the
+        //    pipeline was designed for a per-value kind all along; only this method insisted otherwise.
+        //    ⭐ So ExpectedKind keeps its real job — choosing the NUMERIC WIDTH for a number, where JSON
+        //    itself is ambiguous — and stops overriding the token's category.
+        //
+        // ⛔ What this does NOT do: coerce across categories. A string on a numeric route is a genuine
+        //    schema error and throws a NAMED diagnostic naming the path's attribute id, rather than the
+        //    opaque BCL message above.
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Number:
+                EmitNumber(ref reader, entry, subIndex1, subIndex2, emitter);
+                break;
+
+            case JsonTokenType.True:
+            case JsonTokenType.False:
+                emitter.EmitBool(entry.AttributeId, reader.GetBoolean(), subIndex1, subIndex2);
+                break;
+
+            case JsonTokenType.String:
+                if (entry.ExpectedKind != AttributeValueKind.CsString)
+                    throw new InvalidOperationException(
+                        $"Attribute {entry.AttributeId} is registered as {entry.ExpectedKind} but the JSON " +
+                        "value is a string. The edge compiler does not parse strings into numbers — fix the " +
+                        "sender or register the path as CsString.");
+                emitter.EmitString(entry.AttributeId, InternString(reader.GetString()), subIndex1, subIndex2);
+                break;
+
+            case JsonTokenType.Null:
+                // ⭐ Null is only meaningful for a string route; a null number has no record to emit.
+                if (entry.ExpectedKind == AttributeValueKind.CsString)
+                    emitter.EmitString(entry.AttributeId, null, subIndex1, subIndex2);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ Emits a JSON <c>Number</c> at the width the schema asks for.
+    ///
+    /// <para>⭐ This is where <see cref="EdgeSchemaEntry.ExpectedKind"/> genuinely earns its place: JSON has
+    /// one number type, so nothing in the token says whether <c>32</c> means an <c>int</c>, a <c>long</c> or
+    /// a <c>double</c>. ⚠ When the route expects a STRING — a mixed enum path like <c>Affiliation</c> — the
+    /// width is inferred from the literal instead: integral ⇒ <c>Int32</c>, otherwise <c>Float64</c>.</para>
+    /// </summary>
+    private static void EmitNumber(
+        ref Utf8JsonReader reader,
+        EdgeSchemaEntry entry,
+        short subIndex1,
+        short subIndex2,
+        IAttributeRecordEmitter emitter)
+    {
         switch (entry.ExpectedKind)
         {
             case AttributeValueKind.CsInt32:
@@ -194,11 +255,12 @@ public sealed class JsonToRecordCompiler
             case AttributeValueKind.CsFloat64:
                 emitter.EmitFloat64(entry.AttributeId, reader.GetDouble(), subIndex1, subIndex2);
                 break;
-            case AttributeValueKind.Bool:
-                emitter.EmitBool(entry.AttributeId, reader.GetBoolean(), subIndex1, subIndex2);
-                break;
-            case AttributeValueKind.CsString:
-                emitter.EmitString(entry.AttributeId, InternString(reader.GetString()), subIndex1, subIndex2);
+            default:
+                // ⭐ Bool or CsString route receiving a number: infer the width from the literal.
+                if (reader.TryGetInt32(out int i))
+                    emitter.EmitInt32(entry.AttributeId, i, subIndex1, subIndex2);
+                else
+                    emitter.EmitFloat64(entry.AttributeId, reader.GetDouble(), subIndex1, subIndex2);
                 break;
         }
     }
