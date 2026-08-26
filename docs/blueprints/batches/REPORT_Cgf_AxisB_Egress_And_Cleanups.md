@@ -132,3 +132,34 @@ ghost-creation ingress · the replication phase registration.
 ⚠ **Method note:** this was measured with a throwaway reflective diagnostic test, **deleted after use** —
 ⛔ it asserted `false` unconditionally to print its output and had no business staying in the tree. The
 numbers above are its output; the durable record is the `AX-009` tracker row.
+
+### ⭐⭐⭐ `2026-08-26` — **STALL ① RESOLVED TO A SINGLE ROOT CAUSE, and the "two stalls" reading was WRONG**
+
+⛔⛔ **Correction to §7 above:** it reported *"two independent stalls"*. 📐 Measured — **they are one cause and
+its consequence.** `GhostPromotionSystem` is **not** defective; it is correctly refusing an entity whose HARD
+requirement is genuinely absent.
+
+| # | link | measured |
+|---|---|---|
+| **①** | `NedTkbBuilder.DefineVehicle` — the production catalog — declares `EntityInfo` + `SimTransform` mandatory | ⛔ **never `NetworkTransform`**; grep gives **zero** occurrences in `BdcTkbBuilder.cs`/`BdcTkbCatalog.cs` |
+| **②** | nothing in production attaches `NetworkTransform` to a SimHost-spawned entity | on the live entity: `SimTransform=True`, `NetworkIdentity=True`, **`NetworkTransform=False`**. The only production writers are `IgApplication:1991` *(IG side)* and an FDP example |
+| **③** | `GeoSpatialEgressTranslator.ScanAndPublish` queries `SimTransform` **+ `NetworkTransform`** + `NetworkIdentity` | 📐 **matches 0 entities.** Drop the `NetworkTransform` clause and the same query **matches 1** ⇒ **0 `WorldPos` samples on the wire** |
+| **④** | ⇒ the IG ghost never receives `SimTransform` | it holds `NetworkIdentity`, `NetworkAuthority`, `TkbIdentity` and nothing else |
+| **⑤** | `SimTransform` is **HARD** mandatory *(`BdcTkbBuilder.cs:38`, `isHard: true`)* | ⇒ `PromoteGhost` hits `if (req.IsHard) return;` ⭐ and declines **forever** — by design |
+
+🔴 **The load-bearing lie is a COMMENT.** The query carries: *"Entities spawned through NedTkbBuilder always
+receive this component; older/test entities without it are skipped."* ⛔ **Measured FALSE** — and it is what
+makes the omission read as deliberate. 📌 Exactly the *"a claim about CODE became false while the comment did
+not change"* failure this programme keeps hitting.
+
+⭐⭐ **Corroboration that this is the real story, not a coincidence:**
+`Hrot.SimHost.Integration.Tests/Infrastructure/SimHostInstance.cs:837` already does
+`template.AddMandatoryComponent<NetworkTransform>(isHard: false, softTimeoutFrames: 10)` with the comment
+*"entity must have NetworkTransform before going Live"* — ⇒ **a TEST harness patches the production gap**,
+which is precisely why that suite passes and `Hrot.ClusterRunner.Integration.Tests` does not.
+
+⚠⚠ **NOT FIXED, deliberately.** ⛔ It is a design call with cluster-wide blast radius — it changes what every
+replicated entity carries and would unblock ~21 integration tests — ⭐ and it is the **BACKEND** lane's file
+set, not the UI lane's. The three candidate homes for the shadow *(the catalog · `NetworkSpawningSystem` ·
+lazily in the translator, dropping the clause)* are recorded in the `AX-009` tracker row for a coordinator
+decision.
