@@ -531,6 +531,16 @@ public sealed class McpClient : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>MD-002</c> — this NODE's modules/systems/translators, per subsystem.
+    /// ⛔ Not cluster-wide: every node hosts its own endpoint and answers for itself.
+    /// </summary>
+    public Task<ApiResult> GetArchitectureDiagnosticsAsync(
+        string? subsystem = null, CancellationToken ct = default)
+        => GetAsync(subsystem == null
+                        ? "/diagnostics/architecture"
+                        : $"/diagnostics/architecture?subsystem={Uri.EscapeDataString(subsystem)}", ct);
+
+    /// <summary>
     /// ⭐⭐ <c>MA-020</c> — the recipes <c>POST /assets</c> can build from, per kind.
     /// ⛔ Without this an agent can only ever create BLANKS: a recipe is addressable only by NAME.
     /// </summary>

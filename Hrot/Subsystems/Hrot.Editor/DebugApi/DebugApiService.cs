@@ -174,7 +174,15 @@ namespace Hrot.Editor.DebugApi
         private Fdp.Toolkit.Diagnostics.EntityStateExtractionService? _replayExtraction;
 
         // Group J — Log sinks (off-thread safe, lock-guarded)
-        private readonly IReadOnlyList<IMessageLogSource> _logSinks;
+        //
+        // ⭐⭐⭐ MD-001 — a Func, RE-READ per request, ⛔ never a latched list. 📐 Measured: the editor
+        //    builds this service in `Initialize`, but its `MessageLogRegistry` is created in
+        //    `RegisterWindows` — which runs LATER, and which is also when subsystems register their own
+        //    sources. ⇒ a list captured at construction would be the registry as it was before anyone
+        //    had registered anything.
+        // 📌 The same lesson `SubsystemDebugProvider`'s lazy accessors carry: value-capturing a
+        //    composition-root dependency reports an absence the host acquires seconds later.
+        private readonly Func<IReadOnlyList<IMessageLogSource>> _logSinks;
 
         // Group K — AI Behavior Traces
         private readonly EditorAiTracerCoordinator?                    _editorTracer;
@@ -315,7 +323,7 @@ namespace Hrot.Editor.DebugApi
             IDataBreakpointManager?         bpManager          = null,
             IComponentDiffService?          diffService        = null,
             Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? rrController = null,
-            IReadOnlyList<IMessageLogSource>? logSinks          = null,
+            Func<IReadOnlyList<IMessageLogSource>>? logSinks    = null,
             EditorAiTracerCoordinator?                    editorTracer      = null,
             Hrot.BTree.Editor.Debug.BTreeDebugSession?    btreeSession      = null,
             Hrot.Hsm.Editor.Debug.HsmDebugSession?        hsmSession        = null,
@@ -358,7 +366,7 @@ namespace Hrot.Editor.DebugApi
             _blueprintRegistry = blueprintRegistry;
             _diffService       = diffService ?? new ComponentDiffService();
             _rrController      = rrController;
-            _logSinks          = logSinks ?? Array.Empty<IMessageLogSource>();
+            _logSinks          = logSinks ?? (() => Array.Empty<IMessageLogSource>());
             _editorTracer     = editorTracer;
             _btreeSession     = btreeSession;
             _hsmSession       = hsmSession;
@@ -393,7 +401,7 @@ namespace Hrot.Editor.DebugApi
             TkbDatabase?                                  tkbDb             = null,
             IGeographicTransform?                         geoTransform      = null,
             DebugPrimitiveBuffer?                         primitiveBuffer   = null,
-            IReadOnlyList<IMessageLogSource>?             logSinks          = null,
+            Func<IReadOnlyList<IMessageLogSource>>?       logSinks          = null,
             Fdp.Toolkit.Behavior.BehaviorRegistry?        behaviorRegistry  = null)
         {
             _dispatcher         = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -409,7 +417,7 @@ namespace Hrot.Editor.DebugApi
             _spatialGridHeight   = 200;
 
             _diffService       = new ComponentDiffService();
-            _logSinks          = logSinks ?? Array.Empty<IMessageLogSource>();
+            _logSinks          = logSinks ?? (() => Array.Empty<IMessageLogSource>());
             _attributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
             _componentEditSvc  = new ComponentEditServiceBuilder().Build();
             _primitiveBuffer   = primitiveBuffer;
@@ -696,7 +704,7 @@ namespace Hrot.Editor.DebugApi
 
             // Collect from all registered sinks (off-thread: each sink uses lock-guarded GetMessages()).
             var allEntries = new List<MessageLogEntry>();
-            foreach (var sink in _logSinks)
+            foreach (var sink in _logSinks())
                 allEntries.AddRange(sink.GetMessages());
 
             // Apply filters.

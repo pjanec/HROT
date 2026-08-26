@@ -56,6 +56,10 @@ const EXPECTED_TOOLS = [
   // ⭐⭐ AQ57 / MA-020 — recipe discovery is the CREATE-side analog of list_node_kinds: without it an
   //   agent can only ever make BLANKS, because a recipe can only be asked for BY NAME.
   'create_asset', 'list_asset_recipes',
+  // Group Y — node diagnostics (DESIGN_Mcp_Diagnostics_Federation.md). ⭐ Per NODE: every node hosts
+  //   its own MCP endpoint, so these answer for the node you asked, and get_logs finally answers at
+  //   all — neither composition root passed the sinks, so it returned [] everywhere.
+  'get_architecture_diagnostics',
   // ⭐ Scenario authoring is WORLD manipulation (Q56-C): place/configure/assign already had
   //   routes; delete was the one gap.
   'delete_entity',

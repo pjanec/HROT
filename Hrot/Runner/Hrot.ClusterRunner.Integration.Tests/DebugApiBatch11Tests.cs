@@ -43,7 +43,9 @@ public sealed class DebugApiBatch11Tests
             h.History,
             h.TimeController,
             clusterState: () => Fdp.Toolkit.Orchestration.ClusterState.Idle,
-            logSinks: new IMessageLogSource[] { sink });
+            // ⚠ MD-001 — the seam is now a Func, re-read per request, because the editor's
+            //   MessageLogRegistry does not exist when its DebugApiService is constructed.
+            logSinks: () => new IMessageLogSource[] { sink });
     }
 
     // ── Group J — Logs ────────────────────────────────────────────────────────

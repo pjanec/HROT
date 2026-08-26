@@ -152,6 +152,17 @@ public sealed class EditorProcess : IAsyncDisposable
         psi.ArgumentList.Add("--mode");
         psi.ArgumentList.Add(Mode);
 
+        // ⭐⭐ MD-003 — a SINGLE non-editor subsystem is a "standalone" launch, and the runner then demands
+        //    the waiting-room roster: `--wait-for required when launching separate subsystems without
+        //    --no-wait`. ⛔ There are no peers to wait for in a one-process rail, so the wait is skipped.
+        // ⚠ Deliberately NOT applied to "editor" or "all": those are whole-host modes that boot their own
+        //   subsystems in-process, and passing --no-wait there would change what the existing rails launch.
+        if (!string.Equals(Mode, "editor", StringComparison.Ordinal)
+         && !string.Equals(Mode, "all", StringComparison.Ordinal))
+        {
+            psi.ArgumentList.Add("--no-wait");
+        }
+
         // Enables the loopback control plane; without it the editor runs with no API at all.
         psi.Environment["HROT_DEBUG_API_PORT"] = port.ToString();
         // Isolates recordings/staging per process — a shared root would let one editor's recording

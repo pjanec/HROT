@@ -926,6 +926,17 @@ namespace Hrot.Editor.DebugApi
             // ⚠ ROUTE ORDER: "/assets/open" (a literal) is registered BEFORE "/assets/{assetId}/open"
             //    — different segment counts, so neither can shadow the other, but the literal form is
             //    written first to make the intent obvious to the next reader.
+            // ⭐⭐ MD-002 — diagnostics live on the SHARED service so a cluster-limited node (a SimHost
+            //    node) answers for its OWN kernel. 📄 DESIGN_Mcp_Diagnostics_Federation §1/§2.2.
+            _routes.Add(new("GET", "/diagnostics/architecture", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.GetArchitecture(ctx.Query("subsystem"));
+                if (error == null) return Ok(result);
+                // ⭐ 503 = this host reports none at all; 404 = it reports some, but not the one asked for.
+                return Fail(error.StartsWith("This host reports no", StringComparison.Ordinal) ? 503 : 404,
+                            error, hintCategory);
+            })));
+
             _routes.Add(new("GET", "/assets", _ => RunMainResult(s =>
             {
                 var (result, error, hintCategory) = s.ListAssets();

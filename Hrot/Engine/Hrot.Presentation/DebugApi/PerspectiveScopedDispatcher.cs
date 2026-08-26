@@ -63,6 +63,16 @@ public sealed class PerspectiveScopedDispatcher
         _acksPending = acksPending;
     }
 
+    /// <summary>
+    /// ⭐⭐ <b><c>MD-002</c> — EVERY provider, not just the active one.</b>
+    /// <para>⛔⛔ Deliberately not <see cref="Active"/>: architecture diagnostics are the one read where
+    /// "the perspective the user is looking at" is the WRONG scope. 📐 A <c>--mode all</c> node runs
+    /// SimHost, IG, CGF and the orchestrator side by side, each with its own <c>ModuleHostKernel</c> —
+    /// and an operator asking *"what is this NODE running?"* means all of them. ⚠ Every other read here
+    /// is perspective-scoped precisely because it answers a different question.</para>
+    /// </summary>
+    public IReadOnlyList<ISubsystemDebugProvider> AllProviders => _providers;
+
     /// <summary>⭐ The perspectives this dispatcher can route to, for the manifest and for diagnostics.</summary>
     public IReadOnlyList<string> RoutablePerspectives =>
         _providers.Select(p => p.Perspective).OrderBy(p => p, StringComparer.Ordinal).ToList();

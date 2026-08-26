@@ -328,6 +328,27 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"kind\":\"BTree\",\"name\":\"PatrolTree\"}",
             ExampleGist: "create a new behaviour tree asset"),
 
+        [("GET", "/diagnostics/architecture")] = new RouteDoc(
+            Tool:    "get_architecture_diagnostics",
+            Group:   "Y — node diagnostics",
+            Summary: "This NODE's modules, ECS systems and DDS translators, one entry per subsystem, read from each subsystem's own ModuleHostKernel.",
+            Returns: "{ subsystems[{ subsystem, perspective, modules[], systems[], translators[], moduleCount, systemCount, translatorCount }], note }",
+            Hint:    "Optional: subsystem (filter). Example: get_architecture_diagnostics({subsystem:\"SimHost\"})",
+            Params: new RouteParam[]
+            {
+                new("subsystem", "string", false, "Restrict to one subsystem or perspective name (e.g. SimHost, IG, Scenario)"),
+            },
+            Notes: new[]
+            {
+                "Per SUBSYSTEM, not per node: a --mode all node runs SimHost, IG, CGF and the orchestrator side by side and each holds its own kernel, so one snapshot per node would have to drop the rest.",
+                "Every node hosts its own MCP endpoint. This answers for THIS node only — ask each node's own endpoint for its own architecture.",
+                "A subsystem with no ECS kernel (ExCon, an orchestrator-only node) correctly reports nothing; check the 'diagnostics.architecture' cell in get_capabilities rather than reading the absence as a wiring bug.",
+                "modules carry lifecycleState and circuitState, so a module stuck open or failing shows up here without reading logs.",
+                "It allocates the whole snapshot on every call — fine for an operator query, wrong in a loop.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "see what modules and translators this node is running"),
+
         [("GET", "/assets/recipes")] = new RouteDoc(
             Tool:    "list_asset_recipes",
             Group:   "W — AI-asset authoring",

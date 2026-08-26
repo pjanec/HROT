@@ -81,6 +81,11 @@ namespace Hrot.ExCon
                 //    demonstration that the capabilities are genuinely independent, not one "is it wired" bit.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _bus),
+                // ⭐⭐ MD-002 — EXPLICITLY null, written out rather than omitted: ExCon has no ECS kernel
+                //    (it already builds ArchitectureDiagnosticsService(() => null) for its own window),
+                //    so `diagnostics.architecture` is FALSE here and that is the true cell. ⛔ An empty
+                //    snapshot would read as "this subsystem runs no modules", which is a different claim.
+                architecture:      null,
                 // ⭐⭐ HN-029: ExCon is the only subsystem in `--mode all` that builds and PUMPS a
                 //    ClusterUiCache (`_uiCache?.Update()` per frame), and that cache is where
                 //    ClusterStateUpdateEvent lands. ⇒ it supplies the readiness gate's state — and the
