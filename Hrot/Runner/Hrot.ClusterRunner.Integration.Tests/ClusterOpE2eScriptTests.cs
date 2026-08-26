@@ -77,6 +77,17 @@ public sealed class ClusterOpE2eScriptTests
 
         var executor = new HeadlessTestExecutor(orchestrator, ScriptPath(scriptFileName), logger);
 
+        // ⭐⭐ QA-018 — QUEUE the position-advancing system BEFORE the orchestrator initialises.
+        //
+        // ⛔ This used to sit in AfterInitialize, calling the old TestHook_AddSystem — which documented
+        //    "must be called AFTER InitializeEmbedded" while ModuleHostKernel.RegisterGlobalSystem
+        //    throws once Initialize() has run. Both guards could not hold, so all four cases in this
+        //    class died on "Cannot register systems after Initialize() called".
+        //
+        // ⭐ MovingEntitySystem builds its query LAZILY on first Execute (see its own comment), so
+        //    registering it here and registering MovingTestTag below is the order it was designed for.
+        simHostSvc.TestHook_QueueSystem(new MovingEntitySystem());
+
         // Create a SysOpStatus reader on the shared participant BEFORE Initialize so that
         // the subscription is in place before the first SysOpStatus publication.
         using var statusReader    = new DdsReader<ClusterOpStatus>(testParticipant);
@@ -88,10 +99,9 @@ public sealed class ClusterOpE2eScriptTests
             var world       = simHostSvc.World!;
             var clusterMaster = orchestratorSvc.TestHook_ClusterMaster!;
 
-            // Register the test-only MovingTestTag component and install the system
-            // that advances entity positions each tick.
+            // Register the test-only MovingTestTag component. ⭐ QA-018: the SYSTEM that consumes it was
+            // queued before Initialize (above); only the component registration belongs here.
             world.RegisterComponent<MovingTestTag>();
-            simHostSvc.TestHook_AddSystem(new MovingEntitySystem());
 
             // Register all action handlers used by the E2E scripts.
             executor.RegisterHandler(new SpawnActionHandler(world, logger));

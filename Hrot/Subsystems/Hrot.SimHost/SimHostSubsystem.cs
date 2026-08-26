@@ -191,12 +191,27 @@ namespace Hrot.SimHost
         internal List<Entity> TestHook_GetChildEntities(Entity parentEntity)
             => App.TestHook_GetChildEntities(parentEntity);
 
+        // ── QA-018: test-only system injection ────────────────────────────────
+        private readonly List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> _pendingTestSystems = new();
+
         /// <summary>
-        /// TestHook: registers a custom ECS system on the kernel after initialization.
-        /// For use by in-process E2E test fixtures only.
+        /// ⭐⭐ <c>QA-018</c> — queues a custom ECS system to be registered while the node is still
+        /// booting. For in-process E2E fixtures only.
+        ///
+        /// <para>⛔ Replaces <c>TestHook_AddSystem</c>, which forwarded to a hook that could only be
+        /// called after <c>Initialize</c> — the exact moment the kernel starts refusing registrations.
+        /// ⚠ Call this BEFORE the orchestrator initialises this subsystem; the queue is handed to the
+        /// app in <see cref="Initialize"/>, one line before <c>InitializeEmbedded</c>.</para>
         /// </summary>
-        internal void TestHook_AddSystem(Fdp.ModuleHost.Abstractions.IEcsModuleSystem system)
-            => App.TestHook_AddSystem(system);
+        internal void TestHook_QueueSystem(Fdp.ModuleHost.Abstractions.IEcsModuleSystem system)
+        {
+            if (_app != null)
+                throw new InvalidOperationException(
+                    "TestHook_QueueSystem must be called before SimHostSubsystem.Initialize — after it, "
+                    + "the kernel no longer accepts global systems.");
+
+            _pendingTestSystems.Add(system ?? throw new ArgumentNullException(nameof(system)));
+        }
 
         // ── ISubsystem ────────────────────────────────────────────────────────
 
@@ -210,6 +225,9 @@ namespace Hrot.SimHost
             int? domainOverride = config.DomainId;
             _nodeId = config.NodeId;
             _app = new SimHostApp(domainOverride, _role);
+            // QA-018: hand the queued test systems over BEFORE the boot, so they land in Phase 6d.
+            foreach (var pending in _pendingTestSystems)
+                _app.TestHook_QueueSystem(pending);
             _app.InitializeEmbedded(headless: config.Headless, domainIdOverride: domainOverride, nodeIdOverride: config.NodeId, networkFactory: _networkFactory);
         }
 
