@@ -4,8 +4,9 @@ build-state: BUILT — ⭐⭐⭐ APPROVED and BUILT 2026-08-26. §10 is the AS-B
   corrections the build discovered; read it after §7/§8/§9.
   Approved set: C1 · N1 · N3/B1 · E-pre · E · A1' · D1 · F3/F4/F5 · N4. ⛔ WITHDRAWN: C2, A3, N2, D2.
   ⭐ N4 was RULED on 2026-08-26 ("logged as warning and ignored, no throw") and is BUILT — §11.
-  ⚠ §12 answers "is CycloneNetworkModule obsolete?": NO — bypassed, and the bypass cost Q59-E a weaker
-  seam. Its M1/M2/M3 options are OPEN and need a nod; I lean M1 only weakly and say why.
+  ⚠ §12 asked "is CycloneNetworkModule obsolete?" and leaned M1 (adopt). ⛔ §13 MEASURED IT AND
+  OVERTURNED THAT: a successor exists (NedReplicationModule/BdcReplicationModule, both live), so the
+  module IS superseded and M2 (delete + correct the docs) is right. Read §13, not §12.4's lean.
   §9 carries the classDiagram + sequenceDiagram for the approved shape (obligation 1/2).
 updated: 2026-08-26
 current-answer: ⭐⭐⭐ §7 (the ATTRIBUTE / DESCRIPTOR SPLIT, user 2026-08-26) is the CURRENT answer and it
@@ -636,7 +637,7 @@ that place** — its `RegisterSystems` builds `allTranslators`. ⛔ Because noth
 hook `CycloneEgressSystem.Execute` instead, which introduced the **one-frame window** §10.2 has to document
 and justify. ⇒ ⭐ **the bypass cost this slice a weaker seam and a caveat**, today.
 
-### 12.4 ⭐ RECOMMENDATION — *(not started; needs your nod)*
+### 12.4 ⛔ RECOMMENDATION — **SUPERSEDED by §13, which measured it. `M1` was WRONG.**
 
 | option | |
 |---|---|
@@ -648,3 +649,85 @@ and justify. ⇒ ⭐ **the bypass cost this slice a weaker seam and a caveat**, 
 bypass it. ⭐ There is a plausible good reason in plain sight — the module takes ONE translator list, and
 each host builds TWO *(main + gizmo)*. ⇒ ⛔ **until that is measured, "the hosts were sloppy" is an
 assumption, not a finding**, and `M2` may well be the right answer.
+
+---
+
+## 13. ⭐⭐⭐ MEASURED `2026-08-26` — **WHY the hosts bypass `CycloneNetworkModule`. §12.4's `M1` lean is OVERTURNED.**
+
+> ⭐⭐ **User:** *"measure why please."* ⇒ ⛔ **I leaned `M1` (adopt the module) weakly and said the reason was
+> unmeasured. Measured, the lean is WRONG: there is a SUCCESSOR, and the module is genuinely superseded.**
+
+### 13.1 ⭐⭐⭐ REASON 1 — **a successor exists, and it is live**
+
+📐 **Measured:** two composite modules do the job `CycloneNetworkModule` was documented to do, and **both are
+instantiated in production**:
+
+| module | instantiated at | what it is |
+|---|---|---|
+| ⭐⭐ `NedReplicationModule` | `NedNetworkFactory.cs:84` *(`CreateReplicationModule()`)* | *"Composite `IEcsModule` that bundles NED translator packs with their **tightly-coupled ECS systems** (ghost lifecycle, dead-reckoning, cleanup) behind a single module boundary"* |
+| ⭐ `BdcReplicationModule` | `BdcNetworkFactory.cs:46` | the BDC equivalent |
+
+⇒ ⭐⭐⭐ **They are strictly MORE than the Cyclone module, in three ways that matter:**
+① **role-aware** — `MuscleGround`, `ImageGenerator` and `Brain` each get a different combination of packs;
+② they bundle **`CycloneNetworkCleanupSystem`**, which `CycloneNetworkModule` explicitly **refuses** to
+register *(*"Applications must provide it directly"*)*;
+③ they are typed `IReplicationModule` — a HROT abstraction with a factory seam — rather than a bare
+`IEcsModule`.
+
+### 13.2 ⭐⭐ REASON 2 — **the architecture is PACK-based; the module takes ONE list**
+
+📐 **Measured:** **23** production construction sites of `CycloneNetworkIngressSystem`/`CycloneEgressSystem`
+across **12 files** — `NedSimHostPerceptionTranslators`, `…PathfindingTranslators`,
+`…AuxiliaryTranslators`, `NedReplicationModule`, `BdcReplicationModule`,
+`SlaveTimeTranslatorRegistration`, `EntityStatesIngressPack`, and the four hosts.
+
+⭐ `NedReplicationModule` alone holds **three** translator lists — `_sharedTranslators`,
+`_kinematicTranslators`, `_cognitiveTranslators` — selected by role.
+⇒ ⛔ `CycloneNetworkModule`'s single `customTranslators` parameter **cannot express that**, and forcing it to
+would mean flattening the role logic that is the successor's whole point.
+
+### 13.3 ⚠⚠ REASON 3 RETRACTED — **the module would NOT have blocked `DQ30-C`**
+
+⛔ **I nearly shipped this as a finding and it is false.** The lead looked strong:
+`CycloneNetworkIngressSystem.IsWorldStateFrozen` is a **settable property**, `CgfSubsystem:1988` sets it, and
+`CycloneNetworkModule.RegisterSystems` constructs the ingress system inline keeping no reference — so I
+inferred a host adopting the module could not reach it.
+
+📐 **Then I read the call site.** CGF walks **`_context.Kernel.SystemScheduler.GetAllSystems()`** and sets the
+gate on every `CycloneNetworkIngressSystem` it finds. ⇒ ⭐ **who CONSTRUCTED the system is irrelevant** — the
+debugger gate would work fine under the module. ⚠ **Recorded because the near-miss is the point:** *"the
+module hides the constructed object"* was a plausible mechanism, and only reading the consumer disproved it.
+
+### 13.4 ⭐⭐ REASON 4 — **why nobody noticed it went dead**
+
+📐 `CycloneNetworkIngressSystem` — used at **23 sites** — is declared **in the same file** as the dead module,
+with the comment *"Local implementation of Ingress System since it appears missing from Core"*.
+⇒ ⭐⭐ **the FILE is alive because of a class that happens to share it**, so no unused-file sweep, no compiler
+warning and no reference count would ever flag the module. ⛔ Exactly the shape that keeps dead code
+invisible.
+
+### 13.5 ⭐⭐⭐ THE ANSWER, and the corrected recommendation
+
+⛔ **Not "the hosts were sloppy."** ⭐ The hosts moved to **per-domain composite modules** that express what
+this one cannot, and the Cyclone module was left behind — while `docs/` was never updated.
+
+| | ⭐ revised |
+|---|---|
+| ⛔ **`M1` adopt the module** | **WITHDRAWN.** It would be a step BACKWARDS from `NedReplicationModule`: it cannot express role-based packs and does not bundle the cleanup system |
+| ⭐⭐⭐ **`M2` delete `CycloneNetworkModule` and CORRECT the two `docs/` statements** | **RECOMMENDED.** ⚠ With one mechanical care: **move `CycloneNetworkIngressSystem` into its own file first** *(same namespace, so no `using` changes)* — it is the live class sharing the file. ⭐ Then correct `Fdp.Network.Cyclone.md:207` and `DESIGN-IG.md:281`, which currently tell the next author to use a dead type and forbid what all 12 files do |
+| ⛔ **`M3` leave as-is** | still not recommended, for the same reason |
+
+⚠ **And `Q59-E`'s seam choice is VINDICATED, not compromised.** §12.3 said the bypass cost `E` a weaker
+seam. ⭐ Correcting that: `NedReplicationModule` would have been **worse** for `E` — it is NED-specific, so
+the editor's networkless host would not have it, whereas `CycloneEgressSystem` covers every host that
+registers egress at all. ⇒ ⛔ the one-frame window is the price of host-independence, not of the bypass.
+
+### 13.6 ⚠ ONE FOLLOW-UP THIS MEASUREMENT SURFACED
+
+📐 `NedReplicationModule:86` holds its **own private** `DescriptorOwnershipMap`, populated from
+`TargetComponentIds` at construction and handed to `OwnershipIngressSystem`, `DeferredTakeoverSystem` and
+`LocalAuthorityYieldSystem`. ⭐ `Q59-E` added a **per-world** one for the attribute path.
+⇒ ⚠ **two instances of one type in a process, populated from the same translators, for different consumers.**
+⛔ Not a duplicate *implementation* — the module's is private and unreachable — ⭐ but the clean end state is
+**one map per world, shared by both**. 📌 Filed, not built: the module has no world at `RegisterSystems`,
+so publishing it needs the same seam hunt `E` just did.
