@@ -725,6 +725,54 @@ const TOOLS = [
   },
 
   {
+    name: 'get_mission',
+    description: TOOL_DEFS['get_mission'].description,
+    inputSchema: TOOL_DEFS['get_mission'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('GET', `/missions/${encodeURIComponent(toolArgs.networkId)}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_mission'); }
+    },
+  },
+
+  {
+    name: 'add_mission_task',
+    description: TOOL_DEFS['add_mission_task'].description,
+    inputSchema: TOOL_DEFS['add_mission_task'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const body = { behavior: toolArgs.behavior };
+        if (toolArgs?.params != null) body.params = toolArgs.params;
+        if (toolArgs?.triggers != null) body.triggers = toolArgs.triggers;
+        return toolSuccess(await callApi('POST', `/missions/${encodeURIComponent(toolArgs.networkId)}/task`, body));
+      } catch (err) { return toolError(err.message, err.envelope, 'add_mission_task'); }
+    },
+  },
+
+  {
+    name: 'clear_mission_tasks',
+    description: TOOL_DEFS['clear_mission_tasks'].description,
+    inputSchema: TOOL_DEFS['clear_mission_tasks'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('DELETE', `/missions/${encodeURIComponent(toolArgs.networkId)}/tasks`));
+      } catch (err) { return toolError(err.message, err.envelope, 'clear_mission_tasks'); }
+    },
+  },
+
+  {
+    name: 'run_mission',
+    description: TOOL_DEFS['run_mission'].description,
+    inputSchema: TOOL_DEFS['run_mission'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const body = toolArgs?.restart != null ? { restart: toolArgs.restart } : {};
+        return toolSuccess(await callApi('POST', `/missions/${encodeURIComponent(toolArgs.networkId)}/run`, body));
+      } catch (err) { return toolError(err.message, err.envelope, 'run_mission'); }
+    },
+  },
+
+  {
     name: 'list_entity_variables',
     description: TOOL_DEFS['list_entity_variables'].description,
     inputSchema: TOOL_DEFS['list_entity_variables'].inputSchema,

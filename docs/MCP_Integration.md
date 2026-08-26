@@ -2,10 +2,10 @@
 state: LIVE
 build-state: BUILT (integration §A–N; SLICE ① = MX4a+MX7+MX8+MX5+MX6, Batch HN-120; SLICE ② = MX1
   Group O, Batch HN-121; SLICE ③ = MX9 Group T + MX2 Group Q + MX3 Group R + the breakpoint resume,
-  Batch HN-122) │ READY-TO-BUILD (MX4b — MX-002 RESOLVED 2026-08-26: build against
-  Hrot.UI.Common.Facades.IMissionEditorService, ALREADY wired into DebugApiService as MissionService;
-  see PROGRAMME_Mcp_Agent_Surface.md §3 + HANDOFF_Mcp_Mission_Editing.md)
-updated: 2026-08-24
+  Batch HN-122; MX4b = Group P mission editing, Batch HN-123 — 4 routes over the wired
+  Hrot.UI.Common.Facades.IMissionEditorService, gated at route/unit level, E2E named for H4/H5.
+  See §"AS-BUILT — MX4b" at the END for the four deviations)
+updated: 2026-08-26
 current-answer: FOUR parts. (0) ⭐ §"Group U" + its §"AS-BUILT" carry the scenario-load
   modes (HN-029, BUILT 2026-08-24) — read the AS-BUILT first, it has six deviations. ⭐⭐ §"BUILT — the
   catalog is GENERATED from the routes" (HN-030) is what replaced the hand-maintained tool-catalog.mjs:
@@ -201,7 +201,7 @@ sees and the bytes the engine reads are the same mechanism.
 | `POST /missions/{id}/run` `{restart?}` | **run / restart** the mission | `SendControlCommand(id, eMissionCommandType, taskId)` |
 
 ⭐⭐⭐ **The real write seam is `IMissionEditorService.CommitMissionAsync(entityId, newPlan, baseVersion)`**
-*(`Hrot.ExCon/Services/IMissionEditorService.cs`)* — a **full-mission-replace with optimistic concurrency**: the
+*(`Hrot.UI.Common.Facades.IMissionEditorService`, wired into `DebugApiService` as `MissionService` — MX-002; ⛔ NOT the same-named `Hrot.ExCon` interface)* — a **full-mission-replace with optimistic concurrency**: the
 caller passes the `Version` it read from `GetMissionSnapshot`, and the CGF rejects with `ERR_VERSION_CONFLICT` if
 it moved. ⇒ *"add a task"* = **snapshot → append → commit**; *"clear tasks"* = **commit a trimmed plan**;
 *"run/restart"* = `SendControlCommand`. ⭐⭐ This **IS** decision 2's *"the one path the editor's Mission panel
@@ -624,7 +624,7 @@ sequenceDiagram
     H->>S: on sim thread
     S->>M: GetMissionSnapshot id
     M-->>S: plan and version
-    S->>S: decode params via ScenarioSerializer, append task
+    S->>S: append task (params JSON stored verbatim), clone plan
     S->>M: CommitMissionAsync id newPlan version
     M->>CGF: full mission replace with OCC
     CGF-->>M: MissionCommitResult
@@ -831,5 +831,65 @@ attachable `Instance` blueprint, then stage → pending → step → land, measu
 
 ## ⛔ Still NOT built
 
-⭐ **`MX4b`** *(mission editing)* — gated on the `IMissionEditorService` namespace ambiguity *(`MX-002`)*.
 ⭐ **Cross-host conformance** — the next batch; it needs the read-API subset on CGF/SimHost.
+⭐ **`MX4b` E2E** *(discover → add-task → run → assert the entity acts)* — the route/unit surface is BUILT
+*(see §"AS-BUILT — MX4b")*; the end-to-end rail is NAMED for `DESIGN_MCP_System_Test_Harness.md` H4/H5,
+sequenced behind Test-Suite-Reliability *(rule 8 row 8)*.
+
+---
+
+# AS-BUILT — **MX4b (`Group P` — mission editing)**, Batch HN-123, `2026-08-26`
+
+⭐⭐ **Where this section and §"Group P"/§"UML" disagree, THIS is current** *(obligation ⑤)*. Built against
+`Hrot.UI.Common.Facades.IMissionEditorService` *(MX-002 resolution)*, the seam already injected into
+`DebugApiService` as `MissionService`. 🆔 ids: **MX-025** *(read route)* · **MX-026** *(add-task)* ·
+**MX-027** *(clear)* · **MX-028** *(run/restart)* · **MX-029** *(Node wrappers + catalog/skill regen)*.
+
+## What was built — four routes, one seam, +4 tools (93 → 97)
+
+| route | tool | verb → facade call |
+|---|---|---|
+| `GET /missions/{networkId}` | `get_mission` | `GetMissionSnapshot(id)` → `{ plan(tasks+triggers+specs), version }` |
+| `POST /missions/{networkId}/task {behavior, params?, triggers?}` | `add_mission_task` | snapshot → append `MissionTask` → `CommitMissionAsync(id, plan, version)` |
+| `DELETE /missions/{networkId}/tasks` | `clear_mission_tasks` | snapshot → empty plan → `CommitMissionAsync` |
+| `POST /missions/{networkId}/run {restart?}` | `run_mission` | `SendControlCommandAsync(id, CMD_JUMP_TO_TASK, Guid.Empty)` |
+
+New files: `DebugApiService.Missions.cs` *(the four handlers + serialize/snapshot helpers)*; edits to
+`DebugApiHost.cs` *(routes + `AwaitMissionCommitAsync` + `MissionError`)*, `DebugApiRouteDocs.cs`
+*(4 RouteDocs, group "P — Mission editing")*, `tools/ai-debug-mcp/src/index.mjs` *(4 handlers)*, and the
+regenerated `tool-catalog.mjs` / `SKILL.md` / `test-catalog.mjs` allow-list.
+
+## ⭐ The four deviations from §"Group P"/§"UML"
+
+1. **Params are NOT decoded via `ScenarioSerializer` at the route** *(§UML sequence + P.1 said "decode via
+   ScenarioSerializer")*. ⛔ MEASURED: `MissionTask.BehaviorParams` is a **plain JSON string** — the engine
+   reads it with `System.Text.Json` *(`MissionControlBehaviorParamsHelper.JsonDocument.Parse`)* and the
+   Mission panel stores it verbatim. ⇒ the route stores the caller's `params` JSON **verbatim**, exactly as
+   the panel does. `ScenarioSerializer` never enters the write path; it is the discovery side's concern
+   *(MX4a schema)*. The §UML sequence step was corrected to *"params JSON stored verbatim"*.
+
+2. **`run` == `restart`** — the `eMissionCommandType` vocabulary offers only `CMD_JUMP_TO_TASK`
+   *(→ index 0, resets the phase clock)*; there is no "resume without reset". Both flag values send the same
+   jump-to-first-task. The `restart` field is carried in the reply for honesty, not because it changes the call.
+
+3. **The commit is awaited OFF the main thread with a bounded 15 s timeout.** `CommitMissionAsync`/
+   `SendControlCommandAsync` resolve only when the editor loop's `PollAcks()` reads the ack *(across frames)*,
+   so awaiting on the main thread would deadlock. The `Begin*` service methods publish on the main thread and
+   return the `Task`; `AwaitMissionCommitAsync` awaits it on the HTTP thread → 200 (with the ack's
+   `NewVersion`), **409** on a rejected commit *(`ERR_VERSION_CONFLICT`, never a silent overwrite)*, **504**
+   on timeout *(pointing at play/step)*.
+
+4. **OCC version does not round-trip in the offline editor** *(a limitation, not a defect)*.
+   `EditorMissionService.GetMissionSnapshot` returns version **0** *("Version not stored in ECS")*, and the
+   engine's `CMD_REPLACE_MISSION` bypasses the OCC check when `baseVersion == 0` — so a conflict cannot arise
+   in the editor today. The route still **passes the version it read** and maps a failed result to 409, so the
+   guard engages unchanged the moment an adapter tracks a real version. The ack's `NewVersion` (1, 2, …) is
+   returned but a subsequent `get_mission` still reads 0.
+
+## Gate posture *(rule 8 row 8)*
+
+⛔ Per lane rules I do **not** touch test projects. Gated at the **route/unit level**: `EveryRouteIsDocumentedTests`
+green (every mission route carries a RouteDoc; the manifest round-trips), `gen:catalog:check` /
+`gen:skill:check` / `test:catalog` green (97 tools), `Hrot.Editor` + `Hrot.ClusterRunner` build clean. The
+**E2E rail** *(add-task naming a known behaviour → play/step → the entity acts)* is **named** for
+`DESIGN_MCP_System_Test_Harness.md` H4/H5, sequenced behind Test-Suite-Reliability.
