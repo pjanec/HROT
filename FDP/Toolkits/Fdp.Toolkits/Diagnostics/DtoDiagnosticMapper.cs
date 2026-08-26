@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Diagnostics
 {
@@ -31,6 +32,20 @@ namespace Fdp.Toolkit.Diagnostics
             if (type.IsPrimitive || type == typeof(string) || type == typeof(Guid))
                 return obj;
             if (type.IsEnum)
+                return obj.ToString();
+
+            // ⭐⭐ QA-007 — a FixedString IS a string to a reader, not a struct with a byte buffer.
+            //
+            // ⛔ Without this the generic struct arm below recursed into the type and produced a JSON
+            // OBJECT, so `/events` and the blackboard translators rendered an entity's Name as
+            // {"_fixedBuffer":[65,108,...],"Length":5} — which is precisely the "raw list of 64 byte
+            // values" this mapper's own doc-comment says it exists to avoid. 📐 Measured 2026-08-26:
+            // EventSerializationHelperTests asserted JsonValueKind.String and got Object — a REAL
+            // defect in the readable-diagnostics contract, not a stale assertion.
+            //
+            // ⚠ The FixedBufferAttribute arm further down handles a fixed buffer that is a FIELD OF
+            // some other struct; it never fired for the FixedString wrapper itself.
+            if (type == typeof(FixedString32) || type == typeof(FixedString64) || type == typeof(FixedString128))
                 return obj.ToString();
 
             if (!type.IsValueType && !visited.Add(obj))

@@ -216,21 +216,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.True(rule.RequiredMask.IsSet(idB));
         }
 
-        // STABILITY(Flaky): Order-dependent — passes in isolation but fails in full suite when static ComponentTypeRegistry has UnregisteredComp[248] registered by a prior test in the process
-        [Trait("Stability", "Flaky")]
+        /// ⭐ <c>QA-009</c> — the STABILITY(Flaky) trait and its order-dependence note are GONE: the
+        /// sentinel no longer carries a <c>[ComponentId]</c>, so no prior test in the process can put it
+        /// in the registry. See the type's own comment for why that is the invariant.
         [Fact]
         public void SC_GZ004_2_Register_UnregisteredComponent_Throws()
         {
-            // Do NOT register GizmoUnknownComp with the repo.
-            // Its type has no [ComponentId] attribute, so GetId will return -1
-            // and GizmoRegistry.Register must throw.
             var registry = new GizmoRegistry();
-            var def = new MockGizmoDefinition(new[] { typeof(GizmoTestCompA) });
-
-            // To ensure GizmoTestCompA is not registered (rare case in a fresh static registry),
-            // we test with a type that is deliberately never registered:
-            // we use an anonymous/local type trick via a wrapper.
             var defBad = new MockGizmoDefinition(new[] { typeof(UnregisteredComp) });
+
+            // ⭐ State the precondition. Without it a regression reads only as "no exception was thrown",
+            //    which is what sent three previous sessions looking in the wrong place.
+            Assert.Equal(-1, ComponentTypeRegistry.GetId(typeof(UnregisteredComp)));
 
             Assert.Throws<InvalidOperationException>(() => registry.Register(defBad));
         }
@@ -278,9 +275,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(2, registry.Rules[2].RuleIndex);
         }
 
-        // Helper: a type that is never passed to repo.RegisterComponent<T>(),
-        // so ComponentTypeRegistry.GetId(typeof(UnregisteredComp)) returns -1.
-        [ComponentId(248)]
+        // ⭐⭐⭐ QA-009 — a sentinel that CANNOT be registered, by construction.
+        //
+        // ⛔ This used to carry [ComponentId(248)], which made it registerable — and something in a
+        //    full-suite run registered it, after which GetId returned 248 and SC_GZ004_2 could not
+        //    throw. That is the whole of this file's own "STABILITY(Flaky): order-dependent" note, and
+        //    it is why the case passed in isolation and rotated in the suite.
+        //
+        // ⭐ ComponentTypeRegistry.GetOrRegisterManaged REQUIRES a [ComponentId] and throws without
+        //    one, so an attribute-less struct can never enter the registry by ANY path. The absence of
+        //    the attribute IS the invariant this test rests on — do not "fix" it by adding one back.
         private struct UnregisteredComp { }
     }
 

@@ -48,21 +48,32 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         // SC-GZ022-2: Register with an unregistered component type → InvalidOperationException.
-        // STABILITY(Flaky): Order-dependent — passes in isolation but fails in full suite when static ComponentTypeRegistry has UnregisteredComp[249] registered by a prior test in the process
-        [Trait("Stability", "Flaky")]
+        /// ⭐ <c>QA-009</c> — the STABILITY(Flaky) trait and its order-dependence note are GONE: the
+        /// sentinel no longer carries a <c>[ComponentId]</c>, so no prior test in the process can put it
+        /// in the registry. See the type's own comment for why that is the invariant.
         [Fact]
         public void SC_GZ022_2_Register_UnregisteredType_Throws()
         {
             var registry  = new StatelessGizmoRegistry();
             var projector = new MockStatelessGizmo();
 
+            // ⭐ State the precondition — see the sibling case in GizmosSystemTests for why.
+            Assert.Equal(-1, ComponentTypeRegistry.GetId(typeof(UnregisteredComp)));
+
             Assert.Throws<InvalidOperationException>(() =>
                 registry.Register(projector, new[] { typeof(UnregisteredComp) }));
         }
     }
 
-    // Sentinel type never registered with any EntityRepository.
-    [ComponentId(249)]
+    // ⭐⭐⭐ QA-009 — a sentinel that CANNOT be registered, by construction.
+    //
+    // ⛔ This used to carry [ComponentId(249)], which made it registerable — and something in a full
+    //    suite run registered it, after which GetId returned 249 and SC_GZ022_2 could not throw. That
+    //    is exactly what the STABILITY(Flaky) note above described and never fixed.
+    //
+    // ⭐ ComponentTypeRegistry.GetOrRegisterManaged REQUIRES a [ComponentId] and throws without one, so
+    //    an attribute-less struct can never enter the registry by ANY path. The ABSENCE of the
+    //    attribute is the invariant — do not add one back.
     internal struct UnregisteredComp { }
 
     // ==========================================================================
