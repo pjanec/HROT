@@ -19,7 +19,7 @@ RELEARN
 python3 scripts/session-design-brief.sh            # ledger · 7-day digest · probe verdict · 3 random rulings
 # read docs/blueprints/RULINGS.md IN FULL (RULE ZERO)
 git fetch origin
-git log --oneline -1 origin/claude/blueprint-authoring-status-6sr5ld     # coordinator HEAD (snapshot: b230c8229)
+git log --oneline -1 origin/claude/blueprint-authoring-status-6sr5ld     # coordinator HEAD (snapshot: 45d1da666)
 git log --oneline -3 origin/claude/blueprint-macro-feature-sdmspn        # BACKEND lane (MCP diagnostics: MD-001..005)
 git log --oneline -3 origin/claude/reset-working-branch-qd1qpv           # UI/CGF lane (axis-b egress: AX-005..010)
 git branch -r | grep claude/                                            # confirm lane heads by ancestry, not name
@@ -47,6 +47,7 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 | ⭐⭐ **CGF: barrier proven + ruling 67 + CE-016** *(k measured 252–352ms; asset roots from config; time-transport on the toolbar; merged `2026-08-25` overnight)* | CE-031..036 | `..._Slice4_Debug_PauseStep.md` §11 · gap map · ruling 67 |
 | ⭐⭐ **MCP per-node diagnostics + federation** *(GET /logs answers on every node incl. headless SimHost; GET /diagnostics/architecture per subsystem; non-editor conformance rail; merged `2026-08-26`)* | MD-001..003 | `DESIGN_Mcp_Diagnostics_Federation.md` §8 *(AS-BUILT)* |
 | ⭐⭐ **Axis-B cross-node change-request egress under R-134** *(FDP-internal EntityAttributeChange + EntityWriteRouter in Fdp.Toolkits; egress translator SOLE DDS boundary; drag gizmo on same router; CE-018/035/036; merged `2026-08-26`)* | AX-005..010 · CE-018/035/036 | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §11-§12 *(AS-BUILT)* |
+| ⭐⭐⭐ **AX-009 RESOLVED + Q59 attribute-vocabulary single source** *(SimHost→IG replication fixed via NetworkTransform-shadow-at-birth ⇒ `--mode all` round-trip 3/3 GREEN; one attribute declaration + derived edge table + truthful schema; R-134 overclaim corrected; JSON/binary apply paths consistent; apply stack moved out of the DDS assembly; merged `45d1da666`)* | AX-009..024 · AQ59 | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §13-§16 *(AS-BUILT)* · `Architect_Question_59` |
 
 ## 3. ✅ NOTHING IN FLIGHT *(both `2026-08-26` batches verified + merged into `d41368090`)*
 | merged batch | ids | verify verdict |
@@ -61,7 +62,7 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 
 ## 3d. ⛔ THE TWO HONEST NON-DELIVERABLES from the `2026-08-26` batches *(both need their own design, not a retry)*
 - ✅ **MD-004 — cluster dump: BUILT `2026-08-26` as MD-006/007.** The earlier "STOPPED — no read-model" was the backend session measuring the WRONG class. `POST /cluster/diagnostics/dump` + `GET /cluster/diagnostics/status` reuse `ExecuteDiagnosticDumpIntent` *(same as ExCon's Execute button)* + `ClusterUiCache` *(same as its results section)*. Rail probes the master's fan-out line for the transaction id; empty selection refused. ⛔ **MD-005 aggregator — NEVER NEEDED** *(design correction dc4739188)*: the fan-out already happens cluster-side via the intent; no orchestrator records-aggregator route required.
-- **AX-009 — the full `--mode all` change-request round-trip rail is RED.** 📐 Cause is a **pre-existing SimHost→IG replication failure**, not the egress *(which the isolated round-trip + StrictNetworkSeparation rails prove works)*. Kept as a live probe *(R-131 — no permanent filter-around)*. ⭐ This is the same class as the `ClusterRunner.Integration.Tests` DDS-allocator noise: a real cluster-replication gap that blocks the end-to-end acceptance vehicle. **Worth its own investigation slice.**
+- ✅ **AX-009 — RESOLVED `2026-08-26` (merged `45d1da666`).** Root cause: **SimHost-spawned entities never got `NetworkTransform`** *(a "load-bearing lie" comment claimed they always did)* ⇒ `GeoSpatialEgressTranslator` matched 0 entities ⇒ 0 `WorldPos` on the wire ⇒ the IG ghost never got the HARD-mandatory `SimTransform` ⇒ `GhostPromotionSystem` correctly declined forever. Fix **AX-011/012**: attach `default(NetworkTransform)` at birth on the SimHost node that owns `SimTransform` *(in `SimHostNodeBootstrapper.onEntitySpawned` — NOT `NetworkSpawningSystem`, which throws)*. ⇒ **the `--mode all` round-trip rail is 3/3 GREEN.** ⚠ The `ClusterRunner.Integration.Tests` full suite is still un-gateable *(aborts/crashes, pre-existing R-131)* — the UI lane proved no regression by filtered-subset-on-both-trees; ⛔ resolving that suite's crash remains an open task.
 
 ## 3b. ⭐ FILED FOLLOW-UPS from the overnight batches *(small, none blocking)*
 - ✅ **CE-035 / CE-036 / CE-018 — ALL MERGED `2026-08-26`** in the axis-b egress batch *(CE-035 routes continue-after-step through `RequestResume`; CE-036 fixed the domain-id skip; CE-018 replaced the two inline `.csproj` walk-ups with `AssetRoots`)*.
