@@ -53,9 +53,17 @@ byte-identical gate)*; giving it to CGF alone needs the per-host branch ruling 5
 `The_editor_full_shell_yields_exactly_the_pre_extraction_file_menu` **asserts the absence**, so it stays
 deliberate rather than accidental.
 
-> ⭐⭐ **A CALL FOR YOU:** the parity-correct fix is **`File/Reload` on BOTH hosts** — one `MenuPath` on the
-> shared slot plus a one-line gate update, ~5 minutes. ⛔ It changes the **editor's** menu, so it is a
-> two-host UI decision, not a side effect of this refactor. **Say the word and it ships.**
+> ✅✅ **RESOLVED — user, `2026-08-26`: NO menu item, on either host.** 🔒 Verbatim: *"hot reload is now a
+> toolbar menu button so no Main menu item is necessary."*
+>
+> ⚠ **And the premise was corrected in the same breath — worth recording, because the handoff's wording
+> hid a real distinction.** *"Reload"* there meant **`blueprint.compileReload`**, which is the **ACTIVE
+> document only** *("Compile & hot-reload the active blueprint / BTree / HSM")*. ⛔ It is **not** the
+> all-assets command — that is a **separate slot**, `blueprint.fullRebuild` *("Rebuild all AI behavior
+> assets")*, which CGF omits because it supplies no handler *(ruling 49)*.
+> ⇒ ⭐ `compileReload` is **already a toolbar button on BOTH hosts, same id, same sortOrder**, from the
+> one shared table *(`CE-039`)*. A duplicate menu entry would have bought nothing and changed the
+> editor's menu. ⭐⭐ **The as-built stands; the question is CLOSED, not deferred.**
 
 ### ⑶ ⚠ **CGF gained ONE menu item, not four** — ⭐ the derivation working, ⛔ not a shortfall
 
@@ -156,3 +164,65 @@ readable PanelKind · `CE-045` the generalised `SUBSET-BY-DESIGN` verdict.
 | ⛔ **the four gizmo-block cleanup** *(UXI-13)* | design §9 — CGF participates in none of them |
 | ⛔ **per-perspective enabled / label / shortcut** | UXI-05's own record keeps those node-level; ⭐ the slice is faithful to it |
 | ⚠ **a perspective-SPECIFIC menu item** | ⭐ the MODEL is built and unit-railed; ⛔ nothing in the common core differs per perspective yet, so nothing exercises it in a running host. **The first such item is what proves the feature end-to-end** |
+
+## 6. ⭐⭐⭐ HANDBACK TO THE COORDINATOR — **feature parity is what closes the menu gap** *(user, `2026-08-26`)*
+
+> 🔒 **User, verbatim:** *"yes i need the feature parity, and menus to be shown just for the features that
+> are actually available."*
+
+⭐⭐ **The second half is ALREADY THE MECHANISM and needs no work** — `CE-041`…`CE-045` make a menu item
+appear **only** for a command the host's shell can service, and *absent, not greyed* is ruling 49 by
+construction. ⛔ There is no per-host menu list left to maintain. ⇒ **the remaining gap is not menu code
+at all**: it is the **features behind the items**.
+
+📐 **Measured on `--mode all` — editor 17 menu leaves, CGF 7.** Here is every missing one with what it
+actually costs, so the coordinator can scope rather than estimate:
+
+### 6.1 ⭐⭐ `File/Open Asset…` + `File/New Asset…` — ⚠ **a RELOCATION, not new features**
+
+📐 **CGF already has the hard half**: a **populated `AssetCatalog`** *(72 assets, `CE-009`)*, a per-kind
+**`INewAssetService`** map and a working create path *(`MA-019`…`023`)*. ⛔ **What it cannot reach is the
+UI shell around them** — and the reason is structural:
+
+| what the editor builds | where it lives | reachable from CGF? |
+|---|---|---|
+| `AssetPickerLauncher` | `Hrot/Subsystems/Hrot.Editor/Browser/` | ⛔ **NO** — the **editor assembly** |
+| `NewAssetLauncher` | `Hrot/Subsystems/Hrot.Editor/Browser/` | ⛔ **NO** |
+| `AssetPickActionRouter` | `Hrot/Subsystems/Hrot.Editor/Browser/` | ⛔ **NO** |
+| `PickerRegistry` *(the modal host)* | `NodeEditor.UI.Picker` | ✅ yes |
+| `ShowNewAssetDialog` | 🔴🔴 **a LOCAL FUNCTION inside `EditorSubsystem.RegisterWindows`** *(`:3740`)* | ⛔ **not even a type** |
+
+⇒ ⭐⭐⭐ **This is the seam-law shape again, and the same shape `CE-037` already fixed once**: the
+capability exists and is **in the wrong assembly**, with one half not extracted at all. ⇒ the slice is
+*"relocate the three `Browser/` types to `Hrot.Editor.AiShared` and promote `ShowNewAssetDialog` to a
+class"*, then CGF composes them — ⛔ **not** *"build a picker for CGF"*.
+⭐ **And the payoff is doubled**: the same composition lights up **both** the two toolbar buttons
+*(`CE-016` §9.4's declared absence)* **and** the two menu items, from the one table, with **zero menu or
+toolbar code written**.
+⚠ **Scope honestly** — 📌 the `HN-037` lesson: `ShowNewAssetDialog` is a long local function closing over
+`EditorSubsystem` state, so promoting it is **real work, not an `s/old/new/`**. Measure its captures first.
+
+### 6.2 ⚠ `File/Scenario/×6` — ⛔ **a much bigger lift, and possibly not wanted**
+
+`ScenarioMenuCommands.Register` takes **`IEditorLogic`**, and CGF has none — 📌 the same absence that
+already made this slice pass `saveScenario: null` and `MA-019` §G record no scenario CREATE on CGF.
+⇒ ⛔ **not a wiring slice**; it is *"does CGF host a scenario session at all?"*, which is a **ruling
+question, not an implementation one**. ⭐ Recommend it be asked before it is scoped.
+
+### 6.3 ⚠ `File/Save As…` — a **modal browser** CGF does not compose
+
+📐 The editor builds a `SaveAsBrowserDialog`; this slice registered CGF's Save-As as a
+**no-op-with-a-reason** *(it logs rather than throwing)*. ⭐ Rides along with §6.1's relocation — the same
+`PickerRegistry` composition — ⛔ so it should not be scoped as its own slice.
+
+### 6.4 ⛔ `File/Save All` — **not a gap**
+
+⭐ The editor's **toolbar** never had a Save-All button either *(`CE-016` §9.2)*. It is an editor-only
+menu affordance today; adding it is a deliberate two-host decision, ⛔ not parity debt.
+
+### 6.5 ⭐ THE ORDER I'd RECOMMEND
+
+**§6.1 first, alone.** ⭐⭐ It is the only one that is a *relocation of built code*, it closes **four**
+declared absences at once *(two toolbar + two menu)*, and 📐 the `SUBSET-BY-DESIGN` rails already in place
+mean **it needs no rail edit to prove** — the items simply appear on CGF and the verdict still holds.
+⇒ ⛔ §6.2 needs a ruling first; §6.3 is a passenger; §6.4 is not debt.

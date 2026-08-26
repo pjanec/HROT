@@ -203,9 +203,18 @@ alternatives lose.** ⇒ ⭐ **the slot deliberately carries no `MenuPath`**, an
 `The_editor_full_shell_yields_exactly_the_pre_extraction_file_menu` asserts the absence so it stays
 **deliberate rather than accidental**.
 
-⭐⭐ **The parity-correct follow-up is `File/Reload` on BOTH hosts** — one `MenuPath` on the shared slot
-plus a one-line gate update. ⛔ It is a **two-host UI decision**, not a side effect of this refactor, so it
-is left for a deliberate call.
+### ✅✅ RESOLVED `2026-08-26` — **NO menu item, on either host**
+
+🔒 **User, verbatim:** *"hot reload is now a toolbar menu button so no Main menu item is necessary."*
+
+⚠ **The handoff's wording hid a real distinction, recorded here so it is not re-litigated:** *"Reload"*
+meant **`blueprint.compileReload`** — the **ACTIVE document only** *("Compile & hot-reload the active
+blueprint / BTree / HSM")*. ⛔ It is **NOT** the all-assets command; that is a separate slot,
+**`blueprint.fullRebuild`** *("Rebuild all AI behavior assets")*, which CGF omits for want of a handler
+*(ruling 49)*.
+⇒ ⭐ `compileReload` is **already a toolbar button on BOTH hosts, at the same id and sortOrder**, from
+this same table *(`CE-039`)*. ⇒ ⭐⭐ **the as-built is the settled answer** — the omission stands, and the
+rail that asserts it is now a *decision* rail, ⛔ not a placeholder.
 
 ### 10.4 ⚠ DEVIATION 3 — **CGF gains ONE item, not four** *(§3 ④ / §7 SUPERSEDED)*
 
@@ -220,6 +229,17 @@ is left for a deliberate call.
 ⇒ ⭐ **the mechanism is what shipped**: one table, two surfaces, the subset **derived** from what each
 host's shell can service. ⚠ **The rail asserts the SUBSET verdict, not the list** — so the list growing is
 not a rail edit.
+
+🔒 **User ruling, `2026-08-26`:** *"i need the feature parity, and menus to be shown just for the features
+that are actually available."* ⇒ ⭐⭐ **the second half is DISCHARGED by this slice** *(a menu item exists
+only for a serviceable command — ruling 49 by construction)*; ⭐ **the first half is a FEATURE slice, not a
+menu slice** — 📐 CGF already holds the catalog and the per-kind `INewAssetService`; what it cannot reach
+is `AssetPickerLauncher` / `NewAssetLauncher` / `AssetPickActionRouter`, which live in the **`Hrot.Editor`
+assembly** *(`Browser/`)*, plus `ShowNewAssetDialog`, which is a **local function inside
+`EditorSubsystem.RegisterWindows`** and not a type at all. ⇒ **relocate to `AiShared` and compose** — the
+same move `CE-037` made for the toolbar layout — and **four declared absences close at once** *(two
+toolbar buttons + two menu items)* with **no menu or toolbar code written**.
+📄 The scoping detail is in [`batches/REPORT_Cgf_Menu_Follows_Focus.md`](blueprints/batches/REPORT_Cgf_Menu_Follows_Focus.md) §6, handed to the coordinator.
 
 ### 10.5 ⭐⭐ DEVIATION 4 — **the menu needed a PANEL MODEL before §3 ⑤ could assert anything**
 
