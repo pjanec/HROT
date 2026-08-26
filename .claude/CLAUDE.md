@@ -252,7 +252,7 @@ implementation session builds; it does not source the design it builds from.**
 - **Ask questions in plain chat text, never with the question/multiple-choice widget** (do not use the `AskUserQuestion` tool). List options as normal prose the user can reply to.
 - **⭐ Always give GitHub links to documents** *(user, `2026-08-17`: "pls always show github link to the documents, i am on mobile")*. Whenever a document is written, updated or referenced in chat, include its link on the **current working branch**:
   `https://github.com/pjanec/HROT/blob/<branch>/<path>` — e.g.
-  `https://github.com/pjanec/HROT/blob/claude/blueprint-authoring-status-gm0akp/docs/blueprints/PLAN_Remaining_Work.md`.
+  `https://github.com/pjanec/HROT/blob/claude/blueprint-authoring-status-6sr5ld/docs/blueprints/PLAN_Remaining_Work.md`.
   ⚠ **Push first** — a link to an unpushed commit 404s. ⭐ **SVGs too**; GitHub renders them from the blob page.
 - **Model delegation (token thrift):** keep Opus for orchestration and hard reviews; delegate heavier work that does not need Opus-level intelligence (mirror-an-existing-pattern slices, mechanical edits, broad searches) to a **Sonnet** subagent. Opus reviews the real diff and re-runs the gates. Do novel scheduler/IR/compiler work hands-on.
 - **Build general, not just minimal (round-out):** when a task needs a generic node, implement the whole obvious set rather than only the one value the immediate task needs — e.g. the `Compare` node ships every `ComparisonOperator`, not just `==`; an operator/enum-keyed node covers the full enum. Proactively add closely-similar, generally-useful companions (the arithmetic/boolean peers of a comparison node) when they reuse the same machinery and are plausibly usable. Default toward completeness over minimalism. Balance against the architect's demand-driven caution: if a round-out means a whole new *speculative* vocabulary or contradicts an explicit architect ruling, flag it for a quick nod first rather than silently building it — but don't be stingy with cheap, obvious generality.
@@ -450,7 +450,7 @@ in the other's lane.
 
 | Lane | Branch | owns |
 |---|---|---|
-| **Coordinator** (handoffs, design, gates) | ⭐ **`claude/blueprint-authoring-status-gm0akp`** | — |
+| **Coordinator** (handoffs, design, gates) | ⭐ **`claude/blueprint-authoring-status-6sr5ld`** | — |
 | ⭐⭐ **UI lane** *(incl. the frozen variable area)* | ⭐⭐ **`claude/reset-working-branch-qd1qpv`** *(recorded `2026-08-23`; started perspective Part A at `89acf0f20`)*. ⚠ **MOVED from `claude/hrot-implementation-j1jvin`** | variables · working state · blackboard · `AiShared` · Q38/Details · ⭐ **`MIN`** · ⭐ **the perspective model**. ⭐ ids **`BP-`**, tracker areas **`A`–`G`** |
 | ⭐⭐ **BACKEND lane** *(new `2026-08-23`)* | ⭐⭐ **`claude/blueprint-macro-feature-sdmspn`** *(started the StrideMock removal at `89acf0f20`)*. ⚠ **The NAME is historical** — it was the Batch-29-era implementation branch, reused | project/reference structure · the Stride cleanup. ⭐ ids **`ST-`**, tracker area **`I` only** |
 | ⭐⭐ **TIME lane** *(approved `2026-08-21`)* | ⭐ **`claude/time-system-refactor-batch-104-gp617x`** *(recorded `2026-08-21`, started Batch 104 at `404f95e9a`, branched from dispatch `34deca154`)*; 📌 still confirm by ancestry, not by name | `Fdp.Toolkits/Time/` · `Hrot.Orchestrator` · `ModuleHostKernel` · `Hrot.ClusterRunner.Integration.Tests`. ⭐ ids **`TM-`**, tracker area **`H` only** |
@@ -462,9 +462,10 @@ in the other's lane.
 > | ⭐⭐ **TRACKER PARTITION** | the time lane writes **ONLY** to `Area H — Time & clock`. ⇒ different regions of one file **merge cleanly** |
 > | ⭐ **NO CROSS-LANE FILES** | 📐 measured: different assemblies, no shared production file. ⚠ **A cross-lane edit is a STOP-and-report**, not a judgement call |
 
-⚠ **Updated 2026-08-10 by the user.** The coordinator lane was previously
-`claude/blueprint-authoring-status-6sr5ld`; that was a **different, now-retired session**. Any document
-still naming `6sr5ld` as the coordinator branch is **stale** — this table wins.
+⚠ **Corrected 2026-08-26 by the user.** The coordinator lane is
+`claude/blueprint-authoring-status-6sr5ld` — the live, active coordinator session. An earlier note here
+named `…-gm0akp` and called `6sr5ld` "retired"; that note was itself stale and is **SUPERSEDED** — this
+table wins. ⛔ Any document still naming `gm0akp` as the coordinator branch is stale.
 
 ⚠⚠ **BOTH implementation lanes were re-pointed by the user on `2026-08-23`** — see the table above. ⭐ The
 UI lane moved `j1jvin` → **`reset-working-branch-qd1qpv`**, and **`blueprint-macro-feature-sdmspn`** *(an old
@@ -477,8 +478,8 @@ descends from a coordinator commit, not by the name in this table.
 from `main`, never from a previous implementation head that has drifted. Start every run with:
 
 ```bash
-git fetch origin claude/blueprint-authoring-status-gm0akp
-git merge --ff-only origin/claude/blueprint-authoring-status-gm0akp   # or branch fresh from it
+git fetch origin claude/blueprint-authoring-status-6sr5ld
+git merge --ff-only origin/claude/blueprint-authoring-status-6sr5ld   # or branch fresh from it
 ```
 
 ⭐ **The mechanic that causes every failure so far:** the implementation session does **not merge** the
@@ -934,7 +935,7 @@ checking — *the design for intent, the code for fact.*
 ⛔⛔ **THE BRIEF IS A COORDINATOR OBLIGATION ONLY** *(`2026-08-18`)*. ⚠ **On `2026-08-18` an
 implementation session wrote a brief instead of starting Batch 84** — ⭐ **correctly following a rule
 written for the other lane.** ⇒ ⭐ **the hook now detects the branch and tells the implementation lane
-to skip it**; ⛔ **if you are not on `claude/blueprint-authoring-status-gm0akp`, your first move is rule
+to skip it**; ⛔ **if you are not on `claude/blueprint-authoring-status-6sr5ld`, your first move is rule
 7 then rule 1b's started-marker, NOT a brief.**
 
 ⇒ ⭐⭐⭐ **The FIRST reply of every COORDINATOR session, and the first after every compaction, OPENS with
