@@ -123,8 +123,18 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     }
 
     /// <summary>
-    /// ⭐ <b>The CGF shape</b> — headless-first: no picker, no modal browser, and it LOGS instead of
-    /// prompting. ⛔ Exactly the seam set <c>CgfSubsystem</c> passes.
+    /// ⭐ <b>The CGF shape</b> — ⭐⭐⭐ <b>as of <c>CE-049</c> (Axis-C E2) it HAS a picker and a Save-As
+    /// browser.</b> 📄 <c>docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md</c> §3 ③.
+    ///
+    /// <para>⚠⚠ <b>This shape CHANGED, and the change is the E2 acceptance criterion.</b> Before E2 it
+    /// passed <c>openPicker: null</c> / <c>openSaveAsDialog: null</c> and the rails asserted the items were
+    /// DISABLED-with-cause — 📌 Slice A's own note said they *"light up for free the day a picker is
+    /// composed here (Axis-C E2)"*. ⇒ ⭐ that day arrived, so the assertion flipped. ⛔ The greyed-with-cause
+    /// behaviour is NOT gone — it moved to <see cref="NoModalShape"/>, which is now the host shape that
+    /// exhibits it.</para>
+    ///
+    /// <para>⭐ It still LOGS instead of prompting for <c>New Exercise</c> — a picker is not a confirmation
+    /// dialog, and ruling 53 is about the destructive reset, which stays headless-first here.</para>
     /// </summary>
     private static (Session S, Commands C, GlobalMenuRegistry M, List<string> Log) CgfShape()
     {
@@ -138,11 +148,37 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
             menu:               m,
             commands:           c,
             session:            s,
-            openPicker:         null,
-            openSaveAsDialog:   null,
+            openPicker:         (kinds, cb) => cb(new Asset("PickedOnCgf")),
+            openSaveAsDialog:   cb => cb("NamedOnCgf"),
             confirmNewExercise: run => { log.Add("new-exercise proceeding without a prompt"); run(); });
 
         return (s, c, m, log);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The NO-MODAL shape — a host that genuinely cannot host a picker.</b>
+    /// 🔒 Ruling 49 / <c>VC-3</c>: the items are still REGISTERED, but DISABLED with the cause in the
+    /// label. 📄 The design's §2 risk names this as *"the correct end state, not a bug"*.
+    ///
+    /// <para>⭐ Kept as a first-class shape rather than deleted with the pre-E2 CGF wiring: it is the
+    /// contract for any future host *(a thin ExCon node, a headless runner that still builds a menu)*, and
+    /// deleting the rail would let that contract rot silently.</para>
+    /// </summary>
+    private static (Session S, Commands C, GlobalMenuRegistry M) NoModalShape()
+    {
+        var s = new Session();
+        var c = new Commands();
+        var m = new GlobalMenuRegistry();
+
+        ScenarioMenuCommands.Register(
+            registerCommand:  (d, h) => c.Register(d, h),
+            menu:             m,
+            commands:         c,
+            session:          s,
+            openPicker:       null,
+            openSaveAsDialog: null);
+
+        return (s, c, m);
     }
 
     private static string[] MenuPaths(GlobalMenuRegistry menu)
@@ -218,12 +254,18 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     // ══ ② ONLY SERVICEABILITY DIFFERS ═══════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The difference between the hosts is ENABLEMENT, never PRESENCE.</b>
-    /// 🔒 Ruling 49. ⭐ On the editor the picker-backed items are live with no override label; on CGF they
-    /// are greyed and the label names the cause *(VC-3)*. ⛔ Neither host hides them.
+    /// ⭐⭐⭐ <b><c>CE-049</c>'s ACCEPTANCE CRITERION: after E2 the two hosts are IDENTICAL — same items,
+    /// same enablement, same plain labels.</b> 📄 <c>docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md</c> §6
+    /// *("CGF's Open/New items ENABLED and functional")*.
+    ///
+    /// <para>⚠⚠ <b>This rail INVERTED at E2, deliberately.</b> Before the picker was composed it asserted
+    /// CGF's three seam-backed items were DISABLED-with-cause; that was correct then and is wrong now.
+    /// ⛔ The greyed behaviour was not deleted — <see cref="AHostWithNoModalKeepsTheItemsGreyedWithCause"/>
+    /// owns it, which is the honest place for it: it is a property of *"no modal composed"*, ⛔ never of
+    /// *"being CGF"*.</para>
     /// </summary>
     [Fact]
-    public void OnlyTheEnablementDiffersBetweenTheHosts()
+    public void AfterE2TheTwoHostsAgreeOnEnablementToo()
     {
         var editor = EditorShape();
         var cgf    = CgfShape();
@@ -234,9 +276,55 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
             Assert.True(editor.C.Get(id)!.IsEnabled(), $"{id} must be live on the interactive host.");
             Assert.Null(editor.C.Get(id)!.DynamicDisplayName);
 
-            Assert.False(cgf.C.Get(id)!.IsEnabled(), $"{id} has no seam to service it on CGF.");
-            Assert.Contains("unavailable", cgf.C.Get(id)!.DynamicDisplayName!(), StringComparison.Ordinal);
+            Assert.True(cgf.C.Get(id)!.IsEnabled(), $"{id} must be live on CGF now that E2 composed a picker.");
+            Assert.Null(cgf.C.Get(id)!.DynamicDisplayName);
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>…and CGF's picker actually REACHES the session — enabled is not the same as functional.</b>
+    /// ⚠ The failure this pins is the one that matters after E2: a menu item that is live, clickable, and
+    /// silently does nothing because the seam was wired to a picker nobody draws. 📐 The production half of
+    /// that hazard is the two <c>DrawFrame</c> calls in <c>CgfSubsystem.DrawUI</c>; this rail pins the
+    /// seam→session half, which is the part a unit test can see.
+    /// </summary>
+    [Fact]
+    public void OnCgfTheEnabledLoadItemsReachTheSession()
+    {
+        var (session, commands, _, _) = CgfShape();
+
+        Assert.True(commands.Invoke(ScenarioMenuCommands.LoadId).Success);
+        Assert.True(commands.Invoke(ScenarioMenuCommands.LoadLiveId).Success);
+
+        Assert.Equal("PickedOnCgf", Assert.Single(session.OpenForEditCalls));
+        Assert.Equal("PickedOnCgf", Assert.Single(session.LoadForLiveCalls));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>A host that composes NO modal keeps the items registered, disabled, and self-explaining.</b>
+    /// 🔒 Ruling 49 + <c>VC-3</c>. ⭐ The design's §2 risk states this explicitly: *"If a host genuinely
+    /// cannot host a modal, the items stay greyed-with-cause — that is the correct end state, a finding,
+    /// not a failure to force."*
+    /// </summary>
+    [Fact]
+    public void AHostWithNoModalKeepsTheItemsGreyedWithCause()
+    {
+        var editor  = EditorShape();
+        var noModal = NoModalShape();
+
+        // ⭐ Presence is identical — the capability difference never removes an item.
+        Assert.Equal(MenuPaths(editor.M), MenuPaths(noModal.M));
+
+        foreach (var id in new[] { ScenarioMenuCommands.LoadId, ScenarioMenuCommands.LoadLiveId,
+                                   ScenarioMenuCommands.SaveAsId })
+        {
+            Assert.False(noModal.C.Get(id)!.IsEnabled(), $"{id} has no seam to service it.");
+            Assert.Contains("unavailable", noModal.C.Get(id)!.DynamicDisplayName!(), StringComparison.Ordinal);
+        }
+
+        // ⭐ And the always-serviceable items stay live — a blanket disable would be just as wrong.
+        Assert.True(noModal.C.Get(ScenarioMenuCommands.NewExerciseId)!.IsEnabled());
+        Assert.True(noModal.C.Get(ScenarioMenuCommands.TakeCheckpointId)!.IsEnabled());
     }
 
     /// <summary>
@@ -267,14 +355,14 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     }
 
     /// <summary>
-    /// ⛔⛔ <b>A CGF-shaped host's disabled load items must be INERT, not merely greyed.</b>
+    /// ⛔⛔ <b>A no-modal host's disabled load items must be INERT, not merely greyed.</b>
     /// ⚠ Worth its own rail: the handler closes over a nullable seam, and an early-return that was
     /// forgotten would let a re-entrant invoke path load a scenario the operator never chose.
     /// </summary>
     [Fact]
-    public void OnCgfTheDisabledLoadItemsDoNothingEvenIfInvoked()
+    public void OnANoModalHostTheDisabledLoadItemsDoNothingEvenIfInvoked()
     {
-        var (session, commands, _, _) = CgfShape();
+        var (session, commands, _) = NoModalShape();
 
         // ⭐ Invoke() itself refuses a disabled command, so this asserts BOTH gates: the refusal AND that
         //   nothing reached the session.

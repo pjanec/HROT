@@ -88,6 +88,28 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// session"* absence recorded in <see cref="WireSaveAndReload"/> and in <c>MA-019</c> §G.</para>
     /// </summary>
     private Hrot.Editor.AiShared.Scenarios.EditorScenarioSession? _scenarioSession;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-049</c> (Axis-C <b>E2</b>) — the ONE shared create-core *(ruling 9)*, replacing the
+    /// ~50-line duplicate of <c>EditorSubsystem.CreateAssetCore</c> that used to live inline in
+    /// <see cref="WireAssetCreation"/>. 📄 <c>docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md</c> §3 ②.
+    /// ⭐ Held as a field so both the MCP surface *(<see cref="AssetShellCreate"/>)* and the interactive
+    /// New-Asset dialog run the same instance.
+    /// </summary>
+    private Hrot.Editor.AiShared.Browser.AssetCreateController? _assetCreateController;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-049</c> — CGF's OWN shell picker registry, separate from the canvas windows'
+    /// <c>AiEditorAdapterBundle.PickerRegistry</c>.
+    /// <para>⚠⚠ <b>Separate DELIBERATELY, and the editor learned this first</b> *(<c>BATCH-29</c>: "Separate
+    /// from adapterBundle.PickerRegistry (which canvas windows already DrawFrame) to avoid
+    /// double-DrawFrame")*. ⛔ Reusing the canvas registry here would draw every shell picker twice.</para>
+    /// </summary>
+    private NodeEditor.UI.Picker.PickerRegistry? _shellPickers;
+    private NodeEditor.UI.Dialogs.SaveAsBrowserDialog? _saveAsBrowser;
+    private NodeEditor.Core.Interfaces.IIconProvider? _shellIconProvider;
+    private Hrot.Editor.AiShared.Browser.AssetPickerLauncher? _assetPickerLauncher;
+    private Hrot.Editor.AiShared.Browser.NewAssetLauncher? _newAssetLauncher;
     private Action?           _cgfNetworkPolling;
 
     // ── Headless + behavior registry ──────────────────────────────────────────
@@ -1008,6 +1030,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // Render the context menu popup via the gizmo layer's ContextMenuAdapter.
         _cgfGizmoLayer?.DrawContextMenu();
+
+        // ⭐⭐⭐ CE-049 (Axis-C E2) — the shell picker + Save-As browser frames.
+        // ⛔ WITHOUT THESE TWO LINES THE PICKERS ARE INVISIBLE: `PickerRegistry.OpenPicker` only queues a
+        //    request; `DrawFrame` is what renders it. ⚠ That failure would look exactly like "the menu
+        //    item does nothing" — a live-looking control that silently no-ops, which is the shape ruling
+        //    49 and VC-3 both exist to prevent. 📐 Mirrors EditorSubsystem.DrawUI :2614-2618.
+        // ⭐ These are CGF's OWN registry, not the canvas windows' — see WirePickerShell's remarks on
+        //   double-DrawFrame.
+        _shellPickers?.DrawFrame();
+        if (_saveAsBrowser != null && _shellIconProvider != null)
+            _saveAsBrowser.DrawFrame(_shellIconProvider);
     }
 
     /// <inheritdoc/>
@@ -1449,6 +1482,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    the kernel ticks.
         // ⭐ Slice 1 reported this un-wireable because its TRIGGER — a dirty OPEN document — could not
         //   exist on CGF. ⇒ CE-009 removed that blocker; this is the follow-through.
+        //
+        // ⚠⚠ CE-049 — WireAssetCreation now runs BEFORE this call, and the ORDER IS LOAD-BEARING:
+        //    WireSaveAndReload registers ScenarioMenuCommands, whose openPicker/openSaveAsDialog seams
+        //    are the launchers WireAssetCreation + WirePickerShell build. ⛔ Registering the menu first
+        //    would hand it nulls and leave every item greyed — which is exactly the state E2 removes.
+        //    📐 Verified independent: neither method read the other's output before this reorder.
+        WireAssetCreation(catalog);
+        WirePickerShell(windowManager, adapters, catalog);
+
         WireSaveAndReload(windowManager, catalog);
 
         // ⭐⭐⭐ SLICE 2 (CE-014) — PUBLISH THE ASSET SHELL so the debug API can be handed it.
@@ -1478,8 +1520,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             ActivateByAssetId(assetId);
             return ReloadActiveAiDocument();
         };
-
-        WireAssetCreation(catalog);
 
         FdpLog<CgfSubsystem>.Info(
             "[CGF] AiShared shell built — {0} asset(s) indexed, perspectives now include [{1}].",
@@ -1527,63 +1567,176 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         schemaExporter.Rebuild();
         AssetShellSchemaExporter = schemaExporter;
 
-        AssetShellCreate = (kindText, name, relPath, recipeName) =>
-        {
-            if (!Enum.TryParse<Hrot.Editor.AiShared.AssetKind>(kindText, ignoreCase: true, out var kind))
-                return (null, $"[ERROR] '{kindText}' is not an AssetKind. Use BTree, Hsm or Blueprint.");
-
-            if (_newAssetServices == null || !_newAssetServices.TryGetValue(kind, out var service))
-                return (null, $"[ERROR] This host composes no INewAssetService for {kind}.");
-
-            // ⭐⭐ The recipe is resolved from the kind's OWN AvailableRecipes(), by name — the same list
-            //   GET /assets/recipes publishes. ⛔ An unmatched name is REFUSED with the available names
-            //   rather than silently falling back to the blank template: creating something other than
-            //   what was asked for is the silent-wrong-answer shape MA-004 and MA-017 both caught.
-            var (recipe, recipeError) =
-                Hrot.Editor.AiShared.Recipes.RecipeByName.Resolve(service, recipeName);
-            if (recipeError != null) return (null, recipeError);
-
-            var minted = service.CreateNew(recipe, name, relPath);
-
-            // ⭐ Blueprint is mint-only — the file is written here, at the SOURCE root the contributor
-            //   scans. BTree/HSM persist inside CreateNew.
-            if (kind == Hrot.Editor.AiShared.AssetKind.Blueprint
-             && minted is Hrot.Blueprints.Editor.Variables.BlueprintEditableAssetAdapter adapter)
+        // ⭐⭐⭐ CE-049 (Axis-C E2) — THE DUPLICATE CREATE-CORE IS GONE. Ruling 9.
+        // 📄 docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md §2 (the inventory row) / §3 ②.
+        //
+        // 🔴 What was here: a ~50-line RE-DERIVATION of `EditorSubsystem.CreateAssetCore` — same four
+        //    composition facts, re-typed. 📐 And the two had already DRIFTED in three places: this copy
+        //    had no non-document-kind branch, no try/catch around the Blueprint write, and (better than
+        //    the editor's) a remedy in its "not in the catalog" message. ⇒ ⭐ the shared controller keeps
+        //    the better text and the editor's branch, so neither host regressed.
+        //
+        // ⭐ `saveMintOnlyAsset` unwraps the adapter HERE because the unwrap type lives in
+        //   Hrot.Blueprints.Editor, which the shared assembly does not reference — the same reason the
+        //   editor passes its own `saveAsBlueprintToFile`.
+        _assetCreateController = new Hrot.Editor.AiShared.Browser.AssetCreateController(
+            services:          _newAssetServices,
+            saveMintOnlyAsset: (asset, path) =>
             {
-                var bpPath = Hrot.Editor.AiShared.AssetSavePath.Compose(
-                    Hrot.Editor.AiShared.AssetKind.Blueprint, relPath, name,
-                    assetRootOverride: _bpRootDir);
-                Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(adapter.Asset, bpPath);
-            }
+                if (asset is Hrot.Blueprints.Editor.Variables.BlueprintEditableAssetAdapter adapter)
+                    Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(adapter.Asset, path);
+            },
+            findCatalogued:         id => catalog.FindByAssetId(id),
+            refreshFromAssembly:    asm => _aiCatalogBuilder?.RefreshFromAssembly(asm),
+            refreshJsonContributor: k =>
+            {
+                if (k == Hrot.Editor.AiShared.AssetKind.BTree && _btreeJsonRootDir != null)
+                    _btreeJsonContrib?.Refresh(rootDirectory: _btreeJsonRootDir);
+                if (k == Hrot.Editor.AiShared.AssetKind.Hsm && _hsmJsonRootDir != null)
+                    _hsmJsonContrib?.Refresh(rootDirectory: _hsmJsonRootDir);
+            },
+            openDocument:     a => _aiDocumentManager?.Open(a),
+            blueprintRootDir: () => _bpRootDir);
 
-            // ⭐ Refresh the assembly contributors, then the JSON contributor for THIS kind — the editor's
-            //   BUG-A6 note: RefreshFromAssembly alone leaves a just-written .btree.json undiscovered.
-            var aiAsm = AppDomain.CurrentDomain.GetAssemblies()
-                .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
-            if (aiAsm != null) _aiCatalogBuilder?.RefreshFromAssembly(aiAsm);
-
-            if (kind == Hrot.Editor.AiShared.AssetKind.BTree && _btreeJsonRootDir != null)
-                _btreeJsonContrib?.Refresh(rootDirectory: _btreeJsonRootDir);
-            if (kind == Hrot.Editor.AiShared.AssetKind.Hsm && _hsmJsonRootDir != null)
-                _hsmJsonContrib?.Refresh(rootDirectory: _hsmJsonRootDir);
-
-            // ⚠⚠ The id is returned ONLY once the catalog can resolve it (MA-004). ⛔ Answering with the
-            //   minted id before that hands the caller an id GET /assets cannot find.
-            var catalogued = catalog.FindByAssetId(minted.AssetId);
-            if (catalogued == null)
-                return (null,
-                        $"[INFO] Created '{minted.Name}', but it is not in the catalog. The file was written "
-                      + "outside the directory this host's contributor scans, so nothing can address it — "
-                      + "check the asset roots (ruling 67: pass --asset-root on a deployed node).");
-
-            _aiDocumentManager?.Open(catalogued);
-            return (catalogued.AssetId, $"[OK] Created {kind}: '{minted.Name}'.");
-        };
+        AssetShellCreate = _assetCreateController.CreateByName;
 
         FdpLog<CgfSubsystem>.Info(
             "[CGF] Asset creation wired — kinds [{0}], {1} recipe(s) offered.",
             string.Join(", ", _newAssetServices.Keys),
             _newAssetServices.Values.Sum(s => s.AvailableRecipes().Count));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-049</c> (Axis-C <b>E2</b>) — THE PICKER SHELL: this is what lights up Slice A's greyed
+    /// <c>Open Scenario</c> / <c>New Scenario</c> items.</b>
+    /// 📄 <b><c>docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md</c></b> §3 ③, §4, §5.
+    ///
+    /// <para>⭐⭐ <b>Every class here is SHARED and pre-existing; only the composition is new.</b>
+    /// 📐 Measured <c>2026-08-26</c> *(design §1)*: CGF already had the whole service/create layer
+    /// *(<c>MA-019</c>…<c>023</c>)* and already built an <c>AiEditorAdapterBundle</c>. ⇒ the gap was
+    /// literally the two <c>null</c>s CGF passed for <c>openPicker</c>/<c>openSaveAsDialog</c>.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>THE MEASURED RISK IN THE DESIGN §2 IS RESOLVED: CGF CAN host the modal.</b> 📐 The
+    /// evidence is structural, not hopeful — <see cref="BuildAiShell"/> is reached only from
+    /// <see cref="RegisterWindows"/>, which returns early when <c>_headless</c>. ⇒ if this method runs at
+    /// all, this node has a <c>WindowManager</c> and an ImGui context. ⛔ On a genuinely headless CGF the
+    /// shell is never built, so <c>ScenarioMenuCommands</c> is never registered either — ⚠ meaning the
+    /// *"greyed-with-cause"* end state is a UNIT-rail property *(Slice A's rail asserts it)*, not something
+    /// a headless run exhibits.</para>
+    ///
+    /// <para>⚠⚠ <b>A SEPARATE <see cref="PickerRegistry"/> from the canvas windows', and the editor learned
+    /// this the hard way</b> *(<c>BATCH-29</c>: "Separate from adapterBundle.PickerRegistry (which canvas
+    /// windows already DrawFrame) to avoid double-DrawFrame")*. ⛔ Reusing <c>adapters.PickerRegistry</c>
+    /// here would draw every shell picker twice per frame.</para>
+    /// </summary>
+    private void WirePickerShell(
+        Fdp.Presentation.WindowManager.WindowManager windowManager,
+        Hrot.Editor.AiShared.Adapters.AiEditorAdapterBundle adapters,
+        Hrot.Editor.AiShared.Catalog.AssetCatalog catalog)
+    {
+        _shellIconProvider = adapters.IconProvider;
+
+        _shellPickers = new NodeEditor.UI.Picker.PickerRegistry();
+        _shellPickers.SetServices(adapters.IconProvider, adapters.EditorTheme);
+
+        _saveAsBrowser = new NodeEditor.UI.Dialogs.SaveAsBrowserDialog();
+
+        // ⭐ The router is the SAME shared type the editor uses; only its two delegates are per-host.
+        //   ⭐⭐ `loadScenario` goes to the Slice A session's OpenForEdit — ⛔ NOT to a CGF-private load
+        //   path. That is the whole point of E1 landing first.
+        var router = new Hrot.Editor.AiShared.Browser.AssetPickActionRouter(
+            openDocument: asset => _aiDocumentManager?.Open(asset),
+            loadScenario: name  => _scenarioSession?.OpenForEdit(name));
+
+        _assetPickerLauncher = new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(
+            openPicker: _shellPickers.OpenPicker,
+            catalog:    catalog,
+            router:     router);
+
+        // ⭐⭐ The New-Asset flow: recipe picker → Save-As browser for the name/folder → the ONE
+        //    create-core. ⚠ `_assetCreateController` is non-null here because WireAssetCreation runs
+        //    immediately before this method (see the ordering note at its call site).
+        _newAssetLauncher = new Hrot.Editor.AiShared.Browser.NewAssetLauncher(
+            openPicker:         _shellPickers.OpenPicker,
+            services:           _newAssetServices!,
+            showNewAssetDialog: (kind, recipe) => ShowNewAssetDialog(catalog, kind, recipe),
+            // ⭐ MA-020's lesson, applied at the point it was found: the two describe seams were optional
+            //   and NOBODY PASSED THEM, so every recipe rendered with a null description while
+            //   EditorMetadata.Recipe carried one. ⛔ This caller HAS them, so it passes them.
+            describe:           Hrot.Blueprints.Editor.RecipeMetadataAdapter.DescribeRecipe,
+            recipeCategory:     Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory);
+
+        FdpLog<CgfSubsystem>.Info(
+            "[CGF] Picker shell composed — Open/New asset and scenario pickers are live on this host.");
+    }
+
+    /// <summary>
+    /// ⭐ Seeds and opens the Save-As browser for a NEW asset of <paramref name="kind"/>, then runs the
+    /// shared create-core. Mirrors <c>EditorSubsystem.ShowNewAssetDialog</c> — ⭐ and the request itself is
+    /// built by the SHARED <c>AssetSaveAsRequests.Build</c>, so the two hosts cannot drift.
+    /// </summary>
+    private void ShowNewAssetDialog(
+        Hrot.Editor.AiShared.Catalog.AssetCatalog catalog,
+        Hrot.Editor.AiShared.AssetKind kind,
+        Hrot.Editor.AiShared.IEditableAsset recipe)
+    {
+        if (_newAssetServices == null || _assetCreateController == null) return;
+
+        var folderPicker = new Hrot.Editor.AiShared.Browser.FolderPickerState(
+            Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
+                catalog.All, kind, Hrot.Editor.AiShared.Browser.AssetSaveAsRequests.DefaultBaseFolderFor));
+
+        string initialName = _newAssetServices[kind].IsBlankTemplate(recipe)
+            ? $"New{kind}"
+            : recipe.Name;
+
+        var request = Hrot.Editor.AiShared.Browser.AssetSaveAsRequests.Build(
+            catalog, kind, $"New {kind}", initialName, "", "Create", folderPicker);
+
+        _saveAsBrowser?.Open(request, result =>
+        {
+            if (!result.Confirmed) return;
+            var (_, status) = _assetCreateController.Create(kind, recipe, result.Name, result.DestinationPath);
+            FdpLog<CgfSubsystem>.Info("[CGF] {0}", status);
+        });
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-049</c> — the scenario Save-As browser, the <c>openSaveAsDialog</c> seam
+    /// <c>ScenarioMenuCommands</c> takes. Mirrors <c>EditorSubsystem.openScenarioSaveAs</c> and builds its
+    /// request through the same shared builder.
+    ///
+    /// <para>⭐ The chosen destination and name are joined into the FULL scenario name the session expects
+    /// *(<c>folder/name</c>)*, with the leading slash trimmed — ⚠ the editor does exactly this, and a
+    /// mismatch here would write the scenario to a path its own loader could not find.</para>
+    /// </summary>
+    private void OpenScenarioSaveAsDialog(
+        Hrot.Editor.AiShared.Catalog.AssetCatalog catalog,
+        Action<string> onNamed)
+    {
+        if (_saveAsBrowser == null || _scenarioSession == null) return;
+
+        var currentName = _scenarioSession.LoadedScenarioName ?? "";
+        int lastSlash   = currentName.LastIndexOf('/');
+        string initialName = lastSlash >= 0 ? currentName.Substring(lastSlash + 1) : currentName;
+
+        var folderPicker = new Hrot.Editor.AiShared.Browser.FolderPickerState(
+            Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
+                catalog.All, Hrot.Editor.AiShared.AssetKind.Scenario,
+                Hrot.Editor.AiShared.Browser.AssetSaveAsRequests.DefaultBaseFolderFor));
+
+        var request = Hrot.Editor.AiShared.Browser.AssetSaveAsRequests.Build(
+            catalog, Hrot.Editor.AiShared.AssetKind.Scenario, "Save Scenario As",
+            initialName, "", "Save", folderPicker);
+
+        _saveAsBrowser.Open(request, result =>
+        {
+            if (!result.Confirmed) return;
+
+            string dest = result.DestinationPath.TrimStart('/');
+            string fullName = string.IsNullOrEmpty(dest) ? result.Name : dest + "/" + result.Name;
+            onNamed(fullName);
+        });
     }
 
     /// <summary>
@@ -1741,10 +1894,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             windowManager.MainToolbar,
             toolbarIcons,
             new Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.HostServices(
-                // ⛔ OpenAsset / NewAsset: OMITTED. 📐 CGF composes no AssetPickerLauncher or
-                //   NewAssetLauncher — the editor builds both from catalogs + a router this host does
-                //   not wire. ⇒ ruling 49: the button is ABSENT, not a greyed one that does nothing.
-                //   ⚠ CGF *can* create assets over MCP (MA-019..023); it has no interactive picker.
+                // ⭐⭐⭐ CE-049 (Axis-C E2) item ④ — OpenAsset / NewAsset are SUPPLIED now. 📄
+                //    docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md §3 ④.
+                // ⛔ The prior comment here said "CGF composes no AssetPickerLauncher or NewAssetLauncher
+                //   — the editor builds both from catalogs + a router this host does not wire." 📐 That is
+                //   the state E2 ended: WirePickerShell composes both over CGF's own catalog and
+                //   WindowManager, so the buttons AND their File-menu items derive from the shared table
+                //   with NO new toolbar model — which is what ruling R3 requires.
+                // ⭐ `AssetKindFilter.All` matches the editor's own OpenAsset wiring exactly.
+                OpenAsset:            _assetPickerLauncher != null
+                    ? (Action)(() => _assetPickerLauncher.Open(Hrot.Editor.AiShared.Browser.AssetKindFilter.All))
+                    : null,
+                NewAsset:             _newAssetLauncher != null
+                    ? (Action)(() => _newAssetLauncher.Open())
+                    : null,
                 CompileReload:        () => ReloadActiveAiDocument(),
                 CompileReloadEnabled: () => _aiDocumentManager?.Active != null),
             // ⭐⭐⭐ UXI-05 item ④ — CGF's File menu, emitted from the SAME table as its toolbar.
@@ -1773,13 +1936,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 menu:            windowManager.GlobalMenu,
                 commands:        windowManager.ShellCommands,
                 session:         _scenarioSession,
-                // ⛔ NULL, and honestly so: CGF composes no AssetPickerLauncher (the same measured
-                //   absence CE-016 §9.4 recorded for the Open/New Asset toolbar buttons). ⇒ the two load
-                //   items are REGISTERED AND DISABLED with the reason in their label — ruling 49, the
-                //   VC-3 shape — ⛔ not silently missing, and ⛔ not live-looking controls that no-op.
-                //   ⭐ They light up for free the day a picker is composed here (Axis-C E2).
-                openPicker:       null,
-                openSaveAsDialog: null,
+                // ⭐⭐⭐ CE-049 (Axis-C E2) — THE TWO NULLS ARE GONE. 📄
+                //    docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md §3 ③.
+                // ⭐ Slice A's own note said these items "light up for free the day a picker is composed
+                //   here (Axis-C E2)" — and it was literally free: the seams changed, the menu code did
+                //   not. ⇒ the items are now ENABLED with plain labels, on both hosts, from one registrar.
+                // ⚠ Still null-CONDITIONAL, not unconditionally non-null: if the picker shell somehow did
+                //   not compose, ruling 49's greyed-with-cause remains the honest fallback rather than a
+                //   live-looking control that throws.
+                openPicker:       _assetPickerLauncher != null
+                    ? (kinds, callback) => _assetPickerLauncher.Open(kinds, callback)
+                    : null,
+                openSaveAsDialog: _saveAsBrowser != null
+                    ? onNamed => OpenScenarioSaveAsDialog(catalog, onNamed)
+                    : null,
                 // ⭐⭐⭐ Ruling 53 + UX_Feature_Modal_Surfaces.md §2.0b — this host is headless-first: a
                 //    modal on an unattended node is a hang, not a prompt. ⇒ it PROCEEDS, and the log IS
                 //    the safety net. ⛔ Passing null would proceed SILENTLY, which is the one option the

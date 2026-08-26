@@ -112,7 +112,7 @@ unattended node is a hang, and *"the origin-side log IS THE WHOLE SAFETY NET"*. 
 | `design-digest.py --check` | as written | n/a | ✅ 91 docs: STATUS + INVENTORY + UML all present | — |
 | `rulings-check.py` | as written | n/a | ✅ **25/25 verified** | — |
 | `tracker-counts.py --check` | as written | n/a | ✅ *"open 102 / done 346 (+1 refuted)"* | **0 — see the caveat** |
-| **T3** conformance / system suite | `bash scripts/run-system-tests.sh` | ⛔ built once by the script | ⏳ **BACKGROUNDED — result in §7** | — |
+| **T3** conformance / system suite | `bash scripts/run-system-tests.sh` | ⛔ built once by the script | ✅ **107 passed / 0 failed / 0 skipped** *(11 m 10 s)* | **0** |
 
 ### ⚠ Two caveats on the rows above, stated rather than glossed
 
@@ -135,16 +135,22 @@ unattended node is a hang, and *"the origin-side log IS THE WHOLE SAFETY NET"*. 
 | **`MigrationAlertManager.Draw()` not wired** | filed as **`CE-047`**. ⛔ Not deleted *(unreferenced ≠ unintentional)*; **where** a global banner is drawn is a UX call I will not guess |
 | **`AX-023`/`AX-024`** *(the flake + the process-wide allocation counters)* | ⚠ **now the BACKEND lane's `HANDOFF_Test_Suite_Reliability.md` W2/W3.** 🔴 **And its W2 explicitly rules out the `[Collection]` approach** — *"Fix by ISOLATION, not by ordering… ⛔ NOT `[Collection]` ordering hacks that just hide it"* — which is what I had been asked to try. ⇒ **left entirely to that lane**; see §8 |
 
-## 7. ⏳ T3 — the system/conformance suite
+## 7. ✅ T3 — the system/conformance suite: **107 / 0 / 0**
 
-⭐ **Backgrounded per the handoff §1 and CLAUDE.md's T3 rule** *(never a foreground blocker)*. Result appended
-here when it lands; if it is not in this file, it is in the next session's first message.
+⭐ **Backgrounded per the handoff §1 and CLAUDE.md's T3 rule** *(never a foreground blocker)*.
+📐 `bash scripts/run-system-tests.sh` — `Category=SystemSmoke|Category=SystemModes` — **107 passed, 0 failed,
+0 skipped, 11 m 10 s. Zero delta vs the started-marker.**
 
-> **Expectation, stated in advance so the result can contradict it:** the `global-menu` panel model now carries
-> **9 more items on BOTH hosts**, so `SUBSET-BY-DESIGN` should report a LARGER shared set and still hold. ⚠ If the
-> `global-menu` golden is a full-array capture rather than a subset check, it will move — 📐 CE-040 records
-> exactly that trap *("the three-way diff compares by full-array golden")*, and CE-045 generalised it away; the
-> run is what settles which is live.
+⭐⭐ **The prediction held, and the trap it names did NOT fire.** I wrote in advance: *"the `global-menu` panel
+model now carries 9 more items on BOTH hosts, so `SUBSET-BY-DESIGN` should report a LARGER shared set and still
+hold — ⚠ but if the `global-menu` golden is a full-array capture rather than a subset check, it will move
+(CE-040 records exactly that trap)."* ⇒ ⭐ **`CE-045`'s generalisation is what absorbed it**: the verdict is a
+by-key subset, so adding 9 shared items on both hosts moved no golden and reddened nothing. ⛔ Had the menu still
+been compared by full array — as the toolbar was before `CE-040` — this batch would have reddened three rails.
+
+⚠ **What this run does NOT prove:** that CGF's File menu renders the new items to a human. The suite asserts the
+published panel MODEL, not pixels; the greyed-with-cause labels in particular are a `DynamicDisplayName`
+assertion, not a screenshot. ⭐ Stated so the green is not over-read.
 
 ## 8. ⚠⚠ ONE CROSS-LANE COLLISION TO FLAG
 
