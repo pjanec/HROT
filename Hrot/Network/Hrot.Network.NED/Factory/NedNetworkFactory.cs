@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
@@ -11,6 +11,7 @@ using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Attributes;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
 using Hrot.Common.Infrastructure;
@@ -136,11 +137,14 @@ public sealed class NedNetworkFactory : INetworkFactory
     public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> CreateSimHostAttributeUpdateSystems()
     {
         if (_participant == null) return System.Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
-        var jsonAttributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
         return new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
         {
+            // ⭐⭐ AX-014 — the JSON compiler is no longer built here. 📌 It used to be, while the BINARY
+            //    interpreter was not built at all (AX-012) — one factory line supplying one arm and silently
+            //    omitting its sibling. ⇒ the constructor now defaults BOTH from `_geoTransform`, so this call
+            //    site cannot disable either by omission. ⛔ Do not "helpfully" pass them back in.
             new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
-                _participant, _entityMap, _geoTransform, jsonAttributeCompiler),
+                _participant, _entityMap, _geoTransform),
             new Hrot.Map.Common.Replication.Ingress.UpdateEntityDescriptorRequestSystem(
                 _participant, _entityMap, _geoTransform),
         };

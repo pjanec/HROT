@@ -1,13 +1,13 @@
-﻿using System.Numerics;
+using System;
+﻿using System.Linq;
+using System.Numerics;
 using System.Text.Json;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 
-namespace Hrot.SimHost;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// Builds the application-wide <see cref="JsonAttributeCompiler"/> singleton used by
@@ -28,8 +28,6 @@ namespace Hrot.SimHost;
 /// </summary>
 public static class AttributeCompilerFactory
 {
-    private const long EntityInfoOrdinal  = (long)EDescriptorType.dtEntityInfo;
-    private const long GeoSpatialOrdinal  = (long)EDescriptorType.dtWorldPos;
 
     // ── Public factory ────────────────────────────────────────────────────────
 
@@ -51,7 +49,7 @@ public static class AttributeCompilerFactory
                 "Name",
                 ( ref Fdp.Core.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
                     c.Name = r.GetString() ?? string.Empty,
-                descriptorOrdinal: EntityInfoOrdinal )
+                kind: KindOf("Name") )
 
             .RegisterValuePath<Fdp.Core.EntityInfo>(
                 "Affiliation",
@@ -59,7 +57,7 @@ public static class AttributeCompilerFactory
                     c.ForceId = r.TokenType == JsonTokenType.Number
                         ? MapAffiliationInt( r.GetInt32())
                         : MapAffiliationString( r.GetString()),
-                descriptorOrdinal: EntityInfoOrdinal );
+                kind: KindOf("Affiliation") );
 
         // ── SimTransform — unmanaged struct paths (GeoPosition) ───────────────
         if (geoTransform != null)
@@ -74,7 +72,7 @@ public static class AttributeCompilerFactory
                         acc.Lat = r.GetDouble();
                         acc.TryApply(ref st);
                     },
-                    descriptorOrdinal: GeoSpatialOrdinal)
+                    kind: KindOf("GeoPosition.Latitude"))
 
                 .RegisterValuePath<SimTransform>(
                     "GeoPosition.Longitude",
@@ -83,7 +81,7 @@ public static class AttributeCompilerFactory
                         acc.Lon = r.GetDouble();
                         acc.TryApply(ref st);
                     },
-                    descriptorOrdinal: GeoSpatialOrdinal)
+                    kind: KindOf("GeoPosition.Longitude"))
 
                 .RegisterValuePath<SimTransform>(
                     "GeoPosition.Altitude",
@@ -92,7 +90,7 @@ public static class AttributeCompilerFactory
                         acc.Alt = r.GetDouble();
                         acc.TryApply(ref st);
                     },
-                    descriptorOrdinal: GeoSpatialOrdinal);
+                    kind: KindOf("GeoPosition.Altitude"));
         }
 
         // ── SimTransform — Heading (compass degrees, always registered) ───────
@@ -100,12 +98,17 @@ public static class AttributeCompilerFactory
             "Heading",
             (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
             {
-                float headingDeg  = (float)r.GetDouble();
-                float mathYawRad  = (90f - headingDeg) * (MathF.PI / 180f);
-                st.Rotation       = System.Numerics.Quaternion.CreateFromAxisAngle(
-                    System.Numerics.Vector3.UnitZ, mathYawRad);
+                // ⭐⭐ Q59-F5 — CALL the shared conversion; do not re-derive it. This used to inline
+                //    `(90 - h) * π/180` + `CreateFromAxisAngle(UnitZ, …)`, which is numerically identical
+                //    to the bridge and was therefore NOT a defect — ⛔ but it was the third copy of one
+                //    formula, and F3 is what the third copy of a formula eventually becomes (the
+                //    DescriptorMapper copy drifted to the wrong axis entirely).
+                // 📌 AttributeIds.Heading's own doc already claimed "no new conversion math was
+                //    written; the installer reuses the bridge" — true of the installer, false here until now.
+                st.Rotation = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem
+                    .HeadingDegToRotation((float)r.GetDouble());
             },
-            descriptorOrdinal: GeoSpatialOrdinal);
+            kind: KindOf("Heading"));
 
         return builder.Build();
     }
@@ -115,18 +118,39 @@ public static class AttributeCompilerFactory
     /// binary attribute routing schema.
     /// </summary>
     /// <remarks>
-    /// Registers the same five paths as <see cref="Build"/> so that the JSON→ECS and
-    /// JSON→Binary pipelines stay in perfect sync.
+    /// <para>⭐⭐⭐ Registers the same paths as <see cref="Build"/> so that the JSON→ECS and JSON→Binary
+    /// pipelines stay in perfect sync — 📄 the owning design's own words
+    /// *(<c>docs/designs/attribs2/ATTR2-DESIGN.md</c> §3.2)*.</para>
+    ///
+    /// <para>🔴🔴 <b><c>AX-018</c> — that promise had FAILED, and nothing detected it.</b> 📐 Measured
+    /// <c>2026-08-26</c>: <c>Heading</c> was added to <see cref="Build"/> and to
+    /// <see cref="BuildBinaryInterpreter"/> *(Axis-B item ②)* and to <b>neither edge table</b>. ⇒ the
+    /// interpreter stood ready to apply <c>Heading</c> that no edge table could ever emit, so a heading
+    /// crossing the JSON→binary route emitted <b>zero records</b> — ⛔ silently: no exception, no log, the
+    /// rotation simply never left the edge.</para>
+    ///
+    /// <para>⭐⭐ <b>This is now the SOLE edge table.</b> ⚠ <c>IgApplication</c> used to hand-copy these
+    /// registrations with a comment saying they must stay in sync — ⛔ ruling 9, and the comment WAS the
+    /// enforcement. ⭐ Railed by <c>TheFourRoutingTablesAgreeTests</c>: the vocabulary is pinned against
+    /// <see cref="Build"/>'s own <c>RegisteredPaths</c>, and a second builder anywhere in the tree is a
+    /// source-scan red.</para>
     /// </remarks>
     public static JsonToRecordCompiler BuildEdgeCompiler()
     {
-        return new JsonToRecordCompilerBuilder()
-            .Register("Name",                   AttributeIds.Name,        AttributeValueKind.CsString)
-            .Register("Affiliation",             AttributeIds.Affiliation,  AttributeValueKind.CsString)
-            .Register("GeoPosition.Latitude",   AttributeIds.GeoLat,      AttributeValueKind.CsFloat64)
-            .Register("GeoPosition.Longitude",  AttributeIds.GeoLon,      AttributeValueKind.CsFloat64)
-            .Register("GeoPosition.Altitude",   AttributeIds.GeoAlt,      AttributeValueKind.CsFloat64)
-            .Build();
+        // ⭐⭐⭐ Q59-A1′ — DERIVED, not spelled out. This table used to re-list every path by hand, which is
+        //    how AX-018's `Heading` row came to be missing from it while Build() and BuildBinaryInterpreter()
+        //    both had one — silently, for months.
+        // ⇒ ⭐⭐ a row can no longer be missing HERE by construction; the only place to add an attribute is
+        //    AttributeVocabulary.All.
+        // ⚠ Every definition is registered, geo-gated ones included: the edge only TRANSCRIBES JSON into
+        //   records and needs no IGeographicTransform. ⛔ A host without one simply drops those records at
+        //   apply time, which is the pre-existing behaviour and is deliberate.
+        var builder = new JsonToRecordCompilerBuilder();
+
+        foreach (var d in AttributeVocabulary.All)
+            builder.Register(d.JsonPath, d.AttributeId, d.Kind);
+
+        return builder.Build();
     }
 
     /// <summary>
@@ -158,6 +182,18 @@ public static class AttributeCompilerFactory
     // ── Internal helpers ─────────────────────────────────────────────────────
 
     /// <summary>
+    /// ⭐⭐ <c>Q59-A1′</c> — the declared kind for a path, so the JSON routing table and the edge table read
+    /// the SAME value. ⛔ Throws rather than defaulting: a path registered here but absent from
+    /// <see cref="AttributeVocabulary"/> is a half-registration, which is exactly what this design ends.
+    /// </summary>
+    private static AttributeValueKind KindOf(string jsonPath)
+        => AttributeVocabulary.All.SingleOrDefault(d => d.JsonPath == jsonPath)?.Kind
+           ?? throw new InvalidOperationException(
+               $"JSON path '{jsonPath}' is registered in Build() but not declared in " +
+               "AttributeVocabulary.All. Add the definition there first — it is the single declaration.");
+
+
+    /// <summary>
     /// Maps a JSON affiliation string (e.g. <c>"FORCE_FRIENDLY"</c>) to a <see cref="ForceId"/>.
     /// Unrecognised values map to <see cref="ForceId.Neutral"/>.
     /// </summary>
@@ -171,17 +207,17 @@ public static class AttributeCompilerFactory
         };
 
     /// <summary>
-    /// Maps a JSON affiliation integer (the raw <see cref="eForceIdentifier"/> ordinal) to a
+    /// Maps a JSON affiliation integer (the raw <see cref="ForceIdentifier"/> ordinal) to a
     /// <see cref="ForceId"/>. Handles the ExCon default JSON serialisation which emits enums
     /// as their underlying integer value (e.g. <c>2</c> for <c>FORCE_OPPOSING</c>).
     /// </summary>
     internal static ForceId MapAffiliationInt(int value) =>
-        (eForceIdentifier)value switch
+        (ForceIdentifier)value switch
         {
-            eForceIdentifier.FORCE_FRIENDLY => ForceId.Friend,
-            eForceIdentifier.FORCE_OPPOSING => ForceId.Hostile,
-            eForceIdentifier.FORCE_NEUTRAL  => ForceId.Neutral,
-            _                               => ForceId.Neutral,
+            ForceIdentifier.Friendly => ForceId.Friend,
+            ForceIdentifier.Opposing => ForceId.Hostile,
+            ForceIdentifier.Neutral  => ForceId.Neutral,
+            _                        => ForceId.Neutral,
         };
 
     /// <summary>

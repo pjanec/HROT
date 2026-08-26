@@ -1,8 +1,8 @@
-using Fdp.Core;
+﻿using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Patching;
 
-namespace Hrot.SimHost.Installers;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>AX-005b</c> — the ONE composition of the write router, so a host does not assemble one.</b>
@@ -36,19 +36,15 @@ public static class EntityWriteRouter
     {
         System.ArgumentNullException.ThrowIfNull(repo);
 
-        // ⚠⚠ `GetSingletonManaged<T>()` THROWS when unset — 📐 measured `2026-08-25` by the AX-005 egress
-        //    rail, which reddened with *"Singleton IGeographicTransform not set"* on the IG. ⛔ Its `T?`
-        //    return type reads as *"null when absent"* and it is not: `HasSingletonManaged` is the ask.
-        //    ⭐ And absence is NORMAL here — only SimHost, CGF and the Editor publish the transform; the IG
-        //      holds its own and never registers it. ⇒ that host simply has no Geo* handlers, which
-        //      `AttributeCompilerFactory` already models, and its unowned writes still route as requests.
-        var geo = repo.HasSingletonManaged<IGeographicTransform>()
-            ? repo.GetSingletonManaged<IGeographicTransform>()
-            : null;
-
+        // ⭐⭐⭐ AX-016 — RESOLVE the world's interpreter; do NOT build one.
+        //    🔴 This used to call `AttributeCompilerFactory.BuildBinaryInterpreter(geo)` inline — and
+        //    `For(repo)` is called at EVERY gizmo construction, so that was one interpreter per gizmo, each
+        //    with its own scratchpad. 🔒 User ruling: *"the interpreter should not be bound to any network."*
+        //    ⇒ it belongs to the WORLD, which is what actually owns the components it writes.
+        //    ⚠ The geographic-transform presence check moved into the provider (AX-010's throwing getter).
         return new AttributeEntityComponentWriter(
             repo,
-            AttributeCompilerFactory.BuildBinaryInterpreter(geo),
+            AttributeInterpreterProvider.GetOrCreate(repo),
             EntityAttributeChangeRequests.PublishOnto(repo));
     }
 }

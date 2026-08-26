@@ -5,7 +5,7 @@ using Fdp.Core;
 using Fdp.Modules.Geographic.Systems;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.NED.Messages;
-using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication.Attributes;
 using Xunit;
 
 namespace Hrot.SimHost.Tests;
@@ -70,7 +70,7 @@ public sealed class TheGateCannotBeForgottenTests
     // ⭐⭐ AX-005a / R-134 — the FDP-INTERNAL record. ⛔ It used to be a DDS `AttributeRecord`; the
     //    installers no longer speak that type, so neither does this rail.
     private static EntityAttributeChange HeadingRecord(double deg)
-        => EntityAttributeChange.Double(AttributeIds.GeoHeading, deg);
+        => EntityAttributeChange.Double(AttributeIds.Heading, deg);
 
     // ══ ① the gate, asserted on a handler with NO guard of its own ══════════════
 
@@ -88,7 +88,7 @@ public sealed class TheGateCannotBeForgottenTests
         int ran = 0;
 
         var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
-            .RegisterHandler<SimTransform>(AttributeIds.GeoHeading, (_, _) => ran++)
+            .RegisterHandler<SimTransform>(AttributeIds.Heading, (_, _) => ran++)
             .Build();
 
         // ── unowned ⇒ the handler must not run ──
@@ -114,7 +114,7 @@ public sealed class TheGateCannotBeForgottenTests
         int ran = 0;
 
         var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
-            .RegisterHandler(AttributeIds.GeoHeading, (_, _) => ran++)
+            .RegisterHandler(AttributeIds.Heading, (_, _) => ran++)
             .Build();
 
         interpreter.Apply(interpreter.CreateContext(new AuthorityPatchContext(canWrite: false)),
@@ -142,7 +142,7 @@ public sealed class TheGateCannotBeForgottenTests
     // ══ ② the heading attribute — routed to the EXISTING conversion ═════════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The production interpreter applies <c>GeoHeading</c> to <c>SimTransform.Rotation</c>, and it
+    /// ⭐⭐⭐ <b>The production interpreter applies <c>Heading</c> to <c>SimTransform.Rotation</c>, and it
     /// does so through the conversion that already existed.</b>
     ///
     /// <para>⭐ Asserted against <see cref="SimTransformBridgeSystem.HeadingDegToRotation"/> directly: if
@@ -155,7 +155,7 @@ public sealed class TheGateCannotBeForgottenTests
     [InlineData(180.0)]   // South
     [InlineData(270.0)]   // West
     [InlineData(45.0)]
-    public void GeoHeadingAppliesTheExistingCompassConversion(double headingDeg)
+    public void HeadingAppliesTheExistingCompassConversion(double headingDeg)
     {
         var ctx = new AuthorityPatchContext(canWrite: true);
         var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
@@ -287,7 +287,7 @@ public sealed class TheGateCannotBeForgottenTests
         var writer = new AttributeEntityComponentWriter(
             repo, AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null));
 
-        var route = writer.Write(e, AttributeIds.GeoHeading, 90.0);
+        var route = writer.Write(e, AttributeIds.Heading, 90.0);
 
         Assert.Equal(EntityWriteRoute.Direct, route);
 
@@ -331,7 +331,7 @@ public sealed class TheGateCannotBeForgottenTests
             AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null),
             publishRequest: (ent, recs) => published.Add((ent, recs[0].AttributeId, recs[0].Value.DoubleValue)));
 
-        Assert.Equal(EntityWriteRoute.Requested, writer.Write(e, AttributeIds.GeoHeading, 90.0));
+        Assert.Equal(EntityWriteRoute.Requested, writer.Write(e, AttributeIds.Heading, 90.0));
         Assert.Single(published);
     }
 
@@ -350,7 +350,7 @@ public sealed class TheGateCannotBeForgottenTests
         var writer = new AttributeEntityComponentWriter(
             repo, AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null));
 
-        Assert.Equal(EntityWriteRoute.Refused, writer.Write(e, AttributeIds.GeoHeading, 90.0));
+        Assert.Equal(EntityWriteRoute.Refused, writer.Write(e, AttributeIds.Heading, 90.0));
     }
 
     /// <summary>
@@ -376,12 +376,12 @@ public sealed class TheGateCannotBeForgottenTests
             AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null),
             publishRequest: (ent, recs) => published.Add((ent, recs[0].AttributeId, recs[0].Value.DoubleValue)));
 
-        var route = writer.Write(e, AttributeIds.GeoHeading, 137.5);
+        var route = writer.Write(e, AttributeIds.Heading, 137.5);
 
         Assert.Equal(EntityWriteRoute.Requested, route);
         Assert.Single(published);
         Assert.Equal(e, published[0].Entity);
-        Assert.Equal(AttributeIds.GeoHeading, published[0].Id);
+        Assert.Equal(AttributeIds.Heading, published[0].Id);
         Assert.Equal(137.5, published[0].Value, 6);
     }
 
@@ -402,6 +402,6 @@ public sealed class TheGateCannotBeForgottenTests
         var writer = new AttributeEntityComponentWriter(
             repo, AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null));
 
-        Assert.Equal(EntityWriteRoute.Refused, writer.Write(e, AttributeIds.GeoHeading, 90.0));
+        Assert.Equal(EntityWriteRoute.Refused, writer.Write(e, AttributeIds.Heading, 90.0));
     }
 }

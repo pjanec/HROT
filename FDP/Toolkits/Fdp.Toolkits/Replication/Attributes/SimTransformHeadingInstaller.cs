@@ -1,13 +1,12 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core;
 using Fdp.Modules.Geographic.Systems;
 
-namespace Hrot.SimHost.Installers;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
-/// ⭐⭐⭐ <b>Axis-B item ② — routes the <see cref="AttributeIds.GeoHeading"/> binary attribute to
+/// ⭐⭐⭐ <b>Axis-B item ② — routes the <see cref="AttributeIds.Heading"/> binary attribute to
 /// <see cref="SimTransform.Rotation"/>.</b>
 ///
 /// <para>📄 <c>docs/DESIGN_Cgf_AxisB_Rotation_Slice.md</c> §6 ② · §4 *(classDiagram:
@@ -34,13 +33,12 @@ namespace Hrot.SimHost.Installers;
 /// </summary>
 public sealed class SimTransformHeadingInstaller : IBinaryAttributeInstaller<EntityAttributeChange>
 {
-    private const long GeoSpatialOrdinal = (long)EDescriptorType.dtWorldPos;
 
     /// <inheritdoc/>
     public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)
     {
         // ⭐ UXI-30: the typed overload gates on CanWrite<SimTransform>() before the handler runs.
-        builder.RegisterHandler<SimTransform>(AttributeIds.GeoHeading, HandleGeoHeading);
+        builder.RegisterHandler<SimTransform>(AttributeIds.Heading, HandleHeading);
     }
 
     /// <summary>
@@ -53,14 +51,12 @@ public sealed class SimTransformHeadingInstaller : IBinaryAttributeInstaller<Ent
     /// mark, so heading and position behave identically on the way back out. ⛔ Not a contradiction of the
     /// no-flag rule: different direction, same component.</para>
     /// </summary>
-    private void HandleGeoHeading(BinaryPatchContext ctx, EntityAttributeChange record)
+    private void HandleHeading(BinaryPatchContext ctx, EntityAttributeChange record)
     {
         // ⭐ Float64 on the wire (the Geo* family's value type); the bridge takes a float.
         float headingDeg = (float)record.Value.DoubleValue;
 
         ref SimTransform st = ref ctx.PatchContext.GetUnmanagedComponent<SimTransform>();
         st.Rotation = SimTransformBridgeSystem.HeadingDegToRotation(headingDeg);
-
-        ctx.MarkDescriptorDirty(GeoSpatialOrdinal);
     }
 }

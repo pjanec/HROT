@@ -1,3 +1,4 @@
+﻿using Hrot.SimHost.Installers;
 using System;
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
@@ -8,7 +9,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Events;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Messages;
-using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication.Attributes;
 
 namespace Hrot.Map.Common.Replication.Egress
 {

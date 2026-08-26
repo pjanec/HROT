@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Patching;
 
-namespace Hrot.SimHost.Installers;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// ⭐⭐⭐ <b>The one implementation, and it deliberately knows NOTHING about which component an attribute

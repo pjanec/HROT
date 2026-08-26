@@ -1,4 +1,4 @@
-using Hrot.Core.Mission;
+﻿using Hrot.Core.Mission;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Events;
@@ -354,7 +354,7 @@ namespace Hrot.SimHost
                     settings: new GizmoSettingsRegistry());
                 // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
                 _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
-                    writerFactory: Hrot.SimHost.Installers.EntityWriteRouter.For));   // ⭐ AX-007
+                    writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));   // ⭐ AX-007
                 _interactionBus = new FdpEventBus();
                 Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
                 _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, _interactionBus);
@@ -389,7 +389,7 @@ namespace Hrot.SimHost
                         onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target),
                         // ⭐ AX-005b — SimHost usually OWNS the entity, so this routes Direct; the writer
                         //   is passed anyway because the same node can hold unowned replicas.
-                        writer: Hrot.SimHost.Installers.EntityWriteRouter.For(_world!));
+                        writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world!));
                     _dataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
                 });
 
@@ -451,7 +451,7 @@ namespace Hrot.SimHost
                 // ── GZ052: Entity attribute schema publisher ──────────────────────
                 // Build the compiler using the same geographic transform as the network factory.
                 // SimHost is always the default processor in standalone mode.
-                _jsonAttributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
+                _jsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(_geoTransform);
                 IDdsWriter<Hrot.NED.Messages.EntityAttributeSchema>? schemaWriter =
                     ctx.Participant != null
                         ? new DdsWriterGizmoAdapter<Hrot.NED.Messages.EntityAttributeSchema>(ctx.Participant)

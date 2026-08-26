@@ -1,9 +1,12 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.RegularExpressions;
 using System.Linq;
 using System.Reflection;
 using Fdp.Toolkit.Replication.Events;
 using Fdp.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Attributes;
 using Hrot.SimHost.Installers;
 using Xunit;
 
@@ -33,6 +36,15 @@ public class StrictNetworkSeparationTests
     private const string DdsMessageNamespace = "Hrot.NED.Messages";
 
     /// <summary>
+    /// ⭐⭐ <b>Broadened `2026-08-26`: ANY <c>Hrot.NED.*</c> namespace, not just <c>Messages</c>.</b>
+    ///
+    /// <para>🔴 The original check named only <c>Hrot.NED.Messages</c>, and that is how four files in the
+    /// apply path kept a <c>Hrot.NED.Descriptors</c> dependency while the rail reported green. ⇒ the prefix
+    /// is what matters: everything under <c>Hrot.NED.</c> is network-layer.</para>
+    /// </summary>
+    private const string DdsNamespacePrefix = "Hrot.NED.";
+
+    /// <summary>
     /// ⭐⭐⭐ <b>THE ALLOWLIST — the SOLE boundary, named.</b>
     ///
     /// <para>⭐ A type here is ALLOWED to mention a DDS message type. ⛔ Anything else in the attribute
@@ -41,8 +53,13 @@ public class StrictNetworkSeparationTests
     /// </summary>
     private static readonly HashSet<string> BoundaryTypes = new(StringComparer.Ordinal)
     {
-        // ⭐ The conversion itself — both directions, on purpose (see its class remarks).
+        // ⭐ The message conversion — both directions, on purpose (see its class remarks).
         "Hrot.SimHost.Installers.AttributeRecordConversion",
+        // ⭐⭐⭐ Q59-E DELETED AX-017's second boundary. DescriptorOrdinalConversion translated between the
+        //    DDS enum and an FDP-side DescriptorOrdinal — and the FDP-side enum is gone: an attribute applier
+        //    records the COMPONENT it wrote, and DescriptorOwnershipMap (fed by the network layer's
+        //    translators) supplies the descriptors. ⇒ nothing left to convert, so the boundary shrank back
+        //    to ONE type. 📌 That shrink is the proof E landed, exactly as the allowlist shrink was for AX-017.
     };
 
     // ══ ① the STRONGEST form: the assembly cannot even see the DDS types ══════════
@@ -92,17 +109,24 @@ public class StrictNetworkSeparationTests
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE RAIL THAT DOES REAL WORK.</b> Inside <c>Hrot.Network.NED</c> the DDS types are one
-    /// <c>using</c> away, so ① cannot help. ⇒ every type in the attribute-write namespace
-    /// *(<c>Hrot.SimHost.Installers</c>)* is scanned, and the set that mentions a DDS message type must be
+    /// <c>using</c> away, so ① cannot help. ⇒ every type in the network-side boundary namespace
+    /// *(<c>Hrot.SimHost.Installers</c>)* is scanned, and the set that mentions a DDS type must be
     /// EXACTLY <see cref="BoundaryTypes"/>.
     ///
     /// <para>⭐⭐ <b>It is an equality, not a subset.</b> A new coupling reddens it — and so does DELETING
-    /// the boundary, which would mean the conversion moved somewhere unnamed.</para>
+    /// a boundary, which would mean a conversion moved somewhere unnamed.</para>
+    ///
+    /// <para>⭐⭐ <b><c>AX-017</c> changed what this namespace CONTAINS, not what the rail asserts.</b> It
+    /// used to hold the whole apply stack *(installers, factory, writer, router)* with the two conversions
+    /// among them; the stack now lives in <c>Fdp.Toolkits</c> and what is left here is the boundary and
+    /// nothing else. ⇒ the equality is now nearly tautological on THIS side — ⭐ and that is the point:
+    /// the load-bearing assertion moved to ① *(the project graph)* and to
+    /// <see cref="TheApplyPathHasNoNetworkDependencyAtAll"/>.</para>
     /// </summary>
     [Fact]
     public void OnlyTheDeclaredBoundaryMentionsADdsTypeInTheWritePath()
     {
-        var offenders = TypesInWritePathMentioningDds()
+        var offenders = TypesInBoundaryMentioningDds()
             .Select(t => t.FullName!)
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
@@ -118,26 +142,158 @@ public class StrictNetworkSeparationTests
     [Fact]
     public void TheScanActuallySeesTheWritePath()
     {
-        var scanned = WritePathTypes().ToList();
+        var boundary = BoundaryNamespaceTypes().ToList();
+        var applyPath = ApplyPathTypes().ToList();
 
-        Assert.NotEmpty(scanned);
-        Assert.Contains(scanned, t => t == typeof(AttributeEntityComponentWriter));
-        Assert.Contains(scanned, t => t == typeof(AttributeRecordConversion));
-        Assert.Contains(scanned, t => t == typeof(SimTransformHeadingInstaller));
+        // ⭐ Both scans must SEE something, or every equality above passes vacuously.
+        Assert.NotEmpty(boundary);
+        Assert.NotEmpty(applyPath);
+
+        Assert.Contains(boundary, t => t == typeof(AttributeRecordConversion));
+        Assert.Contains(applyPath, t => t == typeof(AttributeEntityComponentWriter));
+        Assert.Contains(applyPath, t => t == typeof(SimTransformHeadingInstaller));
 
         // ⭐ And the detector is not blind: the boundary type IS detected as mentioning DDS.
-        Assert.Contains(typeof(AttributeRecordConversion), TypesInWritePathMentioningDds());
+        Assert.Contains(typeof(AttributeRecordConversion), TypesInBoundaryMentioningDds());
+    }
+
+    // ══ ③ the SOURCE scan — what reflection structurally CANNOT see ═══════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE DEPENDENCY INVENTORY of the attribute apply path, asserted as an EQUALITY.</b>
+    ///
+    /// <para>🔴🔴 <b>WHY A SOURCE SCAN AND NOT MORE REFLECTION — this is the important part.</b> The four
+    /// installers reference <c>Hrot.NED.Descriptors.EDescriptorType</c> like this:
+    /// <c>private const long GeoSpatialOrdinal = (long)EDescriptorType.dtWorldPos;</c>
+    /// ⛔ A <c>const long</c> is **folded to a literal at compile time**, so the assembly contains the number
+    /// <c>2</c> and **no reference to the enum whatsoever**. ⇒ ⭐⭐ <b>no reflection rail can ever detect this
+    /// class of coupling</b> — 📐 proven: broadening <see cref="IsDds"/> from <c>Hrot.NED.Messages</c> to the
+    /// whole <c>Hrot.NED.</c> prefix left rails ①/② green while the dependency plainly exists in source.</para>
+    ///
+    /// <para>⭐⭐⭐ <b><c>AX-017</c> — this rail's allowlist USED TO CARRY FOUR <c>Hrot.NED.Descriptors</c>
+    /// ENTRIES, and it does not any more.</b> That shrink is the whole proof the move landed: the four
+    /// installers, the factory, the writer, the router and the request records are now in
+    /// <c>Fdp.Toolkits</c>, speaking <c>Fdp.Toolkit.Replication.DescriptorOrdinal</c>, and this rail
+    /// asserts their directory contains <b>NO <c>Hrot.NED.*</c> using at all</b> — an equality against
+    /// EMPTY, so a single re-introduced <c>using</c> reddens it.</para>
+    ///
+    /// <para>⚠ <b>The earlier version of this rail explicitly did NOT endorse those four entries</b> — it
+    /// PINNED them and named the open question *(<c>AX-013</c>)*. ⭐ <c>AX-013</c> is now answered:
+    /// the apply path gets its own vocabulary, and the DDS enum is reached only through
+    /// <see cref="DescriptorOrdinalConversion"/>. 📌 The overclaim it corrected also resolves: it is now
+    /// true without qualification that <b>no DDS type survives in the FDP-internal write path</b> —
+    /// neither a message nor a descriptor-ordinal enum.</para>
+    /// </summary>
+    [Fact]
+    public void TheApplyPathHasNoNetworkDependencyAtAll()
+    {
+        var actual = HrotNedUsingsByFile(SourceDirectory(ApplyPathRelative));
+
+        // ⭐ Not "few". NONE. The apply path lives in an assembly that cannot even reference DDS,
+        //   and this is the source-level statement of the same fact — the one reflection cannot make
+        //   (a `const long` folds to a literal; see the remarks above).
+        Assert.Equal(new SortedDictionary<string, string>(StringComparer.Ordinal), actual);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>And the BOUNDARY directory's inventory, still asserted as an equality.</b>
+    ///
+    /// <para>⛔ Adding a line here is a DESIGN act, not a fix. ⭐ Three files, three reasons — and every
+    /// one of them is a type whose JOB is to be network-layer.</para>
+    /// </summary>
+    [Fact]
+    public void TheBoundarysNetworkDependenciesAreExactlyTheDeclaredOnes()
+    {
+        var actual = HrotNedUsingsByFile(SourceDirectory(BoundaryRelative));
+
+        Assert.Equal(DeclaredNetworkDependencies, actual);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The declared inventory of the NETWORK-SIDE boundary directory.</b>
+    ///
+    /// <list type="bullet">
+    ///   <item>⭐ <b><c>Messages</c></b> = the wire structs. Legitimate in exactly two places: the declared
+    ///   record conversion, and a system whose whole job is publishing a DDS schema.</item>
+    ///   <item>⭐ <b><c>Descriptors</c></b> = <c>EDescriptorType</c>. Legitimate in exactly ONE place since
+    ///   <c>AX-017</c>: the ordinal conversion that translates it to <c>DescriptorOrdinal</c>.</item>
+    /// </list>
+    /// </summary>
+    private static readonly SortedDictionary<string, string> DeclaredNetworkDependencies =
+        new(StringComparer.Ordinal)
+        {
+            // ⭐ R-134's record conversion boundary — both directions, by design.
+            ["AttributeRecordConversion.cs"]            = "Hrot.NED.Messages",
+            // ⭐ Publishes the attribute schema onto DDS; network-layer by definition.
+            ["EntityAttributeSchemaPublisherSystem.cs"] = "Hrot.NED.Messages",
+        };
+
+    private const string ApplyPathRelative = "FDP/Toolkits/Fdp.Toolkits/Replication/Attributes";
+    private const string BoundaryRelative  = "Hrot/Network/Hrot.Network.NED/Attributes";
+
+    private static readonly Regex UsingHrotNed =
+        new(@"^\s*using\s+(?:[A-Za-z0-9_]+\s*=\s*)?(Hrot\.NED\.[A-Za-z0-9_.]+)\s*;", RegexOptions.Compiled);
+
+    /// <summary>
+    /// ⭐ Every <c>Hrot.NED.*</c> namespace each <c>.cs</c> file in <paramref name="dir"/> imports, keyed by
+    /// file name. ⚠ Aliased usings *(<c>using X = Hrot.NED.Y.Z;</c>)* count — that is exactly how a
+    /// dependency gets smuggled past a naive prefix match.
+    /// </summary>
+    private static SortedDictionary<string, string> HrotNedUsingsByFile(string dir)
+    {
+        var actual = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var file in Directory.EnumerateFiles(dir, "*.cs", SearchOption.TopDirectoryOnly))
+        {
+            var namespaces = new SortedSet<string>(StringComparer.Ordinal);
+            foreach (var line in File.ReadAllLines(file))
+            {
+                var m = UsingHrotNed.Match(line);
+                if (m.Success) namespaces.Add(m.Groups[1].Value);
+            }
+            if (namespaces.Count > 0)
+                actual[Path.GetFileName(file)] = string.Join("+", namespaces);
+        }
+        return actual;
+    }
+
+    /// <summary>
+    /// ⭐ Locates a source directory on disk. ⛔ Fails LOUDLY rather than skipping — a source rail that
+    /// quietly opts out when it cannot find sources reports green for ever.
+    /// </summary>
+    private static string SourceDirectory(string relative)
+    {
+        foreach (var start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
+        {
+            var probe = start;
+            while (!string.IsNullOrEmpty(probe))
+            {
+                var candidate = Path.Combine(probe, relative.Replace('/', Path.DirectorySeparatorChar));
+                if (Directory.Exists(candidate)) return candidate;
+                probe = Path.GetDirectoryName(probe);
+            }
+        }
+
+        Assert.Fail($"Could not locate '{relative}' from either the working directory or the output " +
+                    "directory. This rail scans source and cannot run without it.");
+        return string.Empty;   // unreachable
     }
 
     // ══ helpers ══════════════════════════════════════════════════════════════════
 
-    private static IEnumerable<Type> WritePathTypes()
+    /// <summary>⭐⭐ The FDP-internal apply stack — installers, factory, provider, writer, router, requests.</summary>
+    private static IEnumerable<Type> ApplyPathTypes()
         => typeof(AttributeEntityComponentWriter).Assembly
+            .GetTypes()
+            .Where(t => t.Namespace == "Fdp.Toolkit.Replication.Attributes" && !t.IsNested);
+
+    /// <summary>⭐⭐ The network-side boundary namespace, inside the DDS assembly.</summary>
+    private static IEnumerable<Type> BoundaryNamespaceTypes()
+        => typeof(AttributeRecordConversion).Assembly
             .GetTypes()
             .Where(t => t.Namespace == "Hrot.SimHost.Installers" && !t.IsNested);
 
-    private static IEnumerable<Type> TypesInWritePathMentioningDds()
-        => WritePathTypes().Where(MentionsADdsType);
+    private static IEnumerable<Type> TypesInBoundaryMentioningDds()
+        => BoundaryNamespaceTypes().Where(MentionsADdsType);
 
     /// <summary>
     /// ⭐ Does any member SIGNATURE of <paramref name="type"/> name a DDS message type — as a field or
@@ -174,6 +330,7 @@ public class StrictNetworkSeparationTests
 
         if (t.IsGenericType && t.GetGenericArguments().Any(IsDds)) return true;
 
-        return t.Namespace == DdsMessageNamespace;
+        return t.Namespace != null
+            && t.Namespace.StartsWith(DdsNamespacePrefix, StringComparison.Ordinal);
     }
 }

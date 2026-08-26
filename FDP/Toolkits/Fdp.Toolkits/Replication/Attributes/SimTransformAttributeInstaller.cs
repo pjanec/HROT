@@ -1,12 +1,11 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Runtime.CompilerServices;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 
-namespace Hrot.SimHost.Installers;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// <see cref="IBinaryAttributeInstaller"/> that routes <c>GeoLat</c>, <c>GeoLon</c>,
@@ -34,7 +33,6 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<E
 {
     // ── Subsystem flusher bit ─────────────────────────────────────────────────
     private const int GeoFlushBit = 0;
-    private const long GeoSpatialOrdinal = (long)EDescriptorType.dtWorldPos;
 
     // ── Scratchpad layout ─────────────────────────────────────────────────────
 
@@ -123,8 +121,6 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<E
         var cart = _geoTransform.ToCartesian(scratch.Lat, scratch.Lon, scratch.Alt);
         ref SimTransform st = ref ctx.PatchContext.GetUnmanagedComponent<SimTransform>();
         st.Position = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
-
-        ctx.MarkDescriptorDirty(GeoSpatialOrdinal);
     }
 
     // ── Pre-apply handler ─────────────────────────────────────────────────────

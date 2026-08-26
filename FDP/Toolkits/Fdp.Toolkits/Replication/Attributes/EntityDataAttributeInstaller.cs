@@ -1,8 +1,7 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+﻿using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Patching;
 
-namespace Hrot.SimHost.Installers;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// <see cref="IBinaryAttributeInstaller"/> that routes <c>Name</c> and
@@ -22,7 +21,6 @@ namespace Hrot.SimHost.Installers;
 /// </summary>
 public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<EntityAttributeChange>
 {
-    private const long EntityInfoOrdinal = (long)EDescriptorType.dtEntityInfo;
 
     /// <inheritdoc/>
     public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)
@@ -39,8 +37,6 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<Ent
     {
 		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
         data.Name = record.Value.StringValue ?? string.Empty;
-
-        ctx.MarkDescriptorDirty(EntityInfoOrdinal);
     }
 
     private static void HandleAffiliation(BinaryPatchContext ctx, EntityAttributeChange record)
@@ -50,7 +46,5 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<Ent
         data.ForceId = record.Value.Kind == AttributeValueKind.CsInt32
             ? AttributeCompilerFactory.MapAffiliationInt(record.Value.IntValue)
             : AttributeCompilerFactory.MapAffiliationString(record.Value.StringValue);
-
-        ctx.MarkDescriptorDirty(EntityInfoOrdinal);
     }
 }

@@ -79,6 +79,18 @@ public static class AttributeIds
     /// <c>GeoSpatialEgressTranslator</c>'s yaw→compass step. ⇒ ⛔ **no new conversion math was written**;
     /// the installer reuses the bridge. 📄 <c>DESIGN_Cgf_AxisB_Rotation_Slice.md</c> §6 ②.</para>
     ///
+    /// <para>⚠⚠ <b>That claim was true of the INSTALLER and false of two other callers — corrected by
+    /// <c>Q59-C1</c>/<c>F5</c>.</b> 📐 Measured <c>2026-08-26</c>: the JSON <c>"Heading"</c> handler INLINED
+    /// the same formula *(harmless — numerically identical)*, and <c>DescriptorMapper</c> had drifted to
+    /// <b>a yaw about Y with no compass offset</b>, which disagreed at every heading and pointed straight UP
+    /// at <c>h=90</c>. ⭐ All three now CALL <c>HeadingDegToRotation</c>.</para>
+    ///
+    /// <para>⭐⭐ <b>RENAMED <c>GeoHeading</c> → <c>Heading</c> by <c>Q59-N1</c>.</b> 📐 The old name
+    /// advertised a JSON path that does not exist: the route is <c>"Heading"</c>, and
+    /// <c>{"GeoPosition":{"Heading":…}}</c> applies <b>nothing, silently</b>. ⚠ The rename is
+    /// <b>source-only</b> — the wire carries the <c>ushort</c> <c>13</c> and no <c>.idl</c> names the
+    /// constant — whereas renaming the PATH would be a breaking external contract change. 📄 <c>Q59</c> §8.2.</para>
+    ///
     /// <para>⚠ <b>Degrees, not radians, and compass, not math-yaw</b> — deliberately the same units the
     /// wire and the DebugApi already use *(<c>headingDeg</c>)*, so nothing on the path has to convert
     /// twice. ⛔ A radians-or-math-yaw id would be a second convention for one concept.</para>
@@ -88,5 +100,5 @@ public static class AttributeIds
     /// takes <c>13</c>, keeping the family contiguous; ⛔ these ids are a WIRE schema, so renumbering the
     /// existing three to match the prose is not a free edit and is not attempted here.</para>
     /// </summary>
-    public const ushort GeoHeading = 13;
+    public const ushort Heading = 13;
 }

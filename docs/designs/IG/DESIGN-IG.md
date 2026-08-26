@@ -31,8 +31,8 @@
 | **Standard Tools** | ✅ EXISTS | `FDP.Toolkit.Vis2D.Tools.*` | StandardInteractionTool, EntityDragTool, BoxSelectionTool, PointSequenceTool |
 | **Render Layers** | ✅ EXISTS | `FDP.Toolkit.Vis2D.Layers.*` | EntityRenderLayer, DebugGizmoLayer |
 | **Entity Lifecycle** | ✅ EXISTS | `FDP.Toolkit.Lifecycle.EntityLifecycleModule` | Constructing→Active→TearDown states |
-| **Network Ingress** | ✅ EXISTS | `ModuleHost.Network.Cyclone.CycloneNetworkModule` (internal systems) | DDS subscription, entity creation from network |
-| **Network Egress** | ✅ EXISTS | `ModuleHost.Network.Cyclone.CycloneNetworkModule` (internal systems) | Delta tracking, optimized publishing |
+| **Network Ingress** | ✅ EXISTS | `NedReplicationModule` → `CycloneNetworkIngressSystem` *(⛔ `CycloneNetworkModule` DELETED, `AX-021`)* | DDS subscription, entity creation from network |
+| **Network Egress** | ✅ EXISTS | `NedReplicationModule` → `CycloneEgressSystem` *(⛔ `CycloneNetworkModule` DELETED, `AX-021`)* | Delta tracking, optimized publishing |
 | **Network Entity Map** | ✅ EXISTS | `FDP.Toolkit.Replication.Services.NetworkEntityMap` | Network ID ↔ Local Entity mapping |
 | **Dead Reckoning** | ✅ EXISTS | `Fdp.Examples.NetworkDemo.Systems.TransformSyncSystem` | Interpolate 10Hz network to 60Hz |
 | **TKB Database** | ✅ EXISTS | `FDP.Toolkit.Tkb.TkbDatabase` | Entity templates with descriptors |
@@ -278,15 +278,29 @@ public class NetworkEntityMap
 }
 ```
 
-> ⚠️ **Architecture note:** Do NOT register `SmartEgressSystem`, `CycloneIngressSystem`, or `CycloneEgressSystem` manually. They are private implementation details of `CycloneNetworkModule`. Provide your translators to the module constructor; the module installs all required systems itself.
+> ⛔⛔ **CORRECTED `2026-08-26` (`AX-021`) — the note below was STALE and is the opposite of the truth.**
+> It said: *"Do NOT register `SmartEgressSystem`, `CycloneIngressSystem`, or `CycloneEgressSystem` manually.
+> They are private implementation details of `CycloneNetworkModule`."*
+>
+> 📐 **Measured:** `CycloneNetworkModule` was constructed **nowhere** — zero production and zero test sites —
+> while the systems it claimed to own are constructed at **23 sites across 12 files**. The module has been
+> **DELETED**. 📄 Reasoning: `docs/blueprints/Architect_Question_59_Attribute_Vocabulary_Single_Source.md` §13.
+
+> ✅ **Architecture note (current):** network systems are registered by a **per-domain composite module** —
+> `NedReplicationModule` *(`Hrot.Network.NED`)* or `BdcReplicationModule` *(`Hrot.Network.BDC`)*, both
+> `IReplicationModule`, obtained from the node's network factory via `CreateReplicationModule()`.
+> ⭐ These are **role-aware**: `MuscleGround`, `ImageGenerator` and `Brain` each receive a different
+> combination of translator packs, and the module bundles the tightly-coupled lifecycle systems
+> *(ghost creation, dead-reckoning, cleanup)* with them.
+>
+> ⭐⭐ **Why that replaced a single network module:** the architecture is **pack-based**. A host composes
+> several translator packs *(shared + kinematic + cognitive, plus a separate gizmo pack)*, and a module
+> taking ONE translator list cannot express role-dependent pack selection.
 
 ```csharp
-// CORRECT: CycloneNetworkModule owns all network systems internally.
-var networkModule = new CycloneNetworkModule(
-    participant, nodeMapper, idAllocator, topology, elm,
-    serialisation, translators, entityMap
-);
-kernel.RegisterModule(networkModule);
+// CORRECT: ask the node's network factory for its replication module.
+var replication = networkFactory.CreateReplicationModule();
+kernel.RegisterModule(replication);
 ```
 
 **Dead Reckoning (TransformSyncSystem from NetworkDemo):**
@@ -339,7 +353,7 @@ public void OnReceived(Hrot.DDS.EntityMaster sample, SampleInfo info, EntityRepo
 
 > ⚠️ **Time Sync requires a DDS → EventBus bridge.** `SlaveTimeController` does **not** read the DDS topic directly. It listens to `TimePulse` events on the internal `FdpEventBus`. Without a translator that bridges the DDS `TimePulse` / `TimePulseDescriptor` topic to the `FdpEventBus`, the controller will never receive updates and IG time will be permanently frozen.
 >
-> **Required:** Register `AutoCycloneTranslator<TimePulseDescriptor>` (or `BlitEventTranslator<TimePulseDescriptor>`) in the translator list passed to `CycloneNetworkModule` **before** setting the time controller. This bridges the DDS time signal → `FdpEventBus` → `SlaveTimeController`.
+> **Required:** Register `AutoCycloneTranslator<TimePulseDescriptor>` (or `BlitEventTranslator<TimePulseDescriptor>`) in the node's translator pack **before** setting the time controller *(⛔ `CycloneNetworkModule` DELETED — `AX-021`; packs now reach `CycloneNetworkIngressSystem`/`CycloneEgressSystem` via `NedReplicationModule` or a host's own registration)*. This bridges the DDS time signal → `FdpEventBus` → `SlaveTimeController`.
 
 **SlaveTimeController:**
 ```csharp
@@ -365,7 +379,8 @@ public class SlaveTimeController : ITimeController
 
 **Usage:**
 ```csharp
-// Step 1: Register TimePulseDescriptor translator in CycloneNetworkModule translators list
+// Step 1: Register TimePulseDescriptor translator in the node's translator pack
+//         (AX-021: CycloneNetworkModule is deleted; see SlaveTimeTranslatorRegistration)
 //         (before kernel.RegisterModule(networkModule))
 translators.Add(new AutoCycloneTranslator<TimePulseDescriptor>(participant, eventBus));
 // ...then register network module...
@@ -1589,6 +1604,8 @@ public class IgSubsystem : SubsystemBase
         var (autoTranslators, _) = ReplicationBootstrap.CreateAutoTranslators(_participant, typeof(IgSubsystem).Assembly, _entityMap);
         translators.AddRange(autoTranslators);
 
+        // ⛔ AX-021: CycloneNetworkModule is DELETED. Historical snippet — use
+        //    networkFactory.CreateReplicationModule() instead.
         var networkModule = new CycloneNetworkModule(
             _participant, nodeMapper, idAllocator, topology, elm,
             serialisation, translators, _entityMap
