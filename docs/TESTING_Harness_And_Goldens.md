@@ -5,7 +5,7 @@ doc-type: runbook (the standing HOW-TO for system/smoke/conformance tests + gold
 updated: 2026-08-26
 current-answer: the whole file — how the C# harness drives the system over HTTP, how to write a smoke test,
   the perspective-switch capture protocol, how goldens are made/maintained, how conformance reuses it all,
-  and §7 — how to tell a real red from an exhausted process.
+  §7 — how to tell a real red from an exhausted process — and §8, the classified integration-suite ledger.
 design-basis: DESIGN_MCP_System_Test_Harness.md (the harness) · DESIGN_UI_Observability_Snapshot.md (PanelSnapshot) ·
   DESIGN_Headless_Testability.md (the taxonomy) · MCP_Integration.md (the API).
 known-conflict: none.
@@ -220,3 +220,64 @@ was the problem.** ⇒ that is `R-131`'s permanent filter-around wearing a diffe
 legitimate use is the opposite one:** the world-leak rail is `DisableParallelization` **because
 `LiveInstanceCount` is process-wide**, so a concurrent collection would make the delta meaningless — the
 attribute is protecting a *measurement*, not hiding a *failure*.
+
+---
+
+## 8. ⭐⭐⭐ THE INTEGRATION-SUITE LEDGER — **51 reds, classified** *(`QA-013`, `2026-08-26`)*
+
+> ⭐ §7 made the suite FINISH. This section is what it then showed. ⛔ **These reds are not new** — the
+> suite could never complete, so they had never been visible at once. 📐 Base-proved below.
+
+### 8.1 ⭐⭐ THE ONE MEASUREMENT THAT SPLITS THEM — **run each failing class ALONE**
+
+```bash
+dotnet test <proj> --no-build --filter "FullyQualifiedName~<Class>"
+```
+
+| | count | meaning |
+|---|---:|---|
+| ⭐⭐ **red in the SUITE *and* ALONE** | **43** | ⛔ **genuine, deterministic.** Not interference, not pressure — the code or the assertion is wrong |
+| ⚠ **red in the SUITE, GREEN ALONE** | **8** | **environmental** — timing under suite load. ⛔ Do NOT read these as defects |
+
+⇒ ⭐⭐⭐ **This split costs ~20 minutes and is the first thing to run on any new red here.** It is the
+difference between filing a defect and filing noise, and no message shape tells you which is which.
+
+### 8.2 📐 BASE-PROOF *(dispatch base `dbdc5e783` — the tree before §7's fixes)*
+
+⚠⚠ **The base tree cannot run these classes TOGETHER** — even a 7-class filtered subset aborts
+(`Total tests: Unknown`, 1 passed). ⇒ **base-proving had to be done ONE CLASS AT A TIME.**
+
+| | count |
+|---|---:|
+| ✅ confirmed **red at base** | **47** |
+| ✅ confirmed **green at base** *(⇒ environmental, not a regression)* | 1 *(`EqsContextSlotTests` 7/7 at base)* |
+| ⚠ **not evaluable** — the base host aborts before the class reports | 4 *(`ClusterOpE2eScriptTests`)* |
+
+⇒ ⭐ **no red is attributable to §7's fixes**, and the four unevaluable ones are deterministic today
+with a named root cause (`QA-018`).
+
+### 8.3 ⭐⭐⭐ THE CLASSIFIED LEDGER
+
+| bucket | n | verdict + the measured root cause | owning design · lane |
+|---|---:|---|---|
+| ✅ **FIXED — stale assertion** | **3** | see §8.4 | backend |
+| 🔴 **`QA-017`** cluster transition | 7 | **real.** The 2PC never leaves state **0** — *"Cluster did not reach state 31 within 4000 frames. Current: 0"*. ⚠ The roster IS populated *(the test's own `ActiveNodes.Count > 0` assert passes first)*, and the bootstrap latch is NOT the gate *(no `orchestrator-config.json` ⇒ `Mandatory` empty ⇒ latch set in the ctor)*. ⭐⭐ **And the PRODUCTION path is proven green**: `MCP_Integration.md` §"Group U — AS-BUILT" measured `--mode all` reaching `OperatingLive` with 8 entities on 2026-08-24 ⇒ **suspect the in-process harness's drive/pump, not the state machine** | `MCP_Integration.md` §Group U · `designs/mgmt-1/DESIGN.md` §12/§5.5 · backend |
+| 🔴 **`QA-018`** SimHost test-hook | 4 | **real, and a two-sided CONTRADICTION.** `SimHostApp.TestHook_AddSystem` documents *"must be called AFTER `InitializeEmbedded`"* and throws `if (!_initialized)`; `ModuleHostKernel.RegisterGlobalSystem` throws `if (_initialized)`. ⇒ ⛔ **the hook's contract is impossible to satisfy.** ⭐ The seam to use already exists — `SimHostNodeBootstrapper.ApplicationSystemsRegistrar`, invoked at `SharedApplicationBootstrapper:139`, one line BEFORE the kernel `Initialize` at `:142`; and `MovingEntitySystem` already builds its query lazily *precisely* so it can be registered early | — *(no design; the hook's own doc-comment is the contract)* · backend |
+| 🔴 **`QA-019`** editor feature switch | 4 | **real.** `EditorApplication.SwitchToExternalAsync` → `ModuleHostKernel.UninstallModulesAsync` → *"Module `SimHostCoreLogicPack` is not currently installed in this kernel."* ⇒ the uninstall list and what the editor actually installs have diverged | `DESIGN_Perspective_Unification.md` · ⚠ editor production — **UI lane neighbours** |
+| 🔴 **`QA-020`** replication promotion | 17 | **real, and one shape**: an entity is created but never **promotes** / never takes **authority** / never **moves** on the far node *(ghost stays inactive, `SimTransform`/`NavigationStatus` authority never delegated)*. ⚠⚠ **The single biggest bucket — treat it as ONE investigation, not 17** | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §13-16 *(AX-009/Q59 as-built)* · `DESIGN_Deterministic_Network_Ids.md` · ⛔ **replication production — CROSS-LANE** |
+| 🔴 **`QA-021`** mission control | 1 | **real.** *"MissionControlRequest did not reach DDS within the timeout."* | `designs/tactical-intent/DESIGN.md` · ⚠ neighbours **MX4b** (MCP lane) |
+| 🔴 **`QA-022`** map / area authoring | 3 | **real.** The creation tool never activates; the placed entity never gets its TkbType; `EditablePolyline` never attaches | `designs/mgmt-1/DESIGN.md` · UI lane neighbours |
+| 🔴 **`QA-023`** blueprints | 1 | **real.** `BlueprintStateTranslator.Inject` does not set `InitialBlueprintsIntent` for the mixed legacy+new key case | `Blueprint_Subsystem_DEBUG-DD-ADDENDUM.md` · backend/blueprints |
+| 🔴 **`QA-024`** EQS phase machine | 3 | **real** *(fail alone too)*: `SensorEvalState.Phase` never reaches `_AwaitingRaycasts`, `CognitiveBuffer.IsReady` never set, a large score delta does not re-publish | `designs/eqs-2/EQS_Design_v1.3_final.md` · backend |
+| ⚠ **`QA-025`** environmental | 8 | ⛔ **NOT defects** — green alone, red under suite load. 7×`Eqs` *(the AccurateLos/ContextSlot/Distributed family)* + `SelectionAndMissionIntegrationTests`. All timeout-shaped | — |
+
+### 8.4 ✅ THE THREE STALE ASSERTIONS — **fixed here, each with the measurement that decided it**
+
+| test | it asserted | 📐 why that is stale |
+|---|---|---|
+| `EqsResult_FlagsMeaningful_StructSizeUnchanged` | `sizeof == 24` | ⭐ `P3D-201` added `PositionZ` ⇒ 8+16+4 = 28 → **32**. This project's own csproj already defines `EQS_HAS_POSITIONZ` for that promotion; only this assertion was left behind. **The invariant it exists for still holds** — with the old `_pad` the size was 32 too, so `FlagsMeaningful` is still free |
+| `CaptureLiveState_WithoutDebugMap_ReturnsSnapshotWithEmptyFields` | `FieldValues` empty | ⭐ `CaptureStateSnapshot` consults `_debugMaps` **only for the asset name**; fields come from `_registry`. And the design says `RegisterDebugMap` binds **BREAKPOINTS** — it was never a precondition for state capture. The test pinned an implementation detail |
+| `SaveScenario_SubsystemTypeIsHrotScenario` | `Header.SubsystemType` | ⭐ `ScenarioSerializer.Serialize:199-200` writes `Header` with only `TkbName`, then `JsonEnvelope.Write(…DocumentMeta…)` ⇒ the type lives in **`$meta.docType`**; the serializer's own comment calls `Header.SubsystemType` the LEGACY shape the LOAD path still accepts. ⚠ The test also swallowed its own fallback, so the failure read as *"Operation is not valid due to the current state of the object"* — a message naming nothing |
+
+⇒ ⭐⭐ **All three were the TEST behind the code, not the code behind the design** — and in each case a
+deliberate, documented change had moved on without them.
