@@ -3,8 +3,8 @@ state: LIVE
 build-state: DESIGN — decision-shaped; a RECOMMENDED LEAN per sub-question. Resolve JOINTLY with the user
   (no relay). Not a buildable design — no handoff until the leans (or alternatives) are approved.
 updated: 2026-08-26
-current-answer: ⭐⭐⭐ §3b — THE USER RULING `2026-08-26` reshapes this AQ. §4/§5 below are being
-  revised to it and are STALE pending an EditorApplication-shareability + checkpoint-machinery scan.
+current-answer: ⭐⭐⭐ §4 — THE GROUNDED DESIGN (post-scan). §3b is the user ruling it implements; the
+  old §4/§5 draft is under `## ⛔ HISTORY`. One residual call for the user: §4.4 (build checkpoint restore, or defer).
 known-conflict: none. Origin: the §6.2 handback of REPORT_Cgf_Menu_Follows_Focus.md.
 -->
 
@@ -37,8 +37,35 @@ known-conflict: none. Origin: the §6.2 handback of REPORT_Cgf_Menu_Follows_Focu
 
 ⚠ **Scanning now** *(before the §4/§5 rewrite)*: **(1)** `EditorApplication`/`IEditorLogic` shareability — what it depends on, what is editor-only, can CGF instantiate it; **(2)** the **checkpoint** machinery — where save/restore live in the cluster-control panel, what intents/commands, and the restore picker.
 
-<!-- ⛔ EVERYTHING BELOW (§4/§5) IS THE PRE-RULING DRAFT — being rewritten to §3b. Do NOT quote as current. -->
-## ⛔ HISTORY — pre-ruling draft *(superseded by §3b, `2026-08-26`)*
+## 4. ⭐⭐⭐ THE GROUNDED DESIGN *(post-scan, `2026-08-26`)* — **the current answer**
+
+### 4.1 ⭐⭐ Feasibility findings *(two read-only scans)*
+| finding | ⇒ |
+|---|---|
+| ⛔ **`EditorApplication` can't be shared INTACT** — assembly wall *(`Hrot.Editor → Hrot.CGF`; CGF can't reference it without a cycle)* **and** its tool/selection/camera/rename/kernel-mode half is editor-window-only *(dead on a headless node)* | ⇒ **C′ refined:** ⛔ not "instantiate the god-object in both" |
+| ✅ **the SCENARIO half is cleanly separable** — every collaborator is engine/shared *(`ScenarioFileService`, `FdpEventBus`, `EntityRepository`)*, the **world is a ctor param** *(point it at CGF's own world, no code change)*, and `LoadScenarioByName` **already routes through the cluster orchestrator** *(`TransitionStateIntent → HrotEditLoadHandler`)* — the exact path CGF lives on. Only 2 tiny editor-local bits ride along: `MigrationAlertManager`, the `ScenariosRoot` constant | ⇒ **extract a shared scenario facade, instantiate in both** |
+| ✅ **Checkpoint SAVE exists** — "Take Checkpoint" *(`ClusterScenarioPanel.cs:638`)* → `TakeCheckpointIntent` *(EventId 9056)* → `ClusterMaster` fans `TakeSnapshot` to all nodes → `ReferenceCheckpointHandler` → `CheckpointIOWorker` writes LZ4 `.fdp`. Cluster-wide, **present on CGF**, **master-triggered** | ⇒ save is a wiring exposure |
+| 🔴🔴 **Checkpoint RESTORE does NOT exist** — `RestoreSnapshot`/`CollectCheckpoint` enum slots are **dead** *(nothing dispatches/handles/reads them)*; no `.fdp` read-back; **no checkpoint list/picker anywhere**. The only `/checkpoint/restore` is a **RAM preview-mode rewind** *(`IPreviewController.ExitPreviewMode`)* — a different, non-persistent mechanism | ⛔ **corrects the §3b premise** — restore is a FEATURE TO BUILD, not a menu exposure |
+
+### 4.2 ⭐⭐⭐ The resolved decisions *(grounded)*
+| # | resolved |
+|---|---|
+| **A′** ✅ | **Two load menu items on BOTH hosts** — *Load for Editing* → `/scenario/load/edit`, *Load for Live Run* → `/scenario/load/live` *(both HN-029 cluster paths; confirmed-at-origin, ruling 59)*. Default differs by subsystem *(editor→edit, CGF→live)*; both hosts offer both. **Wiring over existing capability.** |
+| **C′** ✅ *(refined)* | **Extract a shared scenario facade** — an `IScenarioSession`/`IScenarioLogic` slice *(New/Load{Edit,Live}/Save*/GetMigrationSidecars/the deferred-load `Update`)* + the 2 editor-local bits → into **`Hrot.Editor.AiShared`** *(CGF already reaches it)*; **instantiate in BOTH**, each pointed at its own world. The editor keeps the tool/view/mode half. ⭐ **This IS "share it, instantiate in both, minimal duplication" — scoped to what crosses the wall.** Same seam-law move as CE-037. ⚠ HN-037 lesson: measure what the scenario methods capture before lifting. |
+| **B′** ⚠ *(corrected)* | **(1) Scenario Save (edit-mode)** = the editor's exact save, via the shared facade, enabled when a scenario is open for editing *(the 65↔66 gate mostly dissolves — edit-mode = CGF authors, same as editor; ruling 65's stale-default risk only bites if you save a LIVE world as a scenario, which is what checkpoint is for)*. ✅ wiring via the facade. **(2) Checkpoint Save** menu item = wiring over the existing `TakeCheckpointIntent` *(cluster-wide, to the master)*. ✅ **(3) Checkpoint Restore** = 🔴 **does not exist ⇒ a NEW FEATURE** *(a `RestoreSnapshot` handler that reads `.fdp` back into the live repo + a checkpoint list/picker + the cluster fan-out)*, ⛔ not a menu exposure. |
+| **New′** ✅ | mode-branched — **live-default:** *clear the running exercise + start fresh*, with a **confirmation dialog** *(a cluster-wide op to the master)*; **edit-mode:** *new scenario from a recipe* *(`RecipePickerSource`/`INewAssetService`, MA-019..023)*. |
+
+### 4.3 ⭐⭐ Proposed sequencing *(2 slices + 1 separate feature)*
+| | scope | cost |
+|---|---|---|
+| ⭐ **Slice A** | the shared scenario-facade extraction *(C′)* + **Load-Edit/Load-Live** *(A′)* + **New** mode-branch *(New′)* + **Scenario Save** edit-mode *(B′ 1)* + **Checkpoint Save** menu item *(B′ 2)* — ALL over existing/extracted capability, on both hosts, from the one shared list | moderate — the extraction is the bulk; the menu items are wiring |
+| 🔴 **Feature X** *(separate, bigger — its OWN design)* | **Checkpoint RESTORE** *(B′ 3)* — build the `.fdp` read-back handler + the cluster restore fan-out + a checkpoint list/picker, then the *Restore Checkpoint* menu item | real feature work, not a menu slice |
+
+### 4.4 📌 THE ONE PREMISE CORRECTION FOR THE USER
+⚠ Your steer said checkpoint save AND restore are *"all already implemented in the cluster-control panel."* Measured: **save yes, restore no** *(the panel has only a "Take Checkpoint" button — no restore, no picker; §4.1)*. ⇒ decide: **build checkpoint restore as Feature X**, or **ship Slice A now *(incl. checkpoint SAVE)* and defer restore**. Everything else in §4.2 is settled and feasible.
+
+<!-- ⛔ EVERYTHING BELOW (old §4/§5) IS THE PRE-RULING DRAFT — superseded by §3b + §4 above. Do NOT quote as current. -->
+## ⛔ HISTORY — pre-ruling draft *(superseded by §3b + §4, `2026-08-26`)*
 # Architect Question 60 — **Does CGF host a scenario session, and how?** *(cgf==editor feature parity)*
 
 > 🎯 The menu slice *(CE-041..045)* left CGF's `File/Scenario/×6` empty because `ScenarioMenuCommands`
