@@ -51,7 +51,15 @@ namespace Fdp.Toolkit.Replication.Services
         /// <para>⭐ Keyed by component <b>id</b>, not <see cref="Type"/> — that is what translators declare, and
         /// it avoids the *"legacy ordinal-to-component-ID mismatch"* this class's own docs warn about.</para>
         /// </summary>
-        private readonly Dictionary<int, SortedSet<long>> _componentIdToDescriptors = new();
+        /// <remarks>
+        /// ⚠⚠ <b>Stored as <c>long[]</c>, NOT a <c>SortedSet</c> — and that is a HOT-PATH requirement, not a
+        /// style choice.</b> 🔴 The first cut held a <c>SortedSet&lt;long&gt;</c> and had
+        /// <see cref="GetDescriptorsForComponentId"/> return <c>set.ToArray()</c>. 📐 Measured
+        /// <c>2026-08-26</c>: that allocated on <b>every component access</b> during an attribute apply —
+        /// **416 bytes** for a single numeric patch — breaking the zero-allocation mandate.
+        /// ⭐ Registration happens a handful of times at startup, so the merge cost belongs THERE.
+        /// </remarks>
+        private readonly Dictionary<int, long[]> _componentIdToDescriptors = new();
 
         // -- Registration ---------------------------------------------------------
 
@@ -91,9 +99,21 @@ namespace Fdp.Toolkit.Replication.Services
             //    multi-valued: several translators legitimately cover one component.
             foreach (int id in ids)
             {
-                if (!_componentIdToDescriptors.TryGetValue(id, out var set))
-                    _componentIdToDescriptors[id] = set = new SortedSet<long>();
-                set.Add(descriptorOrdinal);
+                // ⭐ Merge at REGISTRATION (rare) so the lookup can hand back a stored array (hot).
+                if (_componentIdToDescriptors.TryGetValue(id, out var existing))
+                {
+                    if (Array.IndexOf(existing, descriptorOrdinal) >= 0) continue;   // idempotent
+
+                    var merged = new long[existing.Length + 1];
+                    Array.Copy(existing, merged, existing.Length);
+                    merged[^1] = descriptorOrdinal;
+                    Array.Sort(merged);
+                    _componentIdToDescriptors[id] = merged;
+                }
+                else
+                {
+                    _componentIdToDescriptors[id] = new[] { descriptorOrdinal };
+                }
             }
         }
 
@@ -143,9 +163,10 @@ namespace Fdp.Toolkit.Replication.Services
         /// translators, so nothing is republishable and marking nothing is correct. ⛔ Do not add a
         /// non-empty guard — the editor's all-in-one in-process mode is a supported configuration.</para>
         /// </summary>
+        /// <remarks>⭐ Returns a span over the STORED array — ⛔ never a copy. See the field's remarks.</remarks>
         public ReadOnlySpan<long> GetDescriptorsForComponentId(int componentId)
-            => _componentIdToDescriptors.TryGetValue(componentId, out var set)
-                ? set.ToArray()
+            => _componentIdToDescriptors.TryGetValue(componentId, out var ordinals)
+                ? ordinals
                 : ReadOnlySpan<long>.Empty;
 
         /// <summary>⭐ The component ids any translator declared — for coverage rails and diagnostics.</summary>

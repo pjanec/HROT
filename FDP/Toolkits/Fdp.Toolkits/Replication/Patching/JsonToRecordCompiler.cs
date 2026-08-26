@@ -73,6 +73,11 @@ public sealed class JsonToRecordCompiler
         // contextStack[d] = accumulated FNV-1a hash context at depth d.
         // contextStack[0] = FnvOffset (root level parent hash).
         Span<ulong> contextStack      = stackalloc ulong[MaxDepth + 1];
+
+        // ⭐⭐ Q59-N4 — the last property name, so an UNROUTED value can name the key it ignored.
+        //    ⚠ Bytes, not a string: a string per property would break the zero-allocation mandate.
+        Span<byte> lastKeyBytes = stackalloc byte[MaxKeyBytesForDiagnostics];
+        int lastKeyLen = 0;
         // Per-depth flag: was a numeric index key consumed at this depth.
         Span<byte>  hadNumericAtDepth = stackalloc byte[MaxDepth + 1];
 
@@ -124,6 +129,10 @@ public sealed class JsonToRecordCompiler
                 {
                     ReadOnlySpan<byte> nameBytes = reader.ValueSpan;
 
+                    // ⭐ Q59-N4 — remember it for a possible "ignored unknown key" warning.
+                    lastKeyLen = Math.Min(nameBytes.Length, MaxKeyBytesForDiagnostics);
+                    nameBytes[..lastKeyLen].CopyTo(lastKeyBytes);
+
                     if (IsAllDigits(nameBytes))
                     {
                         // Numeric index key → capture as sub-index, hash with wildcard.
@@ -161,10 +170,45 @@ public sealed class JsonToRecordCompiler
                     {
                         EmitRecord(ref reader, entry, subIndex1, subIndex2, emitter);
                     }
+                    else
+                    {
+                        WarnUnknownKeyOnce(lastKeyBytes[..lastKeyLen]);
+                    }
                     break;
                 }
             }
         }
+    }
+
+    /// <summary>⭐ A diagnostic cap: a longer key is truncated in the warning, never in the routing.</summary>
+    private const int MaxKeyBytesForDiagnostics = 128;
+
+    /// <summary>⭐⭐ Keys already warned about, so a repeating sender cannot flood the log.</summary>
+    private readonly ConcurrentDictionary<string, bool> _warnedUnknownKeys = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q59-N4</c> — an unsupported key is WARNED and IGNORED at the edge too. Never a throw.</b>
+    ///
+    /// <para>🔒 <b>User ruling, <c>2026-08-26</c>:</b> *"if about unsupported attribute name (key), this should
+    /// be logged as warning and ignored, no throw."</para>
+    ///
+    /// <para>⭐⭐ <b>Both apply paths, deliberately.</b> 📌 The whole of <c>AX-018</c> was one path behaving
+    /// differently from the other; ⛔ adding the diagnostic to only one of them would repeat that mistake.</para>
+    ///
+    /// <para>⭐ Warned ONCE per key per compiler; ⚠ the key is the LEAF property name *(exact for the flat
+    /// <c>{"GeoPosition.Latitude": …}</c> form that ExCon and the debug API send)*.</para>
+    /// </summary>
+    private void WarnUnknownKeyOnce(ReadOnlySpan<byte> keyUtf8)
+    {
+        if (keyUtf8.IsEmpty) return;
+
+        string key = System.Text.Encoding.UTF8.GetString(keyUtf8);
+        if (!_warnedUnknownKeys.TryAdd(key, true)) return;
+
+        Fdp.Core.Logging.FdpLog<JsonToRecordCompiler>.Warn(
+            $"[attributes] Ignoring unsupported attribute key '{key}' at the JSON→record edge. It is not " +
+            "registered in AttributeVocabulary, so no record was emitted. Unknown keys are tolerated on " +
+            "purpose so a newer sender can talk to an older node.");
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

@@ -220,6 +220,12 @@ public sealed class JsonAttributeCompiler
         // Per-depth flag: was a numeric index stored when entering this depth?
         Span<byte>  hadNumericAtDepth = stackalloc byte[MaxDepth + 1]; // 0 = false, 1 = true
 
+        // ⭐⭐ Q59-N4 — the last property name, kept so an UNROUTED value can name the key it ignored.
+        //    ⚠ Bytes, not a string: materialising one on every property would break the zero-allocation
+        //    mandate. A string is built ONLY when a key turns out to be unknown AND unseen.
+        Span<byte> lastKeyBytes = stackalloc byte[MaxKeyBytesForDiagnostics];
+        int lastKeyLen = 0;
+
         contextStack[0] = FnvOffset;
         int depth = 0;
         int wildcardTotal = 0;          // number of compact entries in indexStack
@@ -255,6 +261,10 @@ public sealed class JsonAttributeCompiler
                 {
                     ReadOnlySpan<byte> nameBytes = reader.ValueSpan;
 
+                    // ⭐ Q59-N4 — remember it for a possible "ignored unknown key" warning.
+                    lastKeyLen = Math.Min(nameBytes.Length, MaxKeyBytesForDiagnostics);
+                    nameBytes[..lastKeyLen].CopyTo(lastKeyBytes);
+
                     if (IsAllDigits(nameBytes))
                     {
                         // Numeric index: store compactly, hash wildcard.
@@ -288,6 +298,10 @@ public sealed class JsonAttributeCompiler
                         ReadOnlySpan<int> indices = indexStack[..wildcardTotal];
                         entry.Dispatch(context, indices, ref reader);
                     }
+                    else
+                    {
+                        WarnUnknownKeyOnce(lastKeyBytes[..lastKeyLen]);
+                    }
                     break;
                 }
             }
@@ -312,6 +326,53 @@ public sealed class JsonAttributeCompiler
         // ⚠ ListPatchContext.FlushDirtyMarks is an intentional no-op, so the no-ECS spawning path is
         //    unaffected.
         context.FlushDirtyMarks();
+    }
+
+    /// <summary>⭐ A diagnostic cap: a key longer than this is truncated in the warning, never in the routing.</summary>
+    private const int MaxKeyBytesForDiagnostics = 128;
+
+    /// <summary>
+    /// ⭐⭐ Keys already warned about, so a mixed-version sender cannot flood the log.
+    /// ⚠ Concurrent because compilers are shared per world and test classes run in parallel — the same reason
+    /// <c>JsonToRecordCompiler</c> holds a concurrent string pool.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _warnedUnknownKeys = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q59-N4</c> — an unsupported attribute key is LOGGED AS A WARNING AND IGNORED. Never a throw.</b>
+    ///
+    /// <para>🔒 <b>User ruling, <c>2026-08-26</c>:</b> *"if about unsupported attribute name (key), this should
+    /// be logged as warning and ignored, no throw."*</para>
+    ///
+    /// <para>🔴 <b>What it replaces:</b> total silence. 📐 Measured <c>2026-08-26</c>:
+    /// <c>{"GeoPosition":{"Heading":90.0}}</c> — the path a reader of <c>AttributeIds.GeoHeading</c> would
+    /// naturally guess — applied <b>nothing, with no exception and no log</b>. ⇒ an operator or script had no
+    /// way to discover the key was wrong.</para>
+    ///
+    /// <para>⭐⭐ <b>Why ignore rather than throw, in the ruling's own spirit:</b> tolerating unknown keys is
+    /// what lets a NEWER sender talk to an OLDER node across a mixed-version cluster. ⛔ Throwing would turn a
+    /// forward-compatible patch into a failed request.</para>
+    ///
+    /// <para>⭐ <b>ONCE per key, per compiler.</b> ⚠ A sender repeating a bad key at 60 Hz would otherwise
+    /// bury the log — and a buried warning is the same as no warning.</para>
+    ///
+    /// <para>⚠ <b>The key reported is the LEAF property name, not the full dotted path</b> — stated plainly.
+    /// The compiler carries hashes, not strings, so a full path would cost an allocation per property. ⭐ For
+    /// the FLAT form *(<c>{"GeoPosition.Latitude": …}</c>, which is what ExCon and the debug API send)* the
+    /// leaf name IS the whole path, so the common case is exact; for a NESTED unknown key the warning names
+    /// the leaf only.</para>
+    /// </summary>
+    private void WarnUnknownKeyOnce(ReadOnlySpan<byte> keyUtf8)
+    {
+        if (keyUtf8.IsEmpty) return;
+
+        string key = Encoding.UTF8.GetString(keyUtf8);
+        if (!_warnedUnknownKeys.TryAdd(key, true)) return;   // ⭐ already reported
+
+        Fdp.Core.Logging.FdpLog<JsonAttributeCompiler>.Warn(
+            $"[attributes] Ignoring unsupported attribute key '{key}'. It is not registered in " +
+            "AttributeVocabulary, so the value was skipped. This is a warning, not an error: unknown keys " +
+            "are tolerated so a newer sender can talk to an older node.");
     }
 
     // ── Internal hashing helpers (used by AttributeCompilerBuilder) ──────

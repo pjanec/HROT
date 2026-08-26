@@ -390,3 +390,29 @@ recommenaldations."*
 | `design-digest` · `tracker-counts` · `rulings-check` · `mermaid` | — | ✅ · counts OK · **25/25** · **2/2** | |
 
 ⭐ **ID allocated: `AX-019`.** ⛔ **`N4` not built** — it was offered as a question needing a ruling, not a lean.
+
+---
+
+### ⭐⭐⭐ `2026-08-26` (7) — **`N4` built (`AX-020`); `CycloneNetworkModule` answered (`AX-021`)**
+
+📄 Durable record: `Architect_Question_59_…md` **§11** *(`N4`)* and **§12** *(the module)*.
+
+| # | finding |
+|---|---|
+| ⭐⭐⭐ **F29** | **`N4`'s rail caught a regression I had introduced two commits earlier.** 📐 416 bytes on a fully-known numeric patch, traced to `DescriptorOwnershipMap.GetDescriptorsForComponentId` returning `set.ToArray()` — **allocating on every component access during an attribute apply**. ⇒ fixed by storing `long[]` and merging at registration. 📌 **This is the argument for allocation rails**, and it landed within an hour of `AX-019` shipping |
+| ⚠⚠ **F30** | **The rail was wrong TWICE before it was right, both times measuring the wrong window.** ① **688 B** — the payload held a **string** attribute, and `GetString()` legitimately allocates *(the zero-alloc mandate only ever covered non-string paths — the sibling rail says so in its name)*. ② **216 B** — a **fresh** `EcsPatchContext` allocates its `HashSet` buckets, i.e. the cost of CREATING a context, not of the diagnostic. ⇒ ⭐ the lesson this session keeps relearning: **an allocation rail measuring the wrong window manufactures either a false alarm or a false green** |
+| ⚠⚠ **F31** | **`CycloneNetworkModule` is BYPASSED, not obsolete — and `docs/` is not archived.** 📐 Zero instantiations anywhere, yet `Fdp.Network.Cyclone.md:207` calls it the *"Root `IEcsModule`"* and `DESIGN-IG.md:281` explicitly **forbids** the hand-registration that all four hosts perform. ⇒ 📌 `CLAUDE.md`'s *"unreferenced is not unintentional"* in its purest form: the design doc answers the question, and its answer is *"use it"* |
+| ⭐⭐ **F32** | **The bypass cost THIS slice something concrete.** `Q59-E` needed one place where the world and all translators meet — **which is what the module's `RegisterSystems` builds** — so its absence forced the hook onto `CycloneEgressSystem.Execute` and introduced the documented one-frame window |
+| ⚠ **F33** | ⛔ **I did NOT measure why the hosts bypass it, and say so.** ⭐ There is a plausible good reason in plain sight: the module takes ONE translator list while each host composes TWO *(main + gizmo)*. ⇒ *"the hosts were sloppy"* would be an assumption, not a finding — so `M1` *(adopt)* is only a **weak** lean and `M2` *(delete + correct the docs)* may be right |
+
+| gate | `--no-build` | result | Δ |
+|---|---|---|---|
+| ⭐⭐⭐ **`TheUnknownKeyIsWarnedNotThrownTests`** | ✅ | ✅ **7/7** | NEW — each asserts BOTH halves: no throw **and** the known keys still land |
+| ⭐⭐ **`Hrot.SimHost.Tests`** | ✅ | **768 · 1 failed** | ⭐⭐ **the cleanest run of the whole batch** — only the stable pre-existing `FullBranchPipeline` red; the rotating static-order flake did not fire |
+| `Hrot.Network.NED.Tests` | ✅ | ✅ **106/106** | unchanged |
+| `Fdp.Toolkits.Tests` | ✅ | ✅ **2037/2037** | clean |
+| ⭐⭐⭐ **integration — the apply path** | ✅ | ✅ **9/9** on a real cluster | the gate that proves republication still works |
+| builds | — | ✅ 10 projects, 0 errors | |
+| `design-digest` · `tracker-counts` · `rulings-check` · `mermaid` | — | ✅ · counts OK · **25/25** · **2/2** | |
+
+⭐ **IDs allocated: `AX-020`** *(done)* **· `AX-021`** *(OPEN — needs a decision on `M1`/`M2`)*.

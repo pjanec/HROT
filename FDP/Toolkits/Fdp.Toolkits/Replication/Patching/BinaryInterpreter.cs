@@ -99,6 +99,34 @@ public sealed class BinaryInterpreter<TRecord> where TRecord : struct
     /// entry to support context reuse.
     /// </param>
     /// <param name="records">Attribute records to process.</param>
+    /// <summary>⭐⭐ Attribute ids already warned about, so a repeating sender cannot flood the log.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<ushort, bool> _warnedUnknownIds = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q59-N4</c> — an unsupported <c>AttributeId</c> is WARNED and IGNORED. Never a throw.</b>
+    ///
+    /// <para>🔒 <b>User ruling, <c>2026-08-26</c>:</b> *"if about unsupported attribute name (key), this should
+    /// be logged as warning and ignored, no throw."* ⭐ The binary equivalent of an unsupported key is an
+    /// unregistered id, so it gets the same treatment — ⛔ the two apply paths behaving differently is the
+    /// defect class <c>AX-018</c> was about.</para>
+    ///
+    /// <para>🔴 <b>What it replaces:</b> a comment reading *"Unknown IDs: silently skipped
+    /// (forward-compatibility)"*. ⭐ The tolerance is right and is KEPT; ⛔ the silence was the problem —
+    /// nothing told an operator that a record had been dropped.</para>
+    ///
+    /// <para>⭐ Once per id, per interpreter. ⚠ No string is built for the id, so the quiet path stays
+    /// allocation-free.</para>
+    /// </summary>
+    private void WarnUnknownIdOnce(ushort id)
+    {
+        if (!_warnedUnknownIds.TryAdd(id, true)) return;
+
+        Fdp.Core.Logging.FdpLog<BinaryInterpreter<TRecord>>.Warn(
+            $"[attributes] Ignoring unsupported AttributeId {id}: no installer registered a handler for it, " +
+            "so the record was skipped. Unknown ids are tolerated on purpose so a newer sender can talk to " +
+            "an older node.");
+    }
+
     public void Apply(BinaryPatchContext ctx, ReadOnlySpan<TRecord> records)
     {
         // Reset transient state so the context can be reused across Apply calls.
@@ -117,12 +145,12 @@ public sealed class BinaryInterpreter<TRecord> where TRecord : struct
         foreach (ref readonly var record in records)
         {
             ushort id = _getIdFunc(record);
-            if (id < _handlers.Length)
-            {
-                var handler = _handlers[id];
-                handler?.Invoke(ctx, record);
-            }
-            // Unknown IDs: silently skipped (forward-compatibility).
+            var handler = id < _handlers.Length ? _handlers[id] : null;
+
+            if (handler is not null)
+                handler.Invoke(ctx, record);
+            else
+                WarnUnknownIdOnce(id);
         }
 
         // ── Flush phase ───────────────────────────────────────────────────────

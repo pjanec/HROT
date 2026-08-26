@@ -2,8 +2,10 @@
 state: LIVE
 build-state: BUILT — ⭐⭐⭐ APPROVED and BUILT 2026-08-26. §10 is the AS-BUILT and carries three
   corrections the build discovered; read it after §7/§8/§9.
-  Approved set: C1 · N1 · N3/B1 · E-pre · E · A1' · D1 · F3/F4/F5. ⛔ WITHDRAWN: C2, A3, N2, D2.
-  ⚠ N4 (loud unknown paths) is NOT approved — it was offered as a question needing a ruling, not a lean.
+  Approved set: C1 · N1 · N3/B1 · E-pre · E · A1' · D1 · F3/F4/F5 · N4. ⛔ WITHDRAWN: C2, A3, N2, D2.
+  ⭐ N4 was RULED on 2026-08-26 ("logged as warning and ignored, no throw") and is BUILT — §11.
+  ⚠ §12 answers "is CycloneNetworkModule obsolete?": NO — bypassed, and the bypass cost Q59-E a weaker
+  seam. Its M1/M2/M3 options are OPEN and need a nod; I lean M1 only weakly and say why.
   §9 carries the classDiagram + sequenceDiagram for the approved shape (obligation 1/2).
 updated: 2026-08-26
 current-answer: ⭐⭐⭐ §7 (the ATTRIBUTE / DESCRIPTOR SPLIT, user 2026-08-26) is the CURRENT answer and it
@@ -544,3 +546,105 @@ than a local mask `AX-015` measured as read by nothing in production)*.
 ⭐⭐ **`StrictNetworkSeparationTests`' boundary set shrank 2 → 1** — `DescriptorOrdinalConversion` is gone
 because there is nothing left to convert. 📌 **That shrink is the proof `E` landed**, exactly as the
 allowlist shrink was for `AX-017`.
+
+---
+
+## 11. ⭐⭐⭐ `N4` — RULED AND BUILT `2026-08-26`
+
+> ⭐⭐⭐ **User ruling, verbatim:** *"N4 - if about unsupported attribute name (key), this should be logged as
+> warning and ignored, no throw."*
+
+⭐ §8.2 left `N4` needing a ruling and offered *"a count plus one log line, never a throw"*. ⇒ **built as
+ruled**, on **all three** paths — ⛔ adding the diagnostic to only one would repeat exactly the `AX-018`
+defect.
+
+| path | before | after |
+|---|---|---|
+| JSON → ECS *(`JsonAttributeCompiler`)* | ⛔ silence | ⭐ warn once, ignore |
+| JSON → record *(`JsonToRecordCompiler`)* | ⛔ silence | ⭐ warn once, ignore |
+| record → ECS *(`BinaryInterpreter`)* | ⛔ a comment: *"Unknown IDs: silently skipped (forward-compatibility)"* | ⭐ warn once per id, ignore |
+
+⭐⭐ **The TOLERANCE is kept; only the SILENCE is fixed** — ignoring unknown keys is what lets a newer sender
+talk to an older node. ⛔ Throwing would turn a forward-compatible patch into a failed request.
+
+### 11.1 ⚠ Three honest limits
+
+| | |
+|---|---|
+| ⭐ **warn ONCE per key/id, per compiler** | ⚠ a sender repeating a bad key at 60 Hz would bury the log, and a buried warning is the same as no warning |
+| ⚠ **the key reported is the LEAF property name, not the full dotted path** | ⭐ the compiler carries hashes, not strings; a full path would cost an allocation per property. ⭐⭐ For the FLAT form — `{"GeoPosition.Latitude": …}`, what ExCon and the debug API send — the leaf name IS the whole path, so the common case is exact |
+| ⚠ **the dedup is proven INDIRECTLY** *(via allocation)* | ⛔ asserting on log output needs a logging harness this project does not have. Stated, not glossed |
+
+### 11.2 ⭐⭐⭐ THE RAIL EARNED ITS KEEP IMMEDIATELY — **it caught a regression I had just introduced**
+
+📐 `TheDiagnosticCostsNothingWhenEveryKeyIsKnown` measured **416 bytes** on a fully-known numeric patch.
+🔴 **Cause: my own `Q59-E` code.** `DescriptorOwnershipMap.GetDescriptorsForComponentId` returned
+`set.ToArray()` — **allocating on every component access during an attribute apply.**
+⭐ Fixed by storing `long[]` and merging at REGISTRATION *(a handful of calls at startup)* instead of on
+every lookup.
+
+⚠⚠ **And the rail itself was wrong twice before it was right** — both worth recording, because both were
+the rail measuring the wrong thing:
+
+| cut | measured | why it was the rail's fault |
+|---|---|---|
+| ① | **688 B** | the payload included `"Name":"A"` — ⛔ `reader.GetString()` legitimately allocates for a string attribute. The zero-alloc mandate has only ever applied to **non-string** paths |
+| ② | **216 B** | a **fresh** `EcsPatchContext` allocates its `HashSet` buckets on first insert — ⛔ the cost of CREATING a context, not of the diagnostic |
+
+⇒ ⭐⭐ **the assertion is now: a WARMED context, a NUMERIC payload, exactly zero bytes.** 📌 The lesson is
+the one this session keeps relearning: *an allocation rail that measures the wrong window manufactures
+either a false alarm or a false green.*
+
+### 11.3 ⭐ Rails
+
+| rail | |
+|---|---|
+| `TheUnknownKeyIsWarnedNotThrownTests` *(7)* | ⭐⭐ an unknown key on each of the three paths **does not throw AND does not stop the known keys beside it** *(the half that matters in production)* · the quiet path allocates **zero** · a repeated key is reported once |
+
+---
+
+## 12. ⚠⚠ `CycloneNetworkModule` — **NOT obsolete. BYPASSED, and the bypass has a measured cost.**
+
+> ⭐⭐ **User, `2026-08-26`:** *"what is CycloneNetworkModule? maybe something obsolete?"*
+
+### 12.1 📐 WHAT IT IS, AND WHAT THE DESIGN SAYS
+
+⭐ A 161-line `IEcsModule` in `Fdp.Network.Cyclone` that takes a translator list and registers the ingress,
+egress and gateway systems itself.
+
+| the DESIGN, in `docs/` — **current, not archived** | |
+|---|---|
+| `docs/projects/FDP/Network/Fdp.Network.Cyclone.md:207` | *"**Root `IEcsModule`**. Constructs and registers all systems, serialization providers, and the gateway system."* |
+| ⛔⛔ `docs/designs/IG/DESIGN-IG.md:281` | *"**Do NOT** register `SmartEgressSystem`, `CycloneIngressSystem`, or `CycloneEgressSystem` manually. They are **private implementation details** of `CycloneNetworkModule`. Provide your translators to the module constructor; the module installs all required systems itself."* |
+
+### 12.2 🔴 WHAT THE CODE DOES
+
+📐 **Measured `2026-08-26`:** `new CycloneNetworkModule` appears **nowhere** outside `bin`/`obj` — **zero
+production instantiations, zero test instantiations.** ⛔ And all four hosts do precisely what
+`DESIGN-IG.md` forbids: `SimHostApp:421`, `IgApplication:849`, `IgNodeBootstrapper:340` and
+`CgfSubsystem:778` each hand-register `CycloneNetworkIngressSystem` + `CycloneEgressSystem`.
+
+⇒ ⭐⭐⭐ **So the honest answer is NOT "obsolete".** 📌 `CLAUDE.md`'s rule applies exactly: *"what is not used
+does not mean it is existing without reason — a design doc gives answers."* ⭐ Here the design doc gives a
+clear answer: **it is meant to exist and to be used.** The CODE drifted from it — the same disease as every
+other finding in this document.
+
+### 12.3 ⭐⭐ THE COST IS NOT HYPOTHETICAL — **`Q59-E` paid it**
+
+⭐⭐⭐ `E` needed one place where *"the world"* and *"all the translators"* meet. **`CycloneNetworkModule` is
+that place** — its `RegisterSystems` builds `allTranslators`. ⛔ Because nothing instantiates it, I had to
+hook `CycloneEgressSystem.Execute` instead, which introduced the **one-frame window** §10.2 has to document
+and justify. ⇒ ⭐ **the bypass cost this slice a weaker seam and a caveat**, today.
+
+### 12.4 ⭐ RECOMMENDATION — *(not started; needs your nod)*
+
+| option | |
+|---|---|
+| **M1** ⭐⭐ **RECOMMENDED — adopt the module in the four hosts** *(route, don't delete)* | ⭐ restores the documented architecture and gives `E` the seam it wanted, removing the one-frame window. ⚠ **Real risk**: it changes system REGISTRATION ORDER on a working cluster, and the module registers a `_gatewaySystem` the hosts may register themselves ⇒ ⛔ its own batch, with the integration suite as the gate |
+| **M2** ⚠ **delete the module and CORRECT the two design docs** | ⭐ honest if hand-registration is genuinely preferred *(four hosts each compose a main pack **and** a gizmo pack, which a single-constructor module may not express)*. ⛔ But `CLAUDE.md`: *"no rush removals"* — and this would drop the only existing single-seam candidate |
+| **M3** ⛔ **leave as-is** | ⛔ **not recommended**: `docs/` keeps telling the next author to use a type nothing uses, and forbidding what everything does |
+
+⚠ **I lean `M1` but weakly**, and the reason is worth stating: 📐 I have **not** measured *why* the hosts
+bypass it. ⭐ There is a plausible good reason in plain sight — the module takes ONE translator list, and
+each host builds TWO *(main + gizmo)*. ⇒ ⛔ **until that is measured, "the hosts were sloppy" is an
+assumption, not a finding**, and `M2` may well be the right answer.
