@@ -3,10 +3,42 @@ state: LIVE
 build-state: DESIGN — decision-shaped; a RECOMMENDED LEAN per sub-question. Resolve JOINTLY with the user
   (no relay). Not a buildable design — no handoff until the leans (or alternatives) are approved.
 updated: 2026-08-26
-current-answer: §5 (the recommendations). The DIRECTION is already ruled (58/59/65/66, §3); this doc
-  resolves the SPECIFICS the rulings leave.
+current-answer: ⭐⭐⭐ §3b — THE USER RULING `2026-08-26` reshapes this AQ. §4/§5 below are being
+  revised to it and are STALE pending an EditorApplication-shareability + checkpoint-machinery scan.
 known-conflict: none. Origin: the §6.2 handback of REPORT_Cgf_Menu_Follows_Focus.md.
 -->
+
+<!-- ⭐⭐⭐ 3b inserted at the top so it is read before the now-stale §4/§5. -->
+## 3b. ⭐⭐⭐ USER RULING `2026-08-26` — **reshapes the whole AQ** *(intent, near-verbatim)*
+> 🔒 **User:** *"There is a big difference between loading for editing and loading for a live run. Editor
+> loads for editing, CGF loads for live run — but this could be just a **subsystem-specific DEFAULT**, and
+> **each option deserves its own menu item** (MCP supports loading live and loading for edit too).
+> Architecturally I want **CGF to support BOTH options as well as the editor — no difference, code shared.**
+> Not exactly sure what `IEditorLogic` is, but if it provides editing features, **why not share it with
+> editor and CGF and instantiate in both?** **Saving** should be enabled for a scenario opened **for
+> editing**, and should be **exactly the save the editor uses**. Saving of a **live running** one is another
+> feature called **checkpoint** — this needs its OWN menu item, same as **restoring from a saved checkpoint**
+> (which needs a picker) — **all already implemented in the cluster-control panel**, but exposing them also as
+> main-menu items would be much more user-friendly. **'New'** again branches: in CGF's live default it means
+> **'clear anything currently running and start a fresh empty exercise'** (with a confirmation dialog about
+> finishing an already-running exercise); in editing mode it means **starting to edit a new scenario from a
+> recipe**. Basically, between CGF and editor there should be **not much difference than distributed vs.
+> no-network. Features and UI largely the same, most stuff shared, minimal duplication."*
+
+⇒ ⭐⭐ **What this settles** *(supersedes my §4/§5 leans; §4/§5 kept below as HISTORY until rewritten)*:
+
+| # | the ruling |
+|---|---|
+| **A′** | ⭐⭐⭐ **Load is TWO commands on BOTH hosts** — *Load for Editing* and *Load for Live Run* — each its own menu item *(both already exist as MCP `/scenario/load/edit` + `/scenario/load/live`, HN-029)*. ⛔ NOT one-per-host; the **default** differs by subsystem *(editor→edit, CGF→live)*, the CAPABILITY does not |
+| **C′** | ⭐⭐⭐ **SHARE the editing facade — instantiate `IEditorLogic`/`EditorApplication` in BOTH hosts** *(if feasible)*. ⛔ My C1 *("extract a narrow contract")* is SUPERSEDED — the user wants the real editing object shared, minimal duplication. ⚠ **Feasibility unknown → scanning:** can `EditorApplication` run on a CGF node, or does it hold editor-only deps that must be decoupled first? |
+| **B′** | ⭐⭐ **Two DIFFERENT features, not one gated save:** **(1) Scenario Save** = *exactly the editor's save*, enabled for a scenario **opened for editing** *(edit-mode ⇒ CGF authors, same as the editor — my 65↔66 gate mostly DISSOLVES: it only applies to authoring a scenario, which is edit-mode)*; **(2) Checkpoint save + Checkpoint restore** = the **live** running state, a **separate existing feature in the cluster-control panel** ⇒ expose as their own menu items *(+ a restore picker)*. ⚠ ruling 66 already named checkpoint *"a different category"* from scenario authoring — this ruling makes it a first-class menu pair |
+| **New′** | ⭐⭐ **'New' branches by mode:** live-default ⇒ *clear the running exercise + start fresh* **with a confirmation dialog**; edit-mode ⇒ *new scenario from a recipe* *(the `RecipePickerSource`/`INewAssetService` path, MA-019..023)* |
+| **∴** | ⭐⭐⭐ **The governing principle:** CGF vs editor differ by **distributed-vs-no-network ONLY**; features + UI largely identical; **most stuff shared, minimal duplication.** |
+
+⚠ **Scanning now** *(before the §4/§5 rewrite)*: **(1)** `EditorApplication`/`IEditorLogic` shareability — what it depends on, what is editor-only, can CGF instantiate it; **(2)** the **checkpoint** machinery — where save/restore live in the cluster-control panel, what intents/commands, and the restore picker.
+
+<!-- ⛔ EVERYTHING BELOW (§4/§5) IS THE PRE-RULING DRAFT — being rewritten to §3b. Do NOT quote as current. -->
+## ⛔ HISTORY — pre-ruling draft *(superseded by §3b, `2026-08-26`)*
 # Architect Question 60 — **Does CGF host a scenario session, and how?** *(cgf==editor feature parity)*
 
 > 🎯 The menu slice *(CE-041..045)* left CGF's `File/Scenario/×6` empty because `ScenarioMenuCommands`
