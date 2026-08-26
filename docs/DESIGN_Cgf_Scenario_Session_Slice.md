@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — AQ60 Slice A, revised to the user refinement `2026-08-26` (R1–R3).
-  = Axis-C increment E1 (gap map §2c). Distinct File-menu items (no chameleons); toolbar-button
-  selection REMOVED (its own toolbar-customization design). Class+sequence UML in §4/§5.
+build-state: BUILT — AQ60 Slice A shipped as `CE-046` (`2026-08-26`, UI/CGF lane). = Axis-C increment E1
+  (gap map §2c). Distinct File-menu items (no chameleons); toolbar untouched (R3).
 updated: 2026-08-26
-current-answer: the whole file. Decisions + the user rulings: Architect_Question_60 (§3b, §4, §4b).
+current-answer: the whole file. §4/§5 carry the UML **as built** — the four deviations are marked inline
+  AND listed in §9. Decisions + the user rulings: Architect_Question_60 (§3b, §4, §4b).
   ⛔ Checkpoint RESTORE, capability-gating, toolbar-customization, and the ASSET menu items (E2) are OUT (§8).
+stale-below: nothing. §9 is the as-built delta; where §3a and §9 disagree, **§9 wins**.
 known-conflict: extends CgfSubsystem.cs + EditorSubsystem.cs + ScenarioMenuCommands.cs (UI/CGF lane) and
   moves EditorApplication's scenario half into Hrot.Editor.AiShared ⇒ UI/CGF lane; rule-4 re-pull.
 -->
@@ -52,64 +53,95 @@ known-conflict: extends CgfSubsystem.cs + EditorSubsystem.cs + ScenarioMenuComma
 
 ⛔⛔ **NO toolbar changes in E1 (R3).** Which distinct actions get a toolbar button per host/perspective is the **toolbar+menu customization system — its own AQ** *(gap map §5 FUTURE)*. The toolbar stays exactly as CE-037..045 shipped it.
 
-## 4. ⭐⭐ CLASS DIAGRAM *(authoritative)*
+## 4. ⭐⭐ CLASS DIAGRAM *(authoritative — **AS BUILT**, `CE-046`; the deltas are listed in §9)*
 ```mermaid
 classDiagram
     class IScenarioSession {
-        <<NEW · Hrot.Editor.AiShared>>
+        <<NEW · Hrot.Editor.AiShared.Scenarios>>
+        +Update()
+        +ClearWorld()
         +NewExercise()
         +LoadForLive(name)
         +OpenForEdit(name)
         +SaveCurrent()
         +SaveAs(name)
+        +SaveTo(filePath)
+        +TakeCheckpoint()
+        +CurrentClusterState ClusterState
         +LoadedScenarioName string
+        +IsDegraded bool
         +GetMigrationSidecars() IReadOnlyList
     }
     class EditorScenarioSession {
-        <<NEW · Hrot.Editor.AiShared · impl>>
-        +EditorScenarioSession(fileService, orchestrationBus, world, alerts, scenariosRoot)
+        <<NEW · impl>>
+        +EditorScenarioSession(fileService, orchestrationBus, world, scenariosRootFunc, alerts)
+    }
+    class MigrationAlertManager {
+        <<MOVED · was Hrot.Editor/Migration · now public>>
+    }
+    class ConfirmPromptController {
+        <<NEW · headless confirm slot for New Exercise>>
     }
     class ScenarioFileService {
         <<EXISTS · Hrot.Presentation>>
     }
     class EditorApplication {
-        <<MODIFIED · Hrot.Editor · scenario members delegate (byte-identical)>>
+        <<MODIFIED · Hrot.Editor · scenario members delegate>>
     }
     class CgfSubsystem {
         <<MODIFIED · constructs the session over CGF world>>
     }
     class ScenarioMenuCommands {
-        <<MODIFIED · takes IScenarioSession; registers distinct Live/Edit/Checkpoint items>>
+        <<MOVED to AiShared.Scenarios · takes IScenarioSession>>
+    }
+    class ShellSaveCommands {
+        <<EXISTS · owns File-Save via shell.save scenario branch>>
     }
     class TakeCheckpointIntent {
         <<EXISTS · Fdp.Toolkits · checkpoint SAVE>>
     }
     EditorScenarioSession ..|> IScenarioSession
-    EditorScenarioSession ..> ScenarioFileService : save/new (load via TransitionStateIntent)
+    EditorScenarioSession ..> ScenarioFileService : save/clear
+    EditorScenarioSession --> MigrationAlertManager : owns
+    EditorScenarioSession ..> TakeCheckpointIntent : publishes
     EditorApplication ..> IScenarioSession : delegates
     CgfSubsystem ..> EditorScenarioSession : new(over CGF world)
-    ScenarioMenuCommands ..> IScenarioSession : New/Load/Open/Save
-    ScenarioMenuCommands ..> TakeCheckpointIntent : Take Checkpoint publishes
+    CgfSubsystem ..> ShellSaveCommands : supplies scenario seams
+    ScenarioMenuCommands ..> IScenarioSession : Live/Edit/Checkpoint items
+    ScenarioMenuCommands ..> ConfirmPromptController : New Exercise confirm seam
 ```
 
-## 5. ⭐⭐ SEQUENCE DIAGRAM *(authoritative — the distinct items, both hosts)*
+## 5. ⭐⭐ SEQUENCE DIAGRAM *(authoritative — **AS BUILT**; the edit path is TWO-PHASE)*
 ```mermaid
 sequenceDiagram
     participant Host as Editor or CGF
+    participant Menu as ScenarioMenuCommands
     participant Session as EditorScenarioSession
     participant Bus as orchestration bus
     participant Master as ClusterMaster
 
     Note over Host: each host constructs the SAME session over its own world
-    Host->>Session: new EditorScenarioSession(fileService, bus, world, ...)
-    Note over Host: distinct File items bind to session methods
-    Host->>Session: OpenForEdit(name) - from File/Edit/Open Scenario
-    Session->>Bus: publish TransitionStateIntent edit
-    Host->>Session: LoadForLive(name) - from File/Live/Load Scenario
-    Session->>Bus: publish TransitionStateIntent live
+    Host->>Session: new EditorScenarioSession(fileService, bus, world, rootFunc)
+
+    Note over Menu: EDIT is deferred - ask for Idle first, then target
+    Menu->>Session: OpenForEdit(name)
+    Session->>Bus: publish TransitionStateIntent Idle
+    Host->>Session: Update() each frame
+    Session->>Session: observed Idle - ClearWorld()
+    Session->>Bus: publish TransitionStateIntent OperatingEdit
+
+    Note over Menu: LIVE has no Idle hop - each node clears in its own handler
+    Menu->>Session: LoadForLive(name)
+    Session->>Bus: publish TransitionStateIntent OperatingLive fresh ExerciseId
+
     Bus->>Master: fan out to the roster
-    Note over Master: CgfScenarioLoadHandler materialises the world, cluster-wide
-    Host->>Session: SaveCurrent - from File/Save, edit-mode only
+    Note over Master: the per-node load handler materialises the world
+
+    Menu->>Session: TakeCheckpoint()
+    Session->>Bus: publish TakeCheckpointIntent
+
+    Note over Menu: File-Save is shell.save scenario branch, not an item here
+    Menu->>Session: SaveCurrent() from File-Edit-Save Scenario
     Session->>Session: ScenarioFileService.SaveScenario(world, path)
 ```
 
@@ -122,6 +154,28 @@ sequenceDiagram
 
 ## 7. ⭐ LANE & GATES
 ⭐ **UI/CGF lane** *(owns `CgfSubsystem.cs`, `EditorSubsystem.cs`/`EditorApplication.cs`, `ScenarioMenuCommands.cs`; the extraction moves types into `Hrot.Editor.AiShared`)*. ⚠ **rule-4 re-pull** — hot files. Build the AFFECTED projects *(`Hrot.Editor.AiShared` · `Hrot.Editor` · `Hrot.CGF` · `Hrot.Presentation` · `Hrot.SystemTests`)*, ⛔ never the whole solution in the fix loop. Gates per the rule-8 contract; conformance suite **T3 — background it**. Obligation ⑤: fold any as-built deviation into THIS doc.
+
+## 9. ⭐⭐⭐ AS BUILT — **the deviations, argued** *(`CE-046`, `2026-08-26`; obligation ⑤)*
+
+> ⭐⭐ **Where this section and §3a disagree, THIS WINS.** §4/§5 above were rewritten to the as-built, so
+> the diagrams are true again rather than merely asserted.
+
+| # | design said | ⭐ as built | why |
+|---|---|---|---|
+| **D1** | `IScenarioSession` has `NewExercise()` | ⭐⭐ **TWO verbs: `ClearWorld()` *(local wipe)* AND `NewExercise()` *(cluster reset + wipe)*** | 📐 **Measured:** the deferred-load state machine calls the local wipe as **step 1 of its own sequence**. ⛔ Collapsing them would make every edit-open publish a second `Idle` intent from inside the handler for the first. ⇒ `IEditorLogic.NewScenario` maps to `ClearWorld`; only the `File/Live/New Exercise` item reaches `NewExercise` |
+| **D2** | §4 draws `ScenarioMenuCommands ..> TakeCheckpointIntent` *(the menu publishes)* | ⭐ **`IScenarioSession.TakeCheckpoint()`** — the session publishes | ⛔ The menu has no bus, so the drawn arrow would put the same one-line publish in **both** hosts' composition roots — two implementations of one concept *(ruling 9)*. ⭐ The session already holds the bus |
+| **D3** | §3 ④ *"`ScenarioMenuCommands` takes `IScenarioSession`"* | ⭐⭐ **it also MOVED to `Hrot.Editor.AiShared.Scenarios`** *(with `MigrationAlertManager`, now `public`)* | ⛔ CGF cannot reference `Hrot.Editor` — **that assembly wall is the whole point of the slice** — so taking the interface was necessary and **not sufficient**. ⚠ `AiShared` gained a `Hrot.Presentation` project reference for `ScenarioFileService`; 📐 measured acyclic *(`Hrot.Presentation` → `Hrot.Core`/`Fdp.*` only)* |
+| **D4** | §3a lists **`File/Save`** as one of the five items | ⛔⛔ **NO `File/Save` item is registered.** 📐 Measured: `CgfEditorShellToolbar`'s shared slot table **already** emits `File/Save` → `ShellSaveCommands.SaveId`, whose handler **already** branches to the scenario when `isScenarioContext` says so. ⇒ the row is satisfied by **supplying the scenario seams on CGF** *(`isScenarioContext`/`hasLoadedScenario`/`saveScenarioAction`)* | ⭐ Registering a second item at the same path would be two controls for one action, and would touch the toolbar table's own menu row — **which R3 forbids**. ⭐ Ruling 58: one registration list |
+| **D5** | §3a implies five items | ⭐ **nine**, because the pre-existing scenario group was **rehomed** rather than left beside the new structure | ⛔ Leaving `File/Scenario/Load Scenario…` in place while adding `File/Edit/Open Scenario` would have kept the chameleon **and** added a duplicate. ⚠ §6 anticipates this: *"if the editor's existing item labels change, that IS a visible change — argue it"*. ⭐ **Every command ID is unchanged**, so hotkeys, MCP identity and id-keyed rails still resolve |
+| **D6** | *(unstated)* | ⭐ **`scenariosRoot` is a `Func<string>`, not a string** | ⛔ The editor's `EditorBootstrap.ScenariosRoot` is a computed property over `ClusterConfiguration.Default.NasBasePath`; snapshotting it at construction would change **when** the value is read. ⚠ CGF passes `OrchestrationConstants.GetNodeScenariosRoot(nodeId)` — the same directory its own `HrotScenarioLoader` reads |
+| **D7** | §3 ⑤ *"extend the `SUBSET-BY-DESIGN` menu verdict to the new items"* | ⭐⭐ **no extension was needed** — `ClusterConformanceRails`' `global-menu` `SubsetShape` is keyed by `path` and compares `visible`, so it generalises for free | ⛔ **But a subset check cannot fail where the sets should be EQUAL** — a CGF registering none of these items is still *"a subset"*. ⇒ built `TheScenarioMenuIsSharedByBothHostsTests`, which asserts **equality of the item set** and that only *enablement* differs |
+
+### ⚠ Two findings recorded rather than fixed
+
+| finding | |
+|---|---|
+| **F1 — `MigrationAlertManager.Draw()` has NO production caller.** 📐 Measured: the only reference to the owning property was `EditorApplication.AlertManager` *(`internal`)*, and **nothing read it** ⇒ the degraded-mode banner and the migration modal have **never been drawn**. | ⛔ **Not deleted** *(CLAUDE.md — unreferenced is not unintentional; and `IsDegradedMode` **is** consumed via `IEditorLogic.IsScenarioDegraded`)*. ⭐ Wiring `Draw()` to a frame is its own item |
+| **F2 — the live/edit intent shape now lives in three places.** `EditorScenarioSession` *(bus)*, `DebugApiService.LoadScenarioEdit/Live` *(bus, prefers the editor driver)*, `ClusterScenarioPanel` *(the DDS request path)*. | ⭐ The panel is a **different transport**, so not a straight duplicate. ⚠ `DebugApiService`'s **edit** arm is already unified *(it calls `IEditorLogic.LoadScenarioByName`, which now delegates to the session)*; its **live** arm still constructs the intent itself. ⇒ routing it through an optional `IScenarioSession` is a contained follow-up, deliberately not done inside this slice's scope |
 
 ## 8. ⛔ EXPLICITLY OUT
 - **The ASSET menu items** *(`Edit/Open Asset`, `Edit/New Asset from Recipe`)* — **Axis-C E2 / menu-report §6.1** *(relocate the asset-picker/new-asset shell to AiShared)*. They slot into E1's `Edit/` submenu with zero menu code when E2 lands.
