@@ -33,6 +33,8 @@ const EXPECTED_TOOLS = [
   'focus_entity', 'add_annotation',
   // Slice ① — discovery with schema (MX4a / MX7).
   'list_behaviors', 'list_breakpoint_types',
+  // Group P — mission editing (MX4b): read / add-task / clear / run over the editor's mission seam.
+  'get_mission', 'add_mission_task', 'clear_mission_tasks', 'run_mission',
   // Slice ② — Group O, variable addressing (MX1): the watch's own tuple, over HTTP.
   'list_entity_variables', 'get_entity_variable', 'stage_entity_variable',
   // Slice ③ — the panel snapshot (MX9), blueprint hot-attach (MX2), entity state (MX3),

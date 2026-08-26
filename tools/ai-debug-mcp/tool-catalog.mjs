@@ -2041,6 +2041,171 @@ export const TOOLS_CATALOG = [
     "manualVerify": false
   },
 
+  // ── Group P — Mission editing ───────────────────────────────────────────────
+
+  {
+    "name": "get_mission",
+    "group": "P — Mission editing",
+    "summary": "Read an entity's mission plan — its ordered tasks (behaviour, params, triggers, state) and the OCC version you pass back when editing. An entity with no mission returns an empty task list, not an error.",
+    "http": {
+      "method": "GET",
+      "path": "/missions/{networkId}"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the entity whose mission to read"
+      }
+    ],
+    "returns": "{ networkId, plan: { activeTaskId, tasks: [{ taskId, behaviorId, behaviorParams, executingEngine, state, triggers: [{ type, params }] }] }, version }",
+    "notes": [
+      "version is the optimistic-lock token — pass it straight back to add_mission_task / clear_mission_tasks so a concurrent edit is caught as a 409 rather than silently overwritten.",
+      "The offline editor does not yet persist a snapshot version, so it reports 0 today; the edit path still round-trips it.",
+      "An unknown networkId is a 404 whose hint points at GET /entities."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "read entity 1000's current mission before editing it"
+    },
+    "hint": "Example: get_mission({networkId:1000}). Add a task with add_mission_task; discover behaviours with list_behaviors.",
+    "manualVerify": false
+  },
+
+  {
+    "name": "run_mission",
+    "group": "P — Mission editing",
+    "summary": "Run (or restart) an entity's mission by jumping to its first task and resetting the phase clock. run and restart are the same jump-to-start the mechanism offers.",
+    "http": {
+      "method": "POST",
+      "path": "/missions/{networkId}/run"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the entity whose mission to run"
+      },
+      {
+        "name": "restart",
+        "type": "boolean",
+        "required": false,
+        "description": "Reserved: run and restart both jump to task 0 and reset the phase clock.",
+        "default": false
+      }
+    ],
+    "returns": "{ networkId, restart, committed:true, version }",
+    "notes": [
+      "Sends CMD_JUMP_TO_TASK to task index 0 — the mission still only advances while the sim is running (play_simulation / step_simulation)."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "start entity 1000 executing its mission from the first task"
+    },
+    "hint": "Advance the sim (play_simulation or step_simulation) so the entity actually executes the mission after this.",
+    "manualVerify": false
+  },
+
+  {
+    "name": "add_mission_task",
+    "group": "P — Mission editing",
+    "summary": "Append one mission task to an entity — the PROPER way a behaviour attaches (as a task). Names the behaviour pass-through and carries its params as JSON matching the behaviour's paramSchema. Commits the whole plan through the editor's own mission path with optimistic concurrency.",
+    "http": {
+      "method": "POST",
+      "path": "/missions/{networkId}/task"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the entity to add the task to"
+      },
+      {
+        "name": "behavior",
+        "type": "string",
+        "required": true,
+        "description": "The behaviour this task runs — one of the ids from list_behaviors for this entity"
+      },
+      {
+        "name": "params",
+        "type": "object",
+        "required": false,
+        "description": "The behaviour's parameters, as JSON matching its paramSchema from list_behaviors. Stored verbatim as the task's behaviorParams."
+      },
+      {
+        "name": "triggers",
+        "type": "array",
+        "required": false,
+        "description": "Optional transition triggers [{ type, params? }]. Defaults to a single BehaviorFinished trigger so the task can advance.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "params": {}
+          }
+        }
+      }
+    ],
+    "returns": "{ networkId, taskId, behavior, taskCount, committed:true, version }",
+    "notes": [
+      "params is passed through verbatim — the engine reads it with plain JSON, the same string the editor's Mission panel stores. Shape it to the behaviour's paramSchema (list_behaviors), not to a separate mapper.",
+      "The commit is asynchronous: it resolves when the engine acknowledges. If the sim is not being pumped at all the call returns a 504 pointing at play/step.",
+      "A stale version yields a 409 (ERR_VERSION_CONFLICT), never a silent overwrite."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000,
+        "behavior": "MoveToLocation",
+        "params": {
+          "Latitude": 50.1,
+          "Longitude": 14.4
+        }
+      },
+      "gist": "give entity 1000 a MoveToLocation task"
+    },
+    "hint": "Discover the behaviour and its param shape with list_behaviors({entityId}); a bad version is a 409, re-read get_mission and retry.",
+    "manualVerify": false
+  },
+
+  {
+    "name": "clear_mission_tasks",
+    "group": "P — Mission editing",
+    "summary": "Clear every task from an entity's mission (so a fresh sequence can be added), by committing an empty plan through the same optimistic-concurrency path.",
+    "http": {
+      "method": "DELETE",
+      "path": "/missions/{networkId}/tasks"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "integer",
+        "required": true,
+        "description": "Network id of the entity whose tasks to clear"
+      }
+    ],
+    "returns": "{ networkId, taskCount:0, committed:true, version }",
+    "notes": [
+      "Commits an empty plan — the same asynchronous, version-checked path as add_mission_task, so the same 409/504 rules apply."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "wipe entity 1000's mission so a new sequence can be authored"
+    },
+    "hint": "Then add_mission_task to build the new sequence; read the current state first with get_mission.",
+    "manualVerify": false
+  },
+
   // ── Group Q — Blueprint hot-attach ──────────────────────────────────────────
 
   {

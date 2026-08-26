@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DISPATCH — BACKEND lane. Phase 1 of PROGRAMME_Mcp_Agent_Surface.md: build MX4b (mission
-  editing over MCP) — the proper behavior-attach path. MX-002 is RESOLVED; build against the wired facade.
+build-state: BUILT — BACKEND lane. Phase 1 of PROGRAMME_Mcp_Agent_Surface.md: MX4b (mission editing over
+  MCP) shipped as Batch HN-123 — 4 routes (get/add-task/clear/run) + 4 MCP tools over the wired facade.
+  Gated at route/unit level; E2E named for H4/H5. As-built + 4 deviations: MCP_Integration.md §"AS-BUILT — MX4b".
 updated: 2026-08-26
 current-answer: this handoff. DESIGN + UML: MCP_Integration.md §Group P + §"UML" (READY-TO-BUILD).
   Roadmap + the MX-002 resolution: PROGRAMME_Mcp_Agent_Surface.md §2/§3.
