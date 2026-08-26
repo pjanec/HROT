@@ -19,7 +19,7 @@ RELEARN
 python3 scripts/session-design-brief.sh            # ledger · 7-day digest · probe verdict · 3 random rulings
 # read docs/blueprints/RULINGS.md IN FULL (RULE ZERO)
 git fetch origin
-git log --oneline -1 origin/claude/blueprint-authoring-status-6sr5ld     # coordinator HEAD (snapshot: 8b626168d)
+git log --oneline -1 origin/claude/blueprint-authoring-status-6sr5ld     # coordinator HEAD (snapshot: 2223f7200)
 git log --oneline -3 origin/claude/blueprint-macro-feature-sdmspn        # BACKEND lane (MCP diagnostics: MD-001..005)
 git log --oneline -3 origin/claude/reset-working-branch-qd1qpv           # UI/CGF lane (axis-b egress: AX-005..010)
 git branch -r | grep claude/                                            # confirm lane heads by ancestry, not name
@@ -75,8 +75,9 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 - 📄 **NEW MCP capability designed:** `DESIGN_Mcp_Diagnostics_Federation.md` *(per-node federation + logs/architecture/cluster diagnostics)* + `HANDOFF_Mcp_Diagnostics_Federation.md` *(ready to dispatch)*.
 
 ## 4. ⭐ NEXT, QUEUED
-0. ⭐⭐⭐ **CE-016 §7 — CGF shell-command + main-toolbar adoption (slice A2)** — ✅ **HANDOFF READY** *(user approved A2, `2026-08-26`)*. Extract a shared TOOLBAR-only `CgfEditorShellToolbar` helper both hosts call *(ruling 58: one derived list)*; CGF gets `SilkIconProvider` + real command buttons; flip the `main-toolbar` conformance divergence to SAME. 📄 design `DESIGN_Cgf_Shell_Command_Toolbar_Slice.md` *(READY-TO-BUILD, UML §4/§5)* · handoff `HANDOFF_Cgf_Shell_Command_Toolbar.md` · decision `Architect_Question_58` *(A2)*. ⭐ **UI/CGF lane** *(owns both shared files)* — sequence AFTER its current AX-009 work; rule-4 re-pull.
-0b. ⭐ **UXI-05 menu-follows-focus** — the NEXT slice after A2; its menu registration EXTENDS the same helper *(reaching the A1 endpoint incrementally)*. Designed *(`UX/UX_Feature_Menu_Follows_Focus.md`)*, unbuilt; needs its own READY-TO-BUILD design + handoff.
+0. ✅ **CE-016 §7 — CGF shell-command + main-toolbar adoption (A2): MERGED `2026-08-26` (`2223f7200`, ids `CE-037`..`CE-040`).** One shared derived list *(`CgfEditorShellToolbar`, AiShared)*; CGF toolbar routes through `ToolbarCommandAdapter`+`SilkIconProvider`; `main-toolbar` conformance flipped to a `SUBSET-BY-DESIGN` verdict. ⚠ **Built by the BACKEND session** *(user relayed it there)* — it touched `CgfSubsystem.cs`+`EditorSubsystem.cs` ⇒ the UI/CGF lane must **rule-7 re-sync + reconcile** those two files when it returns. Design §9 AS-BUILT.
+   - ⭐ **Two clean follow-ups from its argued deviations** *(design §9.3/§9.4)*: **(a)** compose a picker launcher on CGF ⇒ the Open/New toolbar buttons *(CGF can already CREATE over MCP, MA-019..023)*; **(b)** decide whether CGF's CLUSTER-TIME stepping deserves its OWN toolbar ids *(⛔ NOT the editor's `debug.*` ids — those mean AI-graph stepping; conflating them is what the SAME-by-id rail prevents)*.
+0b. ⭐ **UXI-05 menu-follows-focus** — the NEXT slice; its menu registration EXTENDS `CgfEditorShellToolbar`'s one list *(reaching the A1 endpoint incrementally)*. Designed *(`UX/UX_Feature_Menu_Follows_Focus.md`)*, unbuilt; needs its own READY-TO-BUILD design + handoff.
 1. ⭐ **`cgf==editor` — the remaining EDITING conversions still need design decisions** *(NOT autonomous-safe — flagged out of the overnight run)*: **AQ25 authoring shell / role-&-mode gating / undo / autosave** *(architect-UNANSWERED)* · **Q25-C behavior-affinity registry** *(can `BehaviorUiCompiler` be schema-driven?)* · **`Hrot.Editor` catalog/`NewAssetService` packaging** *(move-to-shared vs reference)*. ⇒ these want an Architect_Question pass with the user before build.
 2. **Axis B** *(map/entity parity — UXI-11/23/10/29)* — gated on the **UXI-30** engine-authority-gate design *(no design doc yet)*.
 3. ⭐ **The small follow-ups in §3b** — batchable into any CGF-lane run.
