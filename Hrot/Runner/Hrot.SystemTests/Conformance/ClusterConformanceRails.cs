@@ -1667,6 +1667,110 @@ public sealed class ClusterConformanceRails
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>MD-006</c>/<c>MD-007</c> — an agent can drive the CLUSTER-WIDE diagnostic dump the
+    /// operator drives from the ExCon, and read the result the same panel reads.</b>
+    /// 📄 <c>DESIGN_Mcp_Diagnostics_Federation.md</c> §8.5.
+    ///
+    /// <para>⭐⭐⭐ <b>The point of this rail is that NOTHING NEW COLLECTS ANYTHING.</b> 🔒 User ruling
+    /// *(`2026-08-25`)*: *"in the UI as a user i can click and data gets collected and saved. the cluster
+    /// wide collection works. No further aggregation needed."* ⇒ these two routes are a SECOND SURFACE on
+    /// the built dump-diag pipeline — ⛔ the rail therefore asserts the SURFACE is reachable and honest,
+    /// and does NOT re-assert that collection works.</para>
+    ///
+    /// <para>⚠⚠ <b>It deliberately does NOT wait for files.</b> 📐 The dump gathers on every selected node
+    /// and then pulls to a NAS over SMB — ⛔ there is no NAS in this harness, so demanding a non-empty
+    /// manifest would redden on the ENVIRONMENT rather than on the code. ⭐ What IS asserted is everything
+    /// that is this surface's own responsibility: the route publishes, the status route answers from the
+    /// panel's own read model, and an empty node list is REFUSED rather than silently read as "all".</para>
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Conformance")]
+    public async Task An_agent_can_drive_the_cluster_diagnostic_dump()
+    {
+        await using var cluster = await EditorProcess.StartAsync("conf-clusterdump", mode: "all");
+
+        // ── ① THE STATUS ROUTE READS THE PANEL'S OWN MODEL ───────────────
+        var status = await cluster.Client.GetClusterDumpStatusAsync();
+        Assert.True(status.Ok,
+            $"GET /cluster/diagnostics/status was refused: {status.Error}. It reads ClusterUiCache — the "
+          + "same read model ClusterDiagnosticsPanel renders — through the provider seam, so a refusal "
+          + "here means no subsystem is supplying `dumpStatus:`.");
+
+        _out.WriteLine($"status: inFlight={status.Bool("inFlight")} "
+                     + $"manifestCount={status.Int("manifestCount")}");
+
+        // ⭐ The shape must be complete even when nothing has been dumped yet: an EMPTY manifest is
+        //   "none yet", ⛔ and the route must say so rather than omitting the field.
+        Assert.NotNull(status.Field("manifestPaths"));
+        Assert.NotNull(status.Field("inFlight"));
+
+        // ── ② AN EMPTY NODE SET IS REFUSED ───────────────────────────────
+        // ⛔⛔ The assertion that matters most here. Reading [] as "every node" would turn a caller's
+        //    omission into a cluster-wide operation — and the editor's own panel DISABLES its button on
+        //    exactly this condition, so accepting it would make MCP the one path that does what the UI
+        //    refuses. 📌 The same parity argument as the 409 on a disabled editor command (MA-015).
+        var empty = await cluster.Client.TriggerClusterDumpAsync(System.Array.Empty<int>());
+        Assert.False(empty.Ok, "a dump with an EMPTY node list was ACCEPTED.");
+        Assert.Contains("at least one node", empty.Error ?? string.Empty, StringComparison.Ordinal);
+        _out.WriteLine($"empty selection refused: {empty.Error}");
+
+        // ── ③ A REAL REQUEST PUBLISHES ───────────────────────────────────
+        // ⭐ Node 1 is this host's own id (EditorProcess launches a single process).
+        var triggered = await cluster.Client.TriggerClusterDumpAsync(new[] { 1 });
+        _out.WriteLine($"trigger: {triggered.StatusCode} {triggered.Error ?? triggered.Data?.ToJsonString()}");
+
+        Assert.True(triggered.Ok,
+            $"POST /cluster/diagnostics/dump was refused: {triggered.Error}. The intent is published onto "
+          + "whichever provider exposes an orchestration bus — the same publish path requestTransition "
+          + "uses — so a refusal means `requestDiagnosticDump:` is not wired on any provider.");
+
+        Assert.True(triggered.Bool("queued"),
+            "the dump answered ok but did not report queued:true. This operation is ASYNCHRONOUS and the "
+          + "response must say so — a caller that reads it as 'done' will look for files that are still "
+          + "being gathered.");
+
+        var tx = triggered.String("transactionId");
+        Assert.False(string.IsNullOrWhiteSpace(tx),
+            "no transactionId came back, so nothing correlates this request with its completion.");
+
+        // ⭐⭐⭐ THE PROOF THAT THIS IS NOT ACCEPT-AND-DO-NOTHING.
+        // ⛔⛔ A 200 with a transaction id proves only that the ROUTE ran. 📌 This surface has been bitten
+        //    twice by exactly that gap (MA-004: an id resolving to nothing; MA-017: a command accepted
+        //    that built nothing) ⇒ the rail reads the node's own output for the ClusterMaster's fan-out
+        //    line carrying THIS transaction id. That is the pipeline confirming it took the request.
+        // ⚠ Polled, because the master handles the intent on a later tick — an immediate read races it.
+        string fanOut = string.Empty;
+        for (int i = 0; i < 40 && fanOut.Length == 0; i++)
+        {
+            var log = cluster.EditorOutput;
+            foreach (var line in log.Split('\n'))
+                if (line.Contains(tx!, StringComparison.OrdinalIgnoreCase)
+                 && line.Contains("fanned out", StringComparison.OrdinalIgnoreCase))
+                { fanOut = line.Trim(); break; }
+            if (fanOut.Length == 0) await Task.Delay(250);
+        }
+
+        _out.WriteLine($"master: {fanOut}");
+        Assert.False(string.IsNullOrEmpty(fanOut),
+            $"the route returned queued:true for transaction {tx}, but the ClusterMaster never logged "
+          + "fanning it out. The intent was published onto a bus that does not reach a master, so the "
+          + "route reports a cluster-wide operation it did not actually start.");
+
+        // ⭐⭐ The status route still answers AFTER a trigger — that is the poll loop an agent will run.
+        //   ⛔ No assertion that the manifest FILLED: there is no NAS in this harness, and asserting one
+        //   would redden on the environment rather than the code.
+        var after = await cluster.Client.GetClusterDumpStatusAsync();
+        Assert.True(after.Ok, $"the status route stopped answering after a trigger: {after.Error}");
+        _out.WriteLine($"after trigger: inFlight={after.Bool("inFlight")} "
+                     + $"manifestCount={after.Int("manifestCount")}");
+
+        // ── ④ R-133 — the capability cell is MEASURED ────────────────────
+        var caps = (await cluster.Client.GetCapabilitiesAsync()).EnsureOk();
+        Assert.Contains("diagnostics.clusterDump", caps.Data?.ToJsonString() ?? string.Empty,
+                        StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>MD-001</c>/<c>MD-002</c>/<c>MD-003</c> — a NON-EDITOR node answers for ITSELF: its own
     /// logs, its own architecture, its own capability cells.</b>
     /// 📄 <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §1 · §2.1 · §2.2.

@@ -62,6 +62,10 @@ namespace Hrot.SimHost
                                        .TransitionsVia(() => _app?.OrchestrationBus),
                 // ⭐⭐ MD-002 — this subsystem's OWN kernel snapshot. ⚠ Lazily, like every accessor here:
                 //    the kernel is created in Initialize, after the composition root builds the provider.
+                // ⭐⭐ MD-006 — the dump trigger, on the SAME bus and by the SAME argument as
+                //    requestTransition above: any node can ask, the pipeline is cluster-wide.
+                requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                           .DumpsVia(() => _app?.OrchestrationBus),
                 architecture:  () => _app?.Kernel is null
                                      ? null
                                      : new ArchitectureDiagnosticsService(() => _app?.Kernel));

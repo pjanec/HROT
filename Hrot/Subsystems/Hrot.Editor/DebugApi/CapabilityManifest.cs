@@ -99,6 +99,11 @@ public static class CapabilityManifest
         //    (DebugCapabilities.ArchitectureDiagnostics). ⛔ Not a hand-authored availability cell:
         //    R-133's inversion means an UNCLASSIFIED prefix reddens CapabilityManifestRails, and the
         //    provider cell is measured from the kernel being there.
+        // ⭐⭐ MD-006 — BEFORE the "/diagnostics" arm below? No: this path starts "/cluster", so the two
+        //    cannot collide. ⚠ It is a DIFFERENT capability from the per-node architecture read — a node
+        //    can trigger a cluster dump without having a kernel of its own, and vice versa.
+        if (path.StartsWith("/cluster/diagnostics", StringComparison.Ordinal))
+            return Hrot.Presentation.DebugApi.DebugCapabilities.ClusterDiagnosticsDump;
         if (path.StartsWith("/diagnostics", StringComparison.Ordinal))
             return Hrot.Presentation.DebugApi.DebugCapabilities.ArchitectureDiagnostics;
 

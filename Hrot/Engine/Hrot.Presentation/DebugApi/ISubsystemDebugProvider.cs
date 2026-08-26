@@ -29,6 +29,25 @@ namespace Hrot.Presentation.DebugApi;
 /// ⛔ The dispatcher then answers <c>NOT_SUPPORTED_HERE</c> — it does NOT fabricate an empty world, which
 /// would be the false green <c>D4</c> exists to kill.</para>
 /// </summary>
+/// <summary>
+/// ⭐⭐ <b><c>MD-007</c> — what a node can say about the last cluster diagnostic dump.</b>
+///
+/// <para>⛔⛔ <b>PRIMITIVES, not the cache object</b>, and that is the established pattern here:
+/// <see cref="ISubsystemDebugProvider.ClusterState"/> and <c>AvailableScenarios</c> are also projected out
+/// of <c>ClusterUiCache</c> rather than exposing it. ⇒ <c>Hrot.Presentation</c> needs no reference to
+/// <c>Hrot.Orchestrator</c>.</para>
+///
+/// <para>⚠ <paramref name="ManifestPaths"/> is lossless: the cached manifest carries ONLY
+/// <c>FileManifestEntry.RelativeDest</c> — its <c>SourceUnc</c> is stripped before caching, which the
+/// cache's own doc-comment states.</para>
+/// </summary>
+/// <param name="InFlight">A cluster transaction is open right now.</param>
+/// <param name="ManifestPaths">
+/// Destination paths of the files the most recent SUCCESSFUL dump produced, relative to the NAS base.
+/// ⚠ EMPTY until the first successful dump completes — ⛔ empty is "none yet", not "it failed".
+/// </param>
+public sealed record DiagnosticDumpStatus(bool InFlight, IReadOnlyList<string> ManifestPaths);
+
 public interface ISubsystemDebugProvider
 {
     /// <summary>⭐ The subsystem's own name — <c>ISubsystem.Name</c>, e.g. <c>"CGF"</c>. For diagnostics and the manifest.</summary>
@@ -100,6 +119,35 @@ public interface ISubsystemDebugProvider
     IReadOnlyList<string>? AvailableScenarios { get; }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>MD-006</c> — publish a CLUSTER-WIDE DIAGNOSTIC DUMP from this node.</b>
+    /// 📄 <c>DESIGN_Mcp_Diagnostics_Federation.md</c> §8.5.
+    ///
+    /// <para>⭐⭐ <b>Identical in shape and mechanism to <see cref="RequestTransition"/>, deliberately.</b>
+    /// 📐 <c>ClusterDiagnosticsPanel</c>'s Execute button publishes exactly this intent onto its own
+    /// orchestration bus, and every host's bus already reaches a <c>ClusterMaster</c> — directly where it
+    /// owns one, or via <c>ClusterOpEgressTranslator</c> → DDS on a slave. ⇒ ⛔ <b>this introduces NO new
+    /// collection mechanism</b>: the dump-diag pipeline already fans out and pulls to NAS. It selects the
+    /// existing trigger from a second surface.</para>
+    ///
+    /// <para>⚠ <see langword="null"/> when this subsystem has no orchestration bus.</para>
+    /// </summary>
+    Action<ExecuteDiagnosticDumpIntent>? RequestDiagnosticDump { get; }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>MD-007</c> — the last dump's outcome, from whichever node caches it.</b>
+    ///
+    /// <para>⭐⭐⭐ <b>The read model is <c>ClusterUiCache</c>, and this is exactly what the panel renders</b>
+    /// — 📐 <c>ClusterDiagnosticsPanel.SyncManifestFromCache</c> reads <c>LastDiagnosticManifest</c>, and its
+    /// results section shows nothing else. ⛔ It is NOT <c>DiagnosticsDumpProcessManager</c>, which exposes
+    /// only <c>Tick()</c>; 📌 measuring that class instead of the panel is what produced a false
+    /// *"there is no status read-model"* claim in the first cut of this slice.</para>
+    ///
+    /// <para>⚠ Same cluster-wide-fact rationale as <see cref="ClusterState"/>: one cluster, one last dump,
+    /// so reading it from whichever node keeps a cache answers the same question.</para>
+    /// </summary>
+    DiagnosticDumpStatus? DumpStatus { get; }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>MD-002</c> — this subsystem's ARCHITECTURE snapshot: its modules, systems and
     /// translators, read from ITS OWN <c>ModuleHostKernel</c>.</b>
     /// 📄 <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §2.2.
@@ -150,6 +198,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<ClusterState?>? _clusterState;
     private readonly Func<IReadOnlyList<string>?>? _availableScenarios;
     private readonly Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? _architecture;
+    private readonly Func<Action<ExecuteDiagnosticDumpIntent>?>? _requestDiagnosticDump;
+    private readonly Func<DiagnosticDumpStatus?>? _dumpStatus;
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE ACCESSORS ARE LAZY, AND THAT IS MEASURED — NOT DEFENSIVE STYLE.</b>
@@ -174,7 +224,9 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<Action<TransitionStateIntent>?>? requestTransition = null,
         Func<ClusterState?>? clusterState = null,
         Func<IReadOnlyList<string>?>? availableScenarios = null,
-        Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? architecture = null)
+        Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? architecture = null,
+        Func<Action<ExecuteDiagnosticDumpIntent>?>? requestDiagnosticDump = null,
+        Func<DiagnosticDumpStatus?>? dumpStatus = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
@@ -185,6 +237,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _clusterState = clusterState;
         _availableScenarios = availableScenarios;
         _architecture = architecture;
+        _requestDiagnosticDump = requestDiagnosticDump;
+        _dumpStatus = dumpStatus;
     }
 
     /// <summary>
@@ -211,6 +265,23 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         };
     }
 
+    /// <summary>
+    /// ⭐⭐ <b><c>MD-006</c> — the dump analog of <see cref="TransitionsVia"/>, and the same one-implementation
+    /// argument applies:</b> every host publishes onto its own orchestration bus and every one of those buses
+    /// reaches a <c>ClusterMaster</c>. ⛔ Four hand-written copies of one lambda would be four places to drift.
+    /// ⚠ The bus is fetched through a <see cref="Func{T}"/> and re-read on every access — subsystem buses are
+    /// created in <c>Initialize</c> and NULLED in <c>Shutdown</c>.
+    /// </summary>
+    public static Func<Action<ExecuteDiagnosticDumpIntent>?> DumpsVia(Func<FdpEventBus?> orchestrationBus)
+    {
+        if (orchestrationBus == null) throw new ArgumentNullException(nameof(orchestrationBus));
+        return () =>
+        {
+            var bus = orchestrationBus();
+            return bus is null ? null : intent => bus.PublishManaged(intent);
+        };
+    }
+
     public string SubsystemName { get; }
     public string Perspective { get; }
     public EntityRepository? World => _world?.Invoke();
@@ -220,6 +291,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public ClusterState? ClusterState => _clusterState?.Invoke();
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
     public Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture => _architecture?.Invoke();
+    public Action<ExecuteDiagnosticDumpIntent>? RequestDiagnosticDump => _requestDiagnosticDump?.Invoke();
+    public DiagnosticDumpStatus? DumpStatus => _dumpStatus?.Invoke();
 
     /// <summary>
     /// ⭐⭐⭐ <b>MEASURED from what is wired</b> — ⛔ never declared. 📌 Q54's one real risk: a hand-authored
@@ -235,6 +308,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         //   Orchestrator, which genuinely have none, and that is the honest cell rather than an empty
         //   snapshot that would read as "this subsystem runs no modules".
         [DebugCapabilities.ArchitectureDiagnostics] = Architecture is not null,
+        // ⭐ MD-006 — measured from the orchestration bus being reachable, exactly like ScenarioLoad.
+        [DebugCapabilities.ClusterDiagnosticsDump] = RequestDiagnosticDump is not null,
         // ⭐ Panels and the gizmo frame are PROCESS-WIDE statics (PanelSnapshot / the primitive buffer), so
         //   they are not a per-provider capability — the dispatcher reports them once. ⛔ Claiming them here
         //   per subsystem would suggest a routing that does not exist.
@@ -254,6 +329,9 @@ public static class DebugCapabilities
 
     /// <summary>⭐ MD-002 — this subsystem can report its modules/systems/translators (it has a kernel).</summary>
     public const string ArchitectureDiagnostics = "diagnostics.architecture";
+
+    /// <summary>⭐ MD-006 — this subsystem can trigger the cluster-wide diagnostic dump from its own bus.</summary>
+    public const string ClusterDiagnosticsDump = "diagnostics.clusterDump";
 
     /// <summary>
     /// ⭐⭐ <b>Requesting a cluster-wide scenario load</b> — <c>scenario/load/live</c> · <c>scenario/load/edit</c>.

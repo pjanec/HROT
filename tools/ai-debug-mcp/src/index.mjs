@@ -980,6 +980,35 @@ const TOOLS = [
   },
 
   {
+    name: 'trigger_cluster_diagnostic_dump',
+    description: TOOL_DEFS['trigger_cluster_diagnostic_dump'].description,
+    inputSchema: TOOL_DEFS['trigger_cluster_diagnostic_dump'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        // ⭐ Only the keys the caller actually set are forwarded, so the host's own defaults
+        //   (all four dump kinds on) apply rather than being overwritten with `undefined`.
+        const body = { nodes: toolArgs.nodes ?? [] };
+        for (const k of ['dumpEvents', 'dumpEntities', 'dumpArchitecture', 'dumpLogs',
+                         'eventProviders', 'useMarkdown', 'maxAgeHours', 'severityThreshold']) {
+          if (toolArgs[k] !== undefined) body[k] = toolArgs[k];
+        }
+        return toolSuccess(await callApi('POST', '/cluster/diagnostics/dump', body));
+      } catch (err) { return toolError(err.message, err.envelope, 'trigger_cluster_diagnostic_dump'); }
+    },
+  },
+
+  {
+    name: 'get_cluster_diagnostic_status',
+    description: TOOL_DEFS['get_cluster_diagnostic_status'].description,
+    inputSchema: TOOL_DEFS['get_cluster_diagnostic_status'].inputSchema,
+    async handler() {
+      try {
+        return toolSuccess(await callApi('GET', '/cluster/diagnostics/status'));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_cluster_diagnostic_status'); }
+    },
+  },
+
+  {
     name: 'get_architecture_diagnostics',
     description: TOOL_DEFS['get_architecture_diagnostics'].description,
     inputSchema: TOOL_DEFS['get_architecture_diagnostics'].inputSchema,

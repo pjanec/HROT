@@ -67,6 +67,141 @@ namespace Hrot.Editor.DebugApi
           + "— an ExCon or orchestrator-only node — correctly has none: check GET /capabilities for the "
           + "'diagnostics.architecture' cell rather than reading this as a wiring bug.";
 
+        // ══ MD-006 / MD-007: the CLUSTER-WIDE dump ════════════════════════════
+        //
+        // ⭐⭐⭐ NOTHING IS COLLECTED HERE. 📐 The dump-diag pipeline already fans out over CQRS intent,
+        //    gathers on every selected node and pulls to NAS over SMB — that is what the operator's
+        //    "Execute Diagnostic Dump" button drives, and it works. ⇒ ⛔ these two routes are a SECOND
+        //    SURFACE on that one mechanism, never a second mechanism.
+        // 📌 The first cut of this slice claimed the status half was unreachable, having measured
+        //    `DiagnosticsDumpProcessManager` (which exposes only Tick()) instead of the read model the
+        //    PANEL actually renders. ⚠ The panel reads `ClusterUiCache` — so that is what this reads.
+
+        private const string NoClusterDump =
+            "This host cannot trigger a cluster diagnostic dump: no subsystem here exposes an "
+          + "orchestration bus. The dump is published as a CQRS intent that any node's bus carries to the "
+          + "ClusterMaster, so a host with no such bus cannot ask. Check the 'diagnostics.clusterDump' "
+          + "cell in GET /capabilities.";
+
+        /// <summary>
+        /// <c>POST /cluster/diagnostics/dump</c> — collect diagnostics on the selected nodes and pull them
+        /// to the NAS, exactly as the ExCon's Execute button does.
+        /// </summary>
+        /// <remarks>
+        /// ⚠⚠ <b>ASYNCHRONOUS and cluster-wide.</b> The response confirms the intent was PUBLISHED, ⛔ not
+        /// that files exist — the gather runs on every selected node and the NAS pull follows. ⭐ Poll
+        /// <c>GET /cluster/diagnostics/status</c> for the manifest.
+        /// <para>⚠ Ruling 53: a headless origin never pre-flights a confirmation, so the request is
+        /// LOGGED with its transaction id and target nodes — that log is the whole safety net.</para>
+        /// </remarks>
+        public (JsonNode? Result, string? Error, string? HintCategory) TriggerClusterDump(JsonNode? body)
+        {
+            var publish = _dispatcher?.RequestDiagnosticDumpAnyNode;
+            if (publish == null) return (null, NoClusterDump, DebugApiHints.Panel);
+
+            // ⭐ The node set. ⛔ An EMPTY list is refused rather than treated as "all": the panel disables
+            //   its own button on an empty selection, and a dump of everything is a very different
+            //   operation from a dump of one node.
+            var nodes = new List<int>();
+            if (body?["nodes"] is JsonArray nodeArr)
+                foreach (var n in nodeArr)
+                    if (n != null && int.TryParse(n.ToString(), out var id)) nodes.Add(id);
+
+            if (nodes.Count == 0)
+                return (null,
+                        "Body must name at least one node: {\"nodes\": [1, 2]}. List the live ones with "
+                      + "GET /cluster/diagnostics/status. An empty selection is refused rather than read as "
+                      + "\"every node\" — the editor's own panel disables its button on the same condition.",
+                        DebugApiHints.Panel);
+
+            bool Flag(string name, bool fallback)
+                => body?[name] is { } v && bool.TryParse(v.ToString(), out var b) ? b : fallback;
+
+            var providers = new List<string>();
+            if (body?["eventProviders"] is JsonArray provArr)
+                foreach (var pn in provArr)
+                    if (!string.IsNullOrWhiteSpace(pn?.ToString())) providers.Add(pn!.ToString());
+
+            var dto = new Hrot.Network.Orchestration.DiagnosticDumpPayloadDto
+            {
+                TransactionId    = Guid.NewGuid(),
+                RequestedAt      = DateTime.UtcNow,
+                TargetNodeIds    = nodes.ToArray(),
+                // ⭐ The same defaults the panel opens with: all four kinds on. An agent that wants less
+                //   says so; ⛔ defaulting to nothing would produce an empty archive and look like a bug.
+                DumpEvents       = Flag("dumpEvents",       true),
+                DumpEntities     = Flag("dumpEntities",     true),
+                DumpArchitecture = Flag("dumpArchitecture", true),
+                DumpLogs         = Flag("dumpLogs",         true),
+                EventProviders   = providers.Count > 0 ? providers.ToArray() : null,
+                UseMarkdownWrapper = Flag("useMarkdown", false),
+                MaxAgeHours      = body?["maxAgeHours"] is { } ma && float.TryParse(
+                                       ma.ToString(), System.Globalization.NumberStyles.Float,
+                                       System.Globalization.CultureInfo.InvariantCulture, out var mah)
+                                   ? mah : 24f,
+                SeverityThreshold = body?["severityThreshold"] is { } st
+                                    && int.TryParse(st.ToString(), out var sev) ? sev : 0,
+            };
+
+            var payloadJson = System.Text.Json.JsonSerializer.Serialize(
+                dto, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+            publish(new Fdp.Toolkit.Orchestration.ExecuteDiagnosticDumpIntent
+            {
+                RequestId   = dto.TransactionId,
+                PayloadJson = payloadJson,
+            });
+
+            Console.WriteLine(
+                $"[DebugApi] cluster diagnostic dump requested over MCP — tx={dto.TransactionId:N}, "
+              + $"nodes=[{string.Join(", ", nodes)}], kinds=[events={dto.DumpEvents} entities={dto.DumpEntities} "
+              + $"architecture={dto.DumpArchitecture} logs={dto.DumpLogs}]");
+
+            return (new JsonObject
+            {
+                ["transactionId"] = dto.TransactionId.ToString(),
+                ["nodes"]         = new JsonArray(nodes.Select(n => (JsonNode)n).ToArray()),
+                ["queued"]        = true,
+                ["note"]          = "the dump is CLUSTER-WIDE and asynchronous: every selected node gathers, "
+                                  + "then the orchestrator pulls to the NAS. Poll GET /cluster/diagnostics/"
+                                  + "status until manifestPaths is non-empty; this response only confirms "
+                                  + "the request was published.",
+            }, null, null);
+        }
+
+        /// <summary>
+        /// <c>GET /cluster/diagnostics/status</c> — the live nodes, whether a cluster op is in flight, and
+        /// the manifest of the last successful dump.
+        /// </summary>
+        /// <remarks>
+        /// ⭐⭐ Reads <c>ClusterUiCache</c> through the provider seam — **the same read model
+        /// <c>ClusterDiagnosticsPanel</c> renders**, so this answers what a human at the console sees.
+        /// <para>⚠ <c>manifestPaths</c> is EMPTY until the first successful dump completes: ⛔ empty means
+        /// "none yet", not "the dump failed".</para>
+        /// </remarks>
+        public (JsonNode? Result, string? Error, string? HintCategory) GetClusterDumpStatus()
+        {
+            var status = _dispatcher?.DumpStatusAnyNode;
+            if (status == null)
+                return (null,
+                        "No node on this host caches cluster diagnostics state. The read model is "
+                      + "ClusterUiCache, which only a subsystem that builds and pumps one can supply "
+                      + "(in --mode all that is ExCon). A host without one cannot observe a dump it can "
+                      + "still trigger.",
+                        DebugApiHints.Panel);
+
+            return (new JsonObject
+            {
+                ["inFlight"]      = status.InFlight,
+                ["manifestPaths"] = new JsonArray(
+                                        status.ManifestPaths.Select(x => (JsonNode)x).ToArray()),
+                ["manifestCount"] = status.ManifestPaths.Count,
+                ["note"]          = "manifestPaths are relative to the NAS base directory and describe the "
+                                  + "LAST SUCCESSFUL dump. Empty means none has completed yet, not that one "
+                                  + "failed. inFlight covers any cluster transaction, not only a dump.",
+            }, null, null);
+        }
+
         /// <summary>
         /// <c>GET /diagnostics/architecture[?subsystem=SimHost]</c> — this node's modules, systems and
         /// translators, per subsystem.

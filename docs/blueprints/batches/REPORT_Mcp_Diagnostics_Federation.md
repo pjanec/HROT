@@ -104,6 +104,32 @@ capability gap.**
 ⭐ **The general lesson, worth more than the item:** ⛔ **a correct measurement aimed at the wrong question
 still misinforms.** Both findings were individually true; both answered something nobody asked.
 
+## 3b. ⭐⭐⭐ FOLLOW-UP `2026-08-26` — **the two routes, BUILT** *(`MD-006` / `MD-007`)*
+
+⭐ Built directly on the correction in §3, after re-syncing from the coordinator *(the axis-b egress merge
+plus the recorded MCP-diagnostics merge — clean, no conflicts)*.
+
+| ⭐ | |
+|---|---|
+| `POST /cluster/diagnostics/dump` | publishes the **same `ExecuteDiagnosticDumpIntent` the ExCon's Execute button publishes** |
+| `GET /cluster/diagnostics/status` | reads the **same `ClusterUiCache` its results section renders** |
+| the seam | `RequestDiagnosticDump` *(via `DumpsVia`, mirroring `TransitionsVia`; all four subsystems — any node may ASK)* · `DumpStatus` *(ExCon only — the one that PUMPS a cache)* |
+| 📐 | catalog **91 → 93 tools** · `test-catalog` **745 / 0** · editor units **251 / 0** |
+
+⭐⭐⭐ **The rail's load-bearing assertion, and its probe.** ⛔⛔ A `200` with a transaction id proves only
+that the ROUTE ran — 📌 exactly what `MA-004` and `MA-017` each caught once. ⇒ the rail **polls the node's
+own output for the `ClusterMaster` fan-out line carrying THAT transaction id**:
+📐 `Diagnostic Dump 39d84531-… fanned out to 1 node(s)`.
+🔴 **Probed by making the publish a silent no-op** — the route still answers `200 queued:true`, and the
+rail reddens with *"the route returned queued:true … but the ClusterMaster never logged fanning it out."*
+
+⚠ **What it deliberately does NOT assert: that files appeared.** ⛔ No NAS in the harness ⇒ that would
+redden on the environment, not the code. ⭐ It asserts what this surface owns.
+
+⭐ **And an empty node list is REFUSED**, because `ClusterDiagnosticsPanel` disables its own button on the
+same condition — ⛔ accepting `[]` would make MCP the one path that does what the UI refuses *(the `MA-015`
+parity argument)*.
+
 ## 4. GATES *(rule 8 contract)*
 
 > 📌 **Base: the started-marker `98a31b364`** *(dispatch `0ee5305a8`)*.
@@ -113,13 +139,15 @@ still misinforms.** Both findings were individually true; both answered somethin
 | # | gate | verbatim command | `--no-build`? | result | Δ vs base |
 |---|---|---|---|---|---|
 | 1 | **affected-project builds** | `dotnet build {Fdp.Core,Hrot.Presentation,Hrot.SimHost,Hrot.IG,Hrot.ExCon,Hrot.CGF,Hrot.Editor,Hrot.ClusterRunner,…Tests}.csproj --no-restore -v q -nologo` | ⛔ builds *(once each)* | ✅ **0 errors** | — |
+| 2a | ⭐⭐⭐ **the T3 cluster-dump rail** *(`MD-006`/`MD-007`)* | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter "FullyQualifiedName~An_agent_can_drive_the_cluster_diagnostic_dump"` | ✅ | ✅ **1 / 1, 6 s.** 📐 status answers · empty selection refused · `queued:true` · **the master's fan-out line observed for that transaction id** · `inFlight` flips to `True` | **+1 rail** |
+| 2b | ⭐⭐⭐ **its revert probe** — the publish made a silent no-op | rebuild `Hrot.ClusterRunner`, re-run | ✅ | ✅ 🔴 **red on the fan-out assertion**, with the route still answering `200 queued:true` | — |
 | 2 | ⭐⭐⭐ **the T3 federation rail** — the acceptance vehicle | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter "FullyQualifiedName~A_non_editor_node_reports_its_own_logs"` | ✅ | ✅ **1 / 1, 2 s.** 📐 `17` log records · `SimHost — 10 modules / 56 systems / 37 translators` · `diagnostics.architecture` present in `/capabilities` | **+1 rail** |
 | 3 | ⭐⭐⭐ **revert probe A** *(item ①, the SimHost gap)* | drop `logSinks:` from `ClusterRunner/Program.cs`, rebuild it, re-run | ✅ | ✅ 🔴 **red: `logs: 0 record(s)`** — ⭐ **that zero IS the pre-fix state on every cluster-limited node** | — |
 | 4 | ⭐⭐ **revert probe B** *(item ②)* | null out `architecture:` in `SimHostSubsystem`'s provider, rebuild, re-run | ✅ | ✅ 🔴 **red**, the route refusing and naming the missing accessor | — |
 | 5 | **the editor unit suite** *(carries `EveryRouteIsDocumentedTests` + `CapabilityManifestRails` — the gates the new route and the new `/diagnostics` prefix had to satisfy)* | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/…csproj --no-build -v q --nologo` | ✅ | ✅ **251 / 0 / 1 skipped** | **none** |
 | 6 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — a route on the shared table, a new member on a seam FOUR subsystems implement, and changes at BOTH composition roots ⇒ nothing smaller can show the cross-host contract holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | ✅ **104 / 0**, 6 m 32 s — §4b | **+1 rail** |
-| 7 | **the MCP catalog is GENERATED** | `npm run gen:catalog` · `npm run gen:skill` | — | ✅ **90 → 91 tools** from 91 endpoints; `SKILL.md` regenerated *(501 lines)*. ⚠ **The generator reads the BUILT binary** — the first regen produced 90 because `Hrot.ClusterRunner` had not been rebuilt | **+1 tool** |
-| 8 | **every catalogued tool has a handler** | `node test-catalog.mjs` | — | ✅ **729 / 0** | **+8 assertions** |
+| 7 | **the MCP catalog is GENERATED** | `npm run gen:catalog` · `npm run gen:skill` | — | ✅ **90 → 93 tools** from 93 endpoints *(91 after `MD-001..003`, 93 after the `MD-006/007` follow-up)*; `SKILL.md` regenerated *(507 lines)*. ⚠ **The generator reads the BUILT binary** — the first regen produced 90 because `Hrot.ClusterRunner` had not been rebuilt | **+3 tools** |
+| 8 | **every catalogued tool has a handler** | `node test-catalog.mjs` | — | ✅ **745 / 0** | **+24 assertions** |
 | 9 | **golden movement** | — | — | ⭐ **ZERO** | **none** |
 | 10 | 🔴 **tree CLEAN after every suite run** | `git status --short --untracked-files=all` | — | ✅ **only this batch's own files.** ⚠ The new rail reads only — it writes no asset and needs no sentinel folder | — |
 | 11 | **quarantine / skips** | — | — | ⚠ **This batch adds no skip** — ⛔ **but it FOUND one that was already there and undeclared:** `DebugApiBatch11Tests.cs` and nine siblings are `<Compile Remove>`-excluded, so the `logSinks` seam had no gate at all *(§2 ⑷)* | **none added** |

@@ -307,6 +307,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                                    .TransitionsVia(() => _context?.EventBus),
             // ⭐⭐ MD-002 — CGF's own kernel snapshot, the same one its Architecture Diagnostics window
             //    already renders (line ~1038). ⚠ Lazy: _context is null until Initialize.
+            // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
+            requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                       .DumpsVia(() => _context?.EventBus),
             architecture:  () => _context?.Kernel is null
                                  ? null
                                  : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(

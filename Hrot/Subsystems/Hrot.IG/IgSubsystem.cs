@@ -59,6 +59,9 @@ namespace Hrot.IG
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _app?.OrchestrationBus),
                 // ⭐⭐ MD-002 — IG's own kernel snapshot (it already builds one for its window, line ~169).
+                // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
+                requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                           .DumpsVia(() => _app?.OrchestrationBus),
                 architecture:  () => _app?.Kernel is null
                                      ? null
                                      : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(

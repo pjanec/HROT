@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Time.Controllers;
 using Hrot.UI.Common.Facades;
 
@@ -144,6 +145,22 @@ public sealed class PerspectiveScopedDispatcher
     public Fdp.Toolkit.Orchestration.ClusterState? ClusterStateAnyNode
         => Active()?.ClusterState
            ?? _providers.Select(p => p.ClusterState).FirstOrDefault(s => s is not null);
+
+    /// <summary>
+    /// ⭐⭐ <b><c>MD-006</c> — trigger the cluster dump from whichever node can publish it.</b>
+    /// <para>⚠ Prefers the ACTIVE perspective *(the request then travels the path that operator's own button
+    /// takes)*, ⭐ but falls back to any provider with a bus — because the DUMP is cluster-wide by
+    /// construction, so it does not matter which node asks. ⛔ Contrast <see cref="Drive"/>, where the
+    /// asking node IS the answer.</para>
+    /// </summary>
+    public Action<ExecuteDiagnosticDumpIntent>? RequestDiagnosticDumpAnyNode
+        => Active()?.RequestDiagnosticDump
+           ?? _providers.Select(p => p.RequestDiagnosticDump).FirstOrDefault(a => a is not null);
+
+    /// <summary>⭐ <c>MD-007</c> — the last dump's outcome from whichever node caches it; same one-cluster-one-fact rationale as <see cref="ClusterStateAnyNode"/>.</summary>
+    public DiagnosticDumpStatus? DumpStatusAnyNode
+        => Active()?.DumpStatus
+           ?? _providers.Select(p => p.DumpStatus).FirstOrDefault(s => s is not null);
 
     /// <summary>⭐ Scenario inventory from whichever node caches it — same rationale as <see cref="ClusterStateAnyNode"/>.</summary>
     public IReadOnlyList<string>? AvailableScenariosAnyNode

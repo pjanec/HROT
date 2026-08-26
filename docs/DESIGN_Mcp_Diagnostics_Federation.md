@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (items ①②) — `2026-08-25`, ids `MD-001`..`MD-005`. ⛔ Items ③/④ are STOPPED, each with a
-  measured blocker; see §8 AS BUILT. Carries classDiagram + sequenceDiagram (§4/§5). A NEW MCP capability area,
+build-state: BUILT — `2026-08-26`, ids `MD-001`..`MD-007`. ⭐ Items ①②③ SHIPPED; ⛔ item ④ WITHDRAWN as an
+  unwanted duplicate mechanism (user ruling). See §8 AS BUILT and §9. Carries classDiagram + sequenceDiagram (§4/§5). A NEW MCP capability area,
   sibling of DESIGN_Mcp_Authoring.md and MCP_Integration.md. Two things: (1) DOCUMENTS the per-node
   federation topology that already exists (each node hosts its own DebugApi with mode-gated capabilities);
   (2) designs the DIAGNOSTICS surface over MCP — per-node logs, per-node architecture snapshot, and
@@ -274,3 +274,63 @@ capability gap, and the earlier text conflated the two.
 ⇒ ⛔ **nothing has gated this seam**, which is part of why the empty default survived. ⭐ Its call site was
 updated to the new `Func<>` shape so it is correct whenever it is re-enabled, ⚠ **but it does not compile
 today and must not be counted as coverage.**
+
+---
+
+# ⭐⭐⭐ 9. AS BUILT — the cluster dump, `2026-08-26`, ids `MD-006` / `MD-007`
+
+> 🔒 **Built on the user's ruling that §8.5's "blocked" verdict was wrong.** ⭐ This section is the
+> as-built for item ③; ⛔ item ④ stays WITHDRAWN.
+
+## 9.1 ⭐⭐ TWO ROUTES, AND **NOTHING NEW COLLECTS ANYTHING**
+
+| route | tool | what it does |
+|---|---|---|
+| `POST /cluster/diagnostics/dump` | `trigger_cluster_diagnostic_dump` | ⭐ builds a `DiagnosticDumpPayloadDto` and publishes `ExecuteDiagnosticDumpIntent` — **byte-for-byte what `ClusterDiagnosticsPanel`'s Execute button publishes** |
+| `GET /cluster/diagnostics/status` | `get_cluster_diagnostic_status` | ⭐ `inFlight` + the last successful dump's manifest, read from **`ClusterUiCache` — the same read model the panel's results section renders** |
+
+📐 `gen:catalog` **91 → 93 tools** · `test-catalog` **745 / 0** · editor unit suite **251 / 0**.
+
+⇒ ⭐⭐⭐ **The dump-diag pipeline is untouched.** It already fans out over CQRS intent, gathers on every
+selected node and pulls to NAS over SMB. ⛔ These routes are a **second surface on one mechanism**, which
+is the whole reason §2.3 (b)'s aggregator is not built *(ruling 9)*.
+
+## 9.2 ⭐⭐ THE SEAM — **the fifth and sixth members of the same provider contract**
+
+```
+ISubsystemDebugProvider
+  World · EntityMap · Drive · RequestTransition · ClusterState · AvailableScenarios
+  + Architecture            (MD-002)
+  + RequestDiagnosticDump   (MD-006)  ── SubsystemDebugProvider.DumpsVia(bus), mirroring TransitionsVia
+  + DumpStatus              (MD-007)  ── a DiagnosticDumpStatus record: primitives, never the cache object
+```
+
+| ⭐ decision | why |
+|---|---|
+| **`DumpsVia` mirrors `TransitionsVia`** | 📐 every host publishes onto its own orchestration bus and every one of those buses reaches a `ClusterMaster`. ⛔ Four hand-written copies of one lambda is four places to drift |
+| **trigger on all four subsystems, status on ExCon only** | ⭐ any node may ASK *(the dump is cluster-wide by construction)*; ⛔ only a subsystem that builds and PUMPS a `ClusterUiCache` can OBSERVE — in `--mode all` that is ExCon, the same measured fact `ClusterStateAnyNode` already rests on |
+| **`DiagnosticDumpStatus` carries primitives** | ⭐ identical to how `clusterState` and `availableScenarios` are projected out of the cache ⇒ `Hrot.Presentation` needs no reference to `Hrot.Orchestrator`. ⚠ Lossless: the cached manifest carries only `RelativeDest` |
+| **`RequestDiagnosticDumpAnyNode` falls back past the active perspective** | ⛔ unlike `Drive`, where the asking node IS the answer. ⭐ A cluster-wide dump does not care which node asks |
+
+## 9.3 ⭐⭐⭐ THE ONE ASSERTION THAT EARNS THE RAIL
+
+⛔⛔ **A `200` with a transaction id proves only that the ROUTE ran.** 📌 This surface has been bitten
+twice by exactly that gap — `MA-004` *(an id resolving to nothing)* and `MA-017` *(a command accepted that
+built nothing)*.
+
+⇒ ⭐⭐ **the rail polls the node's own output for the `ClusterMaster`'s fan-out line carrying THAT
+transaction id.** 📐 Measured green:
+`ClusterMaster | [Orchestrator] Diagnostic Dump 39d84531-… fanned out to 1 node(s).`
+🔴 **Probed by making the publish a silent no-op:** the route still answers `200 queued:true`, and the rail
+**reddens** — *"the route returned queued:true … but the ClusterMaster never logged fanning it out."*
+
+⚠ **What the rail deliberately does NOT assert: that files appeared.** ⛔ There is no NAS in the harness,
+so demanding a non-empty manifest would redden on the ENVIRONMENT, not the code. ⭐ It asserts what this
+SURFACE owns — publish, fan-out, honest status, and that an empty node list is REFUSED.
+
+## 9.4 ⭐ AN EMPTY NODE LIST IS REFUSED, NOT READ AS "ALL"
+
+📐 `ClusterDiagnosticsPanel` **disables its Execute button** on an empty selection. ⇒ ⛔ accepting `[]`
+over MCP would make it **the one path that does what the UI refuses** — 📌 the same parity argument as the
+`409` on a disabled editor command *(`MA-015`)*. ⭐ And dumping every node is a materially different
+operation from dumping one.
