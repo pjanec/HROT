@@ -3,8 +3,10 @@ state: LIVE
 build-state: DESIGN — decision-shaped, awaiting the user's approval. ⛔ NOT ready to dispatch: the UML
   belongs with the chosen option, and the option is not chosen yet.
 updated: 2026-08-26
-current-answer: §4 carries a RECOMMENDED answer per sub-question. Nothing here is approved yet.
-stale-below: nothing.
+current-answer: ⭐⭐⭐ §7 (the ATTRIBUTE / DESCRIPTOR SPLIT, user 2026-08-26) is the CURRENT answer and it
+  REVISES §3 and §4. Read §7 FIRST, then §4's revised leans. Nothing here is approved yet.
+stale-below: ⛔ §3's "6-tuple" is SUPERSEDED by §7.2 — it is TWO tuples joined by component identity.
+  ⛔ §4's Q59-A1 (6 fields) and Q59-C2 (adopt ATTR-DESIGN Phase 6) are SUPERSEDED by §7.4/§7.5.
 known-conflict: none. §5 F3 is a NEW defect this investigation found; it has no prior design record.
 -->
 # ⭐⭐⭐ `Q59` — **One attribute, declared how many times?** *(consistency · architectural correctness · redundancy)*
@@ -64,7 +66,7 @@ search_graph(name_pattern=".*AttributeSchema.*|.*ExportSchema.*|.*AttributeManif
 
 ---
 
-## 3. ⭐⭐ THE ARCHITECTURAL DIAGNOSIS, in one line
+## 3. ⛔ THE ARCHITECTURAL DIAGNOSIS *(SUPERSEDED by §7.2 — kept because §7 argues against it)*
 
 > ⭐⭐⭐ **There is no single declaration of *"what an attribute IS."*** An attribute is a **6-tuple**
 > — *(JSON path, `AttributeId`, value kind, ECS component, field setter, descriptor ordinal)* — and the code
@@ -143,3 +145,115 @@ tuple does not collapse to a single lambda, and any design claiming it does is w
 | **4** | ⚠ `C2` — Phase 6 adoption for `DescriptorMapper` | ⛔ its own batch: a real behaviour change on the spawn path |
 
 ⛔ **`D2` is not scheduled.**
+
+---
+
+## 7. ⭐⭐⭐ THE ATTRIBUTE / DESCRIPTOR SPLIT — **user, `2026-08-26`. It changes the design, and SIMPLIFIES it.**
+
+> ⭐⭐⭐ **User, verbatim:** *"we might need to differentiate between attributes and descriptors. attributes
+> are entity-related, network agnostic. In contrary, descriptors are Ned network concept and descriptor
+> compiler/translator belongs to network namespace. Does that change the design?"*
+>
+> ⭐⭐⭐ **Yes — materially. ⛔ And it retires three things I built in the last two steps.**
+
+### 7.1 ⭐⭐ Applying the split to §1.1's five surfaces
+
+| # | surface | ⭐ attribute *(FDP)* or descriptor *(NED)*? | ⚠ verdict |
+|---|---|---|---|
+| ① | `Build()` — path → component + setter **+ ordinal** | **attribute** | 🔴 **but it carries a DESCRIPTOR ORDINAL** |
+| ② | `BuildEdgeCompiler()` — path → id + kind | **attribute** | ✅ clean |
+| ③ | the three installers — id → component + setter **+ ordinal** | **attribute** | 🔴 **same leak** |
+| ④ | `DescriptorMapper.MapToComponents` | ⭐ **descriptor** | ✅ **already in `Hrot.Network.NED/…/Map/Utils/`** — exactly where the user says it belongs |
+| ⑤ | `ExportSchema` | **attribute** | ✅ clean |
+
+⇒ ⭐⭐ **The split cleanly separates them, and ④ is already on the right side of the line.**
+⛔ **The violation is the opposite of what I assumed: it is `DescriptorOrdinal` sitting in FDP.**
+
+### 7.2 ⭐⭐⭐ THE CORRECTED DIAGNOSIS — **two tuples, joined by COMPONENT IDENTITY**
+
+⛔ §3 said an attribute is a **6-tuple**. ⭐⭐ **Under the split it is TWO tuples:**
+
+| | tuple | owner |
+|---|---|---|
+| ⭐ **attribute** | *(JSON path, `AttributeId`, value kind, ECS component, field setter)* — **5 fields, NO ordinal** | **FDP** |
+| ⭐ **descriptor** | *(descriptor ordinal, the ECS components it covers, the wire struct)* | **NED** |
+| ⭐⭐⭐ **the join** | ⭐ **the ECS COMPONENT** — the one thing both sides legitimately share, and `ComponentTypeRegistry` is already that shared identity | both |
+
+### 7.3 ⭐⭐⭐ AND THE SEAM ALREADY EXISTS — **`IDescriptorTranslator` declares BOTH halves**
+
+📐 **Measured `2026-08-26`** *(`FDP/Engine/Fdp.Core/Abstractions/IDescriptorTranslator.cs`)*:
+
+```csharp
+long DescriptorOrdinal { get; }                                        // line 57
+IReadOnlyList<int> TargetComponentIds => System.Array.Empty<int>();    // line 75
+```
+
+⇒ ⭐⭐⭐ **the component→descriptor map is the INVERSE of what the network layer ALREADY declares, per
+translator.** 📌 **This is the seam law in its purest form** — *"we need a shared X"* meant X existed.
+
+⚠⚠ **And it is UNDER-ADOPTED: `search_graph` → 41 egress translators; only 9 declare `TargetComponentIds`.**
+⛔ **With a silent EMPTY default** — 📌 the *"a production caller that HAS a dependency must PASS it"* rule,
+so a derived map would be **silently sparse**. 🔴 **`EntityInfoEgressTranslator` is one of the 32 that
+declare nothing — the exact descriptor `AX-015` was about.**
+
+⭐⭐ **Note the shape `IDescriptorTranslator` already gets right, because it is the model for the fix:**
+**FDP declares the SEAM** *(an opaque `long`, network-agnostic)*; **NED declares the VALUES**
+*(`(long)EDescriptorType.dtWorldPos`)*. ⇒ ⭐ that is precisely what ① and ③ should have done and did not.
+
+### 7.4 ⛔⛔ WHAT THIS RETIRES — **three things I built in the last two steps**
+
+| built | ⛔ verdict under the split |
+|---|---|
+| `Fdp.Toolkit.Replication.DescriptorOrdinal` *(`AX-017`)* | ⛔ **unnecessary.** FDP should have no descriptor vocabulary at all. ⚠ I justified it as *"an ordinal is just a bit index, network-agnostic"* — **mechanically true, and it misses the point: its MEANING is a NED grouping** |
+| `DescriptorOrdinalConversion` *(`AX-017`)* | ⛔ **unnecessary** — nothing left to convert |
+| `IEntityPatchContext.MarkDescriptorDirty` *(`AX-015`)* | ⛔ **unnecessary.** 📐 **Measured: every one of the 5 call sites sits immediately after `GetUnmanagedComponent<T>()` on the SAME component**, and the ordinal is a constant function of that type ⇒ **100 % derivable** |
+
+⭐⭐⭐ **`AX-015` had a strictly better fix available, and I missed it.** 📐 `EcsPatchContext` **already** holds
+`_ordinalByType` and **already** calls `RecordOrdinal(typeof(T))` inside `GetUnmanagedComponent<T>()`. The
+binary path failed only because `EcsPatchContext.Create` passes `s_emptyRoutes` ⇒ an **empty map**.
+⇒ ⭐⭐ **give that context the map and the defect disappears with ZERO installer changes and no new seam
+member.** ⚠ What I shipped works and is railed — ⛔ but it added a member to a public interface to carry
+information the context could already derive.
+
+### 7.5 ⛔⛔ `Q59-C2` IS WITHDRAWN — **`ATTR-DESIGN` Phase 6 is architecturally WRONG under the split**
+
+⚠ §4 recommended *"finish Phase 6: route `DescriptorMapper` through the attribute compiler, in its own
+batch."* ⛔ **The split says do NOT.** 📐 A descriptor is a **wire-shaped BUNDLE** *(`dtEntityInfo` carries
+Name **and** ForceId together)*; an attribute is an **individually addressed FIELD**. ⇒ the two mappings
+share their **field-level conversion**, ⛔ **not their addressing** — and Phase 6 conflates exactly that.
+⚠ **Phase 6 predates this split**; it is not wrong so much as **written before the distinction existed.**
+
+⭐⭐ **What IS shared, and must be:** the field-level conversion helpers — `HeadingDegToRotation`,
+`IGeographicTransform.ToCartesian`, `MapAffiliation*`. ⭐ All FDP, all network-agnostic, and **both sides
+should CALL them.** ⇒ 📌 **that is exactly what `F3` and `F5` are about**, so `C1` absorbs the useful half of
+Phase 6 and the rest is dropped.
+
+### 7.6 ⭐⭐ THE REVISED RECOMMENDATION
+
+| # | ⭐ revised lean | change vs §4 |
+|---|---|---|
+| **`A1′`** | ⭐⭐⭐ **one `AttributeDefinition` with FIVE fields — no ordinal.** ①②③ derived from it | ⭐ **simpler than `A1`**: the hardest field to share is gone |
+| **`E`** ⭐ NEW | ⭐⭐⭐ **the ordinal map is INJECTED by the network layer**, assembled from the translator registry's `{DescriptorOrdinal, TargetComponentIds}`; both patch contexts get it; `RecordOrdinal` already does the rest. ⭐ On a **networkless** host the map is legitimately **empty** — nothing to republish | ⭐ **replaces `MarkDescriptorDirty`** and retires the FDP descriptor enum |
+| **`E-pre`** ⭐ NEW | ⚠⚠ **PREREQUISITE — adopt `TargetComponentIds` on the translators that need it, and RAIL it:** any translator gating on `SmartEgressUtil.ShouldPublish` with `MarkDirty` **must** declare it. ⛔ Without this the derived map is silently sparse *(9/41 today)* | 🔴 **the real cost of `E`, and it must not be hidden** |
+| **`B1`** | ⭐⭐ unchanged — derive `ExportSchema` from the definitions | — |
+| **`C1`** | ⭐⭐⭐ unchanged and now **more** important: fix `F3`, and make **both** the descriptor and attribute paths call the shared FDP conversion | ⭐ absorbs the sound half of Phase 6 |
+| **`C2`** | ⛔⛔ **WITHDRAWN** *(§7.5)* | ⭐ was *"worth doing, separate batch"* |
+| **`D1`** | ⭐ unchanged | — |
+
+⚠⚠ **One caveat that `E` must not gloss:** ⭐ **a component maps to a SET of ordinals, not one.** 📐 Measured:
+`GlobalComponentIds.SimTransform` is declared by **both** `BdcWorldPosTranslator` and
+`GeoSpatialEgressTranslator`; `NetworkIdentity`/`TkbIdentity` by **both** `BdcEntityMasterTranslator` and
+`EntityMasterEgressTranslator`. ⇒ marking **every** covering descriptor dirty is the correct behaviour, ⛔ but
+it is a real change from today's one-ordinal-per-component and `_ordinalByType` must become
+`Dictionary<int, long[]>`.
+
+### 7.7 ⭐ REVISED SEQUENCING
+
+| order | item | why |
+|---|---|---|
+| **1** | ⭐⭐⭐ `C1` — fix `F3`; both paths call the shared conversion | ⛔ a live wrong rotation outranks all refactoring |
+| **2** | ⭐⭐ `E-pre` — adopt + rail `TargetComponentIds` | ⛔ `E` is unsound without it |
+| **3** | ⭐⭐ `E` — inject the ordinal map; retire `MarkDescriptorDirty`, `DescriptorOrdinal`, `DescriptorOrdinalConversion` | ⭐ **removes FDP's descriptor vocabulary entirely** |
+| **4** | ⭐ `A1′` + `B1` | ⭐ the attribute tuple, now 5 clean fields |
+
+⛔ **`C2` withdrawn · `D2` not scheduled.**
