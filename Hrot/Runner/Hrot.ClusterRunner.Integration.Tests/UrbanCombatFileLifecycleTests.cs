@@ -110,7 +110,18 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         UrbanCombatNewScenario.RegisterUrbanCombatBehaviors(
             cgf.CgfSvc.TestHook_BehaviorRegistry!);
 
-        var payloadJson = JsonSerializer.Serialize(new { TargetState = 31, ScenarioId = _scenarioId });
+        // ⭐⭐⭐ QA-027 — the target state must be the enum NAME, not its integer.
+        //
+        // ⛔ This sent `TargetState = 31`. TransitionPayloadDto's TargetState carries
+        //    [JsonConverter(typeof(StrictStringEnumConverter))], and OrchestrationJsonOptions documents
+        //    itself as *"enforce string-based enum serialisation, REJECT INTEGER ENUM VALUES … to avoid
+        //    silent integer-as-enum bugs"*. ⇒ the integer deserialised to null, ClusterOpRequestAdapter
+        //    threw "TransitionState JSON missing required 'TargetState'", and ClusterMaster CAUGHT that
+        //    into a Warn log + a Failure status nobody reads. ⇒ the cluster sat at state 0 with no
+        //    visible error — exactly the "silent integer-as-enum bug" the converter exists to prevent,
+        //    caught by it and then swallowed.
+        var payloadJson = JsonSerializer.Serialize(
+            new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId });
         await clusterMaster.HandleClusterOpRequestAsync(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),

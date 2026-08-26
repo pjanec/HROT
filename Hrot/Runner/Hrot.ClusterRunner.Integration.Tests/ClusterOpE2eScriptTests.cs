@@ -46,11 +46,24 @@ public sealed class ClusterOpE2eScriptTests
     // â”€â”€ Shared helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
-    /// Boots a minimal two-subsystem stack, loads <paramref name="scriptFileName"/>
-    /// and runs it to completion via <see cref="HeadlessTestExecutor.RunAsync"/>.
-    /// Returns the int exit code (0 = pass, 1 = fail).
+    /// ⭐ <c>QA-028</c> — runs the script and asserts it PASSED, carrying every recorded failure reason
+    /// into the xUnit message. ⛔ The old shape (<c>Assert.Equal(0, result)</c>) discarded them: the
+    /// executor collapses all failures to <c>1</c> and logs the reasons to the <c>NullLogger</c> this
+    /// class injects.
     /// </summary>
-    private static async Task<int> RunScriptAsync(string scriptFileName)
+    private static async Task RunScriptAndAssertPassedAsync(string scriptFileName)
+    {
+        var (exitCode, executor) = await RunScriptAsync(scriptFileName).ConfigureAwait(false);
+        ScriptRunAssert.Passed(executor, exitCode);
+    }
+
+    /// <summary>
+    /// Boots a minimal two-subsystem stack, loads <paramref name="scriptFileName"/> and runs it to
+    /// completion via <see cref="HeadlessTestExecutor.RunAsync"/>. Returns the exit code
+    /// (0 = pass, 1 = fail) <b>and the executor</b>, so the caller can read
+    /// <see cref="HeadlessTestExecutor.AssertionFailures"/> for the reasons behind a 1.
+    /// </summary>
+    private static async Task<(int ExitCode, HeadlessTestExecutor Executor)> RunScriptAsync(string scriptFileName)
     {
         int domainId = NextDomainId();
 
@@ -112,7 +125,8 @@ public sealed class ClusterOpE2eScriptTests
             executor.RegisterHandler(new ClusterOpActionHandler(clusterMaster, statusReader, logger, timeoutSeconds: 30.0));
         };
 
-        return await executor.RunAsync().ConfigureAwait(false);
+        int exitCode = await executor.RunAsync().ConfigureAwait(false);
+        return (exitCode, executor);
     }
 
     // â”€â”€ Test facts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -124,8 +138,7 @@ public sealed class ClusterOpE2eScriptTests
     [Fact(Timeout = 60000)]
     public async Task RecordAndReplaySeek_Passes()
     {
-        int result = await RunScriptAsync("e2e_record_and_replay_seek.json");
-        Assert.Equal(0, result);
+        await RunScriptAndAssertPassedAsync("e2e_record_and_replay_seek.json");
     }
 
     /// <summary>
@@ -135,8 +148,7 @@ public sealed class ClusterOpE2eScriptTests
     [Fact(Timeout = 60000)]
     public async Task PreviewStateRestore_Passes()
     {
-        int result = await RunScriptAsync("e2e_preview_state_restore.json");
-        Assert.Equal(0, result);
+        await RunScriptAndAssertPassedAsync("e2e_preview_state_restore.json");
     }
 
     /// <summary>
@@ -147,8 +159,7 @@ public sealed class ClusterOpE2eScriptTests
     [Fact(Timeout = 60000)]
     public async Task LiveFromReplayBranch_Passes()
     {
-        int result = await RunScriptAsync("e2e_live_from_replay_branch.json");
-        Assert.Equal(0, result);
+        await RunScriptAndAssertPassedAsync("e2e_live_from_replay_branch.json");
     }
 
     /// <summary>
@@ -158,7 +169,6 @@ public sealed class ClusterOpE2eScriptTests
     [Fact(Timeout = 60000)]
     public async Task OverlappingCheckpoints_Passes()
     {
-        int result = await RunScriptAsync("e2e_overlapping_checkpoints.json");
-        Assert.Equal(0, result);
+        await RunScriptAndAssertPassedAsync("e2e_overlapping_checkpoints.json");
     }
 }

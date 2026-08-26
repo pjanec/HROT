@@ -287,3 +287,102 @@ with a named root cause (`QA-018`).
 
 ⇒ ⭐⭐ **All three were the TEST behind the code, not the code behind the design** — and in each case a
 deliberate, documented change had moved on without them.
+
+---
+
+## 9. ⭐⭐⭐ §8's DEFECTS, ROOT-CAUSED — **`QA-017` · `QA-024` · `QA-022`** *(`2026-08-26`)*
+
+> ⭐⭐ **The through-line of all three: NOTHING IN THE FAILURE TEXT NAMED THE CAUSE, and in two of
+> the three the cause was in a component the failing test does not mention.**
+
+### 9.1 ⛔⛔⛔ THE SHAPE THAT COST TWO BATCHES — **a strict DTO rejects a payload, and the rejection reaches nobody**
+
+📐 **`QA-017` was TWO instances of one shape, one field apart.**
+
+| # | the payload | what rejected it | where the rejection WENT |
+|---|---|---|---|
+| **A** | `TargetState` sent as `(int)ClusterState.OperatingLive` | ⭐ `StrictStringEnumConverter` — **written for exactly this**; `OrchestrationJsonOptions` documents itself as rejecting integer enums *"to avoid silent integer-as-enum bugs"* | `ClusterOpRequestAdapter` throws → `ClusterMaster` catches into **`FdpLog.Warn`** |
+| **B** | `ExerciseId` sent as `"e2e-all-01"` | ⭐ it is a **non-nullable `Guid`** ⇒ `JsonException` | the adapter wraps it into the **same** `InvalidOperationException` ⇒ the **same** `Warn` |
+
+⇒ ⭐⭐⭐ **In both cases `ProcessTransitionStateIntent` never runs, `_currentDsmState` is never advanced,
+and the cluster sits at its current state with NOTHING on any surface an operator or a test watches.**
+⛔ *"Cluster did not reach state 31"* is the symptom of a **parse failure two components upstream.**
+
+⚠ **The swallow itself is production and is NOT fixed here** — `Hrot/Subsystems/Hrot.Orchestrator/` is
+the TIME lane's file. Refiled as **`QA-032`**.
+
+### 9.2 ⛔⛔ THE HARNESS THREW ITS OWN DIAGNOSTIC AWAY — **`QA-028`, and it is why 9.1 stayed hidden**
+
+📐 `HeadlessTestExecutor.RunAsync` collapses **every** failure into the integer `1` and sends the reason
+to the injected `ILogger`. ⛔ Every script-driven test injects **`NullLogger.Instance`** and then asserts
+`Assert.Equal(0, result)`.
+
+⇒ ⭐ **The entire red was `Expected: 0 / Actual: 1`.** The handler underneath had built a precise message
+naming the slave's state id and the roster size, and **not one character of it survived.**
+
+| ⭐ the fix | |
+|---|---|
+| `HeadlessTestExecutor.AssertionFailures` is now **public** | ⛔ the reasons must not depend on the caller's logger choice |
+| `ScriptRunAssert.Passed(executor, exitCode)` — **all 6 call sites** | ⭐ asserts on the failure LIST; the integer is only its cardinality |
+| the transition handler now reports the **master's** state too | ⛔ without it a red cannot separate *"master never transitioned"* from *"master did, slave did not"* — different components |
+
+📌 **It paid on the very next run**, printing *"ExCon `ClusterSlave.LocalStateIdForTest` is 0 … Active
+roster nodes at timeout: 3"* — which is what located instance **B**.
+
+### 9.3 ⭐⭐⭐ `QA-024` — **ONE MISSING LINE, THREE LAYERS AWAY** *(`QA-030`)*
+
+📐 `EntityRepository.SyncFrom` copied `_globalVersion` and **not** `_simulationTick`.
+⛔ `ISimulationView.Tick` reads `_simulationTick` ⇒ **every SoD / background snapshot reported
+`Tick == 1` for the life of the process.**
+
+| 📐 **measured with a throwaway probe** *(`EditorHarness` + the EQS solver)* | |
+|---|---|
+| the live repo's tick | **1 → 121 → 241** over 240 pumped frames |
+| the solver's re-evaluations | **37** |
+| `view.Tick` on every one of them | ⛔ **1** |
+
+⇒ **two cross-tick mechanisms, both inert, both silent:**
+- `EqsResultEvent.RefreshTick = tick + 1` was **always 2** ⇒ `LastUpdateTick` never moved, so *"a large
+  score delta re-publishes"* failed **even though the publish happened**;
+- `SensorEvalState.AwaitingSinceTick == currentTick` is the `_AwaitingRaycasts` skip-guard ⇒ once a
+  sensor entered that phase it **could never leave it** — flatly contradicting
+  `designs/eqs-2/EQS_Design_v1.3_final.md:422` *("on subsequent ticks polls the raycast result ring buffer")*.
+
+⛔⛔ **Why ~8 000 tests never caught it.** The class invariant is `_globalVersion >= _simulationTick`
+*(`EntityRepository.cs:65`)* — ⭐ **advancing one clock and not the other keeps that inequality TRUE**,
+so no assert could fire. ⚠ **And the comment on that exact line already CLAIMED to sync *"the correct
+tick/version reference"*** — it only ever synced the version.
+
+⇒ ⭐⭐ **`SyncCarriesTheSimulationTickTests` asserts the TICK, deliberately not the version** — a rail
+written against `GlobalVersion` would have passed throughout the whole life of the defect.
+
+### 9.4 ⭐ `QA-022` — **measured CROSS-LANE, stopped, refiled** *(`R-106`)*
+
+📐 With `QA-033`'s breakage neutralised locally, all 3 still fail, and the messages are viewport-tool
+**production**: *"CreationTool did not become active in time"* · *"SimHost did not attach
+`EditablePolyline` in time"* · *"SimHost entity did not have expected `TkbType`"* ⇒ **UI lane.**
+
+### 9.5 🔴🔴 `QA-033` — **a merged UI change takes down 127 of 267 integration tests**
+
+📐 **Measured at `42a6ef37c`: 267 total · 130 passed · 134 failed · 3 skipped — 127 of the 134 carry ONE
+message**: *"System `ToolActivationDrainSystem` must have `[UpdateInPhase]` attribute"*. It throws inside
+`ScenarioEditorModule.RegisterSystems` → `ModuleHostKernel.Initialize` → **`CgfSubsystem.Initialize`**,
+so **every harness that boots CGF dies in its constructor.** *(The pre-`CE-051` baseline was 51 reds.)*
+
+⭐ Three systems lack the attribute — `ToolActivationDrainSystem`, `SelectEntitySystem`,
+`CenterOnEntitySystem` — and the phase is **not** a judgement call: `DataDrivenGizmoSystem`,
+`GlobalGizmoManager` and `CanvasMenuUpdateSystem` are all `[UpdateInPhase(SystemPhase.PostSimulation)]`,
+and the drain **activates gizmos on the first two**.
+
+⛔ **NOT APPLIED — UI-lane production file.** ⚠⚠ **Every verification run recorded in §9 was made with
+those three attributes applied LOCALLY and UNCOMMITTED**; without them the integration suite cannot boot
+CGF at all, so no integration number is obtainable on the merged tree as it stands.
+
+### 9.6 ⭐⭐ THE HABIT THIS ADDS TO §7.3 — **a red whose text names no component needs an INSTRUMENT, not a theory**
+
+⛔ **Three of my own hypotheses were refuted by measurement in this batch alone** *(the bootstrap latch —
+twice; "the slave never applies the state"; "the planner rejects the transition")*.
+⭐ **What actually resolved each one was a cheap instrument**: expose the executor's failure list · add
+the master's state to a message · a 40-line probe test printing `view.Tick` per solver call.
+⇒ ⭐ **Build the instrument before the second hypothesis.** The probe that closed `QA-024` took minutes
+and turned three timeouts into one line.
