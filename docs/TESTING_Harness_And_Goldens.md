@@ -237,10 +237,16 @@ dotnet test <proj> --no-build --filter "FullyQualifiedName~<Class>"
 | | count | meaning |
 |---|---:|---|
 | ⭐⭐ **red in the SUITE *and* ALONE** | **43** | ⛔ **genuine, deterministic.** Not interference, not pressure — the code or the assertion is wrong |
-| ⚠ **red in the SUITE, GREEN ALONE** | **8** | **environmental** — timing under suite load. ⛔ Do NOT read these as defects |
+| ⚠ **red in the SUITE, GREEN ALONE** | **8** *(9 counting the one the confirming run added — see below)* | **environmental** — timing under suite load. ⛔ Do NOT read these as defects |
 
 ⇒ ⭐⭐⭐ **This split costs ~20 minutes and is the first thing to run on any new red here.** It is the
 difference between filing a defect and filing noise, and no message shape tells you which is which.
+
+📌 **It paid for itself inside this very batch.** The confirming run surfaced a **9th** red that had been
+green in the two runs before it — `EyesAndMuscleIntegrationTests.Module_EyesAndMuscleTicks_IncrementAfterPumping`
+(*"EyesTicks expected > 0, was 0"*, a **background-thread** tick count). ⛔ It looked exactly like a
+regression from the change in the same run. 📐 Run alone, three times: **3/3, 3/3, 3/3.** ⇒ environmental,
+and ⭐ **the isolation run is what stopped it being filed as one.**
 
 ### 8.2 📐 BASE-PROOF *(dispatch base `dbdc5e783` — the tree before §7's fixes)*
 
@@ -269,7 +275,7 @@ with a named root cause (`QA-018`).
 | 🔴 **`QA-022`** map / area authoring | 3 | **real.** The creation tool never activates; the placed entity never gets its TkbType; `EditablePolyline` never attaches | `designs/mgmt-1/DESIGN.md` · UI lane neighbours |
 | 🔴 **`QA-023`** blueprints | 1 | **real.** `BlueprintStateTranslator.Inject` does not set `InitialBlueprintsIntent` for the mixed legacy+new key case | `Blueprint_Subsystem_DEBUG-DD-ADDENDUM.md` · backend/blueprints |
 | 🔴 **`QA-024`** EQS phase machine | 3 | **real** *(fail alone too)*: `SensorEvalState.Phase` never reaches `_AwaitingRaycasts`, `CognitiveBuffer.IsReady` never set, a large score delta does not re-publish | `designs/eqs-2/EQS_Design_v1.3_final.md` · backend |
-| ⚠ **`QA-025`** environmental | 8 | ⛔ **NOT defects** — green alone, red under suite load. 7×`Eqs` *(the AccurateLos/ContextSlot/Distributed family)* + `SelectionAndMissionIntegrationTests`. All timeout-shaped | — |
+| ⚠ **`QA-025`** environmental | 8 *(+1)* | ⛔ **NOT defects** — green alone, red under suite load. 7×`Eqs` *(the AccurateLos/ContextSlot/Distributed family)* + `SelectionAndMissionIntegrationTests`; ⭐ **+ `EyesAndMuscleIntegrationTests.Module_EyesAndMuscleTicks_IncrementAfterPumping`**, which the confirming run added and the isolation run cleared **3/3 ×3**. All timeout- or background-thread-shaped | — |
 
 ### 8.4 ✅ THE THREE STALE ASSERTIONS — **fixed here, each with the measurement that decided it**
 
