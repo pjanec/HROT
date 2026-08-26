@@ -515,6 +515,15 @@ class Program
                             string.Join(", ", newAssetServices.Keys));
                     }
 
+                    // ⭐⭐⭐ MD-008 — ⛔ NO `AttachEditorCommands` CALL HERE, and that is DELIBERATE.
+                    // 📐 Measured `2026-08-26`: a CGF node already answers `GET /editor/commands` with 68
+                    //    commands. `DebugApiService.ResolveEditorCommands` falls back to
+                    //    `_documents.Active -> ContextOf(...).Commands`, and `_documents` is attached by
+                    //    `AttachAssetShell` two lines above. ⇒ ⭐ the explicit attach would compute the
+                    //    SAME expression from the SAME object — a duplicate wiring, not a missing one.
+                    // ⚠ Proven by `The_editor_command_bus_answers_on_a_non_editor_node`, which is green
+                    //   on this host with nothing attached. ⛔ Do not "fix" this by adding the call.
+
                     // ⭐ MA-022 — the action-schema exporter, so get_node_kind_schema reports real DTO
                     //   fields here instead of `paramsSource: none:no-exporter-wired`.
                     if (cgfShell.AssetShellSchemaExporter is { } schemaExporter)

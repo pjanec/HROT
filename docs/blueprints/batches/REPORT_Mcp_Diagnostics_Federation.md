@@ -130,6 +130,30 @@ redden on the environment, not the code. ⭐ It asserts what this surface owns.
 same condition — ⛔ accepting `[]` would make MCP the one path that does what the UI refuses *(the `MA-015`
 parity argument)*.
 
+## 3c. ⛔⛔ FOLLOW-UP `2026-08-26` — **`MD-008`: a reported gap that was not one**
+
+> 📌 Coordinator note: *"`/editor/commands` is empty on the CGF node — `Program.cs` never calls
+> `AttachEditorCommands`."* ⇒ 📐 **Measured FALSE: a CGF node answers with 68 commands.**
+
+| the claim | 📐 measured |
+|---|---|
+| `Program.cs` never calls `AttachEditorCommands` | ✅ **TRUE** — one call site in the whole repo |
+| ⇒ the route is empty on CGF | 🔴 **FALSE** — **68 commands** on `--mode orchestrator,cgf` |
+
+⭐⭐⭐ **Both true, conclusion false.** `ResolveEditorCommands` checks the attached delegate FIRST and then
+**falls back** to `_documents.Active → ContextOf(...).Commands`; `_documents` arrives with
+`AttachAssetShell`, which **both** roots call. ⇒ the explicit attach computes the same expression from the
+same object.
+
+⚠⚠ **I confirmed the premise the same wrong way** — I verified the CALL SITE and reported *"coordinator's
+premise confirmed"* before ever asking the route. ⭐ **A first cut then added the attach; its revert probe
+STAYED GREEN**, which is what exposed it. ⇒ ⛔ all three code edits reverted; `AttachEditorCommands` KEPT
+as the documented override hook *(checked first — no rush removals)*, with a comment at both call sites.
+
+⭐⭐ **What shipped is the RAIL**, and the defect it exposes is real: the existing command-bus rail runs on
+`--mode all`, which **includes the editor** ⇒ the cluster path had never been asked. 📌 **The third time
+this session that "`--mode all` is not a cluster-limited host" mattered.**
+
 ## 4. GATES *(rule 8 contract)*
 
 > 📌 **Base: the started-marker `98a31b364`** *(dispatch `0ee5305a8`)*.
@@ -139,12 +163,13 @@ parity argument)*.
 | # | gate | verbatim command | `--no-build`? | result | Δ vs base |
 |---|---|---|---|---|---|
 | 1 | **affected-project builds** | `dotnet build {Fdp.Core,Hrot.Presentation,Hrot.SimHost,Hrot.IG,Hrot.ExCon,Hrot.CGF,Hrot.Editor,Hrot.ClusterRunner,…Tests}.csproj --no-restore -v q -nologo` | ⛔ builds *(once each)* | ✅ **0 errors** | — |
+| 2c | ⭐⭐ **the T3 CGF command-bus rail** *(`MD-008`)* | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter "FullyQualifiedName~The_editor_command_bus_answers_on_a_non_editor_node"` | ✅ | ✅ **1 / 1, 4 s.** 📐 72 assets · **68 commands** · describable · the `409`-on-disabled arm DRIVEN *(`editor.undo`)*. ⚠ **Its revert probe stayed GREEN — that is the finding, not a rail weakness** *(§3c)* | **+1 rail** |
 | 2a | ⭐⭐⭐ **the T3 cluster-dump rail** *(`MD-006`/`MD-007`)* | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter "FullyQualifiedName~An_agent_can_drive_the_cluster_diagnostic_dump"` | ✅ | ✅ **1 / 1, 6 s.** 📐 status answers · empty selection refused · `queued:true` · **the master's fan-out line observed for that transaction id** · `inFlight` flips to `True` | **+1 rail** |
 | 2b | ⭐⭐⭐ **its revert probe** — the publish made a silent no-op | rebuild `Hrot.ClusterRunner`, re-run | ✅ | ✅ 🔴 **red on the fan-out assertion**, with the route still answering `200 queued:true` | — |
 | 2 | ⭐⭐⭐ **the T3 federation rail** — the acceptance vehicle | `dotnet test Hrot/Runner/Hrot.SystemTests --no-build --filter "FullyQualifiedName~A_non_editor_node_reports_its_own_logs"` | ✅ | ✅ **1 / 1, 2 s.** 📐 `17` log records · `SimHost — 10 modules / 56 systems / 37 translators` · `diagnostics.architecture` present in `/capabilities` | **+1 rail** |
 | 3 | ⭐⭐⭐ **revert probe A** *(item ①, the SimHost gap)* | drop `logSinks:` from `ClusterRunner/Program.cs`, rebuild it, re-run | ✅ | ✅ 🔴 **red: `logs: 0 record(s)`** — ⭐ **that zero IS the pre-fix state on every cluster-limited node** | — |
 | 4 | ⭐⭐ **revert probe B** *(item ②)* | null out `architecture:` in `SimHostSubsystem`'s provider, rebuild, re-run | ✅ | ✅ 🔴 **red**, the route refusing and naming the missing accessor | — |
-| 5 | **the editor unit suite** *(carries `EveryRouteIsDocumentedTests` + `CapabilityManifestRails` — the gates the new route and the new `/diagnostics` prefix had to satisfy)* | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/…csproj --no-build -v q --nologo` | ✅ | ✅ **251 / 0 / 1 skipped** | **none** |
+| 5 | **the editor unit suite** *(carries `EveryRouteIsDocumentedTests` + `CapabilityManifestRails` — the gates the new routes and the `/diagnostics` + `/cluster/diagnostics` prefixes had to satisfy)* | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests/…csproj --no-build -v q --nologo` | ✅ | ⚠ **250 / 1 / 1 skipped** on the final run — the one red is `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected`, the **PRE-EXISTING GC/ALC timing flake** *(A/B'd today at 3 red of 6 runs on a BASE binary; `ST-035` + four prior reports)*. ⭐ It passed **251 / 0** on the two earlier runs this batch — ⛔ neither colour is evidence | **none** |
 | 6 | ⭐⭐⭐ **the INTEGRATION suite** *(rule 8 row 8)* — a route on the shared table, a new member on a seam FOUR subsystems implement, and changes at BOTH composition roots ⇒ nothing smaller can show the cross-host contract holds | `scripts/run-system-tests.sh --no-build` *(**T3**, BACKGROUNDED — ⛔ never a foreground blocker)* | ✅ | ✅ **105 / 0**, 7 m 51 s — §4b | **+2 rails** |
 | 7 | **the MCP catalog is GENERATED** | `npm run gen:catalog` · `npm run gen:skill` | — | ✅ **90 → 93 tools** from 93 endpoints *(91 after `MD-001..003`, 93 after the `MD-006/007` follow-up)*; `SKILL.md` regenerated *(507 lines)*. ⚠ **The generator reads the BUILT binary** — the first regen produced 90 because `Hrot.ClusterRunner` had not been rebuilt | **+3 tools** |
 | 8 | **every catalogued tool has a handler** | `node test-catalog.mjs` | — | ✅ **745 / 0** | **+24 assertions** |

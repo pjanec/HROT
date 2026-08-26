@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT — `2026-08-26`, ids `MD-001`..`MD-007`. ⭐ Items ①②③ SHIPPED; ⛔ item ④ WITHDRAWN as an
+build-state: BUILT — `2026-08-26`, ids `MD-001`..`MD-008`. ⭐ Items ①②③ SHIPPED; ⛔ item ④ WITHDRAWN as an
   unwanted duplicate mechanism (user ruling). See §8 AS BUILT and §9. Carries classDiagram + sequenceDiagram (§4/§5). A NEW MCP capability area,
   sibling of DESIGN_Mcp_Authoring.md and MCP_Integration.md. Two things: (1) DOCUMENTS the per-node
   federation topology that already exists (each node hosts its own DebugApi with mode-gated capabilities);
@@ -334,3 +334,65 @@ SURFACE owns — publish, fan-out, honest status, and that an empty node list is
 over MCP would make it **the one path that does what the UI refuses** — 📌 the same parity argument as the
 `409` on a disabled editor command *(`MA-015`)*. ⭐ And dumping every node is a materially different
 operation from dumping one.
+
+---
+
+# ⚠⚠ 10. `MD-008` — **A REPORTED GAP THAT WAS NOT ONE** *(`2026-08-26`)*
+
+> 📌 Filed by the coordinator as the next candidate: *"`/editor/commands` is empty on the CGF node —
+> `Program.cs` never calls `AttachEditorCommands` for the cluster service though CGF builds an
+> `EditorCommandsImpl`."*
+> ⛔⛔ **Measured FALSE. A CGF node answers with 68 commands.** Nothing was wired; a rail was added.
+
+## 10.1 📐 THE MEASUREMENT
+
+| the claim | 📐 measured |
+|---|---|
+| *"`Program.cs` never calls `AttachEditorCommands`"* | ✅ **TRUE** — it appears exactly once in the repo, in `EditorSubsystem` |
+| *"⇒ `/editor/commands` is empty on the CGF node"* | 🔴 **FALSE** — `GET /editor/commands` returns **68 commands** on `--mode orchestrator,cgf` |
+
+⭐⭐⭐ **Why both can be true:** `DebugApiService.ResolveEditorCommands()` checks the attached delegate
+**first** and then **falls back**:
+
+```csharp
+if (_editorCommands?.Invoke() is { } attached) return attached;
+var active = _documents?.Active;
+return active == null ? null : ContextOf(active)?.Commands;
+```
+
+⇒ ⭐ `_documents` arrives with **`AttachAssetShell`**, which **both** roots call *(`Program.cs:480`,
+`EditorSubsystem:3011`)*. ⛔ So the explicit attach computes the **same expression from the same object**
+as the fallback — it is a duplicate wiring, **not a missing one.**
+
+## 10.2 ⛔ WHAT WAS *NOT* DONE, AND WHY
+
+⚠ A first cut **did** add the attach to `Program.cs` and factored the lambda into a shared helper.
+🔴 **Its revert probe stayed GREEN** — the rail passed with the attach removed — which is what exposed the
+false premise. ⇒ ⭐⭐ **all three code edits were reverted.** Adding a second path to an answer that
+already resolves is exactly the duplication ruling 9 forbids.
+
+⭐ **`AttachEditorCommands` itself is KEPT** *(no rush removals)*: it is checked FIRST, so it is a genuine
+**override hook** for a host whose commands do not come from a document. ⚠ Both call sites now carry a
+comment saying the fallback covers the ordinary case — ⛔ so the next reader does not "fix" this again.
+
+## 10.3 ⭐⭐ WHAT SHIPPED — **the rail, and only the rail**
+
+`The_editor_command_bus_answers_on_a_non_editor_node` *(`--mode orchestrator,cgf`)*.
+📐 68 commands · describable · **the `409`-on-disabled parity arm actually driven** *(`editor.undo` is
+disabled on a freshly-opened document)*.
+
+⚠⚠ **No existing rail covered this**, and that is the real defect the episode exposed:
+`The_editor_command_bus_is_discoverable_and_invocable_over_mcp` runs on `--mode all`, which **includes the
+editor** ⇒ the API is the editor's, and the cluster path was never asked. 📌 **The third time this
+session that "`--mode all` is not a cluster-limited host" mattered** *(`MD-003`, `MD-006`, now this)*.
+
+## 10.4 ⭐⭐⭐ THE LESSON — **twice in one session, the same mistake**
+
+| | ⛔ what was measured | ⭐ what should have been |
+|---|---|---|
+| `MD-004` | `DiagnosticsDumpProcessManager` has no read-model | **what the PANEL reads** — `ClusterUiCache` |
+| `MD-008` | `AttachEditorCommands` has one call site | **what the ROUTE answers** — 68 commands |
+
+⇒ ⭐⭐⭐ **A CALL-SITE COUNT IS NOT A BEHAVIOUR.** ⛔ Both claims were literally true and both licensed a
+false conclusion. 📌 The generic form of the `2026-08-18` rule *(never claim "X is not built" without
+running the enumeration)* — extended: ⭐ **never claim "X does not work" without RUNNING X.**

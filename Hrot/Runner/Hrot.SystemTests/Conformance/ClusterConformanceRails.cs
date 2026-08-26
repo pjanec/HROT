@@ -1667,6 +1667,90 @@ public sealed class ClusterConformanceRails
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>MD-008</c> — the EDITOR COMMAND BUS answers on a CGF node.</b>
+    ///
+    /// <para>⛔⛔ <b>A NON-EDITOR mode, and that is the entire rail.</b> 📐
+    /// <c>The_editor_command_bus_is_discoverable_and_invocable_over_mcp</c> runs on <c>--mode all</c> —
+    /// which INCLUDES the editor, so <c>Program.cs</c> hands the API to <c>EditorSubsystem</c>. ⇒ ⛔ no
+    /// existing rail had ever asked a CLUSTER-LIMITED host for its command bus, so nothing said whether
+    /// it had one.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>It does, and this rail exists because a filed report said it did not.</b> 📐 Measured
+    /// `2026-08-26`: <b>68 commands</b>, on a host whose composition root never calls
+    /// <c>AttachEditorCommands</c>. <c>ResolveEditorCommands</c> falls back to
+    /// <c>_documents.Active -&gt; ContextOf(...).Commands</c>, and <c>_documents</c> arrives with
+    /// <c>AttachAssetShell</c> — which the cluster root does call.</para>
+    ///
+    /// <para>⚠⚠ <b>So this rail's job is to keep a WORKING capability honest, ⛔ not to guard a fix.</b>
+    /// 📌 The report it disproves reasoned from the CALL SITE *(`AttachEditorCommands` appears once in
+    /// the repo — true)* instead of from the BEHAVIOUR *(the route answers anyway — also true, and the
+    /// one that matters)*. ⭐ A rail is how that class of claim stops being arguable.</para>
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Conformance")]
+    public async Task The_editor_command_bus_answers_on_a_non_editor_node()
+    {
+        // ⚠ CGF is the subsystem with a document manager; the orchestrator is required FIRST for the
+        //   id allocator (measured in MD-003 — a node without it dies in DdsIdAllocatorHelper).
+        await using var node = await EditorProcess.StartAsync("conf-cgfcmds", mode: "orchestrator,cgf");
+
+        var assets = (await node.Client.ListAssetsAsync()).EnsureOk();
+        var list   = (assets.Field("assets") as JsonArray)!;
+        _out.WriteLine($"assets on the CGF node: {list.Count}");
+        Assert.True(list.Count > 0,
+            "the CGF node indexed no assets, so no document can be opened and the command bus has "
+          + "nothing to answer for. That is a slice-2 catalog regression, not a command-bus one.");
+
+        // ⭐ The command set is PER DOCUMENT — open one first, exactly as the editor-host rail does.
+        var pick = list.FirstOrDefault(n => n!["kind"]!.GetValue<string>() == "Blueprint") ?? list[0];
+        var id   = pick!["assetId"]!.GetValue<string>();
+        _out.WriteLine($"opening {pick["name"]} ({pick["kind"]}) {id}");
+        (await node.Client.OpenAssetAndSettleAsync(id)).EnsureOk();
+
+        // ── THE CLAIM ────────────────────────────────────────────────────
+        var commands = await node.Client.ListEditorCommandsAsync();
+        Assert.True(commands.Ok,
+            $"GET /editor/commands was refused on a CGF node: {commands.Error}. The cluster root does NOT "
+          + "call AttachEditorCommands and does not need to — ResolveEditorCommands falls back to the "
+          + "document manager AttachAssetShell hands over. A refusal here means that fallback was removed "
+          + "or AttachAssetShell stopped supplying documents.");
+
+        var arr = (commands.Field("commands") as JsonArray)!;
+        _out.WriteLine($"the CGF node offers {arr.Count} editor command(s)");
+
+        Assert.True(arr.Count > 0,
+            "the bus is attached but offers ZERO commands. The document factory builds the set when the "
+          + "document opens, so an empty set means the resolver reached a document with no "
+          + "AiCanvasContext — it is answering for the wrong thing.");
+
+        // ⭐⭐ Describable, not just countable: a caller must be able to ask what a command IS before
+        //   invoking it, and an id that lists but cannot be described is a half-built surface.
+        var first  = arr[0]!;
+        var cmdId  = first["id"]!.GetValue<string>();
+        var detail = await node.Client.GetEditorCommandAsync(cmdId);
+        Assert.True(detail.Ok, $"'{cmdId}' is listed but not describable: {detail.Error}");
+        _out.WriteLine($"first command: {cmdId} — enabled={first["isEnabled"]}");
+
+        // ⭐⭐⭐ THE PARITY ASSERTION, on THIS host. 📌 MA-015: a DISABLED command is refused with 409
+        //   BEFORE it is invoked, because the editor greys it out and MCP must not be the one path that
+        //   does what the UI refuses. ⚠ Only asserted when the host actually offers a disabled one —
+        //   ⛔ manufacturing one would test the rail, not the host.
+        var disabled = arr.FirstOrDefault(c => c!["isEnabled"]?.GetValue<bool>() == false);
+        if (disabled != null)
+        {
+            var disabledId = disabled["id"]!.GetValue<string>();
+            var refused    = await node.Client.InvokeEditorCommandAsync(disabledId);
+            _out.WriteLine($"disabled '{disabledId}' invoke: {refused.StatusCode} {refused.Error}");
+            Assert.False(refused.Ok, $"the DISABLED command '{disabledId}' was invoked anyway.");
+            Assert.Equal(409, refused.StatusCode);
+        }
+        else
+        {
+            _out.WriteLine("no disabled command offered — the 409 parity arm was not driven here.");
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>MD-006</c>/<c>MD-007</c> — an agent can drive the CLUSTER-WIDE diagnostic dump the
     /// operator drives from the ExCon, and read the result the same panel reads.</b>
     /// 📄 <c>DESIGN_Mcp_Diagnostics_Federation.md</c> §8.5.
