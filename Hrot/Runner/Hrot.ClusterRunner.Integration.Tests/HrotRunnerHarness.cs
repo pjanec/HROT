@@ -96,8 +96,7 @@ public sealed class HrotRunnerHarness : IDisposable
             Cgf,
         }, options);
 
-        Orchestrator.Initialize();
-        Warmup();
+        BootOrCleanUp();
     }
 
     /// <summary>
@@ -142,8 +141,35 @@ public sealed class HrotRunnerHarness : IDisposable
         var options = new RunnerOptions { Headless = true, DomainId = domainId };
         Orchestrator = new SubsystemOrchestrator(subsystems, options);
 
-        Orchestrator.Initialize();
-        Warmup();
+        BootOrCleanUp();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>QA-002</c> — <b>a constructor that throws must not leak a DDS participant.</b>
+    ///
+    /// <para>⛔ xUnit does NOT call <see cref="IDisposable.Dispose"/> on an instance whose constructor
+    /// threw. 📐 Measured 2026-08-26: when <c>Initialize()</c> failed (an
+    /// <c>OutOfMemoryException</c> out of <c>EntityIndex..ctor</c>), the already-created
+    /// <see cref="DdsParticipant"/> and its background <c>HostedIdAllocatorServer</c> poll thread
+    /// survived for the life of the process; the abandoned reader later raised
+    /// <c>dds_take failed: -3</c> on that thread and killed the test host.</para>
+    ///
+    /// <para>⭐ So the boot is wrapped: on failure everything already constructed is torn down and the
+    /// ORIGINAL exception is rethrown, so the test still fails for its real reason — ⛔ this hides
+    /// nothing.</para>
+    /// </summary>
+    private void BootOrCleanUp()
+    {
+        try
+        {
+            Orchestrator.Initialize();
+            Warmup();
+        }
+        catch
+        {
+            try { Dispose(); } catch { /* teardown of a half-built harness is best-effort */ }
+            throw;
+        }
     }
 
     public void PumpFrames(int frames)
@@ -169,9 +195,25 @@ public sealed class HrotRunnerHarness : IDisposable
         return false;
     }
 
+    private bool _disposed;
+
     public void Dispose()
     {
-        Orchestrator.Shutdown();
+        if (_disposed) return;
+        _disposed = true;
+
+        // QA-002: this also runs from BootOrCleanUp on a HALF-BUILT harness, where a subsystem may
+        // never have been initialised. Shutdown must not mask the original boot failure.
+        try
+        {
+            Orchestrator.Shutdown();
+        }
+        catch (Exception)
+        {
+            // Intentional no-op: see the participant note below — the same reasoning applies to a
+            // subsystem that cannot shut down cleanly because it never came up.
+        }
+
         // Dispose the shared participant after all DDS readers/writers owned by the
         // subsystems have been torn down inside Shutdown().
         // Defensive: if a prior exception left DDS readers in a bad state (e.g. dds_take

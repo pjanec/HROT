@@ -1610,7 +1610,9 @@ public class IgApplication : IDisposable
         _networkAdapter = null;
         _commandGateway = null;
 
-        _kernel?.Dispose();
+        // QA-001: dispose the whole node context — kernel THEN world. This used to be
+        // `_kernel?.Dispose()`, which leaked the EntityRepository on every IG teardown.
+        _context?.Dispose();
 
         if (ownsWindow)
 

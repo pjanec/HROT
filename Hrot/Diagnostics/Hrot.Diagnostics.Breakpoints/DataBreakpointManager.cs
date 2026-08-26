@@ -71,7 +71,7 @@ internal delegate Vector2 SpatialPositionDelegate<T>(ref T component) where T : 
 /// </summary>
 public sealed class DataBreakpointManager
     : IDataBreakpointManager, IActiveViewProvider, IMutationInterceptor,
-      Fdp.ModuleHost.Abstractions.IStagedWrites
+      Fdp.ModuleHost.Abstractions.IStagedWrites, IDisposable
 {
     private readonly EntityRepository _liveRepo;
     private readonly EntityRepository _preTickSnapshot;
@@ -248,6 +248,16 @@ public sealed class DataBreakpointManager
         _notifier              = notifier;
         _postTickSnapshot      = new EntityRepository();
     }
+
+    /// <summary>
+    /// ⭐ <c>QA-005</c> — releases the one repository this manager OWNS.
+    ///
+    /// <para>⛔ <c>_liveRepo</c> and <c>_preTickSnapshot</c> are passed IN and belong to the host
+    /// subsystem; only <c>_postTickSnapshot</c> is constructed here, and until this existed it was
+    /// leaked on every node teardown — a whole <see cref="EntityRepository"/> per CGF or editor
+    /// lifetime (<c>QA-004</c>'s <c>LiveInstanceCount</c> is how that became visible).</para>
+    /// </summary>
+    public void Dispose() => _postTickSnapshot.Dispose();
 
     // ---- Internal test seams --------------------------------------------
 

@@ -1180,6 +1180,10 @@ namespace Fdp.ModuleHost
             }
             
             _timeController?.Dispose();
+            // QA-006: the snapshot pool this kernel built in Initialize() owns TEN EntityRepository
+            // instances (warmupCount: 10). Disposing the providers above does not reach them, so until
+            // this line every kernel teardown leaked ten worlds' worth of native chunk tables.
+            _snapshotPool?.Dispose();
             _topologyChangeSemaphore.Dispose();
             _modules.Clear();
             _drainingModules.Clear();

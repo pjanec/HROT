@@ -4749,6 +4749,14 @@ namespace Hrot.Editor
             _physicsModule = null;
             _world?.Dispose();
             _world = null;
+            // QA-005: the breakpoint machinery owns TWO more repositories — the pre-tick snapshot
+            // built here and the post-tick snapshot the manager builds for itself. Both leaked until
+            // now; the world beside them was already being released, which is what made the omission
+            // invisible.
+            _bpManager?.Dispose();
+            _bpManager = null;
+            _bpPreTickSnapshot?.Dispose();
+            _bpPreTickSnapshot = null;
             _editorLogic = null;
             _editorApp   = null;
             _timeController = null;

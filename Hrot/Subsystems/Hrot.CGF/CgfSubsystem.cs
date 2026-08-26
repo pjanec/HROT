@@ -1988,7 +1988,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _cgfNetworkPolling = null;
         _toggleInput = null;
         _toggleSim = null;
-        _context?.Kernel.Dispose();
+        // QA-001: dispose the whole node context — kernel THEN world. This used to be
+        // `_context?.Kernel.Dispose()`, which leaked the EntityRepository on every CGF teardown.
+        // (CgfApplication, which builds its own world, already disposed it — this path did not.)
+        _context?.Dispose();
+        // QA-005: the breakpoint machinery owns TWO more repositories — the pre-tick snapshot built
+        // here and the post-tick snapshot the manager builds for itself. Both leaked until now.
+        _bpManager?.Dispose();
+        _bpManager = null;
+        _bpPreTickSnapshot?.Dispose();
+        _bpPreTickSnapshot = null;
         _physicsModule?.Dispose();
         _physicsModule = null;
 
