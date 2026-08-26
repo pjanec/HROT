@@ -22,7 +22,12 @@ known-conflict: ⛔ QA-033 — the merged CE-051 change takes down 127 of 267 in
 
 ⭐ **ids allocated *(rule 5)*: `QA-027` `QA-028` `QA-029` `QA-030` `QA-031` `QA-032` `QA-033` `QA-034`.**
 
-## 1. 🔴🔴 READ THIS FIRST — **`QA-033` blocks the whole integration suite, and it is not mine to fix**
+## 1. ✅ `QA-033` — **it blocked the whole suite; the UI lane fixed it independently while I measured it**
+
+> ⭐⭐⭐ **RESOLVED at `74e6761c3`** *("CE-051 fix: the three shared systems need `[UpdateInPhase]` — a BOOT
+> CRASH T3 caught")*, merged here per rule 4. ⭐ **They picked the same phase I would have** — independent
+> agreement — and **their T3 caught what my T2 did.** ⇒ 📌 **the cross-lane STOP-and-report cost nothing.**
+> ⚠ The measurement below is kept because it quantifies the blast radius, which their commit message does not.
 
 📐 **Measured on the dispatch tree `42a6ef37c`, before I changed anything:**
 
@@ -53,10 +58,11 @@ in its constructor**, so this is not "some tests fail", it is "the suite cannot 
 public sealed class ToolActivationDrainSystem : IEcsModuleSystem
 ```
 
-⛔ **NOT APPLIED — UI-lane production file** *(`claude/reset-working-branch-qd1qpv`)*; CLAUDE.md makes a
-cross-lane edit a STOP-and-report, not a judgement call.
-⚠⚠ **Every integration number in this report was measured with those three attributes applied LOCALLY
-and UNCOMMITTED.** Without them **no** integration number is obtainable on the merged tree.
+⛔ **NOT APPLIED BY ME — UI-lane production file** *(`claude/reset-working-branch-qd1qpv`)*; CLAUDE.md makes
+a cross-lane edit a STOP-and-report, not a judgement call. ✅ **They shipped exactly this at `74e6761c3`.**
+
+⚠ **Integration numbers taken BEFORE that merge** used the same three attributes applied locally and
+uncommitted. ✅ **Re-verified AFTER merging their fix** — see gate 13.
 
 ## 2. ⭐⭐⭐ `QA-017` — **an integer where a strict string enum is required, twice, one field apart**
 
@@ -153,6 +159,7 @@ dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --no-build \
 | 9 | `python3 scripts/tracker-counts.py --check` | n/a | ✅ **open 102 / done 346** | ⚠ unchanged **by design** — the script matches only `BP-` rows, so `QA-` rows are invisible to it *(reported last batch, not changed here)* |
 | 10 | working tree clean after every suite run | — | ✅ no golden moved; **zero golden files touched this batch** | — |
 | 11 | 🔴 **full integration suite** — `dotnet test …ClusterRunner.Integration.Tests --no-build` *(with `QA-033` patched locally)* | ✅ | ⛔ **ABORTS — "Test host process crashed"** after ~54 of 267: **41 passed · 16 failed · 2 skipped** | ⭐⭐ **base-proved NOT mine** — with `QA-030` reverted it aborts too *(**54 total · 35 passed · 17 failed · 2 skipped**)*, and the **abort point differs between runs** ⇒ nondeterministic. Filed **`QA-034`** |
+| 13 | ✅ **POST-MERGE re-verify** *(coordinator branch merged, `QA-033` fixed upstream)* — `--filter` the 7 `QA-017`+`QA-024` classes | ✅ | ⭐ **21 total · 18 passed · 3 failed** | the 3 are **exactly** the refiled `QA-031` residue *(`BothNodes_LiveSimulation_BothRecordingFilesCreated`, `RecordAndReplaySeek_Passes`, `LiveFromReplayBranch_Passes`)* |
 | 12 | quarantine / skips | — | ✅ **9 skipped in `Fdp.Core.Tests`, unchanged**; ⛔ **no new skip, no new filter-around** *(`R-131`)* | — |
 
 ### 5.1 ⛔⛔ ROW 8 OF THE CONTRACT — **the cross-cutting gate, and its honest limit**
