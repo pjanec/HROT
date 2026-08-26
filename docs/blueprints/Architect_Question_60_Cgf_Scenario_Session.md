@@ -92,7 +92,7 @@ known-conflict: none. Origin: the §6.2 handback of REPORT_Cgf_Menu_Follows_Focu
 1. ✅ **Roadmap: EXTEND, don't duplicate.** User: *"check existing programme docs to avoid roadmaps in multiple places."* 📐 Verified — the features-to-unify roadmap **already exists** *(`PROGRAMME_Cgf_Equals_Editor_Gap_Map.md` §2 + §5)*. ⇒ ⛔ **no new `PROGRAMME_Editor_To_Shared`**; the R1 extraction is added as **`Gap_Map §2c` — AXIS C** *(host-agnostic→shared vs bootstrap→thin-host, increments E1–E5)*, §5 rewritten to the current state, charter §6 points at it. **Slice A = Axis C increment E1.**
 2. ✅ **Toolbar-customization (R3): NOTED for later** *(user: "note it")* — recorded in `Gap_Map §5 FUTURE`. ⭐ **Customizable element = which distinct actions surface as toolbar buttons AND as main-menu items, per subsystem/perspective** *(configurable, ⛔ not host-conditionals, ⛔ never chameleons)*. Its own AQ when reached.
 
-⚠ **Still pending: the Slice A R2/R3 REVISION** — distinct File-menu items *(no chameleons)*, extraction framed as Axis-C E1, toolbar-button selection removed. `DESIGN_Cgf_Scenario_Session_Slice.md` stays on-hold until revised.
+✅ **Slice A REVISED to R1–R3 `2026-08-26`** — `DESIGN_Cgf_Scenario_Session_Slice.md` is READY-TO-BUILD: distinct File-menu items *(Live/New Exercise · Live/Load Scenario · Edit/Open Scenario · Save · Checkpoint/Take Checkpoint — no chameleons)*, framed as **Axis-C E1**, toolbar-button selection removed. Handoff `HANDOFF_Cgf_Scenario_Session.md` ready to relay *(UI/CGF lane)*.
 
 <!-- ⛔ EVERYTHING BELOW (old §4/§5) IS THE PRE-RULING DRAFT — superseded by §3b + §4 above. Do NOT quote as current. -->
 ## ⛔ HISTORY — pre-ruling draft *(superseded by §3b + §4, `2026-08-26`)*
