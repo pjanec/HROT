@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — one decision to confirm (§5: CGF's File items global vs perspective-bound; lean = global).
-  Otherwise buildable; carries class+sequence UML. Flip to READY-TO-BUILD on that nod.
+build-state: READY-TO-BUILD — the §6 decision is settled: **CGF's File items are GLOBAL** (user, 2026-08-26).
+  Carries class+sequence UML.
 updated: 2026-08-26
 current-answer: the whole file. Intent basis: UX/UX_Feature_Menu_Follows_Focus.md (UXI-05) +
   UX/UX_Feature_Shell_Parity.md (UXI-35 ISubsystemShell) + the CE-016 as-built (CgfEditorShellToolbar).
@@ -122,12 +122,9 @@ sequenceDiagram
     end
 ```
 
-## 6. ⭐ THE ONE DECISION TO CONFIRM — **global vs perspective-bound for CGF's `File` items**
-CGF's common-core items *(Save/Open/New/Reload)* are **cross-perspective** — they act on whatever AI doc is active — and the **toolbar** already registered them **global** *(CE-039)*.
-- ⭐ **Lean: register them GLOBAL on CGF** *(perspective = null)* — always shown, consistent with the toolbar; the follows-focus MODEL is still built and unit-railed *(items ①/②/⑤)*, ready for the first perspective-SPECIFIC item a later slice adds. ⇒ this slice delivers *"CGF has the File menu + the registry follows-focus model"*, ⛔ not a visible CGF menu that changes per perspective *(the common-core has no perspective-specific items to change)*.
-- alternative: bind them to CGF's editing perspective(s) — makes CGF's own `File` follow focus, but the items are cross-perspective so this mostly duplicates bindings for no user-visible gain, and it couples to CGF's perspective naming *(the magic-string risk UXI-05 flags)*.
-
-⚠ **Approve the lean or name the alternative** — it's the only choice that changes the build.
+## 6. ✅ DECISION SETTLED — **CGF's `File` items are GLOBAL** *(user, `2026-08-26`)*
+CGF's common-core items *(Save/Open/New/Reload)* are **cross-perspective** — they act on whatever AI doc is active — and the **toolbar** already registered them **global** *(CE-039)*. ⇒ register them **global** *(perspective = null)* on CGF: always shown, consistent with the toolbar. The follows-focus MODEL is still built and unit-railed *(items ①/②/⑤)*, ready for the first perspective-SPECIFIC item a later slice adds. ⛔ **Not chosen:** binding them to CGF's editing perspectives — the items are cross-perspective, so that duplicates bindings for no user-visible gain and couples to CGF's perspective naming *(the magic-string risk UXI-05 flags)*.
+⇒ ⭐ **This slice delivers "CGF has the File menu + the registry follows-focus model"** — ⛔ not a CGF menu that visibly changes per perspective *(the common-core has no perspective-specific items yet to change)*.
 
 ## 7. ⭐ ACCEPTANCE / RAILS
 - **Editor byte-identical** — the editor's rendered menu tree is unchanged after item ① *(a `RenderGlobalMenu`/registry-dump diff before/after; migration step-1 gate)*.
