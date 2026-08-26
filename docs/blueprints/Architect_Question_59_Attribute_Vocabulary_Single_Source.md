@@ -4,7 +4,10 @@ build-state: DESIGN — decision-shaped, awaiting the user's approval. ⛔ NOT r
   belongs with the chosen option, and the option is not chosen yet.
 updated: 2026-08-26
 current-answer: ⭐⭐⭐ §7 (the ATTRIBUTE / DESCRIPTOR SPLIT, user 2026-08-26) is the CURRENT answer and it
-  REVISES §3 and §4. Read §7 FIRST, then §4's revised leans. Nothing here is approved yet.
+  REVISES §3 and §4. Read §7 FIRST, then §4's revised leans, then §8. Nothing here is approved yet.
+  ⭐⭐ §8 answers two follow-ups: (a) the multiple-tables issue is NOT solved — AX-018 went 4 tables to 3
+  and added a RAIL, which detects drift rather than preventing it; (b) Heading vs GeoHeading is a real
+  trap with measured cost, and the fix is to rename the CONSTANT (source-only) never the PATH (wire).
 stale-below: ⛔ §3's "6-tuple" is SUPERSEDED by §7.2 — it is TWO tuples joined by component identity.
   ⛔ §4's Q59-A1 (6 fields) and Q59-C2 (adopt ATTR-DESIGN Phase 6) are SUPERSEDED by §7.4/§7.5.
 known-conflict: none. §5 F3 is a NEW defect this investigation found; it has no prior design record.
@@ -257,3 +260,74 @@ it is a real change from today's one-ordinal-per-component and `_ordinalByType` 
 | **4** | ⭐ `A1′` + `B1` | ⭐ the attribute tuple, now 5 clean fields |
 
 ⛔ **`C2` withdrawn · `D2` not scheduled.**
+
+---
+
+## 8. ⭐⭐ TWO FOLLOW-UP QUESTIONS, ANSWERED WITH MEASUREMENTS *(user, `2026-08-26`)*
+
+### 8.1 ⛔ *"the multiple tables for same thing issue — was that already solved?"* — **NO.**
+
+📐 **Measured, current `HEAD`:** all **six** rows are still spelled out in **three** hand-maintained tables.
+
+| | before `AX-018` | now | designed fix |
+|---|---|---|---|
+| tables | **4** | ⭐ **3** *(IG now calls the factory)* | ⭐⭐ **1** — `A1′` + `E` |
+| enforcement | ⛔ **a code comment** | ⚠ **a rail** *(`TheFourRoutingTablesAgreeTests`)* | ⭐⭐⭐ **construction** |
+
+⇒ ⭐⭐ **`AX-018` removed the duplicate and made drift DETECTABLE. ⛔ It did not make drift IMPOSSIBLE.**
+⚠ **That is the honest status:** *"solved"* is `A1′`+`E`, which is **designed and not built.** ⛔ Do not read
+the green rail as the problem being closed — 📌 it is the `R-131`-adjacent trap of mistaking a detector for a
+fix.
+
+### 8.2 ⭐⭐⭐ *"what about `Heading` vs `GeoHeading` … between json and binary way?"* — **a real trap, and it costs something measurable**
+
+⭐⭐ **There are TWO naming mismatches, not one:**
+
+| JSON path *(the wire-visible authoring name)* | `AttributeIds` constant | |
+|---|---|---|
+| `Name` · `Affiliation` | `Name` · `Affiliation` | ✅ identical |
+| `GeoPosition.Latitude` / `.Longitude` / `.Altitude` | `GeoLat` · `GeoLon` · `GeoAlt` | ⚠ **dotted + full ↔ flat + abbreviated** |
+| ⭐ `Heading` | 🔴 **`GeoHeading`** | 🔴 **the path LACKS the prefix the id HAS** |
+
+#### 🔴 What it costs — **measured, `2026-08-26`**
+
+| # | measurement |
+|---|---|
+| **①** | 🔴🔴 **GUESSING IS SILENT.** `{"GeoPosition":{"Heading":90.0}}` ⇒ `HasAppliedAny = **False**`, **no exception, no log**; `{"Heading":90.0}` ⇒ `True`. ⇒ ⛔ **the id name `GeoHeading` ADVERTISES a path that does not exist**, and reading it alongside the `GeoPosition.*` family leads to exactly the guess that silently does nothing. ⚠ **And the corpus says nothing about unknown paths** — the silence is **undesigned**, not deliberate forward-compat |
+| **②** | 🔴 **`ExportSchema` — the one artefact that could tell a client the real paths — is MALFORMED.** 📐 Actual output: `"GeoPosition"` appears as a property key **THREE TIMES** *(the three geo paths collapse to their root segment)* and **every** type is `"string"`, including four `Float64` paths. ⇒ a consumer sees **4 properties instead of 6**, all mistyped. ⚠ **Nobody subscribes today** *(only generated reader extensions exist)* — ⛔ so it cannot even be caught in the field |
+
+#### ⭐⭐⭐ THE ASYMMETRY THAT DECIDES THE FIX
+
+| | on the wire? | ⇒ renaming is |
+|---|---|---|
+| ⭐ the **JSON path** | ✅ **YES** — external senders write it *(ExCon, the debug API, authoring JSON)* | ⛔ **a BREAKING contract change** |
+| ⭐⭐⭐ the **`AttributeIds` constant NAME** | ⛔ **NO** — 📐 the wire carries the `ushort` **13**; `search` finds **no `.idl`** naming it, and all 91 `Geo*` references are C# | ✅ **FREE — source-only** |
+
+⇒ ⭐⭐ **Fix the id name, never the path.** ⛔ And note the path `Heading` is arguably *more* correct than
+`GeoPosition.Heading` would be — **heading is orientation, not position** *(the wire itself splits them:
+`WorldPos.Pos` vs `WorldPos.Ori.Heading`)*.
+
+#### ⭐ The options
+
+| option | |
+|---|---|
+| **N1** ⭐⭐⭐ **RECOMMENDED — rename the constant `GeoHeading` → `Heading`** | ⭐ removes the exact trap ① describes: the id stops advertising a path that does not exist. 📐 **Source-only, ~11 files, zero wire impact**, and no `AttributeIds.Heading` exists to collide with. ⛔ Leaves `GeoLat ↔ GeoPosition.Latitude` non-derivable — ⭐ **accepted deliberately, see below** |
+| **N2** make every id name mechanically derived *(path minus dots ⇒ `GeoPositionLatitude`…)* and **rail** it | ⭐ the only version that can be *enforced*. ⛔ **Not recommended:** 91 references of churn, verbose names, ⚠ **and it duplicates a guarantee `A1′` already gives** — the 5-tuple holds the path AND the id, so the definition IS the mapping. ⇒ a name rule would be a **second** mechanism enforcing the same thing |
+| **N3** ⭐⭐ **RECOMMENDED alongside N1 — make the paths DISCOVERABLE instead of guessable** | ⭐ fix `ExportSchema` *(`B1`)* so it emits one property per **full** path with the **real** type, derived from `A1′`. ⇒ ⭐⭐ **the artefact answers *"what paths exist?"***, which is the actual need behind the naming question |
+| **N4** ⚠ make an unregistered path LOUD | ⛔ **needs a ruling, not a lean.** ⭐ Unknown-key tolerance is genuinely valuable across mixed-version nodes ⇒ the right shape is a **count + one log line**, ⛔ never a throw. 📌 And the corpus is silent, so this is a NEW decision |
+
+⭐⭐ **Why N1 and not N2, stated plainly:** ⛔ **name symmetry is the symptom, not the goal.** ⭐ Once `A1′`
+exists, the id constant's *name* is internal convenience and the **definition** is the mapping; `ExportSchema`
+is the external answer. ⇒ ⭐ N1 is worth doing anyway because it costs nothing and removes a live trap — ⛔ but
+chasing full derivability would spend 91 edits to re-guarantee what one declaration already guarantees.
+
+### 8.3 ⭐ SEQUENCING — where these land in §7.7
+
+| order | item | change |
+|---|---|---|
+| **1** | `C1` — fix `F3`'s rotation | unchanged |
+| **1b** ⭐ NEW | **N1** — rename `GeoHeading` → `Heading` | ⭐ **cheap and independent; fold into `C1`'s batch** |
+| **2** | `E-pre` — adopt + rail `TargetComponentIds` | unchanged |
+| **3** | `E` — inject the ordinal map, retire FDP's descriptor vocabulary | unchanged |
+| **4** | `A1′` + `B1`/**N3** + `F4`/`F5` | ⭐ `B1` now carries the duplicate-key and wrong-type fixes |
+| **?** | **N4** — loud unknown paths | ⛔ **needs your ruling first** |
