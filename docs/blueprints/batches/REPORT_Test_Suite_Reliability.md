@@ -149,7 +149,10 @@ in any of the three runs**; no change was needed.
 |---|---:|---:|---:|
 | `--filter LogArchiveExtractionServiceTests`, before | 12 | 7 | 5 |
 | `--filter LogArchiveExtractionServiceTests`, after | 12 | ✅ **12** | ✅ 0 |
+| whole suite, at BASE `dbdc5e783` | 134 | 127 | **7** |
 | whole suite, after | 134 | 132 | ⚠ **2** — see §4 |
+
+⇒ ⭐ **7 → 2**, and the two survivors are the SAME two the base run shows.
 
 ### 3e. `Hrot.Presentation.Tests` — **W3**
 
@@ -174,9 +177,13 @@ table. Reported, not changed — widening the regex is the coordinator's call.
 
 ### 3h. `T3` — the E2E slow lane
 
-⭐ Run **asynchronously**, per the tiering rule; result appended below when it lands. The most recent
-full T3 before this batch was **107 / 0 / 0** *(UXI-05, `2026-08-26`)* — including the
-`ModeStartupRails (ig)` case the handoff expected to be red.
+`bash scripts/run-system-tests.sh` — ⭐ run **asynchronously**, per the tiering rule.
+
+📐 **`Passed! — Failed: 0, Passed: 107, Skipped: 0, Total: 107, Duration: 9 m 34 s`** *(exit 0)*.
+
+⭐⭐ **Fully green, including `ModeStartupRails … (ig)`** — the case the handoff listed as an X11
+SIGSEGV needing a virtual display. It was already acquiring one; the fault was intermittent and
+environmental, and the previous full T3 *(UXI-05, same day)* was also 107/0/0.
 
 ---
 
@@ -187,7 +194,7 @@ full T3 before this batch was **107 / 0 / 0** *(UXI-05, `2026-08-26`)* — inclu
 | **`QA-012`** | `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` | ⭐ **narrowed, not shrugged at.** `ReferenceReplayLoadHandler` accepts `PrepareLive` **only** while `IsReplayActive` and otherwise skips the branch SILENTLY. That precondition is now railed — **and it passes**, which REFUTES the obvious hypothesis. ⇒ the defect is in the branched recording's Prepare/Finalize **write path**. Needs a batch that can carry a record/replay investigation |
 | **`QA-013`** | the **52** stable integration reds | ⛔ **not new** — the suite could never finish, so they had never been seen at once. Base-proof in §3a. ⭐ **This is a programme, not a batch**: 28 classes across replication, cluster transition, recording, mission control, EQS. Coordinator scoping needed |
 | ⚠ | 3 `Eqs` cases that vary between runs | `Eqs_DistributedTopology_RejectsStaleEpochResults`, `Eqs_MidEvaluationAbort_SilentlyDropsQueryWithoutLeaking`, `CheapLosTest_BelowThreshold_FlagsMeaningfulZero`. ⭐ The residual after the memory fix — a much smaller target than the original signature |
-| ⚠ | `Hrot.Map.Common.Tests.EcsPatchContextTests` ×2 | `FlushDirtyMarks_DeduplicatesOrdinals`, `FlushDirtyMarks_CallsSmartEgressForTouchedComponents`. **STABLE** *(fail in isolation too, so not a flake)*, in `SmartEgress`/patch-context code **this batch never touched**, and they arrived with the merged `Q59`/Axis-B work. Base-sha verdict in §5 |
+| ⚠ | `Hrot.Map.Common.Tests.EcsPatchContextTests` ×2 | `FlushDirtyMarks_DeduplicatesOrdinals`, `FlushDirtyMarks_CallsSmartEgressForTouchedComponents`. **STABLE** *(fail in isolation too, so not a flake)* and ✅ **proved PRE-EXISTING at `dbdc5e783`** *(§5)*. In `SmartEgress`/patch-context code this batch never touched; they arrived with the merged `Q59`/Axis-B work. ⭐ Found only because they surfaced while gating `QA-010` — **filed, not fixed**, and they belong to whoever owns that merge |
 
 ⛔ **No new skip or quarantine was added anywhere in this batch** (`R-131`), and **two existing
 `STABILITY(Flaky)` traits were DELETED with the defect they labelled**.
@@ -199,7 +206,7 @@ full T3 before this batch was **107 / 0 / 0** *(UXI-05, `2026-08-26`)* — inclu
 | claim | how it was proven |
 |---|---|
 | the 52 integration reds are pre-existing | detached checkout of `dbdc5e783`, rebuild, filtered run of the same 28 classes — §3a |
-| `EcsPatchContextTests` ×2 | *(appended below)* |
+| `EcsPatchContextTests` ×2 | ✅ **PRE-EXISTING, proved.** Detached checkout of `dbdc5e783`, rebuild, whole `Hrot.Core.Tests` suite: **134 discovered, 127 passed, 7 failed** — the 5 `LogArchiveExtractionServiceTests` *(fixed by `QA-010`)* **and these same 2**. ⇒ this batch took the suite from **7 reds to 2**, and added none |
 
 ---
 
@@ -215,3 +222,11 @@ full T3 before this batch was **107 / 0 / 0** *(UXI-05, `2026-08-26`)* — inclu
 4. ⚠ **`tracker-counts.py` counts only `BP-` rows** (§3g). Widening it is a one-line change with a
    large count delta — the coordinator's call, not mine.
 5. ⭐ **`QA-012`** needs a record/replay batch.
+6. ⚠ **Rule-4 re-pull, done before the final commit.** The coordinator branch moved
+   `dbdc5e783 → dabd35715` **during** this batch *(UI Slice A / `CE-046..048`, the MCP agent-surface
+   programme, a lane-table correction)*. ⛔ **My scope stayed FROZEN at the dispatch sha** — nothing
+   there was adapted to. 📐 **Three files overlap** and are flagged for the merge, all in disjoint
+   regions: `Hrot.CGF/CgfSubsystem.cs` *(I touched only `Shutdown()`)*,
+   `Hrot.Editor/EditorSubsystem.cs` *(likewise)*, and `Blueprint_Issues_Tracker.md` *(I appended a new
+   Area N at the end; they added rows in Areas L/M)*. ⭐ Nothing in those commits invalidates an item of
+   this batch.
