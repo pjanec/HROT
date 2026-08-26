@@ -20,7 +20,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 ///
 /// <para>⭐⭐ <b>What the unit rails could not prove.</b> <c>TheGateCannotBeForgottenTests</c> proves the
 /// ROUTER picks <c>Requested</c> for an unowned component, and that the OWNER's installer applies
-/// <c>GeoHeading</c> through the existing compass conversion. ⛔ Neither proves the two halves are joined:
+/// <c>Heading</c> through the existing compass conversion. ⛔ Neither proves the two halves are joined:
 /// the FDP-internal command has to reach the egress translator, become a DDS sample, cross a real
 /// CycloneDDS domain, be picked up by the owner's request system, and pass its authority gate. ⭐ Every one
 /// of those is a registration that can simply be absent — 📌 the failure mode this programme keeps
@@ -92,7 +92,7 @@ public class AttributeChangeRequestRoundTripTests
         harness.PumpFrames(20);
 
         var writer = EntityWriteRouter.For(igWorld);
-        var route  = writer.Write(ghost, AttributeIds.GeoHeading, TargetHeadingDeg);
+        var route  = writer.Write(ghost, AttributeIds.Heading, TargetHeadingDeg);
         _out.WriteLine($"[C1] IG write route = {route}");
         Assert.Equal(EntityWriteRoute.Requested, route);
 
@@ -125,7 +125,7 @@ public class AttributeChangeRequestRoundTripTests
         // ⭐⭐ R-134's conversion, asserted on the WIRE: the internal kind became the network type.
         Assert.NotNull(seen.AttributeRecords);
         var record = Assert.Single(seen.AttributeRecords!);
-        Assert.Equal(AttributeIds.GeoHeading, record.AttributeId);
+        Assert.Equal(AttributeIds.Heading, record.AttributeId);
         Assert.Equal(Hrot.NED.Messages.AttributeValueType.KindFloat64, record.Value.ValueType);
         Assert.Equal(TargetHeadingDeg, record.Value.DoubleValue, 6);
 
@@ -192,7 +192,7 @@ public class AttributeChangeRequestRoundTripTests
         var writer = EntityWriteRouter.For(igWorld);
 
         const double TargetHeadingDeg = 137.0;
-        var route = writer.Write(igEntity, AttributeIds.GeoHeading, TargetHeadingDeg);
+        var route = writer.Write(igEntity, AttributeIds.Heading, TargetHeadingDeg);
         _out.WriteLine($"[A3] IG write route = {route}");
 
         // ⭐⭐ The router must NOT have written locally. ⛔ `Direct` here would mean the IG believes it owns
@@ -238,7 +238,7 @@ public class AttributeChangeRequestRoundTripTests
         Assert.True(harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out var shEntity));
 
         var writer = EntityWriteRouter.For(shWorld);
-        var route  = writer.Write(shEntity, AttributeIds.GeoHeading, 42.0);
+        var route  = writer.Write(shEntity, AttributeIds.Heading, 42.0);
         _out.WriteLine($"[B1] SimHost write route = {route}");
 
         Assert.Equal(EntityWriteRoute.Direct, route);

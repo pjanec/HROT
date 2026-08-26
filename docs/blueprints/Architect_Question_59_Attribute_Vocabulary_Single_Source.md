@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — decision-shaped, awaiting the user's approval. ⛔ NOT ready to dispatch: the UML
-  belongs with the chosen option, and the option is not chosen yet.
+build-state: READY-TO-BUILD — ⭐⭐⭐ APPROVED by the user 2026-08-26 ("ok accepting recommenaldations").
+  Approved set: C1 · N1 · N3/B1 · E-pre · E · A1' · D1 · F3/F4/F5. ⛔ WITHDRAWN: C2, A3, N2, D2.
+  ⚠ N4 (loud unknown paths) is NOT approved — it was offered as a question needing a ruling, not a lean.
+  §9 carries the classDiagram + sequenceDiagram for the approved shape (obligation 1/2).
 updated: 2026-08-26
 current-answer: ⭐⭐⭐ §7 (the ATTRIBUTE / DESCRIPTOR SPLIT, user 2026-08-26) is the CURRENT answer and it
   REVISES §3 and §4. Read §7 FIRST, then §4's revised leans, then §8. Nothing here is approved yet.
@@ -331,3 +333,126 @@ chasing full derivability would spend 91 edits to re-guarantee what one declarat
 | **3** | `E` — inject the ordinal map, retire FDP's descriptor vocabulary | unchanged |
 | **4** | `A1′` + `B1`/**N3** + `F4`/`F5` | ⭐ `B1` now carries the duplicate-key and wrong-type fixes |
 | **?** | **N4** — loud unknown paths | ⛔ **needs your ruling first** |
+
+---
+
+## 9. ⭐⭐⭐ THE APPROVED SHAPE — UML *(obligation ①/②: drawn AFTER §1/§7.3's enumeration; existing boxes marked)*
+
+> ⭐⭐ **Approved `2026-08-26`.** ⛔ `C2`, `A3`, `N2`, `D2` withdrawn; ⚠ `N4` still needs a ruling.
+
+### 9.1 ⭐⭐ Refinement found while drawing it — **`E-pre` is ONE translator, not five**
+
+📐 **Measured:** the map only needs to cover components the **attribute apply path writes** — today
+`Fdp.Core.EntityInfo` and `SimTransform`.
+
+| translator | gates on `ShouldPublish`? | declares `TargetComponentIds`? | needed for `E`? |
+|---|---|---|---|
+| `EntityInfoEgressTranslator` | ✅ | 🔴 **NO** | ⭐⭐⭐ **YES — the one gap** |
+| `GeoSpatialEgressTranslator` | ⛔ *(state comparison — `SmartEgressUtil`'s split)* | ✅ `{SimTransform, NetworkTransform, NetworkVelocity}` | ✅ already covered |
+| `EntityMission` · `EqsSensorConfig` · `Perception*` | ✅ | ⛔ no | ⛔ **NOT needed** — 📐 their dirty marks come from `MissionControlExecutionSystem` / `UnitHierarchySystem` calling `MarkDirty` with an explicit ordinal, **not** from the attribute path |
+
+⇒ ⛔ **§7.6's *"adopt across the translators that need it"* was too broad.** ⭐⭐ **The correct invariant is
+narrower and exactly checkable:** *every component named by an attribute definition must be covered by at
+least one translator's `TargetComponentIds`.* ⇒ ⭐ adding an attribute for an uncovered component is a RED.
+
+### 9.2 ⭐ Class diagram
+
+```mermaid
+classDiagram
+    namespace FdpCore {
+        class IDescriptorTranslator {
+            +long DescriptorOrdinal
+            +IReadOnlyList~int~ TargetComponentIds
+        }
+        class SimMath
+    }
+    namespace FdpToolkits {
+        class AttributeDefinition {
+            +string JsonPath
+            +ushort AttributeId
+            +AttributeValueKind Kind
+            +Type Component
+            NO ordinal
+        }
+        class AttributeVocabulary {
+            +All() IReadOnlyList
+        }
+        class AttributeCompilerFactory {
+            +Build(geo)
+            +BuildEdgeCompiler()
+            +BuildBinaryInterpreter(geo)
+        }
+        class ComponentDescriptorMap {
+            +Build(translators)
+            +OrdinalsFor(componentId) long[]
+        }
+        class AttributeInterpreterProvider {
+            +GetOrCreateBinary(repo)
+            +GetOrCreateJson(repo)
+            +SetDescriptorMap(repo, map)
+        }
+        class EcsPatchContext {
+            +FlushDirtyMarks()
+        }
+        class JsonAttributeCompiler {
+            +ExportSchema()
+        }
+        class SimTransformBridgeSystem {
+            +HeadingDegToRotation(deg)
+        }
+    }
+    namespace HrotNetworkNED {
+        class EntityInfoEgressTranslator
+        class GeoSpatialEgressTranslator
+        class DescriptorMapper
+    }
+
+    AttributeVocabulary --> AttributeDefinition : the ONE declaration
+    AttributeCompilerFactory ..> AttributeVocabulary : all three tables DERIVED
+    JsonAttributeCompiler ..> AttributeVocabulary : ExportSchema derived
+    ComponentDescriptorMap ..> IDescriptorTranslator : inverts ordinal plus components
+    AttributeInterpreterProvider --> ComponentDescriptorMap : per world
+    EcsPatchContext ..> ComponentDescriptorMap : component to ordinals
+    EcsPatchContext ..> AttributeVocabulary : validates coverage
+    EntityInfoEgressTranslator ..|> IDescriptorTranslator
+    GeoSpatialEgressTranslator ..|> IDescriptorTranslator
+    SimTransformBridgeSystem ..> SimMath
+    DescriptorMapper ..> SimTransformBridgeSystem : F3 fix, was inline math
+    AttributeCompilerFactory ..> SimTransformBridgeSystem : F5 fix, was inline math
+```
+
+⭐ **Existing, unchanged:** `IDescriptorTranslator` · `SimMath` · `SimTransformBridgeSystem` ·
+`JsonAttributeCompiler` · `EcsPatchContext` · `AttributeInterpreterProvider` · the translators ·
+`DescriptorMapper`.
+⭐⭐ **NEW, and only two:** `AttributeDefinition`/`AttributeVocabulary` *(`A1′`)* · `ComponentDescriptorMap`
+*(`E`)*.
+⛔ **DELETED:** `Fdp.Toolkit.Replication.DescriptorOrdinal` · `DescriptorOrdinalConversion` ·
+`IEntityPatchContext.MarkDescriptorDirty`.
+
+### 9.3 ⭐ Sequence — the dirty mark after `E`
+
+```mermaid
+sequenceDiagram
+    participant Net as CycloneNetworkModule
+    participant Map as ComponentDescriptorMap
+    participant Prov as AttributeInterpreterProvider
+    participant App as applier, JSON or binary
+    participant Ctx as EcsPatchContext
+    participant Eg as SmartEgressUtil
+
+    Note over Net,Map: startup — the NETWORK layer owns the ordinals
+    Net->>Map: Build(allTranslators)
+    Map-->>Net: componentId to ordinals
+    Net->>Prov: SetDescriptorMap(repo, map)
+
+    Note over App,Eg: apply — the applier names a COMPONENT, never a descriptor
+    App->>Ctx: GetUnmanagedComponent~EntityInfo~()
+    Ctx->>Map: OrdinalsFor(EntityInfo)
+    Map-->>Ctx: [dtEntityInfo]
+    App->>Ctx: FlushDirtyMarks()
+    Ctx->>Eg: MarkDirty(repo, entity, ordinal)
+```
+
+⭐⭐⭐ **The point of the sequence:** the applier's only act is touching a **component**. ⛔ No installer, no
+routing table and no FDP type names a descriptor — and on a networkless host the map is absent, so
+`OrdinalsFor` returns empty and nothing is marked, which is correct.

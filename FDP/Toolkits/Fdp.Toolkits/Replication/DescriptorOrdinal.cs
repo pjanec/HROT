@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Replication;
 /// it is a <b>bit index</b>. <c>SmartEgressUtil.MarkDirty</c> records it in
 /// <c>EgressPublicationState.DirtyDescriptors</c> so an egress translator's
 /// <c>ShouldPublish(view, entity, ordinal)</c> can answer *"has this descriptor changed?"*. ⛔ Nothing
-/// serialises it — the attribute update carries <c>AttributeId</c> *(<c>GeoHeading = 13</c>)*, never an
+/// serialises it — the attribute update carries <c>AttributeId</c> *(<c>Heading = 13</c>)*, never an
 /// ordinal. ⚠ An earlier design note claimed the opposite *("a descriptor ordinal IS wire numbering")* and
 /// used it to argue the apply path could not leave the DDS assembly; that claim is RETRACTED and this file
 /// is the consequence.</para>

@@ -305,7 +305,17 @@ namespace Hrot.SimHost.Tests
             // IdentityGeoTransform: ToCartesian(lat, lon, alt) â†’ (lon, lat, alt)
             //   â†’ Position = (20, 10, 30)
             // Both the descriptor path and the JSON path should produce the same position.
-            const double Lat = 10.0, Lon = 20.0, Alt = 30.0;
+            // ⭐⭐⭐ Q59-C1 — UPDATED, exactly as ApplyGeoSpatialDescriptor's ATTR-BATCH-03 TODO demanded:
+            //    "If new JSON path delegates are added for dtWorldPos (e.g. \"Heading\"), this method MUST be
+            //     updated to maintain convergence … Enforced currently by [this test]."
+            // 🔴 AX-018 added that delegate, so the helper now sets Rotation too — and this test began
+            //    comparing UNLIKE payloads: the descriptor ALWAYS carries a heading (Ori.Heading = 0 means
+            //    North, a real value), while the JSON patch omitted it and left Rotation at default(0,0,0,0),
+            //    which is not even a valid quaternion.
+            // ⇒ ⭐ convergence is only a meaningful claim when both routes carry the SAME information, so the
+            //    JSON payload now includes the heading, and a NON-ZERO one so the assert cannot pass by
+            //    both sides happening to be identity.
+            const double Lat = 10.0, Lon = 20.0, Alt = 30.0, HeadingDeg = 45.0;
 
             var compiler = BuildCompiler();
 
@@ -319,7 +329,7 @@ namespace Hrot.SimHost.Tests
                     {
                         EntityId = 0,
                         Pos      = new GeoPoint { Latitude = Lat, Longitude = Lon, Altitude = Alt },
-                        Ori      = new EulerOri { Heading = 0f },
+                        Ori      = new EulerOri { Heading = (float)HeadingDeg },
                     },
                 },
             };
@@ -330,7 +340,8 @@ namespace Hrot.SimHost.Tests
             // â”€â”€ JSON path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var jsonCtx = new ListPatchContext(null);
             compiler.Compile(
-                $"{{\"GeoPosition\":{{\"Latitude\":{Lat},\"Longitude\":{Lon},\"Altitude\":{Alt}}}}}",
+                $"{{\"GeoPosition\":{{\"Latitude\":{Lat},\"Longitude\":{Lon},\"Altitude\":{Alt}}}," +
+                $"\"Heading\":{HeadingDeg}}}",
                 jsonCtx);
             var jsonComponents = jsonCtx.FlushComponents();
             var jsonTransform  = jsonComponents.OfType<SimTransform>().Single();
@@ -340,9 +351,17 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(descriptorTransform.Position.Y, jsonTransform.Position.Y, precision: 3);
             Assert.Equal(descriptorTransform.Position.Z, jsonTransform.Position.Z, precision: 3);
 
-            // Both paths leave Rotation at default for the shared delegate
-            // (heading/rotation is outside the scope of the shared coordinate delegate).
-            Assert.Equal(descriptorTransform.Rotation, jsonTransform.Rotation);
+            // ⭐⭐⭐ And the same Rotation — both routes now go through the ONE shared conversion
+            //    (SimTransformBridgeSystem.HeadingDegToRotation), which is Q59-C1's whole point.
+            // ⚠ Asserted against the BRIDGE as well as against each other: agreeing with one another
+            //    would still hold if both adopted the same WRONG formula, which is how F3 survived.
+            var expected = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem
+                .HeadingDegToRotation((float)HeadingDeg);
+
+            Assert.Equal(expected.Z, descriptorTransform.Rotation.Z, precision: 4);
+            Assert.Equal(expected.W, descriptorTransform.Rotation.W, precision: 4);
+            Assert.Equal(descriptorTransform.Rotation.Z, jsonTransform.Rotation.Z, precision: 4);
+            Assert.Equal(descriptorTransform.Rotation.W, jsonTransform.Rotation.W, precision: 4);
         }
     }
 }

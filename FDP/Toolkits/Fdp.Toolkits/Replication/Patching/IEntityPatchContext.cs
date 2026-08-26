@@ -69,7 +69,7 @@ public interface IEntityPatchContext
     /// <c>BinaryInterpreter.Apply</c>, read only by tests)*. ⇒ <c>FlushDirtyMarks</c> marked NOTHING and the
     /// binary path never told SmartEgress anything.</para>
     ///
-    /// <para>⚠⚠ <b>Why nobody noticed:</b> the one attribute exercised end-to-end is <c>GeoHeading</c> →
+    /// <para>⚠⚠ <b>Why nobody noticed:</b> the one attribute exercised end-to-end is <c>Heading</c> →
     /// <c>SimTransform</c>, and <c>GeoSpatialEgressTranslator</c> <b>diffs <c>lastSent</c> every tick</b> — so
     /// it republishes regardless of dirty marks. ⛔ <c>EntityInfoEgressTranslator</c> does NOT diff: it gates
     /// on <c>SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, …)</c>. ⇒ 🔴 <b>a binary

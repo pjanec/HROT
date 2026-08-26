@@ -98,10 +98,15 @@ public static class AttributeCompilerFactory
             "Heading",
             (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
             {
-                float headingDeg  = (float)r.GetDouble();
-                float mathYawRad  = (90f - headingDeg) * (MathF.PI / 180f);
-                st.Rotation       = System.Numerics.Quaternion.CreateFromAxisAngle(
-                    System.Numerics.Vector3.UnitZ, mathYawRad);
+                // ⭐⭐ Q59-F5 — CALL the shared conversion; do not re-derive it. This used to inline
+                //    `(90 - h) * π/180` + `CreateFromAxisAngle(UnitZ, …)`, which is numerically identical
+                //    to the bridge and was therefore NOT a defect — ⛔ but it was the third copy of one
+                //    formula, and F3 is what the third copy of a formula eventually becomes (the
+                //    DescriptorMapper copy drifted to the wrong axis entirely).
+                // 📌 AttributeIds.Heading's own doc already claimed "no new conversion math was
+                //    written; the installer reuses the bridge" — true of the installer, false here until now.
+                st.Rotation = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem
+                    .HeadingDegToRotation((float)r.GetDouble());
             },
             descriptorOrdinal: GeoSpatialOrdinal);
 
@@ -120,7 +125,7 @@ public static class AttributeCompilerFactory
     /// <para>🔴🔴 <b><c>AX-018</c> — that promise had FAILED, and nothing detected it.</b> 📐 Measured
     /// <c>2026-08-26</c>: <c>Heading</c> was added to <see cref="Build"/> and to
     /// <see cref="BuildBinaryInterpreter"/> *(Axis-B item ②)* and to <b>neither edge table</b>. ⇒ the
-    /// interpreter stood ready to apply <c>GeoHeading</c> that no edge table could ever emit, so a heading
+    /// interpreter stood ready to apply <c>Heading</c> that no edge table could ever emit, so a heading
     /// crossing the JSON→binary route emitted <b>zero records</b> — ⛔ silently: no exception, no log, the
     /// rotation simply never left the edge.</para>
     ///
@@ -144,7 +149,7 @@ public static class AttributeCompilerFactory
             .Register("GeoPosition.Altitude",   AttributeIds.GeoAlt,      AttributeValueKind.CsFloat64)
             // ⭐⭐ AX-018 — the missing one. Registered UNCONDITIONALLY, matching Build() and
             //   BuildBinaryInterpreter(): a compass heading needs no IGeographicTransform.
-            .Register("Heading",                AttributeIds.GeoHeading,  AttributeValueKind.CsFloat64)
+            .Register("Heading",                AttributeIds.Heading,  AttributeValueKind.CsFloat64)
             .Build();
     }
 

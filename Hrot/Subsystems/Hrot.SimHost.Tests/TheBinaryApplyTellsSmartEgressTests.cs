@@ -25,7 +25,7 @@ namespace Hrot.SimHost.Tests;
 /// <c>SimTransform</c>.</b> 📌 <c>SmartEgressUtil</c>'s own remarks prescribe a SPLIT strategy: reliable
 /// low-frequency descriptors *(<c>EntityInfo</c>, <c>EntityMaster</c>, <c>EntityMission</c>)* use
 /// <c>MarkDirty</c>; high-frequency <c>GeoSpatial</c> uses **state comparison against
-/// <c>NetworkTransform</c>** instead. ⇒ ⭐ the one attribute exercised end-to-end — <c>GeoHeading</c> →
+/// <c>NetworkTransform</c>** instead. ⇒ ⭐ the one attribute exercised end-to-end — <c>Heading</c> →
 /// <c>SimTransform</c> — republished anyway because its translator DIFFS every tick, which masked the bug
 /// completely. ⛔ <c>EntityInfoEgressTranslator</c> does not diff: it gates on
 /// <c>SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, …)</c>. ⇒ 🔴 <b>an entity RENAME applied

@@ -6,7 +6,7 @@ using Fdp.Modules.Geographic.Systems;
 namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
-/// ⭐⭐⭐ <b>Axis-B item ② — routes the <see cref="AttributeIds.GeoHeading"/> binary attribute to
+/// ⭐⭐⭐ <b>Axis-B item ② — routes the <see cref="AttributeIds.Heading"/> binary attribute to
 /// <see cref="SimTransform.Rotation"/>.</b>
 ///
 /// <para>📄 <c>docs/DESIGN_Cgf_AxisB_Rotation_Slice.md</c> §6 ② · §4 *(classDiagram:
@@ -39,7 +39,7 @@ public sealed class SimTransformHeadingInstaller : IBinaryAttributeInstaller<Ent
     public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)
     {
         // ⭐ UXI-30: the typed overload gates on CanWrite<SimTransform>() before the handler runs.
-        builder.RegisterHandler<SimTransform>(AttributeIds.GeoHeading, HandleGeoHeading);
+        builder.RegisterHandler<SimTransform>(AttributeIds.Heading, HandleHeading);
     }
 
     /// <summary>
@@ -52,7 +52,7 @@ public sealed class SimTransformHeadingInstaller : IBinaryAttributeInstaller<Ent
     /// mark, so heading and position behave identically on the way back out. ⛔ Not a contradiction of the
     /// no-flag rule: different direction, same component.</para>
     /// </summary>
-    private void HandleGeoHeading(BinaryPatchContext ctx, EntityAttributeChange record)
+    private void HandleHeading(BinaryPatchContext ctx, EntityAttributeChange record)
     {
         // ⭐ Float64 on the wire (the Geo* family's value type); the bridge takes a float.
         float headingDeg = (float)record.Value.DoubleValue;

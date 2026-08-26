@@ -141,7 +141,7 @@ public class TheJsonAndBinaryPathsAgreeTests
         {
             new EntityAttributeChange
             {
-                AttributeId = AttributeIds.GeoHeading,
+                AttributeId = AttributeIds.Heading,
                 Value       = AttributeValue.FromDouble(90.0),
             }
         });

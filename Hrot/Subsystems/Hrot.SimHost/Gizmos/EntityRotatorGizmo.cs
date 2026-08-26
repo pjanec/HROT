@@ -143,7 +143,7 @@ namespace Hrot.SimHost.Gizmos
             if (_writer != null)
             {
                 float compassDeg = SimMath.YawRadToCompassDeg(_currentYawRad);
-                _writer.Write(_entity, AttributeIds.GeoHeading, compassDeg);
+                _writer.Write(_entity, AttributeIds.Heading, compassDeg);
                 return;
             }
 

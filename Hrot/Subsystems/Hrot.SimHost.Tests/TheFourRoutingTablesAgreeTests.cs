@@ -29,7 +29,7 @@ namespace Hrot.SimHost.Tests;
 ///   from ② with a comment saying it must stay in sync *(⛔ ruling 9: a duplicate implementation kept in
 ///   step by a comment — the same disease as the <c>eForceIdentifier</c> triple)*</item>
 ///   <item>⭐ <c>AttributeCompilerFactory.BuildBinaryInterpreter()</c> — record → ECS *(**has**
-///   <c>GeoHeading</c>)*</item>
+///   <c>Heading</c>)*</item>
 /// </list>
 ///
 /// <para>⇒ 🔴 <b>the binary interpreter can APPLY a heading that no edge table can ever EMIT</b>, so a
@@ -56,7 +56,7 @@ public class TheFourRoutingTablesAgreeTests
         ("GeoPosition.Latitude",  AttributeIds.GeoLat,     "{\"GeoPosition\":{\"Latitude\":32.0}}"),
         ("GeoPosition.Longitude", AttributeIds.GeoLon,     "{\"GeoPosition\":{\"Longitude\":34.0}}"),
         ("GeoPosition.Altitude",  AttributeIds.GeoAlt,     "{\"GeoPosition\":{\"Altitude\":100.0}}"),
-        ("Heading",               AttributeIds.GeoHeading, "{\"Heading\":90.0}"),
+        ("Heading",               AttributeIds.Heading, "{\"Heading\":90.0}"),
     };
 
     public static IEnumerable<object[]> VocabularyCases()
@@ -69,7 +69,7 @@ public class TheFourRoutingTablesAgreeTests
     ///
     /// <para>🔴 <c>Heading</c> reddened this — the edge table never registered it, so
     /// <c>{"Heading":90.0}</c> emitted <b>zero</b> records while <c>BuildBinaryInterpreter</c> stood ready
-    /// to apply <c>GeoHeading</c>. ⚠ Silent: no exception, no log, the rotation simply never left the edge.</para>
+    /// to apply <c>Heading</c>. ⚠ Silent: no exception, no log, the rotation simply never left the edge.</para>
     /// </summary>
     [Theory]
     [MemberData(nameof(VocabularyCases))]
