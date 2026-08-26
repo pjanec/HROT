@@ -58,7 +58,7 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 >
 > ⭐⭐ **THREE implementation lanes now active/queued** *(all disjoint: UI = AiShared/scenario/menu · BACKEND = test + leak fixes · MCP = `DebugApi`/`tools/ai-debug-mcp`)*:
 >   - **UI/CGF** `claude/reset-working-branch-qd1qpv` — FREE. ⭐ **NEXT READY: Axis-C E2** *(asset-picker shell)* — `HANDOFF_Cgf_Asset_Picker_Shell.md` + `DESIGN_Cgf_Asset_Picker_Shell_Slice.md` *(READY-TO-BUILD, UML §4/§5)*.
->   - **BACKEND** `claude/blueprint-macro-feature-sdmspn` — FREE *(test-reliability merged)*.
+>   - **BACKEND** `claude/blueprint-macro-feature-sdmspn` — ⭐ **NEXT READY: `QA-013` integration-reds triage** — `HANDOFF_Integration_Reds_Triage.md` *(classify the 52, fix the stale, refile the real by area — NOT "fix all 52")*.
 >   - **MCP** ⭐ **NEW LANE `claude/mcp-authoring-commands-7l3n49`** — building **Handoff A `HANDOFF_Mcp_Mission_Editing.md`** *(MX4b, `MX-` prefix, files: `DebugApi*` + `tools/ai-debug-mcp`)*. Handoff B *(SKILL usability + battle-test)* written after A merges. Skill trigger `.claude/skills/ai-debug-mcp/` DONE.
 >
 > ✅ **CLAUDE.md lane table CORRECTED** *(`6sr5ld` is the live coordinator; `gm0akp` note superseded)*.
