@@ -30,6 +30,20 @@ namespace Hrot.ScenarioEditor.Systems;
 /// gave the rotate gizmo an <c>EntityWriteRouter</c>. ⇒ ⭐ this system takes <b>CGF's component
 /// preference</b> and <b>the editor's camera seam</b>.</para>
 /// </summary>
+/// <remarks>
+/// ⚠⚠ <b><c>[UpdateInPhase(PostSimulation)]</c> — and its ABSENCE was a BOOT CRASH, caught by T3.</b>
+/// 📐 <c>SystemScheduler.RegisterSystem</c> throws <c>"System X must have [UpdateInPhase] attribute"</c>, so
+/// <c>kernel.Initialize()</c> — and therefore the whole editor — failed to start. ⛔ Every unit rail passed:
+/// the test's recording registry accepted any system, so it never asked the question the real scheduler asks.
+/// ⇒ ⭐ the rail now asserts the attribute is present *(see <c>TheViewportInteractionIsSharedTests</c>)*.
+///
+/// <para>⭐ <b>Why <c>PostSimulation</c>:</b> 📐 the editor's old drain ran from <c>EditorSubsystem.Update()</c>
+/// at <c>:2239</c>, AFTER <c>_kernel.Update()</c> at <c>:2232</c> — so a gizmo it activated first executed on
+/// the following frame either way. ⭐ <c>PostSimulation</c> is the main-thread phase the gizmo group and the
+/// sibling <c>CanvasMenuUpdateSystem</c> already use, which keeps this within one frame of the old ordering.
+/// ⛔ Not <c>Simulation</c>: that runs on background threads and this touches ImGui-adjacent host state.</para>
+/// </remarks>
+[UpdateInPhase(SystemPhase.PostSimulation)]
 public sealed class CenterOnEntitySystem : IEcsModuleSystem
 {
     private readonly Func<MapCamera?> _camera;

@@ -929,6 +929,24 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         bpTimeAdapter.SetManager(_bpManager);
         _bpSystem                  = new DataBreakpointSystem(_bpManager, _context.World.Bus);
 
+        // ⭐⭐⭐ CE-052 (Axis-C E4) — THE INSPECTOR'S MUTATION INTERCEPTOR, which this host never set.
+        // 📄 docs/DESIGN_Cgf_View_Inspector_Slice.md §1 / §4 ①.
+        //
+        // 🔴🔴 THE DEFECT, measured 2026-08-26: this method has CONSTRUCTED a DataBreakpointManager since
+        //    `UBP-P10T2`, and `_fdpEntityInspector.Reflector.MutationInterceptor` was left NULL. ⇒ a data
+        //    breakpoint the operator set NEVER TRIPPED on an inspector-driven component edit on CGF — no
+        //    throw, no log, no failing assertion. The editor sets it (EditorSubsystem :4534) with the
+        //    comment "wire MutationInterceptor early so it is set in headless mode too."
+        //
+        // ⭐⭐⭐ This is CLAUDE.md's SILENT-DEFAULT shape verbatim: *"a production caller that HAS a
+        //    dependency must PASS it."* ⛔ Not a harmlessly-defaulted optional — the caller held the value
+        //    and did not hand it over, which is the exact property that rule says distinguishes the three
+        //    real instances from the harmless majority.
+        //
+        // ⚠ Set HERE, before any headless early-return, for the editor's stated reason: MCP-driven
+        //   mutations are the headless case that matters most on this host.
+        _fdpEntityInspector.Reflector.MutationInterceptor = _bpManager;
+
         _context.Kernel.RegisterGlobalSystem(_bpSnapshotProvider);
         _context.Kernel.RegisterGlobalSystem(_bpSystem);
 
