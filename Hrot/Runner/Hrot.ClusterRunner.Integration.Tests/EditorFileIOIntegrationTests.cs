@@ -61,17 +61,34 @@ public sealed class EditorFileIOIntegrationTests
             var json = File.ReadAllText(tempPath);
             using var doc = JsonDocument.Parse(json);
 
-            // SaveScenario now uses HrotJsonOptions (camelCase); also accept PascalCase for
-            // compatibility with older FDP-serialiser-written files.
-            JsonElement header;
-            if (!doc.RootElement.TryGetProperty("Header", out header))
-                doc.RootElement.TryGetProperty("header", out header);
+            // ⭐⭐ QA-016 — the subsystem type lives in the `$meta` ENVELOPE now, not under `Header`.
+            //
+            // ⛔ This used to read `Header.SubsystemType`. 📐 ScenarioSerializer.Serialize:199-200 writes
+            //    `Header` with only `TkbName` and then `JsonEnvelope.Write(root, new DocumentMeta(...))`
+            //    — and the serializer's own doc-comment calls `Header.SubsystemType` the LEGACY shape
+            //    that the LOAD path still accepts for old files. So a freshly SAVED file has never
+            //    carried it, and this assertion could not pass.
+            //
+            // ⚠ The old code also swallowed its own fallback: `if (!TryGetProperty("Header", out h))
+            //    TryGetProperty("header", out h);` ignores the second result, so when both missed, the
+            //    next call threw "Operation is not valid due to the current state of the object" —
+            //    a message that says nothing about a moved field. Read the envelope, then fall back.
+            string? subsysType = null;
 
-            JsonElement typeElem;
-            if (!header.TryGetProperty("SubsystemType", out typeElem))
-                header.TryGetProperty("subsystemType", out typeElem);
-
-            var subsysType = typeElem.GetString();
+            if (doc.RootElement.TryGetProperty("$meta", out var meta)
+                && meta.TryGetProperty("docType", out var docType))
+            {
+                subsysType = docType.GetString();
+            }
+            else if (doc.RootElement.TryGetProperty("Header", out var header)
+                  || doc.RootElement.TryGetProperty("header", out header))
+            {
+                if (header.TryGetProperty("SubsystemType", out var typeElem)
+                 || header.TryGetProperty("subsystemType", out typeElem))
+                {
+                    subsysType = typeElem.GetString();
+                }
+            }
 
             Assert.Equal("Hrot.Scenario", subsysType);
         }

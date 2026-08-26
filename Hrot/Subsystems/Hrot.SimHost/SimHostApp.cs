@@ -340,6 +340,11 @@ namespace Hrot.SimHost
             var capturedLocalNodeId = localNodeId;
             _bootstrapper.ApplicationSystemsRegistrar = ctx =>
             {
+                // QA-018: drain the test-only systems here — this callback is the one window where
+                // RegisterGlobalSystem is still legal (see TestHook_QueueSystem).
+                foreach (var pending in _pendingTestSystems)
+                    ctx.Kernel.RegisterGlobalSystem(pending);
+
                 _gizmoBuffer = new DebugPrimitiveBuffer();
                 _gizmoRegistry = new GizmoRegistry();
                 _statelessGizmoRegistry = new StatelessGizmoRegistry();
@@ -816,17 +821,35 @@ namespace Hrot.SimHost
         internal int TestHook_ResolvedLocalNodeId =>
             _nodeIdOverride != 0 ? _nodeIdOverride : SimHostNetworkConstants.LocalNodeId;
 
+        // ── QA-018: test-only system injection ────────────────────────────────
+        private readonly List<IEcsModuleSystem> _pendingTestSystems = new();
+
         /// <summary>
-        /// TestHook: registers an additional ECS system on the kernel.
-        /// Must be called after <see cref="InitializeEmbedded"/> and before the first
-        /// <see cref="Tick"/> so that the system participates from the first frame.
-        /// Intended only for in-process integration/E2E tests.
+        /// ⭐⭐⭐ <c>QA-018</c> — <b>queues an extra ECS system to be registered in Phase 6d, BEFORE the
+        /// kernel is initialised.</b> Intended only for in-process integration/E2E tests.
+        ///
+        /// <para>⛔⛔ This replaces <c>TestHook_AddSystem</c>, whose contract was IMPOSSIBLE to satisfy:
+        /// it documented *"must be called AFTER <see cref="InitializeEmbedded"/>"* and threw
+        /// <c>if (!_initialized)</c>, while <c>ModuleHostKernel.RegisterGlobalSystem</c> throws
+        /// <c>if (_initialized)</c>. 📐 Measured 2026-08-26: every caller got
+        /// <c>"Cannot register systems after Initialize() called"</c>, which is the whole of the four
+        /// <c>ClusterOpE2eScriptTests</c> reds.</para>
+        ///
+        /// <para>⭐ The fix uses the seam this file already relies on for exactly this reason — the
+        /// Phase 6d <c>ApplicationSystemsRegistrar</c> callback, whose own comment says
+        /// *"RegisterModule / RegisterGlobalSystem throw after Initialize() — must run in Phase 6d."*
+        /// ⚠ Registering early is not a compromise for the caller: the one test system builds its query
+        /// lazily on first <c>Execute</c> precisely so the components it needs can be registered later.</para>
         /// </summary>
-        public void TestHook_AddSystem(IEcsModuleSystem system)
+        public void TestHook_QueueSystem(IEcsModuleSystem system)
         {
-            if (!_initialized)
-                throw new InvalidOperationException("SimHostApp is not initialized.");
-            _kernel!.RegisterGlobalSystem(system);
+            if (_initialized)
+                throw new InvalidOperationException(
+                    "TestHook_QueueSystem must be called BEFORE InitializeEmbedded. ModuleHostKernel "
+                    + "refuses RegisterGlobalSystem once Initialize() has run, so a system added after "
+                    + "boot could never execute.");
+
+            _pendingTestSystems.Add(system ?? throw new ArgumentNullException(nameof(system)));
         }
 
         // ── Component registration ────────────────────────────────────────────
