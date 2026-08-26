@@ -116,7 +116,7 @@ because it is the same shape as `DEBT-AIB-030`, and accidentally writing one is 
 | `design-digest.py --check` | as written | n/a | ✅ 91 docs: STATUS + INVENTORY + UML present | — |
 | `rulings-check.py` | as written | n/a | ⚠ **25/25 quotes verify**, 2 staleness WARNs — see the caveat | — |
 | `tracker-counts.py --check` | as written | n/a | ✅ *"open 102 / done 346 (+1 refuted)"* | **0 — see the caveat** |
-| **T3** conformance / system suite | `bash scripts/run-system-tests.sh` | ⛔ built once by the script | ⏳ **BACKGROUNDED — result in §8** | — |
+| **T3** conformance / system suite | `bash scripts/run-system-tests.sh` | ⛔ built once by the script | ✅ **107 passed / 0 failed / 0 skipped** *(11 m 20 s)* | **0** |
 
 ### ⚠ Three caveats, so no row is over-read
 
@@ -159,17 +159,27 @@ signature — ⛔ not on a base-sha run. Filed as `CE-050` so it is the backend 
 | **`MigrationAlertManager.Draw()` wiring** | still `CE-047`, untouched |
 | **Anything in the backend lane's files** | ⚠ their handoff flags `EntityDragGizmoTests`/`Hrot.Presentation` as a possible overlap. 📐 **This batch touches no `Hrot.Presentation` source at all** ⇒ no collision |
 
-## 8. ⏳ T3 — the system/conformance suite
+## 8. ✅ T3 — the system/conformance suite: **107 / 0 / 0**
 
-⭐ Backgrounded per the handoff §1. Result appended here when it lands; if it is not in this file, it is in the
-next session's first message.
+⭐ Backgrounded per the handoff §1. 📐 `bash scripts/run-system-tests.sh` —
+`Category=SystemSmoke|Category=SystemModes` — **107 passed, 0 failed, 0 skipped, 11 m 20 s. Zero delta vs the
+started-marker `d5efcf7ca`.**
 
-> **Expectation, stated in advance so the result can contradict it:** CGF's `main-toolbar` panel model gains
-> **two entries** *(`shell.openAsset`, `shell.newAsset`)* and its `global-menu` gains their two File items. ⇒
-> the `SUBSET-BY-DESIGN` verdict should report a **larger** shared set and still hold, because both were
-> already on the editor. ⚠ **If it reddens, the likely cause is the `main-toolbar` verdict comparing
-> `sortOrder`** — the two new CGF entries take the editor's `-11`/`-10`, so they should match, but that is the
-> one field a subset check does compare and I have not run it.
+⭐⭐ **The prediction held and the named risk did NOT fire.** I wrote in advance: *"CGF's `main-toolbar` gains
+two entries (`shell.openAsset`, `shell.newAsset`) and its `global-menu` gains their two File items ⇒ the
+`SUBSET-BY-DESIGN` verdict should report a larger shared set and still hold. ⚠ If it reddens, the likely cause
+is the `main-toolbar` verdict comparing `sortOrder` — the two new CGF entries take the editor's `-11`/`-10`, so
+they should match, but that is the one field a subset check does compare and I have not run it."* ⇒ ⭐ **they
+matched.** The two hosts emit those entries from the SAME `CgfEditorShellToolbar.Layout` rows, so their
+`sortOrder` agrees **by construction** — which is the whole point of ruling 58's one registration list, and it
+is why item ④ could be done without touching the toolbar model *(R3)*.
+
+⚠ **What this run does NOT prove**, stated so the green is not over-read:
+- ⛔ that a human can actually click `File/Edit/Open Scenario` on CGF and see a picker window. The suite
+  asserts the published panel MODEL, not pixels — and the two `DrawFrame` calls in `CgfSubsystem.DrawUI` are
+  precisely the half no headless assertion can see. ⭐ That is the one thing worth a visual check.
+- ⛔ that the CREATE path works end-to-end on CGF. The controller's rails are unit-level; `POST /assets`
+  against a live CGF node is the E2E proof, and it is not in this suite's two categories.
 
 ## 9. ⭐ DECISION LOG *(decide-and-log autonomy)*
 
