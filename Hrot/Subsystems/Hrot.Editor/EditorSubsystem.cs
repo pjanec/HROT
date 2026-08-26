@@ -460,6 +460,15 @@ namespace Hrot.Editor
         private Hrot.Editor.AiShared.Documents.AppExitPromptController? _exitPrompt;
         private bool _exitPopupOpened;
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-046</c> — the confirmation slot for <c>File/Live/New Exercise</c>. ⭐ The controller is
+        /// shared and headless *(so a rail can assert both branches)*; only
+        /// <see cref="DrawNewExerciseConfirmModal"/> below knows about ImGui. 🔒 Ruling 53 — an interactive
+        /// host prompts; CGF logs-and-proceeds instead.
+        /// </summary>
+        private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _newExerciseConfirm = new();
+        private bool _newExercisePopupOpened;
+
         // BATCH-06: perspective-level shell hotkey dispatcher (Ctrl+S/Ctrl+Shift+S fix, §20).
         private ImGuiInputSource? _shellInputSource;
         private Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher? _shellHotkeyDispatcher;
@@ -2339,13 +2348,61 @@ namespace Hrot.Editor
             }
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-046</c> — draws the <c>File/Live/New Exercise</c> confirmation while one is pending.
+        /// ImGui-only; the button meanings live in the headless
+        /// <see cref="AiShared.Scenarios.ConfirmPromptController"/>, exactly as
+        /// <see cref="DrawExitPromptModal"/> splits them for the app-exit prompt.
+        ///
+        /// <para>⚠ Dismissal via <c>[X]</c>/Esc resolves as CANCEL — the destructive reset must never be
+        /// the default outcome of walking away from the prompt.</para>
+        /// </summary>
+        private void DrawNewExerciseConfirmModal()
+        {
+            if (!_newExerciseConfirm.IsPrompting) return;
+
+            const string popupId = "New Exercise###scenario_new_exercise_confirm";
+            if (!_newExercisePopupOpened)
+            {
+                ImGuiNET.ImGui.OpenPopup(popupId);
+                _newExercisePopupOpened = true;
+            }
+
+            var center = ImGuiNET.ImGui.GetMainViewport().GetCenter();
+            ImGuiNET.ImGui.SetNextWindowPos(center, ImGuiNET.ImGuiCond.Appearing, new System.Numerics.Vector2(0.5f, 0.5f));
+
+            bool stayOpen = true;
+            if (ImGuiNET.ImGui.BeginPopupModal(popupId, ref stayOpen,
+                    ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoSavedSettings))
+            {
+                ImGuiNET.ImGui.TextUnformatted(_newExerciseConfirm.Message);
+                ImGuiNET.ImGui.Spacing();
+
+                if (ImGuiNET.ImGui.Button(_newExerciseConfirm.ConfirmLabel))
+                { ImGuiNET.ImGui.CloseCurrentPopup(); _newExercisePopupOpened = false; _newExerciseConfirm.ResolveConfirm(); }
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Cancel"))
+                { ImGuiNET.ImGui.CloseCurrentPopup(); _newExercisePopupOpened = false; _newExerciseConfirm.ResolveCancel(); }
+
+                ImGuiNET.ImGui.EndPopup();
+            }
+            else if (!stayOpen)
+            {
+                _newExercisePopupOpened = false;
+                _newExerciseConfirm.ResolveCancel();
+            }
+        }
+
         public void DrawUI()
         {
             if (_headless) return;
 
             // App-exit unsaved-changes modal — rendered on top when a window-close was deferred.
             if (ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
+            {
                 DrawExitPromptModal();
+                DrawNewExerciseConfirmModal();
+            }
 
             // ── BATCH-06: perspective-level shell hotkey dispatch (Ctrl+S fix, §20) ───────────
             // Pump the shell command hotkeys once per frame so Ctrl+S/Ctrl+Shift+S fire
@@ -3874,12 +3931,14 @@ namespace Hrot.Editor
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
             // has no IEditorLogic. Skip the scenario-menu wiring in that case so RegisterWindows
             // still registers the perspective windows. Production always has _editorLogic set.
-            if (_editorLogic != null)
-            ScenarioMenuCommands.Register(
+            if (_editorApp != null)
+            Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
                 registerCommand:      windowManager.ShellCommands.Register,
                 menu:                 windowManager.GlobalMenu,
                 commands:             windowManager.ShellCommands,
-                editorLogic:          _editorLogic,
+                // ⭐⭐ CE-046 — the registrar now binds to the SHARED session, which is what lets CGF
+                //    register the identical items. 📄 design §3 ④.
+                session:              _editorApp.ScenarioSession,
                 openPicker:           (kinds, callback) =>
                 {
                     // BATCH-29 (MTB-P8-T3): scenario.load opens via AssetPickerLauncher.
@@ -3888,6 +3947,14 @@ namespace Hrot.Editor
                     assetPickerLauncher?.Open(kinds, callback);
                 },
                 openSaveAsDialog:     cb => openScenarioSaveAs(),
+                // ⭐⭐⭐ Ruling 53 — the confirm belongs where the OPERATOR sits, and this host is the
+                //    interactive one, so it PROMPTS. The controller holds the decision; DrawUI draws it.
+                confirmNewExercise:   run => _newExerciseConfirm.Request(
+                    "New Exercise",
+                    "This finishes the running exercise and clears the world on every node.\n"
+                  + "Unsaved scenario changes will be lost.",
+                    "Finish & Start Fresh",
+                    run),
                 showMigrationHistory:  sidecars =>
                 {
                     // Log migration sidecars to the save status line for visibility.

@@ -2,7 +2,7 @@ using System.Numerics;
 using Fdp.Core.Serialization.Migrations.Adapters;
 using ImGuiNET;
 
-namespace Hrot.Editor.Migration;
+namespace Hrot.Editor.AiShared.Scenarios;
 
 /// <summary>
 /// Manages the per-session migration alert state for the editor UI.
@@ -10,11 +10,24 @@ namespace Hrot.Editor.Migration;
 /// for migrations, and exposes the degraded-mode flag for the browser panel.
 /// </summary>
 /// <remarks>
-/// Call <see cref="OnScenarioLoaded"/> immediately after each
-/// <see cref="ScenarioFileService.LoadScenario"/> completes.
-/// Call <see cref="Draw"/> once per frame from within an active ImGui window.
+/// <para>Call <see cref="OnScenarioLoaded"/> immediately after each scenario load completes.
+/// Call <see cref="Draw"/> once per frame from within an active ImGui window.</para>
+///
+/// <para>⭐⭐ <b><c>CE-046</c> — moved here from <c>Hrot.Editor/Migration/</c> with
+/// <see cref="EditorScenarioSession"/>, which owns it.</b> It is the scenario session's alert state, so
+/// it had to travel with the session for CGF to get the same behaviour. ⭐ <b>PUBLIC now</b>, not
+/// <c>internal</c>: <c>Hrot.Editor</c> is not in this assembly's <c>InternalsVisibleTo</c> list, and
+/// <see cref="IScenarioSession.IsDegraded"/> is the member <c>IEditorLogic.IsScenarioDegraded</c>
+/// forwards to.</para>
+///
+/// <para>⚠⚠ <b>MEASURED, <c>2026-08-26</c>: <see cref="Draw"/> has NO production caller.</b> The only
+/// reference to the owning property was <c>EditorApplication.AlertManager</c> *(internal)*, and nothing
+/// read it — so the degraded banner and the migration modal have never been drawn. ⛔ <b>NOT deleted</b>
+/// *(CLAUDE.md: unreferenced is not unintentional — the class documents its own contract and
+/// <see cref="IsDegradedMode"/> IS consumed via <c>IEditorLogic.IsScenarioDegraded</c>)</b>; the gap is
+/// REPORTED as a finding instead. ⭐ Wiring <see cref="Draw"/> to a frame is a separate item.</para>
 /// </remarks>
-internal sealed class MigrationAlertManager
+public sealed class MigrationAlertManager
 {
     private MigrationLoadResult? _pendingAlert;     // non-null = modal not yet shown
     private MigrationLoadResult? _currentResult;    // tracks currently-loaded file

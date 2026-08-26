@@ -11,7 +11,6 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Common.Events;
 using Hrot.Editor.Commands;
 using Hrot.Editor.Events;
-using Hrot.Editor.Migration;
 using Hrot.Editor.Modules;
 using Hrot.ScenarioEditor.Services;
 using Fdp.ModuleHost;
@@ -31,10 +30,12 @@ namespace Hrot.Editor;
 /// </summary>
 public sealed class EditorApplication : IEditorLogic
 {
-    private readonly ScenarioFileService _fileService;
+    // ⭐⭐⭐ CE-046 (Axis-C E1) — the scenario half of this class now lives in
+    //    Hrot.Editor.AiShared.Scenarios.EditorScenarioSession, which CGF instantiates over its own world.
+    //    📄 docs/DESIGN_Cgf_Scenario_Session_Slice.md §3 ①/②. ⛔ Every scenario member below DELEGATES;
+    //    the behaviour is unchanged by construction because the logic MOVED rather than being rewritten.
+    private readonly Hrot.Editor.AiShared.Scenarios.EditorScenarioSession _session;
     private readonly FdpEventBus         _simBus;
-    private readonly FdpEventBus         _orchestrationBus;
-    private readonly EntityRepository    _world;
     private readonly DerRepo             _view = new(localNodeId: 0);
 
     private readonly ModuleHostKernel?          _kernel;
@@ -43,17 +44,19 @@ public sealed class EditorApplication : IEditorLogic
     private readonly HotReloadMessageLogSource? _hotReloadSource;
     private readonly string[]                   _aiProjectPathSegments;
     private SimHostMode _currentMode = SimHostMode.Internal;
-    private Fdp.Toolkit.Orchestration.ClusterState _currentClusterState = Fdp.Toolkit.Orchestration.ClusterState.Idle;
 
     /// <summary>The current cluster lifecycle state. Exposed for the AI-debug API (MCP) host.</summary>
-    public Fdp.Toolkit.Orchestration.ClusterState CurrentClusterState => _currentClusterState;
-
-    private string? _pendingScenarioLoad;
-    private bool _waitingForIdle;
+    public Fdp.Toolkit.Orchestration.ClusterState CurrentClusterState => _session.CurrentClusterState;
 
     // ── Scenario tracking ─────────────────────────────────────────────────────
 
-    private string? _loadedScenarioName;    private readonly MigrationAlertManager _alertManager = new();
+    /// <summary>
+    /// ⭐⭐ <b>The shared scenario session this editor drives</b> — handed to
+    /// <see cref="ScenarioMenuCommands"/> so the registrar binds to the host-agnostic seam rather than to
+    /// the editor-only <see cref="IEditorLogic"/>. 📄 design §3 ④.
+    /// </summary>
+    public Hrot.Editor.AiShared.Scenarios.IScenarioSession ScenarioSession => _session;
+
     /// <summary>
     /// Optional delegate that returns the available scenario names.
     /// Injected by <see cref="SetAvailableScenariosSource"/> after construction to
@@ -65,7 +68,7 @@ public sealed class EditorApplication : IEditorLogic
     public SimHostMode CurrentMode => _currentMode;
 
     /// <inheritdoc/>
-    public string? LoadedScenarioName => _loadedScenarioName;
+    public string? LoadedScenarioName => _session.LoadedScenarioName;
 
     /// <inheritdoc/>
     public IReadOnlyList<string> AvailableScenarios =>
@@ -74,37 +77,10 @@ public sealed class EditorApplication : IEditorLogic
     /// <summary>
     /// Alert manager for migration events (degraded-mode banner, alert modal).
     /// </summary>
-    internal MigrationAlertManager AlertManager => _alertManager;
+    internal Hrot.Editor.AiShared.Scenarios.MigrationAlertManager AlertManager => _session.AlertManager;
 
     /// <inheritdoc/>
-    public void Update()
-    {
-        foreach (var ev in _orchestrationBus.ReadManaged<Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent>())
-            _currentClusterState = ev.CurrentState;
-
-        if (!_waitingForIdle || string.IsNullOrEmpty(_pendingScenarioLoad)) return;
-        if (_currentClusterState != Fdp.Toolkit.Orchestration.ClusterState.Idle) return;
-
-        _waitingForIdle = false;
-        var scenarioName = _pendingScenarioLoad;
-        _pendingScenarioLoad = null;
-
-        // 1. Safely wipe the existing state (fires WorldResetEvent and SoftClears the repo)
-        //    so the new scenario starts on a blank slate.
-        NewScenario();
-
-        // 2. Dispatch a cluster transition intent to route the load through the orchestrator.
-        //    This triggers HrotEditLoadHandler -> StagingEntityExtractor -> NetworkSpawningSystem
-        _orchestrationBus.PublishManaged(new Fdp.Toolkit.Orchestration.TransitionStateIntent
-        {
-            TransactionId = Guid.NewGuid(),
-            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
-            ScenarioId    = scenarioName,
-            ExerciseId    = Guid.NewGuid()
-        });
-
-        _loadedScenarioName = scenarioName;
-    }
+    public void Update() => _session.Update();
 
     public EditorApplication(
         ScenarioFileService fileService,
@@ -117,10 +93,19 @@ public sealed class EditorApplication : IEditorLogic
         HotReloadMessageLogSource? hotReloadSource = null,
         string[]? aiProjectPathSegments            = null)
     {
-        _fileService          = fileService      ?? throw new ArgumentNullException(nameof(fileService));
         _simBus               = simBus           ?? throw new ArgumentNullException(nameof(simBus));
-        _orchestrationBus     = orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus));
-        _world                = world            ?? throw new ArgumentNullException(nameof(world));
+
+        // ⭐⭐ CE-046 — the scenario half, over THIS host's world. ⭐ `ScenariosRoot` is passed as a
+        //    DELEGATE, not a captured string: it is a computed property over
+        //    ClusterConfiguration.Default.NasBasePath, so snapshotting it here would change when the
+        //    value is read. ⛔ The ctor still validates its own arguments so a wiring bug fails at boot
+        //    with the parameter name, exactly as before.
+        _session = new Hrot.Editor.AiShared.Scenarios.EditorScenarioSession(
+            fileService      ?? throw new ArgumentNullException(nameof(fileService)),
+            orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus)),
+            world            ?? throw new ArgumentNullException(nameof(world)),
+            () => EditorBootstrap.ScenariosRoot);
+
         _kernel               = kernel;
         _logicPacks           = logicPacks;
         _translatorPacks      = translatorPacks;
@@ -138,49 +123,26 @@ public sealed class EditorApplication : IEditorLogic
         _availableScenariosSource = source;
     }
 
-    /// <inheritdoc/>
-    public void NewScenario()
-    {
-        _fileService.NewScenario(_world);
-        _loadedScenarioName = null;
-        _alertManager.OnScenarioCleared();
-    }
+    // ── Scenario members — every one DELEGATES to the shared session (CE-046, design §3 ②) ─────
+    // ⚠⚠ `NewScenario` maps to `ClearWorld`, NOT to `NewExercise`. 📐 Measured: the deferred-load state
+    //    machine calls this as step 1 of its OWN sequence, so pointing it at the cluster-wide reset would
+    //    publish a second Idle intent from inside the handler for the first one. ⭐ `NewExercise` is
+    //    reachable from the File/Live menu item, which is the operator-facing action.
 
     /// <inheritdoc/>
-    public void SaveScenario(string filePath) => _fileService.SaveScenario(_world, filePath);
+    public void NewScenario() => _session.ClearWorld();
 
     /// <inheritdoc/>
-    public void LoadScenarioByName(string scenarioName)
-    {
-        if (string.IsNullOrWhiteSpace(scenarioName)) return;
-        _pendingScenarioLoad = scenarioName;
-        _waitingForIdle = true;
-
-        _orchestrationBus.PublishManaged(new Fdp.Toolkit.Orchestration.TransitionStateIntent
-        {
-            TransactionId = Guid.NewGuid(),
-            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.Idle
-        });
-    }
+    public void SaveScenario(string filePath) => _session.SaveTo(filePath);
 
     /// <inheritdoc/>
-    public void SaveCurrentScenario()
-    {
-        if (string.IsNullOrEmpty(_loadedScenarioName)) return;
-        var dir = Path.Combine(EditorBootstrap.ScenariosRoot, _loadedScenarioName);
-        Directory.CreateDirectory(dir);
-        _fileService.SaveScenario(_world, Path.Combine(dir, "scenario.json"));
-    }
+    public void LoadScenarioByName(string scenarioName) => _session.OpenForEdit(scenarioName);
 
     /// <inheritdoc/>
-    public void SaveScenarioAs(string scenarioName)
-    {
-        if (string.IsNullOrWhiteSpace(scenarioName)) return;
-        var dir = Path.Combine(EditorBootstrap.ScenariosRoot, scenarioName);
-        Directory.CreateDirectory(dir);
-        _fileService.SaveScenario(_world, Path.Combine(dir, "scenario.json"));
-        _loadedScenarioName = scenarioName;
-    }
+    public void SaveCurrentScenario() => _session.SaveCurrent();
+
+    /// <inheritdoc/>
+    public void SaveScenarioAs(string scenarioName) => _session.SaveAs(scenarioName);
 
     /// <inheritdoc/>
     public void ActivateTool(EditorTool tool)
@@ -320,11 +282,11 @@ public sealed class EditorApplication : IEditorLogic
     }
 
     /// <inheritdoc/>
-    public bool IsScenarioDegraded => _alertManager.IsDegradedMode;
+    public bool IsScenarioDegraded => _session.IsDegraded;
 
     /// <inheritdoc/>
     public IReadOnlyList<SidecarFileInfo> GetMigrationSidecarsForCurrentScenario()
-        => _fileService.GetSidecarsForLastLoadAsync().GetAwaiter().GetResult();
+        => _session.GetMigrationSidecars();
 
     /// <summary>
     /// Returns an <see cref="EditorSystemsModule"/> initialised against this application's

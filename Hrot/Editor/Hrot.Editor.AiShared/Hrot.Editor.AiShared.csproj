@@ -32,6 +32,9 @@
     <!-- L0.4 (R-122): SelectionState, the ECS component the Details context reads. Already a
          TRANSITIVE dependency; made explicit so the entity source cannot break silently. -->
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
+    <!-- CE-046 (Axis-C E1): EditorScenarioSession saves through ScenarioFileService, which lives here.
+         ⭐ Measured acyclic: Hrot.Presentation references Hrot.Core / Fdp.* only — never AiShared. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Kernel\Fbt.Kernel.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />

@@ -75,6 +75,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 {
     private HrotNodeContext?  _context;
     private NetworkEntityMap? _entityMap;
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-046</c> (Axis-C <b>E1</b>) — <b>the SAME scenario session the editor runs, over CGF's own
+    /// world and orchestration bus.</b> 📄 <c>docs/DESIGN_Cgf_Scenario_Session_Slice.md</c> §3 ③.
+    ///
+    /// <para>🎯 The user's principle: CGF ≡ the editor bar distributed-vs-no-network ⇒ most stuff shared.
+    /// ⭐ Nothing was re-architected for this — <c>EditorScenarioSession</c> already took its world as a
+    /// constructor parameter, so *"CGF has no scenario session"* was a wiring gap, not a design gap.</para>
+    ///
+    /// <para>⛔ This is what retires the <c>saveScenario: null</c> / *"CGF has no IEditorLogic scenario
+    /// session"* absence recorded in <see cref="WireSaveAndReload"/> and in <c>MA-019</c> §G.</para>
+    /// </summary>
+    private Hrot.Editor.AiShared.Scenarios.EditorScenarioSession? _scenarioSession;
     private Action?           _cgfNetworkPolling;
 
     // ── Headless + behavior registry ──────────────────────────────────────────
@@ -643,6 +656,26 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // 2. CGF-Authoritative Scenario and Episode Load Handlers (must be BEFORE ReferenceLiveLoadHandler)
         var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(_behaviorRegistry!);
         var scenarioLoader     = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
+
+        // ⭐⭐⭐ CE-046 (design §3 ③) — the shared scenario session, over THIS node's world and bus.
+        // ⚠ `zoneService: null` is a genuine ABSENCE, not a silent default: CGF composes no
+        //   ZoneManagerService at all (the editor does, at EditorSubsystem:1117), so there is no value
+        //   this caller is withholding. ⛔ CLAUDE.md's rule is "a caller that HAS a dependency must pass
+        //   it" — this one does not have one.
+        // ⭐ The world BUS is passed, so NewScenario/ClearWorld fires WorldResetEvent here exactly as it
+        //   does in the editor — that event is what the load handlers and gizmo caches key off.
+        var cgfScenarioFileService = new Hrot.ScenarioEditor.Services.ScenarioFileService(
+            scenarioSerializer, _context.World.Bus);
+        _scenarioSession = new Hrot.Editor.AiShared.Scenarios.EditorScenarioSession(
+            cgfScenarioFileService,
+            _context.EventBus,
+            _context.World,
+            // ⭐ CGF's scenarios live under its own node staging root — the SAME directory its
+            //   HrotScenarioLoader reads from above (`isolatedTempRoot` IS GetNodeStagingRoot(nodeId)),
+            //   so a save here is immediately loadable here. ⛔ The editor's NAS-backed
+            //   ClusterConfiguration.NasBasePath is not reachable from this assembly and would be the
+            //   wrong answer anyway: this node has no NAS mount in a single-box run.
+            () => OrchestrationConstants.GetNodeScenariosRoot(_context.NodeId));
         var behaviorRemapper   = CgfBehaviorSetup.CreateBehaviorRemapper();
         var extractor          = new Hrot.CGF.Orchestration.StagingEntityExtractor();
 
@@ -928,6 +961,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context?.SlaveTranslator?.Tick();
         _context?.ClusterSlave.Tick();
         _clusterTimeAdapter?.Update();
+
+        // ⭐⭐ CE-046 — pump the shared scenario session: it drains ClusterStateUpdateEvent and advances
+        //    the deferred edit-open state machine. ⚠ MUST run after ClusterSlave.Tick (which is what
+        //    publishes the state updates) and BEFORE the EventBus.SwapBuffers() at the end of this
+        //    method, or the events it needs are gone.
+        _scenarioSession?.Update();
 
         // ⭐⭐⭐ Slice 4 (DQ30) — fold the cluster's mode decision and apply DQ30-E's unanswered-freeze
         //    rule. Runs alongside _clusterTimeAdapter.Update() and reads the same non-destructive
@@ -1667,8 +1706,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             saveBlueprint: _saveBlueprint,
             saveBTree:     _saveBTree,
             saveHsm:       _saveHsm,
-            // ⛔ No scenario save on this host: CGF has no IEditorLogic scenario session (MA-019 §G
-            //   measured the same absence for scenario CREATE). Ruling 49 — absent, not faked.
+            // ⛔ `saveScenario` is the per-ASSET-KIND delegate for a Scenario *document* in the AI
+            //   document manager. ⭐ There is no such document kind on either host — the editor passes
+            //   nothing here either — so this stays null. ⚠ NOT the same thing as the scenario SESSION
+            //   seams below, which is what CE-046 supplies.
             saveScenario:  null,
             // ⚠ Save-As needs a modal browser this host does not compose. ⛔ It must still be a
             //   NO-OP-WITH-A-REASON rather than a crash: the shared command is registered either way,
@@ -1676,7 +1717,22 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             requestSaveAs: doc => FdpLog<CgfSubsystem>.Warn(
                 "[CGF] Save-As is not available on this host (no modal browser composed); "
               + "'{0}' was not saved under a new name.", doc.Asset.Name),
-            report:        msg => FdpLog<CgfSubsystem>.Info("[CGF] {0}", msg));
+            report:        msg => FdpLog<CgfSubsystem>.Info("[CGF] {0}", msg),
+            // ⭐⭐⭐ CE-046 (design §3a, the `File/Save` row) — the SCENARIO seams, now that this host has
+            //    a session. ⛔ NO NEW MENU ITEM: the shared slot table below already emits `File/Save`
+            //    bound to `shell.save`, and that handler branches HERE when `isScenarioContext` says so.
+            //    ⇒ supplying these three is what makes the existing item scenario-capable on CGF, and it
+            //    is why ruling R3 (no toolbar changes) is respected — the slot is untouched.
+            // ⚠ `isScenarioContext` is TRUE whenever no AI document is active: this host's only other
+            //   save target is an AI graph, so "not editing a graph" is exactly "the scenario is the
+            //   thing you'd be saving". ⛔ Not a perspective query — CGF has no scenario perspective.
+            isScenarioContext:     () => _aiDocumentManager?.Active == null,
+            hasLoadedScenario:     () => !string.IsNullOrEmpty(_scenarioSession?.LoadedScenarioName),
+            saveScenarioAction:    () => _scenarioSession?.SaveCurrent(),
+            // ⛔ requestScenarioSaveAs stays UNSUPPLIED: Save-As needs a name, and this host composes no
+            //   modal browser to ask for one. ⇒ `scenario.saveAs` is not registered here, and `File/Save`
+            //   with nothing loaded is a no-op rather than a lie. Ruling 49 — the absence is real.
+            requestScenarioSaveAs: null);
 
         var toolbarIcons = new Hrot.Editor.AiShared.Adapters.SilkIconProvider(windowManager.Atlas);
 
@@ -1704,6 +1760,40 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //      has no File/Reload today and one table cannot give CGF an item the editor does not
             //      get without an `if (host==…)`, which ruling 58 forbids. 📄 See the Layout note.
             windowManager.GlobalMenu);
+
+        // ⭐⭐⭐ CE-046 (design §3 ④, §3a) — THE DISTINCT SCENARIO ITEMS, from the SAME registrar the
+        //    editor uses. 📄 docs/DESIGN_Cgf_Scenario_Session_Slice.md. Ruling R2 — distinct items, no
+        //    chameleons, no per-host default in the menu.
+        // ⭐⭐ This is the line that closes the gap design §2 measured: *"CGF registers only the
+        //    engine-default Settings … the wall is ScenarioMenuCommands binding to the editor-only
+        //    IEditorLogic."* It now binds to IScenarioSession, so there is no wall left.
+        if (_scenarioSession != null)
+            Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
+                registerCommand: windowManager.ShellCommands.Register,
+                menu:            windowManager.GlobalMenu,
+                commands:        windowManager.ShellCommands,
+                session:         _scenarioSession,
+                // ⛔ NULL, and honestly so: CGF composes no AssetPickerLauncher (the same measured
+                //   absence CE-016 §9.4 recorded for the Open/New Asset toolbar buttons). ⇒ the two load
+                //   items are REGISTERED AND DISABLED with the reason in their label — ruling 49, the
+                //   VC-3 shape — ⛔ not silently missing, and ⛔ not live-looking controls that no-op.
+                //   ⭐ They light up for free the day a picker is composed here (Axis-C E2).
+                openPicker:       null,
+                openSaveAsDialog: null,
+                // ⭐⭐⭐ Ruling 53 + UX_Feature_Modal_Surfaces.md §2.0b — this host is headless-first: a
+                //    modal on an unattended node is a hang, not a prompt. ⇒ it PROCEEDS, and the log IS
+                //    the safety net. ⛔ Passing null would proceed SILENTLY, which is the one option the
+                //    ruling forbids.
+                confirmNewExercise: run =>
+                {
+                    FdpLog<CgfSubsystem>.Warn(
+                        "[CGF] New Exercise requested — finishing the running exercise and clearing the "
+                      + "world CLUSTER-WIDE. This node is headless-first and did not prompt (ruling 53); "
+                      + "this log is the record.");
+                    run();
+                },
+                showMigrationHistory: sidecars => FdpLog<CgfSubsystem>.Info(
+                    "[CGF] {0} migration sidecar(s) for the loaded scenario.", sidecars.Count));
 
         // ⛔⛔ THE AI-DEBUG GROUP IS OMITTED, and this is a DEVIATION from the handoff's item ③,
         //    argued. The handoff says *"debug-step handlers route through CGF's cluster debug
