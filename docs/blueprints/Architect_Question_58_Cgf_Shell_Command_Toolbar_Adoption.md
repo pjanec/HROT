@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — decision-shaped; carries a RECOMMENDED LEAN per sub-question. Not READY-TO-BUILD
-  until the lean (or an alternative) is approved. The §7 classDiagram+sequenceDiagram are for the LEAN.
+build-state: RESOLVED — **A2 approved (user, 2026-08-26)**. Buildable design + authoritative UML:
+  DESIGN_Cgf_Shell_Command_Toolbar_Slice.md. This doc is the DECISION TRAIL; ⛔ don't build from it.
 updated: 2026-08-26
-current-answer: §6 (the recommendations) + §7 (the UML for the lean). Approve or name the option to change.
+current-answer: §6 (the recommendations — A2 chosen). The buildable design owns the UML now (see §7).
 known-conflict: none. The canvas /editor/commands bus is a SEPARATE surface (MD-008) — see §2.
 -->
 # Architect Question 58 — **CGF shell-command + main-toolbar adoption** *(CE-016 §7)*
@@ -82,80 +82,9 @@ Ruling 58 forbids CGF hand-registering a **parallel** command list (that makes a
 
 **Blast radius.** `EditorSubsystem.cs` *(extract `:4464-4562` → the helper, editor calls it — behaviour-preserving)* · a new shared `ISubsystemShell`/`CgfEditorShellToolbar` helper *(`Hrot.Editor.AiShared` — reachable by both)* · `CgfSubsystem.cs` *(construct `SilkIconProvider`, call the helper, delete the two ad-hoc buttons + dangling sep)* · `ClusterConformanceRails.cs` *(flip the divergence)*. The editor's rendered toolbar must be **byte-identical** after the extraction — that is the extraction's own gate.
 
-## 7. ⭐⭐ UML FOR THE LEAN (A2)
-
-```mermaid
-classDiagram
-    class IEditorCommands {
-        <<interface · NodeEditor.Core>>
-        +All() IReadOnlyList
-        +Get(id) EditorCommandDescriptor
-        +Invoke(id, ctx) EditorCommandResult
-    }
-    class ShellEditorCommands {
-        <<Fdp.Presentation · WindowManager-owned · EXISTS>>
-        +Register(descriptor, action)
-    }
-    class ToolbarCommandAdapter {
-        <<static · Fdp.Presentation · EXISTS>>
-        +Register(toolbar, commands, id, iconProvider, sortOrder)$
-        +GetState(commands, id)$ ToolbarCommandState
-    }
-    class MainToolbarManager {
-        <<Fdp.Presentation · EXISTS>>
-        +RegisterEntry(id, sortOrder, height, render)
-        +BuildViewModel() MainToolbarPanelViewModel
-    }
-    class IIconProvider {
-        <<interface · NodeEditor.Core>>
-        +TryGet(key, out handle) bool
-    }
-    class SilkIconProvider {
-        <<Hrot.Editor.AiShared · EXISTS>>
-        +SilkIconProvider(IconAtlas)
-    }
-    class CgfEditorShellToolbar {
-        <<NEW · Hrot.Editor.AiShared · the derived common-core list>>
-        +RegisterCommonCore(shell, toolbar, icons, hostServices)$
-    }
-    class EditorSubsystem {
-        <<Hrot.Editor · reference — calls the helper after extraction>>
-    }
-    class CgfSubsystem {
-        <<Hrot.CGF · adopter — calls the helper>>
-    }
-    ShellEditorCommands ..|> IEditorCommands
-    SilkIconProvider ..|> IIconProvider
-    CgfEditorShellToolbar ..> ShellEditorCommands : registers common-core onto
-    CgfEditorShellToolbar ..> ToolbarCommandAdapter : per command
-    ToolbarCommandAdapter ..> MainToolbarManager : RegisterEntry
-    ToolbarCommandAdapter ..> IIconProvider : TryGet(IconKey)
-    EditorSubsystem ..> CgfEditorShellToolbar : calls (was inline)
-    CgfSubsystem ..> CgfEditorShellToolbar : calls
-    CgfSubsystem ..> SilkIconProvider : constructs from WM.Atlas
-```
-
-```mermaid
-sequenceDiagram
-    participant CGF as CgfSubsystem.RegisterWindows
-    participant Helper as CgfEditorShellToolbar
-    participant Shell as WM.ShellCommands
-    participant Adapter as ToolbarCommandAdapter
-    participant Bar as WM.MainToolbar
-    participant Icons as SilkIconProvider
-
-    CGF->>Icons: new SilkIconProvider(WM.Atlas)
-    CGF->>Helper: RegisterCommonCore(Shell, Bar, Icons, cgfServices)
-    Helper->>Shell: Register(save/open/new/reload/step descriptors + handlers)
-    Note over Helper: debug-step handlers -> CGF's cluster debug controller (CE-025..028)
-    loop each common-core command CGF can service
-        Helper->>Adapter: Register(Bar, Shell, id, Icons, sortOrder)
-        Adapter->>Shell: Get(id)  (descriptor)
-        Adapter->>Bar: RegisterEntry(id, sortOrder, render)
-    end
-    Note over Bar: BuildViewModel() now dumps the shared subset -> main-toolbar PanelKind
-    Note over CGF: fullRebuild + scenario-menu OMITTED (ruling 49: absent, not greyed)
-```
+## 7. ⭐ UML — **moved to the buildable design** *(no duplicate diagrams — they rot apart)*
+⭐ The authoritative `classDiagram` + `sequenceDiagram` for A2 live in
+`DESIGN_Cgf_Shell_Command_Toolbar_Slice.md` §4–§5. ⛔ Build from THAT doc, not this one.
 
 ## 8. ✅ ACCEPTANCE *(for the buildable design, once approved)*
 
