@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
@@ -67,15 +67,10 @@ public sealed class TheGateCannotBeForgottenTests
         private static class Holder<T> where T : struct { public static T Value; }
     }
 
-    private static AttributeRecord HeadingRecord(double deg) => new()
-    {
-        AttributeId = AttributeIds.GeoHeading,
-        Value = new AttributeValueUnion
-        {
-            ValueType   = AttributeValueType.KindFloat64,
-            DoubleValue = deg,
-        },
-    };
+    // ⭐⭐ AX-005a / R-134 — the FDP-INTERNAL record. ⛔ It used to be a DDS `AttributeRecord`; the
+    //    installers no longer speak that type, so neither does this rail.
+    private static EntityAttributeChange HeadingRecord(double deg)
+        => EntityAttributeChange.Double(AttributeIds.GeoHeading, deg);
 
     // ══ ① the gate, asserted on a handler with NO guard of its own ══════════════
 
@@ -92,7 +87,7 @@ public sealed class TheGateCannotBeForgottenTests
     {
         int ran = 0;
 
-        var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+        var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
             .RegisterHandler<SimTransform>(AttributeIds.GeoHeading, (_, _) => ran++)
             .Build();
 
@@ -118,7 +113,7 @@ public sealed class TheGateCannotBeForgottenTests
     {
         int ran = 0;
 
-        var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
+        var interpreter = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
             .RegisterHandler(AttributeIds.GeoHeading, (_, _) => ran++)
             .Build();
 
@@ -334,7 +329,7 @@ public sealed class TheGateCannotBeForgottenTests
         var writer = new AttributeEntityComponentWriter(
             repo,
             AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null),
-            publishRequest: (ent, rec) => published.Add((ent, rec.AttributeId, rec.Value.DoubleValue)));
+            publishRequest: (ent, recs) => published.Add((ent, recs[0].AttributeId, recs[0].Value.DoubleValue)));
 
         Assert.Equal(EntityWriteRoute.Requested, writer.Write(e, AttributeIds.GeoHeading, 90.0));
         Assert.Single(published);
@@ -379,7 +374,7 @@ public sealed class TheGateCannotBeForgottenTests
         var writer = new AttributeEntityComponentWriter(
             repo,
             AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null),
-            publishRequest: (ent, rec) => published.Add((ent, rec.AttributeId, rec.Value.DoubleValue)));
+            publishRequest: (ent, recs) => published.Add((ent, recs[0].AttributeId, recs[0].Value.DoubleValue)));
 
         var route = writer.Write(e, AttributeIds.GeoHeading, 137.5);
 

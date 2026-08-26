@@ -8,6 +8,7 @@ using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Replication.Patching;
+using Hrot.SimHost.Installers;
 using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Services;
@@ -60,7 +61,7 @@ namespace Hrot.Map.Common.Systems
         private readonly IUpdateEntityAttributeAckSink       _ackSink;
         private readonly NetworkEntityMap                    _entityMap;
         private readonly JsonAttributeCompiler?              _jsonCompiler;
-        private readonly BinaryInterpreter<AttributeRecord>?            _binaryInterpreter;
+        private readonly BinaryInterpreter<EntityAttributeChange>?      _binaryInterpreter;
         private readonly NodeId                              _localNodeId;
 
         // ── Interface-based constructor (test-friendly) ───────────────────────
@@ -92,7 +93,7 @@ namespace Hrot.Map.Common.Systems
             NetworkEntityMap                    entityMap,
             JsonAttributeCompiler?              jsonAttributeCompiler = null,
             NodeId                              localNodeId = default,
-            BinaryInterpreter<AttributeRecord>?          binaryInterpreter = null)
+            BinaryInterpreter<EntityAttributeChange>?    binaryInterpreter = null)
         {
             _requestSource     = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
             _ackSink           = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
@@ -178,8 +179,17 @@ namespace Hrot.Map.Common.Systems
                 // at the end via IEntityPatchContext contract).
                 var ecsPatchCtx  = EcsPatchContext.Create(repo, entity);
                 var binaryCtx    = _binaryInterpreter!.CreateContext(ecsPatchCtx);
+
+                // ⭐⭐⭐ R-134 — THE INGRESS BOUNDARY. The DDS record is converted to the FDP-internal
+                //    EntityAttributeChange HERE, and nothing downstream sees a network type: the
+                //    interpreter, its installers and every conversion they hold are FDP-internal.
+                //    📄 DESIGN_Cgf_AxisB_Rotation_Slice.md §11.1/§11.3.
+                //    ⚠ This replaced a zero-copy `CollectionsMarshal.AsSpan(req.AttributeRecords)`. 📐 The
+                //    cost is one array per REQUEST — an operator gesture or a script call, never per tick —
+                //    and it buys the separation the ruling requires. ⛔ Keeping the span would have left the
+                //    wire type as the interpreter's record type, which is the coupling AX-005a removes.
                 _binaryInterpreter.Apply(binaryCtx,
-                    CollectionsMarshal.AsSpan(req.AttributeRecords));
+                    AttributeRecordConversion.ToInternal(req.AttributeRecords));
 
                 // SILENT BYSTANDER RULE — nothing applied, leave quietly.
                 if (!ecsPatchCtx.HasAppliedAny)

@@ -3,10 +3,10 @@ state: LIVE
 doc-type: coordinator resumption snapshot — point-in-time state for picking up AFTER COMPACTION. ⚠ A STATE
   doc, not canon: every "in flight"/"merged" line is a snapshot dated below — ⛔ VERIFY against git before
   acting, never quote it as settled truth (per "THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-08-25
+updated: 2026-08-26
 current-answer: the whole file — read it, then re-derive the live state with the commands in §0.
 -->
-# COORDINATOR RESUMPTION — `2026-08-25`
+# COORDINATOR RESUMPTION — `2026-08-26`
 
 RELEARN
 
@@ -19,9 +19,10 @@ RELEARN
 python3 scripts/session-design-brief.sh            # ledger · 7-day digest · probe verdict · 3 random rulings
 # read docs/blueprints/RULINGS.md IN FULL (RULE ZERO)
 git fetch origin
-git log --oneline -1 origin/claude/blueprint-authoring-status-6sr5ld     # coordinator HEAD (snapshot: a0e47e518)
-git log --oneline -3 origin/claude/blueprint-macro-feature-sdmspn        # the MCP-authoring session
-git branch -r | grep claude/                                            # find the slice-4 branch (new)
+git log --oneline -1 origin/claude/blueprint-authoring-status-6sr5ld     # coordinator HEAD (snapshot: d41368090)
+git log --oneline -3 origin/claude/blueprint-macro-feature-sdmspn        # BACKEND lane (MCP diagnostics: MD-001..005)
+git log --oneline -3 origin/claude/reset-working-branch-qd1qpv           # UI/CGF lane (axis-b egress: AX-005..010)
+git branch -r | grep claude/                                            # confirm lane heads by ancestry, not name
 ```
 
 ## 1. ⭐⭐⭐ THE PROGRAMME — `cgf == editor`
@@ -44,22 +45,24 @@ parity)* = later, gated on the **UXI-30** engine-authority design *(the ONE genu
 | ⭐ **CGF debug pause/step** *(CgfClusterDebugTimeController; merged `2026-08-25`)* | CE-025..030 | `..._Slice4_Debug_PauseStep.md` §10 *(AS-BUILT)* |
 | ⭐⭐ **MCP FULL authoring capability** *(union backbone `POST /graph/command` over all 35 GraphCommand variants; read/discover completeness; `EditDoc` doc-harvest; `/editor/commands` bus; merged `2026-08-25` overnight)* | MA-011..018 | `DESIGN_Mcp_Authoring.md` §15 *(AS-BUILT)* |
 | ⭐⭐ **CGF: barrier proven + ruling 67 + CE-016** *(k measured 252–352ms; asset roots from config; time-transport on the toolbar; merged `2026-08-25` overnight)* | CE-031..036 | `..._Slice4_Debug_PauseStep.md` §11 · gap map · ruling 67 |
+| ⭐⭐ **MCP per-node diagnostics + federation** *(GET /logs answers on every node incl. headless SimHost; GET /diagnostics/architecture per subsystem; non-editor conformance rail; merged `2026-08-26`)* | MD-001..003 | `DESIGN_Mcp_Diagnostics_Federation.md` §8 *(AS-BUILT)* |
+| ⭐⭐ **Axis-B cross-node change-request egress under R-134** *(FDP-internal EntityAttributeChange + EntityWriteRouter in Fdp.Toolkits; egress translator SOLE DDS boundary; drag gizmo on same router; CE-018/035/036; merged `2026-08-26`)* | AX-005..010 · CE-018/035/036 | `DESIGN_Cgf_AxisB_Rotation_Slice.md` §11-§12 *(AS-BUILT)* |
 
-## 3. ✅ NOTHING IN FLIGHT *(both `2026-08-25` batches verified + merged)*
+## 3. ✅ NOTHING IN FLIGHT *(both `2026-08-26` batches verified + merged into `d41368090`)*
 | merged batch | ids | verify verdict |
 |---|---|---|
-| **MCP authoring** *(was on `sdmspn`)* | MA-001..010 | ✅ rule-8 report complete: integration suite 99/0, golden ZERO, tree clean, catalog 74→82, red = pre-existing ST-035 A/B'd. Corrected my design in 4 places, folded to §12 *(obligation ⑤)*. Found + fixed **MA-003** *(CGF save was a silent no-op — editor had the dirty-subscription, CGF didn't)*. `InMemoryGraphSerializer` over `IGraphModel` = one id-space by construction *(better than the clipboard I specified)* |
-| **CGF debug pause/step** *(was on UI-lane `qd1qpv`, harness-bound — files disjoint)* | CE-025..030 | ✅ rule-8 report complete: system suite 95/0, reds attributed by git-diff. Corrected my design in 3 places *(CGF is a SLAVE → requests via intents, no roster; k-tick drain was DQ30's REJECTED option; real class `CycloneNetworkIngressSystem`)*, folded to §10. Fixed 3 long-red `CgfLogicPackTests` **CE-030**. |
+| **MCP per-node diagnostics + federation** *(was on `sdmspn`, from base `0ee5305a8`)* | MD-001..005 | ✅ rule-8 report complete: system suite 104/0, editor unit 251/0/1, golden ZERO, tree clean, catalog 90→91, two revert red-proofs. CLI-indexed the graph *(192k nodes)* — the fallback rule paid off. Corrected my design in 4 places, folded to §8 *(obligation ⑤)*. **MD-004** *(cluster dump)* + **MD-005** *(aggregator)* **STOPPED with measured blockers** — see §3c |
+| **Axis-B cross-node egress under R-134** *(was on UI/CGF lane `qd1qpv`, from base `2aacffa8a`)* | AX-005..010 · CE-018/035/036 | ✅ rule-8 report complete: system suite 102/102, StrictNetworkSeparationTests + red-proofs green. Design premises corrected by build *(binary path already authority-gated per-installer; egress reused existing `UpdateEntityAttributeCommand` — ruling 9)*, folded to §11-§12. **AX-009** *(full `--mode all` round-trip rail)* **kept RED as a live probe** — pre-existing SimHost→IG replication failure, R-131 *(not skipped)* — see §3c |
 
-🔴 **CE-029 framing CORRECTED (user, `2026-08-25`):** the barrier does **NOT** need a "true multi-node run" — **`--mode all` runs the subsystems as separate nodes with full network**, so the barrier + `k` are provable in the EXISTING harness. 📌 The slice-4 report already found `Hrot.ClusterRunner.Integration.Tests`' **`CgfHarness` tests PASS** now *(libddsc.so present)*. ⇒ CE-029 is a cheap follow-up rail *(pause→step→resume across the `--mode all` nodes)*, not deferred hardware work — a natural pickup for the CGF session.
+⭐ **Merge integration verified by ME (coordinator):** both batches edited `CgfSubsystem.cs` + `EditorSubsystem.cs` in different regions — git auto-merged cleanly, and I built **both `Hrot.CGF` and `Hrot.Editor` → 0 errors** *(a clean textual merge of these two files is NOT proof they compile together; the build is)*. Doc gates on the combined tree: rulings 25/25 *(2 pre-existing staleness WARNs)*, tracker 102/346, design-digest 87 OK, mermaid 8/8.
+🔴 **ruling-9 note for the NEXT slice:** MA- shipped `GET /assets/{id}/graph/catalog` and MD- shipped the `/diagnostics` prefix — any diagnostics/discovery follow-up must **EXTEND** these, ⛔ NOT build a parallel surface.
 
-⭐ **Merge integration checked:** both edited `CgfSubsystem.cs` in different regions — auto-merged, `Hrot.CGF` builds 0 errors.
-🔴 **ruling-9 note for the NEXT slice:** MA- already SHIPPED `GET /assets/{id}/graph/catalog` *(node-kind list, MA-004)* — the discovery/completeness slice must **EXTEND** it, ⛔ NOT build a parallel `/nodetypes`.
+## 3d. ⛔ THE TWO HONEST NON-DELIVERABLES from the `2026-08-26` batches *(both need their own design, not a retry)*
+- **MD-004/005 — cluster dump + records aggregator.** 🔴 There is **NO node→debug-API-endpoint registry** anywhere: each node reads `HROT_DEBUG_API_PORT` for itself, nothing publishes it, `ClusterUiCache.ActiveNodes` carries ids not ports. ⇒ the orchestrator fan-out has no addresses. Also `DiagnosticsDumpProcessManager` exposes only `Tick()` — no pending/completed read-model for `GET /cluster/diagnostics/status`. ⭐ **Unblock = a new cluster contract** *(nodes ANNOUNCE their endpoint — a cluster-state field or DDS topic)* + a read-model on the dump PM. **A design item, not a route.**
+- **AX-009 — the full `--mode all` change-request round-trip rail is RED.** 📐 Cause is a **pre-existing SimHost→IG replication failure**, not the egress *(which the isolated round-trip + StrictNetworkSeparation rails prove works)*. Kept as a live probe *(R-131 — no permanent filter-around)*. ⭐ This is the same class as the `ClusterRunner.Integration.Tests` DDS-allocator noise: a real cluster-replication gap that blocks the end-to-end acceptance vehicle. **Worth its own investigation slice.**
 
 ## 3b. ⭐ FILED FOLLOW-UPS from the overnight batches *(small, none blocking)*
-- **CE-035** — `IDataBreakpointManager.RequestContinue()` cannot resume a STEPPED node *(RequestStep clears `_isPaused`)*; production bypasses via `RequestResume()`. Neutral-assembly fix, deferred.
-- **CE-036** — the `Requires CycloneDDS` skips in `Hrot.ClusterRunner.Integration.Tests` are stale; real cause = **domain id 250 out of CycloneDDS range**, not missing DDS.
-- **CE-018** — `EditorSubsystem`'s two inline `.csproj` walk-ups still bypass `AssetRoots` *(another lane's file)*.
+- ✅ **CE-035 / CE-036 / CE-018 — ALL MERGED `2026-08-26`** in the axis-b egress batch *(CE-035 routes continue-after-step through `RequestResume`; CE-036 fixed the domain-id skip; CE-018 replaced the two inline `.csproj` walk-ups with `AssetRoots`)*.
 - ⭐ **schema-exporter on CGF** — MCP `paramsSource` reports `none:no-exporter-wired` on CGF *(no `IActionSchemaExporter` wired there)*; a one-line CGF-lane follow-up.
 - ⚠ **doc-prose coverage sweep** — `EditDoc` makes 100% node/param prose POSSIBLE; filling it across the catalog is a sweep, not done. The rail prints the % to ratchet.
 

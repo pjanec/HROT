@@ -30,7 +30,7 @@ namespace Hrot.SimHost.Installers;
 /// <see cref="AttributeCompilerFactory"/>.
 /// </para>
 /// </summary>
-public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<AttributeRecord>
+public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<EntityAttributeChange>
 {
     // ── Subsystem flusher bit ─────────────────────────────────────────────────
     private const int GeoFlushBit = 0;
@@ -70,7 +70,7 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<A
     }
 
     /// <inheritdoc/>
-    public void Install(BinaryInterpreterBuilder<AttributeRecord> builder)
+    public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)
     {
         _scratchpadOffset = builder.ReserveScratchpad(Unsafe.SizeOf<GeoCoordScratchpad>());
 
@@ -93,21 +93,21 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<A
 
     // ── Handlers ──────────────────────────────────────────────────────────────
 
-    private void HandleGeoLat(BinaryPatchContext ctx, AttributeRecord record)
+    private void HandleGeoLat(BinaryPatchContext ctx, EntityAttributeChange record)
     {
         ref GeoCoordScratchpad scratch = ref ctx.GetScratchpad<GeoCoordScratchpad>(_scratchpadOffset);
         scratch.Lat = record.Value.DoubleValue;
         ctx.MarkSubsystemDirty(GeoFlushBit);
     }
 
-    private void HandleGeoLon(BinaryPatchContext ctx, AttributeRecord record)
+    private void HandleGeoLon(BinaryPatchContext ctx, EntityAttributeChange record)
     {
         ref GeoCoordScratchpad scratch = ref ctx.GetScratchpad<GeoCoordScratchpad>(_scratchpadOffset);
         scratch.Lon = record.Value.DoubleValue;
         ctx.MarkSubsystemDirty(GeoFlushBit);
     }
 
-    private void HandleGeoAlt(BinaryPatchContext ctx, AttributeRecord record)
+    private void HandleGeoAlt(BinaryPatchContext ctx, EntityAttributeChange record)
     {
         ref GeoCoordScratchpad scratch = ref ctx.GetScratchpad<GeoCoordScratchpad>(_scratchpadOffset);
         scratch.Alt = record.Value.DoubleValue;

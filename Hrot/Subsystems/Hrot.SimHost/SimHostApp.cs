@@ -353,7 +353,8 @@ namespace Hrot.SimHost
                     _statelessGizmoRegistry,
                     settings: new GizmoSettingsRegistry());
                 // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
-                _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
+                _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
+                    writerFactory: Hrot.SimHost.Installers.EntityWriteRouter.For));   // ⭐ AX-007
                 _interactionBus = new FdpEventBus();
                 Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
                 _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, _interactionBus);
@@ -385,7 +386,10 @@ namespace Hrot.SimHost
                     _dataDrivenGizmoSystem!.DeactivateGizmo(target);
                     var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
                         view, target,
-                        onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target));
+                        onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target),
+                        // ⭐ AX-005b — SimHost usually OWNS the entity, so this routes Direct; the writer
+                        //   is passed anyway because the same node can hold unowned replicas.
+                        writer: Hrot.SimHost.Installers.EntityWriteRouter.For(_world!));
                     _dataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
                 });
 

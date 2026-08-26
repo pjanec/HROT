@@ -906,7 +906,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         _cgfDataDrivenGizmoSystem!.DeactivateGizmo(entity);
                         var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
                             _context.World, entity,
-                            onRemove: () => _cgfDataDrivenGizmoSystem!.DeactivateGizmo(entity));
+                            onRemove: () => _cgfDataDrivenGizmoSystem!.DeactivateGizmo(entity),
+                            // ⭐ AX-005b — CGF does not own SimTransform, so the direct poke would do
+                            //   nothing here; the router asks the owner instead.
+                            writer: Hrot.SimHost.Installers.EntityWriteRouter.For(_context.World));
                         _cgfDataDrivenGizmoSystem!.ActivateGizmo(entity, gizmo);
                     });
             }));
@@ -1876,12 +1879,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <c>RuntimeNetworkIdOf</c> answers.
     /// </summary>
     private long RuntimeNetworkIdOf(Entity entity)
-        => _context?.World is { } w
-        && entity != Entity.Null
-        && w.IsAlive(entity)
-        && w.HasComponent<NetworkIdentity>(entity)
-             ? w.GetComponentRO<NetworkIdentity>(entity).Value
-             : 0;
+        // ⭐ AX-008 — ROUTED to the shared resolver `2026-08-25`. 📐 This body and EditorSubsystem's were
+        //   line-for-line identical, each commenting that the other existed; the Axis-B egress would have
+        //   been the third. ⇒ NetworkIdResolver owns both directions now.
+        => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_context?.World, entity);
 
     // ── Private helpers ────────────────────────────────────────────────────────
 

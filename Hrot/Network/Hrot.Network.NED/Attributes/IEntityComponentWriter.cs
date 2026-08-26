@@ -1,49 +1,18 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Patching;
-using Hrot.NED.Messages;
 
 namespace Hrot.SimHost.Installers;
 
 /// <summary>
-/// ⭐ How an attribute write was routed. Returned so a caller can SAY what happened —
-/// ⛔ "it worked" and "someone else will do it" are different outcomes to an operator.
-/// </summary>
-public enum EntityWriteRoute
-{
-    /// <summary>⭐ This node owned the component and wrote it directly into ECS.</summary>
-    Direct = 0,
-
-    /// <summary>⭐ This node did not own it, so a change-request was published for the owner.</summary>
-    Requested = 1,
-
-    /// <summary>⚠ Nothing was attempted — a dead entity, or no request sink to publish through.</summary>
-    Refused = 2,
-}
-
-/// <summary>
-/// ⭐⭐⭐ <b>Axis-B item ③ — the subsystem-agnostic entity write path.</b>
-///
-/// <para>📄 <c>docs/DESIGN_Cgf_AxisB_Rotation_Slice.md</c> §2 *(the routing model — user ruling)* · §4
-/// *(classDiagram)* · §6 ③.</para>
-///
-/// <para>⭐⭐ <b>The caller knows an entity and a target value. It does NOT know who owns the
-/// component</b> — that is the whole point, and it is what lets one gizmo work on the editor *(a
-/// one-node cluster that owns everything)* and on a distributed node alike.</para>
-/// </summary>
-public interface IEntityComponentWriter
-{
-    /// <summary>
-    /// Writes <paramref name="value"/> to the attribute <paramref name="attributeId"/> on
-    /// <paramref name="entity"/> — directly when this node owns the target component, otherwise as a
-    /// change-request for whoever does.
-    /// </summary>
-    EntityWriteRoute Write(Entity entity, ushort attributeId, double value);
-}
-
-/// <summary>
 /// ⭐⭐⭐ <b>The one implementation, and it deliberately knows NOTHING about which component an attribute
 /// maps to.</b>
+///
+/// <para>⚠ <b>The interface and <c>EntityWriteRoute</c> moved to <c>Fdp.Toolkits</c></b>
+/// *(<c>Fdp.Toolkit.Replication.Patching</c>, <c>AX-007</c>)* so <c>Hrot.Presentation</c>'s
+/// <c>EntityDragGizmo</c> can depend on the seam without depending on the network assembly. ⭐ This file
+/// keeps the implementation, which needs the interpreter the network installers build.</para>
 ///
 /// <para>⭐⭐⭐ <b>The mechanism, which is the interesting part.</b> It does not ask *"do I own
 /// <c>SimTransform</c>?"* — that would duplicate, in a second place, the attribute→component knowledge
@@ -77,8 +46,8 @@ public interface IEntityComponentWriter
 public sealed class AttributeEntityComponentWriter : IEntityComponentWriter
 {
     private readonly EntityRepository _repo;
-    private readonly BinaryInterpreter<AttributeRecord> _interpreter;
-    private readonly Action<Entity, AttributeRecord>? _publishRequest;
+    private readonly BinaryInterpreter<EntityAttributeChange> _interpreter;
+    private readonly Action<Entity, IReadOnlyList<EntityAttributeChange>>? _publishRequest;
 
     /// <summary>
     /// Creates the writer.
@@ -93,11 +62,14 @@ public sealed class AttributeEntityComponentWriter : IEntityComponentWriter
     /// request egress — a one-node editor, say — where an unowned write has nobody to ask. ⇒ the writer
     /// then answers <see cref="EntityWriteRoute.Refused"/> rather than pretending, which is what lets a
     /// caller SAY the write went nowhere.
+    ///
+    /// <para>⭐⭐ It takes the WHOLE change list, not one change: <c>AX-007</c>'s multi-attribute write must
+    /// reach the owner as ONE request — see the interface's remarks on why.</para>
     /// </param>
     public AttributeEntityComponentWriter(
         EntityRepository repo,
-        BinaryInterpreter<AttributeRecord> interpreter,
-        Action<Entity, AttributeRecord>? publishRequest = null)
+        BinaryInterpreter<EntityAttributeChange> interpreter,
+        Action<Entity, IReadOnlyList<EntityAttributeChange>>? publishRequest = null)
     {
         _repo           = repo ?? throw new ArgumentNullException(nameof(repo));
         _interpreter    = interpreter ?? throw new ArgumentNullException(nameof(interpreter));
@@ -106,19 +78,18 @@ public sealed class AttributeEntityComponentWriter : IEntityComponentWriter
 
     /// <inheritdoc/>
     public EntityWriteRoute Write(Entity entity, ushort attributeId, double value)
-    {
-        if (!_repo.IsAlive(entity)) return EntityWriteRoute.Refused;
+        // ⭐⭐⭐ R-134 — FDP-INTERNAL ONLY. ⛔ This used to build a DDS `AttributeRecord` +
+        //    `AttributeValueUnion` + `AttributeValueType.KindFloat64`, which put network structure in the
+        //    internal write path — the as-built coupling AX-005a removes. 📄 design §11.2.
+        => Write(entity, new[] { EntityAttributeChange.Double(attributeId, value) });
 
-        var record = new AttributeRecord
-        {
-            AttributeId = attributeId,
-            // ⭐ Float64 — the Geo* family's value type, and what the heading handler reads.
-            Value = new AttributeValueUnion
-            {
-                ValueType   = AttributeValueType.KindFloat64,
-                DoubleValue = value,
-            },
-        };
+    /// <inheritdoc/>
+    public EntityWriteRoute Write(Entity entity, IReadOnlyList<EntityAttributeChange> changes)
+    {
+        ArgumentNullException.ThrowIfNull(changes);
+
+        if (changes.Count == 0) return EntityWriteRoute.Refused;
+        if (!_repo.IsAlive(entity)) return EntityWriteRoute.Refused;
 
         // ── Attempt the LOCAL apply, through the owner's own path ──────────────
         var patchCtx = EcsPatchContext.Create(_repo, entity);
@@ -126,11 +97,10 @@ public sealed class AttributeEntityComponentWriter : IEntityComponentWriter
         binaryCtx.Repo   = _repo;
         binaryCtx.Entity = entity;
 
-        // ⚠ A one-element array, not `stackalloc`: AttributeRecord carries a [DdsManaged] union, so it
-        //   is a MANAGED type and cannot live on the stack. ⭐ One allocation per operator gesture — this
-        //   path is driven by a mouse release, not per tick.
-        var one = new[] { record };
-        _interpreter.Apply(binaryCtx, one);
+        // ⚠ An array, not `stackalloc`: `AttributeValue` carries a `string?`, so
+        //   `EntityAttributeChange` is a MANAGED type and cannot live on the stack. ⭐ One allocation per
+        //   operator gesture — this path is driven by a mouse release, not per tick.
+        _interpreter.Apply(binaryCtx, AsArray(changes));
 
         if (patchCtx.HasAppliedAny)
             return EntityWriteRoute.Direct;
@@ -138,7 +108,17 @@ public sealed class AttributeEntityComponentWriter : IEntityComponentWriter
         // ── Not ours ⇒ ask the owner ───────────────────────────────────────────
         if (_publishRequest == null) return EntityWriteRoute.Refused;
 
-        _publishRequest(entity, record);
+        _publishRequest(entity, changes);
         return EntityWriteRoute.Requested;
+    }
+
+    /// <summary>⭐ Avoids a copy when the caller already handed us an array.</summary>
+    private static EntityAttributeChange[] AsArray(IReadOnlyList<EntityAttributeChange> changes)
+    {
+        if (changes is EntityAttributeChange[] array) return array;
+
+        var result = new EntityAttributeChange[changes.Count];
+        for (int i = 0; i < changes.Count; i++) result[i] = changes[i];
+        return result;
     }
 }

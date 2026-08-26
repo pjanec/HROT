@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
@@ -426,10 +426,21 @@ public sealed class TripleBufferPauseTests
     }
 
     /// <summary>
-    /// RequestContinue when not paused must be a no-op (no events, no clock calls).
+    /// ⭐⭐⭐ <b><c>CE-035</c> — SUPERSEDES <c>RequestContinue_WhenNotPaused_IsNoOp</c>.</b>
+    ///
+    /// <para>⚠ This rail previously asserted <c>ResumeCount == 0</c> when not paused. 🔴 That assertion
+    /// ENCODED THE DEFECT: after <c>RequestStep()</c>, <c>_isPaused</c> is false while the clock is still
+    /// halted, so *"not paused ⇒ do nothing"* made *step, look, continue* leave the operator halted
+    /// forever. 📐 The <c>CE-029</c> barrier rail measured it and had to call
+    /// <c>controller.RequestResume()</c> directly with a comment saying why.</para>
+    ///
+    /// <para>⭐ The contract now: the REWIND-UNDO half is conditional on <c>IsPaused</c>; the RESUME half
+    /// is not, because only the time controller knows whether time is running. ⇒ no state change to
+    /// announce *(no <c>OnPauseStateChanged</c>)*, and a resume that is idempotent when already
+    /// running.</para>
     /// </summary>
     [Fact]
-    public void RequestContinue_WhenNotPaused_IsNoOp()
+    public void RequestContinue_WhenNotPaused_StillResumesTheClock_AndRaisesNoEvent()
     {
         var (manager, _, _, tc) = ManagerFactory.Create();
 
@@ -438,8 +449,32 @@ public sealed class TripleBufferPauseTests
 
         manager.RequestContinue();
 
-        Assert.Equal(0, tc.ResumeCount);
+        Assert.Equal(1, tc.ResumeCount);
         Assert.Equal(0, eventCount);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-035</c>'s actual gesture: STEP, then CONTINUE.</b>
+    ///
+    /// <para>⛔ Before the fix this asserted zero resumes — the step cleared <c>IsPaused</c> and the
+    /// continue returned early, so the clock stayed halted with no way back through this surface.</para>
+    /// </summary>
+    [Fact]
+    public void ContinueAfterAStepResumesTheClock()
+    {
+        var (manager, _, _, tc) = ManagerFactory.Create();
+
+        manager.Add(ManagerFactory.MakeBreakpoint(enabled: true));
+        manager.OnHit(manager.AllBreakpoints[0], new Entity(1, 0));
+        Assert.True(manager.IsPaused);
+
+        manager.RequestStep();
+        Assert.False(manager.IsPaused);          // 📐 the measured contract — RequestStep clears it
+        Assert.Equal(0, tc.ResumeCount);         // ⛔ a step is not a resume
+
+        manager.RequestContinue();
+
+        Assert.Equal(1, tc.ResumeCount);
     }
 
     /// <summary>

@@ -207,7 +207,8 @@ namespace Hrot.SimHost
                         _gizmoSystem!.DeactivateGizmo(entity);
                         var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
                             _repo!, entity,
-                            onRemove: () => _gizmoSystem!.DeactivateGizmo(entity));
+                            onRemove: () => _gizmoSystem!.DeactivateGizmo(entity),
+                            writer: Hrot.SimHost.Installers.EntityWriteRouter.For(_repo!));
                         _gizmoSystem!.ActivateGizmo(entity, gizmo);
                     });
             }));

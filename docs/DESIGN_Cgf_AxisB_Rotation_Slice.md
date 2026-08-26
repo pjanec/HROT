@@ -1,6 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT `2026-08-25` (AX-001..AX-006) — read §9 AS-BUILT FIRST. Carries classDiagram + sequenceDiagram (§4/§5). Axis-B FIRST CUT: a subsystem-
+build-state: BUILT `2026-08-25` — the first cut (AX-001..AX-006) AND the AX-005 successor
+  (AX-005a/b/c, AX-007, AX-008, CE-018, CE-035, CE-036). ⭐⭐⭐ §12 is the AS-BUILT and carries the LIVE
+  classDiagram + sequenceDiagram (§12.2/§12.3). ⛔ §11.3-§11.5 are SUPERSEDED — the plan asked for a NEW
+  intent + a NEW translator; both already existed and were EXTENDED (ruling 9). Read §9 and §12.
+  Axis-B FIRST CUT (§4/§5, still LIVE for AX-001..006): a subsystem-
   agnostic entity-write path proven with ROTATION. Delivers UXI-30 (the binary authority gate) + a rotation
   attribute id + a subsystem-agnostic write helper the rotator gizmo drives. ⛔ NOT all of Axis B — one slice
   that establishes the owned→direct / unowned→request routing so later attribute gizmos reuse it.
@@ -10,6 +14,10 @@ stale-below: ⛔⛔ §1's row "BinaryInterpreter.Apply — NO AUTHORITY GATE" an
   path WAS authority-gated. The real defect — and what was built — is that the gate was per-installer
   and therefore forgettable. §7's "rotation round-trips on a real --mode all cluster" is NOT delivered:
   §9.4 measures why (there is no production SENDER of binary attribute records, which §6 ① itself notes).
+  ⭐⭐ §9.4's open item is now PARTLY DISCHARGED by §12.6: the request DOES reach the wire on a real
+  cluster (railed, green). ⛔ The FULL round trip stays red on a PRE-EXISTING SimHost->IG replication
+  failure — §12.5 F2, measured on a clean tree at 03f92fefe.
+  ⛔⛔ §11.3/§11.4/§11.5 are SUPERSEDED by §12 — do NOT quote them as the intended shape.
 design-basis: UX_Feature_Authority_Aware_Writes.md §3.3b-c (UXI-30/UXI-29 ruling — change-requests apply ONLY
   to owned components; JSON path already gates via CanWrite, binary path does not) · HROT-PROGRAMMERS-GUIDE
   Part 0 rule 8 (the two writer classes; the replication inverse must be preserved) · user ruling 2026-08-25
@@ -240,3 +248,246 @@ built, ⛔ but §2's routing model reads as though ownership were self-evident, 
 fails the day a replication ingress translator is routed through the change-request builder — the
 plausible *"let us unify the two write paths"* refactor — and the shipped
 `GeoSpatialIngressTranslatorTests` *(4/4)* remain the behavioural half.
+
+## 11. ⭐⭐⭐ AX-005 SUCCESSOR — the cross-node egress, under **STRICT NETWORK SEPARATION** *(user ruling `2026-08-25`)*
+
+> ⭐⭐⭐ **USER RULING, verbatim intent:** *"the gizmo should NEVER EVER use any DDS structure directly.
+> Network must be strictly separated from internal FDP event processing — even at the cost of keeping the
+> same enum duplicated in two namespaces (still numerically identical). The intent FDP-bus record uses its
+> OWN enum; the egress translator converts to the network enum."*
+
+### 11.1 ⛔⛔ THE RULING — a load-bearing engine invariant
+⭐⭐ **No DDS/network type crosses into the FDP-internal event path.** The gizmo → write-router → FDP-bus
+intent side speaks **FDP-internal types only**; the **egress translator is the SOLE boundary crosser**,
+converting the internal record to the DDS wire message *(and the internal enum to the network enum)*.
+⭐ **The precedent is established and named:** `Fdp.Toolkits.Navigation.NavigationIntent` *(internal ECS)*
+vs `Hrot.Network.NED…NavigationIntent` *(wire)*, converted only inside `NavigationIntentEgressTranslator`.
+⭐⭐⭐ **The two enums ALREADY EXIST for attributes:** **`AttributeValueKind`** *(FDP-internal —
+`Fdp.Toolkits/Replication/Patching/AttributeValueKind.cs`)* and **`AttributeValueType`** *(network —
+`Hrot.Network.NED/GenericMessages.cs`)* — numerically identical by design. ⛔ **Duplication here is the
+CORRECT pattern, not debt.**
+
+### 11.2 🔴 AS-BUILT FINDING — the merged writer took the shortcut this ruling forbids
+📐 `AttributeEntityComponentWriter.Write` *(AX-003, merged)* builds a **`AttributeRecord` + `AttributeValueUnion`
++ `AttributeValueType.KindFloat64`** — **network/DDS types** — inside the FDP-internal write path, and applies
+them through `BinaryInterpreter<AttributeRecord>`. ⇒ ⛔ **the FDP-internal side is currently coupled to the DDS
+record shape.** ⭐ **AX-005 corrects this:** the router/gizmo operate on an **FDP-internal** change record
+*(own `AttributeValueKind`)*; ⇒ ⚠ **verify + move** the network types out of the internal path — either the
+local-apply mechanism switches to an internal representation, or the internal record converts to the DDS record
+**only at the egress boundary**. 📌 Record which, and why, in the report.
+
+### 11.3 ⛔ THE CORRECTED INTENT PATH — **SUPERSEDED by §12, `2026-08-25`** *(kept: the RULING it states is unchanged)*
+
+> ⚠⚠ **The path below was the PLAN. §12 is the AS-BUILT, and it differs in one load-bearing way:**
+> ⛔ the new `EntityAttributeChangeIntent` + new egress translator this table asks for were **NOT built** —
+> ⭐ measured, both already existed *(`UpdateEntityAttributeCommand` + `UpdateEntityAttributeCommandEgressTranslator`,
+> **registered in production**)*, so they were **EXTENDED**, per ruling 9. ⛔ **Do not quote §11.3–§11.5 as
+> current.** ⭐ `R-134` itself *(§11.1)* is untouched and still binds.
+
+| step | speaks | where |
+|---|---|---|
+| ⭐ gizmo commits *(heading deg / position)* → router | ⭐ **FDP-internal only** — an `EntityAttributeChangeIntent { networkId/entity, attributeId, value, `**`AttributeValueKind`**` }` | `Hrot.SimHost`/FDP toolkit |
+| ⭐ owned → apply to ECS locally | FDP-internal | the installer/interpreter, internal side |
+| ⭐ unowned → publish the **FDP-bus intent** *(NOT a DDS struct)* | ⭐⭐ **FDP-internal enum** | the write router's `_publishRequest` |
+| ⭐⭐⭐ **the egress translator** subscribes to the intent, resolves entity→`NetworkId` *(`NetworkEntityMap`)*, and writes DDS `UpdateEntityAttributeRequest{AttributeRecords}` — **converting `AttributeValueKind` → `AttributeValueType`** | ⛔ **the ONLY place DDS appears** | `Hrot.Network.NED/…/Egress` — mirrors `UpdateEntityAttributeCommandEgressTranslator` |
+| ⭐ owner receives → applies, ownership-gated | network in, ECS out | `DdsUpdateEntityAttributeRequestSource` → `UpdateEntityAttributeRequestSystem` binary branch *(AX-001 gate)* |
+
+⚠ **Direction note:** this is a **change-request** *(non-owner → owner, event-driven on mouse-release)* — ⛔ NOT
+the per-tick replication egress *(owner → ghosts)* like `NavigationIntentEgressTranslator`'s component scan. It
+mirrors the **command** egress shape, not the descriptor-scan shape.
+
+### 11.4 ⛔ CLASS DIAGRAM — **SUPERSEDED by §12.2**
+```mermaid
+classDiagram
+    direction LR
+    class EntityGizmo {
+        <<rotator / drag · FDP-internal only>>
+    }
+    class WriteRouter {
+        <<owned -> local ECS · unowned -> publish FDP intent>>
+    }
+    class EntityAttributeChangeIntent {
+        <<NEW · FDP-internal record · uses AttributeValueKind>>
+    }
+    class AttributeRequestEgress {
+        <<NEW · the ONLY DDS boundary · converts Kind to Type>>
+    }
+    class UpdateEntityAttributeRequest {
+        <<exists · DDS wire · AttributeRecords + AttributeValueType>>
+    }
+    class UpdateEntityAttributeRequestSystem {
+        <<exists · owner applies · gated by AX-001>>
+    }
+    EntityGizmo ..> WriteRouter : commit value
+    WriteRouter ..> EntityAttributeChangeIntent : unowned -> publish on FDP bus
+    AttributeRequestEgress ..> EntityAttributeChangeIntent : subscribe (FDP-internal)
+    AttributeRequestEgress ..> UpdateEntityAttributeRequest : convert Kind to Type, resolve NetworkId
+    UpdateEntityAttributeRequestSystem ..> UpdateEntityAttributeRequest : receive + apply gated
+    note for AttributeRequestEgress "STRICT SEPARATION: DDS types (AttributeRecord, AttributeValueType, UpdateEntityAttributeRequest) appear ONLY here. The gizmo/router/intent are FDP-internal (AttributeValueKind). Precedent: NavigationIntent internal-vs-wire, converted in its egress."
+```
+
+### 11.5 ⛔ SEQUENCE DIAGRAM — **SUPERSEDED by §12.3**
+```mermaid
+sequenceDiagram
+    autonumber
+    participant G as Gizmo (FDP-internal)
+    participant R as WriteRouter
+    participant Bus as FDP event bus
+    participant E as AttributeRequestEgress
+    participant O as owner node
+
+    G->>R: commit entity attributeId value
+    alt owned locally
+        R->>R: apply to ECS directly
+    else unowned
+        R->>Bus: publish EntityAttributeChangeIntent (AttributeValueKind)
+        Bus->>E: intent (FDP-internal)
+        E->>E: resolve NetworkId, convert Kind to Type
+        E->>O: DDS UpdateEntityAttributeRequest AttributeRecords
+        O->>O: apply, ownership-gated (AX-001)
+    end
+```
+
+### 11.6 ⭐⭐ THE BUNDLED SLICE *(user: "do all at once")*
+| # | item | note |
+|---|---|---|
+| ⭐ **AX-005** | the FDP-internal intent + the request egress *(11.3)* + fix the as-built coupling *(11.2)*; register the egress via the **network module**, ⛔ not `Program.cs` | round-trip rail on a real `--mode all` cluster: a non-owning node rotates a SimHost-owned entity → SimHost applies it, gated |
+| ⭐ **AX-007** | **`EntityDragGizmo`** *(exists)* commits **position** through the same router *(`GeoLat`/`GeoLon`)* — move + rotate on one path | ruling 32 already wanted drag on the attribute channel |
+| ⭐ **CE-035** | `RequestContinue`-after-step no-op → route through `RequestResume` | neutral-assembly; small |
+| ⭐ **CE-036** | the stale `Requires CycloneDDS` skips — real cause: **domain id 250 out of range** | un-skip + fix or re-document |
+| ⭐ **CE-018** | `EditorSubsystem`'s two inline `.csproj` walk-ups → `AssetRoots` | ⚠ same file the MCP-diagnostics slice touches for log-sink wiring — **different region**; coordinate |
+
+⚠ **Parallel-safety with the running MCP-diagnostics slice:** disjoint bar `EditorSubsystem.cs` *(CE-018 walk-up
+region vs the diagnostics log-sink pass)* — keep to distinct regions; rule 4 re-pull.
+
+---
+
+## 12. ⭐⭐⭐ AS-BUILT — `2026-08-25` *(`AX-005a/b/c`, `AX-007`, `AX-008`, `CE-018`, `CE-035`, `CE-036`)*
+
+> ⭐⭐ **Obligation ⑤.** §11.3–§11.5 were the PLAN and are marked SUPERSEDED above. This section is what
+> exists. ⛔ Quote THIS.
+
+### 12.1 ⭐⭐⭐ THE ONE DEVIATION THAT MATTERS — **the intent and its translator ALREADY EXISTED**
+
+📄 §11.3 asked for a **new** `EntityAttributeChangeIntent` and a **new** request egress translator.
+📐 **Measured `2026-08-25`** *(`search_graph` + grep, both directions)*:
+
+| what §11.3 asked to build | ⭐ what was measured |
+|---|---|
+| a new FDP-internal cross-node change intent | ⭐⭐ **`Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand` already is one** — FDP-internal *(no DDS reference in `Fdp.Toolkits`)*, and already published by `ExConOrbatAdapter` |
+| a new egress translator writing `UpdateEntityAttributeRequest` | ⭐⭐⭐ **`UpdateEntityAttributeCommandEgressTranslator` exists and is REGISTERED IN PRODUCTION** — `Translators/Map/SharedTranslatorPack.cs:79`, so every NED node already has it |
+| ⇒ | ⭐ **only the BINARY ARM was missing.** ⛔ A second intent + a second translator writing the same DDS topic would be two implementations of one concept *(ruling 9)* |
+
+⇒ ⭐⭐⭐ **EXTENDED, not duplicated.** 📌 The seam law again: *"we need a shared X"* meant X existed and was
+under-adopted. **25 measured instances.**
+
+### 12.2 ⭐⭐ CLASS DIAGRAM — as built
+
+```mermaid
+classDiagram
+    direction LR
+    class IEntityComponentWriter {
+        <<interface · Fdp.Toolkits · MOVED here by AX-007>>
+        +Write(entity, attributeId, value) EntityWriteRoute
+        +Write(entity, changes) EntityWriteRoute
+    }
+    class AttributeEntityComponentWriter {
+        <<Hrot.Network.NED · the one implementation>>
+    }
+    class EntityWriteRouter {
+        <<NEW · the one composition · For(repo)>>
+    }
+    class EntityAttributeChange {
+        <<NEW · Fdp.Toolkits · AttributeValueKind · NO DDS>>
+    }
+    class UpdateEntityAttributeCommand {
+        <<exists · EXTENDED with AttributeChanges>>
+    }
+    class EntityAttributeChangeRequests {
+        <<NEW · PublishOnto(repo) · derives the bus from the world>>
+    }
+    class AttributeRecordConversion {
+        <<NEW · R-134 SOLE BOUNDARY · both directions · explicit switch>>
+    }
+    class UpdateEntityAttributeCommandEgressTranslator {
+        <<exists · REGISTERED SharedTranslatorPack:79 · EXTENDED with the binary arm>>
+    }
+    class EntityRotatorGizmo {
+        <<exists · writer wired at all 5 sites>>
+    }
+    class EntityDragGizmo {
+        <<Hrot.Presentation · AX-007 · commits GeoLat+GeoLon as ONE change>>
+    }
+    AttributeEntityComponentWriter ..|> IEntityComponentWriter
+    EntityWriteRouter ..> AttributeEntityComponentWriter : builds
+    EntityWriteRouter ..> EntityAttributeChangeRequests : publishRequest
+    EntityRotatorGizmo ..> IEntityComponentWriter
+    EntityDragGizmo ..> IEntityComponentWriter
+    AttributeEntityComponentWriter ..> EntityAttributeChange
+    EntityAttributeChangeRequests ..> UpdateEntityAttributeCommand : PublishManaged on repo.Bus
+    UpdateEntityAttributeCommandEgressTranslator ..> UpdateEntityAttributeCommand : drains
+    UpdateEntityAttributeCommandEgressTranslator ..> AttributeRecordConversion : ToNetwork
+    note for AttributeRecordConversion "R-134: DDS AttributeRecord / AttributeValueUnion / AttributeValueType appear ONLY here and in the ingress system. Railed by StrictNetworkSeparationTests."
+```
+
+### 12.3 ⭐⭐ SEQUENCE DIAGRAM — as built
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant G as Gizmo (rotator or drag)
+    participant W as AttributeEntityComponentWriter
+    participant I as BinaryInterpreter of EntityAttributeChange
+    participant Bus as world bus (repo.Bus)
+    participant T as UpdateEntityAttributeCommandEgressTranslator
+    participant O as owner node
+
+    G->>W: Write(entity, changes)
+    W->>I: Apply (the OWNER's own path)
+    alt HasAppliedAny
+        I-->>W: applied
+        W-->>G: Direct
+    else nothing landed (UXI-30 gate refused)
+        W->>Bus: PublishManaged UpdateEntityAttributeCommand with AttributeChanges
+        W-->>G: Requested
+        Bus->>T: ReadManagedEvents
+        T->>T: AttributeRecordConversion.ToNetwork per change
+        T->>O: DDS UpdateEntityAttributeRequest with AttributeRecords
+        O->>O: UpdateEntityAttributeRequestSystem applies, gated by AX-001
+    end
+```
+
+### 12.4 ⭐ WHAT CHANGED VS THE PLAN — every deviation, named
+
+| # | deviation | why |
+|---|---|---|
+| **①** | ⭐⭐⭐ **no new intent, no new translator** — `UpdateEntityAttributeCommand` gained `AttributeChanges`; the shipped translator gained a binary arm | §12.1 — both existed and the translator is registered in production |
+| **②** | ⭐⭐ **`IEntityComponentWriter` + `EntityWriteRoute` MOVED to `Fdp.Toolkits`** *(`Fdp.Toolkit.Replication.Patching`)* | `AX-007`: `EntityDragGizmo` lives in `Hrot.Presentation`, which ⛔ must not reference the network assembly. The seam belongs where both sides see it; the IMPLEMENTATION stayed in NED |
+| **③** | ⭐⭐ **the interface gained a MULTI-CHANGE overload** | a drag commits `GeoLat`+`GeoLon`; as two single writes the owner applies them a round trip apart and the entity lands on a coordinate pair nobody chose |
+| **④** | ⭐⭐ **`EntityWriteRouter.For(repo)` — a factory, not five hand-built writers** | `EntityRotatorGizmo` is constructed in **five** places. Five hand-assembled writers is five chances to forget `publishRequest` — the SILENT-DEFAULT pattern. The dependency is derived, so it cannot be forgotten |
+| **⑤** | ⭐ **`EntityAttributeChangeRequests.PublishOnto(repo)` takes the WORLD, not a bus** | the translator drains `view.ReadManagedEvents<T>()` — the WORLD bus. A bus parameter would let a caller pass the ORCHESTRATION bus; the command would publish successfully and be drained by nobody |
+| **⑥** | ⭐ **`AX-008` — `NetworkIdResolver.RuntimeNetworkIdOf`** | `CgfSubsystem` and `EditorSubsystem` held **two private line-for-line copies**; the egress needed a third. Collapsed before writing it |
+| **⑦** | ⭐ **the drag routes only the COMMIT, never the live preview** | one request per mouse-move would fight replication on an unowned entity every tick. ⚠ Consequence stated: on an unowned entity the preview is visibly reverted until the request lands |
+| **⑧** | ⭐ **`CE-018` was FOUR walk-ups, not two** | measured: `EditorSubsystem` ×3 + `EditorApplication` ×1. All routed to `AssetRoots`; `EditorApplication`'s also gained the output-directory arm and ruling 67's config arm it never had |
+
+### 12.5 🔴 FINDINGS
+
+| # | finding |
+|---|---|
+| **F1** | ⭐⭐⭐ **`EntityRepository.GetSingletonManaged<T>()` THROWS when unset** despite its `T?` return type. 📐 Caught by the `AX-005` egress rail: the **IG never registers `IGeographicTransform`**, so `EntityWriteRouter.For` threw there. ⛔ A unit rail could not have seen it. ⭐ Fixed with `HasSingletonManaged` first — and the absence is normal, not a defect: that host simply has no `Geo*` handlers |
+| **F2** | 🔴🔴 **`SimHost → IG` entity replication does not complete in this environment, and it is PRE-EXISTING.** 📐 Measured on a CLEAN tree at `03f92fefe` *(0 build errors)*: `DragDropIntegrationTests` fails with *"IG did not receive entity (netId=1)"*, and **21 of 51** tests in `Hrot.ClusterRunner.Integration.Tests` fail the same way before the host process crashes. ⇒ the full `--mode all` round-trip rail **cannot go green on this base**. ⭐ Kept red *(`R-131` — do not filter around)*; the provable half is green *(§12.6)* |
+| **F3** | ⚠ **`CE-035`'s old rail ENCODED the defect.** `RequestContinue_WhenNotPaused_IsNoOp` asserted `ResumeCount == 0` — which is exactly why *step, look, continue* left the operator halted. Superseded, with the reasoning in the new rail's own remarks |
+| **F4** | ⚠ **`CE-036`'s skip reason was WRONG.** *"Requires CycloneDDS"* — in an assembly whose other tests boot a real domain. Real cause: CycloneDDS derives ports as `7400 + 250 × domainId`, so `domainId = 250` asks for port `69900`. The usable ceiling is ≈ `232`. Fixed to `200`; all three skips removed |
+
+### 12.6 ⭐ RAILS
+
+| rail | where | state |
+|---|---|---|
+| ⭐⭐⭐ **`R-134` structural guard** — the internal write path names no DDS type; the boundary set is an EQUALITY | `Hrot.SimHost.Tests/StrictNetworkSeparationTests.cs` *(4)* | ✅ green · red-proved by inverse edit |
+| ⭐⭐ **the egress half on a REAL cluster** — an unowned write leaves the node as a DDS request carrying the binary record, with the enum converted | `Hrot.ClusterRunner.Integration.Tests/AttributeChangeRequestRoundTripTests` | ✅ green · red-proved by disabling the binary arm |
+| ⭐ **the owner applies the same attribute directly** | same file | ✅ green |
+| 🔴 **the FULL `--mode all` round trip** | same file | ⛔ **red — blocked by `F2`**, kept as a live probe |
+| ⭐⭐ **`AX-007` drag** — one call carrying both coordinates · no request during the preview · refusal restores · altitude survives · no-writer fallback | `Hrot.Presentation.Tests/EntityDragGizmoTests.cs` *(5)* | ✅ green |
+| ⭐⭐ **`CE-035`** — continue-after-step resumes | `Hrot.Diagnostics.Breakpoints.Tests` *(2)* | ✅ green |
+| ⭐⭐ **`CE-018`** — the walk-up has ONE implementation in production code | `Hrot.Editor.AiShared.Tests/…/TheWalkUpHasOneImplementationTests.cs` *(2)* | ✅ green |
+| ⭐ **`CE-036`** — the three skips removed | `Hrot.ClusterRunner.Integration.Tests/HarnessSmokeTests.cs` *(5)* | ✅ green, 0 skipped |
