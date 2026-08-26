@@ -1,9 +1,9 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Patching;
 
-namespace Hrot.SimHost.Installers;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>AX-016</c> — ONE binary attribute interpreter PER WORLD, resolved rather than built.</b>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -363,7 +363,7 @@ namespace Hrot.Editor.DebugApi
             _btreeSession     = btreeSession;
             _hsmSession       = hsmSession;
             _blueprintSession = blueprintSession;
-            _attributeCompiler = attributeCompiler ?? Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
+            _attributeCompiler = attributeCompiler ?? Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(_geoTransform);
             _componentEditSvc  = componentEditSvc  ?? new ComponentEditServiceBuilder().Build();
             _primitiveBuffer   = primitiveBuffer;
             if (_bpManager != null)
@@ -410,7 +410,7 @@ namespace Hrot.Editor.DebugApi
 
             _diffService       = new ComponentDiffService();
             _logSinks          = logSinks ?? Array.Empty<IMessageLogSource>();
-            _attributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
+            _attributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(_geoTransform);
             _componentEditSvc  = new ComponentEditServiceBuilder().Build();
             _primitiveBuffer   = primitiveBuffer;
             _behaviorRegistry  = behaviorRegistry;

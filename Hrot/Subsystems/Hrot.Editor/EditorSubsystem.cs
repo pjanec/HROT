@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
@@ -1500,7 +1500,7 @@ namespace Hrot.Editor
                 new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
             // EntityDragGizmoDefinition has an optional callback constructor ? register manually.
             editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
-                writerFactory: Hrot.SimHost.Installers.EntityWriteRouter.For));   // ⭐ AX-007
+                writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));   // ⭐ AX-007
             // Editor has no DDS transport so no network ingress/egress translators.
             var interactionBus = new FdpEventBus();
             Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(interactionBus);
@@ -1530,7 +1530,7 @@ namespace Hrot.Editor
                 _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
                 var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
                     view, target, onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target),
-                    writer: Hrot.SimHost.Installers.EntityWriteRouter.For(_world!));
+                    writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world!));
                 _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
             });
             actionRegistry.Register(GlobalActionIds.Measure, (_, _) =>
@@ -1905,7 +1905,7 @@ namespace Hrot.Editor
 
                 // Build the JSON?ECS attribute compiler with the geo-transform so that
                 // geodetic spawn coordinates are projected correctly on entity placement.
-                var jsonCompiler  = Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform);
+                var jsonCompiler  = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform);
                 _spawnAdapter     = new EditorSpawnAdapter(_world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!);
                 _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus, _globalGizmoManager!);
                 _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig, _canvas!);
@@ -5023,7 +5023,7 @@ namespace Hrot.Editor
                             var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
                                 _world!, e,
                                 onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e),
-                                writer: Hrot.SimHost.Installers.EntityWriteRouter.For(_world!));
+                                writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world!));
                             _editorDataDrivenGizmoSystem!.ActivateGizmo(e, gizmo);
                         }
                         break;

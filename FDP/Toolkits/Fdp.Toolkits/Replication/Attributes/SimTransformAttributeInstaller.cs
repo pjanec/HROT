@@ -1,11 +1,11 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Runtime.CompilerServices;
-using Hrot.NED.Descriptors;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 
-namespace Hrot.SimHost.Installers;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// <see cref="IBinaryAttributeInstaller"/> that routes <c>GeoLat</c>, <c>GeoLon</c>,
@@ -33,7 +33,7 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<E
 {
     // ── Subsystem flusher bit ─────────────────────────────────────────────────
     private const int GeoFlushBit = 0;
-    private const long GeoSpatialOrdinal = (long)EDescriptorType.dtWorldPos;
+    private const long GeoSpatialOrdinal = (long)DescriptorOrdinal.WorldPos;
 
     // ── Scratchpad layout ─────────────────────────────────────────────────────
 

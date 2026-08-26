@@ -4,7 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication.Attributes;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.Map.Common.Replication;
 using Fdp.Core;

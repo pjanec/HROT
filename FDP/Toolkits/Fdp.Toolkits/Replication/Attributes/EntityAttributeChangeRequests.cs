@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Core.Logging;
@@ -6,7 +6,7 @@ using Fdp.Toolkit.Replication.Events;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Replication.Services;
 
-namespace Hrot.SimHost.Installers;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>AX-005b</c> — wires the write router's *"not mine, ask the owner"* branch onto the FDP bus.</b>

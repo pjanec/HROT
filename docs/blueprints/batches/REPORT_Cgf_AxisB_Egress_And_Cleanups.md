@@ -267,3 +267,33 @@ third registration that can be silently absent, which is the exact failure mode 
 ⛔ **STEP (3) — moving the apply stack out of the DDS assembly — is NOT started**, as agreed. ⭐ `F9` removes
 its main objection, and the source-scan rail's allowlist is the ready-made proof: it shrinks to zero when the
 move lands.
+
+---
+
+### ⭐⭐⭐ `2026-08-26` (4) — **`AX-017`: step (3), the move — plus the JSON/binary consistency the user asked for twice**
+
+📄 Durable record: design **§16** *(classDiagram + sequenceDiagram; §14.3 marked ANSWERED, its claim
+RETRACTED)*. 🔒 *"ok do (3). again, we need consistency between json and binary attribute update path."*
+
+| # | finding |
+|---|---|
+| **F13** | ⭐⭐⭐ **The consistency ask found a REAL defect, not a tidiness issue.** 📐 `BinaryInterpreter.Apply` ends with `FlushDirtyMarks()` ⇒ **a binary caller cannot forget.** 🔴 The JSON path left the flush to its caller and **three production callers each remembered it on a separate line** *(`UpdateEntityAttributeRequestSystem`, `DebugApiService.PatchEntityAttributes`, `EditorSpawnAdapter`)*. ⇒ **a fourth that forgot reproduces `AX-015` exactly** — applied to local ECS, never republished, **no exception anywhere**. ⭐ Fixed by making `Compile` flush itself *(the `UXI-30`/`AX-001` shape)*; the three explicit calls stay correct and become redundant *(`HashSet` ⇒ flushing twice marks once, railed)* |
+| **F14** | ⭐⭐ **The move is bigger on the TEST side than the production side, and that was measurable up front** — 📌 `HN-037`'s lesson applied. 8 production files `git mv`'d, but **17 call-site files** needed re-`using`ing, of which **9 are test files**. ⚠ Two files legitimately needed BOTH usings back *(they still use the DDS-side `AttributeRecordConversion`)* — a blanket sed broke them and the build caught it |
+| **F15** | ⚠⚠ **`ForceIdentifier` makes a THIRD copy of the force enum, and the two pre-existing ones agree by COMMENT with no rail.** 📐 `Hrot.NED.Descriptors.eForceIdentifier` and `Hrot.Core.Mission.eForceIdentifier` both exist, both `0,1,2,3`. ⭐ The new rail pins all three. ⛔ **Consolidating the two Hrot copies is out of scope** — filed rather than silently widened into this slice |
+| **F16** | ⭐ **A source-scan rail cannot be red-proved the obvious way, and that is a feature.** Adding a real `using Hrot.NED.Descriptors;` to an `Fdp.Toolkits` file **does not compile** — rail ① *(the project graph)* forbids the reference. ⇒ red-proved with a `#if RED_PROOF` block: the compiler ignores it, the line-based scanner does not |
+
+| gate | `--no-build` | result | Δ |
+|---|---|---|---|
+| ⭐⭐⭐ **`TheDescriptorOrdinalVocabulariesAgreeTests`** | ✅ | ✅ **10/10** · red-proved `WorldPos = 2` → `22` *(2 red, with the exact message `"WorldPos = 22 but dtWorldPos = 2"`)* | NEW |
+| ⭐⭐⭐ **`TheJsonAndBinaryPathsAgreeTests`** | ✅ | ✅ **4/4** · red-proved by removing `Compile`'s flush *(**3 red**)* | NEW |
+| ⭐⭐⭐ **`StrictNetworkSeparationTests`** | ✅ | ✅ **6/6** · red-proved by `#if RED_PROOF` *(1 red, `["SimTransformHeadingInstaller.cs"] = "Hrot.NED.Descriptors"`)* | 5 → 6; ⭐⭐ **allowlist 6 entries → 3, all four `Hrot.NED.Descriptors` rows GONE** |
+| `Hrot.Network.NED.Tests` | ✅ | ✅ **106/106** | unchanged |
+| `Hrot.SimHost.Tests` | ✅ | **717 total · 1–5 failed across 3 identical runs** | +15 rails. ⭐ **Only ONE red is stable: `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`** — 📐 **reproduced on a base worktree at `f800ae545`** *(1 red / 702)* ⇒ **PRE-EXISTING**. ⚠ The others rotate *(run 1: +4 `StagingEntityExtractorTests`; run 2: none; run 3: +1 `EditLoadClusterOpHandlerTests`)* — the known static-order flake; `StagingEntityExtractorTests` is **21/21 in isolation** and **35/35 run together with both new files** |
+| `Fdp.Toolkits.Tests` | ✅ | **2037 total · 1 failed** | ⚠ `DangerAreaProviderTests.FakeDangerAreaProvider_Refresh_ZeroAllocAfterWarmup` *("Refresh allocated heap memory")* — 📐 **fails identically on the base worktree, in isolation** ⇒ **PRE-EXISTING**, a GC-noise assertion unrelated to attributes |
+| ⭐⭐ **`Hrot.ClusterRunner.Integration.Tests`** *(row 8: the integration suite for a cross-cutting change)* | ✅ | run **async** *(T3)* — see the addendum below | the suite that would break if the apply path stopped reaching the wire |
+| `design-digest --check` · `tracker-counts --check` · `rulings-check` · `mermaid-check` | — | ✅ 87 docs · counts OK **102 open / 346 done** · **25/25** · **9/9 blocks** | +2 mermaid blocks |
+
+⭐ **IDs allocated this addendum: `AX-017`** *(one row)*.
+
+⚠ **Working tree clean after every suite run** — no golden was regenerated. **Quarantine/skip counts unchanged**
+*(3 skipped in `Hrot.SimHost.Tests`, same as base)*; ⛔ **no new skip was added.**

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
@@ -208,7 +208,7 @@ namespace Hrot.SimHost
                         var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
                             _repo!, entity,
                             onRemove: () => _gizmoSystem!.DeactivateGizmo(entity),
-                            writer: Hrot.SimHost.Installers.EntityWriteRouter.For(_repo!));
+                            writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_repo!));
                         _gizmoSystem!.ActivateGizmo(entity, gizmo);
                     });
             }));

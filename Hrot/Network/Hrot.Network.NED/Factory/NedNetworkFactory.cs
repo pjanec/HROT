@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
@@ -11,6 +11,7 @@ using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Attributes;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
 using Hrot.Common.Infrastructure;

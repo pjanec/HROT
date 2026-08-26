@@ -5,7 +5,7 @@ using Fdp.Core;
 using Fdp.Modules.Geographic.Systems;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.NED.Messages;
-using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication.Attributes;
 using Xunit;
 
 namespace Hrot.SimHost.Tests;

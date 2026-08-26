@@ -1,8 +1,8 @@
-using Fdp.Core;
+﻿using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Patching;
 
-namespace Hrot.SimHost.Installers;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// ⭐⭐⭐ <b><c>AX-005b</c> — the ONE composition of the write router, so a host does not assemble one.</b>

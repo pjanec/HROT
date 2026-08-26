@@ -1,9 +1,9 @@
-using Hrot.NED.Descriptors;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core;
 using Fdp.Modules.Geographic.Systems;
 
-namespace Hrot.SimHost.Installers;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// ⭐⭐⭐ <b>Axis-B item ② — routes the <see cref="AttributeIds.GeoHeading"/> binary attribute to
@@ -33,7 +33,7 @@ namespace Hrot.SimHost.Installers;
 /// </summary>
 public sealed class SimTransformHeadingInstaller : IBinaryAttributeInstaller<EntityAttributeChange>
 {
-    private const long GeoSpatialOrdinal = (long)EDescriptorType.dtWorldPos;
+    private const long GeoSpatialOrdinal = (long)DescriptorOrdinal.WorldPos;
 
     /// <inheritdoc/>
     public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)

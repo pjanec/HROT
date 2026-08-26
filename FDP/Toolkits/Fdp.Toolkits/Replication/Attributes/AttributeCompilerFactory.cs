@@ -1,12 +1,11 @@
 ﻿using System.Numerics;
 using System.Text.Json;
-using Hrot.NED.Descriptors;
-using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 
-namespace Hrot.SimHost;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// Builds the application-wide <see cref="JsonAttributeCompiler"/> singleton used by
@@ -27,8 +26,8 @@ namespace Hrot.SimHost;
 /// </summary>
 public static class AttributeCompilerFactory
 {
-    private const long EntityInfoOrdinal  = (long)EDescriptorType.dtEntityInfo;
-    private const long GeoSpatialOrdinal  = (long)EDescriptorType.dtWorldPos;
+    private const long EntityInfoOrdinal  = (long)DescriptorOrdinal.EntityInfo;
+    private const long GeoSpatialOrdinal  = (long)DescriptorOrdinal.WorldPos;
 
     // ── Public factory ────────────────────────────────────────────────────────
 
@@ -170,17 +169,17 @@ public static class AttributeCompilerFactory
         };
 
     /// <summary>
-    /// Maps a JSON affiliation integer (the raw <see cref="eForceIdentifier"/> ordinal) to a
+    /// Maps a JSON affiliation integer (the raw <see cref="ForceIdentifier"/> ordinal) to a
     /// <see cref="ForceId"/>. Handles the ExCon default JSON serialisation which emits enums
     /// as their underlying integer value (e.g. <c>2</c> for <c>FORCE_OPPOSING</c>).
     /// </summary>
     internal static ForceId MapAffiliationInt(int value) =>
-        (eForceIdentifier)value switch
+        (ForceIdentifier)value switch
         {
-            eForceIdentifier.FORCE_FRIENDLY => ForceId.Friend,
-            eForceIdentifier.FORCE_OPPOSING => ForceId.Hostile,
-            eForceIdentifier.FORCE_NEUTRAL  => ForceId.Neutral,
-            _                               => ForceId.Neutral,
+            ForceIdentifier.Friendly => ForceId.Friend,
+            ForceIdentifier.Opposing => ForceId.Hostile,
+            ForceIdentifier.Neutral  => ForceId.Neutral,
+            _                        => ForceId.Neutral,
         };
 
     /// <summary>

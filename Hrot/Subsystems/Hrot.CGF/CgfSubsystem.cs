@@ -1,4 +1,4 @@
-using CycloneDDS.Runtime;
+﻿using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
@@ -903,7 +903,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                             onRemove: () => _cgfDataDrivenGizmoSystem!.DeactivateGizmo(entity),
                             // ⭐ AX-005b — CGF does not own SimTransform, so the direct poke would do
                             //   nothing here; the router asks the owner instead.
-                            writer: Hrot.SimHost.Installers.EntityWriteRouter.For(_context.World));
+                            writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_context.World));
                         _cgfDataDrivenGizmoSystem!.ActivateGizmo(entity, gizmo);
                     });
             }));

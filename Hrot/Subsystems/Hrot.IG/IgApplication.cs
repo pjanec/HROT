@@ -753,12 +753,12 @@ public class IgApplication : IDisposable
                             OnEntityDragEnded(entity);
                         },
                         // ⭐ AX-007 — IG owns almost nothing, so a drag here is a request to the owner.
-                        writerFactory: Hrot.SimHost.Installers.EntityWriteRouter.For));
+                        writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));
             }
             else
             {
                 _gizmoRegistry!.Register(new EntityDragGizmoDefinition(
-                    writerFactory: Hrot.SimHost.Installers.EntityWriteRouter.For));
+                    writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));
             }
             // GZ058: manually register MissionPresentationGizmo (constructor requires IGeographicTransform).
             _statelessGizmoRegistry.Register(

@@ -284,6 +284,26 @@ public sealed class JsonAttributeCompiler
                 }
             }
         }
+
+        // ⭐⭐⭐ AX-017 — the JSON path flushes ITSELF, exactly as BinaryInterpreter.Apply does.
+        //
+        // 🔴 Before this, the two apply paths announced their dirty descriptors the same way and
+        //    DELIVERED them differently: BinaryInterpreter.Apply ends with
+        //    ctx.PatchContext.FlushDirtyMarks(), so a binary caller CANNOT forget — while every JSON
+        //    caller had to remember `context.FlushDirtyMarks()` on its own line. 📐 Measured
+        //    2026-08-26: three production callers, three separate remembered calls
+        //    (UpdateEntityAttributeRequestSystem, DebugApiService.PatchEntityAttributes,
+        //    EditorSpawnAdapter). ⛔ A fourth that forgets is the AX-015 defect again — the change
+        //    lands in local ECS and is never republished, with no exception anywhere.
+        //
+        // ⭐ Same fix shape as UXI-30/AX-001: move the obligation to the place it cannot be skipped,
+        //    rather than documenting it for the next author. The existing explicit calls stay correct
+        //    and become redundant — SmartEgressUtil.MarkDirty adds to a HashSet, so flushing twice
+        //    marks once.
+        //
+        // ⚠ ListPatchContext.FlushDirtyMarks is an intentional no-op, so the no-ECS spawning path is
+        //    unaffected.
+        context.FlushDirtyMarks();
     }
 
     // ── Internal hashing helpers (used by AttributeCompilerBuilder) ──────

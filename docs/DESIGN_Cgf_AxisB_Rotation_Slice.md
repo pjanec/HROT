@@ -2,8 +2,12 @@
 state: LIVE
 build-state: BUILT — the first cut (AX-001..AX-006), the AX-005 successor (AX-005a/b/c, AX-007, AX-008,
   CE-018, CE-035, CE-036) on 2026-08-25, and AX-011/AX-012 on 2026-08-26 which turned the full
-  --mode all round trip GREEN (§13 is the newest AS-BUILT; it supersedes §12.5 F2 and §12.6's red row). ⭐⭐⭐ §12 is the AS-BUILT and carries the LIVE
-  classDiagram + sequenceDiagram (§12.2/§12.3). ⛔ §11.3-§11.5 are SUPERSEDED — the plan asked for a NEW
+  --mode all round trip GREEN, AX-015/AX-016 (§15) and AX-017 (§16) on 2026-08-26.
+  ⭐⭐⭐ §16 IS THE NEWEST AS-BUILT and carries the LIVE classDiagram + sequenceDiagram for the apply path:
+  it moved out of the DDS assembly into Fdp.Toolkit.Replication.Attributes and made the JSON and binary
+  update paths consistent. ⛔ §14.3 (AX-013, "open question") is ANSWERED by §16 and its
+  "a descriptor ordinal IS wire numbering" claim is RETRACTED — do not quote §14.3 as open.
+  ⭐⭐ §12.2/§12.3 remain the LIVE diagrams for the EGRESS/request path (§16's are the APPLY path). ⛔ §11.3-§11.5 are SUPERSEDED — the plan asked for a NEW
   intent + a NEW translator; both already existed and were EXTENDED (ruling 9). Read §9 and §12.
   Axis-B FIRST CUT (§4/§5, still LIVE for AX-001..006): a subsystem-
   agnostic entity-write path proven with ROTATION. Delivers UXI-30 (the binary authority gate) + a rotation
@@ -630,7 +634,13 @@ asserts the apply path's `Hrot.NED.*` dependencies as an **EQUALITY against a de
 ⚠ **It does NOT endorse the allowlist. It PINS it**, so the list cannot grow silently and shrinking it is a
 visible edit. ⭐ Red-proved by adding one `using`.
 
-### 14.3 ⚠ `AX-013` — **the OPEN question, stated as a question**
+### 14.3 ⛔ `AX-013` — **ANSWERED `2026-08-26` by §16. The table below is HISTORY; do not quote it as open.**
+
+> ⭐⭐⭐ **Resolution:** the apply path **DID** move out of the DDS assembly *(§16)*. ⛔ **The "against"
+> column's load-bearing claim — *"a descriptor ordinal IS wire numbering"* — is FALSE and is RETRACTED**
+> *(📐 measured: an ordinal is a bit index into `EgressPublicationState.DirtyDescriptors`; nothing
+> serialises it)*. ⭐ The duplication the column feared is exactly what the user then ruled acceptable, and
+> it is railed element-wise. 📄 **Quote §16, not §14.3.**
 
 ⭐ Should the apply path move out of the DDS assembly?
 
@@ -750,3 +760,194 @@ carry the request off-node, and **`AX-006`** itself.
 **constructor** produced a non-null interpreter — the right control for `AX-012`, but it pinned a
 per-network-stack instance as the contract. ⭐ The replacement asserts the world-scoped property instead, so
 `AX-012`'s silent-null arm is **unrepresentable** rather than merely detected.
+
+---
+
+## 16. ⭐⭐⭐ AS-BUILT `2026-08-26` (4) — **`AX-017`: the apply path LEFT the DDS assembly, and the two update paths now AGREE**
+
+> ⭐⭐⭐ **User ruling, verbatim, `2026-08-26`:** *"if same enums needs to exist twice in different namespaces
+> (network ine, fdp one), so be it, with same numeric value, translated in network translator, accepted cost
+> for network agnisticism."*
+>
+> ⭐⭐⭐ **And, the same day:** *"again, we need consistency between json and binary attribute update path."*
+>
+> ⛔ **This section SUPERSEDES §14.3** *(`AX-013`, which it answers)* **and corrects §14.1's framing.**
+
+### 16.1 🔴 THE CLAIM THAT WAS RETRACTED FIRST — it is what unblocked everything
+
+⭐⭐ **§14.3 argued the apply path could not leave the DDS assembly because *"a descriptor ordinal IS wire
+numbering."*** ⛔ **Measured, and FALSE.**
+
+| what an ordinal actually is | 📐 evidence |
+|---|---|
+| a **bit index** | `SmartEgressUtil.MarkDirty` → `EgressPublicationState.DirtyDescriptors.Add(ordinal)` |
+| read by | an egress translator's `ShouldPublish(view, entity, ordinal, …)` |
+| ⛔ **serialised by** | ⭐⭐ **NOTHING.** The attribute update carries `AttributeId` *(`GeoHeading = 13`)*, never an ordinal |
+
+⇒ ⭐⭐⭐ **it is a purely INTERNAL coordination number between an applier and a translator in ONE process.**
+⚠ It happens to be *numbered* like the wire descriptors, which is what made the wrong claim plausible.
+
+### 16.2 ⭐⭐ WHAT MOVED — the class diagram, existing boxes marked
+
+```mermaid
+classDiagram
+    namespace FdpToolkits {
+        class DescriptorOrdinal {
+            <<enumeration>>
+            EntityInfo = 1
+            WorldPos = 2
+            ..34 members..
+        }
+        class ForceIdentifier {
+            <<enumeration>>
+            Unknown Friendly Opposing Neutral
+        }
+        class AttributeCompilerFactory {
+            +Build(geo) JsonAttributeCompiler
+            +BuildBinaryInterpreter(geo) BinaryInterpreter
+        }
+        class AttributeInterpreterProvider {
+            +GetOrCreateBinary(repo)
+            +GetOrCreateJson(repo)
+        }
+        class EntityDataAttributeInstaller
+        class SimTransformAttributeInstaller
+        class SimTransformHeadingInstaller
+        class AttributeEntityComponentWriter
+        class EntityWriteRouter
+        class JsonAttributeCompiler
+        class BinaryInterpreter
+        class EcsPatchContext {
+            +MarkDescriptorDirty(long)
+            +FlushDirtyMarks()
+        }
+        class SmartEgressUtil {
+            +MarkDirty(repo, entity, ordinal)
+        }
+    }
+    namespace HrotNetworkNED {
+        class DescriptorOrdinalConversion {
+            +ToNetwork(DescriptorOrdinal) EDescriptorType
+            +ToInternal(EDescriptorType) DescriptorOrdinal
+        }
+        class AttributeRecordConversion
+        class EDescriptorType {
+            <<enumeration>>
+            dtEntityInfo = 1
+            dtWorldPos = 2
+        }
+        class UpdateEntityAttributeRequestSystem
+    }
+
+    DescriptorOrdinalConversion ..> DescriptorOrdinal
+    DescriptorOrdinalConversion ..> EDescriptorType
+    EntityDataAttributeInstaller ..> DescriptorOrdinal
+    SimTransformAttributeInstaller ..> DescriptorOrdinal
+    SimTransformHeadingInstaller ..> DescriptorOrdinal
+    AttributeCompilerFactory ..> DescriptorOrdinal
+    AttributeCompilerFactory ..> ForceIdentifier
+    AttributeCompilerFactory ..> EntityDataAttributeInstaller
+    AttributeCompilerFactory ..> SimTransformAttributeInstaller
+    AttributeCompilerFactory ..> SimTransformHeadingInstaller
+    AttributeInterpreterProvider ..> AttributeCompilerFactory
+    UpdateEntityAttributeRequestSystem ..> AttributeInterpreterProvider
+    UpdateEntityAttributeRequestSystem ..> AttributeRecordConversion
+    JsonAttributeCompiler ..> EcsPatchContext
+    BinaryInterpreter ..> EcsPatchContext
+    EcsPatchContext ..> SmartEgressUtil
+```
+
+⭐ **Eight files `git mv`'d**, namespace `Hrot.SimHost.Installers` → **`Fdp.Toolkit.Replication.Attributes`**:
+the three installers · `AttributeCompilerFactory` · `AttributeInterpreterProvider` ·
+`AttributeEntityComponentWriter` *(was `IEntityComponentWriter.cs`)* · `EntityWriteRouter` ·
+`EntityAttributeChangeRequests`. ⚠ **17 call-site files** re-`using`'d.
+
+⭐⭐ **What STAYED in `Hrot.Network.NED/Attributes/` is now exactly the boundary** — `AttributeRecordConversion`
+*(messages)*, `DescriptorOrdinalConversion` *(ordinals, NEW)*, `EntityAttributeSchemaPublisherSystem`
+*(publishes a DDS schema; network-layer by definition)*.
+
+### 16.3 ⛔ WHY A CHECKED CONVERSION AND NOT A CAST
+
+⭐ The numbers are identical *today*. ⛔ **A cast would silently follow whichever enum moved** — which is
+precisely the failure the duplication exists to make impossible. ⇒ `DescriptorOrdinalConversion` validates
+with `Enum.IsDefined` and **throws `ArgumentOutOfRangeException`** on divergence.
+⚠ **Named a "conversion", but at runtime a VALIDATED PASS-THROUGH** — 📌 stated so nobody reads a mapping
+table into it. **The value is the CHECK.**
+
+### 16.4 ⭐⭐⭐ THE JSON/BINARY CONSISTENCY — what was actually inconsistent
+
+⭐⭐ **"Consistent" cannot mean "the same code"** — JSON walks an FNV-hashed routing table, binary dispatches
+on an `AttributeId`. ⇒ it means **the same observable effect for the same logical attribute**, which is three
+claims:
+
+| # | claim | before `AX-017` |
+|---|---|---|
+| ① | the same **component state** | ✅ already true |
+| ② | the same **dirty descriptor** | ✅ true since `AX-015`, but from two unrelated constant sets |
+| ③ | the same **delivery guarantee** | 🔴🔴 **FALSE** |
+
+🔴🔴 **③, measured.** `BinaryInterpreter.Apply` ends with `ctx.PatchContext.FlushDirtyMarks()` — ⭐ **a
+binary caller CANNOT forget.** ⛔ The JSON path left the flush to its caller, and **three production callers
+each remembered it on a separate line** *(`UpdateEntityAttributeRequestSystem`,
+`DebugApiService.PatchEntityAttributes`, `EditorSpawnAdapter`)*. ⇒ **a fourth that forgot would reproduce
+`AX-015` exactly**: applied locally, never republished, **no exception anywhere.**
+
+⭐⭐⭐ **Fix: `JsonAttributeCompiler.Compile` now flushes itself.** 📌 **The same fix shape as
+`UXI-30`/`AX-001`** — move the obligation to the place it cannot be skipped, rather than documenting it for
+the next author. ⭐ The three existing explicit calls stay correct and become redundant *(📐
+`SmartEgressUtil.MarkDirty` adds to a `HashSet` ⇒ flushing twice marks once — railed)*.
+⚠ `ListPatchContext.FlushDirtyMarks` is an intentional no-op, so the no-ECS spawning path is unaffected.
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant Json as JsonAttributeCompiler
+    participant Bin as BinaryInterpreter
+    participant Inst as Installer
+    participant Ctx as EcsPatchContext
+    participant Egress as SmartEgressUtil
+
+    Note over Caller,Egress: JSON path — ordinal from the ROUTING TABLE, on component access
+    Caller->>Json: Compile(json, ctx)
+    Json->>Ctx: GetUnmanagedComponent~T~()
+    Ctx->>Ctx: RecordOrdinal(typeof T)
+    Json->>Ctx: FlushDirtyMarks()
+    Ctx->>Egress: MarkDirty(ordinal)
+
+    Note over Caller,Egress: BINARY path — ordinal announced EXPLICITLY by the installer
+    Caller->>Bin: Apply(ctx, changes)
+    Bin->>Inst: apply one change
+    Inst->>Ctx: MarkDescriptorDirty(ordinal)
+    Bin->>Ctx: FlushDirtyMarks()
+    Ctx->>Egress: MarkDirty(ordinal)
+```
+
+### 16.5 ⚠ THE ASYMMETRY THAT REMAINS — stated, not glossed
+
+⭐ JSON learns its ordinal **implicitly, keyed by component TYPE**; binary is **told explicitly, per apply**.
+⭐⭐ Both converge on **ONE sink** *(`EcsPatchContext`'s ordinal `HashSet`)* and read the **same constants**
+from `DescriptorOrdinal` in the **same factory class**. ⛔ **But nothing makes a divergence impossible by
+construction** ⇒ which is why the rails assert the **effect**, path against path, rather than trusting the
+shared constant.
+
+⚠⚠ **And `ForceIdentifier` makes THREE copies of the force enum.** 📐 `Hrot.NED.Descriptors.eForceIdentifier`
+and `Hrot.Core.Mission.eForceIdentifier` already both existed, agreeing on `0,1,2,3`, **kept in step by a
+comment with no rail.** ⭐ The new copy is railed, and the rail pins the third one too. ⛔ **Consolidating the
+two pre-existing Hrot copies is NOT in this slice's scope** — filed, not silently widened.
+
+### 16.6 ⭐ RAILS
+
+| rail | where | state |
+|---|---|---|
+| ⭐⭐⭐ **the two vocabularies agree ELEMENT-WISE, both directions** · the boundary round-trips every member · it **throws** on an undefined value · `ForceIdentifier` agrees, table complete, third copy pinned | `Hrot.SimHost.Tests/TheDescriptorOrdinalVocabulariesAgreeTests` *(10)* | ✅ green · red-proved by `WorldPos = 2` → `22` |
+| ⭐⭐⭐ **the same attribute marks the same descriptor on BOTH paths** *(`Name`, `Heading`)* · **the JSON path needs no caller flush** · a double flush is harmless | `Hrot.SimHost.Tests/TheJsonAndBinaryPathsAgreeTests` *(4)* | ✅ green · red-proved by removing `Compile`'s flush *(3 red)* |
+| ⭐⭐⭐ **the apply path's directory has NO `Hrot.NED.*` using AT ALL** *(equality against EMPTY)* | `StrictNetworkSeparationTests` | ✅ green · red-proved by a `#if RED_PROOF` using the compiler ignores and the scanner does not |
+| ⭐⭐ **the boundary directory's dependencies are exactly the declared three** · both boundary types detected | `StrictNetworkSeparationTests` *(now 6)* | ✅ green |
+
+⭐⭐ **The allowlist SHRANK from six entries to three, and the four `Hrot.NED.Descriptors` rows are gone.**
+📌 **That shrink IS the proof the move landed** — §14.2 said *"shrinking it is a visible, deliberate edit"*,
+and this is that edit.
+
+⚠ **A stale comment was corrected, not just the code:** `UpdateEntityAttributeRequestSystem`'s binary arm
+said *"FlushDirtyMarks is a no-op here because the binary installer flushers drive SmartEgress themselves"*
+— 🔴 **that described the `AX-015` DEFECT as if it were the design.**

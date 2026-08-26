@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -9,6 +9,7 @@ using Hrot.NED.Common;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication.Attributes;
 using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Services;
@@ -213,10 +214,17 @@ namespace Hrot.Map.Common.Systems
             if (hasBinaryRecords)
             {
                 // Build a bare EcsPatchContext directly — independent of the JSON compiler.
-                // Authority checks and component access work without a routing table;
-                // FlushDirtyMarks is a no-op here because the binary installer flushers
-                // drive SmartEgress themselves (BinaryInterpreter.Apply calls FlushDirtyMarks
-                // at the end via IEntityPatchContext contract).
+                // Authority checks and component access work without a routing table.
+                //
+                // ⭐⭐ AX-015 CORRECTED THIS COMMENT. It used to read "FlushDirtyMarks is a no-op here
+                //    because the binary installer flushers drive SmartEgress themselves" — 🔴 and that
+                //    was the DEFECT, described as if it were the design: the installers announced their
+                //    descriptor through BinaryPatchContext.MarkDescriptorDirty, which set a local ulong
+                //    mask nothing in production read, so NOTHING reached SmartEgress and an entity
+                //    rename applied on the owner was never republished.
+                // ⭐ Now the installers' MarkDescriptorDirty reaches EcsPatchContext's ordinal set, and
+                //    BinaryInterpreter.Apply's closing FlushDirtyMarks() is what delivers it. ⇒ the
+                //    context built by Create() has an empty ROUTING map but its dirty set is live.
                 var ecsPatchCtx  = EcsPatchContext.Create(repo, entity);
                 var binaryCtx    = _binaryInterpreter!.CreateContext(ecsPatchCtx);
 

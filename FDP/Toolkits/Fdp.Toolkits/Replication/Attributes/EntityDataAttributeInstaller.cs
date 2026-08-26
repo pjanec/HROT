@@ -1,7 +1,7 @@
-using Hrot.NED.Descriptors;
+﻿using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Patching;
 
-namespace Hrot.SimHost.Installers;
+namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
 /// <see cref="IBinaryAttributeInstaller"/> that routes <c>Name</c> and
@@ -21,7 +21,7 @@ namespace Hrot.SimHost.Installers;
 /// </summary>
 public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<EntityAttributeChange>
 {
-    private const long EntityInfoOrdinal = (long)EDescriptorType.dtEntityInfo;
+    private const long EntityInfoOrdinal = (long)DescriptorOrdinal.EntityInfo;
 
     /// <inheritdoc/>
     public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)

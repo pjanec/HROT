@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication.Attributes;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Patching;

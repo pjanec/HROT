@@ -1,11 +1,11 @@
-using System.Reflection;
+﻿using System.Reflection;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Replication.Services;
-using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication.Attributes;
 using Xunit;
 
 namespace Hrot.Network.NED.Tests;
@@ -165,8 +165,8 @@ public class TheAppliersBelongToTheWorldTests
         using var repo        = WorldWithGeo();
 
         var geo       = repo.GetSingletonManaged<IGeographicTransform>();
-        var ownJson   = Hrot.SimHost.AttributeCompilerFactory.Build(geo);
-        var ownBinary = Hrot.SimHost.AttributeCompilerFactory.BuildBinaryInterpreter(geo);
+        var ownJson   = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geo);
+        var ownBinary = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.BuildBinaryInterpreter(geo);
 
         var system = new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
             participant, new NetworkEntityMap(), geo, ownJson, default, ownBinary);

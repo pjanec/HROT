@@ -7,7 +7,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.Map.Common;
 using Hrot.NED.Common;
-using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication.Attributes;
 using Xunit;
 using Xunit.Abstractions;
 
