@@ -3,8 +3,9 @@ state: LIVE
 build-state: DESIGN — decision-shaped; a RECOMMENDED LEAN per sub-question. Resolve JOINTLY with the user
   (no relay). Not a buildable design — no handoff until the leans (or alternatives) are approved.
 updated: 2026-08-26
-current-answer: ⭐⭐⭐ §4 — THE GROUNDED DESIGN (post-scan). §3b is the user ruling it implements; the
-  old §4/§5 draft is under `## ⛔ HISTORY`. One residual call for the user: §4.4 (build checkpoint restore, or defer).
+current-answer: ✅ RESOLVED `2026-08-26`. §4 = the grounded design; §4.4/§4.5 = the final calls
+  (restore deferred to Feature X; capability-gating a future layer; Slice A = the buildable outcome,
+  DESIGN_Cgf_Scenario_Session_Slice.md). §3b = the user ruling; old §4/§5 draft under `## ⛔ HISTORY`.
 known-conflict: none. Origin: the §6.2 handback of REPORT_Cgf_Menu_Follows_Focus.md.
 -->
 
@@ -61,8 +62,12 @@ known-conflict: none. Origin: the §6.2 handback of REPORT_Cgf_Menu_Follows_Focu
 | ⭐ **Slice A** | the shared scenario-facade extraction *(C′)* + **Load-Edit/Load-Live** *(A′)* + **New** mode-branch *(New′)* + **Scenario Save** edit-mode *(B′ 1)* + **Checkpoint Save** menu item *(B′ 2)* — ALL over existing/extracted capability, on both hosts, from the one shared list | moderate — the extraction is the bulk; the menu items are wiring |
 | 🔴 **Feature X** *(separate, bigger — its OWN design)* | **Checkpoint RESTORE** *(B′ 3)* — build the `.fdp` read-back handler + the cluster restore fan-out + a checkpoint list/picker, then the *Restore Checkpoint* menu item | real feature work, not a menu slice |
 
-### 4.4 📌 THE ONE PREMISE CORRECTION FOR THE USER
-⚠ Your steer said checkpoint save AND restore are *"all already implemented in the cluster-control panel."* Measured: **save yes, restore no** *(the panel has only a "Take Checkpoint" button — no restore, no picker; §4.1)*. ⇒ decide: **build checkpoint restore as Feature X**, or **ship Slice A now *(incl. checkpoint SAVE)* and defer restore**. Everything else in §4.2 is settled and feasible.
+### 4.4 ✅ RESOLVED `2026-08-26` — restore deferred; unify fully-featured first
+- 🔒 **User: checkpoint restore is missing ⇒ DEFER to a standalone feature.** ⇒ **Feature X is a future task**, not in the scenario-session slice. Slice A ships checkpoint **SAVE** only.
+- 🔒 **User: capability-gating is a FUTURE layer** — *"the editing features on CGF will later need to be gated by configuration so CGF can be deployed in reduced-capability setups (live-only · live+monitoring/debug · fully-headless-live-only). But FIRST unify the fully-featured setup — make CGF and editor practically the same, differing only in a few bootstrap things."* ⇒ ⭐⭐ **Slice A builds CGF FULLY-FEATURED** *(all editing on)*; ⛔ it must NOT bake host-conditionals in. ⭐ The derived-subset seam *(ruling 49 — a host shows what it can service)* is already the gating point; a later config layer restricts the SAME shared surface. 📌 Recorded as a NON-goal of Slice A and a named future item.
+
+### 4.5 ✅ BUILDABLE OUTCOME
+⭐⭐ **Slice A** *(§4.3)* → promoted to **`DESIGN_Cgf_Scenario_Session_Slice.md`** *(READY-TO-BUILD)*. ⭐ **Feature X** *(checkpoint restore)* + **capability-gating config layer** = named future tasks, own designs.
 
 <!-- ⛔ EVERYTHING BELOW (old §4/§5) IS THE PRE-RULING DRAFT — superseded by §3b + §4 above. Do NOT quote as current. -->
 ## ⛔ HISTORY — pre-ruling draft *(superseded by §3b + §4, `2026-08-26`)*
