@@ -62,14 +62,26 @@ public static class CgfEditorShellToolbar
     /// *(<c>ToolbarSep_PerspToAiDebug</c> before AI-debug)* — either way it names the group whose presence
     /// justifies it, ⛔ never a group of its own.
     /// </summary>
-    private sealed record Slot(string? CommandId, int SortOrder, string? SeparatorId = null, int Group = 0);
+    /// <param name="MenuOrder">
+    /// ⭐⭐ <b><c>UXI-05</c> — the order this slot's MENU item is registered in, which is INDEPENDENT of
+    /// <paramref name="SortOrder"/>.</b> ⛔ They must not be the same number: 📐 measured, the editor's
+    /// toolbar runs <i>New · Open · Save</i> *(-11, -10, -9)* while its File MENU has always read
+    /// <i>Open Asset… · New Asset… · Save</i> — registration order, and <c>GlobalMenuRegistry</c> renders
+    /// children in insertion order. ⇒ driving the menu pass off <c>SortOrder</c> would silently SWAP the
+    /// editor's first two File items, breaking the byte-identical menu this slice promises.
+    /// </param>
+    private sealed record Slot(string? CommandId, int SortOrder, string? SeparatorId = null, int Group = 0,
+                               string? MenuPath = null, int MenuOrder = 0);
 
     // ⭐ One table. Groups exist only so a separator can ask "did anything after me appear?".
     private static readonly Slot[] Layout =
     {
-        new(NewAssetId,      -11, Group: 1),
-        new(OpenAssetId,     -10, Group: 1),
-        new(SaveId,           -9, Group: 1),
+        // ⭐⭐⭐ UXI-05 — `MenuPath` makes this ONE table serve BOTH surfaces. 📄
+        //    DESIGN_Cgf_Menu_Follows_Focus_Slice.md §3 ③: *"the menu pass reads the SAME Layout/shell the
+        //    toolbar pass does; no CGF-private menu list."* ⛔ A slot with no MenuPath is toolbar-only.
+        new(NewAssetId,      -11, Group: 1, MenuPath: "File/New Asset…",  MenuOrder: 1),
+        new(OpenAssetId,     -10, Group: 1, MenuPath: "File/Open Asset…", MenuOrder: 0),
+        new(SaveId,           -9, Group: 1, MenuPath: "File/Save",        MenuOrder: 2),
         // ⛔⛔ NO SaveAll SLOT, and that is a DELIBERATE DEVIATION from the design's §3 subset sentence
         //    ("Save · SaveAll · Open Asset · New Asset · QuickReload"). 📐 Measured: the editor's toolbar
         //    has NO Save-All button — only `shell.save` at -9. ⇒ adding one here would emit it on the
@@ -88,6 +100,13 @@ public static class CgfEditorShellToolbar
         new(AiDebugCommandIds.Pause,    44, Group: 3),
         new(AiDebugCommandIds.StepBack, 45, Group: 3),
         new(null,             49, "ToolbarSep_AiDebugToBuild", Group: 4),
+        // ⛔⛔ NO MenuPath for compileReload — a DELIBERATE DEVIATION from the design's §7 rail, which
+        //    lists `File/Reload` among CGF's four. 📐 Measured: the EDITOR's File menu has five items
+        //    (Open Asset…, New Asset…, Save, Save As…, Save All) and NO Reload. ⇒ giving this slot a menu
+        //    path would ADD an item to the editor's menu — breaking the byte-identical gate the handoff
+        //    states twice and changing a UI nobody asked to change.
+        // ⭐ Adding `File/Reload` to BOTH hosts is the parity-correct follow-up; it is a deliberate
+        //   two-host decision, ⛔ not a side effect of this refactor.
         new(CompileReloadId,  50, Group: 4),
         new(FullRebuildId,    51, Group: 4),
     };
@@ -146,11 +165,25 @@ public static class CgfEditorShellToolbar
     /// entries on a toolbar-less host. ⭐ Descriptors are registered always; toolbar entries only when
     /// there is a toolbar.
     /// </param>
+    /// <param name="menu">
+    /// ⭐⭐ <b><c>UXI-05</c></b> — the host's global menu, or <see langword="null"/> to register no menu
+    /// items. ⚠ The menu pass walks the SAME <c>Layout</c> and asks the SAME question the toolbar pass
+    /// does *(can this shell service the command?)*, so the two surfaces cannot drift apart.
+    /// </param>
+    /// <param name="menuPerspective">
+    /// ⭐ Scope for the emitted menu items. ⛔ <see langword="null"/> *(the default)* is GLOBAL — 🔒 which is
+    /// the settled decision for CGF's File items *(design §6: they are cross-perspective and the toolbar
+    /// already registered them global)*. ⚠ The per-perspective MODEL exists and is unit-railed, ready for
+    /// the first perspective-specific item; ⛔ binding today's common core to a perspective would duplicate
+    /// bindings for no user-visible gain and couple to CGF's perspective naming.
+    /// </param>
     public static IReadOnlyList<string> RegisterCommonCore(
         ShellEditorCommands shell,
         MainToolbarManager? toolbar,
         IIconProvider? icons,
-        HostServices services)
+        HostServices services,
+        GlobalMenuRegistry? menu = null,
+        string? menuPerspective = null)
     {
         ArgumentNullException.ThrowIfNull(shell);
         ArgumentNullException.ThrowIfNull(services);
@@ -206,6 +239,30 @@ public static class CgfEditorShellToolbar
         // ── emit ────────────────────────────────────────────────────────────
         // ⚠ TWO passes, and the order matters: a separator can only know whether to appear once the
         //   group behind it is known, so the commands are resolved FIRST and the separators second.
+        // ── the MENU pass ───────────────────────────────────────────────────
+        // ⭐⭐⭐ Same table, same predicate as the toolbar pass below: an item is emitted only for a
+        //    command this shell can service ⇒ the editor gets File/Save-As etc. from its own registrars,
+        //    CGF gets the subset it services, and NEITHER host carries a private menu list.
+        // ⚠ Runs BEFORE the toolbar early-out: a host with no toolbar (a bare EditorSubsystem) can still
+        //   have a menu, which is exactly the null-toolbar case the toolbar pass already honours.
+        // ⚠⚠ Walked in MENU order, ⛔ NOT table order — see `Slot.MenuOrder`: the toolbar reads
+        //   New · Open · Save, the File menu has always read Open · New · Save, and the menu renders in
+        //   REGISTRATION order. ⭐ One table, two orderings, both explicit.
+        if (menu != null)
+        {
+            var menuSlots = new List<Slot>();
+            foreach (var slot in Layout)
+            {
+                if (slot.CommandId == null || slot.MenuPath == null) continue;
+                if (shell.Get(slot.CommandId) == null) continue;
+                menuSlots.Add(slot);
+            }
+
+            menuSlots.Sort((a, b) => a.MenuOrder.CompareTo(b.MenuOrder));
+            foreach (var slot in menuSlots)
+                MenuCommandAdapter.Register(menu, shell, slot.CommandId!, slot.MenuPath!, menuPerspective);
+        }
+
         if (toolbar == null || icons == null) return Array.Empty<string>();
 
         var emitted   = new List<(int SortOrder, string Id)>();

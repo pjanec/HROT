@@ -1690,7 +1690,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 //   not wire. ⇒ ruling 49: the button is ABSENT, not a greyed one that does nothing.
                 //   ⚠ CGF *can* create assets over MCP (MA-019..023); it has no interactive picker.
                 CompileReload:        () => ReloadActiveAiDocument(),
-                CompileReloadEnabled: () => _aiDocumentManager?.Active != null));
+                CompileReloadEnabled: () => _aiDocumentManager?.Active != null),
+            // ⭐⭐⭐ UXI-05 item ④ — CGF's File menu, emitted from the SAME table as its toolbar.
+            // ⛔ GLOBAL scope (menuPerspective left null): design §6 — these File items are
+            //    cross-perspective on both hosts. The PER-PERSPECTIVE model exists and is railed; the
+            //    first item that genuinely differs per perspective is what should use it.
+            // ⚠⚠ MEASURED CONSEQUENCE — CGF gains exactly ONE item, `File/Save`, ⛔ not the four the
+            //    handoff lists. That is the derivation working, not a shortfall:
+            //    · `File/Open Asset…` / `File/New Asset…` — this host supplies no handler, so no
+            //      descriptor, so no item. 📌 The same ruling-49 absence CE-016 §9.4 already recorded
+            //      for their toolbar buttons; ⭐ they appear for free the day a picker is composed.
+            //    · `File/Reload` — the shared slot deliberately carries NO MenuPath, because the EDITOR
+            //      has no File/Reload today and one table cannot give CGF an item the editor does not
+            //      get without an `if (host==…)`, which ruling 58 forbids. 📄 See the Layout note.
+            windowManager.GlobalMenu);
 
         // ⛔⛔ THE AI-DEBUG GROUP IS OMITTED, and this is a DEVIATION from the handoff's item ③,
         //    argued. The handoff says *"debug-step handlers route through CGF's cluster debug

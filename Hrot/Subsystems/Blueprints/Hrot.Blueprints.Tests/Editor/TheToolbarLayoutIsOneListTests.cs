@@ -178,6 +178,76 @@ public sealed class TheToolbarLayoutIsOneListTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-05</c> — THE MENU GATE: the editor's File items are UNCHANGED, in order.</b>
+    ///
+    /// <para>📐 The expected list is what <c>EditorSubsystem</c> registered before this slice:
+    /// <i>Open Asset… · New Asset… · Save</i>, in REGISTRATION order — ⚠ which is NOT the toolbar's order
+    /// *(New · Open · Save, by sortOrder)*. ⛔⛔ That is exactly why <c>Slot.MenuOrder</c> exists: driving
+    /// the menu pass off <c>SortOrder</c> would silently SWAP the editor's first two File items, and
+    /// nothing else in the tree would notice.</para>
+    ///
+    /// <para>⚠ Save-As / Save-All are absent HERE because the helper does not own them — the editor still
+    /// registers those two itself, right after this call.</para>
+    /// </summary>
+    [Fact]
+    public void The_editor_full_shell_yields_exactly_the_pre_extraction_file_menu()
+    {
+        var shell = new ShellEditorCommands();
+        var menu  = new GlobalMenuRegistry();
+
+        RegisterAll(shell, Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId);
+
+        CgfEditorShellToolbar.RegisterCommonCore(
+            shell, toolbar: null, icons: null,
+            new CgfEditorShellToolbar.HostServices(
+                OpenAsset: () => { }, NewAsset: () => { },
+                CompileReload: () => { }, FullRebuild: () => { }),
+            menu);
+
+        var fileItems = menu.Root.Children["File"].Children.Keys.ToArray();
+
+        Assert.Equal(new[] { "Open Asset…", "New Asset…", "Save" }, fileItems);
+
+        // ⛔⛔ AND NO `File/Reload`. 📐 The editor's File menu has never had one, and the shared table
+        //    cannot give CGF an item the editor does not get without an `if (host==…)` (ruling 58).
+        //    ⭐ Adding Reload to BOTH hosts is the parity-correct follow-up — a deliberate decision, not a
+        //    side effect of this refactor. This line makes the omission visible instead of accidental.
+        Assert.DoesNotContain("Reload", fileItems);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-05</c> — THE DERIVATION, on the MENU.</b> The subset rule is the SAME predicate the
+    /// toolbar uses: no handler ⇒ no descriptor ⇒ no menu item.
+    ///
+    /// <para>📐 CGF's measured shell: <c>shell.save</c> and a compile-reload handler, ⛔ no asset picker
+    /// and no new-asset launcher *(CE-016 §9.4)*. ⇒ its File menu is exactly <i>Save</i>, and the day a
+    /// picker is composed the other two appear with no menu code written.</para>
+    /// </summary>
+    [Fact]
+    public void The_cgf_shell_yields_only_the_file_items_it_can_service()
+    {
+        var shell = new ShellEditorCommands();
+        var menu  = new GlobalMenuRegistry();
+
+        RegisterAll(shell, Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId);
+
+        CgfEditorShellToolbar.RegisterCommonCore(
+            shell, toolbar: null, icons: null,
+            new CgfEditorShellToolbar.HostServices(CompileReload: () => { }),
+            menu);
+        //  ⛔ OpenAsset / NewAsset: not supplied — this host composes no picker.
+
+        Assert.Equal(new[] { "Save" }, menu.Root.Children["File"].Children.Keys.ToArray());
+
+        // ⭐ GLOBAL scope (design §6) — one binding, no perspective key. ⚠ Asserted because a
+        //   perspective-scoped registration here would make the item vanish outside that perspective,
+        //   which is a silent failure by construction.
+        var save = menu.Root.Children["File"].Children["Save"];
+        Assert.Single(save.Bindings);
+        Assert.Null(save.Bindings[0].Perspective);
+    }
+
+    /// <summary>
     /// ⭐ A null toolbar registers the DESCRIPTORS and no entries — the bare-<c>EditorSubsystem</c> case,
     /// where the File menu must still offer Open/New even though there is no toolbar to draw on.
     /// </summary>

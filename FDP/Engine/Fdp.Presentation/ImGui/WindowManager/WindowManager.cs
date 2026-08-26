@@ -582,6 +582,11 @@ public class WindowManager
 
         if (Gui.BeginMainMenuBar())
         {
+            // ⭐⭐⭐ UXI-05 item ⑤ — PUBLISH THE MENU MODEL, for exactly the reason the toolbar's
+            //    PublishSnapshot sits outside its draw guard (see below): a host that registers NO menu
+            //    items must be distinguishable from a host whose menu was never instrumented.
+            GlobalMenu.PublishSnapshot(CurrentPerspective);
+
             RenderGlobalMenu(GlobalMenu.Root);
             RenderPerspectiveMenu();
             var hostMenus = BuildHostMenuDtos();
@@ -702,6 +707,8 @@ public class WindowManager
         {
             if (child.IsSeparator)
             {
+                // ⭐ UXI-05: a separator scoped to another perspective is skipped with its group.
+                if (child.ResolveBinding(CurrentPerspective) == null) continue;
                 Gui.Separator();
                 continue;
             }
@@ -711,6 +718,11 @@ public class WindowManager
 
             if (child.Children.Count > 0)
             {
+                // ⛔⛔ UXI-05's named RISK: a submenu whose every leaf is filtered away would still draw
+                //    its header, so the bar grows DEAD HEADERS that open onto nothing. ⇒ skip an
+                //    intermediate node with no visible descendant. 📄 design §3 ②.
+                if (!HasVisibleDescendant(child)) continue;
+
                 string subLabel = reserve
                     ? GizmoMap.Presentation.MenuIconRenderer.Pad(child.Name, out gutter)
                     : child.Name;
@@ -728,32 +740,67 @@ public class WindowManager
                 ? GizmoMap.Presentation.MenuIconRenderer.Pad(child.ResolveLabel(), out gutter)
                 : child.ResolveLabel();
 
+            // ⭐⭐⭐ UXI-05 — THE RESOLUTION: this perspective's binding, else the global one, else the
+            //    leaf is NOT DRAWN. ⛔ Not greyed: ruling 49, absent rather than dead-clickable.
+            // ⚠ Read from CurrentPerspective at DRAW time, never cached — the whole feature is that it
+            //   changes when focus does, and an immediate-mode bar re-resolves every frame anyway.
+            var binding = child.ResolveBinding(CurrentPerspective);
+            if (binding == null) continue;
+
             // Leaf: checkable item.
-            if (child.GetCheckedState != null && child.OnCheckedChanged != null)
+            if (binding.GetChecked != null && binding.OnCheckedChanged != null)
             {
-                bool checkedState = child.GetCheckedState();
+                bool checkedState = binding.GetChecked();
                 bool enabled = child.GetEnabled?.Invoke() ?? true;
                 bool clicked = Gui.MenuItem(label, child.Shortcut ?? "", ref checkedState, enabled);
                 GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
                 if (clicked)
                 {
-                    child.OnCheckedChanged(checkedState);
+                    binding.OnCheckedChanged(checkedState);
                 }
                 continue;
             }
 
             // Leaf: plain action item.
-            if (child.OnClick != null)
+            if (binding.OnClick != null)
             {
                 bool enabled = child.GetEnabled?.Invoke() ?? true;
                 bool clicked = Gui.MenuItem(label, child.Shortcut ?? "", false, enabled);
                 GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
                 if (clicked)
                 {
-                    child.OnClick();
+                    binding.OnClick();
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>UXI-05</c> — does any leaf under <paramref name="node"/> resolve a binding for the
+    /// current perspective?</b>
+    ///
+    /// <para>⛔⛔ Without this, a submenu whose every leaf is filtered away still draws its header — a
+    /// DEAD HEADER that opens onto an empty popup. 📄 UXI-05 names it as the risk of the model; the
+    /// design's §3 ② makes the skip mandatory.</para>
+    ///
+    /// <para>⚠ Recursive and per-frame. ⭐ Cheap: the trie is a handful of nodes deep and a few dozen
+    /// wide, and it short-circuits on the first visible descendant.</para>
+    /// </summary>
+    internal bool HasVisibleDescendant(MenuItemNode node)
+    {
+        foreach (var child in node.Children.Values)
+        {
+            if (child.IsSeparator) continue;   // ⛔ a separator alone never justifies a submenu
+
+            if (child.Children.Count > 0)
+            {
+                if (HasVisibleDescendant(child)) return true;
+                continue;
+            }
+
+            if (child.ResolveBinding(CurrentPerspective) != null) return true;
+        }
+        return false;
     }
 
     /// <summary>
