@@ -2,7 +2,9 @@
 state: LIVE
 build-state: BUILT (integration §A–N; SLICE ① = MX4a+MX7+MX8+MX5+MX6, Batch HN-120; SLICE ② = MX1
   Group O, Batch HN-121; SLICE ③ = MX9 Group T + MX2 Group Q + MX3 Group R + the breakpoint resume,
-  Batch HN-122) │ READY-TO-BUILD (MX4b, once MX-002's namespace ambiguity is resolved)
+  Batch HN-122) │ READY-TO-BUILD (MX4b — MX-002 RESOLVED 2026-08-26: build against
+  Hrot.UI.Common.Facades.IMissionEditorService, ALREADY wired into DebugApiService as MissionService;
+  see PROGRAMME_Mcp_Agent_Surface.md §3 + HANDOFF_Mcp_Mission_Editing.md)
 updated: 2026-08-24
 current-answer: FOUR parts. (0) ⭐ §"Group U" + its §"AS-BUILT" carry the scenario-load
   modes (HN-029, BUILT 2026-08-24) — read the AS-BUILT first, it has six deviations. ⭐⭐ §"BUILT — the
@@ -23,7 +25,8 @@ known-rot: §"Group Q" says the runtime hot-attach mechanism "already exists; ju
   that registry stores only ImGui DRAW DELEGATES and never retains the DTO type. The real seam is
   `BehaviorRegistry.BehaviorDefinition.ParamsDtoType`. §"AS-BUILT — SLICE ①" carries the correction.
   §"UML" also draws IMissionEditorService as `<<exists · Hrot.ExCon>>`; the editor path implements a
-  DIFFERENT same-named interface (`Hrot.UI.Common.Facades`) — see AS-BUILT.
+  DIFFERENT same-named interface (`Hrot.UI.Common.Facades`) — ✅ CORRECTED 2026-08-26 in §"UML" and
+  §"Group P" (MX-002 resolved: the wired one is `Hrot.UI.Common.Facades.IMissionEditorService`).
 known-conflict: none.
 -->
 # AI-debug API + MCP server — integration status
@@ -153,8 +156,16 @@ component/offset. This is the SAME resolver the staged-write yellow already uses
 
 🔒 **User:** *"building/editing missions … add a new mission task with all the behavior specs/parameters,
 clear tasks to allow adding tasks, run/restart mission."* ⭐ Missions are the *proper* way behaviors attach to
-entities (as tasks). `IMissionEditorService` *(Hrot.ExCon)* already has **read**: `GetMissionSnapshot(entityId)`
-→ `(MissionPlan?, Version)`, `GetAvailableBehaviors(entityId)`, and `SendControlCommand(...)`.
+entities (as tasks).
+
+> ✅ **MX-002 RESOLVED `2026-08-26` (see [`PROGRAMME_Mcp_Agent_Surface.md`](blueprints/PROGRAMME_Mcp_Agent_Surface.md) §3).**
+> Build MX4b against **`Hrot.UI.Common.Facades.IMissionEditorService`** *(`Hrot/Engine/Hrot.Presentation/Facades/IMissionEditorService.cs`)* —
+> it is **already injected** into `DebugApiService` as the `MissionService` property *(used today by `GET /behaviors?entityId=`)* and it
+> carries `GetMissionSnapshot` · `CommitMissionAsync` · `SendControlCommandAsync`. ⛔ **NOT** the same-named
+> `Hrot.ExCon.Services.IMissionEditorService`. Run/restart = **`SendControlCommandAsync`**.
+
+`IMissionEditorService` already has **read**: `GetMissionSnapshot(entityId)`
+→ `(MissionPlan?, Version)`, `GetAvailableBehaviors(entityId)`, and `SendControlCommandAsync(...)`.
 
 ### ⭐⭐⭐ P.0 — behaviour DISCOVERY WITH SCHEMA *(the load-bearing piece — user, 2026-08-22)*
 
@@ -507,11 +518,11 @@ classDiagram
         +TryGetPending(addr) bool
     }
     class IMissionEditorService {
-        <<exists · Hrot.ExCon>>
+        <<exists · Hrot.UI.Common.Facades · WIRED into DebugApiService as MissionService (MX-002)>>
         +GetAvailableBehaviors(id) string[]
         +GetMissionSnapshot(id) MissionPlanVersion
         +CommitMissionAsync(id, plan, baseVersion) MissionCommitResult
-        +SendControlCommand(id, type, taskId)
+        +SendControlCommandAsync(id, type, taskId) MissionCommitResult
     }
     class BehaviorUiRegistry {
         <<exists · Hrot.Presentation>>
