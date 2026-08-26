@@ -163,3 +163,45 @@ replicated entity carries and would unblock ~21 integration tests — ⭐ and it
 set, not the UI lane's. The three candidate homes for the shadow *(the catalog · `NetworkSpawningSystem` ·
 lazily in the translator, dropping the clause)* are recorded in the `AX-009` tracker row for a coordinator
 decision.
+
+### ⭐⭐⭐ `2026-08-26` — **`AX-011`/`AX-012` BUILT: the full round trip is GREEN and `F2` is RESOLVED**
+
+⛔⛔ **`F2` above is SUPERSEDED.** Its measurement was right; its verdict *("cannot go green on this base")*
+was wrong. 📄 The durable record is **`DESIGN_Cgf_AxisB_Rotation_Slice.md` §13**.
+
+| id | built | where |
+|---|---|---|
+| ⭐⭐⭐ **`AX-011`** | attach `default(NetworkTransform)` at birth on the node that OWNS `SimTransform`, then grant authority | `SimHostNodeBootstrapper.onEntitySpawned` |
+| ⭐⭐⭐ **`AX-012`** | the DDS constructor **builds** the binary interpreter from the `geoTransform` it already takes | `UpdateEntityAttributeRequestSystem` |
+
+⭐⭐ **The placement was CHANGED from what was proposed, on measurement.** `NetworkSpawningSystem` *(the
+engine-level first choice)* was implemented and **reverted**: a bare `AddComponent` there **throws**
+*"Component NetworkTransform is not registered"*, and 📐 **37** files register `TkbIdentity` while only
+`HrotSharedComponentRegistry` registers `NetworkTransform` ⇒ 37 registry edits, two of them FDP examples.
+⭐ The shipped hook was **already written for this** — its `if (HasComponent<NetworkTransform>) SetAuthority(...)`
+was a grant for a component nothing attached. ⚠ Cost stated: per-host, so the rails assert on a **real spawn**.
+
+| gate | result |
+|---|---|
+| ⭐⭐⭐ **the `--mode all` round trip** | ✅ **3/3 GREEN** *(was 2 green + 1 red)* — §9.4's open item fully discharged |
+| ⭐⭐ **`TheEgressShadowExistsAtBirthTests`** | ✅ **6/6** · red-proved by removing the attach *(all 6 + the round trip reddened)* |
+| ⭐⭐ **`TheBinaryArmIsWiredInProductionTests`** | ✅ **3/3** · red-proved by passing `null` |
+| `Hrot.Network.NED.Tests` | ✅ **101/101** *(was 98; +3)* |
+| `Fdp.Toolkits.Tests` | ✅ **2037/2037** — confirms the engine-level revert is clean |
+| `Hrot.SimHost.Tests` | **699 total · 3 failed** — the known rotating `ComponentTypeRegistry` flake *(4–5 before)* |
+| `Hrot.Presentation.Tests` | **125 total · 3 failed** — the same pre-existing `EntityDragGizmoTests` three |
+| `mermaid-check` · `design-digest --check` · `tracker-counts --check` | ✅ 7 blocks parse · 87 docs OK · counts OK |
+| `rulings-check.py` | ✅ **25/25**; ⚠ one staleness WARN on `DataBreakpointManager.cs` from this batch's own `CE-035` edit — 📌 the script compares **commit** timestamps, so it clears once the ledger commit lands. `R-63` was re-read and **REFINED in place** rather than left implying an unconditional restore |
+
+### 🔴 THE COUNT THAT LOOKS LIKE A REGRESSION AND IS NOT
+
+⚠⚠ The integration suite's raw failures moved **21 → 24**, and the suite still aborts on the pre-existing
+test-host crash. ⛔ **Not a regression** — 📐 established by diffing the failure SETS, not the counts:
+
+| | |
+|---|---|
+| ⭐ **FIXED (3)** | `DragDrop_EntityPositionUpdatesOnIgWithinFewFrames` · `DragDrop_SimHostReceivesRequestAndMarksDirty_PublishesWithoutRollingWindow` · `SimHostDrag_IgReceivesPositionUpdateWithinFewFrames` |
+| ⚠ **apparent additions (6)** | 📐 **grep: ZERO mentions in the before-log** — the crash truncated that run before reaching them. **All re-measured on a clean tree at the started-marker and fail identically there** *(`EventSerializationHelperTests` ×2 — a JSON-shape assertion; `E1_CognitiveRuntimeModule_RegistersExactlySixSystemsInOrder` — expected 6, actual 7, a stale COUNT assertion of the `CgfLogicPackTests` 18→19 family; `AreaAuthoring…`; `SensorMechanism…`; `ExCon_CommitMissionAsync…` which passes in isolation)* |
+
+⇒ ⭐ **net: 3 fixed, 0 new.** 📌 Lesson worth keeping: **on a suite that aborts, compare failure SETS, never
+counts** — a crash that moves later hands you "new" failures that were always there.

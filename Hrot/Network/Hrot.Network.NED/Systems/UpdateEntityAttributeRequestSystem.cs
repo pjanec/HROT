@@ -111,9 +111,11 @@ namespace Hrot.Map.Common.Systems
         /// <param name="participant">DDS participant used for topic subscriptions and publications.</param>
         /// <param name="entityMap">Shared net-ID → entity lookup service.</param>
         /// <param name="geoTransform">
-        /// Retained for API compatibility; not used directly by this system.
-        /// Geographic conversion is handled via the <paramref name="jsonAttributeCompiler"/>
-        /// routing delegates registered at startup.
+        /// ⭐⭐⭐ <b><c>AX-012</c> — this is now USED: it builds the BINARY interpreter.</b>
+        ///
+        /// <para>⚠ It previously said *"retained for API compatibility; not used directly by this
+        /// system"*, and that was true — which is exactly how the binary arm came to be dead in
+        /// production.</para>
         /// </param>
         /// <param name="jsonAttributeCompiler">
         /// Optional zero-allocation JSON attribute compiler.
@@ -132,7 +134,27 @@ namespace Hrot.Map.Common.Systems
                 new DdsUpdateEntityAttributeAckSink(participant),
                 entityMap,
                 jsonAttributeCompiler,
-                localNodeId)
+                localNodeId,
+                // ⭐⭐⭐ AX-012 — THE BINARY ARM WAS DEAD IN PRODUCTION, and this one argument is why.
+                //
+                // 🔴 Measured `2026-08-26`: this constructor forwarded to the interface constructor and
+                //    STOPPED at `localNodeId`, so `binaryInterpreter` took its `null` default ⇒
+                //    `hasBinaryRecords` was permanently false ⇒ every `AttributeRecords` payload that
+                //    reached this node was **silently ignored**, and only the JSON arm ever ran. The
+                //    AX-005 cluster round-trip reached SimHost and died here, with nothing logged.
+                //
+                // 📌 THE SILENT-DEFAULT PATTERN, VERBATIM (`.claude/CLAUDE.md`): *"a production caller that
+                //    HAS a dependency must PASS it."* `NedNetworkFactory.CreateSimHostAttributeUpdateSystems`
+                //    held `_geoTransform` and built the JSON compiler from it **one line above** the
+                //    constructor call — and did not build the binary one. ⇒ ⛔ the optional parameter was
+                //    correct; the caller omitting it was the defect.
+                //
+                // ⭐⭐ BUILT HERE rather than added as a factory argument, deliberately. Passing it from the
+                //    factory fixes today's caller and leaves the next one free to forget again — the same
+                //    forgettability `AX-001`/`UXI-30` moved into the registration. `geoTransform` is already
+                //    a parameter, and `BuildBinaryInterpreter` is exactly what it is for. ⇒ no caller can
+                //    omit it, because no caller supplies it.
+                Hrot.SimHost.AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform))
         {
         }
 

@@ -1,22 +1,24 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT `2026-08-25` — the first cut (AX-001..AX-006) AND the AX-005 successor
-  (AX-005a/b/c, AX-007, AX-008, CE-018, CE-035, CE-036). ⭐⭐⭐ §12 is the AS-BUILT and carries the LIVE
+build-state: BUILT — the first cut (AX-001..AX-006), the AX-005 successor (AX-005a/b/c, AX-007, AX-008,
+  CE-018, CE-035, CE-036) on 2026-08-25, and AX-011/AX-012 on 2026-08-26 which turned the full
+  --mode all round trip GREEN (§13 is the newest AS-BUILT; it supersedes §12.5 F2 and §12.6's red row). ⭐⭐⭐ §12 is the AS-BUILT and carries the LIVE
   classDiagram + sequenceDiagram (§12.2/§12.3). ⛔ §11.3-§11.5 are SUPERSEDED — the plan asked for a NEW
   intent + a NEW translator; both already existed and were EXTENDED (ruling 9). Read §9 and §12.
   Axis-B FIRST CUT (§4/§5, still LIVE for AX-001..006): a subsystem-
   agnostic entity-write path proven with ROTATION. Delivers UXI-30 (the binary authority gate) + a rotation
   attribute id + a subsystem-agnostic write helper the rotator gizmo drives. ⛔ NOT all of Axis B — one slice
   that establishes the owned→direct / unowned→request routing so later attribute gizmos reuse it.
-updated: 2026-08-25
+updated: 2026-08-26
 stale-below: ⛔⛔ §1's row "BinaryInterpreter.Apply — NO AUTHORITY GATE" and §6 item ①'s framing are
   SUPERSEDED by §9.1: measured, BOTH production installers already gated every handler, so the binary
   path WAS authority-gated. The real defect — and what was built — is that the gate was per-installer
   and therefore forgettable. §7's "rotation round-trips on a real --mode all cluster" is NOT delivered:
   §9.4 measures why (there is no production SENDER of binary attribute records, which §6 ① itself notes).
-  ⭐⭐ §9.4's open item is now PARTLY DISCHARGED by §12.6: the request DOES reach the wire on a real
-  cluster (railed, green). ⛔ The FULL round trip stays red on a PRE-EXISTING SimHost->IG replication
-  failure — §12.5 F2, measured on a clean tree at 03f92fefe.
+  ✅✅ §9.4's open item is FULLY DISCHARGED as of 2026-08-26 — see §13. The full --mode all round trip is
+  GREEN. ⛔⛔ §12.5 F2 and §12.6's red row are SUPERSEDED: that replication failure was diagnosed
+  (AX-011 missing NetworkTransform shadow) and fixed, together with AX-012 (the binary arm was dead in
+  production). Read §13 for the as-built.
   ⛔⛔ §11.3/§11.4/§11.5 are SUPERSEDED by §12 — do NOT quote them as the intended shape.
 design-basis: UX_Feature_Authority_Aware_Writes.md §3.3b-c (UXI-30/UXI-29 ruling — change-requests apply ONLY
   to owned components; JSON path already gates via CanWrite, binary path does not) · HROT-PROGRAMMERS-GUIDE
@@ -491,3 +493,100 @@ sequenceDiagram
 | ⭐⭐ **`CE-035`** — continue-after-step resumes | `Hrot.Diagnostics.Breakpoints.Tests` *(2)* | ✅ green |
 | ⭐⭐ **`CE-018`** — the walk-up has ONE implementation in production code | `Hrot.Editor.AiShared.Tests/…/TheWalkUpHasOneImplementationTests.cs` *(2)* | ✅ green |
 | ⭐ **`CE-036`** — the three skips removed | `Hrot.ClusterRunner.Integration.Tests/HarnessSmokeTests.cs` *(5)* | ✅ green, 0 skipped |
+
+---
+
+## 13. ⭐⭐⭐ AS-BUILT `2026-08-26` — **`AX-011`/`AX-012`: the round trip is GREEN, and §12.5 `F2` is RESOLVED**
+
+> ⛔⛔ **§12.5 `F2` and §12.6's red row are SUPERSEDED.** They recorded the full `--mode all` round trip as
+> blocked on a pre-existing replication failure. 📐 That failure was **diagnosed and fixed**; the rail is
+> green. ⭐ The `F2` text stays as history because its *measurement* was correct — only its verdict
+> *("cannot go green on this base")* is now false.
+
+### 13.1 ⭐⭐⭐ THE CAUSAL CHAIN — **one missing component, and one omitted argument**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Cat as TKB catalog
+    participant Spawn as NetworkSpawningSystem
+    participant Hook as SimHost onEntitySpawned
+    participant Egr as GeoSpatialEgressTranslator
+    participant IG as IG ghost
+    participant Req as UpdateEntityAttributeRequestSystem
+
+    Note over Cat,Hook: AX-011 - the egress shadow
+    Cat->>Spawn: template declares EntityInfo and SimTransform mandatory
+    Note over Cat: never declares NetworkTransform
+    Spawn->>Hook: onEntitySpawned with isLocalAuthority
+    Hook->>Hook: BEFORE - grant authority only if the shadow exists (dead branch)
+    Hook->>Hook: AFTER - attach default NetworkTransform, then grant
+    Egr->>Egr: query needs SimTransform + NetworkTransform + NetworkIdentity
+    Note over Egr: matched 0 before, matches 1 after
+    Egr->>IG: WorldPos (zero samples before)
+    IG->>IG: ghost waits for SimTransform - a HARD requirement
+    Note over IG: promotion correctly declined forever
+
+    Note over Req: AX-012 - the dead binary arm
+    Req->>Req: DDS ctor forwarded no binaryInterpreter
+    Note over Req: hasBinaryRecords always false - records silently ignored
+```
+
+### 13.2 ⭐⭐ WHAT WAS BUILT
+
+| # | change | where |
+|---|---|---|
+| ⭐⭐⭐ **`AX-011`** | **attach `default(NetworkTransform)` at birth, on the node that OWNS `SimTransform`**, then grant authority over it | `SimHostNodeBootstrapper`'s `onEntitySpawned` hook |
+| ⭐⭐⭐ **`AX-012`** | the request system's **DDS constructor builds the binary interpreter itself** from the `geoTransform` it already takes | `UpdateEntityAttributeRequestSystem` |
+
+### 13.3 ⭐⭐⭐ THE PLACEMENT DECISION — **rejected `NetworkSpawningSystem`, and the measurement is why**
+
+⭐ The user's rule was *"every replicated entity on a subsystem which OWNS the `SimTransform` should get the
+shadow at birth, regardless of template"* — ⭐⭐ and that is exactly what shipped. ⛔ **What changed is WHERE.**
+
+| candidate | verdict |
+|---|---|
+| the **TKB catalog** *(`AddMandatoryComponent<NetworkTransform>`)* | ⛔ **rejected** — the shadow is a translator-internal cache, not a domain fact about a vehicle. It would make every template author responsible for a replication detail, and the next template would forget it exactly as this one did |
+| **`NetworkSpawningSystem`** *(engine-level, the first choice)* | ⛔ **rejected on MEASUREMENT.** A bare `AddComponent` there **throws** *"Component NetworkTransform is not registered"* — 📐 the engine-level spawn system imposes a registration contract, and **37** files register `TkbIdentity` while only `HrotSharedComponentRegistry` registers `NetworkTransform`. ⇒ it would have needed 37 registry edits, two of them FDP example scenarios. ⭐ Attempted, measured, reverted |
+| ⭐⭐ **`SimHostNodeBootstrapper`'s `onEntitySpawned` hook** *(shipped)* | ⭐⭐⭐ **it was ALREADY WRITTEN FOR THIS.** The hook read `if (world.HasComponent<NetworkTransform>(entity)) SetAuthority(...)` — an authority grant for a component **nothing ever attached**, so the branch was dead. 📌 The dead-affordance shape this programme keeps finding. ⭐ It runs on the one host that owns `SimTransform`, in an assembly where the component IS registered |
+
+⚠⚠ **The cost of the shipped choice, stated:** it is **per-host**. A future host that owns `SimTransform` must
+wire the same hook. ⛔ The engine-level placement would have been unforgettable; this one is not. ⭐ That is
+why `TheEgressShadowExistsAtBirthTests` asserts the invariant on a **real spawn** rather than trusting the
+wiring — and why it reproduces the translator's own query rather than merely checking the component.
+
+### 13.4 ⚠⚠ SEEDING — **zeros, and it is a behavioural requirement**
+
+The translator publishes only when the live pose differs from the shadow, or when the salted heartbeat fires
+at `% 600` ticks. ⛔ Seeding from the entity's CURRENT `SimTransform` makes the first comparison say *"has not
+moved"*, so a **stationary spawned entity is invisible to every other node for up to 10 s at 60 Hz**.
+⭐ Zeros force the first tick to publish. ⚠ **Known residual:** an entity spawned at exactly the origin with
+identity rotation still waits for the heartbeat — 📌 not railed as a bug, named here as the one case zero
+seeding cannot force.
+
+### 13.5 ⭐ RAILS
+
+| rail | where | state |
+|---|---|---|
+| ⭐⭐⭐ **the full `--mode all` round trip** *(§9.4's open item)* | `AttributeChangeRequestRoundTripTests` | ✅ **GREEN** — was red on `AX-011`+`AX-012` |
+| ⭐⭐ **`AX-011`** — shadow present · the translator's OWN query matches · `WorldPos` reaches the wire · owner has authority over it · first publish is prompt *(not heartbeat-delayed)* · the replica gets its copy from ingress | `TheEgressShadowExistsAtBirthTests` *(6)* | ✅ green · red-proved by removing the attach |
+| ⭐⭐ **`AX-012`** — the **production factory's** system carries an interpreter · the JSON arm still does too · the DDS ctor needs no help | `TheBinaryArmIsWiredInProductionTests` *(3)* | ✅ green · red-proved by passing `null` |
+
+⭐⭐ **Both rail sets assert on the CONSTRUCTED OBJECT / a REAL spawn, never on a registrar's source** — 📌 the
+control CLAUDE.md's silent-default rule asks for, and the reason `AX-012` survived this long.
+
+### 13.6 ⭐ MEASURED EFFECT
+
+| | before | after |
+|---|---|---|
+| `WorldPos` samples on the wire *(300 frames)* | ⛔ **0** | ✅ **> 0** |
+| the egress query's match count | ⛔ **0** *(1 without the shadow clause)* | ✅ **1** |
+| IG ghost lifecycle | ⛔ **`Ghost`** forever | ✅ promoted, carries `SimTransform` |
+| `DragDropIntegrationTests` | ⛔ 2 failed | ✅ **2 passed** |
+| `SpawnMovingVehicleIntegrationTests.SimHostDrag_…` | ⛔ failed | ✅ **passed** |
+| the `--mode all` round trip | ⛔ red | ✅ **green** |
+
+⚠ **The suite total still aborts on the pre-existing test-host crash**, and the raw failure count moved
+`21 → 24`. ⛔ **That is NOT a regression** — 📐 verified by diffing the failure SETS: **3 fixed, 0 new**. The
+6 apparent additions never RAN in the earlier pass *(the crash truncated it)*; all were re-measured on a
+clean tree at the started-marker and fail identically there.

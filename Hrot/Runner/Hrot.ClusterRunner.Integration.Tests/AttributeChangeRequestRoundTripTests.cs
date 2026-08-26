@@ -57,15 +57,14 @@ public class AttributeChangeRequestRoundTripTests
     /// the wire. ⛔ Every one of those is a registration that could simply be absent, which is exactly what
     /// a unit rail cannot see.</para>
     ///
-    /// <para>⭐⭐⭐ <b>Why the entity is created LOCALLY rather than replicated in.</b> 📐 Measured
-    /// <c>2026-08-25</c> against the clean tree at <c>03f92fefe</c>: SimHost→IG entity replication does not
-    /// complete in this environment — <c>DragDropIntegrationTests</c> fails identically with *"IG did not
-    /// receive entity (netId=1)"* on a build with NONE of this batch's changes. ⇒ ⭐ a locally-created
-    /// entity with a <c>NetworkIdentity</c> and no <c>SimTransform</c> is the SAME shape the router sees
-    /// for a replica it does not own *(nothing local to write ⇒ ask the owner)*, and it does not depend on
-    /// the broken link. ⚠ Stated plainly: this is a deliberate narrowing around a PRE-EXISTING defect, not
-    /// a claim that the narrowing is as strong as the full trip — the full trip is
-    /// <see cref="ANonOwningNodeRotatesASimHostOwnedEntity"/>, and it is red for that reason.</para>
+    /// <para>⭐⭐ <b>Why the entity is created LOCALLY rather than replicated in — and why this rail is KEPT
+    /// now that the full trip is green.</b> It was originally written this way to route around
+    /// <c>AX-009</c> *(replication did not complete, so the full trip could not be reached)*. ⭐ That is
+    /// fixed — but this rail is still the SHARPER one for the egress half: a locally-created entity with a
+    /// <c>NetworkIdentity</c> and nothing local to write is the router's unowned branch in isolation, so a
+    /// failure here means the REQUEST path broke, with no replication in the way to confuse the diagnosis.
+    /// ⇒ ⭐ the two rails localise different halves; <see cref="ANonOwningNodeRotatesASimHostOwnedEntity"/>
+    /// proves they join.</para>
     ///
     /// <para>⭐ <b>The red-proof</b> *(by inverse edit, not kept in the tree)*: remove the binary arm from
     /// <c>UpdateEntityAttributeCommandEgressTranslator.ScanAndPublish</c> — the command then carries no
@@ -135,21 +134,29 @@ public class AttributeChangeRequestRoundTripTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>A non-owning node rotates a SimHost-owned entity, and SimHost applies it.</b>
+    /// ⭐⭐⭐ <b>A non-owning node rotates a SimHost-owned entity, and SimHost applies it. GREEN.</b>
     ///
-    /// <para>🔴🔴 <b>THIS RAIL IS RED ON THIS BASE, AND NOT BECAUSE OF THIS BATCH.</b> 📐 Measured
-    /// <c>2026-08-25</c> on a CLEAN tree at <c>03f92fefe</c> *(the started-marker — none of Axis-B's
-    /// changes present, 0 build errors)*: <c>DragDropIntegrationTests</c> fails at the SAME step with
-    /// *"IG did not receive entity (netId=1) within 120 frames"*, and 21 of this assembly's tests fail
-    /// the same way before the host process crashes. ⇒ SimHost→IG entity replication does not complete in
-    /// this environment, so the rail cannot reach the gesture it is about.</para>
+    /// <para>⭐⭐ <b>This is §9.4's open item, now DISCHARGED</b> — the whole trip: gizmo → router →
+    /// FDP-internal command → egress translator → DDS → the owner's request system → the heading
+    /// installer → <c>SimTransform.Rotation</c>, ownership-gated at both ends.</para>
     ///
-    /// <para>⛔ <b>Kept rather than skipped</b> *(<c>R-131</c>: do not filter around a defect)</b>. ⭐ It is
-    /// the rail the design's §9.4 asks for, and it turns green the moment replication does — 📌 which makes
-    /// it a live probe on that defect rather than a note in a report nobody re-reads. ⭐ The half of the
-    /// trip that CAN be proven here is proven, green, by
-    /// <see cref="AnUnownedWriteLeavesTheNodeAsADdsChangeRequest"/> *(request reaches the wire)* and
-    /// <see cref="TheOwningNodeWritesTheSameAttributeDirectly"/> *(the owner applies it)*.</para>
+    /// <para>⚠⚠ <b>It was RED until `2026-08-26`, on TWO defects that had nothing to do with the
+    /// change-request path — and saying so is the point of this note.</b>
+    /// <list type="number">
+    ///   <item><c>AX-011</c>: the owner never carried the <c>NetworkTransform</c> egress shadow, so
+    ///   <c>GeoSpatialEgressTranslator</c>'s query matched nothing and NO <c>WorldPos</c> was published.
+    ///   The IG ghost therefore never received <c>SimTransform</c> — a HARD mandatory component — so it was
+    ///   never promoted, and the rail could not even reach the gesture it is about.</item>
+    ///   <item><c>AX-012</c>: this system's DDS constructor never forwarded a binary interpreter, so the
+    ///   binary arm was <b>dead in production</b>. The request arrived here and was silently ignored.</item>
+    /// </list>
+    /// ⭐ Both were found by this rail failing and being <b>investigated rather than skipped</b>
+    /// *(<c>R-131</c>)*. 📌 Neither was reachable by a unit rail: one was a gap between two correct
+    /// components, the other an omitted optional argument in a production composition.</para>
+    ///
+    /// <para>⭐ <b>Red-proof</b> *(by inverse edit)*: remove the shadow attach in
+    /// <c>SimHostNodeBootstrapper</c>'s <c>onEntitySpawned</c>, or pass <c>null</c> for the interpreter in
+    /// this system's DDS constructor — either reddens this rail.</para>
     /// </summary>
     [Fact]
     public void ANonOwningNodeRotatesASimHostOwnedEntity()
@@ -166,10 +173,9 @@ public class AttributeChangeRequestRoundTripTests
         Assert.True(
             harness.PumpUntil(() => IgHasEntity(harness, networkId), SpawnTimeoutFrames),
             $"IG never received entity netId={networkId} within {SpawnTimeoutFrames} frames. " +
-            "🔴 PRE-EXISTING (measured on the clean tree at 03f92fefe): SimHost→IG entity replication " +
-            "does not complete in this environment — DragDropIntegrationTests fails identically with " +
-            "none of Axis-B present. This rail is blocked on THAT defect, not on the change-request " +
-            "path; see AnUnownedWriteLeavesTheNodeAsADdsChangeRequest for the half that is provable here.");
+            "⚠ This is the AX-009 shape: the owner is not publishing WorldPos, so the IG's ghost never " +
+            "gets the SimTransform its HARD promotion requirement waits for. Check the NetworkTransform " +
+            "egress shadow first — see TheEgressShadowExistsAtBirthTests.");
 
         var igWorld = harness.Ig.App.World;
         harness.Ig.App.TestHook_EntityMap.TryGetEntity(networkId, out var igEntity);
