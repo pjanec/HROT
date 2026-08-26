@@ -2,9 +2,12 @@
 state: LIVE
 doc-type: gap analysis / coverage map — what the design corpus ALREADY defines toward "cgf == editor",
   and the gaps. Not a buildable design (no build-state/UML gate); it POINTS at the buildable designs.
-updated: 2026-08-25
-current-answer: the whole file. Built from a full sweep of docs/UX/ (42 docs, 5 parallel readers) + the
-  PROGRAMME charter + a codebase-memory enumeration. Every row cites its owning design; verify there.
+updated: 2026-08-26
+current-answer: the whole file. Built from a full sweep of docs/UX/ (42 docs) + the PROGRAMME charter +
+  a codebase-memory enumeration. ⭐ §2c added `2026-08-26` — **AXIS C, the editor→shared EXTRACTION (R1)**:
+  Axes A/B are "CGF adopts AiShared"; Axis C is "extract the host composition roots to shared". §5 rewritten
+  to the current state (steps 1/2 DONE; step 3 = Axis C active). ⭐ This is the single features-to-unify
+  roadmap — ⛔ do NOT create a parallel PROGRAMME_Editor_To_Shared (verified `2026-08-26`, it would duplicate).
 known-conflict: none. Supersessions in the corpus are listed in §7 so nobody quotes a withdrawn plan.
 -->
 # GAP MAP — **`cgf == editor`: what's DEFINED vs the GAPS**
@@ -147,6 +150,33 @@ graph TD
 | Selection is **subsystem-local** | ruling 27 |
 | ExCon's separate **DDS data model** for ORBAT/selection | reuses the *vocabulary*, not the ECS path |
 
+## 2c. ⭐⭐⭐ AXIS C — the **editor→shared EXTRACTION** (the assembly-wall move) *(R1, user `2026-08-26`)*
+
+> 🔒 **User:** *"I hoped we'd move the WHOLE editor to the shared area — are you leaving anything
+> editor-only? That would not match cgf==editor… not much difference than distributed vs. no-network;
+> most stuff shared, minimal duplication."* 📄 ruling: `Architect_Question_60` §4b (R1).
+
+⚠⚠ **Axes A/B above frame cgf==editor as "CGF ADOPTS the already-shared `Hrot.Editor.AiShared` machinery"** *(construct-at-root + register)*. ⛔ **That is only HALF the endpoint.** The other half, never planned here, is **physically extracting the host composition roots** — `EditorApplication` *(the `IEditorLogic` god-facade)* and `EditorSubsystem.cs` *(~4.2k lines)* — **into a shared assembly**, so `Hrot.Editor` becomes a **thin composition root like CGF** and the two differ **only in bootstrap/network**.
+
+### 2c.1 📐 Measured feasibility *(two read-only scans, `2026-08-26` — AQ60 §4.1)*
+- ⛔ **the assembly WALL is decisive**: `Hrot.Editor → Hrot.CGF`; CGF cannot reference `Hrot.Editor` ⇒ anything shared must **move to `Hrot.Editor.AiShared`** *(CGF already reaches it transitively)*.
+- ✅ **most of `EditorApplication` is host-agnostic**: every ctor dep is engine/shared, the **world is a parameter**, scenario-load already routes through the cluster orchestrator. ⚠ my earlier *"the tool/view/mode half stays editor-only"* was measured vs a HEADLESS node — ⛔ **wrong: CGF fully-featured is WINDOWED**, so tools/selection/camera/rename are **shareable too**.
+- ⭐ **the residual thin-host is small** — the **in-process kernel-mode** *(`SwitchToExternal/Internal`, `SimHostMode`)* and the **networkless-vs-networked handler binding** *(the ⚖️ ruled divergence, Q26/ruling 22)*. **That IS the "few bootstrap stuff."**
+
+### 2c.2 ⭐⭐ The split — host-agnostic *(→ shared)* vs bootstrap/network *(→ thin host)*
+| capability | → | extraction increment |
+|---|---|---|
+| scenario session *(New/Load-Edit/Load-Live/Save/migration)* | **shared** | **E1** — `IScenarioSession` *(AQ60 Slice A, in flight)* |
+| asset browse/create shell *(`AssetPickerLauncher`/`NewAssetLauncher`/`AssetPickActionRouter`/`ShowNewAssetDialog`)* | **shared** | **E2** — the §6.1 relocation *(subsumes gap-map §4 blocker 7 "packaging")* |
+| tool / selection / camera / rename *(`ActivateTool`, `SelectEntity`, `CenterOnEntity`, `OpenRenameDialog`, the tool system)* | **shared** *(CGF is windowed)* | **E3** |
+| view / inspector / property-edit *(`View`/`DerRepo`, `CommitPropertyEdit`)* + `RebuildAndReloadAI` dev-loop | **shared** | **E4** |
+| in-process kernel-mode *(`SwitchToExternal/Internal`, `SimHostMode`)* · networkless-vs-networked handler binding · network setup | ⚖️ **thin host** | **E5** — ⛔ **the endpoint divergence, NOT a gap** *(reconciles with the ⚖️ DIVERGENT table — those stay)* |
+
+⛔ **Axis C does NOT overturn the ⚖️ DIVERGENT table** — those per-host divergences *(networkless handlers, request-writes)* are E5, the deliberate endpoint. R1 says **CAPABILITY** must not be editor-only; it does not erase the ruled bootstrap divergences.
+
+### 2c.3 ⭐ Sequenced increments *(each its OWN design; extract to `Hrot.Editor.AiShared`, editor delegates byte-identical, CGF instantiates)*
+**E1 scenario** *(Slice A — in flight)* → **E2 asset-picker/new-asset shell** *(§6.1)* → **E3 tools/selection/camera** → **E4 view/inspector** → **E5** = what remains is the thin-host bootstrap *(by construction, not a build item)*. ⚠ Each increment measures its captures first *(HN-037 lesson — these are lifts, not `s/old/new/`)*.
+
 ## 3. ⭐ THE ONLY GENUINELY-NEW CODE (everything else is wiring)
 
 1. ~~`CgfClusterDebugTimeController` (replace the empty `CgfNoOpTimeController`) **+ an ingress translator category** (DQ30-C).~~ ✅ **DONE `2026-08-25`** — the no-op is retired; `TranslatorClass` + the `Category` default member + the `CycloneNetworkIngressSystem` gate all landed. 📄 [as-built §10](DESIGN_Cgf_Editor_Sharing_Slice4_Debug_PauseStep.md).
@@ -172,11 +202,13 @@ graph TD
 
 | step | what | why |
 |---|---|---|
-| ⭐ **1** | **CGF constructs the AiShared shell** (`IPerspectiveSwitcher` + `AiDocumentManager` + `PerspectiveWorkspaceRegistrar`×3 + `AssetCatalog`) and **registers the graph canvas + MyBlueprint + watch/breakpoints windows** under the asset perspectives (Scenario/BTree/HSM/Blueprint), each under the regression net, flipping its capability-manifest cell | delivers **your whole chain (viewing/diagnostics)** with almost no new code |
-| **1-prereq** | **UXI-06** perspective-default fix | else `--mode all` first launch hides the very windows we register |
-| **2** | menu/toolbar discoverability on CGF (**UXI-05/35**) | so the registered windows are reachable |
-| **3** *(later track)* | **editing on CGF**: config-`AssetRoots` (2) → AQ25 shell decisions (3) → behavior-affinity registry (4) → graph-asset-on-node design (5) | the authoring gaps; resolve the design ones with the user before building |
-| **4** *(separable)* | **Axis B** map/selection parity: `UXI-30` gate → `UXI-10 → 11 → 29 → 23` | not needed for the watch/MyBlueprint chain |
+| ✅ **1** | ~~CGF constructs the AiShared shell + registers the graph/watch/breakpoints windows~~ **DONE** — slices 1–4 *(`CE-001`..`036`)*, MCP authoring *(`MA-`)*, diagnostics *(`MD-`)* | delivered the viewing/diagnostics chain |
+| ✅ **1-prereq** | ~~**UXI-06** perspective-default fix~~ **DONE** *(already built; confirmed slice 1)* | — |
+| ✅ **2** | ~~menu/toolbar discoverability on CGF (**UXI-05/35**)~~ **DONE** — toolbar `CE-037`..`040`, menu `CE-041`..`045` *(one shared `CgfEditorShellToolbar` list, `SUBSET-BY-DESIGN` verdict)* | the registered windows are reachable |
+| ⭐ **3** *(now active — Axis C, R1)* | **the editor→shared EXTRACTION** *(§2c)*: **E1 scenario** *(Slice A, in flight)* → **E2 asset-picker/new-asset shell** *(§6.1)* → **E3 tools/selection/camera** → **E4 view/inspector**. ⭐ Folds in the old editing gaps *(config-`AssetRoots` ✅ done; AQ25 shell / behavior-affinity resolve-with-user as they arise)* | this IS "cgf==editor" at capability level — extract, editor delegates byte-identical, CGF instantiates |
+| **4** *(separable)* | **Axis B** map/selection parity: `UXI-30` gate ✅ → `UXI-10 → 11 → 29 → 23`; `AQ59` attribute-vocabulary | not needed for the watch/MyBlueprint chain |
+
+⭐⭐ **FUTURE (own designs, deferred by user `2026-08-26`):** ⛔ **checkpoint RESTORE** *(Feature X — the save exists, restore does not)*; ⛔ **capability-gating config layer** *(reduced-capability CGF: live-only · live+monitoring · headless)* — unify fully-featured FIRST; ⛔ **toolbar+menu CUSTOMIZATION system** — ⭐ **the customizable element is WHICH distinct actions surface as toolbar buttons AND as main-menu items, per subsystem/perspective** *(configurable, ⛔ not hardcoded host-conditionals, ⛔ never chameleon commands — R3)*. All actions stay logically distinct; the "per-host default" is only a surfacing choice. **Its own AQ when we reach it.**
 
 ⭐⭐ **Context menus are NOT a prerequisite** *(correcting the opening premise)*: the asset panels' own per-item menus **travel with the shared panels**; the entity/map menus stay **per-host by ruling** (Q26-A2, ruling 27) and don't block asset sharing. There is a built-but-unadopted `SharedContextMenuPopulator` for the vocabulary half if/when Axis B needs it.
 

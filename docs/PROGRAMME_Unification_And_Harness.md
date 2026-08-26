@@ -80,6 +80,7 @@ the first half of the work.**
 
 | doc | owns |
 |---|---|
+| ⭐⭐⭐ [`PROGRAMME_Cgf_Equals_Editor_Gap_Map.md`](PROGRAMME_Cgf_Equals_Editor_Gap_Map.md) | ⭐⭐ **THE single features-to-unify roadmap** — §2 per-capability status *(Axes A/B: CGF adopts AiShared)* · **§2c Axis C: the editor→shared EXTRACTION (R1 — extract the host composition roots to shared)** · §5 the sequencing. ⛔ **Do NOT create a parallel editor→shared roadmap — this IS it** *(verified `2026-08-26`)* |
 | [`DESIGN_Headless_Testability.md`](DESIGN_Headless_Testability.md) | the test taxonomy, the one-binary architecture, conformance, sequencing |
 | [`TESTING_Harness_And_Goldens.md`](TESTING_Harness_And_Goldens.md) | ⭐ the runbook — how to write a test, the perspective protocol, golden maintenance |
 | [`DESIGN_UI_Observability_Snapshot.md`](DESIGN_UI_Observability_Snapshot.md) | the `PanelSnapshot` contract *(the pixel-free read model)* |

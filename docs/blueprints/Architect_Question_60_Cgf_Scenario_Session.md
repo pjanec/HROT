@@ -88,9 +88,11 @@ known-conflict: none. Origin: the §6.2 handback of REPORT_Cgf_Menu_Follows_Focu
 
 ⇒ ⭐⭐ **Slice A is being REVISED to R1–R3** *(see `DESIGN_Cgf_Scenario_Session_Slice.md` STATUS)*: extraction framed as increment-1-of-editor→shared; distinct File-menu items *(no chameleons)*; toolbar-button selection **removed** and deferred to the new toolbar-customization design. ⚠ Two scoping calls for the user *(below)*.
 
-### 4b.1 📌 SCOPING CALLS FOR THE USER
-1. **Editor→shared: roadmap doc now, or incremental?** R1 makes this a **multi-increment programme** *(scenario · tools/selection/camera · view/inspector · … until `Hrot.Editor` is a thin root)*. ⇒ do you want a **`PROGRAMME_Editor_To_Shared.md` roadmap** enumerating the increments, or proceed increment-by-increment *(scenario = Slice A next)*?
-2. **Toolbar-customization design (R3): draft its AQ now, or note it?**
+### 4b.1 ✅ SCOPING CALLS — RESOLVED `2026-08-26`
+1. ✅ **Roadmap: EXTEND, don't duplicate.** User: *"check existing programme docs to avoid roadmaps in multiple places."* 📐 Verified — the features-to-unify roadmap **already exists** *(`PROGRAMME_Cgf_Equals_Editor_Gap_Map.md` §2 + §5)*. ⇒ ⛔ **no new `PROGRAMME_Editor_To_Shared`**; the R1 extraction is added as **`Gap_Map §2c` — AXIS C** *(host-agnostic→shared vs bootstrap→thin-host, increments E1–E5)*, §5 rewritten to the current state, charter §6 points at it. **Slice A = Axis C increment E1.**
+2. ✅ **Toolbar-customization (R3): NOTED for later** *(user: "note it")* — recorded in `Gap_Map §5 FUTURE`. ⭐ **Customizable element = which distinct actions surface as toolbar buttons AND as main-menu items, per subsystem/perspective** *(configurable, ⛔ not host-conditionals, ⛔ never chameleons)*. Its own AQ when reached.
+
+⚠ **Still pending: the Slice A R2/R3 REVISION** — distinct File-menu items *(no chameleons)*, extraction framed as Axis-C E1, toolbar-button selection removed. `DESIGN_Cgf_Scenario_Session_Slice.md` stays on-hold until revised.
 
 <!-- ⛔ EVERYTHING BELOW (old §4/§5) IS THE PRE-RULING DRAFT — superseded by §3b + §4 above. Do NOT quote as current. -->
 ## ⛔ HISTORY — pre-ruling draft *(superseded by §3b + §4, `2026-08-26`)*
