@@ -1601,11 +1601,39 @@ target either, and not counted in the arena above.
 
 | # | cluster · what it covers | 📐 owning assembly | ⛔ cycle? |
 |---|---|---|---|
-| **`J1`** | ⭐⭐ **the AI asset catalog + document factories** — per-kind contributors *(`asm => btreeContrib.LoadFrom(asm)`)*, the `switch (doc.Kind)` document dispatch, `hostServices: ctx?.View.Host`. **The only cluster with real LOGIC left (~24 lines)** | `Hrot.BTree.Editor` / `Hrot.Hsm.Editor` | 🔴 **YES — the same wall as slice ①** *(§5c.6.2)*: those projects reference AiShared, so AiShared can never name the contributors. ⇒ ⭐ contributors stay host-side as closures *(which is what the existing lambdas already are)*; only the ORCHESTRATION could move |
+| **`J1`** | ⭐⭐ **the AI asset catalog + document factories** — the whole catalog-construction block *(contributors, the six builder delegates, json wiring, root resolution)*, the `switch (doc.Kind)` document dispatch, `hostServices: ctx?.View.Host`. 🔴 **~45 code lines PER HOST — see the correction in §5c.9.3b; the verbatim scan reported ~5** | `Hrot.BTree.Editor` / `Hrot.Hsm.Editor` | 🔴 **YES — the same wall as slice ①** *(§5c.6.2)*: those projects reference AiShared, so AiShared can never name the contributors. ⇒ ⭐ contributors stay host-side as closures *(which is what the existing lambdas already are)*; only the ORCHESTRATION could move |
 | **`J2`** | ⭐ **asset creation** — `AssetCreateController`'s **five identical lambdas** *(`findCatalogued`, `refreshFromAssembly`, `refreshJsonContributor`, `openDocument`, `blueprintRootDir`)*, all derived from the same five host fields. **9 lines × 2** | ⭐⭐ **`Hrot.Editor.AiShared`** | ✅ **NO** |
 | **`J3`** | ⭐ **per-document canvas wiring** — `extraRenderers` *(`CE-071`'s comparison renderers)*, `openBlueprint`, `breakpointManager`. ~17 lines | ⭐⭐ **`Hrot.Editor.AiShared`** | ✅ **NO** |
 | **`J4`** | **blueprint edit services** — `PredicateCompiler` · `EditService` · `RefactorService`. ~4 lines | ⚠ **MIXED**: `Fdp.Toolkits` ✅ · AiShared ✅ · but `EditService` is in `Hrot.Blueprints.Editor` 🔴 | ⚠ partly |
 | ⛔ **NOT a cluster** | slice ①'s `CompileSources` adapter *(6 lines × 2)* | — | ⭐ **duplicated BY DESIGN** — it bridges the cycle and must live host-side *(§5c.6 `F2`)* |
+
+#### 5c.9.3b 🔴🔴 CORRECTION *(same day)* — **`J1` IS ~45 LINES PER HOST, NOT 24. The verbatim caveat proved itself within the hour.**
+
+⚠⚠ **§5c.9.2 warned that 106 was a FLOOR because the method finds VERBATIM duplication only. ⭐ That
+caveat immediately cashed in.** 📐 **Measured while scoping `J2`:**
+
+| | editor | CGF |
+|---|---|---|
+| the AI **catalog-construction** block | `Initialize` **:1090–1156 → 42 code lines** *(inline)* | **`BuildAssetCatalog()` :2408–2480 → 45 code lines** *(wrapped in a method)* |
+| types constructed | `AiAssetCatalogBuilder` · `BlueprintAssetContributor` · `BTreeJsonAssetContributor` · `HsmJsonAssetContributor` · `BTreeAssetContributor` · `HsmAssetContributor` | ⭐ **the same set** |
+| the six builder delegates | `asm => btreeContrib.LoadFrom(asm)` … | ⭐ **the same six** |
+
+⇒ ⛔⛔ **~45 lines per host of near-duplicate composition that the identical-line scan reported as ~5**,
+because one host wrapped it in a method and the other inlined it. ⭐⭐ **`J1` is therefore the biggest
+remaining item by a wide margin — larger than `J2`+`J3` combined** — and it is still the cycle-bound one.
+
+⚠ **TWO METHOD LESSONS, both mine, both worth keeping:**
+1. ⭐⭐ **A grep pattern is a hypothesis.** 📐 `grep "new AiAssetCatalogBuilder("` found **2** callers and
+   "proved" CGF did not build one; CGF uses the **fully-qualified** form and does. 📌 **The second time this
+   session a pattern of mine was the wrong thing** *(the first: ReplayBrowser's `rb_*` ids vs `*_fdp_*`)*.
+   ⇒ ⛔ when a grep says a host does NOT do something, that is the moment to widen the pattern, not to
+   conclude.
+2. ⭐ **"Same logic, different SPELLING" is invisible to every mechanical duplication metric here** — ⛔ so
+   the closing inventory's 106 must never be quoted as *"what is left"* without §5c.9.2's caveat attached.
+
+⭐ **The order below is UNCHANGED by this**: `J2`/`J3` are still cheaper and cycle-free, and `J1` still needs
+a design pass before any build. ⚠ **What changes is the PRIZE**: `J1` is where the remaining duplication
+actually lives.
 
 #### 5c.9.4 ⭐⭐⭐ THE RECOMMENDED ORDER — **feasibility first, and a STOP condition**
 
