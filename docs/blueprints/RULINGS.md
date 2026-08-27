@@ -193,4 +193,5 @@ R-133 | Hrot/Subsystems/Hrot.Editor/DebugApi/CapabilityManifest.cs | The known-a
 R-01b | docs/blueprints/Variable_Model_Unification.md | names, one concept
 R-07 | docs/blueprints/Variable_Model_Unification.md | and stop there
 R-10b | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | not optional cleanup; it is the acceptance criterion
+R-135 | .claude/CLAUDE.md | READ YOUR LANE'S RESUME DOC
 ```
