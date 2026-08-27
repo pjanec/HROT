@@ -1770,6 +1770,137 @@ hosts pass `() => _btreeJsonRootDir`, a field assigned LATER in `Initialize`, so
 *("cheapest and safest")* held — ⛔ but its predicted SIZE did not. 📌 An eighth data point for the
 measure-before-quoting list.
 
+### 5c.11 ⛔ `J3` — **CONCLUDED: NOT WORTH BUILDING.** *(measured `2026-08-27`)*
+
+📐 **What the per-document canvas wiring actually is.** Both hosts install one `DocumentOpened` handler with
+an identical SHAPE: the `ViewState != null` guard → a `switch (doc.Kind)` → three `…DocumentFactory.Build(…)`
+arms → a `doc.Asset.Changed` subscription.
+
+| ⛔ why it cannot be shared | |
+|---|---|
+| 🔴 **all three factories are BEHIND THE CYCLE** | 📐 `BTreeDocumentFactory` *(`Hrot.BTree.Editor`)* · `HsmDocumentFactory` *(`Hrot.Hsm.Editor`)* · `BlueprintDocumentFactory` *(`Hrot.Blueprints.Editor`)* — **all three projects reference AiShared** ⇒ AiShared cannot call them. ⭐ The three arms — **where every per-host argument and all the substance lives** — must stay host-side as closures |
+| ⭐⭐ **the IDENTICAL parts are ALREADY shared calls** | `extraRenderers: ComparisonCanvasRenderers.For(…)` is the SAME shared helper on both hosts *(`CE-071`)* ⇒ **adoption, not duplication**; `openBlueprint: a => _aiDocumentManager?.Open(a)` is one line |
+| ⇒ ⛔ **what is left to extract is an ~8-line dispatch SKELETON** | ⭐ replacing it with `Install(docs, new Arms(…))` is **line-neutral** and inserts an indirection between `DocumentOpened` and the factory calls a reader currently sees inline |
+
+⭐ **The per-arm differences are genuine host capability, not drift:** CGF passes `btreeDebugSession: null`,
+`hsmDebugSession: null`, `debugSession: null` — 📐 it constructs no debug session *(slice 1 §9.4)*, and each
+parameter exists so a host without one can **say so** *(ruling 49)*.
+
+⇒ 🔒 **VERDICT: leave it.** ⭐ Same conclusion shape as slice ③, reached the same way — by measuring instead
+of assuming the plan line was work. ⚠ §5c.9.4 reserved this freedom for `J1`; it applies here.
+
+### 5c.12 ⭐⭐⭐ `J1` — **THE DESIGN. And the prize is NOT the line count: the EDITOR IS BEHIND ON RULING 67.** `build-state: DESIGN` *(`2026-08-27`)*
+
+> ⛔ **This is a DESIGN, not a dispatched build** — §5c.9.4 ordered it third and required a design pass first.
+
+#### 5c.12.1 📐 THE NINE STEPS — **both hosts, same order**
+
+| # | step | editor *(`Initialize` :1095–1155, inline)* | CGF *(`BuildAssetCatalog()` :2408–2480)* |
+|---|---|---|---|
+| 1 | resolve the AI root | 🔴 **`AssetRoots.ResolveProjectDir`** | 🔴 **`AssetRoots.ResolveBase`** |
+| 2 | the Blueprint assets root | `ResolveAssetsRoot(Blueprint, …)` | `RootFor(Blueprint)` |
+| 3 | the two JSON roots | ⚠ null-guarded `Path.Combine` | `RootFor(kind)`, unconditional |
+| 4 | `new BlueprintAssetContributor(bpRootDir)` | ✅ same | ✅ same |
+| 5 | `new BTreeJsonAssetContributor(…)` | `_btreeDebugSession` | ⭐ `null` *(genuine: no session)* |
+| 6 | `new HsmJsonAssetContributor()` | ✅ same | ✅ same |
+| 7 | store 5 fields *(2 roots, bp root, 2 contributors)* | ✅ same set, same stated reason | ✅ *(`MA-019` ≡ `BUG-A6`)* |
+| 8 | initial refresh, `Directory.Exists`-guarded, else warn | `Console.WriteLine` | `FdpLog<CgfSubsystem>.Warn` |
+| 9 | construct `AiAssetCatalogBuilder` *(6 delegates + 2 contributors + `CE-091`'s 4)* | ✅ same shape | ✅ same shape |
+
+#### 5c.12.2 🔴🔴🔴 THE HEADLINE — **step 1 is a DRIFT, and the EDITOR is the one behind**
+
+| | |
+|---|---|
+| 📐 **`ResolveBase`** | ① **configured root** *(ruling 67's answer for a deployed node)* → ② source walk-up → ③ output dir. **Always answers.** |
+| 📐 **`ResolveProjectDir`** | ⛔ **the walk-up ONLY. Returns `null` when there is no source tree.** |
+
+⇒ ⛔⛔ **On a DEPLOYED node the editor's two JSON roots go `null`, so it cannot load its own BTree/HSM JSON
+assets** — and it says so in its own warning: *"editor-owned BTree/HSM JSON assets will not load with
+layout."* ⭐⭐ **CGF received the ruling-67 treatment and the editor did not**; CGF's own comment marks the
+difference: *"the null arms are gone: ruling 67's `ResolveBase` always answers a directory."*
+
+⇒ ⭐⭐⭐ **THE VALUE OF `J1` IS CARRYING THAT FIX TO THE EDITOR.** ⛔ Not the ~45 lines — 📌 and this is the
+third time in this programme that a unification's worth turned out to be *"one host is behind"* rather than
+*"there are two copies"* *(slice ①: the editor had no ruling-53 log; `CE-016`: CGF had no toolbar transport)*.
+
+⚠⚠ **THEREFORE `J1` IS A BEHAVIOUR CHANGE, AND IT NEEDS A NOD.** ⭐ It is a *fix* — but it changes what the
+editor lists on a deployed node, and the user's standing rule is that a visible change is theirs to approve.
+
+#### 5c.12.3 ⭐ THE SHAPE, AND WHAT THE CYCLE PERMITS
+
+⛔ **The contributors and `LoadFrom` are behind the cycle** *(§5c.6.2)* ⇒ ⭐ the shared unit takes them as
+`IAssetCatalogContributor` plus **delegates** — 📌 **exactly the pattern `AiAssetCatalogBuilder` already
+documents and `CE-091` just extended.** ⭐ No new interface.
+
+```mermaid
+classDiagram
+    class AiCatalogComposition {
+        <<PROPOSED · static · AiShared.Catalog>>
+        +Compose(request) Result
+    }
+    class ComposeRequest {
+        <<PROPOSED · record>>
+        +csprojSegments
+        +IAssetCatalogContributor bTree
+        +IAssetCatalogContributor hsm
+        +Action~Assembly~ bTreeLoadFrom
+        +Action~string~ bTreeJsonRefresh
+        +Action~string~ warn
+    }
+    class ComposeResult {
+        <<PROPOSED · record>>
+        +AiAssetCatalogBuilder Builder
+        +string BlueprintRoot
+        +string BTreeJsonRoot
+        +string HsmJsonRoot
+    }
+    class AiAssetCatalogBuilder {
+        AiShared.Catalog
+        +RefreshJsonContributors(kind) CE-091
+    }
+    class AssetRoots {
+        AiShared.Identity
+        +ResolveBase() ruling 67
+    }
+    class EditorSubsystem
+    class CgfSubsystem
+    AiCatalogComposition --> ComposeRequest : takes
+    AiCatalogComposition --> ComposeResult : returns
+    AiCatalogComposition ..> AiAssetCatalogBuilder : builds
+    AiCatalogComposition ..> AssetRoots : ResolveBase for ALL roots
+    EditorSubsystem ..> AiCatalogComposition : gains the ruling-67 root
+    CgfSubsystem ..> AiCatalogComposition : keeps today's behaviour
+```
+
+```mermaid
+sequenceDiagram
+    participant Host
+    participant C as AiCatalogComposition (PROPOSED)
+    participant R as AssetRoots
+    participant B as AiAssetCatalogBuilder
+    Host->>C: Compose(request with contributors + delegates + warn sink)
+    C->>R: ResolveBase(csprojSegments)
+    Note over C,R: ONE resolver for both hosts -- this is the fix the editor is missing
+    C->>C: derive bp / btree-json / hsm-json roots
+    C->>C: initial refresh, Directory.Exists-guarded, warn via the sink
+    C->>B: construct with the 6 + 2 + 4 arguments
+    C-->>Host: Builder + the three resolved roots
+```
+
+#### 5c.12.4 ⭐ THE ITEMS, IF IT IS APPROVED
+
+| # | item | proof |
+|---|---|---|
+| **①** | `AiCatalogComposition.Compose` in `AiShared.Catalog`; ⭐ the **warn sink is a delegate** so each host keeps its own logger *(step 8)* | ⛔ delegates only — no contributor type named |
+| **②** | both hosts call it and delete their region; ⚠ **CGF's behaviour must be byte-identical**, the editor's changes ONLY at step 1 | ⛔ a diff showing deletion |
+| **③** | ⭐⭐ **a rail proving the editor now resolves a CONFIGURED root** *(the ruling-67 carry-over)*, plus one proving CGF is unchanged | 🔒 the whole point of the slice |
+| **④** | ⚠ **CHECK FOR A TEST SEAM FIRST** — 🔒 `CE-091`'s lesson: 11 rails injected what looked like duplication | ⛔ do this BEFORE collapsing anything |
+| **⑤** | the three `ui-baseline` goldens stay **UNCHANGED** *(no window is touched)* | |
+
+⛔⛔ **STOP-CONDITION REMINDER:** §5c.9.4 says stop after `J2`+`J3`. ⭐ `J1` is the one exception worth
+making — ⛔ **and only because of §5c.12.2's fix, not because of the line count.** ⚠ If the user declines the
+behaviour change, `J1` should be **closed as not-worth-doing** rather than built for tidiness.
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|
