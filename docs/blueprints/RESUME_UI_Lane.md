@@ -12,7 +12,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
 > 🔒🔒 **Branch: `claude/reset-working-branch-qd1qpv`** *(re-pointed by the USER, `2026-08-23`)*. ⛔ Push
-> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-065`)**; ⚠ `BP-` are this lane's HISTORICAL
+> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-066`)**; ⚠ `BP-` are this lane's HISTORICAL
 > variable-model ids, tracker areas **`A`–`G`**.
 > ⚠⚠ **This lane MOVED from `claude/hrot-implementation-j1jvin`** — ⛔ any document still naming `j1jvin`
 > as this lane is stale; `.claude/CLAUDE.md`'s lane table *(`6b14d13fe`)* is authoritative.
@@ -34,8 +34,26 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 > **②** [`batches/HANDOFF_Cgf_Bootstrap_Unification.md`](batches/HANDOFF_Cgf_Bootstrap_Unification.md) — the dispatched FRAME. ⚠ **stale on two points**, see the STATUS block.
 > **③** [`Architect_Question_62_Unify_The_Composition_Root.md`](Architect_Question_62_Unify_The_Composition_Root.md) — the predecessor; ⚠ AQ63 §3 supersedes its SHAPE and STAGING.
 >
-> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`). ⭐ ids **`CE-`**, next free **`CE-065`**.
+> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-066`**.
 > ⭐ **RELEARN** before acting on this file.
+
+## ✅✅✅ 0.0 — **PHASE 0 IS DONE** *(`2026-08-27`, head `9bff523c7`)*
+📄 **[`batches/REPORT_Composition_Phase0.md`](batches/REPORT_Composition_Phase0.md)** · as-built folded into
+the design's **§5.6 / §5.7 / §5.8**.
+
+| ⭐ what a next session must know, and must NOT re-derive | |
+|---|---|
+| ⭐⭐⭐ **The rail found a REAL CRASH on its first real run** — `CE-065`. The `E3` slice routed *"center on entity"* onto a shared system but left its **event registration** in `EditorSubsystem`, and `ClusterRunner/Program.cs:52` turns strict mode on **process-wide** ⇒ the publish threw out of CGF's ImGui context menu and killed the process. ⭐ Fixed by putting the two events on `PresentationComponentRegistry`'s ONE list *(where `SelectEntityCommand` already was — which is exactly why the sibling menu item worked)* | §5.7 |
+| ⛔⛔ **`--mode cgf` ALONE CANNOT BOOT.** `DdsIdAllocator` waits 30 s for `Hrot.Orchestrator` then throws; **exit 134** before `/status`. ⇒ **exercise CGF via `--mode all` + the `Scenario` perspective.** ⚠ *"the `--mode cgf` symptoms"* is shorthand for *"CGF's symptoms"* | §5.8 |
+| ⭐⭐ **`BP-487` is HALF done.** The map FEED is reachable *(`GizmoBuffer` on `ISubsystemDebugProvider`, resolved per ACTIVE perspective)*; ⛔ `PanelSnapshot.ClearCaptured()` still has one production caller ⇒ that half is `MX-011`, **MCP lane** | §5.6 |
+| ⛔ **`/missions` is STILL unclassified in `CapabilityManifest.CapabilityFor`** — **third report**, MCP lane. It makes `The_manifest_describes_this_host_truthfully` **red before its matrix loop**, so nothing new can be asserted there. ⭐ The `panels.gizmo` claim was moved to `TheMapsAgreeOnBothHostsRails`; move it back **and delete the copy** when `/missions` lands | §5.8 |
+| ⚪ **The "map shows no entities" symptom does NOT reproduce** on `hill-attack` in `--mode all` — 📐 the cluster submits **739** primitives incl. **16 `SpatialAnchor`s naming ids 1000–1007**. ⛔ **NOT fixed, NOT closed** *(the user said "on some scenarios")*; the rail stands to catch it | §5.8 |
+| ⭐ **Item ① needed no code** — all 8 drift instances were already railed by the preceding batch. ⛔ Do not rebuild them as a T3 comparison | §5.8 |
+| ⚠⚠ **This batch TOUCHED MCP-LANE FILES** *(`DebugApiService.cs`, `DebugApiService.Panels.cs`, `CapabilityManifest.cs`)* — unavoidable for `BP-487`, declared in report §7 ②, **flagged for the coordinator** | report §7 |
+
+⇒ ⭐⭐ **NEXT: phase 1** — the bundle seam + menus/toolbar. ⛔ It needs its **own inventory + UML before any
+code** *(obligations ①/②)*, and it is bound by §3's standing constraint: ⛔⛔ **no bundle registers a module,
+system, translator or participant.**
 
 ## 0.1 🔒 THE PROBLEM, AND WHAT THE USER APPROVED
 
