@@ -1,17 +1,23 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-24
-current-answer: this whole file. It is the UI implementation lane's resumption document — written ahead of
-  a compaction so the next window starts grounded. §0 is the MOST RECENT batch (the conformance harness),
-  §0b the regression net part C, §0c the preview rewind (HN-017), §0d the perspective model Part A, §1–§2 are
-  the BP-399 / Panel-observability history, §3 is the standing protocol, §4 is what is carried open.
-stale-below: §1 and §2 are HISTORY as of 2026-08-23 — both landed. Read §0 first.
-known-conflict: none.
+updated: 2026-08-27
+current-answer: ⭐⭐⭐ §0.0d — "PHASE 2: THE PLAN, AND THE SAFETY NET". START THERE AND NOWHERE ELSE.
+  It is written to be SELF-SUFFICIENT after a compaction: it repeats the measured numbers rather than
+  pointing at them, and carries the user rulings, the resolved D1-D4, the slice order and the limits.
+  Read §0's header block only for the branch/ids/dispatch-sha facts.
+stale-below: ⛔ EVERYTHING except §0's header and §0.0d is HISTORY, newest first — §0.0c (the CE-070/071
+  way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
+  record of WHY, not as instructions. ⚠ §0.0c and the §0 header both used to say "Start here"; §0.0d
+  supersedes both (corrected 2026-08-27).
+known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) is STALE on two points —
+  its stage-1 god-facade prerequisite and its phase-0 rail wording. AQ63 §10.4 and §12 supersede both,
+  deliberately. The handoff is NOT edited (rule 1: never amend a dispatched handoff).
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
 > 🔒🔒 **Branch: `claude/reset-working-branch-qd1qpv`** *(re-pointed by the USER, `2026-08-23`)*. ⛔ Push
-> nowhere else. ids **`BP-`**, tracker areas **`A`–`G`**.
+> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-101`)**; ⚠ `BP-` are this lane's HISTORICAL
+> variable-model ids, tracker areas **`A`–`G`**.
 > ⚠⚠ **This lane MOVED from `claude/hrot-implementation-j1jvin`** — ⛔ any document still naming `j1jvin`
 > as this lane is stale; `.claude/CLAUDE.md`'s lane table *(`6b14d13fe`)* is authoritative.
 > ⚠ **A third lane now exists:** `claude/blueprint-macro-feature-sdmspn` is the **BACKEND** lane
@@ -22,7 +28,359 @@ known-conflict: none.
 
 ---
 
-## 0. ✅ MOST RECENT — **the cross-host conformance harness** is DONE *(`2026-08-24`)*
+# ⭐⭐⭐ §0 — THE CURRENT QUEST: **subsystem-composition unification (`AQ63`)**
+
+> 📄 **READ FIRST, IN THIS ORDER:**
+> **⓿** ⭐⭐⭐ [`../DESIGN_Subsystem_Composition_Unification.md`](../DESIGN_Subsystem_Composition_Unification.md)
+> — **THE STANDING DESIGN: the approach, the constraints, the phase plan.** ⚠ Read it AFTER §0.0d — §0.0d says which of its sections are live *(§5c is phase 2)*.
+> **①** [`Architect_Question_63_Unify_Subsystem_Composition.md`](Architect_Question_63_Unify_Subsystem_Composition.md)
+> — ⭐⭐ **§9 and §10 are USER RULINGS (canon)**; ⭐⭐ **§12 is the phase-0 venue**; ⛔⛔ **§11 is SUPERSEDED — do not quote it.**
+> **②** [`batches/HANDOFF_Cgf_Bootstrap_Unification.md`](batches/HANDOFF_Cgf_Bootstrap_Unification.md) — the dispatched FRAME. ⚠ **stale on two points**, see the STATUS block.
+> **③** [`Architect_Question_62_Unify_The_Composition_Root.md`](Architect_Question_62_Unify_The_Composition_Root.md) — the predecessor; ⚠ AQ63 §3 supersedes its SHAPE and STAGING.
+>
+> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-101`**.
+> ⭐ **RELEARN** before acting on this file.
+
+## ✅✅✅ 0.0 — **PHASE 0 IS DONE** *(`2026-08-27`, head `9bff523c7`)*
+📄 **[`batches/REPORT_Composition_Phase0.md`](batches/REPORT_Composition_Phase0.md)** · as-built folded into
+the design's **§5.6 / §5.7 / §5.8**.
+
+| ⭐ what a next session must know, and must NOT re-derive | |
+|---|---|
+| ⭐⭐⭐ **The rail found a REAL CRASH on its first real run** — `CE-065`. The `E3` slice routed *"center on entity"* onto a shared system but left its **event registration** in `EditorSubsystem`, and `ClusterRunner/Program.cs:52` turns strict mode on **process-wide** ⇒ the publish threw out of CGF's ImGui context menu and killed the process. ⭐ Fixed by putting the two events on `PresentationComponentRegistry`'s ONE list *(where `SelectEntityCommand` already was — which is exactly why the sibling menu item worked)* | §5.7 |
+| ⛔⛔ **`--mode all` IS THE ONLY MODE WE RUN** 🔒 *(user, `2026-08-27`: "we never use '--mode cgf'")* — and **`--mode cgf` alone CANNOT BOOT anyway.** `DdsIdAllocator` waits 30 s for `Hrot.Orchestrator` then throws; **exit 134** before `/status`. ⇒ **exercise CGF via `--mode all` + the `Scenario` perspective.** ⚠ *"the `--mode cgf` symptoms"* is shorthand for *"CGF's symptoms"* | §5.8 |
+| ⭐⭐ **`BP-487` is HALF done.** The map FEED is reachable *(`GizmoBuffer` on `ISubsystemDebugProvider`, resolved per ACTIVE perspective)*; ⛔ `PanelSnapshot.ClearCaptured()` still has one production caller ⇒ that half is `MX-011`, **MCP lane** | §5.6 |
+| ⛔ **`/missions` is STILL unclassified in `CapabilityManifest.CapabilityFor`** — **third report**, MCP lane. It makes `The_manifest_describes_this_host_truthfully` **red before its matrix loop**, so nothing new can be asserted there. ⭐ The `panels.gizmo` claim was moved to `TheMapsAgreeOnBothHostsRails`; move it back **and delete the copy** when `/missions` lands | §5.8 |
+| ⚪ **The "map shows no entities" symptom does NOT reproduce** on `hill-attack` in `--mode all` — 📐 the cluster submits **739** primitives incl. **16 `SpatialAnchor`s naming ids 1000–1007**. ⛔ **NOT fixed, NOT closed** *(the user said "on some scenarios")*; the rail stands to catch it | §5.8 |
+| ⭐ **Item ① needed no code** — all 8 drift instances were already railed by the preceding batch. ⛔ Do not rebuild them as a T3 comparison | §5.8 |
+| ⚠⚠ **This batch TOUCHED MCP-LANE FILES** *(`DebugApiService.cs`, `DebugApiService.Panels.cs`, `CapabilityManifest.cs`)* — unavoidable for `BP-487`, declared in report §7 ②, **flagged for the coordinator** | report §7 |
+
+## ✅✅✅ 0.0b — **PHASE 1's SEAM IS BUILT** *(`2026-08-27`, head `f7df23904`)*
+📄 design **§5b** *(inventory + UML)* and **§5b.4** *(as-built, THREE argued deviations)*.
+
+| ⭐ what a next session must know | |
+|---|---|
+| ⭐⭐⭐ **The seam existed already.** There were TWO interfaces named `IWindowRegistrar`: host-level *(`RegisterWindows`, 8 subsystems)* and **feature-level in `Hrot.Blueprints.Editor`, in-degree 24** — the bundle contract, unnamed. ⭐ `BlueprintWindowRegistrar` implements BOTH and is the working precedent. ⇒ phase 1 NAMED the shape | §5b.1 |
+| ⭐⭐ **`IShellCommandRegistrar`** is the feature seam's new name *(`CE-068`)*; the ENGINE one keeps `IWindowRegistrar` | `CE-068` |
+| ⭐⭐ **`IUiBundle`/`UiBundleContext`/`UiBundleHost`** in `Fdp.Presentation`; **`ShellCommandCoreBundle`** is adopter #1 and **both hosts compose it** | `CE-069` |
+| ⛔⛔ **`SharedAiWindowRegistrar` was WITHDRAWN as first adopter** — 📐 of its 7 windows CGF constructs **0**, the editor **3**. Adopting it is *newly constructing seven windows on CGF* ⇒ **a question about CGF's ROLE**, not composition. ⭐ Answer that before touching it | §5b.4 |
+| ⛔ **`DeclaredSystems()`/`ReportUnserviceable()` were NOT built** — no adopter needed them, and an unadopted member looks adopted. ⭐ They arrive with the first bundle that has something to declare | §5b.4 |
+| ⭐⭐⭐ **The constraint is STRUCTURAL now:** `A_bundle_cannot_reach_the_run_set` asserts by reflection that `UiBundleContext` exposes only windows/menu/toolbar. ⚠ **If it fails, that is a DESIGN question, not a test to update** | §3.2 |
+| 🔴 **`CE-067`: `Hrot.Blueprints.Tests` (3 983 tests) had NOT COMPILED**, and `--no-build` printed PASSED over the stale binary — the exact hazard CLAUDE.md's tier section names. ⭐ Now **3 965/0** and back in the gate set | `CE-067` |
+| 📐 **Dead guard:** `WindowManager.MainToolbar` is NEVER null ⇒ every `MainToolbar != null` check was always true and its "toolbar-less host" comments described an impossible state | §5b.4 |
+
+## ⭐⭐⭐ 0.0d — **PHASE 2: THE PLAN, AND THE SAFETY NET.** ⛔⛔ **START HERE.** *(`2026-08-27`)*
+
+> 🔒🔒 **USER RULINGS, `2026-08-27` — canon for phase 2:**
+> ① *"in the end there should be **one UI logic (no drifts, no duplications)**, instantiated by calling
+> shared code from different subsystems."*
+> ② *"we never use `--mode cgf`, it was **`--mode all`**."*
+> ③ *"i want to be **compaction safe**"* ⇒ ⭐⭐ **this section is written to be self-sufficient: it repeats the
+> numbers rather than pointing at them, so a fresh session needs no archaeology.**
+
+### ⭐ WHAT PHASE 2 IS
+📐 The two composition roots. **`EditorSubsystem.cs` 5 375 lines / `CgfSubsystem.cs` 2 693** — ⚠⚠ but
+**~37 % of both is COMMENT** *(1 836 + 1 126)*, so real code is **4 290**, and the composition itself is
+**~1 650**: `EditorSubsystem.RegisterWindows` *(2 110 lines / **1 156 code**)* and CGF's
+`BuildAiShell`+`WireAssetCreation`+`RegisterWindows` *(**~500 code**)*.
+⛔ **A line-count target is the WRONG goal** — that comment mass is how a post-compaction session learns why
+a line exists. ⭐ The goal is **one implementation per concept**, not fewer lines.
+
+### 🔴 THE SCOPE — **5 hosts, not 2. I had this WRONG until the user asked.**
+| surface | who has it |
+|---|---|
+| menus · toolbar · perspectives | ⭐ **ONLY the editor and CGF.** 📐 IG *(~62 code lines)* · SimHost *(~127)* · ExCon *(~124)* · Orchestrator *(~100)* · EyesAndMuscle *(~1, empty)* register **windows only** ⇒ they are **panel hosts INSIDE the shell, not shells.** ⛔ Nothing to unify with them there |
+| ⭐⭐⭐ **the diagnostics window group** | 🔴 **22 instantiation sites across 7 host files, ~112 lines of copy-paste** — `FdpEntityInspectorWindow` **(5 hosts)** · `FdpEventBrowserWindow` **(5)** · `ArchitectureDiagnosticsWindow` **(4)** · `SystemProfilerWindow` **(4)** · `FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu` **(4)** |
+
+⭐⭐ **The 22 sites differ by exactly FIVE host values** — `idPrefix` · `titlePrefix` · `perspective` ·
+kernel/repo accessor · `titleBarColor`:
+```
+"ig_system_profiler",      "IG System Profiler",      "IG",       () => _app.Kernel?…,      IgWindowColor.TitleBar
+"simhost_system_profiler", "SimHost System Profiler", "SimHost",  () => _app?.Kernel?…,     SimHostWindowColor.TitleBar
+"cgf_system_profiler",     "CGF System Profiler",     "Scenario", () => _context?.Kernel?…, TitleBarColor
+"editor_system_profiler",  "Editor System Profiler",  "Scenario", () => _kernel?…,          EditorWindowColor.TitleBar
+```
+⇒ ⭐⭐⭐ **that is a `HostServices` record** *(the `CgfEditorShellToolbar.HostServices` pattern)*, so **22 sites
+collapse to ONE implementation + 5 one-line compositions** — the user's sentence, currently achieved by
+copy-paste 22 times. ⚠ 112 lines is small; ⛔ **22 sites is 22 chances to drift.**
+
+### ✅ `D1`–`D4`, RESOLVED *(design §5c.4d)*
+| | |
+|---|---|
+| **`D1`** | ✅ **services arrive as CTOR ARGS.** ⛔ `UiBundleContext` is NOT widened — a service locator there is `AQ62`'s superseded `ComposeEditorExperience(deps)` bag and would breach `A_bundle_cannot_reach_the_run_set` |
+| **`D2`** | ✅ **done = EVERY host's copy DELETED.** ⚠ At 5 hosts, a bundle only 2 compose is **not** done — 📌 the `SharedAiWindowRegistrar` failure mode with more places to hide |
+| **`D3`** | ✅ ⓪ the two LOGIC duplicates *(no seam needed)* → ① **the diagnostics group as bundle #1** *(22 sites, 5 hosts)* → ② the editor/CGF-only shell surfaces |
+| **`D4`** | ✅ **BOTH decomposition and de-drifting** — the drift risk is 5-way, so de-duplicating achieves both. ⛔ My earlier *"decomposition, NOT de-drifting"* framing is superseded |
+
+### ⛔⛔⛔ 0.0d-① THE SAFETY NET — **how we know nothing broke.** *(design §5c.4e)*
+> 🔒 **User:** *"how will you check that the unification does not destroy what now works? will you use current
+> editor as something that should not change?"*
+
+⭐ **Yes, current behaviour is the reference — but the editor ALONE is the wrong one, and the rail we had is
+blind to the failure unification causes.**
+
+| axis | state | ⛔ blind to |
+|---|---|---|
+| **A · cross-host parity** *(editor vs `--mode all`)* | ✅ phase 0 | 🔴🔴 **a change that hits BOTH hosts identically.** Drop a window on all 5 at once ⇒ **parity stays GREEN.** ⚠ Unification is exactly that class of change ⇒ **7th rail-blindness instance if relied on** |
+| ⭐⭐⭐ **B · before/after, per host** | 🛠 **BUILT `2026-08-27`** — `TheUiBaselineIsPinnedPerHostRails` | pixels, layout, rendering |
+
+⛔ **Why the editor alone is insufficient:** the ids are **host-prefixed**, so the editor's baseline covers
+**4 of the 22** sites and proves nothing about `ig_system_profiler` still claiming perspective `"IG"`.
+
+⭐⭐ **THREE captures cover all 22 sites** — 📐 `HrotRunnerConfiguration:124` expands `all` to
+**`orchestrator,simhost,ig,excon,cgf`**, and `:181` **forbids the editor coexisting with IG/ExCon**:
+| mode | covers |
+|---|---|
+| `editor` | the editor's 4 sites |
+| ⭐⭐ `all` | **SimHost · IG · ExCon · CGF · Orchestrator — five hosts in ONE process** |
+| `replaybrowser` | ReplayBrowser's 2 |
+
+🛠 **The rail:** `Hrot.SystemTests/Conformance/TheUiBaselineIsPinnedPerHostRails.cs`. It pins, per mode, the
+**`(panelId, kind, perspectives[])`** set from `GET /panels` `registered[]` + `list_perspectives`, through the
+existing `GoldenStore`. Goldens live at `Hrot.SystemTests/Goldens/ui-baseline-{editor,all,replaybrowser}/`.
+⭐ **Re-capture:** `PANEL_GOLDEN_CAPTURE=1 dotnet test … --filter TheUiBaselineIsPinnedPerHostRails`
+⛔⛔ **and a re-capture must be INSPECTED and committed in the SAME commit as the code change** — never
+separately, or it blesses whatever happened.
+
+⚠⚠ **FOUR LIMITS — do NOT over-claim this net. ⛔ Two were found by INSPECTING the first capture:**
+| ⚠ | |
+|---|---|
+| **`GET /panels` reports the INSTRUMENTED set** | ⛔ a window that never calls `PanelSnapshot.DeclareInstrumented` is **invisible** to the baseline. ⭐ `The_instrumentation_gap_is_measured_not_assumed` prints the real counts per mode — ⚠ **read them; the gap size is otherwise UNMEASURED** |
+| **ids are NOT pixels** | ⭐ catches a dropped, renamed or added window; ⛔ **not** a panel that renders wrong ⇒ a windowed eyes pass stays in acceptance |
+| 🔴🔴 **PERSPECTIVE IS NOT COVERED** | 📐 **`registered[]` is PROCESS-WIDE, not perspective-scoped** — 54 of the editor's 55 windows listed all 4 perspectives, because the field recorded which perspectives the CAPTURE VISITED. ⇒ ⛔⛔ **it would NOT catch `CE-071`'s `B1`**, which is what I first claimed for it. ⭐ The field was **REMOVED, not shipped** — false confidence is worse than a named gap. ⭐⭐ Stable source = **`focus_panel`** *(per-panel `{perspective, isOpen, isPinned}`)*, ⛔ but it has **side effects** ⇒ own pass. **FILED** |
+| ⚠ **`kind` removed too** | 📐 empty for **18 of 55** — inverted from `kinds{}` which derives from `captured[]` ⇒ **frame-dependent** ⇒ spurious reds later |
+
+🔒 **THE METHOD LESSON:** `GoldenStore` demands a capture be INSPECTED before commit *("a capture run is green
+by construction")*. 📐 That inspection found **two defects in the RAIL, none in the product** — ⛔ and both
+would have shipped GREEN. ⇒ ⭐⭐ **a golden that has never been read is not a baseline, it is a rumour.**
+📐 Also measured while inspecting: **ReplayBrowser names its two `rb_*`** *(`rb_inspector`, `rb_events`)*, not
+`*_fdp_*` — so all 22 sites ARE covered; my first grep pattern was wrong, not the capture.
+
+### ⭐ THE ORDER — ⛔ **the baseline is FIRST, before any registration moves**
+| # | slice | why here |
+|---|---|---|
+| **⓪** | 🛠 **capture + commit the three goldens on TODAY'S code** | ⚠⚠ a golden taken after bundle #1 lands **enshrines whatever that bundle did** |
+| **①** | ✅✅ **DONE `2026-08-27` — `CE-078`.** Shared `AiAssetSavers` + `AiAssetReload` in `Hrot.Editor.AiShared/Documents/`; both hosts call them; `_btreeQuickReloadTrigger`/`_hsmQuickReloadTrigger` DELETED. 📄 design §5c.6 *(+ §5c.6.7 as-built)* | ✅ 12-fact equivalence rail, **3 inverse-edit red-proofs**; T3 baseline 5/5 with goldens **unchanged** |
+| **②** | ✅✅ **DONE `2026-08-27` — `CE-082`.** `DiagnosticsWindowsBundle` + `DiagnosticsHostServices` in `Hrot.Presentation/Windows/`; all FOUR hosts compose it; IG/SimHost gained their first `Compose` call. 📐 **20 sites / 4 hosts, NOT 22 / 5** *(see the estimates list)*. 📄 design §5c.7 *(+ §5c.7.6 as-built)* | ✅ 9-fact equivalence rail, **3 inverse-edit red-proofs (8/9 red)**; ⭐⭐⭐ **T3 baseline 5/5 with the three goldens UNCHANGED** — the load-bearing proof for a registration move |
+| **③** | ✅✅ **DONE `2026-08-27` — `CE-089`, and it was ALREADY 90% SHARED.** 📐 Menus: **0 hand-written registrations in either host**; perspective buttons/icons/AI-debug commands: already one implementation each. ⭐ What remained: `ShellTimeControlToolbar` *(4 lines × 2, the separator now a NAMED PARAMETER)* + two dead CGF guards. ⛔ No bundle — ceremony over 4 lines. 📄 design §5c.8 | ✅ 6-fact rail, 3 red-proofs (4/6 red); toolbar rails + all three goldens **UNCHANGED** |
+| ⭐⭐⭐ **PHASE 2's SLICE LIST IS EMPTY — and the CLOSING INVENTORY is MEASURED** | 🔒 ⓪①②③ all done. 📄 **design §5c.9 carries the numbers, the four remaining clusters `J1`–`J4`, the recommended ORDER and a STOP CONDITION** — ⛔ read it instead of re-deriving. 📐 **Headline:** the arena is **~1 540 code lines**; **106 identical lines remain (~7 %)**, of which ~26 braces, ~12 field decls and ~8 the shared calls' own invocations ⇒ **~60 meaningful**, and **~35 of those are merely duplicated ARGUMENT LISTS to already-shared classes** ⇒ ⭐ **~24 lines of VERBATIM logic** — ⚠⚠ **but §5c.9.3b CORRECTS this: `J1`'s catalog-construction block is **~45 code lines PER HOST** of same-logic-different-SPELLING duplication *(editor inline, CGF wrapped in `BuildAssetCatalog()`)*, which the verbatim scan reported as ~5.** ⚠⚠ **That 106 is a FLOOR, not a ceiling — the method finds VERBATIM duplication only, and slice ①'s save delegates were semantically-identical-but-DRIFTED, so they would NOT have appeared in it.** ✅✅ **`J2` DONE `2026-08-27` (`CE-091`)** — ⭐ built `RefreshJsonContributors`, the method the builder's own doc promised and nobody had built; the 6-line lambda is gone from both hosts. ⛔⛔ **Its `K2` half was WITHDRAWN after implementation:** 📐 **11 tests inject those four delegates to assert the create SEQUENCE** ⇒ 🔒 **a repeated ARGUMENT LIST can be a TEST SEAM, not accidental duplication** — the verbatim metric counted 5 lambdas as duplication and 4 were load-bearing. ✅ **`J3` CONCLUDED NOT WORTH BUILDING (`CE-092`)** — all three document factories are behind the cycle, and the identical parts are already shared calls. ⭐⭐⭐ **`J1` IS DESIGNED (§5c.12) AND WAITING ON A NOD — and its prize is NOT the ~45 lines:** 🔴 **`CE-093`, the editor cannot load its own BTree/HSM JSON assets on a DEPLOYED node** *(it resolves roots with `ResolveProjectDir` — walk-up only, null off-tree — where CGF uses ruling 67's `ResolveBase`)*. ⛔ **If that behaviour change is declined, CLOSE `J1`** rather than build it for tidiness. ⭐ Order from here: `J1`** *(cheapest — AiShared, no cycle, changes NO UI output)* **→ `J3`** *(same clean home, ⚠ GOLDEN-SENSITIVE)* **→ `J1`** *(⛔ DESIGN PASS FIRST: cycle-bound like slice ①, and the design must be allowed to conclude it is NOT worth unifying)* **→ `J4`** *(never alone)*. ⛔⛔ **STOP after `J2`+`J3`** — ~30 lines of argument lists is not a bundle. ⭐ Open questions meanwhile: `CE-087` *(profiler missing from the shipped layout — needs YOUR windowed re-save)*, `CE-086`, `CE-090`, `CE-073`, and the flaky-suite pair `CE-084`/`CE-088` |
+
+⛔⛔ **EVERY slice carries an EQUIVALENCE rail** — 🔒 `CE-072`'s lesson: *a wrapper needs an equivalence rail
+the day it is introduced*, because **when a wrapper becomes the only production path to tested code, the
+existing tests stop covering production.** ⚠ At 5 hosts this matters more: each host's ids and perspective
+must come out **byte-identical**, or someone's saved layout resets.
+
+### ⛔⛔⛔ 0.0d-② THE CONSTRAINT THAT SHAPES EVERY REMAINING SLICE — **a reference CYCLE** *(measured `2026-08-27`, `CE-078`)*
+
+📐 **`Hrot.BTree.Editor`, `Hrot.Hsm.Editor` AND `Hrot.Blueprints.Editor` ALL reference
+`Hrot.Editor.AiShared`.** ⇒ ⛔⛔ **AiShared can NEVER name `BehaviorTreeAsset` / `HsmAsset` /
+`BlueprintAsset`** — that is a **circular project reference**, not a style preference.
+📐 **And the only NON-TEST projects that see all three are the two hosts themselves** ⇒ ⛔ **there is no
+existing shared home** for logic that needs the concrete asset types, and a **new project is the wrong
+price** for a few dozen lines in a 149-project solution.
+
+⭐⭐⭐ **THE WAY THROUGH, and it generalises: `DTO`-in, not asset-in.** The DTOs
+*(`BehaviorTreeAssetDto`/`HsmAssetDto`)* live in **`Hrot.AiEditor.Persistence`**, which AiShared **does**
+reference, and every serialize/emit step already takes a DTO. ⇒ ⭐ **only `ToDto(asset)` and the compiler
+adapter stay host-side; AiShared owns everything after the map.**
+
+⭐ **This was ALREADY WRITTEN DOWN and I nearly re-derived it from scratch** —
+`SaveAllAiDocumentsCommand.cs:10`: *"Kind-specific serialization is injected as delegates to avoid
+circular assembly references … design §PU-602."* ⇒ 📌 **the seam law once more:** those delegate
+parameters looked like a style choice and were load-bearing. ⚠ **Slice ③ (menus/toolbar/perspectives) will
+meet the same wall** — ⭐ check the reference direction BEFORE choosing where shared code lives.
+
+### ⛔⛔ 0.0d-③ A T3 RAIL MUST BE GATED THROUGH THE SCRIPT AT LEAST ONCE *(`CE-081`, `2026-08-27`)*
+
+🔴 **`scripts/run-system-tests.sh` filters `(Category=SystemSmoke|Category=SystemModes)`.** 📐 `CE-075`'s
+baseline rails declared only `[Trait("lane","T3")]` ⇒ the script printed **"No test matches the given
+testcase filter"** and exited **`0`** — ⛔⛔ **a silent ZERO-TEST GREEN**, and the whole phase-2 safety net
+was unreachable from the project's own entry point for a day. ✅ Fixed with
+`[Trait("Category","SystemModes")]` *(the bucket `ModeStartupRails` uses)*; 📐 the same command now runs
+**5/5**.
+⇒ ⭐⭐ **`dotnet test --filter` BYPASSES the category filter**, which is exactly how it hid — so a new T3
+rail is not gated until **`run-system-tests.sh <Name>` has printed a non-zero test count.**
+
+### ⛔⛔ 0.0d-④ TWO GATING TRAPS FOUND WHILE BUILDING SLICE ② *(`2026-08-27`)*
+
+| ⚠ | |
+|---|---|
+| 🔴🔴 **`Hrot.Presentation.Tests` IS FLAKY AND THE IDENTITY ROTATES** *(`CE-084`)* | 📐 **3 of 6 runs failed** with the new rail EXCLUDED, a **different test each time** — `EntityDragGizmoTests` · `RouteWaypointGizmoTests` · `TheDragCommitsThroughTheWriteRouterTests` ×2, all `Hrot.ScenarioEditor.Tests`, all gizmo/ECS-write, all **green in isolation**. ⇒ ⛔⛔ **neither a red nor a green from this suite is evidence** — `--filter` the classes you touched and SAY SO, exactly as the `Fdp.Toolkits.Tests` / `DEBT-AIB-030` rule already requires |
+| ⛔⛔ **A FILTERED GREEN IS NOT EVIDENCE A NEW TEST CLASS IS SAFE** | 📐 the slice-② rail passed **9/9 filtered** and the rest of the assembly passed **140/140**, but together **the test host CRASHED** — registering real windows touches the process-global `PanelSnapshot` singleton and the class was running parallel to the four that serialise on it. ⭐ **The convention existed** *(`PanelSnapshotTestCollection`, mirrored in two other assemblies)* and the rail was written without it. ⇒ ⭐⭐ **run the WHOLE project suite before believing a new rail** |
+
+### ⚠ FIVE SIZE ESTIMATES I GOT WRONG THIS SESSION — **measure before quoting**
+⛔ *"a 24-site cross-assembly rename"* → 📐 **19 hits, 9 files, one tree** *(the 24 was the graph's DEGREE)*.
+⛔ *"`SharedAiWindowRegistrar` is the cheapest adopter"* → 📐 **CGF constructs 0 of its 7 windows.**
+⛔ *"`CE-018`: three copies of a `.csproj` walk-up, ~190 lines"* → 📐 **already FIXED**; the sizing counted the
+**comment recording the fix**.
+⛔ *"the save cluster is the biggest prize, ~426 lines"* → 📐 **`SaveAllAiDocumentsCommand` is already shared
+and both hosts already call it**; the lines were comment + shared calls.
+⛔ *"phase 2 is editor-vs-CGF"* → 📐 **22 sites across 5 hosts.**
+⛔ *"the BTree/HSM save delegates are LINE-FOR-LINE duplicates"* *(this doc said so)* → 📐 **semantically
+identical, syntactically DRIFTED** — the editor used `as`+null-check+a `prettyJson` local, CGF used
+`is not … return` + inlined flatten. ⭐ The drift had already happened; the claim was too strong in the
+detail and too weak in the conclusion. ⚠ **The RELOAD arms genuinely were line-for-line.**
+⛔ *"CGF has ONE dispatcher, the editor has three callbacks"* → 📐 **THREE dispatchers, not two**: CGF's
+method, the editor's toolbar switch, **and the editor's MCP `reloadAsset` route** — each with its own
+wording for the same condition.
+⛔ *"the diagnostics group is 22 sites across 5 hosts"* *(this doc's own headline)* → 📐 **20 sites across
+4.** ⭐ Each of the five call kinds is exactly **4**; ⛔ **ReplayBrowser is a DIFFERENT TYPE in a DIFFERENT
+ASSEMBLY** *(`Fdp.Presentation.Windows.ReplayBrowser.*`)* with no profiler and no architecture window, so it
+can never join that bundle. ⚠ **`search_graph` returned BOTH same-named classes — that is what caught it**;
+grep for `new FdpEntityInspectorWindow` alone would have counted 5 hosts and been wrong about one.
+⇒ 🔒 **measure CODE lines and read the call sites before naming a slice or a size.**
+
+## ⛔ 0.0c — **HISTORY: the `CE-070`/`CE-071` way-forward** *(`2026-08-27`)* — ⚠ **SUPERSEDED by §0.0d; do NOT start here**
+
+> 🔒 **USER, `2026-08-27`:** *"cgf==editor is still valid here (the goal of the whole programme), which
+> should resolve the question"* ⇒ ✅ **the ROLE question is RESOLVED: CGF gets the AI shell.**
+> ⭐⭐⭐ **And the finer distinction turned out to be real: CGF ALREADY HAS IT, so the next item is a
+> DELETION, not an adoption.** 📄 design **§5b.5** carries the full measurement and the corpus citation.
+
+### ⭐ THE QUEUE — in order
+| # | item | state |
+|---|---|---|
+| ~~**1**~~ | ✅ **`CE-070` — `SharedAiWindowRegistrar` DELETED** *(`2026-08-27`)*. ⭐⭐ **The build found a stronger argument than the analysis had:** its windows declare **`WindowScope.PerspectiveBound`** and it was a **flat host-level** registrar ⇒ ⛔ **it could never have worked even if a host had called it**, which closes the *"an out-of-repo host might call it"* defence. ⭐ Its rail is replaced by **its inverse** *(`AddSharedAiEditor_Registers_No_Flat_Host_Level_WindowRegistrar`)*, because a flat registrar is the shape a session re-adds by reflex | ✅ **DONE** — as-built §5b.6 |
+| ~~**1**~~ | ✅ **`CE-071` — the comparison result surfaces are LIVE on both hosts** *(`2026-08-27`)*. 🔒 The user's MCP question resolved it: the MCP obsoletes the **export** half *(an agent reads both revisions with `git show`)*, ⛔ but **no MCP tool annotates a graph node** ⇒ ⭐⭐ **the half that becomes more valuable is exactly the half nobody wired.** 📐 It was easy — nothing was unbuilt, six wiring sites were missing. ⭐⭐ **`D5` FLIPPED:** the canvas renderer was the design's *deferred* piece and turned out to be the **cheapest** — every factory already composes "built-in + extras" and ships 4–6 live renderers | ✅ **DONE** — as-built §9 |
+| ~~**2**~~ | ✅ **`CE-072` — phase 1 CLOSED.** ⛔ **The item's premise was FALSE:** 📐 the only production caller of `RegisterCommonCore` is `ShellCommandCoreBundle:98` ⇒ **no remaining direct callers to migrate.** ⭐⭐ **But looking found a real gap — the 6th rail-blindness instance, in `CE-069`'s own code:** zero tests referenced the bundle, so all seven `TheToolbarLayoutIsOneListTests` rails call the STATIC while production goes through the WRAPPER ⇒ a mis-forwarding bundle would have left them all green. 🛠 `The_bundle_emits_exactly_what_the_direct_call_emits`, red-proved by two inverse edits | ✅ **DONE** — as-built §5b.7 |
+| **2** | ⚠ **`CE-073` — `tracker-counts.py --check` counts ONLY `BP-` rows** *(448 of 760)*, so **72 `CE-` · 69 `ST-`/`QA-` · 58 `TM-`/`MX-` rows are ungated** ⇒ every *"tracker-counts OK"* in this programme's gate reports never looked at the rows the batch had just added. ⛔ **Not fixed unilaterally** — widening it re-baselines the Total in every future report ⇒ 🔒 **needs a nod**: widen + re-baseline, or rename the gate to say it covers `BP-` only | ⭐ measured, awaiting a decision |
+| **3** | ⚠ **`CE-074` — `SKILL.md` has no "Capabilities & boundaries" section**, though the skill's own instructions cite one and tell you absence *"must be stated explicitly in the SKILL's boundaries section, not inferred from source"*. 📐 `skill-parts/` has six partials and none carries it. 📌 Hit for real by `CE-071`: *"can the MCP annotate a graph node?"* had to be derived from the tool list. 🛠 Add a `40-boundaries.md` partial + its assembly line — ⛔⛔ **NEVER edit `SKILL.md`; it is GENERATED** *(user ruling)*. ⚠ **MCP lane's call** | ⭐ filed |
+| **3** | ⭐⭐ **phase 2** — one bundle per batch from the editor as specimen: **scenario panels → gizmos → map → AI shell → time transport**. ⛔ Each needs its **own inventory + UML before code** *(obligations ①/②)* | needs design per batch |
+| **4** | open ids: `CE-062` *(blueprint live-value provider on CGF)* · `CE-063` *(`EditorMapPickAdapter` vs `CanvasMapPickAdapter` — ⛔ do not merge blind)* · `CE-047` · `CE-048` · `CE-050` *(rotating ALC flake)* · `MX-011` *(MCP lane: gizmo buffer into `PanelSnapshot`)* | unchanged |
+| **5** | ⚪ **the "map shows no entities" symptom** — ⛔ still **unreproduced**, not fixed. The rail stands | watch |
+
+### ⛔⛔ THE THREE TRAPS THIS SESSION PAID FOR — **do not re-pay them**
+| # | trap | the guard |
+|---|---|---|
+| **①** | ⭐⭐⭐ **"the caller HAS the dependency and does not pass it"** — `BP-487` *(gizmo buffer)*, `CE-065` *(event registration)*, `CE-066` *(mission editor)*, **three times in one batch** | ⭐ before designing a shared abstraction, check whether the host **already holds** the thing and merely fails to hand it over. ⛔ Not a missing abstraction — a missing **argument** |
+| **②** | ⭐⭐⭐ **THE INVERSE: a class that LOOKS like the shared thing while the shared thing is elsewhere** — `SharedAiWindowRegistrar` was DI-wired, cited in a design, and **superseded by `PerspectiveWorkspaceRegistrar`** *(⇒ DELETED, `CE-070`)* | 🔒 **before adopting any "unadopted shared" class, ask what the hosts ACTUALLY use for that job.** ⛔ In-degree 0 can mean *"somebody solved it better, over there"* |
+| **④** | ⭐⭐ **A RESOLUTION RAIL PROVES A TYPE IS REGISTERED, NEVER THAT A FEATURE IS REACHED** — 5th rail-blindness instance. `AddSharedAiEditor_Resolves_…` kept a never-called class alive for months, and its container has **no production caller at all** ⇒ it asserted over a graph nobody walks | ⭐ **when deleting a rail, consider asserting its INVERSE** — the wrong shape is usually the reflex shape. ⛔ And check whether the container/graph a rail asserts over is one production actually walks |
+| **⑥** | ⭐⭐⭐ **WHEN A WRAPPER BECOMES THE ONLY PRODUCTION PATH TO A TESTED FUNCTION, THE EXISTING TESTS STOP COVERING PRODUCTION** — `CE-072`: seven rails call `RegisterCommonCore`; since `CE-069` both hosts reach it only via `ShellCommandCoreBundle`, which **no test touched** | 🔒 **a wrapper needs an EQUIVALENCE rail the day it is introduced** *(same args ⇒ identical output, both halves)*. ⚠ Spy-based seam rails do **not** substitute: they prove `Compose` calls *a* bundle, never that *this* bundle forwards faithfully |
+| **⑦** | ⚠⚠ **A GREEN GATE MAY BE SCOPED NARROWER THAN ITS NAME** — `CE-073`: `tracker-counts.py` counts only `BP-` rows *(448 of 760)*, so *"tracker-counts OK"* never covered the `CE-` rows each batch adds | ⭐ **read the gate's own filter once**, then cite it with its scope. ⛔ *"the gate is green"* is not *"the thing I changed was checked"* |
+| **⑤** | ⭐⭐ **AN AS-BUILT NOTE IS NOT A DIAGRAM EDIT** — §5b.4 recorded `ReportUnserviceable`/the 3-arg ctor as *"not built"* and said *"the diagram above is corrected"*; ⛔ only the `classDiagram` had been touched, so the `sequenceDiagram` stayed false for a batch | 🔒 **obligation ⑤ is satisfied by CHANGING THE PICTURE**, not by describing the change beside it. ⭐ Re-read every diagram in the doc, not just the one you were thinking about |
+| **③** | ⭐⭐ **`--no-build` prints PASSED over a STALE BINARY** — `CE-067`: `Hrot.Blueprints.Tests` *(3 983 tests)* had not compiled and every gate over it read green | ⭐ **build the project before trusting `--no-build`**; a *"pre-existing build error"* in a TEST project means **that whole suite is dark**, not that it is noise to route around |
+
+### ⚠ Two of MY OWN estimates were wrong this session, both caught by tools
+⛔ *"a 24-site cross-assembly rename"* → 📐 **19 hits, 9 files, one tree** *(the 24 was the graph's DEGREE)*.
+⛔ *"`SharedAiWindowRegistrar` is the cheapest adopter"* → 📐 **CGF constructs 0 of its 7 windows.**
+⇒ ⭐ **measure the edit surface before quoting a size, and measure adoption before calling something cheap.**
+
+⚠ **A third, added `2026-08-27`:** my `CE-070` deletion argument rested on **adoption** *(in-degree 0, the job
+done elsewhere)*. 📐 The **stronger** argument — that the class was the **wrong shape** for
+`PerspectiveBound` windows and could never have worked — surfaced only while reading the windows' own
+constructors during the build. ⇒ ⭐⭐ **read the CONSTRUCTOR of the thing being registered, not just the count
+of who registers it**; the declared scope of a window is a fact about correctness, not about adoption.
+
+⇒ ⭐⭐ Everything is bound by §3's standing constraint: ⛔⛔ **no bundle registers a module, system,
+translator or participant** — and that is now **railed structurally**
+*(`TheUiBundleSeamHoldsTests.A_bundle_cannot_reach_the_run_set`)*. ⚠ If that rail fails, it is a **DESIGN
+question**, not a test to update.
+
+## 0.1 🔒 THE PROBLEM, AND WHAT THE USER APPROVED
+
+⭐ **The problem:** ~85% of each host's composition is the SAME shared pieces wired TWICE, independently ⇒ the *"CGF forgot to wire X"* bug class. 📐 **Every defect `CE-046`…`CE-064` is an instance**, and the user found six of them by eye.
+
+| approved `2026-08-27` | |
+|---|---|
+| ✅ **`Q63-B` — per-feature BUNDLES**, ⛔ not one `ComposeEditorExperience(deps)` | a monolith forces `if (host==…)` *(ruling 58)* or a nullable-knob bag *(a silent-default generator)* |
+| ✅ **`Q63-D` — DISSOLUTION, not extraction**, for `IEditorLogic` | 📐 it is 128 ln / ~15 members and `EditorApplication` is 297 ln of one-line delegations. `CE-060` dissolved one call in ONE LINE |
+| ✅ **`Q63-E` — THIS SESSION owns EVERY composition root** | ⇒ ⭐ no cross-lane split needed; fix all roots together |
+| ✅ **the parity rail goes FIRST** *(user: "for a refactor like this that rail is absolute must")* | |
+
+## 0.2 🔒🔒🔒 CANON — the two USER RULINGS that constrain every batch
+
+| ⭐ axis | reference | unify? |
+|---|---|---|
+| ⭐⭐⭐ **UI · scenario editing · monitoring · debugging** | **the EDITOR is the SOURCE AND SPECIMEN** | ✅ **aggressively** |
+| ⛔⛔ **the RUN-SET** — modules · systems · services | **each host's ROLE** *(the editor runs almost everything; CGF/IG/SimHost run only what their role needs)* | ⛔ **NEVER** |
+| ⛔⛔ **NETWORK** — translators · DDS · participant | **each host's ROLE** *(the sets are near-DISJOINT — measured)* | ⛔ **NEVER** |
+
+⚠⚠ **THE TRAP:** *"editor is the specimen"* and *"editor runs almost everything"* are **TWO DIFFERENT AXES.** 📌 A *"map bundle"* that registered `MapCullingModule`+`StyleResolutionModule` because the editor does would **silently change what CGF computes every frame — and would look like a successful unification.**
+
+### ⛔⛔ THE STANDING CONSTRAINT *(`AQ63` §10.5)*
+> **No bundle may register a module, a global system, a DDS translator, an egress/ingress system, or a participant.**
+⭐ A bundle **DECLARES** what its affordances need; the **HOST** decides what runs; an unserviceable affordance **REPORTS** it *(the `ToolActivationDrainSystem(reportUnserviceable:)` pattern)*. ⛔ A bundle that seems to need one has hit the role boundary ⇒ **STOP and report** *(`R-106`)*.
+
+## 0.3 ⭐⭐⭐ PHASE 0 — the parity rail. **VENUE AND CHANNELS ARE SETTLED; NO PRODUCTION CHANGE**
+
+| ⭐ | |
+|---|---|
+| **venue** | ⭐⭐⭐ **TWO WINDOWED PROCESSES under Xvfb, driven over MCP.** ⛔ **NEVER headless** — a panel publishes only when it DRAWS |
+| **it already exists** | 📐 `ClusterConformanceRails.The_asset_panels_are_the_same_on_both_hosts` *(`:867`)* launches `StartAsync("…-editor")` + `StartAsync("…-all", mode:"all")`, captures by KIND, and asserts anti-vacuity **both** directions ⇒ ⭐ **phase 0 EXTENDS what it compares, not where it runs** |
+| **channels** *(all exist — read `tools/ai-debug-mcp/SKILL.md`, ⛔ never derive MCP capability from engine source)* | ⭐ **`list_panels`** → `kinds` is *"the key a cross-host comparison uses"* · ⭐ **`get_panel`** → the view model, *"assert a field, do not parse prose"* · ⭐⭐⭐ **`get_gizmo_frame`** → *"what the map is drawing this frame, as data"* |
+| ⛔⛔ **what it must NOT assert** | **run-set equality.** ⭐ It proves each host is INTERNALLY COHERENT and that shared **SURFACES** match — ⛔ never that two hosts RUN the same thing *(`AQ63` §10.4 — this CORRECTS the frame handoff's wording)* |
+| **tier** | ⚠ **`T3`** *(two windowed processes, minutes)* ⇒ async / CI, ⛔ never a foreground blocker |
+
+### ⭐ The phase-0 work items
+| # | item |
+|---|---|
+| **①** | extend the two-host comparison to the **8 known drift instances**: scenario catalog non-empty · perspective icon keys resolve · `debug.*` group present · create-core single · `MutationInterceptor` set · perspective toolbar section present · scenario root · center/rotate routed |
+| **②** | ⭐⭐⭐ **map parity via `get_gizmo_frame`** — the highest-value piece; reaches what no model-level rail can |
+| **③** | the two NEW user symptoms *(`2026-08-27`, **`--mode all`** — ⚠ corrected `2026-08-27`: the user never runs `--mode cgf`)*: ① **the 2D map shows NO entities on some scenarios** *(e.g. `hill-attack` loads, map empty)* · ② **center-on-entity CRASHES** ⚠ **suspect: the `E3`/`CE-051` path is mine** |
+| **④** | ⛔ **nothing in production** |
+| ⭐ proof | each item must **redden on the pre-fix root** *(inverse edit)* |
+
+## 0.4 ⭐ THE PHASE ORDER *(revised by ruling — `AQ63` §9.4 REVERSES the earlier node-first plan)*
+
+**0** parity rail → **1** the bundle seam + **menus/toolbar** *(`CgfEditorShellToolbar` already IS the pattern)* → **2+** one bundle per batch, **extracted from the editor as specimen** → **N** *(optional, LATER)* node-bootstrap adoption, **CGF first**.
+⚠ **Node adoption is deliberately LAST:** it is the only phase that touches orchestration/participant/time authority — the area the ruling says not to move blindly — and 📐 **not one** of `CE-046`…`CE-064` was a node-bootstrap gap.
+
+## 0.5 ⛔⛔⛔ FACTS A LATER SESSION MUST NOT RE-DERIVE — **including FOUR claims I got WRONG**
+
+| ⭐ fact | |
+|---|---|
+| ⛔⛔ **`--mode all` MUST run WINDOWED (Xvfb). Headless dumps come back EMPTY** | 🔴🔴 **THIS FILE'S §0-prev ALREADY SAID SO, flagged ⭐⭐⭐, and I still built `AQ63` §11 on a headless venue.** ⇒ ⭐ read §0.5 *before* designing a rail. **Xvfb IS installed** *(`/usr/bin/Xvfb`)* and `run-system-tests.sh` uses it |
+| ⛔ **"this container has no display"** | ⚠⚠ **WRONG — I put it in two reports and a tracker row.** 📐 T3 ran **105 passed / 2 failed** here. I generalised ONE X11 `SIGSEGV` *(`ModeStartupRails(ig)`)* into a capability claim |
+| ⛔ **"the map render path is eyes-only"** | ⚠ **WRONG** — `get_gizmo_frame` returns it as data |
+| ⛔ **"`translatorPacks` unsupplied is a silent-default defect"** | ⚠ **RETRACTED** *(`AQ63` §9.3)* — External is a **network POSTURE** change; ingress comes from the factory. It is a **dead parameter**, not a missing dependency |
+| ⭐⭐ **the god-facade is NOT a blocker** | 📐 `IEditorLogic` 128 ln / ~15 members; `AiShared` references it in **ZERO code** *(prose only)*; ~3 members genuinely editor-only |
+| ⭐⭐ **the pre/post-`Kernel.Initialize()` line already IS the node/UI boundary** | 📐 editor `:1757` of 5325 · CGF `:850` of 2599 — same 33/67 ratio; **0** kernel-module registrations after it |
+| ⭐⭐ **ExCon · ReplayBrowser · Orchestrator own NO kernel** | 📐 0 `ModuleHostKernel`, 0 `RegisterModule`; only `RegisterWindow` *(9/6/2)* ⇒ they are **pure bundle consumers** |
+| ⭐⭐ **the seam for the UI half EXISTS, used backwards** | 📐 `IWindowRegistrar` has 10 impls and **8 ARE the subsystems**; the system half is **50 `IEcsModule`s**. ⭐ `SharedAiWindowRegistrar` = built, in-degree **0** |
+| ⚠ **the rail-blindness pattern, THREE times** | `CE-049` asserted *present+enabled* not *has something to offer* · `CE-053` **supplied the input it tested** · `CE-064` had a correct but **UNREACHABLE** assertion *(a loop over an empty collection)* |
+
+## 0.6 ⭐ GATES + the commands that matter
+
+```bash
+bash scripts/session-design-brief.sh              # RELEARN: ledger + 7-day digest + probes
+python3 scripts/rulings-check.py                  # 25/25 expected
+python3 scripts/design-digest.py --check          # STATUS headers + INVENTORY + UML
+python3 scripts/tracker-counts.py --check         # open 102 / done 346 at CE-064
+bash scripts/quick-check.sh <proj> [filter]       # T0, ~8 s
+dotnet build <affected.csproj> --no-restore       # ⛔ NEVER the .sln in the fix loop (115 s vs 8 s)
+bash scripts/run-system-tests.sh --no-build       # T3, ~11 min, ASYNC only
+MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file.md>
+```
+
+⚠ **Two known T3 reds, both PRE-EXISTING** *(proved against a base worktree)*: `/missions/*` capability classification *(**MCP lane's**, unfixed)* and `EntityBlueprintsEditModelTests` / `SimHostInstance` compile errors. ⚠ `TwoReloadCycles_OldAlcIsCollected` is the **known rotating ALC flake** *(`CE-050`)*.
+
+## 0.7 ⭐ OPEN ids carried in
+| id | |
+|---|---|
+| `CE-062` | blueprint live-value provider on CGF — ⭐ **unblocked** by `CE-059` |
+| `CE-063` | `EditorMapPickAdapter` **duplicates** the shared `CanvasMapPickAdapter` — ⚠ possibly two capability levels; ⛔ do NOT merge blind |
+| `CE-055`/`CE-056` | ⭐ **user confirmed NON-REPRO on a windowed box** *(`2026-08-27`)* ⇒ out of scope; ⚠ close as non-repro |
+| `CE-047` `CE-048` `CE-050` | `MigrationAlertManager.Draw()` unwired · `DebugApiService.LoadScenarioLive` not routed via the session · the ALC flake |
+
+## 0a. ✅ THE BATCH IMMEDIATELY BEFORE THIS — **`--mode all` parity** *(`CE-057`…`CE-064`, `2026-08-27`)*
+
+📄 **Report: [`batches/REPORT_Cgf_Mode_All_Parity.md`](batches/REPORT_Cgf_Mode_All_Parity.md)** ·
+designs [`../DESIGN_Cgf_Scenario_Windows_Slice.md`](../DESIGN_Cgf_Scenario_Windows_Slice.md) *(§10 = AS-BUILT)*.
+⭐ Merged by the coordinator at `c67f1b2ae`; this lane then added `CE-064`.
+
+⭐⭐ **Why it matters to the quest:** all four symptoms the user hit in `--mode all` were composition drift —
+⇒ **the evidence base for `AQ63`.**
+
+| id | what |
+|---|---|
+| `CE-057` | CGF resolved `{staging}/nodes/node-N/scenarios` — **a directory that does not exist**; the scenarios are in `{staging}/shared/scenarios`. `OrchestrationConstants.GetSharedScenariosRoot()` is now the ONE authority |
+| `CE-058` | `PerspectiveIconKeys` — ⛔ **NOT a second toolbar**: both hosts build the same `PerspectiveToolbarSection`; the icon TABLE had one caller, so CGF took the documented text-button fallback |
+| `CE-059` | CGF constructs `BlueprintDebugSession` *(it already held all 3 ctor args)* + the shared `ActiveDebugSessionMirror` ⇒ the `debug.*` group works rather than being present-and-dead |
+| `CE-060` | `ScenarioOrbatAdapter.SelectEntity` **ignored its argument** on BOTH hosts; now publishes `ActivateEditorToolEvent` + `SelectEntityCommand` |
+| `CE-061` | **E5** — four `ManagedWindow` wrappers became shared `Hrot.Presentation.Windows.*PanelWindow` types; four adapters moved as `Scenario*`; ⭐ editor window IDS unchanged and railed |
+| `CE-064` | every catalogued scenario carries a real `SourceFilePath` — ⚠ found only because `CE-057` made the list non-empty and a T3 rail could finally fail |
+
+## 0-prev. ⛔ HISTORY — **the cross-host conformance harness** *(`2026-08-24`)*
 
 📄 **Designs *(the AS-BUILT records — read these FIRST)*:
 [`../blueprints/Architect_Question_54_Cluster_Mcp_Contract.md`](Architect_Question_54_Cluster_Mcp_Contract.md) § AS-BUILT ·

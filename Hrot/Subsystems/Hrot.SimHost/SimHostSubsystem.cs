@@ -57,6 +57,10 @@ namespace Hrot.SimHost
                 world:         () => _app?.WorldOrNull,
                 entityMap:     () => _app?.WorldOrNull is null ? null : _app!.TestHook_EntityMap,
                 drive:         () => _clusterTimeAdapter,
+                // ⭐⭐ BP-487 — SimHost's own map feed (SimHostVisualization.GizmoBuffer, line ~123).
+                // ⚠ Lazy, and doubly so here: the visualization is optional, so this is null on a
+                //   genuinely headless SimHost node and the manifest says panels.gizmo:false there.
+                gizmoBuffer:   () => _app?.Visualization?.GizmoBuffer,
                 // ⭐⭐ HN-029 — the node's own control-plane bus; see SimHostApp.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _app?.OrchestrationBus),
@@ -71,9 +75,14 @@ namespace Hrot.SimHost
                                      : new ArchitectureDiagnosticsService(() => _app?.Kernel));
 
         /// <inheritdoc/>
-        /// <remarks>Dark red — distinct from IG (green) and ExCon (violet).</remarks>
-        public System.Numerics.Vector4 TitleBarColor =>
-            new System.Numerics.Vector4(0.40f, 0.08f, 0.08f, 1f);
+        /// <remarks>
+        /// Dark red — distinct from IG (green) and ExCon (violet).
+        /// ⭐⭐⭐ <c>CE-083</c> — RETURNS <c>SimHostWindowColor.TitleBar</c> instead of repeating a
+        /// literal. 📐 It used to be <c>(0.40,0.08,0.08)</c> while every SimHost WINDOW used
+        /// <c>(0.50,0.10,0.10)</c>, so spawned "Inspect…" watch windows were a different shade.
+        /// ⇒ one value per subsystem, true by construction.
+        /// </remarks>
+        public System.Numerics.Vector4 TitleBarColor => Hrot.SimHost.Windows.SimHostWindowColor.TitleBar;
 
         // ── Core application ──────────────────────────────────────────────────
 
@@ -269,39 +278,35 @@ namespace Hrot.SimHost
                     () => vis.GetScenario()));
             }
 
-            windowManager.RegisterWindow(new FdpEntityInspectorWindow(
-                "simhost_fdp_inspector", "SimHost Entity Inspector", "SimHost",
-                vis.FdpEntityInspector,
-                () => vis.GetFdpRepoAdapter(),
-                () => vis.FdpInspectorState,
-                SimHostWindowColor.TitleBar));
-
-            // Wire component-editor reflector and "Inspect..." context menu.
-            var simhostPickBridge = vis.GetMapPickBridge();
-            FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
-                vis.FdpEntityInspector,
-                windowManager,
-                "SimHost",
-                () => vis.GetFdpRepoAdapter(),
-                simhostPickBridge,
-                TitleBarColor);
-
-            windowManager.RegisterWindow(new FdpEventBrowserWindow(
-                "simhost_fdp_events", "SimHost Event Browser", "SimHost",
-                vis.FdpEventBrowser,
-                SimHostWindowColor.TitleBar));
-
-            windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
-                "simhost_architecture_diagnostics", "SimHost Architecture Diagnostics", "SimHost",
-                new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
-                    new ArchitectureDiagnosticsService(() => _app?.Kernel)),
-                SimHostWindowColor.TitleBar));
-
-            // BP-327 — global window: the module/system execution-stats profiler.
-            windowManager.RegisterWindow(new SystemProfilerWindow(
-                "simhost_system_profiler", "SimHost System Profiler", "SimHost",
-                () => _app?.Kernel?.GetExecutionStats(),
-                SimHostWindowColor.TitleBar));
+            // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites are now ONE shared bundle,
+            //    `Hrot.Presentation.Windows.DiagnosticsWindowsBundle` (20 sites across 4 hosts before
+            //    this). ⭐ Also this host's FIRST `UiBundleHost.Compose` call.
+            // ⭐⭐ CE-083 (user ruling) — ONE colour per subsystem, applied to each of its windows.
+            //   📐 This host used to pass a SECOND shade to the "Inspect…" helper; its `TitleBarColor`
+            //   property now RETURNS the window constant, so there is one value and no way to drift.
+            // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.7.
+            Fdp.Toolkit.Runner.UiBundleHost.Compose(
+                new Fdp.Toolkit.Runner.IUiBundle[]
+                {
+                    new DiagnosticsWindowsBundle(new DiagnosticsHostServices(
+                        IdPrefix:       "simhost_",
+                        TitlePrefix:    "SimHost",
+                        Perspective:    "SimHost",
+                        Inspector:      vis.FdpEntityInspector,
+                        RepoAdapter:    () => vis.GetFdpRepoAdapter(),
+                        InspectorState: () => vis.FdpInspectorState,
+                        EventBrowser:   vis.FdpEventBrowser,
+                        TitleBarColor:  SimHostWindowColor.TitleBar,
+                        // ⭐ This host builds its own service, so its lazy `() => _app?.Kernel` binding
+                        //   is untouched (design §5c.7 F2).
+                        ArchitecturePanel: new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                            new ArchitectureDiagnosticsService(() => _app?.Kernel)),
+                        // BP-327 — the module/system execution-stats profiler.
+                        ExecutionStats: () => _app?.Kernel?.GetExecutionStats(),
+                        // ⭐ CE-083 — no second colour: TitleBarColor IS SimHostWindowColor.TitleBar.
+                        PickBridge:     vis.GetMapPickBridge())),
+                },
+                new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
             windowManager.RegisterWindow(new FakeNavigationInspectorWindow(
                 () => _app?.WorldOrNull));

@@ -95,6 +95,57 @@ public sealed class TheCgfPickerIsNotEmptyTests : IDisposable
         Assert.Equal(new[] { "Combat/Ambush", "alpha" }, names);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-064</c> — every catalogued scenario carries a REAL <c>SourceFilePath</c>.</b>
+    ///
+    /// <para>🔴🔴 <b>The rail this file should have had, and the reason it did not exist is worth stating.</b>
+    /// The T3 conformance rail <c>The_cluster_can_discover_open_and_switch_graph_tabs</c> already asserts
+    /// this for EVERY catalogued asset — and it was GREEN for months while
+    /// <c>ScenarioEditableAsset.SourceFilePath</c> was hard-coded to <c>""</c>. ⇒ ⭐⭐ because on
+    /// <c>--mode all</c> the catalog held <b>zero scenarios</b>: first the contributor was editor-only
+    /// (<c>CE-053</c>), then it was aimed at an empty root (<c>CE-057</c>). ⛔ <b>A loop over an empty
+    /// collection asserts nothing</b> — so fixing the emptiness is what finally reddened it.</para>
+    ///
+    /// <para>⚠ That is the same weaker/stronger trap as <c>CE-049</c>'s and <c>CE-053</c>'s rails, in a
+    /// third disguise: not a supplied input this time, but an <b>unreachable assertion</b>. ⭐ Kept here
+    /// at T0 so it fails in milliseconds instead of after an eleven-minute cluster boot.</para>
+    /// </summary>
+    [Fact]
+    public void EveryCataloguedScenarioCarriesItsFilePath()
+    {
+        var catalog = new AssetCatalog();
+        catalog.AddContributor(new ScenarioCatalogContributor(
+            () => ScenarioEnumeration.EnumerateRelPaths(_root),
+            scenariosRoot: () => _root));
+
+        var scenarios = catalog.All.Where(a => a.Kind == AssetKind.Scenario).ToList();
+        Assert.NotEmpty(scenarios);                       // ⛔ else the loop below asserts nothing
+
+        foreach (var a in scenarios)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(a.SourceFilePath),
+                $"scenario '{a.Name}' has no SourceFilePath — open_asset_by_path cannot reach it.");
+            Assert.True(File.Exists(a.SourceFilePath),
+                $"'{a.Name}' advertises {a.SourceFilePath}, which does not exist — the address is a lie.");
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Both production hosts PASS the root.</b> ⚠ The parameter is optional so the many
+    /// single-argument test constructions keep compiling — ⛔ which makes a host that omits it a SILENT
+    /// DEFAULT rather than a compile error. This rail is the control for that.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs")]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    public void AHostThatComposesTheContributorPassesTheRoot(string project, string file)
+    {
+        var text = ReadHostSource(project, file);
+        if (!text.Contains("ScenarioCatalogContributor(", StringComparison.Ordinal)) return;
+
+        Assert.Contains("scenariosRoot:", text);
+    }
+
     // ══ ② THE COMPOSITION GUARDS — source scans, per host ═══════════════════
 
     /// <summary>

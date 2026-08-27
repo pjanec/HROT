@@ -1,4 +1,30 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-27
+current-answer: this document is the feature INTENT and remains authoritative for the pipeline,
+  the export format, the LLM contract and the sanitizers.
+known-rot: §9's UI-surface list gives the panels' window IDS as bare "ai_comparison_summary" /
+  "ai_comparison_sidebar". As of CE-071 (2026-08-27) they are PER-PERSPECTIVE and suffixed —
+  ai_comparison_summary_{btree|hsm|blueprint} and ai_comparison_changes_{...} — because a
+  PerspectiveBound window needs one instance per perspective. Read the bare ids as the DESIGN INTENT,
+  not as addresses. Everything else in that list is now true.
+  Also: the per-canvas compare entries (BTreeComparisonToolbar / HsmComparisonToolbar) are still
+  unconstructed and were DROPPED from scope, not deferred — see the mount design's §8.
+superseded-by: docs/DESIGN_Comparison_Ui_Mounting.md  (for the MOUNT only — the rest of this file stands)
+-->
+
 # Visual Asset Comparison — Detailed Design
+
+> ✅ **MOUNT STATUS (`2026-08-27`, `CE-071`) — the result surfaces are LIVE on BOTH hosts.**
+> ⭐ The two docked panels are registered per perspective and read the active asset's session; the on-canvas
+> annotation renderer is composed for every document on both hosts; CGF now constructs the comparison
+> services, so its *"Compare with…"* entry exists too.
+> ⚠ **Previously — and this is why the STATUS block still carries `known-rot`** — §9's UI list described
+> intent that was never wired: both panels had **zero** production constructions, reached no `WindowManager`
+> on either host, and were `PerspectiveBound` to `"Analysis"`, **a perspective nothing registers**.
+> ⛔ **Still not built, deliberately:** the per-canvas *compare entry* toolbars, dropped from scope because
+> the MCP/agent path largely obsoletes the manual export round-trip.
+> 📄 The measurement, the decisions and the as-built: **[`docs/DESIGN_Comparison_Ui_Mounting.md`](../../DESIGN_Comparison_Ui_Mounting.md)** §8–§9.
 
 > **Status:** Detailed design for the asset-comparison feature in the visual AI editor. Derived from `AI_Editor_Shared_Infrastructure.md` + `BTree_Editor_NodeEditor_Host_Design.md` + `HSM_Editor_NodeEditor_Host_Design.md` + `Blackboard_Authoring_Detailed_Design.md` + the design conversations with the architect about export sanitization.
 > **Audience:** Implementation agent and human reviewer.

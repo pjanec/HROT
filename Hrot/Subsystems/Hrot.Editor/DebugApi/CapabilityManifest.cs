@@ -66,6 +66,19 @@ public static class CapabilityManifest
         //   world. 📌 A cluster node with no shell honestly reports it cannot serve them.
         if (path.StartsWith("/editor", StringComparison.Ordinal))     return DebugCapabilities.EditorAuthoring;
 
+        // ⭐⭐⭐ CE-066 — `/missions/*` gets its OWN capability, and this classification was MISSING.
+        // 🔴 Measured `2026-08-27`: `The_manifest_describes_this_host_truthfully` was RED before its matrix
+        //    loop was ever reached, on `unclassifiedRoutes = [/missions/{networkId}, …/run, …/task,
+        //    …/tasks]`. ⚠ It had been reported three times and read as a paperwork gap; it was not — ⛔ the
+        //    routes were unclassified because NOBODY HAD ASKED WHAT A CLUSTER HOST ANSWERS, and the answer
+        //    was "no mission service" even though CGF builds one (CgfSubsystem:1095). ⇒ ⭐ classifying it
+        //    and routing the seam are ONE fix, not two.
+        // ⭐⭐ Its OWN key, not `EditorAuthoring`: 📐 the cell is MEASURED per provider from
+        //    ISubsystemDebugProvider.MissionEditor, so a perspective can honestly report mission editing
+        //    absent while still hosting the authoring shell. ⛔ Folding it into the broad authoring key
+        //    would have made it undiagnosable — exactly R-133's complaint about declared cells.
+        if (path.StartsWith("/missions", StringComparison.Ordinal))    return DebugCapabilities.MissionEdit;
+
         if (path.StartsWith("/preview", StringComparison.Ordinal))    return DebugCapabilities.Preview;
         if (path.StartsWith("/sim", StringComparison.Ordinal))         return DebugCapabilities.TimeDrive;
         // ⭐⭐ HN-029: the LOAD routes are their OWN capability, not `editor.authoring`.
@@ -234,10 +247,17 @@ public static class CapabilityManifest
             {
                 var row = new JsonObject();
                 foreach (var (key, present) in cells) row[key] = present;
-                // ⭐ Process-wide statics, reported once per row so a consumer does not have to know they
-                //   are global. ⛔ Not claimed per-subsystem in the provider — see its remarks.
+                // ⭐ PanelSnapshot IS a process-wide static, so it is reported once per row and a consumer
+                //   need not know it is global. ⛔ Not claimed per-subsystem in the provider — see its remarks.
                 row[DebugCapabilities.Panels]     = true;
-                row[DebugCapabilities.GizmoFrame] = true;
+                // ⛔⛔ BP-487 — `panels.gizmo` USED TO BE HARD-CODED `true` HERE, on the strength of the
+                //    provider comment that called the primitive buffer a process-wide static. 🔴 It is not:
+                //    📐 measured `2026-08-27`, one buffer PER SUBSYSTEM, and ExCon has none. ⇒ every
+                //    perspective row on `--mode all` CLAIMED a feed that answered 404.
+                // ⭐⭐ Now it comes from `dispatcher.Matrix()` like every other cell — MEASURED from what is
+                //    wired, which is Q54's whole point. ⚠ If this line ever comes back, the manifest resumes
+                //    lying in the safe-looking direction.
+
                 matrix[perspective] = row;
             }
         }

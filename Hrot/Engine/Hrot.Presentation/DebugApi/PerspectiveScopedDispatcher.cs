@@ -122,6 +122,31 @@ public sealed class PerspectiveScopedDispatcher
     public ITimeTransportFacade? Drive => Active()?.Drive;
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-487</c> — the active perspective's MAP FEED</b>, or <see langword="null"/> ⇒
+    /// <c>NOT_SUPPORTED_HERE(panels.gizmo)</c>.
+    /// 📄 <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.6.
+    ///
+    /// <para>⛔⛔ <b>Perspective-scoped, NOT a single latched buffer</b> — 📐 <c>--mode all</c> runs CGF
+    /// <b>and</b> IG <b>and</b> SimHost, each drawing its own map into its own
+    /// <c>DebugPrimitiveBuffer</c>. ⚠ A host-wide buffer would answer for whichever subsystem happened to be
+    /// constructed first, which is the *"a value-captured provider LIES"* shape
+    /// *(<c>ClusterRunner/Program.cs:399</c>)* one level up.</para>
+    ///
+    /// <para>⭐ <see langword="null"/> on ExCon, which draws no gizmos — declared absent, not empty
+    /// *(ruling 49)*.</para>
+    /// </summary>
+    public Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? GizmoBuffer => Active()?.GizmoBuffer;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-066</c> — the active perspective's MISSION EDITOR</b>, or <see langword="null"/> ⇒
+    /// <c>NOT_SUPPORTED_HERE(mission.edit)</c>. 📄 §5.9.
+    /// <para>⭐ Perspective-scoped for the same reason the feed above is: a mission plan belongs to an
+    /// entity in a specific node's world, so committing one through another node's editor would write to
+    /// the wrong world. ⛔ Measured: only CGF builds one among the cluster subsystems.</para>
+    /// </summary>
+    public Hrot.UI.Common.Facades.IMissionEditorService? MissionEditor => Active()?.MissionEditor;
+
+    /// <summary>
     /// ⭐⭐ The active perspective's cluster-transition publisher, or <see langword="null"/> ⇒
     /// <c>NOT_SUPPORTED_HERE(scenario.load)</c>. 📄 <c>MCP_Integration.md</c> § Group U.
     /// <para>⭐ Perspective-scoped for the same reason a step is: the request travels the path the operator's

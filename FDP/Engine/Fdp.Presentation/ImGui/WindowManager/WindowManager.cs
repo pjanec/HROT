@@ -132,6 +132,26 @@ public class WindowManager
     {
         _windows[window.Id] = window;
         window.OnRegistered(this);
+
+        // ⭐⭐⭐ CE-076 (user-approved `2026-08-27`) — EVERY registered window is visible to `/panels`
+        //    BY CONSTRUCTION, so the phase-2 UI baseline cannot be blind to one.
+        //
+        // 📐 THE GAP THIS CLOSES: `PanelSnapshot.DeclareInstrumented` was per-window OPT-IN — neither
+        //    `ManagedWindow`'s ctor nor this method called it — so a window that never opted in was
+        //    INVISIBLE to `TheUiBaselineIsPinnedPerHostRails`, and the size of that blind spot was
+        //    UNMEASURED (no route reported the true registered total). ⇒ a window could be dropped or
+        //    renamed by a unification slice with the baseline still GREEN.
+        //
+        // ⚠⚠ THIS WIDENS WHAT `registered[]` MEANS, deliberately: it was "every panel that is
+        //    INSTRUMENTED at all" and is now "every registered WINDOW, plus every panel that declared
+        //    itself". ⭐ The field is named `registered`, and completeness is the property the baseline
+        //    needs. ⛔ What did NOT change: `TryGet` still returns null for a window that publishes no
+        //    model (exactly as for an un-instrumented panel), and `captured[]`/`kinds{}` are untouched
+        //    because they derive from what actually drew.
+        // 📌 `tools/ai-debug-mcp`'s `list_panels` doc still says "instrumented at all" — that text lives
+        //    in the MCP lane's `skill-parts/` (⛔ never the generated SKILL.md) and is filed as CE-085.
+        // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.4e.
+        Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.DeclareInstrumented(window.Id);
     }
 
     /// <summary>

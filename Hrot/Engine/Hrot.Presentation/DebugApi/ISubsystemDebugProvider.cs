@@ -76,6 +76,55 @@ public interface ISubsystemDebugProvider
     ITimeTransportFacade? Drive { get; }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-487</c> — THIS NODE'S MAP FEED: the debug primitives it submits for drawing.</b>
+    /// 📄 <c>DESIGN_UI_Observability_Snapshot.md</c> STATUS ③ *(the finding, verbatim: "the gizmo publish
+    /// [has] ONE production caller … while four other hosts drive a gizmo buffer — harmless while the debug
+    /// API is Editor-only, <b>blocking for cross-host conformance</b>")* ·
+    /// <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.6 *(the classDiagram this member is drawn in)*.
+    ///
+    /// <para>⛔⛔ <b>Why it belongs HERE and not as a <c>DebugApiService</c> field.</b> 📐 The editor passes
+    /// its buffer straight to the ctor *(<c>EditorSubsystem.cs:1901</c>)* because the editor IS one node.
+    /// ⚠ <c>--mode all</c> runs CGF <b>and</b> IG <b>and</b> SimHost, each with its own buffer and its own
+    /// map ⇒ a single latched buffer would answer for whichever host happened to be constructed, ⭐ so the
+    /// feed must follow the ACTIVE PERSPECTIVE exactly as <see cref="World"/> and <see cref="Drive"/> do.
+    /// 📌 That is the whole reason this interface exists.</para>
+    ///
+    /// <para>⛔ <see langword="null"/> when the subsystem draws no gizmos — 📐 measured `2026-08-27`:
+    /// <b>ExCon</b> builds no buffer, so it reports the feed ABSENT rather than an empty one (ruling 49:
+    /// absent-and-explained beats present-and-broken). ⭐ CGF, IG and SimHost all have one.</para>
+    ///
+    /// <para>⚠⚠ <b>What it does NOT reach:</b> the primitives SUBMITTED for drawing, ⛔ never what a human
+    /// sees — no rasterisation, no picking, no ImGui hit-testing
+    /// *(<c>DESIGN_Subsystem_Composition_Unification.md</c> §5.4)*.</para>
+    /// </summary>
+    Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? GizmoBuffer { get; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-066</c> — THIS NODE'S MISSION EDITOR: the seam <c>/missions/*</c> commits through.</b>
+    /// 📄 <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.9.
+    ///
+    /// <para>🔴 <b>The third instance of one defect in a single batch, and it is the same shape as
+    /// <see cref="GizmoBuffer"/> above.</b> 📐 Measured `2026-08-27`: <c>CgfSubsystem</c> constructs the
+    /// <b>same shared</b> <c>ScenarioMissionService</c> the editor does *(`:1095` vs
+    /// `EditorSubsystem:1962`)*, but only the editor hands its instance to the debug service
+    /// *(`EditorSubsystem:1967`)*. ⇒ ⛔ all four <c>/missions</c> routes answered *"no mission service"* on
+    /// <c>--mode all</c> — while the host had one the whole time.</para>
+    ///
+    /// <para>⚠⚠ <b>And <c>DebugApiService.MissionService</c>'s own doc-comment states the rule it was
+    /// breaking:</b> <i>"the composition root hands it over as soon as it exists. Leaving it null would be
+    /// the silent-default trap — a caller that HAS the dependency must pass it."</i> 📌 The comment was
+    /// written for the editor and the cluster root never read it.</para>
+    ///
+    /// <para>⛔ <see langword="null"/> where the node hosts no mission editing — measured: IG, SimHost and
+    /// ExCon build none, so <c>mission.edit</c> is honestly FALSE for their perspectives.</para>
+    ///
+    /// <para>⚠ <b>NOT the <c>Hrot.ExCon</c> interface of the same name.</b> 📌 Two distinct
+    /// <c>IMissionEditorService</c> types exist; this is <c>Hrot.UI.Common.Facades</c>' one — the port the
+    /// editor's Mission panel and <c>DebugApiService.Missions</c> both commit through.</para>
+    /// </summary>
+    Hrot.UI.Common.Facades.IMissionEditorService? MissionEditor { get; }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>REQUEST A CLUSTER-WIDE STATE TRANSITION from this node</b> — the host-agnostic scenario-load
     /// seam. 📄 <c>MCP_Integration.md</c> § Group U.
     ///
@@ -194,6 +243,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<EntityRepository?>? _world;
     private readonly Func<NetworkEntityMap?>? _entityMap;
     private readonly Func<ITimeTransportFacade?>? _drive;
+    private readonly Func<Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer?>? _gizmoBuffer;
+    private readonly Func<Hrot.UI.Common.Facades.IMissionEditorService?>? _missionEditor;
     private readonly Func<Action<TransitionStateIntent>?>? _requestTransition;
     private readonly Func<ClusterState?>? _clusterState;
     private readonly Func<IReadOnlyList<string>?>? _availableScenarios;
@@ -221,6 +272,12 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<EntityRepository?>? world = null,
         Func<NetworkEntityMap?>? entityMap = null,
         Func<ITimeTransportFacade?>? drive = null,
+        // ⭐⭐ BP-487 — the node's map feed. ⚠ A Func for the SAME measured reason as `drive` above: CGF
+        //    builds `_cgfGizmoBuffer` in Initialize, i.e. AFTER the composition root builds this provider.
+        Func<Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer?>? gizmoBuffer = null,
+        // ⭐⭐ CE-066 — the node's mission editor. ⚠ A Func for the same measured reason: CGF builds its
+        //    ScenarioMissionService during window registration, long after the providers are built.
+        Func<Hrot.UI.Common.Facades.IMissionEditorService?>? missionEditor = null,
         Func<Action<TransitionStateIntent>?>? requestTransition = null,
         Func<ClusterState?>? clusterState = null,
         Func<IReadOnlyList<string>?>? availableScenarios = null,
@@ -233,6 +290,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _world        = world;
         _entityMap    = entityMap;
         _drive        = drive;
+        _gizmoBuffer  = gizmoBuffer;
+        _missionEditor = missionEditor;
         _requestTransition = requestTransition;
         _clusterState = clusterState;
         _availableScenarios = availableScenarios;
@@ -287,6 +346,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public EntityRepository? World => _world?.Invoke();
     public NetworkEntityMap? EntityMap => _entityMap?.Invoke();
     public ITimeTransportFacade? Drive => _drive?.Invoke();
+    public Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? GizmoBuffer => _gizmoBuffer?.Invoke();
+    public Hrot.UI.Common.Facades.IMissionEditorService? MissionEditor => _missionEditor?.Invoke();
     public Action<TransitionStateIntent>? RequestTransition => _requestTransition?.Invoke();
     public ClusterState? ClusterState => _clusterState?.Invoke();
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
@@ -310,9 +371,25 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         [DebugCapabilities.ArchitectureDiagnostics] = Architecture is not null,
         // ⭐ MD-006 — measured from the orchestration bus being reachable, exactly like ScenarioLoad.
         [DebugCapabilities.ClusterDiagnosticsDump] = RequestDiagnosticDump is not null,
-        // ⭐ Panels and the gizmo frame are PROCESS-WIDE statics (PanelSnapshot / the primitive buffer), so
-        //   they are not a per-provider capability — the dispatcher reports them once. ⛔ Claiming them here
-        //   per subsystem would suggest a routing that does not exist.
+
+        // ⭐⭐⭐ BP-487 — the gizmo frame IS per-provider, and saying otherwise was a MANIFEST LIE.
+        // ⚠⚠ THIS COMMENT USED TO READ: *"Panels and the gizmo frame are PROCESS-WIDE statics
+        //    (PanelSnapshot / the primitive buffer), so they are not a per-provider capability — the
+        //    dispatcher reports them once."* 🔴 It conflated TWO DIFFERENT THINGS:
+        //      · `panels.read`  → PanelSnapshot — genuinely a process-wide STATIC ⇒ still not claimed here.
+        //      · `panels.gizmo` → a DebugPrimitiveBuffer — ⛔ NEVER static. 📐 Measured `2026-08-27`: one
+        //        buffer PER SUBSYSTEM (CgfSubsystem._cgfGizmoBuffer, IgApplication.GizmoBuffer,
+        //        SimHostVisualization.GizmoBuffer) and ExCon has NONE.
+        // ⇒ CapabilityManifest hard-coded `panels.gizmo = true` on every perspective row on the strength of
+        //    that sentence, so `--mode all` CLAIMED a feed that answered 404 — 📌 exactly the "lying in the
+        //    safe-looking direction" this class's own ctor remarks call worse than lying loudly.
+        [DebugCapabilities.GizmoFrame] = GizmoBuffer is not null,
+
+        // ⭐⭐ CE-066 — same argument as the gizmo feed one line up: the mission editor is PER SUBSYSTEM
+        //    (CGF builds one, IG/SimHost/ExCon do not), so `/missions` can be classified and its cell
+        //    MEASURED instead of the routes sitting unclassified — which is what kept
+        //    `The_manifest_describes_this_host_truthfully` red before its matrix loop was ever reached.
+        [DebugCapabilities.MissionEdit] = MissionEditor is not null,
     };
 }
 
@@ -324,6 +401,8 @@ public static class DebugCapabilities
     public const string TimeDrive = "time.drive";
     public const string Panels    = "panels.read";
     public const string GizmoFrame = "panels.gizmo";
+    /// <summary>⭐ CE-066 — reading and committing an entity's mission plan (`/missions/*`).</summary>
+    public const string MissionEdit = "mission.edit";
     public const string Preview   = "preview.control";
     public const string EditorAuthoring = "editor.authoring";
 

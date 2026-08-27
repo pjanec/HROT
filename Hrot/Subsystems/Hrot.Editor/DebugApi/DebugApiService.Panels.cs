@@ -124,11 +124,16 @@ namespace Hrot.Editor.DebugApi
         /// </remarks>
         public (JsonNode? result, string? error, string? hintCategory) GetGizmoFrame(int max = 500)
         {
-            if (_primitiveBuffer is null)
-                return (null, "This editor has no debug primitive buffer, so there is no gizmo feed.",
+            // ⭐⭐ BP-487 — `_gizmoFeed`, NOT `_primitiveBuffer`: on a cluster host the buffer belongs to the
+            //    ACTIVE PERSPECTIVE's subsystem, not to the API service. See its remarks.
+            var buffer = _gizmoFeed;
+            if (buffer is null)
+                return (null, "This host has no debug primitive buffer for the active perspective, so there "
+                            + "is no gizmo feed. Check GET /capabilities for panels.gizmo — ExCon draws no "
+                            + "gizmos, so its perspective legitimately has none.",
                         DebugApiHints.Panel);
 
-            var frame = _primitiveBuffer.GetFrame();
+            var frame = buffer.GetFrame();
             var items = new JsonArray();
 
             int emitted = Math.Min(frame.Length, Math.Max(1, max));
@@ -138,7 +143,7 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject
             {
                 ["count"]      = frame.Length,
-                ["dropped"]    = _primitiveBuffer.DroppedCount,
+                ["dropped"]    = buffer.DroppedCount,
                 // Truncation is REPORTED, never silent: a reader that cannot tell a full frame from a
                 // clipped one would take "no more primitives" from an arbitrary cap.
                 ["emitted"]    = emitted,

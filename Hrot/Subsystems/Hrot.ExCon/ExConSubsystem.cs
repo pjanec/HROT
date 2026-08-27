@@ -75,6 +75,13 @@ namespace Hrot.ExCon
                 world:         null,
                 entityMap:     null,
                 drive:         null,
+                // ⭐⭐ BP-487 — EXPLICITLY null, written out for the same reason `architecture` below is:
+                //    📐 measured `2026-08-27`, a repo-wide grep for DebugPrimitiveBuffer in Hrot.ExCon finds
+                //    NOTHING. ExCon draws no map and no gizmos, so `panels.gizmo` is FALSE here and that is
+                //    the true cell (ruling 49: absent-and-explained beats present-and-broken).
+                // ⛔ It is also the reason the capability could not be a hard-coded `true` on every row —
+                //    see CapabilityManifest's BP-487 comment.
+                gizmoBuffer:   null,
                 // ⭐⭐ HN-029: ExCon has NO ECS kernel — no world, no clock — but it DOES have an orchestration
                 //    bus with an egress translator, which is exactly why it hosts a ClusterScenarioPanel today.
                 //    ⇒ it can request a cluster-wide load without being able to read or step one. 📌 A neat

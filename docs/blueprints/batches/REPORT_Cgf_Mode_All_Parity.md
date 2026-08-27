@@ -2,8 +2,9 @@
 state: LIVE
 doc-type: implementation report
 updated: 2026-08-27
-current-answer: the whole file. Ids CE-057…CE-063. Branch claude/reset-working-branch-qd1qpv,
-  commits 05c4be118 (CE-057/058/059), f005b151c (the E5 design + as-built folds), bbf3d73e8 (CE-060/061).
+current-answer: the whole file. Ids CE-057…CE-064. §7a carries the T3 result, which arrived after the
+  first draft and produced CE-064. Branch claude/reset-working-branch-qd1qpv; commits 05c4be118
+  (CE-057/058/059), f005b151c (the E5 design + as-built folds), bbf3d73e8 (CE-060/061), + the CE-064 fix.
 stale-below: nothing.
 -->
 # REPORT — **`--mode all` parity: the scenario root, the toolbar, and the windows**
@@ -116,7 +117,7 @@ key layout files and `PanelSnapshot`, so a tidier rename would have silently res
 | 5 | working tree clean after every suite | `git status --short` | ✅ clean; no golden moved | — |
 | 6 | quarantine counts | unchanged; ⛔ **no new skip** *(the 1 skip is pre-existing)* | ✅ | — |
 | 7 | tracker + ledger | `tracker-counts.py --check` → **open 102 / done 346**; `rulings-check.py` → **25/25**; `design-digest.py --check` → clean *(95 docs)* | ✅ | — |
-| 8 | ⭐ cross-cutting ⇒ the integration suite | `run-system-tests.sh --no-build` — **T3, launched ASYNC** *(never a foreground blocker)*; result lands in the next session | ⏳ | ✅ |
+| 8 | ⭐ cross-cutting ⇒ the integration suite | `run-system-tests.sh --no-build` — **T3, ran ASYNC** *(never a foreground blocker)* | ⚠ **105 passed / 2 failed / 0 skipped** *(107, 10 m 43 s)* — §7a | ✅ |
 | 9 | mermaid | `mermaid-check.mjs` on the new design | ✅ **2/2 parse** | — |
 
 ### ⭐⭐ Row 4 — the three reds, each named and attributed
@@ -136,7 +137,39 @@ production files: 4 *(`PerspectiveIconKeys`, `ActiveDebugSessionMirror`, `Scenar
 
 ### ⭐ IDs allocated *(rule 5)*
 
-`CE-057` `CE-058` `CE-059` `CE-060` `CE-061` — done. `CE-062` `CE-063` — filed OPEN.
+`CE-057` `CE-058` `CE-059` `CE-060` `CE-061` `CE-064` — done. `CE-062` `CE-063` — filed OPEN.
+
+## 7a. ⭐⭐⭐ THE T3 RESULT — **one red is the MCP lane's, and the other one is MINE**
+
+⭐⭐ **It came back while the report was being written, so it is folded in rather than deferred** — and the
+second red is the most interesting result of the batch.
+
+| red | verdict |
+|---|---|
+| `ClusterConformanceRails.The_manifest_describes_this_host_truthfully` — *"route(s) with no capability classification: `[/missions/{networkId}, …/run, …/task, …/tasks]`"* | ⛔ **NOT MINE — the MCP lane's** *(`d2138faaf`)*, and the **same red I attributed in the previous report and it is still unfixed**. ⭐ The fix is one deliberate prefix in `CapabilityManifest.CapabilityFor`, which the error message itself names. ⚠ **A cross-lane edit is a STOP-and-report, not a judgement call** — so it is reported again, not fixed |
+| `ClusterConformanceRails.The_cluster_can_discover_open_and_switch_graph_tabs` — *"asset 'hill-attack' has no sourceFilePath"* | ⭐⭐⭐ **CAUSED BY `CE-057`, and it is a real defect I did not create** ⇒ fixed as **`CE-064`** |
+
+### ⭐⭐⭐ `CE-064` — **the third disguise of the same trap, and the sharpest one**
+
+📐 `ScenarioEditableAsset.SourceFilePath` has been hard-coded to `""` since the contributor was written.
+⚠⚠ **That T3 rail asserts a non-blank `sourceFilePath` for EVERY catalogued asset — and it was GREEN the
+whole time**, because on `--mode all` the catalog held **zero scenarios**: first the contributor was
+editor-only *(`CE-053`)*, then it was aimed at a directory that does not exist *(`CE-057`)*.
+
+⇒ ⭐⭐⭐ **A loop over an empty collection asserts nothing.** Making the picker non-empty is what finally
+made an existing rail able to fail.
+
+| the same trap, three times in this programme | shape |
+|---|---|
+| `CE-049` | asserted a control is **present and enabled**, never that it has **something to offer** |
+| `CE-053` | **supplied the input it was testing** *(a populated temp dir)*, so it could not see the host resolve a different root |
+| ⭐ **`CE-064`** | the assertion was **UNREACHABLE** — correct, universal, and iterating over nothing |
+
+⭐ Fixed with an optional `scenariosRoot` resolver → `{root}/{relPath}/scenario.json`, the exact layout
+`EditorScenarioSession.WriteScenarioDirectory` writes, so **the advertised address is the file the session
+round-trips**. ⚠ Optional so the many single-argument test constructions still compile — ⛔ which makes an
+omitting host a **silent default**, so a rail asserts **both** hosts pass it. ⭐ And the claim is now
+pinned at **T0: 135 ms**, not after an 11-minute cluster boot.
 
 ## 8. ⛔ NOT DONE, and why *(`R-106` — stop the ITEM, not the batch)*
 

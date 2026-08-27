@@ -1166,12 +1166,14 @@ namespace Hrot.Editor.DebugApi
         [("GET", "/panels")] = new RouteDoc(
             Tool:    "list_panels",
             Group:   "T — Panels (the UI as data)",
-            Summary: "What the editor's UI is showing, without pixels: which panels are instrumented at all, and which published a view-model this frame.",
+            Summary: "What the editor's UI is showing, without pixels: every registered window plus every instrumented panel, and which of them published a view-model this frame.",
             Returns: "{ captureEnabled, registered:[panelId], captured:[panelId], kinds:{kind:[panelId]}, staleness }",
             Hint:    "No params. Example: list_panels({})",
             Notes: new[]
             {
-                "registered vs captured is the load-bearing distinction: a panel nobody instrumented and a panel whose window is closed are different facts, and only the second is fixed by opening a window.",
+                "registered vs captured is the load-bearing distinction: a surface that publishes no model and one whose window is closed are different facts, and only the second is fixed by opening a window.",
+                "CE-076: registered is COMPLETE for windows — WindowManager.RegisterWindow declares every window it registers, so a window can no longer be invisible here by forgetting to opt in. A window that publishes no view-model still appears in registered and is absent from captured.",
+                "A LAZILY registered window (one created on first activation of its perspective) is absent until that perspective has been visited — switch_perspective first if you are enumerating exhaustively.",
                 "kinds groups the live panels by their logical name — the key a cross-host comparison uses, since panel ids are unique per instance by design.",
                 "captured entries are latest-wins and are NOT cleared per frame: a panel that stopped drawing still reports its last model.",
             },

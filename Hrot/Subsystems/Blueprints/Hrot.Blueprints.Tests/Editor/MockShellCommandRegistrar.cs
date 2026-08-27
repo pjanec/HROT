@@ -2,7 +2,7 @@ using Hrot.Blueprints.Editor;
 
 namespace Hrot.Blueprints.Tests.Editor;
 
-public sealed class MockWindowRegistrar : IWindowRegistrar
+public sealed class MockShellCommandRegistrar : IShellCommandRegistrar
 {
     public List<(string Path, Action OnSelected)> MenuEntries { get; } = new();
     public List<(string Label, Action OnClicked)> ToolbarEntries { get; } = new();

@@ -820,6 +820,23 @@ relay does not exist.
 the blast radius, ⭐⭐ **written so the user can reply "approved" or name the one they want changed.**
 ⛔ **Options without a recommendation are work handed back to the user.**
 
+## ⛔⛔⛔ RULE ZERO-A — **AFTER `RULINGS.md`, READ YOUR LANE'S RESUME DOC** *(added `2026-08-27`)*
+
+> ⭐⭐⭐ **`CLAUDE.md` is auto-loaded and is the ONLY reliable channel** *(RULE ZERO's own words)*. ⛔⛔ Until
+> `2026-08-27` **nothing auto-loaded named any lane's resume doc** — 📐 measured: `grep -c RESUME_UI_Lane`
+> over `CLAUDE.md` and `RULINGS.md` returned **0 and 0**. ⇒ 🔴 a post-compaction session read the canon and
+> then had to **guess** where the live work was. ⭐ That is the hole this rule closes.
+
+| lane / branch | ⭐ read this SECOND, in full |
+|---|---|
+| ⭐⭐ **UI lane** — `claude/reset-working-branch-qd1qpv` | 📄 **[`docs/blueprints/RESUME_UI_Lane.md`](../docs/blueprints/RESUME_UI_Lane.md)** — ⭐ its **STATUS block's `current-answer` names the ONE section to start from**; ⛔ do not read the file top-to-bottom, most of it is dated HISTORY |
+| **coordinator** — `claude/blueprint-authoring-status-6sr5ld` | 📄 `docs/blueprints/COORDINATOR_RESUMPTION.md` *(+ the `DESIGN BRIEF` obligation)* |
+| **other lanes** | ⚠ **no resume doc verified by this session** — ⛔ do not assume one exists; ask, or find the lane's newest `docs/blueprints/` design |
+
+⭐⭐ **The habit, in order:** ① `RULINGS.md` *(canon)* → ② **your lane's resume doc's `current-answer` section**
+*(what is IN FLIGHT)* → ③ the design docs it cites. ⛔ **Skipping ② is how a session re-derives a plan that is
+already written down**, which is the disease RULE ZERO exists to treat.
+
 ## ⛔⛔⛔ RULE ZERO — **READ `docs/blueprints/RULINGS.md` BEFORE ANYTHING ELSE** *(user, `2026-08-17`)*
 
 > ⭐⭐⭐ **User, verbatim:** *"We start over and over after compaction, **you forget all the design

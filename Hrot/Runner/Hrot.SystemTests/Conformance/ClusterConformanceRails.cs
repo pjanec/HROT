@@ -142,11 +142,27 @@ public sealed class ClusterConformanceRails
         "graph-signature", "entity-blueprints", "data-breakpoint-manager",
         // ⭐ EDITOR-SHELL surfaces with no cluster counterpart.
         "preview", "zone-editor", "editor-toolbar", "shared-orbat",
-        // 🔴🔴 THE ONE THAT IS A FINDING, NOT A FEATURE GAP: the GIZMO FRAME.
-        //    📐 Measured `2026-08-24`: the editor publishes kind `_gizmo` (GizmoFramePanel.Publish) and
-        //    `--mode all` publishes NOTHING of the sort ⇒ the handoff's "dump K + the gizmo frame" can only
-        //    be half-done today. ⛔ Declared here so the suite is green and the gap is VISIBLE, ⭐ and filed
-        //    as a finding — this entry should be DELETED, not carried, once a cluster host publishes it.
+        // 🔴 THE GIZMO FRAME — ⚠⚠ REASON REPLACED `2026-08-27` (BP-487). ⭐ The entry SURVIVES, and the
+        //    difference matters, so it is spelled out rather than left to be re-derived:
+        //
+        // 📐 It used to read: *"the editor publishes kind `_gizmo` (GizmoFramePanel.Publish) and `--mode all`
+        //    publishes NOTHING of the sort ⇒ the handoff's 'dump K + the gizmo frame' can only be half-done
+        //    today … this entry should be DELETED, not carried, once a cluster host publishes it."*
+        //
+        // ⭐⭐ What CHANGED: `--mode all` now HAS a gizmo feed. BP-487 routed each subsystem's own
+        //    DebugPrimitiveBuffer through ISubsystemDebugProvider, so `GET /panels/_gizmo` answers per active
+        //    perspective (CGF/Scenario, IG, SimHost — not ExCon, which draws no map). ⇒ the SUBSTANCE this
+        //    entry was excusing — "the cluster's map cannot be compared at all" — is GONE, and is asserted by
+        //    `The_maps_draw_the_same_scenario_on_both_hosts` + the manifest rail's panels.gizmo arm.
+        //
+        // ⛔⛔ What did NOT change, and is why deleting the entry would be a LIE: the cluster still does not
+        //    publish the `_gizmo` PANEL KIND into PanelSnapshot — only EditorSubsystem calls
+        //    GizmoFramePanel.Publish. This set is keyed on the PUBLISHED KIND (that is what CaptureByKindAsync
+        //    walks), so `_gizmo` is genuinely editor-only here. ⭐ Registering the buffer into the snapshot so
+        //    one DumpAll() carries it is `MX-011` (MCP lane) — 📄 DESIGN_UI_Observability_Snapshot.md STATUS.
+        // ⚠ And it should stay MX-011's call, not this lane's: the frame is a 128 KB high-churn model, so
+        //   making it a SHARED kind would immediately need a DivergesByDesign exemption — trading one
+        //   declared gap for another while the real comparison already lives in a purpose-built rail.
         "_gizmo",
     };
 
@@ -526,14 +542,28 @@ public sealed class ClusterConformanceRails
 
         // ⭐⭐ THE MATRIX AGREES WITH BEHAVIOUR — the half that makes it a measurement and not a claim.
         var matrix = (m["matrix"] as JsonObject)!;
+        // ⭐⭐⭐ THE CELLS ARE CHECKED AGAINST BEHAVIOUR — one loop, three capabilities.
+        // ⭐ `panels.gizmo` (BP-487) and `mission.edit` (CE-066) JOINED `time.drive` here on `2026-08-27`,
+        //   once CE-066 classified `/missions` and this rail could reach its matrix loop again.
+        // 📌 The gizmo arm lived briefly in `TheMapsAgreeOnBothHostsRails` because this rail was RED before
+        //   the loop, on `unclassifiedRoutes = [/missions/*]`. ⛔ That workaround is GONE, not duplicated —
+        //   one claim, one rail (ruling 9).
+        // ⚠ Expected shape, measured: Scenario(CGF) has all three; IG has the feed only; SimHost has the
+        //   feed + drive; ExCon has none of the three.
+        var verdicts = new List<string>();
+
         foreach (var (perspective, row) in matrix)
         {
-            bool canDrive = row!["time.drive"]!.GetValue<bool>();
+            bool canDrive  = row!["time.drive"]!.GetValue<bool>();
+            bool hasGizmo  = row!["panels.gizmo"]!.GetValue<bool>();
+            bool canMission = row!["mission.edit"]!.GetValue<bool>();
 
             (await cluster.Client.SwitchPerspectiveAsync(perspective)).EnsureOk();
             var step = await cluster.Client.StepAsync(1);
 
-            _out.WriteLine($"{perspective}: matrix says time.drive={canDrive}, step answered {step.StatusCode}");
+            _out.WriteLine($"{perspective}: time.drive={canDrive} (step {step.StatusCode}), "
+                         + $"panels.gizmo={hasGizmo}, mission.edit={canMission}");
+            verdicts.Add($"{perspective}: drive={canDrive} gizmo={hasGizmo} mission={canMission}");
 
             if (canDrive)
                 Assert.True(step.Ok,
@@ -541,7 +571,48 @@ public sealed class ClusterConformanceRails
                   + $"{step.StatusCode}: {step.Error}");
             else
                 Assert.Equal(501, step.StatusCode);
+
+            // ⭐ The map feed, same lens.
+            var gizmo = await cluster.Client.GetGizmoFrameAsync(max: 1);
+            if (hasGizmo)
+                Assert.True(gizmo.Ok,
+                    $"the matrix claims '{perspective}' has a gizmo feed, but GET /panels/_gizmo answered "
+                  + $"{gizmo.StatusCode}: {gizmo.Error}. ⭐ Check that subsystem's CreateDebugProvider still "
+                  + "passes `gizmoBuffer:` — BP-487's failure mode was a caller that HAD the buffer and did "
+                  + "not pass it.");
+            else
+                Assert.False(gizmo.Ok,
+                    $"the matrix claims '{perspective}' has NO gizmo feed, yet GET /panels/_gizmo answered "
+                  + "OK. ⛔ A cell that under-reports is still the manifest lying — in the direction nobody "
+                  + "notices.");
         }
+
+        _out.WriteLine($"capability cells: [{string.Join(" | ", verdicts)}]");
+
+        // ⛔⛔ ANTI-VACUITY on both new cells: an all-false column would pass the loop above while the
+        //    capability was wholly absent — 📌 which is EXACTLY the state BP-487 and CE-066 each found.
+        // ⚠ The gizmo bound is 2, not 3, DELIBERATELY: SimHost's buffer exists only when it has a
+        //   Visualization, so demanding 3 would make this rail depend on whether --mode all gave SimHost a
+        //   viewport — a fact about the RUN-SET, which the composition design's §5.2 forbids asserting.
+        int withFeed    = matrix.Count(kv => kv.Value!["panels.gizmo"]!.GetValue<bool>());
+        int withMission = matrix.Count(kv => kv.Value!["mission.edit"]!.GetValue<bool>());
+
+        Assert.True(withFeed >= 2,
+            $"only {withFeed} of {matrix.Count} perspectives report a gizmo feed [{string.Join(" | ", verdicts)}]. "
+          + "⭐ CGF/Scenario and IG both build a DebugPrimitiveBuffer unconditionally, so fewer than 2 means "
+          + "the provider wiring regressed.");
+
+        Assert.True(withMission >= 1,
+            $"NO perspective reports mission editing [{string.Join(" | ", verdicts)}]. ⭐ CGF builds a "
+          + "ScenarioMissionService (CgfSubsystem ~:1095) and must pass it as `missionEditor:` — CE-066's "
+          + "whole failure mode was that it built one and handed it to nobody.");
+
+        // ⭐ And the honest FALSEs, which are what prove the cells are measured rather than defaulted.
+        Assert.False(matrix["ExCon"]!["panels.gizmo"]!.GetValue<bool>(),
+            "ExCon reports a gizmo feed, but no DebugPrimitiveBuffer exists in Hrot.ExCon at all.");
+        Assert.False(matrix["ExCon"]!["mission.edit"]!.GetValue<bool>(),
+            "ExCon reports mission editing, but it builds no IMissionEditorService. ⚠ Note Hrot.ExCon has a "
+          + "DIFFERENT interface of the same name — the provider seam takes Hrot.UI.Common.Facades' one.");
     }
 
     /// <summary>

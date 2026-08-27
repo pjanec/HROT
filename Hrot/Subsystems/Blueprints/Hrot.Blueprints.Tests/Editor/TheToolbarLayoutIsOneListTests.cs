@@ -264,4 +264,103 @@ public sealed class TheToolbarLayoutIsOneListTests
         Assert.NotNull(shell.Get(CgfEditorShellToolbar.OpenAssetId));
         Assert.NotNull(shell.Get(CgfEditorShellToolbar.NewAssetId));
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE BUNDLE IS A FAITHFUL WRAPPER — <c>CE-072</c>, and this rail closes a gap in
+    /// <c>CE-069</c>'s own batch.</b>
+    /// 📄 <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5b.
+    ///
+    /// <para>⛔⛔ <b>THE GAP, measured `2026-08-27`:</b> every other rail in this file calls the STATIC
+    /// <see cref="CgfEditorShellToolbar.RegisterCommonCore"/> directly, but since <c>CE-069</c>
+    /// <b>both hosts reach it only through <see cref="ShellCommandCoreBundle"/></b> — and <b>no test
+    /// referenced that bundle at all.</b> ⇒ ⚠⚠ if the bundle dropped a <c>HostServices</c> member, passed
+    /// the wrong registry, or lost the menu, <b>all seven rails above would stay GREEN.</b>
+    /// 📌 The 6th rail-blindness instance this programme has recorded, and the first one found in code the
+    /// same programme shipped one batch earlier.</para>
+    ///
+    /// <para>⭐⭐ <b>What it asserts:</b> the bundle and the static, given the SAME shell/services/icons,
+    /// produce byte-identical toolbar entries *(id + sortOrder, separators included)*, identical returned
+    /// id lists, and identical global-menu paths. ⛔ Not *"the bundle registered something"* — that is the
+    /// presence-not-substance mistake <c>CE-049</c> and <c>CE-064</c> both made.</para>
+    ///
+    /// <para>⚠ <c>TheUiBundleSeamHoldsTests</c> does NOT cover this: it exercises the seam's mechanics with
+    /// SPY bundles, so it proves <c>Compose</c> calls a bundle — ⛔ never that THIS bundle forwards
+    /// faithfully. ⭐ The T3 two-host rails do cover it end to end, but they are the slow lane and they
+    /// assert readability, not equality with the direct call.</para>
+    /// </summary>
+    [Fact]
+    public void The_bundle_emits_exactly_what_the_direct_call_emits()
+    {
+        // ⭐ One HostServices value, used for BOTH paths — the subset must not be part of the difference.
+        static CgfEditorShellToolbar.HostServices Services() =>
+            new(OpenAsset: () => { }, NewAsset: () => { },
+                CompileReload: () => { }, FullRebuild: () => { });
+
+        static string[] ShellIds() =>
+        [
+            Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId,
+            Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAllId,
+            AiDebugCommands.ContinueId, AiDebugCommands.StepOverId, AiDebugCommands.StepIntoId,
+            AiDebugCommands.StepOutId,  AiDebugCommands.PauseId,    AiDebugCommands.StepBackId,
+        ];
+
+        // ── path A: the STATIC, called directly (what the seven rails above exercise) ────────────────
+        var shellA = new ShellEditorCommands();
+        RegisterAll(shellA, ShellIds());
+        var wmA = new WindowManager(new Fdp.Presentation.Icons.IconAtlas(IntPtr.Zero, 512, 512));
+        var directIds = CgfEditorShellToolbar.RegisterCommonCore(
+            shellA, wmA.MainToolbar, new NullIcons(), Services(), wmA.GlobalMenu, null);
+
+        // ── path B: the BUNDLE, composed exactly as both hosts compose it ────────────────────────────
+        var shellB = new ShellEditorCommands();
+        RegisterAll(shellB, ShellIds());
+        var wmB = new WindowManager(new Fdp.Presentation.Icons.IconAtlas(IntPtr.Zero, 512, 512));
+        var bundle = new ShellCommandCoreBundle(shellB, new NullIcons(), Services());
+        Fdp.Toolkit.Runner.UiBundleHost.Compose([bundle], new Fdp.Toolkit.Runner.UiBundleContext(wmB));
+
+        // ⭐ ① the returned id list — the diagnostic both hosts print.
+        Assert.NotNull(bundle.RegisteredToolbarIds);
+        Assert.Equal(directIds, bundle.RegisteredToolbarIds!);
+
+        // ⛔ Anti-vacuity: an empty list would make every Equal below trivially true.
+        Assert.NotEmpty(directIds);
+
+        // ⭐⭐ ② the rendered toolbar — id AND sortOrder, separators included.
+        static (string, int)[] Entries(WindowManager wm) =>
+            wm.MainToolbar.BuildViewModel(currentPerspective: "Blueprint")
+              .Entries.Select(e => (e.Id, e.SortOrder)).ToArray();
+
+        Assert.Equal(Entries(wmA), Entries(wmB));
+
+        // ⭐⭐⭐ ③ the GLOBAL MENU — the half the bundle DERIVES rather than receives, so the half most
+        //     likely to diverge. 📌 UXI-05: the same table emits the File items.
+        // ⚠ Flattened locally because GlobalMenuRegistry exposes a TRIE (Root.Children), not a path list —
+        //   the same way TheSettingsMenuIsOneMenuTests walks it.
+        var menuA = MenuPaths(wmA);
+        Assert.NotEmpty(menuA);              // ⛔ anti-vacuity again — the menu must not be empty
+        Assert.Equal(menuA, MenuPaths(wmB));
+    }
+
+    /// <summary>⭐ Flattens the global-menu trie to sorted "A/B/C" paths, separators marked so a lost
+    /// separator is a visible difference.</summary>
+    private static string[] MenuPaths(WindowManager wm)
+    {
+        var paths = new List<string>();
+
+        void Walk(MenuItemNode node, string prefix)
+        {
+            foreach (var child in node.Children.Values)
+            {
+                var path = prefix.Length == 0 ? child.Name : $"{prefix}/{child.Name}";
+                if (child.Children.Count == 0)
+                    paths.Add(child.IsSeparator ? $"{path} [sep]" : path);
+                else
+                    Walk(child, path);
+            }
+        }
+
+        Walk(wm.GlobalMenu.Root, "");
+        paths.Sort(StringComparer.Ordinal);
+        return paths.ToArray();
+    }
 }

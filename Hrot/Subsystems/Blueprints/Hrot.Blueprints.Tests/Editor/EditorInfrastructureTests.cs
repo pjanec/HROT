@@ -92,7 +92,7 @@ public sealed class EditorInfrastructureTests
     [Fact]
     public void BlueprintEditorModule_OnEditorActivated_RegistersMenuEntries()
     {
-        var registrar = new MockWindowRegistrar();
+        var registrar = new MockShellCommandRegistrar();
         var module = CreateModule(registrar);
         module.RegisterWindow(new CountingWindow("Win1"));
         module.RegisterWindow(new CountingWindow("Win2"));
@@ -104,7 +104,7 @@ public sealed class EditorInfrastructureTests
     [Fact]
     public void BlueprintEditorModule_DrawAllWindows_OnlyDrawsVisible()
     {
-        var module = CreateModule(new MockWindowRegistrar());
+        var module = CreateModule(new MockShellCommandRegistrar());
         var visible = new CountingWindow("Visible") { IsVisible = true };
         var hidden  = new CountingWindow("Hidden")  { IsVisible = false };
         module.RegisterWindow(visible);
@@ -122,7 +122,7 @@ public sealed class EditorInfrastructureTests
     }
 
     // Helper: create a BlueprintEditorModule with a null-sink output console.
-    private static BlueprintEditorModule CreateModule(IWindowRegistrar registrar)
+    private static BlueprintEditorModule CreateModule(IShellCommandRegistrar registrar)
     {
         return new BlueprintEditorModule(
             registrar,

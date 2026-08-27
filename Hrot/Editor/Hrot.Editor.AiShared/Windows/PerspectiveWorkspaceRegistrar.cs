@@ -94,6 +94,20 @@ public class PerspectiveWorkspaceRegistrar
     public AiWatchWindow? Watch { get; }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-071</c> — the per-perspective comparison SUMMARY panel; <see langword="null"/> when no
+    /// <see cref="Comparison.ComparisonSessionRegistry"/> was supplied.
+    /// 📄 <c>docs/DESIGN_Comparison_Ui_Mounting.md</c>.
+    /// <para>⚠ Absent rather than empty when the host has no comparison capability — ruling 49.</para>
+    /// </summary>
+    public Comparison.UI.ComparisonSummaryPanel? ComparisonSummary { get; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-071</c> — the per-perspective comparison CHANGES sidebar; <see langword="null"/> when no
+    /// session registry was supplied.
+    /// </summary>
+    public Comparison.UI.ComparisonSidebar? ComparisonChanges { get; }
+
+    /// <summary>
     /// ⭐⭐ <c>C-outline</c> — the My Blueprint outline for this perspective. ⛔ Null on the Blueprint
     /// perspective, which has its own <c>BlueprintMyBlueprintWindow</c>; non-null on BTree and HSM.
     /// </summary>
@@ -364,6 +378,40 @@ public class PerspectiveWorkspaceRegistrar
         // ⭐⭐⭐ L3.3 — BlackboardAuthoring is built HERE (like Details), so the claim chain never
         //    sees it; its arm is mirrored through the SAME one implementation.
         ContributeDetailsViews(BlackboardAuthoring);
+
+        // ⭐⭐⭐ CE-071 — THE COMPARISON RESULT SURFACES, mounted at last.
+        // 📄 docs/DESIGN_Comparison_Ui_Mounting.md §4 D1/D2 · §7's three blockers.
+        //
+        // 📐 Measured 2026-08-27: ComparisonSummaryPanel and ComparisonSidebar had ZERO production
+        //    constructions and reached no WindowManager on either host ⇒ the comparison round-trip
+        //    completed on the editor and its RESULT was invisible. The only class that ever named them
+        //    was SharedAiWindowRegistrar, which nothing called (deleted, CE-070).
+        //
+        // ⭐⭐ Built HERE and not left to the host, for the reason RegisterWindows states in its own
+        //    words about the other five: "a surface the host must remember to attach is how these five
+        //    came to be unreachable in the first place." ⛔ Two hosts × three perspectives = six places
+        //    to forget.
+        //
+        // ⭐ Guarded on sessionRegistry, which is the honest capability test: with no registry there is
+        //    no comparison state to show, so the windows are ABSENT rather than empty (ruling 49) —
+        //    exactly how Breakpoints/Watch treat a missing breakpointManager.
+        if (sessionRegistry != null)
+        {
+            ComparisonSummary = new Comparison.UI.ComparisonSummaryPanel(
+                registry:          sessionRegistry,
+                // ⭐⭐ B3 — the store is PASSED. The registrar HOLDS it (it handed the same instance to
+                //    four windows above), and a production caller that HAS a dependency must pass it
+                //    (the 2026-08-16 rule). ⛔ Without it the panel renders HasSession:false forever.
+                store:             selectionStore,
+                idOverride:        $"ai_comparison_summary_{suffix}",
+                owningPerspective: perspectiveName);
+
+            ComparisonChanges = new Comparison.UI.ComparisonSidebar(
+                registry:          sessionRegistry,
+                store:             selectionStore,
+                idOverride:        $"ai_comparison_changes_{suffix}",
+                owningPerspective: perspectiveName);
+        }
 
         Diagnostics = new DiagnosticsWindow(
             catalog:           catalog,
@@ -710,6 +758,13 @@ public class PerspectiveWorkspaceRegistrar
         // DataBreakpointManager was supplied; null means "not wired yet").
         if (Breakpoints != null) RegisterCore(windowManager, Breakpoints);
         if (Watch      != null) RegisterCore(windowManager, Watch);
+
+        // ⭐⭐⭐ CE-071 — the comparison result surfaces. Same shape as Watch/Breakpoints: created only
+        //    when the capability was supplied, registered here so no host can forget them.
+        //    📌 They were unreachable for months precisely because registration was left to a class
+        //    nobody called.
+        if (ComparisonSummary != null) RegisterCore(windowManager, ComparisonSummary);
+        if (ComparisonChanges != null) RegisterCore(windowManager, ComparisonChanges);
 
         // ⭐⭐ Track C (Batch 79). ⛔ Registered here, not left to RegisterExtraWindow: a surface the
         //    host must remember to attach is how these five came to be unreachable in the first place.
