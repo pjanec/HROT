@@ -2,11 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace Hrot.Editor;
+namespace Hrot.Editor.AiShared.Catalog;
 
 /// <summary>
 /// Static helper that enumerates scenario relative paths by scanning the
 /// filesystem for <c>scenario.json</c> marker files.
+///
+/// <para>⭐⭐ <b><c>CE-053</c> — MOVED to <c>Hrot.Editor.AiShared</c></b> with
+/// <see cref="ScenarioCatalogContributor"/>, which is its only production consumer's sibling. 📐 It is a
+/// pure <c>System.IO</c> scan with no host dependency; it sat in <c>Hrot.Editor/Browser</c> only because
+/// that is where the editor happened to need it, so CGF could not enumerate scenarios at all.</para>
 /// </summary>
 public static class ScenarioEnumeration
 {

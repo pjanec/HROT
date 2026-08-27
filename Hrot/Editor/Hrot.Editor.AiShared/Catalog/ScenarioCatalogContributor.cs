@@ -1,20 +1,24 @@
 using System.Security.Cryptography;
 using System.Text;
-using Hrot.Editor.AiShared;
-using Hrot.Editor.AiShared.Catalog;
-
-namespace Hrot.Editor.Catalog;
+namespace Hrot.Editor.AiShared.Catalog;
 
 /// <summary>
 /// Projects the editor-side scenario list into the asset catalog as
 /// <see cref="AssetKind.Scenario"/> entries.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>Layering:</b> this class lives in <c>Hrot.Editor</c> (the editor-host assembly)
-/// because it depends on the editor-side scenario list (<see cref="IEditorLogic.AvailableScenarios"/>).
-/// <c>Hrot.Editor.AiShared</c> stays free of orchestrator/editor-host dependencies.
-/// </para>
+/// <para>⭐⭐⭐ <b><c>CE-053</c> — MOVED to <c>Hrot.Editor.AiShared</c>, and the doc it replaces was
+/// WRONG.</b> It read: *"this class lives in <c>Hrot.Editor</c> … because it depends on the editor-side
+/// scenario list (<c>IEditorLogic.AvailableScenarios</c>)."* 📐 Measured <c>2026-08-26</c>: it depends on a
+/// <see cref="Func{TResult}"/> and names no host type at all. ⇒ ⛔ **the stated layering reason did not
+/// exist**, and it is the same over-claim <c>AssetPickActionRouter</c>'s doc made before <c>CE-049</c>
+/// lifted it.</para>
+///
+/// <para>🔴🔴 <b>What that cost, measured from the user's <c>--mode cgf</c> visual check:</b> CGF's asset
+/// catalog had NO scenario contributor, so it held zero <c>AssetKind.Scenario</c> entries ⇒
+/// <c>File/Edit/Open Scenario</c>, <c>File/Live/Load Scenario</c> and <c>File/Open Asset</c>'s Scenario tab
+/// were all **EMPTY** — three of the six reported symptoms, one root. ⚠ <c>CE-049</c> wired CGF's picker
+/// but never gave its catalog anything to show.</para>
 /// <para>
 /// <b>AssetId derivation:</b> each scenario's <see cref="IEditableAsset.AssetId"/> is
 /// a deterministic <see cref="Guid"/> computed as SHA256(UTF8(relpath))[:16], so
