@@ -51,8 +51,12 @@ public sealed class EditorMissionWindowDumpsItsPlanTests : IDisposable
             => Task.FromResult<IReadOnlyList<int>>(Array.Empty<int>());
     }
 
-    private static EditorMissionWindow MakeWindow(MissionPanel panel) =>
-        new EditorMissionWindow(panel, new FakeMissionEditorService(), new FakeMapPickService());
+    // ⭐ CE-061 — the wrapper is the SHARED one now; the ids/titles are arguments, so this rail
+//   pins the editor's historical id explicitly instead of relying on a hard-coded ctor.
+    private static Hrot.Presentation.Windows.MissionPanelWindow MakeWindow(MissionPanel panel) =>
+        new Hrot.Presentation.Windows.MissionPanelWindow(
+            panel, new FakeMissionEditorService(), new FakeMapPickService(),
+            Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorMission, "Scenario", default);
 
     // ── Rail 1 — instrumented at construction, on the PRODUCTION object ─────────────────────────
 
@@ -83,7 +87,7 @@ public sealed class EditorMissionWindowDumpsItsPlanTests : IDisposable
         var vm = PanelSnapshot.TryGet("editor_mission");
         Assert.NotNull(vm);
         Assert.Equal("editor_mission", vm!.PanelId);
-        Assert.Equal(EditorMissionWindow.Kind, vm.PanelKind);
+        Assert.Equal(Hrot.Presentation.Windows.MissionPanelWindow.Kind, vm.PanelKind);
         Assert.Equal(42, vm.Dump()["selectedEntityId"]!.GetValue<int>());
     }
 

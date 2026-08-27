@@ -83,7 +83,7 @@ public sealed class EditorSharedPanelWindowsDumpTheirModelsTests : IDisposable
     {
         PanelSnapshot.CaptureEnabled = true;
         var panel = new ConfigPanel { Grid = true };
-        var window = new EditorConfigWindow(panel, new FakeMapConfigController());
+        var window = new Hrot.Presentation.Windows.ConfigPanelWindow(panel, new FakeMapConfigController(), Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorConfig, "Scenario", default);
 
         Assert.Contains("editor_config", PanelSnapshot.RegisteredPanels);   // declared at ctor
         window.SimulateDrawClientArea();
@@ -101,7 +101,7 @@ public sealed class EditorSharedPanelWindowsDumpTheirModelsTests : IDisposable
     {
         PanelSnapshot.CaptureEnabled = true;
         var panel = new SpawnerPanel(new[] { new TkbCatalogEntry(42, "T-72") });
-        var window = new EditorSpawnerWindow(panel, new FakeSpawnController());
+        var window = new Hrot.Presentation.Windows.SpawnerPanelWindow(panel, new FakeSpawnController(), Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorSpawner, "Scenario", default);
 
         window.SimulateDrawClientArea();
 
@@ -117,7 +117,7 @@ public sealed class EditorSharedPanelWindowsDumpTheirModelsTests : IDisposable
     public void SharedOrbatWindow_RegistersUnderSharedOrbatKind_AndDumpsVisibleNodes()
     {
         PanelSnapshot.CaptureEnabled = true;
-        var window = new EditorSharedOrbatWindow(new SharedOrbatPanel(), new FakeOrbatDataProvider(), new FakeOrbatController());
+        var window = new Hrot.Presentation.Windows.SharedOrbatPanelWindow(new SharedOrbatPanel(), new FakeOrbatDataProvider(), new FakeOrbatController(), Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorOrbat, "Scenario", default);
 
         window.SimulateDrawClientArea();
 
@@ -168,9 +168,9 @@ public sealed class EditorSharedPanelWindowsDumpTheirModelsTests : IDisposable
     [Fact]
     public void WithCaptureOff_NoneOfTheFivePublish()
     {
-        new EditorConfigWindow(new ConfigPanel(), new FakeMapConfigController()).SimulateDrawClientArea();
-        new EditorSpawnerWindow(new SpawnerPanel(), new FakeSpawnController()).SimulateDrawClientArea();
-        new EditorSharedOrbatWindow(new SharedOrbatPanel(), new FakeOrbatDataProvider(), new FakeOrbatController()).SimulateDrawClientArea();
+        new Hrot.Presentation.Windows.ConfigPanelWindow(new ConfigPanel(), new FakeMapConfigController(), Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorConfig, "Scenario", default).SimulateDrawClientArea();
+        new Hrot.Presentation.Windows.SpawnerPanelWindow(new SpawnerPanel(), new FakeSpawnController(), Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorSpawner, "Scenario", default).SimulateDrawClientArea();
+        new Hrot.Presentation.Windows.SharedOrbatPanelWindow(new SharedOrbatPanel(), new FakeOrbatDataProvider(), new FakeOrbatController(), Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorOrbat, "Scenario", default).SimulateDrawClientArea();
         new EditorPreviewWindow(new PreviewPanel(), new FakePreviewController()).SimulateDrawClientArea();
         new EditorZoneEditorWindow(new ZoneEditorPanel(), new FakeZoneAuthoringController()).SimulateDrawClientArea();
 

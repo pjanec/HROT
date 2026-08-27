@@ -182,7 +182,11 @@ public sealed class TheViewportInteractionIsSharedTests
     /// ⭐⭐⭐ <b>A tool this host cannot service is REPORTED, not silently dropped.</b>
     /// 🔒 Ruling 49 / <c>VC-3</c>, applied to a tool rather than a menu item: *"nothing happened"* is
     /// indistinguishable from *"not implemented"* to the operator holding the mouse.
-    /// ⚠ CGF is exactly this case for <c>Spawn</c> — it composes no <c>EditorSpawnAdapter</c>.
+    /// ⚠⚠ <b>CORRECTED <c>2026-08-27</c> (<c>CE-061</c>):</b> this used to read *"CGF is exactly this
+    /// case for `Spawn` — it composes no `EditorSpawnAdapter`"*. 📐 No longer true: CGF now composes
+    /// <c>ScenarioSpawnAdapter</c> and PASSES <c>StartPlacementMode</c>, so Spawn is serviceable there.
+    /// ⭐ The rail is unaffected — it asserts the MECHANISM (a null dependency is reported), not that any
+    /// particular host lacks one. ⛔ A headless node still has no adapter, and then the report is right.
     /// </summary>
     [Fact]
     public void AnUnserviceableToolIsReportedWithItsReason()

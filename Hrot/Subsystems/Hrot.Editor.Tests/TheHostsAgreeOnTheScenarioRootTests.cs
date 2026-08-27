@@ -104,12 +104,16 @@ public sealed class TheHostsAgreeOnTheScenarioRootTests
 internal static class HostSource
 {
     internal static string Read(string project, string file)
+        => ReadRelative("Hrot", "Subsystems", project, file);
+
+    /// <summary>⭐ For sources that are not directly under <c>Hrot/Subsystems/&lt;project&gt;/</c>.</summary>
+    internal static string ReadRelative(params string[] segments)
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "docs"))) dir = dir.Parent;
         Assert.NotNull(dir);
 
-        var path = Path.Combine(dir!.FullName, "Hrot", "Subsystems", project, file);
+        var path = Path.Combine(new[] { dir!.FullName }.Concat(segments).ToArray());
         Assert.True(File.Exists(path), $"expected {path} to exist — the rail's target moved.");
         return File.ReadAllText(path);
     }

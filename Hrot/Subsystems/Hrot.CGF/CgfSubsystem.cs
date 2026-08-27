@@ -186,6 +186,21 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// session was never constructed although this file already holds all three of its ctor arguments
     /// (<c>_blueprintRegistry</c>, the world, and <c>CgfClusterDebugTimeController</c>).
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-061</c> — the Scenario-perspective panels and their adapters.
+    /// 📄 <c>docs/DESIGN_Cgf_Scenario_Windows_Slice.md</c>. ⛔ All shared types; ⚠ Preview and Zone are
+    /// deliberately absent (design §4 — the editor-only planning state and the un-moved gizmo).
+    /// </summary>
+    private Hrot.Map.Common.Config.MapViewConfig?                _mapViewConfig;
+    private SpawnerPanel?                                        _spawnerPanel;
+    private MissionPanel?                                        _missionPanel;
+    private ConfigPanel?                                         _configPanel;
+    private SharedOrbatPanel?                                    _sharedOrbatPanel;
+    private Hrot.UI.Common.Adapters.ScenarioSpawnAdapter?        _spawnAdapter;
+    private Hrot.UI.Common.Adapters.ScenarioMissionService?      _missionService;
+    private Hrot.UI.Common.Adapters.ScenarioMapConfigAdapter?    _mapConfigAdapter;
+    private Hrot.UI.Common.Adapters.ScenarioOrbatAdapter?        _orbatAdapter;
+
     private Hrot.Editor.AiShared.Debug.DebugSessionRegistry?     _aiDebugRegistry;
     private Hrot.Blueprints.Core.Debug.BlueprintDebugSession?    _blueprintDebugSession;
 
@@ -910,6 +925,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 Gizmos:       () => _cgfDataDrivenGizmoSystem,
                 Camera:       () => _canvas?.Camera,
                 GlobalGizmos: () => _cgfGizmoManager,
+                // ⭐⭐⭐ CE-061 — StartPlacementMode is SUPPLIED now, and it has to be.
+                // ⚠⚠ Until this batch it was legitimately absent — CGF composed no spawn adapter, so the
+                //    Spawn tool reported itself unserviceable (ruling 49, and `TheViewportInteractionIs
+                //    SharedTests` documents that as CGF's case). ⛔ E5 built the adapter, which makes the
+                //    omission a SILENT DEFAULT instead: *"a production caller that HAS a dependency must
+                //    PASS it."* Leaving it null would have shipped a spawner window whose tool refuses.
+                // ⚠ Resolved at CALL TIME on purpose: this module is registered from Initialize, while
+                //   `_spawnAdapter` is built later in the non-headless block — a captured value would be
+                //   permanently null. ⭐ A headless node still has none, and then the report is honest.
+                StartPlacementMode: () => _spawnAdapter?.StartPlacementModeWithLastType(),
                 // ⭐⭐ The inspector follow-through CGF's own "Select entity" item used to do inline. ⛔ It
                 //    is a host panel concern, so it stays a hook rather than being pushed into the shared
                 //    assembly — see SelectEntitySystem's `alsoSelect` remarks.
@@ -1034,6 +1059,38 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
             _selectionState    = new DefaultSelectionState();
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
+
+            // ⭐⭐⭐ CE-061 (Axis-C E5 item ④) — THE SCENARIO-PERSPECTIVE PANELS + ADAPTERS.
+            // 📄 docs/DESIGN_Cgf_Scenario_Windows_Slice.md §3/§7 ④.
+            // 🔒 User, 2026-08-27: *"the editor has many windows in its Scenario perspective like mission
+            //    editor, orbat, entity placement, entity spawner, cgf offers just Entity inspector, Event
+            //    Browser, architecture diagnostic, System profiler."*
+            //
+            // ⭐⭐ EVERY ARGUMENT ALREADY EXISTED ON THIS HOST — 📐 that is the finding, and it is why E5
+            //    is a wiring slice: the adapters were host-agnostic already (four of five had ZERO
+            //    IEditorLogic references) and merely sat in `Hrot.Editor`, which this assembly cannot see.
+            // ⛔ NOTHING here is a CGF-private implementation: same panels, same adapters, same window
+            //    types the editor now registers through.
+            _mapViewConfig     = new Hrot.Map.Common.Config.MapViewConfig();
+            _spawnerPanel      = new SpawnerPanel(Hrot.UI.Common.Panels.ScenarioSpawnerCatalog.Default);
+            // ⚠ MissionPanel's first argument is the node id the editor passes as a literal 0; this host
+            //   has a REAL one, and passing it is the point of "the editor is a one-node cluster".
+            _missionPanel      = new MissionPanel(
+                _context.NodeId, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry());
+            _configPanel       = new ConfigPanel();
+            _sharedOrbatPanel  = new SharedOrbatPanel();
+
+            var cgfJsonCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(
+                _context.GeoTransform!);
+            _spawnAdapter      = new Hrot.UI.Common.Adapters.ScenarioSpawnAdapter(
+                _context.World.Bus, cgfJsonCompiler, _context.TkbDb, _scenarioSource, _cgfGizmoManager);
+            _missionService    = new Hrot.UI.Common.Adapters.ScenarioMissionService(
+                _context.World.Bus, _context.World, _behaviorRegistry!);
+            _mapConfigAdapter  = new Hrot.UI.Common.Adapters.ScenarioMapConfigAdapter(_mapViewConfig, _canvas);
+            // ⭐ CE-060 made this ctor host-agnostic: its one `IEditorLogic.ActivateTool` call is now the
+            //   shared ActivateEditorToolEvent + SelectEntityCommand that E3's systems drain on BOTH hosts.
+            _orbatAdapter      = new Hrot.UI.Common.Adapters.ScenarioOrbatAdapter(
+                _context.World, _context.World.Bus, _spawnAdapter);
 
             // GZ057: add gizmo layer so CGF entity presentation primitives are rendered.
             _cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, _cgfGizmoBuffer, _cgfInteractionBus!);
@@ -1194,6 +1251,33 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             () => _fdpRepoAdapter,
             cgfPickBridge,
             TitleBarColor);
+
+        // ⭐⭐⭐ CE-061 (Axis-C E5 item ④) — THE FOUR SCENARIO-PERSPECTIVE WINDOWS.
+        // ⭐ The SAME `Hrot.Presentation.Windows` types the editor now registers through — ⛔ CGF-private
+        //   wrappers are exactly what E5 deleted (two copies existed: Hrot.Editor and Hrot.ExCon).
+        // ⚠ Each is guarded on its own panel+adapter pair rather than on one flag: a host that cannot
+        //   service a window must not show it (ruling 49), and the pairs are independent.
+        // ⭐ Mission takes `cgfPickBridge`'s underlying `CanvasMapPickAdapter` — the shared IMapPickService
+        //   this host ALREADY built two lines up, ⛔ not a second pick implementation (design §8 D2).
+        if (_spawnerPanel != null && _spawnAdapter != null)
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.SpawnerPanelWindow(
+                _spawnerPanel, _spawnAdapter,
+                Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfSpawner, "Scenario", TitleBarColor));
+
+        if (_missionPanel != null && _missionService != null && cgfCanvasAdapter != null)
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.MissionPanelWindow(
+                _missionPanel, _missionService, cgfCanvasAdapter,
+                Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfMission, "Scenario", TitleBarColor));
+
+        if (_configPanel != null && _mapConfigAdapter != null)
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.ConfigPanelWindow(
+                _configPanel, _mapConfigAdapter,
+                Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfConfig, "Scenario", TitleBarColor));
+
+        if (_sharedOrbatPanel != null && _orbatAdapter != null)
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.SharedOrbatPanelWindow(
+                _sharedOrbatPanel, _orbatAdapter, _orbatAdapter,
+                Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfOrbat, "Scenario", TitleBarColor));
 
         windowManager.RegisterWindow(new FdpEntityInspectorWindow(
             "cgf_fdp_inspector", "CGF Entity Inspector", "Scenario",

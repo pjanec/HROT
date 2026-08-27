@@ -58,6 +58,9 @@ using Hrot.Common.Systems;
 using Hrot.Common.Scenario;
 using Hrot.Editor;
 using Hrot.Editor.Adapters;
+// ⭐ CE-061 — the four host-agnostic adapters moved to Hrot.Presentation/Adapters
+//   (namespace Hrot.UI.Common.Adapters, beside the facades they implement).
+using Hrot.UI.Common.Adapters;
 using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
@@ -214,10 +217,10 @@ namespace Hrot.Editor
 
         // ── Adapters (canvas-dependent; null in headless) ─────────────────────
 
-        private EditorSpawnAdapter?             _spawnAdapter;
-        private EditorMissionService?           _missionService;
-        private EditorOrbatAdapter?             _orbatAdapter;
-        private EditorMapConfigAdapter?         _mapConfigAdapter;
+        private ScenarioSpawnAdapter?             _spawnAdapter;
+        private ScenarioMissionService?           _missionService;
+        private ScenarioOrbatAdapter?             _orbatAdapter;
+        private ScenarioMapConfigAdapter?         _mapConfigAdapter;
         private EditorMapPickAdapter?           _mapPickAdapter;
         private EditorZoneAdapter?              _zoneAdapter;
         private JsonEntityContextMenuHandler? _contextMenuHandler;
@@ -1939,7 +1942,7 @@ namespace Hrot.Editor
             }
 
             // ?? 9. Mission service (no canvas dependency) ?????????????????????
-            _missionService = new EditorMissionService(_world.Bus, _world, behaviorRegistry);
+            _missionService = new ScenarioMissionService(_world.Bus, _world, behaviorRegistry);
             // MX4a: GET /behaviors?entityId= answers with the SAME list the mission-task combo shows
             // only if it goes through this service. Built after the API host, so it is handed over
             // here rather than passed to the constructor.
@@ -1955,9 +1958,9 @@ namespace Hrot.Editor
                 // Build the JSON?ECS attribute compiler with the geo-transform so that
                 // geodetic spawn coordinates are projected correctly on entity placement.
                 var jsonCompiler  = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform);
-                _spawnAdapter     = new EditorSpawnAdapter(_world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!);
+                _spawnAdapter     = new ScenarioSpawnAdapter(_world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!);
                 _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus, _globalGizmoManager!);
-                _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig, _canvas!);
+                _mapConfigAdapter = new ScenarioMapConfigAdapter(_mapViewConfig, _canvas!);
                 _selectionState   = new DefaultSelectionState();
 
                 // ⭐⭐ CE-051 — the shared rename modal. ⭐ Commits through IEditorLogic.CommitPropertyEdit,
@@ -1965,7 +1968,7 @@ namespace Hrot.Editor
                 //    keeps it correct on a host that does not own the entity (the AX-005b lesson).
                 _entityRenameModal = new Hrot.Editor.AiShared.Browser.EntityRenameModal(
                     (netId, components) => _editorLogic?.CommitPropertyEdit(netId, components));
-                _orbatAdapter     = new EditorOrbatAdapter(_world, _world.Bus, _editorLogic, _spawnAdapter);
+                _orbatAdapter     = new ScenarioOrbatAdapter(_world, _world.Bus, _spawnAdapter);
                 _contextMenuHandler = new JsonEntityContextMenuHandler(_world, interactionBus);
                 _fdpRepoAdapter = new FdpRepositoryAdapter(_world);
 
@@ -2109,25 +2112,12 @@ namespace Hrot.Editor
 
             if (!_headless)
             {
-                var tkbCatalog = new TkbCatalogEntry[]
-                {
-                    new(TkbEntityTypes.Tank_M1Abrams,      "M1 Abrams"),
-                    new(TkbEntityTypes.IFV_Bradley,        "M2 Bradley IFV"),
-                    new(TkbEntityTypes.Truck_HMMWV,        "HMMWV"),
-                    new(TkbEntityTypes.Tank_T72,           "T-72"),
-                    new(TkbEntityTypes.Infantry_Rifleman,  "Infantry Rifleman"),
-                    new(TkbEntityTypes.Infantry_Officer,   "Infantry Officer"),
-                    new(TkbEntityTypes.CivilianPedestrian, "Civilian Pedestrian"),
-                    new(TkbEntityTypes.CivilianCar,        "Civilian Car"),
-                    new(TkbEntityTypes.MilitaryApc,        "Military APC"),
-                    new(TkbEntityTypes.InfantrySoldier,    "Infantry Soldier"),
-                    new(TkbEntityTypes.Insurgent,          "Insurgent"),
-                    new(TkbEntityTypes.Unit_TankPlatoon,   "Tank Platoon"),
-                    new(TkbEntityTypes.Unit_InfantrySquad, "Infantry Squad"),
-                    new(TkbEntityTypes.Unit_TankPlatoon_Auto, "Tank Platoon (Auto-Spawn)"),
-                };
-
-                _spawnerPanel     = new SpawnerPanel(tkbCatalog);
+                // ⭐⭐ CE-061 — the 15-entry literal that stood here is now the ONE shared list
+                //   (`ScenarioSpawnerCatalog.Default`, Hrot.Presentation), so CGF offers the same
+                //   spawner contents. ⚠ ExConSubsystem keeps a NEAR-duplicate 9-entry list with two
+                //   differently-spelled labels — recorded as a finding, ⛔ not silently harmonised:
+                //   that file is the backend lane's and the difference may be intent.
+                _spawnerPanel     = new SpawnerPanel(ScenarioSpawnerCatalog.Default);
                 _missionPanel     = new MissionPanel(0, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry());
                 _configPanel      = new ConfigPanel();
                 _sharedOrbatPanel = new SharedOrbatPanel();
@@ -4533,16 +4523,28 @@ namespace Hrot.Editor
 
             // ?? Shared UI panels ??????????????????????????????????????????????
             if (_spawnerPanel     != null && _spawnAdapter     != null)
-                windowManager.RegisterWindow(new EditorSpawnerWindow(_spawnerPanel, _spawnAdapter));
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.SpawnerPanelWindow(
+                    _spawnerPanel, _spawnAdapter,
+                    Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorSpawner, "Scenario",
+                    EditorWindowColor.TitleBar));
 
             if (_missionPanel     != null && _missionService   != null && _mapPickAdapter != null)
-                windowManager.RegisterWindow(new EditorMissionWindow(_missionPanel, _missionService, _mapPickAdapter));
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.MissionPanelWindow(
+                    _missionPanel, _missionService, _mapPickAdapter,
+                    Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorMission, "Scenario",
+                    EditorWindowColor.TitleBar));
 
             if (_configPanel      != null && _mapConfigAdapter  != null)
-                windowManager.RegisterWindow(new EditorConfigWindow(_configPanel, _mapConfigAdapter));
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.ConfigPanelWindow(
+                    _configPanel, _mapConfigAdapter,
+                    Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorConfig, "Scenario",
+                    EditorWindowColor.TitleBar));
 
             if (_sharedOrbatPanel != null && _orbatAdapter     != null)
-                windowManager.RegisterWindow(new EditorSharedOrbatWindow(_sharedOrbatPanel, _orbatAdapter, _orbatAdapter));
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.SharedOrbatPanelWindow(
+                    _sharedOrbatPanel, _orbatAdapter, _orbatAdapter,
+                    Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorOrbat, "Scenario",
+                    EditorWindowColor.TitleBar));
 
             if (_previewPanel     != null && _previewController != null)
                 windowManager.RegisterWindow(new EditorPreviewWindow(_previewPanel, _previewController));
