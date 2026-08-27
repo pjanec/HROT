@@ -7,6 +7,10 @@ current-answer: §4 the decision sub-questions with my leans. §2 = the measured
   that reframes AQ62. ⭐⭐ §8 = Q63-C MEASURED (2026-08-27): the kernel-mode hook is NOT a blocker, the
   pre/post-Initialize line already IS the node/UI boundary, phase 1 touches only editor+CGF, and CGF goes
   FIRST. §8 WINS over §4 Q63-C's 'genuine unknown' and over §7's counter-case on that point.
+  🔒🔒 §9 = USER RULING 2026-08-27, the ASYMMETRIC sharing direction: editor is the specimen for UI/editing/
+  monitoring/debugging; network translator sets are per-host and must NOT be unified. §9 is CANON and WINS
+  over §8.5's sequencing (§9.4 reverses it: UI bundles FIRST, node adoption later) and over §8.2's
+  'translatorPacks is a defect' reading (§9.3 retracts it).
 user-approved: 2026-08-27 — Q63-B bundles, Q63-D dissolution, and Q63-E resolved as SINGLE SESSION owns
   every composition root (so no cross-lane split is needed).
 design-basis: SharedApplicationBootstrapper (the existing 7-phase node base, 3 adopters) ·
@@ -275,3 +279,70 @@ surgery on a tangle — it is formalising a line the code already draws.
 | **1a** | **CGF** subclasses `SharedApplicationBootstrapper`; everything above its `Initialize()` *(≤ ln 850)* moves into the phase hooks | ⭐ already has the context + builder; smallest real migration |
 | **1b** | **editor** does the same for its ≤ ln 1757 half; `logicPacks` becomes a field of the subclass | ⚠ bigger, but 1a has proved the shape |
 | **1c** | ⛔ **STOP.** ExCon/ReplayBrowser/Orchestrator get **no** phase-1 work | ⭐ finding ① — they own no kernel |
+
+## 9. 🔒🔒🔒 USER RULING `2026-08-27` — **the sharing direction is ASYMMETRIC BY DOMAIN**
+
+> 🔒 **User, verbatim:** *"regarding ui and scenario editing and monitoring and debugging editor is
+> obviously the source and specimen of what to share with others. regarding network stuff like translator
+> packs this is very different, the cgf and simhost and ig are very likely using a precisely tailored set
+> of translators that can not be unified easily and blindly, the opposite is true."*
+
+⭐⭐⭐ **This is CANON, not a state claim** — it is a decision about direction and it does not decay.
+
+| domain | direction | ⇒ what that means for this AQ |
+|---|---|---|
+| ⭐⭐⭐ **UI · scenario editing · monitoring · debugging** | **the EDITOR is the SOURCE AND SPECIMEN**; other hosts adopt FROM it | ⭐ bundles are extracted from the editor's wiring, and *"what does the editor do here"* is the reference answer. ⛔ Not a negotiation between two hosts' habits |
+| ⛔⛔ **NETWORK — translator packs, DDS wiring, egress/ingress sets** | ⭐⭐ **THE OPPOSITE.** Each host's set is **precisely tailored** and ⛔ **must NOT be unified easily or blindly** | ⛔ **there is NO network bundle, and none may be added.** The per-host translator set stays per-host |
+
+### 9.1 📐 MEASURED — the ruling is right, and the sets are near-DISJOINT
+
+| host | translators its bootstrapper registers |
+|---|---|
+| `SimHostNodeBootstrapper` | `CreateSimHostAuxiliaryTranslator` · `CreateSimHostPathfindingTranslator` · `CreateSimHostPerceptionTranslator` |
+| `IgNodeBootstrapper` | ⭐ **`CreateIgEgressTranslator` only** — a *different* translator, not a subset |
+| `StrideNodeBootstrapper` | `CreateSimHostAuxiliaryTranslator` only |
+
+⇒ ⭐⭐ **Almost no overlap.** ⛔ Any attempt to hoist a *"shared translator set"* would either give a host
+translators it must not run, or strip ones it needs — ⚠ and both failures are **silent on a single box**
+and only appear on a real multi-node cluster.
+
+### 9.2 ✅✅ AND THE EXISTING BASE ALREADY ENCODES THIS — **adopting it does NOT unify the network**
+
+📐 This is the reassurance that matters for `Q63-C`: `SharedApplicationBootstrapper` Phase 6b
+`RegisterNetworkTranslators` is an **`abstract` hook**. ⇒ ⭐⭐⭐ **the base does not supply a translator set —
+it FORCES each host to declare its own**, and a host that forgets does not compile.
+
+| what the base shares UNCONDITIONALLY *(marked "base class ONLY, NOT a subclass hook")* | ⚠ checked against the ruling |
+|---|---|
+| Phase 6a+ `NedReplicationModule` | ⭐ replication PLUMBING, not a translator set. ⚠ Inert without a participant |
+| Phase 6c `SlaveTimeTranslatorRegistration` | ⭐ its own comment: translators *"accept a null participant and become safe no-ops"* ⇒ inert on a networkless host |
+| the phase ORDER | ⭐ ordering, not content |
+| ⛔ **a translator SET** | ⭐⭐ **nothing** — it is abstract, per host |
+
+⇒ ⭐⭐ **The base shares WHEN, never WHAT.** That is exactly the split the ruling asks for, already built.
+
+### 9.3 ⚠ TWO CORRECTIONS TO MY OWN EARLIER SECTIONS
+
+| # | what I said | ⭐ corrected |
+|---|---|---|
+| **①** | §8.2 called the un-supplied `translatorPacks` a **defect** — *"Go External uninstalls the logic packs and installs nothing"*, and I was lining it up as a sixth silent-default instance | ⛔⛔ **RETRACTED as the primary reading.** Under §9's ruling the editor's Internal↔External is a **NETWORK POSTURE** change, and network posture is precisely the tailored-per-host thing. ⇒ ⭐ the favoured reading is now: *External* means **stop simulating locally and receive from a real SimHost over DDS**, with ingress coming from the **network factory / Phase-6b translators**, ⛔ NOT from a module pack. ⇒ `translatorPacks` is a **DEAD PARAMETER**, not a missing dependency. ⚠ Still worth one confirming check + deleting the parameter, but it is **not** a silent default and I should not have reached for that label first |
+| **②** | I flagged Phase 5's mandatory `ClusterSlave` return as possible friction for editor adoption | ✅ **Unfounded — measured.** BOTH hosts already build one *(`EditorSubsystem:1113`, `CgfSubsystem:687`)*. ⭐ The editor's *offline* `ClusterMaster` *(`:1769`)* is an **extra**, and it is constructed **AFTER** `Kernel.Initialize()` *(`:1757`)* ⇒ it belongs to the **UI half**, not the node half |
+
+### 9.4 ⭐⭐⭐ AND IT RE-SEQUENCES THE PLAN — **UI bundles FIRST, node adoption LATER**
+
+⚠⚠ **This reverses §8.5's recommendation, and the ruling is the reason.**
+
+| | |
+|---|---|
+| ⛔ **What §8.5 said** | phase 1 *(node-bootstrap adoption)* first, CGF then editor |
+| ⭐⭐⭐ **What §9 implies instead** | ⭐ **the UI/experience bundles go FIRST.** That is where the ruling's direction is UNAMBIGUOUS *(editor = specimen)*, where the **entire measured drift bug class lives** *(`CE-046`…`CE-064` — every one a UI/composition gap, ⛔ not one a node-bootstrap gap)*, and where nothing touches network posture |
+| ⚠ **Node adoption becomes a LATER, optional consolidation** | ⭐ its LOC win is real *(385/208 vs 5325/2599)* — ⛔ but it is the phase that touches **orchestration, participant and time authority**, i.e. exactly the area the ruling says not to move blindly. ⇒ do it when the UI half is done and the parity rail is mature, ⛔ not as the opening move |
+
+⇒ ⭐⭐ **Revised order:** **phase 0** parity rail → **phase 1** bundle seam + menus/toolbar *(the pattern
+already exists)* → **phase 2+** one bundle per batch, **extracted from the editor as specimen** → **phase N**
+*(optional)* node-bootstrap adoption, CGF first.
+
+### 9.5 ⛔ A STANDING CONSTRAINT for every later batch
+⭐⭐ **No bundle may register a DDS translator, an egress/ingress system, or a participant.** ⚠ If a bundle
+appears to need one, that is the signal it has reached the (c) boundary ⇒ ⛔ **STOP and report** *(`R-106`)*,
+do not parameterize across it.
