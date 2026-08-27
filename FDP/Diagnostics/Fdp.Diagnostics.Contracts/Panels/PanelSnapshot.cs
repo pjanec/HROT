@@ -118,7 +118,14 @@ public static class PanelSnapshot
         return root;
     }
 
-    /// <summary>⭐ Every panel that is instrumented at all — ⛔ <b>independent of whether it drew.</b></summary>
+    /// <summary>
+    /// ⭐ Every surface declared to this snapshot — ⛔ <b>independent of whether it drew.</b>
+    /// <para>⚠⚠ <b><c>CE-076</c> WIDENED THIS</b> *(`2026-08-27`)*: <c>WindowManager.RegisterWindow</c> now
+    /// calls <see cref="DeclareInstrumented"/> for every window it registers, so this is
+    /// <b>every registered WINDOW plus every panel that declared itself</b> — no longer "instrumented
+    /// panels only". ⭐ That completeness is what the phase-2 UI baseline needs; ⛔ it does NOT mean each
+    /// entry publishes a model — <see cref="CapturedPanels"/> is still the subset that drew.</para>
+    /// </summary>
     public static IReadOnlyCollection<string> RegisteredPanels => (IReadOnlyCollection<string>)Instrumented.Keys;
 
     /// <summary>⭐ Those that actually published a model. ⚠ A subset of <see cref="RegisteredPanels"/>.</summary>

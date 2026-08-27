@@ -75,9 +75,14 @@ namespace Hrot.SimHost
                                      : new ArchitectureDiagnosticsService(() => _app?.Kernel));
 
         /// <inheritdoc/>
-        /// <remarks>Dark red — distinct from IG (green) and ExCon (violet).</remarks>
-        public System.Numerics.Vector4 TitleBarColor =>
-            new System.Numerics.Vector4(0.40f, 0.08f, 0.08f, 1f);
+        /// <remarks>
+        /// Dark red — distinct from IG (green) and ExCon (violet).
+        /// ⭐⭐⭐ <c>CE-083</c> — RETURNS <c>SimHostWindowColor.TitleBar</c> instead of repeating a
+        /// literal. 📐 It used to be <c>(0.40,0.08,0.08)</c> while every SimHost WINDOW used
+        /// <c>(0.50,0.10,0.10)</c>, so spawned "Inspect…" watch windows were a different shade.
+        /// ⇒ one value per subsystem, true by construction.
+        /// </remarks>
+        public System.Numerics.Vector4 TitleBarColor => Hrot.SimHost.Windows.SimHostWindowColor.TitleBar;
 
         // ── Core application ──────────────────────────────────────────────────
 
@@ -276,9 +281,9 @@ namespace Hrot.SimHost
             // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites are now ONE shared bundle,
             //    `Hrot.Presentation.Windows.DiagnosticsWindowsBundle` (20 sites across 4 hosts before
             //    this). ⭐ Also this host's FIRST `UiBundleHost.Compose` call.
-            // ⚠ `InspectContextMenuTitleBarColor` is passed because this host genuinely uses a DIFFERENT
-            //   shade for spawned "Inspect…" watch windows (0.40,0.08,0.08) than for its diagnostics
-            //   windows (SimHostWindowColor.TitleBar = 0.50,0.10,0.10) — preserved, not tidied (§5c.7.2 G2).
+            // ⭐⭐ CE-083 (user ruling) — ONE colour per subsystem, applied to each of its windows.
+            //   📐 This host used to pass a SECOND shade to the "Inspect…" helper; its `TitleBarColor`
+            //   property now RETURNS the window constant, so there is one value and no way to drift.
             // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.7.
             Fdp.Toolkit.Runner.UiBundleHost.Compose(
                 new Fdp.Toolkit.Runner.IUiBundle[]
@@ -298,8 +303,8 @@ namespace Hrot.SimHost
                             new ArchitectureDiagnosticsService(() => _app?.Kernel)),
                         // BP-327 — the module/system execution-stats profiler.
                         ExecutionStats: () => _app?.Kernel?.GetExecutionStats(),
-                        PickBridge:     vis.GetMapPickBridge(),
-                        InspectContextMenuTitleBarColor: TitleBarColor)),
+                        // ⭐ CE-083 — no second colour: TitleBarColor IS SimHostWindowColor.TitleBar.
+                        PickBridge:     vis.GetMapPickBridge())),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

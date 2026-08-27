@@ -1,4 +1,5 @@
 [
+  "Entity Blueprints",
   "ai_asset_browser",
   "ai_asset_browser_find_results",
   "ai_blackboard_variables_blueprint",
@@ -11,6 +12,9 @@
   "ai_canvas_blueprint",
   "ai_canvas_btree",
   "ai_canvas_hsm",
+  "ai_comparison_changes_blueprint",
+  "ai_comparison_changes_btree",
+  "ai_comparison_changes_hsm",
   "ai_comparison_summary_blueprint",
   "ai_comparison_summary_btree",
   "ai_comparison_summary_hsm",
@@ -30,6 +34,9 @@
   "ai_runtime_inspector_blueprint",
   "ai_runtime_inspector_btree",
   "ai_runtime_inspector_hsm",
+  "ai_trace_timeline_blueprint",
+  "ai_trace_timeline_btree",
+  "ai_trace_timeline_hsm",
   "ai_variable_values_blueprint",
   "ai_variable_values_btree",
   "ai_variable_values_hsm",
@@ -50,8 +57,10 @@
   "editor_toolbar",
   "editor_zone_editor",
   "entity-blueprints",
+  "excon_cluster_control",
   "fdp_message_log",
   "global_menu",
   "main_toolbar",
+  "orchestrator_diagnostics",
   "scenario_details"
 ]

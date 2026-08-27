@@ -73,9 +73,17 @@ namespace Hrot.IG
                                            () => _app?.Kernel));
 
         /// <inheritdoc/>
-        /// <remarks>Forest green — distinct from SimHost (red) and ExCon (violet).</remarks>
-        public System.Numerics.Vector4 TitleBarColor =>
-            new System.Numerics.Vector4(0.08f, 0.40f, 0.08f, 1f);
+        /// <remarks>
+        /// Forest green — distinct from SimHost (red) and ExCon (violet).
+        /// ⭐⭐⭐ <c>CE-083</c> (user ruling, <c>2026-08-27</c>: <i>"each subsystem still needs its own
+        /// different titlebar color, for each its window"</i>) — this RETURNS
+        /// <c>IgWindowColor.TitleBar</c> rather than repeating a literal. 📐 It used to be its own
+        /// <c>(0.08,0.40,0.08)</c> while every IG WINDOW used <c>(0.07,0.30,0.07)</c>, so the spawned
+        /// "Inspect…" watch windows were a different shade from the windows they came from. ⇒ ⭐ one
+        /// value per subsystem, applied to each of its windows, and now true BY CONSTRUCTION — ⛔ there
+        /// is no second literal left to drift.
+        /// </remarks>
+        public System.Numerics.Vector4 TitleBarColor => Hrot.IG.Windows.IgWindowColor.TitleBar;
 
         private IgApplication? _app;
         private bool _headless;
@@ -162,10 +170,9 @@ namespace Hrot.IG
             //    and titles are DERIVED from `IdPrefix`/`TitlePrefix`, so they cannot drift apart again.
             // ⭐ This is also this host's FIRST `UiBundleHost.Compose` call — the phase-1 seam's real
             //   adoption. ⛔ A throwing bundle is NAMED, never swallowed.
-            // ⚠ `InspectContextMenuTitleBarColor` is passed because this host genuinely uses a DIFFERENT
-            //   shade for the spawned "Inspect…" watch windows than for its diagnostics windows
-            //   (0.08,0.40,0.08 vs IgWindowColor.TitleBar's 0.07,0.30,0.07). ⛔ Preserved, not tidied:
-            //   recolouring a window is not a unification slice's business (design §5c.7.2 G2).
+            // ⭐⭐ CE-083 (user ruling) — ONE colour per subsystem, applied to each of its windows.
+            //   📐 This host used to pass a SECOND shade to the "Inspect…" helper; its `TitleBarColor`
+            //   property now RETURNS the window constant, so there is one value and no way to drift.
             // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.7.
             Fdp.Toolkit.Runner.UiBundleHost.Compose(
                 new Fdp.Toolkit.Runner.IUiBundle[]
@@ -186,8 +193,8 @@ namespace Hrot.IG
                             new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _app.Kernel)),
                         // BP-327 — the module/system execution-stats profiler.
                         ExecutionStats: () => _app.Kernel?.GetExecutionStats(),
-                        PickBridge:     _app.GetMapPickBridge(),
-                        InspectContextMenuTitleBarColor: TitleBarColor)),
+                        // ⭐ CE-083 — no second colour: TitleBarColor IS IgWindowColor.TitleBar now.
+                        PickBridge:     _app.GetMapPickBridge())),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
             // Signal IgApplication that these panels must not be double-rendered.

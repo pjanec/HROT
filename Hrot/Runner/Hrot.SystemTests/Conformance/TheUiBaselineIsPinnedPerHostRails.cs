@@ -27,29 +27,33 @@ namespace Hrot.SystemTests.Conformance;
 ///
 /// <para>⚠ <b>And why "use the current editor" is not enough on its own:</b> 📐 the ids are HOST-PREFIXED
 /// (<c>editor_system_profiler</c> · <c>ig_system_profiler</c> · <c>simhost_system_profiler</c> ·
-/// <c>cgf_system_profiler</c>). The editor's baseline covers <b>4 of the 22</b> cross-host instantiation
+/// <c>cgf_system_profiler</c>). The editor's baseline covers <b>5 of the 20</b> cross-host instantiation
 /// sites and proves nothing about whether <c>ig_system_profiler</c> still exists. ⇒ ⭐ every host needs its
 /// own baseline, which is why this rail is per MODE.
 /// ⚠ 📐 <b>ReplayBrowser names its two <c>rb_*</c></b> *(<c>rb_inspector</c>, <c>rb_events</c>)*, not
 /// <c>*_fdp_*</c> — measured while inspecting the first capture.</para>
 ///
-/// <para>📐 <b>THREE modes cover all 22 sites</b> *(measured: <c>HrotRunnerConfiguration:124</c> expands
+/// <para>📐 <b>THREE modes cover every site</b> *(slice ② measured <b>20 across 4 hosts</b>, not 22 across 5 —
+/// ReplayBrowser's two are a DIFFERENT TYPE in a different assembly)* *(measured: <c>HrotRunnerConfiguration:124</c> expands
 /// <c>all</c> to <c>orchestrator,simhost,ig,excon,cgf</c>, and <c>:181</c> forbids the editor coexisting with
 /// IG/ExCon)</b>:</para>
 /// <list type="bullet">
-///   <item><c>editor</c> — the editor's 4 sites</item>
+///   <item><c>editor</c> — the editor's 5 sites</item>
 ///   <item>⭐⭐ <c>all</c> — SimHost · IG · ExCon · CGF · Orchestrator, <b>five hosts in ONE process</b></item>
-///   <item><c>replaybrowser</c> — ReplayBrowser's 2 sites</item>
+///   <item><c>replaybrowser</c> — ReplayBrowser's 2 *(its own types)*</item>
 /// </list>
 ///
 /// <para>⛔⛔ <b>THE ORDER THIS FORCES:</b> the goldens are captured on TODAY'S code, <b>before</b> any
 /// registration site moves. ⚠⚠ A golden captured after the first bundle lands would enshrine whatever that
 /// bundle did — 📌 <c>GoldenStore</c>'s own remarks call that *"a golden nobody has seen fail"*.</para>
 ///
-/// <para>⚠ <b>LIMITS, stated so nobody over-trusts this</b> *(§5c.4e)*: ① <c>GET /panels</c> reports the
-/// <b>instrumented</b> set, so a registered window that never calls <c>PanelSnapshot.DeclareInstrumented</c>
-/// is invisible here — <see cref="The_instrumentation_gap_is_measured_not_assumed"/> measures that gap rather
-/// than assuming it away; ② ids are <b>not pixels</b> — this catches a dropped, renamed or added window,
+/// <para>⚠ <b>LIMITS, stated so nobody over-trusts this</b> *(§5c.4e)*: ① ✅ <b><c>CE-076</c> CLOSED the
+/// instrumentation gap</b> — <c>WindowManager.RegisterWindow</c> now declares every window, so
+/// <c>GET /panels registered[]</c> is complete by construction *(the editor golden grew 55 → 64, purely
+/// additive)*; ⚠ what survives is narrower: a LAZILY registered window is absent until its perspective has
+/// been visited, which is why the capture walks them —
+/// <see cref="The_instrumentation_gap_is_measured_not_assumed"/> prints the live numbers; ② ids are <b>not
+/// pixels</b> — this catches a dropped, renamed or added window,
 /// ⛔ never a panel that renders wrong; ③ <c>captured[]</c> is frame-dependent, so the assertions read
 /// <c>registered[]</c>; ④ ⛔⛔ <b>a window that KEEPS its id but MOVES PERSPECTIVE is NOT covered</b> — the
 /// first version tried to and the field was VACUOUS *(see <see cref="CaptureRegisteredAsync"/>)*, so the
@@ -195,10 +199,16 @@ public sealed class TheUiBaselineIsPinnedPerHostRails
         var perspectives = ((await host.Client.ListPerspectivesAsync()).EnsureOk()
                             .Field("perspectives") as JsonArray)!.Count;
 
-        _out.WriteLine($"[{mode}] instrumented(registered)={registered}  captured-this-frame={captured}  "
+        _out.WriteLine($"[{mode}] registered={registered}  captured-this-frame={captured}  "
                      + $"perspectives={perspectives}");
-        _out.WriteLine($"[{mode}] ⚠ 'registered' counts INSTRUMENTED panels only. Windows that never call "
-                     + "PanelSnapshot.DeclareInstrumented are invisible to the baseline rail.");
+        // ⭐⭐ CE-076 CLOSED THE GAP THIS LINE USED TO WARN ABOUT. `WindowManager.RegisterWindow` now calls
+        //    PanelSnapshot.DeclareInstrumented(window.Id), so EVERY registered window is in `registered[]`
+        //    by construction. ⚠ What remains is a much smaller, NAMED caveat: a window registered LAZILY
+        //    (on first perspective activation) is absent until its perspective has been visited — which is
+        //    why the capture above WALKS the perspectives and why the golden can hold one more id than a
+        //    single read reports. 📐 Measured 2026-08-27: editor single-read 63, perspective-walk 64.
+        _out.WriteLine($"[{mode}] ⭐ every registered window is declared (CE-076). ⚠ A LAZILY registered "
+                     + "window still needs its perspective visited first — the capture walks them.");
 
         // ⛔ A floor, not an equality: zero would mean the capture surface is dead and every baseline
         //    comparison above is vacuous.

@@ -30,6 +30,9 @@
          rather than copied (ruling 9). ⛔ No production assembly may reference it. -->
     <ProjectReference Include="..\Hrot.Editor.UiFrameRail\Hrot.Editor.UiFrameRail.csproj" />
     <ProjectReference Include="..\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
+    <!-- CE-082: DiagnosticsWindowsBundle lives here; the layout orphan rail composes it so the
+         diagnostics window ids are judged BEHAVIOURALLY instead of by a source-text literal. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <!-- FC-3c: open real StructEdit sessions to test the FixedListBufferViewProvider. -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />

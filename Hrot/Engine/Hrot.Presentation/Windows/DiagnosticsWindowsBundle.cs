@@ -61,14 +61,19 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
         //   "Inspect…" click handler — so its position relative to the window above cannot change the
         //   registered set. 📐 That is measured, and it is why CGF's old call site (which ran BEFORE its
         //   inspector window) can move here safely.
-        // ⛔ It takes its OWN colour: two hosts genuinely pass a different shade here (see the record).
+        // ⭐⭐ CE-083 (user ruling, `2026-08-27`) — the helper gets THE SAME colour as the windows.
+        //    📐 IG and SimHost used to pass a different shade here, so a spawned "Inspect…" watch window
+        //    did not match the window it came from. ⇒ each subsystem's `TitleBarColor` now RETURNS its
+        //    own window constant, so there is ONE value per subsystem and the second parameter this
+        //    method used to need is GONE — ⛔ not defaulted-and-unused, which is how a knob nobody
+        //    passes becomes a liability (the `CE-070` lesson).
         FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
             h.Inspector,
             ctx.Windows,
             h.Perspective,
             h.RepoAdapter,
             h.PickBridge,
-            h.InspectContextMenuTitleBarColor ?? h.TitleBarColor);
+            h.TitleBarColor);
 
         ctx.Windows.RegisterWindow(new FdpEventBrowserWindow(
             EventsId(h.IdPrefix), $"{h.TitlePrefix} Event Browser", h.Perspective,
@@ -118,12 +123,11 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
 ///     <see cref="ArchitectureDiagnosticsPanel"/> and a stats delegate, so each host keeps its own
 ///     construction verbatim and <b>nothing about that split changes</b>. ⛔ Passing null is how the
 ///     editor's guard survives.</item>
-///   <item><b><c>G2</c> — two colours.</b> IG and SimHost pass a genuinely DIFFERENT title-bar colour to
-///     the "Inspect…" helper than to their windows *(IG <c>(0.07,0.30,0.07)</c> vs
-///     <c>(0.08,0.40,0.08)</c>; SimHost <c>(0.50,0.10,0.10)</c> vs <c>(0.40,0.08,0.08)</c>)</item>;
-///     Editor and CGF pass one value to both. ⇒ <see cref="InspectContextMenuTitleBarColor"/> exists so
-///     that difference is explicit rather than silently recoloured. ⚠ It looks like latent drift — ⛔ but
-///     changing a colour is not a unification slice's business.
+///   <item><b><c>G2</c> — ONE colour per subsystem <i>(resolved by the user, `2026-08-27`)</i>.</b>
+///     📐 IG and SimHost used to pass a different shade to the "Inspect…" helper than to their windows.
+///     ⇒ each subsystem's <c>TitleBarColor</c> property now RETURNS its own window constant, so there is
+///     one value per subsystem applied to every one of its windows — <b>true by construction</b>, and the
+///     record no longer carries a second colour field. 📌 <c>CE-083</c>.</item>
 ///   <item><b><c>G3</c> — the reflector block is NOT here.</b> The ~30-line
 ///     <c>AddBufferViewProvider</c>/<c>EditContextFactory</c> setup is duplicated verbatim between CGF
 ///     and the editor and is <b>absent on IG/SimHost</b> ⇒ ⛔ putting it in this bundle would hand two
@@ -139,9 +143,11 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
 /// </param>
 /// <param name="ArchitecturePanel">⛔ null ⇒ the window is NOT registered (ruling 49, and <c>G1</c>).</param>
 /// <param name="ExecutionStats">⛔ null ⇒ the profiler is NOT registered.</param>
-/// <param name="InspectContextMenuTitleBarColor">
-/// ⭐ Defaults to <paramref name="TitleBarColor"/>. Pass it only when the host really does use a different
-/// shade for spawned watch windows — see <c>G2</c>.
+/// <param name="TitleBarColor">
+/// ⭐⭐ <b>The subsystem's ONE colour</b>, applied to every window this bundle registers AND to the
+/// spawned "Inspect…" watch windows. 📌 <c>CE-083</c>: there used to be a second parameter for the
+/// helper because IG and SimHost passed a different shade there; each subsystem's <c>TitleBarColor</c>
+/// property now returns its own window constant, so one value is all there is.
 /// </param>
 public sealed record DiagnosticsHostServices(
     string IdPrefix,
@@ -154,5 +160,4 @@ public sealed record DiagnosticsHostServices(
     Vector4? TitleBarColor,
     ArchitectureDiagnosticsPanel? ArchitecturePanel = null,
     Func<List<ModuleStats>?>? ExecutionStats = null,
-    MapPickServiceBridge? PickBridge = null,
-    Vector4? InspectContextMenuTitleBarColor = null);
+    MapPickServiceBridge? PickBridge = null);

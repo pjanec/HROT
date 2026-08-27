@@ -22,8 +22,9 @@ namespace Hrot.Presentation.Tests.Windows;
 /// passed by hand before this slice. ⛔ NOT <c>DiagnosticsWindowsBundle.InspectorId(prefix)</c> compared
 /// against itself, which would pass no matter what the scheme became.</para>
 ///
-/// <para>⚠ The three measured DRIFTS are asserted as drifts — <c>G1</c> (the editor's kernel guard),
-/// <c>G2</c> (IG/SimHost's second colour) and, by omission, <c>G3</c>. 📄 Design
+/// <para>⚠ The measured DRIFTS are asserted — <c>G1</c> (the editor's kernel guard) as a drift that is
+/// PRESERVED, <c>G2</c> as one that was RESOLVED by the user (<c>CE-083</c>: one colour per subsystem),
+/// and <c>G3</c> by omission. 📄 Design
 /// <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5c.7.2 / §5c.7.5 item ④.</para>
 /// </summary>
 /// <remarks>
@@ -70,7 +71,7 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
 
     private static DiagnosticsHostServices Services(
         string idPrefix, string titlePrefix, string perspective, Vector4 color,
-        bool withKernel = true, Vector4? inspectColor = null)
+        bool withKernel = true)
         => new DiagnosticsHostServices(
             IdPrefix:       idPrefix,
             TitlePrefix:    titlePrefix,
@@ -82,8 +83,7 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
             TitleBarColor:  color,
             ArchitecturePanel: withKernel ? Panel() : null,
             ExecutionStats:    withKernel ? () => null : null,
-            PickBridge:        null,
-            InspectContextMenuTitleBarColor: inspectColor);
+            PickBridge:        null);
 
     private static (string Title, string Perspective, Vector4? Color) Get(WindowManager wm, string id)
     {
@@ -181,29 +181,31 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
             "the system profiler was registered without execution stats — same lost guard.");
     }
 
-    // ── G2: the second colour ─────────────────────────────────────────────────────
+    // ── G2, RESOLVED: one colour per subsystem ────────────────────────────────────
 
     /// <summary>
-    /// ⭐⭐⭐ <c>G2</c> — <b>the "Inspect…" colour is INDEPENDENT of the window colour.</b>
+    /// ⭐⭐⭐ <c>G2</c>/<c>CE-083</c> — <b>every window this bundle registers carries the subsystem's ONE
+    /// colour.</b>
     ///
-    /// <para>📐 Measured: IG passes <c>(0.08,0.40,0.08)</c> to the helper but <c>(0.07,0.30,0.07)</c> to
-    /// its windows; SimHost <c>(0.40,0.08,0.08)</c> vs <c>(0.50,0.10,0.10)</c>. ⛔ Collapsing the two
-    /// would silently recolour every spawned watch window on two hosts. ⭐ This asserts the windows keep
-    /// the WINDOW colour even when the helper is given a different one.</para>
+    /// <para>🔒 User ruling `2026-08-27`: <i>"each subsystem still needs its own different titlebar color,
+    /// for each its window"</i>. 📐 Before it, IG passed <c>(0.08,0.40,0.08)</c> to the "Inspect…" helper
+    /// but <c>(0.07,0.30,0.07)</c> to its windows, so a spawned watch window did not match the window it
+    /// came from. ⇒ ⭐ the record now carries ONE colour field and the helper gets the same value.</para>
+    ///
+    /// <para>⚠ The helper's colour is only observable on a window spawned by an "Inspect…" CLICK, which
+    /// this rail does not simulate — ⛔ so this asserts the half that IS observable *(all four windows
+    /// share one colour)*, and the other half is true **by construction**: the record has no second
+    /// colour left to pass. 📌 Stated rather than over-claimed.</para>
     /// </summary>
     [Fact]
-    public void An_override_inspect_colour_does_not_leak_onto_the_windows()
+    public void Every_window_carries_the_one_subsystem_colour()
     {
-        var windows = new Vector4(0.07f, 0.30f, 0.07f, 1f);
-        var inspect = new Vector4(0.08f, 0.40f, 0.08f, 1f);
-        Assert.NotEqual(windows, inspect);          // anti-vacuity: the two must actually differ
+        var subsystemColour = new Vector4(0.07f, 0.30f, 0.07f, 1f);   // IgWindowColor.TitleBar
+        var wm = Compose(Services("ig_", "IG", "IG", subsystemColour));
 
-        var wm = Compose(Services("ig_", "IG", "IG", windows, inspectColor: inspect));
-
-        Assert.Equal(windows, Get(wm, "ig_fdp_inspector").Color);
-        Assert.Equal(windows, Get(wm, "ig_fdp_events").Color);
-        Assert.Equal(windows, Get(wm, "ig_architecture_diagnostics").Color);
-        Assert.Equal(windows, Get(wm, "ig_system_profiler").Color);
+        foreach (var id in new[] { "ig_fdp_inspector", "ig_fdp_events",
+                                   "ig_architecture_diagnostics", "ig_system_profiler" })
+            Assert.Equal(subsystemColour, Get(wm, id).Color);
     }
 
     // ── the scheme itself, and the seam ───────────────────────────────────────────

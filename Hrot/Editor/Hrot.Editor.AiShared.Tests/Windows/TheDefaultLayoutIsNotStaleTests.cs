@@ -157,7 +157,9 @@ public sealed class TheDefaultLayoutIsNotStaleTests : IDisposable
     private OrphanReport BuildOrphanReport()
     {
         var shipped  = ShippedWindowIds();
+        // ⭐ CE-082 — TWO behavioural sources now: the three AI registrars, and the diagnostics bundle.
         var created  = RegistrarWindowIds();
+        created.UnionWith(DiagnosticsBundleWindowIds());
 
         var claimedByRegistrar = shipped.Where(created.Contains).ToList();
         var rest               = shipped.Where(id => !created.Contains(id)).ToList();
@@ -210,6 +212,75 @@ public sealed class TheDefaultLayoutIsNotStaleTests : IDisposable
 
         return wm.RegisteredWindowIds.ToHashSet(StringComparer.Ordinal);
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-082</c> — the ids <see cref="Hrot.Presentation.Windows.DiagnosticsWindowsBundle"/>
+    /// registers, asked of a real <c>WindowManager</c>.
+    ///
+    /// <para>📐 <b>Why this exists.</b> The four diagnostics windows used to be claimed by this rail's
+    /// WEAKEST judgement — a literal <c>"editor_fdp_inspector"</c> in <c>EditorSubsystem.cs</c>. Phase-2
+    /// slice ② replaced those literals with ONE derived scheme, so the literals vanished and the orphan
+    /// rail reported THREE false orphans. ⛔ The windows never moved — the DETECTION did.</para>
+    ///
+    /// <para>⭐⭐ Unlike <c>EditorSubsystem</c> *(which cannot be constructed headless — the whole reason
+    /// the weak judgements exist)*, the BUNDLE composes fine here, so this is a behavioural answer and
+    /// strictly stronger than the grep it replaces. ⛔ NOT
+    /// <c>DiagnosticsWindowsBundle.InspectorId("editor_")</c>: re-deriving from the convention is what
+    /// this rail refuses to do.</para>
+    ///
+    /// <para>⚠⚠ <b>Used ONLY by the ORPHAN direction</b> *(is this shipped id claimed by something?)*.
+    /// ⛔ Deliberately NOT by <see cref="EveryWindowTheAiRegistrarsCreateIsInTheShippedLayout"/>: that
+    /// rail's scope is the AI registrars, and its own remarks say it cannot speak for subsystem windows.
+    /// 📌 Measured while wiring this: including it there immediately reddened on
+    /// <c>editor_system_profiler</c> — <b>a REAL finding</b> *(that window has no entry in the shipped
+    /// layout, so it restores un-docked)*, but a finding about SUBSYSTEM windows, which needs a windowed
+    /// layout re-save rather than a scope this rail never claimed. Filed as <c>CE-087</c>.</para>
+    /// </summary>
+    private HashSet<string> DiagnosticsBundleWindowIds()
+    {
+        var wm = new Fdp.Presentation.WindowManager.WindowManager(_atlas);
+        // ⭐⭐⭐ CE-082 (phase 2 slice ②) — THE DIAGNOSTICS IDS ARE NOW BEHAVIOURAL TOO.
+        //    📐 They used to be claimed by the WEAKEST judgements — a literal `"editor_fdp_inspector"` in
+        //    `EditorSubsystem.cs`. Slice ② replaced those literals with ONE derived scheme
+        //    (`$"{IdPrefix}fdp_inspector"`), so the literal vanished and this rail reported THREE false
+        //    orphans. ⛔ The windows never went anywhere — the DETECTION did.
+        // ⭐⭐ Unlike `EditorSubsystem` (which cannot be constructed headless — the reason the weak
+        //    judgements exist at all), the BUNDLE composes fine here. ⇒ we ask it what it registers
+        //    instead of grepping for a string, which is strictly stronger than what it replaces.
+        // ⛔ NOT `DiagnosticsWindowsBundle.InspectorId("editor_")` — that would re-derive the ids from
+        //    the convention, which is exactly what this rail refuses to do.
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(
+            new Fdp.Toolkit.Runner.IUiBundle[]
+            {
+                new Hrot.Presentation.Windows.DiagnosticsWindowsBundle(
+                    new Hrot.Presentation.Windows.DiagnosticsHostServices(
+                        IdPrefix:       "editor_",
+                        TitlePrefix:    "Editor",
+                        Perspective:    "Scenario",
+                        Inspector:      new Fdp.Presentation.Panels.EntityInspectorPanel(),
+                        RepoAdapter:    () => null,
+                        InspectorState: () => new Fdp.Presentation.Abstractions.InspectorState(),
+                        EventBrowser:   new Fdp.Presentation.Panels.EventBrowserPanel(),
+                        TitleBarColor:  null,
+                        // ⚠ Both non-null on purpose: the editor registers these two only when it has a
+                        //   kernel, and the shipped layout NAMES them — so the layout's expectation is
+                        //   the kernel-present case, and that is the case this rail must cover.
+                        ArchitecturePanel: new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                                               new InertArchitectureService()),
+                        ExecutionStats:    () => null)),
+            },
+            new Fdp.Toolkit.Runner.UiBundleContext(wm));
+
+        return wm.RegisteredWindowIds.ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>⚠ <see cref="Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel"/> rejects a null
+    /// service, so the stub is real. ⭐ Never drawn — only the window ID is being asked for.</summary>
+    private sealed class InertArchitectureService : Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService
+    {
+        public Fdp.ModuleHost.Diagnostics.ArchitectureSnapshotDto GetSnapshot() => new();
+    }
+
 
     private static HashSet<string> ShippedWindowIds()
     {
