@@ -111,6 +111,23 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         private DebugPrimitiveBuffer? _gizmoFeed => _primitiveBuffer ?? _dispatcher?.GizmoBuffer;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-066</c> — THIS HOST'S MISSION EDITOR, resolved exactly like
+        /// <see cref="_gizmoFeed"/>: the editor's own, else the ACTIVE PERSPECTIVE's.
+        /// 📄 <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.9.
+        ///
+        /// <para>🔴 Before this, every <c>/missions/*</c> route answered *"no mission service"* on
+        /// <c>--mode all</c> — 📐 while <c>CgfSubsystem:1095</c> had built the <b>same shared</b>
+        /// <c>ScenarioMissionService</c> the editor builds at <c>:1962</c>. ⛔ Only the editor handed its
+        /// instance over *(`:1967`)*, which is the trap <see cref="MissionService"/>'s own remarks name.</para>
+        ///
+        /// <para>⚠ <see cref="MissionService"/> stays a settable property: the EDITOR builds its service
+        /// after this host, so the setter is about construction ORDER. ⭐ The cluster arm needs no setter —
+        /// the provider is read live, which is strictly better.</para>
+        /// </summary>
+        private Hrot.UI.Common.Facades.IMissionEditorService? _missionEditor
+            => _missionService ?? _dispatcher?.MissionEditor;
+
         private IPreviewController _preview
             => _editorPreview
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.Preview);
@@ -1496,9 +1513,13 @@ namespace Hrot.Editor.DebugApi
                 if (!_entityMap.TryGetEntity(entityId.Value, out var entity))
                     return (null, $"Entity {entityId.Value} not found. List entities with GET /entities.", DebugApiHints.Entity);
 
-                if (_missionService is not null)
+                // ⭐⭐ CE-066 — the RESOLVED editor, so a cluster host gets the same exact-parity list the
+                //    editor gets instead of silently falling through to the TKB catalog below. ⚠ The
+                //    fallback is a correct answer, just a COARSER one — which is precisely the kind of
+                //    quiet downgrade that made this seam worth routing.
+                if (_missionEditor is not null)
                 {
-                    names = _missionService.GetAvailableBehaviors(entityId.Value);
+                    names = _missionEditor.GetAvailableBehaviors(entityId.Value);
                 }
                 else
                 {

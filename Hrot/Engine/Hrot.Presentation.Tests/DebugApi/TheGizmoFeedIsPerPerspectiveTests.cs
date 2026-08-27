@@ -138,4 +138,102 @@ public sealed class TheGizmoFeedIsPerPerspectiveTests
         var cgfBuffer = new DebugPrimitiveBuffer();
         Assert.Null(TwoHosts(cgfBuffer, new DebugPrimitiveBuffer(), active: "NoSuchPerspective").GizmoBuffer);
     }
+
+    // ══ CE-066 — THE MISSION EDITOR, the SAME seam and the SAME defect ═══════════════════════════
+    //
+    // 🔴 Third instance in one batch: CgfSubsystem builds the SAME shared ScenarioMissionService the editor
+    //    builds (:1095 vs EditorSubsystem:1962) and hands it to nobody, while EditorSubsystem:1967 hands
+    //    its instance to the debug service. ⇒ all four /missions routes answered "no mission service" on
+    //    --mode all, and the routes sat UNCLASSIFIED in CapabilityFor because nobody had asked what a
+    //    cluster host answers. ⭐ Classifying and routing were ONE fix.
+    // ⚠ These rails are deliberately thinner than the gizmo ones above: the LAZY-read and
+    //   ACTIVE-PERSPECTIVE mechanics are the same code path, already pinned there. ⛔ Re-testing the
+    //   mechanism per member would be volume, not coverage — what is member-SPECIFIC is the capability
+    //   cell and the honest absence.
+
+    /// <summary>
+    /// ⭐⭐ The mission cell is MEASURED from the wiring, and absence is absence.
+    /// 📌 This is the cell whose ABSENCE from <c>CapabilityFor</c> kept
+    /// <c>The_manifest_describes_this_host_truthfully</c> red before its matrix loop for three reports.
+    /// </summary>
+    [Fact]
+    public void A_provider_reports_its_own_mission_editor_and_absence_is_absence()
+    {
+        var editor = new FakeMissionEditor();
+
+        var hosts   = new SubsystemDebugProvider("CGF", "Scenario", missionEditor: () => editor);
+        var doesNot = new SubsystemDebugProvider("IG", "IG", missionEditor: null);
+
+        Assert.Same(editor, hosts.MissionEditor);
+        Assert.Null(doesNot.MissionEditor);
+
+        Assert.True(hosts.DescribeCapabilities()[DebugCapabilities.MissionEdit]);
+        Assert.False(doesNot.DescribeCapabilities()[DebugCapabilities.MissionEdit]);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The two members are INDEPENDENT.</b> ⛔ A host may draw a map and host no mission editing —
+    /// 📐 measured: that is IG and SimHost exactly. ⚠ Written because the cheap way to add a second member
+    /// is to derive both from one *"is this host wired?"* flag, which would make the manifest claim mission
+    /// editing wherever it claims a map feed. 📌 The `time.drive`/`world.read` pair already proved these
+    /// capabilities are genuinely independent, not one bit.
+    /// </summary>
+    [Fact]
+    public void Drawing_a_map_does_not_imply_hosting_mission_editing()
+    {
+        var mapOnly = new SubsystemDebugProvider(
+            "IG", "IG", gizmoBuffer: () => new DebugPrimitiveBuffer(), missionEditor: null);
+
+        var caps = mapOnly.DescribeCapabilities();
+        Assert.True(caps[DebugCapabilities.GizmoFrame]);
+        Assert.False(caps[DebugCapabilities.MissionEdit]);
+    }
+
+    /// <summary>
+    /// ⭐⭐ The dispatcher resolves the ACTIVE perspective's editor — ⛔ never another node's.
+    /// ⚠ This one matters more than the gizmo equivalent: a mission plan belongs to an entity in a specific
+    /// node's world, so committing through the wrong node's editor would WRITE to the wrong world.
+    /// </summary>
+    [Fact]
+    public void The_dispatcher_answers_with_the_active_perspectives_mission_editor()
+    {
+        var cgf = new FakeMissionEditor();
+
+        PerspectiveScopedDispatcher Dispatcher(string active) => new(
+            new ISubsystemDebugProvider[]
+            {
+                new SubsystemDebugProvider("CGF", "Scenario", missionEditor: () => cgf),
+                new SubsystemDebugProvider("IG",  "IG",       missionEditor: null),
+            },
+            currentPerspective: () => active,
+            acksPending: null);
+
+        Assert.Same(cgf, Dispatcher("Scenario").MissionEditor);
+        Assert.Null(Dispatcher("IG").MissionEditor);
+        Assert.Null(Dispatcher("NoSuchPerspective").MissionEditor);
+    }
+
+    /// <summary>
+    /// ⭐ The narrowest possible stand-in: these rails only ever ask *"is it there?"*, so every member
+    /// throws. ⛔ A stub that returned plausible values would invite a future rail to assert against
+    /// fiction.
+    /// </summary>
+    private sealed class FakeMissionEditor : Hrot.UI.Common.Facades.IMissionEditorService
+    {
+        private static T No<T>() => throw new NotSupportedException(
+            "FakeMissionEditor exists to be non-null; it models no behaviour.");
+
+        public IReadOnlyList<string> GetAvailableBehaviors(long entityId) => No<IReadOnlyList<string>>();
+
+        public (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId)
+            => No<(Hrot.Core.Mission.MissionPlan?, long)>();
+
+        public Task<Hrot.UI.Common.Models.MissionCommitResult> CommitMissionAsync(
+            long entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion)
+            => No<Task<Hrot.UI.Common.Models.MissionCommitResult>>();
+
+        public Task<Hrot.UI.Common.Models.MissionCommitResult> SendControlCommandAsync(
+            long entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId)
+            => No<Task<Hrot.UI.Common.Models.MissionCommitResult>>();
+    }
 }

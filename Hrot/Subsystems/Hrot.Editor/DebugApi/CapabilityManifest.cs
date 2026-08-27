@@ -66,6 +66,19 @@ public static class CapabilityManifest
         //   world. 📌 A cluster node with no shell honestly reports it cannot serve them.
         if (path.StartsWith("/editor", StringComparison.Ordinal))     return DebugCapabilities.EditorAuthoring;
 
+        // ⭐⭐⭐ CE-066 — `/missions/*` gets its OWN capability, and this classification was MISSING.
+        // 🔴 Measured `2026-08-27`: `The_manifest_describes_this_host_truthfully` was RED before its matrix
+        //    loop was ever reached, on `unclassifiedRoutes = [/missions/{networkId}, …/run, …/task,
+        //    …/tasks]`. ⚠ It had been reported three times and read as a paperwork gap; it was not — ⛔ the
+        //    routes were unclassified because NOBODY HAD ASKED WHAT A CLUSTER HOST ANSWERS, and the answer
+        //    was "no mission service" even though CGF builds one (CgfSubsystem:1095). ⇒ ⭐ classifying it
+        //    and routing the seam are ONE fix, not two.
+        // ⭐⭐ Its OWN key, not `EditorAuthoring`: 📐 the cell is MEASURED per provider from
+        //    ISubsystemDebugProvider.MissionEditor, so a perspective can honestly report mission editing
+        //    absent while still hosting the authoring shell. ⛔ Folding it into the broad authoring key
+        //    would have made it undiagnosable — exactly R-133's complaint about declared cells.
+        if (path.StartsWith("/missions", StringComparison.Ordinal))    return DebugCapabilities.MissionEdit;
+
         if (path.StartsWith("/preview", StringComparison.Ordinal))    return DebugCapabilities.Preview;
         if (path.StartsWith("/sim", StringComparison.Ordinal))         return DebugCapabilities.TimeDrive;
         // ⭐⭐ HN-029: the LOAD routes are their OWN capability, not `editor.authoring`.

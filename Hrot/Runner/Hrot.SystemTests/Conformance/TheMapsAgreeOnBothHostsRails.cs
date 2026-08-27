@@ -234,83 +234,14 @@ public sealed class TheMapsAgreeOnBothHostsRails
         }
     }
 
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>BP-487</c> — THE MANIFEST TELLS THE TRUTH ABOUT EACH HOST'S MAP FEED.</b>
-    /// 📄 §5.6 · <c>RULINGS.md</c> <c>R-133</c> *("the capability manifest is MEASURED, never DECLARED …
-    /// a cell reported present that silently no-ops is worse than an absent one")*.
-    ///
-    /// <para>🔴 <b>The lie this replaces.</b> 📐 <c>CapabilityManifest</c> hard-coded
-    /// <c>panels.gizmo = true</c> on <b>every</b> perspective row, on the strength of a comment calling the
-    /// primitive buffer a *"process-wide static"*. ⛔ It is one buffer <b>per subsystem</b> and ExCon has
-    /// none ⇒ <c>--mode all</c> advertised a feed that answered <b>404</b>. ⭐ The cell now comes from
-    /// <c>dispatcher.Matrix()</c>, so this rail is the control on the FORWARDING — taken on the
-    /// <b>CONSTRUCTED OBJECT</b> over MCP, ⛔ not on the composition root's source text, which is what the
-    /// silent-default rule asks for.</para>
-    ///
-    /// <para>⚠⚠ <b>Why it lives HERE and not beside <c>time.drive</c> in
-    /// <c>The_manifest_describes_this_host_truthfully</c>, where it belongs.</b> 📐 Measured `2026-08-27`:
-    /// that rail is RED before its matrix loop is reached, on <c>unclassifiedRoutes</c> =
-    /// <c>[/missions/{networkId}, …/run, …/task, …/tasks]</c> — a missing prefix in
-    /// <c>CapabilityManifest.CapabilityFor</c>, which is the MCP lane's file and is now reported a THIRD
-    /// time. ⇒ ⭐ an assertion added there would sit behind another lane's red and <b>gate nothing</b>.
-    /// ⛔ This is a declared workaround, not a preference — 📌 the pointer in that rail says so, and says to
-    /// move this back (and keep only ONE copy) when <c>/missions</c> is classified.</para>
-    /// </summary>
-    [SystemSmokeFact]
-    public async Task The_manifest_tells_the_truth_about_each_hosts_map_feed()
-    {
-        await using var cluster = await EditorProcess.StartAsync("map-manifest-all", mode: "all");
-
-        var m = (await cluster.Client.GetCapabilitiesAsync()).EnsureOk().DataOrThrow();
-        var matrix = (m["matrix"] as JsonObject)!;
-
-        var verdicts = new List<string>();
-
-        foreach (var (perspective, row) in matrix)
-        {
-            bool claimed = row!["panels.gizmo"]!.GetValue<bool>();
-
-            (await cluster.Client.SwitchPerspectiveAsync(perspective)).EnsureOk();
-            await cluster.Client.StepAsync(1);
-            await Task.Delay(150);
-
-            var gizmo = await cluster.Client.GetGizmoFrameAsync(max: 1);
-            verdicts.Add($"{perspective}: claims={claimed} answers={gizmo.StatusCode}");
-
-            if (claimed)
-                Assert.True(gizmo.Ok,
-                    $"the matrix claims '{perspective}' has a gizmo feed, but GET /panels/_gizmo answered "
-                  + $"{gizmo.StatusCode}: {gizmo.Error}. ⭐ Check that subsystem's CreateDebugProvider still "
-                  + "passes `gizmoBuffer:` — BP-487's whole failure mode was a caller that HAD the buffer "
-                  + "and did not pass it.");
-            else
-                Assert.False(gizmo.Ok,
-                    $"the matrix claims '{perspective}' has NO gizmo feed, yet GET /panels/_gizmo answered "
-                  + "OK. ⛔ A cell that under-reports is still the manifest lying — just in the direction "
-                  + "nobody notices.");
-        }
-
-        _out.WriteLine($"panels.gizmo: [{string.Join(" | ", verdicts)}]");
-
-        // ⛔⛔ ANTI-VACUITY, and it is the assertion that matters most: if every cell were `false` the loop
-        //    above would pass while the cluster had NO map feed at all — 📌 which is EXACTLY the state
-        //    BP-487 found. ⭐ Measured: CGF ("Scenario") and IG each build a DebugPrimitiveBuffer, and
-        //    SimHost builds one only when it has a Visualization (null on a headless node).
-        // ⚠ The bound is 2, not 3, and that is DELIBERATE: SimHost's feed is conditional on a window, so
-        //   demanding 3 would make this rail depend on whether --mode all gave SimHost a viewport — a fact
-        //   about the RUN-SET, which §5.2 forbids this rail from asserting.
-        int withFeed = matrix.Count(kv => kv.Value!["panels.gizmo"]!.GetValue<bool>());
-        Assert.True(withFeed >= 2,
-            $"only {withFeed} of {matrix.Count} perspectives report a gizmo feed [{string.Join(" | ", verdicts)}]. "
-          + "⭐ CGF/Scenario and IG both build a buffer unconditionally, so fewer than 2 means the provider "
-          + "wiring regressed. ⛔ A green with 0 would mean the two-host MAP comparison reads nothing.");
-
-        // ⭐ And the one host that must NOT claim it — the honest FALSE that proves the cell is measured
-        //   rather than defaulted. ⛔ If ExCon ever gains a map, delete this deliberately.
-        Assert.False(matrix["ExCon"]!["panels.gizmo"]!.GetValue<bool>(),
-            "ExCon reports a gizmo feed, but a repo-wide search finds no DebugPrimitiveBuffer in Hrot.ExCon "
-          + "at all. ⭐ Either it gained a map, or the cell went back to being hard-coded true.");
-    }
+    // ⭐⭐ `The_manifest_tells_the_truth_about_each_hosts_map_feed` LIVED HERE and is GONE — ⛔ deleted,
+    //    not moved-and-kept. It was a declared WORKAROUND: `The_manifest_describes_this_host_truthfully`
+    //    is the right home for a "does the cell match reality" check *(it already applied that lens to
+    //    `time.drive`)*, but that rail was RED before its matrix loop on
+    //    `unclassifiedRoutes = [/missions/*]`, so an assertion there would have gated nothing.
+    // ⭐ `CE-066` classified `/missions`, the manifest rail reaches its loop again, and `panels.gizmo` now
+    //   sits beside `time.drive` and `mission.edit` there — ONE claim, ONE rail (ruling 9).
+    // ⚠ Kept as a comment because a reader of the report/design will look for that test name here.
 
     /// <summary>
     /// ⭐⭐⭐ <b>PHASE 0 ③(2) — CENTRING ON AN ENTITY DOES NOT KILL THE HOST.</b>

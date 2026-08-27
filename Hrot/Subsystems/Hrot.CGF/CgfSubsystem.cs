@@ -374,6 +374,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⚠ Lazy for the measured reason in SubsystemDebugProvider's ctor remarks: the buffer is created
             //   in Initialize (line ~851), AFTER the composition root builds this provider.
             gizmoBuffer:   () => _cgfGizmoBuffer,
+            // ⭐⭐⭐ CE-066 — CGF's OWN mission editor: the very ScenarioMissionService its Mission panel
+            //    commits through (built at line ~1095, the SAME shared adapter EditorSubsystem:1962 builds).
+            //    ⛔ Until this line, all four `/missions/*` routes answered "no mission service" on
+            //    `--mode all` while this host had one the whole time — and that omission is also why the
+            //    routes sat UNCLASSIFIED in CapabilityFor, which kept the manifest rail red.
+            // ⚠ Lazy: the service is created during window registration, well after this provider is built.
+            missionEditor: () => _missionService,
             // ⭐⭐ HN-029: the node's own orchestration bus — the same one its ClusterSlave and
             //    ClusterOpEgressTranslator sit on, so a transition requested here reaches the master by the
             //    path the operator's own "Load into Live" button takes.

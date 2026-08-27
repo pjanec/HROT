@@ -310,10 +310,26 @@ not substance)* · `CE-053` *(supplied the input it tested)* · `CE-064` *(asser
 | **③**(2) *"center-on-entity CRASHES"* | *"suspect the `E3`/`CE-051` path — likely mine"* | 🔴 **CONFIRMED, and the suspicion was right.** `CE-065`, §5.7 |
 | **④** *"nothing in production"* | — | ⛔ **FALSE, twice.** `BP-487` *(§5.6)* was needed to make item ② reachable at all, and `CE-065` is a live crash fix. ⭐ The *parity comparison itself* still adds no production code — that is the half that survives |
 
-⭐ **And one venue fact a later session must not re-derive:** ⛔⛔ **`--mode cgf` ALONE CANNOT BOOT.**
-📐 `DdsIdAllocator` waits 30 s for `Hrot.Orchestrator` then throws; the process dies with **exit 134**
-before serving `/status`. ⇒ ⭐ **CGF is exercised through `--mode all` + the `Scenario` perspective**, which
-is what the user was running. ⚠ *"the `--mode cgf` symptoms"* in §5.3 is shorthand for *"CGF's symptoms"*.
+### ⭐⭐⭐ `--mode cgf` — **NOT A DEFECT. A DEPLOYMENT MODE WE DO NOT TEST.** *(user ruling, `2026-08-27`)*
+
+> 🔒 **User, verbatim:** *"'mode all' is what we aim for, 'mode cgf' is for multi process truly distributed
+> deployment which we do not test and just hope it will work out of the box because of dds works same way
+> in-process or inter-computers."*
+
+⚠⚠ **An earlier version of this section called it *"`--mode cgf` ALONE CANNOT BOOT"* and listed it beside
+the defects. ⛔ That framing was WRONG and is SUPERSEDED.** 📐 The measurement stands — `DdsIdAllocator`
+waits 30 s for `Hrot.Orchestrator`, then throws; **exit 134** before `/status` — ⭐ **but that is a
+PRECONDITION being unmet, not a bug:** a single-subsystem mode is one process of a **distributed**
+deployment, and the orchestrator is a separate process that must already be running.
+
+| ⭐ the rule that follows | |
+|---|---|
+| ⭐⭐⭐ **`--mode all` is the TARGET, and the only mode this programme rails** | it is the in-process all-in-one the editor and CGF both live in |
+| ⛔ **`--mode cgf` and friends are NOT railed** — deliberately | ⭐ they are the truly-distributed deployment, and the bet is explicit: **DDS behaves identically in-process and across machines**, so `--mode all` passing is taken as evidence for the distributed case |
+| ⛔⛔ **Never write a rail that starts a single-subsystem mode** | 📌 it will die on the allocator wait and read as a regression. ⭐ Exercise CGF as **`--mode all` + the `Scenario` perspective** |
+
+⚠ *"the `--mode cgf` symptoms"* in §5.3 is shorthand for *"CGF's symptoms"* — the user was running
+`--mode all`.
 
 #### 📐 The measured map frames — the baseline a later drift is compared against
 | | editor | `--mode all` *(CGF/Scenario)* |
@@ -333,7 +349,14 @@ rather than defaulted. ⚠ The rail's anti-vacuity bound is **≥2, not ≥3** �
 exists only when it has a `Visualization`, so demanding 3 would make the rail depend on whether `--mode all`
 gave SimHost a viewport, which is a fact about the **RUN-SET** that §5.2 forbids asserting.
 
-#### ⛔⛔ A THIRD REPORT — **the `/missions` prefix blocks the manifest rail** *(cross-lane, MCP)*
+#### ✅✅ RESOLVED `2026-08-27` — **the `/missions` prefix, and it was NOT a paperwork gap.** ⇒ see §5.9
+> 🔒 **User, `2026-08-27`:** *"feel free to fix other lanes code, you are the only one making changes,
+> during this refactor i do not run other stuff in parallel."* ⇒ ⭐ the cross-lane block is LIFTED and the
+> gap is fixed as **`CE-066`**. ⛔ **The text below is the state BEFORE that** — kept because it records
+> why the assertion was parked, and because ⭐⭐ **the "third report" framing was itself the mistake**: it
+> read as paperwork for three rounds when it was a missing CAPABILITY. §5.9 has the real story.
+
+#### ⛔ HISTORY — **the `/missions` prefix blocks the manifest rail** *(cross-lane, MCP)*
 📐 `The_manifest_describes_this_host_truthfully` is **RED before its matrix loop is reached**:
 `unclassifiedRoutes = [/missions/{networkId}, …/run, …/task, …/tasks]` — no prefix in
 `CapabilityManifest.CapabilityFor`. ⚠ **Pre-existing and outside this batch's diff** *(verified: `missions`
@@ -341,6 +364,53 @@ appears nowhere in that file, and the diff touched only the matrix-row lines)*. 
 assertion was **moved into `TheMapsAgreeOnBothHostsRails`**, because an assertion behind another lane's red
 gates nothing. ⛔ **When `/missions` is classified, move it back beside `time.drive` — and keep only ONE
 copy** *(ruling 9)*; both rails carry a pointer saying so.
+
+### 5.9 ⛔⛔⛔ `CE-066` — **the `/missions` gap was NOT paperwork. It was a missing capability.**
+
+⭐⭐⭐ **The most useful thing this batch learned, and it is a lesson about REPORTING, not about code.**
+📌 The unclassified `/missions` routes were reported **three times** across sessions as *"the MCP lane must
+add a prefix"* — ⛔ **a paperwork framing that was wrong every time.** ⭐⭐ The routes were unclassified
+because **nobody had asked what a CLUSTER host answers** — and the answer was *"no mission service"*.
+
+#### 📐 Measured `2026-08-27` — the third instance of one defect in a single batch
+| | |
+|---|---|
+| `CgfSubsystem:1095` | builds `ScenarioMissionService` — ⭐ **the SAME shared adapter** `EditorSubsystem:1962` builds |
+| `EditorSubsystem:1967` | hands its instance to `_debugApiService.MissionService` |
+| 🔴 **CGF** | hands its instance to **nobody** ⇒ all four `/missions/*` routes answered *"no mission service"* on `--mode all` |
+| ⚠⚠ **and the property's OWN doc-comment states the rule it was breaking** | *"the composition root hands it over as soon as it exists. Leaving it null would be the silent-default trap — **a caller that HAS the dependency must pass it**."* 📌 Written for the editor; the cluster root never read it |
+
+⇒ ⭐⭐ **`BP-487` (gizmo buffer) · `CE-065` (event registration) · `CE-066` (mission editor) are ONE defect
+three times**, and the shared shape is exact: **a production caller holds a dependency the shared code needs
+and does not pass it.** ⛔ Not a missing abstraction — a missing argument.
+
+#### ⭐ The fix — **the same seam, one member wider**
+`MissionEditor` joins `GizmoBuffer` on `ISubsystemDebugProvider` *(`Func`-backed — CGF builds its service
+during window registration)*; CGF supplies it; `DebugApiService` resolves
+`_missionService ?? _dispatcher?.MissionEditor`; ⭐ `/missions` is classified as its **own** capability
+`mission.edit`, **measured per provider**.
+⛔ **Not folded into `EditorAuthoring`**: a broad key would have made the cell undiagnosable, which is
+`R-133`'s whole complaint. ⭐ `GET /behaviors?entityId=` was routed too — its fallback to the TKB catalog is
+a *correct but coarser* answer, i.e. exactly the quiet downgrade worth eliminating.
+
+#### ✅ And the manifest rail is GREEN for the first time
+📐 `The_manifest_describes_this_host_truthfully` had been red **before its matrix loop was ever reached**.
+⭐ With `/missions` classified it runs, and `panels.gizmo` **moved back beside `time.drive`** — ⛔ the
+temporary standalone rail was **DELETED, not kept** *(ruling 9: one claim, one rail)*.
+
+```
+capability cells, measured on --mode all:
+  Scenario (CGF):  drive=True   gizmo=True   mission=True
+  SimHost:         drive=True   gizmo=True   mission=False
+  IG:              drive=False  gizmo=True   mission=False
+  ExCon:           drive=False  gizmo=False  mission=False
+```
+⭐⭐ **Every cell matches real behaviour**, and the three FALSE columns are what prove the cells are
+*measured* rather than defaulted. ⚠ `mission.edit` is true **only** where CGF is — which is the claim.
+
+⇒ ⭐ **A rail worth having:** *"drawing a map does not imply hosting mission editing"* — 📌 the cheap way to
+add a second provider member is to derive both from one *"is this host wired?"* flag, and that would make
+the manifest claim mission editing wherever it claims a map feed. **Red-proved by doing exactly that.**
 
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |

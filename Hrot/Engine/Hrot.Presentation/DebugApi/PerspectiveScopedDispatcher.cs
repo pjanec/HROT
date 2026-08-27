@@ -138,6 +138,15 @@ public sealed class PerspectiveScopedDispatcher
     public Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? GizmoBuffer => Active()?.GizmoBuffer;
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-066</c> — the active perspective's MISSION EDITOR</b>, or <see langword="null"/> ⇒
+    /// <c>NOT_SUPPORTED_HERE(mission.edit)</c>. 📄 §5.9.
+    /// <para>⭐ Perspective-scoped for the same reason the feed above is: a mission plan belongs to an
+    /// entity in a specific node's world, so committing one through another node's editor would write to
+    /// the wrong world. ⛔ Measured: only CGF builds one among the cluster subsystems.</para>
+    /// </summary>
+    public Hrot.UI.Common.Facades.IMissionEditorService? MissionEditor => Active()?.MissionEditor;
+
+    /// <summary>
     /// ⭐⭐ The active perspective's cluster-transition publisher, or <see langword="null"/> ⇒
     /// <c>NOT_SUPPORTED_HERE(scenario.load)</c>. 📄 <c>MCP_Integration.md</c> § Group U.
     /// <para>⭐ Perspective-scoped for the same reason a step is: the request travels the path the operator's

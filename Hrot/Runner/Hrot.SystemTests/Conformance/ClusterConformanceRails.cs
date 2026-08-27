@@ -542,25 +542,28 @@ public sealed class ClusterConformanceRails
 
         // ⭐⭐ THE MATRIX AGREES WITH BEHAVIOUR — the half that makes it a measurement and not a claim.
         var matrix = (m["matrix"] as JsonObject)!;
-        // ⭐⭐ BP-487 — the `panels.gizmo` cell deserves exactly the check `time.drive` gets below (does the
-        //    cell match real behaviour?), and it HAS one — but in
-        //    `TheMapsAgreeOnBothHostsRails.The_manifest_tells_the_truth_about_each_hosts_map_feed`,
-        //    not here. ⛔⛔ NOT a preference: THIS RAIL CANNOT GATE IT.
-        // 📐 Measured `2026-08-27`: this rail is RED before the matrix loop is ever reached, on
-        //    `unclassifiedRoutes` = [/missions/{networkId}, /missions/{networkId}/run,
-        //    /missions/{networkId}/task, /missions/{networkId}/tasks] — a missing prefix in
-        //    `CapabilityManifest.CapabilityFor`. ⚠ That file is the MCP lane's and the gap is now reported a
-        //    THIRD time. ⇒ ⭐ an assertion added here would sit behind another lane's red and gate NOTHING.
-        // ⚠ When /missions is classified and this rail goes green again, decide whether the gizmo arm moves
-        //   back here beside time.drive — ⛔ but never keep BOTH: one claim, one rail (ruling 9).
+        // ⭐⭐⭐ THE CELLS ARE CHECKED AGAINST BEHAVIOUR — one loop, three capabilities.
+        // ⭐ `panels.gizmo` (BP-487) and `mission.edit` (CE-066) JOINED `time.drive` here on `2026-08-27`,
+        //   once CE-066 classified `/missions` and this rail could reach its matrix loop again.
+        // 📌 The gizmo arm lived briefly in `TheMapsAgreeOnBothHostsRails` because this rail was RED before
+        //   the loop, on `unclassifiedRoutes = [/missions/*]`. ⛔ That workaround is GONE, not duplicated —
+        //   one claim, one rail (ruling 9).
+        // ⚠ Expected shape, measured: Scenario(CGF) has all three; IG has the feed only; SimHost has the
+        //   feed + drive; ExCon has none of the three.
+        var verdicts = new List<string>();
+
         foreach (var (perspective, row) in matrix)
         {
-            bool canDrive = row!["time.drive"]!.GetValue<bool>();
+            bool canDrive  = row!["time.drive"]!.GetValue<bool>();
+            bool hasGizmo  = row!["panels.gizmo"]!.GetValue<bool>();
+            bool canMission = row!["mission.edit"]!.GetValue<bool>();
 
             (await cluster.Client.SwitchPerspectiveAsync(perspective)).EnsureOk();
             var step = await cluster.Client.StepAsync(1);
 
-            _out.WriteLine($"{perspective}: matrix says time.drive={canDrive}, step answered {step.StatusCode}");
+            _out.WriteLine($"{perspective}: time.drive={canDrive} (step {step.StatusCode}), "
+                         + $"panels.gizmo={hasGizmo}, mission.edit={canMission}");
+            verdicts.Add($"{perspective}: drive={canDrive} gizmo={hasGizmo} mission={canMission}");
 
             if (canDrive)
                 Assert.True(step.Ok,
@@ -568,7 +571,48 @@ public sealed class ClusterConformanceRails
                   + $"{step.StatusCode}: {step.Error}");
             else
                 Assert.Equal(501, step.StatusCode);
+
+            // ⭐ The map feed, same lens.
+            var gizmo = await cluster.Client.GetGizmoFrameAsync(max: 1);
+            if (hasGizmo)
+                Assert.True(gizmo.Ok,
+                    $"the matrix claims '{perspective}' has a gizmo feed, but GET /panels/_gizmo answered "
+                  + $"{gizmo.StatusCode}: {gizmo.Error}. ⭐ Check that subsystem's CreateDebugProvider still "
+                  + "passes `gizmoBuffer:` — BP-487's failure mode was a caller that HAD the buffer and did "
+                  + "not pass it.");
+            else
+                Assert.False(gizmo.Ok,
+                    $"the matrix claims '{perspective}' has NO gizmo feed, yet GET /panels/_gizmo answered "
+                  + "OK. ⛔ A cell that under-reports is still the manifest lying — in the direction nobody "
+                  + "notices.");
         }
+
+        _out.WriteLine($"capability cells: [{string.Join(" | ", verdicts)}]");
+
+        // ⛔⛔ ANTI-VACUITY on both new cells: an all-false column would pass the loop above while the
+        //    capability was wholly absent — 📌 which is EXACTLY the state BP-487 and CE-066 each found.
+        // ⚠ The gizmo bound is 2, not 3, DELIBERATELY: SimHost's buffer exists only when it has a
+        //   Visualization, so demanding 3 would make this rail depend on whether --mode all gave SimHost a
+        //   viewport — a fact about the RUN-SET, which the composition design's §5.2 forbids asserting.
+        int withFeed    = matrix.Count(kv => kv.Value!["panels.gizmo"]!.GetValue<bool>());
+        int withMission = matrix.Count(kv => kv.Value!["mission.edit"]!.GetValue<bool>());
+
+        Assert.True(withFeed >= 2,
+            $"only {withFeed} of {matrix.Count} perspectives report a gizmo feed [{string.Join(" | ", verdicts)}]. "
+          + "⭐ CGF/Scenario and IG both build a DebugPrimitiveBuffer unconditionally, so fewer than 2 means "
+          + "the provider wiring regressed.");
+
+        Assert.True(withMission >= 1,
+            $"NO perspective reports mission editing [{string.Join(" | ", verdicts)}]. ⭐ CGF builds a "
+          + "ScenarioMissionService (CgfSubsystem ~:1095) and must pass it as `missionEditor:` — CE-066's "
+          + "whole failure mode was that it built one and handed it to nobody.");
+
+        // ⭐ And the honest FALSEs, which are what prove the cells are measured rather than defaulted.
+        Assert.False(matrix["ExCon"]!["panels.gizmo"]!.GetValue<bool>(),
+            "ExCon reports a gizmo feed, but no DebugPrimitiveBuffer exists in Hrot.ExCon at all.");
+        Assert.False(matrix["ExCon"]!["mission.edit"]!.GetValue<bool>(),
+            "ExCon reports mission editing, but it builds no IMissionEditorService. ⚠ Note Hrot.ExCon has a "
+          + "DIFFERENT interface of the same name — the provider seam takes Hrot.UI.Common.Facades' one.");
     }
 
     /// <summary>

@@ -48,7 +48,7 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public (JsonNode? result, string? error, string? hintCategory) GetMission(long networkId)
         {
-            if (_missionService is null)
+            if (_missionEditor is null)
                 return (null,
                     "No mission service is wired into this host, so missions cannot be read or edited.",
                     DebugApiHints.MissionTask);
@@ -56,7 +56,7 @@ namespace Hrot.Editor.DebugApi
             if (!_entityMap.TryGetEntity(networkId, out _))
                 return (null, $"Entity {networkId} not found. List entities with GET /entities.", DebugApiHints.Entity);
 
-            var (plan, version) = _missionService.GetMissionSnapshot(networkId);
+            var (plan, version) = _missionEditor.GetMissionSnapshot(networkId);
             return (SerializeMission(networkId, plan, version), null, null);
         }
 
@@ -103,7 +103,7 @@ namespace Hrot.Editor.DebugApi
                 ["behavior"]  = behavior,
                 ["taskCount"] = plan.Tasks.Count,
             };
-            return (_missionService!.CommitMissionAsync(networkId, plan, version), meta, null, null);
+            return (_missionEditor!.CommitMissionAsync(networkId, plan, version), meta, null, null);
         }
 
         /// <summary>
@@ -124,7 +124,7 @@ namespace Hrot.Editor.DebugApi
                 ["networkId"] = networkId,
                 ["taskCount"] = 0,
             };
-            return (_missionService!.CommitMissionAsync(networkId, plan, version), meta, null, null);
+            return (_missionEditor!.CommitMissionAsync(networkId, plan, version), meta, null, null);
         }
 
         /// <summary>
@@ -136,7 +136,7 @@ namespace Hrot.Editor.DebugApi
         public (Task<MissionCommitResult>? commit, JsonNode? meta, string? error, string? hintCategory) BeginRunMission(
             long networkId, bool restart)
         {
-            if (_missionService is null)
+            if (_missionEditor is null)
                 return (null, null,
                     "No mission service is wired into this host, so missions cannot be run.", DebugApiHints.MissionTask);
 
@@ -149,7 +149,7 @@ namespace Hrot.Editor.DebugApi
                 ["restart"]   = restart,
             };
             // Guid.Empty → the execution system jumps to task index 0 (start), resetting the phase clock.
-            return (_missionService.SendControlCommandAsync(networkId, eMissionCommandType.CMD_JUMP_TO_TASK, Guid.Empty),
+            return (_missionEditor.SendControlCommandAsync(networkId, eMissionCommandType.CMD_JUMP_TO_TASK, Guid.Empty),
                     meta, null, null);
         }
 
@@ -167,7 +167,7 @@ namespace Hrot.Editor.DebugApi
             error   = null;
             hintCategory = null;
 
-            if (_missionService is null)
+            if (_missionEditor is null)
             {
                 error = "No mission service is wired into this host, so missions cannot be edited.";
                 hintCategory = DebugApiHints.MissionTask;
@@ -181,7 +181,7 @@ namespace Hrot.Editor.DebugApi
                 return false;
             }
 
-            var (snapshot, snapshotVersion) = _missionService.GetMissionSnapshot(networkId);
+            var (snapshot, snapshotVersion) = _missionEditor.GetMissionSnapshot(networkId);
             version = snapshotVersion;
             plan    = snapshot ?? new MissionPlan();
             plan.Tasks ??= new List<MissionTask>();
