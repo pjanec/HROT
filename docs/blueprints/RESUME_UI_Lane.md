@@ -12,7 +12,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
 > 🔒🔒 **Branch: `claude/reset-working-branch-qd1qpv`** *(re-pointed by the USER, `2026-08-23`)*. ⛔ Push
-> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-066`)**; ⚠ `BP-` are this lane's HISTORICAL
+> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-070`)**; ⚠ `BP-` are this lane's HISTORICAL
 > variable-model ids, tracker areas **`A`–`G`**.
 > ⚠⚠ **This lane MOVED from `claude/hrot-implementation-j1jvin`** — ⛔ any document still naming `j1jvin`
 > as this lane is stale; `.claude/CLAUDE.md`'s lane table *(`6b14d13fe`)* is authoritative.
@@ -34,7 +34,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 > **②** [`batches/HANDOFF_Cgf_Bootstrap_Unification.md`](batches/HANDOFF_Cgf_Bootstrap_Unification.md) — the dispatched FRAME. ⚠ **stale on two points**, see the STATUS block.
 > **③** [`Architect_Question_62_Unify_The_Composition_Root.md`](Architect_Question_62_Unify_The_Composition_Root.md) — the predecessor; ⚠ AQ63 §3 supersedes its SHAPE and STAGING.
 >
-> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-066`**.
+> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-070`**.
 > ⭐ **RELEARN** before acting on this file.
 
 ## ✅✅✅ 0.0 — **PHASE 0 IS DONE** *(`2026-08-27`, head `9bff523c7`)*
@@ -51,8 +51,23 @@ the design's **§5.6 / §5.7 / §5.8**.
 | ⭐ **Item ① needed no code** — all 8 drift instances were already railed by the preceding batch. ⛔ Do not rebuild them as a T3 comparison | §5.8 |
 | ⚠⚠ **This batch TOUCHED MCP-LANE FILES** *(`DebugApiService.cs`, `DebugApiService.Panels.cs`, `CapabilityManifest.cs`)* — unavoidable for `BP-487`, declared in report §7 ②, **flagged for the coordinator** | report §7 |
 
-⇒ ⭐⭐ **NEXT: phase 1** — the bundle seam + menus/toolbar. ⛔ It needs its **own inventory + UML before any
-code** *(obligations ①/②)*, and it is bound by §3's standing constraint: ⛔⛔ **no bundle registers a module,
+## ✅✅✅ 0.0b — **PHASE 1's SEAM IS BUILT** *(`2026-08-27`, head `f7df23904`)*
+📄 design **§5b** *(inventory + UML)* and **§5b.4** *(as-built, THREE argued deviations)*.
+
+| ⭐ what a next session must know | |
+|---|---|
+| ⭐⭐⭐ **The seam existed already.** There were TWO interfaces named `IWindowRegistrar`: host-level *(`RegisterWindows`, 8 subsystems)* and **feature-level in `Hrot.Blueprints.Editor`, in-degree 24** — the bundle contract, unnamed. ⭐ `BlueprintWindowRegistrar` implements BOTH and is the working precedent. ⇒ phase 1 NAMED the shape | §5b.1 |
+| ⭐⭐ **`IShellCommandRegistrar`** is the feature seam's new name *(`CE-068`)*; the ENGINE one keeps `IWindowRegistrar` | `CE-068` |
+| ⭐⭐ **`IUiBundle`/`UiBundleContext`/`UiBundleHost`** in `Fdp.Presentation`; **`ShellCommandCoreBundle`** is adopter #1 and **both hosts compose it** | `CE-069` |
+| ⛔⛔ **`SharedAiWindowRegistrar` was WITHDRAWN as first adopter** — 📐 of its 7 windows CGF constructs **0**, the editor **3**. Adopting it is *newly constructing seven windows on CGF* ⇒ **a question about CGF's ROLE**, not composition. ⭐ Answer that before touching it | §5b.4 |
+| ⛔ **`DeclaredSystems()`/`ReportUnserviceable()` were NOT built** — no adopter needed them, and an unadopted member looks adopted. ⭐ They arrive with the first bundle that has something to declare | §5b.4 |
+| ⭐⭐⭐ **The constraint is STRUCTURAL now:** `A_bundle_cannot_reach_the_run_set` asserts by reflection that `UiBundleContext` exposes only windows/menu/toolbar. ⚠ **If it fails, that is a DESIGN question, not a test to update** | §3.2 |
+| 🔴 **`CE-067`: `Hrot.Blueprints.Tests` (3 983 tests) had NOT COMPILED**, and `--no-build` printed PASSED over the stale binary — the exact hazard CLAUDE.md's tier section names. ⭐ Now **3 965/0** and back in the gate set | `CE-067` |
+| 📐 **Dead guard:** `WindowManager.MainToolbar` is NEVER null ⇒ every `MainToolbar != null` check was always true and its "toolbar-less host" comments described an impossible state | §5b.4 |
+
+⇒ ⭐⭐ **NEXT: phase 1's remaining adoptions** *(the `SharedAiWindowRegistrar` role question first)*, then
+**phase 2** — one bundle per batch from the editor as specimen. ⛔ Each needs its own inventory + UML before
+code *(obligations ①/②)*, and all are bound by §3's standing constraint: ⛔⛔ **no bundle registers a module,
 system, translator or participant.**
 
 ## 0.1 🔒 THE PROBLEM, AND WHAT THE USER APPROVED
