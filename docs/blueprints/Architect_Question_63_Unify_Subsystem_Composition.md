@@ -15,6 +15,9 @@ current-answer: §4 the decision sub-questions with my leans. §2 = the measured
   the editor runs almost everything, CGF/IG/SimHost run only what their role needs. §10.2 separates the
   two axes (editor = UI specimen, NOT run-set template); §10.3 is the bundle design rule; ⭐⭐ §10.4
   CORRECTS the frame handoff's phase-0 rail wording, which would have encoded a violation. §10 is CANON.
+  ⭐⭐ §11 = PHASE 0 SCOPE, measured: the pattern already exists (BreakpointSubsystemWiringTests), the
+  observation channels all exist, and the ONE real blocker is CGF's over-broad first-statement headless
+  guard. §11.1 corrects my claim that the integration HARNESSES already reach the UI — they do not.
 user-approved: 2026-08-27 — Q63-B bundles, Q63-D dissolution, and Q63-E resolved as SINGLE SESSION owns
   every composition root (so no cross-lane split is needed).
 design-basis: SharedApplicationBootstrapper (the existing 7-phase node base, 3 adopters) ·
@@ -433,3 +436,73 @@ the single most important correction to phase 0's design.
 ⛔⛔ **No bundle may register a module, a global system, a DDS translator, an egress/ingress system, or a
 participant.** ⭐ A bundle that appears to need one has reached the **role boundary** ⇒ ⛔ **STOP and report**
 *(`R-106`)*; ⛔ do not parameterize across it, and ⛔ do not "just add it on the other host too".
+
+## 11. ⭐⭐⭐ PHASE 0 — **what the UI-only rail actually needs** *(measured `2026-08-27`, answering the user)*
+
+> 🔒 **User:** *"so i guess the rail should check just the ui, and this is what the harness is already
+> capable of, what changes will be needed for such a rail?"*
+
+⭐⭐ **Verdict: the harness is nearly capable, the PATTERN IS ALREADY IN USE, and the changes are small —
+ONE production change plus a test helper.** ⚠ But my earlier claim *"build it on the integration harnesses
+that already boot hosts for real"* was **half wrong** and is corrected below.
+
+### 11.1 📐 What already exists — the prior art is doing exactly this
+
+| measured | |
+|---|---|
+| ⛔ `EditorHarness` · `CgfHarness` · `HrotRunnerHarness` | **`RegisterWindows` = 0 · `WindowManager` = 0 · `IconAtlas` = 0.** ⇒ they boot the NODE and ⛔ **never compose the UI.** ⚠ **That corrects my earlier claim** |
+| ⭐⭐⭐ **`BreakpointSubsystemWiringTests`** *(the same integration project)* | ⭐ **it already does the whole thing**, and it needs no harness at all |
+
+```csharp
+private static WindowManager MakeWindowManager()
+    => new WindowManager(new IconAtlas(IntPtr.Zero, 512, 512));   // ⭐ headless WM — NO GPU
+
+var subsystem = new EditorSubsystem();
+subsystem.Initialize(new SubsystemConfig { Headless = true });
+var wm = MakeWindowManager();
+subsystem.RegisterWindows(wm);                                     // ⭐ composes the UI
+Assert.True(wm.TryGetWindow("editor_bp_manager", out var win));     // ⭐ asserts the SURFACE
+Assert.Same(mgr, subsystem.BpMutationInterceptor);                  // ⭐⭐ …and the WIRING, on the object
+```
+
+⇒ ⭐⭐ **That last assertion is the `CE-052` defect class, already railed, in exactly the shape §10.4
+requires.** ⛔ Nothing needs inventing.
+
+### 11.2 ⭐ The observation channels are all present — **no new production instrumentation**
+
+| channel | gives |
+|---|---|
+| `wm.TryGetWindow(id)` · `wm.GetPerspectives()` · `wm.GetPerspectiveIconKey(p)` | windows · perspectives · toolbar faces |
+| `wm.ShellCommands` · `wm.GlobalMenu` | commands · menu leaves |
+| ⭐ **`PanelSnapshot.RegisteredPanels` / `PanelsOfKind(kind)` / `TryGet(id)` / `DumpAll()`** | ⭐⭐ the panel-kind inventory — and the `E5` wrappers **already** call `DeclareInstrumented(Id)` in their constructors |
+| `Simulate DrawClientArea()` on the shared window types | the panel VIEW MODEL, with no ImGui frame |
+
+### 11.3 🔴 THE ONE REAL BLOCKER — **CGF's headless guard is OVER-BROAD, and the asymmetry is quantified**
+
+| host | where `if (_headless) return;` sits inside `RegisterWindows` |
+|---|---|
+| `EditorSubsystem` | ⭐ **~1900 lines IN** *(`:4527`)* — it registers the whole model-level surface first, then skips the canvas-dependent tail |
+| `CgfSubsystem` | ⛔⛔ **STATEMENT ONE** *(`:1192`)* — it composes **NOTHING** |
+
+⇒ ⭐⭐⭐ **Under `Headless = true` the two hosts are not comparable at all**: the editor yields a partial
+surface, CGF yields an empty one. ⛔ **That, not the harness, is what blocks a UI parity rail.**
+
+📐 **And the guard looks unnecessary at that position:** the window-registration region touches no GPU —
+`CanvasMapPickAdapter` is already `_canvas != null`-guarded, and the prior art proves
+`new IconAtlas(IntPtr.Zero, …)` is fine. ⚠ **Stated as measured-and-likely, to be confirmed by making the
+change and running it** — ⛔ not asserted.
+
+### 11.4 ⭐ THE CHANGES — three, and only the first touches production
+
+| # | change | size |
+|---|---|---|
+| **①** | ⭐⭐⭐ **Move CGF's blanket first-statement `_headless` guard LATE**, to the same position the editor's sits: compose the model-level surface *(windows · commands · menu items · perspectives · icon keys)*, and skip only the genuinely canvas/GPU-dependent tail. ⚠ **Ruling-49 shape:** what cannot be serviced headlessly stays absent, and is absent **for a stated reason** | ⭐ small — moving one guard, then fixing what falls out |
+| **①b** | ⚠ **Necessary companion:** CGF's `E5` panels+adapters are built in `Initialize`'s `!_headless` block, so they stay null under `Headless = true` and their four windows still would not register. ⭐ They are **pure model objects** *(`SpawnerPanel`, `MissionPanel`, adapters over bus/world)* — nothing GPU ⇒ their construction does not belong behind that guard either. 📌 **Same over-broad-guard smell as ①** | ⭐ small |
+| **②** | Extract `MakeWindowManager()` into a **shared test helper** + add a CGF arm. ⛔ **No harness change** — `BreakpointSubsystemWiringTests` shows the harnesses are not needed for this | ⭐ trivial |
+| **③** | Write the rails against §11.2's existing channels, per §10.4's shape: **surface parity + per-host internal coherence + honest degradation.** ⛔ Never run-set equality | ⭐ the actual work |
+
+### 11.5 ⚠ WHAT THE RAIL STILL WILL NOT REACH — say it, do not paper over it
+⛔ Anything that needs a real canvas, a GL context or an ImGui frame: **the map render path, gizmo picking,
+actual drawing**. ⭐ Those remain `ui-probe`/T3 territory. ⚠ 📌 **Two of the six symptoms the user found by
+eye were of exactly that kind** *(`CE-055`/`CE-056`)* ⇒ ⛔ **this rail reduces the eyes-only surface; it does
+not eliminate it, and claiming otherwise would repeat the `CE-049` over-claim.**
