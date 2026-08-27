@@ -1079,7 +1079,12 @@ namespace Hrot.Editor
 
             // MTB-P5-T2: Add scenario contributor (non-file-backed; projects AvailableScenarios).
             _scenarioContributor = new Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor(
-                () => _editorLogic?.AvailableScenarios ?? Array.Empty<string>());
+                () => _editorLogic?.AvailableScenarios ?? Array.Empty<string>(),
+                // ⭐⭐ CE-064 — the same root EditorApplication's own AvailableScenarios source enumerates
+                //   (`SetAvailableScenariosSource` at :1812), so the listed name and the advertised file
+                //   path cannot disagree. ⛔ Withholding it would be a silent default — the value is right
+                //   here.
+                scenariosRoot: () => EditorBootstrap.ScenariosRoot);
             _aiCatalogBuilder.Catalog.AddContributor(_scenarioContributor);
 
             // Wire hot-reload: refresh the catalog whenever AI behaviors are reloaded.

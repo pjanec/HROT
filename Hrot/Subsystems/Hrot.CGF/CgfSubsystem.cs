@@ -2435,7 +2435,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   on that host because its panels read the list through the facade.
         builder.Catalog.AddContributor(new Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor(
             () => Hrot.Editor.AiShared.Catalog.ScenarioEnumeration.EnumerateRelPaths(
-                      OrchestrationConstants.GetSharedScenariosRoot())));
+                      OrchestrationConstants.GetSharedScenariosRoot()),
+            // ⭐⭐ CE-064 — the ROOT is passed, so each scenario asset carries a real SourceFilePath and
+            //   `open_asset_by_path` can reach it. ⛔ This caller HAS the root (same expression above), so
+            //   omitting it would be a silent default, not an honest absence.
+            scenariosRoot: () => OrchestrationConstants.GetSharedScenariosRoot()));
 
         // ⭐⭐ The ASSEMBLY half of the dual load: the compiled BTree/HSM definitions live in the loaded
         //    Hrot.AI.Behaviors assembly, which CGF loads for its own brains. ⛔ Without this the catalog

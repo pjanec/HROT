@@ -33,6 +33,7 @@ namespace Hrot.Editor.AiShared.Catalog;
 public sealed class ScenarioCatalogContributor : IAssetCatalogContributor
 {
     private readonly Func<IReadOnlyList<string>> _scenarioListSource;
+    private readonly Func<string>?               _scenariosRoot;
     private string[] _lastList = Array.Empty<string>();
 
     /// <summary>
@@ -43,10 +44,32 @@ public sealed class ScenarioCatalogContributor : IAssetCatalogContributor
     /// In production this is <c>() => editorLogic.AvailableScenarios</c>;
     /// in tests a lambda over a mutable list.
     /// </param>
-    public ScenarioCatalogContributor(Func<IReadOnlyList<string>> scenarioListSource)
+    /// <param name="scenariosRoot">
+    /// ⭐⭐⭐ <c>CE-064</c> — resolves the directory the relative paths are relative to, so each asset can
+    /// carry a real <see cref="IEditableAsset.SourceFilePath"/>.
+    ///
+    /// <para>🔴🔴 <b>Why this parameter exists — and note WHEN it was found.</b> 📐
+    /// <c>SourceFilePath</c> was hard-coded to <c>""</c> since this contributor was written, and the T3
+    /// rail <c>The_cluster_can_discover_open_and_switch_graph_tabs</c> asserts every catalogued asset
+    /// carries a non-blank one *(the HUMAN address <c>open_asset_by_path</c> needs)*. ⚠⚠ The rail was
+    /// GREEN the whole time because on <c>--mode all</c> the catalog held **zero scenarios** — first
+    /// because this contributor was editor-only *(<c>CE-053</c>)*, then because it was pointed at an
+    /// empty root *(<c>CE-057</c>)*. ⇒ ⭐⭐ <b>the rail could not fail until the list stopped being
+    /// empty</b>, which is the same weaker/stronger shape twice over: a loop over an empty collection
+    /// asserts nothing at all.</para>
+    ///
+    /// <para>⛔ Optional so the many single-argument test constructions keep compiling — ⚠ but
+    /// <b>a production caller that HAS the root MUST pass it</b> *(the silent-default rule)*, and both
+    /// hosts do. When <c>null</c> the path is <c>""</c>, exactly as before, which is the honest answer
+    /// for a caller that genuinely has no root *(a projected in-memory list)*.</para>
+    /// </param>
+    public ScenarioCatalogContributor(
+        Func<IReadOnlyList<string>> scenarioListSource,
+        Func<string>?               scenariosRoot = null)
     {
         _scenarioListSource = scenarioListSource
             ?? throw new ArgumentNullException(nameof(scenarioListSource));
+        _scenariosRoot = scenariosRoot;
     }
 
     // ── IAssetCatalogContributor ──────────────────────────────────────────
@@ -73,7 +96,7 @@ public sealed class ScenarioCatalogContributor : IAssetCatalogContributor
 
         var result = new IEditableAsset[scenarios.Count];
         for (int i = 0; i < scenarios.Count; i++)
-            result[i] = new ScenarioEditableAsset(scenarios[i]);
+            result[i] = new ScenarioEditableAsset(scenarios[i], _scenariosRoot?.Invoke());
 
         return result;
     }
@@ -108,16 +131,22 @@ public sealed class ScenarioCatalogContributor : IAssetCatalogContributor
 
     private sealed class ScenarioEditableAsset : IEditableAsset
     {
-        public ScenarioEditableAsset(string name)
+        public ScenarioEditableAsset(string name, string? scenariosRoot)
         {
-            Name = name;
+            Name    = name;
             AssetId = DeriveAssetId(name);
+            // ⭐ CE-064 — `{root}/{relPath}/scenario.json`, the layout EditorScenarioSession WRITES
+            //   (its WriteScenarioDirectory does Path.Combine(root, name) then ScenarioFileName).
+            //   ⇒ the address the catalog advertises is the file the session round-trips.
+            SourceFilePath = scenariosRoot == null
+                ? ""
+                : Path.Combine(scenariosRoot, name, Scenarios.EditorScenarioSession.ScenarioFileName);
         }
 
         public Guid AssetId { get; }
         public string Name { get; }
         public AssetKind Kind => AssetKind.Scenario;
-        public string SourceFilePath => "";
+        public string SourceFilePath { get; }
         public bool IsDirty => false;
         public bool IsEditorOwned => false;
 
