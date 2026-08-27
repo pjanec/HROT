@@ -1789,7 +1789,7 @@ parameter exists so a host without one can **say so** *(ruling 49)*.
 ⇒ 🔒 **VERDICT: leave it.** ⭐ Same conclusion shape as slice ③, reached the same way — by measuring instead
 of assuming the plan line was work. ⚠ §5c.9.4 reserved this freedom for `J1`; it applies here.
 
-### 5c.12 ⭐⭐⭐ `J1` — **the prize is NOT the line count: the EDITOR IS BEHIND ON RULING 67.** `build-state: BUILT` *(`2026-08-27`)*
+### 5c.12 ⭐⭐⭐ `J1` — **the prize is NOT the line count: the EDITOR IS BEHIND ON RULING 67.** `build-state: BUILT · CLOSED §5c.15` *(`2026-08-27`)*
 
 > ⭐⭐⭐ **BUILT `2026-08-27` — and NOT in the shape §5c.12.3 proposed.** 🔒 **The as-built is §5c.13; read it
 > before quoting the `AiCatalogComposition` / `ComposeRequest` classDiagram below, which was NOT built and
@@ -2100,6 +2100,84 @@ like display text, so a casual capitalisation fix to the visible title would sil
 `layout/default/imgui.ini`'s `[Window][###…]` section, and the `ui-baseline-editor` golden *(re-sorted — the
 capital `E` had sorted it to position 0 under `StringComparer.Ordinal`, and the rail builds a
 `SortedSet`)*. ⚠ **The TITLE is unchanged**: display text should read like display text.
+
+### 5c.15 ⭐⭐⭐ `J1-a` — **the last of `J1`, and `J1` CLOSES here.** *(`2026-08-27`)*
+
+#### 5c.15.1 ⭐⭐ WHAT WAS LEFT, MEASURED — **two candidates closed, one built**
+
+📐 Post-`J1` the two composition blocks are **35 lines (editor)** and **43 (CGF)**, comments stripped. Every
+line falls into one of four groups:
+
+| group | lines | verdict |
+|---|---|---|
+| ⭐ the three root resolutions | 3 · 3 | ✅ **DONE in `J1`** — `ResolveAssetsRoot` ×3 |
+| ⭐⭐⭐ **the root REPORTING** | **10 · 8** | ✅ **BUILT HERE** — §5c.15.2 |
+| ⛔ contributors + field storage | 6 · 13 | 🔒 **CLOSED — host-side by the cycle** *(§5c.15.3)* |
+| ⛔ the builder construction | 14 · 12 | 🔒 **CLOSED — no legal venue, and the args are a TEST SEAM** *(§5c.15.3)* |
+
+#### 5c.15.2 ⭐⭐⭐ `CE-098` — **the reporting policy, and `J1` HAD DUPLICATED IT ITSELF**
+
+📐 **Measured:** both hosts ran the same ~9 lines — an `Info` naming `DescribeBase`, then
+`if (ConfiguredRoot == null && ResolveProjectDir(…) == null)` and a ruling-67 warning — ⛔ **and worded the
+same fault differently** *("editor-owned BTree/HSM JSON assets will only load if…" vs "the catalog will be
+empty unless…")*.
+
+⚠⚠ **The editor's copy was created by `J1`, one commit earlier.** ⭐ `J1` fixed a resolution drift by
+**cloning CGF's reporting block across** instead of sharing it. ⇒ 📌 **the lesson, and it is general: a
+unification slice that fixes a drift by copying the fix is only half done** — it converts a *behaviour*
+drift into a *wording* drift and calls it parity.
+
+✅ `AssetRoots.ReportBase(info, warn, segments)`. ⭐ **Sinks, not a logger** — the same shape
+`AiAssetCatalogBuilder.warnMissingRoot` uses *(`CE-095`)*: **the message BODY is shared so one fault has one
+wording; the PREFIX and routing stay the host's.** ⇒ 8 lines per host become 4.
+
+⚠ **The predicate re-asks both arms rather than matching `DescribeBase`'s prose** — ⛔ matching on the string
+*"output directory"* would make a re-worded diagnostic silently change which hosts warn.
+
+```mermaid
+sequenceDiagram
+    participant H as Host (editor / CGF)
+    participant A as AssetRoots
+    H->>A: ReportBase(info sink, warn sink, csprojSegments)
+    A->>A: DescribeBase(segments)
+    A->>H: info("Authoring root resolved from <arm>.")
+    Note over A,H: ALWAYS -- "empty" and "pointed elsewhere" are different problems
+    alt ConfiguredRoot set
+        A-->>H: silent
+    else a source tree resolved
+        A-->>H: silent
+    else only the output-directory arm answered
+        A->>H: warn("No configured asset root and no source tree ... pass --asset-root")
+    end
+```
+
+#### 5c.15.3 🔒 WHY THE REMAINING TWO BLOCKS ARE CLOSED — **not declined, IMPOSSIBLE / HARMFUL**
+
+| block | 📐 the measurement that closes it |
+|---|---|
+| ⛔ **the builder construction** *(14 · 12 lines)* | ⭐⭐⭐ **NO shared production project references all three editor projects.** 📐 Measured over every `.csproj`: only `Hrot.Editor`, `Hrot.CGF` and **two test projects** reference `Hrot.BTree.Editor` + `Hrot.Hsm.Editor` + `Hrot.Blueprints.Editor` together. ⇒ ⛔ **a factory that NAMES the concrete contributors and derives the six delegates itself has nowhere legal to live.** ⭐ The delegate shape is **forced by the cycle**, not chosen |
+| ⛔ **the two `Func<string?>` root args** *(the tempting simplification: pass `csprojSegments` and let the builder call `ResolveAssetsRoot` itself, making refresh-root ≡ catalog-root by construction)* | 🔴 **REFUSED — they are a TEST SEAM.** 📐 All **9** facts of `TheJsonRefreshPolicyIsOneImplementationTests` inject roots through them; removing them leaves the policy testable only via the process-global `AssetRoots.Configure`. ⇒ 📌 **`CE-091`'s lesson for the THIRD time** *(after `K2`'s 7-arg controller)*: **a repeated argument list can be a test seam, not accidental duplication** — and §5c.15.4 is what that global-static route actually costs |
+| ⛔ contributors + field storage | behind the cycle, and the two genuinely differ *(editor passes `_btreeDebugSession`, CGF has no session)* |
+
+⇒ ⭐⭐⭐ **`J1` IS CLOSED.** ⛔ What remains in those two blocks is not duplication awaiting a slice; it is the
+shape the reference cycle and the rails require.
+
+#### 5c.15.4 🔴🔴 `CE-099` — **the new rail found a REAL parallelism race, and it predates the rail**
+
+📌 **How it surfaced:** `TheRootReportingPolicyIsOneImplementationTests` passed **5/5 FILTERED** and reddened
+in the full suite — its *"a configured root ⇒ silent"* arm saw `ConfiguredRoot == null`.
+
+📐 **Cause:** `AssetRoots.Configure` writes a **process-global static**; xUnit runs distinct classes in
+**parallel**; `TheDeployedNodeFindsItsAssetsTests` calls `Configure(null)` at four points. ⇒ ⛔ each class's
+careful save/restore is clobbered by the other's. ⚠⚠ **That older class has been racing since ruling 67
+landed — it simply had nothing to collide with, so it never lost.**
+
+✅ `AssetRootsTestCollection` *(`DisableParallelization = true`)*, and **both** classes joined it.
+
+⚠ **Third instance of the same author error:** an existing serial-collection convention not joined
+*(slice ② missed `PanelSnapshotTestCollection`; `CE-084`/`CE-088` are the standing warning)*. ⇒ ⭐⭐ **the
+checkable habit: a FILTERED green is not evidence a new test class is safe in its assembly** — ⛔ if the class
+touches a process-global, find the collection or define one.
 
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |

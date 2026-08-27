@@ -1116,19 +1116,14 @@ namespace Hrot.Editor
             _btreeJsonRootDir = AssetRoots.ResolveAssetsRoot(AssetKind.BTree,     AiBehaviorsProjectPath);
             _hsmJsonRootDir   = AssetRoots.ResolveAssetsRoot(AssetKind.Hsm,       AiBehaviorsProjectPath);
 
-            // ⭐⭐ And it is REPORTED, in the shape CGF already used: which arm answered, plus a warning
-            //    when neither config nor source tree did — ⛔ "the catalog is empty" and "the catalog is
-            //    pointed somewhere else" are different problems and the log has to tell them apart.
-            Console.WriteLine("[EditorSubsystem] Authoring root resolved from " +
-                $"{AssetRoots.DescribeBase(AiBehaviorsProjectPath)}.");
-            if (AssetRoots.ConfiguredRoot == null &&
-                AssetRoots.ResolveProjectDir(AiBehaviorsProjectPath) == null)
-            {
-                Console.WriteLine("[EditorSubsystem] WARNING: no configured asset root and no source tree " +
-                    $"(searched up from CWD + BaseDirectory for {System.IO.Path.Combine(AiBehaviorsProjectPath)}); " +
-                    "falling back to the output directory, so editor-owned BTree/HSM JSON assets will only " +
-                    "load if they were deployed beside the binary. ⇒ ruling 67: pass --asset-root.");
-            }
+            // ⭐⭐⭐ CE-098 (J1-a) — and it is REPORTED by the SHARED policy, not by a copy of CGF's.
+            //    ⚠⚠ J1 introduced these ~9 lines here by copying CGF's reporting block across — ⛔ a
+            //       unification that fixes a drift by cloning the fix is only half done, and the two
+            //       copies had already worded the same fault differently. 📄 §5c.15.
+            AssetRoots.ReportBase(
+                info: m => Console.WriteLine($"[EditorSubsystem] {m}"),
+                warn: m => Console.WriteLine($"[EditorSubsystem] WARNING: {m}"),
+                AiBehaviorsProjectPath);
 
             var bpRootDir        = _bpRootDir;
             var bpContrib        = new BlueprintAssetContributor(bpRootDir);

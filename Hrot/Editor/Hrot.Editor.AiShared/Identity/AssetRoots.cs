@@ -130,6 +130,53 @@ public static class AssetRoots
         return $"output directory ({AppContext.BaseDirectory}) — no config and no source tree";
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-098</c> (<c>J1-a</c>) — the WHOLE root-reporting policy: which arm answered, and a
+    /// warning when only the last one did.</b>
+    ///
+    /// <para>📐 <b>Measured <c>2026-08-27</c>:</b> both composition roots ran this same ~9-line block —
+    /// an <c>Info</c> naming <see cref="DescribeBase"/>, then
+    /// <c>if (ConfiguredRoot == null &amp;&amp; ResolveProjectDir(…) == null)</c> and a ruling-67 warning.
+    /// ⛔ <b>And they worded the same fault differently</b> — <i>"editor-owned BTree/HSM JSON assets will
+    /// only load if…"</i> vs <i>"the catalog will be empty unless…"</i>. ⇒ ⚠⚠ <b>the editor's half was
+    /// duplication <c>J1</c> ITSELF introduced</b>, by copying CGF's reporting shape across instead of
+    /// sharing it — 📌 a unification slice that fixes a drift by cloning the fix is only half done.</para>
+    ///
+    /// <para>⭐⭐ <b>Sinks, not a logger.</b> This assembly has no logging dependency and the two hosts route
+    /// differently (<c>Console</c> on the editor, <c>FdpLog&lt;CgfSubsystem&gt;</c> on CGF) ⇒ the same shape
+    /// <c>AiAssetCatalogBuilder.warnMissingRoot</c> uses: ⭐ <b>the message BODY is shared so one fault has
+    /// one wording; the PREFIX and the routing stay the host's.</b></para>
+    ///
+    /// <para>⚠ <b>Why the predicate is not just <c>DescribeBase</c>'s string.</b> ⛔ Matching on
+    /// <i>"output directory"</i> in prose would be a rail-blindness generator — 📌 the decision must be the
+    /// same boolean the resolution itself uses, so re-wording the diagnostic can never change which hosts
+    /// warn. ⭐ Both arms are re-asked here rather than inferred.</para>
+    /// </summary>
+    /// <param name="info">
+    ///   ⭐ Receives <c>"Authoring root resolved from &lt;arm&gt;."</c> — ⚠ ALWAYS, including the happy path:
+    ///   📌 <i>"the catalog is empty"</i> and <i>"the catalog is pointed somewhere else"</i> are different
+    ///   problems and an operator cannot tell them apart without this line.
+    /// </param>
+    /// <param name="warn">
+    ///   ⭐⭐ Receives the ruling-67 message when <b>neither</b> config nor a source tree answered, i.e. the
+    ///   output-directory arm did. ⛔ Not an error — a deployed node with assets beside the binary is a
+    ///   legitimate shape; it is the SILENT version of it that ruling 67 exists to end.
+    /// </param>
+    /// <param name="csprojSegments">The dev-time walk-up's project-file segments, as for <see cref="ResolveBase"/>.</param>
+    public static void ReportBase(Action<string>? info, Action<string>? warn, params string[] csprojSegments)
+    {
+        info?.Invoke($"Authoring root resolved from {DescribeBase(csprojSegments)}.");
+
+        if (ConfiguredRoot != null) return;
+        if (ResolveProjectDir(csprojSegments) != null) return;
+
+        warn?.Invoke(
+            "No configured asset root and no source tree (searched up from CWD + BaseDirectory for "
+          + $"'{Path.Combine(csprojSegments)}'). Falling back to the output directory, so the catalog will "
+          + "be empty unless assets were deployed beside the binary. "
+          + "⇒ ruling 67: pass --asset-root on a deployed node.");
+    }
+
     // ── Relative segment helpers (single authority for §16 segment names) ──
 
     /// <summary>

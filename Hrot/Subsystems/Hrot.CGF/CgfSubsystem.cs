@@ -2419,19 +2419,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    ⚠ Always non-null now, so the old "the catalog will be EMPTY" warning is replaced by a
         //    statement of WHICH arm answered — 📌 "empty" and "pointed elsewhere" are different problems
         //    and the log has to distinguish them.
-        FdpLog<CgfSubsystem>.Info(
-            "[CGF] Authoring root resolved from {0}.",
-            Hrot.Editor.AiShared.AssetRoots.DescribeBase(AiBehaviorsProjectPath));
-
-        if (Hrot.Editor.AiShared.AssetRoots.ConfiguredRoot == null &&
-            Hrot.Editor.AiShared.AssetRoots.ResolveProjectDir(AiBehaviorsProjectPath) == null)
-        {
-            FdpLog<CgfSubsystem>.Warn(
-                "[CGF] No configured asset root and no source tree (searched up from CWD + BaseDirectory "
-              + "for '{0}'). Falling back to the output directory, so the catalog will be empty unless "
-              + "assets were deployed beside the binary. ⇒ ruling 67: pass --asset-root on a deployed node.",
-                System.IO.Path.Combine(AiBehaviorsProjectPath));
-        }
+        // ⭐⭐⭐ CE-098 (J1-a) — the root-reporting policy lives in AssetRoots now; this host supplies only
+        //    its own routing. ⭐ Same shape as `warnMissingRoot` below: shared BODY, host PREFIX. 📄 §5c.15.
+        Hrot.Editor.AiShared.AssetRoots.ReportBase(
+            info: m => FdpLog<CgfSubsystem>.Info("[CGF] {0}", m),
+            warn: m => FdpLog<CgfSubsystem>.Warn("[CGF] {0}", m),
+            AiBehaviorsProjectPath);
 
         // ⭐⭐⭐ CE-093 (J1) — this local function WAS `ResolveAssetsRoot`, spelled out.
         //    📐 `AssetRoots.ResolveAssetsRoot(kind, segments)` is defined as

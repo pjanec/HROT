@@ -19,6 +19,10 @@ namespace Hrot.Editor.AiShared.Tests.Identity;
 /// here rather than hidden: a test that forgot the restore would poison every later test in the
 /// assembly. ⭐ <see cref="AssetRoots.ConfiguredRoot"/> exists so the restore is possible at all.</para>
 /// </summary>
+// ⚠⚠ CE-099 — this class mutates the process-global AssetRoots.ConfiguredRoot, so it must be SERIAL with
+//    every other class that does. 📐 It had been racing since ruling 67 landed; it simply had nothing to
+//    collide with until TheRootReportingPolicyIsOneImplementationTests arrived and lost the coin toss.
+[Collection(AssetRootsTestCollection.Name)]
 public sealed class TheDeployedNodeFindsItsAssetsTests : IDisposable
 {
     private readonly string? _saved = AssetRoots.ConfiguredRoot;
