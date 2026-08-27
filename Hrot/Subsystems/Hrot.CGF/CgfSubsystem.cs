@@ -1840,15 +1840,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 if (asset is Hrot.Blueprints.Editor.Variables.BlueprintEditableAssetAdapter adapter)
                     Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(adapter.Asset, path);
             },
+            // ⭐⭐ CE-091 (J2 K1) — the SIX-LINE JSON kind-dispatch lambda that stood here is gone:
+            //    `AiAssetCatalogBuilder.RefreshJsonContributors` owns that policy now (the method its own
+            //    doc had promised and nobody had built). ⭐ The editor passes the same method group.
+            // ⛔ The other four delegates STAY — a deliberate reversal of §5c.10 K2 (WITHDRAWN): they are
+            //   the TEST SEAM seven rails inject to assert the create sequence.
             findCatalogued:         id => catalog.FindByAssetId(id),
             refreshFromAssembly:    asm => _aiCatalogBuilder?.RefreshFromAssembly(asm),
-            refreshJsonContributor: k =>
-            {
-                if (k == Hrot.Editor.AiShared.AssetKind.BTree && _btreeJsonRootDir != null)
-                    _btreeJsonContrib?.Refresh(rootDirectory: _btreeJsonRootDir);
-                if (k == Hrot.Editor.AiShared.AssetKind.Hsm && _hsmJsonRootDir != null)
-                    _hsmJsonContrib?.Refresh(rootDirectory: _hsmJsonRootDir);
-            },
+            refreshJsonContributor: k => _aiCatalogBuilder?.RefreshJsonContributors(k),
             openDocument:     a => _aiDocumentManager?.Open(a),
             blueprintRootDir: () => _bpRootDir);
 
@@ -2473,7 +2472,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             asm => hsmContrib.LoadFrom(asm),
             ()  => bpContrib.Refresh(),
             bTreeJsonContributor: btreeJsonContrib,
-            hsmJsonContributor:   hsmJsonContrib);
+            hsmJsonContributor:   hsmJsonContrib,
+            // ⭐⭐ CE-091 (J2 K1) — the JSON refresh path, as delegates for the same documented reason the
+            //    LoadFrom callbacks above are delegates: these contributors' projects reference AiShared,
+            //    so it cannot name their types. ⚠ Roots resolved AT CALL TIME (the fields are assigned
+            //    later in this method).
+            bTreeJsonRefresh: root => btreeJsonContrib.Refresh(rootDirectory: root),
+            bTreeJsonRootDir: () => _btreeJsonRootDir,
+            hsmJsonRefresh:   root => hsmJsonContrib.Refresh(rootDirectory: root),
+            hsmJsonRootDir:   () => _hsmJsonRootDir);
 
         // ⭐⭐⭐ CE-053 — THE SCENARIO CONTRIBUTOR, which this host never had.
         // 📄 The user's `--mode cgf` visual check, 2026-08-26, symptoms 4/5/6 — ONE root, three symptoms.

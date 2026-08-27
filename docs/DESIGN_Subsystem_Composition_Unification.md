@@ -1652,6 +1652,124 @@ registration **at scale** *(the diagnostics group's 20 sites)*, never for tidine
 ⚠ **And re-measure before starting each of these** — 📐 the 106 was measured on `81becd479`; ⭐ the command
 is in §5c.9.2 and takes seconds.
 
+### 5c.10 ⭐⭐ `J2` — **the builder IS the services object, and the method its own doc promises.** `build-state: READY-TO-BUILD` *(`2026-08-27`)*
+
+#### 5c.10.1 📐 INVENTORY
+
+| 📐 measured | |
+|---|---|
+| `AssetCreateController` *(AiShared.Browser, from `E2` ②)* takes **7 ctor args**; 📐 **both hosts spell 5 of them the same way** | `findCatalogued` · `refreshFromAssembly` · `refreshJsonContributor` *(a **6-line** kind-dispatch lambda)* · `openDocument` · `blueprintRootDir` |
+| 🔴🔴 **`AiAssetCatalogBuilder`'s own doc `<see cref>`s `RefreshJsonContributors` — AND THAT METHOD WAS NEVER BUILT** | ⇒ ⭐⭐ **designed in and absent**, so both hosts hand-rolled the same lambda in its place. 📌 The `MarshalFromBytes` shape *(`docs`-recorded: "designed in and never built")* |
+| ⭐⭐ the builder **already** uses documented **delegate callbacks** for concrete calls it cannot name | `bTreeLoadFrom` · `hsmLoadFrom` · `blueprintRefresh` — its doc explains why: *"`LoadFrom(Assembly)` is a concrete extension method … not part of `IAssetCatalogContributor`"* ⇒ ⭐ **building the promised method MIRRORS an established pattern rather than inventing a seam** |
+| ⚠ the builder **receives** both json contributors but **does not STORE them** | 📐 it only `AddContributor`s them ⇒ the refresh delegates must be new ctor params |
+| ⭐ blast radius | `AssetCreateController` **3 callers** *(2 hosts + 1 test)*; `AiAssetCatalogBuilder` ctor **3 callers** *(2 hosts + 1 test)* ⚠ **CGF's is FULLY QUALIFIED** — 📌 §5c.9.3b's grep lesson |
+
+⛔⛔ **REJECTED alternative — adding `Refresh` to `IAssetCatalogContributor`:** 📐 it has **10 implementors** and only **2** are json-backed ⇒ a default no-op member would be a **silent-default generator** *(a contributor that needed refreshing and forgot to override would silently not refresh)*. ⭐ The delegate pattern the class already uses has none of that.
+
+✅ **VERIFIED NOT A BUG while scoping:** CGF passes `findCatalogued: id => catalog.FindByAssetId(id)` *(captured once)* where the editor passes `id => _aiCatalogBuilder?.Catalog?.FindByAssetId(id)` *(resolved per call)*. 📐 `AiAssetCatalogBuilder._catalog` is `private readonly AssetCatalog _catalog = new()` and **never replaced** ⇒ **equivalent**.
+
+#### 5c.10.2 ⭐ THE DECISIONS
+
+| | decision | why |
+|---|---|---|
+| **`K1`** | ⭐⭐⭐ **BUILD `RefreshJsonContributors(AssetKind)`** on the builder, with `Action<string>? jsonRefresh` + `Func<string?>? jsonRootDir` per kind as new **optional** ctor params | ⭐ makes the doc TRUE, mirrors `bTreeLoadFrom`, and moves the **null-check + kind-dispatch POLICY** from two copies into one |
+| **`K2`** | ⭐⭐ **`AssetCreateController` takes the BUILDER + the DOCUMENT MANAGER** instead of `findCatalogued` / `refreshFromAssembly` / `refreshJsonContributor` / `openDocument` | ⇒ **4 of 7 args collapse to 2 object references**; 📐 −9 lines per host, +2 |
+| **`K3`** | ⚠ **both new params are NULLABLE**, and the controller derives null-safely | 🔒 **faithfulness**: today's lambdas are `_aiCatalogBuilder?.Catalog?…` and `_aiDocumentManager?.Open(a)` — ⛔ demanding non-null would change behaviour and force a `!` at the call site |
+| **`K4`** | ⛔ `services` · `saveMintOnlyAsset` · `blueprintRootDir` **stay as they are** | 📐 genuinely per-host: CGF's `saveMintOnlyAsset` casts a `BlueprintEditableAssetAdapter`, the editor's does not |
+
+#### 5c.10.3 ⭐ THE UML *(obligation ①; existing boxes unmarked)*
+
+```mermaid
+classDiagram
+    class AiAssetCatalogBuilder {
+        AiShared.Catalog
+        +Catalog
+        +RefreshFromAssembly(asm)
+        +RefreshJsonContributors(kind) NEW
+    }
+    class AssetCreateController {
+        AiShared.Browser
+        +Create()
+        +CreateByName()
+    }
+    class AiDocumentManager {
+        AiShared.Documents
+        +Open(asset)
+    }
+    class BTreeJsonAssetContributor {
+        Hrot.BTree.Editor -- BEHIND THE CYCLE
+    }
+    class EditorSubsystem
+    class CgfSubsystem
+    AssetCreateController --> AiAssetCatalogBuilder : ctor arg (K2)
+    AssetCreateController --> AiDocumentManager : ctor arg (K2)
+    AiAssetCatalogBuilder ..> BTreeJsonAssetContributor : via Action~string~ delegate (K1)
+    EditorSubsystem ..> AssetCreateController : 2 args instead of 6
+    CgfSubsystem ..> AssetCreateController : 2 args instead of 6
+```
+
+⛔ **The arrow that must NOT exist:** `AiAssetCatalogBuilder --> BTreeJsonAssetContributor` as a *typed* reference — 📌 that project references AiShared, so the dashed delegate arrow is the only legal shape *(§5c.6.2's cycle)*.
+
+```mermaid
+sequenceDiagram
+    participant Host
+    participant Ctl as AssetCreateController
+    participant B as AiAssetCatalogBuilder
+    participant Docs as AiDocumentManager
+    Host->>Ctl: Create(kind, name, relPath, recipe)
+    Ctl->>B: RefreshFromAssembly(aiAsm)
+    Ctl->>B: RefreshJsonContributors(kind)
+    Note over B: NEW -- the null-check + kind dispatch, ONCE
+    B->>B: invoke that kind's Action~string~ with its rootDir
+    Ctl->>B: Catalog.FindByAssetId(mintedId)
+    Ctl->>Docs: Open(catalogued)
+    Ctl-->>Host: (assetId, status)
+```
+
+#### 5c.10.4 The items
+
+| # | item | proof |
+|---|---|---|
+| **①** | `RefreshJsonContributors` + its two delegate pairs on the builder *(`K1`)* | ⛔ the `<see cref>` resolves for the first time |
+| **②** | `AssetCreateController` takes builder + documents; **both hosts drop 4 args** *(`K2`)* | ⛔ a diff showing deletion |
+| **③** | ⭐⭐ **an equivalence rail**: the derived behaviours match the lambdas they replace, **and the kind dispatch refreshes ONLY that kind** | 🔒 `CE-072` |
+| **④** | ⛔ **no UI output changes** ⇒ the three `ui-baseline` goldens and the toolbar rails stay **UNCHANGED** | ⭐ this slice touches no window or toolbar |
+
+#### 5c.10.5 ✅ AS-BUILT *(`2026-08-27`, `CE-091`)* — **`K1` BUILT. `K2` WITHDRAWN, and the reason is the interesting part.**
+
+⛔⛔ **`K2` — "the builder IS the services object, 4 args collapse to 2" — IS WITHDRAWN.** ⭐ It was
+implemented, it compiled on both hosts, and then measuring its cost showed the trade was wrong:
+
+| 📐 measured | |
+|---|---|
+| ⭐⭐⭐ **ELEVEN tests in `TheCreateCoreIsOneImplementationTests` INJECT those four delegates** to assert the create **SEQUENCE** | `TheJsonContributorRefreshesBeforeTheCatalogIsAsked` *(the lookup must follow the refresh or it finds nothing)* · `BlueprintIsWrittenAtTheHostsSourceRootBeforeAnyRefresh` · `NothingIsOpenedWhenTheIdCouldNotBeResolved` · `TheAssemblyRefreshOnlyFiresWhenTheAiAssemblyIsLoaded` · … |
+| ⇒ ⛔ collapsing them to concrete objects makes that **ordering invariant unobservable** | 📌 the `CE-072` shape **inverted**: instead of a wrapper orphaning its tests, a *de-duplication* would have removed the seam the tests observe through |
+| ⭐ the trade | **~7 lines per host** against **an 11-test rail suite** |
+
+⇒ 🔒 **THE LESSON, and it is a new one for this programme:** ⭐⭐ **a repeated ARGUMENT LIST can be a TEST
+SEAM rather than accidental duplication.** ⛔ The verbatim-duplication metric cannot tell the two apart —
+📌 it counted these five lambdas as duplication, and four of the five were load-bearing. ⚠ **Cousin of the
+corpus rule *"what is not used does not mean it is existing without reason"*: what is REPEATED does not
+always mean it should be COLLAPSED.**
+
+⭐⭐ **What `K1` delivered on its own — and it is the part that mattered:**
+| | |
+|---|---|
+| ✅ **`RefreshJsonContributors` EXISTS** | ⭐ the `<see cref="RefreshJsonContributors"/>` in `RefreshFromAssembly`'s summary **resolves for the first time**; it had pointed at nothing since the class was written |
+| ✅ **the SIX-LINE kind-dispatch lambda is gone from BOTH hosts**, replaced by the method group `k => _aiCatalogBuilder?.RefreshJsonContributors(k)` | ⇒ ⭐ **the biggest single item in that argument list**, and the policy *(right kind · its own root · resolved at call time · nothing else touched)* now lives once |
+| ✅ **the other four delegates STAY** — the seam is intact and all 11 rails pass unchanged | ⭐ **one implementation of the POLICY, without destroying the seam** |
+| ⭐ shape | the two new ctor params are `Action<string>?` + `Func<string?>?` per kind — ⚠ **exactly mirroring the `bTreeLoadFrom` delegate pattern this class already documents**, for the same cycle reason. ⛔ No new interface, and ⛔ no default no-op on the 10-implementor `IAssetCatalogContributor` *(which would be a silent-default generator)* |
+
+⭐ **Rail:** `TheJsonRefreshPolicyIsOneImplementationTests` **6 facts**, red-proved by **3 inverse edits ⇒ 3/6
+red**, each hitting only its own fact: cross-firing the kinds · dropping the empty-root gate · capturing the
+root eagerly instead of at call time. ⭐⭐ **That third one is the silent killer the rail exists for** — the
+hosts pass `() => _btreeJsonRootDir`, a field assigned LATER in `Initialize`, so an eager read would freeze
+`null` and the JSON contributor would never refresh **on both hosts, with nothing to see.**
+
+⚠ **`J2`'s net line effect is therefore ~−5 per host, not −7**, and §5c.9.4's ordering rationale for `J2`
+*("cheapest and safest")* held — ⛔ but its predicted SIZE did not. 📌 An eighth data point for the
+measure-before-quoting list.
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|

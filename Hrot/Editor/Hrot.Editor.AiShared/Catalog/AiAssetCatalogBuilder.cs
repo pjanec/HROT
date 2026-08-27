@@ -30,6 +30,16 @@ public sealed class AiAssetCatalogBuilder
     private readonly Action<Assembly> _hsmLoadFrom;
     private readonly Action _blueprintRefresh;
 
+    // ⭐⭐ CE-091 (J2 K1) — the JSON refresh path this class's own doc has always promised.
+    //    ⚠ Same shape as _bTreeLoadFrom above and for the same documented reason: `Refresh(rootDirectory:)`
+    //    is a concrete method on the BTree/HSM json contributors, and those projects REFERENCE this
+    //    assembly — so naming their types here would be a circular reference. A delegate is the only
+    //    legal shape. 📄 DESIGN_Subsystem_Composition_Unification.md §5c.10.
+    private readonly Action<string>? _bTreeJsonRefresh;
+    private readonly Func<string?>?  _bTreeJsonRootDir;
+    private readonly Action<string>? _hsmJsonRefresh;
+    private readonly Func<string?>?  _hsmJsonRootDir;
+
     /// <summary>
     /// Initializes the builder.
     /// </summary>
@@ -56,6 +66,15 @@ public sealed class AiAssetCatalogBuilder
     ///   Optional JSON-file HSM contributor (PU-301).  When provided it is added
     ///   AFTER <paramref name="hsmContributor"/> so JSON wins on AssetId collision.
     /// </param>
+    /// <param name="bTreeJsonRefresh">
+    ///   ⭐ Callback that invokes <c>BTreeJsonAssetContributor.Refresh(rootDirectory: root)</c>.
+    ///   Example: <c>root =&gt; btreeJsonContrib.Refresh(rootDirectory: root)</c>.
+    ///   ⚠ Optional because a host may have no JSON contributor at all; ⛔ but a host that HAS one must
+    ///   pass this (the silent-default rule) or <see cref="RefreshJsonContributors"/> is inert for it.
+    /// </param>
+    /// <param name="bTreeJsonRootDir">Where that contributor reads from; a null/empty answer skips it.</param>
+    /// <param name="hsmJsonRefresh">Symmetric to <paramref name="bTreeJsonRefresh"/>.</param>
+    /// <param name="hsmJsonRootDir">Symmetric to <paramref name="bTreeJsonRootDir"/>.</param>
     public AiAssetCatalogBuilder(
         IAssetCatalogContributor bTreeContributor,
         IAssetCatalogContributor hsmContributor,
@@ -64,8 +83,16 @@ public sealed class AiAssetCatalogBuilder
         Action<Assembly> hsmLoadFrom,
         Action blueprintRefresh,
         IAssetCatalogContributor? bTreeJsonContributor = null,
-        IAssetCatalogContributor? hsmJsonContributor   = null)
+        IAssetCatalogContributor? hsmJsonContributor   = null,
+        Action<string>? bTreeJsonRefresh = null,
+        Func<string?>?  bTreeJsonRootDir = null,
+        Action<string>? hsmJsonRefresh   = null,
+        Func<string?>?  hsmJsonRootDir   = null)
     {
+        _bTreeJsonRefresh = bTreeJsonRefresh;
+        _bTreeJsonRootDir = bTreeJsonRootDir;
+        _hsmJsonRefresh   = hsmJsonRefresh;
+        _hsmJsonRootDir   = hsmJsonRootDir;
         _bTreeLoadFrom    = bTreeLoadFrom    ?? throw new ArgumentNullException(nameof(bTreeLoadFrom));
         _hsmLoadFrom      = hsmLoadFrom      ?? throw new ArgumentNullException(nameof(hsmLoadFrom));
         _blueprintRefresh = blueprintRefresh ?? throw new ArgumentNullException(nameof(blueprintRefresh));
@@ -106,5 +133,37 @@ public sealed class AiAssetCatalogBuilder
         _bTreeLoadFrom(aiAssembly);
         _hsmLoadFrom(aiAssembly);
         _blueprintRefresh();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ Re-reads the JSON-backed contributor for <paramref name="kind"/> from its root directory.
+    ///
+    /// <para>⚠⚠ <b>This method is NEW as of <c>CE-091</c>, and it is the one
+    /// <see cref="RefreshFromAssembly"/>'s summary has referenced since this class was written.</b>
+    /// 📐 Measured: the <c>&lt;see cref&gt;</c> pointed at nothing, and BOTH composition roots had
+    /// hand-rolled the same six-line kind-dispatch lambda in its place. ⇒ ⭐ the policy — which kind maps
+    /// to which contributor, and skipping when its root is unset — now lives here ONCE.</para>
+    ///
+    /// <para>⛔ A kind with no JSON contributor is a NO-OP, deliberately: Blueprint has none, and the two
+    /// AI kinds only have one when the host wired it. ⚠ That is absence-by-construction, not a swallowed
+    /// error — the caller cannot supply a refresh for a contributor it never built.</para>
+    /// </summary>
+    /// <param name="kind">The asset kind whose JSON contributor should re-scan.</param>
+    public void RefreshJsonContributors(AssetKind kind)
+    {
+        switch (kind)
+        {
+            case AssetKind.BTree: Invoke(_bTreeJsonRefresh, _bTreeJsonRootDir); break;
+            case AssetKind.Hsm:   Invoke(_hsmJsonRefresh,   _hsmJsonRootDir);   break;
+        }
+
+        // ⚠ The root is resolved AT CALL TIME, not captured: the hosts' own lambdas read a field that is
+        //   assigned during Initialize, so resolving eagerly here would freeze a null.
+        static void Invoke(Action<string>? refresh, Func<string?>? rootDir)
+        {
+            if (refresh == null) return;
+            var root = rootDir?.Invoke();
+            if (!string.IsNullOrEmpty(root)) refresh(root!);
+        }
     }
 }

@@ -1151,7 +1151,15 @@ namespace Hrot.Editor
                 asm => hsmContrib.LoadFrom(asm),
                 ()  => bpContrib.Refresh(),
                 bTreeJsonContributor: btreeJsonContrib,
-                hsmJsonContributor:   hsmJsonContrib);
+                hsmJsonContributor:   hsmJsonContrib,
+                // ⭐⭐ CE-091 (J2 K1) — the JSON refresh path, handed over as delegates for the same
+                //    documented reason the LoadFrom callbacks above are delegates: these contributors'
+                //    projects reference AiShared, so it cannot name their types. ⚠ The root dirs are
+                //    resolved AT CALL TIME because these fields are assigned later in Initialize.
+                bTreeJsonRefresh: root => btreeJsonContrib.Refresh(rootDirectory: root),
+                bTreeJsonRootDir: () => _btreeJsonRootDir,
+                hsmJsonRefresh:   root => hsmJsonContrib.Refresh(rootDirectory: root),
+                hsmJsonRootDir:   () => _hsmJsonRootDir);
 
             // MTB-P5-T2: Add scenario contributor (non-file-backed; projects AvailableScenarios).
             _scenarioContributor = new Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor(
@@ -3864,18 +3872,21 @@ namespace Hrot.Editor
             //    wrong (BUG-A6's source-dir write, the assembly-vs-JSON contributor split, and returning
             //    the id only once the catalog resolves it) now live in the controller's own remarks.
             var assetCreateController = _newAssetServices != null
+                // ⭐⭐ CE-091 (J2 K1) — the SIX-LINE JSON kind-dispatch lambda that stood here is gone:
+                //    `AiAssetCatalogBuilder.RefreshJsonContributors` owns that policy now — the method its
+                //    own doc had promised and nobody had built. ⭐ CGF passes the same method group.
+                // ⛔⛔ The OTHER four delegates STAY, and that is a deliberate reversal of this slice's
+                //    first design (§5c.10 K2, WITHDRAWN): 📐 measured, SEVEN tests in
+                //    `TheCreateCoreIsOneImplementationTests` inject them to assert the create SEQUENCE
+                //    (refresh-before-lookup, write-before-refresh, no-open-on-failure). ⇒ they are a
+                //    TEST SEAM, not accidental duplication, and collapsing them would have traded a
+                //    7-test rail suite for ~7 lines.
                 ? new Hrot.Editor.AiShared.Browser.AssetCreateController(
                     services:               _newAssetServices,
                     saveMintOnlyAsset:      saveAsBlueprintToFile,
                     findCatalogued:         id => _aiCatalogBuilder?.Catalog?.FindByAssetId(id),
                     refreshFromAssembly:    asm => _aiCatalogBuilder?.RefreshFromAssembly(asm),
-                    refreshJsonContributor: k =>
-                    {
-                        if (k == Hrot.Editor.AiShared.AssetKind.BTree && _btreeJsonRootDir != null)
-                            _btreeJsonContrib?.Refresh(rootDirectory: _btreeJsonRootDir);
-                        if (k == Hrot.Editor.AiShared.AssetKind.Hsm && _hsmJsonRootDir != null)
-                            _hsmJsonContrib?.Refresh(rootDirectory: _hsmJsonRootDir);
-                    },
+                    refreshJsonContributor: k => _aiCatalogBuilder?.RefreshJsonContributors(k),
                     openDocument:           a => _aiDocumentManager?.Open(a),
                     blueprintRootDir:       () => _bpRootDir)
                 : null;
