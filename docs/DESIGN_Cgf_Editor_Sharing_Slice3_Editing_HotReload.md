@@ -4,8 +4,11 @@ build-state: BUILT (2026-08-25, backend/CGF lane, ids CE-019..CE-024). Carries c
   sequenceDiagram (§4/§5). Slice 3 of cgf==editor (CE-011): editing + hot reload on CGF. Take the windows'
   native editing WHOLESALE (per the 2026-08-25 steer); wire the reload pipeline + save path; add a MINIMAL
   MCP save/reload trigger so it is testable headlessly.
-updated: 2026-08-25
-current-answer: §4/§5 (the diagrams, TRUE as built) + §10 (AS-BUILT — what landed, and the two premises
+updated: 2026-08-27  (was 2026-08-25; phase-2 slice I / CE-078 folded in at §10.7)
+current-answer: ⚠ READ §10.7 FIRST — phase-2 slice ① (CE-078, 2026-08-27) moved the reload POLICY and
+  the save BODIES out of this host into Hrot.Editor.AiShared (AiAssetReload / AiAssetSavers); §4's diagram
+  is edited to match and the owning design for the shared code is
+  DESIGN_Subsystem_Composition_Unification.md §5c.6. THEN §4/§5 (the diagrams, TRUE as built) + §10 (AS-BUILT — what landed, and the two premises
   that MEASURED FALSE). Read §10 before quoting §1/§6's "Soft keeps state, Hard resets" acceptance or
   §6 item ③'s Hard-reload confirm: neither is observable through the path this slice wires.
 known-rot: §1, §2 and §6 present the Cosmetic/Soft/Hard classification as something this slice's reload
@@ -62,12 +65,30 @@ through the staged `Blackboard1024` write. That is what keeps R-52 out of this s
 | 🔴 **live variable-VALUE edit** *(watch/Details → staged `Blackboard1024` write)* | ⛔ **OFF** | R-52 clobber; variable-model lane's frozen path |
 
 ## 4. ⭐⭐⭐ CLASS DIAGRAM
+
+> ⚠⚠ **UPDATED `2026-08-27` by phase-2 slice ① (`CE-078`) — obligation ⑤.** ⛔ This host no longer OWNS
+> the reload policy or the save bodies: they moved to `AiAssetReload` / `AiAssetSavers` in
+> `Hrot.Editor.AiShared`, shared with the editor. ⭐ The two new boxes below are that move; the pipeline
+> below them is unchanged. 📄 `DESIGN_Subsystem_Composition_Unification.md` §5c.6. ⭐ See **§10.7**.
+
 ```mermaid
 classDiagram
     direction LR
     class CgfSubsystem {
-        <<exists · wires the reload triggers + save delegate>>
+        <<exists · adapts: ToDto + the compiler, nothing more>>
         +WireReloadPipeline()
+        +ReloadActiveAiDocument()
+    }
+    class AiAssetReload {
+        <<CE-078 · AiShared · the SHARED reload POLICY>>
+        +Reload(docs, arms, log) string
+        +ReloadBTree(dto, compile) string
+        +ReloadHsm(dto, compile) string
+    }
+    class AiAssetSavers {
+        <<CE-078 · AiShared · the SHARED save bodies>>
+        +SaveBTree(dto, path)
+        +SaveHsm(dto, path)
     }
     class QuickReloadService {
         <<exists · compiles from the in-memory asset>>
@@ -94,8 +115,12 @@ classDiagram
     class MainToolbar {
         <<exists · gains the hot-reload/save button on CGF>>
     }
-    CgfSubsystem ..> QuickReloadService : constructs + wires the per-host triggers
+    CgfSubsystem ..> AiAssetReload : delegates the POLICY (CE-078)
+    CgfSubsystem ..> AiAssetSavers : delegates the save BODIES (CE-078)
+    AiAssetReload ..> QuickReloadService : via a CompileSources adapter
+    CgfSubsystem ..> QuickReloadService : constructs it, supplies the adapter
     CgfSubsystem ..> SaveAllAiDocumentsCommand : wires the SaveDelegate
+    SaveAllAiDocumentsCommand ..> AiAssetSavers : the delegate body
     SaveAllAiDocumentsCommand ..> AssetRoots : asset to path
     QuickReloadService ..> AiReloadCoordinator : ApplyQuickReload
     QuickReloadService ..> HotReloadClassifier : Cosmetic/Soft/Hard
@@ -252,3 +277,30 @@ narrowed — it is no longer *"CGF has none"*.
   ⛔ a per-asset save would duplicate its dirty/path/clean-marking logic.
 - **reload compiles from the IN-MEMORY asset**, so it reflects unsaved edits and a failed compile is a
   **200 with a failure status** — ⛔ not an HTTP error, because it is a legitimate outcome of editing.
+
+### 10.7 ⚠⚠ SUPERSEDED BY PHASE-2 SLICE ① *(`2026-08-27`, `CE-078`)* — **the policy this slice built here is now SHARED**
+
+> ⭐⭐ Obligation ⑤: the deviation is folded into this design, not left only in a batch report — 🔒 *"a
+> deviation recorded ONLY in the report leaves the design LYING."* ⭐ §4's class diagram is **edited**, not
+> merely annotated.
+
+⭐⭐⭐ **What moved.** This slice's `CgfSubsystem.ReloadActiveAiDocument()` was the **best** implementation of
+the reload policy in the codebase — ⭐ it had the try/catch, the explicit default arm and ruling 53's
+origin-side log, and 📐 **the editor's own path had none of the three.** ⇒ ⭐⭐ phase-2 slice ① **lifted THIS
+host's policy into `Hrot.Editor.AiShared.Documents.AiAssetReload`** and routed the editor through it.
+
+| ⭐ what this design still owns | ⛔ what it no longer owns |
+|---|---|
+| the pipeline *(§4/§5 below the new boxes)* · the MCP routes *(§10.6)* · the wholesale-editing decision *(§3)* · the two write paths staying distinct | the kind dispatch · the status **wordings** · the try/catch · the ruling-53 log · the BTree/HSM emit→compile bodies · the save bodies |
+
+⭐ **What stayed in `CgfSubsystem`** is exactly the two steps that name CGF's concrete types and therefore
+**cannot** live in AiShared *(a circular project reference — `Hrot.BTree.Editor`/`Hrot.Hsm.Editor`/
+`Hrot.Blueprints.Editor` all reference it)*: the **`ToDto` map** and the **`QuickReloadService` adapter**.
+
+⚠ **One behavioural note for a reader of §10.4:** the origin-side log now also fires when there is **no
+active document**, which this slice's version did not do *(it returned before the `try`)*. ⭐ Deliberate —
+an operator who triggered a reload over MCP and got nothing logged is precisely the gap ruling 53
+addresses — and railed in `TheSharedSaveAndReloadAreEquivalentTests`.
+
+📄 **The owning design for the shared code:** `DESIGN_Subsystem_Composition_Unification.md` §5c.6 *(+ §5c.6.7
+as-built)*. ⛔ **Quote THAT for the policy's current shape, not §4/§5 here.**

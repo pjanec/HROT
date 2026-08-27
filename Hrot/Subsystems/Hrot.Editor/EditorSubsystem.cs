@@ -354,11 +354,14 @@ namespace Hrot.Editor
         // AIE-026 (Blueprint): Quick Reload trigger — null until Phase 4 wires QuickReloadService.
         // Receives IEditableAsset (a BlueprintFileAsset in Phase 2; a loaded BlueprintAsset in Phase 4).
         private Action<Hrot.Editor.AiShared.IEditableAsset>? _blueprintQuickReloadTrigger;
-        // QR-03: BTree quick-reload trigger — wired in Phase 4 alongside _blueprintQuickReloadTrigger.
-        // Invokes ToDto → EmitTopologyCore + EmitBridge → TriggerFromSourcesAsync (no IEditableAsset param).
-        private Action? _btreeQuickReloadTrigger;
-        // QR-04: HSM quick-reload trigger — symmetric to QR-03 via HsmEmitCore / HsmBridgeEmitCore.
-        private Action? _hsmQuickReloadTrigger;
+        // ⭐⭐⭐ PHASE 2 SLICE ① — QR-03/QR-04's `_btreeQuickReloadTrigger` / `_hsmQuickReloadTrigger`
+        //    fields are DELETED. 📐 Their bodies were line-for-line copies of CGF's and now live once in
+        //    `AiAssetReload.ReloadBTree`/`.ReloadHsm`; their only two callers each were the two
+        //    kind-switches (the toolbar's and the MCP route's) that this slice replaces with the ONE
+        //    shared dispatcher. ⇒ nothing is left to hold.
+        // ⭐ What replaces them is the compiler ADAPTER — the one step that names a type AiShared cannot.
+        // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.6.
+        private Hrot.Editor.AiShared.Documents.AiAssetReload.CompileSources? _compileSources;
         // CF-7-rev: QuickReloadService and asset catalog stored for auto-instrumentation callback.
         private QuickReloadService? _blueprintQuickReloadService;
         private Hrot.Blueprints.Editor.BlueprintPeerSource? _blueprintAssetCatalog;
@@ -797,6 +800,57 @@ namespace Hrot.Editor
         /// arrived at a dozen of them.
         /// </summary>
         private bool ClockIsHalted() => Fdp.Toolkit.Time.SimClock.Of(_world).IsHalted;
+
+        /// <summary>
+        /// ⭐⭐⭐ PHASE 2 SLICE ① — the editor's ONE reload dispatcher, routed through the policy shared
+        /// with CGF (<c>Hrot.Editor.AiShared.Documents.AiAssetReload</c>).
+        ///
+        /// <para>📐 <b>Before this there were THREE kind-switches for one concept:</b> CGF's
+        /// <c>ReloadActiveAiDocument</c>, this host's toolbar <c>CompileReload</c>, and this host's MCP
+        /// <c>reloadAsset</c> route — and the three disagreed on the wording for the same condition
+        /// (<i>"has no compilable canvas context"</i> vs <i>"is not a reloadable kind"</i> vs a silent
+        /// fall-through). ⇒ ⭐ the wording, the try/catch and ruling 53's log now come from one place.</para>
+        ///
+        /// <para>⚠⚠ <b>The Blueprint arm is a PARAMETER, deliberately.</b> 📐 Measured: this host's two
+        /// dispatchers used two DIFFERENT Blueprint paths — the toolbar went through
+        /// <c>_blueprintCompileCallback</c> (a captured registrar toolbar callback) and the MCP route
+        /// through <c>_blueprintQuickReloadTrigger</c>. ⛔ Merging them is NOT this slice's business:
+        /// their equivalence is unproven, and silently collapsing two paths on a guess is the mistake
+        /// this programme keeps writing rules against. ⭐ Filed as a finding instead; the BTree/HSM arms
+        /// and the whole policy ARE shared, which is what slice ① claimed.</para>
+        ///
+        /// <para>📄 <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5c.6.</para>
+        /// </summary>
+        private string ReloadActiveAiDocument(Func<string?> blueprintArm)
+        {
+            var compile = _compileSources;
+            var ctx     = _aiDocumentManager?.Active?.ViewState
+                as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+
+            // ⚠ An arm returning null means "right kind, nothing to compile" — the shared policy then
+            //   supplies the one `NoCompilableContext` wording, byte-identical to CGF's.
+            var arms = new Hrot.Editor.AiShared.Documents.AiReloadArms(
+                Blueprint: blueprintArm,
+                BTree: () => compile != null
+                          && ctx?.AssetRef is Hrot.BTree.Editor.Model.BehaviorTreeAsset bt
+                    ? Hrot.Editor.AiShared.Documents.AiAssetReload.ReloadBTree(
+                          Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(bt), compile)
+                    : null,
+                Hsm: () => compile != null
+                        && ctx?.AssetRef is Hrot.Hsm.Editor.Model.HsmAsset hsm
+                    ? Hrot.Editor.AiShared.Documents.AiAssetReload.ReloadHsm(
+                          Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsm), compile)
+                    : null);
+
+            return _blueprintCompileStatus = Hrot.Editor.AiShared.Documents.AiAssetReload.Reload(
+                _aiDocumentManager,
+                arms,
+                // ⭐⭐ Ruling 53's origin-side log — which this host did NOT have before this slice.
+                //    📄 DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md §10.4: "the origin-side
+                //    log is the whole safety net, so it is a requirement, not a nicety."
+                log: (name, status) => FdpLog<EditorSubsystem>.Info(
+                    "[Editor] AI asset reload requested for '{0}' — {1}", name, status));
+        }
 
         /// <summary>
         /// ⭐ <c>CE-021</c> — make the named asset's open document ACTIVE, so save/reload act on the
@@ -3123,19 +3177,18 @@ namespace Hrot.Editor
                 reloadAsset: assetId =>
                 {
                     ActivateAiDocumentByAssetId(assetId);
+                    // ⭐⭐ PHASE 2 SLICE ① — was a kind-switch of its own, one of THREE for this concept.
+                    //    ⚠ Its default arm said "is not a reloadable kind"; the shared policy says
+                    //    "has no compilable canvas context" — ONE wording across both hosts and both
+                    //    entry points (design §5c.6 E3/E4).
                     var active = _aiDocumentManager?.Active;
-                    switch (active?.Kind)
-                    {
-                        case Hrot.Editor.AiShared.AssetKind.Blueprint:
-                            _blueprintQuickReloadTrigger?.Invoke(active.Asset); break;
-                        case Hrot.Editor.AiShared.AssetKind.BTree:
-                            _btreeQuickReloadTrigger?.Invoke(); break;
-                        case Hrot.Editor.AiShared.AssetKind.Hsm:
-                            _hsmQuickReloadTrigger?.Invoke(); break;
-                        default:
-                            return $"'{active?.Asset.Name}' ({active?.Kind}) is not a reloadable kind.";
-                    }
-                    return _blueprintCompileStatus;
+                    return ReloadActiveAiDocument(
+                        blueprintArm: () =>
+                        {
+                            if (active == null) return null;
+                            _blueprintQuickReloadTrigger?.Invoke(active.Asset);
+                            return _blueprintCompileStatus;
+                        });
                 });
 
             // Toolbar debug icons (AiDebugCommands) gate IsEnabled on debugRegistry.ActiveSession. Mirror the active
@@ -3437,41 +3490,43 @@ namespace Hrot.Editor
             // BTree/HSM: mapper → JSON serializer → AtomicFileWriter.
             // PU-D11 (PU-402): these delegates are also reused by the debounced RegenerationScheduler
             // flushAction so BTree/HSM flush writes JSON (not C#) — see the scheduler wiring below.
+            // ⭐⭐⭐ PHASE 2 SLICE ① — the three bodies below are now ONE implementation, shared with
+            //    CGF: `Hrot.Editor.AiShared.Documents.AiAssetSavers`. 📐 Before this, CGF carried its
+            //    own semantically-identical, syntactically-drifted copies (it used `is not … return`
+            //    and inlined the flatten; this file used `as` + a null check and a `prettyJson` local).
+            //    ⛔ What stays here is only what names the concrete asset types — AiShared cannot,
+            //    without a circular project reference (design §5c.6.2 / §PU-602).
+            // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.6.
             Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate saveBlueprintDelegate =
                 (asset, path) =>
                 {
                     // doc.Asset is BlueprintFileAsset (IEditableAsset wrapper); the real
-                    // BlueprintAsset is stored in the AiCanvasContext.AssetRef of the document.
-                    // Find the matching document by AssetId to get the canvas context.
-                    var doc = _aiDocumentManager?.OpenDocuments
-                        .FirstOrDefault(d => d.Asset.AssetId == asset.AssetId);
-                    var ctx     = doc?.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
-                    var bpAsset = ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset;
-                    if (bpAsset == null) return;
+                    // BlueprintAsset is stored in the AiCanvasContext.AssetRef of the document —
+                    // which is the lookup AiAssetSavers.ResolveAssetRef now owns for both hosts.
+                    if (Hrot.Editor.AiShared.Documents.AiAssetSavers.ResolveAssetRef(
+                            _aiDocumentManager, asset.AssetId)
+                        is not Hrot.Blueprints.Core.Assets.BlueprintAsset bpAsset) return;
                     Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(bpAsset, path);
+                    // ⭐ The dirty TRACKER stays here: 📐 only this host constructs one, and a
+                    //   null-tolerant shared field would be a capability that silently does nothing on
+                    //   CGF (ruling 49). Design §5c.6 E5.
                     _blueprintSaveDirtyTracker.MarkClean(bpAsset.AssetId);
                 };
 
             Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate saveBTreeDelegate =
                 (asset, path) =>
                 {
-                    var btreeAsset = asset as Hrot.BTree.Editor.Model.BehaviorTreeAsset;
-                    if (btreeAsset == null) return;
-                    var dto        = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(btreeAsset);
-                    var json       = Hrot.AiEditor.Persistence.BTree.BTreeJsonServices.Serialize(dto);
-                    var prettyJson = Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(json);
-                    Hrot.AiEditor.Persistence.AtomicFileWriter.Write(path, prettyJson);
+                    if (asset is not Hrot.BTree.Editor.Model.BehaviorTreeAsset btreeAsset) return;
+                    Hrot.Editor.AiShared.Documents.AiAssetSavers.SaveBTree(
+                        Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(btreeAsset), path);
                 };
 
             Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate saveHsmDelegate =
                 (asset, path) =>
                 {
-                    var hsmAsset   = asset as Hrot.Hsm.Editor.Model.HsmAsset;
-                    if (hsmAsset == null) return;
-                    var dto        = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsmAsset);
-                    var json       = Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Serialize(dto);
-                    var prettyJson = Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(json);
-                    Hrot.AiEditor.Persistence.AtomicFileWriter.Write(path, prettyJson);
+                    if (asset is not Hrot.Hsm.Editor.Model.HsmAsset hsmAsset) return;
+                    Hrot.Editor.AiShared.Documents.AiAssetSavers.SaveHsm(
+                        Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsmAsset), path);
                 };
 
             _saveAllCallback = () =>
@@ -4303,51 +4358,26 @@ namespace Hrot.Editor
                         : $"Compile failed: {result.ErrorMessage}";
                 };
 
-                // QR-03: BTree quick-reload trigger — active BehaviorTreeAsset → ToDto →
-                // EmitTopologyCore + EmitBridge → TriggerFromSourcesAsync (self-registering bridge).
-                _btreeQuickReloadTrigger = () =>
-                {
-                    var ctx     = _aiDocumentManager?.Active?.ViewState
-                        as Hrot.Editor.AiShared.Windows.AiCanvasContext;
-                    var btAsset = ctx?.AssetRef as Hrot.BTree.Editor.Model.BehaviorTreeAsset;
-                    if (btAsset == null) { _blueprintCompileStatus = "No active BTree document."; return; }
-
-                    var dto      = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(btAsset);
-                    var topology  = Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.EmitTopologyCore(dto);
-                    var bridge    = Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.EmitBridge(dto);
-
-                    var asmName = $"BTreePatch_{dto.AssetId:N}_{Guid.NewGuid():N}";
-                    var result = quickReloadService.TriggerFromSourcesAsync(
-                        new[] { (topology, dto.Name + ".g.cs"), (bridge, dto.Name + ".Registrar.g.cs") },
-                        asmName).GetAwaiter().GetResult();
-
-                    _blueprintCompileStatus = result.Succeeded
-                        ? $"Compiled BTree '{dto.Name}' in {result.DurationMs}ms"
-                        : $"BTree compile failed: {result.ErrorMessage}";
-                };
-
-                // QR-04: HSM quick-reload trigger — active HsmAsset → ToDto →
-                // EmitTopologyCore + EmitBridge → TriggerFromSourcesAsync (self-registering bridge).
-                _hsmQuickReloadTrigger = () =>
-                {
-                    var ctx      = _aiDocumentManager?.Active?.ViewState
-                        as Hrot.Editor.AiShared.Windows.AiCanvasContext;
-                    var hsmAsset = ctx?.AssetRef as Hrot.Hsm.Editor.Model.HsmAsset;
-                    if (hsmAsset == null) { _blueprintCompileStatus = "No active HSM document."; return; }
-
-                    var dto      = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsmAsset);
-                    var topology = Hrot.AiEditor.Persistence.Emit.HsmEmitCore.EmitTopologyCore(dto);
-                    var bridge   = Hrot.AiEditor.Persistence.Emit.HsmBridgeEmitCore.EmitBridge(dto);
-
-                    var asmName = $"HsmPatch_{dto.AssetId:N}_{Guid.NewGuid():N}";
-                    var result = quickReloadService.TriggerFromSourcesAsync(
-                        new[] { (topology, dto.Name + ".g.cs"), (bridge, dto.Name + ".Registrar.g.cs") },
-                        asmName).GetAwaiter().GetResult();
-
-                    _blueprintCompileStatus = result.Succeeded
-                        ? $"Compiled HSM '{dto.Name}' in {result.DurationMs}ms"
-                        : $"HSM compile failed: {result.ErrorMessage}";
-                };
+                // ⭐⭐⭐ PHASE 2 SLICE ① — the emit → compile → status bodies below were LINE-FOR-LINE
+                //    identical to CGF's, down to the `BTreePatch_{id:N}_{guid:N}` assembly-name format.
+                //    They are now ONE implementation in `AiAssetReload.ReloadBTree` / `.ReloadHsm`, and
+                //    what remains here is the `ToDto` map plus the QuickReloadService adapter — the two
+                //    steps that name types AiShared cannot reference (design §5c.6.2).
+                // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.6.
+                // ⭐ The compiler, expressed in terms AiShared can name — `QuickReloadResult` lives on
+                //   the far side of the reference cycle, so the adapter belongs here.
+                // ⚠ QR-03/QR-04's per-kind trigger FIELDS are gone: their only two callers were the
+                //   two kind-switches this slice replaces with the shared dispatcher, so a field whose
+                //   every caller became `AiAssetReload.Reload` is a field with no callers.
+                _compileSources = (sources, asmName) =>
+                    {
+                        var r = quickReloadService.TriggerFromSourcesAsync(
+                            System.Linq.Enumerable.ToArray(
+                                System.Linq.Enumerable.Select(sources, s => (s.Source, s.FileName))),
+                            asmName).GetAwaiter().GetResult();
+                        return new Hrot.Editor.AiShared.Documents.AiAssetReload.CompileOutcome(
+                            r.Succeeded, r.ErrorMessage, r.DurationMs);
+                    };
 
                 var rebuildRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureShellCommandRegistrar();
                 rebuildRegistrar.RegisterToolbarEntry(
@@ -4503,15 +4533,15 @@ namespace Hrot.Editor
                 new Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.HostServices(
                     OpenAsset:     () => assetPickerLauncher?.Open(AssetKindFilter.All),
                     NewAsset:      () => newAssetLauncher?.Open(),
-                    CompileReload: () =>
-                    {
-                        switch (_aiDocumentManager?.Active?.Kind)
+                    // ⭐⭐ PHASE 2 SLICE ① — was the SECOND of this host's two kind-switches, and it fell
+                    //    through in SILENCE for any other kind. ⛔ The shared policy reports instead.
+                    CompileReload: () => ReloadActiveAiDocument(
+                        blueprintArm: () =>
                         {
-                            case Hrot.Editor.AiShared.AssetKind.Blueprint: _blueprintCompileCallback?.Invoke(); break;
-                            case Hrot.Editor.AiShared.AssetKind.BTree:     _btreeQuickReloadTrigger?.Invoke();  break;
-                            case Hrot.Editor.AiShared.AssetKind.Hsm:       _hsmQuickReloadTrigger?.Invoke();    break;
-                        }
-                    },
+                            if (_blueprintCompileCallback == null) return null;
+                            _blueprintCompileCallback.Invoke();
+                            return _blueprintCompileStatus;
+                        }),
                     FullRebuild:   () => _blueprintFullRebuildCallback?.Invoke(),
                     CompileReloadEnabled: () => _aiDocumentManager?.Active?.Kind
                         is Hrot.Editor.AiShared.AssetKind.Blueprint

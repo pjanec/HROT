@@ -56,7 +56,16 @@ namespace Hrot.SystemTests.Conformance;
 /// <c>CE-071</c>-`B1` class of defect is explicitly OUT of this net until <c>focus_panel</c> is folded in.</para>
 ///
 /// <para>⛔ <c>T3</c> — the async lane. ⚠ Boots real processes under Xvfb; never a foreground blocker.</para>
+///
+/// <para>⛔⛔ <b><c>CE-081</c> — the <c>Category</c> trait below is NOT decoration; without it this whole
+/// file was UNREACHABLE from <c>scripts/run-system-tests.sh</c>.</b> 📐 Measured `2026-08-27`: the script
+/// filters on <c>(Category=SystemSmoke|Category=SystemModes)</c>, and this class declared only
+/// <c>lane=T3</c> ⇒ a run named at these rails printed <i>"No test matches the given testcase filter"</i>
+/// and exited <b>0</b>. ⚠⚠ <b>A silent zero-test green</b> — the rail-blindness shape, this time in the
+/// harness rather than the assertion. ⭐ <c>SystemModes</c> is the right bucket: these are parameterised
+/// by runner mode, exactly like <c>ModeStartupRails</c>.</para>
 /// </summary>
+[Trait("Category", "SystemModes")]
 [Trait("lane", "T3")]
 public sealed class TheUiBaselineIsPinnedPerHostRails
 {

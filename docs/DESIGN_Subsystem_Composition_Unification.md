@@ -1059,6 +1059,186 @@ green. ⇒ 🔒 **a golden that has never been read is not a baseline, it is a r
 | **④** | ⭐⭐⭐ **an EQUIVALENCE rail, as `CE-072` demands**: the bundle emits exactly what the roots emitted — ids, sort orders, menu paths | 🔒 `CE-072`'s lesson: *a wrapper needs an equivalence rail the day it is introduced* |
 | **⑤** | the phase-0 parity rail stays green; ⛔ window **ids** unchanged *(§6: a rename resets users' layouts)* | |
 
+### 5c.6 ⭐⭐⭐ SLICE ① — **the save + reload duplicates.** `build-state: READY-TO-BUILD` *(`2026-08-27`)*
+
+> ⭐ **This is `D3`'s slice ⓪/① — vehicle (b), NO seam.** ⛔ `IUiBundle` is not involved: this is duplicated
+> **LOGIC**, not duplicated **registration**, and §5c.4b's finding is that the bundle only addresses the latter.
+
+#### 5c.6.1 🔴 INVENTORY — **and the "line-for-line" claim in the resume doc was WRONG**
+
+⭐ Queries: `search_graph(name_pattern=".*(SaveAllAiDocuments|AiAssetSaver|ShellSaveCommands|QuickReload|AiAssetEmit|RegenerationScheduler).*")` ⇒ `total: 145`; then the two roots read directly.
+
+| # | the duplicate | 📐 measured |
+|---|---|---|
+| **a** | **BTree save delegate** — `EditorSubsystem:3455` vs `CgfSubsystem:2106` | ⚠⚠ **NOT line-for-line.** ⭐ **Semantically identical**, syntactically drifted: the editor uses `as` + a null check and a `prettyJson` local; CGF uses `is not … return` and inlines the flatten. ⇒ 🔴 **the drift ALREADY HAPPENED** — which strengthens the case, it does not weaken it |
+| **b** | **HSM save delegate** | same shape, same verdict |
+| **c** | **Blueprint save delegate** | ⛔ **a REAL behavioural difference**: the editor also calls `_blueprintSaveDirtyTracker.MarkClean(bpAsset.AssetId)`; CGF constructs no tracker. ⇒ ⭐ the shared part is the **doc→ctx→AssetRef lookup**, and the tracker stays a host concern |
+| **d** | **BTree + HSM reload arms** — `EditorSubsystem:4307`/`:4330` vs `CgfSubsystem:2370`/`:2383` | ⭐⭐ **these ARE line-for-line**, down to the `$"BTreePatch_{dto.AssetId:N}_{Guid.NewGuid():N}"` assembly-name format |
+| **e** | **the reload DISPATCHER** | ⛔⛔ **two different shapes**: CGF has ONE method `ReloadActiveAiDocument()` switching on `ctx.AssetRef`'s runtime type; the editor has **three** delegates plus a **fourth** inline `switch` on `Active.Kind` in its toolbar `HostServices` *(`:4506`)* |
+
+#### 5c.6.2 ⛔⛔⛔ THE CONSTRAINT THAT DECIDES THE SHAPE — **a reference cycle**
+
+📐 **Measured.** `Hrot.BTree.Editor`, `Hrot.Hsm.Editor` **and** `Hrot.Blueprints.Editor` all reference
+`Hrot.Editor.AiShared`. ⇒ ⛔⛔ **AiShared can NEVER name `BehaviorTreeAsset`, `HsmAsset` or `BlueprintAsset`** —
+a shared saver taking an asset is a **circular project reference**, not a style choice.
+⚠ **This is why `ShellSaveCommands` already takes host-supplied `saveBTree`/`saveHsm` delegates** — that seam
+is deliberate, and it was not obvious from the code alone.
+
+📐 **The only non-test projects that see all three are the two hosts themselves.** ⇒ ⛔ **there is no existing
+shared home**, and 🔴 **a new project is the wrong price** for ~33 duplicated lines in a 149-project solution.
+
+⭐⭐⭐ **THE WAY THROUGH — `DTO`-in, not asset-in.** 📐 `BehaviorTreeAssetDto` / `HsmAssetDto` live in
+**`Hrot.AiEditor.Persistence`**, which AiShared **does** reference, and every emit/serialize step already takes
+a DTO *(`EmitTopologyCore(BehaviorTreeAssetDto)`)*. ⇒ ⭐⭐ **only `ToDto(asset)` needs the concrete type.**
+**The host maps; AiShared owns everything after the map.**
+
+#### 5c.6.3 ⭐ THE DECISIONS
+
+| | decision | why |
+|---|---|---|
+| **`E1`** | ⭐⭐ **the shared unit takes a DTO** — `AiAssetSavers.SaveBTree(BehaviorTreeAssetDto, path)` | ⛔ the cycle forbids asset-in *(§5c.6.2)* |
+| **`E2`** | ⭐⭐⭐ **AiShared owns the reload POLICY** — the null-active arm, the kind dispatch, the default arm, the try/catch, and **ruling 53's origin-side log** — with per-kind **arms** supplied by the host | ⭐ the policy is where the drift hurt: the editor has **no** try/catch, **no** log and **no** default arm |
+| **`E3`** | ⭐⭐ **every status string is formatted in ONE place** | 🔴 the user-visible surface of this duplication IS the status text; two formatters is two wordings |
+| **`E4`** | ⭐ **dispatch on `AssetKind`, not on `AssetRef`'s runtime type** | ⛔ AiShared cannot name the types. ⚠ **To preserve CGF's behaviour when `AssetRef` is null/mismatched, each arm returns the SHARED `NoCompilableContext` text** — so the two hosts stay byte-identical |
+| **`E5`** | ⛔ **the Blueprint dirty-tracker stays host-side** | 📐 only the editor has one *(§5c.6.1 c)*; ⭐ ruling 49 — absent-and-explained beats a null-tolerant shared field |
+
+#### 5c.6.4 ⚠⚠ WHAT THE EDITOR GAINS — **stated LOUDLY, because "the editor must not change" is the reference**
+
+🔒 **The user's safety-net question makes today's editor the reference.** ⛔ **This slice deliberately changes it
+in four ways, and every one is the editor adopting behaviour CGF already has:**
+
+| # | the editor gains | authority |
+|---|---|---|
+| **①** | ⭐⭐ **an origin-side log on every reload** | 🔒 **ruling 53** — `DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md` §10.4: *"the origin-side log is the whole safety net, so it is a requirement, not a nicety"* |
+| **②** | ⭐ **a try/catch** — a failed compile reports instead of propagating out of an ImGui callback | ⭐ same design: *"a compile is user input; it must not take the node down"* |
+| **③** | ⭐ **an explicit default arm** — *"'X' (Kind) has no compilable canvas context"* instead of a silent no-op | ⛔ the editor's `switch` at `:4506` falls through in silence |
+| **④** | ⭐ **one status wording** shared with CGF | `E3` |
+| ⛔ **NOT changed** | window ids · toolbar ids · sort orders · menu paths · the save file bytes | ⭐ **the baseline rail + the byte-equivalence rail below prove this** |
+
+#### 5c.6.5 ⭐ THE UML *(obligation ①; every box EXISTS unless marked NEW)*
+
+```mermaid
+classDiagram
+    class AiAssetSavers {
+        <<NEW, static>>
+        +SaveBTree(BehaviorTreeAssetDto dto, string path)
+        +SaveHsm(HsmAssetDto dto, string path)
+        +ResolveAssetRef(AiDocumentManager docs, Guid assetId) object
+    }
+    class AiAssetReload {
+        <<NEW, static>>
+        +Reload(AiDocumentManager docs, AiReloadArms arms, Action log) string
+        +ReloadBTree(BehaviorTreeAssetDto dto, CompileSources compile) string
+        +ReloadHsm(HsmAssetDto dto, CompileSources compile) string
+        +FormatBlueprint(string name, CompileOutcome r) string
+        +NoCompilableContext(string name, AssetKind kind) string
+    }
+    class AiReloadArms {
+        <<NEW, record>>
+        +Func~nullable_string~ Blueprint
+        +Func~nullable_string~ BTree
+        +Func~nullable_string~ Hsm
+    }
+    class CompileOutcome {
+        <<NEW, record struct>>
+        +bool Succeeded
+        +string ErrorMessage
+        +long DurationMs
+    }
+    class BehaviorTreeAssetDto {
+        Hrot.AiEditor.Persistence
+    }
+    class BTreeEmitCore {
+        Hrot.AiEditor.Persistence
+    }
+    class AtomicFileWriter {
+        Hrot.AiEditor.Persistence
+    }
+    class QuickReloadService {
+        Hrot.Blueprints.Editor
+        +TriggerFromSourcesAsync()
+    }
+    class EditorSubsystem {
+        Hrot.Editor
+        -_blueprintCompileStatus
+    }
+    class CgfSubsystem {
+        Hrot.CGF
+        +LastReloadStatus
+    }
+    AiAssetReload ..> AiReloadArms : dispatches to
+    AiAssetReload ..> CompileOutcome : returns
+    AiAssetReload ..> BTreeEmitCore : emits via
+    AiAssetSavers ..> BehaviorTreeAssetDto : takes
+    AiAssetSavers ..> AtomicFileWriter : writes via
+    EditorSubsystem ..> AiAssetSavers : calls
+    EditorSubsystem ..> AiAssetReload : calls
+    CgfSubsystem ..> AiAssetSavers : calls
+    CgfSubsystem ..> AiAssetReload : calls
+    EditorSubsystem ..> QuickReloadService : supplies as CompileSources
+    CgfSubsystem ..> QuickReloadService : supplies as CompileSources
+```
+
+⛔⛔ **The arrow that must NOT exist:** `AiAssetSavers --> BehaviorTreeAsset`. 📐 It would be a **cycle**
+*(§5c.6.2)*, and the DTO boxes are on this canvas precisely so that temptation is visible.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Toolbar as ShellCommandCoreBundle
+    participant Host as EditorSubsystem or CgfSubsystem
+    participant Reload as AiAssetReload (NEW)
+    participant Emit as BTreeEmitCore
+    participant QRS as QuickReloadService
+    User->>Toolbar: click Compile / Reload
+    Toolbar->>Host: CompileReload()
+    Host->>Reload: Reload(docs, arms, log)
+    Reload->>Reload: active == null ? return shared text
+    Reload->>Host: invoke arms.BTree()
+    Note over Reload,Host: an arm returning null gets the shared NoCompilableContext text
+    Host->>Host: ToDto(asset) -- the ONLY host-typed step
+    Host->>Reload: ReloadBTree(dto, compile)
+    Reload->>Emit: EmitTopologyCore + EmitBridge
+    Reload->>QRS: compile(sources, asmName)
+    QRS-->>Reload: CompileOutcome
+    Reload-->>Host: status string (ONE wording)
+    Reload->>Reload: finally -- log the act (ruling 53)
+    Host-->>Toolbar: status shown
+```
+
+#### 5c.6.6 The items
+
+| # | item | proof |
+|---|---|---|
+| **①** | `AiAssetSavers` + `AiAssetReload` in `Hrot.Editor.AiShared/Documents/` | ⛔ **DTO-in only** — a compile error is the gate on `E1` |
+| **②** | ⭐⭐ **both roots call them and DELETE their bodies** | ⛔ a diff showing deletion |
+| **③** | ⭐⭐⭐ **a BYTE-EQUIVALENCE rail** *(`CE-072`)*: for each `(kind, outcome)` the shared formatter emits **exactly** the string the host emitted, and the saved file bytes are **identical** to the pre-change writer | ⭐ `Hrot.Editor.AiShared.Tests` references all three asset projects ⇒ it can build **real** assets |
+| **④** | the three `ui-baseline-*` goldens stay **unchanged** | ⛔ this slice touches no window/toolbar id ⇒ ⭐ **an unchanged golden is the assertion**, not a re-capture |
+
+#### 5c.6.7 ✅ AS-BUILT *(`2026-08-27`, `CE-078`)* — **five deviations, each argued**
+
+> ⭐⭐ Obligation ⑤: the diagrams above are **edited to the as-built**, not merely annotated — 🔒 the
+> `2026-08-27` lesson that *an as-built note is not a diagram edit*. ⚠ The `AiReloadArms` box and the
+> sequence's null-arm note are the two edits.
+
+| # | ⭐ deviation from §5c.6.3–§5c.6.5 | why |
+|---|---|---|
+| **①** | ⭐⭐ **the arms return `string?`, not `string`** — a null means *"right kind, no model to compile"* and the shared policy then supplies `NoCompilableContext` | ⭐ the designed shape made every arm re-derive that wording, which is the duplication the slice exists to remove. ⛔ **The `E4` promise is stronger this way**, not weaker |
+| **②** | 🔴🔴 **THERE WERE THREE DISPATCHERS, NOT TWO.** §5c.6.1 e named CGF's method and the editor's toolbar switch; 📐 measuring found a **third** — the editor's MCP `reloadAsset` route *(`EditorSubsystem:3123`)* — **with its own third wording** *("is not a reloadable kind")* | ⭐ both editor dispatchers now call the one shared policy. ⚠ **The wording change is externally visible on an MCP route** ⇒ filed as **`CE-080`** so the MCP lane can refresh its route docs *(in `skill-parts/`, ⛔ never the generated `SKILL.md`)* |
+| **③** | ⛔⛔ **the Blueprint arm is a PARAMETER of the shared dispatcher, not a shared body** | 📐 the editor's two dispatchers used **two different Blueprint paths** — `_blueprintCompileCallback` *(a captured registrar toolbar callback)* vs `_blueprintQuickReloadTrigger`. ⇒ ⛔ **their equivalence is unproven, and collapsing two paths on a guess is the mirror error.** ⭐ Filed as **`CE-079`**; the BTree/HSM arms and the whole policy ARE shared, which is what the slice claimed |
+| **④** | ⭐ **`_btreeQuickReloadTrigger` / `_hsmQuickReloadTrigger` are DELETED**, not just emptied | 📐 their only callers each were the two switches this slice replaced ⇒ a field whose every caller became `AiAssetReload.Reload` has no callers |
+| **⑤** | ⚠ **a FIFTH editor delta, not in §5c.6.4's table: the log now fires on the no-active-document path too** | ⭐ an operator who triggered a reload over MCP and got nothing logged is precisely the gap ruling 53 addresses. ⛔ Deliberate, and railed |
+
+⭐⭐ **AND A DEFECT FOUND IN THE SAFETY NET ITSELF — `CE-081`.** 📐 Running the phase-2 baseline rails
+through `scripts/run-system-tests.sh` printed **"No test matches the given testcase filter"** and exited
+**0**. ⛔⛔ The script filters `(Category=SystemSmoke|Category=SystemModes)` and
+`TheUiBaselineIsPinnedPerHostRails` declared only `lane=T3` ⇒ **the whole baseline was UNREACHABLE from the
+project's standard system-test entry point**, and a run aimed at it was a **silent zero-test green.**
+⚠⚠ **That is the rail-blindness shape in the HARNESS rather than the assertion** — 🔒 and it is the same
+lesson as `CE-075`'s own: *a golden that has never been read is not a baseline, it is a rumour* — here, a
+rail nothing can run is not a rail. ✅ Fixed by adding `[Trait("Category","SystemModes")]`, the bucket
+`ModeStartupRails` uses for mode-parameterised cases.
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|

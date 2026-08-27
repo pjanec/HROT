@@ -2093,32 +2093,31 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    AssetRoots-based mapping here would be a competing answer to "where does this asset
         //    live", and the catalog already recorded the real one when it indexed the file.
         //    ⭐ AssetRoots still resolves the reload CATALOG root above — that is a different question.
+        // ⭐⭐⭐ PHASE 2 SLICE ① — the three bodies below are now ONE implementation, shared with the
+        //    editor: `Hrot.Editor.AiShared.Documents.AiAssetSavers`. 📐 Before this, the editor carried
+        //    its own semantically-identical, syntactically-drifted copies. ⛔ The only step that stays
+        //    here is `ToDto` / the concrete cast — AiShared cannot name these asset types without a
+        //    circular project reference (design §5c.6.2, and `SaveAllAiDocumentsCommand`'s own §PU-602
+        //    note). 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.6.
         _saveBlueprint = (asset, path) =>
         {
-            var doc     = _aiDocumentManager?.OpenDocuments
-                              .FirstOrDefault(d => d.Asset.AssetId == asset.AssetId);
-            var ctx     = doc?.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
-            var bpAsset = ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset;
-            if (bpAsset == null) return;
+            if (Hrot.Editor.AiShared.Documents.AiAssetSavers.ResolveAssetRef(_aiDocumentManager, asset.AssetId)
+                is not Hrot.Blueprints.Core.Assets.BlueprintAsset bpAsset) return;
             Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(bpAsset, path);
         };
 
         _saveBTree = (asset, path) =>
         {
             if (asset is not Hrot.BTree.Editor.Model.BehaviorTreeAsset bt) return;
-            var dto  = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(bt);
-            var json = Hrot.AiEditor.Persistence.BTree.BTreeJsonServices.Serialize(dto);
-            Hrot.AiEditor.Persistence.AtomicFileWriter.Write(
-                path, Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(json));
+            Hrot.Editor.AiShared.Documents.AiAssetSavers.SaveBTree(
+                Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(bt), path);
         };
 
         _saveHsm = (asset, path) =>
         {
             if (asset is not Hrot.Hsm.Editor.Model.HsmAsset hsm) return;
-            var dto  = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsm);
-            var json = Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Serialize(dto);
-            Hrot.AiEditor.Persistence.AtomicFileWriter.Write(
-                path, Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(json));
+            Hrot.Editor.AiShared.Documents.AiAssetSavers.SaveHsm(
+                Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsm), path);
         };
 
         // ── The main-toolbar affordances — CE-016 §7 (A2) ──────────────────────
@@ -2348,74 +2347,57 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// </summary>
     internal string ReloadActiveAiDocument()
     {
-        var active = _aiDocumentManager?.Active;
-        var ctx    = active?.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+        // ⭐⭐⭐ PHASE 2 SLICE ① — the POLICY below (kind dispatch, the default arm, the try/catch and
+        //    ruling 53's origin-side log) now lives ONCE, in
+        //    `Hrot.Editor.AiShared.Documents.AiAssetReload`, shared with the editor. 📐 The editor's own
+        //    path had NONE of the three: no try/catch, no log, no default arm (design §5c.6.4).
+        //    ⛔ What stays here is only what names CGF's concrete types: the `ToDto` map and the
+        //    QuickReloadService adapter. 📄 DESIGN_Subsystem_Composition_Unification.md §5c.6.
+        if (_quickReload == null || _aiDocumentManager?.Active == null)
+            return LastReloadStatus = Hrot.Editor.AiShared.Documents.AiAssetReload.NoActiveDocument;
 
-        if (_quickReload == null || active == null)
-            return LastReloadStatus = "No active AI document to reload.";
+        var qrs = _quickReload;
+        var ctx = _aiDocumentManager?.Active?.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
 
-        try
+        // ⭐ The compiler, expressed in terms AiShared can name — `QuickReloadResult` lives on the far
+        //   side of the reference cycle, so the adapter belongs here and is one expression.
+        Hrot.Editor.AiShared.Documents.AiAssetReload.CompileSources compile = (sources, asmName) =>
         {
-            switch (ctx?.AssetRef)
+            var r = qrs.TriggerFromSourcesAsync(
+                System.Linq.Enumerable.ToArray(
+                    System.Linq.Enumerable.Select(sources, s => (s.Source, s.FileName))),
+                asmName).GetAwaiter().GetResult();
+            return new Hrot.Editor.AiShared.Documents.AiAssetReload.CompileOutcome(
+                r.Succeeded, r.ErrorMessage, r.DurationMs);
+        };
+
+        // ⚠ An arm returning null means "right kind, no model to compile" — the shared policy then
+        //   supplies the one `NoCompilableContext` wording, which is what keeps this host's old
+        //   runtime-type dispatch byte-identical to the editor's kind dispatch.
+        var arms = new Hrot.Editor.AiShared.Documents.AiReloadArms(
+            Blueprint: () =>
             {
-                case Hrot.Blueprints.Core.Assets.BlueprintAsset bp:
-                {
-                    var r = _quickReload.TriggerAsync(bp).GetAwaiter().GetResult();
-                    return LastReloadStatus = r.Succeeded
-                        ? $"Compiled blueprint '{bp.Name}' in {r.DurationMs}ms"
-                        : $"Blueprint compile failed: {r.ErrorMessage}";
-                }
+                if (ctx?.AssetRef is not Hrot.Blueprints.Core.Assets.BlueprintAsset bp) return null;
+                var r = qrs.TriggerAsync(bp).GetAwaiter().GetResult();
+                return Hrot.Editor.AiShared.Documents.AiAssetReload.FormatBlueprint(
+                    bp.Name,
+                    new Hrot.Editor.AiShared.Documents.AiAssetReload.CompileOutcome(
+                        r.Succeeded, r.ErrorMessage, r.DurationMs));
+            },
+            BTree: () => ctx?.AssetRef is Hrot.BTree.Editor.Model.BehaviorTreeAsset bt
+                ? Hrot.Editor.AiShared.Documents.AiAssetReload.ReloadBTree(
+                      Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(bt), compile)
+                : null,
+            Hsm: () => ctx?.AssetRef is Hrot.Hsm.Editor.Model.HsmAsset hsm
+                ? Hrot.Editor.AiShared.Documents.AiAssetReload.ReloadHsm(
+                      Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsm), compile)
+                : null);
 
-                case Hrot.BTree.Editor.Model.BehaviorTreeAsset bt:
-                {
-                    var dto      = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(bt);
-                    var topology = Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.EmitTopologyCore(dto);
-                    var bridge   = Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.EmitBridge(dto);
-                    var r = _quickReload.TriggerFromSourcesAsync(
-                        new[] { (topology, dto.Name + ".g.cs"), (bridge, dto.Name + ".Registrar.g.cs") },
-                        $"BTreePatch_{dto.AssetId:N}_{Guid.NewGuid():N}").GetAwaiter().GetResult();
-                    return LastReloadStatus = r.Succeeded
-                        ? $"Compiled BTree '{dto.Name}' in {r.DurationMs}ms"
-                        : $"BTree compile failed: {r.ErrorMessage}";
-                }
-
-                case Hrot.Hsm.Editor.Model.HsmAsset hsm:
-                {
-                    var dto      = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsm);
-                    var topology = Hrot.AiEditor.Persistence.Emit.HsmEmitCore.EmitTopologyCore(dto);
-                    var bridge   = Hrot.AiEditor.Persistence.Emit.HsmBridgeEmitCore.EmitBridge(dto);
-                    var r = _quickReload.TriggerFromSourcesAsync(
-                        new[] { (topology, dto.Name + ".g.cs"), (bridge, dto.Name + ".Registrar.g.cs") },
-                        $"HsmPatch_{dto.AssetId:N}_{Guid.NewGuid():N}").GetAwaiter().GetResult();
-                    return LastReloadStatus = r.Succeeded
-                        ? $"Compiled HSM '{dto.Name}' in {r.DurationMs}ms"
-                        : $"HSM compile failed: {r.ErrorMessage}";
-                }
-
-                default:
-                    // ⚠ A document with no canvas context cannot be recompiled — say WHICH, so the
-                    //   caller is not left guessing whether the reload ran.
-                    return LastReloadStatus =
-                        $"'{active.Asset.Name}' ({active.Kind}) has no compilable canvas context.";
-            }
-        }
-        catch (Exception ex)
-        {
-            // ⛔ A compile is user input; it must not take the node down. ⭐ Reported, not swallowed.
-            FdpLog<CgfSubsystem>.Error("[CGF] reload failed: {0}", ex.Message);
-            return LastReloadStatus = $"Reload threw: {ex.Message}";
-        }
-        finally
-        {
-            // ⭐⭐ RULING 53's origin-side log, on EVERY reload — not only the Hard ones.
-            //    ⛔ A headless node that silently recompiles the brain a live exercise is running is
-            //    exactly what the ruling's safety net is for, and the Soft/Hard distinction is NOT
-            //    available on this path (CE-023) — so the log records the ACT, not a classification
-            //    it cannot honestly make.
-            FdpLog<CgfSubsystem>.Info(
-                "[CGF] AI asset reload requested for '{0}' — {1}",
-                _aiDocumentManager?.Active?.Asset.Name ?? "(none)", LastReloadStatus);
-        }
+        return LastReloadStatus = Hrot.Editor.AiShared.Documents.AiAssetReload.Reload(
+            _aiDocumentManager,
+            arms,
+            log: (name, status) => FdpLog<CgfSubsystem>.Info(
+                "[CGF] AI asset reload requested for '{0}' — {1}", name, status));
     }
 
     /// <summary>⭐ The last save report — read by the MCP save route and by rails.</summary>

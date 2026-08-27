@@ -16,7 +16,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
 > 🔒🔒 **Branch: `claude/reset-working-branch-qd1qpv`** *(re-pointed by the USER, `2026-08-23`)*. ⛔ Push
-> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-075`)**; ⚠ `BP-` are this lane's HISTORICAL
+> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-082`)**; ⚠ `BP-` are this lane's HISTORICAL
 > variable-model ids, tracker areas **`A`–`G`**.
 > ⚠⚠ **This lane MOVED from `claude/hrot-implementation-j1jvin`** — ⛔ any document still naming `j1jvin`
 > as this lane is stale; `.claude/CLAUDE.md`'s lane table *(`6b14d13fe`)* is authoritative.
@@ -38,7 +38,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 > **②** [`batches/HANDOFF_Cgf_Bootstrap_Unification.md`](batches/HANDOFF_Cgf_Bootstrap_Unification.md) — the dispatched FRAME. ⚠ **stale on two points**, see the STATUS block.
 > **③** [`Architect_Question_62_Unify_The_Composition_Root.md`](Architect_Question_62_Unify_The_Composition_Root.md) — the predecessor; ⚠ AQ63 §3 supersedes its SHAPE and STAGING.
 >
-> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-075`**.
+> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-082`**.
 > ⭐ **RELEARN** before acting on this file.
 
 ## ✅✅✅ 0.0 — **PHASE 0 IS DONE** *(`2026-08-27`, head `9bff523c7`)*
@@ -160,14 +160,45 @@ would have shipped GREEN. ⇒ ⭐⭐ **a golden that has never been read is not 
 | # | slice | why here |
 |---|---|---|
 | **⓪** | 🛠 **capture + commit the three goldens on TODAY'S code** | ⚠⚠ a golden taken after bundle #1 lands **enshrines whatever that bundle did** |
-| **①** | the two LOGIC duplicates, vehicle (b), **no seam**: a shared `AiAssetSavers` *(BTree/HSM save delegates are **line-for-line** duplicates — `EditorSubsystem:3455-3475` vs `CgfSubsystem:2106-2121`)* + collapse reload *(CGF has ONE kind-switching `ReloadActiveAiDocument`; the editor has **three** separate callbacks)* | ⭐ small, pure, ruling-9 clear, **zero design risk** |
-| **②** | ⭐⭐ **bundle #1 = the diagnostics group** *(22 sites, 5 hosts)* via `IUiBundle` + a `DiagnosticsHostServices` record | ⭐ biggest measured duplication; proves the seam at **N=5**, not 2 |
+| **①** | ✅✅ **DONE `2026-08-27` — `CE-078`.** Shared `AiAssetSavers` + `AiAssetReload` in `Hrot.Editor.AiShared/Documents/`; both hosts call them; `_btreeQuickReloadTrigger`/`_hsmQuickReloadTrigger` DELETED. 📄 design §5c.6 *(+ §5c.6.7 as-built)* | ✅ 12-fact equivalence rail, **3 inverse-edit red-proofs**; T3 baseline 5/5 with goldens **unchanged** |
+| **②** | 🔴🔴 **START HERE NEXT — bundle #1 = the diagnostics group** *(22 sites, 5 hosts)* via `IUiBundle` + a `DiagnosticsHostServices` record | ⭐ biggest measured duplication; proves the seam at **N=5**, not 2 |
 | **③** | the editor/CGF-only shell surfaces *(menus, toolbar, perspectives)* | ⭐ 2 hosts only; do it once the N-host pattern is proven |
 
 ⛔⛔ **EVERY slice carries an EQUIVALENCE rail** — 🔒 `CE-072`'s lesson: *a wrapper needs an equivalence rail
 the day it is introduced*, because **when a wrapper becomes the only production path to tested code, the
 existing tests stop covering production.** ⚠ At 5 hosts this matters more: each host's ids and perspective
 must come out **byte-identical**, or someone's saved layout resets.
+
+### ⛔⛔⛔ 0.0d-② THE CONSTRAINT THAT SHAPES EVERY REMAINING SLICE — **a reference CYCLE** *(measured `2026-08-27`, `CE-078`)*
+
+📐 **`Hrot.BTree.Editor`, `Hrot.Hsm.Editor` AND `Hrot.Blueprints.Editor` ALL reference
+`Hrot.Editor.AiShared`.** ⇒ ⛔⛔ **AiShared can NEVER name `BehaviorTreeAsset` / `HsmAsset` /
+`BlueprintAsset`** — that is a **circular project reference**, not a style preference.
+📐 **And the only NON-TEST projects that see all three are the two hosts themselves** ⇒ ⛔ **there is no
+existing shared home** for logic that needs the concrete asset types, and a **new project is the wrong
+price** for a few dozen lines in a 149-project solution.
+
+⭐⭐⭐ **THE WAY THROUGH, and it generalises: `DTO`-in, not asset-in.** The DTOs
+*(`BehaviorTreeAssetDto`/`HsmAssetDto`)* live in **`Hrot.AiEditor.Persistence`**, which AiShared **does**
+reference, and every serialize/emit step already takes a DTO. ⇒ ⭐ **only `ToDto(asset)` and the compiler
+adapter stay host-side; AiShared owns everything after the map.**
+
+⭐ **This was ALREADY WRITTEN DOWN and I nearly re-derived it from scratch** —
+`SaveAllAiDocumentsCommand.cs:10`: *"Kind-specific serialization is injected as delegates to avoid
+circular assembly references … design §PU-602."* ⇒ 📌 **the seam law once more:** those delegate
+parameters looked like a style choice and were load-bearing. ⚠ **Slice ③ (menus/toolbar/perspectives) will
+meet the same wall** — ⭐ check the reference direction BEFORE choosing where shared code lives.
+
+### ⛔⛔ 0.0d-③ A T3 RAIL MUST BE GATED THROUGH THE SCRIPT AT LEAST ONCE *(`CE-081`, `2026-08-27`)*
+
+🔴 **`scripts/run-system-tests.sh` filters `(Category=SystemSmoke|Category=SystemModes)`.** 📐 `CE-075`'s
+baseline rails declared only `[Trait("lane","T3")]` ⇒ the script printed **"No test matches the given
+testcase filter"** and exited **`0`** — ⛔⛔ **a silent ZERO-TEST GREEN**, and the whole phase-2 safety net
+was unreachable from the project's own entry point for a day. ✅ Fixed with
+`[Trait("Category","SystemModes")]` *(the bucket `ModeStartupRails` uses)*; 📐 the same command now runs
+**5/5**.
+⇒ ⭐⭐ **`dotnet test --filter` BYPASSES the category filter**, which is exactly how it hid — so a new T3
+rail is not gated until **`run-system-tests.sh <Name>` has printed a non-zero test count.**
 
 ### ⚠ FIVE SIZE ESTIMATES I GOT WRONG THIS SESSION — **measure before quoting**
 ⛔ *"a 24-site cross-assembly rename"* → 📐 **19 hits, 9 files, one tree** *(the 24 was the graph's DEGREE)*.
@@ -177,6 +208,13 @@ must come out **byte-identical**, or someone's saved layout resets.
 ⛔ *"the save cluster is the biggest prize, ~426 lines"* → 📐 **`SaveAllAiDocumentsCommand` is already shared
 and both hosts already call it**; the lines were comment + shared calls.
 ⛔ *"phase 2 is editor-vs-CGF"* → 📐 **22 sites across 5 hosts.**
+⛔ *"the BTree/HSM save delegates are LINE-FOR-LINE duplicates"* *(this doc said so)* → 📐 **semantically
+identical, syntactically DRIFTED** — the editor used `as`+null-check+a `prettyJson` local, CGF used
+`is not … return` + inlined flatten. ⭐ The drift had already happened; the claim was too strong in the
+detail and too weak in the conclusion. ⚠ **The RELOAD arms genuinely were line-for-line.**
+⛔ *"CGF has ONE dispatcher, the editor has three callbacks"* → 📐 **THREE dispatchers, not two**: CGF's
+method, the editor's toolbar switch, **and the editor's MCP `reloadAsset` route** — each with its own
+wording for the same condition.
 ⇒ 🔒 **measure CODE lines and read the call sites before naming a slice or a size.**
 
 ## ⛔ 0.0c — **HISTORY: the `CE-070`/`CE-071` way-forward** *(`2026-08-27`)* — ⚠ **SUPERSEDED by §0.0d; do NOT start here**
