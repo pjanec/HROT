@@ -32,7 +32,20 @@ namespace Hrot.SystemTests.Conformance;
 /// <para>⚠ <b>Why this lives in its own file.</b> The handoff asked for it: the shared
 /// <c>ClusterConformanceRails</c> is being edited by a concurrent session, so a new assertion there
 /// would be a merge race. ⛔ It deliberately does NOT re-assert what that file already covers.</para>
+///
+/// <para>🔴🔴🔴 <b><c>CE-097</c> — THIS CLASS CARRIED NO CATEGORY, SO THE T3 HARNESS NEVER RAN IT.</b>
+/// 📐 Measured <c>2026-08-27</c>: <c>run-system-tests.sh</c> filters
+/// <c>(Category=SystemSmoke|Category=SystemModes)</c>, this class declared neither, and the run printed
+/// <i>"No test matches the given testcase filter"</i> — ⛔⛔ <b>and exited 0</b>. ⇒ ⚠ the SECOND instance of
+/// <c>CE-081</c>'s silent zero-test green, and it was the ONLY class in <c>Conformance/</c> missing a
+/// category. 📌 Found only because the log was read: the harness reported success.</para>
+///
+/// <para>⚠ <b>So every claim below was un-gated from the day it was written</b> — including the one this
+/// file exists for, <c>CE-016</c>'s transport entry. ⭐ <c>SystemModes</c> is the right lane: it boots two
+/// runner modes, exactly like <c>TheUiBaselineIsPinnedPerHostRails</c>.</para>
 /// </summary>
+[Trait("Category", "SystemModes")]
+[Trait("lane", "T3")]
 public sealed class TheRuntimeNodeCarriesTheTransportRails
 {
     private readonly ITestOutputHelper _out;
