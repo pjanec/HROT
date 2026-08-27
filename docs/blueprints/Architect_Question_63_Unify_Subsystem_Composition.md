@@ -4,7 +4,11 @@ build-state: DESIGN — architect question, largest blast radius in the programm
   the user before any build (WHO-DESIGNS amendment: I analyse and suggest, the user approves).
 updated: 2026-08-27
 current-answer: §4 the decision sub-questions with my leans. §2 = the measured INVENTORY. §3 = the finding
-  that reframes AQ62.
+  that reframes AQ62. ⭐⭐ §8 = Q63-C MEASURED (2026-08-27): the kernel-mode hook is NOT a blocker, the
+  pre/post-Initialize line already IS the node/UI boundary, phase 1 touches only editor+CGF, and CGF goes
+  FIRST. §8 WINS over §4 Q63-C's 'genuine unknown' and over §7's counter-case on that point.
+user-approved: 2026-08-27 — Q63-B bundles, Q63-D dissolution, and Q63-E resolved as SINGLE SESSION owns
+  every composition root (so no cross-lane split is needed).
 design-basis: SharedApplicationBootstrapper (the existing 7-phase node base, 3 adopters) ·
   Architect_Question_62 (CGF↔editor composition unification — this AQ WIDENS and partly SUPERSEDES it) ·
   PROGRAMME_Cgf_Equals_Editor_Gap_Map.md §2c · ruling 66 · ruling 58 (one registration list) ·
@@ -204,3 +208,70 @@ handler binding, unowned-write authority. ⚠ A phase that would blur it is a ST
 - ⚠ Widening to five more hosts multiplies coordination cost; `Q63-E` exists to bound it.
 - ⭐ **The cheap fallback, if appetite is low:** phase 0's rail alone. It does not end the drift class, but
   it turns it from *"the user finds it by eye"* into *"CI goes red"* — which is the immediate pain.
+
+## 8. ✅✅ `Q63-C` MEASURED — **the kernel-mode hook is NOT a blocker** *(`2026-08-27`, user asked for this first)*
+
+> ⭐⭐ **§7's counter-case named this as the thing that could stall phase 1. It does not.**
+
+### 8.1 ⭐⭐⭐ The switch runs AFTER bootstrap, so it cannot fight a bootstrap order
+
+📐 `EditorApplication.SwitchToExternalAsync` / `SwitchToInternalAsync`, in full:
+
+```csharp
+await _kernel.UninstallModulesAsync(_logicPacks);
+if (_translatorPacks != null) await _kernel.InstallModulesAsync(_translatorPacks);
+_currentMode = SimHostMode.External;          // and the mirror image for Internal
+```
+
+| measured | ⇒ |
+|---|---|
+| it is **runtime module hot-swap on an already-initialized kernel** | ⛔ it does not construct the world, the kernel, or a context |
+| its only callers are `EditorToolbarPanel` — **a toolbar click** *(`_ = logic.SwitchToExternalAsync()`, fire-and-forget)* | ⭐ it runs **long after Phase 7** |
+| what it needs FROM bootstrap is **one value**: the `logicPacks` list | ⭐⭐ the editor's bootstrapper subclass keeps it as a field and hands it to `EditorApplication` after `BootstrapNode` returns ⇒ **NO base-class change** |
+
+⇒ ✅ **`Q63-C`'s unknown is discharged.** ⛔ The *"non-negotiable phase order"* is a bootstrap-time constraint and `SimHostMode` is a run-time concern; they do not intersect.
+
+### 8.2 🔴 A DEFECT fell out of the measurement — **`translatorPacks` is never supplied in production**
+
+📐 `grep -rn translatorPacks` — **one supplier repo-wide, and it is a TEST harness** *(`EditorHarness.cs:270`)*.
+The production site *(`EditorSubsystem:1761`)* passes `logicPacks` and **omits it**; and the editor builds
+**nothing** translator-pack-shaped *(zero `ACL`/`TranslatorPack` hits in that file)*.
+
+⇒ ⚠⚠ **"Go External" uninstalls the local logic packs and installs NOTHING** — the editor enters a mode with
+no simulation logic and no translators, while the toolbar button reads *"Go External"* as though it worked.
+📌 The `VC-3`/ruling-49 shape: a control that silently does the wrong thing.
+
+⛔ **Stated as measured-and-suspicious, NOT as a confirmed defect.** ⚠ It is possible External mode is *meant*
+to be *"no local logic, receive state over DDS"* with the translators coming from the network factory rather
+than a module pack. ⭐ **Next check, one command:** whether the DDS ingress translators are registered
+unconditionally at bootstrap *(Phase 6b)* — if they are, the mode is coherent and only the dead
+`translatorPacks` parameter is misleading. ⇒ filed for a `CE-` row either way.
+
+### 8.3 ⭐⭐⭐ The REAL shape of phase 1 — **the split line already exists**
+
+| host | kernel `Initialize()` at | of | ⇒ |
+|---|--:|--:|---|
+| `EditorSubsystem` | **1757** | 5325 | 33% node bootstrap · ⭐ **67% UI composition** |
+| `CgfSubsystem` | **850** | 2599 | 33% · ⭐ **67%** — *the same ratio* |
+| `ExConSubsystem` · `ReplayBrowserSubsystem` · `OrchestratorSubsystem` | ⛔ **none** | — | ⭐⭐ **they own NO kernel** |
+
+📐 And the boundary is clean: **after** `Initialize()` the editor has **54** window/menu/toolbar composition
+calls and ⭐ **ZERO** kernel-module registrations.
+
+⇒ ⭐⭐⭐ **The pre/post-`Initialize()` line is already almost exactly the node/UI boundary.** Phase 1 is not
+surgery on a tangle — it is formalising a line the code already draws.
+
+### 8.4 ⭐⭐ Two findings that RE-SEQUENCE the plan
+
+| # | measured | ⇒ decision |
+|---|---|---|
+| **①** | `ExCon` · `ReplayBrowser` · `Orchestrator`: **0** `ModuleHostKernel`, **0** `RegisterModule`, only `RegisterWindow` *(9 · 6 · 2)* | ⭐⭐ **Phase 1 applies to editor + CGF ONLY.** The other three are **pure bundle consumers** and skip it entirely ⇒ the risky phase touches **two** hosts, not five |
+| **②** | CGF already uses `HrotNodeBuilder` *(5 hits)* **and** `HrotNodeContext`; the editor uses ⛔ **NEITHER (0/0)** | ⭐⭐⭐ **Do CGF FIRST, not the editor.** It is half the size, already holds the context shape, and proving the subclass on it de-risks the 5325-line host. ⚠ The editor is the outlier here — ⛔ not "the pair is equally bespoke" |
+
+### 8.5 ⭐ Phase 1, as it should now be sequenced
+
+| step | what | why |
+|---|---|---|
+| **1a** | **CGF** subclasses `SharedApplicationBootstrapper`; everything above its `Initialize()` *(≤ ln 850)* moves into the phase hooks | ⭐ already has the context + builder; smallest real migration |
+| **1b** | **editor** does the same for its ≤ ln 1757 half; `logicPacks` becomes a field of the subclass | ⚠ bigger, but 1a has proved the shape |
+| **1c** | ⛔ **STOP.** ExCon/ReplayBrowser/Orchestrator get **no** phase-1 work | ⭐ finding ① — they own no kernel |
