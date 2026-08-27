@@ -13,7 +13,7 @@ known-conflict: the biggest refactor in the programme — both host composition 
 -->
 # FRAME-HANDOFF — **Unify the composition root** *(AQ62 — UI/CGF lane, `CE-`)*
 
-> 📌 **Dispatched at `aac21bc27`.** ⭐ Rule 7 *(re-sync from `claude/blueprint-authoring-status-6sr5ld` first)*; **rule 1b started-marker before code.** ⛔ No PR.
+> 📌 **Dispatched at `fd8da0967`.** ⭐ Rule 7 *(re-sync from `claude/blueprint-authoring-status-6sr5ld` first)*; **rule 1b started-marker before code.** ⛔ No PR.
 > ⭐ Continue `CE-` ids; you allocate them *(rule 5)*.
 > ⭐⭐⭐ **FRAME, not a full design.** Per the WHO-DESIGNS amendment: **YOU author the staging design (`DESIGN_Cgf_Bootstrap_Unification.md`), the inventory, and the class/sequence UML** — per stage, before building it. The coordinator verifies design+UML on return.
 > 🎯 **The goal (AQ62):** ~85% of `EditorSubsystem`/`CgfSubsystem` is the SAME shared pieces wired TWICE, independently → drift → the "CGF forgot to wire X" bug class (E2/E3/E4/corrective, and the 6 the user found by eye). Collapse the (b) mass into **ONE shared composition both hosts call**, parameterized by the small genuinely-host-different (c) core. Then parity is **by construction**.
