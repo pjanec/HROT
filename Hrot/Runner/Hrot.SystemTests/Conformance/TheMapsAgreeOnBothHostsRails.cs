@@ -195,8 +195,10 @@ public sealed class TheMapsAgreeOnBothHostsRails
         {
             var frame = await ReadMapAsync(host);
 
-            var entities = ((await host.Client.ListEntitiesAsync()).EnsureOk()
-                            .Field("entities") as JsonArray)!;
+            // ⚠ `.Array()`, NOT `.Field("entities")`: 📐 measured — GET /entities returns a BARE JsonArray
+            //   (DebugApiService.ListEntities builds `arr` and returns it), so an envelope lookup yields null
+            //   and NREs. 📌 The first cut of this rail did exactly that and the T3 run caught it.
+            var entities = (await host.Client.ListEntitiesAsync()).EnsureOk().Array();
             int worldCount = entities.Count;
 
             _out.WriteLine($"[{host.Mode}] world holds {worldCount} entities; map anchors {frame.AnchorIds.Count}");
@@ -216,7 +218,12 @@ public sealed class TheMapsAgreeOnBothHostsRails
             // ⭐⭐ Every anchor names an entity the world really has. ⛔ Not the converse: culling and
             //   per-host layer settings legitimately leave some entities unmarked, so requiring full
             //   coverage would be asserting a run-set (which culling modules run) — the forbidden claim.
-            var known = entities.Select(e => e!["networkId"]!.GetValue<long>()).ToHashSet();
+            // ⚠ A row without a networkId is skipped rather than assumed: node-local rows are per-host by
+            //   construction (the entity-inspector's own divergence entry names them), and reading a missing
+            //   field as 0 would quietly widen `known` by the very id the stray filter excludes.
+            var known = entities.Where(e => e?["networkId"] is not null)
+                                .Select(e => e!["networkId"]!.GetValue<long>())
+                                .ToHashSet();
             var strays = frame.AnchorIds.Where(id => id != 0 && !known.Contains(id))
                                        .Distinct().OrderBy(x => x).ToArray();
 
@@ -225,5 +232,91 @@ public sealed class TheMapsAgreeOnBothHostsRails
               + "GET /entities does not list. ⭐ A marker for an entity that no longer exists is a stale "
               + "gizmo — the map showing something the world does not have.");
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>PHASE 0 ③(2) — CENTRING ON AN ENTITY DOES NOT KILL THE HOST.</b>
+    /// 📄 §5.3 ③ · <c>CenterOnEntitySystem</c>'s own remarks *(the <c>CE-051</c> two-way reconciliation)</para>
+    ///
+    /// <para>🔴 <b>The user's second `2026-08-27` symptom, verbatim in the design: *"center-on-entity
+    /// CRASHES"* on <c>--mode cgf</c></b>, with the suspicion recorded that the <c>E3</c>/<c>CE-051</c> path
+    /// is the culprit — i.e. mine. ⭐ So this rail is written to REPRODUCE it, not to confirm health.</para>
+    ///
+    /// <para>⭐⭐ <b>Driven through <c>POST /entities/{id}/focus</c></b>, which publishes the very
+    /// <c>CenterOnEntityCommand</c> the context menu publishes ⇒ the same shared system executes. ⚠⚠ <b>What
+    /// this does NOT cover, said plainly:</b> the menu CLICK itself — ImGui hit-testing is beyond
+    /// <c>get_gizmo_frame</c>'s reach *(§5.4)*, so if the crash lives in the menu-build path rather than in
+    /// the command's execution, this rail stays green and the eyes pass is what finds it. ⭐ That is a real
+    /// limit, and reporting it is better than a rail that implies it covered the click.</para>
+    ///
+    /// <para>⭐ <b>Single-host — "does it crash" is a per-host coherence question</b> *(§5.2's second MUST)*,
+    /// ⛔ not a parity comparison.</para>
+    ///
+    /// <para>⛔⛔⛔ <b><c>--mode cgf</c> IS NOT A RUNNABLE VENUE, and this was MEASURED, not assumed
+    /// (`2026-08-27`).</b> 📐 A first cut of this rail started <c>mode: "cgf"</c> and the process died with
+    /// <b>exit code 134</b> before serving <c>/status</c>:
+    /// <c>InvalidOperationException: [DdsIdAllocator] Publication match not established within 30 s.
+    /// Hrot.Orchestrator must be running before this node starts.</c>
+    /// *(<c>DdsIdAllocatorHelper.EnsureRouting</c> → <c>HrotNodeBuilder.Build</c> →
+    /// <c>CgfSubsystem.Initialize:511</c>)*.
+    /// ⇒ ⭐⭐ <b>a lone CGF node has an unmet PRECONDITION; it is not a defect and not the user's crash.</b>
+    /// ⚠ The design's phrase *"the two new `--mode cgf` symptoms"* is shorthand for *"CGF's symptoms"* — the
+    /// user was running <c>--mode all</c>, which supplies the orchestrator. ⇒ ⭐ this rail runs
+    /// <c>--mode all</c> and drives the <c>Scenario</c> perspective, where CGF IS the map host.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task Centring_on_an_entity_does_not_kill_the_cgf_host()
+    {
+        await using var cgf = await EditorProcess.StartAsync("map-center-all", mode: "all");
+
+        (await cgf.Client.LoadScenarioLiveAsync(Scenario, waitForReady: true)).EnsureOk();
+        (await cgf.Client.SwitchPerspectiveAsync(MapPerspective)).EnsureOk();
+        await cgf.Client.StepAsync(SettleTicks);
+        await Task.Delay(250);
+
+        var entities = (await cgf.Client.ListEntitiesAsync()).EnsureOk().Array();
+        var ids = entities.Where(e => e?["networkId"] is not null)
+                          .Select(e => e!["networkId"]!.GetValue<long>())
+                          .Where(id => id > 0)
+                          .OrderBy(id => id)
+                          .ToArray();
+
+        // ⛔ Anti-vacuity: focusing nothing crashes nothing.
+        Assert.True(ids.Length > 0,
+            $"--mode all's Scenario perspective holds no networked entities after loading '{Scenario}' live, so "
+          + "there is nothing to "
+          + "centre on and this rail would pass without exercising the path at all.");
+
+        _out.WriteLine($"[all/Scenario] centring on each of [{string.Join(", ", ids)}]");
+
+        foreach (var id in ids)
+        {
+            var focus = await cgf.Client.FocusEntityAsync(id);
+            Assert.True(focus.Ok,
+                $"POST /entities/{id}/focus answered {focus.StatusCode}: {focus.Error}");
+
+            // ⭐⭐ THE STEP IS THE POINT. The publish itself is harmless; CenterOnEntitySystem runs in
+            //    PostSimulation, so the command is only EXECUTED on the next kernel tick. ⛔ A rail that
+            //    asserted only on the POST would prove nothing about the system that reads it.
+            await cgf.Client.StepAsync(2);
+            await Task.Delay(100);
+
+            // ⭐ The liveness check: a host that died answers nothing.
+            var status = await cgf.Client.GetStatusAsync();
+            Assert.True(status.Ok,
+                $"after centring on entity {id} and stepping, --mode all no longer answers GET /status "
+              + $"({status.StatusCode}: {status.Error}). 🔴 THAT IS THE USER'S REPORTED CRASH, reproduced. "
+              + "⭐ Look first at CenterOnEntitySystem.TryResolvePosition (NetworkTransform then SimTransform "
+              + "on a host that owns neither) and at the Func<MapCamera?> it was handed — a canvas replaced "
+              + "by a perspective switch is exactly why that parameter is a delegate.");
+        }
+
+        // ⭐ And the camera actually moved somewhere real — ⛔ not to the origin, which is the precise
+        //   failure CE-051 replaced (CGF set Camera.Target directly and MapCamera.Update overwrote it from
+        //   _targetTarget, which CGF never set, so centring sent the view to 0,0).
+        var frame = await ReadMapAsync(cgf);
+        Assert.True(frame.Count > 0,
+            "after centring, the cluster's map submits nothing at all — the camera was moved somewhere with "
+          + "no content, which is the ORIGIN-snap shape CE-051 exists to prevent.");
     }
 }

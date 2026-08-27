@@ -914,8 +914,20 @@ namespace Hrot.Editor
             // Visual effect components required by EventEffectModule (EventToEffectSystem).
             _world.RegisterComponent<VisualEffectState>();
             _world.RegisterComponent<TracerTarget>();
-            _world.RegisterEvent<ActivateEditorToolEvent>();
-            _world.RegisterEvent<CenterOnEntityCommand>();
+            // ⭐⭐⭐ CE-065 — TWO INLINE EVENT REGISTRATIONS ARE GONE FROM HERE, and their absence is the fix.
+            //    They registered ActivateEditorToolEvent and CenterOnEntityCommand on this host's world.
+            //    ⚠ Deliberately DESCRIBED rather than quoted: `NoHostRegistersTheSharedViewportEventsItself`
+            //      is a SOURCE SCAN, so pasting the old call verbatim in a comment would keep it red — 📌 the
+            //      same substring trap that once made an inverse-edit red-proof pass by renaming a symbol
+            //      to something that still contained it.
+            //    ⛔ Being HERE and only here is what broke CGF: both events are read by the SHARED
+            //    ScenarioEditorModule systems, but only this host registered them, and the runner sets
+            //    FdpConfig.EnforceExplicitEventRegistration process-wide (Program.cs:52) so a publish on
+            //    any other host THREW. 🔴 That was the user's `2026-08-27` "center on entity crashes".
+            // ⭐ They now live in PresentationComponentRegistry.RegisterAll beside SelectEntityCommand,
+            //   which was already there — and this host still gets them, because `CgfComponentRegistry
+            //   .RegisterAll(_world)` on line ~905 above calls it. ⚠ Do NOT re-add them here: two lists is
+            //   how the sibling menu items came to disagree in the first place (ruling 9).
 
             // ?? 2. Time controller (MasterSyncController in Deterministic/frozen mode) ??
             // T3: the controller lives on THE BUS THE INTENTS LIVE ON — _orchestrationBus, which

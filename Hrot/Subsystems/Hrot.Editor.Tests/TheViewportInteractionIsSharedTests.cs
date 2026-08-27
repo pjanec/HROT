@@ -328,6 +328,76 @@ public sealed class TheViewportInteractionIsSharedTests
         }
     }
 
+    // ══ ⑤ CE-065 — THE EVENTS ARE REGISTERED ON THE ONE LIST ═════════════════════════════════
+    //
+    // 🔴🔴 THE GAP THESE RAILS CLOSE, and every rail above it missed it. The source scans proved CGF
+    //    publishes the SHARED command instead of hand-rolling; the behavioural rails proved the shared
+    //    SYSTEM reacts correctly. ⛔ NEITHER asked whether the event was REGISTERED on the publishing
+    //    host's bus — and under the runner's process-wide strict mode an unregistered publish THROWS.
+    // 📐 Measured `2026-08-27` over MCP on --mode all:
+    //    POST /entities/1000/focus -> 500 "Strict Mode Violation: Unmanaged event type
+    //    'CenterOnEntityCommand' (ID: 8104) was published without being explicitly registered."
+    //    ⇒ the user's reported crash: "Center on entity" out of CGF's entity-inspector context menu.
+    // ⚠⚠ Note WHY the unit rails could not see it: they run with strict mode OFF (the default), where
+    //    Publish lazily creates the stream. ⇒ these rails turn it ON, which is the production condition.
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Every event the SHARED viewport systems read can be PUBLISHED by a host that only adopted
+    /// <c>PresentationComponentRegistry</c>.</b>
+    ///
+    /// <para>⛔⛔ <b>Strict mode ON is the whole point</b> — with it off *(the unit default)*
+    /// <c>Publish&lt;T&gt;</c> creates the stream lazily and this rail would pass for an EMPTY registry.
+    /// 📌 That is exactly how the gap survived: the behavioural rails above publish these very events and
+    /// were green throughout. ⭐ Save/set/restore mirrors <c>HrotNodeBuilderTests</c>, which rails the
+    /// identical claim for the ORCHESTRATION registry one bus over.</para>
+    ///
+    /// <para>⚠ The three types are named as LITERALS rather than reflected out of
+    /// <c>ScenarioEditorModule</c>: a rail that derived its expectations from the code under test would
+    /// follow that code wherever it went, which is the opposite of a rail.</para>
+    /// </summary>
+    [Fact]
+    public void TheSharedViewportEventsArePublishableAfterOnlyTheSharedRegistry()
+    {
+        bool previous = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            var world = new EntityRepository();
+
+            // ⭐ ONLY the shared registry — no host-specific registrations. That is the claim: a host
+            //   which adopts the shared systems needs nothing else to publish their events.
+            Hrot.Map.Common.PresentationComponentRegistry.RegisterAll(world);
+
+            // ⛔ Each publish is separate so the failure message names WHICH event is missing.
+            world.Bus.Publish(new CenterOnEntityCommand { NetworkId = 1L });
+            world.Bus.Publish(new SelectEntityCommand { NetworkId = 1L });
+            world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Rotate));
+        }
+        finally
+        {
+            FdpConfig.EnforceExplicitEventRegistration = previous;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>And the registration is CENTRAL, not re-added inline.</b>
+    /// ⛔ Being registered in <c>EditorSubsystem</c> and nowhere else is precisely what broke CGF, so a
+    /// green above is not enough — someone "fixing" a future host by adding a line to its own composition
+    /// root would restore the two-list state that caused this. ⇒ ⭐ ruling 9, made checkable.
+    /// ⚠ A SOURCE SCAN for the same reason the rails at the top of this file are: the defect is an
+    /// omission in one host, which no reference count and no behavioural test can see.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.CGF", "CgfSubsystem.cs")]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    public void NoHostRegistersTheSharedViewportEventsItself(string project, string file)
+    {
+        var src = ReadHostSource(project, file);
+
+        foreach (var evt in new[] { "CenterOnEntityCommand", "ActivateEditorToolEvent", "SelectEntityCommand" })
+            Assert.DoesNotContain($"RegisterEvent<{evt}>()", src, StringComparison.Ordinal);
+    }
+
     /// <summary>⭐ The smallest real gizmo system — a registry + a draw buffer, nothing else needed here.</summary>
     private static DataDrivenGizmoSystem NewGizmoSystem()
         => new(new GizmoRegistry(), new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer());

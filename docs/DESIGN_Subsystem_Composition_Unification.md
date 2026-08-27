@@ -256,6 +256,73 @@ cluster's feed is **reachable at the endpoint** but still **does not publish the
 that is `MX-011`, another lane. ⛔ Deleting the entry would be a lie; ⭐ instead it now names the rail that
 covers the substance.
 
+### 5.7 ⛔⛔⛔ `CE-065` — **the user's crash, root-caused. THE SHARED SYSTEM WAS ROUTED; ITS EVENTS WERE NOT.**
+
+⭐⭐⭐ **This is phase 0's real find, and it is the strongest possible argument for the whole programme:**
+the `E3` slice moved *"center on entity"* onto a shared system and deleted CGF's hand-rolled parallel —
+✅ correctly — ⛔ **but the EVENT REGISTRATION stayed behind in `EditorSubsystem`.**
+
+#### 📐 Reproduced over MCP, `2026-08-27`
+```
+POST /entities/1000/focus  →  500
+Strict Mode Violation: Unmanaged event type 'CenterOnEntityCommand' (ID: 8104) was
+published without being explicitly registered. You must call world.RegisterEvent<…>().
+```
+| | |
+|---|---|
+| ⭐⭐ **why it CRASHES rather than 500s in the UI** | the same publish happens inside CGF's ImGui **context-menu callback**, where the throw is unhandled ⇒ 🔴 **the process dies.** That is the user's report, exactly |
+| ⭐⭐⭐ **the enabling condition** | `ClusterRunner/Program.cs:52` sets **`FdpConfig.EnforceExplicitEventRegistration = true`** — ⛔ **PROCESS-WIDE.** ⚠⚠ **I previously measured this as *"defaults false, and ClusterRunner does not set it"* — that was WRONG**, and it is why an earlier session dropped this hypothesis |
+| 🔒 **the seam already existed** | `PresentationComponentRegistry.RegisterAll` **already registered `SelectEntityCommand`** ⇒ ⭐⭐ **that is precisely why *"Select entity"* worked on CGF while its SIBLING menu item crashed** — two items from one slice, one central, one inline |
+
+⇒ ⭐⭐ **the 25th measured instance of the seam law here:** *"we need a shared registration"* meant **the
+shared registry existed and was under-adopted.** ⛔ The fix is not a new registry.
+
+#### ⭐ The fix — one list *(ruling 9)*
+| | |
+|---|---|
+| ✅ `CenterOnEntityCommand` + `ActivateEditorToolEvent` **added** to `PresentationComponentRegistry.RegisterAll`, beside `SelectEntityCommand` | 📐 enumerated from the three systems `ScenarioEditorModule.RegisterSystems` registers — the complete set, not the one that crashed |
+| ✅ the editor's inline `:917-918` pair **DELETED** | ⭐ the editor still gets them: `EditorSubsystem:905` calls `CgfComponentRegistry.RegisterAll(_world)` → this registry. ⛔ Keeping both would be the two-list state that caused this |
+| ⭐ **reach** | `CgfComponentRegistry` · `SimHostComponentRegistry` · `StrideNodeBootstrapper` · the editor transitively ⇒ **one edit, every windowed host** |
+
+⚠ **Sibling precedent, and it means this shape has now been paid for TWICE:** `HrotNodeBuilder:101-112`
+registers `OrchestrationEventRegistry` on the NODE bus for the identical reason — its comment reads
+*"Without this line, pressing pause on a CGF/SimHost/IG toolbar throws instead of pausing."* ⇒ ⭐ **two
+buses, two lists, and each list must be the ONLY one for its bus.**
+
+#### ⛔⛔ Why every existing rail was green — **the rail-blindness pattern, 4th instance**
+| the rails that existed | what they proved | ⛔ what they never asked |
+|---|---|---|
+| `TheViewportInteractionIsSharedTests` source scans | CGF publishes the shared command instead of hand-rolling | — |
+| its behavioural rails | the shared system reacts correctly | — |
+| ⛔ **neither** | — | 🔴 **whether the event was REGISTERED on the publishing host's bus** |
+
+⭐⭐⭐ **And the reason is exact: unit rails run with strict mode OFF (the default), where `Publish` creates
+the stream lazily.** ⇒ the rails published these very events and stayed green.
+⭐ The new rails turn it **ON**, which is the production condition. 📌 Joins `CE-049` *(asserted presence,
+not substance)* · `CE-053` *(supplied the input it tested)* · `CE-064` *(asserted over an empty set)*.
+
+### 5.8 ⚠⚠ AS-BUILT CORRECTIONS TO §5.3 — **three of its four items were wrong about the world**
+
+| item | §5.3 said | 📐 MEASURED `2026-08-27` |
+|---|---|---|
+| **①** the 8 drift instances | *"extend the two-host comparison to them"* | ⭐⭐ **ALL EIGHT ARE ALREADY RAILED** by the preceding batch ⇒ **item ① is DISCHARGED BY INVENTORY, not by new code.** ⛔ Rebuilding them as a T3 comparison would duplicate what T0 rails prove faster and *at the line*. Per instance: catalog→`TheCgfPickerIsNotEmptyTests` · icons→`EveryPerspectiveHasAToolbarIconTests` · `debug.*`→`TheAiDebugGroupExistsOnBothHostsTests` · create-core→`TheCreateCoreIsOneImplementationTests` · `MutationInterceptor`→`BreakpointSubsystemWiringTests` *(📐 **25/25 in 18 s when filtered** — the "un-gateable suite" note applies to OTHER classes in it, not this one)* · toolbar section→`TheCgfPickerIsNotEmptyTests.AWindowedHostComposesThePerspectiveToolbarSection` · scenario root→`TheHostsAgreeOnTheScenarioRootTests` · center/rotate→`TheViewportInteractionIsSharedTests` |
+| **③**(1) *"the map shows NO entities"* | a symptom to reproduce | ⚪ **DOES NOT REPRODUCE on `hill-attack` in `--mode all`.** 📐 The cluster's map submits **739** primitives incl. **16 `SpatialAnchor`s naming ids 1000–1007** — every scenario entity, matching the editor's set. ⇒ ⚠ **scenario-specific or state-specific; the rail is now standing to catch it.** ⛔ Do NOT record it as fixed — it is unreproduced, like `CE-055`/`CE-056` |
+| **③**(2) *"center-on-entity CRASHES"* | *"suspect the `E3`/`CE-051` path — likely mine"* | 🔴 **CONFIRMED, and the suspicion was right.** `CE-065`, §5.7 |
+| **④** *"nothing in production"* | — | ⛔ **FALSE, twice.** `BP-487` *(§5.6)* was needed to make item ② reachable at all, and `CE-065` is a live crash fix. ⭐ The *parity comparison itself* still adds no production code — that is the half that survives |
+
+⭐ **And one venue fact a later session must not re-derive:** ⛔⛔ **`--mode cgf` ALONE CANNOT BOOT.**
+📐 `DdsIdAllocator` waits 30 s for `Hrot.Orchestrator` then throws; the process dies with **exit 134**
+before serving `/status`. ⇒ ⭐ **CGF is exercised through `--mode all` + the `Scenario` perspective**, which
+is what the user was running. ⚠ *"the `--mode cgf` symptoms"* in §5.3 is shorthand for *"CGF's symptoms"*.
+
+#### 📐 The measured map frames — the baseline a later drift is compared against
+| | editor | `--mode all` *(CGF/Scenario)* |
+|---|---|---|
+| primitives | **828** | **739** |
+| shapes | `Arrow:12 Box2D:16 ContextMenuBinding:9 LayerControlMask:1 Line:674 MainMenuBinding:1 SemanticShape:24 SpatialAnchor:24 Sphere:20 Text:47` | `Arrow:12 Box2D:8 ContextMenuBinding:9 Line:670 SemanticShape:16 SpatialAnchor:16 Text:8` |
+| entity anchors | ids 1000–1007, ×3 | ids 1000–1007, ×2 |
+| verdict | ⭐ **subset holds** — no cluster-only shape. Editor-only: `LayerControlMask` · `MainMenuBinding` · `Sphere` *(authoring overlays — expected)* |
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|
