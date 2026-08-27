@@ -4729,14 +4729,13 @@ namespace Hrot.Editor
 
                 // ── BATCH-24: Main toolbar time-control group (§7, sortOrder range 0–9) ──
                 // ⭐⭐ PHASE 2 SLICE ③ — these four lines were duplicated verbatim in CgfSubsystem and now
-                //    live once in `ShellTimeControlToolbar`. ⭐ `withSeparator: true` is THIS host's
-                //    difference, declared: it closes the time group before the PERSPECTIVE group, which
-                //    this host registers. ⛔ CGF passes false — `CE-016` §7 removed a separator there that
-                //    stood in front of nothing. 📄 design §5c.8 H1.
+                //    live once in `ShellTimeControlToolbar`. 📄 design §5c.8 H1.
+                // ⭐⭐⭐ CE-090 — the `withSeparator` parameter is GONE: both hosts emit the separator, and
+                //    a shared surface takes no host gate. 📄 §5c.14.
                 var timeTransportFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(
                     _previewController, _timeController, _world, _timeCommands);
                 Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
-                    windowManager.MainToolbar, timeTransportFacade, withSeparator: true);
+                    windowManager.MainToolbar, timeTransportFacade);
             }
 
             // ?? Message Log notification icon in status bar ???????????????????

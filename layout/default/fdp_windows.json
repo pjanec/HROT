@@ -31,7 +31,7 @@
     "ai_breakpoints_blueprint": { "IsOpen": true, "IsPinned": false },
     "ai_watch_blueprint": { "IsOpen": true, "IsPinned": false },
     "ai_variable_values_blueprint": { "IsOpen": true, "IsPinned": false },
-    "Entity Blueprints": { "IsOpen": true, "IsPinned": false },
+    "entity_blueprints": { "IsOpen": true, "IsPinned": false },
     "ai_asset_browser": { "IsOpen": false, "IsPinned": false },
     "ai_canvas_btree": { "IsOpen": true, "IsPinned": false },
     "ai_canvas_hsm": { "IsOpen": true, "IsPinned": false },

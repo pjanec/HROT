@@ -20,7 +20,19 @@ namespace Hrot.Presentation.Tests.Panels;
 /// <c>ShellTimeControlToolbar.EntryId</c> compared against itself, which would pass whatever the
 /// constants became.</para>
 ///
-/// <para>📄 Design: <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5c.8 (<c>H1</c>, item ③).</para>
+/// <para>⭐⭐⭐ <b><c>CE-090</c> (<c>2026-08-27</c>) — the <c>withSeparator</c> parameter is GONE, and this
+/// rail now asserts ONE registration set rather than two.</b> 🔒 User ruling, verbatim: <i>"separator SAME
+/// on both cgf and editor, we are unifying the UI, so obviously the stuff should look same and they CAN'T
+/// look different by design if they are rendered by single shared code where host-type gates are
+/// undesired; no special boolean needed."</i></para>
+///
+/// <para>⚠⚠ The fact that used to prove <i>"the parameter decides it"</i> is replaced by one proving <b>the
+/// separator is always there</b> — 📌 a rail asserting the DIFFERENCE would now be pinning the very drift
+/// the extraction existed to end, and it would have gone on passing while the two hosts looked
+/// different.</para>
+///
+/// <para>📄 Design: <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5c.8 (<c>H1</c>, item ③),
+/// §5c.14 (<c>CE-090</c>).</para>
 /// </summary>
 public sealed class TheTimeControlToolbarGroupIsOneRegistrationTests
 {
@@ -28,10 +40,10 @@ public sealed class TheTimeControlToolbarGroupIsOneRegistrationTests
     //   exactly the duplication this programme is unwinding, and that one's own doc already names
     //   `MainToolbarTimeControlSection` as a target.
 
-    private static MainToolbarManager Register(bool withSeparator)
+    private static MainToolbarManager Register()
     {
         var toolbar = new MainToolbarManager();
-        ShellTimeControlToolbar.Register(toolbar, new FakeTimeTransportFacade(), withSeparator);
+        ShellTimeControlToolbar.Register(toolbar, new FakeTimeTransportFacade());
         return toolbar;
     }
 
@@ -48,7 +60,7 @@ public sealed class TheTimeControlToolbarGroupIsOneRegistrationTests
     [Fact]
     public void The_transport_group_keeps_the_id_and_sort_order_both_hosts_shipped()
     {
-        var entry = Item(Register(withSeparator: false), "TimeControlGroup");
+        var entry = Item(Register(), "TimeControlGroup");
 
         Assert.NotNull(entry);
         Assert.Equal("entry", entry!.Kind);
@@ -65,29 +77,26 @@ public sealed class TheTimeControlToolbarGroupIsOneRegistrationTests
     [Fact]
     public void The_group_declares_the_default_entry_height()
     {
-        var toolbar = Register(withSeparator: false);
+        var toolbar = Register();
         Assert.Equal(MainToolbarManager.DefaultEntryHeight, toolbar.Height);
     }
 
-    // ── the separator: the ONE difference, now declared ───────────────────────────
+    // ── the separator: the SAME on every host (CE-090) ────────────────────────────
 
     /// <summary>
-    /// ⭐⭐⭐ <b><c>H1</c>'s whole point.</b> The editor closes the group with a separator; CGF does not
-    /// *(<c>CE-016</c> §7 — it stood in front of a perspective group that host did not register)</b>.
-    /// ⇒ the difference is a PARAMETER, and this asserts the parameter actually decides it.
+    /// ⭐⭐⭐ <b>The separator is ALWAYS emitted — no host gets a different toolbar.</b>
+    /// ⛔ The inverse of the fact it replaces (<i>"appears only for the host that asks for it"</i>): ⚠ that
+    /// one could pass while the two hosts still rendered differently.
     /// </summary>
     [Fact]
-    public void The_separator_appears_only_for_the_host_that_asks_for_it()
-    {
-        Assert.NotNull(Item(Register(withSeparator: true),  "ToolbarSep_TimeToPersp"));
-        Assert.Null   (Item(Register(withSeparator: false), "ToolbarSep_TimeToPersp"));
-    }
+    public void The_separator_is_always_emitted()
+        => Assert.NotNull(Item(Register(), "ToolbarSep_TimeToPersp"));
 
-    /// <summary>⭐ When it IS emitted it sits at 10 — the slot that closes §7's 0–9 range.</summary>
+    /// <summary>⭐ It sits at 10 — the slot that closes §7's 0–9 range.</summary>
     [Fact]
     public void The_separator_keeps_its_id_and_sort_order()
     {
-        var sep = Item(Register(withSeparator: true), "ToolbarSep_TimeToPersp");
+        var sep = Item(Register(), "ToolbarSep_TimeToPersp");
 
         Assert.NotNull(sep);
         Assert.Equal("separator", sep!.Kind);
@@ -95,19 +104,17 @@ public sealed class TheTimeControlToolbarGroupIsOneRegistrationTests
     }
 
     /// <summary>
-    /// ⭐⭐ Anti-vacuity, and the shape of the whole registration: turning the separator off leaves
-    /// EXACTLY the one entry — ⛔ so the helper cannot be quietly registering extra items.
+    /// ⭐⭐ Anti-vacuity, and the shape of the WHOLE registration: exactly two items, no more — ⛔ so the
+    /// helper cannot be quietly registering extras. ⚠ An <c>Equal</c> over the full id set, not a
+    /// <c>Contains</c>: the latter would not notice a third entry appearing.
     /// </summary>
     [Fact]
     public void Nothing_else_is_registered()
     {
-        var withoutSep = Register(withSeparator: false)
-            .BuildViewModel("Scenario").Entries.Select(e => e.Id).ToArray();
-        Assert.Equal(new[] { "TimeControlGroup" }, withoutSep);
+        var ids = Register().BuildViewModel("Scenario")
+                            .Entries.Select(e => e.Id).OrderBy(x => x, StringComparer.Ordinal).ToArray();
 
-        var withSep = Register(withSeparator: true)
-            .BuildViewModel("Scenario").Entries.Select(e => e.Id).OrderBy(x => x).ToArray();
-        Assert.Equal(new[] { "TimeControlGroup", "ToolbarSep_TimeToPersp" }, withSep);
+        Assert.Equal(new[] { "TimeControlGroup", "ToolbarSep_TimeToPersp" }, ids);
     }
 
     /// <summary>⛔ A null facade is a composition-root mistake and says so, rather than throwing later
@@ -115,5 +122,5 @@ public sealed class TheTimeControlToolbarGroupIsOneRegistrationTests
     [Fact]
     public void A_null_facade_is_refused_at_registration()
         => Assert.Throws<ArgumentNullException>(
-            () => ShellTimeControlToolbar.Register(new MainToolbarManager(), null!, withSeparator: false));
+            () => ShellTimeControlToolbar.Register(new MainToolbarManager(), null!));
 }

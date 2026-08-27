@@ -1355,17 +1355,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    as the editor — ⛔ nothing invented: a runtime node that can be paused by a breakpoint
             //    (slice 4) plainly wants the transport where the editor puts it.
             // ⭐⭐ PHASE 2 SLICE ③ — one shared registrar, `ShellTimeControlToolbar` (design §5c.8 H1).
-            // ⛔ `withSeparator: false` keeps CE-016 §7's decision: the dangling `ToolbarSep_TimeToPersp`
-            //    separated the time controls from a PERSPECTIVE group — ⚠ and although CE-054 has since
-            //    given this host that group, the separator stays OFF here because turning it on is a
-            //    visible toolbar change and this slice changes no toolbar output. 📌 Now a declared
-            //    parameter instead of a line one host has and the other deleted.
+            // ⭐⭐⭐ CE-090 — THE SEPARATOR IS THE SAME HERE AS ON THE EDITOR, and the boolean that used
+            //    to let them differ is GONE. 🔒 User ruling `2026-08-27`: *"we are unifying the UI, so
+            //    obviously the stuff should look same and they CAN'T look different by design if they are
+            //    rendered by single shared code where host-type gates are undesired."*
+            //    ⭐ CE-016 §7 removed the separator here when it stood in front of a perspective group
+            //      this host did not register; CE-054 gave it that group, so the reason it was removed no
+            //      longer holds. 📄 §5c.14.
             // ⚠ THE `MainToolbar != null` GUARD IS GONE — a DEAD BRANCH (design §5c.8 H2): 📐 measured,
             //   `WindowManager:406` is `private readonly MainToolbarManager _mainToolbar = new();` behind
             //   an expression-bodied property, so it can never be null. The editor removed its own copy
             //   for the same reason.
             Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
-                windowManager.MainToolbar, _clusterTimeAdapter, withSeparator: false);
+                windowManager.MainToolbar, _clusterTimeAdapter);
         }
 
         // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).

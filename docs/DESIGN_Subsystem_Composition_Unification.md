@@ -2046,6 +2046,61 @@ scan *(`CE-064`'s shape)*.
 `EditorSubsystem.cs` · the assembly-directory recipes path restored ⇒ scan red naming
 `BlueprintEditorBootstrap.cs` · the `Directory.Exists` clause deleted ⇒ **3** policy facts red.
 
+### 5c.14 ⭐⭐⭐ TWO USER RULINGS ON WHAT "SHARED" MEANS — `CE-090` and `CE-086` *(`2026-08-27`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"separator SAME on both cgf and editor, we are unifying the UI, so obviously the
+> stuff should look same and they CAN'T look different by design if they are rendered by single shared code
+> where host-type gates are undesired; no special boolean needed. Unify the internal window ids to snake,
+> breaking layout is not an issue."*
+
+#### 5c.14.1 ⛔⛔ `CE-090` — **A PARAMETER THAT LETS TWO HOSTS OF ONE SHARED SURFACE DIFFER IS A HOST GATE**
+
+📌 **What §5c.8 built.** `ShellTimeControlToolbar.Register(toolbar, facade, withSeparator)` — the trailing
+separator declared as a parameter because `CE-016` §7 had deleted it on CGF *(it stood in front of a
+perspective group that host did not register — "a rule drawn against nothing")*, and `CE-089` left it
+`false` there because *"turning it on is a visible toolbar change and this slice changes no toolbar
+output."*
+
+⛔⛔ **That reasoning was locally correct and globally wrong.** ⭐⭐ **`CE-054` had already given CGF the
+perspective group**, so the separator's original reason held on both hosts — and the parameter had become a
+way for one shared renderer to produce two different toolbars.
+
+| ⭐ the general rule this establishes | |
+|---|---|
+| ⭐⭐⭐ **A shared UI surface renders ONE way.** | ⛔ *"declared difference"* is better than *"undocumented diff between two 3 000-line composition roots"* — ⚠ **but it is not the goal.** The goal is that the difference cannot exist |
+| ⛔ **A `bool` parameter whose only job is to let host A and host B look different is a HOST GATE wearing a parameter's clothes** | ⇒ it **preserves the drift the extraction existed to end**, and it does so in a form that passes review because it is documented |
+| ⚠ **The rail must assert the SAMENESS, not the switch** | 📌 the replaced fact — *"the separator appears only for the host that asks for it"* — ⛔ **would have gone on passing while the two hosts rendered differently.** ⭐ It is now *"the separator is always emitted"* |
+
+⇒ ✅ **`withSeparator` is DELETED**; both hosts call `Register(toolbar, facade)` and both emit
+`ToolbarSep_TimeToPersp` at sort order 10. ⚠ **This is a visible change to CGF's toolbar** — authorised
+above, and it is the FIRST toolbar-output change in this phase.
+
+#### 5c.14.2 ⭐⭐ `CE-086` — **the window id is snake_case; the PANEL id is deliberately not touched**
+
+📐 **Measured `2026-08-27` — the enumeration is the point, since the user asked for "ids" plural.** The
+three `ui-baseline` goldens hold **148 ids** *(64 editor · 76 all · 8 replaybrowser)*. ⭐ **Exactly three are
+not snake_case, and only ONE of them is a window id:**
+
+| id | what it is | verdict |
+|---|---|---|
+| 🔴 **`Entity Blueprints`** | a **WINDOW id** — `ManagedWindow.WindowInternalName` is `"{Title}###{Id}"`, so it is the **saved-layout key** | ✅ **RENAMED → `entity_blueprints`** |
+| ⭐ `entity-blueprints` | a **PANEL id** (`PanelIds.EntityBlueprints`) | ⛔ **NOT touched** |
+| ⭐ `editor/_gizmo` | a **PANEL id** — `GizmoFramePanel`'s deliberate `"{host}/_gizmo"` address (`BP-485`) | ⛔ **NOT touched** |
+
+⛔⛔ **Why the two panel ids are NOT part of "unify the internal window ids".** 📐 Kebab-case is the
+convention of the **entire** diagnostics/panel namespace — `watch` · `variables` · `graph-signature` ·
+`data-breakpoint-manager` — and those ids are a **published contract**: the MCP `/panels` surface, the
+`ClusterConformanceRails` allow-lists and `McpClient.GetPanelAsync` all address panels by them. ⇒ ⭐ **they
+are consistent within their own namespace, so they are not the inconsistency the ruling is about**; ⚠ and
+`{host}/_gizmo`'s slash is *load-bearing* — it is how one host's map feed is addressed apart from another's.
+
+⭐ **The window id was the real defect** and its own tracker row said why: it is a layout key that *looks*
+like display text, so a casual capitalisation fix to the visible title would silently reset saved layouts.
+✅ **Carried through all four homes:** the ctor, `layout/default/fdp_windows.json`,
+`layout/default/imgui.ini`'s `[Window][###…]` section, and the `ui-baseline-editor` golden *(re-sorted — the
+capital `E` had sorted it to position 0 under `StringComparer.Ordinal`, and the rail builds a
+`SortedSet`)*. ⚠ **The TITLE is unchanged**: display text should read like display text.
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|

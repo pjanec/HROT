@@ -13,12 +13,19 @@ namespace Hrot.UI.Common.Panels;
 /// thing, and that difference is now a <b>named parameter</b> rather than a line one host has and the
 /// other deleted.</para>
 ///
-/// <para>⭐⭐⭐ <b>Why <paramref name="withSeparator"/> exists instead of always emitting it.</b>
-/// 🔒 <c>CE-016</c> §7 deliberately DELETED the trailing separator on CGF: it separated the time group
-/// from a <b>perspective group that host did not then register</b> — <i>"a rule drawn against
-/// nothing"</i>. ⇒ ⛔ making it unconditional would put that dangling rule back, and making it silently
-/// absent would hide the editor's. ⭐ Declared, so the next reader sees a decision instead of a diff
-/// between two 3 000-line composition roots.</para>
+/// <para>⭐⭐⭐ <b>THE SEPARATOR IS UNCONDITIONAL, and there is no host gate.</b>
+/// 🔒 <b>User ruling <c>2026-08-27</c>, verbatim:</b> <i>"separator SAME on both cgf and editor, we are
+/// unifying the UI, so obviously the stuff should look same and they CAN'T look different by design if
+/// they are rendered by single shared code where host-type gates are undesired; no special boolean
+/// needed."</i></para>
+///
+/// <para>⚠⚠ <b>This replaced a <c>withSeparator</c> parameter, and the parameter was the wrong answer.</b>
+/// 📐 <c>CE-016</c> §7 had deleted the trailing separator on CGF because it stood in front of a
+/// <b>perspective group that host did not then register</b> — <i>"a rule drawn against nothing"</i>. ⭐
+/// <c>CE-054</c> has since given CGF that group, so the original reason holds on both hosts ⇒ the honest
+/// shape is ONE behaviour, not a declared difference. 📌 <b>The general lesson:</b> a parameter that
+/// exists only to let two hosts of the SAME shared surface look different is a host gate wearing a
+/// parameter's clothes — ⛔ it preserves the drift the extraction was meant to end.</para>
 ///
 /// <para>⛔ <b>Not an <c>IUiBundle</c>, on purpose.</b> A bundle is for a FEATURE's whole registration
 /// set; this is one entry plus one optional separator, and the hosts build the facade themselves. 📌 The
@@ -49,14 +56,9 @@ public static class ShellTimeControlToolbar
     /// </param>
     /// <param name="facade">the host's transport. ⭐ The existing seam: the editor supplies
     /// <c>EditorTimeTransportFacade</c>, CGF and SimHost supply <c>ClusterTimeTransportAdapter</c>.</param>
-    /// <param name="withSeparator">
-    /// ⭐⭐ <see langword="true"/> to close the group with a separator. ⛔ Pass <see langword="false"/> when
-    /// nothing follows it on this host — see the class remarks and <c>CE-016</c> §7.
-    /// </param>
     public static void Register(
         MainToolbarManager toolbar,
-        ITimeTransportFacade facade,
-        bool withSeparator)
+        ITimeTransportFacade facade)
     {
         if (toolbar is null) throw new ArgumentNullException(nameof(toolbar));
         if (facade  is null) throw new ArgumentNullException(nameof(facade));
@@ -68,7 +70,7 @@ public static class ShellTimeControlToolbar
             declaredHeight: MainToolbarManager.DefaultEntryHeight,
             section.Render);
 
-        if (withSeparator)
-            toolbar.RegisterSeparator(SeparatorId, sortOrder: SeparatorSortOrder);
+        // ⭐ Unconditional — see the class remarks: one shared surface renders one way on every host.
+        toolbar.RegisterSeparator(SeparatorId, sortOrder: SeparatorSortOrder);
     }
 }
