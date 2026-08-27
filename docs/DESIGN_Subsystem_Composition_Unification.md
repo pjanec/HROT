@@ -582,6 +582,69 @@ itself**.
 ⛔ **Still open in phase 1:** `SharedAiWindowRegistrar` adoption *(needs the CGF-role question answered
 first)* and `CgfEditorShellToolbar`'s remaining direct callers. ⭐ The seam exists and has two real adopters.
 
+### 5b.5 ⭐⭐⭐ THE WAY FORWARD — **`SharedAiWindowRegistrar` is not an adoption. It is a DELETION.**
+
+> 🔒 **USER RULING, `2026-08-27`:** *"cgf==editor is still valid here (the goal of the whole programme),
+> which should resolve the question"* — ⭐ and it does resolve the **ROLE** question: **CGF gets the AI
+> shell.** ⛔ But the finer distinction the user asked about is real, and it is not about CGF at all.
+
+#### 📐 THE MEASUREMENT — CGF ALREADY HAS IT, by a different and BETTER path
+| the 7 windows `SharedAiWindowRegistrar` demands | production ctor sites |
+|---|---|
+| `RuntimeInspectorWindow` · `TraceTimelineWindow` | ⭐ **`PerspectiveWorkspaceRegistrar`** *(shared)* |
+| `BlackboardAuthoringWindow` · `FindResultsWindow` | ⭐ `PerspectiveWorkspaceRegistrar` + the DI extensions |
+| `AssetBrowserDockedWindow` | `EditorSubsystem` + the DI extensions |
+| 🔴 `ComparisonSummaryPanel` · `ComparisonSidebar` | ⛔⛔ **ZERO** |
+
+⭐⭐⭐ **And `PerspectiveWorkspaceRegistrar` is adopted by BOTH hosts, three times each** — per perspective
+*(BTree · HSM · Blueprint)*: `CgfSubsystem:298-300`/`:1550`, `EditorSubsystem:366-367`.
+⇒ 🔒 **`cgf==editor` is already SATISFIED for the AI shell** — slice 1 measured `--mode all` publishing
+`runtime-inspector`, `blackboard-authoring`, `graph-canvas`, `details`, `watch`, `variables`, `bookmarks`
+and more.
+
+#### ⛔⛔ So adopting it would CREATE the duplicate, not remove one
+⭐ It is a **FLAT, host-level** registrar of 7 concrete instances; the live path is a **PER-PERSPECTIVE**
+registrar instantiated three times. ⇒ composing it would be a **second registration path for windows a
+shared class already registers** — precisely the duplicate **ruling 9** forbids, and it would need two
+windows *nothing in production constructs*.
+
+#### 📄 THE DESIGN RECORD — swept `docs/` FIRST, then `.dev/` *(the mandated order)*
+🔒 **`docs/blueprints/AI_Editor_Shared_Infrastructure.md:1865`** designed it with a **different shape**:
+```csharp
+public sealed class SharedAiWindowRegistrar : IWindowRegistrar
+{
+    public void Register(IWindowRegistry registry)          // ⭐ DESCRIPTOR-based
+        => registry.Register(WindowDescriptor.Create(id: "ai_asset_browser", perspective: "Authoring", …));
+}
+```
+⇒ ⭐⭐ **the design's registrar is PERSPECTIVE-AWARE and descriptor-driven.** 📐 What was BUILT is
+`RegisterWindows(WindowManager)` over 7 injected instances — ⛔ a different, flatter thing.
+⇒ ⭐⭐⭐ **the built class is a partial, shape-superseded implementation of a design whose job
+`PerspectiveWorkspaceRegistrar` now does, per perspective, on both hosts.**
+*(Also referenced in `.dev/main-toolbar-1/BATCH-22-*` and `.dev/ai-hsm-btree-vis-edit/BATCH-04-*` — batch
+artefacts, no contrary intent.)*
+
+#### ⭐ VERDICT under the *"no rush removals"* rule — classify before removing
+| the three categories | this case |
+|---|---|
+| duplicate **SURFACE** *(usually keep — surfaces differ by context)* | ⛔ no: it exposes no surface a user reaches |
+| duplicate **CODE** *(route it)* | ⭐⭐ **YES** — ⛔ but there is **nothing to route TO**: the live path already exists, is adopted by both hosts, and is strictly richer *(per-perspective)* |
+| genuinely **DEAD** *(and the design record agrees)* | ⭐ **the design record agrees on the JOB, not the shape** ⇒ its job is done elsewhere |
+
+⇒ ⭐⭐ **NEXT ITEM (`CE-070`): DELETE `SharedAiWindowRegistrar` and its DI registration**, citing
+`AI_Editor_Shared_Infrastructure.md:1865` as the superseded shape and `PerspectiveWorkspaceRegistrar` as
+the survivor. ⚠ **Delete the DI rail with it** — `SharedAiEditorDiTests
+.AddSharedAiEditor_Resolves_IWindowRegistrar_AsSharedAiWindowRegistrar` is what made this look adopted for
+months, and leaving it would keep asserting a resolution nobody uses.
+⛔ **NOT in this batch:** compaction is imminent and a deletion deserves its own diff with the citation.
+
+#### ⚠⚠ And the lesson, because it is the third time this exact trap has fired today
+📌 `BP-487` · `CE-065` · `CE-066` were *"the caller HAS it and does not pass it"*. ⭐⭐ **This one is the
+INVERSE and equally costly: a class that looks like the shared thing, is DI-wired, is cited in a design —
+and the shared thing is somewhere else entirely.** ⇒ 🔒 **before adopting any "unadopted shared" class, ask
+what the hosts ACTUALLY use for that job.** ⛔ In-degree 0 does not mean *"nobody solved this"*; it can mean
+*"somebody solved it better, over there."*
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|

@@ -65,10 +65,38 @@ the design's **§5.6 / §5.7 / §5.8**.
 | 🔴 **`CE-067`: `Hrot.Blueprints.Tests` (3 983 tests) had NOT COMPILED**, and `--no-build` printed PASSED over the stale binary — the exact hazard CLAUDE.md's tier section names. ⭐ Now **3 965/0** and back in the gate set | `CE-067` |
 | 📐 **Dead guard:** `WindowManager.MainToolbar` is NEVER null ⇒ every `MainToolbar != null` check was always true and its "toolbar-less host" comments described an impossible state | §5b.4 |
 
-⇒ ⭐⭐ **NEXT: phase 1's remaining adoptions** *(the `SharedAiWindowRegistrar` role question first)*, then
-**phase 2** — one bundle per batch from the editor as specimen. ⛔ Each needs its own inventory + UML before
-code *(obligations ①/②)*, and all are bound by §3's standing constraint: ⛔⛔ **no bundle registers a module,
-system, translator or participant.**
+## ⭐⭐⭐ 0.0c — **THE WAY FORWARD.** Start here. *(`2026-08-27`)*
+
+> 🔒 **USER, `2026-08-27`:** *"cgf==editor is still valid here (the goal of the whole programme), which
+> should resolve the question"* ⇒ ✅ **the ROLE question is RESOLVED: CGF gets the AI shell.**
+> ⭐⭐⭐ **And the finer distinction turned out to be real: CGF ALREADY HAS IT, so the next item is a
+> DELETION, not an adoption.** 📄 design **§5b.5** carries the full measurement and the corpus citation.
+
+### ⭐ THE QUEUE — in order
+| # | item | state |
+|---|---|---|
+| **1** | ⭐⭐⭐ **`CE-070` — DELETE `SharedAiWindowRegistrar` + its DI registration + its DI rail.** 📐 Its 7 windows are constructed by **`PerspectiveWorkspaceRegistrar`** *(shared, adopted by BOTH hosts 3× each — `CgfSubsystem:298-300`/`:1550`, `EditorSubsystem:366-367`)*; two of them *(`ComparisonSummaryPanel`, `ComparisonSidebar`)* have **ZERO** production ctor sites. 📄 `AI_Editor_Shared_Infrastructure.md:1865` designed a **descriptor-based, perspective-aware** registrar — the built class is a flat instance-based partial of it, and the design's JOB is done by `PerspectiveWorkspaceRegistrar`. ⚠ **Delete `SharedAiEditorDiTests.AddSharedAiEditor_Resolves_IWindowRegistrar_AsSharedAiWindowRegistrar` with it** — that rail is what made this look adopted for months | ⭐ **READY** — analysis done, verdict argued in §5b.5 |
+| **2** | phase 1's other adopters: `CgfEditorShellToolbar`'s remaining **direct** callers *(the two composed sites are done)* | small |
+| **3** | ⭐⭐ **phase 2** — one bundle per batch from the editor as specimen: **scenario panels → gizmos → map → AI shell → time transport**. ⛔ Each needs its **own inventory + UML before code** *(obligations ①/②)* | needs design per batch |
+| **4** | open ids: `CE-062` *(blueprint live-value provider on CGF)* · `CE-063` *(`EditorMapPickAdapter` vs `CanvasMapPickAdapter` — ⛔ do not merge blind)* · `CE-047` · `CE-048` · `CE-050` *(rotating ALC flake)* · `MX-011` *(MCP lane: gizmo buffer into `PanelSnapshot`)* | unchanged |
+| **5** | ⚪ **the "map shows no entities" symptom** — ⛔ still **unreproduced**, not fixed. The rail stands | watch |
+
+### ⛔⛔ THE THREE TRAPS THIS SESSION PAID FOR — **do not re-pay them**
+| # | trap | the guard |
+|---|---|---|
+| **①** | ⭐⭐⭐ **"the caller HAS the dependency and does not pass it"** — `BP-487` *(gizmo buffer)*, `CE-065` *(event registration)*, `CE-066` *(mission editor)*, **three times in one batch** | ⭐ before designing a shared abstraction, check whether the host **already holds** the thing and merely fails to hand it over. ⛔ Not a missing abstraction — a missing **argument** |
+| **②** | ⭐⭐⭐ **THE INVERSE: a class that LOOKS like the shared thing while the shared thing is elsewhere** — `SharedAiWindowRegistrar` is DI-wired, cited in a design, and **superseded by `PerspectiveWorkspaceRegistrar`** | 🔒 **before adopting any "unadopted shared" class, ask what the hosts ACTUALLY use for that job.** ⛔ In-degree 0 can mean *"somebody solved it better, over there"* |
+| **③** | ⭐⭐ **`--no-build` prints PASSED over a STALE BINARY** — `CE-067`: `Hrot.Blueprints.Tests` *(3 983 tests)* had not compiled and every gate over it read green | ⭐ **build the project before trusting `--no-build`**; a *"pre-existing build error"* in a TEST project means **that whole suite is dark**, not that it is noise to route around |
+
+### ⚠ Two of MY OWN estimates were wrong this session, both caught by tools
+⛔ *"a 24-site cross-assembly rename"* → 📐 **19 hits, 9 files, one tree** *(the 24 was the graph's DEGREE)*.
+⛔ *"`SharedAiWindowRegistrar` is the cheapest adopter"* → 📐 **CGF constructs 0 of its 7 windows.**
+⇒ ⭐ **measure the edit surface before quoting a size, and measure adoption before calling something cheap.**
+
+⇒ ⭐⭐ Everything is bound by §3's standing constraint: ⛔⛔ **no bundle registers a module, system,
+translator or participant** — and that is now **railed structurally**
+*(`TheUiBundleSeamHoldsTests.A_bundle_cannot_reach_the_run_set`)*. ⚠ If that rail fails, it is a **DESIGN
+question**, not a test to update.
 
 ## 0.1 🔒 THE PROBLEM, AND WHAT THE USER APPROVED
 
