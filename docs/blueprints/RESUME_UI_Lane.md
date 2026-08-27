@@ -1,10 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-27
-current-answer: §0 is the CURRENT quest (AQ63 subsystem-composition unification) and is where a fresh
-  session STARTS. §0a is the immediately-preceding batch (--mode all parity, CE-057..064). §0-prev and
-  below are HISTORY, newest first.
-stale-below: everything from §0-prev down is HISTORY. ⛔ Read §0 first, then §0a.
+current-answer: ⭐⭐⭐ §0.0d — "PHASE 2: THE PLAN, AND THE SAFETY NET". START THERE AND NOWHERE ELSE.
+  It is written to be SELF-SUFFICIENT after a compaction: it repeats the measured numbers rather than
+  pointing at them, and carries the user rulings, the resolved D1-D4, the slice order and the limits.
+  Read §0's header block only for the branch/ids/dispatch-sha facts.
+stale-below: ⛔ EVERYTHING except §0's header and §0.0d is HISTORY, newest first — §0.0c (the CE-070/071
+  way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
+  record of WHY, not as instructions. ⚠ §0.0c and the §0 header both used to say "Start here"; §0.0d
+  supersedes both (corrected 2026-08-27).
 known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) is STALE on two points —
   its stage-1 god-facade prerequisite and its phase-0 rail wording. AQ63 §10.4 and §12 supersede both,
   deliberately. The handoff is NOT edited (rule 1: never amend a dispatched handoff).
@@ -28,7 +32,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 
 > 📄 **READ FIRST, IN THIS ORDER:**
 > **⓿** ⭐⭐⭐ [`../DESIGN_Subsystem_Composition_Unification.md`](../DESIGN_Subsystem_Composition_Unification.md)
-> — **THE STANDING DESIGN: the approach, the constraints, the phase plan, and §5 = buildable phase-0 detail.** ⭐ Start here.
+> — **THE STANDING DESIGN: the approach, the constraints, the phase plan.** ⚠ Read it AFTER §0.0d — §0.0d says which of its sections are live *(§5c is phase 2)*.
 > **①** [`Architect_Question_63_Unify_Subsystem_Composition.md`](Architect_Question_63_Unify_Subsystem_Composition.md)
 > — ⭐⭐ **§9 and §10 are USER RULINGS (canon)**; ⭐⭐ **§12 is the phase-0 venue**; ⛔⛔ **§11 is SUPERSEDED — do not quote it.**
 > **②** [`batches/HANDOFF_Cgf_Bootstrap_Unification.md`](batches/HANDOFF_Cgf_Bootstrap_Unification.md) — the dispatched FRAME. ⚠ **stale on two points**, see the STATUS block.
@@ -175,7 +179,7 @@ and both hosts already call it**; the lines were comment + shared calls.
 ⛔ *"phase 2 is editor-vs-CGF"* → 📐 **22 sites across 5 hosts.**
 ⇒ 🔒 **measure CODE lines and read the call sites before naming a slice or a size.**
 
-## ⭐⭐⭐ 0.0c — **THE WAY FORWARD.** Start here. *(`2026-08-27`)*
+## ⛔ 0.0c — **HISTORY: the `CE-070`/`CE-071` way-forward** *(`2026-08-27`)* — ⚠ **SUPERSEDED by §0.0d; do NOT start here**
 
 > 🔒 **USER, `2026-08-27`:** *"cgf==editor is still valid here (the goal of the whole programme), which
 > should resolve the question"* ⇒ ✅ **the ROLE question is RESOLVED: CGF gets the AI shell.**
