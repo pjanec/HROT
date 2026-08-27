@@ -18,6 +18,11 @@ current-answer: §4 the decision sub-questions with my leans. §2 = the measured
   ⭐⭐ §11 = PHASE 0 SCOPE, measured: the pattern already exists (BreakpointSubsystemWiringTests), the
   observation channels all exist, and the ONE real blocker is CGF's over-broad first-statement headless
   guard. §11.1 corrects my claim that the integration HARNESSES already reach the UI — they do not.
+  ⛔⛔ §12 SUPERSEDES §11: the venue is WINDOWED under Xvfb over MCP, not headless — headless means no UI
+  and UI is what is being compared, so §11's 'blocker' was a category error and its production changes
+  are WITHDRAWN. get_gizmo_frame reads the map AS DATA (§11.5's 'eyes-only' was false), and
+  ClusterConformanceRails ALREADY runs the two-host comparison. §12.4 retracts my repeated 'this container
+  has no display' claim: Xvfb is installed and already used.
 user-approved: 2026-08-27 — Q63-B bundles, Q63-D dissolution, and Q63-E resolved as SINGLE SESSION owns
   every composition root (so no cross-lane split is needed).
 design-basis: SharedApplicationBootstrapper (the existing 7-phase node base, 3 adopters) ·
@@ -506,3 +511,78 @@ change and running it** — ⛔ not asserted.
 actual drawing**. ⭐ Those remain `ui-probe`/T3 territory. ⚠ 📌 **Two of the six symptoms the user found by
 eye were of exactly that kind** *(`CE-055`/`CE-056`)* ⇒ ⛔ **this rail reduces the eyes-only surface; it does
 not eliminate it, and claiming otherwise would repeat the `CE-049` over-claim.**
+
+## 12. ⛔⛔⛔ §11 IS WRONG — **the venue is WINDOWED over MCP, and the rail LARGELY EXISTS** *(user, `2026-08-27`)*
+
+> 🔒 **User:** *"headless means no UI and UI is what we want the railed parity for, so where the 'headless'
+> is a blocker? why can't we compare what is shown on the maps, doesn't the mcp server supports reading the
+> gizmo data?"*
+
+⭐⭐⭐ **Both challenges are correct. §11 committed a CATEGORY ERROR and is SUPERSEDED by this section.**
+
+### 12.1 ⛔ The category error, named
+📐 §11 chose `Headless = true` as the venue, then reported CGF's headless guard as *"the ONE real blocker"*.
+⇒ ⛔⛔ **But headless MEANS no UI, and UI is the thing being compared.** A headless host composing no UI is
+**correct behaviour**, ⛔ not a defect — so the *"blocker"* was an artifact of picking the wrong venue.
+
+⭐⭐ **And the MCP tooling already knew this, already refuses it, and already prescribes the remedy** —
+`SKILL.md`, `start_simulation`, verbatim:
+
+> *"headless is REFUSED for a cluster mode: **a panel publishes only when it draws, and the headless runner
+> loop never draws, so every panel dump would come back empty.** Launch it windowed (under Xvfb on Linux)."*
+
+⇒ ⭐⭐⭐ **CONSEQUENCE: §11.4's production changes ① and ①b are WITHDRAWN.** ⛔ CGF's guard needs no move.
+⭐ **Phase 0 requires NO production change at all** — strictly better than what §11 proposed.
+
+### 12.2 ✅✅ The MCP surface reads the map AS DATA — §11.5's admission was also wrong
+📐 From `SKILL.md` *(⭐ read there, ⛔ never derived from engine source — the skill's own rule)*:
+
+| tool | what it returns | ⇒ |
+|---|---|---|
+| ⭐⭐⭐ **`get_gizmo_frame`** | *"What the map is drawing this frame, as data"* — `{count, dropped, emitted, truncated, primitives:[{shape, space, layer, color, …}]}`. Its own example: *"inspect what the map is drawing **without taking a screenshot**"* | ⛔⛔ **§11.5 said the map render path *"remains eyes-only"*. FALSE.** ⭐ This is the channel that would catch the user's symptom ① *(map empty of entities on some scenarios)* |
+| ⭐⭐⭐ **`list_panels`** | `{captureEnabled, registered[], captured[], kinds{}, staleness}` — and its note: *"**kinds** groups the live panels by their logical name — ⭐ **the key a cross-host comparison uses**, since panel ids are unique per instance by design"* | ⭐⭐ **the surface was DESIGNED for this rail.** ⚠ `registered` vs `captured` is load-bearing: not-instrumented ≠ window-closed |
+| ⭐⭐ **`get_panel`** | one panel's view model — *"the same object its draw renders from"*, *"structured JSON, never a formatted blob — **assert a field, do not parse prose**"*; a miss says **which** kind of miss | ⭐ model-level parity, per panel |
+
+### 12.3 ⭐⭐⭐ AND THE RAIL LARGELY EXISTS — `ClusterConformanceRails` already does it
+📐 `The_asset_panels_are_the_same_on_both_hosts` *(`:867`)*:
+
+```csharp
+await using var editor  = await EditorProcess.StartAsync("conf-slice1-editor");            // editor host
+await using var cluster = await EditorProcess.StartAsync("conf-slice1-all", mode: "all");  // CGF host
+var a = await CaptureByKindAsync(editor,  _out);
+var b = await CaptureByKindAsync(cluster, _out);
+// ⛔ anti-vacuity in BOTH directions — absent-on-editor makes the comparison meaningless,
+//    absent-on-cluster is the slice simply not being wired
+```
+
+⇒ ⭐⭐ **Two windowed processes, compared over MCP by panel KIND, with anti-vacuity both ways.**
+⛔ **Phase 0 is EXTENDING this, not building it.** ⚠ Its known weakness is the frame's own point — it
+compares **when driven**, and was green while CGF was broken ⇒ ⭐ the extension is *what* it compares, not
+*where* it runs.
+
+### 12.4 ⚠⚠ A WRONG CLAIM I REPEATED — **"this container has no display"**
+📐 **Measured:** `/usr/bin/Xvfb` and `/usr/bin/xvfb-run` are **installed**, `scripts/run-system-tests.sh`
+**already uses Xvfb**, and the T3 suite ran **105 passed / 2 failed** here this session.
+
+⇒ ⛔⛔ **My stated reason for not pursuing `CE-055`/`CE-056` — *"reproducing a windowed freeze needs a
+display this container does not have"* — was WRONG, and I put it in TWO reports and a tracker row.**
+⚠ Nothing was lost operationally *(the user separately confirmed both are non-repro on a windowed box)*,
+⛔ **but the reason was false and would have become canon.** 📌 The `ModeStartupRails(ig)` X11 `SIGSEGV`
+I cited is **one case failing**, ⛔ not *"no display available"* — I generalised one red into a capability
+claim.
+
+### 12.5 ⭐ REVISED PHASE 0 — additive, no production change
+
+| # | work | new or extend |
+|---|---|---|
+| **①** | extend the two-host comparison to the **eight known drift instances** — scenario catalog non-empty · perspective icon keys resolve · `debug.*` group present · create-core single · `MutationInterceptor` set · toolbar section present · scenario root · center/rotate routed | ⭐ **extend** — most are already observable via `get_panel` / `list_editor_commands` |
+| **②** | ⭐⭐⭐ **map parity via `get_gizmo_frame`** — compare what each host DRAWS | 🆕 **new, and the highest-value piece**: it reaches what no model-level rail can |
+| **③** | the two new symptoms as assertions — ① empty map, ② center-on-entity crash | 🆕 new |
+| **④** | ⛔ **nothing in production** | — |
+
+### 12.6 ⚠ The trade to state plainly
+⭐ This rail is **stronger** than §11's and **slower**: it is **`T3`** *(two windowed processes under Xvfb,
+minutes)*, ⛔ not a `T0` fix-loop tool. ⚠ Per the three-tier rule it runs **async / in CI**, never as a
+foreground blocker. ⭐ The cheap `T0` surface scans already built *(`CE-057`/`CE-058`/`CE-061` composition
+guards)* stay useful as **fast pre-checks** — ⛔ but they are not the parity rail, and §11 was wrong to cast
+them as one.
