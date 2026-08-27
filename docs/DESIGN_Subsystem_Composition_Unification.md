@@ -596,10 +596,10 @@ itself**.
 **39 s** ✅ · `The_global_menu_is_readable_on_both_hosts` **37 s** ✅ · `The_manifest_describes_this_host_truthfully`
 ✅ — ⭐ **the two subset rails are the ones that matter**: they prove the per-host derivation is unchanged.
 
-⛔ **Still open in phase 1:** `CgfEditorShellToolbar`'s remaining **direct** callers.
-⭐ The seam exists and has two real adopters.
+✅ **PHASE 1 IS COMPLETE.** ⭐ The seam exists, has two real adopters, and is railed for faithfulness.
 ✅ **Closed since:** the `SharedAiWindowRegistrar` question — resolved as a **DELETION**, not an adoption
-*(§5b.5 for the argument, §5b.6 for the as-built)*.
+*(§5b.5 for the argument, §5b.6 for the as-built)*; and the *"remaining direct callers"* item — **its
+premise was false, see §5b.7.**
 
 ### 5b.5 ⭐⭐⭐ THE WAY FORWARD — **`SharedAiWindowRegistrar` is not an adoption. It is a DELETION.**
 
@@ -705,6 +705,43 @@ that *looked* like it mounted them. ⛔ Their state before and after is identica
 `PerspectiveWorkspaceRegistrar`** *(the perspective-bound home their own `WindowScope` asks for)*, which is
 a **capability decision** — which perspectives get a comparison panel — ⛔ **not a mechanical route**, so it
 does not ride along in a deletion diff.
+
+### 5b.7 ✅ AS-BUILT — **`CE-072`: the "remaining direct callers" item had a FALSE PREMISE, and looking found a real gap**
+
+<!-- build-state: BUILT -->
+
+#### ⛔ THE PREMISE, MEASURED AND FALSE
+📐 `grep` for every `CgfEditorShellToolbar.` site: the **only production caller of `RegisterCommonCore` is
+`ShellCommandCoreBundle:98`.** ⇒ ⭐⭐ **both hosts already reach the shared table only through the bundle**
+*(`EditorSubsystem:4478`, `CgfSubsystem:2164`, each constructing `HostServices` and handing it over)*.
+⇒ ⛔ **there were NO remaining direct production callers to migrate.** The other sites are
+`TheToolbarLayoutIsOneListTests` *(which legitimately tests the static)*, two constant reads in
+`ClusterConformanceRails`, and prose in comments.
+
+⚠ **The queue item was carried for a batch on a premise nobody had measured** — 📌 the same shape as the
+`InspectorWindow` *"retire the static parameters"* item that rode five batches on an unmeasured label.
+
+#### ⭐⭐⭐ AND THE REAL GAP THE LOOK FOUND — **the 6th rail-blindness instance, in `CE-069`'s own code**
+📐 **Zero tests referenced `ShellCommandCoreBundle`.** All **seven** rails in `TheToolbarLayoutIsOneListTests`
+call the **static** directly, while production calls it **through the bundle**.
+⇒ ⛔⛔ **if the bundle dropped a `HostServices` member, passed the wrong registry, or lost the menu, all seven
+would have stayed GREEN.** ⚠ `TheUiBundleSeamHoldsTests` does not cover it either: it exercises the seam with
+**spy** bundles, so it proves `Compose` calls *a* bundle — ⛔ never that *this* bundle forwards faithfully.
+⚠ The T3 two-host rails do cover it end-to-end, but they are the slow lane and assert **readability**, not
+**equality with the direct call**.
+
+🛠 **`The_bundle_emits_exactly_what_the_direct_call_emits`** — the static and the bundle, given the same
+shell/services/icons, must produce identical returned id lists, identical toolbar entries *(id **and**
+sortOrder, separators included)* and identical global-menu paths *(separators marked, so a lost one is a
+visible diff)*. ⭐ Two anti-vacuity guards: the id list and the menu must both be **non-empty**, or every
+equality below them is trivially true.
+⭐⭐ **Red-proved by TWO inverse edits**, each caught: ① the bundle passes `null` for `ctx.Menu` ⇒ FAIL;
+② it passes `null` for `ctx.Toolbar` ⇒ FAIL. Reverted ⇒ 8/0.
+
+⇒ ⭐⭐ **The lesson, and it is a general one about wrapping:** ⛔ **when a wrapper becomes the only production
+path to a tested function, the existing tests stop covering production.** ⚠ They still pass, they still test
+something real — ⭐ but the thing they test is no longer the thing that runs. 📌 **A wrapper needs an
+equivalence rail on the day it is introduced**, not a batch later.
 
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
