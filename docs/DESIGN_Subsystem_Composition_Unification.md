@@ -880,7 +880,44 @@ sequenceDiagram
     Note over Root: D2 - the root's own copy of this block is DELETED
 ```
 
-### 5c.5 ⭐ BUNDLE #1 — the items *(pending `D1`–`D4` approval)*
+### 5c.4b 🔴🔴 ITEM ① DONE — **and it CORRECTS `D3`. There are TWO kinds of duplication, and `IUiBundle` only addresses one.**
+
+📐 **Measured `2026-08-27`** *(the save cluster, both roots, code lines only)*. ⛔ **`D3` recommended the save
+cluster as bundle #1 on a ~426-line figure. That figure was misleading and the recommendation was wrong.**
+
+#### ⭐ What is ALREADY shared — so the 426 lines overstate the prize
+✅ **`SaveAllAiDocumentsCommand.Execute` is the ONE implementation, and BOTH hosts already call it**
+*(`EditorSubsystem:3482`, `CgfSubsystem:2333`)*, each passing three per-kind delegates. ⇒ ⭐ the *save
+orchestration* was de-duplicated long ago; the line count is comment plus already-shared calls.
+
+#### 🔴 What IS duplicated — measured, and it is NOT registration
+| # | the duplicate | evidence |
+|---|---|---|
+| **①** | ⭐⭐⭐ **the BTree and HSM save delegates are LINE-FOR-LINE duplicates across the two hosts** | `EditorSubsystem:3455-3475` vs `CgfSubsystem:2106-2121`: same mapper → same `JsonServices.Serialize` → same `JsonAestheticFormatter.FlattenNumericArrays` → same `AtomicFileWriter.Write`. ⭐ **Pure functions of `(asset, path)` with ZERO host state** |
+| **②** | ⭐⭐ **reload is ONE job in TWO SHAPES** | CGF: a single kind-switching `ReloadActiveAiDocument()` *(~70 code lines)*. The editor: **three separate callbacks** *(`_blueprintCompileCallback`, `_btreeQuickReloadTrigger`, `_hsmQuickReloadTrigger`)*. ⇒ ⛔ not a copy — a **divergent shape** for one concept, which is worse |
+
+#### ⭐⭐⭐ THE STRUCTURAL FINDING — **phase 2 needs TWO vehicles, not one**
+⛔ **`IUiBundle` addresses duplicated REGISTRATION. It does nothing for duplicated LOGIC.**
+📐 Both of the duplicates above are **logic**, and the fix for each is a plain shared helper — ⭐ exactly what
+`SaveAllAiDocumentsCommand` already IS. ⇒ ⭐⭐ **the precedent for vehicle (b) is in the same cluster as the
+duplication.**
+
+| ⭐ vehicle | for | cost |
+|---|---|---|
+| **(a) `IUiBundle`** *(phase 1's seam)* | duplicated **registration** blocks — windows, menu, toolbar | needs a bundle class + both roots composing it |
+| ⭐⭐ **(b) a plain shared helper / service in `AiShared`** | duplicated **logic** — savers, reload, per-kind mappers | ⛔ **no seam at all.** Cheaper, and it is how this codebase already fixed the same shape *(`SaveAllAiDocumentsCommand`, `AssetRoots`, `AssetCreateController`)* |
+
+⇒ 🔒 **`D3` REVISED:** ⛔ **do not open phase 2 with a UI bundle.** ⭐⭐ **Open it with vehicle (b) on the two
+measured duplicates above** — they are small, pure, ruling-9 clear, and need **no design risk at all**:
+① a shared `AiAssetSavers` *(the three delegates, one implementation)* · ② collapse reload to one
+kind-switching implementation both hosts call. ⇒ ⭐ **then** take a UI bundle, with the seam question
+*(`D1`)* still open and now unblocked by anything urgent.
+
+⚠ **This is the FOURTH time this session a quoted size was wrong before it was measured** *(after the
+"24-site rename", "the cheapest adopter", and `CE-018`'s phantom triplication)*. ⇒ 🔒 **the rule that keeps
+earning: measure CODE lines and read the call sites before naming a first slice.**
+
+### 5c.5 ⭐ BUNDLE #1 — the items *(pending `D1`–`D4` approval; ⚠ `D3` is REVISED by §5c.4b — the first slice is vehicle (b), not a bundle)*
 | # | item | proof |
 |---|---|---|
 | **①** | inventory the save/File-menu cluster across BOTH roots and classify each service **bundle-private vs root-shared** *(`D1`)* | ⭐ the classification is written into this section before code |
