@@ -11,6 +11,10 @@ current-answer: §4 the decision sub-questions with my leans. §2 = the measured
   monitoring/debugging; network translator sets are per-host and must NOT be unified. §9 is CANON and WINS
   over §8.5's sequencing (§9.4 reverses it: UI bundles FIRST, node adoption later) and over §8.2's
   'translatorPacks is a defect' reading (§9.3 retracts it).
+  🔒🔒 §10 = USER RULING part 2: the RUN-SET (modules/systems/services) is per-ROLE and NOT unifiable —
+  the editor runs almost everything, CGF/IG/SimHost run only what their role needs. §10.2 separates the
+  two axes (editor = UI specimen, NOT run-set template); §10.3 is the bundle design rule; ⭐⭐ §10.4
+  CORRECTS the frame handoff's phase-0 rail wording, which would have encoded a violation. §10 is CANON.
 user-approved: 2026-08-27 — Q63-B bundles, Q63-D dissolution, and Q63-E resolved as SINGLE SESSION owns
   every composition root (so no cross-lane split is needed).
 design-basis: SharedApplicationBootstrapper (the existing 7-phase node base, 3 adopters) ·
@@ -346,3 +350,86 @@ already exists)* → **phase 2+** one bundle per batch, **extracted from the edi
 ⭐⭐ **No bundle may register a DDS translator, an egress/ingress system, or a participant.** ⚠ If a bundle
 appears to need one, that is the signal it has reached the (c) boundary ⇒ ⛔ **STOP and report** *(`R-106`)*,
 do not parameterize across it.
+
+## 10. 🔒🔒🔒 USER RULING `2026-08-27` (part 2) — **the RUN-SET is per-ROLE and is NOT unifiable either**
+
+> 🔒 **User:** *"similar situation is with what modules and systems that should run in the subsystem, this is
+> also very sensitive topic where the unification does not apply."*
+> 🔒 **and:** *"the all in one editor runs likely almost everything but cgf ig and simhost are again
+> tailored to run just the services and modules and systems they really need for their role."*
+
+### 10.1 📐 MEASURED — the editor runs ~2.5× what CGF runs, and the tailoring is already STRUCTURAL
+
+| host | modules + global systems it registers | n |
+|---|---|--:|
+| `EditorSubsystem` | `BehaviorDiagnosticsModule` · **`EditorSimulationModule`** · **`EditorSystemsModule`** · `EventEffectModule` · `EventHistoryCaptureSystem` · `GizmoInteractionModule` · **`MapCullingModule`** · **`MapLayerAssignmentSystem`** · **`SimHostModule`** · **`StyleResolutionModule`** | **10** |
+| `CgfSubsystem` | `BehaviorDiagnosticsModule` · **`CgfSimulationModule`** · `EventHistoryCaptureSystem` · `GizmoInteractionModule` | **4** |
+| overlap | 3 | |
+| ⭐ editor-only | **7** — incl. **`SimHostModule`** *(it hosts the simulation IN-PROCESS)*, map culling, style resolution, visual effects | |
+
+⭐⭐ **And the role tailoring is already encoded as SEPARATE TYPES, not as a shared module with flags:**
+`EditorSimulationModule` · `CgfSimulationModule` · `SimHostModule`. ⇒ ⛔ **there is no "shared simulation
+module" to converge on, and inventing one would be the mistake.**
+
+⚠ **Honest limit on this measurement:** the three `SharedApplicationBootstrapper` adopters build their system
+lists through factories rather than inline `new X()`, so the same grep returned little for them. ⛔ That is a
+grep limitation, **not** evidence their sets are small. The editor↔CGF comparison above is direct and holds.
+
+### 10.2 ⭐⭐⭐ THE TRAP THIS HEADS OFF — **"specimen" and "superset" are TWO DIFFERENT AXES**
+
+⛔⛔ §9 says *the editor is the source and specimen for UI*. §10 says *the editor runs almost everything*.
+⚠⚠ **Conflating those two is the failure mode**, and it is the one a naive *"extract the editor's wiring"*
+would walk straight into: extracting the editor's composition **wholesale** would export its
+**runs-almost-everything posture** onto role-tailored nodes.
+
+📌 **Concretely:** a *"map bundle"* that registered `MapCullingModule` + `StyleResolutionModule` +
+`MapLayerAssignmentSystem` — because that is what the editor does — would **silently change what CGF
+computes every frame**. ⚠ Perf, and plausibly determinism. ⛔ And it would look like a successful
+unification.
+
+| axis | reference | unify? |
+|---|---|---|
+| ⭐⭐⭐ **UI SURFACES** — windows · panels · menus · toolbars · commands · perspectives | ⭐ **the EDITOR** *(§9 — specimen)* | ✅ **aggressively** |
+| ⛔⛔ **the RUN-SET** — modules · systems · services | ⛔ **each host's ROLE** | ⛔ **never** |
+| ⛔⛔ **NETWORK** — translators · DDS · participant | ⛔ **each host's ROLE** | ⛔ **never** *(§9)* |
+
+⇒ ⭐⭐ **The same fact that makes the editor the best UI specimen — it has the most UI — makes it the WORST
+run-set template: it runs the most.** ⛔ It is the reference on axis 1 and explicitly NOT on axes 2–3.
+
+### 10.3 ⭐⭐⭐ THE DESIGN RULE FOR BUNDLES — **declare, don't register; degrade honestly**
+
+| ⭐ a bundle MAY | ⛔ a bundle MAY NOT |
+|---|---|
+| register **windows · panels · commands · menu items · toolbar entries** | ⛔ register a **module**, a **global system**, a **DDS translator**, or a **participant** |
+| **DECLARE** the systems its affordances require | ⛔ decide the node's simulation topology |
+| **report unserviceable** when the host does not run them | ⛔ silently no-op |
+
+⭐⭐ **And the house pattern already works this way — this ruling is codifying it, not inventing it:**
+
+| existing precedent | why it is compliant |
+|---|---|
+| ⭐⭐ **`ScenarioEditorModule`** *(`E3`)* — the one shared system module | 📐 **each host CONSTRUCTS AND REGISTERS IT ITSELF**, with its own `InteractionDeps` *(`EditorSubsystem:1290`, `CgfSubsystem:921`)*. ⇒ ⭐ **the HOST decides it runs** — the module is opt-in, never ambient |
+| ⭐⭐ **`ToolActivationDrainSystem(reportUnserviceable:)`** *(`E3`)* | ⭐ built precisely so a host that cannot service a tool **SAYS SO** instead of dropping the intent. 📌 That is `ruling 49`/`VC-3` at the system level, and it is exactly *"degrade honestly"* |
+| ⭐⭐ **`CgfEditorShellToolbar`** derived subset *(`CE-037`…`045`)* | ⭐ an entry exists only for a command the host can service ⇒ the surface follows the capability, ⛔ never the reverse |
+
+### 10.4 ⛔⛔ AND IT CORRECTS THE PHASE-0 RAIL — **the frame's wording would encode a violation**
+
+⚠⚠ The frame handoff says the parity rail should assert, *"for each shared **(b)** piece, that it is
+composed/wired on **BOTH** hosts."* ⛔⛔ **Applied to modules and systems that is a VIOLATION of this
+ruling** — it would assert the very thing that must legitimately differ, and the "fix" for a red would be to
+give a role-tailored node a module it must not run.
+
+| ⭐ what the parity rail MUST assert | ⛔ what it MUST NOT |
+|---|---|
+| **surface** parity — both hosts offer the same *windows/commands/menu items* for a capability they both have | ⛔ **run-set** parity — *"CGF registers the same modules as the editor"* |
+| **self-consistency of the run-set** — every system a host's *declared* affordances need, that host actually runs | ⛔ any cross-host equality over modules/systems/translators |
+| **honest degradation** — an affordance whose systems are absent **reports** it | ⛔ treating an absence as a defect without asking whether the ROLE wants it |
+
+⇒ ⭐⭐⭐ **Restated: the rail proves each host is INTERNALLY COHERENT and that shared SURFACES match. It must
+never prove two hosts RUN the same thing.** 📌 This supersedes the frame's §1 wording on that point and is
+the single most important correction to phase 0's design.
+
+### 10.5 ⭐ Supersedes §9.5's constraint — the standing rule, final form
+⛔⛔ **No bundle may register a module, a global system, a DDS translator, an egress/ingress system, or a
+participant.** ⭐ A bundle that appears to need one has reached the **role boundary** ⇒ ⛔ **STOP and report**
+*(`R-106`)*; ⛔ do not parameterize across it, and ⛔ do not "just add it on the other host too".
