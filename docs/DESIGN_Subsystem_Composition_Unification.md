@@ -56,9 +56,12 @@ hand-rollers' are **5325 · 2599 · 1086 · 602 · 460**.
 composition is the **host**, not the **feature** — which is precisely why there is nothing to share.
 ⭐ Meanwhile the system half is **50 `IEcsModule`s**. ⇒ ⭐⭐ **the fix is to bring the UI half to the pattern
 the system half already has.** ⛔ Not a new abstraction — finishing one that exists.
-⚠ `SharedAiWindowRegistrar` is the prototype: **built, in-degree 0, never adopted.**
-⚠ *(That last line is measurably wrong too: a DI rail resolves it, so it is **wired and host-unused** —
-worse than unadopted, because it looks adopted. §5b.1 has the measurement.)*
+⛔⛔ **`SharedAiWindowRegistrar` was cited here as *"the prototype: built, in-degree 0, never adopted"* — it
+is now DELETED** *(`CE-070`, §5b.6)*, and **both halves of that description were wrong**: ⚠ a DI rail
+resolved it *(so it was wired and host-unused — worse than unadopted, because it looked adopted)*, and
+⭐⭐ its windows declare `WindowScope.PerspectiveBound`, so it was **the wrong shape**, not an unfinished
+prototype. ⇒ ⭐ **the surviving prototype is `BlueprintWindowRegistrar`** *(§5b.1)*, which works and is
+adopted — and phase 1 named its shape as `IUiBundle`.
 
 ## 3. 🔒🔒🔒 THE CONSTRAINTS — **canon; every batch is bound by these**
 
@@ -455,7 +458,7 @@ that is about a MISSING ABSTRACTION rather than a missing argument.
 #### ⭐ The host-seam implementors — **8 subsystems, and TWO that are not**
 | ⛔ the 8 hosts *(the drift surface)* | ⭐⭐ the 2 that behave like BUNDLES |
 |---|---|
-| `EditorSubsystem` · `CgfSubsystem` · `IgSubsystem` · `SimHostSubsystem` · `ExConSubsystem` · `OrchestratorSubsystem` · `ReplayBrowserSubsystem` · `EyesAndMuscleSubsystem` | **`BlueprintWindowRegistrar`** · **`SharedAiWindowRegistrar`** |
+| `EditorSubsystem` · `CgfSubsystem` · `IgSubsystem` · `SimHostSubsystem` · `ExConSubsystem` · `OrchestratorSubsystem` · `ReplayBrowserSubsystem` · `EyesAndMuscleSubsystem` | **`BlueprintWindowRegistrar`** · ⛔ ~~`SharedAiWindowRegistrar`~~ *(DELETED — `CE-070`, §5b.6)* |
 
 ⭐⭐⭐ **`BlueprintWindowRegistrar` IS the pattern, already working and already adopted.** 📐 Measured: it
 implements the **feature** seam *(consumed by `BlueprintEditorModule`)* **and** the **host** seam
@@ -463,10 +466,13 @@ implements the **feature** seam *(consumed by `BlueprintEditorModule`)* **and** 
 `BlueprintEditorServiceCollectionExtensions` registers it as **both**.
 ⇒ ⛔ **phase 1 invents nothing. It NAMES this shape, moves it to a shared assembly, and has hosts compose a
 LIST of them.**
-⚠ `SharedAiWindowRegistrar` is the same shape *minus the feature seam* — 7 windows, one `RegisterWindows`.
-📌 §2.1 called it *"built, in-degree 0, never adopted"*; ⭐ **that is now half-false** — a DI rail
-*(`SharedAiEditorDiTests.AddSharedAiEditor_Resolves_IWindowRegistrar_AsSharedAiWindowRegistrar`)* resolves
-it, so it is **wired in DI and unused by the hosts.** ⚠ Worse than unadopted: it looks adopted.
+⛔⛔ **`SharedAiWindowRegistrar` WAS the second entry here and is DELETED** *(`CE-070`, §5b.6)*.
+📌 The inventory above found it *"the same shape minus the feature seam — 7 windows, one `RegisterWindows`"*,
+and a DI rail resolved it, making it **wired in DI and unused by every host** ⇒ ⚠ *worse than unadopted: it
+looked adopted.* ⭐⭐ **On measurement it was not the same shape at all:** its windows declare
+`WindowScope.PerspectiveBound`, so a flat host-level registrar was **the wrong shape for them**, and the
+live per-perspective path *(`PerspectiveWorkspaceRegistrar`, both hosts, 3× each)* was already doing the job.
+⇒ ⭐ **`BlueprintWindowRegistrar` is the sole surviving bundle-shaped precedent, and it is the good one.**
 
 #### ⭐ The engine-side registries a bundle writes into *(all shared already)*
 `MainToolbarManager` *(in 22)* · `GlobalMenuRegistry` *(in 43)* · `PerspectiveToolbarSection` *(in 8)* ·
@@ -505,8 +511,8 @@ classDiagram
 
     class BlueprintWindowRegistrar
     note for BlueprintWindowRegistrar "EXISTS - Hrot.Blueprints.Editor. THE PRECEDENT:\nfeature seam + host seam, registered as both in DI."
-    class SharedAiWindowRegistrar
-    note for SharedAiWindowRegistrar "EXISTS - Hrot.Editor.AiShared. 7 windows.\nWired in DI, composed by NO host - phase 1's first adopter."
+    class PerspectiveWorkspaceRegistrar
+    note for PerspectiveWorkspaceRegistrar "EXISTS - Hrot.Editor.AiShared. THE LIVE PATH:\nboth hosts construct it 3x each, one per perspective.\nIt is where the AI-shell windows actually come from."
     class ShellCommandCoreBundle
     note for ShellCommandCoreBundle "NEW, AS-BUILT - phase 1's FIRST adopter, wrapping the\nexisting CgfEditorShellToolbar table. Both hosts compose it."
 
@@ -515,14 +521,19 @@ classDiagram
 
     IWindowRegistrar <|.. EditorSubsystem
     IWindowRegistrar <|.. CgfSubsystem
-    IWindowRegistrar <|.. SharedAiWindowRegistrar
     IWindowRegistrar <|.. BlueprintWindowRegistrar
     IUiBundle <|.. ShellCommandCoreBundle
     UiBundleHost --> IUiBundle
     UiBundleHost --> UiBundleContext
     EditorSubsystem ..> UiBundleHost : composes a list
     CgfSubsystem ..> UiBundleHost : composes a SUBSET of the same list
+    EditorSubsystem ..> PerspectiveWorkspaceRegistrar : 3x, one per perspective
+    CgfSubsystem ..> PerspectiveWorkspaceRegistrar : 3x, one per perspective
 ```
+
+> ⛔⛔ **`SharedAiWindowRegistrar` WAS DRAWN HERE and is now DELETED** *(`CE-070`, §5b.6)*. ⭐ Its box is
+> replaced by `PerspectiveWorkspaceRegistrar` — **the class that was actually doing its job all along.**
+> ⚠ Its note used to read *"phase 1's first adopter"*; that was wrong twice over, and §5b.6 says why.
 
 ```mermaid
 sequenceDiagram
@@ -532,21 +543,27 @@ sequenceDiagram
     participant Reg as WindowManager / Menu / Toolbar
 
     Note over Host: RegisterWindows(wm) - the EXISTING host seam, unchanged
-    Host->>BH: Compose(myBundles, new UiBundleContext(wm, menu, toolbar))
+    Host->>BH: Compose(myBundles, new UiBundleContext(wm))
+    Note over BH: ctx.Menu and ctx.Toolbar are DERIVED from wm - not passed
     loop one per bundle
         BH->>B: RegisterInto(ctx)
         B->>Reg: RegisterWindow / menu item / toolbar entry
-        B->>BH: ReportUnserviceable(what, why) when this host cannot service it
     end
     BH-->>Host: composed
     Note over BH: NEVER registers a module, system or translator
 ```
 
+> ⚠⚠ **This diagram was CORRECTED on `2026-08-27` (`CE-070`) and the correction matters.** ⛔ It previously
+> showed `new UiBundleContext(wm, menu, toolbar)` and a `ReportUnserviceable(…)` hop — **neither exists.**
+> 📌 §5b.4 item ①b already recorded both as *not built* and claimed *"the diagram above is corrected"*, but
+> **only the `classDiagram` had been touched** ⇒ ⭐⭐ **an as-built note is not a diagram edit**, and
+> obligation ⑤ is satisfied by changing the picture, not by describing the change beside it.
+
 ### 5b.3 The items
 | # | item | proof |
 |---|---|---|
 | **①** | `IUiBundle` + `UiBundleContext` + `UiBundleHost` in the shared assembly | T0: composing a list registers every bundle's windows; a bundle that throws is named, not swallowed |
-| **②** | `SharedAiWindowRegistrar` becomes the FIRST bundle and both hosts compose it | ⭐ it is already DI-wired and host-unused ⇒ the cheapest real adopter |
+| **②** | ⛔ ~~`SharedAiWindowRegistrar` becomes the FIRST bundle and both hosts compose it~~ — **WITHDRAWN (§5b.4), then DELETED (§5b.6)** | ⛔ the *"cheapest real adopter"* reasoning was wrong on measurement: CGF constructs **0** of its 7 windows |
 | **③** | `CgfEditorShellToolbar` becomes a bundle | ⭐ already derives its per-host subset ⇒ proves the seam on the surface `CE-016`…`CE-045` hardened |
 | **④** | rail: **a host's bundle list is a LIST, not a branch** | ⛔ source scan: no `if (host==…)` inside any bundle *(ruling 58)* |
 | **⑤** | rail: **no bundle registers a module/system/translator/participant** | ⭐ §3.2 made checkable — the constraint that protects axes 2–3 |
@@ -579,8 +596,10 @@ itself**.
 **39 s** ✅ · `The_global_menu_is_readable_on_both_hosts` **37 s** ✅ · `The_manifest_describes_this_host_truthfully`
 ✅ — ⭐ **the two subset rails are the ones that matter**: they prove the per-host derivation is unchanged.
 
-⛔ **Still open in phase 1:** `SharedAiWindowRegistrar` adoption *(needs the CGF-role question answered
-first)* and `CgfEditorShellToolbar`'s remaining direct callers. ⭐ The seam exists and has two real adopters.
+⛔ **Still open in phase 1:** `CgfEditorShellToolbar`'s remaining **direct** callers.
+⭐ The seam exists and has two real adopters.
+✅ **Closed since:** the `SharedAiWindowRegistrar` question — resolved as a **DELETION**, not an adoption
+*(§5b.5 for the argument, §5b.6 for the as-built)*.
 
 ### 5b.5 ⭐⭐⭐ THE WAY FORWARD — **`SharedAiWindowRegistrar` is not an adoption. It is a DELETION.**
 
@@ -636,7 +655,8 @@ artefacts, no contrary intent.)*
 the survivor. ⚠ **Delete the DI rail with it** — `SharedAiEditorDiTests
 .AddSharedAiEditor_Resolves_IWindowRegistrar_AsSharedAiWindowRegistrar` is what made this look adopted for
 months, and leaving it would keep asserting a resolution nobody uses.
-⛔ **NOT in this batch:** compaction is imminent and a deletion deserves its own diff with the citation.
+
+✅ **DONE — `CE-070`, `2026-08-27`. The as-built, and what it found on the way, is §5b.6 below.**
 
 #### ⚠⚠ And the lesson, because it is the third time this exact trap has fired today
 📌 `BP-487` · `CE-065` · `CE-066` were *"the caller HAS it and does not pass it"*. ⭐⭐ **This one is the
@@ -644,6 +664,47 @@ INVERSE and equally costly: a class that looks like the shared thing, is DI-wire
 and the shared thing is somewhere else entirely.** ⇒ 🔒 **before adopting any "unadopted shared" class, ask
 what the hosts ACTUALLY use for that job.** ⛔ In-degree 0 does not mean *"nobody solved this"*; it can mean
 *"somebody solved it better, over there."*
+
+### 5b.6 ✅ AS-BUILT — **`CE-070`: the deletion, and the ONE argument §5b.5 did not have**
+
+<!-- build-state: BUILT -->
+
+🛠 **Shipped `2026-08-27`:** `SharedAiWindowRegistrar.cs` deleted · its `AddSingleton<IWindowRegistrar, …>`
+removed · its DI rail deleted and **replaced by its inverse** · the `classDiagram` and `sequenceDiagram`
+above corrected.
+
+#### ⭐⭐⭐ THE DECISIVE MEASUREMENT — found DURING the build, and it is stronger than §5b.5's
+📐 **Both comparison panels declare `WindowScope.PerspectiveBound`** —
+`ComparisonSummaryPanel.cs:91`, `ComparisonSidebar.cs:55` — and so do the AI-shell windows generally.
+⇒ ⭐⭐⭐ **the deleted class was a FLAT, host-level registrar for windows that declare themselves
+PERSPECTIVE-BOUND.** ⛔⛔ **It could never have worked as written, even if a host HAD called it.**
+
+⭐ §5b.5 argued the deletion from *adoption* *(in-degree 0, the job done elsewhere)*. ⭐⭐ **This argues it
+from CORRECTNESS**, which is the better argument and the one that closes the *"but a host outside the repo
+might call it"* objection the class's own doc-comment raised in its defence: **an out-of-repo host calling
+it would have got perspective-bound windows registered flat.**
+
+#### ⭐⭐ THE RAIL — an ABSENCE, asserted, because the wrong shape is the REFLEX shape
+`SharedAiEditorDiTests.AddSharedAiEditor_Registers_No_Flat_Host_Level_WindowRegistrar` replaces the deleted
+resolution rail. ⭐ Red-proved by **inverse edit** *(a stub `IWindowRegistrar` re-registered in the
+container ⇒ 1 failed)*, then reverted ⇒ 12/0. ⭐ Anti-vacuity is the **compiler's** job: the reference to
+`IWindowRegistrar` is compile-time, so renaming the seam breaks the build rather than passing vacuously —
+📌 the hazard `CE-064` actually hit.
+
+#### 🔴 A GAP THIS UNCOVERED — **filed, NOT fixed** *(`CE-071`)*
+📐 `ComparisonSummaryPanel` and `ComparisonSidebar` have **zero** production constructions and are
+registered into **no** `WindowManager` on any host ⇒ ⛔ **the visual-asset-comparison UI is UNMOUNTED.**
+📄 **`docs/designs/visual-asset-comparison/Visual_Asset_Comparison_Detailed_Design.md:1082-1083`** says both
+are *"docked window registered as `ai_comparison_summary`"* / `ai_comparison_sidebar` ⇒ ⭐⭐ **the intent is
+explicit and the capability was never delivered.**
+
+⚠⚠ **The deletion did NOT cause this and does not worsen it** — the only registrar that named them was
+never called by anything. ⭐⭐ **What the deletion changes is HONESTY:** the gap was hidden behind a class
+that *looked* like it mounted them. ⛔ Their state before and after is identical: never rendered.
+⇒ ⭐ **Ruling 49 — absent-and-explained beats present-and-broken.** 🔒 **`CE-071` routes the mount to
+`PerspectiveWorkspaceRegistrar`** *(the perspective-bound home their own `WindowScope` asks for)*, which is
+a **capability decision** — which perspectives get a comparison panel — ⛔ **not a mechanical route**, so it
+does not ride along in a deletion diff.
 
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |

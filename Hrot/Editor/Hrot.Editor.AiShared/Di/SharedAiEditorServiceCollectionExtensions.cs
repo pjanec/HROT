@@ -11,7 +11,6 @@ using Hrot.Editor.AiShared.References;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Validation;
 using Hrot.Editor.AiShared.Windows;
-using Fdp.Toolkit.Runner;
 using NodeEditor.Core.Interfaces;
 
 namespace Hrot.Editor.AiShared.Di;
@@ -104,8 +103,18 @@ public static class SharedAiEditorServiceCollectionExtensions
                 sp.GetRequiredService<IAssetCatalog>(),
                 sp.GetServices<IAssetValidator>().ToList()));
 
-        // Window registrar
-        services.AddSingleton<IWindowRegistrar, SharedAiWindowRegistrar>();
+        // ⛔⛔⛔ NO WINDOW REGISTRAR HERE — `CE-070` DELETED `SharedAiWindowRegistrar`.
+        // 📄 `docs/DESIGN_Subsystem_Composition_Unification.md` §5b.5.
+        // ⭐⭐ The live registration path is `PerspectiveWorkspaceRegistrar`, which BOTH hosts construct
+        //    three times each (per perspective) — `CgfSubsystem:298-300`/`:1550`, `EditorSubsystem:366-367`.
+        // 📐 The deleted class was a FLAT, host-level `IWindowRegistrar` over 7 window INSTANCES, and it
+        //    had zero constructions in the repository: its entire in-degree was the DI rail that asserted
+        //    it resolved. ⚠⚠ That rail is what made it look adopted for months.
+        // ⛔ And it could never have worked as written: the windows it registered declare
+        //    `WindowScope.PerspectiveBound`, so a flat host-level registrar is the WRONG SHAPE for them —
+        //    `AI_Editor_Shared_Infrastructure.md:1865` designed a descriptor-based, perspective-aware
+        //    registrar, and the built class was a flat partial of it.
+        // ⭐ Absent and explained beats present and broken (ruling 49).
 
         return services;
     }

@@ -10,12 +10,15 @@ namespace Hrot.Editor.AiShared.Windows;
 /// 📄 <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5b · <c>DESIGN_Cgf_Shell_Command_Toolbar_Slice.md</c>.
 ///
 /// <para>⭐⭐ <b>Chosen as the first adopter on a MEASUREMENT, and it is NOT the one the design named.</b>
-/// §5b.3 item ② proposed <c>SharedAiWindowRegistrar</c> *"the cheapest real adopter"* because it is
-/// DI-wired and host-unused. 📐 Measured `2026-08-27`: of its **7** windows, CGF constructs **0** and the
-/// editor **3**. ⇒ ⛔ adopting it would not be composing an existing bundle — it would be newly
-/// constructing seven windows on CGF, which is a question about **CGF's ROLE**, not a composition
+/// §5b.3 item ② proposed the old flat AI-shell registrar as *"the cheapest real adopter"* because it was
+/// DI-wired and host-unused. 📐 Measured `2026-08-27`: of its **7** windows, CGF constructed **0** and the
+/// editor **3**. ⇒ ⛔ adopting it would not have been composing an existing bundle — it would have been
+/// newly constructing seven windows on CGF, which is a question about **CGF's ROLE**, not a composition
 /// mechanic. ⭐ This bundle is the honest cheapest: <b>both hosts already register through
-/// <see cref="CgfEditorShellToolbar.RegisterCommonCore"/></b>, byte for byte.</para>
+/// <see cref="CgfEditorShellToolbar.RegisterCommonCore"/></b>, byte for byte.
+/// ⚠⚠ <b>And the follow-up went the other way: that registrar was DELETED, not adopted</b> *(`CE-070`,
+/// §5b.5)* — its job belongs to <c>PerspectiveWorkspaceRegistrar</c>, which both hosts already construct
+/// per perspective. 📌 <b>In-degree 0 can mean *"somebody solved it better, over there."*</b></para>
 ///
 /// <para>⭐⭐⭐ <b>What wrapping it actually BUYS — this is not ceremony.</b> 📐 Today each host passes the
 /// toolbar and the menu as SEPARATE arguments, and must remember to take both off the same

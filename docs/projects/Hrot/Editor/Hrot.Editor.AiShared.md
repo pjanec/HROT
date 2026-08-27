@@ -299,7 +299,8 @@ Editor-side blackboard variable management shared across BTree and HSM editors.
 | `TraceTimelineWindow.cs` | `sealed class TraceTimelineWindow` | Shell that delegates to registered `ITraceLaneProvider` implementations. |
 | `FindResultsWindow.cs` | `sealed class FindResultsWindow` | Renders find-references results and rename preview diffs. |
 | `DiagnosticsWindow.cs` | `sealed class DiagnosticsWindow` | Runs all registered `IAssetValidator` instances against all catalog assets each frame; displays colored table. |
-| `SharedAiWindowRegistrar.cs` | `sealed class SharedAiWindowRegistrar` | `IWindowRegistrar` that registers all 8 windows with `WindowManager`. |
+| `ShellCommandCoreBundle.cs` | `sealed class ShellCommandCoreBundle` | `IUiBundle` wrapping `CgfEditorShellToolbar.RegisterCommonCore`; composed by **both** hosts (`CE-069`). |
+| ⛔ ~~`SharedAiWindowRegistrar.cs`~~ | *(deleted `2026-08-27`)* | **DELETED — `CE-070`.** A flat host-level `IWindowRegistrar` over 7 windows, with **zero** constructions in the repo; its windows declare `WindowScope.PerspectiveBound`, so the live path is `PerspectiveWorkspaceRegistrar` (both hosts, one per perspective). 📄 `docs/DESIGN_Subsystem_Composition_Unification.md` §5b.5–§5b.6. |
 
 ### `Hrot.Editor.AiShared.Di`
 

@@ -1,5 +1,7 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+// ⭐ Retained for `CE-070`'s absence rail: the compile-time reference to the HOST-level
+//   `IWindowRegistrar` is what makes that rail non-vacuous. ⛔ Do not "tidy" this away.
 using Fdp.Toolkit.Runner;
 using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Catalog;
@@ -71,12 +73,42 @@ public class SharedAiEditorDiTests
         Assert.NotNull(sp.GetRequiredService<IDebugSessionRegistry>());
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE INVERSE OF THE RAIL THIS REPLACES — and it is deliberate, not a gap.</b>
+    /// 📄 <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5b.5 · <c>CE-070</c>.
+    ///
+    /// <para>⛔⛔ Until `2026-08-27` this file asserted
+    /// <c>AddSharedAiEditor_Resolves_IWindowRegistrar_AsSharedAiWindowRegistrar</c>. ⭐⭐⭐ <b>That rail is
+    /// the reason the class survived for months.</b> It asserted DI RESOLVED the registrar — and it did,
+    /// faithfully. ⛔ What nothing asserted is that any HOST ever CALLED it, and none ever did:
+    /// <c>SharedAiWindowRegistrar</c> had ZERO constructions in the repository, and that rail's own
+    /// resolution was its ONLY in-edge in the tree.</para>
+    ///
+    /// <para>⚠⚠ <b>THE LESSON — the 5th instance of rail-blindness this programme has recorded:</b>
+    /// a resolution rail proves a TYPE IS REGISTERED, never that a FEATURE IS REACHED. ⇒ ⭐ when the
+    /// container itself has no production caller *(see <c>AddSharedAiEditor</c>'s own note on
+    /// <c>"Authoring"</c>)*, such a rail asserts over a graph nobody walks.</para>
+    ///
+    /// <para>⭐⭐ <b>Why assert the ABSENCE rather than delete the rail outright:</b> a flat host-level
+    /// registrar is the shape a future session would re-add by reflex. ⛔ It is the WRONG shape here — the
+    /// AI-shell windows declare <c>WindowScope.PerspectiveBound</c>, and the live path is
+    /// <c>PerspectiveWorkspaceRegistrar</c>, which both hosts construct PER PERSPECTIVE. ⭐ Ruling 49:
+    /// absent and explained beats present and broken.</para>
+    ///
+    /// <para>⚠ <b>If this rail fails, read it as a DESIGN question, not a test to update:</b> somebody
+    /// registered a host-level <c>IWindowRegistrar</c> in this container. The question is whether the
+    /// windows it registers are perspective-bound — if they are, they belong in the perspective registrar.</para>
+    ///
+    /// <para>⭐ <b>Anti-vacuity is the COMPILER's job here</b>, deliberately: the reference to
+    /// <see cref="IWindowRegistrar"/> is compile-time, so renaming or removing the host seam BREAKS THE
+    /// BUILD rather than letting this rail pass by finding nothing to look for. 📌 <c>CE-064</c> passed over
+    /// an empty set; a string-keyed lookup here would have re-created exactly that hazard.</para>
+    /// </summary>
     [Fact]
-    public void AddSharedAiEditor_Resolves_IWindowRegistrar_AsSharedAiWindowRegistrar()
+    public void AddSharedAiEditor_Registers_No_Flat_Host_Level_WindowRegistrar()
     {
         using var sp = BuildSp();
-        var registrar = sp.GetRequiredService<IWindowRegistrar>();
-        Assert.IsType<SharedAiWindowRegistrar>(registrar);
+        Assert.Null(sp.GetService<IWindowRegistrar>());
     }
 
     [Fact]
