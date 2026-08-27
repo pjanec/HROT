@@ -65,6 +65,116 @@ the design's **§5.6 / §5.7 / §5.8**.
 | 🔴 **`CE-067`: `Hrot.Blueprints.Tests` (3 983 tests) had NOT COMPILED**, and `--no-build` printed PASSED over the stale binary — the exact hazard CLAUDE.md's tier section names. ⭐ Now **3 965/0** and back in the gate set | `CE-067` |
 | 📐 **Dead guard:** `WindowManager.MainToolbar` is NEVER null ⇒ every `MainToolbar != null` check was always true and its "toolbar-less host" comments described an impossible state | §5b.4 |
 
+## ⭐⭐⭐ 0.0d — **PHASE 2: THE PLAN, AND THE SAFETY NET.** ⛔⛔ **START HERE.** *(`2026-08-27`)*
+
+> 🔒🔒 **USER RULINGS, `2026-08-27` — canon for phase 2:**
+> ① *"in the end there should be **one UI logic (no drifts, no duplications)**, instantiated by calling
+> shared code from different subsystems."*
+> ② *"we never use `--mode cgf`, it was **`--mode all`**."*
+> ③ *"i want to be **compaction safe**"* ⇒ ⭐⭐ **this section is written to be self-sufficient: it repeats the
+> numbers rather than pointing at them, so a fresh session needs no archaeology.**
+
+### ⭐ WHAT PHASE 2 IS
+📐 The two composition roots. **`EditorSubsystem.cs` 5 375 lines / `CgfSubsystem.cs` 2 693** — ⚠⚠ but
+**~37 % of both is COMMENT** *(1 836 + 1 126)*, so real code is **4 290**, and the composition itself is
+**~1 650**: `EditorSubsystem.RegisterWindows` *(2 110 lines / **1 156 code**)* and CGF's
+`BuildAiShell`+`WireAssetCreation`+`RegisterWindows` *(**~500 code**)*.
+⛔ **A line-count target is the WRONG goal** — that comment mass is how a post-compaction session learns why
+a line exists. ⭐ The goal is **one implementation per concept**, not fewer lines.
+
+### 🔴 THE SCOPE — **5 hosts, not 2. I had this WRONG until the user asked.**
+| surface | who has it |
+|---|---|
+| menus · toolbar · perspectives | ⭐ **ONLY the editor and CGF.** 📐 IG *(~62 code lines)* · SimHost *(~127)* · ExCon *(~124)* · Orchestrator *(~100)* · EyesAndMuscle *(~1, empty)* register **windows only** ⇒ they are **panel hosts INSIDE the shell, not shells.** ⛔ Nothing to unify with them there |
+| ⭐⭐⭐ **the diagnostics window group** | 🔴 **22 instantiation sites across 7 host files, ~112 lines of copy-paste** — `FdpEntityInspectorWindow` **(5 hosts)** · `FdpEventBrowserWindow` **(5)** · `ArchitectureDiagnosticsWindow` **(4)** · `SystemProfilerWindow` **(4)** · `FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu` **(4)** |
+
+⭐⭐ **The 22 sites differ by exactly FIVE host values** — `idPrefix` · `titlePrefix` · `perspective` ·
+kernel/repo accessor · `titleBarColor`:
+```
+"ig_system_profiler",      "IG System Profiler",      "IG",       () => _app.Kernel?…,      IgWindowColor.TitleBar
+"simhost_system_profiler", "SimHost System Profiler", "SimHost",  () => _app?.Kernel?…,     SimHostWindowColor.TitleBar
+"cgf_system_profiler",     "CGF System Profiler",     "Scenario", () => _context?.Kernel?…, TitleBarColor
+"editor_system_profiler",  "Editor System Profiler",  "Scenario", () => _kernel?…,          EditorWindowColor.TitleBar
+```
+⇒ ⭐⭐⭐ **that is a `HostServices` record** *(the `CgfEditorShellToolbar.HostServices` pattern)*, so **22 sites
+collapse to ONE implementation + 5 one-line compositions** — the user's sentence, currently achieved by
+copy-paste 22 times. ⚠ 112 lines is small; ⛔ **22 sites is 22 chances to drift.**
+
+### ✅ `D1`–`D4`, RESOLVED *(design §5c.4d)*
+| | |
+|---|---|
+| **`D1`** | ✅ **services arrive as CTOR ARGS.** ⛔ `UiBundleContext` is NOT widened — a service locator there is `AQ62`'s superseded `ComposeEditorExperience(deps)` bag and would breach `A_bundle_cannot_reach_the_run_set` |
+| **`D2`** | ✅ **done = EVERY host's copy DELETED.** ⚠ At 5 hosts, a bundle only 2 compose is **not** done — 📌 the `SharedAiWindowRegistrar` failure mode with more places to hide |
+| **`D3`** | ✅ ⓪ the two LOGIC duplicates *(no seam needed)* → ① **the diagnostics group as bundle #1** *(22 sites, 5 hosts)* → ② the editor/CGF-only shell surfaces |
+| **`D4`** | ✅ **BOTH decomposition and de-drifting** — the drift risk is 5-way, so de-duplicating achieves both. ⛔ My earlier *"decomposition, NOT de-drifting"* framing is superseded |
+
+### ⛔⛔⛔ 0.0d-① THE SAFETY NET — **how we know nothing broke.** *(design §5c.4e)*
+> 🔒 **User:** *"how will you check that the unification does not destroy what now works? will you use current
+> editor as something that should not change?"*
+
+⭐ **Yes, current behaviour is the reference — but the editor ALONE is the wrong one, and the rail we had is
+blind to the failure unification causes.**
+
+| axis | state | ⛔ blind to |
+|---|---|---|
+| **A · cross-host parity** *(editor vs `--mode all`)* | ✅ phase 0 | 🔴🔴 **a change that hits BOTH hosts identically.** Drop a window on all 5 at once ⇒ **parity stays GREEN.** ⚠ Unification is exactly that class of change ⇒ **7th rail-blindness instance if relied on** |
+| ⭐⭐⭐ **B · before/after, per host** | 🛠 **BUILT `2026-08-27`** — `TheUiBaselineIsPinnedPerHostRails` | pixels, layout, rendering |
+
+⛔ **Why the editor alone is insufficient:** the ids are **host-prefixed**, so the editor's baseline covers
+**4 of the 22** sites and proves nothing about `ig_system_profiler` still claiming perspective `"IG"`.
+
+⭐⭐ **THREE captures cover all 22 sites** — 📐 `HrotRunnerConfiguration:124` expands `all` to
+**`orchestrator,simhost,ig,excon,cgf`**, and `:181` **forbids the editor coexisting with IG/ExCon**:
+| mode | covers |
+|---|---|
+| `editor` | the editor's 4 sites |
+| ⭐⭐ `all` | **SimHost · IG · ExCon · CGF · Orchestrator — five hosts in ONE process** |
+| `replaybrowser` | ReplayBrowser's 2 |
+
+🛠 **The rail:** `Hrot.SystemTests/Conformance/TheUiBaselineIsPinnedPerHostRails.cs`. It pins, per mode, the
+**`(panelId, kind, perspectives[])`** set from `GET /panels` `registered[]` + `list_perspectives`, through the
+existing `GoldenStore`. Goldens live at `Hrot.SystemTests/Goldens/ui-baseline-{editor,all,replaybrowser}/`.
+⭐ **Re-capture:** `PANEL_GOLDEN_CAPTURE=1 dotnet test … --filter TheUiBaselineIsPinnedPerHostRails`
+⛔⛔ **and a re-capture must be INSPECTED and committed in the SAME commit as the code change** — never
+separately, or it blesses whatever happened.
+
+⚠⚠ **FOUR LIMITS — do NOT over-claim this net. ⛔ Two were found by INSPECTING the first capture:**
+| ⚠ | |
+|---|---|
+| **`GET /panels` reports the INSTRUMENTED set** | ⛔ a window that never calls `PanelSnapshot.DeclareInstrumented` is **invisible** to the baseline. ⭐ `The_instrumentation_gap_is_measured_not_assumed` prints the real counts per mode — ⚠ **read them; the gap size is otherwise UNMEASURED** |
+| **ids are NOT pixels** | ⭐ catches a dropped, renamed or added window; ⛔ **not** a panel that renders wrong ⇒ a windowed eyes pass stays in acceptance |
+| 🔴🔴 **PERSPECTIVE IS NOT COVERED** | 📐 **`registered[]` is PROCESS-WIDE, not perspective-scoped** — 54 of the editor's 55 windows listed all 4 perspectives, because the field recorded which perspectives the CAPTURE VISITED. ⇒ ⛔⛔ **it would NOT catch `CE-071`'s `B1`**, which is what I first claimed for it. ⭐ The field was **REMOVED, not shipped** — false confidence is worse than a named gap. ⭐⭐ Stable source = **`focus_panel`** *(per-panel `{perspective, isOpen, isPinned}`)*, ⛔ but it has **side effects** ⇒ own pass. **FILED** |
+| ⚠ **`kind` removed too** | 📐 empty for **18 of 55** — inverted from `kinds{}` which derives from `captured[]` ⇒ **frame-dependent** ⇒ spurious reds later |
+
+🔒 **THE METHOD LESSON:** `GoldenStore` demands a capture be INSPECTED before commit *("a capture run is green
+by construction")*. 📐 That inspection found **two defects in the RAIL, none in the product** — ⛔ and both
+would have shipped GREEN. ⇒ ⭐⭐ **a golden that has never been read is not a baseline, it is a rumour.**
+📐 Also measured while inspecting: **ReplayBrowser names its two `rb_*`** *(`rb_inspector`, `rb_events`)*, not
+`*_fdp_*` — so all 22 sites ARE covered; my first grep pattern was wrong, not the capture.
+
+### ⭐ THE ORDER — ⛔ **the baseline is FIRST, before any registration moves**
+| # | slice | why here |
+|---|---|---|
+| **⓪** | 🛠 **capture + commit the three goldens on TODAY'S code** | ⚠⚠ a golden taken after bundle #1 lands **enshrines whatever that bundle did** |
+| **①** | the two LOGIC duplicates, vehicle (b), **no seam**: a shared `AiAssetSavers` *(BTree/HSM save delegates are **line-for-line** duplicates — `EditorSubsystem:3455-3475` vs `CgfSubsystem:2106-2121`)* + collapse reload *(CGF has ONE kind-switching `ReloadActiveAiDocument`; the editor has **three** separate callbacks)* | ⭐ small, pure, ruling-9 clear, **zero design risk** |
+| **②** | ⭐⭐ **bundle #1 = the diagnostics group** *(22 sites, 5 hosts)* via `IUiBundle` + a `DiagnosticsHostServices` record | ⭐ biggest measured duplication; proves the seam at **N=5**, not 2 |
+| **③** | the editor/CGF-only shell surfaces *(menus, toolbar, perspectives)* | ⭐ 2 hosts only; do it once the N-host pattern is proven |
+
+⛔⛔ **EVERY slice carries an EQUIVALENCE rail** — 🔒 `CE-072`'s lesson: *a wrapper needs an equivalence rail
+the day it is introduced*, because **when a wrapper becomes the only production path to tested code, the
+existing tests stop covering production.** ⚠ At 5 hosts this matters more: each host's ids and perspective
+must come out **byte-identical**, or someone's saved layout resets.
+
+### ⚠ FIVE SIZE ESTIMATES I GOT WRONG THIS SESSION — **measure before quoting**
+⛔ *"a 24-site cross-assembly rename"* → 📐 **19 hits, 9 files, one tree** *(the 24 was the graph's DEGREE)*.
+⛔ *"`SharedAiWindowRegistrar` is the cheapest adopter"* → 📐 **CGF constructs 0 of its 7 windows.**
+⛔ *"`CE-018`: three copies of a `.csproj` walk-up, ~190 lines"* → 📐 **already FIXED**; the sizing counted the
+**comment recording the fix**.
+⛔ *"the save cluster is the biggest prize, ~426 lines"* → 📐 **`SaveAllAiDocumentsCommand` is already shared
+and both hosts already call it**; the lines were comment + shared calls.
+⛔ *"phase 2 is editor-vs-CGF"* → 📐 **22 sites across 5 hosts.**
+⇒ 🔒 **measure CODE lines and read the call sites before naming a slice or a size.**
+
 ## ⭐⭐⭐ 0.0c — **THE WAY FORWARD.** Start here. *(`2026-08-27`)*
 
 > 🔒 **USER, `2026-08-27`:** *"cgf==editor is still valid here (the goal of the whole programme), which

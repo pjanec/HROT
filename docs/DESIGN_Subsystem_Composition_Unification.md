@@ -1040,8 +1040,15 @@ changes a host's window set turns it red immediately.
 | ⚠ | |
 |---|---|
 | **`list_panels` reports the INSTRUMENTED set, not every registered window** | ⛔ a registered window that never calls `DeclareInstrumented` is invisible to it. 📐 **UNMEASURED how large that gap is** — a first pass counted 44 files declaring `: ManagedWindow` against 59 referencing `DeclareInstrumented`, which is **not** a comparable ratio *(non-window classes declare panels too)*. ⇒ ⭐ **measure it empirically while taking the baseline**, and if the gap is real, widen the capture rather than trusting a partial set |
-| **ids and perspectives are not PIXELS** | ⭐ this catches a dropped window, a renamed id, a moved perspective *(`CE-071`'s `B1` exactly)*; ⛔ it does NOT catch a panel that renders wrong. ⚠ A windowed eyes pass stays part of acceptance |
+| **ids are not PIXELS** | ⭐ this catches a dropped, renamed or added window; ⛔ it does NOT catch a panel that renders wrong. ⚠ A windowed eyes pass stays part of acceptance |
 | **`captured[]` depends on a frame having drawn** | ⚠ compare `registered[]` for structure; `captured[]` is frame-dependent and will differ run to run |
+| 🔴🔴 **PERSPECTIVE IS *NOT* COVERED** — ⚠⚠ **this CORRECTS the claim made two paragraphs up** | 📐 **Measured on the first capture, `2026-08-27`:** `GET /panels`'s `registered[]` is **process-wide, NOT perspective-scoped** — **54 of the editor's 55** windows came back listing all four perspectives, because the field recorded which perspectives the CAPTURE VISITED. ⇒ ⛔⛔ **it would NOT have caught `CE-071`'s `B1`**, which is exactly what this section first claimed for it. ⭐ The field was **REMOVED rather than shipped**: false confidence is worse than a named gap. ⭐⭐ The stable source is **`focus_panel`** *(returns `{panelId, perspective, isOpen, isPinned}` per panel)* — ⛔ but it has **side effects** *(opens/focuses; pins a foreign-perspective window)*, so folding it in needs its own pass. **FILED** |
+| ⚠ **`kind` was also removed** | 📐 empty for **18 of 55** — it is inverted from `kinds{}`, which derives from `captured[]` ⇒ **frame-dependent** ⇒ a later run where those panels draw would redden the rail for no product change |
+
+⭐⭐ **What the inspection proves about the METHOD, and it is the point of insisting on it:** `GoldenStore`'s
+own remarks demand a capture be INSPECTED before commit *("a capture run is green by construction")*.
+📐 That inspection found **two defects in the RAIL and none in the product** — ⛔ and both would have shipped as
+green. ⇒ 🔒 **a golden that has never been read is not a baseline, it is a rumour.**
 
 ### 5c.5 ⭐ BUNDLE #1 — the items *(⚠ SUPERSEDED ORDERING — see §5c.4d `D3` and §5c.4e; the FIRST slice is the BASELINE)*
 | # | item | proof |
