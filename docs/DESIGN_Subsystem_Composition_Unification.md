@@ -917,7 +917,76 @@ kind-switching implementation both hosts call. ⇒ ⭐ **then** take a UI bundle
 "24-site rename", "the cheapest adopter", and `CE-018`'s phantom triplication)*. ⇒ 🔒 **the rule that keeps
 earning: measure CODE lines and read the call sites before naming a first slice.**
 
-### 5c.5 ⭐ BUNDLE #1 — the items *(pending `D1`–`D4` approval; ⚠ `D3` is REVISED by §5c.4b — the first slice is vehicle (b), not a bundle)*
+### 5c.4c 🔒🔒 USER RULING `2026-08-27` — **the target, and the SCOPE I had wrong**
+
+> 🔒 **User:** *"in the end there should be one UI logic (no drifts, no duplications), instantiated by
+> calling shared code from different subsystems."* …and: *"are you counting also with IG and SimHost for
+> unification of the shared UI parts like menus and toolbar and perspectives and all that, i.e. not just
+> cgf and editor?"*
+
+#### ⛔⛔ THE HONEST ANSWER: **NO, I WAS NOT.** Every phase, rail and parity check so far has been editor-vs-CGF
+⚠ §5b.1's inventory *listed* eight host-seam implementors, but nothing in phases 0–2 ever measured
+`IgSubsystem` · `SimHostSubsystem` · `ExConSubsystem` · `ReplayBrowserSubsystem` · `OrchestratorSubsystem` ·
+`EyesAndMuscleSubsystem`. ⇒ ⭐ **the user's question is a scope correction, and measuring it changes `D3`.**
+
+#### 📐 WHAT THE OTHER HOSTS ACTUALLY REGISTER *(measured, code lines)*
+| host | `RegisterWindows` | menus? | toolbar? | perspectives? |
+|---|---|---|---|---|
+| `EditorSubsystem` | **1 156** | ✅ | ✅ | ✅ |
+| `CgfSubsystem` *(+ shell trio)* | ~**500** | ✅ | ✅ | ✅ |
+| `ReplayBrowserSubsystem` | ~500 | — | — | — |
+| `SimHostSubsystem` | ~127 | ⛔ | ⛔ | ⛔ |
+| `ExConSubsystem` | ~124 | ⛔ | ⛔ | ⛔ |
+| `OrchestratorSubsystem` | ~100 | ⛔ | ⛔ | ⛔ |
+| `IgSubsystem` | ~62 | ⛔ | ⛔ | ⛔ |
+| `EyesAndMuscleSubsystem` | ~1 *(empty)* | ⛔ | ⛔ | ⛔ |
+
+⇒ ⭐⭐ **For menus / toolbar / perspectives the answer is: only the editor and CGF have them.** IG, SimHost,
+ExCon and the rest register **windows only** — they are **panel hosts INSIDE the shell, not shells**.
+⛔ So there is nothing to unify with them *on those three surfaces*; ⚠ claiming otherwise would invent work.
+
+#### 🔴🔴 BUT THERE IS A REAL N-HOST DUPLICATION, AND IT IS THE BIGGEST ONE IN THE REPO
+📐 **Five shared UI types, 22 instantiation sites across 7 host files, ~112 lines of copy-paste:**
+
+| shared type | sites |
+|---|---|
+| `FdpEntityInspectorWindow` | **5** *(Editor · CGF · IG · SimHost · ReplayBrowser)* |
+| `FdpEventBrowserWindow` | **5** |
+| `ArchitectureDiagnosticsWindow` | **4** |
+| `SystemProfilerWindow` | **4** |
+| `FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu` | **4** |
+
+⭐⭐⭐ **And the sites are already near-identical — they differ ONLY by five host values.** 📐 `SystemProfilerWindow`,
+four hosts, four lines each:
+```
+"ig_system_profiler",      "IG System Profiler",      "IG",       () => _app.Kernel?…,      IgWindowColor.TitleBar
+"simhost_system_profiler", "SimHost System Profiler", "SimHost",  () => _app?.Kernel?…,     SimHostWindowColor.TitleBar
+"cgf_system_profiler",     "CGF System Profiler",     "Scenario", () => _context?.Kernel?…, TitleBarColor
+"editor_system_profiler",  "Editor System Profiler",  "Scenario", () => _kernel?…,          EditorWindowColor.TitleBar
+```
+⇒ ⭐⭐⭐ **the parameterisation is UNIFORM: `(idPrefix, titlePrefix, perspective, kernel/repo accessors,
+titleBarColor)`** — ⛔ i.e. **exactly a `HostServices` record**, the pattern `CgfEditorShellToolbar.HostServices`
+already established and `ShellCommandCoreBundle` already wraps.
+⇒ ⭐⭐ **22 sites collapse to ONE implementation + 5 one-line compositions.** 📌 This IS the user's sentence —
+*"one UI logic, instantiated by calling shared code from different subsystems"* — and today it is achieved by
+copy-paste **22 times**.
+
+⚠ **Why line count understates it:** 112 lines is small; ⛔ **22 sites is 22 chances to drift**, and drift on
+exactly these surfaces is what phase 0's rail exists to catch.
+
+### 5c.4d ✅ `D1`–`D4`, RESOLVED — **by the user's ruling plus §5c.4b/§5c.4c's measurements**
+
+| # | resolution |
+|---|---|
+| ⭐⭐ **`D1`** | ✅ **(a) — services arrive as CTOR ARGS; `UiBundleContext` is NOT widened.** 🔒 The ruling *"instantiated by calling shared code from different subsystems"* IS option (a), and §5c.4c shows the shape it takes: a small per-host record. ⛔ (b)'s service locator stays rejected |
+| ⭐⭐ **`D2`** | ✅ **confirmed and STRENGTHENED: done = EVERY host's copy is deleted** 🔒 *"no drifts, no duplications"*. ⚠ With 5 hosts, a bundle only 2 compose is **not** done |
+| ⭐⭐⭐ **`D3`** | ✅ **REVISED TWICE, now evidence-based.** ⓪ vehicle (b) on the two logic duplicates *(savers · reload — 2 hosts, tiny, no seam)*; ① ⭐⭐ **the DIAGNOSTICS WINDOW GROUP as the first real bundle — 22 sites, 5 hosts**, the biggest measured duplication and the one that proves the seam on **N** hosts rather than 2; ② then the editor/CGF-only shell surfaces *(menus, toolbar, perspectives)* |
+| ⭐ **`D4`** | ✅ **superseded by the ruling.** ⛔ I framed phase 2 as *"decomposition, NOT de-drifting"*; 🔒 the user wants **both** — *"no drifts, no duplications"* — and §5c.4c shows why that is right: **the drift risk is 5-way, not 2-way**, so de-duplicating across hosts achieves both at once |
+
+⇒ ⭐⭐ **`IUiBundle`'s value scales with host count.** 📌 §3.3's *"a smaller list is a SUBSET, never a branch"*
+was argued for 2 hosts; with **5** it stops being a nicety and becomes the mechanism.
+
+### 5c.5 ⭐ BUNDLE #1 — the items *(⚠ SUPERSEDED ORDERING — see §5c.4d `D3`; kept for the item shape)*
 | # | item | proof |
 |---|---|---|
 | **①** | inventory the save/File-menu cluster across BOTH roots and classify each service **bundle-private vs root-shared** *(`D1`)* | ⭐ the classification is written into this section before code |
