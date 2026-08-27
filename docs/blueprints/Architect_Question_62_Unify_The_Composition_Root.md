@@ -14,6 +14,8 @@ known-conflict: the biggest structural change in the programme — both host com
 -->
 # Architect Question 62 — **Unify the composition root** *(the structural fix for the CGF↔editor drift class)*
 
+> ✅✅ **RESOLVED WITH THE USER `2026-08-27`:** **Q62-A = STRUCTURAL move** *(one shared composition root, not surface-by-surface)* · **Q62-C = YES, god-facade extraction first** *(the enabling prerequisite)* · **Q62-D = STAGED** · ⭐⭐⭐ **the composition-parity RAIL is a MUST and goes FIRST** *(user: "for a refactor like this that rail is absolute must")* — it is the scaffold that makes every stage safe. **Q62-B** *(adopt `SharedApplicationBootstrapper` for the (c) node half)* = evaluate as an optional companion, not required. ⇒ dispatched as a FRAME to the UI/CGF lane: `HANDOFF_Cgf_Bootstrap_Unification.md`.
+
 > 🎯 **The user's observation, `2026-08-27`:** the six `--mode cgf` visual-check defects show *"the subsystem
 > bootstrap/composition is unified far less than it could be — my naive hope was cgf==editor means CGF shares
 > almost all bootstrap and only the network differs."* ⭐ **Measured: that hope is right, and it is already the
