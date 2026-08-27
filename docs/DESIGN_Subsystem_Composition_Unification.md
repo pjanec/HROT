@@ -1789,7 +1789,13 @@ parameter exists so a host without one can **say so** *(ruling 49)*.
 ⇒ 🔒 **VERDICT: leave it.** ⭐ Same conclusion shape as slice ③, reached the same way — by measuring instead
 of assuming the plan line was work. ⚠ §5c.9.4 reserved this freedom for `J1`; it applies here.
 
-### 5c.12 ⭐⭐⭐ `J1` — **THE DESIGN. And the prize is NOT the line count: the EDITOR IS BEHIND ON RULING 67.** `build-state: DESIGN` *(`2026-08-27`)*
+### 5c.12 ⭐⭐⭐ `J1` — **the prize is NOT the line count: the EDITOR IS BEHIND ON RULING 67.** `build-state: BUILT` *(`2026-08-27`)*
+
+> ⭐⭐⭐ **BUILT `2026-08-27` — and NOT in the shape §5c.12.3 proposed.** 🔒 **The as-built is §5c.13; read it
+> before quoting the `AiCatalogComposition` / `ComposeRequest` classDiagram below, which was NOT built and
+> is SUPERSEDED.** ⚠ §5c.12.1's nine-step table and §5c.12.2's headline are still TRUE and are the reason
+> the slice happened. ⭐ User nod, verbatim (`2026-08-27`): *"system not deployed yet, we can make changes
+> at will. We can and should use better stuff (resolveBase)."*
 
 > ⛔ **This is a DESIGN, not a dispatched build** — §5c.9.4 ordered it third and required a design pass first.
 
@@ -1826,7 +1832,7 @@ third time in this programme that a unification's worth turned out to be *"one h
 ⚠⚠ **THEREFORE `J1` IS A BEHAVIOUR CHANGE, AND IT NEEDS A NOD.** ⭐ It is a *fix* — but it changes what the
 editor lists on a deployed node, and the user's standing rule is that a visible change is theirs to approve.
 
-#### 5c.12.3 ⭐ THE SHAPE, AND WHAT THE CYCLE PERMITS
+#### 5c.12.3 ⛔ SUPERSEDED BY §5c.13 — the proposed shape, and what the cycle permits
 
 ⛔ **The contributors and `LoadFrom` are behind the cycle** *(§5c.6.2)* ⇒ ⭐ the shared unit takes them as
 `IAssetCatalogContributor` plus **delegates** — 📌 **exactly the pattern `AiAssetCatalogBuilder` already
@@ -1900,6 +1906,145 @@ sequenceDiagram
 ⛔⛔ **STOP-CONDITION REMINDER:** §5c.9.4 says stop after `J2`+`J3`. ⭐ `J1` is the one exception worth
 making — ⛔ **and only because of §5c.12.2's fix, not because of the line count.** ⚠ If the user declines the
 behaviour change, `J1` should be **closed as not-worth-doing** rather than built for tidiness.
+
+### 5c.13 ⭐⭐⭐ `J1` AS-BUILT — **the resolver already existed. The slice is ADOPTION plus a FIX.** *(`2026-08-27`)*
+
+> ⛔⛔ **This section SUPERSEDES §5c.12.3's proposed `AiCatalogComposition` / `ComposeRequest` / `ComposeResult`.
+> None of them were built, and building them would have been wrong.**
+
+#### 5c.13.1 🔴 WHY THE PROPOSED SHAPE WAS DROPPED — **measured before writing a line of it**
+
+📐 §5c.12.1 listed nine steps. ⭐⭐ **Measuring what each one would actually contribute collapsed the slice:**
+
+| step | §5c.12's assumption | 📐 what it measured as |
+|---|---|---|
+| **1–3** *(resolve the three roots)* | *"a drift to unify"* | ⭐⭐⭐ **`AssetRoots.ResolveAssetsRoot(kind, segs)` is DEFINED as `Path.Combine(ResolveBase(segs), AssetsRelative(kind))`** ⇒ the shared resolver **already existed** and both hosts had a hand-spelling of it. ⛔ Nothing to extract — **the seam law**: *"we need a shared X"* meant X existed and was under-adopted |
+| **4–7** *(contributors + fields)* | shareable behind delegates | ⛔ **host-side by the reference cycle and by field ownership.** Passing them through a request record would move the arguments, not the logic |
+| **8** *(initial refresh + warn)* | *"~10 duplicated lines"* | ⭐⭐⭐ **the ONE genuine duplicate — and worse than duplicated: it was a SECOND IMPLEMENTATION of the policy `RefreshJsonContributors` already owned** *(see §5c.13.3)* |
+| **9** *(construct the builder)* | shareable | ⛔ **`AiAssetCatalogBuilder`'s ctor IS the shared thing.** ⚠ Wrapping it in a `ComposeRequest` would be `K2`'s withdrawn mistake again: collapsing named arguments into an object, hiding what each host actually supplies |
+
+⇒ ⭐⭐ **A `Compose(request)` façade would have added a type, a record and a result object to move**
+**arguments into a constructor that already takes them.** ⛔ Zero policy would have moved.
+
+#### 5c.13.2 ⭐⭐⭐ WHAT WAS BUILT — **three adoptions and one policy move, no new types**
+
+```mermaid
+classDiagram
+    class AssetRoots {
+        <<EXISTS · AiShared/Identity/AssetRoots.cs>>
+        +ResolveBase(segs) string
+        +ResolveAssetsRoot(kind, segs) string
+        +RecipesFor(kind) string
+        +DescribeBase(segs) string
+        +ResolveProjectDir(segs) string?
+    }
+    class AiAssetCatalogBuilder {
+        <<EXISTS · AiShared/Catalog · CHANGED>>
+        +RefreshJsonContributors(kind)
+        -Action~string~ _warnMissingRoot NEW
+    }
+    class EditorSubsystem {
+        <<EXISTS · CHANGED>>
+        -_bpRootDir
+        -_btreeJsonRootDir
+        -_hsmJsonRootDir
+    }
+    class CgfSubsystem {
+        <<EXISTS · CHANGED>>
+        -RootFor(kind) now one line
+    }
+    class BlueprintEditorBootstrap {
+        <<EXISTS · CHANGED>>
+        +DiscoverRecipes()
+    }
+    EditorSubsystem ..> AssetRoots : ResolveAssetsRoot x3 -- WAS ResolveProjectDir + hand-combine
+    CgfSubsystem ..> AssetRoots : ResolveAssetsRoot -- WAS RootFor's own Path.Combine
+    BlueprintEditorBootstrap ..> AssetRoots : RecipesFor -- WAS the assembly directory
+    EditorSubsystem ..> AiAssetCatalogBuilder : RefreshJsonContributors x2 + warn sink
+    CgfSubsystem ..> AiAssetCatalogBuilder : RefreshJsonContributors x2 + warn sink
+```
+
+⭐ **No box is new.** ⛔ That is the finding, not an omission: the design's own §5c.12.4 item ④ said
+*"CHECK FOR A TEST SEAM FIRST"*, and the check that mattered turned out to be **"check the shared thing does
+not already exist"**.
+
+#### 5c.13.3 ⭐⭐⭐ `CE-095` — **the half `CE-091` did not collapse: TWO implementations of one refresh**
+
+📐 **Measured `2026-08-27`.** After `J2`, *"refresh the JSON contributor for kind K"* existed **twice**:
+
+| | where | the missing-root clause |
+|---|---|---|
+| the **CREATE** path | `AiAssetCatalogBuilder.RefreshJsonContributors` | ⛔ **none** — refreshed whatever root it was given |
+| the **INITIAL** load | inline in BOTH composition roots | ⭐ `if (Directory.Exists(root)) Refresh(…) else warn(…)` |
+
+⇒ ⭐⭐ **Ruling 9, and `CE-091` only got half of it.** ⭐ The clause moved INTO the method, so the initial
+refresh is now literally the same call every later refresh makes:
+
+```mermaid
+sequenceDiagram
+    participant H as Host (editor / CGF)
+    participant R as AssetRoots
+    participant B as AiAssetCatalogBuilder
+    participant C as BTree/HsmJsonAssetContributor
+    H->>R: ResolveAssetsRoot(Blueprint | BTree | Hsm, csprojSegments)
+    Note over H,R: ONE resolver, three kinds -- config, then walk-up, then output dir
+    H->>R: DescribeBase(segs) -- log WHICH arm answered
+    H->>B: new AiAssetCatalogBuilder(..., warnMissingRoot: host log)
+    H->>B: RefreshJsonContributors(BTree)
+    B->>B: root = rootDir() -- AT CALL TIME
+    alt root unset
+        B-->>H: silent -- a sequencing fact, not a fault
+    else root set but absent on disk
+        B->>H: warnMissingRoot("BTree JSON root not found: ...")
+        Note over B,C: ⛔ does NOT refresh -- Discover would CLEAR the already-loaded set
+    else root present
+        B->>C: Refresh(rootDirectory: root)
+    end
+    H->>B: RefreshJsonContributors(Hsm)
+```
+
+⚠⚠ **Two behaviour notes, both deliberate:**
+- ⭐ **A missing root WARNS and does NOT refresh.** ⛔ Refreshing would *empty* the contributor
+  *(`Discover` clears its headers when the directory is gone)*, so a root that disappears at runtime would
+  silently drop every loaded asset. ⭐ That was both inline copies' behaviour and it is preserved.
+- ⚠ **The initial refresh now runs AFTER the builder is constructed** *(it ran before)*. 📐
+  `AssetCatalog.AddContributor` calls `Rebuild()` and every `ContributorChanged` re-triggers it ⇒ the cache
+  is correct either way, and nothing is subscribed that early.
+
+#### 5c.13.4 ⭐⭐ THE FIXES — **three sites, one disease**
+
+| id | site | was | is |
+|---|---|---|---|
+| ⭐⭐⭐ **`CE-093`** | `EditorSubsystem` ×2 | `Path.Combine(ResolveProjectDir(…), AssetsRelative(kind))` — ⛔ **walk-up ONLY, null off-tree** | `ResolveAssetsRoot(kind, …)`. ⭐ **Its Blueprint root three lines above ALREADY used the shared resolver** ⇒ 🔴 **a split brain inside ONE host**, not merely *"the editor is behind CGF"* |
+| ⭐ **`CE-093`** | `CgfSubsystem` | a `RootFor` local that re-spelled `ResolveAssetsRoot` | the shared call. ⭐ Behaviour-identical **by definition**; it is the copy that let the editor drift |
+| ⭐⭐ **`CE-094`** | `BlueprintEditorBootstrap.DiscoverRecipes` | `Path.Combine(<AI.Behaviors assembly dir>, RecipesRelative(Blueprint))` | `RecipesFor(Blueprint)`. ⇒ ⛔ a configured node listed blueprint **assets** from its configured tree and blueprint **recipes** from the bin directory. 📌 **A member ruling 67's own sweep missed** — found by this slice's scan, not by the ruling |
+
+⭐ **The editor also gained CGF's REPORTING** — `DescribeBase` on the happy path, and a ruling-67 warning
+when only the output-directory arm answered. 📌 **The fourth instance of *"one host is behind"** being the
+real prize* *(slice ①'s ruling-53 log · `CE-016`'s toolbar transport · `CE-093` here · and `CE-094`, where
+BOTH hosts were behind)*.
+
+#### 5c.13.5 ⭐ THE RAIL, and ⚠ what it cannot claim
+
+📄 `TheAssetRootsComeFromTheOneResolverTests` *(4 facts)* + `TheJsonRefreshPolicyIsOneImplementationTests`
+*(9 facts, 3 of them new)*.
+
+⚠⚠ **The wiring rail is a SOURCE SCAN, and that is a scope statement, not a shortcut.** ⛔ Both composition
+roots resolve their roots into **private fields inside `Initialize`** with no seam to inject or read ⇒ the
+behavioural half is already covered by `TheDeployedNodeFindsItsAssetsTests` *(the resolver honours the
+config)*, and what no behavioural rail can see is **a host that quietly stops calling it.**
+
+📌 **The scan's first run flagged all three files the slice had JUST FIXED** — because each fix carries a
+comment quoting the code it replaced. ⇒ ⭐⭐ **whole comment lines are stripped before matching**, and the
+rail says so: a green means no **executable** line hand-combines a base with an asset segment. ⭐ It keeps
+`TheWalkUpHasOneImplementationTests`' anti-vacuity fact *(the tree is reachable · the one legal
+implementation is found · the regex still matches it)*, plus a positive fact that each composition root
+still resolves all three kinds — ⛔ otherwise a host that resolved **nothing** would satisfy a forbid-only
+scan *(`CE-064`'s shape)*.
+
+⭐ **Red-proofs, all inverse edits:** the editor's walk-up combine restored ⇒ scan red naming
+`EditorSubsystem.cs` · the assembly-directory recipes path restored ⇒ scan red naming
+`BlueprintEditorBootstrap.cs` · the `Directory.Exists` clause deleted ⇒ **3** policy facts red.
 
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |

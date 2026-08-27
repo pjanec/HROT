@@ -1095,54 +1095,47 @@ namespace Hrot.Editor
             // directory the same robust way RebuildAndReloadAI does: walk up from CWD and BaseDirectory
             // looking for the .csproj (AiBehaviorsProjectPath). A hard-coded "../../../" is fragile and
             // breaks when the editor runs from a different bin depth (BATCH-11 fix).
-            // ⭐⭐⭐ CE-018 — was an inline copy of the walk-up; it is now the ONE implementation.
-            //    ⭐⭐ And it is no longer only a walk-up: `ResolveProjectDir` is what a walk-up was, while
-            //    ruling 67's CONFIGURED root is honoured by `AssetRoots.ResolveBase` below — so a deployed
-            //    node told where its tree lives stops guessing from the working directory.
-            //    ⚠ `null` still means *"no source tree here"*, and the two JSON roots keep depending on
-            //      that: a deployed node has no `Trees/`/`Machines/` to scan, and pointing them at the bin
-            //      directory would make the editor watch a directory that will never exist.
-            var aiRootDir  = AssetRoots.ResolveProjectDir(AiBehaviorsProjectPath);
+            // ⭐⭐⭐ CE-093 (J1) — ALL THREE ROOTS NOW COME FROM THE SAME RESOLVER, and that is a FIX.
+            //
+            // 🔴🔴 What was here, measured `2026-08-27`: the Blueprint root went through
+            //    `ResolveAssetsRoot` (⇒ ruling 67's config → walk-up → output dir), while the two JSON
+            //    roots were hand-combined from `ResolveProjectDir` — THE WALK-UP ONLY, which answers null
+            //    when there is no source tree. ⇒ ⛔⛔ a SPLIT BRAIN INSIDE ONE HOST: a configured node
+            //    listed blueprints from its configured tree and, in the same breath, gave up on its own
+            //    BTree/HSM JSON assets. ⚠ CGF had already been given ruling 67's resolver; the editor had
+            //    only had it applied to one of its three roots.
+            //
+            // ⭐⭐ `ResolveAssetsRoot(kind, …)` IS `Path.Combine(ResolveBase(…), AssetsRelative(kind))` —
+            //    the seam already existed and was under-adopted, so this is adoption, not extraction.
+            //    ⇒ the null-guards are gone because ResolveBase always answers (its last arm is the
+            //    output directory), which is the same reason CGF's null arms went.
+            //
             // BUG-A6: store scan roots and JSON contributors as fields so RegisterWindows
             // can target new-asset writes at the source dir and refresh the right contributor.
-            // ⭐⭐⭐ CE-018 — the three-arm resolution *(config → source walk-up → output dir)* now comes
-            //    from AssetRoots, so a node configured under ruling 67 LISTS from the tree it CREATES in.
-            //    ⛔ The hand-written pair here was `walk-up ?? BaseDirectory` — it could not see the config
-            //    at all, which is exactly the split brain ruling 67's own fix had to close elsewhere.
-            _bpRootDir       = AssetRoots.ResolveAssetsRoot(AssetKind.Blueprint, AiBehaviorsProjectPath);
-            _btreeJsonRootDir = aiRootDir != null
-                ? System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.BTree))
-                : null;
-            _hsmJsonRootDir  = aiRootDir != null
-                ? System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.Hsm))
-                : null;
+            _bpRootDir        = AssetRoots.ResolveAssetsRoot(AssetKind.Blueprint, AiBehaviorsProjectPath);
+            _btreeJsonRootDir = AssetRoots.ResolveAssetsRoot(AssetKind.BTree,     AiBehaviorsProjectPath);
+            _hsmJsonRootDir   = AssetRoots.ResolveAssetsRoot(AssetKind.Hsm,       AiBehaviorsProjectPath);
+
+            // ⭐⭐ And it is REPORTED, in the shape CGF already used: which arm answered, plus a warning
+            //    when neither config nor source tree did — ⛔ "the catalog is empty" and "the catalog is
+            //    pointed somewhere else" are different problems and the log has to tell them apart.
+            Console.WriteLine("[EditorSubsystem] Authoring root resolved from " +
+                $"{AssetRoots.DescribeBase(AiBehaviorsProjectPath)}.");
+            if (AssetRoots.ConfiguredRoot == null &&
+                AssetRoots.ResolveProjectDir(AiBehaviorsProjectPath) == null)
+            {
+                Console.WriteLine("[EditorSubsystem] WARNING: no configured asset root and no source tree " +
+                    $"(searched up from CWD + BaseDirectory for {System.IO.Path.Combine(AiBehaviorsProjectPath)}); " +
+                    "falling back to the output directory, so editor-owned BTree/HSM JSON assets will only " +
+                    "load if they were deployed beside the binary. ⇒ ruling 67: pass --asset-root.");
+            }
+
             var bpRootDir        = _bpRootDir;
             var bpContrib        = new BlueprintAssetContributor(bpRootDir);
             _btreeJsonContrib    = new BTreeJsonAssetContributor(_btreeDebugSession);
             _hsmJsonContrib      = new HsmJsonAssetContributor();
             var btreeJsonContrib = _btreeJsonContrib;
             var hsmJsonContrib   = _hsmJsonContrib;
-            var btreeJsonRootDir = _btreeJsonRootDir;
-            var hsmJsonRootDir   = _hsmJsonRootDir;
-            if (aiRootDir == null)
-            {
-                Console.WriteLine("[EditorSubsystem] WARNING: Hrot.AI.Behaviors project dir not found " +
-                    $"(searched up from CWD + BaseDirectory for {System.IO.Path.Combine(AiBehaviorsProjectPath)}); " +
-                    "editor-owned BTree/HSM JSON assets will not load with layout.");
-            }
-            else
-            {
-                if (System.IO.Directory.Exists(btreeJsonRootDir!))
-                    btreeJsonContrib.Refresh(rootDirectory: btreeJsonRootDir);
-                else
-                    Console.WriteLine($"[EditorSubsystem] WARNING: BTree JSON root not found: {btreeJsonRootDir}");
-
-                if (System.IO.Directory.Exists(hsmJsonRootDir!))
-                    hsmJsonContrib.Refresh(rootDirectory: hsmJsonRootDir);
-                else
-                    Console.WriteLine($"[EditorSubsystem] WARNING: HSM JSON root not found: {hsmJsonRootDir}");
-            }
-
             _aiCatalogBuilder = new AiAssetCatalogBuilder(
                 btreeContrib,
                 hsmContrib,
@@ -1159,7 +1152,20 @@ namespace Hrot.Editor
                 bTreeJsonRefresh: root => btreeJsonContrib.Refresh(rootDirectory: root),
                 bTreeJsonRootDir: () => _btreeJsonRootDir,
                 hsmJsonRefresh:   root => hsmJsonContrib.Refresh(rootDirectory: root),
-                hsmJsonRootDir:   () => _hsmJsonRootDir);
+                hsmJsonRootDir:   () => _hsmJsonRootDir,
+                // ⭐⭐ CE-095 (J1 K5) — the missing-root warning, routed to this host's log.
+                warnMissingRoot:  msg => Console.WriteLine($"[EditorSubsystem] WARNING: {msg}"));
+
+            // ⭐⭐⭐ CE-095 (J1 K5) — THE INITIAL JSON REFRESH IS THE SAME CALL AS EVERY LATER ONE.
+            //    🔴 What was here: an inline `if (Directory.Exists(root)) Refresh(...) else warn(...)` pair,
+            //       i.e. a SECOND implementation of the policy `RefreshJsonContributors` owns — differing
+            //       from it in exactly the missing-root clause. ⇒ ruling 9; the clause moved into the
+            //       method and the block became these two lines. 📄 §5c.13.
+            //    ⚠ It now runs AFTER construction rather than before it; `AssetCatalog.AddContributor`
+            //      calls `Rebuild()` and every contributor's `ContributorChanged` re-triggers it, so the
+            //      cache is correct either way and nothing is subscribed this early.
+            _aiCatalogBuilder.RefreshJsonContributors(AssetKind.BTree);
+            _aiCatalogBuilder.RefreshJsonContributors(AssetKind.Hsm);
 
             // MTB-P5-T2: Add scenario contributor (non-file-backed; projects AvailableScenarios).
             _scenarioContributor = new Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor(

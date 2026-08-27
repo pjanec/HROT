@@ -2398,11 +2398,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// contributors already enumerate with <c>RecurseSubdirectories = true</c>, so §3a's *"index across
     /// SUBFOLDERS"* holds by construction and <c>SourceFilePath</c> carries the relative folder path.</para>
     ///
-    /// <para>🔴 <b>Ruling 67, and it is REPORTED, not silently swallowed.</b> When the source tree is not
-    /// found *(a deployed node)* <see cref="Hrot.Editor.AiShared.AssetRoots.ResolveProjectDir"/> answers
-    /// null, the JSON roots are null, and this logs a WARNING naming what it searched for. ⛔ The catalog
-    /// is then genuinely empty and <c>GET /assets</c> says so — ⚠ a silent empty list is the failure this
-    /// slice exists to end.</para>
+    /// <para>🔴 <b>Ruling 67, and it is REPORTED, not silently swallowed.</b> Every root comes from
+    /// <see cref="Hrot.Editor.AiShared.AssetRoots.ResolveAssetsRoot"/> — config → source walk-up → output
+    /// directory — and this logs WHICH arm answered, plus a warning when only the last one did. ⛔ The
+    /// catalog may then be genuinely empty and <c>GET /assets</c> says so — ⚠ a silent empty list is the
+    /// failure this slice exists to end.</para>
+    ///
+    /// <para>⚠⚠ <b>This paragraph used to describe a null-answering <c>ResolveProjectDir</c> and null JSON
+    /// roots.</b> ⛔ That stopped being true when ruling 67 landed here and the text was not updated — 📌
+    /// exactly the *"the design is behind the code"* rot obligation ⑤ exists to prevent, found while
+    /// carrying the same fix to the editor (<c>CE-093</c>).</para>
     /// </summary>
     private Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder BuildAssetCatalog()
     {
@@ -2412,8 +2417,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    ⚠ Always non-null now, so the old "the catalog will be EMPTY" warning is replaced by a
         //    statement of WHICH arm answered — 📌 "empty" and "pointed elsewhere" are different problems
         //    and the log has to distinguish them.
-        var aiRootDir = Hrot.Editor.AiShared.AssetRoots.ResolveBase(AiBehaviorsProjectPath);
-
         FdpLog<CgfSubsystem>.Info(
             "[CGF] Authoring root resolved from {0}.",
             Hrot.Editor.AiShared.AssetRoots.DescribeBase(AiBehaviorsProjectPath));
@@ -2428,8 +2431,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 System.IO.Path.Combine(AiBehaviorsProjectPath));
         }
 
+        // ⭐⭐⭐ CE-093 (J1) — this local function WAS `ResolveAssetsRoot`, spelled out.
+        //    📐 `AssetRoots.ResolveAssetsRoot(kind, segments)` is defined as
+        //    `Path.Combine(ResolveBase(segments), AssetsRelative(kind))` — byte-for-byte what `RootFor`
+        //    computed. ⇒ ⛔ ruling 9: the shared resolver existed and this host re-spelled it. ⭐ Adopting
+        //    it is behaviour-preserving HERE and is the same call the editor now makes, which is the
+        //    point — one resolver, so the two hosts cannot drift again.
         string RootFor(Hrot.Editor.AiShared.AssetKind kind) =>
-            System.IO.Path.Combine(aiRootDir, Hrot.Editor.AiShared.AssetRoots.AssetsRelative(kind));
+            Hrot.Editor.AiShared.AssetRoots.ResolveAssetsRoot(kind, AiBehaviorsProjectPath);
 
         var bpRootDir = RootFor(Hrot.Editor.AiShared.AssetKind.Blueprint);
 
@@ -2453,19 +2462,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _btreeJsonContrib = btreeJsonContrib;
         _hsmJsonContrib   = hsmJsonContrib;
 
-        // ⚠ The null arms are gone: ruling 67's ResolveBase always answers a directory, so "is it there"
-        //   is the only remaining question — and a missing root is still worth a warning, since with a
-        //   CONFIGURED root it means the config points at a tree with no assets in it.
-        if (System.IO.Directory.Exists(btreeJsonRoot))
-            btreeJsonContrib.Refresh(rootDirectory: btreeJsonRoot);
-        else
-            FdpLog<CgfSubsystem>.Warn("[CGF] BTree JSON root not found: {0}", btreeJsonRoot);
-
-        if (System.IO.Directory.Exists(hsmJsonRoot))
-            hsmJsonContrib.Refresh(rootDirectory: hsmJsonRoot);
-        else
-            FdpLog<CgfSubsystem>.Warn("[CGF] HSM JSON root not found: {0}", hsmJsonRoot);
-
         var builder = new Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder(
             btreeContrib, hsmContrib, bpContrib,
             asm => btreeContrib.LoadFrom(asm),
@@ -2480,7 +2476,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             bTreeJsonRefresh: root => btreeJsonContrib.Refresh(rootDirectory: root),
             bTreeJsonRootDir: () => _btreeJsonRootDir,
             hsmJsonRefresh:   root => hsmJsonContrib.Refresh(rootDirectory: root),
-            hsmJsonRootDir:   () => _hsmJsonRootDir);
+            hsmJsonRootDir:   () => _hsmJsonRootDir,
+            // ⭐⭐ CE-095 (J1 K5) — the missing-root warning, routed to this host's log. ⚠ The message BODY
+            //    is now the shared one, so the two hosts cannot word the same fault differently; the
+            //    `[CGF]` prefix stays here because the routing is the host's.
+            warnMissingRoot:  msg => FdpLog<CgfSubsystem>.Warn("[CGF] {0}", msg));
+
+        // ⭐⭐⭐ CE-095 (J1 K5) — the initial JSON refresh, now the SAME call every later refresh makes.
+        //    🔴 What was here: an inline `Directory.Exists` + `Refresh` + `Warn` pair per kind — a second
+        //       implementation of the policy `RefreshJsonContributors` owns, differing in that one clause.
+        //    ⚠ Moved to AFTER construction (it was before): `AddContributor` calls `Rebuild()` and each
+        //      contributor's `ContributorChanged` re-triggers it, so the cache is correct either way.
+        builder.RefreshJsonContributors(Hrot.Editor.AiShared.AssetKind.BTree);
+        builder.RefreshJsonContributors(Hrot.Editor.AiShared.AssetKind.Hsm);
 
         // ⭐⭐⭐ CE-053 — THE SCENARIO CONTRIBUTOR, which this host never had.
         // 📄 The user's `--mode cgf` visual check, 2026-08-26, symptoms 4/5/6 — ONE root, three symptoms.

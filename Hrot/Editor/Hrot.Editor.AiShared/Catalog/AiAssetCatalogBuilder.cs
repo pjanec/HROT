@@ -1,3 +1,4 @@
+using System.IO;
 using System.Reflection;
 
 namespace Hrot.Editor.AiShared.Catalog;
@@ -40,6 +41,11 @@ public sealed class AiAssetCatalogBuilder
     private readonly Action<string>? _hsmJsonRefresh;
     private readonly Func<string?>?  _hsmJsonRootDir;
 
+    // ⭐⭐⭐ CE-095 (J1 K5) — where "the root is not there" is REPORTED. ⛔ A sink, not a logger: this
+    //    assembly has no logging dependency and each host routes differently (Console on the editor,
+    //    FdpLog<CgfSubsystem> on CGF). 📄 DESIGN_Subsystem_Composition_Unification.md §5c.13.
+    private readonly Action<string>? _warnMissingRoot;
+
     /// <summary>
     /// Initializes the builder.
     /// </summary>
@@ -75,6 +81,12 @@ public sealed class AiAssetCatalogBuilder
     /// <param name="bTreeJsonRootDir">Where that contributor reads from; a null/empty answer skips it.</param>
     /// <param name="hsmJsonRefresh">Symmetric to <paramref name="bTreeJsonRefresh"/>.</param>
     /// <param name="hsmJsonRootDir">Symmetric to <paramref name="bTreeJsonRootDir"/>.</param>
+    /// <param name="warnMissingRoot">
+    ///   ⭐⭐ Where <see cref="RefreshJsonContributors"/> reports a root that does not exist on disk.
+    ///   ⚠ Receives the message BODY only — <c>"BTree JSON root not found: /x/y"</c> — so the host adds its
+    ///   own prefix and routes it to its own logger. ⛔ Omitting it makes a missing root silent, which is
+    ///   what both hosts' inline copies were written to avoid.
+    /// </param>
     public AiAssetCatalogBuilder(
         IAssetCatalogContributor bTreeContributor,
         IAssetCatalogContributor hsmContributor,
@@ -87,8 +99,10 @@ public sealed class AiAssetCatalogBuilder
         Action<string>? bTreeJsonRefresh = null,
         Func<string?>?  bTreeJsonRootDir = null,
         Action<string>? hsmJsonRefresh   = null,
-        Func<string?>?  hsmJsonRootDir   = null)
+        Func<string?>?  hsmJsonRootDir   = null,
+        Action<string>? warnMissingRoot  = null)
     {
+        _warnMissingRoot  = warnMissingRoot;
         _bTreeJsonRefresh = bTreeJsonRefresh;
         _bTreeJsonRootDir = bTreeJsonRootDir;
         _hsmJsonRefresh   = hsmJsonRefresh;
@@ -147,23 +161,49 @@ public sealed class AiAssetCatalogBuilder
     /// <para>⛔ A kind with no JSON contributor is a NO-OP, deliberately: Blueprint has none, and the two
     /// AI kinds only have one when the host wired it. ⚠ That is absence-by-construction, not a swallowed
     /// error — the caller cannot supply a refresh for a contributor it never built.</para>
+    ///
+    /// <para>⭐⭐⭐ <b><c>CE-095</c> (<c>J1</c> <c>K5</c>) — the MISSING-ROOT clause, which is the half
+    /// <c>CE-091</c> did not collapse.</b> 📐 Measured <c>2026-08-27</c>: this method existed for the CREATE
+    /// path and did NOT check the root exists, while both composition roots ALSO ran an
+    /// <c>if (Directory.Exists(root)) Refresh(...) else warn(...)</c> block of their own for the INITIAL
+    /// refresh. ⇒ ⛔ <b>two implementations of "refresh the JSON contributor for kind K"</b>, differing in
+    /// the one clause that matters — ruling 9, and <c>CE-091</c> only got half of it.</para>
+    ///
+    /// <para>⚠ <b>A missing root WARNS and does NOT refresh, deliberately.</b> ⛔ Refreshing anyway would
+    /// <i>empty</i> the contributor *(<c>Discover</c> clears its headers when the directory is gone)*, so a
+    /// root that disappears at runtime would silently drop every already-loaded asset. ⭐ Keeping the last
+    /// good set and saying so is the behaviour both hosts' inline copies had.</para>
     /// </summary>
     /// <param name="kind">The asset kind whose JSON contributor should re-scan.</param>
     public void RefreshJsonContributors(AssetKind kind)
     {
         switch (kind)
         {
-            case AssetKind.BTree: Invoke(_bTreeJsonRefresh, _bTreeJsonRootDir); break;
-            case AssetKind.Hsm:   Invoke(_hsmJsonRefresh,   _hsmJsonRootDir);   break;
+            case AssetKind.BTree: Invoke(_bTreeJsonRefresh, _bTreeJsonRootDir, "BTree"); break;
+            case AssetKind.Hsm:   Invoke(_hsmJsonRefresh,   _hsmJsonRootDir,   "HSM");   break;
         }
 
         // ⚠ The root is resolved AT CALL TIME, not captured: the hosts' own lambdas read a field that is
         //   assigned during Initialize, so resolving eagerly here would freeze a null.
-        static void Invoke(Action<string>? refresh, Func<string?>? rootDir)
+        void Invoke(Action<string>? refresh, Func<string?>? rootDir, string label)
         {
             if (refresh == null) return;
+
             var root = rootDir?.Invoke();
-            if (!string.IsNullOrEmpty(root)) refresh(root!);
+
+            // ⛔ An UNSET root is silent, and stays silent: it means "this host has not resolved its roots
+            //    yet", which is a sequencing fact, not an operator-visible fault.
+            if (string.IsNullOrEmpty(root)) return;
+
+            // ⭐ A SET root that is not on disk is the operator-visible case — with ruling 67's configured
+            //   root it means the config points at a tree with no assets in it.
+            if (!Directory.Exists(root))
+            {
+                _warnMissingRoot?.Invoke($"{label} JSON root not found: {root}");
+                return;
+            }
+
+            refresh(root!);
         }
     }
 }

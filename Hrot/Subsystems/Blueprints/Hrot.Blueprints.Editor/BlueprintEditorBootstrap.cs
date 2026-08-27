@@ -292,7 +292,20 @@ public static class BlueprintEditorBootstrap
         if (string.IsNullOrEmpty(assemblyLocation))
             return recipes;
 
-        var recipesPath = Path.Combine(assemblyLocation, AssetRoots.RecipesRelative(AssetKind.Blueprint));
+        // ⭐⭐⭐ CE-094 (J1) — RULING 67 REACHES THE RECIPES TOO.
+        //
+        // 🔴 What was here: `Path.Combine(assemblyLocation, RecipesRelative(Blueprint))` — the directory
+        //    the AI.Behaviors DLL happens to sit in. ⇒ ⛔ on a node TOLD where its tree lives
+        //    (`--asset-root`), blueprint ASSETS came from the configured tree while blueprint RECIPES came
+        //    from the bin directory: the same split brain ruling 67 exists to close, in a member the
+        //    ruling's own sweep missed. 📐 Found by J1's `AssetsRelative`/`RecipesRelative` scan.
+        //
+        // ⭐ `RecipesFor` is `AbsoluteBase + RecipesRelative(kind)` with `AbsoluteBase = ConfiguredRoot ??
+        //    AppContext.BaseDirectory` ⇒ ⚠ with no config it is the previous behaviour for any normal
+        //    deployment (the DLL sits beside the host); with config it is the configured tree.
+        //    ⛔ The assembly probe above STAYS: it answers a different question — "is AI.Behaviors even
+        //    loaded" — and returning an empty list when it is not is deliberate.
+        var recipesPath = AssetRoots.RecipesFor(AssetKind.Blueprint);
         if (!Directory.Exists(recipesPath))
             return recipes;
 
