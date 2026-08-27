@@ -64,7 +64,9 @@ public sealed class BlueprintWindowRegistrarTests
         Assert.DoesNotContain("Inspector", registry.RegisteredNames);
     }
 
-    // FIX2-005: engine IWindowRegistrar path must register all 5 windows in WindowManager
+    // FIX2-005: the engine Fdp.Toolkit.Runner.IWindowRegistrar path must register all 5 windows in
+    //    WindowManager. ⚠ FULLY QUALIFIED since the rename: the FEATURE-level seam this class also
+    //    implements is now IShellCommandRegistrar, and a bare name here would read as the wrong one.
     // (AssetBrowserWindow removed — MTB-P7-T5 retirement; GraphEditorWindow removed — BF-UX1 FIX D).
     [Fact]
     public void BlueprintWindowRegistrar_RegistersAllWindows_ViaEngineInterface()

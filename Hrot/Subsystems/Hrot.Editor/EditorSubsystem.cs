@@ -3338,7 +3338,7 @@ namespace Hrot.Editor
             // Register via IWindowRegistrar.RegisterToolbarEntry so the button appears in the
             // Blueprint toolbar. The callback is ImGui-free and headlessly testable; DrawUI renders
             // the ImGui button gated on ImGui.GetCurrentContext() != Zero.
-            var bpWindowRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+            var bpWindowRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureShellCommandRegistrar();
             bpWindowRegistrar.RegisterToolbarEntry(
                 Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel,
                 () =>
@@ -3361,7 +3361,7 @@ namespace Hrot.Editor
             // ── MVE-BATCH-04: "Save Blueprint" toolbar entry + Ctrl+S ────────────────────────────
             // Resolves active asset via AiDocumentManager (same path as run-button).
             // _blueprintSaveDirtyTracker is initialised at field declaration; reused here.
-            var saveRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+            var saveRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureShellCommandRegistrar();
             saveRegistrar.RegisterToolbarEntry(
                 "Save Blueprint",
                 () =>
@@ -3381,7 +3381,7 @@ namespace Hrot.Editor
             // triggers the _blueprintQuickReloadTrigger which calls QuickReloadService.TriggerAsync
             // with the live in-memory BlueprintAsset.  If the user WANTS the compiled output
             // persisted they should Save first (MVE-04) — but compilation itself works from RAM.
-            var compileRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+            var compileRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureShellCommandRegistrar();
             compileRegistrar.RegisterToolbarEntry(
                 "Compile / Reload Blueprint",
                 () =>
@@ -4327,7 +4327,7 @@ namespace Hrot.Editor
                         : $"HSM compile failed: {result.ErrorMessage}";
                 };
 
-                var rebuildRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+                var rebuildRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureShellCommandRegistrar();
                 rebuildRegistrar.RegisterToolbarEntry(
                     "Full Rebuild",
                     () =>

@@ -4,14 +4,14 @@ using System.Collections.Generic;
 namespace Hrot.Blueprints.Editor.Internal;
 
 /// <summary>
-/// Minimal <see cref="IWindowRegistrar"/> implementation used at the composition root
+/// Minimal <see cref="IShellCommandRegistrar"/> implementation used at the composition root
 /// to capture registered menu entries, toolbar entries, and shortcuts without creating
 /// any ImGui dependency. The composition root calls
-/// <see cref="IWindowRegistrar.RegisterToolbarEntry"/> here, then retrieves the
+/// <see cref="IShellCommandRegistrar.RegisterToolbarEntry"/> here, then retrieves the
 /// captured callbacks via <see cref="GetToolbarCallback"/> to wire them into the
 /// ImGui draw loop.
 /// </summary>
-public sealed class CaptureWindowRegistrar : IWindowRegistrar
+public sealed class CaptureShellCommandRegistrar : IShellCommandRegistrar
 {
     private readonly Dictionary<string, Action> _toolbarEntries = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Action> _menuEntries    = new(StringComparer.Ordinal);
