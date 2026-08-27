@@ -1,17 +1,19 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-24
-current-answer: this whole file. It is the UI implementation lane's resumption document — written ahead of
-  a compaction so the next window starts grounded. §0 is the MOST RECENT batch (the conformance harness),
-  §0b the regression net part C, §0c the preview rewind (HN-017), §0d the perspective model Part A, §1–§2 are
-  the BP-399 / Panel-observability history, §3 is the standing protocol, §4 is what is carried open.
-stale-below: §1 and §2 are HISTORY as of 2026-08-23 — both landed. Read §0 first.
-known-conflict: none.
+updated: 2026-08-27
+current-answer: §0 is the CURRENT quest (AQ63 subsystem-composition unification) and is where a fresh
+  session STARTS. §0a is the immediately-preceding batch (--mode all parity, CE-057..064). §0-prev and
+  below are HISTORY, newest first.
+stale-below: everything from §0-prev down is HISTORY. ⛔ Read §0 first, then §0a.
+known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) is STALE on two points —
+  its stage-1 god-facade prerequisite and its phase-0 rail wording. AQ63 §10.4 and §12 supersede both,
+  deliberately. The handoff is NOT edited (rule 1: never amend a dispatched handoff).
 -->
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
 > 🔒🔒 **Branch: `claude/reset-working-branch-qd1qpv`** *(re-pointed by the USER, `2026-08-23`)*. ⛔ Push
-> nowhere else. ids **`BP-`**, tracker areas **`A`–`G`**.
+> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-065`)**; ⚠ `BP-` are this lane's HISTORICAL
+> variable-model ids, tracker areas **`A`–`G`**.
 > ⚠⚠ **This lane MOVED from `claude/hrot-implementation-j1jvin`** — ⛔ any document still naming `j1jvin`
 > as this lane is stale; `.claude/CLAUDE.md`'s lane table *(`6b14d13fe`)* is authoritative.
 > ⚠ **A third lane now exists:** `claude/blueprint-macro-feature-sdmspn` is the **BACKEND** lane
@@ -22,7 +24,124 @@ known-conflict: none.
 
 ---
 
-## 0. ✅ MOST RECENT — **the cross-host conformance harness** is DONE *(`2026-08-24`)*
+# ⭐⭐⭐ §0 — THE CURRENT QUEST: **subsystem-composition unification (`AQ63`)**
+
+> 📄 **READ FIRST, IN THIS ORDER:**
+> **⓿** ⭐⭐⭐ [`../DESIGN_Subsystem_Composition_Unification.md`](../DESIGN_Subsystem_Composition_Unification.md)
+> — **THE STANDING DESIGN: the approach, the constraints, the phase plan, and §5 = buildable phase-0 detail.** ⭐ Start here.
+> **①** [`Architect_Question_63_Unify_Subsystem_Composition.md`](Architect_Question_63_Unify_Subsystem_Composition.md)
+> — ⭐⭐ **§9 and §10 are USER RULINGS (canon)**; ⭐⭐ **§12 is the phase-0 venue**; ⛔⛔ **§11 is SUPERSEDED — do not quote it.**
+> **②** [`batches/HANDOFF_Cgf_Bootstrap_Unification.md`](batches/HANDOFF_Cgf_Bootstrap_Unification.md) — the dispatched FRAME. ⚠ **stale on two points**, see the STATUS block.
+> **③** [`Architect_Question_62_Unify_The_Composition_Root.md`](Architect_Question_62_Unify_The_Composition_Root.md) — the predecessor; ⚠ AQ63 §3 supersedes its SHAPE and STAGING.
+>
+> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`). ⭐ ids **`CE-`**, next free **`CE-065`**.
+> ⭐ **RELEARN** before acting on this file.
+
+## 0.1 🔒 THE PROBLEM, AND WHAT THE USER APPROVED
+
+⭐ **The problem:** ~85% of each host's composition is the SAME shared pieces wired TWICE, independently ⇒ the *"CGF forgot to wire X"* bug class. 📐 **Every defect `CE-046`…`CE-064` is an instance**, and the user found six of them by eye.
+
+| approved `2026-08-27` | |
+|---|---|
+| ✅ **`Q63-B` — per-feature BUNDLES**, ⛔ not one `ComposeEditorExperience(deps)` | a monolith forces `if (host==…)` *(ruling 58)* or a nullable-knob bag *(a silent-default generator)* |
+| ✅ **`Q63-D` — DISSOLUTION, not extraction**, for `IEditorLogic` | 📐 it is 128 ln / ~15 members and `EditorApplication` is 297 ln of one-line delegations. `CE-060` dissolved one call in ONE LINE |
+| ✅ **`Q63-E` — THIS SESSION owns EVERY composition root** | ⇒ ⭐ no cross-lane split needed; fix all roots together |
+| ✅ **the parity rail goes FIRST** *(user: "for a refactor like this that rail is absolute must")* | |
+
+## 0.2 🔒🔒🔒 CANON — the two USER RULINGS that constrain every batch
+
+| ⭐ axis | reference | unify? |
+|---|---|---|
+| ⭐⭐⭐ **UI · scenario editing · monitoring · debugging** | **the EDITOR is the SOURCE AND SPECIMEN** | ✅ **aggressively** |
+| ⛔⛔ **the RUN-SET** — modules · systems · services | **each host's ROLE** *(the editor runs almost everything; CGF/IG/SimHost run only what their role needs)* | ⛔ **NEVER** |
+| ⛔⛔ **NETWORK** — translators · DDS · participant | **each host's ROLE** *(the sets are near-DISJOINT — measured)* | ⛔ **NEVER** |
+
+⚠⚠ **THE TRAP:** *"editor is the specimen"* and *"editor runs almost everything"* are **TWO DIFFERENT AXES.** 📌 A *"map bundle"* that registered `MapCullingModule`+`StyleResolutionModule` because the editor does would **silently change what CGF computes every frame — and would look like a successful unification.**
+
+### ⛔⛔ THE STANDING CONSTRAINT *(`AQ63` §10.5)*
+> **No bundle may register a module, a global system, a DDS translator, an egress/ingress system, or a participant.**
+⭐ A bundle **DECLARES** what its affordances need; the **HOST** decides what runs; an unserviceable affordance **REPORTS** it *(the `ToolActivationDrainSystem(reportUnserviceable:)` pattern)*. ⛔ A bundle that seems to need one has hit the role boundary ⇒ **STOP and report** *(`R-106`)*.
+
+## 0.3 ⭐⭐⭐ PHASE 0 — the parity rail. **VENUE AND CHANNELS ARE SETTLED; NO PRODUCTION CHANGE**
+
+| ⭐ | |
+|---|---|
+| **venue** | ⭐⭐⭐ **TWO WINDOWED PROCESSES under Xvfb, driven over MCP.** ⛔ **NEVER headless** — a panel publishes only when it DRAWS |
+| **it already exists** | 📐 `ClusterConformanceRails.The_asset_panels_are_the_same_on_both_hosts` *(`:867`)* launches `StartAsync("…-editor")` + `StartAsync("…-all", mode:"all")`, captures by KIND, and asserts anti-vacuity **both** directions ⇒ ⭐ **phase 0 EXTENDS what it compares, not where it runs** |
+| **channels** *(all exist — read `tools/ai-debug-mcp/SKILL.md`, ⛔ never derive MCP capability from engine source)* | ⭐ **`list_panels`** → `kinds` is *"the key a cross-host comparison uses"* · ⭐ **`get_panel`** → the view model, *"assert a field, do not parse prose"* · ⭐⭐⭐ **`get_gizmo_frame`** → *"what the map is drawing this frame, as data"* |
+| ⛔⛔ **what it must NOT assert** | **run-set equality.** ⭐ It proves each host is INTERNALLY COHERENT and that shared **SURFACES** match — ⛔ never that two hosts RUN the same thing *(`AQ63` §10.4 — this CORRECTS the frame handoff's wording)* |
+| **tier** | ⚠ **`T3`** *(two windowed processes, minutes)* ⇒ async / CI, ⛔ never a foreground blocker |
+
+### ⭐ The phase-0 work items
+| # | item |
+|---|---|
+| **①** | extend the two-host comparison to the **8 known drift instances**: scenario catalog non-empty · perspective icon keys resolve · `debug.*` group present · create-core single · `MutationInterceptor` set · perspective toolbar section present · scenario root · center/rotate routed |
+| **②** | ⭐⭐⭐ **map parity via `get_gizmo_frame`** — the highest-value piece; reaches what no model-level rail can |
+| **③** | the two NEW user symptoms *(`2026-08-27`, `--mode cgf`)*: ① **the 2D map shows NO entities on some scenarios** *(e.g. `hill-attack` loads, map empty)* · ② **center-on-entity CRASHES** ⚠ **suspect: the `E3`/`CE-051` path is mine** |
+| **④** | ⛔ **nothing in production** |
+| ⭐ proof | each item must **redden on the pre-fix root** *(inverse edit)* |
+
+## 0.4 ⭐ THE PHASE ORDER *(revised by ruling — `AQ63` §9.4 REVERSES the earlier node-first plan)*
+
+**0** parity rail → **1** the bundle seam + **menus/toolbar** *(`CgfEditorShellToolbar` already IS the pattern)* → **2+** one bundle per batch, **extracted from the editor as specimen** → **N** *(optional, LATER)* node-bootstrap adoption, **CGF first**.
+⚠ **Node adoption is deliberately LAST:** it is the only phase that touches orchestration/participant/time authority — the area the ruling says not to move blindly — and 📐 **not one** of `CE-046`…`CE-064` was a node-bootstrap gap.
+
+## 0.5 ⛔⛔⛔ FACTS A LATER SESSION MUST NOT RE-DERIVE — **including FOUR claims I got WRONG**
+
+| ⭐ fact | |
+|---|---|
+| ⛔⛔ **`--mode all` MUST run WINDOWED (Xvfb). Headless dumps come back EMPTY** | 🔴🔴 **THIS FILE'S §0-prev ALREADY SAID SO, flagged ⭐⭐⭐, and I still built `AQ63` §11 on a headless venue.** ⇒ ⭐ read §0.5 *before* designing a rail. **Xvfb IS installed** *(`/usr/bin/Xvfb`)* and `run-system-tests.sh` uses it |
+| ⛔ **"this container has no display"** | ⚠⚠ **WRONG — I put it in two reports and a tracker row.** 📐 T3 ran **105 passed / 2 failed** here. I generalised ONE X11 `SIGSEGV` *(`ModeStartupRails(ig)`)* into a capability claim |
+| ⛔ **"the map render path is eyes-only"** | ⚠ **WRONG** — `get_gizmo_frame` returns it as data |
+| ⛔ **"`translatorPacks` unsupplied is a silent-default defect"** | ⚠ **RETRACTED** *(`AQ63` §9.3)* — External is a **network POSTURE** change; ingress comes from the factory. It is a **dead parameter**, not a missing dependency |
+| ⭐⭐ **the god-facade is NOT a blocker** | 📐 `IEditorLogic` 128 ln / ~15 members; `AiShared` references it in **ZERO code** *(prose only)*; ~3 members genuinely editor-only |
+| ⭐⭐ **the pre/post-`Kernel.Initialize()` line already IS the node/UI boundary** | 📐 editor `:1757` of 5325 · CGF `:850` of 2599 — same 33/67 ratio; **0** kernel-module registrations after it |
+| ⭐⭐ **ExCon · ReplayBrowser · Orchestrator own NO kernel** | 📐 0 `ModuleHostKernel`, 0 `RegisterModule`; only `RegisterWindow` *(9/6/2)* ⇒ they are **pure bundle consumers** |
+| ⭐⭐ **the seam for the UI half EXISTS, used backwards** | 📐 `IWindowRegistrar` has 10 impls and **8 ARE the subsystems**; the system half is **50 `IEcsModule`s**. ⭐ `SharedAiWindowRegistrar` = built, in-degree **0** |
+| ⚠ **the rail-blindness pattern, THREE times** | `CE-049` asserted *present+enabled* not *has something to offer* · `CE-053` **supplied the input it tested** · `CE-064` had a correct but **UNREACHABLE** assertion *(a loop over an empty collection)* |
+
+## 0.6 ⭐ GATES + the commands that matter
+
+```bash
+bash scripts/session-design-brief.sh              # RELEARN: ledger + 7-day digest + probes
+python3 scripts/rulings-check.py                  # 25/25 expected
+python3 scripts/design-digest.py --check          # STATUS headers + INVENTORY + UML
+python3 scripts/tracker-counts.py --check         # open 102 / done 346 at CE-064
+bash scripts/quick-check.sh <proj> [filter]       # T0, ~8 s
+dotnet build <affected.csproj> --no-restore       # ⛔ NEVER the .sln in the fix loop (115 s vs 8 s)
+bash scripts/run-system-tests.sh --no-build       # T3, ~11 min, ASYNC only
+MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file.md>
+```
+
+⚠ **Two known T3 reds, both PRE-EXISTING** *(proved against a base worktree)*: `/missions/*` capability classification *(**MCP lane's**, unfixed)* and `EntityBlueprintsEditModelTests` / `SimHostInstance` compile errors. ⚠ `TwoReloadCycles_OldAlcIsCollected` is the **known rotating ALC flake** *(`CE-050`)*.
+
+## 0.7 ⭐ OPEN ids carried in
+| id | |
+|---|---|
+| `CE-062` | blueprint live-value provider on CGF — ⭐ **unblocked** by `CE-059` |
+| `CE-063` | `EditorMapPickAdapter` **duplicates** the shared `CanvasMapPickAdapter` — ⚠ possibly two capability levels; ⛔ do NOT merge blind |
+| `CE-055`/`CE-056` | ⭐ **user confirmed NON-REPRO on a windowed box** *(`2026-08-27`)* ⇒ out of scope; ⚠ close as non-repro |
+| `CE-047` `CE-048` `CE-050` | `MigrationAlertManager.Draw()` unwired · `DebugApiService.LoadScenarioLive` not routed via the session · the ALC flake |
+
+## 0a. ✅ THE BATCH IMMEDIATELY BEFORE THIS — **`--mode all` parity** *(`CE-057`…`CE-064`, `2026-08-27`)*
+
+📄 **Report: [`batches/REPORT_Cgf_Mode_All_Parity.md`](batches/REPORT_Cgf_Mode_All_Parity.md)** ·
+designs [`../DESIGN_Cgf_Scenario_Windows_Slice.md`](../DESIGN_Cgf_Scenario_Windows_Slice.md) *(§10 = AS-BUILT)*.
+⭐ Merged by the coordinator at `c67f1b2ae`; this lane then added `CE-064`.
+
+⭐⭐ **Why it matters to the quest:** all four symptoms the user hit in `--mode all` were composition drift —
+⇒ **the evidence base for `AQ63`.**
+
+| id | what |
+|---|---|
+| `CE-057` | CGF resolved `{staging}/nodes/node-N/scenarios` — **a directory that does not exist**; the scenarios are in `{staging}/shared/scenarios`. `OrchestrationConstants.GetSharedScenariosRoot()` is now the ONE authority |
+| `CE-058` | `PerspectiveIconKeys` — ⛔ **NOT a second toolbar**: both hosts build the same `PerspectiveToolbarSection`; the icon TABLE had one caller, so CGF took the documented text-button fallback |
+| `CE-059` | CGF constructs `BlueprintDebugSession` *(it already held all 3 ctor args)* + the shared `ActiveDebugSessionMirror` ⇒ the `debug.*` group works rather than being present-and-dead |
+| `CE-060` | `ScenarioOrbatAdapter.SelectEntity` **ignored its argument** on BOTH hosts; now publishes `ActivateEditorToolEvent` + `SelectEntityCommand` |
+| `CE-061` | **E5** — four `ManagedWindow` wrappers became shared `Hrot.Presentation.Windows.*PanelWindow` types; four adapters moved as `Scenario*`; ⭐ editor window IDS unchanged and railed |
+| `CE-064` | every catalogued scenario carries a real `SourceFilePath` — ⚠ found only because `CE-057` made the list non-empty and a T3 rail could finally fail |
+
+## 0-prev. ⛔ HISTORY — **the cross-host conformance harness** *(`2026-08-24`)*
 
 📄 **Designs *(the AS-BUILT records — read these FIRST)*:
 [`../blueprints/Architect_Question_54_Cluster_Mcp_Contract.md`](Architect_Question_54_Cluster_Mcp_Contract.md) § AS-BUILT ·

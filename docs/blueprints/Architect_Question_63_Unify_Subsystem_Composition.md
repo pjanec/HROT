@@ -37,6 +37,9 @@ known-conflict: ⛔ AQ62 §3 Q62-A proposes ONE `ComposeEditorExperience(deps)` 
 -->
 # Architect Question 63 — **Unify subsystem composition across ALL hosts**
 
+> ⭐⭐⭐ **THE WORK NOW LIVES IN [`../DESIGN_Subsystem_Composition_Unification.md`](../DESIGN_Subsystem_Composition_Unification.md)** — the standing design *(approach · constraints · phase plan · buildable phase-0 detail)*. ⭐ This AQ remains the **DECISION RECORD** and the home of the rulings *(§9/§10)* and the measurements; ⛔ it is not the build document.
+> 📄 **Resumption: [`RESUME_UI_Lane.md`](RESUME_UI_Lane.md) §0.**
+
 > 🔒 **User, `2026-08-27`:** *"the subsystem bootstrap need much bigger unification than there is now. and
 > not just between cgf and editor (where the unification should be largest), but also other like simhost
 > etc. we tried to unify so much like map, menus, gizmos… so we should share its composition code as well."*
