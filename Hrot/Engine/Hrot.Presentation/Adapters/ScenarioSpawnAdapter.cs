@@ -7,6 +7,10 @@ using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
+// ⭐ `Hrot.IG.Components` is a NAMESPACE IN Hrot.Core, ⛔ not in the Hrot.IG assembly — measured
+//   2026-08-27 after I wrongly called this using stale and the compiler corrected me
+//   (EditablePolyline + MapOverlayStyle are declared under it in Hrot.Core/Components/Map).
+//   ⇒ it carries NO Hrot.IG reference, which is why this adapter can live here at all.
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
@@ -15,7 +19,7 @@ using Hrot.ScenarioEditor.Gizmos;
 using Fdp.Toolkit.Replication;
 using Hrot.Core.Network;
 
-namespace Hrot.Editor.Adapters
+namespace Hrot.UI.Common.Adapters
 {
     /// <summary>
     /// Implements <see cref="ISpawnController"/> for the offline editor.
@@ -28,7 +32,7 @@ namespace Hrot.Editor.Adapters
     /// No DDS or CycloneDDS references; all dispatch is done through the in-process
     /// <see cref="FdpEventBus"/>.
     /// </summary>
-    public sealed class EditorSpawnAdapter : ISpawnController
+    public sealed class ScenarioSpawnAdapter : ISpawnController
     {
         private readonly FdpEventBus        _bus;
         private readonly JsonAttributeCompiler? _jsonCompiler;
@@ -56,7 +60,7 @@ namespace Hrot.Editor.Adapters
         /// baseline <see cref="EntityInfo"/> component. When <c>null</c>, the
         /// name defaults to <c>"New Unit"</c>.
         /// </param>
-        public EditorSpawnAdapter(
+        public ScenarioSpawnAdapter(
             FdpEventBus bus,
             JsonAttributeCompiler? jsonCompiler = null,
             ITkbDatabase? tkbDb = null,

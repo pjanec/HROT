@@ -3,7 +3,7 @@ using Hrot.Map.Common.Config;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 
-namespace Hrot.Editor.Adapters
+namespace Hrot.UI.Common.Adapters
 {
     /// <summary>
     /// Implements <see cref="IMapConfigController"/> for the offline editor.
@@ -16,7 +16,7 @@ namespace Hrot.Editor.Adapters
     ///
     /// No DDS or CycloneDDS references.
     /// </summary>
-    public sealed class EditorMapConfigAdapter : IMapConfigController
+    public sealed class ScenarioMapConfigAdapter : IMapConfigController
     {
         private readonly MapViewConfig _config;
         private readonly MapCanvas?    _canvas;
@@ -30,7 +30,7 @@ namespace Hrot.Editor.Adapters
         /// written when applying entity-layer visibility changes.
         /// May be <c>null</c> in headless mode (layer mask changes are ignored).
         /// </param>
-        public EditorMapConfigAdapter(MapViewConfig config, MapCanvas? canvas = null)
+        public ScenarioMapConfigAdapter(MapViewConfig config, MapCanvas? canvas = null)
         {
             _config = config;
             _canvas = canvas;

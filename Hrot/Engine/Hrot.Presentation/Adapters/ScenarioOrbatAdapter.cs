@@ -4,10 +4,11 @@ using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Behavior.Events;
+using Hrot.Common.Events;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 
-namespace Hrot.Editor.Adapters
+namespace Hrot.UI.Common.Adapters
 {
     /// <summary>
     /// Implements <see cref="IOrbatDataProvider"/> and <see cref="IOrbatController"/>
@@ -22,11 +23,10 @@ namespace Hrot.Editor.Adapters
     ///
     /// No DDS or CycloneDDS references.
     /// </summary>
-    public sealed class EditorOrbatAdapter : IOrbatDataProvider, IOrbatController
+    public sealed class ScenarioOrbatAdapter : IOrbatDataProvider, IOrbatController
     {
         private readonly EntityRepository _world;
         private readonly FdpEventBus      _bus;
-        private readonly IEditorLogic     _logic;
         private readonly ISpawnController _spawn;
 
         private readonly HashSet<int>         _expandedNodes = new();
@@ -34,19 +34,18 @@ namespace Hrot.Editor.Adapters
 
         /// <param name="world">Entity repository.</param>
         /// <param name="bus">Local FDP event bus for publishing embark/disembark commands.</param>
-        /// <param name="logic">Editor logic façade for tool activation and entity selection.</param>
+        // ⭐ CE-060 — the `IEditorLogic logic` parameter is GONE: its one use is now two shared bus
+        //   events (see SelectEntity), which is what makes this adapter host-agnostic.
         /// <param name="spawn">
         /// Spawn controller delegated to by <see cref="CreateUnit"/>.
         /// </param>
-        public EditorOrbatAdapter(
+        public ScenarioOrbatAdapter(
             EntityRepository world,
             FdpEventBus      bus,
-            IEditorLogic     logic,
             ISpawnController spawn)
         {
             _world = world;
             _bus   = bus;
-            _logic = logic;
             _spawn = spawn;
         }
 
@@ -136,9 +135,28 @@ namespace Hrot.Editor.Adapters
         // ── IOrbatController ─────────────────────────────────────────────────
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// ⭐⭐⭐ <c>CE-060</c> — <b>this was the adapter's ONLY editor-facade call, and it also did not do
+        /// what its name says.</b> 📐 Measured <c>2026-08-27</c>: the body was
+        /// <c>_logic.ActivateTool(EditorTool.Select)</c> — it activated the SELECT TOOL and
+        /// ⛔ <b>ignored <paramref name="entityId"/> entirely</b>, so clicking an ORBAT row selected
+        /// nothing. ⚠ That is the same class of defect <c>CE-051</c> found in
+        /// <c>SelectEntityCommand</c> being an unhandled no-op.
+        ///
+        /// <para>⭐⭐ Both halves now go through the seams <c>E3</c> built and BOTH hosts register:
+        /// <c>ActivateEditorToolEvent</c> → <c>ToolActivationDrainSystem</c>, and
+        /// <c>SelectEntityCommand</c> → <c>SelectEntitySystem</c>. ⇒ ⭐ the <c>IEditorLogic</c> dependency
+        /// disappears — which is what let this adapter move out of <c>Hrot.Editor</c> at all — and the
+        /// method finally selects the entity it was handed.</para>
+        ///
+        /// <para>⚠ <b>The id is a NETWORK id.</b> <c>IOrbatDataProvider</c>'s nodes carry the network
+        /// index, which is what <c>SelectEntityCommand.NetworkId</c> takes and what
+        /// <c>SelectEntitySystem</c> resolves — ⛔ not a raw <c>Entity</c> handle.</para>
+        /// </remarks>
         public void SelectEntity(int entityId)
         {
-            _logic.ActivateTool(EditorTool.Select);
+            _bus.Publish(new ActivateEditorToolEvent(EditorTool.Select));
+            _bus.Publish(new SelectEntityCommand { NetworkId = entityId });
         }
 
         /// <inheritdoc/>
@@ -186,8 +204,8 @@ namespace Hrot.Editor.Adapters
             if (!_indexCache.TryGetValue(subordinateEntityId, out var sub) ||
                 !_indexCache.TryGetValue(commanderEntityId,   out var cmd))
             {
-                FdpLog<EditorOrbatAdapter>.Warn(
-                    "[EditorOrbatAdapter] RequestAssignSubordinate: entity not in cache " +
+                FdpLog<ScenarioOrbatAdapter>.Warn(
+                    "[ScenarioOrbatAdapter] RequestAssignSubordinate: entity not in cache " +
                     "(subordinate={0}, commander={1}).", subordinateEntityId, commanderEntityId);
                 return;
             }
@@ -205,8 +223,8 @@ namespace Hrot.Editor.Adapters
         {
             if (!_indexCache.TryGetValue(subordinateEntityId, out var sub))
             {
-                FdpLog<EditorOrbatAdapter>.Warn(
-                    "[EditorOrbatAdapter] RequestRemoveSubordinate: entity not in cache " +
+                FdpLog<ScenarioOrbatAdapter>.Warn(
+                    "[ScenarioOrbatAdapter] RequestRemoveSubordinate: entity not in cache " +
                     "(subordinate={0}).", subordinateEntityId);
                 return;
             }

@@ -11,7 +11,7 @@ using Hrot.Map.Definitions.Tkb;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 
-namespace Hrot.Editor.Adapters
+namespace Hrot.UI.Common.Adapters
 {
     /// <summary>
     /// Implements <see cref="IMissionEditorService"/> for the offline editor.
@@ -31,7 +31,7 @@ namespace Hrot.Editor.Adapters
     ///
     /// No DDS or CycloneDDS references.
     /// </summary>
-    public sealed class EditorMissionService : IMissionEditorService
+    public sealed class ScenarioMissionService : IMissionEditorService
     {
         private readonly FdpEventBus      _bus;
         private readonly EntityRepository _repo;
@@ -42,7 +42,7 @@ namespace Hrot.Editor.Adapters
         /// <param name="bus">Local FDP event bus.</param>
         /// <param name="repo">Entity repository for ECS component reads.</param>
         /// <param name="registry">Live behavior registry used for filtering.</param>
-        public EditorMissionService(FdpEventBus bus, EntityRepository repo, BehaviorRegistry registry)
+        public ScenarioMissionService(FdpEventBus bus, EntityRepository repo, BehaviorRegistry registry)
         {
             _bus      = bus;
             _repo     = repo;

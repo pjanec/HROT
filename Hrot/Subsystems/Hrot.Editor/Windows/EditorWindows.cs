@@ -8,6 +8,21 @@ using Hrot.UI.Common.Panels;
 
 namespace Hrot.Editor.Windows;
 
+// ⭐⭐⭐ CE-061 (Axis-C E5 item ③) — FOUR WRAPPERS WERE DELETED FROM THIS FILE:
+//   EditorSpawnerWindow · EditorMissionWindow · EditorConfigWindow · EditorSharedOrbatWindow.
+// 📐 Measured: each was a thin ManagedWindow over an ALREADY-SHARED panel and an ALREADY-SHARED
+//   facade, with a body byte-identical to Hrot.ExCon/Windows/ExConWindows.cs's copy — the same
+//   concept written twice, differing only in id/title/perspective/colour. ⇒ those four are now
+//   ARGUMENTS of Hrot.Presentation.Windows.{Spawner,Mission,Config,SharedOrbat}PanelWindow, which
+//   CGF can reach (Hrot.Editor → Hrot.CGF makes this file unreachable from that host).
+// ⭐ The editor's window IDS ARE UNCHANGED (ScenarioPanelWindowIds.Editor*), so layout files,
+//   PanelSnapshot instrumentation and every id-keyed rail still resolve.
+// ⛔ EditorToolbarWindow / EditorOrbatWindow / EditorPreviewWindow / EditorZoneEditorWindow STAY:
+//   design §4 — the first takes IEditorLogic, the third needs the editor-only planning state, the
+//   fourth still reaches Hrot.Editor.Gizmos. Sharing them without those resolved would put a
+//   window on CGF that cannot be serviced (ruling 49).
+
+
 /// <summary>Editor subsystem title-bar colour (slate blue).</summary>
 internal static class EditorWindowColor
 {
@@ -65,150 +80,6 @@ internal sealed class EditorOrbatWindow : ManagedWindow
     }
 
     protected override void DrawClientArea() => _panel.DrawContent(_logic);
-}
-
-/// <summary>Entity spawner panel (shared with ExCon) as a perspective-bound managed window.
-/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Spawner"/>, shared with the
-/// (not yet converted) ExCon host of the same <see cref="SpawnerPanel"/>.</summary>
-internal sealed class EditorSpawnerWindow : ManagedWindow
-{
-    private readonly SpawnerPanel    _panel;
-    private readonly ISpawnController _spawn;
-
-    public EditorSpawnerWindow(SpawnerPanel panel, ISpawnController spawn)
-        : base("editor_spawner", "Entity Spawner", "Scenario", WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        _spawn = spawn;
-        IsOpen        = true;
-        TitleBarColor = EditorWindowColor.TitleBar;
-        PanelSnapshot.DeclareInstrumented(Id);
-    }
-
-    private SpawnerPanelViewModel BuildAndPublish()
-    {
-        var vm = _panel.BuildViewModel(Id, PanelIds.Spawner);
-        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
-        return vm;
-    }
-
-    internal SpawnerPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
-
-    protected override void DrawClientArea()
-    {
-        BuildAndPublish();
-        _panel.DrawContent(_spawn);
-    }
-}
-
-/// <summary>Mission editor panel (shared) as a perspective-bound managed window.
-/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Mission"/>. ⚠⚠ CORRECTED — an
-/// earlier commit in this sweep claimed no ExCon host exists for this panel; that was a false
-/// negative (checked usages everywhere except <c>ExConWindows.cs</c>, which hosts it as
-/// <c>ExConMissionWindow</c>). Both hosts now cite the shared constant.</summary>
-internal sealed class EditorMissionWindow : ManagedWindow
-{
-    internal const string Kind = PanelIds.Mission;
-
-    private readonly MissionPanel          _panel;
-    private readonly IMissionEditorService _svc;
-    private readonly IMapPickService       _pick;
-
-    public EditorMissionWindow(MissionPanel panel, IMissionEditorService svc, IMapPickService pick)
-        : base("editor_mission", "Mission Editor", "Scenario", WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        _svc   = svc;
-        _pick  = pick;
-        IsOpen        = true;
-        TitleBarColor = EditorWindowColor.TitleBar;
-        PanelSnapshot.DeclareInstrumented(Id);
-    }
-
-    private MissionPanelViewModel BuildAndPublish()
-    {
-        var vm = _panel.BuildViewModel(Id, Kind);
-        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
-        return vm;
-    }
-
-    internal MissionPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
-
-    protected override void DrawClientArea()
-    {
-        BuildAndPublish();
-        _panel.DrawContent(_svc, _pick);
-    }
-}
-
-/// <summary>Map layer / grid configuration panel (shared) as a perspective-bound managed window.
-/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Config"/>, shared with the
-/// (not yet converted) ExCon host of the same <see cref="ConfigPanel"/>.</summary>
-internal sealed class EditorConfigWindow : ManagedWindow
-{
-    private readonly ConfigPanel         _panel;
-    private readonly IMapConfigController _ctrl;
-
-    public EditorConfigWindow(ConfigPanel panel, IMapConfigController ctrl)
-        : base("editor_config", "Map Configuration", "Scenario", WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        _ctrl  = ctrl;
-        IsOpen        = true;
-        TitleBarColor = EditorWindowColor.TitleBar;
-        PanelSnapshot.DeclareInstrumented(Id);
-    }
-
-    private ConfigPanelViewModel BuildAndPublish()
-    {
-        var vm = _panel.BuildViewModel(Id, PanelIds.Config);
-        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
-        return vm;
-    }
-
-    internal ConfigPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
-
-    protected override void DrawClientArea()
-    {
-        BuildAndPublish();
-        _panel.DrawContent(_ctrl);
-    }
-}
-
-/// <summary>Shared ORBAT tree with drag-and-drop embarkation as a perspective-bound managed window.
-/// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.SharedOrbat"/>, shared with the
-/// (not yet converted) ExCon host of the same <see cref="SharedOrbatPanel"/>.</summary>
-internal sealed class EditorSharedOrbatWindow : ManagedWindow
-{
-    private readonly SharedOrbatPanel   _panel;
-    private readonly IOrbatDataProvider _data;
-    private readonly IOrbatController   _ctrl;
-
-    public EditorSharedOrbatWindow(SharedOrbatPanel panel, IOrbatDataProvider data, IOrbatController ctrl)
-        : base("editor_shared_orbat", "ORBAT Tree", "Scenario", WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        _data  = data;
-        _ctrl  = ctrl;
-        IsOpen        = true;
-        TitleBarColor = EditorWindowColor.TitleBar;
-        PanelSnapshot.DeclareInstrumented(Id);
-    }
-
-    private SharedOrbatPanelViewModel BuildAndPublish()
-    {
-        var vm = _panel.BuildViewModel(_data, Id, PanelIds.SharedOrbat);
-        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
-        return vm;
-    }
-
-    internal SharedOrbatPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
-
-    protected override void DrawClientArea()
-    {
-        BuildAndPublish();
-        _panel.DrawContent(_data, _ctrl);
-    }
 }
 
 /// <summary>Preview/Edit mode toggle panel as a perspective-bound managed window.
