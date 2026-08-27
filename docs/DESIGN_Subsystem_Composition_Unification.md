@@ -141,7 +141,7 @@ the same thing.** 📌 This CORRECTS the frame handoff's §1 wording *(`AQ63` §
 |---|---|---|
 | **①** | extend the two-host comparison to the **8 known drift instances**: scenario catalog non-empty · perspective icon keys resolve · `debug.*` group present · create-core single · `MutationInterceptor` set · perspective toolbar section present · scenario root · center/rotate routed | each **reddens on the pre-fix root** *(inverse edit)* |
 | **②** | ⭐⭐⭐ **map parity via `get_gizmo_frame`** | ⭐ the highest-value item — reaches what no model-level rail can |
-| **③** | the two NEW `--mode cgf` symptoms *(user, `2026-08-27`)*: ① the 2D map shows **NO entities** on some scenarios *(`hill-attack` loads, map empty)* · ② **center-on-entity CRASHES** ⚠ **suspect the `E3`/`CE-051` path — likely mine** | ⭐ each becomes an assertion that reddens pre-fix |
+| **③** | the two NEW **`--mode all`** symptoms *(user, `2026-08-27`; ⚠ this row said `--mode cgf` until `2026-08-27` — the user runs `--mode all`, and CGF's UI is reached THROUGH it)*: ① the 2D map shows **NO entities** on some scenarios *(`hill-attack` loads, map empty)* · ② **center-on-entity CRASHES** ⚠ **suspect the `E3`/`CE-051` path — likely mine** | ⭐ each becomes an assertion that reddens pre-fix |
 | **④** | ⛔ nothing in production | — |
 
 ### 5.5 ⭐⭐ SEQUENCE — the phase-0 rail, end to end *(obligation ①)*
@@ -173,7 +173,9 @@ sequenceDiagram
 ### 5.4 ⚠ What phase 0 will NOT reach — say it, do not paper over it
 ⛔ Anything needing real pixels: actual rasterisation, gizmo **picking** by mouse, ImGui hit-testing.
 ⭐ `get_gizmo_frame` reaches *what is submitted for drawing*, ⛔ not *what a human sees*. ⇒ a small
-`--mode cgf` eyes pass stays part of acceptance. 📌 **Two of the six user-found symptoms were of that
+**`--mode all`** eyes pass stays part of acceptance. ⚠⚠ **This line said `--mode cgf` until `2026-08-27`;
+that was WRONG and actively misleading** — 🔒 user: *"we never use `--mode cgf`, it was `--mode all`"*, and
+⛔ `--mode cgf` cannot boot at all *(§5.8)*, so an eyes pass there is not merely unusual, it is impossible. 📌 **Two of the six user-found symptoms were of that
 kind** *(`CE-055`/`CE-056`, both since confirmed non-repro)* ⇒ ⛔ this rail **reduces** the eyes-only
 surface; it does not eliminate it. ⚠ Claiming otherwise would repeat the `CE-049` over-claim.
 

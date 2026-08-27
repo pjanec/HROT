@@ -44,7 +44,7 @@ the design's **§5.6 / §5.7 / §5.8**.
 | ⭐ what a next session must know, and must NOT re-derive | |
 |---|---|
 | ⭐⭐⭐ **The rail found a REAL CRASH on its first real run** — `CE-065`. The `E3` slice routed *"center on entity"* onto a shared system but left its **event registration** in `EditorSubsystem`, and `ClusterRunner/Program.cs:52` turns strict mode on **process-wide** ⇒ the publish threw out of CGF's ImGui context menu and killed the process. ⭐ Fixed by putting the two events on `PresentationComponentRegistry`'s ONE list *(where `SelectEntityCommand` already was — which is exactly why the sibling menu item worked)* | §5.7 |
-| ⛔⛔ **`--mode cgf` ALONE CANNOT BOOT.** `DdsIdAllocator` waits 30 s for `Hrot.Orchestrator` then throws; **exit 134** before `/status`. ⇒ **exercise CGF via `--mode all` + the `Scenario` perspective.** ⚠ *"the `--mode cgf` symptoms"* is shorthand for *"CGF's symptoms"* | §5.8 |
+| ⛔⛔ **`--mode all` IS THE ONLY MODE WE RUN** 🔒 *(user, `2026-08-27`: "we never use '--mode cgf'")* — and **`--mode cgf` alone CANNOT BOOT anyway.** `DdsIdAllocator` waits 30 s for `Hrot.Orchestrator` then throws; **exit 134** before `/status`. ⇒ **exercise CGF via `--mode all` + the `Scenario` perspective.** ⚠ *"the `--mode cgf` symptoms"* is shorthand for *"CGF's symptoms"* | §5.8 |
 | ⭐⭐ **`BP-487` is HALF done.** The map FEED is reachable *(`GizmoBuffer` on `ISubsystemDebugProvider`, resolved per ACTIVE perspective)*; ⛔ `PanelSnapshot.ClearCaptured()` still has one production caller ⇒ that half is `MX-011`, **MCP lane** | §5.6 |
 | ⛔ **`/missions` is STILL unclassified in `CapabilityManifest.CapabilityFor`** — **third report**, MCP lane. It makes `The_manifest_describes_this_host_truthfully` **red before its matrix loop**, so nothing new can be asserted there. ⭐ The `panels.gizmo` claim was moved to `TheMapsAgreeOnBothHostsRails`; move it back **and delete the copy** when `/missions` lands | §5.8 |
 | ⚪ **The "map shows no entities" symptom does NOT reproduce** on `hill-attack` in `--mode all` — 📐 the cluster submits **739** primitives incl. **16 `SpatialAnchor`s naming ids 1000–1007**. ⛔ **NOT fixed, NOT closed** *(the user said "on some scenarios")*; the rail stands to catch it | §5.8 |
@@ -151,7 +151,7 @@ question**, not a test to update.
 |---|---|
 | **①** | extend the two-host comparison to the **8 known drift instances**: scenario catalog non-empty · perspective icon keys resolve · `debug.*` group present · create-core single · `MutationInterceptor` set · perspective toolbar section present · scenario root · center/rotate routed |
 | **②** | ⭐⭐⭐ **map parity via `get_gizmo_frame`** — the highest-value piece; reaches what no model-level rail can |
-| **③** | the two NEW user symptoms *(`2026-08-27`, `--mode cgf`)*: ① **the 2D map shows NO entities on some scenarios** *(e.g. `hill-attack` loads, map empty)* · ② **center-on-entity CRASHES** ⚠ **suspect: the `E3`/`CE-051` path is mine** |
+| **③** | the two NEW user symptoms *(`2026-08-27`, **`--mode all`** — ⚠ corrected `2026-08-27`: the user never runs `--mode cgf`)*: ① **the 2D map shows NO entities on some scenarios** *(e.g. `hill-attack` loads, map empty)* · ② **center-on-entity CRASHES** ⚠ **suspect: the `E3`/`CE-051` path is mine** |
 | **④** | ⛔ **nothing in production** |
 | ⭐ proof | each item must **redden on the pre-fix root** *(inverse edit)* |
 
