@@ -1,12 +1,15 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD
+build-state: BUILT
 updated: 2026-08-27
 current-answer: the whole file. Axis-C E5 — the SCENARIO-PERSPECTIVE WINDOWS (spawner, mission, orbat,
   map config, preview, zone) on CGF. §2 is the inventory, §5 the classDiagram, §6 the sequenceDiagram,
   §7 the item breakdown, §8 the two decisions that needed a call and got one.
-stale-below: nothing.
-known-rot: nothing.
+current-answer-addendum: §10 is the AS-BUILT and WINS over §5-§8 where they disagree.
+stale-below: §2.2's row on EditorSpawnAdapter's `using Hrot.IG.Components` — it calls the using STALE,
+  which §10 D2 measures as FALSE (the namespace is declared in Hrot.Core). Do not quote that cell.
+known-rot: §5's classDiagram draws a `SharedPanelWindows` factory; the build produced four named window
+  TYPES instead (§10 D1) to keep the SimulateDrawClientArea rail seam. The relationships are unchanged.
 known-conflict: none. ⚠ PROGRAMME_Cgf_Equals_Editor_Gap_Map.md §2c.2 lists E5 as "the thin-host
   bootstrap divergence, NOT a gap". 📐 That framing is INCOMPLETE, not wrong — see §1: it enumerated
   CAPABILITIES (scenario/asset/tool/inspector) and never enumerated WINDOWS, so the per-host window
@@ -217,3 +220,27 @@ sequenceDiagram
 | T1 before push | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests --no-build` |
 | the byte-identical gate | the editor's `Scenario` window **id set** is unchanged — assert it, do not eyeball it |
 | T3 async | `bash scripts/run-system-tests.sh --no-build` — ⛔ backgrounded, never a foreground blocker |
+
+## 10. ⭐⭐⭐ AS-BUILT — **where the build deviated, and why** *(`2026-08-27`, `CE-060`/`CE-061`)*
+
+> ⭐⭐ **Where this section and §5–§8 disagree, THIS WINS.** ⛔ §2.2's row on the stale `using` is
+> **SUPERSEDED** below; everything else in §2–§9 held.
+
+| # | design said | ⭐ as built | why |
+|---|---|---|---|
+| **D1** | §5 draws a `SharedPanelWindows` **factory** returning `ManagedWindow` | ⭐ **four PUBLIC window TYPES** — `SpawnerPanelWindow` · `MissionPanelWindow` · `ConfigPanelWindow` · `SharedOrbatPanelWindow` | ⛔ A factory returning the base type would have **retired the `SimulateDrawClientArea` seam** the existing panel-model rails drive. ⭐ Named types keep it, and keep each window's view-model type in the signature |
+| **D2** | §2.2: *"`using Hrot.IG.Components` — nothing from it is referenced. **A stale using**"* | ⛔⛔ **WRONG, and the compiler caught it.** ⭐ `Hrot.IG.Components` is a **NAMESPACE DECLARED IN `Hrot.Core`** — `EditablePolyline` and `MapOverlayStyle` live under it and ARE used | 📐 My measurement grepped for `VisualEffect|IgComponent`, which was too narrow to see either type. ⚠⚠ **The conclusion survived by luck, not by reasoning:** the using carries **no `Hrot.IG` assembly reference**, so the move was legal — ⛔ but *"the using is stale"* was false and is recorded at the using itself |
+| **D3** | §7 lists five items | ⭐⭐ **plus TWO the design did not anticipate**, both argued | see the two rows below |
+| **D3a** | *(unstated)* | ⭐⭐⭐ **`StartPlacementMode` is now SUPPLIED on CGF** | ⚠⚠ **E5 CREATED a silent default.** Before it, CGF composed no spawn adapter, so leaving the seam null was an **honest ruling-49 absence** — the Spawn tool reported itself unserviceable, and `TheViewportInteractionIsSharedTests` cited CGF as exactly that case. ⛔ Once E5 built the adapter, the same omission became *"a production caller that HAS a dependency and does not pass it"* ⇒ a spawner window whose tool refuses. ⭐ Resolved at CALL TIME: the module registers from `Initialize`, the adapter is built later, so a captured value would be permanently null |
+| **D3b** | *(unstated)* | ⭐⭐ **`ScenarioSpawnerCatalog.Default`** — one list | 📐 The catalog was an inline literal in **two** hosts *(15 entries in `EditorSubsystem`, a near-duplicate **9** in `ExConSubsystem` with two labels spelled differently)*; a third copy on CGF made it three. ⛔ **ExCon is NOT harmonised** — that file is the BACKEND lane's and whether its shorter list is intent or drift is that owner's call. ⚠ Quietly rewriting another lane's operator-visible labels is not a wiring fix |
+| **D4** | §8 D1: replace `_logic.ActivateTool(EditorTool.Select)` with the shared tool event | ⭐⭐⭐ **BOTH events** — `ActivateEditorToolEvent` **and** `SelectEntityCommand` *(`CE-060`)* | 📐 **Measured while making the swap:** the method is called `SelectEntity(int entityId)` and **ignored its argument entirely** ⇒ clicking an ORBAT row selected **nothing**, on either host. ⚠ The design only asked to re-route the call; re-routing it faithfully would have preserved a live defect. ⭐ Same shape as `CE-051`'s finding that `SelectEntityCommand` had no handler |
+| **D5** | §4: Preview + Zone are out | ✅ **unchanged** — `EditorPreviewWindow`/`EditorZoneEditorWindow` and `EditorToolbarWindow`/`EditorOrbatWindow` all stay in `EditorWindows.cs` | ⭐ Its head comment now names which four left and why these four stayed |
+| **D6** | §8 D2: do not reconcile `EditorMapPickAdapter` with `CanvasMapPickAdapter` | ✅ **held** — CGF passes the `CanvasMapPickAdapter` it already builds; the editor keeps its own | ⭐ Filed **`CE-063`**. ⛔ The duplicate is real and still there — ⚠ that is a **declared** debt, not an oversight |
+
+### ⚠ Findings recorded rather than fixed
+
+| finding | |
+|---|---|
+| **F1 — `EditorMapPickAdapter` duplicates `CanvasMapPickAdapter`** *(both `: IMapPickService`, ~130 LOC each, same three members)*. The editor's drives `LocationPickerGizmo` + a real `HrotEntityFilterFactory`; the shared one carries a private `MatchAllFilterFactory`. | ⛔ **Not collapsed.** ⭐ They may be one concept at two capability levels, and picking the wrong direction silently degrades the editor's map picking — the user's core workflow. `CE-063` starts with the capability comparison |
+| **F2 — `ExConWindows.cs` still declares its own four wrappers**, now duplicating the shared set instead of the editor's. | ⭐ Net duplication is **unchanged** (2 → 2, but one of the two is now the shared home). ⛔ Adopting the shared set on ExCon is the BACKEND lane's file ⇒ separate item |
+| **F3 — `MissionPanel`'s node id.** The editor passes a literal `0`; CGF passes `_context.NodeId`. | ⭐ Deliberate, and it is the charter working: *"the editor is a one-node cluster"* means `0` is the editor's real node id, not a placeholder |
