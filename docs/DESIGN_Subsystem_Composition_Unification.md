@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: phase 0 is BUILT (§5, as-built in §5.6–§5.9). Phase 1 is READY-TO-BUILD (§5b — inventory,
-  classDiagram and sequenceDiagram present). Phases 2+ get their own inventory + UML per batch, appended
-  here as they are designed (the frame's process: design the stage, build it, fold the as-built).
+build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is BUILT with two adopters
+  (§5b, as-built §5b.4); its remaining adoptions are listed at the end of §5b.4. Phases 2+ get their own
+  inventory + UML per batch, appended here as they are designed.
 updated: 2026-08-27
 current-answer: the whole file. This is the STANDING design for the composition-unification programme —
   the approach, the constraints and the phase plan. §5 = phase 0 (BUILT; §5.6-§5.9 are its as-built),
-  §5b = phase 1 (READY-TO-BUILD).
+  §5b = phase 1 (seam BUILT; ⚠ §5b.4 records THREE argued deviations — read it before quoting §5b.2's
+  classDiagram or §5b.3's item ②).
   ⚠ §5b.1 CORRECTS §2.1: the bundle seam is not missing — a FEATURE-level IWindowRegistrar exists in
   Hrot.Blueprints.Editor with in-degree 24, and BlueprintWindowRegistrar is a working adopted precedent
   for the whole pattern. Read §5b.1 before quoting §2.1's "nothing to share".
@@ -487,17 +488,15 @@ classDiagram
         <<interface>>
         +string Name
         +RegisterInto(UiBundleContext ctx)
-        +IReadOnlyList~string~ DeclaredSystems()
     }
-    note for IUiBundle "NEW - the only new type. Named after the shape\nBlueprintWindowRegistrar already implements."
+    note for IUiBundle "NEW - named after the shape BlueprintWindowRegistrar\nalready implements. AS-BUILT: no DeclaredSystems() -\nno phase-1 adopter needs it (see 5b.4)."
 
     class UiBundleContext {
         +WindowManager Windows
         +GlobalMenuRegistry Menu
         +MainToolbarManager Toolbar
-        +ReportUnserviceable(string what, string why)
     }
-    note for UiBundleContext "NEW - one arg object over registries that ALL EXIST.\nNothing here registers a module, system or translator (3.2)."
+    note for UiBundleContext "NEW - Menu and Toolbar are DERIVED from Windows, so they\ncannot be two hosts' registries. Nothing here reaches the\nrun-set or the network (3.2) - railed by reflection."
 
     class UiBundleHost {
         +Compose(IReadOnlyList~IUiBundle~ bundles, UiBundleContext ctx)
@@ -508,8 +507,8 @@ classDiagram
     note for BlueprintWindowRegistrar "EXISTS - Hrot.Blueprints.Editor. THE PRECEDENT:\nfeature seam + host seam, registered as both in DI."
     class SharedAiWindowRegistrar
     note for SharedAiWindowRegistrar "EXISTS - Hrot.Editor.AiShared. 7 windows.\nWired in DI, composed by NO host - phase 1's first adopter."
-    class CgfEditorShellToolbar
-    note for CgfEditorShellToolbar "EXISTS - the ONE shared toolbar+menu table.\nAlready derives its per-host subset. Becomes a bundle."
+    class ShellCommandCoreBundle
+    note for ShellCommandCoreBundle "NEW, AS-BUILT - phase 1's FIRST adopter, wrapping the\nexisting CgfEditorShellToolbar table. Both hosts compose it."
 
     class EditorSubsystem
     class CgfSubsystem
@@ -518,8 +517,7 @@ classDiagram
     IWindowRegistrar <|.. CgfSubsystem
     IWindowRegistrar <|.. SharedAiWindowRegistrar
     IWindowRegistrar <|.. BlueprintWindowRegistrar
-    IUiBundle <|.. SharedAiWindowRegistrar
-    IUiBundle <|.. CgfEditorShellToolbar
+    IUiBundle <|.. ShellCommandCoreBundle
     UiBundleHost --> IUiBundle
     UiBundleHost --> UiBundleContext
     EditorSubsystem ..> UiBundleHost : composes a list
@@ -553,9 +551,36 @@ sequenceDiagram
 | **④** | rail: **a host's bundle list is a LIST, not a branch** | ⛔ source scan: no `if (host==…)` inside any bundle *(ruling 58)* |
 | **⑤** | rail: **no bundle registers a module/system/translator/participant** | ⭐ §3.2 made checkable — the constraint that protects axes 2–3 |
 
-⛔⛔ **Explicitly NOT in phase 1:** the two `IWindowRegistrar` names are **left alone**. ⚠ Renaming the
-Blueprints one is a 24-site rename across an assembly boundary for readability only — ⭐ it belongs in its
-own batch, with its own argument, ⛔ not smuggled into the batch that introduces the seam.
+### 5b.4 ✅ AS-BUILT *(`2026-08-27`)* — **three deviations, each argued**
+
+| # | the design said | what shipped, and why |
+|---|---|---|
+| **⓿** | *"the two `IWindowRegistrar` names are left alone — a 24-site cross-assembly rename"* | 🔒 **USER: rename it in the same pass.** ⛔⛔ **And my estimate was WRONG:** 📐 measured **19 line hits in 9 files, all inside `Hrot/Subsystems/Blueprints/`** — the **24** was the graph's selected DEGREE, not edit sites. ⇒ shipped as **`CE-068`**: the feature seam is now **`IShellCommandRegistrar`** |
+| **②** | *"`SharedAiWindowRegistrar` becomes the FIRST bundle — the cheapest real adopter"* | ⛔ **WITHDRAWN, on measurement.** 📐 Of its **7** windows, CGF constructs **0** and the editor **3**. ⇒ adopting it is not composing an existing bundle — it is **newly constructing seven windows on CGF**, a question about **CGF's ROLE**. ⭐ `ShellCommandCoreBundle` went first instead: **both hosts already register through that table, byte for byte** |
+| **①b** | the `classDiagram` gave `IUiBundle` a `DeclaredSystems()` member and `UiBundleContext` a `ReportUnserviceable(…)` | ⛔ **NOT BUILT.** ⚠ Neither phase-1 adopter needs them, and 📌 **this is the batch whose own lesson is that an unadopted member LOOKS adopted** *(`SharedAiWindowRegistrar` is DI-wired and host-unused)*. ⇒ ⭐ they arrive with the first bundle that has something to declare. The diagram above is corrected |
+
+#### ⭐⭐ What the seam actually BOUGHT — measured, not asserted
+📐 The static it replaces took **toolbar and menu as SEPARATE arguments**, so nothing stopped a host pairing
+one host's toolbar with another's menu — ⛔ and that would compose perfectly and render half.
+⭐ `UiBundleContext` **derives both from the one `WindowManager`**, making that pairing unrepresentable.
+📌 Same present-but-disconnected shape as `BP-487`'s manifest cell.
+
+#### 📐 A DEAD-GUARD cluster found on the way
+⛔ `WindowManager.MainToolbar` returns an **inline-initialised readonly field** and is **never null** ⇒
+`windowManager.MainToolbar != null` at `EditorSubsystem:4469` and `CgfSubsystem:2128` was **always true**,
+and the comments explaining a *"toolbar-less host"* path described **a state that cannot occur**. ⭐ Both
+sites are gone with the bundle adoption; ⚠ what a bare host actually lacks is the **`WindowManager`
+itself**.
+
+#### ✅ Gates
+`IUiBundle` seam rails **6/0** *(inverse-edit red-proved: exposing `EntityRepository` on the context reddens
+`A_bundle_cannot_reach_the_run_set`)* · `Hrot.Presentation.Tests` **140/0** · `Hrot.Editor.Tests` **338/0** ·
+`Hrot.Blueprints.Tests` **3965/0** *(unblocked by `CE-067`)* · T3 `The_main_toolbar_is_readable_on_both_hosts`
+**39 s** ✅ · `The_global_menu_is_readable_on_both_hosts` **37 s** ✅ · `The_manifest_describes_this_host_truthfully`
+✅ — ⭐ **the two subset rails are the ones that matter**: they prove the per-host derivation is unchanged.
+
+⛔ **Still open in phase 1:** `SharedAiWindowRegistrar` adoption *(needs the CGF-role question answered
+first)* and `CgfEditorShellToolbar`'s remaining direct callers. ⭐ The seam exists and has two real adopters.
 
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |

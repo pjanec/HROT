@@ -2150,9 +2150,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 _aiDocumentManager, _aiDebugRegistry, () => _blueprintDebugSession);
         }
 
-        var toolbarIds = Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.RegisterCommonCore(
+        // ⭐⭐⭐ PHASE 1 — COMPOSED AS A BUNDLE, not called as a static. 📄
+        //    docs/DESIGN_Subsystem_Composition_Unification.md §5b.
+        // ⭐⭐ What changed and what did NOT:
+        //    · the shared table, the HostServices subset and the derivation are IDENTICAL — ⛔ this is not
+        //      a re-implementation, `ShellCommandCoreBundle` calls the very same RegisterCommonCore;
+        //    · the toolbar and the menu now come from ONE UiBundleContext ⇒ ⭐ they cannot be two
+        //      different hosts' registries, which the six-argument static could not prevent.
+        // ⚠ `windowManager.MainToolbar` is NOT passed and NOT guarded here any more: 📐 measured, it
+        //   returns an inline-initialised readonly field and is NEVER null, so the old
+        //   `if (windowManager.MainToolbar != null)` was a dead branch and the comment explaining a
+        //   "toolbar-less host" described a state that cannot occur.
+        var shellCoreBundle = new Hrot.Editor.AiShared.Windows.ShellCommandCoreBundle(
             windowManager.ShellCommands,
-            windowManager.MainToolbar,
             toolbarIcons,
             new Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.HostServices(
                 // ⭐⭐⭐ CE-049 (Axis-C E2) item ④ — OpenAsset / NewAsset are SUPPLIED now. 📄
@@ -2170,7 +2180,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     ? (Action)(() => _newAssetLauncher.Open())
                     : null,
                 CompileReload:        () => ReloadActiveAiDocument(),
-                CompileReloadEnabled: () => _aiDocumentManager?.Active != null),
+                CompileReloadEnabled: () => _aiDocumentManager?.Active != null));
             // ⭐⭐⭐ UXI-05 item ④ — CGF's File menu, emitted from the SAME table as its toolbar.
             // ⛔ GLOBAL scope (menuPerspective left null): design §6 — these File items are
             //    cross-perspective on both hosts. The PER-PERSPECTIVE model exists and is railed; the
@@ -2183,7 +2193,24 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    · `File/Reload` — the shared slot deliberately carries NO MenuPath, because the EDITOR
             //      has no File/Reload today and one table cannot give CGF an item the editor does not
             //      get without an `if (host==…)`, which ruling 58 forbids. 📄 See the Layout note.
-            windowManager.GlobalMenu);
+        // ⚠ The menu is no longer an ARGUMENT — the bundle takes it off the shared context, which is the
+        //   point: it and the toolbar are now guaranteed to be the same host's registries.
+
+        // ⭐ ONE list. ⛔ A host with fewer bundles is a SUBSET, never a branch (§3.3 / ruling 58).
+        //   ⚠ One entry today by design: the first adopter proves the seam, it does not populate it.
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(
+            new Fdp.Toolkit.Runner.IUiBundle[] { shellCoreBundle },
+            new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
+        // ⭐⭐ Non-null by construction: `Compose` above called `RegisterInto`, which sets this. ⛔ The
+        //    throw is NOT defensive noise — a null here means the bundle silently did not register, which
+        //    is precisely the "a feature is quietly absent on this host" failure the whole seam exists to
+        //    make impossible. ⚠ The property stays NULLABLE on purpose: "never composed" and "composed and
+        //    registered nothing" are different facts, and collapsing them is the conflation this codebase
+        //    keeps paying for (BP-487's manifest cell, CE-064's empty loop).
+        var toolbarIds = shellCoreBundle.RegisteredToolbarIds
+            ?? throw new InvalidOperationException(
+                "the shell-command-core bundle reported no toolbar ids after composition — it did not run.");
 
         // ⭐⭐⭐ CE-046 (design §3 ④, §3a) — THE DISTINCT SCENARIO ITEMS, from the SAME registrar the
         //    editor uses. 📄 docs/DESIGN_Cgf_Scenario_Session_Slice.md. Ruling R2 — distinct items, no

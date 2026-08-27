@@ -4464,10 +4464,20 @@ namespace Hrot.Editor
             // ⚠ OUTSIDE the guard: a bare EditorSubsystem has no MainToolbar, and openAsset/newAsset were
             //   registered out here before so their File-menu items still work. A null toolbar means
             //   "descriptors only".
-            Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.RegisterCommonCore(
+            // ⭐⭐⭐ PHASE 1 — COMPOSED AS A BUNDLE, the SAME one CGF composes. 📄
+            //    docs/DESIGN_Subsystem_Composition_Unification.md §5b.
+            // ⭐⭐ The shared table, this host's HostServices subset and the derivation are all UNCHANGED:
+            //    `ShellCommandCoreBundle` calls the very same `RegisterCommonCore`. ⭐ What the seam adds
+            //    is that the toolbar and the menu are taken off ONE context ⇒ they cannot be different
+            //    hosts' registries, which the six-argument static could not prevent.
+            // ⚠⚠ THE `MainToolbar != null` TERNARY IS GONE, and it was a DEAD BRANCH: 📐 measured,
+            //    `WindowManager.MainToolbar` returns an inline-initialised readonly field and is NEVER
+            //    null. ⛔ The comment above once explained a "bare EditorSubsystem has no MainToolbar"
+            //    path — that state cannot occur; what a bare host lacks is the WindowManager itself.
+            //    ⭐ Icons are now supplied unconditionally, which is what actually happened before.
+            var shellCoreBundle = new Hrot.Editor.AiShared.Windows.ShellCommandCoreBundle(
                 windowManager.ShellCommands,
-                windowManager.MainToolbar,
-                windowManager.MainToolbar != null ? new SilkIconProvider(windowManager.Atlas) : null,
+                new SilkIconProvider(windowManager.Atlas),
                 new Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.HostServices(
                     OpenAsset:     () => assetPickerLauncher?.Open(AssetKindFilter.All),
                     NewAsset:      () => newAssetLauncher?.Open(),
@@ -4484,12 +4494,19 @@ namespace Hrot.Editor
                     CompileReloadEnabled: () => _aiDocumentManager?.Active?.Kind
                         is Hrot.Editor.AiShared.AssetKind.Blueprint
                         or Hrot.Editor.AiShared.AssetKind.BTree
-                        or Hrot.Editor.AiShared.AssetKind.Hsm),
-                // ⭐⭐⭐ UXI-05 — the SAME table now also emits the File menu items. ⛔ GLOBAL scope
-                //    (menuPerspective left null): design §6 — these are cross-perspective on both hosts,
-                //    and a per-perspective binding here would change the editor's menu, which item ②'s
-                //    gate forbids.
-                windowManager.GlobalMenu);
+                        or Hrot.Editor.AiShared.AssetKind.Hsm));
+            // ⭐⭐⭐ UXI-05 — the SAME table also emits the File menu items. ⛔ GLOBAL scope
+            //    (menuPerspective left null): design §6 — these are cross-perspective on both hosts, and a
+            //    per-perspective binding here would change the editor's menu, which item ②'s gate forbids.
+            // ⚠ The menu is no longer an ARGUMENT — the bundle reads it off the shared context.
+
+            // ⭐ ONE list. ⛔ A host with fewer bundles is a SUBSET, never a branch (§3.3 / ruling 58).
+            //   ⚠ The editor's list is the same ONE entry as CGF's today: the first adopter proves the
+            //     seam, it does not populate it. 📌 Later phases append here, and the day these two lists
+            //     differ, the difference is a host's declared capability — not a conditional.
+            Fdp.Toolkit.Runner.UiBundleHost.Compose(
+                new Fdp.Toolkit.Runner.IUiBundle[] { shellCoreBundle },
+                new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
             // ───────────────────────────────────────────────────────────────────────────────────
 
             // ⭐⭐⭐ UXI-05 — `File/Open Asset…`, `File/New Asset…` and `File/Save` are now emitted by the
