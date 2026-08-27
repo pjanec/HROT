@@ -745,6 +745,150 @@ path to a tested function, the existing tests stop covering production.** ⚠ Th
 something real — ⭐ but the thing they test is no longer the thing that runs. 📌 **A wrapper needs an
 equivalence rail on the day it is introduced**, not a batch later.
 
+## 5c. ⭐⭐⭐ PHASE 2 — **decomposing the two composition roots.** `build-state: DESIGN`
+
+> 🔒 **USER, `2026-08-27`:** *"i meant the subsystem composition code, those 5k lines in editor and 2.5k
+> lines in cgf subsystem; is that the phase 2? if so, let's start it"*
+> ⭐ **Yes — that is phase 2**, and this section is its inventory and decisions.
+
+### 5c.1 🔴 INVENTORY — **measured `2026-08-27`; the headline number is smaller than it looks**
+
+| file | total | ⭐ **code** | comment |
+|---|---|---|---|
+| `EditorSubsystem.cs` | 5 375 | **3 003** | 1 836 *(34 %)* |
+| `CgfSubsystem.cs` | 2 693 | **1 287** | 1 126 *(41 %)* |
+| **combined** | **8 068** | ⭐ **4 290** | **2 962 *(37 %)*** |
+
+⚠⚠ **Say this before promising anything: ~37 % of both files is COMMENT** — the archaeology of every fix
+*(`CE-018`, `BP-487`, ruling citations, the measured-and-ruled-out notes)*. ⭐ That commentary is **load-bearing
+for this programme** — it is how a post-compaction session learns why a line exists. ⇒ ⛔ **phase 2 will NOT
+shrink these files proportionally to their line count, and a line-count target would be the wrong goal.**
+
+#### 📐 The composition methods — where the code actually is
+| method | total | ⭐ code |
+|---|---|---|
+| `EditorSubsystem.RegisterWindows` | 2 110 | ⭐⭐ **1 156** |
+| `EditorSubsystem.Initialize` | 1 264 | 800 |
+| `CgfSubsystem.BuildAiShell` + `WireAssetCreation` + `RegisterWindows` | 1 090 | ⭐ **~500** |
+
+⇒ ⭐⭐⭐ **THE DRIFT SURFACE IS ~1 650 LINES OF COMPOSITION CODE**, concentrated in **two** methods:
+the editor's `RegisterWindows` *(1 156)* and CGF's shell trio *(~500)*. ⛔ Not 8 000.
+
+#### ⚠ A measurement I got WRONG on the first pass, recorded so nobody repeats it
+📌 A banner-based sizing pass reported *"`CE-018` — three copies of a `.csproj` walk-up, ~190 lines"*.
+⛔ **False.** `CE-018` is **already fixed**: both sites call `AssetRoots.ResolveProjectDir` /
+`ResolveAssetsRoot`, and what the sizing counted was the **comment recording the fix**.
+⇒ ⭐⭐ **In a file that is 34 % comment, region size is NOT a proxy for code size.** Measure code lines.
+
+### 5c.2 ⛔⛔ WHAT PHASE 2 MAY AND MAY NOT MOVE — **the constraint bounds the prize**
+
+| ⭐ movable | ⛔ NOT movable |
+|---|---|
+| windows · panels · **menu items** · **toolbar entries** · details views · per-kind panes and lane providers | 🔒 **modules · global systems · DDS translators · egress/ingress · participants** — §3.1/§3.2, a USER RULING. ⚠ Mostly in `Initialize`, which is why `Initialize` is **not** phase 2's target |
+
+⭐⭐ **And a third category the phase-1 seam deliberately cannot hold:** `RegisterWindows` also **constructs
+shared SERVICES** — the emit service *(`AIE-026`)*, the behaviour-action catalog *(`AN7`)*, the identity
+bridge *(`BP-511`)*, the live-value provider *(`88a`)*, the per-kind Save-As registry, the debug-session
+factories. 📐 `UiBundleContext` exposes **only** windows/menu/toolbar, by design, and
+`A_bundle_cannot_reach_the_run_set` rails it shut. ⇒ ⭐⭐⭐ **that is `D1` below, and it decides how much
+actually moves.**
+
+### 5c.3 ⭐⭐⭐ THE DECISIONS
+
+#### `D1` — **bundle-private services, or root-shared?** *(the one that sizes the phase)*
+| option | |
+|---|---|
+| ⭐⭐ **(a) A bundle CONSTRUCTS what only it needs; genuinely shared services stay at the root. ⭐ RECOMMENDED** | ⭐ Keeps ONE seam and does not widen `UiBundleContext` *(so the run-set stays unreachable — the constraint survives)*. 📐 The test is measured, not stylistic: **does more than one bundle need it?** *(e.g. `ComparisonSessionRegistry` is used by the panels, the blackboard window AND the canvas renderer ⇒ root. The BTree/HSM emit service has one consumer ⇒ bundle.)* ⚠ A bundle then takes its OWN ctor args, exactly as `ShellCommandCoreBundle` takes `shell`/`icons`/`services` |
+| ⛔ (b) widen `UiBundleContext` with a service locator | ⛔⛔ **this is `AQ62`'s `ComposeEditorExperience(deps)` bag, already SUPERSEDED by §3.3** — and it would breach the reflection rail |
+| ⚪ (c) leave all services at the root | ⭐ safe but ⛔ then `RegisterWindows` keeps most of its 1 156 lines and the phase buys little |
+
+#### `D2` — **what does "done" mean for a bundle?** ⭐ RECOMMENDED: **both hosts compose it and the root loses the code**
+⛔ **Not** *"a bundle exists"* — 📌 that is how `SharedAiWindowRegistrar` came to be DI-wired and host-unused
+for months *(`CE-070`)*. ⇒ ⭐⭐ a bundle is done when **both roots' registration code is DELETED** and the
+parity rail is still green. ⚠ **A bundle only one host composes is a regression, not progress.**
+
+#### `D3` — **the ORDER.** ⚠ §4 names *scenario panels → gizmos → map → AI shell → time transport*; ⛔ that list predates this measurement
+📐 **Measured, the biggest coherent chunks of `RegisterWindows` are:** the **save / File-menu / shell-command
+cluster** *(`MTB2-T5` 166 + `BATCH-06` 145 + `PU-603` 61 + `BATCH-20` 54 ≈ **426 lines**)*, then the
+**AI-debug toolbar** *(`CE-059`, 134)*, then the **asset-shell + picker** *(`CE-049`/`BATCH-29`/`BATCH-36`,
+~140)*, then the **details views** *(`S1`/`L6.3`/`L6.4`/`88a`, ~150)*.
+
+⭐⭐ **RECOMMENDED first bundle: the SAVE / FILE-MENU / SHELL-COMMAND cluster.** Three reasons:
+① 📐 **biggest measured chunk** (~426 lines across both roots); ② ⭐ it is **already behaviourally shared**
+*(`ShellSaveCommands`, `ScenarioMenuCommands` from slice A)* ⇒ this is a genuine **de-duplication**, not a
+speculative move; ③ ⭐⭐ it **continues `ShellCommandCoreBundle`'s exact surface** — commands + menu + toolbar
+— so the seam is proven ground and `D1` can be settled on an easy case before a window-shaped bundle tests it.
+
+⚠ **The honest counter-argument, recorded:** phase 1 only ever exercised the seam on **commands/menu/toolbar**.
+A **window/panel** bundle *(scenario panels, details views)* is the untested shape, and if `IUiBundle` needs
+anything more it is a window bundle that will reveal it. ⇒ ⭐ **bundle #2 is a panel bundle, deliberately**,
+so the unknown is faced early rather than at bundle five.
+
+#### `D4` — **does phase 2 close remaining DRIFT too?** ⭐ RECOMMENDED: **opportunistically, never as the goal**
+📐 What still diverges is small and DECLARED: `EditorOnlyKinds` *(graph-signature · entity-blueprints ·
+data-breakpoint-manager — Blueprint AUTHORING surfaces · preview · zone-editor · editor-toolbar ·
+shared-orbat · `_gizmo`)* + `DivergesByDesign` *(entity-inspector · spawner · diagnostics, each with a
+measured reason)*. ⇒ ⭐ **§4's phrase *"each collapses a measured drift site permanently"* is only sometimes
+true now** — most of the drift the programme set out to kill is already dead. ⛔ **Phase 2's value is now
+DECOMPOSITION, not de-drifting** — say so rather than quietly re-using the old justification.
+
+### 5c.4 ⭐ THE UML *(obligation ①; every box below EXISTS unless marked NEW)*
+
+```mermaid
+classDiagram
+    class IUiBundle {
+        <<interface>>
+        +string Name
+        +RegisterInto(UiBundleContext ctx)
+    }
+    note for IUiBundle "EXISTS - Fdp.Presentation (phase 1).\nUNCHANGED by phase 2: D1 keeps services\nin bundle constructors, not on the context."
+
+    class UiBundleContext
+    note for UiBundleContext "EXISTS. NOT widened - D1(b) rejected.\nRailed shut by A_bundle_cannot_reach_the_run_set."
+
+    class ShellCommandCoreBundle
+    note for ShellCommandCoreBundle "EXISTS - phase 1 adopter #1.\nCommands + menu + toolbar."
+
+    class SaveAndFileMenuBundle
+    note for SaveAndFileMenuBundle "NEW - bundle #1 (D3).\nOwns: shell save commands, Save-As per-kind\nregistry, Save All callback, File menu entries.\nTakes its own services as ctor args (D1a)."
+
+    class EditorSubsystem
+    class CgfSubsystem
+    note for EditorSubsystem "RegisterWindows: 1156 code lines today.\nD2: its save/menu block is DELETED, not wrapped."
+    note for CgfSubsystem "BuildAiShell + WireAssetCreation: ~500 code lines.\nD2: composes the SAME bundle."
+
+    IUiBundle <|.. ShellCommandCoreBundle
+    IUiBundle <|.. SaveAndFileMenuBundle
+    EditorSubsystem ..> SaveAndFileMenuBundle : composes
+    CgfSubsystem ..> SaveAndFileMenuBundle : composes the SAME one
+    SaveAndFileMenuBundle --> UiBundleContext : writes menu + toolbar
+```
+
+```mermaid
+sequenceDiagram
+    participant Root as EditorSubsystem / CgfSubsystem
+    participant BH as UiBundleHost
+    participant B as SaveAndFileMenuBundle
+    participant Reg as WindowManager / Menu / Toolbar
+
+    Note over Root: RegisterWindows(wm) - the existing host seam
+    Root->>B: new SaveAndFileMenuBundle(saveService, perKindRegistry, ...)
+    Note over Root,B: D1a - services arrive as CTOR ARGS, never off the context
+    Root->>BH: Compose([shellCore, saveAndFileMenu, ...], ctx)
+    BH->>B: RegisterInto(ctx)
+    B->>Reg: shell save commands + Save-As + File menu entries
+    Note over Root: D2 - the root's own copy of this block is DELETED
+```
+
+### 5c.5 ⭐ BUNDLE #1 — the items *(pending `D1`–`D4` approval)*
+| # | item | proof |
+|---|---|---|
+| **①** | inventory the save/File-menu cluster across BOTH roots and classify each service **bundle-private vs root-shared** *(`D1`)* | ⭐ the classification is written into this section before code |
+| **②** | `SaveAndFileMenuBundle` in `Hrot.Editor.AiShared.Windows`, beside `ShellCommandCoreBundle` | ⭐ its own rails |
+| **③** | ⭐⭐ **both roots compose it and DELETE their copies** *(`D2`)* | ⛔ a diff showing deletion, not addition |
+| **④** | ⭐⭐⭐ **an EQUIVALENCE rail, as `CE-072` demands**: the bundle emits exactly what the roots emitted — ids, sort orders, menu paths | 🔒 `CE-072`'s lesson: *a wrapper needs an equivalence rail the day it is introduced* |
+| **⑤** | the phase-0 parity rail stays green; ⛔ window **ids** unchanged *(§6: a rename resets users' layouts)* | |
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|
