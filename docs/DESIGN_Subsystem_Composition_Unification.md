@@ -323,6 +323,25 @@ is what the user was running. ⚠ *"the `--mode cgf` symptoms"* in §5.3 is shor
 | entity anchors | ids 1000–1007, ×3 | ids 1000–1007, ×2 |
 | verdict | ⭐ **subset holds** — no cluster-only shape. Editor-only: `LayerControlMask` · `MainMenuBinding` · `Sphere` *(authoring overlays — expected)* |
 
+#### 📐 And the `panels.gizmo` cells, measured on `--mode all`
+```
+SimHost: claims=True  answers=200   |   IG:       claims=True  answers=200
+ExCon:   claims=False answers=404   |   Scenario: claims=True  answers=200
+```
+⭐ **Every cell matches real behaviour**, and ExCon's honest `false` is what proves the cell is *measured*
+rather than defaulted. ⚠ The rail's anti-vacuity bound is **≥2, not ≥3** — deliberately: SimHost's buffer
+exists only when it has a `Visualization`, so demanding 3 would make the rail depend on whether `--mode all`
+gave SimHost a viewport, which is a fact about the **RUN-SET** that §5.2 forbids asserting.
+
+#### ⛔⛔ A THIRD REPORT — **the `/missions` prefix blocks the manifest rail** *(cross-lane, MCP)*
+📐 `The_manifest_describes_this_host_truthfully` is **RED before its matrix loop is reached**:
+`unclassifiedRoutes = [/missions/{networkId}, …/run, …/task, …/tasks]` — no prefix in
+`CapabilityManifest.CapabilityFor`. ⚠ **Pre-existing and outside this batch's diff** *(verified: `missions`
+appears nowhere in that file, and the diff touched only the matrix-row lines)*. ⇒ ⭐ the `panels.gizmo`
+assertion was **moved into `TheMapsAgreeOnBothHostsRails`**, because an assertion behind another lane's red
+gates nothing. ⛔ **When `/missions` is classified, move it back beside `time.drive` — and keep only ONE
+copy** *(ruling 9)*; both rails carry a pointer saying so.
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|
