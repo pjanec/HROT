@@ -1550,6 +1550,80 @@ given an id of its own. 🔒 **And it retro-corrects my own earlier readings:** 
 reported during `CE-076`'s gates were the LUCKY orderings — ⛔ **exactly what `CE-084`/`CE-088` say a green
 from these suites is worth.**
 
+### 5c.9 ⭐⭐⭐ PHASE 2 CLOSING INVENTORY — **what is left, and the order to do it in** *(measured `2026-08-27`)*
+
+> 🔒 **User question:** *"how big is the composition root part of the subsystems that is still left to unify?
+> what features does it cover?"* ⇒ ⭐⭐ **MEASURED, not estimated** — this programme has recorded **seven**
+> wrong size estimates, so the numbers below come with the commands that produced them.
+
+#### 5c.9.1 📐 THE ROOTS TODAY
+
+| root | total | ⭐ **code** | comment |
+|---|---:|---:|---:|
+| `EditorSubsystem` | 5 379 | **2 952** | 45 % |
+| `CgfSubsystem` | 2 656 | **1 225** | 54 % |
+| `ReplayBrowserSubsystem` | 1 086 | 794 | |
+| `ExConSubsystem` | 609 | 362 | |
+| `OrchestratorSubsystem` | 460 | 292 | |
+| `SimHostSubsystem` | 390 | 200 | |
+| `IgSubsystem` | 224 | 106 | |
+
+⛔⛔ **The bottom five are PANEL HOSTS, not shells** — they register windows only *(§5c.4c)* ⇒ ⭐ there is no
+shell composition to unify with them, and slice ② already covered the one thing they DO share.
+
+#### 5c.9.2 🔴 THE ARENA, AND WHAT IS STILL DUPLICATED IN IT
+
+📐 **The UI-composition members:** `EditorSubsystem.RegisterWindows` **1 083 code lines** ·
+CGF's `RegisterWindows` + `BuildAiShell` + `WireAssetCreation` = **62 + 178 + 217 = 457** ⇒ **~1 540 lines
+of arena.**
+
+📐 **Method:** strip comments and blank lines, normalise whitespace, then find maximal runs of
+**identical** code lines between the two roots *(minimum run 4)*.
+
+| ⭐ result | |
+|---|---|
+| **106 identical code lines**, in **22 runs** | ⇒ ⭐ **~7 % of the arena** |
+| of which ~26 are **braces / `break;`**, ~12 are **field declarations**, ~8 are the **shared calls' own invocations** *(`UiBundleHost.Compose`, `ScenarioMenuCommands.Register` — adoption, NOT duplication)* | ⇒ ⭐⭐ **~60 meaningful lines** |
+| and **~35 of those 60 are duplicated ARGUMENT LISTS to classes that are ALREADY shared** | ⇒ ⭐⭐⭐ **only ~24 lines of genuinely duplicated LOGIC remain** |
+
+⚠⚠ **THE LIMIT OF THIS MEASUREMENT, stated so nobody over-trusts it:** ⛔ **it finds VERBATIM duplication
+only.** 📌 Slice ①'s save delegates were *"semantically identical, syntactically drifted"* — ⛔ **they would
+NOT appear in this 106.** ⇒ ⭐⭐ **treat 106 as a FLOOR, not a ceiling**; the rest surfaces by READING, which
+is how slice ① found its.
+
+⭐ **Also fenced off, by the standing user ruling** *(§3.1: modules, systems and network translators are
+"a very sensitive topic where the unification does not apply")*: `Initialize` is **800** code lines on the
+editor and **344** on CGF. ⚠ A crude pattern match puts the module/system/network share at only **~9 %** and
+**~23 %**, so most of `Initialize` is per-host **asset and service construction** — ⛔ not a unification
+target either, and not counted in the arena above.
+
+#### 5c.9.3 ⭐ THE FOUR REMAINING CLUSTERS — **and the feasibility that orders them**
+
+| # | cluster · what it covers | 📐 owning assembly | ⛔ cycle? |
+|---|---|---|---|
+| **`J1`** | ⭐⭐ **the AI asset catalog + document factories** — per-kind contributors *(`asm => btreeContrib.LoadFrom(asm)`)*, the `switch (doc.Kind)` document dispatch, `hostServices: ctx?.View.Host`. **The only cluster with real LOGIC left (~24 lines)** | `Hrot.BTree.Editor` / `Hrot.Hsm.Editor` | 🔴 **YES — the same wall as slice ①** *(§5c.6.2)*: those projects reference AiShared, so AiShared can never name the contributors. ⇒ ⭐ contributors stay host-side as closures *(which is what the existing lambdas already are)*; only the ORCHESTRATION could move |
+| **`J2`** | ⭐ **asset creation** — `AssetCreateController`'s **five identical lambdas** *(`findCatalogued`, `refreshFromAssembly`, `refreshJsonContributor`, `openDocument`, `blueprintRootDir`)*, all derived from the same five host fields. **9 lines × 2** | ⭐⭐ **`Hrot.Editor.AiShared`** | ✅ **NO** |
+| **`J3`** | ⭐ **per-document canvas wiring** — `extraRenderers` *(`CE-071`'s comparison renderers)*, `openBlueprint`, `breakpointManager`. ~17 lines | ⭐⭐ **`Hrot.Editor.AiShared`** | ✅ **NO** |
+| **`J4`** | **blueprint edit services** — `PredicateCompiler` · `EditService` · `RefactorService`. ~4 lines | ⚠ **MIXED**: `Fdp.Toolkits` ✅ · AiShared ✅ · but `EditService` is in `Hrot.Blueprints.Editor` 🔴 | ⚠ partly |
+| ⛔ **NOT a cluster** | slice ①'s `CompileSources` adapter *(6 lines × 2)* | — | ⭐ **duplicated BY DESIGN** — it bridges the cycle and must live host-side *(§5c.6 `F2`)* |
+
+#### 5c.9.4 ⭐⭐⭐ THE RECOMMENDED ORDER — **feasibility first, and a STOP condition**
+
+| order | do this | why HERE |
+|---|---|---|
+| **①** | ⭐⭐ **`J2` — collapse `AssetCreateController`'s five lambdas into ONE services record** | ⭐ **cheapest and safest**: the class is already shared, the home has no cycle, and 📐 it changes **no window id, no toolbar id and no UI output** ⇒ ⛔ nothing for the goldens to move. ⚠ Still needs an equivalence rail *(`CE-072`)*: the five lambdas' behaviour must be identical |
+| **②** | ⭐ **`J3` — the per-document canvas wiring** | ⭐ same clean home, slightly larger. ⚠⚠ **GOLDEN-SENSITIVE**: it touches window construction ⇒ 🔒 **the three `ui-baseline` goldens are the acceptance**, exactly as in slice ② |
+| **③** | ⚠ **`J1` — the catalog/document-factory pipeline** — ⛔ **needs a DESIGN PASS FIRST, not a build** | 🔴 It is the biggest logic AND the cycle-bound one. ⭐ The question to answer in the design: **what can move when the contributors cannot?** 📌 Slice ①'s answer was *DTO-in*; the analogue here is probably *closure-in*, which the code already half-does — ⇒ ⚠ **the honest possibility is that `J1` is NOT worth unifying**, and the design must be allowed to conclude that |
+| **④** | ⛔ **`J4` — do NOT slice this alone** | ⭐ ~4 lines and a mixed home. **Fold it into `J1` if `J1` lands nearby; otherwise leave it** |
+
+⛔⛔⛔ **THE STOP CONDITION — write it down so nobody manufactures a phase 3.**
+⭐ After `J2` + `J3` the arena's verbatim duplication is **~30 lines**, essentially all argument lists.
+⇒ 🔒 **At that point STOP.** ⛔ **Do not build an `IUiBundle` for what remains** — 📌 slice ③ measured that a
+plan line implying a subsystem's worth of work was **four lines**, and the bundle seam is for duplicated
+registration **at scale** *(the diagnostics group's 20 sites)*, never for tidiness.
+⚠ **And re-measure before starting each of these** — 📐 the 106 was measured on `81becd479`; ⭐ the command
+is in §5c.9.2 and takes seconds.
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|
