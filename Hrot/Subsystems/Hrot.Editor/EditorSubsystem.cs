@@ -2610,6 +2610,14 @@ namespace Hrot.Editor
         {
             _wm = windowManager;
 
+            // ⭐⭐⭐ CE-058 — the perspective → atlas-key table, ONE shared list, registered here rather
+            //    than inside the `MainToolbar != null` block it used to sit in. ⚠ Two reasons, both
+            //    measured: it needs NOTHING but the WindowManager, and inside that guard it was
+            //    unreachable from the bare-ctor `RegisterWindows` path every window unit rail uses — so
+            //    no rail could see whether a host registers the keys. 📌 That blindness is what let CGF
+            //    ship with the text-button fallback.
+            Hrot.Editor.AiShared.Windows.PerspectiveIconKeys.Register(windowManager);
+
             // Colored menu icons: resolve semantic keys (e.g. "shell/save", "asset/btree") to
             // silk-atlas sprites, drawn in an aligned gutter by the shared menu renderers. Bound
             // to the WindowManager's own atlas so the texture matches what it renders with.
@@ -3112,21 +3120,12 @@ namespace Hrot.Editor
                 });
 
             // Toolbar debug icons (AiDebugCommands) gate IsEnabled on debugRegistry.ActiveSession. Mirror the active
-            // document's debug session into the registry so those icons enable/disable live. Side-effect-free setter
-            // (NOT TryAcquire/Release) — the blueprint session is eagerly attached + is DebugProbe.Sink and must NOT be
-            // detached. Blueprint only: BTree/HSM debug sessions are not yet attached/working → mapped to null for now.
-            void SyncActiveDebugSession()
-            {
-                Hrot.Editor.AiShared.Debug.IAiDebugSession? session = _aiDocumentManager?.Active?.Kind switch
-                {
-                    Hrot.Editor.AiShared.AssetKind.Blueprint => _blueprintDebugSession,
-                    // BTree/HSM debug sessions are not yet attached/working — intentionally null until wired.
-                    _ => null,
-                };
-                debugRegistry.SetActiveSession(session);
-            }
-            _aiDocumentManager.ActiveChanged += SyncActiveDebugSession;
-            SyncActiveDebugSession(); // initialise for whatever doc (if any) is already active
+            // document's debug session into the registry so those icons enable/disable live.
+            // ⭐⭐⭐ CE-059 — this was a LOCAL FUNCTION, so CGF could not reach it and its own
+            //    DebugSessionRegistry stayed empty for the process lifetime. The policy (and the
+            //    SetActiveSession-not-TryAcquire reasoning) now lives once in AiShared.
+            Hrot.Editor.AiShared.Debug.ActiveDebugSessionMirror.Wire(
+                _aiDocumentManager, debugRegistry, () => _blueprintDebugSession);
 
             // BATCH-26: Asset-pick action router — file kinds → AiDocumentManager.Open,
             // Scenario → IEditorLogic.LoadScenarioByName. Null-safe delegates guard
@@ -4428,13 +4427,10 @@ namespace Hrot.Editor
             {
                 var toolbarIconProvider = new SilkIconProvider(windowManager.Atlas);
 
-                // ── A. Perspective icon keys — register before creating the section so
-                //    PerspectiveToolbarSection.BuildRadioModel() resolves icons on first frame.
-                windowManager.RegisterPerspectiveIconKey("BTree",      "asset/btree");
-                windowManager.RegisterPerspectiveIconKey("HSM",        "asset/hsm");
-                windowManager.RegisterPerspectiveIconKey("Blueprint",  "asset/blueprint");
-                windowManager.RegisterPerspectiveIconKey("Blueprints", "asset/blueprint");
-                windowManager.RegisterPerspectiveIconKey("Scenario",   "perspective/editor");
+                // ── A. Perspective icon keys — ⭐⭐⭐ CE-058: the five inline calls that stood here are
+                //    now ONE shared table (`PerspectiveIconKeys`, AiShared) called at the TOP of this
+                //    method, so CGF gets them too and a bare-ctor rail can see them. 📐 Still ordered
+                //    before the section below, which is what BuildRadioModel's first frame needs.
 
                 // ⭐⭐ A2 — NO LABEL ALIAS. 📄 DESIGN_Perspective_Unification.md §3 A2.
                 // 📐 MTB2-T5 registered RegisterPerspectiveLabel("Editor", "Scenario") because the id and

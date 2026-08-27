@@ -22,6 +22,44 @@ namespace Fdp.Toolkit.Orchestration
         public const string ExercisesDirectoryName = "exercises";
         public const string EpisodesDirectoryName = "episodes";
 
+        /// <summary>
+        /// Name of the cluster-wide SHARED directory — the NAS stand-in on a single box.
+        /// <para>
+        /// ⭐⭐⭐ This is where AUTHORED scenarios live, for every host. ⛔ Not to be confused with
+        /// <see cref="GetNodeScenariosRoot(int)"/>, which is one node's STAGING copy: the orchestrator
+        /// stages shared → node, so a node's own directory is empty until something is staged into it
+        /// and is never the list the operator picks from.
+        /// </para>
+        /// <para>
+        /// 📐 <b>Measured <c>2026-08-27</c></b> — this member exists because the two hosts disagreed:
+        /// <c>EditorBootstrap.ScenariosRoot</c> resolved <c>shared/scenarios</c> (3 scenarios) while
+        /// <c>CgfSubsystem</c> resolved <c>nodes/node-N/scenarios</c> (a directory that did not exist),
+        /// so <c>--mode all</c> — which composes CGF and NOT the editor — showed an empty picker.
+        /// ⇒ the path SHAPE now has one definition, reachable from every assembly that needs it
+        /// (<c>Fdp.Toolkits</c>), instead of a literal <c>"shared"</c> in <c>Hrot.Orchestrator</c> that
+        /// <c>Hrot.CGF</c> cannot reference.
+        /// </para>
+        /// </summary>
+        public const string SharedDirectoryName = "shared";
+
+        /// <summary>The cluster-wide shared (NAS) root. See <see cref="SharedDirectoryName"/>.</summary>
+        public static string GetSharedRoot()
+            => GetSharedRoot(ResolveStagingRoot());
+
+        /// <inheritdoc cref="GetSharedRoot()"/>
+        public static string GetSharedRoot(string stagingRoot)
+            => Path.Combine(stagingRoot, SharedDirectoryName);
+
+        /// <summary>
+        /// The root the operator's scenario list comes from on EVERY host — <c>{shared}/scenarios</c>.
+        /// </summary>
+        public static string GetSharedScenariosRoot()
+            => GetSharedScenariosRoot(ResolveStagingRoot());
+
+        /// <inheritdoc cref="GetSharedScenariosRoot()"/>
+        public static string GetSharedScenariosRoot(string stagingRoot)
+            => Path.Combine(GetSharedRoot(stagingRoot), ScenariosDirectoryName);
+
         public static string GetNodeRecordingFileName(int nodeId)
             => $"node_{nodeId}.fdp";
 
