@@ -1,10 +1,15 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — phase 0 is READY-TO-BUILD (§5); phases 1+ get their own inventory + UML per batch,
-  appended here as they are designed (the frame's process: design the stage, build it, fold the as-built).
+build-state: phase 0 is BUILT (§5, as-built in §5.6–§5.9). Phase 1 is READY-TO-BUILD (§5b — inventory,
+  classDiagram and sequenceDiagram present). Phases 2+ get their own inventory + UML per batch, appended
+  here as they are designed (the frame's process: design the stage, build it, fold the as-built).
 updated: 2026-08-27
 current-answer: the whole file. This is the STANDING design for the composition-unification programme —
-  the approach, the constraints and the phase plan. §5 is the buildable phase-0 detail.
+  the approach, the constraints and the phase plan. §5 = phase 0 (BUILT; §5.6-§5.9 are its as-built),
+  §5b = phase 1 (READY-TO-BUILD).
+  ⚠ §5b.1 CORRECTS §2.1: the bundle seam is not missing — a FEATURE-level IWindowRegistrar exists in
+  Hrot.Blueprints.Editor with in-degree 24, and BlueprintWindowRegistrar is a working adopted precedent
+  for the whole pattern. Read §5b.1 before quoting §2.1's "nothing to share".
 design-basis: 🔒 Architect_Question_63_Unify_Subsystem_Composition.md — §9/§10 are USER RULINGS (canon),
   §12 settles the phase-0 venue, ⛔ §11 is SUPERSEDED. Also: batches/HANDOFF_Cgf_Bootstrap_Unification.md
   (the dispatched frame) · Architect_Question_62 (predecessor; its SHAPE and STAGING are superseded) ·
@@ -39,11 +44,20 @@ instance of that one root**, and the user found six of them by eye, in the UI, a
 hand-rollers' are **5325 · 2599 · 1086 · 602 · 460**.
 
 ### 2.1 ⭐⭐⭐ And the UI seam EXISTS — it is used the wrong way round
+> ⚠⚠ **PARTLY SUPERSEDED `2026-08-27` — read [§5b.1](#5b1--inventory-graph-2026-08-27--queries-recorded)
+> before quoting this section.** ⭐ The conclusion *("bring the UI half to the pattern the system half has")*
+> **stands**; ⛔ two of the measurements below are wrong, and the correction makes phase 1 **cheaper**:
+> 📐 there are **TWO** interfaces named `IWindowRegistrar` — a HOST-level one *(in-degree 8)* and a
+> **FEATURE-level one in `Hrot.Blueprints.Editor` with in-degree 24** — and `BlueprintWindowRegistrar` is
+> already a **working, adopted** bundle. ⇒ ⛔ *"there is nothing to share"* is FALSE.
+
 📐 `IWindowRegistrar` has **10** implementations and ⛔ **8 of them ARE the subsystems.** ⇒ the unit of
 composition is the **host**, not the **feature** — which is precisely why there is nothing to share.
 ⭐ Meanwhile the system half is **50 `IEcsModule`s**. ⇒ ⭐⭐ **the fix is to bring the UI half to the pattern
 the system half already has.** ⛔ Not a new abstraction — finishing one that exists.
 ⚠ `SharedAiWindowRegistrar` is the prototype: **built, in-degree 0, never adopted.**
+⚠ *(That last line is measurably wrong too: a DI rail resolves it, so it is **wired and host-unused** —
+worse than unadopted, because it looks adopted. §5b.1 has the measurement.)*
 
 ## 3. 🔒🔒🔒 THE CONSTRAINTS — **canon; every batch is bound by these**
 
@@ -411,6 +425,137 @@ capability cells, measured on --mode all:
 ⇒ ⭐ **A rail worth having:** *"drawing a map does not imply hosting mission editing"* — 📌 the cheap way to
 add a second provider member is to derive both from one *"is this host wired?"* flag, and that would make
 the manifest claim mission editing wherever it claims a map feed. **Red-proved by doing exactly that.**
+
+## 5b. ⭐⭐⭐ PHASE 1 — **the bundle seam.** `build-state: READY-TO-BUILD`
+
+> ⭐⭐⭐ **The headline finding, and it CORRECTS §2.1: the bundle seam is not missing. It exists TWICE, and
+> one of the two is a working, adopted precedent nobody has named.**
+
+### 5b.1 ⭐⭐ INVENTORY *(graph, `2026-08-27` — queries recorded)*
+```
+search_graph(name_pattern=".*WindowRegistrar.*")                     → total 52
+search_graph(name_pattern=".*IWindowRegistrar.*", relationship=IMPLEMENTS)
+grep -rn ": IWindowRegistrar|, IWindowRegistrar"                     → the implementor list (interface
+                                                                       dispatch defeats the resolver)
+search_graph(name_pattern=".*(Toolbar|GlobalMenu|MenuRegistr).*", label="Class") → total 33
+```
+
+#### 🔴🔴 TWO interfaces, same name, **completely different contracts**
+| interface | contract | in-degree |
+|---|---|---|
+| `Fdp.Toolkit.Runner.IWindowRegistrar` *(`FDP/Engine/Fdp.Presentation/ImGui/`)* | `void RegisterWindows(WindowManager)` — ⭐ **HOST**-level | **8** |
+| `Hrot.Blueprints.Editor.IWindowRegistrar` | `RegisterMenuEntry(path, action)` · `RegisterToolbarEntry(label, action)` · `RegisterShortcut(keybind, action)` — ⭐⭐⭐ **FEATURE**-level | **24** |
+
+⇒ ⭐⭐⭐ **The feature-level bundle contract phase 1 was going to invent ALREADY EXISTS and is used 24
+times.** ⛔ It is simply trapped in the `Hrot.Blueprints.Editor` assembly.
+📌 **The seam law's 4th instance this session** *(after `BP-487` · `CE-065` · `CE-066`)* — and the first one
+that is about a MISSING ABSTRACTION rather than a missing argument.
+
+#### ⭐ The host-seam implementors — **8 subsystems, and TWO that are not**
+| ⛔ the 8 hosts *(the drift surface)* | ⭐⭐ the 2 that behave like BUNDLES |
+|---|---|
+| `EditorSubsystem` · `CgfSubsystem` · `IgSubsystem` · `SimHostSubsystem` · `ExConSubsystem` · `OrchestratorSubsystem` · `ReplayBrowserSubsystem` · `EyesAndMuscleSubsystem` | **`BlueprintWindowRegistrar`** · **`SharedAiWindowRegistrar`** |
+
+⭐⭐⭐ **`BlueprintWindowRegistrar` IS the pattern, already working and already adopted.** 📐 Measured: it
+implements the **feature** seam *(consumed by `BlueprintEditorModule`)* **and** the **host** seam
+*(`RegisterWindows(WindowManager)`, adapting through a private `WindowManagerRegistry`)*, and
+`BlueprintEditorServiceCollectionExtensions` registers it as **both**.
+⇒ ⛔ **phase 1 invents nothing. It NAMES this shape, moves it to a shared assembly, and has hosts compose a
+LIST of them.**
+⚠ `SharedAiWindowRegistrar` is the same shape *minus the feature seam* — 7 windows, one `RegisterWindows`.
+📌 §2.1 called it *"built, in-degree 0, never adopted"*; ⭐ **that is now half-false** — a DI rail
+*(`SharedAiEditorDiTests.AddSharedAiEditor_Resolves_IWindowRegistrar_AsSharedAiWindowRegistrar`)* resolves
+it, so it is **wired in DI and unused by the hosts.** ⚠ Worse than unadopted: it looks adopted.
+
+#### ⭐ The engine-side registries a bundle writes into *(all shared already)*
+`MainToolbarManager` *(in 22)* · `GlobalMenuRegistry` *(in 43)* · `PerspectiveToolbarSection` *(in 8)* ·
+`ToolbarCommandAdapter` *(in 9)* — ⛔ **none of these needs changing.** ⭐ The gap is purely *who calls them*.
+
+### 5b.2 ⭐⭐ THE DESIGN
+⭐ Promote the `BlueprintWindowRegistrar` shape into a named seam that lives beside the shared UI, and let a
+host declare **a list**. ⛔ No new registry, no host conditional *(ruling 58)*, no nullable knob bag *(§3.3)*.
+
+```mermaid
+classDiagram
+    class IWindowRegistrar {
+        <<interface>>
+        +RegisterWindows(WindowManager wm)
+    }
+    note for IWindowRegistrar "EXISTS - Fdp.Toolkit.Runner (FDP/Engine/Fdp.Presentation/ImGui)\nHOST-level. 8 subsystems implement it. UNCHANGED by phase 1."
+
+    class IUiBundle {
+        <<interface>>
+        +string Name
+        +RegisterInto(UiBundleContext ctx)
+        +IReadOnlyList~string~ DeclaredSystems()
+    }
+    note for IUiBundle "NEW - the only new type. Named after the shape\nBlueprintWindowRegistrar already implements."
+
+    class UiBundleContext {
+        +WindowManager Windows
+        +GlobalMenuRegistry Menu
+        +MainToolbarManager Toolbar
+        +ReportUnserviceable(string what, string why)
+    }
+    note for UiBundleContext "NEW - one arg object over registries that ALL EXIST.\nNothing here registers a module, system or translator (3.2)."
+
+    class UiBundleHost {
+        +Compose(IReadOnlyList~IUiBundle~ bundles, UiBundleContext ctx)
+    }
+    note for UiBundleHost "NEW - the ONE place a list is walked.\nA smaller list is a subset, never a branch."
+
+    class BlueprintWindowRegistrar
+    note for BlueprintWindowRegistrar "EXISTS - Hrot.Blueprints.Editor. THE PRECEDENT:\nfeature seam + host seam, registered as both in DI."
+    class SharedAiWindowRegistrar
+    note for SharedAiWindowRegistrar "EXISTS - Hrot.Editor.AiShared. 7 windows.\nWired in DI, composed by NO host - phase 1's first adopter."
+    class CgfEditorShellToolbar
+    note for CgfEditorShellToolbar "EXISTS - the ONE shared toolbar+menu table.\nAlready derives its per-host subset. Becomes a bundle."
+
+    class EditorSubsystem
+    class CgfSubsystem
+
+    IWindowRegistrar <|.. EditorSubsystem
+    IWindowRegistrar <|.. CgfSubsystem
+    IWindowRegistrar <|.. SharedAiWindowRegistrar
+    IWindowRegistrar <|.. BlueprintWindowRegistrar
+    IUiBundle <|.. SharedAiWindowRegistrar
+    IUiBundle <|.. CgfEditorShellToolbar
+    UiBundleHost --> IUiBundle
+    UiBundleHost --> UiBundleContext
+    EditorSubsystem ..> UiBundleHost : composes a list
+    CgfSubsystem ..> UiBundleHost : composes a SUBSET of the same list
+```
+
+```mermaid
+sequenceDiagram
+    participant Host as CgfSubsystem (or Editor)
+    participant BH as UiBundleHost
+    participant B as IUiBundle
+    participant Reg as WindowManager / Menu / Toolbar
+
+    Note over Host: RegisterWindows(wm) - the EXISTING host seam, unchanged
+    Host->>BH: Compose(myBundles, new UiBundleContext(wm, menu, toolbar))
+    loop one per bundle
+        BH->>B: RegisterInto(ctx)
+        B->>Reg: RegisterWindow / menu item / toolbar entry
+        B->>BH: ReportUnserviceable(what, why) when this host cannot service it
+    end
+    BH-->>Host: composed
+    Note over BH: NEVER registers a module, system or translator
+```
+
+### 5b.3 The items
+| # | item | proof |
+|---|---|---|
+| **①** | `IUiBundle` + `UiBundleContext` + `UiBundleHost` in the shared assembly | T0: composing a list registers every bundle's windows; a bundle that throws is named, not swallowed |
+| **②** | `SharedAiWindowRegistrar` becomes the FIRST bundle and both hosts compose it | ⭐ it is already DI-wired and host-unused ⇒ the cheapest real adopter |
+| **③** | `CgfEditorShellToolbar` becomes a bundle | ⭐ already derives its per-host subset ⇒ proves the seam on the surface `CE-016`…`CE-045` hardened |
+| **④** | rail: **a host's bundle list is a LIST, not a branch** | ⛔ source scan: no `if (host==…)` inside any bundle *(ruling 58)* |
+| **⑤** | rail: **no bundle registers a module/system/translator/participant** | ⭐ §3.2 made checkable — the constraint that protects axes 2–3 |
+
+⛔⛔ **Explicitly NOT in phase 1:** the two `IWindowRegistrar` names are **left alone**. ⚠ Renaming the
+Blueprints one is a 24-site rename across an assembly boundary for readability only — ⭐ it belongs in its
+own batch, with its own argument, ⛔ not smuggled into the batch that introduces the seam.
 
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
