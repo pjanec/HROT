@@ -16,7 +16,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
 > 🔒🔒 **Branch: `claude/reset-working-branch-qd1qpv`** *(re-pointed by the USER, `2026-08-23`)*. ⛔ Push
-> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-089`)**; ⚠ `BP-` are this lane's HISTORICAL
+> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-091`)**; ⚠ `BP-` are this lane's HISTORICAL
 > variable-model ids, tracker areas **`A`–`G`**.
 > ⚠⚠ **This lane MOVED from `claude/hrot-implementation-j1jvin`** — ⛔ any document still naming `j1jvin`
 > as this lane is stale; `.claude/CLAUDE.md`'s lane table *(`6b14d13fe`)* is authoritative.
@@ -38,7 +38,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 > **②** [`batches/HANDOFF_Cgf_Bootstrap_Unification.md`](batches/HANDOFF_Cgf_Bootstrap_Unification.md) — the dispatched FRAME. ⚠ **stale on two points**, see the STATUS block.
 > **③** [`Architect_Question_62_Unify_The_Composition_Root.md`](Architect_Question_62_Unify_The_Composition_Root.md) — the predecessor; ⚠ AQ63 §3 supersedes its SHAPE and STAGING.
 >
-> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-089`**.
+> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-091`**.
 > ⭐ **RELEARN** before acting on this file.
 
 ## ✅✅✅ 0.0 — **PHASE 0 IS DONE** *(`2026-08-27`, head `9bff523c7`)*
@@ -162,7 +162,8 @@ would have shipped GREEN. ⇒ ⭐⭐ **a golden that has never been read is not 
 | **⓪** | 🛠 **capture + commit the three goldens on TODAY'S code** | ⚠⚠ a golden taken after bundle #1 lands **enshrines whatever that bundle did** |
 | **①** | ✅✅ **DONE `2026-08-27` — `CE-078`.** Shared `AiAssetSavers` + `AiAssetReload` in `Hrot.Editor.AiShared/Documents/`; both hosts call them; `_btreeQuickReloadTrigger`/`_hsmQuickReloadTrigger` DELETED. 📄 design §5c.6 *(+ §5c.6.7 as-built)* | ✅ 12-fact equivalence rail, **3 inverse-edit red-proofs**; T3 baseline 5/5 with goldens **unchanged** |
 | **②** | ✅✅ **DONE `2026-08-27` — `CE-082`.** `DiagnosticsWindowsBundle` + `DiagnosticsHostServices` in `Hrot.Presentation/Windows/`; all FOUR hosts compose it; IG/SimHost gained their first `Compose` call. 📐 **20 sites / 4 hosts, NOT 22 / 5** *(see the estimates list)*. 📄 design §5c.7 *(+ §5c.7.6 as-built)* | ✅ 9-fact equivalence rail, **3 inverse-edit red-proofs (8/9 red)**; ⭐⭐⭐ **T3 baseline 5/5 with the three goldens UNCHANGED** — the load-bearing proof for a registration move |
-| **③** | 🔴🔴 **START HERE NEXT — the editor/CGF-only shell surfaces** *(menus, toolbar, perspectives)* | ⭐ 2 hosts only; the N-host pattern is now proven at N=4. ⚠ **Check the reference direction FIRST** *(§0.0d-②)* — `Hrot.Presentation` worked for slice ②, `Hrot.Editor.AiShared` could not for slice ① |
+| **③** | ✅✅ **DONE `2026-08-27` — `CE-089`, and it was ALREADY 90% SHARED.** 📐 Menus: **0 hand-written registrations in either host**; perspective buttons/icons/AI-debug commands: already one implementation each. ⭐ What remained: `ShellTimeControlToolbar` *(4 lines × 2, the separator now a NAMED PARAMETER)* + two dead CGF guards. ⛔ No bundle — ceremony over 4 lines. 📄 design §5c.8 | ✅ 6-fact rail, 3 red-proofs (4/6 red); toolbar rails + all three goldens **UNCHANGED** |
+| ⭐⭐⭐ **PHASE 2's SLICE LIST IS NOW EMPTY** | 🔒 ⓪①②③ all done. ⚠ **Before inventing a slice ④, MEASURE** — slice ③ was ~4 lines against a plan line that implied a subsystem's worth of work. ⭐ Open questions instead: `CE-087` *(profiler missing from the shipped layout — needs YOUR windowed re-save)*, `CE-086`, `CE-090`, `CE-073`, and the flaky-suite pair `CE-084`/`CE-088` |
 
 ⛔⛔ **EVERY slice carries an EQUIVALENCE rail** — 🔒 `CE-072`'s lesson: *a wrapper needs an equivalence rail
 the day it is introduced*, because **when a wrapper becomes the only production path to tested code, the

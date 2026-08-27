@@ -1422,6 +1422,134 @@ over these would be false:
 | `Hrot.SimHost.Tests` | 1 failed / 768 / 3 skip | ⭐ **1 / 768 / 3 — identical** | ⛔ pre-existing *(replay/recording)* |
 | `Hrot.Presentation.Tests` | 149/149 green, ⚠ **but FLAKY** | — | ⛔ **pre-existing flake, reproduced 3-of-6 with the new class EXCLUDED**; ⭐ **the identity ROTATES** *(`EntityDragGizmoTests`, `RouteWaypointGizmoTests`, `TheDragCommitsThroughTheWriteRouterTests` ×2 — all gizmo/ECS-write)*. 📌 The `DEBT-AIB-030` shape; filed as **`CE-084`** |
 
+### 5c.8 🔴🔴 SLICE ③ — **MOSTLY ALREADY DONE. The measurement, and the little that remains.** `build-state: READY-TO-BUILD` *(`2026-08-27`)*
+
+> ⛔⛔ **The plan's slice ③ said *"the editor/CGF-only shell surfaces (menus, toolbar, perspectives)"* as if
+> they were unshared. 📐 MEASURED: they are almost entirely shared ALREADY** — by slice A, `E2`, `E3`,
+> `CE-016`, `CE-054`, `CE-058` and `CE-059`, all of which landed after that plan line was written.
+> ⇒ ⭐⭐ **the seam law, again and in its purest form: the shared thing existed and was already adopted.**
+> ⛔ **Building an `IUiBundle` here would be ceremony over ~5 lines**, and it would put toolbar ids and sort
+> orders — which the `ui-baseline` golden pins — at risk for no gain.
+
+#### 5c.8.1 📐 THE INVENTORY — **what is already one implementation**
+
+| shell surface | 📐 measured state |
+|---|---|
+| ⭐⭐ **menus** | ✅ **ALREADY ONE.** 📐 `grep -c` for menu registration in both composition roots: **0 and 0.** Every item comes from `ShellCommandCoreBundle` + `ScenarioMenuCommands`. ⇒ ⛔ **nothing to unify** |
+| ⭐⭐ **perspective toolbar buttons** | ✅ **ALREADY ONE CLASS**, same `sortOrder: 20`, same icon-provider shape, both hosts *(`CE-054`)*. ⚠ One asymmetry left, and it is **DEAD CODE not drift** — see `H2` |
+| ⭐ **perspective icon keys** | ✅ **ALREADY ONE TABLE** — `PerspectiveIconKeys` in AiShared *(`CE-058`)*; five inline calls collapsed |
+| ⭐ **AI-debug command group** | ✅ **ALREADY A SHARED REGISTRAR** both hosts call — `AiDebugCommands.Register` *(`CE-059`)* |
+| ⭐ **the File/save/open toolbar + menu table** | ✅ **ALREADY ONE** — `CgfEditorShellToolbar` via `ShellCommandCoreBundle`, one registration list *(ruling 58)* |
+| ⚠⚠ **the toolbar TIME-CONTROL group** | 🔴 **STILL DUPLICATED** — the only real one left. See `H1` |
+| ⚠ **the STATUS-BAR time section** | ⛔ **NOT a duplicate to collapse:** different section classes and per-host ids *(`editor_time_controls` vs `cgf_time_controls`)*, and the editor's takes four host services CGF has no analogue for. ⭐ Left alone, deliberately |
+
+#### 5c.8.2 ⭐ WHAT ACTUALLY REMAINS — two items, both small
+
+| # | 📐 measured | decision |
+|---|---|---|
+| **`H1`** | **4 IDENTICAL LINES × 2 hosts**: `new MainToolbarTimeControlSection(facade)` then `RegisterEntry("TimeControlGroup", sortOrder: 0, declaredHeight: DefaultEntryHeight, …Render)` — `EditorSubsystem:4715` vs `CgfSubsystem:1359`. ⚠ They differ in **one** thing: the editor also emits `RegisterSeparator("ToolbarSep_TimeToPersp", sortOrder: 10)`, which **`CE-016` §7 deliberately DELETED on CGF** *(it separated the time group from a perspective group CGF did not then register)* | ⭐⭐ **ONE shared registrar taking the `ITimeTransportFacade` and an explicit `withSeparator` flag.** ⛔ Not a bundle — a static registrar beside the section it registers. ⭐⭐⭐ **The separator becomes a NAMED PARAMETER instead of a silent divergence**, which is the whole point: the difference stays, but it is now declared |
+| **`H2`** | ⛔ **CGF carries TWO DEAD `if (windowManager.MainToolbar != null)` GUARDS** *(`:1357`, `:2161`)*. 📐 Verified at source: `WindowManager` line 406 is `private readonly MainToolbarManager _mainToolbar = new();` exposed by an expression-bodied property ⇒ **it can never be null**. ⚠ The editor already removed its own copy and left the measurement in a comment *(`:4525`)* | ⭐ **Delete both.** ⛔ A guard against an impossible state reads as a real capability check and invites the next reader to add a third |
+
+⛔⛔ **What slice ③ does NOT do, and why:** no window id, toolbar id or sortOrder changes. 🔴 The
+`ui-baseline` goldens pin the window set and `TheToolbarLayoutIsOneListTests` pins toolbar ids + sort orders
++ menu paths ⇒ ⭐ **an unchanged golden and an unchanged toolbar rail are the acceptance**, exactly as in
+slice ②.
+
+#### 5c.8.3 ⭐ THE UML *(obligation ①; every box EXISTS unless marked NEW)*
+
+```mermaid
+classDiagram
+    class ShellTimeControlToolbar {
+        <<NEW · static · Hrot.UI.Common.Panels>>
+        +Register(toolbar, facade, withSeparator)
+    }
+    class MainToolbarTimeControlSection {
+        Hrot.UI.Common.Panels
+        +Render()
+    }
+    class ITimeTransportFacade {
+        <<interface · existing seam>>
+    }
+    class EditorTimeTransportFacade {
+        Hrot.Editor.UI
+    }
+    class ClusterTimeTransportAdapter {
+        Hrot.CGF and SimHost
+    }
+    class MainToolbarManager {
+        Fdp.Presentation
+        +RegisterEntry()
+        +RegisterSeparator()
+    }
+    class EditorSubsystem
+    class CgfSubsystem
+    ITimeTransportFacade <|.. EditorTimeTransportFacade : realises
+    ITimeTransportFacade <|.. ClusterTimeTransportAdapter : realises
+    ShellTimeControlToolbar ..> MainToolbarTimeControlSection : constructs
+    ShellTimeControlToolbar ..> MainToolbarManager : registers into
+    ShellTimeControlToolbar ..> ITimeTransportFacade : takes
+    EditorSubsystem ..> ShellTimeControlToolbar : withSeparator true
+    CgfSubsystem ..> ShellTimeControlToolbar : withSeparator false
+```
+
+⭐ **The two `withSeparator` arrows ARE the design.** ⛔ Before this, that difference lived as one host
+having a line the other had deleted — visible only to someone diffing two 3 000-line files.
+
+```mermaid
+sequenceDiagram
+    participant Host as EditorSubsystem or CgfSubsystem
+    participant Reg as ShellTimeControlToolbar (NEW)
+    participant Section as MainToolbarTimeControlSection
+    participant Toolbar as MainToolbarManager
+    Host->>Host: build its own ITimeTransportFacade
+    Note over Host: editor = EditorTimeTransportFacade, CGF = ClusterTimeTransportAdapter
+    Host->>Reg: Register(toolbar, facade, withSeparator)
+    Reg->>Section: new MainToolbarTimeControlSection(facade)
+    Reg->>Toolbar: RegisterEntry TimeControlGroup sortOrder 0
+    Reg->>Toolbar: RegisterSeparator sortOrder 10 -- only when withSeparator
+    Reg-->>Host: done
+```
+
+#### 5c.8.4 The items
+
+| # | item | proof |
+|---|---|---|
+| **①** | `ShellTimeControlToolbar` beside `MainToolbarTimeControlSection`; both hosts call it *(`H1`)* | ⛔ a diff showing deletion at both sites |
+| **②** | delete CGF's two dead `MainToolbar != null` guards *(`H2`)* | 📐 the `readonly … = new()` measurement |
+| **③** | ⭐⭐ **an equivalence rail**: the entry id + sortOrder + declared height are unchanged, and the separator appears **only** for the host that asked | 🔒 `CE-072` |
+| **④** | ⭐⭐ `TheToolbarLayoutIsOneListTests` and the three `ui-baseline` goldens stay **UNCHANGED** | ⛔ any movement is a regression |
+
+#### 5c.8.5 ✅ AS-BUILT *(`2026-08-27`, `CE-089`)* — **built as designed; the headline IS the measurement**
+
+⭐⭐⭐ **Slice ③'s real deliverable was the INVENTORY.** 📐 Menus: **0 hand-written registrations in either
+host**. Perspective buttons, icon keys, AI-debug commands, the File/save/open table: **already one
+implementation each**. ⇒ ⛔ what the plan called a slice was **~4 duplicated lines and two dead guards**.
+🔒 **The seam law in its purest form** — and worth naming as the *seventh* wrong size estimate this
+programme has recorded.
+
+| ⭐ built | |
+|---|---|
+| **`H1`** | `ShellTimeControlToolbar.Register(toolbar, facade, withSeparator)` beside the section it registers; both hosts call it. ⭐⭐ **The editor/CGF separator difference is now a NAMED PARAMETER** instead of a line one host has and the other deleted |
+| **`H2`** | CGF's **two dead `MainToolbar != null` guards deleted** — 📐 `WindowManager:406` is `private readonly MainToolbarManager _mainToolbar = new();` behind an expression-bodied property |
+| ⛔ **NOT built** | an `IUiBundle` for this. ⭐ A bundle is for duplicated registration at SCALE *(the diagnostics group's 20 sites)*; wrapping four lines would be ceremony and would risk the sort orders the toolbar rail pins |
+
+⚠ **One decision inside the frame, recorded because it is a judgement and not a measurement:** `CE-054`
+has since given CGF the perspective group the deleted separator used to precede, so `withSeparator: true`
+there would now be defensible. ⛔ **Left `false`** — turning it on is a **visible toolbar change**, and this
+slice changed no toolbar output. ⭐ Filed as a one-line question rather than taken silently.
+
+⭐ **Red-proofs — 3 inverse edits, 4/6 red**, and the two survivors were correct *(the height and null-check
+rails, which no edit touched)*: renaming the entry id · moving the separator to sortOrder 11 · making the
+separator unconditional.
+
+⚠⚠ **PRE-EXISTING RED, proven against base sha `dce1638cd`:** `Hrot.Presentation.Tests` reports
+**1 failed / 148 passed** at base too — `ScenarioFileServiceTests.SaveLoad_RoundTrip_PreservesEntitiesAndComponents`.
+📐 It **passes 4/4 in isolation** and fails only in the full run ⇒ **order-dependent shared state**, the same
+`Hrot.ScenarioEditor.Tests` family as `CE-084`'s rotating set, so it is folded into that row rather than
+given an id of its own. 🔒 **And it retro-corrects my own earlier readings:** the "149/149 green" this suite
+reported during `CE-076`'s gates were the LUCKY orderings — ⛔ **exactly what `CE-084`/`CE-088` say a green
+from these suites is worth.**
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|

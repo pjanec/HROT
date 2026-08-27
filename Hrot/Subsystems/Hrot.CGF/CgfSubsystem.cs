@@ -1354,21 +1354,18 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    ⭐ Same shared section class, same `ITimeTransportFacade` seam, same ids and sort orders
             //    as the editor — ⛔ nothing invented: a runtime node that can be paused by a breakpoint
             //    (slice 4) plainly wants the transport where the editor puts it.
-            if (windowManager.MainToolbar != null)
-            {
-                var toolbarTimeSection =
-                    new Hrot.UI.Common.Panels.MainToolbarTimeControlSection(_clusterTimeAdapter);
-
-                windowManager.MainToolbar.RegisterEntry(
-                    "TimeControlGroup", sortOrder: 0,
-                    declaredHeight: Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight,
-                    toolbarTimeSection.Render);
-
-                // ⛔ CE-016 §7: the dangling `ToolbarSep_TimeToPersp` is DELETED. 📐 It separated the
-                //    time controls from a PERSPECTIVE group this host never registered — a rule drawn
-                //    against nothing. ⚠ The shared helper now emits separators only when the group
-                //    behind them produced an entry, so this class of defect cannot return.
-            }
+            // ⭐⭐ PHASE 2 SLICE ③ — one shared registrar, `ShellTimeControlToolbar` (design §5c.8 H1).
+            // ⛔ `withSeparator: false` keeps CE-016 §7's decision: the dangling `ToolbarSep_TimeToPersp`
+            //    separated the time controls from a PERSPECTIVE group — ⚠ and although CE-054 has since
+            //    given this host that group, the separator stays OFF here because turning it on is a
+            //    visible toolbar change and this slice changes no toolbar output. 📌 Now a declared
+            //    parameter instead of a line one host has and the other deleted.
+            // ⚠ THE `MainToolbar != null` GUARD IS GONE — a DEAD BRANCH (design §5c.8 H2): 📐 measured,
+            //   `WindowManager:406` is `private readonly MainToolbarManager _mainToolbar = new();` behind
+            //   an expression-bodied property, so it can never be null. The editor removed its own copy
+            //   for the same reason.
+            Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
+                windowManager.MainToolbar, _clusterTimeAdapter, withSeparator: false);
         }
 
         // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
@@ -2158,9 +2155,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   ⛔ no CGF-private switcher, and nothing new invented.
         // ⚠ Guarded on MainToolbar for the reason CgfEditorShellToolbar documents: a toolbar-less host
         //   still composes commands, and the section only lays out buttons.
-        if (windowManager.MainToolbar != null)
-            _perspectiveToolbarSection = new Fdp.Presentation.WindowManager.PerspectiveToolbarSection(
-                windowManager, toolbarIcons, windowManager.MainToolbar, sortOrder: 20);
+        // ⚠ PHASE 2 SLICE ③ (H2) — the `MainToolbar != null` guard is GONE: 📐 measured, `WindowManager`
+        //   exposes a `readonly … = new()` field, so it is never null. ⛔ A guard against an impossible
+        //   state reads as a real capability check and invites the next reader to add a third.
+        _perspectiveToolbarSection = new Fdp.Presentation.WindowManager.PerspectiveToolbarSection(
+            windowManager, toolbarIcons, windowManager.MainToolbar, sortOrder: 20);
 
         // ⭐⭐⭐ CE-059 — THE AI-DEBUG COMMAND GROUP. 📄 The user's 2026-08-27 `--mode all` check.
         // ⚠⚠ THIS REVERSES THE ARGUED OMISSION recorded ~90 lines below (now marked SUPERSEDED). ⭐ The
