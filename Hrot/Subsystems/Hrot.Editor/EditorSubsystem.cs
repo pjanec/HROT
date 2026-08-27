@@ -4639,88 +4639,64 @@ namespace Hrot.Editor
                 windowManager.RegisterWindow(new EditorZoneEditorWindow(_zoneEditorPanel, _zoneAdapter));
 
             // ?? FDP framework panels (entity inspector + event browser) ???????
-            windowManager.RegisterWindow(new FdpEntityInspectorWindow(
-                "editor_fdp_inspector", "Editor Entity Inspector", "Scenario",
-                _fdpEntityInspector,
-                () => _fdpRepoAdapter,
-                () => _fdpInspectorState,
-                EditorWindowColor.TitleBar));
-
-            // Wire component-editor reflector and "Inspect..." context menu.
-            MapPickServiceBridge? editorPickBridge = _mapPickAdapter != null && _world != null
-                ? new MapPickServiceBridge(_mapPickAdapter, _world)
+            // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites are now ONE shared bundle,
+            //    `Hrot.Presentation.Windows.DiagnosticsWindowsBundle`, composed by all FOUR hosts
+            //    (20 sites before this). 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.7.
+            //
+            // ⭐⭐⭐ THE `_kernel != null` GUARD IS PRESERVED, and this is the load-bearing detail:
+            //    📐 this host guarded its architecture + profiler windows on a non-null kernel and bound
+            //    the kernel EAGERLY, while the other three bound it lazily and did not guard. ⛔ Unifying
+            //    to the lazy form would make this host register two windows it currently may not — which
+            //    MOVES the registered window set and therefore the ui-baseline golden. ⇒ ⭐ passing null
+            //    for both is how the guard survives: ruling 49, a host that cannot service a window does
+            //    not register it (design §5c.7.2 G1).
+            var editorArchitecturePanel = _kernel != null
+                ? new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                      new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_kernel))
                 : null;
-            // ⭐⭐ A1 — this argument IS the perspective, despite its old "ownerName" spelling.
-            // 📐 Measured 2026-08-23: FdpEntityInspectorHelper assigns it to
-            //    Reflector.EditOwningPerspective AND passes it as the FdpEntityWatchWindow's
-            //    owningPerspective, and derives the spawned window's id prefix from it. ⇒ ⛔ leaving
-            //    "Editor" here would spawn every "Inspect..." watch window into a perspective NO window
-            //    claims — invisible, with nothing to explain why.
-            // ⚠ The id prefix moves editor_watch_* → scenario_watch_*: harmless, because those ids embed
-            //    a fresh Guid.NewGuid() per window and so were never restorable from a layout file.
-            FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
-                _fdpEntityInspector,
-                windowManager,
-                "Scenario",
-                () => _fdpRepoAdapter,
-                editorPickBridge,
-                EditorWindowColor.TitleBar);
+            Func<System.Collections.Generic.List<Fdp.ModuleHost.ModuleStats>?>? editorExecutionStats =
+                _kernel != null ? () => _kernel?.GetExecutionStats() : null;
 
-            // Register the blackboard view provider so the editor projects typed DTO params.
-            _fdpEntityInspector.Reflector.AddBufferViewProvider(new Hrot.Presentation.Renderers.BrainBlackboardViewProvider());
-            // Register the heavy blackboard view provider for Blackboard1024.
-            _fdpEntityInspector.Reflector.AddBufferViewProvider(new Hrot.Presentation.Renderers.Blackboard1024ViewProvider());
-
-            // Inject EditContextFactory so TryOpenEditWindow passes ParamsDtoType/HeavyDtoType to StructEdit.
-            var capturedEditorRegistry = _behaviorRegistry;
-            _fdpEntityInspector.Reflector.EditContextFactory = (session, e, type) =>
-            {
-                if (type != typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard)
-                 && type != typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024)) return null;
-                if (!session.HasComponent(e, typeof(Fdp.Toolkit.Behavior.Components.BehaviorState))) return null;
-                var ds = session.GetComponent(e, typeof(Fdp.Toolkit.Behavior.Components.BehaviorState))
-                    as Fdp.Toolkit.Behavior.Components.BehaviorState?;
-                if (ds == null) return null;
-                if (capturedEditorRegistry?.TryGetDefinition(ds.Value.ActiveBehaviorHash, out var def) != true) return null;
-                if (def == null) return null;
-                if (type == typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard))
+            Fdp.Toolkit.Runner.UiBundleHost.Compose(
+                new Fdp.Toolkit.Runner.IUiBundle[]
                 {
-                    if (def.ParamsDtoType == null) return null;
-                    return new StructEdit.Core.EditContext().With("ParamsDtoType", def.ParamsDtoType);
-                }
-                // Blackboard1024
-                if (def.HeavyDtoType == null) return null;
-                return new StructEdit.Core.EditContext().With("HeavyDtoType", def.HeavyDtoType);
-            };
+                    new DiagnosticsWindowsBundle(new DiagnosticsHostServices(
+                        IdPrefix:       "editor_",
+                        TitlePrefix:    "Editor",
+                        // ⭐⭐ A1 — the PERSPECTIVE, despite the helper's old "ownerName" spelling.
+                        //    📐 Measured 2026-08-23: it becomes Reflector.EditOwningPerspective, the
+                        //    watch window's owningPerspective, AND that window's id prefix. ⇒ ⛔ leaving
+                        //    "Editor" here would spawn every "Inspect…" watch window into a perspective
+                        //    NO window claims — invisible, with nothing to explain why.
+                        Perspective:    "Scenario",
+                        Inspector:      _fdpEntityInspector,
+                        RepoAdapter:    () => _fdpRepoAdapter,
+                        InspectorState: () => _fdpInspectorState,
+                        EventBrowser:   _fdpEventBrowser,
+                        TitleBarColor:  EditorWindowColor.TitleBar,
+                        ArchitecturePanel: editorArchitecturePanel,
+                        ExecutionStats:    editorExecutionStats,
+                        PickBridge: _mapPickAdapter != null && _world != null
+                            ? new MapPickServiceBridge(_mapPickAdapter, _world)
+                            : null)),
+                },
+                new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
-            windowManager.RegisterWindow(new FdpEventBrowserWindow(
-                "editor_fdp_events", "Editor Event Browser", "Scenario",
-                _fdpEventBrowser,
-                EditorWindowColor.TitleBar));
+            // ⭐⭐ PHASE 2 SLICE ② — the ~30-line blackboard-reflection block that used to sit here was
+            //    duplicated VERBATIM in CgfSubsystem. ⛔ NOT in the bundle: IG/SimHost do none of it
+            //    (§5c.7 F5 / G3). ⭐ One implementation, exactly two callers.
+            Hrot.Presentation.Windows.BlackboardReflection.Apply(_fdpEntityInspector, _behaviorRegistry);
 
-            // ?? Message Log: register hot-reload source ???????????????????????
+            // ── Message Log: register hot-reload source ───────────────────────
             // The NLog source and the global window are created by Program.cs.
             // Here we attach the Editor-specific Hot Reload source so its messages
             // appear as a second tab in the shared Message Log window.
+            // ⚠ Unrelated to the diagnostics bundle above — kept verbatim, and kept HERE so its
+            //   ordering relative to the windows above is unchanged.
             if (_hotReloadSource != null)
                 windowManager.MessageLogRegistry?.RegisterSource(_hotReloadSource);
             // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
             windowManager.MessageLogRegistry?.RegisterSource(AiBehaviorLogTarget.SharedInstance);
-
-            if (_kernel != null)
-            {
-                windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
-                    "editor_architecture_diagnostics", "Editor Architecture Diagnostics", "Scenario",
-                    new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
-                        new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_kernel)),
-                    EditorWindowColor.TitleBar));
-
-                // BP-327 — global window: the module/system execution-stats profiler.
-                windowManager.RegisterWindow(new SystemProfilerWindow(
-                    "editor_system_profiler", "Editor System Profiler", "Scenario",
-                    () => _kernel?.GetExecutionStats(),
-                    EditorWindowColor.TitleBar));
-            }
 
             // ?? Time transport controls in status bar ?????????????????????????
             if (_previewController != null && _timeController != null && _world != null

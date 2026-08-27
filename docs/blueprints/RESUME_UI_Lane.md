@@ -16,7 +16,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
 > 🔒🔒 **Branch: `claude/reset-working-branch-qd1qpv`** *(re-pointed by the USER, `2026-08-23`)*. ⛔ Push
-> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-082`)**; ⚠ `BP-` are this lane's HISTORICAL
+> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-085`)**; ⚠ `BP-` are this lane's HISTORICAL
 > variable-model ids, tracker areas **`A`–`G`**.
 > ⚠⚠ **This lane MOVED from `claude/hrot-implementation-j1jvin`** — ⛔ any document still naming `j1jvin`
 > as this lane is stale; `.claude/CLAUDE.md`'s lane table *(`6b14d13fe`)* is authoritative.
@@ -38,7 +38,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 > **②** [`batches/HANDOFF_Cgf_Bootstrap_Unification.md`](batches/HANDOFF_Cgf_Bootstrap_Unification.md) — the dispatched FRAME. ⚠ **stale on two points**, see the STATUS block.
 > **③** [`Architect_Question_62_Unify_The_Composition_Root.md`](Architect_Question_62_Unify_The_Composition_Root.md) — the predecessor; ⚠ AQ63 §3 supersedes its SHAPE and STAGING.
 >
-> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-082`**.
+> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-085`**.
 > ⭐ **RELEARN** before acting on this file.
 
 ## ✅✅✅ 0.0 — **PHASE 0 IS DONE** *(`2026-08-27`, head `9bff523c7`)*
@@ -161,8 +161,8 @@ would have shipped GREEN. ⇒ ⭐⭐ **a golden that has never been read is not 
 |---|---|---|
 | **⓪** | 🛠 **capture + commit the three goldens on TODAY'S code** | ⚠⚠ a golden taken after bundle #1 lands **enshrines whatever that bundle did** |
 | **①** | ✅✅ **DONE `2026-08-27` — `CE-078`.** Shared `AiAssetSavers` + `AiAssetReload` in `Hrot.Editor.AiShared/Documents/`; both hosts call them; `_btreeQuickReloadTrigger`/`_hsmQuickReloadTrigger` DELETED. 📄 design §5c.6 *(+ §5c.6.7 as-built)* | ✅ 12-fact equivalence rail, **3 inverse-edit red-proofs**; T3 baseline 5/5 with goldens **unchanged** |
-| **②** | 🔴🔴 **START HERE NEXT — bundle #1 = the diagnostics group** *(22 sites, 5 hosts)* via `IUiBundle` + a `DiagnosticsHostServices` record | ⭐ biggest measured duplication; proves the seam at **N=5**, not 2 |
-| **③** | the editor/CGF-only shell surfaces *(menus, toolbar, perspectives)* | ⭐ 2 hosts only; do it once the N-host pattern is proven |
+| **②** | ✅✅ **DONE `2026-08-27` — `CE-082`.** `DiagnosticsWindowsBundle` + `DiagnosticsHostServices` in `Hrot.Presentation/Windows/`; all FOUR hosts compose it; IG/SimHost gained their first `Compose` call. 📐 **20 sites / 4 hosts, NOT 22 / 5** *(see the estimates list)*. 📄 design §5c.7 *(+ §5c.7.6 as-built)* | ✅ 9-fact equivalence rail, **3 inverse-edit red-proofs (8/9 red)**; ⭐⭐⭐ **T3 baseline 5/5 with the three goldens UNCHANGED** — the load-bearing proof for a registration move |
+| **③** | 🔴🔴 **START HERE NEXT — the editor/CGF-only shell surfaces** *(menus, toolbar, perspectives)* | ⭐ 2 hosts only; the N-host pattern is now proven at N=4. ⚠ **Check the reference direction FIRST** *(§0.0d-②)* — `Hrot.Presentation` worked for slice ②, `Hrot.Editor.AiShared` could not for slice ① |
 
 ⛔⛔ **EVERY slice carries an EQUIVALENCE rail** — 🔒 `CE-072`'s lesson: *a wrapper needs an equivalence rail
 the day it is introduced*, because **when a wrapper becomes the only production path to tested code, the
@@ -200,6 +200,13 @@ was unreachable from the project's own entry point for a day. ✅ Fixed with
 ⇒ ⭐⭐ **`dotnet test --filter` BYPASSES the category filter**, which is exactly how it hid — so a new T3
 rail is not gated until **`run-system-tests.sh <Name>` has printed a non-zero test count.**
 
+### ⛔⛔ 0.0d-④ TWO GATING TRAPS FOUND WHILE BUILDING SLICE ② *(`2026-08-27`)*
+
+| ⚠ | |
+|---|---|
+| 🔴🔴 **`Hrot.Presentation.Tests` IS FLAKY AND THE IDENTITY ROTATES** *(`CE-084`)* | 📐 **3 of 6 runs failed** with the new rail EXCLUDED, a **different test each time** — `EntityDragGizmoTests` · `RouteWaypointGizmoTests` · `TheDragCommitsThroughTheWriteRouterTests` ×2, all `Hrot.ScenarioEditor.Tests`, all gizmo/ECS-write, all **green in isolation**. ⇒ ⛔⛔ **neither a red nor a green from this suite is evidence** — `--filter` the classes you touched and SAY SO, exactly as the `Fdp.Toolkits.Tests` / `DEBT-AIB-030` rule already requires |
+| ⛔⛔ **A FILTERED GREEN IS NOT EVIDENCE A NEW TEST CLASS IS SAFE** | 📐 the slice-② rail passed **9/9 filtered** and the rest of the assembly passed **140/140**, but together **the test host CRASHED** — registering real windows touches the process-global `PanelSnapshot` singleton and the class was running parallel to the four that serialise on it. ⭐ **The convention existed** *(`PanelSnapshotTestCollection`, mirrored in two other assemblies)* and the rail was written without it. ⇒ ⭐⭐ **run the WHOLE project suite before believing a new rail** |
+
 ### ⚠ FIVE SIZE ESTIMATES I GOT WRONG THIS SESSION — **measure before quoting**
 ⛔ *"a 24-site cross-assembly rename"* → 📐 **19 hits, 9 files, one tree** *(the 24 was the graph's DEGREE)*.
 ⛔ *"`SharedAiWindowRegistrar` is the cheapest adopter"* → 📐 **CGF constructs 0 of its 7 windows.**
@@ -215,6 +222,11 @@ detail and too weak in the conclusion. ⚠ **The RELOAD arms genuinely were line
 ⛔ *"CGF has ONE dispatcher, the editor has three callbacks"* → 📐 **THREE dispatchers, not two**: CGF's
 method, the editor's toolbar switch, **and the editor's MCP `reloadAsset` route** — each with its own
 wording for the same condition.
+⛔ *"the diagnostics group is 22 sites across 5 hosts"* *(this doc's own headline)* → 📐 **20 sites across
+4.** ⭐ Each of the five call kinds is exactly **4**; ⛔ **ReplayBrowser is a DIFFERENT TYPE in a DIFFERENT
+ASSEMBLY** *(`Fdp.Presentation.Windows.ReplayBrowser.*`)* with no profiler and no architecture window, so it
+can never join that bundle. ⚠ **`search_graph` returned BOTH same-named classes — that is what caught it**;
+grep for `new FdpEntityInspectorWindow` alone would have counted 5 hosts and been wrong about one.
 ⇒ 🔒 **measure CODE lines and read the call sites before naming a slice or a size.**
 
 ## ⛔ 0.0c — **HISTORY: the `CE-070`/`CE-071` way-forward** *(`2026-08-27`)* — ⚠ **SUPERSEDED by §0.0d; do NOT start here**

@@ -1262,17 +1262,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             ? new MapPickServiceBridge(cgfCanvasAdapter, _context!.World)
             : null;
 
-        // ⭐⭐ A9 — this argument is the PERSPECTIVE (see the helper's own doc), so it moves with the
-        //    rename; the spawned watch windows' id prefix moves cgf_watch_* → scenario_watch_* and that
-        //    is harmless (those ids embed a fresh Guid). ⭐ Sharing ids with the editor is SAFE and
-        //    intended: §1b — editor and cgf can never run in one process.
-        FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
-            _fdpEntityInspector,
-            windowManager,
-            "Scenario",
-            () => _fdpRepoAdapter,
-            cgfPickBridge,
-            TitleBarColor);
+        // ⭐⭐ A9 — the helper's third argument is the PERSPECTIVE (see its own doc); the spawned watch
+        //    windows' id prefix is cgf_watch_* → scenario_watch_* and that is harmless (those ids embed a
+        //    fresh Guid). ⭐ Sharing ids with the editor is SAFE and intended: §1b — editor and cgf can
+        //    never run in one process.
+        // ⭐⭐⭐ PHASE 2 SLICE ② — the helper CALL moved into `DiagnosticsWindowsBundle` (below), which
+        //    wires it for all four hosts. ⚠ It used to run HERE, before the inspector window; 📐 measured
+        //    safe to move because the helper registers NOTHING eagerly — its own `RegisterWindow` sits
+        //    inside the "Inspect…" click handler — so the registered set cannot change (§5c.7.2).
 
         // ⭐⭐⭐ CE-061 (Axis-C E5 item ④) — THE FOUR SCENARIO-PERSPECTIVE WINDOWS.
         // ⭐ The SAME `Hrot.Presentation.Windows` types the editor now registers through — ⛔ CGF-private
@@ -1301,56 +1298,40 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 _sharedOrbatPanel, _orbatAdapter, _orbatAdapter,
                 Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfOrbat, "Scenario", TitleBarColor));
 
-        windowManager.RegisterWindow(new FdpEntityInspectorWindow(
-            "cgf_fdp_inspector", "CGF Entity Inspector", "Scenario",
-            _fdpEntityInspector,
-            () => _fdpRepoAdapter,
-            () => _fdpInspectorState,
-            TitleBarColor));
-
-        // Register the blackboard view provider so the editor projects typed DTO params.
-        _fdpEntityInspector.Reflector.AddBufferViewProvider(new BrainBlackboardViewProvider());
-        // Register the heavy blackboard view provider for Blackboard1024.
-        _fdpEntityInspector.Reflector.AddBufferViewProvider(new Hrot.Presentation.Renderers.Blackboard1024ViewProvider());
-
-        // Inject EditContextFactory so TryOpenEditWindow passes ParamsDtoType/HeavyDtoType to StructEdit.
-        var capturedRegistry = _behaviorRegistry;
-        _fdpEntityInspector.Reflector.EditContextFactory = (session, e, type) =>
-        {
-            if (type != typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard)
-             && type != typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024)) return null;
-            if (!session.HasComponent(e, typeof(Fdp.Toolkit.Behavior.Components.BehaviorState))) return null;
-            var ds = session.GetComponent(e, typeof(Fdp.Toolkit.Behavior.Components.BehaviorState))
-                as Fdp.Toolkit.Behavior.Components.BehaviorState?;
-            if (ds == null) return null;
-            if (capturedRegistry?.TryGetDefinition(ds.Value.ActiveBehaviorHash, out var def) != true) return null;
-            if (def == null) return null;
-            if (type == typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard))
+        // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites (inspector, the "Inspect…" wiring, event
+        //    browser, architecture diagnostics, system profiler) are now ONE shared bundle,
+        //    `Hrot.Presentation.Windows.DiagnosticsWindowsBundle`. 📐 They were copy-pasted across FOUR
+        //    hosts = 20 sites; ids/titles are DERIVED, so they cannot drift apart again.
+        // ⭐ This host passes ONE colour: unlike IG/SimHost it uses the same shade for the spawned
+        //   "Inspect…" watch windows as for its diagnostics windows (§5c.7.2 G2).
+        // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §5c.7.
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(
+            new Fdp.Toolkit.Runner.IUiBundle[]
             {
-                if (def.ParamsDtoType == null) return null;
-                return new StructEdit.Core.EditContext().With("ParamsDtoType", def.ParamsDtoType);
-            }
-            // Blackboard1024
-            if (def.HeavyDtoType == null) return null;
-            return new StructEdit.Core.EditContext().With("HeavyDtoType", def.HeavyDtoType);
-        };
+                new DiagnosticsWindowsBundle(new DiagnosticsHostServices(
+                    IdPrefix:       "cgf_",
+                    TitlePrefix:    "CGF",
+                    Perspective:    "Scenario",
+                    Inspector:      _fdpEntityInspector,
+                    RepoAdapter:    () => _fdpRepoAdapter,
+                    InspectorState: () => _fdpInspectorState,
+                    EventBrowser:   _fdpEventBrowser,
+                    TitleBarColor:  TitleBarColor,
+                    // ⭐ This host builds its own service, so its lazy `() => _context?.Kernel` binding
+                    //   is untouched (design §5c.7 F2).
+                    ArchitecturePanel: new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                        new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _context?.Kernel)),
+                    // BP-327 — the module/system execution-stats profiler.
+                    ExecutionStats: () => _context?.Kernel?.GetExecutionStats(),
+                    PickBridge:     cgfPickBridge)),
+            },
+            new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
-        windowManager.RegisterWindow(new FdpEventBrowserWindow(
-            "cgf_fdp_events", "CGF Event Browser", "Scenario",
-            _fdpEventBrowser,
-            TitleBarColor));
-
-        windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
-            "cgf_architecture_diagnostics", "CGF Architecture Diagnostics", "Scenario",
-            new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
-                new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _context?.Kernel)),
-            TitleBarColor));
-
-        // BP-327 — global window: the module/system execution-stats profiler.
-        windowManager.RegisterWindow(new SystemProfilerWindow(
-            "cgf_system_profiler", "CGF System Profiler", "Scenario",
-            () => _context?.Kernel?.GetExecutionStats(),
-            TitleBarColor));
+        // ⭐⭐ PHASE 2 SLICE ② — the ~30-line blackboard-reflection block that used to sit here was
+        //    duplicated VERBATIM in EditorSubsystem. ⛔ It is NOT in the bundle: IG and SimHost do none
+        //    of it, and folding it in would hand them a capability they do not have — the very trap
+        //    `IUiBundle`'s doc warns about. ⭐ One implementation, exactly two callers (§5c.7 F5 / G3).
+        Hrot.Presentation.Windows.BlackboardReflection.Apply(_fdpEntityInspector, _behaviorRegistry);
 
         // ── Time transport controls in status bar ─────────────────────────
         var bus = _context?.EventBus;

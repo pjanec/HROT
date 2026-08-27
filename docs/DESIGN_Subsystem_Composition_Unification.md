@@ -1239,6 +1239,189 @@ lesson as `CE-075`'s own: *a golden that has never been read is not a baseline, 
 rail nothing can run is not a rail. ✅ Fixed by adding `[Trait("Category","SystemModes")]`, the bucket
 `ModeStartupRails` uses for mode-parameterised cases.
 
+### 5c.7 ⭐⭐⭐ SLICE ② — **the diagnostics window group, the first REAL bundle.** `build-state: READY-TO-BUILD` *(`2026-08-27`)*
+
+> ⭐⭐ **This is `D3`'s slice ②, and the FIRST use of `IUiBundle` for duplicated REGISTRATION** *(slice ① was
+> duplicated LOGIC, vehicle (b), no seam — §5c.6)*. ⭐ It proves the seam at **N=4**, not 2.
+
+#### 5c.7.1 🔴🔴 INVENTORY — **the headline number was WRONG: 20 sites / 4 hosts, not 22 / 5**
+
+⭐ Queries: `search_graph(name_pattern=".*(FdpEntityInspectorWindow|FdpEventBrowserWindow|ArchitectureDiagnosticsWindow|SystemProfilerWindow|FdpEntityInspectorHelper).*")` ⇒ `total: 42`, then every `new X(` call site read directly.
+
+| site | IG | SimHost | CGF | Editor | ⛔ ReplayBrowser |
+|---|:--:|:--:|:--:|:--:|:--:|
+| `FdpEntityInspectorWindow` · `FdpEventBrowserWindow` · `ArchitectureDiagnosticsWindow` · `SystemProfilerWindow` · `WireInspectorWithInspectContextMenu` | ✅ 5 | ✅ 5 | ✅ 5 | ✅ 5 | ⛔ — |
+
+⇒ 📐 **each of the five is exactly 4 ⇒ 20 sites across 4 hosts.**
+⛔⛔ **The "5th host" does not exist for this bundle.** 📐 ReplayBrowser registers
+`Fdp.Presentation.Windows.ReplayBrowser.FdpEntityInspectorWindow` / `…FdpEventBrowserWindow` — **a
+DIFFERENT TYPE in a DIFFERENT ASSEMBLY** *(`ReplayBrowserSubsystem:632,642`)*, and it has **no** profiler
+and **no** architecture window. ⇒ ⭐ it **cannot** join a bundle over the `Hrot.Presentation.Windows`
+types; ⚠ the graph found the two same-named classes and that is what caught it.
+📐 **ExCon and Orchestrator register NONE of the five.**
+
+⭐⭐ **The ids and titles are perfectly regular across all four** ⇒ **two strings generate all eight:**
+`{IdPrefix}fdp_inspector` · `{IdPrefix}fdp_events` · `{IdPrefix}architecture_diagnostics` ·
+`{IdPrefix}system_profiler`, titled `"{TitlePrefix} Entity Inspector"` and so on.
+
+#### 5c.7.2 ⚠⚠ THREE REAL DRIFTS — **each must be PRESERVED, not tidied**
+
+| # | 📐 measured | ⇒ consequence for the design |
+|---|---|---|
+| **`G1`** | ⛔ **the editor GUARDS the last two windows on `if (_kernel != null)`; the other three hosts do not.** ⚠ And the editor binds the kernel **EAGERLY** — `new ArchitectureDiagnosticsService(_kernel)` — where the others bind **lazily**, `() => _app.Kernel` | ⛔⛔ **unifying to the lazy form would make the editor register two windows it currently may not** ⇒ **the registered set moves** ⇒ 🔴 the `ui-baseline` golden moves. ⭐ **Preserved by taking the PRE-BUILT panel** *(`F2`/`F3`)* |
+| **`G2`** | 🔴 **IG and SimHost pass a DIFFERENT title-bar colour to the HELPER than to their windows.** 📐 IG: windows `(0.07,0.30,0.07)` vs helper `(0.08,0.40,0.08)`; SimHost: windows `(0.50,0.10,0.10)` vs helper `(0.40,0.08,0.08)`. ⭐ Editor and CGF pass one value to both | ⛔ **collapsing to one field would silently RECOLOUR every spawned "Inspect…" watch window on two hosts** ⇒ ⭐ **two fields**, the second defaulting to the first *(`F4`)*. ⚠ Almost certainly latent drift *(the `*WindowColor` constants look newer than the helper call)* — ⛔ **but a UI change is not this slice's to make**; FILED |
+| **`G3`** | ⭐⭐ **a ~30-line reflector block is duplicated VERBATIM between CGF and the editor** — two `AddBufferViewProvider` calls plus the whole `EditContextFactory` lambda. ⛔ IG and SimHost have **none** of it | ⇒ ⭐ **NOT in the bundle** — putting it there would give IG/SimHost a capability they do not have today. ⭐⭐ **A shared static method with exactly two callers** *(`F5`)* |
+
+⭐ **And one thing that is NOT a constraint:** 📐 the helper's `RegisterWindow` sits **inside the
+"Inspect…" click lambda** *(`FdpEntityInspectorHelper:80`)*, so it registers **nothing** eagerly ⇒ ⚠ CGF
+calls the helper *before* its inspector window and the others *after*, and **that order cannot move the
+registered set.**
+
+#### 5c.7.3 ⭐ THE DECISIONS
+
+| | decision | why |
+|---|---|---|
+| **`F1`** | ⭐⭐ **the bundle lives in `Hrot.Presentation.Windows`** | 📐 it already OWNS all five types, references `Fdp.Presentation` *(so `IUiBundle` is reachable)*, and **all four hosts reference it**. ⭐ ⛔ **no cycle here** — unlike slice ① *(§5c.6.2)*, which is why the reference direction is checked FIRST now |
+| **`F2`** | ⭐⭐⭐ **the record takes the pre-built `ArchitectureDiagnosticsPanel`, NOT a kernel accessor** | ⛔ `Hrot.Presentation` does not reference `Fdp.ModuleHost`, so it cannot build the service — ⭐ **and that limitation is a gift:** each host keeps constructing its own service verbatim, so `G1`'s eager/lazy split is **untouched** and no behaviour changes |
+| **`F3`** | ⭐⭐ **the editor's guard becomes `ArchitecturePanel: null, ExecutionStats: null`** | ⭐ ruling 49 — absent-and-explained. ⛔ A host that cannot service a window must not register it, which is exactly what the guard said |
+| **`F4`** | ⭐⭐ **two colour fields**; `InspectContextMenuTitleBarColor` defaults to `TitleBarColor` | `G2`. ⭐ Three hosts pass one value; the two that differ say so explicitly |
+| **`F5`** | ⭐ **`G3`'s block becomes a shared static method, not a bundle member** | ⛔ IG/SimHost must not gain it. 📐 `StructEdit.Core` IS reachable from `Hrot.Presentation`, so this is feasible |
+| **`F6`** | ⭐ **IG and SimHost gain their FIRST `UiBundleHost.Compose` call** | 📐 measured: CGF and the editor already have one, IG/SimHost have none ⇒ ⭐ this is the seam's real adoption, not a rename |
+
+#### 5c.7.4 ⭐ THE UML *(obligation ①; every box EXISTS unless marked NEW)*
+
+```mermaid
+classDiagram
+    class IUiBundle {
+        <<interface · phase 1>>
+        +Name
+        +RegisterInto(UiBundleContext)
+    }
+    class DiagnosticsWindowsBundle {
+        <<NEW · Hrot.Presentation.Windows>>
+        +Name
+        +RegisterInto(UiBundleContext)
+    }
+    class DiagnosticsHostServices {
+        <<NEW · record · the 4 host deltas>>
+        +string IdPrefix
+        +string TitlePrefix
+        +string Perspective
+        +EntityInspectorPanel Inspector
+        +EventBrowserPanel EventBrowser
+        +ArchitectureDiagnosticsPanel ArchitecturePanel
+        +Func ExecutionStats
+        +MapPickServiceBridge PickBridge
+        +Vector4 TitleBarColor
+        +Vector4 InspectContextMenuTitleBarColor
+    }
+    class FdpEntityInspectorWindow {
+        Hrot.Presentation.Windows
+    }
+    class FdpEventBrowserWindow {
+        Hrot.Presentation.Windows
+    }
+    class ArchitectureDiagnosticsWindow {
+        Hrot.Presentation.Windows
+    }
+    class SystemProfilerWindow {
+        Hrot.Presentation.Windows
+    }
+    class FdpEntityInspectorHelper {
+        Hrot.Presentation.Windows
+        +WireInspectorWithInspectContextMenu()
+    }
+    class BlackboardReflection {
+        <<NEW · static · F5 · CGF + Editor ONLY>>
+        +Apply(inspector, registry)
+    }
+    class IgSubsystem
+    class SimHostSubsystem
+    class CgfSubsystem
+    class EditorSubsystem
+    class ReplayBrowserSubsystem {
+        uses the FDP types -- NOT this bundle
+    }
+    IUiBundle <|.. DiagnosticsWindowsBundle : realises
+    DiagnosticsWindowsBundle --> DiagnosticsHostServices : ctor arg (D1)
+    DiagnosticsWindowsBundle ..> FdpEntityInspectorWindow : registers
+    DiagnosticsWindowsBundle ..> FdpEventBrowserWindow : registers
+    DiagnosticsWindowsBundle ..> ArchitectureDiagnosticsWindow : registers when panel present
+    DiagnosticsWindowsBundle ..> SystemProfilerWindow : registers when stats present
+    DiagnosticsWindowsBundle ..> FdpEntityInspectorHelper : wires
+    IgSubsystem ..> DiagnosticsWindowsBundle : composes
+    SimHostSubsystem ..> DiagnosticsWindowsBundle : composes
+    CgfSubsystem ..> DiagnosticsWindowsBundle : composes
+    EditorSubsystem ..> DiagnosticsWindowsBundle : composes
+    CgfSubsystem ..> BlackboardReflection : calls
+    EditorSubsystem ..> BlackboardReflection : calls
+```
+
+⛔⛔ **The arrows that must NOT exist:** `ReplayBrowserSubsystem --> DiagnosticsWindowsBundle` *(different
+types — `5c.7.1`)* and `IgSubsystem --> BlackboardReflection` / `SimHostSubsystem --> BlackboardReflection`
+*(they have no such wiring today — `G3`)*. ⭐ Both are drawn as absences on purpose.
+
+```mermaid
+sequenceDiagram
+    participant Host as one of the FOUR hosts
+    participant Compose as UiBundleHost.Compose
+    participant Bundle as DiagnosticsWindowsBundle (NEW)
+    participant WM as WindowManager
+    participant Helper as FdpEntityInspectorHelper
+    Host->>Host: build its own ArchitectureDiagnosticsService + panel
+    Note over Host: F2 -- the host builds it, so eager vs lazy stays as it is
+    Host->>Compose: Compose([.., diagnosticsBundle], ctx)
+    Compose->>Bundle: RegisterInto(ctx)
+    Bundle->>WM: RegisterWindow(inspector, id = IdPrefix + fdp_inspector)
+    Bundle->>Helper: WireInspectorWithInspectContextMenu(.., InspectContextMenuTitleBarColor)
+    Note over Bundle,Helper: G2 -- two hosts pass a different shade here
+    Bundle->>WM: RegisterWindow(eventBrowser)
+    Bundle->>WM: RegisterWindow(architecture) only when the panel is non-null
+    Bundle->>WM: RegisterWindow(profiler) only when stats is non-null
+    Bundle-->>Compose: done
+    Compose-->>Host: a throwing bundle is NAMED, never swallowed
+```
+
+#### 5c.7.5 The items
+
+| # | item | proof |
+|---|---|---|
+| **①** | `DiagnosticsHostServices` + `DiagnosticsWindowsBundle` in `Hrot.Presentation/Windows/` | ⛔ registers windows only — the `IUiBundle` constraint |
+| **②** | ⭐⭐ **all FOUR hosts compose it and DELETE their 20 sites** | ⛔ a diff showing deletion |
+| **③** | `BlackboardReflection.Apply` shared by CGF + the editor *(`F5`)* | ⛔ **exactly two callers** — a third would be a behaviour change |
+| **④** | ⭐⭐⭐ **an EQUIVALENCE rail** *(`CE-072`)*: for each of the four hosts the bundle emits **byte-identical** ids, titles, perspectives and colours to today's hand-written calls — ⚠ including `G2`'s two shades and `G1`'s absence | ⭐ a real `WindowManager`, four host fixtures |
+| **⑤** | ⭐⭐ **the three `ui-baseline-*` goldens stay UNCHANGED** | 🔴 this slice moves REGISTRATION, so an unchanged golden is the load-bearing proof — ⛔ any movement is a regression, not a re-capture |
+
+#### 5c.7.6 ✅ AS-BUILT *(`2026-08-27`, `CE-082`)* — **built as designed; three findings from the build itself**
+
+> ⭐ **No design deviation.** ⭐⭐ Every decision `F1`–`F6` held: the bundle lives in `Hrot.Presentation.Windows`,
+> takes the pre-built panel, keeps the editor's guard as nulls, carries two colour fields, keeps `G3` out,
+> and IG/SimHost gained their first `Compose` call. ⛔ The diagrams in §5c.7.4 are TRUE as built.
+
+⭐⭐⭐ **ITEM ⑤ DISCHARGED — the proof this slice needed.** 📐 `TheUiBaselineIsPinnedPerHostRails` **5/5**
+through `run-system-tests.sh`, and **the three goldens did NOT move.** ⇒ ⭐ **20 registration sites moved into
+one bundle and the registered window-id set is byte-identical** on `editor`, on `all` *(five hosts in ONE
+process — IG, SimHost, ExCon, CGF, Orchestrator)* and on `replaybrowser`. ⚠ **This is exactly the class of
+change axis A is blind to** *(§5c.4e)*, so the before/after axis is what carried it.
+
+| # | ⚠ finding FROM THE BUILD *(not a design change)* |
+|---|---|
+| **①** | ⛔⛔ **THE EQUIVALENCE RAIL CRASHED THE TEST HOST, and a filtered green hid it.** 📐 The new class passed **9/9 filtered** and the rest of the assembly passed **140/140** — but TOGETHER the host **died**, because registering real windows touches the **process-global `PanelSnapshot` singleton** and the class ran in parallel with the four that serialise on it. ⭐ **The convention already existed** — `PanelSnapshotTestCollection`, mirrored in two other assemblies — and the rail was written without it. ⇒ 🔒 **a green FILTERED run is not evidence a new test class is safe in its assembly**; run the whole project suite before believing a new rail |
+| **②** | ⭐⭐ **THE COMPILER ENFORCES `G1`.** 📐 Attempting the inverse-edit red-proof by deleting the `ArchitecturePanel != null` guard **failed to compile** — `CS8604`, possible null reference for a non-nullable parameter. ⇒ ⭐ nullable analysis is a **second rail** on the editor's kernel guard: you cannot drop it accidentally, only by writing `!`. ⚠ The red-proof therefore had to force past it *(`h.ArchitecturePanel!`)*, which it did, and the rail reddened |
+| **③** | ⚠ `ArchitectureDiagnosticsPanel` **rejects a null service**, so the fixture needs a real stub, not `null!`. ⭐ Minor, but the first draft threw in the fixture on every case — 📌 **a fixture bug that reads exactly like a product failure** |
+
+⭐ **Red-proofs — 3 inverse edits, 8/9 red, and the one survivor was correct** *(the bundle-name rail, which
+no edit touched)*: renaming an id ⇒ all four host rails + the scheme rail red · dropping `G1`'s guard ⇒ the
+kernel rail red · leaking the inspect colour onto a window ⇒ the `G2` rail red.
+
+⚠⚠ **PRE-EXISTING REDS, proven against base sha `e4ff81035`** — ⛔ named because a report that says "green"
+over these would be false:
+| suite | mine | base `e4ff81035` | verdict |
+|---|---|---|---|
+| `Hrot.IG.Tests` | 5 failed / 410 / 1 skip | ⭐ **5 / 410 / 1 — identical** | ⛔ pre-existing *(`EntityInfoTranslatorTests` ×4 DDS-translation, `EntityMasterTranslatorTests` ×1)* |
+| `Hrot.SimHost.Tests` | 1 failed / 768 / 3 skip | ⭐ **1 / 768 / 3 — identical** | ⛔ pre-existing *(replay/recording)* |
+| `Hrot.Presentation.Tests` | 149/149 green, ⚠ **but FLAKY** | — | ⛔ **pre-existing flake, reproduced 3-of-6 with the new class EXCLUDED**; ⭐ **the identity ROTATES** *(`EntityDragGizmoTests`, `RouteWaypointGizmoTests`, `TheDragCommitsThroughTheWriteRouterTests` ×2 — all gizmo/ECS-write)*. 📌 The `DEBT-AIB-030` shape; filed as **`CE-084`** |
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|
