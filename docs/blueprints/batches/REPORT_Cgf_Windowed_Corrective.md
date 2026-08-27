@@ -125,7 +125,7 @@ when it was deadlocked.
 | red | attribution |
 |---|---|
 | `The_manifest_describes_this_host_truthfully` | ⭐ **MCP LANE'S.** *"route(s) with no capability classification: `/missions/{networkId}` …"* — those routes arrived in `d2138faaf` *"MX4b: mission editing over MCP"* and `CapabilityManifest.cs` has **no `missions` entry**. ⛔ DebugApi is fenced from this lane; the rail's own message names the fix |
-| `After_a_cluster_step_the_clocked_nodes_agree_on_sim_time` | ⚠ **STILL UNATTRIBUTED.** `E2`'s T3 was **107/0** on this suite, so it regressed after that; the two candidates are my `E3` systems and the MCP merge. ⛔ **I will not call it pre-existing until the isolated re-run says so** — my systems touch no clock and early-return on null deps, but `E3` added three `PostSimulation` participants to both hosts' topologies, so assuming is not good enough |
+| `After_a_cluster_step_the_clocked_nodes_agree_on_sim_time` | ✅ **RESOLVED — NOT a deterministic `E3` regression.** 📐 The isolated re-run *(`run-system-tests.sh --no-build After_a_cluster_step`)* is **1 passed / 0 failed**. ⇒ ⭐ green alone, red under the full suite — ⚠ **the exact signature the backend lane root-caused as memory pressure** *(`REPORT_Test_Suite_Reliability.md`: "under pressure, whichever test allocates at the wrong moment loses" · "a filtered run never reaches the pressure")*, and a 20 s step-barrier timeout is what that pressure looks like on a clock rail. ⛔⛔ **Stated at its true strength:** green-in-isolation is **NOT proof** the batch is innocent. ⭐ The supporting facts are that my systems touch no clock code and early-return on null deps, and that the failure mode matches an already-diagnosed one — ⚠ **not** a base-worktree A/B, which I did not run |
 
 ## 7. ⭐ DECISION LOG
 
