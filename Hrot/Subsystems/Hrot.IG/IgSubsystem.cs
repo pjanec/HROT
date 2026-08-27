@@ -54,6 +54,11 @@ namespace Hrot.IG
                 world:         () => _app?.World,
                 entityMap:     null,
                 drive:         null,
+                // ⭐⭐ BP-487 — IG DOES draw gizmos (IgApplication:734 builds the buffer, and its
+                //    DebugGizmoLayer renders it), so its perspective reports the feed PRESENT even though it
+                //    can neither drive time nor map network ids. 📌 Another demonstration that these
+                //    capabilities are genuinely independent, not one "is it wired" bit.
+                gizmoBuffer:   () => _app?.GizmoBuffer,
                 // ⭐⭐ HN-029 — IG cannot DRIVE time (no facade) but it CAN request a cluster transition; see
                 //    IgApplication.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider

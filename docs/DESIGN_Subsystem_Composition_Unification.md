@@ -159,6 +159,103 @@ sequenceDiagram
 kind** *(`CE-055`/`CE-056`, both since confirmed non-repro)* ⇒ ⛔ this rail **reduces** the eyes-only
 surface; it does not eliminate it. ⚠ Claiming otherwise would repeat the `CE-049` over-claim.
 
+### 5.6 ⛔⛔⛔ `BP-487` — **item ②'s channel does not answer on the cluster.** *(measured `2026-08-27`)*
+
+⚠⚠ **§5.3 item ④ said *"nothing in production."* ⭐ MEASURED, that is FALSE for item ②** — and the
+finding was **already filed**, which is the R-129 lesson landing again: 📄
+**`DESIGN_UI_Observability_Snapshot.md`** STATUS, verbatim —
+
+> **(3) OPEN, `BP-487`: `ClearCaptured` and the gizmo publish have ONE production caller each
+> (`EditorSubsystem`) while four other hosts drive a gizmo buffer — harmless while the debug API is
+> Editor-only, blocking for cross-host conformance.**
+
+⇒ ⭐⭐ **the id EXISTS — do NOT allocate a new one.** ⛔ And it is not `MX-011`: that asks the buffer be
+*registered into `PanelSnapshot`* so one `DumpAll()` carries it *(MCP lane, and it would make a 128 KB
+high-churn model a SHARED kind needing a fresh exemption)*. ⭐ **`BP-487` is the reachability half.**
+
+#### 📐 The measurement — a textbook SILENT DEFAULT
+| | |
+|---|---|
+| the channel | `GET /panels/_gizmo` → `DebugApiService.GetGizmoFrame` reads **`_primitiveBuffer`** *(`DebugApiService.Panels.cs:127`)*, ⛔ **not** `PanelSnapshot` |
+| who passes it | ⭐ **only** `EditorSubsystem.cs:1901`. ⛔ `ClusterRunner/Program.cs:429` builds the cluster service **without it** |
+| the answer on `--mode all` | 🔴 **404** *"This editor has no debug primitive buffer, so there is no gizmo feed."* |
+| ⭐⭐⭐ **and the caller HAS one** | `CgfSubsystem._cgfGizmoBuffer` *(`:851` — fed by `GlobalGizmoManager`+`StatelessGizmoSystem`, drawn by `DebugGizmoLayer:1096`, `_canvas.DrawBuffer` at `:1098`)* · `IgApplication.GizmoBuffer` *(`:481`)* · `SimHostVisualization.GizmoBuffer` *(`:123`)*. ⛔ ExCon has **none** ⇒ **3 of 4** |
+
+⇒ 🔒 **exactly the rule this codebase keeps paying for: *a production caller that HAS a dependency must
+PASS it*** — and the control is asserted **on the constructed object**, not on the registrar's source.
+
+#### ⭐ The fix — **through the provider seam, not a latched field**
+⛔ `Program.cs` **cannot** pass one buffer: `--mode all` runs CGF *and* IG *and* SimHost, and the feed must
+follow the **ACTIVE perspective** like every other per-node fact. ⭐⭐ `ISubsystemDebugProvider` is already
+*"everything that differs per node"* — `World` · `EntityMap` · `Drive` — so the member belongs there.
+⚠⚠ **`Func`-backed, never a captured value** — 📌 `Program.cs:399` states the rule and names the bug it
+already cost: *"a value-captured provider LIES"* *(the buffer is built in `Initialize`)*.
+
+```mermaid
+classDiagram
+    class ISubsystemDebugProvider {
+        <<interface>>
+        +EntityRepository World
+        +NetworkEntityMap EntityMap
+        +ITimeTransportFacade Drive
+        +DebugPrimitiveBuffer GizmoBuffer
+    }
+    note for ISubsystemDebugProvider "EXISTS - Hrot.Presentation/DebugApi/ISubsystemDebugProvider.cs\nGizmoBuffer is the ONE added member (BP-487)"
+
+    class SubsystemDebugProvider {
+        -Func~DebugPrimitiveBuffer~ _gizmoBuffer
+        +DebugPrimitiveBuffer GizmoBuffer
+    }
+    note for SubsystemDebugProvider "EXISTS - same file. Func-backed: the buffer is built in Initialize"
+
+    class PerspectiveScopedDispatcher {
+        +Active() ISubsystemDebugProvider
+        +DebugPrimitiveBuffer GizmoBuffer
+    }
+    note for PerspectiveScopedDispatcher "EXISTS - Hrot.Presentation/DebugApi/PerspectiveScopedDispatcher.cs\nresolves through Active(), like World/EntityMap/Drive"
+
+    class DebugApiService {
+        -DebugPrimitiveBuffer _primitiveBuffer
+        -PerspectiveScopedDispatcher _dispatcher
+        +GetGizmoFrame(max)
+    }
+    note for DebugApiService "EXISTS - Hrot.Editor/DebugApi. GetGizmoFrame reads the\nresolved buffer: _primitiveBuffer ?? _dispatcher.GizmoBuffer"
+
+    class CgfSubsystem {
+        -DebugPrimitiveBuffer _cgfGizmoBuffer
+        +CreateDebugProvider()
+    }
+    class IgSubsystem {
+        +CreateDebugProvider()
+    }
+    class SimHostSubsystem {
+        +CreateDebugProvider()
+    }
+    class ExConSubsystem {
+        +CreateDebugProvider()
+    }
+    note for ExConSubsystem "HAS NO BUFFER - passes null, honestly absent (ruling 49)"
+
+    ISubsystemDebugProvider <|.. SubsystemDebugProvider
+    PerspectiveScopedDispatcher o-- "1..*" ISubsystemDebugProvider
+    DebugApiService --> PerspectiveScopedDispatcher
+    CgfSubsystem ..> SubsystemDebugProvider : builds
+    IgSubsystem ..> SubsystemDebugProvider : builds
+    SimHostSubsystem ..> SubsystemDebugProvider : builds
+    ExConSubsystem ..> SubsystemDebugProvider : builds
+```
+
+#### 🔒 Why this does NOT breach the §3 standing constraint
+⭐⭐ It moves **diagnostics egress** only: ⛔ **no module, system, translator or participant is registered**,
+and ⛔ **no host is made to draw anything it did not already draw** — the buffer, its feeders and its layer
+already exist per host. ⇒ the rail reads *what each host ALREADY submits*, which is the only thing §5.2
+lets it compare.
+
+⚠ **The `_gizmo` `EditorOnlyKinds` entry STAYS** *(and its comment is corrected)*: after `BP-487` the
+cluster's feed is **reachable at the endpoint** but still **does not publish the `_gizmo` PANEL KIND** —
+that is `MX-011`, another lane. ⛔ Deleting the entry would be a lie; ⭐ instead it now names the rail that
+covers the substance.
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|

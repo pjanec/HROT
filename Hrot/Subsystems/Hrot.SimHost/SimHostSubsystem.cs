@@ -57,6 +57,10 @@ namespace Hrot.SimHost
                 world:         () => _app?.WorldOrNull,
                 entityMap:     () => _app?.WorldOrNull is null ? null : _app!.TestHook_EntityMap,
                 drive:         () => _clusterTimeAdapter,
+                // ⭐⭐ BP-487 — SimHost's own map feed (SimHostVisualization.GizmoBuffer, line ~123).
+                // ⚠ Lazy, and doubly so here: the visualization is optional, so this is null on a
+                //   genuinely headless SimHost node and the manifest says panels.gizmo:false there.
+                gizmoBuffer:   () => _app?.Visualization?.GizmoBuffer,
                 // ⭐⭐ HN-029 — the node's own control-plane bus; see SimHostApp.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _app?.OrchestrationBus),

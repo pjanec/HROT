@@ -366,6 +366,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             world:         () => _context?.World,
             entityMap:     () => _entityMap,
             drive:         () => _clusterTimeAdapter,
+            // ⭐⭐⭐ BP-487 — CGF's OWN map feed: the very buffer its DebugGizmoLayer draws (line ~1096) and
+            //    its canvas takes as DrawBuffer (line ~1098), fed by GlobalGizmoManager + StatelessGizmoSystem.
+            //    ⇒ GET /panels/_gizmo now reports what CGF's map is actually submitting, which is the ONE
+            //    channel that can answer "does the cluster's map draw the scenario's entities?" — the user's
+            //    `2026-08-27` symptom. 📄 DESIGN_Subsystem_Composition_Unification.md §5.6.
+            // ⚠ Lazy for the measured reason in SubsystemDebugProvider's ctor remarks: the buffer is created
+            //   in Initialize (line ~851), AFTER the composition root builds this provider.
+            gizmoBuffer:   () => _cgfGizmoBuffer,
             // ⭐⭐ HN-029: the node's own orchestration bus — the same one its ClusterSlave and
             //    ClusterOpEgressTranslator sit on, so a transition requested here reaches the master by the
             //    path the operator's own "Load into Live" button takes.

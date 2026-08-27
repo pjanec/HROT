@@ -91,6 +91,26 @@ namespace Hrot.Editor.DebugApi
             => _editorTime ?? _dispatcher?.Drive
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.TimeDrive);
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-487</c> — THIS HOST'S MAP FEED, resolved the same way as
+        /// <see cref="_world"/>/<see cref="_time"/>: the editor's own buffer, else the ACTIVE PERSPECTIVE's.
+        /// 📄 <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.6 ·
+        /// <c>DESIGN_UI_Observability_Snapshot.md</c> STATUS ③ *(the filed finding)*.
+        ///
+        /// <para>🔴 <b>Before this, <c>--mode all</c> had NO gizmo feed at all.</b> 📐 Measured `2026-08-27`:
+        /// <c>_primitiveBuffer</c> is passed by <c>EditorSubsystem.cs:1901</c> and by nobody else, so
+        /// <c>ClusterRunner/Program.cs:429</c> built the cluster service without one and
+        /// <c>GET /panels/_gizmo</c> answered 404 — while <b>CGF, IG and SimHost each drive a buffer of their
+        /// own</b>. ⇒ the textbook silent default: <i>a production caller that HAS a dependency must PASS
+        /// it</i>.</para>
+        ///
+        /// <para>⛔ <b>NULLABLE on purpose, not throwing like <see cref="_world"/>.</b> ⭐ Its two callers
+        /// *(<c>GetGizmoFrame</c>, <c>AddAnnotation</c>)* already answer with a written explanation of WHY
+        /// there is no feed, which is the better message — ⚠ turning that into
+        /// <c>NOT_SUPPORTED_HERE</c> would lose it.</para>
+        /// </summary>
+        private DebugPrimitiveBuffer? _gizmoFeed => _primitiveBuffer ?? _dispatcher?.GizmoBuffer;
+
         private IPreviewController _preview
             => _editorPreview
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.Preview);
@@ -1283,8 +1303,13 @@ namespace Hrot.Editor.DebugApi
         /// unavailable or the request is malformed.</returns>
         public (JsonNode? result, string? error) AddAnnotation(JsonNode? body)
         {
-            if (_primitiveBuffer is null)
-                return (null, "DebugPrimitiveBuffer not available (service wired without it).");
+            // ⭐⭐ BP-487 — resolve through the ACTIVE PERSPECTIVE on a cluster host, exactly as
+            //    GetGizmoFrame does. ⚠ An annotation drawn into a buffer no host renders would be a
+            //    silent no-op that reported success.
+            var buffer = _gizmoFeed;
+            if (buffer is null)
+                return (null, "No DebugPrimitiveBuffer for the active perspective, so there is nothing to "
+                            + "draw into (see GET /capabilities for panels.gizmo).");
 
             if (body is null)
                 return (null, "Request body is required.");
@@ -1293,7 +1318,7 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(type))
                 return (null, "'type' field is required (sphere | anchor | line).");
 
-            int countBefore = _primitiveBuffer.Count;
+            int countBefore = buffer.Count;
 
             try
             {
@@ -1306,7 +1331,7 @@ namespace Hrot.Editor.DebugApi
                         float z      = body["z"]?.GetValue<float>()      ?? 0f;
                         float radius = body["radius"]?.GetValue<float>() ?? 5f;
                         var   color  = ParseColor(body["color"]?.GetValue<string>(), new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 255, 0, 200));
-                        _primitiveBuffer.DrawSphere(new System.Numerics.Vector3(x, y, z), radius, color);
+                        buffer.DrawSphere(new System.Numerics.Vector3(x, y, z), radius, color);
                         break;
                     }
                     case "anchor":
@@ -1316,7 +1341,7 @@ namespace Hrot.Editor.DebugApi
                         float y       = body["y"]?.GetValue<float>()           ?? 0f;
                         float z       = body["z"]?.GetValue<float>()           ?? 0f;
                         float heading = body["heading"]?.GetValue<float>()     ?? 0f;
-                        _primitiveBuffer.DrawSpatialAnchor(netId, x, y, z, heading);
+                        buffer.DrawSpatialAnchor(netId, x, y, z, heading);
                         break;
                     }
                     case "line":
@@ -1332,7 +1357,7 @@ namespace Hrot.Editor.DebugApi
                         float ty = to["y"]?.GetValue<float>() ?? 0f;
                         float tz = to["z"]?.GetValue<float>() ?? 0f;
                         var color = ParseColor(body["color"]?.GetValue<string>(), new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(0, 255, 255, 200));
-                        _primitiveBuffer.DrawLine(
+                        buffer.DrawLine(
                             new System.Numerics.Vector3(fx, fy, fz),
                             new System.Numerics.Vector3(tx, ty, tz),
                             color);
@@ -1347,7 +1372,7 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Failed to write annotation: {ex.Message}");
             }
 
-            int countAfter = _primitiveBuffer.Count;
+            int countAfter = buffer.Count;
             return (new JsonObject
             {
                 ["added"]          = true,

@@ -234,10 +234,17 @@ public static class CapabilityManifest
             {
                 var row = new JsonObject();
                 foreach (var (key, present) in cells) row[key] = present;
-                // ⭐ Process-wide statics, reported once per row so a consumer does not have to know they
-                //   are global. ⛔ Not claimed per-subsystem in the provider — see its remarks.
+                // ⭐ PanelSnapshot IS a process-wide static, so it is reported once per row and a consumer
+                //   need not know it is global. ⛔ Not claimed per-subsystem in the provider — see its remarks.
                 row[DebugCapabilities.Panels]     = true;
-                row[DebugCapabilities.GizmoFrame] = true;
+                // ⛔⛔ BP-487 — `panels.gizmo` USED TO BE HARD-CODED `true` HERE, on the strength of the
+                //    provider comment that called the primitive buffer a process-wide static. 🔴 It is not:
+                //    📐 measured `2026-08-27`, one buffer PER SUBSYSTEM, and ExCon has none. ⇒ every
+                //    perspective row on `--mode all` CLAIMED a feed that answered 404.
+                // ⭐⭐ Now it comes from `dispatcher.Matrix()` like every other cell — MEASURED from what is
+                //    wired, which is Q54's whole point. ⚠ If this line ever comes back, the manifest resumes
+                //    lying in the safe-looking direction.
+
                 matrix[perspective] = row;
             }
         }

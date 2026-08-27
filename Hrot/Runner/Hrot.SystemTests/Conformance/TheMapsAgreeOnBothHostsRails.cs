@@ -1,0 +1,229 @@
+using System.Text.Json.Nodes;
+using Xunit.Abstractions;
+
+namespace Hrot.SystemTests.Conformance;
+
+/// <summary>
+/// ⭐⭐⭐ <b>PHASE 0 ② — MAP PARITY: what each host SUBMITS FOR DRAWING, compared as data.</b>
+/// 📄 <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5.1 *(venue and channels)*, §5.2 *(what the
+/// rail must and must NOT assert)*, §5.3 ②/③, §5.4 *(the limit)* and §5.6 *(<c>BP-487</c>, the seam this
+/// needed).</para>
+///
+/// <para>🔒 <b>User, `2026-08-27`:</b> <i>"headless means no UI and UI is what we want the railed parity
+/// for, so where the 'headless' is a blocker? why can't we compare what is shown on the maps, doesn't the
+/// mcp server support reading the gizmo data?"</i> ⇒ ⭐⭐ <b>it does — <c>get_gizmo_frame</c>, and this file
+/// is that comparison.</b> 📌 An earlier design section chose a HEADLESS venue for this and was a category
+/// error: a panel publishes only when it DRAWS, so headless dumps come back empty. ⭐ The venue is TWO
+/// WINDOWED processes under Xvfb, which is what <c>EditorProcess</c> already starts.</para>
+///
+/// <para>⛔⛔⛔ <b>WHAT THIS FILE MAY NEVER ASSERT — the standing constraint, and it is a USER RULING.</b>
+/// 🔒 <i>"regarding ui and scenario editing and monitoring and debugging editor is obviously the source and
+/// specimen … regarding network stuff like translator packs this is very different … similar situation is
+/// with what modules and systems that should run in the subsystem, this is also very sensitive topic where
+/// the unification does not apply."</i>
+/// ⇒ ⭐⭐ this rail compares <b>SURFACES</b> — what a map OFFERS to draw — and each host's <b>internal
+/// coherence</b>. ⛔ It must NEVER assert that two hosts RUN the same modules, systems or translators.
+/// 📌 The trap is invisible from inside: a rail demanding the same primitive COUNT would be demanding the
+/// same gizmo SYSTEMS, i.e. the same run-set, and would look like a successful unification.</para>
+///
+/// <para>⚠⚠ <b>THE LIMIT, stated so nobody over-claims it</b> *(§5.4)*: <c>get_gizmo_frame</c> reaches what
+/// is <b>submitted for drawing</b>, ⛔ never what a human SEES. No rasterisation, no gizmo PICKING, no ImGui
+/// hit-testing. ⇒ this rail REDUCES the eyes-only surface; it does not eliminate it, and a small
+/// <c>--mode cgf</c> eyes pass stays part of acceptance. 📌 Claiming otherwise would repeat the
+/// <c>CE-049</c> over-claim *(a rail that asserted a control was "present and enabled" rather than that it
+/// had anything to offer)*.</para>
+/// </summary>
+[Trait("Category", "SystemSmoke")]
+[Trait("Category", "SystemConformance")]
+public sealed class TheMapsAgreeOnBothHostsRails
+{
+    private readonly ITestOutputHelper _out;
+    public TheMapsAgreeOnBothHostsRails(ITestOutputHelper output) => _out = output;
+
+    /// <summary>⭐ The same curated scenario both hosts are given, so their maps have the same subject.</summary>
+    private const string Scenario = "hill-attack";
+
+    /// <summary>⭐ CGF answers for the <c>"Scenario"</c> perspective — the one entry whose key and value differ.</summary>
+    private const string MapPerspective = "Scenario";
+
+    private const int SettleTicks = 3;
+
+    /// <summary>
+    /// ⭐⭐ One host's map frame: every primitive, plus the shape tally the comparison is keyed on.
+    /// <para>⚠ <c>Truncated</c> is CARRIED, not dropped: a clipped frame makes *"the cluster draws fewer
+    /// shapes"* unknowable rather than false, and a rail that cannot tell those apart is worse than none.</para>
+    /// </summary>
+    private sealed record MapFrame(
+        int Count, bool Truncated, JsonArray Primitives,
+        IReadOnlyDictionary<string, int> ByShape, IReadOnlyList<long> AnchorIds);
+
+    /// <summary>
+    /// ⭐⭐⭐ Put a host in the map perspective with the scenario loaded, then read its frame.
+    /// <para>⭐ <b>switch → STEP → read</b>, the contract the panel-capture loop already obeys: a same-frame
+    /// read returns the empty prefix. ⛔ Not a <c>Thread.Sleep</c> as the synchroniser — the step is the
+    /// barrier; the small delay only covers the render thread's own frame.</para>
+    /// </summary>
+    private async Task<MapFrame> ReadMapAsync(EditorProcess host)
+    {
+        (await host.Client.LoadScenarioLiveAsync(Scenario, waitForReady: true)).EnsureOk();
+
+        var switched = await host.Client.SwitchPerspectiveAsync(MapPerspective);
+        Assert.True(switched.Ok,
+            $"[{host.Mode}] refused to switch to the '{MapPerspective}' perspective: {switched.Error}. "
+          + "⭐ Without it this host is not showing a map at all and the comparison has no subject.");
+
+        await host.Client.StepAsync(SettleTicks);   // ⚠ may be NOT_SUPPORTED_HERE — not this rail's subject
+        await Task.Delay(250);
+
+        // ⭐⭐ max is generous on purpose: the default 500 truncates a busy editor frame, and a truncated
+        //    frame would make the shape tally a sample rather than a census.
+        var frame = (await host.Client.GetGizmoFrameAsync(max: 5000)).EnsureOk().DataOrThrow();
+
+        var primitives = (frame["primitives"] as JsonArray)!;
+        var byShape = new Dictionary<string, int>(StringComparer.Ordinal);
+        var anchorIds = new List<long>();
+
+        foreach (var p in primitives)
+        {
+            var shape = p!["shape"]!.GetValue<string>();
+            byShape[shape] = byShape.TryGetValue(shape, out var n) ? n + 1 : 1;
+
+            // ⭐ SpatialAnchor is the ENTITY MARKER — the only primitive that names which entity it is for.
+            if (shape == "SpatialAnchor" && p["networkId"] is { } id)
+                anchorIds.Add(id.GetValue<long>());
+        }
+
+        var result = new MapFrame(
+            frame["count"]!.GetValue<int>(),
+            frame["truncated"]!.GetValue<bool>(),
+            primitives,
+            byShape,
+            anchorIds);
+
+        _out.WriteLine(
+            $"[{host.Mode}] map frame: count={result.Count} truncated={result.Truncated} "
+          + $"shapes={{{string.Join(", ", result.ByShape.OrderBy(k => k.Key, StringComparer.Ordinal)
+                                                .Select(k => $"{k.Key}:{k.Value}"))}}} "
+          + $"anchors=[{string.Join(", ", result.AnchorIds.OrderBy(x => x))}]");
+
+        return result;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE HEADLINE — <c>--mode all</c>'s map draws the scenario, and its shapes are the editor's.</b>
+    /// 📄 §5.3 ② *("the highest-value item — reaches what no model-level rail can")*.
+    ///
+    /// <para>🔴 <b>This rail exists because of a user-found symptom</b> *(`2026-08-27`)*: <i>the 2D map shows
+    /// NO entities on some scenarios — <c>hill-attack</c> loads and the map is empty.</i> ⭐ That is a claim
+    /// about what the map SUBMITS, so it is exactly what this channel measures — and ⛔ it was unmeasurable
+    /// before <c>BP-487</c>, because <c>GET /panels/_gizmo</c> answered 404 on every cluster host.</para>
+    ///
+    /// <para>⛔⛔ <b>SUBSET, not equality — and this is the constraint, not a weakening.</b> The two hosts
+    /// legitimately run different gizmo systems: the editor adds authoring overlays *(tool ghosts, placement
+    /// previews, the selection halo)* that a CGF node has no reason to draw. ⇒ ⭐ the assertion is *"every
+    /// shape the CLUSTER draws is one the EDITOR also draws"* — which catches a CGF-invented or mis-projected
+    /// shape while leaving the run-set alone. ⚠ Demanding equal counts would be demanding equal SYSTEMS.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_maps_draw_the_same_scenario_on_both_hosts()
+    {
+        await using var editor  = await EditorProcess.StartAsync("map-parity-editor");
+        await using var cluster = await EditorProcess.StartAsync("map-parity-all", mode: "all");
+
+        var a = await ReadMapAsync(editor);
+        var b = await ReadMapAsync(cluster);
+
+        // ⛔⛔ ANTI-VACUITY, BOTH DIRECTIONS — the discipline the panel rails already enforce.
+        //    📌 CE-053's lesson: a rail that supplies the input it is testing proves nothing; and CE-064's:
+        //    a correct, universal assertion over an EMPTY collection is unreachable, not passing.
+        Assert.True(a.Count > 0,
+            "the EDITOR's map submitted NO primitives, so the reference side of this comparison is empty and "
+          + "a green here would prove nothing. ⭐ Check the scenario loaded and the Scenario perspective is "
+          + "the one showing the map.");
+
+        Assert.True(b.Count > 0,
+            "🔴 --mode all's map submitted NO primitives while the editor's submitted "
+          + $"{a.Count}. ⭐ THIS IS THE USER'S `2026-08-27` SYMPTOM — 'the 2D map shows no entities'. "
+          + "⛔ Do NOT weaken this rail: the gizmo systems that populate CGF's buffer are registered in "
+          + "CgfSubsystem (GlobalGizmoManager + StatelessGizmoSystem, ~:851-890) and its DebugGizmoLayer "
+          + "draws it (~:1096).");
+
+        // ⚠ Truncation makes the tally a sample. Say so loudly rather than comparing samples.
+        Assert.False(a.Truncated || b.Truncated,
+            $"a map frame was TRUNCATED (editor={a.Truncated}, cluster={b.Truncated}), so the shape tally is "
+          + "a sample and the subset claim below would be about the sample, not the frame. ⭐ Raise `max`.");
+
+        // ⭐⭐⭐ THE SUBSET CLAIM — surface parity without touching the run-set.
+        var clusterOnlyShapes = b.ByShape.Keys.Where(s => !a.ByShape.ContainsKey(s))
+                                             .OrderBy(s => s, StringComparer.Ordinal).ToArray();
+
+        Assert.True(clusterOnlyShapes.Length == 0,
+            $"--mode all's map draws shape(s) the editor never draws: [{string.Join(", ", clusterOnlyShapes)}]. "
+          + "⭐ Both hosts draw through the SAME gizmo registries, so a cluster-only shape means either a "
+          + "CGF-invented primitive or a mis-projected union field — ⛔ not a legitimate host difference. "
+          + "⚠ If CGF genuinely gained a map affordance the editor lacks, say so HERE, with the measurement.");
+
+        // ⭐ And the reverse direction is REPORTED, never asserted: editor-only shapes are the expected
+        //   state (authoring overlays), so this is diagnostics for the reader, not a verdict.
+        var editorOnlyShapes = a.ByShape.Keys.Where(s => !b.ByShape.ContainsKey(s))
+                                            .OrderBy(s => s, StringComparer.Ordinal).ToArray();
+        _out.WriteLine($"editor-only shapes (EXPECTED — authoring overlays): [{string.Join(", ", editorOnlyShapes)}]");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The map marks the ENTITIES, and it marks the ones the world actually holds.</b>
+    ///
+    /// <para>⛔⛔ <b>Why this is separate from the headline rail, and why it is the stronger claim.</b>
+    /// 📌 <c>count &gt; 0</c> is satisfied by a single grid line or one leftover annotation — so a map that
+    /// draws its terrain and NONE of its entities passes the rail above. ⚠ That is precisely the reported
+    /// symptom's shape *("the scenario loads, the map is empty")*, so the headline assertion alone would have
+    /// been the third instance of the rail-blindness pattern this programme has now named twice
+    /// *(<c>CE-049</c> asserted presence rather than substance; <c>CE-064</c> asserted over an empty set)*.</para>
+    ///
+    /// <para>⭐⭐ <b>Anchored to the WORLD, not to the other host.</b> The claim is per-host internal
+    /// coherence — *"this host draws a marker for the entities THIS host holds"* — which is §5.2's second
+    /// MUST. ⛔ Comparing the two hosts' anchor counts to each other would drift into run-set territory the
+    /// moment one host culls off-screen entities and the other does not.</para>
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task Each_hosts_map_marks_the_entities_its_own_world_holds()
+    {
+        await using var editor  = await EditorProcess.StartAsync("map-anchors-editor");
+        await using var cluster = await EditorProcess.StartAsync("map-anchors-all", mode: "all");
+
+        foreach (var host in new[] { editor, cluster })
+        {
+            var frame = await ReadMapAsync(host);
+
+            var entities = ((await host.Client.ListEntitiesAsync()).EnsureOk()
+                            .Field("entities") as JsonArray)!;
+            int worldCount = entities.Count;
+
+            _out.WriteLine($"[{host.Mode}] world holds {worldCount} entities; map anchors {frame.AnchorIds.Count}");
+
+            // ⛔ Anti-vacuity again: a host with an empty world cannot demonstrate anything about markers.
+            Assert.True(worldCount > 0,
+                $"[{host.Mode}] holds NO entities after loading '{Scenario}' live, so this host cannot "
+              + "demonstrate that its map marks them. ⭐ That is a scenario-load failure, not a map failure — "
+              + "The_two_hosts_hold_the_same_loaded_world diagnoses it.");
+
+            Assert.True(frame.AnchorIds.Count > 0,
+                $"🔴 [{host.Mode}] holds {worldCount} entities but its map submitted NO SpatialAnchor "
+              + "primitive for any of them — the map is drawing its scene and none of its entities. "
+              + "⭐ THIS IS THE PRECISE SHAPE OF THE USER'S `2026-08-27` SYMPTOM, and note that the "
+              + "headline rail's `count > 0` does NOT catch it: terrain alone satisfies that.");
+
+            // ⭐⭐ Every anchor names an entity the world really has. ⛔ Not the converse: culling and
+            //   per-host layer settings legitimately leave some entities unmarked, so requiring full
+            //   coverage would be asserting a run-set (which culling modules run) — the forbidden claim.
+            var known = entities.Select(e => e!["networkId"]!.GetValue<long>()).ToHashSet();
+            var strays = frame.AnchorIds.Where(id => id != 0 && !known.Contains(id))
+                                       .Distinct().OrderBy(x => x).ToArray();
+
+            Assert.True(strays.Length == 0,
+                $"[{host.Mode}] the map anchors networkId(s) [{string.Join(", ", strays)}] that "
+              + "GET /entities does not list. ⭐ A marker for an entity that no longer exists is a stale "
+              + "gizmo — the map showing something the world does not have.");
+        }
+    }
+}
