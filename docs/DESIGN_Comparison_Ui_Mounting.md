@@ -289,3 +289,92 @@ the resume doc records twice already *(a size quoted before the surface was meas
 `EditorSubsystem:2851-2853` satisfies)*; `:473` renders it under a condition I read but did not exercise.
 ⇒ ⭐ a `T3` check belongs in the implementing batch — ⚠ and note `B3` means the *result* surfaces are known
 broken regardless of what that check shows.
+
+---
+
+## 8. 🔒 USER RULING `2026-08-27` — **the MCP obsoletes the EXPORT half, not the VISUAL half**
+
+> 🔒 **User:** *"the graph comparison stuff — it is designed to be processed by an AI model; does it still
+> make sense now when we have the mcp server that can read the stuff directly? Or does the comparison
+> feature work with different version of the same file that can not be loaded at the same time?"*
+> …and, on the answer: *"If the visual part of the comparison haven't been built yet, the whole feature is
+> useless. If it is easy to add, then ok."*
+
+### ⭐ THE SECOND HYPOTHESIS IS THE CORRECT ONE — and the feature design says so
+📄 `Visual_Asset_Comparison_Detailed_Design.md` §1.5: *"**Phase 1 is historical-diff only. Both versions are
+presumed to be the same asset at different points in time. VisualIds correlate.**"* · §1.3 defers git
+integration: *"user obtains the old version externally (git checkout, file copy) and feeds the file path to
+the editor."*
+⇒ ⭐⭐ **two revisions of ONE file, and the editor can only ever hold one of them as a document.**
+
+### 📐 WHY THE MCP CANNOT SUBSTITUTE — measured against the SKILL, not the engine
+⭐ `read_asset_graph` requires the asset **OPEN**; `open_asset` / `open_asset_by_path` resolve only inside
+the **indexed catalog** *(a relative-path suffix match)*. ⇒ ⛔ an old revision in `/tmp` or extracted from git
+is not addressable. ⚠ And a copy dropped into the asset tree would **collide on C# type names** for
+BTree/HSM assets, which emit classes.
+
+### ⛔⛔ BUT THE MCP IS THE WRONG COMPARISON — an AGENT needs no editor to read the old version
+⭐ `git show HEAD~5:path` plus a file read gets both texts. ⇒ for **agent-driven** review the round-trip is
+largely redundant: ⚠ the **sanitizer** is a token/noise optimisation rather than an enabler, and the
+**LLM contract** *(instruction block + JSON response schema)* is scaffolding for a human shuttling text into
+a chat window.
+
+### ⭐⭐⭐ WHAT THE AGENT PATH CANNOT REPLACE — and it inverts the priorities
+📐 **There is NO MCP tool that annotates a graph node.** `add_annotation` writes world-space debug primitives
+*(sphere/anchor/line)* into the gizmo buffer — **the map, not the graph canvas**; `diff_state` is runtime
+entity state. ⇒ ⛔ an agent can determine what changed and has **no way to show a designer which nodes
+changed.** ⭐ The vendor-neutral no-agent designer workflow *(design goal §1.5: "no editor-side LLM calls;
+the user picks the LLM")* also stands on its own.
+
+⇒ ⭐⭐⭐ **THE INVERSION: the half the MCP obsoletes is the half that was BUILT AND LIVE; the half that becomes
+MORE valuable is exactly the half nobody wired.** ⇒ 🔒 **so `D5` is FLIPPED** *(see §9)*, and the manual
+export path is **kept as-is with no further investment** — ⛔ specifically, the per-canvas *toolbar* entries
+for the manual flow are **dropped from scope**, not deferred.
+
+### ⭐ THE OPTION THIS OPENS — **an MCP tool that PUSHES a comparison session** *(filed, not built)*
+⭐⭐ The same JSON the paste-response modal already parses, pushed into `ComparisonSessionRegistry`: the agent
+diffs from git *(no sanitizer)*, the editor renders it through the now-mounted panels, decorator and canvas
+renderer. ⛔ **No new format to design** — the paste-modal's parser IS the contract.
+⚠ **Unmeasured:** whether `ComparisonResponse`'s schema is expressive enough for what an agent naturally
+produces. ⇒ measure before committing.
+
+---
+
+## 9. ✅ AS-BUILT *(`2026-08-27`, `CE-071`)* — **`D5` FLIPPED; all three blockers fixed**
+
+<!-- build-state: BUILT -->
+
+| # | shipped | where |
+|---|---|---|
+| **①a** | both panels take `store` *(`EditorSelectionStore`)*, `idOverride` and `owningPerspective` | `ComparisonSummaryPanel`, `ComparisonSidebar` |
+| **①b** | the two panels are constructed **and registered** per perspective, guarded on `sessionRegistry != null` | `PerspectiveWorkspaceRegistrar` *(+ `RegisterWindows`)* |
+| **①c** | `B3` solved by the **established pattern**: the panel reads `store.ActiveAsset` every build, exactly as `BlackboardAuthoringWindow:576` does. ⭐ `SetActiveAsset` survives as the store-less/rail seam | both panels |
+| **②** | one shared sanitizer list on CGF, **including `BlackboardComparisonSanitizer`** — ⚠ which **NEITHER host registered before**, so blackboard assets silently could not be compared anywhere | `CgfSubsystem` |
+| **③** | CGF constructs all three services and **passes** them ⇒ its `_comparisonToolbar` is real and it gets the panels | `CgfSubsystem` |
+| ⭐⭐ **`D5`, FLIPPED** | `ComparisonCanvasRenderers.For(registry, assetId)` — **one shared helper**, wired at all **six** `Build` sites *(3 kinds × 2 hosts)* | new file + `EditorSubsystem`, `CgfSubsystem` |
+
+#### ⛔ WHY `D5` WAS WRONG, stated plainly
+§4 `D5` deferred the annotation renderer as *"NodeEditor-host work, a different surface from window
+registration"*. 📐 **Measured: every document factory already composes "built-in set + caller extras"
+through its own `BuildRenderers`, and each kind ships 4–6 LIVE renderers** *(BTree: heatmap · subtree
+boundary · observer-guard badge · variable-binding badge · breakpoint gutter · runtime overlay)*.
+⇒ ⭐⭐⭐ **the renderer joins an exercised list with NO factory signature change — the cheapest piece of the
+mount, not the one to defer.** ⚠ 📌 **Third estimate this programme got wrong by not measuring the surface
+first** *(after the "24-site rename" and "the cheapest adopter")*.
+
+#### ⭐ NOT DONE, deliberately
+⛔ **`D5`'s per-canvas toolbar entries** *(`BTreeComparisonToolbar` / `HsmComparisonToolbar`, still 0
+constructions)* — **dropped**, per §8: they are entry points for the manual flow the MCP largely obsoletes.
+⛔ **`D6`'s three never-called `Add*EditorComparison` DI extensions** — left, with the reason recorded: their
+container `AddSharedAiEditor` has no production caller either, so the honest question is *"adopt the
+container or delete both"*, which is about the DI story and not about comparison.
+
+#### 📐 GATES
+`Hrot.Editor.AiShared.Tests` **2033/0**, 1 skipped *(pre-existing)* — **+6** = the new rails ·
+`Hrot.Editor.Tests` **338/0** · `Hrot.Editor.AiShared`, `Hrot.Editor`, `Hrot.CGF` build clean.
+⭐⭐ **Each blocker inverse-edit red-proved and reverted:** `B1` re-bind to `"Analysis"` ⇒ 1 failed ·
+`B2` drop `idOverride` ⇒ 1 failed · `B3` stop passing `store` ⇒ **2** failed ⇒ then 6/0.
+⚠ **`comparison-summary` is now a SHARED panel kind** *(both hosts publish it)* ⇒ ⭐ no `EditorOnlyKinds`
+entry needed, which is the `cgf==editor` outcome. ⛔ **T3 not run** *(async lane)*: the two-host capability
+diff should confirm the new kind appears on both — ⚠ and note goldens are per-panel-id files, so nothing
+existing is invalidated.

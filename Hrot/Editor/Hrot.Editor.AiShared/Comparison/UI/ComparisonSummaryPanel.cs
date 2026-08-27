@@ -84,23 +84,78 @@ public sealed class ComparisonSummaryPanel : ManagedWindow
         { "cosmetic", "tuning", "feature", "removal", "behavior" };
 
     private readonly ComparisonSessionRegistry _registry;
+    private readonly Selection.EditorSelectionStore? _store;
     private Guid _activeAssetId;
     private string _activeAssetName = "";
 
-    public ComparisonSummaryPanel(ComparisonSessionRegistry registry)
-        : base("ai_comparison_summary", "Comparison Summary", "Analysis", WindowScope.PerspectiveBound)
+    /// <param name="registry">The shared, asset-id-keyed comparison session registry.</param>
+    /// <param name="store">
+    /// ⭐⭐⭐ <b><c>CE-071</c> `B3` — WHERE THE ACTIVE ASSET COMES FROM.</b>
+    /// 📄 <c>docs/DESIGN_Comparison_Ui_Mounting.md</c> §7 `B3`.
+    /// <para>⛔⛔ Before <c>CE-071</c> the only way to tell this panel which asset it was summarising was
+    /// <see cref="SetActiveAsset"/>, and 📐 <b>nothing in production called it</b> — so a registered panel
+    /// would have rendered <c>HasSession: false</c> forever, indistinguishable from *"no comparison
+    /// running"*. ⭐⭐ Reading <c>store.ActiveAsset</c> instead is the ESTABLISHED pattern, not new
+    /// machinery: <c>BlackboardAuthoringWindow:576</c> already resolves its comparison session exactly this
+    /// way, and <see cref="Identity.IEditableAsset"/> exposes precisely the <c>AssetId</c> + <c>Name</c>
+    /// this panel needs.</para>
+    /// <para>⚠ Optional: <see langword="null"/> leaves the panel on the explicit
+    /// <see cref="SetActiveAsset"/> path, which is what the unit rails use.</para>
+    /// </param>
+    /// <param name="idOverride">
+    /// ⭐⭐ <b><c>CE-071</c> `B2`</b> — per-perspective window id. ⛔ Without it three per-perspective
+    /// instances would share one <c>Id</c> AND declare the same panel id to
+    /// <see cref="PanelSnapshot"/> three times. ⚠ Mirrors <c>TraceTimelineWindow</c>'s
+    /// <c>ai_trace_timeline_{suffix}</c>.
+    /// </param>
+    /// <param name="owningPerspective">
+    /// ⭐⭐⭐ <b><c>CE-071</c> `B1` — the bug this parameter exists to fix.</b> 📐 This panel used to hard-code
+    /// <c>"Analysis"</c>, and <c>grep</c> found that string in production ONLY here and in
+    /// <see cref="ComparisonSidebar"/> ⇒ ⛔⛔ it was <see cref="WindowScope.PerspectiveBound"/> to a
+    /// perspective <b>nothing registers</b>, so even correctly registered it could never be shown.
+    /// 📌 The second instance of the hazard <c>SharedAiEditorServiceCollectionExtensions</c> already
+    /// documents for <c>"Authoring"</c>.
+    /// </param>
+    public ComparisonSummaryPanel(
+        ComparisonSessionRegistry registry,
+        Selection.EditorSelectionStore? store = null,
+        string? idOverride = null,
+        string owningPerspective = "Analysis")
+        : base(idOverride ?? "ai_comparison_summary", "Comparison Summary",
+               owningPerspective, WindowScope.PerspectiveBound)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        _store    = store;
 
         // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
         PanelSnapshot.DeclareInstrumented(Id);
     }
 
-    /// <summary>Sets which asset this panel is summarising.</summary>
+    /// <summary>
+    /// Sets which asset this panel is summarising.
+    /// <para>⚠ <c>CE-071</c>: superseded in production by the <c>EditorSelectionStore</c> passed to the
+    /// constructor — ⛔ this remains for hosts with no selection store, and as the unit rails' seam.
+    /// An explicit call WINS for the rest of the frame; the store is re-read on the next build.</para>
+    /// </summary>
     public void SetActiveAsset(Guid assetId, string assetName)
     {
         _activeAssetId   = assetId;
         _activeAssetName = assetName;
+    }
+
+    /// <summary>
+    /// ⭐⭐ Resolves the asset to summarise: the selection store when one was supplied, else whatever
+    /// <see cref="SetActiveAsset"/> last set.
+    /// <para>⚠ Reads the store EVERY build rather than subscribing — the same choice
+    /// <c>BlackboardAuthoringWindow</c> makes, and it keeps the panel correct across perspective switches
+    /// with no event plumbing to leak.</para>
+    /// </summary>
+    private (Guid Id, string Name) ResolveActiveAsset()
+    {
+        var active = _store?.ActiveAsset;
+        return active is not null
+            ? (active.AssetId, active.Name)
+            : (_activeAssetId, _activeAssetName);
     }
 
     /// <summary>
@@ -110,21 +165,22 @@ public sealed class ComparisonSummaryPanel : ManagedWindow
     /// </summary>
     private (ComparisonSummaryPanelViewModel Vm, ComparisonSummaryPanelState? State) BuildAndPublish()
     {
-        var session = _registry.GetSession(_activeAssetId);
+        var (assetId, assetName) = ResolveActiveAsset();
+        var session = _registry.GetSession(assetId);
         ComparisonSummaryPanelViewModel vm;
         ComparisonSummaryPanelState? state = null;
 
         if (session == null)
         {
             vm = new ComparisonSummaryPanelViewModel(
-                Id, Kind, HasSession: false, _activeAssetName,
+                Id, Kind, HasSession: false, assetName,
                 HasMigrationNotice: false, MigrationNotice: null,
                 TopSummary: null, HumanSummary: null,
                 EnabledSeverities: Array.Empty<string>(), AllSeverities: Severities);
         }
         else
         {
-            state = new ComparisonSummaryPanelState(session, _activeAssetName);
+            state = new ComparisonSummaryPanelState(session, assetName);
             vm = new ComparisonSummaryPanelViewModel(
                 Id, Kind, HasSession: true, state.AssetName,
                 state.HasMigrationNotice, state.MigrationNotice,

@@ -202,6 +202,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private Hrot.UI.Common.Adapters.ScenarioOrbatAdapter?        _orbatAdapter;
 
     private Hrot.Editor.AiShared.Debug.DebugSessionRegistry?     _aiDebugRegistry;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-071</c> — CGF's shared comparison session registry, kept on the instance so the three
+    /// document-factory <c>Build</c> sites can compose the canvas annotation renderer against the SAME
+    /// state the comparison panels read. 📄 <c>docs/DESIGN_Comparison_Ui_Mounting.md</c> §4 `D2`/`D3`.
+    /// </summary>
+    private Hrot.Editor.AiShared.Comparison.ComparisonSessionRegistry? _comparisonSessionRegistry;
     private Hrot.Blueprints.Core.Debug.BlueprintDebugSession?    _blueprintDebugSession;
 
     /// <summary>
@@ -1450,6 +1457,35 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var schemaExporter = new Hrot.Editor.AiShared.Blackboard.ActionSchemaExporter();
         schemaExporter.Rebuild();
 
+        // ── ⭐⭐⭐ CE-071 (D3) — THE COMPARISON CAPABILITY, mirroring the editor's :2679-2687 ──────
+        // 📄 docs/DESIGN_Comparison_Ui_Mounting.md §4 D3/D4.
+        //
+        // 🔒 cgf==editor is the programme's goal, reaffirmed by the user 2026-08-27.
+        // 📐 Measured before this: CGF set NONE of SanitizerRegistry / ExportBuilder / SessionRegistry, so
+        //    BlackboardAuthoringWindow's three-way guard failed and its _comparisonToolbar was NULL ⇒
+        //    ⛔ CGF had no "Compare with…" entry ANYWHERE, while the editor did.
+        // ⚠⚠ That was NOT the "caller HAS it and does not pass it" trap: CGF never CONSTRUCTED these, so
+        //    it was a capability never granted rather than an argument never forwarded. ⭐ The cost of
+        //    granting it is this block — the sanitizers need only the catalog, which CGF already has.
+        //
+        // ⭐⭐ D4 / ruling 58 — ONE registration list, no host conditionals. These are the same four
+        //    sanitizers in the same order the editor registers, plus Blackboard's, which NEITHER host
+        //    registered before (⇒ blackboard assets silently could not be compared on either host).
+        var comparisonSanitizers = new Hrot.Editor.AiShared.Comparison.SanitizerRegistry();
+        comparisonSanitizers.Register(new Hrot.BTree.Editor.Comparison.BTreeComparisonSanitizer(catalog));
+        comparisonSanitizers.Register(new Hrot.Hsm.Editor.Comparison.HsmComparisonSanitizer(catalog));
+        comparisonSanitizers.Register(new Hrot.Blueprints.Editor.Comparison.BlueprintComparisonSanitizer(
+            new Hrot.Editor.AiShared.Comparison.NoOpComparisonMigrationAdapter(),
+            new Hrot.Editor.AiShared.Comparison.NoOpMetaEnvelopeSanitizer(),
+            catalog));
+        comparisonSanitizers.Register(new Hrot.Editor.AiShared.Comparison.BlackboardComparisonSanitizer());
+
+        var comparisonExportBuilder = new Hrot.Editor.AiShared.Comparison.ComparisonExportBuilder();
+        // ⭐⭐ D2 — ONE registry, kept on the instance so the three document Build sites can compose the
+        //    canvas annotation renderer against the SAME state the panels read.
+        var comparisonSessionRegistry = _comparisonSessionRegistry =
+            new Hrot.Editor.AiShared.Comparison.ComparisonSessionRegistry();
+
         // ── The two clock signals (§5 item ①) ──────────────────────────────────
         // ⭐⭐⭐ REQUIRED by PerspectiveWorkspaceServices, and supplied from CGF's REAL state — ⛔ never
         //    a silent default (the 2026-08-16 rule; the ctor throws on null anyway).
@@ -1474,6 +1510,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   Breakpoints windows exist at all (the registrar builds them only when it is non-null).
             BreakpointManager = _bpManager,
             SchemaExporter    = schemaExporter,
+
+            // ⭐⭐⭐ CE-071 (D3) — CGF HAS these now, so it PASSES them. Without all three,
+            //    BlackboardAuthoringWindow builds no ComparisonToolbarAction and the registrar builds no
+            //    comparison panels ⇒ the whole feature stays dark on this host.
+            SanitizerRegistry = comparisonSanitizers,
+            ExportBuilder     = comparisonExportBuilder,
+            SessionRegistry   = comparisonSessionRegistry,
 
             // ⭐⭐ L0.4 (R-122) — the Details context reads entity selection from the WORLD. `_context`
             //    is nulled on shutdown, so the world is resolved AT CALL TIME rather than captured.
@@ -1619,14 +1662,21 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         breakpointManager: _bpManager,
                         actionSchema:      schemaExporter,
                         assetCatalog:      catalog,
-                        openBlueprint:     a => _aiDocumentManager?.Open(a));
+                        openBlueprint:     a => _aiDocumentManager?.Open(a),
+                        // ⭐⭐⭐ CE-071 — the comparison annotation renderer, same as the editor.
+                        //    📄 DESIGN_Comparison_Ui_Mounting.md. It joins this kind's built-in set.
+                        extraRenderers:    Hrot.Editor.AiShared.Comparison.Rendering
+                            .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
                     break;
 
                 case Hrot.Editor.AiShared.AssetKind.Hsm:
                     doc.ViewState = Hrot.Hsm.Editor.Host.HsmDocumentFactory.Build(
                         doc.Asset, adapters,
                         hsmDebugSession:   null,
-                        breakpointManager: _bpManager);
+                        breakpointManager: _bpManager,
+                        // ⭐⭐⭐ CE-071 — see the BTree arm above.
+                        extraRenderers:    Hrot.Editor.AiShared.Comparison.Rendering
+                            .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
                     break;
 
                 case Hrot.Editor.AiShared.AssetKind.Blueprint:
@@ -1635,7 +1685,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         channelCommands:  bpChannelCatalog,
                         peerAssetCatalog: blueprintPeerCatalog,
                         behaviorActions:  behaviorActions,
-                        debugSession:     null);
+                        debugSession:     null,
+                        // ⭐⭐⭐ CE-071 — see the BTree arm above.
+                        extraRenderers:   Hrot.Editor.AiShared.Comparison.Rendering
+                            .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
                     break;
 
                 default:

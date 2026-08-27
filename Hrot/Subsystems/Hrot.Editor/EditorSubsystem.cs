@@ -193,6 +193,16 @@ namespace Hrot.Editor
         private MasterSyncTimeControllerAdapter? _bpTimeAdapter;
         /// <summary>⭐ BATCH 84 — the AI debug-session registry built in RegisterWindows; see the test accessor.</summary>
         private Hrot.Editor.AiShared.Debug.DebugSessionRegistry? _aiDebugRegistry;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-071</c> — the shared comparison session registry, kept on the instance so the three
+        /// document-factory <c>Build</c> sites can hand the canvas annotation renderer to
+        /// <c>extraRenderers</c>. 📄 <c>docs/DESIGN_Comparison_Ui_Mounting.md</c>.
+        /// <para>⚠ It is constructed as a LOCAL in the composition root and also flows to
+        /// <c>PerspectiveWorkspaceServices.SessionRegistry</c>; this field is the SAME instance, not a
+        /// second one — ⛔ two registries would key comparison state in two places.</para>
+        /// </summary>
+        private Hrot.Editor.AiShared.Comparison.ComparisonSessionRegistry? _comparisonSessionRegistry;
         private PhysicsToolkitModule?   _physicsModule;
         private IEditorLogic?           _editorLogic;
         private EditorApplication?      _editorApp;
@@ -2684,7 +2694,9 @@ namespace Hrot.Editor
                 new NoOpMetaEnvelopeSanitizer(),
                 catalog));
             var comparisonExportBuilder = new ComparisonExportBuilder();
-            var comparisonSessionRegistry = new ComparisonSessionRegistry();
+            // ⭐⭐ CE-071 — kept on the instance too, so the document Build sites can compose the canvas
+            //    annotation renderer. ⚠ The SAME instance flows to PerspectiveWorkspaceServices below.
+            var comparisonSessionRegistry = _comparisonSessionRegistry = new ComparisonSessionRegistry();
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-052: Blackboard aggregator service + strategies ───────────────────────────────
@@ -4071,14 +4083,21 @@ namespace Hrot.Editor
                             // AiPrimitive nodes — resolve via the shared asset catalog, open via
                             // the shared AiDocumentManager (which also switches perspective).
                             assetCatalog:        _aiCatalogBuilder?.Catalog,
-                            openBlueprint:       a => _aiDocumentManager?.Open(a));
+                            openBlueprint:       a => _aiDocumentManager?.Open(a),
+                            // ⭐⭐⭐ CE-071 — the comparison annotation renderer joins this kind's
+                            //    built-in renderer set. 📄 DESIGN_Comparison_Ui_Mounting.md.
+                            extraRenderers:      Hrot.Editor.AiShared.Comparison.Rendering
+                                .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
                         break;
                     case Hrot.Editor.AiShared.AssetKind.Hsm:
                         // AIE-033: inject HSM debug session + breakpoint manager.
                         doc.ViewState = Hrot.Hsm.Editor.Host.HsmDocumentFactory.Build(
                             doc.Asset, adapterBundle,
                             hsmDebugSession:   _hsmDebugSession,
-                            breakpointManager: _bpManager);
+                            breakpointManager: _bpManager,
+                            // ⭐⭐⭐ CE-071 — see the BTree arm above.
+                            extraRenderers:    Hrot.Editor.AiShared.Comparison.Rendering
+                                .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
                         break;
                     case Hrot.Editor.AiShared.AssetKind.Blueprint:
                         // AIE-046: Blueprint canvas binding via BlueprintDocumentFactory.
@@ -4094,7 +4113,10 @@ namespace Hrot.Editor
                             // AN7: forward the behavior-action catalog so non-channel ChannelCommandNodes
                             // (ActionFqn set) project their parameter data-IN pins from the matching entry.
                             behaviorActions: _behaviorActionCatalog,
-                            debugSession: _blueprintDebugSession);
+                            debugSession: _blueprintDebugSession,
+                            // ⭐⭐⭐ CE-071 — see the BTree arm above.
+                            extraRenderers: Hrot.Editor.AiShared.Comparison.Rendering
+                                .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
                         break;
                     default:
                         // Other kinds (Scenario, Blackboard, Utility) have no ViewState factory —
