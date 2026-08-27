@@ -1,4 +1,24 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-27
+current-answer: this document is the feature INTENT and remains authoritative for the pipeline,
+  the export format, the LLM contract and the sanitizers.
+known-rot: §9's UI-surface list (the "ComparisonSummaryPanel / ComparisonSidebar are docked windows
+  registered as ai_comparison_summary / ai_comparison_sidebar" lines, and the ComparisonAnnotationRenderer
+  registration) describes INTENT that was NEVER WIRED. Measured 2026-08-27: both panels have zero
+  production constructions and are registered into no WindowManager on either host; the annotation
+  renderer likewise; and both panels are PerspectiveBound to "Analysis", a perspective nothing registers.
+  Do NOT read those lines as a description of the code.
+superseded-by: docs/DESIGN_Comparison_Ui_Mounting.md  (for the MOUNT only — the rest of this file stands)
+-->
+
 # Visual Asset Comparison — Detailed Design
+
+> ⛔⛔ **MOUNT WARNING (`2026-08-27`, `CE-071`).** The **pipeline** this document specifies is built and the
+> **entry point is live on the editor** *(via `BlackboardAuthoringWindow`)*. ⚠ But the **result surfaces —
+> the two docked panels and the on-canvas annotations — are mounted on NEITHER host**, and CGF has no entry
+> point at all. 📄 The measurement and the plan: **[`docs/DESIGN_Comparison_Ui_Mounting.md`](../../DESIGN_Comparison_Ui_Mounting.md)**.
+> ⇒ ⭐ read §9's UI list below as **intent**, not as as-built.
 
 > **Status:** Detailed design for the asset-comparison feature in the visual AI editor. Derived from `AI_Editor_Shared_Infrastructure.md` + `BTree_Editor_NodeEditor_Host_Design.md` + `HSM_Editor_NodeEditor_Host_Design.md` + `Blackboard_Authoring_Detailed_Design.md` + the design conversations with the architect about export sanitization.
 > **Audience:** Implementation agent and human reviewer.
