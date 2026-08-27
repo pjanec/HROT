@@ -986,7 +986,64 @@ exactly these surfaces is what phase 0's rail exists to catch.
 ⇒ ⭐⭐ **`IUiBundle`'s value scales with host count.** 📌 §3.3's *"a smaller list is a SUBSET, never a branch"*
 was argued for 2 hosts; with **5** it stops being a nicety and becomes the mechanism.
 
-### 5c.5 ⭐ BUNDLE #1 — the items *(⚠ SUPERSEDED ORDERING — see §5c.4d `D3`; kept for the item shape)*
+### 5c.4e 🔒🔒🔒 **HOW WE KNOW THE UNIFICATION DID NOT BREAK WHAT WORKS** *(user question, `2026-08-27`)*
+
+> 🔒 **User:** *"how will you check that the unification does not destroy what now works? will you use
+> current editor as something that should not change?"*
+
+#### ⭐ THE SHORT ANSWER: **yes, current behaviour is the reference — but "the editor" alone is the WRONG reference, and the rail we have is blind to the failure that matters**
+
+#### ⛔⛔ TWO AXES, AND PHASE 0 BUILT ONLY ONE
+| axis | exists? | what it catches | ⛔ what it CANNOT catch |
+|---|---|---|---|
+| **A · cross-host parity** *(editor vs `--mode all`)* | ✅ **phase 0** | one host drifting from the other | 🔴🔴 **A CHANGE THAT AFFECTS BOTH HOSTS IDENTICALLY.** ⚠ If a shared bundle drops a window, renames an id or moves a perspective **on all five hosts at once, parity stays PERFECTLY GREEN** |
+| ⭐⭐⭐ **B · before/after, per host** | ⛔ **DOES NOT EXIST** | ⭐ **exactly the question asked** — did today's working behaviour change? | pixels, layout, rendering |
+
+⇒ ⭐⭐⭐ **Axis A is the wrong instrument for this question, and relying on it would be the SEVENTH instance of
+the rail-blindness pattern** — 📌 the same shape as `CE-065` *(unit rails green because strict mode was off)*
+and `CE-072` *(seven rails green because production had moved behind a wrapper)*. ⛔ **Unification is precisely
+the class of change that moves every host together**, so the axis that compares hosts to each other goes blind
+at the moment it is needed most.
+
+#### ⛔ AND WHY *"use the current editor"* IS NOT ENOUGH ON ITS OWN
+📐 The ids are **host-prefixed** — `ig_system_profiler` · `simhost_system_profiler` · `cgf_system_profiler` ·
+`editor_system_profiler`. ⇒ ⭐ the editor's baseline covers **4 of the 22 sites**. ⛔ Nothing about the editor
+staying identical proves `ig_system_profiler` still exists, still claims perspective `"IG"`, or still carries
+IG's title-bar colour. ⇒ ⭐⭐ **every host needs its own baseline.**
+
+#### ⭐⭐ THE MECHANISM — measured, and it is cheap
+📐 **`--mode all` expands to `orchestrator,simhost,ig,excon,cgf`** *(`HrotRunnerConfiguration:124`)*, and an
+explicit guard *(`:181`)* forbids the editor coexisting with IG/ExCon. ⭐ `replaybrowser` is its own mode.
+⇒ ⭐⭐⭐ **THREE captures cover all 22 sites:**
+
+| capture | covers |
+|---|---|
+| `--mode editor` | the editor's 4 sites |
+| ⭐⭐ `--mode all` | **SimHost · IG · ExCon · CGF · Orchestrator — five hosts in ONE process** |
+| `--mode replaybrowser` | ReplayBrowser's 2 sites |
+
+⭐ **What to capture, per mode** *(all already exposed — no new engine surface)*:
+`list_panels` → `{ registered[], captured[], kinds{} }` *(⭐ all four shared diagnostic windows ARE
+`PanelSnapshot`-instrumented — verified)* · `list_perspectives` → the perspective every registered window
+claims. ⇒ ⭐⭐ **committed as a GOLDEN per mode, then asserted equal after the refactor.**
+🔒 **The invariant: the `(panelId, kind, perspective)` set per mode is UNCHANGED.** 📌 §6 already demands
+window **ids** never move *("a tidier rename silently resets users' layouts")*; this makes it checkable
+per host instead of by inspection.
+
+#### ⛔⛔ THE ORDER THIS FORCES — **the baseline is the FIRST slice, before any refactor**
+⚠⚠ **A golden captured after the first bundle lands is worthless** — it would enshrine whatever that bundle
+did. ⇒ 🔒 **capture and commit the three goldens as their own commit, on today's code, before touching a
+single registration site.** ⭐ That commit is also the cheapest possible red-proof: any later diff that
+changes a host's window set turns it red immediately.
+
+#### ⚠ THE LIMITS — stated so nobody over-trusts this
+| ⚠ | |
+|---|---|
+| **`list_panels` reports the INSTRUMENTED set, not every registered window** | ⛔ a registered window that never calls `DeclareInstrumented` is invisible to it. 📐 **UNMEASURED how large that gap is** — a first pass counted 44 files declaring `: ManagedWindow` against 59 referencing `DeclareInstrumented`, which is **not** a comparable ratio *(non-window classes declare panels too)*. ⇒ ⭐ **measure it empirically while taking the baseline**, and if the gap is real, widen the capture rather than trusting a partial set |
+| **ids and perspectives are not PIXELS** | ⭐ this catches a dropped window, a renamed id, a moved perspective *(`CE-071`'s `B1` exactly)*; ⛔ it does NOT catch a panel that renders wrong. ⚠ A windowed eyes pass stays part of acceptance |
+| **`captured[]` depends on a frame having drawn** | ⚠ compare `registered[]` for structure; `captured[]` is frame-dependent and will differ run to run |
+
+### 5c.5 ⭐ BUNDLE #1 — the items *(⚠ SUPERSEDED ORDERING — see §5c.4d `D3` and §5c.4e; the FIRST slice is the BASELINE)*
 | # | item | proof |
 |---|---|---|
 | **①** | inventory the save/File-menu cluster across BOTH roots and classify each service **bundle-private vs root-shared** *(`D1`)* | ⭐ the classification is written into this section before code |
