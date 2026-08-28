@@ -67,11 +67,32 @@ namespace Fdp.Toolkit.Time.Controllers
         /// Optional override for <c>HighResUtcClock.GetTicks</c>. Inject a controlled counter
         /// in unit tests to avoid <c>Thread.Sleep</c>.
         /// </param>
+        /// <param name="startPaused">
+        /// ⭐⭐⭐ <b><c>CE-101</c> — boot with the cluster PAUSED instead of free-running.</b>
+        ///
+        /// <para>🔴 <b>Measured `2026-08-28` on `--mode all`:</b> the cluster's clock started by itself
+        /// ~2 s after boot and ran at ~1× real time with <b>no scenario loaded and zero entities</b>.
+        /// 🔒 User: <i>"simulation time is running from the beginning. Undesired, should start paused."</i></para>
+        ///
+        /// <para>⭐⭐ <b>The cause is that the baseline broadcast below is ALSO a command.</b> It exists to give
+        /// late-joining slaves a t=0 anchor (see its comment) — but <c>ClusterTimeObservation.Apply</c> derives
+        /// <c>PauseRequested = (TargetMode == Deterministic)</c>, so announcing <c>Continuous</c> in that anchor
+        /// tells the whole cluster to RUN. ⛔ Two meanings on one message, and only one of them was intended.</para>
+        ///
+        /// <para>⚠⚠ <b>And it silently disabled STEPPING</b> (<c>CE-105</c>): <see cref="Step"/> is REFUSED in any
+        /// mode but <c>Stepping</c>, so every <c>POST /sim/step</c> on a freshly booted cluster was dropped with
+        /// a warning — the pause-step-inspect loop the debug API documents could not work at all.</para>
+        ///
+        /// <para>⛔ <b>Opt-in, and deliberately so.</b> A runtime deployment that should come up running keeps
+        /// today's behaviour; an operator/authoring host (<c>--mode all</c>) asks for paused. ⚠ The anchor is
+        /// still broadcast either way — it is load-bearing for clock alignment and is NOT removed.</para>
+        /// </param>
         public MasterSyncController(
             FdpEventBus          eventBus,
             HashSet<int>?        slaveNodeIds = null,
             TimeConfig?          config       = null,
-            Func<long>?          tickSource   = null)
+            Func<long>?          tickSource   = null,
+            bool                 startPaused  = false)
         {
             _eventBus       = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _config         = config ?? TimeConfig.Default;
@@ -97,14 +118,27 @@ namespace Fdp.Toolkit.Time.Controllers
             // holds a valid reference for late-joining slaves.  Without this, IG and ExCon
             // that boot 200–500 ms after the Orchestrator have no anchor point and start their
             // clocks from an independent t=0, producing a permanent startup offset.
+            // ⭐⭐⭐ CE-101 — the MODE this anchor announces is a COMMAND, so it follows `startPaused`.
+            //    ⛔ `Deterministic` is what "paused" IS on this cluster: ClusterTimeObservation.Apply sets
+            //       `PauseRequested = (TargetMode == Deterministic)`, and ClusterTimeTransportAdapter.IsPaused
+            //       reads exactly that. ⇒ announcing it is what makes every node's UI say "paused".
+            //    ⭐ And `_mode` moves with it: Step() refuses anything but Stepping (CE-105), and a master that
+            //      announced Deterministic while still accumulating wall time in Continuous would be lying.
+            if (startPaused)
+                _mode = MasterMode.Stepping;
+
             _eventBus.Publish(new SwitchTimeModeEvent
             {
-                TargetMode       = TimeMode.Continuous,
+                TargetMode       = startPaused ? TimeMode.Deterministic : TimeMode.Continuous,
                 BarrierWallTicks = _totalWallTicks,
                 SimTimeSnapshot  = 0.0,
                 TimeScale        = _timeScale,
                 FixedDelta       = 0f,
             });
+
+            Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
+                "[TC3][Master] Boot time mode = {0} (startPaused={1}). Press play / POST /sim/play to run.",
+                startPaused ? "Deterministic (paused)" : "Continuous (running)", startPaused);
         }
 
         // ── ITimeController ──────────────────────────────────────────────────

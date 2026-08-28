@@ -2179,6 +2179,72 @@ landed — it simply had nothing to collide with, so it never lost.**
 checkable habit: a FILTERED green is not evidence a new test class is safe in its assembly** — ⛔ if the class
 touches a process-global, find the collection or define one.
 
+### 5c.16 ⭐⭐⭐ `CE-101` — **THE BOOT ANCHOR WAS ALSO A COMMAND.** `build-state: BUILT` *(`2026-08-28`)*
+
+> 🔒 **User, verbatim** *(`--mode all` visual check on Windows)*: *"simulation time is running from the
+> beginning. Undesired, should start paused."*
+
+#### 5c.16.1 📐 THE MEASUREMENT
+
+| t after boot | `isPaused` | `simTime` | `clusterState` | entities |
+|---|---|---|---|---|
+| ≈2 s | true | 0 | Idle | 0 |
+| ≈20 s | **false** | **19.5** | Idle | **0** |
+
+⇒ ⛔ the clock started itself and ran at ~1× real time **with no scenario and nothing to simulate**, and
+⚠ **no log line recorded the transition** *(ruling 53's shape)*.
+
+#### 5c.16.2 ⭐⭐⭐ THE CAUSE — **one message, two meanings**
+
+```mermaid
+sequenceDiagram
+    participant M as MasterSyncController ctor
+    participant B as event bus / DDS
+    participant O as ClusterTimeObservation
+    participant A as ClusterTimeTransportAdapter
+    M->>B: SwitchTimeModeEvent{TargetMode=Continuous, BarrierWallTicks, SimTimeSnapshot=0}
+    Note over M,B: INTENT: a t=0 anchor so late-joining slaves share a baseline
+    B->>O: Apply(ev)
+    O->>O: PauseRequested = (TargetMode == Deterministic) -- so FALSE
+    A->>O: IsPaused => !seenAnyModeEvent || PauseRequested
+    Note over A,O: EFFECT: the anchor also COMMANDED the cluster to run
+```
+
+⭐⭐ **The anchor was added deliberately** — its own comment: *"Bug 3 fix: broadcast the initial t=0 baseline
+so the DDS TransientLocal buffer holds a valid reference for late-joining slaves."* ⛔ **That purpose is
+served by `BarrierWallTicks`/`SimTimeSnapshot`. The `TargetMode` field rode along, and
+`ClusterTimeObservation.Apply` turns it into the cluster's pause decision.**
+
+⇒ ⭐⭐⭐ **A message sent for a SIDE EFFECT was also a COMMAND, and only one of its two meanings was
+intended.** 📌 The same family as `CE-102`'s silent-success: the mechanism is honest about what it does and
+silent about what it *also* does.
+
+⚠⚠ **And it disabled STEPPING** *(`CE-105`)*: `MasterSyncController.Step()` refuses any `_mode` but
+`Stepping`, so on a freshly booted cluster **every `POST /sim/step` was dropped with a warning** — the
+pause-step-inspect loop the debug API documents could not work at all.
+
+#### 5c.16.3 ✅ THE FIX — **opt-in, and the anchor still goes out**
+
+| ⭐ | |
+|---|---|
+| ⭐⭐ **`MasterSyncController(…, bool startPaused = false)`** | the anchor is **still broadcast** *(it is load-bearing for clock alignment — ⛔ NOT removed)*; only the **mode it announces** changes |
+| ⭐⭐ **`_mode = MasterMode.Stepping` moves with it** | ⛔ a master that announced `Deterministic` while still accumulating wall time in `Continuous` would be lying — and stepping would still be refused |
+| ⭐ **`OrchestratorSubsystem` passes `startPaused: true`** | ⚠ **opt-in on purpose**: a runtime deployment that should come up running keeps today's behaviour. ⛔ The toolkit default is unchanged |
+| ⭐ **a boot log line names the mode** | closes the silent-transition half of the finding |
+
+#### 5c.16.4 ⭐⭐ GATED ON A REAL `--mode all` BOOT — ⛔ not on unit rails alone
+
+| check | result |
+|---|---|
+| clock stays put with no scenario | ⭐ `simTime` **0.000**, `isPaused: true`, stable across 12 s *(was 19.5 and climbing)* |
+| a **live load** does not start it | ⭐ `simTime` 0.000, `OperatingLive`, **8 entities** |
+| ⭐⭐⭐ **`/sim/play` still runs** *(the regression that would matter most)* | ✅ 3.935 → 8.007 s at ~1× |
+| `/sim/step` is no longer REFUSED | ⭐ accepted — ⚠ **but delivers exactly one 1/60 frame regardless of `count`** ⇒ `CE-105` stays open, sharpened |
+
+⚠ **What this does NOT fix:** `CE-103` *(navigation executes and yields zero velocity)* and `CE-102` *(the
+edit load's silent success)* are untouched — ⭐ but `CE-101` made `CE-103` **measurable for the first time**,
+because until now the sim could not be stepped or trusted to be running.
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|
