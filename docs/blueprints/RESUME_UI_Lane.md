@@ -1,11 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-27
-current-answer: ⭐⭐⭐ §0.0d — "PHASE 2: THE PLAN, AND THE SAFETY NET". START THERE AND NOWHERE ELSE.
-  It is written to be SELF-SUFFICIENT after a compaction: it repeats the measured numbers rather than
-  pointing at them, and carries the user rulings, the resolved D1-D4, the slice order and the limits.
+updated: 2026-08-28
+current-answer: ⭐⭐⭐ §0.0e — "--mode all VISUAL-CHECK CORRECTIVES + the cgf==editor TKB ruling".
+  START THERE AND NOWHERE ELSE. It is SELF-SUFFICIENT after a compaction: it repeats the measured
+  numbers, carries the user rulings verbatim, names the ONE item in flight (CE-103) and its single
+  next probe, and records the boot recipe and the self-inflicted traps.
+  ⚠ §0.0d is now HISTORY: phase 2 (slices 1-3, J1, J2, J3) is DONE. Do not restart it.
   Read §0's header block only for the branch/ids/dispatch-sha facts.
-stale-below: ⛔ EVERYTHING except §0's header and §0.0d is HISTORY, newest first — §0.0c (the CE-070/071
+stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
   way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
   record of WHY, not as instructions. ⚠ §0.0c and the §0 header both used to say "Start here"; §0.0d
   supersedes both (corrected 2026-08-27).
@@ -69,7 +71,139 @@ the design's **§5.6 / §5.7 / §5.8**.
 | 🔴 **`CE-067`: `Hrot.Blueprints.Tests` (3 983 tests) had NOT COMPILED**, and `--no-build` printed PASSED over the stale binary — the exact hazard CLAUDE.md's tier section names. ⭐ Now **3 965/0** and back in the gate set | `CE-067` |
 | 📐 **Dead guard:** `WindowManager.MainToolbar` is NEVER null ⇒ every `MainToolbar != null` check was always true and its "toolbar-less host" comments described an impossible state | §5b.4 |
 
-## ⭐⭐⭐ 0.0d — **PHASE 2: THE PLAN, AND THE SAFETY NET.** ⛔⛔ **START HERE.** *(`2026-08-27`)*
+## ⭐⭐⭐ 0.0e — **`--mode all` VISUAL-CHECK CORRECTIVES + the `cgf==editor` TKB ruling.** ⛔⛔ **START HERE.** *(`2026-08-28`, head `7fbcf54e4`)*
+
+> ⚠ **This supersedes §0.0d as the start-here section.** §0.0d's phase-2 plan is **DONE** *(slices ①②③, `J1`,
+> `J2`, `J3` all closed — see §0.0d for its own record)*. ⛔ Do not restart phase 2 from it.
+
+### 0.0e.1 🔒🔒 THE USER RULINGS THAT NOW BIND THIS WORK — **verbatim, newest first**
+
+| # | ruling |
+|---|---|
+| 🔒🔒🔒 **`CE-109`** | *"shouldn't the TKb templates and scenario loading handlers be shared? the editor one's is very likely newer and better and the one to follow. there should be nothinkg like cluster tKB and editor TKB; we need cgf==editor"* ⇒ ⭐⭐ **where the hosts differ, the EDITOR is canonical and the cluster adopts it** — ⛔ never the reverse, ⛔ never a CGF-private variant |
+| 🔒🔒 **the safety fence** | *"the scenario loading path was tested manually pretty well in the editor so pls be carefull with any 'fixes'"* ⇒ ⛔⛔ **do NOT touch the editor's scenario path.** ⭐ The cluster moves toward it |
+| 🔒 **cross-lane** | *"feel free to make changes to other lane's files. No other lane is running. no collision risks."* ⇒ ⭐ TIME-lane / backend-lane files are editable; ⚠ still say which lane a change lands in |
+| 🔒 **`CE-090`** | *"we are unifying the UI, so obviously the stuff should look same and they CAN'T look different by design if they are rendered by single shared code where host-type gates are undesired; no special boolean needed"* |
+| 🔒 **`CE-086`** | *"Unify the internal window ids to snake, breaking layout is not an issue."* |
+| 🔒 **`CE-093`** | *"system not deployed yet… We can and should use better stuff (resolveBase)."* |
+
+### 0.0e.2 ✅ WHAT IS DONE — **do not redo any of this**
+
+⭐ Phase 2 closed: slices ①②③ · `J2` *(`CE-091`)* · `J3` *(concluded not-worth-building, §5c.11)* · `J1` +
+`J1-a` *(`CE-093`…`CE-100`, §5c.12–§5c.15)*.
+
+⭐ Then the user ran `--mode all` **visually on Windows** and reported three defects. All were reproduced over
+the debug API on a real boot in-container, and **four of the six filed items are fixed and gated**:
+
+| id | state |
+|---|---|
+| ✅ **`CE-101`** | `--mode all` boots **PAUSED**. Root cause: `MasterSyncController`'s ctor published its t=0 baseline anchor with `TargetMode = Continuous`, and `ClusterTimeObservation.Apply` derives `PauseRequested` from that mode ⇒ **an anchor sent for a side effect was also a command**. Opt-in `startPaused` flag; anchor still broadcast. §5c.16 |
+| ✅ **`CE-102`** *(= `HN-039`)* | CGF now registers the **shared** `HrotEditLoadHandler`. The blocker was one required arg — it threw on a null `IZoneManagerService`, which CGF composes none of; now optional **and reported**. entityCount 0→8. §5c.17 |
+| ✅ **`CE-104`** | `/sim/pause`'s ack now means **applied** *(`AwaitPausedAsync`)*, not accepted |
+| ✅ **`CE-105`** | `/sim/step {count:N}` honours `N` — the loop moved out of the single main-thread job to the HTTP handler, one gated step per frame. `count:60` → simTime exactly 1.0000000 |
+| ⛔ **`CE-106`** | **REFUTED — my operator error.** `/logs` always had `level`/`max`; I passed `limit=400` |
+| ✅ **`CE-107`** | the envelope's **success branch dropped `Hint` entirely** ⇒ the API could not say *"ok, but…"*. Fixed + `/logs` now names ignored filters |
+| ⚠ **`CE-108`** | edit path never remaps behaviour-param entity ids — **on ANY host, editor included**. Filed, deliberately NOT fixed |
+| 🔴 **`CE-103`** | **OPEN — the live one. See §0.0e.3** |
+| 🔒 **`CE-109`** | the ruling above. Its buildable half is the LIVE-path handler duplicate, §0.0e.4 |
+
+⭐ **The MCP SKILL sources carry this session's lessons** *(`CE-108` commit)* — §5b *"ok:true is not evidence"*,
+§5c *"prove your instrument once"*, §5d the three localising reads, plus per-route notes on `/logs`,
+`/sim/step`, `/sim/pause`, `/scenario/load/edit`, `get_entity`, `get_gizmo_frame`. ⛔ **`SKILL.md` is
+GENERATED** — edit `DebugApiRouteDocs.cs` / `tools/ai-debug-mcp/skill-parts/`, then regenerate, and
+⚠ **build the RUNNER first** *(`gen-catalog.mjs` shells out to `--mode dump-api`; otherwise it is a silent no-op)*.
+
+### 0.0e.3 🔴🔴🔴 `CE-103` — **THE ONE IN FLIGHT. Diagnosed, NOT fixed, and the next step is ONE probe.**
+
+📄 **§5c.18** carries the full record. ⭐ **The symptom:** *"the tanks show blue line to their destination, but
+they do not move."*
+
+⭐⭐ **RULED OUT by direct A/B on the same entity (1001), same scenario, one host each:** `NavigationIntent`,
+`NavState` **and** `NavigationStatus` are **IDENTICAL** on both hosts *(`Direct`, dest `[523,401,0]`, speed 15,
+`InProgress`)* ⇒ ⛔ **the AI, the bridge and the executor are all innocent.**
+
+🔴 **THE DIFFERENCE IS THE VEHICLE PROFILE:**
+
+| field | editor | `--mode all` |
+|---|---|---|
+| `Class` | **Tank** | ⛔ **PersonalCar** |
+| `AccelGain` | 1.8 | 🔴 **0** ⇒ **zero acceleration forever** *(`CarKinematicsSystem:248` feeds it to the speed controller)* |
+| `MaxSteerAngle` | 0.8 | 🔴 **0** ⇒ `VehicleState.SteerAngle` = **NaN** |
+| `MaxDecel`·`MaxSpeedRev`·`MaxLatAccel`·`AvoidanceRadius`·lookahead | 4·8·6·5·0.8/2.5 | ⛔ all **0** |
+| ⭐ `Length`·`Width`·`WheelBase`·`MaxSpeedFwd`·`MaxAccel` | 7.93·3.66·4.758·20·2.5 | ⭐ **identical** |
+
+⭐⭐⭐ **The fingerprint:** those five matching fields are **exactly** `VehicleKinematicsTkbTranslator`'s output
+set *(it writes Length, Width, `WheelBase = Length × 0.6`, MaxSpeedFwd, MaxAccel and leaves the rest DEFAULT —
+`Class = 0 = PersonalCar`, `AccelGain = 0`)* ⇒ **the cluster gets ONLY that translator.**
+
+⛔⛔ **AND THE EDITOR'S SOURCE IS STILL UNIDENTIFIED — do not guess it a third time.** ⚠ **Two candidates were
+matched and BOTH FAILED:**
+- `BdcTkbBuilder.BuildVehicleParams` — ⛔ **DEAD CODE, zero callers.** *(I attributed it on arithmetic alone and
+  never checked it was invoked. Retracted.)*
+- `VehicleCommandSystem` *(the other production `GetPreset` caller)* — ⛔ writes `ArrivalRadius = 2.0` and
+  `NavState.Mode = None` where the editor shows **5** and **Direct**; and the `Tank` preset's `MaxSteerRate` is
+  **1.2** where the editor shows **0.2617994** *(= 15°/s, i.e. `TurnRate × π/180`)*.
+
+⭐⭐ **THE NEXT STEP, and it is cheap:** `GET /tkb/types/303` on **BOTH** hosts.
+- **identical templates** ⇒ the divergence is in the **INJECTION ORDER**, not the data ⇒ hunt which
+  translator/system stamps `VehicleParams` first *(the translator's `!repo.HasComponent<VehicleParams>` guard
+  makes it **first-writer-wins**)*.
+- **different templates** ⇒ the catalog content diverges after all, despite the shared factory.
+
+⚠ **Also known:** `NedTkbBuilder.WithPhysics` stores a **LOSSY** `VehicleParametersDto` — 6 fields, **no
+`Mobility`** *(the field that decides Tank)*, no `TurnRate` — with its own comment deferring the rest to a
+*"translator in Phase 6"* that appears never to have been wired.
+
+### 0.0e.4 ⭐⭐ `CE-109`'s BUILDABLE HALF — **the LIVE-path handler duplicate**
+
+| half | status |
+|---|---|
+| the TKB **catalog** | ✅ **already shared** — both hosts use `HrotEnvironment.CreateTkb()` *(editor `EditorSubsystem:1227`; cluster nodes `HrotNodeBuilder:197`)*. ⛔ *"no cluster TKB vs editor TKB"* already holds here |
+| the **EDIT**-load handler | ✅ shared as of `CE-102` |
+| 🔴 the **LIVE**-load handler | ⛔ **still two implementations** — `HrotScenarioLoadHandler` *(editor·SimHost)* vs `CgfScenarioLoadHandler` *(CGF, plus a `remapper` the other lacks)* ⇒ ⭐ **the remaining ruling-9 duplicate and the natural next slice**, in the ruling's direction: **cluster adopts the editor's** |
+
+### 0.0e.5 ⭐ HOW TO BOOT AND DRIVE BOTH HOSTS — **worked out this session; do not re-derive**
+
+```bash
+# build the runner FIRST (also required before regenerating the MCP catalog)
+dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj --no-restore -v q --nologo
+cd Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
+export HROT_DEBUG_API_PORT=8099 FDP_STAGING_ROOT=/tmp/.../staging   # per-boot dir
+nohup xvfb-run -a dotnet Hrot.ClusterRunner.dll --mode all > /tmp/cluster.log 2>&1 &
+# poll until it answers; ~4-13 s
+curl -s --noproxy '*' -m 2 http://localhost:8099/status
+```
+⚠ **`--mode all` must run WINDOWED under Xvfb**, never headless. ⭐ Use a **second port** *(8098)* for a
+simultaneous `--mode editor` so the A/B is one command apart. ⭐ `--mode all`'s perspectives:
+`Blueprint, BTree, ExCon, HSM, IG, Scenario, SimHost` — **`Scenario` is CGF's**.
+
+⛔⛔ **THREE SELF-INFLICTED TRAPS, all hit this session:**
+1. ⛔ **`pkill -f Xvfb` KILLS YOUR OWN SHELL** — its command line contains the pattern. ⭐ Use
+   `ps -eo pid,cmd | grep ClusterRunner | grep -v grep | awk '{print $1}' | xargs -r kill -9`.
+2. ⛔ **`git commit -m "…"` with embedded quotes shreds into pathspec errors.** ⭐ Always `git commit -F -` + heredoc.
+3. ⛔ **A grep pattern is a HYPOTHESIS** — three misses today, the worst being that `BdcTkbBuilder.cs` **contains
+   class `NedTkbBuilder`**, so searching the filename "proved" it had no callers.
+
+### 0.0e.6 ⚠⚠ INSTRUMENT RELIABILITY — **what a green does NOT mean here**
+
+⭐ `CE-084`/`CE-088`'s family now confirmed in **four** assemblies. 📐 This session: `Hrot.Presentation.Tests`
+red once then **3/3 green**, with the failing identity **ROTATING** *(`ScenarioFileServiceTests.SaveLoad_RoundTrip`,
+then `EntityDragGizmoTests` / *"Component type ID 51 is not registered"*)*; `Hrot.SimHost.Tests` **1-red-identical-to-base
+over 3 runs**. ⛔ Both over **process-global registries**. ⇒ ⭐⭐ **always prove a red at base by stashing the
+change and re-running**, and ⭐ **re-run a suspicious suite 3× before believing either colour**.
+⚠ **`AssetRootsTestCollection`** *(`CE-099`)* now serialises everything touching `AssetRoots.ConfiguredRoot` —
+🔒 **join it if you add such a test**; a filtered green is not evidence.
+
+### 0.0e.7 ⭐ OPEN, carried
+`CE-103` *(in flight)* · `CE-109` *(the live-path slice)* · `CE-108` *(edit-path remapping, low)* ·
+`CE-087` *(profiler not in the default layout — needs a WINDOWED session: place it, File > Layout > Save current
+as default; user: no issue while unshipped)* · `CE-073` *(tracker gate matches only `BP-` rows — it reported OK
+for every `CE-` row this session)* · `CE-084`/`CE-088` *(above)* · older: `CE-055`, `CE-062`, `CE-063`,
+`CE-047`, `CE-048`, `CE-050`, `MX-011`, `CE-074`, `CE-077`.
+⚠ **No windowed/eyes verification** of any of this session's work — every gate was API-level or a suite.
+
+
+## ⛔ 0.0d — **HISTORY: phase 2's plan and safety net** *(`2026-08-27`)* — ⚠⚠ **DONE (slices ①②③, `J1`, `J2`, `J3`). SUPERSEDED by §0.0e; do NOT start here.**
 
 > 🔒🔒 **USER RULINGS, `2026-08-27` — canon for phase 2:**
 > ① *"in the end there should be **one UI logic (no drifts, no duplications)**, instantiated by calling
