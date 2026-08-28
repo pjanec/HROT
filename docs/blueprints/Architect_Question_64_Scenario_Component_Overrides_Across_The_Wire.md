@@ -1,7 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: ⭐⭐⭐ §15 (LATE-JOINABILITY IS THE DECIDING CONSTRAINT) is the CURRENT answer and it
+current-answer: ⭐⭐⭐ THE INTENT NOW LIVES IN docs/DESIGN_Entity_State_Sourcing.md — read THAT to learn
+  how entity state is sourced. ⛔ THIS FILE IS THE ARCHAEOLOGY: four rejected transport designs and why
+  each failed. Keep it for the reasoning, do not use it as the reference.
+  §15 (LATE-JOINABILITY IS THE DECIDING CONSTRAINT) is the closing answer and it
   CLOSES the question: every entity is created from TKB defaults ALWAYS, and CE-116 is WITHDRAWN.
   ⛔ ALL FOUR transport designs are dead — §12.4's component mask, §13's uint64 mask, §14's wait-flag
   (the user found the blocker), and nesting-in-the-creating-sample. Read §15, then §7 (CE-113, the
@@ -22,7 +25,11 @@ known-conflict: DESIGN_Subsystem_Composition_Unification.md §5c.18.5 said CE-10
   CE-109's live-path handler unification. ⛔ THAT IS NOW REFUTED by §2 below and is corrected
   in §5c.18.6 of that document. This file is the authority for CE-103's cause.
 -->
-# ⭐⭐⭐ `Q64` — **Per-entity scenario component overrides do not cross the wire.** `build-state: DESIGN`
+# ⭐⭐⭐ `Q64` — **Per-entity scenario component overrides do not cross the wire.** `build-state: CLOSED`
+
+> 📄📄 **THE INTENT LIVES IN [`DESIGN_Entity_State_Sourcing.md`](../DESIGN_Entity_State_Sourcing.md)**
+> *(`R-136`)*. ⛔ **This document is the DECISION RECORD** — four rejected designs, three retractions of my
+> own, and the measurements that closed it. ⭐ Read it to learn **why**; read the design to learn **what**.
 
 > 🔒 **The symptom, user, `2026-08-28`:** *"When i press Play, the tanks show blue line to their
 > destination, but they do not move."*

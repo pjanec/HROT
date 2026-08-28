@@ -152,7 +152,10 @@ registration order. **Decide the owner first.**
 
 ### 0.0e.3b ✅✅✅ **CLOSED `2026-08-28` — TKB DEFAULTS ALWAYS. `CE-113` is the whole of the work.**
 
-📄 **`Q64` §15.** 🔒 **The user found the blocker in his own design and it closes the question:**
+📄📄 **THE INTENT IS NOW A DESIGN: [`DESIGN_Entity_State_Sourcing.md`](../DESIGN_Entity_State_Sourcing.md)**
+*(canon row **`R-136`**)* — read that to learn how entity state is sourced. ⛔ **`Q64` is the ARCHAEOLOGY**
+*(four rejected designs); do not use it as the reference.* 🔒 **The user found the blocker in his own design
+and it closes the question:**
 *"NED concept requires each entity to be late-joinable just by listening to DDS and for the entity
 descriptors… so each entity will be created from TKB defaults ALWAYS which is the original idea."*
 
