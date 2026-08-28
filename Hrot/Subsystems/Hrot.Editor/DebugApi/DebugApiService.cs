@@ -864,6 +864,17 @@ namespace Hrot.Editor.DebugApi
             catch (Hrot.Presentation.DebugApi.NotSupportedHereException) { return null; }
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-104</c> — <c>isPaused</c> for the pause gate, or <see langword="null"/> on a host that has
+        /// no time controller to ask. ⛔ Mirrors <see cref="TotalTimeOrNull"/> exactly: a clockless perspective
+        /// must DEGRADE to "nothing to confirm" rather than make a supported command look unsupported.
+        /// </summary>
+        public bool? IsPausedOrNull()
+        {
+            try { return _time.IsPaused; }
+            catch (Hrot.Presentation.DebugApi.NotSupportedHereException) { return null; }
+        }
+
         /// <summary><c>POST /sim/timescale {scale}</c> (main thread).</summary>
         public JsonNode SetTimeScale(float scale)
         {

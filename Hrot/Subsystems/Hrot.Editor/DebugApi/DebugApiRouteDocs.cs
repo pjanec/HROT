@@ -801,10 +801,12 @@ namespace Hrot.Editor.DebugApi
             Notes: new[]
             {
                 "Commands and spawns while paused are queued and take effect on the next step/play.",
-                "ON A CLUSTER THE ok:true ACK CAN PRECEDE THE STATE CHANGE. Measured on --mode all: pause "
-              + "returned ok:true while the immediate /status still read isPaused:false; it flipped only after "
-              + "a following step. A cluster-wide pause crosses a barrier, so treat the ack as ACCEPTED, not "
-              + "APPLIED — poll get_status until isPaused is true before asserting anything about it.",
+                "THE ACK MEANS APPLIED as of CE-104: the route waits until isPaused is actually true before "
+              + "returning, so the next read is safe. Measured before the fix on --mode all: ok:true while "
+              + "/status still read isPaused:false, with the clock running a further ~0.2s — because a "
+              + "cluster-wide pause is a FUTURE BARRIER so every node stops at the same simTime.",
+                "A 504 from this route means the pause barrier is stuck — a node never reached it. Check "
+              + "get_logs({level:\"Warning\"}).",
             },
             ExampleArgsJson: "{}",
             ExampleGist: "pause the running simulation"),
@@ -823,10 +825,13 @@ namespace Hrot.Editor.DebugApi
             Notes: new[]
             {
                 "Only advances time when inPreview==true. In Edit state this is a no-op.",
-                "VERIFY THE STEP LANDED BY READING simTime, NOT BY READING ok. Measured on --mode all: "
-              + "count:120 advanced simTime by exactly 0.0167s (= one 1/60 frame) and still answered ok:true — "
-              + "the count is not honoured cluster-wide. Sample get_status.simTime before and after and use the "
-              + "DELTA as the truth.",
+                "count IS honoured cluster-wide as of CE-105, and it is gated per step: the route issues ONE "
+              + "step, waits for it to land, and repeats — so N steps take N frames and the call returns when "
+              + "the last one is acknowledged. Measured: count:60 advances simTime by exactly 1.0000s. Before "
+              + "the fix the loop ran inside a single frame and the cluster dropped all but the first, "
+              + "answering ok:true with 0.0167s of progress.",
+                "STILL VERIFY BY READING simTime, NOT ok. The gate now makes the ack trustworthy, but a "
+              + "simTime delta is the cheap proof and it costs one call.",
                 "A STEP IS REFUSED OUTRIGHT UNLESS THE CLUSTER IS IN A STEPPING MODE, and the refusal is not "
               + "visible in the envelope — it is a warning in the log (see get_logs, RefusedStepCount). A "
               + "cluster that is free-running drops every step. If simTime does not move, check "
@@ -1616,10 +1621,12 @@ namespace Hrot.Editor.DebugApi
               + "read returned 176 of 200 entries as [TC3] time-sync chatter (TimeSyncRequest/SyncResponse/RTT "
               + "gentle-steer) logged at Trace by four nodes — no application line survives in the window. The "
               + "same read with level:\"Info\" returned 25 lines and zero [TC3].",
-                "AN UNKNOWN FILTER IS SILENTLY IGNORED, and so is an unknown query key. level:\"INFO_\" or "
-              + "a misspelled param (limit instead of max) returns the WHOLE ring rather than an error, which "
-              + "looks like a plausible answer to a question you did not ask. Echo-check your filter by "
-              + "confirming the result actually narrowed.",
+                "AN UNKNOWN FILTER IS STILL SERVED LENIENTLY, BUT IT NOW TELLS YOU (CE-107). level:\"INFO_\" "
+              + "or a misspelled param (limit instead of max) returns the whole ring as before — the endpoint "
+              + "does not refuse a diagnostic call — but the SUCCESS envelope carries hint.why naming the "
+              + "ignored key or the unapplied level, and it also says so when no level filter was given at "
+              + "all. READ hint ON SUCCESS: it is the difference between an answer and an answer to a "
+              + "different question.",
                 "The param is max, NOT limit. Nothing rejects limit; it is simply not read.",
             },
             ExampleArgsJson: "{\"level\":\"Warning\",\"max\":50}",

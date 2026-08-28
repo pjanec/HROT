@@ -40,6 +40,11 @@ answered `ok:true` having done nothing, or a fraction, of what was asked:
 | `step{count:120}` | `ok:true` | advanced `simTime` by **0.0167 s** — one frame; and before the cluster booted paused, **every step was refused** and still acked |
 | `pause` | `ok:true` | `isPaused` was still `false` on the next read; it flipped a step later |
 
+**Two of those three are now GATED** — `step` honours `count` and returns when the last tick is acknowledged
+(`CE-105`), and `pause` returns only once `isPaused` is actually true (`CE-104`). ⛔ **The load is not**:
+`load_scenario_edit` still answers `ok:true` having loaded nothing on a cluster node. ⭐ And a **success**
+envelope can now carry `hint.why` (see the `/logs` notes) — so **read `hint` on success**, not only on failure.
+
 **So: for every state-changing call, name the read that proves it.** `simTime` for a step,
 `get_status.isPaused` for a pause, `entityCount` + `list_entities` for a load. It is one extra call and it
 is the difference between a diagnosis and a guess.
