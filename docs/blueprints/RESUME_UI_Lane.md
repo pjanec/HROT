@@ -150,20 +150,28 @@ never live, always intended; the scenario's stored block is a **fossil of its la
 and `InfantryVehicleStateStripTkbTranslator`)*, both `!HasComponent`-guarded ⇒ first-writer-wins by
 registration order. **Decide the owner first.**
 
-### 0.0e.3b ⭐⭐ THE INVESTIGATION — `CE-114` *(what it takes to send more components)*
+### 0.0e.3b ⭐⭐⭐ THE INVESTIGATION — **`CE-114`/`CE-115`, and read `Q64` §11 BEFORE §8/§10**
 
-| ⭐ finding | |
+⚠⚠ **THREE OF MY FOUR ARCHITECTURAL CLAIMS WERE WRONG and are retracted in `Q64` §10.** ⛔ Do not build on
+§2's *"the loss is the wire hop"*, §8.3's *"use `InitialAttributesJson`"*, or *"`UnitSubordinate` should be
+the first override to travel."*
+
+| 🔒 the corrected picture *(measured + design-confirmed)* | |
 |---|---|
-| ⛔ **the proposed scope filter barely narrows** | **22 of 23** stored types are registered on SimHost *(103 registered; only `MissionPlan` out)* |
-| ⭐⭐⭐ **the sharp filter is the ruling itself** | `search_graph` → **10 TKB translators**; **14 of the 22 are translator-derived** ⇒ TKB is their source, they must NOT travel |
-| ⭐ **the genuine candidate set is TINY** | `UnitSubordinate` *(authored hierarchy, currently LOST on the muscle node)* · `MapDisplayComponent` · the per-entity **values** of TKB-derived components |
-| ⭐⭐⭐ **the channel ALREADY EXISTS** | `CreateEntityRequest` carries `InitialAttributesJson` *(**wired end-to-end**, egress `:168` → ingress `:220`)* and `InitialAttributeRecords` *(declared, **never populated**)*. ⛔ `StagingEntityExtractor:351` sets only `InitialComponents` ⇒ **adoption gap, not a contract gap.** The seam law, 25th instance |
-| ⚠ **the real cost is the VOCABULARY** | `AttributeIds` has **8 ids**, **none** for vehicle/kinematics ⇒ `VehicleParams` alone needs ~15 + installers |
-| 🔒 **must build on `Q59` §7** | the BUILT attribute/descriptor split. ⛔ Its own first obstacle: `IDescriptorTranslator.TargetComponentIds` already declares the component→descriptor map and is **under-adopted 9 of 41 with a silent empty default** |
-| ⛔ **NOT the `InitialComponents` include-list** | wrong layer under the ruling — it is a local in-process list, not the transported one |
+| ⭐⭐⭐ **TKB is NEVER on DDS** | 📄 design, verbatim: *"DDS is not used for TKB transport. TKB is static asset data."* It is a **staged ZIP** per node |
+| ⭐⭐ **"TKB translators" are the DESIGNED mechanism** | `ITkbEntityTranslator.Inject(repo, entity, template)` is **purely local**. ⚠ **The design calls this role `IDescriptorTranslator`** and the code gave that name to the **NED** role instead ⇒ the confusing name is **design/code drift**, not a misunderstanding |
+| ⛔⛔ **THERE IS NO "WIRE-HOP LOSS"** | 📐 `CreateEntityRequest` is **INBOUND-TO-CGF ONLY** *(single reader, `NedCgfEntityLifecycleAdapters`, composed only by `CgfSubsystem:646`)*. SimHost's entity is a **PROMOTED GHOST** built from the TKB by design — proven by its **missing `NetworkOwnership`**, which the local spawn path always stamps. ⇒ **nothing was lost; the TKB simply cannot express a Tank** |
+| ⭐ **`UnitSubordinate` already travels** | inside `dtEntityInfo` as `CommanderId`, runtime-updatable via `UpdateEntityAttributeRequestSystem`. **Not a TKB descriptor.** ⚠ Its absence on SimHost is a SEPARATE, unmeasured question |
+| ⭐⭐ **the ownership model the user described EXISTS** | `AuthorityMask` *(`BitMask512` per component)* · `DescriptorGrant` per descriptor · `BrainMuscleOwnershipStrategy` *(`dtWorldPos` + `dtNavigationStatus` → Muscle; intents stay on the Brain)* · descriptor→component map from `TargetComponentIds` |
+| 🔴🔴 **`CE-115` — the readiness gate is DESIGNED, NOT BUILT** | design §10.4: `MandatoryComponent` *"populated PER TRANSLATOR… used for state that must arrive via the network before simulation can begin."* ⭐ The **consumer** is built *(`GhostPromotionSystem:105`)*; ⛔ **no translator registers one** — the only writer is `BdcTkbBuilder:242`, hand-authored for `EntityInfo`. ⇒ **prerequisite for any override transport**, and it makes the per-node scope self-declaring |
 
-⭐ **Sequencing:** `CE-113` → a brain-vs-muscle conformance rail *(this defect is invisible to every unit
-rail by construction)* → `UnitSubordinate` as the first override to travel → then generalise.
+⭐ **Sequencing:** **`CE-113`** *(alone, fixes `CE-103`)* → **`CE-115`** *(the readiness producer)* → naming
+reconciliation into `Q59` §7 → **`CE-114`** *(per-component descriptor transport)*.
+⛔ **`CE-113` does NOT depend on `CE-115`.**
+
+⚠⚠ **PROCESS NOTE WORTH KEEPING:** I ran this as a code investigation and swept the design corpus only
+after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
+points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
 
 ### 0.0e.4 ⭐⭐ `CE-109` — **RE-SCOPED: no longer `CE-103`'s fix, and its priority DROPS**
 

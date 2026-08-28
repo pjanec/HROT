@@ -1,11 +1,15 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: ⭐⭐⭐ §6 (USER RULING, 2026-08-28) is the CURRENT answer and it OVERRIDES §4.
-  ⛔ §4's Q64-1 lean A (the receiving node reads the scenario) is REJECTED — read §6 first, then
-  §7 (the baseline) and §8 (the investigation). build-state: DESIGN, nothing built.
-stale-below: ⛔ §4's Q64-1/Q64-2 leans are SUPERSEDED by §6. §4 is kept as the record of what was
-  asked and why my lean was wrong; do not quote its recommendations as current.
+current-answer: ⭐⭐⭐ §11 (the DESIGN-CORPUS sweep) is the CURRENT answer — it supersedes §10.5's
+  invented recipe with the design's OWN specified mechanism. Read §11, then §10 (the retractions),
+  then §6 (the user ruling) and §7 (the baseline, still valid). build-state: DESIGN, nothing built.
+  ⛔⛔ §10 RETRACTS THIS DOCUMENT'S CENTRAL CLAIM: there is NO "wire-hop loss". SimHost's entity is
+  a PROMOTED GHOST built from the TKB by design, and the channel §2 blamed is inbound-to-CGF only.
+  CE-103 therefore has exactly ONE cause and ONE fix: CE-113 (the TKB cannot express a Tank).
+stale-below: ⛔⛔ §2's "the loss is the WIRE HOP" framing is WRONG — see §10.1. ⛔ §4's Q64-1/Q64-2
+  leans are superseded by §6. ⛔ §8.3/§8.4's "use InitialAttributesJson / grow the attribute
+  vocabulary" is WRONG — see §10.3. §8.1/§8.2's measured inventories remain valid.
 known-rot: nothing yet.
 known-conflict: DESIGN_Subsystem_Composition_Unification.md §5c.18.5 said CE-103's fix was
   CE-109's live-path handler unification. ⛔ THAT IS NOW REFUTED by §2 below and is corrected
@@ -384,3 +388,222 @@ HAS a dependency must PASS it"* pattern again.
 | ⛔ **Whether the other 13 translator-derived components are ALSO wrong on the muscle node** | 📐 only `VehicleParams` and `UnitSubordinate` were checked. ⚠ `Health`, `WeaponState`, `PerceptionReceptor` have the same shape and could be silently degraded too — ⭐ **this is the single most valuable next measurement** |
 | ⛔ **Whether `MapDisplayComponent`/`VisualData` are legitimately host-specific** | assumed, not measured |
 | ⛔ **What removing `VehicleParams` from scenario SAVING breaks** | 📌 the editor's save path is the one the user warned is hand-tested |
+
+
+---
+
+## 10. ⭐⭐⭐ SECOND REVIEW `2026-08-28` — **the user challenged four claims. Three were wrong, and the fourth was the whole thesis.**
+
+> 🔒 **User:** *"you mentioned TKB translators. I do not understand what for could they be useful… TKB
+> exists as a static parameter database available on every node offline. Is TKB published over DDS…? Is
+> `UnitSubordinate` a TKB descriptor? I remember it as a dynamic entity property… I believe the
+> scenario-overridden entity components are different animal than TKB descriptors… We might use the
+> `InitialAttributesJson` but I believe this is another creation path, not used for creating scenario
+> entities. Pls investigate how that works."*
+
+⭐⭐ **Every challenge was correct.** 📐 Measured below, and the last one collapses §2's thesis.
+
+### 10.1 ⛔⛔⛔ THE BIG RETRACTION — **there is NO "wire-hop loss"**
+
+📐 **Measured:** the **only** reader of the `CreateEntityRequest` DDS topic is
+`NedCgfEntityLifecycleAdapters` *(`:24/:29`)*, and the **only** node that composes it is **CGF**
+*(`CgfSubsystem:646`; the editor's `OfflineNetworkFactory:96` and `BdcNetworkFactory:135` both return
+`null`)*.
+
+⇒ ⭐⭐⭐ **`CreateEntityRequest` is INBOUND-TO-THE-CREATOR ONLY** — the *"someone asks CGF to make an
+entity"* channel *(ExCon · IG · editor placement · MCP spawn)*. ⛔⛔ **It is NOT how CGF tells SimHost
+about an entity CGF created.**
+
+⇒ ⛔⛔ **So `SpawnEntityCommandEgressTranslator`'s three-type filter, which §2 named as *"the loss"*, is
+NOT on the path that produced the symptom at all.** 📌 I found a real filter, on a real translator, that
+really does drop components — **and then attributed the defect to it without checking that the path was
+the one in play.**
+
+⭐⭐ **How SimHost actually gets the entity, measured:** a replication **descriptor** arrives for an unknown
+network id → `GhostCreationSystem.CreateGhost` *(its own comment: "called by ingress translators")* →
+`GhostPromotionSystem.PromoteGhost`, which waits on `template.MandatoryComponents` and **then runs the TKB
+translators**. ⭐ **Confirmed by the data I already had and misread:** SimHost's entity **lacks
+`NetworkOwnership`**, which `NetworkSpawningSystem` stamps at step 5 ⇒ it never went through the local
+spawn path ⇒ **it is a promoted ghost.** ⚠ That fact was sitting in my own §2 component diff.
+
+⇒ ⭐⭐⭐ **SimHost built its entity from the TKB, exactly as designed. Nothing was lost. The TKB simply
+cannot express a Tank *(`CE-113`)*.** ⇒ ⭐⭐ **`CE-103` has ONE cause and ONE fix, and needs no wire change,
+no descriptor work and no ownership change.**
+
+### 10.2 ⭐ THE TWO TERMINOLOGY CHALLENGES — **both correct, and my wording invited the confusion**
+
+| challenge | 📐 measured |
+|---|---|
+| *"TKB translators sound weird — translators are for dynamic replication"* | ⭐⭐ **`ITkbEntityTranslator.Inject(EntityRepository, Entity, TkbTemplate)` is PURELY LOCAL — no DDS, no network type anywhere in the contract.** Its own summary explains the name: *"Projects N TKB descriptor DTOs into M ECS components… **Mirrors `IDescriptorTranslator` for TKB content; same N:M projection mechanics**."* ⇒ the word is an **analogy to the projection shape**, not a claim about replication. ⚠ **Two distinct families share the word**, and my report never said which — that is my defect, not the code's |
+| *"Is TKB published over DDS? Can't remember anything like that"* | ⭐⭐⭐ **It is not.** 📐 Zero DDS topics mention TKB. A node obtains its TKB as a **staged ZIP**: `TkbLoadClusterStateHandler` → `new TkbUnifiedLoader({staging}/TKB/{name}.zip)` → `TkbDeserializer.ParseAndRegister`. ⭐ **Exactly the static, offline, per-node parameter DB you describe** |
+| *"Is `UnitSubordinate` a TKB descriptor?"* | ⛔ **No — it is dynamic, as you remember.** 📐 It lives in `Fdp.Core.CommandHierarchy`, holds a runtime `Entity` handle, is rebuilt by `UnitHierarchySystem`, read by squad/formation behaviour inputs, **replicated inside the `dtEntityInfo` descriptor as `CommanderId`** *(`EntityInfoEgressTranslator:127-137`, with the matching ingress)*, and is **runtime-updatable** via `UpdateEntityAttributeRequestSystem` *(there is a `CommanderId` test for it)*. ⛔ **No `[TkbDescriptor]` DTO for it exists.** ⚠ **So my "make `UnitSubordinate` the first override to travel" was wrong — it ALREADY travels** |
+
+⚠ **Its absence on SimHost is therefore a different question from `CE-103`** — most likely correct-by-design
+*(the hierarchy is Brain-owned)* or a separate replication gap. ⛔ **UNMEASURED; do not fold it into
+`CE-103`.**
+
+### 10.3 ⭐⭐ `InitialAttributesJson` — **you were right: it is another creation path**
+
+📐 **Its producers, complete:** `NedTranslationHelper:125` *(ExCon)* · `DebugApiService:1274` *(MCP spawn)*
+· `EntityPlacementGizmo:219` *(editor manual placement)* · `ScenarioSpawnAdapter:141` *(forwards)*.
+⛔⛔ **`StagingEntityExtractor` — the scenario path — never sets it.** ⇒ ⭐ it is the **interactive /
+external request** channel, consumed by CGF as the creator. **Not the scenario-entity channel.**
+
+⇒ ⛔ **§8.3's recommendation to carry scenario overrides on `InitialAttributesJson`, and §8.4's
+"grow the attribute vocabulary" costing, are both WRONG-HEADED.** ⭐ They describe how to ask CGF to
+create something, not how CGF propagates what it created.
+
+### 10.4 ⭐⭐⭐ THE MECHANISM YOU DESCRIBED **ALREADY EXISTS** — measured, in full
+
+> 🔒 *"applied AFTER the params from TKB… and only on the node that OWNS that component… it needs to be
+> sent to the owner as part of entity lifecycle process, likely must be marked mandatory or something"*
+
+| your requirement | 📐 what exists today |
+|---|---|
+| ⭐ **per-component ownership** | `EntityMetadataCold.AuthorityMask` — a **`BitMask512` keyed by component type id**; `EntityRepository.HasAuthority(entity, componentId)` |
+| ⭐⭐ **the creator decides who owns what** | `IOwnershipDistributionStrategy.GetInitialGrants(entityType, masterNodeId)` → `DescriptorGrant[]`, *"Descriptors absent from the returned list remain on the creator"*; broadcast as the pre-genesis routing table **before** the EntityMaster |
+| ⭐⭐⭐ **the brain/muscle split, concretely** | `BrainMuscleOwnershipStrategy`: **`dtWorldPos` → Muscle** · **`dtNavigationStatus` → Muscle** · `dtEntityMission` and `dtNavigationIntent` **stay on the Brain**. ⇒ *the Brain issues the intent, the Muscle owns position and status* |
+| ⭐⭐⭐ **"marked mandatory"** | **`TkbTemplate.MandatoryComponents`** — `{ComponentTypeId, IsHard, SoftTimeoutFrames}`. `GhostPromotionSystem` **blocks promotion indefinitely on a HARD requirement** and waits `SoftTimeoutFrames` on a soft one. ⭐ **This is exactly the gate you half-remembered** |
+| ⭐⭐ **"applied AFTER the TKB params"** | ⭐ **the semantics already hold, by a different sequence.** On the **ghost** path the replicated components arrive FIRST and the translators run after — but every translator is `!HasComponent`-guarded, so they **fill gaps only and never overwrite**. On the **local** path `NetworkSpawningSystem` runs translators at step 4 and overrides at step 8 with `SetComponent`. ⇒ ⭐⭐ **both orders end with the override winning**; the ghost path achieves it by fill-only rather than by ordering |
+| ⭐ **`SimTransform` as the precedent** | **`dtWorldPos`** — TKB default from `SpatialCoreTkbTranslator`, per-entity truth owned by the Muscle. ⇒ **your cited precedent is the existing instance of the pattern, not an analogy** |
+
+### 10.5 ⭐⭐ SO: WHAT IT WOULD TAKE, PER COMPONENT — **the honest cost, now that the path is right**
+
+⭐ For **one** scenario-overridable component to reach its owner at creation:
+
+| # | | note |
+|---|---|---|
+| ① | a **descriptor type** in `EDescriptorType` + IDL, or reuse an existing arm | 📐 **38 exist today**; there is **no vehicle-params descriptor**, correctly |
+| ② | an **egress translator** *(component → descriptor)* on the creator | ⚠ and it should declare `TargetComponentIds` — 📐 **under-adopted, 9 of 41, behind a silent empty default** *(`Q59` §7.3)* |
+| ③ | an **ingress translator** *(descriptor → component)* on the owner | ⭐ this is also what makes the ghost appear at all |
+| ④ | a **`MandatoryComponents` entry** on the template | ⛔ **without it the ghost can promote with the TKB default and the override lands later — a visible race** |
+| ⑤ | possibly a **`DescriptorGrant`** so the right node owns it | only if the owner is not the creator |
+| ⛔ | **nothing on `InitialComponents` or `InitialAttributesJson`** | §10.1/§10.3 — wrong paths |
+
+⇒ ⭐⭐ **~4 artefacts per component, and the vocabulary is per-descriptor, not per-field.** ⛔ **This is
+real work and it buys nothing for `CE-103`** — which is why `CE-113` should land alone first.
+
+### 10.6 ⚠ WHAT I GOT WRONG, LISTED — **so the pattern is visible**
+
+| # | my claim | why it was wrong |
+|---|---|---|
+| ① | *"the loss is the wire hop"* | ⛔ I found a real filter on a real translator and **never checked that its topic was on the path in play**. The evidence against it *(no `NetworkOwnership`)* was already in my own diff |
+| ② | *"`UnitSubordinate` should be the first override to travel"* | ⛔ it already travels, inside `dtEntityInfo` |
+| ③ | *"use `InitialAttributesJson`"* | ⛔ inbound-request channel, single reader, CGF-only |
+| ④ | *"the real cost is the attribute vocabulary"* | ⛔ wrong axis: the vocabulary that matters is **descriptors**, and it is per-descriptor not per-field |
+
+⭐⭐ **The common thread: I kept reasoning about *"the cluster"* and *"the wire"* as single things.**
+📐 They are not — there are **two creation directions** *(inbound request vs outbound replication)*, **two
+translator families** *(TKB-local vs NED-descriptor)*, and **two ownership scopes** *(component mask vs
+descriptor grant)*. ⇒ ⭐ **every one of my four errors was collapsing one of those pairs.**
+
+
+---
+
+## 11. ⭐⭐⭐ THE DESIGN-CORPUS SWEEP — **`R-129` applied late, and it changes the answer** *(`2026-08-28`)*
+
+> 🔒 **User, mid-turn:** *"btw there is lots of design documents where some of these concepts might be
+> written - remember - code might be lagging behind, design docs are the intents"*
+
+⚠⚠ **This section exists because I ran §8 and §10 as CODE investigations and swept the design corpus only
+after being reminded.** ⛔ That is `R-129`'s exact failure mode — *"you failed to read existing designs
+before touching or designing changes"* — and it is the second time in this programme. ⭐ The sweep changed
+the answer, which is the argument for doing it first.
+
+### 11.1 ✅ THE DESIGN CONFIRMS THE USER, VERBATIM
+
+📄 **`docs/designs/tkb-1/tkb-design-ideas.md`** *(Status: Draft for implementation)*:
+
+| # | the design's own words | ⇒ |
+|---|---|---|
+| §2 *(line 52)* | 🔒 **"DDS is not used for TKB transport. TKB is static asset data.** Funneling thousands of static blueprints through DDS topics… would flood discovery and history caches. TKB distribution piggybacks on the existing `StorageGatewayModule` SMB pull pipeline used for scenario files." | ⭐⭐⭐ **the user's memory, in the design.** ⛔ My report should never have left this ambiguous |
+| §1 *(line 18)* | "The TKB is **loaded before any scenario content is loaded**, so scenario-driven entity creation always finds the required blueprints in memory." | ⭐ the TKB-first ordering is intent, and `TkbLoadClusterStateHandler` implements it |
+| §10.1 | "TKB data is engine-agnostic… performed by **domain-specific translators at the moment an entity is spawned**. The TKB itself never references ECS component types." ⭐ Property 1: *"The same TKB ZIP can feed a SimHost, an IG, and an ExCon — **each runs its own translators and ignores descriptors it does not care about**."* | ⭐⭐⭐ **the "TKB translators" are the DESIGNED mechanism, not an oddity** |
+
+⇒ ⭐⭐ **And §10.2's sequence diagram is exactly what I measured in §10.1** — ingress → `GhostCreationSystem`
+→ `GhostPromotionSystem` *(readiness check)* → translators → `Constructing`. ⭐ Measurement and intent agree.
+
+### 11.2 ⭐⭐⭐ THE NAMING COLLISION IS REAL — **the design calls the TKB projector `IDescriptorTranslator`**
+
+📐 The design's **§10.5** specifies the TKB→ECS projector as **`IDescriptorTranslator`**:
+
+```csharp
+void TranslateBlueprint(TkbTemplate template, ITranslationContext ctx);   // once per template, after load
+```
+
+📐 **In the code, that name went to the NED role instead** *(`DescriptorOrdinal`, `TargetComponentIds`,
+`ApplyToEntity`)*, and the TKB projector was renamed **`ITkbEntityTranslator`** with a **different
+contract** — `Inject(repo, entity, template)`, **per entity at spawn**.
+
+⇒ ⭐⭐ **So the user's *"translators are for dynamic replication, this sounds weird"* is not a
+misremembering — it is design/code drift.** One name in the design now denotes two different things in the
+code, and the survivor took the network role. 📌 **`Q59` §7 already ruled on this vocabulary**
+*(attribute = FDP, descriptor = NED, joined by the ECS component)* — ⚠ **but it never reconciled the
+TKB-side use of the word.**
+
+### 11.3 🔴🔴🔴 THE MECHANISM THE USER ASKED ABOUT IS **DESIGNED AND NOT BUILT**
+
+> 🔒 **User:** *"it needs to be sent to the owner as part of entity lifecycle process, likely must be
+> marked mandatory or something, i dont know."*
+
+⭐⭐⭐ **The design specifies precisely that, in §10.4:**
+
+> **"Hard — the entity cannot be promoted until this component is present in `EntityHeader.ComponentMask`.
+> Used for state that must arrive via the network before simulation can begin."**
+>
+> **"`MandatoryComponent` entries are populated PER TRANSLATOR when the template is loaded. Each engine's
+> translators add only the components that engine cares about. A pure IG node's template for the same
+> entity will have a different (smaller) `MandatoryComponents` list than a SimHost's."**
+
+📐 **MEASURED — the producer side does not exist:**
+
+| | |
+|---|---|
+| ⭐ **consumer** | `GhostPromotionSystem:105` reads `template.MandatoryComponents` and blocks on Hard / times out on Soft — ✅ **BUILT** |
+| 🔴🔴 **producer** | ⛔ **NO translator registers a `MandatoryComponent`.** A grep across the Behavior · CarKinem · Combat · Perception · Spatial translators returns **nothing**. The **only** production writer is `BdcTkbBuilder.cs:242`, **hand-authored, for `EntityInfo` alone** |
+| 🔴 **the design's whole shape** | ⛔ `TranslateBlueprint` and `ITranslationContext` **do not exist anywhere in the codebase** — so the *"register applicators and MandatoryComponent requirements at load"* step was never built, and with it the **pre-compiled applicator** hot path of §10.1 property 3 |
+
+⇒ ⭐⭐⭐ **THIS IS THE REAL GAP, and it is not the transport.** The user's *"mark it mandatory"* is a
+**designed, ~unbuilt** mechanism whose consumer is already waiting for it. ⛔ **Without it, any override
+that travels can lose a race**: the ghost promotes on TKB defaults and the override lands afterwards.
+
+⭐⭐ **And it answers the SCOPING question better than the filter I measured in §8.1.** 📌 The design says
+each engine's translators declare **their own** `MandatoryComponents` ⇒ *"only what SimHost needs"* is
+**derived from the translators registered on that node**, not from a hand-kept list. ⭐ That is exactly
+the user's criterion, expressed as a mechanism rather than a policy.
+
+### 11.4 ⭐ WHAT IS BUILT vs DESIGNED — **the honest ledger for this area**
+
+| capability | state |
+|---|---|
+| TKB as static per-node asset, staged ZIP, never DDS | ✅ **BUILT** and matches intent |
+| ghost creation → readiness → projection → promote | ✅ **BUILT** *(§10.2 matches the code)* |
+| per-**component** authority (`AuthorityMask`, `BitMask512`) | ✅ **BUILT** |
+| descriptor→component ownership map from `TargetComponentIds`, feeding `SetAuthority(entity, exactComponentId, …)` | ✅ **BUILT** — ⚠ **under-adopted, 9 of 41** *(`Q59` §7.3)* |
+| creator-side ownership grants *(`BrainMuscleOwnershipStrategy`: `dtWorldPos` + `dtNavigationStatus` → Muscle)* | ✅ **BUILT** |
+| `MandatoryComponents` **consumer** | ✅ **BUILT** |
+| 🔴 `MandatoryComponents` **populated per translator at load** | ⛔⛔ **DESIGNED (§10.4), NOT BUILT** |
+| 🔴 pre-compiled per-template applicators *(§10.1 property 3)* | ⛔ **DESIGNED, NOT BUILT** — the code does per-entity reflection-free but per-entity work |
+| 🔴 a vehicle-params descriptor on the wire | ⛔ **does not exist, and correctly so** — TKB material |
+| 🔴 scenario→per-entity override transport | ⛔ **not designed anywhere I found.** ⭐ `DESIGN-NetworkSpawning.md:112` covers only *"Initial components (position, entity master, etc.) set as an override on top of TKB template defaults"* — the **lifecycle essentials**, not authored scenario content |
+
+### 11.5 ⭐⭐ THE CORRECTED RECIPE — **§10.5's is SUPERSEDED by the design's own**
+
+⛔ **§10.5 listed five artefacts I derived from code.** ⭐ The design already specifies the shape, so the
+honest sequencing is:
+
+| # | | basis |
+|---|---|---|
+| **①** | ⭐⭐⭐ **`CE-113` alone fixes `CE-103`** — widen the TKB DTO, route `BuildVehicleParams` into the translator | §7 · unaffected by anything in §10/§11 |
+| **②** | ⭐⭐ **Build §10.4's producer: translators declare their own `MandatoryComponents` at template load** | ⛔ **the prerequisite for ANY override transport** — without it, overrides race promotion. ⭐ And it makes the per-node scope self-declaring |
+| **③** | ⭐ **Reconcile the `IDescriptorTranslator` naming** *(design §10.5 vs code)* into `Q59` §7's vocabulary | ⚠ cheap, and it is what made this whole exchange necessary |
+| **④** | ⭐ **Then**, per component that genuinely needs to travel: descriptor arm + egress + ingress + mandatory entry + grant if the owner is not the creator | §10.5's list, but now ordered behind ② |
+| ⛔ | **NOT** `InitialComponents`, **NOT** `InitialAttributesJson` | §10.1 / §10.3 |
+
+### 11.6 ⚠ STILL UNMEASURED
+
+| ⚠ | |
+|---|---|
+| ⛔ **whether `tkb-design-ideas.md` is superseded** | its STATUS is *"Draft for implementation"* with **no STATUS block**; ⭐ its §10.2/§10.4 match the code's consumer side, so it reads live — ⚠ **but it is a `docs/designs/` doc predating the STATUS-block convention and I have not proven nothing overrides it** |
+| ✅ **why `MandatoryComponents`' producer was dropped — CLOSED** | 📄 **`.dev/_DONE/tkb-1/tkb-design-ideas.md:743`**, verbatim: *"`MandatoryComponent` and `ChildBlueprintDefinition` are also still owned by `TkbTemplate` for use by the ECS promotion path (§10), but **they are populated by domain translators during/after load, not by the JSON parser**."* ⭐ And `design-talk.md:149`: *"Implement domain-specific applicators that project pure TKB DTOs into ECS memory chunks."* ⇒ ⛔⛔ **the programme states the producer as intent and closed as `_DONE` WITHOUT building it.** ⚠ No deferral note found — it looks dropped, not deferred. Filed as **`CE-115`** |
+| ⛔ **whether the 13 other translator-derived components are also degraded on the muscle** | §9's row, still the most valuable next measurement |
