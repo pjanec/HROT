@@ -83,7 +83,6 @@ namespace CarKinem.Tkb
             var vehicleClass = dto.VehicleClass ?? VehicleClass.PersonalCar;
 
             var p = VehiclePresets.GetPreset(vehicleClass);
-            p.Class = vehicleClass;
 
             if (dto.Length > 0f)
             {

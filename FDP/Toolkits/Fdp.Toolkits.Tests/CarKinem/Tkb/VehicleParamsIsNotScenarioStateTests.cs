@@ -48,9 +48,7 @@ namespace CarKinem.Tkb.Tests
             repo.RegisterComponent<VehicleParams>();
             var entity = repo.CreateEntity();
 
-            var tank = VehiclePresets.GetPreset(VehicleClass.Tank);
-            tank.Class = VehicleClass.Tank;   // see the rail below -- GetPreset does not
-            repo.AddComponent(entity, tank);
+            repo.AddComponent(entity, VehiclePresets.GetPreset(VehicleClass.Tank));
 
             Assert.True(repo.HasComponent<VehicleParams>(entity));
             var read = repo.GetComponent<VehicleParams>(entity);
@@ -59,23 +57,46 @@ namespace CarKinem.Tkb.Tests
         }
 
         /// <summary>
-        /// A trap found while writing the rail above, pinned so the next reader does not
-        /// pay for it: <see cref="VehiclePresets.GetPreset"/> fills every kinematic field
-        /// but leaves <see cref="VehicleParams.Class"/> at its default, so the struct it
-        /// returns is self-inconsistent -- a Tank preset that reports PersonalCar.
+        /// <see cref="VehiclePresets.GetPreset"/> stamps the class it describes, for every
+        /// member of the enum.
         /// </summary>
         /// <remarks>
-        /// Every caller therefore has to assign <c>Class</c> itself, which is exactly the
-        /// silent-default shape: the value looks authoritative and is wrong, and nothing
-        /// makes the omission visible.  <c>VehicleKinematicsTkbTranslator</c> does assign
-        /// it.  This rail is descriptive, not aspirational -- if <c>GetPreset</c> is ever
-        /// fixed to stamp its own class, this test should fail and be deleted.
+        /// It did not, until a rail written for this batch tripped over it: the function
+        /// filled thirteen kinematic fields and left <see cref="VehicleParams.Class"/> at
+        /// its default, so a Tank preset reported itself as a <c>PersonalCar</c> -- and
+        /// because <c>PersonalCar</c> is <c>0</c>, nothing surfaced the mismatch.  Three
+        /// callers had each independently written the missing assignment; those three lines
+        /// are now gone.  Asserted over <c>Enum.GetValues</c> rather than a hand-listed set
+        /// so a new vehicle class cannot be added without an arm that stamps it.
         /// </remarks>
-        [Fact]
-        public void GetPreset_does_not_stamp_its_own_Class_so_callers_must()
+        [Theory]
+        [MemberData(nameof(AllVehicleClasses))]
+        public void GetPreset_stamps_the_class_it_describes(VehicleClass vehicleClass)
         {
-            Assert.Equal(VehicleClass.PersonalCar, VehiclePresets.GetPreset(VehicleClass.Tank).Class);
-            Assert.Equal(VehicleClass.PersonalCar, VehiclePresets.GetPreset(VehicleClass.Truck).Class);
+            Assert.Equal(vehicleClass, VehiclePresets.GetPreset(vehicleClass).Class);
+        }
+
+        public static TheoryData<VehicleClass> AllVehicleClasses()
+        {
+            var data = new TheoryData<VehicleClass>();
+            foreach (VehicleClass c in System.Enum.GetValues<VehicleClass>())
+                data.Add(c);
+            return data;
+        }
+
+        /// <summary>
+        /// An undefined class normalises to <c>PersonalCar</c> and reports it, so the
+        /// returned <c>Class</c> always describes the data returned rather than the value
+        /// that was asked for.
+        /// </summary>
+        [Fact]
+        public void GetPreset_normalises_an_undefined_class_rather_than_echoing_it()
+        {
+            var bogus = (VehicleClass)99;
+            var p = VehiclePresets.GetPreset(bogus);
+
+            Assert.Equal(VehicleClass.PersonalCar, p.Class);
+            Assert.Equal(VehiclePresets.GetPreset(VehicleClass.PersonalCar).MaxSteerAngle, p.MaxSteerAngle);
         }
     }
 }
