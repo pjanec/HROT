@@ -2,7 +2,8 @@
 state: LIVE
 updated: 2026-08-28
 current-answer: ⭐⭐⭐ §0.0e — "--mode all VISUAL-CHECK CORRECTIVES + the cgf==editor TKB ruling".
-  START AT §0.0e.3c — THE BUILD PLAN (CE-113). It is the ONLY work left and it carries every file
+  START AT §0.0e.3d — UXI-23 SLICE S1 (the gizmo execution gate). CE-113 is DONE and verified;
+  its plan in §0.0e.3c is history. It is the ONLY work left and it carries every file
   anchor, the four things still to measure, and the exact verification probe. The rest of §0.0e is
   context: §0.0e.1 the rulings, §0.0e.3b why the design question is CLOSED, §0.0e.5 the boot recipe,
   §0.0e.6 which suites lie.
@@ -81,7 +82,7 @@ the design's **§5.6 / §5.7 / §5.8**.
 | 🔴 **`CE-067`: `Hrot.Blueprints.Tests` (3 983 tests) had NOT COMPILED**, and `--no-build` printed PASSED over the stale binary — the exact hazard CLAUDE.md's tier section names. ⭐ Now **3 965/0** and back in the gate set | `CE-067` |
 | 📐 **Dead guard:** `WindowManager.MainToolbar` is NEVER null ⇒ every `MainToolbar != null` check was always true and its "toolbar-less host" comments described an impossible state | §5b.4 |
 
-## ⭐⭐⭐ 0.0e — **`--mode all` VISUAL-CHECK CORRECTIVES + the `cgf==editor` TKB ruling.** ⛔⛔ **START HERE.** *(`2026-08-28`, head `7fbcf54e4`)*
+## ⭐⭐⭐ 0.0e — **`--mode all` VISUAL-CHECK CORRECTIVES + the `cgf==editor` TKB ruling.** ⭐ **the live section; its entry point is §0.0e.3d.** *(`2026-08-28`, head `7fbcf54e4`)*
 
 > ⚠ **This supersedes §0.0d as the start-here section.** §0.0d's phase-2 plan is **DONE** *(slices ①②③, `J1`,
 > `J2`, `J3` all closed — see §0.0d for its own record)*. ⛔ Do not restart phase 2 from it.
@@ -208,6 +209,81 @@ with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory decla
 ⚠⚠ **PROCESS NOTE WORTH KEEPING:** I ran this as a code investigation and swept the design corpus only
 after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
 points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
+
+### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S1`: THE GIZMO EXECUTION GATE** *(`2026-08-28`)*
+
+📄 **THE DESIGN IS [`docs/UX/UX_Feature_Map_Parity.md`](../UX/UX_Feature_Map_Parity.md) — read its STATUS
+block, then §3.9 (the slices), §3.0 (the root cause), §3.2a/§3.2b/§3.2c.** ⛔ Do not re-derive any of it.
+
+#### 🔒 The five USER RULINGS that bound this work — do not re-litigate
+
+| # | ruling |
+|---|---|
+| ① | ⭐⭐ **The map must be UNIFIED across every ECS-enabled host** *(CGF · IG · SimHost · ReplayBrowser)* — same gizmos, differing only by the entity's components. §3.1b makes membership a **rule, not a host list** |
+| ② | ⛔⛔ **A SimHost-only fix is REJECTED** — *"chasing SimHost gap means deepening the separation of hosts"*. ⚠⚠ **BUT `S1` IS NOT THAT** — see the box below |
+| ③ | ⭐⭐ **The pack owns CONSTRUCTION; the HOST decides SCHEDULING** *(§3.2a)* |
+| ④ | ⭐ **Settings are a standalone injected store** — per host · shared · `Empty` *(§3.2c)* |
+| ⑤ | ⭐ **Policy supply is option (b), the RESOLVER** on `RegisterAll`; ⛔ the attribute route (a) is NOT taken |
+
+#### ⭐⭐⭐ WHY `S1` IS LEGAL UNDER RULING ② — **say this when reporting, or it reads as the rejected thing**
+
+🔒 **`S1` lands ENTIRELY IN SHARED CODE:** `GizmoExecutionController` *(`FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/`)*
+and `PerspectiveCoordinatorSystem` *(`Hrot/Runner/Hrot.ClusterRunner/Systems/`)*. ⛔ **It touches no host's
+private composition**, which is what ruling ② forbids. ⭐ It happens to restore SimHost's map because
+SimHost is the boot perspective — **the victim, not the subject.**
+
+#### 📐 THE DEFECT, measured — `CE-123`
+
+`GizmoExecutionController` gates a `TogglablePostSimulationGroup` holding `GlobalGizmoManager`,
+`DataDrivenGizmoSystem` **and `StatelessGizmoSystem`** *(the `[GizmoProjector]` runner)*:
+
+```csharp
+AddListener()    { if (Interlocked.Increment(ref _listenerCount) == 1) _group.Enabled = true; }
+RemoveListener() { if (Interlocked.Decrement(ref _listenerCount) == 0) { …; _group.Enabled = false; } }
+```
+
+⛔ **`_currentPerspective` starts `string.Empty`** *(`PerspectiveCoordinatorSystem:22`)*, and nothing adds a
+listener for the perspective that is **already active at boot**. ⇒ the first switch calls
+`outgoing.GizmoController?.RemoveListener()` on it at count `0` → **`−1`**; every later `AddListener`
+returns `0`, never `1`, so `_group.Enabled = true` **never runs again for the process's life.**
+📐 **Measured:** SimHost `605 primitives / 3 non-Line` on visits **1, 2 and 3**; `Scenario` `739 / 69` each
+visit.
+
+#### ⭐ `S1`'s THREE CHANGES
+
+| # | file | change |
+|---|---|---|
+| **1** | `Diagnostics/Gizmos/GizmoExecutionController.cs` | **clamp + assert**: `RemoveListener` below zero is a **bug**, not a state to absorb |
+| **2** | `Hrot.ClusterRunner/Systems/PerspectiveCoordinatorSystem.cs` | **activate the boot perspective**: take an optional `Func<string>` for the current perspective *(the idiom `Program.cs:412` already uses: `() => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty`)*; on the first `ProcessPendingEvents`, if `_currentPerspective` is empty, set it and `AddListener` for it **before** draining |
+| **3** | `Hrot.ClusterRunner/Program.cs` *(~`:334`)* | pass that func into the coordinator's ctor |
+
+⛔⛔ **DELIBERATELY NOT IN `S1` — and this is a DEVIATION from §3.9's wording, argue it in the report:**
+§3.9 lists *"`Enabled` derived from the viewer count"*, which implies deleting the per-host literals
+*(`IgApplication:861 = true` · `SimHostApp:444 = false` · `CgfSubsystem:955` · Editor)*. 🔴 **Do NOT do that
+in `S1`:** a standalone host *(`--mode editor`, standalone IG)* may have **no perspective coordinator at
+all**, so removing its `= true` with no viewer hook in place would make its map **go dark** — a regression
+worse than the bug. ⇒ ⭐ **that belongs to `S2`, where construction is centralised and every host's viewer
+hook is handled together.**
+
+#### ⭐ HOW TO VERIFY
+
+```bash
+dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj --no-restore -v q --nologo
+cd Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
+export HROT_DEBUG_API_PORT=8099 FDP_STAGING_ROOT=<a fresh dir>
+nohup xvfb-run -a dotnet Hrot.ClusterRunner.dll --mode all > /tmp/gate.log 2>&1 &
+curl -s --noproxy '*' -m 90 -X POST http://localhost:8099/scenario/load/live \
+     -H 'Content-Type: application/json' -d '{"name":"hill-attack","waitForReady":true}'
+curl -s --noproxy '*' "http://localhost:8099/panels/_gizmo?max=4000"   # ⛔ NOT /gizmo/frame — 404
+```
+⭐ **PASS = SimHost non-`Line` goes from `3` to a real entity count** *(`Scenario` shows `69`; IG `104`)*
+**at boot, with no perspective round-trip.** 🔒 **Check `ok` before reading `data`** — a wrong route returns
+`{ok:false,"Not found"}` with HTTP 200 and a naive parser prints a confident zero *(that cost a whole false
+finding this session — SKILL §5e.1)*.
+
+⭐ **Rails to write** *(each inverse-edit red-proved)*: boot-then-leave-then-return keeps the gate enabled ·
+`RemoveListener` before any `AddListener` asserts rather than reaching `−1` · the boot perspective is
+activated exactly once *(idempotent)*.
 
 ### 0.0e.3c ⭐⭐⭐ **THE BUILD PLAN — `CE-113`. THE ONLY WORK LEFT. ⭐⭐ BUILD THIS FIRST.**
 
