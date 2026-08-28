@@ -265,6 +265,30 @@ all**, so removing its `= true` with no viewer hook in place would make its map 
 worse than the bug. ⇒ ⭐ **that belongs to `S2`, where construction is centralised and every host's viewer
 hook is handled together.**
 
+#### ⛔⛔ THE TWO CHANGES ARE **ATOMIC** — *found `2026-08-28` while starting `S1`; the table above does not convey it*
+
+🔴 **Do NOT land change 1 (the clamp) without change 2 (the boot activation) in the SAME commit.**
+📐 **Why:** the unbalanced `RemoveListener()` happens on **today's** code path — the boot perspective is
+left before it is entered *every run*. ⇒ a clamp that **throws** would fire on the **first perspective
+switch** of every `--mode all` boot, turning a silent dark map into a **loud crash**. ⚠ And a
+*"implement 1, build, test, then 2"* sequence — the obvious order — **produces exactly that**, which will
+read as a regression rather than as the guard doing its job.
+
+⭐ **So: one commit, both changes, then verify.** ⛔ Or, if they must be split, land **2 before 1** — never
+the reverse.
+
+#### 📌 THE SHAPE ALREADY CHOSEN for change 2 — do not re-derive it
+
+⭐ Reverted unbuilt *(the tree is clean at `005f21ae2`)*, but the approach was settled:
+
+| | |
+|---|---|
+| **ctor** | add `System.Func<string>? currentPerspective = null` as a **4th optional** parameter ⇒ ⭐ every existing caller still compiles |
+| **why a delegate, not a string** | 🔒 the coordinator is constructed at `Program.cs:~334`, **before** `windowCtrl` exists at `:412` ⇒ a string would be empty. ⭐ `Program.cs:412` already uses this exact idiom: `() => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty` |
+| **fields** | `_currentPerspectiveAccessor` + a `bool _bootPerspectiveActivated` latch |
+| **where it fires** | at the **top of `ProcessPendingEvents()`**, before the drain loop: if not yet activated and the accessor yields a non-empty name, set `_currentPerspective` and `AddListener()` for it, then latch. ⭐ **Idempotent**, and a no-op in hosts that pass no accessor |
+| ⚠ **guard** | the accessor may yield `string.Empty` for several frames while the window comes up ⇒ ⛔ **do not latch until a non-empty name arrives** |
+
 #### ⭐ HOW TO VERIFY
 
 ```bash
