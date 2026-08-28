@@ -615,6 +615,50 @@ wire hop**, so the Brain computed a valid path (which rendered) while the Muscle
 could not accelerate. **On screen that is indistinguishable from a broken navigator.** A one-node read —
 either node — would have confirmed the wrong theory.
 
+## 5e. ⛔⛔ DRIVING IT OVER PLAIN HTTP (when the MCP server is down)
+
+The MCP server does drop. When it does, **the whole surface is still reachable with `curl`** — every tool
+in this document is an HTTP route on the same host. Do not downgrade to reading engine source.
+
+```bash
+curl -s --noproxy '*' -m 15 http://localhost:8099/status
+curl -s --noproxy '*' -m 90 -X POST http://localhost:8099/scenario/load/live \
+     -H 'Content-Type: application/json' -d '{"name":"hill-attack","waitForReady":true}'
+```
+
+`--noproxy '*'` matters: an agent sandbox usually exports `HTTPS_PROXY`, and localhost must bypass it.
+
+### 5e.1 🔴🔴🔴 THE ROUTE NAMES ARE NOT THE TOOL NAMES — and a wrong path returns an EMPTY DATASET
+
+**This cost a whole false finding, `2026-08-28.`** The tool is `get_gizmo_frame`; the route is
+**`GET /panels/_gizmo`**. There is no `/gizmo/frame`. The mapping is *not* mechanical — do not derive a
+path from a tool name. **`Hrot/Subsystems/Hrot.Editor/DebugApi/DebugApiRouteDocs.cs` is the authoritative
+route list** (`grep -oE '"/[a-zA-Z0-9/_{}-]+"'` over it prints every one).
+
+⛔⛔ **And here is the trap that turns a typo into a bug report:** a path that does not exist answers
+
+```json
+{"ok":false,"data":null,"error":"Not found","hint":null}
+```
+
+with **HTTP 200**. A script that reads `data` without checking `ok` gets `None`, defaults it to `[]`, and
+prints a confident **zero**. Measured: probing `/gizmo/frame` reported *"0 primitives on every
+perspective, not even the grid"* — which reads exactly like a systemic capture failure and was filed as
+one. The correct route, same boot, same second, returned **739 primitives with 69 non-`Line` shapes**.
+
+🔒 **So: check `ok` and print `error` BEFORE touching `data`, in every probe script.**
+
+```python
+r = json.load(sys.stdin)
+if not r.get("ok"):
+    print("ROUTE ERROR:", r.get("error")); sys.exit(1)   # never fall through to data
+```
+
+**Why this is worse than an ordinary typo:** every other instrument fault in §5c was the *server*
+answering a different question. This one is the *client* inventing an answer — and "the feature is
+broken" is a far more expensive wrong conclusion than "my call failed". An empty result that you did not
+prove came from a live route is not a measurement.
+
 ---
 
 ## 6. Discover before you guess
