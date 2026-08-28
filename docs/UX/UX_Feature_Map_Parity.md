@@ -1025,6 +1025,51 @@ assume (c) is the answer** — measure the registry first.
 | ⭐ **3** | **`MapLayerBits` is no longer a hand-synced copy** — its doc used to say *"must match `MapLayerRegistry` exactly"*; the agreement is now mechanical, with a rail |
 | ⭐ **4** | **`WithVisual` no longer discards its input** — and `VisualDefinitionDto`, previously produced by nothing, now has a producer, which makes its translator meaningful on **every** host |
 
+## 3.9c ⭐⭐⭐ **CAN IG'S RENDERING MERGE INTO ONE? — YES, and it is FAR closer than it looks** *(measured `2026-08-28`)*
+
+> 🔒 **User:** *"after the unification the IG styling etc should become the shared feature and we just
+> parametrize it, do i understand it correctly? IG should not keep using different map rendering as this
+> would not be unified. can the IG way of rendering be merged into one unified, how different is it from
+> the other subsystems?"*
+
+⭐⭐⭐ **Answer: the understanding is correct, and the premise is kinder than reality — ⛔ IG is NOT using a
+different rendering.** 📐 **All three hosts already call the SAME shared helpers**
+*(`EntityPresentationGizmoShared`)*. What differ are **three INPUTS** and **two DEFECTS**.
+
+### 📐 THE THREE ENTITY GIZMOS, LINE BY LINE
+
+| step | `SimHostEntityPresentationGizmo` *(38 ln)* | `CgfEntityPresentationGizmo` *(52 ln)* | `IgEntityPresentationGizmo` *(54 ln)* |
+|---|---|---|---|
+| `[GizmoProjector]` requires | `SimTransform`, `NetworkIdentity` | same | ⭐ **+ `CullingState`** |
+| visibility gate | — | — | ⭐ `if (!cull.IsVisible) return;` |
+| transform source | `SimTransform` | ⭐ **`NetworkTransform` preferred → `SimTransform`** *(it is the brain, reading replicated state)* | `SimTransform` |
+| spatial anchor | ✅ shared helper | ✅ shared helper | ✅ shared helper |
+| **pick box** | ✅ `EmitPickBox` | 🔴 **MISSING** | ✅ `EmitPickBox` |
+| dimensions + profile id | ✅ shared helper | ✅ shared helper | ✅ shared helper |
+| condition mask | `0u` | `0u` | ⭐ **computed from `IgHealthState`** *(`≥50` Damaged, `≥90` Immobile)* |
+| semantic shape | ✅ shared helper *(forces opaque cyan)* | 🔴 **raw `draw.DrawSemanticShape` → `Color (0,0,0,0)`** | ✅ shared helper |
+
+### ⭐⭐ THE REAL DIFFERENCES ARE **THREE PARAMETERS**, not three renderers
+
+| # | IG has | the others lack | ⭐ what it becomes when unified |
+|---|---|---|---|
+| **①** | a **visibility gate** *(`CullingState`, produced by the IG-private `MapCullingModule`)* | no gate — they draw everything | 🔒 **`IGizmoVisibilityPolicy` — THE SEAM ALREADY EXISTS** *(`Fdp.Toolkits/Diagnostics/Gizmos/IGizmoVisibilityPolicy.cs`)*, with `IsGloballyEnabled(view)` + `IsEntityVisible(view, entity)`. ⚠⚠ **Its only two implementations are `AlwaysVisiblePolicy` and `NeverVisiblePolicy`** ⇒ 📌 **the seam law again: IG's culling is a policy that was written as a hard-coded `if` instead of the policy the framework already offers** |
+| **②** | a **condition-mask source** *(`IgHealthState` → Damaged/Immobile)* | pass `0u` | ⭐ a **condition provider** parameter — ⛔ not a fork. 📌 The thresholds *(50 / 90)* are pure configuration |
+| **③** | — | ⭐ **CGF** prefers `NetworkTransform` | ⭐ a **transform-source** parameter. ⚠ This one is a legitimate ROLE difference *(brain reads replicated state, muscle owns it)* ⇒ ⭐ it is the clearest case for parameterising rather than picking a winner |
+
+⇒ ⭐⭐⭐ **One `EntityPresentationGizmo` + three injected collaborators replaces three classes.** 🔒 **`R-137`
+governs the merge:** ⛔ do NOT unify by dropping IG's culling or its damage states — ⭐ **those are the
+capability, and the other hosts should GAIN the ability to have them**, defaulted off by configuration.
+
+### 🔴 AND THE COPY-DIVERGENCE ALREADY COST TWO DEFECTS — `CE-126`
+
+⭐⭐ **This is the argument for merging, made by the code itself.** 📐 `DebugPrimitiveBuffer.DrawSemanticShape`
+starts from `default(DebugPrimitive)` and **never sets `Color`** ⇒ `(0,0,0,0)`, fully transparent. 📌 The
+shared helper exists **precisely** to fix that — its own comment says *"leaves Color at (0,0,0,0) — fully
+transparent, so the avatar would draw invisibly. Set an explicit opaque color."*
+⇒ 🔴 **CGF calls the raw builder, so CGF's entity avatars are emitted TRANSPARENT**, and **CGF alone omits
+`EmitPickBox`**. ⚠ Three near-identical copies, and the one that drifted is **silently wrong in two ways.**
+
 ## 4. Acceptance
 
 | # | Case | Cls |
