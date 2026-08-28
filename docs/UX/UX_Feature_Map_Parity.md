@@ -2,7 +2,12 @@
 state: LIVE
 build-state: NOT-BUILT
 verified: 2026-08-28 (coordinator source scan)
-current-answer: NOT-BUILT (design only). No shared MapInteractionPack; IG fork (HandleContextMenuActionById) intact; CGF registers no GlobalActionRegistry. (CE-051/E3 shared only center/select across Editor+CGF.)
+current-answer: NOT-BUILT (design only) -- confirmed independently 2026-08-28: grep finds ZERO
+  occurrences of MapInteractionPack/MapInteractionContext. No shared pack; IG fork
+  (HandleContextMenuActionById) intact. READ SECTION 2b FIRST: section 2's per-host baseline has
+  INVERTED -- CGF now emits the full entity gizmo set (CgfSubsystem.cs:928) and SIMHOST emits none,
+  which is the host a user reported broken (CE-123). Section 3.3's work split is stale accordingly.
+  Section 5 is CLOSED (the seven commanding ids deferred to UXI-32/Q29; Properties+Teleport unblocked).
 -->
 # Feature design — map-interaction parity
 
@@ -82,6 +87,48 @@ a *blind* rubber band, not an absent one. Only Editor and ReplayBrowser draw it.
 🔴 **CGF is missing `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar` entirely**, costing it the selection
 ring, context-menu projector, health bars, layer control, rotation, LOS, vision cones, nav targets and
 the spatial grid — in one absent call.
+
+## 2b. ⚠⚠ MEASURED `2026-08-28` — **§2's PER-HOST BASELINE HAS INVERTED. CGF is fixed; SIMHOST is now the empty one.**
+
+🔒 **User visual test on `--mode all`:** *"The entities were not shown in the SimHost perspective. in
+Scenario perspective, map was showing them."* ⇒ 📐 **confirmed by `GET /panels/_gizmo?max=4000`** after a
+live load of `hill-attack`:
+
+| perspective | primitives | non-`Line` | verdict |
+|---|---:|---:|---|
+| **`Scenario`** *(CGF)* | 739 | **69** — `Box2D 8`, `Arrow 12`, `Text 8`, `SemanticShape 16`, `SpatialAnchor 16` | ✅ **the richest entity output of the three** |
+| **`IG`** | 714 | **104** — `Box2D 24`, `SpatialAnchor 24`, `SemanticShape 24`, `EntityBadge 6` | ✅ |
+| 🔴 **`SimHost`** | 605 | 🔴 **3** — `LayerControlMask`, `MainMenuBinding`, `ContextMenuBinding` + `Line 602` | 🔴 **grid and shell bindings only — ZERO per-entity primitives** |
+
+⇒ ⛔⛔ **§2's table and §3.3's work split are STALE IN BOTH DIRECTIONS and must not be planned against
+as-written:**
+
+| §2/§3.3 says | 📐 measured now |
+|---|---|
+| *"CGF is missing `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar` entirely"* · *"CGF: the whole pack"* | ⚠ **CGF now calls `GizmoReflectionRegistrar.RegisterAll` at `CgfSubsystem.cs:928`** and emits the full entity set. ⭐ Fixed by the cgf==editor correctives *(`CE-016`, and the catalog-contributor round)* **after this design was written** |
+| *"SimHost: the missing 7 ids + `Common.Diagnostics` registrar + rubber-band state"* — i.e. a **partial** host | 🔴 **SimHost emits NO entity primitives at all** — worse than the table implies, and it is the host a user actually reported as broken |
+
+⭐⭐ **Why this strengthens the design rather than weakening it.** The two hosts swapped places **without
+either behaviour being intended**, because each wires its own map independently — which is precisely
+§3.2's argument for `MapInteractionPack`. ⇒ 🔒 **a per-host baseline table is a snapshot that rots; the
+pack is what makes the question unaskable.** ⚠ **So do not re-derive the table before building — build the
+pack and let `23.1`-`23.3`'s parameterised cases hold it.**
+
+⚠ **The SimHost gap itself is NOT yet root-caused** — 📄 **`CE-123`** carries the elimination table
+*(camera, missing projector class, un-called `RegisterAll`, two buffers, boot listener asymmetry, a missing
+`gizmoByPerspective` entry and a null `GizmoController` are ALL disproved by measurement)*. ⭐ Open leads:
+whether `_dataDrivenGizmoSystem` is **scheduled** on the cluster path, and the `LayerControlMask` primitive
+as a possible emit-time filter.
+
+⭐ **One prerequisite is better than §7 claims.** §7 orders `UXI-10 → UXI-11 → UXI-29 → this` and warns that
+binding `Rotate` in CGF before `UXI-29` hands it an action writing a component it does not own.
+📐 **Measured: `UXI-29`'s mechanism IS BUILT** — `IEntityComponentWriter`
+*(`FDP/Toolkits/Fdp.Toolkits/Replication/Patching/IEntityComponentWriter.cs:40`)* and `EntityWriteRouter`
+*(`.../Replication/Attributes/EntityWriteRouter.cs:29`)*, adopted by **IG** *(`IgApplication.cs:755,760`)*,
+**SimHost** *(`SimHostApp.cs:362,397`)* and **Editor** *(`EditorSubsystem.cs:1621,1651`)*.
+⇒ ⭐ **the risk narrows from "UXI-29 is unbuilt" to one concrete fact: `CGF` is NOT in the adopter list**, so
+CGF must route its writes through `EntityWriteRouter` before it binds a write-action. ⚠ The `UXI-29` doc
+header still reads *"designed"* — ⛔ **the code is ahead of it here.**
 
 ## 3. The design
 
