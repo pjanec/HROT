@@ -2323,6 +2323,78 @@ then **3/3 green** *(Presentation)* / **1-red-identical-to-base, 3 runs** *(SimH
 *(`ScenarioFileServiceTests.SaveLoad_RoundTrip`, then `EntityDragGizmoTests` with "Component type ID 51 is not
 registered")* ⇒ 📌 the `CE-084`/`CE-088` family, now confirmed in two more assemblies.
 
+### 5c.18 ⭐⭐⭐ `CE-103` — **the tanks do not move because the CLUSTER RESOLVES A DIFFERENT VEHICLE PROFILE.** `build-state: DIAGNOSED, NOT FIXED` *(`2026-08-28`)*
+
+> 🔒 **User:** *"When i press Play, the tanks show blue line to their destination, but they do not move."*
+> 🔒 **User, `2026-08-28`:** *"the scenario loading path was tested manually pretty well in the editor so pls
+> be carefull with any 'fixes'."* ⇒ ⛔ **diagnosis only; no code changed for this item.**
+
+#### 5c.18.1 ⛔ WHAT IS INNOCENT — **ruled out by direct measurement, not by reasoning**
+
+📐 Same entity *(networkId 1001)*, same scenario, one host each:
+
+| read | editor | `--mode all` | verdict |
+|---|---|---|---|
+| `NavigationIntent` | `DirectPoint`, dest `[523,401,0]`, speed 15 | ⭐ **identical** | the AI issues the order on both |
+| `NavState` | `Direct`, same dest, speed 15 | ⭐ **identical** | ⛔ **the BRIDGE ran and translated correctly** |
+| `NavigationStatus` | `InProgress` | ⭐ **identical** | the executor accepted it |
+
+⇒ ⭐⭐ **The whole navigation chain is fine on the cluster.** 📌 My earlier framing — *"intent produced, never
+consumed"* — was **wrong**, and so was the guess that the missing `behaviorRemapper` was involved
+*(`CE-108`: it rewrites entity-ID references, and this destination is a coordinate)*.
+
+#### 5c.18.2 🔴 WHAT DIFFERS — **the vehicle profile, and it is the whole story**
+
+| `VehicleParams` field | editor | `--mode all` |
+|---|---|---|
+| **`Class`** | **Tank** | ⛔ **PersonalCar** |
+| **`AccelGain`** | **1.8** | 🔴 **0** |
+| **`MaxSteerAngle`** | **0.8** | 🔴 **0** |
+| `MaxDecel` · `MaxSpeedRev` · `MaxLatAccel` · `AvoidanceRadius` | 4 · 8 · 6 · 5 | ⛔ **0 · 0 · 0 · 0** |
+| `LookaheadTimeMin` / `Max` | 0.8 / 2.5 | ⛔ 0 / 0 |
+| `VehicleState.Accel` | **2.5** | 🔴 **0** |
+| `VehicleState.SteerAngle` | −0.8 | 🔴 **NaN** |
+| ⭐ `Length` · `Width` · `WheelBase` · `MaxSpeedFwd` · `MaxAccel` | 7.93 · 3.66 · 4.758 · 20 · 2.5 | ⭐ **identical** |
+
+⇒ ⭐⭐⭐ **`AccelGain: 0` is the direct cause of zero motion** — `CarKinematicsSystem:248` feeds it to the speed
+controller, so acceleration is 0 forever *(`VehicleState.Accel` confirms: 2.5 vs 0)*. ⭐ **`MaxSteerAngle: 0`
+is what makes the steer angle NaN.**
+
+#### 5c.18.3 ⭐⭐⭐ BOTH SOURCES IDENTIFIED — **by arithmetic, not by inference**
+
+```mermaid
+graph TD
+    DTO["VehicleParametersDto<br/>(TKB descriptor)"]
+    BDC["SimVehicleDef<br/>(BDC map definition)"]
+    T1["VehicleKinematicsTkbTranslator<br/>sets 5 FIELDS ONLY, rest DEFAULT"]
+    T2["BdcTkbBuilder.BuildVehicleParams<br/>preset + Class + BDC overrides"]
+    P1["VehicleParams: Class=PersonalCar<br/>AccelGain=0 -- NO MOTION"]
+    P2["VehicleParams: Class=Tank<br/>AccelGain=1.8 -- moves"]
+    DTO --> T1 --> P1
+    BDC --> T2 --> P2
+    P1 --> C["--mode all"]
+    P2 --> E["--mode editor"]
+```
+
+⭐⭐ **The fingerprint that settles it.** `VehicleKinematicsTkbTranslator` writes **exactly**
+`Length, Width, WheelBase = Length × 0.6, MaxSpeedFwd, MaxAccel` — ⇒ 📐 **those are precisely the five fields
+that MATCH between the hosts**, and everything it does not write is 0 on the cluster.
+
+⭐⭐ **And `BdcTkbBuilder` explains every editor value exactly:** `TerrainMobility.Tracked → VehicleClass.Tank`
+· `VehiclePresets.GetPreset(Tank)` *(`AccelGain 1.8`, `MaxSteerAngle 0.8`, `MaxDecel 4`, `MaxLatAccel 6`,
+lookahead 0.8/2.5 — all match)* · `preset.Class = vehicleClass` *(the `Tank` label)* · then BDC overrides:
+📐 `WheelBase = 7.93 × 0.6 = 4.758` ✓ and `MaxSteerRate = TurnRate × π/180 = 0.2617994` ⇒ **TurnRate = 15°/s**
+✓. ⛔ Nothing here is a guess: the numbers only come out of this function.
+
+#### 5c.18.4 ⛔ WHY NO FIX YET — **and what the decision actually is**
+
+| ⚠ | |
+|---|---|
+| ⭐⭐⭐ **The question is WHICH SOURCE IS CANONICAL** | ⛔ not a code defect to patch: two populators exist and the hosts pick different ones. 📌 Ruling 9 territory — *one implementation* — but choosing the survivor is a **data-pipeline** decision |
+| ⚠⚠ **Neither has a visible production caller** | 📐 `grep` over production for `VehicleKinematicsTkbTranslator` finds only its own tests; for `BdcTkbBuilder`, nothing outside its own file ⇒ ⭐ both appear to be **reflection-discovered**, so "why does the cluster get the other one" is about **what TKB/BDC data each node loads**, not about a call site |
+| 🔒 **The user's caution binds** | *"the scenario loading path was tested manually pretty well in the editor"* ⇒ ⛔ a change that re-points vehicle-param population risks the one path known to work |
+| ⭐ **The cheap next probe, if wanted** | compare the TKB template the two hosts hold for `TkbType 303` *(`GET /tkb/types/303`)* — that says whether the cluster's TKB lacks the BDC descriptor, or holds it and ignores it |
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|
