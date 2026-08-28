@@ -162,6 +162,71 @@ registered handlers; `HandleContextMenuActionById`/`ExecuteLocalContextAction` g
 ⚠ **IG keeps its ExCon forwarding** — that is a *fallback for unhandled ids*, not a dispatch mechanism,
 and it stays as the registry's miss path.
 
+### 3.0 🔴🔴🔴 THE PACK MUST OWN GIZMO **EXECUTION**, NOT ONLY REGISTRATION — *root-caused `2026-08-28`*
+
+> ⭐⭐⭐ **User:** *"we are unifying the map rendering across hosts, so whatever it takes; and rendering =
+> gizmos so how can we NOT unify gizmo execution?"*
+
+🔒 **Answer: we cannot — and the SimHost map failure is the proof, because the fault is ENTIRELY on the
+execution side.** ⛔ §3.2's pack as drafted is a **registration** entry point *(registrars, the action
+registry, `SelectionInteractionSystem`, `CanvasMenuUpdateSystem`, the layer control)*. It names none of the
+machinery below, and **that is exactly where the bug lives.**
+
+#### The two halves, concretely
+
+| | what it is | shared today? |
+|---|---|---|
+| **REGISTRATION** | *which* projectors exist — `GizmoReflectionRegistrar.RegisterAll` populating `GizmoRegistry`/`StatelessGizmoRegistry` | ✅ **yes, all five hosts** *(§2c)* |
+| 🔴 **EXECUTION** | *whether they run this frame* — the `DebugPrimitiveBuffer`, `DataDrivenGizmoSystem`, `GlobalGizmoManager`, the **`TogglablePostSimulationGroup`** that wraps them, the **`GizmoExecutionController`** gate over it, its placement in the host's schedule, and `buffer.EndFrame(dt)` | ⛔ **no — hand-wired per host, five different ways** |
+
+#### 📐 THE ROOT CAUSE — a two-part interaction, neither part visible from one host
+
+**Part 1 — the gate's counter is not clamped at zero** *(`FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/GizmoExecutionController.cs`)*:
+
+```csharp
+public void AddListener()    { if (Interlocked.Increment(ref _listenerCount) == 1) _group.Enabled = true; }
+public void RemoveListener() { if (Interlocked.Decrement(ref _listenerCount) == 0) { …; _group.Enabled = false; } }
+```
+
+⇒ ⛔ **`Enabled = true` fires ONLY on the exact 0→1 transition.** A `RemoveListener` before any
+`AddListener` drives the count to **−1**, after which `AddListener` yields **0** — and the group is
+**never enabled again for the life of the process.**
+
+**Part 2 — the group's INITIAL state differs per host.** 📐 Measured:
+
+| host | initial `gizmoGroup.Enabled` | boot perspective? | outcome |
+|---|:--:|:--:|---|
+| **IG** *(`IgApplication.cs:861`)* | ⭐ **`true`** | no | ✅ **immune** — already on, so the counter cannot matter |
+| **Editor** | ⭐ **`true`** | n/a | ✅ immune |
+| **CGF** *(`CgfSubsystem.cs:955`)* | ⚠ **`false`** | no | ✅ works — being *entered* first, its first event is `AddListener` **0→1** ⇒ enabled |
+| 🔴 **SimHost** *(`SimHostApp.cs:444`)* | ⚠ **`false`** | 🔴 **YES** | 🔴 **DEAD** — as the boot perspective it is **LEFT before it is ever ENTERED**, so its first event is `RemoveListener` *(0→−1)*; every later `AddListener` yields 0 and never re-enables |
+| **ReplayBrowser** | — *(no controller at all)* | no | ⛔ the gate cannot apply |
+
+⭐⭐⭐ **THE POINT, and it is the whole argument for this design:** ⛔ **the defect is not
+*"SimHost is misconfigured."*** It is that **one gate has three different initial states across five hosts
+plus an unclamped counter that only misbehaves for whichever host happens to BOOT FIRST.**
+🔒 **Change the default perspective from `SimHost` to `Scenario` and CGF would break instead** — same code,
+different victim. ⇒ ⭐⭐ **no per-host inspection can find this**, which is why it survived a seven-hypothesis
+elimination pass *(`CE-123`)* and was found only by a user looking at two screens.
+
+📐 **Confirmed by prediction:** SimHost read **605 primitives / 3 non-`Line`** on visit 1, 2 **and** 3
+across alternating switches, while `Scenario` read **739 / 69** on each of its visits — exactly what an
+unclamped counter starting from a `RemoveListener` predicts.
+
+#### ⇒ What the pack must therefore own
+
+| # | |
+|---|---|
+| **①** | ⭐⭐ **construct** the buffer, `DataDrivenGizmoSystem`, `GlobalGizmoManager`, the togglable group and the controller — **one code path, one initial state** |
+| **②** | 🔒 **ONE initial-state policy.** ⭐ Recommend **`Enabled = true`** *(IG's and Editor's choice — the two hosts that work)*, with the gate then only ever *narrowing*; ⛔ a host must not choose |
+| **③** | 🔒 **clamp the counter** — `RemoveListener` below zero is a **bug to assert on**, not to absorb. ⚠ It is what made a host-ordering accident permanent |
+| **④** | ⭐ **schedule it**, with the host supplying only *where* *(its group/kernel handle)* — ⛔ never *whether* |
+| **⑤** | ⭐ **`ReplayBrowser` gets a controller too** — §3.1b makes it a member, so the gate must exist there |
+
+⚠ **Scope honesty:** ① – ⑤ widen §3.2 from *registration* to *composition + execution*. ⭐ That is a bigger
+pack than drafted and it is what the user's *"whatever it takes"* asks for — ⛔ but it also means the
+`RW-M` estimate in `PLAN_Interaction_UX_Backlog` §4 is **light**; re-size when the UML is authored.
+
 ### 3.1b 🔒🔒🔒 MEMBERSHIP IS A RULE, NOT A HOST LIST — **every ECS-enabled host** *(user, `2026-08-28`)*
 
 > ⭐⭐⭐ **User, verbatim:** *"both cgf, ig and simhost should show the map (and replaybrowser as well). And
