@@ -2360,38 +2360,36 @@ consumed"* — was **wrong**, and so was the guess that the missing `behaviorRem
 controller, so acceleration is 0 forever *(`VehicleState.Accel` confirms: 2.5 vs 0)*. ⭐ **`MaxSteerAngle: 0`
 is what makes the steer angle NaN.**
 
-#### 5c.18.3 ⭐⭐⭐ BOTH SOURCES IDENTIFIED — **by arithmetic, not by inference**
+#### 5c.18.3 ⛔⛔ ONE SOURCE IDENTIFIED, ONE **NOT** — *(corrected `2026-08-28`; the first version of this section was WRONG)*
 
-```mermaid
-graph TD
-    DTO["VehicleParametersDto<br/>(TKB descriptor)"]
-    BDC["SimVehicleDef<br/>(BDC map definition)"]
-    T1["VehicleKinematicsTkbTranslator<br/>sets 5 FIELDS ONLY, rest DEFAULT"]
-    T2["BdcTkbBuilder.BuildVehicleParams<br/>preset + Class + BDC overrides"]
-    P1["VehicleParams: Class=PersonalCar<br/>AccelGain=0 -- NO MOTION"]
-    P2["VehicleParams: Class=Tank<br/>AccelGain=1.8 -- moves"]
-    DTO --> T1 --> P1
-    BDC --> T2 --> P2
-    P1 --> C["--mode all"]
-    P2 --> E["--mode editor"]
-```
+⚠⚠ **RETRACTION.** This section previously claimed the editor's params come from
+`BdcTkbBuilder.BuildVehicleParams`, on the strength of the arithmetic matching *(`WheelBase = 7.93 × 0.6`,
+`MaxSteerRate = TurnRate × π/180`)*. ⛔⛔ **That method has ZERO CALLERS — it is dead code.** 📌 I matched
+numbers to a function and never checked it was invoked: **over-fitting an explanation to a coincidence**, the
+same error class as reading a symbol's name instead of its body.
 
-⭐⭐ **The fingerprint that settles it.** `VehicleKinematicsTkbTranslator` writes **exactly**
-`Length, Width, WheelBase = Length × 0.6, MaxSpeedFwd, MaxAccel` — ⇒ 📐 **those are precisely the five fields
-that MATCH between the hosts**, and everything it does not write is 0 on the cluster.
+⭐⭐ **What IS established:**
 
-⭐⭐ **And `BdcTkbBuilder` explains every editor value exactly:** `TerrainMobility.Tracked → VehicleClass.Tank`
-· `VehiclePresets.GetPreset(Tank)` *(`AccelGain 1.8`, `MaxSteerAngle 0.8`, `MaxDecel 4`, `MaxLatAccel 6`,
-lookahead 0.8/2.5 — all match)* · `preset.Class = vehicleClass` *(the `Tank` label)* · then BDC overrides:
-📐 `WheelBase = 7.93 × 0.6 = 4.758` ✓ and `MaxSteerRate = TurnRate × π/180 = 0.2617994` ⇒ **TurnRate = 15°/s**
-✓. ⛔ Nothing here is a guess: the numbers only come out of this function.
+| # | measured |
+|---|---|
+| ⭐⭐⭐ **the TKB CATALOG is already SHARED** | 📐 both hosts build it with **`HrotEnvironment.CreateTkb()`** — editor at `EditorSubsystem:1227`, cluster nodes via `HrotNodeBuilder:197` ⇒ ⛔ **there is no "editor TKB" vs "cluster TKB"**; that half of the concern does not exist |
+| 🔴 **but what the catalog STORES is LOSSY** | 📐 `NedTkbBuilder.WithPhysics` adds a `VehicleParametersDto` of **6 fields** — Mass, Length, Width, MaxSpeedFwd, MaxSpeedRev, MaxAccel — and its own comment defers the rest: *"Height, TurnRate, Mobility mapped to VehicleParams by translator in Phase 6."* ⇒ ⛔ **`Mobility` — the field that decides Tank vs PersonalCar — never reaches the template** |
+| 🔴 **the mapper that would have used it is DEAD** | `BuildVehicleParams(SimVehicleDef)` maps `Mobility → VehicleClass`, applies `VehiclePresets.GetPreset`, sets `Class`, then overrides from the def. ⛔ **Nothing calls it.** 📌 *"Phase 6"* appears never to have been wired |
+| ⭐ **the cluster's values ARE the translator's output set** | `VehicleKinematicsTkbTranslator` writes exactly Length, Width, `WheelBase = Length × 0.6`, MaxSpeedFwd, MaxAccel — ⇒ 📐 **precisely the five fields that match between hosts**, everything else default |
+
+⛔⛔ **NOT established: where the EDITOR's rich params come from.** ⚠ Two candidates were checked and both
+**fail** the arithmetic: `BuildVehicleParams` is dead, and `VehicleCommandSystem` *(the other production
+`GetPreset` caller)* writes `ArrivalRadius = 2.0` and `NavState.Mode = None` where the editor shows **5** and
+**Direct**, and the `Tank` preset's `MaxSteerRate` is **1.2** where the editor shows **0.2617994**. ⇒ 🔒 **a
+third source exists and is unidentified. It must be found by measurement, not by matching numbers again.**
 
 #### 5c.18.4 ⛔ WHY NO FIX YET — **and what the decision actually is**
 
 | ⚠ | |
 |---|---|
 | ⭐⭐⭐ **The question is WHICH SOURCE IS CANONICAL** | ⛔ not a code defect to patch: two populators exist and the hosts pick different ones. 📌 Ruling 9 territory — *one implementation* — but choosing the survivor is a **data-pipeline** decision |
-| ⚠⚠ **Neither has a visible production caller** | 📐 `grep` over production for `VehicleKinematicsTkbTranslator` finds only its own tests; for `BdcTkbBuilder`, nothing outside its own file ⇒ ⭐ both appear to be **reflection-discovered**, so "why does the cluster get the other one" is about **what TKB/BDC data each node loads**, not about a call site |
+| ⚠⚠ **My "no production caller" claim was a GREP ARTEFACT** | 📐 the file is `BdcTkbBuilder.cs` but the class inside is **`NedTkbBuilder`** ⇒ ⛔ searching the filename found nothing. 📌 Third pattern-as-hypothesis miss of the session. ⭐ `NedTkbBuilder` is used via `NedTkbCatalog.RegisterAll`, reached by `HrotEnvironment.CreateTkb()` |
+| ⭐⭐ **THE NEXT PROBE, and it is decisive** | `GET /tkb/types/303` on **both** hosts. ⭐ If the templates are IDENTICAL *(they should be — same factory)*, the divergence is in the **INJECTION** path, not the data, and the hunt narrows to which translator/system stamps `VehicleParams` first *(the translator's `!HasComponent` guard makes it order-dependent)* |
 | 🔒 **The user's caution binds** | *"the scenario loading path was tested manually pretty well in the editor"* ⇒ ⛔ a change that re-points vehicle-param population risks the one path known to work |
 | ⭐ **The cheap next probe, if wanted** | compare the TKB template the two hosts hold for `TkbType 303` *(`GET /tkb/types/303`)* — that says whether the cluster's TKB lacks the BDC descriptor, or holds it and ignores it |
 
