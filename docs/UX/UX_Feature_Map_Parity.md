@@ -576,6 +576,52 @@ first drove the count to **−1** and `AddListener` returned **0**, never `1` �
 `605/3` on visits 1, 2 **and** 3. ⭐ **Step 1 above is the entire fix**, and it is a *structural* one: the
 active-at-boot perspective is a viewer like any other.
 
+#### 3.2c ⭐⭐ SETTINGS OWNERSHIP — **a standalone injected store, not a per-host field** *(user ruling, `2026-08-28`)*
+
+> 🔒 **User:** *"Persistence was meant for single-host nodes like a '2d map station' where the user want to
+> see the same settigng he made last time. So yes this must in general possible different for different
+> hosts while some host do not need it at all and some are sharing same settings. I.e. not strictly per
+> host, more standalone, injected to host or multiple different hosts. Special empty instance for hosts not
+> needing anything."*
+
+✅ **IT FITS — and it is already the shape of the code**, which is why it is the right model rather than a
+new one:
+
+| the requirement | 📐 state today |
+|---|---|
+| ⭐ **standalone, injectable** | ✅ **already exact.** `GizmoSettingsRegistry` is a plain class with **no host dependency**, constructed and passed in *(`GizmoReflectionRegistrar.RegisterAll(reg, stateless, settings)`)* ⇒ sharing ONE instance across several hosts already works in-process, and needs no code change |
+| ⭐ **persistence belongs to the instance, not the host** | ✅ **already exact.** `SaveToDisk(path, scope)` / `LoadFromDisk(path, scope)` take the path as a **parameter** ⇒ a *"2D map station"* node hands its instance a real file; an ephemeral host never calls save. ⭐⭐ **This retires the *"needs a per-host path convention"* gap I filed a turn earlier — the owner of the instance owns the path, by construction** |
+| ⭐ **different hosts may differ, share, or want none** | ⭐ **a composition choice**, expressible today: one instance each · one instance shared · one `Empty` |
+| 🔴 **a special empty instance** | 🔴 **does not exist** — `grep` finds no `Empty`/null-object. ⛔ And `settings` is **non-optional** on `RegisterAll`, so *"none"* has no legal spelling today |
+
+##### ⛔⛔ The one trap in *"empty"* — **it must be VISIBLY read-only, not quietly inert**
+
+📐 `Write(...)` today unconditionally mutates, sets `_isDirty` and raises `OnSettingChanged`. ⇒ an `Empty`
+that simply **swallowed** writes would give a host a settings UI whose toggles appear to work and change
+nothing — 🔒 **precisely the *"silently no-op"* that `DESIGN_Subsystem_Composition_Unification.md` §3.2
+forbids**, and the same failure mode as SimHost's silent map *(§3.0)*.
+
+⇒ ⭐⭐ **So `GizmoSettingsRegistry.Empty` is a NULL OBJECT that ANNOUNCES itself:**
+
+| | |
+|---|---|
+| ⭐ **reads** | return the **registered default** — every gizmo still renders per its declared default |
+| ⭐⭐ **writes** | ⛔ **not silently absorbed.** Either refused, or accepted `Session`-only and never persisted — ⭐ **and the instance exposes the fact** *(e.g. `IsPersistent`/`CanWrite`)* so the UI **hides or disables** the toggle rather than lying |
+| ⭐ **save/load** | no-ops, honestly reported |
+
+⭐ **Consequence to state, so it is never mistaken for a bug later:** ⚠ **two hosts SHARING one instance
+share every toggle** — a change in one is visible in the other. 🔒 That is the user's *"some are sharing
+same settings"*, working as asked; ⛔ it is not a leak.
+
+##### ⇒ What this makes concrete in fix item ⑥
+
+| # | |
+|---|---|
+| **⑥a** | ⭐⭐ **a settings-backed `IGizmoVisibilityPolicy`** — the missing link. 📐 Today the interface has **only** `AlwaysVisiblePolicy`/`NeverVisiblePolicy`, both singletons returning constants that ignore the view *and* every setting ⇒ **no setting can currently affect visibility at all.** ⭐ The policy takes the registry *(or a read delegate)* by injection, keeping it host-agnostic |
+| **⑥b** | ⭐ **`GizmoSettingsRegistry.Empty`**, per the trap above — ⛔ never `null`, which would be the silent-default shape |
+| **⑥c** | ⭐ **the composition wires WHICH instance each host gets** — its own · a shared one · `Empty`. ⛔ **`MapInteractionContext` already carries `Settings`** *(§3.2b)*, so the seam is drawn; only the instance choice is the host's |
+| ⛔ ~~a per-host settings path convention~~ | **RETIRED** — the path is the instance owner's, and `SaveToDisk` already takes it |
+
 #### 🔒 The fix set, final
 
 | # | | where it lives |
@@ -633,7 +679,10 @@ entirely.
 | ⭐⭐ 23.17 | 🔒 **The pack CANNOT schedule** — `MapInteractionContext` exposes no kernel/module registry, asserted by a compile-time-shaped rail *(the type has no such member)*; ⛔ and no `MapInteraction*` type calls `RegisterModule`/`RegisterGlobalSystem` | H |
 | ⭐⭐⭐ 23.18 | 🔒 **A host that does not schedule the required systems is REPORTED, never silent** — `Unserviceable(hostRunSet)` names them, parameterised over a host that schedules none. 📌 **This is the case that would have caught SimHost's empty map** | H |
 
-**15 H · 3 I · 0 V.** ⚠ *(was 9 H — `23.13`-`23.16` come from §3.2b's two corrections; they are the acceptance half of "share the mechanism, let the rule vary through a parameter".)*
+| ⭐ 23.19 | 🔒 **`GizmoSettingsRegistry.Empty` never silently absorbs a write** — a write is refused or `Session`-only, and the instance reports its non-persistence so the UI can hide/disable the toggle. ⛔ Parameterised: no host receives `null` settings | H |
+| ⭐ 23.20 | ⭐ **Two hosts sharing one settings instance see each other's toggles** *(the user's "some are sharing same settings")*, and a host with `Empty` still renders every gizmo at its registered default | H |
+
+**17 H · 3 I · 0 V.** ⚠ *(was 9 H — `23.13`-`23.16` come from §3.2b's two corrections; they are the acceptance half of "share the mechanism, let the rule vary through a parameter".)*
 
 ## 5. ✅ CLOSED — the nine orphan ids are a **capability gap**, not a binding choice
 
