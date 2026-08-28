@@ -1055,7 +1055,31 @@ different rendering.** 📐 **All three hosts already call the SAME shared helpe
 |---|---|---|---|
 | **①** | a **visibility gate** *(`CullingState`, produced by the IG-private `MapCullingModule`)* | no gate — they draw everything | 🔒 **`IGizmoVisibilityPolicy` — THE SEAM ALREADY EXISTS** *(`Fdp.Toolkits/Diagnostics/Gizmos/IGizmoVisibilityPolicy.cs`)*, with `IsGloballyEnabled(view)` + `IsEntityVisible(view, entity)`. ⚠⚠ **Its only two implementations are `AlwaysVisiblePolicy` and `NeverVisiblePolicy`** ⇒ 📌 **the seam law again: IG's culling is a policy that was written as a hard-coded `if` instead of the policy the framework already offers** |
 | **②** | a **condition-mask source** *(`IgHealthState` → Damaged/Immobile)* | pass `0u` | ⭐ a **condition provider** parameter — ⛔ not a fork. 📌 The thresholds *(50 / 90)* are pure configuration |
-| **③** | — | ⭐ **CGF** prefers `NetworkTransform` | ⭐ a **transform-source** parameter. ⚠ This one is a legitimate ROLE difference *(brain reads replicated state, muscle owns it)* ⇒ ⭐ it is the clearest case for parameterising rather than picking a winner |
+| **③** | — | 🔴 **CGF** prefers `NetworkTransform` | ⛔⛔ **NOT a parameter — DEAD WEIGHT, and sometimes HARMFUL.** ⚠⚠ **This row previously called it *"a legitimate ROLE difference … the clearest case for parameterising"* — that was written from the comment, not from measurement, and it is REFUTED below.** ⇒ ⭐⭐⭐ **the unified line reads `SimTransform` on every host: `|shared|shared|shared|`, with NO parameter** |
+
+#### 🔴🔴 ③ MEASURED — **`NetworkTransform` is NEVER the better source** *(`2026-08-28`)*
+
+🔒 The in-repo justification is `CgfSubsystem.cs:2608`: *"NetworkTransform preferred over SimTransform,
+which is the fresher position on a host that does not own the entity."* ⛔ **Measured false.**
+
+📐 **`GeoSpatialIngressTranslator` writes BOTH, in the same call, from the same packet** *(`:75` and `:89`)*,
+and gates the second on authority *(`:85` `bool isLocallyOwned = repo.HasAuthority<SimTransform>(entity);`)*:
+
+| | `SimTransform` | `NetworkTransform` |
+|---|---|---|
+| **on a NON-owner** *(what CGF usually is)* | ⭐ written by the ingress translator, **same tick, same values** | ⭐ written by the ingress translator | ⇒ ⭐⭐ **IDENTICAL. The preference buys NOTHING** |
+| **on an OWNER** *(CGF whenever it edits/drags)* | ⭐ **live** — physics and drag write here | 🔴 **the LAST-PUBLISHED SHADOW**, updated only when SmartEgress's threshold or heartbeat fires ⇒ **stale by design** | ⇒ 🔴 **strictly WORSE** |
+
+⇒ ⭐⭐⭐ **`SimTransform` is the correct single source everywhere**, because the authority-aware rule the
+"role difference" was reaching for **is ALREADY IMPLEMENTED — inside the ingress translator**, not in the
+renderer. 📌 **The renderer does not need to know about ownership at all.**
+
+⚠⚠ **And the harmful case is CGF's own job.** 🔒 The guard's comment names it: the guard exists so loopback
+does not write back *"undoing any position changes made by physics or **drag operations**."* ⇒ 🔴 **when CGF
+owns an entity and the user DRAGS it, `SimTransform` moves and `NetworkTransform` holds the last broadcast**
+— so CGF's gizmo would draw the avatar at the pre-drag position until the next publish.
+🔒 **VERIFY BY DRAGGING before calling it a live bug** — `CgfEntityPresentationGizmo:30` only takes the
+network value `if (nt.LastRotation != default)`, so an entity never yet published still falls back correctly.
 
 ⇒ ⭐⭐⭐ **One `EntityPresentationGizmo` + three injected collaborators replaces three classes.** 🔒 **`R-137`
 governs the merge:** ⛔ do NOT unify by dropping IG's culling or its damage states — ⭐ **those are the
