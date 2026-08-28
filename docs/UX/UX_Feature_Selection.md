@@ -1,7 +1,12 @@
+<!--STATUS
+state: LIVE
+build-state: NOT-BUILT
+verified: 2026-08-28 (coordinator source scan)
+current-answer: NOT-BUILT (design only). ISelectionState unchanged; no EcsSelectionState; CGF not on the selection chain; ClearAll has 0 callers.
+-->
 # Feature design — selection
 
-> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12.** **Status: ✅ designed — ready to break
-> into `UXT` tasks.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
+> **Design for [UXI-11](UX_Issues.md#uxi-11) · drafted 2026-08-12.** **Status: ❌ NOT-BUILT (design only) — `ISelectionState` unchanged; no `EcsSelectionState`; CGF not on the selection chain; `ClearAll` has 0 callers.** Implements [rulings 27-28](UX_RESUME_INTERACTION.md). Feeds
 > [UXI-24](UX_Issues.md#uxi-24) (multi-select) and [UXI-23](UX_Issues.md#uxi-23) (map parity).
 
 ## 0. Prior art ([rule 6](UX_Issues.md#rules))

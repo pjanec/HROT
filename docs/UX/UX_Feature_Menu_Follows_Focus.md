@@ -1,7 +1,13 @@
+<!--STATUS
+state: LIVE
+build-state: PARTIAL
+verified: 2026-08-28 (coordinator source scan)
+current-answer: PARTIAL. Mechanism built + railed (GlobalMenuRegistry.ResolveBinding, WindowManager.RenderGlobalMenu, CE-041..045). MISSING: no production menu item is perspective-scoped (all register global), and 4 hosts' BeginMainMenuBar blocks stay unguarded so --mode all still stacks them.
+-->
 # Feature design — the main menu follows focus
 
 > **Design for [UXI-05](UX_Issues.md#uxi-05) · drafted 2026-08-10.**
-> **Status: ✅ designed — ready to break into `UXT` tasks.**
+> **Status: 🟡 PARTIAL — mechanism built + railed (`GlobalMenuRegistry.ResolveBinding`, `WindowManager.RenderGlobalMenu`, CE-041..045); no production menu item is perspective-scoped yet and 4 hosts' `BeginMainMenuBar` blocks stay unguarded.**
 >
 > Implements [UXR-86](UX_Requirements.md#uxr-86). Vocabulary:
 > [Glossary — focus follows perspective](UX_Glossary_Host_Mode_Subsystem.md#-co-running-subsystems-independent-and-focus-follows-perspective).

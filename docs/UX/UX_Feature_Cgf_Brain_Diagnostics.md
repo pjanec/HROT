@@ -1,9 +1,15 @@
+<!--STATUS
+state: LIVE
+build-state: DONE
+verified: 2026-08-28 (coordinator source scan)
+current-answer: DONE. Delivered under the cgf==editor programme (DQ30 + CE-052/059/071): pause/step (CgfClusterDebugTimeController), breakpoints, Watch/Breakpoints windows, AI authoring + hot reload all wired on CGF.
+-->
 # Feature design — CGF brain diagnostics **and authoring**
 
 > **Design for [UXI-37](UX_Issues.md#uxi-37) · drafted 2026-08-14.**
 > Scope from [rulings 59-64](UX_RESUME_INTERACTION.md); pause/resume semantics settled in
 > **[Design Question 30](Design_Question_30_Debug_Pause_Resume.md)** (A-E all decided).
-> **Status: ✅ designed — one scope: diagnostics AND authoring ([ruling 65](UX_RESUME_INTERACTION.md)).**
+> **Status: ✅ DONE — delivered under the cgf==editor programme (DQ30 + CE-052/059/071); pause/step, breakpoints, Watch/Breakpoints windows, AI authoring + hot reload all wired on CGF.**
 > ⚠ **Re-scoped 2026-08-14** ([Correction 48](UX_Tasks_Detail.md#corrections)): earlier drafts kept narrowing
 > back to diagnostics and pushing authoring pieces to other issues. **They are the same code on one node.**
 

@@ -1,10 +1,16 @@
+<!--STATUS
+state: LIVE
+build-state: NOT-BUILT
+verified: 2026-08-28 (coordinator source scan)
+current-answer: NOT-BUILT (design only; Q26-gated). No EntityActionDescriptor/registry; SharedContextMenuPopulator still ExCon-only (1 of 5).
+-->
 # Feature design — the shared entity-action vocabulary
 
 > **Design for [UXI-03](UX_Issues.md#uxi-03) · drafted 2026-08-10.**
 > 📐 **API: [UX_Interaction_API.md](UX_Interaction_API.md) · ✅ Acceptance: [UX_Interaction_UseCases.md](UX_Interaction_UseCases.md)**
 > The API contract lives in the first — this doc keeps the
 > evidence and the rulings; that one holds the types, the arbitration order and the threading model.
-> **Status: ✅ designed — ready to break into `UXT` tasks.**
+> **Status: ❌ NOT-BUILT (design only; Q26-gated) — no `EntityActionDescriptor`/registry; `SharedContextMenuPopulator` still ExCon-only (1 of 5).**
 >
 > Implements [UXR-89](UX_Requirements.md#uxr-89) and the descriptor/binding split ruled in
 > [Q26](Architect_Question_26_Entity_Action_Model.md) (A2 · B2 · C1 · D). This is

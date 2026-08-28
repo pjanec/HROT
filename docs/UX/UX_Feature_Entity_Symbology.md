@@ -1,7 +1,12 @@
+<!--STATUS
+state: LIVE
+build-state: NOT-BUILT
+verified: 2026-08-28 (coordinator source scan)
+current-answer: NOT-BUILT (design only). Renderer still hardcodes cyan (EntityPresentationGizmoShared.cs:92); resolved style not consumed; the three per-host gizmos never merged.
+-->
 # Feature design — entity symbology on the map
 
-> **Design for [UXI-10](UX_Issues.md#uxi-10) · drafted 2026-08-12.** **Status: ✅ designed — ready to
-> break into `UXT` tasks.** Also **verifies and absorbs [UXI-19](UX_Issues.md#uxi-19)** (previously
+> **Design for [UXI-10](UX_Issues.md#uxi-10) · drafted 2026-08-12.** **Status: ❌ NOT-BUILT (design only) — renderer still hardcodes cyan (`EntityPresentationGizmoShared.cs:92`); resolved style not consumed; the three per-host gizmos never merged.** Also **verifies and absorbs [UXI-19](UX_Issues.md#uxi-19)** (previously
 > *unverified*) and supplies the mechanism behind [UXI-11](UX_Issues.md#uxi-11).
 
 <img src="img/uxi10_symbology.svg" width="880" alt="Two symbology pipelines that never meet">

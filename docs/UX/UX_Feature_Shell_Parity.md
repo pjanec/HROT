@@ -1,7 +1,13 @@
+<!--STATUS
+state: LIVE
+build-state: PARTIAL
+verified: 2026-08-28 (coordinator source scan)
+current-answer: PARTIAL. Built on Editor+CGF (CgfEditorShellToolbar.RegisterCommonCore, ShellTimeControlToolbar, CE-016/037-045/069). MISSING: only 2 of 7 hosts (SimHost/ExCon/IG/Orchestrator/ReplayBrowser absent); the authority-derivation half (declared-written-components -> HasAuthority) not built.
+-->
 # Feature design — shell parity: every subsystem gets a menu and a toolbar
 
 > **Design for [UXI-35](UX_Issues.md#uxi-35) (+ [UXI-36](UX_Issues.md#uxi-36)) · drafted 2026-08-14.**
-> Direction from [ruling 58](UX_RESUME_INTERACTION.md). **Status: ✅ designed — [ruling 59](UX_RESUME_INTERACTION.md) closed all three questions.**
+> Direction from [ruling 58](UX_RESUME_INTERACTION.md). **Status: 🟡 PARTIAL — built on Editor+CGF (`CgfEditorShellToolbar.RegisterCommonCore`, `ShellTimeControlToolbar`, CE-016/037-045/069); only 2 of 7 hosts covered and the authority-derivation half is not built.**
 
 ## 0. Prior art — the mechanism is built; the registration is not
 

@@ -1,7 +1,13 @@
+<!--STATUS
+state: LIVE
+build-state: NOT-BUILT
+verified: 2026-08-28 (coordinator source scan)
+current-answer: NOT-BUILT (design only). No MapViewport; MapCamera has no viewport/occlusion-aware centring (Offset copied unconditionally).
+-->
 # Feature design — the map viewport
 
 > **Design for [UXI-09](UX_Issues.md#uxi-09) · drafted 2026-08-12.** Implements
-> [UXR-18](UX_Requirements.md#uxr-18). **Status: ✅ designed — ready to break into `UXT` tasks.**
+> [UXR-18](UX_Requirements.md#uxr-18). **Status: ❌ NOT-BUILT (design only) — no `MapViewport`; `MapCamera` has no viewport/occlusion-aware centring (`Offset` copied unconditionally).**
 
 <img src="img/uxi09_viewport.svg" width="760" alt="Today the camera centres on the whole window; designed, it centres on the visible rect">
 

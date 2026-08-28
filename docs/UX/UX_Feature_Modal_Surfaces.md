@@ -1,10 +1,16 @@
+<!--STATUS
+state: LIVE
+build-state: NOT-BUILT
+verified: 2026-08-28 (coordinator source scan)
+current-answer: NOT-BUILT (design only). No ModalManager/ConfirmationSpec/IProgressSink in source.
+-->
 # Feature design — modal surfaces: confirmation + activity progress
 
 > **Design for [UXI-16](UX_Issues.md#uxi-16) and [UXI-27](UX_Issues.md#uxi-27) · drafted 2026-08-13.**
 > Paired at the user's direction — they share one vehicle, and designing it twice is the duplication this
 > programme keeps finding. Implements [rulings 13, 29](UX_RESUME_INTERACTION.md) and
 > [API §6c](UX_Interaction_API.md#6c-progress-reporting--part-of-the-design-per-the-ruling).
-> **Status: ✅ designed — no open decisions.**
+> **Status: ❌ NOT-BUILT (design only) — no `ModalManager`/`ConfirmationSpec`/`IProgressSink` in source.**
 
 ## 0. Prior art ([rule 6](UX_Issues.md#rules) · [rule 6e](UX_RESUME_INTERACTION.md))
 

@@ -1,7 +1,13 @@
+<!--STATUS
+state: LIVE
+build-state: NOT-BUILT
+verified: 2026-08-28 (coordinator source scan)
+current-answer: NOT-BUILT (design only; depends on UXI-03). ORBAT still single Disembark item; MapContextActionController has 0 consumers.
+-->
 # Feature design — the same actions on every surface
 
 > **Design for [UXI-04](UX_Issues.md#uxi-04) · drafted 2026-08-10.**
-> **Status: ✅ designed — ready to break into `UXT` tasks.**
+> **Status: ❌ NOT-BUILT (design only; depends on UXI-03) — ORBAT still a single Disembark item; `MapContextActionController` has 0 consumers.**
 >
 > Implements [UXR-85](UX_Requirements.md#uxr-85). Builds directly on
 > [UXI-03](UX_Feature_Entity_Action_Vocabulary.md) — the registry it extends to two more surfaces.
