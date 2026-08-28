@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
+build-state: PARTIAL
 updated: 2026-08-23
-current-answer: §3 "Scope — In: delete entirely". Two of its four rows are now DONE and marked so
-  inline; the other two (EditorOrbatPanel, EntityPropertyInspector) are still open and still
-  condemned — no ruling has touched them.
+verified: 2026-08-28 (coordinator source scan)
+current-answer: PARTIAL (2 of 4). DONE: Hrot.UI.Common removed, ExCon InspectorPanel/DataMonitorPanel removed. MISSING: EditorOrbatPanel (NOTE: code comment says it STAYS - reconcile intent) and EntityPropertyInspector (+ its test).
 known-rot: §3's InspectorPanel/DataMonitorPanel row justified the deletion with "ExCon uses
   DerEntityInspectorPanel", which was FALSE on 2026-08-10 and stayed false until 2026-08-23
   (the panel had test-only construction). The row now carries the correction rather than the
@@ -15,7 +15,7 @@ stale-below: nothing — this file has no superseded sections.
 
 > **Design for [UXI-01](UX_Issues.md#uxi-01) 🔴 · drafted 2026-08-10 · needs no architect round.**
 > Evidence: [UX_Current_UI_Architecture.md §5](UX_Current_UI_Architecture.md#5-dead-weight-inflating-the-apparent-shared-surface).
-> **Status: ✅ designed — ready to break into `UXT` tasks.**
+> **Status: 🟡 PARTIAL (2 of 4) — Hrot.UI.Common and ExCon's InspectorPanel/DataMonitorPanel removed; EditorOrbatPanel and EntityPropertyInspector (+ its test) still open.**
 
 ## 0. Prior art — ✅ re-verified 2026-08-10 against the [Seam Inventory](UX_Seam_Inventory.md)
 

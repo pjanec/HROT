@@ -1,7 +1,13 @@
+<!--STATUS
+state: LIVE
+build-state: NOT-BUILT
+verified: 2026-08-28 (coordinator source scan)
+current-answer: NOT-BUILT (design only). No shared MapInteractionPack; IG fork (HandleContextMenuActionById) intact; CGF registers no GlobalActionRegistry. (CE-051/E3 shared only center/select across Editor+CGF.)
+-->
 # Feature design — map-interaction parity
 
 > **Design for [UXI-23](UX_Issues.md#uxi-23) · drafted 2026-08-12.** Absorbs
-> [UXI-22](UX_Issues.md#uxi-22) and UXI-04 step 5. **Status: ✅ designed — one decision open (§5).**
+> [UXI-22](UX_Issues.md#uxi-22) and UXI-04 step 5. **Status: ❌ NOT-BUILT (design only) — no shared `MapInteractionPack`; IG's fork (`HandleContextMenuActionById`) intact; CGF registers no `GlobalActionRegistry` (CE-051/E3 shared only center/select across Editor+CGF).**
 > Depends on [UXI-10](UX_Feature_Entity_Symbology.md) → [UXI-11](UX_Feature_Selection.md).
 
 ## 0. 🔴 The issue as filed is optimistic in one direction and pessimistic in another

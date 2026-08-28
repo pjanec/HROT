@@ -1,7 +1,12 @@
+<!--STATUS
+state: LIVE
+build-state: NOT-BUILT
+verified: 2026-08-28 (coordinator source scan)
+current-answer: NOT-BUILT (design only; also gated on UXI-30). Gizmos still write ECS unguarded (EntityRotatorGizmo.cs:152, EntityDragGizmo.cs:222/228); no PoseIntent* types; the UXI-30 binary authority gate absent.
+-->
 # Feature design — authority-aware ECS writes
 
-> **Design for [UXI-29](UX_Issues.md#uxi-29) · drafted 2026-08-12.** **Status: ✅ designed — ready to break
-> into `UXT` tasks.** Implements [ruling 22](UX_RESUME_INTERACTION.md) (*mutate ECS only where you own it*)
+> **Design for [UXI-29](UX_Issues.md#uxi-29) · drafted 2026-08-12.** **Status: ❌ NOT-BUILT (design only; also gated on UXI-30) — gizmos still write ECS unguarded (`EntityRotatorGizmo.cs:152`, `EntityDragGizmo.cs:222/228`); no `PoseIntent*` types; the UXI-30 binary authority gate absent.** Implements [ruling 22](UX_RESUME_INTERACTION.md) (*mutate ECS only where you own it*)
 > and [ruling 30](UX_RESUME_INTERACTION.md) (*structural changes via the command buffer*).
 >
 > **User, 2026-08-12:** *"We need the code uniform and shared, so it writes directly (or via ECB) if the

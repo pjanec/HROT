@@ -1,7 +1,13 @@
+<!--STATUS
+state: LIVE
+build-state: PARTIAL
+verified: 2026-08-28 (coordinator source scan)
+current-answer: PARTIAL. DONE: stale comment fixed (CE-051), WorkspaceMenuBuilder kept, EditorTool.Select drain case. MISSING: delete SelectionRenderSystem/SelectionRenderConstants + update RenderLayerPresenceTests; fix dangling <see cref> in SelectionState.cs:11/48 (-> SelectionHighlightGizmo).
+-->
 # Feature design — Deciding the four half-built items
 
 > **Design for [UXI-02](UX_Issues.md#uxi-02) · drafted 2026-08-10 · needs no architect round.**
-> **Status: ✅ designed — ready to break into `UXT` tasks.**
+> **Status: 🟡 PARTIAL — DONE: stale comment fixed (CE-051), `WorkspaceMenuBuilder` kept, `EditorTool.Select` drain case. MISSING: delete `SelectionRenderSystem`/`SelectionRenderConstants` + update `RenderLayerPresenceTests`; fix dangling `<see cref>` in `SelectionState.cs:11/48`.**
 >
 > These four were deliberately held out of [UXI-01](UX_Feature_DeadUI_Removal.md) because they are
 > **half-built, not superseded** — each encodes an intent. This design decides each one.

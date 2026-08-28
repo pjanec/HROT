@@ -1,7 +1,13 @@
+<!--STATUS
+state: LIVE
+build-state: DONE
+verified: 2026-08-28 (coordinator source scan)
+current-answer: DONE. Delivered: layout/default/* + LayoutPaths (reset/save-as-default) + LocalWindowController.RegisterLayoutMenu; rails TheLayoutIsOneUnitTests/LayoutPathsTests.
+-->
 # Feature design — the shipped default layout
 
 > **Design for [UXI-08](UX_Issues.md#uxi-08) · drafted 2026-08-10.** Implements
-> [UXR-04](UX_Requirements.md#uxr-04). **Status: ✅ designed — ready to break into `UXT` tasks.**
+> [UXR-04](UX_Requirements.md#uxr-04). **Status: ✅ DONE — delivered via `layout/default/*` + `LayoutPaths` + `LocalWindowController.RegisterLayoutMenu`; rails `TheLayoutIsOneUnitTests`/`LayoutPathsTests`.**
 >
 > Specified by the user, 2026-08-10: *"a main menu item to save the current setting as the default; and
 > during the development stage — practically always now — auto-revert the user setting to the repo

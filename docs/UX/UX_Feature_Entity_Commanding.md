@@ -1,9 +1,15 @@
+<!--STATUS
+state: LIVE
+build-state: NOT-BUILT
+verified: 2026-08-28 (coordinator source scan)
+current-answer: NOT-BUILT (design only; Q29 accepted). Separate MoveHere/Engage/Stop via the old DDS menu; no IssueTacticalIntent handler, no args channel; commander node intent still hardcoded.
+-->
 # Feature design — entity commanding (right-click orders)
 
 > **Design for [UXI-32](UX_Issues.md#uxi-32) · drafted 2026-08-13.** Implements
 > [Q29](Architect_Question_29_Entity_Commanding.md), **architect-accepted** by
 > [ruling 48](UX_RESUME_INTERACTION.md). Rulings **37-52** are binding here.
-> **Status: ✅ designed — no open decisions.**
+> **Status: ❌ NOT-BUILT (design only; Q29 accepted) — separate MoveHere/Engage/Stop via the old DDS menu; no `IssueTacticalIntent` handler, no args channel; commander node intent still hardcoded.**
 
 ![the commanding chain](img/uxi32_commanding.svg)
 

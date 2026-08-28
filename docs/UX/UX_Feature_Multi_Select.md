@@ -1,7 +1,13 @@
+<!--STATUS
+state: LIVE
+build-state: NOT-BUILT
+verified: 2026-08-28 (coordinator source scan)
+current-answer: NOT-BUILT (design only; the map half). SelectionInteractionSystem map additive-click is still a TODO; no modifier plumbing. Only the pre-existing inspector-list ctrl/shift exists.
+-->
 # Feature design — multi-select
 
 > **Design for [UXI-24](UX_Issues.md#uxi-24) · drafted 2026-08-13.** Delivers
-> [UXR-91](UX_Requirements.md#uxr-91). **Status: ✅ designed — one decision open ([§2](#2--one-decision-open--two-of-our-own-designs-disagree)).**
+> [UXR-91](UX_Requirements.md#uxr-91). **Status: ❌ NOT-BUILT (design only; the map half) — `SelectionInteractionSystem` map additive-click is still a TODO, no modifier plumbing; only the pre-existing inspector-list ctrl/shift exists.**
 > Depends on [UXI-11](UX_Feature_Selection.md) (one store) and [UXI-03](UX_Feature_Entity_Action_Vocabulary.md)
 > (the descriptor that carries fan-out).
 

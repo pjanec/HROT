@@ -1,7 +1,13 @@
+<!--STATUS
+state: LIVE
+build-state: DONE
+verified: 2026-08-28 (coordinator source scan)
+current-answer: DONE. Delivered by LocalWindowController.ResolveStartupPerspective (excludes document-driven perspectives); rail TheLayoutIsOneUnitTests.
+-->
 # Feature design — the default perspective (and what restore must *not* do)
 
 > **Design for [UXI-06](UX_Issues.md#uxi-06) · drafted 2026-08-10 · ⚠ re-scoped the same day after user
-> review.** **Status: ✅ designed — ready to break into `UXT` tasks.**
+> review.** **Status: ✅ DONE — delivered by `LocalWindowController.ResolveStartupPerspective`; rail `TheLayoutIsOneUnitTests`.**
 
 ## ⚠ Re-scoped: the Editor behaviour is correct and must be preserved
 

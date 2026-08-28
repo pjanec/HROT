@@ -1,7 +1,12 @@
+<!--STATUS
+state: LIVE
+build-state: PARTIAL
+verified: 2026-08-28 (coordinator source scan)
+current-answer: PARTIAL. Only the pre-existing layer-mask round-trip exists (MapLayerRegistry, MapLayerAssignmentSystem, LayerControlGizmo on 4 hosts). MISSING: IMapTagRegistry/MapTag, combination interning, ALL-semantics, registry-generated panel, CGF's layer panel; runtime behaviour gated on a windowed check.
+-->
 # Feature design — map layers, tags and filtering
 
-> **Design for [UXI-28](UX_Issues.md#uxi-28) · drafted 2026-08-12.** **Status: ✅ designed — ready to break
-> into `UXT` tasks.** All decisions settled in
+> **Design for [UXI-28](UX_Issues.md#uxi-28) · drafted 2026-08-12.** **Status: 🟡 PARTIAL — only the pre-existing layer-mask round-trip exists (`MapLayerRegistry`, `MapLayerAssignmentSystem`, `LayerControlGizmo` on 4 hosts); `IMapTagRegistry`/`MapTag`, interning, ALL-semantics, the registry-generated panel and CGF's panel are all missing.** All decisions settled in
 > [Architect_Question_28](Architect_Question_28_Map_Layers.md) — this doc turns them into a build.
 
 <img src="img/uxi28_gates.svg" width="820" alt="Five draw-time gates, one empty, plus three mechanisms that never reach the symbol">
