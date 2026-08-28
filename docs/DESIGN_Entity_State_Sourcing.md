@@ -125,6 +125,20 @@ envelope".**
 🔴 **`CE-119`** *(user, `2026-08-28`)* adds load-time validation so plainly-wrong TKB values are reported in
 HROT's log rather than inferred.
 
+#### ✅ VERIFIED LIVE — **`--mode all`, `2026-08-28`**
+
+📐 **Entity 1001 (`tkbType 100`) on the SimHost/MUSCLE perspective:** `Class Tank` · `AccelGain 1.8` ·
+`MaxSteerAngle 0.8` · `MaxSteerRate 0.2617994` · `WheelBase 4.758`.
+⭐⭐ **Motion, as a position delta over a `simTime` delta:** `simTime` 0 → **5.937**, position
+`(446.32, 420.90)` → `(489.73, 409.71)` ⇒ **~44.8 m** at **14.48 m/s**.
+⭐⭐⭐ **The `Scenario`/CGF (BRAIN) perspective reports the identical values** — ⇒ **the brain/muscle
+divergence that was `CE-103` is closed.**
+
+⚠ **What this run does NOT show:** the before-state was measured in an earlier session, so the
+before/after rests on the **inverse-edit red-proofs**, not on this boot. ⚠ **`B3` has no live proof** —
+the debug API exposes no scenario-save route, so its guarantee is the `GetSaveableMask` rail. 🔒 Driving
+the editor's hand-tested save path was deliberately avoided.
+
 #### ⚠ Known incompleteness — **stated, not hidden**
 
 | | |

@@ -1,11 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-27
+updated: 2026-08-28
 current-answer: this file is now LEAN. Feature intent lives in the DESIGN docs (search
   docs/blueprints, now free of handoffs/reports). Generic process rules live in CLAUDE.md.
   This file holds ONLY what those two cannot: engine invariants, silent-failure hazards,
   and cross-cutting decisions with no single design home.
 stale-below: nothing.
+re-read: 2026-08-28 — R-136's cited source DESIGN_Entity_State_Sourcing.md gained a
+  section 3.1 (the CE-113 as-built). Re-read and CONFIRMED the ruling did NOT move: R-136's
+  substance is sections 1, 1.1, 2 and 5, none of which changed. Only section 3 gained a subsection.
 note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quote fails the
   gate. On 2026-08-21 the ~120 feature-decision rows were removed (they cite a design doc
   that holds them — verified by the probes); all removed rows remain in git history.
