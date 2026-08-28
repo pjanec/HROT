@@ -1,10 +1,11 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: §4 carries the RECOMMENDED ANSWERS. Nothing is built. build-state: DESIGN —
-  this is a DDS wire-contract decision, which CLAUDE.md reserves for resolution WITH the user
-  rather than delegation, so it is deliberately not dispatched.
-stale-below: nothing — this document is new.
+current-answer: ⭐⭐⭐ §6 (USER RULING, 2026-08-28) is the CURRENT answer and it OVERRIDES §4.
+  ⛔ §4's Q64-1 lean A (the receiving node reads the scenario) is REJECTED — read §6 first, then
+  §7 (the baseline) and §8 (the investigation). build-state: DESIGN, nothing built.
+stale-below: ⛔ §4's Q64-1/Q64-2 leans are SUPERSEDED by §6. §4 is kept as the record of what was
+  asked and why my lean was wrong; do not quote its recommendations as current.
 known-rot: nothing yet.
 known-conflict: DESIGN_Subsystem_Composition_Unification.md §5c.18.5 said CE-103's fix was
   CE-109's live-path handler unification. ⛔ THAT IS NOW REFUTED by §2 below and is corrected
@@ -32,13 +33,16 @@ duplicate. ⚠ Two earlier diagnoses of mine were wrong; §2 is measured on a li
 | `grep -rn "HrotEditLoadHandler"` production registrations | ⭐ **3** — editor `:1277`, SimHost node `NodeBootstrapper:288`, CGF `:843` *(added by `CE-102`)*. ⇒ **all three hosts have it** |
 | `grep -rn "\.Resolve("` over the DebugApi assemblies | 🔴 **ZERO callers** ⇒ `Q64`'s instrument finding, filed as **`CE-112`** *(§3)* |
 
-⚠ **Graph note:** the `codebase-memory-mcp` MCP tools were **not connected** this session and the CLI
-binary at `/opt/codebase-memory-mcp/codebase-memory-mcp` was **not on `PATH`** *(`command not found`)*, so
-the inventory above is **grep + live API measurement, not `search_graph`**. ⛔ Per `CLAUDE.md` that is a
-MISS and it is stated rather than hidden. ⭐ **What compensates here:** every claim below is confirmed by a
-**runtime read of two live hosts**, which is stronger evidence than either tool for *"what does this node
-actually hold"* — and the one exhaustive claim (*"exactly 2 writers"*) is the kind grep cannot fully
-guarantee. ⚠ **Re-verify that count with `search_graph` when the graph is available.**
+⚠⚠ **Graph note — CORRECTED `2026-08-28`, and the original note was MY ERROR.** This section first said
+the graph was unavailable *(`codebase-memory-mcp: command not found`)*. ⛔ **It was available the whole
+time — I invoked the CLI by bare name instead of its documented full path**
+`/opt/codebase-memory-mcp/codebase-memory-mcp`, which `CLAUDE.md` states explicitly. 📌 A tool reported
+absent because I called it wrongly is exactly the class of mistake `CE-106` already cost this programme.
+⭐ **§8's inventory IS graph-derived** *(`search_graph(name_pattern=".*TkbTranslator", label="Class")` →
+**10 translators**, the enumeration §8.2 rests on)*, and it found the two duplicate writers that grep's
+filtered view had not surfaced. ⚠ The §1 rows above remain grep + live-API measurement; ⭐ the
+*"exactly 2 `VehicleParams` writers"* row is the one exhaustive claim still worth re-running through
+`search_graph`.
 
 ---
 
@@ -192,3 +196,191 @@ one)*. ⇒ still a genuine ruling-9 duplicate worth collapsing, ⛔ **but it fix
 | ⛔ **Whether `UnitSubordinate`'s absence on the muscle has its own symptom** | it is the same drop, but its consequence is unmeasured |
 | ⛔ **Whether the 8 editor-only / 2 cluster-only components in §2's diff are all legitimately host-specific** | ⭐ they look it *(render vs networking)*, ⚠ but *"looks host-specific"* is not measured |
 | ⛔ **`search_graph` confirmation of *"exactly 2 `VehicleParams` writers"*** | grep cannot guarantee an exhaustive claim; re-run when the graph is up |
+
+
+---
+
+## 6. 🔒🔒🔒 USER RULING `2026-08-28` — **TKB IS THE SOURCE; THE LOADING NODE IS AUTHORITATIVE AND SENDS OVER DDS**
+
+> ⭐⭐⭐ **User, verbatim:** *"The vehicle parameter values need to be stored just in the TKB and loaded
+> equally by all nodes needing them. Their saving to the scenario is an error at this stage. Later we might
+> allow specifying/overriding the TKB values in the scenario and sending the overrides from the entity
+> creator node over DDS in the same manner as the SimTransform is sent now as part of the entity lifecycle
+> (mandatory component). We are not there yet. We should NOT load the scenario file on the other nodes; the
+> loading node (initiating the load) needs to stay authoritative and need to send all (but the TKB stuff)
+> over network - this way we can later create any non-scenario entity at runtime."*
+
+### 6.1 ⛔⛔ MY `Q64-1` LEAN **A** IS REJECTED — **and the reason is better than my argument for it**
+
+📌 I recommended *"the receiving node reads the scenario it already stages"* on the strength of *"no wire
+change."* ⛔⛔ **It is fatally wrong for a reason I never considered:** ⭐⭐⭐ **a runtime-created entity has
+no scenario file to read.** Option A makes correctness depend on the entity having come from a file, so it
+would work for scenario load and **fail for every non-scenario spawn** — and that is precisely the
+capability the ruling is protecting.
+
+⇒ ⭐⭐ **The lesson for me: I optimised the cost axis (*"cheapest change"*) and never checked the
+CAPABILITY axis (*"what must still be possible later"*).** ⚠ A cheap fix that forecloses a planned
+capability is not cheap. 📌 This is the second time in this investigation that a *"no change to X"*
+argument led me somewhere wrong.
+
+### 6.2 ⭐ THE RULED ARCHITECTURE
+
+| # | 🔒 the rule | consequence here |
+|---|---|---|
+| ① | ⭐⭐⭐ **Per-TYPE values live ONLY in the TKB**, loaded equally by every node that needs them | ⭐ `VehicleParams` is per-type ⇒ **the TKB must be sufficient on its own** |
+| ② | ⛔⛔ **The scenario storing `VehicleParams` is AN ERROR at this stage** | ⇒ it is **data to remove**, not data to transport |
+| ③ | ⛔⛔ **A receiving node MUST NOT read the scenario file** | ⇒ `Q64-1` **A is dead**; `TkbLoadClusterStateHandler` staying TKB-only is correct |
+| ④ | ⭐⭐⭐ **The LOADING node is authoritative and sends everything EXCEPT TKB material over DDS** | ⇒ the transport is the **entity-lifecycle** path, exactly as `SimTransform` travels today |
+| ⑤ | ⭐ **Later**: the scenario MAY override TKB values, and the override travels the same lifecycle path | ⛔ **not now** |
+| ⑥ | ⭐⭐ **Why ④ matters more than the cheap fix:** it is what makes **any non-scenario entity creatable at runtime** | ⚠ the axis I missed |
+
+---
+
+## 7. ⭐⭐⭐ THE BASELINE — **smaller than expected, and HALF-WRITTEN ALREADY**
+
+📐 **Measured `2026-08-28`.** The TKB is *not* sufficient today, and the gap is three dropped fields.
+
+### 7.1 🔴 THE GAP, EXACTLY
+
+`NedTkbBuilder.WithPhysics` *(`BdcTkbBuilder.cs:78`)* receives a **`SimVehicleDef` that already carries
+`Height`, `TurnRate` and `Mobility`** — and **drops all three** when building the descriptor:
+
+```csharp
+template.AddDescriptor(new VehicleParametersDto { Mass, Length, Width, MaxSpeedFwd, MaxSpeedRev, MaxAccel });
+// Height, TurnRate, Mobility mapped to VehicleParams by translator in Phase 6.
+```
+
+⭐⭐⭐ **Phase 6 never happened.** `VehicleParametersDto` has **6 fields**; `Mobility` is the field that
+decides `VehicleClass.Tank`, and `TurnRate` is the one that becomes `MaxSteerRate`. ⇒ ⛔ **the TKB
+physically cannot express a Tank today**, so every node's translator produces `Class = 0 = PersonalCar`
+with `AccelGain 0`.
+
+### 7.2 ⭐⭐⭐ AND THE MAPPING IS ALREADY WRITTEN — **`BuildVehicleParams`, in the SAME FILE, with ZERO callers**
+
+📐 `NedTkbBuilder.BuildVehicleParams(SimVehicleDef)` *(`:271`)* does **exactly** what Phase 6 describes:
+maps `Mobility → VehicleClass` *(`Tracked→Tank`, `Wheeled→Truck`, `Infantry→Pedestrian`)*, takes
+`VehiclePresets.GetPreset(class)` as the base, then overrides `Length`/`WheelBase = Length×0.6`/`Width`/
+`MaxSpeedFwd`/`MaxSpeedRev`/`MaxAccel` and computes `MaxSteerRate = TurnRate × π/180`.
+
+⇒ 🔒 **`CLAUDE.md`: *"UNREFERENCED IS NOT UNINTENTIONAL"* and *"prefer ROUTING to DELETING"*, almost
+verbatim.** ⭐ **The right move is to ROUTE this function into the translator, not to delete it and not to
+rewrite it.** ⚠ Note it is the function whose arithmetic fingerprint I matched and then retracted twice —
+⭐ **it was never the live path, and it was always the INTENDED one.** 📌 The scenario file's stored block
+is a **fossil of its last run**, which is why the numbers matched so exactly.
+
+### 7.3 ⭐ THE BASELINE WORK, AS I NOW SEE IT
+
+| # | item | size |
+|---|---|---|
+| **B1** | widen `VehicleParametersDto` with **`Height`, `TurnRate`, `Mobility`** *(the three the comment names)* | ⭐ small — the source `SimVehicleDef` already has them |
+| **B2** | ⭐⭐ **route `BuildVehicleParams`' preset+override mapping into `VehicleKinematicsTkbTranslator`**, so every node derives the full struct from the template alone | ⭐ the logic exists; this is adoption, not authoring |
+| **B3** | ⛔ **stop saving translator-derived components to the scenario** *(ruling ②)* — starting with `VehicleParams` | ⚠ see §8.2: it is **14 components**, not one |
+| **B4** | ⚠ **resolve a ruling-9 duplicate first:** 📐 **TWO** translators write `VehicleParams` — `VehicleKinematicsTkbTranslator` **and** `InfantryVehicleStateStripTkbTranslator` — and both guard with `!HasComponent`, so it is **first-writer-wins by registration order** | ⛔ decide which owns it before B2 |
+
+⭐⭐ **Once B1+B2 land, `CE-103` is fixed for the right reason:** the muscle node derives `Class Tank`,
+`AccelGain 1.8` **from the TKB**, with no scenario read and no wire change.
+
+---
+
+## 8. ⭐⭐⭐ THE INVESTIGATION — **what it would take to send more components over DDS**
+
+> 🔒 **Scope per the user:** *"only components that the SimHost needs (those that are actually registered on
+> simhost) are in scope."*
+
+### 8.1 ⚠⚠ THE PROPOSED FILTER BARELY NARROWS ANYTHING — **22 of 23**
+
+📐 Measured on the **running** SimHost node *(`GET /components` after `POST /perspective`, ⛔ never
+`?perspective=` — `CE-112`)*: **103 component types registered.** The scenario stores **23** distinct types
+across its 8 entities. ⇒ ⭐ **22 are registered on SimHost. Only `MissionPlan` is not.**
+
+⇒ ⚠ **"registered on SimHost" is not a useful scoping device on its own** — it excludes one type.
+⭐⭐ **A far sharper filter falls straight out of ruling ①**, and it is the next table.
+
+### 8.2 ⭐⭐⭐ THE SHARP FILTER — **14 of the 22 are TRANSLATOR-DERIVED, so per ruling ① they must NOT travel**
+
+📐 `search_graph(name_pattern=".*TkbTranslator", label="Class")` → **10 translators**; what each injects,
+intersected with the scenario's 23:
+
+| ⛔ **TKB-DERIVED — a translator already writes it ⇒ the TKB is its source, it must NOT be sent** | translator |
+|---|---|
+| `VehicleParams` · `VehicleState` | ⚠ `VehicleKinematics` **and** `InfantryVehicleStateStrip` *(duplicate — B4)* |
+| `NavState` · `NavigationIntent` · `PhysicsCollider` | `VehicleKinematics` *(collider also `Combat`)* |
+| `Health` · `WeaponState` | `Combat` |
+| `PerceptionReceptor` · `TargetMemory` | `Perception` |
+| `SimTransform` · `SimVelocity` | `SpatialCore` |
+| `ActorCapabilityState` | `Behavior` |
+| `EntityInfo` | ⚠ `Behavior` **and** `Presentation` *(a second duplicate)* |
+| `VisualData` | `Presentation` |
+
+| ⭐ **NOT translator-derived — the genuine per-entity set** | note |
+|---|---|
+| `UnitSubordinate` | ⭐⭐ **authored command hierarchy** *(4 of 8 entities)*. ⛔ Currently LOST on the muscle node — the second half of `CE-103`'s measured diff |
+| `MapDisplayComponent` | presentation; ⚠ likely host-specific rather than transportable |
+| `EditablePolyline` · `MapOverlayStyle` | ⭐ **already cross the wire** — two of the three types the egress translator keeps |
+| `NetworkIdentity` · `NetworkAuthority` · `TkbIdentity` · `NetworkTransform` | ⭐ stamped locally by `NetworkSpawningSystem`/replication. ⛔ **Correctly never sent** |
+
+⇒ ⭐⭐⭐ **The real candidate set is TINY: `UnitSubordinate`, plus the per-entity VALUES of components whose
+existence is TKB-derived** *(a Tank's starting position, its initial order, its name/force)*.
+📌 **`SimTransform` is exactly that shape already** — TKB-derived *(SpatialCore writes a default)* **and**
+per-entity on the wire *(a typed field)*. ⭐ **So the user's cited precedent is not an analogy; it is the
+existing instance of the pattern**, and generalising it means *"more fields like `InitialTransform`"*, not
+*"ship arbitrary components."*
+
+### 8.3 ⭐⭐⭐ THE CHANNEL ALREADY EXISTS — **and one half of it is BUILT-AND-UNADOPTED**
+
+📐 The DDS `CreateEntityRequest` *(`Hrot.Network.NED/GenericMessages.cs:187`)* carries **three** payloads,
+two of them documented verbatim as *"applied AFTER TKB defaults"*:
+
+| channel | status |
+|---|---|
+| `InitialDescriptors` — `List<EntityDescriptorUnion>` | ⭐ live; this is the geometry path the egress translator fills |
+| `InitialAttributesJson` — JSON property paths, compiled by `JsonAttributeCompiler` | ⭐⭐ **WIRED END-TO-END**: egress forwards it *(`:168`)*, `CreateEntityRequestSystem:220-226` compiles it on arrival. ⛔ **The scenario path never populates it** — `StagingEntityExtractor:351` sets only `InitialComponents` |
+| `InitialAttributeRecords` — `List<AttributeRecord>`, 16-bit ids, *"eliminating JSON parsing on the receiving host"* | 🔴🔴 **DECLARED AND NEVER POPULATED by anything in production.** Built, documented *(`ATTR2-DESIGN.md` §3.1)*, unadopted |
+
+⇒ ⭐⭐⭐ **The seam law, 25th instance: the transport the ruling describes as *"later"* is ALREADY ON THE
+WIRE.** ⛔ **What is missing is not a contract — it is that the scenario extractor never fills it.**
+⚠ **This also retires my own `Q64-2`**: I framed the choice as *include-list vs exclude-list* over
+`InitialComponents`. ⭐ Under ruling ④ **`InitialComponents` is the wrong layer entirely** — it is a
+local in-process list, and the attribute channel is the transported one.
+
+### 8.4 ⚠ THE REAL COST — **the attribute VOCABULARY, not the transport**
+
+📐 `AttributeIds` *(`Fdp.Toolkits/Replication/Patching/AttributeIds.cs`)* declares **8 ids total**, and
+**not one** covers vehicle/kinematics *(no `Vehicle`, `Steer`, `Accel`, `Wheel`, `MaxSpeed` match)*.
+⇒ ⛔ **`VehicleParams` alone would need ~15 new ids** plus their installers.
+
+⭐⭐ **And the governing design is already RULED and BUILT** — 📄 **`Architect_Question_59` §7**
+*(user, `2026-08-26`, the ATTRIBUTE/DESCRIPTOR SPLIT)*:
+
+| ⭐ | |
+|---|---|
+| **attribute** = *(JSON path, `AttributeId`, value kind, ECS component, field setter)* — **FDP, network-agnostic** | |
+| **descriptor** = *(descriptor ordinal, the components it covers, the wire struct)* — **NED** | |
+| ⭐⭐⭐ **the join is the ECS COMPONENT** | `ComponentTypeRegistry` is already that shared identity |
+| 🔴 **`IDescriptorTranslator.TargetComponentIds` ALREADY declares the component→descriptor map** | ⛔ **under-adopted: 9 of 41 egress translators declare it, with a SILENT EMPTY DEFAULT** ⇒ a derived map would be silently sparse |
+
+⇒ ⭐⭐ **Any "send more components" work must be built ON `Q59` §7's vocabulary, not beside it** — and its
+first obstacle is `TargetComponentIds`' silent-empty adoption gap, which is the *"a production caller that
+HAS a dependency must PASS it"* pattern again.
+
+### 8.5 ⭐ MY RECOMMENDED SEQUENCING
+
+| # | | why |
+|---|---|---|
+| **①** | ⭐⭐⭐ **The baseline, §7 (B4→B1→B2→B3)** | fixes `CE-103` for the right reason; no wire change, no scenario read. ⭐ Small, and mostly adoption of code that already exists |
+| **②** | ⭐⭐ **A brain-vs-muscle conformance rail** *(`Q64-3`, unchanged)* | ⛔ this defect is invisible to every unit rail **by construction** — a unit rail builds one world. 📌 It is also the only thing that would have caught it |
+| **③** | ⭐ **`UnitSubordinate`** as the FIRST override to travel | it is genuinely per-entity, currently lost, and small enough to prove the pattern end-to-end |
+| **④** | ⭐ **Then generalise** via `Q59` §7's attribute vocabulary + `TargetComponentIds` | ⛔ not before ③ proves one case |
+| ⛔ | **NOT the `InitialComponents` include-list** | §8.3 — wrong layer under ruling ④ |
+
+---
+
+## 9. ⛔ WHAT I STILL HAVE **NOT** MEASURED
+
+| ⚠ | |
+|---|---|
+| ⛔ **Which of the two `VehicleParams` translators wins today, and by what registration order** | ⭐⭐ **B4 blocks B2.** Measure before building |
+| ⛔ **Whether widening `VehicleParametersDto` breaks TKB serialisation compatibility** | it is a `record` with `[TkbDescriptor]`; the ZIP-loaded TKB path *(`TkbDeserializer`)* is unmeasured against added fields |
+| ⛔ **Whether the other 13 translator-derived components are ALSO wrong on the muscle node** | 📐 only `VehicleParams` and `UnitSubordinate` were checked. ⚠ `Health`, `WeaponState`, `PerceptionReceptor` have the same shape and could be silently degraded too — ⭐ **this is the single most valuable next measurement** |
+| ⛔ **Whether `MapDisplayComponent`/`VisualData` are legitimately host-specific** | assumed, not measured |
+| ⛔ **What removing `VehicleParams` from scenario SAVING breaks** | 📌 the editor's save path is the one the user warned is hand-tested |

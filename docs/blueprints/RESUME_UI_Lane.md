@@ -4,12 +4,15 @@ updated: 2026-08-28
 current-answer: ⭐⭐⭐ §0.0e — "--mode all VISUAL-CHECK CORRECTIVES + the cgf==editor TKB ruling".
   START THERE AND NOWHERE ELSE. It is SELF-SUFFICIENT after a compaction: it repeats the measured
   numbers, carries the user rulings verbatim, and records the boot recipe and the traps.
-  ⚠ UPDATED 2026-08-28 (THIRD pass — read §0.0e.3 carefully, it retracts two of my own diagnoses):
-  CE-103 is ROOT-CAUSED as a WIRE-HOP loss between the Brain (CGF, correct) and the Muscle (SimHost,
-  degraded), NOT a load-handler defect and NOT a TKB difference. Its fix is a DDS wire-contract
-  decision and is NOT dispatched — it waits on the user via Architect_Question_64.
+  ⚠ UPDATED 2026-08-28 (FOURTH pass): CE-103 is ROOT-CAUSED as a WIRE-HOP loss between the Brain
+  (CGF, correct) and the Muscle (SimHost, degraded) — NOT a load-handler defect and NOT a TKB
+  difference. The USER HAS NOW RULED the direction (Q64 §6): TKB is the only source; a receiving
+  node must never read the scenario; the loading node sends everything but TKB material over DDS.
+  My own "receiving node reads the scenario" lean is REJECTED — a runtime-created entity has no file.
+  ⭐ THE BASELINE IS CE-113 (widen the TKB DTO + route the already-written BuildVehicleParams into
+  the translator) and it is BLOCKED on B4, a two-writer duplicate. CE-114 is the investigation.
   CE-109 is re-scoped: a real ruling-9 duplicate, but it fixes nothing the user reported.
-  CE-110/CE-111/CE-112 are BUILT and gated. NOTHING is currently in flight to build.
+  CE-110/CE-111/CE-112 are BUILT and gated. Nothing is mid-build.
   ⚠ §0.0d is now HISTORY: phase 2 (slices 1-3, J1, J2, J3) is DONE. Do not restart it.
   Read §0's header block only for the branch/ids/dispatch-sha facts.
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
@@ -109,7 +112,7 @@ the debug API on a real boot in-container, and **four of the six filed items are
 | ⛔ **`CE-106`** | **REFUTED — my operator error.** `/logs` always had `level`/`max`; I passed `limit=400` |
 | ✅ **`CE-107`** | the envelope's **success branch dropped `Hint` entirely** ⇒ the API could not say *"ok, but…"*. Fixed + `/logs` now names ignored filters |
 | ⚠ **`CE-108`** | edit path never remaps behaviour-param entity ids — **on ANY host, editor included**. Filed, deliberately NOT fixed |
-| 🔒 **`CE-103`** | **ROOT-CAUSED — §0.0e.3. ⛔ Its fix is a WIRE-CONTRACT decision awaiting the user: `Q64`** |
+| 🔒 **`CE-103`** | **RULED §0.0e.3. ⭐ Baseline = `CE-113` (TKB-only), investigation = `CE-114`** |
 | 🔒 **`CE-109`** | the ruling above. ⚠ **RE-SCOPED §0.0e.4** — a real duplicate, but NOT `CE-103`'s fix; priority dropped |
 
 ⭐ **The MCP SKILL sources carry this session's lessons** *(`CE-108` commit)* — §5b *"ok:true is not evidence"*,
@@ -118,45 +121,49 @@ the debug API on a real boot in-container, and **four of the six filed items are
 GENERATED** — edit `DebugApiRouteDocs.cs` / `tools/ai-debug-mcp/skill-parts/`, then regenerate, and
 ⚠ **build the RUNNER first** *(`gen-catalog.mjs` shells out to `--mode dump-api`; otherwise it is a silent no-op)*.
 
-### 0.0e.3 ✅✅✅ `CE-103` — **ROOT-CAUSED. The fix is a WIRE-CONTRACT DECISION and is NOT dispatched.**
+### 0.0e.3 🔒🔒🔒 `CE-103` — **ROOT-CAUSED + the user has RULED the fix direction. Baseline = `CE-113`.**
 
-📄 **[`Architect_Question_64`](Architect_Question_64_Scenario_Component_Overrides_Across_The_Wire.md)** is the
-authority · design §5c.18.6. ⭐ **Symptom:** *"the tanks show blue line to their destination, but they do not move."*
+📄 **[`Q64`](Architect_Question_64_Scenario_Component_Overrides_Across_The_Wire.md) — read §6 (the ruling)
+FIRST, then §7 (the baseline), then §8 (the investigation).** ⛔ **§4's leans are SUPERSEDED.**
 
-⛔⛔ **TWO EARLIER DIAGNOSES OF MINE WERE WRONG. Do not resume either.**
-① *"the cluster's TKB differs from the editor's"* — an artefact of `CE-110`'s empty catalog. Templates
-**100·103·301·303 are byte-identical.**
-② *"the cluster's LIVE-path load drops the stored components; unify the handler"* — **false.** The reads
-behind it all came from **ONE node**, because `?perspective=` is silently ignored *(`CE-112`)*.
+🔒 **The ruling, `2026-08-28`:** vehicle parameters live **only in the TKB**, loaded equally by every node.
+Saving them to the scenario is **an error at this stage**. Overrides may come later, sent **from the loading
+node over DDS** the way `SimTransform` already travels. ⛔⛔ **A receiving node must NOT read the scenario
+file** — the loading node stays authoritative and sends everything but TKB material, *so that any
+non-scenario entity can be created at runtime later.*
 
-🔴🔴🔴 **THE MEASURED CAUSE.** `--mode all` runs **CGF (Brain)** and **SimHost (Muscle)** with **separate
-worlds**. Re-measured with `POST /perspective` between reads, entity 1001:
+⛔⛔ **MY OWN LEAN WAS REJECTED, and the reason is worth carrying:** I recommended *"the receiving node reads
+the scenario it already stages"* because it needed no wire change. ⭐⭐⭐ **A runtime-created entity has no
+scenario file to read** ⇒ it would work for scenario load and fail for every other spawn. 📌 **I optimised
+the COST axis and never checked the CAPABILITY axis.** ⚠ A cheap fix that forecloses a planned capability
+is not cheap.
 
-| | `Class` | `AccelGain` | `MaxSteerAngle` | `UnitSubordinate` |
-|---|---|---|---|---|
-| ⭐ **CGF** *(Brain)* | **Tank** | **1.8** | **0.8** | ⭐ present |
-| 🔴 **SimHost** *(Muscle — runs `CarKinematicsSystem`)* | ⛔ **PersonalCar** | 🔴 **0** | 🔴 **0** | ⛔ **ABSENT** |
-| ⭐ **editor** *(one world)* | **Tank** | **1.8** | **0.8** | ⭐ present |
+⭐⭐⭐ **THE BASELINE IS SMALL AND HALF-WRITTEN — `CE-113`.** `NedTkbBuilder.WithPhysics` receives a
+`SimVehicleDef` carrying **`Height`, `TurnRate`, `Mobility`** and **drops all three**, commenting *"mapped
+to VehicleParams by translator in Phase 6."* ⛔ **Phase 6 never happened** ⇒ the DTO has 6 fields and **the
+TKB physically cannot express a Tank**, which is why every node derives `PersonalCar` / `AccelGain 0`.
+⭐⭐ **`NedTkbBuilder.BuildVehicleParams` IS that missing mapping** and has **zero callers** ⇒ 🔒 **ROUTE it
+into the translator; do not rewrite, do not delete.** ⚠ It is the function I matched and retracted twice —
+never live, always intended; the scenario's stored block is a **fossil of its last run**.
 
-⇒ ⭐⭐⭐ **CGF IS CORRECT** — `NetworkSpawningSystem` step 8 applies the scenario's stored block on top of TKB
-defaults, exactly as designed. ⭐ **The load handlers are innocent; all three hosts already share one
-extractor** ⇒ **`cgf==editor` holds for the TKB catalog AND the load path.**
+⚠⚠ **`B4` BLOCKS the build:** **two** translators write `VehicleParams` *(`VehicleKinematicsTkbTranslator`
+and `InfantryVehicleStateStripTkbTranslator`)*, both `!HasComponent`-guarded ⇒ first-writer-wins by
+registration order. **Decide the owner first.**
 
-🔴 **THE LOSS IS THE WIRE HOP:** `SpawnEntityCommandEgressTranslator:143-160` keeps only
-`EditablePolyline`/`MapOverlayStyle`/`RoutePlan` from `InitialComponents` and **drops everything else**;
-`GhostPromotionSystem:103-123` then rebuilds from **the TKB template + translators only**.
-⇒ **the Brain computes a valid path (which RENDERS) and the Muscle cannot accelerate.** 📌 On screen,
-indistinguishable from a broken navigator — which is why navigation was investigated first and cleared.
-⭐ **The editor CANNOT exhibit this** *(no wire hop)*, so it is **not the reference here.**
+### 0.0e.3b ⭐⭐ THE INVESTIGATION — `CE-114` *(what it takes to send more components)*
 
-🔒 **WHY NOTHING IS BUILT:** the fix changes what crosses DDS or what a receiving node reconstructs —
-`CLAUDE.md` reserves a serialization/engine contract for resolution **with the user**. ⭐ `Q64` carries
-recommended answers: **`Q64-1` A** *(the receiving node reads the scenario it ALREADY stages — no wire
-change)* · **`Q64-2` A** *(an EXCLUDE list, never an include-list — the egress translator's three-type
-include-list IS this bug)* · **`Q64-3` yes** *(a brain-vs-muscle conformance rail; without it this class of
-defect is invisible to every unit rail by construction)*.
-⚠⚠ **MEASURE FIRST:** whether a promoted ghost can be mapped back to its authored scenario entity.
-**`Q64-1` option A stands or falls on that**, and it is unmeasured.
+| ⭐ finding | |
+|---|---|
+| ⛔ **the proposed scope filter barely narrows** | **22 of 23** stored types are registered on SimHost *(103 registered; only `MissionPlan` out)* |
+| ⭐⭐⭐ **the sharp filter is the ruling itself** | `search_graph` → **10 TKB translators**; **14 of the 22 are translator-derived** ⇒ TKB is their source, they must NOT travel |
+| ⭐ **the genuine candidate set is TINY** | `UnitSubordinate` *(authored hierarchy, currently LOST on the muscle node)* · `MapDisplayComponent` · the per-entity **values** of TKB-derived components |
+| ⭐⭐⭐ **the channel ALREADY EXISTS** | `CreateEntityRequest` carries `InitialAttributesJson` *(**wired end-to-end**, egress `:168` → ingress `:220`)* and `InitialAttributeRecords` *(declared, **never populated**)*. ⛔ `StagingEntityExtractor:351` sets only `InitialComponents` ⇒ **adoption gap, not a contract gap.** The seam law, 25th instance |
+| ⚠ **the real cost is the VOCABULARY** | `AttributeIds` has **8 ids**, **none** for vehicle/kinematics ⇒ `VehicleParams` alone needs ~15 + installers |
+| 🔒 **must build on `Q59` §7** | the BUILT attribute/descriptor split. ⛔ Its own first obstacle: `IDescriptorTranslator.TargetComponentIds` already declares the component→descriptor map and is **under-adopted 9 of 41 with a silent empty default** |
+| ⛔ **NOT the `InitialComponents` include-list** | wrong layer under the ruling — it is a local in-process list, not the transported one |
+
+⭐ **Sequencing:** `CE-113` → a brain-vs-muscle conformance rail *(this defect is invisible to every unit
+rail by construction)* → `UnitSubordinate` as the first override to travel → then generalise.
 
 ### 0.0e.4 ⭐⭐ `CE-109` — **RE-SCOPED: no longer `CE-103`'s fix, and its priority DROPS**
 
