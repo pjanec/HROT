@@ -11,8 +11,15 @@ current-answer: START AT SECTION 3.9b -- S1's AS-BUILT. S1 IS BUILT AND VERIFIED
   measured live) but its frame is still 605/3, so a further cause remains. 3.9b names the lead
   (three host-private entity presentation gizmos; a reflection registrar that scans only LOADED
   assemblies) as a HYPOTHESIS for S2, deliberately not as a root cause.
-  Then read 3.0a (the confirmed-but-insufficient root cause), 3.9a (S1's design + UML), 3.9 (the
-  slices), 3.2a (what the pack may and may not do), 3.2b (the UML) and 3.2c (settings + policy).
+  Then read 3.9d -- what "all lines shared" MEANS (user, 2026-08-28: unification means EVERY line
+  becomes shared, not most of them). After S2 the entity projector is ONE class with ONE code path
+  and the per-host columns disappear; only two INJECTED INSTANCES differ, and that is configuration,
+  not code. 3.9d also carries the countable target (ZERO [GizmoProjector] classes under
+  Hrot/Subsystems/<host>/, baseline 6) and the one mechanical trap (the attribute must declare the
+  MINIMUM -- keeping CullingState in the query would silently empty SimHost's and CGF's maps).
+  Then 3.9c (the measured three-way comparison), 3.0a (the confirmed-but-insufficient root cause),
+  3.9a (S1's design + UML), 3.9 (the slices), 3.2a (what the pack may and may not do), 3.2b (the
+  UML) and 3.2c (settings + policy).
   Sections 2b and 2c supersede section 2's per-host baseline, which has INVERTED. Section 5 is CLOSED.
   S1 IS DONE (2026-08-28): the two producers are shared, MapDisplayComponent registration is one
   list instead of three copies plus one omission, MapLayerBits is no longer a hand-synced duplicate,
@@ -1094,6 +1101,60 @@ transparent, so the avatar would draw invisibly. Set an explicit opaque color."*
 ⇒ 🔴 **CGF calls the raw builder, so CGF's entity avatars are emitted TRANSPARENT**, and **CGF alone omits
 `EmitPickBox`**. ⚠ Three near-identical copies, and the one that drifted is **silently wrong in two ways.**
 
+## 3.9d ⭐⭐⭐ **"ALL LINES SHARED" — the end state, stated properly** *(user correction, `2026-08-28`)*
+
+> 🔒 **User:** *"not just that line. unification means all lines become 'shared', or what am I still missing?"*
+
+⛔⛔ **Nothing missing — §3.9c's TABLE was the defect.** ⚠ It printed **three columns**, which makes per-host
+difference look like something that SURVIVES the merge. ⭐⭐⭐ **It does not: after `S2` the table has ONE
+column, because there is ONE class with ONE code path.**
+
+### ⭐ Where the differences actually go — **out of the CODE and into INJECTED INSTANCES**
+
+| the line | after unification | what still differs |
+|---|---|---|
+| projector required components | ⭐ **shared** — the MINIMUM: `SimTransform` + `NetworkIdentity` | ⛔ nothing |
+| visibility gate | ⭐ **shared** — one line: `if (!policy.IsEntityVisible(view, entity)) return;` | ⭐ **which POLICY INSTANCE is injected** *(data)* |
+| transform source | ⭐ **shared** — `SimTransform`, full stop *(§3.9c ③)* | ⛔ nothing |
+| spatial anchor · pick box · dimensions · profile id · semantic shape | ⭐ **shared** — the helpers, uniformly | ⛔ nothing |
+| condition mask | ⭐ **shared** — one line: `uint mask = conditions.Compute(view, entity);` | ⭐ **whether a PROVIDER is supplied** *(data)* |
+
+⇒ ⭐⭐⭐ **Every LINE is shared. What varies is two INJECTED OBJECTS, and each host's choice of them is
+CONFIGURATION** — `R-137`'s *"unify the code, parameterise the behaviour"*, read literally.
+⭐⭐ **And the capability becomes available to ALL hosts**: ⛔ this is not *"IG keeps its two extras"* — it is
+*"any host may have culling and damage states, and today only IG configures them."*
+
+### ⛔⛔ THE ONE MECHANICAL TRAP — **the attribute must declare the MINIMUM, never the optional inputs**
+
+🔴 `IgEntityPresentationGizmo` today declares `[GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity), typeof(CullingState))]`.
+⚠⚠ **If the merged class kept `CullingState` in that list, the query would MATCH NOTHING on SimHost and CGF**
+— which produce no `CullingState` — and **every entity would silently vanish from their maps.**
+📌 **That is precisely the failure class this whole programme has been paying for** *(a query that does not
+match draws nothing, with no error)*.
+⇒ 🔒 **Rule: the `[GizmoProjector]` attribute lists only what the projector CANNOT RUN WITHOUT. Every
+optional capability is checked INSIDE the injected collaborator** *(`policy.IsEntityVisible` does its own
+`HasComponent<CullingState>`)*, never in the query.
+
+### 📐 THE RESIDUE, ENUMERATED — **6 host-private projectors; 18 already shared**
+
+⭐ *"All shared"* is **countable**, so it gets a gate rather than prose. 📐 Measured `2026-08-28`, every
+`[GizmoProjector]` class by owning assembly:
+
+| assembly | count | verdict |
+|---|---|---|
+| `Hrot.Common/Diagnostics/Gizmos` | **8** | ✅ shared |
+| `Hrot.Presentation/ScenarioEditor/Gizmos` | **7** | ✅ shared |
+| `Fdp.Toolkits/Diagnostics/Gizmos` | **2** | ✅ shared |
+| `Hrot.Presentation/Gizmos` | **1** | ✅ shared |
+| 🔴 **`Hrot.IG/Gizmos`** | **3** | ⛔ `EffectPresentationGizmo` · `EqsSensorGizmo` · `ProjectilePresentationGizmo` — ⚠ **these are CONTENT gizmos, not "IG's way of rendering"**: any host holding those components should draw them *(SimHost SIMULATES projectiles and cannot draw them today)* |
+| 🔴 **`Hrot.SimHost/Gizmos`** | **1** | ⛔ `SimHostEntityPresentationGizmo` → merges |
+| 🔴 **`Hrot.CGF/Gizmos`** | **1** | ⛔ `CgfEntityPresentationGizmo` → merges |
+| 🔴 **`Hrot.ReplayBrowser`** | **1** | ⛔ inline in the subsystem file |
+| ⚠ `Hrot.AI.Behaviors/Gizmos` | 1 | ⭐ **`HillAttackGizmo` — a DIFFERENT category, and legitimately not a host**: it belongs to a BEHAVIOUR/content pack. ⛔ Do not count it as host-private drift |
+
+⇒ ⭐⭐ **Target: `[GizmoProjector]` classes under `Hrot/Subsystems/<host>/` reach ZERO**, behaviour/content
+packs excepted. ⭐ That is a one-line grep, and it is the acceptance criterion for *"all lines shared"*.
+
 ## 4. Acceptance
 
 | # | Case | Cls |
@@ -1112,7 +1173,7 @@ transparent, so the avatar would draw invisibly. Set an explicit opaque color."*
 | 23.12 | *Measurement Tool* works in every host that shows it | I |
 | ⭐ 23.13 | 🔒 **No host assigns `gizmoGroup.Enabled` anywhere.** Grep for `.Enabled = true`/`false` on a gizmo group returns **zero** production hits — the value is derived from the viewer count in every host *(§3.2b correction 2)* | H |
 | ⭐ 23.14 | 🔒 **A headless host still renders nothing**, and it gets there with no per-host constant — ⚠ **`GZH-003`'s two integration tests must stay green unmodified** *(start SimHost headless ⇒ `DataDrivenGizmoSystem.Execute` never called)* | H |
-| ⭐ 23.15 | 🔒 **A negative listener count is unreachable**, and asserted against — parameterised over *boot-then-leave*, *enter-then-leave*, and *leave-twice* | H |
+| ⛔ ~~23.15~~ | 🔴 **WITHDRAWN `2026-08-28` — its PREMISE was refuted by measurement** *(§3.0a)*: the counter never underflows, so there is nothing to assert against. ⭐ If `S2` rewrites the gate it may make the invariant explicit there, **non-throwing**. ⛔ HISTORY: ~~A negative listener count is unreachable~~, and asserted against — parameterised over *boot-then-leave*, *enter-then-leave*, and *leave-twice* | H |
 | ⭐⭐ 23.16 | 🔒 **Every per-host capability difference is expressed as an `IGizmoVisibilityPolicy` / `GizmoSettingsRegistry` value, and NOWHERE ELSE.** 📐 Baseline `2026-08-28`: **one** production supplier, returning the default ⇒ ⛔ *"a host wires a different subset"* must be **unrepresentable** after this lands | H |
 
 | ⭐⭐ 23.17 | 🔒 **The pack CANNOT schedule** — `MapInteractionContext` exposes no kernel/module registry, asserted by a compile-time-shaped rail *(the type has no such member)*; ⛔ and no `MapInteraction*` type calls `RegisterModule`/`RegisterGlobalSystem` | H |
@@ -1122,6 +1183,9 @@ transparent, so the avatar would draw invisibly. Set an explicit opaque color."*
 | ⭐ 23.20 | ⭐ **Two hosts sharing one settings instance see each other's toggles** *(the user's "some are sharing same settings")*, and a host with `Empty` still renders every gizmo at its registered default | H |
 
 | ⭐ 23.21 | 🔒 **Every discovered `[GizmoProjector]` with no resolver entry is REPORTED** — always-on stays the default, ⛔ but never silently. Parameterised: add a projector, assert it appears in the report | H |
+| ⭐⭐⭐ 23.22 | 🔒 **ZERO `[GizmoProjector]` classes under `Hrot/Subsystems/<host>/`** — behaviour/content packs *(`Hrot.AI.Behaviors`)* excepted. 📐 Baseline `2026-08-28`: **6** *(IG 3 · SimHost 1 · CGF 1 · ReplayBrowser 1)*. ⭐ One grep; it is the mechanical form of *"all lines shared"* | H |
+| ⭐⭐⭐ 23.23 | ⛔⛔ **No `[GizmoProjector]` attribute lists an OPTIONAL input.** The merged entity projector requires `SimTransform` + `NetworkIdentity` and **nothing else**; `CullingState` and `IgHealthState` are checked inside the injected collaborators. ⚠ Keeping `CullingState` in the query would silently empty SimHost's and CGF's maps | H |
+| ⭐⭐ 23.24 | 🔒 **`R-137` receipt, per slice:** the merge is not accepted until it names what each host could do before and can still do — ⭐ IG's culling and damage-condition states must remain reachable, and must become AVAILABLE to the other hosts by configuration rather than being IG-only | H |
 
 **18 H · 3 I · 0 V.** ⚠ *(was 9 H — `23.13`-`23.16` come from §3.2b's two corrections; they are the acceptance half of "share the mechanism, let the rule vary through a parameter".)*
 
