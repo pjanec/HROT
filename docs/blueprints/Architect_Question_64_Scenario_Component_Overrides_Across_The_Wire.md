@@ -1,8 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: ⭐⭐⭐ §12 (the CONDITIONAL-OVERRIDE question) is the CURRENT answer, and it CORRECTS
-  §11.3's overstatement — the readiness gate IS built and working for EntityInfo + SimTransform.
+current-answer: ⭐⭐⭐ §13 (the DESCRIPTOR-SPACE readiness mask) is the CURRENT answer. ⛔ §12.4's
+  component-id mask is REJECTED — it leaked an FDP component id onto the wire, which breaks Q59 §7.
+  Then §12 (which CORRECTS
+  §11.3's overstatement — the readiness gate IS built and working for EntityInfo + SimTransform).
   Then §11 (the design sweep) — it supersedes §10.5's
   invented recipe with the design's OWN specified mechanism. Read §11, then §10 (the retractions),
   then §6 (the user ruling) and §7 (the baseline, still valid). build-state: DESIGN, nothing built.
@@ -693,3 +695,101 @@ becomes `template.MandatoryComponents ∪ perEntityExpected`.
 ⇒ ⭐⭐ **`B` (rely on the same-tick batch) is the fast path this design gets for free, and `A` is the
 backstop that makes it safe.** ⛔ **Neither is needed for `CE-113`**, which remains the only thing
 `CE-103` requires.
+
+
+---
+
+## 13. ⭐⭐⭐ THE DESCRIPTOR-SPACE READINESS MASK — **third iteration, and the first that respects the layering** *(`2026-08-28`)*
+
+> 🔒 **User:** *"This must be hard - if scenario wants it, is must be fulfilled. ECS components are likely
+> using transient local reliable QoS or some other reliability mechanism so lost sample is not so big issue.
+> entityMaster vs component bitmask - network layer has no idea about internal component id. Would need to
+> use network descriptor ids (enums) and ESC component-to-network-descriptor translator. Nothing of that is
+> elegant enough. Need to look further."*
+
+### 13.1 ✅ THE THREE POINTS, RESOLVED BY MEASUREMENT
+
+| # | | 📐 |
+|---|---|---|
+| **`12.4a` — Hard** | 🔒 **RULED: Hard.** *"if scenario wants it, it must be fulfilled"* ⇒ ⛔ my Soft hedge is withdrawn | — |
+| **reliability** | ⭐ **You are right and my objection was weak.** 📐 Measured in `GenericMessages.cs`: the descriptor topics are **`Reliable` + `KeepAll`** *(one `KeepLast/1`, one `TransientLocal`)* ⇒ DDS retransmits until delivered; **a dropped sample is not the failure mode.** ⚠ **The real edge is `Durability = Volatile`** on `CreateEntityRequest` and most descriptors — a **late-joining** reader gets nothing already sent. ⛔ That is a different problem from loss and it is not solved by a readiness gate | ✅ |
+| **`12.4c` — the component bitmask** | ⛔⛔ **REJECTED, and it broke a standing ruling.** Component type ids are **FDP-internal**; the wire vocabulary is `EDescriptorType`. 📌 **`Q59` §7.4 retired `Fdp.Toolkit.Replication.DescriptorOrdinal` for exactly the mirror-image violation** *(a NED concept living in FDP)* — ⭐ and I proposed the inverse leak *(an FDP concept on the NED wire)* without noticing | ✅ |
+
+### 13.2 ⛔ AND THE OPTION I WAS ABOUT TO PROPOSE DIED ON A MEASUREMENT
+
+⭐ I had a candidate I liked better than the mask: **nest the override descriptors inside the sample that
+creates the ghost**, so there is nothing to wait for. 📌 Its precedent looked strong —
+`CreateEntityRequest.InitialDescriptors` is a `List<EntityDescriptorUnion>` and **already crosses DDS**
+*(`NedIgNetworkAdapter:217`, `NedTranslationHelper:17`)*, so a nested union sequence is proven marshalable.
+
+⛔⛔ **It does not work, because there is no privileged creating sample.** 📐 Measured:
+**`GhostCreationSystem.CreateGhost` is called from at least TEN ingress translators** — `EntityInfo`,
+`GeoSpatial`, `EntityDamage`, `MapEntitySymbol`, `EntityMission`, `ContextActions`, `BdcEntityMaster`, … ⇒
+⭐⭐ **the ghost is created by WHICHEVER descriptor arrives first for an unknown network id.** A
+first-touch model, not a master-creates-it model.
+
+⭐⭐⭐ **This is the fact that justifies the whole `MandatoryComponents` design, and I had been treating it
+as a workaround.** ⇒ **creation is unordered across topics, so a readiness gate is the CORRECT mechanism**,
+not a patch over one. ⭐ The question is only how to express a *conditional, per-entity* requirement inside
+it — legally.
+
+### 13.3 ⭐⭐⭐ THE INVARIANT TO LEAN ON — **`EntityMaster` is a promotion prerequisite BY CONSTRUCTION**
+
+📐 Measured:
+
+| | |
+|---|---|
+| `EntityMaster` carries | `EntityId` · **`TkbType`** · `DisType` · `Flags` |
+| ⭐⭐⭐ **`EntityMasterIngressTranslator:140` is the ONLY place `TkbIdentity` is stamped** | `cmd.AddComponent(entity, new TkbIdentity { TkbType = master.TkbType })` |
+| `GhostPromotionSystem` | queries `Ghost ∧ TkbIdentity` and **opens** with `GetComponent<TkbIdentity>` — without it the template cannot even be looked up |
+
+⇒ ⭐⭐ **No ghost can promote before its `EntityMaster` has arrived.** ⭐⭐⭐ **So a declaration carried in
+`EntityMaster` is GUARANTEED present before the readiness check can ever pass** — no marker sample, no
+timeout, no new ordering assumption. ⭐ That is the missing piece the previous two iterations lacked.
+
+### 13.4 ⭐⭐⭐ THE PROPOSAL — **readiness evaluated ENTIRELY IN DESCRIPTOR SPACE**
+
+⭐⭐ **The elegance comes from never mentioning a component on either side of the wire.**
+
+| # | | |
+|---|---|---|
+| ① | **`EntityMaster` gains one `uint64`: `RequiredDescriptors`** | ⭐ a bitmask over `EDescriptorType`. 📐 **38 descriptor types exist ⇒ they fit in a single 64-bit word** — ⛔ compare `BitMask512`'s 64 **bytes** in component space. ⭐ Self-documenting, not an overload of the existing `Flags` |
+| ② | **`GhostStateTracker` gains one `uint64`: `AppliedDescriptors`** | it already exists on every ghost and already carries `FirstSeenFrame` |
+| ③ | **each ingress translator ORs its own ordinal in** after applying | ⭐ it already knows its `DescriptorOrdinal` — that member is on `IDescriptorTranslator` today |
+| ④ | **promotion checks `(applied & required) == required`** | ⭐ one AND, beside the existing `MandatoryComponents` mask check. **Hard by default**, per the ruling |
+| ⑤ | **the creator derives `RequiredDescriptors`** from the components it actually overrode | ⭐⭐ via the **inverse of `TargetComponentIds`** — *the map `NedReplicationModule` already builds at startup for `DescriptorOwnershipMap`* |
+
+⇒ ⭐⭐⭐ **What this buys, against each of your objections:**
+
+| ⭐ | |
+|---|---|
+| **no component id on the wire** | the mask is `EDescriptorType` space ⇒ **`Q59` §7 respected**; FDP never learns a descriptor ordinal, NED never learns a component id |
+| **no new "component→descriptor translator" to write** | ⭐⭐ **`TargetComponentIds` IS that translator**, declared per translator and already consumed. 📌 The seam law again — ⛔ **but see the blocker below** |
+| **derived, not authored** | the creator's override set is exactly its `NetworkSpawningSystem` step-8 list ⇒ **no per-template config, nothing to drift** *(the "measured from what is wired, never declared" property)* |
+| **no ordering assumption** | §13.3's invariant carries it |
+| **Hard, and fulfilled** | promotion simply does not happen until every declared descriptor has been applied |
+| **cost** | **one `uint64` on one existing struct, one `uint64` on an existing component, one OR per ingress, one AND per promotion** |
+
+### 13.5 🔴 THE ONE REAL BLOCKER — **and it is already on the books**
+
+⛔⛔ **Step ⑤ depends on `TargetComponentIds`, which is UNDER-ADOPTED: 9 of 41 egress translators declare
+it, behind a SILENT EMPTY DEFAULT** *(`Q59` §7.3, measured `2026-08-26`)*. ⇒ ⭐ the inverse map is
+**silently sparse**, so a component whose descriptor declares nothing **cannot be resolved to a bit** and
+would be omitted from `RequiredDescriptors` — ⚠ **failing exactly the way this design is meant to prevent,
+and silently.**
+
+⇒ ⭐⭐ **`CE-116` therefore DEPENDS on closing that adoption gap for the descriptors in scope**, and that
+dependency is honest rather than hand-waved. 📌 It is the *"a production caller that HAS a dependency must
+PASS it"* pattern for the fourth time in this area.
+
+### 13.6 ⚠ WHAT I HAVE NOT MEASURED — **do not build on these**
+
+| ⚠ | |
+|---|---|
+| ⛔ **whether `EntityMaster` can gain a field without breaking IDL compatibility** | it is `[DdsTopic]`/`[DdsIdlFile("hrot-generic-msgs")]` with a generated counterpart. ⭐ Adding a trailing field is usually safe in XCDR2-appendable, ⚠ **but the IDL's extensibility annotation is unverified** |
+| ⛔ **whether `Volatile` durability defeats this for a late-joining node** | 📌 a node that joins after the `EntityMaster` was published may never see it. ⚠ **That is a pre-existing hole this design neither fixes nor worsens — but it does mean readiness can never be the ONLY guarantee** |
+| ⛔ **whether every ingress translator has a clean place to OR its ordinal** | ⚠ some apply several descriptors, some are ingress-only with no ordinal declared |
+| ⛔ **whether 38 stays under 64** | ⭐ ample headroom today; ⚠ a `uint64` is a ceiling and should be stated as one |
+
+⇒ ⭐ **This is the third iteration and I believe it is the right shape** — ⛔ **but it is a proposal, not a
+ruling**, and §13.5's blocker has to be measured before anyone estimates it.
