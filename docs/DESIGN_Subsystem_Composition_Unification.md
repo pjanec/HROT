@@ -2295,9 +2295,19 @@ DEMANDED a value that does not exist on this host.
 | ⭐⭐⭐ **and a scenario WITH zones on a host with no zone manager WARNS** | *"entities were loaded, zones were NOT … a declared absence, not a load failure"* ⇒ ⛔ **absent-and-explained (ruling 49)**, never silently half-loaded |
 | ⭐ **CGF registers the SAME handler the editor and SimHost do** | ⛔ not a `CgfEditLoadHandler`: ruling 65 settles the principle *("bringing editing machinery onto a runtime node is perfectly OK")*, and a private copy would be a second implementation of one concept |
 
-⚠⚠ **KNOWN LIMIT, stated rather than left to be discovered:** this does **not** pass CGF's
-`behaviorRemapper`, which the LIVE path does. ⭐ Entities load and render; **whether their behaviours bind on
-this host is `CE-103`'s question**, not this one.
+⚠ **A LIMIT I FIRST MIS-FRAMED, corrected `2026-08-28` after reading the code.** The edit path does not pass
+a `behaviorRemapper`, which the LIVE path does — ⛔ **but that is NOT a CGF gap and NOT something this change
+introduced.** 📐 Measured: `HrotEditLoadHandler`'s ctor **takes no remapper at all**, and the EDITOR registers
+it identically *(`EditorSubsystem.cs:1277`)* ⇒ ⭐⭐ **the edit path has never remapped on ANY host**, including
+the one the user reports works. ⚠ Only the live handlers *(`HrotScenarioLoadHandler`, `CgfScenarioLoadHandler`)*
+take one. 📄 Filed properly as `CE-108`.
+
+⛔⛔ **And I also over-claimed it as a lead into `CE-103`. It is not.** 📐 `ScenarioBehaviorRemapper` rewrites
+**entity-ID references embedded in behaviour-param JSON**; the stalled tanks carry
+`NavigationIntent{Mode: DirectPoint}` with a **coordinate** destination and no entity reference. ⇒ 📌 a missing
+remapper cannot explain zero velocity. ⚠⚠ **`hill-attack` settles it outright: its mission params are `""`
+and it declares no behaviour ids**, so there is nothing for a remapper to rewrite in the scenario that produced
+the report.
 
 #### 5c.17.4 ⭐⭐ GATED ON A REAL BOOT
 
