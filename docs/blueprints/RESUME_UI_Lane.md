@@ -2,9 +2,13 @@
 state: LIVE
 updated: 2026-08-28
 current-answer: ⭐⭐⭐ §0.0e — "--mode all VISUAL-CHECK CORRECTIVES + the cgf==editor TKB ruling".
-  START THERE AND NOWHERE ELSE. It is SELF-SUFFICIENT after a compaction: it repeats the measured
-  numbers, carries the user rulings verbatim, names the ONE item in flight (CE-103) and its single
-  next probe, and records the boot recipe and the self-inflicted traps.
+  START THERE AND NOWHERE ELSE, and inside it the FIRST ITEM TO BUILD is §0.0e.4 (CE-109's LIVE-path
+  load handler, which is also CE-103's fix). It is SELF-SUFFICIENT after a compaction: it repeats the
+  measured numbers, carries the user rulings verbatim, and records the boot recipe and the traps.
+  ⚠ UPDATED 2026-08-28 (second pass): CE-103 is ROOT-CAUSED, not in flight — the rich VehicleParams
+  are STORED in scenario.json and the cluster's live-load path never applies them. The old
+  "cluster TKB differs / find the third populator" lead was an INSTRUMENT ARTEFACT (CE-110) and is
+  RETRACTED; do not resume it. CE-110/CE-111 are BUILT and gated.
   ⚠ §0.0d is now HISTORY: phase 2 (slices 1-3, J1, J2, J3) is DONE. Do not restart it.
   Read §0's header block only for the branch/ids/dispatch-sha facts.
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
@@ -104,8 +108,8 @@ the debug API on a real boot in-container, and **four of the six filed items are
 | ⛔ **`CE-106`** | **REFUTED — my operator error.** `/logs` always had `level`/`max`; I passed `limit=400` |
 | ✅ **`CE-107`** | the envelope's **success branch dropped `Hint` entirely** ⇒ the API could not say *"ok, but…"*. Fixed + `/logs` now names ignored filters |
 | ⚠ **`CE-108`** | edit path never remaps behaviour-param entity ids — **on ANY host, editor included**. Filed, deliberately NOT fixed |
-| 🔴 **`CE-103`** | **OPEN — the live one. See §0.0e.3** |
-| 🔒 **`CE-109`** | the ruling above. Its buildable half is the LIVE-path handler duplicate, §0.0e.4 |
+| ✅ **`CE-103`** | **ROOT-CAUSED — see §0.0e.3. Its FIX is `CE-109`, §0.0e.4** |
+| 🔒🔴 **`CE-109`** | the ruling above. ⭐⭐ **Its LIVE-path half is now the START-HERE item, §0.0e.4** — it is also `CE-103`'s fix |
 
 ⭐ **The MCP SKILL sources carry this session's lessons** *(`CE-108` commit)* — §5b *"ok:true is not evidence"*,
 §5c *"prove your instrument once"*, §5d the three localising reads, plus per-route notes on `/logs`,
@@ -113,54 +117,70 @@ the debug API on a real boot in-container, and **four of the six filed items are
 GENERATED** — edit `DebugApiRouteDocs.cs` / `tools/ai-debug-mcp/skill-parts/`, then regenerate, and
 ⚠ **build the RUNNER first** *(`gen-catalog.mjs` shells out to `--mode dump-api`; otherwise it is a silent no-op)*.
 
-### 0.0e.3 🔴🔴🔴 `CE-103` — **THE ONE IN FLIGHT. Diagnosed, NOT fixed, and the next step is ONE probe.**
+### 0.0e.3 ✅✅✅ `CE-103` — **ROOT-CAUSED `2026-08-28`. The fix is `CE-109`, not a hunt.**
 
-📄 **§5c.18** carries the full record. ⭐ **The symptom:** *"the tanks show blue line to their destination, but
+📄 **§5c.18.5** carries the full record. ⭐ **The symptom:** *"the tanks show blue line to their destination, but
 they do not move."*
 
-⭐⭐ **RULED OUT by direct A/B on the same entity (1001), same scenario, one host each:** `NavigationIntent`,
-`NavState` **and** `NavigationStatus` are **IDENTICAL** on both hosts *(`Direct`, dest `[523,401,0]`, speed 15,
-`InProgress`)* ⇒ ⛔ **the AI, the bridge and the executor are all innocent.**
+⛔⛔ **THE OLD LEAD WAS AN INSTRUMENT ARTEFACT — do not resume the hunt this section used to describe.**
+📐 `GET /tkb/types` answered `[]` on `--mode all` because the cluster `DebugApiService` held a **private empty**
+`TkbDatabase` *(`CE-110`, now fixed)*. ⇒ *"the cluster's TKB differs from the editor's"* was **false**. ⭐ With the
+instrument honest, templates **100 · 103 · 301 · 303 are BYTE-IDENTICAL** on both hosts, so **`cgf==editor` holds
+for the TKB catalog** and the earlier *"find the third populator"* task **does not exist**.
 
-🔴 **THE DIFFERENCE IS THE VEHICLE PROFILE:**
+🔴🔴🔴 **THE ACTUAL CAUSE.** `scenarios/hill-attack/scenario.json` **stores a complete 15-field `VehicleParams`
+per entity** — 6 blocks, the first matching the editor's observed values exactly:
 
-| field | editor | `--mode all` |
+```
+Class Tank · Length 7.93 · Width 3.66 · WheelBase 4.758 · MaxSpeedFwd 20 · MaxSpeedRev 8 · MaxAccel 2.5
+MaxDecel 4 · MaxSteerAngle 0.8 · MaxSteerRate 0.2617994 · MaxLatAccel 6 · AvoidanceRadius 5
+LookaheadTimeMin 0.8 · LookaheadTimeMax 2.5 · AccelGain 1.8
+```
+
+| host | what writes `VehicleParams` | result |
 |---|---|---|
-| `Class` | **Tank** | ⛔ **PersonalCar** |
-| `AccelGain` | 1.8 | 🔴 **0** ⇒ **zero acceleration forever** *(`CarKinematicsSystem:248` feeds it to the speed controller)* |
-| `MaxSteerAngle` | 0.8 | 🔴 **0** ⇒ `VehicleState.SteerAngle` = **NaN** |
-| `MaxDecel`·`MaxSpeedRev`·`MaxLatAccel`·`AvoidanceRadius`·lookahead | 4·8·6·5·0.8/2.5 | ⛔ all **0** |
-| ⭐ `Length`·`Width`·`WheelBase`·`MaxSpeedFwd`·`MaxAccel` | 7.93·3.66·4.758·20·2.5 | ⭐ **identical** |
+| ⭐ **editor** | the scenario's **stored component** is applied | **Tank**, `AccelGain 1.8` ⇒ **it moves** |
+| 🔴 **`--mode all`** | only `VehicleKinematicsTkbTranslator` — **5 fields**, rest DEFAULT | `PersonalCar`, **`AccelGain 0`** ⇒ zero acceleration; `MaxSteerAngle 0` ⇒ steer **NaN** ⇒ **path drawn, nothing moves** |
 
-⭐⭐⭐ **The fingerprint:** those five matching fields are **exactly** `VehicleKinematicsTkbTranslator`'s output
-set *(it writes Length, Width, `WheelBase = Length × 0.6`, MaxSpeedFwd, MaxAccel and leaves the rest DEFAULT —
-`Class = 0 = PersonalCar`, `AccelGain = 0`)* ⇒ **the cluster gets ONLY that translator.**
+⭐⭐ **Only TWO production writers of `VehicleParams` exist and NEITHER produces the stored values** — so the
+editor's numbers are **DESERIALISED, not computed**. ⚠ `NedTkbBuilder.BuildVehicleParams` baked them into the file
+once and now has **zero callers, including inside its own file**; its perfect arithmetic match is a **fossil**.
+📌 The settled answer came from grepping the **decisive field** *(`AccelGain` — one occurrence in the whole repo)*
+rather than the type. ⭐ **Keep that habit: grep the VALUE, not the TYPE.**
 
-⛔⛔ **AND THE EDITOR'S SOURCE IS STILL UNIDENTIFIED — do not guess it a third time.** ⚠ **Two candidates were
-matched and BOTH FAILED:**
-- `BdcTkbBuilder.BuildVehicleParams` — ⛔ **DEAD CODE, zero callers.** *(I attributed it on arithmetic alone and
-  never checked it was invoked. Retracted.)*
-- `VehicleCommandSystem` *(the other production `GetPreset` caller)* — ⛔ writes `ArrivalRadius = 2.0` and
-  `NavState.Mode = None` where the editor shows **5** and **Direct**; and the `Tank` preset's `MaxSteerRate` is
-  **1.2** where the editor shows **0.2617994** *(= 15°/s, i.e. `TurnRate × π/180`)*.
+⇒ ⭐⭐⭐ **CE-103's fix IS §0.0e.4.**
 
-⭐⭐ **THE NEXT STEP, and it is cheap:** `GET /tkb/types/303` on **BOTH** hosts.
-- **identical templates** ⇒ the divergence is in the **INJECTION ORDER**, not the data ⇒ hunt which
-  translator/system stamps `VehicleParams` first *(the translator's `!repo.HasComponent<VehicleParams>` guard
-  makes it **first-writer-wins**)*.
-- **different templates** ⇒ the catalog content diverges after all, despite the shared factory.
-
-⚠ **Also known:** `NedTkbBuilder.WithPhysics` stores a **LOSSY** `VehicleParametersDto` — 6 fields, **no
-`Mobility`** *(the field that decides Tank)*, no `TurnRate` — with its own comment deferring the rest to a
-*"translator in Phase 6"* that appears never to have been wired.
-
-### 0.0e.4 ⭐⭐ `CE-109`'s BUILDABLE HALF — **the LIVE-path handler duplicate**
+### 0.0e.4 ⭐⭐⭐ `CE-109`'s BUILDABLE HALF — **the LIVE-path handler. ⭐⭐ THE FIRST ITEM TO BUILD**, and it is now `CE-103`'s fix too
 
 | half | status |
 |---|---|
-| the TKB **catalog** | ✅ **already shared** — both hosts use `HrotEnvironment.CreateTkb()` *(editor `EditorSubsystem:1227`; cluster nodes `HrotNodeBuilder:197`)*. ⛔ *"no cluster TKB vs editor TKB"* already holds here |
+| the TKB **catalog** | ✅ **shared, re-confirmed by byte-comparison** — both hosts via `HrotEnvironment.CreateTkb()` *(editor `EditorSubsystem:1227`; cluster `HrotNodeBuilder:197`)* |
 | the **EDIT**-load handler | ✅ shared as of `CE-102` |
-| 🔴 the **LIVE**-load handler | ⛔ **still two implementations** — `HrotScenarioLoadHandler` *(editor·SimHost)* vs `CgfScenarioLoadHandler` *(CGF, plus a `remapper` the other lacks)* ⇒ ⭐ **the remaining ruling-9 duplicate and the natural next slice**, in the ruling's direction: **cluster adopts the editor's** |
+| 🔴 the **LIVE**-load handler | ⛔ **still two implementations** — `HrotScenarioLoadHandler` *(editor·SimHost)* vs `CgfScenarioLoadHandler` *(CGF)* ⇒ ⭐ the remaining ruling-9 duplicate, **and the thing that drops the stored `VehicleParams`** |
+
+🔒 **The direction is already ruled** *(user)*: the cluster adopts the **editor's**; ⛔ **the editor's path is NOT
+touched** — *"tested manually pretty well in the editor so pls be carefull with any 'fixes'"*.
+
+⚠⚠ **THE ONE THING NOT YET MEASURED, and measure it FIRST:** *which line* in `CgfScenarioLoadHandler` drops the
+per-entity stored components. ⛔ **Do NOT assume a wholesale skip** — the entity **did** appear at the right
+position with a nav line, so some state *is* applied. ⭐ Cheap probe: load hill-attack LIVE on both hosts and diff
+`/entity/<id>` component-by-component, not just `VehicleParams`.
+
+### 0.0e.4b ✅ DONE THIS SESSION — `CE-110` / `CE-111` *(the instrument, and CGF's missing singleton)*
+
+⭐ **`CE-110`** — the cluster `/tkb/*` served a private empty `TkbDatabase`; **third instance of one defect at
+`Program.cs:429`** after `BP-487` and `CE-066`. ⭐ Fixed on the **provider seam** *(`ISubsystemDebugProvider.TkbDb`
+· `PerspectiveScopedDispatcher.TkbDb` · `DebugApiService._tkbDb` which now **throws** rather than substituting an
+empty catalog · `SubsystemDebugProvider.TkbFrom(world)` · `DebugCapabilities.TkbRead`)*, because the TKB is
+genuinely per-node.
+⭐ **`CE-111`** — CGF never published `ITkbDatabase` as a world singleton *(SimHost and IG both do)*, so
+`DisEntityTypeTranslator` and `EntityPresentationGizmoShared` degraded **silently**.
+⭐⭐ **7 new facts, both inverse-edit red-proved.** Live: 10 templates *(was 0)*, `tkb.read` 3-of-4.
+
+⛔⛔ **THE LESSON TO CARRY:** the rule *"a caller that HAS a dependency must PASS it"* did **not** stop instances
+2 and 3. ⇒ ⭐⭐⭐ **a per-node dependency has no business being a service field** — put it on the provider seam and
+the composition root **cannot** forget it. ⭐⭐ **And `?? new X()` for a per-node dependency is not a convenience —
+it is a FABRICATED ANSWER**, which is exactly what made this instance expensive where the other two were cheap.
 
 ### 0.0e.5 ⭐ HOW TO BOOT AND DRIVE BOTH HOSTS — **worked out this session; do not re-derive**
 
@@ -188,8 +208,12 @@ simultaneous `--mode editor` so the A/B is one command apart. ⭐ `--mode all`'s
 
 ⭐ `CE-084`/`CE-088`'s family now confirmed in **four** assemblies. 📐 This session: `Hrot.Presentation.Tests`
 red once then **3/3 green**, with the failing identity **ROTATING** *(`ScenarioFileServiceTests.SaveLoad_RoundTrip`,
-then `EntityDragGizmoTests` / *"Component type ID 51 is not registered"*)*; `Hrot.SimHost.Tests` **1-red-identical-to-base
-over 3 runs**. ⛔ Both over **process-global registries**. ⇒ ⭐⭐ **always prove a red at base by stashing the
+then `EntityDragGizmoTests` / *"Component type ID 51 is not registered"*)*; `Hrot.SimHost.Tests` **2-red-identical-to-base**
+*(⚠ CORRECTED `2026-08-28`: an earlier note here said "1 red"; re-measured over 3 base runs it is **2**, and the
+SECOND IDENTITY ROTATES — `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` ⇄
+`EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule`, while
+`FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` is red in every run. ⇒ this makes
+`Hrot.SimHost.Tests` a **FIFTH** member of the rotating-flake family)*. ⛔ Both over **process-global registries**. ⇒ ⭐⭐ **always prove a red at base by stashing the
 change and re-running**, and ⭐ **re-run a suspicious suite 3× before believing either colour**.
 ⚠ **`AssetRootsTestCollection`** *(`CE-099`)* now serialises everything touching `AssetRoots.ConfiguredRoot` —
 🔒 **join it if you add such a test**; a filtered green is not evidence.

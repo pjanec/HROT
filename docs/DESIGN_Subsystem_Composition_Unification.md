@@ -219,32 +219,45 @@ classDiagram
         +NetworkEntityMap EntityMap
         +ITimeTransportFacade Drive
         +DebugPrimitiveBuffer GizmoBuffer
+        +IMissionEditorService MissionEditor
+        +ITkbDatabase TkbDb
     }
-    note for ISubsystemDebugProvider "EXISTS - Hrot.Presentation/DebugApi/ISubsystemDebugProvider.cs\nGizmoBuffer is the ONE added member (BP-487)"
+    note for ISubsystemDebugProvider "EXISTS - Hrot.Presentation/DebugApi/ISubsystemDebugProvider.cs\nTHREE added members, one per instance of the SAME defect:\nGizmoBuffer (BP-487) - MissionEditor (CE-066) - TkbDb (CE-110)"
 
     class SubsystemDebugProvider {
         -Func~DebugPrimitiveBuffer~ _gizmoBuffer
+        -Func~IMissionEditorService~ _missionEditor
+        -Func~ITkbDatabase~ _tkbDb
         +DebugPrimitiveBuffer GizmoBuffer
+        +IMissionEditorService MissionEditor
+        +ITkbDatabase TkbDb
+        +TkbFrom(world) Func~ITkbDatabase~
+        +DescribeCapabilities()
     }
-    note for SubsystemDebugProvider "EXISTS - same file. Func-backed: the buffer is built in Initialize"
+    note for SubsystemDebugProvider "EXISTS - same file. Func-backed: each dependency is built in\nInitialize, AFTER the composition root builds the provider.\nTkbFrom is the ONE way to read the world singleton (CE-110)."
 
     class PerspectiveScopedDispatcher {
         +Active() ISubsystemDebugProvider
         +DebugPrimitiveBuffer GizmoBuffer
+        +IMissionEditorService MissionEditor
+        +ITkbDatabase TkbDb
     }
-    note for PerspectiveScopedDispatcher "EXISTS - Hrot.Presentation/DebugApi/PerspectiveScopedDispatcher.cs\nresolves through Active(), like World/EntityMap/Drive"
+    note for PerspectiveScopedDispatcher "EXISTS - Hrot.Presentation/DebugApi/PerspectiveScopedDispatcher.cs\nevery member resolves through Active(), like World/EntityMap/Drive"
 
     class DebugApiService {
         -DebugPrimitiveBuffer _primitiveBuffer
+        -TkbDatabase _editorTkbDb
         -PerspectiveScopedDispatcher _dispatcher
         +GetGizmoFrame(max)
+        +ListTkbTypes(category)
     }
-    note for DebugApiService "EXISTS - Hrot.Editor/DebugApi. GetGizmoFrame reads the\nresolved buffer: _primitiveBuffer ?? _dispatcher.GizmoBuffer"
+    note for DebugApiService "EXISTS - Hrot.Editor/DebugApi. Each read resolves\n_editorOwn ?? _dispatcher.X, and THROWS when neither answers.\nCE-110: it must never substitute an empty stand-in."
 
     class CgfSubsystem {
         -DebugPrimitiveBuffer _cgfGizmoBuffer
         +CreateDebugProvider()
     }
+    note for CgfSubsystem "CE-111 - now publishes ITkbDatabase as a world singleton,\nas SimHost and IG already did. Without it every reader that\nresolves it FROM THE WORLD degraded silently."
     class IgSubsystem {
         +CreateDebugProvider()
     }
@@ -254,7 +267,7 @@ classDiagram
     class ExConSubsystem {
         +CreateDebugProvider()
     }
-    note for ExConSubsystem "HAS NO BUFFER - passes null, honestly absent (ruling 49)"
+    note for ExConSubsystem "HAS NO BUFFER AND NO CATALOG - passes null for both,\nhonestly absent (ruling 49). 3 of 4 on each member."
 
     ISubsystemDebugProvider <|.. SubsystemDebugProvider
     PerspectiveScopedDispatcher o-- "1..*" ISubsystemDebugProvider
@@ -431,6 +444,120 @@ capability cells, measured on --mode all:
 ⇒ ⭐ **A rail worth having:** *"drawing a map does not imply hosting mission editing"* — 📌 the cheap way to
 add a second provider member is to derive both from one *"is this host wired?"* flag, and that would make
 the manifest claim mission editing wherever it claims a map feed. **Red-proved by doing exactly that.**
+
+### 5.10 🔴🔴🔴 `CE-110` / `CE-111` — **the THIRD instance at ONE line, and the first that COST A DIAGNOSIS** `build-state: BUILT` *(`2026-08-28`)*
+
+📄 **Diagram: §5.6's `classDiagram`**, which now carries all three added members. ⛔ **Not redrawn here** —
+📌 *"never both for the same thing; two pictures of one architecture rot apart."*
+
+#### 5.10.1 ⭐⭐ THE DEFECT — **and why the two siblings did not cost anything and this one did**
+
+| | |
+|---|---|
+| **the line** | `ClusterRunner/Program.cs:429` builds the cluster `DebugApiService` and passes **no `tkbDb:`** |
+| **the default** | `_tkbDb = tkbDb ?? new TkbDatabase()` ⇒ ⛔ **a private, permanently EMPTY catalog** |
+| **measured on a real `--mode all` boot** | `GET /tkb/types` → `[]` · `GET /tkb/types/303` → *"TKB type 303 not found."* |
+| **the truth** | `HrotNodeBuilder:197` had built a real **10-template** catalog for that node from `HrotEnvironment.CreateTkb()` |
+
+⭐⭐⭐ **What separates it from `BP-487` and `CE-066`.** ⭐ Those two failed **LOUDLY** — a `404`, and a
+written refusal. ⛔⛔ **This one returned a VALID-LOOKING EMPTY LIST**, so it was **believed**: the empty
+catalog became the leading hypothesis for **`CE-103`** *(tanks that draw a path and do not move)*, on the
+reading that the cluster's TKB genuinely differed from the editor's.
+
+⇒ ⭐⭐⭐ **AN INSTRUMENT THAT REPORTS *ABSENT* WHERE THE TRUTH IS *PRESENT* DOES NOT MERELY FAIL TO HELP —
+IT ARGUES FOR THE WRONG ROOT CAUSE.** 📌 With the instrument fixed, the same probe showed templates
+**100 · 103 · 301 · 303 byte-identical on both hosts**, refuting the hypothesis outright *(§5c.18.5)*.
+⚠ This is the MCP skill's own §5c — *"prove your instrument once"* — and it caught me anyway, because
+`ok:true` plus a well-formed empty array does not look like an instrument fault.
+
+#### 5.10.2 ⭐⭐ THE FIX — **the seam, NOT a `tkbDb:` argument at the root**
+
+⛔ **Passing it at the composition root would have been WRONG, not merely inelegant.** 📐 The TKB is
+genuinely **per node**: `TkbLoadClusterStateHandler` **clears and re-ingests** it from each node's own
+staging area on every `PrepareLive`/`PrepareEdit`. ⇒ ⭐ one instance passed once would report **one node's
+templates as every node's**, and would go **stale on the first scenario load**.
+
+| # | change | file |
+|---|---|---|
+| ① | **`ISubsystemDebugProvider.TkbDb`** — `Func`-backed, like `GizmoBuffer`/`MissionEditor` | `Hrot.Presentation/DebugApi/ISubsystemDebugProvider.cs` |
+| ② | **`SubsystemDebugProvider.TkbFrom(world)`** — ⭐ the ONE implementation of *"read the singleton off my own world"*, so four `HasSingletonManaged` copies cannot drift *(ruling 9, same shape as `TransitionsVia`)* | same file |
+| ③ | **`PerspectiveScopedDispatcher.TkbDb => Active()?.TkbDb`** | `PerspectiveScopedDispatcher.cs` |
+| ④ | **`DebugApiService._tkbDb => _editorTkbDb ?? _dispatcher?.TkbDb`**, and ⛔⛔ **it THROWS `NotSupportedHereException` instead of substituting an empty catalog** | `Hrot.Editor/DebugApi/DebugApiService.cs` |
+| ⑤ | **`DebugCapabilities.TkbRead`** replaces `CapabilityManifest`'s bare `"tkb.read"` string | `ISubsystemDebugProvider.cs` · `CapabilityManifest.cs` |
+
+⚠⚠ **Item ⑤ is its own small finding.** 📐 Every `/tkb` route was classified as the **literal string**
+`"tkb.read"` and **no provider ever reported that key** ⇒ ⛔ the routes were documented while their
+availability was **never measured at all**. 📌 That is how an empty catalog on `--mode all` stayed
+invisible long enough to misdirect `CE-103`.
+
+#### 5.10.3 ⭐⭐ `CE-111` — **CGF never published `ITkbDatabase` as a world singleton**
+
+📐 Found while measuring `CE-110`. `SimHostNodeBootstrapper:179` and `IgNodeBootstrapper:133` both register
+it; **CGF passed `_context.TkbDb` straight to its two systems and registered NOTHING.**
+
+| the silent consumer | what it lost |
+|---|---|
+| `DisEntityTypeTranslator:38` | DIS entity types not translated on CGF |
+| `EntityPresentationGizmoShared:60` | the map's per-entity presentation falls back |
+
+⛔⛔ **Both guard with `HasSingletonManaged` and have NO `else`** ⇒ no log line, no failure — 📌 the shape
+ruling 53 exists to catch, and a direct **`cgf==editor` violation**. ⚠ **The comment two lines above the
+fix already documented the identical omission for the geo transform** *("Without it geo-aware params
+resolve to 0,0,0")* — ⭐ the same mistake, twice, in one method.
+
+#### 5.10.4 ⭐ THE RESOLUTION SEQUENCE *(the file had no `sequenceDiagram` for this seam)*
+
+```mermaid
+sequenceDiagram
+    participant MCP as MCP client
+    participant Host as DebugApiHost
+    participant Svc as DebugApiService
+    participant Disp as PerspectiveScopedDispatcher
+    participant Prov as SubsystemDebugProvider
+    participant World as EntityRepository
+
+    MCP->>Host: GET /tkb/types
+    Host->>Svc: ListTkbTypes(category)
+    Note over Svc: _editorTkbDb is null in the cluster shape
+    Svc->>Disp: TkbDb
+    Disp->>Disp: Active() by current perspective
+    alt a provider claims the perspective
+        Disp->>Prov: TkbDb
+        Prov->>World: GetSingletonManaged ITkbDatabase
+        World-->>Prov: the node's live catalog
+        Prov-->>Disp: catalog
+        Disp-->>Svc: catalog
+        Svc-->>MCP: ok true, the node's own templates
+    else nothing claims it, or the node has no catalog
+        Disp-->>Svc: null
+        Svc-->>MCP: NOT_SUPPORTED_HERE tkb.read
+        Note over Svc,MCP: CE-110 - never an empty list.<br/>Empty is a claim about DATA.<br/>Absent is a claim about CAPABILITY.
+    end
+```
+
+#### 5.10.5 ⭐ MEASURED AFTER THE FIX
+
+| probe | before | after |
+|---|---|---|
+| `GET /tkb/types` on `--mode all` | ⛔ `[]` | ⭐ **10 templates** |
+| `GET /tkb/types/303` | ⛔ *"not found"* | ⭐ `Tank Platoon (Auto Spawn)` |
+| `/capabilities` `tkb.read` | ⛔ **cell did not exist** | ⭐ SimHost ✓ · IG ✓ · **Scenario ✓** · ExCon ✗ — **3 of 4**, the same split as `GizmoBuffer` |
+
+⭐⭐ **`Scenario: true` is `CE-111`'s live proof** — that cell can only be true if CGF publishes the
+singleton, so the two fixes verify each other on one boot.
+
+#### 5.10.6 ⚠⚠ THE LESSON WORTH KEEPING — **three instances, one line, and the pattern is now nameable**
+
+⛔ **The rule *"a production caller that HAS a dependency must PASS it"* did not prevent instances two and
+three**, because it asks a question about a call site nobody re-reads. ⇒ ⭐⭐ **the structural fix is what
+finally holds: a per-node dependency has NO business being a service field at all** — every one of the
+three belonged on `ISubsystemDebugProvider`, and once there the composition root **cannot** forget it.
+
+⭐⭐⭐ **And the sharper half:** ⛔ **the `?? new X()` fallback is the actual defect, not the missing
+argument.** 📌 Had the cluster ctor simply left `_tkbDb` null and thrown, instance three would have been a
+loud `NOT_SUPPORTED_HERE` on the first probe instead of a plausible empty list that cost a wrong root
+cause. ⇒ ⭐ **when a dependency is per-node, `?? new X()` is not a convenience — it is a fabricated
+answer.**
 
 ## 5b. ⭐⭐⭐ PHASE 1 — **the bundle seam.** `build-state: READY-TO-BUILD`
 
@@ -2323,7 +2450,7 @@ then **3/3 green** *(Presentation)* / **1-red-identical-to-base, 3 runs** *(SimH
 *(`ScenarioFileServiceTests.SaveLoad_RoundTrip`, then `EntityDragGizmoTests` with "Component type ID 51 is not
 registered")* ⇒ 📌 the `CE-084`/`CE-088` family, now confirmed in two more assemblies.
 
-### 5c.18 ⭐⭐⭐ `CE-103` — **the tanks do not move because the CLUSTER RESOLVES A DIFFERENT VEHICLE PROFILE.** `build-state: DIAGNOSED, NOT FIXED` *(`2026-08-28`)*
+### 5c.18 ⭐⭐⭐ `CE-103` — **the tanks do not move: the rich `VehicleParams` are STORED IN THE SCENARIO and the cluster never applies them.** `build-state: ROOT-CAUSED · fix is CE-109 §5c.18.5` *(`2026-08-28`)*
 
 > 🔒 **User:** *"When i press Play, the tanks show blue line to their destination, but they do not move."*
 > 🔒 **User, `2026-08-28`:** *"the scenario loading path was tested manually pretty well in the editor so pls
@@ -2392,6 +2519,69 @@ third source exists and is unidentified. It must be found by measurement, not by
 | ⭐⭐ **THE NEXT PROBE, and it is decisive** | `GET /tkb/types/303` on **both** hosts. ⭐ If the templates are IDENTICAL *(they should be — same factory)*, the divergence is in the **INJECTION** path, not the data, and the hunt narrows to which translator/system stamps `VehicleParams` first *(the translator's `!HasComponent` guard makes it order-dependent)* |
 | 🔒 **The user's caution binds** | *"the scenario loading path was tested manually pretty well in the editor"* ⇒ ⛔ a change that re-points vehicle-param population risks the one path known to work |
 | ⭐ **The cheap next probe, if wanted** | compare the TKB template the two hosts hold for `TkbType 303` *(`GET /tkb/types/303`)* — that says whether the cluster's TKB lacks the BDC descriptor, or holds it and ignores it |
+
+⚠⚠ **§5c.18.4 IS SUPERSEDED BY §5c.18.5 — the probe it names was RUN, and its premise was wrong.**
+⛔ Do not quote the *"two populators, choose the canonical one"* framing above as current.
+
+#### 5c.18.5 ✅✅✅ `CE-103` **ROOT-CAUSED** — **the rich params are STORED IN THE SCENARIO, and the cluster never applies them** *(`2026-08-28`)*
+
+⭐⭐ **The probe §5c.18.4 named was run, and it first returned a LIE** — `GET /tkb/types` answered `[]` on
+`--mode all` because the instrument itself was broken *(`CE-110`, §5.10)*. ⇒ ⛔ **the "cluster TKB differs"
+hypothesis was an artefact of the broken instrument.** ⭐ With it fixed:
+
+| probe, both hosts | result |
+|---|---|
+| `GET /tkb/types` | ⭐ **10 shared templates**, plus **5 editor-only** *(`1001`,`1002`,`2001`–`2003`, registered by `UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates` — an editor-only scenario registrar, irrelevant to hill-attack)* |
+| `GET /tkb/types/{100,103,301,303}` | ⭐⭐⭐ **BYTE-IDENTICAL** |
+| template `100`'s `VehicleParametersDto` | ⛔ **6 fields only** — `Mass · Length · Width · MaxSpeedFwd · MaxSpeedRev · MaxAccel`. **No `Mobility`** *(the field that decides Tank)*, **no `TurnRate`** |
+
+⇒ ⭐⭐ **`cgf==editor` MEASURABLY HOLDS for the TKB.** ⛔ The divergence is not in the catalog.
+
+##### 🔴🔴🔴 WHERE THE EDITOR'S RICH PARAMS ACTUALLY COME FROM
+
+⭐⭐⭐ **`scenarios/hill-attack/scenario.json` STORES a complete 15-field `VehicleParams` PER ENTITY** — **6
+blocks**, and the first matches the editor's observed values **exactly**:
+
+```
+Class Tank · Length 7.93 · Width 3.66 · WheelBase 4.758 · MaxSpeedFwd 20 · MaxSpeedRev 8
+MaxAccel 2.5 · MaxDecel 4 · MaxSteerAngle 0.8 · MaxSteerRate 0.2617994 · MaxLatAccel 6
+AvoidanceRadius 5 · LookaheadTimeMin 0.8 · LookaheadTimeMax 2.5 · AccelGain 1.8
+```
+
+| host | what writes `VehicleParams` | result |
+|---|---|---|
+| ⭐ **editor** | the scenario's **stored component** is applied | **Tank**, `AccelGain 1.8` ⇒ **the tanks move** |
+| 🔴 **`--mode all`** | only `VehicleKinematicsTkbTranslator` runs — **5 fields** from the lossy DTO, everything else DEFAULT | `Class = 0 = PersonalCar`, **`AccelGain 0`** ⇒ zero acceleration forever; `MaxSteerAngle 0` ⇒ `SteerAngle` **NaN** ⇒ **a path is drawn and nothing moves** |
+
+⭐⭐ **The enumeration that settles it — only TWO production writers of `VehicleParams` exist**, and
+**neither** produces the stored values:
+
+| writer | verdict |
+|---|---|
+| `VehicleKinematicsTkbTranslator:34` | ⭐ writes exactly `Length · Width · WheelBase = Length×0.6 · MaxSpeedFwd · MaxAccel` — **this is the cluster's** |
+| `VehicleCommandSystem:73` | ⛔ the `CmdSpawnVehicle` demo path; writes `ArrivalRadius 2.0` where the scenario has **5** |
+
+⇒ ⭐⭐⭐ **the editor's values are not COMPUTED at load — they are DESERIALISED.** ⚠ `AccelGain = 1.8f`
+occurs in **exactly one place in the repo** *(`VehicleClass.cs:90`, the `Tank` preset)*, which is why the
+values look computed: they were **baked into the scenario file once** by
+`NedTkbBuilder.BuildVehicleParams` *(preset + DTO overrides + `TurnRate × π/180`)*. 📌 **That function now
+has zero callers, including inside its own file** — ⭐ so the earlier retraction of it as *"dead code"* was
+**correct about the callers**, and the arithmetic fingerprint was a fossil of its last run, not evidence
+of a live path. ⚠ Two of my three attributions here were wrong in *opposite* directions; the settled
+answer came from grepping the **decisive field** *(`AccelGain`)* rather than the type.
+
+##### ⭐⭐ THE FIX IS `CE-109`'s BUILDABLE HALF — **not a new decision**
+
+⇒ ⭐⭐⭐ **The cluster's LIVE-path scenario load drops per-entity stored components.** That is exactly the
+remaining ruling-9 duplicate: `HrotScenarioLoadHandler` *(editor · SimHost)* vs `CgfScenarioLoadHandler`
+*(CGF)*. 🔒 **And the direction is already ruled** — *"there should be nothing like cluster TKB and editor
+TKB; we need `cgf==editor`"*, with the editor canonical.
+
+| ⭐ | |
+|---|---|
+| **what to build** | the cluster adopts the **editor's** live-load handler, so stored components are applied on both hosts |
+| 🔒 **the fence that still binds** | *"the scenario loading path was tested manually pretty well in the editor so pls be carefull with any 'fixes'"* ⇒ ⛔ **the editor's path is NOT touched**; the cluster moves toward it |
+| ⚠ **what is NOT yet measured** | *which* line in `CgfScenarioLoadHandler` drops the components — the entity DID appear at the right position with a nav line, so **some** state is applied. ⛔ Do not assume it is a wholesale skip |
 
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
