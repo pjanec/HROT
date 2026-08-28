@@ -821,6 +821,11 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 Width       = preset.Width,
                 MaxSpeedFwd = maxSpeed,
                 MaxAccel    = preset.MaxAccel,
+                // Carry the class itself, not just the dimensions it implied.  Flattening
+                // the preset lost it, so the translator re-derived PersonalCar and every
+                // template in this harness got a car's steering and accel gain regardless
+                // of the vehicleClass the caller asked for.
+                VehicleClass = vehicleClass,
             });
 
             // Behavior DTO -- consumed by BehaviorTkbTranslator.

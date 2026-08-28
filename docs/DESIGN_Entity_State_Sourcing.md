@@ -3,7 +3,9 @@ state: LIVE
 updated: 2026-08-28
 build-state: DESIGN · the TKB-only half is buildable as CE-113; the SCENARIO-OVERRIDE half is
   DELIBERATELY UNIMPLEMENTED — §4 is the record of what it would take, not a plan to do it.
-current-answer: §1 is the governing rule and §3 the current intent. §4 is the unimplemented story.
+current-answer: §1 is the governing rule and §3 the current intent; §3.1 is the CE-113 AS-BUILT
+  (ruling 4 is now satisfied -- read it before quoting 4's old "the TKB cannot express a Tank").
+  §4 is the unimplemented story.
   Read §1 first; it decides every case of this shape without further analysis.
 stale-below: nothing — this document is new.
 known-rot: nothing yet.
@@ -79,11 +81,57 @@ loaded equally by all nodes needing them. Their saving to the scenario is an err
 | ① | ⭐⭐⭐ **Per-type values live ONLY in the TKB** — every node derives them identically, offline |
 | ② | ⛔ **The scenario storing translator-derived components is an ERROR**, not an override. They are stale duplicates of TKB material and are to be removed |
 | ③ | ⛔⛔ **A receiving node MUST NOT read the scenario file.** The loading node stays authoritative and sends only *published-descriptor* state |
-| ④ | ⭐ **Consequence: the TKB must be SUFFICIENT.** 🔴 It is not today — 📄 **`CE-113`**: `VehicleParametersDto` drops `Height`/`TurnRate`/`Mobility`, so **the TKB cannot express a Tank** |
+| ④ | ⭐ **Consequence: the TKB must be SUFFICIENT.** ✅ **BUILT `2026-08-28` — `CE-113`; §3.1 is the as-built** *(prior state: "🔴 It is not today — `VehicleParametersDto` drops `Height`/`TurnRate`/`Mobility`, so the TKB cannot express a Tank" — **SUPERSEDED**)* |
 
 ⭐⭐ **Ruling ③'s real purpose is not tidiness:** it is what allows **any non-scenario entity to be created
 at runtime**. A design that reads the scenario on the receiver works for scenario load and fails for every
 other spawn.
+
+### 3.1 ✅ AS-BUILT — **ruling ④ satisfied: the TKB can now express a Tank** *(`CE-113`, `2026-08-28`)*
+
+⚠⚠ **The build deviated from the plan in four ways, each measured. This section is the truth; the plan's
+wording is superseded where they disagree** *(obligation ⑤)*.
+
+| ⭐ what shipped | ⚠ deviation from the plan, and why |
+|---|---|
+| **`VehicleParametersDto` gained `TurnRate` (float) + `VehicleClass?` (nullable)** | ⛔ **`Height` was NOT added, and the plan said to add it.** 📐 Nothing on the kinematics path consumes it — `VehicleParams` has no height field and `PhysicsCollider` carries only `Radius`. ⇒ adding it would be a field nothing reads. ⭐ **Its real home is `StrideRenderModelDefDto.ShapeHeight`** *(`CE-118`'s lane)*. Same for `FuelCapacity`/`FuelConsumption` |
+| **`Mobility` became `VehicleClass?`, not `TerrainMobility`** | 🔒 **LAYERING: `Fdp.Toolkits` (which owns the DTO and the translator) cannot reference `Hrot.Core`**, where `TerrainMobility` lives. ⇒ the DTO carries the FDP-level `VehicleClass` and the enum mapping stays upstream. ⚠ The mapping is lossy *(`Air`/`Naval` → `PersonalCar`)* — **that loss predates this work and is unchanged** |
+| **`BuildVehicleParams` was SPLIT, not moved** | ⚠ the plan said *"route it into the translator"*. 📐 It cannot move whole: its first half switches on `TerrainMobility` *(Hrot.Core)* and its second half reads `VehiclePresets` *(Fdp.Toolkits)*. ⇒ **the mapping half became `NedTkbBuilder.MapMobility`; the preset+override half became `VehicleKinematicsTkbTranslator.BuildVehicleParams`.** 🔒 Semantics preserved exactly, including every `> 0f` override guard |
+| **`VehicleClass` is NULLABLE** | ⭐⭐ **not in the plan at all, and it is the load-bearing decision.** `PersonalCar` is `0`, so a non-nullable enum cannot distinguish *"authored as PersonalCar"* from *"absent"* — and **absent is the normal case for any TKB json predating the field** |
+
+#### ⭐⭐⭐ Why nullability matters — **the TWO-PRODUCER hazard, and the reason this fix is not self-securing**
+
+📐 **Measured:** `VehicleParametersDto` is filled by **two independent producers**:
+
+| producer | source of the three fields |
+|---|---|
+| `NedTkbBuilder.WithPhysics` *(code)* | `SimVehicleDef` — ✅ **fixed permanently by this batch** |
+| the generated thunk ← `TkbDeserializer` | 🔴 **whatever a staged TKB zip's json says** — ⛔ **untouched by this batch** |
+
+⇒ ⚠⚠ **When a real TKB zip is staged, `TkbLoadClusterStateHandler:96` calls `_tkbDb.Clear()` and REPLACES
+the code catalog**, so the DTO is filled from json alone. Json authored against the old six-field schema
+simply lacks the new properties, and `System.Text.Json` defaults them **silently**
+*(`UnmappedMemberHandling` is unset ⇒ `Skip`)*.
+
+🔴 **So the defect would return, wearing a different face:** `Mobility`-as-`0` would have meant
+`TerrainMobility.Tracked`, and `TurnRate = 0` ⇒ `MaxSteerRate = 0` ⇒ **a vehicle that accelerates but can
+never change its steer angle drives straight forever.** ⭐⭐ **Two things prevent it:** the class is
+**nullable** so absence is visible rather than guessed, and **every float override is guarded by `> 0f`** so
+an absent value keeps the preset's. ⇒ ⭐ **the worst case is now "the wrong class", never "a zeroed
+envelope".**
+⚠ **One authoring constraint follows:** `FdpJsonOptionsRegistry.DefaultRelaxed` registers
+`StrictStringEnumConverter`, so **`"VehicleClass": "Tank"` is required and `"VehicleClass": 3` throws.**
+📄 Ruled a **feature** — a loud failure beats a silent integer-as-enum guess — and pinned by a rail.
+🔴 **`CE-119`** *(user, `2026-08-28`)* adds load-time validation so plainly-wrong TKB values are reported in
+HROT's log rather than inferred.
+
+#### ⚠ Known incompleteness — **stated, not hidden**
+
+| | |
+|---|---|
+| ⭐ **`Hrot.SimHost.Integration.Tests`' harness FIXED** | 📐 `SimHostInstance.cs:818` already **took** a `VehicleClass`, used it to pick a preset, then flattened it into the six-field DTO — **losing the caller's class.** ⇒ now carries `VehicleClass = vehicleClass`. ⭐ Direct evidence the missing field was FELT |
+| ⚠ **~15 `FDP/Examples` producers still author no class** | ⇒ they resolve to `PersonalCar`. ⛔ **NOT fixed: out of `CE-113`'s scope** *(the reported symptom is the HROT cluster)*. ⭐ **They are strictly better than before** — a real preset baseline instead of zeros — just not the right class. 📌 Several are visibly tank-shaped *(`Length 7.0`, `Width 3.5`, `MaxSpeedFwd 12`)* |
+| ⚠ **`VehiclePresets.GetPreset` does not stamp its own `Class`** | 📐 Found while writing the rails: `GetPreset(Tank).Class == PersonalCar`. ⇒ **every caller must assign `Class` itself** — the silent-default shape. The translator does; a rail pins the trap descriptively |
 
 ---
 
