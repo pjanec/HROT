@@ -6,10 +6,11 @@ build-state: DESIGN — UML AUTHORED 2026-08-28 (section 3.2b: one classDiagram 
   closed gate yields chrome-without-entities exactly as measured. It also OVERTURNED recommendation (1):
   GZH-003 shows the per-host initial Enabled state is DELIBERATE (interactive on, headless-first off), so
   "Enabled = true everywhere" is retracted and startEnabled becomes a host rule the context supplies.
-  TWO blockers remain before READY-TO-BUILD. (1) READ SECTION 3.2a: the pack as drawn in 3.2b
-  SCHEDULES SYSTEMS, which the standing constraint (DESIGN_Subsystem_Composition_Unification 3.2,
-  a user ruling) forbids -- the corrected shape is DECLARE-the-required-systems + report-unserviceable,
-  and the class diagram must be REDRAWN. One architect call is open there for the user. (2) re-size. RW-M in PLAN_Interaction_UX_Backlog section 4 is
+  UML REDRAWN 2026-08-28 to the construct-vs-schedule split, after the user ruled "pack owns
+  construction, host decides scheduling" (section 3.2a's architect call is CLOSED). MapInteractionContext
+  deliberately carries no ModuleHostKernel, so the section 3.2 violation is unreachable rather than merely
+  forbidden. ONE blocker remains before READY-TO-BUILD: re-size -- RW-M in PLAN_Interaction_UX_Backlog
+  section 4 is light now the pack owns construction + execution and must also adopt IGizmoVisibilityPolicy. RW-M in PLAN_Interaction_UX_Backlog section 4 is
   LIGHT now the pack owns composition + execution rather than registration alone.
 verified: 2026-08-28 (coordinator source scan)
 current-answer: NOT-BUILT (design only) -- confirmed independently 2026-08-28: grep finds ZERO
@@ -373,71 +374,98 @@ gizmo systems = the run-set = that node's role.** ⇒ 🔒 **headless SimHost le
 `GZH-003`'s intent — and the viewer-count model (§3.2b) is how a host with a viewer turns them on.** ⛔ What
 is *not* legitimate is the current third state: **the systems present, the gate shut, and nothing said.**
 
-⚠⚠ **ONE ARCHITECT CALL REMAINS FOR THE USER** *(large blast radius ⇒ not mine to settle)*: the gizmo
-execution systems are **run-set** by §3.1's letter, yet 📐 **all five hosts already register the same three**
-*(§2c)* ⇒ so consolidating their CONSTRUCTION removes duplication **without changing what any host
-computes**. 🔒 **Question: may the pack own the CONSTRUCTION of systems every host already runs, provided
-the HOST still decides whether to schedule them?** ⭐ **My lean: YES** — it is deduplication, not topology,
-and §3.1's harm *(giving a host compute it did not have)* cannot occur. ⛔ **But it is a knowing exception
-to §3.2's letter and needs an explicit ruling, not a silent one.**
+✅✅ **RESOLVED `2026-08-28` — 🔒 USER RULING: *"yes, pack owns construction, host decides scheduling"*.**
+⇒ ⭐⭐ **the pack may CONSTRUCT the machinery every host already runs** *(§2c: all five register the same
+three)*, because that is deduplication and not topology — §3.1's harm *(giving a host compute it did not
+have)* cannot occur. ⛔ **The HOST alone schedules**, per its role. ⭐ **Enforced structurally, not by
+review:** `MapInteractionContext` carries **no `ModuleHostKernel`**, so the pack *cannot* schedule — the
+same technique `UiBundleContext` uses. 📄 **Drawn in §3.2b.**
 
-### 3.2b ⭐⭐⭐ THE UML — **authored `2026-08-28`, AFTER the §2c enumeration** *(obligation ②)*
+### 3.2b ⭐⭐⭐ THE UML — **REDRAWN `2026-08-28` to the construct-vs-schedule split** *(obligation ②)*
 
-⚠⚠ **READ §3.2a FIRST.** The class diagram below shows `MapInteractionPack` **scheduling systems into the host kernel** and a `MapInteractionContext` carrying `Kernel` + `InteractionBus` — ⛔ **both are forbidden by the standing constraint** *(`DESIGN_Subsystem_Composition_Unification.md` §3.2)*. 🔒 **The diagram is retained as the as-drawn record; §3.2a's DECLARE-and-report shape supersedes it and the diagram must be redrawn before this design is dispatchable.**
+> 🔒 **USER RULING, `2026-08-28`:** *"yes, pack owns construction, host decides scheduling; redraw the
+> diagram"* ⇒ ⭐⭐ **this settles §3.2a's open architect call.** The pack may **construct** the machinery
+> every host already runs; ⛔ **the host alone decides whether to SCHEDULE it**, because that is the
+> run-set and the run-set follows the host's role *(`DESIGN_Subsystem_Composition_Unification.md` §3.1)*.
+>
+> ⛔ **The previous drawing had `MapInteractionPack` scheduling into the kernel and a context carrying
+> `ModuleHostKernel` — both forbidden by §3.2.** ⭐ It is deleted rather than kept: 📄 §3.2a records what it
+> got wrong and why, which is the part worth surviving.
 
-> 🔒 **Reading rule:** every box marked **`«existing»`** is real code with its file named. ⛔ Only
-> `MapInteractionPack` and `MapInteractionContext` are new. ⭐ **That is the point of drawing it** — the
-> shared machinery already exists in `Fdp.Toolkits`/`Hrot.Common`; what does not exist is **one place that
-> composes it**, which is why five hosts each grew their own.
+⭐ **Every box marked `«existing»` is real code with its file.** ⛔ Only the three `«new»` boxes are new —
+and note that **none of them is a system**: they construct, declare and report.
 
-#### Class diagram — **the pack owns COMPOSITION, and the parts are already shared**
+#### Class diagram — **two types on two sides of the fence**
 
 ```mermaid
 classDiagram
     class MapInteractionPack {
         <<new>>
-        +Register(MapInteractionContext ctx) MapInteraction
+        +Build(MapInteractionContext ctx) MapInteraction
     }
     class MapInteractionContext {
         <<new>>
         +EntityRepository World
-        +ModuleHostKernel Kernel
         +FdpEventBus InteractionBus
-        +IEntityComponentWriterFactory WriterFactory
+        +GizmoSettingsRegistry Settings
+        +WriterFactory WriterFactory
         +bool IsReadOnly
     }
     class MapInteraction {
         <<new>>
         +DebugPrimitiveBuffer Buffer
+        +TogglablePostSimulationGroup GizmoGroup
+        +IEcsModuleSystem[] InteractionSystems
         +GizmoExecutionController Gate
-        +AddListener()
-        +RemoveListener()
+        +Type[] RequiredSystems
+        +Unserviceable(hostRunSet) string[]
+    }
+    class MapInteractionBundle {
+        <<new — IUiBundle>>
+        +Name
+        +Register(UiBundleContext ctx)
     }
 
+    class IUiBundle {
+        <<existing interface>>
+        Fdp.Presentation/ImGui/IUiBundle.cs
+        may NOT register a system
+    }
+    class UiBundleContext {
+        <<existing>>
+        withholds Kernel and Bus by design
+    }
     class GizmoReflectionRegistrar {
         <<existing>>
-        Diagnostics/Gizmos/GizmoReflectionRegistrar.cs
-        +RegisterAll(registry, stateless, settings)
-    }
-    class GizmoRegistry {
-        <<existing>>
-        Diagnostics/Gizmos/GizmoRegistry.cs
+        Diagnostics/Gizmos
+        +RegisterAll(reg, stateless, settings)
     }
     class StatelessGizmoRegistry {
         <<existing>>
-        Diagnostics/Gizmos/StatelessGizmoRegistry.cs
+        Diagnostics/Gizmos
+    }
+    class IGizmoVisibilityPolicy {
+        <<existing interface>>
+        Diagnostics/Gizmos
+        +IsGloballyEnabled(view) bool
     }
     class GizmoSettingsRegistry {
         <<existing>>
-        Diagnostics/Gizmos/Settings/GizmoSettingsRegistry.cs
+        Diagnostics/Gizmos/Settings
+        Global Project Session scopes
+    }
+    class StatelessGizmoSystem {
+        <<existing>>
+        Diagnostics/Gizmos/Systems
+        runs every GizmoProjector
     }
     class DataDrivenGizmoSystem {
         <<existing>>
-        Diagnostics/Gizmos/Systems/DataDrivenGizmoSystem.cs
+        Diagnostics/Gizmos/Systems
     }
     class GlobalGizmoManager {
         <<existing>>
-        Diagnostics/Gizmos/Systems/GlobalGizmoManager.cs
+        Diagnostics/Gizmos/Systems
     }
     class TogglablePostSimulationGroup {
         <<existing>>
@@ -445,8 +473,8 @@ classDiagram
         +bool Enabled
     }
     class GizmoExecutionController {
-        <<existing — TO BE FIXED>>
-        Diagnostics/Gizmos/GizmoExecutionController.cs
+        <<existing — clamp + assert>>
+        Diagnostics/Gizmos
         -int _listenerCount
         +AddListener()
         +RemoveListener()
@@ -455,111 +483,75 @@ classDiagram
         <<existing>>
         Fdp.Diagnostics.Contracts
     }
-    class IStatelessGizmo {
-        <<existing interface>>
-        +Draw(view, entity, draw)
-    }
-
-    class GlobalActionRegistry {
-        <<existing>>
-        Hrot.Common/Interactions
-    }
-    class GlobalActionDispatchSystem {
-        <<existing>>
-        Hrot.Common/Systems
-    }
-    class ContextActionIngressSystem {
-        <<existing>>
-        Hrot.Common/Systems
-    }
-    class SelectionInteractionSystem {
-        <<existing>>
-        Hrot.Presentation/ScenarioEditor/Systems
-    }
-    class RubberBandState {
-        <<existing>>
-        Hrot.Presentation/ScenarioEditor/Gizmos
-    }
-    class CanvasMenuUpdateSystem {
-        <<existing>>
-        Hrot.Presentation/Systems
-    }
-    class LayerControlGizmo {
-        <<existing>>
-        Hrot.Common/Diagnostics/Gizmos
-    }
-    class EntityWriteRouter {
-        <<existing>>
-        Fdp.Toolkits/Replication/Attributes
+    class ModuleHostKernel {
+        <<existing — HOST ONLY>>
+        Fdp.ModuleHost
+        +RegisterModule()
     }
     class IGizmoControllable {
         <<existing interface>>
         Hrot.Common/Diagnostics/Gizmos
-        +GizmoExecutionController GizmoController
     }
 
     MapInteractionPack ..> MapInteractionContext : consumes
-    MapInteractionPack --> MapInteraction : returns
-    MapInteractionPack ..> GizmoReflectionRegistrar : calls RegisterAll
-    MapInteractionPack ..> GlobalActionRegistry : binds the full id set
-    MapInteractionPack ..> GlobalActionDispatchSystem : installs
-    MapInteractionPack ..> ContextActionIngressSystem : installs
-    MapInteractionPack ..> SelectionInteractionSystem : installs WITH state
-    MapInteractionPack ..> CanvasMenuUpdateSystem : installs
-    MapInteractionPack ..> LayerControlGizmo : installs
-    MapInteractionPack ..> EntityWriteRouter : supplies as writer factory
-
-    GizmoReflectionRegistrar ..> GizmoRegistry : populates
+    MapInteractionPack --> MapInteraction : CONSTRUCTS and returns
+    MapInteractionPack ..> GizmoReflectionRegistrar : RegisterAll
     GizmoReflectionRegistrar ..> StatelessGizmoRegistry : populates
-    GizmoReflectionRegistrar ..> GizmoSettingsRegistry : populates
-    StatelessGizmoRegistry o-- IStatelessGizmo : holds projectors
+    StatelessGizmoRegistry o-- IGizmoVisibilityPolicy : per rule
+    IGizmoVisibilityPolicy ..> GizmoSettingsRegistry : reads values
 
-    MapInteraction *-- DebugPrimitiveBuffer : owns 1
-    MapInteraction *-- GizmoExecutionController : owns 1
-    GizmoExecutionController --> TogglablePostSimulationGroup : gates 1
+    MapInteraction *-- DebugPrimitiveBuffer : owns
+    MapInteraction *-- TogglablePostSimulationGroup : owns
+    MapInteraction *-- GizmoExecutionController : owns
+    TogglablePostSimulationGroup o-- StatelessGizmoSystem
     TogglablePostSimulationGroup o-- DataDrivenGizmoSystem
     TogglablePostSimulationGroup o-- GlobalGizmoManager
-    DataDrivenGizmoSystem ..> StatelessGizmoRegistry : reads
-    DataDrivenGizmoSystem ..> DebugPrimitiveBuffer : writes
-    SelectionInteractionSystem o-- RubberBandState : 0..1 today. 1 after
-    IGizmoControllable ..> GizmoExecutionController : exposes
-    MapInteraction ..|> IGizmoControllable : satisfies for every host
+    GizmoExecutionController --> TogglablePostSimulationGroup : gates
+    MapInteraction ..|> IGizmoControllable : satisfies
+
+    MapInteractionBundle ..|> IUiBundle : implements
+    MapInteractionBundle ..> UiBundleContext : windows panels commands only
+    MapInteractionBundle ..> MapInteraction : DECLARES RequiredSystems
+    MapInteractionBundle ..> MapInteraction : REPORTS Unserviceable
+
+    ModuleHostKernel ..> TogglablePostSimulationGroup : HOST schedules
+    ModuleHostKernel ..> MapInteraction : HOST schedules InteractionSystems
 ```
 
-⭐⭐ **What the diagram makes obvious, and prose did not:** ⛔ **`MapInteraction` is the box that does not
-exist today.** Each host builds `DebugPrimitiveBuffer` + `TogglablePostSimulationGroup` +
-`GizmoExecutionController` **inline in its own `Initialize`** — so the *"owns 1"* relations are drawn once
-here and implemented five times in the repo. ⇒ 🔒 **`IGizmoControllable` becomes satisfied BY THE PACK**,
-which is what gives `ReplayBrowser` a controller *(§2c: it has none)* without anyone remembering to add one.
+⭐⭐⭐ **What the redraw makes structurally impossible, which the prose could only ask for:**
 
-#### Sequence 1 — **composition at host init** *(what replaces five hand-wirings)*
+| | |
+|---|---|
+| ⭐⭐ **`MapInteractionContext` no longer carries `ModuleHostKernel`** | ⇒ ⛔ **the pack CANNOT schedule** — the §3.2 violation is unreachable, not merely forbidden. 📌 Exactly how `UiBundleContext` enforces the same rule |
+| ⭐⭐ **the only arrows INTO `ModuleHostKernel` come FROM the host** | ⇒ 🔒 the run-set stays the host's role, visibly |
+| ⭐ **`MapInteractionBundle` is a separate box implementing `IUiBundle`** | ⇒ the axis-1 half *(windows · panels · commands)* goes through the existing bundle seam, unchanged |
+| ⭐⭐⭐ **`Unserviceable(hostRunSet)` is a METHOD, not a convention** | ⇒ ⛔ *"silently no-op"* stops being expressible — the canon rule that would have caught this bug becomes a call site |
+
+#### Sequence 1 — **construct, hand over, schedule, attach**
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Host as Any ECS map host
     participant Pack as MapInteractionPack
-    participant Refl as GizmoReflectionRegistrar
-    participant Grp as TogglablePostSimulationGroup
-    participant Gate as GizmoExecutionController
+    participant MI as MapInteraction
     participant Kernel as ModuleHostKernel
+    participant Win as Window or terminal
 
-    Host->>Pack: Register(ctx)
-    Note over Pack: ctx carries World, Kernel, bus,<br/>writer factory, IsReadOnly
-    Pack->>Refl: RegisterAll(registry, stateless, settings)
-    Refl-->>Pack: every [GizmoProjector] type, uniformly
-    Pack->>Pack: new DebugPrimitiveBuffer()
-    Pack->>Grp: new TogglablePostSimulationGroup("GizmoExecution")
-    Pack->>Grp: Enabled = true
-    Note over Grp: ONE initial-state policy.<br/>Today IG and Editor say true,<br/>CGF and SimHost say false.
-    Pack->>Gate: new GizmoExecutionController(grp, global, dataDriven)
-    Pack->>Kernel: schedule grp at ctx-supplied position
-    Note over Host,Kernel: The host supplies WHERE only.<br/>It never decides WHETHER.
-    Pack-->>Host: MapInteraction (buffer + gate)
-    Note over Host: Host exposes it as IGizmoControllable.<br/>ReplayBrowser gets one for free.
+    Host->>Pack: Build(ctx)
+    Note over Pack: ctx has World, bus, Settings,<br/>writer factory, IsReadOnly.<br/>NO kernel: it cannot schedule.
+    Pack->>Pack: RegisterAll projectors, uniformly
+    Pack->>MI: construct buffer, group, gate, systems
+    Note over MI: group starts DISABLED for everyone.<br/>No per-host literal anywhere.
+    Pack-->>Host: MapInteraction
+    Host->>Kernel: schedule MI.GizmoGroup
+    Host->>Kernel: schedule MI.InteractionSystems
+    Note over Host,Kernel: HOST decides this, per its ROLE.<br/>A headless node may schedule nothing.
+    Win->>MI: viewer attached, Gate.AddListener()
+    Note over MI: count 0 to 1, group ENABLED.<br/>Same rule on every host.
 ```
 
-#### Sequence 2 — 🔴 **the perspective switch, and the bug this design exists to kill**
+#### Sequence 2 — **the boot case, now correct by construction**
 
 ```mermaid
 sequenceDiagram
@@ -568,99 +560,33 @@ sequenceDiagram
     participant SG as SimHost gate
     participant CG as CGF gate
 
-    Note over SG,CG: BOOT. SimHost is the active perspective.<br/>No switch has happened, so nobody called AddListener.<br/>count SimHost=0 Enabled=false. count CGF=0 Enabled=false.
-    PC->>SG: RemoveListener() for the OUTGOING perspective
-    Note over SG: count 0 to -1. The == 0 branch is skipped.<br/>Enabled stays FALSE.
-    PC->>CG: AddListener() for the INCOMING perspective
-    Note over CG: count 0 to 1. Enabled = TRUE. CGF draws.
-    Note over SG,CG: MEASURED: Scenario 739 primitives, 69 non-Line.
-    PC->>CG: RemoveListener() switching back
-    Note over CG: count 1 to 0. Enabled = false.
+    Note over SG,CG: BOOT. SimHost is the active perspective,<br/>so it HAS a viewer and adds a listener.<br/>SimHost count=1 enabled. CGF count=0 off.
+    PC->>SG: RemoveListener() leaving SimHost
+    Note over SG: count 1 to 0. Correctly disabled.
+    PC->>CG: AddListener() entering CGF
+    Note over CG: count 0 to 1. Enabled.
+    PC->>CG: RemoveListener() leaving CGF
     PC->>SG: AddListener() returning to SimHost
-    Note over SG: count -1 to 0. NOT 1, so Enabled is NEVER SET.<br/>SimHost is dead for the life of the process.
-    Note over SG: MEASURED: 605 primitives, 3 non-Line,<br/>identical on visits 1, 2 and 3.
+    Note over SG: count 0 to 1. ENABLED. Entities draw.
+    Note over SG,CG: No count can go negative.<br/>An assert guards it as now-impossible.
 ```
 
-🔒 **The fix the pack carries, drawn as behaviour rather than prose:**
+⚠ **Contrast with the defect this replaces** *(§3.0)*: the old flow had **no listener at boot**, so leaving
+first drove the count to **−1** and `AddListener` returned **0**, never `1` — 📐 measured as SimHost's
+`605/3` on visits 1, 2 **and** 3. ⭐ **Step 1 above is the entire fix**, and it is a *structural* one: the
+active-at-boot perspective is a viewer like any other.
 
-| # | change | why the diagram forced it |
+#### 🔒 The fix set, final
+
+| # | | where it lives |
 |---|---|---|
-| **①** | **`Enabled = true` at construction, for every host** | sequence 1 step 6 — a single arrow where five hosts each had their own literal |
-| **②** | **clamp the counter; `RemoveListener` below zero is an assert** | sequence 2 step 2 is the whole defect, and it is invisible unless the boot case is drawn |
-| **③** | **the boot perspective gets an `AddListener` on activation** | ⇒ *"left before it is entered"* stops being expressible |
-| **④** | **`IGizmoControllable` satisfied by the pack** | class diagram: `ReplayBrowser` cannot have a null gate any more |
-
-#### ✅ VERIFICATION CLOSED — **and the fix set was rewritten TWICE, by the user** *(`2026-08-28`)*
-
-📐 **What is inside the gate** *(`SimHostApp.cs:434-443`)*: the group `"GizmoExecution"` holds
-`GlobalGizmoManager`, `DataDrivenGizmoSystem` and **`StatelessGizmoSystem`** — the runner for every
-`[GizmoProjector]`, so for `SimHostEntityPresentationGizmo`. The grid, `LayerControlMask` and the two menu
-bindings come from systems **outside** it *(host chrome, always drawn)*. ⇒ ✅ **a closed gate yields exactly
-the measured chrome-without-entities. §3.0's mechanism stands; a second suppressing filter is eliminated.**
-
-##### ⛔ Correction 1 — *"`Enabled = true` everywhere"* was retracted *(the design corpus says the split is deliberate)*
-
-📄 **`.dev/_DONE/gizmos-2-headless/TASK-DETAILS.md` §`GZH-003`:** *"For each subsystem that runs in
-interactive mode by default (IG, Editor), keep `Enabled = true` at startup — they already open a window.
-For headless-first subsystems (SimHost, CGF), start `Enabled = false`."* ⇒ a headless SimHost must not pay
-for gizmo execution with nobody watching, and `GZH-003` ships integration tests asserting it.
-📌 `R-129`: I had proposed that fix from code alone.
-
-##### 🔒🔒🔒 Correction 2 — **and `startEnabled` IS NOT A HOST RULE EITHER** *(user, and this is the design)*
-
-> ⭐⭐⭐ **User, verbatim:** *"If map is same everywhere, then there are no default true/false needed per
-> host. the only conidition for map rendering is headless (=no map and no other UI) or not (=map with all
-> UI) … I realized the map is not exaclt same for different hosts, like IG might support eidting some
-> shapes while SimHost does not; but because all needs to be rendered by the same code we need to have
-> some configuration (that can enable or disable some gizmos or something). And i think such configuration
-> exists already and it is the only thing that is NOT shared per host regarding map rendering."*
-
-⛔⛔ **My *"`startEnabled` is a host rule the context supplies"* still conceded per-host divergence — it just
-renamed the literal as a parameter.** 🔒 **The correct model is stricter and simpler:**
-
-| ⭐ | |
-|---|---|
-| ⭐⭐⭐ **`Enabled` is NEVER assigned by hand. It is a pure function of the VIEWER COUNT** | which is what `GizmoExecutionController` already is — a reference count. ⇒ **headless = no viewer = 0 = off**, on every host, by the same rule |
-| ⭐⭐ **`Enabled = true` in IG/Editor is a hand-set SHORTCUT for *"I have a window"*** | ⇒ replace the literal with an **`AddListener()` at window/terminal attach**. ⭐ Same outcome, no per-host constant |
-| ⭐⭐⭐ **`GZH-003`'s headless-first intent is then preserved BY CONSTRUCTION** | ⛔ not by a per-host literal ⇒ **its two integration tests still pass, and the divergence is gone.** ⭐ This satisfies correction 1 and correction 2 at once |
-| ⭐⭐ **and the BOOT BUG DISSOLVES STRUCTURALLY** | the active-at-boot perspective **is** a viewer ⇒ it adds a listener ⇒ count is `1`, leaving takes it to `0` *(correctly off)*, returning to `1`. 🔒 **No negative count can arise**, so clamping becomes an **assert on a now-impossible state**, not the fix |
-
-##### ⭐⭐⭐ AND THE PER-HOST VARIATION ALREADY HAS A HOME — **`IGizmoVisibilityPolicy`, and NOTHING ADOPTS IT**
-
-🔒 **The user's *"such configuration exists already"* is correct, and measuring its adoption explains the
-whole divergence.** 📐 Measured `2026-08-28`:
-
-| the seam | state |
-|---|---|
-| **`IGizmoVisibilityPolicy`** *(`Diagnostics/Gizmos/IGizmoVisibilityPolicy.cs`)* — `IsGloballyEnabled(view)`, carried by **every** `IGizmoDefinition`/`StatelessGizmoRegistry` rule, pre-evaluated once per rule per frame in `StatelessGizmoSystem:68-79` | ✅ **built, on the hot path, per gizmo** |
-| **`GizmoSettingsRegistry`** *(`Settings/GizmoSettingsRegistry.cs`)* — keyed settings with defaults, active values, `SettingScope`, dirty tracking and JSON persistence | ✅ **built** |
-| 🔴 **production suppliers of a non-default policy** | 🔴🔴 **ONE — `EntityDragGizmo.cs:255`, and it returns `AlwaysVisiblePolicy.Instance`, i.e. the default.** ⛔ **No host varies anything. No policy implementation exists beyond `Always`/`Never`.** |
-
-⇒ ⭐⭐⭐ **THE CAUSAL CHAIN, and it is this design's missing *why*:**
-
-1. the intended per-host variation mechanism **exists** *(visibility policy + settings)*;
-2. **nothing adopts it** — one supplier, returning the default;
-3. ⇒ so a host with a genuine capability difference *(«IG edits shapes, SimHost does not»)* expresses it the
-   only other way available: **by wiring a different subset in its own `Initialize`**;
-4. ⇒ **that per-host wiring is what rotted** *(§2b's CGF↔SimHost inversion)* **and what hides execution
-   faults** *(§3.0's gate bug)*.
-
-🔒 **So the pack does not merely remove duplication — it removes the REASON hosts diverged**, by making the
-configuration seam **the only place variation can live**. ⭐ **Seam-law instance again:** *"we need a shared
-X"* turned out to mean *"X exists and is unadopted"* — ⛔ here the unadopted seam is not the pack, it is the
-**policy** the pack must finally route through.
-
-##### 🔒 The fix set, corrected
-
-| # | |
-|---|---|
-| ⛔ ~~① `Enabled = true` everywhere~~ | **retracted** *(correction 1)* |
-| ⛔ ~~② `startEnabled` as a host rule~~ | **retracted** *(correction 2)* — it renamed the divergence |
-| ⭐⭐⭐ **③ `Enabled` is derived from the viewer count, nowhere assigned** | one rule, every host. Headless = 0 = off. IG/Editor `AddListener()` when their window attaches |
-| ⭐⭐ **④ the active-at-boot perspective adds a listener on activation** | ⇒ *"left before it is entered"* becomes inexpressible |
-| ⭐ **⑤ assert on a negative count** | it is now provably a bug, not a state to absorb |
-| ⭐⭐⭐ **⑥ ALL per-host capability difference routes through `IGizmoVisibilityPolicy` + `GizmoSettingsRegistry`** | 🔒 **the ONLY thing not shared.** ⇒ needs real policies *(today: one supplier, returning the default)* — ⚠ **this is now a first-class part of the work, not a footnote** |
-| ⭐ **⑦ `IGizmoControllable` satisfied by the pack** | `ReplayBrowser` cannot hold a null gate *(§2c)* |
+| ⭐⭐⭐ **①** | **`Enabled` is derived from the viewer count and assigned nowhere** | `MapInteractionPack` constructs it disabled; viewers add listeners |
+| ⭐⭐⭐ **②** | **the active-at-boot perspective adds a listener on activation** | `PerspectiveCoordinatorSystem` / host activation |
+| ⭐⭐ **③** | **assert on a negative count** | `GizmoExecutionController` |
+| ⭐⭐⭐ **④** | **the HOST schedules; the pack only constructs** | 🔒 the user's ruling, enforced by `ctx` having no kernel |
+| ⭐⭐⭐ **⑤** | **declare required systems + report unserviceable** | `MapInteractionBundle` — ⛔ never a silent no-op |
+| ⭐⭐ **⑥** | **all per-host capability variation is an `IGizmoVisibilityPolicy` value** | ⚠ needs real policies *(today: one supplier, returning the default)* — ⚠ **and `SettingScope` has no per-host scope yet** |
+| ⭐ **⑦** | **`IGizmoControllable` satisfied by `MapInteraction`** | ⇒ `ReplayBrowser` cannot hold a null gate |
 
 ### 3.3 Binding the unbound
 
@@ -704,7 +630,10 @@ entirely.
 | ⭐ 23.15 | 🔒 **A negative listener count is unreachable**, and asserted against — parameterised over *boot-then-leave*, *enter-then-leave*, and *leave-twice* | H |
 | ⭐⭐ 23.16 | 🔒 **Every per-host capability difference is expressed as an `IGizmoVisibilityPolicy` / `GizmoSettingsRegistry` value, and NOWHERE ELSE.** 📐 Baseline `2026-08-28`: **one** production supplier, returning the default ⇒ ⛔ *"a host wires a different subset"* must be **unrepresentable** after this lands | H |
 
-**13 H · 3 I · 0 V.** ⚠ *(was 9 H — `23.13`-`23.16` come from §3.2b's two corrections; they are the acceptance half of "share the mechanism, let the rule vary through a parameter".)*
+| ⭐⭐ 23.17 | 🔒 **The pack CANNOT schedule** — `MapInteractionContext` exposes no kernel/module registry, asserted by a compile-time-shaped rail *(the type has no such member)*; ⛔ and no `MapInteraction*` type calls `RegisterModule`/`RegisterGlobalSystem` | H |
+| ⭐⭐⭐ 23.18 | 🔒 **A host that does not schedule the required systems is REPORTED, never silent** — `Unserviceable(hostRunSet)` names them, parameterised over a host that schedules none. 📌 **This is the case that would have caught SimHost's empty map** | H |
+
+**15 H · 3 I · 0 V.** ⚠ *(was 9 H — `23.13`-`23.16` come from §3.2b's two corrections; they are the acceptance half of "share the mechanism, let the rule vary through a parameter".)*
 
 ## 5. ✅ CLOSED — the nine orphan ids are a **capability gap**, not a binding choice
 
