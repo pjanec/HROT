@@ -92,6 +92,29 @@ namespace Hrot.Editor.DebugApi
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.TimeDrive);
 
         /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-110</c> — THIS HOST'S TKB CATALOG, resolved exactly like <see cref="_world"/> and
+        /// <see cref="_time"/>: the editor's own, else the ACTIVE PERSPECTIVE's.</b>
+        /// 📄 <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.10.
+        ///
+        /// <para>🔴🔴 <b>This used to be <c>_tkbDb = tkbDb ?? new TkbDatabase()</c> — a private EMPTY
+        /// catalog.</b> 📐 Measured `2026-08-28`: <c>ClusterRunner/Program.cs:429</c> passes no
+        /// <c>tkbDb:</c>, so on <c>--mode all</c> <c>GET /tkb/types</c> answered <c>[]</c> and
+        /// <c>/tkb/types/303</c> answered <i>"not found"</i> — ⛔ while every node's
+        /// <c>HrotNodeBuilder:197</c> had built a real catalog from <c>HrotEnvironment.CreateTkb()</c>.</para>
+        ///
+        /// <para>⛔⛔ <b>THROWS rather than returning an empty catalog, and that is the whole point.</b>
+        /// ⚠⚠ The old default is the *"lying in the safe-looking direction"* shape this file's own
+        /// <c>BP-487</c> remarks call worse than lying loudly: <b>an empty list is a valid-looking
+        /// answer</b>, so nothing downstream can tell *"this node knows no templates"* from *"nobody wired
+        /// the catalog."* 📌 It cost a wrong root-cause hypothesis for <c>CE-103</c> — the empty result was
+        /// read as proof that the cluster's TKB genuinely differed from the editor's. ⭐ Ruling 49:
+        /// absent-and-explained beats present-and-broken.</para>
+        /// </summary>
+        private Fdp.Interfaces.ITkbDatabase _tkbDb
+            => _editorTkbDb ?? _dispatcher?.TkbDb
+               ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.TkbRead);
+
+        /// <summary>
         /// ⭐⭐⭐ <b><c>BP-487</c> — THIS HOST'S MAP FEED, resolved the same way as
         /// <see cref="_world"/>/<see cref="_time"/>: the editor's own buffer, else the ACTIVE PERSPECTIVE's.
         /// 📄 <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.6 ·
@@ -184,7 +207,11 @@ namespace Hrot.Editor.DebugApi
             => new Hrot.Presentation.DebugApi.NotSupportedHereException(capability);
 
         // Group M / N dependencies
-        private readonly TkbDatabase           _tkbDb;
+        /// <summary>
+        /// ⭐ The EDITOR's own catalog, handed in by <c>EditorSubsystem</c>. ⛔ <see langword="null"/> in the
+        /// cluster shape, where <see cref="_tkbDb"/> follows the ACTIVE PERSPECTIVE instead.
+        /// </summary>
+        private readonly TkbDatabase?          _editorTkbDb;
         private readonly IGeographicTransform  _geoTransform;
         private readonly float                 _spatialGridCellSize;
         private readonly float                 _spatialGridOriginX;
@@ -390,7 +417,7 @@ namespace Hrot.Editor.DebugApi
             //    rather than pretending. ⚠ The production caller MUST pass it (CLAUDE.md's silent-default rule:
             //    a caller that HAS the dependency must pass it) — EditorSubsystem does.
             _editorRequestTransition = requestTransition;
-            _tkbDb             = tkbDb            ?? new TkbDatabase();
+            _editorTkbDb       = tkbDb            ?? new TkbDatabase();   // ⭐ the editor DOES pass one; kept non-null so its shape is unchanged
             _geoTransform      = geoTransform     ?? new Fdp.Modules.Geographic.Transforms.WGS84Transform();
             _spatialGridCellSize = spatialGridCellSize;
             _spatialGridOriginX  = spatialGridOriginX;
@@ -444,7 +471,12 @@ namespace Hrot.Editor.DebugApi
             _dispatcher         = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
             _clusterStateGetter = clusterState;
 
-            _tkbDb        = tkbDb        ?? new TkbDatabase();
+            // ⭐⭐⭐ CE-110 — ⛔⛔ NO `?? new TkbDatabase()` HERE. That default is what made /tkb/* answer
+            //    `[]` on every cluster node: the composition root passes nothing, so the service latched a
+            //    private EMPTY catalog and reported it as this node's truth. ⭐ Left null, `_tkbDb` falls
+            //    through to the ACTIVE PERSPECTIVE's real catalog (`_dispatcher.TkbDb`), and if a node
+            //    genuinely has none the route says NOT_SUPPORTED_HERE instead of lying with an empty list.
+            _editorTkbDb  = tkbDb;
             _geoTransform = geoTransform ?? new Fdp.Modules.Geographic.Transforms.WGS84Transform();
 
             _spatialGridCellSize = 5.0f;

@@ -213,6 +213,147 @@ public sealed class TheGizmoFeedIsPerPerspectiveTests
         Assert.Null(Dispatcher("NoSuchPerspective").MissionEditor);
     }
 
+    // ══════════════════════════════════════════════════════════════════════════════════════════════
+    // ⭐⭐⭐ CE-110 — THE TKB CATALOG, the THIRD member of this seam and the third instance of ONE
+    //     defect at ONE line (ClusterRunner/Program.cs:429). 📄 §5.10.
+    //
+    // 🔴🔴 What separates this one from the two above, and why it earned its own rails: the gizmo feed
+    //     and the mission editor were ABSENT (404 / "no mission service") — loud, and obviously wrong.
+    //     ⛔⛔ The catalog was WRONG-BUT-PLAUSIBLE: `_tkbDb = tkbDb ?? new TkbDatabase()` meant
+    //     `GET /tkb/types` answered `[]` and `/tkb/types/303` answered "not found" — ⚠⚠ VALID-LOOKING
+    //     ANSWERS, which is why they were believed. 📌 Measured 2026-08-28, the empty list was read as
+    //     evidence that the cluster's TKB genuinely differed from the editor's, and it became the
+    //     leading hypothesis for CE-103 (tanks that will not move). ⇒ ⭐⭐⭐ AN INSTRUMENT THAT REPORTS
+    //     ABSENT WHERE THE TRUTH IS PRESENT DOES NOT MERELY FAIL TO HELP — IT ARGUES FOR THE WRONG
+    //     ROOT CAUSE. Once fixed, the same probe showed all 10 shared templates IDENTICAL on both
+    //     hosts, which refuted the hypothesis outright.
+    // ══════════════════════════════════════════════════════════════════════════════════════════════
+
+    private static Fdp.Toolkit.Tkb.TkbDatabase ACatalogWith(params long[] tkbTypes)
+    {
+        var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+        foreach (var t in tkbTypes)
+            db.Register(new Fdp.Interfaces.TkbTemplate($"Template{t}", t));
+        return db;
+    }
+
+    private static PerspectiveScopedDispatcher TwoHostsWithCatalogs(
+        Fdp.Interfaces.ITkbDatabase? scenarioHas, Fdp.Interfaces.ITkbDatabase? exConHas, string active)
+        => new(
+            new ISubsystemDebugProvider[]
+            {
+                new SubsystemDebugProvider("CGF",   "Scenario", tkbDb: () => scenarioHas),
+                new SubsystemDebugProvider("ExCon", "ExCon",    tkbDb: () => exConHas),
+            },
+            currentPerspective: () => active,
+            acksPending: null);
+
+    /// <summary>
+    /// ⭐⭐ A provider given a catalog reports it; one given none reports ABSENT — ⛔ never an empty
+    /// catalog. 📌 Ruling 49, and here the distinction is the whole finding: an empty catalog reads as
+    /// *"this node knows no templates"*, which is a claim about DATA. *"This node has no catalog"* is a
+    /// claim about CAPABILITY. ⚠ The old silent default made the second indistinguishable from the first.
+    /// </summary>
+    [Fact]
+    public void A_provider_reports_its_own_catalog_and_absence_is_absence()
+    {
+        var catalog = ACatalogWith(100, 303);
+
+        var has = new SubsystemDebugProvider("CGF", "Scenario", tkbDb: () => catalog);
+        var has_not = new SubsystemDebugProvider("ExCon", "ExCon", tkbDb: null);
+
+        Assert.Same(catalog, has.TkbDb);
+        Assert.Null(has_not.TkbDb);
+
+        // ⭐⭐⭐ MEASURED from the wiring. ⛔ Before CE-110 this cell DID NOT EXIST: CapabilityManifest
+        //    classified every /tkb route as the bare string "tkb.read" and no provider ever reported that
+        //    key — so the routes were documented while their availability was never checked at all.
+        Assert.True(has.DescribeCapabilities()[DebugCapabilities.TkbRead]);
+        Assert.False(has_not.DescribeCapabilities()[DebugCapabilities.TkbRead]);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The accessor is LAZY, and for this member that is LOAD-BEARING rather than defensive.</b>
+    /// ⚠⚠ <c>TkbLoadClusterStateHandler</c> does not merely populate a catalog late — it <b>CLEARS and
+    /// RE-INGESTS</b> it on every <c>PrepareLive</c>/<c>PrepareEdit</c>, swapping in the scenario's own
+    /// TKB. ⇒ ⛔ a value-captured provider would report the BOOT catalog forever, so the node's actual
+    /// scenario templates would never appear — and, being a non-empty plausible list, nobody would
+    /// suspect it. 📌 A strictly worse failure than the <c>time.drive</c> bug that made these accessors
+    /// lazy in the first place, because that one at least reported <c>false</c>.
+    /// </summary>
+    [Fact]
+    public void The_catalog_is_read_late_so_a_reingested_TKB_is_seen()
+    {
+        Fdp.Interfaces.ITkbDatabase? current = null;
+        var provider = new SubsystemDebugProvider("SimHost", "SimHost", tkbDb: () => current);
+
+        // ⛔ Before the node stages anything: honestly absent.
+        Assert.Null(provider.TkbDb);
+        Assert.False(provider.DescribeCapabilities()[DebugCapabilities.TkbRead]);
+
+        // ⭐ Boot: HrotNodeBuilder's HrotEnvironment.CreateTkb() catalog.
+        var atBoot = ACatalogWith(100);
+        current = atBoot;
+        Assert.Same(atBoot, provider.TkbDb);
+
+        // ⭐⭐ PrepareLive: the handler swaps in the scenario's TKB. A latched provider fails HERE.
+        var afterLoad = ACatalogWith(100, 303, 8802);
+        current = afterLoad;
+
+        Assert.Same(afterLoad, provider.TkbDb);
+        Assert.NotSame(atBoot, provider.TkbDb);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The dispatcher resolves the ACTIVE perspective's catalog</b> — ⛔ never a host-wide one.
+    /// ⭐⭐ For this member that is not a precaution but a REQUIREMENT: each node loads its own
+    /// scenario-specific TKB from its own staging area, so a single latched catalog would report one
+    /// node's templates as every node's. ⚠ Two providers, per this class's <c>BP-485</c> remarks — with
+    /// one, the rail would pass whether or not the dispatcher resolved anything.
+    /// </summary>
+    [Fact]
+    public void The_dispatcher_resolves_the_active_perspectives_catalog()
+    {
+        var cgf = ACatalogWith(303);
+
+        Assert.Same(cgf, TwoHostsWithCatalogs(cgf, null, active: "Scenario").TkbDb);
+        Assert.Null(TwoHostsWithCatalogs(cgf, null, active: "ExCon").TkbDb);
+        Assert.Null(TwoHostsWithCatalogs(cgf, null, active: "NoSuchPerspective").TkbDb);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>SubsystemDebugProvider.TkbFrom</c> reads the WORLD SINGLETON — the same handle every
+    /// PRODUCTION reader resolves.</b> 📌 <c>DisEntityTypeTranslator</c>,
+    /// <c>EntityPresentationGizmoShared</c> and <c>IgApplication</c> all read it from the world.
+    ///
+    /// <para>⛔⛔ <b>Why not each subsystem's private field</b> *(CGF holds <c>_context.TkbDb</c>)*: the
+    /// API would then be able to report a catalog the node's own systems do NOT consult. ⚠ That is a
+    /// subtler version of the very lie CE-110 fixes and a much harder one to notice — the answer would
+    /// look right.</para>
+    ///
+    /// <para>⚠ Also pins the <b>absent</b> arm, which is <c>CE-111</c>'s red-proof: CGF registered no
+    /// such singleton *(SimHost and IG both did)*, so before that fix this accessor would have reported
+    /// null for the Scenario perspective.</para>
+    /// </summary>
+    [Fact]
+    public void TkbFrom_reads_the_world_singleton_every_production_reader_uses()
+    {
+        var world   = new Fdp.Core.EntityRepository();
+        var catalog = ACatalogWith(100, 303);
+
+        var accessor = SubsystemDebugProvider.TkbFrom(() => world);
+
+        // ⛔ CE-111's shape: a world whose owner never published the singleton.
+        Assert.Null(accessor());
+
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(catalog);
+        Assert.Same(catalog, accessor());
+
+        // ⭐ And a subsystem with no world at all (ExCon) is absent, not a throw — composition calls
+        //   this during boot, where an exception would take the host down.
+        Assert.Null(SubsystemDebugProvider.TkbFrom(() => null)());
+    }
+
     /// <summary>
     /// ⭐ The narrowest possible stand-in: these rails only ever ask *"is it there?"*, so every member
     /// throws. ⛔ A stub that returned plausible values would invite a future rail to assert against

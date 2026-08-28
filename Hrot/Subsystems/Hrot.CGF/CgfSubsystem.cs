@@ -388,6 +388,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    routes sat UNCLASSIFIED in CapabilityFor, which kept the manifest rail red.
             // ⚠ Lazy: the service is created during window registration, well after this provider is built.
             missionEditor: () => _missionService,
+            // ⭐⭐⭐ CE-110 — CGF's OWN catalog. ⭐ Read off the world singleton (registered by CE-111 in
+            //    RegisterDomainComponents) rather than from `_context.TkbDb` directly, so that what /tkb/*
+            //    reports is provably the instance CGF's CreateEntityRequestSystem and NetworkSpawningSystem
+            //    resolve against — 📌 see TkbFrom's remarks on why a private handle is the subtler lie.
+            tkbDb:         Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                               .TkbFrom(() => _context?.World),
             // ⭐⭐ HN-029: the node's own orchestration bus — the same one its ClusterSlave and
             //    ClusterOpEgressTranslator sit on, so a transition requested here reaches the master by the
             //    path the operator's own "Load into Live" button takes.
@@ -535,6 +541,22 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // geo-aware params (hill/baseline positions) resolve to 0,0,0.
         if (_context.GeoTransform != null)
             _context.World.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_context.GeoTransform);
+
+        // ⭐⭐⭐ CE-111 — THE TKB CATALOG AS A WORLD SINGLETON, and this is the same omission the comment
+        //    directly above documents for the geo transform: CGF held the dependency and never published it.
+        // 📐 Measured 2026-08-28: SimHostNodeBootstrapper:179 and IgNodeBootstrapper:133 both register it;
+        //    CGF passed `_context.TkbDb` straight to CreateEntityRequestSystem and NetworkSpawningSystem
+        //    (line ~650/~659) and registered NOTHING ⇒ every consumer that resolves it FROM THE WORLD found
+        //    nothing and degraded SILENTLY, because all of them guard with HasSingletonManaged:
+        //      · DisEntityTypeTranslator:38    — DIS entity types not translated on CGF
+        //      · EntityPresentationGizmoShared:60 — the map's per-entity presentation falls back
+        // ⚠ Both are `if (has) …` with no else, so there was no log line and no failure — 📌 the shape
+        //   ruling 53 exists to catch, and a direct `cgf==editor` violation.
+        // ⛔ NOT a fix for the empty /tkb answer (that was CE-110's silent default); this is the production
+        //   half found while measuring it, and the two are independent.
+        if (_context.TkbDb != null)
+            _context.World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(_context.TkbDb);
+
         CgfComponentRegistry.RegisterAll(_context.World);
 
         // ── Register base infrastructure modules ───────────────────────────────

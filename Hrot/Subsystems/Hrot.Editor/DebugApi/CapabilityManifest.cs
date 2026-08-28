@@ -103,7 +103,11 @@ public static class CapabilityManifest
         if (path.StartsWith("/attributes", StringComparison.Ordinal))  return DebugCapabilities.WorldRead;
         if (path.StartsWith("/world", StringComparison.Ordinal))       return DebugCapabilities.WorldRead;
         if (path.StartsWith("/perspective", StringComparison.Ordinal)) return "perspective.switch";
-        if (path.StartsWith("/tkb", StringComparison.Ordinal))         return "tkb.read";
+        // ⭐⭐ CE-110 — was the bare string "tkb.read". ⛔ No provider reported that key, so every /tkb
+        //    route was classified for the docs while its availability was never MEASURED — which is how
+        //    --mode all's empty catalog stayed invisible. The constant + the provider cell close it.
+        if (path.StartsWith("/tkb", StringComparison.Ordinal))
+            return Hrot.Presentation.DebugApi.DebugCapabilities.TkbRead;
         if (path.StartsWith("/components", StringComparison.Ordinal))  return "registry.read";
         if (path.StartsWith("/commands", StringComparison.Ordinal))    return "registry.read";
         if (path.StartsWith("/events", StringComparison.Ordinal))      return "events.read";
