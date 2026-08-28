@@ -1,6 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: NOT-BUILT
+build-state: DESIGN — UML AUTHORED 2026-08-28 (section 3.2b: one classDiagram + two
+  sequenceDiagrams, all parsing). NOT yet READY-TO-BUILD: two things block it, both named in 3.2b —
+  (a) one verification owed on which group emits SimHost's surviving 4 primitive kinds, and (b) the
+  RW-M size in PLAN_Interaction_UX_Backlog section 4 is LIGHT now that the pack owns execution.
 verified: 2026-08-28 (coordinator source scan)
 current-answer: NOT-BUILT (design only) -- confirmed independently 2026-08-28: grep finds ZERO
   occurrences of MapInteractionPack/MapInteractionContext. No shared pack; IG fork
@@ -213,6 +216,11 @@ elimination pass *(`CE-123`)* and was found only by a user looking at two screen
 across alternating switches, while `Scenario` read **739 / 69** on each of its visits — exactly what an
 unclamped counter starting from a `RemoveListener` predicts.
 
+⚠⚠ **NOT FULLY CLOSED — see §3.2b's closing subsection.** 📐 SimHost's frame still carries
+`LayerControlMask`, `MainMenuBinding`, `ContextMenuBinding` and 602 grid `Line`s, so **some emission
+survives there.** ⇒ the counter mechanism above is **measured and real**; whether it is the **whole**
+explanation is **not** — one verification is owed before the fix in ①–③ can be called correct.
+
 #### ⇒ What the pack must therefore own
 
 | # | |
@@ -299,6 +307,226 @@ and reports why**, rather than omitting it:
 > ⚠ **§3.2's uniform-membership rule still holds** — the **pack** registers the full set; the *menu* then
 > shows what this host can actually do. Membership is uniform, **visibility is earned**. That keeps the
 > "forgot to call registrar #3" failure impossible without producing dead rows.
+
+### 3.2b ⭐⭐⭐ THE UML — **authored `2026-08-28`, AFTER the §2c enumeration** *(obligation ②)*
+
+> 🔒 **Reading rule:** every box marked **`«existing»`** is real code with its file named. ⛔ Only
+> `MapInteractionPack` and `MapInteractionContext` are new. ⭐ **That is the point of drawing it** — the
+> shared machinery already exists in `Fdp.Toolkits`/`Hrot.Common`; what does not exist is **one place that
+> composes it**, which is why five hosts each grew their own.
+
+#### Class diagram — **the pack owns COMPOSITION, and the parts are already shared**
+
+```mermaid
+classDiagram
+    class MapInteractionPack {
+        <<new>>
+        +Register(MapInteractionContext ctx) MapInteraction
+    }
+    class MapInteractionContext {
+        <<new>>
+        +EntityRepository World
+        +ModuleHostKernel Kernel
+        +FdpEventBus InteractionBus
+        +IEntityComponentWriterFactory WriterFactory
+        +bool IsReadOnly
+    }
+    class MapInteraction {
+        <<new>>
+        +DebugPrimitiveBuffer Buffer
+        +GizmoExecutionController Gate
+        +AddListener()
+        +RemoveListener()
+    }
+
+    class GizmoReflectionRegistrar {
+        <<existing>>
+        Diagnostics/Gizmos/GizmoReflectionRegistrar.cs
+        +RegisterAll(registry, stateless, settings)
+    }
+    class GizmoRegistry {
+        <<existing>>
+        Diagnostics/Gizmos/GizmoRegistry.cs
+    }
+    class StatelessGizmoRegistry {
+        <<existing>>
+        Diagnostics/Gizmos/StatelessGizmoRegistry.cs
+    }
+    class GizmoSettingsRegistry {
+        <<existing>>
+        Diagnostics/Gizmos/Settings/GizmoSettingsRegistry.cs
+    }
+    class DataDrivenGizmoSystem {
+        <<existing>>
+        Diagnostics/Gizmos/Systems/DataDrivenGizmoSystem.cs
+    }
+    class GlobalGizmoManager {
+        <<existing>>
+        Diagnostics/Gizmos/Systems/GlobalGizmoManager.cs
+    }
+    class TogglablePostSimulationGroup {
+        <<existing>>
+        Fdp.ModuleHost/Scheduling
+        +bool Enabled
+    }
+    class GizmoExecutionController {
+        <<existing — TO BE FIXED>>
+        Diagnostics/Gizmos/GizmoExecutionController.cs
+        -int _listenerCount
+        +AddListener()
+        +RemoveListener()
+    }
+    class DebugPrimitiveBuffer {
+        <<existing>>
+        Fdp.Diagnostics.Contracts
+    }
+    class IStatelessGizmo {
+        <<existing interface>>
+        +Draw(view, entity, draw)
+    }
+
+    class GlobalActionRegistry {
+        <<existing>>
+        Hrot.Common/Interactions
+    }
+    class GlobalActionDispatchSystem {
+        <<existing>>
+        Hrot.Common/Systems
+    }
+    class ContextActionIngressSystem {
+        <<existing>>
+        Hrot.Common/Systems
+    }
+    class SelectionInteractionSystem {
+        <<existing>>
+        Hrot.Presentation/ScenarioEditor/Systems
+    }
+    class RubberBandState {
+        <<existing>>
+        Hrot.Presentation/ScenarioEditor/Gizmos
+    }
+    class CanvasMenuUpdateSystem {
+        <<existing>>
+        Hrot.Presentation/Systems
+    }
+    class LayerControlGizmo {
+        <<existing>>
+        Hrot.Common/Diagnostics/Gizmos
+    }
+    class EntityWriteRouter {
+        <<existing>>
+        Fdp.Toolkits/Replication/Attributes
+    }
+    class IGizmoControllable {
+        <<existing interface>>
+        Hrot.Common/Diagnostics/Gizmos
+        +GizmoExecutionController GizmoController
+    }
+
+    MapInteractionPack ..> MapInteractionContext : consumes
+    MapInteractionPack --> MapInteraction : returns
+    MapInteractionPack ..> GizmoReflectionRegistrar : calls RegisterAll
+    MapInteractionPack ..> GlobalActionRegistry : binds the full id set
+    MapInteractionPack ..> GlobalActionDispatchSystem : installs
+    MapInteractionPack ..> ContextActionIngressSystem : installs
+    MapInteractionPack ..> SelectionInteractionSystem : installs WITH state
+    MapInteractionPack ..> CanvasMenuUpdateSystem : installs
+    MapInteractionPack ..> LayerControlGizmo : installs
+    MapInteractionPack ..> EntityWriteRouter : supplies as writer factory
+
+    GizmoReflectionRegistrar ..> GizmoRegistry : populates
+    GizmoReflectionRegistrar ..> StatelessGizmoRegistry : populates
+    GizmoReflectionRegistrar ..> GizmoSettingsRegistry : populates
+    StatelessGizmoRegistry o-- IStatelessGizmo : holds projectors
+
+    MapInteraction *-- DebugPrimitiveBuffer : owns 1
+    MapInteraction *-- GizmoExecutionController : owns 1
+    GizmoExecutionController --> TogglablePostSimulationGroup : gates 1
+    TogglablePostSimulationGroup o-- DataDrivenGizmoSystem
+    TogglablePostSimulationGroup o-- GlobalGizmoManager
+    DataDrivenGizmoSystem ..> StatelessGizmoRegistry : reads
+    DataDrivenGizmoSystem ..> DebugPrimitiveBuffer : writes
+    SelectionInteractionSystem o-- RubberBandState : 0..1 today. 1 after
+    IGizmoControllable ..> GizmoExecutionController : exposes
+    MapInteraction ..|> IGizmoControllable : satisfies for every host
+```
+
+⭐⭐ **What the diagram makes obvious, and prose did not:** ⛔ **`MapInteraction` is the box that does not
+exist today.** Each host builds `DebugPrimitiveBuffer` + `TogglablePostSimulationGroup` +
+`GizmoExecutionController` **inline in its own `Initialize`** — so the *"owns 1"* relations are drawn once
+here and implemented five times in the repo. ⇒ 🔒 **`IGizmoControllable` becomes satisfied BY THE PACK**,
+which is what gives `ReplayBrowser` a controller *(§2c: it has none)* without anyone remembering to add one.
+
+#### Sequence 1 — **composition at host init** *(what replaces five hand-wirings)*
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Host as Any ECS map host
+    participant Pack as MapInteractionPack
+    participant Refl as GizmoReflectionRegistrar
+    participant Grp as TogglablePostSimulationGroup
+    participant Gate as GizmoExecutionController
+    participant Kernel as ModuleHostKernel
+
+    Host->>Pack: Register(ctx)
+    Note over Pack: ctx carries World, Kernel, bus,<br/>writer factory, IsReadOnly
+    Pack->>Refl: RegisterAll(registry, stateless, settings)
+    Refl-->>Pack: every [GizmoProjector] type, uniformly
+    Pack->>Pack: new DebugPrimitiveBuffer()
+    Pack->>Grp: new TogglablePostSimulationGroup("GizmoExecution")
+    Pack->>Grp: Enabled = true
+    Note over Grp: ONE initial-state policy.<br/>Today IG and Editor say true,<br/>CGF and SimHost say false.
+    Pack->>Gate: new GizmoExecutionController(grp, global, dataDriven)
+    Pack->>Kernel: schedule grp at ctx-supplied position
+    Note over Host,Kernel: The host supplies WHERE only.<br/>It never decides WHETHER.
+    Pack-->>Host: MapInteraction (buffer + gate)
+    Note over Host: Host exposes it as IGizmoControllable.<br/>ReplayBrowser gets one for free.
+```
+
+#### Sequence 2 — 🔴 **the perspective switch, and the bug this design exists to kill**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant PC as PerspectiveCoordinatorSystem
+    participant SG as SimHost gate
+    participant CG as CGF gate
+
+    Note over SG,CG: BOOT. SimHost is the active perspective.<br/>No switch has happened, so nobody called AddListener.<br/>count SimHost=0 Enabled=false. count CGF=0 Enabled=false.
+    PC->>SG: RemoveListener() for the OUTGOING perspective
+    Note over SG: count 0 to -1. The == 0 branch is skipped.<br/>Enabled stays FALSE.
+    PC->>CG: AddListener() for the INCOMING perspective
+    Note over CG: count 0 to 1. Enabled = TRUE. CGF draws.
+    Note over SG,CG: MEASURED: Scenario 739 primitives, 69 non-Line.
+    PC->>CG: RemoveListener() switching back
+    Note over CG: count 1 to 0. Enabled = false.
+    PC->>SG: AddListener() returning to SimHost
+    Note over SG: count -1 to 0. NOT 1, so Enabled is NEVER SET.<br/>SimHost is dead for the life of the process.
+    Note over SG: MEASURED: 605 primitives, 3 non-Line,<br/>identical on visits 1, 2 and 3.
+```
+
+🔒 **The fix the pack carries, drawn as behaviour rather than prose:**
+
+| # | change | why the diagram forced it |
+|---|---|---|
+| **①** | **`Enabled = true` at construction, for every host** | sequence 1 step 6 — a single arrow where five hosts each had their own literal |
+| **②** | **clamp the counter; `RemoveListener` below zero is an assert** | sequence 2 step 2 is the whole defect, and it is invisible unless the boot case is drawn |
+| **③** | **the boot perspective gets an `AddListener` on activation** | ⇒ *"left before it is entered"* stops being expressible |
+| **④** | **`IGizmoControllable` satisfied by the pack** | class diagram: `ReplayBrowser` cannot have a null gate any more |
+
+#### ⚠⚠ ONE VERIFICATION STILL OWED — **do not treat §3.0 as fully closed**
+
+📐 SimHost's frame is **not** empty: it carries `LayerControlMask`, `MainMenuBinding`, `ContextMenuBinding`
+and **602 grid `Line`s**. ⇒ ⚠ **some emission survives on SimHost**, so either those come from **outside**
+the togglable group *(`LayerControlGizmo` is an `IEntityStatefulGizmo`, and `CanvasMenuUpdateSystem` is a
+separate system — both plausible)*, **or** the group is enabled and a second filter suppresses the
+per-entity projectors.
+🔒 **Both are execution-side and both are fixed by the pack owning composition — but they are DIFFERENT
+faults, and the fix in ①–③ is only correct for the first.** ⇒ ⭐ **Before building, confirm which group each
+of those four primitive kinds is emitted from.** ⛔ Do not let this section read as settled when that is
+unmeasured: the counter mechanism is **measured and real**, its **sufficiency as the whole explanation is
+not**.
 
 ### 3.3 Binding the unbound
 
