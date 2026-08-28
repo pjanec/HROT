@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: ⭐⭐⭐ §13 (the DESCRIPTOR-SPACE readiness mask) is the CURRENT answer. ⛔ §12.4's
-  component-id mask is REJECTED — it leaked an FDP component id onto the wire, which breaks Q59 §7.
+current-answer: ⭐⭐⭐ §14 (the USER'S WAIT-FLAG + ONE AGGREGATE UPDATE) is the CURRENT answer —
+  FEASIBILITY CHECKED and it is cheaper than §13. ⛔ BOTH my masks are dead: §12.4's leaked an FDP
+  component id onto the wire (breaks Q59 §7); §13's uint64 has a CEILING the user rejected.
   Then §12 (which CORRECTS
   §11.3's overstatement — the readiness gate IS built and working for EntityInfo + SimTransform).
   Then §11 (the design sweep) — it supersedes §10.5's
@@ -793,3 +794,76 @@ PASS it"* pattern for the fourth time in this area.
 
 ⇒ ⭐ **This is the third iteration and I believe it is the right shape** — ⛔ **but it is a proposal, not a
 ruling**, and §13.5's blocker has to be measured before anyone estimates it.
+
+
+---
+
+## 14. ⭐⭐⭐ FEASIBILITY — **the user's WAIT-FLAG + ONE AGGREGATE UPDATE.** ✅ **Feasible, and cheaper than §13** *(`2026-08-28`)*
+
+> 🔒 **User:** *"64 descriptors is not enough, number will grow. 64-byte long bitmask in entityMaster also
+> not acceptable (some entities are lightweight and numerous). What about a flag in EntityMaster that this
+> entity must wait in ghost state until a certain update arrives from the requestor. It could be descriptor
+> network update (the binary form). One single update message containing everything. Waiting node accepts
+> whatever is present in that update (owned components only). Only then the ghost promotion unblocks."*
+
+⭐⭐⭐ **The insight that beats both my designs: the receiver does not need to know WHAT is coming, only
+THAT something is.** ⇒ ⛔ no enumeration ⇒ **no ceiling**, which is precisely what killed §13's `uint64`,
+and no per-entity payload, which is what killed the 64-byte mask for lightweight entities.
+
+### 14.1 ✅ THE FEASIBILITY TABLE — **measured, four of five parts already exist**
+
+| element | 📐 verdict |
+|---|---|
+| ⭐⭐⭐ **the flag in `EntityMaster`** | ✅✅ **FREE — NO IDL CHANGE AT ALL.** `EntityMaster` already has `public ulong Flags` *("Extra info on how to create the entity; might be owner specific; 0=default")*, and 📐 **`EntityMasterEgressTranslator:103` writes `Flags = 0` and NOTHING reads it** ⇒ the whole 64-bit field is unused. ⭐ One bit costs nothing |
+| ⭐⭐ **"owned components only"** | ✅✅ **ALREADY THE ESTABLISHED PATTERN, on both sides.** 📐 `if (!view.HasAuthority(entity, packedKey)) continue;` in `EntityMasterEgress:73` · `NavigationStatusEgress:83` · `EntityDamageEgress:86`; and on ingress `EntityInfoIngress:178` · `GeoSpatialIngress:85` *(`HasAuthority<SimTransform>`)* · `EntityMissionIngress:98`. ⇒ ⛔ **nothing new to build** |
+| ⭐⭐ **the ECS→descriptor map** | ✅ **and better than §13 needed.** ⭐⭐⭐ **The creator does NOT need the INVERSE map** — each egress translator already knows its own components *and* its own `DescriptorOrdinal`, so the bundle is assembled by asking translators to emit, not by looking components up. ⇒ 🔴 **§13.5's `TargetComponentIds` 9-of-41 blocker DISAPPEARS** |
+| ⭐ **promotion unblock** | ✅ cheap — `GhostStateTracker` *(already on every ghost)* gains **one bit**; promotion checks `!waitFlag \|\| bundleReceived` beside the existing `MandatoryComponents` check. ⛔ No mask anywhere |
+| ⚠ **the aggregate update message** | ⚠ **NEW TOPIC — the only genuinely new artefact.** 📐 `UpdateEntityDescriptorRequest` carries **exactly ONE** descriptor *(`DescriptorType` + `PartId` + a single `EntityDescriptorUnion Payload`)*, so it is not it. ⭐ **But the sequence shape is PROVEN on the wire**: `CreateEntityRequest.InitialDescriptors` is a `List<EntityDescriptorUnion>` and crosses DDS today *(`NedIgNetworkAdapter:217`, `NedTranslationHelper:17`)* ⇒ a new `{ EntityId, sequence<EntityDescriptorUnion> }` is a **known-marshalable** shape, not a gamble |
+
+⇒ ⭐⭐ **Net cost: one new topic, one free flag bit, one bit on `GhostStateTracker`, one branch in promotion.**
+⛔ **Compare §13:** a wire-struct field *with a ceiling*, a second mask, an OR in every ingress, and a
+blocked dependency on an under-adopted seam.
+
+### 14.2 ⚠ THE ONE REAL DESIGN COST — **assembling the bundle**
+
+⭐ `IDescriptorTranslator` is **one interface for both directions** — 📐 `EntityInfoEgressTranslator :
+IDescriptorTranslator` implements `ScanAndPublish(view)` and no-ops `ApplyToEntity`; the ingress ones do the
+reverse. ⛔ **But `ScanAndPublish` scans ALL entities** — there is **no "emit for entity E" member today**.
+
+| option | |
+|---|---|
+| **(i)** ⭐ **add `TryBuildFor(entity, out descriptor)` to `IDescriptorTranslator`** and have the creator poll every translator once for the new entity | ⭐ **positive declaration by the party that owns the knowledge.** ⚠⚠ **A default of *"return nothing"* is the SILENT-EMPTY trap this codebase has been bitten by four times** *(`TargetComponentIds` 9-of-41 is the same shape)* ⇒ 🔒 **it must be railed: assert the bundle covers the creator's override set** |
+| **(ii)** ⛔ derive the descriptor set from the overridden components via inverse `TargetComponentIds` | ⛔ **reintroduces §13.5's blocker.** Do not |
+
+### 14.3 🔴 THE RESIDUAL HOLE — **stated plainly, because dropping the enumeration is not free**
+
+⭐ The flag says *"wait for the bundle"*; it does **not** say *"and here is what must be in it."*
+⇒ ⛔⛔ **if the bundle arrives missing a descriptor the creator intended, promotion unblocks anyway and the
+omission is SILENT.** ⚠ The guarantee weakens from *"every override was applied"* to *"the creator's bundle
+arrived."*
+
+🔒 **This matters because of the user's own ruling** — *"if scenario wants it, it must be fulfilled."*
+⭐⭐ **Mitigations, cheapest first:**
+
+| # | | |
+|---|---|---|
+| **①** | ⭐⭐⭐ **assert coverage ON THE CREATOR, at bundle-build time** | it knows both the override set *(step 8)* and what the translators produced ⇒ **a mismatch is a loud local failure before anything is published.** ⭐ Best value: it turns a silent distributed hole into a local assertion |
+| **②** | ⭐ **carry a count in the bundle** and have the receiver check it applied that many | catches truncation in transit; ⛔ not a missing-translator |
+| **③** | ⚠ a `T2` rail comparing creator-side override set against receiver-side component values | the real end-to-end proof, and it is `Q64-3`'s brain-vs-muscle rail with a sharper assertion |
+
+### 14.4 ⭐ VERDICT
+
+✅ **Feasible.** ⭐⭐ **I recommend it over §13** — it removes the ceiling, the per-entity payload, *and* my
+blocked dependency, at the price of one new topic and mitigation ① for the residual hole.
+⚠ **It is less elegant than "nothing to wait for"**, as the user said — ⛔ **but that option is
+architecturally impossible here**, because ghost creation is **first-touch across ten translators**
+*(§13.2)*, so there is no single creating sample to carry the payload.
+
+⚠⚠ **STILL UNMEASURED — do not estimate before checking:**
+
+| ⚠ | |
+|---|---|
+| ⛔ **which node WRITES the bundle, and whether the editor can** | 📌 `CreateEntityRequest`'s writer is composed by `NedNetworkFactory` on NED hosts only; the editor's `OfflineNetworkFactory` returns `null` for the CGF adapters. ⚠ **In `--mode editor` there is no wire at all — the flag must be a no-op there, not a hang** |
+| ⛔ **`Volatile` durability vs a late-joining node** | 📌 unchanged from §13.6 — a node joining after the bundle was published never sees it and **would wait forever with a Hard flag.** ⭐ `TransientLocal` on the bundle topic would fix it; ⚠ that is a QoS decision with history-cache cost |
+| ⛔ **how many translators actually need `TryBuildFor`** | ⭐ only those carrying scenario-overridable state — 📌 **not all 41.** Scope it from §8.2's list before estimating |
+| ⛔ **whether `EDescriptorType` growth breaks `EntityDescriptorUnion`'s IDL union** | the union is `[DdsCase]`-per-arm; adding arms is routine, ⚠ but unverified against the generated counterpart |
