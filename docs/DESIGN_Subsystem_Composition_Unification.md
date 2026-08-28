@@ -2245,6 +2245,74 @@ pause-step-inspect loop the debug API documents could not work at all.
 edit load's silent success)* are untouched — ⭐ but `CE-101` made `CE-103` **measurable for the first time**,
 because until now the sim could not be stepped or trusted to be running.
 
+### 5c.17 ⭐⭐⭐ `CE-102` / `HN-039` — **CGF's missing EDIT-LOAD handler.** `build-state: BUILT` *(`2026-08-28`)*
+
+> 🔒 **User, `--mode all` visual check:** *"when i load hill-attack scenario using the toolbar button, it does
+> NOT show on the map, i do not see any entity no matter how i zoom the map — editor shows it nicely."*
+
+⚠⚠ **This was already filed as `HN-039`** and blessed as a CGF-lane follow-up by
+[`UXI-37` ruling 65](blueprints/../UX/UX_Feature_Cgf_Brain_Diagnostics.md). ⛔ **`CE-102` was a DUPLICATE** —
+📌 filed because the symptom was met from the UI side while the existing row describes it from the
+MCP-conformance side. ⭐ What the new evidence adds is that it is **user-visible**, not merely a gap in a
+conformance diff.
+
+#### 5c.17.1 📐 THE CHAIN, TRACED END TO END
+
+```mermaid
+sequenceDiagram
+    participant U as operator
+    participant T as toolbar shell.openAsset
+    participant R as AssetPickActionRouter
+    participant S as EditorScenarioSession
+    participant C as cluster (CGF node)
+    U->>T: click Open Asset, pick a Scenario
+    T->>R: Route(asset)
+    R->>S: OpenForEdit(name)          %% Kind == Scenario
+    S->>C: TransitionStateIntent{TargetState = OperatingEdit}
+    Note over C: CgfScenarioLoadHandler.CanHandle accepts PrepareState<br/>ONLY when TargetState == OperatingLive
+    C-->>U: ok:true, entityCount 0, gizmo = grid lines only
+```
+
+⭐⭐ **So the decline was explicit, not accidental** — and the load still reported success, which is why the
+operator sees an empty map with no error *(the `ok:true` family, §5b of the MCP skill)*.
+
+#### 5c.17.2 🔴 WHAT BLOCKED THE OBVIOUS FIX — **one required argument**
+
+📐 CGF held **6 of the 7** dependencies `HrotEditLoadHandler` needs, *one line above* the registration it was
+missing from *(serializer, loader, extractor, source, id allocator, world)*. ⛔ The seventh —
+`IZoneManagerService` — was **required** and CGF composes none; `CgfSubsystem.cs:736` already records that as
+a **genuine absence**, not a silent default.
+
+⇒ ⭐⭐ **A required dependency that one host cannot supply kept an entire capability off that host.**
+📌 The inverse of the silent-default rule: there the caller HAD the value and withheld it; here the callee
+DEMANDED a value that does not exist on this host.
+
+#### 5c.17.3 ✅ THE FIX — **the SHARED handler, one argument relaxed, the absence REPORTED**
+
+| ⭐ | |
+|---|---|
+| ⭐⭐ **`zoneService` is now `IZoneManagerService?`** | 📐 it is used in exactly ONE place — `LoadZones` |
+| ⭐⭐⭐ **and a scenario WITH zones on a host with no zone manager WARNS** | *"entities were loaded, zones were NOT … a declared absence, not a load failure"* ⇒ ⛔ **absent-and-explained (ruling 49)**, never silently half-loaded |
+| ⭐ **CGF registers the SAME handler the editor and SimHost do** | ⛔ not a `CgfEditLoadHandler`: ruling 65 settles the principle *("bringing editing machinery onto a runtime node is perfectly OK")*, and a private copy would be a second implementation of one concept |
+
+⚠⚠ **KNOWN LIMIT, stated rather than left to be discovered:** this does **not** pass CGF's
+`behaviorRemapper`, which the LIVE path does. ⭐ Entities load and render; **whether their behaviours bind on
+this host is `CE-103`'s question**, not this one.
+
+#### 5c.17.4 ⭐⭐ GATED ON A REAL BOOT
+
+| | before | after |
+|---|---|---|
+| `entityCount` after an edit load on the Scenario perspective | ⛔ **0** | ✅ **8** |
+| `/panels/_gizmo` non-`Line` shapes | ⛔ **none** *(603 primitives, all grid)* | ✅ `Box2D` 8 · `Arrow` 12 · `Text` 8 · `SemanticShape` 16 · `SpatialAnchor` 16 |
+| `isPaused` | — | ✅ still `true` *(`CE-101` holding)* |
+
+⚠ **Suite note:** `Hrot.Presentation.Tests` and `Hrot.SimHost.Tests` each produced ONE red on a single run and
+then **3/3 green** *(Presentation)* / **1-red-identical-to-base, 3 runs** *(SimHost)*. ⛔ Both reds were over
+**process-global registries** and the Presentation identity **rotated** between runs
+*(`ScenarioFileServiceTests.SaveLoad_RoundTrip`, then `EntityDragGizmoTests` with "Component type ID 51 is not
+registered")* ⇒ 📌 the `CE-084`/`CE-088` family, now confirmed in two more assemblies.
+
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |
 |---|---|

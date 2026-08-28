@@ -800,6 +800,30 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             remapper: behaviorRemapper, controller: rrController,
             storageDirectory: isolatedTempRoot));
 
+        // ⭐⭐⭐ CE-102 / HN-039 — THE EDIT-LOAD HANDLER CGF HAS NEVER HAD.
+        //
+        // 🔒 User visual check `2026-08-28`: *"when i load hill-attack scenario using the toolbar button, it
+        //    does NOT show on the map … editor shows it nicely."* 📐 Traced end to end: the toolbar's
+        //    `shell.openAsset` → picker → `AssetPickActionRouter` → for a Scenario asset →
+        //    `EditorScenarioSession.OpenForEdit` → a cluster transition to `OperatingEdit` — and NOTHING on
+        //    this node claimed it. ⛔ `CgfScenarioLoadHandler.CanHandle(intent)` accepts `PrepareState` ONLY
+        //    when `TargetState == OperatingLive`, so the edit target was explicitly declined; the load then
+        //    answered ok:true with an empty world (measured: entityCount 0, gizmo frame all grid lines).
+        //
+        // ⭐⭐ Why the SHARED handler and not a CGF-private one: it is the same handler the editor and SimHost
+        //    register, and ruling 65 settles the principle — *"Bringing editing machinery onto a runtime node
+        //    is perfectly OK."* ⛔ A `CgfEditLoadHandler` would be a second implementation of one concept.
+        //    ⚠ What blocked it was one required argument: it threw on a null `IZoneManagerService`, which this
+        //      host genuinely does not compose (see :736). That is now optional AND REPORTED there.
+        // ⚠⚠ KNOWN LIMIT, stated rather than discovered later: this does NOT pass CGF's `behaviorRemapper`,
+        //    which the LIVE path does. Entities load and render; whether their behaviours bind on this host
+        //    is CE-103's question, not this one. 📄 §5c.17.
+        newClusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
+            scenarioSerializer, scenarioLoader,
+            zoneService: null,          // ⭐ declared absence — the handler warns if the scenario has zones
+            extractor, _scenarioSource!, cgfIdAllocator,
+            world: _context.World));
+
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
 
