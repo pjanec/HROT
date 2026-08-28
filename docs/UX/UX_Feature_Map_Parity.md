@@ -1,19 +1,24 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD PER SLICE — see section 3.9. Sized RW-H overall, sliced into
-  S1 gate (RW-S) / S2 construct (RW-M) / S3 declare+report (RW-L) / S4 configuration (RW-M) /
-  S5 the action half (RW-M). Every architect call is CLOSED.
-verified: 2026-08-28 (four cluster boots + a source scan; see sections 2b, 2c, 3.0, 3.2c)
+  S1 the inputs (RW-M) / S2 construct (RW-M) / S3 declare+report (RW-L) / S4 configuration (RW-M) /
+  S5 the action half (RW-M). Every architect call is CLOSED except S1's one open design call,
+  named at the end of section 3.9 (how far to lift MapLayerAssignmentSystem).
+verified: 2026-08-28 (five cluster boots + a source scan; see sections 2b, 2c, 3.0a, 3.2c)
 updated: 2026-08-28
-current-answer: START AT SECTION 3.9 (the slices), then 3.2a (what the pack may and may not do),
-  3.2b (the UML) and 3.2c (settings + policy supply). Sections 2b and 2c supersede section 2's
-  per-host baseline, which has INVERTED. Section 5 is CLOSED.
-  S1 FIRST: it restores a map that is broken today and lands entirely in SHARED code
-  (GizmoExecutionController + PerspectiveCoordinatorSystem), so it is NOT the per-host patch the
-  user ruled out -- say so when dispatching or it will read as the thing that was rejected.
+current-answer: START AT SECTION 3.0a (the MEASURED root cause), then 3.9 (the slices), then 3.2a
+  (what the pack may and may not do), 3.2b (the UML) and 3.2c (settings + policy supply).
+  Sections 2b and 2c supersede section 2's per-host baseline, which has INVERTED. Section 5 is CLOSED.
+  S1 FIRST: it restores a map that is broken today by SHARING THE TWO PRODUCERS of the components
+  every entity gizmo reads (MapDisplayComponent, VisualData) -- both IG-private today. It lands in
+  shared code plus each host's run set, so it is NOT the per-host patch the user ruled out.
 stale-below: section 2's per-host table (see 2b/2c). Section 3.2b's PREVIOUS drawing is deleted, not
   retained; section 3.2a records what it got wrong.
-known-rot: nothing known.
+  AND section 3.0's "THE ROOT CAUSE" (the unclamped-counter story, Part 1 + Part 2) is REFUTED by
+  measurement -- section 3.0a supersedes it. The SYMPTOM numbers there are real; the CAUSE is not.
+  Do not quote the gate mechanism as the cause of CE-123.
+known-rot: section 3.0's item 3 ("clamp the counter") is demoted to hygiene -- the counter was
+  measured never to underflow, so a clamp fixes nothing and a throwing one is a net risk.
 rulings: pack owns construction, host decides scheduling (user, 2026-08-28) - section 3.2a.
   Membership is a rule, not a host list: every ECS-enabled host presenting a map - section 3.1b.
   Enabled is derived from the viewer count and assigned nowhere - section 3.2b.
@@ -228,10 +233,55 @@ elimination pass *(`CE-123`)* and was found only by a user looking at two screen
 across alternating switches, while `Scenario` read **739 / 69** on each of its visits — exactly what an
 unclamped counter starting from a `RemoveListener` predicts.
 
-⚠⚠ **NOT FULLY CLOSED — see §3.2b's closing subsection.** 📐 SimHost's frame still carries
-`LayerControlMask`, `MainMenuBinding`, `ContextMenuBinding` and 602 grid `Line`s, so **some emission
-survives there.** ⇒ the counter mechanism above is **measured and real**; whether it is the **whole**
-explanation is **not** — one verification is owed before the fix in ①–③ can be called correct.
+⛔⛔⛔ **THE OWED VERIFICATION WAS RUN `2026-08-28`, AND IT REFUTES PART 1 AND PART 2 ABOVE.**
+⭐ **Everything from *"📐 THE ROOT CAUSE"* down to this line is SUPERSEDED by §3.0a.** ⚠ The *symptom*
+numbers *(605/3 vs 739/69)* are real and reproduce; the **causal story attached to them was wrong.**
+🔒 **Do not quote the gate mechanism as the cause of `CE-123`.** ⭐ The `LayerControlMask` /
+`MainMenuBinding` / `ContextMenuBinding` survivors that prompted the caveat were **the disproof, read
+correctly**: they are emitted *from inside the gated group*, so the gate was enabled all along.
+
+### 3.0a 🔴🔴🔴 THE MEASURED ROOT CAUSE — **the shared projectors read HOST-PRIVATE inputs** *(`2026-08-28`, live on `--mode all`)*
+
+⭐⭐ **This SUPERSEDES §3.0's Part 1 / Part 2.** ⛔ It does **not** weaken the case for unification — it
+**strengthens** it, by moving the fault from an accident of boot order to a **structural** split that
+§3.1b's membership rule directly addresses.
+
+#### ① Why the gate is NOT the cause — three independent measurements
+
+| # | measurement | verdict |
+|---|---|---|
+| **a** | `WindowManager.CurrentPerspective` initialises to **`"Default"`**, not empty *(`FDP/Engine/Fdp.Presentation/ImGui/WindowManager/WindowManager.cs:242`)*, and `LocalWindowController.OpenLocalWindow` subscribes `OnPerspectiveChanged` at `:91` **before** calling `SwitchPerspective(ResolveStartupPerspective(…))` at `:119` | ⇒ a **real** `("Default","SimHost")` event fires at boot. ⛔ The premise *"nothing announces the boot perspective"* is **false** |
+| **b** | In `ProcessPendingEvents`, `_gizmoControllables.TryGetValue("Default")` **misses** — `"Default"` is a sentinel, not a perspective ⇒ **no `RemoveListener` runs**; the incoming `AddListener("SimHost")` is a clean **0→1** | ⇒ ⛔ **the counter never reaches −1.** There is no underflow to clamp |
+| **c** | 📐 **LIVE, the discriminator:** SimHost visit 1 and visit 2 emit the **identical** `LayerControlMask` + `MainMenuBinding` + `ContextMenuBinding`. `GlobalGizmoManager` is a member of the **gated** `TogglablePostSimulationGroup` | ⇒ ⭐⭐ **the group is enabled on both visits.** An underflowed gate would emit **zero** of the three |
+
+#### ② What the cause actually is — 📐 the per-entity component diff, both perspectives, same 8 entities
+
+```
+SimHost  entity 1001: … Health, NavState, SimTransform, VehicleParams, VehicleState …
+Scenario entity 1001: the same, PLUS  MapDisplayComponent · VisualData  (+ NetworkOwnership, EgressPublicationState, …)
+```
+
+🔒 **`MapDisplayComponent` and `VisualData` are the two components every entity gizmo projects from.**
+⛔ **SimHost's entities have NEITHER** — so the shared, correctly-registered, correctly-executing
+projectors iterate and find nothing to draw. ⭐ **605/3 is a full frame of an empty query, not a stalled one.**
+
+#### ③ WHERE the two components come from — **and this is the structural finding**
+
+| component | registered by | **installed by** |
+|---|---|---|
+| `MapDisplayComponent` | ⚠ **IG · CGF · Editor only** — 📐 **zero source references anywhere under `Hrot/Subsystems/Hrot.SimHost/`** | 🔴 **`Hrot.IG/Systems/MapLayerAssignmentSystem.cs:122,126` — IG-PRIVATE** |
+| `VisualData` | ✅ shared *(`Hrot.Core/HrotSharedComponentRegistry.cs:57`)* | 🔴 **`Hrot.IG/Translators/PresentationTkbTranslator.cs:36` — IG-PRIVATE**, and it **early-returns** when the type is unregistered *(`:29`)* ⇒ silent |
+| 📌 how CGF/Scenario gets them anyway | — | ⭐ **`scenarios/hill-attack/scenario.json` AUTHORS BOTH.** The brain loads them from the file; ⛔ the muscle builds from the **TKB path**, which carries neither |
+
+⇒ ⭐⭐⭐ **RESTATED: registration is unified *(§2c, all five hosts)*, execution is fine, and the map is still
+dark — because the shared projectors' INPUTS are produced by one host's private system and one host's
+private translator.** ⭐ **That is precisely the user's ruling read literally**: *"same gizmos, differing
+just in the components currently present on the entity."* ⛔ Here the components differ **by how the entity
+was BUILT**, not by what it IS — which is the same disease as `CE-113`, one layer up.
+
+⚠ **And it is a silent failure by construction:** `PresentationTkbTranslator` returning early on an
+unregistered type is exactly the `CLAUDE.md` silent-default pattern — the capability looks built and
+contributes nothing.
 
 #### ⇒ What the pack must therefore own
 
@@ -239,7 +289,7 @@ explanation is **not** — one verification is owed before the fix in ①–③ 
 |---|---|
 | **①** | ⭐⭐ **construct** the buffer, `DataDrivenGizmoSystem`, `GlobalGizmoManager`, the togglable group and the controller — **one code path, one initial state** |
 | **②** | ⚠⚠ **SUPERSEDED — see §3.2b's closing subsection.** This originally recommended one policy, `Enabled = true` everywhere. ⛔ **RETRACTED:** `GZH-003` shows the split is deliberate *(interactive hosts on, headless-first hosts off)*. ⭐ **Corrected:** the pack owns the gate MECHANISM and takes **`startEnabled` as a host rule from the context** |
-| **③** | 🔒 **clamp the counter** — `RemoveListener` below zero is a **bug to assert on**, not to absorb. ⚠ It is what made a host-ordering accident permanent |
+| **③** | ⚠⚠ **DEMOTED `2026-08-28` by §3.0a — no longer a fix, at most hygiene.** 📐 Measured: the counter **never underflows** *(§3.0a ①b/①c)*, so a clamp fixes nothing observable. ⛔ **And a clamp that THROWS is a net risk** — it can only ever convert a silent state into a crash on a path nothing has demonstrated. ⇒ ⭐ **do not build it on its own**; if the pack rewrites the gate in `S2` anyway, make the invariant explicit **there**, non-throwing |
 | **④** | ⭐ **schedule it**, with the host supplying only *where* *(its group/kernel handle)* — ⛔ never *whether* |
 | **⑤** | ⭐ **`ReplayBrowser` gets a controller too** — §3.1b makes it a member, so the gate must exist there |
 
@@ -710,7 +760,8 @@ shippable, cheapest and highest-value first:**
 
 | slice | what | size | why here |
 |---|---|---|---|
-| ⭐⭐⭐ **`S1` — the gate** | `Enabled` derived from the viewer count · the active-at-boot perspective adds a listener · assert on negative | ⭐ **`RW-S`** | 🔒 **This RESTORES THE USER'S MAP, and it is legitimately first BECAUSE IT LANDS ENTIRELY IN SHARED CODE** — `GizmoExecutionController` *(`Fdp.Toolkits`)* + `PerspectiveCoordinatorSystem` *(the runner)*. ⛔ **NOT a per-host patch** — 📌 which is exactly why the user's rejection of *"chase the SimHost gap"* does not apply to it. ⚠ **State that when dispatching**, or it will read as the thing that was ruled out |
+| ⭐⭐⭐ **`S1` — the INPUTS** ⚠⚠ **REWRITTEN `2026-08-28`** | **Share the two producers of the components every entity gizmo reads.** 📐 `MapDisplayComponent` *(installed only by `Hrot.IG/Systems/MapLayerAssignmentSystem`, wrapped by the IG-private `Modules/MapLayerModule`)* and `VisualData` *(installed only by `Hrot.IG/Translators/PresentationTkbTranslator`)* ⇒ **lift both out of `Hrot.IG` into shared code**, register `MapDisplayComponent` wherever the map is a member *(§3.1b)*, and add the presentation translator to the host translator lists that lack it — 📌 **`SimHostNodeBootstrapper.BuildContext` has six translators and no presentation one** | **`RW-M`** | 🔒 **This is what actually restores the user's map** *(§3.0a)*, and it lands in **shared** code + each host's run set — ⛔ **not a SimHost patch.** ⭐ It is the user's ruling read literally: *same gizmos, differing only by the entity's components* — ⚠ today they differ **by how the entity was BUILT**, which is not a legitimate difference |
+| ⛔ ~~`S1` — the gate~~ | ~~`Enabled` derived from the viewer count · the active-at-boot perspective adds a listener · assert on negative~~ | — | 🔴 **WITHDRAWN `2026-08-28` — its premise was REFUTED by measurement** *(§3.0a ①)*: the boot perspective **is** announced *(`CurrentPerspective` starts `"Default"`)*, the counter **never underflows**, and the gate is **enabled on every visit**. ⭐ The `Enabled`-from-viewer-count cleanup is real but is **hygiene inside `S2`**, not a fix |
 | **`S2` — construct** | `MapInteractionPack.Build(ctx)` → `MapInteraction`; the five hosts hand their constructions over and **schedule** the result | **`RW-M`** | the core of the ruling *(pack constructs, host schedules)*. ⭐ Pure deduplication: all five already build the same three systems *(§2c)* |
 | **`S3` — declare + report** | `MapInteractionBundle : IUiBundle`; `RequiredSystems`; `Unserviceable(hostRunSet)` | **`RW-L`** | ⭐⭐ the rule that would have caught the original bug ⇒ **land it early so the next such fault is loud** |
 | **`S4` — configuration** | the `Func<Type, IGizmoVisibilityPolicy?>` resolver on `RegisterAll` · a settings-backed policy · `GizmoSettingsRegistry.Empty` · the unresolved-projector report · **real policies for the actual per-host differences** | **`RW-M`** | ⚠ **the genuinely new work.** 📐 Today: **one** policy supplier returning the default, and **no** route for reflection-registered projectors |
@@ -724,6 +775,20 @@ cannot drift.
 ⭐ **Dependency order:** `S1` is independent. `S2` → `S3` *(the bundle declares what `S2` constructs)*.
 `S4` is independent of `S2`/`S3` but pointless before them for **new** hosts. `S5` needs CGF's writer
 routing first.
+
+#### ⭐⭐ `S1`'s OPEN DESIGN CALL — **decide it with the user before building** *(raised `2026-08-28`)*
+
+📐 The two producers do **not** have the same character, and the difference decides how far `S1` reaches:
+
+| | `VisualData` *(`PresentationTkbTranslator`)* | `MapDisplayComponent` *(`MapLayerAssignmentSystem`)* |
+|---|---|---|
+| **what it is** | ⭐ **TKB-derived entity data** — appearance authored per entity type | ⚠ **a computed VIEW concern** — which map layers an entity belongs to, from a `MapLayerRegistry` |
+| **lift is** | ⭐ **clean** — a translator added to a host's list, exactly like `S1`'s five peers | ⚠ **less obvious** — layer definitions may legitimately be a per-host/per-station **configuration**, which is §3.2c's settings question, not a component question |
+
+⇒ ⭐ **Lean:** lift **both**, but treat the layer *definitions* as `S4` configuration *(the settings store
+already models exactly this)*, so `MapLayerAssignmentSystem` becomes shared while **what** the layers are
+stays per-host. ⛔ **Do not silently decide this inside the build** — it is the difference between
+unifying a mechanism and unifying a policy.
 
 ## 4. Acceptance
 

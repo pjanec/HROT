@@ -2,7 +2,11 @@
 state: LIVE
 updated: 2026-08-28
 current-answer: ⭐⭐⭐ §0.0e — "--mode all VISUAL-CHECK CORRECTIVES + the cgf==editor TKB ruling".
-  START AT §0.0e.3d — UXI-23 SLICE S1 (the gizmo execution gate). CE-113 is DONE and verified;
+  START AT §0.0e.3d — UXI-23 SLICE S1 (THE MAP'S MISSING INPUTS: MapDisplayComponent + VisualData
+  are produced by IG-PRIVATE code, so SimHost's entities have neither and the shared projectors find
+  nothing to draw). ⛔⛔ The GATE version of S1 is REFUTED by measurement 2026-08-28 — do NOT build
+  the clamp or the boot-perspective activation; §0.0e.3d opens with the three measurements that
+  killed it. CE-113 is DONE and verified;
   its plan in §0.0e.3c is history. It is the ONLY work left and it carries every file
   anchor, the four things still to measure, and the exact verification probe. The rest of §0.0e is
   context: §0.0e.1 the rulings, §0.0e.3b why the design question is CLOSED, §0.0e.5 the boot recipe,
@@ -210,84 +214,70 @@ with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory decla
 after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
 points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
 
-### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S1`: THE GIZMO EXECUTION GATE** *(`2026-08-28`)*
+### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S1`: THE MAP'S MISSING INPUTS** *(rewritten `2026-08-28`)*
 
 📄 **THE DESIGN IS [`docs/UX/UX_Feature_Map_Parity.md`](../UX/UX_Feature_Map_Parity.md) — read its STATUS
-block, then §3.9 (the slices), §3.0 (the root cause), §3.2a/§3.2b/§3.2c.** ⛔ Do not re-derive any of it.
+block, then §3.0a (the MEASURED root cause), §3.9 (the slices), §3.2a/§3.2b/§3.2c.** ⛔ Do not re-derive any of it.
+
+#### ⛔⛔⛔ FIRST: THE PREVIOUS `S1` WAS REFUTED — **do NOT build the gate fix**
+
+🔴 An earlier version of this section sent you to clamp `GizmoExecutionController.RemoveListener` and
+"activate the boot perspective" in `PerspectiveCoordinatorSystem`. ⛔⛔ **That premise is FALSE, measured
+`2026-08-28`:**
+
+| 📐 | |
+|---|---|
+| ⓐ | `WindowManager.CurrentPerspective` starts **`"Default"`**, not empty *(`WindowManager.cs:242`)*, and `LocalWindowController` subscribes at `:91` **before** `SwitchPerspective(…)` at `:119` ⇒ a **real `("Default","SimHost")` event fires at boot** |
+| ⓑ | `"Default"` is not a key in `_gizmoControllables` ⇒ **no unbalanced `RemoveListener`; the counter never reaches −1** |
+| ⓒ | 🔴 **LIVE:** SimHost visit 1 and visit 2 emit the **identical** `LayerControlMask`+`MainMenuBinding`+`ContextMenuBinding`, and `GlobalGizmoManager` sits **inside** the gated group ⇒ **the gate is ENABLED on both visits** |
+
+⭐ **The clamp is demoted to hygiene inside `S2`** — ⛔ a throwing clamp can only convert a silent state into a
+crash on a path nothing has demonstrated. ⚠ **The SYMPTOM numbers and `CE-123`'s elimination table are still
+valid; only the causal story attached to them was wrong.**
+
+#### ✅ THE MEASURED ROOT CAUSE — **the shared projectors read HOST-PRIVATE inputs**
+
+📐 Per-entity component diff, same 8 entities, `--mode all` + `hill-attack` live:
+
+```
+SimHost  1001: … Health, NavState, SimTransform, VehicleParams, VehicleState …
+Scenario 1001: the same, PLUS  MapDisplayComponent · VisualData
+```
+
+🔒 **Those two are what every entity gizmo projects from.** ⇒ ⭐⭐ **SimHost's `605 primitives / 3 non-`Line``
+is a full frame of an EMPTY QUERY, not a stalled one.**
+
+| component | registered by | **installed by** |
+|---|---|---|
+| `MapDisplayComponent` | ⚠ **IG · CGF · Editor only** — 📐 **zero source refs under `Hrot/Subsystems/Hrot.SimHost/`** | 🔴 `Hrot.IG/Systems/MapLayerAssignmentSystem.cs:122,126` *(wrapped by the IG-private `Modules/MapLayerModule`)* |
+| `VisualData` | ✅ shared *(`Hrot.Core/HrotSharedComponentRegistry.cs:57`)* | 🔴 `Hrot.IG/Translators/PresentationTkbTranslator.cs:36` — ⚠ **silently early-returns** when the type is unregistered *(`:29`)* |
+
+📌 **CGF/Scenario has them only because `scenarios/hill-attack/scenario.json` AUTHORS both.** ⛔ The muscle
+builds from the **TKB path**, which carries neither — 📐 `SimHostNodeBootstrapper.BuildContext` lists **six**
+translators and no presentation one.
+
+#### ⭐ WHAT `S1` IS NOW — **share the two producers**
+
+Lift both out of `Hrot.IG` into shared code; register `MapDisplayComponent` wherever the map is a member
+*(§3.1b’s rule)*; add the presentation translator to the host translator lists that lack it.
+🔒 **This lands in SHARED code + each host’s run set — ⛔ it is not the per-host patch the user ruled out.**
+
+⭐⭐ **ONE OPEN DESIGN CALL — raise it with the user before building** *(§3.9’s closing subsection)*: the two
+producers differ in character. `VisualData`’s translator is **clean TKB-derived entity data**; but
+`MapLayerAssignmentSystem` computes a **VIEW concern** from a `MapLayerRegistry`, and the layer
+**definitions** may be legitimate **per-host configuration** *(§3.2c’s settings store already models exactly
+this)*. ⭐ **Lean: lift both, but treat the layer definitions as `S4` configuration.** ⛔ Do not decide it
+silently inside the build — it is the difference between unifying a mechanism and unifying a policy.
 
 #### 🔒 The five USER RULINGS that bound this work — do not re-litigate
 
 | # | ruling |
 |---|---|
-| ① | ⭐⭐ **The map must be UNIFIED across every ECS-enabled host** *(CGF · IG · SimHost · ReplayBrowser)* — same gizmos, differing only by the entity's components. §3.1b makes membership a **rule, not a host list** |
-| ② | ⛔⛔ **A SimHost-only fix is REJECTED** — *"chasing SimHost gap means deepening the separation of hosts"*. ⚠⚠ **BUT `S1` IS NOT THAT** — see the box below |
+| ① | ⭐⭐ **The map must be UNIFIED across every ECS-enabled host** *(CGF · IG · SimHost · ReplayBrowser)* — same gizmos, differing only by the entity’s components. §3.1b makes membership a **rule, not a host list** |
+| ② | ⛔⛔ **A SimHost-only fix is REJECTED** — *"chasing SimHost gap means deepening the separation of hosts"* |
 | ③ | ⭐⭐ **The pack owns CONSTRUCTION; the HOST decides SCHEDULING** *(§3.2a)* |
 | ④ | ⭐ **Settings are a standalone injected store** — per host · shared · `Empty` *(§3.2c)* |
 | ⑤ | ⭐ **Policy supply is option (b), the RESOLVER** on `RegisterAll`; ⛔ the attribute route (a) is NOT taken |
-
-#### ⭐⭐⭐ WHY `S1` IS LEGAL UNDER RULING ② — **say this when reporting, or it reads as the rejected thing**
-
-🔒 **`S1` lands ENTIRELY IN SHARED CODE:** `GizmoExecutionController` *(`FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/`)*
-and `PerspectiveCoordinatorSystem` *(`Hrot/Runner/Hrot.ClusterRunner/Systems/`)*. ⛔ **It touches no host's
-private composition**, which is what ruling ② forbids. ⭐ It happens to restore SimHost's map because
-SimHost is the boot perspective — **the victim, not the subject.**
-
-#### 📐 THE DEFECT, measured — `CE-123`
-
-`GizmoExecutionController` gates a `TogglablePostSimulationGroup` holding `GlobalGizmoManager`,
-`DataDrivenGizmoSystem` **and `StatelessGizmoSystem`** *(the `[GizmoProjector]` runner)*:
-
-```csharp
-AddListener()    { if (Interlocked.Increment(ref _listenerCount) == 1) _group.Enabled = true; }
-RemoveListener() { if (Interlocked.Decrement(ref _listenerCount) == 0) { …; _group.Enabled = false; } }
-```
-
-⛔ **`_currentPerspective` starts `string.Empty`** *(`PerspectiveCoordinatorSystem:22`)*, and nothing adds a
-listener for the perspective that is **already active at boot**. ⇒ the first switch calls
-`outgoing.GizmoController?.RemoveListener()` on it at count `0` → **`−1`**; every later `AddListener`
-returns `0`, never `1`, so `_group.Enabled = true` **never runs again for the process's life.**
-📐 **Measured:** SimHost `605 primitives / 3 non-Line` on visits **1, 2 and 3**; `Scenario` `739 / 69` each
-visit.
-
-#### ⭐ `S1`'s THREE CHANGES
-
-| # | file | change |
-|---|---|---|
-| **1** | `Diagnostics/Gizmos/GizmoExecutionController.cs` | **clamp + assert**: `RemoveListener` below zero is a **bug**, not a state to absorb |
-| **2** | `Hrot.ClusterRunner/Systems/PerspectiveCoordinatorSystem.cs` | **activate the boot perspective**: take an optional `Func<string>` for the current perspective *(the idiom `Program.cs:412` already uses: `() => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty`)*; on the first `ProcessPendingEvents`, if `_currentPerspective` is empty, set it and `AddListener` for it **before** draining |
-| **3** | `Hrot.ClusterRunner/Program.cs` *(~`:334`)* | pass that func into the coordinator's ctor |
-
-⛔⛔ **DELIBERATELY NOT IN `S1` — and this is a DEVIATION from §3.9's wording, argue it in the report:**
-§3.9 lists *"`Enabled` derived from the viewer count"*, which implies deleting the per-host literals
-*(`IgApplication:861 = true` · `SimHostApp:444 = false` · `CgfSubsystem:955` · Editor)*. 🔴 **Do NOT do that
-in `S1`:** a standalone host *(`--mode editor`, standalone IG)* may have **no perspective coordinator at
-all**, so removing its `= true` with no viewer hook in place would make its map **go dark** — a regression
-worse than the bug. ⇒ ⭐ **that belongs to `S2`, where construction is centralised and every host's viewer
-hook is handled together.**
-
-#### ⛔⛔ THE TWO CHANGES ARE **ATOMIC** — *found `2026-08-28` while starting `S1`; the table above does not convey it*
-
-🔴 **Do NOT land change 1 (the clamp) without change 2 (the boot activation) in the SAME commit.**
-📐 **Why:** the unbalanced `RemoveListener()` happens on **today's** code path — the boot perspective is
-left before it is entered *every run*. ⇒ a clamp that **throws** would fire on the **first perspective
-switch** of every `--mode all` boot, turning a silent dark map into a **loud crash**. ⚠ And a
-*"implement 1, build, test, then 2"* sequence — the obvious order — **produces exactly that**, which will
-read as a regression rather than as the guard doing its job.
-
-⭐ **So: one commit, both changes, then verify.** ⛔ Or, if they must be split, land **2 before 1** — never
-the reverse.
-
-#### 📌 THE SHAPE ALREADY CHOSEN for change 2 — do not re-derive it
-
-⭐ Reverted unbuilt *(the tree is clean at `005f21ae2`)*, but the approach was settled:
-
-| | |
-|---|---|
-| **ctor** | add `System.Func<string>? currentPerspective = null` as a **4th optional** parameter ⇒ ⭐ every existing caller still compiles |
-| **why a delegate, not a string** | 🔒 the coordinator is constructed at `Program.cs:~334`, **before** `windowCtrl` exists at `:412` ⇒ a string would be empty. ⭐ `Program.cs:412` already uses this exact idiom: `() => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty` |
-| **fields** | `_currentPerspectiveAccessor` + a `bool _bootPerspectiveActivated` latch |
-| **where it fires** | at the **top of `ProcessPendingEvents()`**, before the drain loop: if not yet activated and the accessor yields a non-empty name, set `_currentPerspective` and `AddListener()` for it, then latch. ⭐ **Idempotent**, and a no-op in hosts that pass no accessor |
-| ⚠ **guard** | the accessor may yield `string.Empty` for several frames while the window comes up ⇒ ⛔ **do not latch until a non-empty name arrives** |
 
 #### ⭐ HOW TO VERIFY
 
@@ -296,18 +286,20 @@ dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj --no-resto
 cd Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
 export HROT_DEBUG_API_PORT=8099 FDP_STAGING_ROOT=<a fresh dir>
 nohup xvfb-run -a dotnet Hrot.ClusterRunner.dll --mode all > /tmp/gate.log 2>&1 &
-curl -s --noproxy '*' -m 90 -X POST http://localhost:8099/scenario/load/live \
+curl -s --noproxy '*' -m 120 -X POST http://localhost:8099/scenario/load/live \
      -H 'Content-Type: application/json' -d '{"name":"hill-attack","waitForReady":true}'
-curl -s --noproxy '*' "http://localhost:8099/panels/_gizmo?max=4000"   # ⛔ NOT /gizmo/frame — 404
+curl -s --noproxy '*' "http://localhost:8099/entities"              # ⭐ components per entity — THE direct check
+curl -s --noproxy '*' "http://localhost:8099/panels/_gizmo?max=4000" # ⛔ NOT /gizmo/frame — 404
 ```
-⭐ **PASS = SimHost non-`Line` goes from `3` to a real entity count** *(`Scenario` shows `69`; IG `104`)*
-**at boot, with no perspective round-trip.** 🔒 **Check `ok` before reading `data`** — a wrong route returns
-`{ok:false,"Not found"}` with HTTP 200 and a naive parser prints a confident zero *(that cost a whole false
-finding this session — SKILL §5e.1)*.
+⭐ **PASS = SimHost’s entities carry `MapDisplayComponent` + `VisualData`, and its non-`Line` count rises
+from `3` to a real entity count** *(`Scenario` reads `69`; IG `104`)*. 🔒 **Check `ok` before reading `data`** —
+a wrong route returns `{ok:false,"Not found"}` with HTTP 200 and a naive parser prints a confident zero
+*(that cost a whole false finding — SKILL §5e.1)*. ⚠ **The primitive schema is lowercase `primitives`, each
+with `shape`** — not `Primitives`/`Kind`.
 
-⭐ **Rails to write** *(each inverse-edit red-proved)*: boot-then-leave-then-return keeps the gate enabled ·
-`RemoveListener` before any `AddListener` asserts rather than reaching `−1` · the boot perspective is
-activated exactly once *(idempotent)*.
+⭐ **Rails to write** *(each inverse-edit red-proved)*: a TKB-built entity carries both presentation
+components · the presentation translator is in every map-member host’s list · `MapDisplayComponent` is
+registered wherever the map is a member.
 
 ### 0.0e.3c ⭐⭐⭐ **THE BUILD PLAN — `CE-113`. THE ONLY WORK LEFT. ⭐⭐ BUILD THIS FIRST.**
 
