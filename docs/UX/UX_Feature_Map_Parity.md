@@ -130,6 +130,28 @@ binding `Rotate` in CGF before `UXI-29` hands it an action writing a component i
 CGF must route its writes through `EntityWriteRouter` before it binds a write-action. ⚠ The `UXI-29` doc
 header still reads *"designed"* — ⛔ **the code is ahead of it here.**
 
+## 2c. 📐 REFRESHED INVENTORY `2026-08-28` — **the five-host wiring matrix, re-measured**
+
+⭐ Replaces §2's table for planning purposes. `Y` = the symbol appears in that subsystem's non-test
+production sources.
+
+| host | `GizmoReflectionRegistrar` | `GlobalActionRegistry` | `SelectionInteractionSystem` | `RubberBandState` | `CanvasMenuUpdateSystem` | `DataDrivenGizmoSystem` | `GizmoExecutionController` |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| **Editor** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **CGF** | ✅ | 🔴 | 🔴 | 🔴 | ✅ | ✅ | ✅ |
+| **IG** | ✅ | 🔴 *(fork)* | ✅ | 🔴 | ✅ | ✅ | ✅ |
+| **SimHost** | ✅ | ✅ | ✅ | 🔴 | ✅ | ✅ | ✅ |
+| **ReplayBrowser** | ✅ | ✅ | ✅ | ✅ | 🔴 | ✅ | 🔴 |
+
+⭐⭐ **What this CHANGES in the design:**
+
+| | |
+|---|---|
+| ✅ **§2's headline finding is RETIRED** | *"CGF is missing `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar` entirely"* — **all five hosts now register the gizmo projectors.** ⇒ §3.3's *"CGF: the whole pack"* is wrong; CGF's remaining gap is the **action/selection half**, not the gizmo half |
+| ⭐ **the blind rubber band is WIDER than recorded** | §2 named SimHost and IG; measured, **CGF too** — only Editor and ReplayBrowser carry a `RubberBandState`. ⇒ acceptance `23.7` covers three hosts, not two |
+| 🔴 **NEW — `ReplayBrowser` has NO `GizmoExecutionController`** | ⇒ `PerspectiveCoordinatorSystem:76-78`'s `incoming.GizmoController?.AddListener()` **silently no-ops** for it *(the `?.` swallows it)*. ⚠ Not in the design; it means the perspective-switch gizmo handover cannot apply to that host at all |
+| ⛔⛔ **AND THE ONE THAT MATTERS MOST: `SimHost` HAS EVERY SYMBOL EDITOR HAS except `RubberBandState`, AND STILL EMITS NO ENTITY GIZMOS** *(§2b)* | ⇒ 🔒 **the SimHost gap is NOT a missing registration** — which is consistent with all seven hypotheses eliminated in `CE-123`. It is something about **execution/scheduling in the cluster composition**, and ⭐⭐ **that is exactly the class of fault a per-host wiring matrix CANNOT see** — five hosts each wire this privately, so "does it actually run?" is not answerable by inspection. 📌 **The strongest argument in this document for the pack, and it was found by a user's eyes, not by any table.** |
+
 ## 3. The design
 
 ### 3.1 🔒 One dispatch mechanism
@@ -139,6 +161,40 @@ registered handlers; `HandleContextMenuActionById`/`ExecuteLocalContextAction` g
 
 ⚠ **IG keeps its ExCon forwarding** — that is a *fallback for unhandled ids*, not a dispatch mechanism,
 and it stays as the registry's miss path.
+
+### 3.1b 🔒🔒🔒 MEMBERSHIP IS A RULE, NOT A HOST LIST — **every ECS-enabled host** *(user, `2026-08-28`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"both cgf, ig and simhost should show the map (and replaybrowser as well). And
+> all the same way, using same gizmos etc, diffing just in the components currently present on the entity,
+> no differences, as written in the docs/UX documents. Map needs to be unified, same like many other UI
+> componenst we already unified."*
+> ⭐⭐ **And, on being offered a SimHost-only fix:** *"chasing SimHost gap means deepening the separation of
+> hosts, doesn't it? I can live with SimHost having no map if i knew we would work on unification that
+> brings same map capability to all ECS-enabled hosts."*
+
+⛔⛔ **THE SIMHOST-ONLY FIX IS REJECTED, and the reasoning is the user's:** patching SimHost's private map
+wiring **adds a line to the very code this pack deletes**. ⇒ 🔒 **a per-host repair is not a step toward
+unification, it is a step away from it** — and a mapless SimHost is the *acceptable* cost of not deepening
+the divergence. ⚠ **Investigating the SimHost gap is still valuable** — but as **inventory input to this
+design** *(what must the pack own so "does it actually run?" stops being per-host?)*, ⛔ **never as a patch.**
+
+⭐⭐⭐ **The sharpening this adds to §3.2.** §3.2 says *"all hosts share the FULL set"* and §2/§3.3 then
+enumerate **five named hosts** — ⛔ a list, which is what let the baseline rot and both hosts swap places
+unnoticed *(§2b)*. 🔒 **Restate it as a RULE:**
+
+> ⭐ **Every ECS-enabled host that presents a map calls `MapInteractionPack.Register` — membership is
+> derived from "has an ECS world + presents a map", never from a maintained host list.**
+
+| ⭐ why the rule beats the list | |
+|---|---|
+| ⭐⭐ **a new host cannot be forgotten** | there is no table to update, so there is no table to forget |
+| ⭐ **`ReplayBrowser` stops being a special case** | it is ECS-enabled and presents a map ⇒ it is a member; its read-only-ness is a **predicate outcome** *(§3.2's applicability)*, not an exclusion |
+| ⛔ **and it makes §2/§2c snapshots, not specifications** | ⚠ they document today's drift; **the rule is the contract** |
+
+⚠ **What it does NOT license:** ⛔ it is not *"every host gets every behaviour"*. Per §3.2 + ruling 49,
+**membership is uniform and visibility is earned** — an action a host structurally cannot service is not
+shown. ⭐ The user's own words already say this: *"diffing just in the components currently present on the
+entity"* ⇒ **the entity's components decide what draws, not the host's identity.**
 
 ### 3.2 🔒 One registration entry point — `MapInteractionPack`
 
