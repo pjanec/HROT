@@ -265,7 +265,11 @@ export const TOOLS_CATALOG = [
     ],
     "returns": "Full component dump for the entity. Non-finite floats render as \"NaN\"/\"Infinity\"/\"-Infinity\".",
     "notes": [
-      "Non-finite floats appear as string sentinels \"NaN\"/\"Infinity\"/\"-Infinity\" — valid JSON, not a bug."
+      "Non-finite floats appear as string sentinels \"NaN\"/\"Infinity\"/\"-Infinity\" — valid JSON, not a bug.",
+      "SHAPE: { EntityId, NetworkId, Components:{ ... } } — Components is PascalCase, and so is every component and field name inside it (SimTransform.Position, NavigationIntent.Mode). Indexing a lowercase 'components' silently yields nothing and reads like an empty entity.",
+      "TO DIAGNOSE 'the sim ignores my order', COMPARE THE INTENT COMPONENT WITH ITS STATUS COMPONENT. The pair distinguishes three different bugs that look identical from the UI: intent empty => nothing issued the order; intent set + status ABSENT => the consumer never ran; intent set + status PRESENT + zero velocity => the consumer ran and produced no motion. Worked example: NavigationIntent{Mode,TargetSpeed} against NavigationStatus.",
+      "AUTHORITY FIRST: NetworkOwnership/NetworkAuthority carry HasAuthority, PrimaryOwnerId and LocalNodeId. On a cluster a write to an entity this node does not own is legitimately dropped, so check HasAuthority before filing 'the write did nothing'.",
+      "MEASURE MOTION AS A POSITION DELTA OVER A simTime DELTA, never over wall-clock. Sample get_status.simTime alongside each dump: BIT-IDENTICAL positions across a real simTime advance is the hard evidence; the same reading across a stalled clock proves nothing."
     ],
     "example": {
       "args": {
@@ -324,7 +328,9 @@ export const TOOLS_CATALOG = [
     "notes": [
       "Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).",
       "Edit state freezes sim time — nothing ticks until enter_preview or play.",
-      "In --mode all this load is PARTIAL: CGF has no edit-load handler yet, so SimHost loads and CGF does not. Use load_scenario_live when every node must hold the world."
+      "In --mode all this load is PARTIAL: CGF has no edit-load handler yet, so SimHost loads and CGF does not. Use load_scenario_live when every node must hold the world.",
+      "AND THAT PARTIAL LOAD STILL ANSWERS ok:true — this is the single most misleading response in the API. Measured on --mode all from the Scenario perspective: ok:true with scenario:NULL, entityCount:0, an empty list_entities, and a gizmo frame of 603 primitives that were ALL grid lines. Every field says 'empty world' and the envelope says 'success'.",
+      "SO VERIFY A LOAD, NEVER TRUST IT: after any load read get_status.entityCount AND list_entities AND (if the map matters) the non-Line shape count from get_gizmo_frame. Three independent reads, because the envelope is not one of them. On the same host load_scenario_live gave 8 entities and Box2D 8 / Arrow 12 / Text 8."
     ],
     "example": {
       "args": {
@@ -737,7 +743,10 @@ export const TOOLS_CATALOG = [
       "level = minimum severity (inclusive): Trace, Debug, Info, Warning, Error, Critical.",
       "logger = case-insensitive substring match on logger name.",
       "since = ISO-8601 timestamp; entries with timestamp >= since are included.",
-      "Read off-thread — no main-thread marshal required."
+      "Read off-thread — no main-thread marshal required.",
+      "ON A CLUSTER ALWAYS PASS level:\"Info\" (or higher). Measured on --mode all: an UNFILTERED read returned 176 of 200 entries as [TC3] time-sync chatter (TimeSyncRequest/SyncResponse/RTT gentle-steer) logged at Trace by four nodes — no application line survives in the window. The same read with level:\"Info\" returned 25 lines and zero [TC3].",
+      "AN UNKNOWN FILTER IS SILENTLY IGNORED, and so is an unknown query key. level:\"INFO_\" or a misspelled param (limit instead of max) returns the WHOLE ring rather than an error, which looks like a plausible answer to a question you did not ask. Echo-check your filter by confirming the result actually narrowed.",
+      "The param is max, NOT limit. Nothing rejects limit; it is simply not read."
     ],
     "example": {
       "args": {
@@ -874,7 +883,8 @@ export const TOOLS_CATALOG = [
     "params": [],
     "returns": "ok:true envelope.",
     "notes": [
-      "Commands and spawns while paused are queued and take effect on the next step/play."
+      "Commands and spawns while paused are queued and take effect on the next step/play.",
+      "ON A CLUSTER THE ok:true ACK CAN PRECEDE THE STATE CHANGE. Measured on --mode all: pause returned ok:true while the immediate /status still read isPaused:false; it flipped only after a following step. A cluster-wide pause crosses a barrier, so treat the ack as ACCEPTED, not APPLIED — poll get_status until isPaused is true before asserting anything about it."
     ],
     "example": {
       "args": {},
@@ -945,7 +955,10 @@ export const TOOLS_CATALOG = [
     ],
     "returns": "ok:true envelope.",
     "notes": [
-      "Only advances time when inPreview==true. In Edit state this is a no-op."
+      "Only advances time when inPreview==true. In Edit state this is a no-op.",
+      "VERIFY THE STEP LANDED BY READING simTime, NOT BY READING ok. Measured on --mode all: count:120 advanced simTime by exactly 0.0167s (= one 1/60 frame) and still answered ok:true — the count is not honoured cluster-wide. Sample get_status.simTime before and after and use the DELTA as the truth.",
+      "A STEP IS REFUSED OUTRIGHT UNLESS THE CLUSTER IS IN A STEPPING MODE, and the refusal is not visible in the envelope — it is a warning in the log (see get_logs, RefusedStepCount). A cluster that is free-running drops every step. If simTime does not move, check get_status.isPaused first: pause, then step.",
+      "This is the loop's weak link, so prove it once at the start of a session: pause, step, read simTime. A silently-refused step makes every later observation meaningless (it invalidated a root-cause in this repo once — a 'nothing moved' reading taken through a step that never ran)."
     ],
     "example": {
       "args": {
@@ -2448,7 +2461,10 @@ export const TOOLS_CATALOG = [
     "returns": "{ count, dropped, emitted, truncated, primitives:[{shape, space, layer, color, ...shape-specific}] }",
     "notes": [
       "truncated tells you the frame was clipped by max — without it a cap would read as the end of the frame.",
-      "A shape with no field projection yet is reported by name with a note, never as aliased bytes."
+      "A shape with no field projection yet is reported by name with a note, never as aliased bytes.",
+      "MOST OF A FRAME IS THE GRID. Measured on --mode all with an EMPTY world: 603 primitives, all of them Line. So a non-zero count is NOT evidence that anything is on the map.",
+      "TO ANSWER 'are the entities visible', COUNT PRIMITIVES BY shape AND IGNORE Line. A loaded hill-attack frame read 739 primitives: Line 670 plus Box2D 8, Arrow 12, Text 8, SemanticShape 16, SpatialAnchor 16 — the non-Line shapes are the world. Compare that histogram against the same read on the other host to localise a 'nothing renders here' report.",
+      "The default cap is 500 and the grid alone can exceed it, so pass max (e.g. 2000) before concluding a shape is absent — otherwise truncated:true means your answer is about the grid."
     ],
     "example": {
       "args": {

@@ -23,7 +23,7 @@ multi-subsystem cluster host (`mode: "all"` = orchestrator + simhost + ig + exco
 | State | What it means | Time advances? | How you got here |
 |-------|---------------|----------------|------------------|
 | **Edit** | Authoring; world is static | No | `load_scenario_edit` |
-| **Live** | A real run on every node | Yes | `load_scenario_live` |
+| **Live** | A real run on every node | Yes — **once you `play`** | `load_scenario_live` |
 | **Preview** | A revertible run from a RAM snapshot | Only when **unpaused** | `enter_preview`, `play`, `checkpoint`, or `start_recording{preview}` |
 | **Replay** | Read-only playback of a `.fdp` in an isolated sandbox | N/A (you seek frames) | `load_replay` |
 
@@ -35,6 +35,13 @@ edit-load handler yet), so use **live** when every node must hold the world.
 - **Time only advances when `inPreview == true` AND `isPaused == false`.** In Edit state the sim is frozen —
   `step`/commands that need ticks won't progress until you enter preview and unpause. Always check
   `get_sim_state` / `get_status` if unsure.
+- ⭐ **A CLUSTER (`mode:"all"`) BOOTS PAUSED, DELIBERATELY, AND A LIVE LOAD DOES NOT START IT.** `simTime`
+  stays at 0 with `isPaused:true` until you `play` — so *"nothing is happening"* is the **expected** state,
+  not a fault, and it is the first thing to check before diagnosing anything as stuck. ⚠ It did not always
+  behave this way: the clock used to start itself ~2 s after boot and run with no scenario loaded, which
+  also meant every `step` was silently refused. If you meet an old build whose `simTime` climbs on its own
+  with `clusterState:Idle`, that is the old behaviour — and any pause/step measurement taken on it is
+  unreliable.
 - **Preview is revertible.** Entering preview snapshots the world; exiting (`stop_preview` /
   `restore_checkpoint`) rewinds to that snapshot. This is the basis of checkpoint/restore.
 - **Replay is isolated.** Seeking a replay never touches the live world — they are independent.
