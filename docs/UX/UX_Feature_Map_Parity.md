@@ -1,9 +1,13 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — UML AUTHORED 2026-08-28 (section 3.2b: one classDiagram + two
-  sequenceDiagrams, all parsing). NOT yet READY-TO-BUILD: two things block it, both named in 3.2b —
-  (a) one verification owed on which group emits SimHost's surviving 4 primitive kinds, and (b) the
-  RW-M size in PLAN_Interaction_UX_Backlog section 4 is LIGHT now that the pack owns execution.
+  sequenceDiagrams, all parsing). The owed verification is now CLOSED: StatelessGizmoSystem (the
+  [GizmoProjector] runner) is INSIDE the gated group, the grid/menu/layer emitters are outside it, so a
+  closed gate yields chrome-without-entities exactly as measured. It also OVERTURNED recommendation (1):
+  GZH-003 shows the per-host initial Enabled state is DELIBERATE (interactive on, headless-first off), so
+  "Enabled = true everywhere" is retracted and startEnabled becomes a host rule the context supplies.
+  ONE blocker remains before READY-TO-BUILD: re-size. RW-M in PLAN_Interaction_UX_Backlog section 4 is
+  LIGHT now the pack owns composition + execution rather than registration alone.
 verified: 2026-08-28 (coordinator source scan)
 current-answer: NOT-BUILT (design only) -- confirmed independently 2026-08-28: grep finds ZERO
   occurrences of MapInteractionPack/MapInteractionContext. No shared pack; IG fork
@@ -226,7 +230,7 @@ explanation is **not** — one verification is owed before the fix in ①–③ 
 | # | |
 |---|---|
 | **①** | ⭐⭐ **construct** the buffer, `DataDrivenGizmoSystem`, `GlobalGizmoManager`, the togglable group and the controller — **one code path, one initial state** |
-| **②** | 🔒 **ONE initial-state policy.** ⭐ Recommend **`Enabled = true`** *(IG's and Editor's choice — the two hosts that work)*, with the gate then only ever *narrowing*; ⛔ a host must not choose |
+| **②** | ⚠⚠ **SUPERSEDED — see §3.2b's closing subsection.** This originally recommended one policy, `Enabled = true` everywhere. ⛔ **RETRACTED:** `GZH-003` shows the split is deliberate *(interactive hosts on, headless-first hosts off)*. ⭐ **Corrected:** the pack owns the gate MECHANISM and takes **`startEnabled` as a host rule from the context** |
 | **③** | 🔒 **clamp the counter** — `RemoveListener` below zero is a **bug to assert on**, not to absorb. ⚠ It is what made a host-ordering accident permanent |
 | **④** | ⭐ **schedule it**, with the host supplying only *where* *(its group/kernel handle)* — ⛔ never *whether* |
 | **⑤** | ⭐ **`ReplayBrowser` gets a controller too** — §3.1b makes it a member, so the gate must exist there |
@@ -515,98 +519,55 @@ sequenceDiagram
 | **③** | **the boot perspective gets an `AddListener` on activation** | ⇒ *"left before it is entered"* stops being expressible |
 | **④** | **`IGizmoControllable` satisfied by the pack** | class diagram: `ReplayBrowser` cannot have a null gate any more |
 
-#### ⚠⚠ ONE VERIFICATION STILL OWED — **do not treat §3.0 as fully closed**
+#### ✅ THE VERIFICATION IS CLOSED — **and it OVERTURNED recommendation ①** *(`2026-08-28`)*
 
-📐 SimHost's frame is **not** empty: it carries `LayerControlMask`, `MainMenuBinding`, `ContextMenuBinding`
-and **602 grid `Line`s**. ⇒ ⚠ **some emission survives on SimHost**, so either those come from **outside**
-the togglable group *(`LayerControlGizmo` is an `IEntityStatefulGizmo`, and `CanvasMenuUpdateSystem` is a
-separate system — both plausible)*, **or** the group is enabled and a second filter suppresses the
-per-entity projectors.
-🔒 **Both are execution-side and both are fixed by the pack owning composition — but they are DIFFERENT
-faults, and the fix in ①–③ is only correct for the first.** ⇒ ⭐ **Before building, confirm which group each
-of those four primitive kinds is emitted from.** ⛔ Do not let this section read as settled when that is
-unmeasured: the counter mechanism is **measured and real**, its **sufficiency as the whole explanation is
-not**.
+📐 **Read what is actually INSIDE the gate** *(`SimHostApp.cs:434-443`)*:
 
-### 3.3 Binding the unbound
+```csharp
+var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
+    _globalGizmoManager,
+    _dataDrivenGizmoSystem,
+    new StatelessGizmoSystem(_statelessGizmoRegistry, _gizmoBuffer, isSelectedPredicate: …));
+// GZH-003: headless-first; enable only when a terminal connects.
+gizmoGroup.Enabled = false;
+```
 
-| Host | Work |
+⇒ ⭐⭐ **`StatelessGizmoSystem` — the runner for every `[GizmoProjector]`, i.e. for
+`SimHostEntityPresentationGizmo` — is INSIDE the gate.** The grid, `LayerControlMask` and the two menu
+bindings are emitted by systems **outside** it *(host chrome, always drawn)*. ⇒ 🔒 **a closed gate yields
+exactly what was measured: chrome, and no entities.** ✅ **Hypothesis (i) confirmed; (ii) — a second
+suppressing filter — is eliminated. §3.0's mechanism stands.**
+
+⛔⛔ **BUT recommendation ① WAS WRONG, and this is the correction.** 📄 **`.dev/_DONE/gizmos-2-headless/TASK-DETAILS.md`
+§`GZH-003`, verbatim:**
+
+> *"For each subsystem that runs in interactive mode by default (IG, Editor), keep `Enabled = true` at
+> startup — they already open a window. For headless-first subsystems (SimHost, CGF), start
+> `Enabled = false`."*
+
+⇒ ⭐⭐⭐ **The three initial states are DELIBERATE, DESIGNED, and load-bearing** — a headless SimHost must not
+pay for gizmo execution with nobody watching. ⛔ **So "make every host start `true`" would DISCARD a real
+optimisation** *(and its two `GZH-003` integration tests: *"start SimHost headless, confirm
+`DataDrivenGizmoSystem.Execute` is never called"*)*. 🔒 **Recommendation ① is RETRACTED.**
+
+⭐⭐ **The defect is therefore NARROWER and cleaner than §3.0 first framed it.** `GZH-003`'s design assumes
+`AddListener()` reliably makes the 0→1 transition when a viewer attaches. **It does — unless a
+`RemoveListener()` arrives first**, which happens *only* because the boot perspective is **left before it is
+ever entered**. ⇒ 🔒 **the fault is the unclamped counter plus `PerspectiveCoordinatorSystem`'s asymmetric
+lifecycle — NOT the per-host initial state.**
+
+| ⭐ the corrected fix set | |
 |---|---|
-| **CGF** | the whole pack — registry, dispatch, ingress, selection, drag, rubber-band, the `Common.Diagnostics` registrar. ⚠ **Its edits must be legal first** — [UXI-29](UX_Feature_Authority_Aware_Writes.md) |
-| **SimHost** | the missing 7 ids + `Common.Diagnostics` registrar + rubber-band **state** (one ctor argument) |
-| **IG** | migrate the fork; gain the rubber-band visual |
-| **ReplayBrowser** | ⚠ **read-only host** — binds the *inspection* subset; ⚠ its dispatch system is **never wired to an ingress**, so its 2 ids can never fire today (`:227` vs no `ContextActionIngressSystem`) |
-| **Editor** | reference implementation; loses its bespoke wiring |
+| ⛔ ~~① `Enabled = true` everywhere~~ | **RETRACTED** — contradicts `GZH-003`'s headless-first intent |
+| ⭐⭐⭐ **② clamp the counter** *(`RemoveListener` below zero is a bug to assert on, never to absorb)* | **this alone fixes the reported symptom** |
+| ⭐⭐ **③ the active-at-boot perspective gets an `AddListener` on activation** | makes *"left before it is entered"* inexpressible — the structural half |
+| ⭐ **④ `IGizmoControllable` satisfied by the pack** | `ReplayBrowser` cannot hold a null gate *(§2c)* |
+| ⭐ **⑤ the pack owns the gate BOUNDARY explicitly** | ⭐ i.e. *which* emitters are perspective-gated and which are always-on chrome — measured above, and today implicit in five separate composition roots |
 
-### 3.4 Per-selection actions — a finding, not this design's scope
-
-| | |
-|---|---|
-| **Delete-selected** | ✅ exists — but as a **raw `Delete` key** in `SelectionInteractionSystem.cs:117-152`, **not** an action id. So per-entity and per-selection Delete are **two unrelated code paths** |
-| **Centre-on-selected** | 🔴 **does not exist anywhere** — no id, no handler |
-
-⇒ **[UXI-24](UX_Issues.md#uxi-24) owns this.** ⚠ But note the consequence for [ruling 29](UX_RESUME_INTERACTION.md):
-the multi-delete confirmation must sit on the **key path**, which today bypasses the action vocabulary
-entirely.
-
-## 4. Acceptance
-
-| # | Case | Cls |
-|---|---|:--:|
-| 23.1 | Every map subsystem registers the **same action id set** — parameterised over all five; none may omit | H |
-| 23.2 | 🔴 **No registered id is inert**: every id a host binds has a handler that runs | H |
-| 23.3 | 🔴 **No menu item is emitted without a handler** — the *Measurement Tool* dead-click guard, per host | H |
-| 23.4 | IG's six forked behaviours are reachable **through the shared registry**; the `switch` is gone | H |
-| 23.5 | 🔒 An id a host **structurally cannot service is not shown at all** — never permanently greyed ([ruling 49](UX_RESUME_INTERACTION.md)). ⚠ **Inverted from this design's original wording** ([Correction 39](UX_Tasks_Detail.md#corrections)) | H |
-| 23.6 | Unhandled ids still forward to ExCon from IG — the fallback survives the migration | H |
-| 23.7 | `SelectionInteractionSystem` is constructed **with** a `RubberBandState` in every host | H |
-| 23.8 | CGF registers `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar` — ring, health bars, menus, layer control all present | H |
-| 23.9 | ReplayBrowser's dispatch is **wired to an ingress**, or its ids are deliberately unbound with a reason | H |
-| 23.10 | **CGF**: right-click an entity → the shared menu appears with live items | I |
-| 23.11 | **SimHost · IG**: rubber-band is **drawn** while dragging | I |
-| 23.12 | *Measurement Tool* works in every host that shows it | I |
-
-**9 H · 3 I · 0 V.**
-
-## 5. ✅ CLOSED — the nine orphan ids are a **capability gap**, not a binding choice
-
-> 🔒 **User, 2026-08-13:** *"the actions like MoveHere, Engage, Stop, Properties, Teleport, Repair,
-> Reinforce, Resupply, Transfer are unresolved and need a dedicated design pass. **The only supported way
-> of commanding entities now is via a mission having a list of conditional behaviors to perform.** This is
-> not ExCon-only, must be equally supported by the CGF subsystem (who owns the entity brain)."*
-
-🔴 **The A/B/C options below were ill-posed** and my lean B was wrong on both halves — see
-[Correction 33](UX_Tasks_Detail.md#corrections). They are **not** ordinary actions with missing handlers:
-commanding enters the cognitive tier through `AssignTacticalIntentEvent` and ends at
-`BehaviorIngressSystem`, the sole `BehaviorState` writer. And ExCon is not their home — **CGF** is the
-Brain node and the only host running the mission→behavior pipeline.
-
-⇒ 🔒 **Moved to [UXI-32](UX_Issues.md#uxi-32) / [Q29](Architect_Question_29_Entity_Commanding.md)**,
-`RW-H`, **architect pass required before any binding**.
-
-**What this design still owes**, once Q29 is answered:
-
-| | |
-|---|---|
-| ✅ **`Properties` and `Teleport` are unblocked now** | neither is a command — `Properties` is *open the inspector*, `Teleport` is a pose write already owned by [UXI-29](UX_Feature_Authority_Aware_Writes.md). Bind both in the pack |
-| ⚠ **The other seven stay unbound** until Q29 rules | ⭐ **and four of them cost nothing today**: `Repair · Reinforce · Resupply · Transfer` sit behind ExCon menu strategies whose `SetStrategy` has **zero callers**, so they are **never emitted** ([Q29 §A](Architect_Question_29_Entity_Commanding.md)). Only `MoveHere · Engage · Stop` are actually on screen — emitted by `ContextMenuProjectorGizmo` |
-| 🔒 **Case 23.2 still binds** | *no registered id is inert* — so the seven must be **absent or disabled-with-reason**, never present-and-dead |
-
-## 6. 🔒 Out of scope
-
-| | |
-|---|---|
-| Multi-select fan-out and per-selection actions | [UXI-24](UX_Issues.md#uxi-24) |
-| The action **vocabulary** itself | [UXI-03](UX_Feature_Entity_Action_Vocabulary.md) / [UXI-04](UX_Feature_Cross_Surface_Actions.md) |
-| CGF's symbol, pick box, selection chain | [UXI-10](UX_Feature_Entity_Symbology.md), [UXI-11](UX_Feature_Selection.md) — **prerequisites** |
-| Making CGF's edits legal | [UXI-29](UX_Feature_Authority_Aware_Writes.md) — **prerequisite** |
-| ExCon | no map |
-
-## 7. Risks
-
-| | |
-|---|---|
-| 🔴 **Order matters** | UXI-10 → UXI-11 → UXI-29 → **this**. Binding *Rotate* in CGF before UXI-29 gives it an action that writes a component it does not own |
-| ⚠ **Migrating IG's fork touches the production map** | [ruling 20](UX_RESUME_INTERACTION.md). Its six behaviours must be proven identical before the `switch` is deleted |
-| ⚠ **The pack is a single point of failure** | one wrong line breaks five hosts at once — which is also why 23.1-23.3 are parameterised over all five |
-| ⚠ **A uniform set means CGF gains items it may not be able to service** | §3.2's *disabled with a reason* is what keeps that honest |
+⭐⭐⭐ **AND THIS SHARPENS WHAT "UNIFIED" MEANS HERE — it is §3.2's own rule, applied to execution:**
+🔒 **share the MECHANISM; let the RULE vary through a parameter.** ⇒ the gate, the counter, the group
+membership and the boundary are **the pack's** *(identical everywhere)*; **`startEnabled`** is a
+**host rule** the context supplies *(interactive ⇒ `true`, headless-first ⇒ `false`)*.
+⛔ **"Unified" was never "make every host identical"** — 📌 that reading is what nearly cost a designed
+optimisation, and §3.2 already said so: *"differences are data availability or host rules, never set
+membership."*
