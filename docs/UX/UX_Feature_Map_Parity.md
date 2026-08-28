@@ -613,11 +613,41 @@ forbids**, and the same failure mode as SimHost's silent map *(§3.0)*.
 share every toggle** — a change in one is visible in the other. 🔒 That is the user's *"some are sharing
 same settings"*, working as asked; ⛔ it is not a leak.
 
+##### 🔴🔴 WHO SUPPLIES A POLICY — **per gizmo type, and the REFLECTION path has NO route** *(measured `2026-08-28`)*
+
+📐 A policy is attached **per RULE** — one per registered gizmo type — and stored on the compiled rule
+*(`CompiledStatelessRule.VisibilityPolicy`, `CompiledGlobalRule.VisibilityPolicy`)*, then pre-evaluated once
+per rule per frame. ⭐ Three supply routes exist; ⛔ **only two are reachable:**
+
+| # | route | who supplies | state |
+|---|---|---|---|
+| **①** | **manual `StatelessGizmoRegistry.Register(gizmo, components, visibilityPolicy: …)`** | ⭐ **the CALLER** — an optional 3rd argument | ✅ reachable. ⚠ `?? AlwaysVisiblePolicy.Instance` when omitted |
+| **②** | **`IGizmoDefinition.VisibilityPolicy`** *(the `GizmoRegistry` / definition path)* | ⭐ **the gizmo itself**, as a property | ✅ reachable. 📐 **one implementation repo-wide** — `EntityDragGizmo.cs:255`, returning the default |
+| 🔴 **③** | **reflection — `[GizmoProjector]` via `GizmoReflectionRegistrar`** | 🔴🔴 **NOBODY** | ⛔ **`GizmoReflectionRegistrar:~93` calls `statelessRegistry.Register(stateless, attr.RequiredComponents)` — with NO policy** ⇒ always `AlwaysVisiblePolicy`. ⛔ And `GizmoProjectorAttribute` carries **only** `RequiredComponents` — **no policy, no settings key** |
+
+⭐⭐⭐ **AND ROUTE ③ IS THE ONE THE UNIFICATION DEPENDS ON.** 📌 `ST-031`'s *"ONE reflection call replaces the
+hand-rolled family list… it declares everything and component presence decides what draws"* is exactly why
+all five hosts now register uniformly *(§2c)*. ⇒ 🔒 **the mechanism that delivered uniform MEMBERSHIP is the
+same one that removed the only per-gizmo CONFIGURATION hook.** ⚠ **That is why the repo has exactly one
+policy supplier** — it is not neglect, it is that **reflection-registered projectors have nowhere to say
+anything.**
+
+⇒ ⭐⭐ **The pack must REOPEN that hook, and there are two complementary halves** *(lean, for the user)*:
+
+| | |
+|---|---|
+| ⭐⭐⭐ **(a) the GIZMO declares WHICH SETTING gates it** — e.g. a companion attribute carrying a settings **key name** *(`[GizmoSetting("map.showPaths")]`)*, from which the registrar builds a settings-backed policy | 🔒 **the natural home:** *"show paths"* is the **gizmo's own** concept, and an attribute can carry a constant key even though it can never carry an injected registry. ⭐ Declarative, uniform, no host coupling |
+| ⭐⭐ **(b) `RegisterAll` accepts an optional `Func<Type, IGizmoVisibilityPolicy?>` resolver** | ⭐ the **composition's** escape hatch — *"this host wants that gizmo off regardless"* — ⛔ without putting host knowledge in the gizmo |
+
+🔒 **The split that makes this coherent:** ⭐ **the KEY belongs to the gizmo** *(what gates me)*; ⭐⭐ **the
+VALUE belongs to the settings instance** *(§3.2c: per host · shared · `Empty`)*; ⭐ **the OVERRIDE belongs to
+the composition** *(b)*. ⇒ **no host identity ever enters gizmo code**, which is what keeps the map shared.
+
 ##### ⇒ What this makes concrete in fix item ⑥
 
 | # | |
 |---|---|
-| **⑥a** | ⭐⭐ **a settings-backed `IGizmoVisibilityPolicy`** — the missing link. 📐 Today the interface has **only** `AlwaysVisiblePolicy`/`NeverVisiblePolicy`, both singletons returning constants that ignore the view *and* every setting ⇒ **no setting can currently affect visibility at all.** ⭐ The policy takes the registry *(or a read delegate)* by injection, keeping it host-agnostic |
+| **⑥a** | ⭐⭐ **a settings-backed `IGizmoVisibilityPolicy`** — the missing link, ⭐ **plus the SUPPLY ROUTE for reflection-registered projectors** *(route ③ above has none: a settings-key attribute + an optional resolver on `RegisterAll`)*. 📐 Today the interface has **only** `AlwaysVisiblePolicy`/`NeverVisiblePolicy`, both singletons returning constants that ignore the view *and* every setting ⇒ **no setting can currently affect visibility at all.** ⭐ The policy takes the registry *(or a read delegate)* by injection, keeping it host-agnostic |
 | **⑥b** | ⭐ **`GizmoSettingsRegistry.Empty`**, per the trap above — ⛔ never `null`, which would be the silent-default shape |
 | **⑥c** | ⭐ **the composition wires WHICH instance each host gets** — its own · a shared one · `Empty`. ⛔ **`MapInteractionContext` already carries `Settings`** *(§3.2b)*, so the seam is drawn; only the instance choice is the host's |
 | ⛔ ~~a per-host settings path convention~~ | **RETIRED** — the path is the instance owner's, and `SaveToDisk` already takes it |
