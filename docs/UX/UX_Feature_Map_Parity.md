@@ -1,24 +1,28 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — UML AUTHORED 2026-08-28 (section 3.2b: one classDiagram + two
-  sequenceDiagrams, all parsing). The owed verification is now CLOSED: StatelessGizmoSystem (the
-  [GizmoProjector] runner) is INSIDE the gated group, the grid/menu/layer emitters are outside it, so a
-  closed gate yields chrome-without-entities exactly as measured. It also OVERTURNED recommendation (1):
-  GZH-003 shows the per-host initial Enabled state is DELIBERATE (interactive on, headless-first off), so
-  "Enabled = true everywhere" is retracted and startEnabled becomes a host rule the context supplies.
-  UML REDRAWN 2026-08-28 to the construct-vs-schedule split, after the user ruled "pack owns
-  construction, host decides scheduling" (section 3.2a's architect call is CLOSED). MapInteractionContext
-  deliberately carries no ModuleHostKernel, so the section 3.2 violation is unreachable rather than merely
-  forbidden. ONE blocker remains before READY-TO-BUILD: re-size -- RW-M in PLAN_Interaction_UX_Backlog
-  section 4 is light now the pack owns construction + execution and must also adopt IGizmoVisibilityPolicy. RW-M in PLAN_Interaction_UX_Backlog section 4 is
-  LIGHT now the pack owns composition + execution rather than registration alone.
-verified: 2026-08-28 (coordinator source scan)
-current-answer: NOT-BUILT (design only) -- confirmed independently 2026-08-28: grep finds ZERO
-  occurrences of MapInteractionPack/MapInteractionContext. No shared pack; IG fork
-  (HandleContextMenuActionById) intact. READ SECTION 2b FIRST: section 2's per-host baseline has
-  INVERTED -- CGF now emits the full entity gizmo set (CgfSubsystem.cs:928) and SIMHOST emits none,
-  which is the host a user reported broken (CE-123). Section 3.3's work split is stale accordingly.
-  Section 5 is CLOSED (the seven commanding ids deferred to UXI-32/Q29; Properties+Teleport unblocked).
+build-state: READY-TO-BUILD PER SLICE — see section 3.9. Sized RW-H overall, sliced into
+  S1 gate (RW-S) / S2 construct (RW-M) / S3 declare+report (RW-L) / S4 configuration (RW-M) /
+  S5 the action half (RW-M). Every architect call is CLOSED.
+verified: 2026-08-28 (four cluster boots + a source scan; see sections 2b, 2c, 3.0, 3.2c)
+updated: 2026-08-28
+current-answer: START AT SECTION 3.9 (the slices), then 3.2a (what the pack may and may not do),
+  3.2b (the UML) and 3.2c (settings + policy supply). Sections 2b and 2c supersede section 2's
+  per-host baseline, which has INVERTED. Section 5 is CLOSED.
+  S1 FIRST: it restores a map that is broken today and lands entirely in SHARED code
+  (GizmoExecutionController + PerspectiveCoordinatorSystem), so it is NOT the per-host patch the
+  user ruled out -- say so when dispatching or it will read as the thing that was rejected.
+stale-below: section 2's per-host table (see 2b/2c). Section 3.2b's PREVIOUS drawing is deleted, not
+  retained; section 3.2a records what it got wrong.
+known-rot: nothing known.
+rulings: pack owns construction, host decides scheduling (user, 2026-08-28) - section 3.2a.
+  Membership is a rule, not a host list: every ECS-enabled host presenting a map - section 3.1b.
+  Enabled is derived from the viewer count and assigned nowhere - section 3.2b.
+  Settings are a standalone injected store, per host or shared or Empty - section 3.2c.
+  Policy supply is option (b), the resolver; the attribute route (a) is NOT taken - section 3.2c.
+known-conflict: DESIGN_Subsystem_Composition_Unification section 3.2 forbids a bundle registering a
+  system. RECONCILED in section 3.2a: the pack CONSTRUCTS (deduplication, since all five hosts already
+  register the same three systems) and the HOST SCHEDULES (the run-set follows its role). Enforced by
+  MapInteractionContext carrying no ModuleHostKernel.
 -->
 # Feature design — map-interaction parity
 
@@ -632,12 +636,20 @@ same one that removed the only per-gizmo CONFIGURATION hook.** ⚠ **That is why
 policy supplier** — it is not neglect, it is that **reflection-registered projectors have nowhere to say
 anything.**
 
-⇒ ⭐⭐ **The pack must REOPEN that hook, and there are two complementary halves** *(lean, for the user)*:
+⇒ ⭐⭐ **The pack must REOPEN that hook.** 🔒 **USER RULING `2026-08-28`: option (b) — the RESOLVER.**
+⛔ **(a), a settings-key attribute on the gizmo, is NOT taken.**
 
 | | |
 |---|---|
-| ⭐⭐⭐ **(a) the GIZMO declares WHICH SETTING gates it** — e.g. a companion attribute carrying a settings **key name** *(`[GizmoSetting("map.showPaths")]`)*, from which the registrar builds a settings-backed policy | 🔒 **the natural home:** *"show paths"* is the **gizmo's own** concept, and an attribute can carry a constant key even though it can never carry an injected registry. ⭐ Declarative, uniform, no host coupling |
-| ⭐⭐ **(b) `RegisterAll` accepts an optional `Func<Type, IGizmoVisibilityPolicy?>` resolver** | ⭐ the **composition's** escape hatch — *"this host wants that gizmo off regardless"* — ⛔ without putting host knowledge in the gizmo |
+| ✅ **(b) CHOSEN — `RegisterAll` accepts an optional `Func<Type, IGizmoVisibilityPolicy?>` resolver** | ⭐ **the COMPOSITION maps projector type → policy.** ⇒ ⭐⭐ **gizmo code stays entirely free of settings concepts** — no attribute, no key constant, the gizmo just draws |
+| ⛔ ~~(a) a settings-key attribute on the gizmo~~ | **NOT TAKEN** *(user)*. ⭐ **A consequence worth naming: the key→gizmo mapping now lives in ONE shared table** *(the pack's default resolver)* instead of being scattered across attributes — ⭐ discoverable, and reviewable in one place |
+
+⛔⛔ **THE ONE HAZARD (b) INTRODUCES, and it is this session's recurring shape:** a **newly added**
+`[GizmoProjector]` gets **no entry** in the resolver ⇒ falls through to `AlwaysVisiblePolicy` ⇒ 🔴 **silently
+always-on**, which is a silent default by omission. ⇒ ⭐⭐ **Mitigation, consistent with the rest of this
+design:** `MapInteractionPack` **REPORTS every discovered projector for which the resolver returned
+`null`** — ⭐ not a failure *(always-on is often right)*, ⛔ but never invisible. 📌 Same discipline as
+`Unserviceable(...)` and as `Empty` announcing itself.
 
 🔒 **The split that makes this coherent:** ⭐ **the KEY belongs to the gizmo** *(what gates me)*; ⭐⭐ **the
 VALUE belongs to the settings instance** *(§3.2c: per host · shared · `Empty`)*; ⭐ **the OVERRIDE belongs to
@@ -685,6 +697,34 @@ the composition** *(b)*. ⇒ **no host identity ever enters gizmo code**, which 
 the multi-delete confirmation must sit on the **key path**, which today bypasses the action vocabulary
 entirely.
 
+## 3.9 ⭐⭐⭐ RE-SIZE `2026-08-28` — **`RW-M` was wrong; it is `RW-H`, and it SLICES**
+
+📐 **Why the plan's `RW-M`** *("new component / some design")* **no longer holds:** the pack grew from
+*"one registration entry point"* to **construction + execution + the policy injection point**, across
+**five composition roots**, with **18 H acceptance cases**. ⚠ Per the legend that is `RW-H`
+*("new subsystem or architect decision first")* — ⭐ though its architect calls are now **CLOSED**, not
+pending *(§3.2a, §3.2c and the resolver ruling)*.
+
+⛔ **But a single `RW-H` label is not useful — it hides the order.** ⇒ ⭐⭐ **five slices, each independently
+shippable, cheapest and highest-value first:**
+
+| slice | what | size | why here |
+|---|---|---|---|
+| ⭐⭐⭐ **`S1` — the gate** | `Enabled` derived from the viewer count · the active-at-boot perspective adds a listener · assert on negative | ⭐ **`RW-S`** | 🔒 **This RESTORES THE USER'S MAP, and it is legitimately first BECAUSE IT LANDS ENTIRELY IN SHARED CODE** — `GizmoExecutionController` *(`Fdp.Toolkits`)* + `PerspectiveCoordinatorSystem` *(the runner)*. ⛔ **NOT a per-host patch** — 📌 which is exactly why the user's rejection of *"chase the SimHost gap"* does not apply to it. ⚠ **State that when dispatching**, or it will read as the thing that was ruled out |
+| **`S2` — construct** | `MapInteractionPack.Build(ctx)` → `MapInteraction`; the five hosts hand their constructions over and **schedule** the result | **`RW-M`** | the core of the ruling *(pack constructs, host schedules)*. ⭐ Pure deduplication: all five already build the same three systems *(§2c)* |
+| **`S3` — declare + report** | `MapInteractionBundle : IUiBundle`; `RequiredSystems`; `Unserviceable(hostRunSet)` | **`RW-L`** | ⭐⭐ the rule that would have caught the original bug ⇒ **land it early so the next such fault is loud** |
+| **`S4` — configuration** | the `Func<Type, IGizmoVisibilityPolicy?>` resolver on `RegisterAll` · a settings-backed policy · `GizmoSettingsRegistry.Empty` · the unresolved-projector report · **real policies for the actual per-host differences** | **`RW-M`** | ⚠ **the genuinely new work.** 📐 Today: **one** policy supplier returning the default, and **no** route for reflection-registered projectors |
+| **`S5` — the action half** | IG's `switch` fork → the shared registry · CGF's `GlobalActionRegistry` + dispatch + ingress · `RubberBandState` in the three hosts that pass `null` | **`RW-M`** | 🔒 **§7's order still binds here:** this is the half that WRITES, so CGF must route through `EntityWriteRouter` first *(§2b: it is the one host not in the adopter list)* |
+
+⚠⚠ **What the slices do NOT change:** 🔒 **`S1` is the only one that makes a visible difference to the user
+before `S2`-`S5` land.** ⇒ ⭐ if the map must work sooner rather than later, `S1` is the answer **and it is
+not a divergence-deepening patch**; ⛔ everything else is structure whose payoff is that the next host
+cannot drift.
+
+⭐ **Dependency order:** `S1` is independent. `S2` → `S3` *(the bundle declares what `S2` constructs)*.
+`S4` is independent of `S2`/`S3` but pointless before them for **new** hosts. `S5` needs CGF's writer
+routing first.
+
 ## 4. Acceptance
 
 | # | Case | Cls |
@@ -712,7 +752,9 @@ entirely.
 | ⭐ 23.19 | 🔒 **`GizmoSettingsRegistry.Empty` never silently absorbs a write** — a write is refused or `Session`-only, and the instance reports its non-persistence so the UI can hide/disable the toggle. ⛔ Parameterised: no host receives `null` settings | H |
 | ⭐ 23.20 | ⭐ **Two hosts sharing one settings instance see each other's toggles** *(the user's "some are sharing same settings")*, and a host with `Empty` still renders every gizmo at its registered default | H |
 
-**17 H · 3 I · 0 V.** ⚠ *(was 9 H — `23.13`-`23.16` come from §3.2b's two corrections; they are the acceptance half of "share the mechanism, let the rule vary through a parameter".)*
+| ⭐ 23.21 | 🔒 **Every discovered `[GizmoProjector]` with no resolver entry is REPORTED** — always-on stays the default, ⛔ but never silently. Parameterised: add a projector, assert it appears in the report | H |
+
+**18 H · 3 I · 0 V.** ⚠ *(was 9 H — `23.13`-`23.16` come from §3.2b's two corrections; they are the acceptance half of "share the mechanism, let the rule vary through a parameter".)*
 
 ## 5. ✅ CLOSED — the nine orphan ids are a **capability gap**, not a binding choice
 
