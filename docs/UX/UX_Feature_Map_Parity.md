@@ -31,6 +31,11 @@ rulings: pack owns construction, host decides scheduling (user, 2026-08-28) - se
   Enabled is derived from the viewer count and assigned nowhere - section 3.2b.
   Settings are a standalone injected store, per host or shared or Empty - section 3.2c.
   Policy supply is option (b), the resolver; the attribute route (a) is NOT taken - section 3.2c.
+  R-137 (user, 2026-08-28): UNIFICATION MAY NOT COST A FEATURE. If collapsing N implementations
+  takes a capability away, that is a signal to put it back as CONFIGURATION, not an acceptable
+  trade. Every slice from S2 on owes an explicit answer to "what could each host do before that it
+  cannot do now?" -- "the hosts are now the same" is not that answer. Unify the CODE, parameterise
+  the BEHAVIOUR. Live instance: CE-125, the hardcoded cyan symbol colour vs IG's authored ColorHex.
 known-conflict: DESIGN_Subsystem_Composition_Unification section 3.2 forbids a bundle registering a
   system. RECONCILED in section 3.2a: the pack CONSTRUCTS (deduplication, since all five hosts already
   register the same three systems) and the HOST SCHEDULES (the run-set follows its role). Enforced by
