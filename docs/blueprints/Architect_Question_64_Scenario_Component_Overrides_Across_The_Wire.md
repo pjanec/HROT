@@ -1,9 +1,11 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: ⭐⭐⭐ §14 (the USER'S WAIT-FLAG + ONE AGGREGATE UPDATE) is the CURRENT answer —
-  FEASIBILITY CHECKED and it is cheaper than §13. ⛔ BOTH my masks are dead: §12.4's leaked an FDP
-  component id onto the wire (breaks Q59 §7); §13's uint64 has a CEILING the user rejected.
+current-answer: ⭐⭐⭐ §15 (LATE-JOINABILITY IS THE DECIDING CONSTRAINT) is the CURRENT answer and it
+  CLOSES the question: every entity is created from TKB defaults ALWAYS, and CE-116 is WITHDRAWN.
+  ⛔ ALL FOUR transport designs are dead — §12.4's component mask, §13's uint64 mask, §14's wait-flag
+  (the user found the blocker), and nesting-in-the-creating-sample. Read §15, then §7 (CE-113, the
+  only remaining work). build-state: DESIGN closed; CE-113 is the buildable outcome.
   Then §12 (which CORRECTS
   §11.3's overstatement — the readiness gate IS built and working for EntityInfo + SimTransform).
   Then §11 (the design sweep) — it supersedes §10.5's
@@ -867,3 +869,99 @@ architecturally impossible here**, because ghost creation is **first-touch acros
 | ⛔ **`Volatile` durability vs a late-joining node** | 📌 unchanged from §13.6 — a node joining after the bundle was published never sees it and **would wait forever with a Hard flag.** ⭐ `TransientLocal` on the bundle topic would fix it; ⚠ that is a QoS decision with history-cache cost |
 | ⛔ **how many translators actually need `TryBuildFor`** | ⭐ only those carrying scenario-overridable state — 📌 **not all 41.** Scope it from §8.2's list before estimating |
 | ⛔ **whether `EDescriptorType` growth breaks `EntityDescriptorUnion`'s IDL union** | the union is `[DdsCase]`-per-arm; adding arms is routine, ⚠ but unverified against the generated counterpart |
+
+
+---
+
+## 15. ✅✅✅ CLOSED — **LATE-JOINABILITY is the deciding constraint, and it kills every side-channel** *(user, `2026-08-28`)*
+
+> 🔒 **User, verbatim:** *"NED concept requires each entity to be late-joinable just by listening to DDS and
+> for the entity descriptors. This works for reliable transient local DDS descriptors. But our entity would
+> just carry a bit in EntityMaster descriptor and no way to ask for the extra data; and asking for the data
+> is the non-elegant way. Vehicle parameters might be considered more an internal state of the entity which
+> does not need to be published. Better to leave such internal parameter changes for some runtime command
+> that is sent AFTER entity is created and might not be part of publishable state (vehicle parameters might
+> never exist as published NED descriptor, only as the UpdateEntityDescriptorRequest payload); so each
+> entity will be created from TKB defaults ALWAYS which is the original idea."*
+
+⭐⭐⭐ **This is right, and it is the strongest argument raised in the whole exchange.** ⭐ Both premises are
+verified below, and the conclusion follows from them.
+
+### 15.1 ✅ PREMISE 1 VERIFIED — **the entity-state descriptors ARE `Reliable` + `TransientLocal`**
+
+📐 Measured `2026-08-28`:
+
+| | QoS |
+|---|---|
+| ⭐ **`GenericDescriptors.cs:77 · :134 · :168`** *(EntityMaster, EntityInfo, …)* | **`Reliable` + `TransientLocal`** *(KeepLast/1, one KeepAll)* |
+| ⭐ **all six in `MapDescriptors.cs`** *(`:24 :58 :126 :160 :215 :236`)* | **`Reliable` + `TransientLocal`** *(KeepLast/1)* |
+| ⚠ **`GenericMessages.cs`** — `CreateEntityRequest`, `UpdateEntityDescriptorRequest`, the Acks | **`Volatile`** |
+
+⇒ ⭐⭐⭐ **The split is deliberate and it IS the architecture: STATE is `TransientLocal`, COMMANDS are
+`Volatile`.** ⚠ **My §13.6/§14 notes worried that "`Volatile` durability defeats late joiners" — that was
+measured on the COMMAND messages and wrongly generalised to descriptors.** ⭐ Corrected here: **descriptor
+state late-joins correctly today.**
+
+### 15.2 ✅ PREMISE 2 VERIFIED — **a union arm can exist WITHOUT a published topic**
+
+📐 **One DDS topic per descriptor type**: `new DdsWriter<EntityMaster>(participant, "EntityMaster")` ·
+`new DdsWriter<NavigationStatus>(dds, "NavigationStatus")` · `DdsWriter<EntityDamage>`…
+📐 **`EntityDescriptorUnion` has NO `[DdsTopic]`** — it is a **payload-only** union, used inside
+`CreateEntityRequest` and `UpdateEntityDescriptorRequest`.
+
+⇒ ⭐⭐ **So *"vehicle parameters might never exist as a published NED descriptor, only as the
+`UpdateEntityDescriptorRequest` payload"* is exactly right and architecturally clean** — a union arm costs
+nothing in published state and creates no `TransientLocal` history to reconcile.
+
+### 15.3 ⛔⛔⛔ WHY THE WAIT-FLAG IS WORSE THAN NOTHING — **the blocker, stated sharply**
+
+⭐ A late joiner reads `EntityMaster` **out of `TransientLocal` history**, so it sees the wait bit.
+⛔⛔ **But the bundle was a one-shot command sample, long gone** *(and correctly `Volatile` — a command is
+not state)*. ⇒ 🔴🔴 **the late joiner waits for something that can never arrive, and the ghost is stuck
+FOREVER.**
+
+⇒ ⭐⭐⭐ **The wait-flag does not merely fail to help — it converts a MISSING OVERRIDE into a PERMANENTLY
+UNPROMOTED ENTITY.** ⚠ Strictly worse than promoting on TKB defaults. 📌 **And this is not a flaw in that
+one design: ANY "flag + side channel" scheme has it**, because the flag is durable state and the channel is
+not.
+
+### 15.4 ⭐⭐⭐ THE GENERAL PRINCIPLE THIS ESTABLISHES — **worth more than the decision itself**
+
+⭐⭐ **The reason the conclusion is coherent: the TKB IS the late-join mechanism for internal state.** Every
+node holds the same static TKB **offline**, so *"reconstruct from TKB + `TransientLocal` descriptor
+history"* is **complete by construction** — there is no third source to miss.
+
+⇒ 🔒 **THE RULE, and it decides every future case of this shape:**
+
+> ⭐⭐⭐ **Entity state must be reconstructible from (a) the TKB, or (b) published `TransientLocal`
+> descriptors. ⛔ Anything that is in NEITHER is UNRECONSTRUCTIBLE by a late joiner and therefore MUST NOT
+> EXIST as durable state.**
+
+⇒ ⭐ A side-channel override is exactly *"neither"* ⇒ ⛔ forbidden, not merely inelegant. ⭐⭐ **That is why
+all four transport designs failed** — they were all attempts to create a third source.
+
+### 15.5 ✅ THE DECISION
+
+| # | 🔒 ruled |
+|---|---|
+| ① | ⭐⭐⭐ **Every entity is created from TKB defaults ALWAYS.** The TKB must therefore be SUFFICIENT ⇒ **`CE-113` is the whole of the work** |
+| ② | ⛔ **`CE-116` is WITHDRAWN** — the question dissolves rather than being answered. No readiness declaration, no per-entity mask, no wait flag, no aggregate bundle |
+| ③ | ⛔ **The scenario must stop storing translator-derived components** *(ruling ②, `CE-113` item B3)* — they are not overrides, they are stale duplicates of TKB material |
+| ④ | ⭐ **If a parameter must ever change at runtime**, it goes as a **command after creation** *(`UpdateEntityDescriptorRequest`-shaped)*, explicitly **not** as published state |
+
+### 15.6 ⚠⚠ THE ONE BOUNDARY CONDITION I OWE — **the runtime command has the SAME hole, moved**
+
+⭐ Ruling ④ is safe **only while overrides do not exist**. ⛔⛔ **A runtime parameter command's effect is
+ALSO unreconstructible by a late joiner**: a node joining after the command holds TKB defaults while the
+others hold the changed value ⇒ **silent divergence**, by §15.4's own rule.
+
+| ⭐ so, stated as a fence | |
+|---|---|
+| ✅ **today** | no overrides ⇒ **no divergence is possible.** Every node derives the same values from the same TKB. **Self-consistent** |
+| ⚠ **the moment a runtime param command is actually USED** | the divergence returns for late joiners ⇒ ⭐⭐ **that command is only safe as a TRANSIENT / authoring-time action whose divergence is knowingly accepted** |
+| ⛔ **it can NEVER be the general override mechanism** | 🔒 **If a parameter must differ from the TKB DURABLY, it has to become a real published `TransientLocal` descriptor at that point** — a deliberate RECLASSIFICATION from *internal* to *published* state, not a workaround |
+
+⇒ ⭐ **`CE-114`'s filter is now sharp, and it is not *"what does SimHost register"*:**
+🔒 **"Does this state need to survive a late join?"** ⭐ **Yes ⇒ it must be a published descriptor.
+No ⇒ it must come from the TKB.** ⛔ **There is no third answer**, which is exactly why this took four
+attempts to find.

@@ -150,26 +150,55 @@ never live, always intended; the scenario's stored block is a **fossil of its la
 and `InfantryVehicleStateStripTkbTranslator`)*, both `!HasComponent`-guarded ⇒ first-writer-wins by
 registration order. **Decide the owner first.**
 
-### 0.0e.3b ⭐⭐⭐ THE INVESTIGATION — **`CE-114`/`CE-115`, and read `Q64` §11 BEFORE §8/§10**
+### 0.0e.3b ✅✅✅ **CLOSED `2026-08-28` — TKB DEFAULTS ALWAYS. `CE-113` is the whole of the work.**
 
-⚠⚠ **THREE OF MY FOUR ARCHITECTURAL CLAIMS WERE WRONG and are retracted in `Q64` §10.** ⛔ Do not build on
-§2's *"the loss is the wire hop"*, §8.3's *"use `InitialAttributesJson`"*, or *"`UnitSubordinate` should be
-the first override to travel."*
+📄 **`Q64` §15.** 🔒 **The user found the blocker in his own design and it closes the question:**
+*"NED concept requires each entity to be late-joinable just by listening to DDS and for the entity
+descriptors… so each entity will be created from TKB defaults ALWAYS which is the original idea."*
 
-| 🔒 the corrected picture *(measured + design-confirmed)* | |
+⛔⛔⛔ **ALL FOUR transport designs are DEAD.** ⭐ Do not revive any of them:
+
+| ⛔ dead design | why |
 |---|---|
-| ⭐⭐⭐ **TKB is NEVER on DDS** | 📄 design, verbatim: *"DDS is not used for TKB transport. TKB is static asset data."* It is a **staged ZIP** per node |
-| ⭐⭐ **"TKB translators" are the DESIGNED mechanism** | `ITkbEntityTranslator.Inject(repo, entity, template)` is **purely local**. ⚠ **The design calls this role `IDescriptorTranslator`** and the code gave that name to the **NED** role instead ⇒ the confusing name is **design/code drift**, not a misunderstanding |
-| ⛔⛔ **THERE IS NO "WIRE-HOP LOSS"** | 📐 `CreateEntityRequest` is **INBOUND-TO-CGF ONLY** *(single reader, `NedCgfEntityLifecycleAdapters`, composed only by `CgfSubsystem:646`)*. SimHost's entity is a **PROMOTED GHOST** built from the TKB by design — proven by its **missing `NetworkOwnership`**, which the local spawn path always stamps. ⇒ **nothing was lost; the TKB simply cannot express a Tank** |
-| ⭐ **`UnitSubordinate` already travels** | inside `dtEntityInfo` as `CommanderId`, runtime-updatable via `UpdateEntityAttributeRequestSystem`. **Not a TKB descriptor.** ⚠ Its absence on SimHost is a SEPARATE, unmeasured question |
-| ⭐⭐ **the ownership model the user described EXISTS** | `AuthorityMask` *(`BitMask512` per component)* · `DescriptorGrant` per descriptor · `BrainMuscleOwnershipStrategy` *(`dtWorldPos` + `dtNavigationStatus` → Muscle; intents stay on the Brain)* · descriptor→component map from `TargetComponentIds` |
-| ✅ **the readiness gate IS BUILT** *(`CE-115` was OVERSTATED — corrected)* | 📐 `BdcTkbBuilder.DefineVehicle:36-38` registers **`EntityInfo` + `SimTransform`, both Hard, on every template** — confirmed live on 100/103/303. ⇒ ghost promotion genuinely blocks on position+identity. ⚠⚠ **My "not built" claim was a FOURTH grep-as-hypothesis miss** — I searched the PROPERTY `MandatoryComponents` and never the METHOD `AddMandatoryComponent`. ⭐ `CE-115`'s real, narrower gap: the design says entries are *"populated PER TRANSLATOR"*; the code hand-authors them centrally, identically for every host ⇒ a SimHost-only component cannot declare its own requirement |
-| ✅✅ **`CE-116` — the USER'S design, 4th iteration, FEASIBILITY CHECKED** | 🔒 **A wait-FLAG in `EntityMaster` + ONE aggregate descriptor update; the receiver applies whatever is in it (owned only), then promotion unblocks.** ⭐⭐⭐ **Beats both my masks because the receiver need not know WHAT is coming, only THAT something is** ⇒ no enumeration ⇒ **no ceiling** *(killed §13's `uint64`)* and **no per-entity payload** *(killed the 64-byte mask — lightweight entities are numerous)*. ✅ **4 of 5 parts already exist:** the flag is **FREE, no IDL change** *(`EntityMaster.Flags` is `ulong`, written `= 0`, read nowhere)* · **owned-only is already the pattern on BOTH sides** *(`HasAuthority(entity, packedKey)` in 3 egress + 3 ingress translators)* · ⭐⭐ **the creator needs NO inverse map** — each egress translator knows its own components and ordinal ⇒ **§13.5's 9-of-41 blocker disappears** · promotion unblock is **one bit** on `GhostStateTracker`. ⚠ **One new topic** — `UpdateEntityDescriptorRequest` carries only ONE descriptor, but `CreateEntityRequest.InitialDescriptors` proves `sequence<EntityDescriptorUnion>` marshals. ⚠ **One design cost:** no *"emit for entity E"* member exists; add `TryBuildFor` — and **rail it**, a "returns nothing" default is the silent-empty trap that has bitten this area 4×. 🔴 **RESIDUAL HOLE:** the flag says *wait*, not *what for* ⇒ a bundle missing an intended descriptor unblocks **silently** ⇒ ⭐⭐ **mitigation ①: assert coverage ON THE CREATOR at build time** *(loud local failure before publish)*. ⚠⚠ **Unmeasured:** who writes the bundle and **`--mode editor` has NO wire ⇒ the flag must be a no-op there, not a hang** · **`Volatile` durability ⇒ a late joiner never sees the bundle and would wait forever** *(`TransientLocal` fixes it, at cache cost)* · how many translators need `TryBuildFor` *(not all 41)* |
+| component-id bitmask *(§12.4)* | leaked an FDP component id onto the wire ⇒ breaks `Q59` §7 |
+| `uint64` descriptor mask *(§13)* | has a **ceiling**; the descriptor count will grow past 64 |
+| nest overrides in the creating sample | ⛔ **impossible** — `CreateGhost` is called from ≥10 ingress translators ⇒ **first-touch** creation, no privileged sample |
+| ⭐ wait-flag + aggregate bundle *(§14)* | 🔴🔴 **WORSE THAN NOTHING** — a late joiner reads `EntityMaster` from **TransientLocal** history and sees the wait bit, but the bundle was a one-shot **`Volatile`** command, long gone ⇒ **the ghost is stuck FOREVER.** 📌 **Any "flag + side-channel" scheme has this**: the flag is durable state, the channel is not |
 
-⭐ **Sequencing:** **`CE-113`** *(alone, fixes `CE-103`)* → **`CE-116`** *(per-entity readiness — the open
-design question, needs a ruling)* → **`CE-115`** *(per-translator declaration)* → naming reconciliation into
-`Q59` §7 → **`CE-114`** *(per-component descriptor transport)*.
-⛔⛔ **`CE-113` depends on NONE of them** — it is the only thing `CE-103` requires.
+✅ **Verified while closing:** the entity-state descriptors ARE **`Reliable` + `TransientLocal`**
+*(`GenericDescriptors.cs:77/134/168` + all six in `MapDescriptors.cs`)*; the **command** messages are
+`Volatile`. ⇒ ⭐⭐⭐ **STATE is TransientLocal, COMMANDS are Volatile — that split IS the architecture.**
+⚠ My earlier *"Volatile defeats late joiners"* note was measured on the **commands** and wrongly
+generalised to descriptors. ⭐ And `EntityDescriptorUnion` has **no `[DdsTopic]`** *(one topic per descriptor
+type; the union is payload-only)*, so a type can exist as an `UpdateEntityDescriptorRequest` payload
+**without** becoming published state.
+
+🔒🔒🔒 **THE PRINCIPLE THAT NOW DECIDES EVERY CASE OF THIS SHAPE — the TKB is itself the late-join
+mechanism for internal state:**
+
+> ⭐⭐⭐ **Entity state must be reconstructible from (a) the TKB, or (b) published `TransientLocal`
+> descriptors. Anything in NEITHER is unreconstructible by a late joiner and MUST NOT EXIST as durable
+> state.**
+
+⇒ ⛔ a side-channel override is exactly *"neither"* ⇒ **forbidden, not merely inelegant.** ⭐ That is why all
+four designs failed: each tried to create a third source.
+
+⭐ **`CE-114`'s filter is now sharp** — ⛔ not *"what does SimHost register"* *(that removed 1 of 23)* but
+🔒 **"does this state need to survive a late join?"** ⇒ **yes ⇒ published descriptor · no ⇒ TKB. No third
+answer.** ⚠ **Nothing is in scope today**: `VehicleParams` is ruled internal state ⇒ TKB-only.
+
+⚠⚠ **THE ONE BOUNDARY:** a runtime parameter command has the **same hole, moved** — a node joining after it
+holds TKB defaults while others hold the changed value. ⭐ Safe **only** as a transient/authoring action
+with divergence knowingly accepted; ⛔ **never the general override mechanism.** 🔒 A parameter that must
+differ from the TKB **durably** must be **reclassified** into a real published descriptor.
+
+
+
+⭐⭐⭐ **Sequencing — the design question is CLOSED, so there is only one item: `CE-113`.**
+⛔ `CE-116` **WITHDRAWN** · ⭐ `CE-114` re-scoped to *"promote to a published descriptor, or fix the TKB"*
+with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory declaration)* and the
+`IDescriptorTranslator` naming reconciliation remain as small independent cleanups.
+⭐⭐ **`CE-113` is the whole of the work and depends on none of it.**
 
 ⚠⚠ **PROCESS NOTE WORTH KEEPING:** I ran this as a code investigation and swept the design corpus only
 after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
