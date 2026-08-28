@@ -3,7 +3,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.ModuleHost.Abstractions;
 
-namespace Hrot.IG.Systems;
+namespace Hrot.Presentation.Map;
 
 /// <summary>
 /// PostSimulation system that assigns each map entity's <see cref="MapDisplayComponent"/>

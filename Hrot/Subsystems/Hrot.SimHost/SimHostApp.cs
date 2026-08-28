@@ -473,6 +473,13 @@ namespace Hrot.SimHost
                 ctx.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _eventHistoryService, _interactionBus));
                 // Register canvas menu update so CanvasContextMenuGizmo has state to project.
                 ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+                // ⭐⭐⭐ UXI-23 S1 — stamps MapDisplayComponent.LayerMask so the shared entity gizmos
+                //    can layer-cull. 🔒 Ruling ③: the PACK owns construction, the HOST decides
+                //    scheduling — this is the host's half. The same shared system IG schedules via
+                //    MapLayerModule and the Editor registers directly (EditorSubsystem:1468).
+                // ⭐ The null default takes MapLayerRegistry.All; that ctor parameter is the seam
+                //    S4 fills with a definition set shared across subsystems.
+                ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Map.MapLayerAssignmentSystem());
             };
 
             // BootstrapNode runs all 7 phases including Phase 6d (callback) and Phase 7 (Initialize).

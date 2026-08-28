@@ -45,7 +45,8 @@ public static class IgRoleComponentRegistry
 
         world.RegisterManagedComponent<EditablePolyline>();
         world.RegisterComponent<MapOverlayStyle>();
-        world.RegisterComponent<MapDisplayComponent>();
+        // UXI-23 S1: MapDisplayComponent moved to the shared map list.
+        Hrot.Presentation.Map.MapPresentationRegistry.RegisterAll(world);
         world.RegisterComponent<EntityInfo>();
         world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
 

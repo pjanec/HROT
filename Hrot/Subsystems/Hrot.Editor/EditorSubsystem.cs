@@ -78,6 +78,7 @@ using Hrot.ScenarioEditor.Rendering;
 using Hrot.ScenarioEditor.Services;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
+using Hrot.Presentation.Map;
 using Hrot.Presentation.Facades;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
@@ -970,7 +971,8 @@ namespace Hrot.Editor
             _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
             // MapDisplayComponent is used by MapLayerAssignmentSystem to tag entities
             // with the layer bitmask used by the DebugGizmoLayer for visibility culling.
-            _world.RegisterComponent<MapDisplayComponent>();
+            // UXI-23 S1: routed through the shared map list rather than registered inline.
+            Hrot.Presentation.Map.MapPresentationRegistry.RegisterAll(_world);
             // IG presentation components required by MapCullingModule / StyleResolutionModule.
             _world.RegisterComponent<Hrot.IG.Components.CullingState>();
             _world.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();

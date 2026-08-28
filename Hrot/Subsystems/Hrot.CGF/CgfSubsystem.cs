@@ -972,6 +972,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
         // Register canvas menu update so CanvasContextMenuGizmo has state to project.
         _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+        // ⭐⭐⭐ UXI-23 S1 — CGF showed entities only because the SCENARIO FILE authors
+        //    MapDisplayComponent; nothing on this host ever recomputed the layer mask, so an
+        //    entity spawned at runtime (or one whose layer membership changed) kept a stale or
+        //    absent value. 🔒 Ruling ③: the host schedules the shared system.
+        _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Map.MapLayerAssignmentSystem());
 
         // ⭐⭐⭐ CE-051 (Axis-C E3) — THE SHARED VIEWPORT INTERACTION, the same module the editor registers.
         // 📄 docs/DESIGN_Cgf_Tool_Selection_Camera_Slice.md §3 ⑤ and §6 (the two-way reconciliation).

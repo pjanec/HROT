@@ -2,11 +2,16 @@
 state: LIVE
 updated: 2026-08-28
 current-answer: ⭐⭐⭐ §0.0e — "--mode all VISUAL-CHECK CORRECTIVES + the cgf==editor TKB ruling".
-  START AT §0.0e.3d — UXI-23 SLICE S1 (THE MAP'S MISSING INPUTS: MapDisplayComponent + VisualData
-  are produced by IG-PRIVATE code, so SimHost's entities have neither and the shared projectors find
-  nothing to draw). ⛔⛔ The GATE version of S1 is REFUTED by measurement 2026-08-28 — do NOT build
-  the clamp or the boot-perspective activation; §0.0e.3d opens with the three measurements that
-  killed it. CE-113 is DONE and verified;
+  ⭐⭐⭐ S1 IS BUILT (2026-08-28). NEXT IS S2, and its FIRST ITEM IS NOW CONCRETE: assert what each
+  host's StatelessGizmoRegistry actually CONTAINS after GizmoReflectionRegistrar.RegisterAll.
+  ⛔⛔ CE-123 STAYS OPEN: S1 delivered both missing components to SimHost (0/8 -> 8/8 and 0/8 -> 7/8,
+  measured live) and its frame is STILL 605/3, so a further cause remains. The lead — three
+  host-private entity presentation gizmos, plus a reflection registrar that scans only LOADED
+  assemblies — is recorded as a HYPOTHESIS in UX_Feature_Map_Parity.md §3.9b. ⛔ Do NOT treat it as
+  a root cause; measure the registry first. Two earlier stories about this symptom were already
+  wrong (the camera, then the gizmo gate).
+  ⛔ ALSO REFUTED, do not build: the GATE version of S1 (the clamp / boot-perspective activation).
+  CE-113 is DONE and verified;
   its plan in §0.0e.3c is history. It is the ONLY work left and it carries every file
   anchor, the four things still to measure, and the exact verification probe. The rest of §0.0e is
   context: §0.0e.1 the rulings, §0.0e.3b why the design question is CLOSED, §0.0e.5 the boot recipe,

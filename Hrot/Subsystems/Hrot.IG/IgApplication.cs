@@ -78,6 +78,7 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 
 using Fdp.Toolkit.Time.Controllers;
+using Hrot.Presentation.Map;
 
 using Fdp.Toolkit.Vis2D;
 

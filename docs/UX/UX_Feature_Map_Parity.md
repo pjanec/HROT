@@ -1,17 +1,24 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD PER SLICE — see section 3.9. Sized RW-H overall, sliced into
-  S1 the inputs (RW-M) / S2 construct (RW-M) / S3 declare+report (RW-L) / S4 configuration (RW-M) /
-  S5 the action half (RW-M). Every architect call is CLOSED except S1's one open design call,
-  named at the end of section 3.9 (how far to lift MapLayerAssignmentSystem).
+build-state: S1 BUILT (2026-08-28, see 3.9b as-built) / S2 construct (RW-M) / S3 declare+report
+  (RW-L) / S4 configuration (RW-M) / S5 the action half (RW-M) are READY-TO-BUILD. Sized RW-H
+  overall. Every architect call is CLOSED: S1's open call was resolved by the user 2026-08-28 --
+  "lift both mechanisms, layer definitions as S4 config, shareable between multiple subsystems".
 verified: 2026-08-28 (five cluster boots + a source scan; see sections 2b, 2c, 3.0a, 3.2c)
 updated: 2026-08-28
-current-answer: START AT SECTION 3.0a (the MEASURED root cause), then 3.9 (the slices), then 3.2a
-  (what the pack may and may not do), 3.2b (the UML) and 3.2c (settings + policy supply).
+current-answer: START AT SECTION 3.9b -- S1's AS-BUILT. S1 IS BUILT AND VERIFIED, AND THE USER'S
+  SYMPTOM IS NOT YET FIXED: both missing components now reach SimHost (0/8 -> 8/8 and 0/8 -> 7/8,
+  measured live) but its frame is still 605/3, so a further cause remains. 3.9b names the lead
+  (three host-private entity presentation gizmos; a reflection registrar that scans only LOADED
+  assemblies) as a HYPOTHESIS for S2, deliberately not as a root cause.
+  Then read 3.0a (the confirmed-but-insufficient root cause), 3.9a (S1's design + UML), 3.9 (the
+  slices), 3.2a (what the pack may and may not do), 3.2b (the UML) and 3.2c (settings + policy).
   Sections 2b and 2c supersede section 2's per-host baseline, which has INVERTED. Section 5 is CLOSED.
-  S1 FIRST: it restores a map that is broken today by SHARING THE TWO PRODUCERS of the components
-  every entity gizmo reads (MapDisplayComponent, VisualData) -- both IG-private today. It lands in
-  shared code plus each host's run set, so it is NOT the per-host patch the user ruled out.
+  S1 IS DONE (2026-08-28): the two producers are shared, MapDisplayComponent registration is one
+  list instead of three copies plus one omission, MapLayerBits is no longer a hand-synced duplicate,
+  and CE-118 is fixed (WithVisual discarded everything it was given; VisualDefinitionDto had no
+  producer anywhere in the repo). 15 rails, each inverse-edit red-proved. No regression on Scenario
+  or IG. But see 3.9b: this was necessary and NOT sufficient.
 stale-below: section 2's per-host table (see 2b/2c). Section 3.2b's PREVIOUS drawing is deleted, not
   retained; section 3.2a records what it got wrong.
   AND section 3.0's "THE ROOT CAUSE" (the unclamped-counter story, Part 1 + Part 2) is REFUTED by
@@ -789,6 +796,229 @@ routing first.
 already models exactly this)*, so `MapLayerAssignmentSystem` becomes shared while **what** the layers are
 stays per-host. ⛔ **Do not silently decide this inside the build** — it is the difference between
 unifying a mechanism and unifying a policy.
+
+## 3.9a ⭐⭐⭐ `S1` — THE DESIGN: **lift the two producers** *(user ruling `2026-08-28`; `build-state: READY-TO-BUILD`)*
+
+> 🔒🔒🔒 **User, verbatim:** *"lift both mechanisms, layer definitions as S4 config, shareable
+> between multiple subsystems"*
+
+⭐⭐ **That settles §3.9’s open call.** Both mechanisms become shared; the layer **definitions** are
+`S4` configuration, and — per settings ruling ④ — **one definition set is shareable across subsystems**,
+not cloned per host.
+
+### INVENTORY — `search_graph(name_pattern=".*MapLayer.*")` → **total 58**, plus a targeted translator query
+
+⚠ Recorded because a design may not claim a set it did not enumerate. Production types only *(docs, tests
+and the unrelated `IMapLayer` render-layer family are excluded — 📌 **`IMapLayer` is a DIFFERENT concept**:
+a Vis2D draw layer, not an entity-classification layer, and nothing here touches it)*:
+
+| type | today | verdict |
+|---|---|---|
+| `MapLayerAssignmentSystem` | `Hrot.IG/Systems/` | ⭐ **MOVE** |
+| `MapLayerRegistry` | `Hrot.IG/Systems/` | ⭐ **MOVE** |
+| `MapLayerDefinition` | `Hrot.IG/Systems/` | ⭐ **MOVE** |
+| `MapLayerModule` | `Hrot.IG/Modules/` | ⚠ **STAYS** — an IG-shaped `IEcsModule` wrapper; ⭐ the host decides scheduling *(ruling ③)* |
+| `PresentationTkbTranslator` | `Hrot.IG/Translators/` | ⭐ **MOVE** |
+| `MapDisplayComponent` | ✅ `Fdp.Presentation/Vis2D/Components/` | ✅ **already shared** — only its REGISTRATION is host-private |
+| `VisualData` · `VisualDefinitionDto` | ✅ `Hrot.Core/MapDefinitions/Tkb/` · `Fdp.Toolkits/Tkb/Domain/` | ✅ already shared |
+| `MapOverlayStyle` | ✅ `Hrot.Core/Components/Map/` — ⚠ **still in the `Hrot.IG.Components` NAMESPACE** | ✅ already shared — 📌 **and it is the PRECEDENT for this lift** |
+| `MapLayerBits` | `Hrot.Core/Config/` | 🔴 **DUPLICATE** — see below |
+
+#### 📌 TWO PRIOR-ART FINDINGS THE ENUMERATION TURNED UP — **both change the work**
+
+| # | |
+|---|---|
+| ⭐⭐⭐ **a** | **`MapLayerAssignmentSystem` IS ALREADY SHARED — the Editor registers it directly** *(`Hrot.Editor/EditorSubsystem.cs:1468`, `_kernel.RegisterGlobalSystem(new MapLayerAssignmentSystem())`)*, reaching cross-assembly into `Hrot.IG.Systems`. ⇒ ⭐⭐ **this slice RELOCATES already-shared code; it does not decide to share it.** ⚠ Which also means the type’s `Hrot.IG.*` name has been **actively misleading** for two consumers already |
+| ⭐⭐ **b** | **`MapLayerBits` is a hand-synchronised COPY of `MapLayerRegistry`’s five bit constants** — 🔒 its own doc says *"These values must match `Hrot.IG.Systems.MapLayerRegistry` exactly"*. ⚠ **A comment is not a mechanism.** ⇒ ⭐ once the registry lands in a home `MapLayerBits` can see, **collapse it**: the registry REFERENCES the constants instead of restating them |
+
+📌 **The precedent, verbatim, from `Hrot.IG/Components/MapOverlayStyle.cs`** *(a breadcrumb file left where the
+type used to be)*: *"MapOverlayStyle has been moved to `Hrot.Map.Common\Components\MapOverlayStyle.cs` so that
+both `Hrot.IG` and `Hrot.SimHost` can reference it without a circular project dependency."*
+⇒ ⭐ **the same move, for the same reason, is already in this codebase** — mirror it, including the breadcrumb.
+
+### 📐 WHERE EACH HALF LANDS — **forced by the reference graph, not by taste**
+
+```
+Fdp.Presentation → Fdp.Toolkits          (one-way; MEASURED)
+Hrot.Core        → Fdp.Core, Fdp.Toolkits   — ⛔ CANNOT see MapDisplayComponent
+Hrot.Presentation→ Hrot.Core, Fdp.Presentation, Fdp.Toolkits   — ✅ sees everything
+IG · CGF · Editor · SimHost  → Hrot.Presentation   (all four; MEASURED)
+```
+
+| half | home | why |
+|---|---|---|
+| the **layer mechanism** *(3 types)* | ⭐ **`Hrot.Presentation/Map/`** | needs `MapDisplayComponent` *(`Fdp.Presentation`)* ⇒ ⛔ **`Hrot.Core` is impossible.** ⭐ `MapLayerState` already lives in this assembly, and all four map hosts reference it |
+| the **presentation translator** | ⭐ **`Hrot.Core/MapDefinitions/Tkb/`** | it needs only `VisualData` *(right there)* + `VisualDefinitionDto` ⇒ ⭐ it belongs beside the type it writes, with its five peer translators’ shape |
+
+⭐ **Namespaces are RENAMED** *(`Hrot.IG.Systems` → `Hrot.Presentation.Map`, `Hrot.IG.Translators` →
+`Hrot.Map.Definitions.Tkb`)*. ⚠ **This is the one place this slice deviates from the `MapOverlayStyle`
+precedent, which kept its namespace to avoid churn.** 🔒 Deliberate: finding (a) shows the misleading name
+has already cost two consumers, the churn is **6 `using` lines**, and every one is compile-checked.
+⛔ `MapOverlayStyle`’s own namespace is left alone — out of scope, and it is a component, not a system.
+
+### ⭐ THE CLASS DIAGRAM — *(existing types carry their file; obligation ②)*
+
+```mermaid
+classDiagram
+    class MapDisplayComponent {
+        <<existing, shared>>
+        +uint LayerMask
+    }
+    note for MapDisplayComponent "Fdp.Presentation/Vis2D/Components/ - already shared"
+
+    class VisualData {
+        <<existing, shared>>
+        +FixedString32 SymbolCode
+        +FixedString32 MapShapeName
+    }
+    note for VisualData "Hrot.Core/MapDefinitions/Tkb/ - already shared"
+
+    class MapLayerBits {
+        <<existing, shared>>
+        +uint GroundUnitsBit
+        +uint AirUnitsBit
+        +uint VehiclesBit
+        +uint TacticalGraphicsBit
+        +uint RoadGraphsBit
+    }
+    note for MapLayerBits "Hrot.Core/Config/ - the SURVIVING copy of the five bits"
+
+    class MapLayerDefinition {
+        <<moved to Hrot.Presentation.Map>>
+        +string Name
+        +uint BitMask
+        +Func IsMember
+    }
+    class MapLayerRegistry {
+        <<moved to Hrot.Presentation.Map>>
+        +IReadOnlyList~MapLayerDefinition~ All
+    }
+    class MapLayerAssignmentSystem {
+        <<moved to Hrot.Presentation.Map>>
+        -IReadOnlyList~MapLayerDefinition~ _layers
+        +Execute(view, dt)
+    }
+    class PresentationTkbTranslator {
+        <<moved to Hrot.Map.Definitions.Tkb>>
+        +GetConsumedDescriptors()
+        +Inject(repo, entity, template)
+    }
+
+    MapLayerRegistry ..> MapLayerBits : references the bits<br/>(was a hand-synced copy)
+    MapLayerRegistry o-- MapLayerDefinition : holds 5
+    MapLayerAssignmentSystem o-- MapLayerDefinition : injected set<br/>defaults to Registry.All
+    MapLayerAssignmentSystem ..> MapDisplayComponent : writes
+    PresentationTkbTranslator ..> VisualData : writes
+
+    class IgApplication
+    class SimHostApp
+    class CgfSubsystem
+    class EditorSubsystem
+    IgApplication ..> MapLayerAssignmentSystem : already (via MapLayerModule)
+    EditorSubsystem ..> MapLayerAssignmentSystem : already (direct, line 1468)
+    SimHostApp ..> MapLayerAssignmentSystem : NEW
+    CgfSubsystem ..> MapLayerAssignmentSystem : NEW
+    SimHostApp ..> PresentationTkbTranslator : NEW
+```
+
+⭐⭐ **The `S4` seam is ALREADY OPEN and under-adopted** — the seam law again: `MapLayerAssignmentSystem`
+already takes `IReadOnlyList<MapLayerDefinition>? layers = null`, and **every production caller passes
+`null`.** ⇒ ⭐ `S1` does **not** build a config store; it keeps `MapLayerRegistry.All` as the default and
+**leaves that parameter as the injection point `S4` fills** with a definition set shared across subsystems.
+⛔ Do not add a second seam.
+
+### ⭐ THE SEQUENCE — what makes SimHost’s entities drawable
+
+```mermaid
+sequenceDiagram
+    participant Boot as SimHostNodeBootstrapper
+    participant Reg as SimHostComponentRegistry
+    participant Tkb as PresentationTkbTranslator
+    participant Sys as MapLayerAssignmentSystem
+    participant Giz as StatelessGizmoSystem
+
+    Note over Boot,Reg: NEW - register the component type first
+    Boot->>Reg: RegisterComponent(MapDisplayComponent)
+    Note over Boot,Tkb: NEW - add to the translator list (was 6, no presentation one)
+    Boot->>Tkb: Inject(repo, entity, template)
+    Tkb->>Tkb: IsComponentTypeRegistered(VisualData)?
+    Tkb-->>Boot: AddComponent(VisualData) + EntityInfo
+    Note over Boot,Sys: NEW - schedule the shared system (host decides, ruling 3)
+    loop each rescan pass
+        Sys->>Sys: evaluate the 5 layer predicates
+        Sys-->>Sys: AddComponent(MapDisplayComponent LayerMask)
+    end
+    Giz->>Giz: project entities carrying VisualData + MapDisplayComponent
+    Giz-->>Boot: primitives (non-Line count rises from 3)
+```
+
+⚠⚠ **The ORDER is load-bearing and is where this can silently no-op:** `PresentationTkbTranslator`
+**early-returns when `VisualData` is unregistered** *(`:29`)*, so a registration that lands after the
+translator runs produces **no error and no component** — 📌 the `CLAUDE.md` silent-default pattern, and the
+exact reason this bug survived. ⭐ **A rail must assert the component is PRESENT on a TKB-built entity**,
+not merely that the translator is in the list.
+
+## 3.9b 🔴🔴🔴 `S1` AS-BUILT — **the fix is REAL, MEASURED, and NOT SUFFICIENT** *(obligation ⑤, `2026-08-28`)*
+
+⭐⭐ **§3.0a's root cause is CONFIRMED as a real, now-closed gap.** ⛔⛔ **But it was not the WHOLE cause:
+SimHost's frame is still `605 / 3` after both components arrive.** 🔒 Recorded here so nobody reads
+§3.0a or §3.9a as "the map is fixed."
+
+### 📐 What was measured, live on `--mode all` + `hill-attack`, before → after
+
+| | before `S1` | after `S1` |
+|---|---|---|
+| `MapDisplayComponent` on SimHost's 8 entities | 🔴 **0 / 8** | ✅ **8 / 8** |
+| `VisualData` on SimHost's 8 entities | 🔴 **0 / 8** | ✅ **7 / 8** ⚠ *(`1005` authors no visuals — a type with no `WithVisual` entry; expected, not a defect)* |
+| SimHost non-`Line` primitives | `3` | 🔴 **`3` — UNCHANGED** |
+| Scenario / IG non-`Line` *(regression check)* | `69` / `104` | ✅ **`69` / `104` — unchanged, no regression** |
+
+⇒ ⭐⭐⭐ **The two inputs now reach the muscle. The projectors still draw nothing from them.**
+
+### 📌 `CE-118` was resolved inside `S1` — **a DEVIATION from §3.9a's scope, argued here**
+
+⚠ §3.9a scoped `S1` as *"lift the two producers."* 📐 Lifting `PresentationTkbTranslator` turned out to be
+**inert on its own**, because its input descriptor was produced by **nothing in the repository**:
+
+```csharp
+public NedTkbBuilder WithVisual(long tkbId, Action<IgVisualDef> configure) {
+    var template = _db.GetByType(tkbId);
+    if (template == null) throw ...;
+    // VisualData ECS component will be applied by IG-side translator in Phase 6.
+    return this;                       // <- configure() NEVER CALLED. Nine call sites authored into a void.
+}
+```
+
+⭐ **Identical in shape to `CE-113`'s `WithPhysics`, same "Phase 6" comment** ⇒ 📌 **two instances of one
+pattern**: a builder method that takes authored data, resolves the template, and forgets the descriptor.
+⛔ **Neither failed loudly**, because an absent descriptor is indistinguishable from an unauthored one.
+⇒ ⭐ **Fixed in `S1`** rather than deferred to `UXI-10`: without it the lift delivers a translator that
+cannot fire, so deferring would have shipped a slice that provably does nothing.
+
+### 🔴 THE REMAINING CAUSE — **a LEAD, explicitly NOT yet verified** ⇒ `S2`
+
+⚠⚠ **Stated as a hypothesis with its evidence, not as a root cause.** 📌 §3.0's gate story is exactly what
+happens when a plausible mechanism is written up as settled.
+
+| 📐 evidence | |
+|---|---|
+| **a** | 🔴 **THREE host-private entity presentation gizmos exist**: `Hrot.SimHost/Gizmos/SimHostEntityPresentationGizmo` *(38 lines)* · `Hrot.CGF/Gizmos/CgfEntityPresentationGizmo` *(52)* · `Hrot.Presentation/ScenarioEditor/Gizmos/IgEntityPresentationGizmo` *(54)*. ⭐ All three are thin wrappers over the **already-shared** `EntityPresentationGizmoShared` ⇒ ⭐⭐ **this is `S2`'s "one implementation" target, and it is much closer to done than §2c suggests** |
+| **b** | ⚠ SimHost's projector is `[GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity))]` and emits `SpatialAnchor` + a pick `Box2D` + `SemanticShape`. 📐 **SimHost's entities carry BOTH required components** ⇒ the query should match, and **none of those three shapes appears in its frame** |
+| **c** | 🔴 **`GizmoReflectionRegistrar.DiscoverProjectorTypes` scans `AppDomain.CurrentDomain.GetAssemblies()`** — i.e. **only assemblies already LOADED when `RegisterAll` is called.** ⚠ .NET loads assemblies lazily ⇒ **which projectors a host registers depends on its bootstrap ORDER**, which differs per host. ⭐ That is a mechanism that would produce exactly this symptom, and it is **cheap to test**: assert the registry's contents after `RegisterAll` on each host |
+
+⇒ ⭐⭐ **`S2`'s first item is now concrete**: assert what each host's `StatelessGizmoRegistry` actually
+CONTAINS after registration — ⛔ today nothing checks that a reflection-discovered projector was found,
+which is the same silent-capability shape as `PresentationTkbTranslator`'s early return. 🔒 **Do not
+assume (c) is the answer** — measure the registry first.
+
+### ⭐ What `S1` DID collapse — the durable value, independent of the remaining symptom
+
+| # | |
+|---|---|
+| ⭐ **1** | **`MapDisplayComponent` registration: 3 host-private copies + 1 silent omission → ONE shared list** *(`MapPresentationRegistry`)*. 📌 CGF, IG and the Editor each registered it separately; SimHost had **zero** references |
+| ⭐ **2** | **The layer mechanism is out of `Hrot.IG`** — where the Editor was already reaching cross-assembly for it, and where SimHost structurally could not reach it at all |
+| ⭐ **3** | **`MapLayerBits` is no longer a hand-synced copy** — its doc used to say *"must match `MapLayerRegistry` exactly"*; the agreement is now mechanical, with a rail |
+| ⭐ **4** | **`WithVisual` no longer discards its input** — and `VisualDefinitionDto`, previously produced by nothing, now has a producer, which makes its translator meaningful on **every** host |
 
 ## 4. Acceptance
 

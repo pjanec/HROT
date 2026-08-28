@@ -151,6 +151,13 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             new CombatTkbTranslator(),
             new PerceptionTkbTranslator(),
             new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),  // behav-diag-1: auto-enable AI tracing
+            // ⭐⭐⭐ UXI-23 S1 — the sixth translator this list was missing. It writes VisualData
+            //    (and EntityInfo.ForceId) from the TKB's VisualDefinitionDto. Without it SimHost's
+            //    entities had no VisualData, so the shared entity gizmos drew nothing: measured
+            //    2026-08-28 as 3 non-Line primitives against the Scenario perspective's 69.
+            // ⚠ It early-returns when VisualData is unregistered, so this line is only half the
+            //    fix — SimHostComponentRegistry must register the components, which it now does.
+            new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),
         }.AsReadOnly();
 
         var ctx = new HrotNodeBuilder(config)
