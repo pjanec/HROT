@@ -9,8 +9,9 @@
    Call `get_capabilities`, then `switch_perspective` to one whose matrix row has that capability — do not
    retry the same call.
 1c. **Pick the load mode deliberately.** `load_scenario_edit` = authoring, time frozen.
-   `load_scenario_live` = a real run on every node. On a cluster host an *edit* load is partial today
-   (CGF has no edit-load handler), so prefer **live** when the whole cluster must hold the world.
+   `load_scenario_live` = a real run on every node. CGF gained the shared edit-load handler in `CE-102`
+   (`2026-08-28`), so an edit load is no longer partial on that node — still prefer **live** when you want a
+   real run, and verify either load by reading state rather than trusting the envelope (§5b).
 2. **Arm traces first.** `get_entity_trace` is empty unless you `observe_trace{on:true}` and then step.
 3. **`awaited:false, reason:"sim not running"` is not an error** — it means time wasn't advancing; pause-step
    to observe results instead of waiting.
@@ -68,6 +69,40 @@ Before diagnosing anything on a cluster, spend four calls establishing that the 
 **A cluster boots PAUSED** (that is deliberate), so *"nothing is happening"* is the expected state until you
 `play`. Check `isPaused` before believing anything is stuck.
 
+### 5c.1 ⭐⭐⭐ The one test that has caught every instrument fault so far
+
+**Ask the instrument something it CANNOT truthfully answer, and see whether it answers anyway.**
+
+Three faults were found this way in a single investigation (`2026-08-28`), and all three had the *same
+shape*: **a plausible, well-formed answer to a different question** — never an error, never an empty
+result that looked wrong.
+
+| the impossible question | what a broken instrument did |
+|---|---|
+| read an entity **scoped to `ExCon`**, which has no ECS world at all | returned a full 33-component dump — proving `?perspective=` was **ignored** and every "per-node" read had been the same node (`CE-112`) |
+| `GET /tkb/types` on a cluster node whose catalog was known to be populated | answered `[]`, and *empty is a valid-looking answer*, so it was believed and became the leading hypothesis for a movement bug (`CE-110`) |
+| `/logs?limit=400` — `limit` is not a parameter | returned the whole unfiltered ring (`CE-107`) |
+
+⇒ **Empty lists and zero counts are the dangerous ones**, because they read as data rather than as
+failure. Before trusting a read that will drive a diagnosis, make one call whose *only* correct answer is a
+refusal. If it succeeds, the instrument is not measuring what you think.
+
+### 5c.2 ⛔ `?perspective=` IS IGNORED — switch, then read
+
+`?perspective=` is **not implemented on any route**. Passing it silently reads the **ACTIVE** perspective,
+which on `--mode all` is usually a *different node with different state*. Since `CE-112` the response
+carries a hint saying so, but the correct pattern is:
+
+```
+POST /perspective {"name":"Scenario"}   # then read
+GET  /status                            # confirms the active perspective
+```
+
+**This matters more than it sounds.** On `--mode all`, `CGF` (Brain) and `SimHost` (Muscle) genuinely
+disagree about the same entity: measured `2026-08-28`, entity 1001 held `Class: Tank, AccelGain: 1.8` on
+CGF and `PersonalCar, AccelGain: 0` on SimHost. Reading "the cluster" without switching gives you one of
+those two answers with no indication which.
+
 ## 5d. ⭐ Localise a "it works on the editor, not on the cluster" report
 
 The same three reads, run on both hosts, turn a vague UI report into a located defect:
@@ -80,3 +115,10 @@ The same three reads, run on both hosts, turn a vague UI report into a located d
 Then, for *"the order is ignored"*, compare an **intent** component against its **status** component on the
 entity (`get_entity` notes spell out the three-way split). Populated intent + absent status + zero velocity
 are three different bugs that look identical on screen.
+
+⭐⭐ **And on a cluster, add a fourth read: THE SAME ENTITY ON BOTH NODES** (`POST /perspective` between
+them — §5c.2). Brain and muscle hold *different copies*, and a defect can live entirely in the gap:
+measured `2026-08-28`, a scenario's authored `VehicleParams` reached CGF intact and was **dropped on the
+wire hop**, so the Brain computed a valid path (which rendered) while the Muscle had `AccelGain: 0` and
+could not accelerate. **On screen that is indistinguishable from a broken navigator.** A one-node read —
+either node — would have confirmed the wrong theory.

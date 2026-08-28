@@ -2450,7 +2450,7 @@ then **3/3 green** *(Presentation)* / **1-red-identical-to-base, 3 runs** *(SimH
 *(`ScenarioFileServiceTests.SaveLoad_RoundTrip`, then `EntityDragGizmoTests` with "Component type ID 51 is not
 registered")* ⇒ 📌 the `CE-084`/`CE-088` family, now confirmed in two more assemblies.
 
-### 5c.18 ⭐⭐⭐ `CE-103` — **the tanks do not move: the rich `VehicleParams` are STORED IN THE SCENARIO and the cluster never applies them.** `build-state: ROOT-CAUSED · fix is CE-109 §5c.18.5` *(`2026-08-28`)*
+### 5c.18 ⭐⭐⭐ `CE-103` — **the tanks do not move: the scenario's authored `VehicleParams` is DROPPED ON THE WIRE HOP, so the MUSCLE node cannot accelerate.** `build-state: ROOT-CAUSED · decisions in Architect_Question_64 · §5c.18.6 is current` *(`2026-08-28`)*
 
 > 🔒 **User:** *"When i press Play, the tanks show blue line to their destination, but they do not move."*
 > 🔒 **User, `2026-08-28`:** *"the scenario loading path was tested manually pretty well in the editor so pls
@@ -2582,6 +2582,69 @@ TKB; we need `cgf==editor`"*, with the editor canonical.
 | **what to build** | the cluster adopts the **editor's** live-load handler, so stored components are applied on both hosts |
 | 🔒 **the fence that still binds** | *"the scenario loading path was tested manually pretty well in the editor so pls be carefull with any 'fixes'"* ⇒ ⛔ **the editor's path is NOT touched**; the cluster moves toward it |
 | ⚠ **what is NOT yet measured** | *which* line in `CgfScenarioLoadHandler` drops the components — the entity DID appear at the right position with a nav line, so **some** state is applied. ⛔ Do not assume it is a wholesale skip |
+
+⚠⚠ **§5c.18.5 IS SUPERSEDED BY §5c.18.6 — its FIX conclusion was WRONG.** ⭐ Its *cause* half stands
+*(the rich params are stored in the scenario)*; ⛔ its *fix* half — *"the cluster's LIVE-path load drops
+them, unify the handler"* — is **refuted by measurement**. Do not quote it.
+
+#### 5c.18.6 ✅✅✅ `CE-103` — **THE MEASURED CAUSE: the override is dropped ON THE WIRE HOP, not by any load handler** *(`2026-08-28`)*
+
+📄 **Full record + the open decisions: [`Architect_Question_64`](blueprints/Architect_Question_64_Scenario_Component_Overrides_Across_The_Wire.md).**
+⛔ **Nothing is built** — the fix is a DDS-contract decision, which `CLAUDE.md` reserves for resolution
+with the user.
+
+⭐⭐⭐ **What the previous pass got wrong, and why.** It read *"the cluster"* as one thing. 📐 It is not:
+`--mode all` runs **CGF (Brain)** and **SimHost (Muscle)** with **separate worlds**, and the reads that
+produced §5c.18.5 all came from **one** of them — because `?perspective=` is **silently ignored**
+*(`CE-112`, §5c.18.7)*. ⇒ ⛔ *"the cluster shows PersonalCar"* was recorded as a property of the cluster
+when it is a property of **one node**.
+
+📐 **Re-measured with `POST /perspective` between reads — entity 1001, one live boot:**
+
+| | `Class` | `AccelGain` | `MaxSteerAngle` | `UnitSubordinate` |
+|---|---|---|---|---|
+| ⭐ **CGF** *(Brain — the authoritative spawner)* | **Tank** | **1.8** | **0.8** | ⭐ present |
+| 🔴 **SimHost** *(Muscle — runs `CarKinematicsSystem`)* | ⛔ **PersonalCar** | 🔴 **0** | 🔴 **0** | ⛔ **ABSENT** |
+| ⭐ **editor** *(one process, one world)* | **Tank** | **1.8** | **0.8** | ⭐ present |
+
+⇒ ⭐⭐⭐ **CGF IS CORRECT.** `NetworkSpawningSystem` step 8 — *"apply caller-supplied component overrides
+**on top of** TKB defaults"* — applies the scenario's stored block exactly as designed. ⭐ **The load
+handlers are innocent, and all three hosts already share one extractor** ⇒ **`cgf==editor` holds for the
+TKB catalog AND for the load path.**
+
+🔴🔴 **THE LOSS IS THE WIRE HOP.** `SpawnEntityCommandEgressTranslator:143-160` walks
+`cmd.InitialComponents` and keeps **exactly three types** — `EditablePolyline`, `MapOverlayStyle`,
+`RoutePlan` — and **silently drops everything else**. On the far side
+`GhostPromotionSystem:103-123` rebuilds from **the TKB template plus the translators only**.
+
+⇒ ⭐⭐ **The brain computes a valid path (which RENDERS) and the muscle cannot accelerate.** 📌 On screen
+that is indistinguishable from a broken navigator — which is why navigation was investigated first and
+found innocent. ⭐ **The editor cannot exhibit this defect at all** *(one world, no wire hop)*, so it is
+**not the reference here** — there is nothing to copy.
+
+##### ⚠ WHAT THIS COSTS `CE-109`
+⭐ Its live-path unification is **still a real ruling-9 duplicate** *(the differences are **zones** — only
+the SimHost/editor handler loads them — and a **`behaviorRemapper`**, only CGF passes one)*, ⛔ **but it
+fixes nothing the user reported**, and its priority drops accordingly. 📌 `Q64-4`.
+
+#### 5c.18.7 ⚠⚠ `CE-112` — **`?perspective=` is IGNORED, and it produced the wrong diagnosis above** `build-state: BUILT`
+
+📐 `PerspectiveScopedDispatcher.Resolve(perspective)` exists, its own comment calls it *"Q54-2's optional
+`?perspective=` override"*, and it has **ZERO callers**. ⇒ every read *"scoped"* to a perspective silently
+served the ACTIVE one.
+
+⭐⭐⭐ **How it was caught, and this is the transferable part:** reading entity 1001 with `?perspective=` set
+to SimHost, Scenario, IG **and ExCon** returned **four identical non-empty dumps** — and **ExCon has no ECS
+world at all**, so an answer from ExCon *cannot be real*. ⇒ ⭐⭐ **ask the instrument something it CANNOT
+truthfully answer, and see whether it answers anyway.** 📌 That one test has now caught **all three**
+instrument faults of this investigation — `CE-107` *(ignored `/logs` key)*, `CE-110` *(empty TKB)*,
+`CE-112` — ⚠ and all three shared one shape: **a plausible, well-formed answer to a different question**,
+never an error.
+
+✅ **FIXED** as **one guard at the single envelope site** *(not per-route: no route implements the override,
+so a per-route list would rot the moment one did; and it is skipped when a route supplies its own hint, so a
+future implementation supersedes it cleanly)*. ⛔ **Not a 400**, per `CE-107`'s standing ruling — leniency is
+right for a diagnostic endpoint; going silent was the defect. ⭐ The hint names `POST /perspective`.
 
 ## 6. ⭐ ACCEPTANCE, PER PHASE
 | ⭐ | |

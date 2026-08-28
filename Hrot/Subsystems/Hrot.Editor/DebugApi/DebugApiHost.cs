@@ -1712,6 +1712,48 @@ namespace Hrot.Editor.DebugApi
                 //    endpoint could not advise a caller that had been served but had asked the wrong
                 //    question — the envelope was structurally incapable of saying "ok, but…". 📐 That is why
                 //    `/logs?limit=400` could return the whole unfiltered ring in silence.
+                // ⭐⭐⭐ CE-112 — `?perspective=` IS NOT IMPLEMENTED, SO SAY SO ON EVERY ROUTE.
+                //
+                // 📐 Measured `2026-08-28`: `PerspectiveScopedDispatcher.Resolve(perspective)` exists and its
+                //    own doc-comment calls it *"Q54-2's optional ?perspective= override"* — ⛔ and it has
+                //    **ZERO CALLERS**. No route ever consults the query key, so passing it silently reads the
+                //    ACTIVE perspective instead.
+                //
+                // 🔴🔴 **This cost a wrong diagnosis, and it is the third instrument fault in one
+                //    investigation** (after `CE-107`'s ignored `/logs` key and `CE-110`'s empty TKB). Reading
+                //    entity 1001 on `--mode all` with `?perspective=` set to SimHost, Scenario, IG and even
+                //    **ExCon — which has no world at all** — returned FOUR IDENTICAL non-empty answers. ⚠ That
+                //    is what proved the key was ignored: ExCon cannot answer, so an answer from ExCon is a lie.
+                //    ⭐ The truth, found by `POST /perspective` instead: CGF holds `Class: Tank, AccelGain 1.8`
+                //    and SimHost holds `PersonalCar, AccelGain 0` — the two worlds DISAGREE, and the ignored
+                //    key had been hiding exactly the difference `CE-103` was hunting.
+                //
+                // ⛔ Deliberately NOT a 400, following `CE-107`'s ruling: leniency is right for a diagnostic
+                //    endpoint, and going SILENT was the defect. ⚠ But the advice names the WORKING route, so a
+                //    caller is never left with a plausible answer to a different question.
+                // ⭐ ONE guard at the single envelope site rather than per-route: no route implements the
+                //   override, so a per-route list would rot the moment one did. 📌 When a route DOES implement
+                //   it, that route's own hint supersedes this — the check is skipped when a hint is present.
+                var perspectiveOverride = reqCtx.Query("perspective");
+                if (!string.IsNullOrWhiteSpace(perspectiveOverride) && result.Hint is null)
+                {
+                    result = result with
+                    {
+                        Hint = new JsonObject
+                        {
+                            ["why"] = $"the '?perspective={perspectiveOverride}' override is NOT implemented "
+                                    + "on any route and was IGNORED — this answer is for the ACTIVE "
+                                    + "perspective, which may be a DIFFERENT node with different state. "
+                                    + "Switch first, then read.",
+                            ["seeEndpoint"] = "POST /perspective",
+                        },
+                    };
+                }
+
+                // ⭐⭐⭐ CE-107 — THE SUCCESS BRANCH CARRIES THE HINT TOO. ⛔ It used to drop it, so an
+                //    endpoint could not advise a caller that had been served but had asked the wrong
+                //    question — the envelope was structurally incapable of saying "ok, but…". 📐 That is why
+                //    `/logs?limit=400` could return the whole unfiltered ring in silence.
                 var envelope = result.Error is null
                     ? new ApiResponse(true, Data: result.Data, Hint: result.Hint)
                     : new ApiResponse(false, Error: result.Error, Hint: result.Hint);

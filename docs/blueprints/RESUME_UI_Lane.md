@@ -2,13 +2,14 @@
 state: LIVE
 updated: 2026-08-28
 current-answer: ⭐⭐⭐ §0.0e — "--mode all VISUAL-CHECK CORRECTIVES + the cgf==editor TKB ruling".
-  START THERE AND NOWHERE ELSE, and inside it the FIRST ITEM TO BUILD is §0.0e.4 (CE-109's LIVE-path
-  load handler, which is also CE-103's fix). It is SELF-SUFFICIENT after a compaction: it repeats the
-  measured numbers, carries the user rulings verbatim, and records the boot recipe and the traps.
-  ⚠ UPDATED 2026-08-28 (second pass): CE-103 is ROOT-CAUSED, not in flight — the rich VehicleParams
-  are STORED in scenario.json and the cluster's live-load path never applies them. The old
-  "cluster TKB differs / find the third populator" lead was an INSTRUMENT ARTEFACT (CE-110) and is
-  RETRACTED; do not resume it. CE-110/CE-111 are BUILT and gated.
+  START THERE AND NOWHERE ELSE. It is SELF-SUFFICIENT after a compaction: it repeats the measured
+  numbers, carries the user rulings verbatim, and records the boot recipe and the traps.
+  ⚠ UPDATED 2026-08-28 (THIRD pass — read §0.0e.3 carefully, it retracts two of my own diagnoses):
+  CE-103 is ROOT-CAUSED as a WIRE-HOP loss between the Brain (CGF, correct) and the Muscle (SimHost,
+  degraded), NOT a load-handler defect and NOT a TKB difference. Its fix is a DDS wire-contract
+  decision and is NOT dispatched — it waits on the user via Architect_Question_64.
+  CE-109 is re-scoped: a real ruling-9 duplicate, but it fixes nothing the user reported.
+  CE-110/CE-111/CE-112 are BUILT and gated. NOTHING is currently in flight to build.
   ⚠ §0.0d is now HISTORY: phase 2 (slices 1-3, J1, J2, J3) is DONE. Do not restart it.
   Read §0's header block only for the branch/ids/dispatch-sha facts.
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
@@ -108,8 +109,8 @@ the debug API on a real boot in-container, and **four of the six filed items are
 | ⛔ **`CE-106`** | **REFUTED — my operator error.** `/logs` always had `level`/`max`; I passed `limit=400` |
 | ✅ **`CE-107`** | the envelope's **success branch dropped `Hint` entirely** ⇒ the API could not say *"ok, but…"*. Fixed + `/logs` now names ignored filters |
 | ⚠ **`CE-108`** | edit path never remaps behaviour-param entity ids — **on ANY host, editor included**. Filed, deliberately NOT fixed |
-| ✅ **`CE-103`** | **ROOT-CAUSED — see §0.0e.3. Its FIX is `CE-109`, §0.0e.4** |
-| 🔒🔴 **`CE-109`** | the ruling above. ⭐⭐ **Its LIVE-path half is now the START-HERE item, §0.0e.4** — it is also `CE-103`'s fix |
+| 🔒 **`CE-103`** | **ROOT-CAUSED — §0.0e.3. ⛔ Its fix is a WIRE-CONTRACT decision awaiting the user: `Q64`** |
+| 🔒 **`CE-109`** | the ruling above. ⚠ **RE-SCOPED §0.0e.4** — a real duplicate, but NOT `CE-103`'s fix; priority dropped |
 
 ⭐ **The MCP SKILL sources carry this session's lessons** *(`CE-108` commit)* — §5b *"ok:true is not evidence"*,
 §5c *"prove your instrument once"*, §5d the three localising reads, plus per-route notes on `/logs`,
@@ -117,54 +118,52 @@ the debug API on a real boot in-container, and **four of the six filed items are
 GENERATED** — edit `DebugApiRouteDocs.cs` / `tools/ai-debug-mcp/skill-parts/`, then regenerate, and
 ⚠ **build the RUNNER first** *(`gen-catalog.mjs` shells out to `--mode dump-api`; otherwise it is a silent no-op)*.
 
-### 0.0e.3 ✅✅✅ `CE-103` — **ROOT-CAUSED `2026-08-28`. The fix is `CE-109`, not a hunt.**
+### 0.0e.3 ✅✅✅ `CE-103` — **ROOT-CAUSED. The fix is a WIRE-CONTRACT DECISION and is NOT dispatched.**
 
-📄 **§5c.18.5** carries the full record. ⭐ **The symptom:** *"the tanks show blue line to their destination, but
-they do not move."*
+📄 **[`Architect_Question_64`](Architect_Question_64_Scenario_Component_Overrides_Across_The_Wire.md)** is the
+authority · design §5c.18.6. ⭐ **Symptom:** *"the tanks show blue line to their destination, but they do not move."*
 
-⛔⛔ **THE OLD LEAD WAS AN INSTRUMENT ARTEFACT — do not resume the hunt this section used to describe.**
-📐 `GET /tkb/types` answered `[]` on `--mode all` because the cluster `DebugApiService` held a **private empty**
-`TkbDatabase` *(`CE-110`, now fixed)*. ⇒ *"the cluster's TKB differs from the editor's"* was **false**. ⭐ With the
-instrument honest, templates **100 · 103 · 301 · 303 are BYTE-IDENTICAL** on both hosts, so **`cgf==editor` holds
-for the TKB catalog** and the earlier *"find the third populator"* task **does not exist**.
+⛔⛔ **TWO EARLIER DIAGNOSES OF MINE WERE WRONG. Do not resume either.**
+① *"the cluster's TKB differs from the editor's"* — an artefact of `CE-110`'s empty catalog. Templates
+**100·103·301·303 are byte-identical.**
+② *"the cluster's LIVE-path load drops the stored components; unify the handler"* — **false.** The reads
+behind it all came from **ONE node**, because `?perspective=` is silently ignored *(`CE-112`)*.
 
-🔴🔴🔴 **THE ACTUAL CAUSE.** `scenarios/hill-attack/scenario.json` **stores a complete 15-field `VehicleParams`
-per entity** — 6 blocks, the first matching the editor's observed values exactly:
+🔴🔴🔴 **THE MEASURED CAUSE.** `--mode all` runs **CGF (Brain)** and **SimHost (Muscle)** with **separate
+worlds**. Re-measured with `POST /perspective` between reads, entity 1001:
 
-```
-Class Tank · Length 7.93 · Width 3.66 · WheelBase 4.758 · MaxSpeedFwd 20 · MaxSpeedRev 8 · MaxAccel 2.5
-MaxDecel 4 · MaxSteerAngle 0.8 · MaxSteerRate 0.2617994 · MaxLatAccel 6 · AvoidanceRadius 5
-LookaheadTimeMin 0.8 · LookaheadTimeMax 2.5 · AccelGain 1.8
-```
+| | `Class` | `AccelGain` | `MaxSteerAngle` | `UnitSubordinate` |
+|---|---|---|---|---|
+| ⭐ **CGF** *(Brain)* | **Tank** | **1.8** | **0.8** | ⭐ present |
+| 🔴 **SimHost** *(Muscle — runs `CarKinematicsSystem`)* | ⛔ **PersonalCar** | 🔴 **0** | 🔴 **0** | ⛔ **ABSENT** |
+| ⭐ **editor** *(one world)* | **Tank** | **1.8** | **0.8** | ⭐ present |
 
-| host | what writes `VehicleParams` | result |
-|---|---|---|
-| ⭐ **editor** | the scenario's **stored component** is applied | **Tank**, `AccelGain 1.8` ⇒ **it moves** |
-| 🔴 **`--mode all`** | only `VehicleKinematicsTkbTranslator` — **5 fields**, rest DEFAULT | `PersonalCar`, **`AccelGain 0`** ⇒ zero acceleration; `MaxSteerAngle 0` ⇒ steer **NaN** ⇒ **path drawn, nothing moves** |
+⇒ ⭐⭐⭐ **CGF IS CORRECT** — `NetworkSpawningSystem` step 8 applies the scenario's stored block on top of TKB
+defaults, exactly as designed. ⭐ **The load handlers are innocent; all three hosts already share one
+extractor** ⇒ **`cgf==editor` holds for the TKB catalog AND the load path.**
 
-⭐⭐ **Only TWO production writers of `VehicleParams` exist and NEITHER produces the stored values** — so the
-editor's numbers are **DESERIALISED, not computed**. ⚠ `NedTkbBuilder.BuildVehicleParams` baked them into the file
-once and now has **zero callers, including inside its own file**; its perfect arithmetic match is a **fossil**.
-📌 The settled answer came from grepping the **decisive field** *(`AccelGain` — one occurrence in the whole repo)*
-rather than the type. ⭐ **Keep that habit: grep the VALUE, not the TYPE.**
+🔴 **THE LOSS IS THE WIRE HOP:** `SpawnEntityCommandEgressTranslator:143-160` keeps only
+`EditablePolyline`/`MapOverlayStyle`/`RoutePlan` from `InitialComponents` and **drops everything else**;
+`GhostPromotionSystem:103-123` then rebuilds from **the TKB template + translators only**.
+⇒ **the Brain computes a valid path (which RENDERS) and the Muscle cannot accelerate.** 📌 On screen,
+indistinguishable from a broken navigator — which is why navigation was investigated first and cleared.
+⭐ **The editor CANNOT exhibit this** *(no wire hop)*, so it is **not the reference here.**
 
-⇒ ⭐⭐⭐ **CE-103's fix IS §0.0e.4.**
+🔒 **WHY NOTHING IS BUILT:** the fix changes what crosses DDS or what a receiving node reconstructs —
+`CLAUDE.md` reserves a serialization/engine contract for resolution **with the user**. ⭐ `Q64` carries
+recommended answers: **`Q64-1` A** *(the receiving node reads the scenario it ALREADY stages — no wire
+change)* · **`Q64-2` A** *(an EXCLUDE list, never an include-list — the egress translator's three-type
+include-list IS this bug)* · **`Q64-3` yes** *(a brain-vs-muscle conformance rail; without it this class of
+defect is invisible to every unit rail by construction)*.
+⚠⚠ **MEASURE FIRST:** whether a promoted ghost can be mapped back to its authored scenario entity.
+**`Q64-1` option A stands or falls on that**, and it is unmeasured.
 
-### 0.0e.4 ⭐⭐⭐ `CE-109`'s BUILDABLE HALF — **the LIVE-path handler. ⭐⭐ THE FIRST ITEM TO BUILD**, and it is now `CE-103`'s fix too
+### 0.0e.4 ⭐⭐ `CE-109` — **RE-SCOPED: no longer `CE-103`'s fix, and its priority DROPS**
 
-| half | status |
-|---|---|
-| the TKB **catalog** | ✅ **shared, re-confirmed by byte-comparison** — both hosts via `HrotEnvironment.CreateTkb()` *(editor `EditorSubsystem:1227`; cluster `HrotNodeBuilder:197`)* |
-| the **EDIT**-load handler | ✅ shared as of `CE-102` |
-| 🔴 the **LIVE**-load handler | ⛔ **still two implementations** — `HrotScenarioLoadHandler` *(editor·SimHost)* vs `CgfScenarioLoadHandler` *(CGF)* ⇒ ⭐ the remaining ruling-9 duplicate, **and the thing that drops the stored `VehicleParams`** |
-
-🔒 **The direction is already ruled** *(user)*: the cluster adopts the **editor's**; ⛔ **the editor's path is NOT
-touched** — *"tested manually pretty well in the editor so pls be carefull with any 'fixes'"*.
-
-⚠⚠ **THE ONE THING NOT YET MEASURED, and measure it FIRST:** *which line* in `CgfScenarioLoadHandler` drops the
-per-entity stored components. ⛔ **Do NOT assume a wholesale skip** — the entity **did** appear at the right
-position with a nav line, so some state *is* applied. ⭐ Cheap probe: load hill-attack LIVE on both hosts and diff
-`/entity/<id>` component-by-component, not just `VehicleParams`.
+📐 Measured: both live handlers funnel into the **same** `_extractor.Extract(...)`; the only differences are
+**zones** *(only the SimHost/editor handler loads them)* and a **`behaviorRemapper`** *(only CGF passes one)*.
+⇒ ⭐ still a genuine ruling-9 duplicate worth collapsing, ⛔ **but it fixes nothing the user reported.**
+🔒 The editor's scenario path is still not to be touched.
 
 ### 0.0e.4b ✅ DONE THIS SESSION — `CE-110` / `CE-111` *(the instrument, and CGF's missing singleton)*
 

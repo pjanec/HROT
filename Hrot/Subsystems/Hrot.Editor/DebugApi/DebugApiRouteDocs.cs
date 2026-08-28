@@ -716,6 +716,18 @@ namespace Hrot.Editor.DebugApi
                 "MEASURE MOTION AS A POSITION DELTA OVER A simTime DELTA, never over wall-clock. Sample "
               + "get_status.simTime alongside each dump: BIT-IDENTICAL positions across a real simTime advance "
               + "is the hard evidence; the same reading across a stalled clock proves nothing.",
+                "ON --mode all THIS READS ONE NODE -- THE ACTIVE PERSPECTIVE -- AND THE NODES DISAGREE. "
+              + "Brain (CGF/Scenario) and muscle (SimHost) hold separate copies of the same entity, and a "
+              + "defect can live entirely in the gap between them. Measured 2026-08-28: entity 1001 held "
+              + "Class:Tank, AccelGain:1.8 on CGF and PersonalCar, AccelGain:0 on SimHost, because the "
+              + "scenario's authored VehicleParams reached the brain intact and was dropped on the wire hop. "
+              + "The brain computed a valid path (which rendered) while the muscle could not accelerate -- on "
+              + "screen, indistinguishable from a broken navigator. SO: read the entity on BOTH nodes before "
+              + "concluding anything about 'the cluster'.",
+                "AND ?perspective= DOES NOT WORK: it is not implemented on any route and is IGNORED (you get "
+              + "a hint saying so since CE-112). Switch with POST /perspective {name:...} and then read; "
+              + "confirm with get_status.perspective. Passing ?perspective=ExCon -- a subsystem with NO WORLD "
+              + "AT ALL -- used to return a full component dump, which is how the ignored key was caught.",
             },
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "get full component dump for entity 1000"),
@@ -907,7 +919,7 @@ namespace Hrot.Editor.DebugApi
             {
                 "Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).",
                 "Edit state freezes sim time — nothing ticks until enter_preview or play.",
-                "In --mode all this load is PARTIAL: CGF has no edit-load handler yet, so SimHost loads and CGF does not. Use load_scenario_live when every node must hold the world.",
+                "CE-102 (2026-08-28) gave CGF the shared edit-load handler, so an edit load is NO LONGER partial on that node. This note previously said CGF had none -- that is now stale. Still prefer load_scenario_live for a real run, and verify either load by reading state.",
                 "AND THAT PARTIAL LOAD STILL ANSWERS ok:true — this is the single most misleading response in "
               + "the API. Measured on --mode all from the Scenario perspective: ok:true with scenario:NULL, "
               + "entityCount:0, an empty list_entities, and a gizmo frame of 603 primitives that were ALL grid "

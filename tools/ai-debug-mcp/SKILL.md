@@ -180,14 +180,14 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: Optional filters compose: component (only entities having it), near ("x,y,r" within radius r of (x,y))..
   Example: `list_entities({"component":"SimTransform"})` — list only entities with SimTransform component.
 - **`get_entity`** — Full component dump for one entity. Req `networkId` (number). Returns Full component dump for the entity. Non-finite floats render as "NaN"/"Infinity"/"-Infinity".
-  Notes: Non-finite floats appear as string sentinels "NaN"/"Infinity"/"-Infinity" — valid JSON, not a bug.; SHAPE: { EntityId, NetworkId, Components:{ ... } } — Components is PascalCase, and so is every component and field name inside it (SimTransform.Position, NavigationIntent.Mode). Indexing a lowercase 'components' silently yields nothing and reads like an empty entity.; TO DIAGNOSE 'the sim ignores my order', COMPARE THE INTENT COMPONENT WITH ITS STATUS COMPONENT. The pair distinguishes three different bugs that look identical from the UI: intent empty => nothing issued the order; intent set + status ABSENT => the consumer never ran; intent set + status PRESENT + zero velocity => the consumer ran and produced no motion. Worked example: NavigationIntent{Mode,TargetSpeed} against NavigationStatus.; AUTHORITY FIRST: NetworkOwnership/NetworkAuthority carry HasAuthority, PrimaryOwnerId and LocalNodeId. On a cluster a write to an entity this node does not own is legitimately dropped, so check HasAuthority before filing 'the write did nothing'.; MEASURE MOTION AS A POSITION DELTA OVER A simTime DELTA, never over wall-clock. Sample get_status.simTime alongside each dump: BIT-IDENTICAL positions across a real simTime advance is the hard evidence; the same reading across a stalled clock proves nothing..
+  Notes: Non-finite floats appear as string sentinels "NaN"/"Infinity"/"-Infinity" — valid JSON, not a bug.; SHAPE: { EntityId, NetworkId, Components:{ ... } } — Components is PascalCase, and so is every component and field name inside it (SimTransform.Position, NavigationIntent.Mode). Indexing a lowercase 'components' silently yields nothing and reads like an empty entity.; TO DIAGNOSE 'the sim ignores my order', COMPARE THE INTENT COMPONENT WITH ITS STATUS COMPONENT. The pair distinguishes three different bugs that look identical from the UI: intent empty => nothing issued the order; intent set + status ABSENT => the consumer never ran; intent set + status PRESENT + zero velocity => the consumer ran and produced no motion. Worked example: NavigationIntent{Mode,TargetSpeed} against NavigationStatus.; AUTHORITY FIRST: NetworkOwnership/NetworkAuthority carry HasAuthority, PrimaryOwnerId and LocalNodeId. On a cluster a write to an entity this node does not own is legitimately dropped, so check HasAuthority before filing 'the write did nothing'.; MEASURE MOTION AS A POSITION DELTA OVER A simTime DELTA, never over wall-clock. Sample get_status.simTime alongside each dump: BIT-IDENTICAL positions across a real simTime advance is the hard evidence; the same reading across a stalled clock proves nothing.; ON --mode all THIS READS ONE NODE -- THE ACTIVE PERSPECTIVE -- AND THE NODES DISAGREE. Brain (CGF/Scenario) and muscle (SimHost) hold separate copies of the same entity, and a defect can live entirely in the gap between them. Measured 2026-08-28: entity 1001 held Class:Tank, AccelGain:1.8 on CGF and PersonalCar, AccelGain:0 on SimHost, because the scenario's authored VehicleParams reached the brain intact and was dropped on the wire hop. The brain computed a valid path (which rendered) while the muscle could not accelerate -- on screen, indistinguishable from a broken navigator. SO: read the entity on BOTH nodes before concluding anything about 'the cluster'.; AND ?perspective= DOES NOT WORK: it is not implemented on any route and is IGNORED (you get a hint saying so since CE-112). Switch with POST /perspective {name:...} and then read; confirm with get_status.perspective. Passing ?perspective=ExCon -- a subsystem with NO WORLD AT ALL -- used to return a full component dump, which is how the ignored key was caught..
   Example: `get_entity({"networkId":1000})` — get full component dump for entity 1000.
 - **`list_scenarios`** — List available scenarios by relative path. No params. Returns Available scenario names (relative paths) for use with load_scenario_edit / load_scenario_live.
   Example: `list_scenarios({})` — discover loadable scenario names.
 
 ### Group E — Scenario
 - **`load_scenario_edit`** — Load a scenario for AUTHORING (Edit state), cluster-wide. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.
-  Notes: Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).; Edit state freezes sim time — nothing ticks until enter_preview or play.; In --mode all this load is PARTIAL: CGF has no edit-load handler yet, so SimHost loads and CGF does not. Use load_scenario_live when every node must hold the world.; AND THAT PARTIAL LOAD STILL ANSWERS ok:true — this is the single most misleading response in the API. Measured on --mode all from the Scenario perspective: ok:true with scenario:NULL, entityCount:0, an empty list_entities, and a gizmo frame of 603 primitives that were ALL grid lines. Every field says 'empty world' and the envelope says 'success'.; SO VERIFY A LOAD, NEVER TRUST IT: after any load read get_status.entityCount AND list_entities AND (if the map matters) the non-Line shape count from get_gizmo_frame. Three independent reads, because the envelope is not one of them. On the same host load_scenario_live gave 8 entities and Box2D 8 / Arrow 12 / Text 8..
+  Notes: Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).; Edit state freezes sim time — nothing ticks until enter_preview or play.; CE-102 (2026-08-28) gave CGF the shared edit-load handler, so an edit load is NO LONGER partial on that node. This note previously said CGF had none -- that is now stale. Still prefer load_scenario_live for a real run, and verify either load by reading state.; AND THAT PARTIAL LOAD STILL ANSWERS ok:true — this is the single most misleading response in the API. Measured on --mode all from the Scenario perspective: ok:true with scenario:NULL, entityCount:0, an empty list_entities, and a gizmo frame of 603 primitives that were ALL grid lines. Every field says 'empty world' and the envelope says 'success'.; SO VERIFY A LOAD, NEVER TRUST IT: after any load read get_status.entityCount AND list_entities AND (if the map matters) the non-Line shape count from get_gizmo_frame. Three independent reads, because the envelope is not one of them. On the same host load_scenario_live gave 8 entities and Box2D 8 / Arrow 12 / Text 8..
   Example: `load_scenario_edit({"name":"test-move","waitForReady":true})` — load test-move for authoring and wait for ready.
 - **`load_scenario_live`** — Load a scenario for RUNNING (Live state), cluster-wide, on any host. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.
   Notes: Set waitForReady:true to block until the cluster reaches OperatingLive (recommended).; Every host has live-load handlers, so this is the mode that loads on ALL nodes — use it when the world must be the same everywhere.; A live load starts a new exercise run (a fresh ExerciseId), which is what recording and replay key off..
@@ -226,7 +226,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 
 ### Group J — Logs
 - **`get_logs`** — Query the in-process log sinks. Returns [{timestamp, level, logger, message}] sorted newest-first. `level?` (string, "Trace"|"Debug"|"Info"|"Warning"|"Error"|"Critical"), `logger?` (string), `since?` (string), `max?` (number, def 200). Returns [{timestamp, level, logger, message}] sorted newest-first.
-  Notes: level = minimum severity (inclusive): Trace, Debug, Info, Warning, Error, Critical.; logger = case-insensitive substring match on logger name.; since = ISO-8601 timestamp; entries with timestamp >= since are included.; Read off-thread — no main-thread marshal required.; ON A CLUSTER ALWAYS PASS level:"Info" (or higher). Measured on --mode all: an UNFILTERED read returned 176 of 200 entries as [TC3] time-sync chatter (TimeSyncRequest/SyncResponse/RTT gentle-steer) logged at Trace by four nodes — no application line survives in the window. The same read with level:"Info" returned 25 lines and zero [TC3].; AN UNKNOWN FILTER IS SILENTLY IGNORED, and so is an unknown query key. level:"INFO_" or a misspelled param (limit instead of max) returns the WHOLE ring rather than an error, which looks like a plausible answer to a question you did not ask. Echo-check your filter by confirming the result actually narrowed.; The param is max, NOT limit. Nothing rejects limit; it is simply not read..
+  Notes: level = minimum severity (inclusive): Trace, Debug, Info, Warning, Error, Critical.; logger = case-insensitive substring match on logger name.; since = ISO-8601 timestamp; entries with timestamp >= since are included.; Read off-thread — no main-thread marshal required.; ON A CLUSTER ALWAYS PASS level:"Info" (or higher). Measured on --mode all: an UNFILTERED read returned 176 of 200 entries as [TC3] time-sync chatter (TimeSyncRequest/SyncResponse/RTT gentle-steer) logged at Trace by four nodes — no application line survives in the window. The same read with level:"Info" returned 25 lines and zero [TC3].; AN UNKNOWN FILTER IS STILL SERVED LENIENTLY, BUT IT NOW TELLS YOU (CE-107). level:"INFO_" or a misspelled param (limit instead of max) returns the whole ring as before — the endpoint does not refuse a diagnostic call — but the SUCCESS envelope carries hint.why naming the ignored key or the unapplied level, and it also says so when no level filter was given at all. READ hint ON SUCCESS: it is the difference between an answer and an answer to a different question.; The param is max, NOT limit. Nothing rejects limit; it is simply not read..
   Example: `get_logs({"level":"Warning","max":50})` — get last 50 Warning-or-higher log entries.
 
 ### Group C — Event history
@@ -242,7 +242,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: Rewinds all changes made during preview back to the snapshot taken at enter_preview..
   Example: `stop_preview({})` — exit preview and revert all changes since entering preview.
 - **`pause`** — Pause the simulation. Time freezes; commands queue until step/play. No params. Returns ok:true envelope.
-  Notes: Commands and spawns while paused are queued and take effect on the next step/play.; ON A CLUSTER THE ok:true ACK CAN PRECEDE THE STATE CHANGE. Measured on --mode all: pause returned ok:true while the immediate /status still read isPaused:false; it flipped only after a following step. A cluster-wide pause crosses a barrier, so treat the ack as ACCEPTED, not APPLIED — poll get_status until isPaused is true before asserting anything about it..
+  Notes: Commands and spawns while paused are queued and take effect on the next step/play.; THE ACK MEANS APPLIED as of CE-104: the route waits until isPaused is actually true before returning, so the next read is safe. Measured before the fix on --mode all: ok:true while /status still read isPaused:false, with the clock running a further ~0.2s — because a cluster-wide pause is a FUTURE BARRIER so every node stops at the same simTime.; A 504 from this route means the pause barrier is stuck — a node never reached it. Check get_logs({level:"Warning"})..
   Example: `pause({})` — pause the running simulation.
 - **`play`** — Enter preview and/or resume if paused. Time advances after this. No params. Returns ok:true envelope.
   Notes: Time advances after play (until pause or a breakpoint fires)..
@@ -251,7 +251,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: Check this before driving — most mistakes are run-state mistakes..
   Example: `get_sim_state({})` — check current paused/preview/time state.
 - **`step`** — Advance simulation by N discrete steps. Only meaningful in preview. `count?` (number, def 1). Returns ok:true envelope.
-  Notes: Only advances time when inPreview==true. In Edit state this is a no-op.; VERIFY THE STEP LANDED BY READING simTime, NOT BY READING ok. Measured on --mode all: count:120 advanced simTime by exactly 0.0167s (= one 1/60 frame) and still answered ok:true — the count is not honoured cluster-wide. Sample get_status.simTime before and after and use the DELTA as the truth.; A STEP IS REFUSED OUTRIGHT UNLESS THE CLUSTER IS IN A STEPPING MODE, and the refusal is not visible in the envelope — it is a warning in the log (see get_logs, RefusedStepCount). A cluster that is free-running drops every step. If simTime does not move, check get_status.isPaused first: pause, then step.; This is the loop's weak link, so prove it once at the start of a session: pause, step, read simTime. A silently-refused step makes every later observation meaningless (it invalidated a root-cause in this repo once — a 'nothing moved' reading taken through a step that never ran)..
+  Notes: Only advances time when inPreview==true. In Edit state this is a no-op.; count IS honoured cluster-wide as of CE-105, and it is gated per step: the route issues ONE step, waits for it to land, and repeats — so N steps take N frames and the call returns when the last one is acknowledged. Measured: count:60 advances simTime by exactly 1.0000s. Before the fix the loop ran inside a single frame and the cluster dropped all but the first, answering ok:true with 0.0167s of progress.; STILL VERIFY BY READING simTime, NOT ok. The gate now makes the ack trustworthy, but a simTime delta is the cheap proof and it costs one call.; A STEP IS REFUSED OUTRIGHT UNLESS THE CLUSTER IS IN A STEPPING MODE, and the refusal is not visible in the envelope — it is a warning in the log (see get_logs, RefusedStepCount). A cluster that is free-running drops every step. If simTime does not move, check get_status.isPaused first: pause, then step.; This is the loop's weak link, so prove it once at the start of a session: pause, step, read simTime. A silently-refused step makes every later observation meaningless (it invalidated a root-cause in this repo once — a 'nothing moved' reading taken through a step that never ran)..
   Example: `step({"count":5})` — advance 5 simulation ticks.
 - **`set_time_scale`** — Set simulation time scale. Req `scale` (number). Returns ok:true envelope.
   Notes: 1.0 = real-time, >1.0 = faster, <1.0 = slower..
@@ -501,8 +501,9 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
    Call `get_capabilities`, then `switch_perspective` to one whose matrix row has that capability — do not
    retry the same call.
 1c. **Pick the load mode deliberately.** `load_scenario_edit` = authoring, time frozen.
-   `load_scenario_live` = a real run on every node. On a cluster host an *edit* load is partial today
-   (CGF has no edit-load handler), so prefer **live** when the whole cluster must hold the world.
+   `load_scenario_live` = a real run on every node. CGF gained the shared edit-load handler in `CE-102`
+   (`2026-08-28`), so an edit load is no longer partial on that node — still prefer **live** when you want a
+   real run, and verify either load by reading state rather than trusting the envelope (§5b).
 2. **Arm traces first.** `get_entity_trace` is empty unless you `observe_trace{on:true}` and then step.
 3. **`awaited:false, reason:"sim not running"` is not an error** — it means time wasn't advancing; pause-step
    to observe results instead of waiting.
@@ -560,6 +561,40 @@ Before diagnosing anything on a cluster, spend four calls establishing that the 
 **A cluster boots PAUSED** (that is deliberate), so *"nothing is happening"* is the expected state until you
 `play`. Check `isPaused` before believing anything is stuck.
 
+### 5c.1 ⭐⭐⭐ The one test that has caught every instrument fault so far
+
+**Ask the instrument something it CANNOT truthfully answer, and see whether it answers anyway.**
+
+Three faults were found this way in a single investigation (`2026-08-28`), and all three had the *same
+shape*: **a plausible, well-formed answer to a different question** — never an error, never an empty
+result that looked wrong.
+
+| the impossible question | what a broken instrument did |
+|---|---|
+| read an entity **scoped to `ExCon`**, which has no ECS world at all | returned a full 33-component dump — proving `?perspective=` was **ignored** and every "per-node" read had been the same node (`CE-112`) |
+| `GET /tkb/types` on a cluster node whose catalog was known to be populated | answered `[]`, and *empty is a valid-looking answer*, so it was believed and became the leading hypothesis for a movement bug (`CE-110`) |
+| `/logs?limit=400` — `limit` is not a parameter | returned the whole unfiltered ring (`CE-107`) |
+
+⇒ **Empty lists and zero counts are the dangerous ones**, because they read as data rather than as
+failure. Before trusting a read that will drive a diagnosis, make one call whose *only* correct answer is a
+refusal. If it succeeds, the instrument is not measuring what you think.
+
+### 5c.2 ⛔ `?perspective=` IS IGNORED — switch, then read
+
+`?perspective=` is **not implemented on any route**. Passing it silently reads the **ACTIVE** perspective,
+which on `--mode all` is usually a *different node with different state*. Since `CE-112` the response
+carries a hint saying so, but the correct pattern is:
+
+```
+POST /perspective {"name":"Scenario"}   # then read
+GET  /status                            # confirms the active perspective
+```
+
+**This matters more than it sounds.** On `--mode all`, `CGF` (Brain) and `SimHost` (Muscle) genuinely
+disagree about the same entity: measured `2026-08-28`, entity 1001 held `Class: Tank, AccelGain: 1.8` on
+CGF and `PersonalCar, AccelGain: 0` on SimHost. Reading "the cluster" without switching gives you one of
+those two answers with no indication which.
+
 ## 5d. ⭐ Localise a "it works on the editor, not on the cluster" report
 
 The same three reads, run on both hosts, turn a vague UI report into a located defect:
@@ -572,6 +607,13 @@ The same three reads, run on both hosts, turn a vague UI report into a located d
 Then, for *"the order is ignored"*, compare an **intent** component against its **status** component on the
 entity (`get_entity` notes spell out the three-way split). Populated intent + absent status + zero velocity
 are three different bugs that look identical on screen.
+
+⭐⭐ **And on a cluster, add a fourth read: THE SAME ENTITY ON BOTH NODES** (`POST /perspective` between
+them — §5c.2). Brain and muscle hold *different copies*, and a defect can live entirely in the gap:
+measured `2026-08-28`, a scenario's authored `VehicleParams` reached CGF intact and was **dropped on the
+wire hop**, so the Brain computed a valid path (which rendered) while the Muscle had `AccelGain: 0` and
+could not accelerate. **On screen that is indistinguishable from a broken navigator.** A one-node read —
+either node — would have confirmed the wrong theory.
 
 ---
 
