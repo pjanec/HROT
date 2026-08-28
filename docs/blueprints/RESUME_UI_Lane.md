@@ -2,8 +2,10 @@
 state: LIVE
 updated: 2026-08-28
 current-answer: ⭐⭐⭐ §0.0e — "--mode all VISUAL-CHECK CORRECTIVES + the cgf==editor TKB ruling".
-  START THERE AND NOWHERE ELSE. It is SELF-SUFFICIENT after a compaction: it repeats the measured
-  numbers, carries the user rulings verbatim, and records the boot recipe and the traps.
+  START AT §0.0e.3c — THE BUILD PLAN (CE-113). It is the ONLY work left and it carries every file
+  anchor, the four things still to measure, and the exact verification probe. The rest of §0.0e is
+  context: §0.0e.1 the rulings, §0.0e.3b why the design question is CLOSED, §0.0e.5 the boot recipe,
+  §0.0e.6 which suites lie.
   ⚠ UPDATED 2026-08-28 (FOURTH pass): CE-103 is ROOT-CAUSED as a WIRE-HOP loss between the Brain
   (CGF, correct) and the Muscle (SimHost, degraded) — NOT a load-handler defect and NOT a TKB
   difference. The USER HAS NOW RULED the direction (Q64 §6): TKB is the only source; a receiving
@@ -206,6 +208,66 @@ with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory decla
 ⚠⚠ **PROCESS NOTE WORTH KEEPING:** I ran this as a code investigation and swept the design corpus only
 after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
 points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
+
+### 0.0e.3c ⭐⭐⭐ **THE BUILD PLAN — `CE-113`. THE ONLY WORK LEFT. ⭐⭐ BUILD THIS FIRST.**
+
+⭐ **The bug:** on `--mode all` the tanks draw a path and do not move, because **SimHost** *(the muscle, which
+runs `CarKinematicsSystem`)* builds its entity **from the TKB via ghost promotion** — and **the TKB cannot
+express a Tank**, so it derives `PersonalCar` / `AccelGain 0` / `MaxSteerAngle 0` ⇒ zero acceleration, NaN
+steer. 🔒 **TKB is ruled the source** *(§0.0e.3b · `R-136`)* ⇒ **make the TKB sufficient. Nothing else.**
+
+#### ✅ `B4` — RESOLVED BY MEASUREMENT `2026-08-28`. **Not a blocker. Do not re-investigate.**
+
+📐 I had filed *"two translators write `VehicleParams`, first-writer-wins, pick an owner"* as blocking.
+**It is not:**
+
+| | |
+|---|---|
+| `SimHostNodeBootstrapper.cs:146-155` — the cluster's translator list | `SpatialCore` · **`VehicleKinematics`** · `Behavior` · `Combat` · `Perception` · `AiDiagnostics` ⇒ ⭐ **`VehicleKinematicsTkbTranslator` is the ONLY `VehicleParams` writer on the cluster path** |
+| `InfantryVehicleStateStripTkbTranslator` | 📐 registered **only** at `Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs:1622` *(the Stride editor app, NOT the SimHost node)*, and its own comment says it **STRIPS** `VehicleState`/`VehicleParams` from capsule (infantry) entities ⇒ ⛔ **a remover on another host, not a competing writer** |
+
+⇒ ⭐ **`VehicleKinematicsTkbTranslator` is the unambiguous owner. `B1`/`B2` are unblocked.**
+
+#### ⭐⭐ THE THREE ITEMS, with every anchor needed
+
+⚠⚠ **The file is `BdcTkbBuilder.cs` and the class inside it is `NedTkbBuilder`.** 📌 That mismatch cost me
+three grep misses — ⛔ **search the METHOD name, never the file name.**
+
+| # | item | anchors |
+|---|---|---|
+| **`B1`** | **Widen `VehicleParametersDto` by `Height`, `TurnRate`, `Mobility`** | `FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/VehicleParametersDto.cs` — a `record` with `[TkbDescriptor("Gen.VehicleParameters")]`, **6 fields** *(Mass·Length·Width·MaxSpeedFwd·MaxSpeedRev·MaxAccel)*. ⭐ The source already HAS the three: `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/SimVehicleDef.cs` carries `Height`, `TurnRate`, `Mobility` *(+FuelCapacity/FuelConsumption)*, and `NedTkbBuilder.WithPhysics` *(`BdcTkbBuilder.cs:78`)* **drops them** under the comment *"Height, TurnRate, Mobility mapped to VehicleParams by translator in Phase 6."* ⛔ **Phase 6 never happened** |
+| **`B2`** | **Route the already-written mapping into the translator** | ⭐⭐ `NedTkbBuilder.BuildVehicleParams(SimVehicleDef)` — `BdcTkbBuilder.cs:271`, **`private static`, ZERO callers**: maps `Mobility→VehicleClass` *(Tracked→Tank · Wheeled→Truck · Infantry→Pedestrian)*, bases on `VehiclePresets.GetPreset` *(`FDP/Toolkits/Fdp.Toolkits/CarKinem/Core/VehicleClass.cs:75-91` is the Tank preset)*, overrides Length/`WheelBase=Length×0.6`/Width/MaxSpeedFwd/MaxSpeedRev/MaxAccel, and computes `MaxSteerRate = TurnRate × π/180`. 🔒 **ROUTE it, do NOT rewrite or delete** *(`CLAUDE.md`: unreferenced is not unintentional)*. Target: `FDP/Toolkits/Fdp.Toolkits/CarKinem/Tkb/VehicleKinematicsTkbTranslator.cs:33-41`, which today writes only 5 fields |
+| **`B3`** | **Stop the scenario saving translator-derived components** *(start with `VehicleParams`)* | 🔒 ruling ②: they are **stale TKB duplicates, not overrides**. 📐 `scenarios/hill-attack/scenario.json` stores a full 15-field `VehicleParams` on **6 of 8** entities. ⛔⛔ **UNMEASURED: I never found WHERE the save path writes it.** Find that first |
+
+#### 🔴 WHAT I NEED TO KNOW — **measure these before/while building**
+
+| ⚠ | why it matters |
+|---|---|
+| 🔴 **Does widening a `[TkbDescriptor]` `record` break the ZIP-loaded path?** `FDP/Toolkits/Fdp.Toolkits/Tkb/TkbDeserializer.cs` → `ParseAndRegister`, and `TkbUnifiedLoader` reads `{staging}/TKB/{name}.zip` | ⛔ **BLOCKS `B1`.** ⭐ Note the hand-built `NedTkbCatalog` path does not exercise it — the ZIP path is what a deployed node uses |
+| 🔴 **Where does the scenario SAVE path write `VehicleParams`?** | ⛔ **BLOCKS `B3`**, and 🔒 the editor's scenario path is the one the user warned is hand-tested — **be careful** |
+| ⚠ **Are the other 13 translator-derived components ALSO degraded on the muscle?** | ⭐⭐ **the single most valuable follow-up measurement.** Only `VehicleParams` and `UnitSubordinate` were ever checked; `Health`, `WeaponState`, `PerceptionReceptor` have the same shape |
+| ⚠ **Does `Mobility` reach `WithPhysics` for the hill-attack tanks at all?** | ⛔ if the catalog never sets `Mobility = Tracked`, `B1`+`B2` produce `PersonalCar` anyway. **Check the `DefineVehicle`/`WithPhysics` call for tkbType 100** |
+
+#### ⭐ HOW TO VERIFY — **the exact probe that diagnosed it**
+
+```
+POST /scenario/load/live {"name":"hill-attack","waitForReady":true}
+POST /perspective        {"name":"SimHost"}        # ⛔ NEVER ?perspective= — it is IGNORED (CE-112)
+GET  /entities/1001                                # Components.VehicleParams
+```
+⭐ **Expect on SimHost:** `Class Tank` · `AccelGain 1.8` · `MaxSteerAngle 0.8` · `MaxSteerRate 0.2617994` ·
+`WheelBase 4.758`. 📐 **Before the fix it is** `PersonalCar` / `0` / `0`.
+⭐⭐ **Then prove MOTION:** a **position delta over a `simTime` delta** — ⛔ never wall-clock, and ⚠ **the
+cluster boots PAUSED**, so `/sim/play` or step first. 📄 Boot recipe: **§0.0e.5**.
+⭐ **Worth adding:** the brain-vs-muscle conformance rail — this defect class is **invisible to every unit
+rail by construction**, because a unit rail builds one world.
+
+#### ⛔ WHAT WE ARE **NOT** DOING — **all of this is settled; do not reopen**
+
+⛔ no wire change · no new descriptor · no readiness gate · no scenario read on any receiver.
+`CE-116` **WITHDRAWN** · `CE-114` **nothing in scope** · `CE-109` **deprioritised** *(a real ruling-9
+duplicate, but it fixes nothing reported)* · `CE-115` a **small independent** cleanup *(per-translator
+`MandatoryComponents` declaration)* · the `IDescriptorTranslator` naming reconciliation, also independent.
 
 ### 0.0e.4 ⭐⭐ `CE-109` — **RE-SCOPED: no longer `CE-103`'s fix, and its priority DROPS**
 
