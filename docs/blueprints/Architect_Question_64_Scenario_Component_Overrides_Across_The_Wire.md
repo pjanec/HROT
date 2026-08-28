@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: ⭐⭐⭐ §11 (the DESIGN-CORPUS sweep) is the CURRENT answer — it supersedes §10.5's
+current-answer: ⭐⭐⭐ §12 (the CONDITIONAL-OVERRIDE question) is the CURRENT answer, and it CORRECTS
+  §11.3's overstatement — the readiness gate IS built and working for EntityInfo + SimTransform.
+  Then §11 (the design sweep) — it supersedes §10.5's
   invented recipe with the design's OWN specified mechanism. Read §11, then §10 (the retractions),
   then §6 (the user ruling) and §7 (the baseline, still valid). build-state: DESIGN, nothing built.
   ⛔⛔ §10 RETRACTS THIS DOCUMENT'S CENTRAL CLAIM: there is NO "wire-hop loss". SimHost's entity is
@@ -607,3 +609,87 @@ honest sequencing is:
 | ⛔ **whether `tkb-design-ideas.md` is superseded** | its STATUS is *"Draft for implementation"* with **no STATUS block**; ⭐ its §10.2/§10.4 match the code's consumer side, so it reads live — ⚠ **but it is a `docs/designs/` doc predating the STATUS-block convention and I have not proven nothing overrides it** |
 | ✅ **why `MandatoryComponents`' producer was dropped — CLOSED** | 📄 **`.dev/_DONE/tkb-1/tkb-design-ideas.md:743`**, verbatim: *"`MandatoryComponent` and `ChildBlueprintDefinition` are also still owned by `TkbTemplate` for use by the ECS promotion path (§10), but **they are populated by domain translators during/after load, not by the JSON parser**."* ⭐ And `design-talk.md:149`: *"Implement domain-specific applicators that project pure TKB DTOs into ECS memory chunks."* ⇒ ⛔⛔ **the programme states the producer as intent and closed as `_DONE` WITHOUT building it.** ⚠ No deferral note found — it looks dropped, not deferred. Filed as **`CE-115`** |
 | ⛔ **whether the 13 other translator-derived components are also degraded on the muscle** | §9's row, still the most valuable next measurement |
+
+
+---
+
+## 12. ⭐⭐⭐ THE CONDITIONAL-OVERRIDE PROBLEM — **and a correction to §11.3** *(`2026-08-28`)*
+
+> 🔒 **User:** *"At least the SimTransform must already work via ghost promotion. And the question remains -
+> how we could solve the scenario-saved components that are not mandatory ALWAYS (as SimTransform is), but
+> only if overridden in the scenario"*
+
+### 12.1 ⛔⛔ CORRECTION — **`SimTransform` IS hard-mandatory, and §11.3 UNDERSTATED what is built**
+
+📐 **Measured.** `BdcTkbBuilder.DefineVehicle` *(`:33-38`)*, on **every** template it creates:
+
+```csharp
+template.AddMandatoryComponent<EntityInfo>(isHard: true);      // id 164
+template.AddMandatoryComponent<SimTransform>(isHard: true);    // id 0
+```
+
+⭐ Confirmed live — templates **100 · 103 · 303** each carry exactly `{164 EntityInfo, 0 SimTransform}`,
+both **Hard**. ⇒ ⭐⭐⭐ **ghost promotion genuinely blocks until the network delivers position and identity.
+The mechanism is BUILT AND WORKING**, exactly as the user said.
+
+⚠⚠ **Why §11.3 got it wrong: a fourth grep-as-hypothesis miss.** I searched the **property**
+(`MandatoryComponents`) and found only the `:242` `Exists(...)` guard; ⛔ **I never searched the METHOD**
+(`AddMandatoryComponent`), which is where `:36-38` live. 📌 Same failure shape as `BdcTkbBuilder.cs`
+containing class `NedTkbBuilder`, and as `CreateTkb` truncated by `head -20`.
+
+⇒ ⭐ **`CE-115`'s scope shrinks and sharpens.** ⛔ **NOT** *"the readiness gate is unbuilt"*. ⭐ The real gap is narrower: the design says entries are **"populated PER TRANSLATOR… each engine's translators add
+only the components that engine cares about"** — 📐 in the code they are **hand-authored centrally in one
+builder**, identically for every host. ⇒ **a SimHost-only component cannot declare its own requirement**,
+and a pure-IG node gets the same list the design says should be smaller.
+
+### 12.2 🔴 THE ACTUAL PROBLEM — **`MandatoryComponents` is PER TEMPLATE, and an override is PER ENTITY**
+
+⭐⭐ **That is the whole difficulty, stated exactly.** `SimTransform` can be unconditionally Hard because
+**every** entity has a position. ⛔ A scenario-overridden `Health` is present on **6 of 8** entities in
+`hill-attack`; `UnitSubordinate` on **4 of 8**.
+
+| ⛔ naive option | why it fails |
+|---|---|
+| mark the overridable component **Hard** on the template | 🔴 **DEADLOCK** — `IsHard` blocks promotion *indefinitely*, so every entity of that type that does **not** override it never promotes |
+| mark it **Soft** with a timeout | ⛔ **every non-overriding entity of that type pays the stall**, and a late override lands **after** systems already ran a full timeout's worth of frames on the TKB default. ⚠ Silent and timing-dependent |
+| always send it *(make it unconditional like `SimTransform`)* | ⛔ every entity pays the bandwidth for every overridable component ⇒ **defeats TKB-as-source**, which is the whole point of ruling ① |
+
+### 12.3 ⭐ WHAT IS ALREADY FREE — **ingress runs BEFORE promotion**
+
+📐 Measured registration order in `NedReplicationModule`: `GhostCreationSystem` *(`:252`)* →
+**`CycloneNetworkIngressSystem`** *(`:284`, applies descriptors)* → `OwnershipIngressSystem` *(`:306`)* →
+**`GhostPromotionSystem`** *(`:308`)*.
+
+⇒ ⭐⭐ **Any descriptor that arrives in the same batch is ALREADY APPLIED when readiness is evaluated.** So
+if the creator emits the overrides in the same tick as the `EntityMaster`, there is **no race and nothing
+to declare**. ⛔ **But this is an ORDERING ASSUMPTION over DDS**, which gives no cross-topic delivery
+guarantee ⇒ ⚠ **it works until it doesn't, and the failure is silent** *(promotion on TKB defaults)*.
+📌 **That is precisely why `SimTransform` is Hard rather than trusting the batch.**
+
+### 12.4 ⭐⭐⭐ RECOMMENDED — **`A`: a PER-ENTITY expected-override mask, declared by the creator**
+
+⭐ The creator tells the receiving node, **for this entity**, which components to wait for. Readiness
+becomes `template.MandatoryComponents ∪ perEntityExpected`.
+
+| ⭐ why this is the right shape | |
+|---|---|
+| ⭐⭐⭐ **it matches the data** | an override is a **per-entity** fact; expressing it per-template is the category error that makes every option in §12.2 fail |
+| ⭐⭐⭐ **THE MASK IS DERIVABLE, NOT AUTHORED** | 📌 the creator **already knows** the set — it is exactly the components it applied at `NetworkSpawningSystem` **step 8**. ⇒ **no per-template config, no hand-kept list, nothing to drift.** ⭐ The *"MEASURED from what is wired, never declared"* property this codebase already prizes |
+| ⭐⭐ **the comparison machinery EXISTS** | readiness is already a `BitMask512` vs `EntityHeader.ComponentMask` check *(design §10.4: "a single bitwise AND… O(1), allocation-free, lock-free")* ⇒ a per-entity `BitMask512` **slots straight in** |
+| ⭐ **it degrades honestly** | an override that never arrives leaves the ghost unpromoted and **visible as such**, instead of a silently-wrong entity |
+
+**The pieces needed:** ① a `BitMask512` *(or a short component-id list)* on the ghost-creating descriptor —
+`dtEntityMaster` is the natural home · ② `GhostCreationSystem` stores it beside `GhostStateTracker` ·
+③ `GhostPromotionSystem` unions it into the readiness check · ④ the creator fills it from its step-8 set.
+
+⚠ **Open sub-questions I have NOT resolved** *(they need the user, or measurement)*:
+
+| # | |
+|---|---|
+| **12.4a** | ⭐ **Hard or Soft for the per-entity set?** ⭐ My lean: **Hard** — the creator is asserting *"I authored an override for this entity"*, so proceeding without it is silently wrong. ⚠ But a lost sample then wedges one entity forever ⇒ **Soft with a loud warning** may be the operationally safer default. 🔒 **Needs a ruling** |
+| **12.4b** | ⚠ **`dtEntityMaster` is an existing wire struct** — adding a field is a contract change. ⭐ A separate small descriptor avoids touching it but adds a second sample to order against. ⛔ **Unmeasured** |
+| **12.4c** | ⛔ **Does `BitMask512` fit the IDL budget?** 512 bits = 64 bytes per entity-master sample. ⚠ A short `list<uint16>` of component ids is far smaller for the typical 1–3 overrides. ⭐ **Prefer the list unless a mask is already marshalled somewhere** |
+
+⇒ ⭐⭐ **`B` (rely on the same-tick batch) is the fast path this design gets for free, and `A` is the
+backstop that makes it safe.** ⛔ **Neither is needed for `CE-113`**, which remains the only thing
+`CE-103` requires.
