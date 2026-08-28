@@ -6,7 +6,10 @@ build-state: DESIGN — UML AUTHORED 2026-08-28 (section 3.2b: one classDiagram 
   closed gate yields chrome-without-entities exactly as measured. It also OVERTURNED recommendation (1):
   GZH-003 shows the per-host initial Enabled state is DELIBERATE (interactive on, headless-first off), so
   "Enabled = true everywhere" is retracted and startEnabled becomes a host rule the context supplies.
-  ONE blocker remains before READY-TO-BUILD: re-size. RW-M in PLAN_Interaction_UX_Backlog section 4 is
+  TWO blockers remain before READY-TO-BUILD. (1) READ SECTION 3.2a: the pack as drawn in 3.2b
+  SCHEDULES SYSTEMS, which the standing constraint (DESIGN_Subsystem_Composition_Unification 3.2,
+  a user ruling) forbids -- the corrected shape is DECLARE-the-required-systems + report-unserviceable,
+  and the class diagram must be REDRAWN. One architect call is open there for the user. (2) re-size. RW-M in PLAN_Interaction_UX_Backlog section 4 is
   LIGHT now the pack owns composition + execution rather than registration alone.
 verified: 2026-08-28 (coordinator source scan)
 current-answer: NOT-BUILT (design only) -- confirmed independently 2026-08-28: grep finds ZERO
@@ -312,7 +315,75 @@ and reports why**, rather than omitting it:
 > shows what this host can actually do. Membership is uniform, **visibility is earned**. That keeps the
 > "forgot to call registrar #3" failure impossible without producing dead rows.
 
+### 3.2a ⛔⛔⛔ THE PACK MAY NOT SCHEDULE SYSTEMS — **canon already forbids it, and already supplies the alternative** *(found `2026-08-28`, after the user asked for one more prior-art scan)*
+
+> 🔒 **User:** *"dont you want to make one more scan? it seems like evey time i ask about something weird in
+> your suggestion you find some 'new' concept or intent that has been already present"*
+> ⇒ ⭐⭐ **They were right. This is the fifth such find in one conversation, and it is the one that changes
+> the pack's SHAPE.**
+
+📄 **`DESIGN_Subsystem_Composition_Unification.md` §3.1 — a USER RULING (`AQ63` §9/§10), three axes:**
+
+| axis | reference | unify? |
+|---|---|---|
+| ⭐⭐⭐ **UI · scenario editing · monitoring · debugging** | **the EDITOR is the source and specimen** | ✅ **aggressively** |
+| ⛔⛔ **the RUN-SET — modules · systems · services** | **each host's ROLE** | ⛔ **never** |
+| ⛔⛔ **NETWORK — translators · DDS · participant** | **each host's ROLE** | ⛔ **never** |
+
+⚠⚠ **And §3.1 states the trap in the map's own terms:** *"A map bundle that registered `MapCullingModule` +
+`StyleResolutionModule` because the editor does would **silently change what CGF computes every frame — and
+would look like a successful unification.**"*
+🔒 **§3.2, THE STANDING CONSTRAINT, verbatim:** *"No bundle may register a module, a global system, a DDS
+translator, an egress/ingress system, or a participant."*
+
+⛔⛔ **THIS INVALIDATES §3.2b's `MapInteractionPack` AS DRAWN.** 📐 As authored it schedules the togglable
+group into the host kernel and installs `GlobalActionDispatchSystem`, `ContextActionIngressSystem`,
+`SelectionInteractionSystem` and `CanvasMenuUpdateSystem` — ⛔ **every one a run-set registration.** ⚠ And
+`MapInteractionContext` hands out `ModuleHostKernel Kernel` + `FdpEventBus InteractionBus`, which
+`UiBundleContext` **deliberately withholds** — its doc says *"the constraint is enforced by what a bundle
+CANNOT REACH, not by a review note."* ⇒ 📌 **I designed exactly the thing the seam was shaped to prevent.**
+
+#### ⭐⭐⭐ THE RESOLUTION IS THE NEXT ROW OF THE SAME TABLE — **DECLARE + REPORT UNSERVICEABLE**
+
+| ⭐ a bundle MAY | ⛔ a bundle MAY NOT |
+|---|---|
+| register **windows · panels · commands · menu items · toolbar entries** | ⛔ register anything from the run-set or the network |
+| ⭐⭐⭐ **DECLARE the systems its affordances require** | ⛔ decide the node's simulation topology |
+| ⭐⭐⭐ **report unserviceable when the host does not run them** | ⛔⛔ **silently no-op** |
+
+⇒ 🔒 **The corrected shape:**
+
+| # | |
+|---|---|
+| ⭐⭐ **the pack registers the map's UI affordances** *(windows, panels, commands, menu, toolbar)* — bundle-legal, and the axis-1 half the editor is the specimen for | |
+| ⭐⭐⭐ **it DECLARES its required systems** — `StatelessGizmoSystem`, `DataDrivenGizmoSystem`, `GlobalGizmoManager`, the gate | ⛔ it does **not** register them; **the HOST composes its run-set, per its ROLE** |
+| ⭐⭐⭐ **it REPORTS UNSERVICEABLE when a required system is absent** | ⛔ **never renders nothing in silence** |
+| ⭐⭐ **per-host capability variation stays in `IGizmoVisibilityPolicy` / `GizmoSettingsRegistry`** *(§3.2b)* | — the axis-1 configuration, which is legitimately shared |
+
+⭐⭐⭐ **AND THIS WOULD HAVE CAUGHT THE ACTUAL BUG.** 📌 SimHost's map **silently no-opped** — the precise
+thing the third row forbids. 🔒 **Had the map affordance declared its required systems and reported
+unserviceable, an empty SimHost map would have been a LOUD DIAGNOSTIC from the day `GZH-003` landed**,
+instead of something a user found by comparing two screens weeks later. ⇒ ⭐⭐ **the canon's own rule is a
+better fix than the one I proposed**, and it is *why* the rule exists.
+
+⭐⭐ **The two rulings are RECONCILED, not in conflict.** ⚠ The user's *"whatever it takes … same code"*
+and the standing *"the run-set never unifies"* both hold, because they answer different questions:
+**WHAT the map looks like and how it is configured = axis 1 = shared aggressively; WHETHER a node runs the
+gizmo systems = the run-set = that node's role.** ⇒ 🔒 **headless SimHost legitimately runs none of them —
+`GZH-003`'s intent — and the viewer-count model (§3.2b) is how a host with a viewer turns them on.** ⛔ What
+is *not* legitimate is the current third state: **the systems present, the gate shut, and nothing said.**
+
+⚠⚠ **ONE ARCHITECT CALL REMAINS FOR THE USER** *(large blast radius ⇒ not mine to settle)*: the gizmo
+execution systems are **run-set** by §3.1's letter, yet 📐 **all five hosts already register the same three**
+*(§2c)* ⇒ so consolidating their CONSTRUCTION removes duplication **without changing what any host
+computes**. 🔒 **Question: may the pack own the CONSTRUCTION of systems every host already runs, provided
+the HOST still decides whether to schedule them?** ⭐ **My lean: YES** — it is deduplication, not topology,
+and §3.1's harm *(giving a host compute it did not have)* cannot occur. ⛔ **But it is a knowing exception
+to §3.2's letter and needs an explicit ruling, not a silent one.**
+
 ### 3.2b ⭐⭐⭐ THE UML — **authored `2026-08-28`, AFTER the §2c enumeration** *(obligation ②)*
+
+⚠⚠ **READ §3.2a FIRST.** The class diagram below shows `MapInteractionPack` **scheduling systems into the host kernel** and a `MapInteractionContext` carrying `Kernel` + `InteractionBus` — ⛔ **both are forbidden by the standing constraint** *(`DESIGN_Subsystem_Composition_Unification.md` §3.2)*. 🔒 **The diagram is retained as the as-drawn record; §3.2a's DECLARE-and-report shape supersedes it and the diagram must be redrawn before this design is dispatchable.**
 
 > 🔒 **Reading rule:** every box marked **`«existing»`** is real code with its file named. ⛔ Only
 > `MapInteractionPack` and `MapInteractionContext` are new. ⭐ **That is the point of drawing it** — the
