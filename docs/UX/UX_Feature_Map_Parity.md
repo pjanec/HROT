@@ -11,6 +11,13 @@ current-answer: START AT SECTION 3.9b -- S1's AS-BUILT. S1 IS BUILT AND VERIFIED
   measured live) but its frame is still 605/3, so a further cause remains. 3.9b names the lead
   (three host-private entity presentation gizmos; a reflection registrar that scans only LOADED
   assemblies) as a HYPOTHESIS for S2, deliberately not as a root cause.
+  If the question is HOW UXI-23 COORDINATES WITH THE TOOL MODEL (UXI-07), read 3.9h: UXI-23 owns the
+  STATELESS half of the gizmo stack, UXI-07 owns the TOOL half, and the seam is the interface --
+  IStatelessGizmo vs IEntityStatefulGizmo, a taxonomy the user already ruled on 2026-08-10. S2 is
+  DISJOINT and proceeds alone; the GizmoTypeId pin and S5 touch IGizmoDefinition and are JOINT, with
+  UXI-07's migration table as the schedule. 3.9h also resolves the "frontend stack vs backend logic"
+  confusion: the word names two different things -- input ROUTING at the terminal, tool MODALITY at
+  the backend -- and the newer LIVE ruling (UXI-07) puts the semantic stack in the backend.
   If the question is THE TOOL STACK, read 3.9g FIRST: one EXISTED (MapCanvas.PushTool/PopTool/
   ActiveTool over IMapTool) and was REMOVED in the Phase-5 gizmo migration, and its nesting
   capability -- run a tool inside a tool and return -- was NOT carried over. What replaced it is a
@@ -1383,6 +1390,60 @@ deliberately** whether the merged interaction model restores nesting, and **writ
 return"* case. 🔒 **Whether a user can actually start one while a focus-holding tool runs depends on the UI
 paths, not on the manager** — ⛔ so verify by trying it, do not assume a live bug from the mechanism alone.
 ⭐ **The mechanism-level fact is certain; the user-reachability is not.**
+
+## 3.9h ⭐⭐⭐ **COORDINATING `UXI-23` WITH `UXI-07` — and the layering that "does not make sense"** *(user, `2026-08-28`)*
+
+> 🔒 **User:** *"how is the interaction control connected with the gizmos/map, and how to coordinate their
+> unification? is touching gizmos first safe? does it live in the same layer? I can't understand how the
+> tool stack can live in frontend while the logic is in the backend."*
+
+### ⭐⭐⭐ THE LAYERING — **the objection is RIGHT: the word *"stack"* names TWO DIFFERENT THINGS**
+
+⛔ **That is why it does not make sense — it genuinely does not, as one thing.** 📐 Two documents use the
+word for two different mechanisms at two different layers:
+
+| | **frontend / terminal stack** | **backend / app stack** |
+|---|---|---|
+| **what it holds** | ⭐ *which input handler currently receives the mouse and keys* — pan/zoom/box-select, or a `GizmoInteractionProxyTool` capturing for the backend | ⭐⭐ *which editing OPERATION is active and which is SUSPENDED* |
+| **the doc** | `gizmo-input-focus-design.md` §14 — 🔒 *"keeps its tool stack **for routing**, but **stripped of business logic** … **No semantic decisions in the stack**"* | `UX_Feature_Tool_Model.md` *(`UXI-07`)* — `IToolController` with `ActiveModal` · `ModalStack` · `PushModal` *("SUSPENDS the top; dispose pops & resumes")* |
+| **status** | ⚠ *"Design proposal"*, older | ✅ **LIVE, user-ruled (Q27, `2026-08-10`), `NOT-BUILT`** |
+
+⇒ ⭐⭐⭐ **The USER'S INSTINCT IS THE NEWER RULING: the semantic stack belongs WITH THE LOGIC, in the
+backend.** 🔒 `UXI-07` puts it there. ⛔ The frontend "stack" in the older doc is **only an input-routing
+device** — it never held tool semantics, and calling it a *tool* stack is what makes the two irreconcilable
+in one sentence. ⇒ ⭐ **Read them as: input ROUTING at the terminal · tool MODALITY at the backend.**
+
+### ⭐⭐ HOW INTERACTION CONNECTS TO THE MAP — **`gizmo ≠ tool`, and the taxonomy is ALREADY RULED**
+
+🔒 **User, `2026-08-10` (Q27):** *"a gizmo is not equal to a tool: some gizmos are stateless, showing status
+per entity (health bar); many such can be active per entity."* ⇒ ⭐ already encoded in the interfaces:
+
+| category | encoding | ⭐ whose scope |
+|---|---|---|
+| **not a tool** — status draw | `IStatelessGizmo` | 🔒 **`UXI-23` `S2`** — the map projectors |
+| **modeless tool** | `IEntityStatefulGizmo`, `RequiresExclusiveFocus => false` | ⚠ `UXI-07` |
+| **modal tool** | `IEntityStatefulGizmo`, `RequiresExclusiveFocus => true` | ⚠ `UXI-07` |
+
+⇒ ⭐⭐⭐ **The seam between the two programmes is the INTERFACE, and it already exists.** 📌 `UXI-07`'s own
+words: *"The taxonomy exists; the enforcement does not"* — each engine consults `RequiresExclusiveFocus`
+only within itself *(its **two-arbiter** defect `A1`)*.
+
+### ✅✅ IS TOUCHING GIZMOS FIRST SAFE? — **YES for `S2`. NO for the `GizmoTypeId` pin and `S5`.**
+
+| `UXI-23` work | touches | overlaps `UXI-07`? |
+|---|---|---|
+| ⭐⭐ **`S2` — merge the three entity projectors** | `IStatelessGizmo` · `StatelessGizmoRegistry` · `StatelessGizmoSystem` | ✅ **NO — disjoint.** `UXI-07` touches only the two TOOL rows. 🔒 **Do `S2` first, independently** |
+| ⭐ `S3` declare+report | copies `ToolActivationDrainSystem`'s pattern | ✅ no code overlap — ⭐ borrows a pattern, changes nothing of it |
+| ⭐ `S4` configuration | `IGizmoVisibilityPolicy`, settings | ⚠ light — the policy seam is shared, ⛔ but `UXI-07` does not change it |
+| 🔴 **pin `GizmoTypeId`** *(§3.9e ③)* | **`IGizmoDefinition` classes = the TOOL path** | 🔴 **YES.** ⇒ ⭐ still do it FIRST *(it is a one-line constant per class and protects both programmes)*, ⛔ but **tell `UXI-07`** — its migration renames/reroutes these |
+| 🔴 **`S5` — the action half** | `GlobalActionRegistry`, the action→tool path | 🔴🔴 **YES, directly.** 📌 `UXI-07` migration **step 3** routes `GlobalActionIds.Rotate/EditOverlay/EditRoute` through `Activate()` and *"deletes the duplicated toggle logic"*; **step 4** converts the three bypassing adapters and *"completes `A1`"* ⇒ ⛔ **`S5` MUST NOT re-implement that.** ⭐ Sequence `S5` **after** `UXI-07` steps 3–4, or fold it in |
+
+### 🔒 THE COORDINATION RULE
+
+⭐⭐ **`UXI-23` owns the STATELESS half of the gizmo stack; `UXI-07` owns the TOOL half.** ⛔ Neither may
+change the other's interface without saying so. ⇒ ⭐ **`S2` proceeds now, alone.** ⚠ The moment work reaches
+`IGizmoDefinition` — the `GizmoTypeId` pin, or `S5` — it is **joint**, and `UXI-07`'s migration table is the
+schedule, not this design's.
 
 ## 4. Acceptance
 

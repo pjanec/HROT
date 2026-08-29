@@ -93,7 +93,7 @@ architecture, and it is still the toolbar's contract.
 | Tool gizmo | Lives in | Adopted by |
 |---|---|---|
 | `MeasureGizmo` · `RouteWaypointGizmo` · `VertexEditGizmo` | `Hrot.Presentation/ScenarioEditor/Gizmos/` | Editor, IG |
-| **`EntityRotatorGizmo`** | ⚠ **`Hrot.SimHost/Gizmos/`** | Editor, SimHost, **CGF** |
+| **`EntityRotatorGizmo`** | ✅ **`Hrot.Presentation/ScenarioEditor/Gizmos/`** — ⚠⚠ **CORRECTED `2026-08-28`: this row said `Hrot.SimHost/Gizmos/` and that is STALE.** 📐 Measured: the only other copy is the `GizmoMap.Example` test bed. 📌 It was moved by *"AX item 4 — make `EntityRotatorGizmo` subsystem-agnostic"*, and the row was never updated ⇒ 🔒 **§M's rule exactly: a STATE CLAIM rots while the DECISION around it does not** | Editor, SimHost, **CGF** |
 
 ⇒ Editor and CGF depend on a tool that lives **inside the SimHost subsystem**.
 
