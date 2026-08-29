@@ -11,6 +11,12 @@ current-answer: START AT SECTION 3.9b -- S1's AS-BUILT. S1 IS BUILT AND VERIFIED
   measured live) but its frame is still 605/3, so a further cause remains. 3.9b names the lead
   (three host-private entity presentation gizmos; a reflection registrar that scans only LOADED
   assemblies) as a HYPOTHESIS for S2, deliberately not as a root cause.
+  If the question is about EDITING GIZMOS (drag handles, vertex points, the rotator), read 3.9e:
+  they are a SECOND gizmo kind (GizmoRegistry/IGizmoDefinition/DataDrivenGizmoSystem, stateful)
+  that shares ONE buffer, ONE group and ONE gate with the map projectors -- so S2 touches them
+  whether or not it means to. 3.9e names four ways unification can break them, all silent, and the
+  worst is that GizmoTypeId -- the DDS interaction routing key -- is an FNV hash of the class's full
+  name, so a rename or merge silently breaks remote dragging while the handle still draws.
   Then read 3.9d -- what "all lines shared" MEANS (user, 2026-08-28: unification means EVERY line
   becomes shared, not most of them). After S2 the entity projector is ONE class with ONE code path
   and the per-host columns disappear; only two INJECTED INSTANCES differ, and that is configuration,
@@ -1155,6 +1161,68 @@ optional capability is checked INSIDE the injected collaborator** *(`policy.IsEn
 ⇒ ⭐⭐ **Target: `[GizmoProjector]` classes under `Hrot/Subsystems/<host>/` reach ZERO**, behaviour/content
 packs excepted. ⭐ That is a one-line grep, and it is the acceptance criterion for *"all lines shared"*.
 
+## 3.9e 🔴🔴🔴 **THE EDITING GIZMOS — how handles work, and what unification can break** *(measured `2026-08-28`)*
+
+> 🔒 **User:** *"when I select an entity it may (or may not, depending on which host) show some editing
+> gizmo (like handle points for moving vertices). How is this interconnected with gizmos? How can this break
+> if we unify the map rendering? Can we safely unify without breaking this?"*
+
+### ⭐ THE MECHANISM — **there are TWO gizmo kinds, and they share ONE buffer, ONE group, ONE gate**
+
+| kind | registry | system | what it draws | stateful? |
+|---|---|---|---|---|
+| **projectors** | `StatelessGizmoRegistry` *(`[GizmoProjector]`)* | `StatelessGizmoSystem` | the symbol, anchor, pick box — ⭐ **"the map"** | ⛔ no — pure function of components |
+| ⭐⭐ **entity-bound gizmos** | `GizmoRegistry` *(`IGizmoDefinition`)* | `DataDrivenGizmoSystem` | 🔒 **the DRAG HANDLES, the rotator, the vertex points** | ⭐ **yes — `CreateInstance` per entity, `IEntityStatefulGizmo.UpdateAndDraw`** |
+| **global tools** | — | `GlobalGizmoManager` | measure tool, canvas menu | yes |
+
+⇒ ⭐⭐⭐ **All three write into the SAME `DebugPrimitiveBuffer` and sit in the SAME
+`TogglablePostSimulationGroup`, behind the SAME `GizmoExecutionController`.** ⛔ **So "map rendering" and
+"editing handles" are NOT separate pipelines** — ⚠ **anything `S2` does to the group, the buffer or the gate
+touches the handles too.** 📌 That is the interconnection, and it is the reason this question matters.
+
+### 🔴 WHY IT DIFFERS PER HOST — **ONE constructor argument, measured**
+
+`DataDrivenGizmoSystem` takes `Func<ISimulationView, Entity, bool>? isSelectedPredicate`, and
+**`DataDrivenGizmoSystem.cs:308`** reads:
+
+```csharp
+bool alwaysDraw = _isSelectedPredicate == null;      // ⚠ null means ALWAYS, not never
+…
+bool selected = alwaysDraw || _isSelectedPredicate!(view, entity);
+```
+
+| host | predicate | ⇒ behaviour |
+|---|---|---|
+| **IG** *(`IgApplication.cs:805`)* | `null` — 🔒 its comment: *"IG is dumb terminal — draw all active gizmos"* | ⭐ **always draws handles** |
+| **CGF** *(`CgfSubsystem.cs:931`)* | `null` | ⭐ always draws handles |
+| **SimHost** *(`:369`, `:440`)* · **Editor** *(`:1631`)* · **ReplayBrowser** *(`:189`)* | `SelectionState.IsSelected` | ⭐ **handles only on the SELECTED entity** |
+
+⇒ 🔒 **That is exactly the *"may or may not, depending on which host"* the user observed** — ⭐ and IG's
+`null` is **correct for its role**: a dumb terminal holds no local selection, so gating on selection there
+would show **nothing, ever**.
+
+### ⛔⛔ CAN UNIFICATION BREAK IT? — **YES, in FOUR distinct ways. Each is avoidable, and each is silent.**
+
+| # | 🔴 the break | why it is silent | ⭐ the guard |
+|---|---|---|---|
+| **①** | ⭐⭐⭐ **Collapsing `isSelectedPredicate` to one value.** ⛔ Pick *selection-gated* ⇒ **IG shows NO handles at all** *(no local selection)*. ⛔ Pick *always-draw* ⇒ **the editor shows drag handles on EVERY entity at once** — unusable | nothing errors; the handles are simply absent or everywhere | 🔒 **`R-137`: it stays a parameter.** ⭐ The seam **already exists** as a ctor argument — ⛔ `S2` must not "simplify" it away |
+| **②** | ⭐⭐ **`IGizmoDefinition.RequiredComponents` listing an OPTIONAL input** | 📌 **identical to acceptance `23.23`** — a rule whose mask does not match simply never activates | ⭐ declare the MINIMUM; check optional capability inside the gizmo or its `VisibilityPolicy` |
+| **③** | 🔴🔴 **RENAMING OR MERGING A GIZMO CLASS CHANGES ITS WIRE ROUTING KEY.** 📐 `GizmoTypeId` is the **FNV-1a hash of the implementing type's FULL NAME** *(`DebugPrimitive.cs:140`, `[FieldOffset(60)]`)*, stamped into the primitive, sent over DDS as `GizmoInteractionBatch.PickGizmoTypeId` *("composite routing key … 0 = legacy")*, and echoed back by the terminal as the discriminator for **which gizmo on that entity was grabbed** | ⚠⚠ **the handle still DRAWS; dragging just does nothing** — the interaction routes to a key nobody claims. ⛔ And it only breaks **across nodes / across builds** | 🔒 **Before renaming or merging any `IGizmoDefinition`, treat `GizmoTypeId` as a WIRE CONTRACT.** ⭐ Either keep the type name, or make `GizmoTypeId` an explicit constant instead of a name hash *(the interface already requires it to be given explicitly — ⭐ so pinning it is a one-line change per class)* |
+| **④** | ⚠ **In-progress interaction across a perspective switch.** `GizmoExecutionController.RemoveListener` calls `CancelInteractiveTools()` on **both** `GlobalGizmoManager` and `DataDrivenGizmoSystem` when the last listener leaves | a half-finished drag would otherwise stay "grabbed" | ⭐ if `S2` recomposes the group or the gate, **keep both cancel calls on the teardown path** and rail it |
+
+### ✅ SO: **CAN WE UNIFY SAFELY? — YES**, and the reason is structural, not optimistic
+
+⭐⭐⭐ **The parameterisation this needs ALREADY EXISTS in the contract:** `IGizmoDefinition` carries
+**`IGizmoVisibilityPolicy VisibilityPolicy`** *(per definition!)*, `RequiredComponents`, and an explicit
+`GizmoTypeId`; `DataDrivenGizmoSystem` carries the selection predicate. ⇒ ⛔ **`S2` does not need to invent a
+configuration mechanism for the editing gizmos — it needs to STOP each host from hard-coding one.**
+📌 **The seam law, for the fourth time in this design.**
+
+⚠⚠ **The one thing that is NOT safe is a *rename-and-merge* of `IGizmoDefinition` classes done casually** —
+🔴 risk ③ is a **cross-node wire break that unit tests cannot see**, because both sides of a single-process
+test compute the same hash from the same name. ⇒ ⭐ **pin `GizmoTypeId` explicitly BEFORE any such merge**,
+and rail the constant.
+
 ## 4. Acceptance
 
 | # | Case | Cls |
@@ -1183,6 +1251,9 @@ packs excepted. ⭐ That is a one-line grep, and it is the acceptance criterion 
 | ⭐ 23.20 | ⭐ **Two hosts sharing one settings instance see each other's toggles** *(the user's "some are sharing same settings")*, and a host with `Empty` still renders every gizmo at its registered default | H |
 
 | ⭐ 23.21 | 🔒 **Every discovered `[GizmoProjector]` with no resolver entry is REPORTED** — always-on stays the default, ⛔ but never silently. Parameterised: add a projector, assert it appears in the report | H |
+| 🔴🔴 23.25 | 🔒 **`GizmoTypeId` IS A WIRE CONTRACT.** Every `IGizmoDefinition` pins it as an explicit constant, and a rail asserts the value — ⛔ never left as an implicit hash of the type's full name, which a rename or merge silently changes. ⚠ **Cross-node only**: a single-process test computes the same hash on both sides and cannot see this | H |
+| ⭐⭐⭐ 23.26 | 🔒 **`isSelectedPredicate` stays a per-host parameter.** ⛔ Collapsing it to one value breaks either IG *(dumb terminal, no local selection ⇒ no handles at all)* or the editor *(handles on every entity at once)*. 📌 `R-137`'s clearest instance in the interactive half | H |
+| ⭐⭐ 23.27 | 🔒 **The gate's teardown still cancels BOTH** `GlobalGizmoManager.CancelInteractiveTools()` and `DataDrivenGizmoSystem.CancelInteractiveTools()` — an in-progress drag must not survive a perspective switch as a stuck grab | H |
 | ⭐⭐⭐ 23.22 | 🔒 **ZERO `[GizmoProjector]` classes under `Hrot/Subsystems/<host>/`** — behaviour/content packs *(`Hrot.AI.Behaviors`)* excepted. 📐 Baseline `2026-08-28`: **6** *(IG 3 · SimHost 1 · CGF 1 · ReplayBrowser 1)*. ⭐ One grep; it is the mechanical form of *"all lines shared"* | H |
 | ⭐⭐⭐ 23.23 | ⛔⛔ **No `[GizmoProjector]` attribute lists an OPTIONAL input.** The merged entity projector requires `SimTransform` + `NetworkIdentity` and **nothing else**; `CullingState` and `IgHealthState` are checked inside the injected collaborators. ⚠ Keeping `CullingState` in the query would silently empty SimHost's and CGF's maps | H |
 | ⭐⭐ 23.24 | 🔒 **`R-137` receipt, per slice:** the merge is not accepted until it names what each host could do before and can still do — ⭐ IG's culling and damage-condition states must remain reachable, and must become AVAILABLE to the other hosts by configuration rather than being IG-only | H |
