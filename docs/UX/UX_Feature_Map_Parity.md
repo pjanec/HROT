@@ -1346,6 +1346,31 @@ own `Select` arm records it: `"(Phase 5: _interactionTool removed; selection via
 | `GizmoMap.Presentation/Gizmos/GizmoInteractionProxyTool.cs:16` | *"Uses an optional exit callback instead of `MapCanvas.PopTool()`"* — ⭐ accurate about the REPLACEMENT, and it is the only place the loss is written down |
 | `Hrot.Editor/Adapters/EditorMapPickAdapter.cs:26` | 🔴 *"The registered cancellation handler calls `MapCanvas.PopTool` …"* — ⛔ **stale: that API no longer exists.** 📐 The adapter was migrated to `GlobalGizmoManager.Register(id, gizmo)` *(`:73`, `:109`)* and only keeps `MapCanvas` for `PickTopmostEntity` |
 
+### ⛔⛔ OWNERSHIP — **this is `UXI-07`, not a `UXI-23` finding** *(corrected `2026-08-28`)*
+
+🔴 **Everything above was ALREADY KNOWN and DESIGNED as
+[`UX_Feature_Tool_Model.md`](UX_Feature_Tool_Model.md) (`UXI-07`), filed `2026-08-10`** — from the same user
+question, in the same words. ⭐ That doc is `state: LIVE, build-state: NOT-BUILT` and specifies the fix
+*(`ActiveModal` · `ModalStack` · `PushModal` "SUSPENDS the top; dispose pops & resumes" · `Cancel` "pops ONE
+level")*. ⚠ **It is also more complete than this section was**: four fossils rather than two, and the split
+that matters — ⭐ **the caller's control flow DOES resume** *(`TaskCompletionSource` + `ct.Register`)* **while
+the previous TOOL does not** ⇒ *"jump away and back"* is **half**-implemented, not absent.
+⛔ **Read `UXI-07` for this; do not treat it as `UXI-23` scope.** ⭐ `UXI-23`'s only stake is that `S2`/`S5`
+must not deepen the loss — see below.
+
+### ✅ INTENTIONAL OR ACCIDENT? — **answered `2026-08-28`, and it is BOTH, split cleanly**
+
+| what | design record | verdict |
+|---|---|---|
+| **single EXCLUSIVE focus (backend)** | `gizmo-input-focus-design.md` §6.2 — *"we prevent that situation entirely on the backend"*, one `ActiveInstance` | ✅ **INTENTIONAL** |
+| ⭐⭐ **the frontend TOOL STACK** | §14 — *"**The frontend keeps its tool stack for routing**, stripped of business logic … the proxy tool **pops itself**"* | 🔴 **the replacement design EXPECTED IT TO SURVIVE** |
+
+⇒ 🔒 **No decision to drop the stack is recorded anywhere in this repo** — and `UXI-07` measured why: 
+*"`PopTool` appears only in comments even at the squashed import commit (`e999566`), so the implementation
+lived in an ancestor repo."* ⇒ ⛔ **it was never deleted in THIS repo's history.**
+⚠ **Stated fairly:** the focus design is marked *"Design proposal"* ⇒ this is *"no record exists and the
+nearest intent says keep it"*, ⛔ **not** *"someone decided to remove it."*
+
 ### 🔒 WHY THIS MATTERS TO `S2`/`S5` — **`R-137`, retroactively**
 
 ⭐⭐⭐ **This is the ruling's own case study, and it already happened**: a migration that unified the mechanism

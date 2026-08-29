@@ -188,6 +188,27 @@ public interface IToolController
 (`e999566`), so the implementation lived in an ancestor repo. **The comments are the only survivors**, and
 they are the fourth fossil of the same deleted architecture ([Correction 11](UX_Tasks_Detail.md#corrections)).
 
+#### ⭐⭐ ADDED `2026-08-28` — **the replacement design EXPECTED the stack to survive** *(answers "intentional or accident?")*
+
+📄 **[`docs/designs/gizmos-1/gizmo-input-focus-design.md`](../designs/gizmos-1/gizmo-input-focus-design.md)** —
+the design of the very mechanism that replaced the tool model — **separates the two questions, and answers
+them differently**:
+
+| what | the design says | verdict |
+|---|---|---|
+| **single EXCLUSIVE focus on the backend** | §6.2: *"If two tools simultaneously emitted `InputCaptureBinding(Exclusive=true)`, the terminal would have no honest way to choose. **We prevent that situation entirely on the backend**"* — one `ActiveGlobalGizmo.ActiveInstance` slot | ✅ **INTENTIONAL, with a stated reason** |
+| ⭐⭐⭐ **the frontend TOOL STACK** | §14: *"**The frontend keeps its tool stack for routing**, but stripped of business logic — the proxy tool remains as a generic input capturer that **pops itself** when the backend stops emitting the capture binding. No semantic decisions in the stack."* | 🔴 **the design assumed it would STILL BE THERE** |
+
+⇒ 🔒 **So the loss was NOT a decision.** ⛔ Nothing in this repo records dropping the stack; the design of its
+replacement **explicitly planned around keeping it**, stripped of semantics but present for routing.
+⚠ **Stated fairly:** that document is marked *"Design proposal"*, and the deletion happened in an **ancestor
+repo** — so this is *"no decision record exists, and the nearest intent says keep it"*, ⛔ **not** *"someone
+decided to remove it."*
+
+📌 **`R-137`** *(user, `2026-08-28`: unification may not cost a feature; if it does, put it back as
+configuration)* **is the general form of what this section found on `2026-08-10`** — ⭐ the same disease,
+recorded twice, eighteen days apart.
+
 ### 🔴 What replaced it is flat — and the "come back" is only half-implemented
 
 `EditorMapPickAdapter`'s own comment still describes the old model — *"push tool → wire callbacks →
