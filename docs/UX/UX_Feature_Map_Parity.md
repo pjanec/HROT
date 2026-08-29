@@ -11,6 +11,12 @@ current-answer: START AT SECTION 3.9b -- S1's AS-BUILT. S1 IS BUILT AND VERIFIED
   measured live) but its frame is still 605/3, so a further cause remains. 3.9b names the lead
   (three host-private entity presentation gizmos; a reflection registrar that scans only LOADED
   assemblies) as a HYPOTHESIS for S2, deliberately not as a root cause.
+  If the question is HOW THE WHOLE THING WORKS (frontend vs backend, "is it still a dumb terminal",
+  what exactly are we unifying), read 3.9i FIRST -- it is the orientation section. Short version:
+  there is exactly ONE terminal, shared by all five hosts (an Fdp.Presentation adapter with zero
+  hardware-input calls over one GizmoMap inner layer), so the FRONTEND WAS NEVER FRAGMENTED and is
+  NOT in UXI-23's scope. The map differs per host because each host's BACKEND emits a different set
+  of primitives. UXI-23 changes no drawing code at all.
   If the question is HOW UXI-23 COORDINATES WITH THE TOOL MODEL (UXI-07), read 3.9h: UXI-23 owns the
   STATELESS half of the gizmo stack, UXI-07 owns the TOOL half, and the seam is the interface --
   IStatelessGizmo vs IEntityStatefulGizmo, a taxonomy the user already ruled on 2026-08-10. S2 is
@@ -1444,6 +1450,74 @@ only within itself *(its **two-arbiter** defect `A1`)*.
 change the other's interface without saying so. ⇒ ⭐ **`S2` proceeds now, alone.** ⚠ The moment work reaches
 `IGizmoDefinition` — the `GizmoTypeId` pin, or `S5` — it is **joint**, and `UXI-07`'s migration table is the
 schedule, not this design's.
+
+## 3.9i ⭐⭐⭐ **HOW IT ACTUALLY WORKS — the two halves, and what `UXI-23` unifies** *(measured `2026-08-28`)*
+
+> 🔒 **User:** *"are gizmos still a 'dumb terminal'? I guess there are two parts — the backend control
+> part and the frontend dumb part (drawing, user input). What are we unifying as part of map/gizmos?"*
+
+⭐⭐ **The two-part model is exactly right.** ⭐ And the answer to *"what are we unifying"* is short:
+🔒 **ONLY THE BACKEND HALF. The frontend was never fragmented.**
+
+### 📐 THE STACK, measured end to end
+
+```
+Raylib hardware input
+  │
+  ├─ GizmoMap.Presentation.DebugGizmoLayer          ⭐ THE TERMINAL  (454 ln, ExtDeps)
+  │    · hit-tests primitives, holds ONE _activeTool proxy
+  │    · reads InputCaptureBinding (:124) → exclusive capture
+  │    · ⚠ still names Left / Escape itself
+  │
+  └─ Fdp.Presentation.Vis2D.Layers.DebugGizmoLayer  ⭐ THE ADAPTER   (256 ln)
+       · 📐 ZERO Raylib input calls; HandleInput/HandleKeyInput return FALSE, PickEntity returns NULL
+       · delegates to _innerTerminal (:83), translates Commit/Cancel → FdpEventBus events
+       │
+       └─ FdpEventBus → ingress → 🔒 THE BACKEND (per host, ECS)
+            · GlobalGizmoManager        — screen-space tools, single focus, EMITS InputCaptureBinding (:138)
+            · DataDrivenGizmoSystem     — entity gizmos, EMITS InputCaptureBinding (:334, :373)
+            · StatelessGizmoSystem      — the map projectors
+```
+
+⭐⭐ **All five hosts construct the ADAPTER** *(`Fdp.Toolkit.Vis2D.Layers`)* — IG, SimHost, Editor, CGF,
+ReplayBrowser. ⇒ 🔒 **there is exactly ONE terminal, shared.** ⛔ **The frontend is NOT what differs per host.**
+
+### ✅ IS IT STILL A "DUMB TERMINAL"? — **the design WAS ported; "dumb" is 90% true, not 100%**
+
+⚠⚠ **CORRECTION of my own first reading:** I initially found `InputCaptureBinding` only under
+`GizmoMap.Example` and was about to report *"the focus design was never ported."* 🔴 **FALSE** — my grep
+excluded `Tests` and searched two directories. 📐 **Re-measured repo-wide, it is fully wired in production:**
+
+| | |
+|---|---|
+| **emitted** | `GlobalGizmoManager:138` · `DataDrivenGizmoSystem:334,373` — ⭐ *"emit `InputCaptureBinding` for the exclusive-focus holder"* |
+| **consumed** | `GizmoMap.Presentation.DebugGizmoLayer:124` |
+| **railed** | `DebugGizmoLayerCaptureTests` · `GlobalGizmoManagerTests` |
+
+⭐ Only the example's **class name** `GizmoInteractionManager` stayed behind — 📌 **its ROLE is filled by
+`GlobalGizmoManager` + `DataDrivenGizmoSystem`, which is precisely what §13 asked for** *("port the same
+manager and interface set into FDP and rewire `DataDrivenGizmoSystem` over it")*.
+
+⚠ **What is still NOT dumb:** the terminal names `MouseButton.Left` and `KeyboardKey.Escape` itself, and
+owns the `_activeTool` proxy slot. ⇒ ⭐ **the residual smartness is INPUT VOCABULARY, not semantics** — the
+backend decides what a press MEANS; the terminal still decides which physical button starts one.
+
+### 🔒 SO WHAT DOES `UXI-23` UNIFY? — **the backend column only**
+
+| layer | shared today? | `UXI-23` scope |
+|---|---|---|
+| **terminal** — drawing, hit-test, input capture | ✅ **already ONE** *(adapter + one inner layer, all five hosts)* | ⛔ **NOT IN SCOPE — nothing to unify** |
+| **wire** — `DebugPrimitive`, `GizmoTypeId`, DDS batch | ✅ already one contract | ⛔ only **protect** it *(pin `GizmoTypeId`, §3.9e ③)* |
+| 🔴 **backend — projectors** | ⛔ **3 host-private copies** | ⭐⭐ **`S2`** |
+| 🔴 **backend — the projectors' INPUTS** | ✅ **fixed by `S1`** *(was IG-private)* | ✅ done |
+| 🔴 **backend — construction of buffer/systems/group** | ⛔ 5 hand-wired copies | ⭐ `S2` |
+| 🔴 **backend — declaration + unserviceable report** | ⛔ absent for the map | ⭐ `S3` *(copy the tool drain)* |
+| 🔴 **backend — visibility policy / settings** | ⛔ hard-coded per host | ⭐ `S4` |
+| ⚠ **backend — tools & actions** | ⛔ two arbiters | 🔒 **`UXI-07` owns it**; `S5` is joint *(§3.9h)* |
+
+⇒ ⭐⭐⭐ **THE ONE-LINE ANSWER:** 🔒 **the map looks different per host because each host's BACKEND emits a
+different set of primitives — not because anything draws differently.** ⭐ `UXI-23` makes the backends emit
+the same set; ⛔ it changes no drawing code at all.
 
 ## 4. Acceptance
 
