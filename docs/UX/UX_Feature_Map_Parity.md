@@ -11,6 +11,11 @@ current-answer: START AT SECTION 3.9b -- S1's AS-BUILT. S1 IS BUILT AND VERIFIED
   measured live) but its frame is still 605/3, so a further cause remains. 3.9b names the lead
   (three host-private entity presentation gizmos; a reflection registrar that scans only LOADED
   assemblies) as a HYPOTHESIS for S2, deliberately not as a root cause.
+  If the question is WHO HANDLES INTERACTIONS (the "tool stack"), read 3.9f: there is no stack --
+  there is a shared dispatcher (ToolActivationDrainSystem) plus a single-FOCUS model in
+  GlobalGizmoManager. 3.9f also carries the big finding: that drain ALREADY implements section
+  3.2a's declare-and-report-unserviceable rule, per tool, with name and reason -- so S3 must COPY
+  it, not invent a second mechanism.
   If the question is about EDITING GIZMOS (drag handles, vertex points, the rotator), read 3.9e:
   they are a SECOND gizmo kind (GizmoRegistry/IGizmoDefinition/DataDrivenGizmoSystem, stateful)
   that shares ONE buffer, ONE group and ONE gate with the map projectors -- so S2 touches them
@@ -1223,6 +1228,67 @@ configuration mechanism for the editing gizmos — it needs to STOP each host fr
 test compute the same hash from the same name. ⇒ ⭐ **pin `GizmoTypeId` explicitly BEFORE any such merge**,
 and rail the constant.
 
+## 3.9f ⭐⭐⭐ **WHO HANDLES THE INTERACTIONS — the tool path, measured** *(`2026-08-28`)*
+
+> 🔒 **User:** *"Who handles that interactions? I guess there is some tool stack or something, I just
+> can't remember the relation to gizmo (and risks from unification)."*
+
+⭐⭐ **There is no tool STACK — there is a single-FOCUS model plus a shared DISPATCHER.** ⭐ The dispatcher is
+already exactly the shape `S3` was going to invent, and it is already built.
+
+### ⭐ THE CHAIN, end to end
+
+```
+toolbar / context menu
+   └─ publishes  ActivateEditorToolEvent(EditorTool.X)      on the WORLD bus
+        └─ ToolActivationDrainSystem        ⭐ SHARED — Hrot.Presentation/ScenarioEditor/Systems/
+             ├─ Select   → no-op (selection is via ECS gizmos)
+             ├─ Spawn    → startPlacementMode()      | ⛔ null ⇒ REPORTED unserviceable
+             ├─ Edit     → ToggleEntityGizmo<EditablePolyline> → VertexEditGizmo    🔒 THE VERTEX HANDLES
+             ├─ Route    → ToggleEntityGizmo<RoutePlan>        → RouteWaypointGizmo
+             ├─ Measure  → GlobalGizmoManager.Register(MeasureGizmo) | ⛔ null ⇒ REPORTED
+             └─ Rotate   → injects EntityRotatorGizmo into DataDrivenGizmoSystem
+```
+
+⚠ **`Rotate` takes a DIFFERENT route from `Edit`/`Route`** — direct injection rather than the toggle helper.
+⭐ One enum, two dispatch shapes; worth collapsing, ⛔ but not a defect today.
+
+### ⭐⭐ WHY A TOOL *"may or may not"* APPEAR — **THREE independent gates**, all silent when they close
+
+| # | gate | 📐 measured |
+|---|---|---|
+| **①** | **the host composed the collaborator** | `ToolActivationDrainSystem` takes `Func<>` resolvers — `selection`, `gizmos`, `globalGizmos`, `startPlacementMode`, `reportUnserviceable`. ⭐⭐ **A null one is REPORTED BY TOOL NAME AND REASON, never dropped** *(🔒 its own doc: "nothing happened is indistinguishable from not implemented to the operator holding the mouse")*. 📌 CGF composes no spawn adapter ⇒ *Spawn* says so |
+| **②** | **the selected entity carries the tool's component** | `ToggleEntityGizmo<TComponent>` — ⭐ *Edit* needs `EditablePolyline`, *Route* needs `RoutePlan`. ⇒ ⭐⭐ **this is the real answer to *"it may or may not show handles"*: it is per-ENTITY, not per-host** |
+| **③** | **the entity is drawn at all** | the `isSelectedPredicate` of §3.9e — IG/CGF `null` *(always)*, the rest selection-gated |
+
+⭐ **`ToggleEntityGizmo` also owns the TOGGLE semantics** — pressing a tool twice deactivates rather than
+stacking a second gizmo on the same entity. 🔒 Its doc: *"the editor had this; CGF's context-menu parallels
+did not have the concept at all."*
+
+### ⭐ THE HOSTING MODEL — **single focus, not a stack**
+
+`GlobalGizmoManager` holds `_activeGizmos` *(keyed by id)* + **one `_focusedGizmo`**. Each gizmo declares
+`RequiresExclusiveFocus` and `WantsRawInput`. ⭐⭐ **`CancelInteractiveTools()` destroys only the ON-DEMAND
+ones** — a gizmo that is neither exclusive-focus nor raw-input *(e.g. `LayerControlGizmo`)* is **PERMANENT and
+survives**. ⇒ ⭐ entity-scoped gizmos live in `DataDrivenGizmoSystem`; screen-space tools live in
+`GlobalGizmoManager`; ⛔ **the two are separate hosts with different lifetimes.**
+
+### ⛔⛔ RISKS FROM UNIFICATION — **three MORE, on top of §3.9e's four**
+
+| # | 🔴 the break | ⭐ the guard |
+|---|---|---|
+| **⑤** | ⚠⚠ **The FOCUS SLOT is single.** A merged or newly-shared gizmo that declares `RequiresExclusiveFocus` **steals focus from an in-progress tool** — 📌 e.g. a drag handle stealing the measure tool's focus mid-measure | ⭐ treat `RequiresExclusiveFocus`/`WantsRawInput` as part of each gizmo's contract; ⛔ do not let a merge change either flag silently |
+| **⑥** | 🔴 **The PERMANENT/ON-DEMAND classification is DERIVED FROM THOSE TWO FLAGS, not declared.** ⇒ flipping a flag during a merge either **destroys a permanent gizmo on every perspective switch** *(the layer control vanishes)* or **leaves a tool stuck grabbed** | ⭐ rail the classification per gizmo type, not the flags in isolation |
+| **⑦** | ⭐ **The `Func<>` resolvers must stay per-host** — same rule as `isSelectedPredicate`. ⚠ They are resolved **per Execute, not captured** *(the editor creates selection/camera AFTER `kernel.Initialize()` and nulls them on teardown)* ⇒ ⛔ a merge that "optimises" them into captured fields makes them **permanently null** | 🔒 keep the `Func<>` indirection; the doc already warns why |
+
+### ✅✅ THE BIG FINDING — **`S3` DOES NOT NEED INVENTING**
+
+⭐⭐⭐ **`ToolActivationDrainSystem` ALREADY IMPLEMENTS §3.2a's *"DECLARE and REPORT UNSERVICEABLE, never
+silently no-op"*** — per tool, with the name and the reason, defaulting to the FDP log and rail-injectable.
+⇒ ⛔ **`S3` must COPY this pattern for the map, not design a new one** — 📌 **the seam law, fifth instance in
+this design.** ⭐ And it is the counter-example that proves the rule is practical: the one surface that
+already reports unserviceable is the one nobody has complained about.
+
 ## 4. Acceptance
 
 | # | Case | Cls |
@@ -1251,6 +1317,9 @@ and rail the constant.
 | ⭐ 23.20 | ⭐ **Two hosts sharing one settings instance see each other's toggles** *(the user's "some are sharing same settings")*, and a host with `Empty` still renders every gizmo at its registered default | H |
 
 | ⭐ 23.21 | 🔒 **Every discovered `[GizmoProjector]` with no resolver entry is REPORTED** — always-on stays the default, ⛔ but never silently. Parameterised: add a projector, assert it appears in the report | H |
+| ⭐⭐ 23.28 | 🔒 **`RequiresExclusiveFocus` / `WantsRawInput` are part of each gizmo's CONTRACT.** A rail asserts the permanent-vs-on-demand classification per gizmo type — ⛔ flipping either flag in a merge silently destroys a permanent gizmo on every perspective switch, or leaves a tool stuck grabbed | H |
+| ⭐⭐ 23.29 | 🔒 **The tool drain's `Func<>` resolvers stay per-host AND stay lazy.** ⛔ Capturing them into fields makes them permanently null — the editor creates selection and camera AFTER `kernel.Initialize()` and nulls them on teardown | H |
+| ⭐⭐⭐ 23.30 | 🔒 **The map's unserviceable reporting COPIES `ToolActivationDrainSystem`** — by name and reason, defaulting to the log, rail-injectable. ⛔ `S3` does not design a second mechanism | H |
 | 🔴🔴 23.25 | 🔒 **`GizmoTypeId` IS A WIRE CONTRACT.** Every `IGizmoDefinition` pins it as an explicit constant, and a rail asserts the value — ⛔ never left as an implicit hash of the type's full name, which a rename or merge silently changes. ⚠ **Cross-node only**: a single-process test computes the same hash on both sides and cannot see this | H |
 | ⭐⭐⭐ 23.26 | 🔒 **`isSelectedPredicate` stays a per-host parameter.** ⛔ Collapsing it to one value breaks either IG *(dumb terminal, no local selection ⇒ no handles at all)* or the editor *(handles on every entity at once)*. 📌 `R-137`'s clearest instance in the interactive half | H |
 | ⭐⭐ 23.27 | 🔒 **The gate's teardown still cancels BOTH** `GlobalGizmoManager.CancelInteractiveTools()` and `DataDrivenGizmoSystem.CancelInteractiveTools()` — an in-progress drag must not survive a perspective switch as a stuck grab | H |
