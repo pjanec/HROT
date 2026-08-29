@@ -11,7 +11,12 @@ current-answer: START AT SECTION 3.9b -- S1's AS-BUILT. S1 IS BUILT AND VERIFIED
   measured live) but its frame is still 605/3, so a further cause remains. 3.9b names the lead
   (three host-private entity presentation gizmos; a reflection registrar that scans only LOADED
   assemblies) as a HYPOTHESIS for S2, deliberately not as a root cause.
-  If the question is WHO HANDLES INTERACTIONS (the "tool stack"), read 3.9f: there is no stack --
+  If the question is THE TOOL STACK, read 3.9g FIRST: one EXISTED (MapCanvas.PushTool/PopTool/
+  ActiveTool over IMapTool) and was REMOVED in the Phase-5 gizmo migration, and its nesting
+  capability -- run a tool inside a tool and return -- was NOT carried over. What replaced it is a
+  SINGLE focus slot that grants focus only if none is held and refuses SILENTLY. That is R-137's own
+  case study, and it already happened. S2/S5 must decide deliberately whether to restore nesting.
+  If the question is WHO HANDLES INTERACTIONS, read 3.9f: today there is no stack --
   there is a shared dispatcher (ToolActivationDrainSystem) plus a single-FOCUS model in
   GlobalGizmoManager. 3.9f also carries the big finding: that drain ALREADY implements section
   3.2a's declare-and-report-unserviceable rule, per tool, with name and reason -- so S3 must COPY
@@ -1233,8 +1238,10 @@ and rail the constant.
 > 🔒 **User:** *"Who handles that interactions? I guess there is some tool stack or something, I just
 > can't remember the relation to gizmo (and risks from unification)."*
 
-⭐⭐ **There is no tool STACK — there is a single-FOCUS model plus a shared DISPATCHER.** ⭐ The dispatcher is
-already exactly the shape `S3` was going to invent, and it is already built.
+⚠⚠ **CORRECTED `2026-08-28` — an earlier version of this line said *"there is no tool STACK"*. That was
+WRONG as history and misleading as design.** 🔒 **There WAS one, it was REMOVED, and its nesting capability
+was NOT carried over — see §3.9g.** ⭐ What exists TODAY is a single-FOCUS model plus a shared DISPATCHER;
+the dispatcher is already the shape `S3` was going to invent.
 
 ### ⭐ THE CHAIN, end to end
 
@@ -1288,6 +1295,69 @@ silently no-op"*** — per tool, with the name and the reason, defaulting to the
 ⇒ ⛔ **`S3` must COPY this pattern for the map, not design a new one** — 📌 **the seam law, fifth instance in
 this design.** ⭐ And it is the counter-example that proves the rule is practical: the one surface that
 already reports unserviceable is the one nobody has complained about.
+
+## 3.9g 🔴🔴🔴 **THE TOOL STACK EXISTED AND WAS REMOVED — the nesting capability is GONE** *(user, `2026-08-28`)*
+
+> 🔒 **User:** *"wait. how comes there is no interaction tool stack. I remember one… it is common part of
+> visual editors that when one tool is running, we can switch temporarily into another tool."*
+
+⭐⭐⭐ **The memory is correct and my §3.9f answer was wrong.** ⚠ I searched only the gizmo systems and
+`Hrot/Engine` for five terms; ⛔ **the stack lived in `MapCanvas`, which neither scope covered.**
+📌 **The same narrow-scope error as the `head_limit` truncation and the `/gizmo/frame` 404** — a negative
+claim from a search that could not have found the thing.
+
+### 📐 WHAT EXISTED — `MapCanvas.PushTool` / `PopTool` / `ActiveTool`, over `IMapTool`
+
+📌 Documented across `.dev/_DONE/edit-1/` *(`BATCH-05-INSTRUCTIONS.md:61,67` names all three members and
+the file)*, with concrete tools: `CreationTool` · `RouteEditTool` · `EntityPickerTool`, and the classic
+idiom throughout the design talk:
+
+```csharp
+_canvas.PushTool(tool);                                   // temporarily switch
+…
+if (_canvas.ActiveTool == tool) _canvas.PopTool();        // and come back
+```
+
+⇒ ⭐⭐ **That is exactly the *"run a tool inside a tool and return"* the user remembers.**
+
+### ⛔ WHAT REPLACED IT — a SINGLE focus slot, **first-come-wins, silently**
+
+📐 `GlobalGizmoManager.Register` *(`:66`)*:
+
+```csharp
+_activeGizmos[id] = gizmo;
+if ((gizmo.RequiresExclusiveFocus || gizmo.WantsRawInput) && _focusedGizmo == null)
+{ _focusedGizmo = gizmo; gizmo.SetFocus(true); }          // ⛔ else: registered, NEVER focused
+```
+
+| | the STACK *(before)* | the FOCUS SLOT *(now)* |
+|---|---|---|
+| second tool starts while one runs | ⭐ **pushed on top; the first resumes on pop** | 🔴 **registered but NEVER given focus** — active and inert |
+| returning | ⭐ `PopTool()` | ⚠ an **exit callback** *(`GizmoInteractionProxyTool._onExit`)* — flat, one level, no resume |
+| denial | — | 🔴🔴 **SILENT.** `Register` does not report that focus was refused |
+
+⇒ 🔴🔴🔴 **The nesting capability was LOST in the Phase-5 gizmo migration** *(`ToolActivationDrainSystem`'s
+own `Select` arm records it: `"(Phase 5: _interactionTool removed; selection via ECS gizmos)"`)*.
+
+### ⚠ TWO LIVE COMMENTS STILL POINT AT THE DEAD API
+
+| file | says |
+|---|---|
+| `GizmoMap.Presentation/Gizmos/GizmoInteractionProxyTool.cs:16` | *"Uses an optional exit callback instead of `MapCanvas.PopTool()`"* — ⭐ accurate about the REPLACEMENT, and it is the only place the loss is written down |
+| `Hrot.Editor/Adapters/EditorMapPickAdapter.cs:26` | 🔴 *"The registered cancellation handler calls `MapCanvas.PopTool` …"* — ⛔ **stale: that API no longer exists.** 📐 The adapter was migrated to `GlobalGizmoManager.Register(id, gizmo)` *(`:73`, `:109`)* and only keeps `MapCanvas` for `PickTopmostEntity` |
+
+### 🔒 WHY THIS MATTERS TO `S2`/`S5` — **`R-137`, retroactively**
+
+⭐⭐⭐ **This is the ruling's own case study, and it already happened**: a migration that unified the mechanism
+**silently dropped a capability**, and nothing recorded it as a decision. ⇒ ⭐ `S2`/`S5` must **decide
+deliberately** whether the merged interaction model restores nesting, and **write the decision down** —
+⛔ not inherit the loss by default because that is what the code does today *(`R-129`)*.
+
+⚠⚠ **Before designing a restore, MEASURE whether it is reachable today**: the modal pickers
+*(`EditorMapPickAdapter`, entity/point picking for mission targets)* are exactly a *"switch tool, then
+return"* case. 🔒 **Whether a user can actually start one while a focus-holding tool runs depends on the UI
+paths, not on the manager** — ⛔ so verify by trying it, do not assume a live bug from the mechanism alone.
+⭐ **The mechanism-level fact is certain; the user-reachability is not.**
 
 ## 4. Acceptance
 
