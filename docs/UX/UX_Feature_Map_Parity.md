@@ -11,6 +11,10 @@ current-answer: START AT SECTION 3.9b -- S1's AS-BUILT. S1 IS BUILT AND VERIFIED
   measured live) but its frame is still 605/3, so a further cause remains. 3.9b names the lead
   (three host-private entity presentation gizmos; a reflection registrar that scans only LOADED
   assemblies) as a HYPOTHESIS for S2, deliberately not as a root cause.
+  ARCHITECTURE REFERENCE: docs/DESIGN_Map_Rendering_And_Interaction.md is the standing document for
+  how rendering and interaction actually work (layer map, both gizmo kinds, the render frame, the
+  interaction path, the tool path, the TO-BE with the restored modal stack, and the 8-item silent-risk
+  register). Read it before planning any slice; this file holds only UXI-23's own slices.
   If the question is HOW THE WHOLE THING WORKS (frontend vs backend, "is it still a dumb terminal",
   what exactly are we unifying), read 3.9i FIRST -- it is the orientation section. Short version:
   there is exactly ONE terminal, shared by all five hosts (an Fdp.Presentation adapter with zero

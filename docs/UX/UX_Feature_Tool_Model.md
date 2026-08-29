@@ -10,6 +10,9 @@ current-answer: NOT-BUILT (design only; Q27 answered). No IToolController/ToolDe
 > 📐 **API: [UX_Interaction_API.md](UX_Interaction_API.md) · ✅ Acceptance: [UX_Interaction_UseCases.md](UX_Interaction_UseCases.md)**
 > The API contract lives in the first — this doc keeps the
 > evidence and the rulings; that one holds the types, the arbitration order and the threading model.
+> 📐 **Architecture context: [`DESIGN_Map_Rendering_And_Interaction.md`](../DESIGN_Map_Rendering_And_Interaction.md)** —
+> how the tool path sits inside the render/interaction stack, and §4.2's `stateDiagram` of the modal
+> stack this issue builds.
 > **Status: ❌ NOT-BUILT (design only; Q27 answered) — no `IToolController`/`ToolDescriptor`/modal-stack in source, only fossil comments.**
 > This is the first issue in the programme that is **genuinely new architecture**, not adoption of an
 > existing seam. Implements [UXR-81](UX_Requirements.md#uxr-81), [UXR-84](UX_Requirements.md#uxr-84).
