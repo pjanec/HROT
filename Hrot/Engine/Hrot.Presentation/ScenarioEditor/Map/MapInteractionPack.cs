@@ -88,8 +88,21 @@ namespace Hrot.ScenarioEditor.Map
 
             // Group member order follows the four hosts that agree (global manager, drag handles, map);
             // the editor listed the first two the other way round, which nothing depended on.
+            //
+            // ⭐⭐ S3: MapSelfCheckSystem goes LAST, so it observes the frame the other three just wrote.
+            // Putting it in the group rather than asking hosts to schedule it separately is deliberate —
+            // a diagnostic a host can forget to wire is a diagnostic that is absent exactly where it is
+            // needed. §3.2e.
+            // ⚠ The group's members are constructor-only, and the self-check needs to know whether the
+            // group is enabled — hence the delegate and the deferred assignment rather than a circular
+            // constructor pair.
+            TogglablePostSimulationGroup? groupRef = null;
+            var selfCheck = new MapSelfCheckSystem(
+                buffer, () => groupRef?.Enabled ?? false, ctx.ReportMapDiagnostic);
+
             var group = new TogglablePostSimulationGroup(
-                "GizmoExecution", globalManager, dataDriven, stateless);
+                "GizmoExecution", globalManager, dataDriven, stateless, selfCheck);
+            groupRef = group;
 
             // 🔴 GZH-003 headless-first, but NOT "disabled for everyone" (§3.2d ①): the only production
             // driver of AddListener() is PerspectiveCoordinatorSystem, so a standalone IG or editor has no
@@ -101,7 +114,7 @@ namespace Hrot.ScenarioEditor.Map
 
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
-                globalManager, dataDriven, stateless, group, gate);
+                globalManager, dataDriven, stateless, group, gate, selfCheck);
         }
     }
 }

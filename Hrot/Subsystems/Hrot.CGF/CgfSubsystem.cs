@@ -970,6 +970,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             },
             gizmoIngress: cgfGizmoIngress,
             gizmoEgress:  cgfGizmoEgress));
+        // ⭐⭐ UXI-23 S3: report anything this host constructed but did not schedule (§3.2e).
+        foreach (string problem in cgfMapInteraction.Unserviceable(new object[] { cgfGizmoGroup }))
+            Fdp.Core.Logging.FdpLog<CgfSubsystem>.Info("[Map] {0}", problem);
         _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
         // Register canvas menu update so CanvasContextMenuGizmo has state to project.
         _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());

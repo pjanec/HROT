@@ -735,6 +735,45 @@ pack invokes **after `RegisterAll` and before constructing the systems**. ⭐ Ev
 has today *(`R-137`)*, and the ordering hazard is closed by construction rather than by each host
 remembering it.
 
+#### 3.2e 🔴🔴🔴 `S3`'s PREMISE, RE-MEASURED — **declare-and-report would NOT have caught `CE-123`** *(`2026-08-30`)*
+
+> ⛔⛔ **§3.2a claims, in bold:** *"Had the map affordance declared its required systems and reported
+> unserviceable, an empty SimHost map would have been a LOUD DIAGNOSTIC from the day `GZH-003` landed."*
+> 🔴 **That is FALSE under the root cause `S2a` actually measured**, and building `S3` to it would produce a
+> gate that reports *"all good"* on the exact defect it was written for.
+
+📐 **Why it fails.** The claim was authored when the believed cause was the **gate's listener count**
+*(§3.0)*. ⛔ §3.0a refuted that by measurement, and `S2a` found the real cause: **SimHost passed
+`StatelessGizmoSystem` the selection predicate meant for the drag handles** *(§3.9j.1)*.
+
+| what a run-set check asks | 📐 SimHost's answer at the time of the bug |
+|---|---|
+| is the gizmo group **scheduled**? | ✅ **YES** — `SimHostApp.cs:442`, inside `GizmoInteractionModule`'s `interactionSystems` |
+| are the three systems **present**? | ✅ **YES** — all three, constructed and in the group |
+| is the gate **open**? | ✅ **YES** — §3.0a measured it enabled on every visit |
+| ⇒ **verdict a declare-and-report would print** | 🔴 **"nothing unserviceable"** — while the map drew **3 non-`Line` primitives for 8 entities** |
+
+⇒ ⭐⭐⭐ **The failure was never a MISSING system. It was a PRESENT system, correctly scheduled, correctly
+enabled, and told to draw nothing.** ⛔ No amount of declaring the run-set can see that.
+
+##### ⭐⭐ SO `S3` SPLITS IN TWO, AND ONLY THE SECOND HALF IS THE ONE THAT MATTERS
+
+| half | catches | verdict |
+|---|---|---|
+| ⭐ **`RequiredSystems` + `Unserviceable(hostRunSet)`** *(as designed)* | a host that **never schedules** the map — a real failure, and cheap to close | ✅ **KEEP, but do not oversell it.** ⛔ It would NOT have caught `CE-123` |
+| ⭐⭐⭐ **the RUNNING-AND-SILENT check** *(new)* | 🔒 **the map is composed, scheduled and ENABLED, the world holds entities the map's own query matches, and it emitted ZERO entity shapes** | ⭐⭐ **THIS is the loud diagnostic §3.2a wanted.** 📐 It is exactly `CE-123`'s signature: 8 eligible entities, `SemanticShape 0` |
+
+⭐ **Why the second half is expressible at all:** `S2b` gave the map one owner, so there is now a single
+place that knows the group, the buffer and the query — none of the five hand-written compositions did.
+
+⚠ **It reports; it never throws.** A host may legitimately draw no shapes *(everything culled — see
+`CE-131`, which is live today)*, so the diagnostic names culling among the causes and latches, rather than
+firing every frame or failing a boot.
+
+🔒 **Both halves follow `ToolActivationDrainSystem`'s contract verbatim** — an `Action<string>?` that
+defaults to the FDP log, carrying **the name and the reason**, because *"nothing happened"* is
+indistinguishable from *"not implemented"* to the operator holding the mouse.
+
 #### 3.2c ⭐⭐ SETTINGS OWNERSHIP — **a standalone injected store, not a per-host field** *(user ruling, `2026-08-28`)*
 
 > 🔒 **User:** *"Persistence was meant for single-host nodes like a '2d map station' where the user want to

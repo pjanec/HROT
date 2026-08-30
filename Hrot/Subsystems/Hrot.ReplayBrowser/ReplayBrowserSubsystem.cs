@@ -197,6 +197,11 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             var gizmoRegistry      = mapInteraction.GizmoRegistry;
             var statelessRegistry  = mapInteraction.StatelessRegistry;
             var settingsRegistry   = mapInteraction.Settings;
+            // ⭐⭐ UXI-23 S3: this host drives the three systems directly from its own Update rather than
+            // scheduling the group, so it declares exactly those three. §3.2e.
+            foreach (string problem in mapInteraction.Unserviceable(
+                         new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem }))
+                Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
 
             _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_activeRepo!, _interactionBus, rubberBandState);
             _selectionSystem.OnSelectionChanged += (entity, worldPos) =>

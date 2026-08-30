@@ -1827,6 +1827,9 @@ namespace Hrot.Editor
             // UXI-23 S2b: the group, its three members and the gate come from the pack.
             var gizmoGroup   = editorMapInteraction.GizmoGroup;
             _gizmoController = editorMapInteraction.Gate;
+            // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
+            foreach (string problem in editorMapInteraction.Unserviceable(new object[] { gizmoGroup }))
+                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info("[Map] {0}", problem);
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
                 contextIngress: contextIngress,

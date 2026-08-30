@@ -443,6 +443,12 @@ namespace Hrot.SimHost
                     },
                     gizmoIngress: gizmoIngress,
                     gizmoEgress:  gizmoEgress));
+                // ⭐⭐ UXI-23 S3: the map REPORTS what this host did not schedule, rather than going
+                // silently blank. ⚠ Scoped honestly (§3.2e): this catches a MISSING system, not CE-123 —
+                // that was a system present, scheduled and enabled, and told to draw nothing.
+                // MapSelfCheckSystem (last in the group) is what catches that.
+                foreach (string problem in mapInteraction.Unserviceable(new object[] { gizmoGroup }))
+                    FdpLog<SimHostApp>.Info("[Map] {0}", problem);
                 // ── GZ052: Entity attribute schema publisher ──────────────────────
                 // Build the compiler using the same geographic transform as the network factory.
                 // SimHost is always the default processor in standalone mode.

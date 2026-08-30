@@ -882,6 +882,9 @@ public class IgApplication : IDisposable
             // UXI-23 S2b: the group, its three members and the gate come from the pack.
             var gizmoGroup   = igMapInteraction.GizmoGroup;
             _gizmoController = igMapInteraction.Gate;
+            // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
+            foreach (string problem in igMapInteraction.Unserviceable(new object[] { gizmoGroup }))
+                Fdp.Core.Logging.FdpLog<IgApplication>.Info("[Map] {0}", problem);
             ctx.Kernel.RegisterModule(new GizmoInteractionModule(
                 _interactionBus!,
                 contextIngress: null,

@@ -121,6 +121,15 @@ namespace Hrot.ScenarioEditor.Map
         public Fdp.Toolkit.Diagnostics.Gizmos.IActiveViewProvider? BreakpointManager { get; init; }
 
         /// <summary>
+        /// ⭐⭐ <b><c>S3</c> — where the map's diagnostics go.</b> Defaults to the FDP log.
+        ///
+        /// <para>🔒 Same contract as <c>ToolActivationDrainSystem.reportUnserviceable</c>: it carries the
+        /// NAME and the REASON, because <i>"nothing happened"</i> is indistinguishable from <i>"not
+        /// implemented"</i> to the operator holding the mouse. A rail injects a recorder.</para>
+        /// </summary>
+        public Action<string>? ReportMapDiagnostic { get; init; }
+
+        /// <summary>
         /// ⭐⭐ <b>The host's own gizmos.</b> Invoked AFTER the reflection pass and BEFORE the systems are
         /// constructed — see <see cref="MapInteractionRegistries"/> for why that ordering is load-bearing.
         ///
