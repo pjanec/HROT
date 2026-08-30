@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: §0.0e.3d — UXI-23 slice S2b (MapInteractionPack). ⚠ S2 is HALF done: the projector merge (S2a) shipped and is live-verified, the PACK did not. S3 is blocked on S2b. Read §0.0e.3d first, then docs/UX/UX_Feature_Map_Parity.md §3.9 (slice table) and §3.9j (S2a design + as-built).
+current-answer: §0.0e.3d — UXI-23 slice S3 (declare + report unserviceable). S1, S2a and S2b are all DONE, pushed and live-verified; CE-123 and CE-126 are closed. Read §0.0e.3d first, then docs/UX/UX_Feature_Map_Parity.md §3.2d (the S2b amendments) and §3.9j (the S2a design + as-built).
   ⭐⭐⭐ S1 IS BUILT AND PUSHED (2026-08-28). NEXT IS S2 — one map backend.
   READ FIRST: docs/DESIGN_Map_Rendering_And_Interaction.md, the new standing architecture reference
   (layer map, both gizmo kinds, render + interaction paths, the TO-BE, and an 8-item risk register
@@ -221,7 +221,7 @@ with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory decla
 after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
 points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
 
-### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S2b`: THE PACK** *(retargeted `2026-08-30`)*
+### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S3`: DECLARE + REPORT** *(retargeted `2026-08-30`; `S2b` is DONE, so `S3` is UNBLOCKED)*
 
 #### 📄 READ THESE TWO FIRST — ⛔ do not re-derive any of it
 
@@ -230,25 +230,26 @@ points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This
 | ⭐⭐⭐ **[`docs/DESIGN_Map_Rendering_And_Interaction.md`](../DESIGN_Map_Rendering_And_Interaction.md)** | **the standing architecture reference** — layer map, both gizmo kinds, the render frame, the interaction path, the tool path, the TO-BE, and an **8-item risk register where every item is SILENT when hit**. ⭐ §1 is the orientation |
 | ⭐⭐ **[`docs/UX/UX_Feature_Map_Parity.md`](../UX/UX_Feature_Map_Parity.md)** | `UXI-23` itself — §3.9 the slices, §3.9a–i the measured detail, ⭐⭐ **§3.9j the `S2` design + AS-BUILT** |
 
-#### ⚠⚠ CORRECTION `2026-08-30` — **`S2` IS HALF DONE. An earlier version of this section said "`S1` AND `S2` ARE DONE"; that was an OVERCLAIM.**
-
-📐 **Measured, not recalled:** `grep -rln "MapInteractionPack"` returns **nothing**, and the four per-host
-`gizmoGroup.Enabled` literals are still in place *(`IgApplication.cs:862` · `CgfSubsystem.cs:960` ·
-`SimHostApp.cs:453` · `EditorSubsystem.cs:1827`)*.
+#### ✅✅✅ `S1`, `S2a` AND `S2b` ARE ALL DONE, PUSHED AND LIVE-VERIFIED
 
 | `S2` item | state |
 |---|---|
-| ① pin `GizmoTypeId` | ✅ **measured NOT a prerequisite** — it lives only on `IGizmoDefinition` *(stateful)*; the merged classes were `IStatelessGizmo`. ⭐ Still owed to `UXI-07`, not to this slice |
-| ② merge the three entity projectors | ✅ **DONE** |
+| ① pin `GizmoTypeId` | ✅ **measured NOT a prerequisite** — it lives only on `IGizmoDefinition` *(stateful)*; the merged classes were `IStatelessGizmo`. ⭐ Still owed to `UXI-07` |
+| ② merge the three entity projectors | ✅ **DONE** *(`S2a`)* |
 | ③ query is `SimTransform` + `NetworkIdentity` only | ✅ **DONE** |
-| ④ ⭐⭐ **`MapInteractionPack.Build(ctx)`** | 🔴 **NOT BUILT — this is `S2b`, and it is what §3.9's slice table actually calls `S2`** |
+| ④ ⭐⭐ **`MapInteractionPack.Build(ctx)`** | ✅ **DONE** *(`S2b`)* — all five hosts migrated |
 | ⑤ fix `CE-126` inside the merge | ✅ **DONE** |
-| ⑥ delete the per-host `gizmoGroup.Enabled` literals | 🔴 **NOT DONE** *(hygiene inside `S2b`)* |
+| ⑥ delete the per-host `gizmoGroup.Enabled` literals | ✅ **DONE** — replaced by `MapInteractionContext.StartEnabled` |
 
-⇒ 🔒 **`S3` is BLOCKED on this** — §3.9's dependency line is explicit: *"`S2` → `S3` (the bundle declares
-what `S2` constructs)"*. ⛔ **Do not start `S3` before the pack exists**; there is nothing for it to declare.
+📐 **Live on `--mode all`, `S2a` frame → `S2b` frame:** Scenario `53 → 53`, SimHost `55 → 55`,
+⭐ **IG `64 → 63`** *(a double registration removed — IG called both the reflection registrar AND the
+source-generated one, and `CanvasContextMenuGizmo` carries `[GizmoProjector]`)*.
 
-#### ✅✅ `S1` AND `S2a` (THE PROJECTOR MERGE) ARE DONE, PUSHED AND LIVE-VERIFIED — ⛔ do not rebuild them
+🔒 **`R-137` in `S2b`:** every per-host difference became a **named context input**, never erased —
+`IsSelectedPredicate` *(handles only)* · `StartEnabled` · `Settings` · `BufferCapacity` *(IG's 4096)* ·
+`BreakpointManager` · `ContributeExtras`.
+
+#### 📐 WHAT `S1` + `S2a` DELIVERED — ⛔ do not rebuild it
 
 📐 **`S2` merged the three host-private entity projectors into ONE `EntityPresentationGizmo`**
 *(`Hrot.Presentation/ScenarioEditor/Gizmos/`)*, removed SimHost's stateless selection gate, and fixed
@@ -272,16 +273,7 @@ because IG's map was drawn by SimHost's and CGF's copies, which ignored culling.
 opt-in setting **`map.entity.cullOffscreen`, default `false`** — ⛔ **do NOT "simplify" by deleting the
 culling gate; that discards the capability (`R-137`).** Fix the INPUT, then a host can enable it.
 
-#### ⭐⭐⭐ `S2b` — **THE PACK** *(§3.9's slice table calls this `S2`)*
-
-| # | |
-|---|---|
-| **①** | ⭐⭐ **`MapInteractionPack.Build(ctx)` → `MapInteraction`**: constructs the buffer, the three systems, the group and the controller **ONCE**. 📐 All five hosts already build the same three systems by hand — `IgApplication.cs:~860` · `CgfSubsystem.cs:~958` · `SimHostApp.cs:~437` · `EditorSubsystem.cs:~1825` · `ReplayBrowserSubsystem.cs:~198` |
-| **②** | 🔒 **THE HOST SCHEDULES — the pack MUST NOT** *(user ruling; §3.2a: canon already forbids a pack scheduling systems, and supplies the alternative)*. ⛔ **The pack context carries NO kernel** |
-| **③** | ⭐ Delete the four per-host `gizmoGroup.Enabled` literals *(item ⑥ above)*, deriving `Enabled` from the viewer count. ⚠ **`GZH-003` headless-first is the intent** — ⛔ do not simply flip everything to `true` |
-| **④** | 🔒 **`S2a`'s lesson applies directly:** the divergence that darkened SimHost was a **constructor argument** *(`isSelectedPredicate`)*, and the pack is exactly what removes the chance to get one wrong per host. ⭐ Keep the `TheMapIsNotSelectionGatedRails` source rail working — it enumerates the five hosts by path |
-
-#### ⭐ THEN `S3` — **DECLARE + REPORT UNSERVICEABLE** *(blocked on `S2b`)*
+#### ⭐⭐⭐ `S3` — **DECLARE + REPORT UNSERVICEABLE** *(UNBLOCKED: `S2b` built the thing it declares)*
 
 | # | |
 |---|---|
