@@ -448,22 +448,65 @@ the damage X — is two `Line` primitives emit-side (§3.8.6), which is cheaper 
 ⚠ **This is a deletion FROM ExtDeps, which the "no change" constraint never forbade** — that constraint is
 about not forking or extending it.
 
-##### 3.8.3c ⭐⭐ The SIDC already exists in the data — **no synthesis needed on IG or SimHost**
+##### 3.8.3c ⭐⭐ The SIDC already exists in the data — and PRESENCE decides, not the host
 
-📐 **Measured, end to end.** `IgVisualDef.SymbolCode` defaults to `"SFGPUCIZ-------"`, and TKB assets author
-real 15-character SIDCs — `SFGPUCI--------`, `SFGPUCIZ-------`, `SFGPUCIZ--H----`. The chain
-`BdcTkbBuilder:97` → `VisualDefinitionDto.SymbolCode` → `PresentationTkbTranslator:47` →
-`VisualData.SymbolCode` → `StyleResolutionSystem:100` → `ResolvedStyle.TextureName` is live, and
-`ResolvedStyleConstants.TextureNameMaxBytes = 16` is sized for exactly 15 chars + null
-*(confirmed in `IG-BATCH-03-REPORT.md:78`: "Texture names are MIL-STD-2525 symbol codes")*.
-
+📐 **Measured end to end.** `IgVisualDef.SymbolCode` defaults to `"SFGPUCIZ-------"`, TKB assets author real
+15-character SIDCs — `SFGPUCI--------`, `SFGPUCIZ--H----` — and the chain `BdcTkbBuilder:97` →
+`VisualDefinitionDto.SymbolCode` → `PresentationTkbTranslator:47` → `VisualData.SymbolCode` →
+`StyleResolutionSystem:100` → `ResolvedStyle.TextureName` is live, with
+`ResolvedStyleConstants.TextureNameMaxBytes = 16` sized for exactly 15 chars + null
+*(`IG-BATCH-03-REPORT.md:78`: "Texture names are MIL-STD-2525 symbol codes")*.
 ⚠ **So the field named `TextureName` is really a SIDC** — which is why §3.5 insists `MapShapeName` stay
 distinct from it.
 
-| host | SIDC source |
+##### ⭐⭐⭐ PRESENCE-DECIDED, so there is NO per-host decision to make
+
+> 🔒 **User, `2026-08-30`:** *"One of the rules was that gizmo should work depending on presence of ECS
+> component, isn't this the case, allowing unification (if VisualData present, we use it, otherwise we
+> synthetize…)"*
+
+⭐⭐ **Yes — and it is already this codebase's stated rule.** `EntityPresentationGizmo`'s own comment: *"A
+`[GizmoProjector]` requirement is a **hard filter**, never an optional input"*, and it already reads health
+that way *(`if (view.HasComponent<IgHealthState>(entity))`)*.
+
+| `VisualData` present | the gizmo uses |
 |---|---|
-| **IG · SimHost** | ⭐ `VisualData.SymbolCode`, authored in TKB — `PresentationTkbTranslator` is registered there |
-| ⚠ **CGF · Editor · ReplayBrowser** | 🔴 **`PresentationTkbTranslator` is NOT registered**, so `VisualData` is absent ⇒ the gizmo must synthesise a SIDC from `EntityInfo.ForceId` + DIS type, **or** the translator is registered more widely. ⭐ **Decide at build time and say which** |
+| ✅ | the **authored** SIDC, `ColorHex` and `MapShapeName` |
+| ⛔ | a SIDC **synthesised** from `EntityInfo.ForceId` + DIS type, and today's derived colour |
+
+⇒ ⛔⛔ **An earlier draft of this section framed this as *"decide at build time which hosts synthesise."*
+That was wrong** — a host-config question the presence rule already answers. `VisualData` is an **optional
+read**, never a projector key, and no host is broken either way.
+
+##### ✅ AS-BUILT `2026-08-30` — `CE-137`: every TKB-spawning host now writes it
+
+> 🔒 **User ruling:** *"the more the subsystems are same, the better — if VisualData is not IG-only concept,
+> then for sure lets add it to SimHost and anywhere where it makes sense."*
+
+⭐ **It is not IG-only.** `VisualData` is authored TKB data — `SymbolCode`, `ModelPath`, `ColorHex`,
+`MapShapeName` — written at spawn from the TKB's `VisualDefinitionDto`.
+
+| host | TKB spawn path? | `PresentationTkbTranslator` |
+|---|---|---|
+| **IG** | ✅ | ✅ `IgNodeBootstrapper:116` |
+| **SimHost** | ✅ | ✅ `SimHostNodeBootstrapper:160` *(added by `S1`)* |
+| **Editor** | ✅ *(5 translators)* | ✅ **ADDED `2026-08-30`** — the same omission `S1` fixed on SimHost |
+| **Stride editor** | ✅ *(6 translators)* | ✅ **ADDED `2026-08-30`** |
+| ⛔ **CGF · ReplayBrowser** | 🔴 **none at all** | ⛔ n/a — their entities arrive by **network replication**, so affiliation comes over the wire in `EntityInfo`. ⚠ **Not an omission; a different sourcing path** |
+
+⭐ Gated by `EveryTkbSpawningHost_ConstructsThePresentationTranslator` — ⚠ **a SOURCE SCAN, and here that is
+the right instrument**: the existing rails assert the *component is present after injection*, which stays
+green when the translator is simply absent from a list. The two halves are complementary.
+⚠ **The Stride edit is NOT compiler-verified** — the `Stride/` tree cannot build on Linux
+*(`Microsoft.WindowsDesktop.App` unresolvable, pre-existing and unrelated)*. `HrotStrideApp.Game` references
+`Hrot.Core` where the type lives, and the line is fully qualified, but it needs a Windows build to confirm.
+
+⚠⚠ **A correction to `S1`'s own comment, folded into the source `2026-08-30`.** It claimed that without this
+translator *"the shared entity gizmos drew nothing — 3 non-`Line` primitives against Scenario's 69."*
+📐 **Wrong, and it conflated two halves of one batch:** the entity projector keys on
+`SimTransform` + `NetworkIdentity`, not `VisualData`; the `3 → 69` recovery is attributable to the
+**`MapDisplayComponent`** registration, without which `DebugGizmoLayer` layer-culled every entity.
+⇒ ⭐ **the translator buys AUTHORED SYMBOLOGY, not a drawn map.**
 
 #### 3.8.4 ⭐⭐ The emergency fallback — not selectable, and already correctly sized
 

@@ -1238,7 +1238,19 @@ namespace Hrot.Editor
                 new VehicleKinematicsTkbTranslator(),
                 new BehaviorTkbTranslator(),
                 new CombatTkbTranslator(),
-                new PerceptionTkbTranslator()
+                new PerceptionTkbTranslator(),
+                // ⭐⭐⭐ CE-137 — the translator this list was missing, the same omission SimHost had.
+                //    It writes VisualData (SymbolCode = the MIL-STD-2525 SIDC, ColorHex, MapShapeName)
+                //    and EntityInfo.ForceId from the TKB's VisualDefinitionDto.
+                // 🔒 User ruling 2026-08-30: "the more the subsystems are same, the better — if
+                //    VisualData is not IG-only concept, then for sure lets add it to SimHost and anywhere
+                //    where it makes sense." 📐 It is not IG-only: it is authored TKB data, and the three
+                //    hosts that spawn from TKB (IG, SimHost, Editor) should all carry it. CGF and
+                //    ReplayBrowser receive entities by replication and have no TKB spawn path at all.
+                // ⚠ It early-returns when VisualData is unregistered — no throw, no log. This host
+                //    registers it via SimHostComponentRegistry/CgfComponentRegistry → the shared registry
+                //    at :969-970, ABOVE this point, so the write lands.
+                new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),
             }.AsReadOnly();
             var elm               = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
             elm.SetTranslators(translators);

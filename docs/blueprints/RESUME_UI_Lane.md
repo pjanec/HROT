@@ -2,12 +2,12 @@
 state: LIVE
 updated: 2026-08-30
 current-answer: §0.0e.3d — S5 is BLOCKED (UXI-07 is NOT-BUILT). S1, S2a, S2b, S3, S4 (1+3) DONE;
-  CE-123/126/129 closed; CE-131 REFUTED. 2026-08-30: the symbology design is SETTLED with the user and
-  READY-TO-BUILD — UX_Feature_Entity_Symbology.md §3.8. Its key property: the switch is EMIT-SIDE, so
-  FDP/ExtDeps/GizmoMap needs NO renderer change (MilStd2525 is already a peer token with its own case).
-  Step 0 is BUILT: SemanticShapeRenderer deleted, NATO affiliation table corrected to the standard.
-  Rows: CE-133 (the switch), CE-134 (health bar), CE-135 (dead trail), CE-136 (third SIDC decoder).
-  Pick from the AVAILABLE WORK table — none is pre-approved, ask first.
+  CE-123/126/129 closed; CE-131 REFUTED. 2026-08-30: the symbology design is SETTLED and READY-TO-BUILD —
+  UX_Feature_Entity_Symbology.md §3.8. Key property: the switch is EMIT-SIDE, so FDP/ExtDeps/GizmoMap needs
+  NO renderer change (MilStd2525 is already a peer token with its own case). DONE already: SemanticShapeRenderer
+  deleted, the NATO affiliation table corrected to the standard, and CE-137 (VisualData now written by every
+  TKB-spawning host). REMAINING: CE-133 (the emit-side switch + config key), CE-134 (the health bar),
+  CE-135 (dead trail), CE-136 (third SIDC decoder). Pick one — none is pre-approved, ask first.
 
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
   way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
@@ -296,6 +296,7 @@ that lane owns. ⛔ **Do not start `S5`.**
 
 | candidate | why | size |
 |---|---|---|
+| ✅ **`CE-137` — VisualData reaches every TKB-spawning host** *(DONE `2026-08-30`)* | 🔒 User: *"the more the subsystems are same, the better."* `PresentationTkbTranslator` added to the **Editor** and **Stride editor** — the same omission `S1` fixed on SimHost, surviving in two more lists. ⛔ CGF/ReplayBrowser are NOT omissions: no TKB spawn path at all. ⭐⭐ And `VisualData` is a **presence-decided optional read**, so there is no per-host decision. ⚠ Also corrected `S1`'s own comment: the `3 → 69` recovery was `MapDisplayComponent`, not this translator | `RW-S` |
 | ⭐⭐⭐ **`CE-134` — restore the graphical HEALTH BAR** | 📐 **BUILT then DELETED.** `e726734cc` *(2026-04-22)* made it always-on; `5ce023677` *(GZ059, 2026-05-08)* deleted it with the legacy adapter stack. ⛔⛔ `HealthBarGizmo` never replaced it — it draws `DrawEntityBadge("87%")` and has read-and-DISCARDED `BarWidth`/`BarHeight` since its first commit. ⭐⭐ ~15 lines, no new machinery. ⚠ **A rail asserting "a primitive was emitted" is VACUOUS.** 📄 §3.8.5 | `RW-S` |
 | ⭐⭐⭐ **`CE-133` — two symbol paths, switched EMIT-SIDE** | ⭐⭐ **DESIGN SETTLED AND GATED** — [`UX_Feature_Entity_Symbology.md` §3.8](../UX/UX_Feature_Entity_Symbology.md), `READY-TO-BUILD`. 🔒 **The ExtDeps renderer is NOT touched**: `MilStd2525` is already a peer token with its own renderer case, so the switch is control logic in `EntityPresentationGizmo`. ⛔ **Two earlier drafts proposed a renderer seam — both in HISTORY, do not quote them.** ✅ **Step 0 DONE**: `SemanticShapeRenderer` deleted, NATO palette corrected. ⚠ Open build-time call: CGF/Editor/ReplayBrowser have no `VisualData`, so their SIDC must be synthesised | `RW-M` |
 | ⭐ **`CE-135` — IG's movement trail is dead by construction** | 📐 `ShowHistory` → `ShowTrail` → `HistoryRecordingSystem` → `HistoryTrail` is a four-link chain whose **first link is never set at ingress**. 🔒 User: *"Let's keep the history trail."* ⛔ This is why `ShowHistory` must not be deleted with the other unused `IgSymbolOverride` fields | `RW-S` |

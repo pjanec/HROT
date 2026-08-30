@@ -194,5 +194,62 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Hrot.Map.Common.Config.MapLayerBits.TacticalGraphicsBit, MapLayerRegistry.TacticalGraphicsBit);
             Assert.Equal(Hrot.Map.Common.Config.MapLayerBits.RoadGraphsBit,       MapLayerRegistry.RoadGraphsBit);
         }
+
+        // ── ⑤ CE-137: every TKB-SPAWNING host writes VisualData ───────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-137</c> — the presentation translator reaches every host that spawns from TKB.</b>
+        ///
+        /// <para>🔒 <b>User ruling, <c>2026-08-30</c>:</b> <i>"the more the subsystems are same, the
+        /// better — if VisualData is not IG-only concept, then for sure lets add it to SimHost and
+        /// anywhere where it makes sense."</i> 📐 It is not IG-only: <see cref="VisualData"/> is authored
+        /// TKB data (<c>SymbolCode</c> = the MIL-STD-2525 SIDC, <c>ColorHex</c>, <c>MapShapeName</c>),
+        /// so every host with a TKB spawn path carries it.</para>
+        ///
+        /// <para>📐 <b>Measured <c>2026-08-30</c>:</b> IG and SimHost had it; the Raylib editor's list of
+        /// <b>five</b> translators and the Stride editor's list of <b>six</b> did not — ⭐ the same
+        /// omission <c>S1</c> fixed on SimHost, surviving in two more places.</para>
+        ///
+        /// <para>⚠⚠ <b>A SOURCE SCAN, and here that is the RIGHT instrument</b> — the opposite of the
+        /// caution at the top of this file. That caution says never assert list membership <i>in place
+        /// of</i> a component assertion, because the translator early-returns when the component is
+        /// unregistered, so membership stays green through THAT failure. ⛔ The failure here is the
+        /// mirror image: the component IS registered and the translator is ABSENT from the list, which no
+        /// component assertion can see. ⇒ ⭐ the list is exactly what must be asserted.</para>
+        ///
+        /// <para>⛔ CGF and ReplayBrowser are deliberately absent from this rail: they have <b>no TKB
+        /// translator list at all</b>, because their entities arrive by network replication. Adding them
+        /// would assert a path that does not exist.</para>
+        ///
+        /// <para>⭐ The behavioural half is already here — see
+        /// <see cref="PresentationTranslator_OnSimHostWorld_WritesVisualData"/>, which proves the write
+        /// lands once the component is registered. ⇒ this rail adds only the half that one cannot see:
+        /// <i>which composition roots construct the translator at all.</i></para>
+        /// </summary>
+        [Theory]
+        [InlineData("Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs")]
+        [InlineData("Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs")]
+        public void EveryTkbSpawningHost_ConstructsThePresentationTranslator(string relativePath)
+        {
+            var src = ReadRepoSource(relativePath);
+
+            Assert.Contains("new List<ITkbEntityTranslator>", src, System.StringComparison.Ordinal);
+            Assert.Contains("PresentationTkbTranslator()", src, System.StringComparison.Ordinal);
+        }
+
+        /// <summary>Repo-root-relative source read; the scan is the only way to see a composition root's local list.</summary>
+        private static string ReadRepoSource(string relativePath)
+        {
+            var dir = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "docs")))
+                dir = dir.Parent;
+            Assert.NotNull(dir);
+
+            var path = System.IO.Path.Combine(dir!.FullName, relativePath.Replace('/', System.IO.Path.DirectorySeparatorChar));
+            Assert.True(System.IO.File.Exists(path), $"expected {path} to exist — the rail's target moved.");
+            return System.IO.File.ReadAllText(path);
+        }
     }
 }

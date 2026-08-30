@@ -1623,6 +1623,12 @@ public sealed class EditorStrideSubsystem : IDisposable
             new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator(),
             new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator(),
             new Fdp.Toolkit.Perception.Translators.PerceptionTkbTranslator(),
+            // ⭐⭐⭐ CE-137 — the same omission the Raylib editor had. Writes VisualData (SymbolCode =
+            //    the MIL-STD-2525 SIDC, ColorHex, MapShapeName) and EntityInfo.ForceId from the TKB.
+            // 🔒 User ruling 2026-08-30: VisualData is authored TKB data, not an IG concept, so every
+            //    host that spawns from TKB carries it. ⚠ Early-returns when VisualData is unregistered;
+            //    StrideNodeBootstrapper:226 calls HrotSharedComponentRegistry, which registers it.
+            new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),
         }.AsReadOnly();
     }
 
