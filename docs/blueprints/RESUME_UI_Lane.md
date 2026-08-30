@@ -2,15 +2,17 @@
 state: LIVE
 updated: 2026-08-28
 current-answer: ⭐⭐⭐ §0.0e — "--mode all VISUAL-CHECK CORRECTIVES + the cgf==editor TKB ruling".
-  ⭐⭐⭐ S1 IS BUILT (2026-08-28). NEXT IS S2, and its FIRST ITEM IS NOW CONCRETE: assert what each
-  host's StatelessGizmoRegistry actually CONTAINS after GizmoReflectionRegistrar.RegisterAll.
+  ⭐⭐⭐ S1 IS BUILT AND PUSHED (2026-08-28). NEXT IS S2 — one map backend.
+  READ FIRST: docs/DESIGN_Map_Rendering_And_Interaction.md, the new standing architecture reference
+  (layer map, both gizmo kinds, render + interaction paths, the TO-BE, and an 8-item risk register
+  where every item is SILENT when hit). Then UX_Feature_Map_Parity.md 3.9a-i.
   ⛔⛔ CE-123 STAYS OPEN: S1 delivered both missing components to SimHost (0/8 -> 8/8 and 0/8 -> 7/8,
-  measured live) and its frame is STILL 605/3, so a further cause remains. The lead — three
-  host-private entity presentation gizmos, plus a reflection registrar that scans only LOADED
-  assemblies — is recorded as a HYPOTHESIS in UX_Feature_Map_Parity.md §3.9b. ⛔ Do NOT treat it as
-  a root cause; measure the registry first. Two earlier stories about this symptom were already
-  wrong (the camera, then the gizmo gate).
-  ⛔ ALSO REFUTED, do not build: the GATE version of S1 (the clamp / boot-perspective activation).
+  measured live) and its frame is STILL 605/3, so a further cause remains. S2's FIRST item is to
+  MEASURE what each host's StatelessGizmoRegistry contains after RegisterAll. The reflection-scan
+  lead is a HYPOTHESIS only -- two earlier stories about this symptom (the camera, then the gizmo
+  gate) were already wrong.
+  ⛔ Pin GizmoTypeId as an explicit constant BEFORE merging any gizmo class: it is the DDS routing
+  key derived from the type's full name, so a merge silently breaks remote dragging.
   CE-113 is DONE and verified;
   its plan in §0.0e.3c is history. It is the ONLY work left and it carries every file
   anchor, the four things still to measure, and the exact verification probe. The rest of §0.0e is
@@ -219,92 +221,75 @@ with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory decla
 after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
 points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
 
-### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S1`: THE MAP'S MISSING INPUTS** *(rewritten `2026-08-28`)*
+### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S2`: ONE MAP BACKEND** *(retargeted `2026-08-28`; `S1` is DONE)*
 
-📄 **THE DESIGN IS [`docs/UX/UX_Feature_Map_Parity.md`](../UX/UX_Feature_Map_Parity.md) — read its STATUS
-block, then §3.0a (the MEASURED root cause), §3.9 (the slices), §3.2a/§3.2b/§3.2c.** ⛔ Do not re-derive any of it.
+#### 📄 READ THESE TWO FIRST — ⛔ do not re-derive any of it
 
-#### ⛔⛔⛔ FIRST: THE PREVIOUS `S1` WAS REFUTED — **do NOT build the gate fix**
-
-🔴 An earlier version of this section sent you to clamp `GizmoExecutionController.RemoveListener` and
-"activate the boot perspective" in `PerspectiveCoordinatorSystem`. ⛔⛔ **That premise is FALSE, measured
-`2026-08-28`:**
-
-| 📐 | |
+| doc | why |
 |---|---|
-| ⓐ | `WindowManager.CurrentPerspective` starts **`"Default"`**, not empty *(`WindowManager.cs:242`)*, and `LocalWindowController` subscribes at `:91` **before** `SwitchPerspective(…)` at `:119` ⇒ a **real `("Default","SimHost")` event fires at boot** |
-| ⓑ | `"Default"` is not a key in `_gizmoControllables` ⇒ **no unbalanced `RemoveListener`; the counter never reaches −1** |
-| ⓒ | 🔴 **LIVE:** SimHost visit 1 and visit 2 emit the **identical** `LayerControlMask`+`MainMenuBinding`+`ContextMenuBinding`, and `GlobalGizmoManager` sits **inside** the gated group ⇒ **the gate is ENABLED on both visits** |
+| ⭐⭐⭐ **[`docs/DESIGN_Map_Rendering_And_Interaction.md`](../DESIGN_Map_Rendering_And_Interaction.md)** | **the standing architecture reference** *(new `2026-08-28`)* — layer map, both gizmo kinds, the render frame, the interaction path, the tool path, the TO-BE, and an **8-item risk register where every item is SILENT when hit**. ⭐ §1 is the orientation |
+| ⭐⭐ **[`docs/UX/UX_Feature_Map_Parity.md`](../UX/UX_Feature_Map_Parity.md)** | `UXI-23` itself — §3.9 the slices, §3.9a–i the measured detail |
 
-⭐ **The clamp is demoted to hygiene inside `S2`** — ⛔ a throwing clamp can only convert a silent state into a
-crash on a path nothing has demonstrated. ⚠ **The SYMPTOM numbers and `CE-123`'s elimination table are still
-valid; only the causal story attached to them was wrong.**
+#### ✅ `S1` IS DONE AND PUSHED — ⛔ do not rebuild it
 
-#### ✅ THE MEASURED ROOT CAUSE — **the shared projectors read HOST-PRIVATE inputs**
+📐 Lifted `MapLayerAssignmentSystem`/`Registry`/`Definition` → `Hrot.Presentation/Map/`, and
+`PresentationTkbTranslator` → `Hrot.Core/MapDefinitions/Tkb/`. Collapsed 3 duplicate
+`MapDisplayComponent` registrations + 1 omission into `MapPresentationRegistry`. Collapsed the
+`MapLayerBits` hand-synced copy. Fixed **`CE-118`** *(`WithVisual` discarded everything it was given;
+`VisualDefinitionDto` had no producer anywhere)*. **15 rails, each inverse-edit red-proved.**
 
-📐 Per-entity component diff, same 8 entities, `--mode all` + `hill-attack` live:
+🔴🔴 **BUT `CE-123` IS STILL OPEN — the user's map is still dark.** 📐 Measured live: SimHost's
+`MapDisplayComponent` `0/8 → 8/8`, `VisualData` `0/8 → 7/8`, and its frame is **STILL `605 / 3` non-`Line`**
+*(Scenario `69`, IG `104`, both unchanged — no regression)*. ⇒ ⭐ **`S1`'s root cause was NECESSARY, NOT
+SUFFICIENT.**
 
-```
-SimHost  1001: … Health, NavState, SimTransform, VehicleParams, VehicleState …
-Scenario 1001: the same, PLUS  MapDisplayComponent · VisualData
-```
+#### ⭐⭐⭐ `S2`'s FIRST ITEM — **measure, do not assume**
 
-🔒 **Those two are what every entity gizmo projects from.** ⇒ ⭐⭐ **SimHost's `605 primitives / 3 non-`Line``
-is a full frame of an EMPTY QUERY, not a stalled one.**
+🔒 **Assert what each host's `StatelessGizmoRegistry` actually CONTAINS after
+`GizmoReflectionRegistrar.RegisterAll`.** ⛔ Nothing checks that a reflection-discovered projector was
+found — the same silent-capability shape as the two defects `S1` fixed.
 
-| component | registered by | **installed by** |
-|---|---|---|
-| `MapDisplayComponent` | ⚠ **IG · CGF · Editor only** — 📐 **zero source refs under `Hrot/Subsystems/Hrot.SimHost/`** | 🔴 `Hrot.IG/Systems/MapLayerAssignmentSystem.cs:122,126` *(wrapped by the IG-private `Modules/MapLayerModule`)* |
-| `VisualData` | ✅ shared *(`Hrot.Core/HrotSharedComponentRegistry.cs:57`)* | 🔴 `Hrot.IG/Translators/PresentationTkbTranslator.cs:36` — ⚠ **silently early-returns** when the type is unregistered *(`:29`)* |
+⚠⚠ **The lead is a HYPOTHESIS, recorded as one** *(`UX_Feature_Map_Parity.md` §3.9b)*:
+`DiscoverProjectorTypes` scans `AppDomain.CurrentDomain.GetAssemblies()` — **only assemblies already
+LOADED** — so which projectors a host registers may depend on bootstrap order. ⛔ **Do NOT treat it as the
+root cause.** 📌 **Two earlier stories about this exact symptom were already wrong** *(the camera, then
+the gizmo execution gate)*.
 
-📌 **CGF/Scenario has them only because `scenarios/hill-attack/scenario.json` AUTHORS both.** ⛔ The muscle
-builds from the **TKB path**, which carries neither — 📐 `SimHostNodeBootstrapper.BuildContext` lists **six**
-translators and no presentation one.
+#### ⭐ THEN THE MERGE — the rest of `S2`
 
-#### ⭐ WHAT `S1` IS NOW — **share the two producers**
-
-Lift both out of `Hrot.IG` into shared code; register `MapDisplayComponent` wherever the map is a member
-*(§3.1b’s rule)*; add the presentation translator to the host translator lists that lack it.
-🔒 **This lands in SHARED code + each host’s run set — ⛔ it is not the per-host patch the user ruled out.**
-
-⭐⭐ **ONE OPEN DESIGN CALL — raise it with the user before building** *(§3.9’s closing subsection)*: the two
-producers differ in character. `VisualData`’s translator is **clean TKB-derived entity data**; but
-`MapLayerAssignmentSystem` computes a **VIEW concern** from a `MapLayerRegistry`, and the layer
-**definitions** may be legitimate **per-host configuration** *(§3.2c’s settings store already models exactly
-this)*. ⭐ **Lean: lift both, but treat the layer definitions as `S4` configuration.** ⛔ Do not decide it
-silently inside the build — it is the difference between unifying a mechanism and unifying a policy.
-
-#### 🔒 The five USER RULINGS that bound this work — do not re-litigate
-
-| # | ruling |
+| # | |
 |---|---|
-| ① | ⭐⭐ **The map must be UNIFIED across every ECS-enabled host** *(CGF · IG · SimHost · ReplayBrowser)* — same gizmos, differing only by the entity’s components. §3.1b makes membership a **rule, not a host list** |
-| ② | ⛔⛔ **A SimHost-only fix is REJECTED** — *"chasing SimHost gap means deepening the separation of hosts"* |
-| ③ | ⭐⭐ **The pack owns CONSTRUCTION; the HOST decides SCHEDULING** *(§3.2a)* |
-| ④ | ⭐ **Settings are a standalone injected store** — per host · shared · `Empty` *(§3.2c)* |
-| ⑤ | ⭐ **Policy supply is option (b), the RESOLVER** on `RegisterAll`; ⛔ the attribute route (a) is NOT taken |
+| **①** | 🔴 **PIN `GizmoTypeId` AS AN EXPLICIT CONSTANT ON EVERY `IGizmoDefinition` — BEFORE any class merge.** 📐 It is the FNV-1a hash of the type's **full name** *(`DebugPrimitive.cs:140`)*, sent over DDS as the interaction routing key ⇒ ⚠ **a rename or merge silently breaks remote dragging while the handle still draws**, and a single-process test cannot see it |
+| **②** | **Merge the three entity projectors into ONE** + two injected collaborators — an `IGizmoVisibilityPolicy` *(IG's culling; ⭐ the seam ALREADY EXISTS, only `Always`/`Never` implemented)* and a condition provider *(IG's damage states)*. 📄 the three-way comparison is §3.9c |
+| **③** | ⛔⛔ **The merged `[GizmoProjector]` requires `SimTransform` + `NetworkIdentity` and NOTHING ELSE.** ⚠ Keeping IG's `CullingState` in the query would make it match nothing on SimHost and CGF and **silently empty their maps** *(acceptance 23.23)* |
+| **④** | **`MapInteractionPack.Build(ctx)` constructs** buffer + systems + group + controller **once**; 🔒 **the HOST schedules** *(user ruling)*. ⛔ The pack context carries no kernel |
+| **⑤** | Fixes **`CE-126`** inside the merge — CGF's transparent avatars *(raw builder, `Color (0,0,0,0)`)*, its missing pick box, and its pointless `NetworkTransform` preference. ⛔ **Do not point-patch CGF first** — that re-establishes the copy `S2` deletes |
+| **⑥** | Delete the per-host `gizmoGroup.Enabled = true/false` literals *(deferred from `S1`)* |
 
-#### ⭐ HOW TO VERIFY
+#### 🔒 BOUNDARIES
+
+| | |
+|---|---|
+| ✅ **`S2` is DISJOINT from `UXI-07`** | it touches only `IStatelessGizmo`. ⭐ **Proceed alone** |
+| ⚠ **the `GizmoTypeId` pin is JOINT** | it is `IGizmoDefinition` = the tool path ⇒ still do it first, but **tell `UXI-07`** |
+| 🔴 **`S5` is JOINT** | `UXI-07` migration steps 3–4 own the action→tool routing ⇒ **sequence `S5` after them** |
+| 🔒 **`R-137`** | the merge must not cost a feature — IG's culling and damage states stay reachable, and become AVAILABLE to the other hosts by configuration |
+
+#### ⭐ VERIFY
 
 ```bash
 dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj --no-restore -v q --nologo
 cd Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
 export HROT_DEBUG_API_PORT=8099 FDP_STAGING_ROOT=<a fresh dir>
-nohup xvfb-run -a dotnet Hrot.ClusterRunner.dll --mode all > /tmp/gate.log 2>&1 &
-curl -s --noproxy '*' -m 120 -X POST http://localhost:8099/scenario/load/live \
+nohup xvfb-run -a dotnet Hrot.ClusterRunner.dll --mode all > /tmp/s2.log 2>&1 &
+curl -s --noproxy '*' -m 150 -X POST http://localhost:8099/scenario/load/live \
      -H 'Content-Type: application/json' -d '{"name":"hill-attack","waitForReady":true}'
-curl -s --noproxy '*' "http://localhost:8099/entities"              # ⭐ components per entity — THE direct check
+curl -s --noproxy '*' "http://localhost:8099/entities"               # components per entity
 curl -s --noproxy '*' "http://localhost:8099/panels/_gizmo?max=4000" # ⛔ NOT /gizmo/frame — 404
 ```
-⭐ **PASS = SimHost’s entities carry `MapDisplayComponent` + `VisualData`, and its non-`Line` count rises
-from `3` to a real entity count** *(`Scenario` reads `69`; IG `104`)*. 🔒 **Check `ok` before reading `data`** —
-a wrong route returns `{ok:false,"Not found"}` with HTTP 200 and a naive parser prints a confident zero
-*(that cost a whole false finding — SKILL §5e.1)*. ⚠ **The primitive schema is lowercase `primitives`, each
-with `shape`** — not `Primitives`/`Kind`.
-
-⭐ **Rails to write** *(each inverse-edit red-proved)*: a TKB-built entity carries both presentation
-components · the presentation translator is in every map-member host’s list · `MapDisplayComponent` is
-registered wherever the map is a member.
+⭐ **PASS = SimHost's non-`Line` count rises from `3` toward Scenario's `69`**, with Scenario and IG
+**unchanged**. 🔒 **Check `ok` before reading `data`**; the schema is lowercase `primitives`, each with
+`shape`.
 
 ### 0.0e.3c ⭐⭐⭐ **THE BUILD PLAN — `CE-113`. THE ONLY WORK LEFT. ⭐⭐ BUILD THIS FIRST.**
 
