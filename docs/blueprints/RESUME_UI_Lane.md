@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: §0.0e.3d — UXI-23 slice S5 (the action half, JOINT with UXI-07). S1, S2a, S2b, S3 and S4 (1+3) are DONE, pushed and live-verified; CE-123, CE-126 and CE-129 are closed. CE-131 is the open one S4 deliberately did not fix. Read §0.0e.3d first, then docs/UX/UX_Feature_Map_Parity.md §3.2d/§3.2e/§3.2f and §3.9j.
+current-answer: §0.0e.3d — S5 is BLOCKED (UXI-07 is NOT-BUILT, so its migration steps 3-4 do not exist). S1, S2a, S2b, S3 and S4 (1+3) are DONE and live-verified; CE-123, CE-126 and CE-129 closed; CE-131 REFUTED (settling artifact, see UX_Feature_Map_Parity.md §3.2g). Pick from the AVAILABLE WORK table — none is pre-approved, ask first.
   ⭐⭐⭐ S1 IS BUILT AND PUSHED (2026-08-28). NEXT IS S2 — one map backend.
   READ FIRST: docs/DESIGN_Map_Rendering_And_Interaction.md, the new standing architecture reference
   (layer map, both gizmo kinds, render + interaction paths, the TO-BE, and an 8-item risk register
@@ -221,7 +221,7 @@ with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory decla
 after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
 points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
 
-### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S5`: THE ACTION HALF** *(retargeted `2026-08-30`; `S1`–`S4` ①+③ are DONE)*
+### 0.0e.3d ⭐⭐⭐ **START HERE — ⛔ `S5` IS BLOCKED; PICK FROM §THE AVAILABLE WORK** *(`2026-08-30`; `S1`–`S4` ①+③ are DONE)*
 
 #### 📄 READ THESE TWO FIRST — ⛔ do not re-derive any of it
 
@@ -300,10 +300,26 @@ the missing answer to *how a reflection-discovered projector names a policy*. `S
 wholesale into `CullingStateVisibilityPolicy` **(ruling 9 — there was a second implementation of *"should
 this entity draw?"*)**. ✅ **`CE-129` closed.** Live: frames identical to `S3`, zero diagnostics.
 
-⚠⚠ **STILL OPEN in `S4`, deliberately not built:** 🔴 **`CE-131`** — IG's `MapCullingSystem` derives
-`IsVisible` from projected SCREEN CORNERS, degenerate without a real viewport, so it marks **every entity
-invisible**. ⛔ **Do NOT delete the culling gate to "fix" it** *(`R-137`)*; fix the INPUT, then a host can
-turn `map.entity.cullOffscreen` on and get the benefit `MapCullingSystem` was written for.
+⛔⛔ **`CE-131` IS REFUTED — do NOT go looking for it.** 🔴 I filed it from ONE probe. 📐 Culling forced ON,
+IG probed repeatedly: **`0` on probe 1 then `8 · 8 · 8`, IDENTICALLY with and without a fix to the culling
+input.** ⇒ a settling artifact. ⭐ An unset-viewport guard IS in `MapCullingSystem` *(3 rails)* on its own
+merits — for a genuinely headless node — ⛔ **not as a fix for any observed symptom.** 📄 §3.2g.
+
+#### ⛔⛔ `S5` IS BLOCKED — **measured, `2026-08-30`**
+
+📐 `UX_Feature_Tool_Model.md`'s STATUS block: **`build-state: NOT-BUILT`** — *"no `IToolController`/
+`ToolDescriptor`/modal-stack in source, only fossil comments."* ⇒ 🔒 **`UXI-07`'s migration steps 3–4 do not
+exist**, and §3.9h says `S5` **must** be sequenced after them or it re-implements the action→tool routing
+that lane owns. ⛔ **Do not start `S5`.**
+
+#### ⭐⭐⭐ THE AVAILABLE WORK — **pick one; ⚠ none is pre-approved, ask first**
+
+| candidate | why | size |
+|---|---|---|
+| ⭐⭐ **`CE-125` — the fixed cyan** | 🔒 [`UXI-10`](../UX/UX_Feature_Entity_Symbology.md) **defect A**, verbatim: *"Every entity is the same cyan … **friend and hostile are indistinguishable on the map** while the simulation itself distinguishes them"* — `EntityPresentationGizmoShared.cs:92`, a literal `Rgba32(100,220,255,255)`. ⭐⭐ **The user asked about this directly** *("will this map unification change the entity symbol colour which is now fixed to cyan?")*. ⚠ `UXI-10` §0 warns there are **two symbology pipelines, both built, not connected** — `StyleResolutionSystem` is the upstream one. 🔒 **Read §0 and §3 before touching anything** | `RW-M` |
+| ⭐ **`UXI-10` §3.5 — the `shapeName` half** | the actual filed issue behind `UXI-10`; `MapShapeName` is authored, translated into a component, and **never read** *(seam-law instance 11)* | `RW-M` |
+| ⭐ **the `GizmoTypeId` pin** | 🔒 cheap, owed, and protects BOTH lanes — an explicit constant per `IGizmoDefinition`. ⚠ **JOINT**: tell `UXI-07`, since its migration renames these | `RW-S` |
+| ⚠ **`S4` ②** | the rest of the configuration surface. ⛔ **Lower value than it looks** — the beachhead (`EntityPresentationGizmoSettings`, the resolver, six named context inputs) is built, and nothing is asking for more knobs yet | `RW-S` |
 
 #### ⭐ THEN `S5`
 
