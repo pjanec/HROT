@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: §0.0e.3d — UXI-23 slice S3 (declare + report unserviceable). S1, S2a and S2b are all DONE, pushed and live-verified; CE-123 and CE-126 are closed. Read §0.0e.3d first, then docs/UX/UX_Feature_Map_Parity.md §3.2d (the S2b amendments) and §3.9j (the S2a design + as-built).
+current-answer: §0.0e.3d — UXI-23 slice S4 (configuration). S1, S2a, S2b and S3 are all DONE, pushed and live-verified; CE-123 and CE-126 are closed. Read §0.0e.3d first, then docs/UX/UX_Feature_Map_Parity.md §3.2d + §3.2e (the S2b/S3 amendments) and §3.9j (the S2a design + as-built).
   ⭐⭐⭐ S1 IS BUILT AND PUSHED (2026-08-28). NEXT IS S2 — one map backend.
   READ FIRST: docs/DESIGN_Map_Rendering_And_Interaction.md, the new standing architecture reference
   (layer map, both gizmo kinds, render + interaction paths, the TO-BE, and an 8-item risk register
@@ -221,7 +221,7 @@ with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory decla
 after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
 points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
 
-### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S3`: DECLARE + REPORT** *(retargeted `2026-08-30`; `S2b` is DONE, so `S3` is UNBLOCKED)*
+### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S4`: CONFIGURATION** *(retargeted `2026-08-30`; `S1`–`S3` are DONE)*
 
 #### 📄 READ THESE TWO FIRST — ⛔ do not re-derive any of it
 
@@ -230,7 +230,7 @@ points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This
 | ⭐⭐⭐ **[`docs/DESIGN_Map_Rendering_And_Interaction.md`](../DESIGN_Map_Rendering_And_Interaction.md)** | **the standing architecture reference** — layer map, both gizmo kinds, the render frame, the interaction path, the tool path, the TO-BE, and an **8-item risk register where every item is SILENT when hit**. ⭐ §1 is the orientation |
 | ⭐⭐ **[`docs/UX/UX_Feature_Map_Parity.md`](../UX/UX_Feature_Map_Parity.md)** | `UXI-23` itself — §3.9 the slices, §3.9a–i the measured detail, ⭐⭐ **§3.9j the `S2` design + AS-BUILT** |
 
-#### ✅✅✅ `S1`, `S2a` AND `S2b` ARE ALL DONE, PUSHED AND LIVE-VERIFIED
+#### ✅✅✅ `S1`, `S2a`, `S2b` AND `S3` ARE ALL DONE, PUSHED AND LIVE-VERIFIED
 
 | `S2` item | state |
 |---|---|
@@ -273,19 +273,37 @@ because IG's map was drawn by SimHost's and CGF's copies, which ignored culling.
 opt-in setting **`map.entity.cullOffscreen`, default `false`** — ⛔ **do NOT "simplify" by deleting the
 culling gate; that discards the capability (`R-137`).** Fix the INPUT, then a host can enable it.
 
-#### ⭐⭐⭐ `S3` — **DECLARE + REPORT UNSERVICEABLE** *(UNBLOCKED: `S2b` built the thing it declares)*
+#### ✅✅ `S3` IS DONE — **and its PREMISE was half wrong; read §3.2e before extending it**
+
+🔴 §3.2a claimed declare-and-report *"would have caught"* `CE-123`. 📐 **Re-measured: FALSE.** SimHost HAD
+scheduled the group *(`SimHostApp.cs:442`)*, all three systems were present and the gate was open — a
+run-set check prints *"nothing unserviceable"* on that configuration. ⇒ `S3` shipped in **two halves**:
+
+| half | what it catches | |
+|---|---|---|
+| `MapInteraction.RequiredSystems` + `Unserviceable(hostRunSet)` | a host that **never schedules** the map | ⭐ wired in all five hosts; ⛔ **cannot see `CE-123`**, and a rail asserts that on purpose |
+| ⭐⭐ **`MapSelfCheckSystem`** | 🔒 **group enabled + eligible entities present + ZERO `SemanticShape`** — `CE-123`'s exact signature | ⭐ ships as the LAST member of the pack's group, so no host can forget it. Reports, never throws; latches; reports recovery |
+
+✅ **Live proof, end to end:** healthy map ⇒ frames unchanged *(Scenario 53 · IG 63 · SimHost 55)* and
+**zero** diagnostics. `CE-123` reintroduced ⇒ frame collapsed to the original **`605/3`** and the log
+carried *"the map is RUNNING AND DRAWING NOTHING — … 8 entities … zero SemanticShape … after 120 frames"*.
+
+⚠⚠ **A verification lesson worth keeping:** *"zero diagnostics"* is what a healthy map **and** a system
+that never runs both look like. ⛔ Only the inverse-edit LIVE run distinguishes them — the unit rail alone
+would have left that vacuity standing.
+
+#### ⭐⭐⭐ `S4` — **CONFIGURATION** *(the next slice)*
 
 | # | |
 |---|---|
-| **①** | ⭐⭐ **Copy the shape that already works: `ToolActivationDrainSystem`** *(`Hrot.Presentation/ScenarioEditor/Systems/`)* — it takes an `Action<string>? _reportUnserviceable` and names the tool and the reason. 🔒 **Prior art first (`R-129`): read it before designing anything.** ⭐ `IUiBundle` already exists at `FDP/Engine/Fdp.Presentation/ImGui/IUiBundle.cs` |
-| **②** | ⭐ Every defect `S1`+`S2a` fixed was **silent** — a host emitting nothing looked identical to a host with nothing to emit. `S3`'s whole value is that the next one reports itself |
-| **③** | ⭐ Fold in **`CE-128`** *(discovery depends on JIT load order; measured safe today, guaranteed by nothing)* — a bundle that DECLARES what it found makes that observable |
+| **①** | ⭐⭐ **The beachhead exists** — `EntityPresentationGizmoSettings` *(3 keys: `cullOffscreen`, `damagedThreshold`, `immobileThreshold`)* and `MapInteractionContext`'s six named per-host inputs. ⛔ Do NOT re-invent a settings mechanism; `GizmoSettingsRegistry` is already standalone and injectable *(§3.2c)* |
+| **②** | ⚠⚠ **`CE-129` is the open DESIGN question, not a chore:** `IGizmoVisibilityPolicy.IsEntityVisible` is declared and **never called** by `StatelessGizmoSystem` *(`DataDrivenGizmoSystem` honours it at `:326`, `:369`)*. ⭐ It is the natural home for per-PROJECTOR visibility — which `S2a` had to express as a projector-level setting instead. 🔒 Closing it means deciding **how a reflection-discovered projector names a policy**; that is an architect-question-shaped call |
+| **③** | 🔴 **`CE-131` is the live defect `S4` should make fixable** — IG's culling marks every entity invisible because its viewport comes from projected screen corners. ⛔ Do NOT delete the culling gate *(`R-137`)*; fix the INPUT, then a host can turn `map.entity.cullOffscreen` on and get the performance benefit |
 
-#### ⭐ THEN `S4` / `S5`
+#### ⭐ THEN `S5`
 
 | | |
 |---|---|
-| **`S4`** | the rest of the configuration surface. ⭐ **`S2` already built the beachhead** — `EntityPresentationGizmoSettings` *(3 keys)*. ⚠ **`CE-129`** is the open design question: `IGizmoVisibilityPolicy.IsEntityVisible` is declared and never called by `StatelessGizmoSystem`, and it is the natural home for per-projector visibility |
 | **`S5`** | 🔴 **JOINT with [`UXI-07`](../UX/UX_Feature_Tool_Model.md)** — sequence it AFTER that lane's migration steps 3–4, which own action→tool routing. ⚠ **Pin `GizmoTypeId` as an explicit constant on every `IGizmoDefinition` first** *(it is the FNV-1a hash of the type's FULL NAME and the DDS routing key — a rename silently breaks remote dragging while the handle still draws)*. 📌 `S2` did NOT need it: the merged classes were `IStatelessGizmo` and carry no wire id |
 
 #### ⭐ VERIFY (the recipe that measured `S2`)
