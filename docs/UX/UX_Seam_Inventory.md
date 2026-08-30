@@ -73,7 +73,7 @@ Cited only after reading. Grouped by the issue they would touch.
 | Bearing | Rows |
 |---|---|
 | **Menus / actions** ([UXI-04](UX_Issues.md#uxi-04), [UXI-05](UX_Issues.md#uxi-05)) | `GlobalMenuRegistry` (3/1/3, **Editor only**) · `MainMenuAdapter` (2/0/0) · `ToolbarCommandAdapter` (2/1/1) · `IDerContextMenuHandler` + `LambdaDerContextMenuHandler` (ExCon's parallel duplicate of the entity path) · `ContextMenuBuilder` (2/0/0) |
-| **Map & symbology** ([UXI-10](UX_Issues.md#uxi-10), [UXI-09](UX_Issues.md#uxi-09)) | `ISemanticShapeProfileRegistry` (0/0/0) · `IIconAtlas` + `IconAtlasAdapter` (0/0/0) · `IGizmoUndoRecord` (3/0/1) · `IGizmoInteractionHandler` (11/1/3) |
+| **Map & symbology** ([UXI-10](UX_Issues.md#uxi-10), [UXI-09](UX_Issues.md#uxi-09)) | ~~`ISemanticShapeProfileRegistry`~~ (0/0/0 — **DELETED `2026-08-30`** with `SemanticShapeRenderer`, user ruling; superseded by `IEntityShapeLibrary`) · `IIconAtlas` + `IconAtlasAdapter` (0/0/0) · `IGizmoUndoRecord` (3/0/1) · `IGizmoInteractionHandler` (11/1/3) |
 | **Inspector / rendering** ([UXI-15](UX_Issues.md#uxi-15)) | `IEntityAwareImGuiRenderer` (9/0/1) · `ImGuiRendererRegistry` (5/0/1) · `IImGuiRenderer` (17/1/1) · `IInspectableSession` (23/1/7) · `ImGuiPropertyTreeAdapter` (6/1/1) |
 | **Picking / input** ([UXI-07](UX_Issues.md#uxi-07)) | `IComponentPickerContext` (4/0/2) · `ISpatialPickerContext` (4/1/1) · `IPickInteractionContext` (2/0/2) · `IInputProvider` (4/0/5) |
 | **Other** | `SimulationViewAdapter` (0/0/0) · `IResourceProvider` (2/0/0) · `IRouteWaypointEditorState` (2/1/1) · `BehaviorUiRegistry` (4/1/3) · `EditorFontRegistry` (2/1/1) |

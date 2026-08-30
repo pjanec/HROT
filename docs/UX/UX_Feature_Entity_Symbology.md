@@ -4,9 +4,13 @@ build-state: NOT-BUILT
 verified: 2026-08-28 (coordinator source scan)
 current-answer: 3.3 and 3.4 are BUILT (UXI-23 S2a/S4). START AT 3.8 - READY-TO-BUILD, with UML:
   TWO selectable symbol paths (silhouette, nato2525-as-a-stub) plus a non-selectable emergency box
-  fallback, switchable per host; the deleted health bar is restored; decorations are per path. User
-  rulings 2026-08-30. Still NOT-BUILT: 3.1 (CE-125 - the renderer hardcodes cyan at
-  EntityPresentationGizmoShared.cs:92), 3.2, 3.5, 3.6, 3.7.
+  fallback. THE SWITCH IS EMIT-SIDE, in EntityPresentationGizmo - the ExtDeps renderer is NOT touched,
+  because MilStd2525 is already a peer token with its own renderer case (3.8.3). 3.8's step 0 is DONE:
+  SemanticShapeRenderer deleted and the NATO affiliation table corrected (3.8.11). Still NOT-BUILT:
+  3.1 (CE-125 - the renderer hardcodes cyan at EntityPresentationGizmoShared.cs:92), 3.2, 3.5, 3.6, 3.7.
+known-rot: 3.0 is SUPERSEDED by 3.8.9 - the JSON style cascade is IG-ONLY, so StyleResolutionSystem is
+  NOT lifted to every host. 3.8's first two drafts are in the HISTORY section and must not be quoted -
+  both put a renderer seam inside FDP/ExtDeps/GizmoMap, which the final design does not need.
 known-rot: 3.0 is SUPERSEDED by 3.8.9 - the user ruled the JSON style cascade an IG-ONLY speciality, so
   StyleResolutionSystem is NOT lifted to every host. 3.8's own first draft is in the HISTORY section and
   must not be quoted.
@@ -330,50 +334,50 @@ the default becomes something a host *chooses*, not something it *misses*.
 paper over it**: log once when the cast fails, and 📌 **carry the DIS type in the primitive instead** — the
 gizmo already runs where the repo is available, so resolve early and pass the value. No new component.
 
-### 3.8 ⭐⭐⭐ TWO SELECTABLE SYMBOL PATHS + ONE EMERGENCY FALLBACK — switchable per host; IG may drive it from its own cascade
+### 3.8 ⭐⭐⭐ TWO SELECTABLE SYMBOL PATHS — **the switch is EMIT-SIDE; the renderer does not change**
 
 <!--build-state: READY-TO-BUILD-->
 
-> 🔒 **RULED by the user, `2026-08-30`:** *"i do not want to lose any of the renderers. they should become
+> 🔒 **User ruling, `2026-08-30`:** *"i do not want to lose any of the renderers. they should become
 > alternative symbol rendering paths, switchable (one active) per host, active path defined in hosts config."*
-> 🔒 **Refined by the user, same day**, after measurement: *"i see basically just 2 meaningful selectable
-> renderers … if those can not be used (missing data), the entity-real-sized wire rect with health bar is a
-> good fallback (non-selectable, just an emergency fallback if nothing better exists)."*
+> 🔒 **Refined:** *"i see basically just 2 meaningful selectable renderers … the entity-real-sized wire rect
+> with health bar is a good fallback (non-selectable, just an emergency fallback if nothing better exists)."*
+> 🔒 **And the decisive correction:** *"Isn't the ExtDeps gizmo just the rendering code existing independently
+> of when and who gives orders? The switch what to render per host should then not live in the rendering code
+> … only the control logic outside of ExtDeps should change."*
 
-⚠⚠ **An earlier draft of this section described FOUR selectable paths and a `nato2525` that draws a disc and
-a label. That draft was WRONG on three counts and is SUPERSEDED — see `## ⛔ HISTORY`.**
+⚠⚠ **Two earlier drafts of this section are SUPERSEDED** — one proposed four paths, both proposed a renderer
+seam inside `FDP/ExtDeps/GizmoMap`. 📄 `## ⛔ HISTORY`.
 
-#### 3.8.1 ⭐⭐ INVENTORY — **the queries, and the one the graph caught**
+#### 3.8.1 ⭐⭐ INVENTORY
 
 ```
 cli search_graph {"name_pattern":".*(ShapeLibrary|SymbolRenderer|ShapeRenderer|Symbology|MilStd).*"}
   → total 31, has_more false           # found SemanticShapeRenderer, which grep had missed
-grep -rn "\[GizmoProjector"                                   → 16 projectors, 6 of them map-drawing
-grep -rn "new DebugPrimitiveRenderer2D|DefaultEntityShapeLibrary()"  → 5 construction sites
-grep -rn "SemanticShapeRenderer"                              → 0 callers
-git log --all -S HealthBar --name-only                        → the deleted bar, below
+grep -rn "\[GizmoProjector"                          → 16 projectors, 6 of them map-drawing
+grep -rhoi '"symbolCode"[^,}]*' --include=*.json     → real 15-char SIDCs authored in TKB assets
+grep -rn "PresentationTkbTranslator" (non-test)      → registered on IG and SimHost only
+git log --all -S HealthBar --name-only               → the deleted bar (§3.8.5)
 ```
 
-| # | renderer | draws | where | verdict |
-|---|---|---|---|---|
-| **A** | `PerspectiveShapeRenderer` + `IEntityShapeLibrary` | oriented polyline silhouette, perspective exaggeration, `ShowWhen`/`HideWhen` gating | `GizmoMap.Presentation/Shapes/` | ⭐⭐ **selectable path `silhouette`** |
-| **B** | inline `else` branch, `DebugPrimitiveRenderer2D.cs:432` | magenta wire rect | — | ⛔ **NOT a path — emergency fallback** (§3.8.4) |
-| **C** | `MilStd2525Renderer` | filled disc + 4-char SIDC label | `GizmoMap.Presentation/Rendering/` | ⭐ **selectable path `nato2525`** — ⚠ **explicitly a STUB** |
-| **D** | `SemanticShapeRenderer` (0 callers) | rect + **red X on damage**; magenta circle fallback | `GizmoMap.Presentation/Rendering/` | ⛔ **not a path — donates its damage-X to `nato2525`** |
+| # | renderer | draws | verdict |
+|---|---|---|---|
+| **A** | `PerspectiveShapeRenderer` + `IEntityShapeLibrary` | oriented polyline silhouette, perspective exaggeration, condition gating | ⭐⭐ **path `silhouette`** |
+| **B** | inline `else` in the renderer's `SemanticShape` case | entity-sized wire rect | ⛔ **non-selectable emergency fallback** (§3.8.4) |
+| **C** | `MilStd2525Renderer` | filled disc in the affiliation colour + black outline + 4-char SIDC label | ⭐ **path `nato2525`** — ⚠ **a STUB, deliberately** |
+| **D** | ~~`SemanticShapeRenderer`~~ | rect + red X; magenta circle fallback | 🔴 **DELETED `2026-08-30`** (§3.8.3b) |
 
-⛔⛔ **C and D are not vestiges.** `.dev/_DONE/gizmos-1/batches/BATCH-20-INSTRUCTIONS.md:124-146` specifies both
-by name as `GZ055` deliverables. ⭐ **And it calls C what it is:** *"Stub NATO symbol rendering … draw a filled
-circle in the symbol's standard affiliation color … plus a text label with the first 4 chars of the SIDC code."*
-🔒 **User ruling:** *"If nato renderer is a stub, ok, so be it, i never saw it working better, so it can stay a
-stub but still a selectable entity renderer mode."* ⇒ ⚠ **`nato2525` is labelled STUB here so nobody re-files
-its appearance as a defect.** ⛔ It is **not** the multi-polyline STANAG frame renderer; that remains unbuilt.
+⭐ **`nato2525` stays a stub on purpose.** `.dev/_DONE/gizmos-1/batches/BATCH-20-INSTRUCTIONS.md:126` asked for
+exactly *"Stub NATO symbol rendering"*; 🔒 the user ruled *"it can stay a stub but still a selectable entity
+renderer mode."* ⛔ It is **not** the composed multi-polyline STANAG frame renderer; that remains unbuilt, and
+⚠ **must not be re-filed as a defect.**
 
 ##### ⛔ Six projectors that are NOT switchable, by construction
 
 `MapOverlayGizmo` *(`MapOverlayStyle`)* · `TacticalAreaGizmo` + `RouteGizmo` *(`TkbIdentity`)* ·
-`EffectPresentationGizmo` · `ProjectilePresentationGizmo` · `EqsSensorGizmo`.
-⭐⭐ **None emits `SemanticShape`**, so the path switch cannot reach them even by accident. 🔒 Matches the user's
-ruling that *"specific map drawing entities with their own specific look & behavior … is not style-switchable."*
+`EffectPresentationGizmo` · `ProjectilePresentationGizmo` · `EqsSensorGizmo` — ⭐⭐ **none emits an entity
+symbol primitive**, so the switch cannot reach them even by accident. 🔒 Matches the user's ruling that
+*"specific map drawing entities with their own specific look & behavior … is not style-switchable."*
 
 #### 3.8.2 ⭐⭐ How the silhouette polyline is chosen — **name first, DIS second, and the name half is dead**
 
@@ -387,56 +391,95 @@ else  decode fallbackDisType: kind 1 + domain 1 → ground_vehicle
 else  → EntityShapeProfile { Name = "_fallback" }        ⇒ the emergency box, §3.8.4
 ```
 
-🔴 **The call site passes `null`** — `DebugPrimitiveRenderer2D.cs:410`: `GetShape(null, prim.ProfileId)`.
-⇒ **only the DIS half ever runs**, and TKB's `VisualData.MapShapeName` is authored, translated into the
-component, and read by nobody. 📄 **Making the name half real is §3.5**, unchanged and still owed.
+🔴 **The call site passes `null`** *(`DebugPrimitiveRenderer2D.cs:410`)*, so only the DIS half ever runs and
+TKB's `VisualData.MapShapeName` is authored, translated and read by nobody. 📄 §3.5 owns that fix.
 
-#### 3.8.3 🔴 Why `IEntityShapeLibrary` is NOT the seam
+#### 3.8.3 ⭐⭐⭐ THE SWITCH IS EMIT-SIDE — **`MilStd2525` is already a peer token with its own renderer case**
 
-⭐ The tempting design is *"a shape library per path"* — the seam exists and all five hosts already inject it.
-⛔ **It cannot work:** `IEntityShapeLibrary` returns `EntityShapeProfile` = **polylines only**, and `nato2525`
-needs a **filled** disc plus a **text** label. ⇒ 🔒 **the switch is at the DRAW call, not the shape lookup.**
-⭐ `IEntityShapeLibrary` stays exactly as it is and becomes `silhouette`'s internal detail.
+⛔⛔ **Two earlier drafts put an `IEntitySymbolPath` interface inside `DebugPrimitiveRenderer2D`. That was
+wrong**, and the reasoning error is worth recording because it is easy to repeat.
 
-##### ⚠⚠ The argued, additive deviation from §3's *"no change to `FDP/ExtDeps/GizmoMap`"*
+📐 **The true premise:** `SemanticShape` is a **semantic token**, not a drawing instruction — the primitive is
+a 64-byte wire type and, in its own words, *"when the **dumb terminal** receives them, it uses a two-pass
+renderer."* Resolving *profile → geometry* terminal-side is deliberate.
+🔴 **The false inference:** *"therefore the style choice is part of that resolution, so the switch is
+renderer-side too."*
 
-| option | verdict |
+⭐⭐⭐ **It is not — because `DebugPrimitiveShape.MilStd2525` is already a PEER token with its own renderer
+case** *(`DebugPrimitiveRenderer2D.cs:442` → `MilStd2525Renderer.Draw`)*. It is a sibling of `SemanticShape`,
+not a sub-case of it. ⇒ 🔒 **choosing between two tokens is emit-side control logic**, and the renderer stays
+exactly as dumb as it is.
+
+| host chose | `EntityPresentationGizmo` emits |
 |---|---|
-| ⭐⭐ **`IEntitySymbolPath` + one dispatch line in `DebugPrimitiveRenderer2D`** | ✅ **RECOMMENDED** — ~30 lines, **additive**, default `null` ⇒ byte-identical output. It exposes ExtDeps renderers that already exist; it forks nothing |
-| ⚠ subclass and intercept the `virtual DispatchShape` | ⛔ **double-draws** — the `Fdp.Toolkit.Vis2D` wrapper runs its own dispatch loop **and then** `_inner.Render(...)` |
-| ⛔ honour the constraint literally | ⛔ loses `nato2525`, which the user ruled against |
+| `silhouette` | today's `MakeSemanticShape(...)` — ⭐ **unchanged** |
+| `nato2525` | a `MilStd2525` primitive — `Space = EntityLocal`, `AnchorIndex` = the entity, offset `(0,0)`, `SidcCode` = §3.8.3c |
 
-⇒ 🔒 **§3's constraint is amended narrowly:** *no **forking** of ExtDeps; an additive seam that exposes its own
-renderers is allowed.*
+⭐⭐ **Zero changes to `FDP/ExtDeps/GizmoMap`'s rendering code**, and §3's *"no change to ExtDeps"* constraint
+is **honoured**, not deviated from. ⭐ One primitive per entity either way.
 
-#### 3.8.4 ⭐⭐ The emergency fallback — **not selectable, and already correctly sized**
+##### ⭐ Entity-anchoring works today — measured, and it corrects a caveat
 
-🔒 **User:** *"the entity-real-sized wire rect with health bar is a good fallback (non-selectable, just an
-emergency fallback if nothing better exists)"* — *"which is not a normal shape renderer anyone would want
-selected intentionally."*
+⚠ The demo emits `MilStd2525` in `CoordinateSpace.World` *(`DemoSceneGenerator.cs:366`)*, which reads like a
+constraint. 📐 **It is not.** Pass 2's anchor resolution ends in:
 
-📐 **Measured: the sizing the user asks for is already what the code does.**
-`EntityPresentationGizmoShared.TryGetVehicleDimensions` fills `LengthMeters`/`WidthMeters` from TKB, and the
-renderer defaults `len = 5`, `wid = len * 0.5` when they are zero. ⇒ ⭐ **no work; only a demotion in the
-design** — B stops being a *path* and becomes what every path falls back to when its data cannot resolve.
+```csharp
+default:   // Icon and other shapes: transform via IconWorldPosX/Y
+    (float wx, float wy) = ApplyAnchor2D_XY(in entry, cos, sin, prim.IconWorldPosX, prim.IconWorldPosY);
+```
 
-| path | falls back to the box when |
+⭐⭐ `IconWorldPosX/Y` are at offsets **24/28** — the *same physical bytes* as `MilWorldPosX/MilWorldPosY`.
+`MilStd2525` has no case of its own, so it lands in `default` and is anchor-resolved through exactly those
+fields. ⇒ 🔒 **emit it `EntityLocal` at offset `(0,0)` and the symbol sits on the entity and moves with it**,
+resolving against the same `SpatialAnchor` as `SemanticShape`. *(The branch also rotates the offset by the
+anchor yaw; at `(0,0)` that is a no-op — and a NATO symbol should not rotate with the platform.)*
+
+##### 3.8.3b 🔴 `SemanticShapeRenderer` is DELETED
+
+> 🔒 **User, `2026-08-30`:** *"SemanticShapeRenderer is not doing anything I wanted and is basically superseded
+> by other ways of rendering entity shapes, we can remove it completely."*
+
+📐 It was a second, weaker implementation of `silhouette`'s job: its `ISemanticShapeProfileRegistry` mapped
+`profileId` → **dimensions** where `IEntityShapeLibrary` maps to **polylines**; it drew a rectangle, a red X on
+damage, and a magenta circle when unregistered. **Zero callers from its first commit**, and
+`UX_Seam_Inventory.md` already recorded its registry at **`0/0/0`** adoption.
+⭐ Deleted with `ISemanticShapeProfileRegistry` and `SemanticShapeProfile`. ⭐ The one behaviour worth keeping —
+the damage X — is two `Line` primitives emit-side (§3.8.6), which is cheaper than keeping a renderer alive.
+⚠ **This is a deletion FROM ExtDeps, which the "no change" constraint never forbade** — that constraint is
+about not forking or extending it.
+
+##### 3.8.3c ⭐⭐ The SIDC already exists in the data — **no synthesis needed on IG or SimHost**
+
+📐 **Measured, end to end.** `IgVisualDef.SymbolCode` defaults to `"SFGPUCIZ-------"`, and TKB assets author
+real 15-character SIDCs — `SFGPUCI--------`, `SFGPUCIZ-------`, `SFGPUCIZ--H----`. The chain
+`BdcTkbBuilder:97` → `VisualDefinitionDto.SymbolCode` → `PresentationTkbTranslator:47` →
+`VisualData.SymbolCode` → `StyleResolutionSystem:100` → `ResolvedStyle.TextureName` is live, and
+`ResolvedStyleConstants.TextureNameMaxBytes = 16` is sized for exactly 15 chars + null
+*(confirmed in `IG-BATCH-03-REPORT.md:78`: "Texture names are MIL-STD-2525 symbol codes")*.
+
+⚠ **So the field named `TextureName` is really a SIDC** — which is why §3.5 insists `MapShapeName` stay
+distinct from it.
+
+| host | SIDC source |
 |---|---|
-| `silhouette` | the profile resolves to `_fallback` *(no shape name, no DIS match)* |
-| `nato2525` | ⚠ never — a stub disc always draws. Kept for symmetry if it later needs real data |
+| **IG · SimHost** | ⭐ `VisualData.SymbolCode`, authored in TKB — `PresentationTkbTranslator` is registered there |
+| ⚠ **CGF · Editor · ReplayBrowser** | 🔴 **`PresentationTkbTranslator` is NOT registered**, so `VisualData` is absent ⇒ the gizmo must synthesise a SIDC from `EntityInfo.ForceId` + DIS type, **or** the translator is registered more widely. ⭐ **Decide at build time and say which** |
 
-#### 3.8.5 ⭐⭐⭐ THE HEALTH BAR — **it existed, it was deleted, and it is being restored**
+#### 3.8.4 ⭐⭐ The emergency fallback — not selectable, and already correctly sized
 
-> 🔒 **User:** *"there was a nice implementation of the health bar; maybe it was lost when gizmo renderer took
-> over?"* — 📐 **Measured: yes, exactly that.**
+🔒 **User:** *"the entity-real-sized wire rect with health bar is a good fallback (non-selectable) … not a
+normal shape renderer anyone would want selected intentionally."*
+📐 **The sizing already exists:** `TryGetVehicleDimensions` fills `LengthMeters`/`WidthMeters` from TKB, and
+the renderer defaults `len = 5`, `wid = len * 0.5` when they are zero. ⇒ ⭐ **no code; a demotion in the
+design.** It is what `silhouette` falls back to when the profile resolves to `_fallback`.
+
+#### 3.8.5 ⭐⭐⭐ THE HEALTH BAR — it existed, it was deleted, it is being restored
 
 | | |
 |---|---|
-| ⭐ **built** | `NedVisualizerAdapter` *(file `SstVisualizerAdapter.cs`)*; made always-on by **`e726734cc` "fix: health bar on IG map"**, `2026-04-22` |
-| 🔴 **deleted** | **`5ce023677` "GZ059: eradicate legacy IVisualizerAdapter/EntityRenderLayer rendering stack"**, `2026-05-08` — 268 lines + 95 of constants, with the whole legacy adapter stack |
-| ⛔ **never replaced** | `HealthBarGizmo` emits `DrawEntityBadge("87%")`. ⚠⚠ **It reads `BarWidth`/`BarHeight` from settings and DISCARDS them — and has done so since its first commit** *(`HealthBarGizmoInstance`, BATCH-07)*. ⇒ the badge never *replaced* the bar; it was written beside it and the bar was deleted underneath |
-
-##### ⭐ The recovered behaviour — `e726734cc`, verbatim intent
+| ⭐ **built** | `NedVisualizerAdapter` *(`SstVisualizerAdapter.cs`)*; made always-on by **`e726734cc` "fix: health bar on IG map"**, `2026-04-22` |
+| 🔴 **deleted** | **`5ce023677` "GZ059: eradicate legacy IVisualizerAdapter/EntityRenderLayer rendering stack"**, `2026-05-08` — 268 lines + 95 of constants |
+| ⛔ **never replaced** | `HealthBarGizmo` emits `DrawEntityBadge("87%")`, and ⚠⚠ **has read-and-DISCARDED `BarWidth`/`BarHeight` since its first commit** *(`HealthBarGizmoInstance`, BATCH-07)*. The badge was written *beside* the bar; the bar was deleted underneath it |
 
 ```csharp
 Raylib.DrawRectangleV(pos, new Vector2(width, height), new Color(30,30,30,200));  // dark backing
@@ -446,143 +489,107 @@ Raylib.DrawRectangleLinesEx(new Rectangle(pos.X,pos.Y,width,height), 1f, Color.W
 ```
 
 🔒 **Three DISCRETE colours** — `green ≥ 66`, `yellow ≥ 33`, else `red` — with the **fill WIDTH** proportional
-to the percentage. ⚠ **Confirmed by the user against a smooth-lerp alternative:** *"probably you are right and
-it was just 3 distinct colors health bar lerp on percentage — that was what i need now as well."*
-📐 Original geometry: `30 × 6` px, `25` px above the entity.
+to the percentage; confirmed by the user against a smooth-lerp alternative. 📐 `30 × 6` px, `25` px above.
 
-##### ⭐⭐ It needs no new machinery — **two `DrawBox2D` calls**
+⭐⭐ **No new machinery:** `IDebugDrawBuilder.DrawBox2D` takes a `fillColor`, the renderer honours an explicit
+fill **plus** an outline on one primitive, `SizeMode.ScreenPixels` exists, and `Box2D` anchor-resolves in
+`EntityLocal`. ⇒ **backing box + fill box, ~15 lines**, and `BarWidth`/`BarHeight` finally get used.
 
-📐 `IDebugDrawBuilder.DrawBox2D(center, extents, color, angleDeg, thickness, sizeMode, target, layer,`
-**`fillColor`**`, style, anchorId, subElementId)`, and the renderer honours an explicit fill
-*(`prim.FillColor.A > 0`)* **plus** an outline on the same primitive, supports `SizeMode.ScreenPixels`, and
-resolves `Box2D` in `CoordinateSpace.EntityLocal` against the entity's `SpatialAnchor` in pass 2.
+#### 3.8.6 ⭐⭐ Decorations are per path
 
-⇒ ⭐ **backing box + fill box, ~15 lines in `HealthBarGizmo.Draw`, no primitive change, no ExtDeps change.**
-⚠ The one thing to settle at build time is the vertical offset in the EntityLocal frame.
-⭐ **And `BarWidth`/`BarHeight` stop being read-and-discarded** — the restored bar is the first code that uses them.
-
-#### 3.8.6 ⭐⭐ Decorations are PER PATH — and the switch reuses `S4`'s policy resolver
+| decoration | `silhouette` | `nato2525` | box fallback | emitted by |
+|---|---|---|---|---|
+| **health bar** | ✅ | ⛔ | ✅ | `HealthBarGizmo` — a separate projector, gated by an `IGizmoVisibilityPolicy` on the path setting *(`S4`'s existing mechanism, no new one)* |
+| **red X on destroyed** | ⛔ | ✅ | ⛔ | ⭐ `EntityPresentationGizmo` — **two `Line` primitives** when the damage condition is set |
 
 🔒 **User:** *"the red X for destroyed entities should be part of all renderers not having the health bar (i.e.
 the nato 2525); the silhouette should have the health bar rendered at the top."*
+⭐ Both decorations are emit-side, which is why the whole design needs no renderer change.
 
-| decoration | `silhouette` | `nato2525` | box fallback | owner |
-|---|---|---|---|---|
-| **health bar** | ✅ | ⛔ | ✅ | `HealthBarGizmo` — a **separate projector** |
-| **red X on destroyed** | ⛔ | ✅ | ⛔ | the **path itself**, in the renderer |
-
-⭐⭐ **Why the split.** A path runs inside the renderer and sees only primitives — it cannot query ECS, so it
-cannot compute a health percentage; but it *does* receive `ConditionMask`, which is all the X needs.
-⭐ **The bar therefore stays a projector**, and *"which paths get it"* is expressed with the machinery `S4`
-already built: a `IGizmoVisibilityPolicy` on `HealthBarGizmo` whose `IsGloballyEnabled` is false when the
-active path is `nato2525`. ⛔ **No new mechanism.**
-📐 The X's source already exists — `SemanticShapeRenderer` draws exactly it on `ConditionMask` bit 0.
-
-#### 3.8.7 ⭐⭐ The seam — class diagram
+#### 3.8.7 ⭐⭐ Class diagram
 
 ```mermaid
 classDiagram
-    class IEntitySymbolPath {
-        <<interface>>
-        +string Name
-        +Draw(prim, worldX, worldY, rot, len, wid, color, cond, zoom)
-    }
-    class SilhouettePath
-    class Nato2525Path
-    class BoxFallback
-
-    class DebugPrimitiveRenderer2D {
-        -IEntityShapeLibrary shapeLibrary
-        -IEntitySymbolPath symbolPath
-        +Render(primitives, camera, zoom)
-    }
-    class PerspectiveShapeRenderer
-    class MilStd2525Renderer
-    class SemanticShapeRenderer
-    class IEntityShapeLibrary {
-        <<interface>>
-        +GetShape(shapeName, fallbackDisType)
-    }
-    class DefaultEntityShapeLibrary
-
-    class SymbolPathFactory {
-        +Create(name) IEntitySymbolPath
-    }
-    class GizmoSettingsRegistry
-    class DebugGizmoLayer
-
-    class HealthBarGizmo {
+    class EntityPresentationGizmo {
         +Draw(view, entity, drawBuilder)
     }
+    class EntityPresentationGizmoSettings
+    class GizmoSettingsRegistry
+    class HealthBarGizmo
+    class PathScopedPolicy
     class IGizmoVisibilityPolicy {
         <<interface>>
         +IsGloballyEnabled
     }
-    class PathScopedPolicy
 
-    IEntitySymbolPath <|.. SilhouettePath
-    IEntitySymbolPath <|.. Nato2525Path
-    SilhouettePath ..> PerspectiveShapeRenderer : delegates
-    SilhouettePath ..> IEntityShapeLibrary : looks up
-    SilhouettePath ..> BoxFallback : profile is _fallback
-    Nato2525Path ..> MilStd2525Renderer : delegates
-    Nato2525Path ..> SemanticShapeRenderer : damage X
+    class DebugPrimitiveBuffer
+    class DebugPrimitiveRenderer2D {
+        +Render(primitives, camera, zoom)
+    }
+    class PerspectiveShapeRenderer
+    class MilStd2525Renderer
+    class IEntityShapeLibrary {
+        <<interface>>
+    }
+    class DefaultEntityShapeLibrary
+
+    EntityPresentationGizmo ..> GizmoSettingsRegistry : reads map.symbology.path
+    EntityPresentationGizmo ..> DebugPrimitiveBuffer : SemanticShape OR MilStd2525
+    HealthBarGizmo ..> DebugPrimitiveBuffer : two Box2D
+    HealthBarGizmo --> PathScopedPolicy : off when nato2525
+    IGizmoVisibilityPolicy <|.. PathScopedPolicy
+    PathScopedPolicy ..> GizmoSettingsRegistry : same key
+    EntityPresentationGizmoSettings ..> GizmoSettingsRegistry
+
+    DebugPrimitiveBuffer --> DebugPrimitiveRenderer2D : one frame
+    DebugPrimitiveRenderer2D ..> PerspectiveShapeRenderer : case SemanticShape
+    DebugPrimitiveRenderer2D ..> MilStd2525Renderer : case MilStd2525
+    DebugPrimitiveRenderer2D o-- IEntityShapeLibrary
     IEntityShapeLibrary <|.. DefaultEntityShapeLibrary
 
-    DebugPrimitiveRenderer2D o-- IEntitySymbolPath : 1 active
-    DebugPrimitiveRenderer2D o-- IEntityShapeLibrary
-    DebugGizmoLayer *-- DebugPrimitiveRenderer2D
-    SymbolPathFactory ..> GizmoSettingsRegistry : reads map.symbology.path
-    DebugGizmoLayer ..> SymbolPathFactory : per host, at construction
-
-    IGizmoVisibilityPolicy <|.. PathScopedPolicy
-    HealthBarGizmo --> PathScopedPolicy : off when nato2525
-    PathScopedPolicy ..> GizmoSettingsRegistry : same key
-
-    note for PerspectiveShapeRenderer "EXISTS - GizmoMap.Presentation/Shapes/"
-    note for MilStd2525Renderer "EXISTS, a STUB by its own spec - disc plus SIDC label"
-    note for SemanticShapeRenderer "EXISTS, 0 callers - only its damage X is reused"
-    note for BoxFallback "EXISTS inline at DebugPrimitiveRenderer2D.cs:432 - demoted to fallback"
-    note for HealthBarGizmo "EXISTS but draws a TEXT BADGE - restore the bar from e726734cc"
-    note for IGizmoVisibilityPolicy "EXISTS - S4 made StatelessGizmoSystem honour it"
+    note for DebugPrimitiveRenderer2D "ExtDeps - UNCHANGED. Both cases already exist"
+    note for MilStd2525Renderer "ExtDeps - only its affiliation TABLE was corrected"
+    note for EntityPresentationGizmo "HROT - this is where the switch lives"
+    note for HealthBarGizmo "HROT - draws a badge today; restore the bar"
 ```
 
-#### 3.8.8 ⭐⭐ Selection and one frame — sequence diagram
+#### 3.8.8 ⭐⭐ One frame — sequence diagram
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Host as Host boot
     participant Cfg as IG only - MapInteractionConfig
-    participant Settings as GizmoSettingsRegistry
-    participant Factory as SymbolPathFactory
-    participant Layer as DebugGizmoLayer
-    participant Rend as DebugPrimitiveRenderer2D
-    participant Path as IEntitySymbolPath
+    participant Set as GizmoSettingsRegistry
     participant Ent as EntityPresentationGizmo
     participant Bar as HealthBarGizmo
+    participant Buf as DebugPrimitiveBuffer
+    participant Rend as DebugPrimitiveRenderer2D
 
-    Host->>Settings: write "map.symbology.path" from host config
+    Host->>Set: write map.symbology.path from host config
     opt IG only
-        Cfg->>Settings: styles.globalStandard, MapId over MapGroupId over global
+        Cfg->>Set: styles.globalStandard, MapId over MapGroupId over global
     end
-    Host->>Factory: Create(settings)
-    Factory-->>Host: SilhouettePath
-    Host->>Layer: ctor(buffer, camera, shapeLibrary, symbolPath)
-    Layer->>Rend: ctor(shapeLibrary, symbolPath)
 
     loop every PostSimulation frame
-        Ent->>Rend: SemanticShape prim - ProfileId, len, wid, cond, Color
+        Ent->>Set: read map.symbology.path
+        alt silhouette
+            Ent->>Buf: SpatialAnchor + SemanticShape(ProfileId, len, wid, cond, Color)
+        else nato2525
+            Ent->>Buf: SpatialAnchor + MilStd2525(EntityLocal 0,0, SidcCode)
+            opt destroyed
+                Ent->>Buf: two Line primitives - the red X
+            end
+        end
         Bar->>Bar: policy off when path is nato2525
-        Bar->>Rend: two Box2D prims - backing plus fill
-        Rend->>Rend: pass 1 cache SpatialAnchor
-        Rend->>Rend: pass 2 resolve world pose
-        Rend->>Path: Draw(prim, world, rot, len, wid, prim.Color, cond, zoom)
-        Path-->>Rend: silhouette, or nato stub plus red X, or box fallback
+        Bar->>Buf: two Box2D - backing plus fill
+        Buf->>Rend: the frame
+        Rend->>Rend: pass 1 cache anchors, pass 2 resolve EntityLocal
+        Rend->>Rend: dispatch each case exactly as it does today
     end
 ```
 
-#### 3.8.9 ⭐ Configuration — **host-scoped for everyone; IG additionally has its own cascade**
+#### 3.8.9 ⭐ Configuration — host-scoped for everyone; IG additionally has its own cascade
 
 | key | values | default |
 |---|---|---|
@@ -593,78 +600,89 @@ sequenceDiagram
 
 ##### 🔒 The JSON cascade is an **IG SPECIALITY** — ⛔ not a shared feature
 
-> 🔒 **User ruling, `2026-08-30`:** *"we can ignore the json cascade for cgf and simhost; that was used when IG
-> was representing a stylable map; so the style cascading could likely stay as IG subsystem speciality which may
-> affect some configs of shared map rendering of IG (like switching the entity rendering style), but is not a
-> shared feature for other subsystems' maps — no json cascading for CGF/SimHost/ReplayBrowser."*
+> 🔒 **User:** *"no json cascading for CGF/SimHost/ReplayBrowser … the style cascading could stay as IG
+> subsystem speciality which may affect some configs of shared map rendering of IG (like switching the entity
+> rendering style)."*
 
-⇒ ⛔⛔ **This REVERSES §3.0**, which proposed lifting `StyleResolutionSystem` to every host with a per-host source
-list. ⭐ §3.0 is **SUPERSEDED**: the resolver, `MapUserConfig`, `IgSymbolOverride` and the cascade stay in
-`Hrot.IG`. ⭐ **CGF · SimHost · ReplayBrowser · Editor get the shared renderer and a plain host-config key.**
+⇒ ⛔⛔ **SUPERSEDES §3.0**, which proposed lifting `StyleResolutionSystem` to every host. The resolver,
+`MapUserConfig`, `IgSymbolOverride` and the cascade stay in `Hrot.IG`.
 
-##### ⭐⭐ Where IG's per-map style already lives — **measured, and it is not where we guessed**
-
-🔒 **User:** *"StyleParamJson was very likely for a mapId … the IG subsystem instance should be assigned a
-concrete mapId and mapGroupId and also the last received per-map json style."*
-⭐⭐ **The memory is right; the carrier is a different field, and it is BETTER.**
+##### ⭐⭐ IG's per-map style mount point — measured, and not where we guessed
 
 | carrier | scope | state |
 |---|---|---|
-| ⭐⭐⭐ **`MapInteractionConfig.ConfigurationJson`** | **per map** — `[DdsKey] MapId` + `[DdsKey] MapGroupId`, documented tiering **`MapId > MapGroupId > global (both 0)`** | ✅ **on the wire, and IG ALREADY PARSES IT** *(`IgApplication.cs:~3250`)* — ⚠ but only the `"interaction"` key *(`PLACEMENT`, `AREA_AUTHORING`)*. 🔴 **Its own doc comment says *"Keys include: 'view' (layers), 'tools' (active cursor), `"styles"`'"* — and `"styles"` is never read** |
-| `MapConfigStatus.CurrentSettingsJson` | per map instance | ⭐ *"the FULL current configuration state"* — the *"last received per-map style"* the user remembered |
-| ⚠ `MapEntitySymbol.StyleParamsJson` | **per ENTITY** — *"colorOverride", "forceLabel", "halo"* | ⛔ **NOT the per-map style.** This is the entity-instance override the user ruled unnecessary |
+| ⭐⭐⭐ **`MapInteractionConfig.ConfigurationJson`** | **per map** — `[DdsKey] MapId` + `[DdsKey] MapGroupId`, documented **`MapId > MapGroupId > global`** | ✅ on the wire, and **IG already parses it** *(`IgApplication.cs:~3250`)* — ⚠ only the `"interaction"` key. 🔴 Its own comment names `"styles"`, and nothing reads it |
+| `MapConfigStatus.CurrentSettingsJson` | per map instance | *"the FULL current configuration state"* — the *"last received per-map style"* |
+| ⚠ `MapEntitySymbol.StyleParamsJson` | **per ENTITY** | ⛔ **not the per-map style.** The entity-instance override the user ruled unnecessary |
 
-⇒ ⭐⭐⭐ **IG's mount point is `ConfigurationJson` → `"styles"` → `globalStandard`** *(the spec's own name, line
-1543 of `map-specs.md`)*, which writes `map.symbology.path` into `GizmoSettingsRegistry`. 🔒 **The shared
-renderer never learns what DDS is** — it reads one settings key, and on IG something else happens to write it.
-⭐ **~30 lines added to a parser that already exists**, not new machinery.
+⇒ ⭐ IG's hook is `ConfigurationJson` → `"styles"` → `globalStandard` *(the spec's own name,
+`map-specs.md:1543`)*, writing `map.symbology.path`. 🔒 **The shared renderer never learns what DDS is.**
 
-#### 3.8.10 ⭐ The truncated cascade — **what to delete, what to KEEP**
-
-📐 **Measured: of the four fields `StyleResolutionSystem` merges, only `StyleSetId` is ever populated**, and only
-as one of four hardcoded affiliation tokens. The ingress translator hardcodes `TextureOverride = null` and never
-sets the other two.
+#### 3.8.10 ⭐ The truncated cascade — what to delete, what to KEEP
 
 | field | verdict |
 |---|---|
-| `IgSymbolOverride.TextureOverride` | ⛔ **DELETE** — written `null` at both ingress sites, genuinely unread |
-| `IgSymbolOverride.LabelOverride` | ⛔ **DELETE** — never set |
-| ⭐⭐ **`IgSymbolOverride.ShowHistory`** | ✅✅ **KEEP.** 🔴 It gates `ResolvedStyle.ShowTrail`, which gates `HistoryRecordingSystem`, which fills `HistoryTrail`. Since ingress never sets it, **IG's entire movement-trail feature is dead by construction, not by design** — deleting the field deletes the trail's only intended on-switch. 🔒 **User: *"Let's keep the history trail."*** ⇒ ⭐ **wiring it is its own row** |
-| ⚠ `MapEntitySymbol.StyleParamsJson` | ⚠ **KEEP ON THE WIRE.** `MapEntitySymbol` is `[DdsTopic]` + `[DdsIdlFile("hrot-map-desc")]` — an **external contract with ExCon/IOS**. ⛔ Removing the C# component fields is internal and free; removing the wire field changes the IDL. ⭐ Leave it unparsed and say so here, so the next reader does not re-file it |
+| `IgSymbolOverride.TextureOverride` · `.LabelOverride` | ⛔ **DELETE** — written `null` / never set at both ingress sites |
+| ⭐⭐ **`.ShowHistory`** | ✅✅ **KEEP.** It gates `ResolvedStyle.ShowTrail` → `HistoryRecordingSystem` → `HistoryTrail`; never set at ingress, so **IG's whole movement-trail feature is dead by construction**. 🔒 *"Let's keep the history trail."* ⇒ **`CE-135`** |
+| ⚠ `MapEntitySymbol.StyleParamsJson` | ⚠ **KEEP ON THE WIRE** — `[DdsTopic]` + `[DdsIdlFile]`, an external contract with ExCon/IOS. Leave unparsed and documented |
 
-#### 3.8.11 ⭐ Palette — **unchanged**
+#### 3.8.11 ⭐⭐ Palettes — **two, and they do not conflict**
 
-🔒 **User, `2026-08-30`:** *"Ad palette, ok, let's use what is there now."* ⇒ ⭐ `ResolvedStyleConstants` stays
-authoritative: Friend `(0,100,255)` · Hostile `(255,0,0)` · Neutral green · Unknown white.
-⭐ §3.2's verdicts are unchanged, and its note *"before anyone revives that path"* resolves as: an **entity** on
-`nato2525` is coloured by `prim.Color` *(so `ResolvedStyleConstants` wins)*; a genuine **SIDC** primitive keeps
-`MilStd2525Renderer`'s own palette, which is what makes it a distinct path.
+🔒 **User:** *"let's use what is there now"* for the entity palette; *"I want the colors right"* for NATO.
+
+| path | colour source |
+|---|---|
+| `silhouette`, box fallback | ⭐ `ResolvedStyleConstants` via `prim.Color` — Friend `(0,100,255)` · Hostile `(255,0,0)` · Neutral green · Unknown white. **Unchanged**; §3.2's verdicts stand |
+| `nato2525` | ⭐⭐ the **standard's own** affiliation colours, derived from SIDC character 2. The renderer ignores `prim.Color` **and that is correct** — the colour is a property of the symbology standard, not of the primitive; the gizmo selects it by choosing the affiliation character |
+
+##### ✅ AS-BUILT `2026-08-30` — the NATO affiliation table was wrong and is fixed
+
+📐 **The previous table had neutral and unknown SWAPPED** against the standard, put Joker with the friends, and
+covered only 7 of the 15 affiliation characters — everything else fell to the "unknown" arm and rendered green.
+
+| affiliation | characters | colour |
+|---|---|---|
+| Friend | `F` friend · `A` assumed friend · `D` exercise friend · `M` exercise assumed friend | light blue `(128,224,255)` |
+| Hostile | `H` hostile · `S` suspect · `J` joker · `K` faker | light red `(255,128,128)` |
+| Neutral | `N` neutral · `L` exercise neutral | light green `(170,255,170)` |
+| Unknown | `U` · `P` pending · `G` exercise pending · `W` exercise unknown · `O` none specified · anything unrecognised or too short | light yellow `(255,255,128)` |
+
+⚠ **Joker and Faker are friendly tracks acting as suspect/hostile for exercise purposes**, and the standard
+renders them in the hostile colour — which is why `J` moved out of the friendly bucket.
+⭐ Gated by a 18-case `[Theory]` plus a distinctness rail *(four identical colours would satisfy the mapping
+test on its own)*, inverse-edit red-proved: reverting neutral to the old value reddens exactly the `N`/`L` cases.
+
+⚠⚠ **A THIRD affiliation decoder disagrees** — `PresentationTkbTranslator.DeriveForceId` reads the same SIDC
+character but maps only `F`→Friend, `H`→Hostile, **everything else**→Neutral. ⇒ an *assumed friend* (`A`) or
+*exercise friend* (`D`) entity gets `ForceId.Neutral` and a neutral tint on the silhouette path. 📌 Filed as
+**`CE-136`**; ⛔ not fixed here because it changes TKB-derived affiliation on every host.
 
 #### 3.8.12 ⭐ Sequencing
 
 | step | what | depends on |
 |---|---|---|
-| **1** | 🔒 **`CE-125` / §3.1** — the affiliation-derived tint reaches `prim.Color` | — |
-| **2** | ⭐ **the health bar restoration** *(§3.8.5)* — self-contained, no seam needed | — |
-| **3** | ⭐ **the path seam + two paths + the fallback demotion + the config key** | — |
-| **4** | ⚠ **IG's `"styles"` parsing** *(§3.8.9)* — IG-only | 3 |
+| ✅ **0** | **DONE `2026-08-30`** — delete `SemanticShapeRenderer`; correct the NATO affiliation table | — |
+| **1** | 🔒 `CE-125` / §3.1 — the affiliation-derived tint reaches `prim.Color` | — |
+| **2** | ⭐ the health bar restoration (§3.8.5) — self-contained | — |
+| **3** | ⭐ the emit-side switch + the SIDC source + the config key | — |
+| **4** | ⚠ IG's `"styles"` parsing (§3.8.9) — IG-only | 3 |
 
-⚠⚠ **Correcting an earlier statement in this design:** step 1 was called a **prerequisite** for the seam. 📐 It
-is not — both compile independently. ⭐ But until step 1 lands every path renders in the literal cyan of
-`EntityPresentationGizmoShared.cs:92`, so **step 1 is what makes step 3 worth looking at.**
+⚠ **Step 1 is not a prerequisite for step 3** — but until it lands, `silhouette` renders in the literal cyan of
+`EntityPresentationGizmoShared.cs:92`. ⭐ `nato2525` is unaffected by it, since its colour comes from the SIDC.
 
 #### 3.8.13 ⭐ Acceptance
 
 | # | |
 |---|---|
-| ① | ⭐⭐ **Default is byte-identical** — with no key set, every host renders exactly what it renders today; a rail asserting `symbolPath: null` takes the pre-existing code path |
-| ② | ⭐ **Each path draws its own thing** — a rail per path against a capturing double, not Raylib: `silhouette` emits the profile's polylines; `nato2525` emits the disc **plus the red X when `ConditionMask` bit 0 is set** |
-| ③ | ⭐ **The fallback is reachable and is NOT selectable** — a rail feeding an unresolvable `ProfileId` gets the entity-sized wire box; and a rail asserting `SymbolPathFactory.Create("box")` is **not** a valid path name |
-| ④ | ⭐⭐⭐ **The health bar is a BAR** — a rail asserting two `Box2D` primitives with `FillColor.A > 0`, the fill box's width proportional to health, and the three discrete colours at the `66`/`33` boundaries. ⛔ A rail that only asserts "a primitive was emitted" is vacuous — the badge would satisfy it |
-| ⑤ | ⭐ **Decorations follow the path** — a rail asserting `HealthBarGizmo` emits nothing when the active path is `nato2525`, and emits when it is `silhouette` |
-| ⑥ | ⭐⭐ **Config selects per host** — two `GizmoSettingsRegistry` instances, two different `IEntitySymbolPath` types |
-| ⑦ | ⭐ **Nothing is lost** — `MilStd2525Renderer`, `SemanticShapeRenderer`, `PerspectiveShapeRenderer` and the `case MilStd2525:` demo dispatch all still exist. ⛔ A diff deleting any of them fails this section |
-| ⑧ | ⚠ **`ShowHistory` survives** — a rail asserting the field still exists and still reaches `ResolvedStyle.ShowTrail` |
+| ① | ⭐⭐ **Default is byte-identical** — with no key set every host emits exactly what it emits today |
+| ② | ⭐⭐ **The renderer is untouched** — ⛔ a diff that modifies `DebugPrimitiveRenderer2D`'s dispatch, or adds a seam to it, fails this section |
+| ③ | ⭐ **The switch is emit-side** — a rail driving `EntityPresentationGizmo` with each setting and asserting the emitted primitive's `Shape` is `SemanticShape` vs `MilStd2525` |
+| ④ | ⭐⭐ **The NATO symbol is entity-anchored** — a rail asserting `Space == EntityLocal` and a matching `AnchorIndex`, ⛔ not `CoordinateSpace.World` |
+| ⑤ | ⭐⭐⭐ **The health bar is a BAR** — two `Box2D` with `FillColor.A > 0`, fill width proportional to health, three discrete colours at the `66`/`33` boundaries. ⛔ *"a primitive was emitted"* is VACUOUS — the badge satisfies it |
+| ⑥ | ⭐ **Decorations follow the path** — `HealthBarGizmo` emits nothing on `nato2525`; the red X emits only on `nato2525` and only when destroyed |
+| ⑦ | ⭐⭐ **Config selects per host** — two `GizmoSettingsRegistry` instances, two different emitted shapes |
+| ⑧ | ⚠ **`ShowHistory` survives** — a rail asserting the field still reaches `ResolvedStyle.ShowTrail` |
+| ⑨ | ✅ **The NATO palette matches the standard** — the `[Theory]` above, plus the distinctness rail |
 
 ## 4. Acceptance
 
@@ -724,7 +742,7 @@ load-bearing one** — IG is the production map, and this design must be provabl
 
 ## ⛔ HISTORY
 
-### ⛔ HISTORY — §3.8's FIRST DRAFT (`2026-08-30`, superseded the same day)
+### ⛔ HISTORY — §3.8's FIRST TWO DRAFTS (`2026-08-30`, both superseded the same day)
 
 ⛔ **Do not quote it. Three claims were wrong**, each corrected by the user against measurement:
 
@@ -737,3 +755,20 @@ load-bearing one** — IG is the production map, and this design must be provabl
 ⚠ **It also proposed a palette change** *(gray neutral, magenta unknown)*; 🔒 the user ruled *"let's use what is
 there now"* ⇒ §3.8.11.
 ⚠ **And it asked whether the JSON cascade should be shared**; 🔒 ruled **IG-only** ⇒ §3.8.9.
+
+#### ⛔ The SECOND draft — the renderer seam
+
+⛔ It kept two paths and the fallback, but put an **`IEntitySymbolPath` interface + a dispatch line inside
+`DebugPrimitiveRenderer2D`**, and argued an *"additive deviation"* from §3's no-ExtDeps-change constraint.
+
+> 🔒 **User:** *"Isn't the ExtDeps gizmo just the rendering code existing independently of when and who gives
+> orders for the rendering part to render something? The switch what to render per host should then not live
+> in the rendering code."*
+
+⭐⭐ **Right, and the codebase already agreed:** `DebugPrimitiveShape.MilStd2525` is a **peer token with its own
+renderer case**, so choosing between it and `SemanticShape` is emit-side. ⇒ 🔒 **no ExtDeps seam, no deviation,
+no interface.** 📄 §3.8.3.
+
+⚠ The second draft also claimed the NATO symbol *"must be world-anchored"*, reading the demo's
+`CoordinateSpace.World` as a constraint. 📐 **False** — `MilStd2525` anchor-resolves through pass 2's `default`
+branch, because `IconWorldPosX/Y` and `MilWorldPosX/Y` share offsets 24/28. 📄 §3.8.3a.

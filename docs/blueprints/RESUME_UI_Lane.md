@@ -1,12 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-30
-current-answer: §0.0e.3d — S5 is BLOCKED (UXI-07 is NOT-BUILT). S1, S2a, S2b, S3, S4 (1+3) DONE and
-  live-verified; CE-123/126/129 closed; CE-131 REFUTED (UX_Feature_Map_Parity.md §3.2g). NEW 2026-08-30:
-  the symbology design is settled with the user and READY-TO-BUILD —
-  UX_Feature_Entity_Symbology.md §3.8 (UML gated): TWO selectable symbol paths + a non-selectable box
-  fallback, per-path decorations, and the DELETED health bar restored (CE-134). The JSON style cascade is
-  ruled IG-ONLY, which SUPERSEDES §3.0. Rows: CE-133 (seam), CE-134 (health bar), CE-135 (dead trail).
+current-answer: §0.0e.3d — S5 is BLOCKED (UXI-07 is NOT-BUILT). S1, S2a, S2b, S3, S4 (1+3) DONE;
+  CE-123/126/129 closed; CE-131 REFUTED. 2026-08-30: the symbology design is SETTLED with the user and
+  READY-TO-BUILD — UX_Feature_Entity_Symbology.md §3.8. Its key property: the switch is EMIT-SIDE, so
+  FDP/ExtDeps/GizmoMap needs NO renderer change (MilStd2525 is already a peer token with its own case).
+  Step 0 is BUILT: SemanticShapeRenderer deleted, NATO affiliation table corrected to the standard.
+  Rows: CE-133 (the switch), CE-134 (health bar), CE-135 (dead trail), CE-136 (third SIDC decoder).
   Pick from the AVAILABLE WORK table — none is pre-approved, ask first.
 
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
@@ -296,9 +296,10 @@ that lane owns. ⛔ **Do not start `S5`.**
 
 | candidate | why | size |
 |---|---|---|
-| ⭐⭐⭐ **`CE-134` — restore the graphical HEALTH BAR** | 📐 **It was BUILT and DELETED.** `e726734cc` *("fix: health bar on IG map", `2026-04-22`)* made it always-on; `5ce023677` *(GZ059, `2026-05-08`)* deleted it with the legacy adapter stack. ⛔⛔ **`HealthBarGizmo` never replaced it** — it draws `DrawEntityBadge("87%")` and has read-and-DISCARDED `BarWidth`/`BarHeight` since its first commit. ⭐⭐ **~15 lines, no new machinery** — `DrawBox2D` already takes a `fillColor`. ⚠ **A rail asserting "a primitive was emitted" is VACUOUS.** 📄 §3.8.5 | `RW-S` |
-| ⭐⭐⭐ **`CE-133` — two selectable symbol paths + an emergency fallback** | 🔒 User ruling `2026-08-30`, refined the same day to **two** meaningful paths *(`silhouette`, `nato2525`-as-a-STUB)* + the non-selectable wire-box fallback. ⭐⭐ **DESIGN WRITTEN AND GATED** — [`UX_Feature_Entity_Symbology.md` §3.8](../UX/UX_Feature_Entity_Symbology.md), `READY-TO-BUILD`, UML parses, `INVENTORY` present. ⚠ **The one thing needing a nod before building: the additive ExtDeps deviation (§3.8.3).** 🔒 The JSON cascade is **IG-only** ⇒ ⛔ this SUPERSEDES §3.0 | `RW-M` |
-| ⭐ **`CE-135` — IG's movement trail is dead by construction** | 📐 `ShowHistory` → `ShowTrail` → `HistoryRecordingSystem` → `HistoryTrail` is a four-link chain whose **first link is never set at ingress** ⇒ the whole built feature never runs. 🔒 User: *"Let's keep the history trail."* ⛔ **This is why `ShowHistory` must not be deleted with the other unused `IgSymbolOverride` fields** | `RW-S` |
+| ⭐⭐⭐ **`CE-134` — restore the graphical HEALTH BAR** | 📐 **BUILT then DELETED.** `e726734cc` *(2026-04-22)* made it always-on; `5ce023677` *(GZ059, 2026-05-08)* deleted it with the legacy adapter stack. ⛔⛔ `HealthBarGizmo` never replaced it — it draws `DrawEntityBadge("87%")` and has read-and-DISCARDED `BarWidth`/`BarHeight` since its first commit. ⭐⭐ ~15 lines, no new machinery. ⚠ **A rail asserting "a primitive was emitted" is VACUOUS.** 📄 §3.8.5 | `RW-S` |
+| ⭐⭐⭐ **`CE-133` — two symbol paths, switched EMIT-SIDE** | ⭐⭐ **DESIGN SETTLED AND GATED** — [`UX_Feature_Entity_Symbology.md` §3.8](../UX/UX_Feature_Entity_Symbology.md), `READY-TO-BUILD`. 🔒 **The ExtDeps renderer is NOT touched**: `MilStd2525` is already a peer token with its own renderer case, so the switch is control logic in `EntityPresentationGizmo`. ⛔ **Two earlier drafts proposed a renderer seam — both in HISTORY, do not quote them.** ✅ **Step 0 DONE**: `SemanticShapeRenderer` deleted, NATO palette corrected. ⚠ Open build-time call: CGF/Editor/ReplayBrowser have no `VisualData`, so their SIDC must be synthesised | `RW-M` |
+| ⭐ **`CE-135` — IG's movement trail is dead by construction** | 📐 `ShowHistory` → `ShowTrail` → `HistoryRecordingSystem` → `HistoryTrail` is a four-link chain whose **first link is never set at ingress**. 🔒 User: *"Let's keep the history trail."* ⛔ This is why `ShowHistory` must not be deleted with the other unused `IgSymbolOverride` fields | `RW-S` |
+| ⚠ **`CE-136` — a third SIDC decoder neutralises assumed-friend entities** | `PresentationTkbTranslator.DeriveForceId` maps only `F`/`H` and sends **everything else** to `Neutral` ⇒ an assumed-friend (`A`) or exercise-friend (`D`) platform renders neutral. ⚠ **Deliberately NOT bundled into `CE-133`** — it changes TKB-derived affiliation on every host | `RW-S` |
 | ⭐⭐ **`CE-125` — the fixed cyan** | 🔒 [`UXI-10`](../UX/UX_Feature_Entity_Symbology.md) **defect A**, verbatim: *"Every entity is the same cyan … **friend and hostile are indistinguishable on the map** while the simulation itself distinguishes them"* — `EntityPresentationGizmoShared.cs:92`, a literal `Rgba32(100,220,255,255)`. ⭐⭐ **The user asked about this directly** *("will this map unification change the entity symbol colour which is now fixed to cyan?")*. ⚠ `UXI-10` §0 warns there are **two symbology pipelines, both built, not connected** — `StyleResolutionSystem` is the upstream one. 🔒 **Read §0 and §3 before touching anything** — ⭐ and §3.8, which now depends on this for its value | `RW-M` |
 | ⭐ **`UXI-10` §3.5 — the `shapeName` half** | the actual filed issue behind `UXI-10`; `MapShapeName` is authored, translated into a component, and **never read** *(seam-law instance 11)* | `RW-M` |
 | ⭐ **the `GizmoTypeId` pin** | 🔒 cheap, owed, and protects BOTH lanes — an explicit constant per `IGizmoDefinition`. ⚠ **JOINT**: tell `UXI-07`, since its migration renames these | `RW-S` |
