@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-30
-current-answer: §0.0e.3d — S5 is BLOCKED (UXI-07 is NOT-BUILT, so its migration steps 3-4 do not exist).
-  S1, S2a, S2b, S3 and S4 (1+3) are DONE and live-verified; CE-123, CE-126 and CE-129 closed; CE-131 REFUTED
-  (settling artifact, see UX_Feature_Map_Parity.md §3.2g). NEW 2026-08-30: CE-133 is DESIGNED and
-  READY-TO-BUILD (UX_Feature_Entity_Symbology.md §3.8, UML gated) — the four symbol renderers become
-  switchable per-host paths, per the user ruling. Pick from the AVAILABLE WORK table — none is
-  pre-approved, ask first.
+current-answer: §0.0e.3d — S5 is BLOCKED (UXI-07 is NOT-BUILT). S1, S2a, S2b, S3, S4 (1+3) DONE and
+  live-verified; CE-123/126/129 closed; CE-131 REFUTED (UX_Feature_Map_Parity.md §3.2g). NEW 2026-08-30:
+  the symbology design is settled with the user and READY-TO-BUILD —
+  UX_Feature_Entity_Symbology.md §3.8 (UML gated): TWO selectable symbol paths + a non-selectable box
+  fallback, per-path decorations, and the DELETED health bar restored (CE-134). The JSON style cascade is
+  ruled IG-ONLY, which SUPERSEDES §3.0. Rows: CE-133 (seam), CE-134 (health bar), CE-135 (dead trail).
+  Pick from the AVAILABLE WORK table — none is pre-approved, ask first.
 
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
   way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
@@ -295,7 +296,9 @@ that lane owns. ⛔ **Do not start `S5`.**
 
 | candidate | why | size |
 |---|---|---|
-| ⭐⭐⭐ **`CE-133` — the four symbol renderers become switchable paths** | 🔒 **User ruling `2026-08-30`:** *"i do not want to lose any of the renderers … switchable (one active) per host, active path defined in hosts config."* ⭐⭐ **THE DESIGN IS WRITTEN AND GATED** — [`UX_Feature_Entity_Symbology.md` §3.8](../UX/UX_Feature_Entity_Symbology.md), `build-state: READY-TO-BUILD`, with `classDiagram` + `sequenceDiagram` (both parse) and an `INVENTORY`. 📐 **`search_graph` found a FOURTH renderer grep missed** — `SemanticShapeRenderer`, **zero callers**, specified on purpose by `BATCH-20-INSTRUCTIONS.md:136`. ⚠ Needs an argued, additive ExtDeps deviation (§3.8.3) — ⭐ **that is the one thing to get the user's nod on before building.** ⭐ Independent of `CE-125`, but worth doing after it | `RW-M` |
+| ⭐⭐⭐ **`CE-134` — restore the graphical HEALTH BAR** | 📐 **It was BUILT and DELETED.** `e726734cc` *("fix: health bar on IG map", `2026-04-22`)* made it always-on; `5ce023677` *(GZ059, `2026-05-08`)* deleted it with the legacy adapter stack. ⛔⛔ **`HealthBarGizmo` never replaced it** — it draws `DrawEntityBadge("87%")` and has read-and-DISCARDED `BarWidth`/`BarHeight` since its first commit. ⭐⭐ **~15 lines, no new machinery** — `DrawBox2D` already takes a `fillColor`. ⚠ **A rail asserting "a primitive was emitted" is VACUOUS.** 📄 §3.8.5 | `RW-S` |
+| ⭐⭐⭐ **`CE-133` — two selectable symbol paths + an emergency fallback** | 🔒 User ruling `2026-08-30`, refined the same day to **two** meaningful paths *(`silhouette`, `nato2525`-as-a-STUB)* + the non-selectable wire-box fallback. ⭐⭐ **DESIGN WRITTEN AND GATED** — [`UX_Feature_Entity_Symbology.md` §3.8](../UX/UX_Feature_Entity_Symbology.md), `READY-TO-BUILD`, UML parses, `INVENTORY` present. ⚠ **The one thing needing a nod before building: the additive ExtDeps deviation (§3.8.3).** 🔒 The JSON cascade is **IG-only** ⇒ ⛔ this SUPERSEDES §3.0 | `RW-M` |
+| ⭐ **`CE-135` — IG's movement trail is dead by construction** | 📐 `ShowHistory` → `ShowTrail` → `HistoryRecordingSystem` → `HistoryTrail` is a four-link chain whose **first link is never set at ingress** ⇒ the whole built feature never runs. 🔒 User: *"Let's keep the history trail."* ⛔ **This is why `ShowHistory` must not be deleted with the other unused `IgSymbolOverride` fields** | `RW-S` |
 | ⭐⭐ **`CE-125` — the fixed cyan** | 🔒 [`UXI-10`](../UX/UX_Feature_Entity_Symbology.md) **defect A**, verbatim: *"Every entity is the same cyan … **friend and hostile are indistinguishable on the map** while the simulation itself distinguishes them"* — `EntityPresentationGizmoShared.cs:92`, a literal `Rgba32(100,220,255,255)`. ⭐⭐ **The user asked about this directly** *("will this map unification change the entity symbol colour which is now fixed to cyan?")*. ⚠ `UXI-10` §0 warns there are **two symbology pipelines, both built, not connected** — `StyleResolutionSystem` is the upstream one. 🔒 **Read §0 and §3 before touching anything** — ⭐ and §3.8, which now depends on this for its value | `RW-M` |
 | ⭐ **`UXI-10` §3.5 — the `shapeName` half** | the actual filed issue behind `UXI-10`; `MapShapeName` is authored, translated into a component, and **never read** *(seam-law instance 11)* | `RW-M` |
 | ⭐ **the `GizmoTypeId` pin** | 🔒 cheap, owed, and protects BOTH lanes — an explicit constant per `IGizmoDefinition`. ⚠ **JOINT**: tell `UXI-07`, since its migration renames these | `RW-S` |
