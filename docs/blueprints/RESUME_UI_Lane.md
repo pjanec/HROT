@@ -1,34 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-28
-current-answer: §0.0e.3d — S5 is BLOCKED (UXI-07 is NOT-BUILT, so its migration steps 3-4 do not exist). S1, S2a, S2b, S3 and S4 (1+3) are DONE and live-verified; CE-123, CE-126 and CE-129 closed; CE-131 REFUTED (settling artifact, see UX_Feature_Map_Parity.md §3.2g). Pick from the AVAILABLE WORK table — none is pre-approved, ask first.
-  ⭐⭐⭐ S1 IS BUILT AND PUSHED (2026-08-28). NEXT IS S2 — one map backend.
-  READ FIRST: docs/DESIGN_Map_Rendering_And_Interaction.md, the new standing architecture reference
-  (layer map, both gizmo kinds, render + interaction paths, the TO-BE, and an 8-item risk register
-  where every item is SILENT when hit). Then UX_Feature_Map_Parity.md 3.9a-i.
-  ⛔⛔ CE-123 STAYS OPEN: S1 delivered both missing components to SimHost (0/8 -> 8/8 and 0/8 -> 7/8,
-  measured live) and its frame is STILL 605/3, so a further cause remains. S2's FIRST item is to
-  MEASURE what each host's StatelessGizmoRegistry contains after RegisterAll. The reflection-scan
-  lead is a HYPOTHESIS only -- two earlier stories about this symptom (the camera, then the gizmo
-  gate) were already wrong.
-  ⛔ Pin GizmoTypeId as an explicit constant BEFORE merging any gizmo class: it is the DDS routing
-  key derived from the type's full name, so a merge silently breaks remote dragging.
-  CE-113 is DONE and verified;
-  its plan in §0.0e.3c is history. It is the ONLY work left and it carries every file
-  anchor, the four things still to measure, and the exact verification probe. The rest of §0.0e is
-  context: §0.0e.1 the rulings, §0.0e.3b why the design question is CLOSED, §0.0e.5 the boot recipe,
-  §0.0e.6 which suites lie.
-  ⚠ UPDATED 2026-08-28 (FOURTH pass): CE-103 is ROOT-CAUSED as a WIRE-HOP loss between the Brain
-  (CGF, correct) and the Muscle (SimHost, degraded) — NOT a load-handler defect and NOT a TKB
-  difference. The USER HAS NOW RULED the direction (Q64 §6): TKB is the only source; a receiving
-  node must never read the scenario; the loading node sends everything but TKB material over DDS.
-  My own "receiving node reads the scenario" lean is REJECTED — a runtime-created entity has no file.
-  ⭐ THE BASELINE IS CE-113 (widen the TKB DTO + route the already-written BuildVehicleParams into
-  the translator) and it is BLOCKED on B4, a two-writer duplicate. CE-114 is the investigation.
-  CE-109 is re-scoped: a real ruling-9 duplicate, but it fixes nothing the user reported.
-  CE-110/CE-111/CE-112 are BUILT and gated. Nothing is mid-build.
-  ⚠ §0.0d is now HISTORY: phase 2 (slices 1-3, J1, J2, J3) is DONE. Do not restart it.
-  Read §0's header block only for the branch/ids/dispatch-sha facts.
+updated: 2026-08-30
+current-answer: §0.0e.3d — S5 is BLOCKED (UXI-07 is NOT-BUILT, so its migration steps 3-4 do not exist).
+  S1, S2a, S2b, S3 and S4 (1+3) are DONE and live-verified; CE-123, CE-126 and CE-129 closed; CE-131 REFUTED
+  (settling artifact, see UX_Feature_Map_Parity.md §3.2g). NEW 2026-08-30: CE-133 is DESIGNED and
+  READY-TO-BUILD (UX_Feature_Entity_Symbology.md §3.8, UML gated) — the four symbol renderers become
+  switchable per-host paths, per the user ruling. Pick from the AVAILABLE WORK table — none is
+  pre-approved, ask first.
+
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
   way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
   record of WHY, not as instructions. ⚠ §0.0c and the §0 header both used to say "Start here"; §0.0d
@@ -316,7 +295,8 @@ that lane owns. ⛔ **Do not start `S5`.**
 
 | candidate | why | size |
 |---|---|---|
-| ⭐⭐ **`CE-125` — the fixed cyan** | 🔒 [`UXI-10`](../UX/UX_Feature_Entity_Symbology.md) **defect A**, verbatim: *"Every entity is the same cyan … **friend and hostile are indistinguishable on the map** while the simulation itself distinguishes them"* — `EntityPresentationGizmoShared.cs:92`, a literal `Rgba32(100,220,255,255)`. ⭐⭐ **The user asked about this directly** *("will this map unification change the entity symbol colour which is now fixed to cyan?")*. ⚠ `UXI-10` §0 warns there are **two symbology pipelines, both built, not connected** — `StyleResolutionSystem` is the upstream one. 🔒 **Read §0 and §3 before touching anything** | `RW-M` |
+| ⭐⭐⭐ **`CE-133` — the four symbol renderers become switchable paths** | 🔒 **User ruling `2026-08-30`:** *"i do not want to lose any of the renderers … switchable (one active) per host, active path defined in hosts config."* ⭐⭐ **THE DESIGN IS WRITTEN AND GATED** — [`UX_Feature_Entity_Symbology.md` §3.8](../UX/UX_Feature_Entity_Symbology.md), `build-state: READY-TO-BUILD`, with `classDiagram` + `sequenceDiagram` (both parse) and an `INVENTORY`. 📐 **`search_graph` found a FOURTH renderer grep missed** — `SemanticShapeRenderer`, **zero callers**, specified on purpose by `BATCH-20-INSTRUCTIONS.md:136`. ⚠ Needs an argued, additive ExtDeps deviation (§3.8.3) — ⭐ **that is the one thing to get the user's nod on before building.** ⭐ Independent of `CE-125`, but worth doing after it | `RW-M` |
+| ⭐⭐ **`CE-125` — the fixed cyan** | 🔒 [`UXI-10`](../UX/UX_Feature_Entity_Symbology.md) **defect A**, verbatim: *"Every entity is the same cyan … **friend and hostile are indistinguishable on the map** while the simulation itself distinguishes them"* — `EntityPresentationGizmoShared.cs:92`, a literal `Rgba32(100,220,255,255)`. ⭐⭐ **The user asked about this directly** *("will this map unification change the entity symbol colour which is now fixed to cyan?")*. ⚠ `UXI-10` §0 warns there are **two symbology pipelines, both built, not connected** — `StyleResolutionSystem` is the upstream one. 🔒 **Read §0 and §3 before touching anything** — ⭐ and §3.8, which now depends on this for its value | `RW-M` |
 | ⭐ **`UXI-10` §3.5 — the `shapeName` half** | the actual filed issue behind `UXI-10`; `MapShapeName` is authored, translated into a component, and **never read** *(seam-law instance 11)* | `RW-M` |
 | ⭐ **the `GizmoTypeId` pin** | 🔒 cheap, owed, and protects BOTH lanes — an explicit constant per `IGizmoDefinition`. ⚠ **JOINT**: tell `UXI-07`, since its migration renames these | `RW-S` |
 | ⚠ **`S4` ②** | the rest of the configuration surface. ⛔ **Lower value than it looks** — the beachhead (`EntityPresentationGizmoSettings`, the resolver, six named context inputs) is built, and nothing is asking for more knobs yet | `RW-S` |

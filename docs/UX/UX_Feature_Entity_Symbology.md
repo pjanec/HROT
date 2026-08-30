@@ -2,7 +2,10 @@
 state: LIVE
 build-state: NOT-BUILT
 verified: 2026-08-28 (coordinator source scan)
-current-answer: NOT-BUILT (design only). Renderer still hardcodes cyan (EntityPresentationGizmoShared.cs:92); resolved style not consumed; the three per-host gizmos never merged.
+current-answer: 3.3 and 3.4 are BUILT (UXI-23 S2a/S4). 3.8 is READY-TO-BUILD and carries the
+  UML: the FOUR symbol renderers become switchable paths, one active per host, named in host config
+  (user ruling 2026-08-30). Still NOT-BUILT: 3.0, 3.1 (CE-125 - the renderer hardcodes cyan at
+  EntityPresentationGizmoShared.cs:92), 3.2, 3.5, 3.6, 3.7.
 -->
 # Feature design — entity symbology on the map
 
@@ -184,7 +187,7 @@ prim.Color = tint;
 |---|---|---|---|---|
 | **`ResolvedStyleConstants`** | `(0,100,255)` | green | white | 🔒 **authoritative** — it is what the resolver already writes into `ResolvedStyle.Tint` |
 | `EntityPlacementGizmo.GetAffiliationColor` (private) | `(0,0,255)` | green | — | ⇒ **delete**, redirect to the constants |
-| `MilStd2525Renderer.GetAffiliationColor` | blue | **yellow** | **green** | leave alone — it serves a primitive nothing emits; ⚠ note it before anyone revives that path |
+| `MilStd2525Renderer.GetAffiliationColor` | blue | **yellow** | **green** | leave alone — it serves a primitive nothing emits; ⚠ note it before anyone revives that path ⇒ ⭐ **that revival is §3.8, and the note is resolved there (§3.8.8): entity-driven ⇒ `prim.Color`; SIDC-driven ⇒ this palette** |
 
 ⇒ After this, the placement ghost and the placed entity finally match, because both read one table.
 
@@ -316,6 +319,247 @@ the default becomes something a host *chooses*, not something it *misses*.
 `ResolveProfileId` needs the live repo because `GetDisType` is an `EntityRepository` method. ⚠ **Do not
 paper over it**: log once when the cast fails, and 📌 **carry the DIS type in the primitive instead** — the
 gizmo already runs where the repo is available, so resolve early and pass the value. No new component.
+
+### 3.8 ⭐⭐⭐ The four symbol renderers become SWITCHABLE PATHS — one active per host, named in host config
+
+<!--build-state: READY-TO-BUILD (step 2); step 1 is CE-125 / §3.1-->
+
+> 🔒🔒 **RULED by the user, `2026-08-30`, verbatim:** *"i do not want to lose any of the renderers. they
+> should become alternative symbol rendering paths, switchable (one active) per host, active path defined
+> in hosts config."*
+
+⭐⭐ **This is [`R-137`](../blueprints/RULINGS.md) applied to symbology:** unification may not cost a
+capability — where it would, put the capability back **as configuration**. ⛔ Nothing here is deleted.
+
+#### 3.8.1 ⭐⭐ INVENTORY — **the graph found a renderer three rounds of grep did not**
+
+```
+cli search_graph {"project":"home-user-HROT",
+                  "name_pattern":".*(ShapeLibrary|SymbolRenderer|ShapeRenderer|Symbology|MilStd).*"}
+  → total 31, has_more false
+grep -rn "new DebugPrimitiveRenderer2D|DefaultEntityShapeLibrary()"     → 5 construction sites
+grep -rn "SemanticShapeRenderer"                                        → 0 callers
+```
+
+🔴 **`SemanticShapeRenderer` was absent from the first inventory**, which was grep-only and reported
+**three** paths. ⚠ It has **zero callers** anywhere in the repo. 📌 Textbook instance of the rule in
+`CLAUDE.md`: *grep answers "does X exist"; only the graph answers "what is the complete set of X".*
+
+| # | path | what it draws | where | live? |
+|---|---|---|---|---|
+| **A** | **silhouette** | oriented polyline platform outline; 4 profiles (`ground_vehicle`, `humanoid`, `fixed_wing`, `rotary_wing`≡fixed_wing); perspective exaggeration; `ShowWhen`/`HideWhen` condition gating | `PerspectiveShapeRenderer` + `IEntityShapeLibrary` | ✅ **all 4 Raylib hosts** |
+| **B** | **box** | axis-aligned magenta wire rectangle, 1 px | inline `else` branch, `DebugPrimitiveRenderer2D.cs:432` | ✅ live, but as an **unnamed fallback**, not a choosable path |
+| **C** | **nato2525** | filled disc in affiliation colour + 4-char SIDC label | `MilStd2525Renderer` | ⛔ **unreachable for entities** — its `MilStd2525` primitive is emitted only by `DemoSceneGenerator.cs:366` |
+| **D** | **profile** | rect from a profile registry + **red X on damage**; magenta circle when unregistered | `SemanticShapeRenderer` + `ISemanticShapeProfileRegistry` | 🔴 **entirely dead — 0 callers** |
+
+⛔⛔ **C and D are NOT vestiges.** 📄 `.dev/_DONE/gizmos-1/batches/BATCH-20-INSTRUCTIONS.md:124-146`
+specifies both, by name, as deliverables of `GZ055` — *"Stub NATO symbol rendering"* and *"Minimal
+profile-based renderer"*, each with its exact contract. ⇒ ⭐ the *"unreferenced is not unintentional"*
+rule holds: they were **built on purpose and never wired**. This section wires them.
+
+⚠ **Not in scope, and not renderers of this kind:** `EntityPlacementGizmo`'s ghost sphere (a *different
+gizmo*, not an alternative symbol for a placed entity — its palette is handled by §3.2) and
+`DebugPrimitiveRenderer3D` (a different **backend**, Stride/3-D, which deliberately skips 2-D-screen
+shapes).
+
+#### 3.8.2 🔴 Why `IEntityShapeLibrary` is NOT the seam — **measured, and it refutes the obvious answer**
+
+⭐ The tempting design is *"three shape libraries"*: the seam already exists, and all five hosts already
+inject it (`IgApplication.cs:855` · `SimHostVisualization.cs:243` · `EditorSubsystem.cs:2193` ·
+`ReplayBrowserSubsystem.cs:249`; CGF omits it, §3.6). ⛔ **It does not work.**
+
+📐 `IEntityShapeLibrary` returns `EntityShapeProfile` = **polylines only**. The four paths differ in *how
+they draw*, not only in *which outline*:
+
+| path | needs | expressible as polylines? |
+|---|---|---|
+| A | oriented polylines | ✅ — this is what the seam is for |
+| B | axis-aligned rect, no rotation | ⚠ approximable, but loses the "ignore pose" behaviour |
+| C | **filled** disc + **text** label | ⛔ **no** |
+| D | rect + **red X overlay** + registry lookup | ⛔ **no** |
+
+⇒ 🔒 **The switch has to be at the DRAW call, not at the shape lookup.** `IEntityShapeLibrary` stays
+exactly as it is and becomes path A's internal detail.
+
+#### 3.8.3 ⚠⚠ An argued deviation from §3's *"no change to `FDP/ExtDeps/GizmoMap`"*
+
+📌 §3 opens with 🔒 *"No change to `FDP/ExtDeps/GizmoMap` — the seam there is an interface, and HROT
+implements it."* ⛔ **For this feature there is no such interface**, and **three of the four renderers
+already live inside ExtDeps.**
+
+| option | verdict |
+|---|---|
+| ⭐⭐ **Add `IEntitySymbolPath` + one dispatch line to `DebugPrimitiveRenderer2D`** | ✅ **RECOMMENDED** — ~30 lines, purely **additive**, default `null` ⇒ byte-identical to today. It makes ExtDeps code that already exists reachable; it forks nothing |
+| ⚠ Subclass and intercept via the existing `virtual DispatchShape` | ⛔ **double-draws** — the `Fdp.Toolkit.Vis2D` wrapper runs its own dispatch loop **and then** `_inner.Render(...)`. Still an ExtDeps change to fix |
+| ⛔ Honour the constraint literally | ⛔ **loses C and D**, which is what the user ruled against |
+
+⇒ 🔒 **§3's constraint is amended, narrowly:** *no **forking** of ExtDeps; an additive seam that exposes
+its own renderers is allowed.* ⚠ Recorded here rather than silently taken.
+
+#### 3.8.4 ⭐⭐ The seam — class diagram
+
+```mermaid
+classDiagram
+    class IEntitySymbolPath {
+        <<interface>>
+        +string Name
+        +Draw(prim, worldX, worldY, rot, len, wid, color, cond, zoom)
+    }
+    class DebugPrimitiveRenderer2D {
+        -IEntityShapeLibrary shapeLibrary
+        -IEntitySymbolPath symbolPath
+        +Render(primitives, camera, zoom)
+    }
+    class SilhouettePath
+    class PlainBoxPath
+    class ProfileBoxPath
+    class Nato2525Path
+
+    class PerspectiveShapeRenderer
+    class SemanticShapeRenderer
+    class MilStd2525Renderer
+    class IEntityShapeLibrary {
+        <<interface>>
+        +GetShape(shapeName, fallbackDisType)
+    }
+    class DefaultEntityShapeLibrary
+    class HrotEntityShapeLibrary
+
+    class GizmoSettingsRegistry
+    class SymbolPathFactory {
+        +Create(name) IEntitySymbolPath
+    }
+    class DebugGizmoLayer
+
+    IEntitySymbolPath <|.. SilhouettePath
+    IEntitySymbolPath <|.. PlainBoxPath
+    IEntitySymbolPath <|.. ProfileBoxPath
+    IEntitySymbolPath <|.. Nato2525Path
+
+    SilhouettePath ..> PerspectiveShapeRenderer : delegates
+    SilhouettePath ..> IEntityShapeLibrary : looks up
+    ProfileBoxPath ..> SemanticShapeRenderer : delegates
+    Nato2525Path ..> MilStd2525Renderer : delegates
+    IEntityShapeLibrary <|.. DefaultEntityShapeLibrary
+    IEntityShapeLibrary <|.. HrotEntityShapeLibrary
+
+    DebugPrimitiveRenderer2D o-- IEntitySymbolPath : 1 active
+    DebugPrimitiveRenderer2D o-- IEntityShapeLibrary
+    DebugGizmoLayer *-- DebugPrimitiveRenderer2D
+    SymbolPathFactory ..> GizmoSettingsRegistry : reads map.symbology.path
+    DebugGizmoLayer ..> SymbolPathFactory : per host, at construction
+
+    note for PerspectiveShapeRenderer "EXISTS — GizmoMap.Presentation/Shapes/PerspectiveShapeRenderer.cs"
+    note for SemanticShapeRenderer "EXISTS, 0 callers — GizmoMap.Presentation/Rendering/SemanticShapeRenderer.cs"
+    note for MilStd2525Renderer "EXISTS, entity-unreachable — GizmoMap.Presentation/Rendering/MilStd2525Renderer.cs"
+    note for DefaultEntityShapeLibrary "EXISTS — unchanged, becomes path A internal"
+    note for HrotEntityShapeLibrary "PROPOSED by 3.6 — orthogonal to this section"
+    note for PlainBoxPath "NEW — promotes the inline fallback at DebugPrimitiveRenderer2D.cs:432"
+```
+
+#### 3.8.5 ⭐⭐ Selection and one frame — sequence diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Host as Host boot
+    participant Settings as GizmoSettingsRegistry
+    participant Factory as SymbolPathFactory
+    participant Layer as DebugGizmoLayer
+    participant Rend as DebugPrimitiveRenderer2D
+    participant Path as IEntitySymbolPath
+    participant Gizmo as EntityPresentationGizmo
+
+    Host->>Settings: read "map.symbology.path"
+    Settings-->>Host: "silhouette" (default)
+    Host->>Factory: Create(name)
+    Factory-->>Host: SilhouettePath
+    Host->>Layer: ctor(buffer, camera, shapeLibrary, symbolPath)
+    Layer->>Rend: ctor(shapeLibrary, symbolPath)
+
+    loop every PostSimulation frame
+        Gizmo->>Gizmo: tint = ResolvedStyle or ForceId (3.1 / CE-125)
+        Gizmo->>Rend: SemanticShape prim (ProfileId, len, wid, cond, Color)
+        Rend->>Rend: pass 1 cache SpatialAnchor
+        Rend->>Rend: pass 2 resolve world pose into prim
+        Rend->>Path: Draw(prim, world, rot, len, wid, prim.Color, cond, zoom)
+        Path-->>Rend: drawn
+    end
+```
+
+#### 3.8.6 ⭐ Configuration
+
+| key | values | default |
+|---|---|---|
+| **`map.symbology.path`** | `silhouette` · `box` · `profile` · `nato2525` | 🔒 **`silhouette`** — today's behaviour on every host, byte-identical |
+
+⭐ Read through **`GizmoSettingsRegistry`**, the same per-host, injectable, persistable settings object
+`EntityPresentationGizmoSettings` already uses (📄 `UX_Feature_Map_Parity.md` §3.2c). ⇒ **one active path
+per host, named in that host's config** — exactly the ruling.
+⚠ **Make it a REQUIRED constructor argument** at the layer, per §3.6's warning: CGF's missing shape
+library came from an optional parameter with a `??` chain three levels deep. ⛔ The default must be a
+thing a host **chooses**, not one it **misses**.
+
+#### 3.8.7 🔴 What each path needs that the primitive does not carry
+
+📐 **Measured — `SemanticShape`'s payload union is FULL.** Header `0-23`; `ProfileId 24-31`,
+`LengthMeters 32-35`, `WidthMeters 36-39`, `ConditionMask 40-43`; and `44-63` are the `Resolved*` fields
+the two-pass renderer overwrites. ⛔ **There is no free offset for a new field**, and §3 forbids widening
+the struct.
+
+| path | inputs it needs | available today? |
+|---|---|---|
+| A · silhouette | ProfileId, len, wid, cond, pose, colour | ✅ all present |
+| B · box | len, wid, colour | ✅ all present |
+| D · profile | ProfileId, len, wid, cond, colour | ✅ all present — `SemanticShapeRenderer.Draw` already takes an `Rgba32 color` |
+| C · nato2525 | **affiliation** (+ optional SIDC) | ⚠ **partly** — see below |
+
+⭐⭐ **C is buildable anyway, because affiliation IS the colour.** MIL-STD-2525 affiliation is expressed as
+the symbol's colour, and `prim.Color` carries one. ⇒ `Nato2525Path` draws the filled disc in
+`prim.Color`; ⭐ it becomes *correct* the moment §3.1 / `CE-125` makes that colour affiliation-derived,
+with **no contract change at all**.
+
+⛔ **What is deferred, explicitly:** the STANAG **frame shapes** (circle=friend, diamond=hostile,
+square=neutral, quatrefoil=unknown) need the *discrete* affiliation, not a colour. That needs a payload
+decision — the same unresolved carrier problem §3.5 has for the shape-name hash. 📌 **Filed as a
+follow-on, not hand-waved.**
+
+#### 3.8.8 ⭐ Palette — §3.2 unchanged, and its own note is now being cashed
+
+📌 §3.2 ruled *"`MilStd2525Renderer.GetAffiliationColor` — leave alone; it serves a primitive nothing
+emits; ⚠ **note it before anyone revives that path**."* ⭐ **This is that revival**, and the note resolves
+cleanly:
+
+| driven by | colour source |
+|---|---|
+| an **entity** (`SemanticShape`) on the `nato2525` path | 🔒 **`prim.Color`** ⇒ `ResolvedStyleConstants` wins, per §3.2 |
+| a genuine **`MilStd2525` primitive** (SIDC string) | ⭐ its **own** SIDC palette — that is what makes it a distinct path, not drift |
+
+⇒ ⭐⭐ **No palette conflict remains.** §3.2's verdicts for `ResolvedStyleConstants` (authoritative) and
+`EntityPlacementGizmo` (delete, redirect) stand unchanged.
+
+#### 3.8.9 ⭐ Sequencing — **two independent steps; order is free, value is not**
+
+| step | what | depends on |
+|---|---|---|
+| **1** | 🔒 **`CE-125` / §3.1** — the affiliation-derived tint reaches `prim.Color` | — |
+| **2** | ⭐ **this section** — the seam, the four paths, the config key | — |
+
+⚠⚠ **Correction to an earlier statement of mine:** I said step 1 was a **prerequisite** for step 2. 📐
+Measured since: `SemanticShapeRenderer.Draw` and a `prim.Color`-driven `Nato2525Path` both compile and run
+without it. ⇒ **step 2 does not depend on step 1** — but until step 1 lands every path renders in the
+literal cyan of `EntityPresentationGizmoShared.cs:92`, so **step 1 is what makes step 2 worth looking at.**
+⭐ Doing 1 then 2 is still the recommended order.
+
+#### 3.8.10 ⭐ Acceptance
+
+| # | |
+|---|---|
+| ① | ⭐⭐ **Default is byte-identical.** With no config key set, every host renders exactly what it renders today — a rail asserting the default path is `SilhouettePath` and that `DebugPrimitiveRenderer2D` with `symbolPath: null` takes the pre-existing code path |
+| ② | ⭐ **Each of the four paths draws** — a rail per path, driving a capturing/headless double rather than Raylib, asserting the path's distinctive output (A: polyline count from the profile · B: one rect · C: disc in `prim.Color` · D: rect **plus** the red X when `ConditionMask` bit 0 is set) |
+| ③ | ⭐⭐ **Config selects it per host** — a rail that sets `map.symbology.path` on two `GizmoSettingsRegistry` instances and asserts two different `IEntitySymbolPath` types, proving *one active per host* |
+| ④ | ⭐ **Nothing is lost** — `MilStd2525Renderer`, `SemanticShapeRenderer`, `PerspectiveShapeRenderer` and the `case MilStd2525:` demo dispatch all still exist and are still reachable. ⛔ A diff that deletes any of them fails this section |
+| ⑤ | ⚠ **The deferred half is stated, not silently dropped** — STANAG frame shapes remain unbuilt pending the payload-carrier decision (§3.8.7) |
 
 ## 4. Acceptance
 
