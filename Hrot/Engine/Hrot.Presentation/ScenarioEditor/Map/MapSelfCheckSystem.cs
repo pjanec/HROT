@@ -26,11 +26,17 @@ namespace Hrot.ScenarioEditor.Map
     /// and the frame contains <b>zero</b> <c>SemanticShape</c> primitives. That combination is exactly what
     /// SimHost looked like for weeks, and it is cheap to notice.</para>
     ///
-    /// <para>⚠⚠ <b>It REPORTS; it never throws, and it never fails a boot.</b> A host can legitimately draw
-    /// no shapes — with off-screen culling enabled and everything culled, which is live today as
-    /// <c>CE-131</c>. So the message names culling among the causes, and the report LATCHES: once while
-    /// broken, once more when it recovers. ⛔ A diagnostic that fires every frame is a diagnostic nobody
+    /// <para>⚠⚠ <b>It REPORTS; it never throws, and it never fails a boot.</b> A host can legitimately
+    /// draw no shapes — off-screen culling enabled with everything genuinely off-camera is the obvious
+    /// case. So the message names culling among the causes, and the report LATCHES: once while broken,
+    /// once more when it recovers. ⛔ A diagnostic that fires every frame is a diagnostic nobody
     /// reads.</para>
+    ///
+    /// <para>⭐ <b>The grace window is what keeps it honest.</b> Measured <c>2026-08-30</c>: a frame
+    /// probed immediately after a scenario load legitimately carries zero entity shapes, and settles a
+    /// few seconds later. A check without <see cref="GraceFrames"/> would report that as a defect — and
+    /// in fact a one-shot probe of exactly that transient is what produced the refuted <c>CE-131</c>
+    /// filing.</para>
     ///
     /// <para>🔒 Contract copied verbatim from <c>ToolActivationDrainSystem</c>: an
     /// <c>Action&lt;string&gt;?</c> that defaults to the FDP log and carries <b>the name and the
@@ -114,7 +120,7 @@ namespace Hrot.ScenarioEditor.Map
               + "NetworkIdentity), but the frame contains zero SemanticShape primitives after "
               + $"{_silentFrames} frames. Likely causes, in the order they have actually occurred: a "
               + "selection predicate reaching StatelessGizmoSystem, where it gates EVERY projector at once "
-              + "(CE-123); off-screen culling marking every entity invisible (CE-131); or the entity "
+              + "(CE-123); off-screen culling with the camera away from the entities; or the entity "
               + "projector not registered at all.");
         }
 

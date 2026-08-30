@@ -20,25 +20,19 @@ namespace Hrot.ScenarioEditor.Gizmos
         public const string CullOffscreen = "map.entity.cullOffscreen";
 
         /// <summary>
-        /// 🔴🔴 <b>Default OFF, and that default is MEASURED, not chosen for safety.</b>
+        /// ⭐ <b>Default OFF — it preserves what every host renders today.</b>
         ///
-        /// <para>📐 Live on <c>--mode all</c>, <c>2026-08-30</c>: with culling on by default, the IG
-        /// perspective emitted <b>ZERO</b> <c>SpatialAnchor</c> and <c>SemanticShape</c> primitives —
-        /// down from 16 of each. <c>MapCullingSystem</c> writes <c>IsVisible</c> from
-        /// <c>MapCameraViewport</c>, which <c>IgApplication.cs:963</c> fills from the <b>projected screen
-        /// corners</b> of the live map view. With no real viewport that rectangle is degenerate, every
-        /// entity tests out of view, and the map goes blank.</para>
+        /// <para>⚠⚠ <b>CORRECTED <c>2026-08-30</c>. An earlier version of this comment claimed the default
+        /// was MEASURED: that enabling culling "blanked the IG perspective" in a live run. 🔴 That was a
+        /// FIRST-PROBE SETTLING ARTIFACT, and it is refuted.</b> Re-measured with culling forced ON, both
+        /// WITH and WITHOUT a fix to the culling input: IG reads <c>SpatialAnchor 0</c> on the first probe
+        /// after a scenario load and <c>8</c> on every probe after — identically in both builds. Culling
+        /// does not blank IG. See <c>CE-131</c> (refuted) and <c>UX_Feature_Map_Parity.md</c> §3.2g.</para>
         ///
-        /// <para>⚠⚠ <b>Before the merge this was INVISIBLE</b>, and that is the important part.
-        /// <c>IgEntityPresentationGizmo</c> did cull — and drew nothing — but SimHost's and CGF's copies
-        /// ignored culling entirely, so IG's map was in fact rendered by the two OTHER hosts' projectors.
-        /// The 16 anchors were 2 × 8, from the two non-culling copies. Merging removed the copies that
-        /// were doing the work, which is what surfaced a culling input that has been wrong all along.</para>
-        ///
-        /// <para>⇒ <b>OFF preserves exactly what every host renders today</b>, and turning it ON is now a
-        /// deliberate, per-host act rather than an accident of which copy ran. The culling INPUT is a
-        /// separate defect, filed as <c>CE-131</c>; when it is fixed a host may enable this and get the
-        /// performance benefit the system was written for.</para>
+        /// <para>⇒ <b>OFF is still the right default, for a plainer reason:</b> before the merge, IG's map
+        /// was drawn by SimHost's and CGF's projectors, which ignored culling — so OFF reproduces the
+        /// behaviour every host actually had. ⛔ It is a compatibility choice, not a defect workaround.
+        /// Turning it ON is a deliberate per-host act; a host with a real viewport culls correctly.</para>
         /// </summary>
         public static readonly GizmoSettingValue DefaultCullOffscreen = GizmoSettingValue.From(false);
 

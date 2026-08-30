@@ -397,4 +397,66 @@ public class MapCullingSystemTests
         Assert.True(repo.HasComponent<CullingState>(entity),
             "CullingState must be added after the system runs.");
     }
+
+    // ── CE-131: an UNSET viewport must not blank the map ──────────────────────
+
+    /// <summary>
+    /// CE-131. A default-constructed MapCameraViewport has all four bounds at 0f - a degenerate point at
+    /// the origin - because they are auto-properties with no initializer. It is filled from the projected
+    /// screen corners in IgApplication.Update, INSIDE `if (!_headless)`, so on a headless node it is never
+    /// filled at all. Culling against it marked EVERY entity invisible, every tick.
+    ///
+    /// <para>This stayed invisible for a long time: IG's map was in fact drawn by SimHost's and CGF's
+    /// entity projectors, which ignored culling entirely. UXI-23 S2a merged those away and the blanking
+    /// surfaced immediately. Absence of a viewport must mean VISIBLE, matching the rule
+    /// EntityPresentationGizmo and CullingStateVisibilityPolicy already follow.</para>
+    /// </summary>
+    [Fact]
+    public void Execute_WithAnUnsetViewport_LeavesEveryEntityVisible()
+    {
+        var repo   = CreateRepo();
+        var far    = CreateEntityAt(repo, 5000f, 5000f);
+        var origin = CreateEntityAt(repo, 0f, 0f);
+
+        // Exactly what a headless node has: never filled in.
+        var system = new MapCullingSystem(new MapCameraViewport());
+
+        RunSystem(repo, system);
+
+        Assert.True(repo.GetComponentRO<CullingState>(far).IsVisible,
+            "An unset viewport carries no information. Culling against it is not culling, it is blanking "
+          + "- and it blanked IG's map (CE-131).");
+        Assert.True(repo.GetComponentRO<CullingState>(origin).IsVisible);
+    }
+
+    /// <summary>
+    /// The other half: a REAL viewport still culls exactly as before. Without this, "fixing" CE-131 by
+    /// disabling culling would pass the rail above and quietly delete the capability (R-137).
+    /// </summary>
+    [Fact]
+    public void Execute_WithARealViewport_StillCullsOutsideEntities()
+    {
+        var repo    = CreateRepo();
+        var inside  = CreateEntityAt(repo, 500f, 500f);
+        var outside = CreateEntityAt(repo, 5000f, 5000f);
+
+        RunSystem(repo, new MapCullingSystem(MakeViewport()));
+
+        Assert.True(repo.GetComponentRO<CullingState>(inside).IsVisible);
+        Assert.False(repo.GetComponentRO<CullingState>(outside).IsVisible,
+            "A host with a real viewport must still cull - CE-131's fix must not cost the capability.");
+    }
+
+    /// <summary>A collapsed rect (min == max) is degenerate too, and must not blank the map.</summary>
+    [Fact]
+    public void Execute_WithACollapsedViewport_LeavesEveryEntityVisible()
+    {
+        var repo   = CreateRepo();
+        var entity = CreateEntityAt(repo, 500f, 500f);
+
+        RunSystem(repo, new MapCullingSystem(
+            MakeViewport(minX: 300f, maxX: 300f, minY: 300f, maxY: 300f)));
+
+        Assert.True(repo.GetComponentRO<CullingState>(entity).IsVisible);
+    }
 }

@@ -814,9 +814,68 @@ job — emitting primitives — and visibility becomes the seam's business, whic
 
 ⇒ ⛔ **Nothing lost; the axis widens from one projector to all of them.**
 
-⚠⚠ **`CE-131` is NOT fixed by this and must not be assumed fixed.** IG's `MapCullingSystem` still marks
-every entity invisible *(its viewport comes from projected screen corners)*. ⇒ 🔒 **the default stays OFF**;
-`S4` makes culling *correctly placed*, not *correctly fed*.
+⚠⚠ **`CE-131` IS REFUTED — see §3.2g.** 🔴 The *"culling blanks IG"* observation was a first-probe
+settling artifact: with culling forced ON, IG reads `SpatialAnchor 0` on probe 1 and `8` on every probe
+after, **identically with and without a fix to the culling input**. ⇒ 🔒 the default stays OFF, but as a
+**compatibility** choice, not because culling is broken. ⭐ The unset-viewport guard is kept on its own
+merits, for a genuinely headless node.
+
+#### 3.2g 🔴🔴🔴 **`CE-131` IS REFUTED — the "culling blanks IG" measurement was a SETTLING ARTIFACT** *(`2026-08-30`)*
+
+> ⛔⛔ **I filed `CE-131` on a single probe, and then cited it as MEASURED in four places.** ⭐ This section
+> is the retraction, and the discriminating experiment that produced it.
+
+##### 📐 WHAT I CLAIMED, AND WHERE IT WENT
+
+🔒 **The claim** *(§3.2d ①-adjacent, §3.9j.5b, `EntityPresentationGizmoSettings`, `CullingStateVisibilityPolicy`,
+`CE-131`)*: *"with culling on by default, the IG perspective emitted ZERO `SpatialAnchor` and `SemanticShape`
+— `MapCullingSystem` derives `IsVisible` from a viewport filled only on the non-headless path, so every
+entity tests out of view."*
+
+##### ⭐⭐ THE DISCRIMINATING EXPERIMENT — **the one I should have run first**
+
+📐 Culling forced ON, `--mode all`, IG perspective probed repeatedly after a scenario load:
+
+| build | probe 1 | probes 2-4 |
+|---|---|---|
+| ⭐ **WITH a fix** *(unset viewport ⇒ visible)* | `SpatialAnchor 0` | ⭐ **`8` · `8` · `8`** |
+| ⭐ **WITHOUT the fix** *(pre-`CE-131` semantics)* | `SpatialAnchor 0` | ⭐⭐ **`8` · `8` · `8` — IDENTICAL** |
+
+⇒ 🔴🔴🔴 **The fix changes nothing, because the symptom was never culling.** ⭐ IG's frame simply carries no
+entity shapes on the first probe after a load and settles a few seconds later. ⛔ **I probed once and filed
+a defect.**
+
+##### ⚠⚠ WHY THE FIX IS A NO-OP HERE, WHICH I COULD HAVE REASONED OUT
+
+📐 `IgApplication.cs:993-1001` writes the viewport **every frame**, inside `if (!_headless)` but **outside**
+the `_isActiveMapOwner()` guard. ⇒ under `--mode all` IG is not headless, the rect is real from frame 1, and
+a *"treat an unset viewport as visible"* guard **can never fire.** ⭐ Two minutes of reading would have
+predicted the experiment's result.
+
+##### ⭐ WHAT SURVIVES, AND WHAT DOES NOT
+
+| claim | verdict |
+|---|---|
+| ⛔ *"culling blanks IG"* | 🔴 **REFUTED.** Not reproducible once the frame settles |
+| ⛔ *"the default-OFF is MEASURED"* | 🔴 **REFUTED as stated.** ⭐ **OFF is still right — for a plainer reason:** before `S2a` merged them, IG's map was drawn by SimHost's and CGF's non-culling copies, so OFF reproduces what every host actually rendered. ⭐ A COMPATIBILITY choice, not a defect workaround |
+| ⭐ *"an unset viewport is all-zeros and culls everything"* | ✅ **TRUE and unchanged** — the bounds are auto-properties with no initializer, and the write is on the non-headless path only. ⇒ ⭐ **the guard is KEPT** *(absence of a viewport means visible)*, with rails, as a correct guard for a genuinely headless node — ⛔ **not as a fix for an observed symptom** |
+| ⭐ §3.9j.5b's ARITHMETIC *(16 = 2 × 8 before the merge, 8 after)* | ✅ **unaffected** — that is the duplicate-removal count, measured across same-boot before/after |
+
+##### 🔒 THE PROCESS LESSON — **the THIRD instance of one shape this session**
+
+⚠⚠ **All three were the same mistake: a confident conclusion from a probe that could not distinguish two
+explanations.**
+
+| # | |
+|---|---|
+| ① | a rail asserting *"the buffer is non-empty"* — **global rules satisfy it either way** |
+| ② | a rail using `NeverVisiblePolicy` — **fails the GLOBAL check first**, so it could not see the per-entity half it was named for |
+| ③ | ⭐ **this one** — *"zero shapes"* on one probe, when a healthy map **also** reads zero on its first probe |
+
+⇒ 🔒 **The rule, stated so it is checkable:** ⛔ **before filing a defect from a live probe, probe AGAIN.**
+⭐ A transient and a defect look identical in one sample; they differ in two. 📌 The `MapSelfCheckSystem`
+grace window *(`120` frames)* exists for exactly this reason — ⚠ **I built the control and then failed to
+apply it to myself.**
 
 #### 3.2c ⭐⭐ SETTINGS OWNERSHIP — **a standalone injected store, not a per-host field** *(user ruling, `2026-08-28`)*
 
@@ -1874,20 +1933,23 @@ boxes for 8 entities.** 🔒 **That uniformity IS the unification, stated as a n
 
 #### 🔴🔴 THE DEVIATION — **presence-decided culling BLANKED IG, and the merge is what SURFACED it**
 
-📐 **First live run of the merge, culling presence-decided as designed:** IG dropped to **`SpatialAnchor 0`,
-`SemanticShape 0`** *(80 → 40)*. ⛔ **Not a registration failure — the culling gate was returning early for
-every entity.**
+⛔⛔ **THE CAUSAL STORY BELOW IS REFUTED — see §3.2g.** 🔴 It rests on ONE probe.
 
-📐 **Root cause, measured:** `MapCullingSystem` *(`Hrot.IG/Systems/MapCullingSystem.cs`)* writes
-`IsVisible = inView` by testing each entity against `MapCameraViewport`, which `IgApplication.cs:963` fills
-from **the projected screen corners of the live map view**. ⇒ ⚠ with no real viewport the rectangle is
-degenerate, every entity tests out of view, and **`IsVisible` is false for all of them.**
+📐 **What was observed:** on the first live run of the merge with culling presence-decided, IG read
+`SpatialAnchor 0`, `SemanticShape 0` *(80 → 40)*. ⛔ **I concluded the culling gate was suppressing every
+entity. That conclusion does not survive a second probe.**
 
-⭐⭐⭐ **The part that matters: this has been true all along and was INVISIBLE.**
-📌 `IgEntityPresentationGizmo` *did* cull, and *did* draw nothing. **IG's map was in fact rendered by
-SimHost's and CGF's projectors** — the two that ignored culling. 📐 **The `16` anchors were `2 × 8` from the
-two non-culling copies, with IG's own contributing zero.** ⇒ ⛔ **merging removed the copies that were doing
-the work**, which is the only reason the broken culling input became visible.
+📐 **The discriminating experiment, run `2026-08-30`:** culling forced ON, IG probed repeatedly after a
+scenario load — **WITH** a fix to the culling input: `0`, then `8 · 8 · 8`; **WITHOUT** it: `0`, then
+`8 · 8 · 8`. ⇒ ⭐⭐ **identical.** The `0` is what a healthy IG frame reads on its FIRST probe after a load;
+it settles seconds later. ⚠ And it was predictable from source: `IgApplication.cs:993-1001` writes the
+viewport **every frame** on the non-headless path, so an *"unset viewport"* could never have been IG's
+problem under `--mode all`.
+
+⭐ **What survives, and it is the half that was actually measured properly:** 📐 **the `16` anchors were
+`2 × 8` from the two non-culling copies**, and after the merge there are `8` — that arithmetic comes from a
+same-boot before/after comparison and is unaffected. ⛔ **What does NOT survive is the claim that IG's own
+projector was contributing zero because of culling.**
 
 #### 🔒 THE FIX — **`R-137` applied literally: the feature came back as CONFIGURATION**
 
@@ -1897,7 +1959,7 @@ constructor takes one:
 
 | key | default | ⭐ why that default |
 |---|---|---|
-| ⭐⭐ **`map.entity.cullOffscreen`** | 🔴 **`false`** | ⛔ **MEASURED, not chosen for safety.** `false` reproduces **exactly what every host renders today** — because what IG renders today comes from the two copies that never culled. ⭐ Turning it on is now a deliberate per-host act instead of an accident of which copy ran |
+| ⭐⭐ **`map.entity.cullOffscreen`** | ⭐ **`false`** | ⭐ **COMPATIBILITY, not a defect workaround** — `false` reproduces exactly what every host rendered before the merge, because IG's map came from the two copies that never culled. ⚠⚠ **An earlier version of this row said the default was MEASURED, citing `CE-131`; that measurement is REFUTED — see §3.2g** |
 | `map.entity.damagedThreshold` | `50f` | ⭐ IG's literal, promoted to a shared default |
 | `map.entity.immobileThreshold` | `90f` | ⭐ IG's literal, promoted to a shared default |
 

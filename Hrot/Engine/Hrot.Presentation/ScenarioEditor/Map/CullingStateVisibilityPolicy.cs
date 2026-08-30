@@ -23,11 +23,16 @@ namespace Hrot.ScenarioEditor.Map
     /// resolver — so routes, tactical areas and map overlays become cullable without another line of
     /// projector code.</para>
     ///
-    /// <para>⚠⚠ <b>Default OFF, and the reason is measured, not cautious.</b> <c>CE-131</c>: IG's
-    /// <c>MapCullingSystem</c> derives <c>IsVisible</c> from <c>MapCameraViewport</c>, filled from the
-    /// PROJECTED SCREEN CORNERS of the live map view — degenerate without a real viewport, so every entity
-    /// tests out of view. Enabling this by default blanked the IG perspective in a live run. ⛔ <c>S4</c>
-    /// puts culling in the right PLACE; it does not make its INPUT correct.</para>
+    /// <para>⭐ <b>Default OFF for compatibility, not for a defect.</b> Before <c>S2a</c> merged the three
+    /// entity projectors, IG's map was drawn by SimHost's and CGF's copies, which ignored culling — so OFF
+    /// reproduces what every host actually rendered. ⚠⚠ <b>An earlier version of this comment cited
+    /// <c>CE-131</c> ("enabling it blanked IG") as the measured reason; that was a first-probe settling
+    /// artifact and is REFUTED</b> — see <c>UX_Feature_Map_Parity.md</c> §3.2g.</para>
+    ///
+    /// <para>⚠ One real hazard survives and is worth stating: <c>MapCullingSystem</c> derives
+    /// <c>IsVisible</c> from a viewport filled only on the NON-HEADLESS path, so a genuinely headless node
+    /// would cull against an all-zero rectangle. That guard now lives in <c>MapCullingSystem</c> itself
+    /// (absence of a viewport means visible), which is where it belongs.</para>
     ///
     /// <para>⭐ Two conditions gate it, and both are load-bearing: the host must have asked
     /// (<c>map.entity.cullOffscreen</c>), and the entity must actually carry <c>CullingState</c> — a host
