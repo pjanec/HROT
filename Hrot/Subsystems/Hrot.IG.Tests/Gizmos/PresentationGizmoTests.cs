@@ -36,61 +36,21 @@ namespace Hrot.IG.Tests.Gizmos
 
         public void Dispose() => _repo.Dispose();
 
-        // SC_GZ057_5: IgEntityPresentationGizmo [GizmoProjector] declares CullingState.
-        [Fact]
-        public void SC_GZ057_5_IgGizmoProjectorAttribute_ContainsCullingState()
-        {
-            var attr = typeof(IgEntityPresentationGizmo)
-                .GetCustomAttribute<GizmoProjectorAttribute>();
-
-            Assert.NotNull(attr);
-            Assert.Contains(typeof(CullingState),    attr!.RequiredComponents);
-            Assert.Contains(typeof(SimTransform),    attr!.RequiredComponents);
-            Assert.Contains(typeof(NetworkIdentity), attr!.RequiredComponents);
-        }
-
-        // SC_GZ057_7: IgEntityPresentationGizmo sets Damaged condition mask when health damage >= 50.
-        [Fact]
-        public void SC_GZ057_7_IgGizmo_WithHighDamage_SetsDamagedConditionMask()
-        {
-            var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
-            _repo.AddComponent(entity, new NetworkIdentity(5L));
-            _repo.AddComponent(entity, new CullingState { IsVisible = true });
-            _repo.AddComponent(entity, new IgHealthState { Damage = 75f });
-
-            var buffer = new DebugPrimitiveBuffer();
-            var gizmo  = new IgEntityPresentationGizmo();
-            gizmo.Draw(_repo, entity, buffer);
-
-            var frame = buffer.GetFrame();
-            // Phase 5: IgEntityPresentationGizmo now emits a pick sphere (DrawEntitySphere) between
-            // the SpatialAnchor and the SemanticShape, so frame[0]=SpatialAnchor,
-            // frame[1]=Sphere (pick sphere), frame[2]=SemanticShape.
-            Assert.True(frame.Length >= 3);
-
-            var semantic = frame[2];
-            Assert.Equal(DebugPrimitiveShape.SemanticShape, semantic.Shape);
-            // Damage 75f >= 50 → Damaged bit set; < 90 → Immobile bit NOT set.
-            Assert.NotEqual(0u, semantic.ConditionMask & ConditionDamaged);
-            Assert.Equal(0u, semantic.ConditionMask & ConditionImmobile);
-        }
-
-        // SC_GZ057_6: Draw skips entity when CullingState.IsVisible == false.
-        [Fact]
-        public void SC_GZ057_6_IgGizmo_Draw_SkipsEntityWhenNotVisible()
-        {
-            var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
-            _repo.AddComponent(entity, new NetworkIdentity(1L));
-            _repo.AddComponent(entity, new CullingState { IsVisible = false });
-
-            var buffer = new DebugPrimitiveBuffer();
-            var gizmo  = new IgEntityPresentationGizmo();
-            gizmo.Draw(_repo, entity, buffer);
-
-            Assert.Equal(0, buffer.GetFrame().Length);
-        }
+        // ── UXI-23 S2: three tests RE-HOMED, not deleted ──────────────────────────────────────
+        //
+        // SC_GZ057_5 / _6 / _7 asserted claims about IgEntityPresentationGizmo, which S2 merged into the
+        // shared Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo. All three claims still hold and are
+        // now asserted ONCE, over the shared projector, in:
+        //
+        //     Hrot/Engine/Hrot.Presentation.Tests/Gizmos/EntityPresentationGizmoTests.cs
+        //
+        // ⚠ SC_GZ057_5 is deliberately INVERTED there. It asserted that the query CONTAINS CullingState;
+        // the merged query must NOT, because a [GizmoProjector] requirement is a hard mask filter and
+        // keeping it would make the rule match nothing on SimHost and CGF — neither produces
+        // CullingState — silently emptying their maps. Culling did not go away: it is presence-decided
+        // inside Draw, so IG keeps it and the other hosts gain it (R-137).
+        //
+        // 📄 docs/UX/UX_Feature_Map_Parity.md §3.9j.
 
         // SC_GZ058_1: EffectPresentationGizmo emits a Sphere for Explosion effects.
         [Fact]

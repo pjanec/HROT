@@ -434,12 +434,21 @@ namespace Hrot.SimHost
                 var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
                     _globalGizmoManager,
                     _dataDrivenGizmoSystem,
+                    // 🔴 CE-123: this used to pass the SAME isSelectedPredicate as the DataDrivenGizmoSystem
+                    // 70 lines above. That is correct for HANDLES (they belong on the selection) and wrong
+                    // for the MAP: StatelessGizmoSystem applies the predicate as ONE BLANKET GATE over every
+                    // stateless rule it owns, so it suppressed the entity avatars, the routes, the tactical
+                    // areas and the map overlay alike. SimHost was the only one of five hosts to pass it —
+                    // IG :860, CGF :958, ReplayBrowser :198 and Editor :1825 all pass none — and on the
+                    // cluster node path nothing ever sets SelectionState.IsSelected (SimHost constructs
+                    // SelectionInteractionSystem only in SimHostVisualization, the local windowed viewer),
+                    // so the predicate was false for every entity, every frame. Measured: 605 primitives,
+                    // 3 non-Line — the spatial grid's lines, which are global rules and bypass the gate.
+                    // ⭐ The PARAMETER stays on the shared system, so gating the map by selection remains
+                    // available to any host that wants it (R-137); only this wrong argument is dropped.
                     new StatelessGizmoSystem(
                         _statelessGizmoRegistry,
-                        _gizmoBuffer,
-                        isSelectedPredicate: static (view, entity) =>
-                            view.HasComponent<SelectionState>(entity) &&
-                            view.GetComponentRO<SelectionState>(entity).IsSelected));
+                        _gizmoBuffer));
                 // GZH-003: headless-first; enable only when a terminal connects.
                 gizmoGroup.Enabled = false;
                 _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _dataDrivenGizmoSystem);

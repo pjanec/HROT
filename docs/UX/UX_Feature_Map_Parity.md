@@ -1222,7 +1222,12 @@ bool selected = alwaysDraw || _isSelectedPredicate!(view, entity);
 |---|---|---|
 | **IG** *(`IgApplication.cs:805`)* | `null` — 🔒 its comment: *"IG is dumb terminal — draw all active gizmos"* | ⭐ **always draws handles** |
 | **CGF** *(`CgfSubsystem.cs:931`)* | `null` | ⭐ always draws handles |
-| **SimHost** *(`:369`, `:440`)* · **Editor** *(`:1631`)* · **ReplayBrowser** *(`:189`)* | `SelectionState.IsSelected` | ⭐ **handles only on the SELECTED entity** |
+| **SimHost** *(`:369`)* · **Editor** *(`:1631`)* · **ReplayBrowser** *(`:189`)* | `SelectionState.IsSelected` | ⭐ **handles only on the SELECTED entity** |
+
+⚠⚠ **CORRECTED `2026-08-30` — this row used to also list SimHost `:440`.** ⛔ **That is NOT a handle site:
+`:440` is `StatelessGizmoSystem` — the MAP.** 📌 The table lumped the two systems under one label and so
+**printed a defect as if it were the design**; the three sites above are the genuine handle sites.
+🔴 **`:440` is the remaining root cause of `CE-123` — see §3.9j.1.**
 
 ⇒ 🔒 **That is exactly the *"may or may not, depending on which host"* the user observed** — ⭐ and IG's
 `null` is **correct for its role**: a dumb terminal holds no local selection, so gating on selection there
@@ -1522,6 +1527,201 @@ backend decides what a press MEANS; the terminal still decides which physical bu
 ⇒ ⭐⭐⭐ **THE ONE-LINE ANSWER:** 🔒 **the map looks different per host because each host's BACKEND emits a
 different set of primitives — not because anything draws differently.** ⭐ `UXI-23` makes the backends emit
 the same set; ⛔ it changes no drawing code at all.
+
+## 3.9j 🔴🔴🔴 `S2` — THE DESIGN: **ONE PROJECTOR, AND THE GATE THAT DARKENED SIMHOST** *(`2026-08-30`; `build-state: READY-TO-BUILD`)*
+
+> 🔒 **User, resuming:** *"remember we should not lose features or flexibility by unifying!"* ⇒ **`R-137`
+> governs every line below.** ⭐ The capability ledger in §3.9j.4 is how this design answers it.
+
+### 3.9j.1 🔴🔴🔴 THE REMAINING ROOT CAUSE OF `CE-123` — **measured, and it is NOT the reflection hypothesis**
+
+⚠⚠ **§3.9b recorded a HYPOTHESIS** — *"`DiscoverProjectorTypes` sees only LOADED assemblies, so a host may
+register fewer projectors"*. 📐 **Measured `2026-08-30`: that is not what is dark.** ⛔ **The registry is
+fine; the SYSTEM THAT READS IT is gated.**
+
+📐 **`StatelessGizmoSystem.Execute`** *(`Fdp.Toolkits/Diagnostics/Gizmos/Systems/StatelessGizmoSystem.cs:81,108`)*:
+
+```csharp
+bool alwaysDraw = _isSelectedPredicate == null;          // :81  — null means ALWAYS
+...
+if (!alwaysDraw && !_isSelectedPredicate!(view, entity)) // :108 — one blanket gate over EVERY rule
+    continue;
+```
+
+⭐⭐⭐ **The gate is per-SYSTEM, not per-projector.** ⇒ a host that supplies it suppresses **every** stateless
+projector it owns — the entity avatars, the routes, the tactical areas, the map overlay, all of it.
+
+#### 📐 THE FIVE HOSTS, MEASURED — **four say *always*, one says *selected only***
+
+| host | `DataDrivenGizmoSystem` *(the drag handles)* | `StatelessGizmoSystem` *(**the map**)* |
+|---|---|---|
+| **IG** `IgApplication.cs` | `:805` `null` → always | `:860` **none → always** |
+| **CGF** `CgfSubsystem.cs` | `:931` `null` → always | `:958` **none → always** |
+| **ReplayBrowser** `ReplayBrowserSubsystem.cs` | `:189` selected | `:198` **none → always** |
+| **Editor** `EditorSubsystem.cs` | `:1631` selected | `:1825` **none → always** |
+| 🔴 **SimHost** `SimHostApp.cs` | `:369` selected ✅ *(correct — handles belong on the selection)* | 🔴🔴 **`:440` SELECTED** — **alone of five** |
+
+⇒ 🔴🔴🔴 **SimHost draws entity presentation ONLY for selected entities.** 📐 And on the cluster node path
+**nothing ever selects**: `SelectionState.IsSelected` is written by `SelectionInteractionSystem`, which
+SimHost constructs **only in `SimHostVisualization.cs:251`** *(the local windowed viewer)* — **not in
+`SimHostApp`'s node bootstrap.** ⇒ ⭐⭐ **the predicate is false for every entity, every frame, forever.**
+
+✅ **This explains the measurement `S1` could not:** SimHost's frame is `605` primitives / **`3` non-`Line`**.
+📐 Global rules bypass the gate entirely *(`:71-75` — they are dispatched before the per-entity loop and
+consult only `IsGloballyEnabled`)*, so **the ~602 `Line`s are the spatial grid** and the entity shapes —
+`SpatialAnchor`, the pick box, `SemanticShape` — **are all suppressed.**
+
+#### ⚠⚠ AND IT CORRECTS A CLAIM OF MY OWN — **§3.9e's table was wrong** *(obligation ⑤)*
+
+📌 **§3.9e:1225 lists** *"**SimHost** (`:369`, `:440`) · Editor (`:1631`) · ReplayBrowser (`:189`) →
+`SelectionState.IsSelected` → **handles only on the SELECTED entity**"*. ⛔ **`:440` is NOT a handle site —
+it is the STATELESS map system.** ⚠ The table lumped the two systems together under one label and so
+**printed the defect as if it were the design.** ⭐ **Corrected in place; `:369` · `:1631` · `:189` are the
+three genuine handle sites.**
+
+#### 🔒 WHY THIS IS A DEFECT AND NOT AN INTENT — **stated with what I could and could not measure**
+
+| probe | verdict |
+|---|---|
+| `git blame` on `SimHostApp.cs:437-442` | ⚠ **hits the grafted boundary commit** — the available history cannot say who wrote it or why. ⛔ **Not evidence either way; recorded as unknown** |
+| the design corpus *(`grep -rln` over `docs/` + `.dev/`)* | ⭐⭐ **NO record anywhere intends a selection-gated MAP.** The only hit was §3.9e's own mislabel, above |
+| the code's shape | ⭐ the lambda at `:440-442` is **byte-identical** to the one at `:369-371`, **70 lines apart in the same method** — one per system. ⚠ **Suggestive of a copy; not proof** |
+| function | ⭐⭐⭐ **a map that shows only the selected entity is not a map**, and four hosts disagree with it |
+
+### 3.9j.2 ⭐⭐ THE MERGE — **one projector, presence decides** *(§3.9c is the line-by-line basis)*
+
+⭐ **`EntityPresentationGizmo`** lands in `Hrot.Presentation/ScenarioEditor/Gizmos/`, beside the
+`EntityPresentationGizmoShared` helper all three copies already call, and the three host-private copies are
+deleted.
+
+| decision | ⭐ resolution | why |
+|---|---|---|
+| the `[GizmoProjector]` query | 🔴 **`SimTransform` + `NetworkIdentity` and NOTHING else** | ⛔ keeping IG's `CullingState` would make the query **match nothing** on SimHost and CGF and silently empty their maps *(acceptance 23.23)* |
+| culling | ⭐ **presence decides**: `HasComponent<CullingState>` → honour `IsVisible`; absent → draw | 🔒 exactly the `ST-031` ruling the registrar already implements — *"support all and decide on current presence of component"* |
+| condition mask | ⭐ **presence decides**: `HasComponent<IgHealthState>` → Damaged `≥50` / Immobile `≥90` | same rule; ⭐ thresholds stay named constants, `S4` moves them to `GizmoSettingsRegistry` |
+| transform source | ⭐ **`SimTransform` only** | 📐 §3.9c ③ — `NetworkTransform` is identical on a ghost and **stale on an owner**. ⛔ A defect, not a feature *(`CE-126(c)`)* |
+| pick box | ⭐ **always** | 🔴 CGF omitted it ⇒ CGF entities were unpickable *(`CE-126(b)`)* |
+| semantic shape | ⭐ **through the shared helper** | 🔴 CGF called the raw builder ⇒ `Color (0,0,0,0)`, **transparent avatars** *(`CE-126(a)`)* |
+
+⚠ **`GizmoTypeId` is NOT at risk here, and item ① of the resume plan does not block `S2`.** 📐 Measured:
+`GizmoTypeId` is declared **only on `IGizmoDefinition`** *(the STATEFUL kind)*; the three classes being
+merged are `IStatelessGizmo` and carry no wire-routing id — `EmitPickBox` leaves `PickGizmoTypeId` at `0`.
+⇒ ⭐ **the pin is still owed to `UXI-07`'s tool path, but it is not a prerequisite of this merge.**
+
+### 3.9j.3 ⚠ THE ONE RISK THIS MERGE INTRODUCES — **named, and verified live rather than assumed**
+
+⛔ Moving SimHost's projector out of `Hrot.SimHost` into `Hrot.Presentation` makes SimHost's map depend on
+`Hrot.Presentation` being **loaded** when `RegisterAll` runs — the documented `ST-033` risk.
+⚠ **In practice it already must be** *(`Hrot.Presentation` owns 7 of the projectors, and `SimHostApp`
+constructs `EntityDragGizmoDefinition` from it inside the same method)*, ⛔ **but that is an accident of JIT
+assembly resolution, not a guarantee.** ⇒ ⭐ **verified by the live run in §3.9j.6, and filed as `CE-128`.**
+
+### 3.9j.4 🔒🔒🔒 THE `R-137` CAPABILITY LEDGER — **nothing may be lost**
+
+| capability | before | after | ⭐ verdict |
+|---|---|---|---|
+| **cull invisible entities** | IG only, a hard-coded `if` | ⭐ **every host**, whenever the entity carries `CullingState` | ✅ **preserved AND spread** |
+| **damage / immobile condition** | IG only | ⭐ **every host**, whenever the entity carries `IgHealthState` | ✅ **preserved AND spread** |
+| **gate the map by selection** | SimHost, as a blanket argument | ⭐ **the `isSelectedPredicate` PARAMETER STAYS on the shared system** — any host may still pass one | ✅ **preserved.** ⛔ Only SimHost's *argument* is dropped: the seam is untouched, the wrong default is not |
+| **pick an entity on CGF** | 🔴 absent | ✅ present | ⭐ **gained** |
+| **see CGF avatars at all** | 🔴 transparent | ✅ opaque | ⭐ **gained** |
+| **CGF position on an owned entity** | 🔴 stale until next publish | ✅ live | ⭐ **gained** |
+| **per-PROJECTOR visibility** | 🔴 `IGizmoVisibilityPolicy.IsEntityVisible` is declared and **never called** by `StatelessGizmoSystem` | ⛔ **still dead — out of scope, filed as `CE-129`** | ⚠ **honest gap, not silently carried** |
+
+⇒ ⭐⭐⭐ **Six capabilities preserved or gained, zero lost.** ⭐ The one *unrealised* capability
+(`IsEntityVisible`) was already dead before this slice and is filed rather than quietly inherited.
+
+### 3.9j.5 ⭐⭐⭐ THE UML *(obligation ①; drawn AFTER the enumeration, obligation ②)*
+
+⭐ **Existing classes are marked `«exists»` with their file** so a proposed duplicate would be visible on the
+same canvas. 🔴 **Red-lined boxes are DELETED by this slice.**
+
+```mermaid
+classDiagram
+    class IStatelessGizmo {
+        <<interface>>
+        +Draw(view, entity, draw)
+    }
+    class StatelessGizmoSystem {
+        -isSelectedPredicate
+        +Execute(view, dt)
+    }
+    class StatelessGizmoRegistry {
+        +Register(projector, comps, policy)
+    }
+    class GizmoReflectionRegistrar {
+        +RegisterAll(gz, stateless, settings)
+        +DiscoverProjectorTypes()
+    }
+    class EntityPresentationGizmoShared {
+        +DrawSpatialAnchorFromRotation()
+        +EmitPickBox()
+        +TryGetVehicleDimensions()
+        +ResolveProfileId()
+        +DrawSemanticShape()
+    }
+    class EntityPresentationGizmo {
+        +Draw(view, entity, draw)
+        -CullingState presence gate
+        -IgHealthState condition mask
+    }
+    class IgEntityPresentationGizmo
+    class SimHostEntityPresentationGizmo
+    class CgfEntityPresentationGizmo
+
+    IStatelessGizmo <|.. EntityPresentationGizmo : NEW
+    IStatelessGizmo <|.. IgEntityPresentationGizmo : DELETED
+    IStatelessGizmo <|.. SimHostEntityPresentationGizmo : DELETED
+    IStatelessGizmo <|.. CgfEntityPresentationGizmo : DELETED
+    EntityPresentationGizmo ..> EntityPresentationGizmoShared : uses
+    GizmoReflectionRegistrar ..> IStatelessGizmo : discovers
+    GizmoReflectionRegistrar --> StatelessGizmoRegistry : fills
+    StatelessGizmoSystem --> StatelessGizmoRegistry : reads
+```
+
+| box | home | state |
+|---|---|---|
+| `IStatelessGizmo` · `StatelessGizmoSystem` · `StatelessGizmoRegistry` · `GizmoReflectionRegistrar` | `FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/` | ⭐ **«exists» — untouched** |
+| `EntityPresentationGizmoShared` | `Hrot/Engine/Hrot.Presentation/ScenarioEditor/Gizmos/` | ⭐ **«exists» — untouched** |
+| ⭐ **`EntityPresentationGizmo`** | `Hrot/Engine/Hrot.Presentation/ScenarioEditor/Gizmos/` | 🆕 **NEW — the one projector** |
+| `IgEntityPresentationGizmo` *(54 ln)* · `SimHostEntityPresentationGizmo` *(38 ln)* · `CgfEntityPresentationGizmo` *(52 ln)* | IG / SimHost / CGF | 🔴 **DELETED** |
+
+#### ⭐ The per-frame sequence — **where the gate was, and what replaces it**
+
+```mermaid
+sequenceDiagram
+    participant Group as TogglablePostSimulationGroup
+    participant Sys as StatelessGizmoSystem
+    participant Reg as StatelessGizmoRegistry
+    participant Giz as EntityPresentationGizmo
+    participant Shared as EntityPresentationGizmoShared
+    participant Buf as DebugPrimitiveBuffer
+
+    Group->>Sys: Execute(view, dt)
+    Sys->>Reg: Rules
+    loop each global rule
+        Sys->>Buf: global projector draws
+    end
+    loop each rule x each live entity
+        Sys->>Sys: mask match
+        Note over Sys: isSelectedPredicate<br/>null on all 5 hosts after S2
+        Sys->>Giz: Draw(view, entity, draw)
+        Giz->>Giz: CullingState present and hidden then return
+        Giz->>Giz: IgHealthState present then condition mask
+        Giz->>Shared: DrawSpatialAnchorFromRotation
+        Giz->>Shared: EmitPickBox
+        Giz->>Shared: DrawSemanticShape opaque
+        Shared->>Buf: EmitRaw
+    end
+```
+
+### 3.9j.6 ⭐ HOW `S2` IS PROVEN
+
+| # | proof |
+|---|---|
+| **①** | ⭐ **rails, each inverse-edit red-proved** — one projector per entity · culling honoured when present · condition honoured when present · pick box emitted · shape opaque · ⭐⭐ **no host passes a stateless selection gate** |
+| **②** | ⭐⭐ **live on `--mode all`**: SimHost's non-`Line` count rises from **`3`** toward Scenario's **`69`**, with **Scenario and IG unchanged** *(the no-regression half)* |
+| **③** | ⭐ **`CE-128`** — the live frame proving `Hrot.Presentation`'s projectors reach SimHost's registry settles §3.9j.3 |
 
 ## 4. Acceptance
 
