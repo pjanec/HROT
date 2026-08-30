@@ -1597,8 +1597,8 @@ deleted.
 | decision | ⭐ resolution | why |
 |---|---|---|
 | the `[GizmoProjector]` query | 🔴 **`SimTransform` + `NetworkIdentity` and NOTHING else** | ⛔ keeping IG's `CullingState` would make the query **match nothing** on SimHost and CGF and silently empty their maps *(acceptance 23.23)* |
-| culling | ⭐ **presence decides**: `HasComponent<CullingState>` → honour `IsVisible`; absent → draw | 🔒 exactly the `ST-031` ruling the registrar already implements — *"support all and decide on current presence of component"* |
-| condition mask | ⭐ **presence decides**: `HasComponent<IgHealthState>` → Damaged `≥50` / Immobile `≥90` | same rule; ⭐ thresholds stay named constants, `S4` moves them to `GizmoSettingsRegistry` |
+| culling | ⛔⛔ **SUPERSEDED — see §3.9j.5b.** *(designed as: presence decides. As built: a SETTING, `map.entity.cullOffscreen`, default `false`, AND the presence check. Shipping it presence-decided BLANKED IG in the live run)* | 🔒 the design basis was `ST-031`; the measurement overrode it |
+| condition mask | ⭐ **presence decides**: `HasComponent<IgHealthState>` → Damaged / Immobile | same rule. ⚠ **as built the thresholds are already settings**, not the `S4` deferral this row planned — §3.9j.5b |
 | transform source | ⭐ **`SimTransform` only** | 📐 §3.9c ③ — `NetworkTransform` is identical on a ghost and **stale on an owner**. ⛔ A defect, not a feature *(`CE-126(c)`)* |
 | pick box | ⭐ **always** | 🔴 CGF omitted it ⇒ CGF entities were unpickable *(`CE-126(b)`)* |
 | semantic shape | ⭐ **through the shared helper** | 🔴 CGF called the raw builder ⇒ `Color (0,0,0,0)`, **transparent avatars** *(`CE-126(a)`)* |
@@ -1714,6 +1714,68 @@ sequenceDiagram
         Shared->>Buf: EmitRaw
     end
 ```
+
+### 3.9j.5b 🔴🔴🔴 `S2` AS-BUILT — **the build DEVIATED, and the deviation is the most valuable thing in this slice** *(obligation ⑤, `2026-08-30`)*
+
+> 🔒 **The design above said culling would be PRESENCE-DECIDED.** ⛔ **It shipped as a SETTING, default
+> OFF.** ⭐ **This section is the correction; §3.9j.2's culling row is SUPERSEDED by it.**
+
+#### 📐 WHAT THE LIVE RUN MEASURED — **three perspectives, same boot, before and after**
+
+⚠⚠ **The recorded `739/69` baseline could not be reused** — it came from a different run, and this session
+measured IG's world at **0 entities via `/entities` in BOTH runs while its frame carried 16 anchors**, which
+means `/entities` does not read the world IG projects from. ⇒ ⭐ **the baseline was RE-MEASURED on the same
+boot by rebuilding the pre-change sources**, and only that comparison is quoted here.
+
+| perspective | BEFORE non-`Line` | AFTER non-`Line` | Δ | ⭐ what the delta IS |
+|---|---|---|---|---|
+| **Scenario** | 69 | **53** | **−16** | 📐 `SpatialAnchor 16→8`, `SemanticShape 16→8` ⇒ ⭐⭐ **THE DUPLICATE, REMOVED.** Two projectors *(SimHost's and CGF's — byte-identical queries)* each drew all 8 entities; one does now. ⚠ `Box2D` stayed `8` because CGF's copy never emitted a pick box |
+| **IG** | 80 | **64** | **−16** | 📐 the same `16→8` on both, `Box2D 16` unchanged ⇒ **the same duplicate** |
+| 🎉 **SimHost** | 🔴 **3** | ⭐⭐⭐ **55** | **+52** | `SpatialAnchor +8` · `SemanticShape +8` · `Box2D +8` · **`Arrow +12` · `Text +8` · `ContextMenuBinding +8`** ⇒ ⭐⭐ **the LAST THREE are the proof of the "one blanket gate" claim** — the gate was suppressing the routes and labels too, not just the avatars |
+
+⇒ ⭐⭐⭐ **Every perspective now emits exactly ONE primitive set per entity: 8 anchors, 8 shapes, 8 pick
+boxes for 8 entities.** 🔒 **That uniformity IS the unification, stated as a number.**
+
+#### 🔴🔴 THE DEVIATION — **presence-decided culling BLANKED IG, and the merge is what SURFACED it**
+
+📐 **First live run of the merge, culling presence-decided as designed:** IG dropped to **`SpatialAnchor 0`,
+`SemanticShape 0`** *(80 → 40)*. ⛔ **Not a registration failure — the culling gate was returning early for
+every entity.**
+
+📐 **Root cause, measured:** `MapCullingSystem` *(`Hrot.IG/Systems/MapCullingSystem.cs`)* writes
+`IsVisible = inView` by testing each entity against `MapCameraViewport`, which `IgApplication.cs:963` fills
+from **the projected screen corners of the live map view**. ⇒ ⚠ with no real viewport the rectangle is
+degenerate, every entity tests out of view, and **`IsVisible` is false for all of them.**
+
+⭐⭐⭐ **The part that matters: this has been true all along and was INVISIBLE.**
+📌 `IgEntityPresentationGizmo` *did* cull, and *did* draw nothing. **IG's map was in fact rendered by
+SimHost's and CGF's projectors** — the two that ignored culling. 📐 **The `16` anchors were `2 × 8` from the
+two non-culling copies, with IG's own contributing zero.** ⇒ ⛔ **merging removed the copies that were doing
+the work**, which is the only reason the broken culling input became visible.
+
+#### 🔒 THE FIX — **`R-137` applied literally: the feature came back as CONFIGURATION**
+
+⭐ **`EntityPresentationGizmoSettings`** *(new, beside the projector)* — three keys on the existing
+`GizmoSettingsRegistry`, which `GizmoReflectionRegistrar.Instantiate` already passes to any projector whose
+constructor takes one:
+
+| key | default | ⭐ why that default |
+|---|---|---|
+| ⭐⭐ **`map.entity.cullOffscreen`** | 🔴 **`false`** | ⛔ **MEASURED, not chosen for safety.** `false` reproduces **exactly what every host renders today** — because what IG renders today comes from the two copies that never culled. ⭐ Turning it on is now a deliberate per-host act instead of an accident of which copy ran |
+| `map.entity.damagedThreshold` | `50f` | ⭐ IG's literal, promoted to a shared default |
+| `map.entity.immobileThreshold` | `90f` | ⭐ IG's literal, promoted to a shared default |
+
+⇒ ⭐⭐ **Both guards are load-bearing and both are railed:** the **setting** stops a host being blanked by a
+culling input it does not maintain; the **presence check** keeps a host that produces no `CullingState`
+drawing everything. ✅ **Confirmed live — the single-variable change restored IG to `SpatialAnchor 8`,
+`SemanticShape 8` (`40 → 64`), which is also what CONFIRMS the culling diagnosis.**
+
+⚠ **The culling INPUT is still wrong and is NOT fixed here** — filed as **`CE-131`**. ⭐ When it is fixed a
+host can enable the setting and get the performance benefit `MapCullingSystem` was written for.
+
+📌 **`CE-128` is RESOLVED BY THIS RUN, not left open:** SimHost draws a projector that lives in
+`Hrot.Presentation`, so that assembly *is* loaded when `RegisterAll` runs. ⚠ It remains an accident of JIT
+assembly resolution rather than a guarantee — recorded, not relied upon.
 
 ### 3.9j.6 ⭐ HOW `S2` IS PROVEN
 

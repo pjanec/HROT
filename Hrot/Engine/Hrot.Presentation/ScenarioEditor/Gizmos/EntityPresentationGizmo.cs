@@ -1,6 +1,7 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.IG.Components;
 
@@ -19,29 +20,70 @@ namespace Hrot.ScenarioEditor.Gizmos
     /// match NOTHING on SimHost and CGF — which produce no <c>CullingState</c> — and silently empty their
     /// maps. A <c>[GizmoProjector]</c> requirement is a hard filter, never an optional input.</para>
     ///
-    /// <para><b>⭐ The two per-host behaviours are PRESENCE-DECIDED, not forked.</b> This is the
-    /// <c>ST-031</c> ruling the registrar already implements — <i>"support all and decide on current
-    /// presence of component"</i>. IG keeps its culling and its damage states because it produces
-    /// <c>CullingState</c> / <c>IgHealthState</c>; every other host GAINS both the moment it produces
-    /// them. 🔒 <c>R-137</c>: unification may not cost a feature.</para>
+    /// <para><b>⭐ The two per-host behaviours are CONFIGURATION, not forks.</b> 🔒 <c>R-137</c>:
+    /// unification may not cost a feature; where it would, the feature comes back as a setting. IG's
+    /// off-screen culling and its damage thresholds live in
+    /// <see cref="EntityPresentationGizmoSettings"/>, so every host can have them — and the damage mask
+    /// additionally follows the <c>ST-031</c> rule (<i>"support all and decide on current presence of
+    /// component"</i>), costing nothing on a host that carries no health component.</para>
+    ///
+    /// <para>⚠⚠ <b>Culling defaults OFF, and that default is MEASURED.</b> Enabling it by default blanked
+    /// the IG perspective completely in a live <c>--mode all</c> run — the reasoning, and why the merge is
+    /// what SURFACED that rather than caused it, is in
+    /// <see cref="EntityPresentationGizmoSettings.DefaultCullOffscreen"/>.</para>
     /// </summary>
     [GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity))]
     public sealed class EntityPresentationGizmo : IStatelessGizmo
     {
-        /// <summary>Damage at or above which the shape is drawn damaged. S4 moves this to GizmoSettingsRegistry.</summary>
-        internal const float DamagedThreshold = 50f;
-
-        /// <summary>Damage at or above which the shape is drawn immobile.</summary>
-        internal const float ImmobileThreshold = 90f;
-
         private const uint ConditionDamaged  = 1u << 0;
         private const uint ConditionImmobile = 1u << 1;
 
+        private readonly GizmoSettingsRegistry? _settings;
+        private readonly uint _cullKey;
+        private readonly uint _damagedKey;
+        private readonly uint _immobileKey;
+
+        /// <summary>
+        /// Parameterless construction keeps every setting at its default — the shape a unit test wants,
+        /// and the shape <c>GizmoReflectionRegistrar</c> falls back to when no settings registry exists.
+        /// </summary>
+        public EntityPresentationGizmo() : this(null) { }
+
+        /// <summary>
+        /// ⭐ <c>GizmoReflectionRegistrar.Instantiate</c> prefers this overload whenever the host has a
+        /// <see cref="GizmoSettingsRegistry"/>, so a host configures the map by writing settings rather
+        /// than by owning a projector.
+        /// </summary>
+        public EntityPresentationGizmo(GizmoSettingsRegistry? settings)
+        {
+            _settings = settings;
+            EntityPresentationGizmoSettings.Register(settings!);
+
+            _cullKey     = GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.CullOffscreen);
+            _damagedKey  = GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.DamagedThreshold);
+            _immobileKey = GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.ImmobileThreshold);
+        }
+
+        private bool CullOffscreen
+            => _settings != null && _settings.Read(_cullKey).BoolValue;
+
+        private float DamagedThreshold
+            => _settings != null
+                ? _settings.Read(_damagedKey).FloatValue
+                : EntityPresentationGizmoSettings.DefaultDamagedThreshold.FloatValue;
+
+        private float ImmobileThreshold
+            => _settings != null
+                ? _settings.Read(_immobileKey).FloatValue
+                : EntityPresentationGizmoSettings.DefaultImmobileThreshold.FloatValue;
+
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
-            // ── Culling: IG's gate, now available to every host that produces CullingState. ──
-            // A host that produces none draws everything, which is what the other four did before.
-            if (view.HasComponent<CullingState>(entity))
+            // ── Culling: IG's gate, now available to EVERY host — and off unless asked for. ──
+            // ⚠ Both conditions are load-bearing. The setting keeps a host from being blanked by a
+            // culling input it does not maintain (measured: IG, live); the presence check keeps a host
+            // that produces no CullingState drawing everything, which is what four of five did before.
+            if (CullOffscreen && view.HasComponent<CullingState>(entity))
             {
                 ref readonly var cull = ref view.GetComponentRO<CullingState>(entity);
                 if (!cull.IsVisible) return;

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: ⭐⭐⭐ §0.0e — "--mode all VISUAL-CHECK CORRECTIVES + the cgf==editor TKB ruling".
+current-answer: §0.0e.3d — UXI-23 slice S3 (declare + report unserviceable). S1 and S2 are DONE, pushed and live-verified; CE-123 and CE-126 are closed. Read §0.0e.3d first, then docs/UX/UX_Feature_Map_Parity.md §3.9j (the S2 design AND as-built).
   ⭐⭐⭐ S1 IS BUILT AND PUSHED (2026-08-28). NEXT IS S2 — one map backend.
   READ FIRST: docs/DESIGN_Map_Rendering_And_Interaction.md, the new standing architecture reference
   (layer map, both gizmo kinds, render + interaction paths, the TO-BE, and an 8-item risk register
@@ -221,75 +221,73 @@ with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory decla
 after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
 points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
 
-### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S2`: ONE MAP BACKEND** *(retargeted `2026-08-28`; `S1` is DONE)*
+### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S3`** *(retargeted `2026-08-30`; `S1` AND `S2` ARE DONE)*
 
 #### 📄 READ THESE TWO FIRST — ⛔ do not re-derive any of it
 
 | doc | why |
 |---|---|
-| ⭐⭐⭐ **[`docs/DESIGN_Map_Rendering_And_Interaction.md`](../DESIGN_Map_Rendering_And_Interaction.md)** | **the standing architecture reference** *(new `2026-08-28`)* — layer map, both gizmo kinds, the render frame, the interaction path, the tool path, the TO-BE, and an **8-item risk register where every item is SILENT when hit**. ⭐ §1 is the orientation |
-| ⭐⭐ **[`docs/UX/UX_Feature_Map_Parity.md`](../UX/UX_Feature_Map_Parity.md)** | `UXI-23` itself — §3.9 the slices, §3.9a–i the measured detail |
+| ⭐⭐⭐ **[`docs/DESIGN_Map_Rendering_And_Interaction.md`](../DESIGN_Map_Rendering_And_Interaction.md)** | **the standing architecture reference** — layer map, both gizmo kinds, the render frame, the interaction path, the tool path, the TO-BE, and an **8-item risk register where every item is SILENT when hit**. ⭐ §1 is the orientation |
+| ⭐⭐ **[`docs/UX/UX_Feature_Map_Parity.md`](../UX/UX_Feature_Map_Parity.md)** | `UXI-23` itself — §3.9 the slices, §3.9a–i the measured detail, ⭐⭐ **§3.9j the `S2` design + AS-BUILT** |
 
-#### ✅ `S1` IS DONE AND PUSHED — ⛔ do not rebuild it
+#### ✅✅ `S1` AND `S2` ARE DONE, PUSHED AND LIVE-VERIFIED — ⛔ do not rebuild them
 
-📐 Lifted `MapLayerAssignmentSystem`/`Registry`/`Definition` → `Hrot.Presentation/Map/`, and
-`PresentationTkbTranslator` → `Hrot.Core/MapDefinitions/Tkb/`. Collapsed 3 duplicate
-`MapDisplayComponent` registrations + 1 omission into `MapPresentationRegistry`. Collapsed the
-`MapLayerBits` hand-synced copy. Fixed **`CE-118`** *(`WithVisual` discarded everything it was given;
-`VisualDefinitionDto` had no producer anywhere)*. **15 rails, each inverse-edit red-proved.**
+📐 **`S2` merged the three host-private entity projectors into ONE `EntityPresentationGizmo`**
+*(`Hrot.Presentation/ScenarioEditor/Gizmos/`)*, removed SimHost's stateless selection gate, and fixed
+**`CE-126`** *(a·b·c)* by deleting the copy that carried them. **19 + 2 rails, four inverse-edit red-proofs.**
 
-🔴🔴 **BUT `CE-123` IS STILL OPEN — the user's map is still dark.** 📐 Measured live: SimHost's
-`MapDisplayComponent` `0/8 → 8/8`, `VisualData` `0/8 → 7/8`, and its frame is **STILL `605 / 3` non-`Line`**
-*(Scenario `69`, IG `104`, both unchanged — no regression)*. ⇒ ⭐ **`S1`'s root cause was NECESSARY, NOT
-SUFFICIENT.**
+✅✅ **`CE-123` IS RESOLVED — measured live on `--mode all`, same-boot before/after:**
 
-#### ⭐⭐⭐ `S2`'s FIRST ITEM — **measure, do not assume**
+| perspective | before | after | ⭐ what the delta IS |
+|---|---|---|---|
+| 🎉 **SimHost** | 🔴 **3** non-`Line` | ⭐⭐⭐ **55** | the map appears. ⭐ `Arrow +12` · `Text +8` · `ContextMenuBinding +8` prove the gate was suppressing **routes and labels too** |
+| Scenario | 69 | 53 | **−16 = the DUPLICATE removed** *(`SpatialAnchor`/`SemanticShape` `16→8`)* |
+| IG | 80 | 64 | the same `−16` |
 
-🔒 **Assert what each host's `StatelessGizmoRegistry` actually CONTAINS after
-`GizmoReflectionRegistrar.RegisterAll`.** ⛔ Nothing checks that a reflection-discovered projector was
-found — the same silent-capability shape as the two defects `S1` fixed.
+⇒ ⭐⭐ **Every perspective now emits ONE primitive set per entity: 8 anchors, 8 shapes, 8 pick boxes / 8 entities.**
 
-⚠⚠ **The lead is a HYPOTHESIS, recorded as one** *(`UX_Feature_Map_Parity.md` §3.9b)*:
-`DiscoverProjectorTypes` scans `AppDomain.CurrentDomain.GetAssemblies()` — **only assemblies already
-LOADED** — so which projectors a host registers may depend on bootstrap order. ⛔ **Do NOT treat it as the
-root cause.** 📌 **Two earlier stories about this exact symptom were already wrong** *(the camera, then
-the gizmo execution gate)*.
+#### 🔴🔴 THE ONE THING `S2` SURFACED THAT IS NOT FIXED — **`CE-131`, read it before touching culling**
 
-#### ⭐ THEN THE MERGE — the rest of `S2`
+📐 IG's `MapCullingSystem` marks **every entity invisible** — its viewport comes from projected screen
+corners *(`IgApplication.cs:963`)*, degenerate without a real map view. ⚠⚠ **This was invisible for years
+because IG's map was drawn by SimHost's and CGF's copies, which ignored culling.** ⇒ 🔒 culling is now the
+opt-in setting **`map.entity.cullOffscreen`, default `false`** — ⛔ **do NOT "simplify" by deleting the
+culling gate; that discards the capability (`R-137`).** Fix the INPUT, then a host can enable it.
+
+#### ⭐⭐⭐ `S3` — **DECLARE + REPORT UNSERVICEABLE** *(the slice table is §3.9)*
 
 | # | |
 |---|---|
-| **①** | 🔴 **PIN `GizmoTypeId` AS AN EXPLICIT CONSTANT ON EVERY `IGizmoDefinition` — BEFORE any class merge.** 📐 It is the FNV-1a hash of the type's **full name** *(`DebugPrimitive.cs:140`)*, sent over DDS as the interaction routing key ⇒ ⚠ **a rename or merge silently breaks remote dragging while the handle still draws**, and a single-process test cannot see it |
-| **②** | **Merge the three entity projectors into ONE** + two injected collaborators — an `IGizmoVisibilityPolicy` *(IG's culling; ⭐ the seam ALREADY EXISTS, only `Always`/`Never` implemented)* and a condition provider *(IG's damage states)*. 📄 the three-way comparison is §3.9c |
-| **③** | ⛔⛔ **The merged `[GizmoProjector]` requires `SimTransform` + `NetworkIdentity` and NOTHING ELSE.** ⚠ Keeping IG's `CullingState` in the query would make it match nothing on SimHost and CGF and **silently empty their maps** *(acceptance 23.23)* |
-| **④** | **`MapInteractionPack.Build(ctx)` constructs** buffer + systems + group + controller **once**; 🔒 **the HOST schedules** *(user ruling)*. ⛔ The pack context carries no kernel |
-| **⑤** | Fixes **`CE-126`** inside the merge — CGF's transparent avatars *(raw builder, `Color (0,0,0,0)`)*, its missing pick box, and its pointless `NetworkTransform` preference. ⛔ **Do not point-patch CGF first** — that re-establishes the copy `S2` deletes |
-| **⑥** | Delete the per-host `gizmoGroup.Enabled = true/false` literals *(deferred from `S1`)* |
+| **①** | ⭐⭐ **Copy the shape that already works: `ToolActivationDrainSystem`** — it implements declare-and-report-unserviceable per tool **with a name and a reason**. 🔒 **Prior art first (`R-129`): read it before designing anything.** ⛔ The map has no equivalent, which is why a host that silently emits nothing looks identical to one with nothing to emit |
+| **②** | ⭐ The three defects `S1`+`S2` fixed were **all silent**. `S3`'s value is that the FOURTH one reports itself |
+| **③** | ⭐ Fold in **`CE-128`** *(discovery depends on JIT load order; measured safe today, guaranteed by nothing)* — a registry that DECLARES what it found makes that observable |
 
-#### 🔒 BOUNDARIES
+#### ⭐ THEN `S4` / `S5`
 
 | | |
 |---|---|
-| ✅ **`S2` is DISJOINT from `UXI-07`** | it touches only `IStatelessGizmo`. ⭐ **Proceed alone** |
-| ⚠ **the `GizmoTypeId` pin is JOINT** | it is `IGizmoDefinition` = the tool path ⇒ still do it first, but **tell `UXI-07`** |
-| 🔴 **`S5` is JOINT** | `UXI-07` migration steps 3–4 own the action→tool routing ⇒ **sequence `S5` after them** |
-| 🔒 **`R-137`** | the merge must not cost a feature — IG's culling and damage states stay reachable, and become AVAILABLE to the other hosts by configuration |
+| **`S4`** | the rest of the configuration surface. ⭐ **`S2` already built the beachhead** — `EntityPresentationGizmoSettings` *(3 keys)*. ⚠ **`CE-129`** is the open design question: `IGizmoVisibilityPolicy.IsEntityVisible` is declared and never called by `StatelessGizmoSystem`, and it is the natural home for per-projector visibility |
+| **`S5`** | 🔴 **JOINT with [`UXI-07`](../UX/UX_Feature_Tool_Model.md)** — sequence it AFTER that lane's migration steps 3–4, which own action→tool routing. ⚠ **Pin `GizmoTypeId` as an explicit constant on every `IGizmoDefinition` first** *(it is the FNV-1a hash of the type's FULL NAME and the DDS routing key — a rename silently breaks remote dragging while the handle still draws)*. 📌 `S2` did NOT need it: the merged classes were `IStatelessGizmo` and carry no wire id |
 
-#### ⭐ VERIFY
+#### ⭐ VERIFY (the recipe that measured `S2`)
 
 ```bash
 dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj --no-restore -v q --nologo
 cd Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
 export HROT_DEBUG_API_PORT=8099 FDP_STAGING_ROOT=<a fresh dir>
-nohup xvfb-run -a dotnet Hrot.ClusterRunner.dll --mode all > /tmp/s2.log 2>&1 &
-curl -s --noproxy '*' -m 150 -X POST http://localhost:8099/scenario/load/live \
+nohup xvfb-run -a dotnet Hrot.ClusterRunner.dll --mode all > /tmp/run.log 2>&1 &
+curl -s --noproxy '*' -m 180 -X POST http://localhost:8099/scenario/load/live \
      -H 'Content-Type: application/json' -d '{"name":"hill-attack","waitForReady":true}'
-curl -s --noproxy '*' "http://localhost:8099/entities"               # components per entity
+curl -s --noproxy '*' -X POST http://localhost:8099/perspective \
+     -H 'Content-Type: application/json' -d '{"name":"SimHost"}'   # ⛔ NEVER ?perspective= (CE-112)
 curl -s --noproxy '*' "http://localhost:8099/panels/_gizmo?max=4000" # ⛔ NOT /gizmo/frame — 404
 ```
-⭐ **PASS = SimHost's non-`Line` count rises from `3` toward Scenario's `69`**, with Scenario and IG
-**unchanged**. 🔒 **Check `ok` before reading `data`**; the schema is lowercase `primitives`, each with
-`shape`.
+🔒 **Check `ok` before reading `data`** *(`CE-120`)*; the schema is lowercase `primitives`, each with `shape`.
+⚠⚠ **`GET /entities` does NOT read the world IG projects from** — it returned `0` under the IG perspective in
+BOTH runs while IG's frame carried 16 anchors. ⛔ **Do not use it to explain an IG frame.**
+⚠⚠ **A recorded baseline from an earlier session is NOT comparable** — re-measure the baseline on the SAME
+BOOT by rebuilding the pre-change sources. 📌 That is what separated `S2`'s real deltas from run-to-run noise.
+
 
 ### 0.0e.3c ⭐⭐⭐ **THE BUILD PLAN — `CE-113`. THE ONLY WORK LEFT. ⭐⭐ BUILD THIS FIRST.**
 

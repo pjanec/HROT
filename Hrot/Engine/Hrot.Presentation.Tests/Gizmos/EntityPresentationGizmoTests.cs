@@ -4,6 +4,7 @@ using System.Reflection;
 using CarKinem.Core;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Gizmos;
@@ -182,30 +183,155 @@ namespace Hrot.Presentation.Tests.Gizmos
 
         // ── ③ culling — IG's capability, now presence-decided (R-137) ──────────────────────────
 
-        /// <summary>⭐ Re-homed from IG's <c>SC_GZ057_6</c>: an invisible entity draws nothing.</summary>
+        /// <summary>
+        /// A registry with <c>map.entity.cullOffscreen</c> turned on — what a host does when it wants
+        /// IG's culling. The projector registers its own defaults in the constructor, so this only has to
+        /// overwrite the one value.
+        /// </summary>
+        private static GizmoSettingsRegistry CullingEnabled()
+        {
+            var settings = new GizmoSettingsRegistry();
+            EntityPresentationGizmoSettings.Register(settings);
+            settings.Write(
+                GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.CullOffscreen),
+                GizmoSettingValue.From(true));
+            return settings;
+        }
+
+        /// <summary>
+        /// ⭐ Re-homed from IG's <c>SC_GZ057_6</c>: an invisible entity draws nothing —
+        /// <b>when the host has asked for culling.</b>
+        /// </summary>
         [Fact]
-        public void Draw_SkipsTheEntityWhenCullingStateSaysHidden()
+        public void Draw_WithCullingEnabled_SkipsTheEntityWhenCullingStateSaysHidden()
         {
             var entity = Spawn(1L, new Vector3(10f, 20f, 0f));
             _repo.AddComponent(entity, new CullingState { IsVisible = false });
 
             var buffer = new DebugPrimitiveBuffer();
-            new EntityPresentationGizmo().Draw(_repo, entity, buffer);
+            new EntityPresentationGizmo(CullingEnabled()).Draw(_repo, entity, buffer);
 
             Assert.Equal(0, buffer.GetFrame().Length);
         }
 
         /// <summary>⭐ The other half: a VISIBLE entity still draws — so the gate is a gate, not an off switch.</summary>
         [Fact]
-        public void Draw_DrawsTheEntityWhenCullingStateSaysVisible()
+        public void Draw_WithCullingEnabled_DrawsTheEntityWhenCullingStateSaysVisible()
         {
             var entity = Spawn(2L, new Vector3(10f, 20f, 0f));
             _repo.AddComponent(entity, new CullingState { IsVisible = true });
 
             var buffer = new DebugPrimitiveBuffer();
-            new EntityPresentationGizmo().Draw(_repo, entity, buffer);
+            new EntityPresentationGizmo(CullingEnabled()).Draw(_repo, entity, buffer);
 
             Assert.True(buffer.GetFrame().Length >= 3);
+        }
+
+        /// <summary>
+        /// 🔴🔴 <b>The measured default (<c>R-137</c>).</b> Culling is OFF unless a host asks, so a
+        /// <c>CullingState</c> the host does not actually maintain cannot blank its map.
+        ///
+        /// <para>📐 This is not a precaution — with culling on by default the IG perspective emitted ZERO
+        /// anchors and shapes in a live <c>--mode all</c> run, because <c>MapCullingSystem</c> derives
+        /// <c>IsVisible</c> from a screen-corner viewport that is degenerate without a real map view.
+        /// Before the merge that was masked: IG's map was rendered by SimHost's and CGF's copies, which
+        /// ignored culling. The culling INPUT is filed separately as <c>CE-131</c>.</para>
+        /// </summary>
+        [Fact]
+        public void Draw_ByDefault_IgnoresCullingStateEntirely()
+        {
+            var entity = Spawn(4L, new Vector3(10f, 20f, 0f));
+            _repo.AddComponent(entity, new CullingState { IsVisible = false });
+
+            var buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, entity, buffer);
+
+            Assert.True(buffer.GetFrame().Length >= 3,
+                "Culling must be OPT-IN. A host that carries CullingState but does not maintain it must "
+              + "still get a map — measured live: culling on by default blanked the IG perspective.");
+        }
+
+        /// <summary>⭐ And the same when the settings registry exists but nobody turned culling on.</summary>
+        [Fact]
+        public void Draw_WithSettingsButCullingNotEnabled_IgnoresCullingState()
+        {
+            var entity = Spawn(9L, new Vector3(10f, 20f, 0f));
+            _repo.AddComponent(entity, new CullingState { IsVisible = false });
+
+            var settings = new GizmoSettingsRegistry();
+            var buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo(settings).Draw(_repo, entity, buffer);
+
+            Assert.True(buffer.GetFrame().Length >= 3);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The <c>R-137</c> rail: the capability is REACHABLE.</b> A setting nobody can turn on is
+        /// the same as a deleted feature, so this pins that the registry actually carries the three keys.
+        /// </summary>
+        [Fact]
+        public void TheProjector_RegistersItsConfigurationSurface()
+        {
+            var settings = new GizmoSettingsRegistry();
+            _ = new EntityPresentationGizmo(settings);
+
+            // The two thresholds prove registration by their values — a key nobody registered reads back
+            // as default(GizmoSettingValue), which is 0f, not 50f/90f.
+            Assert.Equal(50f, settings.Read(
+                GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.DamagedThreshold)).FloatValue);
+            Assert.Equal(90f, settings.Read(
+                GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.ImmobileThreshold)).FloatValue);
+
+            // ⚠ The bool cannot be proven the same way: `false` is byte-identical to
+            // default(GizmoSettingValue) (Type=Bool=0, payload=0), so reading it back says nothing about
+            // whether it was registered. What R-137 actually cares about is that the capability is
+            // REACHABLE — so assert the default is off AND that a host can turn it on and have the
+            // projector obey, which is the whole point of making it a setting.
+            uint cullKey = GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.CullOffscreen);
+            Assert.False(settings.Read(cullKey).BoolValue);
+
+            settings.Write(cullKey, GizmoSettingValue.From(true));
+            Assert.True(settings.Read(cullKey).BoolValue);
+
+            var hidden = _repo.CreateEntity();
+            _repo.AddComponent(hidden, new SimTransform());
+            _repo.AddComponent(hidden, new NetworkIdentity(77L));
+            _repo.AddComponent(hidden, new CullingState { IsVisible = false });
+
+            var buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo(settings).Draw(_repo, hidden, buffer);
+            Assert.Equal(0, buffer.GetFrame().Length);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The thresholds are configuration, not IG's literals.</b> Lowering the damaged threshold
+        /// must change the mask — otherwise the setting is decorative.
+        /// </summary>
+        [Fact]
+        public void TheDamageThresholds_AreHonouredFromSettings()
+        {
+            var entity = Spawn(10L, new Vector3(10f, 20f, 0f));
+            _repo.AddComponent(entity, new IgHealthState { Damage = 20f });
+
+            // Default (50/90): 20 damage is neither.
+            var plain = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, entity, plain);
+            Assert.Equal(0u, plain.GetFrame()[2].ConditionMask);
+
+            // A host that wants a hair trigger sets 10/15 and gets both bits at the same damage.
+            var settings = new GizmoSettingsRegistry();
+            EntityPresentationGizmoSettings.Register(settings);
+            settings.Write(GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.DamagedThreshold),
+                GizmoSettingValue.From(10f));
+            settings.Write(GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.ImmobileThreshold),
+                GizmoSettingValue.From(15f));
+
+            var tuned = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo(settings).Draw(_repo, entity, tuned);
+
+            var semantic = tuned.GetFrame()[2];
+            Assert.NotEqual(0u, semantic.ConditionMask & ConditionDamaged);
+            Assert.NotEqual(0u, semantic.ConditionMask & ConditionImmobile);
         }
 
         /// <summary>
