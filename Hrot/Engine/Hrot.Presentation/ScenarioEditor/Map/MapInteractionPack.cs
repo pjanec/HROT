@@ -36,6 +36,18 @@ namespace Hrot.ScenarioEditor.Map
     public static class MapInteractionPack
     {
         /// <summary>
+        /// The policy every projector gets unless the host says otherwise: culling for the entity
+        /// projector (itself gated by a setting), the framework default for everything else.
+        /// </summary>
+        private static Func<Type, IGizmoVisibilityPolicy?> DefaultVisibilityPolicy(GizmoSettingsRegistry settings)
+        {
+            var culling = new CullingStateVisibilityPolicy(settings);
+            return type => type == typeof(Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo)
+                ? culling
+                : null;
+        }
+
+        /// <summary>
         /// Constructs the map's gizmo machinery and hands it back for the host to schedule.
         /// </summary>
         public static MapInteraction Build(MapInteractionContext ctx)
@@ -62,7 +74,13 @@ namespace Hrot.ScenarioEditor.Map
 
             // ST-031: one reflection pass replaces the five hand-rolled per-host family lists. Uniform
             // membership; component presence decides what actually draws.
-            GizmoReflectionRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settings);
+            // ⭐⭐ S4: the resolver is how a reflection-discovered projector gets a visibility policy.
+            // The DEFAULT attaches CullingStateVisibilityPolicy to the entity projector — the policy itself
+            // is off unless the host sets map.entity.cullOffscreen, so this changes no behaviour until
+            // asked. A host may override the whole resolver to attach any policy to any projector.
+            // 📄 UX_Feature_Map_Parity.md §3.2f · UX_Feature_Entity_Symbology.md §3.4.
+            var resolve = ctx.VisibilityPolicyResolver ?? DefaultVisibilityPolicy(settings);
+            GizmoReflectionRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settings, resolve);
 
             // ⚠⚠ ORDERING IS LOAD-BEARING (§3.2d ③). The host's own gizmos go in AFTER reflection and
             // BEFORE the systems are constructed, because StatelessGizmoSystem sizes its visibility cache

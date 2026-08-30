@@ -121,6 +121,17 @@ namespace Hrot.ScenarioEditor.Map
         public Fdp.Toolkit.Diagnostics.Gizmos.IActiveViewProvider? BreakpointManager { get; init; }
 
         /// <summary>
+        /// ⭐⭐ <b><c>S4</c> — which visibility policy each projector gets.</b> Optional: when null the pack
+        /// attaches <see cref="CullingStateVisibilityPolicy"/> to the entity projector and the framework
+        /// default to everything else.
+        ///
+        /// <para>⭐ The right axis: policy varies per HOST and per PROJECTOR. An attribute or an interface
+        /// member could only vary per projector, which is why §3.4's design needed a resolver rather than
+        /// a declaration. 📄 <c>UX_Feature_Map_Parity.md</c> §3.2f.</para>
+        /// </summary>
+        public Func<Type, IGizmoVisibilityPolicy?>? VisibilityPolicyResolver { get; init; }
+
+        /// <summary>
         /// ⭐⭐ <b><c>S3</c> — where the map's diagnostics go.</b> Defaults to the FDP log.
         ///
         /// <para>🔒 Same contract as <c>ToolActivationDrainSystem.reportUnserviceable</c>: it carries the

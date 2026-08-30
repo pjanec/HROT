@@ -20,17 +20,18 @@ namespace Hrot.ScenarioEditor.Gizmos
     /// match NOTHING on SimHost and CGF — which produce no <c>CullingState</c> — and silently empty their
     /// maps. A <c>[GizmoProjector]</c> requirement is a hard filter, never an optional input.</para>
     ///
-    /// <para><b>⭐ The two per-host behaviours are CONFIGURATION, not forks.</b> 🔒 <c>R-137</c>:
-    /// unification may not cost a feature; where it would, the feature comes back as a setting. IG's
-    /// off-screen culling and its damage thresholds live in
-    /// <see cref="EntityPresentationGizmoSettings"/>, so every host can have them — and the damage mask
-    /// additionally follows the <c>ST-031</c> rule (<i>"support all and decide on current presence of
-    /// component"</i>), costing nothing on a host that carries no health component.</para>
+    /// <para><b>⭐ The per-host behaviours are CONFIGURATION, not forks.</b> 🔒 <c>R-137</c>: unification
+    /// may not cost a feature; where it would, the feature comes back as a setting. IG's damage thresholds
+    /// live in <see cref="EntityPresentationGizmoSettings"/>, and the mask additionally follows the
+    /// <c>ST-031</c> rule (<i>"support all and decide on current presence of component"</i>), costing
+    /// nothing on a host that carries no health component.</para>
     ///
-    /// <para>⚠⚠ <b>Culling defaults OFF, and that default is MEASURED.</b> Enabling it by default blanked
-    /// the IG perspective completely in a live <c>--mode all</c> run — the reasoning, and why the merge is
-    /// what SURFACED that rather than caused it, is in
-    /// <see cref="EntityPresentationGizmoSettings.DefaultCullOffscreen"/>.</para>
+    /// <para>⚠⚠ <b>Culling is NOT here — <c>S4</c> moved it to
+    /// <c>Hrot.ScenarioEditor.Map.CullingStateVisibilityPolicy</c>.</b> <c>S2a</c> had it inline in
+    /// <see cref="Draw"/>, which made two implementations of <i>"should this entity draw?"</i> — the other
+    /// being <c>IGizmoVisibilityPolicy</c>, which <c>StatelessGizmoSystem</c> now honours per entity.
+    /// Ruling 9 allows one. 📄 <c>UX_Feature_Map_Parity.md</c> §3.2f ·
+    /// <c>UX_Feature_Entity_Symbology.md</c> §3.4.</para>
     /// </summary>
     [GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity))]
     public sealed class EntityPresentationGizmo : IStatelessGizmo
@@ -39,7 +40,6 @@ namespace Hrot.ScenarioEditor.Gizmos
         private const uint ConditionImmobile = 1u << 1;
 
         private readonly GizmoSettingsRegistry? _settings;
-        private readonly uint _cullKey;
         private readonly uint _damagedKey;
         private readonly uint _immobileKey;
 
@@ -59,13 +59,9 @@ namespace Hrot.ScenarioEditor.Gizmos
             _settings = settings;
             EntityPresentationGizmoSettings.Register(settings!);
 
-            _cullKey     = GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.CullOffscreen);
             _damagedKey  = GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.DamagedThreshold);
             _immobileKey = GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.ImmobileThreshold);
         }
-
-        private bool CullOffscreen
-            => _settings != null && _settings.Read(_cullKey).BoolValue;
 
         private float DamagedThreshold
             => _settings != null
@@ -79,15 +75,11 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
-            // ── Culling: IG's gate, now available to EVERY host — and off unless asked for. ──
-            // ⚠ Both conditions are load-bearing. The setting keeps a host from being blanked by a
-            // culling input it does not maintain (measured: IG, live); the presence check keeps a host
-            // that produces no CullingState drawing everything, which is what four of five did before.
-            if (CullOffscreen && view.HasComponent<CullingState>(entity))
-            {
-                ref readonly var cull = ref view.GetComponentRO<CullingState>(entity);
-                if (!cull.IsVisible) return;
-            }
+            // ── Culling lives in CullingStateVisibilityPolicy, not here (S4, ruling 9). ──
+            // S2a had the setting check and the CullingState presence test inline in this method. That
+            // was a second implementation of "should this entity draw?" alongside IGizmoVisibilityPolicy,
+            // which StatelessGizmoSystem now honours per entity. The logic moved wholesale; this projector
+            // is back to one job — emitting primitives. 📄 UX_Feature_Map_Parity.md §3.2f.
 
             ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
             long networkId = netId.Value;

@@ -774,6 +774,50 @@ firing every frame or failing a boot.
 defaults to the FDP log, carrying **the name and the reason**, because *"nothing happened"* is
 indistinguishable from *"not implemented"* to the operator holding the mouse.
 
+#### 3.2f ⭐⭐⭐ `S4` ①+③ — **CULLING MOVES TO THE POLICY SEAM** *(user-approved `2026-08-30`)*
+
+> 🔒 **The design is not new — it is [`UXI-10`](UX_Feature_Entity_Symbology.md) §3.4, verbatim:**
+> `registry.Register(new EntityPresentationGizmo(), new CullingStateVisibilityPolicy());`
+> ⭐ `S4` implements it. ⛔ **It was unimplementable until now**, for two measured reasons.
+
+##### 🔴 WHY §3.4 COULD NOT BE BUILT AS WRITTEN
+
+| # | blocker | 📐 measured |
+|---|---|---|
+| **①** | ⛔⛔ **the CONSUMER half does not exist** | `IGizmoVisibilityPolicy` declares `IsEntityVisible`; `DataDrivenGizmoSystem` honours it *(`:326`, `:369`)*; **`StatelessGizmoSystem` never calls it** *(only `IsGloballyEnabled`, `:69`/`:79`/`:92`)*. ⇒ a `CullingStateVisibilityPolicy` — inherently per-ENTITY — would be stored in `CompiledStatelessRule.VisibilityPolicy` and **silently do nothing**. ⚠ Worse than absent |
+| **②** | ⛔ **reflection cannot supply a policy** | `GizmoReflectionRegistrar` calls the 2-arg `Register(stateless, attr.RequiredComponents)`. 📌 §3.4's code line is a **hand-written registration site that `ST-031` deliberately deleted** |
+| ⭐ | **why the asymmetry exists at all** | `docs/designs/gizmos-1/DESIGN.md` §4.2 designed the policy for the **STATEFUL** kind only — `IGizmoDefinition` carries `VisibilityPolicy` as an interface member. `IStatelessGizmo` came later and has no equivalent |
+
+##### ⭐⭐ THE THREE PARTS, AND WHY EACH IS WHERE IT IS
+
+| part | ⭐ decision |
+|---|---|
+| **the MECHANISM** | ⭐⭐ **`IGizmoVisibilityPolicy.IsEntityVisible`, now honoured by `StatelessGizmoSystem`.** ⚠ Placed AFTER the mask match, so the cost is one call per **matched** entity, not per `rule × entity`; ⭐ and skipped by a reference compare when the policy is the `AlwaysVisiblePolicy` singleton, which is every projector's default |
+| **the KNOB** | ⭐ **`map.entity.cullOffscreen` stays** — runtime-settable and persistable via `GizmoSettingsRegistry` *(§3.2c)*. 🔒 The policy READS it; the policy does not replace it |
+| **the WIRING** | ⭐⭐ **`Func<Type, IGizmoVisibilityPolicy?>` resolver on `RegisterAll`** — §3.9's own `S4` row. The pack supplies a default resolver attaching the culling policy to the entity projector; ⭐ a host may override for any projector type |
+
+##### 🔒 RULING 9 — **the duplicate this collapses, stated plainly**
+
+⚠⚠ **`S2a` shipped culling as a SETTING READ INSIDE `Draw`** *(a `CullOffscreen` check plus a
+`HasComponent<CullingState>` presence test)*. ⛔ **That is a second implementation of *"should this entity
+draw?"***, and ruling 9 forbids two. ⇒ ⭐ `S4` **moves that logic wholesale into
+`CullingStateVisibilityPolicy` and deletes it from the projector.** 📌 The projector goes back to doing one
+job — emitting primitives — and visibility becomes the seam's business, which is what §3.4 wanted.
+
+##### 🔒 `R-137` — **what a host can still do, and what it GAINS**
+
+| capability | before `S4` | after |
+|---|---|---|
+| cull off-screen entities | ⭐ a setting, applying to the ONE merged projector | ⭐⭐ **a policy, attachable to ANY projector** — routes, tactical areas and overlays become cullable too |
+| turn it on at runtime | ✅ the setting | ✅ **unchanged — same setting, same store** |
+| a host-specific rule | ⛔ not expressible | ⭐⭐ **GAINED — supply a resolver** |
+
+⇒ ⛔ **Nothing lost; the axis widens from one projector to all of them.**
+
+⚠⚠ **`CE-131` is NOT fixed by this and must not be assumed fixed.** IG's `MapCullingSystem` still marks
+every entity invisible *(its viewport comes from projected screen corners)*. ⇒ 🔒 **the default stays OFF**;
+`S4` makes culling *correctly placed*, not *correctly fed*.
+
 #### 3.2c ⭐⭐ SETTINGS OWNERSHIP — **a standalone injected store, not a per-host field** *(user ruling, `2026-08-28`)*
 
 > 🔒 **User:** *"Persistence was meant for single-host nodes like a '2d map station' where the user want to

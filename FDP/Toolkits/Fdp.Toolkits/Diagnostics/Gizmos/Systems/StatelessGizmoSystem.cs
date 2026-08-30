@@ -108,6 +108,22 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     if (!alwaysDraw && !_isSelectedPredicate!(view, entity))
                         continue;
 
+                    // ⭐⭐ UXI-23 S4: the per-ENTITY half of IGizmoVisibilityPolicy, finally consumed.
+                    // 📄 UX_Feature_Map_Parity.md §3.2f · UX_Feature_Entity_Symbology.md §3.4.
+                    //
+                    // ⚠ This interface has always declared IsEntityVisible, and DataDrivenGizmoSystem has
+                    // always honoured it (:326, :369) — but THIS system called only IsGloballyEnabled, so a
+                    // per-entity policy registered here was stored and silently ignored. That made §3.4's
+                    // design ("move CullingState out of the projector key and into the policy")
+                    // unimplementable: the policy would have done nothing at all.
+                    //
+                    // ⭐ Cost: placed AFTER the mask match, so it runs once per MATCHED entity rather than
+                    // per rule x entity; and the reference compare short-circuits it for AlwaysVisiblePolicy,
+                    // which is every projector's default and what reflection registers.
+                    if (!ReferenceEquals(rule.VisibilityPolicy, AlwaysVisiblePolicy.Instance)
+                        && !rule.VisibilityPolicy.IsEntityVisible(view, entity))
+                        continue;
+
                     rule.Projector.Draw(view, entity, _drawBuilder);
 
                     // Check budget after each entity (only if budget is active).
