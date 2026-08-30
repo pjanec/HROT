@@ -88,6 +88,35 @@ It delegates to the inner terminal (`:83`) and translates `Commit`/`Cancel` into
 
 ---
 
+## 1.4 INVENTORY — the gizmo seam, enumerated
+
+⚠ **Recorded because §4 names WHERE things should live**, and a design may not claim a set it did not
+enumerate. ⭐ The MCP graph was disconnected; run through the **CLI fallback** *(`CLAUDE.md`: the same
+binary serves every tool)*:
+
+```bash
+codebase-memory-mcp cli search_graph \
+  '{"project":"home-user-HROT","name_pattern":".*Gizmo.*","label":"Interface"}'
+# total: 16   has_more: false
+```
+
+| interface | role |
+|---|---|
+| `IStatelessGizmo` | ⭐ **the map projectors** — `UXI-23` |
+| `IGlobalStatelessGizmo` | screen-space stateless draw |
+| `IEntityStatefulGizmo` · `IStatefulGizmo` | ⭐ **the tools** — `UXI-07` |
+| `IGizmoDefinition` | ⭐ registration record: `RequiredComponents`, `VisibilityPolicy`, `GizmoTypeId` |
+| `IGizmoVisibilityPolicy` | ⭐⭐ **the per-rule visibility seam** — only `AlwaysVisiblePolicy` / `NeverVisiblePolicy` exist |
+| `IGizmoInteractionHandler` | where `RequiresExclusiveFocus` is declared |
+| `IGizmoControllable` | the host's handle onto its `GizmoExecutionController` |
+| `IGizmoDrawBuilder` · `IGizmoSource` · `IGizmoTransport` · `IGizmoUiStatePublisher` | the draw/feed/wire surfaces |
+| `IGizmoNetworkFactory` · `IBehaviorGizmoFactory` · `IGizmoUndoRecord` | construction + undo |
+
+⚠ **Three were absent from my prose before this enumeration** — `IGlobalStatelessGizmo`,
+`IGizmoUndoRecord`, `IGizmoUiStatePublisher`. 📌 Exactly why the rule exists.
+🔒 **`IGizmoUndoRecord` is a live question for `UXI-07`**: a suspend/resume stack and an undo record are
+adjacent concerns, ⛔ and this document does **not** claim to have analysed their interaction.
+
 ## 2. Rendering — the AS-IS
 
 ### 2.1 Two gizmo kinds, one buffer
@@ -278,7 +307,41 @@ if ((gizmo.RequiresExclusiveFocus || gizmo.WantsRawInput) && _focusedGizmo == nu
 | | |
 |---|---|
 | ✅ **intentional** | one exclusive holder — `gizmo-input-focus-design.md` §6.2: *"the terminal would have no honest way to choose … we prevent that situation entirely on the backend"* |
+| 🔴🔴 **TWO ARBITERS** | 📐 `GlobalGizmoManager._focusedGizmo` *(`:31`)* and `DataDrivenGizmoSystem._focusedGizmo` *(`:65`)* are **independent** — no shared state, same first-come guard. ⇒ both can hold "exclusive" focus at once |
 | 🔴 **not a decision** | the **denial is silent**, and there is **no suspend/resume**. ⇒ *"jump to another tool and come back"* is **half**-implemented: the caller's control flow resumes *(`TaskCompletionSource` + `ct.Register`)*, the **previous tool does not** |
+
+### 3.5 Exclusive input — **the mechanism EXISTS; the arbitration is what is missing**
+
+🔒 **"Only the top tool receives input" is a first-class primitive**: `InputCaptureBinding`.
+
+| bit | meaning | effect at the terminal |
+|:--:|---|---|
+| `ConditionMask & 1` | **exclusive** | ⭐ **spatial hit-testing is SUPPRESSED** |
+| `ConditionMask & 2` | **raw input** | ⭐ **all raw HW events route to the capturing token** |
+
+⇒ ✅ **A tool stack needs NO new input primitive.** ⛔ What it needs is the two things below.
+
+🔴 **But the terminal takes the FIRST binding and stops** *(`DebugGizmoLayer.cs:118-134`)*:
+
+```csharp
+if (prim.Shape != DebugPrimitiveShape.InputCaptureBinding) continue;
+…
+break;                    // 🔴 first in buffer order wins. No arbitration, no report.
+```
+
+⇒ ⚠⚠ **With two arbiters, raw-input capture goes to whichever system EMITS EARLIER**, while the loser
+still receives the typed events *(`UXI-07`'s bus-side defect)* ⇒ 🔴 **one tool's input can split across
+two tools**, silently. 📌 `gizmo-input-focus-design.md` §6.2 predicted precisely this and said the backend
+must prevent it — ⛔ **the prevention is the missing piece**, because there are two backends-within-the-backend.
+
+| for a tool stack | status |
+|---|---|
+| **exclusive input routing** | ✅ **built** — `InputCaptureBinding` |
+| **ONE arbiter deciding who is top** | 🔴 **absent** — two independent slots |
+| **suspend / resume of the displaced tool** | 🔴 **absent** — the slot is first-come; teardown DESTROYS |
+
+⇒ 🔒 **`UXI-07`'s single `IToolController` closes the first two at once**: one arbiter ⇒ one capture binding
+per frame ⇒ the terminal's `break` becomes **correct rather than arbitrary**.
 
 ⚠ **`CancelInteractiveTools()` destroys only the ON-DEMAND gizmos** — one that is neither exclusive-focus
 nor raw-input *(e.g. the layer control)* is **permanent** and survives a perspective switch.

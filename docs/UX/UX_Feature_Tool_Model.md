@@ -55,6 +55,36 @@ Each guards exclusivity **only within itself** — `DataDrivenGizmoSystem.cs:91`
 > ⇒ **`Rotate` (DataDriven) and `Measure` (GlobalGizmoManager) can both hold "exclusive" focus at once
 > and both act on the same drag.** Not a smell — a correctness defect. 🔴
 
+#### ⭐⭐ ADDED `2026-08-28` — **the TERMINAL half of the same defect: raw-input capture is decided by EMISSION ORDER**
+
+📐 The section above is the **bus** side *(both systems ACT on the same typed stream)*. ⚠ **The raw-input
+side is different, and worse in a quieter way.** Each arbiter also emits an `InputCaptureBinding` for its
+own focus holder — `GlobalGizmoManager:138`, `DataDrivenGizmoSystem:334,373` — and the terminal resolves it
+like this *(`GizmoMap.Presentation/Layers/DebugGizmoLayer.cs:118-134`)*:
+
+```csharp
+for (int i = 0; i < primitives.Length; i++) {
+    if (prim.Shape != DebugPrimitiveShape.InputCaptureBinding) continue;
+    if ((prim.ConditionMask & 1u) != 0) exclusiveAnchorId = prim.StructNetworkId;  // suppress hit-testing
+    if ((prim.ConditionMask & 2u) != 0) routeRawInput      = true;                 // all raw HW to me
+    captureToken = …;
+    break;                       // 🔴 FIRST ONE WINS. No arbitration, no report.
+}
+```
+
+⇒ 🔒 **When both arbiters hold "exclusive" focus, the one whose primitive lands FIRST IN THE BUFFER captures
+raw input** — i.e. **whichever system runs earlier in the group**. ⛔ The other one still receives the typed
+events *(the defect above)* but never the raw stream. ⇒ ⚠ **the two halves of one tool's input can end up
+split across two tools**, and nothing anywhere says so.
+
+📌 **The design predicted exactly this** *(`gizmo-input-focus-design.md` §6.2)*: *"If two tools
+simultaneously emitted `InputCaptureBinding(Exclusive=true)`, the terminal would have no honest way to
+choose. **We prevent that situation entirely on the backend**"* — ⛔ **and the prevention is what is
+missing**, because there are two backends-within-the-backend.
+
+⭐⭐ **Consequence for `A1`:** the single `IToolController` fixes BOTH halves at once — one arbiter means one
+capture binding per frame, so the terminal's `break` becomes correct rather than arbitrary.
+
 **And exclusivity is narrower still than that:** `_injectedGizmos` is keyed **per `Entity`**, so
 activating `Rotate` on entity A then `Edit` on entity B leaves **both** alive.
 
