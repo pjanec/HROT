@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-28
-current-answer: §0.0e.3d — UXI-23 slice S4 (configuration). S1, S2a, S2b and S3 are all DONE, pushed and live-verified; CE-123 and CE-126 are closed. Read §0.0e.3d first, then docs/UX/UX_Feature_Map_Parity.md §3.2d + §3.2e (the S2b/S3 amendments) and §3.9j (the S2a design + as-built).
+current-answer: §0.0e.3d — UXI-23 slice S5 (the action half, JOINT with UXI-07). S1, S2a, S2b, S3 and S4 (1+3) are DONE, pushed and live-verified; CE-123, CE-126 and CE-129 are closed. CE-131 is the open one S4 deliberately did not fix. Read §0.0e.3d first, then docs/UX/UX_Feature_Map_Parity.md §3.2d/§3.2e/§3.2f and §3.9j.
   ⭐⭐⭐ S1 IS BUILT AND PUSHED (2026-08-28). NEXT IS S2 — one map backend.
   READ FIRST: docs/DESIGN_Map_Rendering_And_Interaction.md, the new standing architecture reference
   (layer map, both gizmo kinds, render + interaction paths, the TO-BE, and an 8-item risk register
@@ -221,7 +221,7 @@ with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory decla
 after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
 points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
 
-### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S4`: CONFIGURATION** *(retargeted `2026-08-30`; `S1`–`S3` are DONE)*
+### 0.0e.3d ⭐⭐⭐ **START HERE — `UXI-23` SLICE `S5`: THE ACTION HALF** *(retargeted `2026-08-30`; `S1`–`S4` ①+③ are DONE)*
 
 #### 📄 READ THESE TWO FIRST — ⛔ do not re-derive any of it
 
@@ -292,13 +292,18 @@ carried *"the map is RUNNING AND DRAWING NOTHING — … 8 entities … zero Sem
 that never runs both look like. ⛔ Only the inverse-edit LIVE run distinguishes them — the unit rail alone
 would have left that vacuity standing.
 
-#### ⭐⭐⭐ `S4` — **CONFIGURATION** *(the next slice)*
+#### ✅✅ `S4` ①+③ ARE DONE — **culling is a POLICY now, and the seam's dead half is alive**
 
-| # | |
-|---|---|
-| **①** | ⭐⭐ **The beachhead exists** — `EntityPresentationGizmoSettings` *(3 keys: `cullOffscreen`, `damagedThreshold`, `immobileThreshold`)* and `MapInteractionContext`'s six named per-host inputs. ⛔ Do NOT re-invent a settings mechanism; `GizmoSettingsRegistry` is already standalone and injectable *(§3.2c)* |
-| **②** | ⚠⚠ **`CE-129` is the open DESIGN question, not a chore:** `IGizmoVisibilityPolicy.IsEntityVisible` is declared and **never called** by `StatelessGizmoSystem` *(`DataDrivenGizmoSystem` honours it at `:326`, `:369`)*. ⭐ It is the natural home for per-PROJECTOR visibility — which `S2a` had to express as a projector-level setting instead. 🔒 Closing it means deciding **how a reflection-discovered projector names a policy**; that is an architect-question-shaped call |
-| **③** | 🔴 **`CE-131` is the live defect `S4` should make fixable** — IG's culling marks every entity invisible because its viewport comes from projected screen corners. ⛔ Do NOT delete the culling gate *(`R-137`)*; fix the INPUT, then a host can turn `map.entity.cullOffscreen` on and get the performance benefit |
+📐 `StatelessGizmoSystem` honours `IsEntityVisible` *(after the mask match; reference-compare fast path for
+the `AlwaysVisiblePolicy` default)*. `RegisterAll` takes a `Func<Type, IGizmoVisibilityPolicy?>` resolver —
+the missing answer to *how a reflection-discovered projector names a policy*. `S2a`'s inline culling moved
+wholesale into `CullingStateVisibilityPolicy` **(ruling 9 — there was a second implementation of *"should
+this entity draw?"*)**. ✅ **`CE-129` closed.** Live: frames identical to `S3`, zero diagnostics.
+
+⚠⚠ **STILL OPEN in `S4`, deliberately not built:** 🔴 **`CE-131`** — IG's `MapCullingSystem` derives
+`IsVisible` from projected SCREEN CORNERS, degenerate without a real viewport, so it marks **every entity
+invisible**. ⛔ **Do NOT delete the culling gate to "fix" it** *(`R-137`)*; fix the INPUT, then a host can
+turn `map.entity.cullOffscreen` on and get the benefit `MapCullingSystem` was written for.
 
 #### ⭐ THEN `S5`
 

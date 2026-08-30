@@ -234,7 +234,22 @@ headings, routes or overlays — and nothing records whether that is a deliberat
 drift. ⚠ It is the same shape as [UXI-13](UX_Issues.md#uxi-13) (four hand-maintained gizmo menu blocks):
 **per-subsystem registration lists with no declared rationale.**
 
-### 3.4 Culling moves to a visibility policy — ⭐ the seam already exists
+### 3.4 Culling moves to a visibility policy — ✅ **BUILT `2026-08-30` by `UXI-23` `S4`**
+
+> ✅✅ **This section is AS-BUILT.** `CullingStateVisibilityPolicy` exists at
+> `Hrot.Presentation/ScenarioEditor/Map/`, and the pack's default resolver attaches it to the entity
+> projector. 📄 The full record, including two things §3.4 did not know: `UX_Feature_Map_Parity.md` §3.2f.
+
+⚠⚠ **What §3.4 could not see, and why it sat unbuilt:**
+
+| # | |
+|---|---|
+| **①** | 🔴 **The consumer half did not exist.** `StatelessGizmoSystem` called only `IsGloballyEnabled` — so the `CullingStateVisibilityPolicy` this section prescribes would have been **stored and silently ignored**. ✅ `S4` made the system honour `IsEntityVisible` |
+| **②** | 🔴 **Reflection could not supply the policy.** ⛔ The code line below is a **hand-written registration site that `ST-031` deleted**. ✅ `S4` added a `Func<Type, IGizmoVisibilityPolicy?>` resolver to `RegisterAll`, so the wiring is `MapInteractionContext.VisibilityPolicyResolver` rather than a literal `Register` call |
+| **③** | ⭐ **The double-match this section aimed at was already gone.** `S2a` merged the three entity projectors, so *"one gizmo, one key"* was banked by a different route |
+| **⚠** | 🔴 **`CE-131`:** IG's culling input marks EVERY entity invisible *(viewport from projected screen corners)*. ⇒ **the setting defaults OFF**; this section is now correctly placed but still wired to a broken source |
+
+
 
 ```csharp
 registry.Register(new EntityPresentationGizmo(), new CullingStateVisibilityPolicy());
