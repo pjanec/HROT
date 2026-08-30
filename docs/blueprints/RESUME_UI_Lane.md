@@ -1,11 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-27
-current-answer: ⭐⭐⭐ §0.0d — "PHASE 2: THE PLAN, AND THE SAFETY NET". START THERE AND NOWHERE ELSE.
-  It is written to be SELF-SUFFICIENT after a compaction: it repeats the measured numbers rather than
-  pointing at them, and carries the user rulings, the resolved D1-D4, the slice order and the limits.
-  Read §0's header block only for the branch/ids/dispatch-sha facts.
-stale-below: ⛔ EVERYTHING except §0's header and §0.0d is HISTORY, newest first — §0.0c (the CE-070/071
+updated: 2026-08-30
+current-answer: §0.0e.3d — S5 is BLOCKED (UXI-07 is NOT-BUILT, so its migration steps 3-4 do not exist).
+  S1, S2a, S2b, S3 and S4 (1+3) are DONE and live-verified; CE-123, CE-126 and CE-129 closed; CE-131 REFUTED
+  (settling artifact, see UX_Feature_Map_Parity.md §3.2g). NEW 2026-08-30: CE-133 is DESIGNED and
+  READY-TO-BUILD (UX_Feature_Entity_Symbology.md §3.8, UML gated) — the four symbol renderers become
+  switchable per-host paths, per the user ruling. Pick from the AVAILABLE WORK table — none is
+  pre-approved, ask first.
+
+stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
   way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
   record of WHY, not as instructions. ⚠ §0.0c and the §0 header both used to say "Start here"; §0.0d
   supersedes both (corrected 2026-08-27).
@@ -16,7 +19,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
 > 🔒🔒 **Branch: `claude/reset-working-branch-qd1qpv`** *(re-pointed by the USER, `2026-08-23`)*. ⛔ Push
-> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-101`)**; ⚠ `BP-` are this lane's HISTORICAL
+> nowhere else. ⭐ **CURRENT quest ids: `CE-` (next free `CE-110`)**; ⚠ `BP-` are this lane's HISTORICAL
 > variable-model ids, tracker areas **`A`–`G`**.
 > ⚠⚠ **This lane MOVED from `claude/hrot-implementation-j1jvin`** — ⛔ any document still naming `j1jvin`
 > as this lane is stale; `.claude/CLAUDE.md`'s lane table *(`6b14d13fe`)* is authoritative.
@@ -38,7 +41,7 @@ known-conflict: ⛔ HANDOFF_Cgf_Bootstrap_Unification.md (the dispatched frame) 
 > **②** [`batches/HANDOFF_Cgf_Bootstrap_Unification.md`](batches/HANDOFF_Cgf_Bootstrap_Unification.md) — the dispatched FRAME. ⚠ **stale on two points**, see the STATUS block.
 > **③** [`Architect_Question_62_Unify_The_Composition_Root.md`](Architect_Question_62_Unify_The_Composition_Root.md) — the predecessor; ⚠ AQ63 §3 supersedes its SHAPE and STAGING.
 >
-> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-101`**.
+> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · dispatch sha **`fd8da0967`** · rule-1b started-marker pushed (`1c4325ac5`; phase 0's own at `830fd32c7`). ⭐ ids **`CE-`**, next free **`CE-110`**.
 > ⭐ **RELEARN** before acting on this file.
 
 ## ✅✅✅ 0.0 — **PHASE 0 IS DONE** *(`2026-08-27`, head `9bff523c7`)*
@@ -69,7 +72,416 @@ the design's **§5.6 / §5.7 / §5.8**.
 | 🔴 **`CE-067`: `Hrot.Blueprints.Tests` (3 983 tests) had NOT COMPILED**, and `--no-build` printed PASSED over the stale binary — the exact hazard CLAUDE.md's tier section names. ⭐ Now **3 965/0** and back in the gate set | `CE-067` |
 | 📐 **Dead guard:** `WindowManager.MainToolbar` is NEVER null ⇒ every `MainToolbar != null` check was always true and its "toolbar-less host" comments described an impossible state | §5b.4 |
 
-## ⭐⭐⭐ 0.0d — **PHASE 2: THE PLAN, AND THE SAFETY NET.** ⛔⛔ **START HERE.** *(`2026-08-27`)*
+## ⭐⭐⭐ 0.0e — **`--mode all` VISUAL-CHECK CORRECTIVES + the `cgf==editor` TKB ruling.** ⭐ **the live section; its entry point is §0.0e.3d.** *(`2026-08-28`, head `7fbcf54e4`)*
+
+> ⚠ **This supersedes §0.0d as the start-here section.** §0.0d's phase-2 plan is **DONE** *(slices ①②③, `J1`,
+> `J2`, `J3` all closed — see §0.0d for its own record)*. ⛔ Do not restart phase 2 from it.
+
+### 0.0e.1 🔒🔒 THE USER RULINGS THAT NOW BIND THIS WORK — **verbatim, newest first**
+
+| # | ruling |
+|---|---|
+| 🔒🔒🔒 **`CE-109`** | *"shouldn't the TKb templates and scenario loading handlers be shared? the editor one's is very likely newer and better and the one to follow. there should be nothinkg like cluster tKB and editor TKB; we need cgf==editor"* ⇒ ⭐⭐ **where the hosts differ, the EDITOR is canonical and the cluster adopts it** — ⛔ never the reverse, ⛔ never a CGF-private variant |
+| 🔒🔒 **the safety fence** | *"the scenario loading path was tested manually pretty well in the editor so pls be carefull with any 'fixes'"* ⇒ ⛔⛔ **do NOT touch the editor's scenario path.** ⭐ The cluster moves toward it |
+| 🔒 **cross-lane** | *"feel free to make changes to other lane's files. No other lane is running. no collision risks."* ⇒ ⭐ TIME-lane / backend-lane files are editable; ⚠ still say which lane a change lands in |
+| 🔒 **`CE-090`** | *"we are unifying the UI, so obviously the stuff should look same and they CAN'T look different by design if they are rendered by single shared code where host-type gates are undesired; no special boolean needed"* |
+| 🔒 **`CE-086`** | *"Unify the internal window ids to snake, breaking layout is not an issue."* |
+| 🔒 **`CE-093`** | *"system not deployed yet… We can and should use better stuff (resolveBase)."* |
+
+### 0.0e.2 ✅ WHAT IS DONE — **do not redo any of this**
+
+⭐ Phase 2 closed: slices ①②③ · `J2` *(`CE-091`)* · `J3` *(concluded not-worth-building, §5c.11)* · `J1` +
+`J1-a` *(`CE-093`…`CE-100`, §5c.12–§5c.15)*.
+
+⭐ Then the user ran `--mode all` **visually on Windows** and reported three defects. All were reproduced over
+the debug API on a real boot in-container, and **four of the six filed items are fixed and gated**:
+
+| id | state |
+|---|---|
+| ✅ **`CE-101`** | `--mode all` boots **PAUSED**. Root cause: `MasterSyncController`'s ctor published its t=0 baseline anchor with `TargetMode = Continuous`, and `ClusterTimeObservation.Apply` derives `PauseRequested` from that mode ⇒ **an anchor sent for a side effect was also a command**. Opt-in `startPaused` flag; anchor still broadcast. §5c.16 |
+| ✅ **`CE-102`** *(= `HN-039`)* | CGF now registers the **shared** `HrotEditLoadHandler`. The blocker was one required arg — it threw on a null `IZoneManagerService`, which CGF composes none of; now optional **and reported**. entityCount 0→8. §5c.17 |
+| ✅ **`CE-104`** | `/sim/pause`'s ack now means **applied** *(`AwaitPausedAsync`)*, not accepted |
+| ✅ **`CE-105`** | `/sim/step {count:N}` honours `N` — the loop moved out of the single main-thread job to the HTTP handler, one gated step per frame. `count:60` → simTime exactly 1.0000000 |
+| ⛔ **`CE-106`** | **REFUTED — my operator error.** `/logs` always had `level`/`max`; I passed `limit=400` |
+| ✅ **`CE-107`** | the envelope's **success branch dropped `Hint` entirely** ⇒ the API could not say *"ok, but…"*. Fixed + `/logs` now names ignored filters |
+| ⚠ **`CE-108`** | edit path never remaps behaviour-param entity ids — **on ANY host, editor included**. Filed, deliberately NOT fixed |
+| 🔒 **`CE-103`** | **RULED §0.0e.3. ⭐ Baseline = `CE-113` (TKB-only), investigation = `CE-114`** |
+| 🔒 **`CE-109`** | the ruling above. ⚠ **RE-SCOPED §0.0e.4** — a real duplicate, but NOT `CE-103`'s fix; priority dropped |
+
+⭐ **The MCP SKILL sources carry this session's lessons** *(`CE-108` commit)* — §5b *"ok:true is not evidence"*,
+§5c *"prove your instrument once"*, §5d the three localising reads, plus per-route notes on `/logs`,
+`/sim/step`, `/sim/pause`, `/scenario/load/edit`, `get_entity`, `get_gizmo_frame`. ⛔ **`SKILL.md` is
+GENERATED** — edit `DebugApiRouteDocs.cs` / `tools/ai-debug-mcp/skill-parts/`, then regenerate, and
+⚠ **build the RUNNER first** *(`gen-catalog.mjs` shells out to `--mode dump-api`; otherwise it is a silent no-op)*.
+
+### 0.0e.3 🔒🔒🔒 `CE-103` — **ROOT-CAUSED + the user has RULED the fix direction. Baseline = `CE-113`.**
+
+📄 **[`Q64`](Architect_Question_64_Scenario_Component_Overrides_Across_The_Wire.md) — read §6 (the ruling)
+FIRST, then §7 (the baseline), then §8 (the investigation).** ⛔ **§4's leans are SUPERSEDED.**
+
+🔒 **The ruling, `2026-08-28`:** vehicle parameters live **only in the TKB**, loaded equally by every node.
+Saving them to the scenario is **an error at this stage**. Overrides may come later, sent **from the loading
+node over DDS** the way `SimTransform` already travels. ⛔⛔ **A receiving node must NOT read the scenario
+file** — the loading node stays authoritative and sends everything but TKB material, *so that any
+non-scenario entity can be created at runtime later.*
+
+⛔⛔ **MY OWN LEAN WAS REJECTED, and the reason is worth carrying:** I recommended *"the receiving node reads
+the scenario it already stages"* because it needed no wire change. ⭐⭐⭐ **A runtime-created entity has no
+scenario file to read** ⇒ it would work for scenario load and fail for every other spawn. 📌 **I optimised
+the COST axis and never checked the CAPABILITY axis.** ⚠ A cheap fix that forecloses a planned capability
+is not cheap.
+
+⭐⭐⭐ **THE BASELINE IS SMALL AND HALF-WRITTEN — `CE-113`.** `NedTkbBuilder.WithPhysics` receives a
+`SimVehicleDef` carrying **`Height`, `TurnRate`, `Mobility`** and **drops all three**, commenting *"mapped
+to VehicleParams by translator in Phase 6."* ⛔ **Phase 6 never happened** ⇒ the DTO has 6 fields and **the
+TKB physically cannot express a Tank**, which is why every node derives `PersonalCar` / `AccelGain 0`.
+⭐⭐ **`NedTkbBuilder.BuildVehicleParams` IS that missing mapping** and has **zero callers** ⇒ 🔒 **ROUTE it
+into the translator; do not rewrite, do not delete.** ⚠ It is the function I matched and retracted twice —
+never live, always intended; the scenario's stored block is a **fossil of its last run**.
+
+⚠⚠ **`B4` BLOCKS the build:** **two** translators write `VehicleParams` *(`VehicleKinematicsTkbTranslator`
+and `InfantryVehicleStateStripTkbTranslator`)*, both `!HasComponent`-guarded ⇒ first-writer-wins by
+registration order. **Decide the owner first.**
+
+### 0.0e.3b ✅✅✅ **CLOSED `2026-08-28` — TKB DEFAULTS ALWAYS. `CE-113` is the whole of the work.**
+
+📄📄 **THE INTENT IS NOW A DESIGN: [`DESIGN_Entity_State_Sourcing.md`](../DESIGN_Entity_State_Sourcing.md)**
+*(canon row **`R-136`**)* — read that to learn how entity state is sourced. ⛔ **`Q64` is the ARCHAEOLOGY**
+*(four rejected designs); do not use it as the reference.* 🔒 **The user found the blocker in his own design
+and it closes the question:**
+*"NED concept requires each entity to be late-joinable just by listening to DDS and for the entity
+descriptors… so each entity will be created from TKB defaults ALWAYS which is the original idea."*
+
+⛔⛔⛔ **ALL FOUR transport designs are DEAD.** ⭐ Do not revive any of them:
+
+| ⛔ dead design | why |
+|---|---|
+| component-id bitmask *(§12.4)* | leaked an FDP component id onto the wire ⇒ breaks `Q59` §7 |
+| `uint64` descriptor mask *(§13)* | has a **ceiling**; the descriptor count will grow past 64 |
+| nest overrides in the creating sample | ⛔ **impossible** — `CreateGhost` is called from ≥10 ingress translators ⇒ **first-touch** creation, no privileged sample |
+| ⭐ wait-flag + aggregate bundle *(§14)* | 🔴🔴 **WORSE THAN NOTHING** — a late joiner reads `EntityMaster` from **TransientLocal** history and sees the wait bit, but the bundle was a one-shot **`Volatile`** command, long gone ⇒ **the ghost is stuck FOREVER.** 📌 **Any "flag + side-channel" scheme has this**: the flag is durable state, the channel is not |
+
+✅ **Verified while closing:** the entity-state descriptors ARE **`Reliable` + `TransientLocal`**
+*(`GenericDescriptors.cs:77/134/168` + all six in `MapDescriptors.cs`)*; the **command** messages are
+`Volatile`. ⇒ ⭐⭐⭐ **STATE is TransientLocal, COMMANDS are Volatile — that split IS the architecture.**
+⚠ My earlier *"Volatile defeats late joiners"* note was measured on the **commands** and wrongly
+generalised to descriptors. ⭐ And `EntityDescriptorUnion` has **no `[DdsTopic]`** *(one topic per descriptor
+type; the union is payload-only)*, so a type can exist as an `UpdateEntityDescriptorRequest` payload
+**without** becoming published state.
+
+🔒🔒🔒 **THE PRINCIPLE THAT NOW DECIDES EVERY CASE OF THIS SHAPE — the TKB is itself the late-join
+mechanism for internal state:**
+
+> ⭐⭐⭐ **Entity state must be reconstructible from (a) the TKB, or (b) published `TransientLocal`
+> descriptors. Anything in NEITHER is unreconstructible by a late joiner and MUST NOT EXIST as durable
+> state.**
+
+⇒ ⛔ a side-channel override is exactly *"neither"* ⇒ **forbidden, not merely inelegant.** ⭐ That is why all
+four designs failed: each tried to create a third source.
+
+⭐ **`CE-114`'s filter is now sharp** — ⛔ not *"what does SimHost register"* *(that removed 1 of 23)* but
+🔒 **"does this state need to survive a late join?"** ⇒ **yes ⇒ published descriptor · no ⇒ TKB. No third
+answer.** ⚠ **Nothing is in scope today**: `VehicleParams` is ruled internal state ⇒ TKB-only.
+
+⚠⚠ **THE ONE BOUNDARY:** a runtime parameter command has the **same hole, moved** — a node joining after it
+holds TKB defaults while others hold the changed value. ⭐ Safe **only** as a transient/authoring action
+with divergence knowingly accepted; ⛔ **never the general override mechanism.** 🔒 A parameter that must
+differ from the TKB **durably** must be **reclassified** into a real published descriptor.
+
+
+
+⭐⭐⭐ **Sequencing — the design question is CLOSED, so there is only one item: `CE-113`.**
+⛔ `CE-116` **WITHDRAWN** · ⭐ `CE-114` re-scoped to *"promote to a published descriptor, or fix the TKB"*
+with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory declaration)* and the
+`IDescriptorTranslator` naming reconciliation remain as small independent cleanups.
+⭐⭐ **`CE-113` is the whole of the work and depends on none of it.**
+
+⚠⚠ **PROCESS NOTE WORTH KEEPING:** I ran this as a code investigation and swept the design corpus only
+after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
+points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
+
+### 0.0e.3d ⭐⭐⭐ **START HERE — ⛔ `S5` IS BLOCKED; PICK FROM §THE AVAILABLE WORK** *(`2026-08-30`; `S1`–`S4` ①+③ are DONE)*
+
+#### 📄 READ THESE TWO FIRST — ⛔ do not re-derive any of it
+
+| doc | why |
+|---|---|
+| ⭐⭐⭐ **[`docs/DESIGN_Map_Rendering_And_Interaction.md`](../DESIGN_Map_Rendering_And_Interaction.md)** | **the standing architecture reference** — layer map, both gizmo kinds, the render frame, the interaction path, the tool path, the TO-BE, and an **8-item risk register where every item is SILENT when hit**. ⭐ §1 is the orientation |
+| ⭐⭐ **[`docs/UX/UX_Feature_Map_Parity.md`](../UX/UX_Feature_Map_Parity.md)** | `UXI-23` itself — §3.9 the slices, §3.9a–i the measured detail, ⭐⭐ **§3.9j the `S2` design + AS-BUILT** |
+
+#### ✅✅✅ `S1`, `S2a`, `S2b` AND `S3` ARE ALL DONE, PUSHED AND LIVE-VERIFIED
+
+| `S2` item | state |
+|---|---|
+| ① pin `GizmoTypeId` | ✅ **measured NOT a prerequisite** — it lives only on `IGizmoDefinition` *(stateful)*; the merged classes were `IStatelessGizmo`. ⭐ Still owed to `UXI-07` |
+| ② merge the three entity projectors | ✅ **DONE** *(`S2a`)* |
+| ③ query is `SimTransform` + `NetworkIdentity` only | ✅ **DONE** |
+| ④ ⭐⭐ **`MapInteractionPack.Build(ctx)`** | ✅ **DONE** *(`S2b`)* — all five hosts migrated |
+| ⑤ fix `CE-126` inside the merge | ✅ **DONE** |
+| ⑥ delete the per-host `gizmoGroup.Enabled` literals | ✅ **DONE** — replaced by `MapInteractionContext.StartEnabled` |
+
+📐 **Live on `--mode all`, `S2a` frame → `S2b` frame:** Scenario `53 → 53`, SimHost `55 → 55`,
+⭐ **IG `64 → 63`** *(a double registration removed — IG called both the reflection registrar AND the
+source-generated one, and `CanvasContextMenuGizmo` carries `[GizmoProjector]`)*.
+
+🔒 **`R-137` in `S2b`:** every per-host difference became a **named context input**, never erased —
+`IsSelectedPredicate` *(handles only)* · `StartEnabled` · `Settings` · `BufferCapacity` *(IG's 4096)* ·
+`BreakpointManager` · `ContributeExtras`.
+
+#### 📐 WHAT `S1` + `S2a` DELIVERED — ⛔ do not rebuild it
+
+📐 **`S2` merged the three host-private entity projectors into ONE `EntityPresentationGizmo`**
+*(`Hrot.Presentation/ScenarioEditor/Gizmos/`)*, removed SimHost's stateless selection gate, and fixed
+**`CE-126`** *(a·b·c)* by deleting the copy that carried them. **19 + 2 rails, four inverse-edit red-proofs.**
+
+✅✅ **`CE-123` IS RESOLVED — measured live on `--mode all`, same-boot before/after:**
+
+| perspective | before | after | ⭐ what the delta IS |
+|---|---|---|---|
+| 🎉 **SimHost** | 🔴 **3** non-`Line` | ⭐⭐⭐ **55** | the map appears. ⭐ `Arrow +12` · `Text +8` · `ContextMenuBinding +8` prove the gate was suppressing **routes and labels too** |
+| Scenario | 69 | 53 | **−16 = the DUPLICATE removed** *(`SpatialAnchor`/`SemanticShape` `16→8`)* |
+| IG | 80 | 64 | the same `−16` |
+
+⇒ ⭐⭐ **Every perspective now emits ONE primitive set per entity: 8 anchors, 8 shapes, 8 pick boxes / 8 entities.**
+
+#### 🔴🔴 THE ONE THING `S2` SURFACED THAT IS NOT FIXED — **`CE-131`, read it before touching culling**
+
+📐 IG's `MapCullingSystem` marks **every entity invisible** — its viewport comes from projected screen
+corners *(`IgApplication.cs:963`)*, degenerate without a real map view. ⚠⚠ **This was invisible for years
+because IG's map was drawn by SimHost's and CGF's copies, which ignored culling.** ⇒ 🔒 culling is now the
+opt-in setting **`map.entity.cullOffscreen`, default `false`** — ⛔ **do NOT "simplify" by deleting the
+culling gate; that discards the capability (`R-137`).** Fix the INPUT, then a host can enable it.
+
+#### ✅✅ `S3` IS DONE — **and its PREMISE was half wrong; read §3.2e before extending it**
+
+🔴 §3.2a claimed declare-and-report *"would have caught"* `CE-123`. 📐 **Re-measured: FALSE.** SimHost HAD
+scheduled the group *(`SimHostApp.cs:442`)*, all three systems were present and the gate was open — a
+run-set check prints *"nothing unserviceable"* on that configuration. ⇒ `S3` shipped in **two halves**:
+
+| half | what it catches | |
+|---|---|---|
+| `MapInteraction.RequiredSystems` + `Unserviceable(hostRunSet)` | a host that **never schedules** the map | ⭐ wired in all five hosts; ⛔ **cannot see `CE-123`**, and a rail asserts that on purpose |
+| ⭐⭐ **`MapSelfCheckSystem`** | 🔒 **group enabled + eligible entities present + ZERO `SemanticShape`** — `CE-123`'s exact signature | ⭐ ships as the LAST member of the pack's group, so no host can forget it. Reports, never throws; latches; reports recovery |
+
+✅ **Live proof, end to end:** healthy map ⇒ frames unchanged *(Scenario 53 · IG 63 · SimHost 55)* and
+**zero** diagnostics. `CE-123` reintroduced ⇒ frame collapsed to the original **`605/3`** and the log
+carried *"the map is RUNNING AND DRAWING NOTHING — … 8 entities … zero SemanticShape … after 120 frames"*.
+
+⚠⚠ **A verification lesson worth keeping:** *"zero diagnostics"* is what a healthy map **and** a system
+that never runs both look like. ⛔ Only the inverse-edit LIVE run distinguishes them — the unit rail alone
+would have left that vacuity standing.
+
+#### ✅✅ `S4` ①+③ ARE DONE — **culling is a POLICY now, and the seam's dead half is alive**
+
+📐 `StatelessGizmoSystem` honours `IsEntityVisible` *(after the mask match; reference-compare fast path for
+the `AlwaysVisiblePolicy` default)*. `RegisterAll` takes a `Func<Type, IGizmoVisibilityPolicy?>` resolver —
+the missing answer to *how a reflection-discovered projector names a policy*. `S2a`'s inline culling moved
+wholesale into `CullingStateVisibilityPolicy` **(ruling 9 — there was a second implementation of *"should
+this entity draw?"*)**. ✅ **`CE-129` closed.** Live: frames identical to `S3`, zero diagnostics.
+
+⛔⛔ **`CE-131` IS REFUTED — do NOT go looking for it.** 🔴 I filed it from ONE probe. 📐 Culling forced ON,
+IG probed repeatedly: **`0` on probe 1 then `8 · 8 · 8`, IDENTICALLY with and without a fix to the culling
+input.** ⇒ a settling artifact. ⭐ An unset-viewport guard IS in `MapCullingSystem` *(3 rails)* on its own
+merits — for a genuinely headless node — ⛔ **not as a fix for any observed symptom.** 📄 §3.2g.
+
+#### ⛔⛔ `S5` IS BLOCKED — **measured, `2026-08-30`**
+
+📐 `UX_Feature_Tool_Model.md`'s STATUS block: **`build-state: NOT-BUILT`** — *"no `IToolController`/
+`ToolDescriptor`/modal-stack in source, only fossil comments."* ⇒ 🔒 **`UXI-07`'s migration steps 3–4 do not
+exist**, and §3.9h says `S5` **must** be sequenced after them or it re-implements the action→tool routing
+that lane owns. ⛔ **Do not start `S5`.**
+
+#### ⭐⭐⭐ THE AVAILABLE WORK — **pick one; ⚠ none is pre-approved, ask first**
+
+| candidate | why | size |
+|---|---|---|
+| ⭐⭐⭐ **`CE-133` — the four symbol renderers become switchable paths** | 🔒 **User ruling `2026-08-30`:** *"i do not want to lose any of the renderers … switchable (one active) per host, active path defined in hosts config."* ⭐⭐ **THE DESIGN IS WRITTEN AND GATED** — [`UX_Feature_Entity_Symbology.md` §3.8](../UX/UX_Feature_Entity_Symbology.md), `build-state: READY-TO-BUILD`, with `classDiagram` + `sequenceDiagram` (both parse) and an `INVENTORY`. 📐 **`search_graph` found a FOURTH renderer grep missed** — `SemanticShapeRenderer`, **zero callers**, specified on purpose by `BATCH-20-INSTRUCTIONS.md:136`. ⚠ Needs an argued, additive ExtDeps deviation (§3.8.3) — ⭐ **that is the one thing to get the user's nod on before building.** ⭐ Independent of `CE-125`, but worth doing after it | `RW-M` |
+| ⭐⭐ **`CE-125` — the fixed cyan** | 🔒 [`UXI-10`](../UX/UX_Feature_Entity_Symbology.md) **defect A**, verbatim: *"Every entity is the same cyan … **friend and hostile are indistinguishable on the map** while the simulation itself distinguishes them"* — `EntityPresentationGizmoShared.cs:92`, a literal `Rgba32(100,220,255,255)`. ⭐⭐ **The user asked about this directly** *("will this map unification change the entity symbol colour which is now fixed to cyan?")*. ⚠ `UXI-10` §0 warns there are **two symbology pipelines, both built, not connected** — `StyleResolutionSystem` is the upstream one. 🔒 **Read §0 and §3 before touching anything** — ⭐ and §3.8, which now depends on this for its value | `RW-M` |
+| ⭐ **`UXI-10` §3.5 — the `shapeName` half** | the actual filed issue behind `UXI-10`; `MapShapeName` is authored, translated into a component, and **never read** *(seam-law instance 11)* | `RW-M` |
+| ⭐ **the `GizmoTypeId` pin** | 🔒 cheap, owed, and protects BOTH lanes — an explicit constant per `IGizmoDefinition`. ⚠ **JOINT**: tell `UXI-07`, since its migration renames these | `RW-S` |
+| ⚠ **`S4` ②** | the rest of the configuration surface. ⛔ **Lower value than it looks** — the beachhead (`EntityPresentationGizmoSettings`, the resolver, six named context inputs) is built, and nothing is asking for more knobs yet | `RW-S` |
+
+#### ⭐ THEN `S5`
+
+| | |
+|---|---|
+| **`S5`** | 🔴 **JOINT with [`UXI-07`](../UX/UX_Feature_Tool_Model.md)** — sequence it AFTER that lane's migration steps 3–4, which own action→tool routing. ⚠ **Pin `GizmoTypeId` as an explicit constant on every `IGizmoDefinition` first** *(it is the FNV-1a hash of the type's FULL NAME and the DDS routing key — a rename silently breaks remote dragging while the handle still draws)*. 📌 `S2` did NOT need it: the merged classes were `IStatelessGizmo` and carry no wire id |
+
+#### ⭐ VERIFY (the recipe that measured `S2`)
+
+```bash
+dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj --no-restore -v q --nologo
+cd Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
+export HROT_DEBUG_API_PORT=8099 FDP_STAGING_ROOT=<a fresh dir>
+nohup xvfb-run -a dotnet Hrot.ClusterRunner.dll --mode all > /tmp/run.log 2>&1 &
+curl -s --noproxy '*' -m 180 -X POST http://localhost:8099/scenario/load/live \
+     -H 'Content-Type: application/json' -d '{"name":"hill-attack","waitForReady":true}'
+curl -s --noproxy '*' -X POST http://localhost:8099/perspective \
+     -H 'Content-Type: application/json' -d '{"name":"SimHost"}'   # ⛔ NEVER ?perspective= (CE-112)
+curl -s --noproxy '*' "http://localhost:8099/panels/_gizmo?max=4000" # ⛔ NOT /gizmo/frame — 404
+```
+🔒 **Check `ok` before reading `data`** *(`CE-120`)*; the schema is lowercase `primitives`, each with `shape`.
+⚠⚠ **`GET /entities` does NOT read the world IG projects from** — it returned `0` under the IG perspective in
+BOTH runs while IG's frame carried 16 anchors. ⛔ **Do not use it to explain an IG frame.**
+⚠⚠ **A recorded baseline from an earlier session is NOT comparable** — re-measure the baseline on the SAME
+BOOT by rebuilding the pre-change sources. 📌 That is what separated `S2`'s real deltas from run-to-run noise.
+
+
+### 0.0e.3c ⭐⭐⭐ **THE BUILD PLAN — `CE-113`. THE ONLY WORK LEFT. ⭐⭐ BUILD THIS FIRST.**
+
+⭐ **The bug:** on `--mode all` the tanks draw a path and do not move, because **SimHost** *(the muscle, which
+runs `CarKinematicsSystem`)* builds its entity **from the TKB via ghost promotion** — and **the TKB cannot
+express a Tank**, so it derives `PersonalCar` / `AccelGain 0` / `MaxSteerAngle 0` ⇒ zero acceleration, NaN
+steer. 🔒 **TKB is ruled the source** *(§0.0e.3b · `R-136`)* ⇒ **make the TKB sufficient. Nothing else.**
+
+#### ✅ `B4` — RESOLVED BY MEASUREMENT `2026-08-28`. **Not a blocker. Do not re-investigate.**
+
+📐 I had filed *"two translators write `VehicleParams`, first-writer-wins, pick an owner"* as blocking.
+**It is not:**
+
+| | |
+|---|---|
+| `SimHostNodeBootstrapper.cs:146-155` — the cluster's translator list | `SpatialCore` · **`VehicleKinematics`** · `Behavior` · `Combat` · `Perception` · `AiDiagnostics` ⇒ ⭐ **`VehicleKinematicsTkbTranslator` is the ONLY `VehicleParams` writer on the cluster path** |
+| `InfantryVehicleStateStripTkbTranslator` | 📐 registered **only** at `Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs:1622` *(the Stride editor app, NOT the SimHost node)*, and its own comment says it **STRIPS** `VehicleState`/`VehicleParams` from capsule (infantry) entities ⇒ ⛔ **a remover on another host, not a competing writer** |
+
+⇒ ⭐ **`VehicleKinematicsTkbTranslator` is the unambiguous owner. `B1`/`B2` are unblocked.**
+
+#### ⭐⭐ THE THREE ITEMS, with every anchor needed
+
+⚠⚠ **The file is `BdcTkbBuilder.cs` and the class inside it is `NedTkbBuilder`.** 📌 That mismatch cost me
+three grep misses — ⛔ **search the METHOD name, never the file name.**
+
+| # | item | anchors |
+|---|---|---|
+| **`B1`** | **Widen `VehicleParametersDto` by `Height`, `TurnRate`, `Mobility`** ⭐ **UNBLOCKED — format-safety measured, see below.** ⚠ **and the drop is FIVE fields, not three** *(+`FuelCapacity`/`FuelConsumption`, latent)* | `FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/VehicleParametersDto.cs` — a `record` with `[TkbDescriptor("Gen.VehicleParameters")]`, **6 fields** *(Mass·Length·Width·MaxSpeedFwd·MaxSpeedRev·MaxAccel)*. ⭐ The source already HAS the three: `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/SimVehicleDef.cs` carries `Height`, `TurnRate`, `Mobility` *(+FuelCapacity/FuelConsumption)*, and `NedTkbBuilder.WithPhysics` *(`BdcTkbBuilder.cs:78`)* **drops them** under the comment *"Height, TurnRate, Mobility mapped to VehicleParams by translator in Phase 6."* ⛔ **Phase 6 never happened** |
+| **`B2`** | **Route the already-written mapping into the translator** | ⭐⭐ `NedTkbBuilder.BuildVehicleParams(SimVehicleDef)` — `BdcTkbBuilder.cs:271`, **`private static`, ZERO callers**: maps `Mobility→VehicleClass` *(Tracked→Tank · Wheeled→Truck · Infantry→Pedestrian)*, bases on `VehiclePresets.GetPreset` *(`FDP/Toolkits/Fdp.Toolkits/CarKinem/Core/VehicleClass.cs:75-91` is the Tank preset)*, overrides Length/`WheelBase=Length×0.6`/Width/MaxSpeedFwd/MaxSpeedRev/MaxAccel, and computes `MaxSteerRate = TurnRate × π/180`. 🔒 **ROUTE it, do NOT rewrite or delete** *(`CLAUDE.md`: unreferenced is not unintentional)*. Target: `FDP/Toolkits/Fdp.Toolkits/CarKinem/Tkb/VehicleKinematicsTkbTranslator.cs:33-41`, which today writes only 5 fields |
+| **`B3`** | **Stop the scenario saving translator-derived components** *(start with `VehicleParams`)* ⭐⭐ **UNBLOCKED — and it is a ONE-ATTRIBUTE change** | 🔒 ruling ②: they are **stale TKB duplicates, not overrides**. 📐 `scenarios/hill-attack/scenario.json` stores a full 15-field `VehicleParams` on **6 of 8** entities. ✅ **MEASURED: add `[DataPolicy(DataPolicy.NoSave)]` to `FDP/Toolkits/Fdp.Toolkits/CarKinem/Core/VehicleParams.cs`** — the save set is `repo.GetSaveableMask()`, so a component opts OUT by declaration. 🔒 **This does NOT touch the hand-tested scenario save path at all** *(the user's warning)*. Precedent: `UnitRoster.cs:26` |
+
+#### ✅ WHAT I NEEDED TO KNOW — **ALL FOUR MEASURED `2026-08-28`. BOTH BLOCKERS CLEARED.**
+
+| measured | verdict |
+|---|---|
+| ✅ **Does widening a `[TkbDescriptor]` `record` break the ZIP-loaded path?** | ⭐⭐ **NO — it is format-safe in BOTH directions, and `B1` is unblocked.** 📐 The generated thunk is `JsonSerializer.Deserialize<TDto>(jsonElement, FdpJsonOptionsRegistry.DefaultRelaxed)` — emitted by `FDP/Toolkits/Fdp.Toolkit.Tkb.SourceGen/TkbDescriptorGenerator.cs:137`, which **re-emits on every build**, so a widened record needs no hand edit. `UnmappedMemberHandling` is unset ⇒ default `Skip` ⇒ an OLD binary reading NEW json ignores the extra members; a NEW binary reading OLD json defaults them. ⚠⚠ **The real hazard is not a break, it is a SILENT ZERO:** a `Gen.VehicleParameters` block with no `Mobility` yields `Mobility = 0` = `TerrainMobility.Tracked`… which is *accidentally* right for tanks and wrong for everything else. ⛔ **`B1` must make absence recoverable, not silently `Tracked`.** ⚠ And `DefaultRelaxed` registers `StrictStringEnumConverter` ⇒ **an enum authored as an INTEGER in TKB json THROWS** — the widened `Mobility` must be authored as a string |
+| ✅ **Where does the scenario SAVE path write `VehicleParams`?** | ⭐⭐⭐ **NOWHERE EXPLICITLY — and this makes `B3` a ONE-ATTRIBUTE change that does NOT touch the hand-tested path.** 📐 `ScenarioSerializer.SerializeEntity` *(`FDP/Toolkits/Fdp.Toolkits/Scenario/ScenarioSerializer.cs:218`)* walks a **caller-supplied `BitMask512`** — `repo.GetSaveableMask()` *(`FDP/Engine/Fdp.Core/EntityRepository.Sync.cs:213`)* — and `FdpAutoSerializer` handles every remaining bit generically. ⇒ `VehicleParams` is saved **because it is registered and carries NO `[DataPolicy]`** *(`FDP/Toolkits/Fdp.Toolkits/CarKinem/Core/VehicleParams.cs:11-13` — only `[StructLayout]` + `[ComponentId]`)*. ⇒ ⭐ **`B3` = add `[DataPolicy(DataPolicy.NoSave)]`.** 🔒 **EXACT PRECEDENT ALREADY IN-TREE:** `FDP/Engine/Fdp.Core/CommandHierarchy/UnitRoster.cs:11,26` — *"not saved (`DataPolicy.NoSave`) because it is entirely derived"* — **the same argument, already accepted** |
+| ✅ **Does `Mobility` reach `WithPhysics` for tkbType 100?** | ⭐⭐⭐ **YES — all three dropped fields ARE authored.** 📐 `BdcTkbCatalog.cs:26-37`, inside `WithPhysics(TkbEntityTypes.Tank_M1Abrams, …)`: `p.Height = 2.44f` · `p.TurnRate = 15.0f` · `p.Mobility = TerrainMobility.Tracked`. And `TkbEntityTypes.cs:6` ⇒ `Tank_M1Abrams = 100`. ⇒ **the data exists at the source and `BdcTkbBuilder.cs:87-96` discards it one line later.** ⭐ `B1`+`B2` are a real fix, not a speculative one |
+| ✅ **Which TKB source did the live run actually use?** *(NOT on the original list — it turned out to decide whether `B1`'s builder half fixes anything)* | ⭐⭐ **the code-built catalog.** 📐 **TWO sources exist:** ① `HrotEnvironment.CreateTkb()` → `NedTkbCatalog.RegisterAll` → `NedTkbBuilder` *(`HrotNodeBuilder.cs:197`, `HrotNodeBuilderReplicationExtensions.cs:115,178`)*; ② `TkbUnifiedLoader` — **exactly ONE production caller**, `Hrot.SimHost/Orchestration/Handlers/TkbLoadClusterStateHandler.cs:96`, which **`_tkbDb.Clear()`s and REPLACES the code catalog** when the staged scenario names a `TkbName`. 🔴 **But `find` shows NO TKB `.zip` and NO TKB `.json` anywhere in the repo** ⇒ ② cannot have run ⇒ ① is live. ⭐ **So fixing `WithPhysics` fixes the running system** — ⚠ **and when a real TKB zip IS staged one day, the authored json must carry the three fields or the bug returns via `Mobility = 0`** |
+| ⚠ **Are the other translator-derived components ALSO degraded?** | ⭐⭐ **MEASURED — 33 components across the 6 cluster translators, and the answer is bigger than `VehicleParams`: the "Phase 6" migration is UNFINISHED IN FIVE PLACES IN ONE FILE.** ⛔⛔ **DO NOT fold these into `CE-113`** — see the table below and `CE-117`/`CE-118` |
+
+##### ⛔⛔ The wider finding — **`WithPhysics` is the only one of five that is even PARTLY wired**
+
+📐 Measured on `BdcTkbBuilder.cs`; the giveaway is a *"will be applied by translator in Phase 6"* comment in
+each. ⚠ **Every one of them takes a `configure` lambda the catalog fills in, and four never store the result.**
+
+| builder method | authored input | reaches a DTO | verdict |
+|---|---|---|---|
+| **`WithPhysics`** `:78` | **11** `SimVehicleDef` fields | **6** | 🔴 **drops FIVE, not three** — `Height` · `TurnRate` · `Mobility` **+ `FuelCapacity` · `FuelConsumption`** *(the last two are latent: nothing consumes them yet)*. ⇒ **`CE-113`** |
+| **`WithCombat`** `:103` | `SimCombatDef` | **4 DTOs** ✅ | ⭐ **the one that IS finished** — the model to copy |
+| **`WithVisual`** `:65` | **5** `IgVisualDef` fields | 🔴 **ZERO** | ⛔⛔ **`configure` is NEVER INVOKED** — the whole catalog lambda *(`SymbolCode`, `ModelPath`, `ColorHex`, `Scale`, `ShowLabel`)* is dead code, and **`VisualDefinitionDto` has ZERO producers repo-wide.** ⇒ **`CE-118`** |
+| **`WithFaction`** `:170` | `factionId` | 🔴 **ZERO** | ⛔ ignores its argument entirely, **and `WithBehavior` `:204` never sets `BehaviorProfileDto.Faction`** ⇒ `BehaviorTkbTranslator.cs:35` stamps `EntityInfo { ForceId = dto.Faction }` = **0 for every TKB entity**. ⇒ **`CE-117`** |
+| **`WithHeavyMemory`** `:222` | — | 🔴 **ZERO** | `Blackboard1024` never added despite the doc-comment promising it |
+
+⭐⭐ **The design sweep that must precede touching the visual half** *(`R-129`, and it changed the verdict)*:
+📄 **[`docs/UX/UX_Feature_Entity_Symbology.md`](../UX/UX_Feature_Entity_Symbology.md)** §0 — *"HROT has two
+symbology pipelines, fully built, that are not connected to each other"* — the upstream one is
+`StyleResolutionSystem`, a **3-layer merge whose FIRST layer is the TKB default**. ⇒ ⛔⛔ **`WithVisual`'s
+drop belongs to that LIVE design's lane (`UXI-10`, "ready to break into `UXT` tasks"), NOT to `CE-113`** —
+fixing it here is exactly the *"fixing a surface the design already plans"* error.
+⭐ **The faction half has no such owner:** 📄 `docs/projects/Hrot/Engine/Hrot.Core.md:743` documents the
+intended chain **including `WithFaction(id, n)`** ⇒ its no-op is a **genuine defect, not a vestige**.
+⚠ **`CE-117` still owes ONE measurement before it is called a live bug:** does
+`EntityDataAttributeInstaller.cs:46` *(which sets `ForceId` from an attribute record)* **overwrite** the
+zero on the cluster path? If it does, the drop is masked in practice.
+
+#### ⭐ HOW TO VERIFY — **the exact probe that diagnosed it**
+
+```
+POST /scenario/load/live {"name":"hill-attack","waitForReady":true}
+POST /perspective        {"name":"SimHost"}        # ⛔ NEVER ?perspective= — it is IGNORED (CE-112)
+GET  /entities/1001                                # Components.VehicleParams
+```
+⭐ **Expect on SimHost:** `Class Tank` · `AccelGain 1.8` · `MaxSteerAngle 0.8` · `MaxSteerRate 0.2617994` ·
+`WheelBase 4.758`. 📐 **Before the fix it is** `PersonalCar` / `0` / `0`.
+⭐⭐ **Then prove MOTION:** a **position delta over a `simTime` delta** — ⛔ never wall-clock, and ⚠ **the
+cluster boots PAUSED**, so `/sim/play` or step first. 📄 Boot recipe: **§0.0e.5**.
+⭐ **Worth adding:** the brain-vs-muscle conformance rail — this defect class is **invisible to every unit
+rail by construction**, because a unit rail builds one world.
+
+#### ⛔ WHAT WE ARE **NOT** DOING — **all of this is settled; do not reopen**
+
+⛔ no wire change · no new descriptor · no readiness gate · no scenario read on any receiver.
+`CE-116` **WITHDRAWN** · `CE-114` **nothing in scope** · `CE-109` **deprioritised** *(a real ruling-9
+duplicate, but it fixes nothing reported)* · `CE-115` a **small independent** cleanup *(per-translator
+`MandatoryComponents` declaration)* · the `IDescriptorTranslator` naming reconciliation, also independent.
+
+### 0.0e.4 ⭐⭐ `CE-109` — **RE-SCOPED: no longer `CE-103`'s fix, and its priority DROPS**
+
+📐 Measured: both live handlers funnel into the **same** `_extractor.Extract(...)`; the only differences are
+**zones** *(only the SimHost/editor handler loads them)* and a **`behaviorRemapper`** *(only CGF passes one)*.
+⇒ ⭐ still a genuine ruling-9 duplicate worth collapsing, ⛔ **but it fixes nothing the user reported.**
+🔒 The editor's scenario path is still not to be touched.
+
+### 0.0e.4b ✅ DONE THIS SESSION — `CE-110` / `CE-111` *(the instrument, and CGF's missing singleton)*
+
+⭐ **`CE-110`** — the cluster `/tkb/*` served a private empty `TkbDatabase`; **third instance of one defect at
+`Program.cs:429`** after `BP-487` and `CE-066`. ⭐ Fixed on the **provider seam** *(`ISubsystemDebugProvider.TkbDb`
+· `PerspectiveScopedDispatcher.TkbDb` · `DebugApiService._tkbDb` which now **throws** rather than substituting an
+empty catalog · `SubsystemDebugProvider.TkbFrom(world)` · `DebugCapabilities.TkbRead`)*, because the TKB is
+genuinely per-node.
+⭐ **`CE-111`** — CGF never published `ITkbDatabase` as a world singleton *(SimHost and IG both do)*, so
+`DisEntityTypeTranslator` and `EntityPresentationGizmoShared` degraded **silently**.
+⭐⭐ **7 new facts, both inverse-edit red-proved.** Live: 10 templates *(was 0)*, `tkb.read` 3-of-4.
+
+⛔⛔ **THE LESSON TO CARRY:** the rule *"a caller that HAS a dependency must PASS it"* did **not** stop instances
+2 and 3. ⇒ ⭐⭐⭐ **a per-node dependency has no business being a service field** — put it on the provider seam and
+the composition root **cannot** forget it. ⭐⭐ **And `?? new X()` for a per-node dependency is not a convenience —
+it is a FABRICATED ANSWER**, which is exactly what made this instance expensive where the other two were cheap.
+
+### 0.0e.5 ⭐ HOW TO BOOT AND DRIVE BOTH HOSTS — **worked out this session; do not re-derive**
+
+```bash
+# build the runner FIRST (also required before regenerating the MCP catalog)
+dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj --no-restore -v q --nologo
+cd Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
+export HROT_DEBUG_API_PORT=8099 FDP_STAGING_ROOT=/tmp/.../staging   # per-boot dir
+nohup xvfb-run -a dotnet Hrot.ClusterRunner.dll --mode all > /tmp/cluster.log 2>&1 &
+# poll until it answers; ~4-13 s
+curl -s --noproxy '*' -m 2 http://localhost:8099/status
+```
+⚠ **`--mode all` must run WINDOWED under Xvfb**, never headless. ⭐ Use a **second port** *(8098)* for a
+simultaneous `--mode editor` so the A/B is one command apart. ⭐ `--mode all`'s perspectives:
+`Blueprint, BTree, ExCon, HSM, IG, Scenario, SimHost` — **`Scenario` is CGF's**.
+
+⛔⛔ **THREE SELF-INFLICTED TRAPS, all hit this session:**
+1. ⛔ **`pkill -f Xvfb` KILLS YOUR OWN SHELL** — its command line contains the pattern. ⭐ Use
+   `ps -eo pid,cmd | grep ClusterRunner | grep -v grep | awk '{print $1}' | xargs -r kill -9`.
+2. ⛔ **`git commit -m "…"` with embedded quotes shreds into pathspec errors.** ⭐ Always `git commit -F -` + heredoc.
+3. ⛔ **A grep pattern is a HYPOTHESIS** — three misses today, the worst being that `BdcTkbBuilder.cs` **contains
+   class `NedTkbBuilder`**, so searching the filename "proved" it had no callers.
+
+### 0.0e.6 ⚠⚠ INSTRUMENT RELIABILITY — **what a green does NOT mean here**
+
+⭐ `CE-084`/`CE-088`'s family now confirmed in **four** assemblies. 📐 This session: `Hrot.Presentation.Tests`
+red once then **3/3 green**, with the failing identity **ROTATING** *(`ScenarioFileServiceTests.SaveLoad_RoundTrip`,
+then `EntityDragGizmoTests` / *"Component type ID 51 is not registered"*)*; `Hrot.SimHost.Tests` **2-red-identical-to-base**
+*(⚠ CORRECTED `2026-08-28`: an earlier note here said "1 red"; re-measured over 3 base runs it is **2**, and the
+SECOND IDENTITY ROTATES — `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` ⇄
+`EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule`, while
+`FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` is red in every run. ⇒ this makes
+`Hrot.SimHost.Tests` a **FIFTH** member of the rotating-flake family)*. ⛔ Both over **process-global registries**. ⇒ ⭐⭐ **always prove a red at base by stashing the
+change and re-running**, and ⭐ **re-run a suspicious suite 3× before believing either colour**.
+⚠ **`AssetRootsTestCollection`** *(`CE-099`)* now serialises everything touching `AssetRoots.ConfiguredRoot` —
+🔒 **join it if you add such a test**; a filtered green is not evidence.
+
+### 0.0e.7 ⭐ OPEN, carried
+`CE-103` *(in flight)* · `CE-109` *(the live-path slice)* · `CE-108` *(edit-path remapping, low)* ·
+`CE-087` *(profiler not in the default layout — needs a WINDOWED session: place it, File > Layout > Save current
+as default; user: no issue while unshipped)* · `CE-073` *(tracker gate matches only `BP-` rows — it reported OK
+for every `CE-` row this session)* · `CE-084`/`CE-088` *(above)* · older: `CE-055`, `CE-062`, `CE-063`,
+`CE-047`, `CE-048`, `CE-050`, `MX-011`, `CE-074`, `CE-077`.
+⚠ **No windowed/eyes verification** of any of this session's work — every gate was API-level or a suite.
+
+
+## ⛔ 0.0d — **HISTORY: phase 2's plan and safety net** *(`2026-08-27`)* — ⚠⚠ **DONE (slices ①②③, `J1`, `J2`, `J3`). SUPERSEDED by §0.0e; do NOT start here.**
 
 > 🔒🔒 **USER RULINGS, `2026-08-27` — canon for phase 2:**
 > ① *"in the end there should be **one UI logic (no drifts, no duplications)**, instantiated by calling

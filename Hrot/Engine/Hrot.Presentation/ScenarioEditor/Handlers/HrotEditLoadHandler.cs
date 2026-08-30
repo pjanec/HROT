@@ -40,7 +40,13 @@ public sealed class HrotEditLoadHandler : ITickableClusterStateHandler
 {
     private readonly ScenarioSerializer _serializer;
     private readonly IScenarioLoader _scenarioLoader;
-    private readonly IZoneManagerService _zoneService;
+    /// <summary>
+    /// ⚠⚠ <c>CE-102</c> — OPTIONAL, because a host can legitimately not have one. 📐 CGF composes no
+    /// <c>ZoneManagerService</c> at all *(<c>CgfSubsystem.cs:736</c> records that as a genuine absence, not a
+    /// silent default)*, and zones are an authoring concern the runtime node has never needed. ⛔ Requiring it
+    /// is what kept this handler off CGF — and with it the whole edit-load path.
+    /// </summary>
+    private readonly IZoneManagerService? _zoneService;
     private readonly EntityRepository? _world;
 
     private readonly IScenarioEntityExtractor _extractor;
@@ -61,7 +67,7 @@ public sealed class HrotEditLoadHandler : ITickableClusterStateHandler
     public HrotEditLoadHandler(
         ScenarioSerializer serializer,
         IScenarioLoader scenarioLoader,
-        IZoneManagerService zoneService,
+        IZoneManagerService? zoneService,
         IScenarioEntityExtractor extractor,
         ScenarioEntityCreationRequestSource source,
         INetworkIdAllocator idAllocator,
@@ -69,7 +75,7 @@ public sealed class HrotEditLoadHandler : ITickableClusterStateHandler
     {
         _serializer     = serializer     ?? throw new ArgumentNullException(nameof(serializer));
         _scenarioLoader = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
-        _zoneService    = zoneService    ?? throw new ArgumentNullException(nameof(zoneService));
+        _zoneService    = zoneService;   // ⭐ CE-102 — may be absent; see the field's remarks.
         _extractor      = extractor      ?? throw new ArgumentNullException(nameof(extractor));
         _source         = source         ?? throw new ArgumentNullException(nameof(source));
         _idAllocator    = idAllocator    ?? throw new ArgumentNullException(nameof(idAllocator));
@@ -163,8 +169,20 @@ public sealed class HrotEditLoadHandler : ITickableClusterStateHandler
             {
                 var dom      = JsonNode.Parse(_pendingJson)?.AsObject();
                 var envelope = dom?.Deserialize<HrotScenarioEnvelopeDto>(HrotSerializerOptions.HrotJsonOptions);
-                if (envelope?.Zones != null)
-                    _zoneService.LoadZones(targetRepo, envelope.Zones);
+                if (envelope?.Zones is { Count: > 0 } zones)
+                {
+                    // ⭐⭐⭐ CE-102 — ABSENT AND EXPLAINED, never silently skipped (ruling 49). A host with no
+                    //    zone manager still loads the entities; it just cannot place the zones, and an
+                    //    operator who authored zones must be told which half arrived.
+                    if (_zoneService != null)
+                        _zoneService.LoadZones(targetRepo, zones);
+                    else
+                        Fdp.Core.Logging.FdpLog<HrotEditLoadHandler>.Warn(
+                            "[HrotEditLoadHandler] scenario carries {0} zone(s) but this host composes no "
+                          + "IZoneManagerService — entities were loaded, zones were NOT. This is a declared "
+                          + "absence (CGF has no zone manager), not a load failure.",
+                            zones.Count);
+                }
             }
 
             // Enqueue entity creation requests for genesis pipeline processing.

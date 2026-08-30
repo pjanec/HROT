@@ -125,6 +125,36 @@ public interface ISubsystemDebugProvider
     Hrot.UI.Common.Facades.IMissionEditorService? MissionEditor { get; }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-110</c> — THIS NODE'S TKB CATALOG: what <c>/tkb/*</c> reads.</b>
+    /// 📄 <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.10.
+    ///
+    /// <para>🔴🔴 <b>THE THIRD INSTANCE OF ONE DEFECT AT ONE LINE.</b> 📐 Measured `2026-08-28`:
+    /// <c>ClusterRunner/Program.cs:429</c> built the cluster <c>DebugApiService</c> without
+    /// <c>tkbDb:</c>, and that ctor's <c>_tkbDb = tkbDb ?? new TkbDatabase()</c> handed it a
+    /// <b>FRESH EMPTY</b> database. ⇒ ⛔ <c>GET /tkb/types</c> answered <c>[]</c> and
+    /// <c>GET /tkb/types/303</c> answered <i>"TKB type 303 not found"</i> on <c>--mode all</c> —
+    /// while <c>HrotNodeBuilder:197</c> had populated a real catalog for every node the whole time.</para>
+    ///
+    /// <para>⛔⛔ <b>This one COST A DIAGNOSIS, which the other two did not.</b> 📌 The empty answer was
+    /// read as evidence that the cluster's TKB genuinely differed from the editor's — the leading
+    /// hypothesis for <c>CE-103</c> *(tanks that will not move)*. ⚠⚠ <b>An instrument that reports
+    /// ABSENT where the truth is PRESENT does not merely fail to help; it argues for the wrong root
+    /// cause.</b> ⭐ Exactly what the MCP skill's own §5c *("prove your instrument once")* exists to
+    /// prevent, and it caught me anyway.</para>
+    ///
+    /// <para>⭐⭐ <b>Why per-provider and not one latched instance.</b> ⛔ The TKB is genuinely PER NODE:
+    /// <c>TkbLoadClusterStateHandler</c> loads a scenario-specific TKB from each node's own staging area
+    /// on <c>PrepareLive</c>/<c>PrepareEdit</c>. ⇒ ⭐ a single <c>tkbDb:</c> passed once at the composition
+    /// root would have answered with whichever node was constructed first — 📌 the same argument
+    /// <see cref="GizmoBuffer"/> makes, and the reason this interface exists.</para>
+    ///
+    /// <para>⚠ <see langword="null"/> where the subsystem holds no catalog — measured: <b>ExCon</b> has
+    /// none, so <c>tkb.read</c> is honestly FALSE for its perspective rather than an empty catalog that
+    /// reads as *"this node knows no templates"* (ruling 49).</para>
+    /// </summary>
+    Fdp.Interfaces.ITkbDatabase? TkbDb { get; }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>REQUEST A CLUSTER-WIDE STATE TRANSITION from this node</b> — the host-agnostic scenario-load
     /// seam. 📄 <c>MCP_Integration.md</c> § Group U.
     ///
@@ -245,6 +275,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<ITimeTransportFacade?>? _drive;
     private readonly Func<Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer?>? _gizmoBuffer;
     private readonly Func<Hrot.UI.Common.Facades.IMissionEditorService?>? _missionEditor;
+    private readonly Func<Fdp.Interfaces.ITkbDatabase?>? _tkbDb;
     private readonly Func<Action<TransitionStateIntent>?>? _requestTransition;
     private readonly Func<ClusterState?>? _clusterState;
     private readonly Func<IReadOnlyList<string>?>? _availableScenarios;
@@ -278,6 +309,11 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         // ⭐⭐ CE-066 — the node's mission editor. ⚠ A Func for the same measured reason: CGF builds its
         //    ScenarioMissionService during window registration, long after the providers are built.
         Func<Hrot.UI.Common.Facades.IMissionEditorService?>? missionEditor = null,
+        // ⭐⭐ CE-110 — the node's TKB catalog. ⚠ A Func for the same measured reason as the two above,
+        //    and here it is not even speculative: SimHost's TkbLoadClusterStateHandler REPLACES the
+        //    catalog's contents on every PrepareLive/PrepareEdit, so a value captured at provider
+        //    construction would go stale on the first scenario load rather than merely start null.
+        Func<Fdp.Interfaces.ITkbDatabase?>? tkbDb = null,
         Func<Action<TransitionStateIntent>?>? requestTransition = null,
         Func<ClusterState?>? clusterState = null,
         Func<IReadOnlyList<string>?>? availableScenarios = null,
@@ -292,6 +328,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _drive        = drive;
         _gizmoBuffer  = gizmoBuffer;
         _missionEditor = missionEditor;
+        _tkbDb        = tkbDb;
         _requestTransition = requestTransition;
         _clusterState = clusterState;
         _availableScenarios = availableScenarios;
@@ -341,6 +378,35 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         };
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-110</c> — the ONE way a subsystem contributes <see cref="ISubsystemDebugProvider.TkbDb"/>:
+    /// read the singleton off its OWN world.</b> ⭐ The same one-implementation argument as
+    /// <see cref="TransitionsVia"/>: four hand-written <c>HasSingletonManaged</c> copies would be four places
+    /// to drift.
+    ///
+    /// <para>⭐⭐ <b>Why the WORLD SINGLETON and not each subsystem's private handle</b> *(CGF holds
+    /// <c>_context.TkbDb</c>, SimHost holds <c>_tkbDb</c>)*. 📐 The singleton is what every PRODUCTION reader
+    /// already uses — <c>DisEntityTypeTranslator</c>, <c>EntityPresentationGizmoShared</c>,
+    /// <c>IgApplication</c>. ⇒ ⭐ reading it means <c>/tkb/*</c> reports exactly the catalog the node's own
+    /// systems resolve against. ⛔ Reading a private handle instead would let the API be RIGHT while the
+    /// simulation read something else — 📌 a subtler version of the empty-catalog lie this fixes, and the
+    /// harder one to notice.</para>
+    ///
+    /// <para>⚠ Re-read on every access, like every accessor here: <c>TkbLoadClusterStateHandler</c> clears and
+    /// re-ingests the catalog on each <c>PrepareLive</c>/<c>PrepareEdit</c>.</para>
+    /// </summary>
+    public static Func<Fdp.Interfaces.ITkbDatabase?> TkbFrom(Func<EntityRepository?> world)
+    {
+        if (world is null) throw new ArgumentNullException(nameof(world));
+        return () =>
+        {
+            var w = world();
+            return w is not null && w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                : null;
+        };
+    }
+
     public string SubsystemName { get; }
     public string Perspective { get; }
     public EntityRepository? World => _world?.Invoke();
@@ -348,6 +414,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public ITimeTransportFacade? Drive => _drive?.Invoke();
     public Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? GizmoBuffer => _gizmoBuffer?.Invoke();
     public Hrot.UI.Common.Facades.IMissionEditorService? MissionEditor => _missionEditor?.Invoke();
+    public Fdp.Interfaces.ITkbDatabase? TkbDb => _tkbDb?.Invoke();
     public Action<TransitionStateIntent>? RequestTransition => _requestTransition?.Invoke();
     public ClusterState? ClusterState => _clusterState?.Invoke();
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
@@ -390,6 +457,14 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         //    MEASURED instead of the routes sitting unclassified — which is what kept
         //    `The_manifest_describes_this_host_truthfully` red before its matrix loop was ever reached.
         [DebugCapabilities.MissionEdit] = MissionEditor is not null,
+
+        // ⭐⭐⭐ CE-110 — and this cell did not exist at all before. ⛔⛔ `CapabilityManifest` classified
+        //    every `/tkb` route as the bare STRING "tkb.read" and NO provider ever reported that key ⇒
+        //    the routes were classified for the docs while their availability was never measured, which
+        //    is how an empty catalog on --mode all went unnoticed long enough to misdirect CE-103.
+        // ⚠ Measured 2026-08-28: CGF, IG and SimHost each hold a catalog; ExCon holds none ⇒ 3 of 4,
+        //   the same split as GizmoBuffer, and for the same reason (ExCon runs no ECS world).
+        [DebugCapabilities.TkbRead] = TkbDb is not null,
     };
 }
 
@@ -403,6 +478,14 @@ public static class DebugCapabilities
     public const string GizmoFrame = "panels.gizmo";
     /// <summary>⭐ CE-066 — reading and committing an entity's mission plan (`/missions/*`).</summary>
     public const string MissionEdit = "mission.edit";
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-110</c> — this node can report its TKB catalog (<c>/tkb/*</c>).
+    /// <para>⚠ The literal was already hard-coded in <c>CapabilityManifest.CapabilityFor</c>; it is a
+    /// constant here so the classifier and the measured cell cannot spell it differently — 📌 the stated
+    /// reason this class exists.</para>
+    /// </summary>
+    public const string TkbRead = "tkb.read";
     public const string Preview   = "preview.control";
     public const string EditorAuthoring = "editor.authoring";
 

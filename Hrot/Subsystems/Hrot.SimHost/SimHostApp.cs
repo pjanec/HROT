@@ -345,31 +345,29 @@ namespace Hrot.SimHost
                 foreach (var pending in _pendingTestSystems)
                     ctx.Kernel.RegisterGlobalSystem(pending);
 
-                _gizmoBuffer = new DebugPrimitiveBuffer();
-                _gizmoRegistry = new GizmoRegistry();
-                _statelessGizmoRegistry = new StatelessGizmoRegistry();
-                // ST-031: ONE reflection call replaces the hand-rolled family list. This host declared
-                // the narrowest subset of all five -- its own family plus Presentation -- so it was missing
-                // Common's eight projectors entirely (the selection ring, health bars, LOS, vis-cone,
-                // spatial grid: UXI-22, confirmed by measurement). Uniform membership means it declares
-                // everything and component presence decides what draws.
-                GizmoReflectionRegistrar.RegisterAll(
-                    _gizmoRegistry,
-                    _statelessGizmoRegistry,
-                    settings: new GizmoSettingsRegistry());
-                // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
-                _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
-                    writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));   // ⭐ AX-007
-                _interactionBus = new FdpEventBus();
-                Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
-                _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, _interactionBus);
-                _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
-                    _gizmoRegistry,
-                    _gizmoBuffer,
-                    isSelectedPredicate: static (view, entity) =>
-                        view.HasComponent<SelectionState>(entity) &&
-                        view.GetComponentRO<SelectionState>(entity).IsSelected,
-                    interactionBus: _interactionBus);
+                // UXI-23 S2b: the buffer, both registries, the reflection pass and the three systems are
+                // built by the shared pack. 🔒 The pack CONSTRUCTS; this host still SCHEDULES, below.
+                var mapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+                    new Hrot.ScenarioEditor.Map.MapInteractionContext
+                    {
+                        World = ctx.World,
+                        IsSelectedPredicate = static (view, entity) =>
+                            view.HasComponent<SelectionState>(entity) &&
+                            view.GetComponentRO<SelectionState>(entity).IsSelected,
+                        // GZH-003: headless-first — enable only when a terminal connects.
+                        StartEnabled = false,
+                        ContributeExtras = static regs =>
+                            // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
+                            regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
+                                writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For)),  // ⭐ AX-007
+                    });
+
+                _gizmoBuffer            = mapInteraction.Buffer;
+                _gizmoRegistry          = mapInteraction.GizmoRegistry;
+                _statelessGizmoRegistry = mapInteraction.StatelessRegistry;
+                _interactionBus         = mapInteraction.InteractionBus;
+                _globalGizmoManager     = mapInteraction.GlobalManager;
+                _dataDrivenGizmoSystem  = mapInteraction.DataDrivenSystem;
                 // Register the global action registry and wire operator action handlers.
                 var actionRegistry = new GlobalActionRegistry();
                 long layerControlId = GlobalGizmoManager.NewId();
@@ -431,18 +429,10 @@ namespace Hrot.SimHost
                     if (publisherSystem != null)
                         ctx.Kernel.RegisterGlobalSystem(publisherSystem);
                 }
-                var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
-                    _globalGizmoManager,
-                    _dataDrivenGizmoSystem,
-                    new StatelessGizmoSystem(
-                        _statelessGizmoRegistry,
-                        _gizmoBuffer,
-                        isSelectedPredicate: static (view, entity) =>
-                            view.HasComponent<SelectionState>(entity) &&
-                            view.GetComponentRO<SelectionState>(entity).IsSelected));
-                // GZH-003: headless-first; enable only when a terminal connects.
-                gizmoGroup.Enabled = false;
-                _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _dataDrivenGizmoSystem);
+                // UXI-23 S2b: the group, its three members and the gate come from the pack. This host's
+                // remaining job is to SCHEDULE them, which it does immediately below.
+                var gizmoGroup   = mapInteraction.GizmoGroup;
+                _gizmoController = mapInteraction.Gate;
                 ctx.Kernel.RegisterModule(new GizmoInteractionModule(
                     _interactionBus,
                     contextIngress: new ContextActionIngressSystem(ctx.EntityMap!, _interactionBus),
@@ -453,6 +443,12 @@ namespace Hrot.SimHost
                     },
                     gizmoIngress: gizmoIngress,
                     gizmoEgress:  gizmoEgress));
+                // ⭐⭐ UXI-23 S3: the map REPORTS what this host did not schedule, rather than going
+                // silently blank. ⚠ Scoped honestly (§3.2e): this catches a MISSING system, not CE-123 —
+                // that was a system present, scheduled and enabled, and told to draw nothing.
+                // MapSelfCheckSystem (last in the group) is what catches that.
+                foreach (string problem in mapInteraction.Unserviceable(new object[] { gizmoGroup }))
+                    FdpLog<SimHostApp>.Info("[Map] {0}", problem);
                 // ── GZ052: Entity attribute schema publisher ──────────────────────
                 // Build the compiler using the same geographic transform as the network factory.
                 // SimHost is always the default processor in standalone mode.
@@ -473,6 +469,13 @@ namespace Hrot.SimHost
                 ctx.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _eventHistoryService, _interactionBus));
                 // Register canvas menu update so CanvasContextMenuGizmo has state to project.
                 ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+                // ⭐⭐⭐ UXI-23 S1 — stamps MapDisplayComponent.LayerMask so the shared entity gizmos
+                //    can layer-cull. 🔒 Ruling ③: the PACK owns construction, the HOST decides
+                //    scheduling — this is the host's half. The same shared system IG schedules via
+                //    MapLayerModule and the Editor registers directly (EditorSubsystem:1468).
+                // ⭐ The null default takes MapLayerRegistry.All; that ctor parameter is the seam
+                //    S4 fills with a definition set shared across subsystems.
+                ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Map.MapLayerAssignmentSystem());
             };
 
             // BootstrapNode runs all 7 phases including Phase 6d (callback) and Phase 7 (Initialize).

@@ -147,6 +147,18 @@ public sealed class PerspectiveScopedDispatcher
     public Hrot.UI.Common.Facades.IMissionEditorService? MissionEditor => Active()?.MissionEditor;
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-110</c> — the active perspective's TKB CATALOG</b>, or <see langword="null"/> ⇒
+    /// <c>NOT_SUPPORTED_HERE(tkb.read)</c>. 📄 §5.10.
+    /// <para>⭐⭐ Perspective-scoped, and here that is not a precaution but a REQUIREMENT: each node loads
+    /// its own scenario-specific TKB from its own staging area *(<c>TkbLoadClusterStateHandler</c>)*, so a
+    /// host-wide catalog would report one node's templates as every node's.</para>
+    /// <para>⛔ Before this member the cluster service held a <b>private empty</b> <c>TkbDatabase</c> and
+    /// <c>/tkb/types</c> answered <c>[]</c> — ⚠ an instrument reporting ABSENT where the truth is PRESENT,
+    /// which cost a wrong root-cause hypothesis for <c>CE-103</c>.</para>
+    /// </summary>
+    public Fdp.Interfaces.ITkbDatabase? TkbDb => Active()?.TkbDb;
+
+    /// <summary>
     /// ⭐⭐ The active perspective's cluster-transition publisher, or <see langword="null"/> ⇒
     /// <c>NOT_SUPPORTED_HERE(scenario.load)</c>. 📄 <c>MCP_Integration.md</c> § Group U.
     /// <para>⭐ Perspective-scoped for the same reason a step is: the request travels the path the operator's

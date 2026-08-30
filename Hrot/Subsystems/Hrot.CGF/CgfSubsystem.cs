@@ -388,6 +388,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    routes sat UNCLASSIFIED in CapabilityFor, which kept the manifest rail red.
             // ⚠ Lazy: the service is created during window registration, well after this provider is built.
             missionEditor: () => _missionService,
+            // ⭐⭐⭐ CE-110 — CGF's OWN catalog. ⭐ Read off the world singleton (registered by CE-111 in
+            //    RegisterDomainComponents) rather than from `_context.TkbDb` directly, so that what /tkb/*
+            //    reports is provably the instance CGF's CreateEntityRequestSystem and NetworkSpawningSystem
+            //    resolve against — 📌 see TkbFrom's remarks on why a private handle is the subtler lie.
+            tkbDb:         Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                               .TkbFrom(() => _context?.World),
             // ⭐⭐ HN-029: the node's own orchestration bus — the same one its ClusterSlave and
             //    ClusterOpEgressTranslator sit on, so a transition requested here reaches the master by the
             //    path the operator's own "Load into Live" button takes.
@@ -535,6 +541,22 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // geo-aware params (hill/baseline positions) resolve to 0,0,0.
         if (_context.GeoTransform != null)
             _context.World.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_context.GeoTransform);
+
+        // ⭐⭐⭐ CE-111 — THE TKB CATALOG AS A WORLD SINGLETON, and this is the same omission the comment
+        //    directly above documents for the geo transform: CGF held the dependency and never published it.
+        // 📐 Measured 2026-08-28: SimHostNodeBootstrapper:179 and IgNodeBootstrapper:133 both register it;
+        //    CGF passed `_context.TkbDb` straight to CreateEntityRequestSystem and NetworkSpawningSystem
+        //    (line ~650/~659) and registered NOTHING ⇒ every consumer that resolves it FROM THE WORLD found
+        //    nothing and degraded SILENTLY, because all of them guard with HasSingletonManaged:
+        //      · DisEntityTypeTranslator:38    — DIS entity types not translated on CGF
+        //      · EntityPresentationGizmoShared:60 — the map's per-entity presentation falls back
+        // ⚠ Both are `if (has) …` with no else, so there was no log line and no failure — 📌 the shape
+        //   ruling 53 exists to catch, and a direct `cgf==editor` violation.
+        // ⛔ NOT a fix for the empty /tkb answer (that was CE-110's silent default); this is the production
+        //   half found while measuring it, and the two are independent.
+        if (_context.TkbDb != null)
+            _context.World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(_context.TkbDb);
+
         CgfComponentRegistry.RegisterAll(_context.World);
 
         // ── Register base infrastructure modules ───────────────────────────────
@@ -800,6 +822,30 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             remapper: behaviorRemapper, controller: rrController,
             storageDirectory: isolatedTempRoot));
 
+        // ⭐⭐⭐ CE-102 / HN-039 — THE EDIT-LOAD HANDLER CGF HAS NEVER HAD.
+        //
+        // 🔒 User visual check `2026-08-28`: *"when i load hill-attack scenario using the toolbar button, it
+        //    does NOT show on the map … editor shows it nicely."* 📐 Traced end to end: the toolbar's
+        //    `shell.openAsset` → picker → `AssetPickActionRouter` → for a Scenario asset →
+        //    `EditorScenarioSession.OpenForEdit` → a cluster transition to `OperatingEdit` — and NOTHING on
+        //    this node claimed it. ⛔ `CgfScenarioLoadHandler.CanHandle(intent)` accepts `PrepareState` ONLY
+        //    when `TargetState == OperatingLive`, so the edit target was explicitly declined; the load then
+        //    answered ok:true with an empty world (measured: entityCount 0, gizmo frame all grid lines).
+        //
+        // ⭐⭐ Why the SHARED handler and not a CGF-private one: it is the same handler the editor and SimHost
+        //    register, and ruling 65 settles the principle — *"Bringing editing machinery onto a runtime node
+        //    is perfectly OK."* ⛔ A `CgfEditLoadHandler` would be a second implementation of one concept.
+        //    ⚠ What blocked it was one required argument: it threw on a null `IZoneManagerService`, which this
+        //      host genuinely does not compose (see :736). That is now optional AND REPORTED there.
+        // ⚠⚠ KNOWN LIMIT, stated rather than discovered later: this does NOT pass CGF's `behaviorRemapper`,
+        //    which the LIVE path does. Entities load and render; whether their behaviours bind on this host
+        //    is CE-103's question, not this one. 📄 §5c.17.
+        newClusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
+            scenarioSerializer, scenarioLoader,
+            zoneService: null,          // ⭐ declared absence — the handler warns if the scenario has zones
+            extractor, _scenarioSource!, cgfIdAllocator,
+            world: _context.World));
+
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
 
@@ -870,19 +916,25 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // GZ057: CGF entity presentation gizmos. Buffer and registry must be set up
         // before Kernel.Initialize() because the GizmoInteractionModule is registered here.
-        _cgfGizmoBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
-        _cgfInteractionBus = new Fdp.Core.FdpEventBus();
-        _cgfGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_cgfGizmoBuffer, _cgfInteractionBus);
-        var cgfStatelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
-        var cgfGizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
-        var cgfSettingsRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
-        // ST-031: ONE reflection call replaces the hand-rolled family list. Like SimHost, CGF declared
-        // only its own family plus Presentation and was missing Common's eight projectors entirely
-        // (UXI-22). Uniform membership: it declares everything, and component presence decides what draws.
-        Fdp.Toolkit.Diagnostics.Gizmos.GizmoReflectionRegistrar.RegisterAll(
-            cgfGizmoRegistry, cgfStatelessRegistry, cgfSettingsRegistry);
-        _cgfDataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
-                cgfGizmoRegistry, _cgfGizmoBuffer, isSelectedPredicate: null, interactionBus: _cgfInteractionBus);
+        // UXI-23 S2b: the buffer, both registries, the reflection pass and the three systems come from
+        // the shared pack. 🔒 The pack CONSTRUCTS; CGF still SCHEDULES, below.
+        var cgfMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext
+            {
+                World = _context.World,
+                // CGF is a dumb terminal for handles — it draws all active gizmos, like IG.
+                IsSelectedPredicate = null,
+                // GZH-003: CGF is headless-first; enable only when a terminal connects.
+                StartEnabled = false,
+            });
+
+        _cgfGizmoBuffer           = cgfMapInteraction.Buffer;
+        _cgfInteractionBus        = cgfMapInteraction.InteractionBus;
+        _cgfGizmoManager          = cgfMapInteraction.GlobalManager;
+        _cgfDataDrivenGizmoSystem = cgfMapInteraction.DataDrivenSystem;
+        var cgfStatelessRegistry  = cgfMapInteraction.StatelessRegistry;
+        var cgfGizmoRegistry      = cgfMapInteraction.GizmoRegistry;
+        var cgfSettingsRegistry   = cgfMapInteraction.Settings;
         // Route gizmo interaction translators and publisher through the network factory
         // so that CgfSubsystem has no direct dependency on Hrot.Network.NED.
         CycloneNetworkIngressSystem? cgfGizmoIngress = null;
@@ -906,14 +958,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             if (publisherSystem != null)
                 _context.Kernel.RegisterGlobalSystem(publisherSystem);
         }
-        var cgfGizmoGroup = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup("GizmoExecution",
-            _cgfGizmoManager,
-            _cgfDataDrivenGizmoSystem,
-            new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, _cgfGizmoBuffer));
-        // GZH-003: CGF is headless-first; enable only when a terminal connects.
-        cgfGizmoGroup.Enabled = false;
-        _cgfGizmoController = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController(
-            cgfGizmoGroup, _cgfGizmoManager, _cgfDataDrivenGizmoSystem);
+        // UXI-23 S2b: the group and its three members come from the pack; CGF schedules them below.
+        var cgfGizmoGroup = cgfMapInteraction.GizmoGroup;
+        _cgfGizmoController = cgfMapInteraction.Gate;
         _context.Kernel.RegisterModule(new GizmoInteractionModule(
             _cgfInteractionBus,
             contextIngress: null,
@@ -923,9 +970,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             },
             gizmoIngress: cgfGizmoIngress,
             gizmoEgress:  cgfGizmoEgress));
+        // ⭐⭐ UXI-23 S3: report anything this host constructed but did not schedule (§3.2e).
+        foreach (string problem in cgfMapInteraction.Unserviceable(new object[] { cgfGizmoGroup }))
+            Fdp.Core.Logging.FdpLog<CgfSubsystem>.Info("[Map] {0}", problem);
         _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
         // Register canvas menu update so CanvasContextMenuGizmo has state to project.
         _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+        // ⭐⭐⭐ UXI-23 S1 — CGF showed entities only because the SCENARIO FILE authors
+        //    MapDisplayComponent; nothing on this host ever recomputed the layer mask, so an
+        //    entity spawned at runtime (or one whose layer membership changed) kept a stale or
+        //    absent value. 🔒 Ruling ③: the host schedules the shared system.
+        _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Map.MapLayerAssignmentSystem());
 
         // ⭐⭐⭐ CE-051 (Axis-C E3) — THE SHARED VIEWPORT INTERACTION, the same module the editor registers.
         // 📄 docs/DESIGN_Cgf_Tool_Selection_Camera_Slice.md §3 ⑤ and §6 (the two-way reconciliation).

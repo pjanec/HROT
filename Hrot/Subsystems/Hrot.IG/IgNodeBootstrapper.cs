@@ -34,12 +34,13 @@ using Hrot.IG.Components;
 using Hrot.IG.Modules;
 using Hrot.IG.Modules.Orchestration;
 using Hrot.IG.Systems;
-using Hrot.IG.Translators;
+using Hrot.Map.Definitions.Tkb;
 using Hrot.Map.Common;
 using Hrot.Network.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Hrot.Presentation.Map;
 
 namespace Hrot.IG;
 

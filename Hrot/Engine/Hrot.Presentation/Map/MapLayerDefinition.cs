@@ -2,7 +2,7 @@ using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
-namespace Hrot.IG.Systems;
+namespace Hrot.Presentation.Map;
 
 /// <summary>
 /// Defines a single named map layer with its rendering bit-mask and the predicate

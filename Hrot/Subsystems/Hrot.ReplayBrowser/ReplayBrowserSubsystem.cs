@@ -153,49 +153,55 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             Hrot.Presentation.Renderers.BTreeTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.HsmTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             // â”€â”€ Gizmo Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            _gizmoBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
-            _interactionBus = new Fdp.Core.FdpEventBus();
-            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
-
-            var gizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
-            var statelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
-            var settingsRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
-
-            // ST-031: ONE reflection call replaces four generated-registrar calls AND the three manual
-            // ScenarioEditor registrations below it -- MapOverlayGizmo, RouteGizmo and TacticalAreaGizmo
-            // all carry [GizmoProjector], so reflection finds them and leaving the manual calls would
-            // register each projector TWICE and draw it twice.
+            // ── UXI-23 S2b: the shared pack constructs the map's machinery ──────────────────────
+            // 🔒 The pack CONSTRUCTS; this host still SCHEDULES (it holds the two systems directly rather
+            // than scheduling the togglable group, which remains its choice — the run-set is its role).
             //
-            // ⚠ The two that remain below are deliberately attribute-LESS and must stay manual:
-            // EntityEditorLabelGizmo's constructor needs a BehaviorRegistry (its own source says
-            // "No [GizmoProjector] because the constructor requires BehaviorRegistry"), and
-            // EntityEditorPolylineGizmo likewise. Reflection cannot supply those arguments, and correctly
-            // skips both rather than guessing.
-            Fdp.Toolkit.Diagnostics.Gizmos.GizmoReflectionRegistrar.RegisterAll(
-                gizmoRegistry, statelessRegistry, settingsRegistry);
-
-            statelessRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.EntityEditorPolylineGizmo(),
-                new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-            statelessRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(behaviorRegistry),
-                new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-
-            _globalGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer, _interactionBus);
-
-            _dataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
-                gizmoRegistry,
-                _gizmoBuffer,
-                isSelectedPredicate: static (view, entity) =>
-                    view.HasComponent<Hrot.IG.Components.SelectionState>(entity) &&
-                    view.GetComponentRO<Hrot.IG.Components.SelectionState>(entity).IsSelected,
-                interactionBus: _interactionBus);
-
-            // â”€â”€ Selection Interaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ⚠⚠ The four projectors below go in through ContributeExtras, which the pack invokes AFTER
+            // the reflection pass and BEFORE constructing StatelessGizmoSystem. That ordering is
+            // load-bearing: the system sizes its visibility cache from registry.Rules.Count, so a rule
+            // registered afterwards lands beyond the cache and silently ignores its visibility policy.
+            //
+            // EntityEditorPolylineGizmo and EntityEditorLabelGizmo are deliberately attribute-LESS —
+            // their constructors need a BehaviorRegistry, which reflection cannot supply, so it correctly
+            // skips them rather than guessing.
             var rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
-            statelessRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBandState));
-            statelessRegistry.RegisterGlobal(new ReplaySpatialBoundsGizmo(() => _searchPanel?.ActiveSpatialBounds));
-            _statelessGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(statelessRegistry, _gizmoBuffer);
+
+            var mapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+                new Hrot.ScenarioEditor.Map.MapInteractionContext
+                {
+                    World = _activeRepo!,
+                    IsSelectedPredicate = static (view, entity) =>
+                        view.HasComponent<Hrot.IG.Components.SelectionState>(entity) &&
+                        view.GetComponentRO<Hrot.IG.Components.SelectionState>(entity).IsSelected,
+                    // The replay browser is an interactive window: it has a viewer from startup.
+                    StartEnabled = true,
+                    ContributeExtras = regs =>
+                    {
+                        regs.Stateless.Register(
+                            new Hrot.ScenarioEditor.Gizmos.EntityEditorPolylineGizmo(),
+                            new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+                        regs.Stateless.Register(
+                            new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(behaviorRegistry),
+                            new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+                        regs.Stateless.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBandState));
+                        regs.Stateless.RegisterGlobal(new ReplaySpatialBoundsGizmo(() => _searchPanel?.ActiveSpatialBounds));
+                    },
+                });
+
+            _gizmoBuffer           = mapInteraction.Buffer;
+            _interactionBus        = mapInteraction.InteractionBus;
+            _globalGizmoManager    = mapInteraction.GlobalManager;
+            _dataDrivenGizmoSystem = mapInteraction.DataDrivenSystem;
+            _statelessGizmoSystem  = mapInteraction.StatelessSystem;
+            var gizmoRegistry      = mapInteraction.GizmoRegistry;
+            var statelessRegistry  = mapInteraction.StatelessRegistry;
+            var settingsRegistry   = mapInteraction.Settings;
+            // ⭐⭐ UXI-23 S3: this host drives the three systems directly from its own Update rather than
+            // scheduling the group, so it declares exactly those three. §3.2e.
+            foreach (string problem in mapInteraction.Unserviceable(
+                         new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem }))
+                Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
 
             _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_activeRepo!, _interactionBus, rubberBandState);
             _selectionSystem.OnSelectionChanged += (entity, worldPos) =>

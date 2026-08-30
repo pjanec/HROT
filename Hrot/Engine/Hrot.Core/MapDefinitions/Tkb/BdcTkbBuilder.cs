@@ -60,15 +60,52 @@ namespace Hrot.Map.Definitions.Tkb
         }
 
         /// <summary>
-        /// Add visual properties (IG).
+        /// Add visual properties — the symbol, colour, model and label the map draws from.
         /// </summary>
+        /// <remarks>
+        /// ⭐⭐⭐ <b><c>CE-118</c> / <c>UXI-23 S1</c>, fixed 2026-08-28.</b> 🔴 This method used to
+        /// <b>discard everything it was given</b>: it resolved the template, never called
+        /// <paramref name="configure"/> at all, and returned — under the comment
+        /// <i>"VisualData ECS component will be applied by IG-side translator in Phase 6."</i>
+        /// ⛔ <b>Phase 6 never happened</b>, so all nine catalog call sites authored real symbol codes,
+        /// colours, models and scales into a delegate that was never invoked.
+        ///
+        /// <para>📐 <b>Measured consequence.</b> <c>VisualDefinitionDto</c> was produced by NOTHING in
+        /// the entire repository, which made <c>PresentationTkbTranslator</c> — its only consumer —
+        /// permanently inert on <i>every</i> host. No entity built from the TKB has ever carried
+        /// <c>VisualData</c>; the only entities that had it were those whose <c>scenario.json</c>
+        /// authored it directly. On the <c>SimHost</c> perspective, which builds from the TKB, that
+        /// left the shared entity gizmos with nothing to draw.</para>
+        ///
+        /// <para>⚠ <b>This is the identical defect as <c>WithPhysics</c>'s dropped
+        /// <c>Height</c>/<c>TurnRate</c>/<c>Mobility</c></b> (<c>CE-113</c>), with the same
+        /// "Phase 6" comment — 📌 two instances of one pattern: a builder method that takes authored
+        /// data, resolves the template, and forgets to attach a descriptor. ⭐ Neither failed loudly,
+        /// because an absent descriptor is indistinguishable from an unauthored one.</para>
+        /// </remarks>
         public NedTkbBuilder WithVisual(long tkbId, Action<IgVisualDef> configure)
         {
             var template = _db.GetByType(tkbId);
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
-            // VisualData ECS component will be applied by IG-side translator in Phase 6.
+            var visualDef = new IgVisualDef();
+            configure(visualDef);
+
+            template.AddDescriptor(new VisualDefinitionDto
+            {
+                SymbolCode   = visualDef.SymbolCode,
+                ModelPath    = visualDef.ModelPath,
+                ColorHex     = visualDef.ColorHex,
+                Scale        = visualDef.Scale,
+                ShowLabel    = visualDef.ShowLabel,
+                MapShapeName = visualDef.MapShapeName,
+            });
+            // IgVisualDef.LayerName is deliberately NOT carried across: layer membership is
+            // COMPUTED by MapLayerAssignmentSystem from the entity's DIS type and components,
+            // not declared per TKB type. A second, authored source for the same fact would be
+            // the two-producer hazard CE-113 was about. If per-type layer overrides are ever
+            // wanted, they belong in the S4 layer configuration, not in this descriptor.
             return this;
         }
         
@@ -92,8 +129,14 @@ namespace Hrot.Map.Definitions.Tkb
                 MaxSpeedFwd = physicsDef.MaxSpeed,
                 MaxSpeedRev = physicsDef.MaxSpeedRev,
                 MaxAccel    = physicsDef.Acceleration,
+                TurnRate    = physicsDef.TurnRate,
+                VehicleClass = MapMobility(physicsDef.Mobility),
             });
-            // Height, TurnRate, Mobility mapped to VehicleParams by translator in Phase 6.
+            // Height stays out of VehicleParametersDto on purpose -- nothing on the
+            // kinematics path consumes it (VehicleParams has no height field,
+            // PhysicsCollider carries only Radius).  Its home is the render/collider
+            // descriptor, StrideRenderModelDefDto.ShapeHeight.
+            // FuelCapacity / FuelConsumption likewise have no consumer yet.
             return this;
         }
         
@@ -268,38 +311,30 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
 
-        private static VehicleParams BuildVehicleParams(SimVehicleDef def)
+        /// <summary>
+        /// Maps HROT's authoring-level <see cref="TerrainMobility"/> onto the FDP
+        /// kinematics <see cref="VehicleClass"/> that selects a
+        /// <see cref="VehiclePresets"/> baseline.
+        /// </summary>
+        /// <remarks>
+        /// This half of the mapping stays here because <see cref="TerrainMobility"/> is an
+        /// <c>Hrot.Core</c> concept and <c>Fdp.Toolkits</c> -- which owns the DTO and the
+        /// consuming translator -- cannot reference it.  The other half (preset baseline
+        /// plus per-field overrides) now lives in <c>VehicleKinematicsTkbTranslator</c>,
+        /// the single writer of <c>VehicleParams</c> on the cluster path.
+        /// <para>
+        /// The mapping is lossy -- <c>Air</c> and <c>Naval</c> both collapse to
+        /// <c>PersonalCar</c> -- but that loss predates this routing and is unchanged.
+        /// </para>
+        /// </remarks>
+        internal static VehicleClass MapMobility(TerrainMobility mobility) => mobility switch
         {
-            var vehicleClass = def.Mobility switch
-            {
-                TerrainMobility.Tracked => VehicleClass.Tank,
-                TerrainMobility.Wheeled => VehicleClass.Truck,
-                TerrainMobility.Infantry => VehicleClass.Pedestrian,
-                TerrainMobility.Air => VehicleClass.PersonalCar,
-                TerrainMobility.Naval => VehicleClass.PersonalCar,
-                _ => VehicleClass.PersonalCar
-            };
-
-            var preset = VehiclePresets.GetPreset(vehicleClass);
-            preset.Class = vehicleClass;
-
-            if (def.Length > 0f)
-            {
-                preset.Length = def.Length;
-                preset.WheelBase = def.Length * 0.6f;
-            }
-            if (def.Width > 0f)
-                preset.Width = def.Width;
-            if (def.MaxSpeed > 0f)
-                preset.MaxSpeedFwd = def.MaxSpeed;
-            if (def.MaxSpeedRev > 0f)
-                preset.MaxSpeedRev = def.MaxSpeedRev;
-            if (def.Acceleration > 0f)
-                preset.MaxAccel = def.Acceleration;
-            if (def.TurnRate > 0f)
-                preset.MaxSteerRate = def.TurnRate * (MathF.PI / 180f);
-
-            return preset;
-        }
+            TerrainMobility.Tracked  => VehicleClass.Tank,
+            TerrainMobility.Wheeled  => VehicleClass.Truck,
+            TerrainMobility.Infantry => VehicleClass.Pedestrian,
+            TerrainMobility.Air      => VehicleClass.PersonalCar,
+            TerrainMobility.Naval    => VehicleClass.PersonalCar,
+            _                        => VehicleClass.PersonalCar
+        };
     }
 }

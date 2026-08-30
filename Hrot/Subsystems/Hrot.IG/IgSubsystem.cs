@@ -59,6 +59,11 @@ namespace Hrot.IG
                 //    can neither drive time nor map network ids. 📌 Another demonstration that these
                 //    capabilities are genuinely independent, not one "is it wired" bit.
                 gizmoBuffer:   () => _app?.GizmoBuffer,
+                // ⭐⭐ CE-110 — IG's own catalog, read off its world exactly as IgApplication:3353 reads it.
+                //    📐 IgNodeBootstrapper:132-133 builds it from HrotEnvironment.CreateTkb() and registers
+                //    the singleton, so this reports the very instance IG's own spawning resolves against.
+                tkbDb:         Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                   .TkbFrom(() => _app?.World),
                 // ⭐⭐ HN-029 — IG cannot DRIVE time (no facade) but it CAN request a cluster transition; see
                 //    IgApplication.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider

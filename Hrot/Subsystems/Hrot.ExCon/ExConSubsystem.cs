@@ -82,6 +82,11 @@ namespace Hrot.ExCon
                 // ⛔ It is also the reason the capability could not be a hard-coded `true` on every row —
                 //    see CapabilityManifest's BP-487 comment.
                 gizmoBuffer:   null,
+                // ⭐⭐ CE-110 — EXPLICITLY null, for the same reason gizmoBuffer above is: ExCon has no ECS
+                //    world at all, so it cannot hold a TKB catalog. ⇒ `tkb.read` is FALSE on its perspective
+                //    and /tkb/* answers NOT_SUPPORTED_HERE there. ⛔ An empty catalog would instead read as
+                //    "ExCon knows no templates", which is a claim about data rather than about capability.
+                tkbDb:         null,
                 // ⭐⭐ HN-029: ExCon has NO ECS kernel — no world, no clock — but it DOES have an orchestration
                 //    bus with an egress translator, which is exactly why it hosts a ClusterScenarioPanel today.
                 //    ⇒ it can request a cluster-wide load without being able to read or step one. 📌 A neat

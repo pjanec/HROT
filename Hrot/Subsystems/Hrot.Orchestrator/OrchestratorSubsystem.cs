@@ -173,8 +173,13 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // Must be created before _timeTranslators so the initial SwitchTimeModeEvent{Continuous}
         // is published to _bus PENDING. Swap it immediately so the first ScanAndPublish can
         // read it and forward it to DDS before slaves start their kernels.
+        // ⭐⭐⭐ CE-101 — BOOT PAUSED. 🔒 User, `2026-08-28`: *"simulation time is running from the beginning.
+        //    Undesired, should start paused."* 📐 Measured: the clock started ~2 s after boot and ran at ~1×
+        //    with NO scenario and zero entities, because the anchor event below announced Continuous and
+        //    `PauseRequested` is derived from that mode. ⛔ It also silently refused every /sim/step (CE-105).
+        //    ⚠ The anchor is still broadcast — only the MODE it announces changed. 📄 §5c.16.
         _masterSync       = new MasterSyncController(
-            _bus, new HashSet<int>(), TimeConfig.Default);
+            _bus, new HashSet<int>(), TimeConfig.Default, startPaused: true);
         
         
         _bus.SwapBuffers();

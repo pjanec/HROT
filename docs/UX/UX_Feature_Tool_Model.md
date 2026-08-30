@@ -10,6 +10,9 @@ current-answer: NOT-BUILT (design only; Q27 answered). No IToolController/ToolDe
 > 📐 **API: [UX_Interaction_API.md](UX_Interaction_API.md) · ✅ Acceptance: [UX_Interaction_UseCases.md](UX_Interaction_UseCases.md)**
 > The API contract lives in the first — this doc keeps the
 > evidence and the rulings; that one holds the types, the arbitration order and the threading model.
+> 📐 **Architecture context: [`DESIGN_Map_Rendering_And_Interaction.md`](../DESIGN_Map_Rendering_And_Interaction.md)** —
+> how the tool path sits inside the render/interaction stack, and §4.2's `stateDiagram` of the modal
+> stack this issue builds.
 > **Status: ❌ NOT-BUILT (design only; Q27 answered) — no `IToolController`/`ToolDescriptor`/modal-stack in source, only fossil comments.**
 > This is the first issue in the programme that is **genuinely new architecture**, not adoption of an
 > existing seam. Implements [UXR-81](UX_Requirements.md#uxr-81), [UXR-84](UX_Requirements.md#uxr-84).
@@ -52,6 +55,36 @@ Each guards exclusivity **only within itself** — `DataDrivenGizmoSystem.cs:91`
 > ⇒ **`Rotate` (DataDriven) and `Measure` (GlobalGizmoManager) can both hold "exclusive" focus at once
 > and both act on the same drag.** Not a smell — a correctness defect. 🔴
 
+#### ⭐⭐ ADDED `2026-08-28` — **the TERMINAL half of the same defect: raw-input capture is decided by EMISSION ORDER**
+
+📐 The section above is the **bus** side *(both systems ACT on the same typed stream)*. ⚠ **The raw-input
+side is different, and worse in a quieter way.** Each arbiter also emits an `InputCaptureBinding` for its
+own focus holder — `GlobalGizmoManager:138`, `DataDrivenGizmoSystem:334,373` — and the terminal resolves it
+like this *(`GizmoMap.Presentation/Layers/DebugGizmoLayer.cs:118-134`)*:
+
+```csharp
+for (int i = 0; i < primitives.Length; i++) {
+    if (prim.Shape != DebugPrimitiveShape.InputCaptureBinding) continue;
+    if ((prim.ConditionMask & 1u) != 0) exclusiveAnchorId = prim.StructNetworkId;  // suppress hit-testing
+    if ((prim.ConditionMask & 2u) != 0) routeRawInput      = true;                 // all raw HW to me
+    captureToken = …;
+    break;                       // 🔴 FIRST ONE WINS. No arbitration, no report.
+}
+```
+
+⇒ 🔒 **When both arbiters hold "exclusive" focus, the one whose primitive lands FIRST IN THE BUFFER captures
+raw input** — i.e. **whichever system runs earlier in the group**. ⛔ The other one still receives the typed
+events *(the defect above)* but never the raw stream. ⇒ ⚠ **the two halves of one tool's input can end up
+split across two tools**, and nothing anywhere says so.
+
+📌 **The design predicted exactly this** *(`gizmo-input-focus-design.md` §6.2)*: *"If two tools
+simultaneously emitted `InputCaptureBinding(Exclusive=true)`, the terminal would have no honest way to
+choose. **We prevent that situation entirely on the backend**"* — ⛔ **and the prevention is what is
+missing**, because there are two backends-within-the-backend.
+
+⭐⭐ **Consequence for `A1`:** the single `IToolController` fixes BOTH halves at once — one arbiter means one
+capture binding per frame, so the terminal's `break` becomes correct rather than arbitrary.
+
 **And exclusivity is narrower still than that:** `_injectedGizmos` is keyed **per `Entity`**, so
 activating `Rotate` on entity A then `Edit` on entity B leaves **both** alive.
 
@@ -93,7 +126,7 @@ architecture, and it is still the toolbar's contract.
 | Tool gizmo | Lives in | Adopted by |
 |---|---|---|
 | `MeasureGizmo` · `RouteWaypointGizmo` · `VertexEditGizmo` | `Hrot.Presentation/ScenarioEditor/Gizmos/` | Editor, IG |
-| **`EntityRotatorGizmo`** | ⚠ **`Hrot.SimHost/Gizmos/`** | Editor, SimHost, **CGF** |
+| **`EntityRotatorGizmo`** | ✅ **`Hrot.Presentation/ScenarioEditor/Gizmos/`** — ⚠⚠ **CORRECTED `2026-08-28`: this row said `Hrot.SimHost/Gizmos/` and that is STALE.** 📐 Measured: the only other copy is the `GizmoMap.Example` test bed. 📌 It was moved by *"AX item 4 — make `EntityRotatorGizmo` subsystem-agnostic"*, and the row was never updated ⇒ 🔒 **§M's rule exactly: a STATE CLAIM rots while the DECISION around it does not** | Editor, SimHost, **CGF** |
 
 ⇒ Editor and CGF depend on a tool that lives **inside the SimHost subsystem**.
 
@@ -187,6 +220,27 @@ public interface IToolController
 ⚠ **Not recoverable from git** — `PopTool` appears only in comments even at the squashed import commit
 (`e999566`), so the implementation lived in an ancestor repo. **The comments are the only survivors**, and
 they are the fourth fossil of the same deleted architecture ([Correction 11](UX_Tasks_Detail.md#corrections)).
+
+#### ⭐⭐ ADDED `2026-08-28` — **the replacement design EXPECTED the stack to survive** *(answers "intentional or accident?")*
+
+📄 **[`docs/designs/gizmos-1/gizmo-input-focus-design.md`](../designs/gizmos-1/gizmo-input-focus-design.md)** —
+the design of the very mechanism that replaced the tool model — **separates the two questions, and answers
+them differently**:
+
+| what | the design says | verdict |
+|---|---|---|
+| **single EXCLUSIVE focus on the backend** | §6.2: *"If two tools simultaneously emitted `InputCaptureBinding(Exclusive=true)`, the terminal would have no honest way to choose. **We prevent that situation entirely on the backend**"* — one `ActiveGlobalGizmo.ActiveInstance` slot | ✅ **INTENTIONAL, with a stated reason** |
+| ⭐⭐⭐ **the frontend TOOL STACK** | §14: *"**The frontend keeps its tool stack for routing**, but stripped of business logic — the proxy tool remains as a generic input capturer that **pops itself** when the backend stops emitting the capture binding. No semantic decisions in the stack."* | 🔴 **the design assumed it would STILL BE THERE** |
+
+⇒ 🔒 **So the loss was NOT a decision.** ⛔ Nothing in this repo records dropping the stack; the design of its
+replacement **explicitly planned around keeping it**, stripped of semantics but present for routing.
+⚠ **Stated fairly:** that document is marked *"Design proposal"*, and the deletion happened in an **ancestor
+repo** — so this is *"no decision record exists, and the nearest intent says keep it"*, ⛔ **not** *"someone
+decided to remove it."*
+
+📌 **`R-137`** *(user, `2026-08-28`: unification may not cost a feature; if it does, put it back as
+configuration)* **is the general form of what this section found on `2026-08-10`** — ⭐ the same disease,
+recorded twice, eighteen days apart.
 
 ### 🔴 What replaced it is flat — and the "come back" is only half-implemented
 

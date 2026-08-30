@@ -1,5 +1,6 @@
 using Hrot.IG.Systems;
 using Fdp.ModuleHost.Abstractions;
+using Hrot.Presentation.Map;
 
 namespace Hrot.IG.Modules;
 

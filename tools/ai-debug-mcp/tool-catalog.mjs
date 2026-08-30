@@ -265,7 +265,13 @@ export const TOOLS_CATALOG = [
     ],
     "returns": "Full component dump for the entity. Non-finite floats render as \"NaN\"/\"Infinity\"/\"-Infinity\".",
     "notes": [
-      "Non-finite floats appear as string sentinels \"NaN\"/\"Infinity\"/\"-Infinity\" — valid JSON, not a bug."
+      "Non-finite floats appear as string sentinels \"NaN\"/\"Infinity\"/\"-Infinity\" — valid JSON, not a bug.",
+      "SHAPE: { EntityId, NetworkId, Components:{ ... } } — Components is PascalCase, and so is every component and field name inside it (SimTransform.Position, NavigationIntent.Mode). Indexing a lowercase 'components' silently yields nothing and reads like an empty entity.",
+      "TO DIAGNOSE 'the sim ignores my order', COMPARE THE INTENT COMPONENT WITH ITS STATUS COMPONENT. The pair distinguishes three different bugs that look identical from the UI: intent empty => nothing issued the order; intent set + status ABSENT => the consumer never ran; intent set + status PRESENT + zero velocity => the consumer ran and produced no motion. Worked example: NavigationIntent{Mode,TargetSpeed} against NavigationStatus.",
+      "AUTHORITY FIRST: NetworkOwnership/NetworkAuthority carry HasAuthority, PrimaryOwnerId and LocalNodeId. On a cluster a write to an entity this node does not own is legitimately dropped, so check HasAuthority before filing 'the write did nothing'.",
+      "MEASURE MOTION AS A POSITION DELTA OVER A simTime DELTA, never over wall-clock. Sample get_status.simTime alongside each dump: BIT-IDENTICAL positions across a real simTime advance is the hard evidence; the same reading across a stalled clock proves nothing.",
+      "ON --mode all THIS READS ONE NODE -- THE ACTIVE PERSPECTIVE -- AND THE NODES DISAGREE. Brain (CGF/Scenario) and muscle (SimHost) hold separate copies of the same entity, and a defect can live entirely in the gap between them. Measured 2026-08-28: entity 1001 held Class:Tank, AccelGain:1.8 on CGF and PersonalCar, AccelGain:0 on SimHost, because the scenario's authored VehicleParams reached the brain intact and was dropped on the wire hop. The brain computed a valid path (which rendered) while the muscle could not accelerate -- on screen, indistinguishable from a broken navigator. SO: read the entity on BOTH nodes before concluding anything about 'the cluster'.",
+      "AND ?perspective= DOES NOT WORK: it is not implemented on any route and is IGNORED (you get a hint saying so since CE-112). Switch with POST /perspective {name:...} and then read; confirm with get_status.perspective. Passing ?perspective=ExCon -- a subsystem with NO WORLD AT ALL -- used to return a full component dump, which is how the ignored key was caught."
     ],
     "example": {
       "args": {
@@ -324,7 +330,9 @@ export const TOOLS_CATALOG = [
     "notes": [
       "Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).",
       "Edit state freezes sim time — nothing ticks until enter_preview or play.",
-      "In --mode all this load is PARTIAL: CGF has no edit-load handler yet, so SimHost loads and CGF does not. Use load_scenario_live when every node must hold the world."
+      "CE-102 (2026-08-28) gave CGF the shared edit-load handler, so an edit load is NO LONGER partial on that node. This note previously said CGF had none -- that is now stale. Still prefer load_scenario_live for a real run, and verify either load by reading state.",
+      "AND THAT PARTIAL LOAD STILL ANSWERS ok:true — this is the single most misleading response in the API. Measured on --mode all from the Scenario perspective: ok:true with scenario:NULL, entityCount:0, an empty list_entities, and a gizmo frame of 603 primitives that were ALL grid lines. Every field says 'empty world' and the envelope says 'success'.",
+      "SO VERIFY A LOAD, NEVER TRUST IT: after any load read get_status.entityCount AND list_entities AND (if the map matters) the non-Line shape count from get_gizmo_frame. Three independent reads, because the envelope is not one of them. On the same host load_scenario_live gave 8 entities and Box2D 8 / Arrow 12 / Text 8."
     ],
     "example": {
       "args": {
@@ -737,7 +745,10 @@ export const TOOLS_CATALOG = [
       "level = minimum severity (inclusive): Trace, Debug, Info, Warning, Error, Critical.",
       "logger = case-insensitive substring match on logger name.",
       "since = ISO-8601 timestamp; entries with timestamp >= since are included.",
-      "Read off-thread — no main-thread marshal required."
+      "Read off-thread — no main-thread marshal required.",
+      "ON A CLUSTER ALWAYS PASS level:\"Info\" (or higher). Measured on --mode all: an UNFILTERED read returned 176 of 200 entries as [TC3] time-sync chatter (TimeSyncRequest/SyncResponse/RTT gentle-steer) logged at Trace by four nodes — no application line survives in the window. The same read with level:\"Info\" returned 25 lines and zero [TC3].",
+      "AN UNKNOWN FILTER IS STILL SERVED LENIENTLY, BUT IT NOW TELLS YOU (CE-107). level:\"INFO_\" or a misspelled param (limit instead of max) returns the whole ring as before — the endpoint does not refuse a diagnostic call — but the SUCCESS envelope carries hint.why naming the ignored key or the unapplied level, and it also says so when no level filter was given at all. READ hint ON SUCCESS: it is the difference between an answer and an answer to a different question.",
+      "The param is max, NOT limit. Nothing rejects limit; it is simply not read."
     ],
     "example": {
       "args": {
@@ -874,7 +885,9 @@ export const TOOLS_CATALOG = [
     "params": [],
     "returns": "ok:true envelope.",
     "notes": [
-      "Commands and spawns while paused are queued and take effect on the next step/play."
+      "Commands and spawns while paused are queued and take effect on the next step/play.",
+      "THE ACK MEANS APPLIED as of CE-104: the route waits until isPaused is actually true before returning, so the next read is safe. Measured before the fix on --mode all: ok:true while /status still read isPaused:false, with the clock running a further ~0.2s — because a cluster-wide pause is a FUTURE BARRIER so every node stops at the same simTime.",
+      "A 504 from this route means the pause barrier is stuck — a node never reached it. Check get_logs({level:\"Warning\"})."
     ],
     "example": {
       "args": {},
@@ -945,7 +958,11 @@ export const TOOLS_CATALOG = [
     ],
     "returns": "ok:true envelope.",
     "notes": [
-      "Only advances time when inPreview==true. In Edit state this is a no-op."
+      "Only advances time when inPreview==true. In Edit state this is a no-op.",
+      "count IS honoured cluster-wide as of CE-105, and it is gated per step: the route issues ONE step, waits for it to land, and repeats — so N steps take N frames and the call returns when the last one is acknowledged. Measured: count:60 advances simTime by exactly 1.0000s. Before the fix the loop ran inside a single frame and the cluster dropped all but the first, answering ok:true with 0.0167s of progress.",
+      "STILL VERIFY BY READING simTime, NOT ok. The gate now makes the ack trustworthy, but a simTime delta is the cheap proof and it costs one call.",
+      "A STEP IS REFUSED OUTRIGHT UNLESS THE CLUSTER IS IN A STEPPING MODE, and the refusal is not visible in the envelope — it is a warning in the log (see get_logs, RefusedStepCount). A cluster that is free-running drops every step. If simTime does not move, check get_status.isPaused first: pause, then step.",
+      "This is the loop's weak link, so prove it once at the start of a session: pause, step, read simTime. A silently-refused step makes every later observation meaningless (it invalidated a root-cause in this repo once — a 'nothing moved' reading taken through a step that never ran)."
     ],
     "example": {
       "args": {
@@ -2448,7 +2465,10 @@ export const TOOLS_CATALOG = [
     "returns": "{ count, dropped, emitted, truncated, primitives:[{shape, space, layer, color, ...shape-specific}] }",
     "notes": [
       "truncated tells you the frame was clipped by max — without it a cap would read as the end of the frame.",
-      "A shape with no field projection yet is reported by name with a note, never as aliased bytes."
+      "A shape with no field projection yet is reported by name with a note, never as aliased bytes.",
+      "MOST OF A FRAME IS THE GRID. Measured on --mode all with an EMPTY world: 603 primitives, all of them Line. So a non-zero count is NOT evidence that anything is on the map.",
+      "TO ANSWER 'are the entities visible', COUNT PRIMITIVES BY shape AND IGNORE Line. A loaded hill-attack frame read 739 primitives: Line 670 plus Box2D 8, Arrow 12, Text 8, SemanticShape 16, SpatialAnchor 16 — the non-Line shapes are the world. Compare that histogram against the same read on the other host to localise a 'nothing renders here' report.",
+      "The default cap is 500 and the grid alone can exceed it, so pass max (e.g. 2000) before concluding a shape is absent — otherwise truncated:true means your answer is about the grid."
     ],
     "example": {
       "args": {

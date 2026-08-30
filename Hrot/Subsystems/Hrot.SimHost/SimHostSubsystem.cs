@@ -61,6 +61,12 @@ namespace Hrot.SimHost
                 // ⚠ Lazy, and doubly so here: the visualization is optional, so this is null on a
                 //   genuinely headless SimHost node and the manifest says panels.gizmo:false there.
                 gizmoBuffer:   () => _app?.Visualization?.GizmoBuffer,
+                // ⭐⭐ CE-110 — SimHost's own catalog (SimHostNodeBootstrapper:179 registers the singleton).
+                // ⚠⚠ Lazy is LOAD-BEARING here, not stylistic: TkbLoadClusterStateHandler CLEARS and
+                //    re-ingests this database on every PrepareLive/PrepareEdit, so a captured value would
+                //    report the boot catalog forever — the node's own scenario TKB would never show up.
+                tkbDb:         Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                   .TkbFrom(() => _app?.WorldOrNull),
                 // ⭐⭐ HN-029 — the node's own control-plane bus; see SimHostApp.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _app?.OrchestrationBus),

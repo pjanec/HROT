@@ -126,6 +126,15 @@ namespace Hrot.Editor.DebugApi
         private static RouteResult Ok(JsonNode? data) => new(200, data, null);
 
         /// <summary>
+        /// ⭐⭐ <c>CE-107</c> — a SUCCESS that still carries advice. ⛔ Not an error: the request was served,
+        /// but the caller may not have got what they meant *(a filter that was silently ignored, a default
+        /// that is wrong for this host)*. ⚠ Leniency is right for a diagnostic endpoint; going SILENT about
+        /// it is not.
+        /// </summary>
+        private static RouteResult OkWithHint(JsonNode? data, string why)
+            => new(200, data, null, new JsonObject { ["why"] = why });
+
+        /// <summary>
         /// Fails a request, optionally attaching the machine-readable pointer for
         /// <paramref name="hintCategory"/> (<c>MX8</c>). ⭐ Pass a category wherever the caller could
         /// have got the input right by asking the API first — a bad condition, an unknown entity, an
@@ -296,13 +305,59 @@ namespace Hrot.Editor.DebugApi
                 var logger = ctx.Query("logger");
                 var since  = ctx.Query("since");
                 int max    = int.TryParse(ctx.Query("max"), out var m) ? m : DebugApiService.DefaultMaxLogs;
-                return Task.FromResult(Ok(Service().GetLogs(level, logger, since, max)));
+
+                var logs = Service().GetLogs(level, logger, since, max);
+
+                // ⭐⭐⭐ CE-107 — SAY WHAT WAS UNDERSTOOD. 📐 Measured `2026-08-28`: a call written as
+                //    `/logs?limit=400` returned the WHOLE unfiltered ring — `limit` is not a parameter (it is
+                //    `max`) and nothing said so — and on a cluster that ring is ~90% time-sync Trace chatter.
+                //    ⇒ 🔴 the answer looked plausible and was to a different question; it produced a
+                //    fabricated root cause before anyone noticed. ⛔ Still lenient (no 400): the fix is
+                //    TELLING the caller, not refusing them.
+                var unknown = ctx.QueryKeys
+                    .Where(k => k is not ("level" or "logger" or "since" or "max"))
+                    .ToArray();
+
+                var advice = new List<string>();
+                if (unknown.Length > 0)
+                    advice.Add($"ignored unknown query key(s) [{string.Join(", ", unknown)}] — "
+                             + "this endpoint reads level, logger, since, max");
+                if (!string.IsNullOrWhiteSpace(level)
+                 && !Enum.TryParse<Fdp.Core.Logging.LogSeverity>(level, ignoreCase: true, out _))
+                    advice.Add($"level '{level}' is not a severity — the level filter was NOT applied "
+                             + "(Trace|Debug|Info|Warning|Error|Critical)");
+                if (string.IsNullOrWhiteSpace(level))
+                    advice.Add("no level filter: on a cluster this ring is dominated by Trace-level "
+                             + "time-sync entries — pass level=Info to see application logs");
+
+                return Task.FromResult(advice.Count == 0
+                    ? Ok(logs)
+                    : OkWithHint(logs, string.Join("; ", advice)));
             }));
 
             // Group D — sim / preview / time
             _routes.Add(new("GET",  "/sim/state",     _   => RunMain(s => s.GetSimState())));
             _routes.Add(new("POST", "/sim/play",      _   => RunMain(s => s.Play())));
-            _routes.Add(new("POST", "/sim/pause",     _   => RunMain(s => s.Pause())));
+            // ⭐⭐⭐ CE-104 — THE PAUSE ACK MEANS *APPLIED*, NOT *ACCEPTED*.
+            //
+            // 📐 Measured `2026-08-28` on --mode all: pause answered ok:true and the very next /status still
+            //    read isPaused:false, with the clock running a FURTHER ~0.2 s before the flag flipped. ⛔ That
+            //    is not a bug in the pause — a cluster-wide pause is a FUTURE BARRIER, so every node stops at
+            //    the same simTime rather than whenever its own frame lands (see MasterSyncController's
+            //    BarrierPending state). ⚠ The defect is that the CALLER could not tell "queued" from "done",
+            //    which is the silent-success family this API keeps producing.
+            //
+            // ⭐⭐ Same shape as /sim/step's gate and for the same stated reason (Q54-2: issue where the user
+            //    is, confirm where the truth is): the wait cannot live inside Pause() — the drain runs on the
+            //    main thread — so it lives here on the HTTP thread and polls across frames.
+            _routes.Add(new("POST", "/sim/pause",     async _ =>
+            {
+                var issued = await RunMain(s => s.Pause()).ConfigureAwait(false);
+                if (issued.Status != 200) return issued;
+
+                var settled = await AwaitPausedAsync().ConfigureAwait(false);
+                return settled ?? issued;
+            }));
             // ⭐⭐⭐ THE ACK-GATED STEP. 📄 DESIGN_Headless_Testability.md §6b/§6c · Architect_Question_54 Q54-2.
             //
             // ⛔⛔ A step is ASYNCHRONOUS under the hood: `Step()` publishes a StepTimeIntent, the master
@@ -322,18 +377,35 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/sim/step",      async ctx =>
             {
                 int count = ctx.Body?["count"]?.GetValue<int>() ?? 1;
+                if (count < 1) count = 1;
 
-                // ⭐⭐⭐ The pre-step clock is the gate's PROGRESS ANCHOR — read BEFORE issuing, on the main
-                //    thread, so it cannot already include the step. 📄 See AwaitStepLandedAsync: the ACK flag
-                //    alone cannot tell "drained" from "not begun", and in --mode all it is reliably the latter.
-                double? before = await _jobQueue.RunOnMainThread(() => Service().TotalTimeOrNull())
-                                                .ConfigureAwait(false);
+                // ⭐⭐⭐ CE-105 — ONE STEP PER FRAME, GATED EACH TIME. ⛔ `count` used to be looped INSIDE the
+                //    single main-thread job (`Service().Step(count)` → N × `_time.Step()`), which cannot work on
+                //    a lockstep cluster: 📐 measured `2026-08-28` on --mode all, `count:120` advanced simTime by
+                //    **0.0167 s — exactly ONE 1/60 frame** — and still answered ok:true. The master retires at
+                //    most one step per frame *(it must not run ahead of its slaves)*, so the other 119 hit
+                //    `MaxQueuedSteps` and were dropped with warnings nobody reads.
+                //    ⭐⭐ The gate for ONE step already existed; the loop simply has to live OUTSIDE it, here on
+                //      the HTTP thread where we can await across frames. ⇒ N steps = N gated frames.
+                //    ⚠ Deliberately NOT a host-type gate: the editor's standalone master has an empty roster so
+                //      `AwaitStepLandedAsync` returns as soon as its clock moves. Same code, both hosts.
+                RouteResult issued = default!;
 
-                var issued = await RunMain(s => s.Step(count)).ConfigureAwait(false);
-                if (issued.Status != 200) return issued;
+                for (int i = 0; i < count; i++)
+                {
+                    // ⭐⭐ The pre-step clock is the gate's PROGRESS ANCHOR — read BEFORE issuing, on the main
+                    //    thread, so it cannot already include the step. 📄 See AwaitStepLandedAsync: the ACK
+                    //    flag alone cannot tell "drained" from "not begun", and in --mode all it is reliably
+                    //    the latter. ⚠ Re-read per iteration: step i+1's anchor is step i's result.
+                    double? before = await _jobQueue.RunOnMainThread(() => Service().TotalTimeOrNull())
+                                                    .ConfigureAwait(false);
 
-                var settled = await AwaitStepLandedAsync(before).ConfigureAwait(false);
-                if (settled is { } failure) return failure;
+                    issued = await RunMain(s => s.Step(1)).ConfigureAwait(false);
+                    if (issued.Status != 200) return issued;
+
+                    var settled = await AwaitStepLandedAsync(before).ConfigureAwait(false);
+                    if (settled is { } failure) return failure;
+                }
 
                 // ⚠⚠ THE PAYLOAD IS THE ISSUING JOB'S STATE, deliberately — ⛔ NOT a second
                 //    `GetSimState()` read after the gate. 📐 Measured `2026-08-24`: adding that extra
@@ -1405,6 +1477,44 @@ namespace Hrot.Editor.DebugApi
         /// stays in <c>Stepping</c> until every requested tick is acknowledged, so the flag covers the remainder
         /// without this needing to know the tick length.</para>
         /// </summary>
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-104</c> — waits until the pause has actually taken effect cluster-wide.</b> Returns
+        /// <see langword="null"/> on success, or the failure result to send.
+        ///
+        /// <para>⭐ <b>The observable is <c>isPaused</c> itself</b>, polled through the main-thread queue so each
+        /// read is a consistent between-frames observation. ⛔ Not the clock: a paused clock and a stalled clock
+        /// look identical, so clock-progress cannot prove a pause the way it proves a step.</para>
+        ///
+        /// <para>⚠ <b>Degrades deliberately:</b> a host that cannot report <c>isPaused</c> *(no time controller —
+        /// the read answers <see langword="null"/>)* has nothing to confirm, so this returns immediately rather
+        /// than hanging for the timeout. ⛔ Such hosts answer 501 before reaching here today.</para>
+        ///
+        /// <para>⛔ A timeout is a FAILURE with the elapsed time named — a pause that never lands means the
+        /// barrier is stuck, and every later read would describe a cluster that is neither running nor
+        /// paused.</para>
+        /// </summary>
+        private async Task<RouteResult?> AwaitPausedAsync()
+        {
+            var sw = Stopwatch.StartNew();
+
+            while (true)
+            {
+                var paused = await _jobQueue
+                    .RunOnMainThread(() => Service().IsPausedOrNull())
+                    .ConfigureAwait(false);
+
+                if (paused is null) return null;   // nothing to confirm on this host
+                if (paused.Value)   return null;
+
+                if (sw.Elapsed.TotalSeconds > StepAckTimeoutSeconds)
+                    return Fail(504,
+                        $"Pause was issued but isPaused was still false after {StepAckTimeoutSeconds:0}s — "
+                      + "the cluster pause barrier appears stuck (see GET /logs?level=Warning).");
+
+                await Task.Delay(15).ConfigureAwait(false);
+            }
+        }
+
         private async Task<RouteResult?> AwaitStepLandedAsync(double? before)
         {
             var sw = Stopwatch.StartNew();
@@ -1598,8 +1708,54 @@ namespace Hrot.Editor.DebugApi
                     result = Fail(500, ex.Message);
                 }
 
+                // ⭐⭐⭐ CE-107 — THE SUCCESS BRANCH CARRIES THE HINT TOO. ⛔ It used to drop it, so an
+                //    endpoint could not advise a caller that had been served but had asked the wrong
+                //    question — the envelope was structurally incapable of saying "ok, but…". 📐 That is why
+                //    `/logs?limit=400` could return the whole unfiltered ring in silence.
+                // ⭐⭐⭐ CE-112 — `?perspective=` IS NOT IMPLEMENTED, SO SAY SO ON EVERY ROUTE.
+                //
+                // 📐 Measured `2026-08-28`: `PerspectiveScopedDispatcher.Resolve(perspective)` exists and its
+                //    own doc-comment calls it *"Q54-2's optional ?perspective= override"* — ⛔ and it has
+                //    **ZERO CALLERS**. No route ever consults the query key, so passing it silently reads the
+                //    ACTIVE perspective instead.
+                //
+                // 🔴🔴 **This cost a wrong diagnosis, and it is the third instrument fault in one
+                //    investigation** (after `CE-107`'s ignored `/logs` key and `CE-110`'s empty TKB). Reading
+                //    entity 1001 on `--mode all` with `?perspective=` set to SimHost, Scenario, IG and even
+                //    **ExCon — which has no world at all** — returned FOUR IDENTICAL non-empty answers. ⚠ That
+                //    is what proved the key was ignored: ExCon cannot answer, so an answer from ExCon is a lie.
+                //    ⭐ The truth, found by `POST /perspective` instead: CGF holds `Class: Tank, AccelGain 1.8`
+                //    and SimHost holds `PersonalCar, AccelGain 0` — the two worlds DISAGREE, and the ignored
+                //    key had been hiding exactly the difference `CE-103` was hunting.
+                //
+                // ⛔ Deliberately NOT a 400, following `CE-107`'s ruling: leniency is right for a diagnostic
+                //    endpoint, and going SILENT was the defect. ⚠ But the advice names the WORKING route, so a
+                //    caller is never left with a plausible answer to a different question.
+                // ⭐ ONE guard at the single envelope site rather than per-route: no route implements the
+                //   override, so a per-route list would rot the moment one did. 📌 When a route DOES implement
+                //   it, that route's own hint supersedes this — the check is skipped when a hint is present.
+                var perspectiveOverride = reqCtx.Query("perspective");
+                if (!string.IsNullOrWhiteSpace(perspectiveOverride) && result.Hint is null)
+                {
+                    result = result with
+                    {
+                        Hint = new JsonObject
+                        {
+                            ["why"] = $"the '?perspective={perspectiveOverride}' override is NOT implemented "
+                                    + "on any route and was IGNORED — this answer is for the ACTIVE "
+                                    + "perspective, which may be a DIFFERENT node with different state. "
+                                    + "Switch first, then read.",
+                            ["seeEndpoint"] = "POST /perspective",
+                        },
+                    };
+                }
+
+                // ⭐⭐⭐ CE-107 — THE SUCCESS BRANCH CARRIES THE HINT TOO. ⛔ It used to drop it, so an
+                //    endpoint could not advise a caller that had been served but had asked the wrong
+                //    question — the envelope was structurally incapable of saying "ok, but…". 📐 That is why
+                //    `/logs?limit=400` could return the whole unfiltered ring in silence.
                 var envelope = result.Error is null
-                    ? new ApiResponse(true, Data: result.Data)
+                    ? new ApiResponse(true, Data: result.Data, Hint: result.Hint)
                     : new ApiResponse(false, Error: result.Error, Hint: result.Hint);
                 await WriteResponseAsync(ctx, result.Status, envelope).ConfigureAwait(false);
 
@@ -1696,6 +1852,20 @@ namespace Hrot.Editor.DebugApi
 
             public string? RouteValue(string key) => _routeValues.TryGetValue(key, out var v) ? v : null;
             public string? Query(string key) => _request.QueryString[key];
+
+            /// <summary>
+            /// ⭐⭐ <c>CE-107</c> — every query key the caller actually sent, so a route can tell them which
+            /// ones it did not understand. ⛔ Without this a typo'd filter is invisible: the value is simply
+            /// never read and the endpoint answers a question nobody asked.
+            /// </summary>
+            public IEnumerable<string> QueryKeys
+            {
+                get
+                {
+                    foreach (var k in _request.QueryString.AllKeys)
+                        if (!string.IsNullOrEmpty(k)) yield return k!;
+                }
+            }
         }
     }
 

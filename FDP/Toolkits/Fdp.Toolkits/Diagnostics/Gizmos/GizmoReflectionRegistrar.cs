@@ -44,10 +44,24 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// The projector types registered, so a caller (or a rail) can assert WHAT was found rather than
         /// trusting that something was.
         /// </returns>
+        /// <param name="visibilityPolicy">
+        /// ⭐⭐ <b><c>UXI-23</c> <c>S4</c> — how a REFLECTION-DISCOVERED projector gets a visibility policy.</b>
+        /// 📄 <c>UX_Feature_Map_Parity.md</c> §3.2f · <c>UX_Feature_Entity_Symbology.md</c> §3.4.
+        ///
+        /// <para>⛔ Before this, there was no way. <c>ST-031</c> deleted the hand-written registration sites
+        /// where a host could pass one, so every discovered projector got
+        /// <c>AlwaysVisiblePolicy</c> by default and §3.4's design — <i>"move CullingState out of the
+        /// projector key and into the policy"</i> — had nowhere to put the policy.</para>
+        ///
+        /// <para>⭐ A resolver keeps the right axis: policy varies per HOST <b>and</b> per PROJECTOR, which
+        /// neither an attribute (per projector only) nor an interface member (per projector only) can
+        /// express. Return <see langword="null"/> for the default.</para>
+        /// </param>
         public static IReadOnlyList<Type> RegisterAll(
             GizmoRegistry gizmoRegistry,
             StatelessGizmoRegistry statelessRegistry,
-            GizmoSettingsRegistry settings)
+            GizmoSettingsRegistry settings,
+            Func<Type, IGizmoVisibilityPolicy?>? visibilityPolicy = null)
         {
             if (statelessRegistry == null) throw new ArgumentNullException(nameof(statelessRegistry));
 
@@ -77,7 +91,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 if (instance is IGlobalStatelessGizmo global)
                 {
                     // Mirrors the generator: a global projector takes no component mask.
-                    statelessRegistry.RegisterGlobal(global);
+                    statelessRegistry.RegisterGlobal(global, visibilityPolicy?.Invoke(type));
                     registered.Add(type);
                     continue;
                 }
@@ -90,7 +104,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 }
 
                 EnsureComponentIds(attr.RequiredComponents);
-                statelessRegistry.Register(stateless, attr.RequiredComponents);
+                statelessRegistry.Register(stateless, attr.RequiredComponents, visibilityPolicy?.Invoke(type));
                 registered.Add(type);
             }
 

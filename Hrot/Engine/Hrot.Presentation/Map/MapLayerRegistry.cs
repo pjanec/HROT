@@ -1,14 +1,16 @@
 using System.Collections.Generic;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
+using Hrot.Map.Common.Config;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 
-namespace Hrot.IG.Systems;
+namespace Hrot.Presentation.Map;
 
 /// <summary>
-/// Static registry of all five standardised map layers supported by this IG instance.
+/// The default set of five standardised map layers, shared by every ECS-enabled host
+/// that presents a map.
 ///
 /// <para>Each entry is a <see cref="MapLayerDefinition"/> record that captures:
 /// a human-readable JSON key, a bit-mask, and a membership predicate evaluated by
@@ -36,21 +38,31 @@ public static class MapLayerRegistry
     private const byte KindPlatform = 1;
 
     // ── Bit allocations ──────────────────────────────────────────────────────
+    //
+    // ⭐ UXI-23 S1: these five constants used to be DECLARED here and copied into
+    //    Hrot.Map.Common.Config.MapLayerBits, whose doc read "These values must match
+    //    Hrot.IG.Systems.MapLayerRegistry exactly so that the offline Editor and the live
+    //    IG use the same bitmask encoding".
+    // ⛔ A comment is not a mechanism: two copies that must agree, kept in step by hand,
+    //    across two assemblies. The lift into Hrot.Presentation put both in scope of each
+    //    other for the first time, so the duplicate is now COLLAPSED -- MapLayerBits is the
+    //    single declaration and these are forwarders kept only so existing call sites
+    //    (IgApplication, IgCapabilitiesPublisher, HrotEntityFilterFactory) still compile.
 
     /// <summary>Rendering bit for the <c>"units_ground"</c> layer.</summary>
-    public const uint GroundUnitsBit      = 1u << 0;
+    public const uint GroundUnitsBit      = MapLayerBits.GroundUnitsBit;
 
     /// <summary>Rendering bit for the <c>"units_air"</c> layer.</summary>
-    public const uint AirUnitsBit         = 1u << 1;
+    public const uint AirUnitsBit         = MapLayerBits.AirUnitsBit;
 
     /// <summary>Rendering bit for the <c>"vehicles"</c> layer (motorised platforms).</summary>
-    public const uint VehiclesBit         = 1u << 2;
+    public const uint VehiclesBit         = MapLayerBits.VehiclesBit;
 
     /// <summary>Rendering bit for the <c>"tactical_graphics"</c> layer (area overlays).</summary>
-    public const uint TacticalGraphicsBit = 1u << 3;
+    public const uint TacticalGraphicsBit = MapLayerBits.TacticalGraphicsBit;
 
     /// <summary>Rendering bit for the <c>"road_graphs"</c> layer (route entities).</summary>
-    public const uint RoadGraphsBit       = 1u << 4;
+    public const uint RoadGraphsBit       = MapLayerBits.RoadGraphsBit;
 
     /// <summary>
     /// Ordered list of all layer definitions.

@@ -22,7 +22,9 @@ public static class CgfComponentRegistry
         world.RegisterComponent<ActiveSensorTracks>();
 
         PresentationComponentRegistry.RegisterAll(world);
-        world.RegisterComponent<MapDisplayComponent>();
+        // UXI-23 S1: MapDisplayComponent moved to the shared map list (it lives in
+        // Fdp.Presentation, which Hrot.Core cannot reference -- see MapPresentationRegistry).
+        Hrot.Presentation.Map.MapPresentationRegistry.RegisterAll(world);
         RouteComponentRegistry.RegisterAll(world);
         MissionComponentRegistry.RegisterAll(world);
         ZoneComponentRegistry.RegisterAll(world);
