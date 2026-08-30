@@ -28,7 +28,15 @@ namespace Hrot.ClusterRunner.Tests;
 ///
 /// <para>🔒 <b><c>R-137</c>: the capability is not removed, only the wrong default.</b> The
 /// <c>isSelectedPredicate</c> PARAMETER stays on the shared system — any host may still gate its map by
-/// selection if it wants to. These rails assert that no host does so <i>by accident</i>.</para>
+/// selection if it wants to.</para>
+///
+/// <para>⚠⚠ <b>UPDATED for <c>S2b</c>.</b> This file used to assert <i>"no host passes a predicate to
+/// <c>StatelessGizmoSystem</c>"</i> by scanning the five host constructions. <c>S2b</c> moved those
+/// constructions into <see cref="Hrot.ScenarioEditor.Map.MapInteractionPack"/>, so that rail's own
+/// precondition (five construction sites) became false — and it went red, correctly, the moment the
+/// composition moved. ⭐ The invariant is now <b>structural</b>: <c>MapInteractionContext</c> exposes no
+/// stateless predicate to pass. What this file asserts instead is that no host has drifted BACK to
+/// hand-building the machinery.</para>
 ///
 /// <para>📄 <c>docs/UX/UX_Feature_Map_Parity.md</c> §3.9j.1.</para>
 /// </summary>
@@ -71,53 +79,40 @@ public sealed class TheMapIsNotSelectionGatedRails
     /// rail below); only this one proves that no host PASSES one.</para>
     /// </summary>
     [Fact]
-    public void NoHost_PassesASelectionPredicateToTheStatelessGizmoSystem()
+    public void NoHost_ConstructsTheGizmoSystemsItself()
     {
         var root = RepoRoot();
         var offenders = new List<string>();
-        int sitesChecked = 0;
 
         foreach (string relative in HostFiles)
         {
             string path = Path.Combine(root.FullName, relative);
             Assert.True(File.Exists(path), $"Host file not found: {relative}");
 
-            string source = File.ReadAllText(path);
-
-            // Match `new [Fully.Qualified.]StatelessGizmoSystem( ... )` and capture the argument list up
-            // to the matching close. The hosts write both the bare and the fully-qualified form.
-            foreach (Match m in Regex.Matches(
-                         source,
-                         @"new\s+(?:[\w\.]*\.)?StatelessGizmoSystem\s*\(",
-                         RegexOptions.None))
+            foreach (string line in File.ReadAllLines(path))
             {
-                sitesChecked++;
-                string args = ArgumentListAt(source, m.Index + m.Length);
+                string t = line.TrimStart();
+                if (t.StartsWith("//", StringComparison.Ordinal)) continue;   // explanatory comments
 
-                // Two arguments (registry, buffer) is the whole contract. A third is the blanket gate.
-                int commas = TopLevelCommas(args);
-                if (commas >= 2 || args.Contains("isSelectedPredicate", StringComparison.Ordinal))
+                if (Regex.IsMatch(t, @"new\s+(?:[\w\.]*\.)?StatelessGizmoSystem\s*\(")
+                 || Regex.IsMatch(t, @"new\s+(?:[\w\.]*\.)?DataDrivenGizmoSystem\s*\(")
+                 || Regex.IsMatch(t, @"new\s+(?:[\w\.]*\.)?GizmoExecutionController\s*\(")
+                 || Regex.IsMatch(t, @"new\s+(?:[\w\.]*\.)?TogglablePostSimulationGroup\s*\(\s*""GizmoExecution"))
                 {
-                    offenders.Add($"{relative} → new StatelessGizmoSystem({Collapse(args)})");
+                    offenders.Add($"{relative}: {Collapse(t)}");
                 }
             }
         }
 
-        Assert.True(sitesChecked >= 5,
-            $"Expected a StatelessGizmoSystem construction in each of the {HostFiles.Length} hosts, "
-          + $"found {sitesChecked}. If a host stopped composing one, its map draws nothing — which is "
-          + "the failure this rail exists to catch, not a reason to lower the bound.");
-
         Assert.True(offenders.Count == 0,
-            "A host passes a selection predicate to StatelessGizmoSystem:\n  "
+            "A host constructs the map's gizmo machinery itself:\n  "
           + string.Join("\n  ", offenders)
-          + "\n\n🔴 That predicate is ONE BLANKET GATE over every stateless projector the host owns — the "
-          + "entity avatars, the routes, the tactical areas, the map overlay. It is NOT the per-entity "
-          + "handle gate; that one belongs on DataDrivenGizmoSystem, where it is correct.\n"
-          + "⭐ If a host genuinely wants a selection-scoped map, that is allowed (R-137 keeps the "
-          + "parameter) — but it must be a deliberate decision recorded in the design, and this rail "
-          + "updated with the reason. It is here because SimHost had one by copy-paste and its map was "
-          + "dark for it (CE-123).");
+          + "\n\n🔒 UXI-23 S2b: MapInteractionPack.Build(ctx) constructs it, once, and the HOST SCHEDULES "
+          + "what it returns. Five hand-written compositions were five chances to get a constructor "
+          + "argument wrong, and CE-123 was exactly that — SimHost handed StatelessGizmoSystem the "
+          + "selection predicate meant for the drag handles, and its map went dark with nothing reported.\n"
+          + "⭐ The stateless-gate invariant is now structural rather than checked: MapInteractionContext "
+          + "has no stateless predicate to pass. See MapInteractionPackTests.");
     }
 
     /// <summary>

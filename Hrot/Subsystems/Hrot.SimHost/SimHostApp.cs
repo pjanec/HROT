@@ -345,31 +345,29 @@ namespace Hrot.SimHost
                 foreach (var pending in _pendingTestSystems)
                     ctx.Kernel.RegisterGlobalSystem(pending);
 
-                _gizmoBuffer = new DebugPrimitiveBuffer();
-                _gizmoRegistry = new GizmoRegistry();
-                _statelessGizmoRegistry = new StatelessGizmoRegistry();
-                // ST-031: ONE reflection call replaces the hand-rolled family list. This host declared
-                // the narrowest subset of all five -- its own family plus Presentation -- so it was missing
-                // Common's eight projectors entirely (the selection ring, health bars, LOS, vis-cone,
-                // spatial grid: UXI-22, confirmed by measurement). Uniform membership means it declares
-                // everything and component presence decides what draws.
-                GizmoReflectionRegistrar.RegisterAll(
-                    _gizmoRegistry,
-                    _statelessGizmoRegistry,
-                    settings: new GizmoSettingsRegistry());
-                // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
-                _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
-                    writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));   // ⭐ AX-007
-                _interactionBus = new FdpEventBus();
-                Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
-                _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, _interactionBus);
-                _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
-                    _gizmoRegistry,
-                    _gizmoBuffer,
-                    isSelectedPredicate: static (view, entity) =>
-                        view.HasComponent<SelectionState>(entity) &&
-                        view.GetComponentRO<SelectionState>(entity).IsSelected,
-                    interactionBus: _interactionBus);
+                // UXI-23 S2b: the buffer, both registries, the reflection pass and the three systems are
+                // built by the shared pack. 🔒 The pack CONSTRUCTS; this host still SCHEDULES, below.
+                var mapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+                    new Hrot.ScenarioEditor.Map.MapInteractionContext
+                    {
+                        World = ctx.World,
+                        IsSelectedPredicate = static (view, entity) =>
+                            view.HasComponent<SelectionState>(entity) &&
+                            view.GetComponentRO<SelectionState>(entity).IsSelected,
+                        // GZH-003: headless-first — enable only when a terminal connects.
+                        StartEnabled = false,
+                        ContributeExtras = static regs =>
+                            // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
+                            regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
+                                writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For)),  // ⭐ AX-007
+                    });
+
+                _gizmoBuffer            = mapInteraction.Buffer;
+                _gizmoRegistry          = mapInteraction.GizmoRegistry;
+                _statelessGizmoRegistry = mapInteraction.StatelessRegistry;
+                _interactionBus         = mapInteraction.InteractionBus;
+                _globalGizmoManager     = mapInteraction.GlobalManager;
+                _dataDrivenGizmoSystem  = mapInteraction.DataDrivenSystem;
                 // Register the global action registry and wire operator action handlers.
                 var actionRegistry = new GlobalActionRegistry();
                 long layerControlId = GlobalGizmoManager.NewId();
@@ -431,27 +429,10 @@ namespace Hrot.SimHost
                     if (publisherSystem != null)
                         ctx.Kernel.RegisterGlobalSystem(publisherSystem);
                 }
-                var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
-                    _globalGizmoManager,
-                    _dataDrivenGizmoSystem,
-                    // 🔴 CE-123: this used to pass the SAME isSelectedPredicate as the DataDrivenGizmoSystem
-                    // 70 lines above. That is correct for HANDLES (they belong on the selection) and wrong
-                    // for the MAP: StatelessGizmoSystem applies the predicate as ONE BLANKET GATE over every
-                    // stateless rule it owns, so it suppressed the entity avatars, the routes, the tactical
-                    // areas and the map overlay alike. SimHost was the only one of five hosts to pass it —
-                    // IG :860, CGF :958, ReplayBrowser :198 and Editor :1825 all pass none — and on the
-                    // cluster node path nothing ever sets SelectionState.IsSelected (SimHost constructs
-                    // SelectionInteractionSystem only in SimHostVisualization, the local windowed viewer),
-                    // so the predicate was false for every entity, every frame. Measured: 605 primitives,
-                    // 3 non-Line — the spatial grid's lines, which are global rules and bypass the gate.
-                    // ⭐ The PARAMETER stays on the shared system, so gating the map by selection remains
-                    // available to any host that wants it (R-137); only this wrong argument is dropped.
-                    new StatelessGizmoSystem(
-                        _statelessGizmoRegistry,
-                        _gizmoBuffer));
-                // GZH-003: headless-first; enable only when a terminal connects.
-                gizmoGroup.Enabled = false;
-                _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _dataDrivenGizmoSystem);
+                // UXI-23 S2b: the group, its three members and the gate come from the pack. This host's
+                // remaining job is to SCHEDULE them, which it does immediately below.
+                var gizmoGroup   = mapInteraction.GizmoGroup;
+                _gizmoController = mapInteraction.Gate;
                 ctx.Kernel.RegisterModule(new GizmoInteractionModule(
                     _interactionBus,
                     contextIngress: new ContextActionIngressSystem(ctx.EntityMap!, _interactionBus),

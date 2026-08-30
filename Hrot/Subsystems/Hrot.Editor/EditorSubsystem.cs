@@ -1599,42 +1599,47 @@ namespace Hrot.Editor
             // ?? 4g. Gizmo subsystem ? local stateless gizmo rendering ?????????????????
             // The Editor has no DDS transport; primitives are produced locally and consumed
             // by a DebugGizmoLayer on the canvas.
-            _gizmoBuffer = new DebugPrimitiveBuffer();
-            var editorGizmoRegistry = new GizmoRegistry();
-            var editorStatelessGizmoRegistry = new StatelessGizmoRegistry();
-            var editorGizmoSettings = new GizmoSettingsRegistry();
-            // ST-031: ONE reflection call replaces six hand-rolled registrar calls. The editor was the
-            // ONLY host that already declared every family, so for it this is not a behaviour change --
-            // it is the same set, discovered instead of listed, which is what lets the other four hosts
-            // reach parity without a compile-time pack no assembly could hold (ST-028).
-            Fdp.Toolkit.Diagnostics.Gizmos.GizmoReflectionRegistrar.RegisterAll(
-                editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
+            // ── UXI-23 S2b: the shared pack constructs the map's machinery ──────────────────────
+            // 🔒 The pack CONSTRUCTS; the editor still SCHEDULES (below, into its own kernel).
+            // ⚠ The three manual registrations go through ContributeExtras, which the pack invokes AFTER
+            // the reflection pass and BEFORE building StatelessGizmoSystem — the system sizes its
+            // visibility cache from registry.Rules.Count, so a rule added later would silently ignore its
+            // visibility policy. MissionPresentationGizmo needs an IGeographicTransform and
+            // EntityEditorLabelGizmo a BehaviorRegistry; reflection cannot supply either.
+            var editorMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+                new Hrot.ScenarioEditor.Map.MapInteractionContext
+                {
+                    World = _world,
+                    IsSelectedPredicate = static (view, entity) =>
+                        view.HasComponent<SelectionState>(entity) &&
+                        view.GetComponentRO<SelectionState>(entity).IsSelected,
+                    BreakpointManager = _bpManager,
+                    // GZH-003: the editor is interactive and always has a window at startup. It is not
+                    // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
+                    // for it — starting disabled would shut its gate permanently (§3.2d ①).
+                    StartEnabled = true,
+                    ContributeExtras = regs =>
+                    {
+                        regs.Stateless.Register(
+                            new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
+                            new[] { typeof(SimTransform), typeof(SelectionState) });
+                        regs.Stateless.Register(
+                            new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
+                            new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+                        regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
+                            writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));   // ⭐ AX-007
+                    },
+                });
 
-            // MissionPresentationGizmo requires IGeographicTransform ? register manually.
-            editorStatelessGizmoRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
-                new[] { typeof(SimTransform), typeof(SelectionState) });
-            // EntityEditorLabelGizmo requires BehaviorRegistry ? register manually.
-            editorStatelessGizmoRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
-                new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-            // EntityDragGizmoDefinition has an optional callback constructor ? register manually.
-            editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
-                writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));   // ⭐ AX-007
+            _gizmoBuffer                 = editorMapInteraction.Buffer;
+            var editorGizmoRegistry      = editorMapInteraction.GizmoRegistry;
+            var editorStatelessGizmoRegistry = editorMapInteraction.StatelessRegistry;
+            var editorGizmoSettings      = editorMapInteraction.Settings;
             // Editor has no DDS transport so no network ingress/egress translators.
-            var interactionBus = new FdpEventBus();
-            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(interactionBus);
-            _interactionBus = interactionBus;
-            _editorDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
-                editorGizmoRegistry,
-                _gizmoBuffer,
-                isSelectedPredicate: static (view, entity) =>
-                    view.HasComponent<SelectionState>(entity) &&
-                    view.GetComponentRO<SelectionState>(entity).IsSelected,
-                interactionBus: interactionBus,
-                breakpointManager: _bpManager);
-            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, interactionBus,
-                breakpointManager: _bpManager);
+            var interactionBus           = editorMapInteraction.InteractionBus;
+            _interactionBus              = interactionBus;
+            _editorDataDrivenGizmoSystem = editorMapInteraction.DataDrivenSystem;
+            _globalGizmoManager          = editorMapInteraction.GlobalManager;
             var actionRegistry = new GlobalActionRegistry();
             long layerControlId = GlobalGizmoManager.NewId();
             var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), _gizmoUiHub);
@@ -1819,13 +1824,9 @@ namespace Hrot.Editor
                 });
             });
             _selectionBridge.Connect(_aiEditorSelectionStore);
-            var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
-                _editorDataDrivenGizmoSystem,
-                _globalGizmoManager,
-                new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer));
-            // GZH-003: Editor is interactive, always has a window at startup.
-            gizmoGroup.Enabled = true;
-            _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _editorDataDrivenGizmoSystem);
+            // UXI-23 S2b: the group, its three members and the gate come from the pack.
+            var gizmoGroup   = editorMapInteraction.GizmoGroup;
+            _gizmoController = editorMapInteraction.Gate;
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
                 contextIngress: contextIngress,

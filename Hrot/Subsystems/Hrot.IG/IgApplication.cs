@@ -732,38 +732,69 @@ public class IgApplication : IDisposable
             ctx.Kernel.RegisterGlobalSystem(_contextMenuSystem);
 
             // Gizmo subsystem (GZ020) - renders entity-bound diagnostic overlays.
-            _gizmoBuffer            = new DebugPrimitiveBuffer(capacity: 4096);
-            _gizmoRegistry          = new GizmoRegistry();
-            _statelessGizmoRegistry = new StatelessGizmoRegistry();
-            _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
-            _gizmoUndoStack         = new GizmoUndoStack();
-            _interactionBus         = new FdpEventBus();
-            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
-            Hrot.IG.Gizmos.GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
-            // Register CanvasContextMenuGizmo so empty-space right-click resolves through the binding pipeline.
-            Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
-            // Phase 5: EntityDragGizmo makes entities draggable and emits pick spheres for selection.
-            if (_igBootstrapper!.NetworkEnabled)
-            {
-                _gizmoRegistry!.Register(
-                    new EntityDragGizmoDefinition(
-                        onDragCommitted: (entity, worldPos) =>
+            // ── UXI-23 S2b: the shared pack constructs the map's machinery ──────────────────────
+            // 🔒 The pack CONSTRUCTS; IG still SCHEDULES (below, into ctx.Kernel).
+            //
+            // 🔴 This also removes a DOUBLE REGISTRATION. IG used to call BOTH the reflection registrar
+            // (via Hrot.IG.Gizmos.GizmoRegistrar.Register) AND the source-GENERATED
+            // Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll. CanvasContextMenuGizmo carries
+            // [GizmoProjector], so reflection already finds it and the generated call registered it a
+            // SECOND time — measured live as ContextMenuBinding 10 on IG against 9 on Scenario. The pack
+            // does exactly one reflection pass.
+            //
+            // ⚠ ContributeExtras runs AFTER reflection and BEFORE the systems are built, which is the only
+            // safe window: StatelessGizmoSystem sizes its visibility cache from registry.Rules.Count.
+            var igMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+                new Hrot.ScenarioEditor.Map.MapInteractionContext
+                {
+                    World = ctx.World,
+                    // IG is a dumb terminal — draw all active gizmos, not just the selection's.
+                    IsSelectedPredicate = null,
+                    // IG draws the richest frame of the five.
+                    BufferCapacity = 4096,
+                    // GZH-003: IG is interactive and always has a window at startup. It is not driven by
+                    // PerspectiveCoordinatorSystem when run standalone, so starting disabled would shut
+                    // its gate permanently (§3.2d ①).
+                    StartEnabled = true,
+                    ContributeExtras = regs =>
+                    {
+                        // Phase 5: EntityDragGizmo makes entities draggable and emits pick spheres.
+                        if (_igBootstrapper!.NetworkEnabled)
                         {
-                            _lastDragWorldPos = worldPos;
-                            OnEntityDragEnded(entity);
-                        },
-                        // ⭐ AX-007 — IG owns almost nothing, so a drag here is a request to the owner.
-                        writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));
-            }
-            else
-            {
-                _gizmoRegistry!.Register(new EntityDragGizmoDefinition(
-                    writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));
-            }
-            // GZ058: manually register MissionPresentationGizmo (constructor requires IGeographicTransform).
-            _statelessGizmoRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(ctx.GeoTransform!),
-                new[] { typeof(SimTransform), typeof(SelectionState) });
+                            regs.Gizmos.Register(
+                                new EntityDragGizmoDefinition(
+                                    onDragCommitted: (entity, worldPos) =>
+                                    {
+                                        _lastDragWorldPos = worldPos;
+                                        OnEntityDragEnded(entity);
+                                    },
+                                    // ⭐ AX-007 — IG owns almost nothing, so a drag is a request to the owner.
+                                    writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));
+                        }
+                        else
+                        {
+                            regs.Gizmos.Register(new EntityDragGizmoDefinition(
+                                writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));
+                        }
+
+                        // GZ058: MissionPresentationGizmo's constructor requires IGeographicTransform,
+                        // which reflection cannot supply.
+                        regs.Stateless.Register(
+                            new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(ctx.GeoTransform!),
+                            new[] { typeof(SimTransform), typeof(SelectionState) });
+                    },
+                });
+
+            _gizmoBuffer            = igMapInteraction.Buffer;
+            _gizmoRegistry          = igMapInteraction.GizmoRegistry;
+            _statelessGizmoRegistry = igMapInteraction.StatelessRegistry;
+            _gizmoSettingsRegistry  = igMapInteraction.Settings;
+            _interactionBus         = igMapInteraction.InteractionBus;
+            _igDataDrivenGizmoSystem = igMapInteraction.DataDrivenSystem;
+            _gizmoUndoStack         = new GizmoUndoStack();
+            // ⚠ _globalGizmoManager is deliberately assigned LATER, at its original position, so that
+            // MapCommandController below keeps receiving exactly what it received before this migration.
+            // (It receives null today; changing that is a behaviour change and belongs in its own change.)
 
             // Phase 5: selection and drag handled by SelectionInteractionSystem + EntityDragGizmo.
             // Canvas no longer has a base tool for entity picking.
@@ -797,16 +828,10 @@ public class IgApplication : IDisposable
                     globalGizmoManager: _globalGizmoManager);
             }
 
-            // GZ038 reversed: DataDrivenGizmoSystem is registered for local vertex/route editing.
-            // isSelectedPredicate: null because IG is dumb terminal -- draw all active gizmos.
-            _igDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
-                _gizmoRegistry!,
-                _gizmoBuffer!,
-                isSelectedPredicate: null,
-                interactionBus: _interactionBus);
-
+            // UXI-23 S2b: both come from the pack. _globalGizmoManager is assigned HERE, at its original
+            // position, so the MapCommandController above keeps its pre-migration behaviour.
             // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
-            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!, _interactionBus);
+            _globalGizmoManager = igMapInteraction.GlobalManager;
             _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager, _gizmoSettingsRegistry);
             var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
             var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
@@ -854,13 +879,9 @@ public class IgApplication : IDisposable
                 if (publisherSystem != null)
                     ctx.Kernel.RegisterGlobalSystem(publisherSystem);
             }
-            var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
-                _globalGizmoManager,
-                _igDataDrivenGizmoSystem,
-                new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
-            // GZH-003: IG is interactive, always has a window at startup.
-            gizmoGroup.Enabled = true;
-            _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _igDataDrivenGizmoSystem);
+            // UXI-23 S2b: the group, its three members and the gate come from the pack.
+            var gizmoGroup   = igMapInteraction.GizmoGroup;
+            _gizmoController = igMapInteraction.Gate;
             ctx.Kernel.RegisterModule(new GizmoInteractionModule(
                 _interactionBus!,
                 contextIngress: null,

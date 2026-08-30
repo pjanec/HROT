@@ -916,19 +916,25 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // GZ057: CGF entity presentation gizmos. Buffer and registry must be set up
         // before Kernel.Initialize() because the GizmoInteractionModule is registered here.
-        _cgfGizmoBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
-        _cgfInteractionBus = new Fdp.Core.FdpEventBus();
-        _cgfGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_cgfGizmoBuffer, _cgfInteractionBus);
-        var cgfStatelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
-        var cgfGizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
-        var cgfSettingsRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
-        // ST-031: ONE reflection call replaces the hand-rolled family list. Like SimHost, CGF declared
-        // only its own family plus Presentation and was missing Common's eight projectors entirely
-        // (UXI-22). Uniform membership: it declares everything, and component presence decides what draws.
-        Fdp.Toolkit.Diagnostics.Gizmos.GizmoReflectionRegistrar.RegisterAll(
-            cgfGizmoRegistry, cgfStatelessRegistry, cgfSettingsRegistry);
-        _cgfDataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
-                cgfGizmoRegistry, _cgfGizmoBuffer, isSelectedPredicate: null, interactionBus: _cgfInteractionBus);
+        // UXI-23 S2b: the buffer, both registries, the reflection pass and the three systems come from
+        // the shared pack. 🔒 The pack CONSTRUCTS; CGF still SCHEDULES, below.
+        var cgfMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext
+            {
+                World = _context.World,
+                // CGF is a dumb terminal for handles — it draws all active gizmos, like IG.
+                IsSelectedPredicate = null,
+                // GZH-003: CGF is headless-first; enable only when a terminal connects.
+                StartEnabled = false,
+            });
+
+        _cgfGizmoBuffer           = cgfMapInteraction.Buffer;
+        _cgfInteractionBus        = cgfMapInteraction.InteractionBus;
+        _cgfGizmoManager          = cgfMapInteraction.GlobalManager;
+        _cgfDataDrivenGizmoSystem = cgfMapInteraction.DataDrivenSystem;
+        var cgfStatelessRegistry  = cgfMapInteraction.StatelessRegistry;
+        var cgfGizmoRegistry      = cgfMapInteraction.GizmoRegistry;
+        var cgfSettingsRegistry   = cgfMapInteraction.Settings;
         // Route gizmo interaction translators and publisher through the network factory
         // so that CgfSubsystem has no direct dependency on Hrot.Network.NED.
         CycloneNetworkIngressSystem? cgfGizmoIngress = null;
@@ -952,14 +958,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             if (publisherSystem != null)
                 _context.Kernel.RegisterGlobalSystem(publisherSystem);
         }
-        var cgfGizmoGroup = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup("GizmoExecution",
-            _cgfGizmoManager,
-            _cgfDataDrivenGizmoSystem,
-            new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, _cgfGizmoBuffer));
-        // GZH-003: CGF is headless-first; enable only when a terminal connects.
-        cgfGizmoGroup.Enabled = false;
-        _cgfGizmoController = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController(
-            cgfGizmoGroup, _cgfGizmoManager, _cgfDataDrivenGizmoSystem);
+        // UXI-23 S2b: the group and its three members come from the pack; CGF schedules them below.
+        var cgfGizmoGroup = cgfMapInteraction.GizmoGroup;
+        _cgfGizmoController = cgfMapInteraction.Gate;
         _context.Kernel.RegisterModule(new GizmoInteractionModule(
             _cgfInteractionBus,
             contextIngress: null,

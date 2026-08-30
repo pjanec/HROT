@@ -682,6 +682,59 @@ first drove the count to **−1** and `AddListener` returned **0**, never `1` �
 `605/3` on visits 1, 2 **and** 3. ⭐ **Step 1 above is the entire fix**, and it is a *structural* one: the
 active-at-boot perspective is a viewer like any other.
 
+#### 3.2d 🔴🔴🔴 THREE AMENDMENTS TO §3.2b, **MEASURED BEFORE BUILDING `S2b`** *(`2026-08-30`, obligation ⑤)*
+
+> ⭐ **§3.2b's class diagram stands.** ⛔ **Three of its NOTES do not**, and each would have caused a
+> regression if built literally. 📐 All three were measured, not reasoned.
+
+##### ⛔ ① *"group starts DISABLED for everyone. No per-host literal anywhere."* — **WOULD DARKEN IG AND THE EDITOR**
+
+📐 **Measured:** the only production driver of `GizmoExecutionController.AddListener()` is
+**`PerspectiveCoordinatorSystem`** *(`Hrot.ClusterRunner/Systems/`, `:76,:78`)*. ⚠⚠ **`LocalTerminalModule`
+and `GizmoCapabilitiesTracker` — the two FDP modules that would attach a viewer — are registered by
+NO host**: `grep -rn "LocalTerminalModule|GizmoCapabilitiesTracker" Hrot/` returns **nothing**.
+
+⇒ 🔴 **In a standalone run (IG alone, the editor alone — not under the cluster runner) there is NO
+listener driver at all.** ⭐ That is precisely why `IgApplication.cs:862` and `EditorSubsystem.cs:1827`
+hard-set `Enabled = true`, each with the comment *"interactive, always has a window at startup"*.
+⛔ **Starting the group disabled for everyone would leave both with a permanently shut gate.**
+
+⇒ 🔒 **AS BUILT:** the initial state becomes **one named context input — `MapInteractionContext.StartEnabled`**
+*(default `false`, `GZH-003` headless-first)*, and the four scattered literals are deleted. ⭐ **The per-host
+TRUTH survives; only the scattered LITERAL dies** — which is the deduplication the item was actually for.
+⚠ **This is the `S2a` lesson repeating**: the thing that differs per host is a **constructor input**, and the
+fix is to name it once, not to erase it *(`R-137`)*.
+
+##### ⛔ ② SEQUENCE 2 DESCRIBES A DEFECT THAT **§3.0a REFUTED BY MEASUREMENT**
+
+⚠⚠ §3.2b's *"Sequence 2 — the boot case"* is built on §3.0's story: *no listener at boot ⇒ the count goes
+to `−1` ⇒ `AddListener` returns `0`, never `1`*. 🔴 **§3.0a measured that false**: `CurrentPerspective`
+starts `"Default"`, there is **no unbalanced `Remove`**, and the gate is **enabled on every visit** —
+live visits 1 and 2 emit identical gizmo primitives.
+
+⇒ ⛔ **Sequence 2 is SUPERSEDED and must not be built to.** ⭐ Its one surviving claim is worth keeping:
+**the count must never go negative, and an assert should say so.** 📌 The real cause of the dark map was
+`S2a`'s selection gate *(§3.9j.1)*, not the gate's listener count.
+
+##### ⭐ ③ THE PACK MUST LET A HOST ADD ITS OWN GIZMOS **BEFORE** THE SYSTEMS ARE CONSTRUCTED
+
+📐 **Measured — four hosts register projectors the reflection pass cannot find**, and they do it *before*
+building `StatelessGizmoSystem`: `EntityEditorPolylineGizmo` + `EntityEditorLabelGizmo` *(both deliberately
+attribute-less — their constructors need a `BehaviorRegistry`, which reflection cannot supply)*,
+`RubberBandGizmo`, `ReplaySpatialBoundsGizmo`, `LayerControlGizmo`, `EntityDragGizmoDefinition`.
+
+⚠⚠ **And the ORDER is load-bearing, for a reason that fails silently:**
+`StatelessGizmoSystem`'s constructor sizes its visibility cache from `registry.Rules.Count` *(`:49-50`)*.
+📐 A rule registered afterwards lands **beyond the cache**, and `Execute`'s guard is
+`if (r < cache.Length && !cache[r]) continue;` ⇒ ⛔ **such a rule ignores its visibility policy entirely
+and always draws.** ⭐ Not a crash — a silent semantic difference, which is this codebase's signature
+failure mode.
+
+⇒ 🔒 **AS BUILT:** `MapInteractionContext.ContributeExtras` — an `Action<MapInteractionRegistries>?` the
+pack invokes **after `RegisterAll` and before constructing the systems**. ⭐ Every host keeps every gizmo it
+has today *(`R-137`)*, and the ordering hazard is closed by construction rather than by each host
+remembering it.
+
 #### 3.2c ⭐⭐ SETTINGS OWNERSHIP — **a standalone injected store, not a per-host field** *(user ruling, `2026-08-28`)*
 
 > 🔒 **User:** *"Persistence was meant for single-host nodes like a '2d map station' where the user want to
