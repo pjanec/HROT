@@ -217,9 +217,14 @@ namespace Hrot.SimHost.Tests
         /// mirror image: the component IS registered and the translator is ABSENT from the list, which no
         /// component assertion can see. ⇒ ⭐ the list is exactly what must be asserted.</para>
         ///
-        /// <para>⛔ CGF and ReplayBrowser are deliberately absent from this rail: they have <b>no TKB
-        /// translator list at all</b>, because their entities arrive by network replication. Adding them
-        /// would assert a path that does not exist.</para>
+        /// <para>⚠⚠ <b>CGF is absent from this rail for a reason that is NOT settled — see <c>CE-138</c>.</b>
+        /// ⛔ An earlier version of this comment said CGF <i>"has no TKB translator list at all, because its
+        /// entities arrive by network replication."</i> 📐 <b>That is false:</b> <c>CgfSubsystem.cs:680</c>
+        /// constructs a <c>NetworkSpawningSystem</c> over the TKB. What CGF actually does is pass
+        /// <b>no translators on any of the three seams</b>, which may or may not be a defect — its
+        /// component state may arrive over replication instead. ⇒ ⛔ this rail deliberately does not
+        /// assert CGF <i>either way</i> until <c>CE-138</c>'s probe has run, rather than encoding a guess.
+        /// ⚠ ReplayBrowser is unmeasured.</para>
         ///
         /// <para>⭐ The behavioural half is already here — see
         /// <see cref="PresentationTranslator_OnSimHostWorld_WritesVisualData"/>, which proves the write

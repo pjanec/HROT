@@ -492,7 +492,27 @@ read**, never a projector key, and no host is broken either way.
 | **SimHost** | ✅ | ✅ `SimHostNodeBootstrapper:160` *(added by `S1`)* |
 | **Editor** | ✅ *(5 translators)* | ✅ **ADDED `2026-08-30`** — the same omission `S1` fixed on SimHost |
 | **Stride editor** | ✅ *(6 translators)* | ✅ **ADDED `2026-08-30`** |
-| ⛔ **CGF · ReplayBrowser** | 🔴 **none at all** | ⛔ n/a — their entities arrive by **network replication**, so affiliation comes over the wire in `EntityInfo`. ⚠ **Not an omission; a different sourcing path** |
+| 🔴 **CGF** | ✅ **YES** — `NetworkSpawningSystem` + `CreateEntityRequestSystem` over `tkbDb` *(`CgfSubsystem.cs:680`)* | 🔴🔴 **NO TRANSLATORS AT ALL** — see the correction below. ⛔ **`CE-138`**, not fixed here |
+| ⚠ **ReplayBrowser** | none found | ⚠ unmeasured |
+
+⛔⛔ **CORRECTION, `2026-08-30`, prompted by the user asking *"why would CGF be different in that matter?"***
+🔒 **An earlier version of this table said CGF and ReplayBrowser *"have no TKB spawn path at all — not an
+omission, a different sourcing path."* 📐 That is FALSE for CGF, and the user was right to doubt it.**
+⭐ `CgfSubsystem.cs:680` constructs a `NetworkSpawningSystem` over the TKB, and `:668` a
+`CreateEntityRequestSystem` — **CGF spawns from TKB like the others.** ⛔ What it does not do is pass any
+translators, on **any** of the three seams:
+
+| seam | what it feeds | IG | SimHost | Editor | 🔴 CGF |
+|---|---|---|---|---|---|
+| `NetworkSpawningSystem(…, translators:)` | locally-requested spawns | ✅ | ✅ `:295` | ✅ `:1261` | 🔴 **omitted ⇒ `Array.Empty`** |
+| `EntityLifecycleModule.SetTranslators` | `BlueprintApplicationSystem` | ✅ | ✅ `:293` | ✅ `:1256` | 🔴 **never called** |
+| `.WithTranslators(…)` | `NedReplicationModule` — **ghosts built from replicated entities** | ✅ `:124` | ✅ `:180` | n/a | 🔴 **unreachable** — CGF's chain omits `.WithReplication()`, and `WithTranslators` lives on the builder type that returns |
+
+⚠⚠ **And the second half of my justification was wrong too:** *"replicated entities don't need translators"*
+— ⛔ `WithTranslators` exists **precisely** to expand TKB descriptors onto ghosts, and IG passes it while also
+consuming replicated entities. ⇒ 🔒 **the asymmetry is real and unexplained**, which is exactly what the user
+suspected. 📄 Filed as **`CE-138`** for investigation — ⚠ **not asserted as a live defect**: CGF's component
+state may arrive over replication rather than from TKB expansion, and that has **not** been measured.
 
 ⭐ Gated by `EveryTkbSpawningHost_ConstructsThePresentationTranslator` — ⚠ **a SOURCE SCAN, and here that is
 the right instrument**: the existing rails assert the *component is present after injection*, which stays
