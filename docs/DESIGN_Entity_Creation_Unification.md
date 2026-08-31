@@ -27,6 +27,9 @@ architect-review: 2026-08-31 — the NotebookLM architect reviewed both docs and
   decoupled from path 2).
 known-rot: §5.1 twice said IG "keeps GhostDestructionSystem". WRONG — it must be DROPPED when IG gains
   NetworkSpawningSystem (CE-144, Q65 §5.6). Corrected 2026-08-31.
+mechanism: §3.4a (new 2026-08-31) explains WHY double consumption is possible — the FDP bus is a
+  broadcast double-buffer (ManagedEventStream.Read() returns _front; only Swap() clears), so every
+  reader of an event type gets the full list. Read it before touching any order-consuming system.
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
@@ -346,6 +349,78 @@ exactly that shape *(§2.2)*. ⭐ Two named affordances make the choice legible 
 
 ⇒ ⭐⭐⭐ **IG is not missing the ability to PUBLISH. It is missing the ability to BECOME THE OWNER** —
 three pieces, all of them the pack’s.
+
+### 3.4a ⭐⭐⭐ WHY DOUBLE CONSUMPTION IS POSSIBLE AT ALL — **the bus is a BROADCAST, not a work queue**
+
+> 🔒 **User:** *"intents are usually sent via fdp bus and processed by some system so where the
+> double consumption comes from?"*
+
+⭐⭐ **That is the natural model, and it is not what this bus does.** 📐 **Measured
+`2026-08-31` — one line settles it:**
+
+```csharp
+// FDP/Engine/Fdp.Core/ManagedEventStream.cs:95
+public IReadOnlyList<T> Read() => _front;        // ⭐ returns the buffer. No pop, no removal, no claim flag.
+
+// :101 — the ONLY place anything is cleared, at end of frame (verbatim, inside lock(_lock))
+public void Swap()
+{
+    var temp = _front; _front = _back; _back = temp;
+    _back.Clear();                       // "Clear the new write buffer (old read buffer)"
+}
+```
+
+⇒ ⭐⭐⭐ **Every system that calls `ReadManaged<T>()` in a frame receives the SAME COMPLETE LIST.** ⛔ There
+is no notion of an event being owned, claimed or consumed by whoever read it first.
+
+⚠⚠ **And the engine's own doc comments actively mislead here** — `FdpEventBus.Read<T>()` is documented as
+*"**Consumes** all events of type T… this is how systems 'subscribe' to events."* 🔴 **Nothing is
+consumed.** ⭐ It is `subscribe`, and subscription is a **fan-out**.
+
+#### ⭐ The distinction the bus CANNOT make
+
+| event kind | many readers | example |
+|---|---|---|
+| **notification** — *"this happened"* | ✅ **the whole point** | `OwnershipUpdate` — every interested system should hear it |
+| 🔴 **ORDER** — *"do this"* | ⛔⛔ **each reader ACTS** ⇒ the thing happens twice | `SpawnEntityCommand` · `DestroyEntityCommand` |
+
+⇒ ⭐⭐ **Both known hazards are one shape: an imperative event with two systems that each take a real
+action.**
+
+| order | reader A | reader B | result |
+|---|---|---|---|
+| `SpawnEntityCommand` | `NetworkSpawningSystem.cs:92` — materialises locally | `SpawnEntityCommandEgressTranslator.cs:80` — forwards to DDS as a request | 🔴 **two entities** |
+| `DestroyEntityCommand` | `GhostDestructionSystem` — immediate hard delete | `NetworkSpawningSystem.cs:98` → `:213` — ELM teardown | 🔴 **one teardown defeats the other** *(`CE-144`)* |
+
+#### ⛔⛔⛔ THE CRUX — **today's safety is ACCIDENTAL, and the unification removes it**
+
+📐 Neither hazard bites today, and **nothing guards against them**:
+
+| | |
+|---|---|
+| **IG** | has the egress translator, ⛔ **but not `NetworkSpawningSystem`** |
+| **the other five hosts** | have `NetworkSpawningSystem`, ⛔ **but not the egress translator** |
+
+⇒ 🔒🔒🔒 **THE OMISSIONS *WERE* THE INVARIANT — undocumented as such.**
+📌 The only trace in the whole codebase is `IgBootstrapperHelpers`' comment *"replaces
+SpawningModule so IG does not duplicate entities"* — ⚠ **and it explains the SPAWN half only; nothing
+anywhere mentions the destroy half.**
+
+⭐⭐ **So this design is not introducing a fragility — it is removing the accident that stood in for an
+invariant.** ⛔ That is why `CE-144` and the §5.1 ordering hazard are not incidental notes: they are the
+invariant becoming explicit for the first time.
+
+#### ⭐⭐ THE CONSEQUENCE — **the pack's job, stated narrowly**
+
+⛔ **The bus cannot distinguish a notification from an order**, so *"exactly ONE actor per order type per
+node"* is **not enforceable at runtime.** ⇒ ⭐⭐⭐ **it must hold at COMPOSITION time**, which is precisely
+what the pack is for:
+
+| ⭐ | |
+|---|---|
+| ⭐⭐ **the pack owns the composition of the ORDER-CONSUMING systems** | ⛔ not merely "assembles systems" — it is the single place that can guarantee no node ends up with two actors for one order |
+| ⭐⭐ **acceptance ⑨–⑪ are SOURCE rails, not runtime assertions** — ⭐ and now the reason is written down | 📄 §6. ⛔ A runtime check cannot see the hazard: each reader is behaving correctly in isolation |
+| ⚠ **this generalises — and deliberately is NOT swept** | ⭐ **any** imperative bus event with two potential actors has this shape. ⛔ **A broad detector over every bus event type would flag dozens of correct notification fan-outs and be switched off within a batch** *(the `CLAUDE.md` silent-default lesson)*. ⇒ ⭐ **gate the two ORDERS we have measured**, and treat a third as a finding when it appears |
 
 ## 4. ⭐⭐ UML
 
