@@ -492,7 +492,7 @@ read**, never a projector key, and no host is broken either way.
 | **SimHost** | ✅ | ✅ `SimHostNodeBootstrapper:160` *(added by `S1`)* |
 | **Editor** | ✅ *(5 translators)* | ✅ **ADDED `2026-08-30`** — the same omission `S1` fixed on SimHost |
 | **Stride editor** | ✅ *(6 translators)* | ✅ **ADDED `2026-08-30`** |
-| 🔴 **CGF** | ✅ **YES** — `NetworkSpawningSystem` + `CreateEntityRequestSystem` over `tkbDb` *(`CgfSubsystem.cs:680`)* | 🔴🔴 **NO TRANSLATORS AT ALL** — see the correction below. ⛔ **`CE-138`**, not fixed here |
+| 🔴🔴 **CGF** | ✅ **THE PRIMARY ONE** — the design names it *"entity spawning authority"* | 🔴🔴 **NO TRANSLATORS AT ALL** — ⛔ **`CE-138`**, not fixed here |
 | ⚠ **ReplayBrowser** | none found | ⚠ unmeasured |
 
 ⛔⛔ **CORRECTION, `2026-08-30`, prompted by the user asking *"why would CGF be different in that matter?"***
@@ -510,9 +510,22 @@ translators, on **any** of the three seams:
 
 ⚠⚠ **And the second half of my justification was wrong too:** *"replicated entities don't need translators"*
 — ⛔ `WithTranslators` exists **precisely** to expand TKB descriptors onto ghosts, and IG passes it while also
-consuming replicated entities. ⇒ 🔒 **the asymmetry is real and unexplained**, which is exactly what the user
-suspected. 📄 Filed as **`CE-138`** for investigation — ⚠ **not asserted as a live defect**: CGF's component
-state may arrive over replication rather than from TKB expansion, and that has **not** been measured.
+consuming replicated entities.
+
+##### ⭐⭐⭐ AND THE DESIGN RECORD INVERTS IT COMPLETELY — *(read `2026-08-30`, after a second user challenge)*
+
+🔒 **User:** *"what about first reading the design document about entity creation/lifecycle and about tkb… you
+are using shallow source scan that can not give you the big picture."* ⭐ **Correct, and the corpus settles it:**
+
+| source | what it says |
+|---|---|
+| ⭐⭐⭐ [`Hrot-Simulation-Pipeline.md`](../projects/relationships/Hrot-Simulation-Pipeline.md) **§2 + §4.3** | **CGF is the *"entity spawning authority"***; its `CreateEntityRequestSystem` is `isDefaultProcessor = true` while *"Muscle nodes set `isDefaultProcessor = false`"*. The CGF step reads verbatim **`NetworkSpawningSystem (CGF)` — *"… **Apply TKB template components** …"***. ⇒ 🔴 **SimHost and IG are the GHOST RECEIVERS**, not the spawners |
+| ⭐⭐ [`tkb-1/DESIGN.md`](../designs/tkb-1/DESIGN.md) **§6.3 · §6.5** | *"the translator list is **identical for all three systems within the same node**"* and *"pass the same list to all three migration targets … a **single point of truth**"*. ⚠ Per-node variation IS sanctioned *("an IG node would include BIG-specific translators; a SimHost node would not")* ⇒ ⭐ **IG's 2-entry list is fine; CGF's ZERO, on the designated spawner, is not** |
+
+⇒ 🔒 **`CE-138` is no longer an "unexplained asymmetry" — the design names the exact step that CGF's code
+feeds nothing.** ⚠ Still **not asserted as a runtime defect**: CGF is a Brain node and may materialise less by
+intent, and this session has twice turned a static reading into a wrong confident claim. 📄 The deciding probe
+is named in the `CE-138` row.
 
 ⭐ Gated by `EveryTkbSpawningHost_ConstructsThePresentationTranslator` — ⚠ **a SOURCE SCAN, and here that is
 the right instrument**: the existing rails assert the *component is present after injection*, which stays
