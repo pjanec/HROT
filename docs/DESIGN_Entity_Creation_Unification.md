@@ -12,6 +12,11 @@ known-rot: §2.3's Role-selected HALVES are SUPERSEDED — Architect_Question_65
 known-rot: the scorecard row and the composition sentence in §2.4 were corrected 2026-08-31 — ghost
   promotion is gated by the NodeRole inside NedReplicationModule, NOT by host composition, so the
   EntityCreationPack registers the two SPAWN systems only. Q65 §4's Q65-B carries the measurement.
+known-rot: §2.3's "halves" language is dead everywhere it appeared. Removed from §3.1 invariant 4 and
+  from §5.1 on 2026-08-31 under the user's no-suppression ruling (§3.1 invariant 6). §2.3 itself stays
+  as HISTORY only. Any reader finding "which half" in this file outside a HISTORY block has found rot.
+current-answer-note: §3.4 is the NEW load-bearing section (2026-08-31) — the two authoring affordances
+  and the per-tier measurement of what each path already has. Read it before §5's sequencing.
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
@@ -150,7 +155,7 @@ per-host divergence into one place rather than removing it. ⭐ Scored against t
 
 | criterion | today | this design as written | achievable? |
 |---|---|---|---|
-| all ECS nodes can create entities | ✅ **already true** *(IG originates — §2.3)* | ✅ | ✅ already |
+| all ECS nodes can create entities | ⚠⚠ **CORRECTED `2026-08-31` — NOT already true.** IG can *originate a request* 📐 but cannot **own** what it creates: it has no request source, no `CreateEntityRequestSystem` and no `NetworkSpawningSystem` ⇒ its every creation is an unowned broadcast routed to CGF *(`SpawnEntityCommandEgressTranslator.cs:167` writes `Owner = default`)* | ✅ the pack closes it — §3.4 | ✅ **three pieces, no protocol change** |
 | all can receive ghosts | ⚠ `GhostCreationSystem` on 5 of 6; ⭐⭐ **promotion is gated by the NodeRole, not by the host** — `NedReplicationModule.RegisterSystems` registers `GhostPromotionSystem` only for `pureIgRole` *(:308)* or `_roleHasMuscle` *(:356)*, each also behind `_tkbDb != null && _lifecycleModule != null` ⇒ **pure-Brain (CGF) is excluded by construction** | ⛔ **not the pack's job** — it is one gate in one file | ✅ but ⛔ **only after Q65-A′**: until CGF receives entities it did not spawn, pure-Brain promotion is dead code |
 | one list, gated only by registration | ⚠ 5 sites on `Base()`; 🔴 IG hand-narrowed *(`CE-141`)* | ⛔ unchanged | ✅ once `CE-141` settles |
 
@@ -194,14 +199,19 @@ var creation = EntityCreationPack.Build(new EntityCreationContext
     EntityMap      = entityMap,      // required
     NodeId         = nodeId,         // required
     TkbDb          = ctx.TkbDb,      // required — no host builds its own catalogue
-    IdAllocator    = idAllocator,
+    IdAllocator    = idAllocator,    // required — the DDS-served allocator when networked
+
+    // ⭐⭐ THE REQUEST TIER — this is what makes path 2 possible on every node.
+    NetworkRequestSource = adapters?.RequestSource,   // DDS ingress; null offline
+    AckSink              = adapters?.AckSink,         // NullEntityAckSink offline
+    IsBroadcastArbiter   = isBroadcastArbiter,        // ⭐ the ONLY value that differs per node
+
     ExtraTranslators = …,            // ⭐ ADD-ONLY; the base set is not overridable
-    Role           = NodeRole.Brain, // decides WHICH systems, never which translators
 });
-// the HOST schedules:
+// the HOST schedules — the pack never touches the kernel:
+kernel.RegisterGlobalSystem(creation.RequestSystem);
 kernel.RegisterGlobalSystem(creation.SpawnSystem);
-foreach (var s in creation.RoleSystems) kernel.RegisterGlobalSystem(s);
-creation.Unserviceable(…);           // ⭐ the S2b diagnostic habit
+creation.Unserviceable(scheduled);   // ⭐ the S2b diagnostic habit
 ```
 
 ### 3.1 🔒 The invariants the pack makes structural
@@ -211,8 +221,9 @@ creation.Unserviceable(…);           // ⭐ the S2b diagnostic habit
 | **①** | **one translator list per node** | the pack builds it and hands **the same instance** to `NetworkSpawningSystem` and `elm.SetTranslators`; `GhostPromotionSystem` receives it **through the replication module** *(`.WithTranslators(...)` → `NedReplicationModule._tkbEntityTranslators`, or the factory's own field)*. ⇒ §6.3 true **by construction** — ⚠ but the pack must therefore be handed the SAME list the builder chain got, not build a second one |
 | **②** | **the list is never empty** | there is no way to pass one — `ExtraTranslators` is *additive*. ⭐ The base set is the full projection set, and **gate ②** *(`IsComponentTypeRegistered`, `tkb-1` §6.5b)* does the per-host narrowing |
 | **③** | **one catalogue per process** | `TkbDb` is a **required** context input, not something the pack builds. ⇒ finding ② cannot recur |
-| **④** | **role decides WHICH HALF and which systems, never which components** | `Brain` ⇒ origination + materialisation, `CreateEntityRequestSystem(isDefaultProcessor: true)`; `Muscle` ⇒ materialisation + ghost, `false`; ⭐ **a render node (IG) ⇒ origination + ghost projection and NO `NetworkSpawningSystem`** — 📄 `Hrot-Simulation-Pipeline.md` §4.3 and §2.3 |
+| **④** | ⭐⭐ **the ROLE selects `IsBroadcastArbiter` and NOTHING ELSE** | ⚠⚠ **CORRECTED `2026-08-31`.** The prior wording *("role decides WHICH HALF")* is SUPERSEDED by [`Q65`](blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md) §4 — ⛔ there are no halves. ⭐ Every ECS node gets the identical `CreateEntityRequestSystem` + `NetworkSpawningSystem`; exactly one carries `isDefaultProcessor: true` for `Owner == 0` broadcasts. 📐 Component narrowing is gate ② (`tkb-1` §6.5b), never the system set |
 | **⑤** | **a host that skips a piece SAYS SO** | `Unserviceable(scheduled)` reports what the pack built and the host did not schedule — the `S2b` mechanism, which is how a silent omission became loud there |
+| **⑥** | 🔒🔒 **NO PER-HOST OPT-OUT from the genesis pipeline** | 🔒 **User ruling `2026-08-31`:** *"the shared code for entity creation support should not restrict any ECS enabled node from creating own networked entities … no exceptions, not removing capabilities by design, and only concrete authoring code picks the way it needs."* ⇒ ⛔ **`Build` has no flag that omits the request or spawn system.** ⭐ A node that never uses path 2 simply never enqueues a self-targeted request — the capability stays present and costs an idle system |
 
 ### 3.2 ⚠ What the pack must NOT do
 
@@ -222,6 +233,8 @@ enforcement `MapInteractionContext` uses. ⛔ **Not own the TKB catalogue** *(in
 narrowing lever *(`tkb-1` §6.5b)*. ⛔ **Not touch `SharedApplicationBootstrapper`'s hook set** — the pack
 is what `RegisterSpawningPipeline` *calls*, so the three hosts that already derive from it keep their
 structure and the three that do not can adopt the pack without inheriting.
+
+⛔⛔ **And NOT omit the pipeline for any host.** 🔒 The `2026-08-31` ruling *(invariant ⑥)* makes this structural: ⛔ there is **no** `EntityCreationContext` flag, and no `Role` value, that suppresses `CreateEntityRequestSystem` or `NetworkSpawningSystem`. 📌 **This retires IG’s `SpawningModule` omission** — the *"IG must not duplicate entities"* comment in `IgBootstrapperHelpers.cs` describes a hazard that §3.4 removes at the source, and keeping the omission would be *"removing capabilities by design."*
 
 ### 3.3 ⭐⭐⭐ ONE CATALOGUE CONTENT SET — **the templates must LEAVE the Examples assembly**
 
@@ -258,7 +271,69 @@ constants *(`CivilianVisionRange`, `BehaviorConstants.SimTierCivilian`, …)* th
 themselves reachable from `Hrot.Core`, or must move with it. 📐 The descriptors are; the constants were
 not checked.
 
+### 3.4 ⭐⭐⭐ THE TWO AUTHORING AFFORDANCES — **the authoring code picks, per entity**
+
+> 🔒 **User, `2026-08-31`:** *"there are entities we want to be created on CGF, these are the brain
+> enabled entities, for those the request coming to default processor is the right choice, as it makes the
+> CGF to own most of their components. but some entities might be desired to be owned by the IG who created
+> them, like some map-local drawings that needs to be shared with other IGs and do not need any brain … my
+> desire is to not suppress this second possibility by not instantiating some systems, not necessarily to use
+> it for every entity."*
+
+⭐⭐ **Both paths already exist in the protocol. The routing is ONE FIELD**, `OwnerAppInstanceId`, and
+📐 `CreateEntityRequestSystem.cs:290-294` already honours all three of its values:
+
+| the authoring code wants | it sets | who runs genesis | who owns the components |
+|---|---|---|---|
+| ⭐ **a brain-enabled entity** *(vehicles, units — CGF drives the AI)* | `OwnerAppInstanceId = 0` | the **broadcast arbiter** *(CGF)* | 📐 **CGF**, minus what `BrainMuscleOwnershipStrategy` delegates: `dtWorldPos` + `dtNavigationStatus` → least-loaded Muscle; mission/intent stay on the Brain |
+| ⭐⭐ **an entity it owns itself** *(IG map drawings shared between IGs)* | `OwnerAppInstanceId = localNodeId` | ⭐ **the originating node**, in-process | 📐 **the creator keeps everything** — `:313` publishes ownership grants only `if (_isDefaultProcessor …)`, so a non-arbiter creator delegates nothing |
+| *(a third node by name)* | `OwnerAppInstanceId = thatNodeId` | that node | that node |
+
+⇒ 🔒🔒 **The `_isDefaultProcessor` gate on the grant table is NOT a limitation — it IS the
+discriminator between the two entity classes.** ⛔ **Nothing about ownership, the strategy seam or the wire
+format changes.** ⭐ What changes is only that **every node can reach row 2.**
+
+#### ⭐ The API shape
+
+```csharp
+// PATH 1 — brain-enabled: hand it to the cluster's arbiter (today's behaviour, unchanged)
+creation.RequestFromDefaultProcessor(tkbType, transform, initialComponents);
+
+// PATH 2 — I own this: full lifecycle protocol, locally, right here
+creation.CreateLocallyOwned(tkbType, transform, initialComponents);
+```
+
+⭐⭐ **Two names, one field apart** — `CreateLocallyOwned` enqueues into `LocalRequests` with
+`OwnerAppInstanceId = NodeId`; `RequestFromDefaultProcessor` leaves it `0`. ⛔ **No policy table, no TKB
+flag, no config switch** — 🔒 *"only concrete authoring code picks the way it needs."*
+
+⚠ **Why two explicit methods and not one with a bool:** a boolean parameter at a call site does not say
+which entity class it means, and 📌 this codebase has now had **five** silent-default defects from
+exactly that shape *(§2.2)*. ⭐ Two named affordances make the choice legible in the diff.
+
+#### 📐 What each path already has, measured `2026-08-31`
+
+| tier | path 1 | path 2 |
+|---|---|---|
+| request intake | ✅ `NedEntityCreationRequestSource` *(DDS)* on any node with a participant | ⭐ `ScenarioEntityCreationRequestSource` — **thread-safe in-memory queue, no DDS round trip**; merged by `CompositeEntityCreationRequestSource`. 📌 **CGF already composes exactly this** *(`CgfSubsystem:683-689`)*, and its comment says the local source is **always** included and DDS only *"when network is available"* |
+| request → order | 🔴 `CreateEntityRequestSystem`, **3 construction sites only** — CGF `:697`, Editor `:1429`, Stride editor `:600` | 🔴 same system, same gap |
+| order → entity | ✅ 5 hosts | 🔴 **IG omits `NetworkSpawningSystem` deliberately** |
+| announce + publish geometry | — | ✅⭐ **already uniform**: `SharedTranslatorPack` is *"the shared translator set that all `NodeRole` values install regardless of specialisation"*, gated at `NedReplicationModule.cs:213` on **`participant != null` only, not on role** ⇒ every node has `EntityMasterEgressTranslator`, **`MapVisualOverlayEgressTranslator`** *("publishes tactical-graphic overlay geometry for **owned** area entities")*, `GeoSpatialEgressTranslator`, `EntityInfoEgressTranslator` — **and IG calls `.WithReplication(role)` at `IgNodeBootstrapper.cs:142`** |
+| receivers project TKB | ✅ | ⚠ IG ✅ *(pure-IG gate)*; 🔴 **CGF ⛔** *(pure-Brain)* ⇒ **Q65-B** |
+| split-authority delegation | ✅ `DeferredTakeOwnershipEgressTranslator`, gated `_roleHasBrain` | ⭐ **not needed** — a single-owner drawing delegates nothing. ⚠ A non-Brain node that DID need split authority still cannot publish grants; 🔒 out of scope by the user’s own framing *("do not need any brain")*, and recorded as `Q65` obstacle ④ |
+
+⇒ ⭐⭐⭐ **IG is not missing the ability to PUBLISH. It is missing the ability to BECOME THE OWNER** —
+three pieces, all of them the pack’s.
+
 ## 4. ⭐⭐ UML
+
+⚠⚠ **REDRAWN `2026-08-31`.** The previous pair modelled only the SPAWN tier and had **no request
+tier at all** — no `CreateEntityRequestSystem`, no request source. 🛔 That made the pack unable to
+deliver path 2 §3.4, which is the whole point of the unification. ⭐ Prior state moved to § HISTORY.
+
+⭐⭐ **Boxes marked `EXISTS` in the notes are already in the codebase** — obligation ②: an existing class
+drawn beside a proposed one makes a duplicate visible. 📐 Two of them were found only by measuring
+`2026-08-31` and are why this section changed.
 
 ```mermaid
 classDiagram
@@ -267,8 +342,10 @@ classDiagram
         +NetworkEntityMap EntityMap
         +ITkbDatabase TkbDb
         +INetworkIdAllocator IdAllocator
+        +IEntityCreationRequestSource NetworkRequestSource
+        +IEntityAckSink AckSink
         +int NodeId
-        +NodeRole Role
+        +bool IsBroadcastArbiter
         +IReadOnlyList ExtraTranslators
     }
     class EntityCreationPack {
@@ -277,13 +354,24 @@ classDiagram
     class EntityCreation {
         +IReadOnlyList Translators
         +EntityLifecycleModule Elm
+        +CreateEntityRequestSystem RequestSystem
         +NetworkSpawningSystem SpawnSystem
-        +IReadOnlyList RoleSystems
+        +ScenarioEntityCreationRequestSource LocalRequests
         +Unserviceable(scheduled)
     }
     class TkbTranslatorSet {
         +Base() IReadOnlyList
     }
+    class IEntityCreationRequestSource {
+        <<interface>>
+        +ProcessRequests(handler)
+    }
+    class ScenarioEntityCreationRequestSource {
+        +Enqueue(request)
+        +IsEmpty bool
+    }
+    class CompositeEntityCreationRequestSource
+    class CreateEntityRequestSystem
     class NetworkSpawningSystem
     class EntityLifecycleModule
     class NedReplicationModule
@@ -293,39 +381,73 @@ classDiagram
     EntityCreationPack ..> EntityCreationContext : reads
     EntityCreationPack ..> TkbTranslatorSet : base list
     EntityCreationPack --> EntityCreation : builds
+    EntityCreation *-- CreateEntityRequestSystem
     EntityCreation *-- NetworkSpawningSystem
     EntityCreation *-- EntityLifecycleModule
-    EntityCreation ..> NedReplicationModule : same list instance
+    EntityCreation *-- ScenarioEntityCreationRequestSource
+    IEntityCreationRequestSource <|.. ScenarioEntityCreationRequestSource
+    IEntityCreationRequestSource <|.. CompositeEntityCreationRequestSource
+    CompositeEntityCreationRequestSource o-- IEntityCreationRequestSource : drains in order
+    CreateEntityRequestSystem ..> CompositeEntityCreationRequestSource : requestSource
+    EntityCreation ..> NedReplicationModule : same translator list instance
     NedReplicationModule *-- GhostPromotionSystem
     ModuleHostKernel ..> EntityCreation : HOST schedules
 
-    note for NedReplicationModule "EXISTS - owns ghost lifecycle. Promotion is NodeRole-gated (:308 pure-IG, :356 Muscle). NOT the pack's to register"
-    note for EntityCreationContext "NO kernel - pack constructs, host schedules (S2b precedent)"
-    note for TkbTranslatorSet "NEW - the one base list. Narrowing is by component registration, not here"
-    note for EntityCreation "Unserviceable() reports what the host did not schedule"
+    note for ScenarioEntityCreationRequestSource "EXISTS - Hrot.Core/Network. Thread-safe in-memory queue. THE LOCAL PATH, no DDS round trip"
+    note for CompositeEntityCreationRequestSource "EXISTS - Hrot.Core/Network. Merges local plus DDS ingress. CGF already composes exactly this"
+    note for CreateEntityRequestSystem "EXISTS but imprisoned in Hrot.CGF/Systems - MUST MOVE to a shared assembly first"
+    note for NedReplicationModule "EXISTS - owns ghost lifecycle. Promotion is NodeRole-gated at :308 and :356. NOT the pack's to register"
+    note for EntityCreationContext "NO kernel - pack constructs, host schedules. S2b precedent"
+    note for TkbTranslatorSet "EXISTS - the one base list. Narrowing is by component registration, never here"
 ```
+
+### ⭐⭐ PATH 2 — the node owns what it creates *(the capability that is missing today)*
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Host as Host composition root
-    participant Pack as EntityCreationPack
-    participant Set as TkbTranslatorSet
-    participant Elm as EntityLifecycleModule
+    participant Tool as Authoring code eg IG area tool
+    participant Local as ScenarioEntityCreationRequestSource
+    participant Req as CreateEntityRequestSystem
     participant Spawn as NetworkSpawningSystem
-    participant Kernel as ModuleHostKernel
+    participant Egress as EntityMasterEgressTranslator
+    participant Peer as Other nodes
 
-    Host->>Pack: Build(ctx with World, EntityMap, TkbDb, Role)
-    Pack->>Set: Base() plus ctx.ExtraTranslators
-    Set-->>Pack: one list instance
-    Pack->>Elm: SetTranslators(list)
-    Pack->>Spawn: ctor(tkbDb, elm, map, alloc, nodeId, list)
-    Pack->>Pack: RoleSystems by Role - Brain, Muscle or render
-    Pack-->>Host: EntityCreation
-    Host->>Kernel: RegisterGlobalSystem(SpawnSystem)
-    Host->>Kernel: RegisterGlobalSystem(each RoleSystem)
-    Host->>Pack: Unserviceable(scheduled) - reports omissions
+    Tool->>Local: Enqueue CreateEntityRequest with owner equals localNodeId
+    Local->>Req: ProcessRequests drains it next tick
+    Req->>Req: guard isTargetedAtMe passes, arbiter flag irrelevant
+    Req->>Req: validate TkbType, lease id from DdsIdAllocator
+    Req->>Req: no ownership grants - not the broadcast arbiter
+    Req->>Spawn: publish SpawnEntityCommand on the LOCAL bus
+    Spawn->>Spawn: create entity, apply TKB via translators, stamp AuthorityMask
+    Spawn->>Spawn: ELM BeginConstruction
+    Spawn->>Egress: entity is owned here
+    Egress->>Peer: EntityMaster ALIVE plus overlay geometry for owned areas
+    Peer-->>Req: ConstructionAck, then ELM promotes to Active
 ```
+
+### ⭐ PATH 1 — brain-enabled entity, the default processor owns most components *(already works)*
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Tool as Authoring code
+    participant Dds as DDS CreateEntityRequest
+    participant Arb as Broadcast arbiter CGF
+    participant Strat as BrainMuscleOwnershipStrategy
+    participant Peer as Muscle and other nodes
+
+    Tool->>Dds: CreateEntityRequest with owner equals 0
+    Dds->>Arb: only the node with isDefaultProcessor true accepts it
+    Arb->>Strat: GetInitialGrants entityType masterNodeId
+    Strat-->>Arb: WorldPos and NavigationStatus to the least loaded Muscle
+    Arb->>Peer: DeferredTakeOwnership BEFORE EntityMaster, strict egress order
+    Arb->>Peer: EntityMaster ALIVE
+    Note over Arb: cognitive descriptors stay on the Brain
+```
+
+⭐⭐ **Read the two together and the design is one sentence:** ⭐⭐⭐ **the pack builds the same boxes on
+every node, and the authoring code picks which sequence it wants by setting one field.**
 
 ## 5. ⭐ Sequencing
 
@@ -361,14 +483,27 @@ convention. ⭐ Step 3 buys invariants ④ and ⑤ and can follow later.
 | **d** | 🔴 **CGF — LAST** | it is the **entity spawning authority** *(`Hrot-Simulation-Pipeline.md` §2)*. ⛔ A composition mistake here breaks every entity in the cluster, so it adopts once the pack has three hosts of evidence |
 | **e** | **Stride editor** | its second pipeline; fold it into the same pack call or delete it if `StrideNodeBootstrapper`'s now suffices — ⚠ **that question is open and must be measured, not assumed** |
 
-⭐⭐ **IG DOES adopt — the origination and ghost-projection halves (§2.3)**, and opts out of
-materialisation only. ⛔ Its `RegisterSpawningPipeline` keeps `GhostDestructionSystem` +
-`IgUnitHierarchyModule` and gains no `NetworkSpawningSystem`. ⚠ **Its translator-list width is `CE-141`
-and must not be changed as part of the pack adoption** — settle that separately, with a live comparison.
+⭐⭐ **IG adopts the pack in FULL** — ⚠⚠ **CORRECTED `2026-08-31`; the "halves" sentence that stood
+here is SUPERSEDED** *(it said IG "gains no `NetworkSpawningSystem`", which invariant ⑥ now forbids as
+capability removal by design)*. ⭐ IG keeps `GhostDestructionSystem` + `IgUnitHierarchyModule` **and gains
+the full genesis pipeline**, so its area/placement tools can own what they create *(§3.4 path 2)*.
+
+⛔⛔ **THE ORDERING HAZARD — read before adopting IG.** 📐 Measured: `NetworkSpawningSystem.cs:92`
+and `SpawnEntityCommandEgressTranslator.cs:80` **read the same bus event**. ⇒ ⭐⭐ **a node holding both,
+whose tools still publish bus-level `SpawnEntityCommand`, spawns the entity locally AND forwards a DDS
+request — a DOUBLE SPAWN.** 🔒 **So IG’s `NetworkSpawningSystem` registration is gated on Q65-A′
+(retarget its tools to `CreateEntityRequest`), NOT on "which half"** — same protection the old sentence gave
+by accident, but now with a stated condition for lifting it. ⭐ Either retarget the tools in the same commit,
+or adopt IG after Q65-A′.
+
+⚠ **Its translator-list width is `CE-141`** and must not be changed as part of the pack adoption — settle
+that separately, with a live comparison. 🔒 Note the `2026-08-31` ruling leans it toward `Base()`
+*(a hand-narrowed list is also "removing capabilities by design", and gate ② narrows safely)*, ⛔ but the
+live probe still comes first.
 
 | # | host | why this position |
 |---|---|---|
-| **f** | **IG** | ⭐ adopt **after** the four materialising hosts, so the pack's two-half split is exercised by a host that uses only one of them. ⛔ Do **not** fold `CE-141` into it |
+| **f** | **IG** | ⭐ adopt **after** the four materialising hosts — ⛔⛔ **and only together with Q65-A′**, or the double-spawn hazard above fires. ⛔ Do **not** fold `CE-141` into it |
 
 ## 6. ⭐ Acceptance
 
@@ -382,3 +517,6 @@ and must not be changed as part of the pack adoption** — settle that separatel
 | ⑥ | ⚠ **Byte-identical default** — each host's spawned entity carries the same component set before and after adoption, measured per host |
 | ⑦ | ⭐⭐ **step 4: one catalogue content set** — a rail asserting `HrotEnvironment.CreateTkb()` resolves **TkbTypes 1001–2003**, so every host's catalogue carries them. ⛔ A rail that calls `RegisterUrbanCombatTkbTemplates` itself is vacuous — it must go through the shared factory |
 | ⑧ | ⭐ **step 4: nothing broke in the examples** — the forwarder keeps `Fdp.Examples.Scenarios`, `Fdp.Examples.Runner` and the two test projects compiling and green |
+| ⑨ | 🔒🔒 **NO node is denied the genesis pipeline** — a rail over every production composition root asserting each obtains BOTH `RequestSystem` and `SpawnSystem` from the pack. ⭐ This is invariant ⑥ made checkable, and it is the acceptance criterion for the `2026-08-31` ruling |
+| ⑩ | ⭐⭐ **path 2 works end to end without the arbiter** — a rail that enqueues a `CreateEntityRequest` with `OwnerAppInstanceId = localNodeId` on a node with `isDefaultProcessor: false`, and asserts the entity is materialised locally, `AuthorityMask` is stamped, and **no ownership grants were published**. ⛔ A rail that runs on the arbiter proves nothing — it is the old path |
+| ⑪ | ⛔⛔ **no double spawn** — a rail asserting no production composition root holds `NetworkSpawningSystem` **and** a registered `SpawnEntityCommandEgressTranslator` while any tool still publishes bus-level `SpawnEntityCommand`. 📌 This is the §5.1 hazard, and it is the one that bites during IG adoption |

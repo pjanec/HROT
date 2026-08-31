@@ -13,6 +13,11 @@ known-rot: §4's Q65-B was WRONG TWICE before 2026-08-31 (a host list, then `.Wi
   measured gate is the NodeRole inside NedReplicationModule.RegisterSystems. §1.1's grep-only inventory
   was replaced the same day by a codebase-memory GRAPH pass, which corrected the
   SpawnEntityCommandEgressTranslator row.
+updated-again: 2026-08-31 — §0 carries the GOVERNING RULING (no capability removal by design; the
+  authoring call site picks the path). New: §2.2 (two refuted architect claims), §5.1 (per-node gap),
+  §5.2 (the publish half is already uniform — IG CAN publish EntityMaster), and §6's ORDERING HAZARD
+  (step 3 and step 4 are atomic for IG, or it double-spawns). The Q65-A′ answer in §4 is unchanged in
+  substance but must now be read with §0: path 1 is NOT deprecated — both paths are legitimate.
 -->
 # Architect Question 65 — is entity genesis UNIFORM across ECS nodes? — ✅ **RESOLVED: yes, and no contract change is needed**
 
@@ -29,6 +34,31 @@ known-rot: §4's Q65-B was WRONG TWICE before 2026-08-31 (a host list, then `.Wi
 
 ⭐⭐⭐ **You are right, and so is the architect. And the decisive evidence is in the codebase, four lines
 that I read past twice.**
+
+## 0. 🔒🔒🔒 THE GOVERNING RULING — **no capability removal by design** *(user, `2026-08-31`)*
+
+> 🔒🔒🔒 **User, verbatim:** *"the shared code for entity creation support should not
+> restrict any ECS enabled node from creating own networked entities, which makes the subsystems equal in
+> distributed architecture and the shared code more uniform, no exceptions, not removing capabilities by
+> design, and only concrete authoring code picks the way it needs."*
+
+> 🔒 **And the two-class framing that produced it:** *"there are entities we want to be created on
+> CGF, these are the brain enabled entities, for those the request coming to default processor is the right
+> choice, as it makes the CGF to own most of their components. but some entities might be desired to be owned
+> by the IG who created them, like some map-local drawings that needs to be shared with other IGs and do not
+> need any brain … my desire is to not suppress this second possibility by not instantiating some systems,
+> not necessarily to use it for every entity."*
+
+| ⭐ what this settles | |
+|---|---|
+| ⭐⭐⭐ **BOTH paths are legitimate and both stay** | ⛔ this is **not** "make everything local". Routing to the default processor is **correct** for brain-enabled entities, precisely because it puts ownership on CGF |
+| ⭐⭐⭐ **the defect is SUPPRESSION, not centralisation** | 📐 IG / SimHost / Stride node cannot reach path 2 **because systems were omitted from their composition** — ⇒ that omission is the thing to remove |
+| ⭐⭐ **the DECIDER is the authoring call site** | ⛔ **not** a policy table, **not** a TKB flag, **not** config. 📐 The mechanism is one field, `OwnerAppInstanceId`, already honoured three ways at `CreateEntityRequestSystem.cs:290-294` |
+| ⭐⭐ **checkable consequence** | ⛔ **`EntityCreationPack.Build` gets no flag, and no `Role` value, that omits the request or spawn system** — 📄 [`DESIGN_Entity_Creation_Unification.md`](../DESIGN_Entity_Creation_Unification.md) §3.1 invariant ⑥, §3.4, acceptance ⑨–⑪ |
+
+⇒ ⭐⭐ **This RETIRES the last of the "halves"**, and it retires IG's `SpawningModule` omission — 📌 which
+means Q65-D was rejected for a **stronger** reason than "it documents divergence": ⛔ **it removes a
+capability by design.**
 
 ## 1. ⭐ THE ANSWER IN ONE PARAGRAPH
 
@@ -93,6 +123,26 @@ authority.** All five checked; all five hold.
 | **③** | ID allocation is a distributed DDS service | ✅ **CORRECT** — `Fdp.Network.Cyclone/Services/DdsIdAllocator.cs` + `DdsIdAllocatorServer.cs` |
 | **④** | IG's tools emit an order that a translator converts to a DDS request | ✅ **CORRECT** — `SpawnEntityCommandEgressTranslator` converts bus `SpawnEntityCommand` → **DDS `CreateEntityRequest`**. ⇒ 📌 **IG's flow today is order → request → (remote) order** — a round trip that exists only because IG has no local materialiser |
 | **⑤** | the restriction lives in `IgBootstrapperHelpers.cs` | ✅ **the file exists** and carries the *"replaces SpawningModule so IG does not duplicate entities"* wiring |
+
+### 2.2 🔴 TWO architect claims that MEASUREMENT REFUTES — **added `2026-08-31`**
+
+⚠ **§2's table says "all five hold", and that was true of the five I checked.** ⛔ **Two OTHER claims in the
+same relayed conversation are FALSE**, and both are load-bearing for Q65-B — so recording them here rather
+than leaving §2 reading as a clean sweep:
+
+| architect said | 📐 measured |
+|---|---|
+| *"**CGF already has `GhostCreationSystem` and `GhostPromotionSystem` installed**"* | ⚠ **half right.** Creation ✅ — `NedReplicationModule:252`, unconditional, "all roles". 🔴 **Promotion ✗** — role-gated at `:308` *(pure-IG)* and `:356` *(Muscle)*, and CGF is pure `Brain` |
+| *"If SimHost publishes `EntityMaster`, CGF receives it, spawns a ghost, and **hydrates it without issue**"* | 🔴 **FALSE** — the ghost is created, but **no TKB descriptor projection happens on CGF**. That is exactly what promotion does, and CGF does not have it |
+
+⇒ ⭐⭐ **The architect was MORE optimistic than the code warrants about the RECEIVING half.** ⛔ It reasoned
+that because the primitives are generic toolkit modules, every node effectively has them — ⚠ **the role gate
+is invisible from that altitude.** ⇒ ⭐ **This strengthens Q65-B rather than weakening it**: without Q65-B,
+path 2 half-works — the entity exists cluster-wide and the Brain never projects its template.
+
+⚠ **Stated fairly:** the architect's *architectural* conclusion — that nothing in DDS/NED/FDP forbids
+peer-to-peer genesis — is **correct and verified** *(§2 ①–⑤)*. ⛔ Its per-host **composition** claims are
+where it was wrong, twice, in the optimistic direction.
 
 ### 2.1 🔴 What this makes of MY earlier reasoning
 
@@ -193,10 +243,48 @@ reasons.
 | # | obstacle | note |
 |---|---|---|
 | **①** | 🔴 **`CreateEntityRequestSystem` lives in `Hrot.CGF/Systems/`** — a host assembly. Only CGF, the Editor and the Stride editor construct it | ⇒ ⭐ **it must move to a shared assembly** *(`Fdp.Toolkits` or `Hrot.Common`)* before "every node registers it" is even expressible. **This is the first task, and it is a MOVE with no behaviour change** |
-| **②** | IG's tools publish bus-level `SpawnEntityCommand` | ⇒ retarget to a self-targeted `CreateEntityRequest`; same for `SimHostScenarioManager.SpawnVehicle`. ✅ **§1.1's graph pass shrank this one**: `SpawnEntityCommandEgressTranslator` is **already** in the shared `Hrot.Network.NED` assembly behind an `INetworkFactory` method all three factories implement ⇒ **no code moves, only the originator's target changes** |
+| **②** | 🔴🔴 **IG's tools publish bus-level `SpawnEntityCommand`, and it leaves the DDS request UNOWNED** — 📐 `SpawnEntityCommandEgressTranslator.cs:167` writes `Owner = default`, and `NedCgfEntityLifecycleAdapters.cs:76` maps `OwnerAppInstanceId = msg.Owner.AppInstanceId` ⇒ **`0` ⇒ broadcast ⇒ the arbiter (CGF)**. ⭐⭐ **This is the whole mechanism of the "everything goes via CGF" bottleneck: one unset field plus a missing local pipeline** | ⇒ retarget to a self-targeted `CreateEntityRequest`; same for `SimHostScenarioManager.SpawnVehicle`. ✅ **§1.1's graph pass shrank this one**: `SpawnEntityCommandEgressTranslator` is **already** in the shared `Hrot.Network.NED` assembly behind an `INetworkFactory` method all three factories implement ⇒ **no code moves, only the originator's target changes.** ⚠ Keep the translator — 🔒 path 1 is still correct for brain-enabled entities |
 | **②b** | 🔴 **`GhostPromotionSystem` is ROLE-gated inside `NedReplicationModule`**, and pure-Brain *(CGF)* is excluded by construction | ⇒ ⭐ see Q65-B. ⚠ **Not a host-composition oversight** — today it is correct, because pure-Brain spawns rather than receives. It becomes a gap **only once Q65-A′ lands** |
 | **③** | ⚠ **the ELM ACK handshake on a node with no peers** | the Editor runs offline with a `SequentialIdAllocator` and no peers to ACK. ⭐ It already works *(`isDefaultProcessor: true`, local bus)* — ⛔ but **verify the handshake does not stall** when a *networked* node self-targets and a peer is absent |
 | **④** | ⚠ **`DeferredTakeOwnership` is wired only in CGF's `CognitiveTranslatorPack`** | ⇒ split-authority spawns *(IG creates a vehicle whose kinematics SimHost must own)* still need CGF's routing. ⭐ **Pure single-owner entities — tactical graphics, markers, areas — need none of it**, which is exactly the user's case |
+
+### 5.1 📐 THE PER-NODE GAP — **measured `2026-08-31`; three pieces, none of them protocol**
+
+| node | path 1 → arbiter | path 2 → self-owned | what it lacks |
+|---|---|---|---|
+| **CGF** · **Editor** · **Stride editor** | ✅ | ✅ | 🔴 **CGF lacks ghost PROMOTION** *(pure-Brain gate)* ⇒ Q65-B |
+| 🔴 **IG** | ✅ *(its egress translator, `Owner = default`)* | 🔴 **suppressed** | request source · `CreateEntityRequestSystem` · `NetworkSpawningSystem` |
+| 🔴 **SimHost** | ⛔ cannot even RECEIVE one | ⚠ partial — has the spawn system, no way to raise a request | request source · `CreateEntityRequestSystem` |
+| 🔴 **Stride node** | ⛔ | 🔴 suppressed | request source · `CreateEntityRequestSystem` |
+
+### 5.2 ✅⭐⭐ WHAT IS ALREADY UNIFORM — **the publish half needs NOTHING** *(measured `2026-08-31`)*
+
+📌 **The question that prompted this:** *"IG must be able to publish `EntityMaster` itself, check
+it."* ⇒ ✅ **It already can.**
+
+`SharedTranslatorPack` is documented as *"the shared translator set that all `NodeRole` values install
+**regardless of specialisation**"*, and 📐 `NedReplicationModule.cs:213-216` gates its construction
+on **`participant != null` ONLY — not on role**. IG calls `.WithReplication(role)` at
+`IgNodeBootstrapper.cs:142`, so IG holds all twelve, including:
+
+| translator | why it matters here |
+|---|---|
+| `EntityMasterEgressTranslator` *(ordinal 0)* | ⭐ announces existence cluster-wide — **the thing that was in doubt** |
+| ⭐⭐ **`MapVisualOverlayEgressTranslator`** | *"publishes tactical-graphic overlay geometry for **owned** area entities"* — 🔒 **literally the IG map-drawing use case** |
+| `GeoSpatialEgressTranslator` · `EntityInfoEgressTranslator` | position + affiliation for **owned** entities |
+| `EntityMasterIngressTranslator` · `MapVisualOverlayIngressTranslator` | ⭐ how **other IGs** receive it — also ungated |
+
+⭐⭐ **And the pack's own comments show the uniformity was deliberate one layer down:** `GeoSpatialEgress`
+and `MapVisualOverlayEgress` were **moved into** the shared pack *"so Brain nodes (CGF) can publish overlays
+for area entities they own — same rationale as `GeoSpatialEgressTranslator`."*
+
+⇒ ⭐⭐⭐ **IG is not missing the ability to PUBLISH. It is missing the ability to BECOME THE OWNER.** ⛔ So
+the fix is three composition pieces, and **zero** translator, protocol or wire changes.
+
+⚠ **The one asymmetry that remains, and it is correct:** `DeferredTakeOwnershipEgressTranslator` is gated
+`_roleHasBrain`, so a non-Brain creator cannot publish split-authority grants. 🔒 Out of scope by the
+user's own framing — path 2 is for entities that *"do not need any brain"* and delegate nothing. ⛔ **Do not
+widen it speculatively**; obstacle ④ is its record.
 
 ## 6. ⭐ SEQUENCING
 
@@ -204,10 +292,36 @@ reasons.
 |---|---|---|
 | **1** | pack **step 4** *(catalogue contents)* | smallest, independent |
 | **2** | ⭐ **move `CreateEntityRequestSystem` to a shared assembly** | obstacle ① — a pure move, and nothing below is expressible without it |
-| **3** | pack **step 3** *(`EntityCreationPack`)*, now **one uniform pipeline** | §2.3's halves are gone |
-| **4** | **Q65-A′** — retarget originators to self-targeted requests, starting with IG's tactical graphics *(obstacle ④ says they need no split authority)* | the user's actual use case, and the safest instance of it |
+| **3** | pack **step 3** *(`EntityCreationPack`)*, now **one uniform pipeline** — ⛔⛔ **adoption order matters: Stride node → SimHost → Editor → CGF → IG LAST, and IG only together with step 4** | §2.3's halves are gone, and 🔒 the `2026-08-31` ruling forbids omitting the pipeline per host. ⚠ **See the hazard below the table** |
+| **4** | **Q65-A′** — retarget originators to self-targeted requests, starting with IG's tactical graphics *(obstacle ④ says they need no split authority)*. ⭐ **Ship it in the SAME commit as IG's pack adoption** | the user's actual use case, and the safest instance of it. ⛔⛔ **Not separable from IG's step-3 adoption — see the hazard** |
 | **5** | **Q65-B** — collapse the two role-gated `GhostPromotionSystem` registrations in `NedReplicationModule` into one | ⛔ **strictly after step 4.** Before Q65-A′, pure-Brain promotion is dead code — ⭐ and the gate is the ROLE, not the host, so this is a **two-line** change in one file, not a per-host sweep |
 | **6** | **`CE-141`** — IG's translator width, with a live probe | |
+
+### ⛔⛔⛔ THE ORDERING HAZARD — **why step 3 and step 4 are ATOMIC for IG** *(added `2026-08-31`)*
+
+📐 **Measured, and it is the one thing in this document that can break a running cluster:**
+
+```
+NetworkSpawningSystem.cs:92                     view.ReadManagedEvents<SpawnEntityCommand>()
+SpawnEntityCommandEgressTranslator.cs:80        _eventBus.ReadManaged<SpawnEntityCommand>()
+```
+
+⇒ ⭐⭐⭐ **Both read the SAME bus event.** ⛔ A node holding **both** — the spawning system from step 3, and
+the egress translator it already has — whose tools still publish bus-level `SpawnEntityCommand` will
+**materialise the entity locally AND forward a DDS request to the arbiter, which materialises it again and
+replicates a ghost back.** 🔴 **A double spawn, on the entity-creation path, in a live cluster.**
+
+📌 **The architect flagged exactly this** — *"handing every node the same spawning pipeline would
+instantly duplicate entities on the IG"* — ⚠ **and an earlier version of this document recorded it only as a
+BENEFIT of Q65-A′** *("the duplicate-entity hazard dissolves")*, never as an ORDERING CONSTRAINT. ⛔ **That
+omission left §6 with step 3 before step 4 and no warning.**
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **IG's `NetworkSpawningSystem` registration and the retargeting of IG's tools ship TOGETHER** | ⛔ never step 3 for IG alone |
+| ⭐⭐ **the gate that lifts the old protection is Q65-A′ — say so at the site** | 📌 `IgBootstrapperHelpers.cs`'s *"replaces SpawningModule so IG does not duplicate entities"* comment is **true today**; it must be replaced with the reason it is now safe, not silently deleted |
+| ⭐ **the rail is acceptance ⑪** | 📄 `DESIGN_Entity_Creation_Unification.md` §6 ⑪ — no root holds the spawn system **and** the egress translator while any tool still publishes a bus-level order |
+| ⭐ **the other four hosts are unaffected** | 📐 none of them registers `SpawnEntityCommandEgressTranslator` — `NedNetworkFactory.CreateIgEgressTranslators` has exactly one caller, `IgNodeBootstrapper.cs:351` |
 
 ⚠⚠ **Everything above is source- and graph-measured only.** `hrot-ai-debug` has been disconnected all
 session, so **no claim here has been checked against a running cluster** — and obstacle ③ in particular is

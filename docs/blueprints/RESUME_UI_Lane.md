@@ -10,6 +10,23 @@ current-answer: §0.0e.3c-NEXT — READ IT FIRST. The AGREED ORDER OF WORK acros
   UX_Feature_Entity_Symbology.md §3.8. ⭐ Q65 is RESOLVED — genesis is already peer-to-peer and needs no
   contract change; DESIGN_Entity_Creation_Unification.md §2.3's "halves" are SUPERSEDED. ⛔ Do not
   re-derive any of it.
+ruling-2026-08-31: 🔒 THE GOVERNING RULING is Architect_Question_65 §0 (user, verbatim): the shared
+  entity-creation code "should not restrict any ECS enabled node from creating own networked entities ...
+  no exceptions, not removing capabilities by design, and only concrete authoring code picks the way it
+  needs." ⭐ BOTH paths stay legitimate: OwnerAppInstanceId = 0 routes to the arbiter (CGF) for
+  BRAIN-ENABLED entities and is CORRECT; OwnerAppInstanceId = localNodeId creates+owns locally (IG map
+  drawings). The AUTHORING CALL SITE picks -- not a policy table, not a TKB flag, not config.
+  ⛔ EntityCreationPack.Build gets NO flag that omits the request or spawn system (DESIGN §3.1
+  invariant 6, §3.4, acceptance 9-11).
+measured-2026-08-31: (a) IG CAN already publish EntityMaster -- SharedTranslatorPack is gated on
+  participant != null, NOT on role (NedReplicationModule.cs:213), and IG calls .WithReplication at
+  IgNodeBootstrapper.cs:142; it also already has MapVisualOverlayEgressTranslator for OWNED area
+  entities. IG lacks only the ability to BECOME THE OWNER: request source + CreateEntityRequestSystem +
+  NetworkSpawningSystem. (b) The bottleneck mechanism is ONE FIELD --
+  SpawnEntityCommandEgressTranslator.cs:167 writes Owner = default => 0 => arbiter.
+  (c) 🔴 ORDERING HAZARD: NetworkSpawningSystem.cs:92 and
+  SpawnEntityCommandEgressTranslator.cs:80 read the SAME bus event => IG's pack adoption (step 3) and
+  Q65-A' (retarget its tools) MUST ship in ONE commit or IG double-spawns. Q65 §6 carries it.
 
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
   way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
