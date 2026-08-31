@@ -9,6 +9,9 @@ current-answer: §5 is the plan. Steps 1 and 2 are BUILT (2026-08-30): TkbTransl
 known-rot: §2.3's Role-selected HALVES are SUPERSEDED — Architect_Question_65 §4 resolved the question
   and there is ONE uniform pipeline. §2.3 is kept only as HISTORY. §3's Role invariant (item 4) still says
   "role decides which half"; that wording is stale and must be read against Q65 §4.
+known-rot: the scorecard row and the composition sentence in §2.4 were corrected 2026-08-31 — ghost
+  promotion is gated by the NodeRole inside NedReplicationModule, NOT by host composition, so the
+  EntityCreationPack registers the two SPAWN systems only. Q65 §4's Q65-B carries the measurement.
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
@@ -148,7 +151,7 @@ per-host divergence into one place rather than removing it. ⭐ Scored against t
 | criterion | today | this design as written | achievable? |
 |---|---|---|---|
 | all ECS nodes can create entities | ✅ **already true** *(IG originates — §2.3)* | ✅ | ✅ already |
-| all can receive ghosts | ⚠ `GhostCreationSystem` on 5 of 6, but 🔴 **`GhostPromotionSystem` on SimHost + IG ONLY** | ⛔ **unaddressed — this design never mentions promotion** | ✅ add it to the pack |
+| all can receive ghosts | ⚠ `GhostCreationSystem` on 5 of 6; ⭐⭐ **promotion is gated by the NodeRole, not by the host** — `NedReplicationModule.RegisterSystems` registers `GhostPromotionSystem` only for `pureIgRole` *(:308)* or `_roleHasMuscle` *(:356)*, each also behind `_tkbDb != null && _lifecycleModule != null` ⇒ **pure-Brain (CGF) is excluded by construction** | ⛔ **not the pack's job** — it is one gate in one file | ✅ but ⛔ **only after Q65-A′**: until CGF receives entities it did not spawn, pure-Brain promotion is dead code |
 | one list, gated only by registration | ⚠ 5 sites on `Base()`; 🔴 IG hand-narrowed *(`CE-141`)* | ⛔ unchanged | ✅ once `CE-141` settles |
 
 ⚠⚠ **CORRECTED the same day.** An earlier version of this section said the blocker was that
@@ -163,8 +166,15 @@ non-ECS clients like ExCon)*. ⭐ `EntityMaster` carries no owner field, and ID 
 *(`DdsIdAllocator`/`DdsIdAllocatorServer`)*.
 
 ⇒ ⭐⭐⭐ **So uniformity is a COMPOSITION problem, which is exactly what this pack is for**: every node
-registers `CreateEntityRequestSystem` + `NetworkSpawningSystem` + `GhostCreationSystem` +
-`GhostPromotionSystem`, with `isBroadcastArbiter` the only differing value.
+registers `CreateEntityRequestSystem` + `NetworkSpawningSystem`, with `isBroadcastArbiter` the only
+differing value.
+
+⚠⚠ **CORRECTED `2026-08-31` — the two GHOST systems are NOT the pack's to register.** 📐 Both are already
+constructed inside `NedReplicationModule`: `GhostCreationSystem` unconditionally *(`:252`, "all roles")* and
+`GhostPromotionSystem` behind a **NodeRole** gate *(`:308` pure-IG, `:356` Muscle)*. ⇒ ⭐ **putting them in
+the pack would create a second registrar for systems that already have one** — the duplicate-implementation
+trap ruling 9 forbids. 🔒 **The pack registers the two SPAWN systems; ghost lifecycle stays with the
+replication module, and Q65-B widens its role gate there.**
 ⚠ **The real obstacle is placement, not protocol:** `CreateEntityRequestSystem` lives in
 **`Hrot.CGF/Systems/`**, a host assembly — it must move to a shared one before *"every node registers it"*
 is even expressible. 📄 **[`Architect_Question_65`](blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md)
@@ -198,7 +208,7 @@ creation.Unserviceable(…);           // ⭐ the S2b diagnostic habit
 
 | # | invariant | how the pack enforces it |
 |---|---|---|
-| **①** | **one translator list per node** | the pack builds it and hands **the same instance** to `NetworkSpawningSystem`, `elm.SetTranslators` and `GhostPromotionSystem`. ⇒ §6.3 true **by construction** |
+| **①** | **one translator list per node** | the pack builds it and hands **the same instance** to `NetworkSpawningSystem` and `elm.SetTranslators`; `GhostPromotionSystem` receives it **through the replication module** *(`.WithTranslators(...)` → `NedReplicationModule._tkbEntityTranslators`, or the factory's own field)*. ⇒ §6.3 true **by construction** — ⚠ but the pack must therefore be handed the SAME list the builder chain got, not build a second one |
 | **②** | **the list is never empty** | there is no way to pass one — `ExtraTranslators` is *additive*. ⭐ The base set is the full projection set, and **gate ②** *(`IsComponentTypeRegistered`, `tkb-1` §6.5b)* does the per-host narrowing |
 | **③** | **one catalogue per process** | `TkbDb` is a **required** context input, not something the pack builds. ⇒ finding ② cannot recur |
 | **④** | **role decides WHICH HALF and which systems, never which components** | `Brain` ⇒ origination + materialisation, `CreateEntityRequestSystem(isDefaultProcessor: true)`; `Muscle` ⇒ materialisation + ghost, `false`; ⭐ **a render node (IG) ⇒ origination + ghost projection and NO `NetworkSpawningSystem`** — 📄 `Hrot-Simulation-Pipeline.md` §4.3 and §2.3 |
@@ -276,6 +286,7 @@ classDiagram
     }
     class NetworkSpawningSystem
     class EntityLifecycleModule
+    class NedReplicationModule
     class GhostPromotionSystem
     class ModuleHostKernel
 
@@ -284,9 +295,11 @@ classDiagram
     EntityCreationPack --> EntityCreation : builds
     EntityCreation *-- NetworkSpawningSystem
     EntityCreation *-- EntityLifecycleModule
-    EntityCreation ..> GhostPromotionSystem : same list instance
+    EntityCreation ..> NedReplicationModule : same list instance
+    NedReplicationModule *-- GhostPromotionSystem
     ModuleHostKernel ..> EntityCreation : HOST schedules
 
+    note for NedReplicationModule "EXISTS - owns ghost lifecycle. Promotion is NodeRole-gated (:308 pure-IG, :356 Muscle). NOT the pack's to register"
     note for EntityCreationContext "NO kernel - pack constructs, host schedules (S2b precedent)"
     note for TkbTranslatorSet "NEW - the one base list. Narrowing is by component registration, not here"
     note for EntityCreation "Unserviceable() reports what the host did not schedule"
