@@ -27,6 +27,11 @@ as-built: step 4 is BUILT (2026-08-31) — §3.3's AS-BUILT block is authoritati
   private one missing StrideRenderModelDefDto (deleted); and "no new reference, no assembly-graph change"
   was wrong — the animation descriptor DTOs had to move into Fdp.Toolkits. CE-145 = the deferred
   namespace rename (53 files, needs a Windows/VS session).
+ce-145-done: 2026-08-31, merged from claude/ce145-stride-namespace-win. The namespace rename is
+  COMPLETE (55 files) and EditorStrideSubsystem now uses HrotEnvironment.CreateTkb(). §3.3's
+  "CE-145 DONE" block is authoritative. NEW FINDING there: CE-146, the Capsule-infantry strip
+  translator exists on ONE host while the crowd bridge that depends on it is shared. That is a design
+  question with three options and one unmeasured premise -- do not pick before probing it.
 known-rot: §3.4's split-authority row used to call the _roleHasBrain gate on ownership delegation
   "out of scope" and correct. FALSE — corrected 2026-08-31, see Q65 §5.3 / CE-142.
 architect-review: 2026-08-31 — the NotebookLM architect reviewed both docs and APPROVED them, raising
@@ -359,6 +364,82 @@ live in **`FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/`**. ⭐ No cycle: the animation
 | **T1 — whole `Hrot.SimHost.Tests`** | ⚠ **798 passed · 1 failed · 3 skipped** |
 | 🔴 **the 1 red, confirmed PRE-EXISTING** | `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` = **`QA-012`**, backend-lane-owned. ⭐ **Proven this run, not quoted from memory**: `git stash -u` → rebuild → the same test fails on base `7face3aee` with none of these changes present |
 | ⛔ **NOT verified** | the Stride tree *(`Microsoft.WindowsDesktop.App`)* — `EditorStrideSubsystem` and `MannequinAnimationDefIntegrationTests` are checked **statically only** |
+
+##### ✅✅ `CE-145` DONE `2026-08-31` *(Windows/VS session, merged)* — **and it refuted my hypothesis**
+
+⭐⭐ **The namespace rename is complete.** The ten animation TKB descriptor types now carry
+`Fdp.Toolkit.Tkb.Domain`, matching their neighbours — ⇒ ⛔ **the `Hrot.*`-inside-`Fdp.Toolkits` smell is
+gone**, and `Fdp.Examples.Scenarios`'s `Hrot.MuscleCharacter.Animation` ProjectReference was **dropped** as
+now-redundant *(verified by building without it)*. ⭐ Item 3 also shipped: `EditorStrideSubsystem` now calls
+`HrotEnvironment.CreateTkb()` and no longer registers UrbanCombat itself ⇒ **all six hosts share catalogue
+CONTENTS**, verified by RUNNING the editor: `entities=6, visuals=6`, 4 Capsule mannequins + 2 OrientedBox.
+⭐ They also took the strip-translator order fix — `BuildTranslators()` now places it at **index 2**,
+honouring its positional contract instead of appending via `BasePlus`.
+
+| ⚠⚠ **what my handoff's grep MISSED — three things, and one broke their build** | |
+|---|---|
+| **real count** | **55 files** *(3 moved + 51 consumers + 1 csproj)*. 📌 I had quoted 24, then 53, then 56 |
+| 🔴 **relative-qualified references** | `Components.StanceId` — **15 refs across 6 files**, a hard `CS0234`. ⛔ A file-level grep for type NAMES cannot see these |
+| ⚠ **a fully-qualified reference that must NOT move** | `…Contracts.AnimationBackendConfig` *(2 sites)* — same old namespace, but it stays behind |
+| ⭐⭐ **the load-bearing one** | `…Animation.Descriptors` was declared by **the moved file alone** ⇒ the rename **DELETES that namespace**, so every `using` of it is an **error, not a tidy-up**. `…Contracts`/`…Components` survive because other files still declare them |
+
+⇒ ⭐ **The habit to carry forward:** for a namespace move, grep for the **namespace segments** as well as the
+type names, and check whether the moved file was the namespace's *only* declarant.
+
+##### 🔴🔴 THE 4 STRIDE REDS — **my mechanism was wrong too. Their probe settled it.**
+
+⛔ **I hypothesised the strip translator's Capsule GATE was unsatisfied** *(§4b of the handoff)*.
+📐 **Refuted:** `Apply_Infantry_AddsCapsuleRenderDef` **passes** — Ned type 200 **does** carry a
+Capsule `StrideRenderModelDefDto`, so the gate is satisfied. ⇒ ⚠ **that is the fifth wrong cause I proposed
+today from reasoning rather than running the probe.** The two `VehicleState` reds have **two different**
+causes:
+
+| red | cause | owner |
+|---|---|---|
+| `Translator_Infantry200_DoesNotInjectVehicleState` | ⭐ **STALE TEST.** It calls `new VehicleKinematicsTkbTranslator().Inject()` **alone** and asserts no `VehicleState` — but the strip is a **separate post-pass**, so it never runs. ⇒ the test encodes the **pre-relocation** design the strip's own doc says was deliberately removed. ⛔ **Fix the TEST (re-home it onto the strip), not the product** | test-suite owner |
+| 🔴 **`SI3_InfantryMoveTo_…`** | ⭐⭐ **A REAL CROSS-HOST GAP** — filed as **`CE-146`** below | ⭐ **this lane** |
+| the two `StrD21` navigation reds | ⚠ **unattributed.** They may share `CE-146`'s root or be independent; nobody has run that down | — |
+
+##### 🔴 `CE-146` — **the Capsule-infantry strip exists on ONE host, and the crowd bridge is SHARED**
+
+📐 **Measured by the Windows session:** `SI3_InfantryMoveTo_…` boots the real `EditorSubsystem`,
+which uses bare `TkbTranslatorSet.Base()` *(`EditorSubsystem.cs:1241`)*. The strip's **only** registrar is
+`EditorStrideSubsystem`, and the strip lives in `Hrot.Stride.Core` — **unreachable from `Hrot.Editor`**.
+⇒ ⛔ **Capsule infantry keeps `VehicleState` on every host except the Stride editor.**
+
+⭐⭐ **Why that is this lane's problem and not a Stride curiosity:** `NavigationIntentBridgeSystem` — which
+uses `!HasComponent<VehicleState>()` as its **crowd-eligibility guard** — lives in **shared
+`Fdp.Toolkits/Navigation/Systems/`**, and its own error text names the strip. ⇒ **a shared system depends on
+a projection step only one host performs.** 🔒 That is precisely the per-host divergence the
+`2026-08-31` ruling is about.
+
+| ⚠ **and it is a genuine DESIGN question, not a bug to patch** | |
+|---|---|
+| ⭐ **option A** | move the strip down into `Fdp.Toolkits` beside the kinematics translator, so every host applies it. ⛔ But the strip's doc says it was **deliberately** relocated OUT of shared code — *"the shared translator is kept == main"* — so this reverses a considered decision and needs the owner's nod |
+| ⭐ **option B** | give `VehicleKinematicsTkbTranslator` the shape guard back, which the same doc explicitly rejected |
+| ⭐ **option C** | accept it as correct: only the Stride muscle runs a crowd bridge over capsule infantry, so only it needs the strip. ⚠ **Then the SHARED `NavigationIntentBridgeSystem` is mis-homed**, and its diagnostic is misleading everywhere else |
+| ⛔ **what NOT to do** | patch `EditorSubsystem` to add the strip — it cannot reference `Hrot.Stride.Core`, and copying the strip would be the ruling-9 duplicate |
+
+⚠ **Unmeasured and needed before choosing:** does any host other than the Stride muscle actually run
+`NavigationIntentBridgeSystem` over capsule infantry? ⛔ **Do not pick an option before answering that** —
+📌 it is the same "reasoning instead of probing" trap that produced the wrong cause above.
+
+##### ✅ A pre-existing break the merge also resolves
+
+⭐ Their baseline was **5** pre-existing reds, not 4: the fifth is the `AttributeCompilerFactory` **build**
+break in `Hrot.SimHost.Integration.Tests`, which **blocked the whole `IOS-IG-SimHost.sln` build on
+Windows**. ✅ **Obstacle ①'s commit already fixed it** *(§5.4)*, so their next full-solution build should
+clear.
+
+##### 📐 Merge verification *(cloud session, after `--no-ff` merge)*
+
+| gate | result |
+|---|---|
+| fence | ✅ **no file of this lane's touched** — verified by path filter before merging |
+| Linux builds of their rename | ✅ `Fdp.Toolkits` · `Hrot.MuscleCharacter.Animation` · `Hrot.Core` · `Hrot.Common` · `Fdp.Examples.Scenarios` · `Hrot.Animation.Replication` · `Hrot.Editor.AiShared` · `Hrot.SimHost.Tests` |
+| **T1 `Hrot.SimHost.Tests`** | ✅ **818 passed · 1 failed · 3 skipped — identical to pre-merge** |
+| ⚠ **observed intermittency, not chased** | one run reported **3** failures while printing only **one** name *(and took 26 s against a normal 14-15 s)*; two immediately following runs were 818/1/3. ⇒ **the steady state is 1**, but that suite is not perfectly deterministic under load and I am recording it rather than asserting it away |
+| ⛔ **not run here** | `Hrot.MuscleCharacter.Animation.Tests` — needs a NuGet restore in this container *(`NETSDK1004`)*, environmental, not a code failure. ⭐ The Windows session ran it green |
 
 ### 3.4 ⭐⭐⭐ THE TWO AUTHORING AFFORDANCES — **the authoring code picks, per entity**
 

@@ -100,6 +100,31 @@ STEP 3 STARTED (2026-08-31): EntityCreationPack BUILT in Hrot/Engine/Hrot.Common
   ⚠ Acceptance 3's rail uses REFLECTION on EntityLifecycleModule._translators -- private, no accessor.
   A read-only accessor on the ELM would be the better fix (Fdp.Toolkits change, deferred).
   REMAINING hosts for step 3: SimHost, Editor, CGF, then IG -- IG atomic with Q65-A' + CE-143 + CE-144.
+CE-145 DONE + MERGED (2026-08-31, from claude/ce145-stride-namespace-win at 03ecea4da). Namespace rename
+  complete (55 files, not the 24/53/56 I quoted); EditorStrideSubsystem now uses HrotEnvironment.CreateTkb()
+  and the strip translator is back at index 2; Fdp.Examples.Scenarios dropped its now-redundant
+  Hrot.MuscleCharacter.Animation reference. Verified live in the Stride editor: entities=6, visuals=6.
+  Merge verified on Linux: 8 projects build, T1 818/1/3 = identical to pre-merge. ⚠ One T1 run reported 3
+  failures while naming only 1 (26s vs the usual 14s); two following runs were 818/1/3, so the steady state
+  is 1 (QA-012) but that suite is not perfectly deterministic under load.
+  ⚠⚠ MY HANDOFF'S GREP MISSED THREE THINGS: relative-qualified refs (Components.StanceId, 15 refs/6 files,
+  hard CS0234); a fully-qualified ref that must NOT move (…Contracts.AnimationBackendConfig); and that
+  …Animation.Descriptors was declared by the moved file ALONE, so the rename DELETES the namespace and every
+  using of it is an error. HABIT: for a namespace move, grep the namespace SEGMENTS too, and check whether
+  the moved file was the sole declarant.
+CE-146 (new, 2026-08-31) -- and it came from THEIR probe refuting MY hypothesis. I claimed the strip
+  translator's Capsule gate was unsatisfied; Apply_Infantry_AddsCapsuleRenderDef PASSES, so type 200 does
+  carry a Capsule StrideRenderModelDefDto. The two VehicleState reds are instead: (a)
+  Translator_Infantry200 = STALE TEST, it calls VehicleKinematicsTkbTranslator.Inject() alone so the strip
+  post-pass never runs => fix the test, not the product; (b) SI3_InfantryMoveTo = REAL CROSS-HOST GAP =
+  CE-146: EditorSubsystem.cs:1241 uses bare TkbTranslatorSet.Base(), the strip's only registrar is
+  EditorStrideSubsystem, and the strip lives in Hrot.Stride.Core (unreachable from Hrot.Editor) => Capsule
+  infantry keeps VehicleState on every host but the Stride editor, while the crowd bridge that guards on
+  !HasComponent<VehicleState>() (NavigationIntentBridgeSystem) is SHARED in Fdp.Toolkits. Three options in
+  DESIGN §3.3; ⛔ do not pick one before measuring whether any non-Stride host actually runs that bridge
+  over capsule infantry. The two StrD21 navigation reds are unattributed.
+  ⭐ Their baseline was 5 pre-existing reds, not 4 -- the 5th is the AttributeCompilerFactory build break
+  that blocked the whole solution build on Windows, and obstacle 1's commit already fixed it.
 CE-143 (new, 2026-08-31, from the architect review): ReliableInitType is HARDCODED to AllPeers at
   CreateEntityRequestSystem.cs:302 (root) and :397 (TKB children), and EntityCreationRequest carries NO
   field to override it. Enum has None / PhysicsServer / AllPeers. => an IG drawing created via path 2
