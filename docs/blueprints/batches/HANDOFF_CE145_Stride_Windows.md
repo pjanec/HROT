@@ -145,6 +145,56 @@ all**; it will leave that one `using` stale on its branch and fix it after mergi
 ⭐ **If your rename needs to touch a file in the right-hand column, STOP and report** — do not edit it.
 📌 `R-106`: stop *that item*, not the batch; do everything else.
 
+## 4b. ✅ ITEM 1 ANSWERED — **and the reported CAUSE was wrong. Corrected here `2026-08-31`.**
+
+⭐⭐ **Item 1 delivered exactly what it existed for:** the Stride tree **BUILDS at `f27717262`** *(0 errors,
+132 warnings, all asset-pipeline noise)*, `Hrot.Stride.Animation.Tests` **48/48**, and
+`MannequinAnimationDefIntegrationTests` **10/10** ⇒ 🔒 **step 4's namespace-preserving DTO move is
+VALIDATED on Windows.** ⛔ Nothing further is needed for `CE-145`'s premise.
+
+⚠ **4 reds were also found at `f27717262`, correctly identified as pre-existing.** ⛔ **But the reported
+cause — *"`CE-113` removed a Capsule guard from `VehicleKinematicsTkbTranslator`"* — is WRONG.**
+📐 Measured on Linux *(pure git + source, no Stride build needed)*:
+
+| 📐 | |
+|---|---|
+| ⛔ **`VehicleKinematicsTkbTranslator` NEVER had a Capsule/ShapeKind guard** | `git show 94867a8b7^:…/VehicleKinematicsTkbTranslator.cs` has **no** `Capsule` or `ShapeKind` reference, and neither does `94867a8b7` itself. ⇒ **`CE-113` did not remove one** |
+| ✅ **the real mechanism is a SEPARATE translator** | `Stride/Hrot.Stride.Core/InfantryVehicleStateStripTkbTranslator.cs` — a post-pass that removes `VehicleState`/`VehicleParams`, gated on `StrideRenderModelDefDto.ShapeKind == CollisionShapeKind.Capsule` |
+| 🔒 **and the shared translator having no guard is BY DESIGN** | its own doc: *"Previously this decision leaked into the shared translator (gated on shape); we relocate it here so shared code stays clean. **The shared translator is kept == main**."* ⇒ ⛔ **do not "restore" a guard there** |
+| 🔴 **its only registrar** | `EditorStrideSubsystem.cs:1623`, via `BuildTranslators()` — ⭐ **inside YOUR fence** |
+
+### ⭐ The live hypothesis, and a contract violation that is MINE
+
+⭐⭐ **The strip's GATE is the thing to check:** `if (renderDef == null || renderDef.ShapeKind != Capsule) return;`
+⇒ **any failing entity whose template lacks a Capsule `StrideRenderModelDefDto` keeps `VehicleState`** — which
+is exactly what the two *"must NOT carry VehicleState"* assertions detect. 📌 `Translator_Infantry200_…` uses
+Ned type **200**, not an UrbanCombat type, so step 4's templates are not in its path at all.
+
+⭐ **Cheap first probe (minutes, in your fence):** in the failing test, dump the template's descriptors and
+confirm whether a `StrideRenderModelDefDto` with `ShapeKind == Capsule` is present. That answers it directly.
+
+⚠⚠ **A separate, REAL defect found while checking — and it is the cloud session's, from `CE-140` step 2:**
+`InfantryVehicleStateStripTkbTranslator`'s doc requires it *"immediately after
+`VehicleKinematicsTkbTranslator` … position in the list is the guarantee"*. 📐 Before `178a8829e` the
+hand-written list had it at **index 2**; `BasePlus(strip)` **appends**, so it is now **last (index 6)**.
+⛔ **The documented contract is violated today.**
+
+⭐ **Stated honestly: that is LATENT, not the cause of your reds.** The strip is a pure removal and only
+`VehicleKinematicsTkbTranslator` adds those components, so running it later yields the same end state. ⚠ It
+becomes real the moment a translator between the two reads `VehicleState`. ⇒ ⭐ **please restore the order
+while you are in `BuildTranslators()` for item 3** — replace `BasePlus(strip)` with an explicit list that
+puts the strip at index 2, or add an insert-after helper. `TkbTranslatorSet`'s class doc now records the
+hazard.
+
+### ⭐⭐ SO: PROCEED TO ITEMS 2 AND 3 — **do NOT spend 20 minutes bisecting `CE-113`**
+
+| ⭐ | |
+|---|---|
+| ⛔ **the bisect is the wrong use of the scarce resource** | Windows build time is the bottleneck; ⭐ **the git archaeology it would have proven was done on Linux in seconds, and it refuted the hypothesis rather than confirming it** |
+| ✅ **§1's stop-and-report has been satisfied** | its purpose was *"do not let the rename bury the cause."* ⭐ The cause area is now named, the baseline is **exactly 4 known reds**, and they are in `FDP/Toolkits/CarKinem` + Stride nav — **outside your fence and unrelated to a namespace rename** |
+| ⭐ **so you can distinguish your own breakage** | anything beyond those 4 is yours |
+| ⭐ **hand the 4 reds on with the CORRECTED mechanism** | ⛔ not as a `CE-113` regression — 📌 the owner would have chased a guard that never existed |
+
 ## 5. ⭐ Report back — the gate contract
 
 📄 `.claude/CLAUDE.md`'s **GATE REPORT CONTRACT**. Per item:

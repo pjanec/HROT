@@ -34,6 +34,23 @@ namespace Hrot.Core.Tkb
     /// <c>SpawnEntityCommand</c> to SimHost and receives the ghost back, so its translators go only to
     /// <c>NedReplicationModule</c>'s ghost projection. ⛔ That is a coherent configuration, not an
     /// omission — do not "fix" it by giving IG a spawn pipeline.</para>
+    ///
+    /// <para>🔴🔴 <b><see cref="BasePlus"/> APPENDS, so it CANNOT express a POSITIONAL contract — and one
+    /// translator has one.</b> <c>InfantryVehicleStateStripTkbTranslator</c>'s own doc requires it
+    /// <i>"immediately after <c>VehicleKinematicsTkbTranslator</c> … position in the list is the
+    /// guarantee"</i>, because <c>NetworkSpawningSystem.ProcessSpawn</c> runs
+    /// <c>foreach (var t in _translators) t.Inject(…)</c> in order. 📐 <b>Measured 2026-08-31:</b>
+    /// <c>CE-140</c> step 2 converted <c>EditorStrideSubsystem.BuildTranslators()</c> from a hand-written
+    /// list — where the strip sat at index 2, right after kinematics — to <c>BasePlus(strip)</c>, which
+    /// puts it LAST (index 6). ⇒ <b>the documented contract is violated today.</b></para>
+    ///
+    /// <para>⚠ <b>Stated honestly: that is a latent contract violation, NOT a known behaviour bug.</b>
+    /// The strip is a pure removal of <c>VehicleState</c>/<c>VehicleParams</c>, and only
+    /// <c>VehicleKinematicsTkbTranslator</c> ever adds them, so running the strip later still yields the
+    /// same END STATE. ⛔ It becomes a real defect the moment any translator between the two READS
+    /// <c>VehicleState</c>. ⇒ ⭐ <b>Before adding an order-sensitive translator, give this class an
+    /// explicit insert-after helper rather than reaching for <see cref="BasePlus"/>.</b>
+    /// 📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.3.</para>
     /// </summary>
     public static class TkbTranslatorSet
     {
