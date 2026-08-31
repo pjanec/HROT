@@ -162,11 +162,12 @@ namespace Fdp.Examples.Scenarios.Integrated
         public string ScenarioName => ScenarioNames.UrbanCombat;   // "urbancombat"
 
         // ── TKB type IDs (DEM1-D010 §9.2) ────────────────────────────────────
-        private const int TkbCivilianPedestrian = 1001;
-        private const int TkbCivilianCar        = 1002;
-        private const int TkbMilitaryApc        = 2001;
-        private const int TkbInfantrySoldier    = 2002;
-        private const int TkbInsurgent          = 2003;
+        // ⭐ DERIVED from the shared catalogue — one source of the type codes (2026-08-31).
+        private const int TkbCivilianPedestrian = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianPedestrian;
+        private const int TkbCivilianCar        = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar;
+        private const int TkbMilitaryApc        = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMilitaryApc;
+        private const int TkbInfantrySoldier    = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier;
+        private const int TkbInsurgent          = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInsurgent;
 
         // ── Behavior IDs (must match BehaviorIds in FDP.Toolkit.Behavior) ────
         private const int BehaviorWanderCivil   = 1001;
@@ -177,26 +178,10 @@ namespace Fdp.Examples.Scenarios.Integrated
         // ── Faction IDs ───────────────────────────────────────────────────────
         // FactionNeutral/Blue/Red constants removed; use ForceId.Neutral/Friend/Hostile directly.
 
-        // ── Sensor ranges (m) ─────────────────────────────────────────────────
-        private const float CivilianVisionRange  = 30f;
-        private const float CivilianHearingRange = 100f;
-        private const float SoldierVisionRange   = 150f;
-        private const float SoldierHearingRange  = 200f;
-
         // ── Collider radii (m) ────────────────────────────────────────────────
         private const float HumanoidRadius = 0.4f;
         private const float CarRadius      = 2.0f;
         private const float ApcRadius      = 3.5f;
-
-        // ── Health ────────────────────────────────────────────────────────────
-        private const float ApcMaxHealth     = 500f;
-        private const float SoldierMaxHealth = 100f;
-
-        // ── Weapon stats ──────────────────────────────────────────────────────
-        private const int   RifleAmmo           = 30;
-        private const float RifleMuzzleVelocity = 800f;
-        private const int   RpgAmmo             = 1;
-        private const float RpgMuzzleVelocity   = 300f;
 
         // ── Spawn positions ───────────────────────────────────────────────────
         private static readonly Vector3[] CivilianPositions =
@@ -427,69 +412,13 @@ namespace Fdp.Examples.Scenarios.Integrated
 
         // ── Private helpers — TKB templates ──────────────────────────────────
 
-        private void RegisterTkbTemplates()
-        {
-            RegisterCivilianPedestrian();
-            RegisterCivilianCar();
-            RegisterMilitaryApc();
-            RegisterInfantrySoldier();
-            RegisterInsurgent();
-        }
-
-        private void RegisterCivilianPedestrian()
-        {
-            var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
-            t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianPedestrian" });
-            t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
-            t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
-            _tkb.Register(t);
-        }
-
-        private void RegisterCivilianCar()
-        {
-            var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
-            t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianCar" });
-            t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
-            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
-            _tkb.Register(t);
-        }
-
-        private void RegisterMilitaryApc()
-        {
-            var t = new TkbTemplate("MilitaryAPC", TkbMilitaryApc);
-            t.AddDescriptor(new TkbMasterDto { CustomName = "MilitaryAPC" });
-            t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
-            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
-            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth });
-            _tkb.Register(t);
-        }
-
-        private void RegisterInfantrySoldier()
-        {
-            var t = new TkbTemplate("InfantrySoldier", TkbInfantrySoldier);
-            t.AddDescriptor(new TkbMasterDto { CustomName = "InfantrySoldier" });
-            t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
-            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-            t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity } } });
-            t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
-            t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
-            _tkb.Register(t);
-        }
-
-        private void RegisterInsurgent()
-        {
-            var t = new TkbTemplate("Insurgent", TkbInsurgent);
-            t.AddDescriptor(new TkbMasterDto { CustomName = "Insurgent" });
-            t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
-            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-            t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity } } });
-            t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
-            t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
-            _tkb.Register(t);
-        }
+        // ⚠⚠ The five per-template methods that used to live here were DELETED on 2026-08-31.
+        //   They were a SECOND copy of the templates, identical to the public one EXCEPT that they
+        //   omitted StrideRenderModelDefDto from all five ⇒ entities spawned through the scenario's own
+        //   path had no render model and no collider. The Editor's (richer) copy is authoritative and now
+        //   lives in Hrot.Core.Tkb.UrbanCombatTkbCatalog.
+        //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
+        private void RegisterTkbTemplates() => Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(_tkb);
 
         // ── Private helpers — behaviors ───────────────────────────────────────
 
@@ -560,128 +489,15 @@ namespace Fdp.Examples.Scenarios.Integrated
         /// UrbanCombatNew scenario or editor.</para>
         /// </summary>
         public static void RegisterUrbanCombatTkbTemplates(ITkbDatabase tkb)
-        {
-            if (tkb == null) throw new ArgumentNullException(nameof(tkb));
-
-            // CivilianPedestrian (1001)
-            {
-                var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianPedestrian" });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.7f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
-                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
-                tkb.Register(t);
-            }
-
-            // CivilianCar (1002)
-            {
-                var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianCar" });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 1.5f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
-                tkb.Register(t);
-            }
-
-            // MilitaryAPC (2001)
-            {
-                var t = new TkbTemplate("MilitaryAPC", TkbMilitaryApc);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "MilitaryAPC" });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 2.5f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
-                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth });
-                tkb.Register(t);
-            }
-
-            // InfantrySoldier (2002)
-            {
-                var t = new TkbTemplate("InfantrySoldier", TkbInfantrySoldier);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "InfantrySoldier" });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
-                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity } } });
-                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
-                t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
-                tkb.Register(t);
-            }
-
-            // Insurgent (2003)
-            {
-                var t = new TkbTemplate("Insurgent", TkbInsurgent);
-                t.AddDescriptor(new TkbMasterDto { CustomName = "Insurgent" });
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
-                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
-                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
-                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity } } });
-                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
-                t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
-                tkb.Register(t);
-            }
-        }
+            => Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(tkb);
 
         /// <summary>
-        /// Builds the mannequin character-class animation descriptor (STR-P4-T2, DD-4 §2).
-        ///
-        /// <para>Carries the idle/walk/run locomotion clips (driven by the
-        /// <c>StrideAnimationBackend</c>'s blend tree on slot 0 = Locomotion) and the
-        /// three jump traversal montages (<c>Jump_Start</c>/<c>Jump_Loop</c>/<c>Jump_End</c>
-        /// on slot 100 = FullBody). All six <see cref="MontageDefDto.AssetRef"/>s point at the
-        /// template-seeded Stride asset URLs (<c>Animations/*</c>, §12). Shared by the
-        /// InfantrySoldier (2002) and Insurgent (2003) humanoid templates — both use the
-        /// mannequin model.</para>
+        /// Forwards to the shared catalogue. Kept because tests and the Stride app call it by this name.
+        /// ⚠ The implementation MOVED to <see cref="Hrot.Core.Tkb.UrbanCombatTkbCatalog"/> on
+        /// 2026-08-31 — 📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
         /// </summary>
         public static CharacterAnimationDefDto BuildMannequinAnimationDef()
-        {
-            return new CharacterAnimationDefDto
-            {
-                Slots = new[]
-                {
-                    new SlotDefDto { SlotId = 0,   Name = "Locomotion", BoneMask = new[] { "root" }, Mode = SlotCompositingMode.Override, Priority = 0 },
-                    new SlotDefDto { SlotId = 100, Name = "FullBody",   BoneMask = new[] { "root" }, Mode = SlotCompositingMode.Override, Priority = 100 },
-                },
-                Montages = new[]
-                {
-                    // Locomotion clips — blended (not played as one-shots) by the backend's
-                    // idle/walk/run blend tree; carried here so the AssetRefs resolve and the
-                    // backend can look up the Stride AnimationClip URLs.
-                    new MontageDefDto { Name = "Idle", AssetRef = "Animations/Idle", Slot = 0, DefaultBlendInTime = 0.2f, DefaultBlendOutTime = 0.2f, DurationSeconds = 1.0f, Sections = Array.Empty<string>(), Notifies = Array.Empty<MontageNotifyRefDto>() },
-                    new MontageDefDto { Name = "Walk", AssetRef = "Animations/Walk", Slot = 0, DefaultBlendInTime = 0.2f, DefaultBlendOutTime = 0.2f, DurationSeconds = 1.0f, Sections = Array.Empty<string>(),
-                        Notifies = new[]
-                        {
-                            new MontageNotifyRefDto { MarkerName = "Footstep_Left",  TimeSeconds = 0.25f, PayloadByte = 0 },
-                            new MontageNotifyRefDto { MarkerName = "Footstep_Right", TimeSeconds = 0.75f, PayloadByte = 1 },
-                        } },
-                    new MontageDefDto { Name = "Run", AssetRef = "Animations/Run", Slot = 0, DefaultBlendInTime = 0.15f, DefaultBlendOutTime = 0.15f, DurationSeconds = 0.7f, Sections = Array.Empty<string>(),
-                        Notifies = new[]
-                        {
-                            new MontageNotifyRefDto { MarkerName = "Footstep_Left",  TimeSeconds = 0.2f, PayloadByte = 0 },
-                            new MontageNotifyRefDto { MarkerName = "Footstep_Right", TimeSeconds = 0.6f, PayloadByte = 1 },
-                        } },
-
-                    // Jump traversal montages (off-mesh-link discrete playback, §6.4).
-                    new MontageDefDto { Name = "Jump_Start", AssetRef = "Animations/Jump_Start", Slot = 100, DefaultBlendInTime = 0.08f, DefaultBlendOutTime = 0.1f, DurationSeconds = 0.4f, Sections = new[] { "Launch" }, Notifies = Array.Empty<MontageNotifyRefDto>() },
-                    new MontageDefDto { Name = "Jump_Loop",  AssetRef = "Animations/Jump_Loop",  Slot = 100, DefaultBlendInTime = 0.1f,  DefaultBlendOutTime = 0.1f, DurationSeconds = 0.6f, Sections = new[] { "Airborne" }, Notifies = Array.Empty<MontageNotifyRefDto>() },
-                    new MontageDefDto { Name = "Jump_End",   AssetRef = "Animations/Jump_End",   Slot = 100, DefaultBlendInTime = 0.1f,  DefaultBlendOutTime = 0.12f, DurationSeconds = 0.5f, Sections = new[] { "Land" },
-                        Notifies = new[]
-                        {
-                            new MontageNotifyRefDto { MarkerName = "Footstep_Left", TimeSeconds = 0.05f, PayloadByte = 0 },
-                        } },
-                },
-                SupportedStances = new[] { StanceId.Standing, StanceId.Crouched },
-                StanceTransitions = Array.Empty<StanceTransitionDto>(),
-                AimConfig = null,
-                NotifyMarkers = new[]
-                {
-                    new NotifyMarkerDefDto { Name = "Footstep_Left",  Hash = 0xC1D2E3F4u, Kind = AnimNotifyCategory.Footstep },
-                    new NotifyMarkerDefDto { Name = "Footstep_Right", Hash = 0xD1E2F3A4u, Kind = AnimNotifyCategory.Footstep },
-                },
-            };
-        }
+            => Hrot.Core.Tkb.UrbanCombatTkbCatalog.BuildMannequinAnimationDef();
 
         private static unsafe HsmDefinitionBlob BuildApcHsm()
         {

@@ -1228,9 +1228,11 @@ namespace Hrot.Editor
             // ?? 3b. TKB + ELM + offline spawning ?????????????????????????????
             var tkbDb       = HrotEnvironment.CreateTkb();
             _tkbDatabase    = tkbDb;   // `ST-010`: expose the authoritative spawn DB to in-process hosts
-            // Register Urban Combat entity blueprints (TKB types 1001?2003) so the
-            // ScenarioSerializer can resolve MilitaryApc, InfantrySoldier, and Insurgent.
-            UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
+            // ⭐ 2026-08-31: the explicit UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb)
+            //   call that stood here was REMOVED. HrotEnvironment.CreateTkb() above now seeds the
+            //   UrbanCombat templates for EVERY host, so calling it again would THROW —
+            //   TkbDatabase.Register rejects a duplicate name or type.
+            //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
             if (!_world.HasSingletonManaged<ITkbDatabase>()) _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
             // ⭐⭐ CE-140 step 2 — the ONE base list. Replaces this host's inline copy, which
             //    was the one CE-137 had to add PresentationTkbTranslator to by hand.

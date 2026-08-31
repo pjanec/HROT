@@ -6,22 +6,11 @@ using Fdp.Toolkit.Behavior;
 
 namespace Hrot.MuscleCharacter.Animation.Components
 {
-    /// <summary>
-    /// Enumeration of supported stance modes for character locomotion and posture.
-    /// Maps to TKB animation descriptor stance definitions (DD-4 §3.2).
-    /// </summary>
-    [Serializable]
-    public enum StanceId : byte
-    {
-        /// <summary>Standing upright (default).</summary>
-        Standing = 0,
-
-        /// <summary>Crouched / half-height.</summary>
-        Crouched = 1,
-
-        /// <summary>Prone / fully horizontal.</summary>
-        Prone = 2,
-    }
+    // ⚠ `StanceId` MOVED OUT of this file on 2026-08-31 → FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/StanceId.cs
+    //   It keeps THIS namespace, so nothing here changes. It moved because CharacterAnimationDefDto (a TKB
+    //   descriptor DTO referencing it) had to sit beside the other TKB DTOs so Hrot.Core could host the
+    //   UrbanCombat catalogue without referencing this subsystem.
+    //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3 · namespace rename is CE-145.
 
     /// <summary>
     /// Stance transition phase tracking for multi-frame blend sequences.

@@ -1,11 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-30
-build-state: READY-TO-BUILD
-current-answer: §5 is the plan. Steps 1 and 2 are BUILT (2026-08-30): TkbTranslatorSet is the one base
-  list and all five spawning sites use it. Steps 3 and 4 are APPROVED BY THE USER and NOT STARTED —
-  step 3 is the EntityCreationPack (§3, UML in §4), step 4 is the catalogue-contents move (§3.3).
-  Start with step 4: it is smaller, independent, and unblocks nothing else.
+updated: 2026-08-31
+build-state: BUILDING
+current-answer: §5 is the plan. Steps 1, 2 and 4 are BUILT. Step 1 + 2 (2026-08-30): TkbTranslatorSet is
+  the one base list and all five spawning sites use it. Step 4 (2026-08-31): the UrbanCombat templates
+  live in Hrot.Core.Tkb.UrbanCombatTkbCatalog, seeded from HrotEnvironment.CreateTkb() — §3.3's AS-BUILT
+  block is authoritative, and it corrects three false premises. NOT STARTED: step 3, the
+  EntityCreationPack (§3, §3.4 for the two authoring affordances, UML in §4). ⛔ Before step 3, do
+  obstacle 1 — move CreateEntityRequestSystem + EntityRequestFinalizationSystem +
+  DeleteEntityRequestSystem to Hrot.Core/Network (Q65 §5.4). ⛔ IG's step-3 adoption is ATOMIC with
+  Q65-A' + CE-143 + CE-144 (Q65 §6's ordering hazard).
 known-rot: §2.3's Role-selected HALVES are SUPERSEDED — Architect_Question_65 §4 resolved the question
   and there is ONE uniform pipeline. §2.3 is kept only as HISTORY. §3's Role invariant (item 4) still says
   "role decides which half"; that wording is stale and must be read against Q65 §4.
@@ -17,6 +21,12 @@ known-rot: §2.3's "halves" language is dead everywhere it appeared. Removed fro
   as HISTORY only. Any reader finding "which half" in this file outside a HISTORY block has found rot.
 current-answer-note: §3.4 is the NEW load-bearing section (2026-08-31) — the two authoring affordances
   and the per-tier measurement of what each path already has. Read it before §5's sequencing.
+as-built: step 4 is BUILT (2026-08-31) — §3.3's AS-BUILT block is authoritative for it. THREE of that
+  section's premises were false and are corrected there: TkbDatabase.Register THROWS on duplicates (so a
+  production call site had to be DELETED, not forwarded); there were TWO divergent template copies, the
+  private one missing StrideRenderModelDefDto (deleted); and "no new reference, no assembly-graph change"
+  was wrong — the animation descriptor DTOs had to move into Fdp.Toolkits. CE-145 = the deferred
+  namespace rename (53 files, needs a Windows/VS session).
 known-rot: §3.4's split-authority row used to call the _roleHasBrain gate on ownership delegation
   "out of scope" and correct. FALSE — corrected 2026-08-31, see Q65 §5.3 / CE-142.
 architect-review: 2026-08-31 — the NotebookLM architect reviewed both docs and APPROVED them, raising
@@ -268,21 +278,87 @@ grep -rln "Fdp.Examples.Scenarios.csproj" --include=*.csproj
 could not call it if they wanted to. ⇒ ⭐⭐ **this is not fixable by adding a call per host; the templates
 have to move into a product assembly.**
 
-#### ⭐ The move — target measured as unblocked
+#### ✅✅ AS-BUILT `2026-08-31` — **step 4 is BUILT.** ⚠ And three of this section's premises were FALSE
 
-| | |
+🔒 **User, `2026-08-31`, on what this content IS:** *"these exist as default for development now,
+real system would read everything from files synced to all nodes."* ⇒ ⭐⭐ **`UrbanCombatTkbCatalog` is a
+DEVELOPMENT SEED, not the product's authoring surface.** ⛔ Do not grow it; ⛔ do not treat its contents as a
+contract. The production path is file-based TKB replicated across nodes.
+
+🔒 **User, `2026-08-31`, on the shape:** *"can't we have one unified tkb templates source, the one
+editor is using?"* ⇒ ✅ **exactly what was built** — see finding ② below.
+
+| ⭐ what shipped | |
 |---|---|
-| **from** | `Fdp.Examples.Scenarios/Integrated/UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates` |
-| **to** | ⭐ **`Hrot.Core`, beside `NedTkbCatalog`** — the existing home for code-registered TKB content |
-| ✅ **dependency check** | every descriptor the five templates use — `TkbMasterDto`, `StrideRenderModelDefDto`, `VehicleParametersDto`, `BehaviorProfileDto`, `SensorCapabilitiesDto` — lives in **`Fdp.Toolkits/Tkb/Domain`**, which `Hrot.Core` already references. ⇒ 🔒 **no new reference, no assembly-graph change** |
-| ⭐ **then one line** | `HrotEnvironment.CreateTkb()` already seeds `NedTkbCatalog.RegisterAll(tkb)` and `RouteTkbExtensions.ApplyRoutePlanToBlueprint(tkb)`. Adding the moved call there gives **every host the same catalogue contents automatically** — and it makes finding ② *(four independent `CreateTkb()` calls)* harmless, because all four produce the same content |
-| ⚠ **leave a forwarder** | `UrbanCombatNewScenario` keeps a `RegisterUrbanCombatTkbTemplates` that delegates to the moved one, so the examples, the runner and the two test projects keep compiling. ⛔ **Do not delete the old entry point** — it is called from five places |
-| ⛔ **do NOT** | ⛔ move the *scenario* — only the **template registration**. `UrbanCombatNewScenario` is an example scenario and stays one |
+| ⭐⭐ **new** | `Hrot/Engine/Hrot.Core/Tkb/UrbanCombatTkbCatalog.cs` — `RegisterAll(ITkbDatabase)`, `BuildMannequinAnimationDef()`, the five **public** TkbType codes and the ten tuning constants |
+| ⭐⭐ **seeded once, for everyone** | `HrotEnvironment.CreateTkb()` now calls `UrbanCombatTkbCatalog.RegisterAll(tkb)` beside `NedTkbCatalog.RegisterAll` ⇒ **all four `CreateTkb()` sites produce identical CONTENTS** |
+| ⭐ **forwarders kept** | `UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates` and `.BuildMannequinAnimationDef` now one-line-forward to the catalogue, so the three test call sites and the Stride editor keep working |
+| ⭐ **rails** | `Hrot.SimHost.Tests/UrbanCombatCatalogRails.cs` — **14 tests**, all through `HrotEnvironment.CreateTkb()` per acceptance ⑦ *(⛔ never by calling `RegisterAll` on a bare db — that would be vacuous)* |
+| ⭐ **red-proofs, both inverse-edit** | ⓐ remove the seeding from `CreateTkb()` ⇒ **13 of 14 redden**; ⓑ strip `StrideRenderModelDefDto` from one template ⇒ **exactly 1 reddens** *(the right one)* |
 
-⚠ **The one thing to verify at build time:** whether the names `TkbCivilianPedestrian` … and the tuning
-constants *(`CivilianVisionRange`, `BehaviorConstants.SimTierCivilian`, …)* the method reads are
-themselves reachable from `Hrot.Core`, or must move with it. 📐 The descriptors are; the constants were
-not checked.
+##### 🔴 FINDING ① — **`TkbDatabase.Register` THROWS on a duplicate**, so "leave a forwarder" was not enough
+
+📐 `FDP/Toolkits/Fdp.Toolkits/Tkb/TkbDatabase.cs:24-28` throws `InvalidOperationException` on a
+duplicate **name or type**. ⇒ ⛔⛔ **`EditorSubsystem.cs` would have CRASHED AT STARTUP**: it called
+`HrotEnvironment.CreateTkb()` at `:1229` and `RegisterUrbanCombatTkbTemplates(tkbDb)` **four lines later**.
+
+| ⭐ resolution | |
+|---|---|
+| ✅ **`EditorSubsystem`'s explicit call REMOVED** | replaced by a comment saying why it must not come back |
+| ⭐ **`EditorStrideSubsystem:585` LEFT ALONE** | 📐 it builds its own `new TkbDatabase()` rather than `CreateTkb()`, so there is no duplicate and no regression. ⚠ **But it therefore still misses `NedTkbCatalog` + the route templates** — unchanged from before. ⛔ Not fixed here: it is in the Stride tree, which **cannot compile on Linux**. Follow-up |
+| ⚠ **the prior text said** *"do not delete the old entry point — it is called from five places"* | ⭐ **half right**: correct for the 3 TEST callers *(all build a fresh `new TkbDatabase()`)*, ⛔ **wrong for the 2 production ones** |
+
+##### 🔴 FINDING ② — **there were TWO divergent copies**, and the drifted one is now DELETED
+
+📐 `UrbanCombatNewScenario` carried the five templates **twice**:
+
+| | five `private void Register<Type>()` methods *(`:439`-`:493`)* | `public static RegisterUrbanCombatTkbTemplates` *(`:562`)* |
+|---|---|---|
+| used by | the scenario's own run | the Editor, the Stride editor, 3 tests |
+| `StrideRenderModelDefDto` | 🔴 **absent from all five** | ✅ **present on all five** |
+| every other descriptor and value | identical | identical |
+
+⇒ 🔴 **The private copy spawned entities with no render model and no collider.** 🔒 Per the
+`2026-08-30` ruling *("editor is the most advanced in that matter")* the Editor's copy is authoritative ⇒
+⭐⭐ **the five private methods were DELETED**, `RegisterTkbTemplates()` is now one call into the shared
+catalogue, and the scenario's five TkbType constants **derive from** `UrbanCombatTkbCatalog`'s.
+⭐ **That is the "one unified source" the user asked for.** ⛔ Moving one copy and leaving the other would
+have been the ruling-9 duplicate trap. ⭐ Guarded by rail
+`EveryUrbanCombatTemplate_CarriesTheRenderModelDescriptor`.
+
+##### 🔴 FINDING ③ — **"no new reference, no assembly-graph change" was FALSE**
+
+⚠ **The prior dependency-check table checked only the TKB DTOs.** ✅ Those were fine *(all in
+`Fdp.Toolkits`/`Fdp.Core`, and the tuning constants are `private const` literals that travelled with the
+method — so the "verify the constants" caveat was a NON-issue)*. 🔴 **But
+`BuildMannequinAnimationDef()` returns `CharacterAnimationDefDto`, which lived in
+`Hrot/Subsystems/Hrot.MuscleCharacter.Animation/`** — a subsystem `Hrot.Core` must not reference.
+
+⭐⭐ **Resolved by moving the DTOs to where they belonged all along:** they are **TKB descriptor DTOs**
+*(attached via `TkbTemplate.AddDescriptor()`, exactly like `SensorCapabilitiesDto`)*, so
+`CharacterAnimationDefDto` *(+ `SlotDefDto`, `MontageDefDto`, `MontageNotifyRefDto`, `NotifyMarkerDefDto`,
+`StanceTransitionDto`, `AimConfigDto`, `SlotCompositingMode`)*, `AnimNotifyCategory` and `StanceId` now
+live in **`FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/`**. ⭐ No cycle: the animation subsystem references only
+`Fdp.Core` + `Fdp.Toolkits`, same as `Hrot.Core`.
+
+| ⚠⚠ **and the NAMESPACES were deliberately NOT changed — `CE-145`** | |
+|---|---|
+| 📐 **the full rename is 53 files across 20 projects** | ⚠ **I first sized it at 24** — that count covered only four DTO names and missed `StanceId` + `AnimNotifyCategory`, which the DTOs REQUIRE. ⛔ Same mislabel shape as `HN-037`; recorded so the next estimate is not made the same way |
+| ⭐⭐ **so the files moved and the namespaces stayed** | C# binds on **namespace identity, not assembly** ⇒ **zero consumer edits**, and `Hrot.Core` gets the DTOs from `Fdp.Toolkits` *(already referenced)*. ✅ **The objective is fully met** |
+| ⛔ **the cost, stated plainly** | `Hrot.MuscleCharacter.Animation.*` namespaces now live inside `Fdp.Toolkits.dll`. ⚠ **A smell, and each moved file carries a header saying why** so it does not read as an accident |
+| 🔒 **`CE-145` = the namespace rename**, deferred by the user | *"rename as later task i can do safely in windows session in visual studio"* — ⭐ **the right place for it: 6 of the 53 files are in the Stride tree, which cannot be compiled on Linux** |
+| ⭐ **one new project reference** | `Fdp.Examples.Scenarios` → `Hrot.Core`, so the scenario can forward. ⚠ FDP/Examples → Hrot, but that project **already** referenced `Hrot.MuscleCharacter.Animation`, and `Hrot.Core` adds no cycle |
+
+##### 📐 Gates
+
+| gate | result |
+|---|---|
+| `Fdp.Toolkits` · `Hrot.MuscleCharacter.Animation` · `Hrot.Animation.Replication` · `Hrot.Editor.AiShared` · `Hrot.MuscleCharacter.Animation.Fake` · `Fdp.Examples.Scenarios` · `Hrot.Core` · `Hrot.Editor` · `Hrot.SimHost.Tests` · `Hrot.Editor.Tests` | ✅ **all build** *(per-project, `--no-restore`; ⛔ never the 149-project solution)* |
+| `UrbanCombatCatalogRails` | ✅ **14/14** |
+| `Hrot.Editor.Tests --filter UrbanCombat` *(the forwarder)* | ✅ **18/18** |
+| **T1 — whole `Hrot.SimHost.Tests`** | ⚠ **798 passed · 1 failed · 3 skipped** |
+| 🔴 **the 1 red, confirmed PRE-EXISTING** | `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` = **`QA-012`**, backend-lane-owned. ⭐ **Proven this run, not quoted from memory**: `git stash -u` → rebuild → the same test fails on base `7face3aee` with none of these changes present |
+| ⛔ **NOT verified** | the Stride tree *(`Microsoft.WindowsDesktop.App`)* — `EditorStrideSubsystem` and `MannequinAnimationDefIntegrationTests` are checked **statically only** |
 
 ### 3.4 ⭐⭐⭐ THE TWO AUTHORING AFFORDANCES — **the authoring code picks, per entity**
 
@@ -553,7 +629,7 @@ every node, and the authoring code picks which sequence it wants by setting one 
 | ✅ **1** | **`CE-139`** — **DONE `2026-08-30`.** `StrideNodeBootstrapper:316` now passes the list and calls `SetTranslators` | low; **gate ②** bounded it |
 | ✅ **2** | **`TkbTranslatorSet`** — **DONE `2026-08-30`.** `Hrot.Core/Tkb/TkbTranslatorSet.cs` holds the one base set *(6 translators)*; **all five spawning sites** now call `Base()` or `BasePlus(…)`, and the two per-node additions that live above `Hrot.Core` — `AiDiagnosticsTkbTranslator` (SimHost, CGF) and `InfantryVehicleStateStripTkbTranslator` (Stride editor) — go through `BasePlus`. ⭐ IG keeps its narrower list **with the reason written at the site** | low — no behaviour change where the lists agreed |
 | **3** | **`EntityCreationPack`** over the six sites, one host at a time, `Unserviceable` reporting each | medium — it is a composition change on the spawn path |
-| **4** | ✅ **RULED, now buildable** — **§3.3**: move the template registration out of `Fdp.Examples.Scenarios` into `Hrot.Core` beside `NedTkbCatalog`, seed it from `HrotEnvironment.CreateTkb()`, leave a forwarder behind. ⭐ Independent of step 3 and can go first — it is the smaller of the two |
+| ✅ **4** | ✅✅ **DONE `2026-08-31`** — **§3.3**: the templates now live in `Hrot.Core.Tkb.UrbanCombatTkbCatalog`, seeded from `HrotEnvironment.CreateTkb()`, with forwarders for the test callers. ⚠⚠ **It was NOT "the smaller of the two"** — that estimate was wrong: it also required collapsing a second divergent copy, deleting a production call site that would have thrown, and relocating 10 animation DTOs into `Fdp.Toolkits` *(`CE-145` for the namespace rename)* |
 
 ⚠ **Step 2 was the cheap majority of the value** — it is where §6.3's *"identical list"* stopped being a
 convention. ⭐ Step 3 buys invariants ④ and ⑤ and can follow later.

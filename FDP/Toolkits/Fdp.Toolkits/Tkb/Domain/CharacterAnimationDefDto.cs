@@ -4,6 +4,20 @@ using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
 using Fdp.Toolkit.Tkb.Attributes;
 
+// ⚠⚠ NAMESPACE IS DELIBERATELY `Hrot.MuscleCharacter.Animation.Descriptors`, not `Fdp.Toolkit.Tkb.Domain`.
+//
+// WHY THIS FILE IS HERE (2026-08-31): these are TKB DESCRIPTOR DTOs — attached via
+// TkbTemplate.AddDescriptor() exactly like SensorCapabilitiesDto and VehicleParametersDto next door —
+// but they used to live in Hrot/Subsystems/Hrot.MuscleCharacter.Animation/. That placement blocked
+// Hrot.Core from hosting the shared UrbanCombat TKB catalogue, because the catalogue's
+// BuildMannequinAnimationDef() returns CharacterAnimationDefDto, and Hrot.Core must not reference a
+// character-animation subsystem. Moving the type to the FDP layer removes the need for that reference.
+//
+// WHY THE NAMESPACE DID NOT CHANGE: C# binds on namespace identity, not assembly, so keeping it lets
+// all 53 consumer files compile untouched. Renaming to Fdp.Toolkit.Tkb.Domain is **CE-145**, deliberately
+// deferred to a Windows/Visual-Studio session — 6 of those 53 files are in the Stride tree, which cannot
+// be compiled on Linux (Microsoft.WindowsDesktop.App), so the rename must be verified where it builds.
+// 📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
 namespace Hrot.MuscleCharacter.Animation.Descriptors
 {
     /// <summary>

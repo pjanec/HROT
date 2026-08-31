@@ -37,6 +37,28 @@ CE-142 (new, 2026-08-31): ownership DELEGATION is mechanism gated by policy. All
   _roleHasBrain -- they coincide by CONVENTION only. Fix: mechanism on participant != null, policy on
   _ownershipStrategy != null. WITH or AFTER pack step 3; NOT a prerequisite for path 2.
   Prior docs saying that gate was "correct, do not widen" are RETRACTED (Q65 §5.3).
+STEP 4 IS BUILT (2026-08-31). New: Hrot/Engine/Hrot.Core/Tkb/UrbanCombatTkbCatalog.cs (RegisterAll +
+  BuildMannequinAnimationDef + public TkbType codes); HrotEnvironment.CreateTkb() seeds it;
+  UrbanCombatNewScenario forwards; its FIVE private per-template methods DELETED (they were a second
+  copy missing StrideRenderModelDefDto on all five ⇒ render-less, collider-less entities);
+  EditorSubsystem's explicit RegisterUrbanCombatTkbTemplates call REMOVED (TkbDatabase.Register THROWS
+  on duplicates and it was 4 lines after CreateTkb ⇒ would have crashed at startup);
+  EditorStrideSubsystem LEFT ALONE (builds its own new TkbDatabase(), so no duplicate — but it still
+  misses NedTkbCatalog; Stride tree cannot build on Linux, follow-up). New rails:
+  Hrot.SimHost.Tests/UrbanCombatCatalogRails.cs 14/14, two inverse-edit red-proofs (remove the seeding
+  => 13/14 red; strip one StrideRenderModelDefDto => exactly 1 red). T1 Hrot.SimHost.Tests 798 pass /
+  1 fail / 3 skip; the 1 fail is QA-012 (FullBranchPipelineTests.BranchedRecording_...), PROVEN
+  pre-existing this run by git stash + rebuild on base 7face3aee. Hrot.Editor.Tests --filter
+  UrbanCombat 18/18.
+CE-145 (new, deferred BY THE USER to a Windows/VS session): the animation TKB descriptor DTOs
+  (CharacterAnimationDefDto + SlotDefDto/MontageDefDto/MontageNotifyRefDto/NotifyMarkerDefDto/
+  StanceTransitionDto/AimConfigDto/SlotCompositingMode, plus AnimNotifyCategory and StanceId) MOVED to
+  FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/ but KEPT their Hrot.MuscleCharacter.Animation.* namespaces, so
+  zero consumer files changed (C# binds on namespace, not assembly). CE-145 = rename them to
+  Fdp.Toolkit.Tkb.Domain — 53 files across 20 projects, 6 in the Stride tree that cannot compile on
+  Linux, which is why it waits for VS. ⚠ I first sized this at 24 files; that count covered only four
+  DTO names and missed StanceId + AnimNotifyCategory. Each moved file carries a header explaining why a
+  Hrot.* namespace sits in Fdp.Toolkits.
 CE-143 (new, 2026-08-31, from the architect review): ReliableInitType is HARDCODED to AllPeers at
   CreateEntityRequestSystem.cs:302 (root) and :397 (TKB children), and EntityCreationRequest carries NO
   field to override it. Enum has None / PhysicsServer / AllPeers. => an IG drawing created via path 2
