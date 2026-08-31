@@ -2,9 +2,6 @@ using System;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Tkb.Domain;
-using Hrot.MuscleCharacter.Animation.Components;
-using Hrot.MuscleCharacter.Animation.Contracts;
-using Hrot.MuscleCharacter.Animation.Descriptors;
 
 namespace Hrot.Core.Tkb
 {

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Nodes;
 
 namespace Hrot.MuscleCharacter.Animation.Validation
@@ -152,7 +152,7 @@ namespace Hrot.MuscleCharacter.Animation.Validation
             if (dto == null || dto.SupportedStances == null)
                 return false;
 
-            return dto.SupportedStances.Contains((Components.StanceId)stance);
+            return dto.SupportedStances.Contains((StanceId)stance);
         }
 
         /// <summary>

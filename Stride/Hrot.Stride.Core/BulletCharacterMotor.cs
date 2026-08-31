@@ -7,6 +7,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Navigation;
 using SMath = Stride.Core.Mathematics;
 using NLog;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Stride.Core;
 

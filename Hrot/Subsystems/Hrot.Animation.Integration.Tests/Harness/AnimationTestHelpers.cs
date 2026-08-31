@@ -7,7 +7,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Hrot.MuscleCharacter.Animation.Baking;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Fake;
 using Hrot.MuscleCharacter.Animation.Hashing;
 using Xunit;
