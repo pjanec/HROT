@@ -413,16 +413,61 @@ uses `!HasComponent<VehicleState>()` as its **crowd-eligibility guard** — live
 a projection step only one host performs.** 🔒 That is precisely the per-host divergence the
 `2026-08-31` ruling is about.
 
-| ⚠ **and it is a genuine DESIGN question, not a bug to patch** | |
-|---|---|
-| ⭐ **option A** | move the strip down into `Fdp.Toolkits` beside the kinematics translator, so every host applies it. ⛔ But the strip's doc says it was **deliberately** relocated OUT of shared code — *"the shared translator is kept == main"* — so this reverses a considered decision and needs the owner's nod |
-| ⭐ **option B** | give `VehicleKinematicsTkbTranslator` the shape guard back, which the same doc explicitly rejected |
-| ⭐ **option C** | accept it as correct: only the Stride muscle runs a crowd bridge over capsule infantry, so only it needs the strip. ⚠ **Then the SHARED `NavigationIntentBridgeSystem` is mis-homed**, and its diagnostic is misleading everywhere else |
-| ⛔ **what NOT to do** | patch `EditorSubsystem` to add the strip — it cannot reference `Hrot.Stride.Core`, and copying the strip would be the ruling-9 duplicate |
+##### ✅✅ PROBED `2026-08-31` — **the premise is ANSWERED, and my three options were the wrong frame**
 
-⚠ **Unmeasured and needed before choosing:** does any host other than the Stride muscle actually run
-`NavigationIntentBridgeSystem` over capsule infantry? ⛔ **Do not pick an option before answering that** —
-📌 it is the same "reasoning instead of probing" trap that produced the wrong cause above.
+⛔ **The A/B/C options above are SUPERSEDED by this measurement.** ⚠ They asked *"should the strip move
+down, or is one-host-only correct?"* 📐 **Both readings were wrong, because the real root is a
+DUPLICATE PIPELINE.**
+
+| 📐 what the probe measured | |
+|---|---|
+| **the crowd guard is DOUBLE-gated** | both branches read `if (_dtCrowd != null && …)` *(`NavigationIntentBridgeSystem.cs:235`, `:243`)* ⇒ **with no crowd provider the `VehicleState` question is irrelevant** |
+| **two production registrars of the bridge** | `Stride/HrotStrideApp.Game/StrideMuscleModules.cs:70` *(passes a crowd)* and ⭐ **`Hrot/Subsystems/Hrot.SimHost/SimHostCoreLogicPack.cs:118` — the NO-ARG ctor** ⇒ `_dtCrowd == null` ⇒ **the crowd path is INERT on SimHost.** ✅ So SimHost needs no strip, and its missing strip is **not** a gap |
+| **who builds a crowd provider in production** | `DotRecastDtCrowdProvider` — **only in the Stride tree**, at `EditorStrideSubsystem.cs:635` and `:887`. ⭐ `Hrot.Editor` has **zero** `DtCrowd` references |
+| 🔴 **BUT the Stride editor HOSTS an `EditorSubsystem`** | `EditorStrideSubsystem.cs:892` — `_editor = new EditorSubsystem();`, exposed as `HostedEditor`, with the Stride muscle injected through `EditorSubsystem.MuscleModuleFactory`. ⇒ ⭐⭐ **"`EditorSubsystem` + a LIVE crowd" is a REAL production configuration**, and `SI3_InfantryMoveTo_…` replicates it faithfully — ⛔ **it is NOT a fixture-only combination** |
+
+⇒ 🔴🔴 **`CE-146` IS a real production defect, and its root is the TWO SPAWN PIPELINES OVER ONE
+WORLD** — the very ambiguity `CE-139` named *("EditorStrideSubsystem builds a SECOND pipeline over the same
+world … so the behaviour depended on which composition ran")*:
+
+| pipeline | translator list | capsule infantry ends up |
+|---|---|---|
+| `EditorSubsystem`'s *(`:1241`)* | bare `TkbTranslatorSet.Base()` | 🔴 **keeps `VehicleState`** ⇒ crowd registration **SKIPPED** |
+| `EditorStrideSubsystem`'s *(`BuildTranslators()`)* | `Base()` + the strip at index 2 | ✅ stripped ⇒ registers |
+
+⇒ ⭐⭐ **Which pipeline handled a given spawn decides whether that infantry can join the crowd.** ⛔ That is
+not a translator-placement question at all.
+
+##### ✅ THE RESOLUTION — **it is step 3 host (e), and `ExtraTranslators` is the seam**
+
+⭐⭐ **§5.1 already lists host (e) as *"fold it into the same pack call or delete it if
+`StrideNodeBootstrapper`'s now suffices — that question is open and must be measured."*** ⇒ ⭐ **this
+measurement answers WHY it must be folded: CORRECTNESS, not tidiness.** One world must have one list.
+
+⭐⭐⭐ **And the fix needs no new reference.** `Hrot.Editor` cannot reference `Hrot.Stride.Core`, so it can
+never name the strip — ⛔ but it does not have to. `EditorStrideSubsystem` **already injects** the Stride
+muscle into its hosted `EditorSubsystem` via `MuscleModuleFactory`; ⇒ ⭐ **it supplies
+`EntityCreationContext.ExtraTranslators` the same way.** 📌 That is exactly what the pack's add-only
+`ExtraTranslators` exists for — the Stride side contributes its own translator, and the shared code stays
+ignorant of it.
+
+| ⭐ so `CE-146` becomes | |
+|---|---|
+| **not** a move of the strip | ⛔ options A and B are dead: the strip stays in `Hrot.Stride.Core` |
+| **not** "one host only is fine" | ⛔ option C is dead too: the Editor genuinely runs a live crowd when Stride hosts it |
+| ✅ **collapse the Stride editor's second pipeline into the pack** *(host e)*, and have the Stride side pass the strip through `ExtraTranslators` | ⇒ **one list per world, strip included, no new reference.** ⚠ Sequenced with step 3 host (e); ⛔ **cannot be verified on Linux** — hand the verification to the Windows lane |
+| ⚠ **and the two `StrD21` navigation reds** | 📐 **plausibly the same root** — they are crowd/nav tests in the same host — ⛔ but **still unattributed**; do not claim them until host (e) is done and they are re-run |
+
+##### ⚠ Two STALE DIAGNOSTICS this probe also exposes — **fix the words, not the code**
+
+⭐ Both describe the **pre-relocation** design, in which `VehicleKinematicsTkbTranslator` itself was
+shape-gated. 📐 That guard was deliberately removed *("the shared translator is kept == main")*, so
+the text now misleads:
+
+| where | the stale claim |
+|---|---|
+| `NavigationIntentBridgeSystem.cs:234-240` | *"after the BATCH-26 `VehicleKinematicsTkbTranslator` fix (ShapeKind=Capsule → no VehicleState injected) … If it does fire, the translator fix is absent."* ⇒ ⭐ the tripwire is still CORRECT, its explanation is not — the mechanism is a **separate strip translator**, and the real cause of a fire is **a pipeline without the strip** |
+| `Translator_Infantry200_DoesNotInjectVehicleState` | calls the kinematics translator **alone** and asserts no `VehicleState` ⇒ ⛔ **encodes the removed design.** Re-home it onto the strip |
 
 ##### ✅ A pre-existing break the merge also resolves
 

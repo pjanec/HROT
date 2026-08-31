@@ -5,10 +5,11 @@ superseded-by: docs/DESIGN_Entity_Creation_Unification.md §3.3 ("CE-145 DONE" b
 note: all three items were delivered and MERGED at 2026-08-31. Kept only as the record of what was
   dispatched and of the two diagnoses the cloud session got wrong (CE-113 as the cause of the Stride
   reds in §4b, and the strip's Capsule gate). ⛔ Do not act on this file; read the design.
-current-answer: this whole file. It is a HANDOFF to a WINDOWS/Visual-Studio session for the three items
-  the Linux cloud session cannot do. It is a dispatch pointer, not a design — the design is
-  docs/DESIGN_Entity_Creation_Unification.md §3.3 (AS-BUILT block).
-stale-below: nothing.
+current-answer: NOTHING HERE. All three items are delivered and merged; read
+  docs/DESIGN_Entity_Creation_Unification.md §3.3 instead.
+stale-below: EVERYTHING below this block is the dispatched text, kept as the record only. In particular
+  §4b's diagnosis (CE-113, and the strip's Capsule gate) was WRONG on both counts — see §3.3's
+  "CE-146 PROBED" block for what the measurement actually showed.
 -->
 # HANDOFF — `CE-145` + the Stride-tree verification *(WINDOWS / Visual Studio session)*
 

@@ -125,6 +125,31 @@ CE-146 (new, 2026-08-31) -- and it came from THEIR probe refuting MY hypothesis.
   over capsule infantry. The two StrD21 navigation reds are unattributed.
   ⭐ Their baseline was 5 pre-existing reds, not 4 -- the 5th is the AttributeCompilerFactory build break
   that blocked the whole solution build on Windows, and obstacle 1's commit already fixed it.
+CE-146 PROBED AND RESOLVED (2026-08-31) -- and my own three options (A/B/C) were the WRONG FRAME.
+  MEASURED: (1) the crowd guard is DOUBLE-gated on _dtCrowd != null (NavigationIntentBridgeSystem:235,243);
+  (2) two production registrars -- StrideMuscleModules:70 passes a crowd, but SimHostCoreLogicPack:118 uses
+  the NO-ARG ctor => the crowd path is INERT on SimHost, so SimHost's missing strip is NOT a gap;
+  (3) DotRecastDtCrowdProvider exists only in the Stride tree (EditorStrideSubsystem:635, :887) and
+  Hrot.Editor has ZERO DtCrowd references; (4) BUT EditorStrideSubsystem:892 does
+  _editor = new EditorSubsystem() and injects the Stride muscle via MuscleModuleFactory =>
+  "EditorSubsystem + a LIVE crowd" IS a real production configuration and SI3 replicates it faithfully.
+  => CE-146 is a REAL production defect whose root is the TWO SPAWN PIPELINES OVER ONE WORLD (the exact
+  ambiguity CE-139 named): EditorSubsystem:1241 uses bare Base() (no strip => VehicleState stays => crowd
+  registration SKIPPED) while EditorStrideSubsystem's list has the strip at index 2. Which pipeline handled
+  a spawn decides whether that infantry can join the crowd.
+  RESOLUTION: it is step 3 HOST (e) -- collapse the Stride editor's second pipeline into the pack. And the
+  fix needs NO new reference: Hrot.Editor can never name the strip, but EditorStrideSubsystem already
+  injects the muscle via MuscleModuleFactory, so it passes EntityCreationContext.ExtraTranslators the same
+  way. That is precisely what the pack's add-only ExtraTranslators is for.
+  ⛔ Options A (move the strip down) and B (restore the shape guard) are DEAD. C (one host only is fine) is
+  also dead -- the Editor genuinely runs a live crowd when Stride hosts it.
+  ⚠ Verification of host (e) CANNOT be done on Linux -- hand it to the Windows lane.
+  ⚠ The two StrD21 navigation reds are plausibly the same root but remain UNATTRIBUTED; do not claim them
+  until host (e) is done and they are re-run.
+  ⚠ TWO STALE DIAGNOSTICS to fix in words, not code: NavigationIntentBridgeSystem.cs:234-240's warning text
+  ("the translator fix is absent", "ShapeKind must be Capsule") describes the pre-relocation design -- the
+  tripwire is correct, its explanation is not; and Translator_Infantry200_DoesNotInjectVehicleState calls
+  the kinematics translator ALONE, encoding the removed design => re-home it onto the strip.
 CE-143 (new, 2026-08-31, from the architect review): ReliableInitType is HARDCODED to AllPeers at
   CreateEntityRequestSystem.cs:302 (root) and :397 (TKB children), and EntityCreationRequest carries NO
   field to override it. Enum has None / PhysicsServer / AllPeers. => an IG drawing created via path 2
