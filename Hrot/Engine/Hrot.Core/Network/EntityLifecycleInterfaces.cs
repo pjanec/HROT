@@ -53,7 +53,7 @@ public sealed class EntityCreationRequest
     public List<object>? InitialComponents { get; init; }
 
     /// <summary>
-    /// When non-zero, <see cref="Hrot.CGF.Systems.CreateEntityRequestSystem"/> uses
+    /// When non-zero, <c>Hrot.Common.Systems.CreateEntityRequestSystem</c> uses
     /// this value directly as the entity's network ID and skips
     /// <c>INetworkIdAllocator.AllocateId()</c>.  Set by
     /// <c>StagingEntityExtractor</c> during scenario load.

@@ -23,6 +23,10 @@ known-rot: obstacle 4 and the closing caveat of section 5.2 BOTH used to say the
   5.3 (CE-142, 2026-08-31): all three pieces are pure mechanism, the receive side is doubly guarded and
   free to ungate, and the only role-specific thing is the injected BrainMuscleOwnershipStrategy POLICY.
   A reader must not quote either prior wording.
+known-rot: §5.4's headline answer "the target is Hrot.Core/Network" is WRONG and is retracted in its own
+  AS-BUILT block (2026-08-31). Hrot.Core -> Hrot.Common is a CYCLE, because CreateEntityRequestSystem
+  constructs Hrot.Common.Serializers.InitialUnitSubordinateIntent by fully-qualified name. The built
+  target is Hrot/Engine/Hrot.Common/Systems/, namespace Hrot.Common.Systems. Obstacle 1 is DONE.
 known-rot: §5.1's and DESIGN §5.1's "IG keeps GhostDestructionSystem + IgUnitHierarchyModule and gains
   the full genesis pipeline" is WRONG — keeping GhostDestructionSystem beside NetworkSpawningSystem is
   the destroy-side double-consumption bug. Corrected 2026-08-31 in §5.6 (CE-144).
@@ -365,7 +369,7 @@ coincidence between two unrelated gates, and unification is what turns those int
 single-owner entities *(the user's map drawings)* delegate nothing, so `CE-142` is about not having removed a
 capability, **not** about unblocking the drawing case.
 
-### 5.4 ✅ OBSTACLE ① RESOLVED — **the target is `Hrot.Core/Network/`, and the move costs no new reference**
+### 5.4 ✅✅ OBSTACLE ① — **BUILT `2026-08-31`. ⚠ The target is `Hrot.Common`, NOT `Hrot.Core` — this section's own answer was WRONG**
 
 📌 **Raised by the architect review (`2026-08-31`) as watch-out A**: *"ensure `JsonAttributeCompiler`
 and `IOwnershipDistributionStrategy` do not drag CGF-specific or presentation-specific references down into
@@ -379,7 +383,7 @@ neither.
 | **the feared drag** | ✅ **absent.** `JsonAttributeCompiler` is already `Fdp.Toolkits/Replication/Patching/`; `IOwnershipDistributionStrategy` already `Fdp.Toolkits/Replication/Abstractions/` |
 | ⭐ **host-assembly references inside the two files** | ✅ **NONE** — `grep` for `Hrot.CGF|Hrot.Map|Hrot.Editor|Hrot.IG` matches **only their own `namespace Hrot.CGF.Systems` line.** Their entire using set is `Fdp.*` plus **`Hrot.Core.Network`** |
 | ⛔⛔ **why NOT `Fdp.Toolkits`** | 📐 both depend on `Hrot.Core.Network` *(`IEntityCreationRequestSource`, `IEntityAckSink`, `EntityCreationRequest`)* ⇒ **putting them in `Fdp.Toolkits` would need `Fdp.Toolkits → Hrot.Core`, INVERTING the layering** |
-| ✅⭐⭐ **the answer: `Hrot.Core/Network/`** | ⭐ **where the whole seam already lives** — `IEntityCreationRequestSource`, `CompositeEntityCreationRequestSource`, `ScenarioEntityCreationRequestSource`, `NullEntityAckSink`, `EntityCreationRequest`. ⭐ **And `TkbTranslatorSet` is already in `Hrot.Core/Tkb/`**, so the pack's neighbours are there too ⇒ **zero new project references, no assembly-graph change** |
+| 🔴🔴 **~~the answer: `Hrot.Core/Network/`~~ — RETRACTED, see the AS-BUILT block below** | ⛔ **`Hrot.Core` → `Hrot.Common` is a CYCLE.** 📐 The reasoning in this row was right about the *seam* living in `Hrot.Core/Network/`, and wrong about the *systems* being able to follow it |
 | ⚠ **one tidy-up** | `EntityCreationRequest.PreAllocatedNetworkId`'s doc has `<see cref="Hrot.CGF.Systems.CreateEntityRequestSystem"/>` — ⭐ update the cref with the namespace, or it becomes a stale-doc warning |
 
 #### ✅ 🔒 USER RULING `2026-08-31` — **`DeleteEntityRequestSystem` moves too**
@@ -453,6 +457,78 @@ omission, and it retires for the same reason.
 
 
 
+#### ✅✅ AS-BUILT `2026-08-31` — **3 files → `Hrot/Engine/Hrot.Common/Systems/`, namespace `Hrot.Common.Systems`**
+
+🔴🔴 **This section said `Hrot.Core/Network/` and was WRONG.** 📐 The measurement that
+broke it, found by *building* rather than reading:
+
+```
+Hrot.Common/Systems/CreateEntityRequestSystem.cs:394
+    childComponents.Add(new Hrot.Common.Serializers.InitialUnitSubordinateIntent { … });   // FULLY QUALIFIED
+Hrot.Common.csproj:33
+    <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />                            // Common → Core
+```
+
+⇒ ⛔⛔ **`Hrot.Core` → `Hrot.Common` would be a CYCLE.** ⭐ `Hrot.Common` is the correct home, and it is what
+§5's original wording said all along *("a shared assembly (`Fdp.Toolkits` or `Hrot.Common`)")* — ⚠ **it was
+this section's later "resolution" that narrowed it to `Hrot.Core` on an incomplete check.**
+
+| ⚠⚠ **the error class — THIRD instance in one day** | |
+|---|---|
+| what I checked | the three files' **`using` directives**, and concluded *"their entire using set is `Fdp.*` plus `Hrot.Core.Network`"* |
+| what that cannot see | 🔴 **a FULLY-QUALIFIED type reference in a method body.** `Hrot.Common.Serializers` needs no `using`, so it was invisible |
+| the other two instances | `CharacterAnimationDefDto`'s assembly *(step 4, §3.3 finding ③)* and the `CE-145` file count *(24 → 53 → 56)* |
+| ⭐ **the checkable habit** | ⛔ **a usings scan is NOT a dependency scan.** ⭐ For a cross-assembly move, either `grep` the body for `<OtherAssembly>\.` prefixes, **or just BUILD IT** — the compiler is the only complete answer, and it costs 8 s per project |
+
+##### ⭐ Why not move `InitialUnitSubordinateIntent` down to `Hrot.Core` instead
+
+📐 **Measured: ~30 consumer files**, and it lives in `Hrot.Common/Serializers/GenesisIntentComponents.cs`
+with sibling genesis-intent DTOs and a matching `GenesisIntentRegistry`. ⇒ ⛔ **far more churn than moving the
+three systems, and it would split a cohesive file.** ⭐ Routing the systems to `Hrot.Common` is the smaller,
+truer change.
+
+##### ✅ `Hrot.Common` satisfies "every node can register it"
+
+| 📐 | |
+|---|---|
+| **references `Hrot.Common` DIRECTLY** | `Hrot.CGF` · `Hrot.SimHost` · `Hrot.IG` · `HrotStrideApp.Game` · `Hrot.ClusterRunner` · `Hrot.ExCon` · `Hrot.NodeComposition` · `Hrot.Orchestrator` · `Hrot.Network.NED` · `Hrot.Blueprints.Compiler` |
+| **transitively** | ⭐ **`Hrot.Editor`** — via `Hrot.SimHost` / `Hrot.CGF` / `Hrot.Network.NED` |
+| ⭐⭐ **and it is where `SharedApplicationBootstrapper` already lives** | `Hrot.Common/Infrastructure/` ⇒ **this is the shared HOST-level assembly by construction**, which is exactly the layer a universally-registered system belongs to |
+
+##### 📐 The change, and why the churn was small
+
+| | |
+|---|---|
+| **moved** | `CreateEntityRequestSystem.cs` · `EntityRequestFinalizationSystem.cs` · `DeleteEntityRequestSystem.cs` → `Hrot/Engine/Hrot.Common/Systems/`, namespace `Hrot.CGF.Systems` → **`Hrot.Common.Systems`** |
+| ⭐ **namespace RENAMED, not preserved** | ⛔ unlike `CE-145`, where preserving it was the cheap win. 🔒 Here the name is the *point*: **keeping "CGF" in the name of a type every node registers would perpetuate the misconception Q65 exists to kill** |
+| **consumer edits** | ⭐ **6 one-line `using Hrot.Common.Systems;` additions** *(`CgfSubsystem`, `SimHostInstance`, and 4 `Hrot.SimHost.Tests` files)*. 📐 3 more already had it |
+| ✅⭐ **the Stride fence held with ZERO action** | 📐 `EditorStrideSubsystem.cs` **already** imported `Hrot.Common.Systems`, so it needed no edit — ⇒ **the one file both lanes could reach was never actually contested.** 📄 `HANDOFF_CE145_Stride_Windows.md` §4 |
+| ⚠ **one hazard worth naming** | `Hrot.Core` has `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`, so `EntityLifecycleInterfaces.cs`'s `<see cref="…CreateEntityRequestSystem"/>` — now pointing into an assembly `Hrot.Core` does not reference — would be **CS1574 ⇒ an ERROR**. ⭐ Changed to `<c>…</c>` |
+| ⭐ **each moved file carries a header** | why it moved, why the namespace changed, and why `Hrot.Common` and not `Hrot.Core` |
+
+##### 🔴 A PRE-EXISTING BREAK found and fixed on the way
+
+📐 **`Hrot.SimHost.Integration.Tests` did not compile AT ALL** on the base commit: `SimHostInstance.cs`
+used `AttributeCompilerFactory` *(`Fdp.Toolkit.Replication.Attributes`)* with **no import for it**.
+⭐ **Proven pre-existing** by `git stash -u` + rebuild — the same `CS0103` fires on base with none of this
+work present. ⇒ ⭐ fixed with the one missing `using`, and **7/7 `EntityCreationFlowTests` now pass** — which
+is the strongest verification this move has, since those exercise `CreateEntityRequestSystem` end to end.
+⚠ **Out of my lane** *(test-suite reliability is the backend lane's `QA-` area)* — ⭐ fixed anyway because it
+was one line and it was blocking verification of my own change; **flagged here so the backend lane knows.**
+
+##### 📐 Gates
+
+| gate | result |
+|---|---|
+| per-project builds *(`--no-restore`; ⛔ never the solution)* | ✅ `Hrot.Core` · `Hrot.Common` · `Hrot.CGF` · `Hrot.Editor` · `Hrot.SimHost` · `Hrot.Network.NED` · `Hrot.Presentation` · `Hrot.SimHost.Tests` · `Hrot.Editor.Tests` · `Hrot.SimHost.Integration.Tests` |
+| ⭐ **new rails** `RequestTierPlacementRails` | ✅ **12/12** — no host assembly, no "CGF" in the namespace, publicly constructible, `IEcsModuleSystem` |
+| ⭐ **non-vacuity probe** *(expectations flipped to the OLD assembly/namespace)* | ✅ **exactly 6 of 12 redden** — the two placement rails × three types. ⚠ **Stated accurately: this proves the rails READ REALITY, it is not a defect red-proof** — a real one would mean reverting the move |
+| **T1 `Hrot.SimHost.Tests`** | ✅ **810 passed** *(798 + 12 new)* · 1 failed · 3 skipped |
+| **`Hrot.Editor.Tests`** | ✅ **341 passed** · 0 failed · 1 skipped |
+| **`EntityCreationFlowTests`** *(integration)* | ✅ **7/7** |
+| 🔴 **the 1 red** | `FullBranchPipelineTests.BranchedRecording_…` = **`QA-012`**, pre-existing, proven by stash+rebuild on base earlier this session |
+| ⛔ **NOT verified** | the Stride tree — ⭐ but `EditorStrideSubsystem` needed **no edit at all**, so the exposure is a stale `using Hrot.CGF.Systems;` that may now be unused *(a warning at most)* |
+
 ### 5.5 🔴🔴 `CE-143` — **`ReliableInitType` is hardcoded; the request cannot express "do not wait for peers"**
 
 📌 **Raised by the architect review as watch-out C, and it is the review's most valuable finding.**
@@ -502,7 +578,7 @@ IG's drawings being usable**, as opposed to merely correct.
 | # | | why here |
 |---|---|---|
 | **1** | pack **step 4** *(catalogue contents)* | smallest, independent |
-| **2** | ⭐ **move `CreateEntityRequestSystem` to a shared assembly** | obstacle ① — a pure move, and nothing below is expressible without it |
+| ✅ **2** | ✅✅ **DONE `2026-08-31`** — the 3 request-tier files moved to **`Hrot/Engine/Hrot.Common/Systems/`**, namespace `Hrot.Common.Systems` | obstacle ① — a pure move, and nothing below is expressible without it. ⚠⚠ **The target was NOT `Hrot.Core`** — that would be a cycle; §5.4's AS-BUILT block carries the correction |
 | **3** | pack **step 3** *(`EntityCreationPack`)*, now **one uniform pipeline** — ⛔⛔ **adoption order matters: Stride node → SimHost → Editor → CGF → IG LAST, and IG only together with step 4** | §2.3's halves are gone, and 🔒 the `2026-08-31` ruling forbids omitting the pipeline per host. ⚠ **See the hazard below the table** |
 | **4** | **Q65-A′** — retarget originators to self-targeted requests, starting with IG's tactical graphics *(obstacle ④ says they need no split authority)*. ⭐ **Ship it in the SAME commit as IG's pack adoption** | the user's actual use case, and the safest instance of it. ⛔⛔ **Not separable from IG's step-3 adoption — see the hazard** |
 | **4b** | 🔴 **`CE-143`** — add `ReliableInitType` to `EntityCreationRequest` *(default `AllPeers`)*; IG drawings pass `None` | 📄 **§5.5.** ⛔ **WITH step 4** — the one real prerequisite for IG drawings being USABLE rather than merely correct |

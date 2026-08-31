@@ -59,6 +59,33 @@ CE-145 (new, deferred BY THE USER to a Windows/VS session): the animation TKB de
   Linux, which is why it waits for VS. ⚠ I first sized this at 24 files; that count covered only four
   DTO names and missed StanceId + AnimNotifyCategory. Each moved file carries a header explaining why a
   Hrot.* namespace sits in Fdp.Toolkits.
+OBSTACLE 1 IS DONE (2026-08-31). The 3 request-tier files moved to
+  Hrot/Engine/Hrot.Common/Systems/ with namespace Hrot.Common.Systems (renamed, NOT preserved -- keeping
+  "CGF" in the name of a type every node registers is the misconception Q65 kills).
+  ⛔ TARGET WAS NOT Hrot.Core: Q65 §5.4's own "resolved" answer was WRONG. CreateEntityRequestSystem:394
+  constructs Hrot.Common.Serializers.InitialUnitSubordinateIntent by FULLY-QUALIFIED name, and
+  Hrot.Common.csproj:33 references Hrot.Core, so Hrot.Core -> Hrot.Common is a CYCLE. Moving
+  InitialUnitSubordinateIntent instead was measured at ~30 consumers + a cohesive genesis-intent file =>
+  more churn. Hrot.Common is reachable from every host (Editor transitively via SimHost/CGF/NED) and is
+  where SharedApplicationBootstrapper lives.
+  ⚠⚠ ERROR CLASS, THIRD INSTANCE IN ONE DAY: I checked the files USINGS and called the dependency set
+  clean; a fully-qualified reference in a method body is invisible to that. A usings scan is NOT a
+  dependency scan -- grep the body for <OtherAssembly>. prefixes, or just BUILD IT (8s/project).
+  Churn: 6 one-line using additions. ⭐ The Stride fence held with ZERO action -- EditorStrideSubsystem.cs
+  already imported Hrot.Common.Systems, so the one file both lanes could reach was never contested.
+  Hazard handled: Hrot.Core has TreatWarningsAsErrors, so EntityLifecycleInterfaces.cs's <see cref> into
+  Hrot.Common would be CS1574 => error; changed to <c>.
+  New rails: RequestTierPlacementRails 12/12 (not in a host assembly, no CGF in the namespace, publicly
+  constructible, IEcsModuleSystem). Non-vacuity probe (flip expectations to the OLD values) reddens
+  exactly 6 of 12 -- that proves the rails read reality; it is NOT a defect red-proof.
+  Gates: 10 projects build; T1 Hrot.SimHost.Tests 810 pass / 1 fail (QA-012, pre-existing) / 3 skip;
+  Hrot.Editor.Tests 341/0/1; EntityCreationFlowTests 7/7 (integration -- exercises the moved system
+  end to end).
+PRE-EXISTING BREAK FIXED (out of my lane, flagged for the backend lane): Hrot.SimHost.Integration.Tests
+  did not compile AT ALL on base -- SimHostInstance.cs used AttributeCompilerFactory with no
+  using Fdp.Toolkit.Replication.Attributes. Proven pre-existing by git stash + rebuild (same CS0103 on
+  base). Fixed with the one missing using because it was blocking verification of my own change; the
+  whole test project is now buildable and its 7 entity-creation tests pass.
 CE-143 (new, 2026-08-31, from the architect review): ReliableInitType is HARDCODED to AllPeers at
   CreateEntityRequestSystem.cs:302 (root) and :397 (TKB children), and EntityCreationRequest carries NO
   field to override it. Enum has None / PhysicsServer / AllPeers. => an IG drawing created via path 2

@@ -1,7 +1,32 @@
+// ⭐⭐ MOVED HERE 2026-08-31 (Q65 obstacle 1) FROM Hrot/Subsystems/Hrot.CGF/Systems/.
+//
+// WHY: this is the REQUEST TIER of entity genesis, and it is not CGF's. Q65 measured that
+// `isDefaultProcessor` is a BROADCAST TIEBREAKER, not an authority gate -- CreateEntityRequestSystem
+// processes a request targeted at the LOCAL node regardless of that flag. So every ECS-equipped node
+// should register this system; only one node carries isDefaultProcessor: true, for Owner == 0 broadcasts
+// from non-ECS clients like ExCon.
+//
+// While it lived in the Hrot.CGF host assembly, "every node registers it" was not even EXPRESSIBLE:
+// only CGF, the Editor and the Stride editor could construct it. This move is what makes
+// EntityCreationPack (DESIGN step 3) possible, and it is a PURE MOVE -- no behaviour change.
+//
+// The namespace changed from Hrot.CGF.Systems to Hrot.Common.Systems deliberately: keeping "CGF" in
+// the name of a type every node uses would perpetuate exactly the misconception Q65 exists to kill.
+//
+// WHY Hrot.Common AND NOT Hrot.Core (Q65 section 5.4 said Hrot.Core, and that was WRONG):
+// CreateEntityRequestSystem constructs Hrot.Common.Serializers.InitialUnitSubordinateIntent by
+// FULLY-QUALIFIED name in its child-blueprint branch. Hrot.Common already references Hrot.Core, so
+// Hrot.Core -> Hrot.Common would be a CYCLE. Measured 2026-08-31. Hrot.Common is reachable from
+// every host (CGF, SimHost, IG, Stride, ClusterRunner directly; Hrot.Editor transitively via
+// SimHost/CGF/NED) and is where SharedApplicationBootstrapper already lives, so "every node can
+// register it" holds.
+//
+// 📄 docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md sections 5.4 and 6
+// 📄 docs/DESIGN_Entity_Creation_Unification.md section 3.4
 using System;
+using Hrot.Core.Network;
 using System.Collections.Generic;
 using Fdp.Core.CommandHierarchy;
-using Hrot.Core.Network;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core.Logging;
 using Fdp.Interfaces;
@@ -13,7 +38,7 @@ using Fdp.Toolkit.Replication.Abstractions;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.NetworkSpawning;
 
-namespace Hrot.CGF.Systems
+namespace Hrot.Common.Systems
 {
     /// <summary>
     /// Handles entity creation requests arriving from the network (protocol-neutral).

@@ -14,6 +14,8 @@ using Hrot.AI.Behaviors;
 using Hrot.CGF;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
+using Hrot.Common.Systems;   // Q65 obstacle 1: the request tier moved here
+using Fdp.Toolkit.Replication.Attributes;   // PRE-EXISTING BREAK: AttributeCompilerFactory was never imported
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Tkb;
