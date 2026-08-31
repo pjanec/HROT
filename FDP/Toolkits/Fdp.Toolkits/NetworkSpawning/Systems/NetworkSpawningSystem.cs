@@ -33,6 +33,35 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
         /// <param name="elm">Entity lifecycle module that manages construction/destruction handshakes.</param>
         /// <param name="networkMap">Entity ↔ network-ID registry.</param>
         /// <param name="idAllocator">Network-ID allocator (stub or DDS-backed).</param>
+        /// <param name="translators">
+        /// 🔴🔴 <b>The node's TKB→ECS projection list. Omitting it means "spawn entities with NO TKB
+        /// template components at all" — not "spawn a default set".</b>
+        ///
+        /// <para>⚠⚠ <b>This parameter is optional and defaults to <c>Array.Empty</c>, which is a
+        /// SILENT no-op:</b> step 4 of <c>ProcessSpawn</c> is <c>foreach (var t in _translators)
+        /// t.Inject(...)</c> — the only writer of descriptor-derived components in this system — so an
+        /// empty list turns it into a zero-iteration loop. The entity still gets its
+        /// <c>NetworkIdentity</c>, <c>NetworkOwnership</c>, <c>TkbIdentity</c> and DIS header, so it
+        /// looks spawned; it simply carries none of its type's kinematics, combat, perception,
+        /// behaviour or presentation. 📌 Measured 2026-08-30 (<c>CE-138</c>): one host reached
+        /// production this way.</para>
+        ///
+        /// <para>⛔⛔ <b>Do NOT use a short list to narrow what a host materialises.</b> That is not the
+        /// narrowing lever. Every <see cref="ITkbEntityTranslator"/> is contractually required to guard
+        /// each write with <c>repo.IsComponentTypeRegistered&lt;T&gt;()</c>, so a translator whose
+        /// components this host never registered is already a no-op. ⇒ ⭐ <b>the per-host difference is
+        /// the REGISTRATION SET; the translator list should be the node's full projection set.</b>
+        /// A component the host does not want is excluded by not registering it, which fails loudly at
+        /// one place, rather than by omitting a translator, which fails silently everywhere.</para>
+        ///
+        /// <para>⭐ Pass the SAME instance to <see cref="EntityLifecycleModule"/> and
+        /// <c>GhostPromotionSystem</c> — <c>docs/designs/tkb-1/DESIGN.md</c> §6.5 calls that the node's
+        /// "single point of truth".</para>
+        /// </param>
+        /// <param name="onEntitySpawned">
+        /// Optional post-spawn hook: <c>(world, entity, isLocalAuthority)</c>, invoked after components
+        /// and authority bits are set and before the entity is registered in the network map.
+        /// </param>
         /// <param name="localNodeId">This node's logical ID, used to fill NetworkOwnership.</param>
         public NetworkSpawningSystem(
             ITkbDatabase tkbDb,
@@ -92,7 +121,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                 return;
             }
 
-            // 4. Create ECS entity and apply TKB blueprint defaults
+            // 4. Create ECS entity and apply TKB blueprint defaults.
+            // ⚠ This loop IS the "Apply TKB template components" step of the spawn flow in
+            //   docs/projects/relationships/Hrot-Simulation-Pipeline.md §4.3, and it is the ONLY writer
+            //   of descriptor-derived components in this method. With an empty _translators it is a
+            //   zero-iteration loop and the entity is born with identity but no type — see the
+            //   `translators` ctor doc.
             var entity = world.CreateEntity();
             // Set lifecycle header immediately so queries that filter by Constructing
             // can find this entity even before all peer ACKs arrive.

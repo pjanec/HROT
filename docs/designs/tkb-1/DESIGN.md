@@ -1,7 +1,17 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-30
+current-answer: the whole document is the TKB design and is BUILT. §6.5b is the section added on
+  2026-08-30 and is the one to read before composing a node's translator list — it states the
+  consequence of §6.1's registration guard, which the rest of the document leaves implicit.
+known-rot: §6.5's closing sentence ("an IG node would include BIG-specific translators; a SimHost
+  node would not") reads as if per-node LIST curation were the intended narrowing lever. It is not;
+  §6.5b corrects that reading. Do not quote that sentence without §6.5b.
+-->
 # DESIGN: Transient Knowledge Base (TKB) — File-Driven Blueprint Registry
 
 **Workstream:** tkb-1  
-**Status:** Draft  
+**Status:** Draft (as authored) — ⭐ **BUILT**; see the STATUS block and §6.5b  
 **Input documents:** `.dev/tkb-1/tkb-design-ideas.md`, `.dev/tkb-1/design-talk.md`
 
 ---
@@ -591,6 +601,61 @@ var blueprintApplicator = new BlueprintApplicationSystem(..., translatorList);
 
 This ensures a single point of truth for which translators are active on a given node type. An
 IG node would include BIG-specific translators; a SimHost node would not.
+
+⚠⚠ **Read §6.5b before acting on that last sentence.**
+
+#### 6.5b ⭐⭐⭐ THE LIST IS NOT THE NARROWING LEVER — **the REGISTRATION SET is** *(added `2026-08-30`)*
+
+> 📌 **Added because a session got this exactly backwards.** It found a host passing **no** translators,
+> read §6.5's closing sentence as licence — *"per-node lists, so an empty one may be deliberate"* — and
+> filed the omission as *"possibly intentional Brain-node narrowing."* ⛔ **Wrong.** The correcting
+> question came from the user: *"how is the component creation gated — TKB can hardly instantiate an ECS
+> component that is not registered on CGF (because subsystems register just what they need)?"*
+
+⭐⭐ **§6.1's guard is not merely defensive; it is the composition mechanism.** Every write in every
+translator is **double-gated**:
+
+| gate | asks | expressed by |
+|---|---|---|
+| **①** | *does this TYPE carry the data?* | `template.GetDescriptor<TDto>() == null ⇒ return` — the **TKB author's** decision |
+| **②** | *does THIS HOST want the component?* | `repo.IsComponentTypeRegistered<TComponent>()` — the **host composition root's** decision |
+
+📐 **Verified `2026-08-30` across all nine production implementations** — `SpatialCore`,
+`VehicleKinematics`, `Combat`, `Perception`, `Behavior`, `Presentation`, `Animation`, `AiDiagnostics`,
+`InfantryVehicleStateStrip`. ⚠ The guard is load-bearing: `EntityRepository` **throws**
+`InvalidOperationException("Component type … is not registered")` on an unregistered write.
+
+⇒ 🔒🔒 **A translator whose components a host never registered is ALREADY a no-op on that host.**
+
+##### ⭐ So the rule, stated plainly
+
+| ⭐ do | ⛔ don't |
+|---|---|
+| give every node its **full projection set** | ⛔ hand a node a short list to make it materialise less |
+| express *"this host does not want X"* by **not registering X** | ⛔ express it by omitting X's translator |
+| pass the **same instance** to `NetworkSpawningSystem`, `BlueprintApplicationSystem` and `GhostPromotionSystem` *(§6.3)* | ⛔ let the three drift apart |
+
+⭐⭐ **Why registration is the better lever:** not registering a component is **one** decision, in the
+host's component registry, and any code that then tries to write it **throws** — a loud, single-site
+failure. Omitting a translator is a decision taken at a composition root and **fails silently for every
+entity that host ever spawns**, with the entity still looking spawned *(it keeps `NetworkIdentity`,
+`NetworkOwnership`, `TkbIdentity` and its DIS header)*.
+
+⛔⛔ **An EMPTY list is never a curation choice** — it disables gates ① and ② together. On a node that
+spawns, it means *"born with an identity but no type."*
+
+⚠ **What §6.5's closing sentence actually means:** per-node variation is *allowed* — a node may **add**
+translators no other node has *(`AiDiagnosticsTkbTranslator` on SimHost, `InfantryVehicleStateStrip` on
+Stride)*. ⛔ It does **not** mean a node should **subtract** translators to avoid components; gate ② does
+that for free.
+
+##### 📌 The instance this section exists for
+
+📐 `2026-08-30`, filed as **`CE-138`**: CGF — which
+[`Hrot-Simulation-Pipeline.md`](../../projects/relationships/Hrot-Simulation-Pipeline.md) §2 names the
+*"entity spawning authority"*, and whose §4.3 step reads **"Apply TKB template components"** — passes
+translators on **none** of the three seams. Rails:
+`Hrot.SimHost.Tests/TkbTranslatorSpawnParityRails.cs`.
 
 ---
 

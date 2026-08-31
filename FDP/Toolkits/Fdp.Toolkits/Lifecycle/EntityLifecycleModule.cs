@@ -53,12 +53,33 @@ namespace Fdp.Toolkit.Lifecycle
         private int _totalDestructed;
         private int _timeouts;
         
+        /// <param name="tkb">TKB template registry.</param>
+        /// <param name="participatingModuleIds">Modules that must ACK every construction/destruction.</param>
+        /// <param name="timeoutFrames">Frames to wait for ACKs before giving up on a handshake.</param>
+        /// <param name="localNodeId">This node's logical ID.</param>
+        /// <param name="translators">
+        /// 🔴 <b>The node's TKB→ECS projection list, handed to <c>BlueprintApplicationSystem</c> in
+        /// <see cref="RegisterSystems"/>. Omitting it means "apply NO TKB template components" — not
+        /// "apply a default set".</b>
+        ///
+        /// <para>⚠⚠ It defaults to <c>Array.Empty</c>, silently. ⛔ <b>Do not use a short or absent list
+        /// to narrow what a host materialises</b> — every <see cref="ITkbEntityTranslator"/> already
+        /// guards each write with <c>IsComponentTypeRegistered&lt;T&gt;()</c>, so the per-host lever is
+        /// the REGISTRATION SET, not the list. 📄 See the interface's own remarks and
+        /// <c>docs/designs/tkb-1/DESIGN.md</c> §6.1/§6.5. 📌 <c>CE-138</c>.</para>
+        ///
+        /// <para>⭐ Pass the SAME instance here and to <c>NetworkSpawningSystem</c> /
+        /// <c>GhostPromotionSystem</c> — §6.3: <i>"the translator list is identical for all three
+        /// systems within the same node"</i>. ⚠ <see cref="SetTranslators"/> exists for composition
+        /// roots that build the module before the list; it must run before
+        /// <see cref="RegisterSystems"/>.</para>
+        /// </param>
         public EntityLifecycleModule(
             ITkbDatabase tkb,
             IEnumerable<int> participatingModuleIds,
             int timeoutFrames = 300,
             long localNodeId = 0,
-            IReadOnlyList<ITkbEntityTranslator>? translators = null) 
+            IReadOnlyList<ITkbEntityTranslator>? translators = null)
         {
             _tkb = tkb;
             _globalParticipants = new HashSet<int>(participatingModuleIds);

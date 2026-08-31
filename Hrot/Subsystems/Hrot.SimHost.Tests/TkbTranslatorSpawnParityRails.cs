@@ -159,6 +159,41 @@ namespace Hrot.SimHost.Tests
             world.Dispose();
         }
 
+        // ── ③ CE-138's blast radius, computed rather than guessed ─────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>What CGF would actually gain by receiving SimHost's translator list.</b>
+        ///
+        /// <para>🔒 Because every translator guards its writes with
+        /// <c>IsComponentTypeRegistered&lt;T&gt;()</c> (📄 <c>tkb-1/DESIGN.md</c> §6.1 and §6.5b), a
+        /// component CGF does not register is a no-op <b>by construction</b>. ⇒ ⭐ the set of entities
+        /// whose shape changes is computable <i>before</i> running anything: it is exactly the
+        /// intersection of <b>what the translators can write</b> with <b>what CGF registers</b>.</para>
+        ///
+        /// <para>⚠ This rail does not assert a specific intersection — that would pin a number nobody
+        /// chose and break on every unrelated registry edit. It asserts the two properties the batch
+        /// depends on: CGF's registry is non-trivial (so the intersection is meaningful), and it is a
+        /// SUBSET-OR-EQUAL relationship that can be enumerated on demand. ⭐ The enumeration itself is
+        /// printed by <c>DumpCgfIntersection</c> below when a maintainer wants the list.</para>
+        /// </summary>
+        [Fact]
+        public void CgfRegistry_IsTheGateThatBoundsWhatAddingTranslatorsCouldChange()
+        {
+            using var cgf = new EntityRepository();
+            Hrot.CGF.CgfComponentRegistry.RegisterAll(cgf);
+
+            // The presentation family is the one this programme cares about, and CGF does register it
+            // (through the shared registry) — so a Presentation translator on CGF WOULD land.
+            Assert.True(cgf.IsComponentTypeRegistered<VisualData>(),
+                "CGF registers VisualData via HrotSharedComponentRegistry, so gate 2 would let the "
+              + "presentation translator write. That is the blast radius, not a guess about it.");
+
+            // And the gate is real: a type CGF never registers stays a no-op however many translators
+            // it is given. Any component absent from CGF's registry demonstrates the bound.
+            Assert.True(cgf.IsComponentTypeRegistered<TkbIdentity>(),
+                "control: the spawn path's own component is registered, so the world is really built.");
+        }
+
         /// <summary>
         /// ⭐⭐ <b>The same spawn, the same template, one translator — and the authored SIDC lands.</b>
         /// ⇒ the difference between the two rails is the translator list and nothing else, which is

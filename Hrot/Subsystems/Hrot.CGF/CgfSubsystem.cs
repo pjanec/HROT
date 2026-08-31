@@ -650,6 +650,37 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var elm         = (EntityLifecycleModule)_context.BaseModules
                               .First(m => m is EntityLifecycleModule);
 
+        // ⭐⭐⭐ CE-138 — CGF'S TKB→ECS PROJECTION LIST. It had NONE, on the node the design names the
+        //    "entity spawning authority" (docs/projects/relationships/Hrot-Simulation-Pipeline.md §2),
+        //    whose §4.3 spawn step reads verbatim "Apply TKB template components".
+        // 📐 Measured 2026-08-30: NetworkSpawningSystem's `translators` argument was omitted (⇒
+        //    Array.Empty) and elm.SetTranslators was never called, so BOTH projection routes were
+        //    zero-iteration loops. CGF-spawned entities carried NetworkIdentity, NetworkOwnership,
+        //    TkbIdentity and a DIS header — and none of their type's kinematics, combat, perception,
+        //    behaviour or presentation. Rails: Hrot.SimHost.Tests/TkbTranslatorSpawnParityRails.cs.
+        // 🔒 User ruling 2026-08-30: "the tkb idea is very simple and I think the usage rules should be
+        //    same or very similar on cgf and simhost." ⇒ this is SimHost's list, verbatim.
+        // ⭐⭐ Safe by construction, and this is the point of tkb-1/DESIGN.md §6.5b: every translator
+        //    guards each write with IsComponentTypeRegistered<T>(), so a component CGF never registered
+        //    stays a no-op no matter how many translators it is handed. The narrowing lever is the
+        //    REGISTRATION SET, never the list — a short list fails silently for every entity, whereas an
+        //    unregistered component fails loudly at one site.
+        var translators = new System.Collections.Generic.List<Fdp.Interfaces.ITkbEntityTranslator>
+        {
+            new Fdp.Toolkit.Spatial.SpatialCoreTkbTranslator(),
+            new CarKinem.Tkb.VehicleKinematicsTkbTranslator(),
+            new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator(),
+            new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator(),
+            new Fdp.Toolkit.Perception.Translators.PerceptionTkbTranslator(),
+            new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+            new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),
+        }.AsReadOnly();
+
+        // §6.3: "the translator list is identical for all three systems within the same node" — so the
+        // SAME instance goes to the ELM (→ BlueprintApplicationSystem) and to NetworkSpawningSystem.
+        // ⚠ Must precede the kernel's RegisterSystems, which is what reads it.
+        elm.SetTranslators(translators);
+
         // 1. Composite request source: always include the scenario source; add the live
         //    NED adapter source only when network is available.
         var requestSources = new System.Collections.Generic.List<IEntityCreationRequestSource>
@@ -682,7 +713,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             elm,
             _entityMap!,
             idAllocator,
-            _context.NodeId);
+            _context.NodeId,
+            // ⭐ CE-138 — the argument this call omitted. Without it ProcessSpawn step 4's translator
+            //   loop ran zero times on the node that spawns everything. See the list above.
+            translators: translators);
 
         _context.Kernel.RegisterGlobalSystem(spawnSystem);
         _context.Kernel.RegisterGlobalSystem(requestSystem);

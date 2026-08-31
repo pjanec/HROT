@@ -217,14 +217,16 @@ namespace Hrot.SimHost.Tests
         /// mirror image: the component IS registered and the translator is ABSENT from the list, which no
         /// component assertion can see. ⇒ ⭐ the list is exactly what must be asserted.</para>
         ///
-        /// <para>⚠⚠ <b>CGF is absent from this rail for a reason that is NOT settled — see <c>CE-138</c>.</b>
-        /// ⛔ An earlier version of this comment said CGF <i>"has no TKB translator list at all, because its
-        /// entities arrive by network replication."</i> 📐 <b>That is false:</b> <c>CgfSubsystem.cs:680</c>
-        /// constructs a <c>NetworkSpawningSystem</c> over the TKB. What CGF actually does is pass
-        /// <b>no translators on any of the three seams</b>, which may or may not be a defect — its
-        /// component state may arrive over replication instead. ⇒ ⛔ this rail deliberately does not
-        /// assert CGF <i>either way</i> until <c>CE-138</c>'s probe has run, rather than encoding a guess.
-        /// ⚠ ReplayBrowser is unmeasured.</para>
+        /// <para>✅ <b>CGF is now IN this rail (<c>CE-138</c>, fixed <c>2026-08-30</c>).</b> ⛔ An earlier
+        /// version of this comment excluded it, claiming CGF <i>"has no TKB translator list at all,
+        /// because its entities arrive by network replication."</i> 📐 <b>False on both halves:</b>
+        /// <c>CgfSubsystem</c> constructs a <c>NetworkSpawningSystem</c> over the TKB and is the node the
+        /// design calls the <i>"entity spawning authority"</i>; and <c>.WithTranslators</c> exists
+        /// precisely to project TKB descriptors onto <i>replicated</i> ghosts. ⇒ CGF passed translators
+        /// on none of the three seams, and now passes SimHost's list on two of them.
+        /// ⚠ The third seam (<c>.WithTranslators</c> → <c>NedReplicationModule</c>) is still unreachable
+        /// on CGF: its builder chain omits <c>.WithReplication()</c>, which is where that method lives.
+        /// ⚠ ReplayBrowser has no TKB spawn path and is unmeasured.</para>
         ///
         /// <para>⭐ The behavioural half is already here — see
         /// <see cref="PresentationTranslator_OnSimHostWorld_WritesVisualData"/>, which proves the write
@@ -232,6 +234,7 @@ namespace Hrot.SimHost.Tests
         /// <i>which composition roots construct the translator at all.</i></para>
         /// </summary>
         [Theory]
+        [InlineData("Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs")]
         [InlineData("Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs")]
         [InlineData("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs")]
         [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs")]
@@ -240,7 +243,10 @@ namespace Hrot.SimHost.Tests
         {
             var src = ReadRepoSource(relativePath);
 
-            Assert.Contains("new List<ITkbEntityTranslator>", src, System.StringComparison.Ordinal);
+            // ⚠ Match on the TOKEN, not on one spelling of the generic. CGF fully-qualifies both the
+            //   interface and the translator types, so an exact "new List<ITkbEntityTranslator>" match
+            //   reddened on a host that was correctly wired — a brittle assertion, fixed 2026-08-30.
+            Assert.Contains("ITkbEntityTranslator>", src, System.StringComparison.Ordinal);
             Assert.Contains("PresentationTkbTranslator()", src, System.StringComparison.Ordinal);
         }
 
