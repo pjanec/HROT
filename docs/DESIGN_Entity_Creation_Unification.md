@@ -2,9 +2,10 @@
 state: LIVE
 updated: 2026-08-30
 build-state: READY-TO-BUILD
-current-answer: §5 — steps 1 and 2 are BUILT (2026-08-30): TkbTranslatorSet is the one base list and all
-  five spawning sites use it. §3 (the EntityCreationPack) is step 3 and is still a PROPOSAL; §4 carries its
-  UML. §5 step 4 needs a USER RULING, not code (should every host seed RegisterUrbanCombatTkbTemplates?).
+current-answer: §5 is the plan. Steps 1 and 2 are BUILT (2026-08-30): TkbTranslatorSet is the one base
+  list and all five spawning sites use it. Steps 3 and 4 are APPROVED BY THE USER and NOT STARTED —
+  step 3 is the EntityCreationPack (§3, UML in §4), step 4 is the catalogue-contents move (§3.3).
+  Start with step 4: it is smaller, independent, and unblocks nothing else.
 known-conflict: none. tkb-1/DESIGN.md §6.3/§6.5/§6.5b state the intent this design makes structural;
   this document does not contradict them, it removes the need to remember them.
 -->
@@ -56,7 +57,7 @@ with no spawn path and translators only on the replication seam is a coherent co
 |---|---|
 | **①** | **`CE-139` — `StrideNodeBootstrapper:316` omits `translators:`** and never calls `SetTranslators`. **The fifth instance of the identical silent default**, after SimHost, Editor, Stride-editor and CGF. ⚠ Partly masked: `EditorStrideSubsystem:588` builds a **second, separate** pipeline that *does* pass them — so which behaviour you get depends on which composition ran |
 | **②** | **Four independent `HrotEnvironment.CreateTkb()` calls** — `HrotNodeBuilder:197`, `IgNodeBootstrapper:133`, `EditorSubsystem:1229`, and twice inside `HrotNodeBuilderReplicationExtensions`. Each is a **separate catalogue instance** |
-| **③** | ⚠ **Only the Editor and the Stride editor seed `RegisterUrbanCombatTkbTemplates`** *(TkbTypes 1001–2003: MilitaryApc, InfantrySoldier, Insurgent, …)*. ⇒ **the catalogue's CONTENTS differ by host**: a scenario referencing 1001 resolves in the Editor and **not** on SimHost or CGF. ⛔ Unmeasured whether that is intentional *(dev/demo templates)* or drift — it needs a ruling, not a fix |
+| **③** | ✅ **RULED — see §3.3.** Only the Editor and the Stride editor seed `RegisterUrbanCombatTkbTemplates` *(TkbTypes 1001–2003)*, so **the catalogue's CONTENTS differ by host**: a scenario referencing `1001` resolves in the Editor and **not** on SimHost or CGF. 🔒 **User ruling `2026-08-30`: *"if editor builds UrbanCombat stuff then everyone should, editor is the most advanced in that matter."*** ⇒ ⭐ the Editor is the reference, and the fix is a **MOVE**, not a per-host addition — 📐 the reason only two hosts seed it is the **reference graph**, not oversight |
 
 ### 2.2 ⭐⭐ Why convention has not held — the shape is always the same
 
@@ -115,6 +116,41 @@ enforcement `MapInteractionContext` uses. ⛔ **Not own the TKB catalogue** *(in
 narrowing lever *(`tkb-1` §6.5b)*. ⛔ **Not touch `SharedApplicationBootstrapper`'s hook set** — the pack
 is what `RegisterSpawningPipeline` *calls*, so the three hosts that already derive from it keep their
 structure and the three that do not can adopt the pack without inheriting.
+
+### 3.3 ⭐⭐⭐ ONE CATALOGUE CONTENT SET — **the templates must LEAVE the Examples assembly**
+
+> 🔒 **User ruling, `2026-08-30`:** *"if editor builds UrbanCombat stuff then everyone should, editor is
+> the most advanced in that matter."*
+
+📐 **Measured — and the cause is structural, which is why nobody "forgot".**
+`RegisterUrbanCombatTkbTemplates` lives in **`FDP/Examples/Fdp.Examples.Scenarios`**
+*(`Integrated/UrbanCombatNewScenario.cs:562-625`, five templates, ~63 lines)*, and that assembly is
+referenced by exactly **two** production projects:
+
+```
+grep -rln "Fdp.Examples.Scenarios.csproj" --include=*.csproj
+  → Hrot.Editor · HrotStrideApp.Game            (+ Examples.Runner and two test projects)
+```
+
+⇒ 🔒 **The two hosts that seed the templates are precisely the two that CAN.** ⛔ SimHost, CGF and IG
+could not call it if they wanted to. ⇒ ⭐⭐ **this is not fixable by adding a call per host; the templates
+have to move into a product assembly.**
+
+#### ⭐ The move — target measured as unblocked
+
+| | |
+|---|---|
+| **from** | `Fdp.Examples.Scenarios/Integrated/UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates` |
+| **to** | ⭐ **`Hrot.Core`, beside `NedTkbCatalog`** — the existing home for code-registered TKB content |
+| ✅ **dependency check** | every descriptor the five templates use — `TkbMasterDto`, `StrideRenderModelDefDto`, `VehicleParametersDto`, `BehaviorProfileDto`, `SensorCapabilitiesDto` — lives in **`Fdp.Toolkits/Tkb/Domain`**, which `Hrot.Core` already references. ⇒ 🔒 **no new reference, no assembly-graph change** |
+| ⭐ **then one line** | `HrotEnvironment.CreateTkb()` already seeds `NedTkbCatalog.RegisterAll(tkb)` and `RouteTkbExtensions.ApplyRoutePlanToBlueprint(tkb)`. Adding the moved call there gives **every host the same catalogue contents automatically** — and it makes finding ② *(four independent `CreateTkb()` calls)* harmless, because all four produce the same content |
+| ⚠ **leave a forwarder** | `UrbanCombatNewScenario` keeps a `RegisterUrbanCombatTkbTemplates` that delegates to the moved one, so the examples, the runner and the two test projects keep compiling. ⛔ **Do not delete the old entry point** — it is called from five places |
+| ⛔ **do NOT** | ⛔ move the *scenario* — only the **template registration**. `UrbanCombatNewScenario` is an example scenario and stays one |
+
+⚠ **The one thing to verify at build time:** whether the names `TkbCivilianPedestrian` … and the tuning
+constants *(`CivilianVisionRange`, `BehaviorConstants.SimTierCivilian`, …)* the method reads are
+themselves reachable from `Hrot.Core`, or must move with it. 📐 The descriptors are; the constants were
+not checked.
 
 ## 4. ⭐⭐ UML
 
@@ -189,7 +225,7 @@ sequenceDiagram
 | ✅ **1** | **`CE-139`** — **DONE `2026-08-30`.** `StrideNodeBootstrapper:316` now passes the list and calls `SetTranslators` | low; **gate ②** bounded it |
 | ✅ **2** | **`TkbTranslatorSet`** — **DONE `2026-08-30`.** `Hrot.Core/Tkb/TkbTranslatorSet.cs` holds the one base set *(6 translators)*; **all five spawning sites** now call `Base()` or `BasePlus(…)`, and the two per-node additions that live above `Hrot.Core` — `AiDiagnosticsTkbTranslator` (SimHost, CGF) and `InfantryVehicleStateStripTkbTranslator` (Stride editor) — go through `BasePlus`. ⭐ IG keeps its narrower list **with the reason written at the site** | low — no behaviour change where the lists agreed |
 | **3** | **`EntityCreationPack`** over the six sites, one host at a time, `Unserviceable` reporting each | medium — it is a composition change on the spawn path |
-| **4** | ⚠ **finding ③ needs a RULING, not a fix** — should every host seed `RegisterUrbanCombatTkbTemplates`, or is it dev-only? ⛔ Do not "unify" it either way without that answer |
+| **4** | ✅ **RULED, now buildable** — **§3.3**: move the template registration out of `Fdp.Examples.Scenarios` into `Hrot.Core` beside `NedTkbCatalog`, seed it from `HrotEnvironment.CreateTkb()`, leave a forwarder behind. ⭐ Independent of step 3 and can go first — it is the smaller of the two |
 
 ⚠ **Step 2 was the cheap majority of the value** — it is where §6.3's *"identical list"* stopped being a
 convention. ⭐ Step 3 buys invariants ④ and ⑤ and can follow later.
@@ -206,6 +242,19 @@ convention. ⭐ Step 3 buys invariants ④ and ⑤ and can follow later.
 | ⚠ **not verified** | the Stride tree cannot build on Linux *(`Microsoft.WindowsDesktop.App`)*; `EditorStrideSubsystem`'s conversion is checked statically only |
 | ⛔ **still open** | **step 3** *(the pack)* and **step 4** *(the `RegisterUrbanCombatTkbTemplates` ruling)* |
 
+### 5.1 ⭐ Step 3's adoption order — **easiest host first, so the pack is proven before the risky one**
+
+| # | host | why this position |
+|---|---|---|
+| **a** | **Stride node** | ⭐ smallest call site *(one `if` block)*, and already derives from `SharedApplicationBootstrapper`. ⚠ **but cannot be compiler-verified on Linux** — so do it first for shape, verify last on Windows |
+| **b** | **SimHost** | ⭐ the reference implementation; its `RegisterSpawningPipeline` is the hook the pack was designed to be called *from* |
+| **c** | **Editor** | ⭐ largest inline block, and the one whose spawn path the user hand-tested — 🔒 **the standing caution about the editor's scenario path applies**: change composition, not behaviour |
+| **d** | 🔴 **CGF — LAST** | it is the **entity spawning authority** *(`Hrot-Simulation-Pipeline.md` §2)*. ⛔ A composition mistake here breaks every entity in the cluster, so it adopts once the pack has three hosts of evidence |
+| **e** | **Stride editor** | its second pipeline; fold it into the same pack call or delete it if `StrideNodeBootstrapper`'s now suffices — ⚠ **that question is open and must be measured, not assumed** |
+
+⛔ **IG does not adopt.** It has no spawn pipeline by design (§2). ⭐ Its `RegisterSpawningPipeline` stays
+as it is, and the pack is simply not called there.
+
 ## 6. ⭐ Acceptance
 
 | # | |
@@ -216,3 +265,5 @@ convention. ⭐ Step 3 buys invariants ④ and ⑤ and can follow later.
 | ④ | ⭐ **Role selects systems** — `Brain` ⇒ `isDefaultProcessor: true`; `Muscle` ⇒ `false`; render ⇒ neither |
 | ⑤ | ⭐ **A skipped piece is reported** — `Unserviceable` names it, mirroring `MapInteraction`'s rail |
 | ⑥ | ⚠ **Byte-identical default** — each host's spawned entity carries the same component set before and after adoption, measured per host |
+| ⑦ | ⭐⭐ **step 4: one catalogue content set** — a rail asserting `HrotEnvironment.CreateTkb()` resolves **TkbTypes 1001–2003**, so every host's catalogue carries them. ⛔ A rail that calls `RegisterUrbanCombatTkbTemplates` itself is vacuous — it must go through the shared factory |
+| ⑧ | ⭐ **step 4: nothing broke in the examples** — the forwarder keeps `Fdp.Examples.Scenarios`, `Fdp.Examples.Runner` and the two test projects compiling and green |

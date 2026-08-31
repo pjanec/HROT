@@ -1,13 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-30
-current-answer: §0.0e.3d — S5 is BLOCKED (UXI-07 is NOT-BUILT). S1, S2a, S2b, S3, S4 (1+3) DONE;
-  CE-123/126/129 closed; CE-131 REFUTED. 2026-08-30: the symbology design is SETTLED and READY-TO-BUILD —
-  UX_Feature_Entity_Symbology.md §3.8. Key property: the switch is EMIT-SIDE, so FDP/ExtDeps/GizmoMap needs
-  NO renderer change (MilStd2525 is already a peer token with its own case). DONE already: SemanticShapeRenderer
-  deleted, the NATO affiliation table corrected to the standard, and CE-137 (VisualData now written by every
-  TKB-spawning host). REMAINING: CE-133 (the emit-side switch + config key), CE-134 (the health bar),
-  CE-135 (dead trail), CE-136 (third SIDC decoder). Pick one — none is pre-approved, ask first.
+current-answer: §0.0e.3c-NEXT — READ IT FIRST. It carries the AGREED ORDER OF WORK across the
+  compaction boundary of 2026-08-30: (1) EntityCreationPack step 4, then step 3
+  (DESIGN_Entity_Creation_Unification.md — user-approved, NOT started), THEN (2) back to the gizmo /
+  symbology work we left to dive into TKB: CE-133, CE-134, CE-135, CE-136 against
+  UX_Feature_Entity_Symbology.md §3.8. ⛔ Do not re-derive either plan; both designs are written, gated
+  and READY-TO-BUILD.
 
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
   way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
@@ -200,6 +199,55 @@ with **nothing in scope today** · ⭐ `CE-115` *(per-translator mandatory decla
 ⚠⚠ **PROCESS NOTE WORTH KEEPING:** I ran this as a code investigation and swept the design corpus only
 after being told to. ⭐⭐ **The sweep changed the answer** — the design confirmed the user verbatim on two
 points and revealed `CE-115`. 🔒 **`R-129`: read the owning design FIRST. This is its second occurrence.**
+
+### 0.0e.3c-NEXT 🔴🔴🔴 **READ THIS FIRST — THE AGREED ORDER OF WORK ACROSS THE `2026-08-30` COMPACTION**
+
+> 🔒 **User, `2026-08-30`, verbatim:** *"pls create the design and then we will need to do the compaction —
+> so pls remember what we want do do after (the pack and then back to gizmos where we left them when
+> diving into TKB and entity creation)."*
+
+⛔⛔ **Both plans below are ALREADY DESIGNED, GATED AND APPROVED. Do not re-derive them, do not re-open the
+decisions, and do not start a fresh investigation** — that is the exact cost this section exists to avoid.
+
+#### ⭐ ① FIRST: finish the entity-creation unification
+
+📄 **[`DESIGN_Entity_Creation_Unification.md`](../DESIGN_Entity_Creation_Unification.md)** — `READY-TO-BUILD`,
+UML in §4. Tracker: **`CE-140`**.
+
+| order | what | state |
+|---|---|---|
+| ✅ | steps **1 + 2** — `TkbTranslatorSet` is the one base list; all five spawning sites use it | **DONE `2026-08-30`** |
+| ⭐⭐ **do first** | **step 4** — §3.3: move `RegisterUrbanCombatTkbTemplates` out of `Fdp.Examples.Scenarios` into `Hrot.Core` beside `NedTkbCatalog`, seed it from `HrotEnvironment.CreateTkb()`, leave a forwarder. 🔒 **User ruling:** *"if editor builds UrbanCombat stuff then everyone should, editor is the most advanced in that matter."* ⭐ Smaller, independent, and its dependency check is already measured as clean | **approved, NOT started** |
+| ⭐⭐ **then** | **step 3** — `EntityCreationPack` per §3/§3.1/§3.2, adoption order in **§5.1** *(Stride node → SimHost → Editor → ⛔ **CGF LAST**, it is the spawning authority)*. ⛔ **IG does not adopt** — no spawn pipeline by design | **approved, NOT started** |
+
+#### ⭐ ② THEN: back to the gizmo / symbology work
+
+📄 **[`UX_Feature_Entity_Symbology.md` §3.8](../UX/UX_Feature_Entity_Symbology.md)** — `READY-TO-BUILD`, UML,
+settled with the user over four rounds of correction. ⭐⭐ **Its key property: the switch is EMIT-SIDE**, so
+`FDP/ExtDeps/GizmoMap`'s renderer needs **no** change — `MilStd2525` is already a peer token with its own
+renderer case. ⛔ **Two earlier drafts proposed a renderer seam; both are in that document's HISTORY and must
+not be quoted.**
+
+| row | what | notes |
+|---|---|---|
+| ⭐⭐⭐ **`CE-134`** | restore the graphical **health bar** *(deleted by `5ce023677`; recover `e726734cc`'s behaviour — three discrete colours, fill width proportional)* | ⭐ self-contained, ~15 lines, no new machinery. ⚠ *"a primitive was emitted"* is a **vacuous** assertion — the badge satisfies it |
+| ⭐⭐ **`CE-133`** | the **emit-side path switch** + `map.symbology.path` config key | ⚠ open build-time call: CGF/Editor/ReplayBrowser have no `VisualData`, so their SIDC must be synthesised |
+| ⭐ **`CE-135`** | IG's **movement trail** is dead by construction — `ShowHistory` never set at ingress | 🔒 user: *"Let's keep the history trail"* |
+| ⚠ **`CE-136`** | a **third SIDC decoder** neutralises assumed-friend entities | ⛔ deliberately not bundled — it changes affiliation on every host |
+
+✅ **Already done in the symbology lane, do not redo:** `SemanticShapeRenderer` deleted · the NATO affiliation
+table corrected to the standard *(all 15 characters; neutral/unknown had been swapped)* · `CE-137` *(every
+TKB-spawning host writes `VisualData`)* · `CE-138`/`CE-139` *(CGF and the Stride node were passing no
+translators)*.
+
+#### ⚠ Environment notes carried across the boundary
+
+| | |
+|---|---|
+| ⛔ **`hrot-ai-debug` MCP was DOWN all session** | ⇒ **no live `--mode all` verification** was possible for anything after `S4`. `CE-138`'s runtime question and `§3.8`'s live check are both still unrun |
+| ⚠ **`codebase-memory-mcp` MCP flaps** | ⭐ **but its CLI works** — `/opt/codebase-memory-mcp/codebase-memory-mcp cli <tool> '<json>'`; note `trace_path` wants `direction: "inbound"`, not `"callers"` |
+| ⛔ **the `Stride/` tree cannot build on Linux** | `Microsoft.WindowsDesktop.App` unresolvable, pre-existing. Every Stride edit this session is **static-only** and needs a Windows build |
+| ⚠ **`QA-012` is a standing red** | `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` fails in `Hrot.SimHost.Tests`. Pre-existing, backend lane's. ⛔ Do not chase it |
 
 ### 0.0e.3d ⭐⭐⭐ **START HERE — ⛔ `S5` IS BLOCKED; PICK FROM §THE AVAILABLE WORK** *(`2026-08-30`; `S1`–`S4` ①+③ are DONE)*
 
