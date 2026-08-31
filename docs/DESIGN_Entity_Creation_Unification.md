@@ -45,11 +45,59 @@ cli search_graph name_pattern=".*(Tkb|Spawn|Lifecycle).*"  → corroborated the 
 | **Stride editor** | 🔴 **no** — its own second pipeline | 7 | ⭐ **✅** | ✅ | ✅ |
 | ReplayBrowser | 🔴 no | — | — | — | — *(no spawn path)* |
 
-⭐ **IG is correct and is the useful counter-example.** Its `RegisterSpawningPipeline` deliberately
-registers only `GhostDestructionSystem` + `IgUnitHierarchyModule` — *"SpawnEntityCommand is forwarded to
-SimHost … SimHost creates the authoritative ghost which DDS replicates back."* Its 2-entry translator
-list goes to `.WithTranslators(…)` → `NedReplicationModule`, i.e. to the **ghost** projection. ⇒ a host
-with no spawn path and translators only on the replication seam is a coherent configuration.
+⚠⚠ **CORRECTED `2026-08-30` — an earlier version of this row called IG *"the useful counter-example"*
+and concluded *"IG does not adopt."* 🔴 That was too strong, and the user was right to challenge it:**
+*"why doesn't IG adopt? … it is a fully equipped ECS node which can render a 2d map and the user on that
+map should be able to create various tactical symbols (that are shared among all the IGs showing the same
+map) so the IG should have the entity creation capabilities as well."*
+
+📐 **Measured, and IG ORIGINATES entity creation.** Its placement tool goes
+`ActivatePlacementTool` → `MapCommandController.ActivatePlacementCommand` → `EntityPlacementGizmo` →
+`OnEntityCreatedByTool(SpawnEntityCommand)` → **`_eventBus.PublishManaged(cmd)`**. It also has
+`ActivateAreaAuthoringTool` for tactical graphics, and it reads the TKB catalogue directly
+*(`GetTkbPrefixForType` → `ITkbDatabase`)*. ⇒ 🔒 **IG is a full entity-creation participant.**
+
+⭐⭐ **What IG genuinely lacks is only LOCAL MATERIALISATION** — and that is deliberate, not drift:
+`RegisterSpawningPipeline` registers `GhostDestructionSystem` + `IgUnitHierarchyModule`, and the
+`SpawnEntityCommand` IG publishes is picked up by `SpawnEntityCommandEgressTranslator` and forwarded to
+the authority, whose ghost replicates back. **Single spawn authority is the design** *(§4.3)*.
+
+⇒ ⭐⭐⭐ **So the pack has TWO halves, and IG adopts one of them — see §2.3.**
+
+### 2.3 ⭐⭐⭐ THE PACK HAS TWO HALVES — **origination and materialisation** *(added `2026-08-30`)*
+
+| half | what it is | who has it |
+|---|---|---|
+| ⭐ **origination** | the tools and request sources that emit `SpawnEntityCommand` / `CreateEntityRequest` | **IG** *(placement + area authoring)* · **Editor** · **CGF** *(from ExCon)* · **SimHost** *(non-default)* |
+| ⭐ **materialisation** | `NetworkSpawningSystem` + the translator list + `ELM` — turning a command into a live entity | CGF *(the authority)* · SimHost · Editor · Stride ×2. ⛔ **not IG, by design** |
+| ⭐ **the ghost projection** | `NedReplicationModule` / `GhostPromotionSystem` applying TKB descriptors to replicated entities — **also needs the translator list** | **IG** · SimHost |
+
+⇒ 🔒 **IG adopts the pack for origination and the ghost projection, and opts out of materialisation only.**
+⛔ *"IG does not adopt"* was wrong; **the pack must express the halves separately** rather than being
+all-or-nothing per host. ⭐ That is a change to §3's shape: `Role` selects **which half**, not merely which
+systems.
+
+#### 🔴 `CE-141` — and IG's list WIDTH is an open question, not a settled decision
+
+📐 **Measured over IG's real registration path** *(`HrotSharedComponentRegistry` + `IgRoleComponentRegistry`,
+per `IgNodeBootstrapper:150-152`)*:
+
+| registered on IG | ⭐ `Base()` translator that would fill it | in IG's 2-entry list? |
+|---|---|---|
+| `SimTransform` · `SimVelocity` | `SpatialCoreTkbTranslator` | ✅ |
+| `VisualData` | `PresentationTkbTranslator` | ✅ |
+| 🔴 `VehicleParams` · `PhysicsCollider` | `VehicleKinematicsTkbTranslator` | ⛔ **no** |
+| 🔴 `Health` · `WeaponState` | `CombatTkbTranslator` | ⛔ **no** |
+| 🔴 `PerceptionReceptor` · `TargetMemory` | `PerceptionTkbTranslator` | ⛔ **no** |
+| *(not registered: `VehicleState`, `NavState`, `NavigationIntent`, `BehaviorState`, `BrainBlackboard`, `SimTier`, `EntityInfo`)* | — | — |
+
+⇒ ⚠⚠ **IG registers six components that `Base()` would fill and its short list leaves untouched on every
+ghost.** ⛔ **But do NOT widen it on that basis alone** — those six are plausibly populated by **DDS
+replication** from SimHost instead, in which case TKB projection there is redundant *(or briefly shows
+template defaults before the first update)*. 🔒 **The open question is which source should populate a
+ghost's template-derived components**, and it needs a live comparison, not a source reading. ⭐ Filed as
+**`CE-141`**; ⚠ the previous version of this design asserted the narrow list was correct **without
+measuring it**.
 
 ### 2.1 🔴 The three findings
 
@@ -105,7 +153,7 @@ creation.Unserviceable(…);           // ⭐ the S2b diagnostic habit
 | **①** | **one translator list per node** | the pack builds it and hands **the same instance** to `NetworkSpawningSystem`, `elm.SetTranslators` and `GhostPromotionSystem`. ⇒ §6.3 true **by construction** |
 | **②** | **the list is never empty** | there is no way to pass one — `ExtraTranslators` is *additive*. ⭐ The base set is the full projection set, and **gate ②** *(`IsComponentTypeRegistered`, `tkb-1` §6.5b)* does the per-host narrowing |
 | **③** | **one catalogue per process** | `TkbDb` is a **required** context input, not something the pack builds. ⇒ finding ② cannot recur |
-| **④** | **role decides SYSTEMS, not components** | `Brain` gets `CreateEntityRequestSystem(isDefaultProcessor: true)`; `Muscle` gets it `false`; a render node gets `GhostDestructionSystem` only — 📄 exactly `Hrot-Simulation-Pipeline.md` §4.3 |
+| **④** | **role decides WHICH HALF and which systems, never which components** | `Brain` ⇒ origination + materialisation, `CreateEntityRequestSystem(isDefaultProcessor: true)`; `Muscle` ⇒ materialisation + ghost, `false`; ⭐ **a render node (IG) ⇒ origination + ghost projection and NO `NetworkSpawningSystem`** — 📄 `Hrot-Simulation-Pipeline.md` §4.3 and §2.3 |
 | **⑤** | **a host that skips a piece SAYS SO** | `Unserviceable(scheduled)` reports what the pack built and the host did not schedule — the `S2b` mechanism, which is how a silent omission became loud there |
 
 ### 3.2 ⚠ What the pack must NOT do
@@ -252,8 +300,14 @@ convention. ⭐ Step 3 buys invariants ④ and ⑤ and can follow later.
 | **d** | 🔴 **CGF — LAST** | it is the **entity spawning authority** *(`Hrot-Simulation-Pipeline.md` §2)*. ⛔ A composition mistake here breaks every entity in the cluster, so it adopts once the pack has three hosts of evidence |
 | **e** | **Stride editor** | its second pipeline; fold it into the same pack call or delete it if `StrideNodeBootstrapper`'s now suffices — ⚠ **that question is open and must be measured, not assumed** |
 
-⛔ **IG does not adopt.** It has no spawn pipeline by design (§2). ⭐ Its `RegisterSpawningPipeline` stays
-as it is, and the pack is simply not called there.
+⭐⭐ **IG DOES adopt — the origination and ghost-projection halves (§2.3)**, and opts out of
+materialisation only. ⛔ Its `RegisterSpawningPipeline` keeps `GhostDestructionSystem` +
+`IgUnitHierarchyModule` and gains no `NetworkSpawningSystem`. ⚠ **Its translator-list width is `CE-141`
+and must not be changed as part of the pack adoption** — settle that separately, with a live comparison.
+
+| # | host | why this position |
+|---|---|---|
+| **f** | **IG** | ⭐ adopt **after** the four materialising hosts, so the pack's two-half split is exercised by a host that uses only one of them. ⛔ Do **not** fold `CE-141` into it |
 
 ## 6. ⭐ Acceptance
 

@@ -110,17 +110,26 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
     {
-        // ⭐⭐ CE-140 step 2 — IG is the DELIBERATE exception, and it is documented as one here so
-        //    nobody "unifies" it by accident. IG has NO spawn pipeline: RegisterSpawningPipeline
-        //    registers only GhostDestructionSystem + IgUnitHierarchyModule, because
-        //    SpawnEntityCommand is forwarded to SimHost and the authoritative ghost replicates back
-        //    (see that method's own comment). ⇒ this list feeds ONLY .WithTranslators(...) →
-        //    NedReplicationModule's GHOST projection, never a local spawn.
-        // ⚠ It is therefore deliberately NARROWER than TkbTranslatorSet.Base(): a render node projects
-        //    pose and presentation onto ghosts and nothing else. ⛔ Do NOT replace this with Base() —
-        //    that is the one case where a shorter list is a real decision rather than an omission,
-        //    and it is safe here because IG never spawns, so nothing else could have filled the gap.
-        // 📄 DESIGN_Entity_Creation_Unification.md §2 (the IG counter-example row).
+        // ⭐⭐ CE-140 / CE-141 — IG's list feeds ONLY the GHOST projection, and its WIDTH is an OPEN
+        //    QUESTION rather than a settled decision.
+        // 📐 What IS measured: IG has no LOCAL materialisation. RegisterSpawningPipeline registers only
+        //    GhostDestructionSystem + IgUnitHierarchyModule, and SpawnEntityCommand is forwarded to
+        //    SimHost, whose authoritative ghost replicates back (see that method's comment). ⇒ this
+        //    list reaches .WithTranslators(...) → NedReplicationModule's ghost projection, never a
+        //    local spawn. ⭐ IG nonetheless ORIGINATES creation: the placement tool's
+        //    MapCommandController.OnEntityCreatedByTool publishes a SpawnEntityCommand on IG's bus.
+        // ⚠⚠ CORRECTED 2026-08-30. An earlier version of this comment said "⛔ Do NOT replace this
+        //    with Base() — a shorter list is a real decision here." 🔴 That was ASSERTED, not measured,
+        //    and the user was right to challenge it. 📐 Re-measured over IG's real registration path
+        //    (HrotSharedComponentRegistry + IgRoleComponentRegistry): IG REGISTERS VehicleParams,
+        //    PhysicsCollider, Health, WeaponState, PerceptionReceptor and TargetMemory — six components
+        //    that TkbTranslatorSet.Base()'s kinematics/combat/perception translators would fill and
+        //    that this 2-entry list leaves untouched on every ghost.
+        // ⛔ Do NOT widen it on that basis alone either: those six are plausibly filled by DDS
+        //    replication from SimHost instead, in which case TKB projection here is redundant. ⇒ the
+        //    open question is WHICH source should populate a ghost's template-derived components, and
+        //    it needs a live comparison, not a source reading. 📄 CE-141 and
+        //    DESIGN_Entity_Creation_Unification.md §2.3.
         var translators = new List<ITkbEntityTranslator>
         {
             new SpatialCoreTkbTranslator(), // Enforces zero-initialization of spatial ECS chunks

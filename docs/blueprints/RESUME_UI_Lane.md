@@ -218,7 +218,8 @@ UML in §4. Tracker: **`CE-140`**.
 |---|---|---|
 | ✅ | steps **1 + 2** — `TkbTranslatorSet` is the one base list; all five spawning sites use it | **DONE `2026-08-30`** |
 | ⭐⭐ **do first** | **step 4** — §3.3: move `RegisterUrbanCombatTkbTemplates` out of `Fdp.Examples.Scenarios` into `Hrot.Core` beside `NedTkbCatalog`, seed it from `HrotEnvironment.CreateTkb()`, leave a forwarder. 🔒 **User ruling:** *"if editor builds UrbanCombat stuff then everyone should, editor is the most advanced in that matter."* ⭐ Smaller, independent, and its dependency check is already measured as clean | **approved, NOT started** |
-| ⭐⭐ **then** | **step 3** — `EntityCreationPack` per §3/§3.1/§3.2, adoption order in **§5.1** *(Stride node → SimHost → Editor → ⛔ **CGF LAST**, it is the spawning authority)*. ⛔ **IG does not adopt** — no spawn pipeline by design | **approved, NOT started** |
+| ⭐⭐ **then** | **step 3** — `EntityCreationPack` per §3/§3.1/§3.2, adoption order in **§5.1** *(Stride node → SimHost → Editor → ⛔ **CGF LAST**, it is the spawning authority → then **IG**)*. ⭐⭐ **The pack has THREE halves (§2.3): origination · materialisation · ghost-projection** — ⛔ **IG DOES adopt**, taking origination + ghost-projection and opting out of materialisation only *(single spawn authority)*. ⚠ An earlier draft said "IG does not adopt"; the user refuted it and §2.3 carries the correction | **approved, NOT started** |
+| ⚠ **separately, NOT in the pack** | **`CE-141`** — IG registers six components *(`VehicleParams`, `PhysicsCollider`, `Health`, `WeaponState`, `PerceptionReceptor`, `TargetMemory`)* that its 2-entry translator list never fills on a ghost. ⛔ **Do not widen the list to "fix" it** — the wire may be the correct source. Needs a live `--mode all` comparison of an IG ghost against its SimHost original | **open, needs the live probe** |
 
 #### ⭐ ② THEN: back to the gizmo / symbology work
 
