@@ -1,7 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-30
-current-answer: §0.0e.3c-NEXT — READ IT FIRST. The AGREED ORDER OF WORK across the 2026-08-30 compaction:
+updated: 2026-08-31
+current-answer: 🔴 READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md FIRST — it is the ordered
+  continuation point for the live entity-creation work (branch head 65a4ccfce): the governing ruling, the
+  12 commits already pushed, the test baseline, step 3's adoption order, the open CE- ids, and the exact
+  mechanics of the next step (SimHost, host (b)). ⛔ Do not read THIS file top-to-bottom; the STATUS block
+  below is the longer LOG behind that bootstrap and the sections below it are HISTORY.
+  The AGREED ORDER OF WORK across the 2026-08-30 compaction (unchanged):
   (1) entity creation — pack step 4, then MOVE CreateEntityRequestSystem out of Hrot.CGF to a shared
   assembly (Architect_Question_65 §5 obstacle 1), then pack step 3 as ONE uniform pipeline, then Q65-A'
   (originators self-target) and Q65-B (widen the NodeRole gate on GhostPromotionSystem inside
