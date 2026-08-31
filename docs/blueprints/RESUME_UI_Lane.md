@@ -37,6 +37,22 @@ CE-142 (new, 2026-08-31): ownership DELEGATION is mechanism gated by policy. All
   _roleHasBrain -- they coincide by CONVENTION only. Fix: mechanism on participant != null, policy on
   _ownershipStrategy != null. WITH or AFTER pack step 3; NOT a prerequisite for path 2.
   Prior docs saying that gate was "correct, do not widen" are RETRACTED (Q65 §5.3).
+CE-143 (new, 2026-08-31, from the architect review): ReliableInitType is HARDCODED to AllPeers at
+  CreateEntityRequestSystem.cs:302 (root) and :397 (TKB children), and EntityCreationRequest carries NO
+  field to override it. Enum has None / PhysicsServer / AllPeers. => an IG drawing created via path 2
+  waits for ConstructionAck from all expected peers: pointless latency and a stall risk. FIX: add an
+  init-only ReliableInitType to EntityCreationRequest, default AllPeers (so adoption changes nothing),
+  both affordances take it explicitly, IG passes None. Decide explicitly whether :397's children
+  inherit the parent's InitType (lean: yes). SHIP WITH Q65-A' (step 4) -- it is the one real
+  prerequisite for IG drawings being USABLE, not merely correct. STILL UNVERIFIED (needs a live
+  cluster): do peers ACK ghosts of entities they neither own nor simulate?
+obstacle-1-resolved (2026-08-31): the move target is Hrot.Core/Network/ -- NOT Fdp.Toolkits (that would
+  invert the layering, since both files depend on Hrot.Core.Network) and not Hrot.Common. Exactly 2
+  files move: CreateEntityRequestSystem.cs + EntityRequestFinalizationSystem.cs. Measured: neither
+  references Hrot.CGF/Map/Editor/IG except its own namespace line; JsonAttributeCompiler and
+  IOwnershipDistributionStrategy are already in Fdp.Toolkits. Zero new project references. Also update
+  the <see cref="Hrot.CGF.Systems.CreateEntityRequestSystem"/> in EntityCreationRequest's docs.
+  OPEN for the user: move DeleteEntityRequestSystem.cs too? (lean: yes, same story.)
 
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
   way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the

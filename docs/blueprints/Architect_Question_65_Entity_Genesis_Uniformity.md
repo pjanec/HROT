@@ -247,10 +247,10 @@ reasons.
 
 | # | obstacle | note |
 |---|---|---|
-| **①** | 🔴 **`CreateEntityRequestSystem` lives in `Hrot.CGF/Systems/`** — a host assembly. Only CGF, the Editor and the Stride editor construct it | ⇒ ⭐ **it must move to a shared assembly** *(`Fdp.Toolkits` or `Hrot.Common`)* before "every node registers it" is even expressible. **This is the first task, and it is a MOVE with no behaviour change** |
+| **①** | 🔴 **`CreateEntityRequestSystem` lives in `Hrot.CGF/Systems/`** — a host assembly. Only CGF, the Editor and the Stride editor construct it | ✅⭐ **RESOLVED `2026-08-31` — the target is `Hrot.Core/Network/`, and the move is CLEAN.** 📐 See §5.4 |
 | **②** | 🔴🔴 **IG's tools publish bus-level `SpawnEntityCommand`, and it leaves the DDS request UNOWNED** — 📐 `SpawnEntityCommandEgressTranslator.cs:167` writes `Owner = default`, and `NedCgfEntityLifecycleAdapters.cs:76` maps `OwnerAppInstanceId = msg.Owner.AppInstanceId` ⇒ **`0` ⇒ broadcast ⇒ the arbiter (CGF)**. ⭐⭐ **This is the whole mechanism of the "everything goes via CGF" bottleneck: one unset field plus a missing local pipeline** | ⇒ retarget to a self-targeted `CreateEntityRequest`; same for `SimHostScenarioManager.SpawnVehicle`. ✅ **§1.1's graph pass shrank this one**: `SpawnEntityCommandEgressTranslator` is **already** in the shared `Hrot.Network.NED` assembly behind an `INetworkFactory` method all three factories implement ⇒ **no code moves, only the originator's target changes.** ⚠ Keep the translator — 🔒 path 1 is still correct for brain-enabled entities |
 | **②b** | 🔴 **`GhostPromotionSystem` is ROLE-gated inside `NedReplicationModule`**, and pure-Brain *(CGF)* is excluded by construction | ⇒ ⭐ see Q65-B. ⚠ **Not a host-composition oversight** — today it is correct, because pure-Brain spawns rather than receives. It becomes a gap **only once Q65-A′ lands** |
-| **③** | ⚠ **the ELM ACK handshake on a node with no peers** | the Editor runs offline with a `SequentialIdAllocator` and no peers to ACK. ⭐ It already works *(`isDefaultProcessor: true`, local bus)* — ⛔ but **verify the handshake does not stall** when a *networked* node self-targets and a peer is absent |
+| **③** | 🔴🔴 **`ReliableInitType` is HARDCODED to `AllPeers`, and the request carries no field to override it** | ⚠⚠ **SHARPENED `2026-08-31`** from *"verify the handshake does not stall"* — 📐 it is not merely an unknown behaviour, **it is a MISSING FIELD.** ⇒ **`CE-143`**, §5.5 |
 | **④** | 🔴🔴 **ownership DELEGATION is role-gated, and the gate has NO justification inside it** — `DeferredTakeOwnershipEgressTranslator` on `_roleHasBrain` *(`NedReplicationModule.cs:230`)*, its ingress on `_roleHasMuscle` *(`:232`)*, `DeferredTakeoverSystem` on `_roleHasMuscle` *(`:206`)* | ⚠⚠ **CORRECTED `2026-08-31` — see §5.3.** An earlier version of this row said the gate was *"correct, do not widen speculatively."* 🔴 **That was asserted from a role NAME and the architect's claim, without opening the three classes.** 📐 All three are pure mechanism. ⇒ filed as **`CE-142`** |
 
 ### 5.1 📐 THE PER-NODE GAP — **measured `2026-08-31`; three pieces, none of them protocol**
@@ -362,6 +362,71 @@ coincidence between two unrelated gates, and unification is what turns those int
 single-owner entities *(the user's map drawings)* delegate nothing, so `CE-142` is about not having removed a
 capability, **not** about unblocking the drawing case.
 
+### 5.4 ✅ OBSTACLE ① RESOLVED — **the target is `Hrot.Core/Network/`, and the move costs no new reference**
+
+📌 **Raised by the architect review (`2026-08-31`) as watch-out A**: *"ensure `JsonAttributeCompiler`
+and `IOwnershipDistributionStrategy` do not drag CGF-specific or presentation-specific references down into
+`Fdp.Toolkits`."* ⭐ **Good instinct, and the concern turns out not to exist** — but measuring it **answers
+the assembly question outright**, so the choice the review posed *(`Fdp.Toolkits` or `Hrot.Common`)* is
+neither.
+
+| 📐 measured | |
+|---|---|
+| **what moves** | ⭐ **exactly 2 files**, both in `Hrot.CGF/Systems/`: `CreateEntityRequestSystem.cs` and `EntityRequestFinalizationSystem.cs` *(the latter is the `finalizationSystem` ctor arg and holds `RequestKind`)* |
+| **the feared drag** | ✅ **absent.** `JsonAttributeCompiler` is already `Fdp.Toolkits/Replication/Patching/`; `IOwnershipDistributionStrategy` already `Fdp.Toolkits/Replication/Abstractions/` |
+| ⭐ **host-assembly references inside the two files** | ✅ **NONE** — `grep` for `Hrot.CGF|Hrot.Map|Hrot.Editor|Hrot.IG` matches **only their own `namespace Hrot.CGF.Systems` line.** Their entire using set is `Fdp.*` plus **`Hrot.Core.Network`** |
+| ⛔⛔ **why NOT `Fdp.Toolkits`** | 📐 both depend on `Hrot.Core.Network` *(`IEntityCreationRequestSource`, `IEntityAckSink`, `EntityCreationRequest`)* ⇒ **putting them in `Fdp.Toolkits` would need `Fdp.Toolkits → Hrot.Core`, INVERTING the layering** |
+| ✅⭐⭐ **the answer: `Hrot.Core/Network/`** | ⭐ **where the whole seam already lives** — `IEntityCreationRequestSource`, `CompositeEntityCreationRequestSource`, `ScenarioEntityCreationRequestSource`, `NullEntityAckSink`, `EntityCreationRequest`. ⭐ **And `TkbTranslatorSet` is already in `Hrot.Core/Tkb/`**, so the pack's neighbours are there too ⇒ **zero new project references, no assembly-graph change** |
+| ⚠ **one tidy-up** | `EntityCreationRequest.PreAllocatedNetworkId`'s doc has `<see cref="Hrot.CGF.Systems.CreateEntityRequestSystem"/>` — ⭐ update the cref with the namespace, or it becomes a stale-doc warning |
+
+⇒ ⭐ **The move is mechanical: 2 files, a namespace change, 3 production construction sites, and the test
+namespaces.** ⚠ **Open, and yours to rule:** `DeleteEntityRequestSystem.cs` sits in the same folder with the
+same peer-to-peer story — ⭐ **my lean is move it too**, so the request tier is not split across assemblies.
+
+### 5.5 🔴🔴 `CE-143` — **`ReliableInitType` is hardcoded; the request cannot express "do not wait for peers"**
+
+📌 **Raised by the architect review as watch-out C, and it is the review's most valuable finding.**
+⚠ **Obstacle ③ previously said only *"verify the handshake does not stall."*** 📐 **Measured — it is
+not an unknown behaviour, it is a missing field:**
+
+| 📐 | |
+|---|---|
+| `CreateEntityRequestSystem.cs:302` *(the root entity)* and **`:397`** *(auto-spawned TKB children)* | ⛔ **`InitType = ReliableInitType.AllPeers` — hardcoded, at BOTH sites** |
+| `EntityCreationRequest` *(all 8 members)* | ⛔ **carries NO `ReliableInitType`** — `RequestId`, `OwnerAppInstanceId`, `TkbType`, `DisType`, `InitialAttributesJson`, `InitialComponents`, `PreAllocatedNetworkId`, `ChildComponentOverrides` |
+| ⭐ the enum already has the values | `ReliableInitType` = **`None`** · **`PhysicsServer`** · `AllPeers` *(`Fdp.Toolkits/Replication/ReliableInitType.cs`)* |
+
+⇒ 🔴 **Consequence for path 2:** an IG tactical drawing created via a self-targeted request is spawned
+`AllPeers`, so **the ELM holds it in `Constructing` until every expected peer returns a
+`ConstructionAck`** — pointless latency for a single-owner presentation entity, and a **stall risk if a peer
+is absent or slow.** ⛔ **And the authoring code has no way to say otherwise.**
+
+#### ⭐⭐ THE DESIGN POINT — **two INDEPENDENT axes, do not conflate them**
+
+| axis | field | what it decides |
+|---|---|---|
+| ⭐ **ownership target** | `OwnerAppInstanceId` | **WHO runs genesis** — the arbiter, or me |
+| ⭐ **init reliability** | `ReliableInitType` | **whether the creator WAITS for peers** before going `Active` |
+
+⛔⛔ **Folding reliability into the affordance would be wrong** — *"I own this"* does **not** imply *"nobody
+needs to ACK it"*: a node could locally own something genuinely simulated. ⇒ ⭐⭐ **`ReliableInitType` is an
+explicit, defaulted parameter on both affordances:**
+
+```csharp
+creation.CreateLocallyOwned(tkbType, transform, components,
+                            initType: ReliableInitType.None);      // ⭐ IG map drawing: don't wait
+creation.RequestFromDefaultProcessor(tkbType, transform, components);  // defaults to AllPeers
+```
+
+| ✅ | |
+|---|---|
+| ⭐⭐ **default `AllPeers` on BOTH** | ⇒ **adoption changes nothing** — 📄 acceptance ⑥'s byte-identical default holds, and no existing caller behaves differently |
+| ⭐ **`EntityCreationRequest` gains one `init`-only member** | ⭐ **additive**, defaulted `AllPeers`; the two hardcoded sites read it instead |
+| ⚠ **`:397`'s children** | ⛔ **decide explicitly whether children inherit the parent's `InitType`** — 📌 my lean is YES *(a drawing's children are as local as the drawing)*, but it is a separate line and must not be left implicit |
+| 🔴 **STILL UNVERIFIED — the live half** | ⭐ **do peers ACK ghosts of entities they neither simulate nor own?** ⛔ Only a running cluster answers it, and `hrot-ai-debug` has been down all session. ⚠ **`ReliableInitType.None` SIDESTEPS the question for presentation entities** — ⛔ it does **not** answer it for a locally-owned entity that legitimately wants `AllPeers` |
+
+⇒ ⭐ **Sequence `CE-143` WITH Q65-A′** *(step 4)* — ⛔ **it is the one item that is a genuine prerequisite for
+IG's drawings being usable**, as opposed to merely correct.
+
 ## 6. ⭐ SEQUENCING
 
 | # | | why here |
@@ -370,6 +435,7 @@ capability, **not** about unblocking the drawing case.
 | **2** | ⭐ **move `CreateEntityRequestSystem` to a shared assembly** | obstacle ① — a pure move, and nothing below is expressible without it |
 | **3** | pack **step 3** *(`EntityCreationPack`)*, now **one uniform pipeline** — ⛔⛔ **adoption order matters: Stride node → SimHost → Editor → CGF → IG LAST, and IG only together with step 4** | §2.3's halves are gone, and 🔒 the `2026-08-31` ruling forbids omitting the pipeline per host. ⚠ **See the hazard below the table** |
 | **4** | **Q65-A′** — retarget originators to self-targeted requests, starting with IG's tactical graphics *(obstacle ④ says they need no split authority)*. ⭐ **Ship it in the SAME commit as IG's pack adoption** | the user's actual use case, and the safest instance of it. ⛔⛔ **Not separable from IG's step-3 adoption — see the hazard** |
+| **4b** | 🔴 **`CE-143`** — add `ReliableInitType` to `EntityCreationRequest` *(default `AllPeers`)*; IG drawings pass `None` | 📄 **§5.5.** ⛔ **WITH step 4** — the one real prerequisite for IG drawings being USABLE rather than merely correct |
 | **5** | **Q65-B** — collapse the two role-gated `GhostPromotionSystem` registrations in `NedReplicationModule` into one | ⛔ **strictly after step 4.** Before Q65-A′, pure-Brain promotion is dead code — ⭐ and the gate is the ROLE, not the host, so this is a **two-line** change in one file, not a per-host sweep |
 | **6** | **`CE-141`** — IG's translator width, with a live probe | |
 | **7** | 🔴 **`CE-142`** — ungate ownership DELEGATION: mechanism on `participant != null`, policy on `_ownershipStrategy != null` | 📄 **§5.3.** ⭐ WITH or AFTER step 3 *(same composition surface)*. ⛔ **Not a prerequisite for path 2** — single-owner entities delegate nothing |

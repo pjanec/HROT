@@ -19,6 +19,12 @@ current-answer-note: §3.4 is the NEW load-bearing section (2026-08-31) — the 
   and the per-tier measurement of what each path already has. Read it before §5's sequencing.
 known-rot: §3.4's split-authority row used to call the _roleHasBrain gate on ownership delegation
   "out of scope" and correct. FALSE — corrected 2026-08-31, see Q65 §5.3 / CE-142.
+architect-review: 2026-08-31 — the NotebookLM architect reviewed both docs and APPROVED them, raising
+  four watch-outs. Two became new findings: CE-142's neighbour CE-143 (ReliableInitType is hardcoded to
+  AllPeers at :302 and :397 and the request has no field for it — Q65 §5.5), and the resolution of the
+  assembly question for obstacle 1 (target is Hrot.Core/Network, zero new references — Q65 §5.4). One
+  was already designed (the local in-memory request source, §3.4). One was agreement (CE-142 stays
+  decoupled from path 2).
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
@@ -303,7 +309,19 @@ creation.RequestFromDefaultProcessor(tkbType, transform, initialComponents);
 
 // PATH 2 — I own this: full lifecycle protocol, locally, right here
 creation.CreateLocallyOwned(tkbType, transform, initialComponents);
+
+// ⭐ and the SECOND, INDEPENDENT axis — whether the creator waits for peer ACKs
+creation.CreateLocallyOwned(tkbType, transform, initialComponents,
+                            initType: ReliableInitType.None);   // IG map drawing: don't wait
 ```
+
+⚠⚠ **`ReliableInitType` is a SEPARATE axis and must not be folded into the affordance** — 📄 **`CE-143`,
+[`Q65`](blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md) §5.5. 📐 Measured `2026-08-31`:
+`CreateEntityRequestSystem.cs:302` and `:397` hardcode `ReliableInitType.AllPeers` and
+`EntityCreationRequest` carries no field to override it**, so today every request-tier entity waits for
+`ConstructionAck` from all expected peers. ⛔ *"I own this"* does **not** imply *"nobody needs to ACK it"*
+— ⭐ so both affordances take an explicit `initType`, **defaulted to `AllPeers` so adoption changes nothing**
+*(acceptance ⑥)*, and IG's drawings pass `None`.
 
 ⭐⭐ **Two names, one field apart** — `CreateLocallyOwned` enqueues into `LocalRequests` with
 `OwnerAppInstanceId = NodeId`; `RequestFromDefaultProcessor` leaves it `0`. ⛔ **No policy table, no TKB
