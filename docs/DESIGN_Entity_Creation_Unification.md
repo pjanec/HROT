@@ -6,8 +6,9 @@ current-answer: §5 is the plan. Steps 1 and 2 are BUILT (2026-08-30): TkbTransl
   list and all five spawning sites use it. Steps 3 and 4 are APPROVED BY THE USER and NOT STARTED —
   step 3 is the EntityCreationPack (§3, UML in §4), step 4 is the catalogue-contents move (§3.3).
   Start with step 4: it is smaller, independent, and unblocks nothing else.
-known-conflict: none. tkb-1/DESIGN.md §6.3/§6.5/§6.5b state the intent this design makes structural;
-  this document does not contradict them, it removes the need to remember them.
+known-conflict: §2.3's Role-selected HALVES may be SUPERSEDED. §2.4 answers the user's "is this really
+  unified" question with NO, and Architect_Question_65 asks whether to go further (request/order
+  separation) which would make the pack uniform and the half-split unnecessary. Read §2.4 before §3.
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
@@ -121,6 +122,37 @@ EntityLifecycleModule(…, IReadOnlyList<ITkbEntityTranslator>? translators = nu
 
 ⇒ 🔒 **The fix is not more documentation** *(that was `CE-138`'s half, and it is done)* — ⭐ **it is making
 the assembly a THING that is constructed once**, so a host cannot half-do it.
+
+### 2.4 ⛔⛔ IS THIS ACTUALLY UNIFIED? — **NO, and §3's half-split is the reason** *(`2026-08-30`)*
+
+> 🔒 **User:** *"so is the unification planned in a way that all ECS equipped node are able to create
+> entities and all are able to receive ghost entities and all are using all TKB translator lists in the
+> same way (gated just by ECS component registration on node)? i.e. will that be really unified cross
+> hosts?"*
+
+⛔ **Honest answer: not as this document is written.** §2.3's `Role`-selected halves **relocate** the
+per-host divergence into one place rather than removing it. ⭐ Scored against the three criteria:
+
+| criterion | today | this design as written | achievable? |
+|---|---|---|---|
+| all ECS nodes can create entities | ✅ **already true** *(IG originates — §2.3)* | ✅ | ✅ already |
+| all can receive ghosts | ⚠ `GhostCreationSystem` on 5 of 6, but 🔴 **`GhostPromotionSystem` on SimHost + IG ONLY** | ⛔ **unaddressed — this design never mentions promotion** | ✅ add it to the pack |
+| one list, gated only by registration | ⚠ 5 sites on `Base()`; 🔴 IG hand-narrowed *(`CE-141`)* | ⛔ unchanged | ✅ once `CE-141` settles |
+
+🔴 **The blocker, measured:** `SpawnEntityCommand` **conflates INTENT and ORDER** — with
+`NetworkId == 0` a node that has `NetworkSpawningSystem` allocates and materialises it locally, while on
+IG the same event is forwarded to the authority. ⇒ **its meaning depends on which systems the node
+composed**, and that is why handing every node a materialiser would double-create entities. 📌 The code
+says so itself — `IgNodeBootstrapper`: *"replaces SpawningModule so IG does not duplicate entities."*
+
+⇒ ⭐⭐ **True uniformity needs the request/order separation**, and that is a **genesis-contract change with
+cluster-wide blast radius** ⇒ 📄 **[`Architect_Question_65_Entity_Genesis_Uniformity.md`]
+(blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md)**, with a recommended answer per
+sub-question. ⛔ **Not decided here, and not to be designed around quietly.**
+
+⭐ **What this design still buys regardless of Q65's outcome:** one assembly site, one translator list,
+one catalogue, and `Unserviceable` reporting. ⚠ **What it does NOT buy is the uniformity the user asked
+for** — say so plainly rather than letting the pack imply it.
 
 ## 3. ⭐⭐⭐ THE DESIGN — `EntityCreationPack`, on the `MapInteractionPack` precedent
 
