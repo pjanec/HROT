@@ -52,7 +52,28 @@ obstacle-1-resolved (2026-08-31): the move target is Hrot.Core/Network/ -- NOT F
   references Hrot.CGF/Map/Editor/IG except its own namespace line; JsonAttributeCompiler and
   IOwnershipDistributionStrategy are already in Fdp.Toolkits. Zero new project references. Also update
   the <see cref="Hrot.CGF.Systems.CreateEntityRequestSystem"/> in EntityCreationRequest's docs.
-  OPEN for the user: move DeleteEntityRequestSystem.cs too? (lean: yes, same story.)
+  RULED by the user 2026-08-31: YES, move DeleteEntityRequestSystem.cs too => the move is 3 FILES.
+  Measured, and the case is stronger than the lean: its ctor takes EntityRequestFinalizationSystem as a
+  REQUIRED arg (so leaving it behind splits a hard dependency), its usings are Hrot.Core.Network + Fdp.*
+  only, IEntityDeletionRequestSource is in the SAME file as the creation one
+  (Hrot.Core/Network/EntityLifecycleInterfaces.cs:102), and it has 1 production construction site
+  (CgfSubsystem.cs:728). The see-cref fix in EntityCreationRequest is an explicit deliverable of the
+  same commit; sweep for other stale crefs.
+CE-144 (new, 2026-08-31): the DESTROY side has the SAME double-consumption hazard as spawn, and it
+  fails SILENTLY. GhostDestructionSystem (IgBootstrapperHelpers.cs:30) does _entityMap.Unregister +
+  world.DestroyEntity IMMEDIATELY; NetworkSpawningSystem.ProcessDestroy (:98 -> :213) does
+  cmdBuffer.SetLifecycleState(TearDown) + _elm.BeginDestruction. If IG holds BOTH, whichever runs first
+  defeats the other: GhostDestruction first => ProcessDestroy finds nothing in the map, logs to stderr
+  and returns => ELM teardown NEVER runs => EntityMaster is never disposed => peer IGs keep ZOMBIE
+  drawings. Reverse order rips the entity out mid-teardown. Either order is wrong => once IG has
+  NetworkSpawningSystem, DROP GhostDestructionSystem (its own comment says it "replaces SpawningModule").
+  Ships in the SAME commit as IG's adoption + Q65-A' + CE-143. Acceptance 11 extended to the destroy
+  side. NOT verified: the actual execution order today (irrelevant to the fix, decides the symptom).
+  ⛔ CORRECTS my own earlier text in Q65 §5.1 and DESIGN §5.1 ("IG keeps GhostDestructionSystem").
+NON-FINDING, recorded so it is not re-derived: the deletion tier has only a DDS source while creation
+  has three (DDS + in-memory + composite). That is NOT a gap -- the local destroy path bypasses the
+  request tier entirely (NetworkSpawningSystem.cs:98 consumes bus DestroyEntityCommand), so any node the
+  pack equips can destroy what it owns in-process. Do not add an in-memory deletion source.
 
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
   way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the

@@ -23,6 +23,9 @@ known-rot: obstacle 4 and the closing caveat of section 5.2 BOTH used to say the
   5.3 (CE-142, 2026-08-31): all three pieces are pure mechanism, the receive side is doubly guarded and
   free to ungate, and the only role-specific thing is the injected BrainMuscleOwnershipStrategy POLICY.
   A reader must not quote either prior wording.
+known-rot: §5.1's and DESIGN §5.1's "IG keeps GhostDestructionSystem + IgUnitHierarchyModule and gains
+  the full genesis pipeline" is WRONG — keeping GhostDestructionSystem beside NetworkSpawningSystem is
+  the destroy-side double-consumption bug. Corrected 2026-08-31 in §5.6 (CE-144).
 -->
 # Architect Question 65 — is entity genesis UNIFORM across ECS nodes? — ✅ **RESOLVED: yes, and no contract change is needed**
 
@@ -379,9 +382,76 @@ neither.
 | ✅⭐⭐ **the answer: `Hrot.Core/Network/`** | ⭐ **where the whole seam already lives** — `IEntityCreationRequestSource`, `CompositeEntityCreationRequestSource`, `ScenarioEntityCreationRequestSource`, `NullEntityAckSink`, `EntityCreationRequest`. ⭐ **And `TkbTranslatorSet` is already in `Hrot.Core/Tkb/`**, so the pack's neighbours are there too ⇒ **zero new project references, no assembly-graph change** |
 | ⚠ **one tidy-up** | `EntityCreationRequest.PreAllocatedNetworkId`'s doc has `<see cref="Hrot.CGF.Systems.CreateEntityRequestSystem"/>` — ⭐ update the cref with the namespace, or it becomes a stale-doc warning |
 
-⇒ ⭐ **The move is mechanical: 2 files, a namespace change, 3 production construction sites, and the test
-namespaces.** ⚠ **Open, and yours to rule:** `DeleteEntityRequestSystem.cs` sits in the same folder with the
-same peer-to-peer story — ⭐ **my lean is move it too**, so the request tier is not split across assemblies.
+#### ✅ 🔒 USER RULING `2026-08-31` — **`DeleteEntityRequestSystem` moves too**
+
+> 🔒 **User:** *"move DeleteEntityRequestSystem, update docs for EntityCreationRequest's of course"*
+
+📐 **Measured, and the case is STRONGER than the "same story" lean it was proposed on:**
+
+| | |
+|---|---|
+| ⭐⭐ **it is HARD-COUPLED to a file already moving** | `DeleteEntityRequestSystem`'s ctor takes **`EntityRequestFinalizationSystem` as a REQUIRED, non-nullable arg** *(`:37-42`)* ⇒ ⛔ **leaving it behind would split a hard dependency across assemblies** |
+| ✅ **its references are equally clean** | usings are `Hrot.Core.Network` + `Fdp.*` only; `grep` for `Hrot.CGF|Map|Editor|IG` matches **only its own namespace line** |
+| ✅ **its seam is already in the target** | `IEntityDeletionRequestSource` is in **`Hrot.Core/Network/EntityLifecycleInterfaces.cs:102`** — the *same file* as `IEntityCreationRequestSource` |
+| ⭐ **tiny blast radius** | **1** production construction site *(`CgfSubsystem.cs:728`)* + 1 test |
+
+⇒ ✅ **THE MOVE IS 3 FILES**: `CreateEntityRequestSystem.cs` · `EntityRequestFinalizationSystem.cs` ·
+`DeleteEntityRequestSystem.cs` → **`Hrot.Core/Network/`**. ⭐ Still zero new project references.
+
+#### ✅ 🔒 AND the doc-reference fix is an explicit deliverable, not a tidy-up
+
+⭐ `EntityCreationRequest.PreAllocatedNetworkId`'s XML doc carries
+`<see cref="Hrot.CGF.Systems.CreateEntityRequestSystem"/>`. ⇒ **update it with the namespace in the same
+commit as the move.** ⚠ Sweep for others — ⛔ a stale `cref` is a warning that outlives the batch.
+
+#### 📐 A measured NON-finding, recorded so nobody re-derives it
+
+⚠ **The deletion tier is ASYMMETRIC with creation and that is FINE.** 📐 Creation has **three**
+sources *(DDS `NedEntityCreationRequestSource`, in-memory `ScenarioEntityCreationRequestSource`, and the
+composite)*; **deletion has only the DDS one.** ⛔ **This is NOT a capability gap** — ⭐ the *local* destroy
+path does not go through the request tier at all: **`NetworkSpawningSystem.cs:98` consumes bus
+`DestroyEntityCommand` directly**, so any node the pack equips can destroy what it owns in-process. ⇒ ⭐ the
+deletion **request** tier exists only for network / non-ECS clients, which is the DDS path by definition.
+⚠ **I flagged this as a gap on instinct and it did not survive measurement** — recorded here so the next
+session does not spend a batch adding an in-memory deletion source nothing needs.
+
+### 5.6 🔴🔴 `CE-144` — **the DESTROY side has the SAME double-consumption hazard, and it fails SILENTLY**
+
+📌 **Found while measuring the ruling above** — ⛔ **and it CORRECTS §5.1 / `DESIGN` §5.1, which
+said IG "keeps `GhostDestructionSystem` … and gains the full genesis pipeline."** 🔴 **Keeping both
+is exactly the bug.**
+
+📐 **Two consumers of ONE bus event**, and they are **not** equivalent:
+
+| | `GhostDestructionSystem` *(IG, `IgBootstrapperHelpers.cs:30`)* | `NetworkSpawningSystem.ProcessDestroy` *(`:98` → `:213`)* |
+|---|---|---|
+| what it does | `_entityMap.Unregister(...)` then **`world.DestroyEntity(entity)` — an IMMEDIATE HARD DELETE** | `cmdBuffer.SetLifecycleState(entity, TearDown)` then **`_elm.BeginDestruction(...)`** — the real ELM teardown |
+| on a map miss | ⭐ silently skips | ⚠ **writes to stderr and returns** |
+| suitable for | ⭐ **a GHOST** — nothing to tear down, no authority to yield | ⭐ **an OWNED entity** — lifecycle transition, ACK handshake, `EntityMaster` disposal |
+
+⇒ 🔴🔴 **If IG holds both, whichever runs first DEFEATS the other:**
+
+| order | consequence |
+|---|---|
+| `GhostDestructionSystem` first | it unregisters + hard-deletes immediately ⇒ `ProcessDestroy` finds nothing in the map, **logs to stderr and returns** ⇒ 🔴 **ELM teardown NEVER RUNS: no `TearDown` state, no `BeginDestruction`, `EntityMaster` is never disposed on the wire** ⇒ ⛔⛔ **other IGs keep the drawing as a ZOMBIE forever** |
+| `NetworkSpawningSystem` first | teardown begins, then the hard delete rips the entity out **mid-teardown** ⇒ the handshake can never complete |
+
+⭐⭐ **Either order is wrong, so the resolution is unambiguous:** ⛔⛔ **once IG has `NetworkSpawningSystem`,
+`GhostDestructionSystem` must be DROPPED, not kept beside it.**
+
+⭐ **And the code says so itself.** Its registration comment reads *"Ghost destruction — **replaces
+SpawningModule** so IG does not duplicate entities"* ⇒ 🔒 **it is the DESTROY half of the very
+substitution Q65-A′ undoes.** ⛔ It exists because IG lacked a materialiser — the same reason as the spawn
+omission, and it retires for the same reason.
+
+| ⭐ the item | |
+|---|---|
+| **what changes** | in IG's `RegisterSpawningPipeline`: **drop `GhostDestructionSystem`**, keep `IgUnitHierarchyModule`. ⭐ Ships in the **same commit** as IG's pack adoption + Q65-A′ + `CE-143` |
+| ⚠⚠ **the symptom is the opposite of the spawn hazard's, which is why it is easy to miss** | spawn ⇒ **a DOUBLE entity**, loud and visible. destroy ⇒ **an UNDELETED entity on peers**, silent, and only visible on another node |
+| ⭐ **the rail** | 📄 **acceptance ⑪ extended to the destroy side** — ⛔ a root must not hold `NetworkSpawningSystem` **and** a second `DestroyEntityCommand` consumer |
+| ⚠ **not verified** | the actual execution ORDER of the two on IG today. ⛔ **Irrelevant to the fix** *(both orders are wrong)* — ⭐ but it decides which symptom a live IG would show first |
+
+
 
 ### 5.5 🔴🔴 `CE-143` — **`ReliableInitType` is hardcoded; the request cannot express "do not wait for peers"**
 
@@ -436,6 +506,7 @@ IG's drawings being usable**, as opposed to merely correct.
 | **3** | pack **step 3** *(`EntityCreationPack`)*, now **one uniform pipeline** — ⛔⛔ **adoption order matters: Stride node → SimHost → Editor → CGF → IG LAST, and IG only together with step 4** | §2.3's halves are gone, and 🔒 the `2026-08-31` ruling forbids omitting the pipeline per host. ⚠ **See the hazard below the table** |
 | **4** | **Q65-A′** — retarget originators to self-targeted requests, starting with IG's tactical graphics *(obstacle ④ says they need no split authority)*. ⭐ **Ship it in the SAME commit as IG's pack adoption** | the user's actual use case, and the safest instance of it. ⛔⛔ **Not separable from IG's step-3 adoption — see the hazard** |
 | **4b** | 🔴 **`CE-143`** — add `ReliableInitType` to `EntityCreationRequest` *(default `AllPeers`)*; IG drawings pass `None` | 📄 **§5.5.** ⛔ **WITH step 4** — the one real prerequisite for IG drawings being USABLE rather than merely correct |
+| **4c** | 🔴 **`CE-144`** — DROP `GhostDestructionSystem` from IG when it gains `NetworkSpawningSystem` | 📄 **§5.6.** ⛔ **WITH step 4** — keeping both silently skips ELM teardown and leaves ZOMBIE drawings on peer IGs |
 | **5** | **Q65-B** — collapse the two role-gated `GhostPromotionSystem` registrations in `NedReplicationModule` into one | ⛔ **strictly after step 4.** Before Q65-A′, pure-Brain promotion is dead code — ⭐ and the gate is the ROLE, not the host, so this is a **two-line** change in one file, not a per-host sweep |
 | **6** | **`CE-141`** — IG's translator width, with a live probe | |
 | **7** | 🔴 **`CE-142`** — ungate ownership DELEGATION: mechanism on `participant != null`, policy on `_ownershipStrategy != null` | 📄 **§5.3.** ⭐ WITH or AFTER step 3 *(same composition surface)*. ⛔ **Not a prerequisite for path 2** — single-owner entities delegate nothing |

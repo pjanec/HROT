@@ -25,6 +25,8 @@ architect-review: 2026-08-31 — the NotebookLM architect reviewed both docs and
   assembly question for obstacle 1 (target is Hrot.Core/Network, zero new references — Q65 §5.4). One
   was already designed (the local in-memory request source, §3.4). One was agreement (CE-142 stays
   decoupled from path 2).
+known-rot: §5.1 twice said IG "keeps GhostDestructionSystem". WRONG — it must be DROPPED when IG gains
+  NetworkSpawningSystem (CE-144, Q65 §5.6). Corrected 2026-08-31.
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
@@ -505,8 +507,13 @@ convention. ⭐ Step 3 buys invariants ④ and ⑤ and can follow later.
 
 ⭐⭐ **IG adopts the pack in FULL** — ⚠⚠ **CORRECTED `2026-08-31`; the "halves" sentence that stood
 here is SUPERSEDED** *(it said IG "gains no `NetworkSpawningSystem`", which invariant ⑥ now forbids as
-capability removal by design)*. ⭐ IG keeps `GhostDestructionSystem` + `IgUnitHierarchyModule` **and gains
-the full genesis pipeline**, so its area/placement tools can own what they create *(§3.4 path 2)*.
+capability removal by design)*. ⭐ IG keeps `IgUnitHierarchyModule`, ⛔⛔ **DROPS `GhostDestructionSystem`** *(`CE-144` — see below)*
+**and gains the full genesis pipeline**, so its area/placement tools can own what they create *(§3.4 path 2)*.
+
+⚠⚠ **CORRECTED again `2026-08-31`: an earlier version of this line said IG "keeps `GhostDestructionSystem`".**
+🔴 **That is the destroy-side double-consumption bug** — `GhostDestructionSystem` hard-deletes
+immediately while `NetworkSpawningSystem.ProcessDestroy` runs the ELM teardown, so holding both means
+`EntityMaster` is never disposed and peer IGs keep zombie drawings. 📄 **[`Q65`](blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md) §5.6.**
 
 ⛔⛔ **THE ORDERING HAZARD — read before adopting IG.** 📐 Measured: `NetworkSpawningSystem.cs:92`
 and `SpawnEntityCommandEgressTranslator.cs:80` **read the same bus event**. ⇒ ⭐⭐ **a node holding both,
@@ -539,4 +546,4 @@ live probe still comes first.
 | ⑧ | ⭐ **step 4: nothing broke in the examples** — the forwarder keeps `Fdp.Examples.Scenarios`, `Fdp.Examples.Runner` and the two test projects compiling and green |
 | ⑨ | 🔒🔒 **NO node is denied the genesis pipeline** — a rail over every production composition root asserting each obtains BOTH `RequestSystem` and `SpawnSystem` from the pack. ⭐ This is invariant ⑥ made checkable, and it is the acceptance criterion for the `2026-08-31` ruling |
 | ⑩ | ⭐⭐ **path 2 works end to end without the arbiter** — a rail that enqueues a `CreateEntityRequest` with `OwnerAppInstanceId = localNodeId` on a node with `isDefaultProcessor: false`, and asserts the entity is materialised locally, `AuthorityMask` is stamped, and **no ownership grants were published**. ⛔ A rail that runs on the arbiter proves nothing — it is the old path |
-| ⑪ | ⛔⛔ **no double spawn** — a rail asserting no production composition root holds `NetworkSpawningSystem` **and** a registered `SpawnEntityCommandEgressTranslator` while any tool still publishes bus-level `SpawnEntityCommand`. 📌 This is the §5.1 hazard, and it is the one that bites during IG adoption |
+| ⑪ | ⛔⛔ **no double spawn AND no double destroy** — a rail asserting no production composition root holds `NetworkSpawningSystem` **and** a registered `SpawnEntityCommandEgressTranslator` while any tool still publishes bus-level `SpawnEntityCommand`, **and** none holds `NetworkSpawningSystem` **and** a second `DestroyEntityCommand` consumer *(`GhostDestructionSystem`)*. 📌 Both hazards bite during IG adoption; ⚠ **the destroy one is SILENT and only visible on a peer** — 📄 `Q65` §5.6 / `CE-144` |
