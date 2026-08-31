@@ -36,7 +36,7 @@ using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems;
 using Hrot.Stride.Animation;
 using Hrot.Stride.Core;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Hashing;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Runner;
@@ -576,13 +576,19 @@ public sealed class EditorStrideSubsystem : IDisposable
         mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
 
         // ── 5. Spawn pipeline ─────────────────────────────────────────────
-        // BATCH-03 (STR-D8 discharge): Replace the P0 TestUnit placeholder with the real
-        // UrbanCombat TKB templates.  UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates()
-        // attaches StrideRenderModelDefDto to CivilianPedestrian, CivilianCar, MilitaryAPC,
-        // InfantrySoldier, and Insurgent — which enables StrideVisualBindingSystem to resolve
-        // visuals for all UrbanCombat entity classes.
-        TkbDb = new TkbDatabase();
-        UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(TkbDb);
+        // ⭐⭐ CE-145 item 3 — join the SHARED catalogue. This host used to build its own bare
+        //    `new TkbDatabase()` and seed only the five UrbanCombat templates, so it MISSED
+        //    NedTkbCatalog and the route templates that every other host gets. CreateTkb() seeds
+        //    NedTkbCatalog + UrbanCombatTkbCatalog together, so all hosts now have identical
+        //    catalogue CONTENTS. 📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
+        // ⛔⛔ Do NOT add UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(TkbDb) back here.
+        //    TkbDatabase.Register THROWS on a duplicate name or type
+        //    (Fdp.Toolkits/Tkb/TkbDatabase.cs:24-28) and CreateTkb() already seeds those five ⇒ it
+        //    would crash the Stride editor at startup. Same defect removed the same call from
+        //    EditorSubsystem (§3.3 FINDING ①).
+        // ⭐ The five templates still carry StrideRenderModelDefDto (on all five since f27717262),
+        //    so StrideVisualBindingSystem resolves visuals for every UrbanCombat class as before.
+        TkbDb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
         var tkbDb = TkbDb;
 
         var translators = BuildTranslators();
@@ -1619,8 +1625,20 @@ public sealed class EditorStrideSubsystem : IDisposable
         //    InfantryVehicleStateStrip lives in Hrot.Stride.Core, above Hrot.Core, so it is an
         //    ADDITION — exactly the per-node variation tkb-1/DESIGN.md §6.5 sanctions.
         // ⛔ Never subtract to narrow: gate 2 (IsComponentTypeRegistered) narrows per component (§6.5b).
-        return Hrot.Core.Tkb.TkbTranslatorSet.BasePlus(
-            new InfantryVehicleStateStripTkbTranslator());
+        //
+        // 🔴 CE-145 — POSITION IS PART OF THE CONTRACT, so this cannot use BasePlus().
+        //    InfantryVehicleStateStripTkbTranslator's own doc requires it to run "immediately after
+        //    VehicleKinematicsTkbTranslator … position in the list is the guarantee". BasePlus()
+        //    APPENDS (Base() is 6 long ⇒ index 6), which violates that. Base() index 1 is
+        //    VehicleKinematicsTkbTranslator, so the strip belongs at index 2 — where the
+        //    hand-written list had it before CE-140 step 2 replaced it with BasePlus.
+        // ⚠ Today this is LATENT: the strip is a pure removal and only VehicleKinematicsTkbTranslator
+        //    adds those components, so a later position yields the same end state. It becomes real the
+        //    moment any translator between the two READS VehicleState/VehicleParams.
+        // ⭐ Still built from the ONE Base() list — inserted into, never forked.
+        var translators = new List<ITkbEntityTranslator>(Hrot.Core.Tkb.TkbTranslatorSet.Base());
+        translators.Insert(2, new InfantryVehicleStateStripTkbTranslator());
+        return translators.AsReadOnly();
     }
 
     // ── Nested: simulation-phase module adapter ──────────────────────────

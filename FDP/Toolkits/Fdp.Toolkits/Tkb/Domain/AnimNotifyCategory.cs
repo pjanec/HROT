@@ -1,10 +1,10 @@
 using System;
 
-// ⚠ NAMESPACE IS DELIBERATELY `Hrot.MuscleCharacter.Animation.Contracts`, not `Fdp.Toolkit.Tkb.Domain`.
-//   Moved here 2026-08-31 because NotifyMarkerDefDto (in CharacterAnimationDefDto.cs, this folder)
-//   requires it. Namespace preserved so consumers compile untouched; rename is CE-145, deferred to a
-//   Windows/VS session. 📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
-namespace Hrot.MuscleCharacter.Animation.Contracts
+// CE-145 (DONE, 2026-08-31): moved here from Hrot.MuscleCharacter.Animation.Contracts
+// because NotifyMarkerDefDto (in CharacterAnimationDefDto.cs, this folder) requires it,
+// and renamed into this folder's namespace.
+// docs/DESIGN_Entity_Creation_Unification.md 3.3.
+namespace Fdp.Toolkit.Tkb.Domain
 {
     /// <summary>
     /// Canonical event category enumeration for animation notifies, matching DD-3 §2.

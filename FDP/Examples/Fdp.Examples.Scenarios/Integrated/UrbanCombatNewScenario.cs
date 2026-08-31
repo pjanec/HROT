@@ -48,9 +48,6 @@ using Fdp.Core.Logging;
 using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
-using Hrot.MuscleCharacter.Animation.Components;
-using Hrot.MuscleCharacter.Animation.Contracts;
-using Hrot.MuscleCharacter.Animation.Descriptors;
 
 namespace Fdp.Examples.Scenarios.Integrated
 {

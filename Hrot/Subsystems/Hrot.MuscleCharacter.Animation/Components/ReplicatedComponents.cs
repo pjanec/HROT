@@ -3,14 +3,16 @@ using System.Runtime.InteropServices;
 using Fbt;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.MuscleCharacter.Animation.Components
 {
     // ⚠ `StanceId` MOVED OUT of this file on 2026-08-31 → FDP/Toolkits/Fdp.Toolkits/Tkb/Domain/StanceId.cs
-    //   It keeps THIS namespace, so nothing here changes. It moved because CharacterAnimationDefDto (a TKB
-    //   descriptor DTO referencing it) had to sit beside the other TKB DTOs so Hrot.Core could host the
-    //   UrbanCombat catalogue without referencing this subsystem.
-    //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3 · namespace rename is CE-145.
+    //   and it is now in namespace `Fdp.Toolkit.Tkb.Domain` (CE-145, done 2026-08-31) — hence the
+    //   `using Fdp.Toolkit.Tkb.Domain;` above. It moved because CharacterAnimationDefDto (a TKB descriptor
+    //   DTO referencing it) had to sit beside the other TKB DTOs so Hrot.Core could host the UrbanCombat
+    //   catalogue without referencing this subsystem.
+    //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
 
     /// <summary>
     /// Stance transition phase tracking for multi-frame blend sequences.

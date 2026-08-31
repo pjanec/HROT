@@ -11,7 +11,7 @@ using Fdp.Toolkit.Lifecycle.Events;
 using Hrot.MuscleCharacter.Animation.Baking;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Fake;
 using Hrot.MuscleCharacter.Animation.Hashing;
 using Hrot.MuscleCharacter.Animation.Nodes;
@@ -82,7 +82,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                         IsStanceTransition = false,
                     },
                 },
-                SupportedStances = new[] { Components.StanceId.Standing, Components.StanceId.Crouched },
+                SupportedStances = new[] { StanceId.Standing, StanceId.Crouched },
                 StanceTransitions = new List<StanceTransitionDto>(),
                 AimConfig = new AimConfigDto { MaxYawDegrees = 90f, MaxPitchDegrees = 70f, AimSourceBone = "head" },
                 NotifyMarkers = new List<NotifyMarkerDefDto>(),

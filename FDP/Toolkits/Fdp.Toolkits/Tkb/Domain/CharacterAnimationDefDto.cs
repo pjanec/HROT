@@ -1,24 +1,19 @@
 using System;
 using System.Collections.Generic;
-using Hrot.MuscleCharacter.Animation.Components;
-using Hrot.MuscleCharacter.Animation.Contracts;
 using Fdp.Toolkit.Tkb.Attributes;
 
-// ⚠⚠ NAMESPACE IS DELIBERATELY `Hrot.MuscleCharacter.Animation.Descriptors`, not `Fdp.Toolkit.Tkb.Domain`.
+// TKB DESCRIPTOR DTOs -- attached via TkbTemplate.AddDescriptor(), exactly like
+// SensorCapabilitiesDto and VehicleParametersDto next door.
 //
-// WHY THIS FILE IS HERE (2026-08-31): these are TKB DESCRIPTOR DTOs — attached via
-// TkbTemplate.AddDescriptor() exactly like SensorCapabilitiesDto and VehicleParametersDto next door —
-// but they used to live in Hrot/Subsystems/Hrot.MuscleCharacter.Animation/. That placement blocked
-// Hrot.Core from hosting the shared UrbanCombat TKB catalogue, because the catalogue's
-// BuildMannequinAnimationDef() returns CharacterAnimationDefDto, and Hrot.Core must not reference a
-// character-animation subsystem. Moving the type to the FDP layer removes the need for that reference.
-//
-// WHY THE NAMESPACE DID NOT CHANGE: C# binds on namespace identity, not assembly, so keeping it lets
-// all 53 consumer files compile untouched. Renaming to Fdp.Toolkit.Tkb.Domain is **CE-145**, deliberately
-// deferred to a Windows/Visual-Studio session — 6 of those 53 files are in the Stride tree, which cannot
-// be compiled on Linux (Microsoft.WindowsDesktop.App), so the rename must be verified where it builds.
-// 📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
-namespace Hrot.MuscleCharacter.Animation.Descriptors
+// CE-145 (DONE, 2026-08-31): these types moved here from
+// Hrot/Subsystems/Hrot.MuscleCharacter.Animation/ and now carry this folder's namespace.
+// The move let Hrot.Core host the shared UrbanCombat TKB catalogue, whose
+// BuildMannequinAnimationDef() returns CharacterAnimationDefDto -- Hrot.Core must not
+// reference a character-animation subsystem. The namespace was held at the old value for
+// one commit so consumers compiled untouched; CE-145 completed the rename on Windows,
+// where the Stride-tree consumers can actually be built.
+// docs/DESIGN_Entity_Creation_Unification.md 3.3.
+namespace Fdp.Toolkit.Tkb.Domain
 {
     /// <summary>
     /// Enumeration of slot blending/compositing modes (DD-4 §2).

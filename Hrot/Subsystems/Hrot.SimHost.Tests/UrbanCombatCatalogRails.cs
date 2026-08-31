@@ -5,7 +5,6 @@ using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Core.Tkb;
 using Hrot.Map.Common;
-using Hrot.MuscleCharacter.Animation.Descriptors;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

@@ -11,17 +11,13 @@
     <ProjectReference Include="..\Fdp.Examples.DDS\Fdp.Examples.DDS.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
     <ProjectReference Include="..\..\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <!-- ST-011: CharacterAnimationDefDto and friends, for the humanoid templates'
-         animation descriptor. Same reference the Stride branch added; HrotStrideApp.Game
-         already depends on this project, so the direction is consistent.
-         NOTE 2026-08-31: those DTOs moved to Fdp.Toolkits/Tkb/Domain (they are TKB descriptor
-         DTOs), so this reference may now be redundant — left in place because this project uses
-         other types from the subsystem; verify and drop separately. -->
-    <ProjectReference Include="..\..\..\Hrot\Subsystems\Hrot.MuscleCharacter.Animation\Hrot.MuscleCharacter.Animation.csproj" />
     <!-- 2026-08-31: the UrbanCombat TKB templates MOVED to Hrot.Core.Tkb.UrbanCombatTkbCatalog so
          every host can resolve TkbTypes 1001-2003. UrbanCombatNewScenario now forwards there, hence
-         this reference. Direction is consistent with the Hrot.MuscleCharacter.Animation one above,
-         and Hrot.Core references only Fdp.Core + Fdp.Toolkits, so there is no cycle.
+         this reference. Hrot.Core references only Fdp.Core + Fdp.Toolkits, so there is no cycle.
+         CE-145 (2026-08-31): the Hrot.MuscleCharacter.Animation ProjectReference that used to sit
+         beside this one was DROPPED — the animation descriptor DTOs it existed for now live in
+         Fdp.Toolkit.Tkb.Domain, and nothing else in this project used the subsystem (verified by
+         building with the reference removed).
          📄 docs/DESIGN_Entity_Creation_Unification.md §3.3. -->
     <ProjectReference Include="..\..\..\Hrot\Engine\Hrot.Core\Hrot.Core.csproj" />
   </ItemGroup>
