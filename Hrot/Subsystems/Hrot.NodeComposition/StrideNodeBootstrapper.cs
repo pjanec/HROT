@@ -314,12 +314,28 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         if (context.IdAllocator != null)
         {
             var elm = (EntityLifecycleModule)context.BaseModules[0];
+
+            // ⭐⭐⭐ CE-139 — the FIFTH host found with this omission, after SimHost, the Editor, the
+            //    Stride editor and CGF: `translators:` was not passed and SetTranslators was never
+            //    called, so ProcessSpawn step 4's projection loop ran zero times and entities were born
+            //    with identity and a DIS header but none of their type's components.
+            // ⚠ It survived because EditorStrideSubsystem builds a SECOND pipeline over the same world
+            //    that DOES pass translators — so the behaviour depended on which composition ran.
+            // ⭐⭐ Safe by construction (tkb-1/DESIGN.md §6.5b): every translator guards its writes with
+            //    IsComponentTypeRegistered<T>(), so components this node never registered stay no-ops.
+            //    The narrowing lever is the REGISTRATION SET, never the list.
+            // 📄 DESIGN_Entity_Creation_Unification.md §2.1① — and CE-140 removes the need to remember
+            //    this at all by making the assembly a pack.
+            var translators = Hrot.Core.Tkb.TkbTranslatorSet.Base();
+            elm.SetTranslators(translators);
+
             var spawningSystem = new NetworkSpawningSystem(
                 context.TkbDb!,
                 elm,
                 context.EntityMap,
                 context.IdAllocator,
-                context.NodeId);
+                context.NodeId,
+                translators: translators);
 
             context.Kernel.RegisterModule(new SimHostModule(spawningSystem));
         }

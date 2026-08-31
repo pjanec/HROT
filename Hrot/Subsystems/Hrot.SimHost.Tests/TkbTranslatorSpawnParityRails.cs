@@ -209,5 +209,61 @@ namespace Hrot.SimHost.Tests
 
             world.Dispose();
         }
+        // ── ④ CE-140 step 2: the base set is the ONE list ─────────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-140</c> — <see cref="Hrot.Core.Tkb.TkbTranslatorSet"/> is non-empty and
+        /// carries the presentation family.</b> ⛔ The whole point of the type is that no host can end
+        /// up with an empty list by forgetting an argument, so "is it empty" is the assertion.
+        /// </summary>
+        [Fact]
+        public void TkbTranslatorSet_Base_IsNonEmpty_AndCarriesPresentation()
+        {
+            var baseSet = Hrot.Core.Tkb.TkbTranslatorSet.Base();
+
+            Assert.NotEmpty(baseSet);
+            Assert.Contains(baseSet, t => t is PresentationTkbTranslator);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>BasePlus</c> is ADD-ONLY.</b> Per-node variation must be able to add and must not be
+        /// able to subtract — that asymmetry is the design decision (tkb-1 §6.5b), so it gets a rail.
+        /// </summary>
+        [Fact]
+        public void TkbTranslatorSet_BasePlus_OnlyEverAdds()
+        {
+            var baseSet = Hrot.Core.Tkb.TkbTranslatorSet.Base();
+            var extended = Hrot.Core.Tkb.TkbTranslatorSet.BasePlus(new PresentationTkbTranslator());
+
+            Assert.Equal(baseSet.Count + 1, extended.Count);
+            foreach (var t in baseSet)
+                Assert.Contains(extended, e => e.GetType() == t.GetType());
+        }
+
+        /// <summary>
+        /// ⭐ <b>A fresh list per call</b>, so a host that concatenates cannot mutate another host's view.
+        /// </summary>
+        [Fact]
+        public void TkbTranslatorSet_Base_ReturnsAFreshListPerCall()
+        {
+            Assert.NotSame(Hrot.Core.Tkb.TkbTranslatorSet.Base(), Hrot.Core.Tkb.TkbTranslatorSet.Base());
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The end-to-end claim: spawning with the shared base set materialises the type.</b>
+        /// ⇒ this is the rail that would have caught all five omissions at once, because it exercises
+        /// the list a host actually gets rather than one assembled in the test.
+        /// </summary>
+        [Fact]
+        public void SpawnWithTheSharedBaseSet_WritesTheAuthoredSidc()
+        {
+            var (world, entity) = SpawnWith(Hrot.Core.Tkb.TkbTranslatorSet.Base());
+
+            Assert.True(world.HasComponent<VisualData>(entity));
+            Assert.Equal(TestSidc, world.GetComponentRO<VisualData>(entity).SymbolCode.ToString());
+
+            world.Dispose();
+        }
+
     }
 }

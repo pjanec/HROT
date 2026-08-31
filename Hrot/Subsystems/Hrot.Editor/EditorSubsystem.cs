@@ -1232,26 +1232,11 @@ namespace Hrot.Editor
             // ScenarioSerializer can resolve MilitaryApc, InfantrySoldier, and Insurgent.
             UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
             if (!_world.HasSingletonManaged<ITkbDatabase>()) _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
-            var translators = new List<ITkbEntityTranslator>
-            {
-                new SpatialCoreTkbTranslator(),
-                new VehicleKinematicsTkbTranslator(),
-                new BehaviorTkbTranslator(),
-                new CombatTkbTranslator(),
-                new PerceptionTkbTranslator(),
-                // ⭐⭐⭐ CE-137 — the translator this list was missing, the same omission SimHost had.
-                //    It writes VisualData (SymbolCode = the MIL-STD-2525 SIDC, ColorHex, MapShapeName)
-                //    and EntityInfo.ForceId from the TKB's VisualDefinitionDto.
-                // 🔒 User ruling 2026-08-30: "the more the subsystems are same, the better — if
-                //    VisualData is not IG-only concept, then for sure lets add it to SimHost and anywhere
-                //    where it makes sense." 📐 It is not IG-only: it is authored TKB data, and the three
-                //    hosts that spawn from TKB (IG, SimHost, Editor) should all carry it. CGF and
-                //    ReplayBrowser receive entities by replication and have no TKB spawn path at all.
-                // ⚠ It early-returns when VisualData is unregistered — no throw, no log. This host
-                //    registers it via SimHostComponentRegistry/CgfComponentRegistry → the shared registry
-                //    at :969-970, ABOVE this point, so the write lands.
-                new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),
-            }.AsReadOnly();
+            // ⭐⭐ CE-140 step 2 — the ONE base list. Replaces this host's inline copy, which
+            //    was the one CE-137 had to add PresentationTkbTranslator to by hand.
+            // ⛔ Never subtract to narrow: gate 2 (IsComponentTypeRegistered) narrows per component.
+            //    📄 DESIGN_Entity_Creation_Unification.md §3.1, tkb-1/DESIGN.md §6.5b.
+            var translators = Hrot.Core.Tkb.TkbTranslatorSet.Base();
             var elm               = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
             elm.SetTranslators(translators);
             var idAllocator       = new SequentialIdAllocator();

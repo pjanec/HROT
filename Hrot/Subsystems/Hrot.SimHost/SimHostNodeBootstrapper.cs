@@ -143,34 +143,14 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
     {
-        _translators = new List<ITkbEntityTranslator>
-        {
-            new SpatialCoreTkbTranslator(),
-            new VehicleKinematicsTkbTranslator(),
-            new BehaviorTkbTranslator(),
-            new CombatTkbTranslator(),
-            new PerceptionTkbTranslator(),
-            new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),  // behav-diag-1: auto-enable AI tracing
-            // ⭐⭐⭐ UXI-23 S1 — the sixth translator this list was missing. It writes VisualData
-            //    (SymbolCode = the MIL-STD-2525 SIDC, ColorHex, MapShapeName) and EntityInfo.ForceId
-            //    from the TKB's VisualDefinitionDto.
-            // ⚠⚠ CORRECTED 2026-08-30. An earlier version of this comment claimed that without this
-            //    line "the shared entity gizmos drew nothing: measured as 3 non-Line primitives against
-            //    the Scenario perspective's 69." 📐 Re-measured: that is WRONG, and it conflated the two
-            //    halves of one batch. The entity projector keys on SimTransform + NetworkIdentity, not
-            //    VisualData, and the 3→69 recovery is attributable to the MapDisplayComponent
-            //    registration (MapPresentationRegistry, via SimHostComponentRegistry) — without a layer
-            //    mask the DebugGizmoLayer culled every entity. ⇒ this translator buys AUTHORED
-            //    SYMBOLOGY, not a drawn map.
-            // 🔒 Kept and extended on 2026-08-30 (CE-137, user ruling "the more the subsystems are same,
-            //    the better"): VisualData is authored TKB data, not an IG concept, so every host with a
-            //    TKB spawn path carries it — IG, SimHost and both editors. CGF and ReplayBrowser have no
-            //    TKB spawn path at all; their entities arrive by replication.
-            // ⚠ It early-returns when VisualData is unregistered — no throw, no log — so this line is
-            //    only half the wiring; SimHostComponentRegistry must register the components, which it
-            //    does via HrotSharedComponentRegistry.
-            new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),
-        }.AsReadOnly();
+        // ⭐⭐ CE-140 step 2 — the ONE base list. This host's inline copy is gone; it was the
+        //    first place PresentationTkbTranslator had to be added by hand (UXI-23 S1), and four more
+        //    hosts then needed the same manual addition (CE-137, CE-138, CE-139).
+        // ⭐ AiDiagnostics is added rather than baked in because it lives above Hrot.Core — that is
+        //    exactly the per-node ADDITION tkb-1/DESIGN.md §6.5 sanctions.
+        // ⛔ Never subtract to narrow: gate 2 (IsComponentTypeRegistered) narrows per component (§6.5b).
+        _translators = Hrot.Core.Tkb.TkbTranslatorSet.BasePlus(
+            new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator());
 
         var ctx = new HrotNodeBuilder(config)
             .WithRole(config.SubsystemName, role)

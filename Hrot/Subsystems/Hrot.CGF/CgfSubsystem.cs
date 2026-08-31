@@ -665,16 +665,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    stays a no-op no matter how many translators it is handed. The narrowing lever is the
         //    REGISTRATION SET, never the list — a short list fails silently for every entity, whereas an
         //    unregistered component fails loudly at one site.
-        var translators = new System.Collections.Generic.List<Fdp.Interfaces.ITkbEntityTranslator>
-        {
-            new Fdp.Toolkit.Spatial.SpatialCoreTkbTranslator(),
-            new CarKinem.Tkb.VehicleKinematicsTkbTranslator(),
-            new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator(),
-            new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator(),
-            new Fdp.Toolkit.Perception.Translators.PerceptionTkbTranslator(),
-            new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
-            new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),
-        }.AsReadOnly();
+        // ⭐⭐ CE-140 step 2 — the ONE base list, not a sixth inline copy.
+        //    Hrot.Core.Tkb.TkbTranslatorSet.Base() carries spatial/kinematics/behaviour/combat/
+        //    perception/presentation; AiDiagnostics is added because it lives above Hrot.Core.
+        // ⛔ Never subtract to narrow — gate 2 (IsComponentTypeRegistered) does that per component.
+        //    📄 DESIGN_Entity_Creation_Unification.md §3.1, tkb-1/DESIGN.md §6.5b.
+        var translators = Hrot.Core.Tkb.TkbTranslatorSet.BasePlus(
+            new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator());
 
         // §6.3: "the translator list is identical for all three systems within the same node" — so the
         // SAME instance goes to the ELM (→ BlueprintApplicationSystem) and to NetworkSpawningSystem.

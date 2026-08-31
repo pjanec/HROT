@@ -110,6 +110,17 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
     {
+        // ⭐⭐ CE-140 step 2 — IG is the DELIBERATE exception, and it is documented as one here so
+        //    nobody "unifies" it by accident. IG has NO spawn pipeline: RegisterSpawningPipeline
+        //    registers only GhostDestructionSystem + IgUnitHierarchyModule, because
+        //    SpawnEntityCommand is forwarded to SimHost and the authoritative ghost replicates back
+        //    (see that method's own comment). ⇒ this list feeds ONLY .WithTranslators(...) →
+        //    NedReplicationModule's GHOST projection, never a local spawn.
+        // ⚠ It is therefore deliberately NARROWER than TkbTranslatorSet.Base(): a render node projects
+        //    pose and presentation onto ghosts and nothing else. ⛔ Do NOT replace this with Base() —
+        //    that is the one case where a shorter list is a real decision rather than an omission,
+        //    and it is safe here because IG never spawns, so nothing else could have filled the gap.
+        // 📄 DESIGN_Entity_Creation_Unification.md §2 (the IG counter-example row).
         var translators = new List<ITkbEntityTranslator>
         {
             new SpatialCoreTkbTranslator(), // Enforces zero-initialization of spatial ECS chunks

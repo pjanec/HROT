@@ -231,7 +231,13 @@ namespace Hrot.SimHost.Tests
         /// <para>⭐ The behavioural half is already here — see
         /// <see cref="PresentationTranslator_OnSimHostWorld_WritesVisualData"/>, which proves the write
         /// lands once the component is registered. ⇒ this rail adds only the half that one cannot see:
-        /// <i>which composition roots construct the translator at all.</i></para>
+        /// <i>which composition roots obtain the projection set at all.</i></para>
+        ///
+        /// <para>⛔ <b>IG is deliberately NOT in this list and must not be added.</b> It has no spawn
+        /// pipeline — <c>SpawnEntityCommand</c> is forwarded to SimHost and the authoritative ghost
+        /// replicates back — so its 2-entry list feeds only the ghost projection and is narrower ON
+        /// PURPOSE. 📄 <c>DESIGN_Entity_Creation_Unification.md</c> §2, and the comment at
+        /// <c>IgNodeBootstrapper</c>'s own list.</para>
         /// </summary>
         [Theory]
         [InlineData("Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs")]
@@ -239,15 +245,19 @@ namespace Hrot.SimHost.Tests
         [InlineData("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs")]
         [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs")]
         [InlineData("Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs")]
-        public void EveryTkbSpawningHost_ConstructsThePresentationTranslator(string relativePath)
+        public void EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(string relativePath)
         {
             var src = ReadRepoSource(relativePath);
 
-            // ⚠ Match on the TOKEN, not on one spelling of the generic. CGF fully-qualifies both the
-            //   interface and the translator types, so an exact "new List<ITkbEntityTranslator>" match
-            //   reddened on a host that was correctly wired — a brittle assertion, fixed 2026-08-30.
-            Assert.Contains("ITkbEntityTranslator>", src, System.StringComparison.Ordinal);
-            Assert.Contains("PresentationTkbTranslator()", src, System.StringComparison.Ordinal);
+            // ⭐⭐ CE-140 step 2 changed WHAT is asserted, and the change is the point. The claim used
+            //    to be "this host constructs PresentationTkbTranslator itself" — five hosts each doing
+            //    that by hand is exactly the disease. It is now "this host obtains the ONE shared base
+            //    set", which is a stronger claim: the shared set cannot be empty and cannot silently
+            //    lose a family, so a host that uses it cannot repeat CE-137/138/139.
+            // ⚠ Match on the TOKEN, never on one spelling — CGF and the Stride sites fully-qualify.
+            //   📌 An earlier version matched the literal "new List<ITkbEntityTranslator>" and reddened
+            //   on a host that was CORRECTLY wired.
+            Assert.Contains("TkbTranslatorSet.Base", src, System.StringComparison.Ordinal);
         }
 
         /// <summary>Repo-root-relative source read; the scan is the only way to see a composition root's local list.</summary>

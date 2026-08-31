@@ -1615,21 +1615,12 @@ public sealed class EditorStrideSubsystem : IDisposable
 
     private static IReadOnlyList<ITkbEntityTranslator> BuildTranslators()
     {
-        return new List<ITkbEntityTranslator>
-        {
-            new SpatialCoreTkbTranslator(),                               // Fdp.Toolkit.Spatial
-            new VehicleKinematicsTkbTranslator(),                         // CarKinem.Tkb
-            new InfantryVehicleStateStripTkbTranslator(),                 // Hrot.Stride.Core — strips VehicleState/VehicleParams from capsule (infantry) entities
-            new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator(),
-            new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator(),
-            new Fdp.Toolkit.Perception.Translators.PerceptionTkbTranslator(),
-            // ⭐⭐⭐ CE-137 — the same omission the Raylib editor had. Writes VisualData (SymbolCode =
-            //    the MIL-STD-2525 SIDC, ColorHex, MapShapeName) and EntityInfo.ForceId from the TKB.
-            // 🔒 User ruling 2026-08-30: VisualData is authored TKB data, not an IG concept, so every
-            //    host that spawns from TKB carries it. ⚠ Early-returns when VisualData is unregistered;
-            //    StrideNodeBootstrapper:226 calls HrotSharedComponentRegistry, which registers it.
-            new Hrot.Map.Definitions.Tkb.PresentationTkbTranslator(),
-        }.AsReadOnly();
+        // ⭐⭐ CE-140 step 2 — the ONE base list plus this node's own additions.
+        //    InfantryVehicleStateStrip lives in Hrot.Stride.Core, above Hrot.Core, so it is an
+        //    ADDITION — exactly the per-node variation tkb-1/DESIGN.md §6.5 sanctions.
+        // ⛔ Never subtract to narrow: gate 2 (IsComponentTypeRegistered) narrows per component (§6.5b).
+        return Hrot.Core.Tkb.TkbTranslatorSet.BasePlus(
+            new InfantryVehicleStateStripTkbTranslator());
     }
 
     // ── Nested: simulation-phase module adapter ──────────────────────────
