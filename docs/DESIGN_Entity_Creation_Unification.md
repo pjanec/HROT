@@ -628,7 +628,7 @@ every node, and the authoring code picks which sequence it wants by setting one 
 |---|---|---|
 | ✅ **1** | **`CE-139`** — **DONE `2026-08-30`.** `StrideNodeBootstrapper:316` now passes the list and calls `SetTranslators` | low; **gate ②** bounded it |
 | ✅ **2** | **`TkbTranslatorSet`** — **DONE `2026-08-30`.** `Hrot.Core/Tkb/TkbTranslatorSet.cs` holds the one base set *(6 translators)*; **all five spawning sites** now call `Base()` or `BasePlus(…)`, and the two per-node additions that live above `Hrot.Core` — `AiDiagnosticsTkbTranslator` (SimHost, CGF) and `InfantryVehicleStateStripTkbTranslator` (Stride editor) — go through `BasePlus`. ⭐ IG keeps its narrower list **with the reason written at the site** | low — no behaviour change where the lists agreed |
-| **3** | **`EntityCreationPack`** over the six sites, one host at a time, `Unserviceable` reporting each | medium — it is a composition change on the spawn path |
+| ⏳ **3** | **`EntityCreationPack`** over the six sites, one host at a time, `Unserviceable` reporting each | ⏳ **IN PROGRESS `2026-08-31`** — the pack is BUILT in `Hrot/Engine/Hrot.Common/EntityCreation/` and **host (a) Stride node has adopted it**. ⛔ Remaining: SimHost · Editor · CGF · IG *(IG atomic with Q65-A′ + CE-143 + CE-144)* |
 | ✅ **4** | ✅✅ **DONE `2026-08-31`** — **§3.3**: the templates now live in `Hrot.Core.Tkb.UrbanCombatTkbCatalog`, seeded from `HrotEnvironment.CreateTkb()`, with forwarders for the test callers. ⚠⚠ **It was NOT "the smaller of the two"** — that estimate was wrong: it also required collapsing a second divergent copy, deleting a production call site that would have thrown, and relocating 10 animation DTOs into `Fdp.Toolkits` *(`CE-145` for the namespace rename)* |
 
 ⚠ **Step 2 was the cheap majority of the value** — it is where §6.3's *"identical list"* stopped being a
@@ -645,6 +645,37 @@ convention. ⭐ Step 3 buys invariants ④ and ⑤ and can follow later.
 | ⚠ **red-proof** | removing `PresentationTkbTranslator` from `Base()` reddens **2** rails |
 | ⚠ **not verified** | the Stride tree cannot build on Linux *(`Microsoft.WindowsDesktop.App`)*; `EditorStrideSubsystem`'s conversion is checked statically only |
 | ⛔ **still open** | **step 3** *(the pack)* and **step 4** *(the `RegisterUrbanCombatTkbTemplates` ruling)* |
+
+##### ⏳ STEP 3 PROGRESS `2026-08-31` — **the pack exists; host (a) has adopted**
+
+| ⭐ built | |
+|---|---|
+| `Hrot/Engine/Hrot.Common/EntityCreation/EntityCreationPack.cs` | `Build(ctx)` — one translator list instance *(add-only)*, `elm.SetTranslators`, the **local in-memory request source** merged with DDS ingress behind the existing composite, `CreateEntityRequestSystem(isDefaultProcessor: IsBroadcastArbiter)`, `EntityRequestFinalizationSystem`, `NetworkSpawningSystem` |
+| `EntityCreationContext.cs` | ⛔ **no `ModuleHostKernel`** *(pack constructs, host schedules — the `S2b` precedent)*; ⛔ **no flag or `NodeRole` that omits a system** — invariant ⑥ |
+| `EntityCreation.cs` | the built pieces + `Unserviceable(scheduled)`, which **names** each unscheduled piece rather than failing a count |
+| ⭐ **why `Hrot.Common`** | it must construct `CreateEntityRequestSystem`, which now lives there *(obstacle ①)*, and `Hrot.Common` is reachable from every host |
+
+⚠ **The two AUTHORING AFFORDANCES (§3.4) are deliberately NOT in this slice.** They need an explicit
+`ReliableInitType`, which `EntityCreationRequest` does not carry yet *(`CE-143`)* ⇒ shipping them now would
+publish a signature that changes immediately. ⭐ They land with **Q65-A′ + `CE-143`**; this slice is the
+CONSTRUCTION half, and it is a pure composition change.
+
+⭐⭐ **Host (a) `StrideNodeBootstrapper` — adopted, and it closed a SECOND gap.** 📐 That host had
+**no `CreateEntityRequestSystem` at all**, so nothing could ask it to create an entity — *not even itself*.
+⭐ Scheduling is unchanged: the spawn system still goes through `SimHostModule` *(BeforeSync)*, the request
+system and finalization system are `RegisterGlobalSystem` *(Input / PostSimulation)*.
+⚠ **Follow-up, not a regression:** no DDS ingress source or ACK sink is passed there, because
+`HrotNodeContext` exposes no lifecycle adapters — so that node serves **local requests only**. Strictly
+better than before, when it had no request tier at all; wiring the network half needs a context addition.
+
+| 📐 gates | |
+|---|---|
+| builds | ✅ `Hrot.Common` · `Hrot.NodeComposition` · `Hrot.SimHost.Tests` |
+| ⭐ **new rails** `EntityCreationPackRails` | ✅ **8/8** — acceptance ②③⑤⑨ plus two structural tripwires *(no kernel on the context, no suppression flag)* |
+| ⭐ **red-proof, inverse edit** | remove `ctx.Elm.SetTranslators(translators)` *(the `CE-139` defect class)* ⇒ **exactly 1 rail reddens**, the one asserting the same list instance reaches the ELM |
+| **T1 `Hrot.SimHost.Tests`** | ✅ **818 passed** *(810 + 8)* · 1 failed *(`QA-012`, pre-existing)* · 3 skipped |
+| **`Hrot.NodeComposition.Tests`** | ✅ **22/22** — the adopting host's own tests |
+| ⚠ **honest note on acceptance ③** | the rail reads `EntityLifecycleModule._translators` by **reflection**: the ELM keeps it private with no accessor, so the §6.3 "one instance" invariant is not observable through its public API. ⭐ A read-only accessor on the ELM is the better fix and is a `Fdp.Toolkits` change, out of this slice |
 
 ### 5.1 ⭐ Step 3's adoption order — **easiest host first, so the pack is proven before the risky one**
 

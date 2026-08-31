@@ -86,6 +86,20 @@ PRE-EXISTING BREAK FIXED (out of my lane, flagged for the backend lane): Hrot.Si
   using Fdp.Toolkit.Replication.Attributes. Proven pre-existing by git stash + rebuild (same CS0103 on
   base). Fixed with the one missing using because it was blocking verification of my own change; the
   whole test project is now buildable and its 7 entity-creation tests pass.
+STEP 3 STARTED (2026-08-31): EntityCreationPack BUILT in Hrot/Engine/Hrot.Common/EntityCreation/
+  (Pack + Context + EntityCreation). Host (a) StrideNodeBootstrapper ADOPTED -- and that closed a second
+  gap: it had no CreateEntityRequestSystem at all, so nothing could ask it to create an entity, not even
+  itself. Scheduling unchanged (spawn via SimHostModule/BeforeSync; request + finalization via
+  RegisterGlobalSystem). ⚠ Follow-up: no DDS ingress/ACK sink passed there because HrotNodeContext
+  exposes no lifecycle adapters => local requests only; strictly better than before.
+  ⛔ NOT in this slice: the two authoring affordances (DESIGN §3.4) -- they need CE-143's ReliableInitType,
+  so they land with Q65-A'.
+  Rails: EntityCreationPackRails 8/8 (acceptance 2,3,5,9 + no-kernel + no-suppression-flag tripwires).
+  Red-proof: remove ctx.Elm.SetTranslators => exactly 1 rail reddens (the CE-139 defect class).
+  T1 818 pass / 1 fail (QA-012) / 3 skip. Hrot.NodeComposition.Tests 22/22.
+  ⚠ Acceptance 3's rail uses REFLECTION on EntityLifecycleModule._translators -- private, no accessor.
+  A read-only accessor on the ELM would be the better fix (Fdp.Toolkits change, deferred).
+  REMAINING hosts for step 3: SimHost, Editor, CGF, then IG -- IG atomic with Q65-A' + CE-143 + CE-144.
 CE-143 (new, 2026-08-31, from the architect review): ReliableInitType is HARDCODED to AllPeers at
   CreateEntityRequestSystem.cs:302 (root) and :397 (TKB children), and EntityCreationRequest carries NO
   field to override it. Enum has None / PhysicsServer / AllPeers. => an IG drawing created via path 2

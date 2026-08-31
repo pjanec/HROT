@@ -1,3 +1,5 @@
+using Hrot.Common.EntityCreation;   // CE-140 step 3
+using Fdp.Core.Logging;
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
@@ -313,31 +315,52 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         // headless tests with SkipAllocatorRouting=true skip this path.
         if (context.IdAllocator != null)
         {
-            var elm = (EntityLifecycleModule)context.BaseModules[0];
+            // ⭐⭐⭐ CE-140 step 3 — the ENTITY CREATION PACK. This host used to hand-assemble the spawn
+            //    path here, and it is where CE-139 was found: the FIFTH host with `translators:` unpassed
+            //    and SetTranslators never called, so ProcessSpawn step 4's projection loop ran zero times
+            //    and entities were born with identity and a DIS header but none of their components.
+            //    ⇒ the pack makes that omission unrepresentable rather than merely documented.
+            //
+            // ⭐⭐ AND IT CLOSES A SECOND, QUIETER GAP: this node had NO `CreateEntityRequestSystem`, so
+            //    nothing could ask it to create an entity — not even itself. 🔒 User ruling 2026-08-31:
+            //    the shared code "should not restrict any ECS enabled node from creating own networked
+            //    entities … not removing capabilities by design". The pack has no opt-out.
+            //
+            // 📄 DESIGN_Entity_Creation_Unification.md §3, §3.4 · Architect_Question_65 §0, §4.
+            var creation = EntityCreationPack.Build(new EntityCreationContext
+            {
+                World       = context.World,
+                EntityMap   = context.EntityMap,
+                TkbDb       = context.TkbDb!,
+                IdAllocator = context.IdAllocator,
+                Elm         = (EntityLifecycleModule)context.BaseModules[0],
+                NodeId      = context.NodeId,
 
-            // ⭐⭐⭐ CE-139 — the FIFTH host found with this omission, after SimHost, the Editor, the
-            //    Stride editor and CGF: `translators:` was not passed and SetTranslators was never
-            //    called, so ProcessSpawn step 4's projection loop ran zero times and entities were born
-            //    with identity and a DIS header but none of their type's components.
-            // ⚠ It survived because EditorStrideSubsystem builds a SECOND pipeline over the same world
-            //    that DOES pass translators — so the behaviour depended on which composition ran.
-            // ⭐⭐ Safe by construction (tkb-1/DESIGN.md §6.5b): every translator guards its writes with
-            //    IsComponentTypeRegistered<T>(), so components this node never registered stay no-ops.
-            //    The narrowing lever is the REGISTRATION SET, never the list.
-            // 📄 DESIGN_Entity_Creation_Unification.md §2.1① — and CE-140 removes the need to remember
-            //    this at all by making the assembly a pack.
-            var translators = Hrot.Core.Tkb.TkbTranslatorSet.Base();
-            elm.SetTranslators(translators);
+                // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
+                //    ⚠ This does NOT stop this node creating entities: a request targeted at this node is
+                //    processed regardless of the flag (Q65 §1).
+                IsBroadcastArbiter = false,
+            });
 
-            var spawningSystem = new NetworkSpawningSystem(
-                context.TkbDb!,
-                elm,
-                context.EntityMap,
-                context.IdAllocator,
-                context.NodeId,
-                translators: translators);
+            // ⭐ The HOST schedules. NetworkSpawningSystem is BeforeSync and goes through a module here,
+            //   exactly as before — composition changed, scheduling did not.
+            context.Kernel.RegisterModule(new SimHostModule(creation.SpawnSystem));
+            context.Kernel.RegisterGlobalSystem(creation.RequestSystem);        // Input
+            context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);  // PostSimulation
 
-            context.Kernel.RegisterModule(new SimHostModule(spawningSystem));
+            // ⭐⭐ The S2b habit: make an omission loud. Every one of the five defects behind this design
+            //   was silent.
+            var unserviceable = creation.Unserviceable(new object[]
+            {
+                creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+            });
+            if (unserviceable.Length > 0)
+                FdpLog<StrideNodeBootstrapper>.Warn(unserviceable);
+
+            // ⚠ FOLLOW-UP, not a regression: no DDS ingress source or ACK sink is passed, so this node
+            //   serves LOCAL requests only. `HrotNodeContext` exposes no lifecycle adapters, so wiring
+            //   the network half needs a context addition — out of scope for a composition change, and
+            //   strictly better than before, when this node had no request tier at all.
         }
     }
 
