@@ -1,14 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-30
-current-answer: §0.0e.3c-NEXT — READ IT FIRST. It carries the AGREED ORDER OF WORK across the
-  compaction boundary of 2026-08-30: (1) EntityCreationPack step 4, then step 3
-  (DESIGN_Entity_Creation_Unification.md — user-approved, NOT started), THEN (2) back to the gizmo /
-  symbology work we left to dive into TKB: CE-133, CE-134, CE-135, CE-136 against
-  UX_Feature_Entity_Symbology.md §3.8. ⛔ Do not re-derive either plan; both designs are written, gated
-  and READY-TO-BUILD. ⚠⚠ AND: Architect_Question_65 must be resolved WITH THE USER before step 3 ships —
-  the pack as designed is NOT the cross-host uniformity the user asked for (§2.4 says so plainly), and
-  the blocker is that SpawnEntityCommand conflates intent and order.
+current-answer: §0.0e.3c-NEXT — READ IT FIRST. The AGREED ORDER OF WORK across the 2026-08-30 compaction:
+  (1) entity creation — pack step 4, then MOVE CreateEntityRequestSystem out of Hrot.CGF to a shared
+  assembly (Architect_Question_65 §5 obstacle 1), then pack step 3 as ONE uniform pipeline, then Q65-A'
+  (originators self-target) and Q65-B (uniform GhostPromotionSystem); THEN (2) back to the gizmo /
+  symbology work: CE-134 (health bar) first, then CE-133, CE-135, CE-136 against
+  UX_Feature_Entity_Symbology.md §3.8. ⭐ Q65 is RESOLVED — genesis is already peer-to-peer and needs no
+  contract change; DESIGN_Entity_Creation_Unification.md §2.3's "halves" are SUPERSEDED. ⛔ Do not
+  re-derive any of it.
 
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
   way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
@@ -221,7 +221,7 @@ UML in §4. Tracker: **`CE-140`**.
 | ✅ | steps **1 + 2** — `TkbTranslatorSet` is the one base list; all five spawning sites use it | **DONE `2026-08-30`** |
 | ⭐⭐ **do first** | **step 4** — §3.3: move `RegisterUrbanCombatTkbTemplates` out of `Fdp.Examples.Scenarios` into `Hrot.Core` beside `NedTkbCatalog`, seed it from `HrotEnvironment.CreateTkb()`, leave a forwarder. 🔒 **User ruling:** *"if editor builds UrbanCombat stuff then everyone should, editor is the most advanced in that matter."* ⭐ Smaller, independent, and its dependency check is already measured as clean | **approved, NOT started** |
 | ⭐⭐ **then** | **step 3** — `EntityCreationPack` per §3/§3.1/§3.2, adoption order in **§5.1** *(Stride node → SimHost → Editor → ⛔ **CGF LAST**, it is the spawning authority → then **IG**)*. ⭐⭐ **The pack has THREE halves (§2.3): origination · materialisation · ghost-projection** — ⛔ **IG DOES adopt**, taking origination + ghost-projection and opting out of materialisation only *(single spawn authority)*. ⚠ An earlier draft said "IG does not adopt"; the user refuted it and §2.3 carries the correction | **approved, NOT started** |
-| 🔴🔴 **DECIDE BEFORE step 3 ships** | **[`Architect_Question_65`](Architect_Question_65_Entity_Genesis_Uniformity.md)** — 🔒 **the user asked *"will that be really unified cross hosts?"* and the honest answer is NO as designed.** §2.3's `Role`-selected halves relocate the divergence instead of removing it. 📐 **The blocker:** `SpawnEntityCommand` conflates INTENT and ORDER *(with `NetworkId == 0` a node that has `NetworkSpawningSystem` materialises locally; IG forwards the same event instead)* ⇒ giving every node a materialiser would **double-create entities**. ⭐ **Q65-A recommends** originators publish `CreateEntityRequest` and only the authority issues the order ⇒ then every node runs the identical pack. ⚠ **Genesis-contract change, cluster-wide blast radius — resolve WITH the user, do not design around it.** ⭐ Also `Q65-B`: `GhostPromotionSystem` is on **SimHost + IG only**, so CGF/Editor/Stride create ghosts whose TKB descriptors are never projected | **recommended, NOT approved** |
+| ✅ **RESOLVED, no longer a blocker** | **[`Architect_Question_65`](Architect_Question_65_Entity_Genesis_Uniformity.md)** — 🔒 **the user was right: genesis is ALREADY peer-to-peer.** 📐 Verified: `CreateEntityRequestSystem.cs:151-156` processes a request **targeted at the local node regardless of `isDefaultProcessor`**, and the comment above the guard says so; `EntityMaster` has no owner field; ID allocation is a DDS service. ⇒ ⭐⭐ **`isDefaultProcessor` is a BROADCAST TIEBREAKER, not an authority gate — no contract change is needed.** ⛔⛔ **My original Q65-A was WRONG and is retracted** *(it routed orders through "the authority" and would have CREATED the CGF bottleneck the user rejected)*. ⭐ **Uniformity is a COMPOSITION problem, which is the pack's job** — every node registers `CreateEntityRequestSystem` + `NetworkSpawningSystem` + `GhostCreationSystem` + `GhostPromotionSystem`, with `isBroadcastArbiter` the only differing value. ⛔ §2.3's role-selected HALVES are **SUPERSEDED**. ⚠ **The real first task is a MOVE:** `CreateEntityRequestSystem` lives in `Hrot.CGF/Systems/`, a host assembly, and only 3 hosts construct it. 📄 Q65 §5 lists four obstacles, §6 the sequencing | **resolved `2026-08-30`** |
 | ⚠ **separately, NOT in the pack** | **`CE-141`** — IG registers six components *(`VehicleParams`, `PhysicsCollider`, `Health`, `WeaponState`, `PerceptionReceptor`, `TargetMemory`)* that its 2-entry translator list never fills on a ghost. ⛔ **Do not widen the list to "fix" it** — the wire may be the correct source. Needs a live `--mode all` comparison of an IG ghost against its SimHost original | **open, needs the live probe** |
 
 #### ⭐ ② THEN: back to the gizmo / symbology work

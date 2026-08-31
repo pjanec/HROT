@@ -6,9 +6,9 @@ current-answer: §5 is the plan. Steps 1 and 2 are BUILT (2026-08-30): TkbTransl
   list and all five spawning sites use it. Steps 3 and 4 are APPROVED BY THE USER and NOT STARTED —
   step 3 is the EntityCreationPack (§3, UML in §4), step 4 is the catalogue-contents move (§3.3).
   Start with step 4: it is smaller, independent, and unblocks nothing else.
-known-conflict: §2.3's Role-selected HALVES may be SUPERSEDED. §2.4 answers the user's "is this really
-  unified" question with NO, and Architect_Question_65 asks whether to go further (request/order
-  separation) which would make the pack uniform and the half-split unnecessary. Read §2.4 before §3.
+known-rot: §2.3's Role-selected HALVES are SUPERSEDED — Architect_Question_65 §4 resolved the question
+  and there is ONE uniform pipeline. §2.3 is kept only as HISTORY. §3's Role invariant (item 4) still says
+  "role decides which half"; that wording is stale and must be read against Q65 §4.
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
@@ -65,7 +65,19 @@ the authority, whose ghost replicates back. **Single spawn authority is the desi
 
 ⇒ ⭐⭐⭐ **So the pack has TWO halves, and IG adopts one of them — see §2.3.**
 
-### 2.3 ⭐⭐⭐ THE PACK HAS TWO HALVES — **origination and materialisation** *(added `2026-08-30`)*
+### 2.3 ⛔⛔ SUPERSEDED — **the "halves" are gone; there is ONE pipeline** *(`2026-08-30`, same day)*
+
+> ⛔ **Read [`Architect_Question_65`](blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md) §4
+> instead.** 📐 **Measured since:** `CreateEntityRequestSystem.cs:151-156` processes a request **targeted at
+> the local node regardless of `isDefaultProcessor`** — and the comment above the guard says so. ⇒ 🔒
+> **`isDefaultProcessor` is a BROADCAST TIEBREAKER, not an authority gate**, so peer-to-peer genesis is
+> already the architecture. ⭐ Every ECS node composes the **identical** pipeline; `Role` selects only
+> `isBroadcastArbiter`. ⛔ The half-split below was a workaround for a limitation that does not exist.
+>
+> 🔒 **User:** *"I do not want to end up in a system where everything needs to go via CGF. I need a
+> distributed system where each node can create entities."* ⭐ **They can, today, by targeting themselves.**
+
+#### ⛔ HISTORY — the superseded half-split
 
 | half | what it is | who has it |
 |---|---|---|
@@ -123,7 +135,7 @@ EntityLifecycleModule(…, IReadOnlyList<ITkbEntityTranslator>? translators = nu
 ⇒ 🔒 **The fix is not more documentation** *(that was `CE-138`'s half, and it is done)* — ⭐ **it is making
 the assembly a THING that is constructed once**, so a host cannot half-do it.
 
-### 2.4 ⛔⛔ IS THIS ACTUALLY UNIFIED? — **NO, and §3's half-split is the reason** *(`2026-08-30`)*
+### 2.4 ⭐⭐ IS THIS ACTUALLY UNIFIED? — **it CAN be, and it needs no contract change** *(`2026-08-30`, corrected)*
 
 > 🔒 **User:** *"so is the unification planned in a way that all ECS equipped node are able to create
 > entities and all are able to receive ghost entities and all are using all TKB translator lists in the
@@ -139,20 +151,24 @@ per-host divergence into one place rather than removing it. ⭐ Scored against t
 | all can receive ghosts | ⚠ `GhostCreationSystem` on 5 of 6, but 🔴 **`GhostPromotionSystem` on SimHost + IG ONLY** | ⛔ **unaddressed — this design never mentions promotion** | ✅ add it to the pack |
 | one list, gated only by registration | ⚠ 5 sites on `Base()`; 🔴 IG hand-narrowed *(`CE-141`)* | ⛔ unchanged | ✅ once `CE-141` settles |
 
-🔴 **The blocker, measured:** `SpawnEntityCommand` **conflates INTENT and ORDER** — with
-`NetworkId == 0` a node that has `NetworkSpawningSystem` allocates and materialises it locally, while on
-IG the same event is forwarded to the authority. ⇒ **its meaning depends on which systems the node
-composed**, and that is why handing every node a materialiser would double-create entities. 📌 The code
-says so itself — `IgNodeBootstrapper`: *"replaces SpawningModule so IG does not duplicate entities."*
+⚠⚠ **CORRECTED the same day.** An earlier version of this section said the blocker was that
+`SpawnEntityCommand` conflates INTENT and ORDER, and that true uniformity therefore needed a
+**genesis-contract change**. 🔴 **The conflation is real but the conclusion was wrong** — and it would have
+introduced the CGF bottleneck the user explicitly rejected.
 
-⇒ ⭐⭐ **True uniformity needs the request/order separation**, and that is a **genesis-contract change with
-cluster-wide blast radius** ⇒ 📄 **[`Architect_Question_65_Entity_Genesis_Uniformity.md`]
-(blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md)**, with a recommended answer per
-sub-question. ⛔ **Not decided here, and not to be designed around quietly.**
+📐 **Measured:** `CreateEntityRequestSystem.cs:151-156` — a request **targeted at the local node is
+processed regardless of `isDefaultProcessor`**, and the comment above the guard states it. ⇒ 🔒 **genesis is
+already peer-to-peer**; `isDefaultProcessor` arbitrates only **unowned broadcasts** *(`Owner == 0`, from
+non-ECS clients like ExCon)*. ⭐ `EntityMaster` carries no owner field, and ID allocation is a DDS service
+*(`DdsIdAllocator`/`DdsIdAllocatorServer`)*.
 
-⭐ **What this design still buys regardless of Q65's outcome:** one assembly site, one translator list,
-one catalogue, and `Unserviceable` reporting. ⚠ **What it does NOT buy is the uniformity the user asked
-for** — say so plainly rather than letting the pack imply it.
+⇒ ⭐⭐⭐ **So uniformity is a COMPOSITION problem, which is exactly what this pack is for**: every node
+registers `CreateEntityRequestSystem` + `NetworkSpawningSystem` + `GhostCreationSystem` +
+`GhostPromotionSystem`, with `isBroadcastArbiter` the only differing value.
+⚠ **The real obstacle is placement, not protocol:** `CreateEntityRequestSystem` lives in
+**`Hrot.CGF/Systems/`**, a host assembly — it must move to a shared one before *"every node registers it"*
+is even expressible. 📄 **[`Architect_Question_65`](blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md)
+§4-§6 for the resolved answers, the four obstacles and the sequencing.**
 
 ## 3. ⭐⭐⭐ THE DESIGN — `EntityCreationPack`, on the `MapInteractionPack` precedent
 
