@@ -17,6 +17,8 @@ known-rot: §2.3's "halves" language is dead everywhere it appeared. Removed fro
   as HISTORY only. Any reader finding "which half" in this file outside a HISTORY block has found rot.
 current-answer-note: §3.4 is the NEW load-bearing section (2026-08-31) — the two authoring affordances
   and the per-tier measurement of what each path already has. Read it before §5's sequencing.
+known-rot: §3.4's split-authority row used to call the _roleHasBrain gate on ownership delegation
+  "out of scope" and correct. FALSE — corrected 2026-08-31, see Q65 §5.3 / CE-142.
 -->
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
@@ -320,7 +322,7 @@ exactly that shape *(§2.2)*. ⭐ Two named affordances make the choice legible 
 | order → entity | ✅ 5 hosts | 🔴 **IG omits `NetworkSpawningSystem` deliberately** |
 | announce + publish geometry | — | ✅⭐ **already uniform**: `SharedTranslatorPack` is *"the shared translator set that all `NodeRole` values install regardless of specialisation"*, gated at `NedReplicationModule.cs:213` on **`participant != null` only, not on role** ⇒ every node has `EntityMasterEgressTranslator`, **`MapVisualOverlayEgressTranslator`** *("publishes tactical-graphic overlay geometry for **owned** area entities")*, `GeoSpatialEgressTranslator`, `EntityInfoEgressTranslator` — **and IG calls `.WithReplication(role)` at `IgNodeBootstrapper.cs:142`** |
 | receivers project TKB | ✅ | ⚠ IG ✅ *(pure-IG gate)*; 🔴 **CGF ⛔** *(pure-Brain)* ⇒ **Q65-B** |
-| split-authority delegation | ✅ `DeferredTakeOwnershipEgressTranslator`, gated `_roleHasBrain` | ⭐ **not needed** — a single-owner drawing delegates nothing. ⚠ A non-Brain node that DID need split authority still cannot publish grants; 🔒 out of scope by the user’s own framing *("do not need any brain")*, and recorded as `Q65` obstacle ④ |
+| split-authority delegation | ✅ `DeferredTakeOwnershipEgressTranslator`, gated `_roleHasBrain` *(`NedReplicationModule.cs:230`)* | ⭐ **not needed for path 2** — a single-owner drawing delegates nothing. ⚠⚠ **CORRECTED `2026-08-31`: an earlier version of this row called the gate "out of scope" and correct.** 📐 It is not — all three delegation pieces are pure mechanism and the receive side is doubly guarded ⇒ **`CE-142`**, 📄 [`Q65`](blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md) §5.3 |
 
 ⇒ ⭐⭐⭐ **IG is not missing the ability to PUBLISH. It is missing the ability to BECOME THE OWNER** —
 three pieces, all of them the pack’s.

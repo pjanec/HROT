@@ -18,6 +18,11 @@ updated-again: 2026-08-31 — §0 carries the GOVERNING RULING (no capability re
   §5.2 (the publish half is already uniform — IG CAN publish EntityMaster), and §6's ORDERING HAZARD
   (step 3 and step 4 are atomic for IG, or it double-spawns). The Q65-A′ answer in §4 is unchanged in
   substance but must now be read with §0: path 1 is NOT deprecated — both paths are legitimate.
+known-rot: obstacle 4 and the closing caveat of section 5.2 BOTH used to say the _roleHasBrain gate on
+  DeferredTakeOwnership was correct and must not be widened. That is FALSE and is corrected in section
+  5.3 (CE-142, 2026-08-31): all three pieces are pure mechanism, the receive side is doubly guarded and
+  free to ungate, and the only role-specific thing is the injected BrainMuscleOwnershipStrategy POLICY.
+  A reader must not quote either prior wording.
 -->
 # Architect Question 65 — is entity genesis UNIFORM across ECS nodes? — ✅ **RESOLVED: yes, and no contract change is needed**
 
@@ -246,7 +251,7 @@ reasons.
 | **②** | 🔴🔴 **IG's tools publish bus-level `SpawnEntityCommand`, and it leaves the DDS request UNOWNED** — 📐 `SpawnEntityCommandEgressTranslator.cs:167` writes `Owner = default`, and `NedCgfEntityLifecycleAdapters.cs:76` maps `OwnerAppInstanceId = msg.Owner.AppInstanceId` ⇒ **`0` ⇒ broadcast ⇒ the arbiter (CGF)**. ⭐⭐ **This is the whole mechanism of the "everything goes via CGF" bottleneck: one unset field plus a missing local pipeline** | ⇒ retarget to a self-targeted `CreateEntityRequest`; same for `SimHostScenarioManager.SpawnVehicle`. ✅ **§1.1's graph pass shrank this one**: `SpawnEntityCommandEgressTranslator` is **already** in the shared `Hrot.Network.NED` assembly behind an `INetworkFactory` method all three factories implement ⇒ **no code moves, only the originator's target changes.** ⚠ Keep the translator — 🔒 path 1 is still correct for brain-enabled entities |
 | **②b** | 🔴 **`GhostPromotionSystem` is ROLE-gated inside `NedReplicationModule`**, and pure-Brain *(CGF)* is excluded by construction | ⇒ ⭐ see Q65-B. ⚠ **Not a host-composition oversight** — today it is correct, because pure-Brain spawns rather than receives. It becomes a gap **only once Q65-A′ lands** |
 | **③** | ⚠ **the ELM ACK handshake on a node with no peers** | the Editor runs offline with a `SequentialIdAllocator` and no peers to ACK. ⭐ It already works *(`isDefaultProcessor: true`, local bus)* — ⛔ but **verify the handshake does not stall** when a *networked* node self-targets and a peer is absent |
-| **④** | ⚠ **`DeferredTakeOwnership` is wired only in CGF's `CognitiveTranslatorPack`** | ⇒ split-authority spawns *(IG creates a vehicle whose kinematics SimHost must own)* still need CGF's routing. ⭐ **Pure single-owner entities — tactical graphics, markers, areas — need none of it**, which is exactly the user's case |
+| **④** | 🔴🔴 **ownership DELEGATION is role-gated, and the gate has NO justification inside it** — `DeferredTakeOwnershipEgressTranslator` on `_roleHasBrain` *(`NedReplicationModule.cs:230`)*, its ingress on `_roleHasMuscle` *(`:232`)*, `DeferredTakeoverSystem` on `_roleHasMuscle` *(`:206`)* | ⚠⚠ **CORRECTED `2026-08-31` — see §5.3.** An earlier version of this row said the gate was *"correct, do not widen speculatively."* 🔴 **That was asserted from a role NAME and the architect's claim, without opening the three classes.** 📐 All three are pure mechanism. ⇒ filed as **`CE-142`** |
 
 ### 5.1 📐 THE PER-NODE GAP — **measured `2026-08-31`; three pieces, none of them protocol**
 
@@ -281,10 +286,81 @@ for area entities they own — same rationale as `GeoSpatialEgressTranslator`."*
 ⇒ ⭐⭐⭐ **IG is not missing the ability to PUBLISH. It is missing the ability to BECOME THE OWNER.** ⛔ So
 the fix is three composition pieces, and **zero** translator, protocol or wire changes.
 
-⚠ **The one asymmetry that remains, and it is correct:** `DeferredTakeOwnershipEgressTranslator` is gated
-`_roleHasBrain`, so a non-Brain creator cannot publish split-authority grants. 🔒 Out of scope by the
-user's own framing — path 2 is for entities that *"do not need any brain"* and delegate nothing. ⛔ **Do not
-widen it speculatively**; obstacle ④ is its record.
+⚠⚠ **One asymmetry remains — and `2026-08-31` measurement shows it is NOT justified.** 🔴 **The text that stood here claimed the `_roleHasBrain` gate was "correct" and said "do not widen it speculatively." That was wrong, and §5.3 replaces it.**
+
+### 5.3 🔴🔴 `CE-142` — **ownership delegation is MECHANISM gated by POLICY** *(measured `2026-08-31`)*
+
+> 🔒 **User:** *"why that? what does the ownership has to do with hasBrain? why not same everywhere?"*
+
+⛔⛔ **It has nothing to do with it.** ⚠ **Obstacle ④ and §5.2's closing caveat BOTH previously said the
+gate was correct and must not be widened** — 🔴 asserted from a role NAME plus the relayed architect claim,
+**without opening the three classes.** 📌 Same failure shape this document exists to catch, and the third
+instance of it in this programme *(after Q65-A's "only", and Q65-B's mechanism twice)*.
+
+#### 📐 THE PROBE — all three pieces read end to end
+
+| piece | gate | what is actually inside |
+|---|---|---|
+| `DeferredTakeOwnershipEgressTranslator` | `_roleHasBrain` *(`:230`)* | reads `DeferredTakeOwnershipCommand` off the bus, converts `DescriptorGrant` → `DescriptorOwnerEntry`, writes ONE DDS sample. ⭐ **Zero role logic.** Its only *"Brain"* is a doc comment — *"installed on the Brain (CGF) node only"* — ⛔ a statement of the WIRING, not a reason |
+| `DeferredTakeOwnershipIngressTranslator` | `_roleHasMuscle` *(`:232`)* | *"extracts only the entries whose `NodeId` equals the local node ID"* ⇒ ⭐ **it already self-filters.** A node with no grants addressed to it does nothing |
+| `DeferredTakeoverSystem` | `_roleHasMuscle` *(`:206`)* | `PendingAuthorityGrants` + `Constructing` → `SetAuthority` → `OwnershipUpdate` for symmetrical yield. ⭐ **No role logic** — again only a comment |
+
+⭐⭐ **The ONE legitimately role-specific thing is `BrainMuscleOwnershipStrategy`** — and that is a **POLICY**:
+one implementation of the generic `IOwnershipDistributionStrategy` seam
+*(`GetInitialGrants(entityType, masterNodeId)`)*, **injected**. Its content *(delegate `dtWorldPos` +
+`dtNavigationStatus` to the least-loaded Muscle, keep mission/intent on the Brain)* **should** be role-aware.
+
+⇒ 🔒🔒🔒 **The gate conflates POLICY with MECHANISM: the transport is gated on the role
+that happens to hold the only current policy.** ⛔ Delegating ownership is *"here is a grant, addressed to a
+node id"* — the descriptors, the wire type and the filtering are all node-agnostic. 🔒 **Squarely inside
+§0's ruling: a capability removed by design.**
+
+#### ✅ THE SAFETY PROBE — **ungating the RECEIVE side is free**
+
+⚠ **The stated risk was:** a node receiving a grant for a component it does not register would throw,
+since `EntityRepository` throws on unregistered writes. 📐 **Measured — it cannot happen.**
+`DeferredTakeoverSystem.ExecuteTakeover` is **doubly guarded**:
+
+```csharp
+if (ownerNodeId != _localNodeId) continue;                 // self-filters AGAIN, after the ingress
+...
+foreach (int componentId in _ownershipMap.GetComponentIdsForDescriptor(descriptorTypeId))
+    if (repo.HasComponentByTypeId(entity, componentId))    // ⭐ per-component guard
+        repo.SetAuthority(entity, componentId, true);
+```
+
+⇒ ⭐⭐ **Exactly the `tkb-1` §6.5b gate ② shape** — a component the entity does not carry is skipped
+silently, no throw. ⭐ And `DescriptorOwnershipMap` is built from `IDescriptorTranslator.TargetComponentIds`,
+so a node with a narrower translator set claims fewer components **by construction.**
+
+#### ⚠⚠ THE LATENT SILENT DROP — **two unrelated gates decide one behaviour**
+
+| where | condition |
+|---|---|
+| `CreateEntityRequestSystem.cs:313` — **publishes** the bus command | `_isDefaultProcessor && _ownershipStrategy != null` |
+| `NedReplicationModule.cs:230` — the translator that **puts it on the wire** | `_roleHasBrain` |
+
+📐 **Today they coincide by CONVENTION ONLY** — the ctor doc says *"The Brain (CGF) node is always the
+default processor; Muscle (SimHost) nodes must set this to false."* ⇒ ⚠ **a non-Brain node made the arbiter
+and given a strategy would compute grants, publish them on its bus, and have them SILENTLY DROPPED** — no
+error, no log; the entity is created, peers never claim authority, and the creator silently keeps components
+it meant to delegate. 📌 **The `CLAUDE.md` silent-default pattern: the caller holds the value and
+nothing consumes it.**
+
+⭐ **Stated accurately: LATENT, not live.** ⛔ It is not reachable in today's configurations — ⚠ but it is a
+coincidence between two unrelated gates, and unification is what turns those into live bugs.
+
+#### ✅ `CE-142` — the corrected shape
+
+| concern | gate it on |
+|---|---|
+| ⭐⭐ **MECHANISM** *(all three pieces)* | **`participant != null`** — ⭐ exactly what `SharedTranslatorPack` already does *(§5.2)*. ⛔ Ungated by role |
+| ⭐⭐ **POLICY** *(are grants computed at all)* | **`_ownershipStrategy != null`** — ⭐ already the real lever at `:313`. A node with no strategy delegates nothing and pays one idle translator |
+
+⭐ **This also collapses the two-gate mismatch into one condition in one place.**
+⚠ **Sequence it WITH or AFTER pack step 3** — same composition surface. ⛔ **Not a prerequisite for path 2**:
+single-owner entities *(the user's map drawings)* delegate nothing, so `CE-142` is about not having removed a
+capability, **not** about unblocking the drawing case.
 
 ## 6. ⭐ SEQUENCING
 
@@ -296,6 +372,7 @@ widen it speculatively**; obstacle ④ is its record.
 | **4** | **Q65-A′** — retarget originators to self-targeted requests, starting with IG's tactical graphics *(obstacle ④ says they need no split authority)*. ⭐ **Ship it in the SAME commit as IG's pack adoption** | the user's actual use case, and the safest instance of it. ⛔⛔ **Not separable from IG's step-3 adoption — see the hazard** |
 | **5** | **Q65-B** — collapse the two role-gated `GhostPromotionSystem` registrations in `NedReplicationModule` into one | ⛔ **strictly after step 4.** Before Q65-A′, pure-Brain promotion is dead code — ⭐ and the gate is the ROLE, not the host, so this is a **two-line** change in one file, not a per-host sweep |
 | **6** | **`CE-141`** — IG's translator width, with a live probe | |
+| **7** | 🔴 **`CE-142`** — ungate ownership DELEGATION: mechanism on `participant != null`, policy on `_ownershipStrategy != null` | 📄 **§5.3.** ⭐ WITH or AFTER step 3 *(same composition surface)*. ⛔ **Not a prerequisite for path 2** — single-owner entities delegate nothing |
 
 ### ⛔⛔⛔ THE ORDERING HAZARD — **why step 3 and step 4 are ATOMIC for IG** *(added `2026-08-31`)*
 

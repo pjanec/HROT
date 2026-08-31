@@ -27,6 +27,16 @@ measured-2026-08-31: (a) IG CAN already publish EntityMaster -- SharedTranslator
   (c) 🔴 ORDERING HAZARD: NetworkSpawningSystem.cs:92 and
   SpawnEntityCommandEgressTranslator.cs:80 read the SAME bus event => IG's pack adoption (step 3) and
   Q65-A' (retarget its tools) MUST ship in ONE commit or IG double-spawns. Q65 §6 carries it.
+CE-142 (new, 2026-08-31): ownership DELEGATION is mechanism gated by policy. All three pieces --
+  DeferredTakeOwnershipEgressTranslator (_roleHasBrain, :230), its ingress (_roleHasMuscle, :232) and
+  DeferredTakeoverSystem (_roleHasMuscle, :206) -- contain ZERO role logic; the only role-specific
+  thing is the INJECTED BrainMuscleOwnershipStrategy POLICY. Probe: ungating the receive side is FREE
+  (ExecuteTakeover self-filters on ownerNodeId and guards each component with HasComponentByTypeId, so
+  no throw on unregistered components). Latent silent drop: :313 publishes the bus command on
+  _isDefaultProcessor && _ownershipStrategy != null, but the wire translator exists only on
+  _roleHasBrain -- they coincide by CONVENTION only. Fix: mechanism on participant != null, policy on
+  _ownershipStrategy != null. WITH or AFTER pack step 3; NOT a prerequisite for path 2.
+  Prior docs saying that gate was "correct, do not widen" are RETRACTED (Q65 §5.3).
 
 stale-below: ⛔ EVERYTHING except §0's header and §0.0e is HISTORY, newest first — §0.0c (the CE-070/071
   way-forward), §0.0b (phase 1's seam), §0.0a/§0.0 (phase 0), §0-prev and below. They are kept as the
