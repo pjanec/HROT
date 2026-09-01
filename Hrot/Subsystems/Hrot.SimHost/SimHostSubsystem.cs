@@ -170,6 +170,11 @@ namespace Hrot.SimHost
         /// <summary>TestHook: current kernel simulation time in seconds.</summary>
         internal double TestHook_CurrentSimTime => App.TestHook_CurrentSimTime;
 
+        /// <summary>⭐ CE-103: the kernel's own per-system execution counter. See
+        /// <c>SimHostApp.TestHook_SystemScheduler</c>.</summary>
+        internal Fdp.ModuleHost.Scheduling.SystemScheduler? TestHook_SystemScheduler
+            => App.TestHook_SystemScheduler;
+
         /// <summary>
         /// TestHook: runtime type of the currently active time controller in the SimHost kernel.
         /// Used by integration tests to verify that controller type is SlaveSyncController.

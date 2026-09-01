@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -88,6 +89,36 @@ public class WhyDoesTheVehicleNotMoveProbe
         }
 
         harness.PumpFrames(60);
+
+        // ⭐⭐⭐ GATE 0b — IS THE BRIDGE EVER CALLED? The one question left after everything else was
+        //   eliminated, and the only one that repeated reading of the composition kept getting wrong.
+        //   📐 This reads the KERNEL'S OWN counter (SystemProfileData.ExecutionCount, incremented in
+        //   SystemScheduler.ExecuteSystem) — not an inference from registration code.
+        _out.WriteLine("── GATE 0b: kernel EXECUTION COUNTS (the kernel's own profiler) ──");
+        var sched = harness.SimHost.TestHook_SystemScheduler;
+        if (sched == null) _out.WriteLine("  ⛔ no scheduler (kernel not initialised?)");
+        else
+        {
+            // ⚠ NOT GetProfileData<T>() — measured 2026-09-01: that overload searches _systemsByPhase,
+            //   i.e. GLOBALLY-registered systems only, so it returns null for every MODULE-owned system
+            //   and cannot distinguish "never ran" from "I looked in the wrong dictionary". It reported
+            //   CarKinematicsSystem — the control — as absent, which is what exposed the mistake.
+            //   GetAllProfileData() enumerates _profileData itself, i.e. the actual execution record.
+            var all = sched.GetAllProfileData();
+            int shown = 0;
+            foreach (var (phase, entries) in all)
+                foreach (var (system, profile) in entries)
+                {
+                    var n = system.GetType().Name;
+                    if (n.Contains("Navigation") || n.Contains("Kinematics") || n.Contains("Locomotion")
+                     || n.Contains("VehicleCommand") || n.Contains("Togglable"))
+                    {
+                        _out.WriteLine($"  [{phase,-14}] {n,-38} = {profile.ExecutionCount} executions");
+                        shown++;
+                    }
+                }
+            _out.WriteLine($"  (matched {shown} of {all.Values.Sum(v => v.Count)} profiled systems total)");
+        }
 
         var world = harness.SimHost.World!;
         Assert.True(harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out var e),

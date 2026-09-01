@@ -672,6 +672,22 @@ namespace Hrot.SimHost
         /// <summary>TestHook: current kernel simulation time in seconds. Updates every frame.</summary>
         public double TestHook_CurrentSimTime => _kernel?.CurrentTime.TotalTime ?? 0.0;
 
+        /// <summary>
+        /// ⭐⭐ Diagnostic read-only window onto the kernel's OWN system profiler.
+        ///
+        /// <para>📌 Added <c>2026-09-01</c> for <c>CE-103</c>. That investigation had closed every
+        /// explanation except one — <i>"is <c>NavigationIntentBridgeSystem</c> actually CALLED on this
+        /// node?"</i> — and there was no way to ask it. Reading the composition code repeatedly produced
+        /// wrong answers twice; the kernel already counts every <c>ExecuteSystem</c> call in
+        /// <c>SystemProfileData.ExecutionCount</c>, so the honest move is to READ that rather than infer.</para>
+        ///
+        /// <para>⛔ Adds no behaviour and no state — it hands back the scheduler the kernel already owns
+        /// (<c>ModuleHostKernel.SystemScheduler</c>), whose <c>GetProfileData&lt;T&gt;()</c> answers
+        /// "how many times did this system run". <c>null</c> before <c>Initialize()</c>.</para>
+        /// </summary>
+        public Fdp.ModuleHost.Scheduling.SystemScheduler? TestHook_SystemScheduler
+            => _kernel?.SystemScheduler;
+
         /// <summary>TestHook: exposes the gizmo primitive buffer for integration tests.</summary>
         internal DebugPrimitiveBuffer? TestHook_GizmoBuffer => _gizmoBuffer;
 
