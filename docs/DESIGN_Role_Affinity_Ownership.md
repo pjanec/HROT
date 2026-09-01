@@ -116,8 +116,29 @@ wrong, and the architect named the exact flaw: applied to kinematics it would ma
 
 ⭐ **The generalised rule, stated once:**
 
-> **A node owns a component at birth if it created the entity AND the component must be valid at birth;
-> otherwise it owns it if, and only if, it holds the role that component's descriptor belongs to.**
+> **A node owns a component at birth if it created the entity AND the component is BIRTH-CRITICAL;
+> otherwise it owns it if, and only if, it holds the role that component belongs to.**
+
+#### ⭐⭐⭐ Birth-criticality is a property of the COMPONENT, declared by the TKB — ⛔ not of a descriptor
+
+> 🔒 **User, `2026-09-01`:** *"isn't 'which COMPONENTS are birth critical' a more correct question? Note
+> there are networkless systems as well. Answer: SimTransform at the moment and only for entities having
+> one. TKB should define what components are birth critical."*
+
+⛔ **A descriptor is a NETWORKING concept.** A node with no DDS participant has no descriptor mapping at
+all, so a descriptor-keyed definition of birth-criticality would be **undefined exactly where the
+component still exists**. ⇒ ⭐ the property belongs to the component, and its source is the template.
+
+⭐⭐ **And the home already exists.** `TkbTemplate.MandatoryComponents` is per-**component**
+*(`MandatoryComponent { ComponentTypeId, IsHard, SoftTimeoutFrames }`)*, per-template, and its own
+doc-comment says it is checked against the live `ComponentMask` — *"completely decoupled from the DDS
+network layer."* ⇒ ⭐ the same structure, the same authoring style, the same network independence.
+
+| ⭐ the shape | |
+|---|---|
+| **add** `TkbTemplate.BirthCriticalComponents` + `AddBirthCriticalComponent<T>()`, mirroring `AddMandatoryComponent<T>()` | ⭐ **"only for entities having one" is automatic** — a template that does not list it does not get it, and the create leg intersects with the entity's live component mask anyway |
+| ⭐ **the initial content is ONE entry: `SimTransform`** | 🔒 the user's answer. ⛔ Everything else is role-affine until a measurement says otherwise |
+| ⚠ **why a SECOND list rather than a flag on `MandatoryComponent`** | ⛔ they answer different questions — *"must be PRESENT before promotion"* vs *"the creator must OWN it at birth"*. Overloading the first would force a birth-critical-but-not-promotion-gating component to change promotion semantics to carry the flag. ⭐ Two lists for two concepts is not the duplicate-implementation trap; conflating them is §3.6's mistake in miniature |
 
 📐 **Why the birthright is about REPLICATION, not the write itself** *(measured, and it sharpens the
 architect's reasoning)*: `EntityRepository.SetComponent` is **not** authority-gated, so a creator can
@@ -232,6 +253,11 @@ classDiagram
     class DescriptorOwnershipMap {
         +GetComponentIdsForDescriptor(id) int[]
     }
+    class TkbTemplate {
+        +MandatoryComponents List
+        +BirthCriticalComponents List
+        +AddBirthCriticalComponent~T~()
+    }
     class EntityRepository {
         +SetAuthority(entity, typeId, bool)
         +HasComponentByTypeId(entity, id) bool
@@ -242,6 +268,8 @@ classDiagram
 
     IRoleAffinityPolicy <|.. RoleAffinityPolicy
     NetworkSpawningSystem --> IRoleAffinityPolicy : declines what role excludes
+    NetworkSpawningSystem --> TkbTemplate : birth-critical always kept
+    RoleAffinityPolicy --> TkbTemplate : reads BirthCriticalComponents
     GhostPromotionSystem --> IRoleAffinityPolicy : claims what role includes
     RoleAffinityPolicy --> DescriptorOwnershipMap : descriptor to component ids
     NetworkSpawningSystem --> EntityRepository
@@ -251,6 +279,7 @@ classDiagram
     note for NetworkSpawningSystem "EXISTS - line 181 today assigns the full component mask"
     note for GhostPromotionSystem "EXISTS - translators at 122, promote at 129"
     note for DescriptorOwnershipMap "EXISTS - built from translator TargetComponentIds"
+    note for TkbTemplate "EXISTS - MandatoryComponents is already per-component and network-free. BirthCriticalComponents is the ONE addition, initial content SimTransform"
     note for DeferredTakeoverSystem "EXISTS - unchanged, still the override path"
 ```
 
@@ -322,8 +351,8 @@ sequenceDiagram
 
 | # | question | ⭐ lean | what would change it |
 |---|---|---|---|
-| **①** | what defines *"the components my role owns"* — a descriptor set, or a component-id set? | ⭐⭐ **descriptor set**, via `DescriptorOwnershipMap`. It already exists, is built from translator `TargetComponentIds`, and `EDescriptorType` already names the tiers ⇒ no new registry, and a narrower translator set narrows ownership for free | a component that belongs to no descriptor would be invisible to the rule — needs a measured count before building |
-| **①b** | ⭐⭐ **which descriptors are BIRTH-CRITICAL** *(creator birthright)* versus role-affine? | ⭐ start with the smallest defensible set: **`dtWorldPos` only**, plus `SimVelocity` if it shares that descriptor. ⛔ Everything else is role-affine until shown otherwise — an over-wide birthright set silently restores today's blanket grant | any component that is read before its first network update and cannot tolerate a default. ⚠ **`EntityInfo`/affiliation is the likeliest second candidate** and has not been measured |
+| **①** | what defines *"the components my role owns"* — a descriptor set, or a component-id set? | ⭐ **descriptor set**, via `DescriptorOwnershipMap` — ⚠ **and this is the one place a networking concept is DEFENSIBLE**, because ownership only means something across nodes: a networkless node injects no policy and keeps today's behaviour. ⭐ It already exists, is built from translator `TargetComponentIds`, and a narrower translator set narrows ownership for free | ⛔ a component belonging to no descriptor is invisible to the rule — **needs a measured count before building**. ⚠ **If ①b's component-level answer should apply here too for consistency, say so** — this row is the one that survived the correction, not one that was blessed by it |
+| **①b** | ~~which DESCRIPTORS are birth-critical~~ | ✅ **SETTLED `2026-09-01` — and the question itself was wrong.** It is a **COMPONENT** property *(descriptors are a networking concept; a networkless node has none)*, declared by the **TKB template**, and the initial content is **`SimTransform` only, only for templates that list it**. See §3.1 | — |
 | **①c** | 🔴 **the execution gate** *(§3.5)* — registration, the query filter, or both? | ⭐⭐ **both**: narrow a Muscle-only node's registration *(primary, zero cost)* **and** add `.WithAuthority<BehaviorState>()` to `BTreeTickSystem`. ⛔ Registration alone leaves the all-in-one / own-brains case double-ticking | if `.WithAuthority` proves to have a measurable per-frame cost on large entity counts, registration alone plus an explicit in-system check |
 | **②** | nobody holds the role ⇒ the component is owned by **no one** and nothing ticks it | ⭐ **log once per entity, no fallback.** A fallback *("creator keeps it after N frames")* reintroduces exactly the race this design removes | if silent brainless entities prove common in real deployments, revisit as a startup-time cluster check, not a per-entity fallback |
 | **③** | multiple Brain nodes | ⭐ `NetworkId % brainCount == myBrainIndex` **inside the policy**, so the mechanism never learns about it | needs the cluster to publish a stable brain index; `IClusterStateCache` already tracks nodes by role |
@@ -334,7 +363,8 @@ sequenceDiagram
 
 | step | what | gate |
 |---|---|---|
-| **1** | `IRoleAffinityPolicy` + `RoleAffinityPolicy` in `Fdp.Toolkits/Replication` | unit: Brain and Muscle masks are **disjoint** over the brain/kinematic descriptor sets |
+| **0** | ⭐ `TkbTemplate.BirthCriticalComponents` + `AddBirthCriticalComponent<T>()`, mirroring the existing `AddMandatoryComponent<T>()`; seed **`SimTransform`** on the templates that carry one | unit: a template that does not list it does not report it; the list is network-free *(no `DescriptorOwnershipMap`, no participant, so it holds on a networkless node)* |
+| **1** | `IRoleAffinityPolicy` + `RoleAffinityPolicy` in `Fdp.Toolkits/Replication` | unit: Brain and Muscle masks are **disjoint** over the brain/kinematic sets, **and** birth-critical components are in **both** |
 | **2** | `NetworkSpawningSystem:181` intersects with the policy; **null policy keeps today's behaviour** | rail: with no policy, the mask is unchanged *(red-proof: inject a policy, assert the bits drop)*. ⭐⭐ **AND the birthright rail: a creator ALWAYS keeps `dtWorldPos`, whatever its role** — this is the one the architect's correction exists to protect, so it is written before step 2's code |
 | **3** | `GhostPromotionSystem` claims after the translator loop | rail: a promoted ghost owns exactly the role's descriptors |
 | **3b** | 🔴 **the execution gate** — §3.5: `.WithAuthority<BehaviorState>()` on `BTreeTickSystem`, and narrow the Muscle-only registration | rail: a node holding brain components it does **not** own ticks them **zero** times. ⛔ **Without this the whole design is cosmetic** — authority would gate replication while both nodes still ran the tree |
