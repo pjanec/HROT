@@ -61,6 +61,32 @@ public class WhyDoesTheVehicleNotMoveProbe
         harness.SimHost.TestHook_SetMovementIntent(networkId, new Vector2(500f, 500f));
         uint versionAfterIntent  = harness.SimHost.World!.GlobalVersion;
 
+        // ⭐⭐⭐ PER-FRAME TRACE — added 2026-09-01 because the single end-of-run sample below was
+        //   MISLEADING and this probe's own banner drew a conclusion its data contradicts.
+        //   📐 Measured: the end sample reads NavState.Mode=None / SimVelocity=(0,0,0) — yet
+        //   SimTransform.Position had reached (67.9, 111.3), i.e. ~130 m toward the (500,500)
+        //   destination. NavState=None can never have driven that. ⇒ NavState WAS Direct and
+        //   something set it back, which is a completely different defect from "the bridge never
+        //   runs". A single sample cannot tell a NEVER-SET apart from a SET-THEN-RESET.
+        {
+            var w = harness.SimHost.World!;
+            harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out var te);
+            _out.WriteLine("── GATE 0: per-frame trace of NavState vs position ─────────");
+            for (int step = 0; step < 12; step++)
+            {
+                harness.PumpFrames(5);
+                var ns = w.HasComponent<NavState>(te) ? w.GetComponent<NavState>(te) : default;
+                var ni = w.HasComponent<NavigationIntent>(te) ? w.GetComponent<NavigationIntent>(te) : default;
+                var tfNow = w.GetComponent<SimTransform>(te);
+                var sv = w.HasComponent<SimVelocity>(te) ? w.GetComponent<SimVelocity>(te) : default;
+                _out.WriteLine($"  +{(step + 1) * 5,3}f  intent[{ni.Mode} id={ni.IntentId}]  "
+                             + $"nav[{ns.Mode} spd={ns.TargetSpeed} arrived={ns.HasArrived} "
+                             + $"dest=({ns.FinalDestination.X:F0},{ns.FinalDestination.Y:F0})]  "
+                             + $"vel=({sv.Linear.X:F2},{sv.Linear.Y:F2})  "
+                             + $"pos=({tfNow.Position.X:F1},{tfNow.Position.Y:F1})");
+            }
+        }
+
         harness.PumpFrames(60);
 
         var world = harness.SimHost.World!;
