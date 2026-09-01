@@ -57,9 +57,29 @@ public sealed class EpisodeInjectionTests : IDisposable
     private readonly ScenarioSerializer _serializer;
     private readonly EntityRepository   _repo;
 
+    /// <summary>
+    /// 🔴 <b>The ONE storage provider — used to WRITE the fixture and to READ it back.</b>
+    ///
+    /// <para>📌 <b>Why this field exists</b> (measured <c>2026-09-01</c>): these tests used to hand-build
+    /// the fixture path as <c>_tempRoot/scenarioId/Hrot.SimHost.json</c>, but
+    /// <see cref="LocalDiskStorageProvider"/> reads from
+    /// <c>_tempRoot/<b>scenarios</b>/scenarioId/…</c> (<c>LocalDiskStorageProvider.cs:52</c> ·
+    /// <c>OrchestrationConstants.ScenariosDirectoryName == "scenarios"</c>). ⇒ the loader enumerated an
+    /// empty directory, <c>TryLoadScenarioJson</c> returned <see langword="null"/>, and
+    /// <c>CommitStartEpisode</c> returned <b>before deserializing</b> — silently, with no throw. Three
+    /// rails then failed as <i>"expected 3, actual 0"</i>, pointing at the episode pipeline rather than
+    /// at the fixture.</para>
+    ///
+    /// <para>⭐⭐ <b>The fix is to stop hand-computing the layout.</b> The fixture is written through
+    /// <see cref="IScenarioStorageProvider.EnsureStagingDirectory"/> — the same provider the handler
+    /// reads through — so the two halves cannot drift apart again by construction.</para>
+    /// </summary>
+    private readonly LocalDiskStorageProvider _storage;
+
     public EpisodeInjectionTests()
     {
         _tempRoot  = Path.Combine(Path.GetTempPath(), "episode_inj_" + Guid.NewGuid().ToString("N"));
+        _storage   = new LocalDiskStorageProvider(_tempRoot);
         _repo      = new EntityRepository();
         _repo.RegisterComponent<EpisodeTestPos>();
         _repo.RegisterComponent<EpisodeTag>();
@@ -76,13 +96,13 @@ public sealed class EpisodeInjectionTests : IDisposable
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Creates a scenario JSON file under <c>_tempRoot/scenarioId/Hrot.SimHost.json</c>
-    /// with <paramref name="entityCount"/> entities each having a <see cref="EpisodeTestPos"/>.
+    /// Creates a scenario JSON file in the staging directory <see cref="_storage"/> itself resolves for
+    /// <paramref name="scenarioId"/>, with <paramref name="entityCount"/> entities each having a
+    /// <see cref="EpisodeTestPos"/>. ⛔ Never hand-build this path — see <see cref="_storage"/>.
     /// </summary>
     private async Task<string> WriteEpisodeScenario(string scenarioId, int entityCount)
     {
-        var dir = Path.Combine(_tempRoot, scenarioId);
-        Directory.CreateDirectory(dir);
+        var dir = _storage.EnsureStagingDirectory(scenarioId);
 
         // Build a temp repo to serialize from.
         var buildRepo = new EntityRepository();
@@ -117,7 +137,7 @@ public sealed class EpisodeInjectionTests : IDisposable
 
         var handler = new ReferenceEpisodeLoadHandler(
             _serializer,
-            new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), _serializer.SubsystemType));
+            new HrotScenarioLoader(_storage, _serializer.SubsystemType));
         var cmd     = MakeCmd((int)Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode, episodeId, scenarioId);
 
         await handler.PrepareAsync(cmd, CancellationToken.None);
@@ -140,7 +160,7 @@ public sealed class EpisodeInjectionTests : IDisposable
 
         var handler = new ReferenceEpisodeLoadHandler(
             _serializer,
-            new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), _serializer.SubsystemType));
+            new HrotScenarioLoader(_storage, _serializer.SubsystemType));
 
         // Start
         var startCmd = MakeCmd((int)Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode, episodeId, scenarioId);
@@ -168,8 +188,10 @@ public sealed class EpisodeInjectionTests : IDisposable
     {
         var episodeId    = Guid.NewGuid();
         var scenarioId = "episode_nomatch_01";
-        var dir        = Path.Combine(_tempRoot, scenarioId);
-        Directory.CreateDirectory(dir);
+        // ⚠ Until 2026-09-01 this wrote to a path the provider does not read, so the rail PASSED FOR THE
+        //   WRONG REASON — the file was never found and the subsystem-mismatch branch it names was never
+        //   reached. Staging it correctly is what makes the assertion below non-vacuous.
+        var dir        = _storage.EnsureStagingDirectory(scenarioId);
 
         // Write a CGF-typed scenario file (not matching the SimHost serializer).
         var cgfJson = "{\"Header\":{\"SubsystemType\":\"Hrot.CGF\",\"SchemaVersion\":1},\"Entities\":{}}";
@@ -177,7 +199,7 @@ public sealed class EpisodeInjectionTests : IDisposable
 
         var handler = new ReferenceEpisodeLoadHandler(
             _serializer,
-            new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), _serializer.SubsystemType));
+            new HrotScenarioLoader(_storage, _serializer.SubsystemType));
         var cmd     = MakeCmd((int)Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode, episodeId, scenarioId);
 
         await handler.PrepareAsync(cmd, CancellationToken.None);
@@ -230,7 +252,7 @@ public sealed class EpisodeInjectionTests : IDisposable
 
         var handler = new ReferenceEpisodeLoadHandler(
             _serializer,
-            new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), _serializer.SubsystemType));
+            new HrotScenarioLoader(_storage, _serializer.SubsystemType));
 
         // Inject episode 1.
         var start1 = MakeCmd((int)Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode, s1Id, sc1);
