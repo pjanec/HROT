@@ -199,12 +199,22 @@ public sealed class NedReplicationModule : INedReplicationModule
         var lifecycleInnerSystems = new List<IEcsModuleSystem> { GhostCreationSystem };
 
 
-        // ── Deferred Takeover (Muscle / AllInOne Only) ──
-        // Executes the split-authority handover. When a Brain creates an entity and delegates 
-        // physics to the Muscle, this system claims the local ECS authority bits (e.g., SimTransform) 
-        // once the ghost finishes constructing.
-        if (_roleHasMuscle)
-            lifecycleInnerSystems.Add(new DeferredTakeoverSystem(_entityMap, _localNodeId, _descriptorOwnershipMap, _tkbDb));
+        // ── Deferred Takeover — ROLE-INDEPENDENT (CE-142) ──
+        // Executes a split-authority handover: claims the local ECS authority bits for any
+        // descriptor grant addressed to this node, once the ghost finishes constructing.
+        //
+        // ⭐⭐⭐ CE-142 — this used to be gated on _roleHasMuscle. Measured: the class contains
+        //   ZERO role logic; its only "Muscle" was a comment. Gating it on the role removed a
+        //   capability from every other node, which R-138 forbids ("the ECS component ownership
+        //   is transferrable per entity during entity lifetime … nodes should be equal").
+        //   Delegation is "here is a grant, addressed to a node id" — node-agnostic in both
+        //   directions. Role belongs on the POLICY (IOwnershipDistributionStrategy), never here.
+        //
+        // ⭐ Safe: ExecuteTakeover is doubly guarded — it self-filters on `ownerNodeId !=
+        //   _localNodeId`, then checks HasComponentByTypeId per component, so a grant naming a
+        //   component this node does not carry is skipped silently rather than throwing.
+        //   A node nobody addresses a grant to pays one idle system.
+        lifecycleInnerSystems.Add(new DeferredTakeoverSystem(_entityMap, _localNodeId, _descriptorOwnershipMap, _tkbDb));
 
         NetworkLifecycleGroup = new NetworkLifecycleSystemGroup(lifecycleInnerSystems.ToArray());
 
@@ -226,12 +236,25 @@ public sealed class NedReplicationModule : INedReplicationModule
                     GhostCreationSystem,
                     localNodeId: localNodeId);
 
-            // DeferredTakeOwnership: Brain publishes, Muscle receives.
-            if (_roleHasBrain)
-                _dtoEgress  = new DeferredTakeOwnershipEgressTranslator(participant, localNodeId: localNodeId);
-            if (_roleHasMuscle)
-                _dtoIngress = new DeferredTakeOwnershipIngressTranslator(
-                    participant, entityMap, GhostCreationSystem, localNodeId);
+            // ── DeferredTakeOwnership transport — ROLE-INDEPENDENT (CE-142) ──
+            // ⭐⭐⭐ These were gated `_roleHasBrain` (egress) and `_roleHasMuscle` (ingress), i.e.
+            //   "Brain publishes, Muscle receives" — a one-directional assumption baked into the
+            //   TRANSPORT. Measured: neither class has role logic. The egress converts a
+            //   DescriptorGrant into one DDS sample; the ingress already self-filters to entries
+            //   whose NodeId equals the local node.
+            //
+            // 🔒 R-138: ownership is per-component, dynamic and transferable, and NodeRole is a
+            //   convention, never a protocol restriction. Delegation must therefore work in EVERY
+            //   direction — including a Muscle-originated entity handing its cognitive descriptors
+            //   to a Brain node, which the old gating made silently impossible: the originator had
+            //   no egress translator, so its grants were computed and then dropped with no error.
+            //
+            // ⭐ Role now selects only the POLICY (which grants are computed at all — see
+            //   IOwnershipDistributionStrategy and CreateEntityRequestSystem's `_ownershipStrategy
+            //   != null` lever). A node nobody addresses grants to pays two idle translators.
+            _dtoEgress  = new DeferredTakeOwnershipEgressTranslator(participant, localNodeId: localNodeId);
+            _dtoIngress = new DeferredTakeOwnershipIngressTranslator(
+                participant, entityMap, GhostCreationSystem, localNodeId);
         }
         else
         {
@@ -364,10 +387,20 @@ public sealed class NedReplicationModule : INedReplicationModule
         //   "collapse the two role-gated sites into ONE registration valid for ANY role, once _tkbDb
         //   and _lifecycleModule are present."
         //
-        // ⚠ Q65-B also said to sequence this AFTER Q65-A′ because "before A′, pure-Brain promotion is
-        //   dead code" — that caveat is REFUTED by the measurement above and the design has been
-        //   updated. It assumed the only way CGF could receive a foreign entity was IG self-spawn;
-        //   SimHost-spawn → CGF-ghost is a live path today.
+        // ⚠ Q65-B also said to sequence this AFTER Q65-A′, because "before A′, pure-Brain promotion
+        //   is dead code". That caveat's PREMISE — Q65 obstacle 2b's "pure-Brain spawns rather than
+        //   receives" — is superseded by R-138 (2026-09-01, later than both): every ECS node can
+        //   create entities, nodes are equal, and NodeRole is a convention rather than a protocol
+        //   restriction. A Brain node receiving a ghost of an entity another node originated is
+        //   therefore a normal configuration, not dead code, and gating promotion on the role
+        //   removes a capability — which Q65 section 0's governing ruling forbids without exception.
+        //
+        // ⛔ HONEST SCOPE: this turns NO test green on its own. Measured 2026-09-01, before and
+        //   after: the same 9 reds in the cluster suite. Ghost promotion is only the first of three
+        //   pieces — see CE-142 for the delegation transport and the tracker for the remaining
+        //   POLICY half (nothing computes Brain-ward grants yet). An earlier version of this comment
+        //   claimed the caveat was refuted by the movement test's behaviour; that argument was
+        //   circular, because that test reaches CGF through a spawn hook the design excludes.
         //
         // ⭐ Safe by tkb-1/DESIGN.md §6.5b gate ②: every translator guards each write with
         //   IsComponentTypeRegistered<T>(), so widening the ROLE gate cannot write a component a host

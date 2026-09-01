@@ -369,6 +369,41 @@ coincidence between two unrelated gates, and unification is what turns those int
 single-owner entities *(the user's map drawings)* delegate nothing, so `CE-142` is about not having removed a
 capability, **not** about unblocking the drawing case.
 
+#### ✅✅ AS-BUILT — **`CE-142` IS BUILT `2026-09-01`. ⚠ And it is a PREREQUISITE, not a fix**
+
+⭐ **What landed**, exactly the corrected shape this section prescribes:
+
+| piece | was | is |
+|---|---|---|
+| `DeferredTakeOwnershipEgressTranslator` | `_roleHasBrain` | built whenever `participant != null` |
+| `DeferredTakeOwnershipIngressTranslator` | `_roleHasMuscle` | built whenever `participant != null` |
+| `DeferredTakeoverSystem` | `_roleHasMuscle` | registered unconditionally *(pure mechanism; its `tkbDb` parameter is measured **unused** — kept only for signature compatibility)* |
+
+⭐⭐ **Why the direction matters, restated on `R-138` rather than on the architect's claim:** ownership is
+per-component, dynamic and transferable, and `NodeRole` is a convention. ⇒ delegation must work in **every**
+direction. ⛔ The old gating made one direction **structurally impossible and silent**: a Muscle-originated
+entity's creator held **no egress translator**, so grants it computed would be dropped with no error —
+§5.3's "latent silent drop", which `R-138` turns from latent into a real capability gap.
+
+⛔⛔ **MEASURED AFTER THE CHANGE — CGF's authority is UNCHANGED.** `HasAuthority<BehaviorState>` /
+`<LocomotionChannel>` / `<NavigationIntent>` on a CGF ghost of a SimHost-originated entity are still all
+`False`. ⇒ ⭐⭐⭐ **`CE-142` opened the transport; nothing yet COMPUTES the grants.** The remaining half is
+POLICY, and it is two things:
+
+| # | what is missing | measured |
+|---|---|---|
+| ① | **SimHost composes no `CreateEntityRequestSystem` and holds no `IOwnershipDistributionStrategy`** | production composition sites are CGF, Editor, Stride editor only; `BrainMuscleOwnershipStrategy` is constructed solely in `NedNetworkFactory.CreateCgfEntityLifecycleAdapters():269` ⇒ **`Q65-A′`** |
+| ② | **the one strategy is creator-relative and ONE-DIRECTIONAL** | `GetInitialGrants` hands `dtWorldPos` + `dtNavigationStatus` **away** to the least-loaded Muscle and keeps everything else on the creator. ⛔ There is **no Brain-ward counterpart** — no way to express *"cognition goes to the Brain node"* for an entity a Muscle originated |
+
+⭐ **Sequencing correction:** this section previously said *"sequence it WITH or AFTER pack step 3"* and
+*"not a prerequisite for path 2"*. ⚠ Both remain true **for the map-drawing case** *(single-owner entities
+delegate nothing)*. ⛔ **But for a Muscle-originated BRAIN-ENABLED entity, `CE-142` is a hard prerequisite** —
+without it the policy half would be built and its grants silently discarded. ⇒ **`CE-142` is done first, and
+that ordering is deliberate.**
+
+⚠ **Filing note:** `CE-142` had **no tracker row** until `2026-09-01` — it lived only in this section. It now
+has one in [`Blueprint_Issues_Tracker.md`](Blueprint_Issues_Tracker.md).
+
 ### 5.4 ✅✅ OBSTACLE ① — **BUILT `2026-08-31`. ⚠ The target is `Hrot.Common`, NOT `Hrot.Core` — this section's own answer was WRONG**
 
 📌 **Raised by the architect review (`2026-08-31`) as watch-out A**: *"ensure `JsonAttributeCompiler`
