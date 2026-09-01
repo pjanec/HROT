@@ -408,6 +408,30 @@ causes:
 | 🔴 **`SI3_InfantryMoveTo_…`** | ⭐⭐ **A REAL CROSS-HOST GAP** — filed as **`CE-146`** below | ⭐ **this lane** |
 | the two `StrD21` navigation reds | ⚠ **unattributed.** They may share `CE-146`'s root or be independent; nobody has run that down | — |
 
+##### 🔴 `CE-147` — **`OnEntitySpawned` is the pack's LAST per-host hole, and it hides the `AX-011` attach**
+
+📄 **The full finding, with the 16-site inventory and the failure modes, lives in
+[`DESIGN_Cgf_AxisB_Rotation_Slice.md` §13.7](DESIGN_Cgf_AxisB_Rotation_Slice.md)** — that design owns
+`AX-011`, and §13.7 marks its §13.3 placement ruling SUPERSEDED. ⛔ **Do not restate it here** *(the
+diagrams-live-in-the-design rule)*. ⭐ **Filed under `CE-` because the defect is a COMPOSITION one and this
+is where the pack is designed.**
+
+📐 **In one line:** `EntityCreationPack` forwards `onEntitySpawned: ctx.OnEntitySpawned` *(`:123`)*, and
+`EntityCreationContext.OnEntitySpawned` is **`Action<…>?` — optional** *(`:103`)*, documented as *"genuinely
+host-specific … so it stays a parameter rather than moving into the pack."* ⇒ 🔴 **exactly ONE production
+host passes one** *(`SimHostNodeBootstrapper:282`)*, and what it carries is the `AX-011` shadow attach — so
+the pack unified the pipeline while leaving the invariant host-specific. ⛔ **This is the `SILENT-DEFAULT`
+shape:** an optional dependency that one caller happens to pass and the next host will forget.
+
+⇒ ⭐⭐ **The fix moves the attach into `GeoSpatialEgressTranslator`** *(§13.7.2 — the ingress side already
+self-heals; egress is the asymmetric half)*, after which the hook's other three statements are all
+redundant-or-dead ⇒ ⭐⭐⭐ **`OnEntitySpawned` can leave `EntityCreationContext` entirely.**
+
+⚠⚠ **ORDERING CONSTRAINT — `SimHostNodeBootstrapper`'s block may NOT be deleted first.** 📐 The pack did
+**not** absorb the attach, so removing it today re-opens `AX-011` *(no `WorldPos` on the wire at all)*.
+⭐ The order is **① egress attaches → ② rail with an inverse-edit red-proof → ③ delete the hook's
+`NetworkTransform` block → ④ retire `OnEntitySpawned`** — §13.7.5.
+
 ##### 🔴 `CE-146` — **the Capsule-infantry strip exists on ONE host, and the crowd bridge is SHARED**
 
 📐 **Measured by the Windows session:** `SI3_InfantryMoveTo_…` boots the real `EditorSubsystem`,
