@@ -304,8 +304,6 @@ public sealed class NedReplicationModule : INedReplicationModule
             // IG ghost lifecycle: ownership tracking + promotion + sub-entity cleanup.
             // These replace the legacy ReplicationLogicModule for pure IG nodes.
             registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
-            if (_tkbDb != null && _lifecycleModule != null)
-                registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule, _tkbEntityTranslators));
             registry.RegisterSystem(new SubEntityCleanupSystem());
 
             // DR sync -- smooth ALL remote entities (IG can create owned entities as well!)
@@ -346,13 +344,39 @@ public sealed class NedReplicationModule : INedReplicationModule
 
 
 
-		// ── DeferredTakeover (Muscle and AllInOne only) ──────────────────────
-		// Runs BeforeSync: entity must be Constructing + have PendingAuthorityGrants.
-		// Ghost promotion for Muscle: promotes ghosts received from remote Brain (CGF) nodes.
-		// Pure-IG ghost promotion is registered above (pureIgRole block). Muscle needs a
-		// separate registration so that CGF-spawned entities (WorldPos delegated to Muscle)
-		// transition from Ghost → Constructing before DeferredTakeoverSystem claims authority.
-		if( _roleHasMuscle && _tkbDb != null && _lifecycleModule != null)
+        // ── Ghost promotion — ROLE-INDEPENDENT ───────────────────────────────
+        // ⭐⭐⭐ CE-155. This registration used to exist TWICE, each behind a role gate: once inside
+        //   the pureIgRole block and once behind `_roleHasMuscle`. Pure-Brain (CGF) matched NEITHER,
+        //   so a CGF that RECEIVES a ghost it did not spawn never promoted it — the ghost kept only
+        //   its replicated network components and never gained its TKB projection.
+        //
+        // 📐 MEASURED 2026-09-01 (MissionToMovementChainProbe): SimHost spawns a tank, CGF receives
+        //   the ghost, a MoveToLocation MissionControlRequest is ACKed and lands correctly as
+        //   MissionPlanQueue{Phase 0/1} + ActiveMissionPlan{BehaviorName="MoveToLocation"} on the CGF
+        //   ghost — and then nothing happens, forever. The CGF ghost carried 12 components and NONE
+        //   of the brain tier; MissionAdapterSystem queries `MissionPlanQueue AND BehaviorState`, so
+        //   the missing BehaviorState made it a silent zero-iteration loop. The whole cognitive chain
+        //   (tactical intent → behaviour → BTree → LocomotionChannel → NavigationIntent → NavState →
+        //   kinematics) never started. Meanwhile the SimHost copy of the same entity had all 35
+        //   components including the entire brain tier — the tiers were exactly inverted.
+        //
+        // 🔒 Q65-B (Architect_Question_65_Entity_Genesis_Uniformity.md §4) prescribes precisely this:
+        //   "collapse the two role-gated sites into ONE registration valid for ANY role, once _tkbDb
+        //   and _lifecycleModule are present."
+        //
+        // ⚠ Q65-B also said to sequence this AFTER Q65-A′ because "before A′, pure-Brain promotion is
+        //   dead code" — that caveat is REFUTED by the measurement above and the design has been
+        //   updated. It assumed the only way CGF could receive a foreign entity was IG self-spawn;
+        //   SimHost-spawn → CGF-ghost is a live path today.
+        //
+        // ⭐ Safe by tkb-1/DESIGN.md §6.5b gate ②: every translator guards each write with
+        //   IsComponentTypeRegistered<T>(), so widening the ROLE gate cannot write a component a host
+        //   never registered. The per-host lever is the REGISTRATION SET, never the role.
+        //
+        // ⚠ The two null guards remain the real (and silent) per-host lever — a role that supplies no
+        //   TKB database still skips promotion with no diagnostic. Not converted to a throw here:
+        //   which hosts pass null has not been measured.
+        if (_tkbDb != null && _lifecycleModule != null)
             registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule, _tkbEntityTranslators));
         // ── Cleanup systems (all roles) ──────────────────────────────────────
         var allCleanupTranslators = new List<FdpIDescriptorTranslator>(allTranslators.OfType<FdpIDescriptorTranslator>());

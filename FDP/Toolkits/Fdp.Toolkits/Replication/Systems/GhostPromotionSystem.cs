@@ -27,7 +27,22 @@ namespace Fdp.Toolkit.Replication.Systems
     {
         private readonly ITkbDatabase _tkbDatabase;
         private readonly EntityLifecycleModule _lifecycleModule;
-        private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
+        private readonly IReadOnlyList<ITkbEntityTranslator>? _explicitTranslators;
+
+        /// <summary>
+        /// ⭐ The node's TKB→ECS projection list. An explicit list wins; otherwise the ONE list the
+        /// node's <see cref="EntityLifecycleModule"/> already holds is used — §6.3's
+        /// <i>"identical for all three systems within the same node"</i>, satisfied by SHARING the
+        /// instance rather than by a second argument nobody passes.
+        ///
+        /// <para>📌 <c>CE-155</c>: <c>NedNetworkFactory.CreateReplicationModule</c> never passed
+        /// <c>tkbEntityTranslators</c>, so this was <c>Array.Empty</c> on every node that registered
+        /// this system — promotion applied the template's mandatory components and projected NO TKB
+        /// state. Resolved lazily because composition roots call
+        /// <see cref="EntityLifecycleModule.SetTranslators"/> after the module is constructed.</para>
+        /// </summary>
+        private IReadOnlyList<ITkbEntityTranslator> Translators
+            => _explicitTranslators ?? _lifecycleModule.Translators;
 
         private readonly Queue<Entity> _promotionQueue = new();
         private readonly HashSet<Entity> _inQueue = new();
@@ -45,7 +60,7 @@ namespace Fdp.Toolkit.Replication.Systems
         {
             _tkbDatabase = tkbDatabase ?? throw new ArgumentNullException(nameof(tkbDatabase));
             _lifecycleModule = lifecycleModule ?? throw new ArgumentNullException(nameof(lifecycleModule));
-            _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
+            _explicitTranslators = translators;
         }
 
         public void Execute(ISimulationView view, float dt)
@@ -119,7 +134,7 @@ namespace Fdp.Toolkit.Replication.Systems
                 }
 
                 // All requirements satisfied: apply blueprint defaults.
-                foreach (var t in _translators)
+                foreach (var t in Translators)
                     t.Inject(_world!, entity, template);
             }
 

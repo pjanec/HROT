@@ -120,6 +120,38 @@ public class WhyDoesTheVehicleNotMoveProbe
             _out.WriteLine($"  (matched {shown} of {all.Values.Sum(v => v.Count)} profiled systems total)");
         }
 
+        // ⭐⭐⭐ GATE 0c — WHAT VERSION IS THE INTENT STAMPED AT, versus where the scan baseline is now?
+        //   Binary-search the largest `since` for which QueryDelta still yields the entity: that IS its
+        //   effective last-change version. Compare with the CURRENT GlobalVersion — the bridge's
+        //   _lastScanTick tracks that. If the stamp is far BELOW it, the scheduled instance can never
+        //   see the write again, no matter how many frames run.
+        {
+            var w = harness.SimHost.World!;
+            harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out var te2);
+            var q = w.Query().With<NavigationIntent>().With<NavState>().Build();
+            bool Sees(uint since)
+            {
+                foreach (var x in w.QueryDelta(q, since)) if (x.Index == te2.Index) return true;
+                return false;
+            }
+            uint lo = 0, hi = w.GlobalVersion;      // Sees(0) expected true; Sees(hi) expected false
+            bool seesZero = Sees(0), seesNow = Sees(w.GlobalVersion);
+            while (lo < hi) { uint mid = lo + (hi - lo + 1) / 2; if (Sees(mid)) lo = mid; else hi = mid - 1; }
+            _out.WriteLine("── GATE 0c: the intent's STAMP vs the scan BASELINE ────────");
+            _out.WriteLine($"  GlobalVersion at the intent write   = {versionBeforeIntent} → {versionAfterIntent}"
+                         + (versionAfterIntent == versionBeforeIntent
+                            ? "   (a direct write does NOT bump it — only the frame tick does)" : ""));
+            _out.WriteLine($"  GlobalVersion NOW                   = {w.GlobalVersion}");
+            _out.WriteLine($"  QueryDelta(since 0) sees it         = {seesZero}");
+            _out.WriteLine($"  QueryDelta(since GlobalVersion) sees= {seesNow}");
+            _out.WriteLine($"  ⇒ HIGHEST `since` that still sees it = {lo}   "
+                         + $"(i.e. the entity's effective change version is {lo + 1})");
+            if (lo + 1 <= versionAfterIntent && w.GlobalVersion > versionAfterIntent)
+                _out.WriteLine("  ⛔⛔ CONFIRMED: the stamp is pinned at the version the write landed on, "
+                             + "while the scan baseline has advanced past it ⇒ the scheduled bridge can "
+                             + "NEVER see this write again. CE-153's off-by-one, on the TEST-HOOK path.");
+        }
+
         var world = harness.SimHost.World!;
         Assert.True(harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out var e),
             "probe precondition: the entity must exist on SimHost");

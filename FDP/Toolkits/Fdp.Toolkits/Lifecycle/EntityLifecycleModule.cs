@@ -102,6 +102,22 @@ namespace Fdp.Toolkit.Lifecycle
         {
             _translators = translators;
         }
+
+        /// <summary>
+        /// ⭐⭐ The node's ONE TKB→ECS projection list, readable so that the node's other two
+        /// projection sites can share this exact instance rather than being handed a second copy —
+        /// §6.3: <i>"the translator list is identical for all three systems within the same node"</i>.
+        ///
+        /// <para>📌 <c>CE-155</c>: <c>GhostPromotionSystem</c> was constructed with a
+        /// <c>translators</c> argument that <b>no production composition root ever passed</b>
+        /// (<c>NedNetworkFactory.CreateReplicationModule</c> omits it), so ghost promotion applied
+        /// mandatory template components and <b>zero</b> TKB translators on every node. Reading the
+        /// list from here removes the second copy instead of adding a third plumbing path.</para>
+        ///
+        /// <para>⚠ Read it LATE (at <c>Execute</c>, not at construction): composition roots that use
+        /// <see cref="SetTranslators"/> assign it after the module is built.</para>
+        /// </summary>
+        public IReadOnlyList<ITkbEntityTranslator> Translators => _translators;
         
         public void Tick(ISimulationView view, float deltaTime)
         {
