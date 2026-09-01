@@ -1,17 +1,19 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-31
-current-answer: §1 (where we are) then §5 (the next step). This file is a SESSION BOOTSTRAP — a
-  self-contained continuation point for the entity-creation unification work on the UI lane. Read it
-  after docs/blueprints/RULINGS.md (RULE ZERO) and instead of reading RESUME_UI_Lane.md top-to-bottom.
-stale-below: nothing yet — this file was created 2026-08-31 and has no history.
+updated: 2026-09-01
+current-answer: 🔴 §5.0 — THE AGREED PLAN, user-confirmed 2026-09-01. Read §5.0 first, then §5 for the
+  mechanics of its first step. This file is a SESSION BOOTSTRAP — a self-contained continuation point
+  for the entity-creation unification work on the UI lane. Read it after docs/blueprints/RULINGS.md
+  (RULE ZERO) and instead of reading RESUME_UI_Lane.md top-to-bottom.
+stale-below: §5's opening caution "the user was asked and had not yet answered" is STALE — they
+  answered on 2026-09-01 ("yes adopt pack first, then relocate"). Its measured seam table is current.
 known-conflict: none. Where this file and RESUME_UI_Lane.md's STATUS block overlap they agree; that
   block is the longer log, this file is the ordered continuation point.
 -->
 
 # ⭐⭐⭐ BOOTSTRAP — entity-creation unification, UI lane
 
-> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · head **`65a4ccfce`** · ids **`CE-`** *(next free `CE-147`)*.
+> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · head **`4a69ad3f8`** *(`2026-09-01`)* · ids **`CE-`** *(next free `CE-155`)*.
 > ⛔ Push nowhere else. ⛔ No PR unless the user asks.
 > 📄 **Owning designs:** [`../DESIGN_Entity_Creation_Unification.md`](../DESIGN_Entity_Creation_Unification.md) ·
 > [`Architect_Question_65_Entity_Genesis_Uniformity.md`](Architect_Question_65_Entity_Genesis_Uniformity.md) ·
@@ -111,7 +113,7 @@ graph TD
 | id | what | blocking? |
 |---|---|---|
 | **`CE-141`** | IG's translator width — needs a live `--mode all` probe | no |
-| **`CE-142`** | ungate ownership delegation: mechanism on `participant != null`, policy on `_ownershipStrategy != null` (`NedReplicationModule.cs:206`, `:230`, `:232`) | with/after step 3 |
+| ✅ **`CE-142`** | **DONE `2026-09-01`** (`e888872a0`) — the three delegation pieces are ungated. ⚠ **Prerequisite, not a fix**: CGF's authority over a SimHost-originated entity is UNCHANGED, because nothing computes Brain-ward grants. ⭐ That policy half is superseded by `DESIGN_Role_Affinity_Ownership.md` | done |
 | **`CE-143`** | add init-only `ReliableInitType` to `EntityCreationRequest`, default `AllPeers`; hardcoded at `CreateEntityRequestSystem.cs:302` and `:397`. ⚠ decide whether `:397`'s children inherit (lean: yes) | ⭐ prerequisite for IG drawings being **usable** |
 | **`CE-144`** | drop `GhostDestructionSystem` from IG once it gains `NetworkSpawningSystem` | ships with (f) |
 | **`CE-146`** | fold the Stride editor's SECOND pipeline into the pack; the strip goes through `ExtraTranslators` | = host (e) |
@@ -120,6 +122,48 @@ graph TD
 
 ⭐ **After entity creation:** back to gizmos — **`CE-134`** (health bar) first, then `CE-133`, `CE-135`,
 `CE-136` against [`../UX/UX_Feature_Entity_Symbology.md`](../UX/UX_Feature_Entity_Symbology.md) §3.8.
+
+---
+
+## 5.0 🔴🔴🔴 THE AGREED PLAN — **user-confirmed `2026-09-01`. START HERE.**
+
+> 🔒 **User, `2026-09-01`:** *"yes adopt pack first, then relocate"* — after asking *"where will you
+> instantiate the code? This should be part of the shared entity creation pack, right?"*
+
+⭐⭐ **Why this order.** Relocating `GhostPromotionSystem` into `EntityCreationPack` is the end state
+*(`DESIGN_Role_Affinity_Ownership.md` §3.7)*, ⛔ **but a host that has not adopted the pack would LOSE
+ghost promotion the moment the NED module stops registering it.** ⇒ adopt first, relocate second; the
+alternative is a temporary bridge that would itself be the second registrar the pack forbids.
+
+| # | step | state |
+|---|---|---|
+| **P1** | ⭐⭐ **finish pack adoption** — hosts (b) SimHost → (c)+(e) Editor + Stride editor *(coupled, `CE-146`)* → (d) CGF → (f) IG *(atomic with `Q65-A′`+`CE-143`+`CE-144`)*. §3's order, §5's mechanics | ⭐ **NEXT: host (b)** |
+| **P2** | 🔴 **relocate `GhostPromotionSystem`** from `NedReplicationModule` into `EntityCreationPack`, **one commit, add+remove together** | blocked on P1 |
+| **P3** | ⭐ **role-affinity ownership** — `DESIGN_Role_Affinity_Ownership.md` §6 steps 0→3b | blocked on P2 |
+
+### ⭐ What `2026-09-01` settled — ⛔ do not re-derive
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **ownership is NETWORK-AGNOSTIC** | 🔒 user: *"we can have multiple different network implementations - ownership can not be tied to one of them"*. 📐 Four factories: `Ned`, `Bdc`, `Offline`, + mocks. ⛔ **`DescriptorOwnershipMap` and `EDescriptorType` MUST NOT carry ownership** — the map is filled per implementation via `RegisterFromTranslator`. ⭐ The role carries a **`BitMask512` of component ids** |
+| ⭐⭐⭐ **TWO ownership categories** | ⭐ **cognitive** *(safe to default)* ⇒ role affinity · ⭐ **birth-critical** *(must be valid at birth)* ⇒ **creator birthright**, then the existing `DeferredTakeOwnership` handoff. 🔒 Architect: *"the position can not start empty"* |
+| ⭐⭐ **birth-criticality is a COMPONENT property declared by the TKB** | 🔒 user: *"TKB should define what components are birth critical"* — ⛔ not a descriptor *(networkless nodes have none)*. ⭐ Initial content: **`SimTransform` only**, via a new `TkbTemplate.BirthCriticalComponents` beside the existing `MandatoryComponents` |
+| 🔴 **authority does NOT stop execution** | 📐 `BTreeTickSystem.cs:62-65` has **no authority filter**, and no production system uses `QueryBuilder:97`'s `.WithAuthority<T>()`. ⇒ P3 needs **both** a narrowed Muscle-only registration **and** the query filter, or the whole design is cosmetic |
+| 🔴 **a BDC node never promotes its ghosts** | 📐 `BdcReplicationModule.cs:66` registers `GhostCreationSystem` but **no** `GhostPromotionSystem`. ⭐ P2 closes this as a side effect |
+
+### 📌 Committed `2026-09-01` — `44195801c..4a69ad3f8`
+
+| commit | what |
+|---|---|
+| `e2e1a5a2c` | ghost promotion role-independent + shares the ELM's translator list *(it was `Array.Empty` on **every** node — 6th instance of the omitted-`translators:` family)*. ⚠ **The role-gate half is SUPERSEDED by P2** — it disappears when registration relocates |
+| `e888872a0` | `CE-142` + its tracker row + the Q65 §5.3 as-built |
+| `d63445a18` · `47aa87600` · `9462c51ef` · `f7fa41608` · `4a69ad3f8` | [`../DESIGN_Role_Affinity_Ownership.md`](../DESIGN_Role_Affinity_Ownership.md) — written, then corrected four times *(architect's birth-critical flaw · the component/TKB correction · network-agnosticism · composition)* |
+
+⚠ **Cluster reds are UNCHANGED** by all of it — 9 before, 9 after, same nine. ⭐ That is expected and
+honest: everything so far is prerequisite. 📌 The acceptance test for the whole arc is
+`CgfSubsystemHeadlessTests.SimHost_MoveToLocationMission_EntityMovesWithoutGhostTick`; ⚠ it may stay red
+afterwards for its OWN subject *(it also guards `MissionDirectorSystem` against publishing a params-less
+`AssignBehaviorHashEvent`)* — that would be the test working.
 
 ---
 

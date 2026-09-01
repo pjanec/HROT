@@ -1,8 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-31
-current-answer: 🔴 READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md FIRST — it is the ordered
-  continuation point for the live entity-creation work (branch head 65a4ccfce): the governing ruling, the
+updated: 2026-09-01
+current-answer: 🔴 READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md §5.0 FIRST — it holds the
+  AGREED PLAN (user-confirmed 2026-09-01): P1 finish EntityCreationPack adoption, P2 relocate
+  GhostPromotionSystem into the pack, P3 role-affinity ownership
+  (docs/DESIGN_Role_Affinity_Ownership.md). It is the ordered continuation point for the live
+  entity-creation work (branch head 4a69ad3f8): the governing ruling, the
   12 commits already pushed, the test baseline, step 3's adoption order, the open CE- ids, and the exact
   mechanics of the next step (SimHost, host (b)). ⛔ Do not read THIS file top-to-bottom; the STATUS block
   below is the longer LOG behind that bootstrap and the sections below it are HISTORY.
