@@ -108,6 +108,9 @@ public class WhyDoesTheVehicleNotMoveProbe
         }
         else _out.WriteLine("  \u26d4 no GlobalTime singleton");
 
+        _out.WriteLine($"  SimHost TimeControllerMode = {harness.SimHost.TestHook_TimeControllerMode}"
+                     + "   (Deterministic/Stepping == the cluster booted PAUSED, CE-101)");
+
         var vs = world.GetComponent<VehicleState>(e);
         _out.WriteLine($"  VehicleState -> {vs}");
 
