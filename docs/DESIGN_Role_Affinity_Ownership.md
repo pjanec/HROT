@@ -13,6 +13,12 @@ known-rot: §3.1's FIRST draft (2026-09-01, same day) applied ONE symmetric rule
 open-risk: §3.5 -- BTreeTickSystem's query carries NO authority filter, so declining authority does
   not stop a node ticking a brain. Until step 3b lands, the rest of this design gates replication
   only. Do not mark this design BUILT while §3.5 is open.
+known-rot: an earlier draft sourced the role's ownable set from DescriptorOwnershipMap and called
+  that "the one place a networking concept is defensible". WRONG -- corrected in §2.3 (user ruling,
+  2026-09-01): there are multiple network implementations (NedNetworkFactory, BdcNetworkFactory,
+  OfflineNetworkFactory) and that map is populated per implementation from its own translators, so a
+  rule keyed on it would differ per stack and be empty offline. The role's ownable set is a
+  BitMask512 of COMPONENT IDS assigned to the role. Nothing in this design may key on a descriptor.
 known-conflict: Architect_Question_65 §4's Q65-B and §5.3's CE-142 both describe ownership as
   something a CREATOR delegates outward via DeferredTakeOwnership. This design does not retire that
   path -- explicit grants still win -- but it makes the DEFAULT declarative and local, which removes
@@ -87,12 +93,41 @@ if (isLocalAuthority)
 
 | piece | why it matters here |
 |---|---|
-| `DescriptorOwnershipMap` | descriptor id → component ids, **built from `IDescriptorTranslator.TargetComponentIds`** ⇒ a node with a narrower translator set claims fewer components by construction |
-| `EDescriptorType` | the vocabulary already splits the tiers: `dtEntityMission`, `dtNavigationIntent` (cognitive) · `dtWorldPos`, `dtNavigationStatus` (kinematic) |
+| ⛔⛔ `DescriptorOwnershipMap` | 🔴 **MUST NOT carry ownership — see §2.3.** It is populated by `RegisterFromTranslator(descriptorOrdinal, targetComponentIds)`, i.e. from **one network implementation's** translator set |
+| ⛔ `EDescriptorType` | 🔴 same reason — a descriptor **ordinal vocabulary belongs to a wire protocol**, not to the simulation |
+| ⭐⭐ `BitMask512` | `AuthorityMask` and the component mask are **already** this type, and it has `BitwiseAnd(in BitMask512)` ⇒ a role's ownable set is representable as one mask and applied in a single call |
 | `BehaviorProfileDto.BrainTier` | `byte`; `BehaviorTkbTranslator` already early-returns on `== 0` ⇒ *"is this a brain-enabled entity"* is answerable from the template alone |
 | `GhostPromotionSystem` | applies the TKB translators at `:122`, promotes Ghost→Constructing at `:129`. Since `CE-142`'s sibling change it runs on **every** role |
 | `PendingAuthorityGrants` | ⚠ **checked, and it does NOT conflict** — it carries an *explicit* pre-genesis `DeferredTakeOwnership` routing table, consumed by `DeferredTakeoverSystem`. An explicit grant is a deliberate override of the local default (§3.4) |
 | `IOwnershipDistributionStrategy` | the **existing** policy seam. ⛔ Do not add a second one — §3.3 extends this family rather than inventing a parallel interface |
+
+### 2.3 🔴🔴 **OWNERSHIP MUST BE NETWORK-AGNOSTIC** *(user ruling, `2026-09-01`)*
+
+> 🔒 **User, verbatim:** *"we can have multiple different network implementations - ownership can not be
+> tied to one of them, must be network agnostic. and role can have a bitmask of owned components
+> assigned."*
+
+📐 **Measured — the premise is fact, not hypothetical:**
+
+| network factory | |
+|---|---|
+| `NedNetworkFactory` | the DDS/NED stack |
+| `BdcNetworkFactory` | a **second, independent** implementation |
+| `OfflineNetworkFactory` | ⭐ the **networkless** case — literally a host with no wire at all |
+| *(+ `MockNetworkFactory`, `SpyNetworkFactory`, `StubNetworkFactory` in tests)* | |
+
+⛔⛔ **`DescriptorOwnershipMap` is populated by `RegisterFromTranslator(descriptorOrdinal,
+targetComponentIds)`** — from **one implementation's translator set**. `NedReplicationModule` fills it
+from NED translators; a BDC node fills it differently; an offline node not at all. ⇒ 🔴 **an
+ownership rule keyed on it would mean something different on every network stack and nothing offline.**
+
+⇒ ⭐⭐⭐ **The role's ownable set is a `BitMask512` of COMPONENT IDS, assigned directly to the role.**
+No descriptors, no ordinals, no translators, no participant. ⭐ `AuthorityMask` and the component mask
+are already `BitMask512`, and it has `BitwiseAnd(in BitMask512)` — so the rule is one bitwise op.
+
+⚠ **This retires §5's decision ①**, which had proposed `DescriptorOwnershipMap` as the source and called
+it *"the one place a networking concept is defensible."* 🔴 **That was wrong** — it assumed one network
+stack.
 
 ---
 
@@ -162,23 +197,33 @@ keeps the handshake it already has, and needs it.
 
 ⭐ Ordering is already correct: the translator loop has materialised the components before either point runs.
 
-### 3.3 The seam
+### 3.3 The seam — ⭐ **network-agnostic by construction**
 
 ⭐⭐ `IOwnershipDistributionStrategy` answers *"which grants do I hand out?"*. This design needs the
-sibling question *"which components do I keep?"* — same family, so it goes beside it, injected, and
-**role selects the POLICY, never the mechanism** *(`CE-142`)*.
+sibling question *"which components do I keep?"* — so it goes beside it, injected, and **role selects
+the POLICY, never the mechanism** *(`CE-142`)*.
 
 ```csharp
 public interface IRoleAffinityPolicy
 {
     /// Component ids this node should own for an entity of this template.
-    /// Empty = own nothing; the caller intersects with the entity's component mask.
-    BitMask512 OwnableMask(TkbTemplate template, DescriptorOwnershipMap map);
+    /// ⛔ No descriptors, no ordinals, no participant — see §2.3.
+    /// The caller intersects the result with the entity's live component mask.
+    BitMask512 OwnableMask(TkbTemplate template, bool isCreator);
 }
 ```
 
+| ⭐ where each bit comes from | |
+|---|---|
+| ⭐⭐ **the ROLE's assigned mask** | a `BitMask512` of component ids **declared per role**, plain configuration. ⛔ Not derived from any wire vocabulary — a `NodeRole` → mask table, and nothing else |
+| ⭐⭐ **∪ the template's `BirthCriticalComponents`, when `isCreator`** | §3.1's birthright. ⭐ The creator keeps these **whatever its role**, which is precisely the architect's correction |
+
+⭐ **The whole rule is then:** `AuthorityMask = componentMask ∧ OwnableMask(template, isCreator)` —
+one `BitwiseAnd`, no allocation, and it evaluates identically on NED, on BDC and offline.
+
 ⚠ **A node with no policy keeps today's behaviour** *(own everything you materialised)*, so adoption is
-incremental and nothing changes until a host is handed one.
+incremental and nothing changes until a host is handed one. ⭐ This is also what makes the networkless
+host correct for free.
 
 ### 3.4 ⛔ What this does NOT retire
 
@@ -238,7 +283,8 @@ classDiagram
     }
     class RoleAffinityPolicy {
         -NodeRole role
-        +OwnableMask(template, map) BitMask512
+        -BitMask512 roleOwnedComponents
+        +OwnableMask(template, isCreator) BitMask512
     }
     class IOwnershipDistributionStrategy {
         <<interface>>
@@ -271,14 +317,13 @@ classDiagram
     NetworkSpawningSystem --> TkbTemplate : birth-critical always kept
     RoleAffinityPolicy --> TkbTemplate : reads BirthCriticalComponents
     GhostPromotionSystem --> IRoleAffinityPolicy : claims what role includes
-    RoleAffinityPolicy --> DescriptorOwnershipMap : descriptor to component ids
     NetworkSpawningSystem --> EntityRepository
     GhostPromotionSystem --> EntityRepository
     DeferredTakeoverSystem --> EntityRepository : explicit grants override
 
     note for NetworkSpawningSystem "EXISTS - line 181 today assigns the full component mask"
     note for GhostPromotionSystem "EXISTS - translators at 122, promote at 129"
-    note for DescriptorOwnershipMap "EXISTS - built from translator TargetComponentIds"
+    note for DescriptorOwnershipMap "EXISTS but DELIBERATELY UNUSED here - it is populated per network implementation, see 2.3"
     note for TkbTemplate "EXISTS - MandatoryComponents is already per-component and network-free. BirthCriticalComponents is the ONE addition, initial content SimTransform"
     note for DeferredTakeoverSystem "EXISTS - unchanged, still the override path"
 ```
@@ -351,7 +396,7 @@ sequenceDiagram
 
 | # | question | ⭐ lean | what would change it |
 |---|---|---|---|
-| **①** | what defines *"the components my role owns"* — a descriptor set, or a component-id set? | ⭐ **descriptor set**, via `DescriptorOwnershipMap` — ⚠ **and this is the one place a networking concept is DEFENSIBLE**, because ownership only means something across nodes: a networkless node injects no policy and keeps today's behaviour. ⭐ It already exists, is built from translator `TargetComponentIds`, and a narrower translator set narrows ownership for free | ⛔ a component belonging to no descriptor is invisible to the rule — **needs a measured count before building**. ⚠ **If ①b's component-level answer should apply here too for consistency, say so** — this row is the one that survived the correction, not one that was blessed by it |
+| **①** | ~~descriptor set or component-id set?~~ | ✅ **SETTLED `2026-09-01` — a `BitMask512` of COMPONENT IDS assigned to the role.** ⛔ Not `DescriptorOwnershipMap`: it is populated per network implementation *(NED / BDC / offline)*, so an ownership rule keyed on it would differ per stack and be empty offline. See §2.3 | — |
 | **①b** | ~~which DESCRIPTORS are birth-critical~~ | ✅ **SETTLED `2026-09-01` — and the question itself was wrong.** It is a **COMPONENT** property *(descriptors are a networking concept; a networkless node has none)*, declared by the **TKB template**, and the initial content is **`SimTransform` only, only for templates that list it**. See §3.1 | — |
 | **①c** | 🔴 **the execution gate** *(§3.5)* — registration, the query filter, or both? | ⭐⭐ **both**: narrow a Muscle-only node's registration *(primary, zero cost)* **and** add `.WithAuthority<BehaviorState>()` to `BTreeTickSystem`. ⛔ Registration alone leaves the all-in-one / own-brains case double-ticking | if `.WithAuthority` proves to have a measurable per-frame cost on large entity counts, registration alone plus an explicit in-system check |
 | **②** | nobody holds the role ⇒ the component is owned by **no one** and nothing ticks it | ⭐ **log once per entity, no fallback.** A fallback *("creator keeps it after N frames")* reintroduces exactly the race this design removes | if silent brainless entities prove common in real deployments, revisit as a startup-time cluster check, not a per-entity fallback |
