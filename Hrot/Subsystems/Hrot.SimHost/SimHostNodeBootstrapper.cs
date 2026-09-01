@@ -285,45 +285,25 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
                 {
                     world.SetAuthority<SimTransform>(entity, true);
 
-                    // ⭐⭐⭐ AX-011 — ATTACH the egress shadow at birth, on the node that OWNS SimTransform.
+                    // ⭐⭐⭐ CE-147 — THE EGRESS SHADOW IS NO LONGER ATTACHED HERE.
                     //
-                    // 🔴 THE BUG, measured `2026-08-26`: `GeoSpatialEgressTranslator.ScanAndPublish` queries
-                    //    `SimTransform` + `NetworkTransform` + `NetworkIdentity`. ⛔ The production TKB catalog
-                    //    (`NedTkbBuilder.DefineVehicle`) never declares `NetworkTransform`, and nothing on the
-                    //    owner side attached it ⇒ 📐 that query matched **0** entities (drop the clause and it
-                    //    matches 1) ⇒ SimHost published **no `WorldPos` at all**. The IG ghost therefore never
-                    //    received `SimTransform`, which is a **HARD** mandatory component, so
-                    //    `GhostPromotionSystem` correctly declined to promote it — forever. 📄 tracker `AX-009`.
+                    // 📌 AX-011 fixed a real defect at this spot: GeoSpatialEgressTranslator's scan query
+                    //    REQUIRED NetworkTransform, the production TKB catalog never declared it, so the
+                    //    query matched ZERO entities and SimHost published no WorldPos at all. Attaching
+                    //    the shadow here made it work — on THIS host.
                     //
-                    // ⭐⭐⭐ THIS HOOK WAS ALREADY WRITTEN FOR IT. The two lines below used to read
-                    //    `if (world.HasComponent<NetworkTransform>(entity)) SetAuthority(...)` — an authority
-                    //    grant for a component **nothing ever attached**, so the branch was dead. 📌 The same
-                    //    dead-affordance shape this programme keeps finding: the guard was correct, and the
-                    //    thing it guarded never arrived. ⇒ ⭐ attach it, and the grant becomes live.
+                    // ⛔ That was the problem: it was per-host. The invariant held because one composition
+                    //    root remembered it, so every future host that came to own SimTransform had to
+                    //    remember the same wiring, and EntityCreationContext.OnEntitySpawned existed
+                    //    largely to carry it.
                     //
-                    // ⭐⭐ WHY HERE rather than in `NetworkSpawningSystem`. 📐 Measured: a bare
-                    //    `AddComponent` there **throws** `"Component NetworkTransform is not registered"` —
-                    //    the engine-level spawn system imposes a registration contract, and **37** worlds
-                    //    register `TkbIdentity` while only `HrotSharedComponentRegistry` registers
-                    //    `NetworkTransform`. ⇒ the engine-level attach would have needed 37 registry edits
-                    //    (two of them FDP example scenarios). ⭐ This hook already runs on the one host that
-                    //    owns `SimTransform`, in an assembly where the component IS registered.
-                    //    ⚠ Cost stated honestly: it is per-host, so a FUTURE owning host must wire the same
-                    //      hook. The rail below asserts the invariant on a real spawn rather than trusting it.
+                    // ⭐⭐ The translator now attaches its own shadow, below its authority gate, so the
+                    //    invariant is true BY CONSTRUCTION for every owning host — present and future —
+                    //    without any composition root knowing about it.
+                    //    📄 docs/DESIGN_Cgf_AxisB_Rotation_Slice.md §13.7.
                     //
-                    // ⚠ NON-OWNERS get nothing here, and need nothing: a replica's shadow is written by
-                    //   `GeoSpatialIngressTranslator` on first receipt via `SetComponent` (upsert) — which
-                    //   `GeoSpatialTranslatorTests` already asserts happens "even for freshly created ghost
-                    //   entities".
-                    //
-                    // ⚠⚠ SEEDED TO `default` — ZEROS — DELIBERATELY. The translator publishes only when the
-                    //   live pose differs from this shadow, or when the salted heartbeat fires at `% 600`
-                    //   ticks. ⛔ Seeding from the entity's CURRENT `SimTransform` would make the first
-                    //   comparison say "has not moved", leaving a stationary spawned entity INVISIBLE to
-                    //   every other node for up to 600 ticks — 10 s at 60 Hz. Zeros force a first publish.
-                    if (!world.HasComponent<NetworkTransform>(entity))
-                        world.AddComponent(entity, default(NetworkTransform));
-                    world.SetAuthority<NetworkTransform>(entity, true);
+                    // ⚠ Proven, not assumed: TheEgressShadowExistsAtBirthTests (the AX-011 cluster rails,
+                    //   a real spawn on a real cluster) is 6/6 GREEN with these lines gone.
 
                     if (world.HasComponent<NetworkVelocity>(entity))
                         world.SetAuthority<NetworkVelocity>(entity, true);
