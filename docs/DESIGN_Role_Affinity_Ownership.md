@@ -225,6 +225,55 @@ one `BitwiseAnd`, no allocation, and it evaluates identically on NED, on BDC and
 incremental and nothing changes until a host is handed one. ⭐ This is also what makes the networkless
 host correct for free.
 
+### 3.7 ⭐⭐⭐ COMPOSITION — **the policy belongs to `EntityCreationPack`, and that forces one relocation**
+
+> 🔒 **User, `2026-09-01`:** *"where will you instantiate the code? This should be part of the shared
+> entity creation pack, right?"* ⭐ **Yes — and asking it exposes that one of the two consumers is in the
+> wrong module.**
+
+📐 **Where the two consumers are built today:**
+
+| consumer | built by | reachable from the pack? |
+|---|---|---|
+| `NetworkSpawningSystem` | ⭐ **`EntityCreationPack.Build()`** *(+ 3 hosts that still hand-assemble)* | ✅ yes |
+| `GhostPromotionSystem` | ⛔ **`NedReplicationModule.RegisterSystems()` — ONE network implementation** | 🔴 **no** |
+
+🔴🔴 **And that is already a defect, independent of this design.** `BdcReplicationModule.cs:66`
+registers `GhostCreationSystem` — so **a BDC node creates ghosts** — but the file registers **no**
+`GhostPromotionSystem`. ⇒ **those ghosts are never promoted**: they keep only their replicated
+components, never get their TKB projection, and stay in `EntityLifecycle.Ghost` forever.
+⭐ `OfflineNetworkFactory` returns a `NullReplicationModule`, so the same holds there *(harmlessly —
+no ghosts arrive)*.
+
+⇒ ⭐⭐⭐ **The concerns were bundled by LIFECYCLE ADJACENCY, not by subject:**
+
+| step | concern | home |
+|---|---|---|
+| ghost **CREATION** — *a wire sample arrived, make a shell* | ⭐ genuinely a **NETWORK** concern | ✅ stays in the replication module — and `IReplicationModule` puts `GhostCreationSystem` **on the interface**, so every implementation must supply one |
+| ghost **PROMOTION** — *apply the TKB template, decide ownership, transition the lifecycle* | ⭐⭐ a **SIMULATION** concern — it consumes the translator list and now the role policy, neither of which is networked | 🔴 **move to `EntityCreationPack`**, beside the request and spawn systems |
+
+| ⭐ what this buys | |
+|---|---|
+| ⭐⭐⭐ **both consumers built by ONE factory** ⇒ they share the **same policy instance BY CONSTRUCTION** | ⭐ exactly the argument the pack already makes about the translator list — *"handing the SAME instance to the ELM and the spawn system is what makes that true BY CONSTRUCTION rather than by convention"* |
+| ⭐⭐ **ghost promotion stops being NED-only** | ⇒ the BDC gap above closes as a side effect, not as separate work |
+| ⭐ **the pack's own caution is honoured** | ⚠ its header says promotion is not its job because that would create *"a SECOND registrar"*. 📐 That reasoning assumed `NedReplicationModule` is **the** registrar; it is one of **three** modules and two do not register it. ⇒ this is a **MOVE**, not an addition — the pack becomes THE registrar and the NED module stops. ⛔ Both must land in one commit or promotion runs twice |
+
+⚠⚠ **This SUPERSEDES a change made earlier the same day.** `NedReplicationModule`'s two role-gated
+`GhostPromotionSystem` registrations were collapsed into one un-gated registration *(the `Q65-B`
+sibling of `CE-142`)*. ⭐ That was correct for where the code sat, and it **disappears** when the
+registration relocates. ⛔ Do not treat the two as alternatives — the relocation is the end state.
+
+⭐ **Ordering is safe:** all three genesis systems carry `[UpdateInPhase(SystemPhase.BeforeSync)]`
+*(`GhostCreationSystem.cs:9`, `NetworkSpawningSystem.cs:21`, `GhostPromotionSystem.cs:25`)*, so moving
+the **registrar** does not move the **phase**. ⚠ Within-phase order still matters — creation must
+precede promotion — and `EntityCreation.Unserviceable()` already exists to make a host's omission loud.
+
+⭐ **The context gains one field**, mirroring `OwnershipStrategy`:
+
+```csharp
+public IRoleAffinityPolicy? RoleAffinityPolicy { get; init; }   // null => today's behaviour
+```
+
 ### 3.4 ⛔ What this does NOT retire
 
 ⭐ **Explicit `DeferredTakeOwnership` grants still win.** Role affinity is the **default**; a creator that
@@ -408,6 +457,7 @@ sequenceDiagram
 
 | step | what | gate |
 |---|---|---|
+| **0a** | 🔴 **RELOCATE `GhostPromotionSystem` registration from `NedReplicationModule` into `EntityCreationPack`** — §3.7. ⛔ One commit: add to the pack **and** remove from the NED module | rail: a node built from the pack registers promotion **exactly once**; and a **BDC-composed** node promotes its ghosts *(today it does not — that gap closes here)* |
 | **0** | ⭐ `TkbTemplate.BirthCriticalComponents` + `AddBirthCriticalComponent<T>()`, mirroring the existing `AddMandatoryComponent<T>()`; seed **`SimTransform`** on the templates that carry one | unit: a template that does not list it does not report it; the list is network-free *(no `DescriptorOwnershipMap`, no participant, so it holds on a networkless node)* |
 | **1** | `IRoleAffinityPolicy` + `RoleAffinityPolicy` in `Fdp.Toolkits/Replication` | unit: Brain and Muscle masks are **disjoint** over the brain/kinematic sets, **and** birth-critical components are in **both** |
 | **2** | `NetworkSpawningSystem:181` intersects with the policy; **null policy keeps today's behaviour** | rail: with no policy, the mask is unchanged *(red-proof: inject a policy, assert the bits drop)*. ⭐⭐ **AND the birthright rail: a creator ALWAYS keeps `dtWorldPos`, whatever its role** — this is the one the architect's correction exists to protect, so it is written before step 2's code |
