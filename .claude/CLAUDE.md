@@ -273,9 +273,62 @@ implementation session builds; it does not source the design it builds from.**
 `.dev/`, one per topic, each asked for *record → confirms/refines/contradicts → what it did not cover*.
 ⛔ **Do not spend an implementation batch on a question a subagent can answer in one pass.**
 
+## ⛔⛔⛔ NO LEAN WITHOUT A CLAIM TABLE — **and STAYING QUIET LONGER IS THE POINT** *(user, `2026-09-01`)*
+
+> ⭐⭐⭐ **User, verbatim, on the third correction in one session:** *"we are constatly hitting the point
+> from the beginning - your understanding is shallw before giving lean. hiw to improve?"* — then, on the
+> proposal below: 🔒 *"staying quiet longer to give much better answer is exactly what i expect."*
+
+⛔⛔ **THE DIAGNOSIS IS NOT "DIDN'T READ ENOUGH."** 📐 Plenty was read each time. ⭐⭐⭐ **The mechanism is:
+the RECOMMENDATION WAS FORMED FIRST, and the reading went looking for support.** ⇒ every lean rested on
+**one verified property plus several ASSUMED ones — and the assumed ones were always the ones that decided
+the question.**
+
+📌 **Measured on `CE-147` *(where the `NetworkTransform` position-shadow attach belongs)* — three leans,
+three corrections, and EVERY ONE broke on a file that was NAMEABLE IN ADVANCE as load-bearing and never opened:**
+
+| the lean | what broke it | had I opened it? |
+|---|---|---|
+| *"the consumer owns its cache"* ⇒ egress | `NetworkTransform`'s **own header** says **both** sides write it | ⛔ no — the egress *usage*, never the component |
+| ⇒ `SpatialCoreTkbTranslator` | the translator loop sits **ABOVE** the authority branch ⇒ **replicas run it too** *(`NetworkSpawningSystem.cs:134`)* | ⛔ no — read the branch, not the ten lines above it |
+| my own objection *"structural mutation mid-iteration"* | `EntityQuery` is an **INDEX walk, not a chunk walk** *(`EntityQuery.cs:133`)* | ⛔ no — **invented from ECS folklore** |
+
+### ⭐⭐⭐ The tell — **a PRINCIPLE where a LINE NUMBER should be**
+
+⛔⛔ **Every broken lean was justified by a DESIGN PRINCIPLE, not a measurement** — *"the consumer should
+own its cache"* · *"the template is the right home."* ⭐⭐ **Principle-arguments feel strong and stay
+UNFALSIFIABLE until the file is opened.** ⇒ 🔒 **when the reason for a lean is a principle rather than a
+`file:line`, the work is NOT DONE.**
+
+### ⭐⭐ The cost asymmetry that makes this indefensible
+
+📐 **Measuring = 2–3 tool calls, ~30 s. A wrong lean = a full user round-trip, their attention, and the
+risk they ACCEPT it.** ⇒ ⛔ **the threshold for "should I measure this" is NEAR ZERO.** ⚠ Measurement had
+been treated as expensive. **It is not.**
+
+### ⭐⭐⭐ The rule — **a CLAIM TABLE in the chat reply, in front of every lean**
+
+| the lean rests on | measured |
+|---|---|
+| translators run for replicas too | ✅ `NetworkSpawningSystem.cs:134` |
+| the ownership path never attaches | ✅ `OwnershipIngressSystem.cs:75` |
+| nothing reads `NetworkTransform` authority | ⛔ **assumed** |
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **NO ⛔-ASSUMED ROW MAY BE LOAD-BEARING** | ⇒ if it would flip the lean when false, **MEASURE IT BEFORE ANSWERING** |
+| ⭐⭐ **an unmeasurable claim still gets its row, marked ⛔** | ⭐ that is the USEFUL case — the user pushes on **that row**, not on the conclusion |
+| ⭐⭐⭐ **the generating question, asked BEFORE forming the lean** | 🔒 ***"what would have to be true for this to be WRONG, and which FILE would show me?"*** — 📌 that one question would have caught **all three** misses above |
+| ⭐⭐ **why a TABLE and not "be careful"** | ⛔ the user **cannot check the reasoning from a phone** — ⭐ but they CAN check *"four rows measured"* vs *"one."* **It exposes the SHAPE OF THE CONFIDENCE, not just the verdict** — the same reason the `INVENTORY` block and the gate-report contract stuck where *"be diligent"* never has |
+
+⭐⭐⭐ **CONSEQUENCE THE USER EXPLICITLY WANTS: BE SLOWER BEFORE THE FIRST ANSWER.** ⛔ The measured pattern
+was *first lean wrong · third lean right*, **because the USER'S CORRECTIONS WERE DOING THE MEASUREMENT.**
+⚠⚠ **That is the wrong division of labour — the user was acting as the test suite.** ⇒ ⭐ **spend the tool
+calls first; a slower, measured first answer is the deliverable.**
+
 ## Assistant interaction preferences
 
-- ⛔⛔⛔ **UNDERSTAND FIRST, THEN ANSWER — and NEVER ask the user to decide without a LEAN** *(user, `2026-09-01`, verbatim)*: *"I expect you to understand the code and concepts. I do not see the code, I am on mobile. So when you ask me to decide something, i need your lean. And i expect you first of all study available design documents (as written in claude.md) and then study relevant code using both codebase memory and grep until you fully understand it and only then you derive some solutions or explanations. You shoudl NOT work from incomplete understaning, like shallow code searcg with grep only."*
+- ⛔⛔⛔ **UNDERSTAND FIRST, THEN ANSWER — and NEVER ask the user to decide without a LEAN** *(user, `2026-09-01`, verbatim)*: ⭐⭐ **the enforcement mechanism is the CLAIM TABLE — see the section directly above.** *"I expect you to understand the code and concepts. I do not see the code, I am on mobile. So when you ask me to decide something, i need your lean. And i expect you first of all study available design documents (as written in claude.md) and then study relevant code using both codebase memory and grep until you fully understand it and only then you derive some solutions or explanations. You shoudl NOT work from incomplete understaning, like shallow code searcg with grep only."*
   ⭐ **The order is fixed: ① design docs *(`R-129` — `docs/` then `.dev/`)* → ② code, via `search_graph` **AND** grep *(never one alone)* → ③ only then a solution or an explanation.**
   ⛔⛔ **A menu of options with no recommendation is work handed back to the user** — they cannot open the code to break the tie. ⭐ **Every choice offered carries a named lean, its blast radius, and what would change the lean.** ⚠ **If understanding is genuinely incomplete, SAY WHICH PART and what would settle it** — ⛔ do not present a half-measured guess in the register of a conclusion.
 - ⭐⭐ **GLOSS EVERY ID AND SHORTHAND ON FIRST MENTION IN A REPLY** *(user, `2026-09-01`: "I do not have the list in front of my eyes so i have no idea what these mean. When referring to these, pls give mo a short few words summary in parenthesis like 'CE-147 (here the single line summary what CE 147 is about)'")*.
