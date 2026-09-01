@@ -272,14 +272,10 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             _spawnSystem = new NetworkSpawningSystem(
                 _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1,
-                translators: translators,
-                onEntitySpawned: (world, entity, isLocalAuthority) =>
-                {
-                    // Mark locally-owned physics components as authoritative so
-                    // CarKinematicsSystem (.WithOwned<SimTransform>()) processes this entity.
-                    if (isLocalAuthority && world.HasComponent<SimTransform>(entity))
-                        world.SetAuthority<SimTransform>(entity, true);
-                });
+                translators: translators);
+                // ⭐ CE-147 step 4 — the onEntitySpawned lambda is gone. It only did
+                //   SetAuthority<SimTransform>, which NetworkSpawningSystem's `AuthorityMask = compNS`
+                //   has already done by the time the hook would run.
 
             // 5. Geographic systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             new GeographicModule(_wgs84).RegisterSystems(_geoSystems);

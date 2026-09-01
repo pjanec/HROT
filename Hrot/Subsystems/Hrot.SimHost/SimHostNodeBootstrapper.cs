@@ -278,37 +278,20 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             context.EntityMap,
             context.IdAllocator!,
             context.NodeId,
-            translators:      _translators,       // TKB-022
-            onEntitySpawned: (world, entity, isLocalAuthority) =>
-            {
-                if (isLocalAuthority && world.HasComponent<SimTransform>(entity))
-                {
-                    world.SetAuthority<SimTransform>(entity, true);
+            translators:      _translators);       // TKB-022
 
-                    // ⭐⭐⭐ CE-147 — THE EGRESS SHADOW IS NO LONGER ATTACHED HERE.
-                    //
-                    // 📌 AX-011 fixed a real defect at this spot: GeoSpatialEgressTranslator's scan query
-                    //    REQUIRED NetworkTransform, the production TKB catalog never declared it, so the
-                    //    query matched ZERO entities and SimHost published no WorldPos at all. Attaching
-                    //    the shadow here made it work — on THIS host.
-                    //
-                    // ⛔ That was the problem: it was per-host. The invariant held because one composition
-                    //    root remembered it, so every future host that came to own SimTransform had to
-                    //    remember the same wiring, and EntityCreationContext.OnEntitySpawned existed
-                    //    largely to carry it.
-                    //
-                    // ⭐⭐ The translator now attaches its own shadow, below its authority gate, so the
-                    //    invariant is true BY CONSTRUCTION for every owning host — present and future —
-                    //    without any composition root knowing about it.
-                    //    📄 docs/DESIGN_Cgf_AxisB_Rotation_Slice.md §13.7.
-                    //
-                    // ⚠ Proven, not assumed: TheEgressShadowExistsAtBirthTests (the AX-011 cluster rails,
-                    //   a real spawn on a real cluster) is 6/6 GREEN with these lines gone.
-
-                    if (world.HasComponent<NetworkVelocity>(entity))
-                        world.SetAuthority<NetworkVelocity>(entity, true);
-                }
-            });
+        // ⭐⭐⭐ CE-147 step 4 — THE onEntitySpawned HOOK IS GONE, and nothing replaced it.
+        //
+        // 📌 It carried three statements. AX-011's shadow attach moved into GeoSpatialEgressTranslator
+        //    (§13.7), which makes the invariant true for EVERY owning host instead of this one. The other
+        //    two — SetAuthority<SimTransform> and SetAuthority<NetworkVelocity> — were REDUNDANT:
+        //    NetworkSpawningSystem executes `metaNS.AuthorityMask = compNS` immediately before invoking
+        //    the hook, which already sets the bit for every component present on the entity.
+        //
+        // ⚠ Redundant is not unread. `CarKinematicsSystem` filters on `.WithOwned<SimTransform>()`, so
+        //   that bit is load-bearing — it is simply already set by the line above. The cluster rails that
+        //   assert it (TheEgressShadowExistsAtBirthTests, SplitAuthoritySpawnTests) are the proof, not
+        //   this comment.
 
         context.Kernel.RegisterModule(new SimHostModule(spawnSystem: spawningSystem));
         context.Kernel.RegisterModule(CoreLogicPack!);

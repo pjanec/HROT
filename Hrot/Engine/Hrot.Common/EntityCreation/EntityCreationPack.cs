@@ -119,8 +119,14 @@ namespace Hrot.Common.EntityCreation
                 ctx.EntityMap,
                 ctx.IdAllocator,
                 ctx.NodeId,
-                translators:     translators,
-                onEntitySpawned: ctx.OnEntitySpawned);
+                // ⭐⭐⭐ CE-147 step 4 — no onEntitySpawned. It was the pack's LAST per-host hole:
+                //   an OPTIONAL Action that exactly ONE production host ever passed, carrying AX-011's
+                //   egress-shadow attach. That attach now lives in GeoSpatialEgressTranslator, where it is
+                //   true for every owning host by construction, so the parameter has nothing left to carry.
+                //   ⛔ Do not reintroduce it to move an invariant into a composition root — that is the
+                //   SILENT-DEFAULT shape: an optional dependency one caller happens to pass and the next
+                //   host forgets. 📄 docs/DESIGN_Cgf_AxisB_Rotation_Slice.md §13.7.
+                translators: translators);
 
             return new EntityCreation(
                 translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem);

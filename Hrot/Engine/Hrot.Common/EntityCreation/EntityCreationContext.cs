@@ -95,13 +95,7 @@ namespace Hrot.Common.EntityCreation
         /// </summary>
         public IOwnershipDistributionStrategy? OwnershipStrategy { get; init; }
 
-        /// <summary>
-        /// Optional per-host hook invoked for each spawned entity. ⚠ Genuinely host-specific — SimHost
-        /// uses it to stamp <c>SimTransform</c> authority and attach the egress shadow at birth
-        /// (<c>AX-011</c>) — so it stays a parameter rather than moving into the pack.
-        /// </summary>
-        public Action<EntityRepository, Entity, bool>? OnEntitySpawned { get; init; }
-
+        
         /// <summary>Throws when a required input is missing, naming the field.</summary>
         internal void Validate()
         {

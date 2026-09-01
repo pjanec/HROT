@@ -14,7 +14,9 @@ build-state: BUILT — the first cut (AX-001..AX-006), the AX-005 successor (AX-
   ⭐⭐ §12.2/§12.3 remain the LIVE diagrams for the EGRESS/request path (§16's are the APPLY path). ⛔ §11.3-§11.5 are SUPERSEDED — the plan asked for a NEW
   intent + a NEW translator; both already existed and were EXTENDED (ruling 9). Read §9 and §12.
   ⭐⭐⭐ §13.7 (CE-147, 2026-09-01) SUPERSEDES §13.3's placement ruling; §13.7.7 is its AS-BUILT
-  (steps 1+2 BUILT: the translator attaches, 6 new rails, 4/2 red-proof, T1 824/1/3 vs baseline 818/1/3). the NetworkTransform shadow
+  (steps 1+2 BUILT: the translator attaches, 6 new rails, 4/2 red-proof, T1 824/1/3 vs baseline 818/1/3).
+  ⭐⭐⭐ §13.7.8 = steps 3+4 BUILT: the hook AND EntityCreationContext.OnEntitySpawned are RETIRED;
+  cluster suite byte-identical at 31/235/3, authority rails 13/13. the NetworkTransform shadow
   attach belongs in GeoSpatialEgressTranslator, not in SimHostNodeBootstrapper's per-host hook. §13.3's
   "37 registry edits" measurement was real but its conclusion too strong. ⚠ The hook may NOT be removed
   until the egress attach lands — EntityCreationPack forwards OnEntitySpawned as an OPTIONAL per-host hook
@@ -771,6 +773,39 @@ attaches and grants; it is now **redundant** rather than load-bearing, ⛔ **but
 `EntityCreationContext.OnEntitySpawned` is still an optional per-host hook.** ⚠ Removing them needs the
 cluster suite *(`TheEgressShadowExistsAtBirthTests`)* to run, and that suite is un-gateable here — see the
 `ClusterRunner.Integration.Tests` DDS-allocator crash. ⇒ **the hook stays until that can be gated.**
+
+#### 13.7.8 ✅ AS-BUILT `2026-09-01` — **steps ③ and ④ COMPLETE: the hook and `OnEntitySpawned` are RETIRED**
+
+⭐⭐⭐ **§13.7.5's four-step order is finished.** ③ removed the hook's `NetworkTransform` block; ④ removes
+**the whole hook and the parameter that carried it**:
+
+| removed | why it was safe |
+|---|---|
+| `SimHostNodeBootstrapper`'s entire `onEntitySpawned:` lambda | its remaining two statements were **redundant** — `NetworkSpawningSystem` runs `metaNS.AuthorityMask = compNS` immediately before invoking the hook |
+| `EntityCreationContext.OnEntitySpawned` *(the property)* | ⭐⭐ **the pack's LAST per-host hole** — an optional `Action` exactly ONE production host ever passed |
+| `EntityCreationPack`'s forwarding of it | — |
+| `SimHostInstance`'s lambda *(test infra)* | same redundancy |
+
+⚠ **The redundancy was PROVEN, not asserted.** 📐 The rails that actually READ those authority bits are
+**13/13 green** with the hook gone — `TheEgressShadowExistsAtBirthTests` *(incl. `TheOwnerHasAuthorityOverItsOwnShadow`)*,
+`SplitAuthoritySpawnTests` *(incl. `BrainSpawn_WithWorldPosDelegation_MuscleTakesSimTransformAuthority`)*,
+`NavigationStatusAuthorityTests`, `DragDropIntegrationTests`.
+⭐ **`CarKinematicsSystem` filters on `.WithOwned<SimTransform>()`, so that bit is load-bearing** — ⛔ it was
+simply already set one line earlier. **Redundant is not unread**, and the rails are what prove it.
+
+| gate | result |
+|---|---|
+| 4 affected projects, `--no-restore` | ✅ 0 errors |
+| the authority-asserting rails, filtered | ✅ **13/13** |
+| **cluster suite** | ✅ **31 failed / 235 passed / 3 skipped / 269** — **byte-identical to the pre-removal baseline** ⇒ ⭐ zero regression |
+| `Hrot.SimHost.Tests` | ✅ **824 / 1 / 3** — baseline *(`QA-012`)* |
+| `Hrot.SimHost.Integration.Tests` | ⚠ **13 / 28 / 41** — ⭐ **measured at base by `git stash -u` + rebuild: IDENTICAL 13/28/41** ⇒ pre-existing, not this change |
+
+⭐ **`NetworkSpawningSystem`'s `onEntitySpawned` PARAMETER IS KEPT** — ⚠ **deliberate, and it now has NO
+production caller.** ⛔ It is an FDP-level extension point, and deleting an engine seam is a wider call than
+this slice *(`R-137` — do not lose a capability as a side effect of a unification)*. ⭐ **Recorded here so the
+next reader finds a REASON rather than rediscovering it as dead affordance** — 📌 exactly the mistake the
+"unreferenced is not unintentional" rule exists to prevent.
 
 ---
 
