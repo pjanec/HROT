@@ -69,15 +69,54 @@ Visual behavior authoring
   - This separation is the single most important architectural decision; most other properties follow from it.
 - **Brain (CGF)** — the side that *decides*.
   - Runs behavior trees, state machines, mission plans, and the threat picture.
-  - Holds spawn authority (it's where new entities are created).
   - Emits *intent* ("go here", "fire at that") — never physical state.
 - **Muscle (SimHost)** — the side that *executes*.
   - Runs kinematics, physics, ballistics, and perception/line-of-sight.
-  - Produces the authoritative physical world state (where things actually are).
+  - Produces the authoritative physical world state for the entities it *owns* — see §1.3a on what "owns" means.
 - The boundary is strict, and that strictness is deliberate.
   - The Brain never integrates velocity; the Muscle never ticks a behavior tree.
   - Because cognition holds no physical state, it can run on a separate machine from physics.
 - *"The Brain decides; the Muscle executes. Neither crosses the boundary."*
+
+### 1.3a What Brain / Muscle is **not** — the system is fully distributed
+> **Read this before drawing any conclusion from the role names above.** Brain and Muscle describe a
+> **default division of labour**, configured per node. They are **not** a protocol restriction, and the
+> node roles do **not** grant or withhold the ability to create entities or to own state.
+
+- **Every ECS node can create entities. There is no central spawner.**
+  - A node creates an entity by targeting itself — a `CreateEntityRequest` with `OwnerAppInstanceId == localNodeId` is processed **unconditionally** by that node, ignoring `isDefaultProcessor`.
+  - Network IDs never collide because allocation is a **distributed service** (`DdsIdAllocatorServer`), not a CGF privilege.
+  - IG creates tactical symbols and map graphics this way; the editor creates scenario entities this way.
+- **The one thing CGF is special for is the broadcast tiebreaker, and only that.**
+  - When an *unowned* request arrives over the network (`OwnerAppInstanceId == 0` — e.g. from ExCon), exactly one node must service it or the entity would be created twice.
+  - That node is the one configured `isDefaultProcessor: true` / `isBroadcastArbiter: true`, conventionally CGF.
+  - This exists to prevent duplicate ID allocation on the bus. **It is not an authority gate on entity creation.**
+- **Ownership is per-component, dynamic, and transferable — never per-node and never fixed.**
+  - Each entity carries an `AuthorityMask` (bits in its `EntityHeader`) plus a `DescriptorOwnership` map: write permission is held **per component**, and two nodes routinely own different components of the same entity.
+  - Ownership can move at runtime over the **`OwnershipUpdate`** topic; when one node claims a component the previous owner symmetrically yields and clears its local bit.
+  - "SimHost owns `SimTransform`" is the *outcome* of CGF's `BrainMuscleOwnershipStrategy` delegating kinematics for entities **CGF spawned** — via a pre-genesis `DeferredTakeOwnership`, claimed by `DeferredTakeoverSystem`. It is not a property of SimHost.
+  - **A node that originates an entity keeps what it creates.** An IG or editor spawning a tactical graphic sets its own `AuthorityMask` and stays the authoritative publisher; it delegates nothing.
+- **`NodeRole` is a `[Flags]` configuration convention.**
+  - It selects which capabilities a node composes — whether it integrates physics, evaluates behavior trees, renders, arbitrates broadcasts — and therefore what ownership it will *typically* end up holding.
+  - All nodes are equal architectural peers running the same ECS and the same replication primitives.
+
+### 1.3b Node roles and ownership at a glance
+
+```mermaid
+graph TD
+    subgraph Peers["All ECS nodes are equal peers — same ECS, same replication primitives"]
+        CGF["CGF (Brain)<br/>behaviour · missions · threat"]
+        SIM["SimHost (Muscle)<br/>physics · combat · perception"]
+        IG["IG<br/>rendering · map authoring"]
+        EX["ExCon<br/>operator console"]
+    end
+    CGF -->|"can create entities"| W["Entity<br/>AuthorityMask: per-component"]
+    SIM -->|"can create entities"| W
+    IG -->|"can create entities"| W
+    EX -->|"unowned request (Owner==0)"| ARB["Broadcast arbiter<br/>(isDefaultProcessor, by convention CGF)"]
+    ARB -->|"services it once — tiebreaker only"| W
+    W -->|"OwnershipUpdate topic"| W
+```
 
 ### 1.4 Highlighted capabilities (the quick scan)
 - **AI authoring, four ways** — Behavior Trees, Hierarchical State Machines, Blueprint visual scripting, and Utility AI — all visual and all hot-reloadable.
@@ -90,7 +129,8 @@ Visual behavior authoring
 - **Performance and determinism** — zero-allocation hot path, flat-memory ECS, reproducible across the cluster.
 
 ### 1.5 Who runs what (node roles at a glance)
-- **CGF (Brain)** — cognition: behavior, missions, threat memory, spawn authority.
+> These are **configured defaults**, not capabilities withheld from the others — see §1.3a.
+- **CGF (Brain)** — cognition: behavior, missions, threat memory; conventionally also the broadcast arbiter for *unowned* create requests.
 - **SimHost (Muscle)** — physics, combat, perception.
 - **IG (Image Generator)** — rendering, ghost replication, and operator interaction (picking/redirecting units).
 - **ExCon (IOS)** — the operator console: scenario lifecycle and time control.
@@ -652,21 +692,29 @@ flowchart TD
 
 ### 11.3 Spawning from a template
 - Spawning is a three-step assembly, and in a cluster it is authoritative.
+- **Which node runs it depends on who the request is addressed to** — see §1.3a. Two cases:
 
 ```mermaid
 sequenceDiagram
-    participant Req as Operator / AI
-    participant Brain as CGF (spawn authority)
+    participant Req as Operator / AI / any node
+    participant Arb as Broadcast arbiter<br/>(isDefaultProcessor, by convention CGF)
+    participant Self as The originating node itself
     participant Nodes
-    Req->>Brain: CreateEntityRequest (TKB type)
-    Note over Brain: allocate network ID
-    Brain->>Nodes: SpawnEntityCommand
+    Note over Req,Self: case 1 — request targeted at a node (Owner == thatNodeId)
+    Req->>Self: CreateEntityRequest (Owner == localNodeId)
+    Note over Self: processed unconditionally,<br/>ignoring isDefaultProcessor
+    Self->>Nodes: SpawnEntityCommand
+    Note over Req,Arb: case 2 — unowned broadcast (Owner == 0)
+    Req->>Arb: CreateEntityRequest (Owner == 0)
+    Note over Arb: tiebreaker only — exactly one node<br/>services it so the entity is not created twice
+    Arb->>Nodes: SpawnEntityCommand
     Note over Nodes: assemble from template<br/>set position / behavior
-    Nodes-->>Brain: lifecycle ACK
+    Nodes-->>Arb: lifecycle ACK
 ```
 
   - Create a bare entity → apply the template (adds the descriptor components) → set instance specifics (position, orientation, behavior).
-  - One node (the Brain) is the default processor for create requests and allocates network IDs centrally, so IDs never collide across nodes.
+  - Network IDs never collide because allocation is a **distributed service** (`DdsIdAllocatorServer`) that every node can call — **not** because one node allocates centrally.
+  - The default processor exists **only** to break the tie on *unowned* requests. A node creating its own entity does not consult it.
 - The template provides the *kind*; the spawn provides the *instance*.
 
 ### 11.4 Lifecycle states

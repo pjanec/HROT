@@ -97,7 +97,15 @@ map) so the IG should have the entity creation capabilities as well."*
 ⭐⭐ **What IG genuinely lacks is only LOCAL MATERIALISATION** — and that is deliberate, not drift:
 `RegisterSpawningPipeline` registers `GhostDestructionSystem` + `IgUnitHierarchyModule`, and the
 `SpawnEntityCommand` IG publishes is picked up by `SpawnEntityCommandEgressTranslator` and forwarded to
-the authority, whose ghost replicates back. **Single spawn authority is the design** *(§4.3)*.
+the authority, whose ghost replicates back.
+
+⛔⛔ **CORRECTED `2026-09-01` — this paragraph used to end *"Single spawn authority is the design (§4.3)"*.
+🔴 That sentence is FALSE and it sat as live text directly above §2.3, which retracts it.** ⭐ **Read §2.3
+and [`R-138`](blueprints/RULINGS.md).** 📐 What is true is narrower: **IG does not MATERIALISE locally
+today** — it forwards its `SpawnEntityCommand` and takes the ghost back. ⛔ That is a property of **IG's
+current composition**, not a rule that one node holds spawn authority: any ECS node that targets itself
+*(`OwnerAppInstanceId == localNodeId`)* creates and finalises entities on its own, and `isDefaultProcessor`
+is a **broadcast tiebreaker for unowned requests only**.
 
 ⇒ ⭐⭐⭐ **So the pack has TWO halves, and IG adopts one of them — see §2.3.**
 
@@ -810,7 +818,7 @@ better than before, when it had no request tier at all; wiring the network half 
 | **a** | **Stride node** | ⭐ smallest call site *(one `if` block)*, and already derives from `SharedApplicationBootstrapper`. ⚠ **but cannot be compiler-verified on Linux** — so do it first for shape, verify last on Windows |
 | **b** | **SimHost** | ⭐ the reference implementation; its `RegisterSpawningPipeline` is the hook the pack was designed to be called *from* |
 | **c** | **Editor** | ⭐ largest inline block, and the one whose spawn path the user hand-tested — 🔒 **the standing caution about the editor's scenario path applies**: change composition, not behaviour |
-| **d** | 🔴 **CGF — LAST** | it is the **entity spawning authority** *(`Hrot-Simulation-Pipeline.md` §2)*. ⛔ A composition mistake here breaks every entity in the cluster, so it adopts once the pack has three hosts of evidence |
+| **d** | 🔴 **CGF — LAST** | ⚠ **reason CORRECTED `2026-09-01`** — this row used to say *"it is the entity spawning authority"*, which is [`R-138`](blueprints/RULINGS.md)'s false principle. ⭐ **The real reason to go last is unchanged and stronger:** CGF is the **broadcast arbiter** *(`isDefaultProcessor: true`)* **and** carries the `BrainMuscleOwnershipStrategy` delegation — so a composition mistake here breaks *unowned* requests for the whole cluster **and** every CGF-spawned entity's kinematics handover. ⇒ it adopts once the pack has three hosts of evidence |
 | **e** | **Stride editor** | its second pipeline; fold it into the same pack call or delete it if `StrideNodeBootstrapper`'s now suffices — ⚠ **that question is open and must be measured, not assumed** |
 
 ⭐⭐ **IG adopts the pack in FULL** — ⚠⚠ **CORRECTED `2026-08-31`; the "halves" sentence that stood
