@@ -13,7 +13,8 @@ build-state: BUILT — the first cut (AX-001..AX-006), the AX-005 successor (AX-
   "a descriptor ordinal IS wire numbering" claim is RETRACTED — do not quote §14.3 as open.
   ⭐⭐ §12.2/§12.3 remain the LIVE diagrams for the EGRESS/request path (§16's are the APPLY path). ⛔ §11.3-§11.5 are SUPERSEDED — the plan asked for a NEW
   intent + a NEW translator; both already existed and were EXTENDED (ruling 9). Read §9 and §12.
-  ⭐⭐⭐ §13.7 (CE-147, 2026-09-01) SUPERSEDES §13.3's placement ruling: the NetworkTransform shadow
+  ⭐⭐⭐ §13.7 (CE-147, 2026-09-01) SUPERSEDES §13.3's placement ruling; §13.7.7 is its AS-BUILT
+  (steps 1+2 BUILT: the translator attaches, 6 new rails, 4/2 red-proof, T1 824/1/3 vs baseline 818/1/3). the NetworkTransform shadow
   attach belongs in GeoSpatialEgressTranslator, not in SimHostNodeBootstrapper's per-host hook. §13.3's
   "37 registry edits" measurement was real but its conclusion too strong. ⚠ The hook may NOT be removed
   until the egress attach lands — EntityCreationPack forwards OnEntitySpawned as an OPTIONAL per-host hook
@@ -736,6 +737,40 @@ exactly one caller passes is the `SILENT-DEFAULT` shape `CLAUDE.md` names.**
 | **the dead-reckoning gap has no REACHABLE path I can find** | a ghost gets the shadow from ingress before DR could want it ⇒ I cannot construct a failing case, ⛔ **and I cannot prove none exists** |
 | **the 10-frame soft gate** | a lazy egress attach lands on the first authority tick, comfortably inside 10 — ⚠ but `SimHostInstance` is what the SimHost integration tests run against, so it is what reddens if this is wrong |
 | **entities with no `TkbMasterDto`** | get nothing from ANY template-based option — ⭐ an argument against the template placement that §13.3 never priced |
+
+#### 13.7.7 ✅ AS-BUILT `2026-09-01` — **steps ① and ② are BUILT; ③/④ remain**
+
+⭐ **The build MATCHED §13.7.3** — no deviation to argue. `GeoSpatialEgressTranslator.ScanAndPublish` drops
+the `.With<NetworkTransform>()` clause and upserts the shadow **below** the authority gate, seeded to
+`default`, guarded by `IsComponentTypeRegistered<NetworkTransform>()`, and grants
+`SetAuthority<NetworkTransform>(entity, true)` because `AddComponent` does not touch the mask.
+
+| gate | command | result |
+|---|---|---|
+| build *(affected project only — ⛔ never the 149-project solution in a fix loop)* | `dotnet build Hrot.Network.NED --no-restore` | ✅ 0 errors, 0 warnings |
+| ⭐⭐ **the new rails** | `dotnet test Hrot.SimHost.Tests --no-build --filter TheEgressAttachesItsOwnShadowTests` | ✅ **6/6** |
+| ⭐⭐⭐ **RED-PROOF — inverse edit, ⛔ never `git checkout --`** | re-added `.With<NetworkTransform>()` | 🔴 **4 red / 2 green — and the SPLIT is the evidence** |
+| **T1** — the whole touched suite | `dotnet test Hrot.SimHost.Tests --no-build` | ✅ **824 passed / 1 failed / 3 skipped** |
+| baseline *(bootstrap §2)* | — | **818 / 1 / 3** ⇒ ⭐ **delta is exactly +6 passed**, same single red |
+| the 1 red | `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` | ⭐ **`QA-012`, pre-existing** — already proven by `git stash -u` + rebuild on base in an earlier session |
+
+⭐⭐ **Why the red-proof's 4/2 split is stronger than "everything went red":** the two rails that stayed
+green are exactly the two whose property holds **with or without** the fix — `AReplicaGetsNoShadowFromTheEgressPath`
+*(a replica gets none either way)* and `AWorldWithoutTheComponentRegisteredIsSkippedNotCrashed` *(no crash
+either way)*. ⛔ A red-proof in which every rail reddens cannot distinguish *"the rails test the change"*
+from *"the rails test that the code compiles at all."*
+
+⚠ **One environment note worth recording:** CycloneDDS rejects domain ids above ~232 *(the DDSI port
+calculation runs out of range)*. The first cut used 231–236 and the four rails on 233+ failed with
+`Failed to create participant` — ⛔ **which looked exactly like a broken change and was not.** Ids moved to
+215–220. 📌 Establishing that took one baseline run of the EXISTING DDS rails *(5/5 green)*, which is the
+cheap way to separate "my change" from "this machine".
+
+⛔⛔ **STILL OPEN — steps ③ and ④ of §13.7.5's order are NOT done.** `SimHostNodeBootstrapper:325-326` still
+attaches and grants; it is now **redundant** rather than load-bearing, ⛔ **but it has not been removed and
+`EntityCreationContext.OnEntitySpawned` is still an optional per-host hook.** ⚠ Removing them needs the
+cluster suite *(`TheEgressShadowExistsAtBirthTests`)* to run, and that suite is un-gateable here — see the
+`ClusterRunner.Integration.Tests` DDS-allocator crash. ⇒ **the hook stays until that can be gated.**
 
 ---
 
