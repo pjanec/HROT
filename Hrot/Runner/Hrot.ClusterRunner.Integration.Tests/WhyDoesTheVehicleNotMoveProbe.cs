@@ -53,7 +53,14 @@ public class WhyDoesTheVehicleNotMoveProbe
             new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
 
         harness.PumpFrames(60);
+
+        // ⭐⭐⭐ CE-103 — capture the world version IMMEDIATELY BEFORE the intent write, so the probe can
+        //   ask the exact question NavigationIntentBridgeSystem asks: does its CHANGE-DETECTION query
+        //   (QueryDelta, not the plain query) actually see this write?
+        uint versionBeforeIntent = harness.SimHost.World!.GlobalVersion;
         harness.SimHost.TestHook_SetMovementIntent(networkId, new Vector2(500f, 500f));
+        uint versionAfterIntent  = harness.SimHost.World!.GlobalVersion;
+
         harness.PumpFrames(60);
 
         var world = harness.SimHost.World!;
@@ -126,6 +133,38 @@ public class WhyDoesTheVehicleNotMoveProbe
                      .Build())
             matches++;
         _out.WriteLine($"  CarKinematicsSystem's own query matches {matches} entities");
+
+        _out.WriteLine("── GATE 6: CE-103 — does the BRIDGE's delta query see the write? ──");
+        _out.WriteLine($"  GlobalVersion before intent = {versionBeforeIntent}, after = {versionAfterIntent}"
+                     + (versionAfterIntent == versionBeforeIntent
+                        ? "   \u26d4 UNCHANGED — the write bumped no version, so a delta query cannot see it"
+                        : ""));
+        var bridgeQuery = world.Query().With<NavigationIntent>().With<NavState>().Build();
+        int plain = 0;
+        foreach (var _ in bridgeQuery) plain++;
+        int delta = 0;
+        foreach (var _ in world.QueryDelta(bridgeQuery, versionBeforeIntent)) delta++;
+        int deltaFromZero = 0;
+        foreach (var _ in world.QueryDelta(bridgeQuery, 0)) deltaFromZero++;
+        _out.WriteLine($"  plain .With<NavigationIntent>().With<NavState>() matches = {plain}");
+        _out.WriteLine($"  QueryDelta(since versionBeforeIntent)              = {delta}");
+        _out.WriteLine($"  QueryDelta(since 0)                                = {deltaFromZero}");
+        if (plain > 0 && delta == 0)
+            _out.WriteLine("  \u26d4\u26d4 THE BRIDGE IS BLIND: the entity matches the query but NOT the delta "
+                         + "\u21d2 NavigationIntentBridgeSystem skips it and NavState stays default.");
+
+        _out.WriteLine("── GATE 7: is the BRIDGE ever EXECUTED? (drive it by hand) ──");
+        _out.WriteLine("  The query matches, the delta matches, and the body ends in repo.SetComponent(entity, nav).");
+        _out.WriteLine("  So if driving it BY HAND fixes NavState, the logic is fine and the system is simply");
+        _out.WriteLine("  never ticked by the harness's SimHost kernel.");
+        new Fdp.Toolkit.Navigation.Systems.NavigationIntentBridgeSystem().Execute(world, 0.016f);
+        var navAfter = world.GetComponent<NavState>(e);
+        _out.WriteLine($"  NavState AFTER one hand-driven Execute: Mode={navAfter.Mode} "
+                     + $"TargetSpeed={navAfter.TargetSpeed} Dest=({navAfter.FinalDestination.X:F1},{navAfter.FinalDestination.Y:F1})");
+        if (navAfter.Mode != KinematicsMode.None)
+            _out.WriteLine("  \u26d4\u26d4 CONFIRMED: the bridge WORKS. It is NOT being executed in the harness.");
+        else
+            _out.WriteLine("  \u2b50 the bridge ran and still wrote nothing \u21d2 the defect is INSIDE its logic, not scheduling.");
 
         var tf = world.GetComponent<SimTransform>(e);
         _out.WriteLine($"  SimTransform.Position = ({tf.Position.X:F3}, {tf.Position.Y:F3}, {tf.Position.Z:F3})");
