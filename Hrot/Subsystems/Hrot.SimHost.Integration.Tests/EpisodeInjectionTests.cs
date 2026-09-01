@@ -18,10 +18,26 @@ using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 namespace Hrot.SimHost.Integration.Tests;
 
 /// <summary>
-/// Component for episode injection tests (ComponentId 210 = PreviewTestPos is already taken;
-/// use 215 for episode tests).
+/// ⭐ Component for episode injection tests.
+///
+/// <para>🔴 <b>WAS <c>ComponentId(215)</c>, AND THAT COLLIDED WITH PRODUCTION.</b> 📐 Measured
+/// <c>2026-09-01</c>: <c>GlobalComponentIds.cs:414</c> declares <c>IPathRegistry = 215</c>, so
+/// registration threw <i>"Component ID collision: EpisodeTestPos and IPathRegistry both declare
+/// [ComponentId(215)]"</i> — and because the component-type registry is <b>process-global</b>, that one
+/// throw failed <b>7 of this project's 13 reds</b> across SIX unrelated classes that never touch
+/// episodes.</para>
+///
+/// <para>⚠⚠ <b>The old comment records exactly how it happened:</b> <i>"ComponentId 210 = PreviewTestPos
+/// is already taken; use 215 for episode tests"</i> — a free-slot hunt that landed inside a range
+/// <c>GlobalComponentIds.cs:453</c> explicitly reserves: <i>"IDs 215–219, 226–236, 241–255 are reserved
+/// for future animation/toolkit components."</i> ⇒ ⛔ the test squatted on reserved space and production
+/// later claimed it. The test was always the one in the wrong.</para>
+///
+/// <para>⭐⭐ <b>The rule this encodes: a TEST component must not sit in a production-reserved range.</b>
+/// 506 is at the top of the valid space (<c>MAX_COMPONENT_TYPES = 512</c>, highest production id in use is
+/// 505) and is deliberately far from anything production is growing into.</para>
 /// </summary>
-[ComponentId(215)]
+[ComponentId(506)]
 internal struct EpisodeTestPos
 {
     public float X;
