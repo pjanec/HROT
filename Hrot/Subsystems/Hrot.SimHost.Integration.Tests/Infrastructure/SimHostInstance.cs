@@ -229,6 +229,16 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         private readonly IReadOnlyList<IEcsModuleSystem> _simSystems;
         private readonly IReadOnlyList<IEcsModuleSystem> _postSimSystems;
 
+        // ── Diagnostic seams ──────────────────────────────────────────────────────
+        // ⭐ Read-only views of what this harness actually SCHEDULES, and of the behaviour
+        //   registry it resolves names against. A test that fails "the entity did not move"
+        //   cannot distinguish "the system is absent" from "the system ran and did nothing";
+        //   these two make that distinction measurable instead of inferred.
+        public IReadOnlyList<IEcsModuleSystem> TestHook_InputSystems      => _inputSystems;
+        public IReadOnlyList<IEcsModuleSystem> TestHook_SimulationSystems => _simSystems;
+        public IReadOnlyList<IEcsModuleSystem> TestHook_PostSimSystems    => _postSimSystems;
+        public BehaviorRegistry                TestHook_BehaviorRegistry  => _behaviorRegistry;
+
         // â”€â”€ Performance metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private bool               _metricsEnabled;
         private readonly List<float> _frameTimes = new();
@@ -246,6 +256,24 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // 2. Infrastructure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _wgs84 = new WGS84Transform();
             _wgs84.SetOrigin(32.0853, 34.7818, 10.0);   // Tel-Aviv origin (same as config.json)
+
+            // 🔴🔴 PUBLISH IT AS THE WORLD SINGLETON — the harness HELD this transform and did not
+            //   pass it, which is the SILENT-DEFAULT shape in its purest form.
+            //
+            // 📐 Measured 2026-09-01: every production host does this —
+            //   SimHostApp.cs:509 · CgfSubsystem.cs:544 · EditorSubsystem.cs:1025 — because behaviour
+            //   PARAMETER RESOLVERS reach the transform through the world, not through a captured
+            //   closure: CgfNodes.ResolveMoveToParams (:163) reads
+            //   HasSingletonManaged<IGeographicTransform>() and passes null when absent.
+            //
+            // ⛔ And a null transform does NOT fail loudly. CgfNodes.cs:205 guards the geo branch as
+            //      if ((dto.TargetLat != 0 || dto.TargetLon != 0) && geoTransform != null)
+            //   with Speed and ArrivalRadius assigned ABOVE it. ⇒ a MoveToLocation mission produced a
+            //   NavigationIntent with Mode=DirectPoint, TargetSpeed=15, ArrivalRadius=5 and
+            //   FinalDestination=(0,0) — an order to drive to where the vehicle already stands. The
+            //   rail reported "moved 0.0m", which reads as broken physics and was nothing of the sort.
+            //   📄 WhyDoesTheMissionNotMoveProbe carries the full per-hop measurement.
+            _world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_wgs84);
 
             _entityMap        = new NetworkEntityMap();
             _tkbDb            = BuildTkbDatabase();
@@ -618,6 +646,25 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// </summary>
         private void Tick(float dt)
         {
+            // 🔴🔴🔴 ADVANCE THE WORLD'S VERSION CLOCK — the kernel does this on EVERY frame and this
+            //   hand-rolled loop did not. ModuleHostKernel.cs:495 is `_liveWorld.Tick(); // Increment
+            //   version`, called UNCONDITIONALLY (BehaviorFrame.cs:16 documents that word).
+            //
+            // ⛔ Without it GlobalVersion stays pinned at its initial 1 for the life of the harness
+            //   (measured 2026-09-01: "version 1→1" on every tick while components were demonstrably
+            //   being written). ⇒ EVERY CHANGE-DETECTION QUERY IN THE HARNESS IS PERMANENTLY EMPTY:
+            //   QueryDelta(query, since) can never report a change when no version ever exceeds `since`.
+            //
+            // ⚠ That is not a niche facility. NavigationIntentBridgeSystem — the seam that turns a
+            //   behaviour's NavigationIntent into the NavState physics reads — scans exactly this way
+            //   (QueryDelta(query, _lastScanTick)). It was scheduled, ticked, and structurally blind:
+            //   a MoveToLocation mission produced a perfectly good intent and NavState never left
+            //   Mode=None, so the entity stood still and the rail reported "moved 0.0m".
+            //   📄 WhyDoesTheMissionNotMoveProbe proves the mapping logic itself is correct: driving a
+            //      fresh bridge by hand sets Mode=Direct, it survives the next scheduled tick, and the
+            //      vehicle starts moving.
+            _world.Tick();
+
             var view   = (ISimulationView)_world;
             var cmdBuf = (EntityCommandBuffer)view.GetCommandBuffer();
 
