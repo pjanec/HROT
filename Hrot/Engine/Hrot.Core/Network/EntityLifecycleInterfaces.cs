@@ -91,6 +91,39 @@ public sealed class EntityCreationRequest
     /// </summary>
     public Fdp.Toolkit.Replication.ReliableInitType InitType { get; init; }
         = Fdp.Toolkit.Replication.ReliableInitType.AllPeers;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>D2</c> — whether this entity is a THROWAWAY that must never reach a saved scenario.</b>
+    ///
+    /// <para>🔒 <b>The ruling (user, <c>2026-09-02</c>, <c>R-140</c>):</b> a passive node such as an IG
+    /// creates only temporary entities — <i>"if IG crashes, its entities are gone, but no one cares, they
+    /// were temporary anyway"</i>. 📄 <c>docs/DESIGN_Node_Roles_And_Policies.md</c> §5, §7.3.</para>
+    ///
+    /// <para>📐 <b>Why the flag is needed even though IG never saves.</b> IG genuinely does not answer the
+    /// cluster-wide save — it registers no <c>SerializeLocal</c> handler. ⛔ But an entity it creates
+    /// <b>replicates into every peer's world</b>, including the nodes that DO save, and
+    /// <c>ScenarioSerializer.CollectSaveableEntities</c> writes every live entity except those bearing
+    /// <see cref="Fdp.Toolkit.Scenario.ScenarioIgnoreTag"/>. ⇒ without this, an operator's sketch is
+    /// saved by CGF — indistinguishable in the file from a real unit, since ownership is stripped at save
+    /// time.</para>
+    ///
+    /// <para>⭐⭐ <b>The mechanism already existed and had ZERO production writers.</b>
+    /// <c>ScenarioIgnoreTag</c> is a per-<i>entity</i> filter (unlike <c>DataPolicy.NoSave</c>, which is
+    /// per component <i>type</i>) and is itself <c>NoSave</c>, so it never round-trips. This flag is only
+    /// the CARRIER that lets it be stamped; no save-side machinery changes.</para>
+    ///
+    /// <para>⛔ <b>Why the REQUEST carries it rather than the receiver deriving it from the owner's
+    /// role:</b> once the originating node disconnects, a receiver can no longer resolve that role and the
+    /// sketch would <b>silently become permanent</b>. The author knows; the roster may not. Every receiver
+    /// therefore derives the tag locally at spawn, so nothing depends on the tag replicating or on the
+    /// author still being alive.</para>
+    ///
+    /// <para>⭐ <b>Defaults to <c>false</c></b> — every existing caller, and every scenario load, behaves
+    /// identically. This is a SEPARATE axis from both <see cref="OwnerAppInstanceId"/> and
+    /// <see cref="InitType"/>: owning something does not make it temporary, and a temporary entity may
+    /// still legitimately want peers to ACK it.</para>
+    /// </summary>
+    public bool IsTransient { get; init; }
 }
 
 /// <summary>

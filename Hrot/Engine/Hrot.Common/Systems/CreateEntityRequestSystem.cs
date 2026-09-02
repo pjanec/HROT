@@ -1,4 +1,4 @@
-// ⭐⭐ MOVED HERE 2026-08-31 (Q65 obstacle 1) FROM Hrot/Subsystems/Hrot.CGF/Systems/.
+﻿// ⭐⭐ MOVED HERE 2026-08-31 (Q65 obstacle 1) FROM Hrot/Subsystems/Hrot.CGF/Systems/.
 //
 // WHY: this is the REQUEST TIER of entity genesis, and it is not CGF's. Q65 measured that
 // `isDefaultProcessor` is a BROADCAST TIEBREAKER, not an authority gate -- CreateEntityRequestSystem
@@ -329,6 +329,9 @@ namespace Hrot.Common.Systems
                         //   IG map drawing can say "do not wait for peers" without a stall.
                         //   ⛔ Separate axis from OwnerAppInstanceId — see EntityCreationRequest.InitType.
                         InitType          = pending.Request.InitType,
+                        // ⭐⭐ D2 — the throwaway flag rides the ORDER so every receiver derives
+                        //   ScenarioIgnoreTag locally at spawn. See EntityCreationRequest.IsTransient.
+                        IsTransient       = pending.Request.IsTransient,
                         InitialTransform  = initialTransform,
                         InitialVelocity   = initialVelocity,
                         InitialComponents = fallbackComponents,
@@ -428,6 +431,9 @@ namespace Hrot.Common.Systems
                                 //   are exactly as local as the drawing. ⛔ If a child ever needs to differ,
                                 //   that is a per-child override on the request, not a second hardcode here.
                                 InitType          = pending.Request.InitType,
+                                // ⭐ D2 — children INHERIT the parent's transience: a sketch's
+                                //   auto-spawned TKB children are part of the same sketch.
+                                IsTransient       = pending.Request.IsTransient,
                                 InitialTransform  = initialTransform, 
                                 InitialVelocity   = initialVelocity,
                                 InitialComponents = childComponents.Count > 0 ? childComponents : null,

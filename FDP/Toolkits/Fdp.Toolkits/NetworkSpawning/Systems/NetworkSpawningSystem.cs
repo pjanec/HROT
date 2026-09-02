@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Core.Logging;
@@ -158,6 +158,16 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             // 7. Optional reliable-init handshake component
             if (cmd.InitType != ReliableInitType.None)
                 world.AddComponent(entity, new PendingNetworkAck { ExpectedType = cmd.InitType });
+
+            // 7b. ⭐⭐⭐ D2 — a THROWAWAY entity is stamped so the scenario serializer skips it.
+            //   Every node that materialises the entity runs this, so the sketch is excluded from the
+            //   save on the SAVING node too -- which is the whole point: the creator (e.g. an IG) never
+            //   answers the cluster-wide save, but its entity still replicates into worlds that do.
+            //   ⛔ Derived HERE rather than replicated as component state: the decision must survive the
+            //   authoring node disconnecting, and a receiver cannot resolve a departed node's role.
+            //   📄 docs/DESIGN_Node_Roles_And_Policies.md §7.3 (R-140).
+            if (cmd.IsTransient)
+                world.AddComponent(entity, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
 
             // 8. Apply caller-supplied component overrides on top of TKB defaults.
             // Fast path: explicitly typed fields, no boxing, no reflection.

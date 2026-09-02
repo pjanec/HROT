@@ -21,6 +21,17 @@ known-rot: §2.3's "halves" language is dead everywhere it appeared. Removed fro
   as HISTORY only. Any reader finding "which half" in this file outside a HISTORY block has found rot.
 current-answer-note: §3.4 is the NEW load-bearing section (2026-08-31) — the two authoring affordances
   and the per-tier measurement of what each path already has. Read it before §5's sequencing.
+approved: 2026-09-02, by the user, on §3.4b's option tables —
+  D1 = (b) the forwarder subscribes to the REQUEST and fires when owner != me, wrapping the LOCAL
+       source only so a wire-originated request cannot bounce.
+  D2 = (b) the request carries a transient flag; ProcessSpawn stamps the existing ScenarioIgnoreTag.
+       (Owned by DESIGN_Node_Roles_And_Policies.md §7.3; recorded here because the carrier is the
+       request contract.)
+  D3 = the OwnerAddress TYPE (Node | Role | DefaultProcessor), pre-resolution only — the user's
+       encoding question is answered in §3.4b: it never coexists with the system's int node id.
+  D4 = yes, the resolution policy is a one-method seam defaulting to GetLeastLoadedNode.
+  D5 = DEFERRED, "needs more thinking" — the node-id promotion is NOT part of this work.
+  ⛔ D1 and D2 are the host (f) IG gate; D3+D4 follow; D5 is a separate architect question.
 current-answer-note: ⭐⭐⭐ §3.4b is the NEWEST load-bearing section (2026-09-02) — THE LEVEL MISMATCH and
   the CROSS-HOST resolution of creation duplication. §3.4a says why double consumption is POSSIBLE;
   §3.4b says how it is RESOLVED, and corrects acceptance ⑪, which is too weak (CE-160: the pack's own
@@ -923,11 +934,27 @@ identical**, in the second network stack. ⇒ 📌 **ruling 9 territory: two imp
 |---|---|---|
 | **NED wire** | `Hrot.NED.Common.NodeId { AppDomainId, AppInstanceId }` | ⭐ structured |
 | **BDC wire** | `BdcNodeId { AppDomainId, AppInstanceId }` | ⛔ **a byte-identical duplicate** |
-| 🔴 **the engine** | a bare **`int`** — `OwnerAppInstanceId`, `_localNodeId`, `NetworkOwnership.PrimaryOwnerId`, roster keys | ⛔⛔ **flattens the pair and DISCARDS `AppDomainId`** |
+| 🔴 **the engine** | a bare **`int`** | ⚠ **see the correction directly below — it depends WHICH STACK** |
 
-⇒ ⭐⭐⭐ **The engine's node identity is a LOSSY PROJECTION of the wire's, and the wire owns the concept.**
-⛔ That inversion is why *"add a role"* looked like a wire-contract problem: **there was no generic type to
-add it to.**
+##### ⚠⚠ *"Is it lossy?"* — **the user pushed, and the honest answer is: ONLY IN ONE OF THE TWO STACKS** *(`2026-09-02`)*
+
+> 🔒 **User:** *"is it lossy? isnt the NodeId used by the system simply a combination of AppDomainId and
+> AppInstanceId?"*
+
+⭐ **The instinct is right for one stack and wrong for the other, and the DISAGREEMENT is the real finding.**
+
+| stack | how the engine `int` relates to the pair | lossy? |
+|---|---|---|
+| ⭐⭐ **`Fdp.Network.Cyclone`** | **`NodeIdMapper`** — a **bijective registry**: external `NetworkAppId {AppDomainId, AppInstanceId}` ↔ internal `int` *(local reserved as `1`, then `2,3,…`)*, reversible via `GetExternalId`. ⭐ The int is an **opaque handle**, and `NetworkAppId`'s own summary says *"combines domain and instance to form a globally unique ID"* | ✅ **NO — fully round-trippable** |
+| 🔴 **NED — and this is the path entity creation actually uses** | `NedCgfEntityLifecycleAdapters` does a plain field copy: `OwnerAppInstanceId = msg.Owner.AppInstanceId`. ⛔ **No mapper, no registry.** `AppDomainId` is set from config at composition *(`ClusterRunner/Program.cs`, `IgApplication`, `CgfSubsystem`, `SimHostApp`)* and then **never consulted again in the creation path** | ⛔ **YES — the int IS the instance half** |
+
+⇒ ⭐⭐⭐ **The two stacks disagree about what an engine node id IS** — an *opaque handle into a table*
+*(Cyclone)* versus *the `AppInstanceId` literally* *(NED)*. ⭐⭐ **That is a far better argument for the
+promotion than "a field is dropped"**, and it is the version to carry into `D5`.
+
+⚠ **Is it harmful TODAY? Not yet.** ⛔ It bites only when two nodes in **different `AppDomainId`s share an
+`AppInstanceId`** — which config currently avoids. ⇒ ⭐ **a LATENT collision, not an active bug**; that is
+why `D5` is *"needs more thinking"* and not urgent.
 
 ##### ⭐⭐⭐ THE CORRECTED SHAPE — **promote, then mirror**
 
@@ -946,6 +973,28 @@ it** rather than defining it, and `OwnerAddress`'s `Node(…)` case names that t
 `OwnerAddress` over today's `int` first *(resolved locally, per the hazard above)*; ⭐⭐ the promotion then
 **widens the `Node(…)` case** without changing any caller's shape — which is exactly why `OwnerAddress`
 should be a **type**, not a second field, from the start.
+
+##### ✅ *"How does it encode to the node id the system uses?"* — **it does not. The two never coexist.**
+
+> 🔒 **User, `2026-09-02`:** *"how to encode to current node id used by the system? or will we extend the
+> internal id to 'owner address' type?"*
+
+⛔⛔ **Neither — and that is what keeps `D3` small and independent of `D5`.** ⭐⭐⭐ **`OwnerAddress` is a
+property of the REQUEST, not of node identity.** ⛔ The system's node id stays a plain `int` everywhere.
+
+| phase | what carries the owner |
+|---|---|
+| ⭐ **pre-resolution** *(authoring, and only on the originating node)* | **`OwnerAddress`** — `Node(int)` · `Role(NodeRole)` · `DefaultProcessor` |
+| ⭐⭐ **the resolution point** — the forwarder, before the request leaves | `Role(X)` → `int` via the `Resolve(NodeRole)` seam *(`D4`)* |
+| ⭐ **post-resolution** *(everything downstream)* | ⛔ **a plain `int`, unchanged** — the Level-1 guard, `assignedOwner`, `NetworkOwnership.PrimaryOwnerId`, `SpawnEntityCommand.OwnerNodeId`, and the wire |
+
+⇒ ⭐⭐⭐ **No downstream consumer ever sees an `OwnerAddress`.** ⇒ ⛔ **nothing about node identity changes**,
+and `D5` remains a separate, deferrable decision.
+
+| ⭐ two details that make it cost nothing at the call sites | |
+|---|---|
+| ⭐⭐ **an implicit `int` → `OwnerAddress` conversion** | ⇒ every existing `OwnerAppInstanceId = <n>` site *(the Stride harnesses, CGF's load handlers, the editor)* compiles **unchanged** |
+| ⭐⭐ **`Node(0)` NORMALISES to `DefaultProcessor` in the factory** | ⇒ today's magic literal `0` keeps its exact meaning, ⭐ and gains a **name** rather than a second code path |
 
 ##### ⭐⭐ AND THE RESOLUTION POLICY IS A SEAM, NOT A CALL — **this is the "flexibility" half of the ask**
 

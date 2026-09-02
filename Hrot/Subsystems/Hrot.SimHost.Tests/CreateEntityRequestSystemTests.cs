@@ -209,6 +209,79 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain("InitType          = ReliableInitType.AllPeers", code);
         }
 
+        // ── D2 — the throwaway flag (R-140) ─────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>D2</c> — <b>the default is <c>false</c>, so nothing existing becomes transient.</b>
+        /// ⛔ If this default ever drifts, every scenario-load request silently starts producing entities
+        /// the serializer skips — i.e. <b>saving a scenario would quietly lose entities</b>. That failure
+        /// is invisible until someone reloads, which is exactly why it gets a rail.
+        /// </summary>
+        [Fact]
+        public void IsTransient_DefaultsToFalse_SoExistingCallersAreUnchanged()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(MakeValidRequest());          // ⭐ does NOT set IsTransient
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.False(commands[0].IsTransient);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>D2</c> — <b>an explicit <c>true</c> REACHES the published command.</b>
+        /// 📌 The capability the flag exists for: a passive node's sketch must not reach a saved scenario
+        /// (<c>R-140</c>). ⛔ Without this rail the field could be added and silently ignored — the
+        /// silent-default shape, and the ninth instance of it in this programme.
+        /// </summary>
+        [Fact]
+        public void IsTransient_WhenTheRequestSaysTrue_ThePublishedCommandSaysTrue()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+                IsTransient        = true,
+            });
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.True(commands[0].IsTransient);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>D2</c> — <b>NEITHER publish site may drop the flag.</b>
+        ///
+        /// <para>📌 Same two-site problem <c>CE-143</c> has: the root entity and each auto-spawned TKB
+        /// child. ⭐ The child site is unreachable from this fixture's single-template TKB, so a
+        /// behavioural rail covers only half. ⚠ And the child half MATTERS — a sketch's children are part
+        /// of the same sketch, so a template with <c>N</c> children would otherwise save <c>N</c>
+        /// orphans.</para>
+        /// </summary>
+        [Fact]
+        public void IsTransient_IsForwardedAtBothPublishSites()
+        {
+            var code = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(
+                    "Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs"));
+
+            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+                code, @"IsTransient\s*=\s*pending\.Request\.IsTransient").Count);
+        }
+
         [Fact]
         public void ProcessRequest_ValidTkbType_PublishesSpawnEntityCommand()
         {
