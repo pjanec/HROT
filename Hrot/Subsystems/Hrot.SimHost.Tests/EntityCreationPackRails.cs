@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Core;
@@ -29,7 +29,8 @@ namespace Hrot.SimHost.Tests
             out EntityRepository world,
             IReadOnlyList<ITkbEntityTranslator>? extras = null,
             bool arbiter = false,
-            IReadOnlyList<TranslatorPlacement>? placements = null)
+            IReadOnlyList<TranslatorPlacement>? placements = null,
+            Hrot.Core.Network.IEntityCreationRequestEgress? egress = null)
         {
             world = new EntityRepository();
             var tkb = HrotEnvironment.CreateTkb();
@@ -44,7 +45,75 @@ namespace Hrot.SimHost.Tests
                 IsBroadcastArbiter   = arbiter,
                 ExtraTranslators     = extras,
                 TranslatorPlacements = placements,
+                RequestEgress        = egress,
             };
+        }
+
+        private sealed class RecordingEgress : Hrot.Core.Network.IEntityCreationRequestEgress
+        {
+            public List<Hrot.Core.Network.EntityCreationRequest> Sent { get; } = new();
+            public void Send(Hrot.Core.Network.EntityCreationRequest request) => Sent.Add(request);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>D1</c> — a host that SUPPLIES an egress actually gets a forwarder, wired in the
+        /// right place.</b>
+        ///
+        /// <para>📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.4b. ⭐ Asserted through the
+        /// PRODUCTION pack and the PRODUCTION request system, end to end: a request addressed elsewhere
+        /// must leave via the egress and must NOT be materialised here.</para>
+        ///
+        /// <para>⚠ This is the control for the optional dependency. <c>RequestEgress</c> may legitimately
+        /// be null — that states "this host does not forward", true of every host that materialises
+        /// entities itself. ⛔ What must never happen is a host that HAS one and silently does not use it,
+        /// which is the silent-default shape this codebase keeps producing.</para>
+        /// </summary>
+        [Fact]
+        public void Build_WhenAnEgressIsSupplied_ARequestForAnotherNodeIsForwarded_NotMaterialised()
+        {
+            var egress   = new RecordingEgress();
+            var ctx      = MinimalContext(out var world, egress: egress);
+            var creation = EntityCreationPack.Build(ctx);
+
+            creation.LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = 99,              // ⭐ NOT this node (NodeId = 7)
+                TkbType            = ctx.TkbDb.GetAll().First().TkbType,
+            });
+
+            creation.RequestSystem.Execute(world, 0f);
+            world.Bus.SwapBuffers();
+
+            var sent = Assert.Single(egress.Sent);
+            Assert.Equal(99, sent.OwnerAppInstanceId);
+            Assert.Empty(((Fdp.ModuleHost.Abstractions.ISimulationView)world)
+                .ReadManagedEvents<Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>());
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>And with NO egress, the pack composes exactly as before.</b>
+        /// ⛔ Non-vacuity for the rail above: it must be the EGRESS that changes the outcome, not the
+        /// request's owner value on its own.
+        /// </summary>
+        [Fact]
+        public void Build_WithNoEgress_ARequestForAnotherNodeIsSilentlyIgnored_AsBefore()
+        {
+            var ctx      = MinimalContext(out var world);
+            var creation = EntityCreationPack.Build(ctx);
+
+            creation.LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = 99,
+                TkbType            = ctx.TkbDb.GetAll().First().TkbType,
+            });
+
+            creation.RequestSystem.Execute(world, 0f);
+            world.Bus.SwapBuffers();
+
+            Assert.Empty(((Fdp.ModuleHost.Abstractions.ISimulationView)world)
+                .ReadManagedEvents<Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>());
         }
 
         /// <summary>

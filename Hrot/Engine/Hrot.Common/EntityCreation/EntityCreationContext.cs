@@ -76,6 +76,22 @@ namespace Hrot.Common.EntityCreation
         /// </summary>
         public IEntityCreationRequestSource? NetworkRequestSource { get; init; }
 
+        /// <summary>
+        /// ⭐⭐⭐ <c>D1</c> — where a locally-authored request addressed to ANOTHER node is sent.
+        ///
+        /// <para>📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.4b. When supplied, the pack wraps
+        /// its LOCAL request source in <c>ForwardingEntityCreationRequestSource</c>, so the host can both
+        /// create entities it owns AND ask a peer to create ones it does not — the capability that
+        /// dropping IG's spawn-egress translator would otherwise have removed (<c>R-137</c>: unification
+        /// must not lose capability, put it back via configuration).</para>
+        ///
+        /// <para>⭐ <b><c>null</c> means "this host does not forward"</b>, which is the honest state of
+        /// every host that materialises entities itself. ⛔ It is NOT the silent-default defect: the
+        /// caller does not hold an egress it declines to pass. A host that HAS one and omits it is what
+        /// the pack-composition rail catches.</para>
+        /// </summary>
+        public IEntityCreationRequestEgress? RequestEgress { get; init; }
+
         /// <summary>ACK sink; <c>NullEntityAckSink</c> is substituted when absent (offline / headless).</summary>
         public IEntityAckSink? AckSink { get; init; }
 

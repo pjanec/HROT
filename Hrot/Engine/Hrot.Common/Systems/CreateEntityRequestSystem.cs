@@ -173,11 +173,14 @@ namespace Hrot.Common.Systems
             // If the target is 0 (broadcast / "any default"), only the designated default
             // processor intercepts it — all other nodes drop the packet silently to prevent
             // duplicate ID allocation and cluster-wide race conditions.
-            int targetNodeId      = request.OwnerAppInstanceId;
-            bool isTargetedAtMe   = targetNodeId == _localNodeId;
-            bool isDefaultRequest = targetNodeId == 0;
-
-            if (!isTargetedAtMe && !(isDefaultRequest && _isDefaultProcessor))
+            //
+            // ⭐⭐ D1 — the rule itself now lives in EntityCreationRouting, because
+            //   ForwardingEntityCreationRequestSource must ask the SAME question to decide whether to
+            //   forward a locally-authored request. ⛔ Two copies of a routing rule is the duplicate-
+            //   implementation defect this programme exists to remove, and here it would be vicious:
+            //   if they ever disagreed a request would be serviced twice, or by nobody.
+            //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.4b
+            if (!EntityCreationRouting.IsHandledLocally(request, _localNodeId, _isDefaultProcessor))
                 return; // Not our responsibility — silently ignore.
 
             try

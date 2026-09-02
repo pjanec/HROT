@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -104,7 +104,26 @@ namespace Hrot.Common.EntityCreation
             //   📌 CGF already composed exactly this shape; the pack generalises it.
             var localRequests = new ScenarioEntityCreationRequestSource();
 
-            var sources = new List<IEntityCreationRequestSource> { localRequests };
+            // ⭐⭐⭐ D1 — when the host can reach the cluster, the LOCAL source is WRAPPED so a request
+            //   addressed to another node is sent there instead of being silently dropped by the
+            //   Level-1 guard. 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4b
+            //
+            //   ⛔⛔ The wrap goes INSIDE the composite, around the LOCAL source only. Wrapping the
+            //   composite would put the forwarder on the merged stream, where it cannot distinguish a
+            //   locally-authored request from one that ARRIVED from a peer — and it would re-forward
+            //   the latter, bouncing it between nodes forever. Wrapping here makes a wire-originated
+            //   request structurally unreachable to the forwarder.
+            //
+            //   ⚠ A null egress is a LEGITIMATE optional, not the silent-default defect: it states
+            //   "this host does not forward", which is true of every host that materialises entities
+            //   itself. ⭐ The rail EntityCreationPack_WiresTheForwarder_WhenAnEgressIsSupplied is the
+            //   control that a host which HAS an egress actually gets one.
+            IEntityCreationRequestSource localTier = ctx.RequestEgress == null
+                ? localRequests
+                : new ForwardingEntityCreationRequestSource(
+                    localRequests, ctx.RequestEgress, ctx.NodeId, ctx.IsBroadcastArbiter);
+
+            var sources = new List<IEntityCreationRequestSource> { localTier };
             if (ctx.NetworkRequestSource != null) sources.Add(ctx.NetworkRequestSource);
             var requestSource = new CompositeEntityCreationRequestSource(sources);
 
