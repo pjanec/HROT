@@ -195,6 +195,27 @@ under-reports. ⚠ **This looks identical to a correct small answer.**
 ⛔ **Never conclude *"the last N references are gone, the refactor is complete"* from a red tree** — ⭐ that is
 the compiler agreeing with your mistake.
 
+### ⛔⛔ ⑤ IT SEES ONLY THE SOLUTION — **`Stride/` IS INVISIBLE TO IT** *(measured `2026-09-02`)*
+
+📌 **Measured on `EntityCreationRequest.OwnerAppInstanceId`:** `roslyn_find_references` returned **30
+references and ZERO from `Stride/`** — where grep found **44 more lines across 17 Stride files.**
+⭐ **Roslyn is not wrong:** `IOS-IG-SimHost.sln` holds **149 projects and zero `HrotStrideApp` entries**, so
+the Stride projects are genuinely outside the workspace.
+
+⇒ ⛔⛔ **For any symbol reachable from `Stride/HrotStrideApp.Game*` — or any other out-of-solution project
+*(`NodeEditor.Core`, `NodeEditor.UI`, `Fhsm.Tests`; the same list the gate-report contract's row 2 names)* —
+`roslyn_find_references` and `roslyn_preview_rename` UNDERSTATE the blast radius, silently.** ⭐⭐ **Always
+corroborate with a repo-wide grep before renaming or removing anything in `Hrot.Core` / `Hrot.Common`.**
+⚠ This is a *different* failure from ③: the workspace is healthy *(`is_msbuild_workspace: true`)* and the
+answer is complete **for the solution** — it is the SOLUTION that is smaller than the repo.
+
+### ⚠ Operational — **the registered MCP times out on the COLD call**
+
+⛔ The `roslyn` MCP tool timeout is **60 s** and the cold workspace load is **~59 s** ⇒ 📌 **the first call
+through the MCP reliably fails with `timed out after 60s`.** ⭐ **Just call it again** — the server process
+survives the cancelled call and the second attempt answers warm *(measured: 4.9 s)*. ⭐ For a single long
+query, drive the server over stdio with a longer timeout instead.
+
 ### ⚠ Cost — **it stays warm, so keep the session**
 
 📐 Measured on this solution: **cold ≈ 59 s** *(the first query loads the workspace)*, **warm ≈ 0.8 s** for
