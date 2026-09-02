@@ -224,7 +224,7 @@ lines across 17 `Stride/` files)*:
 |---|---|---|
 | `Hrot/Engine/Hrot.Core/Hrot.Core.csproj` | ✅ true | **30 refs** — engine + every in-solution test, ⛔ **zero `Stride/`** |
 | `Stride/HrotStrideApp.Game/…csproj` | ✅ true | **20 refs** — engine + ⭐ **all 12 Stride Game sites**, ⛔ no `Game.Tests` |
-| `Stride/HrotStrideApp.Game.Tests/…csproj` | ✅ true | ⛔⛔ **`Symbol 'OwnerAppInstanceId' not found`** — though grep sees 32 sites there |
+| `Stride/HrotStrideApp.Game.Tests/…csproj` | ✅ true | ⛔ **`Symbol not found`** — ⭐ **CAUSE FOUND: the project was never RESTORED.** After `dotnet restore` *(9.5 s)* the same query returns **49 refs, 29 of them in `Game.Tests`** |
 
 ⇒ ⭐⭐⭐ **`Stride/` is NOT inherently invisible — it just is not in `IOS-IG-SimHost.sln`** *(149 projects,
 zero `HrotStrideApp` entries)*. **Point the query at `Stride/HrotStrideApp.Game.csproj` and the Stride
@@ -240,12 +240,14 @@ server's working directory — the repo root's `IOS-IG-SimHost.sln`. A project *
 | ⭐ the working rule | |
 |---|---|
 | ⭐⭐⭐ **for a rename or blast-radius on anything in `Hrot.Core` / `Hrot.Common`, run the query TWICE and UNION** | once at an in-solution project, once at `Stride/HrotStrideApp.Game.csproj` |
-| ⭐⭐ **then grep anyway** | 📌 `HrotStrideApp.Game.Tests` is reached by **neither** query. Same for the other out-of-solution projects the gate contract's row 2 names — `NodeEditor.Core`, `NodeEditor.UI`, `Fhsm.Tests` |
+| ⭐⭐⭐ **RESTORE an out-of-solution project before querying it** | ⛔⛔ **`obj/project.assets.json` missing ⇒ MSBuildWorkspace loads the project with NO references resolved ⇒ `Symbol not found`, silently.** 📌 That — not any Stride weirdness — is why `HrotStrideApp.Game.Tests` looked unreachable. ⭐ `dotnet restore <proj>` costs ~10 s and the answer comes back complete. ⚠ Check the same for `NodeEditor.Core`, `NodeEditor.UI`, `Fhsm.Tests` |
+| ⭐ **grep as the final corroboration** | ⛔ still cheaper than a third workspace, and it covers docs and non-C# files |
 | ⛔ **do NOT "fix" this by adding the Stride projects to `IOS-IG-SimHost.sln`** | ⚠ they target `net8.0-windows`; folding them in changes what a full-solution build builds. ⭐ Two queries cost seconds; a broken solution build costs a session |
 
-⛔⛔ **And row 3 weakens check ③: `is_msbuild_workspace: true` is NECESSARY, NOT SUFFICIENT.** ⭐ A workspace
-can report healthy and still fail to bind a referenced project — the tell is **`Symbol ... not found` for a
-name grep can see.** ⇒ ⭐⭐ **treat that message as a load failure, never as "the symbol is unused."**
+⛔⛔ **And row 3 weakens check ③: `is_msbuild_workspace: true` is NECESSARY, NOT SUFFICIENT.** ⭐ The
+workspace was genuinely MSBuild and still had **no references resolved**, because the project had never been
+restored. ⇒ ⭐⭐⭐ **`Symbol ... not found` for a name grep CAN see is a LOAD failure, never "the symbol is
+unused" — and the FIRST thing to check is `ls <proj>/obj/project.assets.json`, then `dotnet restore`.**
 
 ### ⚠ Operational — **the registered MCP times out on the COLD call**
 
