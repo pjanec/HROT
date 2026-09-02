@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-02
-current-answer: 🔴🔴 READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md §4.9 FIRST — THE 19
-  CLUSTER REDS. P1 pack adoption is DONE for all five materialising hosts (a-e); host (f) IG is
-  PAUSED 2026-09-02 on the user's question "shouldnt we first find out why?" about the 19 failing
-  cluster integration tests. The next batch is TRIAGING those 19 to owning causes, NOT more
-  adoption. THEN that file's §5.0 — it holds the
+current-answer: ✅ READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md §4.9 FIRST — THE 19
+  CLUSTER REDS, now TRIAGED 2026-09-02. P1 pack adoption is DONE for all five materialising hosts
+  (a-e). Host (f) IG was PAUSED on the user's question "shouldnt we first find out why?"; that
+  question is ANSWERED — none of the 19 is unification damage, all map to four pre-existing owners
+  (CE-103 x7, CE-154 x4, QA-031 x5, + newly filed CE-157/CE-158/CE-159) — so (f) is UNBLOCKED, and
+  it must carry a cluster-suite gate row naming the per-test set-diff. THEN that file's §5.0 — it holds the
   AGREED PLAN (user-confirmed 2026-09-01): P1 finish EntityCreationPack adoption, P2 relocate
   GhostPromotionSystem into the pack, P3 role-affinity ownership
   (docs/DESIGN_Role_Affinity_Ownership.md). It is the ordered continuation point for the live

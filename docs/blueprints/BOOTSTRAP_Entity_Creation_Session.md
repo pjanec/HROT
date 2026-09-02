@@ -1,8 +1,11 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-02
-current-answer: 🔴🔴 §4.9 FIRST — THE 19 CLUSTER REDS (user, 2026-09-02: "shouldnt we first find out
-  why?"). P1 is PAUSED at host (f) IG until the 19 are triaged to owning causes. THEN §5.0 — THE
+current-answer: ✅ §4.9 FIRST — THE 19 CLUSTER REDS are now TRIAGED (2026-09-02, answering the user's
+  "shouldnt we first find out why?"). VERDICT: none is unification damage; all 19 map to four
+  pre-existing owners (CE-103 x7, CE-154 x4, QA-031 x5, and the newly filed CE-157/CE-158/CE-159).
+  ⇒ P1 host (f) IG is UNBLOCKED. Read §4.9 for the table and for the two corrections it makes to
+  this document's own earlier answer, THEN §5.0 — THE
   AGREED PLAN, user-confirmed 2026-09-01. Read §4.9, then §5.0, then §5 for the
   mechanics of its first step. This file is a SESSION BOOTSTRAP — a self-contained continuation point
   for the entity-creation unification work on the UI lane. Read it after docs/blueprints/RULINGS.md
@@ -129,77 +132,122 @@ graph TD
 
 ---
 
-## 4.9 🔴🔴🔴 **THE 19 CLUSTER REDS — the user's question, `2026-09-02`. READ BEFORE ANY MORE P1 WORK.**
+## 4.9 ✅✅✅ **THE 19 CLUSTER REDS — TRIAGED `2026-09-02`. ⛔ NONE is unification damage.**
 
 > 🔒 **User, verbatim:** *"the 19 reds is actually a very bad sign, could it be because of the
 > unification? how can we make sure after unification the system works if 19 integration tests are
-> failing? shouldnt we first find out why?"*
+> failing? shoildnt we first find out why?"*
 
-⭐⭐⭐ **The question is right and P1 does NOT continue until it is answered.** ⛔ **Host (f) IG is PAUSED**
-— see §5.0's amended order.
+⭐⭐⭐ **The question was right, and the triage it forced found two errors in this document's own
+previous answer.** ⛔ **Do not re-derive this** — it cost a full suite run plus a baseline run.
 
-### ⭐ What is MEASURED, and what is NOT — ⚠ the distinction is the whole point
+### ⭐⭐⭐ THE TABLE — **all 19, each to an owning row** *(measured: `dotnet test … --logger trx`, 19/248/3 of 270, 9.1 min)*
 
-| claim | status |
+| # | test | message (verbatim) | owner | unification-caused |
+|---|---|---|---|---|
+| 1 | `SpawnMovingVehicle_IgReceivesPositionChangesWithinFewFrames` | *"did not move … SimHost moved=0.0000m"* | **`CE-103`** | ⛔ **no** |
+| 2 | `SpawnMovingVehicle_IgPositionContinuesToUpdate` | *"First position change was not observed"* | **`CE-103`** | ⛔ **no** |
+| 3 | `CgfSubsystemHeadless.CGF_MovingVehicle_GhostPositionUpdates` | *"CGF ghost entity 1 position did not change"* | **`CE-103`** | ⛔ **no** |
+| 4 | `CgfSubsystemHeadless.SimHost_WanderMission…` | *"did not move after WanderMilitary assignment"* | **`CE-103`** | ⛔ **no** |
+| 5 | `CgfSubsystemHeadless.SimHost_MoveToLocationMission…` | *"did not move >= 5 m after MoveToLocation (dist=0.000)"* | **`CE-103`** | ⛔ **no** |
+| 6 | `NetworkDemo_Phase2_BTreeNavigationIntent_FlowsToMuscle` | *"SimTransform.Position must change after CGF BTree writes NavigationIntent"* | **`CE-103`** | ⛔ **no** |
+| 7 | `NetworkDemo_Phase3_PerceptionReaction_TargetMemoryPopulates` | *"the BTree must evaluate Condition_HasTarget → Action_AimAndFire"* | **`CE-103`** | ⛔ **no** |
+| 8–11 | `FeatureSwitchRcu` ×4 | *"Module 'SimHostCoreLogicPack' is not currently installed in this kernel"* — **one identical stack** | **`CE-154`** | ⛔ **no** |
+| 12 | `CgfRecording.BothNodes_LiveSimulation…` | *"SimHost recording not found: …/node_1.fdp"* | **`QA-031` ①** | ⛔ **no** |
+| 13 | `DistributedScenarioLoad.DistributedLoad_TranslatesNetworkIds…` | *"CGF world must contain exactly 2 entities. Actual: 0"* | **`QA-031` ②** | ⛔ **no** |
+| 14 | `UrbanCombatFileLifecycle.UrbanCombatExtractedToJson…` | *"Grand demo timed out. Latches: ambush=False, halt=False, hit=False, killed=False"* | **`QA-031` ③** | ⛔ **no** |
+| 15 | `ClusterOpE2eScript.RecordAndReplaySeek_Passes` | *"StatusCode=13"* + *"assert_position x=0.0000, expected >= 5"* | **`QA-031` ➕** | ⛔ **no** |
+| 16 | `ClusterOpE2eScript.LiveFromReplayBranch_Passes` | *"timed out after 30s waiting for SysOpStatus"* | **`QA-031` ➕** | ⛔ **no** |
+| 17 | `GhostPromotion.OutOfOrder_GeoSpatialBeforeEntityMaster…` | *"Ghost entity was not promoted after EntityMaster descriptor arrived"* | ⭐ **`CE-157`** *(NEW)* | ⛔ **no** |
+| 18 | `SensorMechanism_EndToEnd_CGFTargetMemoryPopulatesAndDecays` | *"CGF entity must gain ActiveSensorTracks with Count > 0"* | ⭐ **`CE-158`** *(NEW)* | ⛔ **no** |
+| 19 | `MapPlacement.EndToEnd_DirectCreationTool_SpawnsEntityInSimHost` | *"CreationTool did not become active in time"* | ⭐ **`CE-159`** *(NEW)* | ⛔ **no** |
+
+⇒ ⭐⭐ **FOUR owners cover 16 of 19** *(`CE-103` 7 · `CE-154` 4 · `QA-031` 5)*; **3 were genuinely
+unowned and are now filed.** ⛔ **Three batches reported the NUMBER and none read the MESSAGES** — that
+is the process defect this triage closes, and it is why the count told us nothing for three batches.
+
+### ⭐⭐⭐ THE STRUCTURAL PROOF — **the break is UPSTREAM of everything the pack builds**
+
+📐 `EntityCreationPack.Build` constructs exactly six things *(`EntityCreationPack.cs:105-146`)*:
+`ScenarioEntityCreationRequestSource` · `CompositeEntityCreationRequestSource` · `NullEntityAckSink` ·
+`EntityRequestFinalizationSystem` · `CreateEntityRequestSystem` · `NetworkSpawningSystem`, plus the
+translator list and the ELM wiring. ⭐⭐ **Every one is the BIRTH tier.**
+
+⭐⭐⭐ **`MissionToMovementChainProbe` — which runs GREEN in the same suite — proves BIRTH SUCCEEDED in
+the very test that fails:**
+
+| what the probe measured | verdict |
 |---|---|
-| ⭐ host **(d) CGF** added **zero** reds | ✅ **measured** `2026-09-02` — 19 before / 19 after, `--no-build` both sides, **set-diff EMPTY in both directions** |
-| ⭐⭐ the cluster red count has been going **DOWN**, hard, across exactly the period the unification ran | ✅ **measured, in the commit record**: **49 → 31** (`76b8eb406`, `CE-148` — the harness never resumed after boot) → **19** (`eabcbf660`, `CE-152` — two xUnit collections NAMED but never DEFINED ⇒ 12 interference failures) |
-| ⭐⭐⭐ the surviving **19 are REAL defects, not interference** | ✅ **measured** — `551d43c53` ran a **per-class isolation sweep**, and `eabcbf660` verified the survivors are *"name-for-name exactly the set the per-class isolation sweep called real"* |
-| ⛔⛔ **the 19 were NEVER attributed to a CAUSE, one by one** | 🔴 **NOT MEASURED. This is the hole.** They are known-real and known-stable; **nobody has mapped each to an owning defect** |
-| ⛔⛔ hosts **(b) SimHost** and **(c)+(e) Editor/Stride editor** were **never gated against the cluster integration suite** | 🔴 **NOT MEASURED** — only (d) was. ⚠ **This is a gate-contract row-8 miss of mine**: a cross-cutting change must name the integration suite that exercises its invariant |
+| CGF ghost carries **37** components, SimHost **35** | ✅ the entity is born on both nodes |
+| `VehicleParams` · `VehicleState` · `NavState` · `PhysicsCollider` all present | ✅ **the translator list ran** — the pack's whole job |
+| mission `ACK received=True ErrorCode=0` | ✅ the request/finalisation path works |
+| ⭐ `behHash` column is **`0` on every one of 40 sampled frames** | 🔴 **the break is hop ONE of the COGNITIVE chain** |
+| `btree=yes`, `chan 0/0/0/Failure`, CGF `intent None`, SIM `intent None`, `d=0.00m` | 🔴 nothing downstream ever fires |
 
-### ⛔ A CORRECTION I OWE — *(said in chat `2026-09-02`, wrong)*
+⇒ ⭐⭐⭐ **the chain dies at `BehaviorState.ActiveBehaviorHash`, which NO system in the pack writes.**
+📌 The probe's own legend: *"the FIRST column that never becomes non-default is the broken hop."*
 
-⚠ I wrote *"the other 19 were NOT run in isolation and no claim is made about them."* 🔴 **False.**
-⭐ They **were** run in isolation — by `551d43c53`'s per-class sweep, earlier in this same programme —
-and **19 is the post-isolation REAL count**, which is a stronger and more worrying statement than what I
-said, not a weaker one.
+⭐ **A second measured asymmetry points at the cause for whoever takes `CE-103` next:** the CGF ghost
+**has** `ActiveMissionPlan` *(1 task, `MoveToLocation`)* and `MissionAdapterState` but reports
+`HasAuthority<BehaviorState> = False`; SimHost reports `True` and is ⛔ **MISSING** `ActiveMissionPlan`
+and `MissionAdapterState`. ⇒ **the node holding the plan cannot write the behaviour, and the node that
+can write it has no plan.** ⚠ **Stated as an OBSERVATION, not a diagnosis** — no authority guard was
+found in `BehaviorIngressSystem` or `MissionAdapterSystem`, so the mechanism is NOT yet established.
+⭐ This is the shape [`DESIGN_Role_Affinity_Ownership.md`](../DESIGN_Role_Affinity_Ownership.md)
+addresses *(P3, designed and NOT built)*.
 
-### ⭐⭐ THE LEAN — **probably NOT unification damage, but that is a LEAN and it has an ⛔-ASSUMED row**
+### ⭐⭐ THE DATE PROOF — **every owner predates the pack**
 
-| the lean rests on | measured |
-|---|---|
-| host (d) added zero, identical set | ✅ `2026-09-02`, both directions |
-| the trajectory is 49 → 31 → 19 **downward** across the unification period ⇒ if unification were breaking things the number would CLIMB | ✅ `76b8eb406` · `eabcbf660` |
-| both big reductions were **test-infrastructure** defects (harness boot, xUnit collection definitions), not production ones | ✅ their commit messages |
-| **each of the 19 has a non-unification root cause** | ⛔⛔ **ASSUMED — and it is LOAD-BEARING.** If even one traces to the pack, the lean flips |
+📐 The unification window is **`2026-08-31` → `2026-09-02`** *(`58dab5a84` … `80ad9ccf5`)*.
 
-⇒ ⭐ **Therefore the lean does not license proceeding.** 🔒 `R-139`: no ⛔-assumed row may be load-bearing.
-
-### ⭐⭐⭐ THE NEXT STEP — **triage the 19 to owning causes. This is the whole next batch.**
-
-⛔ **Do NOT start by re-running the suite** — it is 9–13 min and the count is already known and stable.
-⭐ **Start by reading the 19 failure MESSAGES**, which the count never showed:
-
-```bash
-# the names, and crucially the ASSERTIONS — the count alone has told us nothing for three batches
-dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj \
-  --no-build --logger "console;verbosity=detailed" 2>&1 | tee /tmp/reds.txt
-```
-
-⭐ **The 19, grouped as they fall** *(measured `2026-09-02`, stable across two full runs)*:
-
-| # | group | first question to ask |
+| owner | first filed | evidence |
 |---|---|---|
-| 3 | `CgfSubsystemHeadlessTests` — `SimHost_WanderMission`, `SimHost_MoveToLocationMission`, `CGF_MovingVehicle_GhostPositionUpdates` | ⭐⭐ **the movement chain.** Related to `CE-103` *(intent produced, never consumed)* — ⚠ **the strongest unification-adjacent candidate, check FIRST** |
-| 2 | `SpawnMovingVehicleIntegrationTests` | same chain, IG side |
-| 2 | `NetworkDemoPatrolAndEngageTests` Phase2/Phase3 | same chain |
-| 4 | `FeatureSwitchRcuIntegrationTests` | tracked as `CE-154`; RCU toggling, ⛔ not entity creation |
-| 2 | `ClusterOpE2eScriptTests` | record/replay |
-| 1 each | `CgfRecording` · `DistributedScenarioLoad` · `GhostPromotion` · `MapPlacement` · `SensorMechanism` · `UrbanCombatFileLifecycle` | ⭐ `GhostPromotion` and `DistributedScenarioLoad` are **entity-creation adjacent — check these second** |
+| ⭐⭐⭐ **`CE-103`** | **`2026-08-28`** — 🔒 **the USER's own visual check**: *"When i press Play, the tanks show blue line to their destination, but they do not move."* | `585748088` — **three days before `EntityCreationPack` existed** |
+| **`CE-154`** | `2026-09-01` | `bc5fa2253`, root-caused to `EditorSubsystem:1462` adding packs to `logicPacks` that `:1388` never registers — ⛔ **before host (c) adopted the pack on `2026-09-02`** |
+| **`QA-031`** | `2026-09-01` | filed as *"the `QA-017` residue — 3 tests that now reach `OperatingLive` and fail DOWNSTREAM"*, ⭐ **naming 5 of these tests verbatim** |
 
-⭐⭐ **The deliverable is a TABLE: each of the 19 → an owning tracker row → "unification-caused: yes/no,
-with the file:line that shows it."** ⛔ Not a re-run, not a count.
+### ⭐⭐⭐ THE SET PROOF — **the gate hole `§4.9` named is now CLOSED**
 
-⚠ **If the answer is "no" for all 19, that is a RESULT worth having** — it converts a scary number into a
-known backlog and unblocks (f). ⭐ **If any is "yes", it outranks (f) entirely.**
+⛔ **The hole:** hosts **(b) SimHost** and **(c)+(e) Editor/Stride editor** were never gated against this
+suite — only (d) was. ⚠ **That was a gate-contract row-8 miss.**
 
-### ⭐ The cheap corroboration, if the triage is inconclusive
+⭐ **Closed by baselining `eabcbf660`** — ⭐⭐ the ideal comparison point: **AFTER** the `CE-148`/`CE-152`
+test-infrastructure fixes *(so it is NOT confounded)* and **BEFORE** all four host adoptions
+*(b · c · e · d)* and the `CE-142`/ghost-promotion ownership fixes.
 
-📐 A pre-unification baseline is **CONFOUNDED and must not be quoted naively**: the pre-pack commit
-`b9757d96d` *(parent of host (a) `58dab5a84`)* predates **both** `CE-148` and `CE-152`, so it would
-report ~49 reds **inflated by interference** — the measuring apparatus itself changed. ⇒ ⭐ **the only
-sound cross-commit comparison is per-test-NAME, never per-count.**
+⏳ **THE RUN IS IN FLIGHT at the time of this commit** *(`eabcbf660` worktree, built clean, suite running)*.
+⭐ **What it will settle:** whether the 19 at HEAD are the **same 19 BY TEST NAME** as before the four host
+adoptions. ⚠ **At class+count the answer is ALREADY YES** — `eabcbf660`'s own commit message records
+*"`FeatureSwitchRcu` 4 · `CgfSubsystemHeadless` 3 · `ClusterOpE2eScript` 2 · `NetworkDemoPatrolAndEngage` 2 ·
+`SpawnMovingVehicle` 2 · `CgfRecording` · `DistributedScenarioLoad` · `GhostPromotion` · `MapPlacement` ·
+`SensorMechanism` · `UrbanCombatFileLifecycle`"*, which is **term-for-term the HEAD breakdown measured today**.
+⭐ **And 10 of the 19 had already reddened at the baseline when this was written** — including all three of the
+newly-filed `CE-157`/`CE-158`/`CE-159`, which is why those rows already assert it.
+⛔ **The per-NAME set-diff is folded into this section by the NEXT commit** — until then, treat the
+class+count identity as the measurement and the per-name diff as pending.
+
+### ⛔⛔ WHAT THIS DOES **NOT** PROVE — *(stated so nobody over-trusts it)*
+
+| ⛔ | |
+|---|---|
+| ⛔ **it does not say the system WORKS** | ⭐ 19 real defects remain, and `CE-103` is a **user-visible** one. ⇒ **the backlog is real; it is just not NEW** |
+| ⛔ **it does not root-cause `CE-103`** | ⭐ it narrows it to **hop one of the cognitive chain** and hands over one measured asymmetry. ⚠ That is a separate batch |
+| ⛔ **it proves nothing about hosts the cluster suite does not exercise** | ⚠ **(e) the Stride editor is NOT in this suite** — its evidence is the Windows verification at `656b61a24`, and that is a different kind of evidence |
+| ⚠ **a green baseline row is not proof of no regression, only of no NEW RED** | ⭐ a test that passes on both sides can still have changed behaviour |
+
+### ⭐⭐ CORRECTIONS THIS TRIAGE MAKES TO THE RECORD — **⛔ both were in this document**
+
+| ⛔ what was written | ✅ what is measured |
+|---|---|
+| **`§4.9` pointed at `CE-103`'s WIRE-HOP cause** *(`SpawnEntityCommandEgressTranslator:143-160` drops all but 3 component types ⇒ `AccelGain 0`)* | ⚠ **that half is ALREADY FIXED.** `CE-113` *(`94867a8b7`, `2026-08-28`, "the TKB can express a Tank")* routed `BuildVehicleParams` into `VehicleKinematicsTkbTranslator:34`, which now applies a **`VehiclePresets` baseline**. ⇒ **`AccelGain = 0` is no longer the mechanism**, and the tracker's explanation would have misled the next reader |
+| ⛔ **the previous session left question ①** — *"most of these tests inject via `TestHook_SetMovementIntent`, a DIRECT write production never does; measure whether they are a product defect AT ALL"* | ✅ **ANSWERED — they ARE a product defect.** 📐 6 of the 7 do use that hook, ⭐⭐ **but `NetworkDemo_Phase2` does NOT**: it sets only `BehaviorState.ActiveBehaviorHash` on CGF and then runs the ENTIRE production pipeline *(BTree → `MoveToExecutor` → `NavigationIntent` → egress → DDS → ingress → bridge → `NavState` → `CarKinematicsSystem`)*, and it fails. ⭐ Corroborated: `SimHost_MissionControlRequest_ActivatesMissionPlanQueue` **passes** through the real DDS chain ⇒ the mission **activates** and the entity still does not **move** |
+
+### ⭐⭐⭐ CONSEQUENCE — **host (f) IG is UNBLOCKED**
+
+⭐ `§5.0`'s order resumes at **(f) IG**, which must still ship in ONE commit with `Q65-A′` + `CE-143` +
+`CE-144` *(or IG double-spawns and double-destroys)*.
+⭐⭐ **AND the gate contract now binds this suite:** ⛔ **(f) does not merge without a
+`Hrot.ClusterRunner.Integration.Tests` row naming the per-test set-diff** — 📌 not the count, the NAMES.
 
 ---
 
