@@ -122,6 +122,12 @@ graph TD
 
 IG is a passive non-persisting node; persistable entities may not be IG-owned.
 
+> 📄 **THE FULL TREATMENT LIVES IN
+> [`docs/DESIGN_Node_Roles_And_Policies.md`](../DESIGN_Node_Roles_And_Policies.md)** — the role table, the
+> ownership and persistence policies, where an entity should be created, and ⭐ **§7's honest accounting of
+> what is enforced by code versus what is convention only.** ⛔ §1.3a–c here are ORIENTATION; when they and
+> that document disagree, **the design document wins.**
+
 > 🔒 **User ruling, `2026-09-02`, verbatim:** *"by convention it is considered passive listening node,
 > not maintaining any persistent state. If IG creates entities, then only temporary ones, possibly shared
 > with other IGs, but never persisted to scenario. If IG crashes, its entities are gone, but no one cares,
