@@ -8,7 +8,11 @@ open-elsewhere: §8 ① — what happens to a REPLICATED entity at save time —
   question parked here; its owning home is docs/designs/cgf-scn-2/DESIGN.md (scenario serialization
   correctness). §8.1 records that an earlier draft claimed no such design existed, which was FALSE —
   it searched docs/ only and its filename filter missed cgf-scn because the folder says "scn".
-stale-below: nothing.
+  ⭐ §7.3 now MEASURES that question and answers it: the sketch DOES reach the saving node, so R-140
+  does not hold by topology. What remains open there is the MECHANISM CHOICE (a/b/c), not the fact.
+stale-below: §7.2's closing "NOT MEASURED" paragraph is SUPERSEDED by §7.3, and §8.1's
+  "the existing exclusion mechanism cannot express §8 ①" is SUPERSEDED — ScenarioIgnoreTag can.
+  Both supersessions are marked in place and the dead text is quoted under a HISTORY heading.
 known-rot: nothing known. ⚠ This document is NEW and consolidates statements that were previously
   scattered across HROT-Engine-Guide §1.3–§1.3c, RULINGS R-138/R-140, and Architect_Question_65. If it
   disagrees with any of those, THIS file is the one to correct — the others are index or orientation.
@@ -235,13 +239,63 @@ owner-based filter deciding *which* entities are written.
 | ⭐ **the good half** | choosing an owner does **not** silently change whether something is saved ⇒ the two axes really are independent, so §6's per-entity choice is safe to make |
 | ⚠ **the half that still matters** | the extractor **cannot tell an IG-owned entity apart from any other**. ⭐ §7.1 means this never bites *on IG* — IG does not extract. ⛔ It bites **on a saving node**, if an IG-owned entity is present in that node's world |
 
-⛔ **NOT MEASURED, and it is the one question that decides whether §5's rule is safe by construction or
-only by luck:** **do IG-owned temporary entities replicate into a SAVING node's world at all?** 📌 The
-extractor runs on the **Brain**, so the concrete form is: *does a CGF subscribe to, and materialise, an
-entity an IG created and owns?* ⇒ ⭐ **Settle this before IG gains local entity creation**
-*(host (f), `Q65-A′`)*. ⭐ **If they do NOT reach it, §5's rule holds by TOPOLOGY** and the only work is
-the §7.1 rail. ⛔ **If they do, a saving node needs a filter** — and the filter cannot key on ownership,
-because ownership is exactly what the extractor throws away.
+⚠ **An earlier draft of this section ended here with *"NOT MEASURED."* ⭐ It has now been measured — see
+§7.3, which SUPERSEDES that paragraph.**
+
+### 7.3 ✅⛔ MEASURED `2026-09-02` — **§5's rule does NOT hold by topology. The sketch reaches the saving node.**
+
+⭐⭐⭐ **The question §7.2 left open** — *do IG-owned temporary entities reach a SAVING node's world?* —
+**is answered, and the answer is YES.** ⛔ **`R-140` is therefore a CONVENTION with a HOLE, not an
+invariant**, and the hole is on the receiving side, exactly where §7.2 predicted it would be.
+
+#### ⭐ The chain, link by link — **two hold, the third does not**
+
+| link | what it does | measured |
+|---|---|---|
+| **①** the cluster save **fans out to EVERY active node**, with no role filter | `ProcessStorageOpIntent` → `FanOutSerializeLocal(txId, new List<int>(_roster.ActiveNodes.Keys), …)` | ✅ `Hrot/Subsystems/Hrot.Orchestrator/ClusterMaster.cs:983-987` |
+| **②** ⭐⭐ a node with **no handler** for the op answers `Success` with **`IsParticipating = false`**, and does **not** stall the 2PC | ⇒ §7.1's *"IG simply does not answer it"* is a **first-class engine outcome**, not an accident | ✅ `FDP/Toolkits/Fdp.Toolkits/Orchestration/ClusterSlave.cs:349-359` |
+| **②b** IG registers **no** `SerializeLocal` handler; **CGF and ExCon do** *(`ReferenceArchiveHandler`, whose `CanHandle(op) => op == NodeOpType.SerializeLocal`)* | ⇒ link ① is doing real work — IG **is** asked, and declines | ✅ `Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs:250-288` · `Hrot.CGF/CgfApplication.cs:227` · `Hrot.ExCon/ExConSubsystem.cs:305` · `Fdp.Toolkits/Orchestration/Handlers/ReferenceArchiveHandler.cs:44-45` |
+| **③** 🔴 **the receiving node spawns the entity UNCONDITIONALLY** — `ProcessSpawn` has **no** owner check, no role gate; `cmd.OwnerNodeId` is only used to *fill in* `NetworkOwnership`/`NetworkAuthority` and to compute `isLocalAuthority` | ⇒ ⭐ this is `Q65-A′` behaving exactly as designed: **every ECS node materialises every spawn it receives** | ✅ `Fdp.Toolkits/NetworkSpawning/Systems/NetworkSpawningSystem.cs:104-175` |
+| **④** 🔴 **the saving node's serializer filters on ONE thing only** — `CollectSaveableEntities` walks every live entity and skips **only** those bearing `ScenarioIgnoreTag`. ⛔ **No ownership filter, no ghost filter, no authority filter** | ⇒ the replicated sketch is written to the scenario, and *(per §7.2)* its ownership components are stripped on the way out ⇒ **indistinguishable in the file from a real entity** | ✅ `Fdp.Toolkits/Scenario/ScenarioSerializer.cs:523-541` |
+
+⇒ ⭐⭐⭐ **An IG sketch is saved — by CGF, not by IG.** ⛔ **§7.1's enforcement is necessary and NOT
+sufficient**: it stops IG writing a file; it does nothing about IG's *entities* being written by someone
+else. ⚠ **This is a silent failure of exactly the shape this codebase keeps producing** — nothing errors,
+nothing logs, and it is visible only by opening the saved scenario.
+
+#### ⭐⭐ The one row that is NOT a fresh end-to-end run
+
+| ⚠ | |
+|---|---|
+| ⛔ **not run as a live two-node test** | *"IG publishes → the command leaves IG → CGF's `ProcessSpawn` runs"*. ⭐ It is **measured by composition of two halves**: `SpawnEntityCommandEgressTranslator` reads `SpawnEntityCommand` off the bus *(`Hrot.Network.NED/Replication/Map/Egress/SpawnEntityCommandEgressTranslator.cs:80`)*, and `ProcessSpawn` is unconditional on receipt. ⚠ **Stated as inference, not as a run** |
+| ⭐ **why it does not change the verdict** | ⛔ if that link were BROKEN, IG could not replicate anything at all — which would contradict IG's whole purpose *(and the ruling's own words: temporary entities "possibly shared with other IGs")* |
+
+#### ⭐⭐⭐ The mechanism that closes it ALREADY EXISTS AND IS UNUSED
+
+📐 **`ScenarioIgnoreTag`** *(`Fdp.Toolkits/Scenario/ScenarioIgnoreTag.cs`, component id `200`)* — an
+empty tag whose doc says *"instructs the scenario serializer to skip the entire entity bearing it."*
+⭐⭐ It is **per-ENTITY**, and it is itself `[DataPolicy(DataPolicy.NoSave)]` so the tag never serializes —
+it is **purely a filter**.
+
+📐 **Production writers: ZERO.** *(grep + `search_graph`: one unit test — `ScenarioSerializerTests.ScenarioIgnoreTag_EntitySkipped` — and no production `AddComponent`/`SetComponent` anywhere.)*
+⇒ 📌 **the `UNREFERENCED IS NOT UNINTENTIONAL` pattern**: it was built for precisely this and never wired.
+
+#### ⭐ How the tag gets onto the receiver's copy — **three options, with a lean**
+
+| | option | verdict |
+|---|---|---|
+| **(a)** | the **receiver derives it** — stamp the tag when `NetworkOwnership.PrimaryOwnerId` resolves to a node whose declared role is non-persisting | ⛔ **rejected.** It makes persistence depend on **roster state at save time**: once the IG disconnects the receiver can no longer resolve the role, and the sketch **silently becomes persistent**. ⚠ Same silent-failure family as everything else in this section |
+| ⭐⭐ **(b)** | ⭐ **the REQUEST carries it** — `EntityCreationRequest` gains a transient flag, `CreateEntityRequestSystem` copies it into `SpawnEntityCommand` at both publish sites, and `ProcessSpawn` adds `ScenarioIgnoreTag` when set | ✅ **THE LEAN.** ⭐ It is the **same seam `CE-143` widened one commit ago** for the same class of problem *("the request cannot express X")*, so precedent and shape both match. ⭐⭐ The knowledge *"this is a sketch"* lives with the **author**, which is where it actually is; every receiver then derives the tag **locally at spawn**, so nothing depends on the tag replicating or on the author still being alive. ⭐ Additive, defaulted to today's behaviour |
+| **(c)** | forbid IG from creating replicated entities | ⛔ **rejected — it contradicts `R-138`** *(fully distributed; a role never denies a capability, §3.1)* |
+
+⭐ **Blast radius of (b):** `EntityCreationRequest` *(+1 `init` member, default = today)* · `CreateEntityRequestSystem` *(the same two publish sites `CE-143` touched, `:321` and `:416`)* · `SpawnEntityCommand` *(+1 field)* · `ProcessSpawn` *(one `if`, beside the existing `PendingNetworkAck` one)*. ⛔ **No behaviour changes for any existing caller.**
+
+⚠ **What would change the lean:** if a *persistable* entity ever needs to be created by a node that is
+not its owner **and** marked transient on some peers but not others — i.e. if transience turns out to be
+**per-node** rather than **per-entity**. 📐 Nothing measured suggests that; the ruling states it as a
+property of the entity *("only temporary ones… never persisted to scenario")*.
+
+⇒ 🔴 **This is a DECISION, not a build item — it is not implemented, and §8 ① stays open until approved.**
 
 ---
 
@@ -249,10 +303,10 @@ because ownership is exactly what the extractor throws away.
 
 | # | question | why it matters |
 |---|---|---|
-| ① | 🔴 **OPEN, and it does NOT belong to this document.** ⭐ **NARROWED `2026-09-02`** — ~~does IG save?~~ **no, measured: it registers no save handler (§7.1)**. ⇒ the live question is **"what happens to a REPLICATED entity at save time?"** — an IG-owned temporary entity present in a **saving node's** world is indistinguishable there *(§7.2)*. 🔒 **User, `2026-09-02`:** *"saving replicated entities is not yet resolved so it should stay as open question. very likely in a design document dedicated to scenario saving."* ⭐⭐ **AND SUCH DOCUMENTS DO EXIST — see §8.1. The owning home is [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md)** *(scenario serialization correctness — what belongs in scenario JSON and what must be kept out)*. ⇒ ⭐ **this question is PARKED here and belongs there** | it decides whether §5's rule is safe **by topology** or needs a rule on the saving side. ⛔ **It is a SCENARIO-SAVING question, not a node-role one** — this document only records that the role policy depends on its answer |
+| ① | 🔴 **OPEN — but now a DECISION, not an investigation.** ⭐⭐ **ANSWERED `2026-09-02` in §7.3**: ~~does IG save?~~ **no (§7.1)**; ~~does the sketch reach a saving node?~~ 🔴 **YES, measured — the fan-out is roster-wide, `ProcessSpawn` is unconditional, and `CollectSaveableEntities` filters only on `ScenarioIgnoreTag`, which nothing in production sets.** ⇒ ⛔ **`R-140` does NOT hold by topology.** ⭐ **§7.3 recommends option (b)** — the request carries a transient flag, each receiver derives `ScenarioIgnoreTag` at spawn. ⚠ **Awaiting approval; nothing is implemented.** 🔒 **User, `2026-09-02`:** *"saving replicated entities is not yet resolved so it should stay as open question. very likely in a design document dedicated to scenario saving."* ⭐⭐ **AND SUCH DOCUMENTS DO EXIST — see §8.1. The owning home is [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md)** *(scenario serialization correctness — what belongs in scenario JSON and what must be kept out)*. ⇒ ⭐ **this question is PARKED here and belongs there** | it decides whether §5's rule is safe **by topology** or needs a rule on the saving side. ⛔ **It is a SCENARIO-SAVING question, not a node-role one** — this document only records that the role policy depends on its answer |
 | ①b | ⭐ **a rail that IG's composition root registers no save/extraction handler** | §7.1 — turns an ABSENCE into a checked invariant, the same move `EntityGenesisHazardRails` made for the spawn/destroy hazards |
 | ② | when an IG holding temporary entities disappears, what removes the replicas on other IGs? | 🔒 the ruling says its entities are *"gone, and no one cares"* — ⚠ but peers hold ghosts, and an undisposed ghost is the **silent** half of the `CE-144` family |
-| ③ | should `RequestFromDefaultProcessor` remain reachable from IG once it can create locally? | §6 says yes — it is the only way IG can author something persistable |
+| ③ | should `RequestFromDefaultProcessor` remain reachable from IG once it can create locally? | §6 says yes — it is the only way IG can author something persistable. ⭐⭐ **OWNED ELSEWHERE `2026-09-02`: [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) §3.4b** — the level mismatch and its option (b) *(the forwarder subscribes to the REQUEST, and fires when the owner is someone else)*. ⛔ **That is a CROSS-HOST change of principle, not an IG fix**; this row is a pointer, not the decision |
 
 ### 8.1 ⛔⛔ CORRECTION `2026-09-02` — **the scenario-saving designs DO exist; my search was wrong**
 
@@ -272,15 +326,34 @@ false is worth recording because `CLAUDE.md` warns about it in exactly these wor
 | [`docs/designs/cgf-scn/DESIGN.md`](designs/cgf-scn/DESIGN.md) | **CGF Scenario Loading via Genesis Pipeline** — makes CGF the *authoritative entity genesis source* for scenario load. ⭐ Directly relevant to §3.1 and §4 |
 | `.dev/_DONE/cgf-scn-3/DESIGN.md` | scenario save producing wrong JSON — missing missions, and **runtime-tier state leaking into declarative initial conditions** ⇒ ⭐ **the same DISEASE as §8 ①, one level down** |
 
-### ⭐⭐ And the existing exclusion mechanism — **it cannot express §8 ①**
+### ⭐⭐ The existing exclusion mechanisms — **there are TWO, and the second one FITS**
 
-📐 **Measured:** `[DataPolicy(DataPolicy.NoSave)]` *(`FDP/Engine/Fdp.Core/DataPolicyAttribute.cs:48`)* is
-how a thing is kept out of the save today — ⛔ **but it is an attribute on a COMPONENT TYPE.** ⇒ it can
-say *"`UnitRoster` is never saved"*; ⛔ **it cannot say *"THIS entity is a sketch."***
+⚠⚠ **CORRECTED `2026-09-02`, later the same day.** ⛔ **An earlier version of this sub-section is
+SUPERSEDED — it is reproduced in §HISTORY below.** It said the save path has *"a per-type opt-out and a
+static exclusion mask, and neither can express a per-entity origin."* 🔴 **The first clause is true; the
+conclusion is FALSE, because it enumerated only two of the three mechanisms.**
 
-⇒ ⭐⭐ **That is precisely why §8 ① is still open**: the save path has a per-*type* opt-out and a static
-exclusion mask, and **neither can express a per-*entity* origin.** ⚠ Whoever takes it in `cgf-scn-2`'s
-successor starts from that gap, not from scratch.
+| # | mechanism | granularity | can it say *"THIS entity is a sketch"*? |
+|---|---|---|---|
+| ① | `[DataPolicy(DataPolicy.NoSave)]` *(`FDP/Engine/Fdp.Core/DataPolicyAttribute.cs:48`)* | ⛔ **component TYPE** | ⛔ **no** — it says *"`UnitRoster` is never saved"* |
+| ② | `StagingEntityExtractor.BuildStaticMask()` | ⛔ **component TYPE**, statically | ⛔ **no** |
+| ⭐⭐⭐ **③** | **`ScenarioIgnoreTag`** *(`Fdp.Toolkits/Scenario/ScenarioIgnoreTag.cs`, id `200`)* — honoured by `ScenarioSerializer.CollectSaveableEntities` *(`:523-541`)* | ⭐⭐ **per ENTITY** | ✅ **YES — that is literally its stated purpose** |
+
+⇒ ⭐⭐ **§8 ① is not open for want of a mechanism.** ⭐ It is open on a **design decision**: *how does the
+tag get onto the copy that lives on the SAVING node?* — ⭐⭐ **§7.3 measures the problem and recommends
+option (b)** *(the request carries a transient flag; each receiver derives the tag at spawn)*.
+
+📌 **This is the `UNREFERENCED IS NOT UNINTENTIONAL` rule paying out twice in one document** — once for
+the mechanism *(built for this, zero production writers)*, and once for **the search that missed it**: the
+earlier claim was made after reading `DataPolicyAttribute.cs` and the extractor, **and not enumerating
+what the serializer itself filters on.**
+
+#### ⛔ HISTORY — the superseded claim, kept so nobody re-derives it
+
+> *"⇒ ⭐⭐ That is precisely why §8 ① is still open: the save path has a per-type opt-out and a static
+> exclusion mask, and neither can express a per-entity origin."*
+
+⛔ **Do not quote this.** ⭐ `ScenarioIgnoreTag` is the third mechanism, and it is per-entity.
 
 ---
 
@@ -291,7 +364,7 @@ successor starts from that gap, not from scratch.
 | [`HROT-Engine-Guide` §1.3a–§1.3c](HROT-Engine-Guide/HROT-Engine-Guide.md) | ⭐ **orientation** — the "at a glance" diagram and the one-line statements. ⛔ It stays short and points here |
 | [`RULINGS.md`](blueprints/RULINGS.md) `R-138`, `R-140` | ⭐ **the INDEX** — the canon rows and their verbatim probes. ⛔ A ledger row is a pointer, never the explanation |
 | [`Architect_Question_65`](blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md) | the entity-genesis decisions that made these conventions load-bearing |
-| [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) | the shared creation pipeline every role composes |
+| [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) | the shared creation pipeline every role composes. ⭐⭐ **§3.4b is the owning home for the CREATION-side half of this document's problem** — the level mismatch and the cross-host resolution of creation duplication. ⛔ This file owns the PERSISTENCE side (§7.3); it does not restate §3.4b |
 | ⭐ [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md) | **scenario serialization correctness** — what belongs in scenario JSON. ⭐ **The owning home for §8 ①** |
 | [`docs/designs/cgf-scn/DESIGN.md`](designs/cgf-scn/DESIGN.md) | CGF as the authoritative entity genesis source for scenario LOAD — relevant to §3.1 and §4 |
 | [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) | ⚠ **designed, not built** — would turn §4's expectations into a derived default |

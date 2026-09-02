@@ -21,6 +21,12 @@ known-rot: §2.3's "halves" language is dead everywhere it appeared. Removed fro
   as HISTORY only. Any reader finding "which half" in this file outside a HISTORY block has found rot.
 current-answer-note: §3.4 is the NEW load-bearing section (2026-08-31) — the two authoring affordances
   and the per-tier measurement of what each path already has. Read it before §5's sequencing.
+current-answer-note: ⭐⭐⭐ §3.4b is the NEWEST load-bearing section (2026-09-02) — THE LEVEL MISMATCH and
+  the CROSS-HOST resolution of creation duplication. §3.4a says why double consumption is POSSIBLE;
+  §3.4b says how it is RESOLVED, and corrects acceptance ⑪, which is too weak (CE-160: the pack's own
+  CreateEntityRequestSystem publishes the order, so retargeting the tools is NOT sufficient — the spawn
+  system and the spawn-egress translator are mutually exclusive unconditionally). ⛔ §3.4b is a DECISION,
+  NOT BUILT; its build-state is DESIGN. ⛔ Host (f) IG must NOT adopt the pack until it is settled.
 as-built: step 4 is BUILT (2026-08-31) — §3.3's AS-BUILT block is authoritative for it. THREE of that
   section's premises were false and are corrected there: TkbDatabase.Register THROWS on duplicates (so a
   production call site had to be DELETED, not forwarded); there were TWO divergent template copies, the
@@ -655,6 +661,177 @@ what the pack is for:
 | ⭐⭐ **the pack owns the composition of the ORDER-CONSUMING systems** | ⛔ not merely "assembles systems" — it is the single place that can guarantee no node ends up with two actors for one order |
 | ⭐⭐ **acceptance ⑨–⑪ are SOURCE rails, not runtime assertions** — ⭐ and now the reason is written down | 📄 §6. ⛔ A runtime check cannot see the hazard: each reader is behaving correctly in isolation |
 | ⚠ **this generalises — and deliberately is NOT swept** | ⭐ **any** imperative bus event with two potential actors has this shape. ⛔ **A broad detector over every bus event type would flag dozens of correct notification fan-outs and be switched off within a batch** *(the `CLAUDE.md` silent-default lesson)*. ⇒ ⭐ **gate the two ORDERS we have measured**, and treat a third as a finding when it appears |
+
+### 3.4b ⭐⭐⭐ THE LEVEL MISMATCH — **the forwarder listens to the ORDER, when it should listen to the INTENT**
+
+> 🔒 **User, `2026-09-02`:** *"Can't the request contain the desired creator/owner of the entity which
+> will solve this?"* — and then, on where this belongs: *"the thing about duplicating entity creation and
+> how to resolve … belongs to the entity creation design document … if we are planning the change of
+> principle, this should be cross host and should have its own design."*
+
+⛔⛔ **§3.4a says WHY double consumption is POSSIBLE. It does not say HOW TO RESOLVE IT, and the
+resolution the acceptance criteria assume is WRONG.** ⭐⭐ This section is the resolution, and it is
+**cross-host**: it changes what a forwarder subscribes to on *every* node that has one, not just IG.
+
+🔴 **STATUS: DECISION, NOT BUILT.** ⛔ Nothing here is implemented; `build-state` for this section is
+**DESIGN**, and host (f) IG must not adopt the pack until it is settled.
+
+#### ⭐⭐ THE TWO LEVELS — **and they are genuinely different concepts**
+
+📐 **Measured `2026-09-02`:**
+
+| level | type | scope | who decides | carries |
+|---|---|---|---|---|
+| ⭐⭐ **INTENT / REQUEST** | `EntityCreationRequest` *(`Hrot.Core/Network/EntityLifecycleInterfaces.cs`)* | ⭐ **cross-node** — arrives over DDS | the **author** | `OwnerAppInstanceId` *(`:32`)* — **who should own it** · `InitType` *(`CE-143`)* — **who must ACK** |
+| ⭐⭐ **ORDER / LOCAL COMMAND** | `SpawnEntityCommand` | ⛔ **node-local** — an `FdpEventBus` broadcast | the **request system**, having already decided this node acts | the resolved network id, the TKB type, the initial components |
+
+⇒ ⭐⭐⭐ **The request answers *"who should do this."* The command means *"I am doing it, now."***
+
+#### ✅ THE ROUTING RULE ALREADY EXISTS — **at the REQUEST level, and it is correct**
+
+📐 `CreateEntityRequestSystem.ProcessIncomingRequest` *(`:171-181`)*, verbatim:
+
+> *"If the request specifies an explicit target node, only that node processes it. If the target is 0
+> (broadcast / "any default"), only the designated default processor intercepts it — all other nodes drop
+> the packet silently to prevent duplicate ID allocation and cluster-wide race conditions."*
+
+```csharp
+int targetNodeId      = request.OwnerAppInstanceId;
+bool isTargetedAtMe   = targetNodeId == _localNodeId;
+bool isDefaultRequest = targetNodeId == 0;
+if (!isTargetedAtMe && !(isDefaultRequest && _isDefaultProcessor))
+    return;                       // Not our responsibility — silently ignore.
+```
+
+⭐⭐ **So the user's instinct is right: the request CAN carry the desired owner, and the guard that reads
+it is built and working.** ⛔ **What it cannot do is decide who the message gets SENT to** — because the
+sender is not looking at the request.
+
+#### 🔴🔴🔴 THE MISMATCH — **the forwarder subscribes one level too low**
+
+📐 `SpawnEntityCommandEgressTranslator.PollIngress` *(`:80`)* reads **`SpawnEntityCommand`** and writes a
+DDS `CreateEntityRequest`. ⇒ it converts an **order back into an intent**, one level *down* from where
+the routing decision lives.
+
+| you post a request saying… | what actually happens on a host holding BOTH |
+|---|---|
+| **owner = me** | the guard passes → the request system publishes the order → the spawn system builds it **AND** the forwarder ships it to the arbiter ⇒ 🔴 **still a double spawn** |
+| **owner = someone else** | the guard correctly returns → **no order is ever published** → the forwarder has nothing to read ⇒ 🔴 **the request never reaches that node at all** |
+
+⇒ ⭐⭐⭐ **Neither column works.** ⛔ **The owner field cannot fix this while the forwarder listens to the
+order**, because by the time an order exists the routing decision has already been made — and made
+*locally*.
+
+#### 🔴🔴 AND `CE-160` — **this is UNCONDITIONAL, which is what acceptance ⑪ gets wrong**
+
+⚠ §6 ⑪ says the hazard applies *"while any tool still publishes bus-level `SpawnEntityCommand`"* — ⛔
+**that implies retargeting the tools makes it safe. It does not.** 📐 `CreateEntityRequestSystem` —
+**built by the pack itself** — publishes `SpawnEntityCommand` unconditionally at **two** sites: `:321`
+*(the root entity)* and `:416` *(each auto-spawned TKB child)*.
+
+⇒ ⭐⭐ **After every tool is retargeted, the pack's own plumbing still publishes the order the forwarder
+reads.** ⇒ 🔒 **spawn system and spawn-egress translator are mutually exclusive, UNCONDITIONALLY.**
+⚠ **Worse than 1:2** — a TKB template with `N` children publishes `N+1` orders, so one placement forwards
+`N+1` requests.
+
+📌 **Gated already:** `EntityGenesisHazardRails` *(`Hrot.SimHost.Tests`)* reddens the moment any
+composition root holds both. ⭐ Written while green, before IG adopts.
+
+#### ⭐⭐ THE OPTIONS — **and the lean**
+
+| | option | verdict |
+|---|---|---|
+| **(a)** | **drop the forwarder from IG** *(the original plan)* | ⛔ **rejected.** It kills the double spawn **and** IG's ability to ever ask another node to create something. 🔒 That is a **lost capability**, which `R-137` forbids: *unification must not lose capability; put it back via configuration* |
+| ⭐⭐ **(b)** | ⭐ **RAISE THE FORWARDER A LEVEL — it subscribes to the REQUEST and fires when the owner is someone else** | ✅ **THE LEAN.** ⭐⭐ One rule, both capabilities kept, and the double spawn becomes **impossible by construction** rather than by remembering to omit a component: <br>• `owner == me` → build locally, forward nothing<br>• `owner == other` → do not build, send it over the wire<br>• `owner == 0` → the default-processor tiebreaker decides, exactly as today |
+| **(c)** | tag the order with *"already mine"* and have the forwarder skip those | ⛔ **rejected — it keeps the mismatch and adds state.** ⚠ It also cannot fix the second row of the table above: a request for a *remote* owner still publishes no order, so nothing is forwarded |
+
+⭐ **Why (b) is cross-host and not an IG fix:** the rule *"forward when the owner is not me"* is correct on
+**every** node. ⇒ ⭐⭐ **a host stops being special.** Today's arrangement — five hosts with a spawn system
+and no forwarder, one host with a forwarder and no spawn system — is §3.4a's *"the omissions WERE the
+invariant."* ⛔ Option (b) replaces that accident with a rule the pack can compose uniformly, which is
+this whole document's thesis.
+
+#### ⭐ THE UML — **the seam, and both routings**
+
+```mermaid
+classDiagram
+    class EntityCreationRequest {
+        <<record>>
+        +int OwnerAppInstanceId
+        +ReliableInitType InitType
+        +uint TkbType
+    }
+    class SpawnEntityCommand {
+        <<local order>>
+        +long NetworkId
+        +uint TkbType
+        +int OwnerNodeId
+    }
+    class CreateEntityRequestSystem {
+        -int _localNodeId
+        -bool _isDefaultProcessor
+        +ProcessIncomingRequest(request)
+    }
+    class NetworkSpawningSystem {
+        +ProcessSpawn(cmd)
+    }
+    class EntityCreationForwarder {
+        <<PROPOSED - option b>>
+        +OnRequest(request)
+    }
+    class SpawnEntityCommandEgressTranslator {
+        <<EXISTING - to be RETIRED by option b>>
+        +PollIngress()
+    }
+    EntityCreationRequest <.. CreateEntityRequestSystem : reads, applies Level-1 guard
+    CreateEntityRequestSystem ..> SpawnEntityCommand : publishes when THIS node acts
+    SpawnEntityCommand <.. NetworkSpawningSystem : materialises
+    SpawnEntityCommand <.. SpawnEntityCommandEgressTranslator : reads - THE MISMATCH
+    EntityCreationRequest <.. EntityCreationForwarder : reads - the correct level
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Tool as IG tool
+    participant Req as CreateEntityRequestSystem
+    participant Fwd as EntityCreationForwarder
+    participant Spawn as NetworkSpawningSystem
+    participant Peer as Owning node
+
+    Note over Tool,Peer: owner == me - build locally, forward nothing
+    Tool->>Req: EntityCreationRequest owner=me
+    Req->>Fwd: owner is local - no forward
+    Req->>Spawn: SpawnEntityCommand
+    Spawn->>Spawn: materialise once
+
+    Note over Tool,Peer: owner == someone else - forward, do not build
+    Tool->>Req: EntityCreationRequest owner=peer
+    Req-->>Req: Level-1 guard returns - no order published
+    Fwd->>Peer: CreateEntityRequest over DDS
+    Peer-->>Spawn: ghost replicated back
+```
+
+#### ⭐ BLAST RADIUS, and the one cost
+
+| | |
+|---|---|
+| ⭐ **new** | one forwarder that subscribes to `EntityCreationRequest` and fires on `owner != me` |
+| ⭐ **retired** | `SpawnEntityCommandEgressTranslator` — ⛔ **the capability is not lost, it MOVES** *(`R-137`)* |
+| ⚠ **the cost** | 📐 IG's drawing tools publish the **order** directly today, skipping the request system — `MapCommandController.cs:217`/`:312` *("Published SpawnEntityCommand")* and `MiniExConPanelState`. ⇒ **they must post REQUESTS instead.** ⭐ That is the same retarget already scoped for host (f), and 📐 **it is IG-local** — ⛔ it does not touch the editor's hand-tested scenario path |
+| ⭐ **the pack's role** | ⛔ the pack **composes** the forwarder in place of the egress translator; it does not invent a per-host rule |
+
+⚠ **What would change the lean:** if a node must be able to forward an order it did **not** originate —
+i.e. if forwarding is a *relay* rather than an *authoring* act. 📐 Nothing measured suggests that: the only
+production forwarder is IG's, and it forwards its own tools' output.
+
+#### 🔴 OPEN, and it is a question for the user, not a measurement
+
+⭐ **Should `owner = another node` stay reachable FROM IG at all**, or are tactical graphics always
+IG-owned? ⭐⭐ **The two are not equivalent** — 📄 `DESIGN_Node_Roles_And_Policies.md` §5/§7.3 says an
+IG-owned entity is **transient by convention**, so *"ask SimHost to own it"* is currently the **only** way
+IG can author something persistable. ⇒ ⛔ **removing that column would remove a capability;** ⭐ keeping it
+is what option (b) buys.
 
 ## 4. ⭐⭐ UML
 
