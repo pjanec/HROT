@@ -266,6 +266,9 @@ public sealed class NedNetworkFactory : INetworkFactory
             requestSource:     new NedEntityCreationRequestSource(_participant, _geoTransform),
             deleteSource:      new NedEntityDeletionRequestSource(_participant),
             ackSink:           new NedEntityAckSink(_participant),
+            // D1: the forwarding half. Present on every NED host, so a request addressed elsewhere
+            // leaves the node instead of being silently dropped by the Level-1 guard.
+            requestEgress:     new NedEntityCreationRequestEgress(_participant, _geoTransform),
             ownershipStrategy: new BrainMuscleOwnershipStrategy(clusterCache),
             jsonCompiler:      AttributeCompilerFactory.Build(_geoTransform),
             clusterCache:      clusterCache,
@@ -359,6 +362,7 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
     public IEntityCreationRequestSource       RequestSource     { get; }
     public IEntityDeletionRequestSource       DeleteSource      { get; }
     public IEntityAckSink                     AckSink           { get; }
+    public IEntityCreationRequestEgress?      RequestEgress     { get; }
     public IOwnershipDistributionStrategy?    OwnershipStrategy { get; }
     public JsonAttributeCompiler?             JsonCompiler      { get; }
 
@@ -366,6 +370,7 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
         IEntityCreationRequestSource    requestSource,
         IEntityDeletionRequestSource    deleteSource,
         IEntityAckSink                  ackSink,
+        IEntityCreationRequestEgress?   requestEgress,
         IOwnershipDistributionStrategy? ownershipStrategy,
         JsonAttributeCompiler?          jsonCompiler,
         SimpleClusterStateCache         clusterCache,
@@ -374,6 +379,7 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
         RequestSource     = requestSource;
         DeleteSource      = deleteSource;
         AckSink           = ackSink;
+        RequestEgress     = requestEgress;
         OwnershipStrategy = ownershipStrategy;
         JsonCompiler      = jsonCompiler;
         _clusterCache     = clusterCache;
