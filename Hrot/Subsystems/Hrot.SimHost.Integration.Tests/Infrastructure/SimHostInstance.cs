@@ -15,6 +15,7 @@ using Hrot.CGF;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
 using Hrot.Common.Systems;   // Q65 obstacle 1: the request tier moved here
+using Hrot.Common.EntityCreation;   // CE-160: the harness composes through the shared pack
 using Fdp.Toolkit.Replication.Attributes;   // PRE-EXISTING BREAK: AttributeCompilerFactory was never imported
 using Hrot.Core.Network;
 using Hrot.Map.Common;
@@ -217,6 +218,23 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         public readonly StubAckSink       AckSink       = new();
         public readonly StubIdAllocator   IdAllocator   = new(startId: 1000);
 
+        /// <summary>
+        /// ⭐ <c>CE-160</c> — the node id this harness runs as. A request whose
+        /// <c>OwnerAppInstanceId</c> does not match it is not targeted at this node and is dropped,
+        /// so tests must build requests against THIS constant rather than a repeated literal
+        /// (three test methods carried a bare <c>1</c> and a comment explaining it).
+        /// </summary>
+        public const int LocalNodeId = 1;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-160</c> — the translator list the pack composed, exposed so a rail can assert
+        /// the harness projects the SAME component set as production. ⛔ Before the pack adoption
+        /// this harness hand-rolled FIVE translators where <c>TkbTranslatorSet.Base()</c> carries
+        /// SIX; nothing could see the drift because nothing could see the list.
+        /// </summary>
+        public IReadOnlyList<ITkbEntityTranslator> Translators { get; private set; } =
+            System.Array.Empty<ITkbEntityTranslator>();
+
         // â”€â”€ Systems: IEcsModuleSystem-based (executed manually each tick) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private readonly CreateEntityRequestSystem      _requestSystem;
         private readonly NetworkSpawningSystem          _spawnSystem;
@@ -279,31 +297,58 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _tkbDb            = BuildTkbDatabase();
             _behaviorRegistry = BuildBehaviorRegistry(_wgs84, _entityMap);
 
-            // 3. Entity lifecycle module (empty participant list -> bypass ACK protocol) -
-            var translators = new List<ITkbEntityTranslator>
+            // 3-4. THE ENTITY-CREATION TIER -- built by the SHARED PACK, exactly as every
+            //   production host builds it.
+            //
+            // CE-160: this harness used to hand-assemble the tier -- its own translator list, its
+            //   own ELM wiring, and its own three `new` calls. That made it a SEVENTH composition
+            //   root for entity creation, and it had already DRIFTED: the hand-rolled list carried
+            //   FIVE translators where TkbTranslatorSet.Base() carries SIX (PresentationTkbTranslator
+            //   was missing), so every test below projected a different component set than production.
+            //
+            //   The drift is the point. A test harness that assembles the pipeline itself cannot
+            //   detect a defect in how the pipeline is assembled -- it can only ever prove that the
+            //   SYSTEMS work, never that the PACK composes them correctly. Going through
+            //   EntityCreationPack.Build makes the list correct BY CONSTRUCTION and turns the seven
+            //   flow tests below into real coverage of the unification.
+            //
+            //   IsBroadcastArbiter is FALSE, matching CreateEntityRequestSystem's own default, which
+            //   is what this harness passed implicitly before. The tests target their requests at
+            //   OwnerAppInstanceId == NodeId, so the broadcast tiebreaker never applies.
+            var jsonAttributeCompiler = AttributeCompilerFactory.Build(_wgs84);
+
+            _elm = new EntityLifecycleModule(_tkbDb, new List<int>());
+
+            var creation = EntityCreationPack.Build(new EntityCreationContext
             {
-                new SpatialCoreTkbTranslator(),
-                new VehicleKinematicsTkbTranslator(),
-                new BehaviorTkbTranslator(),
-                new CombatTkbTranslator(),
-                new PerceptionTkbTranslator(),
-            }.AsReadOnly();
-            _elm = new EntityLifecycleModule(_tkbDb, new List<int>(), translators: translators);
+                World                 = _world,
+                EntityMap             = _entityMap,
+                TkbDb                 = _tkbDb,
+                IdAllocator           = IdAllocator,
+                Elm                   = _elm,
+                NodeId                = LocalNodeId,
+                NetworkRequestSource  = RequestSource,
+                AckSink               = AckSink,
+                JsonAttributeCompiler = jsonAttributeCompiler,
+                IsBroadcastArbiter    = false,
+            });
+
+            // The pack calls Elm.SetTranslators; RegisterSystems follows it, as on every host.
             _elm.RegisterSystems(_elmSystems);
 
-            // 4. Request / spawn systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            var jsonAttributeCompiler = AttributeCompilerFactory.Build(_wgs84);
-            _finalizationSystem = new EntityRequestFinalizationSystem(AckSink, _entityMap);
-            _requestSystem = new CreateEntityRequestSystem(
-                RequestSource, AckSink, _tkbDb, IdAllocator, localNodeId: 1,
-                jsonAttributeCompiler: jsonAttributeCompiler, finalizationSystem: _finalizationSystem);
+            _requestSystem      = creation.RequestSystem;
+            _spawnSystem        = creation.SpawnSystem;
+            _finalizationSystem = creation.FinalizationSystem;
+            Translators         = creation.Translators;
 
-            _spawnSystem = new NetworkSpawningSystem(
-                _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1,
-                translators: translators);
-                // ⭐ CE-147 step 4 — the onEntitySpawned lambda is gone. It only did
-                //   SetAuthority<SimTransform>, which NetworkSpawningSystem's `AuthorityMask = compNS`
-                //   has already done by the time the hook would run.
+            // The pack builds every piece; this harness schedules all three below in Tick(), so
+            // nothing may be unserviceable. Asserting here rather than logging keeps the harness
+            // honest about the thing it now exists to prove.
+            var unserviceable = creation.Unserviceable(new object[]
+                { _requestSystem, _spawnSystem, _finalizationSystem });
+            if (unserviceable.Length > 0)
+                throw new InvalidOperationException(
+                    "SimHostInstance did not schedule every EntityCreationPack piece: " + unserviceable);
 
             // 5. Geographic systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             new GeographicModule(_wgs84).RegisterSystems(_geoSystems);
