@@ -913,7 +913,7 @@ public enum BlackboardDiagnosticCode
 
 The blackboard authoring subsystem enables visual DTO editing from within the BTree and HSM
 editors. The following summarizes the key concepts; full detail is in the design document at
-`.dev/ai-hsm-btree-vis-edit/Blackboard_Authoring_Detailed_Design.md`.
+`.dev/_DONE/ai-hsm-btree-vis-edit/Blackboard_Authoring_Detailed_Design.md`.
 
 ### File ownership — two categories
 

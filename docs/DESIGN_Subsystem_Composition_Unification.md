@@ -769,7 +769,7 @@ public sealed class SharedAiWindowRegistrar : IWindowRegistrar
 `RegisterWindows(WindowManager)` over 7 injected instances — ⛔ a different, flatter thing.
 ⇒ ⭐⭐⭐ **the built class is a partial, shape-superseded implementation of a design whose job
 `PerspectiveWorkspaceRegistrar` now does, per perspective, on both hosts.**
-*(Also referenced in `.dev/main-toolbar-1/BATCH-22-*` and `.dev/ai-hsm-btree-vis-edit/BATCH-04-*` — batch
+*(Also referenced in `.dev/_DONE/main-toolbar-1/BATCH-22-*` and `.dev/_DONE/ai-hsm-btree-vis-edit/BATCH-04-*` — batch
 artefacts, no contrary intent.)*
 
 #### ⭐ VERDICT under the *"no rush removals"* rule — classify before removing

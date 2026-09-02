@@ -1250,7 +1250,7 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > reason — a design doc gives answers."*** 📌 **Now a binding section in `.claude/CLAUDE.md`.**
 > ⛔ **My lean was DELETE. They ROUTED, and they were right** — because they went and found the design
 > record I never looked for:
-> ⭐⭐ **`.dev/btree-ai-action-binding/SLICE1-DESIGN.md:82` NAMES THE EXPRESSION VERBATIM** — *"the BTree
+> ⭐⭐ **`.dev/_DONE/btree-ai-action-binding/SLICE1-DESIGN.md:82` NAMES THE EXPRESSION VERBATIM** — *"the BTree
 > generator **ignores** the blueprint's standalone `BTreeTick` (with its `paramIndex*sizeof` math)"*,
 > under the architect ruling *"BTree owns layout, blueprint provides `TickCore`"*; and
 > **`SLICE2-DESIGN.md` §6.2** — *"the blueprint's own `BTreeTick`/`Memory+8` path stays the STANDALONE

@@ -76,7 +76,7 @@ two behaviours the diagram did not state and the build had to decide: **a cancel
 ignores `.debug/`** — 📐 `git ls-files .debug` returns nothing. ⇒ **that path cannot host a
 git-maintained curated copy**, so the ruling's two halves are only satisfiable together by moving the
 user copy out. ⭐ The per-user data dir is **the alternative `CF-8`'s own design already named**
-*(`.dev/blueprint-dbg-1/TASK-DETAIL.md:699`)*.
+*(`.dev/_DONE/blueprint-dbg-1/TASK-DETAIL.md:699`)*.
 
 ⭐⭐ **Which of the two named patterns:** the **`imgui.ini`** one. `LayoutPaths.TryResetUserLayout` copies
 from the **output directory**, so the reset holds in a deployed build and in CI; `CuratedScenarios` walks

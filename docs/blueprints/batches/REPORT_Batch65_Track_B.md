@@ -184,7 +184,7 @@ message — all four cite it.** 📐 Measured:
 | where | what it says |
 |---|---|
 | 📄 `reports/BATCH-03-REPORT.md:100` | *"**`DEBT-AIB-012` (suggested).** The `StructSizeResolver` logic is a third copy of `ComputeStructSize`…"* — ⭐ **the word is `(suggested)`** |
-| 📄 `.dev/btree-ai-action-binding/DEBT-TRACKER.md` | *"**`DEBT-AIB-012` — inspector multi-DTO read.** **RESOLVED BATCH-05**"* — ⛔ **a different item, already closed** |
+| 📄 `.dev/_DONE/btree-ai-action-binding/DEBT-TRACKER.md` | *"**`DEBT-AIB-012` — inspector multi-DTO read.** **RESOLVED BATCH-05**"* — ⛔ **a different item, already closed** |
 
 ⇒ ⭐⭐ **The suggested number was already taken, nobody reconciled it, and the row was never created.**
 ⛔ **Citing the triplication as `DEBT-AIB-012` points at a resolved row about something else** — which

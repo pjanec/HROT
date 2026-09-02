@@ -302,7 +302,7 @@ name, the accessibility, and three null-guards.**
 > *"unreferenced is not unintentional"* rule exists to stop, and here it was not even unreferenced.
 
 ⚠ **Checked the corpus before saying so** — ⭐ **`docs/` first, then `.dev/`** *(the `2026-08-17` order;
-restated by the user `2026-08-21`)*: the `.dev/` record is `.dev/main-toolbar-1/` Batch 24, which
+restated by the user `2026-08-21`)*: the `.dev/` record is `.dev/_DONE/main-toolbar-1/` Batch 24, which
 introduced the facade for the new toolbar; ⛔ **no record explains why both survive.**
 
 ⇒ ⭐⭐⭐ **VERDICT: ROUTE, not delete.** 📌 CLAUDE.md's three-way test decides it —

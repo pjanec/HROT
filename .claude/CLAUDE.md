@@ -130,8 +130,8 @@ nothing.** ⛔ **The coordinator's lean was DELETE**, on the precedent of `BP-24
 
 | where | what it says |
 |---|---|
-| **`.dev/btree-ai-action-binding/SLICE1-DESIGN.md:82`** | ⭐⭐ **names the expression verbatim**: *"the BTree generator **ignores** the blueprint's standalone `BTreeTick` (with its `paramIndex*sizeof` math)"* — architect ruling *"BTree owns layout, blueprint provides `TickCore`"* |
-| **`.dev/btree-ai-action-binding/SLICE2-DESIGN.md` §6.2** | *"(The blueprint's own `BTreeTick`/`Memory+8` path stays the **standalone** blueprint-as-behavior hosting.)"* |
+| **`.dev/_DONE/btree-ai-action-binding/SLICE1-DESIGN.md:82`** | ⭐⭐ **names the expression verbatim**: *"the BTree generator **ignores** the blueprint's standalone `BTreeTick` (with its `paramIndex*sizeof` math)"* — architect ruling *"BTree owns layout, blueprint provides `TickCore`"* |
+| **`.dev/_DONE/btree-ai-action-binding/SLICE2-DESIGN.md` §6.2** | *"(The blueprint's own `BTreeTick`/`Memory+8` path stays the **standalone** blueprint-as-behavior hosting.)"* |
 
 ⇒ ⭐⭐ **It is an opt-in capability** (`AiPrimitiveHosting.BTreeAction`/`BTreeCondition`), **not a
 vestige.** ⛔ **Deleting it removes a capability, not a mistake.** ✅ **The right answer was ROUTE, not
@@ -197,7 +197,7 @@ every place a user can reach one.**
 construction** — ⭐ so when a `.dev/` design and a newer `docs/` design disagree, **`docs/` wins**; ⛔ but
 absence of a `docs/` record does NOT make the `.dev/` one worthless. 📌 **Measured `2026-08-21`:** searching `EditorTimeTransportFacade` returns hits in
 **both** trees — `docs/blueprints/{DESIGN_Time_Architecture,PLAN_Time_System_Refactor,Q48}.md` *(the
-live intent)* **and** `.dev/main-toolbar-1/` *(the batch that built it)*. ⇒ ⭐ **searching one tree
+live intent)* **and** `.dev/_DONE/main-toolbar-1/` *(the batch that built it)*. ⇒ ⭐ **searching one tree
 answers half the question.**
 
 📌 **Three findings this programme derived the hard way were already written down:** the standalone

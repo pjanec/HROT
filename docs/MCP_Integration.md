@@ -57,7 +57,7 @@ diagnostics surface: per-node logs, per-node architecture snapshot, cluster-wide
 | Production DebugApi | `Hrot/Subsystems/Hrot.Editor/DebugApi/` (`DebugApiService` 2140 ln, `DebugApiHost`, `MainThreadJobQueue`, `EditorAiTracerCoordinator`, `DebugApiSafeFloatConverters`) |
 | Shared diagnostics helpers | `FDP/Toolkits/Fdp.Toolkits/Diagnostics/{EventSerializationHelper,JsonShapeDescriber}.cs` |
 | Node MCP server | `tools/ai-debug-mcp/` (17 files, outside the .sln — a Node toolchain dependency only) |
-| Design corpus | `.dev/ai-debug-api/` (52 docs) |
+| Design corpus | `.dev/_DONE/ai-debug-api/` (52 docs) |
 | `EventSerializationHelperTests` | kept compiled (harness-free) |
 
 ### Three shared-file reconciliations (ADA-era additions the trunk lacked)
@@ -124,7 +124,7 @@ GET /entities  → []
 # MCP EXTENSIONS — design (scenario verification + authoring)
 
 > **Status: DESIGN, 2026-08-22 — proposed, open to discussion.** Extends the original endpoint families
-> (`.dev/ai-debug-api/DESIGN.md` Groups A–N) with new groups so an agent (and the C# harness,
+> (`.dev/_DONE/ai-debug-api/DESIGN.md` Groups A–N) with new groups so an agent (and the C# harness,
 > `DESIGN_MCP_System_Test_Harness.md`) can *check a scenario runs as expected* and *author* the things that
 > drive it. Groups O–R below. Each says what it reuses and whether it is buildable now or needs new engine
 > surface.

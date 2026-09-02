@@ -18,7 +18,7 @@ design record I never looked for:
 
 | | |
 |---|---|
-| **`.dev/btree-ai-action-binding/SLICE1-DESIGN.md:82`** | ⭐⭐ **names the expression verbatim** — *"the BTree generator **ignores** the blueprint's standalone `BTreeTick` (with its `paramIndex*sizeof` math)"*, under the architect ruling *"BTree owns layout, blueprint provides `TickCore`"* |
+| **`.dev/_DONE/btree-ai-action-binding/SLICE1-DESIGN.md:82`** | ⭐⭐ **names the expression verbatim** — *"the BTree generator **ignores** the blueprint's standalone `BTreeTick` (with its `paramIndex*sizeof` math)"*, under the architect ruling *"BTree owns layout, blueprint provides `TickCore`"* |
 | **`SLICE2-DESIGN.md` §6.2** | *"the blueprint's own `BTreeTick`/`Memory+8` path stays the **standalone** blueprint-as-behavior hosting"* |
 
 ⭐⭐ **And the distinction you drew is the part worth keeping:** `W3`'s stubs were **unreachable AND
@@ -59,7 +59,7 @@ deliverable; a claim of completeness is not.**
 ## 2. `S2` — struct size resolution ⭐ **and it has a design record too**
 
 ⭐ **Coordinator-grepped, so you start from the pointers rather than the search:**
-`.dev/btree-ai-action-binding/` — **`TASK-DETAIL.md`**, **`batches/BATCH-03-INSTRUCTIONS.md`**,
+`.dev/_DONE/btree-ai-action-binding/` — **`TASK-DETAIL.md`**, **`batches/BATCH-03-INSTRUCTIONS.md`**,
 **`batches/BATCH-06-INSTRUCTIONS.md`**, **`reviews/BATCH-03-REVIEW.md`**, **`reports/BATCH-03-REPORT.md`**
 all mention curated-struct registration / `StructSizeResolver` / `SizeReliable`.
 
@@ -79,8 +79,8 @@ is meant to be.** ⚠ **If it does, that supersedes my lean.**
 
 ## 3. `W6` → `W7` *(carried a fourth time — and these have records too)*
 
-⭐ **Coordinator-grepped pointers:** `.dev/blueprint-finalize/reports/AN3-REPORT.md` ·
-`AN7-REPORT.md` · `.dev/ai-hsm-btree-vis-edit-2/DECISIONS.md` · `.dev/ai-hsm-btree-vis-edit/design-talk.md`.
+⭐ **Coordinator-grepped pointers:** `.dev/_DONE/blueprint-finalize/reports/AN3-REPORT.md` ·
+`AN7-REPORT.md` · `.dev/_DONE/ai-hsm-btree-vis-edit-2/DECISIONS.md` · `.dev/_DONE/ai-hsm-btree-vis-edit/design-talk.md`.
 
 | | |
 |---|---|

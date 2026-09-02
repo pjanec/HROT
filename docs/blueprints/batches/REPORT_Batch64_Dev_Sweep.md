@@ -11,7 +11,7 @@ did not cover.
 
 ## 1. 🛑 `W7` — **CONTRADICTS.** The concurrent-region rule is already fully designed
 
-📄 **`.dev/ai-hsm-btree-vis-edit/Blackboard_Authoring_Detailed_Design.md` §7.7, §9.1–§9.6.**
+📄 **`.dev/_DONE/ai-hsm-btree-vis-edit/Blackboard_Authoring_Detailed_Design.md` §7.7, §9.1–§9.6.**
 
 | dispatched `W7` | what the record says | verdict |
 |---|---|---|
@@ -31,7 +31,7 @@ implementation of a conflict validator that §9.1 says to extend — **ruling 9'
 
 | item | record | verdict |
 |---|---|---|
-| **`S2`** | 📄 `.dev/btree-ai-action-binding/reports/BATCH-03-REPORT.md:34` — ⭐ **a stated design mandate**: *"`StructSizeResolver` lives in `Hrot.AiEditor.Generators` (Roslyn-aware) and is **injected via `Func<string,int?>`**. The Persistence assembly stays netstandard2.0 / Roslyn-free. **This matches the design mandate.**"* · `TASK-DETAIL.md:58` cites a **user decision, `2026-06-15`** | ✅ **CONFIRMS the lean** — injection, not a project reference. ⭐ The concrete precedent is `BTreeBlackboardPackHelper.Pack(vars, Func<string,int?>, out total)` |
+| **`S2`** | 📄 `.dev/_DONE/btree-ai-action-binding/reports/BATCH-03-REPORT.md:34` — ⭐ **a stated design mandate**: *"`StructSizeResolver` lives in `Hrot.AiEditor.Generators` (Roslyn-aware) and is **injected via `Func<string,int?>`**. The Persistence assembly stays netstandard2.0 / Roslyn-free. **This matches the design mandate.**"* · `TASK-DETAIL.md:58` cites a **user decision, `2026-06-15`** | ✅ **CONFIRMS the lean** — injection, not a project reference. ⭐ The concrete precedent is `BTreeBlackboardPackHelper.Pack(vars, Func<string,int?>, out total)` |
 | **`S2` ⚠ addition** | 📄 same report **`:100`** ⛔ **[CORRECTED `2026-08-16`: I wrote *"already filed"* — it is *`DEBT-AIB-012` (suggested)* and NEVER FILED; that id belongs to a different RESOLVED row]**: *"The `StructSizeResolver` logic is a **third copy** of `ComputeStructSize` (alongside `BTreeActionGenerator` and `BehaviorParameterSizeAnalyzer`). All three are kept in sync by the 'keep in sync' comment. A shared utility would be better but is **architecturally non-trivial**."* | 🔴 **REFINES** — ⛔ a naïve `S2` makes it a **FOURTH** copy. ⭐⭐ **And it answers the question I have been carrying since `W5`**: the netstandard2.0/net8.0 wall duplicates the *algorithm* as well as the *constant*, and that was filed in June |
 | **`S3`** | 📄 `.dev/_DONE/blueprints-1/TASK-DETAIL.md:1840` — *"`MarshalFromBytes(byte[], Type)`: `MemoryMarshal.Read<T>` dispatch for primitives, **reflection-based for structs** (UI decode only, not on the probe path)"* · `blueprint-dbg-1/TASK-DETAIL.md:193` — *"Debug DD §8.5 — primitives/small structs only"* | ✅ **CONFIRMS** — ⭐ the struct arm was **designed in and never built**, not an invention. The design also fixes its shape (reflection, UI-only) and bounds it (*small* structs) |
 | **`S4`** | **none found** — the `.dev/` hits for fixed-capacity lists are all unrelated programmes (squad/anim/utility-AI) | ⚪ **no record** |
@@ -55,7 +55,7 @@ implementation of a conflict validator that §9.1 says to extend — **ruling 9'
 - **Track C's panels** (`C1`–`C7`): the named record —
   `Blackboard_Authoring_Detailed_Design.md` — is about **authoring** (source-of-truth model, DTO
   files, bin-packing, aliasing). ⛔ **It does not rule on the value column, StructEdit, the write path
-  or the Watch panel.** ⚠ I did **not** sweep `.dev/blueprint-dbg-1/2`, `main-toolbar-*` or
+  or the Watch panel.** ⚠ I did **not** sweep `.dev/_DONE/blueprint-dbg-1/2`, `main-toolbar-*` or
   `ai-hsm-btree-vis-edit-2/` for those — that is the largest remaining gap.
 - **`W8`–`W12`** searched by summary vocabulary only.
 - **The two prerequisites** in `PLAN_Remaining_Work.md §5` (the surgical ECB field-write; the paused

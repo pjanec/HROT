@@ -35,7 +35,7 @@ all three items now have a design record behind them.**
 
 ## 1. `S2` — struct size resolution ⭐ **the mandate is stated; build to it**
 
-📄 **`.dev/btree-ai-action-binding/reports/BATCH-03-REPORT.md:34`** — ⭐⭐ **a stated design mandate**:
+📄 **`.dev/_DONE/btree-ai-action-binding/reports/BATCH-03-REPORT.md:34`** — ⭐⭐ **a stated design mandate**:
 
 > *"`StructSizeResolver` lives in `Hrot.AiEditor.Generators` (Roslyn-aware) and is **injected via
 > `Func<string,int?>`**. The Persistence assembly stays netstandard2.0 / Roslyn-free. **This matches the
@@ -80,7 +80,7 @@ NOT opened)*.
 
 📄 **`.dev/_DONE/blueprints-1/TASK-DETAIL.md:1840`** — *"`MarshalFromBytes(byte[], Type)`:
 `MemoryMarshal.Read<T>` dispatch for primitives, **reflection-based for structs (UI decode only, not on
-the probe path)**"* · 📄 **`.dev/blueprint-dbg-1/TASK-DETAIL.md:193`** — *"Debug DD §8.5 —
+the probe path)**"* · 📄 **`.dev/_DONE/blueprint-dbg-1/TASK-DETAIL.md:193`** — *"Debug DD §8.5 —
 primitives/**small** structs only"*.
 
 ⇒ ✅ **CONFIRMS the plan, and BOUNDS it:** ⭐ **reflection is the ruled mechanism**, ⛔ **UI-decode only

@@ -25,7 +25,7 @@ namespace Hrot.AiEditor.Generators;
 ///
 /// <para>
 /// 📌 <b>The triplication is real and was NEVER ACTUALLY FILED.</b>
-/// <c>.dev/btree-ai-action-binding/reports/BATCH-03-REPORT.md:100</c> describes it and proposes the id
+/// <c>.dev/_DONE/btree-ai-action-binding/reports/BATCH-03-REPORT.md:100</c> describes it and proposes the id
 /// <b><i>"DEBT-AIB-012 (suggested)"</i></b> — ⛔ but that number was already taken: the programme's
 /// <c>DEBT-TRACKER.md</c> gives <c>DEBT-AIB-012</c> to <i>"inspector multi-DTO read"</i>, <b>RESOLVED
 /// BATCH-05</b>. ⇒ the debt has a description, a suggestion and no row. ⚠ <b>Do not cite it by that

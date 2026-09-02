@@ -20,7 +20,7 @@
 
 ## 1. 🔴🔴 `W7c` — **the conflict rule has a COVERAGE HOLE** ⭐ *the most valuable item here*
 
-📄 **Design: `.dev/ai-hsm-btree-vis-edit/Blackboard_Authoring_Detailed_Design.md` §9.2 + §9.5.**
+📄 **Design: `.dev/_DONE/ai-hsm-btree-vis-edit/Blackboard_Authoring_Detailed_Design.md` §9.2 + §9.5.**
 📄 **My re-derivation: `PLAN_Remaining_Work.md` §4i.**
 
 ⭐ **Most of §9 is BUILT** — rule 9 (`HsmValidator.CheckBlackboardRegionConflicts`) exists **and is wired

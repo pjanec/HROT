@@ -155,7 +155,7 @@ currently doing.** That is why one stacks and the other is exclusive.
 public Dictionary<string, object>? Overrides { get; init; }
 ```
 
-📄 **`.dev/blueprint-scenario/BLUEPRINT-SCENARIO-DESIGN.md` §6** — *"Variable overrides (MVP:
+📄 **`.dev/_DONE/blueprint-scenario/BLUEPRINT-SCENARIO-DESIGN.md` §6** — *"Variable overrides (MVP:
 assignment-only; door left open) … The format is forward-compatible so overrides drop in without a
 change."* ⭐⭐⭐ **And the stated blocker:** *"**Deferred because** the authoring UX ('where is a
 per-instance override edited?') is unsettled."*

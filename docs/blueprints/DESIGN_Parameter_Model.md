@@ -18,7 +18,7 @@ known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rule
 > | document | what of it |
 > |---|---|
 > | 📄 [`Behavior_Parameter_Resolver_Detailed_Design.md`](Behavior_Parameter_Resolver_Detailed_Design.md) *(`2026-07-13`)* | ⭐ **its model and pipeline STAND and are quoted below.** ⛔ **§7's `G1`–`G7` gap list is STALE** — four had closed by `2026-08-16` (§6) |
-> | 📄 `.dev/blueprint-scenario/BLUEPRINT-SCENARIO-DESIGN.md` §6 *(`Overrides`)* | ⛔ **SUPERSEDED as the mechanism** — Instances use the resolver, not a name→value dict (§3.3) |
+> | 📄 `.dev/_DONE/blueprint-scenario/BLUEPRINT-SCENARIO-DESIGN.md` §6 *(`Overrides`)* | ⛔ **SUPERSEDED as the mechanism** — Instances use the resolver, not a name→value dict (§3.3) |
 > | 📄 [`PLAN_Cross_Host_Sequencing.md`](PLAN_Cross_Host_Sequencing.md) §2 (`D2`), §6 (Phase B) | ⛔ **superseded** — `W8`/`W12` dropped, `D2` dissolved |
 > | 📄 [`EXPLAINER_Where_Parameters_And_State_Live.md`](EXPLAINER_Where_Parameters_And_State_Live.md) | ⭐ **kept as the measurement record + diagrams.** ⛔ **This doc wins on any disagreement** |
 > | 📄 [`Architect_Question_33`](Architect_Question_33_Blueprint_Brain_Tier.md) | ⛔ **PARKED** — brain-tier / suspendable nesting. ⚠ **Not part of this story** |
