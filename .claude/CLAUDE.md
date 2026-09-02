@@ -62,6 +62,14 @@ grep and present the result with the same confidence.
 > ⇒ ⛔ **A report that says "codebase-memory MCP was not connected, so I used grep" is now
 > a MISS** — the CLI was available; use it and say so.
 
+> ⛔⛔ **CLI GAP, measured `2026-09-02`: `check_index_coverage` is NOT available through the CLI**
+> *(`codebase-memory-mcp cli check_index_coverage …` → `unknown tool`)*. ⇒ ⭐ in a session where only the
+> CLI is reachable, the *"run `check_index_coverage` before any negative or exhaustive claim"* rule
+> **cannot be satisfied** — ⭐⭐ **say so in the claim** rather than implying coverage was checked.
+> ⚠ **And `trace_path` returned an EMPTY caller set for a struct constructor** *(`NetworkAuthority`)*, so
+> ⛔ **it does not substitute for grep on "who writes this"** — the existing warning about C# interface
+> dispatch is narrower than the real limitation.
+
 Always call `list_projects` first when you do not already know the project name, then use the `display_name` or exact `name` returned by that tool.
 
 ```json
