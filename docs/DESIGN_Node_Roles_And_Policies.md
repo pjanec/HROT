@@ -5,8 +5,9 @@ current-answer: §3 is the role table and §3.1 is entity-creation uniformity (a
   capability), §4 is ownership, §5 is persistence, §6 is where an entity should be created. §7 is the
   honest list of what is ENFORCED versus merely CONVENTION.
 open-elsewhere: §8 ① — what happens to a REPLICATED entity at save time — is a SCENARIO-SAVING
-  question parked here. No scenario-saving design document exists yet; when one is written, that
-  question moves there and this file keeps only the dependency.
+  question parked here; its owning home is docs/designs/cgf-scn-2/DESIGN.md (scenario serialization
+  correctness). §8.1 records that an earlier draft claimed no such design existed, which was FALSE —
+  it searched docs/ only and its filename filter missed cgf-scn because the folder says "scn".
 stale-below: nothing.
 known-rot: nothing known. ⚠ This document is NEW and consolidates statements that were previously
   scattered across HROT-Engine-Guide §1.3–§1.3c, RULINGS R-138/R-140, and Architect_Question_65. If it
@@ -39,11 +40,14 @@ user's head. That is what this fixes.
 |---|---|---|
 | ① | `search_graph name_pattern="NodeRole\|ClusterRole\|.*NodeRole.*"` | **25** hits — ⭐ exactly **one** production type: `Hrot/Engine/Hrot.Core/NodeRole.cs`. The rest are docs and reports |
 | ② | `grep "enum NodeRole"` production | **1** definition — no second, competing role enum |
-| ③ | `grep -rln "NodeRole\|node role\|passive.*node"` over `docs/` | **12** files, all **orientation or per-project reference** — ⛔ **no standalone role/policy design existed** |
+| ③ | `grep -rln "NodeRole\|node role\|passive.*node"` over **`docs/`** | **12** files, all **orientation or per-project reference** |
 | ④ | existing owners of the topic | `HROT-Engine-Guide` §1.3/§1.3a/§1.3b/§1.3c · `RULINGS` R-138/R-140 · `Architect_Question_65` |
+| ⑤ | ⚠ **ADDED `2026-09-02` after the search flaw in §8.1** — `find .dev -iname "*role*" -o -iname "*node*"` over all **2939** `.dev` markdown files, **including `_DONE/`** | **13** hits, ⭐ **every one a Blueprint EDITOR-node document** *(graph nodes, not cluster nodes)* ⇒ ⛔ **nothing on cluster node roles** |
 
-⇒ ⭐ **No prior standalone design to extend** ⇒ this file is new, and the four sources in ④ become
-**pointers to it** rather than parallel accounts.
+⇒ ⭐ **No prior standalone design to extend** — ⭐⭐ **now measured across BOTH trees**, not just `docs/`
+⇒ this file is new, and the sources in ④ become **pointers to it** rather than parallel accounts.
+⚠ **Row ⑤ exists because rows ①–④ searched `docs/` only, and §8.1 records where that same flaw produced
+a FALSE claim about scenario-saving designs.** ⛔ The conclusion survived; the method did not.
 
 ---
 
@@ -245,10 +249,38 @@ because ownership is exactly what the extractor throws away.
 
 | # | question | why it matters |
 |---|---|---|
-| ① | 🔴 **OPEN, and it does NOT belong to this document.** ⭐ **NARROWED `2026-09-02`** — ~~does IG save?~~ **no, measured: it registers no save handler (§7.1)**. ⇒ the live question is **"what happens to a REPLICATED entity at save time?"** — an IG-owned temporary entity present in a **saving node's** world is indistinguishable there *(§7.2)*. 🔒 **User, `2026-09-02`:** *"saving replicated entities is not yet resolved so it should stay as open question. very likely in a design document dedicated to scenario saving."* ⛔⛔ **NO SUCH DOCUMENT EXISTS** — 📐 measured: the only `DESIGN_*Scenario*` files are `Cgf_Scenario_Session_Slice` and `Cgf_Scenario_Windows_Slice`, both **CGF UI slices**, neither about the save mechanism. ⇒ ⭐ **this question is PARKED here and moves to a scenario-saving design when one is written** | it decides whether §5's rule is safe **by topology** or needs a rule on the saving side. ⛔ **It is a SCENARIO-SAVING question, not a node-role one** — this document only records that the role policy depends on its answer |
+| ① | 🔴 **OPEN, and it does NOT belong to this document.** ⭐ **NARROWED `2026-09-02`** — ~~does IG save?~~ **no, measured: it registers no save handler (§7.1)**. ⇒ the live question is **"what happens to a REPLICATED entity at save time?"** — an IG-owned temporary entity present in a **saving node's** world is indistinguishable there *(§7.2)*. 🔒 **User, `2026-09-02`:** *"saving replicated entities is not yet resolved so it should stay as open question. very likely in a design document dedicated to scenario saving."* ⭐⭐ **AND SUCH DOCUMENTS DO EXIST — see §8.1. The owning home is [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md)** *(scenario serialization correctness — what belongs in scenario JSON and what must be kept out)*. ⇒ ⭐ **this question is PARKED here and belongs there** | it decides whether §5's rule is safe **by topology** or needs a rule on the saving side. ⛔ **It is a SCENARIO-SAVING question, not a node-role one** — this document only records that the role policy depends on its answer |
 | ①b | ⭐ **a rail that IG's composition root registers no save/extraction handler** | §7.1 — turns an ABSENCE into a checked invariant, the same move `EntityGenesisHazardRails` made for the spawn/destroy hazards |
 | ② | when an IG holding temporary entities disappears, what removes the replicas on other IGs? | 🔒 the ruling says its entities are *"gone, and no one cares"* — ⚠ but peers hold ghosts, and an undisposed ghost is the **silent** half of the `CE-144` family |
 | ③ | should `RequestFromDefaultProcessor` remain reachable from IG once it can create locally? | §6 says yes — it is the only way IG can author something persistable |
+
+### 8.1 ⛔⛔ CORRECTION `2026-09-02` — **the scenario-saving designs DO exist; my search was wrong**
+
+⚠ **An earlier version of §8 ① said *"NO SUCH DOCUMENT EXISTS."* 🔴 That was FALSE**, and the way it was
+false is worth recording because `CLAUDE.md` warns about it in exactly these words.
+
+| ⛔ what I did | ⭐ why it missed |
+|---|---|
+| searched **`docs/` only** | 📌 `CLAUDE.md`: *"there are ~2900 markdown files in `.dev/` and this programme had never searched them"* — ⛔ including **`.dev/_DONE/`**, where finished programmes' designs live |
+| filtered filenames on `scenario\|sav\|persist\|storage` | 🔴 **the programme is called `cgf-scn`** — *"scn"*, not *"scenario"* ⇒ **the filter excluded the very thing it was looking for** |
+
+⭐⭐ **What actually exists** *(found `2026-09-02` after the user challenged the claim)*:
+
+| document | what it covers |
+|---|---|
+| ⭐⭐ [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md) | **CGF Scenario Serialization Correctness** — ⭐ **the closest thing to a scenario-SAVING design**: what belongs in scenario JSON, `[DataPolicy(DataPolicy.NoSave)]` guards, `IEntityScenarioTranslator`, and the serializer's silent-truncation defects ⇒ **the owning home for §8 ①** |
+| [`docs/designs/cgf-scn/DESIGN.md`](designs/cgf-scn/DESIGN.md) | **CGF Scenario Loading via Genesis Pipeline** — makes CGF the *authoritative entity genesis source* for scenario load. ⭐ Directly relevant to §3.1 and §4 |
+| `.dev/_DONE/cgf-scn-3/DESIGN.md` | scenario save producing wrong JSON — missing missions, and **runtime-tier state leaking into declarative initial conditions** ⇒ ⭐ **the same DISEASE as §8 ①, one level down** |
+
+### ⭐⭐ And the existing exclusion mechanism — **it cannot express §8 ①**
+
+📐 **Measured:** `[DataPolicy(DataPolicy.NoSave)]` *(`FDP/Engine/Fdp.Core/DataPolicyAttribute.cs:48`)* is
+how a thing is kept out of the save today — ⛔ **but it is an attribute on a COMPONENT TYPE.** ⇒ it can
+say *"`UnitRoster` is never saved"*; ⛔ **it cannot say *"THIS entity is a sketch."***
+
+⇒ ⭐⭐ **That is precisely why §8 ① is still open**: the save path has a per-*type* opt-out and a static
+exclusion mask, and **neither can express a per-*entity* origin.** ⚠ Whoever takes it in `cgf-scn-2`'s
+successor starts from that gap, not from scratch.
 
 ---
 
@@ -260,4 +292,6 @@ because ownership is exactly what the extractor throws away.
 | [`RULINGS.md`](blueprints/RULINGS.md) `R-138`, `R-140` | ⭐ **the INDEX** — the canon rows and their verbatim probes. ⛔ A ledger row is a pointer, never the explanation |
 | [`Architect_Question_65`](blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md) | the entity-genesis decisions that made these conventions load-bearing |
 | [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) | the shared creation pipeline every role composes |
+| ⭐ [`docs/designs/cgf-scn-2/DESIGN.md`](designs/cgf-scn-2/DESIGN.md) | **scenario serialization correctness** — what belongs in scenario JSON. ⭐ **The owning home for §8 ①** |
+| [`docs/designs/cgf-scn/DESIGN.md`](designs/cgf-scn/DESIGN.md) | CGF as the authoritative entity genesis source for scenario LOAD — relevant to §3.1 and §4 |
 | [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) | ⚠ **designed, not built** — would turn §4's expectations into a derived default |
