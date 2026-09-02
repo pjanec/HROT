@@ -607,9 +607,11 @@ public sealed class EditorStrideSubsystem : IDisposable
         //    registration below is what makes Unserviceable() return empty.
         // 📄 docs/DESIGN_Entity_Creation_Unification.md §3, §3.3 ·
         //    docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0.
-        // ⚠⚠ UNVERIFIED BY BUILD: the Stride tree needs Microsoft.WindowsDesktop.App and does not
-        //    compile on the Linux session that wrote this. Reviewed against the identical (c) edit in
-        //    Hrot.Editor/EditorSubsystem.cs, which DOES build.
+        // ✅ VERIFIED ON WINDOWS 2026-09-02: `dotnet build Stride\HrotStrideApp.sln` — 0 errors, no
+        //    call-site fix needed. The three Stride suites are identical to base 2b0a703b3 over 9 runs
+        //    per side, and STRIDE_SELFTEST=1 passes all four checks with no "cannot place" and no
+        //    "[EntityCreation]" warn — i.e. the TranslatorPlacement anchor resolved and every pack
+        //    piece (including the FinalizationSystem new to this host) was actually scheduled.
         var idAllocator = new SequentialIdAllocator();
         var creation = EntityCreationPack.Build(new EntityCreationContext
         {
