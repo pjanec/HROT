@@ -898,19 +898,54 @@ resolves, one place forwards.**
 | **(b)** | add `OwnerRole` **beside** `OwnerAppInstanceId` | ⛔ **rejected** — two fields that can disagree, with no rule saying which wins |
 | ⭐⭐ **(c)** | ⭐ an **`OwnerAddress`** value type on `EntityCreationRequest`: exactly one of **`Node(id)`** · **`Role(NodeRole)`** · **`DefaultProcessor`** | ✅ **THE LEAN** — "both set" is **unrepresentable**, and `DefaultProcessor` names today's `0` instead of leaving it a magic literal |
 
-🔴🔴 **AND THE CONSTRAINT THAT KEEPS THIS CHEAP.** 📐 **Measured:** `OwnerAppInstanceId` is a **WIRE** field —
-the DDS `CreateEntityRequest.Owner` is `Hrot.NED.Common.NodeId`, and `NedCgfEntityLifecycleAdapters` maps
-`msg.Owner.AppInstanceId` onto it. 📐 That `NodeId` carries **exactly one field, `AppInstanceId`** — ⛔ **no
-role, no app type.**
+##### ⛔⛔ THERE IS NO GENERIC NODE-ID CONCEPT — **and that, not the IDL, is the real finding** *(user, `2026-09-02`)*
 
-⇒ ⭐⭐⭐ **Role addressing ACROSS DDS would be an IDL / NED-descriptor change** — the
-large-blast-radius serialization-contract class that `CLAUDE.md` says is **not** delegated. ⛔ **So do not
-put the role on the wire.**
+> 🔒 **User, verbatim:** *"yes we need to promote the node id to a generic concept, not wire specific.
+> Wire can use identical concept."*
 
-| ⭐ the split | |
+⚠⚠ **THIS CORRECTS A CLAIM MADE EARLIER THE SAME DAY.** 🔴 I wrote that `Hrot.NED.Common.NodeId` *"carries
+exactly one field, `AppInstanceId`"* and concluded *"do not put the role on the wire."* ⛔ **The premise was
+FALSE**, and it was false in the way `CLAUDE.md` warns about: I grepped the **generated** marshaller for the
+field names I expected and never searched for the one I did not. 📐 **The source says:**
+
+```csharp
+public partial struct NodeId          // Hrot.NED.Common
+{
+    public int AppDomainId;           // see DomainType
+    public int AppInstanceId;         // individual node; unique within a domain
+}
+```
+
+📐 **And the duplicate:** `Hrot.Network.BDC.BdcNodeId` is `{ AppDomainId, AppInstanceId }` — **field-for-field
+identical**, in the second network stack. ⇒ 📌 **ruling 9 territory: two implementations of one concept.**
+
+| 📐 tier | how a node is identified | |
+|---|---|---|
+| **NED wire** | `Hrot.NED.Common.NodeId { AppDomainId, AppInstanceId }` | ⭐ structured |
+| **BDC wire** | `BdcNodeId { AppDomainId, AppInstanceId }` | ⛔ **a byte-identical duplicate** |
+| 🔴 **the engine** | a bare **`int`** — `OwnerAppInstanceId`, `_localNodeId`, `NetworkOwnership.PrimaryOwnerId`, roster keys | ⛔⛔ **flattens the pair and DISCARDS `AppDomainId`** |
+
+⇒ ⭐⭐⭐ **The engine's node identity is a LOSSY PROJECTION of the wire's, and the wire owns the concept.**
+⛔ That inversion is why *"add a role"* looked like a wire-contract problem: **there was no generic type to
+add it to.**
+
+##### ⭐⭐⭐ THE CORRECTED SHAPE — **promote, then mirror**
+
+⭐ A generic node-identity type in the **engine** *(alongside `NodeRole`, which already lives in
+`Hrot.Common` and is network-free)*, carrying the domain/instance pair. ⭐⭐ **Both wire stacks then MIRROR
+it** rather than defining it, and `OwnerAddress`'s `Node(…)` case names that type instead of an `int`.
+
+| ⭐ what this buys | |
 |---|---|
-| ⭐⭐ **NOW — managed only, zero wire change** | `EntityCreationRequest` carries `OwnerAddress`. A locally-authored request may address a **role**; the originating node resolves it to a concrete id **before** the request is forwarded ⇒ **the wire keeps carrying a plain `NodeId` and the NED contract is untouched** |
-| ⛔ **LATER — only if a real need appears** | role addressing *across* the wire ⇒ **an architect question resolved with the user**, not a batch decision |
+| ⭐⭐ **the role CAN ride the wire when it needs to** — as a mirrored field of one owned concept, ⛔ **not an ad-hoc IDL patch** | ⇒ my earlier *"keep the role off the wire"* conclusion is **withdrawn**; it rested on the false premise |
+| ⭐⭐ **`AppDomainId` stops being silently dropped** | ⛔ today any multi-domain deployment collides in the engine's `int` |
+| ⭐ **`BdcNodeId` collapses into the shared concept** | 📌 ruling 9, and the same *"one implementation per concept"* thesis as this whole document |
+| ⚠ **the cost is real and must be owned** | ⛔ **it touches BOTH network stacks and every `int` node id in the engine** ⇒ this is the **large-blast-radius contract class**: an architect question resolved **with the user**, sequenced on its own, ⛔ **NOT folded into host (f)** |
+
+⇒ ⭐⭐ **Sequencing consequence:** role addressing does **not** have to wait for the promotion. ⭐ Ship
+`OwnerAddress` over today's `int` first *(resolved locally, per the hazard above)*; ⭐⭐ the promotion then
+**widens the `Node(…)` case** without changing any caller's shape — which is exactly why `OwnerAddress`
+should be a **type**, not a second field, from the start.
 
 ##### ⭐⭐ AND THE RESOLUTION POLICY IS A SEAM, NOT A CALL — **this is the "flexibility" half of the ask**
 
