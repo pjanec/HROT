@@ -195,19 +195,41 @@ under-reports. ⚠ **This looks identical to a correct small answer.**
 ⛔ **Never conclude *"the last N references are gone, the refactor is complete"* from a red tree** — ⭐ that is
 the compiler agreeing with your mistake.
 
-### ⛔⛔ ⑤ IT SEES ONLY THE SOLUTION — **`Stride/` IS INVISIBLE TO IT** *(measured `2026-09-02`)*
+### ⛔⛔ ⑤ ONE QUERY = ONE WORKSPACE — **the repo has 8 solutions; a query sees ONE** *(measured `2026-09-02`)*
 
-📌 **Measured on `EntityCreationRequest.OwnerAppInstanceId`:** `roslyn_find_references` returned **30
-references and ZERO from `Stride/`** — where grep found **44 more lines across 17 Stride files.**
-⭐ **Roslyn is not wrong:** `IOS-IG-SimHost.sln` holds **149 projects and zero `HrotStrideApp` entries**, so
-the Stride projects are genuinely outside the workspace.
+⭐⭐ **`SymbolFinder` walks the projects of the ONE `Solution` the workspace opened.** ⛔ A project outside it
+has no compilation loaded, so its call sites **do not exist** for the search — silently, with no warning and
+a healthy `is_msbuild_workspace`.
 
-⇒ ⛔⛔ **For any symbol reachable from `Stride/HrotStrideApp.Game*` — or any other out-of-solution project
-*(`NodeEditor.Core`, `NodeEditor.UI`, `Fhsm.Tests`; the same list the gate-report contract's row 2 names)* —
-`roslyn_find_references` and `roslyn_preview_rename` UNDERSTATE the blast radius, silently.** ⭐⭐ **Always
-corroborate with a repo-wide grep before renaming or removing anything in `Hrot.Core` / `Hrot.Common`.**
-⚠ This is a *different* failure from ③: the workspace is healthy *(`is_msbuild_workspace: true`)* and the
-answer is complete **for the solution** — it is the SOLUTION that is smaller than the repo.
+📌 **Measured three ways on `EntityCreationRequest.OwnerAppInstanceId`** *(grep: 37 in-solution lines + 44
+lines across 17 `Stride/` files)*:
+
+| `projectPath` | workspace | result |
+|---|---|---|
+| `Hrot/Engine/Hrot.Core/Hrot.Core.csproj` | ✅ true | **30 refs** — engine + every in-solution test, ⛔ **zero `Stride/`** |
+| `Stride/HrotStrideApp.Game/…csproj` | ✅ true | **20 refs** — engine + ⭐ **all 12 Stride Game sites**, ⛔ no `Game.Tests` |
+| `Stride/HrotStrideApp.Game.Tests/…csproj` | ✅ true | ⛔⛔ **`Symbol 'OwnerAppInstanceId' not found`** — though grep sees 32 sites there |
+
+⇒ ⭐⭐⭐ **`Stride/` is NOT inherently invisible — it just is not in `IOS-IG-SimHost.sln`** *(149 projects,
+zero `HrotStrideApp` entries)*. **Point the query at `Stride/HrotStrideApp.Game.csproj` and the Stride
+references come back.** ⚠ *(An earlier version of this section said Stride was invisible to the tool. That
+was true of the query, not of the tool — SUPERSEDED.)*
+
+📐 **The observed scoping rule** *(inferred, not measured directly)*: it opens the solution discovered at the
+server's working directory — the repo root's `IOS-IG-SimHost.sln`. A project **inside** it gets the whole
+149-project solution *(hence downstream test hits)*; a project **outside** it gets that project **plus its
+`ProjectReference` closure only** — which is why `HrotStrideApp.Game.Tests` was absent even though
+`Stride/HrotStrideApp.sln` contains it.
+
+| ⭐ the working rule | |
+|---|---|
+| ⭐⭐⭐ **for a rename or blast-radius on anything in `Hrot.Core` / `Hrot.Common`, run the query TWICE and UNION** | once at an in-solution project, once at `Stride/HrotStrideApp.Game.csproj` |
+| ⭐⭐ **then grep anyway** | 📌 `HrotStrideApp.Game.Tests` is reached by **neither** query. Same for the other out-of-solution projects the gate contract's row 2 names — `NodeEditor.Core`, `NodeEditor.UI`, `Fhsm.Tests` |
+| ⛔ **do NOT "fix" this by adding the Stride projects to `IOS-IG-SimHost.sln`** | ⚠ they target `net8.0-windows`; folding them in changes what a full-solution build builds. ⭐ Two queries cost seconds; a broken solution build costs a session |
+
+⛔⛔ **And row 3 weakens check ③: `is_msbuild_workspace: true` is NECESSARY, NOT SUFFICIENT.** ⭐ A workspace
+can report healthy and still fail to bind a referenced project — the tell is **`Symbol ... not found` for a
+name grep can see.** ⇒ ⭐⭐ **treat that message as a load failure, never as "the symbol is unused."**
 
 ### ⚠ Operational — **the registered MCP times out on the COLD call**
 
