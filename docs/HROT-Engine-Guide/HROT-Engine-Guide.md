@@ -118,6 +118,63 @@ graph TD
     W -->|"OwnershipUpdate topic"| W
 ```
 
+### 1.3c Node roles carry a **persistence** convention — and IG never persists
+
+IG is a passive non-persisting node; persistable entities may not be IG-owned.
+
+> 🔒 **User ruling, `2026-09-02`, verbatim:** *"by convention it is considered passive listening node,
+> not maintaining any persistent state. If IG creates entities, then only temporary ones, possibly shared
+> with other IGs, but never persisted to scenario. If IG crashes, its entities are gone, but no one cares,
+> they were temporary anyway. There can be many IGs in the system, dynamically added and removed, none
+> should affect the scenario being edited. This was the reason why persistable entities can not be owned
+> by IGs and why the request was sent to another node who owns them and who saves them to scenario
+> because he is allowed to save."*
+
+⭐⭐ **This is the missing half of [§1.3a](#13a-what-brain--muscle-is-not--the-system-is-fully-distributed).**
+That section says *every* node can create entities and that `NodeRole` is a **convention** giving nodes
+*"some ownership expectations."* ⇒ **This is what IG's convention actually is.** ⛔ It is not a protocol
+restriction — nothing stops IG owning anything — it is a **design rule about what SHOULD be owned where.**
+
+| ⭐ the rule | |
+|---|---|
+| **IG is a passive, non-persisting node** | it renders and authors; it maintains **no persistent state** |
+| **IGs are ephemeral and plural** | many of them, added and removed at runtime ⇒ ⛔ **none may affect the scenario being edited** |
+| **an IG-owned entity is TEMPORARY by definition** | a sketch or working mark, ⭐ possibly shared IG↔IG, ⛔ **never written to the scenario** |
+| **an IG crash loses its entities, and that is CORRECT** | they were temporary; nothing is recovered because nothing was owed |
+| ⭐⭐⭐ **a PERSISTABLE entity may not be owned by an IG** | ⇒ IG **requests** it from a node that is allowed to save, and **that** node owns it |
+
+⇒ ⭐⭐ **This is why entity creation has two shapes, and why the request carries a target owner.** An IG
+tool must be able to say *"this one is mine and temporary"* **or** *"this one belongs to the scenario —
+you make it."* `EntityCreationRequest.OwnerAppInstanceId` is that choice, and
+`CreateEntityRequestSystem`'s level-1 routing guard already honours it: *"if the request specifies an
+explicit target node, only that node processes it."*
+
+| what the operator draws | owner | persisted? |
+|---|---|---|
+| a working sketch / temporary mark | ⭐ **the IG itself** | ⛔ never |
+| a tactical graphic that belongs to the scenario | ⭐ **a saving node** *(requested by the IG)* | ✅ yes, by that node |
+
+#### ⚠⚠ THE ENFORCEMENT GAP — **this rule is currently a CONVENTION ONLY, and nothing checks it**
+
+📐 **Measured `2026-09-02`.** `StagingEntityExtractor.BuildStaticMask()` — the scenario extractor —
+**STRIPS** `NetworkOwnership`, `NetworkAuthority`, `NetworkIdentity`, `DescriptorOwnership`,
+`TkbIdentity`, `GhostStateTracker` and `PendingNetworkAck` from what it saves. ⇒ ⛔⛔ **ownership is
+DISCARDED at save time, not consulted** — there is no owner-based filter deciding which entities are
+written.
+
+⭐ **The good consequence:** choosing an owner does **not** silently change whether something is saved.
+The two axes are genuinely independent, so the routing choice above is safe to make per entity.
+
+🔴 **The bad consequence:** *"IG entities are never persisted"* is **not enforced by anything.** The save
+path cannot tell an IG-owned entity from any other — so **if an IG-owned entity ever reaches the world the
+extractor runs over, it WOULD be written to the scenario.**
+
+⚠ **NOT MEASURED, and it is the question that decides whether this is a live defect or a latent one:**
+whether IG-owned entities replicate into that world at all. 📌 The extractor lives in **`Hrot.CGF`** — it
+runs on the Brain, not on IG — so the answer depends on what an IG-owned entity looks like from CGF.
+⇒ ⭐ **Settle this before IG gains local entity creation** *(host (f), `Q65-A′`)*, and if the answer is
+"they do reach it", the rule needs a **mechanism**, not just a convention.
+
 ### 1.4 Highlighted capabilities (the quick scan)
 - **AI authoring, four ways** — Behavior Trees, Hierarchical State Machines, Blueprint visual scripting, and Utility AI — all visual and all hot-reloadable.
 - **Tactical intelligence** — threat ranking, weapon selection, combat posture, and group fire coordination, all tunable live.
