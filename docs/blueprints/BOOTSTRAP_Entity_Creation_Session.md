@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-01
-current-answer: 🔴 §5.0 — THE AGREED PLAN, user-confirmed 2026-09-01. Read §5.0 first, then §5 for the
+updated: 2026-09-02
+current-answer: 🔴🔴 §4.9 FIRST — THE 19 CLUSTER REDS (user, 2026-09-02: "shouldnt we first find out
+  why?"). P1 is PAUSED at host (f) IG until the 19 are triaged to owning causes. THEN §5.0 — THE
+  AGREED PLAN, user-confirmed 2026-09-01. Read §4.9, then §5.0, then §5 for the
   mechanics of its first step. This file is a SESSION BOOTSTRAP — a self-contained continuation point
   for the entity-creation unification work on the UI lane. Read it after docs/blueprints/RULINGS.md
   (RULE ZERO) and instead of reading RESUME_UI_Lane.md top-to-bottom.
@@ -127,6 +129,80 @@ graph TD
 
 ---
 
+## 4.9 🔴🔴🔴 **THE 19 CLUSTER REDS — the user's question, `2026-09-02`. READ BEFORE ANY MORE P1 WORK.**
+
+> 🔒 **User, verbatim:** *"the 19 reds is actually a very bad sign, could it be because of the
+> unification? how can we make sure after unification the system works if 19 integration tests are
+> failing? shouldnt we first find out why?"*
+
+⭐⭐⭐ **The question is right and P1 does NOT continue until it is answered.** ⛔ **Host (f) IG is PAUSED**
+— see §5.0's amended order.
+
+### ⭐ What is MEASURED, and what is NOT — ⚠ the distinction is the whole point
+
+| claim | status |
+|---|---|
+| ⭐ host **(d) CGF** added **zero** reds | ✅ **measured** `2026-09-02` — 19 before / 19 after, `--no-build` both sides, **set-diff EMPTY in both directions** |
+| ⭐⭐ the cluster red count has been going **DOWN**, hard, across exactly the period the unification ran | ✅ **measured, in the commit record**: **49 → 31** (`76b8eb406`, `CE-148` — the harness never resumed after boot) → **19** (`eabcbf660`, `CE-152` — two xUnit collections NAMED but never DEFINED ⇒ 12 interference failures) |
+| ⭐⭐⭐ the surviving **19 are REAL defects, not interference** | ✅ **measured** — `551d43c53` ran a **per-class isolation sweep**, and `eabcbf660` verified the survivors are *"name-for-name exactly the set the per-class isolation sweep called real"* |
+| ⛔⛔ **the 19 were NEVER attributed to a CAUSE, one by one** | 🔴 **NOT MEASURED. This is the hole.** They are known-real and known-stable; **nobody has mapped each to an owning defect** |
+| ⛔⛔ hosts **(b) SimHost** and **(c)+(e) Editor/Stride editor** were **never gated against the cluster integration suite** | 🔴 **NOT MEASURED** — only (d) was. ⚠ **This is a gate-contract row-8 miss of mine**: a cross-cutting change must name the integration suite that exercises its invariant |
+
+### ⛔ A CORRECTION I OWE — *(said in chat `2026-09-02`, wrong)*
+
+⚠ I wrote *"the other 19 were NOT run in isolation and no claim is made about them."* 🔴 **False.**
+⭐ They **were** run in isolation — by `551d43c53`'s per-class sweep, earlier in this same programme —
+and **19 is the post-isolation REAL count**, which is a stronger and more worrying statement than what I
+said, not a weaker one.
+
+### ⭐⭐ THE LEAN — **probably NOT unification damage, but that is a LEAN and it has an ⛔-ASSUMED row**
+
+| the lean rests on | measured |
+|---|---|
+| host (d) added zero, identical set | ✅ `2026-09-02`, both directions |
+| the trajectory is 49 → 31 → 19 **downward** across the unification period ⇒ if unification were breaking things the number would CLIMB | ✅ `76b8eb406` · `eabcbf660` |
+| both big reductions were **test-infrastructure** defects (harness boot, xUnit collection definitions), not production ones | ✅ their commit messages |
+| **each of the 19 has a non-unification root cause** | ⛔⛔ **ASSUMED — and it is LOAD-BEARING.** If even one traces to the pack, the lean flips |
+
+⇒ ⭐ **Therefore the lean does not license proceeding.** 🔒 `R-139`: no ⛔-assumed row may be load-bearing.
+
+### ⭐⭐⭐ THE NEXT STEP — **triage the 19 to owning causes. This is the whole next batch.**
+
+⛔ **Do NOT start by re-running the suite** — it is 9–13 min and the count is already known and stable.
+⭐ **Start by reading the 19 failure MESSAGES**, which the count never showed:
+
+```bash
+# the names, and crucially the ASSERTIONS — the count alone has told us nothing for three batches
+dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj \
+  --no-build --logger "console;verbosity=detailed" 2>&1 | tee /tmp/reds.txt
+```
+
+⭐ **The 19, grouped as they fall** *(measured `2026-09-02`, stable across two full runs)*:
+
+| # | group | first question to ask |
+|---|---|---|
+| 3 | `CgfSubsystemHeadlessTests` — `SimHost_WanderMission`, `SimHost_MoveToLocationMission`, `CGF_MovingVehicle_GhostPositionUpdates` | ⭐⭐ **the movement chain.** Related to `CE-103` *(intent produced, never consumed)* — ⚠ **the strongest unification-adjacent candidate, check FIRST** |
+| 2 | `SpawnMovingVehicleIntegrationTests` | same chain, IG side |
+| 2 | `NetworkDemoPatrolAndEngageTests` Phase2/Phase3 | same chain |
+| 4 | `FeatureSwitchRcuIntegrationTests` | tracked as `CE-154`; RCU toggling, ⛔ not entity creation |
+| 2 | `ClusterOpE2eScriptTests` | record/replay |
+| 1 each | `CgfRecording` · `DistributedScenarioLoad` · `GhostPromotion` · `MapPlacement` · `SensorMechanism` · `UrbanCombatFileLifecycle` | ⭐ `GhostPromotion` and `DistributedScenarioLoad` are **entity-creation adjacent — check these second** |
+
+⭐⭐ **The deliverable is a TABLE: each of the 19 → an owning tracker row → "unification-caused: yes/no,
+with the file:line that shows it."** ⛔ Not a re-run, not a count.
+
+⚠ **If the answer is "no" for all 19, that is a RESULT worth having** — it converts a scary number into a
+known backlog and unblocks (f). ⭐ **If any is "yes", it outranks (f) entirely.**
+
+### ⭐ The cheap corroboration, if the triage is inconclusive
+
+📐 A pre-unification baseline is **CONFOUNDED and must not be quoted naively**: the pre-pack commit
+`b9757d96d` *(parent of host (a) `58dab5a84`)* predates **both** `CE-148` and `CE-152`, so it would
+report ~49 reds **inflated by interference** — the measuring apparatus itself changed. ⇒ ⭐ **the only
+sound cross-commit comparison is per-test-NAME, never per-count.**
+
+---
+
 ## 5.0 🔴🔴🔴 THE AGREED PLAN — **user-confirmed `2026-09-01`. START HERE.**
 
 > 🔒 **User, `2026-09-01`:** *"yes adopt pack first, then relocate"* — after asking *"where will you
@@ -139,7 +215,7 @@ alternative is a temporary bridge that would itself be the second registrar the 
 
 | # | step | state |
 |---|---|---|
-| **P1** | ⭐⭐ **finish pack adoption** — hosts (b) SimHost → (c)+(e) Editor + Stride editor *(coupled, `CE-146`)* → (d) CGF → (f) IG *(atomic with `Q65-A′`+`CE-143`+`CE-144`)*. §3's order, §5's mechanics | ✅ (b) `2026-09-01` · ✅ (c)+(e) `2026-09-02` *(e **VERIFIED on Windows**)* · ✅ (d) `2026-09-02` ⇒ ⭐⭐ **all five materialising hosts are on the pack.** ⭐ **NEXT and LAST: (f) IG**, which ⛔ must ship in ONE commit with `Q65-A′` + `CE-143` + `CE-144` |
+| **P1** | ⭐⭐ **finish pack adoption** — hosts (b) SimHost → (c)+(e) Editor + Stride editor *(coupled, `CE-146`)* → (d) CGF → (f) IG *(atomic with `Q65-A′`+`CE-143`+`CE-144`)*. §3's order, §5's mechanics | ✅ (b) `2026-09-01` · ✅ (c)+(e) `2026-09-02` *(e **VERIFIED on Windows**)* · ✅ (d) `2026-09-02` ⇒ ⭐⭐ **all five materialising hosts are on the pack.** ⛔⛔ **(f) IG is PAUSED `2026-09-02`** — 🔒 user: *"shouldnt we first find out why?"* about the 19 cluster reds. ⭐ **§4.9 is the next batch**; (f) resumes after it, and still must ship in ONE commit with `Q65-A′` + `CE-143` + `CE-144` |
 | **P2** | 🔴 **relocate `GhostPromotionSystem`** from `NedReplicationModule` into `EntityCreationPack`, **one commit, add+remove together** | blocked on P1 |
 | **P3** | ⭐ **role-affinity ownership** — `DESIGN_Role_Affinity_Ownership.md` §6 steps 0→3b | blocked on P2 |
 
