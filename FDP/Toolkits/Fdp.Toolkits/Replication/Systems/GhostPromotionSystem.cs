@@ -35,10 +35,13 @@ namespace Fdp.Toolkit.Replication.Systems
         /// <i>"identical for all three systems within the same node"</i>, satisfied by SHARING the
         /// instance rather than by a second argument nobody passes.
         ///
-        /// <para>📌 <c>CE-155</c>: <c>NedNetworkFactory.CreateReplicationModule</c> never passed
-        /// <c>tkbEntityTranslators</c>, so this was <c>Array.Empty</c> on every node that registered
-        /// this system — promotion applied the template's mandatory components and projected NO TKB
-        /// state. Resolved lazily because composition roots call
+        /// <para>📌 <c>CE-155</c>. ⚠ <b>Corrected scope, <c>2026-09-01</c>:</b> an earlier version of this
+        /// comment said the list was <c>Array.Empty</c> on <i>every</i> node. 📐 It is empty on the
+        /// <b>FACTORY path</b> only — <c>NedNetworkFactory.CreateReplicationModule()</c> omits
+        /// <c>tkbEntityTranslators</c>, which is how <b>CGF</b> builds its module. Hosts on the
+        /// <b>BUILDER path</b> do pass one: <c>HrotNodeBuilderReplicationExtensions.Build():117</c>
+        /// forwards <c>.WithTranslators(...)</c>, which SimHost and IG both call. ⇒ the real beneficiary
+        /// of this fallback is the factory path. Resolved lazily because composition roots call
         /// <see cref="EntityLifecycleModule.SetTranslators"/> after the module is constructed.</para>
         /// </summary>
         private IReadOnlyList<ITkbEntityTranslator> Translators

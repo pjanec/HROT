@@ -27,6 +27,7 @@ using Fdp.Core.Orchestration;
 using Fdp.Core.Diagnostics;
 using Fdp.Core.Serialization.Migrations;
 using Hrot.Common.Diagnostics;
+using Hrot.Common.EntityCreation;
 using Hrot.Common.Infrastructure;
 using Hrot.Core.Diagnostics;
 using Hrot.Core.Network;
@@ -54,7 +55,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
 
     private NodeBootstrapper? _nodeBootstrapper;
     private ITkbDatabase? _tkbDb;
-    private IReadOnlyList<ITkbEntityTranslator>? _translators;
     private EngineBackedNavigationModule? _navModule;
 
     /// <summary>
@@ -143,21 +143,26 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
     {
-        // ⭐⭐ CE-140 step 2 — the ONE base list. This host's inline copy is gone; it was the
-        //    first place PresentationTkbTranslator had to be added by hand (UXI-23 S1), and four more
-        //    hosts then needed the same manual addition (CE-137, CE-138, CE-139).
-        // ⭐ AiDiagnostics is added rather than baked in because it lives above Hrot.Core — that is
-        //    exactly the per-node ADDITION tkb-1/DESIGN.md §6.5 sanctions.
-        // ⛔ Never subtract to narrow: gate 2 (IsComponentTypeRegistered) narrows per component (§6.5b).
-        _translators = Hrot.Core.Tkb.TkbTranslatorSet.BasePlus(
-            new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator());
-
+        // ⭐⭐⭐ CE-140 step 3, host (b) — the translator list is no longer BUILT HERE.
+        //    EntityCreationPack owns it (RegisterSpawningPipeline below): it composes
+        //    TkbTranslatorSet.Base() + ExtraTranslators, hands that ONE instance to the ELM and to
+        //    NetworkSpawningSystem, and GhostPromotionSystem reads it back off the ELM.
+        //
+        // ⛔ `.WithTranslators(...)` is DELIBERATELY GONE. It fed NedReplicationModule's
+        //    `tkbEntityTranslators`, whose ONLY consumer is GhostPromotionSystem — and that system now
+        //    falls back to EntityLifecycleModule.Translators when no explicit list is given. Keeping the
+        //    call would hand promotion a SECOND, equal-but-distinct list instance, which is exactly the
+        //    thing tkb-1/DESIGN.md §6.3 asks not to happen ("identical for all three systems within the
+        //    same node"). ⭐ Dropping it makes that true by CONSTRUCTION rather than by two copies
+        //    agreeing.
+        //
+        // 📐 Measured before removing: `_tkbEntityTranslators` has exactly one read site,
+        //    NedReplicationModule.cs:413's GhostPromotionSystem construction.
         var ctx = new HrotNodeBuilder(config)
             .WithRole(config.SubsystemName, role)
             .WithNetworkFactory(networkFactory)
             .WithReplication(role)
             .WithBehaviorRegistry(GetBehaviorRegistry())
-            .WithTranslators(_translators)   // TKB-022 -- threads through to NedReplicationModule
             .Build();
 
         _tkbDb = ctx.TkbDb;
@@ -268,17 +273,47 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         PhysicsModule = new PhysicsToolkitModule();
         PhysicsModule.Initialize(context.World);
 
-        // elm reference for spawning (BaseModules[0] == EntityLifecycleModule)
-        var elm = (EntityLifecycleModule)context.BaseModules[0];
-        elm.SetTranslators(_translators!);   // TKB-022: set before kernel Initialize
+        // ⭐⭐⭐ CE-140 step 3, host (b) — THE ENTITY CREATION PACK.
+        //    This host used to hand-assemble the spawn path: build the list, call SetTranslators, and
+        //    construct NetworkSpawningSystem with `translators:` passed by hand. Every one of those was
+        //    an independent chance to get it wrong, and five hosts got it wrong the same way
+        //    (S1, CE-137 twice, CE-138, CE-139). ⇒ the pack makes the omission unrepresentable.
+        //
+        // ⭐⭐ AND IT CLOSES THE SAME QUIETER GAP host (a) had: SimHost had NO CreateEntityRequestSystem,
+        //    so nothing could ask it to create an entity — not even itself. Its only creation path was
+        //    a raw bus SpawnEntityCommand. 🔒 User ruling 2026-08-31: the shared code "should not
+        //    restrict any ecs enabled node from creating own networked entities … not removing
+        //    capabilities by design". The pack has no opt-out.
+        //
+        // ⭐ AiDiagnostics goes through ExtraTranslators rather than being baked into Base(), because it
+        //    lives above Hrot.Core — exactly the per-node ADDITION tkb-1/DESIGN.md §6.5 sanctions.
+        //    ⛔ ExtraTranslators is ADD-ONLY: there is no way to hand the pack a narrower list. Per
+        //    component narrowing is gate 2 (IsComponentTypeRegistered), never the list (§6.5b).
+        //
+        // 📄 DESIGN_Entity_Creation_Unification.md §3, §3.4 · Architect_Question_65 §0, §4.
+        var creation = EntityCreationPack.Build(new EntityCreationContext
+        {
+            World       = context.World,
+            EntityMap   = context.EntityMap,
+            TkbDb       = context.TkbDb!,
+            IdAllocator = context.IdAllocator!,
+            // BaseModules[0] == EntityLifecycleModule. The pack calls SetTranslators on it, which must
+            // precede the kernel's Initialize — it does: this runs during RegisterSpawningPipeline.
+            Elm         = (EntityLifecycleModule)context.BaseModules[0],
+            NodeId      = context.NodeId,
 
-        var spawningSystem = new NetworkSpawningSystem(
-            context.TkbDb!,
-            elm,
-            context.EntityMap,
-            context.IdAllocator!,
-            context.NodeId,
-            translators:      _translators);       // TKB-022
+            ExtraTranslators = new ITkbEntityTranslator[]
+            {
+                new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+            },
+
+            // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
+            //    ⚠ This does NOT stop SimHost creating entities: a request targeted at this node is
+            //    processed regardless of the flag (CreateEntityRequestSystem.cs:151-156, Q65 §1).
+            IsBroadcastArbiter = false,
+        });
+
+        var spawningSystem = creation.SpawnSystem;
 
         // ⭐⭐⭐ CE-147 step 4 — THE onEntitySpawned HOOK IS GONE, and nothing replaced it.
         //
@@ -293,7 +328,25 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //   assert it (TheEgressShadowExistsAtBirthTests, SplitAuthoritySpawnTests) are the proof, not
         //   this comment.
 
+        // ⭐ The HOST schedules; the pack only constructs. NetworkSpawningSystem is BeforeSync and still
+        //   goes through SimHostModule exactly as before — composition changed, scheduling did not.
         context.Kernel.RegisterModule(new SimHostModule(spawnSystem: spawningSystem));
+        context.Kernel.RegisterGlobalSystem(creation.RequestSystem);        // Input
+        context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);   // PostSimulation
+
+        // ⭐⭐ Make an omission LOUD. Every one of the five defects behind this design was silent, so the
+        //   pack reports any piece the host built and then forgot to schedule.
+        var unserviceable = creation.Unserviceable(new object[]
+        {
+            creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+        });
+        if (unserviceable.Length > 0)
+            Fdp.Core.Logging.FdpLog<SimHostNodeBootstrapper>.Warn(unserviceable);
+
+        // ⚠ FOLLOW-UP, not a regression: no DDS ingress request source or ACK sink is passed here, so
+        //   this node serves LOCAL requests only — same position host (a) is in. Wiring the network half
+        //   needs lifecycle adapters on HrotNodeContext, which is a separate change. Strictly better than
+        //   before, when this node had no request tier at all.
         context.Kernel.RegisterModule(CoreLogicPack!);
         context.Kernel.RegisterModule(new EqsModule());
 

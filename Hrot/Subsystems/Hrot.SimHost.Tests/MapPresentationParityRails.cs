@@ -242,9 +242,19 @@ namespace Hrot.SimHost.Tests
         [Theory]
         [InlineData("Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs")]
         [InlineData("Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs")]
-        [InlineData("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs")]
+        // ⛔⛔ IG IS DELIBERATELY ABSENT — and it used to be HERE, contradicting this rail's own summary
+        //    ("IG is deliberately NOT in this list and must not be added"). 📐 The contradiction was
+        //    invisible because IgNodeBootstrapper.cs mentions TkbTranslatorSet.Base() only in a COMMENT
+        //    explaining why it does NOT call it, and the pre-2026-09-01 raw-source scan matched that.
+        //    ⇒ removing the case makes the DATA agree with the documented intent; the exclusion itself is
+        //    measured (IG has no local materialisation — SpawnEntityCommand is forwarded to SimHost) and
+        //    whether IG should widen to Base() is the open question CE-141, not this rail's to decide.
         [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs")]
         [InlineData("Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs")]
+        // ⭐ CE-140 step 3 host (a) — the Stride NODE was missing from this list. It obtains the set
+        //   through EntityCreationPack.Build, and adding it makes the rail cover every host that has a
+        //   TKB spawn path rather than the five that happened to be here first.
+        [InlineData("Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs")]
         public void EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(string relativePath)
         {
             var src = ReadRepoSource(relativePath);
@@ -257,7 +267,44 @@ namespace Hrot.SimHost.Tests
             // ⚠ Match on the TOKEN, never on one spelling — CGF and the Stride sites fully-qualify.
             //   📌 An earlier version matched the literal "new List<ITkbEntityTranslator>" and reddened
             //   on a host that was CORRECTLY wired.
-            Assert.Contains("TkbTranslatorSet.Base", src, System.StringComparison.Ordinal);
+            //
+            // 🔴🔴 CE-140 step 3 — TWO CORRECTIONS, both found by this rail going FALSE-GREEN on
+            //    2026-09-01 when SimHost adopted EntityCreationPack:
+            //
+            //  ① COMMENTS ARE STRIPPED FIRST. The rail read raw source, so it passed on a host whose
+            //     only remaining occurrence of the token was in a COMMENT EXPLAINING THAT THE CALL HAD
+            //     MOVED. 📐 Measured: SimHostNodeBootstrapper.cs:148, prose, and the rail was green.
+            //     ⛔ A source scan that matches its own documentation asserts nothing.
+            //
+            //  ② OBTAINING IT VIA THE PACK COUNTS. EntityCreationPack.Build composes
+            //     TkbTranslatorSet.Base() + ExtraTranslators internally and hands that ONE instance to
+            //     the ELM and the spawn system — which is a STRONGER guarantee than calling Base()
+            //     by hand, because ExtraTranslators is add-only and the list cannot be narrowed.
+            //     ⇒ a host that adopts the pack satisfies this rail's intent more completely, not less.
+            //     ⛔ A host that does NEITHER still reddens — which is the whole point.
+            var code = StripComments(src);
+            bool direct  = code.Contains("TkbTranslatorSet.Base", System.StringComparison.Ordinal);
+            bool viaPack = code.Contains("EntityCreationPack.Build", System.StringComparison.Ordinal);
+
+            Assert.True(direct || viaPack,
+                $"{relativePath} obtains the shared TKB translator set neither directly "
+              + "(TkbTranslatorSet.Base) nor through EntityCreationPack.Build. A composition root that "
+              + "hand-rolls its own list is how CE-137/138/139 happened. "
+              + "⚠ Comments are stripped before this check, so documenting the call does not satisfy it.");
+        }
+
+        /// <summary>
+        /// ⭐ Removes line and block comments so a source scan asserts CODE, never prose.
+        /// ⚠ Deliberately crude — it is a composition-root heuristic, not a C# parser. It does not
+        /// understand string literals, which is acceptable here: none of the tokens this file scans for
+        /// appear inside one, and a false RED from that would be loud rather than silent.
+        /// </summary>
+        private static string StripComments(string src)
+        {
+            src = System.Text.RegularExpressions.Regex.Replace(
+                src, @"/\*.*?\*/", " ", System.Text.RegularExpressions.RegexOptions.Singleline);
+            return System.Text.RegularExpressions.Regex.Replace(
+                src, @"//[^\n]*", " ");
         }
 
         /// <summary>Repo-root-relative source read; the scan is the only way to see a composition root's local list.</summary>

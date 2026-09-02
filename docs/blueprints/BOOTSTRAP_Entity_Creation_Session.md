@@ -93,7 +93,7 @@ the usual 14–15 s); the two runs immediately after were 818/1/3. Steady state 
 ```mermaid
 graph TD
     A["(a) Stride node<br/>StrideNodeBootstrapper"] -->|DONE 58dab5a84| B["(b) SimHost<br/>SimHostNodeBootstrapper"]
-    B --> CE["(c)+(e) Editor + Stride editor<br/>COUPLED by CE-146"]
+    B -->|DONE 2026-09-01| CE["(c)+(e) Editor + Stride editor<br/>COUPLED by CE-146"]
     CE --> D["(d) CGF"]
     D --> F["(f) IG<br/>atomic with Q65-A' + CE-143 + CE-144"]
 ```
@@ -101,8 +101,8 @@ graph TD
 | host | state |
 |---|---|
 | **(a) Stride node** | ✅ **done.** Closed a second gap — it had no `CreateEntityRequestSystem` at all |
-| **(b) SimHost** | ⭐⭐ **the next clean step** — §5 |
-| **(c) Editor + (e) Stride editor** | ⛔ a **COUPLED PAIR** because of `CE-146`; (e) cannot be verified on Linux |
+| **(b) SimHost** | ✅ **DONE `2026-09-01`.** Closed the same second gap host (a) did — SimHost had **no** `CreateEntityRequestSystem`, so its only creation path was a raw bus `SpawnEntityCommand`. ⭐ Also dropped `.WithTranslators(...)`: promotion now reads the ONE list off the ELM *(`CE-155`)*, so the node holds a single instance rather than two equal copies |
+| **(c) Editor + (e) Stride editor** | ⭐⭐ **NEXT.** ⛔ a **COUPLED PAIR** because of `CE-146`; (e) cannot be verified on Linux |
 | **(d) CGF** | last of the materialising hosts |
 | **(f) IG** | ⛔⛔ **must ship in ONE commit** with Q65-A′ + `CE-143` + `CE-144`, or IG double-spawns and double-destroys |
 
@@ -117,6 +117,8 @@ graph TD
 | **`CE-143`** | add init-only `ReliableInitType` to `EntityCreationRequest`, default `AllPeers`; hardcoded at `CreateEntityRequestSystem.cs:302` and `:397`. ⚠ decide whether `:397`'s children inherit (lean: yes) | ⭐ prerequisite for IG drawings being **usable** |
 | **`CE-144`** | drop `GhostDestructionSystem` from IG once it gains `NetworkSpawningSystem` | ships with (f) |
 | **`CE-146`** | fold the Stride editor's SECOND pipeline into the pack; the strip goes through `ExtraTranslators` | = host (e) |
+| ✅ **`CE-155`** | **DONE `2026-09-01`** — `GhostPromotionSystem`'s empty translator list on the FACTORY path *(CGF)*. ⚠ **Filed late**: the id was cited in three production files with no row. ⚠ Its first scope claim *("every node")* was **wrong** — builder-path hosts did pass a list | done |
+| ✅ **`CE-156`** | **DONE `2026-09-01`** — a composition-root source scan was passing on its own COMMENTS; SimHost **and IG** were green for the wrong reason, hiding a rail-doc/data contradiction. ⭐ Comments are now stripped before any such scan | done |
 | — | two **stale diagnostics**, fix in words not code: `NavigationIntentBridgeSystem.cs:234-240`'s warning text; `Translator_Infantry200_DoesNotInjectVehicleState` (re-home onto the strip) | no |
 | — | the two `StrD21` navigation reds are **UNATTRIBUTED** — ⛔ do not claim them until host (e) is done and they are re-run | no |
 
@@ -137,7 +139,7 @@ alternative is a temporary bridge that would itself be the second registrar the 
 
 | # | step | state |
 |---|---|---|
-| **P1** | ⭐⭐ **finish pack adoption** — hosts (b) SimHost → (c)+(e) Editor + Stride editor *(coupled, `CE-146`)* → (d) CGF → (f) IG *(atomic with `Q65-A′`+`CE-143`+`CE-144`)*. §3's order, §5's mechanics | ⭐ **NEXT: host (b)** |
+| **P1** | ⭐⭐ **finish pack adoption** — hosts (b) SimHost → (c)+(e) Editor + Stride editor *(coupled, `CE-146`)* → (d) CGF → (f) IG *(atomic with `Q65-A′`+`CE-143`+`CE-144`)*. §3's order, §5's mechanics | ✅ (b) done `2026-09-01` · ⭐ **NEXT: (c)+(e)** |
 | **P2** | 🔴 **relocate `GhostPromotionSystem`** from `NedReplicationModule` into `EntityCreationPack`, **one commit, add+remove together** | blocked on P1 |
 | **P3** | ⭐ **role-affinity ownership** — `DESIGN_Role_Affinity_Ownership.md` §6 steps 0→3b | blocked on P2 |
 
