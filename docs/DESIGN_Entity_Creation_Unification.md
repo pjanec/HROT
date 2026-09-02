@@ -945,12 +945,47 @@ identical**, in the second network stack. ⇒ 📌 **ruling 9 territory: two imp
 
 | stack | how the engine `int` relates to the pair | lossy? |
 |---|---|---|
-| ⭐⭐ **`Fdp.Network.Cyclone`** | **`NodeIdMapper`** — a **bijective registry**: external `NetworkAppId {AppDomainId, AppInstanceId}` ↔ internal `int` *(local reserved as `1`, then `2,3,…`)*, reversible via `GetExternalId`. ⭐ The int is an **opaque handle**, and `NetworkAppId`'s own summary says *"combines domain and instance to form a globally unique ID"* | ✅ **NO — fully round-trippable** |
+| ⚠ **`Fdp.Network.Cyclone`** | **`NodeIdMapper`** — a **bijective registry**: external `NetworkAppId {AppDomainId, AppInstanceId}` ↔ internal `int` *(local reserved as `1`, then `2,3,…`)*, reversible via `GetExternalId`. ⭐ The int is an **opaque handle**, and `NetworkAppId`'s own summary says *"combines domain and instance to form a globally unique ID"* | ⚠ **the CLASS is lossless — but see the correction below: it never runs** |
 | 🔴 **NED — and this is the path entity creation actually uses** | `NedCgfEntityLifecycleAdapters` does a plain field copy: `OwnerAppInstanceId = msg.Owner.AppInstanceId`. ⛔ **No mapper, no registry.** `AppDomainId` is set from config at composition *(`ClusterRunner/Program.cs`, `IgApplication`, `CgfSubsystem`, `SimHostApp`)* and then **never consulted again in the creation path** | ⛔ **YES — the int IS the instance half** |
 
-⇒ ⭐⭐⭐ **The two stacks disagree about what an engine node id IS** — an *opaque handle into a table*
-*(Cyclone)* versus *the `AppInstanceId` literally* *(NED)*. ⭐⭐ **That is a far better argument for the
-promotion than "a field is dropped"**, and it is the version to carry into `D5`.
+##### ⛔⛔ CORRECTION `2026-09-02` — **`NodeIdMapper` IS NEVER INSTANTIATED IN PRODUCTION**
+
+⚠⚠ **This corrects the row above, and it corrects a claim made in chat the same day.** 🔴 I described
+Cyclone as *"not lossy"* — a property of the **STACK** — on the evidence of a **CLASS**. 📌 That is the
+`CLAUDE.md` caution verbatim: ⛔ **never read a reference count as adoption; open the call sites.**
+
+📐 **Measured:** `new NodeIdMapper(` appears **zero times** outside `Fdp.Network.Cyclone.Tests`.
+⛔ `IgApplication.cs:132` is a bare `using NodeIdMapper = …` alias that **nothing in the file uses**.
+⚠ `IgNetworkConstants` then documents ids *as if the mapper ran* — *"Internal local node ID returned by
+`NodeIdMapper`… always maps the local instance to internal ID 1"* — while the code **hand-assigns**
+`InstanceId = 300`.
+
+⇒ ⭐⭐⭐ **NEITHER STACK MAPS IN PRODUCTION.** Cyclone **has** a mapper and does not use it; NED never had
+one. ⇒ ⭐⭐ **the real finding is not that the two stacks disagree — it is that the one good model in the
+repo is DORMANT**, and the hand-assigned `InstanceId = 300` exists precisely because of it: `IG`'s own
+comment records that *"using `IgNetworkConstants.LocalNodeId` (1) caused collision with SimHost when
+`--node-id 0`"*. 📌 The collision the mapper would have prevented **already happened**, and was patched
+by hand.
+
+##### 🔴🔴 *"Can we use `NodeIdMapper` for NED?"* — **the model yes; the class as-is NO** *(user, `2026-09-02`)*
+
+| 📐 the blocker, and it is not cosmetic | |
+|---|---|
+| 🔴🔴🔴 **the mapper's internal id is NODE-LOCAL and DISCOVERY-ORDER-DEPENDENT** | `_nextId = 2`, incremented as each process first meets a peer ⇒ **node A's handle for node C need not equal node B's handle for node C** |
+| ⛔⛔ **and `OwnerAppInstanceId` TRAVELS ON THE WIRE** | it is `msg.Owner.AppInstanceId` ⇒ 🔴 **a mapper handle put on the wire is meaningless to the receiver.** ⚠ Silently — it would resolve to *some* node |
+| ⚠ **the class is also Cyclone-bound** | `NetworkAppId` is a `[DdsStruct]` in `Fdp.Network.Cyclone.Topics` ⇒ using it from NED would import one stack's wire type into another |
+
+⇒ ⭐⭐⭐ **The two concerns must be separated, and this is the `D5` decision:**
+
+| concern | right answer |
+|---|---|
+| ⭐⭐ **a node identity that CROSSES THE WIRE** *(this is `OwnerAppInstanceId`)* | **promote the PAIR** `{AppDomainId, AppInstanceId}` into the engine. ⭐ It is already stable and cluster-wide; ⛔ a mapper handle is not, and must never be sent |
+| ⭐ **a cheap local index for hot-path use** | ⭐ **that is what `NodeIdMapper` is for**, and it is legitimate — ⛔ but strictly node-local, translated at every boundary |
+
+⚠ **Blast radius, measured:** `AppInstanceId` is touched at **9 production sites across 9 files** *(the
+four composition roots, the NED adapters, the ExCon writers)* — ⭐ small enough that promoting the pair is
+tractable, ⛔ and every one of them is a wire boundary that a mapper would have to translate at, which is
+why adopting the mapper is the *larger* change, not the smaller one.
 
 ⚠ **Is it harmful TODAY? Not yet.** ⛔ It bites only when two nodes in **different `AppDomainId`s share an
 `AppInstanceId`** — which config currently avoids. ⇒ ⭐ **a LATENT collision, not an active bug**; that is
