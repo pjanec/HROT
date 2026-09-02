@@ -58,9 +58,6 @@ cyclonedds.log
 *.csproj.user
 .codebase
 .codebase-memory
-# Serena MCP local workspace (project.yml, cache, memories) - tool-local, not committed
-.serena/
-*.lscache
 build-output.txt
 
 # Blueprint debug session files (user-local, not committed)

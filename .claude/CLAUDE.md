@@ -126,6 +126,81 @@ not a signal).
 - `manage_adr(action)` — CRUD for Architecture Decision Records
 - `ingest_traces(traces)` — Ingest runtime traces to validate HTTP edges
 
+## ⭐⭐⭐ THE ROSLYN MCP — **the COMPILER answers symbol questions; grep and the graph do not** *(chosen `2026-09-02`)*
+
+⭐ **Server: `roslyn`** *(`MadQ.RoslynMcp`, at `/opt/roslynmcp/RoslynMcp.dll`; installed by `scripts/cloud-bootstrap.sh`)*.
+⭐ It opens the real **`MSBuildWorkspace`** and answers from the **semantic model** — so it resolves overloads,
+interface dispatch, aliases and partial classes that text cannot. 📐 Chosen by measuring it against
+`RoslynMcp.Server`+`Cli` *(JoshuaRamirez)* and **Serena** on this solution; the two losers are unregistered
+and the rejection reasons are recorded in `install_roslynmcp()` in the bootstrap script.
+
+### ⭐⭐ ① Use it for SYMBOL-level questions — ⛔⛔ and for EVERY C# rename
+
+| the question | the tool |
+|---|---|
+| *"where is this used?"* | `roslyn_find_references` |
+| *"who calls this?"* | `roslyn_find_callers` · `roslyn_get_call_graph` |
+| *"what implements this interface member?"* | `roslyn_find_implementations` · `roslyn_get_type_hierarchy` |
+| *"which overload is this?"* | `roslyn_find_overloads` |
+| ⭐⭐⭐ **rename a symbol** | `roslyn_preview_rename` → **read the diff** → `roslyn_apply_rename` |
+| *"does this still compile?"* | `roslyn_get_diagnostics` *(in-process, no build)* |
+
+⛔⛔⛔ **NEVER rename a C# symbol with text search-and-replace** — not `sed`, not `Edit --replace_all`, not a
+Python `str.replace`. 📌 **Measured on this repo, `2026-09-02`:** `roslyn_find_references` on a field returned
+**30 references across 5 projects**; `roslyn_preview_rename` on the same symbol produced a diff touching
+**13 files across 7 projects** — including `Hrot.Network.NED` and `Hrot.SimHost.Integration.Tests`, which the
+reference list never named. ⇒ ⭐⭐ **even the semantic reference list UNDERSTATES the blast radius of a
+rename.** A text replace understates it further **and silently hits comments, strings and unrelated
+same-named symbols.** ⭐ `roslyn_preview_rename` is the only honest blast-radius answer here — read it before
+applying.
+
+### ⭐⭐ ② It COMPLEMENTS codebase-memory and grep — ⛔ it does not replace either
+
+| ⭐ still the right tool | why |
+|---|---|
+| ⭐⭐ **`search_graph` — the INVENTORY rule stands** | ⛔ Roslyn answers *"where is THIS symbol"*; it does not enumerate *"what is the complete set of Tkb interfaces"*. **The `INVENTORY`-before-design rule is unchanged** |
+| ⭐⭐ **grep** | ⛔⛔ the workspace holds **C# only**. `.csproj` · `Directory.Build.props` · JSON/config · scenario assets · SQL · Razor · shell scripts · markdown are **invisible to it**. 📌 A `nameof`-free string reference, an MSBuild `<Compile Remove>`, an asset that names a type by string — grep finds these, Roslyn cannot |
+| ⭐ **the design corpus** *(`R-129`)* | ⛔ no compiler answers *"was this MEANT to exist"* |
+
+⇒ ⭐ **Three complements, not a hierarchy:** design docs for **intent** · `search_graph` for the **set** ·
+Roslyn for the **exact symbol** · grep for **everything that is not C#**.
+
+### ⛔⛔⛔ ③ A ZERO RESULT IS USUALLY A DEAD WORKSPACE — **and the failure is SILENT**
+
+⛔⛔ **The workspace failing to load does not raise.** 📌 That is exactly how candidate A was disqualified: our
+NuGet audit warnings made `MSBuildWorkspace` treat the solution as unloadable, it opened **zero projects**, and
+it then answered find-references with a **confident empty list.** ⚠ **An empty answer and "genuinely unused"
+are indistinguishable from the output.**
+
+⭐⭐ **So: before you trust ANY zero-or-suspiciously-small result, prove the workspace is real:**
+
+```bash
+roslyn_get_project_info(projectPath: "<the .csproj you queried>")   # must report  "is_msbuild_workspace": true
+```
+
+⛔⛔ **`is_msbuild_workspace: false` means it fell back to an `AdhocWorkspace`** — ⭐ **no project references, no
+cross-project resolution ⇒ every reference/implementation answer is worthless.** ⚠ **`roslyn_info` is NOT this
+check** — it returns only version/pid/uptime/MSBuild-discovery and says nothing about whether YOUR project
+loaded. ⭐ Second corroboration when a zero still looks wrong: **grep for the bare name.** ⛔ Graph and grep
+disagreeing with Roslyn is a signal to re-check the workspace, never to shrug.
+
+### ⛔⛔ ④ A BROKEN BUILD POISONS THE ANSWERS — **get green first, then ask**
+
+⭐ The semantic model is built from a **compilation**. ⛔ **Mid-refactor, with the build red, symbols that fail
+to bind simply are not there** — ⇒ references vanish, implementations go missing, and a rename preview
+under-reports. ⚠ **This looks identical to a correct small answer.**
+
+⇒ ⭐⭐ **After any edit that breaks the build, treat every Roslyn answer as UNRELIABLE until
+`roslyn_get_diagnostics` on the touched project reports zero errors** *(or `quick-check.sh <proj>` is green)*.
+⛔ **Never conclude *"the last N references are gone, the refactor is complete"* from a red tree** — ⭐ that is
+the compiler agreeing with your mistake.
+
+### ⚠ Cost — **it stays warm, so keep the session**
+
+📐 Measured on this solution: **cold ≈ 59 s** *(the first query loads the workspace)*, **warm ≈ 0.8 s** for
+subsequent queries **in the same server session**. ⇒ ⭐ **do not restart it between questions**; batch symbol
+work into one run. ⛔ **A one-shot CLI invocation pays the 59 s every time.**
+
 ## ⛔⛔ UNREFERENCED IS NOT UNINTENTIONAL — **search `docs/` FIRST, then `.dev/`, before proposing any deletion** *(user ruling, `2026-08-15`; corpus order corrected `2026-08-17` and again `2026-08-21`)*
 
 > ⭐⭐⭐ **User, verbatim:** *"what is not used does not mean it is existing without reason — a design doc

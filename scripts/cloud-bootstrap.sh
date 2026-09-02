@@ -170,13 +170,89 @@ index_repo() {
     fi
 }
 
+# ============================================================================
+# 4. MadQ.RoslynMcp — the Roslyn symbol server (find-references / rename)
+# ============================================================================
+# Chosen 2026-09-02 by measuring it against RoslynMcp.Server+Cli (JoshuaRamirez)
+# and Serena on THIS solution. Summary of why:
+#   * RoslynMcp: MSBuildWorkspace treats our NuGet audit warnings (MessagePack
+#     3.1.4 CVEs, which `dotnet build` reports as WARNINGS) as load failures, so
+#     the solution never opens -- projectCount 0, exit 3, empty stdout. Pointed at
+#     a single .csproj it loads, but then only searches THAT project: it missed
+#     CreateEntityRequestSystem.cs, the production caller, in another project.
+#   * Serena: never returned an answer at all -- twice, once with a 10-minute cap.
+#     It loads projects fine (121 in 29s) and then hangs after load.
+#   * MadQ: answered correctly, and stays warm (cold 59s -> warm 0.8s).
+#
+# ---------------------------------------------------------------------------
+# TWO INSTALL GOTCHAS, both measured -- do not "simplify" this back:
+#
+#  1. `dotnet tool install -g MadQ.RoslynMcp` DOES NOT WORK HERE. It fails with
+#     "Settings file 'DotnetToolSettings.xml' was not found in the package",
+#     which is a lie -- the file is present at tools/net10.0/any/. The real
+#     cause is the TFM: the package targets net10.0 and this repo's SDK is 8.0,
+#     and an SDK cannot select a tool asset for a TFM it does not know.
+#
+#  2. Installing the .NET 10 SDK to fix that would be WORSE. There is no
+#     global.json in this repo, so a newer SDK silently becomes the one that
+#     builds the solution. We therefore install the .NET 10 RUNTIME only
+#     (side-by-side, does not affect SDK selection) and unzip the tool payload
+#     ourselves.
+# ---------------------------------------------------------------------------
+ROSLYNMCP_VERSION="${ROSLYNMCP_VERSION:-0.8.1-beta}"
+ROSLYNMCP_DIR="${ROSLYNMCP_DIR:-/opt/roslynmcp}"
+
+install_roslynmcp() {
+    if [ "${ROSLYNMCP_FORCE:-0}" != "1" ] && [ -f "$ROSLYNMCP_DIR/RoslynMcp.dll" ]; then
+        log "MadQ.RoslynMcp already at $ROSLYNMCP_DIR; skipping. (ROSLYNMCP_FORCE=1 to refresh.)"
+        return 0
+    fi
+
+    # The net10.0 RUNTIME (not SDK) -- see gotcha 2 above.
+    if ! "$DOTNET_ROOT/dotnet" --list-runtimes 2>/dev/null | grep -q 'Microsoft.NETCore.App 10\.'; then
+        log "Installing the .NET 10 runtime (side-by-side; SDK stays 8.0) ..."
+        curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$WORK/dotnet-install.sh"
+        bash "$WORK/dotnet-install.sh" --channel 10.0 --runtime dotnet \
+             --install-dir "$DOTNET_ROOT" --no-path
+    fi
+
+    if ! mkdir -p "$ROSLYNMCP_DIR" 2>/dev/null; then
+        ROSLYNMCP_DIR="$HOME/.local/share/roslynmcp"
+        log "WARNING: /opt not writable; using $ROSLYNMCP_DIR instead."
+        log "         Point the 'roslyn' MCP server at $ROSLYNMCP_DIR/RoslynMcp.dll."
+        mkdir -p "$ROSLYNMCP_DIR"
+    fi
+
+    local pkg="$WORK/madq.nupkg"
+    local url="https://api.nuget.org/v3-flatcontainer/madq.roslynmcp/${ROSLYNMCP_VERSION}/madq.roslynmcp.${ROSLYNMCP_VERSION}.nupkg"
+    log "Downloading MadQ.RoslynMcp $ROSLYNMCP_VERSION ..."
+    if ! curl -fsSL -o "$pkg" "$url"; then
+        log "NOTE: download failed ($url); the 'roslyn' MCP server will not connect."
+        return 1
+    fi
+
+    rm -rf "$WORK/madq" && mkdir -p "$WORK/madq"
+    unzip -oq "$pkg" -d "$WORK/madq"
+    cp -r "$WORK/madq/tools/net10.0/any/." "$ROSLYNMCP_DIR/"
+
+    if [ -f "$ROSLYNMCP_DIR/RoslynMcp.dll" ]; then
+        log "MadQ.RoslynMcp installed: $ROSLYNMCP_DIR/RoslynMcp.dll"
+        log "Register with: claude mcp add roslyn -- dotnet $ROSLYNMCP_DIR/RoslynMcp.dll --log-path \"\""
+    else
+        log "NOTE: extraction produced no RoslynMcp.dll; the package layout may have changed."
+        return 1
+    fi
+}
+
 main() {
     log "Starting. project=$PROJECT_DIR  mcp-bin=$CBM_BIN"
     install_dotnet
     local cbm_ok=0
     install_cbm && cbm_ok=1 || true
     [ "$cbm_ok" = 1 ] && index_repo || true
-    log "Done. dotnet=$(command -v dotnet || echo "$DOTNET_ROOT/dotnet")  mcp=$([ -x "$CBM_BIN" ] && echo "$CBM_BIN" || echo MISSING)"
+    local roslyn_ok=0
+    install_roslynmcp && roslyn_ok=1 || true
+    log "Done. dotnet=$(command -v dotnet || echo "$DOTNET_ROOT/dotnet")  mcp=$([ -x "$CBM_BIN" ] && echo "$CBM_BIN" || echo MISSING)  roslyn=$([ "$roslyn_ok" = 1 ] && echo "$ROSLYNMCP_DIR" || echo MISSING)"
     if [ "$cbm_ok" != 1 ]; then
         log "NOTE: codebase-memory-mcp was NOT installed; the MCP server will show 'failed to connect'."
         return 1
