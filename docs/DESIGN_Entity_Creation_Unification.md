@@ -27,15 +27,24 @@ approved: 2026-09-02, by the user, on §3.4b's option tables —
   D2 = (b) the request carries a transient flag; ProcessSpawn stamps the existing ScenarioIgnoreTag.
        (Owned by DESIGN_Node_Roles_And_Policies.md §7.3; recorded here because the carrier is the
        request contract.)
-  D3 = the OwnerAddress TYPE (Node | Role | DefaultProcessor), pre-resolution only — the user's
-       encoding question is answered in §3.4b: it never coexists with the system's int node id.
-  D4 = yes, the resolution policy is a one-method seam defaulting to GetLeastLoadedNode.
+  D3 = OPTIONAL, PARKED FOR LATER (user, 2026-09-02) — the OwnerAddress TYPE
+       (Node | Role | DefaultProcessor). The shape and its encoding answer stay recorded in §3.4b and
+       remain approved-in-principle, but it is NOT scheduled and NOTHING blocks on it.
+       ⛔ Do NOT build it as part of the unification. Pick it up only when ROLE addressing is
+       actually wanted; NODE addressing and DefaultProcessor already work today through the existing
+       int OwnerAppInstanceId (0 = default processor — EntityCreationRouting.IsHandledLocally).
+       The rename OwnerAppInstanceId -> Owner rides with D3 and is parked with it.
+  D4 = OPTIONAL, PARKED WITH D3 — the one-method resolution seam only exists to turn Role into an
+       int, so it has no purpose until D3 is built. Its default already exists as
+       IClusterStateCache.GetLeastLoadedNode(NodeRole) in Hrot.Network.NED.
   D5 = DEFERRED, "needs more thinking" — the node-id promotion is NOT part of this work.
   WITHDRAWN 2026-09-02 (architect + measurement): the "mark NetworkAuthority [DataPolicy(NoSave)]"
        proposal is DEAD. StagingEntityExtractor.BuildStaticMask already excludes it (bit 51), and
        docs/designs/cgf-scn/DESIGN.md:62 forbids the global attribute for this component family.
        D5 needs no migration and no attribute. See the WITHDRAWN block in §3.4b.
-  ⛔ D1 and D2 are the host (f) IG gate; D3+D4 follow; D5 is a separate architect question.
+  ⛔ D1 and D2 are the host (f) IG gate — BOTH ARE BUILT, so host (f) is UNBLOCKED.
+       D3+D4 are parked as optional and are NOT a prerequisite for it; D5 is a separate architect
+       question. ⇒ the remaining unification path is host (f) IG adoption alone.
 current-answer-note: ⭐⭐⭐ §3.4b is the NEWEST load-bearing section (2026-09-02) — THE LEVEL MISMATCH and
   the CROSS-HOST resolution of creation duplication. §3.4a says why double consumption is POSSIBLE;
   §3.4b says how it is RESOLVED, and corrects acceptance ⑪, which is too weak (CE-160: the pack's own
