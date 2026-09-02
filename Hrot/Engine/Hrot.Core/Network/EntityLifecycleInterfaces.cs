@@ -69,6 +69,28 @@ public sealed class EntityCreationRequest
     /// </summary>
     public IReadOnlyDictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>?
         ChildComponentOverrides { get; init; } = null;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-143</c> — <b>whether the creator WAITS for peers to ACK before the entity goes
+    /// <c>Active</c>.</b>
+    ///
+    /// <para>📌 <c>CreateEntityRequestSystem</c> hardcoded <c>ReliableInitType.AllPeers</c> at BOTH its
+    /// publish sites, and this request carried no way to say otherwise. ⇒ an IG tactical drawing created
+    /// through a self-targeted request was held in <c>Constructing</c> until every expected peer
+    /// returned a <c>ConstructionAck</c> — pointless latency for a single-owner presentation entity,
+    /// and a stall if a peer is absent or slow.</para>
+    ///
+    /// <para>⛔ <b>This is a SEPARATE axis from <see cref="OwnerAppInstanceId"/>, and they must not be
+    /// conflated</b> (<c>Architect_Question_65</c> §5.5): the owner decides <i>who runs genesis</i>;
+    /// this decides <i>whether the creator waits</i>. *"I own this"* does not imply *"nobody needs to
+    /// ACK it"* — a node can locally own something genuinely simulated.</para>
+    ///
+    /// <para>⭐ <b>Defaults to <see cref="ReliableInitType.AllPeers"/>, which is exactly what the two
+    /// hardcoded sites did</b>, so every existing caller behaves identically — acceptance ⑥'s
+    /// byte-identical default holds.</para>
+    /// </summary>
+    public Fdp.Toolkit.Replication.ReliableInitType InitType { get; init; }
+        = Fdp.Toolkit.Replication.ReliableInitType.AllPeers;
 }
 
 /// <summary>

@@ -324,7 +324,11 @@ namespace Hrot.Common.Systems
                         TkbType           = pending.TkbType,
                         OwnerNodeId       = assignedOwner,
                         DisType           = pending.DisType,
-                        InitType          = ReliableInitType.AllPeers,
+                        // ⭐⭐ CE-143 — was hardcoded ReliableInitType.AllPeers. The request now carries
+                        //   the axis, defaulted to AllPeers, so every existing caller is unchanged and an
+                        //   IG map drawing can say "do not wait for peers" without a stall.
+                        //   ⛔ Separate axis from OwnerAppInstanceId — see EntityCreationRequest.InitType.
+                        InitType          = pending.Request.InitType,
                         InitialTransform  = initialTransform,
                         InitialVelocity   = initialVelocity,
                         InitialComponents = fallbackComponents,
@@ -419,7 +423,11 @@ namespace Hrot.Common.Systems
                                 TkbType           = childDef.ChildTkbType,
                                 OwnerNodeId       = assignedOwner,
                                 DisType           = childDisType,
-                                InitType          = ReliableInitType.AllPeers,
+                                // ⭐ CE-143 — children INHERIT the parent's InitType, decided explicitly
+                                //   rather than left implicit (Q65 §5.5's open line): a drawing's children
+                                //   are exactly as local as the drawing. ⛔ If a child ever needs to differ,
+                                //   that is a per-child override on the request, not a second hardcode here.
+                                InitType          = pending.Request.InitType,
                                 InitialTransform  = initialTransform, 
                                 InitialVelocity   = initialVelocity,
                                 InitialComponents = childComponents.Count > 0 ? childComponents : null,

@@ -564,7 +564,22 @@ was one line and it was blocking verification of my own change; **flagged here s
 | 🔴 **the 1 red** | `FullBranchPipelineTests.BranchedRecording_…` = **`QA-012`**, pre-existing, proven by stash+rebuild on base earlier this session |
 | ⛔ **NOT verified** | the Stride tree — ⭐ but `EditorStrideSubsystem` needed **no edit at all**, so the exposure is a stale `using Hrot.CGF.Systems;` that may now be unused *(a warning at most)* |
 
-### 5.5 🔴🔴 `CE-143` — **`ReliableInitType` is hardcoded; the request cannot express "do not wait for peers"**
+### 5.5 ✅✅ `CE-143` — **BUILT `2026-09-02`.** ~~`ReliableInitType` is hardcoded; the request cannot express "do not wait for peers"~~
+
+> ✅ **AS-BUILT.** `EntityCreationRequest` gained one `init`-only `InitType` member defaulted to
+> `ReliableInitType.AllPeers`; **both** hardcoded sites in `CreateEntityRequestSystem` now read
+> `pending.Request.InitType`. ⭐ **Children INHERIT the parent's value** — the open line below is decided,
+> and decided the way its lean said: *a drawing's children are as local as the drawing*. ⛔ If a child ever
+> needs to differ, that is a per-child override on the request, **not** a second hardcode.
+> ⭐ **Rails** *(`CreateEntityRequestSystemTests`)*: the default is `AllPeers` so **adoption changes
+> nothing** *(acceptance ⑥)* · an explicit `None` **reaches** the published command · and a
+> comment-stripped source scan asserts **neither** site hardcodes it again — which is how the CHILD site is
+> covered, since this fixture's single-template TKB cannot reach it.
+> ⚠ **The live half named below is STILL UNVERIFIED** — *do peers ACK ghosts of entities they neither
+> simulate nor own?* ⛔ Only a running cluster answers it and `hrot-ai-debug` remains down. `None`
+> **sidesteps** the question for presentation entities; it does not answer it.
+
+⛔ **HISTORY — the problem statement as filed:**
 
 📌 **Raised by the architect review as watch-out C, and it is the review's most valuable finding.**
 ⚠ **Obstacle ③ previously said only *"verify the handshake does not stall."*** 📐 **Measured — it is

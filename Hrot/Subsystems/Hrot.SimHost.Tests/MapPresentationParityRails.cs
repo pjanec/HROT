@@ -293,31 +293,13 @@ namespace Hrot.SimHost.Tests
               + "⚠ Comments are stripped before this check, so documenting the call does not satisfy it.");
         }
 
-        /// <summary>
-        /// ⭐ Removes line and block comments so a source scan asserts CODE, never prose.
-        /// ⚠ Deliberately crude — it is a composition-root heuristic, not a C# parser. It does not
-        /// understand string literals, which is acceptable here: none of the tokens this file scans for
-        /// appear inside one, and a false RED from that would be loud rather than silent.
-        /// </summary>
+        // ⭐ CE-160: these two helpers were PRIVATE here and a second rail family needed them.
+        //   Routed into CompositionRootSource rather than copied — CE-156's comment-stripping fix must
+        //   not rot in one copy while the other keeps passing on comments.
         private static string StripComments(string src)
-        {
-            src = System.Text.RegularExpressions.Regex.Replace(
-                src, @"/\*.*?\*/", " ", System.Text.RegularExpressions.RegexOptions.Singleline);
-            return System.Text.RegularExpressions.Regex.Replace(
-                src, @"//[^\n]*", " ");
-        }
+            => CompositionRootSource.StripComments(src);
 
-        /// <summary>Repo-root-relative source read; the scan is the only way to see a composition root's local list.</summary>
         private static string ReadRepoSource(string relativePath)
-        {
-            var dir = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "docs")))
-                dir = dir.Parent;
-            Assert.NotNull(dir);
-
-            var path = System.IO.Path.Combine(dir!.FullName, relativePath.Replace('/', System.IO.Path.DirectorySeparatorChar));
-            Assert.True(System.IO.File.Exists(path), $"expected {path} to exist — the rail's target moved.");
-            return System.IO.File.ReadAllText(path);
-        }
+            => CompositionRootSource.ReadRepoSource(relativePath);
     }
 }
