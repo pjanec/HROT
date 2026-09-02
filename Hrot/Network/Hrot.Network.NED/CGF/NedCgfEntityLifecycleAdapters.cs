@@ -83,7 +83,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
                 // D2 across the node boundary: a forwarded sketch must stay unsaveable on the node that
                 // materialises it. See EntityCreationRequestFlags.Transient for why the wire needed a
                 // carrier at all -- IsTransient previously reached only the LOCAL spawn path.
-                IsTransient           = (msg.Flags & EntityCreationRequestFlags.Transient) != 0,
+                IsTransient           = EntityCreationRequestFlags.IsTransient(msg.Flags),
             });
         }
     }

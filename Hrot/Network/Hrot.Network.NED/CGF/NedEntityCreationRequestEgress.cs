@@ -34,6 +34,15 @@ public static class EntityCreationRequestFlags
     /// the case host (f) introduces — IG addressing a persisting node.</para>
     /// </summary>
     public const long Transient = 1L << 0;
+
+    /// <summary>
+    /// Decodes the transient claim from a wire sample's flags. ⭐ Both ends go through this, so the
+    /// encode/decode pair can be railed rather than asserted twice in prose.
+    /// </summary>
+    public static bool IsTransient(long flags) => (flags & Transient) != 0;
+
+    /// <summary>Encodes a request's transient claim into the wire flags word.</summary>
+    public static long Encode(bool isTransient) => isTransient ? Transient : None;
 }
 
 /// <summary>
@@ -96,9 +105,7 @@ public sealed class NedEntityCreationRequestEgress : IEntityCreationRequestEgres
 
         // ⭐ The address travels: the builder is owner-agnostic, so the routing fields are applied here.
         sample.Owner = new NodeId { AppDomainId = 0, AppInstanceId = request.OwnerAppInstanceId };
-        sample.Flags = request.IsTransient
-            ? EntityCreationRequestFlags.Transient
-            : EntityCreationRequestFlags.None;
+        sample.Flags = EntityCreationRequestFlags.Encode(request.IsTransient);
 
         _writer.Write(sample);
         SentSampleCount++;

@@ -836,6 +836,33 @@ sequenceDiagram
     Peer-->>Spawn: ghost replicated back
 ```
 
+#### 🔴🔴🔴 AS-BUILT `2026-09-02` — **host (f) is BUILT except the spawn system, which is STOPPED on a REAL hazard**
+
+⭐⭐ **Built and green:** the request-level egress (`NedEntityCreationRequestEgress`) with the descriptor
+knowledge extracted from the retired translator into `CreateEntityRequestDescriptorBuilder` (`R-137`); the
+wire carrier for `D2`'s transient flag; IG's tools retargeted onto `ScenarioEntityCreationRequestSource`;
+IG composing `EntityCreationPack`; and `SpawnEntityCommandEgressTranslator` **unregistered** from
+`NedNetworkFactory.CreateIgEgressTranslators`.
+
+⛔⛔⛔ **STOPPED — `NetworkSpawningSystem` is NOT scheduled on IG.** 📐 `EntityGenesisHazardRails` caught it,
+which is the rail working exactly as designed: scheduling it puts `ProcessDestroy` on the same bus event
+`GhostDestructionSystem` already consumes — **`CE-144`'s DESTROY hazard**, which fails **silently** and in
+the worse direction *(ghost-first ⇒ ELM teardown never runs ⇒ `EntityMaster` is never disposed on the wire
+⇒ **peers keep the drawing as a zombie forever**)*. ⚠ Nobody finds that by running the node they changed.
+
+⭐ **Nothing is lost today.** IG's requests are untargeted and IG is not the broadcast arbiter, so
+`IsHandledLocally` is false for every one of them: the forwarder sends them and no local order is ever
+published. The spawn system would be **idle**. The omission is declared through `creation.Unserviceable`
+so it is LOUD, not silent.
+
+| 🔴 THE DECISION THIS NEEDS — *not taken unattended* | |
+|---|---|
+| ⭐ **the two rails are RED and were left red** | `NoRoot_HoldsBothTheSpawnSystemAndTheSpawnEgressTranslator` and `NoRoot_HoldsBothTheSpawnSystemAndASecondDestroyConsumer`, both on `IgNodeBootstrapper.cs` |
+| ⛔ **why they were NOT edited** | both key on `EntityCreationPack.Build` as the proxy for *"this host materialises locally"*. ⭐⭐ **Host (f) is the first host to COMPOSE the pack without SCHEDULING the spawn system, which breaks that proxy.** ⇒ making them green requires a design statement *(measure SCHEDULING, not construction)*, and rewriting a hazard rail to green one's own change is the test-shaped form of *"the compiler agreeing with your mistake"* |
+| ⭐⭐ **option A** | **reconcile the two destroy consumers** *(the real `CE-144` fix)*, then schedule the spawn system and tighten the rails onto scheduling. ⛔ Cross-host blast radius |
+| ⭐ **option B** | **keep IG non-materialising** — it is what IG does today anyway — and re-point the rails at the SCHEDULING signal plus a strictly stronger assertion that `NedNetworkFactory` never puts the spawn egress translator in the IG list |
+| ⚠ **lean** | **B first, A later.** B matches measured behaviour, keeps the guard *(strengthened)*, and unblocks the branch; A is the real fix but is its own slice with a cross-host contract |
+
 #### ⭐ BLAST RADIUS, and the one cost
 
 | | |

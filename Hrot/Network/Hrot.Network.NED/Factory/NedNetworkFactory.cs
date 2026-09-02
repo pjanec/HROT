@@ -246,9 +246,25 @@ public sealed class NedNetworkFactory : INetworkFactory
         IGeographicTransform geoTransform,
         long nodeId)
     {
+        // ⛔⛔ SpawnEntityCommandEgressTranslator is NO LONGER REGISTERED (host (f), 2026-09-02).
+        //
+        // 🔴 It subscribed to SpawnEntityCommand — the node-local ORDER — which is one level below the
+        //    cross-node INTENT. Because FdpEventBus is a broadcast and not a work queue, that put it on
+        //    the same non-draining stream as the spawn system, so a host that both materialises and
+        //    forwards produced TWO entities for one gesture; and a request addressed to a remote owner
+        //    published no order at all, so nothing was forwarded. ⇒ neither owner value worked.
+        //
+        // ⭐ Its job is now NedEntityCreationRequestEgress, reached through
+        //    ICgfEntityLifecycleAdapters.RequestEgress and driven by ForwardingEntityCreationRequestSource,
+        //    which sees the request BEFORE the routing decision. The descriptor construction both used is
+        //    shared in CreateEntityRequestDescriptorBuilder, so no encoding capability was lost (R-137).
+        //
+        // ⚠ The CLASS is deliberately still present and still tested: two ClusterRunner integration tests
+        //    use it as a standalone INSTRUMENT (never kernel-registered) to assert the offline editor makes
+        //    no network calls. Deleting it is a separate, mechanical step once host (f) has been seen
+        //    running — "no rush removals". 📄 DESIGN_Entity_Creation_Unification.md §3.4b.
         return new IDescriptorTranslator[]
         {
-            new SpawnEntityCommandEgressTranslator(participant, bus, geoTransform, nodeId),
             new UpdateEntityCommandEgressTranslator(participant, bus, _entityMap, geoTransform, nodeId),
             new DestroyEntityCommandEgressTranslator(participant, bus, nodeId),
         };

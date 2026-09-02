@@ -288,9 +288,14 @@ public class IgApplication : IDisposable
     /// INTENTS here instead of publishing <c>SpawnEntityCommand</c> ORDERS onto the event bus; the shared
     /// pipeline drains it, and <c>ForwardingEntityCreationRequestSource</c> decides — per request — whether
     /// this node services it or the NED egress sends it to the node that should.
+    ///
+    /// <para>⛔ <b>Read through to the pack, never a second instance.</b> The source is created by
+    /// <c>EntityCreationPack.Build</c> and published by <c>IgNodeBootstrapper</c>; owning a parallel one
+    /// here would be the duplicate-mechanism trap — the tools would fill a queue nothing drains.</para>
     /// 📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.4b.
     /// </summary>
-    internal ScenarioEntityCreationRequestSource LocalEntityCreationRequests { get; } = new();
+    internal ScenarioEntityCreationRequestSource? LocalEntityCreationRequests
+        => _igBootstrapper?.LocalEntityCreationRequests;
 
     // -- Task 5: IG-to-ExCon event translator state ----------------------------------------------
 
@@ -833,7 +838,10 @@ public class IgApplication : IDisposable
                     _canvas,
                     ctx.World.Bus,
                     dto => _networkAdapter?.WriteMapCommandAck(dto),
-                    LocalEntityCreationRequests,
+                    LocalEntityCreationRequests ?? throw new InvalidOperationException(
+                        "The entity-creation pack has not been composed yet. RegisterSpawningPipeline "
+                        + "must run before RegisterApplicationSystems (SharedApplicationBootstrapper "
+                        + ":111 vs :139); if that order changed, IG's authoring tools have no sink."),
                     _effectiveInstanceId,
                     globalGizmoManager: _globalGizmoManager);
             }

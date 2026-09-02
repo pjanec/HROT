@@ -1,4 +1,6 @@
 using CarKinem.Core;
+using Fdp.Core.Logging;
+using Hrot.Common.EntityCreation;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
@@ -52,6 +54,13 @@ namespace Hrot.IG;
 internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 {
     private readonly INetworkFactory? _networkFactory;
+
+    /// <summary>
+    /// ⭐⭐ The node's LOCAL entity-creation request source, owned by the creation pack and published
+    /// here so IG's authoring tools can enqueue INTENTS onto it (host (f)). Null until
+    /// <see cref="RegisterSpawningPipeline"/> has run.
+    /// </summary>
+    public ScenarioEntityCreationRequestSource? LocalEntityCreationRequests { get; private set; }
     private readonly int _effectiveInstanceId;
     private readonly bool _headless;
     private readonly IIgTranslators? _igTranslatorsProvider;
@@ -298,13 +307,98 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     // ── Phase 6a: Register spawning pipeline ─────────────────────────────────
 
     /// <inheritdoc/>
+    /// <summary>
+    /// ⭐⭐⭐ <b>host (f) — IG composes the SAME entity-creation tier as every other ECS node.</b>
+    ///
+    /// <para>📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.4b ·
+    /// <c>Architect_Question_65</c> <c>Q65-A′</c>: every ECS node composes the full genesis pipeline;
+    /// the pack has no opt-out, and a node that never creates locally simply never enqueues a
+    /// self-targeted request.</para>
+    ///
+    /// <para>🔴 <b>What this replaces, and why the old arrangement was an accident.</b> IG used to
+    /// register NO spawn pipeline at all, with the comment <i>"replaces SpawningModule so IG does not
+    /// duplicate entities"</i>. ⛔ That prevented the double spawn by OMITTING the systems — an
+    /// arrangement that only holds while nothing else consumes the order, and it is exactly what §3.4a
+    /// identifies as the hazard: <c>FdpEventBus</c> is a broadcast, not a work queue, so two subscribers
+    /// on one <c>SpawnEntityCommand</c> each act on it. ⇒ ⭐ the duplication is now prevented
+    /// STRUCTURALLY, one level up: the tools post an INTENT, and
+    /// <c>ForwardingEntityCreationRequestSource</c> decides per request whether this node services it or
+    /// the NED egress sends it to the node that should.</para>
+    ///
+    /// <para>⭐⭐ <b>Why registering the spawn system does NOT reintroduce the double spawn.</b>
+    /// 📐 Measured: IG's requests carry <c>OwnerAppInstanceId = 0</c> (untargeted — see
+    /// <c>IgEntityCreationRequests</c>) and this node is NOT the broadcast arbiter, so
+    /// <c>EntityCreationRouting.IsHandledLocally</c> is false for every one of them. The forwarder sends
+    /// them, no local order is published, and the authoritative entity still comes back as a replicated
+    /// ghost — today's behaviour exactly. ⭐ The systems are present and idle, which is what
+    /// <c>Q65-A′</c> asks for: capability by composition, not by node role.</para>
+    /// </summary>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
     {
-        // B. Ghost destruction - replaces SpawningModule so IG does not duplicate entities.
-        // SpawnEntityCommand is forwarded to SimHost via SpawnEntityCommandEgressTranslator;
-        // SimHost creates the authoritative ghost which DDS replicates back.
-        // GhostDestructionSystem tears down those ghosts on EntityMaster DISPOSE.
+        // ⭐ Every optional input is threaded from the SAME adapters object, exactly as CgfSubsystem
+        //    does — the pack substitutes NullEntityAckSink when offline.
+        var adapters = _networkFactory?.CreateCgfEntityLifecycleAdapters();
+
+        var creation = EntityCreationPack.Build(new EntityCreationContext
+        {
+            World       = context.World,
+            EntityMap   = context.EntityMap,
+            TkbDb       = context.TkbDb!,
+            IdAllocator = context.IdAllocator!,
+            Elm         = (EntityLifecycleModule)context.BaseModules
+                              .First(m => m is EntityLifecycleModule),
+            NodeId      = context.NodeId,
+
+            NetworkRequestSource  = adapters?.RequestSource,
+            AckSink               = adapters?.AckSink,
+            JsonAttributeCompiler = adapters?.JsonCompiler,
+            OwnershipStrategy     = adapters?.OwnershipStrategy,
+
+            // ⭐⭐⭐ D1: the forwarding half. Without it a request addressed elsewhere is silently
+            //    dropped by the Level-1 guard, which is the other half of the level mismatch.
+            RequestEgress         = adapters?.RequestEgress,
+
+            // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
+            IsBroadcastArbiter = false,
+        });
+
+        // ⭐ The tools' sink. RegisterSpawningPipeline runs BEFORE RegisterApplicationSystems
+        //    (SharedApplicationBootstrapper.cs:111 vs :139), so the registrar callback that constructs
+        //    MapCommandController always sees a non-null value. Same arrangement as CgfSubsystem's
+        //    _scenarioSource and EditorSubsystem's _scenarioLoadSource.
+        LocalEntityCreationRequests = creation.LocalRequests;
+
+        context.Kernel.RegisterGlobalSystem(creation.RequestSystem);       // Input
+        context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);  // PostSimulation
+
+        // B. Ghost destruction - tears down ghosts replicated from the owning node on EntityMaster
+        // DISPOSE. Still required: most entities IG shows are owned elsewhere.
         context.Kernel.RegisterGlobalSystem(new GhostDestructionSystem(context.EntityMap));
+
+        // ⛔⛔⛔ THE SPAWN SYSTEM IS DELIBERATELY NOT SCHEDULED ON IG — and this is a STOP, not a choice
+        //    made lightly. 📄 DESIGN_Entity_Creation_Unification.md §3.4b; escalated for a decision.
+        //
+        // 📐 Measured, and it is EntityGenesisHazardRails that caught it: scheduling
+        //    NetworkSpawningSystem here puts ProcessDestroy on the same bus event GhostDestructionSystem
+        //    already consumes. That is CE-144's DESTROY hazard, and it fails SILENTLY in the worse
+        //    direction — ghost-first means ELM teardown never runs, EntityMaster is never disposed on the
+        //    wire, and PEERS keep the drawing as a zombie forever. ⚠ Nobody finds that by running the node
+        //    they changed.
+        //
+        // ⭐ Nothing is lost today: IG's requests are untargeted (IgEntityCreationRequests) and this node
+        //    is not the broadcast arbiter, so IsHandledLocally is false for every one of them — the
+        //    forwarder sends them and no local order is ever published. The spawn system would be idle.
+        //
+        // ⇒ ⛔ Before IG may materialise locally, the two destroy consumers must be reconciled. Declaring
+        //    the omission here keeps it LOUD rather than silent, which is exactly what Unserviceable is for.
+        var unserviceable = creation.Unserviceable(new object[]
+        {
+            creation.RequestSystem, creation.FinalizationSystem,
+        });
+        if (unserviceable.Length > 0)
+            FdpLog<IgNodeBootstrapper>.Info(
+                "[IG] entity-creation pieces deliberately not scheduled (see CE-144 destroy hazard): {0}",
+                unserviceable);
 
         // UnitHierarchySystem - maintains ECS commander-subordinate hierarchy on the IG node (CS016).
         context.Kernel.RegisterModule(new IgUnitHierarchyModule(new UnitHierarchySystem()));

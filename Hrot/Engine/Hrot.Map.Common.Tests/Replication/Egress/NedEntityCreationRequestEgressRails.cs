@@ -136,6 +136,33 @@ public class NedEntityCreationRequestEgressRails
         Assert.Equal(2, overlay.MapVisualOverlay.Points.Count);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ The wire ROUND TRIP for the transient claim. The egress encodes it and the NED ingress
+    /// decodes it through the same pair, so a sketch forwarded to a persisting node arrives still marked
+    /// unsaveable. ⛔ Without this the receiving node materialises it as an ordinary entity and
+    /// CollectSaveableEntities writes an operator's sketch into the scenario (D2, R-140).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheTransientClaim_SurvivesTheWireRoundTrip(bool isTransient)
+    {
+        var (egress, writer) = NewEgress();
+
+        egress.Send(new EntityCreationRequest
+        {
+            RequestId          = Guid.NewGuid(),
+            OwnerAppInstanceId = 9,
+            TkbType            = 42L,
+            IsTransient        = isTransient,
+        });
+
+        var sample = Assert.Single(writer.Publishes);
+
+        // The decode the NED ingress performs when it rebuilds the request on the far node.
+        Assert.Equal(isTransient, EntityCreationRequestFlags.IsTransient(sample.Flags));
+    }
+
     /// <summary>The TKB type must survive — it is what the receiving node looks the template up by.</summary>
     [Fact]
     public void Send_CarriesTheTkbType()
