@@ -122,48 +122,64 @@ not a signal).
 - `get_graph_schema(project)` — Node/edge counts, relationship patterns
 - `get_code_snippet(qualified_name)` — Read source code for a function
 - `get_architecture(project, aspects)` — Overview; `clusters` finds the real seams, `cycles` is opt-in
-- `search_code(pattern, project)` — Grep-like text search within indexed files
+- `search_code(pattern, project, limit)` — ⭐⭐ grep-like text search over the indexed files, **sub-second, and it reaches further than Roslyn** *(out-of-solution projects, `Stride/`, `docs/`, `.dev/`)*. ⛔⛔ **`limit` defaults to 10** — a truncated page looks exactly like a small answer; pass a real limit and read `total_grep_matches` / `total_results`. ⚠ It is TEXT: it cannot tell a real reference from a comment or a same-named symbol ⇒ **escalate to Roslyn only for that** *(see the WHICH TOOL section)*
+- ⛔⛔ **`search_graph` does NOT model field reads/writes** — 📌 measured: **1 node** *(the declaration, `in_degree: 0`)* where Roslyn found **30 references**. ⚠ **An `in_degree` of 0 on a field is evidence of NOTHING**
 - `manage_adr(action)` — CRUD for Architecture Decision Records
 - `ingest_traces(traces)` — Ingest runtime traces to validate HTTP edges
 
-## ⭐⭐⭐ THE ROSLYN MCP — **the COMPILER answers symbol questions; grep and the graph do not** *(chosen `2026-09-02`)*
+## ⭐⭐⭐ WHICH TOOL — **codebase-memory FIRST; Roslyn only where it is NOT ENOUGH** *(user, `2026-09-02`)*
 
-⭐ **Server: `roslyn`** *(`MadQ.RoslynMcp`, at `/opt/roslynmcp/RoslynMcp.dll`; installed by `scripts/cloud-bootstrap.sh`)*.
-⭐ It opens the real **`MSBuildWorkspace`** and answers from the **semantic model** — so it resolves overloads,
-interface dispatch, aliases and partial classes that text cannot. 📐 Chosen by measuring it against
-`RoslynMcp.Server`+`Cli` *(JoshuaRamirez)* and **Serena** on this solution; the two losers are unregistered
-and the rejection reasons are recorded in `install_roslynmcp()` in the bootstrap script.
+> ⭐⭐⭐ **User, verbatim:** *"roslyn is extremely slow so use it only where codebase memory is not good enough."*
 
-### ⭐⭐ ① Use it for SYMBOL-level questions — ⛔⛔ and for EVERY C# rename
+📐 **The cost that decides it, measured on this repo:**
 
-| the question | the tool |
+| tool | cost |
 |---|---|
-| *"where is this used?"* | `roslyn_find_references` |
-| *"who calls this?"* | `roslyn_find_callers` · `roslyn_get_call_graph` |
-| *"what implements this interface member?"* | `roslyn_find_implementations` · `roslyn_get_type_hierarchy` |
-| *"which overload is this?"* | `roslyn_find_overloads` |
-| ⭐⭐⭐ **rename a symbol** | `roslyn_preview_rename` → **read the diff** → `roslyn_apply_rename` |
-| *"does this still compile?"* | `roslyn_get_diagnostics` *(in-process, no build)* |
+| ⭐⭐ `search_graph` · `search_code` *(codebase-memory)* | **sub-second** |
+| ⭐⭐ `grep` | **sub-second** |
+| ⛔⛔ **Roslyn, first query of a session** | 🔴 **~59–66 s** *(the MSBuildWorkspace load)* |
+| ⛔ **Roslyn, first query against a DIFFERENT solution** | 🔴 **another ~20–40 s** — a second workspace |
+| ⭐ Roslyn, warm, same session, same workspace | 0.8–5 s |
 
-⛔⛔⛔ **NEVER rename a C# symbol with text search-and-replace** — not `sed`, not `Edit --replace_all`, not a
-Python `str.replace`. 📌 **Measured on this repo, `2026-09-02`:** `roslyn_find_references` on a field returned
-**30 references across 5 projects**; `roslyn_preview_rename` on the same symbol produced a diff touching
-**13 files across 7 projects** — including `Hrot.Network.NED` and `Hrot.SimHost.Integration.Tests`, which the
-reference list never named. ⇒ ⭐⭐ **even the semantic reference list UNDERSTATES the blast radius of a
-rename.** A text replace understates it further **and silently hits comments, strings and unrelated
-same-named symbols.** ⭐ `roslyn_preview_rename` is the only honest blast-radius answer here — read it before
-applying.
+⇒ ⭐⭐⭐ **Default to codebase-memory + grep. Reach for Roslyn only when the question is one they CANNOT
+answer — and when you do, batch every symbol question into that one warm session.**
 
-### ⭐⭐ ② It COMPLEMENTS codebase-memory and grep — ⛔ it does not replace either
+### ⭐⭐ ① The routing table
 
-| ⭐ still the right tool | why |
-|---|---|
-| ⭐⭐ **`search_graph` — the INVENTORY rule stands** | ⛔ Roslyn answers *"where is THIS symbol"*; it does not enumerate *"what is the complete set of Tkb interfaces"*. **The `INVENTORY`-before-design rule is unchanged** |
-| ⭐⭐ **grep** | ⛔⛔ the workspace holds **C# only**. `.csproj` · `Directory.Build.props` · JSON/config · scenario assets · SQL · Razor · shell scripts · markdown are **invisible to it**. 📌 A `nameof`-free string reference, an MSBuild `<Compile Remove>`, an asset that names a type by string — grep finds these, Roslyn cannot |
-| ⭐ **the design corpus** *(`R-129`)* | ⛔ no compiler answers *"was this MEANT to exist"* |
+| the question | ⭐ the tool | why not the other |
+|---|---|---|
+| ⭐⭐ *"what is the complete SET of X?"* | **`search_graph`** | ⛔ Roslyn answers *"where is THIS symbol"*; it cannot enumerate. **The `INVENTORY`-before-design rule is untouched** |
+| ⭐⭐ *"which FILES mention this name?"* | **`search_code`** *(or grep)* | ⭐ **it beats Roslyn on reach** — 📌 measured: 33/33 C# files **including `Stride/` and out-of-solution projects**, plus 13 design `.md` and 3 `.dev` files. ⚠ **pass `limit`** — the default is **10**, which silently looks like a small answer |
+| ⭐ *"what does this function do?"* | **`get_code_snippet`** → `Read` | — |
+| ⭐ anything **not C#** — `.csproj`, `Directory.Build.props`, JSON/config, scenario assets, SQL, Razor, shell, markdown | **grep / `search_code`** | ⛔⛔ the Roslyn workspace holds **C# only** |
+| ⭐ *"was this MEANT to exist?"* | **the design corpus** *(`R-129`)* | ⛔ no compiler answers intent |
+| ⛔⛔ **RENAME a C# symbol** | 🔴 **Roslyn — always** | see the ban below |
+| ⛔ *"is this text hit REALLY this symbol?"* — overloads, interface dispatch, aliases, partial classes, same name on two types | 🔴 **Roslyn** | ⛔ `search_code` is TEXT: 📌 **131 text matches vs 30 real references** on the same field — the rest were `<see cref>`, comments and markdown prose |
+| ⛔ *"who implements / overrides this?"* | 🔴 **Roslyn** `find_implementations` · `get_type_hierarchy` | ⚠ `trace_path` **under-reports C# interface dispatch** *(measured: 3 vs 9+)* |
+| ⛔ *"does it still compile?"* without a build | 🔴 **Roslyn** `get_diagnostics` | — |
 
-⇒ ⭐ **Three complements, not a hierarchy:** design docs for **intent** · `search_graph` for the **set** ·
-Roslyn for the **exact symbol** · grep for **everything that is not C#**.
+⛔⛔ **What codebase-memory canNOT do, so do not try:** ⭐ **`search_graph` does not model field reads/writes.**
+📌 Measured on `EntityCreationRequest.OwnerAppInstanceId`: `search_graph` returned **ONE node — the
+declaration, `in_degree: 0`** — where Roslyn found **30 references.** ⚠ **An `in_degree` of 0 on a field is
+NOT evidence of anything.** ⇒ for *"where is this field touched"*, `search_code`/grep for the set, Roslyn to
+tell which hits are real.
+
+### ⛔⛔⛔ ② NEVER rename a C# symbol with text search-and-replace
+
+⛔ Not `sed`, not `Edit --replace_all`, not a Python `str.replace`. 📌 **Measured, `2026-09-02`:**
+`roslyn_find_references` on a field returned **30 references across 5 projects**; `roslyn_preview_rename` on
+the same symbol produced a diff touching **13 files across 7 projects** — including `Hrot.Network.NED` and
+`Hrot.SimHost.Integration.Tests`, which the reference list never named. ⇒ ⭐⭐ **even the semantic reference
+list UNDERSTATES a rename's blast radius.** A text replace understates it further **and silently hits
+comments, strings and unrelated same-named symbols.**
+
+⭐ **The flow:** `roslyn_preview_rename` → **read the diff** → `roslyn_apply_rename`.
+⚠ **And still grep afterwards** — ⑤ below: the rename cannot reach projects outside the opened solution.
+
+⭐ **Server: `roslyn`** *(`MadQ.RoslynMcp`, at `/opt/roslynmcp/RoslynMcp.dll`; installed by
+`scripts/cloud-bootstrap.sh`)*. It opens the real **`MSBuildWorkspace`** and answers from the **semantic
+model**. 📐 Chosen by measuring it against `RoslynMcp.Server`+`Cli` *(JoshuaRamirez)* and **Serena** on this
+solution; the two losers are unregistered and the rejection reasons are in `install_roslynmcp()`.
 
 ### ⛔⛔⛔ ③ A ZERO RESULT IS USUALLY A DEAD WORKSPACE — **and the failure is SILENT**
 
@@ -238,11 +254,9 @@ through the MCP reliably fails with `timed out after 60s`.** ⭐ **Just call it 
 survives the cancelled call and the second attempt answers warm *(measured: 4.9 s)*. ⭐ For a single long
 query, drive the server over stdio with a longer timeout instead.
 
-### ⚠ Cost — **it stays warm, so keep the session**
-
-📐 Measured on this solution: **cold ≈ 59 s** *(the first query loads the workspace)*, **warm ≈ 0.8 s** for
-subsequent queries **in the same server session**. ⇒ ⭐ **do not restart it between questions**; batch symbol
-work into one run. ⛔ **A one-shot CLI invocation pays the 59 s every time.**
+⭐⭐ **It stays warm, so KEEP THE SESSION** — the cost table at the top of this section is why. ⭐ Do not
+restart it between questions; **batch every symbol question into one run.** ⛔ **A one-shot CLI invocation
+pays the ~59 s every time.**
 
 ## ⛔⛔ UNREFERENCED IS NOT UNINTENTIONAL — **search `docs/` FIRST, then `.dev/`, before proposing any deletion** *(user ruling, `2026-08-15`; corpus order corrected `2026-08-17` and again `2026-08-21`)*
 
