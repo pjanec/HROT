@@ -848,6 +848,86 @@ sequenceDiagram
 i.e. if forwarding is a *relay* rather than an *authoring* act. 📐 Nothing measured suggests that: the only
 production forwarder is IG's, and it forwards its own tools' output.
 
+#### ⭐⭐⭐ THE ADDRESS IS A ROLE, NOT ONLY A NODE — **and it must NOT ride the wire** *(user, `2026-09-02`)*
+
+> 🔒 **User, verbatim:** *"IG should be able to say owner = whatever node. Maybe we should add what ROLE
+> is owner, not just concrete node. Things are not always IG owned. The logic can change any commit, per
+> feature etc. We need the flexibility on generic system level although we do not need to use it every
+> time."*
+
+⭐ **First half is already true and I was wrong to treat it as open.** 📐 `OwnerAppInstanceId` accepts **any**
+node id and the Level-1 guard honours it — there is no rule anywhere that IG may only address itself.
+⇒ ⛔ **the earlier open question *"should `owner = another node` stay reachable from IG"* is CLOSED: it was
+never restricted.** ⭐ What was missing is only the FORWARDING, which is what option (b) fixes.
+
+##### ⚠⚠ THREE LAYERS, and conflating them is the trap
+
+| layer | question | mechanism | status |
+|---|---|---|---|
+| **A** | which node **BUILDS** it | `OwnerAppInstanceId` + the Level-1 guard | ✅ built, **node-id addressed** |
+| **B** | which node is the entity's **PRIMARY OWNER** | the same field → `NetworkOwnership.PrimaryOwnerId` | ✅ built, node-id |
+| ⭐⭐ **C** | which node owns which **COMPONENTS** | `IOwnershipDistributionStrategy` *(push, only the default processor)* today; **`IRoleAffinityPolicy`** in 📄 [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) *(pull — each node derives from **its own** role)* | one built, one **READY-TO-BUILD, not built** |
+
+⇒ ⭐⭐⭐ **The user's ask lands on A and B. ⛔ It must NOT be extended to C** — 📌 role-affinity ownership
+**deliberately removes** the need to address anything at layer C: two nodes running the same function over
+the same entity cannot disagree. ⇒ **putting component-level role policy on the request would re-introduce
+the push model that design exists to retire.**
+
+##### ✅ THE RESOLVER ALREADY EXISTS
+
+📐 **`IClusterStateCache.GetLeastLoadedNode(NodeRole requiredRole)`** — role → concrete node id, O(1), fed by
+`NodeHeartbeatEvent` into `NodeCapability { NodeId, Role, CpuUsagePercent, … }`. ⭐ Already in production,
+consumed by `BrainMuscleOwnershipStrategy`. ⇒ **role addressing needs no new resolution machinery.**
+
+##### 🔴🔴 THE HAZARD THAT DECIDES THE SHAPE — **a role must be resolved by exactly ONE node**
+
+📐 `IClusterStateCache` is documented as subscribing to `NodeHeartbeatEvent` **on the LOCAL `FdpEventBus`**,
+with its own `PruneStale`. ⇒ ⛔ **two nodes' caches are not guaranteed to agree.** ⇒ 🔴 **if each RECEIVER
+resolved `Role(X)` for itself, two nodes carrying that role could both conclude "that is me" and both
+build the entity** — the same duplicate-creation family as the spawn hazard, one level up.
+
+⇒ ⭐⭐⭐ **Resolve at the ORIGINATING node, before the request leaves.** Single resolver **by construction**;
+and it is the same place option (b) already decides *"the owner is not me ⇒ forward"*. ⭐ **One place
+resolves, one place forwards.**
+
+##### ⭐ THE SHAPE — **and why it stays off the wire**
+
+| | option | verdict |
+|---|---|---|
+| **(a)** | encode roles as negative `OwnerAppInstanceId` values | ⛔ **rejected — magic numbers**, banned by `CODE-STANDARDS §1` *(the rule `BrainMuscleOwnershipStrategy` cites in its own header)* |
+| **(b)** | add `OwnerRole` **beside** `OwnerAppInstanceId` | ⛔ **rejected** — two fields that can disagree, with no rule saying which wins |
+| ⭐⭐ **(c)** | ⭐ an **`OwnerAddress`** value type on `EntityCreationRequest`: exactly one of **`Node(id)`** · **`Role(NodeRole)`** · **`DefaultProcessor`** | ✅ **THE LEAN** — "both set" is **unrepresentable**, and `DefaultProcessor` names today's `0` instead of leaving it a magic literal |
+
+🔴🔴 **AND THE CONSTRAINT THAT KEEPS THIS CHEAP.** 📐 **Measured:** `OwnerAppInstanceId` is a **WIRE** field —
+the DDS `CreateEntityRequest.Owner` is `Hrot.NED.Common.NodeId`, and `NedCgfEntityLifecycleAdapters` maps
+`msg.Owner.AppInstanceId` onto it. 📐 That `NodeId` carries **exactly one field, `AppInstanceId`** — ⛔ **no
+role, no app type.**
+
+⇒ ⭐⭐⭐ **Role addressing ACROSS DDS would be an IDL / NED-descriptor change** — the
+large-blast-radius serialization-contract class that `CLAUDE.md` says is **not** delegated. ⛔ **So do not
+put the role on the wire.**
+
+| ⭐ the split | |
+|---|---|
+| ⭐⭐ **NOW — managed only, zero wire change** | `EntityCreationRequest` carries `OwnerAddress`. A locally-authored request may address a **role**; the originating node resolves it to a concrete id **before** the request is forwarded ⇒ **the wire keeps carrying a plain `NodeId` and the NED contract is untouched** |
+| ⛔ **LATER — only if a real need appears** | role addressing *across* the wire ⇒ **an architect question resolved with the user**, not a batch decision |
+
+##### ⭐⭐ AND THE RESOLUTION POLICY IS A SEAM, NOT A CALL — **this is the "flexibility" half of the ask**
+
+🔒 *"The logic can change any commit, per feature etc."* ⇒ ⛔ **the resolver must not hard-code
+`GetLeastLoadedNode`.** 📐 `IClusterStateCache` offers **only** that one policy, and 📌
+[`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) §5 ③ already wants a different
+one *(a stable brain index, `NetworkId % brainCount`)* ⇒ **two policies are already in demand.**
+
+⇒ ⭐ **A one-method seam — `int? Resolve(NodeRole)` — whose default implementation delegates to
+`GetLeastLoadedNode`.** ⭐⭐ Least-loaded, round-robin, sticky-by-`NetworkId`, or a fixed pin become a
+composition choice per host and per feature, ⛔ **without the request contract learning about any of them.**
+📌 That is exactly the *"mechanism vs policy"* split `Architect_Question_65` §5.3 already rules on.
+
+⚠ **What would change this lean:** if a role-addressed request must be re-resolved *after* it crosses the
+wire — e.g. the originally chosen node dies in flight and someone else must pick up. ⛔ **That is a
+failover requirement, not an addressing one**, and it needs the role on the wire ⇒ the architect question.
+
 #### 🔴 OPEN, and it is a question for the user, not a measurement
 
 ⭐ **Should `owner = another node` stay reachable FROM IG at all**, or are tactical graphics always
