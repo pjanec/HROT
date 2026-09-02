@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
+using Hrot.IG.EntityCreation;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Core.Logging;
@@ -94,6 +95,9 @@ public class MapCommandController
     /// </summary>
     private readonly Dictionary<Guid, bool> _pendingEntityRequests = new();
 
+    /// <summary>The local creation-request seam this controller posts INTENTS onto (host (f)).</summary>
+    private readonly ScenarioEntityCreationRequestSource _requests = null!;
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
     /// <param name="canvas">The <see cref="MapCanvas"/> on which tools may be pushed and popped.</param>
@@ -107,16 +111,24 @@ public class MapCommandController
     /// Manager used to register/unregister the <see cref="EntityPlacementGizmo"/> for each
     /// placement session. When <c>null</c> the gizmo is not activated.
     /// </param>
+    /// <param name="requests">
+    /// ⭐⭐⭐ The node's LOCAL entity-creation request source — the seam the shared pipeline drains, and
+    /// the same one the Editor's scenario path enqueues onto. ⛔ REQUIRED, deliberately: an optional
+    /// sink here would be the silent-default pattern that has cost this programme nine wiring defects.
+    /// 📄 <c>DESIGN_Entity_Creation_Unification.md</c> §3.4b, host (f).
+    /// </param>
     public MapCommandController(
-        MapCanvas                  canvas,
-        FdpEventBus                eventBus,
-        Action<MapCommandAckDto>   ackCallback,
-        long                       localNodeId        = 0,
-        GlobalGizmoManager?        globalGizmoManager = null)
+        MapCanvas                          canvas,
+        FdpEventBus                        eventBus,
+        Action<MapCommandAckDto>           ackCallback,
+        ScenarioEntityCreationRequestSource requests,
+        long                               localNodeId        = 0,
+        GlobalGizmoManager?                globalGizmoManager = null)
     {
         _canvas             = canvas      ?? throw new ArgumentNullException(nameof(canvas));
         _eventBus           = eventBus    ?? throw new ArgumentNullException(nameof(eventBus));
         _ackCallback        = ackCallback ?? throw new ArgumentNullException(nameof(ackCallback));
+        _requests           = requests    ?? throw new ArgumentNullException(nameof(requests));
         _localNodeId        = localNodeId;
         _globalGizmoManager = globalGizmoManager;
     }
@@ -227,7 +239,9 @@ public class MapCommandController
             return;
         }
 
-        _eventBus.PublishManaged(cmd);
+        // host (f): post the INTENT, not the node-local ORDER. Publishing SpawnEntityCommand here is what
+        // made the egress translator and the spawn system read the same non-draining bus.
+        _requests.Enqueue(IgEntityCreationRequests.FromSpawnCommand(cmd));
         _pendingEntityRequests[cmd.RequestId] = true;
 
         if (isToolDone)
@@ -305,11 +319,11 @@ public class MapCommandController
     /// </summary>
     private void OnEntityCreatedByTool(SpawnEntityCommand cmd)
     {
-        _eventBus.PublishManaged(cmd);
+        _requests.Enqueue(IgEntityCreationRequests.FromSpawnCommand(cmd));
         _pendingEntityRequests[cmd.RequestId] = true;
 
         FdpLog<MapCommandController>.Debug(
-            "[Node-{0}] Published SpawnEntityCommand req={1}", _localNodeId, cmd.RequestId);
+            "[Node-{0}] Enqueued EntityCreationRequest req={1}", _localNodeId, cmd.RequestId);
     }
 
     /// <summary>

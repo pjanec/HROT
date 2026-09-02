@@ -283,6 +283,15 @@ public class IgApplication : IDisposable
     /// </summary>
     private int _effectiveInstanceId;
 
+    /// <summary>
+    /// ⭐⭐⭐ The node's LOCAL entity-creation request source (host (f)). IG's authoring tools enqueue
+    /// INTENTS here instead of publishing <c>SpawnEntityCommand</c> ORDERS onto the event bus; the shared
+    /// pipeline drains it, and <c>ForwardingEntityCreationRequestSource</c> decides — per request — whether
+    /// this node services it or the NED egress sends it to the node that should.
+    /// 📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.4b.
+    /// </summary>
+    internal ScenarioEntityCreationRequestSource LocalEntityCreationRequests { get; } = new();
+
     // -- Task 5: IG-to-ExCon event translator state ----------------------------------------------
 
     private WGS84Transform?                  _geoTransform;
@@ -824,6 +833,7 @@ public class IgApplication : IDisposable
                     _canvas,
                     ctx.World.Bus,
                     dto => _networkAdapter?.WriteMapCommandAck(dto),
+                    LocalEntityCreationRequests,
                     _effectiveInstanceId,
                     globalGizmoManager: _globalGizmoManager);
             }
