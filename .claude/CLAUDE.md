@@ -443,6 +443,45 @@ folded its `RestorePostTick()`-seam trim and the drain-as-PULL correction back i
 ⭐ **That is the behaviour;** this rule makes it an OBLIGATION rather than a good habit some batches keep
 and others forget.
 
+### ⛔⛔⛔ AN INVESTIGATION THAT LEARNS SOMETHING MUST UPDATE THE OWNING DESIGN — **not just the report** *(user, `2026-09-02`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"we need claude.md rule to actively search update and maintain the relevant
+> designs when we have investigated some topic for example during test fixing etc."*
+
+⚠⚠ **`R-129` and obligation ⑤ do NOT cover this, and that is the gap.** ⭐ `R-129` says **READ** the design
+before you touch a feature. ⭐ Obligation ⑤ says fold back a **BUILD DEVIATION**. ⛔⛔ **Neither fires when
+you learn something while DEBUGGING, TRIAGING A RED, or CHASING A TEST** — and that is where most findings
+actually come from. ⇒ **the finding lands in a report, the report is ephemeral, and the design stays
+wrong.**
+
+📌 **Measured on `2026-09-02`, in ONE session** — every one of these was learned during test/red work and
+**would have died in a batch report** if the user had not pushed:
+
+| what was learned while fixing/triaging | where it belonged |
+|---|---|
+| `CE-113` already fixed `AccelGain`, so `CE-103`'s tracker explanation was **stale and misleading** | the `CE-103` row |
+| the integration harness projected **5 translators where production has 6** | `DESIGN_Entity_Creation_Unification` §6 ⑥ |
+| acceptance ⑪'s condition was **too weak** — the pack itself publishes the event | that design's §6 ⑪ |
+| IG registers **no scenario-save handler**, which is what actually enforces the IG persistence rule | `DESIGN_Node_Roles_And_Policies` §7.1 |
+| the scenario extractor **strips ownership** rather than filtering on it | same doc, §7.2 |
+
+### ⭐ The rule — **three obligations, all cheap**
+
+| # | ⭐ obligation |
+|---|---|
+| **①** | ⭐⭐⭐ **When an investigation establishes a durable fact** — a root cause, a refuted lead, a measured invariant, *"X is already fixed"*, *"the enforcement is actually Y"* — **SEARCH for the owning design and UPDATE IT.** ⛔ Writing it only in a report, a tracker row's tail, or a commit message is **insufficient** |
+| **②** | ⭐⭐ **SEARCH BOTH TREES: `docs/` FIRST, then `.dev/`** — ⚠ and search by TOPIC, not by a guessed filename. 📌 `2026-09-02`: a filename filter of `scenario\|sav\|persist` **missed the `cgf-scn` programme entirely** because the folder says *"scn"*, and the session then asserted *"no such design exists"* — **twice**. ⇒ ⛔ **grep the CONTENT, and never conclude "it does not exist" from a name filter** |
+| **③** | ⭐⭐ **If no owning design exists, say so explicitly** — *"searched `<where>`, no owning design; finding recorded in `<X>`"* — ⭐ and **create or extend one when the finding is load-bearing.** ⛔ A durable fact with no durable home is the disease this rule treats |
+
+⭐ **The checkable artefact:** the report/commit **NAMES the design and section it updated** — *"folded into
+`DESIGN_Foo.md` §4"* — exactly as obligation ⑤ already requires for deviations. ⛔ **A batch that fixed a
+test and touched no design is not automatically wrong** *(many fixes teach nothing)* — ⚠ **but a batch that
+ROOT-CAUSED something and touched no design is.**
+
+⚠ **Why this is not just "be diligent":** every finding in the table above was **measured, written down in
+chat, and would still have been lost.** ⇒ ⭐ the rule is about the DESTINATION of a finding, not the effort
+of making it.
+
 ## ⭐⭐⭐ THE THREE TEST TIERS — **run what the change earns** *(user, `2026-08-20`)*
 
 > ⭐⭐ **User:** *"the amount of tests run for every small fix is rendering the iteration time
