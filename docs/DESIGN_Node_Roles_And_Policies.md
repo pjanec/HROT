@@ -1,8 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-02
-current-answer: §3 is the role table, §4 is ownership, §5 is persistence, §6 is where an entity
-  should be created. §7 is the honest list of what is ENFORCED versus merely CONVENTION.
+current-answer: §3 is the role table and §3.1 is entity-creation uniformity (a role never denies a
+  capability), §4 is ownership, §5 is persistence, §6 is where an entity should be created. §7 is the
+  honest list of what is ENFORCED versus merely CONVENTION.
+open-elsewhere: §8 ① — what happens to a REPLICATED entity at save time — is a SCENARIO-SAVING
+  question parked here. No scenario-saving design document exists yet; when one is written, that
+  question moves there and this file keeps only the dependency.
 stale-below: nothing.
 known-rot: nothing known. ⚠ This document is NEW and consolidates statements that were previously
   scattered across HROT-Engine-Guide §1.3–§1.3c, RULINGS R-138/R-140, and Architect_Question_65. If it
@@ -78,6 +82,34 @@ a deployment is described by a *set* of roles, not by a node "type".
 | ⛔ **`NodeRole.AllInOne` does not exist** | a single-process deployment is a **combination**, e.g. `Brain \| MuscleGround` |
 | ⭐ production SimHost is **`MuscleGround \| Perception`** | 📄 `docs/projects/Hrot/Subsystems/Hrot.SimHost.md` |
 | ⭐ the role selects **modules**, not permissions | ⇒ a role does not gate what a node *may* do, only what it is *built with* |
+
+---
+
+### 3.1 ⭐⭐⭐ A ROLE NEVER DENIES A CAPABILITY — **entity-creation uniformity**
+
+📄 **The full design: [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) ·
+the decisions: [`Architect_Question_65`](blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md)
+§0 and §4 (`Q65-A′`).**
+
+> 🔒 **The governing ruling, user `2026-08-31`, verbatim:** *"the shared code for entity creation support
+> should not restrict any ECS enabled node from creating own networked entities … no exceptions, not
+> removing capabilities by design, and only concrete authoring code picks the way it needs."*
+
+⭐⭐ **This is the sharpest consequence of §2, and it belongs here rather than only in the creation
+design, because it is a statement about ROLES:** ⛔ **a role selects which modules a node is BUILT with —
+it must never be used to withhold the ability to create entities.**
+
+| ⭐ what `Q65-A′` settles | |
+|---|---|
+| **every ECS node composes the FULL genesis pipeline** | ⛔ no half-pack, no per-host omission. `EntityCreationPack` has **no opt-out switch**, and rails enforce that |
+| ⭐ **the ONE value that legitimately differs per node** | `IsBroadcastArbiter` — and it is a **tiebreaker** for unowned requests, ⛔ not an authority gate *(§4)* |
+| ⭐ **the authoring code chooses, per entity** | §6's decision — own it locally, or request it from another node. ⛔ **The node's role does not choose for it** |
+
+⚠⚠ **This does NOT contradict §5.** Persistence is a policy about **what an IG SHOULD own**; uniformity is
+about **what every node CAN do**. ⇒ ⭐ IG composes the same pipeline as everyone else *(it must, to hold
+its own temporary entities)*, and then **declines to own persistable ones by choosing a different target
+owner** — a choice made in authoring code, exactly as the ruling requires. ⛔ **If IG were denied the
+pipeline instead, the capability would be gone and §6's second arm could not exist.**
 
 ---
 
@@ -213,7 +245,7 @@ because ownership is exactly what the extractor throws away.
 
 | # | question | why it matters |
 |---|---|---|
-| ① | ⭐ **NARROWED `2026-09-02`** — ~~does IG save?~~ **no, measured: it registers no save handler (§7.1)**. The live question is: does an IG-owned temporary entity **replicate into a SAVING node's world**? | §7.2 — decides whether §5's rule is safe **by topology** *(then only the §7.1 rail is needed)* or needs a filter on the saving node |
+| ① | 🔴 **OPEN, and it does NOT belong to this document.** ⭐ **NARROWED `2026-09-02`** — ~~does IG save?~~ **no, measured: it registers no save handler (§7.1)**. ⇒ the live question is **"what happens to a REPLICATED entity at save time?"** — an IG-owned temporary entity present in a **saving node's** world is indistinguishable there *(§7.2)*. 🔒 **User, `2026-09-02`:** *"saving replicated entities is not yet resolved so it should stay as open question. very likely in a design document dedicated to scenario saving."* ⛔⛔ **NO SUCH DOCUMENT EXISTS** — 📐 measured: the only `DESIGN_*Scenario*` files are `Cgf_Scenario_Session_Slice` and `Cgf_Scenario_Windows_Slice`, both **CGF UI slices**, neither about the save mechanism. ⇒ ⭐ **this question is PARKED here and moves to a scenario-saving design when one is written** | it decides whether §5's rule is safe **by topology** or needs a rule on the saving side. ⛔ **It is a SCENARIO-SAVING question, not a node-role one** — this document only records that the role policy depends on its answer |
 | ①b | ⭐ **a rail that IG's composition root registers no save/extraction handler** | §7.1 — turns an ABSENCE into a checked invariant, the same move `EntityGenesisHazardRails` made for the spawn/destroy hazards |
 | ② | when an IG holding temporary entities disappears, what removes the replicas on other IGs? | 🔒 the ruling says its entities are *"gone, and no one cares"* — ⚠ but peers hold ghosts, and an undisposed ghost is the **silent** half of the `CE-144` family |
 | ③ | should `RequestFromDefaultProcessor` remain reachable from IG once it can create locally? | §6 says yes — it is the only way IG can author something persistable |
