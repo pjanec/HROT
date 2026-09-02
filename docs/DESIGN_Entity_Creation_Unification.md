@@ -1012,11 +1012,46 @@ nothing follows.
 component from 8 to 16 bytes, and that component is written to disk.** ⇒ ⛔ **`D5` needs a migration, not
 just a retype.**
 
-⭐ **A side finding worth its own row** *(not today's question)*: `StagingEntityExtractor.BuildStaticMask`
-**strips `NetworkAuthority` on LOAD**, while the save writes it. ⇒ **the save emits a component the load
-deliberately discards** — asymmetric, and `NetworkOwnership` next door is correctly `NoSave`. ⚠ Marking
-`NetworkAuthority` `NoSave` would make `D5` a pure in-memory change **and** fix the asymmetry — ⛔ but it
-is a persistence-behaviour change in its own right and must be decided, not assumed.
+##### ✅✅✅ *"How comes we need a migration for something that should never be stored?"* — **WE DO NOT. It is a DEFECT.** *(user, `2026-09-02`)*
+
+⚠⚠ **The user pushed on the cost above, and they are right. ⛔ The "migration" I proposed is withdrawn.**
+
+📐 **What `NetworkAuthority` IS — measured:** `{ int PrimaryOwnerId; int LocalNodeId; }` plus
+`HasAuthority => PrimaryOwnerId == LocalNodeId`. **Pure runtime state**, written at exactly **two** sites,
+both runtime, and **re-derived on every spawn on every node**:
+
+| writer | when |
+|---|---|
+| `NetworkSpawningSystem.ProcessSpawn:144` — `new NetworkAuthority(cmd.OwnerNodeId, _localNodeId)` | every local materialisation |
+| `EntityMasterIngressTranslator:149` | when a remote entity arrives |
+
+⇒ ⛔ **Nothing AUTHORS it.** ⭐ It is derived from the spawn command and the node's own id.
+
+| 🔴 why it is in the file anyway | |
+|---|---|
+| ⛔ **it carries no `[DataPolicy(DataPolicy.NoSave)]`** | ⚠ while **`NetworkOwnership` — the same two fields, next door — DOES.** The save filters on `GetSaveableMask()`, which keys on that attribute, so `NetworkAuthority` slips through |
+| 🔴 **and it is WRITE-ONLY** | `StagingEntityExtractor.BuildStaticMask` **strips it on LOAD** ⇒ **written, never read back** |
+| 🔴🔴 **and the value is meaningless by construction** | `LocalNodeId` is *the saving process's own id* — a property of **who happened to save**, not of the entity. 📐 Measured in a **source-controlled** scenario: `scenarios/hill-attack/scenario.json` → `"NetworkAuthority": {"PrimaryOwnerId": 0, "LocalNodeId": 0}` *(all three shipped scenarios carry it)* |
+
+##### ✅ THE FIX IS ONE ATTRIBUTE — **and replay is NOT affected**
+
+⚠ **The obvious worry — "does removing it from the save break recordings or replay?" — is measured and the
+answer is NO.** 📐 The two masks are deliberately different, and `ScenarioSerializer` says so in its own
+words: `GetSnapshotableMask()` *"to include `NoSave` execution-state"* versus `GetSaveableMask()` *"to
+limit output to persistable components"*.
+
+| path | mask | effect of marking `NetworkAuthority` `NoSave` |
+|---|---|---|
+| ⭐ **scenario save** | `GetSaveableMask()` | ✅ **drops it — the desired outcome** |
+| ⭐⭐ **snapshots · recordings · replay · diagnostics** | `GetSnapshotableMask()` *(`EntityRepository.Sync`, `EntityStateExtractionService`, `ComponentDiffService`)* | ✅ **UNCHANGED — that mask includes `NoSave`** |
+
+⇒ ⭐⭐⭐ **`D5` needs NO migration.** ⭐ Mark `NetworkAuthority` `[DataPolicy(DataPolicy.NoSave)]`, matching
+`NetworkOwnership`; the stale key then disappears on the next save, and the three shipped scenarios are
+harmless in the meantime because the load already strips it. ⇒ **the node-id widening becomes a pure
+in-memory change.**
+
+⭐ **This is a defect fix that stands on its own merits**, independent of `D5`: today the save writes a
+process-local value into a shared artefact, and the loader throws it away.
 
 ⚠ **Blast radius, measured:** **78** production references to an `int` local-node id, and `AppInstanceId`
 itself at **9 sites across 9 files**.
