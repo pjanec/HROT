@@ -33,6 +33,8 @@ using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
 using Hrot.Common.Systems;   // Q65 obstacle 1: the request tier moved here
 using Hrot.Common;
+using Hrot.Common.EntityCreation;   // CE-140 step 3 host (d): the shared entity-creation pack
+using Fdp.Interfaces;               // ITkbEntityTranslator, for ExtraTranslators
 using Hrot.Common.Infrastructure;
 using Hrot.Common.Interactions;
 using Hrot.Common.Scenario;
@@ -617,9 +619,65 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // DeferredTakeOwnership. SimHost nodes keep isDefaultProcessor=false.
         // Protocol-specific sources and sinks are obtained via the factory (Rule 3).
 
-        // Create the scenario source once; shared with load handlers in Phases 3-4
-        // via CgfLogicPack.ScenarioSource.
-        _scenarioSource = new ScenarioEntityCreationRequestSource();
+        // ⭐⭐⭐ CE-140 step 3, host (d) — CGF's entity-creation tier, BUILT AS A UNIT by the shared pack.
+        //    🔒 User ruling 2026-09-01: "our desire is that all hosts use shared code doing the same. So we
+        //    should get into a state when we can say 'no host does XXX'." ⇒ this was the LAST of the six
+        //    composition roots §3 enumerated, and it is now the same call the other five make.
+        //
+        // ⭐⭐ CGF is where the pack's SHAPE came from — DESIGN §5 records "CGF already composes exactly
+        //    this" of the composite-source arrangement — so this is the one host where adoption removes no
+        //    decision it had not already made correctly. ⛔ That is exactly why it went LAST: it is the
+        //    broadcast arbiter AND carries BrainMuscleOwnershipStrategy's delegation, so a composition
+        //    mistake here breaks unowned requests for the WHOLE CLUSTER and every CGF-spawned entity's
+        //    kinematics handover. It adopts on three hosts of evidence, not on nerve.
+        //
+        // ⚠ HOISTED. The construction used to sit ~25 lines BELOW, after CgfLogicPack. It has to run here
+        //    because `_scenarioSource` is now `creation.LocalRequests`, and CgfLogicPack consumes it. The
+        //    inputs are all already in scope: `nodeFactory` at :601, and TkbDb/IdAllocator/BaseModules on
+        //    `_context`. ⛔ Nothing between the old and new position wrote any of them.
+        //
+        // ⭐ IsBroadcastArbiter: true — the same `isDefaultProcessor: true` this host always passed, and
+        //    ⚠ it is NOT an authority gate: a request TARGETED at a node is processed by that node
+        //    regardless. It only decides who intercepts `Owner == 0` broadcasts from non-ECS clients like
+        //    ExCon. 🔒 Exactly one node in a cluster may set it, and CGF is that node.
+        //
+        // ⭐ Every optional input is the value this host already passed, threaded from the SAME
+        //    `adapters` object — the pack substitutes NullEntityAckSink when offline, as this code did.
+        // 📄 docs/DESIGN_Entity_Creation_Unification.md §3, §5.1 row d ·
+        //    docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §1.
+        var adapters = nodeFactory?.CreateCgfEntityLifecycleAdapters();
+
+        var creation = EntityCreationPack.Build(new EntityCreationContext
+        {
+            World       = _context.World,
+            EntityMap   = _entityMap!,
+            TkbDb       = _context.TkbDb!,
+            IdAllocator = _context.IdAllocator!,
+            Elm         = (EntityLifecycleModule)_context.BaseModules
+                              .First(m => m is EntityLifecycleModule),
+            NodeId      = _context.NodeId,
+
+            NetworkRequestSource = adapters?.RequestSource,
+            AckSink              = adapters?.AckSink,
+            JsonAttributeCompiler = adapters?.JsonCompiler,
+            OwnershipStrategy     = adapters?.OwnershipStrategy,
+
+            // ⭐ CE-138's list, unchanged: the ONE base set plus AiDiagnostics, which lives above
+            //   Hrot.Core and so cannot be in Base(). ⛔ Never subtract to narrow — gate ②
+            //   (IsComponentTypeRegistered) narrows per component, and a short list fails SILENTLY for
+            //   every entity this node ever spawns. 📄 tkb-1/DESIGN.md §6.5b.
+            ExtraTranslators = new ITkbEntityTranslator[]
+            {
+                new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+            },
+
+            IsBroadcastArbiter = true,
+        });
+
+        // Shared with the load handlers in Phases 3-4 via CgfLogicPack.ScenarioSource.
+        // ⭐ Now the pack's own in-memory source, merged behind CompositeEntityCreationRequestSource with
+        //   the DDS ingress — the same two-source arrangement this host hand-built, from one place.
+        _scenarioSource = creation.LocalRequests;
 
 
         // Expose the blueprint registry to the Entity Inspector renderers so
@@ -644,16 +702,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.Kernel.RegisterGlobalSystem(_toggleInput);
         _context.Kernel.RegisterModule(new CgfSimulationModule(_toggleSim));
 
-        var adapters = nodeFactory?.CreateCgfEntityLifecycleAdapters();
-
-        var tkbDb       = _context.TkbDb!;
+        // ⭐ Still needed by the scenario load handlers below (:879 `cgfIdAllocator`). ⚠ The `tkbDb` local
+        //   that stood beside it is GONE — the pack reads TkbDb off the context directly, so a second
+        //   name for the same catalogue had nothing left to do.
         var idAllocator = _context.IdAllocator!;
-        var elm         = (EntityLifecycleModule)_context.BaseModules
-                              .First(m => m is EntityLifecycleModule);
 
-        // ⭐⭐⭐ CE-138 — CGF'S TKB→ECS PROJECTION LIST. It had NONE, on the node the design names the
-        //    "entity spawning authority" (docs/projects/relationships/Hrot-Simulation-Pipeline.md §2),
-        //    whose §4.3 spawn step reads verbatim "Apply TKB template components".
+        // ⛔ HISTORY — CE-138's TKB→ECS projection list, and the hand-built request/spawn tier that
+        //    followed it, LIVED HERE until CE-140 step 3 (host (d), 2026-09-02). Both are now inputs to
+        //    the EntityCreationPack.Build(…) call ~25 lines above; the reasoning that earned them is
+        //    preserved at that call site. What CE-138 established stands and is unchanged:
+        //
         // 📐 Measured 2026-08-30: NetworkSpawningSystem's `translators` argument was omitted (⇒
         //    Array.Empty) and elm.SetTranslators was never called, so BOTH projection routes were
         //    zero-iteration loops. CGF-spawned entities carried NetworkIdentity, NetworkOwnership,
@@ -671,54 +729,24 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    perception/presentation; AiDiagnostics is added because it lives above Hrot.Core.
         // ⛔ Never subtract to narrow — gate 2 (IsComponentTypeRegistered) does that per component.
         //    📄 DESIGN_Entity_Creation_Unification.md §3.1, tkb-1/DESIGN.md §6.5b.
-        var translators = Hrot.Core.Tkb.TkbTranslatorSet.BasePlus(
-            new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator());
+        // ⭐ Register the genesis pipeline the pack built above — unconditionally, online and offline.
+        //   🔒 Q65 §0: the shared code "should not restrict any ECS enabled node from creating own
+        //   networked entities … not removing capabilities by design." ⇒ no `if (adapters != null)`
+        //   guards any of these three; only the DELETION routing below is network-dependent, and that
+        //   was already true.
+        _context.Kernel.RegisterGlobalSystem(creation.SpawnSystem);
+        _context.Kernel.RegisterGlobalSystem(creation.RequestSystem);
+        _context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);
 
-        // §6.3: "the translator list is identical for all three systems within the same node" — so the
-        // SAME instance goes to the ELM (→ BlueprintApplicationSystem) and to NetworkSpawningSystem.
-        // ⚠ Must precede the kernel's RegisterSystems, which is what reads it.
-        elm.SetTranslators(translators);
-
-        // 1. Composite request source: always include the scenario source; add the live
-        //    NED adapter source only when network is available.
-        var requestSources = new System.Collections.Generic.List<IEntityCreationRequestSource>
+        // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this design
+        //    was silent, and CE-138 (this host's own zero-iteration translator loop) was one of them.
+        var unserviceable = creation.Unserviceable(new object[]
         {
-            _scenarioSource!
-        };
-        if (adapters != null)
-            requestSources.Add(adapters.RequestSource);
-        var compositeRequestSource = new CompositeEntityCreationRequestSource(requestSources);
+            creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+        });
+        if (unserviceable.Length > 0)
+            Fdp.Core.Logging.FdpLog<CgfSubsystem>.Warn(unserviceable);
 
-        // 2. ACK sink: real NED sink when connected; null-object for offline / headless runs.
-        IEntityAckSink ackSink = adapters?.AckSink ?? new NullEntityAckSink();
-
-        var finalizationSystem = new EntityRequestFinalizationSystem(ackSink, _entityMap!);
-
-        // 3. Register the core genesis pipeline unconditionally (online and offline).
-        var requestSystem = new CreateEntityRequestSystem(
-            requestSource:        compositeRequestSource,
-            ackSink:              ackSink,
-            tkbDb:                tkbDb,
-            idAllocator:          idAllocator,
-            localNodeId:          _context.NodeId,
-            jsonAttributeCompiler: adapters?.JsonCompiler,
-            finalizationSystem:   finalizationSystem,
-            isDefaultProcessor:   true,
-            ownershipStrategy:    adapters?.OwnershipStrategy);
-
-        var spawnSystem = new NetworkSpawningSystem(
-            tkbDb,
-            elm,
-            _entityMap!,
-            idAllocator,
-            _context.NodeId,
-            // ⭐ CE-138 — the argument this call omitted. Without it ProcessSpawn step 4's translator
-            //   loop ran zero times on the node that spawns everything. See the list above.
-            translators: translators);
-
-        _context.Kernel.RegisterGlobalSystem(spawnSystem);
-        _context.Kernel.RegisterGlobalSystem(requestSystem);
-        _context.Kernel.RegisterGlobalSystem(finalizationSystem);
         _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(_entityMap!));
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(
             _context.Kernel, _blueprintRegistry!);
@@ -730,7 +758,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 adapters.DeleteSource,
                 adapters.AckSink,
                 _entityMap!,
-                finalizationSystem,
+                // ⭐ The SAME finalization instance the create side uses — the pack's. ⛔ Constructing a
+                //   second one here would give delete its own ACK bookkeeping, which is precisely the
+                //   class of split this pack exists to make unrepresentable.
+                creation.FinalizationSystem,
                 _context.NodeId);
 
             _context.Kernel.RegisterGlobalSystem(deleteSystem);
