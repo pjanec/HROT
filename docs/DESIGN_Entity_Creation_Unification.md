@@ -821,6 +821,29 @@ sequenceDiagram
 | ⚠ **the cost** | 📐 IG's drawing tools publish the **order** directly today, skipping the request system — `MapCommandController.cs:217`/`:312` *("Published SpawnEntityCommand")* and `MiniExConPanelState`. ⇒ **they must post REQUESTS instead.** ⭐ That is the same retarget already scoped for host (f), and 📐 **it is IG-local** — ⛔ it does not touch the editor's hand-tested scenario path |
 | ⭐ **the pack's role** | ⛔ the pack **composes** the forwarder in place of the egress translator; it does not invent a per-host rule |
 
+##### ⭐⭐⭐ THE SEAM THE RETARGET USES ALREADY EXISTS — **the Editor is the reference** *(user, `2026-09-02`: "how the Editor does it? Editor is usually correct")*
+
+⚠⚠ **This CORRECTS an earlier framing of the cost row above**, which described the retarget as new work. ⛔ **It is not.** 📐 **Measured:** the shared authoring seam is **`IEntityCreationRequestSource`**, concretely **`ScenarioEntityCreationRequestSource`** — a thread-safe queue whose whole API is `Enqueue(EntityCreationRequest)`, drained each tick by `CreateEntityRequestSystem` through **`CompositeEntityCreationRequestSource`**, which merges it with the network source **`NedEntityCreationRequestSource`**.
+
+| host | how it authors |
+|---|---|
+| ⭐⭐ **Editor** | `EditorSubsystem.EntityCreationRequestSource` — its own doc says *"enqueue an `EntityCreationRequest` here to spawn"* |
+| **Stride editor** | takes **the same instance** as `EditorStrideSubsystem.ScenarioSource` |
+| **CGF** | `CgfApplication.ScenarioEntityCreationSource`; `CgfScenarioLoadHandler` / `CgfEpisodeLoadHandler` enqueue into it |
+| **Stride test harness** | `TestHarnessContext.ScenarioSource` |
+| ⛔ **IG** | 🔴 **the ONLY outlier** — `MapCommandController` / `MiniExConPanelState` publish `SpawnEntityCommand` on the bus |
+
+⇒ ⭐⭐⭐ **`SpawnEntityCommand` is not an authoring input anywhere except IG.** ⭐ It is what `CreateEntityRequestSystem` **emits**, downstream of the Level-1 guard. ⇒ ⛔ **IG's retarget is not new machinery — it is adopting the seam four other hosts already use**, which drops the risk of option (b) substantially.
+
+##### 🔴🔴 A HAZARD OPTION (b) MUST DESIGN FOR — **the forwarder must not bounce a request it received**
+
+📐 `CompositeEntityCreationRequestSource` **merges the local queue and the network source into one stream**, and `CreateEntityRequestSystem.ProcessIncomingRequest` sees both identically. ⇒ ⛔ **a naive forwarder placed on the request stream would re-forward a request that ARRIVED from the wire and is not addressed to this node** — an unbounded bounce between peers.
+
+| ⭐ the two fixes | |
+|---|---|
+| ⭐⭐ **(i) the forwarder wraps the LOCAL source only** *(before the composite merges)* | ✅ **THE LEAN** — a request that came off the wire is **structurally unreachable** to the forwarder. ⛔ No provenance field, no bounce possible by construction |
+| **(ii)** the request carries an origin field the forwarder tests | ⚠ works, but adds a field whose only job is to prevent a mistake ⇒ ⛔ **rejected on the same reasoning as everything else here: prefer a shape where the error cannot be expressed** |
+
 ⚠ **What would change the lean:** if a node must be able to forward an order it did **not** originate —
 i.e. if forwarding is a *relay* rather than an *authoring* act. 📐 Nothing measured suggests that: the only
 production forwarder is IG's, and it forwards its own tools' output.
