@@ -31,6 +31,10 @@ approved: 2026-09-02, by the user, on §3.4b's option tables —
        encoding question is answered in §3.4b: it never coexists with the system's int node id.
   D4 = yes, the resolution policy is a one-method seam defaulting to GetLeastLoadedNode.
   D5 = DEFERRED, "needs more thinking" — the node-id promotion is NOT part of this work.
+  WITHDRAWN 2026-09-02 (architect + measurement): the "mark NetworkAuthority [DataPolicy(NoSave)]"
+       proposal is DEAD. StagingEntityExtractor.BuildStaticMask already excludes it (bit 51), and
+       docs/designs/cgf-scn/DESIGN.md:62 forbids the global attribute for this component family.
+       D5 needs no migration and no attribute. See the WITHDRAWN block in §3.4b.
   ⛔ D1 and D2 are the host (f) IG gate; D3+D4 follow; D5 is a separate architect question.
 current-answer-note: ⭐⭐⭐ §3.4b is the NEWEST load-bearing section (2026-09-02) — THE LEVEL MISMATCH and
   the CROSS-HOST resolution of creation duplication. §3.4a says why double consumption is POSSIBLE;
@@ -1033,7 +1037,43 @@ both runtime, and **re-derived on every spawn on every node**:
 | 🔴 **and it is WRITE-ONLY** | `StagingEntityExtractor.BuildStaticMask` **strips it on LOAD** ⇒ **written, never read back** |
 | 🔴🔴 **and the value is meaningless by construction** | `LocalNodeId` is *the saving process's own id* — a property of **who happened to save**, not of the entity. 📐 Measured in a **source-controlled** scenario: `scenarios/hill-attack/scenario.json` → `"NetworkAuthority": {"PrimaryOwnerId": 0, "LocalNodeId": 0}` *(all three shipped scenarios carry it)* |
 
-##### ✅ THE FIX IS ONE ATTRIBUTE — **and replay is NOT affected**
+##### ⛔⛔⛔ WITHDRAWN `2026-09-02` — **DO NOT mark `NetworkAuthority` `NoSave`. The exclusion ALREADY EXISTS.**
+
+🔒 **Architect ruling, and the design record agrees:** [`docs/designs/cgf-scn/DESIGN.md:62`](designs/cgf-scn/DESIGN.md)
+— *"these components must NOT be marked globally as non-saveable; they are required by the Checkpoint
+pipeline."* ⭐ The right mechanism is the **context-specific exclusion mask owned by the scenario
+extractor**, and 📐 **it is already built**: `StagingEntityExtractor.BuildStaticMask()` *(lines 51–57)* sets
+`NetworkIdentity` 50 · **`NetworkAuthority` 51** · `DescriptorOwnership` 59 · `TkbIdentity` 65 ·
+`GhostStateTracker` 66 · `NetworkOwnership` 140 · `PendingNetworkAck` 141. ⇒ ⛔⛔ **adding `NoSave` would be
+a SECOND mechanism for one concept — ruling 9.**
+
+⛔⛔ **AND THE PREMISE BELOW WAS FALSE.** 📐 The claim *"today the save writes a process-local value into a
+shared artefact"* was never measured against the **current** save path. Measured `2026-09-02`: the extractor
+excludes bits 50 **and** 51, yet the three shipped scenarios contain **both** `NetworkIdentity`
+*(1000/1001/1002)* **and** `NetworkAuthority` *(`PrimaryOwnerId: 0, LocalNodeId: 0`)* ⇒ ⭐⭐ **those files
+were NOT produced by the current extraction path** — they predate it or are hand-authored. ⛔ **There is no
+evidence the live save path writes `NetworkAuthority` at all, so there was nothing to fix.**
+⚠ **Still unmeasured:** a round-trip *(save a scenario, grep the output)* would settle it as proof rather
+than as source-reading. ⭐ Cheap; do it before anyone re-opens this.
+
+⇒ ⭐⭐ **Consequence for `D5`:** unchanged in substance — the node-id widening has **no scenario-format
+impact** — but for a *better* reason: the extractor already keeps the component out, so `D5` never needed
+a migration **and** never needed the attribute.
+
+⚠⚠ **One correction to the architect's REASONING, so nobody builds on it.** 📐 The stated reason — *marking
+it `NoSave` would break Checkpoint / Flight Recorder* — **does not hold against this code.** The three
+policy flags are **independent** *(`EntityRepository.cs:728–738`: `NoSave` sets only `finalSave=false`;
+`finalSnapshot` and `finalRecord` stay true)*; the checkpoint path is
+`ReferenceCheckpointHandler → snap.SyncFrom(source) → GetSnapshotableMask()` *(`EntityRepository.Sync.cs:36,43`)*
+and the Flight Recorder uses `GetRecordableMask()`. ⭐ Only `GetSaveableMask()` keys on `NoSave`, and its
+sole production caller is `ScenarioSerializer.cs:134`. 📌 **The decisive counter-example: `NetworkOwnership`
+carries `[DataPolicy(NoSave)]` AND sits in the exclusion mask (140)** — so the codebase already treats the
+two as compatible, not exclusive. ⇒ ⭐⭐⭐ **the CONCLUSION stands on ruling 9 and on the design record, not
+on the checkpoint argument.**
+
+## ⛔ HISTORY — the withdrawn proposal *(kept so its reasoning is not re-derived)*
+
+##### ⛔ SUPERSEDED — THE FIX IS ONE ATTRIBUTE — **and replay is NOT affected**
 
 ⚠ **The obvious worry — "does removing it from the save break recordings or replay?" — is measured and the
 answer is NO.** 📐 The two masks are deliberately different, and `ScenarioSerializer` says so in its own
