@@ -154,10 +154,40 @@ which is what keeps the next reader honest.
 | an unowned (`Owner == 0`) request is serviced once | ✅ **CODE** — the `isDefaultProcessor` tiebreaker |
 | a node cannot hold both a local spawner and a spawn-forwarder | ✅ **RAIL** — `EntityGenesisHazardRails` *(`CE-160`)*, red-proved |
 | ownership is per-component and transferable | ✅ **CODE** — `AuthorityMask` + the `OwnershipUpdate` topic |
-| 🔴 **IG entities are never persisted to the scenario** | ⛔⛔ **NOTHING** — see below |
-| 🔴 **a persistable entity is not IG-owned** | ⛔⛔ **NOTHING** — a convention only |
+| ⭐⭐ **IG entities are never persisted to the scenario** | ✅ **COMPOSITION** — ⛔ **IG registers no scenario-SAVE handler**, so it never runs an extractor. ⚠ **Enforced by an ABSENCE, and nothing checks the absence** — see §7.1 |
+| 🔴 **a persistable entity is not IG-owned** | ⛔ **convention only** |
 
-### 🔴 The persistence gap, measured `2026-09-02`
+### 7.1 ✅⭐⭐ HOW THE RULE IS ACTUALLY ENFORCED — **by NOT HANDLING THE OPERATION** *(user, `2026-09-02`)*
+
+> 🔒 **User, verbatim:** *"IG not saving to scenario is as simple as not letting the IG subsystem handle
+> the clusterwide scenario save operation."*
+
+⭐⭐⭐ **Correct, and it is already true.** ⚠ **This CORRECTS an earlier draft of this section**, which said
+the rule was *"enforced by NOTHING."* ⛔ **That was too pessimistic** — it looked for a per-entity filter
+and missed that the enforcement is one level up, at **which cluster operations the node handles at all.**
+
+📐 **Measured `2026-09-02` — every handler `IgNodeBootstrapper` registers on its `ClusterSlave`:**
+
+| handler | what it is |
+|---|---|
+| `ReferenceReplayLoadHandler` | **load** |
+| `ReferenceLiveLoadHandler` | **load** |
+| `IgZoneDummyHandler` | ⭐ a **dummy** |
+| `ReferencePrefetchHandler` | **read** |
+| `ReferencePreviewHandler(liveRepo: null)` | ⭐⭐ **read, and IG passes a NULL live repo** — it declares it has nothing to contribute from its own world |
+| `DiagnosticsDumpClusterOpHandler` | diagnostics |
+
+⇒ ⭐⭐⭐ **Not one of them is a SAVE handler**, and `ScenarioSerializer`/`IScenarioEntityExtractor` are never
+wired on IG. ⇒ **`ClusterOpType.SaveScenario` is serviced by the Orchestrator and the saving nodes; IG
+simply does not answer it.** ⭐ **The entity-level question does not arise, because IG never extracts.**
+
+| ⚠ **the residual risk, and it is now NARROW** | |
+|---|---|
+| ⛔ **the enforcement is an ABSENCE** | *"IG registers no save handler"* is the **silent-default shape**: nothing stops the next person adding one, and it would look like a feature |
+| ⭐⭐ **the guard is a RAIL, and it is cheap** | assert IG's composition root registers **no** save/extraction handler — ⭐ the same pattern as `EntityGenesisHazardRails`, which turned another absence into a checked invariant |
+| ⚠ **STILL OPEN — a DIFFERENT question from the one this closes** | ⛔ if an IG-owned temporary entity **replicates to a SAVING node**, that node's extractor sees it in **its own** world, and *(per §7.2)* cannot tell it apart. ⇒ **the question is no longer "does IG save?" but "does IG's sketch reach CGF?"** |
+
+### 7.2 The save path cannot distinguish an owner, measured `2026-09-02`
 
 📐 `StagingEntityExtractor.BuildStaticMask()` **STRIPS** `NetworkOwnership`, `NetworkAuthority`,
 `NetworkIdentity`, `DescriptorOwnership`, `TkbIdentity`, `GhostStateTracker` and `PendingNetworkAck`
@@ -167,12 +197,15 @@ owner-based filter deciding *which* entities are written.
 | | |
 |---|---|
 | ⭐ **the good half** | choosing an owner does **not** silently change whether something is saved ⇒ the two axes really are independent, so §6's per-entity choice is safe to make |
-| 🔴 **the bad half** | *"IG entities are never persisted"* is guaranteed by **nothing**. The save path cannot distinguish an IG-owned entity ⇒ **if one ever reaches the extracted world, it WOULD be written** |
+| ⚠ **the half that still matters** | the extractor **cannot tell an IG-owned entity apart from any other**. ⭐ §7.1 means this never bites *on IG* — IG does not extract. ⛔ It bites **on a saving node**, if an IG-owned entity is present in that node's world |
 
-⛔⛔ **NOT MEASURED, and it decides whether that is a LIVE defect or a LATENT one:** do IG-owned entities
-replicate into the world the extractor runs over at all? 📌 The extractor lives in **`Hrot.CGF`** — it
-runs on the **Brain**, not on IG. ⇒ ⭐ **Settle this before IG gains local entity creation**
-*(host (f), `Q65-A′`)*. If they do reach it, this rule needs a **mechanism**, not a convention.
+⛔ **NOT MEASURED, and it is the one question that decides whether §5's rule is safe by construction or
+only by luck:** **do IG-owned temporary entities replicate into a SAVING node's world at all?** 📌 The
+extractor runs on the **Brain**, so the concrete form is: *does a CGF subscribe to, and materialise, an
+entity an IG created and owns?* ⇒ ⭐ **Settle this before IG gains local entity creation**
+*(host (f), `Q65-A′`)*. ⭐ **If they do NOT reach it, §5's rule holds by TOPOLOGY** and the only work is
+the §7.1 rail. ⛔ **If they do, a saving node needs a filter** — and the filter cannot key on ownership,
+because ownership is exactly what the extractor throws away.
 
 ---
 
@@ -180,7 +213,8 @@ runs on the **Brain**, not on IG. ⇒ ⭐ **Settle this before IG gains local en
 
 | # | question | why it matters |
 |---|---|---|
-| ① | do IG-owned entities reach the scenario extractor's world? | §7 — decides whether the persistence rule is safe by topology or broken by default |
+| ① | ⭐ **NARROWED `2026-09-02`** — ~~does IG save?~~ **no, measured: it registers no save handler (§7.1)**. The live question is: does an IG-owned temporary entity **replicate into a SAVING node's world**? | §7.2 — decides whether §5's rule is safe **by topology** *(then only the §7.1 rail is needed)* or needs a filter on the saving node |
+| ①b | ⭐ **a rail that IG's composition root registers no save/extraction handler** | §7.1 — turns an ABSENCE into a checked invariant, the same move `EntityGenesisHazardRails` made for the spawn/destroy hazards |
 | ② | when an IG holding temporary entities disappears, what removes the replicas on other IGs? | 🔒 the ruling says its entities are *"gone, and no one cares"* — ⚠ but peers hold ghosts, and an undisposed ghost is the **silent** half of the `CE-144` family |
 | ③ | should `RequestFromDefaultProcessor` remain reachable from IG once it can create locally? | §6 says yes — it is the only way IG can author something persistable |
 
