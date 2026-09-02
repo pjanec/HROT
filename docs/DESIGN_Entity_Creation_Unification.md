@@ -975,17 +975,51 @@ by hand.
 | ⛔⛔ **and `OwnerAppInstanceId` TRAVELS ON THE WIRE** | it is `msg.Owner.AppInstanceId` ⇒ 🔴 **a mapper handle put on the wire is meaningless to the receiver.** ⚠ Silently — it would resolve to *some* node |
 | ⚠ **the class is also Cyclone-bound** | `NetworkAppId` is a `[DdsStruct]` in `Fdp.Network.Cyclone.Topics` ⇒ using it from NED would import one stack's wire type into another |
 
-⇒ ⭐⭐⭐ **The two concerns must be separated, and this is the `D5` decision:**
+##### ✅✅✅ THE ANSWER — **a COMPOSED `long`. No mapper at all.** *(user, `2026-09-02`)*
 
-| concern | right answer |
+> 🔒 **User, verbatim:** *"why would we need cheap local index if we can have long int combining (composed
+> of) both domain and app instance? no mappr needed."*
+
+⭐⭐⭐ **Correct, and it dissolves the problem rather than solving it.** ⚠ **An earlier draft of this section
+proposed keeping `NodeIdMapper` for a "cheap local index" — that is WITHDRAWN.** A composed 64-bit id is
+strictly better on every axis that mattered:
+
+| the mapper needed… | a composed `long` |
 |---|---|
-| ⭐⭐ **a node identity that CROSSES THE WIRE** *(this is `OwnerAppInstanceId`)* | **promote the PAIR** `{AppDomainId, AppInstanceId}` into the engine. ⭐ It is already stable and cluster-wide; ⛔ a mapper handle is not, and must never be sent |
-| ⭐ **a cheap local index for hot-path use** | ⭐ **that is what `NodeIdMapper` is for**, and it is legitimate — ⛔ but strictly node-local, translated at every boundary |
+| a registry, a lock, two dictionaries | ⭐ **nothing** — `((long)AppDomainId << 32) \| (uint)AppInstanceId` |
+| ids assigned in **discovery order** ⇒ node-local, ⛔ unsendable | ⭐⭐ **derived from the value** ⇒ **identical on every node, so it is WIRE-SAFE** |
+| translation at every boundary | ⭐ pack/unpack at the two NED adapter lines; ⛔ **no IDL change** — the wire keeps `{AppDomainId, AppInstanceId}` |
+| a lookup per use | ⭐ a comparison, in a hot-path `HasAuthority` check |
 
-⚠ **Blast radius, measured:** `AppInstanceId` is touched at **9 production sites across 9 files** *(the
-four composition roots, the NED adapters, the ExCon writers)* — ⭐ small enough that promoting the pair is
-tractable, ⛔ and every one of them is a wire boundary that a mapper would have to translate at, which is
-why adopting the mapper is the *larger* change, not the smaller one.
+⭐⭐ **And the precedent is already in the engine:** `NetworkIdentity` carries a `long` network id and
+`DISEntityType.Value` a packed `ulong`. ⇒ **a packed 64-bit identity is the house style, not a novelty.**
+
+⇒ ⭐⭐⭐ **`D5` is therefore: the engine's node id becomes a composed `long`; the two wire stacks keep their
+`{domain, instance}` structs and pack/unpack at the boundary.** ⛔ `NodeIdMapper` is not adopted, and
+Cyclone's dormant copy should be **deleted or documented as unused** rather than left to imply a model
+nothing follows.
+
+##### ⚠⚠ THE ONE REAL COST — **it IS a persisted-format change, via `NetworkAuthority`**
+
+🔴 **Measured `2026-09-02`, and it contradicts the convenient assumption:**
+
+| component | `DataPolicy` | reaches a saved scenario? |
+|---|---|---|
+| `NetworkOwnership` | ⭐ `[DataPolicy(DataPolicy.NoSave)]` | ✅ **no** |
+| 🔴 **`NetworkAuthority`** | ⛔ **none** | 🔴 **YES — measured: 8 occurrences in a written `scenario.json`** |
+
+📐 `NetworkAuthority` is `{ int PrimaryOwnerId; int LocalNodeId; }`. ⇒ **widening the node id changes that
+component from 8 to 16 bytes, and that component is written to disk.** ⇒ ⛔ **`D5` needs a migration, not
+just a retype.**
+
+⭐ **A side finding worth its own row** *(not today's question)*: `StagingEntityExtractor.BuildStaticMask`
+**strips `NetworkAuthority` on LOAD**, while the save writes it. ⇒ **the save emits a component the load
+deliberately discards** — asymmetric, and `NetworkOwnership` next door is correctly `NoSave`. ⚠ Marking
+`NetworkAuthority` `NoSave` would make `D5` a pure in-memory change **and** fix the asymmetry — ⛔ but it
+is a persistence-behaviour change in its own right and must be decided, not assumed.
+
+⚠ **Blast radius, measured:** **78** production references to an `int` local-node id, and `AppInstanceId`
+itself at **9 sites across 9 files**.
 
 ⚠ **Is it harmful TODAY? Not yet.** ⛔ It bites only when two nodes in **different `AppDomainId`s share an
 `AppInstanceId`** — which config currently avoids. ⇒ ⭐ **a LATENT collision, not an active bug**; that is
