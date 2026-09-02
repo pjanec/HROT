@@ -215,16 +215,28 @@ suite — only (d) was. ⚠ **That was a gate-contract row-8 miss.**
 test-infrastructure fixes *(so it is NOT confounded)* and **BEFORE** all four host adoptions
 *(b · c · e · d)* and the `CE-142`/ghost-promotion ownership fixes.
 
-⏳ **THE RUN IS IN FLIGHT at the time of this commit** *(`eabcbf660` worktree, built clean, suite running)*.
-⭐ **What it will settle:** whether the 19 at HEAD are the **same 19 BY TEST NAME** as before the four host
-adoptions. ⚠ **At class+count the answer is ALREADY YES** — `eabcbf660`'s own commit message records
-*"`FeatureSwitchRcu` 4 · `CgfSubsystemHeadless` 3 · `ClusterOpE2eScript` 2 · `NetworkDemoPatrolAndEngage` 2 ·
-`SpawnMovingVehicle` 2 · `CgfRecording` · `DistributedScenarioLoad` · `GhostPromotion` · `MapPlacement` ·
-`SensorMechanism` · `UrbanCombatFileLifecycle`"*, which is **term-for-term the HEAD breakdown measured today**.
-⭐ **And 10 of the 19 had already reddened at the baseline when this was written** — including all three of the
-newly-filed `CE-157`/`CE-158`/`CE-159`, which is why those rows already assert it.
-⛔ **The per-NAME set-diff is folded into this section by the NEXT commit** — until then, treat the
-class+count identity as the measurement and the per-name diff as pending.
+✅✅✅ **RUN COMPLETE `2026-09-02` — THE SET-DIFF IS EMPTY IN BOTH DIRECTIONS, PER TEST NAME.**
+
+| | `eabcbf660` *(before b · c · e · d)* | HEAD `4220d2f9d` *(after all four)* |
+|---|---|---|
+| failed | **19** | **19** |
+| passed | 247 | 248 |
+| skipped | 3 | 3 |
+| total | 269 | ⭐ **270** — the +1 is `MissionToMovementChainProbe`, added in the window, and it **passes** |
+| wall-clock | 9.19 min | 9.11 min |
+| ⭐⭐⭐ **added at HEAD** | — | ⛔ **NONE** |
+| ⭐⭐⭐ **fixed since baseline** | — | ⛔ **NONE** |
+
+⇒ ⭐⭐⭐ **All four host pack adoptions — (b) SimHost · (c) Editor · (e) Stride editor · (d) CGF — PLUS
+`CE-142`'s ownership-delegation fix and `e2e1a5a2c`'s ghost-promotion fix, added ZERO reds and removed
+ZERO, name for name.** ⭐ **This is the measurement `§4.9` previously listed as ⛔-ASSUMED**, and it is
+now ✅. ⛔ The gate hole is CLOSED for hosts (b), (c) and (d) — ⚠ **(e) is NOT exercised by this suite
+at all**, so its evidence remains the Windows verification at `656b61a24`.
+
+⭐ **Why this baseline and not `b9757d96d`:** the pre-pack commit predates **both** `CE-148` and
+`CE-152`, so it would report ~49 reds inflated by harness interference — **the measuring apparatus
+itself changed.** `eabcbf660` sits after both test-infrastructure fixes and before every host adoption,
+so it is the one comparison point that is not confounded.
 
 ### ⛔⛔ WHAT THIS DOES **NOT** PROVE — *(stated so nobody over-trusts it)*
 
