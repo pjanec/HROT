@@ -12,6 +12,7 @@ using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Common.Systems;
 using Hrot.Core.Network;
+using Hrot.Core.Tkb;
 
 namespace Hrot.Common.EntityCreation
 {
@@ -74,12 +75,26 @@ namespace Hrot.Common.EntityCreation
             // ⭐ ONE list instance for the whole node — tkb-1/DESIGN.md §6.3: "identical for all three
             //   systems within the same node". Handing the SAME instance to the ELM and the spawn system
             //   is what makes that true BY CONSTRUCTION rather than by convention.
-            // ⛔ ExtraTranslators is ADD-ONLY: there is no way to pass a narrower list. Per-component
+            // ⛔ Both forms are ADD-ONLY: there is no way to pass a narrower list. Per-component
             //   narrowing is gate ② (IsComponentTypeRegistered), never the list.
+            // ⭐⭐ CE-146 — TranslatorPlacements is the ORDER-SENSITIVE form, for the one host that has a
+            //   positional contract (the Stride editor's InfantryVehicleStateStrip, which must follow
+            //   VehicleKinematicsTkbTranslator). ⛔ Setting both is a composition mistake, not a merge:
+            //   two ways to say one thing is the duplicate-mechanism trap, so it throws.
+            bool hasExtras     = ctx.ExtraTranslators     is { Count: > 0 };
+            bool hasPlacements = ctx.TranslatorPlacements is { Count: > 0 };
+            if (hasExtras && hasPlacements)
+            {
+                throw new ArgumentException(
+                    "EntityCreationContext: set ExtraTranslators OR TranslatorPlacements, not both. " +
+                    "ExtraTranslators is the append-only shorthand; express every addition as a " +
+                    "TranslatorPlacement when any one of them is order-sensitive.");
+            }
+
             IReadOnlyList<ITkbEntityTranslator> translators =
-                ctx.ExtraTranslators is { Count: > 0 }
-                    ? Hrot.Core.Tkb.TkbTranslatorSet.BasePlus(ctx.ExtraTranslators.ToArray())
-                    : Hrot.Core.Tkb.TkbTranslatorSet.Base();
+                hasPlacements ? TkbTranslatorSet.BaseWith(ctx.TranslatorPlacements!.ToArray())
+              : hasExtras     ? TkbTranslatorSet.BasePlus(ctx.ExtraTranslators!.ToArray())
+                              : TkbTranslatorSet.Base();
 
             ctx.Elm.SetTranslators(translators);   // ⚠ must precede the kernel's Initialize
 

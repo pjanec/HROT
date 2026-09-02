@@ -1,4 +1,5 @@
 ﻿using System;
+using Hrot.Common.EntityCreation;
 using Hrot.Common;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -1234,20 +1235,47 @@ namespace Hrot.Editor
             //   TkbDatabase.Register rejects a duplicate name or type.
             //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
             if (!_world.HasSingletonManaged<ITkbDatabase>()) _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
-            // ⭐⭐ CE-140 step 2 — the ONE base list. Replaces this host's inline copy, which
-            //    was the one CE-137 had to add PresentationTkbTranslator to by hand.
-            // ⛔ Never subtract to narrow: gate 2 (IsComponentTypeRegistered) narrows per component.
-            //    📄 DESIGN_Entity_Creation_Unification.md §3.1, tkb-1/DESIGN.md §6.5b.
-            var translators = Hrot.Core.Tkb.TkbTranslatorSet.Base();
-            var elm               = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
-            elm.SetTranslators(translators);
             var idAllocator       = new SequentialIdAllocator();
             // ⭐ HN-017 — held so the preview bracket can be given it at :8. 📌 The 2026-08-16 rule: a
             //   production caller that HAS a dependency must PASS it, and it cannot pass what it dropped.
             _idAllocator = idAllocator;
-            var spawnSys          = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: EditorNodeId, translators: translators);
-            var scenarioLoadSource = new ScenarioEntityCreationRequestSource();
-            _scenarioLoadSource    = scenarioLoadSource;   // `ST-010`
+
+            // ⭐⭐⭐ CE-140 step 3, host (c) — THE ENTITY CREATION PACK.
+            //    This host used to assemble the same five pieces by hand — the base list, the ELM, the
+            //    SetTranslators call, the spawn system with `translators:` passed manually, and a local
+            //    request source — across TWO WIDELY SEPARATED SITES in this method (the pieces here, the
+            //    request system ~180 lines below). ⇒ five independent chances to get it wrong, and this
+            //    host is where CE-137 had to add PresentationTkbTranslator by hand.
+            //
+            // ⭐⭐ IsBroadcastArbiter: TRUE here, unlike SimHost. The editor is a standalone, single-node
+            //    world with no cluster peer to arbitrate against, so it must service its own unowned
+            //    requests. ⚠ This preserves the previous `isDefaultProcessor: true` exactly.
+            //
+            // ⛔ ExtraTranslators is empty: this host's list was plain Base(), and add-only means an
+            //    empty extra set reproduces it exactly. Per-component narrowing stays gate 2
+            //    (IsComponentTypeRegistered), never the list — tkb-1/DESIGN.md §6.5b.
+            //
+            // 📄 DESIGN_Entity_Creation_Unification.md §3, §3.4 · Architect_Question_65 §0, §4.
+            var creation = EntityCreationPack.Build(new EntityCreationContext
+            {
+                World       = _world,
+                EntityMap   = entityMap,
+                TkbDb       = tkbDb,
+                IdAllocator = idAllocator,
+                Elm         = new EntityLifecycleModule(tkbDb, Array.Empty<int>()),
+                NodeId      = EditorNodeId,
+
+                IsBroadcastArbiter = true,
+            });
+
+            var elm      = creation.Elm;
+            var spawnSys = creation.SpawnSystem;
+            // ⭐ `ST-010` — the pack owns the local request source now; this host just holds the same
+            //   instance it always did, so EntityCreationRequestSource keeps working unchanged.
+            // ⚠ The local name is kept deliberately: five later sites in this method reference it, and
+            //   renaming them would be churn that hides the one real change (who CONSTRUCTS it).
+            var scenarioLoadSource = creation.LocalRequests;
+            _scenarioLoadSource    = scenarioLoadSource;
             var extractor          = new StagingEntityExtractor();
 
             // ⭐⭐⭐ BP-509 — the staging→runtime id table reaches the control-plane bus.
@@ -1428,16 +1456,25 @@ namespace Hrot.Editor
             // CreateEntityRequestSystem drains scenarioLoadSource each Input tick and emits
             // SpawnEntityCommand events for NetworkSpawningSystem (BeforeSync tick), which
             // sets AuthorityMask = ComponentMask for locally owned entities.
-            var requestSystem = new CreateEntityRequestSystem(
-                requestSource:      scenarioLoadSource,
-                ackSink:            new NullEntityAckSink(),
-                tkbDb:              tkbDb,
-                idAllocator:        idAllocator,
-                localNodeId:        EditorNodeId,
-                isDefaultProcessor: true);
+            // ⭐ CE-140 step 3, host (c) — the request system is the pack's; it was built ~180 lines
+            //   above with the ELM and the spawn system, which is the point: the three pieces that must
+            //   agree are now constructed together instead of at two distant sites.
+            // ⭐⭐ FinalizationSystem is NEW to this host. It was never registered here, so the ACK path
+            //   was absent — harmless with a NullEntityAckSink, but the pack builds it unconditionally
+            //   and scheduling it keeps Unserviceable() honest rather than permanently warning.
             _kernel.RegisterModule(elm);
             _kernel.RegisterModule(new SimHostModule(spawnSys));
-            _kernel.RegisterGlobalSystem(requestSystem);
+            _kernel.RegisterGlobalSystem(creation.RequestSystem);
+            _kernel.RegisterGlobalSystem(creation.FinalizationSystem);
+
+            // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this
+            //   design was silent.
+            var unserviceable = creation.Unserviceable(new object[]
+            {
+                creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+            });
+            if (unserviceable.Length > 0)
+                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Warn(unserviceable);
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
             // BSA-WIRE: register the blueprint genesis + event-ingress systems so that
             // InitialBlueprintsIntent (written by BlueprintStateTranslator on scenario load)

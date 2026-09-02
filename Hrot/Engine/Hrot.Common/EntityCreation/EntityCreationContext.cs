@@ -9,6 +9,7 @@ using Fdp.Toolkit.Replication.Abstractions;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Core.Network;
+using Hrot.Core.Tkb;
 
 namespace Hrot.Common.EntityCreation
 {
@@ -84,6 +85,23 @@ namespace Hrot.Common.EntityCreation
         /// pass a NARROWER list than <c>TkbTranslatorSet.Base()</c>; per-component narrowing is gate ②.
         /// </summary>
         public IReadOnlyList<ITkbEntityTranslator>? ExtraTranslators { get; init; }
+
+        /// <summary>
+        /// ⭐⭐ The ORDER-SENSITIVE form of <see cref="ExtraTranslators"/> — each addition says whether it
+        /// appends or must immediately follow a named translator type.
+        ///
+        /// <para>📌 <c>CE-146</c>. The Stride editor has the one such contract in the tree:
+        /// <c>InfantryVehicleStateStripTkbTranslator</c> must run immediately after
+        /// <c>VehicleKinematicsTkbTranslator</c>. <c>BasePlus</c> APPENDS, so <see cref="ExtraTranslators"/>
+        /// alone cannot express it — 🔒 <c>R-137</c>: unification must not quietly drop a capability, it
+        /// gets put back as configuration.</para>
+        ///
+        /// <para>⛔ Set EITHER this or <see cref="ExtraTranslators"/>, never both — two ways to say one
+        /// thing is the duplicate-mechanism trap, so <see cref="EntityCreationPack.Build"/> throws.
+        /// ⭐ <see cref="ExtraTranslators"/> stays the simple form and is exactly this list with every
+        /// placement appending.</para>
+        /// </summary>
+        public IReadOnlyList<TranslatorPlacement>? TranslatorPlacements { get; init; }
 
         /// <summary>Optional JSON attribute-override compiler for <c>InitialAttributesJson</c>.</summary>
         public JsonAttributeCompiler? JsonAttributeCompiler { get; init; }

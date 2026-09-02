@@ -7,6 +7,7 @@ using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Common.EntityCreation;
 using Hrot.Core.Network;
+using Hrot.Core.Tkb;
 using Hrot.Map.Common;
 using Xunit;
 
@@ -27,20 +28,22 @@ namespace Hrot.SimHost.Tests
         private static EntityCreationContext MinimalContext(
             out EntityRepository world,
             IReadOnlyList<ITkbEntityTranslator>? extras = null,
-            bool arbiter = false)
+            bool arbiter = false,
+            IReadOnlyList<TranslatorPlacement>? placements = null)
         {
             world = new EntityRepository();
             var tkb = HrotEnvironment.CreateTkb();
             return new EntityCreationContext
             {
-                World              = world,
-                EntityMap          = new NetworkEntityMap(),
-                TkbDb              = tkb,
-                IdAllocator        = new SequentialIdAllocator(),
-                Elm                = new EntityLifecycleModule(tkb, Array.Empty<int>()),
-                NodeId             = 7,
-                IsBroadcastArbiter = arbiter,
-                ExtraTranslators   = extras,
+                World                = world,
+                EntityMap            = new NetworkEntityMap(),
+                TkbDb                = tkb,
+                IdAllocator          = new SequentialIdAllocator(),
+                Elm                  = new EntityLifecycleModule(tkb, Array.Empty<int>()),
+                NodeId               = 7,
+                IsBroadcastArbiter   = arbiter,
+                ExtraTranslators     = extras,
+                TranslatorPlacements = placements,
             };
         }
 
@@ -125,6 +128,69 @@ namespace Hrot.SimHost.Tests
             // and every base translator survived
             foreach (var t in bare.Translators)
                 Assert.Contains(wider.Translators.Select(x => x.GetType()), ty => ty == t.GetType());
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-146</c> — <b>the ORDER-SENSITIVE addition lands where it says, not at the end.</b>
+        ///
+        /// <para>📌 The Stride editor's <c>InfantryVehicleStateStripTkbTranslator</c> must run
+        /// <i>"immediately after <c>VehicleKinematicsTkbTranslator</c>"</i>; <c>CE-145</c> recorded that
+        /// <c>BasePlus</c> APPENDS and so violated that contract. ⛔ This rail is the one that would have
+        /// caught it: appending is off by four positions, and the assertion is on the ADJACENCY, not on a
+        /// literal index — an index would go green again for the wrong reason the day <c>Base()</c>
+        /// changes.</para>
+        /// </summary>
+        [Fact]
+        public void TranslatorPlacements_PutTheAdditionImmediatelyAfterItsAnchor()
+        {
+            var strip = new CountingTranslator();
+            var ctx = MinimalContext(out _, placements: new[]
+            {
+                TranslatorPlacement.After<CarKinem.Tkb.VehicleKinematicsTkbTranslator>(strip),
+            });
+
+            var list = EntityCreationPack.Build(ctx).Translators;
+
+            int anchor = list.ToList()
+                .FindIndex(t => t is CarKinem.Tkb.VehicleKinematicsTkbTranslator);
+            Assert.True(anchor >= 0, "the anchor translator must be in Base()");
+            Assert.Same(strip, list[anchor + 1]);
+
+            // ⛔ and it is NOT merely appended — that is exactly the CE-145 defect.
+            Assert.NotSame(strip, list[list.Count - 1]);
+        }
+
+        /// <summary>
+        /// ⛔⛔ <c>CE-146</c> — <b>a placement whose anchor is absent THROWS.</b> Appending instead would
+        /// be the SILENT-DEFAULT shape this whole family exists to kill: the caller stated an ordering
+        /// contract and would receive a list that quietly does not honour it.
+        /// </summary>
+        [Fact]
+        public void TranslatorPlacements_ThrowWhenTheAnchorIsNotInTheList()
+        {
+            var ctx = MinimalContext(out _, placements: new[]
+            {
+                TranslatorPlacement.After<CountingTranslator>(new CountingTranslator()),
+            });
+
+            var ex = Assert.Throws<InvalidOperationException>(() => EntityCreationPack.Build(ctx));
+            Assert.Contains("CountingTranslator", ex.Message);
+        }
+
+        /// <summary>
+        /// ⛔ <c>CE-146</c> — <b>the two addition forms are alternatives, not a merge.</b> Two ways to say
+        /// one thing is the duplicate-mechanism trap, so setting both is refused at construction rather
+        /// than silently concatenated in some order nobody chose.
+        /// </summary>
+        [Fact]
+        public void ExtraTranslatorsAndPlacements_CannotBothBeSet()
+        {
+            var ctx = MinimalContext(
+                out _,
+                extras:     new ITkbEntityTranslator[] { new CountingTranslator() },
+                placements: new[] { TranslatorPlacement.Append(new CountingTranslator()) });
+
+            Assert.Throws<ArgumentException>(() => EntityCreationPack.Build(ctx));
         }
 
         /// <summary>

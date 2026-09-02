@@ -94,7 +94,7 @@ the usual 14–15 s); the two runs immediately after were 818/1/3. Steady state 
 graph TD
     A["(a) Stride node<br/>StrideNodeBootstrapper"] -->|DONE 58dab5a84| B["(b) SimHost<br/>SimHostNodeBootstrapper"]
     B -->|DONE 2026-09-01| CE["(c)+(e) Editor + Stride editor<br/>COUPLED by CE-146"]
-    CE --> D["(d) CGF"]
+    CE -->|DONE 2026-09-02<br/>e UNVERIFIED on Linux| D["(d) CGF"]
     D --> F["(f) IG<br/>atomic with Q65-A' + CE-143 + CE-144"]
 ```
 
@@ -102,8 +102,8 @@ graph TD
 |---|---|
 | **(a) Stride node** | ✅ **done.** Closed a second gap — it had no `CreateEntityRequestSystem` at all |
 | **(b) SimHost** | ✅ **DONE `2026-09-01`.** Closed the same second gap host (a) did — SimHost had **no** `CreateEntityRequestSystem`, so its only creation path was a raw bus `SpawnEntityCommand`. ⭐ Also dropped `.WithTranslators(...)`: promotion now reads the ONE list off the ELM *(`CE-155`)*, so the node holds a single instance rather than two equal copies |
-| **(c) Editor + (e) Stride editor** | ⭐⭐ **NEXT.** ⛔ a **COUPLED PAIR** because of `CE-146`; (e) cannot be verified on Linux |
-| **(d) CGF** | last of the materialising hosts |
+| **(c) Editor + (e) Stride editor** | ✅ **DONE `2026-09-02`.** Both hosts build the tier through `EntityCreationPack`; both gained `EntityRequestFinalizationSystem`, which neither had registered before. ⭐ (e) forced `TranslatorPlacements` — its `InfantryVehicleStateStrip` has a POSITIONAL contract `BasePlus` cannot express (`CE-145`/`CE-146`), so the capability was put back as configuration rather than dropped (`R-137`). ⚠⚠ **(e) is UNVERIFIED BY BUILD** — the `Stride/` tree needs `Microsoft.WindowsDesktop.App`. A **Windows session must build `Stride/`** before (e) is trusted |
+| **(d) CGF** | ⭐⭐ **NEXT** — last of the materialising hosts |
 | **(f) IG** | ⛔⛔ **must ship in ONE commit** with Q65-A′ + `CE-143` + `CE-144`, or IG double-spawns and double-destroys |
 
 ---
@@ -116,11 +116,11 @@ graph TD
 | ✅ **`CE-142`** | **DONE `2026-09-01`** (`e888872a0`) — the three delegation pieces are ungated. ⚠ **Prerequisite, not a fix**: CGF's authority over a SimHost-originated entity is UNCHANGED, because nothing computes Brain-ward grants. ⭐ That policy half is superseded by `DESIGN_Role_Affinity_Ownership.md` | done |
 | **`CE-143`** | add init-only `ReliableInitType` to `EntityCreationRequest`, default `AllPeers`; hardcoded at `CreateEntityRequestSystem.cs:302` and `:397`. ⚠ decide whether `:397`'s children inherit (lean: yes) | ⭐ prerequisite for IG drawings being **usable** |
 | **`CE-144`** | drop `GhostDestructionSystem` from IG once it gains `NetworkSpawningSystem` | ships with (f) |
-| **`CE-146`** | fold the Stride editor's SECOND pipeline into the pack; the strip goes through `ExtraTranslators` | = host (e) |
+| **`CE-146`** | ✅ **DONE `2026-09-02`** — the Stride editor's SECOND pipeline is folded into the pack. ⛔ **The plan line said "the strip goes through `ExtraTranslators`" and that was WRONG** — `ExtraTranslators` appends, and the strip has a positional contract (`CE-145`). It goes through the new `TranslatorPlacements` instead | = host (e) |
 | ✅ **`CE-155`** | **DONE `2026-09-01`** — `GhostPromotionSystem`'s empty translator list on the FACTORY path *(CGF)*. ⚠ **Filed late**: the id was cited in three production files with no row. ⚠ Its first scope claim *("every node")* was **wrong** — builder-path hosts did pass a list | done |
 | ✅ **`CE-156`** | **DONE `2026-09-01`** — a composition-root source scan was passing on its own COMMENTS; SimHost **and IG** were green for the wrong reason, hiding a rail-doc/data contradiction. ⭐ Comments are now stripped before any such scan | done |
 | — | two **stale diagnostics**, fix in words not code: `NavigationIntentBridgeSystem.cs:234-240`'s warning text; `Translator_Infantry200_DoesNotInjectVehicleState` (re-home onto the strip) | no |
-| — | the two `StrD21` navigation reds are **UNATTRIBUTED** — ⛔ do not claim them until host (e) is done and they are re-run | no |
+| — | the two `StrD21` navigation reds are **UNATTRIBUTED** — ⛔ still do not claim them: host (e) landed `2026-09-02` but **could not be built or run on Linux**, so the re-run this row waits on has not happened. ⭐ It is a **Windows-session** task | no |
 
 ⭐ **After entity creation:** back to gizmos — **`CE-134`** (health bar) first, then `CE-133`, `CE-135`,
 `CE-136` against [`../UX/UX_Feature_Entity_Symbology.md`](../UX/UX_Feature_Entity_Symbology.md) §3.8.
@@ -139,7 +139,7 @@ alternative is a temporary bridge that would itself be the second registrar the 
 
 | # | step | state |
 |---|---|---|
-| **P1** | ⭐⭐ **finish pack adoption** — hosts (b) SimHost → (c)+(e) Editor + Stride editor *(coupled, `CE-146`)* → (d) CGF → (f) IG *(atomic with `Q65-A′`+`CE-143`+`CE-144`)*. §3's order, §5's mechanics | ✅ (b) done `2026-09-01` · ⭐ **NEXT: (c)+(e)** |
+| **P1** | ⭐⭐ **finish pack adoption** — hosts (b) SimHost → (c)+(e) Editor + Stride editor *(coupled, `CE-146`)* → (d) CGF → (f) IG *(atomic with `Q65-A′`+`CE-143`+`CE-144`)*. §3's order, §5's mechanics | ✅ (b) `2026-09-01` · ✅ (c)+(e) `2026-09-02` *(e blind)* · ⭐ **NEXT: (d) CGF** |
 | **P2** | 🔴 **relocate `GhostPromotionSystem`** from `NedReplicationModule` into `EntityCreationPack`, **one commit, add+remove together** | blocked on P1 |
 | **P3** | ⭐ **role-affinity ownership** — `DESIGN_Role_Affinity_Ownership.md` §6 steps 0→3b | blocked on P2 |
 

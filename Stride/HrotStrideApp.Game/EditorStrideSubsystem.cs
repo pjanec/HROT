@@ -27,6 +27,7 @@ using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Time.Controllers;
 using Hrot.CGF;
 using Hrot.Common;
+using Hrot.Common.EntityCreation;
 using Hrot.Common.Systems;
 using Hrot.Core.Network;
 using Hrot.Editor;
@@ -591,25 +592,47 @@ public sealed class EditorStrideSubsystem : IDisposable
         TkbDb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
         var tkbDb = TkbDb;
 
-        var translators = BuildTranslators();
-        var elm         = new EntityLifecycleModule(tkbDb, System.Array.Empty<int>());
-        elm.SetTranslators(translators);
-
+        // ⭐⭐⭐ CE-146 / P1 host (e) — the entity-creation tier is BUILT AS A UNIT by the shared pack,
+        //    not hand-assembled here. 🔒 User ruling 2026-09-01: "our desire is that all hosts use shared
+        //    code doing the same. So we should get into a state when we can say 'no host does XXX'."
+        //    ⇒ this host no longer constructs its own ELM translators, spawn system or request system.
+        // ⭐ TranslatorPlacements, not ExtraTranslators: InfantryVehicleStateStripTkbTranslator has a
+        //    POSITIONAL contract — its own doc requires it "immediately after
+        //    VehicleKinematicsTkbTranslator … position in the list is the guarantee". BasePlus APPENDS,
+        //    which CE-145 recorded as a latent violation; BaseWith states the anchor as a TYPE and THROWS
+        //    if it is absent. 🔒 R-137 — unification puts the lost flexibility back as configuration.
+        // ⭐ IsBroadcastArbiter: true preserves this host's prior isDefaultProcessor: true. This is a
+        //    STANDALONE editor, so it IS the only node — nothing else can arbitrate Owner == 0.
+        // ⭐ FinalizationSystem is NEW to this host; the pack always builds it, and the kernel
+        //    registration below is what makes Unserviceable() return empty.
+        // 📄 docs/DESIGN_Entity_Creation_Unification.md §3, §3.3 ·
+        //    docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0.
+        // ⚠⚠ UNVERIFIED BY BUILD: the Stride tree needs Microsoft.WindowsDesktop.App and does not
+        //    compile on the Linux session that wrote this. Reviewed against the identical (c) edit in
+        //    Hrot.Editor/EditorSubsystem.cs, which DOES build.
         var idAllocator = new SequentialIdAllocator();
-        var spawnSys    = new NetworkSpawningSystem(
-            tkbDb, elm, EntityMap, idAllocator,
-            localNodeId: EditorNodeId,
-            translators: translators);
+        var creation = EntityCreationPack.Build(new EntityCreationContext
+        {
+            World       = World,
+            EntityMap   = EntityMap,
+            TkbDb       = tkbDb,
+            IdAllocator = idAllocator,
+            Elm         = new EntityLifecycleModule(tkbDb, System.Array.Empty<int>()),
+            NodeId      = EditorNodeId,
+            TranslatorPlacements = new[]
+            {
+                Hrot.Core.Tkb.TranslatorPlacement
+                    .After<CarKinem.Tkb.VehicleKinematicsTkbTranslator>(
+                        new InfantryVehicleStateStripTkbTranslator()),
+            },
+            IsBroadcastArbiter = true,
+        });
 
-        ScenarioSource = new ScenarioEntityCreationRequestSource();
+        var elm           = creation.Elm;
+        var spawnSys      = creation.SpawnSystem;
+        var requestSystem = creation.RequestSystem;
 
-        var requestSystem = new CreateEntityRequestSystem(
-            requestSource:      ScenarioSource,
-            ackSink:            new NullEntityAckSink(),
-            tkbDb:              tkbDb,
-            idAllocator:        idAllocator,
-            localNodeId:        EditorNodeId,
-            isDefaultProcessor: true);
+        ScenarioSource = creation.LocalRequests;
 
         // ── 6. Orchestration slave ────────────────────────────────────────
         // Mirror EditorSubsystem line 581 exactly.
@@ -645,6 +668,20 @@ public sealed class EditorStrideSubsystem : IDisposable
         Kernel.RegisterModule(new SimHostModule(spawnSys));
         Kernel.RegisterModule(orchPack);
         Kernel.RegisterGlobalSystem(requestSystem);
+        // ⭐⭐ CE-146 — FinalizationSystem is NEW to this host. It was never registered here, so the ACK
+        //    path was absent; harmless behind a NullEntityAckSink, but the pack builds it unconditionally
+        //    and scheduling it keeps Unserviceable() honest instead of permanently warning.
+        Kernel.RegisterGlobalSystem(creation.FinalizationSystem);
+
+        // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this design
+        //    was silent.
+        var unserviceable = creation.Unserviceable(new object[]
+        {
+            creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
+        });
+        if (unserviceable.Length > 0)
+            Log.Warn("[EntityCreation] " + unserviceable);
+
         Kernel.RegisterGlobalSystem(new GenesisMaterializationSystem(EntityMap));
 
         // CGF input + sim systems
@@ -1619,27 +1656,11 @@ public sealed class EditorStrideSubsystem : IDisposable
     }
     // ── End DIAG-AUTH ─────────────────────────────────────────────────────────
 
-    private static IReadOnlyList<ITkbEntityTranslator> BuildTranslators()
-    {
-        // ⭐⭐ CE-140 step 2 — the ONE base list plus this node's own additions.
-        //    InfantryVehicleStateStrip lives in Hrot.Stride.Core, above Hrot.Core, so it is an
-        //    ADDITION — exactly the per-node variation tkb-1/DESIGN.md §6.5 sanctions.
-        // ⛔ Never subtract to narrow: gate 2 (IsComponentTypeRegistered) narrows per component (§6.5b).
-        //
-        // 🔴 CE-145 — POSITION IS PART OF THE CONTRACT, so this cannot use BasePlus().
-        //    InfantryVehicleStateStripTkbTranslator's own doc requires it to run "immediately after
-        //    VehicleKinematicsTkbTranslator … position in the list is the guarantee". BasePlus()
-        //    APPENDS (Base() is 6 long ⇒ index 6), which violates that. Base() index 1 is
-        //    VehicleKinematicsTkbTranslator, so the strip belongs at index 2 — where the
-        //    hand-written list had it before CE-140 step 2 replaced it with BasePlus.
-        // ⚠ Today this is LATENT: the strip is a pure removal and only VehicleKinematicsTkbTranslator
-        //    adds those components, so a later position yields the same end state. It becomes real the
-        //    moment any translator between the two READS VehicleState/VehicleParams.
-        // ⭐ Still built from the ONE Base() list — inserted into, never forked.
-        var translators = new List<ITkbEntityTranslator>(Hrot.Core.Tkb.TkbTranslatorSet.Base());
-        translators.Insert(2, new InfantryVehicleStateStripTkbTranslator());
-        return translators.AsReadOnly();
-    }
+    // ⛔ BuildTranslators() was RETIRED by CE-146 (2026-09-02). It was this host's private copy of the
+    //    translator-list composition; it is now stated as a TranslatorPlacement on the shared
+    //    EntityCreationPack, ~1000 lines above. ⭐ That also RESOLVES CE-145: the ordering contract is
+    //    expressed as "after VehicleKinematicsTkbTranslator" and THROWS if that anchor is absent, rather
+    //    than being a bare Insert(2, …) that silently re-aims when Base() gains an entry.
 
     // ── Nested: simulation-phase module adapter ──────────────────────────
 

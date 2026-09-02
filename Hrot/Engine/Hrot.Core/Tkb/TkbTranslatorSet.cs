@@ -51,6 +51,14 @@ namespace Hrot.Core.Tkb
     /// <c>VehicleState</c>. ⇒ ⭐ <b>Before adding an order-sensitive translator, give this class an
     /// explicit insert-after helper rather than reaching for <see cref="BasePlus"/>.</b>
     /// 📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.3.</para>
+    ///
+    /// <para>✅ <b><c>CE-146</c>, <c>2026-09-02</c> — that helper now exists: <see cref="BaseWith"/> +
+    /// <see cref="TranslatorPlacement"/>.</b> It is what lets the Stride editor join
+    /// <c>EntityCreationPack</c> without dropping the positional contract. 🔒 <c>R-137</c>: <i>"we should
+    /// not lose flexibility of the features, if unification takes some away, this is a signal we should
+    /// think how to put it back (via configuration for example)."</i> ⇒ the placement IS that
+    /// configuration. ⛔ It states the anchor as a TYPE, never an index — an index silently re-aims when
+    /// <see cref="Base"/> gains an entry, and a missing anchor THROWS rather than appending.</para>
     /// </summary>
     public static class TkbTranslatorSet
     {
@@ -89,5 +97,84 @@ namespace Hrot.Core.Tkb
             if (extra != null) list.AddRange(extra);
             return list.AsReadOnly();
         }
+
+        /// <summary>
+        /// ⭐⭐ <see cref="Base"/> plus <paramref name="placements"/>, each either APPENDED or inserted
+        /// IMMEDIATELY AFTER a named translator type. ⭐ This is the order-sensitive form
+        /// <see cref="BasePlus"/> cannot express (<c>CE-146</c>); <see cref="BasePlus"/> is now a thin
+        /// all-append call onto it.
+        ///
+        /// <para>⛔ <b>A placement whose anchor type is absent THROWS.</b> Appending instead would be the
+        /// SILENT-DEFAULT shape this whole family exists to kill: the caller stated an ordering contract
+        /// and would get a list that quietly does not honour it.</para>
+        ///
+        /// <para>⭐ Placements are applied in the order given, so an anchor may itself be a translator
+        /// added by an earlier placement.</para>
+        /// </summary>
+        public static IReadOnlyList<ITkbEntityTranslator> BaseWith(
+            params TranslatorPlacement[] placements)
+        {
+            var list = new List<ITkbEntityTranslator>(Base());
+            if (placements == null) return list.AsReadOnly();
+
+            foreach (var p in placements)
+            {
+                if (p.Translator == null) continue;
+
+                var afterType = p.AfterType;
+                if (afterType == null)
+                {
+                    list.Add(p.Translator);
+                    continue;
+                }
+
+                int anchor = list.FindIndex(t => afterType.IsInstanceOfType(t));
+                if (anchor < 0)
+                {
+                    throw new System.InvalidOperationException(
+                        $"TkbTranslatorSet.BaseWith: cannot place {p.Translator.GetType().Name} after " +
+                        $"{afterType.Name} — no translator of that type is in the list. The ordering " +
+                        "contract cannot be honoured, and appending silently would hide that.");
+                }
+                list.Insert(anchor + 1, p.Translator);
+            }
+            return list.AsReadOnly();
+        }
+    }
+
+    /// <summary>
+    /// ⭐ One translator plus WHERE it goes relative to <see cref="TkbTranslatorSet.Base"/>.
+    /// 📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.3 · <c>CE-146</c>.
+    /// </summary>
+    public readonly struct TranslatorPlacement
+    {
+        /// <summary>The translator to add.</summary>
+        public ITkbEntityTranslator Translator { get; }
+
+        /// <summary>
+        /// The translator TYPE this one must immediately follow, or <c>null</c> to append.
+        /// ⛔ A type, never an index — an index re-aims silently when <see cref="TkbTranslatorSet.Base"/>
+        /// gains an entry.
+        /// </summary>
+        public System.Type? AfterType { get; }
+
+        private TranslatorPlacement(ITkbEntityTranslator translator, System.Type? after)
+        {
+            Translator = translator;
+            AfterType = after;
+        }
+
+        /// <summary>Add <paramref name="translator"/> at the END of the list.</summary>
+        public static TranslatorPlacement Append(ITkbEntityTranslator translator)
+            => new TranslatorPlacement(translator, null);
+
+        /// <summary>
+        /// Add <paramref name="translator"/> IMMEDIATELY AFTER the first translator assignable to
+        /// <typeparamref name="TAfter"/>. ⛔ Throws at <see cref="TkbTranslatorSet.BaseWith"/> time if
+        /// no such translator is present.
+        /// </summary>
+        public static TranslatorPlacement After<TAfter>(ITkbEntityTranslator translator)
+            where TAfter : ITkbEntityTranslator
+            => new TranslatorPlacement(translator, typeof(TAfter));
     }
 }
