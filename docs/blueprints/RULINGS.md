@@ -6,6 +6,10 @@ current-answer: this file is now LEAN. Feature intent lives in the DESIGN docs (
   This file holds ONLY what those two cannot: engine invariants, silent-failure hazards,
   and cross-cutting decisions with no single design home.
 stale-below: nothing.
+re-read: 2026-09-03 — .claude/CLAUDE.md changed, so rulings-check WARNed on the four rows that cite it
+  (R-128, R-129, R-135, R-139). Re-read and CONFIRMED none moved: the ONLY edit was one row of the
+  "WHICH TOOL" routing table, adding scripts/find.sh (which runs search_code AND grep and prints what
+  each missed). It touches no ruling's section, and all four quotes verify verbatim.
 re-read: 2026-08-28 — R-136's cited source DESIGN_Entity_State_Sourcing.md gained a
   section 3.1 (the CE-113 as-built). Re-read and CONFIRMED the ruling did NOT move: R-136's
   substance is sections 1, 1.1, 2 and 5, none of which changed. Only section 3 gained a subsection.

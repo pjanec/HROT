@@ -1714,11 +1714,45 @@ every node, and the authoring code picks which sequence it wants by setting one 
 |---|---|---|
 | ✅ **1** | **`CE-139`** — **DONE `2026-08-30`.** `StrideNodeBootstrapper:316` now passes the list and calls `SetTranslators` | low; **gate ②** bounded it |
 | ✅ **2** | **`TkbTranslatorSet`** — **DONE `2026-08-30`.** `Hrot.Core/Tkb/TkbTranslatorSet.cs` holds the one base set *(6 translators)*; **all five spawning sites** now call `Base()` or `BasePlus(…)`, and the two per-node additions that live above `Hrot.Core` — `AiDiagnosticsTkbTranslator` (SimHost, CGF) and `InfantryVehicleStateStripTkbTranslator` (Stride editor) — go through `BasePlus`. ⭐ IG keeps its narrower list **with the reason written at the site** | low — no behaviour change where the lists agreed |
-| ⏳ **3** | **`EntityCreationPack`** over the six sites, one host at a time, `Unserviceable` reporting each | ⏳ **IN PROGRESS `2026-08-31`** — the pack is BUILT in `Hrot/Engine/Hrot.Common/EntityCreation/` and **host (a) Stride node has adopted it**. ⛔ Remaining: SimHost · Editor · CGF · IG *(IG atomic with Q65-A′ + CE-143 + CE-144)* |
+| ✅ **3** | **`EntityCreationPack`** over the six sites, one host at a time, `Unserviceable` reporting each | ✅✅ **DONE `2026-09-03` — ALL SIX HOSTS.** (a) Stride node `2026-08-31` · (b) SimHost `2026-09-01` · (c)+(e) Editor + Stride editor `2026-09-02` *(coupled, `CE-146`)* · (d) CGF `2026-09-02` · **(f) IG `2026-09-03`**, shipped atomically with `Q65-A′` + `CE-143` + `CE-144` as required. ⚠⚠ **THIS ROW READ *"IN PROGRESS `2026-08-31`, host (a) only, remaining SimHost · Editor · CGF · IG"* UNTIL `2026-09-03`** — five hosts out of date, i.e. the design was behind the code for three days. Corrected on the fold-back pass that also fixed `BOOTSTRAP` §5.0 and `RESUME_UI_Lane.md`; see §5.0a |
 | ✅ **4** | ✅✅ **DONE `2026-08-31`** — **§3.3**: the templates now live in `Hrot.Core.Tkb.UrbanCombatTkbCatalog`, seeded from `HrotEnvironment.CreateTkb()`, with forwarders for the test callers. ⚠⚠ **It was NOT "the smaller of the two"** — that estimate was wrong: it also required collapsing a second divergent copy, deleting a production call site that would have thrown, and relocating 10 animation DTOs into `Fdp.Toolkits` *(`CE-145` for the namespace rename)* |
 
 ⚠ **Step 2 was the cheap majority of the value** — it is where §6.3's *"identical list"* stopped being a
 convention. ⭐ Step 3 buys invariants ④ and ⑤ and can follow later.
+
+##### §5.0a ✅✅✅ WHAT REMAINS AFTER STEP 3 — **the arc is NOT finished; two designed pieces are unbuilt** *(`2026-09-03`)*
+
+⛔⛔ **Step 3 completing is easy to misread as "entity-creation unification is done." It is not.** ⭐ The
+plan of record is [`BOOTSTRAP_Entity_Creation_Session.md`](blueprints/BOOTSTRAP_Entity_Creation_Session.md) §5.0
+*(user-confirmed `2026-09-01`)*, and steps 3 and 4 here are only its **P1**:
+
+| | step | state |
+|---|---|---|
+| ✅ **P1** | pack adoption, all six hosts | **DONE `2026-09-03`** *(the row above)* |
+| 🔴 **P2** | **relocate `GhostPromotionSystem`** out of `NedReplicationModule` into `EntityCreationPack`, add+remove in ONE commit | ⭐ **UNBLOCKED by P1 — this is the next buildable step.** 📄 [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) §3.7. ⭐ Side effect: it also closes *"a BDC node never promotes its ghosts"* *(`BdcReplicationModule.cs:66` registers `GhostCreationSystem` and no promotion)* |
+| 🔴 **P3** | ⭐⭐⭐ **AUTO-TAKEOVER — role-affinity ownership.** ⛔ **DESIGNED, NOT BUILT** | 📄 [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md), `build-state: READY-TO-BUILD`, its own STATUS says *"Nothing here is built yet."* §6 steps 0→3b |
+
+⭐⭐⭐ **P3 is the part of this programme that is fully designed and entirely unimplemented** — 🔒 **user,
+`2026-09-01`, verbatim, and the whole design is this one sentence:** *"SimHost having a muscle role should
+not instantiate any brain related components. If it does, this is a mistake. But even if it does, by
+applying **'auto-takeover'** rules (i do not have brain role -> i will not own brain components, the brain
+will) it can create the components as unowned while CGF (applying same rule - I am brain, i will own the
+brain components) creates them as owned. No authority conflict."*
+
+⇒ ⭐⭐ **Ownership stops being something a creator HANDS OUT and becomes something every node DERIVES from
+its own role, with the same function** — two nodes running one function over one entity cannot disagree.
+📐 The measured hole it closes: `NetworkSpawningSystem.cs:174-182` is the **single** place a node grants
+itself authority, and it is a **blanket** `metaNS.AuthorityMask = compNS` — *"I own everything I
+materialised."* ⚠ Three known constraints already recorded in that design, ⛔ do not re-derive them:
+
+| ⚠ | |
+|---|---|
+| **two categories, not one** | **birth-critical** *(spatial — must be valid at birth ⇒ creator birthright, then the existing `DeferredTakeOwnership` handoff)* vs **cognitive** *(defaultable ⇒ role affinity)*. 🔒 architect: *"the position can not start empty."* ⛔ One symmetric rule was the first draft and it was WRONG — it left `SimTransform` unowned so the spawn position could never be published |
+| **network-agnostic** | 🔒 user: *"we can have multiple different network implementations — ownership can not be tied to one of them."* ⇒ ⛔ **nothing may key on a descriptor**; the role carries a `BitMask512` of COMPONENT ids |
+| 🔴 **authority does not stop execution** | 📐 `BTreeTickSystem.cs:62-65` has **no** authority filter and **no** production system uses `QueryBuilder:97`'s `.WithAuthority<T>()` ⇒ P3 needs **both** a narrowed Muscle-only registration **and** the query filter, or the whole design is cosmetic |
+
+⚠ **`DESIGN_Role_Affinity_Ownership.md` §5 still holds THREE OPEN DECISIONS**, each with a lean. ⛔ They
+are decisions for the user, not for the implementing session — settle them before P3 starts.
 
 ##### ✅ AS-BUILT `2026-08-30` — steps 1 and 2
 

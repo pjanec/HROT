@@ -1,24 +1,35 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-02
-current-answer: ✅ §4.9 FIRST — THE 19 CLUSTER REDS are now TRIAGED (2026-09-02, answering the user's
-  "shouldnt we first find out why?"). VERDICT: none is unification damage; all 19 map to four
-  pre-existing owners (CE-103 x7, CE-154 x4, QA-031 x5, and the newly filed CE-157/CE-158/CE-159).
-  ⇒ P1 host (f) IG is UNBLOCKED. Read §4.9 for the table and for the two corrections it makes to
-  this document's own earlier answer, THEN §5.0 — THE
-  AGREED PLAN, user-confirmed 2026-09-01. Read §4.9, then §5.0, then §5 for the
-  mechanics of its first step. This file is a SESSION BOOTSTRAP — a self-contained continuation point
-  for the entity-creation unification work on the UI lane. Read it after docs/blueprints/RULINGS.md
-  (RULE ZERO) and instead of reading RESUME_UI_Lane.md top-to-bottom.
-stale-below: §5's opening caution "the user was asked and had not yet answered" is STALE — they
-  answered on 2026-09-01 ("yes adopt pack first, then relocate"). Its measured seam table is current.
+updated: 2026-09-03
+current-answer: ✅✅✅ READ §5.0 — THE AGREED PLAN (user-confirmed 2026-09-01). It is the ONLY section
+  that carries live state. P1 (EntityCreationPack adoption) is COMPLETE across ALL SIX HOSTS as of
+  2026-09-03: host (f) IG shipped with Q65-A' + CE-143 + CE-144 atomically, VERIFIED (GhostDestructionSystem
+  deleted; IgNodeBootstrapper.cs:362 calls EntityCreationPack.Build; CE-141+CE-144 confirmed on a live
+  four-process cluster). ⇒ THE NEXT BUILDABLE STEP IS P2 — relocate GhostPromotionSystem out of
+  NedReplicationModule into EntityCreationPack, add+remove in ONE commit.
+  ⭐⭐⭐ AND THE PROGRAMME IS NOT FINISHED WHEN P2 LANDS: P3 is AUTO-TAKEOVER (role-affinity ownership),
+  which is FULLY DESIGNED AND ENTIRELY UNBUILT — ../DESIGN_Role_Affinity_Ownership.md, build-state
+  READY-TO-BUILD, "Nothing here is built yet", §6 steps 0->3b, and its §5 holds THREE OPEN DECISIONS
+  that are the USER's to settle before it starts. Do not let "P1 done" read as "unification done".
+  This file is a SESSION BOOTSTRAP — a self-contained continuation point for the entity-creation
+  unification work. Read it after docs/blueprints/RULINGS.md (RULE ZERO) and instead of reading
+  RESUME_UI_Lane.md top-to-bottom.
+stale-below: §5 is SUPERSEDED — it is headed "THE NEXT STEP: SimHost, host (b)", which shipped
+  2026-09-01; it is retained only as the worked example of per-host adoption mechanics and is marked
+  in place. §4.9's triage remains true but its CONSEQUENCE line ("host (f) is UNBLOCKED") is now
+  history — (f) is DONE. §1's "12 commits" and the head sha in the banner are both behind.
+folded-back: 2026-09-03 — this file, DESIGN_Entity_Creation_Unification.md §5 step 3 (which still said
+  "IN PROGRESS, host (a) only" — five hosts out of date for three days) and RESUME_UI_Lane.md's
+  current-answer were all behind the code. Cause: the work was reported in chat and commits, and the
+  owning documents were not updated. That is the disease CLAUDE.md's obligation ⑤ exists to treat.
 known-conflict: none. Where this file and RESUME_UI_Lane.md's STATUS block overlap they agree; that
   block is the longer log, this file is the ordered continuation point.
 -->
 
 # ⭐⭐⭐ BOOTSTRAP — entity-creation unification, UI lane
 
-> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · head **`4a69ad3f8`** *(`2026-09-01`)* · ids **`CE-`** *(next free `CE-155`)*.
+> 🔒 **Branch `claude/reset-working-branch-qd1qpv`** · head **`e762fe988`** *(`2026-09-03`)* · ids **`CE-`** *(next free **`CE-166`** — `CE-165` is the last allocated)*.
+> ⚠ *(was `4a69ad3f8` / next free `CE-155` until the `2026-09-03` fold-back; both were three days behind.)*
 > ⛔ Push nowhere else. ⛔ No PR unless the user asks.
 > 📄 **Owning designs:** [`../DESIGN_Entity_Creation_Unification.md`](../DESIGN_Entity_Creation_Unification.md) ·
 > [`Architect_Question_65_Entity_Genesis_Uniformity.md`](Architect_Question_65_Entity_Genesis_Uniformity.md) ·
@@ -275,9 +286,9 @@ alternative is a temporary bridge that would itself be the second registrar the 
 
 | # | step | state |
 |---|---|---|
-| **P1** | ⭐⭐ **finish pack adoption** — hosts (b) SimHost → (c)+(e) Editor + Stride editor *(coupled, `CE-146`)* → (d) CGF → (f) IG *(atomic with `Q65-A′`+`CE-143`+`CE-144`)*. §3's order, §5's mechanics | ✅ (b) `2026-09-01` · ✅ (c)+(e) `2026-09-02` *(e **VERIFIED on Windows**)* · ✅ (d) `2026-09-02` ⇒ ⭐⭐ **all five materialising hosts are on the pack.** ⛔⛔ **(f) IG is PAUSED `2026-09-02`** — 🔒 user: *"shouldnt we first find out why?"* about the 19 cluster reds. ⭐ **§4.9 is the next batch**; (f) resumes after it, and still must ship in ONE commit with `Q65-A′` + `CE-143` + `CE-144` |
-| **P2** | 🔴 **relocate `GhostPromotionSystem`** from `NedReplicationModule` into `EntityCreationPack`, **one commit, add+remove together** | blocked on P1 |
-| **P3** | ⭐ **role-affinity ownership** — `DESIGN_Role_Affinity_Ownership.md` §6 steps 0→3b | blocked on P2 |
+| **P1** | ⭐⭐ **finish pack adoption** — hosts (b) SimHost → (c)+(e) Editor + Stride editor *(coupled, `CE-146`)* → (d) CGF → (f) IG *(atomic with `Q65-A′`+`CE-143`+`CE-144`)*. §3's order, §5's mechanics | ✅✅✅ **COMPLETE `2026-09-03` — ALL SIX HOSTS.** (b) `2026-09-01` · (c)+(e) `2026-09-02` *(e **VERIFIED on Windows**)* · (d) `2026-09-02` · ⭐ **(f) IG `2026-09-03`** — the §4.9 triage cleared the pause, then (f) shipped with its three atomic companions. 📐 **VERIFIED, not assumed:** `GhostDestructionSystem` is deleted *(only comments name it)*, `IgNodeBootstrapper.cs:362` calls `EntityCreationPack.Build`, `CE-143` is BUILT *(`Q65` §5.5)*, and `CE-141`+`CE-144` were confirmed on a **live four-process cluster** *(`DESIGN_Entity_Creation_Unification.md` §2.3c)* |
+| **P2** | 🔴 **relocate `GhostPromotionSystem`** from `NedReplicationModule` into `EntityCreationPack`, **one commit, add+remove together** | ⭐⭐ **UNBLOCKED `2026-09-03` — the next buildable step.** ⭐ Also closes *"a BDC node never promotes its ghosts"* *(`BdcReplicationModule.cs:66`)* |
+| **P3** | ⭐⭐⭐ **AUTO-TAKEOVER — role-affinity ownership.** ⛔ **DESIGNED, NOT BUILT — the unimplemented half of this whole programme** | blocked on P2. 📄 [`../DESIGN_Role_Affinity_Ownership.md`](../DESIGN_Role_Affinity_Ownership.md) `build-state: READY-TO-BUILD`, §6 steps 0→3b; ⚠ **its §5 holds THREE OPEN DECISIONS for the user** — settle them before starting. ⛔ Do not re-derive its three constraints: two categories *(birth-critical vs cognitive)* · network-agnostic *(no descriptor keying)* · authority does not stop execution *(needs the query filter too, or it is cosmetic)* |
 
 ### ⭐ What `2026-09-01` settled — ⛔ do not re-derive
 
@@ -305,9 +316,14 @@ afterwards for its OWN subject *(it also guards `MissionDirectorSystem` against 
 
 ---
 
-## 5. ⭐⭐⭐ THE NEXT STEP — **SimHost, host (b)**
+## 5. ⛔ HISTORY — **"THE NEXT STEP: SimHost, host (b)"** *(SUPERSEDED `2026-09-03`)*
 
-⚠ **The user was asked and had not yet answered when the previous session ended.** ⛔ Confirm before
+> ⛔⛔⛔ **SUPERSEDED. Host (b) shipped `2026-09-01` and P1 is COMPLETE across all six hosts
+> (`2026-09-03`).** ⭐ **The next step is now §5.0's P2** — relocate `GhostPromotionSystem` into
+> `EntityCreationPack`. ⚠ **Kept below only as the worked example of the per-host adoption mechanics**,
+> which the same shape of work can still be read off; ⛔ **do NOT read it as an instruction.**
+
+⚠ *(Original text follows.)* **The user was asked and had not yet answered when the previous session ended.** ⛔ Confirm before
 starting. ✅ (c)+(e)'s Windows verification pass is DONE (`2026-09-02`) — build, suites and self-test all green.
 
 📌 **Seams, measured:** `Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs`

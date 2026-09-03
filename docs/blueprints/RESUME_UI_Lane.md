@@ -1,19 +1,30 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-02
-current-answer: ✅ READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md §4.9 FIRST — THE 19
-  CLUSTER REDS, now TRIAGED 2026-09-02. P1 pack adoption is DONE for all five materialising hosts
-  (a-e). Host (f) IG was PAUSED on the user's question "shouldnt we first find out why?"; that
-  question is ANSWERED — none of the 19 is unification damage, all map to four pre-existing owners
-  (CE-103 x7, CE-154 x4, QA-031 x5, + newly filed CE-157/CE-158/CE-159) — so (f) is UNBLOCKED, and
-  it must carry a cluster-suite gate row naming the per-test set-diff. THEN that file's §5.0 — it holds the
-  AGREED PLAN (user-confirmed 2026-09-01): P1 finish EntityCreationPack adoption, P2 relocate
-  GhostPromotionSystem into the pack, P3 role-affinity ownership
-  (docs/DESIGN_Role_Affinity_Ownership.md). It is the ordered continuation point for the live
-  entity-creation work (branch head 4a69ad3f8): the governing ruling, the
-  12 commits already pushed, the test baseline, step 3's adoption order, the open CE- ids, and the exact
-  mechanics of the next step (SimHost, host (b)). ⛔ Do not read THIS file top-to-bottom; the STATUS block
-  below is the longer LOG behind that bootstrap and the sections below it are HISTORY.
+updated: 2026-09-03
+current-answer: ✅✅✅ READ docs/blueprints/BOOTSTRAP_Entity_Creation_Session.md §5.0 — THE AGREED PLAN
+  (user-confirmed 2026-09-01). That is the ordered continuation point; this file is only the longer LOG.
+  STATE AS OF 2026-09-03 (branch head e762fe988, next free id CE-166):
+    P1 EntityCreationPack adoption — ✅ COMPLETE, ALL SIX HOSTS. Host (f) IG landed 2026-09-03 with
+       Q65-A' + CE-143 + CE-144 atomically, VERIFIED (GhostDestructionSystem deleted; IgNodeBootstrapper
+       .cs:362 calls EntityCreationPack.Build; CE-141+CE-144 confirmed on a live four-process cluster).
+    P2 relocate GhostPromotionSystem out of NedReplicationModule into EntityCreationPack, add+remove in
+       ONE commit — 🔴 UNBLOCKED, the next buildable step.
+    P3 ⭐⭐⭐ AUTO-TAKEOVER (role-affinity ownership) — 🔴 FULLY DESIGNED, ENTIRELY UNBUILT.
+       ../DESIGN_Role_Affinity_Ownership.md, build-state READY-TO-BUILD, "Nothing here is built yet",
+       §6 steps 0->3b. ⚠ Its §5 holds THREE OPEN DECISIONS that are the USER's to settle first.
+       ⛔ "P1 done" does NOT mean entity-creation unification is done — P3 is the unimplemented half.
+  ⭐ ALSO LIVE, a separate strand raised 2026-09-03: DESIGN_Subsystem_Composition_Unification.md §4.1
+     (role-based node composition, READY-TO-BUILD at B1). §4.1L/CE-165 found that the RUNNING Hrot.Editor
+     double-registers UnitHierarchySystem + EqsResultUpdateSystem and corrupts unit rosters, so B1
+     ([SingleInstance] + a central duplicate check) is now a FIX, not a guard, and wants a reproducing
+     rail with an inverse-edit red-proof.
+  ⛔ Do not read THIS file top-to-bottom; the STATUS block below is the longer LOG and the sections
+  below it are HISTORY.
+folded-back: 2026-09-03 — the previous current-answer said "(f) is UNBLOCKED, §4.9 is the next batch"
+  and named head 4a69ad3f8. Both were a day behind: that batch shipped. Corrected together with
+  BOOTSTRAP §5.0/§5 and DESIGN_Entity_Creation_Unification.md §5 step 3 (which was three days behind,
+  still claiming host (a) only). Cause in all three: the work was reported in chat and in commits, and
+  the owning documents were not updated — CLAUDE.md obligation ⑤.
   The AGREED ORDER OF WORK across the 2026-08-30 compaction (unchanged):
   (1) entity creation — pack step 4, then MOVE CreateEntityRequestSystem out of Hrot.CGF to a shared
   assembly (Architect_Question_65 §5 obstacle 1), then pack step 3 as ONE uniform pipeline, then Q65-A'
