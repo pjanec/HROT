@@ -1417,6 +1417,124 @@ shorter list.
 on host coverage, duplication and flexibility, all measured. ⛔ **Both are load-bearing for the FIRST
 BUILD ITEM**, and the first step named in ⑤ is deliberately the one that answers them at zero host risk.
 
+### 4.1P ⭐⭐⭐ STEP 1 — **the base's phases become a DECLARED plan. ✅ `build-state: BUILT` `2026-09-03`**
+
+> ✅✅ **AS BUILT — obligation ⑤.** The design below shipped **as designed**, with one naming deviation
+> and no behavioural one.
+>
+> | | |
+> |---|---|
+> | ⭐ **new** | `Hrot/Engine/Hrot.Common/Infrastructure/NodeBootPlan.cs` — `NodeBootPlan` *(declare + verify + `StepKeys`)* and `BootDependencyException` *(carries `StepKey` **and** `MissingKey`)* |
+> | ⭐ **changed** | `SharedApplicationBootstrapper.BootstrapNode` declares **15** steps, then `plan.Run(GetType().Name)`. The Phase-5-post invariant moved **verbatim** into a private `AssertSlaveComposition` so it could be one step |
+> | ⚠ **deviation** | the nested record is `BootStep`, not `Step` — `Step` collides with the fluent `Step(...)` method *(CS0102)*. Naming only |
+> | ⭐ **hosts** | ⛔ **ZERO host files changed**, as the step required |
+> | ⭐⭐ **rails** | `Hrot.NodeComposition.Tests/NodeBootPlanRails.cs` — 5, incl. `ThePlanVerifiesRatherThanSorts_AnOutOfOrderPlanIsRejectedNotRepaired`, which pins §4.1P ①'s decision so a future edit cannot quietly make the runner sort |
+> | ⭐⭐⭐ **red-proof** | disabling the `provided.Contains(need)` check turned **3 of 5** rails RED *(2 correctly do not depend on it)*; restored by inverse edit and re-verified 5/5 green |
+> | ⭐⭐ **gates** | `Hrot.NodeComposition.Tests` **27/27**. `Hrot.IG.Tests` **410 pass / 5 fail**, `Hrot.SimHost.Tests` **874 pass / 1 fail** — ⭐ **every red BASELINED by stashing the change and re-running: identical names, identical counts** *(the 4 `EntityInfoTranslatorTests.CS011_*` + `EntityMasterTranslatorTests.ProcessSample_WithSenderTracking_SetsOwnerId`; `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`)* |
+>
+> ⛔ **What it does NOT yet do** *(unchanged from ⑤ below)*: no reordering, no host migrated, no ExCon
+> short list, and the 45 shared units of §4.1M are untouched.
+
+*(`2026-09-03`)*
+
+> ⭐ §4.1O ⑤'s first step: *"express `SharedApplicationBootstrapper`'s own phases as a registrar list with
+> declared dependencies, **changing no host**."*
+
+#### ① ⭐⭐⭐ THE ONE DECISION — **DECLARE AND VERIFY, ⛔ DO NOT REORDER**
+
+| | |
+|---|---|
+| ⛔ **a runner that TOPOLOGICALLY SORTS** would change the order | ⇒ not behaviour-preserving, and §4.1N proved three of the real dependencies are **invisible** — sorting on an incomplete declaration reorders into a silent break |
+| ⭐⭐⭐ **a runner that VERIFIES** keeps the list in today's exact order and asserts each step's `Requires` were already `Provides`-ed | ⇒ **behaviour-preserving BY CONSTRUCTION**, and the three silent channels become **checked** on every boot of every node |
+| ⭐ what this buys immediately | the orderings stop being a comment. ⛔ A future edit that moves a phase now **throws with the missing key named**, instead of failing silently |
+| ⭐ what it defers | reordering, host migration, and ExCon's short list — all later, on a runner that is by then trusted |
+
+#### ② THE CLASS MODEL
+
+```mermaid
+classDiagram
+    class SharedApplicationBootstrapper {
+        <<abstract, existing>>
+        +BootstrapNode(config, role, factory) HrotNodeContext
+        #BuildContext()* HrotNodeContext
+        #PopulateSystems()*
+        #BuildOrchestration()* ClusterSlave
+    }
+    class NodeBootPlan {
+        <<new>>
+        -List~Step~ _steps
+        -HashSet~string~ _provided
+        +Step(key, run, requires, provides) NodeBootPlan
+        +Run(owner) void
+    }
+    class Step {
+        <<new, private record>>
+        +string Key
+        +string[] Requires
+        +string[] Provides
+        +Action Run
+    }
+    class BootDependencyException {
+        <<new>>
+        +string StepKey
+        +string MissingKey
+    }
+    SharedApplicationBootstrapper --> NodeBootPlan : declares its 7 phases as steps
+    NodeBootPlan *-- Step : ordered, NOT sorted
+    NodeBootPlan ..> BootDependencyException : throws when Requires unmet
+```
+
+#### ③ THE SEQUENCE
+
+```mermaid
+sequenceDiagram
+    participant Base as SharedApplicationBootstrapper
+    participant Plan as NodeBootPlan
+    participant Hook as subclass hook
+    Base->>Plan: Step("context", provides context)
+    Base->>Plan: Step("serializer", requires domain-components)
+    Base->>Plan: Step("orchestration", requires serializer + system-groups)
+    Note over Base,Plan: all 13 steps DECLARED first, none run yet
+    Base->>Plan: Run("SimHostNodeBootstrapper")
+    loop each step, IN DECLARED ORDER
+        Plan->>Plan: assert Requires subset of _provided
+        alt a Requires key is missing
+            Plan-->>Base: throw BootDependencyException(step, missingKey)
+        end
+        Plan->>Hook: run the step action
+        Plan->>Plan: _provided += Provides
+    end
+```
+
+#### ④ THE DECLARED EDGES — **exactly §4.1N's measured graph, and nothing invented**
+
+| step | requires | provides | the edge it makes checkable |
+|---|---|---|---|
+| `context` | — | `context` | — |
+| `configured-factory` | `context` | `configured-factory` | |
+| `domain-components` | `context` | `domain-components` | |
+| `serializer` | ⭐ **`domain-components`** | `serializer` | 🔴 **the `FdpAutoSerializer` freeze** *(§4.1N ② ③)* |
+| `system-groups` | `context` | `system-groups` | |
+| `additional-modules` | `context` | — | *(§4.1N ③: incidental)* |
+| `orchestration` | ⭐ **`serializer` + `system-groups`** | `cluster-slave` | ARG edges |
+| `slave-invariant` | `cluster-slave` | — | the `CE-164` assertion |
+| `spawning-pipeline` | ⭐ **`system-groups`** | `spawning-pipeline` | 🔴 **SimHost's `CoreLogicPack`/`RoadNetwork` field channel** *(§4.1N ② ①)* |
+| `ned-replication` | `context` | `ned-replication` | |
+| `network-translators` | ⭐ **`ned-replication` + `system-groups` + `configured-factory`** | — | 🔴 **`GhostCreationSystem`** *(§4.1N ② ②)* |
+| `time-sync` | `context` | — | *(incidental)* |
+| `application-systems` | `context` | — | *(incidental)* |
+| `kernel-initialize` | `context` | `kernel-initialized` | |
+| `post-initialize` | ⭐ **`kernel-initialized`** | — | 🔴 **ENFORCED** *(`EngineBackedNavigationModule:63-65`)* |
+
+#### ⑤ ACCEPTANCE
+
+| | |
+|---|---|
+| ⭐⭐ **behaviour-preserving** | ⛔ **no host file changes.** The three bootstrapper subclasses and all six inline roots are untouched; `SimHost`/`IG` suites stay green at their existing counts |
+| ⭐⭐⭐ **the rail, with an inverse-edit red-proof** | a test builds a plan whose step omits a `Provides` and asserts `BootDependencyException` names **both** the step and the missing key. ⛔ Not a smoke test — it must go RED when the check is removed |
+| ⭐ **a real boot exercises it** | the existing `SharedApplicationBootstrapperTests` boot cases run the declared plan, so an unsatisfied edge fails there too |
+| ⛔ **explicitly NOT in this step** | reordering · migrating any host · ExCon's short list · touching the 45 shared units |
+
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
 ### 5.1 Venue and channels — settled *(`AQ63` §12)*

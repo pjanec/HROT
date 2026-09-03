@@ -65,43 +65,196 @@ public abstract class SharedApplicationBootstrapper
         NodeRole role,
         INetworkFactory? networkFactory)
     {
-        // Phase 1 — Build core context via subclass hook to guarantee .WithReplication is called.
-        var context = BuildContext(config, role, networkFactory);
+        // ⭐⭐⭐ THE PHASES ARE DECLARED, NOT JUST SEQUENCED (2026-09-03).
+        //
+        // The order below is EXACTLY what it has always been — NodeBootPlan verifies, it never
+        // sorts, so this is behaviour-preserving by construction. What is new is that each
+        // phase now states what it REQUIRES and what it PROVIDES, and the runner checks it.
+        //
+        // ⛔ Why that matters: §4.1N measured three real dependencies here that travel through
+        //    channels no signature shows, and ALL THREE FAIL SILENTLY —
+        //      ① a subclass field: SimHost's CoreLogicPack/RoadNetwork, written in 4a and read
+        //         in 6a/6b (SimHostNodeBootstrapper:203/:201 -> :350/:358/:385);
+        //      ② a context field mutated by a registration side effect: GhostCreationSystem is
+        //         null at build (HrotNodeBuilder:215) and populated by registering
+        //         NedReplicationModule in 6a+, then read in 6b;
+        //      ③ a global static snapshot: FdpAutoSerializer.Build():93 FREEZES its entry table
+        //         from ComponentTypeRegistry, so a component registered after phase 3 is
+        //         silently absent from serialization.
+        //    None of those throws today if the order is broken. Declared, they do.
+        //
+        // ⚠ The keys are not decoration: moving a phase now fails with the missing key NAMED.
+        // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1P (design + UML), §4.1N (the graph).
+        HrotNodeContext           context           = default!;
+        INetworkFactory?          configuredFactory = null;
+        ScenarioSerializer        serializer        = default!;
+        TogglableSimulationGroup  simGroup          = default!;
+        TogglablePostSimulationGroup postSimGroup   = default!;
+        ClusterSlave              slave             = default!;
 
-        INetworkFactory? configuredFactory = networkFactory?.ConfigureForNode(context, role, GetBehaviorRegistry());
+        var plan = new NodeBootPlan();
+
+        // Phase 1 — Build core context via subclass hook to guarantee .WithReplication is called.
+        plan.Step("context", provides: new[] { "context" }, run: () =>
+        {
+            context = BuildContext(config, role, networkFactory);
+        });
+
+        plan.Step("configured-factory", requires: new[] { "context" }, provides: new[] { "configured-factory" }, run: () =>
+        {
+            configuredFactory = networkFactory?.ConfigureForNode(context, role, GetBehaviorRegistry());
+        });
 
         // Phase 2 — Register domain ECS components BEFORE the serializer is built.
-        RegisterDomainComponents(context.World);
+        plan.Step("domain-components", requires: new[] { "context" }, provides: new[] { "domain-components" }, run: () =>
+        {
+            RegisterDomainComponents(context.World);
+        });
 
         // Phase 3 — Build the scenario serializer (abstract: HrotScenarioSerializerFactory
         // lives in Hrot.SimHost, above Hrot.Common in the dependency graph).
-        var serializer = BuildSerializer(GetBehaviorRegistry());
+        // ⛔ REQUIRES domain-components: FdpAutoSerializer.Build() freezes its entry table from
+        //    ComponentTypeRegistry, so anything registered later is silently unserializable.
+        plan.Step("serializer", requires: new[] { "domain-components" }, provides: new[] { "serializer" }, run: () =>
+        {
+            serializer = BuildSerializer(GetBehaviorRegistry());
+        });
 
         // Phase 4a — Populate togglable system groups and register them on the kernel.
-        var inputSystems   = new List<IEcsModuleSystem>();
-        var simSystems     = new List<IEcsModuleSystem>();
-        var postSimSystems = new List<IEcsModuleSystem>();
-        PopulateSystems(context, inputSystems, simSystems, postSimSystems);
+        // ⛔ PROVIDES system-groups, which 6a and 6b require: a subclass may build a capability
+        //    pack here and read it back in those phases (SimHost's CoreLogicPack does exactly that).
+        plan.Step("system-groups", requires: new[] { "context" }, provides: new[] { "system-groups" }, run: () =>
+        {
+            var inputSystems   = new List<IEcsModuleSystem>();
+            var simSystems     = new List<IEcsModuleSystem>();
+            var postSimSystems = new List<IEcsModuleSystem>();
+            PopulateSystems(context, inputSystems, simSystems, postSimSystems);
 
-        var inputGroup   = new TogglableInputGroup($"{config.SubsystemName}Input",   inputSystems);
-        var simGroup     = new TogglableSimulationGroup($"{config.SubsystemName}Sim", simSystems);
-        var postSimGroup = new TogglablePostSimulationGroup($"{config.SubsystemName}PostSim", postSimSystems);
+            var inputGroup = new TogglableInputGroup($"{config.SubsystemName}Input", inputSystems);
+            simGroup       = new TogglableSimulationGroup($"{config.SubsystemName}Sim", simSystems);
+            postSimGroup   = new TogglablePostSimulationGroup($"{config.SubsystemName}PostSim", postSimSystems);
 
-        // TogglableInputGroup and TogglablePostSimulationGroup use [UpdateInPhase] attributes
-        // that the kernel resolves automatically via RegisterGlobalSystem.
-        context.Kernel.RegisterGlobalSystem(inputGroup);
-        // TogglableSimulationGroup targets SystemPhase.Simulation, which RegisterGlobalSystem
-        // rejects. Wrap it in a private IEcsModule and register via RegisterModule instead.
-        context.Kernel.RegisterModule(new SimulationGroupModule(simGroup));
-        context.Kernel.RegisterGlobalSystem(postSimGroup);
+            // TogglableInputGroup and TogglablePostSimulationGroup use [UpdateInPhase] attributes
+            // that the kernel resolves automatically via RegisterGlobalSystem.
+            context.Kernel.RegisterGlobalSystem(inputGroup);
+            // TogglableSimulationGroup targets SystemPhase.Simulation, which RegisterGlobalSystem
+            // rejects. Wrap it in a private IEcsModule and register via RegisterModule instead.
+            context.Kernel.RegisterModule(new SimulationGroupModule(simGroup));
+            context.Kernel.RegisterGlobalSystem(postSimGroup);
+        });
 
         // Phase 4b — Additional modules whose internal phase structure must not be flattened.
-        foreach (IEcsModule mod in GetAdditionalModules())
-            context.Kernel.RegisterModule(mod);
+        // ⭐ Measured incidental (§4.1N ③): nothing consumes it; its only constraint is "before 7".
+        plan.Step("additional-modules", requires: new[] { "context" }, run: () =>
+        {
+            foreach (IEcsModule mod in GetAdditionalModules())
+                context.Kernel.RegisterModule(mod);
+        });
 
         // Phase 5 — Build orchestration handlers (abstract: NodeBootstrapper lives in Hrot.SimHost).
-        ClusterSlave slave = BuildOrchestration(context, simGroup, postSimGroup, serializer);
-        context = context with { ClusterSlave = slave };
+        plan.Step("orchestration",
+            requires: new[] { "serializer", "system-groups" },
+            provides: new[] { "cluster-slave" },
+            run: () =>
+            {
+                slave   = BuildOrchestration(context, simGroup, postSimGroup, serializer);
+                context = context with { ClusterSlave = slave };
+            });
+
+        plan.Step("slave-invariant", requires: new[] { "cluster-slave" }, run: () =>
+        {
+            AssertSlaveComposition(context, slave, networkFactory);
+        });
+
+        // Phase 6a — Register base modules (EntityLifecycleModule + GeographicModule) and
+        // the domain spawning pipeline.
+        // ⛔ REQUIRES system-groups — see the Phase 4a note (the subclass-field channel).
+        plan.Step("spawning-pipeline", requires: new[] { "system-groups" }, run: () =>
+        {
+            foreach (IEcsModule m in context.BaseModules)
+                context.Kernel.RegisterModule(m);
+
+            RegisterSpawningPipeline(context);
+        });
+
+        // Phase 6a+ — Register NedReplicationModule — base class ONLY, NOT a subclass hook.
+        // Activates GhostCreationSystem, DeadReckoningSyncSystem, and ownership egress systems.
+        // Subclasses must NOT call RegisterModule(context.NedReplication) — double-registration
+        // corrupts the system schedule.
+        // ⛔ PROVIDES ned-replication: registering it is what populates context.GhostCreationSystem.
+        plan.Step("ned-replication", requires: new[] { "context" }, provides: new[] { "ned-replication" }, run: () =>
+        {
+            if (context.NedReplication != null)
+                context.Kernel.RegisterModule(context.NedReplication);
+        });
+
+        // Phase 6b — Domain-specific DDS translators (hook).
+        // ⛔ REQUIRES ned-replication: SimHost reads context.GhostCreationSystem, which is null
+        //    until 6a+ registered the module that populates it.
+        plan.Step("network-translators",
+            requires: new[] { "ned-replication", "system-groups", "configured-factory" },
+            run: () =>
+            {
+                RegisterNetworkTranslators(context, configuredFactory ?? networkFactory);
+            });
+
+        // Phase 6c — Wire time-sync translators — base class ONLY, NOT a subclass hook.
+        // CreateDescriptorTranslator/CreateSlaveLockstepTranslator/CreateSlaveTimeSyncTranslator
+        // all accept a null participant and become safe no-ops in that case (headless / test mode).
+        // Registered unconditionally so the SlaveSyncController is always reachable via the event
+        // bus even when no DDS participant is present.
+        // ⭐ Measured incidental (§4.1N ③): needs only Phase-1 values.
+        plan.Step("time-sync", requires: new[] { "context", "configured-factory" }, run: () =>
+        {
+            SlaveTimeTranslatorRegistration.RegisterOn(
+                context.Kernel, context.Participant, context.EventBus, context.NodeId);
+
+            // TimeControl is set from the CONFIGURED factory (not the raw input factory).
+            // The raw factory's event bus is an unbound shell — gateways built from it publish
+            // ClusterOpRequest messages into the void and the cluster clock ignores all UI commands.
+            TimeControl = configuredFactory?.CreateTimeControlGateway();
+        });
+
+        // Phase 6d — Application-level systems (virtual, defaults to no-op).
+        // Override to register gizmo modules, UI capture systems, or any other systems that
+        // must be part of the initialized kernel topology but are not part of the domain core.
+        // ⭐ Measured incidental (§4.1N ③).
+        plan.Step("application-systems", requires: new[] { "context" }, run: () =>
+        {
+            RegisterApplicationSystems(context);
+        });
+
+        // Phase 7 — Initialize kernel. Always last.
+        // ⛔ ENFORCED by the kernel itself: ModuleHostKernel:165-166 throws
+        //    "Cannot register systems after Initialize() called".
+        plan.Step("kernel-initialize", requires: new[] { "context" }, provides: new[] { "kernel-initialized" }, run: () =>
+        {
+            context.Kernel.Initialize();
+        });
+
+        // Phase 7+ — Post-initialize hook (virtual, defaults to no-op).
+        // Called after Kernel.Initialize() so that providers that require
+        // RegisterSystems to have run (e.g. EngineBackedNavigationModule.RegisterProviders
+        // which needs _navmesh/_registry created by RegisterSystems) can be wired here.
+        // ⛔ ENFORCED by the module: EngineBackedNavigationModule:63-65 throws
+        //    "Call RegisterSystems before RegisterProviders."
+        plan.Step("post-initialize", requires: new[] { "kernel-initialized" }, run: () =>
+        {
+            PostInitialize(context);
+        });
+
+        plan.Run(GetType().Name);
+
+        return context;
+    }
+
+    /// <summary>
+    /// Phase 5-post — the slave-node composition invariant. Extracted verbatim from the inline
+    /// body when the phases became a declared plan; the assertions and their reasoning are
+    /// unchanged.
+    /// </summary>
+    private void AssertSlaveComposition(HrotNodeContext context, ClusterSlave slave, INetworkFactory? networkFactory)
+    {
 
         // ⭐⭐⭐ Phase 5-post — CE-164: THE SLAVE-NODE COMPOSITION INVARIANT, checked rather than trusted.
         //
@@ -150,52 +303,6 @@ public abstract class SharedApplicationBootstrapper
                 "INetworkFactory.CreateSlaveOrchestratorTranslators — check that BuildContext chains " +
                 ".WithNetworkFactory(...), do not hand-build a replacement, and make sure the node ticks " +
                 "this one (CE-164).");
-
-        // Phase 6a — Register base modules (EntityLifecycleModule + GeographicModule) and
-        // the domain spawning pipeline.
-        foreach (IEcsModule m in context.BaseModules)
-            context.Kernel.RegisterModule(m);
-
-        RegisterSpawningPipeline(context);
-
-        // Phase 6a+ — Register NedReplicationModule — base class ONLY, NOT a subclass hook.
-        // Activates GhostCreationSystem, DeadReckoningSyncSystem, and ownership egress systems.
-        // Subclasses must NOT call RegisterModule(context.NedReplication) — double-registration
-        // corrupts the system schedule.
-        if (context.NedReplication != null)
-            context.Kernel.RegisterModule(context.NedReplication);
-
-        // Phase 6b — Domain-specific DDS translators (hook).
-        RegisterNetworkTranslators(context, configuredFactory ?? networkFactory);
-
-        // Phase 6c — Wire time-sync translators — base class ONLY, NOT a subclass hook.
-        // CreateDescriptorTranslator/CreateSlaveLockstepTranslator/CreateSlaveTimeSyncTranslator
-        // all accept a null participant and become safe no-ops in that case (headless / test mode).
-        // Registered unconditionally so the SlaveSyncController is always reachable via the event
-        // bus even when no DDS participant is present.
-        SlaveTimeTranslatorRegistration.RegisterOn(
-            context.Kernel, context.Participant, context.EventBus, context.NodeId);
-
-        // TimeControl is set from the CONFIGURED factory (not the raw input factory).
-        // The raw factory's event bus is an unbound shell — gateways built from it publish
-        // ClusterOpRequest messages into the void and the cluster clock ignores all UI commands.
-        TimeControl = configuredFactory?.CreateTimeControlGateway();
-
-        // Phase 6d — Application-level systems (virtual, defaults to no-op).
-        // Override to register gizmo modules, UI capture systems, or any other systems that
-        // must be part of the initialized kernel topology but are not part of the domain core.
-        RegisterApplicationSystems(context);
-
-        // Phase 7 — Initialize kernel. Always last.
-        context.Kernel.Initialize();
-
-        // Phase 7+ — Post-initialize hook (virtual, defaults to no-op).
-        // Called after Kernel.Initialize() so that providers that require
-        // RegisterSystems to have run (e.g. EngineBackedNavigationModule.RegisterProviders
-        // which needs _navmesh/_registry created by RegisterSystems) can be wired here.
-        PostInitialize(context);
-
-        return context;
     }
 
     // ── Abstract hooks (must be implemented by subclasses) ───────────────────
