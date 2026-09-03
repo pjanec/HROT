@@ -67,10 +67,9 @@ namespace Hrot.SimHost.Tests
             bool materialisesLocally =
                 code.Contains("new NetworkSpawningSystem") || code.Contains("EntityCreationPack.Build");
 
-            // ⭐ IG obtains its egress translators through the factory seam, never by naming the type —
-            //   so the rail matches the SEAM, which is what a composition root actually holds.
             bool forwardsSpawnsToTheArbiter =
-                code.Contains("CreateIgEgressTranslators") || code.Contains("SpawnEntityCommandEgressTranslator");
+                code.Contains("SpawnEntityCommandEgressTranslator")
+                || SeamYieldsTheSpawnEgressTranslator(code);
 
             Assert.False(materialisesLocally && forwardsSpawnsToTheArbiter,
                 $"{relativePath} both MATERIALISES entities locally and FORWARDS SpawnEntityCommand to the " +
@@ -79,6 +78,58 @@ namespace Hrot.SimHost.Tests
                 "CreateEntityRequestSystem (built by the pack) publishes SpawnEntityCommand on the same " +
                 "bus the egress translator reads, so retargeting the tools does not make it safe. " +
                 "Drop the spawn egress translator when this host adopts the pack.");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>Follows the factory SEAM to what it actually RETURNS.</b>
+        ///
+        /// <para>⚠⚠ <b>STRENGTHENED <c>2026-09-03</c>, and the previous version was a genuine false
+        /// positive.</b> It matched the <i>call</i> <c>CreateIgEgressTranslators</c> in the root, on the
+        /// reasoning that <i>"IG obtains its egress translators through the factory seam, never by naming
+        /// the type — so the rail matches the SEAM."</i> ⛔ That conflates <b>asking a factory for
+        /// translators</b> with <b>getting the spawn one</b>. 📌 Measured: after <c>F5</c> removed
+        /// <c>SpawnEntityCommandEgressTranslator</c> from that factory method, the call site remained — so
+        /// the moment IG scheduled the spawn system (<c>CE-144</c> option A) the rail reddened on a host
+        /// that is now <b>correct</b>.</para>
+        ///
+        /// <para>⭐ Resolving the seam is strictly stronger in BOTH directions: it still reddens if the
+        /// translator is ever put back into the factory's IG list, and it no longer punishes a root merely
+        /// for using the seam. ⛔ Deliberately narrow — it resolves the ONE production factory this seam
+        /// has; a second implementation would need naming here, and <see cref="TheEgressSeamIsResolvable"/>
+        /// makes that a loud red rather than a silent pass.</para>
+        /// </summary>
+        private const string IgEgressFactoryPath =
+            "Hrot/Network/Hrot.Network.NED/Factory/NedNetworkFactory.cs";
+
+        private static bool SeamYieldsTheSpawnEgressTranslator(string rootCode)
+        {
+            if (!rootCode.Contains("CreateIgEgressTranslators")) return false;
+
+            var factory = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(IgEgressFactoryPath));
+
+            // The body of CreateIgEgressTranslators, up to the next method or the end of the file.
+            int start = factory.IndexOf("CreateIgEgressTranslators", System.StringComparison.Ordinal);
+            if (start < 0) return false;                       // TheEgressSeamIsResolvable catches this
+            int next = factory.IndexOf("public ", start + 1, System.StringComparison.Ordinal);
+            var body = next > start ? factory[start..next] : factory[start..];
+
+            return body.Contains("SpawnEntityCommandEgressTranslator");
+        }
+
+        /// <summary>
+        /// ⛔ The seam-resolution above is only as good as its ability to FIND the factory. If the file
+        /// moves or the method is renamed, <see cref="SeamYieldsTheSpawnEgressTranslator"/> would answer
+        /// <c>false</c> and the hazard rail would go vacuously green — the exact rail-blindness family
+        /// (<c>CE-049</c>/<c>CE-053</c>/<c>CE-064</c>) the root-list rail below exists to prevent.
+        /// </summary>
+        [Fact]
+        public void TheEgressSeamIsResolvable()
+        {
+            var factory = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(IgEgressFactoryPath));   // throws if it moved
+
+            Assert.Contains("CreateIgEgressTranslators", factory);
         }
 
         /// <summary>

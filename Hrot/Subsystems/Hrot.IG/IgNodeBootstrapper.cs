@@ -371,34 +371,32 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         context.Kernel.RegisterGlobalSystem(creation.RequestSystem);       // Input
         context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);  // PostSimulation
 
-        // B. Ghost destruction - tears down ghosts replicated from the owning node on EntityMaster
-        // DISPOSE. Still required: most entities IG shows are owned elsewhere.
-        context.Kernel.RegisterGlobalSystem(new GhostDestructionSystem(context.EntityMap));
+        // ⭐⭐⭐ CE-144 RESOLVED 2026-09-03 — the spawn system IS scheduled, and IG's private
+        //    GhostDestructionSystem is GONE. 📄 DESIGN_Entity_Creation_Unification.md §3.4c.
+        //
+        // 📐 What the old shortcut broke, measured: the wire dispose is written by
+        //    CycloneNetworkCleanupSystem (phase Export), and it triggers on DestructionOrder — which only
+        //    EntityLifecycleModule.BeginDestruction publishes. GhostDestructionSystem destroyed the entity
+        //    WITHOUT the ELM, so no DestructionOrder, so no translator.Dispose(netId), so no DDS dispose
+        //    sample. For an entity IG OWNS that means peers keep the instance forever, silently.
+        //
+        // ⇒ ONE consumer of DestroyEntityCommand on every host: NetworkSpawningSystem.ProcessDestroy,
+        //    which sets TearDown and calls BeginDestruction. The map entry is then removed by the shared
+        //    DisposalMonitoringSystem (NedReplicationModule.cs:420), which is exactly what the ghost path
+        //    was doing eagerly.
+        //
+        // ⚠ The one behavioural difference: a ghost now outlives its dispose by ~1 frame
+        //    (ELM.DrainInstantComplete requires currentFrame > StartFrame). That is the same latency every
+        //    other host already has, and uniformity is the point.
+        context.Kernel.RegisterGlobalSystem(creation.SpawnSystem);         // BeforeSync
 
-        // ⛔⛔⛔ THE SPAWN SYSTEM IS DELIBERATELY NOT SCHEDULED ON IG — and this is a STOP, not a choice
-        //    made lightly. 📄 DESIGN_Entity_Creation_Unification.md §3.4b; escalated for a decision.
-        //
-        // 📐 Measured, and it is EntityGenesisHazardRails that caught it: scheduling
-        //    NetworkSpawningSystem here puts ProcessDestroy on the same bus event GhostDestructionSystem
-        //    already consumes. That is CE-144's DESTROY hazard, and it fails SILENTLY in the worse
-        //    direction — ghost-first means ELM teardown never runs, EntityMaster is never disposed on the
-        //    wire, and PEERS keep the drawing as a zombie forever. ⚠ Nobody finds that by running the node
-        //    they changed.
-        //
-        // ⭐ Nothing is lost today: IG's requests are untargeted (IgEntityCreationRequests) and this node
-        //    is not the broadcast arbiter, so IsHandledLocally is false for every one of them — the
-        //    forwarder sends them and no local order is ever published. The spawn system would be idle.
-        //
-        // ⇒ ⛔ Before IG may materialise locally, the two destroy consumers must be reconciled. Declaring
-        //    the omission here keeps it LOUD rather than silent, which is exactly what Unserviceable is for.
         var unserviceable = creation.Unserviceable(new object[]
         {
-            creation.RequestSystem, creation.FinalizationSystem,
+            creation.RequestSystem, creation.FinalizationSystem, creation.SpawnSystem,
         });
         if (unserviceable.Length > 0)
             FdpLog<IgNodeBootstrapper>.Info(
-                "[IG] entity-creation pieces deliberately not scheduled (see CE-144 destroy hazard): {0}",
-                unserviceable);
+                "[IG] entity-creation pieces not scheduled: {0}", unserviceable);
 
         // UnitHierarchySystem - maintains ECS commander-subordinate hierarchy on the IG node (CS016).
         context.Kernel.RegisterModule(new IgUnitHierarchyModule(new UnitHierarchySystem()));

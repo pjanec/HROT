@@ -257,6 +257,16 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         public IReadOnlyList<IEcsModuleSystem> TestHook_PostSimSystems    => _postSimSystems;
         public BehaviorRegistry                TestHook_BehaviorRegistry  => _behaviorRegistry;
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-144</c> — the lifecycle module, exposed so a destroy rail can assert WHO destroyed
+        /// the entity. ⛔ <c>GetStatistics().destructed</c> only increments inside the ELM's own
+        /// completion paths, so it is the one observable that separates a teardown THROUGH the module
+        /// from a hard <c>DestroyEntity</c> that bypassed it — and the intermediate <c>TearDown</c> state
+        /// is not observable from outside, because it is set and completed within a single harness tick
+        /// (measured <c>2026-09-03</c>).
+        /// </summary>
+        public EntityLifecycleModule           TestHook_Elm               => _elm;
+
         // â”€â”€ Performance metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private bool               _metricsEnabled;
         private readonly List<float> _frameTimes = new();
@@ -380,6 +390,15 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             simList.Add(new MissionAdapterSystem());
 
             foreach (var s in musclePack.PostSimulationSystems) postSimList.Add(s);
+
+            // ⭐⭐⭐ CE-144 — PRODUCTION PARITY, and its absence was another instance of the drift this
+            //   file's header describes. Every replicating host registers DisposalMonitoringSystem
+            //   (NedReplicationModule.cs:420); this harness composes no NED module, so it had none —
+            //   which means the NetworkEntityMap kept entries for entities the ELM had destroyed, and
+            //   nothing could see it. It is the shared owner of BOTH map prunes (dead entities into the
+            //   graveyard, then the graveyard itself), so a destroy rail without it can only ever assert
+            //   half the teardown.
+            postSimList.Add(new Fdp.Toolkit.Replication.Systems.DisposalMonitoringSystem(_entityMap));
 
             _inputSystems   = inputList;
             _simSystems     = simList;
@@ -546,6 +565,35 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             int ticks = Math.Max(1, (int)(seconds * 60f));
             RunForTicks(ticks);
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-144</c> — <b>publishes a <see cref="Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand"/>
+        /// and opens the lifecycle window so the harness actually RUNS the teardown.</b>
+        ///
+        /// <para>⛔ <b>Why a helper rather than publishing on the bus directly.</b> 📐 This harness gates
+        /// the whole spawn/lifecycle block on <c>RequestSource.HasPendingRequests</c> — i.e. on a pending
+        /// <i>create</i> — so <c>NetworkSpawningSystem.ProcessDestroy</c> and the ELM systems <b>never ran
+        /// on a destroy-only tick</b>, and the pack's entire destroy half was unreachable here. ⚠ The gate
+        /// itself is deliberate (it skips the bus sub-swaps that would otherwise drop simulation events
+        /// written in phase 1), so the fix is to open the window explicitly rather than to remove it.</para>
+        ///
+        /// <para>⭐ The window spans several ticks because the ELM's destruction handshake needs them:
+        /// <c>DrainInstantComplete</c> only completes an ack-less destruction once
+        /// <c>currentFrame &gt; StartFrame</c>.</para>
+        /// </summary>
+        public void RequestDestroy(long networkId, string reason = "test")
+        {
+            _world.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
+            {
+                NetworkId = networkId,
+                Reason    = reason,
+            });
+            _lifecycleTicksRemaining = LifecycleWindowTicks;
+        }
+
+        /// <summary>Ticks for which the lifecycle block stays open after <see cref="RequestDestroy"/>.</summary>
+        public const int LifecycleWindowTicks = 8;
+        private int _lifecycleTicksRemaining;
 
         /// <summary>Runs exactly <paramref name="ticks"/> simulation ticks at 1/60 s each.</summary>
         public void RunForTicks(int ticks)
@@ -733,8 +781,10 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // create-entity request is actually pending.  Skipping sub-swaps in
             // the common steady-state case preserves the simulation write-buffer
             // so the final swap below makes sim events available next tick.
-            if (RequestSource.HasPendingRequests)
+            if (RequestSource.HasPendingRequests || _lifecycleTicksRemaining > 0)
             {
+                if (_lifecycleTicksRemaining > 0) _lifecycleTicksRemaining--;
+
                 // CreateEntityRequestSystem â†’ publishes SpawnEntityCommand + writes ACK.
                 _requestSystem.Execute(view, dt);
 

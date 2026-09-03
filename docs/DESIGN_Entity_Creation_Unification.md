@@ -878,7 +878,206 @@ so it is LOUD, not silent.
 | ⛔ **why they were NOT edited** | both key on `EntityCreationPack.Build` as the proxy for *"this host materialises locally"*. ⭐⭐ **Host (f) is the first host to COMPOSE the pack without SCHEDULING the spawn system, which breaks that proxy.** ⇒ making them green requires a design statement *(measure SCHEDULING, not construction)*, and rewriting a hazard rail to green one's own change is the test-shaped form of *"the compiler agreeing with your mistake"* |
 | ⭐⭐ **option A** | **reconcile the two destroy consumers** *(the real `CE-144` fix)*, then schedule the spawn system and tighten the rails onto scheduling. ⛔ Cross-host blast radius |
 | ⭐ **option B** | **keep IG non-materialising** — it is what IG does today anyway — and re-point the rails at the SCHEDULING signal plus a strictly stronger assertion that `NedNetworkFactory` never puts the spawn egress translator in the IG list |
-| ⚠ **lean** | **B first, A later.** B matches measured behaviour, keeps the guard *(strengthened)*, and unblocks the branch; A is the real fix but is its own slice with a cross-host contract |
+| ⚠ **lean** | ⛔⛔ **SUPERSEDED `2026-09-03` — the user chose A.** 🔒 *"F4: do option A — fix the two destroy consumers properly."* ⇒ 📄 **§3.4c is the design.** ⭐ The lean itself said A was *"the real fix"*; what it under-weighed is that **B leaves the hazard in place on a host that is about to be able to own entities**, and that node-roles §8 ② *(what removes an orphaned IG's replicas on peers)* is **the same defect seen from the peer's side** — so B would have shipped two halves of one bug |
+
+### 3.4c ⭐⭐⭐ `CE-144` — **ONE CONSUMER OF `DestroyEntityCommand`.** `build-state: READY-TO-BUILD`
+
+> 🔒 **User, `2026-09-03`:** *"F4: do option A — fix the two destroy consumers properly."*
+
+#### 1. INVENTORY *(grep + codebase-memory, `2026-09-03`)*
+
+```
+grep -rn "DestroyEntityCommand"  --include=*.cs Hrot FDP | grep -v obj/    → consumers + 9 publishers
+grep -rn "class GhostDestructionSystem"                                    → 1 (IG-private)
+grep -rn "DestructionOrder"      --include=*.cs FDP Hrot | grep -v obj/    → publisher + consumers
+grep -rn "translator.Dispose("   --include=*.cs FDP Hrot | grep -v obj/    → 1 call site
+```
+
+| the two consumers | phase | what it does |
+|---|---|---|
+| ⛔ `GhostDestructionSystem` *(`IgBootstrapperHelpers.cs:16`, **IG only**, registered at `IgNodeBootstrapper.cs:376`)* | `PostSimulation` | `_entityMap.Unregister(netId, tick)` then **immediate `world.DestroyEntity(entity)`** |
+| ⭐ `NetworkSpawningSystem.ProcessDestroy` *(**shared**, every other host)* | `BeforeSync` | `SetLifecycleState(TearDown)` then `_elm.BeginDestruction(...)` |
+
+#### 2. 🔴🔴🔴 THE MECHANISM — **why the shortcut is not merely "earlier"**
+
+📐 **Measured, and this is the chain the earlier note asserted without naming:**
+
+| step | file | fact |
+|---|---|---|
+| ① the wire dispose is emitted by **`CycloneNetworkCleanupSystem`** | `FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:64-84`, phase `Export` | it loops **`view.ReadEvents<DestructionOrder>()`** and calls `translator.Dispose(netId)` — ⭐ **the ONLY production call site of a translator's `Dispose(long)`** |
+| ② `EntityMasterEgressTranslator.Dispose` | `:121-125` | `_writer.DisposeInstance(new EntityMaster { EntityId = … })` |
+| ③ `DestructionOrder` has ONE publisher | `EntityLifecycleModule.BeginDestruction` | — |
+| ④ it only disposes what it TRACKED | `:44-60` | tracking requires **`NetworkOwnership.HasAuthority`** ⇒ ⭐ correctly, a viewer never disposes someone else's instance |
+
+⇒ ⭐⭐⭐ **A destroy that bypasses the ELM publishes no `DestructionOrder`, so no translator `Dispose` runs,
+so no DDS dispose sample is written.** ⛔ `GhostDestructionSystem` bypasses the ELM. ⇒ for any entity **IG
+owns**, its peers keep the instance **forever**, and nothing logs.
+
+🔒 **The user's own statement of the inbound half, `2026-09-03`, which closes the loop:** *"DDS published
+entity master disappears, recipients get dispose sample, and because EntityMaster existence == entity
+existence, the entity gets deleted everywhere."* 📐 Confirmed: `EntityMasterIngressTranslator.ProcessDispose`
+*(`:110`)* publishes `DestroyEntityCommand` on the receiving node. ⇒ ⭐⭐ **the propagation is a LOOP through
+this one command type, and a host that short-circuits its local half breaks the loop for everyone
+downstream.**
+
+#### 3. ⭐⭐ THE FIX — **delete the shortcut; the shared consumer is already correct**
+
+| # | change | why it is safe |
+|---|---|---|
+| **①** | ⛔ **delete `GhostDestructionSystem`** and its registration | its own header says it exists *"so the IG no longer acts as an authoritative spawner"* — 📌 that job now belongs to `EntityCreationPack`, which IG composes |
+| **②** | ⭐ **schedule `creation.SpawnSystem`** on IG ⇒ `ProcessDestroy` becomes the single consumer, **on every host** | the double-consumption hazard is gone **by construction**, not by ordering |
+| **③** | ⭐ map un-registration is **already shared** — `DisposalMonitoringSystem.PruneDeadEntities` *(registered by `NedReplicationModule.cs:420`, so every replicating host has it)* removes entries whose entity is dead | ⭐ that is exactly what the ghost path did eagerly. ⛔ Nothing new is needed |
+| **④** | ⭐ **`DisposalMonitoringSystem` also calls `PruneGraveyard(tick)`** | 🔒 **User:** *"PruneGraveyard should be ticked as part of the shared code (which is ticked anyway already somehow)."* ⭐ Closes the debt row *"`PruneGraveyard` has no production caller"* — ⭐⭐ **and it is the same system, so the graveyard cannot rot on a host that prunes dead entities** |
+
+⚠ **The one behavioural difference, stated rather than discovered later: LATENCY.** ⭐ The ghost path
+destroyed within the same `PostSimulation`; the ELM path destroys once the destruction acks are in — for a
+ghost with no participating modules that is `DrainInstantComplete`, i.e. **the next frame**
+*(`EntityLifecycleModule:319-350`, `currentFrame > StartFrame`)*. ⇒ **a ghost outlives its dispose by ~1
+frame.** ⛔ Acceptable: it is the same latency every other host already has, and uniformity is the point.
+
+⚠ **Checked, and NOT a regression:** `ProcessDestroy` logs to stderr for an unknown `NetworkId` where the
+ghost path was silent. 📐 IG's ghosts **are** in the map — `GhostCreationSystem:56` calls
+`_entityMap.Register(networkId, entity)` ⇒ `TryGetEntity` succeeds for every ghost, so the normal path is
+quiet.
+
+#### 4. UML
+
+```mermaid
+classDiagram
+    class DestroyEntityCommand {
+        <<bus event - 9 publishers>>
+        +long NetworkId
+        +string Reason
+    }
+    class GhostDestructionSystem {
+        <<DELETED by this design>>
+        +Execute() unregister + DestroyEntity
+    }
+    class NetworkSpawningSystem {
+        <<shared - the ONE consumer>>
+        +ProcessDestroy() TearDown + BeginDestruction
+    }
+    class EntityLifecycleModule {
+        <<EXISTS - the only DestructionOrder publisher>>
+        +BeginDestruction(entity, frame, reason, cmd)
+        +ProcessDestructionAck(ack, frame, cmd)
+        +DrainInstantComplete(cmd, frame)
+    }
+    class CycloneNetworkCleanupSystem {
+        <<EXISTS - phase Export>>
+        +Execute() on DestructionOrder, translator.Dispose(netId)
+    }
+    class EntityMasterEgressTranslator {
+        <<EXISTS>>
+        +Dispose(netId) writer.DisposeInstance
+    }
+    class DisposalMonitoringSystem {
+        <<EXISTS - gains the graveyard tick>>
+        +Execute() PruneDeadEntities + PruneGraveyard
+    }
+    class NetworkEntityMap {
+        <<EXISTS>>
+        +Unregister(netId, frame)
+        +PruneDeadEntities(repo)
+        +PruneGraveyard(frame)
+    }
+
+    DestroyEntityCommand <.. NetworkSpawningSystem : sole consumer
+    DestroyEntityCommand <.. GhostDestructionSystem : REMOVED
+    NetworkSpawningSystem --> EntityLifecycleModule : BeginDestruction
+    EntityLifecycleModule --> CycloneNetworkCleanupSystem : DestructionOrder
+    CycloneNetworkCleanupSystem --> EntityMasterEgressTranslator : Dispose(netId)
+    EntityLifecycleModule --> NetworkEntityMap : entity destroyed
+    DisposalMonitoringSystem --> NetworkEntityMap : prunes dead + graveyard
+```
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Src as Publisher (tool, ingress dispose, episode unload)
+    participant Nss as NetworkSpawningSystem (BeforeSync)
+    participant Elm as EntityLifecycleModule
+    participant Gw as NetworkGatewaySystem (a module)
+    participant Clean as CycloneNetworkCleanupSystem (Export)
+    participant Peer as Peer node
+    participant Disp as DisposalMonitoringSystem (PostSimulation)
+
+    Src->>Nss: DestroyEntityCommand(netId)
+    Nss->>Nss: TryGetEntity - unknown id logs and returns
+    Nss->>Elm: SetLifecycleState(TearDown), BeginDestruction
+    Elm->>Gw: DestructionOrder
+    Elm->>Clean: DestructionOrder (same event)
+    alt this node has authority for netId
+        Clean->>Peer: translator.Dispose(netId) - EntityMaster DisposeInstance
+        Peer->>Peer: ingress publishes DestroyEntityCommand, same path runs there
+    else replica - not tracked
+        Clean->>Clean: nothing to dispose
+    end
+    Gw->>Elm: DestructionAck
+    Elm->>Elm: all acks in (or DrainInstantComplete next frame) - DestroyEntity
+    Disp->>Disp: PruneDeadEntities - Unregister(netId) to graveyard
+    Disp->>Disp: PruneGraveyard(frame)
+```
+
+#### 5. ACCEPTANCE
+
+| # | |
+|---|---|
+| ① | ⛔ `GhostDestructionSystem` **does not exist**; `grep -rn "class GhostDestructionSystem"` returns nothing |
+| ② | `IgNodeBootstrapper` registers `creation.SpawnSystem`, and **no longer declares it `Unserviceable`** |
+| ③ | ⭐ the two `EntityGenesisHazardRails` rails that were **left red** are green, ⛔ **without their assertions being weakened** — they may be re-pointed from *construction* to *scheduling*, which is a **stronger** claim |
+| ④ | ⭐ a rail: a `DestroyEntityCommand` for a mapped entity reaches `ELM.BeginDestruction` ⇒ a `DestructionOrder` is published. ⭐ **Red-proof by inverse edit**: restore an immediate-destroy consumer and the rail reddens |
+| ⑤ | ⭐ a rail: `DisposalMonitoringSystem` prunes the graveyard — an id unregistered more than `graveyardDurationFrames` ago stops reporting `IsGraveyard` |
+| ⑥ | `Hrot.IG.Tests` + `Hrot.SimHost.Tests` at least as green as the base commit, every red named and proven pre-existing |
+
+#### ✅✅✅ AS-BUILT `2026-09-03` — **BUILT. And the rails cost more than the fix.**
+
+| ⭐ what shipped | |
+|---|---|
+| ⛔ **`GhostDestructionSystem` deleted** | `IgBootstrapperHelpers.cs` keeps a tombstone comment naming the mechanism, not just the removal |
+| ⭐ **`creation.SpawnSystem` scheduled on IG** | `IgNodeBootstrapper.cs`; the `Unserviceable` declaration now lists all three pieces and reports nothing |
+| ⭐ **`DisposalMonitoringSystem` ticks `PruneGraveyard`** | and 🔴 **`PruneDeadEntities`'s CLOCK was wrong**: it stamped `GlobalVersion` where the graveyard window is denominated in FRAMES. ⭐ Harmless only while nothing pruned; fixed to `SimulationTick` in the same change, per `EntityRepository`'s own rule *"Frame-index / wall-tick consumers must read this, NOT GlobalVersion"* |
+
+##### ⚠⚠ THREE THINGS THE RAILS FOUND — **none of them in the fix itself**
+
+| # | | |
+|---|---|---|
+| **①** | 🔴 **the spawn hazard rail was a FALSE POSITIVE waiting to fire** | it matched the *call* `CreateIgEgressTranslators` in the root, reasoning *"IG obtains its translators through the seam, never by naming the type."* ⛔ That conflates **asking a factory** with **getting the spawn translator**. `F5` had already removed it from the factory, so the rail reddened on a host that is now **correct**. ⭐ **Strengthened, not weakened:** it now RESOLVES the seam and reads the factory method's body — which still reddens if the translator is put back, and no longer punishes a root for using the seam. ⭐ `TheEgressSeamIsResolvable` stops that resolution going vacuously green if the factory moves |
+| **②** | 🔴 **the integration harness could not exercise the destroy path AT ALL** | `SimHostInstance` gates the whole spawn/lifecycle block on `RequestSource.HasPendingRequests` — i.e. on a pending **create** — so `ProcessDestroy` and the ELM systems never ran on a destroy-only tick. ⭐ Fixed with an explicit `RequestDestroy(netId)` that opens a lifecycle window, rather than removing the gate *(which exists to skip bus sub-swaps that would drop phase-1 simulation events)* |
+| **③** | 🔴 **the harness had no `DisposalMonitoringSystem`** | every replicating host registers it *(`NedReplicationModule.cs:420`)*; this harness composes no NED module, so its map kept entries for entities the ELM had destroyed. ⭐ **Same drift family as the 5-vs-6 translators** this file's own header describes |
+
+##### ⭐⭐ THE RAIL'S DISCRIMINATOR — **two simpler assertions were MEASURED AND REJECTED**
+
+⛔ *"the entity is gone"* — both destroy paths end that way; it cannot tell them apart.
+⛔ *"it passes through `TearDown`"` — **not observable.** 📐 Probed: after 1 tick the entity is still `Active`, after 11 it is destroyed and out of the map — `TearDown` is set into the command buffer and the ELM completes the destruction **within the same harness tick**, so the intermediate state never survives to a tick boundary.
+✅ **`EntityLifecycleModule.GetStatistics().destructed`** increments only inside the ELM's own completion paths ⇒ it is exactly *"the lifecycle module did this"*, which is what publishes `DestructionOrder` and therefore what makes `CycloneNetworkCleanupSystem` write the wire dispose.
+
+##### 📐 GATES
+
+| gate | result |
+|---|---|
+| `dotnet build` — `Fdp.Toolkits`, `Hrot.IG` *(affected projects only)* | ✅ 0 errors |
+| `EntityGenesisHazardRails` *(`--filter`)* | ✅ **12/12**, up from 11 *(the new seam-resolution rail)*. ⛔ Before the fix: **1 red** |
+| **red-proof ①**, inverse edit — put `SpawnEntityCommandEgressTranslator` back in the factory's IG list | ✅ exactly **1 rail reddens**, then reverted |
+| `EntityCreationPackFlowRails` *(`--filter`)* | ✅ **4/4**, up from 3 |
+| **red-proof ②**, inverse edit — `ProcessDestroy` does the old hard delete instead of `BeginDestruction` | ✅ the destroy rail reddens, then reverted |
+| `NetworkEntityMapTests` *(`--filter`)* | ✅ **5/5**, up from 4 |
+| **red-proof ③**, inverse edit — remove the `PruneGraveyard` call | ✅ the graveyard rail reddens, then reverted |
+
+##### 📐 `T1` — **whole suites, `--no-build`, against a worktree at the base sha `079fa90ff`**
+
+| suite | base | this branch | verdict |
+|---|---|---|---|
+| `Hrot.SimHost.Integration.Tests` | 46 total | ✅ **46/46 green** *(45 + the new destroy rail)* | ⭐ **improved** |
+| `Hrot.SimHost.Tests` | ⛔ **4 failed** / 855 passed / 862 | ⛔ **1 failed** / 859 passed / 863 | ⭐ **strictly better**; the surviving red *(`FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`)* is **on the base list** |
+| `Hrot.IG.Tests` | ⛔ **5 failed** / 410 passed | ⛔ **5 failed** / 410 passed | ✅ **identical — pre-existing** *(`EntityInfoTranslatorTests` ×4 + `EntityMasterTranslatorTests` ×1)* |
+| `Fdp.Toolkits.Tests` | run 1 **0 failed** / 2053 · run 2 **2 failed** | **2 failed** / 2052 *(+1 new rail ⇒ 2054 total)* | ⚠ **`DEBT-AIB-030` ROTATING FLAKE, confirmed live**: the same two `TransientSpawnTagRails` pass **in isolation** and fail in the full run, and the BASE produced both a clean run and the same two reds. ⛔ Neither a red nor a green here is evidence |
+
+⚠⚠ **ONE PROCESS FINDING, recorded because it nearly became a false report.** After a red-proof I re-ran with
+`--no-build` and read a **stale binary** still carrying the inverse edit — the destroy rail reported
+`destructed 0 -> 0` and looked like a genuine regression across five consecutive runs. ⭐ 📌 Exactly the
+hazard `CLAUDE.md` names *(*"`dotnet test --no-build` runs a STALE BINARY and prints PASSED"*, here in its
+inverted form)*. ⇒ ⭐⭐ **after an inverse-edit red-proof, REBUILD before believing the next result.**
 
 #### ⭐ BLAST RADIUS, and the one cost
 

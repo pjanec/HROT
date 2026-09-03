@@ -167,6 +167,17 @@ namespace Fdp.Toolkit.Replication.Services
              _graveyard.RemoveAll(e => (currentFrame - e.DeathFrame) > _graveyardDurationFrames);
         }
 
+        /// <summary>
+        /// Moves the ids of destroyed entities into the graveyard.
+        ///
+        /// <para>⚠ <b>Clock corrected <c>2026-09-03</c>: this stamps <see cref="EntityRepository.SimulationTick"/>,
+        /// not <c>GlobalVersion</c>.</b> The graveyard window is denominated in FRAMES
+        /// (<c>graveyardDurationFrames</c>), and the repository's own rule is explicit — <i>"Frame-index /
+        /// wall-tick consumers must read this, NOT GlobalVersion"</i> — because <c>BumpMemoryVersion()</c>
+        /// advances <c>GlobalVersion</c> alone during a mid-tick debug burst. ⭐ The mismatch was harmless
+        /// only while <see cref="PruneGraveyard"/> had no caller and the window was never evaluated; it
+        /// stopped being harmless the moment <c>DisposalMonitoringSystem</c> started ticking it.</para>
+        /// </summary>
         public void PruneDeadEntities(EntityRepository repo)
         {
             var toRemove = new List<long>();
@@ -177,10 +188,10 @@ namespace Fdp.Toolkit.Replication.Services
                     toRemove.Add(kvp.Key);
                 }
             }
-            
+
             foreach (var netId in toRemove)
             {
-                Unregister(netId, repo.GlobalVersion);
+                Unregister(netId, repo.SimulationTick);
             }
         }
 

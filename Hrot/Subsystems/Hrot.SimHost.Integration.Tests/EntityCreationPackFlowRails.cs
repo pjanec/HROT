@@ -170,5 +170,80 @@ namespace Hrot.SimHost.Integration.Tests
             Assert.True(_host.World.HasComponent<T>(entity),
                 $"{owner} did not project {typeof(T).Name} onto an entity born through EntityCreationPack.");
         }
+
+        // ── CE-144: the DESTROY half ──────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-144</c> acceptance ④ — <b>a <c>DestroyEntityCommand</c> tears the entity down
+        /// THROUGH the lifecycle module, and the entity leaves the map.</b>
+        ///
+        /// <para>📐 <b>Why this is the rail that matters, and not "the entity is gone".</b> Both destroy
+        /// paths end with the entity gone, so an is-it-gone assertion cannot tell them apart. ⛔ The one
+        /// that broke the cluster was the difference in HOW: the deleted <c>GhostDestructionSystem</c>
+        /// hard-deleted without the ELM, so no <c>DestructionOrder</c> was published, so
+        /// <c>CycloneNetworkCleanupSystem</c> — the only production caller of a translator's
+        /// <c>Dispose(netId)</c> — never wrote the DDS dispose, and peers kept the instance forever.</para>
+        ///
+        /// <para>⭐ So the rail asserts the entity passes through <see cref="EntityLifecycle.TearDown"/>,
+        /// which only <c>NetworkSpawningSystem.ProcessDestroy</c> sets, and then leaves the map. ⚠ The map
+        /// entry is removed by the SHARED <c>DisposalMonitoringSystem</c>, not by the destroy path itself —
+        /// which is exactly the point of the reconciliation.</para>
+        ///
+        /// <para>📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.4c.</para>
+        /// </summary>
+        [Fact]
+        public async Task ADestroyCommand_TearsDownThroughTheLifecycleModule()
+        {
+            var requestId = Guid.NewGuid();
+            _client.SendCreateRequest(new EntityCreationRequest
+            {
+                RequestId          = requestId,
+                OwnerAppInstanceId = SimHostInstance.LocalNodeId,
+                TkbType            = TkbEntityTypes.Tank_M1Abrams,
+                DisType            = 0x0100_0000_0000_0001UL,
+            });
+
+            var ack = await _client.WaitForAckAsync(requestId, timeoutMs: 3000);
+            Assert.NotNull(ack);
+            _host.RunForTicks(5);
+
+            long netId = ack!.Value.EntityId;
+            Assert.True(_host.EntityMap.TryGetEntity(netId, out Entity entity),
+                "Precondition: the entity must exist before its teardown can be asserted. A vacuous " +
+                "pass here would make the whole rail meaningless.");
+
+            _host.RequestDestroy(netId, "CE-144 rail");
+
+            // One tick: NetworkSpawningSystem drains the command and sets TearDown.
+            // ⭐⭐⭐ THE DISCRIMINATOR: the ELM's own destruction counter.
+            //
+            // ⚠ MEASURED 2026-09-03, and it ruled out two simpler assertions:
+            //   ⛔ "the entity is gone" cannot tell the two destroy paths apart — both end with it gone.
+            //   ⛔ "it passes through TearDown" is not OBSERVABLE: ProcessDestroy sets TearDown into the
+            //      command buffer and the ELM completes the destruction later in the SAME harness tick,
+            //      so the intermediate state never survives to a tick boundary (probe: after 1 tick the
+            //      entity is still Active, after 11 it is destroyed and out of the map — TearDown is
+            //      never seen from outside).
+            // ⇒ GetStatistics().destructed increments ONLY inside the ELM's own completion paths, so it
+            //   is exactly "the lifecycle module did this", which is what publishes DestructionOrder and
+            //   therefore what makes CycloneNetworkCleanupSystem write the wire dispose.
+            int destructedBefore = _host.TestHook_Elm.GetStatistics().destructed;
+
+            _host.RunForTicks(SimHostInstance.LifecycleWindowTicks);
+
+            int destructedAfter = _host.TestHook_Elm.GetStatistics().destructed;
+            Assert.True(destructedAfter > destructedBefore,
+                $"The EntityLifecycleModule destructed count did not move ({destructedBefore} -> " +
+                $"{destructedAfter}). Either nothing consumed the DestroyEntityCommand, or something " +
+                "destroyed the entity WITHOUT the lifecycle module — which is exactly the CE-144 " +
+                "shortcut: no DestructionOrder is published, CycloneNetworkCleanupSystem never disposes " +
+                "the wire instance, and peers keep it forever.");
+
+            Assert.False(_host.World.IsAlive(entity),
+                "The ELM never destroyed the entity, so the teardown handshake did not complete.");
+            Assert.False(_host.EntityMap.TryGetEntity(netId, out _),
+                $"Network id {netId} is still in the NetworkEntityMap after teardown. The shared " +
+                "DisposalMonitoringSystem should have pruned it once the ELM destroyed the entity.");
+        }
     }
 }
