@@ -500,7 +500,7 @@ not to move blindly."*
 | # | the discrepancy | why it cannot be decided from code |
 |---|---|---|
 | **①** | ⛔⛔ **The enum's table and the packs DISAGREE, in both directions.** `NodeRole` says **Brain = … + Combat** and **MuscleGround = ActionDispatch + …** — but ⭐ `CombatModule`/`DamageAssessmentModule` are in the **MuscleGround** pack only, and `ActionDispatchModule` is in the **Brain** pack only. | ⚠ **Exactly one of the two is stale and the code cannot say which.** ⭐ Either the enum's doc was aspirational, or the packs drifted. ⇒ **a ruling, then update the loser** |
-| **②** | ⭐⭐ **`EqsResultUpdateSystem` and `UnitHierarchySystem` are in BOTH packs**, and `UnitHierarchySystem` is *also* on IG. ⇒ a `Brain\|MuscleGround` node **double-registers** them today unless something dedups | ⭐ Confirms they are **role-independent** and belong in an *always* tier — ⛔ but "always" must be an explicit tier, not an accident. ⚠ **And the double-registration is a real hazard the `[Flags]` union must handle explicitly** |
+| **②** | ⭐⭐ **`EqsResultUpdateSystem` and `UnitHierarchySystem` are in BOTH packs**, and `UnitHierarchySystem` is *also* on IG. ⇒ a `Brain\|MuscleGround` node **double-registers** them — 🔴 **and NOTHING CATCHES IT, measured: `SystemScheduler.RegisterSystem` *(`:27`)* appends to `_systemsByPhase[phase]` with no dedupe, boot-time `ModuleHostKernel.RegisterModule` *(`:402`)* has no duplicate guard at all, and the only guard that exists — `:1230` — is **reference equality on the module instance**, on the hot-swap path only.** ⇒ **a system registered twice simply RUNS TWICE PER FRAME, silently** | ⭐ Confirms they are **role-independent** and belong in an *always* tier — ⛔ but "always" must be an explicit tier, not an accident. 🔒 **User, `2026-09-03`:** *"systems that are singletons by design could have single instance check so double registration is harmful."* ⇒ ⭐⭐⭐ **that check does not exist and is the missing control** — see §4.1g |
 | **③** | ⚠ **`PhysicsToolkitModule` fits no role.** It allocates the `RaycastBatchData` singleton; ⭐ `CognitiveSpatialModule` *(Perception)* raycasts, and `GroundKinematicsModule` needs colliders ⇒ **two different roles depend on it** | ⇒ ⭐⭐ **the table needs a fourth tier — `Always` / infrastructure — beside the role rows.** 📌 This is the case §4.1e's "what would change the lean" predicted, and it is confirmed |
 
 #### ⭐⭐ WHAT THE MAPPING IMPLIES FOR THE BUILD — **four tiers, not one table**
@@ -516,6 +516,59 @@ not to move blindly."*
 `SimHostCoreLogicPack` → the MuscleGround role bundle, the three *Always* members hoisted out of both, and
 the four unconditional SimHost registrations moved under `Perception` / `NavigationSolver`.
 ⛔ **Not started** — ①②③ first.
+
+### 4.1g 📐 TWO ANSWERS THE USER ASKED FOR *(measured `2026-09-03`)*
+
+#### ① ⭐⭐ **What `IgUnitHierarchyModule` is — and the user is right that it should not exist**
+
+> 🔒 **User:** *"there should be nothing like ighierarchymodule if hierarchy is generic concept (what is
+> ighierarchymodule?)"*
+
+📐 **It is 8 lines in `Hrot/Subsystems/Hrot.IG/IgBootstrapperHelpers.cs`, and NOTHING in it is IG-specific
+— not one line.** Its own comment states the whole reason it exists:
+
+> *"`IEcsModule` wrapper that routes `UnitHierarchySystem` into the Simulation phase slot.
+> **`RegisterGlobalSystem` rejects `SystemPhase.Simulation`; it must be registered via `RegisterModule`.**"*
+
+📐 Confirmed: `UnitHierarchySystem` is `[UpdateInPhase(SystemPhase.Simulation)]` *(`Hrot.Common/Systems/
+UnitHierarchySystem.cs:23`)*, and `ModuleHostKernel.RegisterGlobalSystem` *(`:177`)* rejects that phase
+because global systems never run it — it is module-only, on background threads.
+
+⇒ ⭐⭐⭐ **It is a workaround for a KERNEL CONSTRAINT wearing a host's name.** Any host registering any
+`Simulation`-phase system needs the same wrapper. ⚠ **And there is already a second one:** `SimHostModule`
+is the identical shape around `NetworkSpawningSystem` — ⛔ **though for a different reason, and that matters:**
+`NetworkSpawningSystem` is `[UpdateInPhase(BeforeSync)]`, which `RegisterGlobalSystem` **accepts**, so
+`SimHostModule` is **cosmetic** *(§4.1d)* while `IgUnitHierarchyModule` is **load-bearing**.
+
+| ⭐ the fix | |
+|---|---|
+| ⭐⭐ **ONE generic `SingleSystemModule(name, system)` in the toolkit** | ⛔ delete both host-named wrappers. ⭐ Cheap, obvious, and it removes a class of host-named workaround rather than one instance |
+| ⭐⭐⭐ **better — remove the need**: `RegisterGlobalSystem` wraps a `Simulation`-phase system itself instead of throwing | ⭐ the constraint is real *(the phase is module-only)*, but making **every caller** hand-write a wrapper to satisfy it is the actual defect. ⚠ Bigger blast radius — it changes a kernel contract that currently **throws**, so it wants its own measurement |
+
+#### ② 🔴 **Double registration: nothing detects it, and the user's single-instance check is the missing control**
+
+> 🔒 **User:** *"systems that are singletons by design could have single instance check so double
+> registration is harmful."*
+
+⭐⭐ **Correct, and it is worse than "could" — measured, there is no check anywhere on the path that matters:**
+
+| where | what it actually does |
+|---|---|
+| `SystemScheduler.RegisterSystem` *(`:27`)* | 🔴 **appends to `_systemsByPhase[phase]`. No dedupe.** ⇒ a system registered twice **runs twice per frame** |
+| `ModuleHostKernel.RegisterModule` *(`:402`, the BOOT path every bootstrapper uses)* | 🔴 **no duplicate guard at all** — it builds a `ModuleEntry` and appends |
+| `ModuleHostKernel.InstallModuleAsync` *(`:1230`, hot-swap only)* | ⚠ throws — ⛔ but on **reference equality of the module instance** *(`e.Module == module`)*, so **two instances of the same module type pass straight through** |
+
+⇒ ⭐⭐⭐ **§4.1f's discrepancy ② is therefore not a theoretical risk: a `Brain|MuscleGround` node would
+register `UnitHierarchySystem` and `EqsResultUpdateSystem` twice and tick each twice, silently.**
+⚠ **Whether that is merely wasteful or corrupting depends on the system** — a pure recompute is wasteful;
+anything that accumulates, advances a cursor or publishes an event **double-counts**. ⛔ **Not measured
+per system, and it must be before the `[Flags]` union is built.**
+
+| ⭐ the control the user is asking for | |
+|---|---|
+| ⭐⭐ **an opt-in `[SingleInstance]` marker on systems that are singletons by design**, enforced where systems actually land — **`SystemScheduler.RegisterSystem`** | ⭐ that is the ONE choke point both the module path and the global path funnel through ⇒ one check covers everything |
+| ⚠ **opt-in, not blanket** | ⛔ a blanket "no duplicate system type" rule would ban legitimately multi-instance systems *(the same solver parameterised twice)*, and a rule that fires on a valid shape gets deleted within a batch — 📌 exactly what `CE-164`'s over-strong first assertion did *(§4.1c)* |
+| ⭐ **it is a PREREQUISITE for the role union, not a follow-up** | ⛔ the union's whole job is to merge overlapping role sets; merging without a duplicate check is how the overlap becomes a silent double-tick |
 
 #### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
 
