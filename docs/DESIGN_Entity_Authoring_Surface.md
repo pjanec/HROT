@@ -3,11 +3,19 @@ state: LIVE
 updated: 2026-09-03
 build-state: READY-TO-BUILD
 current-answer: §4 is the API - ONE method, RequestEntityCreation, with an `owner` parameter; §4b is why
-  one and not two; §4c is the creation sequence including the double ACK; §5 the per-host fit; §2 the
-  author/translator rule; §7 resolves the four questions BY REASONING (R5 reverses an earlier lean; R1
-  and R4 are RESTATED for the one-method shape). §7c is the one genuine product decision, and it does NOT
-  block the API - the staged migration keeps today's behaviour until it is answered.
+  one and not two; §4c is the creation sequence including the double ACK; §1.3b is the GESTURE STACK
+  inventory (what is already shared) plus defects G1/G2; §5 the per-host fit; §5b is where the per-host
+  variation belongs - the four-point tail design, the R-141 sharing ruling, and §5b.3's proof that the
+  port must stay thin; §2 the author/translator rule; §7 resolves the four questions BY REASONING (R5
+  reverses an earlier lean; R1 and R4 are RESTATED for the one-method shape). §7c is the one genuine
+  product decision, and it does NOT block the API.
 stale-below: nothing.
+known-rot: three FACTUAL errors of an earlier version are corrected in place and called out where they
+  stood - (a) §1.1 row ② labelled ScenarioSpawnAdapter as the Editor's when it is SHARED engine code,
+  (b) §5 said CGF has no authoring site when CgfSubsystem.cs:1225 constructs that same adapter, and
+  (c) §1.2 framed the duplication as two hosts inventing the same class when the real shape is one host
+  (IG) bypassing a shared stack. All three came from inventorying producer CLASSES rather than HOSTS.
+  §5b.3 also corrects an earlier lean of "widen the port"; the ADAPTER widens, the port stays void.
 supersedes: DESIGN_Entity_Creation_Unification.md §3.4's TWO-METHOD API shape
   (RequestFromDefaultProcessor / CreateLocallyOwned). That section is marked SUPERSEDED and points here;
   its owner TABLE and its ReliableInitType reasoning are untouched and still live.
@@ -49,19 +57,61 @@ grep -rn "\.Enqueue(new EntityCreationRequest\|Source\.Enqueue("        → 2 en
 | # | producer | Owner | Components | AttrJson | RequestId | PreAllocId | ChildOverrides |
 |---|---|---|---|---|---|---|---|
 | ① | `StagingEntityExtractor` *(CGF scenario load)* | `0` | ✅ | — | generated | ✅ | ✅ |
-| ② | `ScenarioSpawnAdapter` *(**Editor** gizmo → request)* | `cmd.OwnerNodeId` | ✅ | ✅ | ✅ passed | — | — |
+| ② | `ScenarioSpawnAdapter` *(gizmo → request)* — ⭐ **SHARED**, `Hrot.Presentation/Adapters/` | `cmd.OwnerNodeId` | ✅ | ✅ | ✅ passed | — | — |
 | ③ | `StrideHrotGame` *(Stride editor authoring)* | `0` | ✅ | — | generated | — | — |
 | ④ | `NedCgfEntityLifecycleAdapters` *(DDS wire ingress)* | `msg.Owner…` | ✅ | ✅ | ✅ passed | — | — |
 | ⑤ | `IgEntityCreationRequests` *(**IG** tools → request, `2026-09-02`)* | `0` | ✅ | ✅ | ✅ passed | ✅ *(dead — always 0)* | — |
 
-### 1.2 🔴 THE FINDING — **② and ⑤ are the SAME CLASS, written twice**
+⚠⚠ **CORRECTED `2026-09-03`. This table counts PRODUCER CLASSES, and an earlier version read it as
+counting HOSTS — which is wrong twice over:**
+⛔ ② is **shared engine code, not the Editor's** — an earlier row labelled it *"(Editor gizmo → request)"*,
+naming its *user* rather than its *home*;
+⛔ and it is used by **the Editor AND CGF** *(`EditorSubsystem.cs:2093`, `CgfSubsystem.cs:1225`)*, so CGF's
+authoring capability **vanished from the inventory** because it reuses a class already counted once.
+⇒ ⭐⭐ **A producer-class census cannot answer *"which hosts can author"*.** §1.4 answers that question, and
+it is the one §5 needed all along.
 
-📐 `ScenarioSpawnAdapter` *(Editor)* and `IgEntityCreationRequests` *(IG)* both do exactly one thing:
-**translate a host gizmo's `SpawnEntityCommand` into an `EntityCreationRequest`.** Same inputs, same
-fields, same owner semantics, **two private implementations in two subsystems.**
+### 1.2 🔴 THE FINDING — **IG reaches PAST a shared adapter that already exists** *(restated `2026-09-03`)*
 
-⇒ ⭐⭐⭐ **This is not "IG is different." It is the seam law: the shared thing was never built, so the
-second host to need it wrote its own — exactly as the first host had.** ⛔ A third host would write a third.
+⛔ **An earlier version of this section said *"② and ⑤ are the same class written twice, in two
+subsystems."* That framing was wrong in a way that mattered:** ② is not the Editor's — it is **shared**,
+and CGF already reuses it. ⇒ this is **not** two hosts independently inventing the same thing.
+
+⭐⭐⭐ **The true shape:** `Hrot.Presentation` carries a complete, shared authoring gesture stack — the
+tools, the port, the adapter *(§1.4)*. **Four map hosts use it or could. IG is the one that bypasses it**,
+constructing `EntityPlacementGizmo` itself at `MapCommandController.cs:185` and translating the command in
+its own private `IgEntityCreationRequests`. 📐 Measured: **zero references to `ISpawnController` anywhere in
+`Hrot.IG`.**
+
+⇒ ⭐⭐ **The seam law still applies, but at the other end: the shared thing WAS built, and one host did not
+adopt it.** ⛔ **searched `docs/` + `.dev/`, no design sanctions the bypass** — §5b says why it happened and
+what removes the reason.
+
+### 1.3b ⭐⭐⭐ THE GESTURE STACK — **what is already shared, measured `2026-09-03`**
+
+| layer | where it lives | who uses it |
+|---|---|---|
+| map machinery *(buffer, both registries, the reflection pass, 3 systems + self-check, the gate)* | ⭐ `MapInteractionPack` — **shared** | ⭐⭐ **5 hosts**: IG · CGF · ReplayBrowser · SimHost · Editor |
+| gizmo **membership** | `GizmoReflectionRegistrar` — one reflection pass, uniform by construction | all five. 📄 [`DESIGN_Uniform_Gizmo_Membership.md`](DESIGN_Uniform_Gizmo_Membership.md) |
+| the **tools** — `EntityPlacementGizmo` · `PointSequenceGizmo` | ⭐ **shared**, `Hrot.Presentation/ScenarioEditor/Gizmos/` | — |
+| the **port** *"start an authoring gesture"* | ⭐ `ISpawnController` — **shared**, `Hrot.Presentation/Facades/` | Editor · CGF · ExCon. 📄 design basis: [`designs/edit-1/DESIGN.md`](designs/edit-1/DESIGN.md) §Ports |
+| the **adapter** *(tool lifetime → request)* | ⭐ `ScenarioSpawnAdapter` — **shared**, `Hrot.Presentation/Adapters/` | Editor · CGF |
+
+⇒ ⭐⭐⭐ **The gizmos and the map interaction logic are ALREADY shared, and a per-host seam for the tail
+ALREADY exists.** ⛔ What is missing is not a seam — it is **adoption** *(IG)* and **reach**
+*(SimHost / ReplayBrowser hold the machinery and no authoring affordance)*.
+
+#### 🔴 TWO DEFECTS the enumeration turned up — **both in SHARED code**
+
+| # | | |
+|---|---|---|
+| ⭐⭐⭐ **G1** | **the shared adapter contradicts itself across its own three affordances** | `StartPlacementMode` enqueues onto the request source *(when one was passed)*; ⛔ **`StartAreaAuthoringMode` and `StartRouteAuthoringMode` call `_bus.PublishManaged(cmd)` UNCONDITIONALLY** and never touch it. ⇒ on CGF an authored area is a node-local **ORDER** that never becomes a cross-node **REQUEST** — 🔴 **`D1`'s level mismatch, alive in shared code, on the two affordances host (f) never retargeted** |
+| ⭐⭐ **G2** | **`nameResolver` is DEAD** | `EntityPlacementGizmo.cs:207`: `_ = _nameResolver; // retained for future use`. 📐 IG builds a session name generator *(`UniqueNameGenerator.CreateSessionGenerator`)* and threads it through `MapCommandController.cs:190` — **the gizmo drops it.** ⇒ the **10th** instance of the silent-default pattern, and the clear-cut kind: 🔒 *"a production caller that HAS a dependency must PASS it"* — here it **does** pass it and the callee discards it |
+
+⚠ **One thing that looked like a third defect and is NOT** *(checked before reporting)*: the gizmo mints its
+own `RequestId = Guid.NewGuid()`, not the `requestId` the remote `CMD_PLACE_ENTITY` carried. 📐 That is
+**correct** — IG correlates on **two** levels: `_pendingEntityRequests` keys on the *entity* request id
+*(`:323`)* while the command reply uses `_sessionRequestId` *(`:359`)*.
 
 ### 1.3 The six composition roots
 
@@ -257,17 +307,99 @@ second pipeline for *"my own"* entities — 🔒 exactly the user's *"as if it w
 
 ## 5. PER-HOST FIT
 
-| host | authors? | today | after |
-|---|---|---|---|
-| ⭐ **IG** | ✅ operator draws / places | ⑤ private adapter `IgEntityCreationRequests` | `RequestEntityCreation(...)` — ⭐ adapter **deleted** |
-| ⭐ **Editor** | ✅ gizmo placement | ② private adapter `ScenarioSpawnAdapter` builds the DTO | the adapter keeps its gizmo/undo duties but **calls the affordance** instead of constructing |
-| ⭐ **Stride editor** *(`StrideHrotGame`)* | ✅ places an entity | ③ hand-rolled DTO, 12 lines | `RequestEntityCreation(tkbType, transform, components)` |
-| **CGF** | ⛔ **none** — it **loads** *(①, via two load handlers)* and arbitrates | ① translator | unchanged *(`§7 Q2` closed)* |
-| **SimHost** | ⛔ no producer at all | — | unchanged — it **services** requests, it does not author them |
-| **Stride node** *(`StrideNodeBootstrapper`)* | ⛔ no producer | — | unchanged |
+⚠⚠ **REWRITTEN `2026-09-03`. The previous version of this table said *"CGF: ⛔ none — it loads and
+arbitrates"*. 🔴 That is FALSE** — `CgfSubsystem.cs:1225` constructs `ScenarioSpawnAdapter`, and `:1068`
+says verbatim *"`CE-061` — StartPlacementMode is SUPPLIED now, **and it has to be**"* *(`CE-061` = the batch
+that gave CGF its placement affordance)*. ⇒ 📌 the error came straight from §1.1's producer-class census.
 
-⇒ ⭐⭐ **Three authors, and all three converge on one call.** ⛔ Two of the three are outside IG, which is
-what makes this a shared surface rather than a helper with one user.
+| host | map machinery? | authors today? | how | after |
+|---|---|---|---|---|
+| ⭐ **IG** | ✅ | ✅ operator draws / places | ⛔ **bypasses the shared stack** — builds `EntityPlacementGizmo` itself, translates in `IgEntityCreationRequests` | uses the shared adapter; ⭐ `IgEntityCreationRequests` **deleted** |
+| ⭐ **Editor** | ✅ | ✅ gizmo placement | ✅ shared `ScenarioSpawnAdapter` | unchanged path; its tail becomes `RequestEntityCreation` |
+| ⭐ **CGF** | ✅ | ✅ **YES** *(`CE-061`)* | ✅ the **same** shared adapter | same — ⭐ and `G1` stops silently downgrading its areas/routes to orders |
+| ⭐ **SimHost** | ✅ | ⛔ no affordance | — | ⭐ **gets one, by sharing** — see the ruling below |
+| ⭐ **ReplayBrowser** | ✅ | ⛔ no affordance | — | ⭐ same |
+| **Stride editor** *(`StrideHrotGame`)* | ⛔ own stack | ✅ places an entity | ③ hand-rolled DTO, 12 lines | `RequestEntityCreation(tkbType, transform, components)` |
+| **ExCon** | ⛔ **no ECS world** | ✅ but **remotely** | its `ISpawnController` sends `CMD_PLACE_ENTITY` over DDS for an **IG** to run the tool | ⭐ **unchanged, and correctly so** — see §5b |
+
+⇒ ⭐⭐⭐ **Five map hosts, one gesture stack, one call at the tail.** ⛔ The earlier *"three authors"* framing
+undercounted because it counted producer classes.
+
+---
+
+## 5b. ⭐⭐⭐ THE TAIL — **where the per-host variation belongs**
+
+> 🔒 **User, `2026-09-03`:** *"all hosts showing the 2d map should be unified and use same mechanisms
+> regarding gizmos… These placement tools (gizmos, map interaction logic) are shared (i hope) but when tool
+> ends the way how the entity creation request is sent must be customizable per host."*
+
+### 5b.1 ⭐⭐ The measured answer to the premise — **the tail does NOT actually vary per host**
+
+📐 Both real ECS paths do the same thing at the end of the gesture: **build the request and enqueue it
+locally.** What differs is not the *send*:
+
+| what actually differs | which host | what it is |
+|---|---|---|
+| **enrichment** | Editor / CGF | seeds a baseline `EntityInfo` so the entity appears in the ORBAT tree, then compiles the property JSON on top |
+| **bookkeeping** | IG | correlates a two-phase ACK back to a remote ExCon client |
+| ⭐⭐ **the send itself** | — | ⛔ **identical** |
+
+⇒ ⭐⭐⭐ **A per-host `IEntityCreationSender` interface would be a SECOND seam over one that already
+routes.** 📐 `EntityCreation` *(the pack result)* is already the per-host configuration point: every ECS
+host composes it, and §4's `owner` / `initType` / `isTransient` are exactly the knobs a host would want.
+⛔ Adding an interface on top is the seam law repeating itself.
+
+### 5b.2 ⭐⭐⭐ THE DESIGN — **four points**
+
+| # | | |
+|---|---|---|
+| **①** | ⭐⭐ **one shared adapter for every map host, IG included** | `MapCommandController` keeps its session / ACK / remote-command duties and **delegates the gesture**; it stops constructing gizmos. `IgEntityCreationRequests` dies |
+| **②** | ⭐⭐⭐ **the tail is `creation.RequestEntityCreation(...)` for ALL THREE affordances** | ⭐ this is what fixes `G1` **by construction** — placement, area and route stop disagreeing because there is only one call left. ⛔ No new interface: per-host customisation is *which `EntityCreation` the adapter is given*, plus its owner/initType/isTransient defaults |
+| **③** | ⭐⭐⭐ **widen the ADAPTER, keep the PORT thin** — see §5b.3 | the adapter gains a **gesture-returning** method taking `requestId` + `nameResolver`; `ISpawnController.StartPlacementMode` stays `void`, implemented on top of it. ⭐ `G2` is fixed in the same edit |
+| **④** | ⭐⭐ **SimHost and ReplayBrowser get the adapter** | ⭐ **not a per-host decision** — see the ruling below |
+
+> 🔒🔒 **USER RULING, `2026-09-03`, verbatim:** *"'SimHost and ReplayBrowser get the adapter too' — this
+> should be the natural outcome of sharing the code, not a per-host decision; unused capability does not
+> harm is present as sharing/unification is more important for overall maintenance"*
+>
+> ⇒ ⭐⭐⭐ **A capability arriving on a host that has no use for it is NOT a cost to weigh.** ⛔ Do not ask
+> *"does this host need it?"* before sharing — ⭐ **sharing is the default and the reason; the question does
+> not get asked.** 📌 This generalises past this design; indexed as **`R-141`** in
+> [`RULINGS.md`](blueprints/RULINGS.md).
+
+### 5b.3 ⛔⛔ WHY THE PORT MUST NOT CARRY IT — **the one thing that could have broken ①**
+
+⭐ **IG's gesture is not fire-and-forget.** It is a session run for a remote client, and it owes that client
+a terminal status. It needs **three** notifications:
+
+| # | notification | what it does | source |
+|---|---|---|---|
+| ① | an entity was requested | `OnEntityCreatedByTool` → `_pendingEntityRequests[reqId] = true` | the gizmo's `onEntityCreated` |
+| ② | ⭐⭐ **the tool exited** | `OnCreationToolExited` → `_toolFinished = true`; if nothing was created, publish **Cancelled** and `ClearSession` | the gizmo's `onRemove` |
+| ③ | the ack came back | `OnCreateEntityAck` → drop from pending; when `_toolFinished && pending == 0`, publish **Finished** | DDS |
+
+⛔⛔ **`ScenarioSpawnAdapter` swallows ① and ② today** — ① lives inside its closure and returns nothing, and
+its `onRemove` only calls `Unregister(id)`. ⇒ **delegating to it as it stands HANGS IG**: `_toolFinished`
+never becomes true, `PublishAck` never fires, `ClearSession` never runs, the remote client waits forever —
+**and the guard at the top of `ActivatePlacementCommand`** *(`contextId == _sessionContextId &&
+!_toolFinished` → `return`)* **then refuses every subsequent placement.** 🔴 A hang, not a quibble.
+
+✅ **It does not require owning the gizmo.** 📐 `EntityPlacementGizmo` already publishes both, deliberately:
+`event Action? Exited` — raised **before** `_onRemove()`, *"allows external observers to detect gizmo
+lifecycle changes"* — and `event Action<SpawnEntityCommand>? OnCommandPublished`, *"so tests and integrators
+can observe the event without inspecting the delegate's capture list."* ⇒ ⭐⭐ **the gizmo was built for
+this; the adapter simply never surfaces them.**
+
+⚠⚠ **This CORRECTS an earlier lean of *"widen the port by two optional parameters."*** ⛔ Wrong place, for
+two measured reasons:
+
+| | |
+|---|---|
+| 📐 **`ISpawnController` is PANEL-FACING** | its callers are `SpawnerPanel` · `OrbatPanel` · `ScenarioOrbatAdapter` · `ExConOrbatAdapter` — *"the operator clicked Place Entity."* ⛔ `MapCommandController` is **not** such a caller; it is a command executor, a **peer** of the adapter |
+| ⛔ **a gesture handle on the port would be UNHONOURABLE by one implementation** | ExCon runs no local tool ⇒ its handle would always be null ⇒ **the silent-default pattern, by construction** |
+
+⇒ ⭐⭐⭐ **The adapter grows; the port stays `void`.** ⭐ Panels unchanged, ExCon unchanged, no nullable
+handle anywhere, and `requestId`/`nameResolver` land on the adapter method where IG can reach them.
 
 ---
 
@@ -299,11 +431,28 @@ classDiagram
         <<EXISTS>>
         +Enqueue(request)
     }
-    class MapCommandController {
-        <<IG author>>
+    class ISpawnController {
+        <<port - EXISTS, panel-facing, stays void>>
+        +StartPlacementMode(tkbType, propsJson) void
+        +StartAreaAuthoringMode(styleJson) void
+        +StartRouteAuthoringMode() void
     }
     class ScenarioSpawnAdapter {
-        <<Editor author>>
+        <<SHARED adapter - EXISTS, gains the gesture method>>
+        +BeginPlacement(tkbType, propsJson, requestId, nameResolver) AuthoringGesture
+    }
+    class AuthoringGesture {
+        <<NEW - what the adapter returns>>
+        +event RequestEnqueued
+        +event Exited
+    }
+    class EntityPlacementGizmo {
+        <<shared tool - EXISTS, already raises both events>>
+        +event OnCommandPublished
+        +event Exited
+    }
+    class MapCommandController {
+        <<IG session + ACK - stops building gizmos>>
     }
     class StrideHrotGame {
         <<Stride editor author>>
@@ -321,7 +470,12 @@ classDiagram
     EntityCreation --> ScenarioEntityCreationRequestSource : enqueues onto
     EntityCreation ..> EntityCreationRequest : builds
     EntityCreation ..> EntityCreationRouting : default owner constant
-    MapCommandController --> EntityCreation : RequestEntityCreation
+    ScenarioSpawnAdapter ..|> ISpawnController : implements, in terms of BeginPlacement
+    ScenarioSpawnAdapter --> EntityPlacementGizmo : constructs, owns lifetime
+    ScenarioSpawnAdapter ..> AuthoringGesture : returns
+    AuthoringGesture ..> EntityPlacementGizmo : forwards its two events
+    MapCommandController --> ScenarioSpawnAdapter : BeginPlacement
+    MapCommandController ..> AuthoringGesture : observes for session close
     ScenarioSpawnAdapter --> EntityCreation : RequestEntityCreation
     StrideHrotGame --> EntityCreation : RequestEntityCreation
     StagingEntityExtractor ..> EntityCreationRequest : constructs directly
@@ -446,3 +600,8 @@ network identity and a lifecycle handshake they have no use for.
 | ⑤ | a rail: the returned `Guid` equals a caller-supplied `requestId`, and is non-empty when omitted |
 | ⑥ | ① and ④ *(the two translators)* still construct the DTO directly, and §2's rule says so in writing |
 | ⑦ | `design-digest.py --check` and `mermaid-check.mjs` pass |
+| ⭐ **⑧** | 🔴 **`G1` closed**: all three affordances of `ScenarioSpawnAdapter` end in `RequestEntityCreation`. ⛔ **zero `_bus.PublishManaged(cmd)` left in the file** — a rail asserts an authored AREA reaches the request source, which reddens today |
+| ⭐ **⑨** | 🔴 **`G2` closed**: `_ = _nameResolver` is gone; a rail asserts the resolver's string reaches the request's `EntityInfo` |
+| ⭐ **⑩** | `ScenarioSpawnAdapter.BeginPlacement` returns a gesture whose `Exited` fires; ⭐ **a rail drives IG's full session** — place → exit → ack → **Finished published and `ClearSession` ran**, and a **cancel with nothing placed publishes Cancelled**. ⛔ Without this the §5b.3 hang ships |
+| ⭐ **⑪** | `ISpawnController` is **unchanged** *(still three `void` methods)*; `Hrot.IG` still holds **zero** references to it; ⭐ ExCon's shim is untouched |
+| ⭐ **⑫** | `SimHostApp` and `ReplayBrowserSubsystem` construct the adapter — ⭐ **no per-host justification required or given** *(`R-141`)* |
