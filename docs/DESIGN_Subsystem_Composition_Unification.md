@@ -39,6 +39,14 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is B
   required: EngineBackedNavigationModule (NavigationSolver) is handed TrajectoryPoolManager, owned by
   GroundKinematicsModule (MuscleGround) -- so a NavigationSolver-only node has no pool. The first build
   item is the SPLIT, not the selection mechanism.
+  ✅✅ NEW 2026-09-03: §4.1j FINISHES this design (user: "no implementation before the design is clear
+  and written"). Both open measurements are closed -- the double tick is CORRUPTING (UnitHierarchySystem
+  appends to a roster unguarded, inflating Count and falsely rejecting at Capacity), and the four fused
+  modules ARE cheaply separable (their systems take the resource by ctor, so no system is rewritten).
+  Fifth finding: AutonomousPerceptionModule and the NavigationSolver module already exist and
+  BS-1-DESIGN:357 says they are "already correctly designed... no changes needed" -- dormant, not wrong.
+  §4.1j carries the classDiagram + sequenceDiagram and the B1..B5 build sequence with acceptance.
+  build-state for the ROLE COMPOSITION work: READY-TO-BUILD at B1.
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
@@ -719,6 +727,189 @@ other capabilities consume. ⛔ Leave it fused and the role union cannot express
 systems *(i.e. nothing in the module's construction depends on its own systems existing)*. ⛔ That is a
 per-module check and it is the risk in step ③ — **do it per module, at the moment of splitting**, not as
 one sweep.
+
+### 4.1j ✅ THE DESIGN, FINISHED — **closing measurements, UML, and the build sequence** *(`2026-09-03`)*
+
+> 🔒 **User:** *"i would like the design finished first, do necessary measurements, no implementation before
+> the design is clear and written."* ⇒ ⭐ this section closes the two open measurements, carries the
+> **`classDiagram` + `sequenceDiagram`** obligation ① requires, and states the build order with acceptance.
+
+#### ✅ CLOSING MEASUREMENT ① — **the double tick is CORRUPTING, not merely wasteful**
+
+📐 `UnitHierarchySystem.ProcessAssignSubordinates` *(`Hrot.Common/Systems/UnitHierarchySystem.cs:100-140`)*:
+
+```csharp
+if (repo.HasComponent<UnitSubordinate>(sub)) {
+    var current = repo.GetComponent<UnitSubordinate>(sub);
+    if (!current.Commander.Equals(cmd))
+        RemoveFromHierarchy(repo, sub);      // ⛔ SAME commander ⇒ no branch, NO `continue`
+}
+… roster.SubordinateEntities[roster.Count] = (long)sub.PackedValue;   // ⛔ UNGUARDED append
+  roster.Count++;
+```
+
+⇒ 🔴🔴 **A second pass over the same `CmdAssignSubordinate` falls through to an unguarded roster append.**
+The subordinate is added **twice** and `Count` is inflated; at `UnitRoster.Capacity` the system then
+publishes `CmdAssignSubordinateRejected` for **legitimate** assignments. ⛔ **Not a wasted tick — corrupted
+state and a downstream false rejection.**
+⚠ `EqsResultUpdateSystem`: **no accumulation observed** *(it loops over buffers and writes results)* — ⛔
+**but not proven idempotent, and it does not need to be**: one corrupting member is enough to make the
+guard mandatory.
+
+⇒ ⭐⭐⭐ **`[SingleInstance]` is a HARD PREREQUISITE, not a nicety.** 🔒 The user's instinct — *"double
+registration is harmful"* — is confirmed on the first system audited.
+
+#### ✅ CLOSING MEASUREMENT ② — **the four fused modules ARE separable, and cheaply**
+
+📐 `CognitiveSpatialModule:55-61` and `AutonomousPerceptionModule:111-116` both pass the allocated
+`_localGrid` **by constructor** into their systems:
+
+```csharp
+_localGridBuilder   = registry.RegisterManualSystem(new LocalGridBuilderSystem(_localGrid));
+_areaQuerySolver    = registry.RegisterManualSystem(new AreaQuerySolverSystem(_localGrid, _liveWorld));
+_visionBroadphase   = registry.RegisterManualSystem(new VisionBroadphaseSystem(_localGrid));
+```
+
+⇒ ⭐⭐⭐ **the systems already take the resource as a PARAMETER — none of them reaches for a world
+singleton.** ⛔ So the split needs **no system rewritten**: the provider allocates and publishes; the
+capability module's ctor changes from *allocate* to *receive*. ⭐ **The risk I flagged in §4.1i is
+measured away.**
+
+#### ⭐⭐⭐ AND A FIFTH FINDING — **the Perception + NavigationSolver capabilities ALREADY EXIST, correctly**
+
+📐 `AutonomousPerceptionModule` *(`Fdp.Toolkits/Perception/Modules/`)* has **zero production registrations**
+and is a **subset** of the live `CognitiveSpatialModule` *(which adds `AreaQuerySolverSystem`)*.
+⛔ **Do NOT read that as a duplicate to delete** — 📄 the design corpus answers it directly,
+**`docs/designs/brain-split/BS-1-DESIGN.md:357-360`**:
+
+> *"**Perception node** (`AutonomousPerceptionModule`, `SensorConfig`, `SensorTargets`) — **already
+> correctly designed for Brain/Muscle separation; no changes needed.**"*
+> *"**NavMesh / Navigation Solver node** — already correctly designed; path computation via
+> `PathRequestBatch`/`RouteHandle` is network-transparent."*
+
+⇒ ⭐⭐ **Its own doc agrees**: *"can be installed **independently of the Brain modules**"*, `SlowBackground`
+at 10 Hz. ⛔ **It is dormant because no node has ever been DEPLOYED as Perception-only — not because it is
+wrong.** ⇒ ⭐⭐⭐ **for two of the five roles the composition work is SELECTION, not redesign.**
+📌 Textbook *"unreferenced is not unintentional"*.
+
+#### ⭐⭐ THE CLASS MODEL
+
+```mermaid
+classDiagram
+    class SharedApplicationBootstrapper {
+        <<abstract, existing>>
+        +BootstrapNode(config, role, factory) HrotNodeContext
+        #BuildContext()* 
+        #RegisterDomainModules()*
+    }
+    class NodeCompositionPlan {
+        <<new>>
+        +Resolve(NodeRole) CapabilitySet
+        +RequiredResources() ResourceKey[]
+    }
+    class ICapability {
+        <<new interface>>
+        +Key : CapabilityKey
+        +Needs : ResourceKey[]
+        +Register(kernel, IResourceScope, IImplementationFactory)
+    }
+    class IResourceProvider {
+        <<new interface>>
+        +Key : ResourceKey
+        +Allocate(world) void
+        +Dispose() void
+    }
+    class IResourceScope {
+        <<new>>
+        +Get(ResourceKey) object
+    }
+    class IImplementationFactory {
+        <<new, host-supplied>>
+        +For(CapabilityKey) object
+    }
+    class PhysicsResourceProvider {
+        <<existing: PhysicsToolkitModule>>
+        RaycastBatchData
+    }
+    class TrajectoryPoolProvider {
+        <<SPLIT from GroundKinematicsModule>>
+    }
+    class PerceptionGridProvider {
+        <<SPLIT from CognitiveSpatialModule>>
+    }
+    class BrainCapability {
+        <<rename: CgfLogicPack>>
+    }
+    class MuscleGroundCapability {
+        <<rename: SimHostCoreLogicPack>>
+    }
+    class PerceptionCapability {
+        <<exists: AutonomousPerceptionModule>>
+    }
+    class NavigationSolverCapability {
+        <<exists: EngineBackedNavigationModule>>
+    }
+    SharedApplicationBootstrapper --> NodeCompositionPlan : asks
+    NodeCompositionPlan --> ICapability : selects by NodeRole flags
+    ICapability --> IResourceScope : reads declared Needs
+    ICapability --> IImplementationFactory : asks for its variant
+    IResourceProvider --> IResourceScope : publishes into
+    IResourceProvider <|.. PhysicsResourceProvider
+    IResourceProvider <|.. TrajectoryPoolProvider
+    IResourceProvider <|.. PerceptionGridProvider
+    ICapability <|.. BrainCapability
+    ICapability <|.. MuscleGroundCapability
+    ICapability <|.. PerceptionCapability
+    ICapability <|.. NavigationSolverCapability
+```
+
+#### ⭐⭐ THE BOOT SEQUENCE — **resources before capabilities, dedupe before register**
+
+```mermaid
+sequenceDiagram
+    participant Host as Node host
+    participant Base as SharedApplicationBootstrapper
+    participant Plan as NodeCompositionPlan
+    participant Res as IResourceProvider(s)
+    participant Cap as ICapability(s)
+    participant Kernel as ModuleHostKernel
+    Host->>Base: BootstrapNode(config, role, factory)
+    Base->>Plan: Resolve(role)
+    Plan-->>Base: capabilities (union, deduplicated)
+    Base->>Plan: RequiredResources()
+    Plan-->>Base: resource keys (union of Needs)
+    loop once per DISTINCT resource key
+        Base->>Res: Allocate(world)
+        Res-->>Base: published into IResourceScope
+    end
+    loop once per DISTINCT capability
+        Base->>Cap: Register(kernel, scope, implFactory)
+        Cap->>Kernel: RegisterSystem / RegisterModule
+        Kernel-->>Kernel: [SingleInstance] guard rejects a second copy
+    end
+    Base->>Base: assert every declared Need was allocated
+    Base->>Kernel: Initialize()
+```
+
+#### ⭐ THE BUILD SEQUENCE — **five items, each independently gateable**
+
+| # | item | acceptance | risk |
+|---|---|---|---|
+| **B1** | ⭐⭐⭐ **`[SingleInstance]` + the guard in `SystemScheduler.RegisterSystem`** | a rail registers `UnitHierarchySystem` twice and the guard **throws**; the existing suites stay green | ⭐ low — opt-in, and it **must** land first: the union is unsafe without it |
+| **B2** | **one generic `SingleSystemModule`**; delete `IgUnitHierarchyModule` and `SimHostModule` | both hosts still register their systems in the same phases; `TheDebugProviders…` rails green | ⭐ low |
+| **B3** | ⭐⭐ **split the four fused modules** — provider out, capability left | each provider allocates+disposes; each capability's ctor **receives** the resource; no system signature changes *(measurement ② says none are needed)* | ⚠ medium — **per-module**, one commit each |
+| **B4** | **`ICapability` + `IResourceProvider` + the plan**, base composes; `CgfLogicPack`/`SimHostCoreLogicPack` renamed to Brain/MuscleGround capabilities | `--mode all` and the four-process cluster both reach `OperatingLive`; entity counts and component sets **unchanged** vs `CE-141`'s recorded baseline | 🔴 **high** — this is the switchover |
+| **B5** | wire the **missing** implementations: Muscle's ActionDispatch executor set · `CombatModule` on Brain *(§4.1h ①)* | new behaviour ⇒ its **own** measurement and rails; ⛔ **not folded into B4** | 🔴 high, and **deliberately last** |
+
+⛔ **B5 is behaviour change; B1–B4 must be behaviour-PRESERVING.** ⭐ The gate that proves it: the
+four-process cluster run recorded in `DESIGN_Entity_Creation_Unification.md` §2.3c — **same 16 shared
+components, same per-node counts, same destroy loop.**
+
+⚠ **Still open, and deliberately so:** whether `Perception`/`NavigationSolver` should be *selectable today*
+on the existing nodes, or stay dormant until a node is actually deployed in those roles. ⭐ `BS-1-DESIGN`
+says the modules are ready; ⛔ **it does not say any current node should select them**, and giving SimHost
+`AutonomousPerceptionModule` alongside `CognitiveSpatialModule` would double-register four systems — 📌
+**exactly what B1 exists to catch.** ⇒ **a deployment decision, not a composition one.**
 
 #### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
 
