@@ -119,13 +119,23 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
     {
-        // ⭐⭐ CE-140 / CE-141 — IG's list feeds ONLY the GHOST projection, and its WIDTH is an OPEN
-        //    QUESTION rather than a settled decision.
-        // 📐 What IS measured: IG has no LOCAL materialisation. RegisterSpawningPipeline registers only
-        //    GhostDestructionSystem + IgUnitHierarchyModule, and SpawnEntityCommand is forwarded to
-        //    SimHost, whose authoritative ghost replicates back (see that method's comment). ⇒ this
-        //    list reaches .WithTranslators(...) → NedReplicationModule's ghost projection, never a
-        //    local spawn. ⭐ IG nonetheless ORIGINATES creation: the placement tool's
+        // ⭐⭐ CE-140 / CE-141 — this list's WIDTH is an OPEN QUESTION rather than a settled decision,
+        //    and CE-144 (2026-09-03) made the question BIGGER.
+        //
+        // ⚠⚠ SUPERSEDED: an earlier version of this comment argued the list is safe because it "feeds
+        //    ONLY the GHOST projection ... never a local spawn", citing that RegisterSpawningPipeline
+        //    registered only GhostDestructionSystem + IgUnitHierarchyModule. 🔴 BOTH halves are now
+        //    false: GhostDestructionSystem is DELETED and IG SCHEDULES the shared NetworkSpawningSystem
+        //    (CE-144, DESIGN_Entity_Creation_Unification.md §3.4c). ⇒ a request targeted at this node
+        //    materialises HERE, and the ELM's BlueprintApplicationSystem projects it through THIS list.
+        //
+        // ⭐ Not a live defect today: every IG request carries OwnerAppInstanceId = 0 (user ruling,
+        //    2026-09-03 — IG's placements go to the default entity-creation request processor), so
+        //    IsHandledLocally is false for all of them and nothing is materialised here yet. ⛔ But the
+        //    SAFETY ARGUMENT is gone: the first caller that passes owner: NodeId gets whatever this list
+        //    projects, so CE-141 now decides local spawns as well as ghosts.
+        //
+        // ⭐ IG has always ORIGINATED creation: the placement tool's
         //    MapCommandController.OnEntityCreatedByTool publishes a SpawnEntityCommand on IG's bus.
         // ⚠⚠ CORRECTED 2026-08-30. An earlier version of this comment said "⛔ Do NOT replace this
         //    with Base() — a shorter list is a real decision here." 🔴 That was ASSERTED, not measured,
