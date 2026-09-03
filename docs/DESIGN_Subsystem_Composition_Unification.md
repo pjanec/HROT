@@ -32,6 +32,13 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is B
   IMPLEMENTATIONS (executor sets, engine-vs-fakes, SimHost-vs-Stride) / and AUTHORITY-SCOPED PROTOCOL,
   which is listed only to be EXCLUDED. It also RESOLVES §4.1f discrepancy 1 by measurement: the enum is
   right on both rows and the packs drifted.
+  ⭐⭐⭐ NEW 2026-09-03: §4.1i is the RESOURCE-DECLARATION pass, and it exposes the blocker: FOUR modules
+  fuse capability and resource in one class (EqsModule, CognitiveSpatialModule,
+  AutonomousPerceptionModule, GroundKinematicsModule), so selecting them by role selects a persistent
+  allocation. PhysicsToolkitModule is the only clean provider and is the template. Proof the axis is
+  required: EngineBackedNavigationModule (NavigationSolver) is handed TrajectoryPoolManager, owned by
+  GroundKinematicsModule (MuscleGround) -- so a NavigationSolver-only node has no pool. The first build
+  item is the SPLIT, not the selection mechanism.
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
@@ -649,6 +656,69 @@ measurement and gates** — this section only establishes that the *intent* is u
 ⛔ **Still not built.** ⭐ **What is now settled:** the four axes, the five concept definitions, discrepancy
 ①. ⚠ **What is NOT:** the per-capability resource *declarations* (axis ① needs each capability to say what
 it needs), and §4.1g ②'s per-system double-tick audit.
+
+### 4.1i 📐 THE RESOURCE-DECLARATION PASS *(measured `2026-09-03`)* — **and the blocker it exposes**
+
+> ⭐⭐⭐ **HEADLINE: axis ① cannot be built as-is, because THREE modules FUSE capability and resource in one
+> class.** 📌 `PhysicsToolkitModule` is the **only** clean resource provider in the codebase — which is
+> precisely why it was the one that made the concept visible. ⇒ **the first build step is a SPLIT, not a
+> selection mechanism.**
+
+#### 📐 THE RESOURCE INVENTORY — memory-owning, one-per-world
+
+📐 Found by `Allocator.Persistent` over production code *(15 files; examples/benchmarks/presentation excluded)*.
+
+| resource | owned today by | ⭐ clean? | capabilities that NEED it |
+|---|---|---|---|
+| ⭐⭐ **`RaycastBatchData`** | **`PhysicsToolkitModule`** | ✅ **YES — the only one** | **Combat** *(`RaycastSolverSystem`)* · **Perception** *(LOS, 4 sites in `PerceptionTranslators`)* · **CognitiveRuntime** *(`Action_QueryRaycast` — the reason CGF allocates it)* |
+| 🔴 **`TrajectoryPoolManager`** | ⛔ **`GroundKinematicsModule`** *(exposed as `SimHostCoreLogicPack.TrajectoryPool`, `:66`)* | ⛔ **FUSED** | **GroundKinematics** *(`RouteTrajectorySyncSystem`)* · **NavigationSolver** *(`EngineBackedNavigationModule` is handed `CoreLogicPack!.TrajectoryPool`)* · **pathfinding translators** *(`CreateSimHostPathfindingTranslators(trajectoryPool)`)* · visualization *(`SimHostTrajectoryLayer`)* |
+| 🔴 **EQS pools** — `EqsResultPool` · `EqsTargetPool` · `EqsSolverGlobalState` | ⛔ **`EqsModule`** *(2 persistent allocs + 1 system)* | ⛔ **FUSED** | **Perception** *(the solver)* · **Brain** — 📌 `AreaQueryResultMaterializationSystem`'s own doc: *"advances `EqsTargetPool.NextFreeIndex` **so the Brain BTree can read results**"* |
+| 🔴 **`AreaQueryBatchData`** · the local grid | ⛔ **`CognitiveSpatialModule`** *(1 alloc + 6 systems)* | ⛔ **FUSED** | **Perception** · **Brain** |
+| **`TerrainQueryBatchData`** | `TerrainQueryInitializationSystem` | ⚠ system-owned | terrain/geographic consumers |
+| **`SpatialGridData`** | `SpatialHashSystem` | ⚠ system-owned | **Perception** broadphase · **GroundKinematics** |
+| **RoadNetworkBlob** | `RoadNetworkBuilder` | ⚠ built, then passed | **GroundKinematics** · **NavigationSolver** |
+| perception buffers | ⛔ **`AutonomousPerceptionModule`** *(1 alloc + 7 systems)* | ⛔ **FUSED** | **Perception** |
+
+#### ⭐ NON-MEMORY SHARED SERVICES — **one per world, but no `Dispose` and no leak risk**
+
+`ITkbDatabase` · `NetworkEntityMap` · `IGeographicTransform` · `INavmeshProvider` · `ICoverProvider` ·
+`IEqsTemplateRegistry` · `IPathRegistry` · `GameConfig` · `GlobalTime`/`TimeState` · `BlockIdManager`.
+
+⇒ ⭐ These belong on axis ① too *(one per world, needed by several capabilities)*, ⛔ **but they are the
+EASY half** — a duplicate overwrites a reference rather than leaking native memory. ⚠ **Do not let their
+easiness set the contract**: the contract must be sized for the memory-owning rows.
+
+#### 🔴 THE BLOCKER — **capability and resource are the same class in four places**
+
+| | |
+|---|---|
+| ⛔⛔ **`EqsModule` · `CognitiveSpatialModule` · `AutonomousPerceptionModule` · `GroundKinematicsModule`** each **allocate persistent memory AND register systems** | ⇒ ⭐⭐⭐ **selecting them by role selects an allocation.** A `Brain\|MuscleGround\|Perception` node that lands the same module through two roles allocates twice — 📌 §4.1g ②'s hazard, now with **native memory** on it rather than a wasted tick |
+| ⭐ **`PhysicsToolkitModule` is the counter-example, and the template** | it owns memory and registers nothing ⇒ it can be selected by *"does any chosen capability need `RaycastBatchData`?"* independently of which capability that is |
+
+#### ⭐⭐⭐ THE PROOF THAT THE RESOURCE AXIS IS REQUIRED — **a NavigationSolver-only node is broken today**
+
+📐 `EngineBackedNavigationModule` *(the **NavigationSolver** capability)* is constructed with
+`CoreLogicPack!.TrajectoryPool` — a resource owned by **`GroundKinematicsModule`**, a **MuscleGround**
+capability. ⇒ ⛔ **a node selecting `NavigationSolver` WITHOUT `MuscleGround` has no pool to hand it.**
+⭐ It works today only because SimHost happens to construct both and pass one to the other by hand.
+
+⇒ ⭐⭐ **This is the cleanest possible argument for the user's framing:** the pool is not *"part of
+GroundKinematics"* — it is a **resource** that GroundKinematics happens to allocate and that at least three
+other capabilities consume. ⛔ Leave it fused and the role union cannot express a solver-only node at all.
+
+#### ⭐⭐ THE DECLARATION CONTRACT THIS IMPLIES
+
+| ⭐ | |
+|---|---|
+| **①** | ⭐⭐ **each capability DECLARES the resources it needs** — a list of resource keys, not instances. ⛔ It never allocates one |
+| **②** | ⭐⭐⭐ **each resource has exactly ONE provider**, shaped like `PhysicsToolkitModule`: allocate on `Initialize`, retain handles, free on `Dispose`. ⭐ The base allocates the **union of the declared needs**, once |
+| **③** | ⚠ **the four fused modules must be SPLIT first** — resource provider out, capability systems left behind. ⛔ **That is the real first build item**, and it is bigger than the selection mechanism it enables |
+| **④** | ⭐ **ordering falls out of the declaration** — resources are allocated before any capability that declares them registers systems, which is what `PhysicsToolkitModule`'s *"call `Initialize` once, before the first simulation tick"* already demands informally |
+
+⚠ **What is still NOT measured:** whether each fused module's allocation is **safely separable** from its
+systems *(i.e. nothing in the module's construction depends on its own systems existing)*. ⛔ That is a
+per-module check and it is the risk in step ③ — **do it per module, at the moment of splitting**, not as
+one sweep.
 
 #### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
 
