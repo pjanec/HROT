@@ -3,6 +3,9 @@ state: LIVE
 build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is BUILT with two adopters
   (§5b, as-built §5b.4); its remaining adoptions are listed at the end of §5b.4. Phases 2+ get their own
   inventory + UML per batch, appended here as they are designed.
+  ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
+  which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
+  pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
 updated: 2026-08-27
 current-answer: the whole file. This is the STANDING design for the composition-unification programme —
   the approach, the constraints and the phase plan. §5 = phase 0 (BUILT; §5.6-§5.9 are its as-built),
@@ -109,7 +112,42 @@ measured defects. ⇒ ⭐ **bundles; a host composes a LIST, and a smaller list 
 | ⭐⭐⭐ **0** | **the UI parity rail** *(§5)* | 🔒 user: *"for a refactor like this that rail is absolute must"*. It protects every later phase |
 | **1** | the **bundle seam** + **menus/toolbar** across the windowed hosts | ⭐ `CgfEditorShellToolbar` already IS the pattern ⇒ proves the seam cheaply before betting map/gizmos on it |
 | **2+** | **one bundle per batch**, extracted **from the editor as specimen**: scenario panels → gizmos → map → AI shell → time transport | ⭐ each collapses a measured drift site permanently |
-| ⚠ **N** *(optional, LAST)* | node-bootstrap adoption — **CGF first** *(it already uses `HrotNodeBuilder`/`HrotNodeContext`; the editor uses neither)* | ⛔ **deliberately last:** the only phase touching orchestration/participant/time authority, i.e. what §3.1 says not to move blindly. 📐 **Not one** of `CE-046`…`CE-064` was a node-bootstrap gap |
+| ⭐⭐ **N₀** *(NEW `2026-09-03`, pulled FORWARD — small, and it is a PREREQUISITE)* | **make the TIME ROLE a `HrotNodeBuilder` input** ⇒ ⭐ the Editor becomes *able* to adopt the builder | 🔒 **User, `2026-09-03`:** *"add the time role change to the plan to unblock editor (because i need the editor to be unified too of course)."* ⛔ **Not optional and not last:** §4.1 measures that `Build()` hardwires `TimeRole.Slave` while `EditorSubsystem:1013` builds a `MasterSyncController` ⇒ **every later Editor-adoption item is blocked on this one**, and it is the only phase-N item that is small |
+| ⚠ **N** *(optional, LAST)* | node-bootstrap adoption — **CGF first** *(it already uses `HrotNodeBuilder`/`HrotNodeContext`; the editor uses neither)*, ⭐ **then the Editor, once `N₀` has landed** | ⛔ **deliberately last:** the only phase touching orchestration/participant/time authority, i.e. what §3.1 says not to move blindly. 📐 **Not one** of `CE-046`…`CE-064` was a node-bootstrap gap |
+
+### 4.0 ⭐⭐⭐ PHASE N₀ — **the time role becomes an input.** `build-state: READY-TO-BUILD`
+
+> 🔒 **The user's reason, `2026-09-03`:** the Editor is **in scope for unification**, not an accepted
+> exception. ⇒ ⛔ *"the Editor hand-rolls its node context"* may not stand as a permanent note; the thing
+> that blocks fixing it gets scheduled.
+
+#### ⭐ INVENTORY *(`2026-09-03`)*
+
+```
+grep -rn "new HrotNodeBuilder" --include=*.cs Hrot Stride | grep -v obj/ | grep -v Tests   → 5 sites
+grep -rn "TimeControllerFactory.Create" --include=*.cs Hrot FDP | grep -v obj/             → the role owners
+```
+
+| | measured |
+|---|---|
+| ⭐ `HrotNodeBuilder.Build()` | one `TimeControllerConfig` with **`Role = TimeRole.Slave`** hardwired, `Mode = TimeMode.Continuous`, `SyncConfig = TimeConfig.Default` |
+| ⭐ the 5 builder sites | **all five are genuinely slaves** ⇒ ⛔ **nothing changes for them**; the default preserves them exactly |
+| 🔴 the Editor | `TimeControllerFactory.Create(_orchestrationBus, timeConfig)` cast to **`MasterSyncController`** *(`EditorSubsystem:1013`)* — the one master among the windowed hosts |
+
+#### ⭐ THE CHANGE
+
+| # | item | note |
+|---|---|---|
+| **①** | ⭐⭐ `HrotNodeBuilder.WithTimeRole(TimeRole role)` — ⭐ **defaulted to `TimeRole.Slave`** | ⛔ **five existing sites untouched, byte for byte.** ⚠ The default is safe here for the reason the silent-default rule demands: *no caller HOLDS a different value* — all five ARE slaves |
+| **②** | expose the built controller on `HrotNodeContext` **typed as the interface**, not as `MasterSyncController` | ⛔ a `Master`-typed property would push the role back into the builder's shape |
+| **③** | ⭐ **do NOT move Editor code in this phase** | 🔒 §3.1: this phase touches **time authority**, the axis the ruling says not to move blindly. ⭐ `N₀` makes adoption *possible*; the adoption is phase `N` and gets its own inventory |
+| **④** | ⭐ a rail: a builder with no `WithTimeRole` yields a **slave** controller, and one with `TimeRole.Master` yields a **master** | ⛔ without the first half the default is unproven and the five sites are only *believed* unchanged |
+
+⚠ **What `N₀` does NOT claim.** ⭐ It removes the *mechanical* blocker only. 📐 §4.1 records a second Editor
+duplicate — its **private `SequentialIdAllocator`** *(`EditorSubsystem:599`)*, a re-implementation of what
+the builder selects through `INetworkFactory` — ⇒ that dies **when the Editor adopts the builder**, in phase
+`N`, not here. ⛔ Do not fold it into `N₀`: it is a behaviour change *(which allocator runs)*, and `N₀` is
+deliberately behaviour-free.
 
 ### 4.1 ⭐⭐ PHASE N, MEASURED *(`2026-09-03` — the layer cake, and the two hosts outside it)*
 
