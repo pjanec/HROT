@@ -222,8 +222,10 @@ public class IgApplication : IDisposable
     // -- ClusterSlave (CGF1-S0104 / CMC-S016) ? wired in InitializeNetwork ------
     private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
     // CMC-S016: orchestration bus + slave translator (Option C).
-    private Fdp.Core.FdpEventBus?                             _igOrchestrationBus;
-    private Hrot.Common.Orchestration.NodeOpSlaveTranslator?    _igSlaveTranslator;
+    // ⛔ CE-164 — `_igOrchestrationBus` is GONE. There is ONE orchestration bus, `_context.EventBus`,
+    //    swapped ONCE per frame at the end of Update() (see the swap there). Two swaps of one
+    //    double-buffered bus in a frame would discard whatever was published between them.
+    private Hrot.Core.Network.ISlaveOrchestrationTranslator?  _slaveTranslator;
 
     // ?? HrotNodeBuilder infrastructure context (EAM-M002) ?????????????????????
     private HrotNodeContext? _context;
@@ -930,8 +932,10 @@ public class IgApplication : IDisposable
         _networkAdapter      = _igBootstrapper.NetworkAdapter;
         _commandGateway      = _igBootstrapper.CommandGateway;
         _clusterSlave        = _context.ClusterSlave;
-        _igSlaveTranslator   = _igBootstrapper.IgSlaveTranslator;
-        _igOrchestrationBus  = _igBootstrapper.OrchestrationBus;
+        // ⭐⭐⭐ CE-164 — the node's OWN slave translator, from the context, exactly as SimHostApp:504 does.
+        //    ⛔ Was `_igBootstrapper.IgSlaveTranslator` — a second, ingress-only translator on a second bus.
+        //    📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1b.
+        _slaveTranslator     = _context.SlaveTranslator;
 
         _miniIosPanel = new MiniExConPanel(_miniIosState, _world.Bus);
         if (_networkEnabled)
@@ -975,9 +979,12 @@ public class IgApplication : IDisposable
     {
 
         _frameDt = dt;
-        // CMC-S016: swap orch bus then tick translator before clusterSlave.
-        _igOrchestrationBus?.SwapBuffers();
-        _igSlaveTranslator?.Tick();
+        // ⭐⭐ CMC-S016 / CE-164: translator tick BEFORE clusterSlave so DDS→bus ingress is processed
+        //    first — verbatim the SimHostApp:560-561 order, on the node's ONE orchestration bus.
+        // ⛔ The `SwapBuffers()` that stood on the first line is GONE: it swapped IG's second bus, and
+        //    swapping the shared bus HERE as well as at the end of Update() would double-swap it,
+        //    discarding anything published in between. 📄 DESIGN_Subsystem_Composition_Unification §4.1b.
+        _slaveTranslator?.Tick();
         _clusterSlave?.Tick();
 
         if (!_headless)

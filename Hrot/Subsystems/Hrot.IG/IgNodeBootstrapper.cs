@@ -78,11 +78,22 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <summary>Command gateway obtained from the network adapter. Valid after BootstrapNode() returns.</summary>
     public Hrot.Core.Network.ICommandGateway? CommandGateway { get; private set; }
 
-    /// <summary>Orchestration event bus for NodeOp commands. Valid after BootstrapNode() returns.</summary>
-    public FdpEventBus? OrchestrationBus { get; private set; }
-
-    /// <summary>NodeOp slave translator wired to the DDS participant. Valid after BootstrapNode() returns.</summary>
-    public NodeOpSlaveTranslator? IgSlaveTranslator { get; private set; }
+    // ⛔⛔ CE-164 — `OrchestrationBus` and `IgSlaveTranslator` are GONE.
+    //
+    // They exposed a SECOND orchestration stack that IG built on top of the shared one and then ticked
+    // instead of it. 📐 Measured 2026-09-03 on a four-process cluster: HrotNodeBuilder.Build() Step 8
+    // already builds this node's ClusterSlave AND a COMPLETE ISlaveOrchestrationTranslator
+    // (NodeOpSlaveTranslator + ClusterOpEgressTranslator) on context.EventBus, and IgNodeBootstrapper:151
+    // calls that builder — so the egress half was BUILT on IG and then discarded. IG published
+    // TransitionStateIntent onto context.EventBus (IgApplication.OrchestrationBus) whose complete
+    // translator nobody ticked, while ticking its own bare ingress-only one on a different bus. Result:
+    // `POST /scenario/load/live` on the IG port answered ok/"cluster-intent" and the cluster never moved,
+    // where the identical call on CGF moved all three nodes.
+    //
+    // ⭐ Readers now use context.EventBus and context.SlaveTranslator — the same members SimHostApp:504/560,
+    //   StrideNodeBootstrapper:174, CgfSubsystem:1294 and EyesAndMuscleSubsystem:104 already use. IG was
+    //   the only host that did not.
+    // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1b.
 
     /// <summary>Migration services bundle. Valid after BootstrapNode() returns.</summary>
     public MigrationServices? MigrationServices { get; private set; }
@@ -226,9 +237,20 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         TogglablePostSimulationGroup postSimGroup,
         ScenarioSerializer serializer)
     {
-        // CMC-S016: each slave subsystem has its own orchestration bus + translator (Option C).
-        var orchestrationBus = new FdpEventBus();
-        OrchestrationBus = orchestrationBus;
+        // ⭐⭐⭐ CE-164 — the node's ONE orchestration bus, the one HrotNodeBuilder Step 8 created and put
+        //    this node's complete ISlaveOrchestrationTranslator on. ⛔ NOT a second `new FdpEventBus()`.
+        //
+        // ⚠ CMC-S016 ("each slave subsystem has its own orchestration bus + translator, Option C") is
+        //   SATISFIED by this, and always was: the ruling is about each SUBSYSTEM having its own bus —
+        //   true of every host, since each builds its own context — ⛔ NOT about a subsystem having TWO.
+        //   📐 Searched docs/ and .dev/ for a record justifying a second bus inside IG: none found.
+        //
+        // ⭐ Same shape as StrideNodeBootstrapper:278, which delegates with `eventBus: context.EventBus`,
+        //   and as SimHost/CGF/EyesAndMuscle. A FRESH ClusterSlave on the SHARED bus is the normal pattern
+        //   (SharedApplicationBootstrapper:104 then swaps it onto the context); what must never be fresh
+        //   is the BUS or the slave TRANSLATOR.
+        // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1b.
+        var orchestrationBus = context.EventBus;
         MigrationServices = HrotMigrationBootstrap.BuildIg();
 
         // CGF1-S0104: wire ClusterSlave once DDS participant is confirmed healthy.
@@ -237,15 +259,11 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         // Using IgNetworkConstants.LocalNodeId (1) caused collision with SimHost when --node-id 0.
         var slave = new ClusterSlave(_effectiveInstanceId, "IG", orchestrationBus);
 
-        if (context.Participant != null)
-        {
-            IgSlaveTranslator = new NodeOpSlaveTranslator(
-                commandReader:   new DdsReader<Hrot.NED.Descriptors.Orchestration.NodeOpCommand>(context.Participant),
-                statusWriter:    new DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeOpStatus>(context.Participant),
-                heartbeatWriter: new DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeHeartbeat>(context.Participant),
-                bus:             orchestrationBus,
-                nodeId:          _effectiveInstanceId);
-        }
+        // ⛔ CE-164 — the hand-built `new NodeOpSlaveTranslator(...)` that stood here is DELETED.
+        //    context.SlaveTranslator already IS a NodeOpSlaveTranslator + ClusterOpEgressTranslator on this
+        //    very bus, built through INetworkFactory.CreateSlaveOrchestratorTranslators. Rebuilding the
+        //    ingress half by hand is what dropped the EGRESS half, and with it every transition intent IG
+        //    ever published. ⭐ IgApplication now ticks context.SlaveTranslator, like every other host.
 
         // CGF1-BATCH-23 A.2: IG participates in recording/replay cluster operations as a
         // listen-only node.  Shared controller tracks IsReplayActive so the

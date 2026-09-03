@@ -139,5 +139,70 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("ClusterStateFrom(Func<ClusterSlave?> clusterSlave)", provider);
             Assert.Contains("clusterSlave()?.LocalClusterState", provider);
         }
+
+        // ── CE-164 — ONE orchestration bus per node, and the base CHECKS it ───────────────────────
+
+        /// <summary>
+        /// 🔴 <b><c>CE-164</c> — a networked slave node has ONE orchestration bus.</b>
+        ///
+        /// <para>📐 Measured <c>2026-09-03</c>: <c>HrotNodeBuilder</c> Step 8 builds this node's
+        /// <c>ClusterSlave</c> AND a complete <c>ISlaveOrchestrationTranslator</c>
+        /// *(<c>NodeOpSlaveTranslator</c> + <c>ClusterOpEgressTranslator</c>)* on
+        /// <c>HrotNodeContext.EventBus</c>. IG called that builder and then built a <b>second</b> bus with a
+        /// bare ingress-only translator and ticked that instead — so every <c>TransitionStateIntent</c> it
+        /// published landed on a bus nothing drained. <c>load/live</c> on the IG port answered
+        /// <c>ok / "cluster-intent"</c> and the cluster never moved.</para>
+        ///
+        /// <para>⚠ <b>Why a source rail AND a runtime assertion.</b> The runtime post-condition in
+        /// <c>SharedApplicationBootstrapper</c> is the real control — it fires on any node, including ones
+        /// that do not exist yet. ⛔ But it only fires when a node is actually bootstrapped with a bus, and
+        /// the cheapest regression *(someone re-adds <c>new FdpEventBus()</c> to a bootstrapper)* is
+        /// visible in source without standing a node up. ⇒ this rail is the fast half.</para>
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(EcsNodeSubsystems))]
+        public void AnEcsNodeDoesNotBuildASecondOrchestrationBus(string subsystemPath)
+        {
+            // ⭐ The bootstrapper, not the subsystem, is where a node wires orchestration — map across.
+            var bootstrapperPath = subsystemPath switch
+            {
+                "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs"           => "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
+                "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs" => "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs",
+                "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs"         => "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
+                _ => throw new System.InvalidOperationException($"no bootstrapper mapped for {subsystemPath}"),
+            };
+
+            var src = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(bootstrapperPath));
+
+            Assert.False(src.Contains("new FdpEventBus()"),
+                $"{bootstrapperPath} constructs its own FdpEventBus. A networked slave node has exactly " +
+                "ONE orchestration bus — the one HrotNodeBuilder created on HrotNodeContext.EventBus, " +
+                "which already carries this node's complete ISlaveOrchestrationTranslator (ingress AND " +
+                "the ClusterOpEgressTranslator that drains TransitionStateIntent to DDS). A second bus " +
+                "splits the control plane: the node publishes on one and ticks the other, and every " +
+                "intent is silently read by nobody. Build the ClusterSlave on context.EventBus (CE-164).");
+        }
+
+        /// <summary>
+        /// ⛔ <b>Anti-vacuity + the durable half:</b> the rail above is a text check, so it must not be the
+        /// only thing standing. This asserts the RUNTIME post-condition still exists in the shared base —
+        /// ⭐ that is what actually binds every node, present and future.
+        /// </summary>
+        [Fact]
+        public void TheSharedBootstrapperAssertsTheOneBusInvariant()
+        {
+            var slave = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "FDP/Toolkits/Fdp.Toolkits/Orchestration/ClusterSlave.cs"));
+
+            Assert.Contains("public bool PublishesOn(FdpEventBus? bus)", slave);
+            Assert.Contains("ReferenceEquals(_eventBus, bus)", slave);
+
+            var basePath = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "Hrot/Engine/Hrot.Common/Infrastructure/SharedApplicationBootstrapper.cs"));
+
+            Assert.Contains("!slave.PublishesOn(context.EventBus)", basePath);
+            Assert.Contains("context.Participant != null && networkFactory != null && context.SlaveTranslator == null", basePath);
+        }
     }
 }

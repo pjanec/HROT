@@ -279,6 +279,29 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public ClusterState LocalClusterState => (ClusterState)_localStateId;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-164</c> — does this slave publish on <paramref name="bus"/>?</b> The composition
+        /// invariant every networked slave node must satisfy: its <see cref="ClusterSlave"/> and its
+        /// <c>ISlaveOrchestrationTranslator</c> sit on the <b>same, single</b> orchestration bus — the one
+        /// <c>HrotNodeBuilder</c> put on <c>HrotNodeContext.EventBus</c>.
+        ///
+        /// <para>📄 <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §4.1b.
+        /// Asserted by <c>SharedApplicationBootstrapper</c> right after Phase 5.</para>
+        ///
+        /// <para>🔴 <b>Why a PREDICATE and not a <c>Bus</c> property.</b> The invariant is
+        /// <i>"is it THIS bus"</i>, and that is all a caller needs. ⛔ Exposing the bus itself would hand
+        /// every caller a publish handle to the control plane to satisfy one assertion — a much wider
+        /// surface than the question asked.</para>
+        ///
+        /// <para>📐 <b>The defect it catches, measured <c>2026-09-03</c>:</b> IG built its
+        /// <see cref="ClusterSlave"/> on a second <c>FdpEventBus</c> of its own while the shared,
+        /// egress-capable translator sat on the context's — so every <c>TransitionStateIntent</c> IG
+        /// published was read by nothing, silently. ⚠ Nothing structural forbade it: the base's
+        /// <c>BuildOrchestration</c> is <c>abstract</c>, so the 7-phase order mandates THAT a node wires
+        /// orchestration and shares none of the doing. ⇒ ⭐ this is the binding that was missing.</para>
+        /// </summary>
+        public bool PublishesOn(FdpEventBus? bus) => ReferenceEquals(_eventBus, bus);
+
         // ── Test helpers ──────────────────────────────────────────────────────
 
         /// <summary>

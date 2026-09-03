@@ -3,10 +3,11 @@ state: LIVE
 build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is BUILT with two adopters
   (§5b, as-built §5b.4); its remaining adoptions are listed at the end of §5b.4. Phases 2+ get their own
   inventory + UML per batch, appended here as they are designed.
-  ⭐⭐ NEW 2026-09-03: §4.1b (CE-164) — IG builds the shared slave orchestration stack via HrotNodeBuilder
-  Step 8 and then DISCARDS it, hand-building a second bus + a bare ingress-only translator and ticking the
-  halves crosswise, so its TransitionStateIntent is drained by nothing. Measured, NOT built; carries the
-  lean. It also SUPERSEDES DESIGN_Mcp_Diagnostics_Federation.md §1d's lean.
+  ⭐⭐ NEW 2026-09-03: §4.1b (CE-164) — IG built the shared slave orchestration stack via HrotNodeBuilder
+  Step 8 and then DISCARDED it, hand-building a second bus + a bare ingress-only translator and ticking the
+  halves crosswise, so its TransitionStateIntent was drained by nothing. ✅ FIXED — as-built + live evidence
+  at §4.1c: IG now originates cluster-wide transitions, and SharedApplicationBootstrapper THROWS on a slave
+  built off context.EventBus. It also SUPERSEDES DESIGN_Mcp_Diagnostics_Federation.md §1d's lean.
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
@@ -270,6 +271,49 @@ must still ACK cluster ops)*, not just unit rails.
 
 📄 `CE-164` was first written up in `DESIGN_Mcp_Diagnostics_Federation.md` §1d; that section's *"IG
 hand-constructs half of it"* lean is **SUPERSEDED** by this section and points here.
+
+### 4.1c ✅ AS BUILT — `CE-164` *(obligation ⑤; `2026-09-03`)*
+
+🔒 **User ruling that authorised it:** *"IG is no different from cluster mgmt point of view. unification in
+as many places as possible for keeping the role is our goal."* ⇒ ⭐ the split was not a role difference and
+is gone.
+
+| # | as built | ⚠ deviation from the lean |
+|---|---|---|
+| **①** | `IgNodeBootstrapper.BuildOrchestration` takes `context.EventBus` instead of `new FdpEventBus()`; the hand-built `NodeOpSlaveTranslator` is **deleted**; the `OrchestrationBus` and `IgSlaveTranslator` properties are **deleted**. `IgApplication` holds `_slaveTranslator = _context.SlaveTranslator` *(the shape `SimHostApp:504` uses)* and ticks it | ⭐ **none** |
+| **①b** | ⚠ **the second `SwapBuffers()` had to go too** — the lean did not name it. IG swapped its own bus at the TOP of `Update()` and `context.EventBus` at the END. With one bus that is a **double swap per frame**, and `FdpEventBus` is double-buffered ⇒ everything published between the two swaps would be discarded. ⭐ The final order is verbatim `SimHostApp:560-561`: **tick translator → tick slave … → ONE swap at the end** | ⭐ **an addition the lean missed**, and it would have been a silent data-loss bug |
+| **②** | `ClusterSlave.PublishesOn(FdpEventBus?)` + a **throwing post-condition** in `SharedApplicationBootstrapper` right after Phase 5: the returned slave must publish on `context.EventBus`, and a node with a participant **and a network factory** must have a `SlaveTranslator` | ⚠ **the second half was WEAKENED, and the measurement forced it** — see below |
+| ⛔ **not built, as promised** | a new `RegisterSlaveNodeTranslators` shared registrar | ⭐ still the right call: `HrotNodeBuilder` Step 8 already does it for five hosts |
+
+#### ⛔⛔ THE ASSERTION HAD TO BE EXACTLY AS STRONG AS THE BUILDER — **not stronger**
+
+📌 First cut asserted *"participant ⇒ translator"*. 📐 **Measured: it threw on 55 `Hrot.IG.Tests` and 5
+`Hrot.SimHost.Tests` cases**, every one of them `InitializeEmbedded(headless: true)` with **no network
+factory** — a legitimate shape that has a participant and correctly has no translator, because
+`HrotNodeBuilder` Step 8's own condition is `participant != null && _networkFactory != null`.
+⇒ ⭐⭐⭐ **an invariant must mirror the code that establishes it.** ⛔ An assertion that fires on a valid
+configuration gets deleted within a batch — `CLAUDE.md` records exactly that happening to a previous
+silent-default sweep. ⭐ The term is now `networkFactory != null`, and the 60 reds are gone.
+
+#### ✅ LIVE EVIDENCE — the four-process cluster, driven **from the IG port**
+
+| | before `CE-164` | after |
+|---|---|---|
+| ⭐⭐⭐ `POST /scenario/load/live` on **IG** `8103` | 🔴 `ok, via:"cluster-intent"` — **and nothing moved** | ✅ `ok, awaited:true, entityCount:2, sawWorldChange:true` in **1.6 s**; CGF · SimHost · IG all → **`OperatingLive`** |
+| ⭐⭐ `POST /scenario/load/edit` on **IG** | 🔴 **timed out** — 458 polls, 30 s, state never left `OperatingLive` | ✅ all three → **`OperatingEdit`**, entity counts moved |
+| `load/live` from **CGF** *(regression check)* | ✅ | ✅ unchanged |
+| ⭐ IG still **ACKs** cluster ops | — | ✅ implied and required: `awaited:true` only returns once the master reaches the target, which needs every node's ACK |
+| `CE-144` destroy loop *(regression check)* | ✅ | ✅ `DELETE 1000` on CGF → `[1000,1001]`→`[1001]` on CGF+SimHost, `[0,1000,1001]`→`[0,1001]` on IG |
+| unhandled exceptions in any node log | — | ✅ **0**, and the new post-condition did not fire |
+
+⇒ ⭐⭐ **IG is now a first-class cluster-management peer**: it can *originate* a cluster-wide transition, not
+only receive one. 📌 That capability was present in the code the whole time and unreachable.
+
+⭐ **Gated** by `Hrot.SimHost.Tests/TheDebugProvidersDoNotUnderReportTests.cs` —
+`AnEcsNodeDoesNotBuildASecondOrchestrationBus` *(theory over the three ECS bootstrappers)* +
+`TheSharedBootstrapperAssertsTheOneBusInvariant` *(the runtime post-condition still exists)*. Both
+inverse-edit red-proofs redden exactly one row. ⚠ The source rail is the **fast** half; the runtime
+post-condition is the durable one — it binds nodes that do not exist yet.
 
 #### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
 

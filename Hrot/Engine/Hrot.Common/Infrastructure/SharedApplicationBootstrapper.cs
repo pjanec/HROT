@@ -103,6 +103,54 @@ public abstract class SharedApplicationBootstrapper
         ClusterSlave slave = BuildOrchestration(context, simGroup, postSimGroup, serializer);
         context = context with { ClusterSlave = slave };
 
+        // ⭐⭐⭐ Phase 5-post — CE-164: THE SLAVE-NODE COMPOSITION INVARIANT, checked rather than trusted.
+        //
+        // BuildOrchestration is `abstract`, so this base mandates THAT each node wires orchestration and
+        // shares NONE of the doing. Three subclasses write it three ways; nothing structurally bound them
+        // to the ONE bus HrotNodeBuilder Step 8 already put this node's complete
+        // ISlaveOrchestrationTranslator on.
+        //
+        // 📐 Measured 2026-09-03, four-process cluster: IG built its ClusterSlave on a second FdpEventBus
+        //    of its own and ticked a bare, ingress-only translator there, while the shared egress-capable
+        //    one sat unticked on context.EventBus. `POST /scenario/load/live` on the IG port answered
+        //    ok/"cluster-intent" and the cluster never moved. SILENT — the intent was published, swapped,
+        //    and read by nothing.
+        //
+        // ⇒ Both halves are asserted here because they fail in opposite directions and only together do
+        //   they mean "this node's control plane is actually connected":
+        //     (a) the slave must publish on THE node bus — catches a second bus;
+        //     (b) a node with a DDS participant must HAVE a slave translator — catches a node that never
+        //         took one, which no bus check can see.
+        //
+        // ⛔ Deliberately a THROW, not a log: a control plane that is wired but inert is exactly the class
+        //    of failure that survives a whole test run looking healthy.
+        // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1b.
+        // ⚠ No `!= null` guard: HrotNodeContext.EventBus is `required FdpEventBus`, i.e. non-nullable by
+        //   contract — and adding one made the compiler treat it as nullable at its later uses.
+        //   ⭐ Unconditional is also the stronger assertion.
+        if (!slave.PublishesOn(context.EventBus))
+            throw new InvalidOperationException(
+                $"[{GetType().Name}] BuildOrchestration returned a ClusterSlave that does not publish on " +
+                "HrotNodeContext.EventBus. Every networked slave node must put its ClusterSlave and its " +
+                "ISlaveOrchestrationTranslator on the ONE bus HrotNodeBuilder created, or control-plane " +
+                "intents (TransitionStateIntent, SetTimeScaleIntent, ...) are published where nothing " +
+                "drains them and the node fails silently. Build the slave on context.EventBus (CE-164).");
+
+        // ⚠⚠ The `networkFactory != null` term is LOAD-BEARING, not defensive — it mirrors
+        //    HrotNodeBuilder Step 8's OWN condition (`participant != null && _networkFactory != null`).
+        //    📐 Measured: without it this threw on 55 Hrot.IG.Tests + 5 Hrot.SimHost.Tests cases, all of
+        //    which call InitializeEmbedded(headless: true) with NO factory — a legitimate configuration
+        //    that has a participant and correctly has no translator. ⛔ An assertion that fires on a valid
+        //    shape gets deleted within a batch; this one has to be exactly as strong as the builder.
+        if (context.Participant != null && networkFactory != null && context.SlaveTranslator == null)
+            throw new InvalidOperationException(
+                $"[{GetType().Name}] This node has a DDS participant and a network factory, but " +
+                "HrotNodeContext.SlaveTranslator is null, so nothing drains its orchestration bus to " +
+                "DDS. It is built by HrotNodeBuilder Step 8 via " +
+                "INetworkFactory.CreateSlaveOrchestratorTranslators — check that BuildContext chains " +
+                ".WithNetworkFactory(...), do not hand-build a replacement, and make sure the node ticks " +
+                "this one (CE-164).");
+
         // Phase 6a — Register base modules (EntityLifecycleModule + GeographicModule) and
         // the domain spawning pipeline.
         foreach (IEcsModule m in context.BaseModules)
