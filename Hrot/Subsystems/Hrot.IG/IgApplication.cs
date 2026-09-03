@@ -1675,11 +1675,26 @@ public class IgApplication : IDisposable
 
 
     /// <summary>
+    /// ⭐⭐ <b>This node's <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/></b> — the control-plane
+    /// endpoint that commits cluster-state transitions for IG and holds
+    /// <see cref="Fdp.Toolkit.Orchestration.ClusterSlave.LocalClusterState"/>.
+    ///
+    /// <para>⛔ <b>Not a test hook</b> — <c>CE-163</c> makes the debug API read it in production, exactly
+    /// as it reads <see cref="OrchestrationBus"/>. ⭐ Named and shaped to match
+    /// <c>CgfApplication.ClusterSlave</c> and <c>SimHostApp.ClusterSlave</c>, so the three ECS nodes
+    /// present one member to the one shared projection. ⚠ Read it, never latch it: <see langword="null"/>
+    /// before <c>InitializeNetwork</c> *(e.g. headless tests without DDS)* and after <c>Shutdown</c>.</para>
+    /// </summary>
+    internal Fdp.Toolkit.Orchestration.ClusterSlave? ClusterSlave => _clusterSlave;
+
+    /// <summary>
     /// Internal test hook: exposes the <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/>
     /// for handler-registration assertions (CGF1-S0104 / A.2).  <c>null</c> when
     /// <see cref="InitializeNetwork"/> was not called (e.g. headless tests without DDS).
+    ///
+    /// <para>⭐ Now a forwarder to <see cref="ClusterSlave"/> — one member, two names, no second field.</para>
     /// </summary>
-    internal Fdp.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => _clusterSlave;
+    internal Fdp.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => ClusterSlave;
 
     /// <summary>
     /// ⭐⭐ <b>This node's CONTROL-PLANE bus</b> — the one its <c>ClusterSlave</c> and

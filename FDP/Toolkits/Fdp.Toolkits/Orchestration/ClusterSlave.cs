@@ -246,6 +246,39 @@ namespace Fdp.Toolkit.Orchestration
             }
         }
 
+        // ── This node's committed cluster state ───────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-163</c> — THIS NODE'S COMMITTED cluster state.</b> The value set by the
+        /// <c>CommitState</c> arm of <see cref="DispatchIntent"/>, republished as
+        /// <c>TkClusterStateChangedEvent</c> and written into every heartbeat.
+        ///
+        /// <para>📄 <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §1c.</para>
+        ///
+        /// <para>🔴 <b>Why it became public.</b> 📐 Measured on a four-process cluster
+        /// <c>2026-09-03</c>: <c>POST /scenario/load/live {waitForReady:true}</c> answered
+        /// <c>NOT_SUPPORTED_HERE(cluster.state)</c> on <b>every</b> node, while
+        /// <c>{waitForReady:false}</c> published fine and the fan-out landed. Only the readiness READ was
+        /// missing — and it was missing because <c>DebugApiService.CurrentClusterState()</c> has two arms
+        /// and <b>both are <c>--mode all</c> arms</b> *(the editor's own getter, or a sibling subsystem's
+        /// pumped <c>ClusterUiCache</c>)*. ⛔ In a separate-process cluster neither exists, so a node that
+        /// KNEW its state refused to say so. ⇒ ⭐ the 12th instance of <c>CLAUDE.md</c>'s
+        /// <i>"a production caller that HAS a dependency must PASS it"</i>, one layer down.</para>
+        ///
+        /// <para>⚠⚠ <b>READ THE SEMANTIC BEFORE USING IT.</b> This is <b>this node's committed state</b>,
+        /// ⛔ <b>NOT the cluster's</b>. During a transition a node can legitimately lag the master, and two
+        /// nodes can legitimately disagree. ⭐ That is the RIGHT answer for a readiness poll — the caller
+        /// is asking <i>"is THIS node at the target?"</i> and a node reporting its own committed state has
+        /// actually done the work — but ⛔ it must be reported as a node-local fact, never passed off as a
+        /// cluster-wide one. 📄 <c>ClusterUiCache.CurrentState</c> is the cluster-wide view; the two are
+        /// different facts, not two implementations of one.</para>
+        ///
+        /// <para>⭐ Before <c>CommitState</c> ever runs this is <c>0</c>, which is
+        /// <see cref="ClusterState"/>'s first member — the honest "nothing committed yet" answer, and the
+        /// same value the heartbeat carries.</para>
+        /// </summary>
+        public ClusterState LocalClusterState => (ClusterState)_localStateId;
+
         // ── Test helpers ──────────────────────────────────────────────────────
 
         /// <summary>
@@ -259,6 +292,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>
         /// Current local state id as it would be written into the next heartbeat.
         /// For unit-test assertions only.
+        ///
+        /// <para>⚠ Kept as the raw <c>int</c> the heartbeat carries, so the existing wire-level assertions
+        /// stay wire-level. ⭐ Production readers want <see cref="LocalClusterState"/>.</para>
         /// </summary>
         public int LocalStateIdForTest => _localStateId;
 

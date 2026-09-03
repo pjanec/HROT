@@ -70,6 +70,12 @@ namespace Hrot.SimHost
                 // ⭐⭐ HN-029 — the node's own control-plane bus; see SimHostApp.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _app?.OrchestrationBus),
+                // ⭐⭐⭐ CE-163 — SimHost's OWN committed cluster state, from its OWN ClusterSlave, through
+                //    the SAME shared projection CGF and IG use. 🔒 "every ECS node must use the same shared
+                //    code" — ⛔ the identical line, deliberately, in all three composition roots.
+                // 📐 See ClusterStateFrom's remarks for why it was missing everywhere and what it means.
+                clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                   .ClusterStateFrom(() => _app?.ClusterSlave),
                 // ⭐⭐ MD-002 — this subsystem's OWN kernel snapshot. ⚠ Lazily, like every accessor here:
                 //    the kernel is created in Initialize, after the composition root builds the provider.
                 // ⭐⭐ MD-006 — the dump trigger, on the SAME bus and by the SAME argument as

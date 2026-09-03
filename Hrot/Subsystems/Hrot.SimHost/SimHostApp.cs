@@ -179,6 +179,19 @@ namespace Hrot.SimHost
         /// </summary>
         internal FdpEventBus? OrchestrationBus => _context?.EventBus;
 
+        /// <summary>
+        /// ⭐⭐ <b>This node's <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/></b> — the control-plane
+        /// endpoint that commits cluster-state transitions for SimHost and holds
+        /// <see cref="Fdp.Toolkit.Orchestration.ClusterSlave.LocalClusterState"/>.
+        ///
+        /// <para>⛔ <b>Not a test hook</b> — <c>CE-163</c> makes the debug API read it in production, on the
+        /// same argument as <see cref="OrchestrationBus"/> directly above. ⭐ Named and shaped to match
+        /// <c>CgfApplication.ClusterSlave</c> and <c>IgApplication.ClusterSlave</c>, so the three ECS nodes
+        /// present one member to the one shared projection. ⚠ <see langword="null"/> before
+        /// <c>Initialize</c> and after <c>Shutdown</c>; read it, never latch it.</para>
+        /// </summary>
+        internal Fdp.Toolkit.Orchestration.ClusterSlave? ClusterSlave => _clusterSlave;
+
         // ── Network factory (injected from composition root) ───────────────────
         private INetworkFactory? _networkFactory;
         // ── Perception module (stored to expose ScopedBus to the event browser) ───

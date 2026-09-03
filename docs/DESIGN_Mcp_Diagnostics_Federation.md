@@ -8,9 +8,10 @@ build-state: BUILT — `2026-08-26`, ids `MD-001`..`MD-008`. ⭐ Items ①②③
   cluster-wide collection — all on the SHARED DebugApiService so every node (incl. SimHost) exposes its own.
 updated: 2026-09-03
 current-answer: ⭐⭐ §8 AS BUILT — it WINS over §2.1/§2.2/§6 where they disagree (three premises moved).
-  ⭐⭐ NEW §1c (CE-163) is the live answer for the SEPARATE-PROCESS topology, and it CORRECTS §7's
+  ⭐⭐ §1c (CE-163) is the live answer for the SEPARATE-PROCESS topology, and it CORRECTS §7's
   "only a ClusterUiCache pumper can observe cluster state" as true-of-the-cache but incomplete: every ECS
-  node's ClusterSlave holds its own committed state. §1c carries the lean; NOT yet built.
+  node's ClusterSlave holds its own committed state. ✅ BUILT — as-built + live evidence at §1c.1.
+  ⛔ §1d (CE-164, IG publishes transition intents nothing drains) is measured and NOT built.
 design-basis: Hrot.ClusterRunner/Program.cs (the per-node DebugApiHost — editor-owned vs cluster-limited) ·
   EditorSubsystem.cs (the full-surface host) · DebugApiService.GetLogs + Fdp.Core/Logging (IMessageLogSource,
   MessageLog registry, NLogMessageLogTarget) · Fdp.ModuleHost/Diagnostics (IArchitectureDiagnosticsService) ·
@@ -39,7 +40,7 @@ known-conflict: none. ⚠ The MCP authoring/create sessions own DebugApiService.
 **SHARED `DebugApiService`** *(reached by both the editor-owned and cluster-limited hosting paths)* — ⛔ NOT the
 editor-only path, or the SimHost node cannot answer for itself.
 
-### 1c 🔴🔴 `CE-163` — **A SEPARATE-PROCESS CLUSTER CANNOT READ ITS OWN CLUSTER STATE** *(measured `2026-09-03`; NOT yet fixed)*
+### 1c ✅ `CE-163` — **A SEPARATE-PROCESS CLUSTER COULD NOT READ ITS OWN CLUSTER STATE** *(measured `2026-09-03`; **FIXED** — as-built at §1c.1)*
 
 > ⚠ **`R-129`/proper-noun note.** This section exists because the reasoning above turned out to key on the
 > `--mode all` topology only. §7's *"only a subsystem that builds and PUMPS a `ClusterUiCache` can OBSERVE
@@ -101,6 +102,96 @@ readable fact *(e.g. because only the master may assert cluster state)*, then th
 **orchestrator-side** `cluster.state` projection plus a `scenario.load` route on the orchestrator. ⛔
 **Searched `docs/` and `.dev/` for such a ruling — none found**; `MCP_Integration.md` ② and this file's §7
 both discuss only the `ClusterUiCache` source and never consider `ClusterSlave`.
+
+### 1c.1 ✅ AS BUILT — `CE-163` *(obligation ⑤; `2026-09-03`)*
+
+⭐ **The lean above was built as written**, with one correction and one question the user raised that
+belongs in the record.
+
+| # | as built |
+|---|---|
+| **①** | `ClusterSlave.LocalClusterState` — `public ClusterState LocalClusterState => (ClusterState)_localStateId;`. `LocalStateIdForTest` **kept** as the raw `int` the heartbeat carries, so wire-level assertions stay wire-level |
+| **②** | `SubsystemDebugProvider.ClusterStateFrom(Func<ClusterSlave?>)` — the fourth member of the family beside `TransitionsVia` · `DumpsVia` · `TkbFrom` |
+| **③** | **all three ECS nodes**, the same line: `CgfSubsystem` *(`() => _context?.ClusterSlave`)* · `IgSubsystem` and `SimHostSubsystem` *(`() => _app?.ClusterSlave`)* |
+| ⚠ **correction to the lean** | it said "four node bootstraps". ⭐ It is **three** — `ExConSubsystem` keeps its `ClusterUiCache` arm, which is the **cluster-wide** view and the source `ClusterStateAnyNode` rests on. ⛔ Two different facts; collapsing them would have removed the `--mode all` readiness read |
+| ⭐ **naming** | `IgApplication` and `SimHostApp` gained a production-named `ClusterSlave` property matching `CgfApplication`'s; `IgApplication.TestHook_ClusterSlave` is now a forwarder. ⛔ A production reader should not be reaching through a member called `TestHook_` |
+
+#### ⭐⭐⭐ *"A shared STATIC — isn't that wrong for `--mode all`?"* — the question, and why the answer is no
+
+⭐⭐ **Because it is a static FACTORY METHOD, not static STATE.** `ClusterStateFrom` has **no fields**; it
+takes a caller's accessor and returns a closure over it:
+
+```csharp
+public static Func<ClusterState?> ClusterStateFrom(Func<ClusterSlave?> clusterSlave)
+    => () => clusterSlave()?.LocalClusterState;
+```
+
+⇒ each subsystem calls it **once, with its OWN accessor**, and gets its **own** delegate. In `--mode all`
+CGF's provider closes over CGF's slave and IG's over IG's; nothing is shared but the code. 📐 Verified
+structurally: `SubsystemDebugProvider` has **four statics, all of this shape, and ZERO static fields** —
+and the three that predate this one have shipped in `--mode all` since `HN-029`/`MD-006`.
+
+⚠⚠ **The concern is nonetheless the RIGHT one to raise, because this file records a case where it was
+real.** 📌 `BP-487`: a comment here asserted *"panels and the gizmo frame are PROCESS-WIDE statics"*, and
+`CapabilityManifest` hard-coded `panels.gizmo = true` on every perspective on the strength of it — while
+the buffer is **per subsystem** and ExCon has none, so `--mode all` claimed a feed that answered 404.
+⇒ ⭐ **the checkable distinction: shared CODE is fine, shared STATE is the bug.** A static field caching a
+`ClusterState` would have been exactly the `BP-487` defect again — every perspective reporting whichever
+node wrote last.
+
+#### ✅ LIVE EVIDENCE — the same four-process cluster *(`2026-09-03`)*
+
+| | before `CE-163` | after |
+|---|---|---|
+| `GET /status` → `clusterState`, CGF · SimHost · IG | 🔴 `NOT_SUPPORTED_HERE(cluster.state)` on all three | ✅ `Idle` on all three at boot |
+| ⭐⭐⭐ `POST /scenario/load/live {waitForReady:true}` | 🔴 refused on **every** node ⇒ unreachable in the real topology | ✅ **`ok, awaited:true, entityCount:1, sawWorldChange:true` in 1.6 s** |
+| ⭐⭐⭐ the state **ADVANCES**, per node, independently | *(unobservable)* | ✅ `Idle` → **`OperatingLive`** on CGF, SimHost **and** IG, each in its own process |
+| a later `load/edit` from CGF | — | ✅ all three → **`OperatingEdit`**, entity counts moved |
+| orchestrator `8100` | `None` | `None` — ⭐ **correct**: it runs no ECS perspective and holds the master, not a slave |
+
+⭐⭐ **The load-bearing assumption was MEASURED, not assumed.** The lean rested on *"`_localStateId`
+actually advances on CGF/SimHost/IG"* — ⚠ and an old review (`.dev/_DONE/cgf-1/reviews/CGF-1-BATCH-05-REVIEW.md`
+Issue 1) records a period when the **heartbeat field** was pinned to `Standby`. 📐 That was fixed
+(`ClusterSlave.cs:156` now writes `_localStateId`), and the run above confirms the value moves. ⛔ Had it
+not, this change would have reported a WRONG state instead of refusing — strictly worse — which is why it
+was measured before the batch closed.
+
+⭐ **Gated** by `Hrot.SimHost.Tests/TheDebugProvidersDoNotUnderReportTests.cs`:
+`AnEcsNodeProjectsItsOwnClusterState_ThroughTheSharedSeam` *(theory over all three ECS subsystems)* plus
+`TheSharedSeamReadsTheSlavesCommittedState` *(anti-vacuity — the seam still reads `_localStateId`)*.
+⚠ **The assertion shape deliberately differs from `CE-162`'s:** there the argument was present and `null`;
+here it was **absent entirely**, which no "not null" check can see — so the rail asserts the CALL.
+
+### 1d 🔴 `CE-164` — **IG CAN PUBLISH A TRANSITION INTENT AND NOTHING DRAINS IT** *(measured `2026-09-03`; NOT fixed)*
+
+⭐⭐ **Found only because `CE-163` landed.** Before it, `scenario/load/*` refused on `cluster.state`
+regardless, so an inert publish and a capability refusal were indistinguishable.
+
+| 📐 measured, same cluster | |
+|---|---|
+| `POST /scenario/load/live` on **IG** `8103` | ✅ `ok, via: "cluster-intent"` — ⛔ **and the cluster never moves**; all three nodes stay put |
+| the **identical** call on **CGF** `8101` | ✅ moves all three nodes to the target |
+| ⇒ | ⛔ **not an illegal transition, not a state problem — the ORIGIN node** |
+
+⭐⭐⭐ **The cause, measured to the line.** CGF/SimHost get `NedSlaveOrchestrationTranslator`, which builds
+**two** things — `NodeOpSlaveTranslator` *(ingress + heartbeat)* **and** `ClusterOpEgressTranslator`, whose
+`Tick()` drains `TransitionStateIntent` off the node's bus to DDS *(`ClusterOpEgressTranslator.cs:91`)*.
+⛔ **`IgNodeBootstrapper.BuildOrchestration` constructs a bare `NodeOpSlaveTranslator` directly** and no
+egress translator — and `NodeOpSlaveTranslator` contains **zero** references to `TransitionStateIntent`.
+⇒ ⭐ IG's `requestTransition` is **declared and inert**: the intent is published onto a bus nothing reads.
+
+⚠⚠ **And the prose already claimed otherwise.** `IgApplication.cs`'s own remark says the bus is the one
+*"its `ClusterSlave` and `ClusterOpEgressTranslator` sit on (`NodeBootstrapper:194-200`, **shared by
+SimHost · CGF · IG**)"* — 🔴 **false for IG.** 📌 The same shape as `CE-162`: a documented absence that
+was not the measured one.
+
+⭐⭐ **The lean:** route IG through the shared `INetworkFactory`-built `ISlaveOrchestrationTranslator` like
+CGF and SimHost, rather than hand-constructing half of it — ⭐ which is the same ruling again, *"every ECS
+node must use the same shared code."* ⚠ `Hrot.ClusterRunner.Tests/HexagonalBoundaryTests.cs` already traps
+*"rogue `new NodeOpSlaveTranslator` / `new ClusterOpEgressTranslator` calls"*, so **check why IG is exempt
+there before editing** — the exemption is the thing to remove, and it may carry a reason.
+⛔ **Not built here:** it changes IG's DDS wiring, which is a different blast radius from a read-only
+projection, and it deserves its own measurement rather than being folded into `CE-163`'s tail.
 
 ## 2. ⭐⭐ THE DIAGNOSTICS SURFACE
 ### 2.1 ⭐⭐⭐ `GET /logs` — reads in-memory records, NOT the file *(exists; wiring gap)*

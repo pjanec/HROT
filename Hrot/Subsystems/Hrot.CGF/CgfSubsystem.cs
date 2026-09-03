@@ -402,6 +402,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    path the operator's own "Load into Live" button takes.
             requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                    .TransitionsVia(() => _context?.EventBus),
+            // ⭐⭐⭐ CE-163 — CGF's OWN committed cluster state, from its OWN ClusterSlave, through the SAME
+            //    shared projection SimHost and IG use. 🔒 "every ECS node must use the same shared code".
+            // ⚠ Lazy for a LOAD-BEARING reason, not style: Initialize REPLACES the context's slave with the
+            //   one it builds itself (`_context = _context with { ClusterSlave = newClusterSlave }`, so it
+            //   can control handler registration order). A captured value would read the pre-Initialize
+            //   slave forever — the one that never commits anything.
+            clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                               .ClusterStateFrom(() => _context?.ClusterSlave),
             // ⭐⭐ MD-002 — CGF's own kernel snapshot, the same one its Architecture Diagnostics window
             //    already renders (line ~1038). ⚠ Lazy: _context is null until Initialize.
             // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.

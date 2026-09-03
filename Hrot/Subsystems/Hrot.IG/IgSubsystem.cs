@@ -89,6 +89,16 @@ namespace Hrot.IG
                 //    IgApplication.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _app?.OrchestrationBus),
+                // ⭐⭐⭐ CE-163 — IG's OWN committed cluster state, from its OWN ClusterSlave, through the
+                //    SAME shared projection CGF and SimHost use. 🔒 "every ECS node must use the same
+                //    shared code" — ⛔ so this is not an IG affordance, it is the uniform one.
+                // 📐 Why it was missing: DebugApiService.CurrentClusterState() had only two arms, the
+                //    editor's own getter and a sibling subsystem's pumped ClusterUiCache — BOTH `--mode all`
+                //    arms. In a separate-process cluster neither exists, so scenario/load/live's readiness
+                //    poll answered NOT_SUPPORTED_HERE(cluster.state) on a node that knew its own state.
+                // ⚠ This is the NODE's committed state, not the cluster's; see ClusterStateFrom's remarks.
+                clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                                   .ClusterStateFrom(() => _app?.ClusterSlave),
                 // ⭐⭐ MD-002 — IG's own kernel snapshot (it already builds one for its window, line ~169).
                 // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
                 requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider

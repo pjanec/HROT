@@ -73,5 +73,71 @@ namespace Hrot.SimHost.Tests
                 "NOT_SUPPORTED_HERE for this perspective — on its own port too, because the cell comes " +
                 "from the provider and not from the hosting topology. Forward the map (CE-162).");
         }
+
+        // ── CE-163 — the cluster state, and it is UNIFORM across the ECS nodes ────────────────────
+
+        /// <summary>
+        /// ⭐⭐ Every ECS node — <b>all three, deliberately</b>. 🔒 The ruling: <i>"every ECS node must use
+        /// the same shared code."</i>
+        ///
+        /// <para>⛔ <c>ExCon</c> is NOT here and that is correct, not an omission: it has no ECS world and
+        /// it is the one subsystem that builds and pumps a <c>ClusterUiCache</c>, so it contributes the
+        /// <b>cluster-wide</b> view rather than a node's own committed state. ⭐ Two different facts.</para>
+        /// </summary>
+        public static TheoryData<string> EcsNodeSubsystems() => new()
+        {
+            "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
+            "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",
+            "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",
+        };
+
+        /// <summary>
+        /// 🔴 <b><c>CE-163</c>.</b> 📐 Measured on a four-process cluster <c>2026-09-03</c>:
+        /// <c>POST /scenario/load/live {waitForReady:true}</c> answered
+        /// <c>NOT_SUPPORTED_HERE(cluster.state)</c> on <b>every</b> node, while <c>{waitForReady:false}</c>
+        /// published fine and the fan-out landed — so only the readiness READ was missing.
+        ///
+        /// <para>⚠ <b>The defect shape differs from <c>CE-162</c>'s and the assertion follows it.</b> There
+        /// the argument was present and <c>null</c>; here it was <b>absent entirely</b>, which no
+        /// "not null" check can see. ⇒ this asserts the composition CALLS the shared projection.</para>
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(EcsNodeSubsystems))]
+        public void AnEcsNodeProjectsItsOwnClusterState_ThroughTheSharedSeam(string subsystemPath)
+        {
+            var subsystem = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(subsystemPath));
+
+            Assert.True(subsystem.Contains("ClusterStateFrom("),
+                $"{subsystemPath} does not pass its cluster state through " +
+                "SubsystemDebugProvider.ClusterStateFrom(...). Every ECS node holds a ClusterSlave whose " +
+                "LocalClusterState is its committed cluster state; a node that does not project it makes " +
+                "GET /capabilities report cluster.state absent and POST /scenario/load/live " +
+                "{waitForReady:true} answer NOT_SUPPORTED_HERE — even though the same node accepts the " +
+                "load with waitForReady:false. Use the shared projection, not a hand-written lambda: the " +
+                "point of CE-163 is that all three nodes read it the same way.");
+        }
+
+        /// <summary>
+        /// ⛔ <b>Anti-vacuity for the row above, and it is the load-bearing half.</b> The theory asserts a
+        /// CALL; this asserts the thing called still reads what it claims to. ⇒ if
+        /// <c>ClusterSlave.LocalClusterState</c> is renamed away or stops reading <c>_localStateId</c>,
+        /// three green rows would otherwise keep asserting nothing.
+        /// </summary>
+        [Fact]
+        public void TheSharedSeamReadsTheSlavesCommittedState()
+        {
+            var slave = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "FDP/Toolkits/Fdp.Toolkits/Orchestration/ClusterSlave.cs"));
+
+            Assert.Contains("public ClusterState LocalClusterState", slave);
+            Assert.Contains("(ClusterState)_localStateId", slave);
+
+            var provider = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "Hrot/Engine/Hrot.Presentation/DebugApi/ISubsystemDebugProvider.cs"));
+
+            Assert.Contains("ClusterStateFrom(Func<ClusterSlave?> clusterSlave)", provider);
+            Assert.Contains("clusterSlave()?.LocalClusterState", provider);
+        }
     }
 }

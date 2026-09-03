@@ -407,6 +407,34 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         };
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-163</c> — the ONE way an ECS node contributes
+    /// <see cref="ISubsystemDebugProvider.ClusterState"/>: read its OWN <see cref="ClusterSlave"/>.</b>
+    /// ⭐ Same one-implementation argument as <see cref="TransitionsVia"/> and <see cref="TkbFrom"/> —
+    /// ⛔ three hand-written copies of one lambda would be three places to drift, and the defect this
+    /// fixes was precisely that three nodes each independently passed nothing.
+    ///
+    /// <para>📄 <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §1c. 🔒 The ruling this obeys:
+    /// <i>"every ECS node must use the same shared code"</i> — ⛔ so this is passed by CGF, SimHost AND
+    /// IG, not by whichever one happened to need it.</para>
+    ///
+    /// <para>⚠⚠ <b>WHAT IT REPORTS.</b> <see cref="ClusterSlave.LocalClusterState"/> — <b>this node's
+    /// COMMITTED state</b>, ⛔ not the cluster's. ⭐ That is the right fact for a readiness poll *(the
+    /// caller asks "is THIS node at the target?")* and it is the one an ECS node can answer without any
+    /// UI. ⛔ It is NOT the cluster-wide view: that is <c>ClusterUiCache.CurrentState</c>, which only a
+    /// subsystem rendering cluster UI builds — ⭐ <b>two different facts, not two implementations of
+    /// one.</b> 📄 <c>ExConSubsystem</c> keeps the cache arm for exactly that reason, and
+    /// <c>PerspectiveScopedDispatcher.ClusterStateAnyNode</c> still prefers it in <c>--mode all</c>.</para>
+    ///
+    /// <para>⚠ Re-read on every access, like every accessor here — a subsystem's slave is created during
+    /// network init and nulled on shutdown.</para>
+    /// </summary>
+    public static Func<ClusterState?> ClusterStateFrom(Func<ClusterSlave?> clusterSlave)
+    {
+        if (clusterSlave is null) throw new ArgumentNullException(nameof(clusterSlave));
+        return () => clusterSlave()?.LocalClusterState;
+    }
+
     public string SubsystemName { get; }
     public string Perspective { get; }
     public EntityRepository? World => _world?.Invoke();
