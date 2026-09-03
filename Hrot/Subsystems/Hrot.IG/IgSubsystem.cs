@@ -37,6 +37,10 @@ namespace Hrot.IG
         /// ⭐⭐ <b><c>Q54</c> — IG's debug surface: a world to READ, and NO drive facade.</b>
         /// 📄 <c>Architect_Question_54</c> Q54-2 + charter <c>D3</c>.
         ///
+        /// <para>⚠ <b>CORRECTED <c>2026-09-03</c> (<c>CE-162</c>):</b> this paragraph used to justify BOTH
+        /// <c>drive: null</c> AND <c>entityMap: null</c> as measured absences. ⛔ Only the TIME half was
+        /// true — IG holds a <c>NetworkEntityMap</c> and now passes it. See the note at the argument.</para>
+        ///
         /// <para>⚠⚠ <b><c>drive: null</c> is MEASURED, not an oversight.</b> 📐 `2026-08-24`: a repo-wide grep
         /// for <c>new ClusterTimeTransportAdapter</c> finds it in <b>CGF and SimHost only</b> — IG builds
         /// none. ⇒ ⭐ the manifest reports <c>time.drive</c> ABSENT for the IG perspective and a step issued
@@ -52,7 +56,24 @@ namespace Hrot.IG
                 subsystemName: Name,
                 perspective:   "IG",
                 world:         () => _app?.World,
-                entityMap:     null,
+                // ⭐⭐⭐ CE-162, 2026-09-03 — IG DOES map network ids, and this argument was `null`.
+                //
+                // 🔴 The 11th instance of "a production caller that HAS a dependency must PASS it":
+                //    IgApplication:924 assigns `_entityMap = _context.EntityMap` and exposes it at :1955,
+                //    with the same member name and shape SimHostSubsystem passes — and this provider
+                //    handed null anyway. Because the capability matrix is COMPUTED from the members being
+                //    non-null (R-133, SubsystemDebugProvider), GET /capabilities reported
+                //    `world.entityMap:false` for IG, and GET /entities answered NOT_SUPPORTED_HERE there.
+                //
+                // ⛔ That is not a hosting-topology limit: the cell comes from THIS provider, so a
+                //    standalone `--mode ig` process on its own port reported the same false. It made the
+                //    IG side of a cross-node comparison unreadable — which is exactly what CE-141's
+                //    as-built and CE-144's destroy loop need.
+                //
+                // ⚠ The comment below still says IG "can neither drive time nor map network ids". Only
+                //    the TIME half was ever true (measured: no ClusterTimeTransportAdapter on IG); the
+                //    map half was wrong and is corrected here.
+                entityMap:     () => _app?.World is null ? null : _app!.TestHook_EntityMap,
                 drive:         null,
                 // ⭐⭐ BP-487 — IG DOES draw gizmos (IgApplication:734 builds the buffer, and its
                 //    DebugGizmoLayer renders it), so its perspective reports the feed PRESENT even though it
