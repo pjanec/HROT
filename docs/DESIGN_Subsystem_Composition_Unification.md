@@ -53,6 +53,20 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is B
   tests passing all four null, so every slot is empty. Stride's ctor is axis 3 hand-rolled. It is also
   the first node selecting two roles whose module sets OVERLAP, which is why B1 must precede any filling
   of those slots.
+  🔴🔴🔴 NEW 2026-09-03: §4.1L (CE-165) SUPERSEDES §4.1k's headline on a second user challenge, and it is
+  the most consequential finding of this design. (a) StrideNodeBootstrapper is DORMANT -- AttachBootstrapper
+  has no caller -- while the LIVE Stride node is EditorStrideSubsystem, whose role slots are FULL (Brain via
+  CgfLogicPack, MuscleGround via StrideMuscleModuleSet = SimHostCoreLogicPack with GroundKinematicsModule
+  swapped for StrideKinematicsModule). So axis 3 is not a new idea: it is BUILT and RUNNING, and the Stride
+  header already names the remaining seam (STR-P1-T1). (b) FOUR composition roots fuse Brain+Muscle; both
+  packs carry UnitHierarchySystem AND EqsResultUpdateSystem; THREE roots dedupe by type and the RUNNING
+  Hrot.Editor (EditorSubsystem) does NOT -- SpliceIntoSimulation and TogglableSimulationGroup both pass the
+  concatenated list through untouched. That is a LIVE production defect: one CmdAssignSubordinate yields two
+  roster entries. The integration harness that mirrors the editor HAS the guard, which is why no test sees
+  it (rail-blindness, 4th instance). => B1 ([SingleInstance]) changes from PROPHYLACTIC to CORRECTIVE and
+  needs a reproducing rail with an inverse-edit red-proof before the fix.
+  ⚠ §4.1k's "every slot is empty" must NOT be quoted; §4.1k's corrections 1-3 and its B1/B4/B5 consequences
+  still stand.
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
@@ -919,6 +933,13 @@ says the modules are ready; ⛔ **it does not say any current node should select
 
 ### 4.1k 🔴🔴 CORRECTION — **STRIDE IS THE FOUR-ROLE NODE, AND IT IS HANDED NOTHING** *(user challenge, `2026-09-03`)*
 
+> ⛔⛔⛔ **SUPERSEDED IN PART BY §4.1L** *(`2026-09-03`, second user challenge)*. ⭐ **Everything below is
+> TRUE OF THE CLASS `StrideNodeBootstrapper` and FALSE OF STRIDE THE NODE.** 🔴 That class has **no
+> production construction at all** — it is dormant. The **live** Stride composition is
+> `EditorStrideSubsystem`, and its role slots are **FULL**. ⇒ ⭐ **Do not quote "every slot is empty" as a
+> statement about Stride.** ⚠ The three corrections ①–③ and the `B1`/`B4`/`B5` consequences below **survive**;
+> only the "handed nothing" headline does not. 📄 **Read §4.1L first.**
+
 > 🔒 **User:** *"isn't perception / navigation solver already used by stride subsystem?"*
 >
 > ⭐⭐⭐ **The challenge is right and it corrects TWO of my statements.** ⛔ §4.1f recorded Stride as
@@ -1004,6 +1025,117 @@ until the dependency is expressed. ⚠ **Not scheduled here** — recorded so ph
 ⭐ **Dissolution, not extraction, for `IEditorLogic`** *(approved)*: 📐 128 ln / ~15 members, `EditorApplication`
 297 ln of one-line delegations, **zero** code references from `AiShared`, ~3 members genuinely editor-only.
 📌 `CE-060` dissolved one call in **one line** by publishing the event it already wrapped.
+
+### 4.1L 🔴🔴🔴 `CE-165` — **THE SLOTS ARE FULL, AND THE RUNNING EDITOR DOUBLE-TICKS TWO SYSTEMS TODAY** *(second user challenge, `2026-09-03`)*
+
+> 🔒 **User:** *"for sure the slots are not empty; check the stride game host for a DI or factory
+> construction path; use codebase memory (which you should be doing the whole time — see claude.md)."*
+>
+> ⭐⭐⭐ **Right on both counts, and the process criticism is the more important one.** ⛔ §4.1k's negative
+> claim *("the only two constructions are TESTS")* was made from **grep alone** — a `search_code` call
+> immediately returned `Stride/HrotStrideApp.Game/StrideHrotGame.cs`, a file the grep never showed.
+> ⚠ That is exactly the `INVENTORY`-before-claim rule, and it was skipped on a **negative** claim, which is
+> the one shape grep can never settle.
+
+#### ⭐⭐ ① THE CORRECTION — **`StrideNodeBootstrapper` is DORMANT; the live Stride node is `EditorStrideSubsystem`**
+
+| claim | verdict | evidence |
+|---|---|---|
+| *"no production construction of `StrideNodeBootstrapper`"* | ✅ **still true** — but it is a statement about a **dormant class**, not about Stride | `StrideHrotGame.cs:266 AttachBootstrapper(StrideNodeBootstrapper)` sets the only field; ⛔ **`AttachBootstrapper` itself has NO caller** — the sole other mention is a doc reference |
+| ⛔ *"Stride's four role slots are empty"* | 🔴 **WRONG about the node** | the **live** composition is `EditorStrideSubsystem.Initialize`, and it fills them |
+| *"Stride registers the creation tier only"* *(§4.1f)* | 🔴 **WRONG** | `EditorStrideSubsystem:646` builds **`CgfLogicPack` (Brain)**, `:663` builds **`StrideMuscleModules.Build(...)` (MuscleGround)**, `:642` **`OrchestrationLogicPack`**, plus the creation tier |
+
+⭐⭐⭐ **And `StrideMuscleModuleSet` IS axis ③ in production, already:** it is `SimHostCoreLogicPack`'s
+content with **`GroundKinematicsModule` swapped for `StrideKinematicsModule`** — 🔒 the user's *"respecting
+possible different implementations (simhost vs stride)"*, built and running. ⭐ The remaining gap is
+**declared in the code itself**: `EditorStrideSubsystem`'s header says *"**Muscle (P0 stub)**:
+`SimHostCoreLogicPack` registered directly. ⚠ SEAM (P1): Replace `SimHostCoreLogicPack` with
+`StrideKinematicsModule` (STR-P1-T1)"* ⇒ ⛔ **the design is not inventing axis ③; it is generalising a seam
+the Stride lane already named and half-built.** 📌 The seam law, a **fourth** time in this programme.
+
+#### 🔴🔴🔴 ② THE FINDING — **FOUR composition roots fuse Brain+Muscle. THREE dedupe. THE RUNNING EDITOR DOES NOT.**
+
+📐 Both packs carry the same two systems — measured, not inferred:
+
+| system | in `CgfLogicPack` | in `SimHostCoreLogicPack` |
+|---|---|---|
+| `UnitHierarchySystem` | ✅ `:162 simList.Add(_unitHierarchySystem)` | ✅ `:137 simList.Add(_unitHierarchySystem)` |
+| `EqsResultUpdateSystem` | ✅ `:165 simList.Add(new EqsResultUpdateSystem())` | ✅ `:138 simList.Add(new EqsResultUpdateSystem())` |
+
+⇒ **any root that concatenates the two pack lists registers each twice unless it dedupes.** 📐 The roots:
+
+| # | composition root | fuses | dedupe? |
+|---|---|---|---|
+| ① | `EditorStrideSubsystem` *(Stride, live)* | `CgfLogicPack` + `StrideMuscleModuleSet` | ✅ **type-keyed** — `EditorStrideSimulationModule:1692` `seen.Add(sys.GetType())` |
+| ② | `StrideMuscleModule.RegisterSystems` *(the injected arm)* | the muscle set only | ✅ type-keyed `:232` — ⚠ **but scoped to the muscle set; it cannot see the CGF list** |
+| ③ | `EditorHarness` *(`ClusterRunner.Integration.Tests:239`)* | `CgfLogicPack` + `SimHostCoreLogicPack` | ✅ type-keyed `:389` |
+| ④ | 🔴🔴 **`EditorSubsystem` — the RUNNING `Hrot.Editor`** | `CgfLogicPack` + `SimHostCoreLogicPack` | ⛔⛔ **NONE** |
+
+📐 **Root ④'s chain, every hop measured, no dedupe at any of them:**
+`EditorSubsystem:1352 muscleSimSystems = simHostCorePack.SimulationSystems`
+→ `:1390 cgfLogicPackInst.SimulationSystems.Concat(muscleSimSystems)`
+→ `BlueprintRuntimeWiring.SpliceIntoSimulation:107` — a plain `new List<>(…)` + one `Insert`
+→ `TogglableSimulationGroup` — a plain array, `:69 foreach (var sys in _innerSystems) sys.Execute(…)`
+→ `EditorSimulationModule(toggleSim)` *(`:1433`, a one-arg wrapper — **not** the two-arg deduping class of root ③)*.
+
+⛔ **And the default arm is the production arm:** `:1341 if (MuscleModuleFactory == null)` builds
+`SimHostCoreLogicPack`, and 📐 `MuscleModuleFactory` has **no production setter** — the only assignment in
+the tree is `Stride/HrotStrideApp.Game.Tests/EditorSubsystemHeadlessBootTests.cs:109`.
+
+#### 🔴 ③ IT IS CORRUPTING, NOT MERELY WASTEFUL — **and the harness that mirrors it CANNOT SEE IT**
+
+📐 `UnitHierarchySystem.ProcessAssignSubordinates` reads `repo.Bus.Read<CmdAssignSubordinate>()` — a
+**non-destructive frame read**, so a second instance in the same phase sees the same events. On that second
+pass, for a subordinate already assigned to the **same** commander:
+
+```csharp
+if (repo.HasComponent<UnitSubordinate>(sub)) {
+    var current = repo.GetComponent<UnitSubordinate>(sub);
+    if (!current.Commander.Equals(cmd))
+        RemoveFromHierarchy(repo, sub);      // ⛔ same commander ⇒ NO branch taken, and NO `continue`
+}
+…
+roster.SubordinateEntities[roster.Count] = (long)sub.PackedValue;   // 🔴 UNGUARDED APPEND
+roster.Count++;
+```
+
+⇒ 🔴 **one `CmdAssignSubordinate` yields TWO roster entries for one subordinate, and `Count` is 2.**
+⚠ At `UnitRoster.Capacity` this also halves the real capacity and trips the rejection path early.
+⛔ `EqsResultUpdateSystem`'s double-tick harm is **not measured** — it is epoch-guarded, so it is plausibly
+idempotent; ⭐ stated as unknown rather than asserted either way.
+
+⭐⭐⭐ **Why no test catches it: root ③ — `EditorHarness`, the integration harness that exists to mirror the
+editor — HAS the guard the editor lacks.** ⇒ 📌 the `RAIL-BLINDNESS` pattern of §7, a **fourth** instance,
+and the sharpest yet: the harness is not merely blind to the defect, **it is blind because it fixed it
+locally and the production root did not.**
+
+#### ⭐⭐⭐ ④ WHAT THIS CHANGES IN THE BUILD SEQUENCE — **`B1` is now CORRECTIVE**
+
+| | before | after |
+|---|---|---|
+| ⭐⭐⭐ **`B1` (`[SingleInstance]` + a central duplicate check)** | a **prophylactic** guard for a hazard §4.1g ② predicted would appear once roles were composed | 🔴 **a FIX for a defect that ships today in `Hrot.Editor`** ⇒ ⭐ it needs a **rail that reproduces the double roster entry first**, and an inverse-edit red-proof — not just a registration-count assertion |
+| ⭐⭐ **the three local `HashSet<Type>` guards** | unremarked | ⭐⭐ **they are the prior art, and they are the argument**: three independent authors each hand-rolled the same type-keyed dedupe at the same seam. 🔒 That is the seam law's *"we need a shared X"* ⇒ **X exists three times, under-adopted, and the one place it is missing is production** |
+| ⭐ **`B1` scope** | *"opt-in `[SingleInstance]`"* | ⭐ unchanged and **still opt-in** *(§4.1g's caution stands — a blanket ban would hit legitimately multi-instance systems)*. ⭐⭐ But `UnitHierarchySystem` and `EqsResultUpdateSystem` are its **first two attributed types**, chosen by measurement |
+| ⚠ **ordering** | `B1` first, on general grounds | ⭐ **confirmed, and now urgent for a second reason** — root ① is `MuscleGround\|Perception`, the pair whose module sets overlap *(§4.1k)*; ⛔ `B1` must land before Stride's remaining slots are filled **and** to fix root ④ |
+
+#### 📐 THE CLAIM TABLE
+
+| the correction rests on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| `StrideNodeBootstrapper` has no production construction | ✅ `StrideHrotGame.cs:266`, `AttachBootstrapper` callerless | ⛔ searched `docs/` + `.dev/`, none found — it is undeclared dormancy |
+| the live Stride root is `EditorStrideSubsystem` and its role slots are full | ✅ `:646` Brain, `:663` MuscleGround, `:642` orchestration | ✅ its own header — *"Brain (CGF) … Muscle (P0 stub) … ⚠ SEAM (P1) … (STR-P1-T1)"* |
+| both packs carry `UnitHierarchySystem` + `EqsResultUpdateSystem` | ✅ `CgfLogicPack:162,165` · `SimHostCoreLogicPack:137,138` | ✅ §4.1h — they are **capabilities**, role-independent; the duplication is pack drift |
+| roots ①②③ dedupe by type, root ④ does not | ✅ `:1692` · `:232` · `:389` vs `SpliceIntoSimulation:107` + `TogglableSimulationGroup:69` | ⛔ searched, no design records a dedupe obligation — ⭐ **that absence IS the finding** |
+| the editor takes the default (SimHost) muscle arm in production | ✅ `:1341`; `MuscleModuleFactory` set only at `EditorSubsystemHeadlessBootTests.cs:109` | ✅ `:1330` — *"MuscleModuleFactory == null -> EXACTLY the code that was here before"* (`ST-010`) |
+| the double tick corrupts the roster | ✅ `UnitHierarchySystem.cs:107-140`, `Bus.Read` is a frame read | ✅ `UnitRoster.cs:18` — overflow is *"rejected … with a diagnostic warning"*, i.e. `Count` is trusted |
+| `EqsResultUpdateSystem`'s double tick is harmful | ⛔ **NOT MEASURED** — epoch-guarded, plausibly idempotent | ⛔ not searched |
+| ⚠ `check_index_coverage` was NOT run | — | ⛔ **unavailable through the CLI in this session**; the exhaustive claim *"four roots"* rests on `search_code` + grep together, not on coverage |
+
+#### ⛔ ALSO CORRECTED: §4.1's layer table
+
+⛔ It says *"CGF and the Editor re-run the order inline"* — **two**. 📐 There are **three** inline composition
+roots: `CgfSubsystem`, `EditorSubsystem`, and `EditorStrideSubsystem`; ⭐ `EditorHarness` is a fourth if
+test harnesses are counted, and §4.1L ③ is the reason they should be.
 
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
