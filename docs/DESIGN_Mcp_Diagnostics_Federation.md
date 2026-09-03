@@ -6,8 +6,11 @@ build-state: BUILT — `2026-08-26`, ids `MD-001`..`MD-008`. ⭐ Items ①②③
   federation topology that already exists (each node hosts its own DebugApi with mode-gated capabilities);
   (2) designs the DIAGNOSTICS surface over MCP — per-node logs, per-node architecture snapshot, and
   cluster-wide collection — all on the SHARED DebugApiService so every node (incl. SimHost) exposes its own.
-updated: 2026-08-25
+updated: 2026-09-03
 current-answer: ⭐⭐ §8 AS BUILT — it WINS over §2.1/§2.2/§6 where they disagree (three premises moved).
+  ⭐⭐ NEW §1c (CE-163) is the live answer for the SEPARATE-PROCESS topology, and it CORRECTS §7's
+  "only a ClusterUiCache pumper can observe cluster state" as true-of-the-cache but incomplete: every ECS
+  node's ClusterSlave holds its own committed state. §1c carries the lean; NOT yet built.
 design-basis: Hrot.ClusterRunner/Program.cs (the per-node DebugApiHost — editor-owned vs cluster-limited) ·
   EditorSubsystem.cs (the full-surface host) · DebugApiService.GetLogs + Fdp.Core/Logging (IMessageLogSource,
   MessageLog registry, NLogMessageLogTarget) · Fdp.ModuleHost/Diagnostics (IArchitectureDiagnosticsService) ·
@@ -35,6 +38,69 @@ known-conflict: none. ⚠ The MCP authoring/create sessions own DebugApiService.
 ⇒ ⭐⭐ **Design consequence, load-bearing:** anything that must work **per node** *(logs, architecture)* goes on the
 **SHARED `DebugApiService`** *(reached by both the editor-owned and cluster-limited hosting paths)* — ⛔ NOT the
 editor-only path, or the SimHost node cannot answer for itself.
+
+### 1c 🔴🔴 `CE-163` — **A SEPARATE-PROCESS CLUSTER CANNOT READ ITS OWN CLUSTER STATE** *(measured `2026-09-03`; NOT yet fixed)*
+
+> ⚠ **`R-129`/proper-noun note.** This section exists because the reasoning above turned out to key on the
+> `--mode all` topology only. §7's *"only a subsystem that builds and PUMPS a `ClusterUiCache` can OBSERVE
+> — in `--mode all` that is ExCon"* is **true and incomplete**: it is a fact about the **UI cache**, not
+> about what a node KNOWS.
+
+#### 📐 What was measured — four processes, one port each
+
+| node | `--mode` | port | `GET /capabilities` matrix |
+|---|---|---|---|
+| orchestrator | `orchestrator` | `8100` | `hasMaster: true`, **`routablePerspectives: []`** ⇒ ⛔ **no `scenario.load`** |
+| CGF | `cgf` | `8101` | `scenario.load: true` ⇒ ⛔ **no `cluster.state`** |
+| SimHost | `simhost` | `8102` | same shape |
+| IG | `ig` | `8103` | same shape *(and, after `CE-162`, `world.entityMap: true`)* |
+
+⇒ 🔴 **`POST /scenario/load/live {waitForReady:true}` is unreachable in the real topology:** the
+orchestrator refuses `scenario.load`, every ECS node refuses `cluster.state`. ⭐⭐ **But
+`{waitForReady:false}` SUCCEEDS on any ECS node** — `via: cluster-intent`, and the fan-out demonstrably
+lands *(entity counts move on all three nodes)*. ⇒ ⛔⛔ **the COMMAND is fine; only the READINESS READ is
+missing.** ⚠ Exactly the shape `MCP_Integration.md` ② already named once — *a response making a supported
+command look unsupported* — reappearing one topology down.
+
+#### ⭐⭐⭐ The mechanism, and why the current fix does not reach here
+
+```
+DebugApiService.CurrentClusterState()
+    => _clusterStateGetter?.Invoke()          // supplied ONLY by EditorSubsystem + ExConSubsystem
+       ?? _dispatcher?.ClusterStateAnyNode    // any IN-PROCESS sibling's pumped ClusterUiCache
+       ?? throw NotSupportedHere("cluster.state");
+```
+
+⭐ Both arms are **`--mode all` arms.** In a separate-process cluster there is no editor and no ExCon in
+the CGF/SimHost/IG processes, so both are empty.
+
+#### ⭐⭐ But the node DOES know — the fact the design never used
+
+📐 **Every ECS node runs a `ClusterSlave`** *(`IgNodeBootstrapper.BuildOrchestration` → `new ClusterSlave(…)`;
+`CgfApplication._clusterSlave`; SimHost via `NodeBootstrapper`)*, and `ClusterSlave` holds
+**`_localStateId`** — its own **committed** cluster state, set in the `CommitState` arm and republished as
+`TkClusterStateChangedEvent`. ⛔ **It is exposed today only as `LocalStateIdForTest`.** ⇒ ⭐⭐⭐ **the
+capability is present on every node and no node passes it** — the same family as `CE-162` and the ten
+before it, but shared rather than per-host.
+
+#### ⭐⭐⭐ THE LEAN — **promote `ClusterSlave._localStateId` to a real property and project it from the SHARED path**
+
+| | |
+|---|---|
+| **①** | `ClusterSlave` gains **`public ClusterState LocalClusterState => (ClusterState)_localStateId;`** — `LocalStateIdForTest` becomes a forwarder or goes |
+| **②** | `SubsystemDebugProvider` gains a static **`ClusterStateFrom(Func<ClusterSlave?>)`** — the same shape as its existing `TkbFrom(...)` / `TransitionsVia(...)` statics, so this is a **known seam, not a new one** |
+| **③** | ⭐⭐ **every ECS node bootstrap passes it** — ⛔ not IG-only. 🔒 *"every ECS node must use the same shared code"* |
+| ⭐ **why NOT extend `ClusterStateAnyNode`** | it reads a **UI cache** that only cluster-UI subsystems build. ⛔ Making CGF/SimHost/IG build a `ClusterUiCache` to answer a question their `ClusterSlave` already answers is a second mechanism for one fact — the thing this programme keeps collapsing |
+| ⚠ **the one honest caveat** | `LocalClusterState` is **this node's committed state**, not the master's view. ⇒ during a transition a node can legitimately lag. ⭐ That is the **right** semantic for a readiness poll *(the caller asks "is THIS node at the target?")*, and it is strictly more informative than today's refusal — ⛔ but it must be **named** in the payload, not passed off as a cluster-wide fact |
+
+⭐ **Blast radius:** `ClusterSlave` *(one property)* · `SubsystemDebugProvider` *(one static)* · four node
+bootstraps *(one argument each)*. ⛔ No route changes, no capability-key changes, no protocol change.
+
+⚠ **What would change the lean:** if a design record says a node's `_localStateId` is deliberately NOT a
+readable fact *(e.g. because only the master may assert cluster state)*, then the right answer is instead an
+**orchestrator-side** `cluster.state` projection plus a `scenario.load` route on the orchestrator. ⛔
+**Searched `docs/` and `.dev/` for such a ruling — none found**; `MCP_Integration.md` ② and this file's §7
+both discuss only the `ClusterUiCache` source and never consider `ClusterSlave`.
 
 ## 2. ⭐⭐ THE DIAGNOSTICS SURFACE
 ### 2.1 ⭐⭐⭐ `GET /logs` — reads in-memory records, NOT the file *(exists; wiring gap)*

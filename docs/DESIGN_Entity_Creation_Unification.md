@@ -324,16 +324,98 @@ uniform answer, not a per-role subset.
 ⭐ **Proven pre-existing before fixing**: the identical launch in a worktree at `079fa90ff` aborts with the
 same exception and stack, so it is not a consequence of `CE-141`/`CE-144`.
 
-⚠⚠ **WHAT THIS RUN COULD NOT VERIFY, stated rather than implied.** The IG↔SimHost component comparison
-`CE-141` deserves is **not reachable through this API**: 📐 the capability matrix reports IG as
-`world.read: true` but **`world.entityMap: false`**, so `/entities` and `/entities/{id}` answer
-`NOT_SUPPORTED_HERE` on the IG perspective — a truthful *"not here"*, not a defect. ⇒ ⛔ **`CE-141`'s
-as-built and `CE-144`'s destroy loop remain unverified on a live cluster**; verifying them needs either an
-IG-side read capability or a different instrument.
+⛔⛔ **SUPERSEDED `2026-09-03` — the paragraph that stood here called IG's `world.entityMap: false` "a
+truthful *not here*, not a defect."** 🔴 **That was WRONG, and it was wrong in the way this document keeps
+warning about: it reasoned from the SYMPTOM the API reported instead of opening the composition root.** IG
+holds a `NetworkEntityMap` and `IgSubsystem` simply passed `entityMap: null`. ⇒ 📄 **`CE-162`, §2.3c
+below** — and with it fixed, both *"unverified"* claims were verified within the hour.
 
-⚠ **One unexplained observation, recorded and NOT chased:** `entityCount` reads **8** on the SimHost and
-Scenario perspectives and **9** on IG. Not investigated — it may be an IG-local presentation entity, and
-guessing would be exactly the shallow inference this document keeps correcting.
+⚠ **The one unexplained observation is now explained too:** `entityCount` reading **9** on IG against
+**8** elsewhere is IG's **node-local entity `networkId 0`** *(a single `NetworkIdentity`, no other
+components)*. §2.3c's four-process run shows it directly, and it is present before any scenario loads.
+
+---
+
+### 2.3c 🔴 `CE-162` — **IG HELD AN ENTITY MAP AND HANDED THE DEBUG PROVIDER `null`** *(found + fixed live `2026-09-03`)*
+
+📐 **The defect.** `SubsystemDebugProvider` computes every capability cell from **whether the member is
+non-null** *(`R-133`)*. `IgSubsystem.CreateDebugProvider` passed `entityMap: null` while `IgApplication`
+assigns `_entityMap = _context.EntityMap` and exposes it as `TestHook_EntityMap` — **the same member name
+and shape `SimHostSubsystem` passes.** ⇒ `GET /capabilities` reported `world.entityMap:false` for IG and
+`GET /entities` answered `NOT_SUPPORTED_HERE`, so the IG side of every cross-node comparison was blind.
+
+⛔⛔ **The 11th instance of the family `CLAUDE.md` names — *"a production caller that HAS a dependency must
+PASS it."*** ⭐ And its distinguishing feature was the usual one: the `null` **read as a documented
+absence**. It literally sat under a paragraph saying IG *"can neither drive time nor map network ids"* —
+of which **only the TIME half was ever true**. ⇒ ⭐⭐ **prose cannot be the control.**
+
+⭐ **Gated** by `Hrot.SimHost.Tests/TheDebugProvidersDoNotUnderReportTests.cs` — for every subsystem that
+holds an entity map, the composition must not pass `entityMap: null`, with an **anti-vacuity** assertion on
+the app file so the row cannot silently stop asserting. ⛔ Deliberately narrow: **not** a generic
+*"no argument may be null"* sweep — `CLAUDE.md` records one of those being tried and thrown away.
+⭐ A genuine absence stays expressible: **`time.drive` is still `false` on IG**, and ExCon, which has no
+world at all, is not in the list.
+
+#### ⭐⭐⭐ THE FOUR-PROCESS RUN — **what it finally proved** *(`2026-09-03`)*
+
+🔒 **User ruling that set this up:** *"running the MCP web server once per each subsystem, at different
+ports — that would be closest to real world separate-node deployment"*, and *"keep in mind you need to run
+orchestrator as well."*
+
+⭐ **The recipe** *(reproducible; each node a separate process, its own DDS participant, its own port)*:
+
+| node | `--mode` | `HROT_DEBUG_API_PORT` | reported perspective |
+|---|---|---|---|
+| orchestrator | `orchestrator --no-wait` | `8100` | `Default` *(`hasMaster: true`)* |
+| CGF | `cgf --no-wait` | `8101` | `Scenario` |
+| SimHost | `simhost --no-wait` | `8102` | `SimHost` |
+| IG | `ig --no-wait` | `8103` | `IG` |
+
+⚠ Two operational facts worth keeping: ⛔ **`--no-wait` (or `--wait-for`) is REQUIRED** when launching
+subsystems separately; and ⛔ **the listener binds `http://localhost:{port}/`** — ⭐ `curl` against
+`127.0.0.1` gets a bare `Not Found` from `HttpListener`, which looks exactly like a dead server.
+
+#### ✅ `CE-141` — **CLOSED ON LIVE EVIDENCE.** *(one scenario entity, `networkId 1000`, read on all three ECS nodes)*
+
+| | CGF | SimHost | IG |
+|---|---|---|---|
+| components on entity `1000` | **40** | **35** | **20** |
+| ⭐⭐⭐ the six `CE-141` named — `VehicleParams · PhysicsCollider · Health · WeaponState · PerceptionReceptor · TargetMemory` | ✅ all six | ✅ all six | ✅ **all six** |
+
+⭐⭐ **Common to all three (16):** `EntityInfo · Health · MapDisplayComponent · NetworkAuthority ·
+NetworkIdentity · NetworkTransform · NetworkVelocity · PerceptionReceptor · PhysicsCollider · SimTransform ·
+SimVelocity · TargetMemory · TkbIdentity · VehicleParams · VisualData · WeaponState`.
+
+⭐⭐⭐ **And the NARROWING LEVER is measured, not asserted.** The 18 components on CGF+SimHost and not IG
+*(`BehaviorState`, `BrainBTreeState`, `BrainBlackboard`, `MissionPlanQueue`, `NavState`, `SimTier`,
+`VehicleState`, …)* are **exactly** the contents of `CognitiveComponentRegistry` ∪ `KinematicComponentRegistry`
+— the two tiers **SimHost registers and IG does not**. ⇒ ⭐ every node runs the **same
+`TkbTranslatorSet.Base()`**, and each `ITkbEntityTranslator` guards its write with
+`repo.IsComponentTypeRegistered<T>()`, so **the registration set is the only lever** — precisely what
+`TkbTranslatorSet`'s own header says *("Do NOT subtract from this list")*. ⛔ **No node subtracts a
+translator, and none needs to.**
+
+#### ✅ `CE-144` — **THE DESTROY LOOP CLOSED ACROSS THREE PROCESSES**
+
+`DELETE /entities/1000` on the **owner** *(CGF, `8101`)* → within one poll interval:
+
+| port | before | after |
+|---|---|---|
+| `8101` CGF | `[1000]` | ✅ `[]` |
+| `8102` SimHost | `[1000]` | ✅ `[]` |
+| ⭐⭐⭐ `8103` IG | `[0, 1000]` | ✅ `[0]` — **the ghost is gone; only IG's node-local entity remains** |
+
+⇒ ⭐⭐ **the deleted `GhostDestructionSystem` was not load-bearing.** The shared path —
+`EntityLifecycleModule.BeginDestruction` → `DestructionOrder` → `CycloneNetworkCleanupSystem` →
+`translator.Dispose(netId)` → the peer's dispose sample → `NetworkSpawningSystem` — tears the IG ghost down
+**on a genuinely remote node, over real DDS**, which the in-process `--mode all` run could not distinguish.
+
+#### ⛔ WHAT THIS RUN EXPOSED AND DID **NOT** FIX — `CE-163`
+
+📌 **`POST /scenario/load/live` with `waitForReady:true` answers `NOT_SUPPORTED_HERE(cluster.state)` on
+every node in a separate-process cluster** — while `waitForReady:false` **succeeds** *(`via: cluster-intent`,
+and the fan-out demonstrably lands: the counts above moved)*. ⇒ ⭐ **only the readiness READ is missing, not
+the command.** 📄 Full analysis and the recommended fix: **`DESIGN_Mcp_Diagnostics_Federation.md` §1c**.
 
 ---
 
