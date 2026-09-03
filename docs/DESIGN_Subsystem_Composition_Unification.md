@@ -1277,7 +1277,7 @@ describes, and one nearly went the wrong way *(see §4.1N ② row 3)*.
 
 | # | channel | instance | ⛔ how it fails |
 |---|---|---|---|
-| **①** | ⭐⭐⭐ **a SUBCLASS FIELD** | `CoreLogicPack` — **written in 4a** *(`:203`)*, **read in 6a** *(`:350`)* **and 6b** *(`:385`)* | the base's signatures show **no** 4a→6a/6b coupling at all. 📐 The three bootstrappers declare **19 / 14 / 15** fields — the channel is wide |
+| **①** | ⭐⭐⭐ **a SUBCLASS FIELD** | `CoreLogicPack` — **written in 4a** *(`:203`)*, **read in 6a** *(`:350`)* **and 6b** *(`:385`)* | the base's signatures show **no** 4a→6a/6b coupling at all. ⚠⚠ **CORRECTED `2026-09-03` — this row originally added *"19/14/15 fields ⇒ the channel is wide"* and §4.1N ④ predicted *"more channels are likely."* 📐 BOTH WERE WRONG. A full cross-phase field-flow pass over all three bootstrappers found exactly TWO flows, both on SimHost and both 4a→6a/6b: `CoreLogicPack` and `RoadNetwork` *(`:201` write, `:358` read)*. ⭐⭐ **IG and Stride have NONE.** ⇒ the channel is **narrow and host-local**, not systemic — see §4.1O ①** |
 | **②** | ⭐⭐⭐ **a CONTEXT FIELD MUTATED BY A REGISTRATION SIDE EFFECT** | `context.GhostCreationSystem` is `null` at build *(`HrotNodeBuilder:215`)* and is populated **by registering `NedReplicationModule`** (6a+); **read at 6b** | a translator built from a null gets wired to nothing — **silent** |
 | **③** | ⭐⭐⭐ **a GLOBAL STATIC SNAPSHOT** | `ComponentTypeRegistry` → **frozen** into `FdpAutoSerializer._entries` at 3 | a late component is **silently unserialized** — no throw, no log |
 
@@ -1316,6 +1316,106 @@ deeper — `ScenarioSerializerBuilder.Build()` → `FdpAutoSerializer.Build()` �
 ⚠ **That last row bounds this pass:** the *kinds* of hidden channel are established and each is evidenced;
 ⛔ **the full per-subclass field-flow enumeration is a further pass** and must happen before any host is
 migrated, because a missed field is a silent break.
+
+### 4.1O ⭐⭐⭐ THE APPROACH COMPARISON — **five candidates, measured criteria, one pick** *(`2026-09-03`)*
+
+> 🔒 **User, `2026-09-03`, verbatim:** *"I am not forcing into any concrete direction. I am asking those
+> question to force you to think about all possibilities and not miss any exiting user (host) and way of
+> using. **Unification = avoiding unnecessary duplication while keeping composition flexibility.** No
+> suggestion you provided was bad. We are looking for the 'optimal' one, fitting all our host, fitting our
+> code structure etc."*
+
+#### ① 📐 CLOSING MEASUREMENT — **the hidden-channel risk is SMALLER than §4.1N claimed**
+
+⭐ A full cross-phase field-flow pass over all three bootstrappers *(fields written in one phase method
+and read in another)*:
+
+| host | cross-phase field flows |
+|---|---|
+| **SimHost** | ⭐ **2** — `CoreLogicPack` *(W `:203` in 4a → R `:350` 6a, `:385` 6b)* · `RoadNetwork` *(W `:201` 4a → R `:358` 6a)* |
+| **IG** | ✅ **none** |
+| **Stride node** | ✅ **none** |
+
+⇒ ⛔⛔ **§4.1N's *"19/14/15 fields ⇒ the channel is wide"* and *"more channels are likely"* were WRONG**,
+and that row is corrected in place. ⭐ The hidden subclass-field channel is **two fields on one host**,
+both of the same shape *(a capability pack built in 4a, consumed by 6a/6b)*.
+⚠ **Method:** the automated pass had a **brace-in-string** bug that mis-attributed constructor
+assignments to `PostInitialize`; every flow reported here was **hand-verified** at the cited lines, and
+the buggy script is deliberately not shipped.
+
+⭐ **The other two channels of §4.1N ② stand unchanged**: `context.GhostCreationSystem` *(populated by a
+registration side effect)* and the `ComponentTypeRegistry` → `FdpAutoSerializer` freeze.
+
+📐 **And one more number that decides how much any approach can buy:** in the inline roots, composition is
+a **minority of the file** — `EditorSubsystem` is **5432 ln** with `Initialize()` at **`:1884`** *(a
+**3548**-line tail)*; `EditorStrideSubsystem` is **1699 ln** with `Initialize()` at **`:718`** *(a **981**-line
+tail)*. ⇒ ⛔ **"put the editors on the base class" reorganises roughly the composition tenth of those
+files and leaves the rest exactly where it is.**
+
+#### ② THE CANDIDATES — **all five, including the two already rejected, so the space is visible**
+
+| | approach | what a host writes |
+|---|---|---|
+| **A** | **status quo + targeted fixes** | its own composition, as today; duplicates fixed case by case |
+| **B** | **every ECS host inherits `SharedApplicationBootstrapper`** | 7 abstract + 4 virtual overrides |
+| **C** | **a standalone `Resolve(role)` plan function**, each root composes however it likes | a call to `Resolve`, plus its own wiring |
+| **D** | ⭐ **registrar list** — composition is a LIST of shared parameterized registrars with DECLARED dependencies; one runner orders and runs them | a list + parameters |
+| **E** | ⭐⭐ **D, with the existing base retained as the FIRST runner** and hosts migrated incrementally | today: nothing; then a list |
+
+#### ③ 📐 THE COMPARISON — **scored on the user's two criteria plus fit**
+
+| criterion | **A** | **B** | **C** | **D / E** |
+|---|---|---|---|---|
+| ⭐⭐⭐ **duplication removed** | ⛔ minimal — the **4** hand-rolled `HashSet<Type>` dedupes stay 4; the 45 shared units stay hand-wired per root | ⚠ **partial** — kills the hand-copy of Phase 4a+5 in 3 inline roots *(`EditorSubsystem:1366-1446` is exactly that copy)*, ⛔ but a host still hand-writes `new CgfLogicPack(…)` inside `PopulateSystems`, so the 45 units stay per-host | ⛔ only capability selection; the 4a+5 copy survives | ⭐⭐⭐ **maximal** — each shared unit is wired **once**, in its registrar; hosts name it |
+| ⭐⭐⭐ **flexibility kept** | ⭐⭐⭐ total *(nothing is constrained)* | ⛔⛔ **lowest** — a host needing something at a NEW point needs a **base-class edit**, i.e. a shared-file change across lanes | ⭐⭐ high | ⭐⭐⭐ **highest** — a bespoke registrar is added **without touching shared code** |
+| ⭐⭐⭐ **fits ALL nine roots** | ✅ trivially | ⛔⛔ **NO** — Phase 7 calls `Kernel.Initialize()`; **ExCon has no kernel** *(0 refs)* and **ReplayBrowser has neither kernel nor `ClusterSlave`* | ⚠ partly | ✅ **yes** — ExCon composes a short list *(cluster participation only)*, ReplayBrowser a shorter one |
+| ⭐⭐ **fits the code structure** | ✅ | ⚠ template-method, already the shape for 3 hosts | ⛔ **two ways to compose a node ⇒ breaks ruling 9** | ⭐⭐⭐ **it IS the direction of travel** — `EntityCreationPack.Build(ctx)` *(6 roots)*, `MapInteractionPack.Build(ctx)`, `TkbTranslatorSet.Base()`, `StrideMuscleModules.Build(crowd)` |
+| ⚠ **handles the 3 silent channels** | ⛔ leaves them invisible | ⛔ leaves them invisible | ⛔ leaves them invisible | ⭐⭐⭐ **forces each into a DECLARED dependency** — see ④ |
+| **risk / cost** | ⭐ none | ⚠ medium; ⛔ 3548- and 981-line tails must land in `PostInitialize` | ⭐ low | ⚠ **highest mechanism risk**, ⭐ but `E` stages it |
+
+#### ④ ⭐⭐⭐ THE ARGUMENT THAT DECIDES IT — **the silent channels are an argument FOR the registrar model, not against it**
+
+⚠ **I had been treating §4.1N's three hidden channels as the main RISK of a registrar model. That is
+backwards.** ⭐⭐ Each of them exists **precisely because the current mechanism has nowhere to say it**:
+
+| channel | today | under **D** |
+|---|---|---|
+| `CoreLogicPack` 4a→6a/6b | an invisible subclass field | the MuscleGround registrar's **declared output**, consumed by the spawning + translator registrars |
+| `GhostCreationSystem` 6a+→6b | a context field mutated by a side effect | the replication registrar's **declared output** |
+| `ComponentTypeRegistry` freeze 2→3 | a global static snapshot, silently stale | the serializer registrar **declares it depends on every component registrar** |
+
+⇒ ⭐⭐⭐ **A runner can CHECK a declared dependency. Nothing can check an ordering nobody wrote down.**
+📌 All three failures are silent today — that is the disease, and D is the only candidate that treats it.
+
+#### ⑤ ✅ THE PICK — **E** *(the registrar model, staged behind the existing base)*
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **why not B** | it **cannot fit ExCon or ReplayBrowser at all** *(no kernel)*, it leaves the 45 shared units hand-wired per host, and it makes every future per-host need a **shared-file edit** — the opposite of flexibility |
+| ⭐⭐ **why not D big-bang** | ⛔ a new mechanism landing on 9 roots at once, with 3 silent channels to re-express. ⭐ **E is D with a first runner that already works** |
+| ⭐⭐⭐ **why E is optimal on BOTH criteria** | **duplication:** every shared unit wired once ⇒ maximal · **flexibility:** a host adds a registrar without touching shared code ⇒ maximal. ⭐ No other candidate scores well on both |
+| ⭐⭐⭐ **and it is PROVEN at n=1** | `EntityCreationPack.Build(EntityCreationContext)` **is** such a registrar — **6 required + 8 optional parameters, `Validate()`, and `Unserviceable(scheduled)` to make an omission loud** — adopted by **six roots** and verified on a live four-process cluster *(`P1`, `2026-09-03`)*. ⛔ **The model is not speculative; it is the generalisation of the shape that already won** |
+
+⭐⭐ **The first step it implies** *(stated, not scheduled)*: **express `SharedApplicationBootstrapper`'s own
+phases as a registrar list with declared dependencies, changing no host.** ⭐ Behaviour-preserving, it
+forces the three silent channels to be written down, and it yields a runner ExCon can later use with a
+shorter list.
+
+#### ⑥ 📐 CLAIM TABLE
+
+| the pick rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| B cannot fit ExCon / ReplayBrowser | ✅ 0 `ModuleHostKernel` refs in either; base Phase 7 calls `Kernel.Initialize()` | ✅ §4.1M ① — both are composition roots that must be covered |
+| B leaves the 45 units per-host | ✅ `SimHostNodeBootstrapper:203` constructs its pack inside `PopulateSystems` | ✅ §4.1M ② — the units are already shared *code*, hand-wired *per root* |
+| the inline roots' composition is a minority | ✅ 5432 ln / `Initialize` `:1884`; 1699 ln / `:718` | ⛔ searched, no design states this |
+| Shape A already exists and is adopted | ✅ `EntityCreationPack.cs:70` + `EntityCreationContext` 6+8 + `Unserviceable` | ✅ `DESIGN_Entity_Creation_Unification.md` §5 step 3 — six hosts, DONE |
+| the hidden channel is 2 fields on 1 host | ✅ hand-verified `:201/:203/:350/:358/:385`; IG + Stride none | ⛔ none — §4.1N's own overstatement is corrected here |
+| ⛔ the Editor's ~550-line composition slice can be expressed as registrars without losing ordering | ⛔ **NOT ATTEMPTED** | ⛔ not searched |
+| ⛔ `HrotNodeContext` can carry registrar outputs generically | ⛔ **NOT MEASURED** | ⛔ not searched |
+
+⚠ **Those last two bound the pick.** ⭐ Neither is load-bearing for *choosing* E over B/C/D — E is chosen
+on host coverage, duplication and flexibility, all measured. ⛔ **Both are load-bearing for the FIRST
+BUILD ITEM**, and the first step named in ⑤ is deliberately the one that answers them at zero host risk.
 
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
