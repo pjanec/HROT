@@ -87,8 +87,13 @@ except Exception as e:
     print("NOTE\tPARSE FAILED -- %s" % e); raise SystemExit
 if d.get("error"):
     print("NOTE\t%s -- %s" % (d["error"], d.get("hint", ""))); raise SystemExit
-files = sorted({r.get("file", "") for r in d.get("results", []) if r.get("file")}
-               | {r.get("file", "") for r in d.get("raw_matches", []) if r.get("file")})
+# raw_matches[].file is NOT always a path -- on markdown hits it can carry a prose
+# fragment, which then prints as a bogus "file the graph found that grep missed".
+# Keep only values that actually look like repo-relative paths.
+def looks_like_path(p):
+    return isinstance(p, str) and p and " " not in p and ("/" in p or "." in p)
+files = sorted({r.get("file", "") for r in d.get("results", []) if looks_like_path(r.get("file"))}
+               | {r.get("file", "") for r in d.get("raw_matches", []) if looks_like_path(r.get("file"))})
 tg, tr = d.get("total_grep_matches"), d.get("total_results")
 trunc = "  TRUNCATED-raise-limit" if isinstance(tr, int) and isinstance(tg, int) and tr < tg else ""
 print("NOTE\tmatches=%s results=%s%s" % (tg, tr, trunc))
