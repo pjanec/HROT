@@ -1,9 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-03
-build-state: DESIGN
-current-answer: §4 is the API; §5 is the per-host fit; §6 the author/translator rule. §7 carries the
-  open questions that need a decision before this becomes READY-TO-BUILD.
+build-state: READY-TO-BUILD
+current-answer: §4 is the API; §5 the per-host fit; §2 the author/translator rule; §7 resolves all four
+  questions BY REASONING (R5 reverses an earlier lean). §7c is the one genuine product decision, and it
+  does NOT block the API - the staged migration keeps today's behaviour until it is answered.
 stale-below: nothing.
 known-conflict: none. This EXTENDS DESIGN_Entity_Creation_Unification.md §3.4, which specified the two
   affordances and their two-name/one-field shape; nothing here overturns it.
@@ -229,15 +230,83 @@ sequenceDiagram
 
 ---
 
-## 7. ⭐ OPEN QUESTIONS — **need a ruling before READY-TO-BUILD**
+## 7. ⭐⭐⭐ THE FOUR QUESTIONS — **RESOLVED BY REASONING, not by ruling**
 
-| # | question | ⭐ lean |
-|---|---|---|
-| **Q1** | Ratify the **AUTHOR / TRANSLATOR** rule of §2 as canon? | ⭐⭐ **yes.** Without it, ① and ④ read as permanent violations and the rule gets re-litigated on every grep of `new EntityCreationRequest` |
-| **Q2** | ✅ **CLOSED `2026-09-03` — CGF has NO authoring site.** 📐 Swept: its only two enqueue paths are `CgfEpisodeLoadHandler` and `CgfScenarioLoadHandler`, both consuming `_pendingRequests` produced by ① `StagingEntityExtractor` ⇒ **translators**, exempt by §2. ⚠ The AI's EQS sensor children *(`EqsLifecycleNodes.Action_SpawnEqsSensorChild`)* create and destroy through `ctx.World` / `ecb.DestroyEntity` **directly** — local non-networked entities that never enter this pipeline, so they are out of scope | — |
-| **Q3** | Does `ScenarioSpawnAdapter` become a **thin caller**, or is it deleted like IG's? | ⭐ **thin caller.** 📐 It also owns gizmo lifetime and an offline `PublishManaged` fallback — real duties beyond the DTO. ⛔ Deleting it would lose those |
-| **Q4** | Should `CreateLocallyOwned` ship now, with **no caller**? | ⭐⭐ **yes, both together.** §3.4 defines them as a pair whose whole point is the choice; shipping one makes the choice invisible. ⚠ But it is a knowingly-unused method until a host wants row 2 |
-| **Q5** | `IsTransient` — an affordance parameter, or set by the caller afterwards? | ⛔ **not decided.** `D2` built the flag; **which IG affordances author sketches is still a product call**. ⭐ Lean: **leave it off the signature** until that product question is answered, rather than shipping a parameter nobody can correctly set |
+> 🔒 **User, `2026-09-03`:** *"the questions you are asking should be answered by your reasoning, not my
+> ruling."* ⭐ Each below is decided by a measurement or by a consequence of a rule already ruled, not by
+> preference. ⚠ **`R5` REVERSES the lean an earlier pass gave.**
+
+### R1 — the AUTHOR/TRANSLATOR rule is FORCED, not chosen ✅
+
+⭐⭐⭐ **It follows from the API shape §3.4 already ruled.** The affordance offers exactly **two** owner
+values — `0` and `NodeId`. 📐 The wire ingress receives an **arbitrary** owner
+*(`NedCgfEntityLifecycleAdapters.cs:78`, `msg.Owner.AppInstanceId`, possibly a third node — §3.4's own
+table row 3)*. ⇒ ⛔ **a translator CANNOT express its case through the affordance** without a third method
+taking an arbitrary owner, which would destroy *"two names, one field apart"* and reintroduce the policy
+argument §3.4 exists to remove.
+
+⇒ ⭐⭐ **Translators are structurally excluded, not exempted by policy.** The rule is written down because
+it is true, not because it was preferred.
+
+### R2 — CGF has no authoring site ✅ *(measured, see §5)*
+
+### R3 — `ScenarioSpawnAdapter` becomes a THIN CALLER, and loses a latent hazard ✅
+
+📐 Measured, it owns three things: **gizmo lifetime** *(`Unregister(id)`, `autoPopOnPlace`)*, the
+**transform/velocity folding** into `InitialComponents` *(`:118-127`)*, and a **null-source fallback**.
+⇒ deleting it would lose the first two ⇒ **thin caller**, not deletion.
+
+🔴 **And the fallback is a latent instance of the hazard this programme just removed from IG.**
+📐 `if (_requestSource != null) { Enqueue } else { _bus.PublishManaged(cmd); }` — the else branch publishes
+the **ORDER**, on a host that composes the pack and therefore registers the spawn system. ⚠ It is **dead
+today** *(`EditorSubsystem.cs:2093` always passes `creation.LocalRequests`)*, but it is the silent-default
+shape: an optional dependency whose absence changes behaviour instead of failing.
+⇒ ⭐⭐ **The affordance removes it by construction** — there is no way to call
+`creation.RequestFromDefaultProcessor(...)` without a `creation`.
+
+### R4 — ship BOTH affordances, because `CreateLocallyOwned`'s caller is already DESIGNED ✅
+
+⛔ *"a method with no caller"* was the wrong framing. 📐 §3.4's own table, row 2:
+*"an entity it owns itself **(IG map drawings shared between IGs)** → `OwnerAppInstanceId = localNodeId`
+→ the originating node, in-process."* ⇒ ⭐ **`CreateLocallyOwned`'s first caller is named in the design** —
+IG's drawing tools.
+
+⚠⚠ **They are untargeted TODAY only because the retired `SpawnEntityCommandEgressTranslator` wrote
+`Owner = default` and ignored `cmd.OwnerNodeId`** *(§1.1 ⑤)*. ⇒ ⭐ shipping both is shipping the designed
+pair; **switching IG's drawings from path 1 to path 2 is a SEPARATE behavioural step** — see `§7c`.
+
+### R5 — ⚠ **REVERSED: `isTransient` DOES belong on the signature** ✅
+
+⛔ **An earlier pass leaned "leave it off until the product question is answered." That was wrong**, and the
+reason is a consistency argument that applies equally to a parameter already ruled in.
+
+📐 `isTransient` is a **per-request property, exactly like `initType`** — and §3.4 puts `initType` on the
+signature with a default precisely so *"adoption changes nothing"*. ⇒ ⛔ **omitting `isTransient` forces any
+caller that needs it to bypass the affordance and hand-roll the DTO** — which is the disease this document
+treats. ⭐ **Include it, defaulted `false`.**
+
+⚠ **What stays open is a CALL-SITE question, not a signature question:** *which* IG tools pass `true`.
+📐 The tension is real and recorded — `R-140` says an IG-owned entity is disposable, yet the tac-graphic
+overlay descriptor is built `PersistenceMode.MODE_PERSISTENT`. ⇒ that is `§7c`, and it does not block the
+API.
+
+---
+
+## 7c. ⛔ THE ONE THING THAT IS GENUINELY A PRODUCT DECISION
+
+⭐⭐ **Are IG's map drawings IG-owned-and-disposable, or arbiter-owned-and-persistent?** ⛔ **Not answerable
+from code**, and the two records conflict:
+
+| says disposable | says persistent |
+|---|---|
+| 🔒 `R-140`: *"IF IG crashes, its entities are gone, but no one cares, they were temporary anyway"* | 📐 the overlay descriptor is emitted `PersistenceMode.MODE_PERSISTENT` *(`CreateEntityRequestDescriptorBuilder`)* |
+| §3.4 row 2 puts IG map drawings at `OwnerAppInstanceId = localNodeId` ⇒ under `R-140`, non-persistable | 📐 today they are untargeted ⇒ CGF owns and **saves** them |
+
+⇒ ⭐ **This design does NOT decide it, and does not need to.** ⛔ The API carries both axes; the call sites
+choose. ⚠ **The migration is deliberately staged:** IG's tools keep `RequestFromDefaultProcessor` +
+`isTransient: false` — today's exact behaviour — until this is answered. 📄 The answer belongs with the
+scenario-saving question already parked in
+[`DESIGN_Node_Roles_And_Policies.md`](DESIGN_Node_Roles_And_Policies.md) §8.
 
 ---
 
