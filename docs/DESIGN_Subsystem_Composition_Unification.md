@@ -1240,6 +1240,83 @@ composition. ⭐ The count is reported because the **6× spread** is itself the 
 | **the concern grouping** | the units above are listed by USER COUNT, not by concern. ⛔ Grouping them is a design act and is deliberately not done here |
 | **completeness** | ⚠ text extraction with lower-bound counts; `check_index_coverage` is unavailable through the CLI |
 
+### 4.1N 📐 THE ORDERING-CONSTRAINT PASS — **which of the base's phase orderings are REAL** *(measured `2026-09-03`)*
+
+> ⭐⭐ **This is the input §4.1M named as blocking.** A registrar model replaces a hard-coded phase list
+> with **declared dependencies**; that is only safe once you know which orderings carry a dependency and
+> which are habit. ⛔ Still no build sequence here — this is the second measurement pass.
+
+⭐ **Method:** for each phase of `SharedApplicationBootstrapper.BootstrapNode` *(327 ln)*, trace what it
+CONSUMES and what it PRODUCES, and classify the edge as **ARG** *(a value is passed)*, **HIDDEN** *(the
+value travels through a field, not a signature)*, **ENFORCED** *(violating it throws)*, or
+**INCIDENTAL** *(no dependency found)*.
+⚠ **A stated reason in a comment is a CLAIM, not evidence** — each was checked against the code it
+describes, and one nearly went the wrong way *(see §4.1N ② row 3)*.
+
+#### ① THE PHASE GRAPH — **as measured, not as documented**
+
+| phase | what it does | depends on | kind | evidence |
+|---|---|---|---|---|
+| **1** | `BuildContext` → `context` | — | root | everything downstream takes `context` |
+| **1b** | `ConfigureForNode(context, role, registry)` → `configuredFactory` | 1 | ARG | read at 6b and by `TimeControl` |
+| **2** | `RegisterDomainComponents(context.World)` | 1 | ARG | takes `context.World` |
+| **3** | `BuildSerializer` → `serializer` | ⭐⭐ **2** | 🔴 **GLOBAL SNAPSHOT — silent if violated** | `FdpAutoSerializer.Build():93` iterates `ComponentTypeRegistry.GetSnapshotableTypeIds()` and **freezes** `_entries`. A component registered after this is **silently absent from serialization** |
+| **4a** | `PopulateSystems` → 3 lists → 3 togglable groups, registered | 1 | ARG | produces `simGroup`/`postSimGroup` for 5 |
+| **4b** | `GetAdditionalModules()` → `RegisterModule` | — | ⭐ **INCIDENTAL** | no consumer found; only "before 7" |
+| **5** | `BuildOrchestration(context, simGroup, postSimGroup, serializer)` → `ClusterSlave` | **3 + 4a** | ARG | both are literal arguments |
+| **5-post** | the `CE-164` invariant | 5 | ARG | asserts on `slave` |
+| **6a** | `BaseModules` + `RegisterSpawningPipeline` | 1, ⚠ **+4a** | 🔴 **HIDDEN** | `SimHostNodeBootstrapper:350` reads `CoreLogicPack!`, assigned at `:203` **inside 4a**. ⛔ **NOT on 5** — measured: **0** `ClusterSlave` references in all three `RegisterSpawningPipeline` overrides |
+| **6a+** | `RegisterModule(context.NedReplication)` | 1 | ARG | ⚠ *also a UNIQUENESS rule:* *"Subclasses must NOT call `RegisterModule(context.NedReplication)` — double-registration corrupts the system schedule"* |
+| **6b** | `RegisterNetworkTranslators` | 1b, ⚠ **6a+**, ⚠ **4a** | 🔴 **HIDDEN ×2** | reads `context.GhostCreationSystem` — `HrotNodeBuilder:215`: *"populated by `NedReplicationModule` after `Build()`"* ⇒ **6a+**; and `CoreLogicPack!.TrajectoryPool` ⇒ **4a** |
+| **6c** | `SlaveTimeTranslatorRegistration.RegisterOn` + `TimeControl` | 1 (+1b) | ⭐ **INCIDENTAL** vs 6a/6b | needs only kernel · participant · bus · nodeId |
+| **6d** | `RegisterApplicationSystems` | — | ⭐ **INCIDENTAL** | virtual, no-op default; only "before 7" |
+| **7** | `Kernel.Initialize()` | every registration | 🔴 **ENFORCED** | `ModuleHostKernel.cs:165-166` throws *"Cannot register systems after Initialize() called"* |
+| **7+** | `PostInitialize` | **7** | 🔴 **ENFORCED** | `EngineBackedNavigationModule.cs:63-65` throws *"Call RegisterSystems before RegisterProviders."* |
+
+#### ② 🔴🔴🔴 THE HEADLINE — **THREE REAL DEPENDENCIES TRAVEL THROUGH CHANNELS THE BASE DOES NOT EXPRESS**
+
+| # | channel | instance | ⛔ how it fails |
+|---|---|---|---|
+| **①** | ⭐⭐⭐ **a SUBCLASS FIELD** | `CoreLogicPack` — **written in 4a** *(`:203`)*, **read in 6a** *(`:350`)* **and 6b** *(`:385`)* | the base's signatures show **no** 4a→6a/6b coupling at all. 📐 The three bootstrappers declare **19 / 14 / 15** fields — the channel is wide |
+| **②** | ⭐⭐⭐ **a CONTEXT FIELD MUTATED BY A REGISTRATION SIDE EFFECT** | `context.GhostCreationSystem` is `null` at build *(`HrotNodeBuilder:215`)* and is populated **by registering `NedReplicationModule`** (6a+); **read at 6b** | a translator built from a null gets wired to nothing — **silent** |
+| **③** | ⭐⭐⭐ **a GLOBAL STATIC SNAPSHOT** | `ComponentTypeRegistry` → **frozen** into `FdpAutoSerializer._entries` at 3 | a late component is **silently unserialized** — no throw, no log |
+
+⇒ ⭐⭐⭐ **A registrar model that declares dependencies only over its explicit inputs and outputs would
+lose ALL THREE — and each fails SILENTLY, not loudly.** ⛔ That, not the phase list, is the thing the
+base class is really carrying, and it is the single most important constraint on the design.
+
+⚠ **A near-miss worth recording, because it is this session's own failure mode.** Checking the Phase-2→3
+comment by **signature** said *"no dependency"* — `BuildSerializer(BehaviorRegistry?)` takes no world,
+and `ScenarioSerializer` touches `ComponentTypeRegistry` only inside `Serialize`/`Deserialize`
+*(`:419`, `:513`, `:525`)*, i.e. at USE. ⭐ It was about to be filed **INCIDENTAL**. Reading one level
+deeper — `ScenarioSerializerBuilder.Build()` → `FdpAutoSerializer.Build()` — showed the freeze at `:93`.
+🔒 **The rule this yields: an ordering claim is settled by the callee's BODY, never by its signature.**
+
+#### ③ ⭐ WHAT IS ACTUALLY FREE — **three of the orderings are habit**
+
+| | |
+|---|---|
+| ⭐ **4b** `GetAdditionalModules` | no consumer found; constraint is only *"before 7"* |
+| ⭐ **6c** time-sync registration | needs only Phase-1 values; its position between 6b and 6d is arbitrary |
+| ⭐ **6d** `RegisterApplicationSystems` | virtual no-op; only *"before 7"* |
+| ⭐⭐ **and 5 → 6a is NOT a dependency** | 📐 measured: `RegisterSpawningPipeline` never reads `ClusterSlave` in any of the three subclasses ⇒ 6a may precede 5 |
+
+#### ④ 📐 THE CLAIM TABLE
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| 2→3 is a real, silent-failure constraint | ✅ `FdpAutoSerializer.cs:93` freezes from the registry snapshot | ✅ the base's own comment at `:73` states it; now corroborated |
+| 7 last is enforced, not convention | ✅ `ModuleHostKernel.cs:165-166` throws | ✅ base comment *"Always last"* |
+| 7+ after 7 is enforced | ✅ `EngineBackedNavigationModule.cs:63-65` throws | ✅ base comment names this exact module |
+| 4a→6a/6b rides a subclass field | ✅ `SimHostNodeBootstrapper.cs:203` write · `:350`, `:385` reads | ⛔ **searched, no design records this channel** |
+| 6a+→6b rides a mutated context field | ✅ `HrotNodeBuilder.cs:215` comment + `:385` read | ⛔ searched, none found |
+| 5→6a is not a dependency | ✅ 0 `ClusterSlave` hits in all three overrides | ⛔ searched, none found |
+| ⛔ the OTHER subclasses' hidden field flows | ⛔ **NOT ENUMERATED** — SimHost was traced end to end; IG and Stride were spot-checked only. 📐 19/14/15 fields declared ⇒ more channels are likely | ⛔ not searched |
+
+⚠ **That last row bounds this pass:** the *kinds* of hidden channel are established and each is evidenced;
+⛔ **the full per-subclass field-flow enumeration is a further pass** and must happen before any host is
+migrated, because a missed field is a silent break.
+
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
 ### 5.1 Venue and channels — settled *(`AQ63` §12)*
