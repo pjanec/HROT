@@ -149,7 +149,7 @@ answer — and when you do, batch every symbol question into that one warm sessi
 | the question | ⭐ the tool | why not the other |
 |---|---|---|
 | ⭐⭐ *"what is the complete SET of X?"* | **`search_graph`** | ⛔ Roslyn answers *"where is THIS symbol"*; it cannot enumerate. **The `INVENTORY`-before-design rule is untouched** |
-| ⭐⭐ *"which FILES mention this name?"* | **`search_code`** *(or grep)* | ⭐ **it beats Roslyn on reach** — 📌 measured: 33/33 C# files **including `Stride/` and out-of-solution projects**, plus 13 design `.md` and 3 `.dev` files. ⚠ **pass `limit`** — the default is **10**, which silently looks like a small answer |
+| ⭐⭐ *"which FILES mention this name?"* | ⭐⭐⭐ **`scripts/find.sh <pattern> [--glob '*.cs']`** — runs **`search_code` AND grep** and prints what each one MISSED *(added `2026-09-03`: the rule kept losing to the fact that grep is simply cheaper to type; this makes the cheapest thing to type the correct thing)*. ⛔ It **degrades loudly** — *"UNAVAILABLE"*, never an empty result that reads like an absence | ⭐ **it beats Roslyn on reach** — 📌 measured: 33/33 C# files **including `Stride/` and out-of-solution projects**, plus 13 design `.md` and 3 `.dev` files. ⚠ **pass `limit`** — the default is **10**, which silently looks like a small answer |
 | ⭐ *"what does this function do?"* | **`get_code_snippet`** → `Read` | — |
 | ⭐ anything **not C#** — `.csproj`, `Directory.Build.props`, JSON/config, scenario assets, SQL, Razor, shell, markdown | **grep / `search_code`** | ⛔⛔ the Roslyn workspace holds **C# only** |
 | ⭐ *"was this MEANT to exist?"* | **the design corpus** *(`R-129`)* | ⛔ no compiler answers intent |
