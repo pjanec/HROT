@@ -3,6 +3,10 @@ state: LIVE
 build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is BUILT with two adopters
   (§5b, as-built §5b.4); its remaining adoptions are listed at the end of §5b.4. Phases 2+ get their own
   inventory + UML per batch, appended here as they are designed.
+  ⭐⭐ NEW 2026-09-03: §4.1b (CE-164) — IG builds the shared slave orchestration stack via HrotNodeBuilder
+  Step 8 and then DISCARDS it, hand-building a second bus + a bare ingress-only translator and ticking the
+  halves crosswise, so its TransitionStateIntent is drained by nothing. Measured, NOT built; carries the
+  lean. It also SUPERSEDES DESIGN_Mcp_Diagnostics_Federation.md §1d's lean.
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
@@ -173,6 +177,99 @@ implementation of something the builder already selects through `INetworkFactory
 MASTER. ⇒ ⭐⭐⭐ **the first item of phase N is making the time role a builder input**, not moving Editor code.
 ⚠ **Until that exists, "the Editor should adopt `HrotNodeBuilder`" is not actionable** — and an earlier
 reading of §4 that treated the Editor as merely lagging was wrong about the cause.
+
+### 4.1b 🔴🔴 `CE-164` — **IG BUILDS THE SHARED SLAVE STACK, THEN DISCARDS IT AND HAND-BUILDS A SECOND ONE** *(measured `2026-09-03`; NOT fixed)*
+
+> 🔒 **User, `2026-09-03`:** *"the `NedSlaveOrchestrationTranslator` missing on IG shows we are missing
+> shared code for slave node composition/bootstrap. all 3 ECS nodes should call it to register this (and
+> likely many other) translators to be shared by any networked slave node."*
+>
+> ⭐⭐ **The symptom is real and the direction is right. ⛔ The premise is not: the shared code EXISTS, IG
+> DOES call it, and then throws the result away.** ⚠ That distinction changes the fix — see the lean.
+
+#### 📐 The symptom, measured live on the four-process cluster
+
+| | result |
+|---|---|
+| `POST /scenario/load/live` on **IG** | ✅ `ok, via: "cluster-intent"` — ⛔ **and the cluster never moves** |
+| the **identical** call on **CGF** | ✅ moves all three nodes to the target |
+| ⇒ | ⛔ not an illegal transition, not a state problem — **the ORIGIN node** |
+
+#### ⭐⭐⭐ The mechanism — **IG runs TWO orchestration stacks and ticks the halves crosswise**
+
+📐 **`HrotNodeBuilder.Build()` Step 8 already builds the complete stack** — `new ClusterSlave(...)` **and**
+`nodeFactory.CreateSlaveOrchestratorTranslators(eventBus, nodeId)`, i.e. a `NedSlaveOrchestrationTranslator`
+= `NodeOpSlaveTranslator` *(ingress + heartbeat)* **+** `ClusterOpEgressTranslator` *(which drains
+`TransitionStateIntent` to DDS)* — and returns both on `HrotNodeContext`. ⭐ **`IgNodeBootstrapper:151`
+calls that builder.** ⇒ ⛔ **the egress translator is BUILT on IG.**
+
+⛔⛔ **Then `IgNodeBootstrapper.BuildOrchestration` builds a second stack on a NEW bus:**
+
+| | **stack ①** — the builder's *(shared)* | **stack ②** — IG's own *(hand-built)* |
+|---|---|---|
+| bus | `HrotNodeContext.EventBus` | `new FdpEventBus()` → `IgNodeBootstrapper.OrchestrationBus` |
+| slave translator | ✅ **complete** — ingress + **egress** | ⛔ **bare `NodeOpSlaveTranslator`** — ingress + heartbeat only |
+| **`Tick()`ed?** | 🔴 **NEVER** — `context.SlaveTranslator` appears nowhere in `IgApplication` | ✅ `IgApplication:980` |
+| `SwapBuffers()`? | ✅ `IgApplication:1041` | ✅ `IgApplication:979` |
+| the live `ClusterSlave` | orphaned | ✅ `_context.ClusterSlave` *(`IgApplication:932`)*, ticked at `:981` |
+| ⭐⭐⭐ **what the debug API publishes onto** | 🔴 **THIS one** — `OrchestrationBus => _context?.EventBus` *(`IgApplication:1708`)* | — |
+
+⇒ 🔴 **`requestTransition` publishes onto stack ①'s bus, whose complete translator is never ticked.** The
+intent is written, swapped, and read by nothing. ⛔ **The capability was built and thrown away — not
+missing.**
+
+#### ⭐⭐ IG IS THE ONLY OUTLIER — every other host ticks the shared translator
+
+📐 `grep` for `SlaveTranslator?.Tick()`, production only:
+
+| host | ticks the **builder's** complete translator | passes `context.EventBus` to its orchestration |
+|---|---|---|
+| **SimHost** | ✅ `SimHostApp:560` *(from `_bootstrapper.SlaveTranslator`, `:504`)* | ✅ |
+| **Stride** | ✅ `StrideNodeBootstrapper:174` | ✅ `eventBus: context.EventBus` |
+| **CGF** | ✅ `CgfSubsystem:1294` | ✅ |
+| **EyesAndMuscle** | ✅ `EyesAndMuscleSubsystem:104` | ✅ |
+| 🔴 **IG** | ⛔ **no** — ticks its own bare one instead | ⛔ **no** — makes a second bus |
+
+#### ⛔ WHAT LETS THIS HAPPEN — the seam, not the node
+
+⭐⭐⭐ **`SharedApplicationBootstrapper.BuildOrchestration` is `protected abstract`** *(one of **seven**
+abstract hooks)*. ⇒ the 7-phase base mandates *that* each node wire orchestration and shares **none of the
+doing** — nothing structurally binds a subclass to `context.EventBus` or to `context.SlaveTranslator`.
+⭐ Three subclasses write it three ways; two agree by convention and one drifted. ⚠ **That is the user's
+point, and it stands** — but the missing thing is a **BINDING**, not a registrar that does not exist.
+
+#### ⭐⭐⭐ THE LEAN — **① make IG use the stack it already built · ② make the seam stop permitting the split**
+
+| # | | why |
+|---|---|---|
+| **①** | ⭐⭐⭐ **`IgNodeBootstrapper.BuildOrchestration` stops creating `new FdpEventBus()` and a bare `NodeOpSlaveTranslator`** — it builds its `ClusterSlave` on `context.EventBus` and lets `context.SlaveTranslator` be the one thing ticked, exactly as Stride does *(Stride's whole override delegates to `NodeBootstrapper.BuildOrchestration(..., eventBus: context.EventBus)`)*. ⭐ `IgApplication` then ticks `_context.SlaveTranslator` and drops `_igSlaveTranslator`/`_igOrchestrationBus` | ⛔ **deletes a duplicate stack; adds no mechanism.** ⭐ Stride is the working precedent and it is the closest sibling |
+| **②** | ⭐⭐ **the base stops permitting it** — the cheap form is a **post-condition assertion in `SharedApplicationBootstrapper` after `BuildOrchestration`**: the returned `ClusterSlave` must sit on `context.EventBus`, and `context.SlaveTranslator` must be non-null when a participant exists. ⚠ The richer form *(a base `BuildOrchestration` with a per-node handler hook)* is a bigger refactor and should follow the assertion, not precede it | 🔒 *"every ECS node must use the same shared code"* — ⭐ but a convention nothing checks is a convention that decays, which is why ① alone is not enough |
+| ⛔ **what I would NOT do** | write a **new** `RegisterSlaveNodeTranslators(...)` shared registrar and call it from three bootstrappers | ⛔ **that is a FOURTH mechanism** for something `HrotNodeBuilder` Step 8 + `INetworkFactory.CreateSlaveOrchestratorTranslators` already do for five hosts. 📌 The seam law: *"we need a shared X"* here means **X exists and is under-adopted** |
+
+⚠ **On *"(and likely many other) translators"* — measured, and the answer is NO for the other hook.**
+`RegisterNetworkTranslators` is the other abstract hook, and its three implementations register genuinely
+**different, role-specific** sets: SimHost `CreateSimHost{Auxiliary,Perception,Pathfinding}Translators` ·
+Stride `CreateSimHostAuxiliaryTranslators` · IG `CreateIgEgressTranslators`. ⇒ ⭐ **that divergence is
+intended** *(an IG does not run pathfinding)*, and collapsing it would be the mirror error. ⛔ **The
+orchestration/control-plane stack is the one that must be identical, because every networked slave speaks
+the same control protocol** — and it is the one that drifted.
+
+⚠ **What would change the lean:** if IG's second bus exists for a measured reason — e.g. its render tick
+runs at a different rate and must not share buffer swaps with the control plane — then ① is wrong and the
+fix is instead to tick `context.SlaveTranslator` **on IG's existing bus pairing**. ⛔ **Searched `docs/` and
+`.dev/` for a record of why IG builds its own orchestration bus — none found**; `IgNodeBootstrapper:229`
+says only *"CMC-S016: each slave subsystem has its own orchestration bus + translator (Option C)"*, which
+argues for **per-subsystem** buses *(true of every host — each has its own)* and **not** for two buses
+inside one subsystem. ⇒ **that comment does not justify the split, and the split may simply predate the
+builder growing Step 8.** ⭐ Worth one `git log -S` on `HrotNodeBuilder` Step 8 before building.
+
+⚠ **Blast radius, stated honestly:** this changes which bus IG's control plane lives on, so it touches
+heartbeats, `NodeOpStatus` ACKs, and the `ClusterSlave` `CE-163` now reads. ⛔ **Not a read-only change**
+— it needs the four-process cluster re-run *(load/live from the IG port must move all three nodes, and IG
+must still ACK cluster ops)*, not just unit rails.
+
+📄 `CE-164` was first written up in `DESIGN_Mcp_Diagnostics_Federation.md` §1d; that section's *"IG
+hand-constructs half of it"* lean is **SUPERSEDED** by this section and points here.
 
 #### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
 

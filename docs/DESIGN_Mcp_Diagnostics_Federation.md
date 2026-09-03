@@ -185,13 +185,15 @@ egress translator — and `NodeOpSlaveTranslator` contains **zero** references t
 SimHost · CGF · IG**)"* — 🔴 **false for IG.** 📌 The same shape as `CE-162`: a documented absence that
 was not the measured one.
 
-⭐⭐ **The lean:** route IG through the shared `INetworkFactory`-built `ISlaveOrchestrationTranslator` like
-CGF and SimHost, rather than hand-constructing half of it — ⭐ which is the same ruling again, *"every ECS
-node must use the same shared code."* ⚠ `Hrot.ClusterRunner.Tests/HexagonalBoundaryTests.cs` already traps
-*"rogue `new NodeOpSlaveTranslator` / `new ClusterOpEgressTranslator` calls"*, so **check why IG is exempt
-there before editing** — the exemption is the thing to remove, and it may carry a reason.
-⛔ **Not built here:** it changes IG's DDS wiring, which is a different blast radius from a read-only
-projection, and it deserves its own measurement rather than being folded into `CE-163`'s tail.
+⛔⛔ **THE PARAGRAPH ABOVE IS INCOMPLETE AND ITS LEAN WAS WRONG — SUPERSEDED `2026-09-03`.** It said IG
+*"hand-constructs half of it"*, implying the egress translator is **missing** on IG. 🔴 **It is not
+missing. It is BUILT and then DISCARDED.** ⇒ 📄 **the corrected mechanism, and the design consequence, is
+`DESIGN_Subsystem_Composition_Unification.md` §4.1b** — which owns node bootstrap and is where this
+belongs. ⭐ Keep reading there; the two paragraphs above remain true only as far as *"nothing drains IG's
+intent"*.
+
+⭐ **Still true, and still not built here:** the fix changes IG's DDS/bus wiring, a different blast radius
+from `CE-163`'s read-only projection.
 
 ## 2. ⭐⭐ THE DIAGNOSTICS SURFACE
 ### 2.1 ⭐⭐⭐ `GET /logs` — reads in-memory records, NOT the file *(exists; wiring gap)*
