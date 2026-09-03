@@ -47,6 +47,12 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is B
   BS-1-DESIGN:357 says they are "already correctly designed... no changes needed" -- dormant, not wrong.
   §4.1j carries the classDiagram + sequenceDiagram and the B1..B5 build sequence with acceptance.
   build-state for the ROLE COMPOSITION work: READY-TO-BUILD at B1.
+  🔴 NEW 2026-09-03: §4.1k CORRECTS §4.1f and §4.1j on a user challenge. StrideNodeBootstrapper DECLARES
+  Role = MuscleGround|Perception|NavigationSolver|ImageGenerator and takes four nullable per-role module
+  slots -- so the roles are DECLARED, not undeployed; and the only two constructions in the repo are
+  tests passing all four null, so every slot is empty. Stride's ctor is axis 3 hand-rolled. It is also
+  the first node selecting two roles whose module sets OVERLAP, which is why B1 must precede any filling
+  of those slots.
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
@@ -910,6 +916,76 @@ on the existing nodes, or stay dormant until a node is actually deployed in thos
 says the modules are ready; ⛔ **it does not say any current node should select them**, and giving SimHost
 `AutonomousPerceptionModule` alongside `CognitiveSpatialModule` would double-register four systems — 📌
 **exactly what B1 exists to catch.** ⇒ **a deployment decision, not a composition one.**
+
+### 4.1k 🔴🔴 CORRECTION — **STRIDE IS THE FOUR-ROLE NODE, AND IT IS HANDED NOTHING** *(user challenge, `2026-09-03`)*
+
+> 🔒 **User:** *"isn't perception / navigation solver already used by stride subsystem?"*
+>
+> ⭐⭐⭐ **The challenge is right and it corrects TWO of my statements.** ⛔ §4.1f recorded Stride as
+> registering *"the creation tier only"*, and §4.1j said the Perception/NavigationSolver capabilities are
+> *"dormant because no node has ever been deployed in those roles."* 📐 **Both were measured on
+> REGISTRATIONS. The DECLARATION says something else.**
+
+#### 📐 What `StrideNodeBootstrapper` actually declares
+
+```csharp
+/// <summary>Combined node role for all Stride-hosted node responsibilities.</summary>
+public static readonly NodeRole Role =
+    NodeRole.MuscleGround | NodeRole.Perception |
+    NodeRole.NavigationSolver | NodeRole.ImageGenerator;
+
+private readonly IEcsModule? _kinematicsModule;
+private readonly IEcsModule? _perceptionModule;
+private readonly IEcsModule? _combatModule;
+private readonly IEcsModule? _navigationModule;
+
+public StrideNodeBootstrapper(
+    IEcsModule? kinematicsModule = null,
+    IEcsModule? perceptionModule = null,
+    IEcsModule? combatModule     = null,
+    IEcsModule? navigationModule = null)
+```
+
+⇒ ⭐⭐⭐ **Stride is a genuine FOUR-ROLE node with a per-role module slot for each** — 🔒 the concrete
+instance of the user's *"a concrete node often combines multiple roles"*, which the rest of this design had
+**asserted without an example**.
+
+#### 🔴 AND EVERY SLOT IS EMPTY — **the only two constructions in the repo are TESTS, with all four `null`**
+
+📐 `grep 'new StrideNodeBootstrapper'` across the whole tree, `Stride/` included:
+
+| site | arguments |
+|---|---|
+| `Hrot.NodeComposition.Tests/StrideNodeBootstrapperTests.cs:38` | `new StrideNodeBootstrapper()` ⇒ **all four null** |
+| `…:53` | `new StrideNodeBootstrapper()` ⇒ **all four null** |
+| ⛔ **production** | 🔴 **NONE** |
+
+⇒ ⭐⭐⭐ **Stride declares `MuscleGround|Perception|NavigationSolver|ImageGenerator` and receives the modules
+for NONE of them.** ⛔ **The purest instance yet of `CLAUDE.md`'s silent-default family** — the parameters
+exist, the role declaration is explicit and correct, and **every caller passes nothing.** ⚠ Worse than the
+usual shape: here there is no production caller *at all*, so the declaration has never been honoured.
+
+#### ⭐⭐ WHAT THIS CHANGES — three corrections, and the design gets STRONGER
+
+| # | correction |
+|---|---|
+| **①** | ⛔ **§4.1f's "Stride registers the creation tier only" was true but MISLEADING.** ⭐ It registers only that **because its four role-module slots are null** — not because it is a presentation-only node. ⇒ **the row is now explained, not just observed** |
+| **②** | ⛔ **§4.1j's "no node has ever been DEPLOYED in those roles" is WRONG.** ⭐ A node **declares** them today. ⇒ the honest statement: **the roles are declared and unfilled**, which is a *stronger* argument for the composition work, not a weaker one |
+| **③** | ⭐⭐⭐ **Stride's ctor IS axis ③ (`IImplementationFactory`), hand-rolled** — four nullable per-role module slots, host-supplied. 🔒 It is exactly *"respecting possible different implementations (simhost vs stride)"*, already attempted. ⇒ ⛔ **the design is not introducing a new idea; it is generalising one that exists and was never wired** — 📌 the seam law for a **third** time in this programme |
+
+#### ⭐⭐ CONSEQUENCES FOR THE BUILD SEQUENCE
+
+| | |
+|---|---|
+| ⭐⭐ **`B4` gains a concrete acceptance case** | ⛔ Previously *"the four-process cluster is unchanged"* — behaviour-preserving only. ⭐ **Now `B4` can be proven POSITIVELY**: a plan resolving `StrideNodeBootstrapper.Role` must yield **MuscleGround + Perception + NavigationSolver** capabilities, where today it yields **nothing**. ⇒ a real before/after, not just an absence of regressions |
+| ⚠ **but it stays BEHAVIOUR-PRESERVING** | ⛔ **Filling Stride's slots is `B5`, not `B4`.** 📐 Giving a live Stride node kinematics + perception + navigation is exactly the kind of change §4.1h warned about — new systems ticking on a host that never ran them. ⭐ `B4` proves the **plan resolves correctly**; `B5` acts on it |
+| ⭐ **and `B1` is vindicated again** | ⚠ Stride is `MuscleGround\|Perception` — **the two roles whose module sets OVERLAP** *(`CognitiveSpatialModule` ⊃ `AutonomousPerceptionModule`; both carry `LocalGridBuilderSystem`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `SensorTrackDebounceSystem`)*. ⇒ 🔴 **the first real node to select two roles is the one that would double-register four systems** — `[SingleInstance]` must land before Stride's slots are ever filled |
+
+⚠ **Still not measured:** whether `Stride/`'s own game host constructs a bootstrapper by some other path
+*(a DI container, a factory)*. 📐 `grep 'new StrideNodeBootstrapper'` finds nothing in `Stride/`, and
+`grep 'NodeRole.'` finds **no** hits in the `Stride/` tree at all — ⛔ but a negative from grep over an
+out-of-solution tree is weaker than one over compiled code, and `check_index_coverage` is unavailable
+through the CLI. ⇒ ⭐ **stated as measured-by-grep, not as proven.**
 
 #### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
 
