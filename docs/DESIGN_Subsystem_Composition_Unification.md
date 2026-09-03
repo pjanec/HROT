@@ -26,6 +26,12 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is B
   and the packs disagree on Combat and ActionDispatch; two systems sit in BOTH packs and would
   double-register on a Brain|MuscleGround node; and PhysicsToolkitModule fits no role, so an Always
   tier is required.
+  ⭐⭐⭐ NEW 2026-09-03: §4.1h CLOSES the role list and SUPERSEDES §4.1f's four-tier sketch. Four ORTHOGONAL
+  axes: RESOURCES (one per world, memory-owning -- PhysicsToolkitModule/RaycastBatchData, which CGF and
+  SimHost each hand-allocate for different reasons) / CAPABILITIES (role system-sets, unioned) /
+  IMPLEMENTATIONS (executor sets, engine-vs-fakes, SimHost-vs-Stride) / and AUTHORITY-SCOPED PROTOCOL,
+  which is listed only to be EXCLUDED. It also RESOLVES §4.1f discrepancy 1 by measurement: the enum is
+  right on both rows and the packs drifted.
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
@@ -569,6 +575,80 @@ per system, and it must be before the `[Flags]` union is built.**
 | ⭐⭐ **an opt-in `[SingleInstance]` marker on systems that are singletons by design**, enforced where systems actually land — **`SystemScheduler.RegisterSystem`** | ⭐ that is the ONE choke point both the module path and the global path funnel through ⇒ one check covers everything |
 | ⚠ **opt-in, not blanket** | ⛔ a blanket "no duplicate system type" rule would ban legitimately multi-instance systems *(the same solver parameterised twice)*, and a rule that fires on a valid shape gets deleted within a batch — 📌 exactly what `CE-164`'s over-strong first assertion did *(§4.1c)* |
 | ⭐ **it is a PREREQUISITE for the role union, not a follow-up** | ⛔ the union's whole job is to merge overlapping role sets; merging without a duplicate check is how the overlap becomes a silent double-tick |
+
+### 4.1h ⭐⭐⭐ THE CONCEPT MODEL — **closing the role list before any code moves** *(measured `2026-09-03`)*
+
+> 🔒 **User:** *"Physics engine implementation seems like resource that is needed by various roles; This will
+> be similar to what modules a role need; and concrete node often combine multiple roles. These concepts
+> and how to break the current per-host bootstrap/logic packs should be all clarified before we jump into
+> implementation."*
+>
+> ⭐⭐⭐ **The insight is correct and the code already demonstrates it TWICE — see `PhysicsToolkitModule`
+> below.** ⇒ the model needs **four ORTHOGONAL axes**, not one list. §4.1f's "four tiers" was a first
+> approximation with the wrong top row; **this section supersedes it.**
+
+#### 📐 THE FIVE ANSWERS, MEASURED
+
+| ⭐ concept | what it actually is |
+|---|---|
+| ⭐⭐ **ActionDispatch** | 📄 `Fdp.Toolkits/Behavior/Modules/ActionDispatchModule.cs` — **generic and explicitly *"executor-agnostic"*.** It registers `LocomotionDispatcherSystem` · `WeaponDispatcherSystem` · `InteractionDispatcherSystem`, each fed an executor table through the ctor: `(ushort, IActionExecutor<LocomotionChannel>)[]`, `…<WeaponChannel>[]`, `…<InteractionChannel>[]`. ⇒ ⭐⭐⭐ **it turns DECIDED actions on channels into EXECUTOR CALLS. The module is generic; the EXECUTOR SET is what varies per role.** ⛔ Only `CgfLogicPack:128` constructs one today |
+| ⭐⭐ **Combat** | 📄 `Hrot.SimHost/Modules/CombatModule.cs` — `FireProcessingSystem` · `RaycastSolverSystem` · `HitResolutionSystem` *(Input)* + `BallisticsSystem` *(PostSim)*. ⚠⚠ **Its own summary reads: *"Grouping for combat, perception, and physics systems that are present on ALL NODE ROLES."*** ⇒ ⛔ **it is self-declared all-roles AND it mixes three concerns** — a mis-named grouping that needs splitting before it can be role-keyed |
+| ⭐⭐ **`RaycastBatchData`** | ⭐⭐⭐ **a RESOURCE, not a system** — two `Allocator.Persistent` `NativeArray`s + a **world singleton**, allocated by `PhysicsToolkitModule.Initialize()`. 📐 Consumers measured across **three unrelated concerns**: `PerceptionTranslators.cs` *(4 sites — LOS)* · `RaycastSolverSystem` *(combat)* · `Action_QueryRaycast` *(a Brain behaviour-tree action)* |
+| ⭐⭐ **Damage — the role affinity** | ⛔ **it is not ONE role; it is a two-node PROTOCOL, deliberately split.** ⭐ `DamageCalculationSystem` *(in `DamageAssessmentModule`)* consumes `DetonationNotification`, computes flat HP loss and publishes `DamageAssessedEvent` — its doc: *"runs **exclusively on the Muscle node**… the Muscle is the **designated damage-calculation authority** for all detonations it observes… **Entity CQRS ownership (Brain vs. Muscle) is not checked here.**"* ⭐ Then `HealthApplicationSystem` *(in `CgfLogicPack`)* applies that event to `Health` **on the authoritative node**. ⇒ ⭐⭐ **calculate on MuscleGround · apply on the entity's AUTHORITY** |
+| ⭐⭐⭐ **`PhysicsToolkitModule`** | ⛔ **not a role module and barely a module** — it registers no meaningful systems. `Initialize()` allocates the arrays, builds `RaycastBatchData`, registers the singleton, and **retains the handles so `Dispose()` frees them**: *"Scenarios must keep the module alive for the entire simulation lifetime."* ⇒ ⭐⭐⭐ **a LIFETIME-OWNING RESOURCE PROVIDER** |
+
+#### 🔴 THE PROOF THAT "RESOURCE" IS THE RIGHT CONCEPT — **two hosts allocate it for DIFFERENT reasons**
+
+| host | why it allocates `RaycastBatchData` |
+|---|---|
+| **SimHost** | `RaycastSolverSystem` *(Combat)* and `CognitiveSpatialModule` *(Perception)* need it |
+| **CGF** *(Brain)* | `CgfSubsystem:577` — verbatim: *"Allocate `RaycastBatchData` **so `Action_QueryRaycast` can enqueue/query requests on CGF**"* |
+
+⇒ ⭐⭐⭐ **Two different roles, two different reasons, the same one-per-world resource — and BOTH hand-allocate
+it.** ⛔ It can never be a member of a role's module list, because a `Brain|MuscleGround` node would then
+allocate it **twice**: two persistent native array pairs leaked and one singleton slot overwritten.
+📌 **This is the double-registration hazard of §4.1g ② in its most damaging form**, and it is exactly the
+distinction the user drew.
+
+#### ⭐⭐⭐ THE MODEL — **four orthogonal axes**
+
+| axis | what belongs | selection rule | multiplicity |
+|---|---|---|---|
+| ⭐⭐⭐ **① RESOURCES** | `RaycastBatchData` *(via `PhysicsToolkitModule`)* · the TKB catalogue · `NetworkEntityMap` · the id allocator | ⭐ **"is it needed by ANY selected role?"** ⇒ union of the roles' *declared needs* | ⛔⛔ **EXACTLY ONE per world, always.** ⚠ Owns memory ⇒ a duplicate is a leak, not a slow frame |
+| ⭐⭐ **② CAPABILITIES** *(role system-sets)* | MissionControl · CognitiveRuntime · ActionDispatch · GroundKinematics · Combat · Perception · NavigationSolver | ⭐ `NodeRole` flags, **unioned and deduplicated** | ⭐ one instance per capability, however many roles ask for it |
+| ⭐ **③ IMPLEMENTATIONS** | the **executor sets** ActionDispatch takes · `EngineBackedNavigationModule` vs `NavigationFakesModule` · a Stride module vs a SimHost one | ⭐ host-supplied factory, **keyed by (capability, host)** | ⭐ exactly one per capability the node selected |
+| ⚠ **④ AUTHORITY-SCOPED PROTOCOL** | damage: **calculate on Muscle → apply on the authority**; ownership/ack handshakes | ⛔ **NOT a composition rule at all** — it is a per-ENTITY runtime check inside systems | — |
+
+⛔⛔ **④ is listed to be EXCLUDED.** 📌 It is the thing most likely to be mistaken for a role during the
+build: *"damage is a Muscle concern"* is **half** true, and wiring it as a role module would silently drop
+the apply half. ⭐ It stays as runtime authority checks; the composition model must not try to express it.
+
+#### ✅ THIS RESOLVES §4.1f's DISCREPANCY ① — **the enum is RIGHT, the packs drifted** *(both rows)*
+
+| row | verdict, now measured |
+|---|---|
+| **enum: `ActionDispatch` on BOTH Brain and MuscleGround** — code: Brain pack only | ✅ **the enum is right.** `ActionDispatchModule` is *executor-agnostic by construction* ⇒ **the same capability with different executor sets** is exactly what Brain *(remote command)* and Muscle *(local actuator)* both need. ⛔ The code has it Brain-only because **Muscle's executor set was never wired** — a missing implementation *(axis ③)*, not a role boundary |
+| **enum: `Combat` on BOTH** — code: MuscleGround pack only | ✅ **the enum is right, and `CombatModule`'s OWN SUMMARY agrees with it** — *"present on all node roles."* ⇒ ⛔ registering it only on SimHost contradicts the module's own contract |
+
+⇒ ⭐⭐ **No ruling needed on ① after all — the measurement settles it.** ⚠ **But the consequence is a real
+behaviour change, not a tidy-up:** giving CGF `CombatModule` puts `FireProcessingSystem`/`HitResolutionSystem`
+on the Brain node, and giving Muscle an ActionDispatch executor set is new wiring. ⛔ **Both need their own
+measurement and gates** — this section only establishes that the *intent* is uniform.
+
+#### ⭐⭐ HOW THE PER-HOST PACKS BREAK UP
+
+| today | becomes |
+|---|---|
+| `CgfLogicPack` | **Brain** capability set + its **executor set** *(axis ③)* |
+| `SimHostCoreLogicPack` | **MuscleGround** capability set + its executor set |
+| `PhysicsToolkitModule` hand-allocated in 2 hosts | ⭐ **a RESOURCE declared by the capabilities that need it**, allocated once by the base |
+| `CombatModule` *(combat + perception + physics, all-roles)* | ⛔ **SPLIT** — its Perception systems to Perception, its combat systems to Combat, its physics dependency to the resource axis |
+| `UnitHierarchySystem` in 2 packs + `IgUnitHierarchyModule` | ⭐ **one capability**, one instance, no host wrapper *(§4.1g ①)* |
+| `EqsResultUpdateSystem` in 2 packs | ⭐ one capability instance |
+
+⛔ **Still not built.** ⭐ **What is now settled:** the four axes, the five concept definitions, discrepancy
+①. ⚠ **What is NOT:** the per-capability resource *declarations* (axis ① needs each capability to say what
+it needs), and §4.1g ②'s per-system double-tick audit.
 
 #### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
 
