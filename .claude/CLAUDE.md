@@ -450,18 +450,41 @@ been treated as expensive. **It is not.**
 
 ### ⭐⭐⭐ The rule — **a CLAIM TABLE in the chat reply, in front of every lean**
 
-| the lean rests on | measured |
-|---|---|
-| translators run for replicas too | ✅ `NetworkSpawningSystem.cs:134` |
-| the ownership path never attaches | ✅ `OwnershipIngressSystem.cs:75` |
-| nothing reads `NetworkTransform` authority | ⛔ **assumed** |
+| the lean rests on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| translators run for replicas too | ✅ `NetworkSpawningSystem.cs:134` | ✅ `Q65 §4` |
+| the ownership path never attaches | ✅ `OwnershipIngressSystem.cs:75` | ⛔ **searched `docs/`+`.dev/`, none found** |
+| nothing reads `NetworkTransform` authority | ⛔ **assumed** | ⛔ **not searched** |
 
 | ⭐ | |
 |---|---|
 | ⭐⭐⭐ **NO ⛔-ASSUMED ROW MAY BE LOAD-BEARING** | ⇒ if it would flip the lean when false, **MEASURE IT BEFORE ANSWERING** |
 | ⭐⭐ **an unmeasurable claim still gets its row, marked ⛔** | ⭐ that is the USEFUL case — the user pushes on **that row**, not on the conclusion |
-| ⭐⭐⭐ **the generating question, asked BEFORE forming the lean** | 🔒 ***"what would have to be true for this to be WRONG, and which FILE would show me?"*** — 📌 that one question would have caught **all three** misses above |
+| ⭐⭐⭐ **the generating question, asked BEFORE forming the lean** | 🔒 ***"what would have to be true for this to be WRONG — which file shows how it IS, and which DESIGN says how it was MEANT to be?"*** |
 | ⭐⭐ **why a TABLE and not "be careful"** | ⛔ the user **cannot check the reasoning from a phone** — ⭐ but they CAN check *"four rows measured"* vs *"one."* **It exposes the SHAPE OF THE CONFIDENCE, not just the verdict** — the same reason the `INVENTORY` block and the gate-report contract stuck where *"be diligent"* never has |
+
+#### ⛔⛔⛔ THE SECOND COLUMN — **a table full of CODE rows can still be WRONG** *(added `2026-09-03`, and it was measured on a live miss)*
+
+📌 **The case.** Deciding whether IG may schedule `NetworkSpawningSystem`, the lean rested on *"ELM teardown
+waits for acks, so it may stall on a non-owning node."* ⭐ A claim table was built and **every row cited an
+implementation** — `EntityLifecycleModule.cs:277`, the hazard rail's own prose. 🔴 **The conclusion was still
+wrong.** `FDP/Docs/projects/toolkits/FDP.Toolkit.Lifecycle.md` §2 says the acks are **local MODULE acks**
+*(`DestructionAck` carries a `ModuleId`, "published by individual modules after cleanup")*, and
+`.dev/_DONE/two-ack/TwoAck-DESIGN.md` §6 states the invariant *"the ELM and `NetworkSpawningSystem` remain
+pure, generic ECS systems."* ⇒ **no authority dependency, no stall, and the whole option tree built on it was
+scaffolding.**
+
+| ⛔ why the EXISTING rules did not fire — both, precisely | |
+|---|---|
+| ⛔⛔ **`R-129` keys on the wrong TRIGGER** | it fires on *"before you TOUCH or design a change to an existing feature."* ⭐ ELM was not being changed — it was being **REASONED THROUGH**. ⇒ 🔒 **the design-read trigger must key on what the CONCLUSION DEPENDS ON, not on what is being EDITED** |
+| ⛔⛔ **the claim table pointed at the wrong CORPUS** | its generating question said *"which **FILE** would show me?"* ⇒ ⭐ **it routed to code BY CONSTRUCTION.** The rule was obeyed and the table was full; it simply never asked for intent. ⚠ **That is a defect in the rule, not a lapse in following it** |
+
+| ⭐⭐ the amendment | |
+|---|---|
+| ⭐⭐⭐ **every load-bearing row carries BOTH columns** | ⛔ a row with code and a blank design cell is **not finished** — it is *"how it is"* with no check on *"how it was meant to be"* |
+| ⭐⭐ **`⛔ searched, none found` is a COMPLETE answer** | ⭐ it is the sentence `RULE ZERO` obligation 1 already demands. ⛔ **`not searched` is not** |
+| ⭐⭐⭐ **THE PROPER-NOUN TRIGGER** | 🔒 **when an engine proper noun enters the reasoning as a LOAD-BEARING MECHANISM** — `ELM`, the pack, the bus, the entity map, the allocator — **it gets ONE corpus search before anything is built on it.** ⭐ The signal is *"I am about to explain how X works"*, ⛔ **NOT** *"I am about to edit X"* |
+| ⭐ **it is sub-second** | 📌 measured: `search_code(pattern="EntityLifecycleModule")` returned **105 markdown files** in one call, including all three that decided the question. ⇒ ⛔ **it was never hard to find. It was never asked for.** ⚠ Search the TOPIC, never a guessed filename *(`R-129` obligation ②)* |
 
 ⭐⭐⭐ **CONSEQUENCE THE USER EXPLICITLY WANTS: BE SLOWER BEFORE THE FIRST ANSWER.** ⛔ The measured pattern
 was *first lean wrong · third lean right*, **because the USER'S CORRECTIONS WERE DOING THE MEASUREMENT.**
