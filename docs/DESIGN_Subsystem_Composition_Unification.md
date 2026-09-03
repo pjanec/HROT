@@ -111,6 +111,45 @@ measured defects. ⇒ ⭐ **bundles; a host composes a LIST, and a smaller list 
 | **2+** | **one bundle per batch**, extracted **from the editor as specimen**: scenario panels → gizmos → map → AI shell → time transport | ⭐ each collapses a measured drift site permanently |
 | ⚠ **N** *(optional, LAST)* | node-bootstrap adoption — **CGF first** *(it already uses `HrotNodeBuilder`/`HrotNodeContext`; the editor uses neither)* | ⛔ **deliberately last:** the only phase touching orchestration/participant/time authority, i.e. what §3.1 says not to move blindly. 📐 **Not one** of `CE-046`…`CE-064` was a node-bootstrap gap |
 
+### 4.1 ⭐⭐ PHASE N, MEASURED *(`2026-09-03` — the layer cake, and the two hosts outside it)*
+
+⭐ The node half is **three** layers, not one, and they have different adoption. ⛔ *"CGF and the Editor
+bypass the bootstrapper"* collapses them and is why phase N has looked like one job:
+
+| layer | what it settles | adoption, measured |
+|---|---|---|
+| ⭐⭐⭐ **`HrotNodeBuilder.Build()`** | world · `EventAccumulator` + `ModuleHostKernel` · bus + `OrchestrationEventRegistry.RegisterAll` · time controller · DDS participant · `NetworkEntityMap` · id allocator | ✅ **5 production sites**: `IgNodeBootstrapper:148` · `StrideNodeBootstrapper:216` · `SimHostNodeBootstrapper:161` · `CgfSubsystem:534` · `EyesAndMuscleSubsystem:70`. ⛔ **the Editor is NOT one** |
+| ⭐⭐ **`SharedApplicationBootstrapper`** *(the 7-phase ORDER)* | phases 1–7, of which **6a base modules · 6a+ `NedReplicationModule` · 6c time-sync · 7 `Initialize`** are base-class-only | ⚠ **3 subclasses**: SimHost *(387 ln)* · IG *(471)* · Stride *(376)*, over a **279-line** base. ⛔ CGF and the Editor re-run the order inline |
+| ⭐ **the packs** *(what the hooks build)* | `EntityCreationPack` · `MapInteractionPack` · the 9 `*TranslatorPack`s | ✅ shared and adopted independently of the two layers above — 📌 **which is why CGF gets the packs while bypassing the bootstrapper** |
+
+#### 🔴 THE EDITOR IS THE OUTLIER, and it has a MECHANICAL reason — ⛔ not neglect
+
+📐 `EditorSubsystem` duplicates **every step** of `HrotNodeBuilder.Build()` by hand: `new EntityRepository()`
+*(`:957`)* · `new FdpEventBus()` + `OrchestrationEventRegistry.RegisterAll` *(`:958-959`)* ·
+`new ModuleHostKernel(...)` *(`:962`)* · `TimeControllerFactory.Create` *(`:1013`)* · `new NetworkEntityMap()`
+*(`:1021`)* — ⛔ **including a PRIVATE `SequentialIdAllocator` class of its own** *(`:599`)*, a second
+implementation of something the builder already selects through `INetworkFactory`.
+
+⛔⛔ **But it cannot simply adopt the builder today:** 📐 `HrotNodeBuilder.Build()` **hardwires
+`Role = TimeRole.Slave`**, and the Editor creates a **`MasterSyncController`** *(`:1013`)* — it is the time
+MASTER. ⇒ ⭐⭐⭐ **the first item of phase N is making the time role a builder input**, not moving Editor code.
+⚠ **Until that exists, "the Editor should adopt `HrotNodeBuilder`" is not actionable** — and an earlier
+reading of §4 that treated the Editor as merely lagging was wrong about the cause.
+
+#### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
+
+📐 **Phase 5, orchestration handlers.** The handler *classes* are shared, but the **list and its ORDER** are
+hand-built per host: `CgfSubsystem` **9** `RegisterHandler` calls, `EditorSubsystem` **6**,
+`IgNodeBootstrapper` **6**. ⛔ And CGF constructs a **second `ClusterSlave`** at `:793-794` — its own comment
+says *"Create a fresh ClusterSlave manually to strictly control handler registration order"*, discarding the
+builder's. ⇒ ⭐ **an ordering dependency nothing declares**, which is the shape a shared list cannot absorb
+until the dependency is expressed. ⚠ **Not scheduled here** — recorded so phase N does not discover it late.
+
+#### ⭐ Out of scope, stated so it is not mistaken for a gap
+
+📐 `ReplayBrowserSubsystem` has **zero** `ModuleHostKernel`/`RegisterGlobalSystem` references — it is a
+**viewer**, not an ECS node. ⭐ It composes `MapInteractionPack` and nothing else from this block.
+
 ⭐ **Dissolution, not extraction, for `IEditorLogic`** *(approved)*: 📐 128 ln / ~15 members, `EditorApplication`
 297 ln of one-line delegations, **zero** code references from `AiShared`, ~3 members genuinely editor-only.
 📌 `CE-060` dissolved one call in **one line** by publishing the event it already wrapped.
