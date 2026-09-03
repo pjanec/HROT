@@ -2,12 +2,19 @@
 state: LIVE
 updated: 2026-09-03
 build-state: READY-TO-BUILD
-current-answer: §4 is the API; §5 the per-host fit; §2 the author/translator rule; §7 resolves all four
-  questions BY REASONING (R5 reverses an earlier lean). §7c is the one genuine product decision, and it
-  does NOT block the API - the staged migration keeps today's behaviour until it is answered.
+current-answer: §4 is the API - ONE method, RequestEntityCreation, with an `owner` parameter; §4b is why
+  one and not two; §4c is the creation sequence including the double ACK; §5 the per-host fit; §2 the
+  author/translator rule; §7 resolves the four questions BY REASONING (R5 reverses an earlier lean; R1
+  and R4 are RESTATED for the one-method shape). §7c is the one genuine product decision, and it does NOT
+  block the API - the staged migration keeps today's behaviour until it is answered.
 stale-below: nothing.
-known-conflict: none. This EXTENDS DESIGN_Entity_Creation_Unification.md §3.4, which specified the two
-  affordances and their two-name/one-field shape; nothing here overturns it.
+supersedes: DESIGN_Entity_Creation_Unification.md §3.4's TWO-METHOD API shape
+  (RequestFromDefaultProcessor / CreateLocallyOwned). That section is marked SUPERSEDED and points here;
+  its owner TABLE and its ReliableInitType reasoning are untouched and still live.
+known-rot: R1's original argument ("a translator cannot express its case through the affordance") was
+  true only of the two-method shape and is DEAD. The rule survives on §2's definition instead - stated
+  in R1 as the weaker guarantee it now is.
+known-conflict: none.
 -->
 
 # ⭐⭐⭐ THE UNIFIED ENTITY-AUTHORING SURFACE
@@ -19,8 +26,9 @@ known-conflict: none. This EXTENDS DESIGN_Entity_Creation_Unification.md §3.4, 
 **pipeline** (`EntityCreationPack`) are shared, but the **authoring surface is not built at all** — so every
 host that authors an entity hand-rolls the DTO or grows a private adapter.
 
-📄 Extends [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) §3.4, which
-specified `RequestFromDefaultProcessor` / `CreateLocallyOwned` and deferred them behind `CE-143`.
+📄 Extends [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) §3.4 — whose
+owner **table** stands, and whose two-method **API shape** this document **supersedes** with one method
+*(§4b)*. Both were deferred behind `CE-143`.
 ⭐ **`CE-143` is now RESOLVED** — `EntityCreationRequest.InitType` exists
 *(`EntityLifecycleInterfaces.cs:92`, defaulted `AllPeers`)*, so the affordances are unblocked.
 
@@ -90,7 +98,9 @@ appear in the producer table. **Two are in, one is out.**
 
 | field | verdict | reasoning |
 |---|---|---|
-| `initType` | ✅ **already designed** | §3.4: *"both affordances take an explicit `initType`, defaulted to `AllPeers` so adoption changes nothing"*, and *"IG's drawings pass `None`"* |
+| `owner` | ✅ **IN — and it is what collapsed two methods into one** | 📐 the sole routing input *(`EntityCreationRouting.cs:47-51`)*, with **three** legal values ⇒ a parameter, not a verb. 📄 §4b |
+| `isTransient` | ✅ **IN** | ⭐ `R5` below — a per-request property exactly like `initType`; omitting it forces callers to bypass the affordance |
+| `initType` | ✅ **already designed** | §3.4: *"both affordances take an explicit `initType`, defaulted to `AllPeers` so adoption changes nothing"*, and *"IG's drawings pass `None`"*. ⭐ §4c shows what it buys: it is the `PendingNetworkAck` that makes `NetworkGatewaySystem` wait for peers |
 | `initialAttributesJson` | ✅ **IN** | 📐 the operator's placement command carries property JSON — `MapCommandController.ActivatePlacementCommand(…, initialPropertiesJson)` → `EntityPlacementGizmo.cs:219`, railed as `EPG-006`. ⭐ It is an **authoring input**: the human typed it |
 | `requestId` | ✅ **IN** | 📐 `MapCommandController` correlates the two-phase ACK through `_pendingEntityRequests[RequestId]`; it cannot let the affordance mint one. ⭐ An **author that must be told the outcome** needs to name its request |
 | `preAllocatedNetworkId` | ⛔ **OUT** | 📐 one producer only — ① the scenario **extractor**, a translator. ⚠ ⑤ passes it today and it is **dead**: every IG tool sets `NetworkId = 0` *(`IgApplication.cs:3562`, `:3662`)* |
@@ -110,28 +120,138 @@ now or later.
 
 ---
 
-## 4. THE API
+## 4. THE API — **ONE method**
 
 ```csharp
-// PATH 1 — the cluster's arbiter owns and runs genesis. OwnerAppInstanceId = 0.
-Guid RequestFromDefaultProcessor(
+// on EntityCreation (the pack result object)
+Guid RequestEntityCreation(
         long tkbType,
-        SimTransform? transform                     = null,
-        IReadOnlyList<object>? initialComponents    = null,
-        ReliableInitType initType                   = ReliableInitType.AllPeers,
-        string? initialAttributesJson               = null,
-        Guid requestId                              = default);
+        SimTransform? transform                  = null,
+        IReadOnlyList<object>? initialComponents = null,
+        int owner        = EntityCreationRouting.DefaultEntityCreationRequestProcessor,   // 0
+        ReliableInitType initType                = ReliableInitType.AllPeers,
+        string? initialAttributesJson            = null,
+        bool isTransient                         = false,
+        Guid requestId                           = default);
+```
 
-// PATH 2 — I own this, full lifecycle locally. OwnerAppInstanceId = NodeId.
-Guid CreateLocallyOwned( /* identical parameter list */ );
+```csharp
+// the arbiter owns and runs genesis — today's behaviour, and the overwhelming majority of call sites
+creation.RequestEntityCreation(tkbType, transform, components);
+
+// I own this: full lifecycle locally, and nobody has to ACK a scratch drawing
+creation.RequestEntityCreation(tkbType, transform, components,
+                               owner: creation.NodeId, initType: ReliableInitType.None);
+
+// a third node by name — expressible, with no third method
+creation.RequestEntityCreation(tkbType, transform, components, owner: thatNodeId);
 ```
 
 | ⭐ | |
 |---|---|
+| ⭐⭐⭐ **ONE method, an `owner` argument** | 🔒 **User, `2026-09-03`:** *"the node simply says who is the executor and default owner in its request… whoever it is, it calls entity creation on its node as if it was a local request. no difference between if the request comes from the same node or other."* — ⭐ §4b measures that this is exactly what the code does |
+| ⭐⭐ **`owner` is an `int` node id, not a bool or an enum** | ⛔ **the domain has three values, not two** *(`0`, `localNodeId`, *"a third node by name"* — §3.4's own table)*. A two-valued affordance leaves the third with no expression, and its author hand-rolls the DTO |
+| ⭐ **the default is a NAMED constant** | `DefaultEntityCreationRequestProcessor` ⇒ an omitted `owner` reads as a decision, not as a forgotten `0`. 🔒 User: *"rather long than misleading"* |
 | **returns the `Guid`** | the request id — minted when the caller passed `default`, echoed when it supplied one. ⭐ An author that wants the ACK keeps it; one that does not, ignores it |
-| **two names, one field apart** | §3.4's rule, unchanged: the *only* difference is `OwnerAppInstanceId` = `0` vs `NodeId` |
-| ⛔ **no bool, no policy table, no TKB flag** | 🔒 §3.4: *"only concrete authoring code picks the way it needs"* — and this codebase has had **five** silent-default defects from boolean parameters |
-| **lives on `EntityCreation`** | the pack's result object, which every one of the six roots already holds. ⛔ No new seam, no new constructor argument |
+| ⛔ **no policy table, no TKB flag, no config switch** | 🔒 §3.4: *"only concrete authoring code picks the way it needs"* |
+| **lives on `EntityCreation`** | the pack's result object, which every one of the six roots already holds. ⛔ No new seam, no new constructor argument. ⭐ `creation.NodeId` is already on it, so *"mine"* needs no extra lookup |
+
+### 4b. ⭐⭐ WHY ONE METHOD — **the measurement, not a preference**
+
+⛔ §3.4 specified **two** methods, `RequestFromDefaultProcessor` / `CreateLocallyOwned`. ⭐⭐ **That shape is
+SUPERSEDED, and the reason is measurable in three files:**
+
+| the claim the two-method shape rested on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| the two paths are two **behaviours** | ⛔ **FALSE.** `CreateEntityRequestSystem` drains a **composite** of the local and the wire source and cannot distinguish them; the sole routing input is `EntityCreationRouting.IsHandledLocally(request, localNodeId, isDefaultProcessor)` *(`EntityCreationRouting.cs:47-51`)*, which reads **`OwnerAppInstanceId` only** | ⭐ §3.4's own words: *"the routing is ONE FIELD"* — ⇒ the design already said it; the API shape contradicted the design |
+| provenance *(who authored it)* affects servicing | ⛔ **FALSE — never consulted.** `EntityCreationRequest` carries no origin field | ⭐ `Q65` §4: `isDefaultProcessor` is a **broadcast tiebreaker**, not an authority gate |
+| two values are enough | ⛔ **FALSE.** §3.4's table has **three** rows: `0`, `localNodeId`, *"a third node by name"* | ⭐ the wire ingress already receives arbitrary owners *(`NedCgfEntityLifecycleAdapters.cs:78`)* |
+
+⇒ ⭐⭐⭐ **Two verbs for one field name the ARGUMENT, not the behaviour.** ⛔ And they cannot express row 3,
+so the affordance would have had a hole exactly where a future multi-node deployment needs it.
+
+#### ⭐ Where the constant lives
+
+⭐⭐ **`EntityCreationRouting.DefaultEntityCreationRequestProcessor = 0`** — 📐 that class is *"THE Level-1
+routing rule in exactly ONE place"* and **already contains the literal**: `bool isDefaultTarget =
+targetNodeId == 0` *(`:49`)*. ⇒ ⭐ the constant is not new vocabulary, it is a **name for a magic number that
+already had a meaning there**, and the routing rule adopts it in the same edit. ⛔ Not on
+`EntityCreationRequest` — the DTO carries the value, it does not interpret it.
+
+---
+
+## 4c. ⭐⭐⭐ WHAT THE AUTHOR SET IN MOTION — **the full creation sequence, including the double ACK**
+
+> 🔒 **User, `2026-09-03`:** *"pls explain the sequence of entity creation including the double ack."*
+> ⭐ It belongs here because it is what the **one** parameter `owner` selects between, and because
+> `requestId` (§3) only makes sense once the ACK stream is on the page.
+
+### ⚠⚠ THREE DIFFERENT THINGS ARE CALLED AN "ACK" — **and conflating them is how the F4 hazard was mis-read**
+
+| # | the ack | who sends it | who waits for it | scope |
+|---|---|---|---|---|
+| ⭐ **A** | `ConstructionAck { ModuleId }` | ⭐⭐ **each ECS MODULE on the servicing node**, when its own components are ready | `EntityLifecycleModule` — flips `Constructing → Active` when **all** registered modules have acked | ⛔ **NODE-LOCAL.** 📄 `FDP/Docs/projects/toolkits/FDP.Toolkit.Lifecycle.md` §2 |
+| ⭐ **B** | *(the peer wait — no message of its own)* | ⭐⭐ **`NetworkGatewaySystem`, which is itself one of those modules**, by **withholding its own `ConstructionAck`** | the same ELM tally | ⭐ cross-node, but expressed entirely as **A**. `GetExpectedPeers((long)pendingInfo.ExpectedType)` → wait for every peer to report `Active`; **`peerSet.Count == 0` ⇒ ack immediately**; a `reliableInitTimeoutFrames` **force-ack** prevents deadlock *(`NetworkGatewaySystem.cs:112-165`)* |
+| ⭐⭐⭐ **C** | `CreateUpdateDeleteEntityAck` — **the DOUBLE ACK** | `CreateEntityRequestSystem` *(phase 1)* and `EntityRequestFinalizationSystem` *(phase 2)* | **the AUTHOR**, keyed by `RequestId` | ⭐ the request/response protocol — the only one an authoring call site ever sees |
+
+⛔⛔ **Only C is "the double ack".** ⭐ **A** is a module-readiness tally and **B** is one module being slow
+on purpose. 📌 **This distinction dissolved the blocker that stopped F4** *(scheduling `NetworkSpawningSystem`
+on IG)*: the fear was *"teardown waits for cluster acks, so a non-owning node could stall"* — false, because
+the acks are **local module acks**, and `.dev/_DONE/two-ack/TwoAck-DESIGN.md` §6 states the invariant
+*"the ELM and `NetworkSpawningSystem` remain pure, generic ECS systems."*
+
+### ⭐⭐ THE DOUBLE ACK — **why two, and what each one promises**
+
+| phase | status | sent when | what the author may conclude |
+|---|---|---|---|
+| **1** | `InProgress` | ⭐ **immediately**, the same tick the request is drained, right after the network id is allocated *(`CreateEntityRequestSystem.cs:207-211`)* | *"accepted, and here is your `NetworkId`"* — ⛔ the entity does **not** exist yet |
+| **2** | `Success` | ⭐ in `PostSimulation`, once the entity is **in the `NetworkEntityMap`** *(**A**+**B** complete)* | *"it exists, it is `Active`, and every peer that had to know does"* |
+
+⇒ ⭐ **Phase 1 exists for LATENCY** — 📐 the header says it verbatim: *"so the ExCon client unblocks with
+minimal latency"*. ⛔ A single ack could not do both jobs: an early one cannot promise existence, and a late
+one leaves a remote operator's UI blocked for the whole peer handshake.
+⚠ **The failure arms are phase 1 too** — a bad `TkbType` answers `UnknownDescriptorType` and there is no
+phase 2. ⇒ ⭐ **an author that waits must accept `InProgress`, `Success` *or* a rejection.**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Tool as Author (IG tool / editor gizmo)
+    participant Cre as EntityCreation
+    participant Fwd as ForwardingEntityCreationRequestSource
+    participant Peer as Owning node (owner != me)
+    participant Req as CreateEntityRequestSystem
+    participant Spawn as NetworkSpawningSystem
+    participant Elm as EntityLifecycleModule
+    participant Gw as NetworkGatewaySystem (a module)
+
+    Tool->>Cre: RequestEntityCreation(tkbType, transform, components, owner)
+    Cre->>Fwd: Enqueue(EntityCreationRequest)
+    Cre-->>Tool: requestId
+    alt IsHandledLocally(request, nodeId, isDefaultProcessor)
+        Fwd->>Req: drained locally
+    else addressed elsewhere
+        Fwd->>Peer: egress Send over DDS
+        Peer->>Req: same system, on that node
+    end
+    Req->>Req: validate TkbType, allocate NetworkId
+    Req-->>Tool: ACK 1 - InProgress (networkId)
+    Req->>Spawn: publish SpawnEntityCommand
+    Spawn->>Spawn: create entity, apply components
+    Spawn->>Spawn: if IsTransient - stamp ScenarioIgnoreTag
+    Spawn->>Spawn: if InitType != None - add PendingNetworkAck
+    Spawn->>Elm: Register in NetworkEntityMap, then BeginConstruction
+    Elm->>Gw: ConstructionOrder
+    Gw->>Gw: wait for GetExpectedPeers to report Active (or force-ack on timeout)
+    Gw->>Elm: ConstructionAck (gateway module)
+    Elm->>Elm: all module acks in - Constructing becomes Active
+    Elm-->>Tool: ACK 2 - Success (via EntityRequestFinalizationSystem, PostSimulation)
+```
+
+⭐⭐ **What the diagram makes visible, and why it belongs in an AUTHORING design:**
+**the branch is the ONLY thing `owner` controls, and everything after it is identical.** ⛔ There is no
+second pipeline for *"my own"* entities — 🔒 exactly the user's *"as if it was a local request."*
+⇒ ⭐ that is the structural reason §4 is **one** method.
 
 ---
 
@@ -139,9 +259,9 @@ Guid CreateLocallyOwned( /* identical parameter list */ );
 
 | host | authors? | today | after |
 |---|---|---|---|
-| ⭐ **IG** | ✅ operator draws / places | ⑤ private adapter `IgEntityCreationRequests` | `RequestFromDefaultProcessor(...)` — ⭐ adapter **deleted** |
+| ⭐ **IG** | ✅ operator draws / places | ⑤ private adapter `IgEntityCreationRequests` | `RequestEntityCreation(...)` — ⭐ adapter **deleted** |
 | ⭐ **Editor** | ✅ gizmo placement | ② private adapter `ScenarioSpawnAdapter` builds the DTO | the adapter keeps its gizmo/undo duties but **calls the affordance** instead of constructing |
-| ⭐ **Stride editor** *(`StrideHrotGame`)* | ✅ places an entity | ③ hand-rolled DTO, 12 lines | `RequestFromDefaultProcessor(tkbType, transform, components)` |
+| ⭐ **Stride editor** *(`StrideHrotGame`)* | ✅ places an entity | ③ hand-rolled DTO, 12 lines | `RequestEntityCreation(tkbType, transform, components)` |
 | **CGF** | ⛔ **none** — it **loads** *(①, via two load handlers)* and arbitrates | ① translator | unchanged *(`§7 Q2` closed)* |
 | **SimHost** | ⛔ no producer at all | — | unchanged — it **services** requests, it does not author them |
 | **Stride node** *(`StrideNodeBootstrapper`)* | ⛔ no producer | — | unchanged |
@@ -159,8 +279,12 @@ classDiagram
         <<pack result - EXISTS>>
         +ScenarioEntityCreationRequestSource LocalRequests
         +int NodeId
-        +RequestFromDefaultProcessor(...) Guid
-        +CreateLocallyOwned(...) Guid
+        +RequestEntityCreation(tkbType, transform, components, owner, initType, attrJson, isTransient, requestId) Guid
+    }
+    class EntityCreationRouting {
+        <<EXISTS - gains the constant>>
+        +int DefaultEntityCreationRequestProcessor$
+        +IsHandledLocally(request, localNodeId, isDefaultProcessor) bool$
     }
     class EntityCreationRequest {
         <<contract - EXISTS>>
@@ -196,37 +320,18 @@ classDiagram
 
     EntityCreation --> ScenarioEntityCreationRequestSource : enqueues onto
     EntityCreation ..> EntityCreationRequest : builds
-    MapCommandController --> EntityCreation : RequestFromDefaultProcessor
-    ScenarioSpawnAdapter --> EntityCreation : RequestFromDefaultProcessor
-    StrideHrotGame --> EntityCreation : RequestFromDefaultProcessor
+    EntityCreation ..> EntityCreationRouting : default owner constant
+    MapCommandController --> EntityCreation : RequestEntityCreation
+    ScenarioSpawnAdapter --> EntityCreation : RequestEntityCreation
+    StrideHrotGame --> EntityCreation : RequestEntityCreation
     StagingEntityExtractor ..> EntityCreationRequest : constructs directly
     NedEntityCreationRequestSource ..> EntityCreationRequest : constructs directly
     IgEntityCreationRequests ..> EntityCreationRequest : constructs directly
 ```
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Tool as Author - IG tool or editor gizmo
-    participant Cre as EntityCreation
-    participant Src as LocalRequests
-    participant Fwd as ForwardingEntityCreationRequestSource
-    participant Sys as CreateEntityRequestSystem
-    participant Peer as Owning node
-
-    Tool->>Cre: RequestFromDefaultProcessor(tkbType, transform, components, attrJson, reqId)
-    Cre->>Cre: build request, OwnerAppInstanceId = 0
-    Cre->>Src: Enqueue
-    Cre-->>Tool: requestId
-    Sys->>Fwd: ProcessRequests drains the local tier
-    alt this node services it
-        Fwd->>Sys: pass through
-        Sys->>Sys: publish SpawnEntityCommand
-    else addressed elsewhere
-        Fwd->>Peer: egress Send over DDS
-        Peer-->>Tool: ghost replicated back
-    end
-```
+📄 **The `sequenceDiagram` is §4c** — the full authoring call through both routings, both ACK phases and
+the ELM handshake. ⛔ It is **not** redrawn here: 🔒 *"never both for the same thing — two pictures of one
+architecture rot apart."*
 
 ---
 
@@ -236,17 +341,21 @@ sequenceDiagram
 > ruling."* ⭐ Each below is decided by a measurement or by a consequence of a rule already ruled, not by
 > preference. ⚠ **`R5` REVERSES the lean an earlier pass gave.**
 
-### R1 — the AUTHOR/TRANSLATOR rule is FORCED, not chosen ✅
+### R1 — the AUTHOR/TRANSLATOR rule stands, but on a DIFFERENT argument ⚠ *(restated `2026-09-03`)*
 
-⭐⭐⭐ **It follows from the API shape §3.4 already ruled.** The affordance offers exactly **two** owner
-values — `0` and `NodeId`. 📐 The wire ingress receives an **arbitrary** owner
-*(`NedCgfEntityLifecycleAdapters.cs:78`, `msg.Owner.AppInstanceId`, possibly a third node — §3.4's own
-table row 3)*. ⇒ ⛔ **a translator CANNOT express its case through the affordance** without a third method
-taking an arbitrary owner, which would destroy *"two names, one field apart"* and reintroduce the policy
-argument §3.4 exists to remove.
+⚠⚠ **The original argument DIED with the two-method shape, and saying so is the honest version.** It ran:
+*"the affordance offers only `0` and `NodeId`, the wire ingress receives an arbitrary owner, therefore a
+translator cannot express its case."* ⛔ **§4's `owner` parameter takes any node id** ⇒ that impossibility is
+gone, and a translator now *could* call `RequestEntityCreation`.
 
-⇒ ⭐⭐ **Translators are structurally excluded, not exempted by policy.** The rule is written down because
-it is true, not because it was preferred.
+⭐⭐ **The rule survives because its real basis was never the signature — it is §2's definition.** A
+translator has **no authoring choice to make**: the owner, the components and the id all arrived in the
+representation it is mapping. ⇒ routing it through the affordance would add a defaulting layer over fields
+that are already fully determined, and 📌 the two translators do things the affordance deliberately excludes
+*(`preAllocatedNetworkId`, `childComponentOverrides` — §3)*.
+
+⇒ ⭐ **Translators are now exempt by DEFINITION rather than excluded by construction.** ⚠ **That is a weaker
+guarantee, and it is stated as one:** the check is §2's table and acceptance ⑥, not the type system.
 
 ### R2 — CGF has no authoring site ✅ *(measured, see §5)*
 
@@ -264,16 +373,17 @@ shape: an optional dependency whose absence changes behaviour instead of failing
 ⇒ ⭐⭐ **The affordance removes it by construction** — there is no way to call
 `creation.RequestFromDefaultProcessor(...)` without a `creation`.
 
-### R4 — ship BOTH affordances, because `CreateLocallyOwned`'s caller is already DESIGNED ✅
+### R4 — the *"who owns it"* axis ships NOW, and the question it once raised DISSOLVES ✅ ⚠ *(restated `2026-09-03`)*
 
-⛔ *"a method with no caller"* was the wrong framing. 📐 §3.4's own table, row 2:
-*"an entity it owns itself **(IG map drawings shared between IGs)** → `OwnerAppInstanceId = localNodeId`
-→ the originating node, in-process."* ⇒ ⭐ **`CreateLocallyOwned`'s first caller is named in the design** —
-IG's drawing tools.
+⛔ The original question was *"do we ship a second method with no caller?"* ⭐⭐ **With one method it is not a
+question at all** — `owner` is a parameter, so the second path costs **zero new surface** and cannot be a
+dead method.
 
-⚠⚠ **They are untargeted TODAY only because the retired `SpawnEntityCommandEgressTranslator` wrote
-`Owner = default` and ignored `cmd.OwnerNodeId`** *(§1.1 ⑤)*. ⇒ ⭐ shipping both is shipping the designed
-pair; **switching IG's drawings from path 1 to path 2 is a SEPARATE behavioural step** — see `§7c`.
+📐 §3.4's own table, row 2, still names its first user: *"an entity it owns itself **(IG map drawings shared
+between IGs)** → `OwnerAppInstanceId = localNodeId`."* ⚠⚠ Those drawings are untargeted **today** only
+because the retired `SpawnEntityCommandEgressTranslator` wrote `Owner = default` and ignored
+`cmd.OwnerNodeId` *(§1.1 ⑤)*. ⇒ ⭐ **passing `owner: creation.NodeId` at IG's drawing tools is a SEPARATE
+behavioural step** — see `§7c` — and the API is ready for it either way.
 
 ### R5 — ⚠ **REVERSED: `isTransient` DOES belong on the signature** ✅
 
@@ -303,7 +413,7 @@ from code**, and the two records conflict:
 | §3.4 row 2 puts IG map drawings at `OwnerAppInstanceId = localNodeId` ⇒ under `R-140`, non-persistable | 📐 today they are untargeted ⇒ CGF owns and **saves** them |
 
 ⇒ ⭐ **This design does NOT decide it, and does not need to.** ⛔ The API carries both axes; the call sites
-choose. ⚠ **The migration is deliberately staged:** IG's tools keep `RequestFromDefaultProcessor` +
+choose. ⚠ **The migration is deliberately staged:** IG's tools keep the default `owner` +
 `isTransient: false` — today's exact behaviour — until this is answered. 📄 The answer belongs with the
 scenario-saving question already parked in
 [`DESIGN_Node_Roles_And_Policies.md`](DESIGN_Node_Roles_And_Policies.md) §8.
@@ -328,10 +438,11 @@ network identity and a lifecycle handshake they have no use for.
 
 | # | |
 |---|---|
-| ① | both affordances exist on `EntityCreation`, `initType` defaulted `AllPeers` |
+| ① | `RequestEntityCreation` exists on `EntityCreation`, `owner` defaulted to `EntityCreationRouting.DefaultEntityCreationRequestProcessor` and `initType` to `AllPeers` |
+| ①b | ⭐ `EntityCreationRouting` **carries the constant and uses it** — `:49`'s literal `0` is gone. ⛔ Not a second definition of the number |
 | ② | `IgEntityCreationRequests` is **deleted**; IG's two controllers call the affordance |
 | ③ | `StrideHrotGame` and `ScenarioSpawnAdapter` call the affordance — ⭐ **three authors, one call** |
-| ④ | a rail: `RequestFromDefaultProcessor` yields `OwnerAppInstanceId == 0`, `CreateLocallyOwned` yields `== NodeId`, on a **production-built** pack |
+| ④ | a rail on a **production-built** pack: the default yields `OwnerAppInstanceId == 0`; `owner: NodeId` yields `== NodeId`; ⭐ **`owner: 7` yields `== 7`** — the third case the two-method shape could not express |
 | ⑤ | a rail: the returned `Guid` equals a caller-supplied `requestId`, and is non-empty when omitted |
-| ⑥ | ① and ④ still construct the DTO directly, and §2's rule says so in writing |
+| ⑥ | ① and ④ *(the two translators)* still construct the DTO directly, and §2's rule says so in writing |
 | ⑦ | `design-digest.py --check` and `mermaid-check.mjs` pass |

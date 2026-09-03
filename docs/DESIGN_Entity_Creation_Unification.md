@@ -570,16 +570,30 @@ clear.
 discriminator between the two entity classes.** ⛔ **Nothing about ownership, the strategy seam or the wire
 format changes.** ⭐ What changes is only that **every node can reach row 2.**
 
-#### ⭐ The API shape
+#### ⛔⛔ The API shape — **SUPERSEDED `2026-09-03` by ONE method**
+
+> 📄 **The live API is [`DESIGN_Entity_Authoring_Surface.md`](DESIGN_Entity_Authoring_Surface.md) §4 —
+> a single `RequestEntityCreation(...)` with an `owner` parameter.** ⛔ **Do not build the two methods
+> below; they are kept only so their reasoning is not re-derived.**
+>
+> 🔒 **User, `2026-09-03`:** *"the node simply says who is the executor and default owner in its request
+> (0 = default entity creation request processor). whoever it is, it calls entity creation on its node as
+> if it was a local request. no difference between if the request comes from the same node or other."*
+>
+> ⭐⭐ **Why two methods was wrong — two measured reasons, neither of them preference:**
+> ⛔ **① They model ONE FIELD, not two responsibilities.** 📐 `CreateEntityRequestSystem` drains a
+> **composite** of the local and the wire source and **cannot tell them apart**; the only routing input is
+> `EntityCreationRouting.IsHandledLocally(request, localNodeId, isDefaultProcessor)`
+> *(`EntityCreationRouting.cs:47-51`)*, which reads **`OwnerAppInstanceId` and nothing else.** Provenance is
+> never consulted ⇒ two verbs describing the same field is a naming of the argument, not of a behaviour.
+> ⛔ **② Two methods cannot express the domain.** The table above has **three** owner values — `0`,
+> `localNodeId`, and *"a third node by name"* ⇒ the third case would have **no affordance**, and an author
+> needing it falls back to hand-rolling the DTO, which is the disease the affordance exists to cure.
 
 ```csharp
-// PATH 1 — brain-enabled: hand it to the cluster's arbiter (today's behaviour, unchanged)
+// ⛔ SUPERSEDED — retained for the reasoning only.
 creation.RequestFromDefaultProcessor(tkbType, transform, initialComponents);
-
-// PATH 2 — I own this: full lifecycle protocol, locally, right here
 creation.CreateLocallyOwned(tkbType, transform, initialComponents);
-
-// ⭐ and the SECOND, INDEPENDENT axis — whether the creator waits for peer ACKs
 creation.CreateLocallyOwned(tkbType, transform, initialComponents,
                             initType: ReliableInitType.None);   // IG map drawing: don't wait
 ```
@@ -592,13 +606,16 @@ creation.CreateLocallyOwned(tkbType, transform, initialComponents,
 — ⭐ so both affordances take an explicit `initType`, **defaulted to `AllPeers` so adoption changes nothing**
 *(acceptance ⑥)*, and IG's drawings pass `None`.
 
-⭐⭐ **Two names, one field apart** — `CreateLocallyOwned` enqueues into `LocalRequests` with
-`OwnerAppInstanceId = NodeId`; `RequestFromDefaultProcessor` leaves it `0`. ⛔ **No policy table, no TKB
-flag, no config switch** — 🔒 *"only concrete authoring code picks the way it needs."*
+⭐⭐ **One field apart** — the whole difference between the two rows is `OwnerAppInstanceId`. ⛔ **No policy
+table, no TKB flag, no config switch** — 🔒 *"only concrete authoring code picks the way it needs."*
+⭐ **That part survives the supersession**; only the *number of methods* changed — the one method takes the
+node id as a **named argument with a named default**, which keeps the call site just as legible.
 
-⚠ **Why two explicit methods and not one with a bool:** a boolean parameter at a call site does not say
-which entity class it means, and 📌 this codebase has now had **five** silent-default defects from
-exactly that shape *(§2.2)*. ⭐ Two named affordances make the choice legible in the diff.
+⚠ **What was right about rejecting a bool, and still is:** a boolean parameter at a call site does not say
+which entity class it means, and 📌 this codebase has now had **five** silent-default defects from exactly
+that shape *(§2.2)*. ⭐ The replacement is not a bool — it is an **int owner** whose default is the named
+constant `EntityCreationRouting.DefaultEntityCreationRequestProcessor`, so the diff reads
+`owner: creation.NodeId` when the author means *"mine"* and says nothing when it means *"the arbiter's"*.
 
 #### 📐 What each path already has, measured `2026-08-31`
 
