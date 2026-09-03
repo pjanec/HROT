@@ -18,8 +18,14 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is B
   row (which said 'keep per-host' -- WRONG: the TKB is by design the same on all nodes, and the
   translator is already an inert no-op where the components are unregistered, so it belongs in
   TkbTranslatorSet.Base()). And module selection must be by ROLE, not per host: NodeRole's own doc
-  already specifies the per-role module table and RegisterSpawningPipeline ignores it. NOT built --
-  step 0 is mapping each registered class to its role concept.
+  already specifies the per-role module table and RegisterSpawningPipeline ignores it. NOT built.
+  ⭐⭐⭐ NEW 2026-09-03: §4.1f IS step 0 -- the class -> role-concept mapping, measured. Headline: the role
+  bundles ALREADY EXIST as CgfLogicPack (Brain) and SimHostCoreLogicPack (MuscleGround), named after
+  hosts and selected by none. The build is mostly rename-and-move into four tiers (Always / Role /
+  Implementation / creation). THREE rows need a USER RULING before any code moves -- the enum's table
+  and the packs disagree on Combat and ActionDispatch; two systems sit in BOTH packs and would
+  double-register on a Brain|MuscleGround node; and PhysicsToolkitModule fits no role, so an Always
+  tier is required.
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
@@ -455,6 +461,61 @@ behind it.**
 ⛔ **Not built.** ⚠ **And deliberately not started before step 0's mapping** — this is the phase §4.1's own
 sequencing calls *"the only phase touching orchestration/participant/time authority, i.e. what §3.1 says
 not to move blindly."*
+
+### 4.1f 📐 STEP 0 — **THE CLASS → ROLE-CONCEPT MAPPING** *(measured `2026-09-03`; needs a ruling on 2 rows)*
+
+> ⭐⭐⭐ **THE HEADLINE: the role bundles ALREADY EXIST — as two classes named after HOSTS.**
+> **`CgfLogicPack`** *is* the **Brain** bundle and **`SimHostCoreLogicPack`** *is* the **MuscleGround**
+> bundle. Both expose `InputSystems` / `SimulationSystems` *(SimHost also `PostSimulationSystems`)*, both
+> are registered as one module, and **neither is selected by `NodeRole`** — each host just news up its own.
+> ⇒ ⭐⭐ **the seam law again: *"we need role-keyed modules"* means the role bundles exist and are
+> under-adopted.** ⛔ This is a RENAME-AND-SELECT job far more than a new mechanism.
+
+#### ⭐ THE MAPPING — every class registered by the four ECS hosts
+
+| class | registered today by | ⭐ role concept | conf. |
+|---|---|---|---|
+| **`MissionControlModule` · `MissionControlExecutionSystem` · `MissionAdapterSystem` · `TacticalIntentResolutionSystem` · `RouteContextSystem`** | `CgfLogicPack` | ⭐ **MissionControl** *(Brain)* | ✅ high — the enum names MissionControl for Brain and these are it |
+| **`CognitiveRuntimeModule`** | `CgfLogicPack` | ⭐ **CognitiveRuntime** *(Brain)* | ✅ high — name matches the enum term exactly |
+| **`ActionDispatchModule`** | `CgfLogicPack` **only** | ⭐ **ActionDispatch** | 🔴 **see discrepancy ① — the enum puts it in BOTH roles** |
+| **`HealthApplicationSystem`** | `CgfLogicPack` | ⭐ **Combat** | ⚠ medium — Combat-adjacent, but the Combat *modules* live in the other pack |
+| **`CgfThreatEvaluationSystem` · `ActiveSensorTracksUpdateSystem`** | `CgfLogicPack` | ⭐ **Perception** *(the enum's role doc says "threat evaluation" verbatim)* | ⚠ medium — currently Brain-bundled, and the enum has a separate `Perception` role |
+| **`CombatModule` · `DamageAssessmentModule`** | `SimHostCoreLogicPack` **only** | ⭐ **Combat** | 🔴 **see discrepancy ①** |
+| **`GroundKinematicsModule`** | `SimHostCoreLogicPack` | ⭐ **GroundKinematics** *(MuscleGround)* | ✅ high — name matches the enum term exactly |
+| **`NavigationIntentBridgeSystem` · `RouteTrajectorySyncSystem` · `PersonalRouteAuthoringSystem`** | `SimHostCoreLogicPack` | ⭐ **GroundKinematics** — the enum's MuscleGround text says *"navigation **execution**"* | ✅ high |
+| ⚠ **`EqsResultUpdateSystem`** | ⛔ **BOTH packs** | **role-independent** | 🔴 **see discrepancy ②** |
+| ⚠ **`UnitHierarchySystem`** | ⛔ **BOTH packs, AND IG** *(via `IgUnitHierarchyModule`)* | **role-independent / always** | 🔴 **see discrepancy ②** |
+| **`CognitiveSpatialModule`** *(= `VisionBroadphaseSystem` · `LosRequestBatchingSystem` · `LocalGridBuilderSystem` · `AreaQuerySolverSystem` · `SensorTrackDebounceSystem`)* | SimHost, **unconditional** | ⭐⭐⭐ **Perception** — the enum's role doc reads *"LOS, broadphase, threat evaluation"*, and this is **literally** LOS + broadphase | ✅ **high — the strongest row in the table** |
+| **`AreaQueryResultMaterializationSystem`** | SimHost, unconditional | ⭐ **Perception** — it materialises `AreaQuerySolverSystem`'s results *"so the Brain BTree can read"* | ✅ high *(it pairs with the solver above)* |
+| **`EqsModule`** *(drives `EqsSolverSystem` at 10 Hz on a background thread)* | SimHost, unconditional | ⭐ **Perception** *(the EQS solver half)* | ⚠ medium — could equally be its own concept; it pairs with `EqsResultUpdateSystem`, which both packs hold |
+| **`EngineBackedNavigationModule`** *("mutually exclusive with `NavigationFakesModule`")* | SimHost, unconditional | ⭐⭐ **NavigationSolver** | ✅ high — and ⭐ **its "mutually exclusive" sibling is exactly the "different implementations" seam the user named** |
+| **`PhysicsToolkitModule`** | SimHost, unconditional | ⚠ **INFRASTRUCTURE, not a role** | 🔴 **see discrepancy ③** |
+| **`GenesisMaterializationSystem`** | SimHost · Stride · CGF · EditorStride *(**not** IG)* | ⭐ **entity creation tail** — belongs with the pack *(§4.1d)*, **not** a role module | ✅ high |
+| **`SimHostModule`** | SimHost · Stride | ⛔ **not a role module at all** — a one-system wrapper around `NetworkSpawningSystem`; §4.1d retires it | ✅ high |
+| **`IgUnitHierarchyModule`** | IG | ⛔ **a third wrapper** around the same `UnitHierarchySystem` | ✅ high |
+| **`BehaviorDiagnosticsModule`** | CGF | ⚠ diagnostics — likely *always*, like the TKB diagnostics translator of §4.1e ① | ⚠ medium |
+
+#### 🔴 THE THREE THINGS THAT NEED A RULING — **do not build past these**
+
+| # | the discrepancy | why it cannot be decided from code |
+|---|---|---|
+| **①** | ⛔⛔ **The enum's table and the packs DISAGREE, in both directions.** `NodeRole` says **Brain = … + Combat** and **MuscleGround = ActionDispatch + …** — but ⭐ `CombatModule`/`DamageAssessmentModule` are in the **MuscleGround** pack only, and `ActionDispatchModule` is in the **Brain** pack only. | ⚠ **Exactly one of the two is stale and the code cannot say which.** ⭐ Either the enum's doc was aspirational, or the packs drifted. ⇒ **a ruling, then update the loser** |
+| **②** | ⭐⭐ **`EqsResultUpdateSystem` and `UnitHierarchySystem` are in BOTH packs**, and `UnitHierarchySystem` is *also* on IG. ⇒ a `Brain\|MuscleGround` node **double-registers** them today unless something dedups | ⭐ Confirms they are **role-independent** and belong in an *always* tier — ⛔ but "always" must be an explicit tier, not an accident. ⚠ **And the double-registration is a real hazard the `[Flags]` union must handle explicitly** |
+| **③** | ⚠ **`PhysicsToolkitModule` fits no role.** It allocates the `RaycastBatchData` singleton; ⭐ `CognitiveSpatialModule` *(Perception)* raycasts, and `GroundKinematicsModule` needs colliders ⇒ **two different roles depend on it** | ⇒ ⭐⭐ **the table needs a fourth tier — `Always` / infrastructure — beside the role rows.** 📌 This is the case §4.1e's "what would change the lean" predicted, and it is confirmed |
+
+#### ⭐⭐ WHAT THE MAPPING IMPLIES FOR THE BUILD — **four tiers, not one table**
+
+| tier | contents | selected by |
+|---|---|---|
+| ⭐ **Always** | `PhysicsToolkitModule` · `UnitHierarchySystem` · `EqsResultUpdateSystem` · diagnostics | ⛔ nothing — every ECS node |
+| ⭐⭐ **Role** | `Brain ⇒ {MissionControl…, CognitiveRuntime, …}` · `MuscleGround ⇒ {GroundKinematics…, Combat…}` · `Perception ⇒ {CognitiveSpatial, AreaQueryResultMaterialization, Eqs}` · `NavigationSolver ⇒ {Navigation}` · `ImageGenerator ⇒ {}` | ⭐ `NodeRole` flags, **unioned and deduplicated** |
+| ⭐ **Implementation** | `EngineBackedNavigationModule` **vs** `NavigationFakesModule`; a Stride-flavoured module for the same role | ⭐ a host-supplied factory — 🔒 *"respecting possible different implementations (simhost vs stride)"* |
+| ⛔ **Creation tier** | `EntityCreationPack` + `GenesisMaterializationSystem` | ⭐ §4.1d — the base, not a role |
+
+⇒ ⭐⭐⭐ **The build is then mostly renaming and moving:** `CgfLogicPack` → the Brain role bundle,
+`SimHostCoreLogicPack` → the MuscleGround role bundle, the three *Always* members hoisted out of both, and
+the four unconditional SimHost registrations moved under `Perception` / `NavigationSolver`.
+⛔ **Not started** — ①②③ first.
 
 #### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
 
