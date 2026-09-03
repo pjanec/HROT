@@ -119,48 +119,40 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
     {
-        // ⭐⭐ CE-140 / CE-141 — this list's WIDTH is an OPEN QUESTION rather than a settled decision,
-        //    and CE-144 (2026-09-03) made the question BIGGER.
+        // ⭐⭐⭐ CE-141 CLOSED 2026-09-03 — THE TRANSLATOR LIST IS NOT BUILT HERE, AND NOT PER-HOST.
         //
-        // ⚠⚠ SUPERSEDED: an earlier version of this comment argued the list is safe because it "feeds
-        //    ONLY the GHOST projection ... never a local spawn", citing that RegisterSpawningPipeline
-        //    registered only GhostDestructionSystem + IgUnitHierarchyModule. 🔴 BOTH halves are now
-        //    false: GhostDestructionSystem is DELETED and IG SCHEDULES the shared NetworkSpawningSystem
-        //    (CE-144, DESIGN_Entity_Creation_Unification.md §3.4c). ⇒ a request targeted at this node
-        //    materialises HERE, and the ELM's BlueprintApplicationSystem projects it through THIS list.
+        // 🔒 User ruling: "entity creation needs to be unified. There should be nothing we give just to
+        //    IG. every ECS nodes must use same TKB in same way using the same shared code."
         //
-        // ⭐ Not a live defect today: every IG request carries OwnerAppInstanceId = 0 (user ruling,
-        //    2026-09-03 — IG's placements go to the default entity-creation request processor), so
-        //    IsHandledLocally is false for all of them and nothing is materialised here yet. ⛔ But the
-        //    SAFETY ARGUMENT is gone: the first caller that passes owner: NodeId gets whatever this list
-        //    projects, so CE-141 now decides local spawns as well as ghosts.
+        // ⭐ This is a DELETION, not a substitution: IG was the LAST host still calling
+        //    .WithTranslators(...). SimHost dropped it at CE-140 step 3 and the reason applies verbatim
+        //    here — that argument fed NedReplicationModule's `tkbEntityTranslators`, whose ONLY consumer
+        //    is GhostPromotionSystem, and that system falls back to EntityLifecycleModule.Translators
+        //    when no explicit list is given (GhostPromotionSystem.cs: `_explicitTranslators ??
+        //    _lifecycleModule.Translators`). The ELM's list is the ONE instance EntityCreationPack
+        //    composed from TkbTranslatorSet.Base(). ⇒ dropping the call makes tkb-1/DESIGN.md §6.3's
+        //    "identical for all three systems within the same node" true BY CONSTRUCTION instead of by
+        //    two copies agreeing.
         //
-        // ⭐ IG has always ORIGINATED creation: the placement tool's
-        //    MapCommandController.OnEntityCreatedByTool publishes a SpawnEntityCommand on IG's bus.
-        // ⚠⚠ CORRECTED 2026-08-30. An earlier version of this comment said "⛔ Do NOT replace this
-        //    with Base() — a shorter list is a real decision here." 🔴 That was ASSERTED, not measured,
-        //    and the user was right to challenge it. 📐 Re-measured over IG's real registration path
-        //    (HrotSharedComponentRegistry + IgRoleComponentRegistry): IG REGISTERS VehicleParams,
-        //    PhysicsCollider, Health, WeaponState, PerceptionReceptor and TargetMemory — six components
-        //    that TkbTranslatorSet.Base()'s kinematics/combat/perception translators would fill and
-        //    that this 2-entry list leaves untouched on every ghost.
-        // ⛔ Do NOT widen it on that basis alone either: those six are plausibly filled by DDS
-        //    replication from SimHost instead, in which case TKB projection here is redundant. ⇒ the
-        //    open question is WHICH source should populate a ghost's template-derived components, and
-        //    it needs a live comparison, not a source reading. 📄 CE-141 and
-        //    DESIGN_Entity_Creation_Unification.md §2.3.
-        var translators = new List<ITkbEntityTranslator>
-        {
-            new SpatialCoreTkbTranslator(), // Enforces zero-initialization of spatial ECS chunks
-            new PresentationTkbTranslator(),
-        }.AsReadOnly();
-
+        // ⛔⛔ WHY THE OLD 2-ENTRY LIST WAS WRONG, and it was wrong on the shared type's own terms:
+        //    TkbTranslatorSet's contract says "Do NOT subtract from this list to make a host materialise
+        //    less ... every ITkbEntityTranslator is contractually required to guard each write with
+        //    repo.IsComponentTypeRegistered<T>(), so a translator whose components a host never
+        //    registered is ALREADY a no-op there." 📐 Verified 2026-09-03 across all six Base()
+        //    translators: guards >= component adds in every one. ⇒ THE NARROWING LEVER IS THE COMPONENT
+        //    REGISTRATION SET, never the list. If IG should not seed Health/WeaponState/PerceptionReceptor
+        //    /TargetMemory/VehicleParams/PhysicsCollider from TKB, the answer is to stop REGISTERING
+        //    them in IgRoleComponentRegistry — one loud decision, and any later write throws.
+        //
+        // ⚠ Two earlier comments here are SUPERSEDED and are gone: (a) "a shorter list is a real decision
+        //    here" (asserted, never measured) and (b) "this list feeds ONLY the ghost projection ... never
+        //    a local spawn" — false since CE-144 gave IG the shared NetworkSpawningSystem.
+        // 📄 docs/DESIGN_Entity_Creation_Unification.md §2.3 · §3.4c · docs/designs/tkb-1/DESIGN.md §6.3/§6.5b.
         return new HrotNodeBuilder(config)
             .WithRole(config.SubsystemName, role)
             .WithNetworkFactory(networkFactory)
             .WithReplication(role)
             .WithBehaviorRegistry(GetBehaviorRegistry())
-            .WithTranslators(translators)
             .Build();
     }
 

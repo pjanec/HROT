@@ -169,6 +169,43 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐⭐ <c>CE-141</c> — <b>NO COMPOSITION ROOT BUILDS A TKB TRANSLATOR LIST.</b>
+        ///
+        /// <para>🔒 <b>User ruling, <c>2026-09-03</c>:</b> <i>"entity creation needs to be unified. There
+        /// should be nothing we give just to IG. every ECS nodes must use same TKB in same way using the
+        /// same shared code."</i></para>
+        ///
+        /// <para>📐 <b>Why a rail rather than deleting the seam.</b> <c>.WithTranslators(...)</c> now has
+        /// ZERO production callers — SimHost dropped it at <c>CE-140</c> step 3, IG at <c>CE-141</c> — but
+        /// the builder extension itself is reachable and <c>GhostPromotionSystem</c>'s explicit-list arm is
+        /// a legitimate API. ⛔ Deleting a public seam whose removal ripples into <c>Hrot.Network.NED</c> is
+        /// a bigger change than the invariant needs, and <i>"no rush removals"</i> applies. ⇒ ⭐ gate the
+        /// USE, keep the seam.</para>
+        ///
+        /// <para>⛔ <b>What breaking this costs, so the message can say it:</b> a host that passes its own
+        /// list hands <c>GhostPromotionSystem</c> a SECOND, equal-but-distinct instance, which is exactly
+        /// what <c>tkb-1/DESIGN.md</c> §6.3 (<i>"identical for all three systems within the same node"</i>)
+        /// asks not to happen — and if that list is NARROWER it silently under-projects every entity the
+        /// host spawns. 📄 <c>TkbTranslatorSet</c>'s own contract: <i>"Do NOT subtract from this list."</i></para>
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(CompositionRoots))]
+        public void NoRoot_BuildsItsOwnTkbTranslatorList(string relativePath)
+        {
+            var code = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(relativePath));
+
+            Assert.False(code.Contains(".WithTranslators("),
+                $"{relativePath} calls .WithTranslators(...). No ECS node may build its own TKB " +
+                "projection list: EntityCreationPack composes ONE list from TkbTranslatorSet.Base() " +
+                "(plus BasePlus/BaseWith for genuine ADDITIONS), hands that instance to the ELM and to " +
+                "NetworkSpawningSystem, and GhostPromotionSystem reads it back off the ELM. Passing a " +
+                "list here creates a second, distinct instance — and a narrower one under-projects every " +
+                "entity this host spawns, silently. Express 'this host does not want X' by not " +
+                "REGISTERING X in its component registry (CE-141).");
+        }
+
+        /// <summary>
         /// ⚠ <b>The rails above are only as good as their target list.</b> A composition root that is
         /// renamed or moved would make both Theories silently cover less, so the list is asserted to be
         /// non-empty and every entry must resolve — <c>ReadRepoSource</c> throws on a missing file rather

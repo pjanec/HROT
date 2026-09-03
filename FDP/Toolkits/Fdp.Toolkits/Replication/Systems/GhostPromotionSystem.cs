@@ -39,9 +39,14 @@ namespace Fdp.Toolkit.Replication.Systems
         /// comment said the list was <c>Array.Empty</c> on <i>every</i> node. 📐 It is empty on the
         /// <b>FACTORY path</b> only — <c>NedNetworkFactory.CreateReplicationModule()</c> omits
         /// <c>tkbEntityTranslators</c>, which is how <b>CGF</b> builds its module. Hosts on the
-        /// <b>BUILDER path</b> do pass one: <c>HrotNodeBuilderReplicationExtensions.Build():117</c>
-        /// forwards <c>.WithTranslators(...)</c>, which SimHost and IG both call. ⇒ the real beneficiary
-        /// of this fallback is the factory path. Resolved lazily because composition roots call
+        /// <b>BUILDER path</b> could pass one, via
+        /// <c>HrotNodeBuilderReplicationExtensions.Build()</c> forwarding <c>.WithTranslators(...)</c>.
+        /// ⚠⚠ <b>UPDATED <c>2026-09-03</c>: NO PRODUCTION HOST CALLS IT ANY MORE.</b> SimHost dropped it
+        /// at <c>CE-140</c> step 3 and IG — the last caller — at <c>CE-141</c>, under the ruling that
+        /// every ECS node uses the same TKB projection through the same shared code. ⇒ ⭐ <b>this
+        /// fallback is now THE path, not a factory-path convenience</b>, and it is what makes
+        /// <c>tkb-1/DESIGN.md</c> §6.3's <i>"identical for all three systems within the same node"</i>
+        /// true by SHARING the instance. Resolved lazily because composition roots call
         /// <see cref="EntityLifecycleModule.SetTranslators"/> after the module is constructed.</para>
         /// </summary>
         private IReadOnlyList<ITkbEntityTranslator> Translators

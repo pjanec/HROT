@@ -164,7 +164,35 @@ is a **broadcast tiebreaker for unowned requests only**.
 all-or-nothing per host. ⭐ That is a change to §3's shape: `Role` selects **which half**, not merely which
 systems.
 
-#### 🔴 `CE-141` — and IG's list WIDTH is an open question, not a settled decision
+#### ✅✅✅ `CE-141` — **CLOSED `2026-09-03`. THE WIDTH WAS NEVER THE QUESTION.**
+
+> 🔒 **User ruling:** *"entity creation needs to be unified. There should be nothing we give just to IG.
+> every ECS nodes must use same TKB in same way using the same shared code."*
+>
+> ⚠⚠ **And the ruling corrected my lean, not just the code.** I had proposed *"give IG
+> `TkbTranslatorSet.Base()`"* — still a per-host decision, just a better one. ⛔ The right answer is that
+> **no host decides**, and it is a **DELETION**: IG's `.WithTranslators(...)` call is gone.
+
+| ⭐ why this needed no experiment — it was readable, and I had said otherwise | |
+|---|---|
+| ⛔⛔ **the shared type already bans subtraction** | 🔒 `TkbTranslatorSet`: *"Do NOT subtract from this list to make a host materialise less … every `ITkbEntityTranslator` is contractually required to guard each write with `repo.IsComponentTypeRegistered<T>()`, so a translator whose components a host never registered is ALREADY a no-op there."* ⇒ ⭐⭐ **the narrowing lever is the COMPONENT REGISTRATION SET.** 📐 Verified across all six `Base()` translators: guards ≥ component adds in every one *(Vehicle 9/8 · Behavior 14/14 · Combat 4/6 — the two extras share one guard at `:84` · Perception 4/4 · SpatialCore 2/2 · Presentation 2/2)* |
+| ⭐⭐ **the pack already owns the list, and SimHost already stopped passing one** | 📐 `EntityCreationPack.cs:95-97` resolves `Base()` / `BasePlus` / `BaseWith` itself; `SimHostNodeBootstrapper.cs:151` says *"`.WithTranslators(...)` is DELIBERATELY GONE"* at `CE-140` step 3 ⇒ ⭐ **IG was the LAST caller.** The unification was 80 % built and IG was the hold-out |
+| ⭐ **nothing is lost by deleting it** | 📐 that argument fed `NedReplicationModule._tkbEntityTranslators`, whose **only** consumer is `GhostPromotionSystem` — which falls back to `EntityLifecycleModule.Translators` *(`_explicitTranslators ?? _lifecycleModule.Translators`)*, i.e. the ONE instance the pack composed. ⇒ ⭐⭐ `tkb-1/DESIGN.md` §6.3's *"identical for all three systems within the same node"* becomes true **by construction** instead of by two copies agreeing |
+
+⭐ **Gated:** `EntityGenesisHazardRails.NoRoot_BuildsItsOwnTkbTranslatorList` — no composition root may
+contain `.WithTranslators(`. ⭐ **Red-proof by inverse edit:** re-adding the call to IG reddens exactly that
+rail. ⚠ **The seam is KEPT, not deleted** — zero production callers, but the builder extension is reachable
+and `GhostPromotionSystem`'s explicit arm is a legitimate API; deleting a public seam that ripples into
+`Hrot.Network.NED` is more than the invariant needs *("no rush removals")*. ⇒ **gate the USE.**
+
+🔴🔴 **TWO SHARED DOCS WERE LYING, and one of them in `Hrot.Core`:** `TkbTranslatorSet`'s header said
+*"A host with no TKB spawn path needs none of this … do not 'fix' it by giving IG a spawn pipeline"* —
+false in every clause since `CE-144`, and it was telling **every** host the opposite of what is built.
+`GhostPromotionSystem`'s said the builder path *"SimHost and IG both call"* — now nobody does, which makes
+its fallback **the** path rather than a factory-path convenience. Both corrected in place.
+
+#### ⛔ HISTORY — `CE-141` as an open question *(superseded above)*
+
 
 📐 **Measured over IG's real registration path** *(`HrotSharedComponentRegistry` + `IgRoleComponentRegistry`,
 per `IgNodeBootstrapper:150-152`)*:

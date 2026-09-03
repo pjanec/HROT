@@ -30,10 +30,23 @@ namespace Hrot.Core.Tkb
     /// (<c>Hrot.SimHost</c>) and <c>InfantryVehicleStateStripTkbTranslator</c>
     /// (<c>Hrot.Stride.Core</c>) — both sit ABOVE <c>Hrot.Core</c>.</para>
     ///
-    /// <para>⚠ <b>A host with no TKB spawn path needs none of this.</b> IG deliberately forwards
-    /// <c>SpawnEntityCommand</c> to SimHost and receives the ghost back, so its translators go only to
-    /// <c>NedReplicationModule</c>'s ghost projection. ⛔ That is a coherent configuration, not an
-    /// omission — do not "fix" it by giving IG a spawn pipeline.</para>
+    /// <para>⛔⛔ <b>SUPERSEDED <c>2026-09-03</c> (<c>CE-144</c> + <c>CE-141</c>). An earlier version of
+    /// this paragraph read:</b> <i>"A host with no TKB spawn path needs none of this. IG deliberately
+    /// forwards SpawnEntityCommand to SimHost and receives the ghost back … That is a coherent
+    /// configuration, not an omission — do not 'fix' it by giving IG a spawn pipeline."</i>
+    /// 🔴 <b>Every clause of that is now false</b>, and it sat in SHARED code telling every host the
+    /// opposite of what is built: IG schedules the shared <c>NetworkSpawningSystem</c>, its tools post
+    /// creation INTENTS rather than forwarding node-local orders, and it no longer calls
+    /// <c>.WithTranslators(...)</c> at all.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>THE RULE, and it now has no exceptions:</b> 🔒 <i>"entity creation needs to be
+    /// unified. There should be nothing we give just to IG. every ECS nodes must use same TKB in same way
+    /// using the same shared code."</i> (user, <c>2026-09-03</c>). ⇒ <b>no ECS node builds a TKB
+    /// translator list.</b> <c>EntityCreationPack.Build</c> composes it — <see cref="Base"/>, or
+    /// <see cref="BasePlus"/>/<see cref="BaseWith"/> when a host contributes ADDITIONS — hands that ONE
+    /// instance to the ELM and to <c>NetworkSpawningSystem</c>, and <c>GhostPromotionSystem</c> reads it
+    /// back off the ELM. ⛔ <b>A composition root that names translators is a defect now, not a
+    /// configuration.</b></para>
     ///
     /// <para>🔴🔴 <b><see cref="BasePlus"/> APPENDS, so it CANNOT express a POSITIONAL contract — and one
     /// translator has one.</b> <c>InfantryVehicleStateStripTkbTranslator</c>'s own doc requires it
