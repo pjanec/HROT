@@ -8,6 +8,12 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is B
   halves crosswise, so its TransitionStateIntent was drained by nothing. ✅ FIXED — as-built + live evidence
   at §4.1c: IG now originates cluster-wide transitions, and SharedApplicationBootstrapper THROWS on a slave
   built off context.EventBus. It also SUPERSEDES DESIGN_Mcp_Diagnostics_Federation.md §1d's lean.
+  ⭐⭐ NEW 2026-09-03: §4.1d MEASURES the other abstract hook, RegisterSpawningPipeline. EntityCreationPack
+  is already built by FIVE hosts, so this is argument DRIFT, not a bypass: four rows to unify (Elm lookup,
+  the network adapters, RequestEgress, SpawnSystem scheduling), three genuinely per-role. The lean is that
+  the BASE composes the pack and the hook keeps only node domain modules. NOT built. A suspected
+  GenesisMaterializationSystem gap on CGF was tested live with hill-attack and did NOT reproduce; it is
+  recorded there as an OPEN QUESTION, not a hazard.
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
@@ -314,6 +320,70 @@ only receive one. 📌 That capability was present in the code the whole time an
 `TheSharedBootstrapperAssertsTheOneBusInvariant` *(the runtime post-condition still exists)*. Both
 inverse-edit red-proofs redden exactly one row. ⚠ The source rail is the **fast** half; the runtime
 post-condition is the durable one — it binds nodes that do not exist yet.
+
+### 4.1d 📐 `RegisterSpawningPipeline` — **MEASURED** *(`2026-09-03`; the verdict, per divergence)*
+
+> 🔒 **User:** *"can't see a reason why spawning pipeline would not be same. unified entity creation is our
+> desire."*
+>
+> ⭐⭐ **The core IS already shared:** **five** hosts build `EntityCreationPack` — CGF `:656` · SimHost
+> `:296` · IG `:361` · Stride `:337` · **the Editor** `EditorSubsystem:1250`. ⛔ So this is not the
+> `CE-164` shape *(a host bypassing the shared thing)*. ⚠ **It is drift in the ARGUMENTS**, plus one
+> genuinely separate concern that shares the hook.
+
+#### 📐 THE INVENTORY — four ECS hosts' `EntityCreationContext`, field by field
+
+| | CGF | SimHost | IG | Stride | verdict |
+|---|---|---|---|---|---|
+| `World`·`EntityMap`·`TkbDb`·`IdAllocator`·`NodeId` | ✅ | ✅ | ✅ | ✅ | ⭐ already uniform |
+| `Elm` lookup | `.First(m is ELM)` | **`BaseModules[0]`** | `.First(m is ELM)` | **`BaseModules[0]`** | 🔴 **UNIFY** — two implementations of one lookup, and `[0]` is **positional**: it is silently wrong the day `BaseModules` gains an entry before the ELM. ⭐ The pack should resolve it; no host should be asked |
+| `NetworkRequestSource` · `AckSink` · `JsonAttributeCompiler` · `OwnershipStrategy` | ✅ | ⛔ | ✅ | ⛔ | ⭐⭐ **UNIFY — pass everywhere.** 📐 `INetworkFactory.CreateCgfEntityLifecycleAdapters()` returns **`null`** on `OfflineNetworkFactory` and `BdcNetworkFactory`, so passing it on a host that has no adapters is a **no-op**. ⇒ the current split is a per-host decision nobody recorded, not a capability boundary |
+| `RequestEgress` | ⛔ | ⛔ | ✅ | ⛔ | ⭐ same argument, same fix — and `DESIGN_Entity_Authoring_Surface.md`'s `RequestEntityCreation` makes **every map-enabled host** an originator, so IG-only is already the stale shape |
+| `ExtraTranslators` | `AiDiagnostics` | `AiDiagnostics` | ⛔ | ⛔ | ⚠ **KEEP per-host** — it *adds* to the TKB translator list, and `CE-141`'s rule bans **subtracting**, not adding. ⭐ A diagnostics translator on sim nodes is a real role difference |
+| `IsBroadcastArbiter` | **true** | false | false | false | ⛔ **KEEP** — the genuine role flag *(CGF is the default entity-creation request processor; `EditorSubsystem:1250` is `true` for the standalone single-node reason)* |
+| `SpawnSystem` scheduling | — | `new SimHostModule(spawn)` | `RegisterGlobalSystem` | `new SimHostModule(spawn)` | ⭐ **UNIFY, very likely to `RegisterGlobalSystem`** — 📐 `NetworkSpawningSystem` is `[UpdateInPhase(SystemPhase.BeforeSync)]`, both paths read that attribute, and `SimHostModule.RegisterSystems` is one line: `registry.RegisterSystem(_spawnSystem)`. ⚠ **Verify ordering WITHIN the phase before collapsing** — module- vs globally-registered systems may not interleave identically, and that is unmeasured |
+| `LocalRequests` captured | ✅ | ⛔ | ✅ | ⛔ | ⚠ follows from who originates requests; folds into the `RequestEgress` row |
+| `Unserviceable` log level | Warn | Warn | **Info** | Warn | ⭐ trivial; unify to Warn |
+
+#### ⚠⚠ ONE SUSPECTED GAP — **measured, and it did NOT reproduce**
+
+`GenesisMaterializationSystem` *(`[UpdateInPhase(Input)]`, resolves the six `Initial*Intent` DTO managed
+components into structural components)* is registered by **SimHost · Stride · EditorStride** and **not by
+CGF or IG**. 🔴 That looked load-bearing, because `CgfScenarioLoadHandler.DrainDeferredAcks` gates
+`PrepareState(OperatingLive)` on those six intents being **gone**, and its own comment names
+*"Condition 3: **GenesisMaterializationSystem** has resolved … and removed the transient Intent DTO managed
+components."* ⇒ a CGF that never runs it would never ACK `OperatingLive` and the cluster load would hang.
+
+📐 **Tested live on the four-process cluster with `hill-attack`** — chosen because it carries **4
+`UnitSubordinate`/`CommanderGuid`** relations, and `UnitSubordinateTranslator.Inject` **always** attaches
+`InitialUnitSubordinateIntent` *(there is no immediate arm — measured)*. ⇒ **it did not hang**: `ok,
+awaited:true, entityCount:8` in **1.5 s**, all three nodes `OperatingLive`, and CGF's entities carry the
+**resolved `UnitSubordinate`** with **no `Initial*Intent` at all**.
+
+⛔⛔ **So: not a reproduced defect, and it is NOT being filed as one.** ⚠ **What is NOT pinned** is *why* —
+CGF's live entities arrive through `StagingEntityExtractor` → `CreateEntityRequest` → the creation pipeline
+rather than through the scenario translators writing directly onto its live world, which would explain it,
+but that chain was **not traced end to end**. ⇒ ⭐ recorded as an **open question**, not a hazard:
+*"which code path clears the genesis intents on CGF, and is `DrainDeferredAcks` Condition 3 therefore
+vacuous there?"* ⛔ Do not act on either answer without tracing it.
+
+#### ⭐⭐⭐ THE LEAN — **the hook mixes TWO concerns, and that is why it drifted**
+
+📐 Read the three bodies and the split is stark. **SimHost** registers `PhysicsToolkitModule` ·
+`CoreLogicPack` · `EqsModule` · `EngineBackedNavigationModule` · `AreaQueryResultMaterializationSystem` ·
+`CognitiveSpatialModule`; **IG** registers `IgUnitHierarchyModule`. ⭐ Those are **node domain modules** and
+they are *correctly* different. ⛔ They sit in the **same method** as the creation tier, which is supposed
+to be identical — so nothing marks the difference between *"this host is a different role"* and *"this host
+drifted."*
+
+| ⭐ | |
+|---|---|
+| **①** | ⭐⭐⭐ **the BASE composes `EntityCreationPack`**, taking a small per-node options record carrying only the measured-genuine differences — `IsBroadcastArbiter`, `ExtraTranslators` — and resolving `Elm`, the adapters and the scheduling itself. ⇒ the four drift rows above become **impossible**, not merely fixed |
+| **②** | ⭐⭐ **the hook keeps only what it really is** and is renamed accordingly *(`RegisterDomainModules`)*. ⛔ A host that wants a different creation tier then has to change the **base**, in the open |
+| ⚠ **sequencing** | ⭐ do **①** as one change and leave the rename to follow — a rename touches three overrides plus the base and the tests, and mixing it with a behaviour change makes the diff unreadable |
+| ⚠ **what would change the lean** | if the `SpawnSystem` in-phase ordering turns out to differ between module and global registration, the base must pick **one** deliberately and say why — ⛔ that is the one row here that could change runtime behaviour rather than just tidy the composition |
+
+⛔ **Not built.** This is a design record; the build is a separate item.
 
 #### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
 
