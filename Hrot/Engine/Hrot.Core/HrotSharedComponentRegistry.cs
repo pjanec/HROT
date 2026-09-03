@@ -94,5 +94,23 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<TimeSyncOffsetCalculatedEvent>();
         world.RegisterEvent<Fdp.Toolkit.Replication.Components.DescriptorAuthorityChanged>();
         world.RegisterManagedEvent<Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand>();
+
+        // ── Blueprint blackboard tiers ────────────────────────────────────────
+        // ⭐⭐⭐ ADDED 2026-09-03 after a MEASURED production crash: a `--mode all` cluster aborted on
+        //    its first live scenario load with
+        //      "Component BlueprintBlackboard1024 is not registered"
+        //    from BehaviorIngressSystem.ProvisionStatefulSlots, on CGF.
+        //
+        // 📐 BehaviorIngressSystem provisions these tiers and MissionControlModule schedules it, but the
+        //    only code that REGISTERED them was Hrot.Blueprints.Editor's BlueprintRuntimeWiring, whose
+        //    sole production caller is the Editor. ⇒ CGF scheduled the system and never registered its
+        //    precondition. Three of the four node bootstrappers were missing it.
+        //
+        // ⭐ The tier LIST lives with the tier TYPES (Fdp.Toolkits, the same assembly as the system that
+        //    needs them); this registry is the one Hrot-wide call site, so no node can be missing it.
+        //    ⛔ Deliberately NOT a line added to CgfComponentRegistry — that would be a fourth chance to
+        //    forget, which is exactly how this arose.
+        // 📄 docs/DESIGN_Entity_Creation_Unification.md §2.3b.
+        Fdp.Toolkit.Blueprints.Components.BlueprintBlackboardTiers.RegisterAll(world);
     }
 }

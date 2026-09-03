@@ -279,6 +279,64 @@ replication module, and Q65-B widens its role gate there.**
 is even expressible. 📄 **[`Architect_Question_65`](blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md)
 §4-§6 for the resolved answers, the four obstacles and the sequencing.**
 
+### 2.3b 🔴🔴🔴 `CE-161` — **A HOST SCHEDULED A SYSTEM AND NEVER REGISTERED ITS PRECONDITION** *(found live `2026-09-03`, FIXED)*
+
+⭐⭐ **Found by the first `--mode all` live load anyone has run in this programme**, which is the point:
+this could not be found by a source reading, and no unit suite covers it.
+
+```
+InvalidOperationException: Component BlueprintBlackboard1024 is not registered.
+  at BehaviorIngressSystem.AddAndInitializeTier(...)
+  at BehaviorIngressSystem.ProvisionStatefulSlots(...)
+  at Hrot.CGF.CgfSubsystem.Update(...)                    → process Aborted
+```
+
+| 📐 the gap, exactly | |
+|---|---|
+| who NEEDS the tiers | `BehaviorIngressSystem.ProvisionStatefulSlots`, scheduled by `MissionControlModule`, composed by **`CgfLogicPack`** |
+| who REGISTERED them | ⛔ **only** `Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.RegisterTierComponents`, whose sole production caller is `EditorSubsystem:1380` |
+| ⇒ | 🔴 **CGF scheduled the system and never registered its precondition.** Three of the four node bootstrappers were missing it, and the failure is a **process abort**, not a degraded frame |
+
+⛔⛔ **THE SHAPE, and it is the one this programme keeps finding: a REGISTRATION OWNED FROM THE WRONG
+LAYER.** 📐 The tier components live in **`Fdp.Toolkit.Blueprints.Components`** — the *same assembly* as the
+system that needs them. ⇒ ⭐ **there was never a reference-graph reason for the registration to sit several
+layers up in a host assembly**; it sat there because the Editor was the first host to need it, and every
+host that did not route through that one assembly was silently missing it.
+
+| ⭐ THE FIX — one list, one call site | |
+|---|---|
+| **①** | ⭐ **`Fdp.Toolkit.Blueprints.Components.BlueprintBlackboardTiers.RegisterAll(world)`** — the tier list now lives **with the tier types** |
+| **②** | ⭐⭐ **`HrotSharedComponentRegistry.RegisterAll` calls it** — the one Hrot-wide path all four node bootstrappers already use *(IG · Stride · CGF via `CgfComponentRegistry` · SimHost via `SimHostComponentRegistry`)*. ⛔ **Deliberately NOT a line added to `CgfComponentRegistry`** — that is a fourth chance to forget, which is exactly how this arose |
+| **③** | `BlueprintRuntimeWiring.RegisterTierComponents` becomes a **forwarder**, so the Editor's path is unchanged and there is no second list |
+
+⚠ **Registration is not allocation** — registering a type creates table metadata; the 16 KB is per-entity
+and only materialises when the component is added. ⇒ registering all three on every node is the cheap
+uniform answer, not a per-role subset.
+
+#### ✅ LIVE EVIDENCE *(`--mode all`, windowed under Xvfb, driven over the HTTP API directly)*
+
+| | before | after |
+|---|---|---|
+| `POST /scenario/load/live {hill-attack}` | 🔴 **process Aborted** | ✅ `ok:true`, `entityCount:8`, `sawWorldChange:true`, `target:OperatingLive` |
+| unhandled exceptions in the run log | 1 *(fatal)* | ✅ **0** |
+| ⭐⭐ entity `1000` on the **Scenario (CGF)** perspective | *(unreachable — process dead)* | ✅ **carries `BlueprintBlackboard1024`** — the exact component whose absence aborted the node |
+
+⭐ **Proven pre-existing before fixing**: the identical launch in a worktree at `079fa90ff` aborts with the
+same exception and stack, so it is not a consequence of `CE-141`/`CE-144`.
+
+⚠⚠ **WHAT THIS RUN COULD NOT VERIFY, stated rather than implied.** The IG↔SimHost component comparison
+`CE-141` deserves is **not reachable through this API**: 📐 the capability matrix reports IG as
+`world.read: true` but **`world.entityMap: false`**, so `/entities` and `/entities/{id}` answer
+`NOT_SUPPORTED_HERE` on the IG perspective — a truthful *"not here"*, not a defect. ⇒ ⛔ **`CE-141`'s
+as-built and `CE-144`'s destroy loop remain unverified on a live cluster**; verifying them needs either an
+IG-side read capability or a different instrument.
+
+⚠ **One unexplained observation, recorded and NOT chased:** `entityCount` reads **8** on the SimHost and
+Scenario perspectives and **9** on IG. Not investigated — it may be an IG-local presentation entity, and
+guessing would be exactly the shallow inference this document keeps correcting.
+
+---
+
 ## 3. ⭐⭐⭐ THE DESIGN — `EntityCreationPack`, on the `MapInteractionPack` precedent
 
 ⭐⭐ **This shape is already proven in this lane.** `UXI-23` `S2b` replaced **five** hand-written map
