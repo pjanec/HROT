@@ -14,6 +14,12 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is B
   the BASE composes the pack and the hook keeps only node domain modules. NOT built. A suspected
   GenesisMaterializationSystem gap on CGF was tested live with hill-attack and did NOT reproduce; it is
   recorded there as an OPEN QUESTION, not a hazard.
+  ⛔⛔ NEW 2026-09-03: §4.1e carries TWO USER CORRECTIONS to §4.1d and SUPERSEDES its ExtraTranslators
+  row (which said 'keep per-host' -- WRONG: the TKB is by design the same on all nodes, and the
+  translator is already an inert no-op where the components are unregistered, so it belongs in
+  TkbTranslatorSet.Base()). And module selection must be by ROLE, not per host: NodeRole's own doc
+  already specifies the per-role module table and RegisterSpawningPipeline ignores it. NOT built --
+  step 0 is mapping each registered class to its role concept.
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
@@ -339,7 +345,7 @@ post-condition is the durable one — it binds nodes that do not exist yet.
 | `Elm` lookup | `.First(m is ELM)` | **`BaseModules[0]`** | `.First(m is ELM)` | **`BaseModules[0]`** | 🔴 **UNIFY** — two implementations of one lookup, and `[0]` is **positional**: it is silently wrong the day `BaseModules` gains an entry before the ELM. ⭐ The pack should resolve it; no host should be asked |
 | `NetworkRequestSource` · `AckSink` · `JsonAttributeCompiler` · `OwnershipStrategy` | ✅ | ⛔ | ✅ | ⛔ | ⭐⭐ **UNIFY — pass everywhere.** 📐 `INetworkFactory.CreateCgfEntityLifecycleAdapters()` returns **`null`** on `OfflineNetworkFactory` and `BdcNetworkFactory`, so passing it on a host that has no adapters is a **no-op**. ⇒ the current split is a per-host decision nobody recorded, not a capability boundary |
 | `RequestEgress` | ⛔ | ⛔ | ✅ | ⛔ | ⭐ same argument, same fix — and `DESIGN_Entity_Authoring_Surface.md`'s `RequestEntityCreation` makes **every map-enabled host** an originator, so IG-only is already the stale shape |
-| `ExtraTranslators` | `AiDiagnostics` | `AiDiagnostics` | ⛔ | ⛔ | ⚠ **KEEP per-host** — it *adds* to the TKB translator list, and `CE-141`'s rule bans **subtracting**, not adding. ⭐ A diagnostics translator on sim nodes is a real role difference |
+| `ExtraTranslators` | `AiDiagnostics` | `AiDiagnostics` | ⛔ | ⛔ | 🔴 **UNIFY — see §4.1e. ⛔ THIS ROW'S ORIGINAL VERDICT WAS WRONG** *(it said "KEEP per-host")* |
 | `IsBroadcastArbiter` | **true** | false | false | false | ⛔ **KEEP** — the genuine role flag *(CGF is the default entity-creation request processor; `EditorSubsystem:1250` is `true` for the standalone single-node reason)* |
 | `SpawnSystem` scheduling | — | `new SimHostModule(spawn)` | `RegisterGlobalSystem` | `new SimHostModule(spawn)` | ⭐ **UNIFY, very likely to `RegisterGlobalSystem`** — 📐 `NetworkSpawningSystem` is `[UpdateInPhase(SystemPhase.BeforeSync)]`, both paths read that attribute, and `SimHostModule.RegisterSystems` is one line: `registry.RegisterSystem(_spawnSystem)`. ⚠ **Verify ordering WITHIN the phase before collapsing** — module- vs globally-registered systems may not interleave identically, and that is unmeasured |
 | `LocalRequests` captured | ✅ | ⛔ | ✅ | ⛔ | ⚠ follows from who originates requests; folds into the `RequestEgress` row |
@@ -384,6 +390,71 @@ drifted."*
 | ⚠ **what would change the lean** | if the `SpawnSystem` in-phase ordering turns out to differ between module and global registration, the base must pick **one** deliberately and say why — ⛔ that is the one row here that could change runtime behaviour rather than just tidy the composition |
 
 ⛔ **Not built.** This is a design record; the build is a separate item.
+
+### 4.1e ⛔⛔ TWO CORRECTIONS TO §4.1d *(user, `2026-09-03`)* — **the TKB is not per-host, and selection is by ROLE**
+
+> 🔒 **User, verbatim:** *"adding to tkb per host is wrong, tkb is by design same on all nodes. registration
+> of stuff related to physics etc must be per role where possible, not hardcoded per host, so that bootstrap
+> code can be shared, but of course respecting possible different implementations (simhost vs stride)."*
+
+#### ① 🔴 **`ExtraTranslators` — §4.1d's verdict was WRONG, and the measurement says so**
+
+⛔ §4.1d said *"KEEP per-host — `CE-141` bans **subtracting**, not adding."* ⭐⭐ **That applied `CE-141`'s
+letter and missed its principle.** 🔒 **The TKB is by design the SAME on every node**, so a per-host
+**addition** is exactly as much a divergence as a subtraction.
+
+📐 **And the measurement makes the fix free.** `AiDiagnosticsTkbTranslator` guards **every** write:
+
+```csharp
+if (… && repo.IsComponentTypeRegistered<BTreeTraceWorkingMemory1024>()) repo.AddComponent(…);
+if (… && repo.IsComponentTypeRegistered<HsmTraceWorkingMemory1024>())  repo.AddComponent(…);
+if (!repo.IsComponentTypeRegistered<DebugState>()) return;
+```
+
+⭐⭐⭐ All three types live in **`CognitiveComponentRegistry`**, which IG and Stride do not register ⇒ **the
+translator is ALREADY an inert no-op there.** ⇒ ⛔ **the per-host `ExtraTranslators` buys nothing and costs
+uniformity.**
+
+| ⭐ the fix | |
+|---|---|
+| ⭐⭐⭐ **`AiDiagnosticsTkbTranslator` moves into `TkbTranslatorSet.Base()`** | the ONE list every node already shares. ⭐ Same reasoning `CE-141` used to delete IG's `.WithTranslators`, now applied to the other direction |
+| ⭐⭐ **the narrowing lever stays the COMPONENT REGISTRATION SET** | ⛔ never the translator list — `TkbTranslatorSet`'s own header, and `CE-141`'s live evidence *(16 shared components, 18 absent on IG because of the unregistered Cognitive+Kinematic tiers)* |
+| ⚠ **`ExtraTranslators` itself** | keep the field *(it is a legitimate seam for a genuinely node-unique translator)*, ⛔ but it must carry **nothing** today. 📌 A seam with no user is fine; a seam used to smuggle a TKB difference is not |
+
+#### ② ⭐⭐⭐ **PHYSICS AND FRIENDS MUST BE SELECTED BY ROLE — and the intent is already written down**
+
+⛔⛔ **`NodeRole`'s own XML doc says exactly this, and the code does not do it:**
+
+> *"Roles determine which simulation modules and translator packs are instantiated by `NodeBootstrapper`"* —
+> **`Brain`** = MissionControl + CognitiveRuntime + ActionDispatch + Combat *(no ground kinematics)* ·
+> **`MuscleGround`** = ActionDispatch + GroundKinematics + Combat *(no behaviour/BTree)* ·
+> **`ImageGenerator`** = presentation only · **`Perception`** · **`NavigationSolver`**
+
+📐 **Measured — `SimHostNodeBootstrapper` HOLDS `_role` and uses it for exactly three things:**
+`ConfigureForNode` *(`:206`)* · a `writerIdentifier` ternary *(`:248`)* · forwarding to
+`NodeBootstrapper.BuildOrchestration` *(`:250`)*. ⛔ **`RegisterSpawningPipeline` does not branch on it at
+all** — `PhysicsToolkitModule` · `CoreLogicPack` · `EqsModule` · `EngineBackedNavigationModule` ·
+`AreaQueryResultMaterializationSystem` · `CognitiveSpatialModule` are registered **unconditionally**,
+whatever the role. ⇒ ⭐⭐ **this is `R-129` in its purest form: the intent is in the doc and the code is
+behind it.**
+
+⭐ **Corroborating that the machinery was MEANT for this:** `writerIdentifier: _role.HasFlag(NodeRole.Brain)
+? "Hrot.CGF" : "Hrot.SimHost"` — ⭐⭐ **the same bootstrapper is already expected to serve BOTH the Brain
+(CGF) and MuscleGround (SimHost) roles.** ⛔ It just does not select its modules that way.
+
+#### ⭐⭐⭐ THE REVISED LEAN — **role selects WHAT, a factory seam selects WHICH IMPLEMENTATION**
+
+| ⭐ | |
+|---|---|
+| **①** | ⭐⭐⭐ **a shared, role-keyed module table in the BASE** — `Brain ⇒ {MissionControl, CognitiveRuntime, ActionDispatch, Combat}`, `MuscleGround ⇒ {ActionDispatch, GroundKinematics, Combat}`, `ImageGenerator ⇒ {}`, per the enum's own table. ⭐ It is `[Flags]`, so a `--mode all`-style node that is Brain\|MuscleGround gets the union, deduplicated |
+| **②** | ⭐⭐ **the per-host hook shrinks to the IMPLEMENTATION choice** — 🔒 *"respecting possible different implementations (simhost vs stride)"*. ⭐ The existing seam for this is already `INetworkFactory`/`nodeFactory`; the module analogue is a small `IRoleModuleFactory` the host supplies, so **Stride can hand a Stride-flavoured renderer/physics module for the SAME role** without owning the selection |
+| **③** | ⛔ **what stays truly host-unique** shrinks to near nothing — and each survivor must be **named with a reason**, not left implicit |
+| ⚠ **the honest gap** | 📐 the enum's table names **concepts** *(MissionControl · CognitiveRuntime · ActionDispatch · GroundKinematics · Combat)*, and the code registers **classes** *(`CoreLogicPack`, `EqsModule`, `EngineBackedNavigationModule`, `CognitiveSpatialModule`, `PhysicsToolkitModule`)*. ⛔⛔ **The mapping between the two is NOT measured, and it is the whole build.** ⇒ ⭐ **step 0 is to map each registered class to its role concept and get that table approved** — building the selection before the mapping is agreed would just relocate the guesswork |
+| ⚠ **what would change the lean** | if a module turns out to be needed by a role the enum's table excludes *(e.g. `PhysicsToolkitModule` on a Brain node for collider radii — `CognitiveSpatialModule` already reads `PhysicsCollider`)*, then the enum's table is the thing that is stale, not the code. ⛔ **Resolve that per module in step 0**, and update `NodeRole`'s doc if the table moves |
+
+⛔ **Not built.** ⚠ **And deliberately not started before step 0's mapping** — this is the phase §4.1's own
+sequencing calls *"the only phase touching orchestration/participant/time authority, i.e. what §3.1 says
+not to move blindly."*
 
 #### ⚠ AND ONE CONCERN INSIDE THE ORDER IS STILL PER-HOST FOR A REASON
 
