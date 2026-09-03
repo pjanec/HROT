@@ -1137,6 +1137,109 @@ locally and the production root did not.**
 roots: `CgfSubsystem`, `EditorSubsystem`, and `EditorStrideSubsystem`; ⭐ `EditorHarness` is a fourth if
 test harnesses are counted, and §4.1L ③ is the reason they should be.
 
+### 4.1M 📐 THE REGISTRAR INVENTORY — **measured `2026-09-03`. ⛔ NO DESIGN CONCLUSIONS IN THIS SECTION.**
+
+> 🔒 **User ruling, `2026-09-03`, verbatim:** *"the tiers should not be prefabricated. we need flexible
+> composition but unified to very high extent. **Tier = a composition of shared parameterized
+> registrars/initializers.**"*
+>
+> ⛔⛔ **This SUPERSEDES the "two families" framing of §4.1L ② and the "three tiers" table** *(ECS node /
+> cluster participant / viewer)* that a chat reply proposed on the same day. ⭐ Both were **partitions**,
+> and a partition is an input a host gets sorted into. ⭐⭐⭐ **A tier is an OUTPUT — the set of registrars a
+> host happened to compose.** ⚠ The tables below therefore enumerate **units and their users**; they do
+> **not** classify hosts.
+>
+> ⭐⭐ **Why this section contains no recommendation.** 🔒 User, same day: *"every time i ask about some
+> persuading question you significantly change your suggestion."* 📐 Measured cause, three times in one
+> session: **the local question was measured, and the CONCLUSION rested on something never opened**
+> *(the live Stride path · the base class itself · a mechanism, where only traits had been measured)*.
+> ⇒ ⭐ this section is the enumeration that must precede the design, per `INVENTORY-BEFORE-DESIGN`.
+> ⛔ **Do not add a build sequence here.**
+
+⭐ **Reproduce it:** `python3 scripts/composition-inventory.py` *(the script states its own imprecision —
+counts are LOWER BOUNDS; `HashSet` is a regex false positive)*. Corroborated with `search_graph`:
+**16** `*Pack` classes, **3** `*LogicPack`, **87** distinct `*Module` names.
+
+#### ① THE COMPOSITION ROOTS — **nine, and the spread is the finding**
+
+| root | file | units composed |
+|---|---|---|
+| **Editor** *(inline)* | `Hrot.Editor/EditorSubsystem.cs` | 🔴 **54** |
+| **CGF** *(inline)* | `Hrot.CGF/CgfSubsystem.cs` | **30** |
+| **EditorHarness** *(TEST)* | `Hrot.ClusterRunner.Integration.Tests/EditorHarness.cs` | **16** |
+| **Stride editor** *(inline)* | `Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs` | **14** |
+| **IG** *(base subclass)* | `Hrot.IG/IgNodeBootstrapper.cs` | **10** |
+| **SimHost** *(base subclass)* | `Hrot.SimHost/SimHostNodeBootstrapper.cs` | **9** |
+| **ReplayBrowser** | `Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs` | **7** |
+| **ExCon** | `Hrot.ExCon/ExConSubsystem.cs` | **6** |
+| **Stride node** *(base subclass, DORMANT)* | `Hrot.NodeComposition/StrideNodeBootstrapper.cs` | **4** |
+
+⚠ **A raw count mixes concerns** — the Editor's 54 include UI registries and adapters, not only ECS
+composition. ⭐ The count is reported because the **6× spread** is itself the measurement.
+
+#### ② WHAT IS ALREADY SHARED — **45 units used by ≥2 roots** *(44 real; `HashSet` is the false positive)*
+
+| users | unit | roots |
+|---|---|---|
+| **7** | `BehaviorRegistry` | SimHost · StrideNode · CGF · Editor · StrideEd · ReplayBrowser · Harness |
+| **6** | `ClusterSlave` | IG · CGF · Editor · StrideEd · **ExCon** · Harness |
+| **6** | ⭐⭐⭐ **`EntityCreationPack`** | SimHost · IG · StrideNode · CGF · Editor · StrideEd |
+| **5** | `SimHostModule` | SimHost · StrideNode · Editor · StrideEd · Harness |
+| **4** | `CgfLogicPack` · `LocalDiskStorageProvider` · `PhysicsToolkitModule` · `TacticalIntentMapperRegistry` | |
+| **3** | `CognitiveSpatialModule` · `EcsRecordReplayController` · `EntityLifecycleModule` · `MapInteractionPack` · `ScenarioEditorModule` · `SimHostCoreLogicPack` | |
+| **2** | 30 further units — orchestration *(`OrchestrationLogicPack`, `ClusterMaster`, `ListenerRecordReplayController`, `NodeBootstrapper`)*, map *(`MapCullingModule`, `StyleResolutionModule`, `GizmoInteractionModule`)*, editor tooling *(11 registries/providers/adapters)*, diagnostics *(`SubsystemDebugProvider`, `DebugSnapshotProvider`)* | |
+
+#### ③ SINGLE-ROOT UNITS — **28, i.e. what is genuinely host-specific today**
+
+| root | n | units |
+|---|---|---|
+| Editor | **14** | `AppExitPromptController` · `BTreeTraceLaneProvider` · `BlueprintLiveValueProvider` · `BlueprintNodeDrawerRegistry` · `BlueprintPeerSourceProvider` · `EditorLogicSessionAdapter` · `EditorMapPickAdapter` · `EditorZoneAdapter` · `EqsTemplateRegistry` · `HsmTraceLaneProvider` · `LiveBlackboardValueProvider` · `LiveSessionRegistry` · `MasterSyncTimeControllerAdapter` · `StorageGatewayModule` |
+| CGF | 4 | `CanvasMapPickAdapter` · `CgfClusterDebugTimeController` · `CgfSimulationModule` · `ClusterTimeTransportAdapter` |
+| IG | 3 | `HistoryTrailModule` · `IgUnitHierarchyModule` · `MapLayerModule` |
+| Stride editor | 3 | `DotRecastDtCrowdProvider` · `EditorStrideSimulationModule` · `StrideMuscleModules` |
+| ExCon | 2 | `SlaveSyncController` · `TimeNetworkModule` |
+| SimHost | 1 | `EngineBackedNavigationModule` |
+| ReplayBrowser | 1 | `RepositoryAdapter` |
+
+#### ④ ⭐⭐⭐ TWO REGISTRAR SHAPES ALREADY EXIST IN PRODUCTION
+
+⭐⭐ **Shape A — context object + static `Build` + `Validate` + omission reporting.** ⛔ Two instances only:
+
+| | |
+|---|---|
+| `EntityCreationPack.Build(EntityCreationContext ctx)` | `:70`, opens with `ctx.Validate()` |
+| `MapInteractionPack.Build(MapInteractionContext ctx)` | `:53`, same shape |
+| ⭐ the context is the **parameterisation** | `EntityCreationContext`: **6 `required`** *(`World`, `EntityMap`, `TkbDb`, `IdAllocator`, `Elm`, `NodeId`)* + **8 optional `init`** *(`IsBroadcastArbiter`, `NetworkRequestSource`, `RequestEgress`, `AckSink`, `ExtraTranslators`, `TranslatorPlacements`, `JsonAttributeCompiler`, `OwnershipStrategy`)* |
+| ⭐⭐ and it REPORTS what the host failed to schedule | `EntityCreation.Unserviceable(scheduled)` — *"an omission is loud instead of silent"* |
+
+⭐ **Shape B — positional constructor with optional args defaulting to null.** The capability modules:
+
+| unit | signature |
+|---|---|
+| `CgfLogicPack` | `(BehaviorRegistry, NetworkEntityMap, ScenarioEntityCreationRequestSource, TacticalIntentMapperRegistry, VehicleAPI? = null)` |
+| `SimHostCoreLogicPack` | `(NetworkEntityMap, RoadNetworkBlob = default, TrajectoryPoolManager? = null, FormationTemplateManager? = null)` |
+| `CognitiveSpatialModule` | `(EntityRepository liveWorld, Func<ISimulationView,Entity,float>? colliderRadiusReader = null)` |
+| `EngineBackedNavigationModule` | `(RoadNetworkBlob roadNetwork, TrajectoryPoolManager pool)` |
+| `OrchestrationLogicPack` | `(ClusterSlave clusterSlave)` |
+
+#### ⑤ 📌 FIVE FACTS THIS ENUMERATION ESTABLISHES — ⛔ **facts, not a plan**
+
+| # | |
+|---|---|
+| **1** | ⭐⭐⭐ **`EntityCreationPack` is already a shared parameterized registrar adopted by SIX roots** — the `P1` work finished `2026-09-03`. ⇒ the user's model is **not a new mechanism**; one instance of it is shipped and verified on a live four-process cluster |
+| **2** | ⭐⭐ **Shape A exists twice, Shape B five-plus times.** ⛔ Which shape a unit uses correlates with nothing but its age |
+| **3** | ⚠ **Shape B's optional-null arguments are the silent-default family** `CLAUDE.md` names. ⛔ **NOT measured here: whether any production caller HOLDS such a value and fails to pass it** — that is the checkable form of the rule and it needs its own pass |
+| **4** | ⭐ **`ClusterSlave` has 6 users including ExCon, which composes no ECS at all.** 📐 `ExConSubsystem:257` builds it directly on its own bus; `:342` passes `NodeRole.None` |
+| **5** | ⭐ **`TkbTranslatorSet` is now referenced by 3 roots** *(SimHost, IG, CGF)* **plus the creation pack's own three files** — the rest reach it through `EntityCreationPack` |
+
+#### ⛔ WHAT THIS SECTION DOES **NOT** ESTABLISH
+
+| ⛔ | |
+|---|---|
+| **the ordering constraints** | which of `SharedApplicationBootstrapper`'s phase orderings are **essential** *(components before serializer, groups before orchestration, translators before `Initialize`)* versus incidental. ⭐⭐ **That knowledge is the valuable part of the base class and any registrar model must carry it as declared dependencies.** ⛔ **Unmeasured — and it is the blocking input for a build sequence** |
+| **the concern grouping** | the units above are listed by USER COUNT, not by concern. ⛔ Grouping them is a design act and is deliberately not done here |
+| **completeness** | ⚠ text extraction with lower-bound counts; `check_index_coverage` is unavailable through the CLI |
+
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
 ### 5.1 Venue and channels — settled *(`AQ63` §12)*
