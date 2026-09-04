@@ -265,6 +265,40 @@ your defect:
 ⭐ **Stopping without acquiring is out of spec** — the entities are supposed to keep closing until they
 see. ⛔ Do not explain a halt away as "out of range".
 
+### 8.1 ⛔⛔⛔ READ THE RUNTIME VALUE OFF THE ENTITY — **never off a source file**
+
+> 🔒 **User, `2026-09-04`:** *"you have the way of dumping any entity so pls use it instead of
+> theoretizing."*
+
+📌 **The case that cost three corrections in one exchange.** Asked whether the tanks were within sensor
+range, I grepped `BdcTkbCatalog.cs:50` — `SensorRange = 8000` — and concluded they were *"fifty times
+inside range"*. 📐 **The live entity says `VisionRange: 100`**, because
+`scenarios/hill-attack/scenario.json` overrides it on six entities *(deliberately small, to exercise the
+sensor)*. The friendlies were **37–46 m OUTSIDE** vision, i.e. the exact opposite of the conclusion.
+
+⇒ ⭐⭐⭐ **A catalog default is not the value in play.** A scenario-stored component override silently
+beats it, and nothing in the code says so.
+
+| ⛔ do not read from | ⭐ read from |
+|---|---|
+| a TKB catalog `.cs` default | `GET /entities/<id>` ▸ `Components.PerceptionReceptor.VisionRange` |
+| a preset table | `Components.VehicleParams` |
+| `TkbType`, to infer the faction | ⭐⭐ **`Components.EntityInfo.ForceId`** — `"Friend"` / `"Hostile"` |
+
+⛔⛔ **`TkbType` IS NOT THE FACTION.** 📌 In `hill-attack` the hostiles `1006`/`1007` are **`Tkb 100`,
+M1 Abrams — the same type as the friendlies.** Splitting sides by type gets them backwards.
+
+⭐ **Two reads that decide "is this entity idle or un-commanded?"** — they look identical from position
+alone:
+
+| observed | reading |
+|---|---|
+| `NavigationIntent {Mode: None, IntentId: 0, FinalDestination: [0,0,0]}` | ⭐ **nothing ever commanded it** — not stuck, never told to go |
+| `BehaviorState.ActiveBehaviorHash: 0` + `MissionPlanQueue.PhaseCount: 0` | ⭐⭐ **no behaviour is running at all** — no amount of navigation debugging will help |
+
+⚠ **And never compute a distance against `FinalDestination` without checking it is non-zero** — a
+`[0,0,0]` destination yields a large, meaningless number that reads like "still has far to go".
+
 ---
 
 ## 9. ⭐⭐ `--mode editor` is the ORACLE for everything except the translators
