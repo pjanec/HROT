@@ -207,6 +207,73 @@ public sealed class NodeBootPlanRails
         Assert.Equal(new[] { "a", "b" }, ran);
     }
 
+    // ── The migration boundary: NodeBootPlan.Value<T> (§4.1T) ────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ The accessor a partially-migrated host depends on: after <c>Run</c>, the plan's OWNER can
+    /// read what the steps published, so the code below the migrated region keeps working.
+    ///
+    /// <para>
+    /// 📌 This is not hypothetical plumbing — <c>CgfSubsystem.Initialize</c> declares its head as six
+    /// steps and then reads four values back this way (<c>node-config</c>, <c>behavior-registry</c>,
+    /// <c>node-factory</c>, <c>replication-module</c>) because the ~570 lines after it are not migrated
+    /// yet. If this accessor were wrong, that host boots wrong.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void ValueReadsWhatAStepPublished_AfterThePlanHasRun()
+    {
+        var plan = new NodeBootPlan()
+            .Step("producer", provides: new[] { "bus", "n" }, run: v =>
+            {
+                v.Set("bus", "THE-BUS");
+                v.Set<int>("n", 7);
+            });
+
+        plan.Run("TestHost");
+
+        Assert.Equal("THE-BUS", plan.Value<string>("bus"));
+        Assert.Equal(7,         plan.Value<int>("n"));
+    }
+
+    /// <summary>
+    /// A null published under a declared key comes back as null rather than throwing — the hosts
+    /// genuinely publish optional values (<c>CgfSubsystem</c>'s <c>node-factory</c> is
+    /// <c>_networkFactory?.ConfigureForNode(...)</c>, null when the node runs offline), and a plan that
+    /// refused them would force those steps back out into ambient locals.
+    /// </summary>
+    [Fact]
+    public void ValueReturnsNullForAnOptionalValueThatWasPublishedAsNull()
+    {
+        var plan = new NodeBootPlan()
+            .Step("producer", provides: new[] { "factory" }, run: v => v.Set<string?>("factory", null));
+
+        plan.Run("TestHost");
+
+        Assert.Null(plan.Value<string?>("factory"));
+    }
+
+    /// <summary>
+    /// ⭐ Reading a key nothing published names the keys that DO exist, so a typo at the migration
+    /// boundary is a one-line fix rather than a null that surfaces a hundred lines later.
+    ///
+    /// <para>⛔ INVERSE-EDIT RED-PROOF: make <c>NodeBootValues.Published</c> return <c>default!</c> on a
+    /// missing key instead of throwing and this test fails — which is exactly the silent-null failure
+    /// mode §4.1N measured.</para>
+    /// </summary>
+    [Fact]
+    public void ValueOnAKeyNothingPublishedFailsLoudlyAndListsTheKnownKeys()
+    {
+        var plan = new NodeBootPlan()
+            .Step("producer", provides: new[] { "bus" }, run: v => v.Set("bus", "THE-BUS"));
+
+        plan.Run("TestHost");
+
+        var ex = Assert.Throws<InvalidOperationException>(() => plan.Value<string>("buss"));
+        Assert.Contains("buss", ex.Message);
+        Assert.Contains("bus",  ex.Message);   // reports what IS published
+    }
+
     /// <summary>
     /// The declared keys are readable without running, so a host's plan can be inspected.
     /// </summary>

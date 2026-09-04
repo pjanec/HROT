@@ -165,6 +165,25 @@ public sealed class NodeBootPlan
 
     /// <summary>Step keys in declaration order. For tests and diagnostics.</summary>
     public IReadOnlyList<string> StepKeys => _steps.Select(s => s.Key).ToArray();
+
+    /// <summary>
+    /// Reads a published value AFTER <see cref="Run"/> has completed.
+    ///
+    /// <para>
+    /// ⭐ A host migrates its composition slice one region at a time, so the code AFTER the plan still
+    /// needs the values the plan produced. Inside a step that read goes through
+    /// <see cref="NodeBootValues.Get{T}"/> and is checked against the step's own <c>requires</c>;
+    /// once the plan has finished there is no step to check against, so this is the honest accessor
+    /// for the plan's OWNER.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ Not a back door into a running plan — a step must still declare what it reads. This exists
+    /// only for the boundary between a migrated region and the code that has not been migrated yet,
+    /// and it should get smaller as a host's slice is finished. 📄 §4.1T.
+    /// </para>
+    /// </summary>
+    public T Value<T>(string key) => _values.Published<T>(key);
 }
 
 /// <summary>
@@ -219,6 +238,23 @@ public sealed class NodeBootValues
                 $"[{string.Join(", ", _provides)}]. Add it there, so the declared graph stays the real one.");
 
         _bag[key] = value;
+    }
+
+    /// <summary>
+    /// Reads a published value without a step guard. Only <see cref="NodeBootPlan.Value{T}"/> calls
+    /// this, and only after the plan has run — see its remarks for why that is not a back door.
+    /// </summary>
+    internal T Published<T>(string key)
+    {
+        if (!_bag.TryGetValue(key, out object? raw))
+            throw new InvalidOperationException(
+                $"No boot step published '{key}'. Known keys: [{string.Join(", ", _bag.Keys.OrderBy(k => k, StringComparer.Ordinal))}].");
+
+        if (raw is null) return default!;
+        if (raw is not T typed)
+            throw new InvalidOperationException(
+                $"'{key}' was published as {raw.GetType().Name}, not {typeof(T).Name}.");
+        return typed;
     }
 
     /// <summary>

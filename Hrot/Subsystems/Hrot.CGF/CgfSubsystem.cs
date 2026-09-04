@@ -506,15 +506,46 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private int _testIdCounter;
 
     /// <inheritdoc/>
+    /// <summary>
+    /// The node context, as a CHECKED read for use inside a boot step.
+    ///
+    /// <para>
+    /// A step's lambda cannot see that an earlier step assigned <c>_context</c> — the compiler must
+    /// assume a lambda runs at any time — so the field reads as nullable in there. The real guarantee
+    /// is the plan's: a step that needs the context declares a key only the "node-context" step
+    /// provides, and <c>NodeBootPlan.Run</c> throws by key if that step did not run. This turns that
+    /// guarantee into an actual check rather than a `!` suppression. 📄 §4.1T.
+    /// </para>
+    /// </summary>
+    private HrotNodeContext Ctx =>
+        _context ?? throw new InvalidOperationException(
+            "[CgfSubsystem] a boot step read the node context before the 'node-context' step built it.");
+
     public void Initialize(SubsystemConfig config)
     {        _headless = config.Headless;
         int cgfNodeId = config.NodeId != 0 ? config.NodeId : 400;
         string baseTempRoot = OrchestrationConstants.ResolveStagingRoot();
         string isolatedTempRoot = System.IO.Path.Combine(baseTempRoot, "nodes", $"node-{cgfNodeId}");
         string resolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
-        // ── Create DDS participant in the Application Shell (Composition Root) ───
-        // Rule: only the outermost executable may instantiate DdsParticipant.
-        // HrotNodeBuilder no longer has a fallback.
+        // ⭐⭐⭐ THE NODE-BOOT HEAD IS A DECLARED PLAN (§4.1T) — the first INLINE ECS root to take one.
+        //
+        // The statements below are UNCHANGED and in the SAME ORDER; what is new is that each region
+        // states what it requires and provides, and NodeBootPlan verifies it (it never reorders — §4.1P).
+        // Values that cross a step boundary travel through the plan's bag rather than through locals,
+        // which is the rule §4.1R derived after measuring that this method's spine values live 118-191
+        // lines each and every boundary is crossed by three to five of them.
+        //
+        // ⛔ SCOPE: only the HEAD (participant -> context -> base modules -> behaviour registry ->
+        //    node factory -> replication module). Everything from the entity-creation tier onward is
+        //    still ordinary code and reads what it needs back via plan.Value<T>(...) below.
+        var bootPlan = new NodeBootPlan();
+        bootPlan
+
+            // ── Create DDS participant in the Application Shell (Composition Root) ───
+            // Rule: only the outermost executable may instantiate DdsParticipant.
+            // HrotNodeBuilder no longer has a fallback.
+            .Step("participant", provides: new[] { "participant" }, run: v =>
+            {
         var shellParticipant = _networkFactory?.Participant;
         if (shellParticipant == null)
         {
@@ -525,7 +556,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 AppInstanceId = cgfNodeId,
             });
         }
-        // ── Build common infrastructure ────────────────────────────────────────
+                v.Set("participant", shellParticipant);
+            })
+
+            // ── Build common infrastructure ────────────────────────────────────────
+            .Step("node-context",
+                requires: new[] { "participant" },
+                provides: new[] { "node-config" },
+                run: v =>
+            {
+        var shellParticipant = v.Get<CycloneDDS.Runtime.DdsParticipant>("participant");
         var nodeConfig = new HrotNodeConfig
         {
             DomainId            = config.DomainId,
@@ -569,17 +609,24 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _context.World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(_context.TkbDb);
 
         CgfComponentRegistry.RegisterAll(_context.World);
+                v.Set("node-config", nodeConfig);
+            })
 
-        // ── Register base infrastructure modules ───────────────────────────────
-        foreach (var m in _context.BaseModules)
-            _context.Kernel.RegisterModule(m);
+            // ── Register base infrastructure modules ───────────────────────────────
+            .Step("base-modules", requires: new[] { "node-config" }, run: _ =>
+            {
+        foreach (var m in Ctx.BaseModules)
+            Ctx.Kernel.RegisterModule(m);
 
         // Allocate RaycastBatchData so Action_QueryRaycast can enqueue/query requests on CGF.
         _physicsModule = new PhysicsToolkitModule();
-        _physicsModule.Initialize(_context.World);
+        _physicsModule.Initialize(Ctx.World);
+            })
 
-        // ── Create replication module via factory (Brain role) ─────────────────
-        // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
+            // ── Create replication module via factory (Brain role) ─────────────────
+            // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
+            .Step("behavior-registry", provides: new[] { "behavior-registry" }, run: v =>
+            {
         var behaviorRegistry = new BehaviorRegistry();
         _behaviorRegistry = behaviorRegistry;
         // Blueprint registry (shared by materialization system and serializers). Created here so the
@@ -607,19 +654,56 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         Fdp.Toolkit.Behavior.Diagnostics.BehaviorTraceLog.Instance =
             new Hrot.AI.Behaviors.Logging.BehaviorTraceLogEmitter();
 
-        // Configure network factory for this node so auxiliary translators can be created.
-        var nodeFactory = _networkFactory?.ConfigureForNode(_context, NodeRole.Brain, behaviorRegistry);
+                v.Set("behavior-registry", behaviorRegistry);
+            })
 
+            // Configure network factory for this node so auxiliary translators can be created.
+            .Step("configured-factory",
+                requires: new[] { "behavior-registry" },
+                provides: new[] { "node-factory" },
+                run: v =>
+            {
+        var behaviorRegistry = v.Get<BehaviorRegistry>("behavior-registry");
+        var nodeFactory = _networkFactory?.ConfigureForNode(Ctx, NodeRole.Brain, behaviorRegistry);
+                v.Set("node-factory", nodeFactory);
+            })
+
+            .Step("replication-module",
+                requires: new[] { "node-factory" },
+                provides: new[] { "replication-module" },
+                run: v =>
+            {
+        var nodeFactory = v.Get<INetworkFactory?>("node-factory");
         var replicationModule = nodeFactory?.CreateReplicationModule();
         if (replicationModule != null)
         {
-            _context = _context with
+            _context = Ctx with
             {
                 NedReplication      = replicationModule as Hrot.Common.Abstractions.INedReplicationModule,
                 GhostCreationSystem = replicationModule.GhostCreationSystem,
             };
             _context.Kernel.RegisterModule(replicationModule);
         }
+                v.Set("replication-module", replicationModule);
+            })
+
+            .Run(nameof(CgfSubsystem));
+
+        // ⭐ The boundary between the migrated head and the code that is not migrated yet. These reads
+        //   shrink as the rest of Initialize is declared; plan.Value<T> exists for exactly this
+        //   boundary and is checked against what a step actually published (§4.1T).
+        var nodeConfig        = bootPlan.Value<HrotNodeConfig>("node-config");
+        var behaviorRegistry  = bootPlan.Value<BehaviorRegistry>("behavior-registry");
+        var nodeFactory       = bootPlan.Value<INetworkFactory?>("node-factory");
+        var replicationModule = bootPlan.Value<Hrot.Common.Abstractions.IReplicationModule?>("replication-module");
+
+        // ⭐ Non-null past this point BECAUSE the plan ran: the "node-context" step builds both, and
+        //   Run() throws by key if a step that provides a required value did not execute. Stated once,
+        //   here, rather than sprinkling `!` down the rest of the method — the plan is the guarantee.
+        if (_context is null || _entityMap is null)
+            throw new InvalidOperationException(
+                "[CgfSubsystem] the 'node-context' boot step did not produce a context. " +
+                "This is a composition defect, not a runtime condition.");
 
         // ── Wire CreateEntityRequestSystem (CGF is the cluster-default processor) ─
         // This makes CGF intercept broadcast CreateEntityRequests (Owner == 0) and spawn

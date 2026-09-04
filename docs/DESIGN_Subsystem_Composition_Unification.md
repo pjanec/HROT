@@ -1684,6 +1684,12 @@ declared, the 45 shared units of §4.1M untouched.
 problem: 18 values must move to the plan's bag before its steps can be declared. ⚠ That is a batch, not a
 programme — and it is the first time this work has had a number for the Editor at all.
 
+> ⛔⛔ **PARTLY CORRECTED BY §4.1T ② *(`2026-09-04`, measured on the CGF build)*.** The numbers above are
+> right; ⚠ **what they price is not.** PEAK LIVE is a property of the WHOLE slice and **does not draw down
+> from the front** — migrating CGF's head left its `10` exactly where it was, at `:973` in the tail.
+> ⇒ ⭐⭐ **read this table as "what FINISHING each host costs", never as a budget a partial pass reduces.**
+> 📄 §4.1T ②.
+
 ⭐ **Why peak and not the total:** a value only costs anything if it is live *across a boundary*. The
 totals *(62, 40, 21)* count values that are born and die inside one step and never travel.
 
@@ -1709,7 +1715,7 @@ and **10**.
 
 | ⭐ the lean, with the trade stated | |
 |---|---|
-| ⭐⭐ **still start with CGF** | ⛔ **not** because it is cheapest — it is not — but because it is **in `IOS-IG-SimHost.sln` and gateable**: `CgfSubsystemHeadlessTests` exercises a real boot. ⚠ The Stride editor is **out of solution** *(`net8.0-windows`)*, so a migration there is measured by a suite that does not run in the normal gate |
+| ⭐⭐ **still start with CGF** | ⛔ **not** because it is cheapest — it is not — but because it is **in `IOS-IG-SimHost.sln` and gateable**: `CgfSubsystemHeadlessTests` exercises a real boot. ⚠ The Stride editor is **out of solution** *(`net8.0-windows`)*, so a migration there is measured by a suite that does not run in the normal gate. ⛔⛔ **OVERSTATED — see §4.1T ④:** there are TWO classes of that name, and the in-solution one is `[Fact(Skip=…)]`. The real boot gate is `Hrot.ClusterRunner.Integration.Tests`, which is **T3**. ⭐ The choice stands; this reason was weaker than written |
 | ⭐ **and the gap is small** | 10 vs 8 — ⛔ two values do not outweigh a gateable boot |
 | ⚠ **what would change it** | if the Stride editor's suite becomes gateable in CI, take it first — it is genuinely the smallest |
 
@@ -1728,6 +1734,110 @@ same rule `scripts/find.sh` follows.
 ⚠ **Imprecision, stated:** a local's life is first-to-last mention **by name**, so a name reused in a
 nested scope inflates its span *(over-estimates ⇒ a low number is trustworthy)*; declarations are matched
 textually, so `out`/deconstruction/pattern forms are missed *(⇒ counts are a LOWER BOUND)*.
+
+### 4.1T ⭐⭐⭐ STEP 5 — **the first INLINE ECS root takes a plan, and the honest result is MIXED. ✅ `build-state: BUILT` `2026-09-04`**
+
+> ⭐ §4.1S ③ chose CGF over the Stride editor *"not because it is cheapest — it is not — but because it is
+> in `IOS-IG-SimHost.sln` and gateable."* ⭐⭐ Built here. ⛔⛔ **And the gate half of that reasoning turned
+> out to be partly false — see ④.**
+
+#### ① ⭐ WHAT WAS BUILT — the head only, and the boundary is explicit
+
+`CgfSubsystem.Initialize` *(`:524`–`:1413`, **890 lines**)* now opens with a declared `NodeBootPlan` of
+**six steps** covering `:530`–`:690`, then falls back to ordinary code:
+
+| step | provides | requires |
+|---|---|---|
+| `participant` | `participant` | — |
+| `node-context` | `node-config` | `participant` |
+| `base-modules` | — | `node-config` |
+| `behavior-registry` | `behavior-registry` | — |
+| `configured-factory` | `node-factory` | `behavior-registry` |
+| `replication-module` | `replication-module` | `node-factory` |
+
+⭐⭐ **The statements are UNCHANGED and in the SAME ORDER.** What is new is that each region declares what
+it needs, and `Run` verifies it — §4.1P ①'s decision *(verify, never sort)* is what makes that
+behaviour-preserving by construction rather than by review.
+
+⭐ **Five values travel on the bag** rather than through ambient locals, and **four are read back** past
+the plan by `bootPlan.Value<T>` — the accessor added for exactly this boundary:
+
+```csharp
+var nodeConfig        = bootPlan.Value<HrotNodeConfig>("node-config");
+var behaviorRegistry  = bootPlan.Value<BehaviorRegistry>("behavior-registry");
+var nodeFactory       = bootPlan.Value<INetworkFactory?>("node-factory");
+var replicationModule = bootPlan.Value<IReplicationModule?>("replication-module");
+```
+
+⛔ **`Value<T>` is not a back door**: a *step* still may not read a key it did not declare *(rails
+`AStepCannotGetAKeyItDoesNotDeclareItRequires`)*. It exists only for the plan's OWNER, only after `Run`,
+and it should shrink to nothing as the rest of the slice is declared.
+
+⭐ **One incidental repair:** a step's lambda cannot see that an earlier step assigned `_context`, so the
+field reads as nullable inside it. Rather than sprinkle `!`, the class grew a checked `Ctx` accessor and
+the method a single post-`Run` guard — **the nullability is answered once, by the plan's own guarantee,
+instead of suppressed at eight call sites.**
+
+#### ② ⛔⛔ THE UNCOMFORTABLE MEASUREMENT — **the head migration did NOT move CGF's peak-live number**
+
+📐 Measured with `scripts/crossing-values.py`, before and after:
+
+| region | lines | ⭐⭐⭐ PEAK SIMULTANEOUS LIVE |
+|---|---|---|
+| CGF head, **before** *(`509`–`620`)* | 112 | **2** |
+| CGF head, **after** *(`524`–`690`)* | 167 | **2** |
+| CGF whole `Initialize`, **before** | 684 | **10** |
+| CGF whole `Initialize`, **after** | 890 | 🔴 **10** *(at `:973`)* |
+
+⇒ ⛔⛔ **I migrated the CHEAPEST prefix of the method, and §4.1S's headline number is untouched.**
+⭐ The peak sits at **`:973`**, deep in the un-migrated tail, among `idAllocator` *(`800`→`973`)* and
+`newClusterSlave` *(`886`→`1059`)* — values the head never touches. The four boundary reads simply
+re-materialise as tail locals at `:695`–`:698`.
+
+| ⭐⭐⭐ **the correction to how §4.1S's number must be read** | |
+|---|---|
+| ⛔ **PEAK LIVE is a property of the WHOLE slice, and only falls when the region CONTAINING the peak is migrated** | ⚠ §4.1S implied *"18 values must move"* reads as a budget that draws down as you go. **It does not draw down from the front.** Migrating a prefix costs its own crossings and leaves the peak exactly where it was |
+| ⭐⭐ **so PEAK LIVE prices the LAST step of a host's migration, not the first** | ⭐ It is still the right number for *"what does finishing this host cost"* — ⛔ it is the wrong number for *"what does starting cost"*, and §4.1S did not distinguish them |
+| ⭐ **what the head migration DID buy** | the mechanism is proven on an inline ECS root *(§4.1O's open question)*; six real orderings are now checked on every CGF boot instead of being comments; and `Value<T>` — the boundary primitive **every** partial migration needs — exists and is railed |
+
+⚠ **Stated plainly because the alternative is a report that reads like progress:** this step is a
+**bridgehead, not a dent.** The Editor's `18` and CGF's remaining `10` are still ahead in full.
+
+#### ③ ⭐ RAILS — three added, one red-proved
+
+`Hrot.NodeComposition.Tests/NodeBootPlanRails.cs` grows from 11 to **14**, all three new ones on
+`Value<T>` — which shipped in §4.1R with **no rail at all**, an accessor CGF's correctness now rests on:
+
+| rail | pins |
+|---|---|
+| `ValueReadsWhatAStepPublished_AfterThePlanHasRun` | the boundary works |
+| `ValueReturnsNullForAnOptionalValueThatWasPublishedAsNull` | ⭐ hosts genuinely publish nulls — CGF's `node-factory` is `_networkFactory?.ConfigureForNode(…)`, null offline. A plan that refused them would push those steps back out into ambient locals |
+| `ValueOnAKeyNothingPublishedFailsLoudlyAndListsTheKnownKeys` | ⛔ **red-proved**: replacing the throw in `NodeBootValues.Published` with `return default!` reddens this rail **and only this rail** *(14 → 13 passed, 1 failed)*. Restored by inverse edit and re-run green |
+
+#### ④ ⛔⛔ THE GATE §4.1S PROMISED IS INERT — **and that partly undermines why CGF went first**
+
+📌 §4.1S ③ picked CGF because *"`CgfSubsystemHeadlessTests` exercises a real boot."* 📐 **There are TWO
+classes of that name**, and the one in the solution is skipped:
+
+| suite | verdict |
+|---|---|
+| ⛔ `Hrot.SimHost.Tests/CgfSubsystemHeadlessTests.cs:13` | 🔴 **`[Fact(Skip = "CgfSubsystem.Initialize blocks on DdsIdAllocator waiting for live Orchestrator; verify as integration test")]`** — one test, **skipped**, pre-existing and not this change's doing. ⚠ It gates **nothing** |
+| ⭐ `Hrot.ClusterRunner.Integration.Tests/CgfSubsystemHeadlessTests.cs` | ✅ the real one — boots `simhost,cgf` over loopback DDS through `HrotRunnerHarness`. ⛔ **T3**: out of the fast lane, minutes, DDS-timeout-shaped |
+
+⇒ ⭐⭐ **CGF's advantage over the Stride editor was smaller than §4.1S claimed.** Both are gated by a suite
+outside the fast lane; CGF's at least *runs in this repo's CI shape*, the Stride editor's needs
+`net8.0-windows`. ⭐ **The choice still stands — the reason given for it was overstated.**
+⚠ **`Hrot.SimHost.Tests`' skipped test is a genuine hole**, not a finding of this batch to fix: a
+headless CGF boot cannot complete without a live orchestrator, so the skip is honest. ⛔ Do not "fix" it
+by unskipping.
+
+#### ⑤ ⭐ WHAT COMES NEXT, with the ② correction applied
+
+| | |
+|---|---|
+| ⭐⭐ **finish CGF's tail** *(`:692`→`:1413`)* | that is where the **10** lives. ⛔ It is one unit — the peak at `:973` cannot be halved by another prefix |
+| ⭐ **then the Editor** *(peak 18)* | ⚠ price it as **one** migration, per ②; a partial pass buys the mechanism it already has |
+| ⚠ **re-read §4.1S ①'s table with ② in mind** | the numbers are right; the *"is a batch, not a programme"* conclusion assumed they draw down incrementally, and they do not |
 
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
