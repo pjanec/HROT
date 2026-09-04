@@ -256,15 +256,13 @@ namespace Hrot.ExCon
             // 📄 §4.1P (the plan), §4.1Q (this adoption).
             var iosNodeId = config.NodeId != 0 ? config.NodeId : 500;
 
-            // ⚠ Locals mirroring the two bus fields. Assignments inside a step's closure are
-            //   invisible to the compiler's nullable-flow analysis, so without these every later use
-            //   of _bus/_observerBus warns. The locals are not a workaround for an unproven fact:
-            //   the plan's declared keys ("orchestration-bus", "observer-bus") are what guarantee
-            //   they are set, and Run() throws by key if a step that provides one did not run.
-            FdpEventBus bus         = null!;
-            FdpEventBus observerBus = null!;
-
-            new Hrot.Common.Infrastructure.NodeBootPlan()
+            // ⭐ Values that cross a step boundary travel through the plan's VALUE BAG, keyed by the
+            //   same strings the steps declare. §4.1R: measured on CgfSubsystem, closures over locals
+            //   do not scale — its spine values live 118-191 lines each and every step boundary is
+            //   crossed by three to five of them. The bag also removes the mirrored `null!` locals
+            //   this host needed at first, because a Get is checked against the step's own requires.
+            var plan = new Hrot.Common.Infrastructure.NodeBootPlan();
+            plan
 
                 // ── DDS participant ────────────────────────────────────────────────
                 // Create participant in the Application Shell (Composition Root).
@@ -277,24 +275,27 @@ namespace Hrot.ExCon
 
                 // ── ClusterSlave (CGF1-S0104 / CMC-S016 BATCH-06) ────────────────────────
                 // we pass _bus to the active command layer ...
-                .Step("orchestration-bus", provides: new[] { "orchestration-bus" }, run: () =>
+                .Step("orchestration-bus", provides: new[] { "orchestration-bus" }, run: v =>
                 {
-                    _bus = bus = new FdpEventBus();
-                    Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(bus);
+                    _bus = new FdpEventBus();
+                    Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_bus);
+                    v.Set("orchestration-bus", _bus);
                 })
 
                 .Step("cluster-slave",
                     requires: new[] { "orchestration-bus" },
                     provides: new[] { "cluster-slave" },
-                    run: () =>
+                    run: v =>
                     {
-                        _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, bus);
+                        _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(
+                            iosNodeId, SubsystemName, v.Get<FdpEventBus>("orchestration-bus"));
                     })
 
-                .Step("observer-bus", provides: new[] { "observer-bus" }, run: () =>
+                .Step("observer-bus", provides: new[] { "observer-bus" }, run: v =>
                 {
-                    _observerBus = observerBus = new FdpEventBus();
-                    Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(observerBus);
+                    _observerBus = new FdpEventBus();
+                    Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_observerBus);
+                    v.Set("observer-bus", _observerBus);
                 })
 
                 // ── TC2-P3-T1: Slave time sync pipeline ──────────────────────────────
@@ -303,9 +304,10 @@ namespace Hrot.ExCon
                 .Step("slave-sync-controller",
                     requires: new[] { "orchestration-bus" },
                     provides: new[] { "slave-sync-controller" },
-                    run: () =>
+                    run: v =>
                     {
-                        _slaveSyncController = new SlaveSyncController(bus, iosNodeId, TimeConfig.Default);
+                        _slaveSyncController = new SlaveSyncController(
+                            v.Get<FdpEventBus>("orchestration-bus"), iosNodeId, TimeConfig.Default);
                     })
 
                 // ⭐ The three translators now come from the SHARED factory the kernel-owning nodes
@@ -318,12 +320,12 @@ namespace Hrot.ExCon
                 //   headless mode and its Update() would start polling them. Behaviour unchanged.
                 .Step("slave-time-translators",
                     requires: new[] { "participant", "orchestration-bus", "slave-sync-controller" },
-                    run: () =>
+                    run: v =>
                     {
                         if (_participant != null)
                         {
                             var t = Hrot.Common.Infrastructure.SlaveTimeTranslatorRegistration
-                                .Create(_participant, bus, iosNodeId);
+                                .Create(_participant, v.Get<FdpEventBus>("orchestration-bus"), iosNodeId);
                             _timeModeTranslator      = t.Mode;
                             _slaveLockstepTranslator = t.SlaveLockstep;
                             _slaveTimeSyncTranslator = t.SlaveTimeSync;
@@ -331,6 +333,11 @@ namespace Hrot.ExCon
                     })
 
                 .Run(nameof(ExConSubsystem));
+
+            // ⭐ Non-null past this point BECAUSE the plan ran: Run() throws by key if a step that
+            //   provides one of these did not execute. Named locals so the compiler agrees.
+            FdpEventBus bus         = _bus!;
+            FdpEventBus observerBus = _observerBus!;
 
             // CGF1-BATCH-23 A.3: ExCon is an orchestrator instructor — it does NOT
             // save scenario fragments or exercise recordings.  If the orchestrator fans

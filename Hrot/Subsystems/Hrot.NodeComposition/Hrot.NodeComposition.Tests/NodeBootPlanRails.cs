@@ -106,6 +106,107 @@ public sealed class NodeBootPlanRails
         Assert.Empty(ran);
     }
 
+    // ── The value bag (§4.1R) ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A value published by one step is readable by a later one that declares it.
+    /// </summary>
+    [Fact]
+    public void AValuePublishedByOneStepIsReadableByALaterStepThatRequiresIt()
+    {
+        string? seen = null;
+        new NodeBootPlan()
+            .Step("producer", provides: new[] { "bus" }, run: v => v.Set("bus", "THE-BUS"))
+            .Step("consumer", requires: new[] { "bus" }, run: v => seen = v.Get<string>("bus"))
+            .Run("TestHost");
+
+        Assert.Equal("THE-BUS", seen);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ The property that makes the keys honest: a step may NOT publish a key it did not declare.
+    /// Without this the declared graph and the real data channel drift apart silently, which is the
+    /// whole disease §4.1N measured.
+    ///
+    /// <para>⛔ INVERSE-EDIT RED-PROOF: delete the <c>Array.IndexOf(_provides, key) &lt; 0</c> guard in
+    /// <c>NodeBootValues.Set</c> and this test fails — the undeclared write succeeds.</para>
+    /// </summary>
+    [Fact]
+    public void AStepCannotSetAKeyItDoesNotDeclareItProvides()
+    {
+        var plan = new NodeBootPlan()
+            .Step("sneaky", provides: new[] { "declared" }, run: v => v.Set("undeclared", 1));
+
+        var ex = Assert.Throws<InvalidOperationException>(() => plan.Run("TestHost"));
+        Assert.Contains("sneaky",     ex.Message);
+        Assert.Contains("undeclared", ex.Message);
+    }
+
+    /// <summary>
+    /// The mirror property: a step may not READ a key it did not declare it requires — so a hidden
+    /// read cannot creep in the way §4.1N's three silent channels did.
+    ///
+    /// <para>⛔ INVERSE-EDIT RED-PROOF: delete the <c>Array.IndexOf(_requires, key) &lt; 0</c> guard in
+    /// <c>NodeBootValues.Get</c> and this test fails.</para>
+    /// </summary>
+    [Fact]
+    public void AStepCannotGetAKeyItDoesNotDeclareItRequires()
+    {
+        var plan = new NodeBootPlan()
+            .Step("producer", provides: new[] { "bus" }, run: v => v.Set("bus", "THE-BUS"))
+            .Step("peeker",   run: v => v.Get<string>("bus"));
+
+        var ex = Assert.Throws<InvalidOperationException>(() => plan.Run("TestHost"));
+        Assert.Contains("peeker", ex.Message);
+        Assert.Contains("bus",    ex.Message);
+    }
+
+    /// <summary>
+    /// Declaring a key in <c>provides</c> and never publishing it is caught at the consumer, with a
+    /// message that says which step failed to publish rather than a bare null.
+    /// </summary>
+    [Fact]
+    public void AProvidedKeyThatWasNeverSetFailsLoudlyAtTheConsumer()
+    {
+        var plan = new NodeBootPlan()
+            .Step("forgetful", provides: new[] { "bus" }, run: _ => { /* declared, never Set */ })
+            .Step("consumer",  requires: new[] { "bus" }, run: v => v.Get<string>("bus"));
+
+        var ex = Assert.Throws<InvalidOperationException>(() => plan.Run("TestHost"));
+        Assert.Contains("never Set", ex.Message);
+    }
+
+    /// <summary>
+    /// Reading a value at the wrong type is a named error, not an <c>InvalidCastException</c>.
+    /// </summary>
+    [Fact]
+    public void ReadingAValueAtTheWrongTypeSaysBothTypes()
+    {
+        var plan = new NodeBootPlan()
+            .Step("producer", provides: new[] { "n" }, run: v => v.Set("n", 42))
+            .Step("consumer", requires: new[] { "n" }, run: v => v.Get<string>("n"));
+
+        var ex = Assert.Throws<InvalidOperationException>(() => plan.Run("TestHost"));
+        Assert.Contains("String", ex.Message);
+        Assert.Contains("Int32",  ex.Message);
+    }
+
+    /// <summary>
+    /// The closure overload still works unchanged — step 1's and ExCon's existing steps are not
+    /// required to adopt the bag.
+    /// </summary>
+    [Fact]
+    public void TheClosureOverloadStillWorks()
+    {
+        var ran = new List<string>();
+        new NodeBootPlan()
+            .Step("a", provides: new[] { "x" }, run: () => ran.Add("a"))
+            .Step("b", requires: new[] { "x" }, run: () => ran.Add("b"))
+            .Run("TestHost");
+
+        Assert.Equal(new[] { "a", "b" }, ran);
+    }
+
     /// <summary>
     /// The declared keys are readable without running, so a host's plan can be inspected.
     /// </summary>

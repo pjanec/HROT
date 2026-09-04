@@ -1590,6 +1590,77 @@ fact: the plan's declared keys are the guarantee, and `Run()` throws by key if a
 
 ⛔ **Still not done**: no reordering, no ECS host migrated, and the 45 shared units of §4.1M untouched.
 
+### 4.1R ⭐⭐⭐ STEP 3 — **CGF answers §4.1O's open question, and the answer is NO. ✅ `build-state: BUILT` `2026-09-03`**
+
+> ⭐ §4.1O ⑥ marked one row **NOT ATTEMPTED** and load-bearing for the first build item:
+> *"whether the Editor's ~550-line composition slice can be expressed as registrars without losing
+> ordering."* ⭐⭐ CGF is the cheapest ECS host to find out on. **It was measured, and the answer changed
+> the mechanism rather than the plan.**
+
+#### ① 📐 THE MEASUREMENT — **there is no clean prefix**
+
+📐 `CgfSubsystem.Initialize` spans **`:509`–`:1192`** *(683 lines to `Kernel.Initialize()`)* and declares
+**40 locals**. The spine values do not sit in tidy blocks — each lives for most of the slice:
+
+| local | first → last | span |
+|---|---|---|
+| `replicationModule` | 613 → 804 | **191** |
+| `nodeFactory` | 611 → 797 | **186** |
+| `newClusterSlave` | 802 → 975 | **173** |
+| `idAllocator` | 716 → 889 | **173** |
+| `creation` | 630 → 772 | **142** |
+| `scenarioSerializer` | 825 → 959 | **134** |
+| `rrController` | 807 → 926 | **119** |
+| `behaviorRegistry` | 583 → 701 | **118** |
+
+⇒ ⛔⛔ **EVERY candidate step boundary is crossed by three to five live locals.** 📐 On ExCon **two**
+crossings cost five compile errors and a mirrored-local fix *(§4.1Q ④)*. ⇒ ⭐⭐⭐ **the
+closure-over-locals form does not scale to an ECS host's composition slice** — and half-wrapping CGF
+would have produced a large diff whose only finding was that.
+
+#### ② ✅ THE MECHANISM CHANGE THE MEASUREMENT DEMANDED — **a value bag keyed by the declared names**
+
+⭐ `NodeBootPlan.Step` gains an `Action<NodeBootValues>` overload *(the closure form stays, unchanged)*.
+A value that crosses a boundary travels through the plan instead of a local:
+
+| ⭐ the property that makes it worth having | |
+|---|---|
+| ⭐⭐⭐ **the declaration and the data cannot drift** | `Set` **refuses** a key the running step does not declare in `provides`; `Get<T>` **refuses** one it does not declare in `requires` |
+| ⇒ | ⛔ the keys stop being *names checked against names* — they become **the actual channel**, so a hidden read of the §4.1N kind cannot creep back in |
+| ⚠ **not a service locator** | scoped to one plan, keys are the plan's own, every access checked against the declaring step. ⛔ A bag anyone can read at any time is the ambient coupling this work exists to remove |
+| ⭐ **it is Shape A again** | 📌 the codebase converged on the same idea twice already — `EntityCreationPack.Build(EntityCreationContext)` and `MapInteractionPack.Build(MapInteractionContext)` *(§4.1M ④)*. ⇒ **not a new idea; the third instance** |
+
+⭐⭐ **And it retires §4.1Q ④'s cost immediately:** ExCon's two mirrored `null!` locals are gone —
+`orchestration-bus` and `observer-bus` now travel through the bag. ⇒ the one real cost recorded a step
+ago is **closed by the next step**, not carried.
+
+#### ③ ⛔⛔ WHAT THIS CHANGES ABOUT MIGRATING A HOST — **declaring is the LAST move, not the first**
+
+| ⭐ | |
+|---|---|
+| ⛔ **wrong order** | take a host's slice and wrap it in steps ⇒ fights 40 locals, huge diff, high risk |
+| ✅ **right order** | ① the slice's crossing values move to the bag *(or to methods over a context)* → ② **then** the steps are declared. ⭐ Declaring is cheap once nothing crosses via a local |
+| ⭐ **why the base was easy** | 📌 `SharedApplicationBootstrapper` took the plan in one commit *(§4.1P)* because its phases were **already methods** communicating through `HrotNodeContext` — i.e. the step-② work was done years ago and nobody called it that |
+| ⚠ **so the Editor is not "3548 lines of tail"** | its real cost is **its crossing values**, not its length. ⛔ That is a different, smaller measurement, and it has not been taken |
+
+#### ④ 📐 GATES
+
+| suite | result |
+|---|---|
+| `Hrot.NodeComposition.Tests` | ✅ **33 / 0** *(11 `NodeBootPlanRails`, up from 5)* |
+| `Hrot.ExCon.Tests` | ✅ **390 / 0** |
+| `Hrot.ClusterRunner.Tests` | 270 / **5** — baselined in §4.1Q, unchanged |
+| `Hrot.IG.Tests` · `Hrot.SimHost.Tests` | 410/**5** and 874/**1** — baselined in §4.1P, unchanged |
+
+⭐⭐ **Red-proof:** disabling the `provides` guard and the `requires` guard in `NodeBootValues` turned
+**2 of 11** rails red; restored by inverse edit, 33/33 green.
+⚠ **A count correction:** `Hrot.ExCon.Tests` was reported as **121** in one earlier run — that was
+`quick-check.sh` applying a filter, and a later run hit a partially-built assembly. 📐 **The full-suite
+number is 390**, confirmed with an explicit `--no-build` run.
+
+⛔ **Still not done**: CGF is **not** migrated — deliberately, and §③ is why. No reordering, no ECS host
+declared, the 45 shared units of §4.1M untouched.
+
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
 ### 5.1 Venue and channels — settled *(`AQ63` §12)*

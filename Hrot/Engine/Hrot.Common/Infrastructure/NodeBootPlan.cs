@@ -58,8 +58,12 @@ public sealed class BootDependencyException : InvalidOperationException
 /// </para>
 ///
 /// <para>
-/// Steps close over the caller's locals, so no state carrier is needed; the plan moves
-/// declarations, not data.
+/// A step either closes over the caller's locals (fine for a short slice) or hands values to later
+/// steps through <see cref="NodeBootValues"/>, keyed by the same strings it declares. ⚠ The closure
+/// form does NOT scale: measured on <c>CgfSubsystem</c>, whose spine values live 118-191 lines each,
+/// every candidate step boundary is crossed by three to five live locals. See the
+/// <c>Action&lt;NodeBootValues&gt;</c> overload of <see cref="Step(string, Action{NodeBootValues},
+/// string[], string[])"/>.
 /// </para>
 ///
 /// 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1P (design + UML), §4.1N (the
@@ -67,9 +71,10 @@ public sealed class BootDependencyException : InvalidOperationException
 /// </summary>
 public sealed class NodeBootPlan
 {
-    private readonly List<BootStep> _steps = new();
+    private readonly List<BootStep> _steps  = new();
+    private readonly NodeBootValues _values = new();
 
-    private sealed record BootStep(string Key, string[] Requires, string[] Provides, Action Run);
+    private sealed record BootStep(string Key, string[] Requires, string[] Provides, Action<NodeBootValues> Run);
 
     /// <summary>
     /// Appends a step. Order of declaration is order of execution — this type never reorders.
@@ -83,6 +88,45 @@ public sealed class NodeBootPlan
         Action    run,
         string[]? requires = null,
         string[]? provides = null)
+    {
+        if (run is null) throw new ArgumentNullException(nameof(run));
+        return Step(key, _ => run(), requires, provides);
+    }
+
+    /// <summary>
+    /// Appends a step that reads and writes VALUES through the plan instead of through closures over
+    /// the caller's locals.
+    ///
+    /// <para>
+    /// ⭐⭐⭐ Why this overload exists — measured, not anticipated. The closure form above is fine for a
+    /// short slice: <c>ExConSubsystem</c>'s is six steps and two crossing locals. 📐 It does NOT scale.
+    /// <c>CgfSubsystem.Initialize</c> spans <c>:509-:1192</c> and declares <b>40</b> locals, and its
+    /// spine values live 118-191 lines each — <c>behaviorRegistry</c> 583→701, <c>creation</c> 630→772,
+    /// <c>nodeFactory</c> 611→797, <c>replicationModule</c> 613→804, <c>newClusterSlave</c> 802→975 —
+    /// so EVERY candidate step boundary is crossed by three to five live locals. With closures each
+    /// crossing needs a mirrored local, which is how two of them produced five compile errors on ExCon.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ So a value that crosses a step boundary travels through <see cref="NodeBootValues"/> keyed by
+    /// the SAME strings the step already declares. That makes the declaration and the data agree by
+    /// construction: <see cref="NodeBootValues.Set"/> refuses a key the step does not declare it
+    /// provides, and <see cref="NodeBootValues.Get{T}"/> refuses one it does not declare it requires.
+    /// ⛔ The keys stop being names checked against names and become the actual channel.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ This is the same shape the codebase already converged on twice —
+    /// <c>EntityCreationPack.Build(EntityCreationContext)</c> and
+    /// <c>MapInteractionPack.Build(MapInteractionContext)</c> — a context object rather than ambient
+    /// locals. 📄 §4.1M ④ "Shape A", §4.1R.
+    /// </para>
+    /// </summary>
+    public NodeBootPlan Step(
+        string                  key,
+        Action<NodeBootValues>  run,
+        string[]?               requires = null,
+        string[]?               provides = null)
     {
         if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("Step key is required.", nameof(key));
         if (run is null)                    throw new ArgumentNullException(nameof(run));
@@ -109,13 +153,97 @@ public sealed class NodeBootPlan
                     throw new BootDependencyException(owner, step.Key, need, provided.OrderBy(p => p, StringComparer.Ordinal));
             }
 
-            step.Run();
+            _values.EnterStep(step.Key, step.Requires, step.Provides);
+            step.Run(_values);
 
             foreach (string gives in step.Provides)
                 provided.Add(gives);
         }
+
+        _values.LeaveStep();
     }
 
     /// <summary>Step keys in declaration order. For tests and diagnostics.</summary>
     public IReadOnlyList<string> StepKeys => _steps.Select(s => s.Key).ToArray();
+}
+
+/// <summary>
+/// The values a boot plan's steps hand to one another, keyed by the SAME strings the steps declare
+/// in their <c>Requires</c>/<c>Provides</c>.
+///
+/// <para>
+/// ⭐⭐⭐ The point is that the declaration and the data cannot drift apart: a step may only
+/// <see cref="Set"/> a key it declared it provides, and may only <see cref="Get{T}"/> a key it
+/// declared it requires. So "the keys are honest" is enforced rather than reviewed.
+/// </para>
+///
+/// <para>
+/// ⛔ Deliberately NOT a general service locator. It is scoped to one plan, the keys are the plan's
+/// own, and every access is checked against the declaring step — a bag anyone can read from and write
+/// to at any time is exactly the ambient-coupling this work exists to remove.
+/// </para>
+///
+/// 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1R.
+/// </summary>
+public sealed class NodeBootValues
+{
+    private readonly Dictionary<string, object?> _bag = new(StringComparer.Ordinal);
+
+    private string   _stepKey  = "(outside any step)";
+    private string[] _requires = Array.Empty<string>();
+    private string[] _provides = Array.Empty<string>();
+
+    internal void EnterStep(string key, string[] requires, string[] provides)
+    {
+        _stepKey  = key;
+        _requires = requires;
+        _provides = provides;
+    }
+
+    internal void LeaveStep()
+    {
+        _stepKey  = "(outside any step)";
+        _requires = Array.Empty<string>();
+        _provides = Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// Publishes a value under <paramref name="key"/>. The running step must have declared that key
+    /// in its <c>provides</c>.
+    /// </summary>
+    public void Set<T>(string key, T value)
+    {
+        if (Array.IndexOf(_provides, key) < 0)
+            throw new InvalidOperationException(
+                $"Boot step '{_stepKey}' set '{key}', which it does not declare in its provides " +
+                $"[{string.Join(", ", _provides)}]. Add it there, so the declared graph stays the real one.");
+
+        _bag[key] = value;
+    }
+
+    /// <summary>
+    /// Reads a value published by an earlier step. The running step must have declared
+    /// <paramref name="key"/> in its <c>requires</c>.
+    /// </summary>
+    public T Get<T>(string key)
+    {
+        if (Array.IndexOf(_requires, key) < 0)
+            throw new InvalidOperationException(
+                $"Boot step '{_stepKey}' read '{key}', which it does not declare in its requires " +
+                $"[{string.Join(", ", _requires)}]. Add it there, so the declared graph stays the real one.");
+
+        if (!_bag.TryGetValue(key, out object? raw))
+            throw new InvalidOperationException(
+                $"Boot step '{_stepKey}' requires '{key}', but the step that provides it never Set it. " +
+                "A step that declares a key in provides must publish it.");
+
+        if (raw is null) return default!;
+
+        if (raw is not T typed)
+            throw new InvalidOperationException(
+                $"Boot step '{_stepKey}' read '{key}' as {typeof(T).Name}, but it was published as " +
+                $"{raw.GetType().Name}.");
+
+        return typed;
+    }
 }
