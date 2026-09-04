@@ -321,6 +321,63 @@ comparison bracketed the defect from both sides in one run.
 ⚠ **What it cannot tell you:** anything about `Cyclone*` translators, DDS topics, descriptor ordinals or
 authority handover — those exist only when there is a wire.
 
+### 9.1 ⭐⭐⭐ THE LOCKSTEP DIFF — **step BOTH hosts and diff ONE entity per step**
+
+📌 **`2026-09-04`, `CE-172`.** *"The tanks behave differently on the cluster"* is unanswerable as stated.
+⭐ It became a two-line answer by running both hosts under **deterministic stepping** and reading the same
+entity after each step:
+
+```bash
+for P in 8111 8131; do curl -s --noproxy '*' -X POST http://localhost:$P/sim/step \
+    -H 'Content-Type: application/json' -d '{"count":30}' > /dev/null; done
+curl -s --noproxy '*' http://localhost:8111/entities/1000   # cluster — set perspective first, §4
+curl -s --noproxy '*' http://localhost:8131/entities/1000   # editor
+```
+
+| ⭐ trap | |
+|---|---|
+| ⛔⛔ **`/entities/{id}/state` is a SUMMARY** — position, speed, and a three-field `behavior` block | ⭐ the **components** live at **`/entities/{id}`**, under a `Components` key. Reading the wrong one looks like *"the field is missing"* |
+| ⛔⛔ **the editor ignores `/sim/step` until it has been PLAYED once** | ⭐ `POST /sim/play` → `POST /sim/pause` → then step. The cluster steps from a cold load |
+| ⛔ **a `/scenario/load/live` that answers `sawWorldChange: false` did NOT reset the clock** | ⚠ you are stepping a world that already ran; restart the process if you need `t=0` |
+| ⭐⭐ **the sharpest single field is `BrainBTreeState.State.RunningNodeIndex`** | 📌 it is what split `CE-172`: cluster `3 → 7 → dead`, editor `3 → 9 → held`. Map the index with a pre-order walk of the asset's `Nodes` in `*.btree.json` |
+
+### 9.2 ⛔⛔⛔ READ A BLACKBOARD **BEFORE** THE BEHAVIOUR IS CLEARED — **or the instrument lies**
+
+📌 **`CE-172` cost a wrong lean to this.** `BrainBlackboard.BehaviorParameters` came back `{}` on the
+cluster and fully populated on the editor, which reads exactly like *"the params never resolved."*
+⛔ **False.** The dump decodes that blob against the **active behaviour's** params DTO; once
+`ActiveBehaviorHash` is `0` there is no DTO, so it renders empty **whatever the bytes hold.** Stepping the
+same node from `t=0` showed the cluster's params byte-identical to the editor's from the first frame.
+⇒ ⭐⭐ **an empty `BehaviorParameters` next to `ActiveBehaviorHash: 0` is a rendering artefact, not a
+measurement.**
+
+### 9.3 ⭐⭐ THE TRANSLATOR COUNTERS ANSWER *"DID IT EVEN LEAVE?"* IN ONE CALL
+
+`/diagnostics/architecture` carries `sentSamples` / `receivedSamples` **per translator per subsystem**:
+
+```bash
+curl -s --noproxy '*' http://localhost:8111/diagnostics/architecture | python3 -c "
+import sys,json
+d=json.load(sys.stdin)['data']
+for s in d['subsystems']:
+    for t in s.get('translators') or []:
+        if 'AreaQuery' in json.dumps(t): print(s['subsystem'], json.dumps(t))"
+```
+
+⭐⭐⭐ **Four zeros across a registered four-translator round trip means the message never reached the
+wire — the break is UPSTREAM, in the egress translator's own filter, not in DDS.** 📌 That is precisely
+what `CE-172` was, and it is the cheapest possible discriminator between *"the wire is broken"* and
+*"nothing was ever sent."* ⚠ Registration is **not** traffic: all four were correctly registered the whole
+time.
+
+### 9.4 ⭐⭐ GREP THE NODE'S OWN LOG BEFORE THEORISING
+
+📌 `CE-172`'s root cause was printed at `ERROR` level, in `/tmp/cluster.log`, from the first run:
+`"EQS area query timed out after 5.0s. RequestId=0."` — and the editor's log had the matching `Submitted`
+line with **no** timeout. ⇒ ⭐ **diff the two logs for the feature's own words before reasoning about
+mechanism.** The `Behavior` logger prints `Entity:[…] Behavior:[…] Node:["…"]`, so a single grep names the
+failing BTree node.
+
 ---
 
 ## 10. ⭐ A worked session, end to end
