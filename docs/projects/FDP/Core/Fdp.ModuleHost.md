@@ -113,6 +113,33 @@ the circuit opens and the module is skipped until `CircuitResetTimeoutMs` has el
 point a single probe execution is allowed (`HalfOpen`). This isolates a faulty module from the
 rest of the simulation.
 
+> ⚠ **Corrected 2026-09-04 (`CE-189`).** The paragraph above described the ASYNC path only. The
+> **synchronous** path caught its exception, wrote one line to stderr, and did nothing else — no
+> `RecordFailure`, so the circuit never opened and `GetExecutionStats()` reported a healthy module
+> however many times it threw. Measured consequence: `StatelessGizmoSystem` faulted on every frame of
+> every editor run for an entire working session while the node kept answering healthy (`CE-188`).
+> Both paths now route through one `ReportModuleFault` handler.
+>
+> ⛔ **Recording a sync failure does NOT skip the module.** The sync path has no `CanRun()` gate (the
+> async path does, at the top of its dispatch), so opening the circuit is *reporting*, not execution
+> control. That asymmetry is deliberate and load-bearing: closing it would change which modules tick.
+
+**5b. Fail-fast debug mode**
+
+`FdpConfig.FailFastOnModuleException` — or the environment variable `FDP_FAIL_FAST=1`, which needs no
+rebuild — makes `ReportModuleFault` **rethrow** with the original stack instead of catching. The
+per-module catch exists so one faulty module cannot take down a distributed simulation; that is right
+in production and exactly wrong while debugging, where a system throwing on its first frame otherwise
+"runs" forever with every later system in its phase group silently skipped.
+
+**5c. Fault reporting is de-duplicated, because volume is a form of hiding**
+
+A module that faults every frame used to print a full stack every frame. `CE-188` produced 8 000–16 000
+identical lines per run and read as background noise for a whole session — the fault was never hidden,
+it was *drowned*. The handler now reports the first occurrence of each distinct signature (exception
+type + top frame) in full, counts repeats, and re-reports at powers of ten with the running total.
+Every report names `FDP_FAIL_FAST` so the reader knows how to make it fatal.
+
 **6. Time-controller injection**
 
 The kernel does not manage wall-clock time itself. An `ITimeController` must be injected before

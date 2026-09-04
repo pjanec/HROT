@@ -1,3 +1,4 @@
+using System;
 namespace Fdp.Core
 {
     /// <summary>
@@ -102,6 +103,31 @@ namespace Fdp.Core
         /// Set to true in production entry-points to guarantee all events are known to the schema.
         /// </summary>
         public static bool EnforceExplicitEventRegistration { get; set; } = false;
+
+        /// <summary>
+        /// When <c>true</c>, the module host RETHROWS any exception a module or system raises during a
+        /// frame instead of catching and reporting it. The node dies at the first fault, with the
+        /// original stack.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>Why this exists.</b> The kernel catches per-module exceptions so one faulty module
+        /// cannot take down a distributed simulation — correct for production, and exactly wrong while
+        /// debugging: a system that throws on its first frame keeps "running" forever, every system
+        /// after it in the same phase group is skipped, and the node still answers healthy. Measured:
+        /// <c>StatelessGizmoSystem</c> threw on every frame of every editor run and nothing failed
+        /// (<c>CE-188</c>).</para>
+        ///
+        /// <para><b>Default <c>false</c>, and settable without a rebuild:</b> the environment variable
+        /// <c>FDP_FAIL_FAST=1</c> turns it on at process start. Set the property directly in a test or a
+        /// debug entry point.</para>
+        ///
+        /// <para>⚠ <b>This is not a substitute for the fault being visible.</b> Fail-fast only helps when
+        /// you are watching. The kernel therefore also records every fault against the module's circuit
+        /// breaker and reports repeats as a COUNT rather than a line each — a fault printed ten thousand
+        /// times is hidden just as effectively as one that was never printed.</para>
+        /// </remarks>
+        public static bool FailFastOnModuleException { get; set; } =
+            Environment.GetEnvironmentVariable("FDP_FAIL_FAST") is "1" or "true" or "TRUE";
 
         /// <summary>
         /// Global switch to control CPU usage for parallel operations.

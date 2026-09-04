@@ -2042,3 +2042,20 @@ whenever the finding is "the sim did not do the impressive thing".**
   ⭐⭐ **Live:** a fresh editor run on `hill-attack-close` — **0 gizmo throws** (from 8 292 / 12 137 / 16 367 in three earlier runs), **no exception class left in the log at all**, log down from ~85 000 lines to 1 327, and component sets **byte-identical** to the session baseline at `t=0`.
 
   ⚠ **A measurement error worth recording:** my first after-diff showed entity 1000 gaining `BlueprintAssignments` + `BlueprintBlackboard1024`. Not a regression — I compared a `simTime 12.9` capture against a `t=0` baseline. The re-capture then hit my own runbook trap (`sawWorldChange: false` — a second load into a live world does not reset), so the honest comparison needed a **fresh process**. Both steps are why the final claim is like-for-like.
+
+- [x] **CE-189** · `RW-L` ⭐⭐⭐ — **A DEBUG MODE WHERE NO MODULE EXCEPTION IS SWALLOWED — PLUS THE TWO THINGS THAT MADE `CE-188` SURVIVABLE IN THE FIRST PLACE.** 🔒 **User request:** *"we need a debug mode where no exceptions are swallowed ever and instead surfaced loud."*
+
+  ⭐ **① `FdpConfig.FailFastOnModuleException`** — or **`FDP_FAIL_FAST=1`**, which needs no rebuild. `ReportModuleFault` rethrows with the original stack (`ExceptionDispatchInfo`, not a wrapper, so a debugger breaks at the bug). Built on the established `FdpConfig.Enforce*` pattern rather than a new mechanism.
+
+  🔴 **② THE SYNC PATH NEVER RECORDED A FAILURE — a defect against this component's own design.** `ModuleHostKernel:695` wrote one stderr line and did nothing else: no `RecordFailure`, so the circuit never opened and `GetExecutionStats()` reported a healthy module however many times it threw. `docs/projects/FDP/Core/Fdp.ModuleHost.md` §5 claims *"After FailureThreshold consecutive failures the circuit opens and the module is skipped"* — true of the **async** path only. Both now route through one handler; §5 is corrected in place.
+  ⛔ **Behaviour-preserving, and this was the load-bearing check:** the sync path has **no `CanRun()` gate**, so recording a failure changes *reporting*, not which modules tick.
+
+  ⭐⭐ **③ VOLUME IS A FORM OF HIDING** — the reframe that makes this more than the literal ask. `CE-188` was **never swallowed**: it printed 8 292–16 367 full stacks per run, and read as background noise for an entire session. Repeats are now counted, not reprinted — first occurrence in full, then re-reports at powers of ten with the running total, every one naming `FDP_FAIL_FAST` so the reader knows how to make it fatal.
+
+  ⭐ **Rails:** `Fdp.ModuleHost.Tests/ModuleFaultReportingRails.cs` (4) — rethrow on · frame survives off · a repeatedly-faulting **sync** module opens its circuit · 20 faults do not produce 20 reports. **Red-proof:** restoring the pre-fix handler reddened **3 of 4**.
+
+  ⭐⭐ **Live:** editor booted with `FDP_FAIL_FAST=1`, `hill-attack-close`, 600 frames — **zero module faults**, node healthy throughout. (⚠ My first count said "6 faults"; all six were the word *de**fault***. Grepped, not assumed.)
+
+  ⚠ **Not done:** only `Fdp.ModuleHost`'s fault paths are covered. Swallows elsewhere — `SystemScheduler`, translators, the debug API — are untouched, so *"no exceptions swallowed **ever**"* is not yet literally true. A sweep of the remaining `catch (Exception)` sites is the follow-up.
+
+  📄 Design: [`Fdp.ModuleHost.md` §5/§5b/§5c](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/projects/FDP/Core/Fdp.ModuleHost.md)

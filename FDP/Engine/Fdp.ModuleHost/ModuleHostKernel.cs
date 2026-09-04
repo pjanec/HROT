@@ -694,7 +694,7 @@ namespace Fdp.ModuleHost
                         }
                         catch (Exception ex)
                         {
-                            Console.Error.WriteLine($"[ModuleHost] Sync Module '{entry.Module.Name}' exception: {ex}");
+                            ReportModuleFault(entry, ex, "Sync");
                         }
                         
                         // Release view — use LeasedProvider (captured at acquire time) so the
@@ -839,15 +839,10 @@ namespace Fdp.ModuleHost
                 }
                 else
                 {
-                    // Exception occurred
-                    Exception ex = result;
-                    Console.Error.WriteLine($"[ModuleHost] Module '{entry.Module.Name}' threw exception: {ex.Message}");
-                    Console.Error.WriteLine(ex.StackTrace);
-                    
-                    entry.CircuitBreaker?.RecordFailure(ex.GetType().Name);
-                    
-                    Console.Error.WriteLine(
-                        $"[ModuleHost][CRASH] Module '{entry.Module.Name}' crashed: {ex.Message}");
+                    // Exception occurred. Routed through the shared handler so the async path gets the
+                    // same fail-fast switch and the same de-duplication the sync path now has — three
+                    // near-identical stderr writes per fault was the async half of CE-189.
+                    ReportModuleFault(entry, result, "Async");
                 }
             }
             else
@@ -891,6 +886,69 @@ namespace Fdp.ModuleHost
             
             // 4. Cleanup
             entry.CurrentTask = null;
+        }
+
+        /// <summary>
+        /// The one place a per-module fault is handled: fail fast if configured, otherwise record it
+        /// against the module's circuit breaker and report it <b>once per distinct signature</b>.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>Three things this fixes (<c>CE-189</c>).</b></para>
+        ///
+        /// <para>① <b>Fail-fast.</b> With <see cref="FdpConfig.FailFastOnModuleException"/> (or
+        /// <c>FDP_FAIL_FAST=1</c>) the exception is rethrown with its original stack, so a debug run dies
+        /// at the first fault instead of limping on. The catch exists to keep one bad module from taking
+        /// down a distributed simulation — right in production, wrong while debugging.</para>
+        ///
+        /// <para>② <b>The synchronous path never recorded a failure.</b> It printed to stderr and did
+        /// nothing else — no <c>RecordFailure</c>, so the circuit never opened and
+        /// <c>GetExecutionStats</c> showed a healthy module. That contradicted this component's own
+        /// design (<c>docs/projects/FDP/Core/Fdp.ModuleHost.md</c> §5: <i>"After FailureThreshold
+        /// consecutive failures the circuit opens and the module is skipped"</i>), which the async path
+        /// implements and this one did not.</para>
+        ///
+        /// <para>③ <b>Volume is a form of hiding.</b> <c>StatelessGizmoSystem</c> threw on every frame of
+        /// every editor run and printed a full stack each time — 8 000 to 16 000 lines per run — and it
+        /// read as background noise for an entire working session (<c>CE-188</c>). Repeats are now a
+        /// counter, and a periodic reminder carries the running total.</para>
+        /// </remarks>
+        private void ReportModuleFault(ModuleEntry entry, Exception ex, string path)
+        {
+            if (FdpConfig.FailFastOnModuleException)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw();
+
+            entry.CircuitBreaker?.RecordFailure(ex.GetType().Name);
+            System.Threading.Interlocked.Increment(ref entry.TotalFaults);
+
+            // Signature = type + top frame. Two different bugs in one module stay distinguishable;
+            // the same bug on frame 2 and frame 20 000 does not print twice.
+            string signature = ex.GetType().FullName + "|" + (ex.StackTrace?.Split('\n')[0]?.Trim() ?? "");
+
+            if (entry.LastFaultSignature != signature)
+            {
+                entry.LastFaultSignature = signature;
+                System.Threading.Interlocked.Exchange(ref entry.LastFaultRepeats, 0);
+
+                Console.Error.WriteLine(
+                    $"[ModuleHost] {path} module '{entry.Module.Name}' FAULT (frame {_currentFrame}, " +
+                    $"{entry.TotalFaults} total for this module). Set FDP_FAIL_FAST=1 to rethrow.{Environment.NewLine}{ex}");
+                return;
+            }
+
+            int repeats = System.Threading.Interlocked.Increment(ref entry.LastFaultRepeats);
+
+            // Powers of ten: 10th, 100th, 1000th … so a persistent fault stays visible without
+            // drowning everything else in the log.
+            if (repeats >= 10 && IsPowerOfTen(repeats))
+                Console.Error.WriteLine(
+                    $"[ModuleHost] {path} module '{entry.Module.Name}' has now faulted {repeats:N0} times " +
+                    $"with the same {ex.GetType().Name} (frame {_currentFrame}). Set FDP_FAIL_FAST=1 to rethrow.");
+        }
+
+        private static bool IsPowerOfTen(int n)
+        {
+            while (n >= 10 && n % 10 == 0) n /= 10;
+            return n == 1;
         }
 
         private void PlaybackCommands(ModuleEntry entry)
@@ -1820,6 +1878,14 @@ namespace Fdp.ModuleHost
             public BitMask512 ComponentMask; 
             
             // NEW for BATCH-04: Resilience
+            // Fault de-duplication (CE-189). A module that throws every frame used to print a full
+            // stack every frame; ten thousand identical lines hide a fault as effectively as silence.
+            // The first occurrence of each distinct signature is reported in full, repeats are counted,
+            // and the running total is surfaced through GetExecutionStats.
+            public string? LastFaultSignature { get; set; }
+            public int     LastFaultRepeats;      // Field for Interlocked
+            public int     TotalFaults;           // Field for Interlocked
+
             public ModuleCircuitBreaker? CircuitBreaker { get; set; }
             public int MaxExpectedRuntimeMs { get; set; }
             public int FailureThreshold { get; set; }
