@@ -1822,7 +1822,26 @@ classes of that name**, and the one in the solution is skipped:
 | suite | verdict |
 |---|---|
 | ⛔ `Hrot.SimHost.Tests/CgfSubsystemHeadlessTests.cs:13` | 🔴 **`[Fact(Skip = "CgfSubsystem.Initialize blocks on DdsIdAllocator waiting for live Orchestrator; verify as integration test")]`** — one test, **skipped**, pre-existing and not this change's doing. ⚠ It gates **nothing** |
-| ⭐ `Hrot.ClusterRunner.Integration.Tests/CgfSubsystemHeadlessTests.cs` | ✅ the real one — boots `simhost,cgf` over loopback DDS through `HrotRunnerHarness`. ⛔ **T3**: out of the fast lane, minutes, DDS-timeout-shaped |
+| ⭐ `Hrot.ClusterRunner.Integration.Tests/CgfSubsystemHeadlessTests.cs` | ✅ the real one — boots `simhost,cgf` over loopback DDS through `HrotRunnerHarness`. ⛔ **T3**: out of the fast lane, ~3 min, DDS-timeout-shaped |
+
+⭐⭐ **It was run, and it is 3 RED / 6 green — BASELINED, not recalled.** ⛔ The reds were **not** assumed
+pre-existing: the tree was reverted to the parent commit *(`f11e70191`)*, **rebuilt**, and the same filter
+re-run. 📐 **Byte-identical outcome — the same three test names, `Failed: 3, Passed: 6, Total: 9`, at
+2 m 59 s both times:**
+
+| test | at `027752454` *(with the plan)* | at `f11e70191` *(without)* |
+|---|---|---|
+| `SimHost_WanderMission_EntityMovesAfterBehaviorActivation` | 🔴 FAIL | 🔴 FAIL |
+| `SimHost_MoveToLocationMission_EntityMovesWithoutGhostTick` | 🔴 FAIL | 🔴 FAIL |
+| `CGF_MovingVehicle_GhostPositionUpdates` | 🔴 FAIL | 🔴 FAIL |
+| the other six | ✅ | ✅ |
+
+⇒ ⭐ **The head migration changed nothing here**, which is what a behaviour-preserving change should look
+like. ⛔⛔ **But do not read the six greens as "CGF boots correctly" either** — all three reds are
+**movement/mission** assertions downstream of a CGF boot that evidently *does* happen, so this suite
+proves the boot did not REGRESS and proves nothing about whether it was right to begin with.
+⚠ **The three reds are a pre-existing defect with no owner named here** — ⛔ not this batch's to fix, and
+⛔ not to be quietly absorbed as "known noise" either *(`R-131`: a red is a defect to resolve or justify)*.
 
 ⇒ ⭐⭐ **CGF's advantage over the Stride editor was smaller than §4.1S claimed.** Both are gated by a suite
 outside the fast lane; CGF's at least *runs in this repo's CI shape*, the Stride editor's needs
