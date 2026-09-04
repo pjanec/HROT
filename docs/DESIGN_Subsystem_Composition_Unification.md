@@ -8,7 +8,10 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   inside it. The guard now descends into ISystemGroup members, and the same red-proof then fired on the
   RUNNING editor, naming UnitHierarchySystem. build-state for role composition: BUILDING at B3 (B2 as-built:
   §4.1n; part 1 the perception grid; part 2 §4.1o; part 3 §4.1p — ALL THREE BUILT. B3 is COMPLETE.
-  B4a (the seam) is BUILT — §4.1q; next is B4b, the switchover, one host at a time).
+  B4a (the seam) is BUILT — §4.1q; B4b step 1 is BUILT — §4.1r: SimHost takes the trajectory pool from
+  a provider, verified byte-identical on entity/component sets and behaviourally on a 3600-step run.
+  Remaining in B4b: the CAPABILITY axis — no host resolves a NodeCompositionPlan yet — and CGF, IG,
+  Stride and the editor are untouched).
   🔴🔴 NEW 2026-09-04: §4.1q CORRECTS §4.1j's B4 classDiagram — do NOT build from it as drawn. TWO of its
   four new abstractions ALREADY EXIST: IResourceScope is NodeBootValues (and stronger — it refuses an
   undeclared read), and "assert every declared Need was allocated" is NodeBootPlan.Run's provided-check,
@@ -1348,6 +1351,56 @@ before and after.**
 | `Hrot.Common` build | clean |
 
 ⇒ **`build-state`: `B4a` BUILT; `B4b` — the switchover, one host at a time — is next.**
+
+### 4.1r ✅ AS BUILT — **`B4b` step 1: SimHost takes its first resource from a PROVIDER** *(`2026-09-04`)*
+
+> ⭐⭐ **The first host switchover, and deliberately the smallest one that is still real.** ⛔ Not more
+> seam: a production composition root now obtains a shared resource from an owner instead of from
+> whichever module happened to default it.
+
+#### 📐 WHAT THE ROOT DID BEFORE
+
+| | |
+|---|---|
+| `GroundKinematicsModule` **defaulted** the pool *(`??=`)*, `SimHostCoreLogicPack` exposed it, and `SimHostNodeBootstrapper:359` threaded `CoreLogicPack!.TrajectoryPool` into `EngineBackedNavigationModule` | ⚠ **Correct — but correct by CARE.** It held because the single production caller remembered. ⛔ And it forced a dependency that should not exist: the navigation consumer reached **through the Muscle pack**, which is precisely why §4.1i could say *"a NavigationSolver-only node has no pool"* |
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| ⭐ **`TrajectoryPoolProvider`** *(`Hrot.Common/Infrastructure/SharedResourceProviders.cs`)* | `INodeResourceProvider` owning one `TrajectoryPoolManager`; allocates in the ctor, publishes in `Allocate`, frees in `Dispose` |
+| ⭐ **`PerceptionGridResourceProvider`** | the same identity wrapper over `B3` part 1's `PerceptionGridProvider`, so there is **one** provider concept rather than two |
+| ⭐⭐ **`SimHostNodeBootstrapper` owns the provider** and hands `TrajectoryPool.Pool` to **both** consumers — the pack *(ctor)* and the navigation module *(`:359`, no longer reaching through `CoreLogicPack`)* | ⇒ ⭐⭐⭐ **sharing is now by CONSTRUCTION, not by care**, and the pool has an owner with a lifetime for the first time |
+
+⭐ **Why the trajectory pool first, of all the resources:** it is the one where a split is not a leak.
+The solver writes routes into it **by handle** and the kinematics systems read them back by that
+handle ⇒ two pools produce **routes that resolve and vehicles that never follow them**, silently
+*(`CE-180`)*. ⇒ **the live hill-attack run is a real test of the switchover**, not a smoke test.
+
+#### ⭐⭐⭐ ACCEPTANCE — **the `CE-184` substitute, captured BEFORE the change**
+
+| | |
+|---|---|
+| ⭐⭐ **entity count + per-entity component sets, `hill-attack-close` at load** | **BYTE-IDENTICAL** before vs after — 8 entities, `32/41/41/41/41/12/40/40`, every component name unchanged *(`diff` of the two captures is empty)* |
+| ⭐⭐⭐ **behaviour, 3 600 deterministic steps** | **both hostiles killed** *(`1006`,`1007` at `Health 0`)*; both attackers acquired **2 contacts each** with `TargetMemory` populated, and both fired *(`Ammo 41` from 42)*. ⇒ routes resolved **and were followed** |
+| log scan | ⛔ **0** new exception classes — only the pre-existing `GizmoInteraction` `IndexOutOfRangeException` |
+
+#### ⭐ RAILS + GATES
+
+| | |
+|---|---|
+| rails | `Hrot.SimHost.Tests/TrajectoryPoolProviderTests.cs` — 3: the pack **borrows** *(a route registered through it survives the pack's `Dispose`)* · the provider frees once and is idempotent · its identity is the declared `ResourceKeys.TrajectoryPool` |
+| ⭐⭐ **red-proof** | **inverse edit** making the pack ignore the passed pool and default its own ⇒ the borrow rail **FAILED**; restored ⇒ green |
+| `Hrot.SimHost.Tests` full | **885 / 1** — `FullBranchPipelineTests`, the red baselined at `B2` |
+| `Hrot.SimHost` + `Hrot.ClusterRunner` build | clean |
+
+#### ⛔ WHAT IS NOT YET DONE — **the rest of `B4b`**
+
+⛔ SimHost still hand-lists its modules in `PopulateSystems`/`RegisterSpawningPipeline`; **no host yet
+resolves a `NodeCompositionPlan`.** ⭐ This step converted the *resource* axis for one host, which is
+the half that carries the silent-corruption risk. ⚠ The *capability* axis — `MuscleGroundCapability`
+etc. replacing the hand-written lists — is the remaining work, and the same before/after capture is
+the gate for each host. ⛔ CGF, IG, Stride and the editor are untouched.
 
 ### 4.1L 🔴🔴🔴 `CE-165` — **THE SLOTS ARE FULL, AND THE RUNNING EDITOR DOUBLE-TICKS TWO SYSTEMS TODAY** *(second user challenge, `2026-09-03`)*
 

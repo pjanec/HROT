@@ -1985,3 +1985,17 @@ whenever the finding is "the sim did not do the impressive thing".**
   📐 §4.1j's `B4` row requires *"entity counts and component sets unchanged vs **`CE-141`'s recorded baseline**"*. **`CE-141` is an OPEN question about whether IG's 2-entry translator list should be widened** — it records no entity-count or component-set baseline, and never did.
 
   ⭐ **The workable substitute, and what `B4b` will use:** the live comparison this programme already runs — `hill-attack-close` on `--mode editor` and `--mode all`, capturing entity count and per-entity component sets before and after the switchover. ⚠ Recorded rather than silently substituted, so nobody later reads the acceptance clause as satisfied by something it never named.
+
+- [x] **CE-185** · `RW-L` ⭐⭐ — **`B4b` STEP 1: SimHost TAKES THE TRAJECTORY POOL FROM AN OWNER INSTEAD OF FROM WHICHEVER MODULE DEFAULTED IT.**
+
+  📐 **Before:** `GroundKinematicsModule` defaulted the pool (`??=`), `SimHostCoreLogicPack` exposed it, and `SimHostNodeBootstrapper:359` threaded `CoreLogicPack!.TrajectoryPool` into `EngineBackedNavigationModule`. ⚠ **Correct — but correct by CARE**, holding only because the single production caller remembered; and it forced the navigation consumer to reach **through the Muscle pack**, which is exactly why a NavigationSolver-only node had no pool.
+
+  ✅ **After:** `TrajectoryPoolProvider` owns it, the bootstrapper holds the provider, and **both** consumers receive the same instance directly. ⭐ Sharing is by construction, and the pool has an owner with a lifetime for the first time.
+
+  ⭐ **Why this resource first:** it is the one where a split is not a leak — the solver writes routes **by handle** and the kinematics systems read them back by that handle, so two pools mean routes resolve that no vehicle follows (`CE-180`). ⇒ the live run is a real test, not a smoke test.
+
+  ⭐⭐ **Acceptance (the `CE-184` substitute, captured BEFORE the change):** entity count and every per-entity component set **byte-identical** (8 entities, 32/41/41/41/41/12/40/40; empty `diff`); and over 3 600 deterministic steps **both hostiles killed**, both attackers acquiring 2 contacts and firing. **Red-proof:** making the pack ignore the passed pool reddened the borrow rail.
+
+  ⛔ **Not yet done:** the **capability** axis. No host resolves a `NodeCompositionPlan` yet; SimHost still hand-lists its modules, and CGF, IG, Stride and the editor are untouched.
+
+  📄 Design: [`DESIGN_Subsystem_Composition_Unification.md` §4.1r](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md)

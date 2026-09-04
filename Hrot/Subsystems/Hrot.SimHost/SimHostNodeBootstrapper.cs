@@ -96,6 +96,25 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     public CarKinem.Road.RoadNetworkBlob? RoadNetwork { get; private set; }
 
     /// <summary>
+    /// The node's trajectory-pool owner — the first resource this host takes from a provider rather
+    /// than from whichever module happened to default it (<c>B4b</c>).
+    /// </summary>
+    /// <remarks>
+    /// <para><b>What changed and why it matters.</b> The pool used to be created inside
+    /// <c>GroundKinematicsModule</c> (as a <c>??=</c> default) and then threaded by hand from
+    /// <c>CoreLogicPack.TrajectoryPool</c> into <c>EngineBackedNavigationModule</c>. That worked, but
+    /// only because the single production caller remembered to do it: the solver writes resolved
+    /// routes into the pool by handle and the kinematics systems read them back by that handle, so a
+    /// consumer handed a different pool produces <b>routes that resolve and vehicles that never
+    /// follow them</b> — silently (<c>CE-180</c>).</para>
+    ///
+    /// <para>Now the node allocates it <b>once</b>, up front, and hands the same instance to every
+    /// consumer. Sharing is by construction instead of by care, and the pool finally has an owner with
+    /// a lifetime: this bootstrapper disposes the provider, which nothing did before.</para>
+    /// </remarks>
+    public Hrot.Common.Infrastructure.TrajectoryPoolProvider TrajectoryPool { get; } = new();
+
+    /// <summary>
     /// Optional callback invoked during Phase 6d (after network translators, before Initialize).
     /// SimHostApp sets this to register gizmo modules and event-history capture systems that must
     /// be part of the initialized kernel topology but are not part of the domain core.
@@ -200,7 +219,10 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         var roadNetwork = SimHostApp.LoadRoadNetwork(_roadNetworkBlobPath, localNodeId: context.NodeId);
         RoadNetwork = roadNetwork;
 
-        CoreLogicPack = new SimHostCoreLogicPack(context.EntityMap, roadNetwork);
+        // B4b: the pool comes from the node's provider, not from whichever module defaults one.
+        // Every consumer below receives THIS instance, so the solver's routes and the kinematics
+        // systems' lookups address the same memory by construction (CE-180).
+        CoreLogicPack = new SimHostCoreLogicPack(context.EntityMap, roadNetwork, TrajectoryPool.Pool);
 
         // Configure factory for this node and create attribute update systems
         var nodeFactory = _networkFactory?.ConfigureForNode(context, _role, GetBehaviorRegistry());
@@ -354,9 +376,12 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         // RegisterProviders is deferred to PostInitialize (after Kernel.Initialize) because
         // EngineBackedNavigationModule.RegisterProviders requires _navmesh/_registry which
         // are created by RegisterSystems — run during Kernel.Initialize (Phase 7).
+        // B4b: read the pool from its OWNER, not from a capability that happens to expose it.
+        // Reaching through CoreLogicPack made this consumer depend on the Muscle pack existing at
+        // all — which is exactly why a NavigationSolver-only node had no pool (§4.1i).
         _navModule = new EngineBackedNavigationModule(
             RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob),
-            CoreLogicPack!.TrajectoryPool);
+            TrajectoryPool.Pool);
         context.Kernel.RegisterModule(_navModule);
 
         context.Kernel.RegisterGlobalSystem(new AreaQueryResultMaterializationSystem());
