@@ -696,6 +696,17 @@ artefact: the report **names the feature's suite and its result** before it name
 | **T2** minutes | ⭐⭐ **the BATCH gate, once** — the implementation session's table | ⭐ the **fast** everything *(unit suites of touched projects, `--no-build`)* + the batch's **new rails** + the **targeted rails that reproduce any bug found**. ⛔ **Not per fix.** ⛔⛔ **The E2E/system suite is NOT here — see T3** |
 | ⭐⭐ **T3** *(the E2E slow lane)* | ⛔⛔ **NEVER a foreground blocker** | ⭐ `run-system-tests.sh` *(boots the real editor headless per case)* runs **async** — backgrounded, or in CI/nightly — its result lands in the report or the next session. ⛔ **Never sit on it; never re-run it "to be sure"** |
 
+⭐⭐⭐ **RUNNING THE REAL THING IS ITS OWN TIER, AND IT FINDS WHAT NO SUITE DOES** — 📄 **[`docs/RUNBOOK_Cluster_Debugging_Over_Http.md`](../docs/RUNBOOK_Cluster_Debugging_Over_Http.md)**:
+launching one node per process over plain HTTP *(the MCP server is often down and addresses one node)*,
+`/diagnostics/architecture` for per-translator `sentSamples`/`receivedSamples`, per-perspective entity
+reads, and the traps that eat an hour each *(`127.0.0.1` 404s every route — the listener binds the
+`localhost` HOSTNAME · the cluster boots PAUSED · the module host SWALLOWS system exceptions, so a control
+plane can throw every frame while the API answers `ok:true`)*.
+📌 **`2026-09-04`: one `--mode all` run found a production defect the whole ~8 000-test suite missed** —
+the ownership handover threw on every node, every frame, and **0/8 entities moved**. ⇒ ⭐⭐ **when the
+question is *"does the product actually work?"*, RUN IT** — ⛔ a green gate table is not an answer to that
+question.
+
 ### ⚠⚠ The second half of the complaint is TRUE, and the tally is worth keeping
 
 | what found the defect, batches 94–101 | |
