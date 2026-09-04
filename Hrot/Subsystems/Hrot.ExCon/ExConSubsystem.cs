@@ -242,33 +242,95 @@ namespace Hrot.ExCon
             _headless = config.Headless;
             _nodeIdOverride = config.NodeId;
 
-            // ── DDS participant ────────────────────────────────────────────────
-            // Create participant in the Application Shell (Composition Root).
-            // Rule: only the outermost executable may instantiate DdsParticipant.
-            // HrotNodeBuilder no longer has a fallback
-            _participant = _networkFactory?.Participant;
+            // ⭐⭐⭐ CLUSTER PARTICIPATION — declared as a NodeBootPlan, exactly like an ECS node's,
+            //    on a host that has NO ModuleHostKernel at all.
+            //
+            // This is the "short list" of docs/DESIGN_Subsystem_Composition_Unification.md §4.1O:
+            // composition is not a prefabricated tier a host is sorted into, it is the list of shared
+            // steps a host happens to compose. ExCon composes the CLUSTER-PARTICIPATION steps and
+            // none of the ECS ones — no world, no kernel, no capabilities, and NodeRole.None below is
+            // correct rather than an omission, because it has no capabilities to select.
+            //
+            // Same runner, same declare-and-verify semantics as SharedApplicationBootstrapper: the
+            // order below is unchanged, and the keys make the couplings checkable instead of implied.
+            // 📄 §4.1P (the plan), §4.1Q (this adoption).
+            var iosNodeId = config.NodeId != 0 ? config.NodeId : 500;
 
-            // ── ClusterSlave (CGF1-S0104 / CMC-S016 BATCH-06) ────────────────────────
-            var iosNodeId  = config.NodeId != 0 ? config.NodeId : 500;
+            // ⚠ Locals mirroring the two bus fields. Assignments inside a step's closure are
+            //   invisible to the compiler's nullable-flow analysis, so without these every later use
+            //   of _bus/_observerBus warns. The locals are not a workaround for an unproven fact:
+            //   the plan's declared keys ("orchestration-bus", "observer-bus") are what guarantee
+            //   they are set, and Run() throws by key if a step that provides one did not run.
+            FdpEventBus bus         = null!;
+            FdpEventBus observerBus = null!;
 
-            // we pass _bus to the active command layer ...
-            _bus = new FdpEventBus();
-            Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_bus);
-            _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, _bus);
+            new Hrot.Common.Infrastructure.NodeBootPlan()
 
-            _observerBus = new FdpEventBus();
-            Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_observerBus);
+                // ── DDS participant ────────────────────────────────────────────────
+                // Create participant in the Application Shell (Composition Root).
+                // Rule: only the outermost executable may instantiate DdsParticipant.
+                // HrotNodeBuilder no longer has a fallback
+                .Step("participant", provides: new[] { "participant" }, run: () =>
+                {
+                    _participant = _networkFactory?.Participant;
+                })
 
-            // ── TC2-P3-T1: Slave time sync pipeline ──────────────────────────────
-            // SlaveSyncController is always created (no DDS needed).
-            // DDS-backed translators are only wired when a participant is available.
-            _slaveSyncController = new SlaveSyncController(_bus, iosNodeId, TimeConfig.Default);
-            if (_participant != null)
-            {
-                _timeModeTranslator      = TimeNetworkModule.CreateDescriptorTranslator(_participant, _bus);
-                _slaveLockstepTranslator = TimeNetworkModule.CreateSlaveLockstepTranslator(_participant, _bus, iosNodeId);
-                _slaveTimeSyncTranslator = TimeNetworkModule.CreateSlaveTimeSyncTranslator(_participant, _bus, iosNodeId);
-            }
+                // ── ClusterSlave (CGF1-S0104 / CMC-S016 BATCH-06) ────────────────────────
+                // we pass _bus to the active command layer ...
+                .Step("orchestration-bus", provides: new[] { "orchestration-bus" }, run: () =>
+                {
+                    _bus = bus = new FdpEventBus();
+                    Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(bus);
+                })
+
+                .Step("cluster-slave",
+                    requires: new[] { "orchestration-bus" },
+                    provides: new[] { "cluster-slave" },
+                    run: () =>
+                    {
+                        _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, bus);
+                    })
+
+                .Step("observer-bus", provides: new[] { "observer-bus" }, run: () =>
+                {
+                    _observerBus = observerBus = new FdpEventBus();
+                    Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(observerBus);
+                })
+
+                // ── TC2-P3-T1: Slave time sync pipeline ──────────────────────────────
+                // SlaveSyncController is always created (no DDS needed).
+                // DDS-backed translators are only wired when a participant is available.
+                .Step("slave-sync-controller",
+                    requires: new[] { "orchestration-bus" },
+                    provides: new[] { "slave-sync-controller" },
+                    run: () =>
+                    {
+                        _slaveSyncController = new SlaveSyncController(bus, iosNodeId, TimeConfig.Default);
+                    })
+
+                // ⭐ The three translators now come from the SHARED factory the kernel-owning nodes
+                //   use — SlaveTimeTranslatorRegistration.Create. Until 2026-09-03 ExCon hand-built
+                //   the same three calls here, purely because the shared helper only offered
+                //   RegisterOn(kernel, ...) and ExCon has no kernel. The creation half is now
+                //   separate from the kernel half, so there is one source for both.
+                // ⚠ The `_participant != null` guard is KEPT verbatim: Create tolerates a null
+                //   participant, but removing the guard would leave ExCon's fields non-null in
+                //   headless mode and its Update() would start polling them. Behaviour unchanged.
+                .Step("slave-time-translators",
+                    requires: new[] { "participant", "orchestration-bus", "slave-sync-controller" },
+                    run: () =>
+                    {
+                        if (_participant != null)
+                        {
+                            var t = Hrot.Common.Infrastructure.SlaveTimeTranslatorRegistration
+                                .Create(_participant, bus, iosNodeId);
+                            _timeModeTranslator      = t.Mode;
+                            _slaveLockstepTranslator = t.SlaveLockstep;
+                            _slaveTimeSyncTranslator = t.SlaveTimeSync;
+                        }
+                    })
+
+                .Run(nameof(ExConSubsystem));
 
             // CGF1-BATCH-23 A.3: ExCon is an orchestrator instructor — it does NOT
             // save scenario fragments or exercise recordings.  If the orchestrator fans
@@ -279,7 +341,7 @@ namespace Hrot.ExCon
 
             // Wire ReferenceReplayLoadHandler FIRST (PrepareReplay / FinalizeReplay;
             // PrepareLive only when replay active — Live-from-Replay branch gate).
-            _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
+            _clusterSlave!.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
                 iosRrController,
                 inputGroup:            null,
                 simGroup:              null,
@@ -368,17 +430,17 @@ namespace Hrot.ExCon
             }
 
             // ── Cluster control wiring (S0507 / PACK-C002) ────────────────────────────
-            _uiCache     = new ClusterUiCache(_observerBus, _slaveSyncController);
-            _clusterPanel = new ClusterScenarioPanel(_bus, _uiCache);
+            _uiCache     = new ClusterUiCache(observerBus, _slaveSyncController);
+            _clusterPanel = new ClusterScenarioPanel(bus, _uiCache);
 
             // Wire the cluster diagnostics panel (reads UICache on observerBus; publishes via bus).
             _exConFileDialogService  = Fdp.Presentation.Panels.FileDialogServiceFactory.Create();
             _clusterDiagnosticsPanel = new Hrot.Orchestrator.Panels.ClusterDiagnosticsPanel(
                 _uiCache,
-                _bus,
+                bus,
                 _exConFileDialogService,
                 nasBasePath: Hrot.Orchestrator.ClusterConfiguration.Default.NasBasePath);
-            _mergeWorker = new DiagnosticLogMergeWorker(_bus);
+            _mergeWorker = new DiagnosticLogMergeWorker(bus);
             // HEXAG2-S012: factory-based slave orchestration handles.
             _slaveTranslator = nodeFactory?.CreateSlaveOrchestratorTranslators(_bus!, iosNodeId)
                                ?? new NullSlaveOrchestrationTranslator();

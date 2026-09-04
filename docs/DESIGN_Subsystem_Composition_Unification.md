@@ -1535,6 +1535,61 @@ sequenceDiagram
 | ⭐ **a real boot exercises it** | the existing `SharedApplicationBootstrapperTests` boot cases run the declared plan, so an unsatisfied edge fails there too |
 | ⛔ **explicitly NOT in this step** | reordering · migrating any host · ExCon's short list · touching the 45 shared units |
 
+### 4.1Q ⭐⭐⭐ STEP 2 — **ExCon composes the SHORT LIST. ✅ `build-state: BUILT` `2026-09-03`**
+
+> ⭐ §4.1P's successor: the cheapest probe of §4.1O's *"fits all nine roots"* claim, run on the **hardest**
+> host — one with **no `ModuleHostKernel` at all**.
+
+#### ① 📐 THE DUPLICATE IT FOUND — **measured before anything was written**
+
+📐 `SlaveTimeTranslatorRegistration.RegisterOn` creates three translators and then registers them on a
+kernel. `ExConSubsystem.cs:268-270` **hand-built the same three calls** —
+`TimeNetworkModule.CreateDescriptorTranslator` · `CreateSlaveLockstepTranslator` ·
+`CreateSlaveTimeSyncTranslator`, same arguments, same order.
+
+⇒ ⭐⭐⭐ **The duplicate existed for exactly one reason: the shared helper only offered
+`RegisterOn(kernel, …)`, and ExCon has no kernel.** ⛔ Not a divergence anyone chose — a host locked out
+of shared code by a parameter it cannot supply. 📌 **The seam law again**, and the first instance found
+*by* the composition work rather than reasoned toward.
+
+#### ② ✅ WHAT WAS BUILT
+
+| | |
+|---|---|
+| ⭐⭐ **split** | `SlaveTimeTranslatorRegistration.Create(participant, eventBus, nodeId) → SlaveTimeTranslators` — **the shared half, kernel-free**. `RegisterOn` now calls it and keeps only the **kernel half** *(ingress/egress split + three global systems)*. ⛔ Signature unchanged, so its four existing callers are untouched |
+| ⚠ **named, not an array** | `SlaveTimeTranslators(Mode, SlaveLockstep, SlaveTimeSync)` + `.All`. 📐 Because a kernel-less host addresses them individually: ExCon interleaves `SlaveSyncController.Update()` **between** their `PollIngress` and `ScanAndPublish` *(`:443-452`)*, which the kernel path expresses as separate systems the scheduler orders |
+| ⭐⭐⭐ **ExCon adopts it** | its three hand-built calls become one `Create(...)`. ⚠ **The `_participant != null` guard is KEPT verbatim** — `Create` tolerates a null participant, but dropping the guard would leave the fields non-null in headless and `Update()` would start polling them. Behaviour unchanged |
+| ⭐⭐⭐ **ExCon declares a plan** | six steps — `participant` · `orchestration-bus` · `cluster-slave` · `observer-bus` · `slave-sync-controller` · `slave-time-translators` — on the **same `NodeBootPlan`** an ECS node uses, in the same order as before |
+
+#### ③ ⭐⭐⭐ WHAT IT PROVES — **and it is the §4.1O claim, not a restatement of it**
+
+| ⭐ | |
+|---|---|
+| **the runner is not ECS-shaped** | ⭐ a host with **no world, no kernel, no capabilities** composes the same plan type. ⇒ §4.1O's *"ExCon composes a short list"* is **built, not asserted** |
+| **a tier is an OUTPUT** | 🔒 the user's ruling, now demonstrated: ExCon is not *sorted into* a tier — it **is** the list of steps it composed. `NodeRole.None` *(`:342`)* stops looking like an omission and reads as what it is: **no capabilities to select** |
+| **the layer split is real** | ⭐ cluster participation *(bus · slave · sync controller · time translators)* composes **without** any ECS step. ⛔ It was previously only an argument |
+
+#### ④ ⚠ THE ONE REAL COST — **stated because it will recur on every host**
+
+📐 Assignments inside a step's closure are **invisible to C#'s nullable-flow analysis**, so five later uses
+of `_bus`/`_observerBus` failed to compile *(CS8604 ×4, CS8602 ×1)*.
+⭐ **Fixed properly, not with `!`**: two locals mirror the fields, the steps assign both, and the later uses
+read the locals — which are *provably* non-null. ⛔ The locals are **not** a workaround for an unproven
+fact: the plan's declared keys are the guarantee, and `Run()` throws by key if a providing step did not run.
+⚠ **Expect this on any host with a long tail after its composition slice** — `EditorSubsystem`'s tail is
+**3548 lines** *(§4.1O ①)*, so this cost scales with the migration and should be priced into it.
+
+#### ⑤ 📐 GATES
+
+| suite | result |
+|---|---|
+| `Hrot.ExCon.Tests` | ✅ **390 / 0** |
+| `Hrot.NodeComposition.Tests` | ✅ **27 / 0** |
+| `Hrot.ClusterRunner.Tests` *(hosts `ExConSubsystemTests`, `ExConSubsystemClusterTests`, `ExConHandlerRegistrationTests`)* | **270 pass / 5 fail** — ⭐ **baselined by stash: identical names and counts without the change** *(`DataDrivenGizmoPredicateTests` ×2, `OrchestratorSubsystemTests` ×3 — ⛔ none of them an ExCon test)* |
+| `Hrot.IG.Tests` · `Hrot.SimHost.Tests` | 410/5 and 874/1 — ⭐ unchanged from §4.1P's baselines *(`Hrot.Common` changed, so both were re-run)* |
+
+⛔ **Still not done**: no reordering, no ECS host migrated, and the 45 shared units of §4.1M untouched.
+
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
 ### 5.1 Venue and channels — settled *(`AQ63` §12)*
