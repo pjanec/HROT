@@ -667,7 +667,7 @@ public sealed class EditorStrideSubsystem : IDisposable
         // Register modules and systems on the kernel.
         // Simulation-phase systems MUST go through an IEcsModule (kernel restriction).
         Kernel.RegisterModule(elm);
-        Kernel.RegisterModule(new SimHostModule(spawnSys));
+        Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys));
         Kernel.RegisterModule(orchPack);
         Kernel.RegisterGlobalSystem(requestSystem);
         // ⭐⭐ CE-146 — FinalizationSystem is NEW to this host. It was never registered here, so the ACK
@@ -1689,9 +1689,9 @@ public sealed class EditorStrideSubsystem : IDisposable
 
         public void RegisterSystems(ISystemRegistry registry)
         {
-            var seen = new System.Collections.Generic.HashSet<Type>();
-            foreach (var sys in _cgfSim.Concat(_muscleSim))
-                if (seen.Add(sys.GetType())) registry.RegisterSystem(sys);
+            // B2 -- one implementation of "fuse two role lists, first wins" for every root.
+            foreach (var sys in Fdp.ModuleHost.Scheduling.SystemComposition.DistinctByType(_cgfSim, _muscleSim))
+                registry.RegisterSystem(sys);
         }
 
         public void Tick(ISimulationView view, float deltaTime) { }

@@ -17,14 +17,8 @@ namespace Hrot.IG;
 //
 // 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4c.
 
-// IEcsModule wrapper that routes UnitHierarchySystem into the Simulation phase slot.
-// RegisterGlobalSystem rejects SystemPhase.Simulation; it must be registered via RegisterModule.
-internal sealed class IgUnitHierarchyModule : IEcsModule
-{
-    private readonly IEcsModuleSystem _system;
-    public string Name => "IgUnitHierarchy";
-    public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
-    public IgUnitHierarchyModule(IEcsModuleSystem system) => _system = system;
-    public void RegisterSystems(ISystemRegistry registry) => registry.RegisterSystem(_system);
-    public void Tick(ISimulationView view, float deltaTime) { }
-}
+// B2: the one-system wrapper that used to live here is now the shared
+// Fdp.ModuleHost.Scheduling.SingleSystemModule -- it carried no IG-specific logic, and
+// SimHostModule was a byte-for-byte twin of it under a different Name.
+// (RegisterGlobalSystem still rejects SystemPhase.Simulation, so a lone simulation-phase
+// system must still reach the kernel via RegisterModule; only the wrapper is shared now.)

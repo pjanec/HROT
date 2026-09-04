@@ -1475,7 +1475,7 @@ namespace Hrot.Editor
             //   was absent — harmless with a NullEntityAckSink, but the pack builds it unconditionally
             //   and scheduling it keeps Unserviceable() honest rather than permanently warning.
             _kernel.RegisterModule(elm);
-            _kernel.RegisterModule(new SimHostModule(spawnSys));
+            _kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys));
             _kernel.RegisterGlobalSystem(creation.RequestSystem);
             _kernel.RegisterGlobalSystem(creation.FinalizationSystem);
 

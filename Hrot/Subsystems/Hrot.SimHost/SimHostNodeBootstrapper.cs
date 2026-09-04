@@ -330,7 +330,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
 
         // ⭐ The HOST schedules; the pack only constructs. NetworkSpawningSystem is BeforeSync and still
         //   goes through SimHostModule exactly as before — composition changed, scheduling did not.
-        context.Kernel.RegisterModule(new SimHostModule(spawnSystem: spawningSystem));
+        context.Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawningSystem));
         context.Kernel.RegisterGlobalSystem(creation.RequestSystem);        // Input
         context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);   // PostSimulation
 

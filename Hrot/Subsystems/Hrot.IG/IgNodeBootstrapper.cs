@@ -419,7 +419,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
                 "[IG] entity-creation pieces not scheduled: {0}", unserviceable);
 
         // UnitHierarchySystem - maintains ECS commander-subordinate hierarchy on the IG node (CS016).
-        context.Kernel.RegisterModule(new IgUnitHierarchyModule(new UnitHierarchySystem()));
+        context.Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("UnitHierarchy", new UnitHierarchySystem()));
     }
 
     // ── Phase 6b: Register network translators ────────────────────────────────

@@ -221,8 +221,15 @@ public sealed class StrideMuscleModule : IEcsModule
     /// <summary>
     /// Registers muscle systems in the same order as
     /// <see cref="EditorStrideSubsystem.Initialize"/> steps 7–7c.
-    /// Duplicate types (by exact reference, not type) are skipped — same guard as
-    /// <c>EditorStrideSimulationModule</c> in the existing composition.
+    /// Duplicate types are skipped — same intent as <c>EditorStrideSimulationModule</c>.
+    ///
+    /// <para><b>B2: deliberately NOT converted to <c>SystemComposition.DistinctByType</c>.</b> The other
+    /// roots fuse two finished lists in one call, which is the helper's shape. This one accumulates across
+    /// several phases with a single <c>seen</c> set spanning all of them, so the helper would either need a
+    /// stateful overload or this method would need restructuring into per-phase concats — and the phase
+    /// ordering here is load-bearing (it mirrors a specific hand-written registration order, see the
+    /// per-phase comments). Forcing the helper in would be a worse fit dressed as consistency. If a
+    /// stateful <c>DistinctByType</c> lands later, this is its first customer.</para>
     /// </summary>
     public void RegisterSystems(ISystemRegistry registry)
     {

@@ -203,7 +203,7 @@ public sealed class EditorHarness : IDisposable
         var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, EntityMap,
             new ScenarioEntityCreationRequestSource(), mapperRegistry);
         var scenarioMod      = new ScenarioEditorModule(fileService);
-        var simHostMod       = new SimHostModule(spawnSys);
+        var simHostMod       = new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys);
 
         Kernel.RegisterModule(new CognitiveSpatialModule(Repo));
         Kernel.RegisterModule(scenarioMod);
@@ -386,18 +386,10 @@ public sealed class EditorHarness : IDisposable
 
         public void RegisterSystems(ISystemRegistry registry)
         {
-            var registeredTypes = new System.Collections.Generic.HashSet<System.Type>();
-
-            foreach (var sys in _cgfSimSystems)
-            {
-                if (registeredTypes.Add(sys.GetType()))
-                    registry.RegisterSystem(sys);
-            }
-            foreach (var sys in _muscleSimSystems)
-            {
-                if (registeredTypes.Add(sys.GetType()))
-                    registry.RegisterSystem(sys);
-            }
+            // B2 -- the harness must fuse the packs exactly as the editor does, or it stops
+            // mirroring the composition it exists to mirror. Same helper, same first-wins order.
+            foreach (var sys in Fdp.ModuleHost.Scheduling.SystemComposition.DistinctByType(_cgfSimSystems, _muscleSimSystems))
+                registry.RegisterSystem(sys);
         }
 
         public void Tick(ISimulationView view, float deltaTime) { }

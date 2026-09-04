@@ -6,7 +6,7 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   guard as DESIGNED (checking only the system handed to RegisterSystem) was measured BLIND to the very
   defect it was written for — the editor registers ONE TogglableSimulationGroup and the duplicates live
   inside it. The guard now descends into ISystemGroup members, and the same red-proof then fired on the
-  RUNNING editor, naming UnitHierarchySystem. build-state for role composition: READY-TO-BUILD at B2. Phase 1's SEAM is BUILT with two adopters
+  RUNNING editor, naming UnitHierarchySystem. build-state for role composition: READY-TO-BUILD at B3 (B2 as-built: §4.1n). Phase 1's SEAM is BUILT with two adopters
   (§5b, as-built §5b.4); its remaining adoptions are listed at the end of §5b.4. Phases 2+ get their own
   inventory + UML per batch, appended here as they are designed.
   ⭐⭐ NEW 2026-09-03: §4.1b (CE-164) — IG built the shared slave orchestration stack via HrotNodeBuilder
@@ -1080,6 +1080,57 @@ still violated four ways. **Fold into `B2`**, which already opens those files.
 ⚠ **Also still open:** `ModuleHostKernel.RegisterModule` *(`:402`)* has no duplicate guard of its own, and
 `:1230`'s hot-swap check remains reference-equality. `B1` did not touch either; the scheduler guard covers
 the system axis only.
+
+### 4.1n ✅ AS BUILT — **`B2` shipped: one wrapper, one fuse, two host-named classes gone** *(obligation ⑤; `2026-09-04`)*
+
+⭐ `B2` as specified: *"one generic `SingleSystemModule`; delete `IgUnitHierarchyModule` and `SimHostModule`"*,
+acceptance *"both hosts still register their systems in the same phases"*. ⭐⭐ It also absorbs §4.1m's
+carried item — **the roots that hand-rolled the dedupe loop adopt the shared helper.**
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| `SingleSystemModule` | `Fdp.ModuleHost/Scheduling/` — 📐 `SimHostModule` and `IgUnitHierarchyModule` were **byte-for-byte twins** differing only in `Name`; neither held host logic. Both **deleted**, all **7** call sites retargeted *(6 production + 1 test)* |
+| naming | ⭐ modules are now named after the **SYSTEM**, not the host — `"NetworkSpawning"`, `"UnitHierarchy"`. ⛔ A module called `"SimHost"` holding one spawning system tells a reader the wrong thing about which node owns it, which is exactly the host-shaped framing the role work removes |
+| `DistinctByType` adopted | ✅ root ① `EditorStrideSimulationModule` · ✅ root ③ `EditorHarness` *(the harness must fuse the packs the way the editor does, or it stops mirroring the composition it exists to mirror)* |
+
+#### ⚠ ONE ROOT DELIBERATELY NOT CONVERTED, with the reason in the code
+
+⛔ `StrideMuscleModule.RegisterSystems` is **not** a two-list concat: it accumulates across several phases
+with a **single `seen` set spanning all of them**, and the per-phase ordering is load-bearing *(it mirrors a
+specific hand-written registration order)*. ⭐ Converting it would need either a stateful `DistinctByType`
+overload or a restructure that changes ordering — **a worse fit dressed as consistency.** ⇒ left as-is with
+an XML comment saying so; it is the first customer if a stateful overload ever lands.
+⇒ ⭐⭐ **§4.1m's "violated four ways" is now violated ONE way, by a root whose shape genuinely differs.**
+
+#### ⛔⛔ A VERIFICATION GAP, stated plainly
+
+📐 **`Stride/HrotStrideApp.Game` CANNOT BE COMPILED IN THE LINUX CONTAINER.** It targets `net8.0-windows`
+and its dependencies need `Microsoft.WindowsDesktop.App`: `error NETSDK1073` on `Hrot.Stride.Animation` and
+`Hrot.Stride.Core`, **files this batch never touched** — an environment limit, not a regression.
+⇒ ⭐ the two `EditorStrideSubsystem.cs` edits were **hand-verified instead**: `_cgfSim`/`_muscleSim` are
+declared `IEnumerable<IEcsModuleSystem>` *(`:1676-1677`)*, exactly the helper's parameter type; both new
+references are **fully qualified** so no `using` is required; `Fdp.ModuleHost.Scheduling` is the same
+assembly as the `IEcsModuleSystem`/`ISystemRegistry` the file already uses; and `grep` over `Stride/` finds
+**no other reference** to either deleted class. ⛔ **That is not a compile. It needs a Windows build before
+this is called done.**
+
+#### ⭐ GATES
+
+| gate | result |
+|---|---|
+| `Fdp.ModuleHost.Tests` filtered | **9/9** *(5 from `B1`, 4 new)* |
+| `Fdp.ModuleHost.Tests` full | 201 passed / **6 failed** — the same six convoy+SoD reds baselined at `B1` |
+| `Hrot.SimHost.Tests` | 877 / **1** — `FullBranchPipelineTests`, baselined pre-existing |
+| `Hrot.Editor.Tests` | **344 / 0** ⚠ one run showed 343/1 on `TwoReloadCycles_OldAlcIsCollected` *(a GC-collection assertion)*; **3 isolated re-runs and a full re-run all green** ⇒ flake, not composition |
+| `Hrot.IG.Tests` | 410 / **5** — ⭐ **BASELINED: identical 410/5 with the IG changes stashed** |
+| `IOS-IG-SimHost.sln` build | clean |
+| live, both hosts | editor + `--mode all` boot, `/status` serves, **0** guard fires |
+| live, behaviour preserved | `hill-attack-close`: **6 engagements, 0 overshoot failures, 0 EQS timeouts**, leader **35** components holding `1234950103` — unchanged from before `B2` |
+
+⇒ **build-state for the role composition work: READY-TO-BUILD at `B3`** *(split the four fused
+capability+resource modules — provider out, capability left; one commit each, per §4.1j)*.
 
 ### 4.1L 🔴🔴🔴 `CE-165` — **THE SLOTS ARE FULL, AND THE RUNNING EDITOR DOUBLE-TICKS TWO SYSTEMS TODAY** *(second user challenge, `2026-09-03`)*
 
