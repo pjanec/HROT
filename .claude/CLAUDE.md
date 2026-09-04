@@ -667,10 +667,30 @@ of making it.
 ⛔⛔ **AND IT REFUSES TO TEST A FAILED BUILD** — 📌 `dotnet test --no-build` runs a **STALE BINARY** and
 prints `PASSED`. ⚠ **That happened twice in one session**; both times it looked like a green.
 
+### ⛔⛔⛔ T-1 — **EVERY FEATURE HAS ITS OWN RAILS. FIND AND RUN THEM FIRST** *(user, `2026-09-04`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"remember that every feature has own rails so first thing to do to verify if
+> feature still works is to find and run those and add others only if necessary and to the feature's suite
+> preferrably."*
+
+⭐⭐ **This comes BEFORE T0, and it is the first move on ANY question of the form *"does X still work?"* —
+touching X, debugging X, or reasoning about X.**
+
+| ⭐ the sequence, fixed | |
+|---|---|
+| **①** ⭐⭐⭐ **FIND the feature's own suite** — ⭐ `scripts/find.sh <FeatureName>` and `search_graph`; the name is usually the giveaway *(`SplitAuthoritySpawnTests` for split-authority, `CgfComponentRegistryTests` for the CGF registry)*. ⛔ **Do not assume there is none** | 📌 the miss this rule fixes: I wrote a NEW rail class for the ownership handover while **`SplitAuthoritySpawnTests` — that exact feature's suite, carrying `IT-SA-1..3` — already existed** |
+| **②** ⭐⭐ **RUN it. That is the verification.** ⛔ Not a new test, not the full solution | ⭐ it is also the fastest real answer available |
+| **③** ⚠ **If it stays GREEN while the feature is BROKEN, THAT is the finding** — ⛔ do not route around it by writing a fresh test elsewhere. **Fix the blindness in place** | 📌 measured: SPLIT-AUTH-IT was blind because it never set `FdpConfig.EnforceExplicitEventRegistration`, the guard `Program.cs:52` sets in production ⇒ the throw was a silent no-op in tests |
+| **④** ⭐⭐⭐ **ADD only if necessary, and ADD INTO THE FEATURE'S SUITE** — ⛔ never a parallel class | 📐 and prefer folding the assertion into an **existing test** that already builds the fixture: adding a 4th test to `SplitAuthoritySpawnTests` **deterministically reddened `IT-SA-3`** *(3 runs)* by adding a 4th DDS domain |
+
+⛔⛔ **A new test class for a feature that has a suite is BLOAT and a review finding.** ⭐ The checkable
+artefact: the report **names the feature's suite and its result** before it names any new rail.
+
 ### ⭐ The tiers
 
 | tier | when | what |
 |---|---|---|
+| ⭐⭐ **T-1** *(seconds)* | ⭐⭐⭐ **before anything, on any "does it still work?"** | ⭐ **the FEATURE'S OWN suite** — see the section directly above. ⛔ Skipping it is how a duplicate rail class gets written |
 | **T0** ~8 s | ⭐ **every edit** | `quick-check.sh` — the touched project, filtered to the touched concept |
 | **T1** ~1 min | ⭐ **before a push** | the touched project's **whole** suite, `--no-build` |
 | **T2** minutes | ⭐⭐ **the BATCH gate, once** — the implementation session's table | ⭐ the **fast** everything *(unit suites of touched projects, `--no-build`)* + the batch's **new rails** + the **targeted rails that reproduce any bug found**. ⛔ **Not per fix.** ⛔⛔ **The E2E/system suite is NOT here — see T3** |
