@@ -114,6 +114,12 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// </remarks>
     public Hrot.Common.Infrastructure.TrajectoryPoolProvider TrajectoryPool { get; } = new();
 
+    // B4b step 2: the capability set this node's role resolves to, built in PopulateSystems (the first
+    // step where the context and road network exist) and registered in RegisterSpawningPipeline.
+    // ⛔ Resolution order is registration order is EXECUTION order — see SimHostCapabilities' remarks.
+    private IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> _capabilities =
+        System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
+
     /// <summary>
     /// Optional callback invoked during Phase 6d (after network translators, before Initialize).
     /// SimHostApp sets this to register gizmo modules and event-history capture systems that must
@@ -230,9 +236,33 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
                              ?? System.Linq.Enumerable.Empty<IEcsModuleSystem>())
             input.Add(sys);
 
-        foreach (var s in CoreLogicPack.InputSystems)          input.Add(s);
-        foreach (var s in CoreLogicPack.SimulationSystems)     sim.Add(s);
-        foreach (var s in CoreLogicPack.PostSimulationSystems) postSim.Add(s);
+        // B4b step 2: the node's units come from a declared plan rather than a hand-written list.
+        // ⚠ The plan is built HERE because this is the first step where the context and the loaded road
+        // network exist; it is resolved once and reused by RegisterSpawningPipeline, so both boot steps
+        // see the same capability instances.
+        _navModule = new EngineBackedNavigationModule(
+            RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob),
+            TrajectoryPool.Pool);
+
+        var plan = new Hrot.Common.Infrastructure.NodeCompositionPlan()
+            .Provider(TrajectoryPool)
+            .Capability(NodeRole.MuscleGround,     new SimHostCapabilities.MuscleGround(CoreLogicPack))
+            .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSolver())
+            .Capability(NodeRole.NavigationSolver, new SimHostCapabilities.NavigationSolver(_navModule))
+            .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSpatial(m => PerceptionModule = m));
+
+        // SimHost always composes all three, whatever the node's declared role flags: this host IS the
+        // Muscle+Perception+NavigationSolver node, and B4b is behaviour-preserving, so the set must not
+        // narrow here. Selecting BY the role flags is the next step, and it needs its own measurement of
+        // what each deployed role actually carries today.
+        const NodeRole composed = NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver;
+
+        // Fails the node if a capability declared a resource nobody provides.
+        _ = plan.RequiredResources(composed);
+        _capabilities = plan.Resolve(composed);
+
+        foreach (Hrot.Common.Infrastructure.INodeCapability capability in _capabilities)
+            capability.PopulateSystems(context, input, sim, postSim);
 
         // Seed GlobalTime singleton
         context.World.SetSingletonUnmanaged(new GlobalTime
@@ -369,29 +399,25 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //   this node serves LOCAL requests only — same position host (a) is in. Wiring the network half
         //   needs lifecycle adapters on HrotNodeContext, which is a separate change. Strictly better than
         //   before, when this node had no request tier at all.
-        context.Kernel.RegisterModule(CoreLogicPack!);
-        context.Kernel.RegisterModule(new EqsModule());
-
-        // Register engine-backed navigation module (road-graph + direct-line stubs).
-        // RegisterProviders is deferred to PostInitialize (after Kernel.Initialize) because
-        // EngineBackedNavigationModule.RegisterProviders requires _navmesh/_registry which
-        // are created by RegisterSystems — run during Kernel.Initialize (Phase 7).
-        // B4b: read the pool from its OWNER, not from a capability that happens to expose it.
-        // Reaching through CoreLogicPack made this consumer depend on the Muscle pack existing at
-        // all — which is exactly why a NavigationSolver-only node had no pool (§4.1i).
-        _navModule = new EngineBackedNavigationModule(
-            RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob),
-            TrajectoryPool.Pool);
-        context.Kernel.RegisterModule(_navModule);
-
-        context.Kernel.RegisterGlobalSystem(new AreaQueryResultMaterializationSystem());
-
-        PerceptionModule = new CognitiveSpatialModule(
-            context.World,
-            colliderRadiusReader: static (view, e) => view.HasComponent<PhysicsCollider>(e)
-                ? view.GetComponentRO<PhysicsCollider>(e).Radius
-                : 0f);
-        context.Kernel.RegisterModule(PerceptionModule);
+        // ⭐⭐⭐ B4b step 2 — the node's role-selected units register themselves, in the order the plan
+        //    resolved them. That order was the hand-written sequence CoreLogicPack → EqsModule →
+        //    EngineBackedNavigationModule → AreaQueryResultMaterializationSystem → CognitiveSpatialModule,
+        //    and it is preserved EXACTLY: ModuleHostKernel appends to a plain list the frame loop walks in
+        //    order, so registration order IS execution order and a reordering here would be a behaviour
+        //    change dressed as tidying. (That measurement is also why perception is two capabilities —
+        //    see SimHostCapabilities.)
+        //
+        //    RegisterProviders on the navigation module is still deferred to PostInitialize: it needs
+        //    _navmesh/_registry, which its own RegisterSystems creates during Kernel.Initialize.
+        //    ⚠ The values bag is EMPTY, not null: this host has not yet moved its capability registration
+        //    inside a NodeBootPlan step, so there is no live bag to hand over. An empty one makes a
+        //    capability that tries to read a resource fail with NodeBootValues' own message naming the
+        //    undeclared key, instead of a NullReferenceException — SimHost's capabilities receive their
+        //    resources by constructor during the migration. Passing null here would be the very
+        //    silent-default shape this programme keeps removing.
+        var migrationValues = new Hrot.Common.Infrastructure.NodeBootValues();
+        foreach (Hrot.Common.Infrastructure.INodeCapability capability in _capabilities)
+            capability.Register(context, migrationValues);
 
         // GenesisMaterializationSystem - Input phase, registered after togglable groups
         context.Kernel.RegisterGlobalSystem(

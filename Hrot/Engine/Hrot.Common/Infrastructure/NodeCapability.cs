@@ -85,12 +85,37 @@ public interface INodeCapability
     /// <see cref="INodeResourceProvider"/> the plan also selected.</summary>
     IReadOnlyList<string> Needs { get; }
 
-    /// <summary>Registers this capability's systems and modules onto the node.</summary>
+    /// <summary>
+    /// Contributes systems to the node's togglable phase groups. Called during the base's
+    /// <c>system-groups</c> boot step.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Why two hooks and not one.</b> The base composes a node in two distinct steps that run
+    /// at different times — <c>system-groups</c> builds the togglable phase groups, and
+    /// <c>spawning-pipeline</c> registers modules and global systems. A capability that contributes to
+    /// both (the Muscle pack does) needs to be asked twice. These hooks mirror the boot plan's existing
+    /// steps rather than inventing a third place to compose; both default to doing nothing, so a
+    /// capability implements only the half it actually contributes.</para>
+    /// </remarks>
+    void PopulateSystems(
+        HrotNodeContext context,
+        System.Collections.Generic.List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> input,
+        System.Collections.Generic.List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> simulation,
+        System.Collections.Generic.List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> postSimulation)
+    { }
+
+    /// <summary>Registers this capability's modules and global systems onto the node.</summary>
     /// <param name="context">The node being built.</param>
     /// <param name="values">
     /// The plan's value bag. Reads are checked against the declared <see cref="Needs"/>.
     /// </param>
-    void Register(HrotNodeContext context, NodeBootValues values);
+    /// <remarks>
+    /// ⛔ <b>Capabilities are registered in resolution order, and that order is EXECUTION order:</b>
+    /// <c>ModuleHostKernel.RegisterModule</c> appends to a plain list which the frame loop iterates in
+    /// sequence. A composition root reordering its capabilities is therefore changing behaviour, not
+    /// tidying — which is why a switchover must reproduce the host's existing sequence exactly.
+    /// </remarks>
+    void Register(HrotNodeContext context, NodeBootValues values) { }
 }
 
 /// <summary>
@@ -128,26 +153,36 @@ public interface INodeResourceProvider : IDisposable
 /// answers only that second question, and then hands the result to the plan. ⛔ It does not run
 /// anything, order anything, or own a lifetime.</para>
 ///
-/// <para><b>Union, then deduplicate.</b> A node's capability set is the union over its role flags, so
-/// two roles selecting the same capability must yield ONE registration. Deduplication is by
-/// <see cref="INodeCapability.Key"/> and is first-wins, matching
+/// <para><b>Union, then deduplicate, IN DECLARATION ORDER.</b> A node's capability set is the union over
+/// its role flags, so two roles selecting the same capability must yield ONE registration.
+/// Deduplication is by <see cref="INodeCapability.Key"/> and is first-wins, matching
 /// <c>SystemComposition.DistinctByType</c>'s rule for systems — the same policy at a different
 /// granularity, not a second one.</para>
+///
+/// <para>⛔⛔ <b>The ORDER of the result is load-bearing.</b> Capabilities register in resolution order,
+/// registration order is the kernel's execution order, so the resolved sequence must be exactly the
+/// order the host declared — including when declarations for different roles are interleaved. A host
+/// switching from a hand-written registration block to a resolved set is behaviour-preserving only if
+/// this holds, which is why it has its own rail rather than being left to the collection type.</para>
 /// </remarks>
 public sealed class NodeCompositionPlan
 {
-    private readonly Dictionary<NodeRole, List<INodeCapability>> _byRole = new();
-    private readonly Dictionary<string, INodeResourceProvider>   _providers = new(StringComparer.Ordinal);
+    // ⛔⛔ A FLAT, ORDERED list — deliberately NOT a Dictionary<NodeRole, List<...>>.
+    //
+    // Resolution order is registration order is EXECUTION order (ModuleHostKernel.RegisterModule appends
+    // to a plain List the frame loop walks in sequence). Grouping declarations by role would therefore
+    // silently REORDER a host's module registrations at the moment it switched over — capabilities
+    // declared A(role1) B(role2) C(role3) D(role2) would resolve as A B D C. That is a behaviour change
+    // disguised as a refactor, and it is precisely what the first draft of this class did.
+    private readonly List<(NodeRole Role, INodeCapability Capability)> _declared = new();
+    private readonly Dictionary<string, INodeResourceProvider>         _providers = new(StringComparer.Ordinal);
 
     /// <summary>Declares that <paramref name="role"/> selects <paramref name="capability"/>.</summary>
     public NodeCompositionPlan Capability(NodeRole role, INodeCapability capability)
     {
         if (capability is null) throw new ArgumentNullException(nameof(capability));
 
-        if (!_byRole.TryGetValue(role, out List<INodeCapability>? list))
-            _byRole[role] = list = new List<INodeCapability>();
-
-        list.Add(capability);
+        _declared.Add((role, capability));
         return this;
     }
 
@@ -180,13 +215,12 @@ public sealed class NodeCompositionPlan
         var seen   = new HashSet<string>(StringComparer.Ordinal);
         var result = new List<INodeCapability>();
 
-        foreach (KeyValuePair<NodeRole, List<INodeCapability>> entry in _byRole)
+        foreach ((NodeRole declaredFor, INodeCapability capability) in _declared)
         {
-            if (entry.Key == NodeRole.None || (role & entry.Key) != entry.Key) continue;
+            if (declaredFor == NodeRole.None || (role & declaredFor) != declaredFor) continue;
 
-            foreach (INodeCapability capability in entry.Value)
-                if (seen.Add(capability.Key))
-                    result.Add(capability);
+            if (seen.Add(capability.Key))
+                result.Add(capability);
         }
 
         return result;

@@ -1999,3 +1999,28 @@ whenever the finding is "the sim did not do the impressive thing".**
   ⛔ **Not yet done:** the **capability** axis. No host resolves a `NodeCompositionPlan` yet; SimHost still hand-lists its modules, and CGF, IG, Stride and the editor are untouched.
 
   📄 Design: [`DESIGN_Subsystem_Composition_Unification.md` §4.1r](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md)
+
+- [x] **CE-186** · `RW-L` 🔴🔴 — **`NodeCompositionPlan` SILENTLY REGROUPED CAPABILITY REGISTRATIONS BY ROLE, REORDERING MODULE EXECUTION. CAUGHT BY ITS OWN RAIL, AGAINST CODE ALREADY PUSHED.**
+
+  📐 **The constraint:** `ModuleHostKernel.RegisterModule` ends in `_modules.Add(entry)` — a plain `List` the frame loop iterates in order ⇒ **registration order IS execution order**, so any reordering is a behaviour change, and `B1`–`B4` must be behaviour-preserving.
+
+  🔴 **The defect:** the plan stored declarations in a `Dictionary<NodeRole, List<INodeCapability>>` and resolved by iterating it, **grouping by role**. SimHost declares `MuscleGround(a) · Perception(b) · NavigationSolver(c) · Perception(d)`; the resolver returned **`a b d c`** — moving the navigation module after `CognitiveSpatialModule`.
+
+  ⚠⚠ **Why this is the instructive one:**
+  ① **the live run was GREEN with the reorder in place** — both hostiles killed, component sets identical. That is evidence the reorder was *tolerated*, **not that it did not happen**;
+  ② **no existing suite observes module tick order** — ~890 SimHost tests and 45 composition tests all passed;
+  ③ **I wrote `SimHostCapabilities` specifically to preserve order, and the collection type undid it.** The intent was in the comments; the guarantee was in neither the code nor a test.
+
+  ✅ **Fixed:** a flat, ordered `List<(NodeRole, INodeCapability)>`, so resolution is declaration order however role declarations interleave. The field documents why it is not a dictionary. **Rail:** `NodeCompositionPlanRails.ResolutionPreservesDeclarationOrderAcrossRoles` — it **failed on first run**, which is how the defect surfaced.
+
+  📄 Design: [`DESIGN_Subsystem_Composition_Unification.md` §4.1s](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md)
+
+- [x] **CE-187** · `RW-L` ⭐ — **`B4b` STEP 2: SimHost COMPOSES FROM A RESOLVED CAPABILITY SET.**
+
+  ⭐ `SimHostCapabilities` — `MuscleGround` (the only one contributing to both boot steps), `PerceptionSolver`, `NavigationSolver`, `PerceptionSpatial` — replaces the hand-written registration block. `INodeCapability` gained a second hook (`PopulateSystems` + `Register`) mirroring the base's two existing boot steps rather than inventing a third composition point.
+
+  ⚠ **Perception is TWO capabilities, forced by measurement, not chosen:** today's sequence interleaves perception concerns **around** navigation, and collapsing them would move the navigation module. ⛔ **Whether that interleaving is meaningful or merely historical is NOT measured** — a follow-up should settle it; until then the split preserves the observed order rather than guessing.
+
+  ⛔ **Also not yet done:** the role set is not narrowed — SimHost composes `MuscleGround|Perception|NavigationSolver` unconditionally, as today. Selecting **by** the node's declared flags needs its own measurement of what each deployed role actually carries.
+
+  ⭐ **Acceptance:** component sets **identical** to the pre-`B4b` baseline; ~2 000 steps to `simTime 51.9` with **both hostiles killed** and both attackers firing. Gates: `Hrot.NodeComposition.Tests` 45/0, `Hrot.SimHost.Tests` 885/1 (baselined red).

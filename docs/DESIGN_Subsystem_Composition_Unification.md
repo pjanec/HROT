@@ -1402,6 +1402,57 @@ the half that carries the silent-corruption risk. ⚠ The *capability* axis — 
 etc. replacing the hand-written lists — is the remaining work, and the same before/after capture is
 the gate for each host. ⛔ CGF, IG, Stride and the editor are untouched.
 
+### 4.1s ✅ AS BUILT — **`B4b` step 2: SimHost composes from a RESOLVED capability set. And the rail caught a defect I had just shipped** *(`2026-09-04`)*
+
+> ⭐⭐⭐ **The first host whose units come from a declared plan instead of a hand-written block.**
+> ⛔⛔ **And the honest headline: the order-preservation rail FAILED on first run, against code already
+> pushed** — the resolver was silently regrouping registrations. Recorded in full because it is the
+> clearest example this programme has produced of why a rail must exist for a property nothing else observes.
+
+#### 🔴 THE MEASUREMENT THAT CONSTRAINS EVERYTHING HERE
+
+📐 **`ModuleHostKernel.RegisterModule` ends in `_modules.Add(entry)` — a plain `List` the frame loop
+iterates in order.** ⇒ ⭐⭐⭐ **registration order IS execution order.** A capability split that
+reorders registrations is a **behaviour change**, not a refactor — and `B1`–`B4` are required to be
+behaviour-preserving.
+
+#### 🔴🔴 THE DEFECT THE RAIL CAUGHT
+
+⛔ `NodeCompositionPlan` stored declarations in a **`Dictionary<NodeRole, List<INodeCapability>>`** and
+resolved by iterating it — so declarations were **grouped by role**. SimHost declares
+`MuscleGround(a) · Perception(b) · NavigationSolver(c) · Perception(d)`; the resolver returned
+**`a b d c`**, moving the navigation module *after* `CognitiveSpatialModule`.
+
+| ⚠ what makes this the instructive case | |
+|---|---|
+| ⛔⛔ **the live run was GREEN anyway** | both hostiles killed, component sets identical. ⇒ ⭐ that is evidence the reorder was *tolerated*, **not that it did not happen** |
+| ⛔ **no existing suite observes module tick order** | ~890 SimHost tests, 45 composition tests: all green with the reorder in place |
+| ⭐⭐ **I wrote the capabilities specifically to preserve order — and then the collection type undid it** | the intent was in the comments; the guarantee was in neither the code nor a test |
+
+✅ **Fixed:** the plan now stores a **flat, ordered `List<(NodeRole, INodeCapability)>`**, so resolution
+is declaration order regardless of how role declarations interleave. ⭐ The class documents why it is
+*not* a dictionary, at the field.
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| `SimHostCapabilities` | `MuscleGround` *(the only one contributing to BOTH boot steps)* · `PerceptionSolver` · `NavigationSolver` · `PerceptionSpatial` |
+| ⚠ **perception is TWO capabilities, and that is forced by measurement** | today's sequence interleaves perception concerns **around** navigation. Collapsing them would move the navigation module. ⛔ Whether that interleaving is meaningful or merely historical is **NOT measured** ⇒ ⭐ a follow-up should establish whether the halves can merge; until then the split preserves the observed order rather than guessing |
+| ⭐ **`INodeCapability` gained a second hook** | `PopulateSystems` + `Register`, mirroring the base's two existing boot steps *(`system-groups`, `spawning-pipeline`)* rather than inventing a third composition point. Both default to no-ops |
+| ⭐ **the migration bag is EMPTY, never `null`** | SimHost has not yet moved capability registration inside a `NodeBootPlan` step, so there is no live bag. An empty `NodeBootValues` makes a capability that reads fail with its own message naming the undeclared key — ⛔ passing `null` would be the exact silent-default shape this programme keeps removing |
+| ⛔ **the role set is not narrowed yet** | SimHost composes `MuscleGround\|Perception\|NavigationSolver` unconditionally, as today. Selecting **by** the node's declared flags needs its own measurement of what each deployed role actually carries |
+
+#### ⭐ ACCEPTANCE + GATES
+
+| | |
+|---|---|
+| entity count + per-entity component sets vs the **pre-`B4b`** baseline | **IDENTICAL** *(empty `diff`)* |
+| behaviour, ~2 000 steps to `simTime 51.9` | **both hostiles killed**; both attackers acquired and fired *(`Ammo 41`)* |
+| `Hrot.NodeComposition.Tests` | **45 / 0** *(the new order rail included)* |
+| `Hrot.SimHost.Tests` | **885 / 1** — `FullBranchPipelineTests`, baselined at `B2` |
+| ⚠ **a false alarm worth recording** | one verification run showed `simTime 2.8` after 3 600 requested steps and looked like a severe regression. 📐 **Cause: my backgrounded stepping loop had died, not the sim** — re-running deterministically advanced normally. ⭐ Measured before reporting; ⛔ a slower path would have been to report the scare |
+
 ### 4.1L 🔴🔴🔴 `CE-165` — **THE SLOTS ARE FULL, AND THE RUNNING EDITOR DOUBLE-TICKS TWO SYSTEMS TODAY** *(second user challenge, `2026-09-03`)*
 
 > 🔒 **User:** *"for sure the slots are not empty; check the stride game host for a DI or factory

@@ -89,6 +89,41 @@ public sealed class NodeCompositionPlanRails
         Assert.Same(first, resolved[0]);   // first-wins, matching SystemComposition.DistinctByType
     }
 
+    /// <summary>
+    /// <b>Resolution order is DECLARATION order — and that is behaviour, not cosmetics.</b>
+    ///
+    /// <para><c>ModuleHostKernel.RegisterModule</c> appends to a plain <c>List</c> which the frame loop
+    /// iterates in sequence, so the order capabilities register in <b>is</b> the order their modules
+    /// tick in. A host switching from a hand-written registration block to a resolved capability set is
+    /// therefore only behaviour-preserving if the resolved sequence reproduces the old one exactly —
+    /// which is why <c>SimHostCapabilities</c> splits perception into two capabilities rather than
+    /// collapsing them and quietly moving the navigation module later.</para>
+    ///
+    /// <para>⚠ Without this rail the resolver could switch to any set-like ordering and every existing
+    /// suite would stay green, because none of them observe module tick order.</para>
+    /// </summary>
+    [Fact]
+    public void ResolutionPreservesDeclarationOrderAcrossRoles()
+    {
+        var a = new FakeCapability("cap:a");
+        var b = new FakeCapability("cap:b");
+        var c = new FakeCapability("cap:c");
+        var d = new FakeCapability("cap:d");
+
+        // Interleaved exactly the way SimHost's registration sequence interleaves perception
+        // around navigation.
+        var plan = new NodeCompositionPlan()
+            .Capability(NodeRole.MuscleGround,     a)
+            .Capability(NodeRole.Perception,       b)
+            .Capability(NodeRole.NavigationSolver, c)
+            .Capability(NodeRole.Perception,       d);
+
+        Assert.Equal(
+            new[] { "cap:a", "cap:b", "cap:c", "cap:d" },
+            plan.Resolve(NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver)
+                .Select(x => x.Key));
+    }
+
     /// <summary>A role the node does not carry contributes nothing.</summary>
     [Fact]
     public void OnlyTheDeclaredRoleFlagsContribute()
