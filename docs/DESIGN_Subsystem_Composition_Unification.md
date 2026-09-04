@@ -1207,6 +1207,11 @@ it stands and was re-checked)*.
 | ⭐⭐ **red-proof** | **inverse edit**: guard removed from the `EqsTargetPool` arm ⇒ `…_IsIdempotentOnTheFourPersistentPools` **FAILED 1/4**; restored ⇒ green. ⛔ Not a `git checkout` |
 | `ComponentRegistryTests` | **17 / 0** |
 | EQS + nav + hill-attack filtered | **97 / 0** |
+| `Hrot.SimHost.Tests` full | **882 / 1** — `FullBranchPipelineTests`, the red baselined at `B2` |
+| ⭐⭐ `Hrot.ClusterRunner.Integration.Tests` **EQS** *(gate-contract row 8 — the suite that would break if the EQS invariant broke)* | **68 / 0** |
+| `Hrot.Editor` build *(the host with the double registration)* | clean |
+| ⭐⭐⭐ **live, `--mode editor` on `hill-attack-close`** — ⭐ the editor is precisely the host that calls the registry twice, so this is the production observable the rails cannot reach | **BOTH hostiles killed** *(`1006`, `1007` at `Health.Current = 0`)* after 3 600 deterministic steps. Mid-run at `t=31.9 s` the leader held the commander hash **`1234950103`**; both attackers acquired *(`SensorContactList.Count` 2 and 1, `TargetMemory` populated with real scores)* and fired *(`Ammo 41` from 42, `WeaponChannel.Status = Running`)*. ⇒ the whole EQS → sensor → target → fire chain is intact |
+| log scan | ⛔ **0** EQS timeouts, **0** allocator faults, **0** exception classes other than the **pre-existing** `GizmoInteraction` `IndexOutOfRangeException` *(16 367 lines of it — a UI system, untouched by this change and spewing before it)* |
 
 ⚠ **What the rails canNOT prove:** that the editor's *live* double-registration is gone — the rail exercises
 the registry directly. ⭐ The production observable is the pair of call sites above plus the guard; the live
