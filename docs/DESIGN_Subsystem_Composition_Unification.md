@@ -1837,7 +1837,14 @@ re-run. 📐 **Byte-identical outcome — the same three test names, `Failed: 3,
 | the other six | ✅ | ✅ |
 
 ⇒ ⭐ **The head migration changed nothing here**, which is what a behaviour-preserving change should look
-like. ⛔⛔ **But do not read the six greens as "CGF boots correctly" either** — all three reds are
+like.
+
+> 🔴🔴 **SUPERSEDED IN PART BY §4.1U** *(`2026-09-04`)*. The baseline is correct and the reds are genuinely
+> pre-existing — ⛔ **but "no owner named here" was where the enquiry stopped, and that was the mistake.**
+> ⭐⭐ Running the cluster showed all three are movement assertions defeated by ONE production defect: the
+> ownership handover threw on every frame because no host registered `OwnershipUpdate`. ⇒ 📄 **§4.1U.**
+
+⛔⛔ **And do not read the six greens as "CGF boots correctly" either** — all three reds are
 **movement/mission** assertions downstream of a CGF boot that evidently *does* happen, so this suite
 proves the boot did not REGRESS and proves nothing about whether it was right to begin with.
 ⚠ **The three reds are a pre-existing defect with no owner named here** — ⛔ not this batch's to fix, and
@@ -1857,6 +1864,102 @@ by unskipping.
 | ⭐⭐ **finish CGF's tail** *(`:692`→`:1413`)* | that is where the **10** lives. ⛔ It is one unit — the peak at `:973` cannot be halved by another prefix |
 | ⭐ **then the Editor** *(peak 18)* | ⚠ price it as **one** migration, per ②; a partial pass buys the mechanism it already has |
 | ⚠ **re-read §4.1S ①'s table with ② in mind** | the numbers are right; the *"is a batch, not a programme"* conclusion assumed they draw down incrementally, and they do not |
+
+### 4.1U 🔴🔴🔴 **RUNNING THE CLUSTER FOUND WHAT 8 000 TESTS DID NOT: THE OWNERSHIP HANDOVER NEVER RAN IN PRODUCTION** *(`2026-09-04`)*
+
+> 🔒 **User:** *"why dont you try running the cluster to see if scenario loads and entity move?"*
+> ⇒ ⭐⭐⭐ **One run answered it, and the answer was NO.** This section is the finding, the fix and — the
+> part worth keeping — **why every existing control missed it.**
+
+#### ① 📐 WHAT THE LIVE CLUSTER SHOWED
+
+`--mode all` *(orchestrator + simhost + ig + excon + cgf, one process, Xvfb, Debug API)*, `hill-attack`
+loaded live → `ok:true · entityCount 8 · OperatingLive · sawWorldChange true`, then unpaused:
+
+| | before the fix | after |
+|---|---|---|
+| sim time elapsed | 50 s | 25 s |
+| ⭐⭐⭐ **entities that moved** | 🔴 **0 / 8** | ✅ **4 / 8**, by **62–85 m** |
+| `Strict Mode Violation` in the log | 🔴 **every frame** | ✅ **0** |
+| `DeferredTakeover executed` | 🔴 **0** | ✅ **8** |
+| `PendingAuthorityGrants` on SimHost | 🔴 still attached | ✅ **stripped (null)** |
+
+⚠ **The 4 that still do not move are NOT claimed as correct** — they are the platoon parent *(TkbType 303)*
+and three non-vehicles. ⛔ Not investigated; **do not read "4/8" as "fully working."**
+
+#### ② 🔴 THE DEFECT — **a system scheduled on every node, publishing an event no node registered**
+
+```
+Strict Mode Violation: Unmanaged event type 'OwnershipUpdate' (ID: 9030) was published
+without being explicitly registered. You must call world.RegisterEvent<OwnershipUpdate>().
+  at DeferredTakeoverSystem.ExecuteTakeover(...)  DeferredTakeoverSystem.cs:125
+```
+
+⭐⭐ **The throw lands MID-METHOD, which is what makes it more than a dropped event:**
+
+| `ExecuteTakeover` step | ran? | consequence |
+|---|---|---|
+| 2a `SetAuthority(entity, componentId, true)` | ✅ | Muscle claims raw bits |
+| 2b `Bus.Publish(new OwnershipUpdate{…})` | 🔴 **THROWS** | — |
+| 3 `SetManagedComponent(entity, ownership)` | ⛔ never | **`DescriptorOwnership` never recorded** ⇒ `PrimaryOwnerId` stays `-1` |
+| 4 `RemoveManagedComponent<PendingAuthorityGrants>` | ⛔ never | **retries forever, every frame** |
+| 5 Brain's `OwnershipIngressSystem` drops its bits | ⛔ never | **Brain keeps authority** |
+
+📐 **Measured per perspective, entity 1000, before the fix:** CGF `HasAuthority=true PrimaryOwnerId=400`,
+SimHost `PrimaryOwnerId=-1`. ⇒ **the Muscle that integrates kinematics had no ownership, so nothing moved.**
+
+📄 **Design basis — the handshake is fully specified and step 5 simply never ran:**
+`docs/HROT architecture.md` §444 and §508–512 *("Symmetrical Yield… publishes an `OwnershipUpdate`… the
+Brain's `OwnershipIngressSystem`… drops its local authority bits")*. ⛔ Searched `docs/` and `.dev/` for a
+record that the handover is deliberately disabled — **none found**; 🔒 user confirmed `2026-09-04` it is not.
+
+#### ③ ⛔⛔ THE SECOND HALF — **a NAME COLLISION is why this was invisible to review**
+
+| type | EventId | registered? | published by |
+|---|---|---|---|
+| `Replication.**Components**.DescriptorAuthorityChanged` | 9010 | ✅ `HrotSharedComponentRegistry.cs:95` | ⛔ **nothing** |
+| `Replication.**Messages**.DescriptorAuthorityChanged` | 9031 | 🔴 **nowhere** | ✅ `OwnershipIngressSystem.cs:87` |
+| `Replication.Messages.OwnershipUpdate` | 9030 | 🔴 **nowhere** | ✅ `DeferredTakeoverSystem:125`, `OwnershipEgressSystem:69` |
+
+⇒ ⭐⭐⭐ **The registry registered the WRONG NAMESAKE, and the line reads perfectly correct.** ⚠ This is
+exactly the *"is this text hit REALLY this symbol"* hazard the tool-routing rules name — ⛔ and no grep for
+`DescriptorAuthorityChanged` would have shown it, because both hits are real.
+
+⭐ **The `Components` twin is deliberately LEFT REGISTERED**, not deleted: registered-and-unpublished is
+dormant, not harmful, and *"unreferenced is not unintentional."* Removing it is a separate call.
+
+#### ④ ⭐ THE FIX — **CE-161's shape, exactly**
+
+Two lines in **`HrotSharedComponentRegistry.RegisterAll`** — the ONE Hrot-wide path all four node
+bootstrappers already call *(CGF, SimHost, IG, Stride)*. ⛔ **Not** four host registries: that is four fresh
+chances to forget, which is the disease. Both publishers and the consumer are served on every node, which is
+what `R-138`'s *"nodes should be equal"* requires.
+
+#### ⑤ ⛔⛔⛔ WHY EVERY EXISTING CONTROL MISSED IT — **the part worth keeping**
+
+| control | why it was blind |
+|---|---|
+| ⛔ **~8 000 unit tests** | the only `RegisterEvent<OwnershipUpdate>()` calls in the repo are **3, all inside `Fdp.Toolkits.Tests/Replication/OwnershipTests.cs`** — ⭐⭐ **the tests registered it themselves**, so they proved the system works *given* a registration production never performs. 📌 The `§7` rail-blindness pattern, instance four: **a rail that supplies the input it is testing** |
+| ⛔ **`CgfSubsystemHeadlessTests` (T3)** | 3 red / 6 green **before and after** — 📌 baselined identical in §4.1T ④, and I recorded them as *"pre-existing, no owner named here."* ⚠ **That was correct and insufficient**: the reds were the symptom, and I treated the baseline as the end of the enquiry instead of the start |
+| ⛔ **`NodeBootPlan`** *(§4.1P–T, this programme's own instrument)* | it checks **declared** requires/provides. ⛔ **Nobody had declared that `DeferredTakeoverSystem` requires the `OwnershipUpdate` registration** — ⇒ ⭐⭐ the plan can only make loud what someone wrote down, and this is the strongest argument yet for `§4.1V`'s direction: **the registration should be a `provides` of the step that schedules the system** |
+| 🔴 **me** | I ran the full gate table, baselined every red, and reported green. ⭐⭐⭐ **The user asking "does an entity actually move?" is what found it.** ⛔ No amount of gate discipline substitutes for running the thing |
+
+#### ⑥ ⚠⚠ THE RAIL WAS VACUOUS ON ITS FIRST WRITING — **recorded because the red-proof is what caught it**
+
+📌 The first `OwnershipHandoverEventRegistrationRails` published on a bare `EntityRepository` and asserted no
+throw. **It stayed GREEN with both registrations deleted.** 🔴 Cause: the guard sits behind
+`FdpConfig.EnforceExplicitEventRegistration`, which **defaults to `false`** and is enabled by production
+entry-points only.
+
+| ⭐ the fixed shape | |
+|---|---|
+| each rail **enables strict mode explicitly** and restores it in a `finally` | so it exercises the guard production uses, without leaking global state |
+| ⭐⭐ **plus an ANTI-VACUITY rail** — `StrictModeReallyBites_AnUnregisteredEventThrows` | ⛔ so a future change that disables the guard turns *that* red instead of turning the other two silently green |
+| ✅ **red-proof, measured** | deleting both registrations reddens **exactly the two** registration rails; the anti-vacuity rail stays green. Restored and re-run green |
+
+⇒ 🔒 **The general lesson, and it is the same one as ⑤:** *"the rail passes"* means nothing until the
+inverse edit has been run. ⛔ **Had I trusted the first green, I would have shipped a fix with a rail that
+could never protect it.**
 
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
