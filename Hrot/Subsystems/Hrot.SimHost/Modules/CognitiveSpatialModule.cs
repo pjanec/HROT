@@ -5,6 +5,7 @@ using Fdp.Core.Collections;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Modules;
 using Fdp.Toolkit.Perception.Systems;
 using Hrot.SimHost.Systems;
 
@@ -16,7 +17,9 @@ namespace Hrot.SimHost.Modules
 
         public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10);
 
+        // B3 -- RECEIVED, not allocated. See the constructor.
         private readonly SpatialHashGrid _localGrid;
+        private readonly PerceptionGridProvider? _ownedGridProvider;
         private readonly EntityRepository _liveWorld;
         private readonly FdpEventBus _scopedBus;
 
@@ -28,17 +31,29 @@ namespace Hrot.SimHost.Modules
 
         private readonly Func<ISimulationView, Entity, float>? _colliderRadiusReader;
 
+        /// <summary>
+        /// <b>B3 — the capability RECEIVES its grid.</b>
+        /// </summary>
+        /// <param name="liveWorld">The live world the area-query solver reads.</param>
+        /// <param name="gridProvider">
+        /// The perception grid's owner. <b>Pass one.</b> When <c>null</c> this module allocates and owns a
+        /// private provider, which is the pre-B3 behaviour and is kept ONLY so the existing tests and any
+        /// single-capability host keep working unchanged — a composition root that selects capabilities by
+        /// role must pass the shared provider, or a node landing this capability through two roles
+        /// allocates the grid twice.
+        /// </param>
+        /// <param name="colliderRadiusReader">Optional collider-radius reader for LOS batching.</param>
         public CognitiveSpatialModule(
             EntityRepository liveWorld,
+            PerceptionGridProvider? gridProvider = null,
             Func<ISimulationView, Entity, float>? colliderRadiusReader = null)
         {
             _liveWorld = liveWorld;
-            _localGrid = SpatialHashGrid.Create(
-                Fdp.Toolkit.Perception.PerceptionConstants.LocalGridWidth,
-                Fdp.Toolkit.Perception.PerceptionConstants.LocalGridHeight,
-                Fdp.Toolkit.Perception.PerceptionConstants.LocalGridCellSize,
-                Fdp.Toolkit.Perception.PerceptionConstants.LocalGridMaxEntities,
-                Allocator.Persistent);
+
+            // Own one only if nobody handed us one; _ownedGridProvider records which case we are in so
+            // Dispose frees exactly what this module allocated and never what it borrowed.
+            _ownedGridProvider = gridProvider is null ? new PerceptionGridProvider() : null;
+            _localGrid         = (gridProvider ?? _ownedGridProvider!).Grid;
 
             _scopedBus = new FdpEventBus();
             _scopedBus.Register<LosCheckRequestEvent>();
@@ -88,7 +103,9 @@ namespace Hrot.SimHost.Modules
 
         public void Dispose()
         {
-            _localGrid.Dispose();
+            // B3: free the grid ONLY when this module allocated it. A borrowed provider outlives us and is
+            // disposed by whoever owns it -- disposing it here would free memory other capabilities still read.
+            _ownedGridProvider?.Dispose();
             _scopedBus.Dispose();
         }
 
