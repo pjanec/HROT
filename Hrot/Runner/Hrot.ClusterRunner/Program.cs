@@ -426,10 +426,29 @@ class Program
                 // ⚠ A Func: the window manager and its MessageLogRegistry may not exist yet (headless
                 //   nodes never build one at all), and the helper still answers with the process-wide
                 //   NLog targets that Program.Main installs for EVERY mode.
+                // ⭐⭐⭐ CE-169 — the SECOND silent default at this exact call site (logSinks was the
+                //    first, see the note above). ⛔⛔ With no registry, `GET /behaviors` answered
+                //    "Behavior registry not available." and `GET /entities/{id}/state` omitted the
+                //    behaviour NAME on every cluster node — while that same node was resolving the
+                //    hash to RUN the behaviour. An instrument that cannot tell "absent" from
+                //    "unwired" reads as evidence of absence, which is exactly how it misled a
+                //    diagnosis. 📌 The rule this breaks: a production caller that HAS a dependency
+                //    must PASS it — and this one does have it, via `subsystems`.
+                // ⚠ A Func, for the same reason logSinks is one: CGF builds its registry in the
+                //   `behavior-registry` boot step, and `orchestrator.Run()` is ~240 lines BELOW this
+                //   point. A captured value would be null forever.
+                // ⭐ A node with no CGF genuinely has no registry; the Func returns null and the route
+                //   says so truthfully rather than fabricating an empty one (the CE-110 shape).
+                var behaviorRegistryGetter =
+                    () => subsystems.OfType<Hrot.CGF.CgfSubsystem>()
+                                    .Select(s => s.BehaviorRegistry)
+                                    .FirstOrDefault(r => r is not null);
+
                 clusterApiService = new Hrot.Editor.DebugApi.DebugApiService(
                     dispatcher,
                     logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(
-                        windowCtrl?.WindowManager?.MessageLogRegistry));
+                        windowCtrl?.WindowManager?.MessageLogRegistry),
+                    behaviorRegistry: behaviorRegistryGetter);
                 clusterApiHost.AttachService(clusterApiService);
                 clusterApiHost.Start();
 

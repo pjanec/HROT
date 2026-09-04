@@ -349,7 +349,25 @@ namespace Hrot.Editor.DebugApi
         // MX4a — behaviour discovery. The registry already holds behaviourId -> ParamsDtoType, so
         // the schema comes from the SAME definition the runtime parses params with; the mission
         // service (optional) gives exact parity with the editor's mission-task combo for an entity.
-        private readonly Fdp.Toolkit.Behavior.BehaviorRegistry? _behaviorRegistry;
+        // ⭐⭐ CE-169 — TWO sources, because the two composition roots differ in TIMING, not in intent.
+        //   ① The EDITOR builds its registry before the service, so it hands over a VALUE.
+        //   ② The CLUSTER cannot: `Program.cs` constructs this service at :429 and only calls
+        //      `orchestrator.Run()` at :675, so CGF's registry does not exist yet at construction time.
+        //      A captured value would be null FOREVER — which is precisely the defect this fixes.
+        //   ⇒ the cluster hands over a Func, resolved lazily on first use. 📌 Same shape, same reason as
+        //     `logSinks` directly below it, whose comment says the window manager "may not exist yet".
+        private readonly Fdp.Toolkit.Behavior.BehaviorRegistry?         _behaviorRegistryValue;
+        private readonly Func<Fdp.Toolkit.Behavior.BehaviorRegistry?>?  _behaviorRegistryGetter;
+
+        /// <summary>
+        /// The node's behaviour registry, or <c>null</c> when this host genuinely has none.
+        /// ⛔ Never fabricate an empty registry here — an empty one reports "no behaviours" as though
+        /// that were the node's truth, which is the <c>CE-110</c> shape the TkbDatabase comment warns
+        /// about. A null answers "not available", and that is an honest answer.
+        /// </summary>
+        private Fdp.Toolkit.Behavior.BehaviorRegistry? _behaviorRegistry
+            => _behaviorRegistryValue ?? _behaviorRegistryGetter?.Invoke();
+
         private Hrot.UI.Common.Facades.IMissionEditorService? _missionService;
 
         /// <summary>
@@ -425,7 +443,7 @@ namespace Hrot.Editor.DebugApi
             _spatialGridWidth    = spatialGridWidth;
             _spatialGridHeight   = spatialGridHeight;
             _bpManager         = bpManager;
-            _behaviorRegistry  = behaviorRegistry;
+            _behaviorRegistryValue  = behaviorRegistry;
             _missionService    = missionService;
             _blueprintRegistry = blueprintRegistry;
             _diffService       = diffService ?? new ComponentDiffService();
@@ -466,7 +484,9 @@ namespace Hrot.Editor.DebugApi
             IGeographicTransform?                         geoTransform      = null,
             DebugPrimitiveBuffer?                         primitiveBuffer   = null,
             Func<IReadOnlyList<IMessageLogSource>>?       logSinks          = null,
-            Fdp.Toolkit.Behavior.BehaviorRegistry?        behaviorRegistry  = null)
+            // ⭐ CE-169 — a Func, not a value: CGF's registry is built during subsystem boot, which
+            //   happens AFTER this service is constructed. See the field comment for the measurement.
+            Func<Fdp.Toolkit.Behavior.BehaviorRegistry?>? behaviorRegistry  = null)
         {
             _dispatcher         = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
             _clusterStateGetter = clusterState;
@@ -490,7 +510,7 @@ namespace Hrot.Editor.DebugApi
             _attributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(_geoTransform);   // AX-017: moved to Fdp.Toolkits
             _componentEditSvc  = new ComponentEditServiceBuilder().Build();
             _primitiveBuffer   = primitiveBuffer;
-            _behaviorRegistry  = behaviorRegistry;
+            _behaviorRegistryGetter = behaviorRegistry;
         }
 
         // ── Group A — Status ──────────────────────────────────────────────────

@@ -460,10 +460,26 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <summary>Internal test hook: exposes the debug snapshot provider (UBP-P10T2).</summary>
     internal DebugSnapshotProvider? BpSnapshotProvider => _bpSnapshotProvider;
 
+    /// <summary>
+    /// The behaviour registry this CGF node populated at boot
+    /// (<c>CgfBehaviorSetup.LoadFromAiAssembly</c> in the <c>behavior-registry</c> boot step).
+    ///
+    /// <para>⭐ <b>A PRODUCTION accessor, not a test hook</b> — <c>CE-169</c>: the cluster's debug API
+    /// needs it to answer <c>GET /behaviors</c> and to resolve a behaviour HASH to its NAME in
+    /// <c>GET /entities/{id}/state</c>. Without it both answered as though the node had no
+    /// behaviours, while that same node was resolving the hash to run one.</para>
+    ///
+    /// <para>⚠ Null until the <c>behavior-registry</c> boot step has run, so a consumer constructed
+    /// before subsystem boot must read it LAZILY rather than capture it.</para>
+    /// </summary>
+    internal BehaviorRegistry? BehaviorRegistry => _behaviorRegistry;
+
     /// <summary>TestHook: exposes the CGF behavior registry so integration tests can register
     /// scenario-specific behaviors (e.g. UrbanCombat) before the cluster transitions to
-    /// OperatingLive and scenario entities begin executing missions.</summary>
-    internal BehaviorRegistry? TestHook_BehaviorRegistry => _behaviorRegistry;
+    /// OperatingLive and scenario entities begin executing missions.
+    /// ⭐ An alias for <see cref="BehaviorRegistry"/> — one storage, two names, so the existing test
+    /// call sites keep reading in test vocabulary without a second source of truth.</summary>
+    internal BehaviorRegistry? TestHook_BehaviorRegistry => BehaviorRegistry;
 
     /// <summary>
     /// TestHook: spawns an entity and publishes a <c>DeferredTakeOwnership</c> routing table

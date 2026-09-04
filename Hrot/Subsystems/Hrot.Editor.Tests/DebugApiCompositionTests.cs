@@ -49,6 +49,69 @@ public sealed class DebugApiCompositionTests
           + "deliberate default.");
     }
 
+    /// <summary>
+    /// <b>The CLUSTER composition root gets them too — <c>CE-169</c>.</b>
+    ///
+    /// <para>The theory above rails <c>EditorSubsystem</c> only, and that gate hole is exactly where the
+    /// defect landed: <c>Program.cs</c> built the cluster's <c>DebugApiService</c> with a dispatcher and
+    /// log sinks and <b>no behaviour registry</b>, so <c>GET /behaviors</c> answered "Behavior registry
+    /// not available." and <c>GET /entities/{id}/state</c> omitted the behaviour NAME on every cluster
+    /// node — while that same node was resolving the hash to RUN the behaviour. An instrument that
+    /// cannot distinguish "absent" from "unwired" reads as evidence of absence.</para>
+    ///
+    /// <para>⚠ <b>Note the Func.</b> The cluster cannot pass a value: <c>Program.cs</c> constructs the
+    /// service ~240 lines before <c>orchestrator.Run()</c>, so CGF's registry does not exist yet and a
+    /// captured value would be null forever. The rail therefore asserts the hand-off is present, and
+    /// the separate assertion below pins the laziness that makes it work.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("behaviorRegistry:", "GET /behaviors answers 'registry not available' and /entities/{id}/state omits the behaviour name on every cluster node")]
+    [InlineData("logSinks:", "GET /logs answers [] on every cluster-limited node (MD-001)")]
+    public void TheClusterDebugApiServiceIsHandedItsDependencies(string argument, string consequence)
+    {
+        var call = ClusterDebugApiServiceConstruction();
+
+        Assert.True(
+            call.Contains(argument, StringComparison.Ordinal),
+            $"Program.cs builds the cluster DebugApiService without {argument} — {consequence}. "
+          + "The runner holds the dependency at this point (via `subsystems`), so this is a missing "
+          + "hand-off, not a deliberate default.");
+    }
+
+    /// <summary>
+    /// <c>CE-169</c> — the hand-off must be LAZY. A value captured at construction time is null
+    /// forever, because CGF populates its registry during subsystem boot, long after this line runs.
+    /// Passing a value here would look correct in review and restore nothing.
+    /// </summary>
+    [Fact]
+    public void TheClusterBehaviorRegistryHandOffIsLazy()
+    {
+        var text = File.ReadAllText(RepoFile("Hrot/Runner/Hrot.ClusterRunner/Program.cs"));
+
+        Assert.True(
+            text.Contains("var behaviorRegistryGetter", StringComparison.Ordinal)
+         && text.Contains("() => subsystems.OfType<Hrot.CGF.CgfSubsystem>()", StringComparison.Ordinal),
+            "Program.cs no longer resolves the behaviour registry LAZILY from the subsystem list. "
+          + "The DebugApiService is constructed before orchestrator.Run(), so CGF's registry does not "
+          + "exist yet: a captured value would be null for the life of the process and every "
+          + "behaviour-facing route would silently report the node as having no behaviours.");
+    }
+
+    /// <summary>The text of the <c>new DebugApiService(…)</c> call in the cluster's composition root.</summary>
+    private static string ClusterDebugApiServiceConstruction()
+    {
+        var text = File.ReadAllText(RepoFile("Hrot/Runner/Hrot.ClusterRunner/Program.cs"));
+
+        int start = text.IndexOf("new Hrot.Editor.DebugApi.DebugApiService(", StringComparison.Ordinal);
+        Assert.True(start > 0,
+            "Program.cs no longer constructs DebugApiService — a cluster node has no AI-debug service "
+          + "at all, and every capability endpoint answers 503.");
+
+        int end = text.IndexOf(");", start, StringComparison.Ordinal);
+        Assert.True(end > start, "Could not find the end of the cluster DebugApiService construction.");
+        return text[start..end];
+    }
+
     /// <summary>The text of the <c>new DebugApiService(…)</c> call in the editor's composition root.</summary>
     private static string DebugApiServiceConstruction()
     {
