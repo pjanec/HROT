@@ -1940,26 +1940,75 @@ what `R-138`'s *"nodes should be equal"* requires.
 | control | why it was blind |
 |---|---|
 | ⛔ **~8 000 unit tests** | the only `RegisterEvent<OwnershipUpdate>()` calls in the repo are **3, all inside `Fdp.Toolkits.Tests/Replication/OwnershipTests.cs`** — ⭐⭐ **the tests registered it themselves**, so they proved the system works *given* a registration production never performs. 📌 The `§7` rail-blindness pattern, instance four: **a rail that supplies the input it is testing** |
-| ⛔ **`CgfSubsystemHeadlessTests` (T3)** | 3 red / 6 green **before and after** — 📌 baselined identical in §4.1T ④, and I recorded them as *"pre-existing, no owner named here."* ⚠ **That was correct and insufficient**: the reds were the symptom, and I treated the baseline as the end of the enquiry instead of the start |
+| ⛔ **`CgfSubsystemHeadlessTests` (T3)** | 3 red / 6 green **before the fix, and STILL 3 red after it** *(see ⑧)*. ⚠ They pointed at the area and were **not** caused by this defect — ⛔ I treated the baseline as the end of the enquiry instead of the start, which is the real lapse |
 | ⛔ **`NodeBootPlan`** *(§4.1P–T, this programme's own instrument)* | it checks **declared** requires/provides. ⛔ **Nobody had declared that `DeferredTakeoverSystem` requires the `OwnershipUpdate` registration** — ⇒ ⭐⭐ the plan can only make loud what someone wrote down, and this is the strongest argument yet for `§4.1V`'s direction: **the registration should be a `provides` of the step that schedules the system** |
 | 🔴 **me** | I ran the full gate table, baselined every red, and reported green. ⭐⭐⭐ **The user asking "does an entity actually move?" is what found it.** ⛔ No amount of gate discipline substitutes for running the thing |
 
-#### ⑥ ⚠⚠ THE RAIL WAS VACUOUS ON ITS FIRST WRITING — **recorded because the red-proof is what caught it**
+#### ⑥ ⚠⚠ THE RAIL TOOK THREE ATTEMPTS — **and every failure is worth keeping**
 
-📌 The first `OwnershipHandoverEventRegistrationRails` published on a bare `EntityRepository` and asserted no
-throw. **It stayed GREEN with both registrations deleted.** 🔴 Cause: the guard sits behind
-`FdpConfig.EnforceExplicitEventRegistration`, which **defaults to `false`** and is enabled by production
-entry-points only.
+🔒 **User, mid-batch:** *"are you adding rails that must have already exist when the deferred takeover
+feature was developed? dont. reuse. no bloating"* — ⭐⭐ **correct, and it redirected the whole approach.**
 
-| ⭐ the fixed shape | |
+| attempt | what happened |
 |---|---|
-| each rail **enables strict mode explicitly** and restores it in a `finally` | so it exercises the guard production uses, without leaking global state |
-| ⭐⭐ **plus an ANTI-VACUITY rail** — `StrictModeReallyBites_AnUnregisteredEventThrows` | ⛔ so a future change that disables the guard turns *that* red instead of turning the other two silently green |
-| ✅ **red-proof, measured** | deleting both registrations reddens **exactly the two** registration rails; the anti-vacuity rail stays green. Restored and re-run green |
+| **①** a NEW `OwnershipHandoverEventRegistrationRails` class | 🔴 **Vacuous** — published on a bare `EntityRepository` and stayed GREEN with both registrations deleted. ⛔ The guard sits behind `FdpConfig.EnforceExplicitEventRegistration`, which **defaults to `false`** |
+| **②** the same class, strict mode enabled locally | ✅ red-proved — ⛔ **but it was a duplicate.** 📌 `SplitAuthoritySpawnTests` *(SPLIT-AUTH-IT)* is this feature's OWN suite and already covers the handshake. **Deleted** |
+| **③** ⭐ the assertion FOLDED INTO the existing `IT-SA-2` | ✅ **shipped.** No new class, no new test, **no new DDS domain** |
 
-⇒ 🔒 **The general lesson, and it is the same one as ⑤:** *"the rail passes"* means nothing until the
-inverse edit has been run. ⛔ **Had I trusted the first green, I would have shipped a fix with a rail that
-could never protect it.**
+⛔⛔ **A 4th test in that class deterministically reddened `IT-SA-3` — three runs, same test, same
+timing** *(it passes alone; the three originals pass together with the fix)*. ⇒ ⭐⭐ **adding a cluster to
+that class is not free**, which is the concrete reason the assertion belongs inside a test that already
+spawns the entity rather than beside it.
+
+#### ⑦ 🔴🔴🔴 WHY SPLIT-AUTH-IT WAS BLIND — **the integration suite does not run the production guard**
+
+⭐⭐⭐ **This is the finding, not the missing assertion.** 📐 `Hrot.ClusterRunner/Program.cs:52` sets
+`FdpConfig.EnforceExplicitEventRegistration = true` **process-wide in production**. ⛔ **No integration
+suite does** — so the publish that throws in production is a **silent no-op** in every test.
+
+⇒ ⛔ **No assertion inside SPLIT-AUTH-IT could ever have caught this**, and I proved that by trying:
+with the registration deleted and strict mode OFF, even the grant-stripped assertion stayed green.
+⭐⭐ **Both halves are required:**
+
+| | |
+|---|---|
+| ⭐ **the guard** | `IT-SA-2` now flips `EnforceExplicitEventRegistration` and restores it in a `finally` — ⭐ the **same save/restore idiom already used** at `EditorSubsystemBootTests:224` and `HrotNodeBuilderTests:105`. **Reused, not invented** |
+| ⭐ **the assertion** | `PendingAuthorityGrants` must be **stripped**. ⛔ `IT-SA-2`'s original `HasAuthority` check cannot see it: step 2a runs BEFORE the throw, so it asserts exactly the half that still worked |
+| ✅ **red-proof, measured** | registration deleted + strict mode ON ⇒ `IT-SA-2` **fails**; restored ⇒ 3/3 green |
+
+⚠ **Scope of the fix, stated honestly:** only `IT-SA-2` runs under the guard. ⛔ **Every other integration
+test still runs with strict mode off**, so this class of defect remains invisible everywhere else. ⭐ That
+is a real gap and it is NOT closed by this batch.
+
+#### ⑧ ⛔ WHAT THE FIX DID **NOT** FIX — **two claims corrected, one of them mine**
+
+| claim | verdict |
+|---|---|
+| 🔴 *"the three `CgfSubsystemHeadlessTests` movement reds share this cause"* — my §4.1U claim table marked it **assumed** | ⛔⛔ **FALSE, measured.** Re-run after the fix: **still 3 red / 6 green**, same three names. ⇒ they have a **different, still-unowned cause**. ⭐ The claim table's ⛔-assumed marking is what kept this honest |
+| ⭐ *"the live cluster now works"* | ⚠ **partly.** Entities move — ⛔ **and then stop.** 📐 Measured over 50 s more: the four Friend tanks moved 62–85 m, then **0.1 m**, halting ~160 m from the enemy |
+
+#### ⑨ 📐 DO THE TANKS SEE, FIRE AND KILL? — **NO.** *(measured `2026-09-04`)*
+
+`hill-attack` has real opposition: **1001–1004 Friend, 1006–1007 Hostile, all `Health 50/50`.**
+
+| observable | reading |
+|---|---|
+| health, over 50 s | 🔴 **50/50 unchanged on every entity** — no damage, ever |
+| `WeaponFire` · `Detonation` · `DamageAssessed` · `SensorTrack` in the run log | 🔴 **0 occurrences** |
+| Friend `1001` on CGF — `LocomotionChannel` | ✅ `ActiveAction 1, Status **Success**` — ⭐ the move action **COMPLETED**; the halt is an action finishing, not a stall |
+| Friend `1001` on CGF — `WeaponChannel` | 🔴 `ActiveAction 0, Status **Failure**` — **no weapon action was ever dispatched** |
+| Friend `1001` — `BehaviorState` | ✅ `ActiveBehaviorHash -1606975122`, `BrainTier 2` — a behaviour **is** bound and running |
+| ⛔ Hostile `1006` — `BehaviorState` | 🔴 `ActiveBehaviorHash 0`, `BrainTier 0` — **no behaviour bound at all.** The opposition is inert |
+| every entity — `MissionPlanQueue` | `PhaseCount 0` |
+
+⇒ ⭐⭐ **The Brain↔Muscle split now works for LOCOMOTION and is untested for COMBAT**: the Brain binds a
+behaviour, dispatches a move action, the Muscle integrates it, the action reports Success. **Nothing ever
+reaches the weapon channel.**
+
+⛔⛔ **NOT diagnosed, and deliberately not guessed at:** whether `hill-attack` *authors* an engagement at
+all *(a single move order would produce exactly this trace)*, or whether sensing/target-selection is
+missing. ⭐ **Settling it needs the scenario + behaviour asset read, which this batch did not do.**
+⚠ **Do not read ⑨ as "combat is broken"** — read it as **"combat is unexercised, and here is the trace."**
 
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
