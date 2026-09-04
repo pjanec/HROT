@@ -6,7 +6,19 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   guard as DESIGNED (checking only the system handed to RegisterSystem) was measured BLIND to the very
   defect it was written for — the editor registers ONE TogglableSimulationGroup and the duplicates live
   inside it. The guard now descends into ISystemGroup members, and the same red-proof then fired on the
-  RUNNING editor, naming UnitHierarchySystem. build-state for role composition: READY-TO-BUILD at B3 (B2 as-built: §4.1n). Phase 1's SEAM is BUILT with two adopters
+  RUNNING editor, naming UnitHierarchySystem. build-state for role composition: BUILDING at B3 (B2 as-built:
+  §4.1n; B3 part 1 — the perception grid — as-built with PerceptionGridProvider; B3 part 2 as-built §4.1o;
+  part 3, GroundKinematicsModule/TrajectoryPoolManager, remains).
+  🔴🔴🔴 NEW 2026-09-04: §4.1o CORRECTS §4.1i's EQS ROW — do NOT quote it. EqsModule allocates ZERO
+  persistent memory, so it is NOT fused and B3's "provider out, capability left" did not apply. The real
+  owner is the STATIC NavigationSolverComponentRegistry.RegisterAll (four Allocator.Persistent arrays), and
+  measuring it found a LIVE defect: SetSingleton is an unconditional overwrite, and BOTH Hrot.Editor
+  (EditorSubsystem.cs:970-971, :1533-1534) and Stride (EditorStrideSubsystem.cs:539-540) call the registry
+  TWICE on one world — orphaning all four arrays each time. CE-165's sibling on the memory axis, invisible to
+  [SingleInstance] because no SYSTEM is duplicated. FIXED by guarding the four allocations; DisposeAll added
+  as the symmetric free. ⚠ DisposeAll has NO caller — no host has a teardown hook — which is CE-178, left to
+  B4 on purpose. §4.1i's GroundKinematicsModule and CognitiveSpatialModule rows were re-checked and STAND.
+  Phase 1's SEAM is BUILT with two adopters
   (§5b, as-built §5b.4); its remaining adoptions are listed at the end of §5b.4. Phases 2+ get their own
   inventory + UML per batch, appended here as they are designed.
   ⭐⭐ NEW 2026-09-03: §4.1b (CE-164) — IG built the shared slave orchestration stack via HrotNodeBuilder
@@ -1131,6 +1143,74 @@ this is called done.**
 
 ⇒ **build-state for the role composition work: READY-TO-BUILD at `B3`** *(split the four fused
 capability+resource modules — provider out, capability left; one commit each, per §4.1j)*.
+
+### 4.1o 🔴🔴🔴 **`B3` PART 2 CORRECTS §4.1i: `EqsModule` IS NOT FUSED — AND THE REAL EQS DEFECT IS A LIVE DOUBLE-ALLOCATION** *(measured `2026-09-04`)*
+
+> ⛔⛔ **§4.1i's EQS row is WRONG and must not be quoted.** It reads
+> *"`EqsResultPool` · `EqsTargetPool` · `EqsSolverGlobalState` | owned today by **`EqsModule`** *(2 persistent
+> allocs + 1 system)* | ⛔ FUSED"*. ⭐ **Measured: `EqsModule` allocates ZERO persistent memory.** Its only
+> field is `EqsSolverSystem _solver = new()`; the `EqsSolverGlobalState` it lazily sets on first `Tick` is a
+> plain struct with no native memory. ⇒ **there is nothing to split out of it, and `B3`'s "provider out,
+> capability left" does not apply to this module.**
+
+#### 📐 WHO ACTUALLY OWNS THE EQS/NAV MEMORY — the measurement
+
+| | |
+|---|---|
+| ⭐⭐ **the real allocator** | **`NavigationSolverComponentRegistry.RegisterAll`** — a **static function**, not a module. It allocates **FOUR** `Allocator.Persistent` arrays: `PathfindingBatchData.Results` *(`:21`)*, `AreaQueryBatchData.Results` *(`:29`)*, `EqsTargetPool.Targets` *(`:33`)*, `EqsResultPool.Results` *(`:42`)* |
+| ⭐ **a second, guarded allocator for one slot** | `EqsSolverSystem.Execute` *(`:50-58`)* lazily creates `EqsResultPool` **if absent** — a fallback for worlds that never reached the registry, not a competing owner |
+| ⛔⛔ **the disposers** | ⭐ **exactly ONE in production**: `EqsModule.Dispose` frees `EqsResultPool.Results` — **memory it did not allocate**. 📐 Every other `Results.Dispose()`/`Targets.Dispose()` in the repo is a **test teardown** *(measured: 50+ hits, all under `*.Tests`)*. ⇒ **three of the four arrays had NO production disposer at all** |
+| ⛔ **and one host never gets even that** | `CgfComponentRegistry.cs:31` calls `RegisterAll` and CGF registers **no** `EqsModule` *(its only production call site is `SimHostNodeBootstrapper.cs:351`)* |
+
+#### 🔴 THE DEFECT THIS FOUND — **the editor and Stride double-allocate all four pools, today**
+
+📐 `EntityRepository.SetSingleton` → `SetSingletonUnmanaged` is **"set or update"**: `storage.Set(0, value, …)`,
+**unconditional overwrite, no guard** *(`EntityRepository.cs:1891-1907`, `:2037-2050`)*. ⇒ a second
+`RegisterAll` on one world **replaces each singleton with a fresh persistent array and orphans the first.**
+
+| host | the two calls, on the SAME world |
+|---|---|
+| 🔴 **`Hrot.Editor`** | `EditorSubsystem.cs:970` `SimHostComponentRegistry.RegisterAll(_world)` **+** `:971` `CgfComponentRegistry.RegisterAll(_world)` — both delegate here. ⚠ **and again at `:1533-1534`** for the `_bpPreTickSnapshot` world |
+| 🔴 **Stride** | `EditorStrideSubsystem.cs:539-540`, same pair |
+
+⇒ ⭐⭐⭐ **This is the memory-owning double-registration hazard §4.1i predicted — reached through the REGISTRY
+path, not the module path, and it is live in production rather than prophylactic.** ⛔ It is the exact
+sibling of `CE-165` *(the editor double-ticking `UnitHierarchySystem`)*: same disease, different axis, and
+`[SingleInstance]` cannot see it because no system is registered twice.
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| ⭐⭐ **`RegisterAll` is idempotent on the four memory-owning slots** | each `SetSingleton` guarded by `HasSingleton`. ⭐ **Idempotence is the CONTRACT, not an optimisation**: a node's capability set is the union of its roles, so any number of roles may ask for the nav/EQS schema and every ask after the first must be a no-op on memory. Component/event registration was already idempotent |
+| ⭐⭐ **`NavigationSolverComponentRegistry.DisposeAll`** | the symmetric counterpart the file never had — frees all four, **by `ref`** so the stored handle's `IsCreated` is cleared and a second call *(or a later `EqsModule.Dispose`)* is a no-op rather than a double free |
+| ⭐ **`EqsModule`'s doc corrected** | it now says plainly that the module is **not** the owner and its free is a stop-gap. ⛔ **The free was NOT removed**: it is currently the only production disposer, and deleting it would trade a documented stop-gap for a silent regression |
+
+#### ⛔ WHAT IS DELIBERATELY *NOT* DONE, and why
+
+⛔⛔ **`DisposeAll` has no host caller.** 📐 Measured: **`SimHostNodeBootstrapper` has no teardown hook at
+all** — no `Dispose`, no `Shutdown`, no `Teardown`. ⇒ ⭐ **the missing owner is a design gap, not a wiring
+oversight**, and forcing a `NavigationPoolProvider` into this commit would mean inventing a lifetime the
+hosts do not yet express. ⭐⭐ **That lifetime is `B4`'s job** *(`IResourceProvider` + the plan)*, which is
+where a provider gets somewhere to live. ⚠ Severity meanwhile: **one leak per world per process**, freed at
+exit — real, low, and now at least *bounded* by the idempotence guard, which was the unbounded half.
+
+⇒ ⭐ **`B3`'s remaining parts are unchanged**: part 1 *(the perception grid — `PerceptionGridProvider`,
+shipped)* and part 3 *(`GroundKinematicsModule` / `TrajectoryPoolManager`, genuinely fused — §4.1i's row for
+it stands and was re-checked)*.
+
+#### ⭐ RAILS + GATES
+
+| | |
+|---|---|
+| rails, into the registry's **own** suite *(`R-142`)* | `ComponentRegistryTests` — `…_IsIdempotentOnTheFourPersistentPools` *(identity of the allocation, via the address of slot 0 — `NativeArray` exposes no pointer accessor but its indexer returns a `ref` into the block)* · `…_DisposeAll_FreesEveryPoolAndIsIdempotent` · `…_DisposeAll_ToleratesAWorldWithNoPools`. ⭐ The pre-existing `…_RegistersSolverState` rail gained the teardown it never had |
+| ⭐⭐ **red-proof** | **inverse edit**: guard removed from the `EqsTargetPool` arm ⇒ `…_IsIdempotentOnTheFourPersistentPools` **FAILED 1/4**; restored ⇒ green. ⛔ Not a `git checkout` |
+| `ComponentRegistryTests` | **17 / 0** |
+| EQS + nav + hill-attack filtered | **97 / 0** |
+
+⚠ **What the rails canNOT prove:** that the editor's *live* double-registration is gone — the rail exercises
+the registry directly. ⭐ The production observable is the pair of call sites above plus the guard; the live
+check is the `hill-attack-close` run in the gate table.
 
 ### 4.1L 🔴🔴🔴 `CE-165` — **THE SLOTS ARE FULL, AND THE RUNNING EDITOR DOUBLE-TICKS TWO SYSTEMS TODAY** *(second user challenge, `2026-09-03`)*
 

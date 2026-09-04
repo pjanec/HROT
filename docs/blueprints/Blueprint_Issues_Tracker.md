@@ -1905,3 +1905,36 @@ whenever the finding is "the sim did not do the impressive thing".**
   ② whether the muscle is **supposed** to decrement ammo at all, or whether the Brain-side executor is the only one that tracks it;
   ③ whether a fired round is **meant** to damage at this range, or whether hostiles surviving many single rounds against 3000 HP is simply correct arithmetic.
   ⇒ ⭐⭐ **③ is the likely mundane answer** — 50 HP is the Brain's number and 3000 the muscle's; if damage resolves against 3000, a handful of rounds changes nothing visible. ⛔ **Not measured. Do not assume it.**
+
+- [x] **CE-177** · `RW-L` 🔴🔴 — **THE EDITOR AND STRIDE DOUBLE-ALLOCATE FOUR PERSISTENT NATIVE ARRAYS ON EVERY WORLD, SILENTLY. FIXED.**
+
+  📐 **The mechanism, measured.** `NavigationSolverComponentRegistry.RegisterAll` allocates four `Allocator.Persistent` arrays — `PathfindingBatchData.Results`, `AreaQueryBatchData.Results`, `EqsTargetPool.Targets`, `EqsResultPool.Results`. `EntityRepository.SetSingleton` → `SetSingletonUnmanaged` is **"set or update"**: an unconditional `storage.Set(0, value, …)` with **no guard** *(`EntityRepository.cs:1891-1907`)*. ⇒ **a second `RegisterAll` on the same world replaces every pool with a fresh array and orphans the first.**
+
+  🔴 **Two production hosts do exactly that**, because both compose Brain and Muscle onto one world:
+
+  | host | the pair |
+  |---|---|
+  | `Hrot.Editor` | `EditorSubsystem.cs:970` + `:971` *(and again `:1533-1534` for the `_bpPreTickSnapshot` world)* |
+  | Stride | `EditorStrideSubsystem.cs:539-540` |
+
+  ⭐⭐ **This is `CE-165`'s sibling on the memory axis** *(the editor double-ticking `UnitHierarchySystem`)* — same disease, different axis, and **`[SingleInstance]` cannot see it** because no *system* is registered twice.
+
+  ✅ **Fixed:** the four allocations are guarded by `HasSingleton`, making `RegisterAll` idempotent on memory — the contract a role-union composition needs. ⭐ Also added `NavigationSolverComponentRegistry.DisposeAll`, the symmetric free the file never had.
+
+  ⭐ **Rails** *(into the registry's own suite, `R-142`)*: `ComponentRegistryTests.…_IsIdempotentOnTheFourPersistentPools` *(allocation identity via the address of slot 0)* · `…_DisposeAll_FreesEveryPoolAndIsIdempotent` · `…_DisposeAll_ToleratesAWorldWithNoPools`. **Red-proof: inverse edit** removing the `EqsTargetPool` guard ⇒ 1/4 FAILED; restored ⇒ green.
+
+  📄 Design: [`DESIGN_Subsystem_Composition_Unification.md` §4.1o](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md)
+
+- [ ] **CE-178** · `RW-L` ⚠ — **THREE OF THOSE FOUR PERSISTENT POOLS HAVE NO PRODUCTION DISPOSER AT ALL. LOW SEVERITY, DELIBERATELY DEFERRED TO `B4`.**
+
+  📐 **Measured:** the only production free of any of the four is `EqsModule.Dispose`, which frees `EqsResultPool.Results` — **memory it did not allocate**, on a host it is not always registered on *(CGF calls `RegisterAll` at `CgfComponentRegistry.cs:31` and registers no `EqsModule`)*. Every other `Results.Dispose()`/`Targets.Dispose()` in the repo is a **test teardown**.
+
+  ⛔ **Why not fixed now:** `NavigationSolverComponentRegistry.DisposeAll` now exists but **has no caller**, because **`SimHostNodeBootstrapper` has no teardown hook at all** — no `Dispose`, no `Shutdown`, no `Teardown`. ⇒ ⭐ **the missing owner is a design gap, not a wiring oversight**; inventing a lifetime the hosts do not express belongs to `B4` *(`IResourceProvider` + the plan)*, which is where a provider gets somewhere to live.
+
+  ⚠ **Severity:** one leak per world per process, reclaimed at exit. The **unbounded** half — a fresh leak per extra registration pass — is what `CE-177` closed.
+
+- [ ] **CE-179** · `RW-L` ⚠ — **`DESIGN_Subsystem_Composition_Unification.md` §4.1i's EQS ROW IS FALSE. Corrected in §4.1o; the row itself is left in place as history.**
+
+  ⛔ §4.1i says the EQS pools are *"owned today by **`EqsModule`** (2 persistent allocs + 1 system) — FUSED"*. 📐 **`EqsModule` allocates ZERO persistent memory**: its only field is `EqsSolverSystem _solver = new()`, and the `EqsSolverGlobalState` it lazily sets is a plain struct. ⇒ **`B3`'s "provider out, capability left" had nothing to split** for this module, which is why part 2 shipped a different fix.
+
+  ⚠ §4.1i's rows for `GroundKinematicsModule` *(`TrajectoryPoolManager`)* and `CognitiveSpatialModule` *(the grid — split in `B3` part 1)* were re-checked and **stand**. ⭐ Only the EQS row is wrong.
