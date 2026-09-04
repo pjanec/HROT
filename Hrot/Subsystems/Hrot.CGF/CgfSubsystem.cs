@@ -375,6 +375,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             perspective:   "Scenario",
             world:         () => _context?.World,
             entityMap:     () => _entityMap,
+            // ⭐⭐⭐ CE-171 — CGF's OWN extraction service, the one built WITH the scenario serializer
+            //    (line ~1057) and already handed to the entity-inspector panel. ⛔ Until this line the
+            //    debug API built its own from the world alone, which has no translator pipeline, so
+            //    `BrainBlackboard.BehaviorParameters` came back as `{"FixedElementField": 1}` instead of
+            //    the decoded params DTO — on the very node that holds the Brain's behaviour state.
+            // ⚠ Lazy for the same measured reason as gizmoBuffer and missionEditor below: it is created
+            //   during window registration, well after the composition root builds this provider.
+            extraction:    () => _fdpEntityInspector.ExtractionService,
             drive:         () => _clusterTimeAdapter,
             // ⭐⭐⭐ BP-487 — CGF's OWN map feed: the very buffer its DebugGizmoLayer draws (line ~1096) and
             //    its canvas takes as DrawBuffer (line ~1098), fed by GlobalGizmoManager + StatelessGizmoSystem.

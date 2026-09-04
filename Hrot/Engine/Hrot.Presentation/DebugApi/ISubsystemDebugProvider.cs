@@ -68,6 +68,21 @@ public interface ISubsystemDebugProvider
     NetworkEntityMap? EntityMap { get; }
 
     /// <summary>
+    /// ⭐⭐⭐ <b>THIS SUBSYSTEM'S OWN entity-state extraction service — <c>CE-171</c>.</b>
+    ///
+    /// <para>⛔⛔ Without it the debug API MANUFACTURES one from the world alone, and a service built with
+    /// no <c>ScenarioSerializer</c> takes <see cref="Fdp.Toolkit.Diagnostics.EntityStateExtractionService"/>'s
+    /// REFLECTION fallback instead of the translator pipeline. ⇒ every inline fixed array — a behaviour's
+    /// <c>BrainBlackboard.BehaviorParameters</c>, a <c>SensorContactList</c>'s ids — collapses to a single
+    /// <c>FixedElementField</c>, and the typed DTO those translators exist to emit is silently lost.</para>
+    ///
+    /// <para>⭐ A subsystem that already built a serializer-backed service returns it; one that has none
+    /// returns <see langword="null"/> and the API falls back as before. ⛔ Never fabricate one here — the
+    /// point is to use the node's REAL projection, not a second, poorer one.</para>
+    /// </summary>
+    Fdp.Toolkit.Diagnostics.IEntityStateExtractionService? Extraction { get; }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>The role-correct drive seam.</b> On a slave this is the subsystem's own
     /// <c>ClusterTimeTransportAdapter</c>, so a step issued here travels the SAME path the operator's
     /// button does: <c>StepTimeIntent</c> → its own event bus → DDS → the master.
@@ -272,6 +287,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
 {
     private readonly Func<EntityRepository?>? _world;
     private readonly Func<NetworkEntityMap?>? _entityMap;
+    private readonly Func<Fdp.Toolkit.Diagnostics.IEntityStateExtractionService?>? _extraction;
     private readonly Func<ITimeTransportFacade?>? _drive;
     private readonly Func<Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer?>? _gizmoBuffer;
     private readonly Func<Hrot.UI.Common.Facades.IMissionEditorService?>? _missionEditor;
@@ -302,6 +318,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         string perspective,
         Func<EntityRepository?>? world = null,
         Func<NetworkEntityMap?>? entityMap = null,
+        Func<Fdp.Toolkit.Diagnostics.IEntityStateExtractionService?>? extraction = null,
         Func<ITimeTransportFacade?>? drive = null,
         // ⭐⭐ BP-487 — the node's map feed. ⚠ A Func for the SAME measured reason as `drive` above: CGF
         //    builds `_cgfGizmoBuffer` in Initialize, i.e. AFTER the composition root builds this provider.
@@ -325,6 +342,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
         _world        = world;
         _entityMap    = entityMap;
+        _extraction = extraction;
         _drive        = drive;
         _gizmoBuffer  = gizmoBuffer;
         _missionEditor = missionEditor;
@@ -439,6 +457,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public string Perspective { get; }
     public EntityRepository? World => _world?.Invoke();
     public NetworkEntityMap? EntityMap => _entityMap?.Invoke();
+    public Fdp.Toolkit.Diagnostics.IEntityStateExtractionService? Extraction => _extraction?.Invoke();
     public ITimeTransportFacade? Drive => _drive?.Invoke();
     public Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? GizmoBuffer => _gizmoBuffer?.Invoke();
     public Hrot.UI.Common.Facades.IMissionEditorService? MissionEditor => _missionEditor?.Invoke();

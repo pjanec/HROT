@@ -183,6 +183,16 @@ namespace Hrot.Editor.DebugApi
             {
                 if (_editorExtraction is not null) return _editorExtraction;
 
+                // ⭐⭐⭐ CE-171 — the ACTIVE subsystem's OWN service first. ⛔⛔ The fallback below builds one
+                //    with NO ScenarioSerializer, which silently switches EntityStateExtractionService to its
+                //    REFLECTION path: every inline fixed array collapses to `{"FixedElementField": N}` and the
+                //    typed DTO the translators exist to emit — a behaviour's decoded BehaviorParameters — is
+                //    lost. 📌 CGF already builds a serializer-backed one; it was simply unreachable from here.
+                //    ⚠ Not cached: the active perspective can change between calls, and caching would answer
+                //    for the wrong node — the same hazard the fallback's own cache-key guards against.
+                var provided = _dispatcher?.Extraction;
+                if (provided is not null) return provided;
+
                 var world = _dispatcher?.World
                             ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead);
                 var map   = _dispatcher?.EntityMap
