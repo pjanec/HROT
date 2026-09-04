@@ -646,8 +646,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// Converts geodetic coordinates to ENU Cartesian via
         /// <paramref name="geoTransform"/> when available; falls back to
         /// longitude/latitude as X/Y in Cartesian-only contexts.
-        /// The attack direction is computed as the left-hand perpendicular of the
-        /// normalised firing-line vector — it is not authored directly.
+        /// The attack direction is computed as the <b>perpendicular of the normalised
+        /// firing-line vector, signed to point away from the baseline</b> — it is not
+        /// authored directly. See the computation for why the sign needs the baseline.
         /// </summary>
         /// <summary>
         /// Resolver (ParseParamsDelegate shape): fetches the geographic transform and
@@ -730,25 +731,61 @@ namespace Hrot.AI.Behaviors.Brains
                 result.BaselineEndX = (float)dto.BaselineEnd.Longitude; result.BaselineEndY = (float)dto.BaselineEnd.Latitude;
             }
 
-            // Compute attack direction from baseline center to firing-line center.
+            // Attack direction: the PERPENDICULAR of the firing line, signed to point AWAY
+            // from the baseline.
+            //
+            // ⚠ This used to be normalize(firingCenter - baselineCenter) — the baseline-to-
+            // firing-line approach vector — which is a different quantity whenever the baseline
+            // is not parallel to the firing line and centred opposite it. The two agree only in
+            // that special case, which is why SC-HA016-2 could not tell them apart. The tanks
+            // creep along this vector and the overshoot guard projects onto it, so it must be
+            // the normal of the firing line: the line is the position to hold, and "forward"
+            // means straight out from it, not "whatever bearing we happened to approach on".
+            //
+            // The baseline is still needed, but only to CHOOSE THE SIGN: a perpendicular has
+            // two directions and only the one leading away from where the platoon staged is
+            // the attack direction.
             var baselineCenter = new Vector2(
                 (result.BaselineStartX + result.BaselineEndX) * 0.5f,
                 (result.BaselineStartY + result.BaselineEndY) * 0.5f);
             var firingCenter = new Vector2(
                 (result.StartX + result.EndX) * 0.5f,
                 (result.StartY + result.EndY) * 0.5f);
-            var attackVec = firingCenter - baselineCenter;
-            float len = attackVec.Length();
-            if (len > 0.0001f)
+            var awayFromBaseline = firingCenter - baselineCenter;
+
+            var firingVec = new Vector2(result.EndX - result.StartX, result.EndY - result.StartY);
+            float firingLen = firingVec.Length();
+
+            if (firingLen > 0.0001f)
             {
-                var norm = attackVec / len;
-                result.AttackDirX = norm.X;
-                result.AttackDirY = norm.Y;
+                var tangent = firingVec / firingLen;
+                var perpendicular = new Vector2(tangent.Y, -tangent.X);
+
+                // Flip to the half-plane the baseline is NOT in. A dot of exactly zero means the
+                // baseline centre lies ON the firing line, so neither side is "away" — keep the
+                // right-hand normal rather than pretending the data decided.
+                if (Vector2.Dot(perpendicular, awayFromBaseline) < 0f)
+                    perpendicular = -perpendicular;
+
+                result.AttackDirX = perpendicular.X;
+                result.AttackDirY = perpendicular.Y;
             }
             else
             {
-                result.AttackDirX = 1f;
-                result.AttackDirY = 0f;
+                // Degenerate firing line (start == end): it has no tangent and therefore no
+                // normal. Fall back to the approach vector, which at least points at the enemy.
+                float awayLen = awayFromBaseline.Length();
+                if (awayLen > 0.0001f)
+                {
+                    var norm = awayFromBaseline / awayLen;
+                    result.AttackDirX = norm.X;
+                    result.AttackDirY = norm.Y;
+                }
+                else
+                {
+                    result.AttackDirX = 1f;
+                    result.AttackDirY = 0f;
+                }
             }
 
             // Resolve target area entity.
