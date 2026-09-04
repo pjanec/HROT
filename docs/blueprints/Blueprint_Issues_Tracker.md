@@ -1962,3 +1962,26 @@ whenever the finding is "the sim did not do the impressive thing".**
 - [ ] **CE-182** · `RW-L` ⚠ — **A FALSE COMMENT IN `GroundKinematicsModule` HID THAT CONSTRUCTION CLAIMS NATIVE MEMORY. CORRECTED.**
 
   📐 The class claimed its lazy properties *"avoid eagerly creating pools for roles that construct this module but never call `RegisterSystems`."* **Never true**: the constructor builds `SimulationSystems`/`PostSimulationSystems` and reads both properties while doing so, so allocation always fires in the constructor. Recorded because it is the reason the fusion looked cheaper than it was — a reader checking "does merely constructing this claim memory?" got the wrong answer from the comment.
+
+- [x] **CE-183** · `RW-L` ⭐⭐ — **THE SEAM LAW CAUGHT OUR OWN DESIGN: TWO OF `B4`'s FOUR NEW ABSTRACTIONS ALREADY EXISTED, AND A THIRD WAS UNNECESSARY.**
+
+  📐 `DESIGN_Subsystem_Composition_Unification.md` §4.1j's `B4` classDiagram proposes `ICapability` · `IResourceProvider` · `IResourceScope` · `IImplementationFactory`. Inventory before writing a line (`search_graph`, label `Interface`):
+
+  | proposed | measured |
+  |---|---|
+  | `IResourceScope.Get(key)` | ✅ **exists as `NodeBootValues`** (`NodeBootPlan.cs:207`) — and **stronger**: it refuses a read the step did not declare in `requires`, and a write not in `provides` |
+  | "assert every declared Need was allocated" | ✅ **exists as `NodeBootPlan.Run`'s `provided.Contains(need)`**, red-proofed at §4.1P |
+  | `IImplementationFactory` | ⛔ **unnecessary** — the variation point is the capability **instance**: a host supplies a different `INodeCapability` under the same `Key` (Stride swapping `GroundKinematicsModule` for `StrideKinematicsModule`) |
+  | `IResourceProvider` | ⚠ **name already taken** by `Fdp.Presentation/Vis2D/Abstractions/IResourceProvider.cs` ⇒ built as `INodeResourceProvider` |
+
+  ⭐ **Cause, and it is mundane:** §4.1j and §4.1P were written the **same day**, and §4.1j did not know what §4.1P had shipped. ⇒ ⭐⭐ **the seam law is not only about old code — a design can duplicate a seam built hours earlier.**
+
+  ✅ `B4a` shipped the reduced surface: two interfaces + one resolver, in `Hrot.Common/Infrastructure/NodeCapability.cs`. **No host switched** — that is `B4b`. Rails: `NodeCompositionPlanRails` (8), beside `NodeBootPlanRails`; red-proof dropped the dedupe ⇒ 2/8 failed.
+
+  📄 Design: [`DESIGN_Subsystem_Composition_Unification.md` §4.1q](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md)
+
+- [ ] **CE-184** · `RW-L` ⚠ — **`B4`'s ACCEPTANCE CRITERION CANNOT BE EXECUTED AS WRITTEN — IT CITES A BASELINE THAT DOES NOT EXIST.**
+
+  📐 §4.1j's `B4` row requires *"entity counts and component sets unchanged vs **`CE-141`'s recorded baseline**"*. **`CE-141` is an OPEN question about whether IG's 2-entry translator list should be widened** — it records no entity-count or component-set baseline, and never did.
+
+  ⭐ **The workable substitute, and what `B4b` will use:** the live comparison this programme already runs — `hill-attack-close` on `--mode editor` and `--mode all`, capturing entity count and per-entity component sets before and after the switchover. ⚠ Recorded rather than silently substituted, so nobody later reads the acceptance clause as satisfied by something it never named.

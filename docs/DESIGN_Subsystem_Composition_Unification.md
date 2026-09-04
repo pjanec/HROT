@@ -7,8 +7,17 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   defect it was written for — the editor registers ONE TogglableSimulationGroup and the duplicates live
   inside it. The guard now descends into ISystemGroup members, and the same red-proof then fired on the
   RUNNING editor, naming UnitHierarchySystem. build-state for role composition: BUILDING at B3 (B2 as-built:
-  §4.1n; part 1 the perception grid; part 2 §4.1o; part 3 §4.1p — ALL THREE BUILT. B3 is COMPLETE;
-  next is B4).
+  §4.1n; part 1 the perception grid; part 2 §4.1o; part 3 §4.1p — ALL THREE BUILT. B3 is COMPLETE.
+  B4a (the seam) is BUILT — §4.1q; next is B4b, the switchover, one host at a time).
+  🔴🔴 NEW 2026-09-04: §4.1q CORRECTS §4.1j's B4 classDiagram — do NOT build from it as drawn. TWO of its
+  four new abstractions ALREADY EXIST: IResourceScope is NodeBootValues (and stronger — it refuses an
+  undeclared read), and "assert every declared Need was allocated" is NodeBootPlan.Run's provided-check,
+  red-proofed at §4.1P. A third, IImplementationFactory, is unnecessary: the variation point is the
+  capability INSTANCE, so a host supplies a different INodeCapability under the same Key. And
+  IResourceProvider's NAME is already taken by Fdp.Presentation/Vis2D — built as INodeResourceProvider.
+  Cause: §4.1j and §4.1P were written the same day and §4.1j did not know what §4.1P shipped.
+  ⚠ §4.1j's B4 ACCEPTANCE is also unexecutable as written — it cites "CE-141's recorded baseline" and
+  CE-141 is an OPEN question that records no baseline; B4b uses the live hill-attack-close comparison.
   🔴🔴 NEW 2026-09-04: §4.1p CORRECTS §4.1i's TrajectoryPoolManager row too. Its ARGUMENT is confirmed
   ("a NavigationSolver-only node has no pool") but it names the wrong module. EngineBackedNavigationModule
   — the one in production — already REQUIRES its pool and its Dispose frees nothing ("owned by the host").
@@ -1284,6 +1293,61 @@ already `IDisposable` — ⭐ **it IS the provider**; wrapping it would be a sec
 | `Hrot.Editor` build | clean |
 | ⭐⭐ `Hrot.ClusterRunner.Integration.Tests` nav + EQS + path *(gate-contract row 8)* | **71 / 1** — `NetworkDemoPatrolAndEngageTests.NetworkDemo_Phase2_BTreeNavigationIntent_FlowsToMuscle` |
 | ⭐⭐⭐ **that red, BASELINED** *(stash the five changed files, rebuild, re-run — not recalled)* | ⛔ **identical with and without the change: 2 failed / 1 passed both ways** *(`Phase2_BTreeNavigationIntent_FlowsToMuscle` + `Phase3_PerceptionReaction_TargetMemoryPopulates`)*. ⇒ **pre-existing, and not this batch's.** ⚠ The class is also partly non-deterministic — the wide-filter run showed 1 failure where the isolated run shows 2 — so ⛔ **neither a red nor a green from it is evidence** without the stash comparison |
+
+### 4.1q ✅ AS BUILT — **`B4a`: the seam. TWO of §4.1j's FOUR new abstractions ALREADY EXISTED** *(`2026-09-04`)*
+
+> ⭐⭐⭐ **The seam law again, and this time against our own design.** §4.1j's `B4` classDiagram proposes
+> `ICapability` · `IResourceProvider` · `IResourceScope` · `IImplementationFactory`. ⛔ **Measured: two of
+> the four are already built, adopted and red-proofed — and a third is unnecessary.** ⚠ The cause is
+> ordinary: §4.1j and §4.1P were written **the same day** and §4.1j did not know what §4.1P shipped.
+
+#### 📐 THE INVENTORY — run before writing a line *(`search_graph`, label `Interface`)*
+
+| §4.1j proposes | measured |
+|---|---|
+| ⛔ **`IResourceScope.Get(ResourceKey) object`** | ✅ **ALREADY EXISTS: `NodeBootValues`** *(`Hrot.Common/Infrastructure/NodeBootPlan.cs:207`)* — and it is **stronger** than the design's version: a typed `Get<T>`/`Set<T>` that **refuses** a read the step did not declare in `requires` and a write not in `provides`. ⭐ *"the declaration and the data cannot drift apart"* is enforced, not reviewed |
+| ⛔ **"assert every declared Need was allocated"** *(the sequence diagram's last step)* | ✅ **ALREADY EXISTS: `NodeBootPlan.Run`'s `provided.Contains(need)`** — red-proofed at §4.1P *(3 of 5 rails went red when it was disabled)* |
+| ⛔ **`IImplementationFactory.For(CapabilityKey)`** | ⛔⛔ **UNNECESSARY, and dropped.** ⭐ **The variation point is the capability INSTANCE.** A host needing a different `MuscleGround` — Stride swapping `GroundKinematicsModule` for `StrideKinematicsModule` — supplies a different `INodeCapability` under the same `Key`. ⇒ one mechanism instead of two |
+| ⭐ **`ICapability`** | ✅ genuinely new — built as **`INodeCapability`** |
+| ⭐ **`NodeCompositionPlan.Resolve(NodeRole)`** | ✅ genuinely new |
+| ⚠ **`IResourceProvider`** | 🔴 **THE NAME IS TAKEN** — `FDP/Engine/Fdp.Presentation/Vis2D/Abstractions/IResourceProvider.cs`, an unrelated rendering concept in the same solution ⇒ built as **`INodeResourceProvider`** |
+| ⭐ dedupe before register | ✅ already exists — `[SingleInstance]` *(`B1`)* + `SystemComposition.DistinctByType` *(`B2`)* |
+
+⇒ ⭐⭐ **`B4`'s new surface is TWO interfaces and one resolver, not four abstractions and a factory.**
+
+#### ✅ WHAT SHIPPED — `Hrot.Common/Infrastructure/NodeCapability.cs`
+
+| | |
+|---|---|
+| `INodeCapability` | `Key` · `Needs` · `Register(context, NodeBootValues)`. ⭐ It receives the **plan's own value bag**, so a capability physically cannot read a resource it did not declare — that guarantee is borrowed from `NodeBootPlan`, not rebuilt |
+| `INodeResourceProvider : IDisposable` | `Key` · `Allocate(context, values)`. ⭐ **The owner frees; capabilities borrow and must never free** — the asymmetry `B3` established three times over |
+| `NodeCompositionPlan` | `Capability(role, cap)` · `Provider(p)` · `Resolve(role)` · `RequiredResources(role)` |
+| `CapabilityKeys` / `ResourceKeys` | ⭐ **plain `string`s, matching `NodeBootPlan`'s existing key vocabulary.** ⛔ A second typed key type would mean two spellings for one dependency plus a conversion — the duplication this programme removes |
+| ⛔ **no host switched** | `B4a` is the seam only. The switchover is `B4b` |
+
+⭐⭐ **Two rules the resolver enforces, both measured hazards rather than theory:**
+① **resources follow declared `Needs`, never role names** ⇒ a node whose capabilities need nothing
+allocates nothing; ② **a need no provider supplies THROWS** ⇒ the composition-layer form of the
+silent-default pattern, which is exactly the state in which `CE-180`'s module quietly made its own pool.
+
+#### ⚠ AN ACCEPTANCE CRITERION THAT CANNOT BE EXECUTED AS WRITTEN
+
+⛔ §4.1j's `B4` row says *"entity counts and component sets unchanged vs **`CE-141`'s recorded
+baseline**"*. 📐 **`CE-141` is an OPEN question about IG's 2-entry translator list — it records no
+baseline.** ⇒ ⭐ the workable substitute, and what `B4b` will use, is the live one this programme has
+been running: **`hill-attack-close` on both hosts, comparing entity count and per-entity component sets
+before and after.**
+
+#### ⭐ RAILS + GATES
+
+| | |
+|---|---|
+| rails | `Hrot.NodeComposition.Tests/NodeCompositionPlanRails.cs` — **8**, beside `NodeBootPlanRails` rather than in a new project. ⛔ Deliberately **no** rail for *"a capability cannot read an undeclared resource"*: that is `NodeBootValues`' guarantee and `NodeBootPlanRails` already covers it — a second rail for one rule is the duplication, not the coverage |
+| ⭐⭐ **red-proof** | **inverse edit** dropping the `seen.Add(capability.Key)` dedupe ⇒ **2 of 8 FAILED**; restored ⇒ green |
+| `Hrot.NodeComposition.Tests` full | **44 / 0** |
+| `Hrot.Common` build | clean |
+
+⇒ **`build-state`: `B4a` BUILT; `B4b` — the switchover, one host at a time — is next.**
 
 ### 4.1L 🔴🔴🔴 `CE-165` — **THE SLOTS ARE FULL, AND THE RUNNING EDITOR DOUBLE-TICKS TWO SYSTEMS TODAY** *(second user challenge, `2026-09-03`)*
 
