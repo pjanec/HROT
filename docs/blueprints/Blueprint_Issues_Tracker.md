@@ -1794,3 +1794,54 @@ what it points at.
   ⚠⚠ **A SIBLING TO CHECK, NOT YET MEASURED:** `PhysicsQueryActionNode.cs:29` carries the **identical** `int sourceNodeId = 0` default and stamps it into `RaycastRequest.SourceNodeId`. ⛔ I have **not** established whether the raycast path has an equivalent equality filter on egress — ⭐ if it does, the same defect is latent there. Worth its own row once measured.
 
 - [x] **CE-170** — ✅ **CLOSED BY [`CE-172`](Blueprint_Issues_Tracker.md).** The clearing chain this row described *(`MissionAdapterSystem.cs:58-68` publishing `ClearBehaviorEvent` on plan exhaustion)* is **correct behaviour reached for a wrong reason**: the plan was exhausted only because the commander's BTree took a terminal transition, and it took one only because the EQS area query timed out. ⛔ **No change to `MissionAdapterSystem` or `MissionDirectorSystem` was needed or made.** ⚠ **The persisted-`NavigationIntent`/`NavState` half of this row's original title is a SEPARATE concern and stays with [`CE-168`](Blueprint_Issues_Tracker.md)** *(the no-persist attribute for muscle-internal components)*, which is still open.
+
+---
+
+- [ ] **CE-174** · `RW-L` 🔴🔴 — **A TANK GIVES UP ITS ATTACK RUN 50 m PAST ITS FIRING SLOT BECAUSE ITS *ASSIGNED* TARGET IS UNREACHABLE BY SIGHT: ROUND-ROBIN TARGET ALLOCATION IGNORES GEOMETRY.** ⭐⭐⭐ **HOST-INDEPENDENT — measured identically on `--mode all` AND `--mode editor`.** ⛔ **Needs a user ruling before any code change: the round-robin rule is EXPLICIT DESIGN**, not an oversight.
+
+  ⭐⭐ **This is what remained after [`CE-172`](Blueprint_Issues_Tracker.md) *(the area query never reached DDS)* unblocked the commander.** With `CE-172` fixed, the cluster runs the whole doctrine — baseline → EQS → wave dispatch → creep → engage → retreat — and both hosts now fail at the same place.
+
+  📐 **The mechanism, measured on live `TargetMemory`:**
+
+  | # | measurement | file |
+  |---|---|---|
+  | ① | the commander allocates targets **round-robin**: `targetIdx = activeTankIndexInWave % targetCount` — ⛔ **no geometry, no line-of-sight, no distance** | `HillAttackCommanderNodes.cs:363` |
+  | ② | the firing slot is **randomly** chosen from the unburned set: `avail[Random.Shared.Next(0, availCount)]` | `HillAttackCommanderNodes.cs:354` |
+  | ③ | the creep node succeeds ONLY on **that specific** target: `mem.EntityIds[i] == targetEntity.PackedValue && mem.ThreatScores[i] > 0f` — ⛔ **seeing a DIFFERENT hostile does not count** | `HillAttackTankNodes.cs:239-247` |
+  | ④ | and it gives up at **`MaxOvershootMeters = 50f`** past the slot | `HillAttackTankNodes.cs:31`, `:216` |
+  | ⑤ | ⇒ a tank handed the far hostile creeps its 50 m, still cannot see it, and returns `Failure` → `Action_ReverseToBaseline` | live log, both hosts |
+
+  📌 **The live proof, cluster, one wave** *(commander dispatched Entity 2→`TargetNetworkId=1006`, Entity 4→`1007`)*:
+
+  | tank | assigned | its live `TargetMemory` | outcome |
+  |---|---|---|---|
+  | **1004** *(index 4)* | **1007** | `[6 score 21.6, 7 score 5.8]` — **has it** | ✅ `Action_AimAndFireSpecific` → *"Engaging target. TargetEntity=7 TargetNetworkId=1007."* |
+  | **1002** *(index 2)* | **1006** | `[7 score 150.9]` — ⛔ **only the OTHER one** | 🔴 *"Creep failed due to overshoot. Overshoot=50.03m."* → retreat, never fires |
+
+  ⇒ ⭐⭐ **1002 could SEE a hostile the whole time — it was ordered to attack the one it could not.** 📐 Geometry: firing line runs `(578,405)→(584,545)`, hostiles at `(668,427)` and `(668,522)`, `PerceptionReceptor.VisionRange = 100`. A south-end slot is **119–123 m** from the north hostile; 50 m of creep does not close it.
+
+  ⭐⭐⭐ **PARITY — the headline.** The **editor** does the same thing, worse: four consecutive `"Creep failed due to overshoot. Overshoot=50.18m / 50.10m / 53.05m / 52.94m"` across two waves and **not one engagement** in a 60 s run, while the cluster engaged once. ⛔ **That difference is NOT a host difference** — it is ②'s **unseeded `Random.Shared`** deciding which tank draws a satisfiable slot/target pairing. ⇒ 🔒 **this is exactly the user's own design point** *(`2026-09-04`: "the randomization in the behavior still exists — which is not good and should be changed to optionally seeded randomization to get really same results")*: until the RNG is seedable, **two runs of the same host are not comparable either**, so run-to-run variation must not be read as a host divergence.
+
+  ⛔⛔ **WHY THIS IS NOT A UNILATERAL FIX — the design says round-robin, repeatedly:**
+
+  | source | what it says |
+  |---|---|
+  | [`docs/designs/hill-attack/DESIGN.md`](../designs/hill-attack/DESIGN.md) §2c | *"Distribute targets (round-robin) and randomized firing/baseline slots to the active wave"* |
+  | `.dev/_DONE/hill-attack/design-talk.md:911` | *"Distribute these targets among the attacking tanks in a **round-robin** fashion **to ensure tanks do not fire at the same target unless the enemies are outnumbered**"* |
+  | `.dev/_DONE/hill-attack/TASK-DETAIL.md:620` | the exact formula, as built |
+  | `.dev/_DONE/group-maneuvers/Squad_Coordination_Design_v1_1.md:328` | names *"round-robin or matrix fire allocation"* as a squad-coordination primitive |
+
+  ⭐⭐⭐ **The opening the design itself leaves:** its stated PURPOSE for round-robin is **de-duplication** — *"tanks do not fire at the same target"* — **not** arbitrary pairing. ⇒ ⭐ **a geometry-aware allocation that still assigns each tank a DISTINCT target satisfies the design's intent while removing the defect**, and `Squad_Coordination_Design_v1_1.md` already anticipates *"or **matrix** fire allocation"* as the alternative. ⚠ **Recorded as the recommended reading, not as a decision.**
+
+  ⭐ **The options, with the lean:**
+
+  | | change | cost | ⚠ risk |
+  |---|---|---|---|
+  | ⭐⭐ **A (LEAN)** | replace the round-robin index with a **distinct-target assignment minimising slot→target distance** *(greedy nearest, de-duplicating)* — one loop in `Action_DispatchWaveWithTargets` | small, one node | ⚠ it **is** a design change; needs the ruling. ⭐ Honours the *"do not share targets"* purpose and matches the doc's own "matrix allocation" alternative |
+  | **B** | let the creep node succeed on **any** hostile in memory | one condition | ⛔ **discards the commander's target allocation entirely** — the commander's orders stop meaning anything |
+  | **C** | raise `MaxOvershootMeters` from 50 to ~130 | one constant | ⛔ drives tanks 130 m past the crest — **contradicts the hull-down doctrine** the whole behaviour exists to model |
+  | **D** | raise `VisionRange` above 100 in the scenario | data | ⛔ 🔒 the user set 100 m **deliberately, to exercise the sensor** |
+
+  ⭐ **Also worth a separate row and not built here:** the **seeded-RNG** design point above. Without it, `Random.Shared` at ② makes every run of every host different, which is a permanent obstacle to exactly the editor↔cluster comparison this programme keeps needing.
+
+  ⚠ **Not measured:** whether `Condition_IsWaveCompleted` ever terminates the outer loop when the area is genuinely cleared — no wave has yet destroyed a hostile, so the `targets == 0` exit path is **unexercised on either host.**
