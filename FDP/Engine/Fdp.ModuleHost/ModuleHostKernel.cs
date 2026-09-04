@@ -931,7 +931,7 @@ namespace Fdp.ModuleHost
 
                 Console.Error.WriteLine(
                     $"[ModuleHost] {path} module '{entry.Module.Name}' FAULT (frame {_currentFrame}, " +
-                    $"{entry.TotalFaults} total for this module). Set FDP_FAIL_FAST=1 to rethrow.{Environment.NewLine}{ex}");
+                    $"{entry.TotalFaults} total for this module). FDP_FAIL_FAST=0 keeps the node alive instead.{Environment.NewLine}{ex}");
                 return;
             }
 
@@ -942,7 +942,7 @@ namespace Fdp.ModuleHost
             if (repeats >= 10 && IsPowerOfTen(repeats))
                 Console.Error.WriteLine(
                     $"[ModuleHost] {path} module '{entry.Module.Name}' has now faulted {repeats:N0} times " +
-                    $"with the same {ex.GetType().Name} (frame {_currentFrame}). Set FDP_FAIL_FAST=1 to rethrow.");
+                    $"with the same {ex.GetType().Name} (frame {_currentFrame}). FDP_FAIL_FAST=0 keeps the node alive.");
         }
 
         private static bool IsPowerOfTen(int n)

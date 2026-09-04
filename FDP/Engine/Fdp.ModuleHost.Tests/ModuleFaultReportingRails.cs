@@ -25,6 +25,31 @@ public sealed class ModuleFaultReportingRails : IDisposable
 {
     private readonly bool _originalFailFast = FdpConfig.FailFastOnModuleException;
 
+    /// <summary>
+    /// The shipped default is ON — a module fault should kill a development build.
+    /// </summary>
+    /// <remarks>
+    /// ⛔ <b>This may NOT read <c>FdpConfig.FailFastOnModuleException</c> directly.</b> The property is a
+    /// mutable process-global and two test classes legitimately set it — this one, and
+    /// <c>ResilienceIntegrationTests</c>, whose subject IS the catch path. xUnit runs test classes in
+    /// <b>parallel</b>, so a direct read races that constructor and this rail failed deterministically
+    /// on its first honest run. ⇒ the shipped default is captured by
+    /// <see cref="ShippedDefaults"/>'s module initialiser, which runs before any test can mutate
+    /// anything, and that snapshot is what this pins.
+    /// </remarks>
+    [Fact]
+    public void FailFastIsOnByDefault()
+    {
+        Assert.True(
+            Environment.GetEnvironmentVariable("FDP_FAIL_FAST") is not ("0" or "false" or "FALSE" or "off" or "OFF"),
+            "this rail assumes the test host does not set FDP_FAIL_FAST to an opt-out value");
+
+        Assert.True(
+            ShippedDefaults.FailFastOnModuleException,
+            "FdpConfig.FailFastOnModuleException must ship ON — a mode you have to remember to enable "
+          + "is a mode that is off during the session where it would have caught the bug (CE-188).");
+    }
+
     public void Dispose() => FdpConfig.FailFastOnModuleException = _originalFailFast;
 
     /// <summary>A synchronous module that throws the same exception on every tick.</summary>
@@ -84,9 +109,9 @@ public sealed class ModuleFaultReportingRails : IDisposable
     }
 
     /// <summary>
-    /// And with it off the frame survives — the production behaviour this switch exists to suspend, not
-    /// replace. A rail for the default matters: silently flipping it would turn every transient module
-    /// fault into a dead node.
+    /// And with it off the frame survives — the resilience the default now suspends. ⚠ This is no longer
+    /// the default: fail-fast is ON (user ruling, "we are still in a wild development phase"), and this
+    /// rail pins that the escape hatch still works for a host that genuinely must survive a fault.
     /// </summary>
     [Fact]
     public void WithFailFastOff_TheFrameSurvivesTheFault()
@@ -170,6 +195,6 @@ public sealed class ModuleFaultReportingRails : IDisposable
         // number and tight on the property that matters.
         Assert.True(stacks < 20, $"expected repeats to be collapsed, saw {stacks} mentions in:\n{log}");
         Assert.Contains("AlwaysThrows", log);
-        Assert.Contains("FDP_FAIL_FAST", log);   // the report tells you how to make it fatal
+        Assert.Contains("FDP_FAIL_FAST", log);   // the report tells you how to change the mode
     }
 }

@@ -117,9 +117,16 @@ namespace Fdp.Core
         /// <c>StatelessGizmoSystem</c> threw on every frame of every editor run and nothing failed
         /// (<c>CE-188</c>).</para>
         ///
-        /// <para><b>Default <c>false</c>, and settable without a rebuild:</b> the environment variable
-        /// <c>FDP_FAIL_FAST=1</c> turns it on at process start. Set the property directly in a test or a
-        /// debug entry point.</para>
+        /// <para>⭐ <b>Default <c>TRUE</c>.</b> 🔒 User ruling, <c>2026-09-04</c>: <i>"the fail fast should
+        /// be on by default as we are still in a wild development phase, not even close to
+        /// production."</i> A module fault is a bug to fix now, not a condition to survive — and the
+        /// resilience this suspends only ever bought the ability to keep running past one.</para>
+        ///
+        /// <para><b>Turning it OFF without a rebuild:</b> set <c>FDP_FAIL_FAST=0</c> (or
+        /// <c>false</c>/<c>off</c>) at process start, or assign the property in a host that genuinely
+        /// must survive a faulty module. ⛔ Flip this back to <c>false</c> as a default only when the
+        /// project is actually near production — the switch exists so that decision is explicit and
+        /// dated, not inherited.</para>
         ///
         /// <para>⚠ <b>This is not a substitute for the fault being visible.</b> Fail-fast only helps when
         /// you are watching. The kernel therefore also records every fault against the module's circuit
@@ -127,7 +134,7 @@ namespace Fdp.Core
         /// times is hidden just as effectively as one that was never printed.</para>
         /// </remarks>
         public static bool FailFastOnModuleException { get; set; } =
-            Environment.GetEnvironmentVariable("FDP_FAIL_FAST") is "1" or "true" or "TRUE";
+            Environment.GetEnvironmentVariable("FDP_FAIL_FAST") is not ("0" or "false" or "FALSE" or "off" or "OFF");
 
         /// <summary>
         /// Global switch to control CPU usage for parallel operations.
