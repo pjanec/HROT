@@ -7,8 +7,18 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   defect it was written for — the editor registers ONE TogglableSimulationGroup and the duplicates live
   inside it. The guard now descends into ISystemGroup members, and the same red-proof then fired on the
   RUNNING editor, naming UnitHierarchySystem. build-state for role composition: BUILDING at B3 (B2 as-built:
-  §4.1n; B3 part 1 — the perception grid — as-built with PerceptionGridProvider; B3 part 2 as-built §4.1o;
-  part 3, GroundKinematicsModule/TrajectoryPoolManager, remains).
+  §4.1n; part 1 the perception grid; part 2 §4.1o; part 3 §4.1p — ALL THREE BUILT. B3 is COMPLETE;
+  next is B4).
+  🔴🔴 NEW 2026-09-04: §4.1p CORRECTS §4.1i's TrajectoryPoolManager row too. Its ARGUMENT is confirmed
+  ("a NavigationSolver-only node has no pool") but it names the wrong module. EngineBackedNavigationModule
+  — the one in production — already REQUIRES its pool and its Dispose frees nothing ("owned by the host").
+  The hazard is the ?? default in NavigationSolverModule, the DORMANT class carrying Name "NavigationSolver"
+  with ZERO production constructions, which role selection is what switches on. And it is not a leak: the
+  solver writes routes into the pool by handle and the kinematics systems read them back, so two pools mean
+  ROUTES RESOLVE AND VEHICLES NEVER FOLLOW THEM, silently. Fixed: pool required; GroundKinematicsModule got
+  owned-vs-borrowed + Dispose; SimHostCoreLogicPack became IDisposable (nothing in production had EVER
+  disposed a TrajectoryPoolManager). CE-181: StrideKinematicsModule.cs:92 has the same default and was NOT
+  fixed — Stride cannot compile on Linux and B2 already owes one hand-verified Stride edit.
   🔴🔴🔴 NEW 2026-09-04: §4.1o CORRECTS §4.1i's EQS ROW — do NOT quote it. EqsModule allocates ZERO
   persistent memory, so it is NOT fused and B3's "provider out, capability left" did not apply. The real
   owner is the STATIC NavigationSolverComponentRegistry.RegisterAll (four Allocator.Persistent arrays), and
@@ -1216,6 +1226,64 @@ it stands and was re-checked)*.
 ⚠ **What the rails canNOT prove:** that the editor's *live* double-registration is gone — the rail exercises
 the registry directly. ⭐ The production observable is the pair of call sites above plus the guard; the live
 check is the `hill-attack-close` run in the gate table.
+
+### 4.1p ✅ AS BUILT — **`B3` PART 3: the trajectory pool. §4.1i's row is right about the RISK and wrong about the OWNER** *(`2026-09-04`)*
+
+> ⭐⭐ **§4.1i's load-bearing argument for this row is CONFIRMED** — *"`EngineBackedNavigationModule`
+> (NavigationSolver) is handed `CoreLogicPack!.TrajectoryPool`, owned by `GroundKinematicsModule`
+> (MuscleGround) — so a NavigationSolver-only node has no pool."* ⭐ True, and the consequence is **worse
+> than the leak the section frames it as.** ⛔ But the module it names as the hazard is the **wrong one**.
+
+#### 📐 THE MEASUREMENT — **three modules, three different shapes**
+
+| module | pool parameter | production constructions |
+|---|---|---|
+| ⭐⭐ **`EngineBackedNavigationModule`** — the navigation module actually in production | ✅ **required** *(`pool ?? throw`)*, and its `Dispose` frees nothing with the comment *"Road network and pool are owned by the host"* | **1** — `SimHostNodeBootstrapper.cs:357-359`, threading `CoreLogicPack!.TrajectoryPool`. ⭐⭐ **Correct today** |
+| 🔴 **`NavigationSolverModule`** — the class that actually carries `Name => "NavigationSolver"` | ⛔ `= null`, then **`?? new TrajectoryPoolManager()`** | ⛔⛔ **ZERO.** The dormant module §4.1j noted — and role selection is exactly what switches it on |
+| ⚠ **`GroundKinematicsModule`** | `= null`, `??=` lazy default *(correct for the owner)* | via `SimHostCoreLogicPack.cs:112` |
+
+⇒ ⭐⭐⭐ **The hazard is the `??` in the DORMANT module, not the fusion in the live one.** ⚠ §4.1i pointed at
+`GroundKinematicsModule`; it is the **owner**, and an owner defaulting its own resource is right.
+
+#### 🔴 WHY THIS ONE IS NOT A LEAK — **it is a silent BEHAVIOURAL break**
+
+📐 `PathfindingSolverSystem` *(NavigationSolver)* **writes** resolved routes into the pool by handle;
+`FormationTargetSystem` and `CarKinematicsSystem` *(MuscleGround)* **read them back** by that handle.
+⇒ ⛔⛔ **a node selecting both roles without threading ONE pool gets two, and then routes resolve and
+vehicles never follow them** — no exception, nothing in a log, no allocator complaint. ⚠ Every other
+instance in this programme *(`CE-165`, `CE-177`, the perception grid)* costs memory or a wasted tick;
+**this one costs the feature.**
+
+⭐ It is the `CLAUDE.md` silent-default pattern exactly: *"a production caller that HAS a dependency must
+pass it."* Today the one caller does. ⛔ **Under role composition the caller will not HAVE it** — a
+NavigationSolver-only node has no `CoreLogicPack` — and the `??` would quietly paper over that.
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| ⭐⭐ **`NavigationSolverModule`'s pool is REQUIRED** | `?? throw` with a message naming the consequence, matching `EngineBackedNavigationModule`'s existing shape. ⭐ **Zero production callers ⇒ free to fix now**, before B4 can trip it. One test caller updated |
+| ⭐⭐ **`GroundKinematicsModule` gets OWNED-vs-BORROWED** | `OwnsTrajectoryPool` / `OwnsFormationTemplates`, and `Dispose` frees **only what it allocated**. ⛔ Freeing a borrowed pool is the half that CORRUPTS — the same rule `PerceptionGridProvider` carries from part 1 |
+| ⭐⭐ **`SimHostCoreLogicPack : IEcsModule, IDisposable`** | ⭐ **and this one HAS a caller**, unlike `CE-178`: `ModuleHostKernel` disposes registered `IDisposable` modules. 📐 Before this, **nothing in production disposed a `TrajectoryPoolManager` anywhere**, though it holds `Allocator.Persistent` arrays and has always been `IDisposable` |
+| ⚠ **a false comment corrected** | `GroundKinematicsModule` claimed its lazy properties *"avoid eagerly creating pools for roles that never call RegisterSystems."* ⛔ **Never true** — the constructor builds the system arrays and reads both properties. It mattered: it hid that merely CONSTRUCTING the module claims native memory |
+
+⛔ **No new provider class here, deliberately.** `PerceptionGridProvider` exists in part 1 only because
+`SpatialHashGrid` is a **struct** with no owner object. `TrajectoryPoolManager` is already a class and
+already `IDisposable` — ⭐ **it IS the provider**; wrapping it would be a second layer that owns nothing.
+
+#### ⭐ RAILS + GATES
+
+| | |
+|---|---|
+| rails, into the module's **own** suite *(`R-142`)* | `GroundKinematicsModuleTests` — `BothCapabilitiesHandedOnePool_ShareIt_AndNeitherOwnsIt` *(the solver registers a route at handle 77; the kinematics side reads it back, and it stays live after the borrower disposes)* · `ANavigationSolverWithNoPoolIsRefused_NotSilentlyGivenItsOwn` · `AModuleWithNoPoolOwnsAndFreesItsOwn` |
+| ⭐⭐ **red-proofs — two inverse edits, both fired** | restoring `?? new TrajectoryPoolManager()` ⇒ the refusal rail **FAILED**; dropping the `_ownsTrajectoryPool` guard from `Dispose` ⇒ the sharing rail **FAILED**. Both restored ⇒ green |
+| `Fdp.Toolkits.Tests` nav + kinematics + perception | **304 / 0** |
+| `Fdp.Toolkits.Tests` **full** | **2061 / 0** |
+| `Hrot.SimHost.Tests` pack + registry + hill-attack | **82 / 0** |
+| `Hrot.SimHost.Tests` **full** | **882 / 1** — `FullBranchPipelineTests`, the red baselined at `B2` |
+| `Hrot.Editor` build | clean |
+| ⭐⭐ `Hrot.ClusterRunner.Integration.Tests` nav + EQS + path *(gate-contract row 8)* | **71 / 1** — `NetworkDemoPatrolAndEngageTests.NetworkDemo_Phase2_BTreeNavigationIntent_FlowsToMuscle` |
+| ⭐⭐⭐ **that red, BASELINED** *(stash the five changed files, rebuild, re-run — not recalled)* | ⛔ **identical with and without the change: 2 failed / 1 passed both ways** *(`Phase2_BTreeNavigationIntent_FlowsToMuscle` + `Phase3_PerceptionReaction_TargetMemoryPopulates`)*. ⇒ **pre-existing, and not this batch's.** ⚠ The class is also partly non-deterministic — the wide-filter run showed 1 failure where the isolated run shows 2 — so ⛔ **neither a red nor a green from it is evidence** without the stash comparison |
 
 ### 4.1L 🔴🔴🔴 `CE-165` — **THE SLOTS ARE FULL, AND THE RUNNING EDITOR DOUBLE-TICKS TWO SYSTEMS TODAY** *(second user challenge, `2026-09-03`)*
 

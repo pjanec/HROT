@@ -1938,3 +1938,27 @@ whenever the finding is "the sim did not do the impressive thing".**
   ⛔ §4.1i says the EQS pools are *"owned today by **`EqsModule`** (2 persistent allocs + 1 system) — FUSED"*. 📐 **`EqsModule` allocates ZERO persistent memory**: its only field is `EqsSolverSystem _solver = new()`, and the `EqsSolverGlobalState` it lazily sets is a plain struct. ⇒ **`B3`'s "provider out, capability left" had nothing to split** for this module, which is why part 2 shipped a different fix.
 
   ⚠ §4.1i's rows for `GroundKinematicsModule` *(`TrajectoryPoolManager`)* and `CognitiveSpatialModule` *(the grid — split in `B3` part 1)* were re-checked and **stand**. ⭐ Only the EQS row is wrong.
+
+- [x] **CE-180** · `RW-L` 🔴🔴 — **`NavigationSolverModule` SILENTLY DEFAULTED ITS TRAJECTORY POOL. A ROLE-SELECTED NODE WOULD HAVE RESOLVED ROUTES NO VEHICLE EVER FOLLOWS. FIXED BEFORE IT COULD FIRE.**
+
+  📐 `NavigationSolverModule.cs:51` read `trajectoryPool ?? new TrajectoryPoolManager()`. The module has **zero production constructions** today, which is exactly why nobody noticed — and role-based composition (`B4`/`B5`) is what switches it on.
+
+  ⛔⛔ **The failure it produces is NOT a leak.** `PathfindingSolverSystem` (this module) writes resolved routes into the pool **by handle**; `FormationTargetSystem` and `CarKinematicsSystem` (`GroundKinematicsModule`, the `MuscleGround` capability) read them back by that handle. A node selecting both roles without threading ONE pool gets two ⇒ **routes resolve and vehicles never follow them**, with no exception, nothing in a log, and no allocator complaint. ⭐ Every other instance in this programme (`CE-165`, `CE-177`, the perception grid) costs memory or a tick; **this one costs the feature.**
+
+  ⭐ It is the `CLAUDE.md` silent-default pattern verbatim — *"a production caller that HAS a dependency must pass it."* Today the one live caller does (`SimHostNodeBootstrapper.cs:357-359` threads `CoreLogicPack!.TrajectoryPool` into `EngineBackedNavigationModule`). ⛔ Under role composition the caller **will not have it**: a NavigationSolver-only node has no `CoreLogicPack`.
+
+  ✅ **Fixed:** the pool is now **required** (`?? throw`, message naming the consequence), matching `EngineBackedNavigationModule`, which has required its pool from the start and whose `Dispose` deliberately frees nothing because *"the pool is owned by the host"*. ⭐ Also: `GroundKinematicsModule` gained `OwnsTrajectoryPool`/`OwnsFormationTemplates` and disposes **only what it allocated**, and `SimHostCoreLogicPack` became `IDisposable` — before this, **nothing in production disposed a `TrajectoryPoolManager` anywhere**, though it holds `Allocator.Persistent` arrays.
+
+  ⭐ **Rails** (into the module's own suite, `R-142`): `GroundKinematicsModuleTests.BothCapabilitiesHandedOnePool_ShareIt_AndNeitherOwnsIt` (the solver registers a route at handle 77, the kinematics side reads it back, and it stays live after the borrower disposes) · `…ANavigationSolverWithNoPoolIsRefused_NotSilentlyGivenItsOwn` · `…AModuleWithNoPoolOwnsAndFreesItsOwn`. **Two red-proofs, both fired**: restoring the `??` reddened the refusal rail; dropping the owns-guard reddened the sharing rail.
+
+  📄 Design: [`DESIGN_Subsystem_Composition_Unification.md` §4.1p](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md)
+
+- [ ] **CE-181** · `RW-L` ⚠ — **`StrideKinematicsModule.cs:92` HAS THE SAME `?? new TrajectoryPoolManager()` DEFAULT AND NO `Dispose`. NOT FIXED — Stride CANNOT BE COMPILED IN THIS CONTAINER.**
+
+  📐 `Stride/Hrot.Stride.Core/StrideKinematicsModule.cs:92`. It plays `GroundKinematicsModule`'s `MuscleGround` role for the Stride host, so a default there is **defensible** (an owner may default its own resource, which is why `GroundKinematicsModule` keeps one) — but it has neither the owned-vs-borrowed split nor a `Dispose`, so the same pool is never freed and a borrowed one could be.
+
+  ⛔ **Deliberately not edited.** `Stride/HrotStrideApp.Game` targets `net8.0-windows` and needs `Microsoft.WindowsDesktop.App` ⇒ `NETSDK1073` on Linux. `B2` already carries one hand-verified-only Stride edit awaiting a Windows build; **adding a second unverifiable edit compounds an unverifiable claim**. Fix it in the same pass that compiles `B2`'s.
+
+- [ ] **CE-182** · `RW-L` ⚠ — **A FALSE COMMENT IN `GroundKinematicsModule` HID THAT CONSTRUCTION CLAIMS NATIVE MEMORY. CORRECTED.**
+
+  📐 The class claimed its lazy properties *"avoid eagerly creating pools for roles that construct this module but never call `RegisterSystems`."* **Never true**: the constructor builds `SimulationSystems`/`PostSimulationSystems` and reads both properties while doing so, so allocation always fires in the constructor. Recorded because it is the reason the fusion looked cheaper than it was — a reader checking "does merely constructing this claim memory?" got the wrong answer from the comment.

@@ -38,7 +38,7 @@ namespace Hrot.SimHost
     /// <para><b>Execution order:</b> matches the production order used by
     /// <see cref="SimulationLogicModule"/> for the <c>MuscleGround</c> role.</para>
     /// </summary>
-    public sealed class SimHostCoreLogicPack : IEcsModule
+    public sealed class SimHostCoreLogicPack : IEcsModule, IDisposable
     {
         /// <inheritdoc/>
         public string Name => "SimHostCoreLogicPack";
@@ -156,5 +156,22 @@ namespace Hrot.SimHost
         /// No per-frame work is executed directly in this pack.
         /// </summary>
         public void Tick(ISimulationView view, float deltaTime) { }
+
+        /// <summary>
+        /// Frees the trajectory pool and formation templates, when this pack's kinematics module
+        /// allocated them.
+        /// </summary>
+        /// <remarks>
+        /// <para><b><c>B3</c> — this closes a real gap.</b> <c>TrajectoryPoolManager</c> holds
+        /// <c>Allocator.Persistent</c> native arrays and is <see cref="IDisposable"/>, but before this
+        /// nothing in production disposed one, anywhere. This pack is the right owner because it is the
+        /// only production construction site of <see cref="GroundKinematicsModule"/>, and it has a real
+        /// caller: <c>ModuleHostKernel</c> disposes registered modules that implement
+        /// <see cref="IDisposable"/> on teardown.</para>
+        ///
+        /// <para>The kinematics module frees the pool only if it allocated it — a pool handed to this
+        /// pack's constructor belongs to whoever passed it and is merely borrowed. Safe to call twice.</para>
+        /// </remarks>
+        public void Dispose() => _groundKinematicsModule.Dispose();
     }
 }
