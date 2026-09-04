@@ -27,17 +27,24 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly StatelessGizmoRegistry _registry;
         private readonly IDebugDrawBuilder _drawBuilder;
         private readonly Func<ISimulationView, Entity, bool>? _isSelectedPredicate;
-        private readonly bool[] _globalVisibilityCache;
-        private readonly bool[] _globalRulesVisibilityCache;
+        // ⚠ NOT readonly: the registry is mutable (Register/RegisterGlobal append), so these are grown
+        // in Execute when it has. See EnsureCaches — CE-188.
+        private bool[] _globalVisibilityCache;
+        private bool[] _globalRulesVisibilityCache;
 
         /// <summary>Max wall-clock budget in ms for entity iteration. 0 = unlimited.</summary>
         public float MaxGizmoFrameMs { get; set; } = 0f;
 
         /// <summary>
-        /// Creates the system. All projectors must be registered in
-        /// <paramref name="registry"/> before this constructor is called so that the
-        /// global-visibility cache is sized correctly.
+        /// Creates the system.
         /// </summary>
+        /// <remarks>
+        /// <para>⚠ This used to require that every projector be registered <i>before</i> construction,
+        /// so the visibility caches were sized correctly. <b>That precondition was unsatisfiable and
+        /// production violated it every run</b>: the registry is mutable, hosts register projectors after
+        /// building the system, and an AI hot-reload registers more at any time. The caches are now grown
+        /// on demand (<c>CE-188</c>), so registration order no longer matters.</para>
+        /// </remarks>
         public StatelessGizmoSystem(
             StatelessGizmoRegistry registry,
             IDebugDrawBuilder drawBuilder,
@@ -52,12 +59,38 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
         // ---- IEcsModuleSystem -------------------------------------------------------
 
+        /// <summary>
+        /// Grows the visibility caches to match the registry, which can gain rules at any time.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>Why grow rather than bounds-check (<c>CE-188</c>).</b> The throw this fixes came from
+        /// the global-rules dispatch loop indexing a cache sized at construction. Adding a bounds check
+        /// there would have stopped the exception and left every late-registered global gizmo silently
+        /// never drawing — trading a loud failure for a quiet one, which is the opposite of what this
+        /// codebase needs. Growing the cache makes late registration simply work.</para>
+        ///
+        /// <para>Allocation happens only on the frames where the registry actually grew; the steady state
+        /// is a length comparison.</para>
+        /// </remarks>
+        private void EnsureCaches()
+        {
+            int ruleCount = _registry.Rules.Count;
+            if (_globalVisibilityCache.Length < ruleCount)
+                Array.Resize(ref _globalVisibilityCache, ruleCount);
+
+            int globalRuleCount = _registry.GlobalRules.Count;
+            if (_globalRulesVisibilityCache.Length < globalRuleCount)
+                Array.Resize(ref _globalRulesVisibilityCache, globalRuleCount);
+        }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(StatelessGizmoSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only view ({view.GetType().Name}).");
+
+            EnsureCaches();
 
             var rules = _registry.Rules;
             int ruleCount = rules.Count;

@@ -2024,3 +2024,21 @@ whenever the finding is "the sim did not do the impressive thing".**
   ⛔ **Also not yet done:** the role set is not narrowed — SimHost composes `MuscleGround|Perception|NavigationSolver` unconditionally, as today. Selecting **by** the node's declared flags needs its own measurement of what each deployed role actually carries.
 
   ⭐ **Acceptance:** component sets **identical** to the pre-`B4b` baseline; ~2 000 steps to `simTime 51.9` with **both hostiles killed** and both attackers firing. Gates: `Hrot.NodeComposition.Tests` 45/0, `Hrot.SimHost.Tests` 885/1 (baselined red).
+
+- [x] **CE-188** · `RW-L` 🔴🔴🔴 — **`StatelessGizmoSystem` THREW ONCE PER FRAME IN EVERY EDITOR RUN, SKIPPING EVERY SYSTEM AFTER IT IN ITS PHASE GROUP. FIXED — 8 292–16 367 THROWS PER RUN → 0.**
+
+  ⚠⚠ **I dismissed this as "pre-existing background noise" in four separate gate tables this session before looking at it.** Defensible each time; a bad cumulative call.
+
+  📐 **The mechanism.** `StatelessGizmoSystem` sizes two visibility caches in its **constructor** from `registry.Rules.Count` / `registry.GlobalRules.Count`, and its constructor doc states everything must be registered first. ⛔ **Production violates that precondition every run**: `StatelessGizmoRegistry` is mutable (`Register`/`RegisterGlobal` append) and hosts register projectors after building the system — plus every AI hot-reload registers more. The **global-rules dispatch loop** (`StatelessGizmoSystem.cs:73`) then indexed the stale cache **without a bounds check** ⇒ `IndexOutOfRangeException`.
+
+  ⭐ **Narrower than I first assumed:** the entity-rule loop and the global-rule *pre-evaluation* loop both carry `&& … < cache.Length` guards. **Only the second global loop was unguarded** — a rail confirms the entity arm was never broken.
+
+  🔴🔴 **The cost was not the throw.** `TogglablePostSimulationGroup.Execute` is a plain `foreach` with no `try`, so **every system after this one in the group was skipped, every frame** — and `ModuleHostKernel` swallowed the exception, so the node kept answering `ok:true`. The "wired but inert" disease, running in production the whole time.
+
+  ✅ **Fixed by GROWING the caches** (`EnsureCaches`), not by bounds-checking. ⛔ A guard would have stopped the throw and left every late-registered gizmo **silently never drawing** — trading a loud failure for a quiet one, which is the opposite of what this codebase needs. The constructor's false precondition is corrected in place.
+
+  ⭐ **Rails** (into the feature's own suite, `SC-GZ022`, per `R-142`): `CE188_AGlobalRuleRegisteredAfterConstruction_DrawsInsteadOfThrowing` · `…AnEntityRuleRegisteredAfterConstruction_DrawsInsteadOfBeingSkipped` · `…RulesRegisteredAcrossSeveralFramesAllDraw`. **Two failed against the unfixed code**, reproducing the production throw.
+
+  ⭐⭐ **Live:** a fresh editor run on `hill-attack-close` — **0 gizmo throws** (from 8 292 / 12 137 / 16 367 in three earlier runs), **no exception class left in the log at all**, log down from ~85 000 lines to 1 327, and component sets **byte-identical** to the session baseline at `t=0`.
+
+  ⚠ **A measurement error worth recording:** my first after-diff showed entity 1000 gaining `BlueprintAssignments` + `BlueprintBlackboard1024`. Not a regression — I compared a `simTime 12.9` capture against a `t=0` baseline. The re-capture then hit my own runbook trap (`sawWorldChange: false` — a second load into a live world does not reset), so the honest comparison needed a **fresh process**. Both steps are why the final claim is like-for-like.
