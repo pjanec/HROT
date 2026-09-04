@@ -1845,3 +1845,63 @@ what it points at.
   ⭐ **Also worth a separate row and not built here:** the **seeded-RNG** design point above. Without it, `Random.Shared` at ② makes every run of every host different, which is a permanent obstacle to exactly the editor↔cluster comparison this programme keeps needing.
 
   ⚠ **Not measured:** whether `Condition_IsWaveCompleted` ever terminates the outer loop when the area is genuinely cleared — no wave has yet destroyed a hostile, so the `targets == 0` exit path is **unexercised on either host.**
+
+### ⛔⛔⛔ CE-174 — **RETRACTED `2026-09-04`. IT WAS NOT A DEFECT, AND THE FRAMING ABOVE IS WRONG.**
+
+> 🔒 **User, verbatim:** *"tanks go to given firing point slot not because their target must be close. they
+> should fire at targets that are reachable. if none, no fire. the tanks ahoukd not chase targets. is does
+> not see them just because there is no real hill blocking the view of the creeping tank so it ia simulated
+> by sensiror detection range. **tank not seeing its target is not wrong.**"*
+>
+> 🔒 **And on the proposed remedy:** *"there is nothing to fix. it is not broken. sometimes the targets are
+> simply out if range. **if you need a predicable scenario for testing features, you need to write one
+> yourself, not fixing my hill attack.** you can make a copy where the firing line is sized differently."*
+
+| ⭐ the ruling | |
+|---|---|
+| ⭐⭐⭐ **`VisionRange` IS the hill.** There is no terrain occlusion in this scenario; the sensor range **stands in for** the crest that blocks the creeping tank's view. ⇒ **a tank that cannot see its assigned target is the simulation working**, not failing |
+| ⭐⭐ **A slot is not chosen for target proximity.** The commander assigns the slot; the tank fires at what is reachable **from there**, and if nothing is reachable it does not fire. ⛔ **Tanks must not chase targets** — the 50 m creep cap is the mechanism that stops them, so `Action_CreepToAndBeyondSlot` returning `Failure` is **correct**, not a bug |
+| ⛔⛔ **`scenarios/hill-attack/` is the USER'S scenario and is NOT to be modified** to make a feature test pass. ⭐ A test that needs predictable geometry gets **its own scenario** |
+| ⛔ **The four "options" priced above (A–D) are all VOID.** Round-robin allocation, `MaxOvershootMeters = 50`, and `VisionRange = 100` are all correct as authored |
+
+⚠⚠ **My error, named so it is not repeated:** I measured the mechanism correctly and then **assumed the
+outcome was undesired**. ⛔ *"The tank did not fire"* is a **fact**; *"the tank should have fired"* is a
+**design claim**, and I had no design basis for it — 📌 the `R-139` claim table would have caught this if I
+had given the second column a row for *"is failing-to-acquire the intended outcome?"*. ⇒ ⭐⭐ **add that row
+whenever the finding is "the sim did not do the impressive thing".**
+
+---
+
+- [x] **CE-175** · `RW-L` ⭐ — **`scenarios/hill-attack-close/` — MY OWN test copy with a firing line sized for the sensor range.** ⛔ **Not a fix. A fixture.** Created under the ruling above so feature verification has predictable geometry without touching the user's scenario.
+
+  | | `hill-attack` *(the user's — UNTOUCHED)* | `hill-attack-close` *(this fixture)* |
+  |---|---|---|
+  | firing line, ENU | `(578,405) → (584,545)` — **140 m** | `(579.7,444.5) → (582.3,504.5)` — **60 m** |
+  | `tankSpacing` | 30 ⇒ **4 slots** | 20 ⇒ **3 slots** |
+  | `AttackDir` | `(0.99996, 0.00935)` | **`(1, 0)`** — exact |
+  | outcome | tanks often out of range; runs vary by slot draw | ⭐ **every slot reaches BOTH hostiles** |
+
+  📐 **How the endpoints were derived — no geo transform needed:** the new points are a **linear interpolation between the two authored endpoints** at `t = 0.2821` and `t = 0.7107`, so the line's bearing and the lat/lon fit are preserved exactly. ⭐ Centred on the hostile midpoint `y = 474.5` *(hostiles measured live at `(668,427)` and `(668,522)`)*; 60 m is the widest span for which the worst slot still reaches its far target inside **~26 m** of the 50 m creep budget *(at `x≈581`, i.e. 87 m from the hostile line, with `VisionRange = 100`)*.
+  ⭐⭐ **`AttackDir` is `normalise(firingCentre − baselineCentre)`** *(`HillAttackCommanderNodes.cs:733-745`)* — ⛔ **NOT the "left-hand perpendicular of the firing-line vector" its own XML comment claims** *(`:648`)*. 📌 Verified live both ways: the old line gave `(0.99996, 0.00935)` = normalise`((581,475)−(527.5,474.5))`, and the new centred line gives exactly `(1,0)`. ⚠ **The stale comment is a real doc defect and is left UNFIXED pending a nod** — it is in the user's behaviour code, not mine.
+
+  ✅ **Verified live on `--mode all`:** `"Calculated slots=3 spacing=20m."`, then **every tank engages on every wave**, waves alternating cleanly:
+  `Dispatched … Entity:1 → 1006 / Entity:3 → 1007` → `"Engaging target."` ×2 → `"Retreating to baseline."` ×2 → `"Wave completed."` → next query → next wave. ⛔ **Zero `"Creep failed due to overshoot"` lines.**
+
+- [ ] **CE-176** · `RW-L` ⚠ — **TWO TIER DIVERGENCES THE `hill-attack-close` FIXTURE MAKES REPEATABLE. ⛔ MEASURED, NOT ROOT-CAUSED — do not act on this row until it is.**
+
+  📐 **Same entities, same frame, read from both perspectives:**
+
+  | | Brain *(`Scenario`/CGF)* | Muscle *(`SimHost`)* |
+  |---|---|---|
+  | tank `Health` | **50 / 50** | **3000 / 3000** |
+  | hostile `Health` | **50 / 50** | **3000 / 3000** |
+  | tank `WeaponState.Ammo` after firing | **36–37** *(started 42)* | ⛔ **42 — untouched** |
+  | `WeaponState.MaxAmmo` | ⛔ **0** | 0 |
+
+  ⭐ **What IS established:** the tanks really do fire — `BehaviorParameters` on tank 1001 reads `MaxRounds: 1, RoundsFired: 1, LastObservedAmmo: 37` with `CooldownSecondsRemaining: 3.65`. ⚠ **One round per run then retreat is BY DESIGN** *(shoot-and-scoot)*; ⛔ **my first reading of this — "no weapon traffic at all" — was WRONG**, an artefact of `WeaponFire`/`Detonation` not being on the `Behavior` logger. **The rounds are leaving.**
+
+  ⛔⛔ **What is NOT established, and must be before anything is called a defect:**
+  ① which tier is **authoritative** for `Health` and `Ammo` — 50 vs 3000 may be a legitimate TKB-vs-scenario split rather than a replication failure *(⚠ an earlier session already raised the 50/3000 split and DOWNGRADED it; it is now visible again and still unexplained)*;
+  ② whether the muscle is **supposed** to decrement ammo at all, or whether the Brain-side executor is the only one that tracks it;
+  ③ whether a fired round is **meant** to damage at this range, or whether hostiles surviving many single rounds against 3000 HP is simply correct arithmetic.
+  ⇒ ⭐⭐ **③ is the likely mundane answer** — 50 HP is the Brain's number and 3000 the muscle's; if damage resolves against 3000, a handful of rounds changes nothing visible. ⛔ **Not measured. Do not assume it.**
