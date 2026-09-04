@@ -1661,6 +1661,74 @@ number is 390**, confirmed with an explicit `--no-build` run.
 ⛔ **Still not done**: CGF is **not** migrated — deliberately, and §③ is why. No reordering, no ECS host
 declared, the 45 shared units of §4.1M untouched.
 
+### 4.1S 📐 STEP 4 — **THE CROSSING-VALUE MEASUREMENT: migration cost does NOT scale with length** *(`2026-09-03`)*
+
+> ⭐ §4.1R ③ said the Editor's cost is *"its crossing values, not its 3548-line tail — a different,
+> smaller measurement, and it has not been taken."* ⭐⭐ Taken here, for all three inline ECS roots, with
+> a reusable tool: **`python3 scripts/crossing-values.py --roots`**.
+
+#### ① ⭐⭐⭐ THE NUMBERS — **and the headline is how FLAT they are**
+
+| root | slice | lines | locals living >1 line | ⭐⭐⭐ **PEAK SIMULTANEOUS LIVE** |
+|---|---|---|---|---|
+| **ExCon** *(migrated, §4.1Q)* | — | ~25 | 2 | ✅ **2** |
+| **Stride editor** | `:509`–`:718` | 210 | 21 | ⭐ **8** |
+| **CGF** | `:509`–`:1192` | 684 | 40 | **10** |
+| **Editor** | `:949`–`:1884` | 936 | 62 | 🔴 **18** |
+
+⇒ ⭐⭐⭐ **PEAK LIVE is the migration unit, and it grows far slower than length.** 📐 The Editor's slice is
+**4.5× longer** than the Stride editor's and has **3× the locals**, but only **2.25× the peak**. CGF is
+**3.3× longer** than the Stride editor for **+2** peak.
+
+⇒ ⛔⛔ **The Editor is NOT a 936-line problem, still less a 3548-line one.** ⭐ It is an **18-value**
+problem: 18 values must move to the plan's bag before its steps can be declared. ⚠ That is a batch, not a
+programme — and it is the first time this work has had a number for the Editor at all.
+
+⭐ **Why peak and not the total:** a value only costs anything if it is live *across a boundary*. The
+totals *(62, 40, 21)* count values that are born and die inside one step and never travel.
+
+#### ② 📌 THE WIDEST SPANS — **where each host's cost actually is**
+
+| root | the values that live longest |
+|---|---|
+| **Editor** | `entityMap` **808 ln** *(1021→1829)* · `geoTransform` **641** · `behaviorRegistry` **335** · `clusterSlave` 246 · `creation` 215 |
+| **CGF** | `nodeConfig` **442** · `replicationModule` 191 · `nodeFactory` 186 · `idAllocator` 173 · `newClusterSlave` 173 |
+| **Stride editor** | `behaviorRegistry` 73 · `mapperRegistry` 72 · `creation` 66 · `cgfPack` 60 · `muscleSet` 53 |
+
+⭐ **A pattern worth naming:** the long-lived values are the **same concepts on every host** —
+`entityMap` · `behaviorRegistry` · `creation` · `clusterSlave` · the node factory. 📌 They are exactly
+§4.1M's shared units, and they are long-lived **because they are the node's shared state**. ⇒ ⭐⭐ the bag's
+keys will be nearly the same set on every host, which is what makes the second and third migrations
+cheaper than the first.
+
+#### ③ ⚠ THIS CORRECTS §4.1R's SUGGESTED ORDER
+
+⛔ §4.1R closed by proposing CGF as the next host *(it was "the cheapest ECS host" by length)*.
+📐 **Measured, the Stride editor is cheaper on both axes** — 210 lines and peak **8**, versus CGF's 684
+and **10**.
+
+| ⭐ the lean, with the trade stated | |
+|---|---|
+| ⭐⭐ **still start with CGF** | ⛔ **not** because it is cheapest — it is not — but because it is **in `IOS-IG-SimHost.sln` and gateable**: `CgfSubsystemHeadlessTests` exercises a real boot. ⚠ The Stride editor is **out of solution** *(`net8.0-windows`)*, so a migration there is measured by a suite that does not run in the normal gate |
+| ⭐ **and the gap is small** | 10 vs 8 — ⛔ two values do not outweigh a gateable boot |
+| ⚠ **what would change it** | if the Stride editor's suite becomes gateable in CI, take it first — it is genuinely the smallest |
+
+#### ④ ⛔ THE TOOL'S OWN BUG, RECORDED — **because it produced a confident ZERO**
+
+📐 The first run reported **CGF: 0 locals**. 🔴 False. `CgfSubsystem.cs:389` contains a line comment
+mentioning `/missions/*` routes; the stripper handled `/* */` **before** `//`, read that as a
+block-comment opener, and blanked every line after it.
+⭐ **Fixed** *(line comments stripped first)* and **validated against a known number** — CGF now reports
+**40** living locals, matching the hand count taken in §4.1R.
+⭐⭐ **And the tool now degrades loudly**: zero locals in a slice of more than 40 lines prints
+`PARSE FAILED … Do NOT read this as 'no crossing values'` instead of a number. ⚠ It can false-positive on
+a genuinely local-free region — ⛔ deliberate: a loud false positive beats a silent zero, which is the
+same rule `scripts/find.sh` follows.
+
+⚠ **Imprecision, stated:** a local's life is first-to-last mention **by name**, so a name reused in a
+nested scope inflates its span *(over-estimates ⇒ a low number is trustworthy)*; declarations are matched
+textually, so `out`/deconstruction/pattern forms are missed *(⇒ counts are a LOWER BOUND)*.
+
 ## 5. ⭐⭐⭐ PHASE 0 — **buildable detail. `build-state: READY-TO-BUILD`**
 
 ### 5.1 Venue and channels — settled *(`AQ63` §12)*
