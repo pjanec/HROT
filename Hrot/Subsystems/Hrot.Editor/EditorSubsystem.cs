@@ -1363,9 +1363,19 @@ namespace Hrot.Editor
                 scenarioLoadSource,
                 mapperRegistry);
 
+            // ⭐⭐⭐ CE-165 — DEDUPLICATE BY TYPE when fusing the Brain and MuscleGround lists.
+            // The editor is the one node that runs BOTH packs, and both carry UnitHierarchySystem and
+            // EqsResultUpdateSystem. A plain Concat registered each twice, and a second UnitHierarchySystem
+            // re-reads the same (non-destructive) CmdAssignSubordinate events and falls through to an
+            // unguarded roster append — inflating UnitRoster.Count until legitimate assignments are rejected
+            // at capacity. Three of the four roots that fuse these packs already deduplicated by type
+            // (EditorStrideSubsystem, StrideMuscleModule, EditorHarness); this one did not, which is exactly
+            // why nothing ever disagreed out loud. SingleInstanceAttribute now makes the omission throw
+            // instead of corrupting silently — see DESIGN_Subsystem_Composition_Unification.md §4.1L.
             var toggleInput = new TogglableInputGroup(
                 "EditorInput",
-                cgfLogicPackInst.InputSystems.Concat(muscleInputSystems).ToArray());
+                Fdp.ModuleHost.Scheduling.SystemComposition
+                    .DistinctByType(cgfLogicPackInst.InputSystems, muscleInputSystems).ToArray());
 
             // ── Blueprint runtime (MVE-BATCH-02) ──────────────────────────────────────
             // Wire the Instance-Blueprint runtime into THIS kernel (the real composition the
@@ -1387,7 +1397,9 @@ namespace Hrot.Editor
             var toggleSim = new TogglableSimulationGroup(
                 "EditorSim",
                 Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.SpliceIntoSimulation(
-                    cgfLogicPackInst.SimulationSystems.Concat(muscleSimSystems), bpTick).ToArray());
+                    Fdp.ModuleHost.Scheduling.SystemComposition        // CE-165 — see toggleInput above
+                        .DistinctByType(cgfLogicPackInst.SimulationSystems, muscleSimSystems),
+                    bpTick).ToArray());
 
             var togglePostSim = new TogglablePostSimulationGroup(
                 "EditorPostSim",

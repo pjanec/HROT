@@ -1,6 +1,12 @@
 <!--STATUS
 state: LIVE
-build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9). Phase 1's SEAM is BUILT with two adopters
+build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
+  ✅✅ NEW 2026-09-04: §4.1m — ROLE-COMPOSITION **B1 IS BUILT** ([SingleInstance] + the scheduler guard +
+  SystemComposition.DistinctByType + root ④ fixed). ⛔⛔ READ §4.1m BEFORE QUOTING §4.1j's B1 ROW: the
+  guard as DESIGNED (checking only the system handed to RegisterSystem) was measured BLIND to the very
+  defect it was written for — the editor registers ONE TogglableSimulationGroup and the duplicates live
+  inside it. The guard now descends into ISystemGroup members, and the same red-proof then fired on the
+  RUNNING editor, naming UnitHierarchySystem. build-state for role composition: READY-TO-BUILD at B2. Phase 1's SEAM is BUILT with two adopters
   (§5b, as-built §5b.4); its remaining adoptions are listed at the end of §5b.4. Phases 2+ get their own
   inventory + UML per batch, appended here as they are designed.
   ⭐⭐ NEW 2026-09-03: §4.1b (CE-164) — IG built the shared slave orchestration stack via HrotNodeBuilder
@@ -1025,6 +1031,55 @@ until the dependency is expressed. ⚠ **Not scheduled here** — recorded so ph
 ⭐ **Dissolution, not extraction, for `IEditorLogic`** *(approved)*: 📐 128 ln / ~15 members, `EditorApplication`
 297 ln of one-line delegations, **zero** code references from `AiShared`, ~3 members genuinely editor-only.
 📌 `CE-060` dissolved one call in **one line** by publishing the event it already wrapped.
+
+### 4.1m ✅ AS BUILT — **`B1` shipped, and the guard as DESIGNED could not see the defect it was for** *(obligation ⑤; `2026-09-04`)*
+
+> ⭐⭐ **Read this before quoting §4.1j's `B1` row.** The item landed, but its acceptance as written
+> *("a rail registers `UnitHierarchySystem` twice and the guard throws")* is **satisfied by a guard that is
+> still blind in production.** The deviation is recorded here because the design would otherwise read as
+> finished on a point it was not.
+
+#### 🔴 THE DEVIATION — **groups hide their members from `RegisterSystem`**
+
+📐 `B1` as specified put the check in `SystemScheduler.RegisterSystem`. That is the right choke point for a
+system registered directly, and the unit rails pass. ⛔ **It cannot see root ④.** The editor wraps its fused
+Brain+MuscleGround lists in a `TogglableSimulationGroup` and registers **that one group**; the members are
+executed by `SystemScheduler.ExecuteGroup` *(`:148`)*, which iterates `group.GetSystems()` and never calls
+`RegisterSystem` for them. ⇒ **the duplicated `UnitHierarchySystem` instances never reach the guard.**
+
+📐 **Measured, not reasoned:** with the editor's deduplication reverted and the as-designed guard in place,
+`--mode editor` **booted normally and the guard never fired.** ⚠ A guard that cannot see the composition it
+exists to police is worse than none, because it reads as coverage.
+
+⇒ ✅ **The guard now walks `ISystemGroup` members recursively** *(`SystemScheduler.CollectSingleInstance`)*,
+keying a `HashSet<Type>` rather than scanning the phase lists. 📐 **Re-run of the same red-proof, same
+build, dedup still reverted:**
+
+```
+[SingleInstance] system 'Hrot.Common.Systems.UnitHierarchySystem' is registered more than once
+```
+
+⇒ ⭐⭐⭐ **`CE-165`'s central claim is now confirmed by the RUNNING EDITOR, not only by reading the concat
+chain** — and the editor's `DistinctByType` is proven load-bearing rather than precautionary.
+
+#### ✅ WHAT SHIPPED
+
+| | |
+|---|---|
+| `SingleInstanceAttribute` | `Fdp.ModuleHost/Abstractions/SystemAttributes.cs` — **opt-in**; the doc comment carries why it throws rather than skipping, and why it is not global |
+| the guard | `SystemScheduler.CollectSingleInstance` — type-keyed, **descends into groups**, message points at the COMPOSITION ROOT |
+| `SystemComposition.DistinctByType` | ⭐ the shared helper the three deduplicating roots had each hand-rolled *(§4.1L's table)* — first-wins, order preserving |
+| marked | `UnitHierarchySystem` *(corruption measured — §4.1j closing measurement ①)* · `EqsResultUpdateSystem` *(⚠ harm **not** measured; marked as a singleton by design, and the comment says so)* |
+| root ④ fixed | `EditorSubsystem` input + simulation concats now go through `DistinctByType` |
+
+⚠ **Deliberately NOT done, and it is a real remaining gap:** the other three roots *(`EditorStrideSubsystem`,
+`StrideMuscleModule`, `EditorHarness`)* still carry their own hand-rolled dedupe loops. ⭐ They are correct,
+so this is tidying, not a fix — ⛔ but until they adopt `DistinctByType` the "one implementation" ruling is
+still violated four ways. **Fold into `B2`**, which already opens those files.
+
+⚠ **Also still open:** `ModuleHostKernel.RegisterModule` *(`:402`)* has no duplicate guard of its own, and
+`:1230`'s hot-swap check remains reference-equality. `B1` did not touch either; the scheduler guard covers
+the system axis only.
 
 ### 4.1L 🔴🔴🔴 `CE-165` — **THE SLOTS ARE FULL, AND THE RUNNING EDITOR DOUBLE-TICKS TWO SYSTEMS TODAY** *(second user challenge, `2026-09-03`)*
 
