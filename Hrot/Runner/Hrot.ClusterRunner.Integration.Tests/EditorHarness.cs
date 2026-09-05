@@ -77,6 +77,62 @@ public sealed class EditorHarness : IDisposable
     /// <summary>The mirrored editor master's current mode — Deterministic while authoring is paused.</summary>
     public Fdp.ModuleHost.Time.TimeMode TimeControllerMode => _timeController!.GetMode();
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-192</c> — builds a real <see cref="Hrot.Editor.DebugApi.DebugApiService"/> against this
+    /// harness, so the ai-debug API can be railed headless.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>📌 <b>Why this is only ~20 lines when the debt said otherwise.</b> <c>DEBT-MCP-001</c>
+    /// (this project's csproj, and <c>docs/MCP_Integration.md</c>) excluded <b>15</b> <c>DebugApi*Tests.cs</c>
+    /// files on the stated grounds that they need <i>"9 harness collaborators (<c>_serializer</c>,
+    /// <c>History</c>, <c>_tkbDb</c>, <c>_geoTransform</c>, <c>_bpManager</c>, <c>_rrController</c>,
+    /// <c>EditorTracer</c>, <c>BTreeSession</c>, <c>HsmSession</c>) that trunk's EditorHarness does not yet
+    /// carry"</i>.</para>
+    ///
+    /// <para>⛔⛔ <b>Measured <c>2026-09-05</c>: EIGHT OF THOSE NINE ARE OPTIONAL CONSTRUCTOR PARAMETERS.</b>
+    /// The editor ctor requires exactly nine non-null arguments — <c>world</c>, <c>entityMap</c>,
+    /// <c>extraction</c>, <c>time</c>, <c>preview</c>, <c>editor</c>, <c>eventHistory</c>,
+    /// <c>timeController</c>, <c>clusterState</c> — and of the debt's list only <c>History</c>
+    /// (<c>eventHistory</c>) is among them. The rest are omitted here and the endpoints that need them
+    /// degrade, which is precisely what those optional parameters exist for.</para>
+    ///
+    /// <para>⇒ ⭐ the real gap was three collaborators with trivial constructors over things this harness
+    /// already held, plus exposing the <c>MasterSyncController</c> it already built. ⚠ <b>The debt was
+    /// priced as a harness reconciliation and was actually a factory method</b> — which is why the API's
+    /// swallowed-exception defects (<c>CE-190</c>/<c>CE-191</c>) went two months without a compiled rail
+    /// that could see them.</para>
+    ///
+    /// <para>⛔ <b>What this deliberately does NOT wire</b>, so no caller mistakes silence for absence:
+    /// breakpoints, record/replay, the AI tracer, the BTree/HSM/Blueprint debug sessions, the behaviour and
+    /// blueprint registries, and the mission service. Endpoints in those groups answer their own
+    /// "not available" — they are out of scope for the entity/spawn/command tier this unlocks.</para>
+    /// </remarks>
+    public Hrot.Editor.DebugApi.DebugApiService BuildDebugApiService()
+        => new(
+            world:          Repo,
+            entityMap:      EntityMap,
+            extraction:     new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(Repo, EntityMap),
+            time:           new Hrot.Editor.UI.EditorTimeTransportFacade(Preview, _timeController!, Repo),
+            preview:        Preview,
+            editor:         Editor,
+            eventHistory:   _eventHistory,
+            timeController: _timeController!,
+            // ⭐ The harness is a single offline editor: it is always "the one node, operating".
+            clusterState:   () => Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit);
+
+    /// <summary>
+    /// The real ring-buffer history the debug API reads for <c>GET /events</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ A REAL service rather than a null one: <c>DebugApiBatch04</c>'s command rails assert that a
+    /// published event turns up in history, so a null implementation would make them vacuously green —
+    /// the exact failure this whole line of work is about.
+    /// ⚠ Nothing pumps <c>Capture</c> here; a test that needs populated history must call it itself.
+    /// </remarks>
+    public Fdp.Core.Diagnostics.DiagnosticEventHistoryService EventHistory => _eventHistory;
+
+    private readonly Fdp.Core.Diagnostics.DiagnosticEventHistoryService _eventHistory = new();
+
     // ── Nested test stub ─────────────────────────────────────────────────────
 
     private sealed class SequentialIdAllocator : INetworkIdAllocator
@@ -211,6 +267,15 @@ public sealed class EditorHarness : IDisposable
         Kernel.RegisterModule(simHostMod);
         Kernel.RegisterModule(new Hrot.SimHost.Modules.EqsModule());
         Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(EntityMap));
+
+        // ⭐⭐ CE-192 — mirror the editor's event-history capture, so GET /events has a PRODUCER.
+        //   📐 EditorSubsystem.cs:1437 registers exactly this system for the world bus (and two more for
+        //   the orchestration and interaction buses). ⛔ Without it the history service is real but never
+        //   written, and a rail asserting "the published command appears in history" fails for a reason
+        //   that has nothing to do with the command path — the store simply has no writer.
+        //   ⚠ Only the WORLD bus is mirrored: it is the one the debug API's default `bus:"world"` reads.
+        Kernel.RegisterGlobalSystem(
+            new Fdp.ModuleHost.Diagnostics.EventHistoryCaptureSystem("World", _eventHistory, Bus));
 
         // ── Multi-phase system registration for SimHostCorePack and CgfLogicPack ──
         // CGF Brain systems -- register directly (no toggling needed in the editor harness)

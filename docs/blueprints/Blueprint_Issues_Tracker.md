@@ -2115,3 +2115,28 @@ whenever the finding is "the sim did not do the impressive thing".**
   📐 **Gates:** `Hrot.Editor.Tests` **356 passed**, all **23** `DebugApi` rails green. ⚠ Run 2 of 2 reddened on `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` — the **pre-existing rotating flake baselined under `CE-190`** *(passes 3/3 in isolation; the baseline run with the change stashed reddened on a DIFFERENT test)*.
 
   📄 Design: [`ai-debug-api/DESIGN.md` — the `CE-191` note](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/ai-debug-api/DESIGN.md) · caller-facing: [`ai-debug-mcp/skill-parts/10-mental-model.md`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/tools/ai-debug-mcp/skill-parts/10-mental-model.md)
+
+- [x] **CE-192** · `RW-L` ⭐⭐⭐ — **`DEBT-MCP-001` WAS MISPRICED BY AN ORDER OF MAGNITUDE: THE "HARNESS RECONCILIATION" WAS A ~20-LINE FACTORY.** *(user: "wait what can we do to make those rails start working?")*
+
+  🔴 **The claim that held 15 test files dark for ~2 months.** `DEBT-MCP-001` deferred every `DebugApi*Tests.cs` because they need *"9 harness collaborators (`_serializer`, `History`, `_tkbDb`, `_geoTransform`, `_bpManager`, `_rrController`, `EditorTracer`, `BTreeSession`, `HsmSession`) that trunk's `EditorHarness` does not yet carry."*
+
+  ⛔⛔ **Measured: EIGHT OF THOSE NINE ARE OPTIONAL CONSTRUCTOR PARAMETERS.** `DebugApiService.cs:398` requires exactly nine non-null args — `world`, `entityMap`, `extraction`, `time`, `preview`, `editor`, `eventHistory`, `timeController`, `clusterState` — and of the debt's list **only `History`** is among them. The others are omitted and their endpoints degrade, which is precisely what optional parameters are for.
+
+  | the nine actually required | status before |
+  |---|---|
+  | `world` · `entityMap` · `preview` · `editor` | ✅ the harness already exposed all four |
+  | `timeController` | ⚠ already built — merely **private** |
+  | `clusterState` | ✅ a one-line lambda |
+  | `extraction` · `time` · `eventHistory` | ⭐ trivial ctors over what the harness already held |
+
+  ⇒ ⭐⭐⭐ **The blocker was a factory method, not a reconciliation** — and that mispricing is why `CE-190`/`CE-191`'s swallowed-exception defects went two months without a compiled rail that could see them. ⚠ **The lesson is about the DEBT NOTE, not the debt:** it enumerated what the ported branch happened to pass rather than what the constructor demands, and nobody re-measured because the note read as authoritative. 📌 Same shape as `R-129` — *"the code says how it IS; a note says how someone once thought it was."*
+
+  ⭐ **Built:** `EditorHarness.BuildDebugApiService()` (the 9 required, nothing else) + `EditorHarness` now registers `EventHistoryCaptureSystem("World", …)`. ⭐⭐ **That second line MIRRORS `EditorSubsystem.cs:1437` exactly** — ⛔ it was **not** invented to make a test pass: the 15th test failed because the history service is real but had **no writer**, and the production producer was located first. ⚠ Only the WORLD bus is mirrored (the debug API's default `bus:"world"`); production also captures Orchestration and Interaction.
+
+  ⭐⭐ **Result: `DebugApiBatch04Tests` **15/15 green**, and `CE-191`'s four spawn-refusal rails now EXECUTE.** **Red-proof:** restoring the two silent drops in `SpawnEntity` reddens exactly `SpawnEntity_MalformedTransform_…` and `SpawnEntity_UnknownComponentType_…` — nothing else.
+
+  ⚠ **Scoped deliberately — ONE file un-excluded, not all 15.** The other 14 exercise breakpoints, record/replay, the AI tracer and the BTree/HSM/Blueprint sessions: the optional deps this factory does not wire. Un-excluding them wholesale would produce reds that say nothing about the API. ⭐ **They are now cheap to take one group at a time**, each needing only the optional dependency its endpoints use — the remaining, correctly-priced form of `DEBT-MCP-001`.
+
+  📐 **Blast radius, BASELINED not recalled** *(the change touches a harness every test in that project uses)*: full `Hrot.ClusterRunner.Integration.Tests` with the change **19 failures**, and with the change **stashed + rebuilt + re-run** **22**. ⭐⭐ **Zero new failures — the failure set with the change is a strict SUBSET of the baseline's.** ⚠⚠ **Three baseline failures did NOT reproduce with the change** — `AreaAuthoringIntegrationTests.EndToEnd_AreaAuthoring_…`, `MapPlacementIntegrationTests.EndToEnd_PlacementFlow_…`, `WhyDoesTheVehicleNotMoveProbe.DumpEveryGateThatCanSilenceTheKinematics`. ⛔ **NOT claimed as fixes.** This suite has documented rotating flakes, **and** registering a global system is not strictly frame-timing-neutral, so either explanation fits and neither was measured. ⇒ 📌 **open question, deliberately left open rather than claimed.**
+
+  📄 Design: [`ai-debug-api/DESIGN.md` — the `CE-192` note](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/ai-debug-api/DESIGN.md)

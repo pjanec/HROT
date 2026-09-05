@@ -56,7 +56,6 @@
        EventSerializationHelperTests.cs is harness-free and stays compiled.
        =============================================================================================== -->
   <ItemGroup>
-    <Compile Remove="DebugApiBatch04Tests.cs" />
     <Compile Remove="DebugApiBatch05Tests.cs" />
     <Compile Remove="DebugApiBatch07Tests.cs" />
     <Compile Remove="DebugApiBatch08Tests.cs" />

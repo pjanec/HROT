@@ -268,6 +268,47 @@ endpoints. All bodies are JSON. `networkId` is the long network entity id (resol
 > pre-existing `BuildDebugApiService` errors and their cascade — including on the file's own **existing**
 > `SendCommand` deconstructions — with none attributable to the new code.
 
+> ✅✅✅ **`CE-192` (`2026-09-05`) — THE GAP ABOVE IS CLOSED, AND `DEBT-MCP-001` WAS MISPRICED BY AN ORDER OF MAGNITUDE.**
+>
+> `DEBT-MCP-001` deferred **15** `DebugApi*Tests.cs` files on the stated grounds that they need *"9 harness
+> collaborators (`_serializer`, `History`, `_tkbDb`, `_geoTransform`, `_bpManager`, `_rrController`,
+> `EditorTracer`, `BTreeSession`, `HsmSession`) that trunk's `EditorHarness` (diverged ~2 months) does not
+> yet carry."*
+>
+> ⛔⛔ **Measured: EIGHT OF THOSE NINE ARE OPTIONAL CONSTRUCTOR PARAMETERS.** The editor ctor
+> (`DebugApiService.cs:398`) requires exactly nine non-null arguments — `world`, `entityMap`, `extraction`,
+> `time`, `preview`, `editor`, `eventHistory`, `timeController`, `clusterState` — and of the debt's list
+> only `History` is among them. The rest are omitted and their endpoints degrade, which is what those
+> optional parameters exist for.
+>
+> | the nine required | status before |
+> |---|---|
+> | `world`, `entityMap`, `preview`, `editor` | ✅ the harness already exposed them |
+> | `timeController` | ⚠ already built, merely **private** |
+> | `clusterState` | ✅ a one-line lambda |
+> | `extraction`, `time`, `eventHistory` | ⭐ trivial ctors over what the harness already held |
+>
+> ⇒ ⭐⭐ **the blocker was a ~20-line factory method, not a harness reconciliation** — and that mispricing is
+> why the API's swallowed-exception defects (`CE-190`/`CE-191`) went two months without a compiled rail that
+> could have seen them. ⚠ **The lesson is about the DEBT NOTE, not the debt:** it enumerated everything the
+> ported branch happened to pass, rather than what the constructor actually demands, and nobody re-measured
+> it because the note read as authoritative.
+>
+> ⭐ **What was done:** `EditorHarness.BuildDebugApiService()` (the 9 required, nothing else) and
+> `EditorHarness` now registers `EventHistoryCaptureSystem("World", …)` — ⭐ **mirroring
+> `EditorSubsystem.cs:1437` exactly**, because the history service is otherwise real but has no writer, and
+> a rail asserting "the published command appears in history" would fail for a reason unrelated to the
+> command path. ⛔ **NOT invented for the test** — the production line was located first.
+>
+> ⭐⭐ **Result: `DebugApiBatch04Tests` 15/15 green**, and `CE-191`'s four spawn-refusal rails now execute.
+> **Red-proof:** restoring the two silent drops in `SpawnEntity` reddens exactly
+> `SpawnEntity_MalformedTransform_…` and `SpawnEntity_UnknownComponentType_…`.
+>
+> ⚠ **Scoped deliberately: ONE file un-excluded, not all 15.** The other 14 exercise breakpoints,
+> record/replay, the AI tracer and the BTree/HSM/Blueprint sessions — the optional deps this factory does
+> **not** wire. Un-excluding them wholesale would produce reds that say nothing about the API. ⭐ They are now
+> cheap to take one group at a time, each needing only the optional dependency its endpoints use.
+
 ### Group A — Lifecycle & Status
 | HTTP | MCP tool | Request → Response |
 |---|---|---|
