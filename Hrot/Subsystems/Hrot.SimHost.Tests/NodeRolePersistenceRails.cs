@@ -160,6 +160,9 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>The shared base that owns the ONE resource-disposal implementation (CE-199).</summary>
         private const string SharedBaseRoot = "Hrot/Engine/Hrot.Common/Infrastructure/SharedApplicationBootstrapper.cs";
+
+        /// <summary>CGF's composition root — host (c) onto the capability axis (CE-200).</summary>
+        private const string CgfRoot        = "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs";
         private const string SimHostApp     = "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs";
         private const string SimHostSubsys  = "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs";
 
@@ -249,6 +252,49 @@ namespace Hrot.SimHost.Tests
 
                 Assert.DoesNotContain("public void DisposeResources()", hostSrc);
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>CE-200 — CGF declares its role ONCE.</b>
+        ///
+        /// <para>📐 Measured before the change: <c>NodeRole.Brain</c> was spelled in THREE places —
+        /// <c>CgfSubsystem</c>'s <c>WithRole</c>, its <c>ConfigureForNode</c>, and
+        /// <c>CgfApplication</c>'s. That is the drift <c>CE-197</c> measured on SimHost, where the
+        /// copies had already diverged from what the node actually composed.</para>
+        /// </summary>
+        [Fact]
+        public void CgfDeclaresItsRoleOnce()
+        {
+            var src = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(CgfRoot));
+
+            // Exactly one spelling survives: the constant's own initializer.
+            Assert.Contains("public const NodeRole DefaultRole = NodeRole.Brain", src);
+            Assert.Single(System.Text.RegularExpressions.Regex.Matches(src, "NodeRole[.]Brain"));
+            Assert.Contains("DefaultRole)", src);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-200 — the root composes from the RESOLVED SET, not a hand-written block.</b>
+        ///
+        /// <para>⛔ The old block built the togglable groups straight off
+        /// <c>cgfLogicPack.InputSystems</c> and registered two modules inline. Re-introducing either
+        /// would put CGF back off the seam while everything still compiled and ran — the failure mode
+        /// this rail exists for.</para>
+        /// </summary>
+        [Fact]
+        public void CgfComposesFromTheResolvedCapabilitySet()
+        {
+            var src = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(CgfRoot));
+
+            Assert.Contains("new NodeCompositionPlan()", src);
+            Assert.Contains("capability.ProvideModules()", src);
+            Assert.Contains("capability.PopulateSystems(", src);
+
+            // ⛔ The groups must be built from the POPULATED lists, never from the pack directly.
+            Assert.DoesNotContain("cgfLogicPack.InputSystems", src);
+            Assert.DoesNotContain("cgfLogicPack.SimulationSystems", src);
         }
 }
 }

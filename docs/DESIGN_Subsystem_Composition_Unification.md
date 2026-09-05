@@ -27,8 +27,12 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   would have silently dropped EngineBackedNavigationModule + EqsModule. The declaration was made true (one
   SimHostApp.DefaultRole, replacing THREE copies) and PostInitialize is now guarded on the resolved set.
   ⛔ REMAINING IN B4b, measured 2026-09-05:
-    (a) CGF, Stride and the editor are UNTOUCHED. 🔒 User ruling 2026-09-05: STRIDE IS LAST — CGF and the
-        editor first — and Stride needs Windows, unverifiable from this environment.
+    (a) ✅ CGF IS ON THE CAPABILITY SEAM as of CE-200 (§4.1x) — all three CLUSTER hosts now resolve
+        their units from a NodeCompositionPlan. ⛔ CGF is deliberately NOT on SharedApplicationBootstrapper:
+        §4.1j marks node-bootstrap adoption "optional, LAST" because it is the only phase touching
+        orchestration/participant/time authority. The two axes are orthogonal and CGF is the case that
+        proves it. Still untouched: the EDITOR (neither axis) and STRIDE.
+        🔒 User ruling 2026-09-05: STRIDE IS LAST — and Stride needs Windows, unverifiable from here.
     (b) ✅✅ RESOLVED 2026-09-05 by CE-199 — SUPERSEDED, see §4.1w. This entry said Allocate was BLOCKED
         (NodeBootValues.Set refuses writes outside a declaring step). That diagnosis was right, and the
         fix was the one it named: the SHARED BASE now owns a `node-resources` step that declares the keys.
@@ -5305,3 +5309,98 @@ asserted that *SimHost's own source* contains `DisposeResources` — it pinned a
 Moving the loop to the base made it red. ⇒ ⭐ it now asserts the **INVARIANT**: the base has exactly one
 implementation and **neither host restates it**. The old form would have stayed green while a third host
 grew a fourth copy.
+
+---
+
+## ⭐⭐⭐ §4.1x — **CE-200: HOST (c) — CGF COMPOSES FROM THE CAPABILITY SEAM** *(as-built, `2026-09-05`)*
+
+⭐⭐ **All three cluster hosts are now on the capability axis:** SimHost (§4.1s), IG (§4.1t), CGF (here).
+
+### ⛔⛔ WHAT THIS IS NOT — **and the distinction is the design's own**
+
+🔒 §4.1j's phase table marks **node-bootstrap adoption** *"optional, LAST"* — *"the only phase touching
+orchestration/participant/time authority, i.e. what §3.1 says not to move blindly."*
+⇒ ⭐⭐⭐ **CGF does NOT adopt `SharedApplicationBootstrapper` here.** The **capability axis is orthogonal
+to the bootstrapper**: `NodeCompositionPlan` needs only a role and the capability instances, so a host
+with its own inline ECS root can take it without touching its boot sequence at all. ⭐ CGF keeps its
+`NodeBootPlan` head and its inline tail; only the *unit selection* moves.
+
+⚠ **That orthogonality was not obvious and is worth stating:** the previous entries in this series moved
+hosts that were *already* on the base, so "onto the seam" and "onto the bootstrapper" looked like one
+step. **They are two**, and CGF is the case that separates them.
+
+### ⭐ The as-built
+
+```mermaid
+classDiagram
+    class INodeCapability {
+        <<interface>>
+        +Key string
+        +Needs IReadOnlyList~string~
+        +PopulateSystems(ctx, input, sim, postSim)
+        +ProvideModules() IEnumerable~IEcsModule~
+        +Register(ctx, values)
+    }
+    class CgfCapabilities_Brain {
+        -CgfLogicPack _logicPack
+        +Key = cap:brain
+        +Needs = empty
+        +ProvideModules() BehaviorDiagnosticsModule then CgfLogicPack
+        +PopulateSystems(...) pack InputSystems and SimulationSystems
+    }
+    class CgfSubsystem {
+        +DefaultRole = NodeRole.Brain
+        -IReadOnlyList~INodeCapability~ _capabilities
+    }
+    class CgfLogicPack {
+        +InputSystems IReadOnlyList
+        +SimulationSystems IReadOnlyList
+    }
+    INodeCapability <|.. CgfCapabilities_Brain
+    CgfSubsystem --> CgfCapabilities_Brain : resolves via NodeCompositionPlan
+    CgfCapabilities_Brain --> CgfLogicPack : injected, not constructed
+```
+
+```mermaid
+sequenceDiagram
+    participant Root as CgfSubsystem.Initialize
+    participant Plan as NodeCompositionPlan
+    participant Cap as CgfCapabilities.Brain
+    participant Kernel as ModuleHostKernel
+
+    Root->>Root: build CgfLogicPack
+    Root->>Plan: Capability(DefaultRole, new Brain(pack))
+    Root->>Plan: Resolve(DefaultRole)
+    Plan-->>Root: capabilities
+    loop per capability
+        Root->>Cap: ProvideModules()
+        Cap-->>Root: BehaviorDiagnosticsModule, CgfLogicPack
+        Root->>Kernel: RegisterModule(each)
+    end
+    loop per capability
+        Root->>Cap: PopulateSystems(ctx, input, sim, postSim)
+    end
+    Root->>Root: refuse if postSim is non-empty
+    Root->>Kernel: RegisterGlobalSystem(TogglableInputGroup(input))
+    Root->>Kernel: RegisterModule(CgfSimulationModule(sim))
+```
+
+### ⭐ What changed, and what deliberately did not
+
+| | |
+|---|---|
+| ⭐⭐ **the role is declared ONCE** | `CgfSubsystem.DefaultRole`. 📐 It was spelled **three times** — `WithRole`, `ConfigureForNode`, and `CgfApplication`'s — the same drift `CE-197` measured on SimHost, where the copies had already diverged from what the node composed |
+| ⭐⭐ **units come from `Resolve(DefaultRole)`** | ⛔ not a hand-written block. Declaration and composition can no longer disagree |
+| ⭐⭐ **a post-simulation contribution is REFUSED, not dropped** | CGF builds no post-sim group; a capability contributing one would have its systems silently discarded. The root throws, naming the count |
+| ⛔ **`CgfLogicPack` is INJECTED into the capability** | the capability declares WHAT the Brain contributes; the root still decides HOW the pack is built. That also keeps `ScenarioSource` reachable for the load handlers |
+| ⛔ **no bootstrapper adoption, no reordering, no ECS host declared** | the §4.1M units and the boot tail are untouched |
+
+### ✅ Verified
+
+| gate | result |
+|---|---|
+| `Hrot.SimHost.Tests` | **895 / 1** *(was 889; +6 rails)* — the red is the baselined `FullBranchPipelineTests` flake |
+| red-proof | reverting the root reddens both source rails, **and** the four behavioural rails no longer compile *(`DefaultRole` is gone)* |
+| ⭐⭐ **live 4-process cluster, `hill-attack-close`** | module order verbatim — `…NedReplication, **BehaviorDiagnostics, CgfLogicPack**, CgfSimulation…` · `WeaponFireRequest` 8→5 · `WeaponFire` 5→5 · `EntityHitDamage` 5→5 · `EntityDamage` 9→9 to IG · hostile 1007 **0/50** · 8 engagements, 3 waves · **zero errors on all three nodes** |
+
+⚠ **1006 read `25/50` at the sample instant — mid-fight, not a defect.** The run was cut at 75 s.

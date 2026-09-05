@@ -80,6 +80,27 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private NetworkEntityMap? _entityMap;
 
     /// <summary>
+    /// ⭐⭐⭐ <b>The ONE declaration of what this node is.</b> <c>CE-200</c>: CGF used to spell
+    /// <c>NodeRole.Brain</c> in three separate places, which is the same drift <c>CE-197</c> measured
+    /// on SimHost — three copies of a role, free to disagree with what the node actually composes.
+    /// </summary>
+    /// <remarks>
+    /// ⛔ A node's role is a fact about the node, not a parameter each call site restates. The
+    /// capability plan below resolves against THIS, so the declaration and the composition cannot
+    /// drift apart — and a source rail pins that the constant is the only spelling.
+    /// </remarks>
+    public const NodeRole DefaultRole = NodeRole.Brain;
+
+    /// <summary>
+    /// The capabilities <see cref="DefaultRole"/> resolves to (<c>B4b</c> step 2, host (c)).
+    /// </summary>
+    /// <remarks>
+    /// ⛔ Resolution order is registration order is EXECUTION order — see <c>CgfCapabilities</c>.
+    /// </remarks>
+    private IReadOnlyList<INodeCapability> _capabilities =
+        System.Array.Empty<INodeCapability>();
+
+    /// <summary>
     /// ⭐⭐⭐ <c>CE-046</c> (Axis-C <b>E1</b>) — <b>the SAME scenario session the editor runs, over CGF's own
     /// world and orchestration bus.</b> 📄 <c>docs/DESIGN_Cgf_Scenario_Session_Slice.md</c> §3 ③.
     ///
@@ -604,7 +625,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             SubsystemName       = "CGF",
         };
         _context = new HrotNodeBuilder(nodeConfig)
-            .WithRole("CgfNode", NodeRole.Brain)
+            .WithRole("CgfNode", DefaultRole)
             .WithNetworkFactory(_networkFactory)
             .Build();
 
@@ -688,7 +709,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 run: v =>
             {
         var behaviorRegistry = v.Get<BehaviorRegistry>("behavior-registry");
-        var nodeFactory = _networkFactory?.ConfigureForNode(Ctx, NodeRole.Brain, behaviorRegistry);
+        var nodeFactory = _networkFactory?.ConfigureForNode(Ctx, DefaultRole, behaviorRegistry);
                 v.Set("node-factory", nodeFactory);
             })
 
@@ -808,12 +829,45 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         mapperRegistry.Register(new HullDownAttackMapper());
         var cgfLogicPack = new CgfLogicPack(behaviorRegistry, _entityMap, _scenarioSource,
             mapperRegistry);
-        _context.Kernel.RegisterModule(new BehaviorDiagnosticsModule());
-        _context.Kernel.RegisterModule(cgfLogicPack);
+
+        // ⭐⭐⭐ B4b step 2, HOST (c) — CGF's units come from a DECLARED PLAN, not a hand-written block.
+        //    📄 §4.1x. SimHost was host (a), IG host (b); this is the third and last cluster host.
+        //
+        // ⛔ NOT a bootstrapper adoption. §4.1j's phase table marks node-bootstrap adoption "optional,
+        //    LAST" because it is the only phase touching orchestration/participant/time authority. The
+        //    CAPABILITY axis is orthogonal and needs nothing from SharedApplicationBootstrapper, so this
+        //    host keeps its own inline ECS root and calls the hooks itself.
+        //
+        // ⚠ BEHAVIOUR-PRESERVING BY CONSTRUCTION: resolution order is registration order is EXECUTION
+        //   order, so the sequence below reproduces the previous block exactly —
+        //   BehaviorDiagnosticsModule, then the pack, then the two groups built from the pack's lists.
+        _capabilities = new NodeCompositionPlan()
+            .Capability(CgfSubsystem.DefaultRole, new CgfCapabilities.Brain(cgfLogicPack))
+            .Resolve(CgfSubsystem.DefaultRole);
+
+        foreach (INodeCapability capability in _capabilities)
+            foreach (IEcsModule module in capability.ProvideModules())
+                _context.Kernel.RegisterModule(module);
 
         // Execute the Brain systems every frame via two togglable phase groups.
-        _toggleInput = new TogglableInputGroup("CgfInput",           cgfLogicPack.InputSystems);
-        _toggleSim   = new TogglableSimulationGroup("CgfSimulation", cgfLogicPack.SimulationSystems);
+        var cgfInputSystems   = new List<IEcsModuleSystem>();
+        var cgfSimSystems     = new List<IEcsModuleSystem>();
+        var cgfPostSimSystems = new List<IEcsModuleSystem>();
+
+        foreach (INodeCapability capability in _capabilities)
+            capability.PopulateSystems(_context, cgfInputSystems, cgfSimSystems, cgfPostSimSystems);
+
+        // ⛔⛔ CGF builds NO post-simulation group. A capability contributing one would have its systems
+        //    SILENTLY DROPPED — refuse instead, naming the count. Every defect this design chased was
+        //    silent; an unregistered system is exactly that shape.
+        if (cgfPostSimSystems.Count > 0)
+            throw new InvalidOperationException(
+                $"A CGF capability contributed {cgfPostSimSystems.Count} post-simulation system(s), but " +
+                "CgfSubsystem builds only an input and a simulation group. Add a post-simulation group " +
+                "here before a capability declares one — do not let the systems be dropped.");
+
+        _toggleInput = new TogglableInputGroup("CgfInput",           cgfInputSystems);
+        _toggleSim   = new TogglableSimulationGroup("CgfSimulation", cgfSimSystems);
 
         _context.Kernel.RegisterGlobalSystem(_toggleInput);
         _context.Kernel.RegisterModule(new CgfSimulationModule(_toggleSim));

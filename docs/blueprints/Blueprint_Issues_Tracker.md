@@ -2378,3 +2378,25 @@ whenever the finding is "the sim did not do the impressive thing".**
   ✅✅ **LIVE, 4-process cluster, `hill-attack-close`** — the verification a shared-base BOOT change actually needs: `WeaponFire` **7→7** · `MunitionDetonation` **9→9** · `EntityHitDamage` **9→8** · `EntityDamage` **10→10** · **both hostiles `0/50` on Brain AND IG** · 10 engagements · 4 waves · ⛔ **zero errors and zero `BootDependencyException`** — precisely what a wrong step declaration produces.
 
   📄 Design fold-back *(obligation ⑤)*: [`DESIGN_Subsystem_Composition_Unification.md` §4.1w](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md) carries the as-built `classDiagram` + `sequenceDiagram`; the STATUS block's item (b) *("Allocate is BLOCKED")* and §4.1j's `Allocate(world)` sequence line are both marked **SUPERSEDED** by it.
+
+---
+
+- [x] **CE-200** · `RW-M` ⭐⭐⭐ — **HOST (c): CGF COMPOSES FROM THE CAPABILITY SEAM — ALL THREE CLUSTER HOSTS ARE NOW ON IT.** *(user: "return to unification" — item 2 of the picked order)*
+
+  ⛔⛔ **AND IT SEPARATES TWO THINGS THIS SERIES HAD BEEN TREATING AS ONE.** 🔒 §4.1j's phase table marks **node-bootstrap adoption** *"optional, LAST"* — *"the only phase touching orchestration/participant/time authority, i.e. what §3.1 says not to move blindly."* ⇒ ⭐⭐⭐ **CGF does NOT adopt `SharedApplicationBootstrapper` here.** The capability axis needs only a role and the capability instances, so a host with its own inline ECS root takes it **without touching its boot sequence at all.** ⚠ The earlier hosts were already on the base, so *"onto the seam"* and *"onto the bootstrapper"* looked like one step. **They are two, and CGF is the case that separates them.**
+
+  | what changed | |
+  |---|---|
+  | ⭐⭐ **the role is declared ONCE** | `CgfSubsystem.DefaultRole`. 📐 It was spelled **three times** — `WithRole`, `ConfigureForNode`, and `CgfApplication`'s — the same drift [`CE-197`](Blueprint_Issues_Tracker.md) measured on SimHost, where the copies had **already diverged** from what the node composed |
+  | ⭐⭐ **units come from `Resolve(DefaultRole)`** | ⛔ not a hand-written block ⇒ declaration and composition can no longer disagree |
+  | ⭐⭐ **a post-simulation contribution is REFUSED, not dropped** | CGF builds no post-sim group; a capability contributing one would have its systems **silently discarded**. The root throws, naming the count — the S2b habit |
+  | ⛔ **`CgfLogicPack` is INJECTED, not constructed in the capability** | the capability declares WHAT the Brain contributes; the root still decides HOW the pack is built. ⭐ That also keeps `ScenarioSource` reachable for the load handlers |
+  | ⭐ **`Needs` is empty, measured not assumed** | the pack takes a behaviour registry, entity map, scenario source and mapper registry — no pool, no grid. The trajectory pool belongs to `MuscleGround`, and [`CE-199`](Blueprint_Issues_Tracker.md)'s cross-check makes a future `Need` loud |
+
+  ⭐ **Rails — into CGF's own suites (`R-142` ④):** `CgfLogicPackTests` **+4** *(module order verbatim; both phase lists; the Brain key with empty `Needs`; a role without Brain resolves nothing)* · `NodeRolePersistenceRails` **+2** *(the role is declared once; the root composes from the resolved set)*. ⭐⭐ **Red-proof:** reverting the root reddens **both** source rails **and** the four behavioural rails no longer compile — `DefaultRole` is gone.
+
+  ⭐⭐ **Gates:** `Hrot.SimHost.Tests` **895/1** *(was 889/1; the red is the baselined `FullBranchPipelineTests` flake)* · CGF, ClusterRunner build clean · all 31 mermaid blocks parse.
+
+  ✅✅ **LIVE, 4-process cluster, `hill-attack-close`** — CGF is the Brain, so a composition mistake shows here first: module order **verbatim** *(`…NedReplication, BehaviorDiagnostics, CgfLogicPack, CgfSimulation…`)* · `WeaponFireRequest` **8→5** · `WeaponFire` **5→5** · `EntityHitDamage` **5→5** · `EntityDamage` **9→9** to IG · hostile 1007 **`0/50`** · 8 engagements · 3 waves · ⛔ **zero errors on all three nodes**. ⚠ 1006 read `25/50` at the sample instant — **mid-fight, not a defect**; the run was cut at 75 s.
+
+  📄 Design fold-back *(obligation ⑤)*: [`DESIGN_Subsystem_Composition_Unification.md` §4.1x](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md) carries the as-built `classDiagram` + `sequenceDiagram`; the STATUS block's item (a) *("CGF … UNTOUCHED")* is updated, and now names the editor and Stride as the only hosts left.

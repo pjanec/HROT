@@ -319,5 +319,82 @@ namespace Hrot.SimHost.Tests
             // Total systems across both phases equals 21 (2 input + 19 sim) — see the note above.
             Assert.Equal(21, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
+
+        // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────
+        //
+        // ⭐⭐ These pin the SEQUENCE, because resolution order is registration order is EXECUTION
+        // order (ModuleHostKernel.RegisterModule appends to a plain list the frame loop walks). A
+        // switchover from a hand-written block is behaviour-preserving only if the order matches.
+
+        private static CgfLogicPack NewPack()
+            => new CgfLogicPack(
+                new BehaviorRegistry(),
+                new NetworkEntityMap(),
+                new ScenarioEntityCreationRequestSource(),
+                new TacticalIntentMapperRegistry());
+
+        private static System.Collections.Generic.IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability>
+            ResolveBrain(CgfLogicPack pack)
+            => new Hrot.Common.Infrastructure.NodeCompositionPlan()
+                .Capability(CgfSubsystem.DefaultRole, new CgfCapabilities.Brain(pack))
+                .Resolve(CgfSubsystem.DefaultRole);
+
+        [Fact]
+        public void BrainCapability_ProvidesModules_InTheOrderTheRootRegisteredThemByHand()
+        {
+            var pack = NewPack();
+            var modules = new System.Collections.Generic.List<IEcsModule>();
+            foreach (var capability in ResolveBrain(pack))
+                modules.AddRange(capability.ProvideModules());
+
+            // Verbatim from the block this replaced: diagnostics first, then the pack.
+            Assert.Equal(2, modules.Count);
+            Assert.IsType<BehaviorDiagnosticsModule>(modules[0]);
+            Assert.Same(pack, modules[1]);
+        }
+
+        [Fact]
+        public void BrainCapability_HandsOutBothPhaseLists_AndContributesNoPostSimulationSystem()
+        {
+            var pack    = NewPack();
+            var input   = new System.Collections.Generic.List<IEcsModuleSystem>();
+            var sim     = new System.Collections.Generic.List<IEcsModuleSystem>();
+            var postSim = new System.Collections.Generic.List<IEcsModuleSystem>();
+
+            foreach (var capability in ResolveBrain(pack))
+                capability.PopulateSystems(null!, input, sim, postSim);
+
+            Assert.Equal(pack.InputSystems,      input);
+            Assert.Equal(pack.SimulationSystems, sim);
+
+            // ⛔ CGF builds NO post-simulation group. If this ever stops being empty the root throws
+            //    rather than dropping the systems — this rail says the root's guard is not dead code.
+            Assert.Empty(postSim);
+        }
+
+        [Fact]
+        public void BrainCapability_DeclaresTheBrainKey_AndNeedsNoSharedResource()
+        {
+            var capability = Assert.Single(ResolveBrain(NewPack()));
+
+            Assert.Equal(Hrot.Common.Infrastructure.CapabilityKeys.Brain, capability.Key);
+
+            // ⭐ Measured, not assumed: the pack takes a behaviour registry, an entity map, a scenario
+            //   source and a mapper registry — no pool, no grid. The trajectory pool belongs to
+            //   MuscleGround. CE-199's cross-check makes a future Need loud rather than silent.
+            Assert.Empty(capability.Needs);
+        }
+
+        [Fact]
+        public void ARoleWithoutBrain_ResolvesNoCapability()
+        {
+            // The selection must actually SELECT — a plan returning its declarations regardless of role
+            // would make the flags decorative, which is the defect CE-197 measured on SimHost.
+            var resolved = new Hrot.Common.Infrastructure.NodeCompositionPlan()
+                .Capability(CgfSubsystem.DefaultRole, new CgfCapabilities.Brain(NewPack()))
+                .Resolve(NodeRole.ImageGenerator);
+
+            Assert.Empty(resolved);
+        }
     }
 }
