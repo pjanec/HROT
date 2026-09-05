@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Combat.Components;
 using System;
 using System.Numerics;
 using System.Reflection;
@@ -27,7 +28,7 @@ namespace Hrot.IG.Tests.Gizmos
             _repo.RegisterComponent<SimTransform>();
             _repo.RegisterComponent<NetworkIdentity>();
             _repo.RegisterComponent<CullingState>();
-            _repo.RegisterComponent<IgHealthState>();
+            _repo.RegisterComponent<Health>();
             _repo.RegisterComponent<VehicleParams>();
             _repo.RegisterComponent<VisualEffectState>();
             _repo.RegisterComponent<TracerTarget>();

@@ -146,7 +146,15 @@ public class IgEntityData
 `EntityInfoTranslator` maps `EntityInfo.Name`, `EntityInfo.ForceIdentifier`, and
 `EntityInfo.CommanderId` into an `IgEntityData` instance and issues `UpdateEntityCommand`.
 
-### 3.6 IG — IgHealthState (New Internal Component)
+### 3.6 IG — IgHealthState (New Internal Component) ⛔ SUPERSEDED 2026-09-05 (CE-196)
+
+> ⛔⛔ **`IgHealthState` IS DELETED.** It was a render-only cache holding a damage percentage computed
+> against the SENDER's `Max`, while every receiver kept its own TKB-seeded one — so the nodes disagreed
+> about the same entity (measured: `50/50` on the Brain, `3000/3000` on IG). The `EntityDamage`
+> descriptor now carries `Current`+`Max` and the ingress writes the real `Health` component; the health
+> bar and the style resolver derive the fraction themselves.
+> ⚠ Component id **165 is RESERVED, not freed** (`HrotComponentIds.RetiredIgHealthState`).
+> 📄 `Blueprint_Issues_Tracker.md` CE-196. The text below is HISTORY.
 
 A new ECS value component `IgHealthState` holds damage data the IG rendering needs:
 

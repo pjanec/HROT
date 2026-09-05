@@ -27,7 +27,24 @@ namespace Hrot.NED.Descriptors
 
 
 
-    // Overall damage level of the whole entity
+    // The authoritative node's Health for the whole entity.
+    //
+    // ⭐⭐⭐ CARRIES Current AND Max — NOT A PRECALCULATED PERCENTAGE.
+    //    🔒 User ruling, 2026-09-05: "Max Health (== Max Damage) ... is usually selectable in scenario
+    //    and TKB should be just a fallback if not set in scenario, so having both Max and Current makes
+    //    sense as ECS component AND network descriptor, no precalculated percentages."
+    //
+    // ⛔ WHY Max MUST TRAVEL, and it is the whole reason this descriptor changed.
+    //    `Health` is seeded per-node by CombatTkbTranslator:40 from the TKB platform definition, and a
+    //    scenario-authored override (hill-attack sets {50,50}) exists ONLY on the node that loaded the
+    //    scenario. 📐 Measured 2026-09-05 on a live --mode all: entity 1006 read Health 50/50 on CGF
+    //    (the Brain, which applies damage) and 3000/3000 on SimHost and IG. ⇒ a percentage computed
+    //    against a per-node Max is meaningless across nodes; shipping the pair makes the receiver's copy
+    //    identical to the authority's by construction.
+    //
+    // ⚠ The topic and descriptor ordinal keep the historical `EntityDamage` name so the wire identity
+    //   (dtEntityDamage = 30) is unchanged. The PAYLOAD is health, not damage.
+    // 📄 docs/designs/brain-split/BS-1-DESIGN.md §6.5 · Blueprint_Issues_Tracker CE-196.
     [DdsTopic("EntityDamage")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
@@ -37,8 +54,11 @@ namespace Hrot.NED.Descriptors
         [DdsKey]
         public int EntityId;
 
-	    public float Damage; // total damage level of the whole entity 0=healthy, 100 = fully destroyed/dead
+        /// <summary>Current hit points on the authoritative node. 0 = destroyed.</summary>
+        public float Current;
 
+        /// <summary>Maximum hit points — the scenario's value when it authored one, else the TKB default.</summary>
+        public float Max;
     }
 
     // ── Navigation CQRS descriptors (MOD1-P1T1) ──────────────────────────────

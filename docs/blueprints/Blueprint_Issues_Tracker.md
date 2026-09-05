@@ -2214,3 +2214,30 @@ whenever the finding is "the sim did not do the impressive thing".**
   ⚠ **A minor instrument defect found en route, NOT filed as its own row:** the **IG** perspective reports `entityCount: 9` and lists a `networkId: 0` that `GET /entities/0` answers **404** on; its `simTime`/`timeScale`/`isPaused` are all `null`. Both are cosmetic for a presentation node, but the listing promises an entity the read cannot deliver.
 
   📄 Design: [`DESIGN_Subsystem_Composition_Unification.md` §4.1u](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md) · owning rows [`CE-167`](Blueprint_Issues_Tracker.md) and [`CE-174`](Blueprint_Issues_Tracker.md)
+
+---
+
+- [x] **CE-196** · `RW-M` ⭐⭐⭐ — **ONE HEALTH, EVERYWHERE: `IgHealthState` IS DELETED AND `EntityDamage` CARRIES `Current`+`Max`.** *(user: "delete IgHealthState, extend EntityDamage" · "having both Max and Current makes sense as ECS component AND network descriptor, no precalculated percentages")*
+
+  📐 **The defect, measured on a live `--mode all`:** entity 1006 read `Health 50/50` on CGF *(the Brain, which applies damage and holds the scenario's authored value)* and **`3000/3000` on IG and SimHost** *(the TKB platform default, seeded by `CombatTkbTranslator:40`)*. ⭐ The scenario's `{Current:50, Max:50}` override lives only on the node that loaded the scenario, and **nothing on the wire carried `Health`** — descriptor 30 shipped a **precomputed damage percentage** into an IG-only cache, `IgHealthState {float Damage}`.
+
+  ⛔⛔ **Why the percentage was the real bug, not just a duplicate.** It was computed as `(1 − Current/Max) × 100` against the **SENDER's** `Max`, while the receiver kept its own. Two nodes therefore disagreed about the same entity, and IG could never show absolute HP at all. ⚠ **And `IgHealthState` was NOT IG-only:** `PresentationComponentRegistry` registers it, and that registry is reached by **Stride, CGF, SimHost AND the editor** — four call sites. Every presentation host carried the cache.
+
+  | | |
+  |---|---|
+  | ⭐ **descriptor** | `EntityDamage` (ordinal 30, topic name unchanged) now carries `Current` + `Max` instead of `Damage`. ⭐⭐ **Only the C# struct was edited** — the IDL and marshalling are generated (`obj/…/CycloneDdsGenerated/Hrot.NED.Descriptors.EntityDamage.g.cs`) |
+  | ⭐ **egress** | publishes the pair verbatim; the change-gate now compares **both** fields |
+  | ⭐ **ingress** | writes the real `Health` component, overwriting the TKB seed |
+  | ⭐ **consumers derive their own fraction** | `HealthBarGizmo` *(now `[GizmoProjector(typeof(Health))]`)* · `StyleResolutionSystem` · `ContextMenuProjectorGizmo` · `EntityPresentationGizmo` |
+  | ⭐ **`PresentationComponentRegistry`** | registers `Health` where it registered `IgHealthState`, so all four hosts can still read what the bar projects |
+  | ⛔ **deleted** | `IgHealthState.cs`, `IgHealthStateTests.cs`. ⚠ **id 165 is RESERVED, not freed** (`RetiredIgHealthState`) — reusing it would silently mis-decode persisted or recorded data |
+
+  ⭐⭐ **The late-joiner hazard does not exist, and that is measured, not assumed:** the topic is `[DdsQos(Durability = TransientLocal, HistoryKind = KeepLast, HistoryDepth = 1)]` keyed on `EntityId` (`SimDescriptors.cs:31-33`), so a ghost created after the authority's last change still receives the last sample per entity.
+
+  ✅✅✅ **PROVEN LIVE** — `--mode all`, `hill-attack-close`, all six combatants: **IG reads `50/50`, identical to CGF**, where it read `3000/3000` before. ⚠ SimHost still reads `3000/3000` and that is **correct and unchanged**: it is the Muscle, it does not ingest descriptor 30, and 📐 measured — **nothing in `Hrot.SimHost` reads `Health`** *(every production reader — `HealthApplicationSystem`, `MissionDirectorSystem:151`, `StandardInputs`, `SquadInputs` — runs on the Brain)*.
+
+  ⭐⭐ **Rails:** `EntityDamageTranslatorTests` *(2, rewritten: the pair arrives verbatim)* · `EntityDamageEgressTranslatorTests` *(SC-1 rewritten + **1 NEW**)*. ⭐⭐⭐ **The new rail is `ScanAndPublish_Republishes_WhenOnlyMaxChanges`, and it is the only one that can catch its own defect** — SC-1 changes both fields at once and SC-2 changes neither, so a gate that regressed to comparing `Current` alone would pass both. **Red-proof (inverse edit, rebuilt): dropping `&& prev.Max == max` reddens exactly that rail, 3 others green.**
+
+  ⛔ **Deliberately NOT widened.** `WeaponState.MuzzleVelocity` (CGF 3000 / SimHost 1500), `MaxAmmo` (0/42) and `VehicleParams.MaxSpeedRev` (8/12) diverge the same way. 🔒 **User ruling, 2026-09-05:** those are *"calculation model params that come fixed from TKB and every node gets them from TKB so no runtime network publishing necessary"* ⇒ ⚠ **the divergence there is a SCENARIO-DATA defect** *(`hill-attack/scenario.json` overrides `MuzzleVelocity`, which by that rule it should not)*, **not a missing wire.** ⭐ Max health is the exception the ruling names: *"usually selectable in scenario and TKB should be just a fallback if not set"*.
+
+  📄 Design: [`BS-1-DESIGN.md` §6.4/§6.5](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/brain-split/BS-1-DESIGN.md) *(both corrected: §6.5's "SimHost → IG" heading was wrong — the publisher is the AUTHORITY, measured as CGF; §6.4's "`HealthData` mirror" no longer exists)* · [`dds-to-ecs/DESIGN.md` §3.6](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/dds-to-ecs/DESIGN.md) *(marked SUPERSEDED)*

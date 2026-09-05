@@ -51,7 +51,16 @@ public static class PresentationComponentRegistry
         world.RegisterComponent<SelectionState>();
         world.RegisterManagedComponent<EditablePolyline>();
         world.RegisterComponent<MapOverlayStyle>();
-        world.RegisterComponent<IgHealthState>();
+        // ⭐⭐⭐ CE-196 — this used to register `IgHealthState`, a render-only cache holding a precomputed
+        //    damage percentage. It is GONE; `Health` takes its place so every presentation host can read
+        //    the SAME component the authority owns, and `HealthBarGizmo`/`StyleResolutionSystem` derive
+        //    the fraction themselves. 🔒 User ruling, 2026-09-05: "no precalculated percentages".
+        // ⚠ Registering it HERE matters: this registry is reached by Stride, CGF, SimHost AND the editor
+        //   (four call sites), so the cache existed on every presentation host — not only IG. Dropping it
+        //   without putting `Health` in its place would leave `HealthBarGizmo` projecting a component
+        //   those hosts never registered. ⭐ The call is idempotent (GetOrCreate), so hosts that already
+        //   register `Health` through their combat registry are unaffected.
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
         world.RegisterManagedEvent<Hrot.Common.TogglePerspectiveEvent>();
         world.RegisterEvent<Hrot.Common.Events.WorldResetEvent>();
         world.RegisterEvent<Hrot.Common.Events.OpenRenameDialogCommand>();

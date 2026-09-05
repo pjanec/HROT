@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Combat.Components;
 using System;
 using System.Numerics;
 using System.Reflection;
@@ -41,7 +42,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             _repo.RegisterComponent<SimTransform>();
             _repo.RegisterComponent<NetworkIdentity>();
             _repo.RegisterComponent<CullingState>();
-            _repo.RegisterComponent<IgHealthState>();
+            _repo.RegisterComponent<Health>();
             _repo.RegisterComponent<VehicleParams>();
         }
 
@@ -90,7 +91,7 @@ namespace Hrot.Presentation.Tests.Gizmos
 
             Assert.NotNull(attr);
             Assert.DoesNotContain(typeof(CullingState), attr!.RequiredComponents);
-            Assert.DoesNotContain(typeof(IgHealthState), attr!.RequiredComponents);
+            Assert.DoesNotContain(typeof(Health), attr!.RequiredComponents);
             Assert.Equal(2, attr!.RequiredComponents.Length);
         }
 
@@ -235,7 +236,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         public void Draw_WithHighDamage_SetsTheDamagedConditionBit()
         {
             var entity = Spawn(5L, new Vector3(10f, 20f, 0f));
-            _repo.AddComponent(entity, new IgHealthState { Damage = 75f });
+            _repo.AddComponent(entity, new Health { Current = 25f, Max = 100f });
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);
@@ -254,7 +255,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         public void Draw_WithSevereDamage_SetsBothConditionBits()
         {
             var entity = Spawn(6L, new Vector3(10f, 20f, 0f));
-            _repo.AddComponent(entity, new IgHealthState { Damage = 95f });
+            _repo.AddComponent(entity, new Health { Current = 5f, Max = 100f });
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);
@@ -269,7 +270,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         public void Draw_WithNoHealthState_EmitsAZeroConditionMask()
         {
             var entity = Spawn(8L, new Vector3(10f, 20f, 0f));
-            Assert.False(_repo.HasComponent<IgHealthState>(entity));
+            Assert.False(_repo.HasComponent<Health>(entity));
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);

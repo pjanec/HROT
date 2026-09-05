@@ -4,6 +4,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.IG.Components;
+using Fdp.Toolkit.Combat.Components;
 
 namespace Hrot.ScenarioEditor.Gizmos
 {
@@ -96,13 +97,22 @@ namespace Hrot.ScenarioEditor.Gizmos
             // ⭐ CGF's copy omitted the pick box, so CGF entities could not be picked at all (CE-126b).
             EntityPresentationGizmoShared.EmitPickBox(draw, entity, networkId, tf.Position);
 
-            // ── Condition: IG's damage states, now available to every host that produces IgHealthState. ──
+            // ── Condition: the damage states, now read off the replicated Health itself. ──
+            // ⭐ CE-196 — this used to read IgHealthState.Damage, a precomputed percentage. The
+            //   thresholds are still expressed as PERCENTAGES (DamagedThreshold / ImmobileThreshold),
+            //   so the fraction is converted here rather than the constants being rescaled — the
+            //   observable condition mask is unchanged.
+            // ⚠ Max <= 0 yields no condition bits rather than a division by zero.
             uint conditionMask = 0u;
-            if (view.HasComponent<IgHealthState>(entity))
+            if (view.HasComponent<Health>(entity))
             {
-                ref readonly var health = ref view.GetComponentRO<IgHealthState>(entity);
-                if (health.Damage >= DamagedThreshold)  conditionMask |= ConditionDamaged;
-                if (health.Damage >= ImmobileThreshold) conditionMask |= ConditionImmobile;
+                ref readonly var health = ref view.GetComponentRO<Health>(entity);
+                if (health.Max > 0f)
+                {
+                    float damagePct = (1f - health.Current / health.Max) * 100f;
+                    if (damagePct >= DamagedThreshold)  conditionMask |= ConditionDamaged;
+                    if (damagePct >= ImmobileThreshold) conditionMask |= ConditionImmobile;
+                }
             }
 
             EntityPresentationGizmoShared.TryGetVehicleDimensions(view, entity, out float length, out float width);

@@ -265,13 +265,27 @@ When `EntityHitDamage` is received:
 - `EntityHitDamageIngressTranslator` (on the authority node) deserialises the DDS message
   and publishes a local `DamageAssessedEvent`.
 - An entity-type-agnostic `HealthApplicationSystem` consumes the event, checks
-  `HasAuthority`, decrements `Health.Current`, updates the `HealthData` mirror, and strips
+  `HasAuthority`, decrements `Health.Current`, and strips
   `ActorCapabilities` if the entity is destroyed.
+
+> ⚠ **CORRECTED 2026-09-05.** This step said the system *"updates the `HealthData` mirror"*.
+> 📐 `HealthData` was **deleted** by `BUG2-A001`; only a reserved id remains in `GlobalComponentIds`.
+> The system has no mirror to update, and `MissionDirectorSystem.cs:150` says so in its own words.
 
 In the future, entity-type-specific damage modules can replace or override this system.
 See Task **BS1-T014**.
 
-### 6.5 EntityDamageEgressTranslator (SimHost → IG)
+### 6.5 EntityDamageEgressTranslator (authority node → IG)
+
+> ⚠⚠ **CORRECTED 2026-09-05 (CE-196).** This heading said *"SimHost → IG"*. 📐 Measured on a live
+> `--mode all`: the translator is **authority-gated** (`view.HasAuthority`), and the authority for
+> descriptor 30 is **CGF** — SimHost published **0** samples, CGF published all of them. The publisher is
+> whichever node owns the entity, which for `hill-attack` is the Brain.
+>
+> ⚠ **And the payload changed.** It no longer carries a precomputed 0–100 damage level; it carries
+> `Current` + `Max`, and each consumer derives its own fraction.
+> 🔒 User ruling, 2026-09-05: *"having both Max and Current makes sense as ECS component AND network
+> descriptor, no precalculated percentages."*
 
 A new `EntityDamageEgressTranslator` tracks dirty `Health` components and publishes
 `EntityDamage` DDS messages so the IG updates health bars. Registered in `SimHostApp.cs`.
