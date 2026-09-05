@@ -2282,3 +2282,43 @@ whenever the finding is "the sim did not do the impressive thing".**
   ⭐ **Gates:** `Hrot.SimHost.Tests` **889/1 × 4 consecutive runs** (893 total; `FullBranchPipelineTests` red 3/3 at baseline too) · `Hrot.IG.Tests` **410/5** (the 5 baselined translator reds) · `Hrot.NodeComposition.Tests` **47/0** · CGF, Editor, ClusterRunner, NodeComposition all build clean. ⚠ **`LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` failed 2 of 7 full runs with the change and 0 of 3 without** — but it is **green 4/4 in isolation with the change**, and the last 4 consecutive full runs were clean. ⇒ reported as an intermittent in the record/replay family (alongside `EcsRecordReplayControllerTests`, which flaked at baseline before this change), ⛔ **not claimed clean.**
 
   📄 Design: [`DESIGN_Subsystem_Composition_Unification.md` §4.1v](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md)
+
+---
+
+- [x] **CE-198** · `RW-M` 🔴🔴🔴 — **NOTHING COULD EVER BE KILLED, ON ANY TOPOLOGY: `FireProcessingSystem`'s `TD-6` AUTHORITY GATE IS FALSE BY CONSTRUCTION ON THE ONLY NODE THAT RUNS IT.** *(found while answering the user's "are you using hill-attack-close multi-node cluster to verify the last changes?")*
+
+  ⭐⭐⭐ **The kill chain stopped at its first step and said nothing.** The Brain ordered the shot, the order crossed DDS, the Muscle decoded it — and then `FireProcessingSystem` skipped every single intent.
+
+  📐 **Measured live, `hill-attack-close`, BOTH a 4-process cluster and `--mode all`:**
+
+  | link | measurement |
+  |---|---|
+  | commander orders the shot | ✅ **6× `"Engaging target"`**, `slots=3 spacing=20m`, **zero** `"Creep failed due to overshoot"` |
+  | `WeaponFireRequest`(80) crosses | ✅ CGF **sent 6–8** → SimHost **recv 5–6** |
+  | `FireProcessingSystem` is scheduled on the Muscle | ✅ `/diagnostics/architecture`: `FireProcessingSystem`, `HitResolutionSystem`, `BallisticsSystem`, `DamageCalculationSystem` — ⭐ on **exactly one** of three subsystems |
+  | 🔴 `WeaponFire`(81) · `MunitionDetonation`(82) · `EntityHitDamage`(83) | 🔴 **sent 0 · 0 · 0** |
+  | 🔴 hostile health after 6 engagements | 🔴 **`50/50`** — untouched |
+
+  🔴 **The cause, measured not guessed:** `NetworkAuthority.HasAuthority` is `PrimaryOwnerId == LocalNodeId`. On the **Muscle** every combatant reads **`{ HasAuthority: false, PrimaryOwnerId: -1, LocalNodeId: 1 }`** — because [`EntityMasterIngressTranslator.cs:147`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/Hrot/Network/Hrot.Network.NED/Replication/Map/Ingress/EntityMasterIngressTranslator.cs) **deliberately** stamps ghosts with the unknown-owner sentinel `-1`. On the **Brain** it reads `{ PrimaryOwnerId: 400, LocalNodeId: 400 }` ⇒ true. ⇒ ⭐⭐ **the gate passes only on the node that does not run the system.**
+
+  ✅✅✅ **CAUSATION PROVEN BY PROBE, not argued.** Gate disabled, same scenario, same 60 s:
+
+  | topic | with the gate | without it |
+  |---|---|---|
+  | `WeaponFire`(81) | **0** | ✅ **5 → 5** |
+  | `MunitionDetonation`(82) | **0** | ✅ **6 → 6** |
+  | `EntityHitDamage`(83) | **0** | ✅ **6 → 6** |
+  | `EntityDamage`(30) | 6 *(baseline only)* | ✅ **10** |
+  | hostiles 1006 / 1007 | `50/50` | ✅ **`0/50` on Brain AND on IG** |
+
+  ⭐ **The IG column is [`CE-196`](Blueprint_Issues_Tracker.md) *(one Health everywhere)* paying off** — the kill reaches the renderer with the authority's own numbers.
+
+  ⛔⛔ **The fix is NOT "make the Muscle the owner".** [`HealthApplicationSystem.cs:61`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/FDP/Toolkits/Fdp.Toolkits/Combat/Systems/HealthApplicationSystem.cs) applies damage behind that **same** flag on the Brain, and it worked in the probe run ⇒ **moving ownership would break damage application instead.** ⭐ [`BS-1-DESIGN.md` §2.1](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/brain-split/BS-1-DESIGN.md) settles it: *"Brain ── `WeaponFireIntent` ─► `WeaponFireRequest` ─► Muscle ── spawns bullet"* — **the Muscle executes the order; it is correctly not the owner.** ⇒ **the gate is simply the wrong predicate for this system and is removed**, with `TD-6`'s real concern — duplicate bullets from several nodes — left to the **composition**, which the capability seam ([`CE-194`](Blueprint_Issues_Tracker.md)/[`CE-197`](Blueprint_Issues_Tracker.md)) now enforces structurally.
+
+  ⚠⚠ **WHY ~8 000 TESTS STAYED GREEN — the shape the suite never built.** `FireProcessingSystemTests`' two `TD-6` rails hand-construct `NetworkAuthority` with `primaryOwnerId` **2** *(a KNOWN other owner)* and **1** *(self)*. ⛔ **Production on the Muscle produces neither — it produces `-1`.** ⇒ ⭐ this is `R-142` ③ verbatim: the suite was green while the feature was dead, and the fix went **into that suite**, not beside it.
+
+  ⭐⭐ **Rails — into the feature's own suite (`R-142` ④):** `FireProcessingSystemTests` **+2, −1 rewritten** — `FireProcessing_SpawnsBullet_ForAGhostShooterWithTheUnknownOwnerSentinel` *(the rail that would have caught this)*, `..._WhenAnotherNodeOwnsTheShooter`, and the self-owned case kept unchanged. ⭐⭐⭐ **Red-proof by INVERSE EDIT:** restoring the `TD-6` gate reddens **exactly those 2** and leaves the self-owned one green — `10/10 → 8/10 → 10/10`.
+
+  ⚠⚠ **A PRIOR CLAIM OF MINE IS NOW DOUBTFUL, stated plainly:** [`CE-195`](Blueprint_Issues_Tracker.md) and `§4.1s` recorded *"kills at `simTime 51.9` on `2026-09-04`"* under `--mode all`. 📐 **This run measured `--mode all` doing exactly what the cluster did — `WeaponFire` sent 0, no health change.** ⇒ ⛔ **the earlier kill observation was not re-reproducible and should not be relied on.** ⭐ I predicted `--mode all` WOULD kill (locally-created entities having real authority) and **the measurement refuted it** — the Muscle kernel holds ghosts even in one process.
+
+  📄 Design fold-back *(obligation ⑤)*: [`BS-1-DESIGN.md` §5.4a](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/brain-split/BS-1-DESIGN.md) carries the as-built correction and marks `TD-6`'s gate superseded; §4.3 and §6.4's authority guards are explicitly **unchanged and correct** — the authority rule governs *who applies damage*, never *who executes a shot*.

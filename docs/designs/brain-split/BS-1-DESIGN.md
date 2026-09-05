@@ -216,6 +216,43 @@ a local `WeaponFireIntent` into the Muscle's ECS event bus. See Task **BS1-T006*
 `WeaponFireIntent` (the same struct regardless of origin) and, after spawning the bullet, also
 publishes a `WeaponFireNotification` event. See Task **BS1-T007**.
 
+#### ⛔⛔⛔ 5.4a — CE-198: **`FireProcessingSystem` MUST NOT gate on `NetworkAuthority`** *(as-built correction, `2026-09-05`)*
+
+⚠ **`TD-6` (`BS-1-BATCH-04`) added exactly such a gate** — *"only spawns bullets if the node is
+authoritative over the shooter"* — and it **could never pass on the only node that runs the system**,
+silently disabling the whole kill chain on **every** topology.
+
+📐 **Measured live on `hill-attack-close`, 4-process cluster AND `--mode all`:**
+
+| what | measurement |
+|---|---|
+| `NetworkAuthority` on the **Muscle**, every combatant | `{ HasAuthority: false, PrimaryOwnerId: -1, LocalNodeId: 1 }` |
+| …because `EntityMasterIngressTranslator.cs:147` stamps ghosts with the **unknown-owner sentinel** `-1` | by design — see its own comment |
+| `NetworkAuthority` on the **Brain** | `{ PrimaryOwnerId: 400, LocalNodeId: 400 }` ⇒ `HasAuthority` true |
+| ⇒ with the gate: `WeaponFire`(81) **sent 0**, `MunitionDetonation`(82) **0**, `EntityHitDamage`(83) **0**, hostiles `50/50` after 6 engagements | — |
+| ⇒ gate removed, same scenario: `WeaponFire` **5→5**, `MunitionDetonation` **6→6**, `EntityHitDamage` **6→6**, both hostiles **`0/50` on Brain AND IG** | causation proven |
+
+⛔⛔ **The Brain must stay `PrimaryOwnerId`** — §6.4's `HealthApplicationSystem` applies damage behind
+that very flag (`HealthApplicationSystem.cs:61`), and it worked in the probe run. ⇒ **making the Muscle
+the owner would break damage application instead.** ⭐ §2.1's contract is the authority here: *"Brain ──
+`WeaponFireIntent` ─► `WeaponFireRequest` ─► Muscle ── spawns bullet"* — **the Muscle executes the order
+it was given; it is CORRECTLY not the owner.**
+
+⭐⭐ **`TD-6`'s real concern — several nodes spawning duplicate bullets — is a COMPOSITION property**, and
+is now structurally enforced by the capability seam: only the node whose `NodeRole` composes the combat
+capability schedules these systems *(measured on `--mode all`: exactly one of three subsystems carries
+`FireProcessingSystem`, `HitResolutionSystem`, `BallisticsSystem`, `DamageCalculationSystem`)*.
+⛔ **A runtime flag that is false by construction cannot express it.**
+
+⚠ **Why the suite never caught it:** `FireProcessingSystemTests`' two `TD-6` rails hand-built
+`NetworkAuthority` with `primaryOwnerId` **2** (a *known* other owner) and **1** (self). Production on
+the Muscle produces **neither** — it produces `-1`. ⇒ ⭐ the replacement rails
+(`..._ForAGhostShooterWithTheUnknownOwnerSentinel`, `..._WhenAnotherNodeOwnsTheShooter`) build the shape
+production actually has, and redden under inverse edit.
+
+⇒ 🔒 **§4.3's `DamageSystem` guard and §6.4's `HealthApplicationSystem` guard are UNCHANGED and correct.**
+The authority rule governs **who applies damage**, never **who executes a shot**.
+
 ### 5.5 Muscle Egress — WeaponFireNotificationEgressTranslator
 
 A new translator on the Muscle publishes a `WeaponFire` DDS message for each

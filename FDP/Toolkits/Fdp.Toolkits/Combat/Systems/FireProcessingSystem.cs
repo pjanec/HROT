@@ -66,10 +66,32 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (!repo.IsAlive(shooter)) continue;
                 if (!repo.IsAlive(target))  continue;
 
-                // Skip if the shooter is a remote-owned entity (authority gate, TD-6).
-                if (repo.HasComponent<NetworkAuthority>(shooter) &&
-                    !repo.GetComponent<NetworkAuthority>(shooter).HasAuthority)
-                    continue;
+                // ⛔⛔ CE-198 — THERE IS DELIBERATELY NO NetworkAuthority GATE HERE.
+                //
+                // TD-6 added one ("only spawn if this node is authoritative over the shooter").
+                // It could never pass on the only node that runs this system, and it silently
+                // disabled the entire kill chain:
+                //
+                //   • NetworkAuthority.HasAuthority is PrimaryOwnerId == LocalNodeId.
+                //   • The BRAIN is the primary owner — NetworkSpawningSystem stamps
+                //     new NetworkAuthority(cmd.OwnerNodeId, _localNodeId) at creation, and
+                //     HealthApplicationSystem relies on exactly that to apply damage.
+                //   • On the MUSCLE these entities are ghosts, and EntityMasterIngressTranslator
+                //     deliberately stamps the unknown-owner sentinel PrimaryOwnerId = -1.
+                //   ⇒ measured live on hill-attack-close, every combatant on SimHost:
+                //     { HasAuthority = false, PrimaryOwnerId = -1, LocalNodeId = 1 }
+                //     ⇒ every WeaponFireIntent was skipped, WeaponFire/EntityHitDamage
+                //       published 0 samples, and no entity could ever be killed.
+                //
+                // The design is explicit that the Muscle executes the shot the Brain ordered
+                // (BS-1-DESIGN.md §2.1: "Brain ── WeaponFireIntent ─► WeaponFireRequest ─► Muscle
+                // ── spawns bullet"), so the Muscle is CORRECTLY not the primary owner.
+                //
+                // TD-6's real concern was several nodes spawning duplicate bullets. That is a
+                // COMPOSITION property, and it is now structurally enforced: only the node whose
+                // role composes the combat capability schedules this system (measured live on
+                // --mode all: exactly one of three subsystems carries FireProcessingSystem).
+                // A runtime flag that is false by construction cannot express it.
 
                 // Skip if the shooter does not yet have a WeaponState (e.g. incomplete spawn).
                 if (!repo.HasComponent<WeaponState>(shooter)) continue;
