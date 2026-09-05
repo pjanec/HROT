@@ -51,14 +51,26 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
         which SUPERSEDES §4.1L's "undeclared dormancy" reading: it is built-but-unwired, not dead.
         Self-contained mode (the STR-P0 scaffold: no network, no editor, Brain+Muscle fused) is
         RETIRED by user ruling. Perception is DECLARED AND UNFILLED on Stride in both modes and is
-        a prerequisite for mode 2, where CGF no longer masks it. Plan + UML: §4.1aa; tasks CE-205
-        (StrideCapabilities) → CE-206 (perception) → CE-207 (mode 2) → CE-208 (mode 1 unified) →
-        CE-209 (retire self-contained), plus CE-210 (the LOS redesign, §4.1ab — NOT a Stride-lane
-        change: it touches Fdp.Toolkits Perception/Eqs which every Muscle host shares).
-        ⚠ TWO CORRECTIONS ON USER CHALLENGES, 2026-09-05: (i) ImageGenerator is DROPPED from both
-        Stride modes — that role is the 2-D tactical-map stack, which the editor already registers
-        in mode 1 (duplicate modules) and which wants a map camera viewport Stride has not got;
-        (ii) the id-base concern applies ONLY to self-contained mode — mode 1 creates no allocator
+        a prerequisite for mode 2, where CGF no longer masks it.
+        ⛔⛔ THE OWNING DESIGN IS NOW docs/DESIGN_Stride_Node_Modes.md — §4.1aa is SUPERSEDED and must
+        not be quoted for the modes. It covers both modes, the shared composition, the two 2-D window
+        types, gizmos in 3-D, animation, the role vocabulary, scenario ownership and the tick contract,
+        and it folds in .dev/_DONE/stride-mock/DESIGN.md (the ~70%-still-true mode-2 node design that
+        had never been read here: time=always Slave, the registries, replay safety, the tick body).
+        Tasks: CE-211 (DR is role-independent — a PREREQUISITE of CE-207) → CE-205 (StrideCapabilities)
+        → CE-206 (perception) → CE-207 (mode 2) → CE-208 (mode 1 unified) → CE-209 (retire
+        self-contained, LAST), plus CE-212 (rename ImageGenerator→Map2D), CE-213 (the dead 2nd 2-D
+        window), CE-214 (mode 2's companion map), CE-215 (gizmo ingress + skip counters), CE-216
+        (the duplicate StrideAnimationBackend — INVESTIGATE, do not delete), and CE-210 (the LOS
+        redesign, §4.1ab — NOT a Stride-lane change: it touches Fdp.Toolkits Perception/Eqs which
+        every Muscle host shares).
+        ⛔ CORRECTION 2026-09-05, SAME DAY: "ImageGenerator is DROPPED from both Stride modes" is
+        WITHDRAWN. That flag is ALSO the only registration of DeadReckoningSyncSystem
+        (NedReplicationModule.cs:337-339), so dropping it would have silently removed remote-entity
+        smoothing from the one node that renders in 3-D. User ruling: DR/smoothing is not IG-specific,
+        every node owes it for entities whose simTransform it does not own. CE-211 fixes the gate;
+        only then is Stride's role safely Muscle|Perception|Nav (identical to SimHost's).
+        ⚠ ALSO CORRECTED 2026-09-05: the id-base concern applies ONLY to self-contained mode — mode 1 creates no allocator
         and mode 2 gets the central DdsIdAllocator automatically. Two earlier framings of the id
         question were wrong; scenario ids are remapped on load by StagingEntityExtractor Pass 1.
         ⛔ The shape is forced by a measured constraint:
@@ -5794,7 +5806,24 @@ formality. ⇒ **run this gate on EVERY batch that touches `Hrot.Editor`, `Hrot.
 
 ---
 
-## ⭐⭐⭐ §4.1aa — **THE STRIDE MODE PLAN: mode 1 unified, mode 2 built, self-contained retired** `build-state: READY-TO-BUILD` *(`2026-09-05`)*
+## ⛔⛔⛔ §4.1aa — SUPERSEDED `2026-09-05` by [`docs/DESIGN_Stride_Node_Modes.md`](DESIGN_Stride_Node_Modes.md) `build-state: SUPERSEDED`
+
+> ⛔⛔ **DO NOT QUOTE THIS SECTION FOR THE STRIDE MODES.** 📄 **The owning design is now
+> [`docs/DESIGN_Stride_Node_Modes.md`](DESIGN_Stride_Node_Modes.md)** — one design for the whole Stride
+> story *(both modes, the shared composition, the windows, gizmos, animation, roles, scenarios, the tick
+> contract)*. It was written after the user ruled *"i need this all stride story to be properly designed
+> first"* and after `.dev/_DONE/stride-mock/DESIGN.md` — **the ~70%-still-true mode-2 node design nobody
+> here had read** — was found.
+>
+> | ⛔ what this section got WRONG, corrected there | |
+> |---|---|
+> | 🔴 *"`ImageGenerator`: RESOLVED — drop from both modes"* | ⛔ **WITHDRAWN.** That flag is **also** the only thing registering `DeadReckoningSyncSystem` *(`NedReplicationModule.cs:337-339`)* ⇒ dropping it silently removes remote-entity smoothing from the one node that renders in 3-D. ⭐ 🔒 **User ruling:** DR/smoothing is **not** IG-specific — every node owes it for entities it does not own. ⇒ **`CE-211`** fixes the gate; only then is Stride's role safely `Muscle\|Perception\|Nav` |
+> | ⚠ the mode plan, decisions, diagrams and slices | ⭐ **all replaced** by the new design's §4–§13 |
+>
+> ⭐ **What survives here:** nothing Stride-specific. The capability-seam content of §4.1s/§4.1t/§4.1x
+> *(SimHost, IG, CGF)* is unaffected. ⚠ The text below is kept as **HISTORY** so older citations resolve.
+
+### ⛔ HISTORY — the superseded mode plan *(`2026-09-05`, replaced the same day)*
 
 > 🔒 **User, `2026-09-05`, verbatim:** *"I need stride in two modes: 1. with networkless editor (dual window
 > - 2d editor and 3d stride) ; 2. stride as standalone networked node, replacing SimHost, running in

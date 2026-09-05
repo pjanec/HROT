@@ -2381,9 +2381,71 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
+> ⭐⭐⭐ **ALL `CE-205`–`CE-216` ARE OWNED BY ONE DESIGN:** 📄 [`docs/DESIGN_Stride_Node_Modes.md`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md) *(the Stride story — two modes, one composition)*. ⛔ It is `build-state: DESIGN`; **no row below starts until the user approves its §14 open questions.** ⚠ It **SUPERSEDES `DESIGN_Subsystem_Composition_Unification.md` §4.1aa** for anything about the Stride modes.
+
+---
+
+- [ ] **CE-211** · `RW-M` ⭐⭐⭐ — **DEAD RECKONING / SMOOTHING IS NOT AN IG FEATURE — AND TODAY SimHost AND CGF DO NOT DO IT AT ALL.** 🔒 *(user, `2026-09-05`: "dead reckoning … is basically something that every node needs to be doing for remote entities (for which the node does not own the simTransform) as dead reckoning is used to reduce network traffic. So likely not specific to IG nodes … in general DR/smoothing is nothing special to IG role only.")*
+
+  📐 **Measured:** `DeadReckoningSyncSystem` is registered at `NedReplicationModule.cs:333` *(pure IG, `driveFromNetwork:true`)* and `:339` *(any role **containing** IG, `driveFromNetwork:false`)* — ⛔ **and nowhere else.** ⇒ **pure Muscle (`SimHostApp.cs:175` = `MuscleGround\|Perception\|NavigationSolver`) and pure Brain (CGF) never extrapolate a ghost's transform between packets.**
+
+  ⭐⭐ **The fix is to REMOVE a gate, not add a system.** `driveFromNetwork:false` already means *"smooth only `EntityLifecycle.Ghost` entities"*, and the loop already skips anything with `authority.HasAuthority` ⇒ **registering it unconditionally is a no-op on owned entities.** ⚠ Keep the pure-IG `true` arm only if it measures differently. ⭐ **`SmoothingRate = 10.0f` becomes a ctor parameter** so a renderer can smooth at a higher rate — 🔒 user: *"they might just do smoothing on higher rate as they are usually running on higher fps than the brain nodes."* ⛔ **Not** a second system.
+
+  ⚠ **Blast radius, stated:** ghost positions on SimHost and CGF **will start moving between packets** — that is the intent, and it may move test expectations that assert a frozen ghost. ⭐ **`R-142` gate: `SplitAuthoritySpawnTests` + `Hrot.ClusterRunner.Integration.Tests`.** ⛔ Expectations get **reviewed**, never silently adjusted.
+
+  ⭐⭐⭐ **This is a CLUSTER-WIDE correctness change, not a Stride change** — but it is a **hard prerequisite of `CE-207`**, because it is what lets Stride drop the `ImageGenerator` flag without losing smoothing. 📄 `DESIGN_Stride_Node_Modes.md` §6.1.
+
+---
+
+- [ ] **CE-212** · `RW-M` ⭐⭐ — **THE ROLE CALLED `ImageGenerator` IS REALLY "2-D MAP PRESENTATION" — RENAME IT `Map2D`.** 🔒 *(user: "'IG' role in this code base is way about 2d map, which stride doesn't do" · "the ability to support 2d map should be named as such (not IG but 2dMap or something) if that helps")*
+
+  📐 What the flag gates, measured: `IgCapabilities.Presentation` → `StyleResolutionModule` · `MapCullingModule` · `MapLayerModule` · `HistoryTrailModule` · `EventEffectModule` — **all 2-D map stack** — plus `PresentationComponentRegistry`, plus the DR arm that `CE-211` moves out. ⇒ ⭐ after `CE-211` the flag means exactly *"this node draws the 2-D map"*.
+
+  ⛔⛔ **A C# rename, so Roslyn ONLY** — `preview_rename` → read the diff → `apply_rename`, run **twice and union** *(an in-solution project **and** `Stride/HrotStrideApp.Game.csproj`)*. ⚠ **Roslyn was NOT reachable in the session that wrote this** — the row waits for one where it is.
+
+  🔴 **BLOCKED ON A MEASUREMENT (`Q4`):** is `NodeRole` **persisted by name** into scenarios, recordings or DDS descriptors? If it is, this is a migration, not a rename. ⛔ **Measure before starting.** 📄 §6.2.
+
+---
+
+- [ ] **CE-213** · `RW-L` ⭐⭐ — **THE "SECOND 2-D WINDOW" IS DEAD CODE, AND THE SURVIVING CLASS IS MISNAMED.** 🔒 *(user: "i remember stride supported 2 types of 2d windows, i need the full editor one only, the other was useless")*
+
+  📐 **Both live in one file.** `StrideInspectorWindow.cs` contains ① `StrideInspectorViewModel` + `EntityRow` + `BuildEntityList` *(BATCH-22's hand-rolled entity list — **`in_degree: 0`, never drawn**, `PumpFrame` does not call it, its only consumer is `StrideInspectorViewModelTests` at 324 lines)*, and ② the real thing: `PumpFrame` → `editor.DrawWorld()` + `WindowManager.Render()` + `editor.DrawUI()`, with `HostedEditor.RegisterWindows(wm)` registering **every** editor panel.
+
+  ⭐ **Delete ① and its test class** — ⭐ `R-129` check: **searched `docs/` and `.dev/`, no design record keeps it**; it is scaffolding superseded by `RegisterWindows`. ⭐⭐ **Rename `StrideInspectorWindow` → `StrideEditorWindow`**: it is not an inspector, it is the editor's **host window** *(GL context + `WindowManager` + dockspace + message log)*, mirroring `ClusterRunner`'s `LocalWindowController`. ⚠ The env var `STRIDE_EDITOR_WINDOW` is already right. 📄 §7.1.
+
+---
+
+- [ ] **CE-214** · `RW-M` ⭐⭐ — **MODE 2's OPTIONAL COMPANION 2-D MAP WINDOW.** 🔒 *(user: "Stride in mode 2 still needs an optional companion 2d window similar (or identical - 2d maps should be unified anyway) to simHost's one")*
+
+  📐 **"SimHost's 2-D window" is not SimHost's:** `ClusterRunner` opens **one** raylib window *(`RaylibPresentationShell.InitWindow`)*, `ISubsystem.cs:15` forbids a subsystem opening its own, and `SubsystemOrchestrator` builds the tab bar from the **five** `IMapCameraProvider` implementors *(SimHost · IG · CGF · Editor · EyesAndMuscle)*. ⇒ ⭐ **the map is a per-subsystem VIEW in a shared window** — which is why the user's *"2-D maps should be unified anyway"* is the right frame.
+
+  ⭐ **Reuse `CE-213`'s renamed host window** *(⛔ there must not be a second one)*, fill it with `SimPresentationModule`'s existing map surface, gate it behind one flag, **off by default**. ⚠ The map stack arrives as a **capability** (`StrideCapabilities.Map2D`), resolved only when the window is on — ⛔ **it does not come back as a node ROLE**. ⛔ **After `CE-207`, not with it.** 📄 §7.2.
+
+---
+
+- [ ] **CE-215** · `RW-M` ⭐⭐ — **GIZMOS IN 3-D: THE SUBSET IS ALREADY DEFINED; THE INGRESS HALF IS NOT WIRED.** 🔒 *(user: "Mode 2 might need to display the gizmos, just i think these might need to be some special 3d-compatible ones, not all current gizmos make sense in 3d, open question")*
+
+  📐 **The 3-D path EXISTS and mode 1 uses it** — `DebugPrimitiveRenderer3D` + `IDebugDrawSink3D` + `PooledEntityDebugDrawSink3D`, built at `StrideHrotGame.cs:987`. ⭐ **It already answers the triage:** `Line` · `Arrow` · `Sphere` · `SemanticShape` are **drawn** *(`:219-251`)*; `Box2D` · `Text` · `Icon` · `EntityBadge` · `StructInspector` · `MilStd2525` are **skipped as 2-D-screen** *(`:274`)*; the five binding shapes are skipped as non-geometry *(`:111-115`)*.
+
+  ⛔ **What is missing is the CONSUMER half** — `// _gizmoIngress?.PollAndApply(); // wire in SM-006` in `StrideNodeBootstrapper.Tick`, where **`SM-006` is a task id from the retired `stride-mock` programme** *(a dangling TODO)*. ⇒ wire the DDS ingress with `filterNodeId` so a node can display **another** node's stream; the existing switch drops the 2-D-only shapes for free.
+
+  ⭐⭐ **AND COUNT THE SKIPS, PER SHAPE.** ⛔ A 2-D-only gizmo silently vanishing in 3-D is indistinguishable from a broken gizmo — the silent-drop shape this codebase keeps getting bitten by. ⚠ **Open for the user:** whether any 2-D-only shape deserves a real 3-D form. ⭐ **Lean: not now** — ship the subset + counters and let the counters name the shape actually wanted. 📄 §8.
+
+---
+
+- [ ] **CE-216** · `RW-L` ⭐⭐ — **THERE ARE TWO `StrideAnimationBackend` CLASSES — INVESTIGATE BEFORE DELETING EITHER.** 🔒 *(user: "animations were connected already in stride, so it is worth describing what is missing")*
+
+  📐 `search_graph(name_pattern=".*Stride.*", label="Class")` → **65**, and two of them are `StrideAnimationBackend : IAnimationBackend`: `Hrot/Subsystems/Hrot.MuscleCharacter.Animation.Stride/` *(498 lines, `net8.0`, **no Stride packages**, referenced by **its own test project only** — production-dead)* and `Stride/Hrot.Stride.Animation/` *(628 lines, real `Stride.Engine`, in_degree 14)*.
+
+  ⛔⛔ **NOT a deletion row.** `R-129` / *"unreferenced is not unintentional"*: 📄 **`.dev/_DONE/anim-ctrl/DD-1` §15–16 is the owning design and has NOT been read.** ⇒ read it, record which copy was meant to exist **in `DESIGN_Stride_Node_Modes.md` §9**, and only then propose a route-or-delete. ⭐ Windows-independent — this is a reading task.
+
+  ⚠ **The other animation gaps, for the record:** `ST-013` — `CivilianPedestrian` renders as a mannequin with **no animation descriptor**; **mode 2 has no animation at all** *(the bridge is built in mode 1's shell only, so §7.3's view-tier extraction must carry it)*; and **every animation test is `net8.0-windows`** ⇒ compile-verified, never run off Windows. 📄 §9.
+
+---
+
 - [ ] **CE-205** · `RW-M` ⭐⭐⭐ — **`StrideCapabilities` — THE STRIDE CAPABILITY DECLARATIONS, host (e) of the seam.** *(user: "of course the bootstrap/composition should be shared/unified as much as possible")*
 
-  ⭐ The 4th host onto `NodeCompositionPlan`, after SimHost (`§4.1s`), IG (`§4.1t`) and CGF (`§4.1x`). Declares `MuscleGround` · `NavigationSolver` · `Perception` · *(`ImageGenerator` — see the open question)* from the modules that already exist: `StrideMuscleModuleSet` = `StrideKinematicsModule` + `CombatModule` + `DamageAssessmentModule` + `NavigationIntentBridgeSystem` + `RouteTrajectorySyncSystem` + `PersonalRouteAuthoringSystem` + `VehicleNavigationIntentSystem`.
+  ⭐ The 4th host onto `NodeCompositionPlan`, after SimHost (`§4.1s`), IG (`§4.1t`) and CGF (`§4.1x`). Declares `MuscleGround` · `NavigationSolver` · `Perception` — ⭐ **`ImageGenerator` is RESOLVED OUT**: Stride's role becomes **identical to SimHost's**, which is only safe because `CE-211` makes dead-reckoning unconditional *(`DESIGN_Stride_Node_Modes.md` §6.3)*. ⚠ Home: **`Hrot.Stride.Core`**, the lower of the two candidates and referenced by both shells. Built from the modules that already exist: `StrideMuscleModuleSet` = `StrideKinematicsModule` + `CombatModule` + `DamageAssessmentModule` + `NavigationIntentBridgeSystem` + `RouteTrajectorySyncSystem` + `PersonalRouteAuthoringSystem` + `VehicleNavigationIntentSystem`.
 
   ⛔ **This is the UNIT both modes consume** — it is what makes mode 1 and mode 2 the same composition rather than two hand-rolled ones. 📄 `§4.1aa`.
 
