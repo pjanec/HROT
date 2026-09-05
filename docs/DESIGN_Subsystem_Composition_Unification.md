@@ -29,12 +29,12 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   ⛔ REMAINING IN B4b, measured 2026-09-05:
     (a) CGF, Stride and the editor are UNTOUCHED. 🔒 User ruling 2026-09-05: STRIDE IS LAST — CGF and the
         editor first — and Stride needs Windows, unverifiable from this environment.
-    (b) ⛔⛔ INodeResourceProvider.Allocate is BLOCKED, not merely unwired — and this CORRECTS the previous
-        entry here, which called it a wiring gap. NodeBootValues.Set refuses any write outside a boot step
-        that declared the key in its `provides`, so allocating into a free-standing bag THROWS AT BOOT
-        (a rail now pins this). The resource half cannot run until a host's capability registration moves
-        INSIDE a NodeBootPlan step declaring the resource keys — a change to the SHARED BASE.
-        ⛔ Do not "fix" it by relaxing the guard.
+    (b) ✅✅ RESOLVED 2026-09-05 by CE-199 — SUPERSEDED, see §4.1w. This entry said Allocate was BLOCKED
+        (NodeBootValues.Set refuses writes outside a declaring step). That diagnosis was right, and the
+        fix was the one it named: the SHARED BASE now owns a `node-resources` step that declares the keys.
+        Because `provides` is recorded before BuildContext exists, the keys come from a role-only hook
+        (DeclaredResourceKeys) and the instances from a context-aware one (ResolveResources), checked
+        against each other. ⛔ The guard was NOT relaxed. Verified live on the 4-process cluster.
     (c) ✅ What step 3 did fix: nothing disposed TrajectoryPoolProvider, despite its own remarks claiming
         otherwise ⇒ every node leaked its TrajectoryPoolManager. Now freed via DisposeResources.
   B5 (the missing implementations) has not started.
@@ -5186,3 +5186,122 @@ right for a diagnostic endpoint; going silent was the defect. ⭐ The hint names
 
 ⇒ ⭐⭐ **Before writing any rail, ask: what input does it supply, and could it pass vacuously?** ⭐ Every
 phase-0 assertion carries an explicit non-empty guard for that reason.
+
+---
+
+## ⭐⭐⭐ §4.1w — **CE-199: THE RESOURCE HALF RUNS. `Allocate` HAS A STEP TO LIVE IN.** *(as-built, `2026-09-05`)*
+
+⛔⛔ **This SUPERSEDES the STATUS block's item (b)** *("`INodeResourceProvider.Allocate` is BLOCKED")* and
+**the `Base->>Res: Allocate(world)` line of §4.1j's boot sequence** — the as-built signature and shape both
+differ, and the difference is load-bearing.
+
+### 📐 The obstacle, restated exactly
+
+`NodeBootPlan.Step` records `provides` **when the step is DECLARED**, which is before `BuildContext` has
+run. But a host's providers come from `plan.RequiredResources(role)`, and **SimHost cannot build that plan
+until it has the context and the loaded road network** *(`SimHostNodeBootstrapper`'s own comment says so)*.
+⇒ the keys are needed earlier than the instances can exist.
+
+### ⭐⭐ The resolution — **declaration and instance are SEPARATE, which is the design's own axis ①**
+
+🔒 §4.1j axis ① already says a capability declares *"a list of resource **keys**, not instances."* ⇒ the
+split is the design's, not a workaround for it.
+
+```mermaid
+classDiagram
+    class SharedApplicationBootstrapper {
+        <<abstract>>
+        -IReadOnlyList~INodeResourceProvider~ _resourceProviders
+        -NodeBootValues _bootValues
+        #BootValues NodeBootValues
+        #DeclaredResourceKeys(NodeRole) IReadOnlyList~string~
+        #ResolveResources(HrotNodeContext, NodeRole) IReadOnlyList~INodeResourceProvider~
+        +DisposeResources()
+        +BootstrapNode(config, role, factory) HrotNodeContext
+    }
+    class INodeResourceProvider {
+        <<interface>>
+        +Key string
+        +Allocate(HrotNodeContext, NodeBootValues)
+        +Dispose()
+    }
+    class SimHostNodeBootstrapper {
+        +TrajectoryPool TrajectoryPoolProvider
+        #DeclaredResourceKeys(NodeRole) IReadOnlyList~string~
+        #ResolveResources(ctx, role) IReadOnlyList~INodeResourceProvider~
+        -AssertDeclaredResourcesMatchCapabilityNeeds(required, composed)
+    }
+    class IgNodeBootstrapper {
+        note "declares NO keys - correct, not a gap"
+    }
+    class TrajectoryPoolProvider
+    class PerceptionGridResourceProvider
+
+    SharedApplicationBootstrapper <|-- SimHostNodeBootstrapper
+    SharedApplicationBootstrapper <|-- IgNodeBootstrapper
+    INodeResourceProvider <|.. TrajectoryPoolProvider
+    INodeResourceProvider <|.. PerceptionGridResourceProvider
+    SharedApplicationBootstrapper o-- INodeResourceProvider : allocates and frees
+    SimHostNodeBootstrapper --> TrajectoryPoolProvider : owns one
+```
+
+### ⭐⭐ The boot sequence, AS BUILT
+
+```mermaid
+sequenceDiagram
+    participant Host as Node host
+    participant Base as SharedApplicationBootstrapper
+    participant Plan as NodeBootPlan
+    participant Values as NodeBootValues
+    participant Res as INodeResourceProvider
+
+    Host->>Base: BootstrapNode(config, role, factory)
+    Base->>Host: DeclaredResourceKeys(role)
+    Note over Base,Host: read BEFORE BuildContext, so role only
+    Base->>Plan: Step("node-resources", requires context, provides KEYS)
+    Base->>Plan: Step("system-groups", requires context + KEYS)
+    Base->>Plan: Run()
+    Plan->>Base: enter node-resources
+    Base->>Host: ResolveResources(context, role)
+    Base->>Base: check resolved keys == declared keys
+    loop per provider
+        Base->>Res: Allocate(context, values)
+        Res->>Values: Set(Key, resource)
+    end
+    Plan->>Base: enter system-groups
+    Base->>Host: PopulateSystems(...)
+    Host->>Values: Get(key)
+    Note over Host,Values: legal only because this step declared the key
+```
+
+### ⭐ The invariants, and where each is checked
+
+| # | invariant | checked by |
+|---|---|---|
+| ① | a provider may only allocate a key the step DECLARED | the base, naming the key — before `NodeBootValues` would refuse it with a less useful message |
+| ② | a DECLARED key that nobody allocates is refused | the base, naming the key. ⚠ the more dangerous direction: a consumer would read a resource never created |
+| ③ | the static declaration equals the union of the capabilities' `Needs` | `SimHostNodeBootstrapper.AssertDeclaredResourcesMatchCapabilityNeeds` — this is what keeps the static map SUBORDINATE to the capabilities rather than a second source of truth |
+| ④ | resources are allocated BEFORE any capability registers a system | `system-groups` requires the keys ⇒ `NodeBootPlan.Run` enforces the order |
+| ⑤ | every allocated provider is freed exactly once | `DisposeResources` on the BASE — ⭐ **one implementation**; SimHost and IG each had their own copy |
+
+### ⚠ What this deliberately does NOT do
+
+⛔ **It does not move consumers onto `BootValues`.** SimHost still hands `TrajectoryPool.Pool` to its pack
+directly — the migration boundary that class's own remarks describe. ⭐ What changed is that the pool is now
+**allocated by the node, in a declared step, and freed by the node**, so a consumer CAN be migrated one at
+a time without any further base change.
+
+### ✅ Verified
+
+| gate | result |
+|---|---|
+| `Hrot.NodeComposition.Tests` | **53 / 0** *(was 47; +6 rails)*. ⭐ Red-proof: suppressing `Allocate` reddens exactly 3 → restored 53/0 |
+| `Hrot.SimHost.Tests` | **889 / 1** — the one red is the baselined `FullBranchPipelineTests` flake |
+| `Hrot.IG.Tests` | **410 / 5** — the 5 baselined translator reds |
+| ⭐⭐ **live 4-process cluster, `hill-attack-close`** | `WeaponFire` 7→7 · `MunitionDetonation` 9→9 · `EntityHitDamage` 9→8 · `EntityDamage` 10→10 · **both hostiles `0/50` on Brain AND IG** · 10 engagements · 4 waves · ⛔ **zero errors and zero `BootDependencyException`** — which is exactly what a wrong step declaration would produce |
+
+⚠ **The rail that reddened on an improvement, kept as a lesson:** `NodeRolePersistenceRails.TheNodeFreesTheProvidersItResolved`
+asserted that *SimHost's own source* contains `DisposeResources` — it pinned an implementation's **ADDRESS**.
+Moving the loop to the base made it red. ⇒ ⭐ it now asserts the **INVARIANT**: the base has exactly one
+implementation and **neither host restates it**. The old form would have stayed green while a third host
+grew a fourth copy.

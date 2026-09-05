@@ -260,23 +260,28 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //    safe — IG's declaration was already true.
         NodeRole composed = _declaredRole;
 
-        // Fails the node if a capability declared a resource nobody provides.
-        _resourceProviders = plan.RequiredResources(composed);
-        _capabilities      = plan.Resolve(composed);
+        _capabilities = plan.Resolve(composed);
 
-        // ⛔⛔ THE RESOURCE HALF CANNOT RUN HERE — a REFUSAL, not a silent skip. 📄 §4.1v.
-        //    Two independent reasons, and either alone is decisive:
-        //    ① IG resolves its plan LAZILY, from GetAdditionalModules, which has no HrotNodeContext.
-        //    ② 📐 NodeBootValues.Set refuses any write outside a boot step that DECLARED the key, so
-        //       provider.Allocate(ctx, freshBag) throws — measured on a rail, not guessed.
-        // ⭐ Costs nothing today: the presentation capability declares no Needs, so this list is EMPTY.
-        // ⚠ "Empty today" is how a silent default is born — so fail loudly the moment it stops being true.
-        if (_resourceProviders.Count > 0)
+        // ⭐⭐ CE-199 — the resource half is no longer refused here; it simply has nothing to do.
+        //
+        // ⛔ HISTORY: this block used to THROW if any provider resolved, for two reasons that were both
+        //    true — IG resolves its plan LAZILY (no HrotNodeContext), and NodeBootValues refused writes
+        //    outside a declaring boot step. The base now owns a `node-resources` step, so reason ② is
+        //    gone for every host; reason ① is why IG still declares its keys from the role alone.
+        //
+        // ⭐ Today the presentation capability declares no Needs, so DeclaredResourceKeys returns empty
+        //    and the node allocates nothing — which is the correct answer, not a gap. ⚠ The moment an IG
+        //    capability gains a Need, this assertion is what makes the omission loud instead of silent.
+        var declared = new SortedSet<string>(DeclaredResourceKeys(composed), System.StringComparer.Ordinal);
+        var needed   = new SortedSet<string>(System.StringComparer.Ordinal);
+        foreach (INodeResourceProvider provider in plan.RequiredResources(composed))
+            needed.Add(provider.Key);
+
+        if (!needed.SetEquals(declared))
             throw new InvalidOperationException(
-                $"IG resolved {_resourceProviders.Count} resource provider(s), but IG builds its " +
-                "composition plan lazily (no HrotNodeContext) and NodeBootValues refuses writes outside " +
-                "a declaring boot step. Move the plan into a boot step that declares the resource keys " +
-                "it provides before giving an IG capability a declared Need. See §4.1v.");
+                $"IG role {composed} declares resources [{string.Join(", ", declared)}] but its composed " +
+                $"capabilities need [{string.Join(", ", needed)}]. Add the key to DeclaredResourceKeys so " +
+                "the node-resources boot step allocates it — see CE-199.");
 
         return _capabilities;
     }
@@ -285,19 +290,6 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 
     /// <summary>The role this node was bootstrapped with, captured in <see cref="BuildContext"/>.</summary>
     private NodeRole _declaredRole = NodeRole.ImageGenerator;
-
-    /// <summary>The providers this node's role required, kept so the node can free them.</summary>
-    private IReadOnlyList<INodeResourceProvider> _resourceProviders =
-        System.Array.Empty<INodeResourceProvider>();
-
-    /// <summary>Frees the resources this node's providers allocated. See SimHost's counterpart.</summary>
-    public void DisposeResources()
-    {
-        foreach (INodeResourceProvider provider in _resourceProviders)
-            provider.Dispose();
-
-        _resourceProviders = System.Array.Empty<INodeResourceProvider>();
-    }
 
     // ── Phase 5: Build orchestration ─────────────────────────────────────────
 

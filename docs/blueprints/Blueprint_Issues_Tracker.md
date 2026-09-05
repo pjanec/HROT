@@ -2215,7 +2215,7 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ### 🔴🔴🔴 CORRECTED `2026-09-05` — **the paragraph above is HALF WRONG, and the wrong half hid a real defect for the whole programme**
 
-  ⛔⛔ **`CE-174` explains why kills are INTERMITTENT on `hill-attack`. It never explained why they were ZERO — and they were zero on `hill-attack-close` too, the fixture built precisely so geometry could not be the excuse.** 📐 Measured: **6× `"Engaging target"`, zero `"Creep failed due to overshoot"` — and still nothing died.** ⇒ ⭐⭐⭐ **the real cause is [`CE-198`](Blueprint_Issues_Tracker.md) *(`FireProcessingSystem`'s `TD-6` authority gate is false by construction on the only node that runs it, so no bullet was EVER spawned on any topology)*.**
+  ⛔⛔ **`CE-174` explains why kills are INTERMITTENT on `hill-attack`. It never explained why they were ZERO — and they were zero on `hill-attack-close` too, the fixture built precisely so geometry could not be the excuse.** 📐 Measured: **6× `"Engaging target"`, zero `"Creep failed due to overshoot"` — and still nothing died.** ⇒ ⭐⭐⭐ **the real cause is [`CE-198`](Blueprint_Issues_Tracker.md) *(`FireProcessingSystem`'s `TD-6` authority gate is false by construction on the only node that runs it, so no bullet was ever spawned on any DISTRIBUTED topology)*.**
 
   ✅ **The `simTime 51.9` kill claim is REAL — its TOPOLOGY LABEL was wrong** *(corrected `2026-09-05` on the user's challenge "wait, it did kill, search the chat")*. 📐 The transcript shows that run launched with **`--mode editor`** *(`HROT_DEBUG_API_PORT=8131 … --mode editor --no-wait`, `hill-attack-close` loaded 19:24, read 19:33)* — ⛔ **not `--mode all`, as §4.1s and an earlier version of this line both said.** ⭐⭐ **Reproduced exactly on `2026-09-05` against the CE-198 fix**, same four numbers: `1001 50/50 Ammo 41 · 1002 50/50 Ammo 41 · 1006 0/50 · 1007 0/50` — ⇒ ⭐ the editor path killed before the fix and still kills after it.
 
@@ -2348,3 +2348,33 @@ whenever the finding is "the sim did not do the impressive thing".**
   ⚠ **The methodological error worth keeping:** I formed *"it never killed anywhere"* from **two** topologies and generalised to **all**, while a THIRD — the one the original observation actually used — sat unexamined in the transcript. ⇒ 🔒 **before retracting a recorded measurement, reproduce it in ITS OWN conditions; a null result under different conditions refutes nothing.**
 
   📄 Design fold-back *(obligation ⑤)*: [`BS-1-DESIGN.md` §5.4a](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/brain-split/BS-1-DESIGN.md) carries the as-built correction and marks `TD-6`'s gate superseded; §4.3 and §6.4's authority guards are explicitly **unchanged and correct** — the authority rule governs *who applies damage*, never *who executes a shot*.
+
+---
+
+- [x] **CE-199** · `RW-M` ⭐⭐⭐ — **THE RESOURCE HALF OF THE SEAM RUNS: `INodeResourceProvider.Allocate` FINALLY HAS A STEP TO LIVE IN.** *(user: "return to unification" — item 1 of the picked order)*
+
+  ⭐⭐ **This closes the blocker [`CE-197`](Blueprint_Issues_Tracker.md) item ③ REPORTED rather than worked around.** `NodeBootValues.Set` refuses any write outside a step that declared the key, so a provider allocating from a host method **threw at boot** — pinned by a rail, not guessed. ⛔ The guard was **not** relaxed; the base grew the step the guard was asking for.
+
+  📐 **The obstacle, and why it took two hooks rather than one:** `NodeBootPlan.Step` records `provides` when the step is **DECLARED** — before `BuildContext` runs — but a host's providers come from `plan.RequiredResources(role)`, and **SimHost cannot build that plan until it has the context and the loaded road network** *(its own comment says so)*. ⇒ the keys are needed earlier than the instances can exist. ⭐⭐⭐ **The split is the design's own axis ①** — *"a capability declares a list of resource KEYS, not instances"* — so `DeclaredResourceKeys(role)` declares, `ResolveResources(context, role)` instantiates, **and the base checks the two agree.**
+
+  | invariant | where it is checked |
+  |---|---|
+  | a provider may only allocate a key the step DECLARED | the base, naming the key |
+  | a DECLARED key nobody allocates is refused | the base — ⚠ the more dangerous direction: a consumer would read a resource never created |
+  | the static declaration == the union of the capabilities' `Needs` | `SimHostNodeBootstrapper.AssertDeclaredResourcesMatchCapabilityNeeds` — ⭐ keeps the static map **subordinate** to the capabilities, not a rival source of truth |
+  | resources allocated BEFORE any capability registers a system | `system-groups` now **requires** the keys ⇒ `NodeBootPlan.Run` enforces it |
+  | every provider freed exactly once | ⭐⭐ `DisposeResources` moved to the **BASE** — SimHost and IG had each grown their own identical copy |
+
+  ⭐⭐ **IG's loud refusal is retired and replaced by an assertion.** It used to throw if any provider resolved *(two reasons, both then true)*; one of them is now gone for every host. IG declares no keys and allocates nothing — ⭐ **the correct answer, not a gap** — and the assertion makes the omission loud the moment an IG capability gains a `Need`.
+
+  ⭐ **Rails — into the base's own suite (`R-142` ④):** `SharedApplicationBootstrapperTests` **+6**, driven through the **existing** `TestBootstrapper` rather than a parallel host *(I wrote one, then deleted it — a second test host for one seam is the same duplication this programme removes)*. ⭐⭐⭐ **Red-proof:** suppressing `Allocate` reddens exactly **3 of the 6** → `53 → 50/3 → 53`.
+
+  ⚠⚠ **A RAIL OF MINE REDDENED ON AN IMPROVEMENT, and that is the keeper.** `NodeRolePersistenceRails.TheNodeFreesTheProvidersItResolved` asserted that **SimHost's own source** contains `DisposeResources` — it pinned an implementation's **ADDRESS**. Moving the loop to the base made it red. ⇒ ⭐ rewritten to assert the **INVARIANT**: the base has exactly one implementation and **neither host restates it**. ⛔ The old form would have stayed green while a third host grew a fourth copy.
+
+  ⚠ **Deliberately NOT done:** consumers are not moved onto `BootValues`. SimHost still hands `TrajectoryPool.Pool` to its pack directly — the migration boundary that class documents. ⭐ What changed is that the pool is now **allocated by the node in a declared step and freed by the node**, so consumers can migrate one at a time with no further base change.
+
+  ⭐⭐ **Gates:** `Hrot.NodeComposition.Tests` **53/0** *(was 47)* · `Hrot.SimHost.Tests` **889/1** *(the baselined `FullBranchPipelineTests` flake)* · `Hrot.IG.Tests` **410/5** *(the 5 baselined translator reds)* · `design-digest --check` clean · all 29 mermaid blocks parse.
+
+  ✅✅ **LIVE, 4-process cluster, `hill-attack-close`** — the verification a shared-base BOOT change actually needs: `WeaponFire` **7→7** · `MunitionDetonation` **9→9** · `EntityHitDamage` **9→8** · `EntityDamage` **10→10** · **both hostiles `0/50` on Brain AND IG** · 10 engagements · 4 waves · ⛔ **zero errors and zero `BootDependencyException`** — precisely what a wrong step declaration produces.
+
+  📄 Design fold-back *(obligation ⑤)*: [`DESIGN_Subsystem_Composition_Unification.md` §4.1w](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md) carries the as-built `classDiagram` + `sequenceDiagram`; the STATUS block's item (b) *("Allocate is BLOCKED")* and §4.1j's `Allocate(world)` sequence line are both marked **SUPERSEDED** by it.

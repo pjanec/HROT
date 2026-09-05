@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -46,6 +47,12 @@ namespace Hrot.Common.Infrastructure;
 /// </summary>
 public abstract class SharedApplicationBootstrapper
 {
+    /// <summary>The providers this node allocated, in allocation order. Freed by <see cref="DisposeResources"/>.</summary>
+    private IReadOnlyList<INodeResourceProvider> _resourceProviders = Array.Empty<INodeResourceProvider>();
+
+    /// <summary>The running plan's values. Null until the <c>node-resources</c> step runs.</summary>
+    private NodeBootValues? _bootValues;
+
     /// <summary>
     /// Gateway for forwarding UI time-control commands (pause/step/play) to the
     /// Cluster Master over DDS. Set by the base class in Phase 6c via the
@@ -120,10 +127,70 @@ public abstract class SharedApplicationBootstrapper
             serializer = BuildSerializer(GetBehaviorRegistry());
         });
 
+        // Phase 3b — Allocate the node's one-per-world RESOURCES, before any capability registers
+        // a system that borrows one.
+        //
+        // ⭐⭐⭐ CE-199 — THIS STEP IS WHY INodeResourceProvider.Allocate CAN RUN AT ALL.
+        //
+        // NodeBootValues.Set refuses any write outside a step that declared the key in its
+        // `provides`, so a provider allocating into a free-standing bag THROWS AT BOOT — measured on
+        // a rail, not guessed (NodeCompositionPlanRails.AllocatingIntoAFreeStandingBagIsRefused).
+        // The resource half of the seam therefore could not run until the allocation moved INSIDE a
+        // declaring step. This is that step.
+        //
+        // ⚠ WHY TWO HOOKS AND NOT ONE. `provides` is recorded when the step is DECLARED, which is
+        // before BuildContext has run — but a host's providers come from its NodeCompositionPlan,
+        // and SimHost cannot build that plan until it has the context and the loaded road network
+        // (SimHostNodeBootstrapper's own comment says so). So the KEYS are declared from the role
+        // alone (DeclaredResourceKeys), and the INSTANCES are resolved inside the step
+        // (ResolveResources). That split is the design's, not a workaround for it: §4.1j axis ①
+        // says a capability declares "a list of resource keys, not instances".
+        //
+        // ⛔ The two are then CHECKED against each other below, so the declaration cannot drift from
+        //    what is actually allocated — the same guarantee NodeBootPlan gives for its own graph.
+        string[] declaredResourceKeys = DeclaredResourceKeys(role).Distinct(StringComparer.Ordinal).ToArray();
+
+        plan.Step("node-resources",
+            requires: new[] { "context" },
+            provides: declaredResourceKeys,
+            run: values =>
+            {
+                _bootValues       = values;
+                _resourceProviders = ResolveResources(context, role);
+
+                var allocated = new HashSet<string>(StringComparer.Ordinal);
+                foreach (INodeResourceProvider provider in _resourceProviders)
+                {
+                    if (Array.IndexOf(declaredResourceKeys, provider.Key) < 0)
+                        throw new InvalidOperationException(
+                            $"[{config.SubsystemName}] resolved a provider for resource '{provider.Key}', which " +
+                            $"DeclaredResourceKeys(role) did not declare [{string.Join(", ", declaredResourceKeys)}]. " +
+                            "The boot step only permits writes to keys it declared, so this allocation would be " +
+                            "refused. Declare the key, or stop resolving the provider.");
+
+                    provider.Allocate(context, values);
+                    allocated.Add(provider.Key);
+                }
+
+                foreach (string declared in declaredResourceKeys)
+                {
+                    if (!allocated.Contains(declared))
+                        throw new InvalidOperationException(
+                            $"[{config.SubsystemName}] declared resource '{declared}' but no resolved provider " +
+                            "allocated it. A declared key that nobody publishes is how a consumer ends up reading " +
+                            "a resource that was never created — declare only what the role really needs.");
+                }
+            });
+
         // Phase 4a — Populate togglable system groups and register them on the kernel.
         // ⛔ PROVIDES system-groups, which 6a and 6b require: a subclass may build a capability
         //    pack here and read it back in those phases (SimHost's CoreLogicPack does exactly that).
-        plan.Step("system-groups", requires: new[] { "context" }, provides: new[] { "system-groups" }, run: () =>
+        // ⭐ REQUIRES the declared resource keys, so PopulateSystems may legally read an allocated
+        //    resource out of BootValues — the read is checked against this step's own declaration.
+        plan.Step("system-groups",
+            requires: new[] { "context" }.Concat(declaredResourceKeys).ToArray(),
+            provides: new[] { "system-groups" },
+            run: () =>
         {
             var inputSystems   = new List<IEcsModuleSystem>();
             var simSystems     = new List<IEcsModuleSystem>();
@@ -393,6 +460,70 @@ public abstract class SharedApplicationBootstrapper
     /// factory configuration. Default returns null (no behaviors registered).
     /// </summary>
     protected virtual BehaviorRegistry? GetBehaviorRegistry() => null;
+
+    /// <summary>
+    /// Phase 3b, part 1 — the resource keys this node's <paramref name="role"/> will allocate.
+    /// Default is none.
+    /// </summary>
+    /// <remarks>
+    /// <para>⭐ This is the DECLARATION half. It is read when the boot step is built — before
+    /// <c>BuildContext</c> — so it must depend on nothing but the role. Return one of
+    /// <see cref="ResourceKeys"/> per resource.</para>
+    ///
+    /// <para>⛔ It is checked against <see cref="ResolveResources"/>: a provider whose key was not
+    /// declared, or a declared key nobody allocates, throws at boot with the key named. So the
+    /// declaration cannot quietly drift from what the node really does.</para>
+    /// </remarks>
+    protected virtual IReadOnlyList<string> DeclaredResourceKeys(NodeRole role)
+        => Array.Empty<string>();
+
+    /// <summary>
+    /// Phase 3b, part 2 — the provider INSTANCES that satisfy <see cref="DeclaredResourceKeys"/>.
+    /// Default is none.
+    /// </summary>
+    /// <remarks>
+    /// Called inside the <c>node-resources</c> step, so the context exists and each provider's
+    /// <see cref="INodeResourceProvider.Allocate"/> may publish into the step's
+    /// <see cref="NodeBootValues"/>. Typically <c>plan.RequiredResources(role)</c> — the union of the
+    /// selected capabilities' declared needs, and nothing else.
+    /// </remarks>
+    protected virtual IReadOnlyList<INodeResourceProvider> ResolveResources(HrotNodeContext context, NodeRole role)
+        => Array.Empty<INodeResourceProvider>();
+
+    /// <summary>
+    /// The values published by the boot plan's steps. Available to a subclass hook that runs INSIDE
+    /// a step which declared the key it reads.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ <c>system-groups</c> requires every declared resource key, so <c>PopulateSystems</c> may
+    /// read an allocated resource from here and the read is checked. ⛔ Not an ambient bag: outside a
+    /// step, or for an undeclared key, <see cref="NodeBootValues.Get{T}"/> throws.
+    /// </remarks>
+    protected NodeBootValues BootValues =>
+        _bootValues ?? throw new InvalidOperationException(
+            "BootValues is only available once the boot plan is running. A hook that needs a resource " +
+            "must run inside a step that declares it — see the 'node-resources' step.");
+
+    /// <summary>
+    /// Frees every resource this node allocated, in reverse allocation order.
+    /// </summary>
+    /// <remarks>
+    /// ⭐⭐ ONE implementation, on the base. Both SimHost and IG had grown their own identical copy of
+    /// this loop (<c>CE-197</c>) — two implementations of one concept, which is exactly what the
+    /// composition work exists to remove. A host now inherits it, and a host that allocates nothing
+    /// frees nothing.
+    ///
+    /// <para>📐 It is not optional book-keeping: before <c>CE-197</c> nothing disposed
+    /// <c>TrajectoryPoolProvider</c>, despite that class's own remarks claiming a provider's lifetime
+    /// is the node's, so every node leaked its <c>TrajectoryPoolManager</c>.</para>
+    /// </remarks>
+    public void DisposeResources()
+    {
+        for (int i = _resourceProviders.Count - 1; i >= 0; i--)
+            _resourceProviders[i].Dispose();
+
+        _resourceProviders = Array.Empty<INodeResourceProvider>();
+    }
 
     /// <summary>
     /// Phase 6d: Called after all translator registrations and before Phase 7 (Initialize).

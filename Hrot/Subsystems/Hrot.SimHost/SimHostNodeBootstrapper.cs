@@ -120,16 +120,40 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     private IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> _capabilities =
         System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
 
-    /// <summary>The providers this node's role required, kept so the node can free them.</summary>
+    /// <summary>
+    /// CE-199 — the DECLARATION half of the resource seam: the keys this role will allocate.
+    /// </summary>
     /// <remarks>
-    /// ⛔⛔ <b>The owner frees it, and nobody did.</b> <see cref="TrajectoryPool"/>'s own remarks already
-    /// claimed "this bootstrapper disposes the provider, which nothing did before" — 📐 measured false:
-    /// this class had no <c>Dispose</c> at all, so every node leaked its <c>TrajectoryPoolManager</c>.
-    /// That is the same shape as <c>CE-177</c>/<c>CE-193</c>: whoever allocates a native-backed resource
-    /// disposes it. Holding the resolved provider list is what makes the claim true.
+    /// <para>⭐ Read when the boot step is BUILT, before <c>BuildContext</c>, so it may depend on
+    /// nothing but the role. That is why it is a static role-to-keys map and not
+    /// <c>plan.RequiredResources(...)</c>: this node's <c>NodeCompositionPlan</c> cannot exist until
+    /// <c>PopulateSystems</c>, which needs the context and the loaded road network.</para>
+    ///
+    /// <para>⛔ It is not a second source of truth. <c>PopulateSystems</c> cross-checks it against the
+    /// capabilities' own declared <c>Needs</c> and throws if they disagree — see
+    /// <see cref="AssertDeclaredResourcesMatchCapabilityNeeds"/>.</para>
+    ///
+    /// <para>📐 <c>MuscleGround</c> is the role whose kinematics borrow the trajectory pool the
+    /// navigation solver writes; a node without it allocates no pool.</para>
     /// </remarks>
-    private IReadOnlyList<Hrot.Common.Infrastructure.INodeResourceProvider> _resourceProviders =
-        System.Array.Empty<Hrot.Common.Infrastructure.INodeResourceProvider>();
+    protected override System.Collections.Generic.IReadOnlyList<string> DeclaredResourceKeys(NodeRole role)
+        => (role & NodeRole.MuscleGround) == NodeRole.MuscleGround
+            ? new[] { Hrot.Common.Infrastructure.ResourceKeys.TrajectoryPool }
+            : System.Array.Empty<string>();
+
+    /// <summary>
+    /// CE-199 — the INSTANCE half: the providers that satisfy <see cref="DeclaredResourceKeys"/>.
+    /// </summary>
+    /// <remarks>
+    /// Runs inside the <c>node-resources</c> step, so <see cref="TrajectoryPool"/>'s
+    /// <c>Allocate</c> may legally publish into the plan's values. The base frees them
+    /// (<c>DisposeResources</c>); this class no longer carries its own copy of that loop.
+    /// </remarks>
+    protected override System.Collections.Generic.IReadOnlyList<Hrot.Common.Infrastructure.INodeResourceProvider>
+        ResolveResources(HrotNodeContext context, NodeRole role)
+        => (role & NodeRole.MuscleGround) == NodeRole.MuscleGround
+            ? new Hrot.Common.Infrastructure.INodeResourceProvider[] { TrajectoryPool }
+            : System.Array.Empty<Hrot.Common.Infrastructure.INodeResourceProvider>();
 
     /// <summary>
     /// Optional callback invoked during Phase 6d (after network translators, before Initialize).
@@ -137,30 +161,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// be part of the initialized kernel topology but are not part of the domain core.
     /// </summary>
     public Action<HrotNodeContext>? ApplicationSystemsRegistrar { get; set; }
-
-    /// <summary>
-    /// Frees the resources this node's providers allocated.
-    /// </summary>
-    /// <remarks>
-    /// ⛔⛔ <b><c>B4b</c> step 3 — this method DID NOT EXIST, while <see cref="TrajectoryPool"/>'s own
-    /// remarks claimed "this bootstrapper disposes the provider, which nothing did before."</b>
-    /// 📐 Measured: no <c>Dispose</c> on this class and no call to <c>TrajectoryPoolProvider.Dispose</c>
-    /// anywhere in production ⇒ every node leaked its <c>TrajectoryPoolManager</c>. A documented
-    /// ownership claim that nothing implements is worse than an undocumented gap, because the next
-    /// reader stops looking.
-    ///
-    /// <para>⚠ Only the providers this node RESOLVED are freed, and each is freed once — the provider's
-    /// own <c>Dispose</c> is idempotent. Capabilities BORROW and must never free
-    /// (<see cref="Hrot.Common.Infrastructure.INodeResourceProvider"/>'s contract): a leak wastes memory,
-    /// but a borrower freeing a shared resource corrupts every other consumer still holding it.</para>
-    /// </remarks>
-    public void DisposeResources()
-    {
-        foreach (Hrot.Common.Infrastructure.INodeResourceProvider provider in _resourceProviders)
-            provider.Dispose();
-
-        _resourceProviders = System.Array.Empty<Hrot.Common.Infrastructure.INodeResourceProvider>();
-    }
 
     /// <inheritdoc/>
     protected override void RegisterApplicationSystems(HrotNodeContext context)
@@ -325,24 +325,23 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //   fully enumerated. 📄 See §4.1v for what that pack does and why it stays inert.
         NodeRole composed = _role;
 
-        // Fails the node if a capability declared a resource nobody provides.
-        _resourceProviders = plan.RequiredResources(composed);
-        _capabilities      = plan.Resolve(composed);
+        _capabilities = plan.Resolve(composed);
 
-        // ⛔⛔⛔ B4b step 3 — ALLOCATE CANNOT RUN HERE, AND THE REASON IS STRUCTURAL. 📄 §4.1v.
-        //    📐 MEASURED (a rail caught it before a cluster did): NodeBootValues.Set refuses any write
-        //    that is not inside a boot step which DECLARED the key in its `provides` —
-        //    "Boot step '(outside any step)' set 'res:trajectory-pool', which it does not declare in its
-        //    provides []." So calling provider.Allocate(context, someFreshBag) THROWS AT BOOT.
+        // ⭐⭐⭐ CE-199 — THE RESOURCE HALF NOW RUNS, AND THIS IS ITS CROSS-CHECK.
         //
-        // ⇒ ⭐ The empty-bag note in RegisterSpawningPipeline was RIGHT, and it named this exact block:
-        //    the resource half cannot run until this host's capability registration moves INSIDE a
-        //    NodeBootPlan step that declares the resource keys it provides. That is a real change to the
-        //    shared base (the step must be declared where the keys are known), not a wiring oversight.
+        // ⛔ HISTORY, kept because it explains the shape: this block used to say Allocate CANNOT run,
+        //    and it was right at the time. NodeBootValues.Set refuses any write outside a step that
+        //    declared the key — "Boot step '(outside any step)' set 'res:trajectory-pool' …" — so
+        //    allocating from here threw at boot. The base now owns a `node-resources` STEP that
+        //    declares the keys, and DeclaredResourceKeys/ResolveResources feed it.
         //
-        // ⭐⭐ What IS fixed here: the resolved providers are now HELD, so the node can free them —
-        //    see DisposeResources. Nothing disposed TrajectoryPoolProvider before, despite the property's
-        //    own remarks claiming otherwise.
+        // ⭐⭐ What is left to do HERE is the honesty check, and it is the reason the two-hook split is
+        //    safe. DeclaredResourceKeys(role) is a static role→keys map, because `provides` is recorded
+        //    before BuildContext exists. plan.RequiredResources(composed) is the REAL answer — the union
+        //    of the selected capabilities' declared Needs. If they ever disagree, the static map is a
+        //    lie and a capability is either allocating its own copy or reading a resource nobody made.
+        //    ⇒ compare them, and throw naming the difference.
+        AssertDeclaredResourcesMatchCapabilityNeeds(plan.RequiredResources(composed), composed);
 
         foreach (Hrot.Common.Infrastructure.INodeCapability capability in _capabilities)
             capability.PopulateSystems(context, input, sim, postSim);
@@ -353,6 +352,34 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             DeltaTime = 1.0f / _simulationRateHz,
             TimeScale = 1.0f
         });
+    }
+
+    /// <summary>
+    /// Throws when <see cref="DeclaredResourceKeys"/> and the capabilities' own declared
+    /// <c>Needs</c> disagree about which resources this node allocates.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ The static declaration exists only because a boot step's <c>provides</c> is recorded before
+    /// the context exists (<c>CE-199</c>). This keeps it subordinate to the real source — the
+    /// capabilities — rather than a second one competing with it.
+    /// </remarks>
+    private void AssertDeclaredResourcesMatchCapabilityNeeds(
+        IReadOnlyList<Hrot.Common.Infrastructure.INodeResourceProvider> required,
+        NodeRole composed)
+    {
+        var needed   = new SortedSet<string>(System.StringComparer.Ordinal);
+        foreach (Hrot.Common.Infrastructure.INodeResourceProvider provider in required)
+            needed.Add(provider.Key);
+
+        var declared = new SortedSet<string>(DeclaredResourceKeys(composed), System.StringComparer.Ordinal);
+
+        if (!needed.SetEquals(declared))
+            throw new InvalidOperationException(
+                $"SimHost role {composed} declares resources [{string.Join(", ", declared)}] but its " +
+                $"composed capabilities need [{string.Join(", ", needed)}]. The static declaration in " +
+                "DeclaredResourceKeys must match the union of the capabilities' Needs — otherwise a " +
+                "capability either allocates its own copy of a shared resource, or borrows one the " +
+                "node never allocated.");
     }
 
     /// <inheritdoc/>

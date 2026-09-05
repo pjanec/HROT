@@ -157,6 +157,9 @@ namespace Hrot.SimHost.Tests
         // ── CE-197: the declared role must CARRY what the host composes ──────────
 
         private const string SimHostRoot    = "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs";
+
+        /// <summary>The shared base that owns the ONE resource-disposal implementation (CE-199).</summary>
+        private const string SharedBaseRoot = "Hrot/Engine/Hrot.Common/Infrastructure/SharedApplicationBootstrapper.cs";
         private const string SimHostApp     = "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs";
         private const string SimHostSubsys  = "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs";
 
@@ -224,11 +227,28 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void TheNodeFreesTheProvidersItResolved()
         {
-            var src = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource(SimHostRoot));
+            // ⚠⚠ REWRITTEN BY CE-199, AND THE REDNESS WAS THE POINT. This rail used to assert that
+            //    SimHostNodeBootstrapper's OWN source contains "DisposeResources" — i.e. it pinned the
+            //    LOCATION of an implementation. CE-199 moved that loop up to SharedApplicationBootstrapper
+            //    because BOTH SimHost and IG had grown an identical copy of it, so the rail correctly
+            //    reddened on an improvement.
+            //
+            // ⭐⭐ It now asserts the INVARIANT instead of the address: exactly ONE implementation exists,
+            //    it lives on the base, and neither host restates it. That is the seam law made checkable —
+            //    the old form would have stayed green while a third host quietly grew a fourth copy.
+            var baseSrc = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(SharedBaseRoot));
 
-            Assert.Contains("DisposeResources", src);
-            Assert.Contains("provider.Dispose()", src);
+            Assert.Contains("public void DisposeResources()", baseSrc);
+            Assert.Contains("_resourceProviders[i].Dispose()", baseSrc);
+
+            foreach (string host in new[] { SimHostRoot, IgRoot })
+            {
+                var hostSrc = CompositionRootSource.StripComments(
+                    CompositionRootSource.ReadRepoSource(host));
+
+                Assert.DoesNotContain("public void DisposeResources()", hostSrc);
+            }
         }
 }
 }
