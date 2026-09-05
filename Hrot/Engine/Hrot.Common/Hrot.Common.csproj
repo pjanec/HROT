@@ -24,9 +24,6 @@
       <_Parameter1>Hrot.IG.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>Hrot.StrideMock.Tests</_Parameter1>
-    </AssemblyAttribute>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.Common.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
@@ -37,6 +34,9 @@
     <!-- Hrot.Network.Orchestration provides: NodeOpSlaveTranslator, DdsIdAllocatorHelper (used by HrotNodeBuilder) -->
     <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
     <!-- Fdp.Core for EntityRepository, ModuleHost.* (used by HrotNodeBuilder) -->
+    <!-- Q31-A: the blueprint v1⇄v2 transform. ⭐ A LEAF assembly (System.Text.Json only), which is
+         what lets the registration here reach it without the cycle a .Compiler reference would be. -->
+    <ProjectReference Include="..\..\Subsystems\Blueprints\Hrot.Blueprints.Schema\Hrot.Blueprints.Schema.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <!-- Fdp.ModuleHost for IArchitectureDiagnosticsService (used by DiagnosticsDumpClusterOpHandler) -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />

@@ -1,35 +1,54 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000000-aaaa-0001-0000-00000000c001",
   "Name": "GateConditionDemo",
-  "Dispatch": 1,
-  "TierHint": 0,
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
-    "Intent": 1,
-    "Hostings": [1]
+    "Intent": "Condition",
+    "Hostings": [
+      "BTreeCondition"
+    ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "c0010001-0001-0001-0001-000000000001",
       "Name": "Threshold",
-      "Type": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] }
-    }
-  ],
-  "WorkingState": [
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "Tooltip": null,
+      "Comment": null
+    },
     {
+      "Kind": "Variable",
       "Id": "c0010002-0002-0002-0002-000000000002",
       "Name": "LastEvaluated",
-      "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] }
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     }
   ],
-  "Variables": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -37,28 +56,32 @@
     {
       "Id": "c0010000-0001-0001-0001-000000000001",
       "Name": "Main",
-      "Kind": 0,
+      "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "c0010010-0001-0001-0001-000000000001",
           "EventTypeId": "",
+          "Id": "c0010010-0001-0001-0001-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 220.0
+            "X": 80,
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "c0010010-0002-0002-0002-000000000002",
-          "Status": 0,
           "Pins": [],
           "EditorMetadata": {
-            "X": 420.0,
-            "Y": 220.0
+            "X": 420,
+            "Y": 220,
+            "Comment": null
           }
         }
       ],
@@ -70,7 +93,13 @@
           "ToPinId": "c0010020-0002-b001-0001-000000000001"
         }
       ],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
@@ -79,10 +108,10 @@
     "Recipe": {
       "DisplayName": "Gate Condition Demo",
       "Category": "AI Primitives",
-      "Description": "Minimal BTree-hostable AiPrimitive CONDITION. Dispatch=AiPrimitive, Primitive.Intent=Condition, Hostings=[BTreeCondition] are set up front (Dispatch/Intent are immutable post-creation, so a Condition must be authored as such from creation -- there is no in-place Action-to-Condition conversion). EventEntry -> Return(Success): the graph evaluates synchronously and returns Success/Failure only -- no Running, no latent/Wait/Delay nodes (BP1100/BP1101). Carries a Threshold (float) Parameter and a LastEvaluated (bool) WorkingState field as placeholders for a real gate expression: wire GetVariable(Threshold) into a comparison and a Branch node, then Return Success on the true branch and Failure on the false branch. Compiles to a BTreeEvaluate(...) thunk usable as a BTree condition leaf.",
+      "Description": "Minimal BTree-hostable AiPrimitive CONDITION. Dispatch=AiPrimitive, Primitive.Intent=Condition, Hostings=[BTreeCondition] are set up front (Dispatch/Intent are immutable post-creation, so a Condition must be authored as such from creation -- there is no in-place Action-to-Condition conversion). EventEntry -\u003E Return(Success): the graph evaluates synchronously and returns Success/Failure only -- no Running, no latent/Wait/Delay nodes (BP1100/BP1101). Carries a Threshold (float) Parameter and a LastEvaluated (bool) WorkingState field as placeholders for a real gate expression: wire GetVariable(Threshold) into a comparison and a Branch node, then Return Success on the true branch and Failure on the false branch. Compiles to a BTreeEvaluate(...) thunk usable as a BTree condition leaf.",
       "Difficulty": "Beginner",
       "ConceptsTaught": [
-        "AiPrimitive Condition intent: Dispatch=AiPrimitive + Primitive.Intent=Condition + Hostings=[BTreeCondition] set at creation time (immutable afterward)",
+        "AiPrimitive Condition intent: Dispatch=AiPrimitive \u002B Primitive.Intent=Condition \u002B Hostings=[BTreeCondition] set at creation time (immutable afterward)",
         "Condition graphs must be synchronous: Return Success/Failure only, Running and latent/Wait/Delay nodes are compiler errors (BP1100/BP1101)",
         "AiPrimitive Condition emits a BTreeEvaluate(...) bool thunk (wraps TickCore(...) == NodeStatus.Success) usable as a BTree condition leaf",
         "Params/WorkingState on a Condition AiPrimitive (Threshold float Parameter, LastEvaluated bool WorkingState) size the same way as on an Action AiPrimitive"

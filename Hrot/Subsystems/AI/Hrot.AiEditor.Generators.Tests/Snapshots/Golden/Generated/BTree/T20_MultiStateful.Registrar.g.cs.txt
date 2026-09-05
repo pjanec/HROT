@@ -1,0 +1,254 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000020-0000-0000-0000-000000000000
+
+#nullable enable
+
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+
+using Fbt;
+using Fbt.Runtime;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Attributes;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[BlueprintRegistrar]
+public static class T20_MultiStatefulRegistrar
+{
+    // JSON options for ParseParams — the platform-canonical options (IncludeFields,
+    // vector/FixedString/strict-enum converters, and FC-3b fixed-list support) so
+    // Params defaults share ONE wire format with scenario save/load.
+    private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =
+        global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+
+    /// <summary>
+    /// Coordinator-injectable registrar (§3 D14, PU-203).
+    /// Registers the JSON-owned BTree definition and action/condition thunks.
+    /// Called by <see cref="AiHotReloadCoordinator"/> during hot reload.
+    /// </summary>
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+    {
+        // 1. Build the blob from the topology-core thunk.
+        var blob = T20_MultiStateful.Build();
+
+        // 2. Register baked-offset action/condition thunks before Interpreter construction.
+
+        // S1-3: baked-offset action thunks for managed blackboard.
+        // Key = {MethodFqn}@{offset} — matches blob key from topology emit.
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter@8",
+            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>(
+                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)8));
+                    return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter(ref dto, ref st, ref ctx);
+                }
+            });
+
+        // S2-1: stateful action thunks — project Params at baked offset + WorkingState from partition slot.
+        // Key = {MethodFqn}@{paramOffset}@{slotKey} — per-node unique (includes FNV-1a slot key).
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor@0@1631759884",
+            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams>(
+                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    const int __slotKey = 1631759884;
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1631759884 missing from BlueprintBlackboard16384");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor(ref dto, ref ws, ref st, ref ctx);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1631759884 missing from BlueprintBlackboard4096");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor(ref dto, ref ws, ref st, ref ctx);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1631759884 missing from BlueprintBlackboard1024");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor(ref dto, ref ws, ref st, ref ctx);
+                        }
+                    }
+                    // No tier component found — fail loud.
+                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1631759884");
+                    return Fbt.NodeStatus.Failure;
+                }
+            });
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor@4@1614982265",
+            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams>(
+                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)4));
+                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    const int __slotKey = 1614982265;
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1614982265 missing from BlueprintBlackboard16384");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor(ref dto, ref ws, ref st, ref ctx);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1614982265 missing from BlueprintBlackboard4096");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor(ref dto, ref ws, ref st, ref ctx);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 1614982265 missing from BlueprintBlackboard1024");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor(ref dto, ref ws, ref st, ref ctx);
+                        }
+                    }
+                    // No tier component found — fail loud.
+                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1614982265");
+                    return Fbt.NodeStatus.Failure;
+                }
+            });
+
+        // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
+        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionRegistry);
+
+        // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
+        // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
+        global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
+        unsafe
+        {
+            __parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>
+            {
+                // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams>("{\"Limit\":3}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams>("{\"Limit\":5}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 4, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>("{\"Counter\":0,\"Threshold\":1000}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 8, __v);
+                }
+
+                // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
+                // variable's deserializer (DEBT-AIB-021 names this shape).
+                // ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and
+                //    commits only on success, so a throw leaves the entity on its old behaviour.
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
+                    if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)
+                    {
+                        foreach (var __prop in __doc.RootElement.EnumerateObject())
+                        {
+                            switch (__prop.Name)
+                            {
+                                case "cursorA":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
+                                    break;
+                                }
+                                case "cursorB":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 4, __o);
+                                    break;
+                                }
+                                case "counter":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 8, __o);
+                                    break;
+                                }
+                                // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
+                                default: break;
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
+        // 4b. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T20_MultiStateful"), "T20_MultiStateful", new BehaviorDefinition
+        {
+            Name         = "T20_MultiStateful",
+            BrainTier    = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = interpreter,
+            ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
+            {
+                new("cursorA", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams), 0),
+                new("cursorB", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams), 4),
+                new("counter", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams), 8),
+            },
+            ParseParams  = __parseParams,
+            StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
+            {
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1631759884, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(), unchecked(1300726341u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState), "Action_AdvanceCursor_A"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1614982265, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(), unchecked(1300726341u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState), "Action_AdvanceCursor_B"),
+            },
+        });
+    }
+}

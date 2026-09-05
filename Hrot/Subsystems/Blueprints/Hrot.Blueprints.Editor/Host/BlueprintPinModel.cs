@@ -231,6 +231,7 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
                 "System.String"           => (object)"",
                 "Fdp.Core.FixedString32"  => (object)"",
                 "Fdp.Core.FixedString64"  => (object)"",
+                "Fdp.Core.FixedString128" => (object)"",
                 // FIX-B: vector zero-values for freshly-placed unset pins.
                 "System.Numerics.Vector2"    => (object)System.Numerics.Vector2.Zero,
                 "System.Numerics.Vector3"    => (object)System.Numerics.Vector3.Zero,

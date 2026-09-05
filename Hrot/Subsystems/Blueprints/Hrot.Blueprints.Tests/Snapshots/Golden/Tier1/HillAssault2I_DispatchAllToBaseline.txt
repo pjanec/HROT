@@ -1,0 +1,14 @@
+StructureHash: 0xCFD8B12D31F29282
+Parameters:
+  BaselineStartX : System.Single @0 size=4
+  BaselineStartY : System.Single @4 size=4
+  BaselineEndX : System.Single @8 size=4
+  BaselineEndY : System.Single @12 size=4
+WorkingState:
+  (empty)
+Variables:
+  (empty)
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

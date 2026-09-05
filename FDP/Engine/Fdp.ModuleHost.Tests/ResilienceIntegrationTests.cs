@@ -13,8 +13,25 @@ using System.Diagnostics;
 
 namespace Fdp.ModuleHost.Tests
 {
-    public class ResilienceIntegrationTests
+    /// <summary>
+    /// ⚠ <b>This suite opts OUT of fail-fast, and that is the point of it.</b>
+    ///
+    /// <para><c>FdpConfig.FailFastOnModuleException</c> ships <b>ON</b> (user ruling, <c>2026-09-04</c>:
+    /// <i>"we are still in a wild development phase, not even close to production"</i>) — a module fault
+    /// kills the node so the bug gets fixed rather than survived. These tests exist to verify the
+    /// <b>catch path</b> that the switch suspends: crashing modules isolated, circuits tripping and
+    /// recovering, the system degrading rather than dying. They deliberately throw from a module, so
+    /// with the shipped default they would simply rethrow into the test.</para>
+    ///
+    /// <para>⛔ Do not "fix" a red here by weakening the default. The opt-out belongs to the four tests
+    /// whose subject IS the resilience machinery, not to the machinery itself (<c>CE-189</c>).</para>
+    /// </summary>
+    public class ResilienceIntegrationTests : IDisposable
     {
+        private readonly bool _originalFailFast = FdpConfig.FailFastOnModuleException;
+
+        public void Dispose() => FdpConfig.FailFastOnModuleException = _originalFailFast;
+
         private class TestModule : IEcsModule
         {
             public string Name { get; set; } = "TestModule";
@@ -62,6 +79,10 @@ namespace Fdp.ModuleHost.Tests
 
         public ResilienceIntegrationTests()
         {
+            // See the type-level remarks: this suite's SUBJECT is the catch path, so it must run with
+            // fail-fast suspended. Restored in Dispose so it cannot leak into another suite.
+            FdpConfig.FailFastOnModuleException = false;
+
             _liveWorld = new EntityRepository();
             _eventAccum = new EventAccumulator();
         }

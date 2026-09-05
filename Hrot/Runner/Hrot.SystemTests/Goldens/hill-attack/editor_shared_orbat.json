@@ -1,0 +1,64 @@
+{
+  "expandedNodeIds": [],
+  "filterText": "",
+  "nodes": [
+    {
+      "canAcceptSubordinates": true,
+      "depth": 0,
+      "entityId": 0,
+      "hasChildren": true,
+      "isPendingDelete": false,
+      "name": "Tank Platoon (Auto Spawn)"
+    },
+    {
+      "canAcceptSubordinates": false,
+      "depth": 1,
+      "entityId": 1,
+      "hasChildren": false,
+      "isPendingDelete": false,
+      "name": "Tank Platoon (Auto Spawn)-1"
+    },
+    {
+      "canAcceptSubordinates": false,
+      "depth": 1,
+      "entityId": 2,
+      "hasChildren": false,
+      "isPendingDelete": false,
+      "name": "Tank Platoon (Auto Spawn)-2"
+    },
+    {
+      "canAcceptSubordinates": false,
+      "depth": 1,
+      "entityId": 3,
+      "hasChildren": false,
+      "isPendingDelete": false,
+      "name": "Tank Platoon (Auto Spawn)-3"
+    },
+    {
+      "canAcceptSubordinates": false,
+      "depth": 1,
+      "entityId": 4,
+      "hasChildren": false,
+      "isPendingDelete": false,
+      "name": "Tank Platoon (Auto Spawn)-4"
+    },
+    {
+      "canAcceptSubordinates": false,
+      "depth": 0,
+      "entityId": 6,
+      "hasChildren": false,
+      "isPendingDelete": false,
+      "name": "M1 Abrams"
+    },
+    {
+      "canAcceptSubordinates": false,
+      "depth": 0,
+      "entityId": 7,
+      "hasChildren": false,
+      "isPendingDelete": false,
+      "name": "M1 Abrams"
+    }
+  ],
+  "panelId": "editor_shared_orbat",
+  "panelKind": "shared-orbat"
+}

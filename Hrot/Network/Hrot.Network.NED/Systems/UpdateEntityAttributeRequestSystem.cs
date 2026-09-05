@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -8,6 +8,8 @@ using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Replication.Patching;
+using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication.Attributes;
 using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Services;
@@ -59,8 +61,8 @@ namespace Hrot.Map.Common.Systems
         private readonly IUpdateEntityAttributeRequestSource _requestSource;
         private readonly IUpdateEntityAttributeAckSink       _ackSink;
         private readonly NetworkEntityMap                    _entityMap;
-        private readonly JsonAttributeCompiler?              _jsonCompiler;
-        private readonly BinaryInterpreter<AttributeRecord>?            _binaryInterpreter;
+        private JsonAttributeCompiler?                       _jsonCompiler;
+        private BinaryInterpreter<EntityAttributeChange>?               _binaryInterpreter;
         private readonly NodeId                              _localNodeId;
 
         // ── Interface-based constructor (test-friendly) ───────────────────────
@@ -92,7 +94,7 @@ namespace Hrot.Map.Common.Systems
             NetworkEntityMap                    entityMap,
             JsonAttributeCompiler?              jsonAttributeCompiler = null,
             NodeId                              localNodeId = default,
-            BinaryInterpreter<AttributeRecord>?          binaryInterpreter = null)
+            BinaryInterpreter<EntityAttributeChange>?    binaryInterpreter = null)
         {
             _requestSource     = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
             _ackSink           = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
@@ -110,28 +112,59 @@ namespace Hrot.Map.Common.Systems
         /// <param name="participant">DDS participant used for topic subscriptions and publications.</param>
         /// <param name="entityMap">Shared net-ID → entity lookup service.</param>
         /// <param name="geoTransform">
-        /// Retained for API compatibility; not used directly by this system.
-        /// Geographic conversion is handled via the <paramref name="jsonAttributeCompiler"/>
-        /// routing delegates registered at startup.
+        /// ⭐⭐⭐ <b><c>AX-012</c> — this is now USED: it builds the BINARY interpreter.</b>
+        ///
+        /// <para>⚠ It previously said *"retained for API compatibility; not used directly by this
+        /// system"*, and that was true — which is exactly how the binary arm came to be dead in
+        /// production.</para>
         /// </param>
         /// <param name="jsonAttributeCompiler">
-        /// Optional zero-allocation JSON attribute compiler.
+        /// ⭐⭐ Optional override. ⚠ <see langword="null"/> no longer means *"no JSON arm"* — it means
+        /// *"build the standard one"*, exactly as the binary arm does. See the constructor's remarks.
         /// </param>
         /// <param name="localNodeId">
         /// This node's <see cref="NodeId"/>, embedded in every ACK as <c>RespondingNode</c>.
         /// </param>
+        // ────────────────────────────────────────────────────────────────────────────────────────────
+        // ⭐⭐⭐ AX-014 — BOTH ARMS ARE SOURCED THE SAME WAY, and the inconsistency was mine.
+        //
+        // 🔴 AX-012 fixed the dead binary arm by having this constructor BUILD its interpreter — while the
+        //    JSON arm stayed PASSED IN by the factory. ⇒ two sibling dependencies of one system, obtained by
+        //    two different conventions, from the SAME factory class and the SAME `geoTransform`. ⛔ That is
+        //    the shape that produced AX-012 in the first place: a reader cannot tell which arm is the
+        //    caller's job.
+        //
+        // ⭐⭐ Now: the constructor DEFAULTS BOTH from `geoTransform`, and either may be OVERRIDDEN.
+        //    ⇒ omitting an argument can no longer silently disable an arm — the failure mode is gone for
+        //      both, not just for the one that happened to be found.
+        //    ⚠ The override is not decoration: `SimHostAppTests` passes its own JSON compiler.
+        //
+        // 📐 Measured: `NedNetworkFactory` was the ONLY production caller, and it passed
+        //    `AttributeCompilerFactory.Build(_geoTransform)` — byte-for-byte what the default now builds.
+        //    ⇒ no behaviour change, one fewer thing for a caller to get wrong.
+        // ────────────────────────────────────────────────────────────────────────────────────────────
         public UpdateEntityAttributeRequestSystem(
             DdsParticipant        participant,
             NetworkEntityMap      entityMap,
             IGeographicTransform? geoTransform = null,
             JsonAttributeCompiler? jsonAttributeCompiler = null,
-            NodeId                 localNodeId = default)
+            NodeId                 localNodeId = default,
+            BinaryInterpreter<EntityAttributeChange>? binaryInterpreter = null)
             : this(
                 new DdsUpdateEntityAttributeRequestSource(participant),
                 new DdsUpdateEntityAttributeAckSink(participant),
                 entityMap,
+                // ⭐⭐ AX-016 — like the binary arm, resolved from the WORLD on first Execute, not built
+                //    here. ⭐ AX-014's requirement (both arms sourced the SAME way) is what keeps them
+                //    together; only the source changed, from "the constructor" to "the world".
                 jsonAttributeCompiler,
-                localNodeId)
+                localNodeId,
+                // ⭐⭐⭐ AX-016 — DELIBERATELY NOT BUILT HERE. It is resolved from the WORLD on the first
+                //    Execute (see below), because 🔒 *"the interpreter should not be bound to any network."*
+                //    ⛔ AX-012 fixed a dead arm by building one here, and AX-014 made the JSON arm match —
+                //    both were the right call at the time and both are now SUPERSEDED: a per-network-stack
+                //    instance is the thing being removed. ⚠ An explicit override still wins, for tests.
+                binaryInterpreter)
         {
         }
 
@@ -139,6 +172,15 @@ namespace Hrot.Map.Common.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // ⭐⭐⭐ AX-016 — resolve the WORLD's one interpreter, once. ⭐ Idempotent and allocation-free
+            //    after the first tick. ⛔ It cannot be absent: the provider builds it if the world has none,
+            //    so the AX-012 failure mode (a silently null arm) is unrepresentable rather than merely fixed.
+            if (view is EntityRepository repoForInterpreter)
+            {
+                _binaryInterpreter ??= AttributeInterpreterProvider.GetOrCreate(repoForInterpreter);
+                _jsonCompiler      ??= AttributeInterpreterProvider.GetOrCreateJson(repoForInterpreter);
+            }
+
             _requestSource.ProcessRequests(req => ProcessRequest(req, view, (EntityRepository)view));
         }
 
@@ -172,14 +214,30 @@ namespace Hrot.Map.Common.Systems
             if (hasBinaryRecords)
             {
                 // Build a bare EcsPatchContext directly — independent of the JSON compiler.
-                // Authority checks and component access work without a routing table;
-                // FlushDirtyMarks is a no-op here because the binary installer flushers
-                // drive SmartEgress themselves (BinaryInterpreter.Apply calls FlushDirtyMarks
-                // at the end via IEntityPatchContext contract).
+                // Authority checks and component access work without a routing table.
+                //
+                // ⭐⭐ AX-015 CORRECTED THIS COMMENT. It used to read "FlushDirtyMarks is a no-op here
+                //    because the binary installer flushers drive SmartEgress themselves" — 🔴 and that
+                //    was the DEFECT, described as if it were the design: the installers announced their
+                //    descriptor through BinaryPatchContext.MarkDescriptorDirty, which set a local ulong
+                //    mask nothing in production read, so NOTHING reached SmartEgress and an entity
+                //    rename applied on the owner was never republished.
+                // ⭐ Now the installers' MarkDescriptorDirty reaches EcsPatchContext's ordinal set, and
+                //    BinaryInterpreter.Apply's closing FlushDirtyMarks() is what delivers it. ⇒ the
+                //    context built by Create() has an empty ROUTING map but its dirty set is live.
                 var ecsPatchCtx  = EcsPatchContext.Create(repo, entity);
                 var binaryCtx    = _binaryInterpreter!.CreateContext(ecsPatchCtx);
+
+                // ⭐⭐⭐ R-134 — THE INGRESS BOUNDARY. The DDS record is converted to the FDP-internal
+                //    EntityAttributeChange HERE, and nothing downstream sees a network type: the
+                //    interpreter, its installers and every conversion they hold are FDP-internal.
+                //    📄 DESIGN_Cgf_AxisB_Rotation_Slice.md §11.1/§11.3.
+                //    ⚠ This replaced a zero-copy `CollectionsMarshal.AsSpan(req.AttributeRecords)`. 📐 The
+                //    cost is one array per REQUEST — an operator gesture or a script call, never per tick —
+                //    and it buys the separation the ruling requires. ⛔ Keeping the span would have left the
+                //    wire type as the interpreter's record type, which is the coupling AX-005a removes.
                 _binaryInterpreter.Apply(binaryCtx,
-                    CollectionsMarshal.AsSpan(req.AttributeRecords));
+                    AttributeRecordConversion.ToInternal(req.AttributeRecords));
 
                 // SILENT BYSTANDER RULE — nothing applied, leave quietly.
                 if (!ecsPatchCtx.HasAppliedAny)

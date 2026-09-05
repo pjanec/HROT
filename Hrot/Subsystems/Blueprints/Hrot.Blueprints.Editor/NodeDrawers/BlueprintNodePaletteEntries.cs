@@ -32,6 +32,18 @@ namespace Hrot.Blueprints.Editor.NodeDrawers;
 /// </summary>
 public static class BlueprintNodePaletteEntries
 {
+    /// <summary>
+    /// Alias for the math picker groups (BP-04). The native value ops live alongside the
+    /// <c>BlueprintMath</c> helper entries rather than in a separate group, so a designer looking
+    /// for "less than" finds it in one place.
+    /// </summary>
+    private static class MathCategories
+    {
+        public const string Math        = BlueprintMathPaletteEntries.Categories.Math;
+        public const string MathCompare = BlueprintMathPaletteEntries.Categories.MathCompare;
+        public const string MathBool    = BlueprintMathPaletteEntries.Categories.MathBool;
+    }
+
     /// <summary>Category names used for picker grouping (mirrors the demo's FakeNodeCatalog).</summary>
     public static class Categories
     {
@@ -97,12 +109,11 @@ public static class BlueprintNodePaletteEntries
         yield return Make<CallCustomEventNode>(
             "CallCustomEvent", "Call Custom Event", Categories.Event,
             "Invoke a custom event declared on this blueprint.");
-        yield return Make<CallEventDispatcherNode>(
-            "CallDispatcher", "Call Event Dispatcher", Categories.Event,
-            "Broadcast an event dispatcher to all bound listeners.");
-        yield return Make<BindEventDispatcherNode>(
-            "BindDispatcher", "Bind Event Dispatcher", Categories.Event,
-            "Bind a handler to an event dispatcher.");
+        // BP-09: CallDispatcher / BindDispatcher palette entries REMOVED. Both node kinds have no
+        // Stage5_Schedule lowering -- they fall to the generic `default:` branch, emit a BP4004
+        // warning and no IR, so a graph using them compiles "successfully" and does nothing at
+        // runtime. The dispatcher model is superseded by PublishEvent + EventEntry subscribe.
+        // The node classes remain (assets may still deserialize them); only the front door is gone.
         yield return Make<WaitForEventNode>(
             "WaitForEvent", "Wait For Event", Categories.Event,
             "Latent: suspend until a matching event fires.");
@@ -198,18 +209,91 @@ public static class BlueprintNodePaletteEntries
             "Cast", "Cast", Categories.Function,
             "Cast a value to a target type.");
 
+        // ── Native value ops (BP-04) ───────────────────────────────────────
+        // Compare / BinaryOp / BooleanOp / Not are fully lowered and compile-tested but previously
+        // had NO palette entry at all, so they were reachable only from hand-authored JSON. One
+        // baked entry per operator enum value -- the operator is a fixed property, so a picker row
+        // per value is friendlier than one row plus a drawer, and needs no drawer at all.
+        //
+        // Baking works because BlueprintCommandSink.CreateAssetNode builds the node via the
+        // descriptor's CreateInstance and only *overlays* caller-supplied props afterwards; it does
+        // NOT round-trip through ApplyInitialProperties' 8-of-50 whitelist. Same recipe as
+        // MakeMath / WhenNodePaletteEntries.
+        //
+        // Pins are intentionally left empty: these are asset-authored-pin kinds, and Stage0_Rehydrate
+        // deterministically reconstructs A/B/Result for a pin-less instance (proven by
+        // DeterministicPinReconstructionTests).
+
+        // Compare -- 6 operators, boolean result.
+        yield return MakeBaked<CompareNode>("Compare.Equal", "A == B",
+            MathCategories.MathCompare, "True when A equals B.",
+            n => n.Operator = ComparisonOperator.Equal);
+        yield return MakeBaked<CompareNode>("Compare.NotEqual", "A != B",
+            MathCategories.MathCompare, "True when A does not equal B.",
+            n => n.Operator = ComparisonOperator.NotEqual);
+        yield return MakeBaked<CompareNode>("Compare.LessThan", "A < B",
+            MathCategories.MathCompare, "True when A is less than B.",
+            n => n.Operator = ComparisonOperator.LessThan);
+        yield return MakeBaked<CompareNode>("Compare.LessThanOrEqual", "A <= B",
+            MathCategories.MathCompare, "True when A is less than or equal to B.",
+            n => n.Operator = ComparisonOperator.LessThanOrEqual);
+        yield return MakeBaked<CompareNode>("Compare.GreaterThan", "A > B",
+            MathCategories.MathCompare, "True when A is greater than B.",
+            n => n.Operator = ComparisonOperator.GreaterThan);
+        yield return MakeBaked<CompareNode>("Compare.GreaterThanOrEqual", "A >= B",
+            MathCategories.MathCompare, "True when A is greater than or equal to B.",
+            n => n.Operator = ComparisonOperator.GreaterThanOrEqual);
+
+        // BinaryOp -- 5 operators; result type is the OPERAND type, not bool.
+        yield return MakeBaked<BinaryOpNode>("BinaryOp.Add", "A + B",
+            MathCategories.Math, "Add two operands; the result has the operand type.",
+            n => n.Operator = ArithmeticOperator.Add);
+        yield return MakeBaked<BinaryOpNode>("BinaryOp.Subtract", "A - B",
+            MathCategories.Math, "Subtract B from A; the result has the operand type.",
+            n => n.Operator = ArithmeticOperator.Subtract);
+        yield return MakeBaked<BinaryOpNode>("BinaryOp.Multiply", "A × B",
+            MathCategories.Math, "Multiply two operands; the result has the operand type.",
+            n => n.Operator = ArithmeticOperator.Multiply);
+        yield return MakeBaked<BinaryOpNode>("BinaryOp.Divide", "A ÷ B",
+            MathCategories.Math, "Divide A by B; the result has the operand type.",
+            n => n.Operator = ArithmeticOperator.Divide);
+        yield return MakeBaked<BinaryOpNode>("BinaryOp.Modulo", "A % B",
+            MathCategories.Math, "Remainder of A divided by B; the result has the operand type.",
+            n => n.Operator = ArithmeticOperator.Modulo);
+
+        // BooleanOp / Not -- boolean result. Data-flow, so NOT short-circuiting: both operands are
+        // resolved before combining. Use nested Branch when short-circuit matters.
+        yield return MakeBaked<BooleanOpNode>("BooleanOp.And", "A && B",
+            MathCategories.MathBool, "True when both operands are true (no short-circuit).",
+            n => n.Operator = BooleanOperator.And);
+        yield return MakeBaked<BooleanOpNode>("BooleanOp.Or", "A || B",
+            MathCategories.MathBool, "True when either operand is true (no short-circuit).",
+            n => n.Operator = BooleanOperator.Or);
+        yield return Make<NotNode>("Not", "!A",
+            MathCategories.MathBool, "Logical negation of a boolean operand.");
+
         // ── Array ──────────────────────────────────────────────────────────
-        yield return Make<ArrayMakeNode>(
-            "ArrayMake", "Make Array", Categories.Array,
-            "Construct an array from element inputs.");
-        yield return Make<ArrayGetNode>(
-            "ArrayGet", "Get Array Element", Categories.Array,
-            "Read an element from an array by index.");
+        // BP-09/BP-16: ArrayMake / ArrayGet palette entries REMOVED. Since BP-16 they are rejected
+        // at Stage2 with a BP1420 error, so offering them in the picker would let a designer place
+        // a node that is guaranteed to break the build. The node classes remain so existing assets
+        // still deserialize (and then fail loudly). Use a fixed-capacity list variable instead.
 
         // ── Latent ─────────────────────────────────────────────────────────
         yield return Make<LatentDelayNode>(
             "Delay", "Delay", Categories.Latent,
             "Latent: pause execution for a duration.");
+
+        // ── Utility (BP-108: Print String / Format String) ─────────────────
+        // Both default-construct with an empty Format (⭐ Pins EMPTY -- NodePinSchema.GetCanonicalPins
+        // would otherwise shadow the format-derived pins with this default, pin-less instance).
+        // Post-placement editing (Format/Level/ResultTypeId) is via PrintStringNodeDrawer /
+        // FormatStringNodeDrawer (registered in BlueprintEditorBootstrap).
+        yield return Make<PrintStringNode>(
+            "PrintString", "Print String", Categories.Utility,
+            "Format a message and write it to the AI Behaviors log at the chosen level.");
+        yield return Make<FormatStringNode>(
+            "FormatString", "Format String", Categories.Utility,
+            "Format a message into a FixedString result (pure) -- Unreal's Format Text.");
 
         // ── Peers / channels ───────────────────────────────────────────────
         yield return Make<CallPeerBlueprintNode>(
@@ -230,18 +314,13 @@ public static class BlueprintNodePaletteEntries
             "Read the rank-i entry from the utility result buffer.");
 
         // ── Squad coordination primitives ──────────────────────────────────
-        yield return Make<PartitionElementsNode>(
-            "PartitionElements", "Partition Elements", Categories.Squad,
-            "Partition squad members into N elements.");
-        yield return Make<AssignRolesNode>(
-            "AssignRoles", "Assign Roles", Categories.Squad,
-            "Assign roles to squad members via greedy matrix.");
-        yield return Make<AdvancePhaseNode>(
-            "AdvancePhase", "Advance Phase", Categories.Squad,
-            "Advance the squad phase sequencer one step.");
-        yield return Make<AcquireSlotNode>(
-            "AcquireSlot", "Acquire Slot", Categories.Squad,
-            "Acquire the next available slot from the rotation ring.");
+        // BP-09: PartitionElements / AssignRoles / AdvancePhase / AcquireSlot palette entries
+        // REMOVED. Each one's doc comment claims it "wraps" a real FDP primitive, but that wiring
+        // was never implemented: none has a Stage5_Schedule case, so all four fall to the generic
+        // `default:` branch (BP4004 warning, no IR) and are silent no-ops at runtime. The quartet is
+        // superseded by MemberSlotList / SlotRotation. Inviting descriptions on nodes that do
+        // nothing are worse than no entry at all.
+        // The node classes remain (assets may still deserialize them); only the front door is gone.
     }
 
     /// <summary>
@@ -403,6 +482,29 @@ public static class BlueprintNodePaletteEntries
             Tooltip     = tooltip,
             Icon        = CategoryIcon(category),
             CreateInstance = () => new TNode { Id = Guid.NewGuid() },
+        };
+
+    /// <summary>
+    /// <see cref="Make{TNode}"/> plus a <paramref name="configure"/> step run on each created
+    /// instance, so a palette row can bake a fixed property value (BP-04). Used for operator-keyed
+    /// kinds where one picker row per enum value beats one row plus a drawer.
+    /// </summary>
+    private static NodeKindDescriptor MakeBaked<TNode>(
+        string kind, string displayName, string category, string tooltip, Action<TNode> configure)
+        where TNode : Node, new()
+        => new()
+        {
+            Kind        = kind,
+            DisplayName = displayName,
+            Category    = category,
+            Tooltip     = tooltip,
+            Icon        = CategoryIcon(category),
+            CreateInstance = () =>
+            {
+                var node = new TNode { Id = Guid.NewGuid() };
+                configure(node);
+                return node;
+            },
         };
 
     /// <summary>

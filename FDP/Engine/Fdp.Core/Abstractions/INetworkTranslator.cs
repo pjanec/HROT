@@ -18,6 +18,18 @@ namespace Fdp.Interfaces
         TranslatorDirection Direction { get; }
 
         /// <summary>
+        /// ⭐⭐ Which traffic class this translator carries (<c>DQ30-C</c>). Read by the ingress
+        /// systems to decide what may still be polled while a debugger holds the world frozen.
+        ///
+        /// <para>🔒 <b>Defaulted deliberately, and defaulted to
+        /// <see cref="TranslatorClass.WorldState"/>:</b> a default interface member gives every one
+        /// of the existing implementations the fail-safe answer without touching a single one of
+        /// them, and the fail-safe direction is *"stop"* — see <see cref="TranslatorClass"/> for why
+        /// the opposite default would fail silently instead of loudly.</para>
+        /// </summary>
+        TranslatorClass Category => TranslatorClass.WorldState;
+
+        /// <summary>
         /// Number of valid ingress samples consumed by this translator.
         /// </summary>
         long ReceivedSampleCount { get; }

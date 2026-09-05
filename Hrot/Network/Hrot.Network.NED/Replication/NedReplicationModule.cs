@@ -199,12 +199,22 @@ public sealed class NedReplicationModule : INedReplicationModule
         var lifecycleInnerSystems = new List<IEcsModuleSystem> { GhostCreationSystem };
 
 
-        // ── Deferred Takeover (Muscle / AllInOne Only) ──
-        // Executes the split-authority handover. When a Brain creates an entity and delegates 
-        // physics to the Muscle, this system claims the local ECS authority bits (e.g., SimTransform) 
-        // once the ghost finishes constructing.
-        if (_roleHasMuscle)
-            lifecycleInnerSystems.Add(new DeferredTakeoverSystem(_entityMap, _localNodeId, _descriptorOwnershipMap, _tkbDb));
+        // ── Deferred Takeover — ROLE-INDEPENDENT (CE-142) ──
+        // Executes a split-authority handover: claims the local ECS authority bits for any
+        // descriptor grant addressed to this node, once the ghost finishes constructing.
+        //
+        // ⭐⭐⭐ CE-142 — this used to be gated on _roleHasMuscle. Measured: the class contains
+        //   ZERO role logic; its only "Muscle" was a comment. Gating it on the role removed a
+        //   capability from every other node, which R-138 forbids ("the ECS component ownership
+        //   is transferrable per entity during entity lifetime … nodes should be equal").
+        //   Delegation is "here is a grant, addressed to a node id" — node-agnostic in both
+        //   directions. Role belongs on the POLICY (IOwnershipDistributionStrategy), never here.
+        //
+        // ⭐ Safe: ExecuteTakeover is doubly guarded — it self-filters on `ownerNodeId !=
+        //   _localNodeId`, then checks HasComponentByTypeId per component, so a grant naming a
+        //   component this node does not carry is skipped silently rather than throwing.
+        //   A node nobody addresses a grant to pays one idle system.
+        lifecycleInnerSystems.Add(new DeferredTakeoverSystem(_entityMap, _localNodeId, _descriptorOwnershipMap, _tkbDb));
 
         NetworkLifecycleGroup = new NetworkLifecycleSystemGroup(lifecycleInnerSystems.ToArray());
 
@@ -226,12 +236,25 @@ public sealed class NedReplicationModule : INedReplicationModule
                     GhostCreationSystem,
                     localNodeId: localNodeId);
 
-            // DeferredTakeOwnership: Brain publishes, Muscle receives.
-            if (_roleHasBrain)
-                _dtoEgress  = new DeferredTakeOwnershipEgressTranslator(participant, localNodeId: localNodeId);
-            if (_roleHasMuscle)
-                _dtoIngress = new DeferredTakeOwnershipIngressTranslator(
-                    participant, entityMap, GhostCreationSystem, localNodeId);
+            // ── DeferredTakeOwnership transport — ROLE-INDEPENDENT (CE-142) ──
+            // ⭐⭐⭐ These were gated `_roleHasBrain` (egress) and `_roleHasMuscle` (ingress), i.e.
+            //   "Brain publishes, Muscle receives" — a one-directional assumption baked into the
+            //   TRANSPORT. Measured: neither class has role logic. The egress converts a
+            //   DescriptorGrant into one DDS sample; the ingress already self-filters to entries
+            //   whose NodeId equals the local node.
+            //
+            // 🔒 R-138: ownership is per-component, dynamic and transferable, and NodeRole is a
+            //   convention, never a protocol restriction. Delegation must therefore work in EVERY
+            //   direction — including a Muscle-originated entity handing its cognitive descriptors
+            //   to a Brain node, which the old gating made silently impossible: the originator had
+            //   no egress translator, so its grants were computed and then dropped with no error.
+            //
+            // ⭐ Role now selects only the POLICY (which grants are computed at all — see
+            //   IOwnershipDistributionStrategy and CreateEntityRequestSystem's `_ownershipStrategy
+            //   != null` lever). A node nobody addresses grants to pays two idle translators.
+            _dtoEgress  = new DeferredTakeOwnershipEgressTranslator(participant, localNodeId: localNodeId);
+            _dtoIngress = new DeferredTakeOwnershipIngressTranslator(
+                participant, entityMap, GhostCreationSystem, localNodeId);
         }
         else
         {
@@ -304,8 +327,6 @@ public sealed class NedReplicationModule : INedReplicationModule
             // IG ghost lifecycle: ownership tracking + promotion + sub-entity cleanup.
             // These replace the legacy ReplicationLogicModule for pure IG nodes.
             registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
-            if (_tkbDb != null && _lifecycleModule != null)
-                registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule, _tkbEntityTranslators));
             registry.RegisterSystem(new SubEntityCleanupSystem());
 
             // DR sync -- smooth ALL remote entities (IG can create owned entities as well!)
@@ -346,13 +367,49 @@ public sealed class NedReplicationModule : INedReplicationModule
 
 
 
-		// ── DeferredTakeover (Muscle and AllInOne only) ──────────────────────
-		// Runs BeforeSync: entity must be Constructing + have PendingAuthorityGrants.
-		// Ghost promotion for Muscle: promotes ghosts received from remote Brain (CGF) nodes.
-		// Pure-IG ghost promotion is registered above (pureIgRole block). Muscle needs a
-		// separate registration so that CGF-spawned entities (WorldPos delegated to Muscle)
-		// transition from Ghost → Constructing before DeferredTakeoverSystem claims authority.
-		if( _roleHasMuscle && _tkbDb != null && _lifecycleModule != null)
+        // ── Ghost promotion — ROLE-INDEPENDENT ───────────────────────────────
+        // ⭐⭐⭐ CE-155. This registration used to exist TWICE, each behind a role gate: once inside
+        //   the pureIgRole block and once behind `_roleHasMuscle`. Pure-Brain (CGF) matched NEITHER,
+        //   so a CGF that RECEIVES a ghost it did not spawn never promoted it — the ghost kept only
+        //   its replicated network components and never gained its TKB projection.
+        //
+        // 📐 MEASURED 2026-09-01 (MissionToMovementChainProbe): SimHost spawns a tank, CGF receives
+        //   the ghost, a MoveToLocation MissionControlRequest is ACKed and lands correctly as
+        //   MissionPlanQueue{Phase 0/1} + ActiveMissionPlan{BehaviorName="MoveToLocation"} on the CGF
+        //   ghost — and then nothing happens, forever. The CGF ghost carried 12 components and NONE
+        //   of the brain tier; MissionAdapterSystem queries `MissionPlanQueue AND BehaviorState`, so
+        //   the missing BehaviorState made it a silent zero-iteration loop. The whole cognitive chain
+        //   (tactical intent → behaviour → BTree → LocomotionChannel → NavigationIntent → NavState →
+        //   kinematics) never started. Meanwhile the SimHost copy of the same entity had all 35
+        //   components including the entire brain tier — the tiers were exactly inverted.
+        //
+        // 🔒 Q65-B (Architect_Question_65_Entity_Genesis_Uniformity.md §4) prescribes precisely this:
+        //   "collapse the two role-gated sites into ONE registration valid for ANY role, once _tkbDb
+        //   and _lifecycleModule are present."
+        //
+        // ⚠ Q65-B also said to sequence this AFTER Q65-A′, because "before A′, pure-Brain promotion
+        //   is dead code". That caveat's PREMISE — Q65 obstacle 2b's "pure-Brain spawns rather than
+        //   receives" — is superseded by R-138 (2026-09-01, later than both): every ECS node can
+        //   create entities, nodes are equal, and NodeRole is a convention rather than a protocol
+        //   restriction. A Brain node receiving a ghost of an entity another node originated is
+        //   therefore a normal configuration, not dead code, and gating promotion on the role
+        //   removes a capability — which Q65 section 0's governing ruling forbids without exception.
+        //
+        // ⛔ HONEST SCOPE: this turns NO test green on its own. Measured 2026-09-01, before and
+        //   after: the same 9 reds in the cluster suite. Ghost promotion is only the first of three
+        //   pieces — see CE-142 for the delegation transport and the tracker for the remaining
+        //   POLICY half (nothing computes Brain-ward grants yet). An earlier version of this comment
+        //   claimed the caveat was refuted by the movement test's behaviour; that argument was
+        //   circular, because that test reaches CGF through a spawn hook the design excludes.
+        //
+        // ⭐ Safe by tkb-1/DESIGN.md §6.5b gate ②: every translator guards each write with
+        //   IsComponentTypeRegistered<T>(), so widening the ROLE gate cannot write a component a host
+        //   never registered. The per-host lever is the REGISTRATION SET, never the role.
+        //
+        // ⚠ The two null guards remain the real (and silent) per-host lever — a role that supplies no
+        //   TKB database still skips promotion with no diagnostic. Not converted to a throw here:
+        //   which hosts pass null has not been measured.
+        if (_tkbDb != null && _lifecycleModule != null)
             registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule, _tkbEntityTranslators));
         // ── Cleanup systems (all roles) ──────────────────────────────────────
         var allCleanupTranslators = new List<FdpIDescriptorTranslator>(allTranslators.OfType<FdpIDescriptorTranslator>());
@@ -403,7 +460,52 @@ public sealed class NedReplicationModule : INedReplicationModule
 
     public void Tick(ISimulationView view, float dt)
     {
+        ContributeDescriptorPairings(view);
+
         NetworkLifecycleGroup.ExecuteGroup(view, dt);
+    }
+
+    /// <summary>⭐ Set once, on the first tick that hands this module a world.</summary>
+    private bool _contributedDescriptorPairings;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>AX-022</c> — publishes this module's descriptor↔component pairings into the WORLD, so the
+    /// attribute apply path sees everything this module knows.</b>
+    ///
+    /// <para>📄 <c>docs/blueprints/Architect_Question_59_…md</c> §13.6.</para>
+    ///
+    /// <para>🔴 <b>The gap this closes.</b> <c>AX-019</c> made the FDP attribute path resolve descriptor
+    /// ordinals from a PER-WORLD <see cref="DescriptorOwnershipMap"/>, contributed by
+    /// <c>CycloneEgressSystem</c> — i.e. from the <b>egress</b> translators only. ⛔ This module knows more:
+    /// its shared, kinematic and cognitive packs include <b>ingress</b> translators that also declare
+    /// <c>TargetComponentIds</c>. ⇒ ⚠ a component covered only by an ingress-side declaration would have been
+    /// invisible to the attribute path, and a write to it would never have been marked for republication —
+    /// the <c>AX-015</c> failure mode, reached by a different route.</para>
+    ///
+    /// <para>⭐⭐ <b>Additive, so ORDER DOES NOT MATTER.</b> <c>ContributeTranslators</c> merges, and
+    /// <c>RegisterFromTranslator</c> is idempotent per (ordinal, component) pair ⇒ this module and every
+    /// egress system can contribute in any order, any number of times, and the result is their union.</para>
+    ///
+    /// <para>⚠⚠ <b>What this deliberately does NOT do: collapse the two instances into one.</b>
+    /// <see cref="_descriptorOwnershipMap"/> stays private and stays the one handed to
+    /// <c>OwnershipIngressSystem</c>, <c>DeferredTakeoverSystem</c> and <c>LocalAuthorityYieldSystem</c> at
+    /// CONSTRUCTION — before any world exists. ⛔ Rewiring those three to resolve from the world would change
+    /// how <b>authority</b> is decided, which is far more load-bearing than the tidiness it would buy. ⭐ The
+    /// real hazard was the world's map being a SUBSET; that is what is fixed. 📌 Two instances holding the
+    /// same knowledge is cosmetic — one holding LESS was not.</para>
+    /// </summary>
+    private void ContributeDescriptorPairings(ISimulationView view)
+    {
+        if (_contributedDescriptorPairings) return;
+        if (view is not EntityRepository repo) return;   // ⭐ the established pattern in the translators
+
+        var provider = Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(repo);
+
+        foreach (int componentId in _descriptorOwnershipMap.CoveredComponentIds.ToArray())
+            foreach (long ordinal in _descriptorOwnershipMap.GetDescriptorsForComponentId(componentId))
+                provider.RegisterFromTranslator(ordinal, new[] { componentId });
+
+        _contributedDescriptorPairings = true;
     }
 
     // ── Ghost destruction system ──────────────────────────────────────────────

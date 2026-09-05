@@ -17,6 +17,7 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Common.Events;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Editor.Adapters;
+using Hrot.UI.Common.Adapters;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Config;
 using Hrot.Map.Common.Events;
@@ -72,7 +73,7 @@ namespace Hrot.Editor.Tests.Adapters
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // A001 — EditorSpawnAdapter
+    // A001 — ScenarioSpawnAdapter
     // ═══════════════════════════════════════════════════════════════════════════
 
     public sealed class EditorSpawnAdapterTests
@@ -86,7 +87,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void StartPlacementMode_RegistersGizmoWithManager()
         {
             var manager = MakeManager();
-            var adapter = new EditorSpawnAdapter(_bus, globalGizmoManager: manager);
+            var adapter = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager);
             adapter.StartPlacementMode(2001L, null);
 
             Assert.Equal(1, manager.ActiveCount);
@@ -96,7 +97,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void StartAreaAuthoringMode_RegistersGizmoWithManager()
         {
             var manager = MakeManager();
-            var adapter = new EditorSpawnAdapter(_bus, globalGizmoManager: manager);
+            var adapter = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager);
             adapter.StartAreaAuthoringMode("");
 
             Assert.Equal(1, manager.ActiveCount);
@@ -106,7 +107,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void StartRouteAuthoringMode_RegistersGizmoWithManager()
         {
             var manager = MakeManager();
-            var adapter = new EditorSpawnAdapter(_bus, globalGizmoManager: manager);
+            var adapter = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager);
             adapter.StartRouteAuthoringMode();
 
             Assert.Equal(1, manager.ActiveCount);
@@ -114,7 +115,7 @@ namespace Hrot.Editor.Tests.Adapters
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // A002 — EditorMissionService
+    // A002 — ScenarioMissionService
     // ═══════════════════════════════════════════════════════════════════════════
 
     public sealed class EditorMissionServiceTests : IDisposable
@@ -137,6 +138,23 @@ namespace Hrot.Editor.Tests.Adapters
 
         public void Dispose() => _repo.Dispose();
 
+        /// <summary>
+        /// ⭐⭐ <b><c>BP-508</c> — a real, NON-ZERO network id.</b>
+        ///
+        /// <para>🔴 These tests used <c>(long)entity.Index</c> as the network id, and 📐 the FIRST entity
+        /// in a fresh repository has <c>Index == 0</c> ⇒ they were exercising <b>network id 0</b>.
+        /// ⛔ That is the "no network identity assigned" sentinel everywhere else in the system —
+        /// <c>EntityBinding.IsPersistable</c> treats it as *not durable*, <c>MapPickServiceBridge</c>
+        /// already refused it, and the scenario allocator starts far above it. ⇒ ⚠ <b>a fixture artefact,
+        /// not a product requirement</b>: the consolidated <c>NetworkIdResolver</c> refuses <c>id ≤ 0</c>
+        /// on purpose, and the tests are corrected to the measured behaviour rather than the guard being
+        /// dropped to keep them green.</para>
+        ///
+        /// <para>⭐ The id is still DERIVED from the entity, so the tests keep asserting that the lookup
+        /// finds the right one — ⛔ they are not weakened to a constant that any entity would match.</para>
+        /// </summary>
+        private static long NetIdFor(Entity e) => 1000 + e.Index;
+
         [Fact]
         public void GetAvailableBehaviors_InsurgentWithRegisteredAmbush_ReturnsAmbush()
         {
@@ -149,10 +167,10 @@ namespace Hrot.Editor.Tests.Adapters
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
-            _repo.AddComponent(entity, new NetworkIdentity { Value = (long)entity.Index });
+            _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
-            var service = new EditorMissionService(_bus, _repo, _registry);
-            var behaviors = service.GetAvailableBehaviors((long)entity.Index);
+            var service = new ScenarioMissionService(_bus, _repo, _registry);
+            var behaviors = service.GetAvailableBehaviors(NetIdFor(entity));
 
             Assert.Contains("Ambush", behaviors);
         }
@@ -163,8 +181,8 @@ namespace Hrot.Editor.Tests.Adapters
             var entity = _repo.CreateEntity();
             _repo.DestroyEntity(entity);
 
-            var service = new EditorMissionService(_bus, _repo, _registry);
-            var behaviors = service.GetAvailableBehaviors((long)entity.Index);
+            var service = new ScenarioMissionService(_bus, _repo, _registry);
+            var behaviors = service.GetAvailableBehaviors(NetIdFor(entity));
 
             Assert.Empty(behaviors);
         }
@@ -181,12 +199,12 @@ namespace Hrot.Editor.Tests.Adapters
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.MilitaryApc });
-            _repo.AddComponent(entity, new NetworkIdentity { Value = (long)entity.Index });
+            _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
-            var service = new EditorMissionService(_bus, _repo, _registry);
+            var service = new ScenarioMissionService(_bus, _repo, _registry);
 
             // Act
-            var behaviors = service.GetAvailableBehaviors((long)entity.Index);
+            var behaviors = service.GetAvailableBehaviors(NetIdFor(entity));
 
             // Assert: editor-authored BTree should appear in the result for any entity type.
             Assert.Contains("T10_MultiAction", behaviors);
@@ -206,12 +224,12 @@ namespace Hrot.Editor.Tests.Adapters
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
-            _repo.AddComponent(entity, new NetworkIdentity { Value = (long)entity.Index });
+            _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
-            var service = new EditorMissionService(_bus, _repo, _registry);
+            var service = new ScenarioMissionService(_bus, _repo, _registry);
 
             // Act
-            var behaviors = service.GetAvailableBehaviors((long)entity.Index);
+            var behaviors = service.GetAvailableBehaviors(NetIdFor(entity));
 
             // Assert: exactly one occurrence — no duplicates regardless of catalog/registry overlap.
             int count = behaviors.Count(n => n == "Ambush");
@@ -222,7 +240,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void CommitMissionAsync_PollAcksWithMatchingAck_ResolvesSuccess()
         {
             var entity = _repo.CreateEntity();
-            var service = new EditorMissionService(_bus, _repo, _registry);
+            var service = new ScenarioMissionService(_bus, _repo, _registry);
 
             var plan = new Hrot.Core.Mission.MissionPlan
             {
@@ -258,7 +276,7 @@ namespace Hrot.Editor.Tests.Adapters
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // A003 — EditorOrbatAdapter
+    // A003 — ScenarioOrbatAdapter
     // ═══════════════════════════════════════════════════════════════════════════
 
     public sealed class EditorOrbatAdapterTests : IDisposable
@@ -277,11 +295,12 @@ namespace Hrot.Editor.Tests.Adapters
 
         public void Dispose() => _world.Dispose();
 
-        private EditorOrbatAdapter CreateAdapter()
+        private ScenarioOrbatAdapter CreateAdapter()
         {
-            var mockLogic = new Mock<IEditorLogic>();
+            // ⭐ CE-060 — the IEditorLogic mock is GONE: SelectEntity now publishes the shared
+            //   ActivateEditorToolEvent + SelectEntityCommand instead of calling a host facade.
             var mockSpawn = new Mock<ISpawnController>();
-            return new EditorOrbatAdapter(_world, _bus, mockLogic.Object, mockSpawn.Object);
+            return new ScenarioOrbatAdapter(_world, _bus, mockSpawn.Object);
         }
 
         [Fact]
@@ -638,6 +657,23 @@ namespace Hrot.Editor.Tests.Adapters
 
         public void Dispose() => _repo.Dispose();
 
+        /// <summary>
+        /// ⭐⭐ <b><c>BP-508</c> — a real, NON-ZERO network id.</b>
+        ///
+        /// <para>🔴 These tests used <c>(long)entity.Index</c> as the network id, and 📐 the FIRST entity
+        /// in a fresh repository has <c>Index == 0</c> ⇒ they were exercising <b>network id 0</b>.
+        /// ⛔ That is the "no network identity assigned" sentinel everywhere else in the system —
+        /// <c>EntityBinding.IsPersistable</c> treats it as *not durable*, <c>MapPickServiceBridge</c>
+        /// already refused it, and the scenario allocator starts far above it. ⇒ ⚠ <b>a fixture artefact,
+        /// not a product requirement</b>: the consolidated <c>NetworkIdResolver</c> refuses <c>id ≤ 0</c>
+        /// on purpose, and the tests are corrected to the measured behaviour rather than the guard being
+        /// dropped to keep them green.</para>
+        ///
+        /// <para>⭐ The id is still DERIVED from the entity, so the tests keep asserting that the lookup
+        /// finds the right one — ⛔ they are not weakened to a constant that any entity would match.</para>
+        /// </summary>
+        private static long NetIdFor(Entity e) => 1000 + e.Index;
+
         [Fact]
         public void IsInPreviewMode_OperatingPreview_ReturnsTrue()
         {
@@ -694,7 +730,7 @@ namespace Hrot.Editor.Tests.Adapters
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // A008 — EditorMapConfigAdapter
+    // A008 — ScenarioMapConfigAdapter
     // ═══════════════════════════════════════════════════════════════════════════
 
     public sealed class EditorMapConfigAdapterTests
@@ -704,7 +740,7 @@ namespace Hrot.Editor.Tests.Adapters
         {
             var config  = new MapViewConfig();
             var canvas  = new Fdp.Toolkit.Vis2D.MapCanvas();
-            var adapter = new EditorMapConfigAdapter(config, canvas);
+            var adapter = new ScenarioMapConfigAdapter(config, canvas);
 
             MapLayerState state = adapter.GetCurrentConfig();
 
@@ -723,7 +759,7 @@ namespace Hrot.Editor.Tests.Adapters
         {
             var config  = new MapViewConfig { ShowSatelliteLayer = true };
             var canvas  = new Fdp.Toolkit.Vis2D.MapCanvas();
-            var adapter = new EditorMapConfigAdapter(config, canvas);
+            var adapter = new ScenarioMapConfigAdapter(config, canvas);
 
             adapter.ApplyConfig(new MapLayerState(
                 Satellite:        false,
@@ -743,7 +779,7 @@ namespace Hrot.Editor.Tests.Adapters
         {
             var config  = new MapViewConfig();
             var canvas  = new Fdp.Toolkit.Vis2D.MapCanvas();
-            var adapter = new EditorMapConfigAdapter(config, canvas);
+            var adapter = new ScenarioMapConfigAdapter(config, canvas);
 
             adapter.ApplyConfig(new MapLayerState(
                 Satellite:        true,
@@ -762,7 +798,7 @@ namespace Hrot.Editor.Tests.Adapters
         {
             var config  = new MapViewConfig();
             var canvas  = new Fdp.Toolkit.Vis2D.MapCanvas();
-            var adapter = new EditorMapConfigAdapter(config, canvas);
+            var adapter = new ScenarioMapConfigAdapter(config, canvas);
 
             adapter.ApplyConfig(new MapLayerState(true, true, true, true, true, true, true));
 

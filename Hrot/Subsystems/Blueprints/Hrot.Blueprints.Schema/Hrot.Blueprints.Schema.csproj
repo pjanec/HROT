@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    U-10 / Q31-A — the blueprint schema TRANSFORM, and nothing else.
+
+    ⭐⭐ This assembly exists to break a project-reference cycle. The v1⇄v2 transform has to be
+    reachable from BOTH `Hrot.Common` (which registers the migrator) and `Hrot.Blueprints.Compiler`
+    (whose netstandard2.0 generator target must read a v2 file) — and `.Compiler` already references
+    `Hrot.Common`, so the reverse edge cannot exist.
+
+    ⛔ Therefore: NO ProjectReferences, ever. The moment this file grows one, it is a candidate for the
+    same cycle it was created to avoid. `System.Text.Json` is the whole dependency surface.
+
+    ⚠ Multi-targeted for the generator, which is netstandard2.0. That is not extra work here — the
+    transform already compiled on both targets while it lived in `.Compiler`.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <LangVersion>12.0</LangVersion>
+    <!-- A pure schema library; it defines no DDS topics. -->
+    <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+
+</Project>

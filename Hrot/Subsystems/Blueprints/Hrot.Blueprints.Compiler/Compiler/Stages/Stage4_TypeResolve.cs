@@ -11,14 +11,25 @@ internal static class Stage4_TypeResolve
         var resolvedPinTypes   = new Dictionary<Guid, IrTypeRef>();
         var resolvedFieldTypes = new Dictionary<Guid, IrTypeRef>();
 
-        // Resolve variable/parameter/working-state field types
-        ResolveFieldTypes(asset.Variables,    resolvedFieldTypes, ctx, asset.AssetId);
-        ResolveFieldTypes(asset.Parameters,   resolvedFieldTypes, ctx, asset.AssetId);
-        ResolveFieldTypes(asset.WorkingState, resolvedFieldTypes, ctx, asset.AssetId);
+        // U-11: one call over every declaration, in place of three over two near-identical overloads.
+        ResolveFieldTypes(asset.Declarations, resolvedFieldTypes, ctx, asset.AssetId);
+
+        // BP-57: function-locals are typed the same way and into the same dictionary — the dictionary
+        // is keyed by DECL ID, so a per-graph list sharing it costs nothing and cannot collide.
+        // ⚠ This is the only place locals touch anything asset-scoped; their INDEX space stays
+        // per-graph (IrGraph.Locals), which is what keeps them out of FindVariableIndex's union.
+        foreach (var graph in asset.Graphs)
+            ResolveFieldTypes(
+                graph.LocalVariables.Select(v => BlueprintDeclaration.For(DeclarationKind.Variable, v)),
+                resolvedFieldTypes, ctx, asset.AssetId);
 
         // Check unmanaged constraint on state fields
-        CheckUnmanagedConstraint(asset.Variables,    ctx, asset.AssetId, "Instance state");
-        CheckUnmanagedConstraint(asset.WorkingState, ctx, asset.AssetId, "AiPrimitive WorkingState");
+        // ⚠ Variables and WorkingState only — Parameters are deliberately NOT state-struct fields.
+        // ⭐ Batch 86 — ONE state run for both dispatch kinds (R-01). ⚠ The label is generic because
+        //   the same declarations ARE the AiPrimitive working-state struct and the Instance State
+        //   struct; which one they land in follows Dispatch, not the declaration.
+        CheckUnmanagedConstraint(
+            asset.Declarations.Of(DeclarationKind.Variable), ctx, asset.AssetId, "asset state");
 
         // Two-pass wildcard resolution
         for (int pass = 0; pass < 2; pass++)
@@ -75,32 +86,59 @@ internal static class Stage4_TypeResolve
         return new TypedAsset(asset, resolvedPinTypes, resolvedFieldTypes);
     }
 
+    /// <summary>
+    /// <b>U-11 — ONE resolver over every declaration kind.</b>
+    ///
+    /// <para>
+    /// ⛔ <b>This was two near-identical overloads</b>, one per backing type, and the duplication had
+    /// already cost something: <c>U-7</c>'s <c>BP1671</c> rail landed on the <c>VariableDecl</c> half
+    /// first and had to be applied to the other by hand. ⭐ <c>BlueprintDeclaration</c> removes the
+    /// type difference that forced the split.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The <c>BP1504</c> fixed-list check lived on the <c>VariableDecl</c> overload only</b>, and
+    /// the merged method now applies it to every kind. ⭐ <b>That asymmetry was safe for a reason, and
+    /// the reason is upstream:</b> <c>Stage2</c>'s <c>BP1507</c> already refuses a <c>Parameter</c>
+    /// carrying a fixed-list type outright, so the arm this widens is unreachable for parameters in a
+    /// compile that got here. ⚠ Independently measured as a corpus no-op before merging — across all
+    /// 58 shipped assets, declarations with <c>Capacity &gt; 0</c> are <b>Parameters 0 · WorkingState
+    /// 0 · Variables 1</b> — and the golden set confirms it.
+    /// </para>
+    /// </summary>
     private static void ResolveFieldTypes(
-        IEnumerable<VariableDecl> fields,
+        IEnumerable<BlueprintDeclaration> fields,
         Dictionary<Guid, IrTypeRef> result,
         ValidationContext ctx,
         Guid assetId)
     {
         foreach (var f in fields)
         {
-            if (TryResolveFieldType(ctx, f.Type, out var resolved))
-                result[f.Id] = resolved;
-            else
-                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1500,
-                    $"Field type '{f.Type.TypeId}' does not resolve.", assetId));
-        }
-    }
+            // FC-2/LV-1 (BP1504): a fixed-list declaration's InitialLength must stay within
+            // [0, Capacity] -- checked BEFORE resolve so a bad declaration is reported as itself,
+            // not as a confusing unresolvable-type BP1500.
+            if (f.Type.Capacity > 0
+                && (f.Type.InitialLength < 0 || f.Type.InitialLength > f.Type.Capacity))
+            {
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1504,
+                    $"Fixed-list variable '{f.Name}': InitialLength {f.Type.InitialLength} is outside "
+                    + $"[0, Capacity={f.Type.Capacity}].", assetId));
+                continue;
+            }
 
-    private static void ResolveFieldTypes(
-        IEnumerable<ParameterDecl> fields,
-        Dictionary<Guid, IrTypeRef> result,
-        ValidationContext ctx,
-        Guid assetId)
-    {
-        foreach (var f in fields)
-        {
-            if (TryResolveFieldType(ctx, f.Type, out var resolved))
+            if (TryResolveFieldType(ctx, f.Type, out var resolved, out bool trustedVerbatim))
+            {
+                // U-7 / BP-228: the AN2 path accepted this id because it CONTAINS A DOT, not because
+                // anything checked it. When an oracle is available, ask.
+                if (trustedVerbatim && !TypeExistsPerOracle(ctx, f.Type.TypeId))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1671,
+                        $"Variable '{f.Name}' is declared as type '{f.Type.TypeId}', which does not exist. "
+                        + "Check the fully-qualified name, or the assembly that declares it.", assetId));
+                    continue;
+                }
                 result[f.Id] = resolved;
+            }
             else
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1500,
                     $"Field type '{f.Type.TypeId}' does not resolve.", assetId));
@@ -113,28 +151,162 @@ internal static class Stage4_TypeResolve
     /// though the reflection-less compiler can't verify it. Size is a placeholder (the real State layout +
     /// <c>StateSize => Unsafe.SizeOf&lt;State&gt;()</c> come from the generated struct at compile time).
     /// </summary>
-    private static bool TryResolveFieldType(ValidationContext ctx, BlueprintTypeRef type, out IrTypeRef resolved)
+    /// <param name="trustedVerbatim">
+    /// U-7 — true when the type was accepted by the AN2 <i>"contains a dot ⇒ it must be a project
+    /// type"</i> fallback rather than resolved by the registry. ⭐ Only these ids need an oracle: a
+    /// primitive is known outright, and asking about one would make the rail depend on every oracle
+    /// knowing <c>System.Int32</c>.
+    /// </param>
+    private static bool TryResolveFieldType(
+        ValidationContext ctx, BlueprintTypeRef type, out IrTypeRef resolved, out bool trustedVerbatim)
     {
-        if (ctx.TypeRegistry.TryResolve(type, out resolved)) return true;
+        trustedVerbatim = false;
         var id = type.TypeId;
+
+        if (ctx.TypeRegistry.TryResolve(type, out resolved))
+        {
+            // ⭐⭐ S2 — the SAME placeholder, on the arm that never flagged it.
+            //
+            // 🔴 The registry answers a "global::Ns.Foo" id with a GUESSED 4 bytes (its AN2 arm) and
+            //    left SizeReliable at its `true` default, while the dotted fallback below has always
+            //    stamped it false. Same guess, opposite honesty — and the arm that lied is the one the
+            //    EDITOR takes, because the editor persists the "global::" sentinel (ENUM-DESIGN.md
+            //    §RESOLVED). ⛔ Since W4 a reliable size makes CSharpEmitter bake [FieldOffset], so a
+            //    96-byte struct claiming a reliable 4 would have laid the NEXT field on top of it.
+            if (IsTrustedProjectTypeId(id) && !type.IsArray && type.Capacity == 0)
+                resolved = WithOracleSize(ctx, id!, resolved);
+            // ⭐ S4 — the same guess, one level in: the list branch sizes its wrapper from the ELEMENT,
+            //   and a "global::" element comes back at the AN2 4 bytes. Correct it here too, or the
+            //   wrapper under-counts against the tier budget by (real - 4) × Capacity bytes.
+            else if (IsTrustedProjectTypeId(id) && type.Capacity > 0)
+                resolved = WithOracleSizedElement(ctx, id!, resolved);
+            return true;
+        }
+
         if (!string.IsNullOrEmpty(id)
             && !id.StartsWith("global::", StringComparison.Ordinal)
             && id.IndexOf('.') >= 0)   // looks like a project FQN (netstandard2.0: no string.Contains(char))
         {
+            // ⭐⭐ S4 — the retry MUST carry Capacity/InitialLength.
+            //
+            // 🔴 It did not. A fixed list is discriminated by Capacity (review F7), and its element is
+            //    resolved through this same table — so `List<Hrot.AI.Behaviors.Foo>[8]`, spelled with
+            //    the dotted element the editor writes for a project type, failed the registry's list
+            //    branch (unknown element), fell through to here, and was retried WITHOUT Capacity.
+            //    ⛔ It then resolved as ONE Foo: the declaration silently stopped being a list, with no
+            //    diagnostic, and BP1504's bounds check upstream had already passed.
             if (ctx.TypeRegistry.TryResolve(
-                    new BlueprintTypeRef { TypeId = "global::" + id, IsArray = type.IsArray }, out resolved))
+                    new BlueprintTypeRef
+                    {
+                        TypeId        = "global::" + id,
+                        IsArray       = type.IsArray,
+                        Capacity      = type.Capacity,
+                        InitialLength = type.InitialLength,
+                    }, out resolved))
             {
-                // The AN2 path guesses a 4-byte size; for a real project struct that's a placeholder, so
-                // flag it — StateFields layout must then use runtime offsets, not baked field-size sums.
-                resolved = resolved with { SizeReliable = false };
+                // The AN2 path guesses a 4-byte size; for a real project struct that's a placeholder —
+                // ask the oracle, and only fall back to "unreliable" when nothing answers.
+                if (type.Capacity > 0)
+                    resolved = WithOracleSizedElement(ctx, "global::" + id, resolved);
+                else if (!type.IsArray)
+                    resolved = WithOracleSize(ctx, "global::" + id, resolved);
+                else
+                    resolved = resolved with { SizeReliable = false };
+                trustedVerbatim = true;   // U-7: accepted on the strength of a dot
                 return true;
             }
         }
         return false;
     }
 
+    /// <summary>⭐ <c>S2</c> — an id the registry only accepted because it looks like a project type.</summary>
+    private static bool IsTrustedProjectTypeId(string? id)
+        => !string.IsNullOrEmpty(id) && id!.StartsWith("global::", StringComparison.Ordinal);
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S2</c> — replace the AN2 4-byte placeholder with the type's REAL managed size, when
+    /// the compile has an oracle to ask.
+    ///
+    /// <para>
+    /// ⭐ <b>Reliability is EARNED here, not assumed.</b> An answer ⇒ the size is exact ⇒
+    /// <c>SizeReliable = true</c> ⇒ <c>CSharpEmitter</c> may bake <c>[FieldOffset]</c> (<c>W4</c>).
+    /// No answer ⇒ <c>SizeReliable = false</c> ⇒ the runtime <c>Marshal.OffsetOf</c> path. ⛔ <b>The
+    /// one outcome that must never happen is the previous one</b> — a guessed size wearing a reliable
+    /// flag.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Enums, not just structs.</b> The oracle is asked about every trusted id, so a
+    /// <c>byte</c>- or <c>long</c>-backed enum stops being sized at 4 as well. That is why the
+    /// generator injects <c>MakeFieldSizeDelegate</c> and not <c>MakeDelegate</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>Scalars only.</b> Callers guard on <c>!IsArray &amp;&amp; Capacity == 0</c>: for an array the
+    /// registry returns a managed wrapper whose <c>SizeBytes</c> is meaningfully 0, and for a fixed
+    /// list the wrapper size is computed from the ELEMENT — writing an element size onto either would
+    /// be a wrong number in a new place.
+    /// </para>
+    /// </summary>
+    private static IrTypeRef WithOracleSize(ValidationContext ctx, string typeId, IrTypeRef placeholder)
+    {
+        int? size = ctx.StructSizeOracle?.Invoke(typeId);
+        return size is > 0
+            ? placeholder with { SizeBytes = size.Value, SizeReliable = true }
+            : placeholder with { SizeReliable = false };
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>S4</c> — a fixed list whose ELEMENT is a trusted project type: correct the element's
+    /// guessed size and recompute the wrapper from it.
+    ///
+    /// <para>
+    /// ⛔ <b>The wrapper stays <c>SizeReliable = false</c> regardless.</b> That flag is not about the
+    /// element size — review <c>F3</c> set it because <c>FieldLayout</c>'s alignment heuristic
+    /// over-pads a composite type, so a list field's OFFSET must come from the runtime
+    /// <c>Marshal.OffsetOf</c> path whatever its size. ⇒ an exact size buys a correct <b>tier
+    /// budget</b>, not baked offsets.
+    /// </para>
+    /// </summary>
+    private static IrTypeRef WithOracleSizedElement(ValidationContext ctx, string elementTypeId, IrTypeRef list)
+    {
+        if (list.ElementType is null || list.Capacity <= 0) return list;
+
+        int? size = ctx.StructSizeOracle?.Invoke(elementTypeId);
+        if (size is not > 0) return list;
+
+        return list with
+        {
+            ElementType = list.ElementType with { SizeBytes = size.Value, SizeReliable = true },
+            SizeBytes   = Catalogs.StaticTypeRegistry.ListWrapperSize(list.Capacity, size.Value),
+        };
+    }
+
+    /// <summary>
+    /// U-7 / <c>BP-228</c> — asks the compile's type oracle whether <paramref name="typeId"/> names
+    /// anything.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>No oracle ⇒ no opinion.</b> Returning <c>true</c> when
+    /// <c>CompileOptions.ClrSignatureResolver</c> is null is the fallback contract, and it is
+    /// load-bearing: ⚠ <b>exactly one production site supplies a resolver</b>
+    /// (<c>BlueprintIncrementalGenerator</c>). Every unit test, every in-memory <c>.Succeeded</c>
+    /// check and the golden harness pass <c>null</c>, so a rail that fired without an oracle would
+    /// redden them for a reason unrelated to the asset.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The corollary, stated rather than hidden:</b> this rail protects the BUILD, which is where
+    /// the defect actually bit (a `CS0246` naming a generated file). It does <b>not</b> protect the
+    /// in-editor compile, because that path supplies no oracle — wiring one there is <c>U-8</c>'s
+    /// question, not this rail's.
+    /// </para>
+    /// </summary>
+    private static bool TypeExistsPerOracle(ValidationContext ctx, string typeId)
+        => ctx.ClrSignatureResolver is not { } oracle || oracle.TypeExists(typeId);
+
     private static void CheckUnmanagedConstraint(
-        IEnumerable<VariableDecl> fields,
+        IEnumerable<BlueprintDeclaration> fields,
         ValidationContext ctx,
         Guid assetId,
         string context)

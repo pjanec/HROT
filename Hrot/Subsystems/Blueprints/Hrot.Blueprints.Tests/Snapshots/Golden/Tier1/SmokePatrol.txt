@@ -1,0 +1,13 @@
+StructureHash: 0x0855ED2B1EB9C80F
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  PatrolSpeed : System.Int32 @16 size=4
+  LocalResult : System.Int32 @20 size=4
+  LibResult : System.Int32 @24 size=4
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

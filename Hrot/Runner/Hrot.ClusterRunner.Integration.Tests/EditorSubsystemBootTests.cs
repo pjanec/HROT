@@ -181,4 +181,57 @@ public sealed class EditorSubsystemBootTests : IDisposable
 
         Assert.Equal(20, _h.Repo.EntityCount);
     }
+
+    // ── T3 — the master lives on the bus the intents live on ────────────────
+
+    /// <summary>
+    /// `T3`. Every other node follows one rule: THE TIME CONTROLLER LIVES ON THE BUS THE INTENTS
+    /// LIVE ON. The orchestrator registers <c>OrchestrationEventRegistry</c> on <c>_bus</c> and
+    /// builds its <c>MasterSyncController</c> on that same bus; CGF/SimHost/IG/ExCon put their
+    /// controller and their egress translator on one bus each.
+    ///
+    /// <para>The editor was the sole deviation — registry on <c>_orchestrationBus</c>, master on
+    /// <c>_world.Bus</c>. A toolbar or debugger intent landed where the master never looked, and
+    /// <c>ReadManaged</c> on the other bus returns an empty list: no exception, no log, nothing
+    /// happens. That is the failure this rail exists to make loud.</para>
+    ///
+    /// <para>⚠ Scope, stated honestly: <see cref="EditorHarness"/> MIRRORS the editor's composition
+    /// rather than constructing <c>EditorSubsystem</c>, so this guards the SHAPE, not the real
+    /// composition root. It was written together with the production change and the harness was
+    /// moved in the same commit — but a mirror can drift, and if it does this test will stay green
+    /// while the editor breaks. Constructing the real subsystem headlessly is the honest fix and
+    /// it is not in this task.</para>
+    /// </summary>
+    [Fact]
+    public void Master_DrainsATimeIntent_PublishedOnTheOrchestrationBus()
+    {
+        // The editor boots Deterministic (authoring starts paused), so Resume is the observable one.
+        Assert.Equal(Fdp.ModuleHost.Time.TimeMode.Deterministic, _h.TimeControllerMode);
+
+        _h.OrchBus.PublishManaged(new Fdp.Toolkit.Time.Domain.ResumeTimeIntent());
+        _h.PumpFrames(3);
+
+        Assert.Equal(Fdp.ModuleHost.Time.TimeMode.Continuous, _h.TimeControllerMode);
+    }
+
+    /// <summary>
+    /// And the orchestration bus must carry the intent registrations, or a production build
+    /// (<c>FdpConfig.EnforceExplicitEventRegistration = true</c>) throws on the first pause.
+    /// </summary>
+    [Fact]
+    public void OrchestrationBus_HasTheTimeControlIntentsRegistered()
+    {
+        bool previous = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            var ex = Record.Exception(() =>
+                _h.OrchBus.PublishManaged(new Fdp.Toolkit.Time.Domain.PauseTimeIntent()));
+            Assert.Null(ex);
+        }
+        finally
+        {
+            FdpConfig.EnforceExplicitEventRegistration = previous;
+        }
+    }
 }

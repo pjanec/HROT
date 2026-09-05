@@ -1,0 +1,12 @@
+StructureHash: 0xC8C223116F15A9E5
+Parameters:
+  TargetAreaEntity : Fdp.Core.Entity @0 size=8
+WorkingState:
+  (empty)
+Variables:
+  CachedEqsRequestId : System.Int64 @8 size=8
+  EqsRequestTime : System.Single @16 size=4
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

@@ -1,0 +1,20 @@
+StructureHash: 0x4BF65897C90807B6
+Parameters:
+  StartX : System.Single @0 size=4
+  StartY : System.Single @4 size=4
+  EndX : System.Single @8 size=4
+  EndY : System.Single @12 size=4
+  BaselineStartX : System.Single @16 size=4
+  BaselineStartY : System.Single @20 size=4
+  BaselineEndX : System.Single @24 size=4
+  BaselineEndY : System.Single @28 size=4
+  AttackDirX : System.Single @32 size=4
+  AttackDirY : System.Single @36 size=4
+WorkingState:
+  (empty)
+Variables:
+  (empty)
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

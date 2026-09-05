@@ -1,30 +1,38 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "7b6ee19e-47c1-4e17-bd5e-68f6712f0887",
   "Name": "HillAssault2_HasTarget",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Condition",
-    "Hostings": ["BTreeCondition"]
+    "Hostings": [
+      "BTreeCondition"
+    ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "660def8f-f722-461c-bdba-43a015491cdc",
       "Name": "TargetNetworkId",
-      "Type": { "TypeId": "System.UInt32", "IsArray": false, "GenericArgs": [] },
-      "DefaultValueJson": "0"
+      "Type": {
+        "TypeId": "System.UInt32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     }
   ],
-  "WorkingState": [],
-  "Variables": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -35,44 +43,62 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "66b9723f-a1ab-4d8b-8f20-f2091f20bae2",
           "EventTypeId": "",
+          "Id": "66b9723f-a1ab-4d8b-8f20-f2091f20bae2",
           "Pins": [],
-          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "GetParameter",
-          "Id": "0f84c431-ded1-4539-9947-fb9257b3ef04",
           "ParameterId": "660def8f-f722-461c-bdba-43a015491cdc",
+          "Id": "0f84c431-ded1-4539-9947-fb9257b3ef04",
           "Pins": [
             {
               "Id": "a9464fb3-6b54-46b4-a0d6-c759f22ef0e9",
               "Name": "Value",
               "Direction": "Out",
-              "TypeRef": { "TypeId": "System.UInt32", "IsArray": false, "GenericArgs": [] },
+              "TypeRef": {
+                "TypeId": "System.UInt32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": false,
               "LinkedToIds": []
             }
           ],
-          "EditorMetadata": { "X": 80.0, "Y": 60.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 60,
+            "Comment": null
+          }
         },
         {
           "kind": "FunctionCall",
-          "Id": "776e07a2-f5de-4fed-bc11-ebe05f475e80",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAssault2TankOps",
           "MethodName": "HasTarget",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "SelfAndView",
+          "Id": "776e07a2-f5de-4fed-bc11-ebe05f475e80",
           "Pins": [
             {
               "Id": "d00b419b-0737-42e3-b679-62f1268bfef4",
               "Name": "targetNetworkId",
               "Direction": "In",
-              "TypeRef": { "TypeId": "System.UInt32", "IsArray": false, "GenericArgs": [] },
+              "TypeRef": {
+                "TypeId": "System.UInt32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": false,
               "LinkedToIds": []
             },
@@ -80,32 +106,52 @@
               "Id": "a4a8dec9-ac6b-4ceb-85f5-81ffac26ad58",
               "Name": "Return",
               "Direction": "Out",
-              "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] },
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": false,
               "LinkedToIds": []
             }
           ],
-          "EditorMetadata": { "X": 340.0, "Y": 60.0 }
+          "EditorMetadata": {
+            "X": 340,
+            "Y": 60,
+            "Comment": null
+          }
         },
         {
           "kind": "Branch",
           "Id": "e4ccdc66-bb1e-4f2b-a8f8-7c3f8aea9cbf",
           "Pins": [],
-          "EditorMetadata": { "X": 420.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 420,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
-          "Id": "dccfb5dd-732b-4684-b024-ce8e1cabf581",
           "Status": "Success",
+          "Id": "dccfb5dd-732b-4684-b024-ce8e1cabf581",
           "Pins": [],
-          "EditorMetadata": { "X": 700.0, "Y": 140.0 }
+          "EditorMetadata": {
+            "X": 700,
+            "Y": 140,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
-          "Id": "231ebccc-60a6-482a-a0de-59be0fa5e515",
           "Status": "Failure",
+          "Id": "231ebccc-60a6-482a-a0de-59be0fa5e515",
           "Pins": [],
-          "EditorMetadata": { "X": 700.0, "Y": 300.0 }
+          "EditorMetadata": {
+            "X": 700,
+            "Y": 300,
+            "Comment": null
+          }
         }
       ],
       "Links": [
@@ -140,11 +186,17 @@
           "ToPinId": "e89b02dc-0e1f-4bec-93f8-1d2a5ab9de49"
         }
       ],
-      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
-    "Description": "Slice 1 proof: blueprint-authored rebuild of the C# oracle Condition_HasTarget (HillAttackTankNodes.cs ~line 113) -- an AiPrimitive BTreeCondition. Graph: EventEntry -> GetParameter(TargetNetworkId) -> FunctionCall HillAssault2TankOps.HasTarget(targetNetworkId, self, view) [P7: self/view auto-appended, hidden from pins] -> Branch -> Return(Success)/Return(Failure). DEVIATION 1 (CLOSED, GAP-11): TargetNetworkId is now declared under Parameters, as the task's design originally called for, and is read natively via a GetParameterNode (Stage5_Schedule.FindParameterIndex resolves a PARAMS-ONLY index; the node lowers to the pre-existing IrOp_ReadParam, which StatementEmitter already emitted as `p.{ParamFieldName}` but which no node previously produced). Formerly, TargetNetworkId had to be mis-declared under WorkingState and read via GetVariable, because GetVariable-node pin/IR resolution (Stage0_Rehydrate.ResolveVariableTypeId, Stage5_Schedule.FindVariableIndex/EmissionContext.VarFieldName) only ever consulted asset.Variables/asset.WorkingState, never asset.Parameters -- there was no node/wiring path that read an AiPrimitive Parameter into a graph at all. GetParameterNode (this fix) closes that gap; WorkingState is now empty and Parameters is exercised for real. FORMER DEVIATION 2 (P7.1 FIX, see GAP-9): this asset previously had to live under Recipes/Blueprints/ (not wired into the real Hrot.AI.Behaviors AdditionalFiles/Roslyn-incremental-generator build) because Stage0_Rehydrate.ResolveMethod / Stage5_Schedule.ResolveClrMethodForContext resolve a FunctionCall's target method via runtime System.Reflection INSIDE the Roslyn incremental-generator's own netstandard2.0 analyzer process, which never has Hrot.AI.Behaviors.dll (or any other game assembly) loaded -- silently dropping self/view and producing CS7036. P7.1 fixes this by baking the trailing-context decision into this node's JSON at author time (see the FunctionCall node's \"TrailingContext\": \"SelfAndView\" field and its populated \"Pins\" array, which already excludes self/view) so Stage5_Schedule honors the baked flag directly with NO reflection at generation time. This asset now lives under Assets/Blueprints/ and compiles through the REAL MSBuild/dotnet-build generator path -- see HillAssault2_HasTarget_ProofTests.cs, which now reflects the real generated Hrot.AI.Behaviors.Generated.HillAssault2HasTarget_*_Bp type out of the built Hrot.AI.Behaviors.dll (mirroring HillAssault2_AbortEngagement_ProofTests) instead of the in-process BlueprintCompiler.Compile workaround. Does not modify the C# oracle.",
+    "Description": "Slice 1 proof: blueprint-authored rebuild of the C# oracle Condition_HasTarget (HillAttackTankNodes.cs ~line 113) -- an AiPrimitive BTreeCondition. Graph: EventEntry -\u003E GetParameter(TargetNetworkId) -\u003E FunctionCall HillAssault2TankOps.HasTarget(targetNetworkId, self, view) [P7: self/view auto-appended, hidden from pins] -\u003E Branch -\u003E Return(Success)/Return(Failure). DEVIATION 1 (CLOSED, GAP-11): TargetNetworkId is now declared under Parameters, as the task\u0027s design originally called for, and is read natively via a GetParameterNode (Stage5_Schedule.FindParameterIndex resolves a PARAMS-ONLY index; the node lowers to the pre-existing IrOp_ReadParam, which StatementEmitter already emitted as \u0060p.{ParamFieldName}\u0060 but which no node previously produced). Formerly, TargetNetworkId had to be mis-declared under WorkingState and read via GetVariable, because GetVariable-node pin/IR resolution (Stage0_Rehydrate.ResolveVariableTypeId, Stage5_Schedule.FindVariableIndex/EmissionContext.VarFieldName) only ever consulted asset.Variables/asset.WorkingState, never asset.Parameters -- there was no node/wiring path that read an AiPrimitive Parameter into a graph at all. GetParameterNode (this fix) closes that gap; WorkingState is now empty and Parameters is exercised for real. FORMER DEVIATION 2 (P7.1 FIX, see GAP-9): this asset previously had to live under Recipes/Blueprints/ (not wired into the real Hrot.AI.Behaviors AdditionalFiles/Roslyn-incremental-generator build) because Stage0_Rehydrate.ResolveMethod / Stage5_Schedule.ResolveClrMethodForContext resolve a FunctionCall\u0027s target method via runtime System.Reflection INSIDE the Roslyn incremental-generator\u0027s own netstandard2.0 analyzer process, which never has Hrot.AI.Behaviors.dll (or any other game assembly) loaded -- silently dropping self/view and producing CS7036. P7.1 fixes this by baking the trailing-context decision into this node\u0027s JSON at author time (see the FunctionCall node\u0027s \u0022TrailingContext\u0022: \u0022SelfAndView\u0022 field and its populated \u0022Pins\u0022 array, which already excludes self/view) so Stage5_Schedule honors the baked flag directly with NO reflection at generation time. This asset now lives under Assets/Blueprints/ and compiles through the REAL MSBuild/dotnet-build generator path -- see HillAssault2_HasTarget_ProofTests.cs, which now reflects the real generated Hrot.AI.Behaviors.Generated.HillAssault2HasTarget_*_Bp type out of the built Hrot.AI.Behaviors.dll (mirroring HillAssault2_AbortEngagement_ProofTests) instead of the in-process BlueprintCompiler.Compile workaround. Does not modify the C# oracle.",
     "Category": null,
     "Recipe": null
   }

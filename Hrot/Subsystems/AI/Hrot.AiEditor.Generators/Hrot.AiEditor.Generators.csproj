@@ -21,6 +21,13 @@
 
   <ItemGroup>
     <!-- Mirror Hrot.Blueprints.Generators.csproj: PrivateAssets=all, ExcludeAssets=runtime -->
+    <!-- Batch 55: this generator parses *.bp.json itself (GeneratedBlueprintSchemaCatalog), so it has
+         to understand v2. Hrot.Blueprints.Schema is a BCL-only, multi-targeted leaf, which is exactly
+         why it can be referenced from a netstandard2.0 source generator.
+         ⚠ Its Analyzer asset is shipped by Hrot.AI.Behaviors, the one consumer of this generator. -->
+    <ProjectReference Include="..\..\Blueprints\Hrot.Blueprints.Schema\Hrot.Blueprints.Schema.csproj"
+                      PrivateAssets="all" />
+
     <ProjectReference Include="..\Hrot.AiEditor.Persistence\Hrot.AiEditor.Persistence.csproj"
                       PrivateAssets="all"
                       ExcludeAssets="runtime" />

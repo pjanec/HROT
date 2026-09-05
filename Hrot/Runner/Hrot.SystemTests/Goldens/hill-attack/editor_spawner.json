@@ -1,0 +1,65 @@
+{
+  "filteredEntries": [
+    {
+      "name": "M1 Abrams",
+      "tkbId": 100
+    },
+    {
+      "name": "M2 Bradley IFV",
+      "tkbId": 101
+    },
+    {
+      "name": "HMMWV",
+      "tkbId": 102
+    },
+    {
+      "name": "T-72",
+      "tkbId": 103
+    },
+    {
+      "name": "Infantry Rifleman",
+      "tkbId": 200
+    },
+    {
+      "name": "Infantry Officer",
+      "tkbId": 201
+    },
+    {
+      "name": "Civilian Pedestrian",
+      "tkbId": 501
+    },
+    {
+      "name": "Civilian Car",
+      "tkbId": 502
+    },
+    {
+      "name": "Military APC",
+      "tkbId": 503
+    },
+    {
+      "name": "Infantry Soldier",
+      "tkbId": 504
+    },
+    {
+      "name": "Insurgent",
+      "tkbId": 505
+    },
+    {
+      "name": "Tank Platoon",
+      "tkbId": 301
+    },
+    {
+      "name": "Infantry Squad",
+      "tkbId": 302
+    },
+    {
+      "name": "Tank Platoon (Auto-Spawn)",
+      "tkbId": 303
+    }
+  ],
+  "panelId": "editor_spawner",
+  "panelKind": "spawner",
+  "searchFilter": "",
+  "selectedAffiliation": "FORCE_FRIENDLY",
+  "selectedType": 0
+}

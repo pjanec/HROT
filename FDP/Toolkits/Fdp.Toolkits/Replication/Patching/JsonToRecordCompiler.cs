@@ -73,6 +73,11 @@ public sealed class JsonToRecordCompiler
         // contextStack[d] = accumulated FNV-1a hash context at depth d.
         // contextStack[0] = FnvOffset (root level parent hash).
         Span<ulong> contextStack      = stackalloc ulong[MaxDepth + 1];
+
+        // ⭐⭐ Q59-N4 — the last property name, so an UNROUTED value can name the key it ignored.
+        //    ⚠ Bytes, not a string: a string per property would break the zero-allocation mandate.
+        Span<byte> lastKeyBytes = stackalloc byte[MaxKeyBytesForDiagnostics];
+        int lastKeyLen = 0;
         // Per-depth flag: was a numeric index key consumed at this depth.
         Span<byte>  hadNumericAtDepth = stackalloc byte[MaxDepth + 1];
 
@@ -124,6 +129,10 @@ public sealed class JsonToRecordCompiler
                 {
                     ReadOnlySpan<byte> nameBytes = reader.ValueSpan;
 
+                    // ⭐ Q59-N4 — remember it for a possible "ignored unknown key" warning.
+                    lastKeyLen = Math.Min(nameBytes.Length, MaxKeyBytesForDiagnostics);
+                    nameBytes[..lastKeyLen].CopyTo(lastKeyBytes);
+
                     if (IsAllDigits(nameBytes))
                     {
                         // Numeric index key → capture as sub-index, hash with wildcard.
@@ -161,10 +170,45 @@ public sealed class JsonToRecordCompiler
                     {
                         EmitRecord(ref reader, entry, subIndex1, subIndex2, emitter);
                     }
+                    else
+                    {
+                        WarnUnknownKeyOnce(lastKeyBytes[..lastKeyLen]);
+                    }
                     break;
                 }
             }
         }
+    }
+
+    /// <summary>⭐ A diagnostic cap: a longer key is truncated in the warning, never in the routing.</summary>
+    private const int MaxKeyBytesForDiagnostics = 128;
+
+    /// <summary>⭐⭐ Keys already warned about, so a repeating sender cannot flood the log.</summary>
+    private readonly ConcurrentDictionary<string, bool> _warnedUnknownKeys = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q59-N4</c> — an unsupported key is WARNED and IGNORED at the edge too. Never a throw.</b>
+    ///
+    /// <para>🔒 <b>User ruling, <c>2026-08-26</c>:</b> *"if about unsupported attribute name (key), this should
+    /// be logged as warning and ignored, no throw."</para>
+    ///
+    /// <para>⭐⭐ <b>Both apply paths, deliberately.</b> 📌 The whole of <c>AX-018</c> was one path behaving
+    /// differently from the other; ⛔ adding the diagnostic to only one of them would repeat that mistake.</para>
+    ///
+    /// <para>⭐ Warned ONCE per key per compiler; ⚠ the key is the LEAF property name *(exact for the flat
+    /// <c>{"GeoPosition.Latitude": …}</c> form that ExCon and the debug API send)*.</para>
+    /// </summary>
+    private void WarnUnknownKeyOnce(ReadOnlySpan<byte> keyUtf8)
+    {
+        if (keyUtf8.IsEmpty) return;
+
+        string key = System.Text.Encoding.UTF8.GetString(keyUtf8);
+        if (!_warnedUnknownKeys.TryAdd(key, true)) return;
+
+        Fdp.Core.Logging.FdpLog<JsonToRecordCompiler>.Warn(
+            $"[attributes] Ignoring unsupported attribute key '{key}' at the JSON→record edge. It is not " +
+            "registered in AttributeVocabulary, so no record was emitted. Unknown keys are tolerated on " +
+            "purpose so a newer sender can talk to an older node.");
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -174,6 +218,67 @@ public sealed class JsonToRecordCompiler
     /// <see cref="EdgeSchemaEntry.ExpectedKind"/> and the current JSON token value.
     /// </summary>
     private void EmitRecord(
+        ref Utf8JsonReader reader,
+        EdgeSchemaEntry entry,
+        short subIndex1,
+        short subIndex2,
+        IAttributeRecordEmitter emitter)
+    {
+        // ⭐⭐⭐ AX-018 — THE TOKEN WINS OVER THE SCHEMA WHEN THE TWO DISAGREE.
+        //
+        // 🔴 Before this, ExpectedKind chose the reader getter unconditionally, so a route declared
+        //    CsString hit reader.GetString() on a Number token and threw
+        //    "Cannot get the value of a token type 'Number' as a string" — measured 2026-08-26 on
+        //    {"Affiliation":2}, which is exactly what ExCon emits (its default enum serialisation is the
+        //    underlying integer). ⛔ An exception on the ingress path, not a dropped field.
+        //
+        // ⭐⭐ Why the token is the right authority. A record carries its OWN AttributeValueKind, and the
+        //    consumers already branch on it — EntityDataAttributeInstaller.HandleAffiliation reads
+        //    record.Value.Kind == CsInt32 to pick MapAffiliationInt over MapAffiliationString. ⇒ the
+        //    pipeline was designed for a per-value kind all along; only this method insisted otherwise.
+        //    ⭐ So ExpectedKind keeps its real job — choosing the NUMERIC WIDTH for a number, where JSON
+        //    itself is ambiguous — and stops overriding the token's category.
+        //
+        // ⛔ What this does NOT do: coerce across categories. A string on a numeric route is a genuine
+        //    schema error and throws a NAMED diagnostic naming the path's attribute id, rather than the
+        //    opaque BCL message above.
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Number:
+                EmitNumber(ref reader, entry, subIndex1, subIndex2, emitter);
+                break;
+
+            case JsonTokenType.True:
+            case JsonTokenType.False:
+                emitter.EmitBool(entry.AttributeId, reader.GetBoolean(), subIndex1, subIndex2);
+                break;
+
+            case JsonTokenType.String:
+                if (entry.ExpectedKind != AttributeValueKind.CsString)
+                    throw new InvalidOperationException(
+                        $"Attribute {entry.AttributeId} is registered as {entry.ExpectedKind} but the JSON " +
+                        "value is a string. The edge compiler does not parse strings into numbers — fix the " +
+                        "sender or register the path as CsString.");
+                emitter.EmitString(entry.AttributeId, InternString(reader.GetString()), subIndex1, subIndex2);
+                break;
+
+            case JsonTokenType.Null:
+                // ⭐ Null is only meaningful for a string route; a null number has no record to emit.
+                if (entry.ExpectedKind == AttributeValueKind.CsString)
+                    emitter.EmitString(entry.AttributeId, null, subIndex1, subIndex2);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ Emits a JSON <c>Number</c> at the width the schema asks for.
+    ///
+    /// <para>⭐ This is where <see cref="EdgeSchemaEntry.ExpectedKind"/> genuinely earns its place: JSON has
+    /// one number type, so nothing in the token says whether <c>32</c> means an <c>int</c>, a <c>long</c> or
+    /// a <c>double</c>. ⚠ When the route expects a STRING — a mixed enum path like <c>Affiliation</c> — the
+    /// width is inferred from the literal instead: integral ⇒ <c>Int32</c>, otherwise <c>Float64</c>.</para>
+    /// </summary>
+    private static void EmitNumber(
         ref Utf8JsonReader reader,
         EdgeSchemaEntry entry,
         short subIndex1,
@@ -194,11 +299,12 @@ public sealed class JsonToRecordCompiler
             case AttributeValueKind.CsFloat64:
                 emitter.EmitFloat64(entry.AttributeId, reader.GetDouble(), subIndex1, subIndex2);
                 break;
-            case AttributeValueKind.Bool:
-                emitter.EmitBool(entry.AttributeId, reader.GetBoolean(), subIndex1, subIndex2);
-                break;
-            case AttributeValueKind.CsString:
-                emitter.EmitString(entry.AttributeId, InternString(reader.GetString()), subIndex1, subIndex2);
+            default:
+                // ⭐ Bool or CsString route receiving a number: infer the width from the literal.
+                if (reader.TryGetInt32(out int i))
+                    emitter.EmitInt32(entry.AttributeId, i, subIndex1, subIndex2);
+                else
+                    emitter.EmitFloat64(entry.AttributeId, reader.GetDouble(), subIndex1, subIndex2);
                 break;
         }
     }

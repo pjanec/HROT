@@ -1,0 +1,40 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000004-0000-0000-0000-000000000000
+
+#nullable enable
+
+using Fbt;
+using Fbt.Runtime;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Attributes;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[BlueprintRegistrar]
+public static class T03_ParallelRegistrar
+{
+    /// <summary>
+    /// Coordinator-injectable registrar (§3 D14, PU-203).
+    /// Registers the JSON-owned BTree definition and action/condition thunks.
+    /// Called by <see cref="AiHotReloadCoordinator"/> during hot reload.
+    /// </summary>
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+    {
+        // 1. Build the blob from the topology-core thunk.
+        var blob = T03_Parallel.Build();
+
+
+        // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
+        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionRegistry);
+
+        // 4. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T03_Parallel"), "T03_Parallel", new BehaviorDefinition
+        {
+            Name         = "T03_Parallel",
+            BrainTier    = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = interpreter,
+        });
+    }
+}

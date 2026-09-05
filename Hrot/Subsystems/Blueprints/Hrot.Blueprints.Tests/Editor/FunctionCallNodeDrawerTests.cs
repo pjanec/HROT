@@ -299,10 +299,12 @@ public sealed class FunctionCallNodeDrawerTests
         Assert.NotNull(drawer);
     }
 
-    // ── FC-09: BlueprintDetailsWindow pump resolves FunctionCallNodeDrawer ────
+    // ── FC-09: the Details node view resolves FunctionCallNodeDrawer ──────────
 
+    /// <remarks>⭐ <c>S1</c> (<c>BP-399</c>): the pump moved from <c>BlueprintDetailsWindow</c> to
+    /// <c>BlueprintNodeDetailsView</c> — 📄 §7.4, content EXTRACTED. ⚠ The claim is unchanged.</remarks>
     [Fact]
-    public void DetailsWindow_ResolveSession_ReturnsFunctionCallSession_WithCorrectDrawerKind()
+    public void DetailsNodeView_ResolveSession_ReturnsFunctionCallSession_WithCorrectDrawerKind()
     {
         // Build asset with a Function graph and a FunctionCallNode
         var funcGraph = MakeFunctionGraph("CalcDamage");
@@ -318,18 +320,22 @@ public sealed class FunctionCallNodeDrawerTests
         // Build registry with real FunctionCallNodeDrawer
         var registry = CreateTestDrawerRegistry();
 
-        // Wire up the details window
-        var store  = new EditorSelectionStore();
-        var window = new BlueprintDetailsWindow(store, registry);
-        window.Retarget(asset);
+        // Wire up the details node view
+        var view = new Hrot.Blueprints.Editor.Windows.BlueprintNodeDetailsView(() => asset, registry);
 
-        store.ActiveAsset        = new FakeEditableAsset(asset.AssetId);
-        store.ActiveSubSelection = new BlueprintNodeSelection(graphId, node.Id);
+        var context = new Hrot.Editor.AiShared.Shell.DetailsContext(
+            Hrot.Editor.AiShared.Selection.SelectionOrigin.GraphCanvas,
+            new Hrot.Editor.AiShared.Selection.IAssetSubSelection[]
+                { new BlueprintNodeSelection(graphId, node.Id) },
+            Array.Empty<Fdp.Core.Entity>(),
+            new FakeEditableAsset(asset.AssetId),
+            "Blueprint",
+            Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
 
-        var session = window.ResolveSession();
+        var session = view.ResolveSession(context);
 
         Assert.NotNull(session);
-        Assert.Equal(typeof(FunctionCallNodeDrawer), window.ResolvedDrawerKind);
+        Assert.Equal(typeof(FunctionCallNodeDrawer), view.ResolvedDrawerKind);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -358,7 +364,25 @@ public sealed class FunctionCallNodeDrawerTests
             MarkDirtyCallCount++;
             LastMarkedAsset = asset;
         }
-    }
+    
+        /// <summary>BP-11: every recorded (label, apply, undo) triple, in order.</summary>
+        public List<(string Label, Action Apply, Action Undo)> Recorded { get; } = new();
+
+        public int StructureChangedCallCount { get; private set; }
+
+        /// <summary>
+        /// Mirrors the real service: recording performs the edit, so a drawer that routes through
+        /// here mutates exactly once — and the captured <c>Undo</c> lets a headless test reverse it.
+        /// </summary>
+        public void RecordPropertyEdit(BlueprintAsset asset, string description, Action apply, Action undo)
+        {
+            Recorded.Add((description, apply, undo));
+            apply();
+            MarkDirty(asset);
+        }
+
+        public void NotifyStructureChanged(BlueprintAsset asset) => StructureChangedCallCount++;
+}
 
     private sealed class TestPredicateCompiler : IPredicateCompiler
     {

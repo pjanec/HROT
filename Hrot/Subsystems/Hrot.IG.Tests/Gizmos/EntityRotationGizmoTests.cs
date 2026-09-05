@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Combat.Components;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -92,7 +93,7 @@ namespace Hrot.IG.Tests.Gizmos
             using var tempRepo = new EntityRepository();
             tempRepo.RegisterComponent<SimTransform>();
             tempRepo.RegisterComponent<Fdp.Toolkit.Perception.Components.PerceptionReceptor>();
-            tempRepo.RegisterComponent<Hrot.IG.Components.IgHealthState>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             tempRepo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
             tempRepo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
             // GZ057-058: components required by the new stateless gizmos added in BATCH-21.

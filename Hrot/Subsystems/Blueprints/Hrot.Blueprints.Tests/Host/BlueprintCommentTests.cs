@@ -245,29 +245,31 @@ public sealed class BlueprintCommentTests
 
     // ── Undo/redo ─────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// BP-11: undo for a comment comes from the editor's <see cref="UndoStack"/>, not from the sink.
+    /// The sink is the <em>applier</em>; the stack is the recorder, and the caller
+    /// (<c>CanvasCommands.AddComment</c>) supplies the inverse. This test used to drive
+    /// <c>CommandHistory.Undo()</c> — a stack nothing in the UI reached, which is precisely what
+    /// BP-11 removed. Having the sink record as well would push a second entry per gesture and, on
+    /// undo, a third when the inverse landed back in the same method.
+    /// </summary>
     [Fact]
     public void AddComment_Undo_RemovesComment()
     {
         var (asset, graph) = BuildEmptyGraph();
-        var typeSystem  = new BlueprintTypeSystem(NullPinDefaultValueEditorRegistry.Instance);
-        var model       = new BlueprintGraphModel(asset, graph);
-        var catalog     = new BlueprintNodeCatalog(new NodeKindRegistry());
-        var validator   = new BlueprintLinkValidator(model, typeSystem);
-        var history     = new CommandHistory();
-        var editService = new EditService
-        {
-            Context = new EditServiceContext(history, a => { })
-        };
-        var sink = new BlueprintCommandSink(
-            asset, graph, model, catalog, validator, history, editService, markDirty: a => { });
+        var (sink, _, _)   = MakeSink(asset, graph);
+        var undo = new UndoStack(sink);
 
         var commentId = new CommentId(Guid.NewGuid());
-        sink.Apply(new GraphCommand.AddComment(
-            commentId, "C", Vector2.Zero, new Vector2(10f, 10f),
-            new Vector4(0f, 0f, 0f, 1f), true));
+        undo.ApplyAndRecord(
+            new GraphCommand.AddComment(
+                commentId, "C", Vector2.Zero, new Vector2(10f, 10f),
+                new Vector4(0f, 0f, 0f, 1f), true),
+            new GraphCommand.RemoveComment(commentId),
+            "Add Comment");
         Assert.Single(graph.Comments);
 
-        history.Undo();
+        Assert.True(undo.Undo());
 
         Assert.Empty(graph.Comments);
     }

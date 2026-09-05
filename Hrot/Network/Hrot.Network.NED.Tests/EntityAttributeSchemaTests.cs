@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.Json;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Fdp.Toolkit.Replication.Patching;
@@ -130,7 +130,7 @@ namespace Hrot.DDS.DataModel.Tests
         [Fact]
         public void SC_GZ052_5_ExportSchema_ContainsAtLeastOneProperty()
         {
-            var compiler = Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform: null);
+            var compiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform: null);
             string schema = compiler.ExportSchema();
 
             using var doc = JsonDocument.Parse(schema);

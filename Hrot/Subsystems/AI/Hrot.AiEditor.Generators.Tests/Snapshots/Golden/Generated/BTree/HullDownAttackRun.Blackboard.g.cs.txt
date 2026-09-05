@@ -1,0 +1,12 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 2b000000-0000-0000-0000-0000000000dd
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HullDownAttackRun_Blackboard
+{
+    public global::Hrot.AI.Behaviors.Brains.HullDownAttackParams Params;
+}

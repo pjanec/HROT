@@ -35,14 +35,25 @@ namespace Fdp.Toolkit.CarKinem.Modules
     /// behavior (MOD1 §3.2.5).
     /// </para>
     /// </summary>
-    public sealed class GroundKinematicsModule
+    public sealed class GroundKinematicsModule : System.IDisposable
     {
         private readonly RoadNetworkBlob          _roadNetwork;
-        // Lazy-allocated: null until first access via the properties below.
-        // This avoids eagerly creating pools for roles that construct this module
-        // but never call RegisterSystems (e.g. unit test probing / dry-run inspection).
+
+        // ⚠ These are allocated by the CONSTRUCTOR, not on first property access: the system arrays
+        // below read TrajectoryPool and FormationTemplates while being built. (An earlier comment here
+        // claimed the lazy properties avoided eager allocation "for roles that never call
+        // RegisterSystems" — that was never true, and it mattered, because it hid the fact that merely
+        // CONSTRUCTING this module claims persistent native memory.)
         private TrajectoryPoolManager?    _trajectoryPool;
         private FormationTemplateManager? _formationTemplates;
+
+        // OWNED vs BORROWED (B3). A pool passed in belongs to the composition root and outlives this
+        // module; a pool defaulted here belongs to this module and must be freed by it. Freeing a
+        // borrowed pool is the half that CORRUPTS rather than merely leaks — every other consumer
+        // (PathfindingSolverSystem, FormationTargetSystem, CarKinematicsSystem) still holds it.
+        private readonly bool _ownsTrajectoryPool;
+        private readonly bool _ownsFormationTemplates;
+        private bool _disposed;
 
         /// <param name="roadNetwork">
         ///   Road network blob for <see cref="CarKinematicsSystem"/>.
@@ -67,9 +78,11 @@ namespace Fdp.Toolkit.CarKinem.Modules
             TrajectoryPoolManager? trajectoryPool = null,
             FormationTemplateManager? formationTemplates = null)
         {
-            _roadNetwork        = roadNetwork;
-            _trajectoryPool     = trajectoryPool;     // null = lazy-allocate on first use
-            _formationTemplates = formationTemplates; // null = lazy-allocate on first use
+            _roadNetwork            = roadNetwork;
+            _trajectoryPool         = trajectoryPool;
+            _formationTemplates     = formationTemplates;
+            _ownsTrajectoryPool     = trajectoryPool is null;
+            _ownsFormationTemplates = formationTemplates is null;
 
             // Accessing TrajectoryPool and FormationTemplates here triggers lazy allocation.
             SimulationSystems = new IEcsModuleSystem[]
@@ -86,10 +99,43 @@ namespace Fdp.Toolkit.CarKinem.Modules
             };
         }
 
-        /// <summary>Shared trajectory pool (lazy-allocated on first access when not provided at construction).</summary>
+        /// <summary>Shared trajectory pool (allocated by the constructor when not provided).</summary>
         public TrajectoryPoolManager TrajectoryPool => _trajectoryPool ??= new TrajectoryPoolManager();
 
-        /// <summary>Shared formation-template manager (lazy-allocated on first access when not provided at construction).</summary>
+        /// <summary>Shared formation-template manager (allocated by the constructor when not provided).</summary>
         public FormationTemplateManager FormationTemplates => _formationTemplates ??= new FormationTemplateManager();
+
+        /// <summary>
+        /// <c>true</c> when this module allocated <see cref="TrajectoryPool"/> itself and is therefore
+        /// responsible for freeing it. <c>false</c> when the pool was handed in and is merely borrowed.
+        /// </summary>
+        /// <remarks>
+        /// Exposed so a composition root — and the rail that guards it — can assert the intended
+        /// ownership rather than infer it. A node selecting both <c>MuscleGround</c> and
+        /// <c>NavigationSolver</c> must share ONE pool: <c>PathfindingSolverSystem</c> writes routes
+        /// into it while <c>FormationTargetSystem</c> and <c>CarKinematicsSystem</c> read them back,
+        /// so two pools mean routes that resolve and vehicles that never follow them — silently, with
+        /// no exception.
+        /// </remarks>
+        public bool OwnsTrajectoryPool => _ownsTrajectoryPool;
+
+        /// <summary><c>true</c> when this module allocated <see cref="FormationTemplates"/> itself.</summary>
+        public bool OwnsFormationTemplates => _ownsFormationTemplates;
+
+        /// <summary>
+        /// Frees the trajectory pool and formation templates <b>only if this module allocated them</b>.
+        /// </summary>
+        /// <remarks>
+        /// Borrowed instances belong to the composition root and outlive this module; freeing one would
+        /// leave every other consumer holding released native memory. Safe to call more than once.
+        /// </remarks>
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            if (_ownsTrajectoryPool)     _trajectoryPool?.Dispose();
+            if (_ownsFormationTemplates) _formationTemplates?.Dispose();
+        }
     }
 }

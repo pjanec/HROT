@@ -45,13 +45,18 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(ComponentItemCountNode), "ComponentItemCount")]
 [JsonDerivedType(typeof(ComponentContainsNode),  "ComponentContains")]
 [JsonDerivedType(typeof(ComponentFindNode),      "ComponentFind")]
+[JsonDerivedType(typeof(CollectionWriteNode),    "CollectionWrite")]
+[JsonDerivedType(typeof(ListWriteNode),          "ListWrite")]
 [JsonDerivedType(typeof(CompareNode),            "Compare")]
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
 [JsonDerivedType(typeof(NotNode),                "Not")]
+[JsonDerivedType(typeof(PrintStringNode),        "PrintString")]
+[JsonDerivedType(typeof(FormatStringNode),       "FormatString")]
 [JsonDerivedType(typeof(MakeStructNode),         "MakeStruct")]
 [JsonDerivedType(typeof(BreakStructNode),        "BreakStruct")]
 [JsonDerivedType(typeof(SetMembersNode),         "SetMembers")]
+[JsonDerivedType(typeof(MacroCallNode),          "MacroCall")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -65,6 +70,77 @@ public abstract class Node
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? PinDefaults { get; set; }
+
+    /// <summary>
+    /// BP-81 — for a node synthesized by <c>Stage2_5_ExpandMacros</c>, the id of the AUTHORED node in
+    /// the macro body it was cloned from. Null on every authored node.
+    ///
+    /// <para>
+    /// ⚠⚠ <b><c>[JsonIgnore]</c> is the whole point, not a detail.</b> This is a compile-time-only
+    /// annotation: it is set after the clone, consumed by <c>Stage5_Schedule.DebugOf</c>, and must
+    /// never reach disk. Persisting it would break the macro design's central claim that
+    /// <c>ExecOutDecl</c> + <c>Graph.ExecOutputs</c> + <c>MacroCallNode</c> are "the entire on-disk
+    /// change", and would make every existing asset's round-trip move. <c>MacroCloningTests</c> locks
+    /// that it does not serialise.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Why a field on <see cref="Node"/> rather than a side map in the compile context.</b>
+    /// <c>DebugOf(Node)</c> is <c>static</c> and called at <b>55</b> sites in <c>Stage5_Schedule</c>
+    /// alone; a side map forces it to become an instance method or grow a parameter at every one of
+    /// them — a large mechanical diff whose only purpose is to avoid one nullable Guid.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The precedence downstream is deliberate and must not be "fixed".</b>
+    /// <c>CSharpEmitter:45,53</c> read <c>debug?.NodeId ?? debug?.OriginNodeId</c>, so the CLONE's own
+    /// id wins and each expansion site gets its own <c>DebugMapEntry</c>. That is what makes one
+    /// authored node yield two rows at two call sites: <b>line→node stays 1:1, node→line becomes
+    /// one-to-many.</b> That asymmetry is BP-83's subject.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid? OriginNodeId { get; set; }
+
+    /// <summary>
+    /// BP-83 — the id of the MACRO GRAPH <see cref="OriginNodeId"/> lives in. Compile-time only, same
+    /// as its partner.
+    /// <para>
+    /// ⚠ <b>Both ids are needed, and the second is not redundant.</b> A <c>DebugMapEntry</c>'s
+    /// <c>GraphId</c> is the HOST graph the clone was spliced into, while the authored node the
+    /// designer sees lives in the macro. Without the graph id, an authored node id is ambiguous the
+    /// moment two macros are involved — the debugger could not tell which macro a back-reference
+    /// points into.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid? OriginGraphId { get; set; }
+}
+
+/// <summary>
+/// BP-80 — a call site for a <see cref="GraphKind.Macro"/> graph. <c>Stage2_5_ExpandMacros</c> splices
+/// the target's body in here and deletes this node; it is never lowered.
+///
+/// <para>
+/// ⚠⚠ <b>Exactly one field, and that is a structural decision, not minimalism.</b> Pin names, types,
+/// counts and arity are ALL derived by projection from the target graph
+/// (<c>NodePinSchema.MacroCallPins</c> / <c>Stage0_Rehydrate.EnrichMacroCallPins</c>). Baking any of
+/// them onto the node reproduces <c>CallablePeers</c> (BP-116) and <c>ArgTypes</c> (BP-201) — the same
+/// shape twice already: <em>a property the compiler needs that the editor never writes</em>, invisible
+/// because every fixture hand-writes the JSON. A call node with no baked metadata cannot have that bug.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>A distinct type, not <see cref="FunctionCallNode"/> with a macro target</b>, so that every
+/// <c>OfType&lt;FunctionCallNode&gt;()</c> site (the Stage 5 lowering switch, BP1650-54) cannot see a
+/// macro call — and so an unexpanded one hits its own fail-loud arm (<c>BP1668</c>) rather than the
+/// generic unknown-kind path.
+/// </para>
+/// </summary>
+public sealed class MacroCallNode : Node
+{
+    /// <summary>GUID string of the <see cref="GraphKind.Macro"/> graph this node calls.</summary>
+    public string TargetGraphId { get; set; } = "";
 }
 
 public sealed class FunctionCallNode : Node
@@ -177,6 +253,35 @@ public sealed class EventEntryNode : Node
 
 public sealed class ReturnNode : Node
 {
+    /// <summary>
+    /// BP-131 — the name of the <c>bool</c> data-IN pin that drives an <b>AiPrimitive</b>'s returned
+    /// <c>NodeStatus</c> at runtime. Projected by <c>NodePinSchema.ReturnNodePins</c> (editor) and
+    /// <c>Stage0_Rehydrate.EnrichReturnPins</c> (compiler), and excluded BY NAME from
+    /// <c>Stage5_Schedule.BuildReturnTerminator</c>'s <c>valuePins</c>.
+    ///
+    /// <para>
+    /// ⚠⚠ <b>The exclusion is not tidiness.</b> <c>valuePins</c> is "every non-exec pin on the Return
+    /// node", and two unrelated shapes branch on its COUNT: <c>== 0</c> selects the zero-output-Library
+    /// NodeStatus return, and <c>&gt; 1</c> selects BP-73 tuple packing. A <c>Success</c> pin counted
+    /// among them silently moves both. Containment is primarily the projection gate (the pin exists
+    /// for AiPrimitive only); excluding it by name here is defence in depth, because the two
+    /// mechanisms fail independently.
+    /// </para>
+    ///
+    /// <para>
+    /// One shared constant rather than two string literals: the projections live in two assemblies
+    /// that must agree, and every past divergence between them (BP-69, BP-116, BP-201) was two copies
+    /// of one fact drifting apart.
+    /// </para>
+    /// </summary>
+    public const string SuccessPinName = "Success";
+
+    /// <summary>
+    /// The author-time status. ⭐ BP-131: still the fallback, and deliberately so — an unwired
+    /// <see cref="SuccessPinName"/> pin resolves to this rather than to <c>default(bool)</c>, which is
+    /// <c>false</c> = Failure and would have flipped every AiPrimitive Return already shipped. That is
+    /// what makes the feature need no asset migration.
+    /// </summary>
     public NodeStatus Status { get; set; } = NodeStatus.Success;
 }
 
@@ -628,6 +733,8 @@ public enum CollectionKind
     CuratedStatic = 0,
     /// <summary>Native managed member (<c>List&lt;T&gt;</c>/<c>IReadOnlyList&lt;T&gt;</c>/<c>T[]</c>) on a class component -- no curated accessors.</summary>
     ManagedMember = 1,
+    /// <summary>FC-2/LV-2 (Q#19-A): a fixed-capacity LIST VARIABLE in the blueprint's State/WorkingState -- the consumer's "Collection" resolves to a `ref` onto the state field (no entity, no component re-read); <c>CollectionFieldName</c> carries the VARIABLE name; accessor FQNs are empty. Emit renders <c>__ref.Count</c>/<c>__ref.Items[i]</c> with the F2 min(Count, N) clamp.</summary>
+    BlackboardFixedList = 2,
 }
 
 public sealed class ComponentFieldDecl
@@ -815,6 +922,92 @@ public sealed class BooleanOpNode : Node
 /// </summary>
 public sealed class NotNode : Node
 {
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// BP-108 -- Print String / Format String (Unreal's Print String + Format Text)
+//
+
+/// <summary>
+/// BP-108 -- the log level a <see cref="PrintStringNode"/> writes at. Mirrors the NLog levels the
+/// AI.Behavior logger family exposes, so each maps to one level probe on the sink helper.
+/// </summary>
+public enum BlueprintLogLevel
+{
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+/// <summary>
+/// BP-108 -- <b>Print String</b>: formats <see cref="Format"/> and writes it to the <c>AI.Behavior</c>
+/// logger family, which the editor surfaces in its "AI Behaviors" message-log tab.
+///
+/// <para>
+/// ⭐ <b>The pins are derived from <see cref="Format"/>, not declared.</b> One data-in pin per
+/// <c>{Name}</c> placeholder, in first-appearance order -- see
+/// <see cref="Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString"/>. There is deliberately no
+/// <c>ArgCount</c> property: an unwired data-in pin is a guaranteed <c>BP4001</c>, so a speculative pin
+/// is never harmless.
+/// </para>
+///
+/// <para>
+/// ⚠ Renaming a placeholder renames a pin, which can drop a link (the class BP-113 hit). Acceptable, but
+/// the drawer must make the pin set visibly follow the text so it is never a surprise.
+/// </para>
+/// </summary>
+public sealed class PrintStringNode : Node
+{
+    /// <summary>
+    /// The message template. <c>{Name}</c> placeholders become data-in pins; <c>{{</c>/<c>}}</c> are
+    /// literal braces. A malformed format is a Stage 2 diagnostic, never a silent drop.
+    /// </summary>
+    public string Format { get; set; } = "";
+
+    /// <summary>
+    /// Level to log at. Emitted behind the matching level probe, so a disabled level costs nothing --
+    /// the formatting is never evaluated.
+    /// </summary>
+    public BlueprintLogLevel Level { get; set; } = BlueprintLogLevel.Info;
+
+    /// <summary>
+    /// Per-placeholder declared type, keyed by placeholder name (values are <c>TypeId</c> strings from
+    /// the editor's type picker). ⚠ We have no wildcard-pin mechanism, so each placeholder must carry a
+    /// declared type; a name missing here falls back to <c>System.Object</c>.
+    /// </summary>
+    public Dictionary<string, string> ArgTypes { get; set; } = new();
+}
+
+/// <summary>
+/// BP-108 -- <b>Format String</b>: the same formatting as <see cref="PrintStringNode"/>, but the result
+/// goes to a data-out pin instead of the log. Unreal's <c>Format Text</c>. <b>Pure</b> -- no exec pins.
+///
+/// <para>
+/// ⭐ The two nodes compose with no new mechanism: the result is a <c>FixedString</c>, and a
+/// <c>FixedString</c> is a legal argument type, so wiring one into a Print String placeholder prints a
+/// computed message. That is why Print String needs no special string-input case.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>Truncation is silent.</b> A formatted result longer than <see cref="ResultTypeId"/> is cut at
+/// runtime with no diagnostic -- Stage 2 cannot know a runtime length. Say so in the node's tooltip.
+/// </para>
+/// </summary>
+public sealed class FormatStringNode : Node
+{
+    /// <summary>Message template; same grammar as <see cref="PrintStringNode.Format"/>.</summary>
+    public string Format { get; set; } = "";
+
+    /// <summary>
+    /// Type of the "Result" data-out pin -- one of the <c>Fdp.Core.FixedString32/64/128</c> family.
+    /// Sizes the <c>stackalloc</c> buffer the formatted text is written into.
+    /// </summary>
+    public string ResultTypeId { get; set; } = "Fdp.Core.FixedString128";
+
+    /// <summary>Per-placeholder declared type. See <see cref="PrintStringNode.ArgTypes"/>.</summary>
+    public Dictionary<string, string> ArgTypes { get; set; } = new();
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1082,6 +1275,94 @@ public sealed class ComponentContainsNode : Node
     /// <summary>CA-07d-2: for <see cref="CollectionKind.ManagedMember"/>, the managed collection field name; accessor FQNs are empty. Null (omitted) for curated.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? CollectionFieldName { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CollectionWrite (FC-1, Q#20 -- component collection element WRITE, CuratedStatic + self only)
+//
+// The write-side sibling of the CA-07 consumers above. Same author-time "Collection" in-pin binding
+// (wired FROM a GetComponent collection out-pin -- G4 kept the Unreal pin-composability for writes
+// too), but the ENTITY IS NEVER TAKEN FROM THE WIRE: writes are self-only (Q#16/Q#20 inherited
+// ruling), so Stage5 binds GetComponentRW to the resolved `self` unconditionally, and Stage2's
+// V_ComponentAccessRules rejects a producer GetComponent whose "Target" is wired (BP2070) as well
+// as any "Target" pin on this node itself (BP2069). Mutation goes through a curated
+// [BlueprintCollectionWrite] static accessor baked as WriteAccessorFqn (Q#5-C: raw buffer access
+// stays off-graph; the Span<T> write pattern lives INSIDE the accessor), called on the guarded
+// GetComponentRW ref: `__t = Has<T>(self); if (__t) { ref var __wc = ref GetComponentRW<T>(self);
+// __t = global::{WriteAccessorFqn}(ref __wc, ...); }`. ManagedMember collections are NOT
+// element-writable (Q#20-C, snapshot aliasing) -- BP2068.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// FC-1 -- the mutation verb a <see cref="CollectionWriteNode"/> performs. Mirrors
+/// <c>Fdp.Core.BlueprintCollectionOp</c> (the compiler cannot reference game assemblies -- the
+/// editor bakes the discovered accessor's op into this asset-side enum at wire time).
+/// </summary>
+public enum CollectionWriteOp
+{
+    /// <summary><c>bool Add(ref C, Elem)</c> -- append; false on full.</summary>
+    Add = 0,
+    /// <summary><c>bool SetAt(ref C, int, Elem)</c> -- overwrite within [0, Count); never grows Count.</summary>
+    SetAt = 1,
+    /// <summary><c>bool InsertAt(ref C, int, Elem)</c> -- shift up; false on full or i &gt; Count.</summary>
+    InsertAt = 2,
+    /// <summary><c>bool RemoveAt(ref C, int)</c> -- shift down, vacated slot zeroed.</summary>
+    RemoveAt = 3,
+    /// <summary><c>void Clear(ref C)</c> -- zero used slots, Count = 0. Cannot fail.</summary>
+    Clear = 4,
+    /// <summary><c>bool Resize(ref C, int)</c> -- set logical length; shrink zeroes dropped tail.</summary>
+    Resize = 5,
+}
+
+/// <summary>
+/// FC-1 (Q#20) -- mutates one element / the length of a fixed-capacity component collection on
+/// <c>self</c> via a baked curated write accessor (see the section doc comment above). Exec node:
+/// exec-in "In", exec-out "Out", data-in "Collection" (<c>IsArray</c>, element-typed -- wired FROM a
+/// GetComponent collection out-pin; used for author-time binding + validation ONLY, never as the
+/// write entity), per-<see cref="Op"/> operand data-ins ("Index"/"Length" <c>System.Int32</c>,
+/// "Value" element-typed), and data-out "Ok" (<c>System.Boolean</c>: component present AND the op
+/// applied). Write-if-present -- absent component ⇒ Ok=false, never an implicit add; a refused op
+/// (full / out-of-range) ⇒ Ok=false + a <c>DebugProbe.CollectionWriteFailed</c> diagnostic in
+/// non-Release mode (never silent). See <c>Stage5_Schedule</c>'s <c>CollectionWriteNode</c> case and
+/// <c>StatementEmitter</c>'s <c>IrOp_CollectionWrite</c> case.
+/// </summary>
+public sealed class CollectionWriteNode : Node
+{
+    /// <summary>FQN of the ECS component carrying the collection (write target on self). Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+
+    /// <summary>The mutation verb -- drives the operand pin set (Stage0) and the accessor call arity (Stage5/emit).</summary>
+    public CollectionWriteOp Op { get; set; }
+
+    /// <summary>FQN of the <c>[BlueprintCollectionWrite]</c> static accessor for <see cref="Op"/> (e.g. "Hrot.AI.Behaviors.Brains.BpFixedListDemoOps.SetAt"), baked at wire time. Emitted as <c>global::{Fqn}(ref __wc, ...)</c>.</summary>
+    public string WriteAccessorFqn { get; set; } = "";
+
+    /// <summary>FQN of the collection's element type -- types the "Collection"/"Value" pins. Empty until baked (pins fall back to System.Object).</summary>
+    public string ElementTypeFqn { get; set; } = "";
+
+    /// <summary>Must stay <c>CuratedStatic</c> -- a <c>ManagedMember</c> collection is not element-writable (Q#20-C; Stage2 BP2068). Present so a hand-authored/legacy managed bake is REJECTED rather than silently mis-emitted. Omitted from JSON when default.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public CollectionKind CollectionKind { get; set; }
+}
+
+/// <summary>
+/// FC-2/LV-3 (Q#19-C/D) -- mutates a FIXED-LIST VARIABLE in place, bound BY VARIABLE ID (the
+/// SetVariable lvalue pattern -- the list is NEVER routed through a by-value data pin; Q#19-D hard
+/// requirement: writing one element must not copy the array). Exec node: exec In/Out, per-<see
+/// cref="Op"/> operand data-ins ("Index"/"Length" int, "Value" element-typed), and -- for the
+/// fallible ops -- a data-out "Ok" (<c>System.Boolean</c>; the settled overflow contract: false +
+/// a Debug-mode <c>DebugProbe.CollectionWriteFailed</c> diagnostic on full/out-of-range, never
+/// silent, never throw). Clear cannot fail and has no "Ok". Emit is the amended Span form (the
+/// naive <c>s.f.Items[i]=</c> is the R3 write-loss shape) with the F2 clamp and the G6
+/// tail-always-default invariant -- see <c>StatementEmitter</c>'s <c>IrOp_ListWrite</c> case.
+/// </summary>
+public sealed class ListWriteNode : Node
+{
+    /// <summary>The target fixed-list variable's id (GUID string, "var:"-prefix tolerated) -- Variables or WorkingState.</summary>
+    public string VariableId { get; set; } = "";
+
+    /// <summary>The mutation verb -- drives the operand pin set and emit arity (shares the component write's vocabulary, Q#19-C).</summary>
+    public CollectionWriteOp Op { get; set; }
 }
 
 /// <summary>

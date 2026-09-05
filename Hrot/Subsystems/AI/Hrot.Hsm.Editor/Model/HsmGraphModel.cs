@@ -15,13 +15,21 @@ namespace Hrot.Hsm.Editor.Model;
 public sealed class HsmGraphModel : IGraphModel
 {
     private readonly HsmAsset _asset;
+    private readonly Func<Guid, bool>? _isStatefulSubtree;
 
     // Cache for link adapters keyed by VisualId.
     private readonly Dictionary<LinkId, HsmTransitionLink> _linkCache = new();
 
-    public HsmGraphModel(HsmAsset asset)
+    /// <summary>
+    /// ⭐ <c>E4</c>: <paramref name="isStatefulSubtree"/> is the SAME resolver the composition root
+    /// gives <c>HsmAssetValidator</c>. ⛔ Two entry points validate the same asset — this one drives
+    /// the node badges, that one the Diagnostics window — and a resolver on only one of them would
+    /// make a state light up in one surface and not the other.
+    /// </summary>
+    public HsmGraphModel(HsmAsset asset, Func<Guid, bool>? isStatefulSubtree = null)
     {
         _asset = asset;
+        _isStatefulSubtree = isStatefulSubtree;
         // Rebuild caches when asset changes.
         _asset.Changed += OnAssetChanged;
         BuildCaches();
@@ -40,7 +48,8 @@ public sealed class HsmGraphModel : IGraphModel
         _linkCache.Clear();
 
         // Run validation once (include blackboard for region-conflict checks).
-        var diagnostics = new HsmValidator().Validate(_asset, _asset as IBlackboardManagedAsset);
+        var diagnostics = new HsmValidator(isStatefulSubtree: _isStatefulSubtree)
+            .Validate(_asset, _asset as IBlackboardManagedAsset);
 
         // Map StableId -> worst (Error-wins) severity + message.
         var perState = new Dictionary<Guid, (NodeState State, string Tooltip)>();

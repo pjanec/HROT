@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Fdp.Core.Internal;
 
 namespace Fdp.Core
@@ -107,8 +108,58 @@ namespace Fdp.Core
             }
         }
         
+        private static int _liveInstanceCount;
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>QA-004</c> — <b>how many <see cref="EntityRepository"/> instances are alive right now</b>
+        /// (constructed and not yet <see cref="Dispose"/>d).
+        ///
+        /// <para>⛔ A leaked repository is INVISIBLE without this: it throws nothing, logs nothing, and
+        /// fails no assertion — it just holds an <c>int[1_000_000]</c> free list plus one
+        /// <c>NativeChunkTable</c> per registered component until the process dies. 📐 Measured
+        /// 2026-08-26: accumulated leaks exhausted a 16 GB box mid-run and aborted the integration
+        /// test host, which had been read as "flaky tests" for ~40 batches.</para>
+        ///
+        /// <para>⭐ So the count is the INSTRUMENT: a teardown rail asserts it returns to its pre-boot
+        /// value, which turns "did anything leak a world?" from an argument into a number.
+        /// ⚠ Process-wide and therefore only meaningful when read on a serialized path — compare a
+        /// before/after pair inside one test, ⛔ never assert an absolute value.</para>
+        /// </summary>
+        public static int LiveInstanceCount => Volatile.Read(ref _liveInstanceCount);
+
+        // ── QA-004: opt-in leak tracker ───────────────────────────────────────────────────────────
+        // OFF unless FDP_TRACK_REPO_LEAKS=1, so the normal path pays one already-cached bool read.
+        private static readonly bool _trackLeaks =
+            Environment.GetEnvironmentVariable("FDP_TRACK_REPO_LEAKS") == "1";
+
+        // EntityRepository does not override Equals/GetHashCode, so the default comparer IS reference
+        // identity — which is what a per-instance origin table needs.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<EntityRepository, string>
+            _liveOrigins = new();
+
+        /// <summary>
+        /// ⭐⭐ <c>QA-004</c> — with <c>FDP_TRACK_REPO_LEAKS=1</c>, the construction stack of every
+        /// still-live repository.
+        ///
+        /// <para>⛔ <see cref="LiveInstanceCount"/> answers <i>"did something leak?"</i> and stops there
+        /// — 📐 measured 2026-08-26, one harness round-trip leaked <b>ten</b> repositories per node and
+        /// the count alone could not say which ten. ⭐ This answers <i>"leaked from WHERE"</i>, which is
+        /// the difference between a number and a fix.</para>
+        /// </summary>
+        public static string[] DumpLiveOrigins()
+        {
+            if (!_trackLeaks)
+                return new[] { "FDP_TRACK_REPO_LEAKS is not set to 1 — no origins were recorded." };
+
+            var origins = new System.Collections.Generic.List<string>();
+            foreach (var kv in _liveOrigins) origins.Add(kv.Value);
+            return origins.ToArray();
+        }
+
         public EntityRepository()
         {
+            Interlocked.Increment(ref _liveInstanceCount);
+            if (_trackLeaks) _liveOrigins[this] = Environment.StackTrace;
             Bus = new FdpEventBus();
             _selfHandle = GCHandle.Alloc(this, GCHandleType.Normal);
             _entityIndex = new EntityIndex();
@@ -1707,6 +1758,43 @@ namespace Fdp.Core
         }
         
         /// <summary>
+        /// Ruling 14 — writes <paramref name="size"/> bytes at <paramref name="byteOffset"/> inside a
+        /// component and <b>touches nothing else</b>. Used by <see cref="EntityCommandBuffer"/> playback
+        /// for a surgical field edit.
+        ///
+        /// <para>
+        /// ⭐ <b>Why this exists at all:</b> a whole-component write is a read-modify-write whose read
+        /// happened earlier — so it silently carries every OTHER field back to whatever it was at read
+        /// time. On a shared blackboard component that reverts unrelated subsystems' state by a tick.
+        /// </para>
+        /// </summary>
+        internal unsafe void SetComponentFieldRaw(Entity entity, int typeId, int byteOffset, IntPtr src, int size)
+        {
+            if (!IsAlive(entity)) return;
+
+            IComponentTable? table = null;
+            if (typeId < _tableCache.Length && _tableCache[typeId] != null)
+            {
+                table = _tableCache[typeId]!;
+            }
+            else
+            {
+                Type? componentType = ComponentTypeRegistry.GetType(typeId);
+                if (componentType == null)
+                    throw new InvalidOperationException($"Component type ID {typeId} not registered");
+                if (!_componentTables.TryGetValue(componentType, out table))
+                    throw new InvalidOperationException($"Component {componentType.Name} not registered. Call RegisterComponent first.");
+            }
+
+            table.SetRawAt(entity.Index, byteOffset, src, size, _globalVersion);
+
+            // ⚠ The component mask is NOT set here, deliberately: a field write PATCHES a component
+            //   that must already exist. Adding the bit would make a write to an absent component look
+            //   like an add of a component whose other bytes are whatever the slot happened to hold.
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+        }
+
+        /// <summary>
         /// Removes a component by type ID (type-erased).
         /// Used internally by EntityCommandBuffer during playback.
         /// </summary>
@@ -2040,6 +2128,15 @@ namespace Fdp.Core
             }
 
             _disposed = true;
+            Interlocked.Decrement(ref _liveInstanceCount);   // QA-004 — see LiveInstanceCount
+            if (_trackLeaks) _liveOrigins.TryRemove(this, out _);
         }
+
+        /// <summary>
+        /// ⭐ <c>QA-004</c> — <see langword="true"/> once <see cref="Dispose"/> has run. Exposed so a
+        /// teardown rail can assert a specific world was released, rather than inferring it from a
+        /// process-wide count.
+        /// </summary>
+        public bool IsDisposed => _disposed;
     }
 }

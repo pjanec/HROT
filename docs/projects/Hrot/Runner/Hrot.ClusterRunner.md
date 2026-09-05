@@ -36,7 +36,6 @@ launched on a dedicated machine or isolated by a shell script.
 | `excon` / `ios`  | `ExConSubsystem`                 | Exercise controller (legacy alias: ios)    |
 | `cgf`            | `CgfSubsystem`                   | Computer-generated forces / AI             |
 | `editor`         | `EditorSubsystem`                | Scenario / behaviour tree editor           |
-| `stridemock`     | `StrideMockSubsystem`            | Fake Stride renderer for integration tests |
 | `replaybrowser`  | `ReplayBrowserSubsystem`         | Standalone replay review tool              |
 | `ci`             | `CiSubsystem`                    | Headless deterministic CI harness          |
 | `migrate`        | `MigrateMode` (not a subsystem)  | Batch JSON schema migration of a file tree |
@@ -106,7 +105,6 @@ Offsets:
   Orchestrator +300
   CGF          +400
   CI           +500
-  StrideMock   +700
   (other)      +600
 ```
 
@@ -541,7 +539,6 @@ Exit codes: `0` = both entities alive after 600 ticks; `1` = entity died early.
 | `Hrot.ExCon` | `ExConSubsystem` |
 | `Hrot.CGF` | `CgfSubsystem` |
 | `Hrot.Editor` | `EditorSubsystem` |
-| `Hrot.StrideMock` | `StrideMockSubsystem` |
 | `Hrot.Presentation` | HROT-specific window registrations |
 | `Hrot.ReplayBrowser` | `ReplayBrowserSubsystem` |
 | `Hrot.AI.Behaviors` | Copy-local only -- loaded into collectible ALC for hot-reload; no static type use |
@@ -678,11 +675,6 @@ Open the replay browser:
 Hrot.ClusterRunner.exe --mode replaybrowser --no-wait
 ```
 
-Run SimHost + IG with the Stride mock renderer:
-```
-Hrot.ClusterRunner.exe --mode orchestrator,excon,cgf,stridemock --no-wait
-```
-
 Batch-migrate all scenarios in a directory tree to the current schema version:
 ```
 Hrot.ClusterRunner.exe --mode migrate --input-dir \\nas\scenarios
@@ -724,7 +716,6 @@ The following profiles are defined for debugging in Visual Studio / Rider:
 | Profile | Args |
 |---------|------|
 | `All (ExCon+IG+SIM+CGF)` | `-m all` |
-| `All w/Stride (ExCon+CGF+StrideMock)` | `-m orchestrator,excon,cgf,stridemock --no-wait` |
 | `IG` | `-m ig --no-wait` |
 | `SimHost` | `-m simhost --no-wait` |
 | `ExCon` | `-m excon --no-wait` |
@@ -853,7 +844,6 @@ wired into any production boot path. They are constructed and registered only by
 
 | Project | Relationship |
 |---------|-------------|
-| `Hrot.FakeStrideApp` | Sibling runner in `Hrot/Runner/`. Standalone fake Stride rendering app, used for integration testing the Stride presentation path without a real Stride engine. |
 | `Fdp.Toolkits` | Provides the orchestration spine: `ISubsystem`, `SubsystemOrchestrator`, `SubsystemConfig`, `RunnerConfiguration`, `RunnerOptions`, `ITestActionHandler`, `ScenarioSubsystem`, `HeadlessTestExecutor`. |
 | `Fdp.Presentation` | Window manager, perspective switching UI, message log, status bar, icon atlas. |
 | `Hrot.Common` | `HrotNodeBuilder` (node construction), `HrotEnvironment` (DDS participant factory, geo-transform), `NodeRole` flags, `IGizmoControllable`. |
@@ -863,7 +853,6 @@ wired into any production boot path. They are constructed and registered only by
 | `Hrot.ExCon` | Exercise controller subsystem. |
 | `Hrot.CGF` | Computer-Generated Forces / AI subsystem. |
 | `Hrot.Editor` | Scenario and behaviour tree editor subsystem. |
-| `Hrot.StrideMock` | Fake Stride renderer subsystem for CI/integration tests. |
 | `Hrot.ReplayBrowser` | Standalone replay review subsystem. |
 | `Hrot.AI.Behaviors` | Hot-reloadable AI behaviour tree assembly. Delivered as copy-local only; loaded by `EditorSubsystem` in a collectible ALC. |
 | `Hrot.Network.NED` | NED/DDS network factory and topology descriptors. |

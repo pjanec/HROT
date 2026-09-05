@@ -12,6 +12,10 @@ internal static class AiPrimitiveLowering
 
     public static IrAsset Apply(IrAsset asset, DiagnosticSink sink)
     {
+        // BP-57 / Q27-A3 — BEFORE the wait lowering, because the reset statement goes into the
+        // graph's CURRENT entry block and WaitLowering repoints Entry at its dispatch block.
+        asset = LocalStorage.PromoteSuspendingGraphLocals(asset);
+
         for (int i = 0; i < asset.Graphs.Count; i++)
         {
             var graph = asset.Graphs[i];
@@ -41,7 +45,9 @@ internal static class AiPrimitiveLowering
 
     private static IrAsset EnsurePhaseByteInWorkingState(IrAsset asset)
     {
-        if (asset.WorkingState.Any(f => f.Name == "__phase")) return asset;
+        // ⭐ Batch 86 — the state tier is ONE list (R-01); Variables IS the AiPrimitive's
+        //   working-state struct now, and IrAsset.WorkingState is retired.
+        if (asset.Variables.Any(f => f.Name == "__phase")) return asset;
 
         var phaseField = new IrField
         {
@@ -62,13 +68,15 @@ internal static class AiPrimitiveLowering
         // append == prepend when __phase is the only field.)
         return asset with
         {
-            WorkingState = asset.WorkingState.Concat(new[] { phaseField }).ToList(),
+            // ⚠ Still APPEND, and now to the ONE state run — which is where it landed before, because
+            //   an AiPrimitive's state lived in WorkingState and Variables was empty.
+            Variables = asset.Variables.Concat(new[] { phaseField }).ToList(),
         };
     }
 
     private static IrAsset EnsureWaitUntilTimeField(IrAsset asset)
     {
-        if (asset.WorkingState.Any(f => f.Name == "__waitUntilTime")) return asset;
+        if (asset.Variables.Any(f => f.Name == "__waitUntilTime")) return asset;
 
         var waitField = new IrField
         {
@@ -80,14 +88,12 @@ internal static class AiPrimitiveLowering
 
         return asset with
         {
-            WorkingState = asset.WorkingState.Concat(new[] { waitField }).ToList(),
+            Variables = asset.Variables.Concat(new[] { waitField }).ToList(),
         };
     }
 
-    private static bool HasAnyLatentOp(IrGraph graph)
-        => graph.Blocks
-            .SelectMany(b => b.Statements)
-            .Any(s => s.Operation is IrOp_LatentDelay or IrOp_WaitForChannel or IrOp_WaitForEvent
-                                  or IrOp_InlineActionCall);
+    // ⭐ One predicate, three call sites — see LocalStorage.CanSuspend for why a second copy of this
+    // list is the defect shape this programme keeps finding.
+    private static bool HasAnyLatentOp(IrGraph graph) => LocalStorage.CanSuspend(graph);
 }
 

@@ -352,22 +352,33 @@ operations, and channel-command authoring nodes.
 | **AiPrimitive** | `Blackboard1024` partition | Single-method graph hosted as BTree action, BTree condition, HSM action, and/or HSM guard -- multi-host from one authored graph |
 | **Instance** | `BlueprintBlackboard*` partition | Entity-bound or world-singleton script with state, events, optional tick, and latent execution |
 
-### 5.3 Compilation Pipeline (8 Stages)
+### 5.3 Compilation Pipeline
 
-1. **Parse** -- load `.bp.json`, validate schema.
-2. **Resolve** -- wire types, callable peer references, channel command catalog.
-3. **Validate** -- AiPrimitive conditions cannot contain latent nodes; cross-entity
-   calls blocked in Slice 1.
-4. **Lower** -- Wait nodes emit `NodeStatus.Running` (AiPrimitive) or
-   `BlueprintLatentCursor` switch (Instance).
-5. **Emit** -- `BTreeFluentEmitter` / `HsmFluentEmitter` produce `.cs` source with
-   deterministic filename `{SanitizedName}_{BlueprintId:X8}_Bp.g.cs`.
-6. **Roslyn MSBuild** -- incremental source generator bakes the `.g.cs` file into
-   the output assembly at build time.
-7. **In-process Roslyn** -- `InMemoryRoslynCompiler` for the editor Quick Reload
-   workflow (runtime compilation without rebuilding).
-8. **Hot-reload** -- `AiHotReloadCoordinator` swaps the assembly; per-slot
-   structure-hash comparison preserves or hard-resets instance state.
+Nine numbered stages under `Hrot.Blueprints.Compiler/Compiler/Stages/`. `BlueprintCompiler.Run`
+drives the seven that transform an asset into source (0, 2-7); Parse and RoslynFinalize sit at the
+load and assembly boundaries:
+
+| Stage | Does |
+|-------|------|
+| **0 — Rehydrate** | Project each node's canonical pins (authored -> registry -> fallback); must match the editor's `NodePinSchema` |
+| **1 — Parse** | Load `.bp.json`, validate schema |
+| **2 — Validate** | ~25 validators: dispatch-kind rules, link/graph structure, catalog + type references, unlowered node kinds, exec fan-out |
+| **3 — Normalize** | Insert implicit casts, canonicalise graph shape |
+| **4 — TypeResolve** | Bind every pin and variable to a resolved type |
+| **5 — Schedule** | BFS basic-block scheduler; produces the IR |
+| **6 — Lower** | Wait nodes become `NodeStatus.Running` (AiPrimitive) or a `BlueprintLatentCursor` switch (Instance) |
+| **7 — Emit** | Produce `.cs` with deterministic filename `{SanitizedName}_{BlueprintId:X8}_Bp.g.cs` |
+| **8 — RoslynFinalize** | Final Roslyn pass |
+
+Diagnostics are `BPnnnn` codes; a coverage-ratchet test asserts every declared code has at least
+one test that provokes it.
+
+Three ways the generated C# reaches a running process:
+
+- **MSBuild** -- an incremental source generator bakes the `.g.cs` into the output assembly.
+- **Quick Reload** -- `InMemoryRoslynCompiler` compiles in-process for the editor, no rebuild.
+- **Hot-reload** -- `AiHotReloadCoordinator` swaps the assembly; per-slot structure-hash
+  comparison preserves or hard-resets instance state.
 
 ### 5.4 Channel Command Authoring
 
@@ -386,6 +397,24 @@ most common BTree-authoring boilerplate.
 
 Blueprints declare `callablePeers`; synchronous in-frame calls between Blueprints on
 the same entity are supported with isolated blackboard partition slots.
+
+### 5.7 Visual Authoring Surface
+
+Graphs are edited on a real node canvas (the vendored **NodeEdit** editor core under
+`FDP/ExtDeps/NodeEdit`), not a property form:
+
+- **Canvas** -- palette + Tab search, wire-drop node creation, marquee select, comment
+  boxes, link reroutes, an overview minimap, and jump-to-next-issue.
+- **Editing** -- copy / cut / paste / duplicate, align / distribute / straighten, custom
+  node titles, body collapse, and Promote-to-Variable from any data pin.
+- **My Blueprint panel** -- declare variables and blueprint-local custom events (typed
+  parameters), place Get/Set nodes, rename / duplicate / delete.
+- **Undo** -- one stack covering canvas *and* Details-panel edits, in the order performed.
+- **Details panel** -- per-node-kind drawers with pickers sourced from live catalogs
+  (channels, engine events, peer blueprints, component types).
+
+Current capability list and open gaps: `docs/blueprints/Blueprints_Overview.md` and
+`docs/blueprints/Blueprint_Issues_Tracker.md`.
 
 ---
 
@@ -639,7 +668,9 @@ the platform. Every tool described below is available inside a single running
 ### 11.3 Blueprint Editor (`Hrot.Blueprints.Editor`)
 
 - Asset browser listing all `.bp.json` files with docType and version badges.
-- StructEdit form-based node editing with inline compiler diagnostics.
+- **Node-graph canvas** -- the NodeEdit host layer (`BlueprintNodeModel` / `BlueprintGraphModel` /
+  `NodePinSchema` / `BlueprintCommandSink`), with a Details panel of per-node-kind drawers and
+  inline compiler diagnostics. See [section 5.7](#57-visual-authoring-surface).
 - **Quick Reload** -- in-process Roslyn (`InMemoryRoslynCompiler`) recompiles the
   Blueprint without an MSBuild cycle; compilation errors appear inline.
 - **Debug session** -- Blueprint debug protocol (Strategy C): set a breakpoint on any
@@ -892,7 +923,7 @@ Hrot/
     Hrot.Editor/            -- Offline scenario authoring
     Hrot.AI.Behaviors/      -- 8 behavior implementations (MoveToLocation, FireAtTarget, ...)
     Hrot.ReplayBrowser/     -- Recording inspection, search, JSON export
-    Hrot.StrideMock/        -- Stride engine mock node (CI / GPU-free)
+    Hrot.NodeComposition/   -- StrideNodeBootstrapper: node composition root for the Stride app
     Blueprints/
       Hrot.Blueprints.Core/     -- Blueprint runtime, blackboard, in-memory Roslyn compiler
       Hrot.Blueprints.Compiler/ -- 8-stage Blueprint compiler pipeline

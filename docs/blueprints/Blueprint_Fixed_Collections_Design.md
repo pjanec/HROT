@@ -41,9 +41,13 @@ blittable `[BlackboardDtoStruct]`).
   that mutate `ref C`). An action needs no accessors — it touches the field directly by ref.
 - **Blueprint-variable home** — the **compiler** generates the wrapper + storage (the designer declares
   element × capacity in the editor and writes no C#).
-- **No source generator (v1):** a generator can't augment a hand-written non-`partial` struct; its only role would
-  be emitting the reusable *type*, which is small enough to hand-write. Revisit only if hand-writing wrappers
-  across many `(Elem,N)` proves annoying.
+- **No source generator for the TYPE (v1)** — a generator can't augment a hand-written non-`partial` struct; the
+  wrapper is ~3 lines. **AMENDED 2026-08-04: the *accessor ops class* IS generated** (FC-1b) — a free-standing
+  `static class {Component}CollectionOps` in its own file has no `partial` problem and is ~60 lines of trap-prone
+  code (Span write-through, Count/zeroing invariants) per collection. Trigger is **explicitly opt-in per field**
+  (`[BlueprintCollectionField(nameof(Count))]`, with `Access`/`Ops` knobs); hand-written accessors win over
+  generated (bespoke-semantics escape hatch). Full convention + generator design:
+  `Architect_Question_20_Component_Collection_Write.md` §"G1 resolution".
 - The three homes share the *shape* + the read/write node machinery, **not** necessarily the same CLR type in v1
   (a single canonical `FixedList_{Elem}_{N}` usable across boundaries is the deferred *first-class-shared* path —
   see below and `Blueprint_List_Variables_Design.md` open point #1).
@@ -76,18 +80,40 @@ Investigated 2026-08-03 — captured so the relationship isn't re-derived later.
   migration, and the call ABI can gain by-ref passing later.
 
 ## Sequencing (build slices)
-- **FC-0 — foundation (small, shared).** Canonical shape + accessor convention (reads exist; **add write
-  accessors**) + the mutation-op **IR family** + the `CollectionKind` write-backing discriminator. A hand-written
-  reference collection (extend `BpCollectionDemoOps` with mutators).
-- **FC-1 — component-collection write nodes.** *First real slice* — fills the felt omission, reuses the shipped
-  read consumers, exercises the FC-0 write family with **no new storage/layout/safety** work. Natural completion
-  of the existing component-collection reads.
+- **FC-0 — foundation (small, shared).** Canonical shape + the **write-accessor convention**
+  (`[BlueprintCollectionWrite]`, pinned `ref C` signatures — Q#20 §"G1 resolution") + the mutation-op **IR
+  family** + the **tail-always-default zeroing invariant** (all homes: slots ≥ `Count` are always `default(T)`;
+  mutators zero vacated slots, grow never fills) + the real `DebugProbe` overflow hook. Hand-written reference
+  ops on a **new `[InlineArray]`-backed demo component** (Q#20 G7: `BpCollectionDemo`'s `fixed` buffer cannot
+  exercise the R3 write-loss trap) + the InlineArray write round-trip test.
+- **FC-1 — component-collection write nodes.** Per Q#20: collection **in-pin** binding with validate-time
+  producer self-check (source `GetComponent.Target` unwired; emit binds `self` regardless), single `Ok` out-pin,
+  `CuratedStatic`-only, iteration-mutation validator warning (G3), and the **composition-order test** for
+  `BlueprintTickSystem` vs the dispatchers (G2 — or fix the `bpTick` splice).
+- **FC-1b — the `[BlueprintCollectionField]` source generator** emitting the ops class from the FC-0 template
+  (see the amended generator note above).
 - **FC-2 — blueprint variable collection.** The `Blueprint_List_Variables_Design.md` design (its internal LV-1…LV-5
   steps). Heavy foundation (InlineArray-in-blackboard, `SizeReliable=false`, init-safety, `Marshal.OffsetOf` —
   review blockers F1–F4), but the write nodes already exist from FC-1.
 - **FC-3 — action-collection recognition.** Teach the `BlackboardFieldClassifier` the array kind so the behavior
   editor recognizes/inspects a collection field; document the hand-written wrapper pattern. Action access is
   already free. Least blocking; pull forward if the behavior-DTO need is urgent.
+  > **DECIDED (Q#21, ✅ 2026-08-03)** — R4's reframing held; the approved shape is: **A1** classifier
+  > recognizes the wrapper-struct pattern only (`int Count` + one `[InlineArray(N)]` buffer →
+  > `EditorManaged`, `List<T>[N]` display; loose twin fields stay passthrough) · **B1** display-only
+  > Variables-panel wiring (no source round-trip editing in v1) · **C3/C1** plain-array JSON via a
+  > `JsonConverterFactory` in `FdpJsonOptionsRegistry` (Count = length clamped, G6-zeroed tail;
+  > elements recurse through the enclosing options so vectors/FixedStrings/custom unmanaged structs
+  > inherit support; `__paramJsonOpts` switches to the registry; Entity elements author-`Null`-only) ·
+  > **D3/P1** StructEdit-based inspector — StructEdit (independent ExtDeps library) gains ONLY the
+  > generic InlineArray provider-hook parity; the `FixedListViewProvider` (min(Count,N) window,
+  > display-only v1) + the shared summary formatter live host-side. The blueprint debugger watch
+  > deliberately stays on the transient bytes→string formatter (collectible-ALC constraint — a
+  > persistent EditDocument would pin generated types against the tested full-unload invariant);
+  > watch and provider share ONE formatter, two hosts. The R4(b) F2 hazard is already closed
+  > (FC-2/LV-1b `TryAttach` zero-on-attach sits at the `AttachSlotsToMemory` choke point) — FC-3
+  > adds a verify-only test. Slices: FC-3a classifier+panel → FC-3b JSON → FC-3c inspector+F2 → docs.
+  > Full detail: `Architect_Question_21_Action_DTO_Fixed_Lists.md`.
 
 > **Ordering corrected by the 2nd review (§R1, §R2):** FC-2 does **not** reuse FC-1's write machinery (they share
 > only the verb names), so the slices are **independent**, not a dependency chain. And component writes (FC-1) are
@@ -149,6 +175,27 @@ delegate chain).
 → **FC-0** foundation (incl. the `Span<T>` write pattern + a real `DebugProbe` overflow hook) → blueprint-variable
 writes **and** component writes as **independent** slices → action-DTO (recognition pipeline + F2 safety + JSON
 converter + inspector marshal). Scope table gains Shared + Parameters.
+
+## Decisions folded from the Q#20 architect-role review pass (2026-08-04)
+
+Full detail + evidence: `Architect_Question_20_Component_Collection_Write.md` §"Architect-role review pass" +
+§"G1 resolution". The load-bearing ones for ALL homes:
+
+| Decision | Rule |
+|---|---|
+| **Zeroing invariant (G6)** | ONE rule for all homes: **slots ≥ `Count` are always `default(T)`** — `RemoveAt`/`Clear`/`Resize`-shrink zero vacated slots; grow never fills (blob already zero). Supersedes Q#19's "grow-after-shrink re-zeroes" (that lazy-grow rule is retired; the List-Variables emits change accordingly). `Contains`/`Find` can never match stale-tail garbage even under a `Count` bug; byte image is canonical for snapshots. |
+| **`Span<T>` mandate lives in the accessors (G1)** | Generated graph code never touches raw buffers (Q#5-C); writes lower to curated `[BlueprintCollectionWrite]` statics (`Ops.Add(ref __wc, v)`). The R3 pattern is enforced by the accessor recipe + FC-0 round-trip test (+ the FC-1b generator template). Blackboard-home emits (`s.f.Items[i]=…`) must ALSO use the Span form — same trap shape. |
+| **Write binding (G4)** | Writes keep the Unreal **collection in-pin** (UX symmetry with reads); validate-time enforces the producer is self (`GetComponent.Target` unwired); emit binds `self` regardless (defense-in-depth). |
+| **Out-pin contract (G5)** | One `Ok` bool = component present AND op applied; `DebugProbe` diagnostic distinguishes absent/full/OOB. Failed-op chunk-version bump accepted v1 (documented). |
+| **Ordering fact (G2)** | ~~The Q#16-B `[UpdateBefore]` guarantee is **not delivered** by the current editor compositions~~ **RESOLVED (FC-1·G2, 2026-08-04): the splice is FIXED** — `BlueprintRuntimeWiring.SpliceIntoSimulation` inserts `bpTick` before its `[UpdateBefore]` targets in both compositions (attribute-driven), pinned by `BlueprintTickSpliceTests`. The Q#16-B same-tick contract now holds by construction. |
+| **Mutation-during-iteration (G3)** | Designer rule "a collection is read-only while being iterated"; validator warning when a write to the same baked (component, field) sits inside a `ForEach` over it (wire-dependent semantics otherwise — hoisted vs re-evaluated bound). |
+| **R5 scope** | `GetShared`/`SetShared` list slots + list-typed `asset.Parameters`: **OUT v1**, explicit validate-time rejection + diagnostic naming the supported homes. |
+
+> **FC-0 empirical correction to R3 (2026-08-04):** the `[InlineArray]` "ldobj → temp → write lost" mechanism
+> from `GetComponentRW`'s doc **does not reproduce** on the current toolchain — the naive `ref`-local element
+> write lands; the only reproducible loss is the missing-`ref` **value copy** (generic to all component writes).
+> The accessor + `Span<T>` mandate stands on curation (Q#5-C), readonly-read copies, and burying the value-copy
+> hazard — not on the indexer trap. Compiler behavior is pinned by two FC-0 tests. See the tracker's FC-0 note.
 
 ## Detailed designs & references
 - **Blueprint variable collection (full detail):** `Blueprint_List_Variables_Design.md` — design + adversarial

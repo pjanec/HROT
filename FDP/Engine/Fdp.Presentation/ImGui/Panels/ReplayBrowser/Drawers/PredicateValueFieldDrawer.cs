@@ -180,7 +180,8 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
             || t == typeof(decimal)
             || t == typeof(Guid)
             || t == typeof(Fdp.Core.FixedString32)
-            || t == typeof(Fdp.Core.FixedString64));
+            || t == typeof(Fdp.Core.FixedString64)
+            || t == typeof(Fdp.Core.FixedString128));
     }
 
     private Type? GetTargetType(string jsonPath)

@@ -12,6 +12,11 @@ using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
+// 🔴 MEASURED 2026-09-01: 1 red in the full suite, 5/5 PASS in isolation. It boots a real
+//   HrotRunnerHarness cluster and had NO [Collection], so it was its own collection and nothing
+//   serialised it against the other DDS-heavy collections. Joined to HeavyE2ETests — which is
+//   exactly what it is — rather than inventing a fourth collection name.
+[Collection("HeavyE2ETests")]
 public class MiniExConIntegrationTests
 {
     private const int RequestTimeoutFrames      = 80;

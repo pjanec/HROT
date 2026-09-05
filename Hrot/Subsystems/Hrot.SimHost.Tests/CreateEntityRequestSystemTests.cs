@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Hrot.CGF.Systems;
+using Hrot.Common.Systems;   // Q65 obstacle 1: the request tier moved here
 using Hrot.Core.Network;
-using Hrot.SimHost.Installers;
+using Fdp.Toolkit.Replication.Attributes;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -131,6 +132,155 @@ namespace Hrot.SimHost.Tests
         }
 
         // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-143</c> — <b>the default is <c>AllPeers</c>, so adoption changes NOTHING.</b>
+        /// 📌 Both publish sites hardcoded <c>ReliableInitType.AllPeers</c>; the request now carries the
+        /// axis. ⛔ If the default ever drifts, every existing caller silently changes its wire
+        /// behaviour — this rail is what makes acceptance ⑥'s "byte-identical default" checkable here.
+        /// </summary>
+        [Fact]
+        public void InitType_DefaultsToAllPeers_SoExistingCallersAreUnchanged()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(MakeValidRequest());          // ⭐ does NOT set InitType
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.Equal(Fdp.Toolkit.Replication.ReliableInitType.AllPeers, commands[0].InitType);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-143</c> — <b>an explicit <c>None</c> REACHES the published command.</b>
+        /// 📌 This is the capability the row exists for: an IG map drawing is a single-owner presentation
+        /// entity, and waiting for every peer to ACK it is pointless latency and a stall risk when a peer
+        /// is absent. ⛔ Without this rail the field could be added and silently ignored — the
+        /// silent-default shape.
+        /// </summary>
+        [Fact]
+        public void InitType_WhenTheRequestSaysNone_ThePublishedCommandSaysNone()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+                InitType           = Fdp.Toolkit.Replication.ReliableInitType.None,
+            });
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.Equal(Fdp.Toolkit.Replication.ReliableInitType.None, commands[0].InitType);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-143</c> — <b>NEITHER publish site may hardcode the value again.</b>
+        ///
+        /// <para>📌 There are TWO sites: the root entity and each auto-spawned TKB child. The child site
+        /// is not reachable from this fixture's single-template TKB, so a behavioural rail would cover
+        /// only half the change. ⭐ This scan covers both, and it is the guard against the specific
+        /// regression of someone re-introducing a literal during a merge.</para>
+        ///
+        /// <para>⚠ Comments are stripped first (<c>CE-156</c>): the doc comments above the two sites
+        /// legitimately mention <c>AllPeers</c>, and a raw scan would redden on the prose explaining the
+        /// fix.</para>
+        /// </summary>
+        [Fact]
+        public void InitType_IsNotHardcodedAtEitherPublishSite()
+        {
+            var code = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(
+                    "Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs"));
+
+            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+                code, @"InitType\s*=\s*pending\.Request\.InitType").Count);
+            Assert.DoesNotContain("InitType          = ReliableInitType.AllPeers", code);
+        }
+
+        // ── D2 — the throwaway flag (R-140) ─────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>D2</c> — <b>the default is <c>false</c>, so nothing existing becomes transient.</b>
+        /// ⛔ If this default ever drifts, every scenario-load request silently starts producing entities
+        /// the serializer skips — i.e. <b>saving a scenario would quietly lose entities</b>. That failure
+        /// is invisible until someone reloads, which is exactly why it gets a rail.
+        /// </summary>
+        [Fact]
+        public void IsTransient_DefaultsToFalse_SoExistingCallersAreUnchanged()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(MakeValidRequest());          // ⭐ does NOT set IsTransient
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.False(commands[0].IsTransient);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>D2</c> — <b>an explicit <c>true</c> REACHES the published command.</b>
+        /// 📌 The capability the flag exists for: a passive node's sketch must not reach a saved scenario
+        /// (<c>R-140</c>). ⛔ Without this rail the field could be added and silently ignored — the
+        /// silent-default shape, and the ninth instance of it in this programme.
+        /// </summary>
+        [Fact]
+        public void IsTransient_WhenTheRequestSaysTrue_ThePublishedCommandSaysTrue()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+                IsTransient        = true,
+            });
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.True(commands[0].IsTransient);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>D2</c> — <b>NEITHER publish site may drop the flag.</b>
+        ///
+        /// <para>📌 Same two-site problem <c>CE-143</c> has: the root entity and each auto-spawned TKB
+        /// child. ⭐ The child site is unreachable from this fixture's single-template TKB, so a
+        /// behavioural rail covers only half. ⚠ And the child half MATTERS — a sketch's children are part
+        /// of the same sketch, so a template with <c>N</c> children would otherwise save <c>N</c>
+        /// orphans.</para>
+        /// </summary>
+        [Fact]
+        public void IsTransient_IsForwardedAtBothPublishSites()
+        {
+            var code = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(
+                    "Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs"));
+
+            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+                code, @"IsTransient\s*=\s*pending\.Request\.IsTransient").Count);
+        }
 
         [Fact]
         public void ProcessRequest_ValidTkbType_PublishesSpawnEntityCommand()

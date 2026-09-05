@@ -1,0 +1,2067 @@
+<!--STATUS
+state: LIVE
+build-state: S1 BUILT (2026-08-28, see 3.9b as-built) / S2 construct (RW-M) / S3 declare+report
+  (RW-L) / S4 configuration (RW-M) / S5 the action half (RW-M) are READY-TO-BUILD. Sized RW-H
+  overall. Every architect call is CLOSED: S1's open call was resolved by the user 2026-08-28 --
+  "lift both mechanisms, layer definitions as S4 config, shareable between multiple subsystems".
+verified: 2026-08-28 (five cluster boots + a source scan; see sections 2b, 2c, 3.0a, 3.2c)
+updated: 2026-08-28
+current-answer: START AT SECTION 3.9b -- S1's AS-BUILT. S1 IS BUILT AND VERIFIED, AND THE USER'S
+  SYMPTOM IS NOT YET FIXED: both missing components now reach SimHost (0/8 -> 8/8 and 0/8 -> 7/8,
+  measured live) but its frame is still 605/3, so a further cause remains. 3.9b names the lead
+  (three host-private entity presentation gizmos; a reflection registrar that scans only LOADED
+  assemblies) as a HYPOTHESIS for S2, deliberately not as a root cause.
+  ARCHITECTURE REFERENCE: docs/DESIGN_Map_Rendering_And_Interaction.md is the standing document for
+  how rendering and interaction actually work (layer map, both gizmo kinds, the render frame, the
+  interaction path, the tool path, the TO-BE with the restored modal stack, and the 8-item silent-risk
+  register). Read it before planning any slice; this file holds only UXI-23's own slices.
+  If the question is HOW THE WHOLE THING WORKS (frontend vs backend, "is it still a dumb terminal",
+  what exactly are we unifying), read 3.9i FIRST -- it is the orientation section. Short version:
+  there is exactly ONE terminal, shared by all five hosts (an Fdp.Presentation adapter with zero
+  hardware-input calls over one GizmoMap inner layer), so the FRONTEND WAS NEVER FRAGMENTED and is
+  NOT in UXI-23's scope. The map differs per host because each host's BACKEND emits a different set
+  of primitives. UXI-23 changes no drawing code at all.
+  If the question is HOW UXI-23 COORDINATES WITH THE TOOL MODEL (UXI-07), read 3.9h: UXI-23 owns the
+  STATELESS half of the gizmo stack, UXI-07 owns the TOOL half, and the seam is the interface --
+  IStatelessGizmo vs IEntityStatefulGizmo, a taxonomy the user already ruled on 2026-08-10. S2 is
+  DISJOINT and proceeds alone; the GizmoTypeId pin and S5 touch IGizmoDefinition and are JOINT, with
+  UXI-07's migration table as the schedule. 3.9h also resolves the "frontend stack vs backend logic"
+  confusion: the word names two different things -- input ROUTING at the terminal, tool MODALITY at
+  the backend -- and the newer LIVE ruling (UXI-07) puts the semantic stack in the backend.
+  If the question is THE TOOL STACK, read 3.9g FIRST: one EXISTED (MapCanvas.PushTool/PopTool/
+  ActiveTool over IMapTool) and was REMOVED in the Phase-5 gizmo migration, and its nesting
+  capability -- run a tool inside a tool and return -- was NOT carried over. What replaced it is a
+  SINGLE focus slot that grants focus only if none is held and refuses SILENTLY. That is R-137's own
+  case study, and it already happened. S2/S5 must decide deliberately whether to restore nesting.
+  If the question is WHO HANDLES INTERACTIONS, read 3.9f: today there is no stack --
+  there is a shared dispatcher (ToolActivationDrainSystem) plus a single-FOCUS model in
+  GlobalGizmoManager. 3.9f also carries the big finding: that drain ALREADY implements section
+  3.2a's declare-and-report-unserviceable rule, per tool, with name and reason -- so S3 must COPY
+  it, not invent a second mechanism.
+  If the question is about EDITING GIZMOS (drag handles, vertex points, the rotator), read 3.9e:
+  they are a SECOND gizmo kind (GizmoRegistry/IGizmoDefinition/DataDrivenGizmoSystem, stateful)
+  that shares ONE buffer, ONE group and ONE gate with the map projectors -- so S2 touches them
+  whether or not it means to. 3.9e names four ways unification can break them, all silent, and the
+  worst is that GizmoTypeId -- the DDS interaction routing key -- is an FNV hash of the class's full
+  name, so a rename or merge silently breaks remote dragging while the handle still draws.
+  Then read 3.9d -- what "all lines shared" MEANS (user, 2026-08-28: unification means EVERY line
+  becomes shared, not most of them). After S2 the entity projector is ONE class with ONE code path
+  and the per-host columns disappear; only two INJECTED INSTANCES differ, and that is configuration,
+  not code. 3.9d also carries the countable target (ZERO [GizmoProjector] classes under
+  Hrot/Subsystems/<host>/, baseline 6) and the one mechanical trap (the attribute must declare the
+  MINIMUM -- keeping CullingState in the query would silently empty SimHost's and CGF's maps).
+  Then 3.9c (the measured three-way comparison), 3.0a (the confirmed-but-insufficient root cause),
+  3.9a (S1's design + UML), 3.9 (the slices), 3.2a (what the pack may and may not do), 3.2b (the
+  UML) and 3.2c (settings + policy).
+  Sections 2b and 2c supersede section 2's per-host baseline, which has INVERTED. Section 5 is CLOSED.
+  S1 IS DONE (2026-08-28): the two producers are shared, MapDisplayComponent registration is one
+  list instead of three copies plus one omission, MapLayerBits is no longer a hand-synced duplicate,
+  and CE-118 is fixed (WithVisual discarded everything it was given; VisualDefinitionDto had no
+  producer anywhere in the repo). 15 rails, each inverse-edit red-proved. No regression on Scenario
+  or IG. But see 3.9b: this was necessary and NOT sufficient.
+stale-below: section 2's per-host table (see 2b/2c). Section 3.2b's PREVIOUS drawing is deleted, not
+  retained; section 3.2a records what it got wrong.
+  AND section 3.0's "THE ROOT CAUSE" (the unclamped-counter story, Part 1 + Part 2) is REFUTED by
+  measurement -- section 3.0a supersedes it. The SYMPTOM numbers there are real; the CAUSE is not.
+  Do not quote the gate mechanism as the cause of CE-123.
+known-rot: section 3.0's item 3 ("clamp the counter") is demoted to hygiene -- the counter was
+  measured never to underflow, so a clamp fixes nothing and a throwing one is a net risk.
+rulings: pack owns construction, host decides scheduling (user, 2026-08-28) - section 3.2a.
+  Membership is a rule, not a host list: every ECS-enabled host presenting a map - section 3.1b.
+  Enabled is derived from the viewer count and assigned nowhere - section 3.2b.
+  Settings are a standalone injected store, per host or shared or Empty - section 3.2c.
+  Policy supply is option (b), the resolver; the attribute route (a) is NOT taken - section 3.2c.
+  R-137 (user, 2026-08-28): UNIFICATION MAY NOT COST A FEATURE. If collapsing N implementations
+  takes a capability away, that is a signal to put it back as CONFIGURATION, not an acceptable
+  trade. Every slice from S2 on owes an explicit answer to "what could each host do before that it
+  cannot do now?" -- "the hosts are now the same" is not that answer. Unify the CODE, parameterise
+  the BEHAVIOUR. Live instance: CE-125, the hardcoded cyan symbol colour vs IG's authored ColorHex.
+known-conflict: DESIGN_Subsystem_Composition_Unification section 3.2 forbids a bundle registering a
+  system. RECONCILED in section 3.2a: the pack CONSTRUCTS (deduplication, since all five hosts already
+  register the same three systems) and the HOST SCHEDULES (the run-set follows its role). Enforced by
+  MapInteractionContext carrying no ModuleHostKernel.
+-->
+# Feature design — map-interaction parity
+
+> **Design for [UXI-23](UX_Issues.md#uxi-23) · drafted 2026-08-12.** Absorbs
+> [UXI-22](UX_Issues.md#uxi-22) and UXI-04 step 5. **Status: ❌ NOT-BUILT (design only) — no shared `MapInteractionPack`; IG's fork (`HandleContextMenuActionById`) intact; CGF registers no `GlobalActionRegistry` (CE-051/E3 shared only center/select across Editor+CGF).**
+> Depends on [UXI-10](UX_Feature_Entity_Symbology.md) → [UXI-11](UX_Feature_Selection.md).
+
+## 0. 🔴 The issue as filed is optimistic in one direction and pessimistic in another
+
+> *"Mostly one missing registrar call per host."*
+
+⚠ **Not one call** — and the deeper finding is that **there are two dispatch mechanisms**, not one
+under-adopted mechanism.
+
+| | Shared `GlobalActionRegistry` | IG's hand-written `switch` |
+|---|---|---|
+| Adopters | Editor **11** ids · SimHost **4** · ReplayBrowser **2** · **CGF 0** | **IG only**, 6 ids |
+| Where | `EditorSubsystem.cs:1139-1258` etc. | `IgApplication.cs:2386-2400` → `ExecuteLocalContextAction` |
+
+🔴 **IG — the richest map host — does not use the shared vocabulary at all.** Verified: zero occurrences
+of `GlobalActionRegistry` in `IgApplication.cs`. It maps ids to local strings
+(`CenterOnEntity → "IG_CenterOnEntity"`, `Delete → "IG_DeleteEntity"`, …) and forwards the rest to ExCon
+as `ContextActionTriggered`.
+
+⇒ ⭐ **Seam-law instance 15, and the sharpest yet**: the shared action registry is adopted by three hosts,
+and the one host with the most map interactions runs a private fork.
+
+## 1. The verified matrix
+
+**21 ids defined** (`GlobalActionIds.cs:13-48`). Handlers registered in the shared registry:
+
+| | Editor | SimHost | CGF | IG | ReplayBrowser |
+|---|:--:|:--:|:--:|:--:|:--:|
+| `CenterOnEntity` `Select` `Delete` | ✅✅✅ | — | — | ⚠ *fork* (Centre, Delete) | ✅ — — |
+| `Rotate` | ✅ | ✅ | — | — | — |
+| `Measure` `PlaceEntity` | ✅✅ | — | — | ⚠ *fork* (Measure) | — |
+| `EditOverlay` `EditRoute` | ✅✅ | — | — | ⚠ *fork* (both) | — |
+| `OpenLayerControl` | ✅ | ✅ | — | — | ✅ |
+| `ToggleAiTrace` ×2 | ✅✅ | ✅✅ | — | — | — |
+| **Total** | **11** | **4** | **0** | **0 shared / 6 forked** | **2** |
+
+⚠ **[Correction 30](UX_Tasks_Detail.md#corrections):** [UX_Map_Parity_Baseline.md](UX_Map_Parity_Baseline.md)
+states SimHost registers *"only `Rotate` and `OpenLayerControl`"* — it also registers **both AI-trace
+toggles** (`SimHostApp.cs:384-389`, added a month before that inventory). SimHost has **4**, not 2.
+
+### 🔴 Nine ids have **no handler anywhere in the repo**
+
+`MoveHere · Engage · Stop · Properties · Teleport · Repair · Reinforce · Resupply · Transfer` — each has
+only its definition plus a menu-item emission. They are emitted by `ContextMenuProjectorGizmo` and
+`ExCon/Logic/ContextMenuLogic.cs` and handled **only by ExCon**.
+
+⇒ **43% of the declared vocabulary is inert in every ECS host.** §5 is the decision.
+
+### 🔴 And one item is already dead **on screen**
+
+`CanvasMenuUpdateSystem` emits a hardcoded `[{"id":200,"label":"Measurement Tool"}]` and is registered by
+**Editor, SimHost, CGF and IG** (`:1337`, `:457`, `:545`, `:872`) — but SimHost has **no `Measure`
+handler** and CGF has **no dispatch pipeline at all**.
+
+⇒ 🔴 **Right-clicking empty map in SimHost or CGF today offers "Measurement Tool", and clicking it does
+nothing.** The register listed inert items as a *risk of activating menus early*; it is **already true**.
+
+## 2. What each host is missing — measured
+
+| | Registrar calls | `GlobalActionRegistry` | `SelectionInteractionSystem` | Drag | Rubber-band **visual** |
+|---|:--:|:--:|:--:|:--:|:--:|
+| **Editor** | 6 + 4 manual | ✅ 11 | ✅ | ✅ | ✅ |
+| **ReplayBrowser** | 4 + 7 manual | ✅ 2 | ✅ | — | ✅ |
+| **IG** | 6 | ⚠ fork | ✅ | ✅ | ❌ |
+| **SimHost** | 2 + drag | ✅ 4 | ✅ | ✅ | ❌ |
+| **CGF** | **2, nothing manual** | ❌ | ❌ | ❌ | ❌ |
+
+⚠ **Rubber-band is subtler than "missing"**: `SelectionInteractionSystem` takes `RubberBandState?` as an
+**optional** ctor arg. SimHost and IG pass `null`, so **box-select logic runs and nothing is drawn** —
+a *blind* rubber band, not an absent one. Only Editor and ReplayBrowser draw it.
+
+🔴 **CGF is missing `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar` entirely**, costing it the selection
+ring, context-menu projector, health bars, layer control, rotation, LOS, vision cones, nav targets and
+the spatial grid — in one absent call.
+
+## 2b. ⚠⚠ MEASURED `2026-08-28` — **§2's PER-HOST BASELINE HAS INVERTED. CGF is fixed; SIMHOST is now the empty one.**
+
+🔒 **User visual test on `--mode all`:** *"The entities were not shown in the SimHost perspective. in
+Scenario perspective, map was showing them."* ⇒ 📐 **confirmed by `GET /panels/_gizmo?max=4000`** after a
+live load of `hill-attack`:
+
+| perspective | primitives | non-`Line` | verdict |
+|---|---:|---:|---|
+| **`Scenario`** *(CGF)* | 739 | **69** — `Box2D 8`, `Arrow 12`, `Text 8`, `SemanticShape 16`, `SpatialAnchor 16` | ✅ **the richest entity output of the three** |
+| **`IG`** | 714 | **104** — `Box2D 24`, `SpatialAnchor 24`, `SemanticShape 24`, `EntityBadge 6` | ✅ |
+| 🔴 **`SimHost`** | 605 | 🔴 **3** — `LayerControlMask`, `MainMenuBinding`, `ContextMenuBinding` + `Line 602` | 🔴 **grid and shell bindings only — ZERO per-entity primitives** |
+
+⇒ ⛔⛔ **§2's table and §3.3's work split are STALE IN BOTH DIRECTIONS and must not be planned against
+as-written:**
+
+| §2/§3.3 says | 📐 measured now |
+|---|---|
+| *"CGF is missing `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar` entirely"* · *"CGF: the whole pack"* | ⚠ **CGF now calls `GizmoReflectionRegistrar.RegisterAll` at `CgfSubsystem.cs:928`** and emits the full entity set. ⭐ Fixed by the cgf==editor correctives *(`CE-016`, and the catalog-contributor round)* **after this design was written** |
+| *"SimHost: the missing 7 ids + `Common.Diagnostics` registrar + rubber-band state"* — i.e. a **partial** host | 🔴 **SimHost emits NO entity primitives at all** — worse than the table implies, and it is the host a user actually reported as broken |
+
+⭐⭐ **Why this strengthens the design rather than weakening it.** The two hosts swapped places **without
+either behaviour being intended**, because each wires its own map independently — which is precisely
+§3.2's argument for `MapInteractionPack`. ⇒ 🔒 **a per-host baseline table is a snapshot that rots; the
+pack is what makes the question unaskable.** ⚠ **So do not re-derive the table before building — build the
+pack and let `23.1`-`23.3`'s parameterised cases hold it.**
+
+⚠ **The SimHost gap itself is NOT yet root-caused** — 📄 **`CE-123`** carries the elimination table
+*(camera, missing projector class, un-called `RegisterAll`, two buffers, boot listener asymmetry, a missing
+`gizmoByPerspective` entry and a null `GizmoController` are ALL disproved by measurement)*. ⭐ Open leads:
+whether `_dataDrivenGizmoSystem` is **scheduled** on the cluster path, and the `LayerControlMask` primitive
+as a possible emit-time filter.
+
+⭐ **One prerequisite is better than §7 claims.** §7 orders `UXI-10 → UXI-11 → UXI-29 → this` and warns that
+binding `Rotate` in CGF before `UXI-29` hands it an action writing a component it does not own.
+📐 **Measured: `UXI-29`'s mechanism IS BUILT** — `IEntityComponentWriter`
+*(`FDP/Toolkits/Fdp.Toolkits/Replication/Patching/IEntityComponentWriter.cs:40`)* and `EntityWriteRouter`
+*(`.../Replication/Attributes/EntityWriteRouter.cs:29`)*, adopted by **IG** *(`IgApplication.cs:755,760`)*,
+**SimHost** *(`SimHostApp.cs:362,397`)* and **Editor** *(`EditorSubsystem.cs:1621,1651`)*.
+⇒ ⭐ **the risk narrows from "UXI-29 is unbuilt" to one concrete fact: `CGF` is NOT in the adopter list**, so
+CGF must route its writes through `EntityWriteRouter` before it binds a write-action. ⚠ The `UXI-29` doc
+header still reads *"designed"* — ⛔ **the code is ahead of it here.**
+
+## 2c. 📐 REFRESHED INVENTORY `2026-08-28` — **the five-host wiring matrix, re-measured**
+
+⭐ Replaces §2's table for planning purposes. `Y` = the symbol appears in that subsystem's non-test
+production sources.
+
+| host | `GizmoReflectionRegistrar` | `GlobalActionRegistry` | `SelectionInteractionSystem` | `RubberBandState` | `CanvasMenuUpdateSystem` | `DataDrivenGizmoSystem` | `GizmoExecutionController` |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| **Editor** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **CGF** | ✅ | 🔴 | 🔴 | 🔴 | ✅ | ✅ | ✅ |
+| **IG** | ✅ | 🔴 *(fork)* | ✅ | 🔴 | ✅ | ✅ | ✅ |
+| **SimHost** | ✅ | ✅ | ✅ | 🔴 | ✅ | ✅ | ✅ |
+| **ReplayBrowser** | ✅ | ✅ | ✅ | ✅ | 🔴 | ✅ | 🔴 |
+
+⭐⭐ **What this CHANGES in the design:**
+
+| | |
+|---|---|
+| ✅ **§2's headline finding is RETIRED** | *"CGF is missing `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar` entirely"* — **all five hosts now register the gizmo projectors.** ⇒ §3.3's *"CGF: the whole pack"* is wrong; CGF's remaining gap is the **action/selection half**, not the gizmo half |
+| ⭐ **the blind rubber band is WIDER than recorded** | §2 named SimHost and IG; measured, **CGF too** — only Editor and ReplayBrowser carry a `RubberBandState`. ⇒ acceptance `23.7` covers three hosts, not two |
+| 🔴 **NEW — `ReplayBrowser` has NO `GizmoExecutionController`** | ⇒ `PerspectiveCoordinatorSystem:76-78`'s `incoming.GizmoController?.AddListener()` **silently no-ops** for it *(the `?.` swallows it)*. ⚠ Not in the design; it means the perspective-switch gizmo handover cannot apply to that host at all |
+| ⛔⛔ **AND THE ONE THAT MATTERS MOST: `SimHost` HAS EVERY SYMBOL EDITOR HAS except `RubberBandState`, AND STILL EMITS NO ENTITY GIZMOS** *(§2b)* | ⇒ 🔒 **the SimHost gap is NOT a missing registration** — which is consistent with all seven hypotheses eliminated in `CE-123`. It is something about **execution/scheduling in the cluster composition**, and ⭐⭐ **that is exactly the class of fault a per-host wiring matrix CANNOT see** — five hosts each wire this privately, so "does it actually run?" is not answerable by inspection. 📌 **The strongest argument in this document for the pack, and it was found by a user's eyes, not by any table.** |
+
+## 3. The design
+
+### 3.1 🔒 One dispatch mechanism
+
+Retire IG's `switch` into the shared `GlobalActionRegistry`. IG's six local behaviours become six
+registered handlers; `HandleContextMenuActionById`/`ExecuteLocalContextAction` go away.
+
+⚠ **IG keeps its ExCon forwarding** — that is a *fallback for unhandled ids*, not a dispatch mechanism,
+and it stays as the registry's miss path.
+
+### 3.0 🔴🔴🔴 THE PACK MUST OWN GIZMO **EXECUTION**, NOT ONLY REGISTRATION — *root-caused `2026-08-28`*
+
+> ⭐⭐⭐ **User:** *"we are unifying the map rendering across hosts, so whatever it takes; and rendering =
+> gizmos so how can we NOT unify gizmo execution?"*
+
+🔒 **Answer: we cannot — and the SimHost map failure is the proof, because the fault is ENTIRELY on the
+execution side.** ⛔ §3.2's pack as drafted is a **registration** entry point *(registrars, the action
+registry, `SelectionInteractionSystem`, `CanvasMenuUpdateSystem`, the layer control)*. It names none of the
+machinery below, and **that is exactly where the bug lives.**
+
+#### The two halves, concretely
+
+| | what it is | shared today? |
+|---|---|---|
+| **REGISTRATION** | *which* projectors exist — `GizmoReflectionRegistrar.RegisterAll` populating `GizmoRegistry`/`StatelessGizmoRegistry` | ✅ **yes, all five hosts** *(§2c)* |
+| 🔴 **EXECUTION** | *whether they run this frame* — the `DebugPrimitiveBuffer`, `DataDrivenGizmoSystem`, `GlobalGizmoManager`, the **`TogglablePostSimulationGroup`** that wraps them, the **`GizmoExecutionController`** gate over it, its placement in the host's schedule, and `buffer.EndFrame(dt)` | ⛔ **no — hand-wired per host, five different ways** |
+
+#### 📐 THE ROOT CAUSE — a two-part interaction, neither part visible from one host
+
+**Part 1 — the gate's counter is not clamped at zero** *(`FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/GizmoExecutionController.cs`)*:
+
+```csharp
+public void AddListener()    { if (Interlocked.Increment(ref _listenerCount) == 1) _group.Enabled = true; }
+public void RemoveListener() { if (Interlocked.Decrement(ref _listenerCount) == 0) { …; _group.Enabled = false; } }
+```
+
+⇒ ⛔ **`Enabled = true` fires ONLY on the exact 0→1 transition.** A `RemoveListener` before any
+`AddListener` drives the count to **−1**, after which `AddListener` yields **0** — and the group is
+**never enabled again for the life of the process.**
+
+**Part 2 — the group's INITIAL state differs per host.** 📐 Measured:
+
+| host | initial `gizmoGroup.Enabled` | boot perspective? | outcome |
+|---|:--:|:--:|---|
+| **IG** *(`IgApplication.cs:861`)* | ⭐ **`true`** | no | ✅ **immune** — already on, so the counter cannot matter |
+| **Editor** | ⭐ **`true`** | n/a | ✅ immune |
+| **CGF** *(`CgfSubsystem.cs:955`)* | ⚠ **`false`** | no | ✅ works — being *entered* first, its first event is `AddListener` **0→1** ⇒ enabled |
+| 🔴 **SimHost** *(`SimHostApp.cs:444`)* | ⚠ **`false`** | 🔴 **YES** | 🔴 **DEAD** — as the boot perspective it is **LEFT before it is ever ENTERED**, so its first event is `RemoveListener` *(0→−1)*; every later `AddListener` yields 0 and never re-enables |
+| **ReplayBrowser** | — *(no controller at all)* | no | ⛔ the gate cannot apply |
+
+⭐⭐⭐ **THE POINT, and it is the whole argument for this design:** ⛔ **the defect is not
+*"SimHost is misconfigured."*** It is that **one gate has three different initial states across five hosts
+plus an unclamped counter that only misbehaves for whichever host happens to BOOT FIRST.**
+🔒 **Change the default perspective from `SimHost` to `Scenario` and CGF would break instead** — same code,
+different victim. ⇒ ⭐⭐ **no per-host inspection can find this**, which is why it survived a seven-hypothesis
+elimination pass *(`CE-123`)* and was found only by a user looking at two screens.
+
+📐 **Confirmed by prediction:** SimHost read **605 primitives / 3 non-`Line`** on visit 1, 2 **and** 3
+across alternating switches, while `Scenario` read **739 / 69** on each of its visits — exactly what an
+unclamped counter starting from a `RemoveListener` predicts.
+
+⛔⛔⛔ **THE OWED VERIFICATION WAS RUN `2026-08-28`, AND IT REFUTES PART 1 AND PART 2 ABOVE.**
+⭐ **Everything from *"📐 THE ROOT CAUSE"* down to this line is SUPERSEDED by §3.0a.** ⚠ The *symptom*
+numbers *(605/3 vs 739/69)* are real and reproduce; the **causal story attached to them was wrong.**
+🔒 **Do not quote the gate mechanism as the cause of `CE-123`.** ⭐ The `LayerControlMask` /
+`MainMenuBinding` / `ContextMenuBinding` survivors that prompted the caveat were **the disproof, read
+correctly**: they are emitted *from inside the gated group*, so the gate was enabled all along.
+
+### 3.0a 🔴🔴🔴 THE MEASURED ROOT CAUSE — **the shared projectors read HOST-PRIVATE inputs** *(`2026-08-28`, live on `--mode all`)*
+
+⭐⭐ **This SUPERSEDES §3.0's Part 1 / Part 2.** ⛔ It does **not** weaken the case for unification — it
+**strengthens** it, by moving the fault from an accident of boot order to a **structural** split that
+§3.1b's membership rule directly addresses.
+
+#### ① Why the gate is NOT the cause — three independent measurements
+
+| # | measurement | verdict |
+|---|---|---|
+| **a** | `WindowManager.CurrentPerspective` initialises to **`"Default"`**, not empty *(`FDP/Engine/Fdp.Presentation/ImGui/WindowManager/WindowManager.cs:242`)*, and `LocalWindowController.OpenLocalWindow` subscribes `OnPerspectiveChanged` at `:91` **before** calling `SwitchPerspective(ResolveStartupPerspective(…))` at `:119` | ⇒ a **real** `("Default","SimHost")` event fires at boot. ⛔ The premise *"nothing announces the boot perspective"* is **false** |
+| **b** | In `ProcessPendingEvents`, `_gizmoControllables.TryGetValue("Default")` **misses** — `"Default"` is a sentinel, not a perspective ⇒ **no `RemoveListener` runs**; the incoming `AddListener("SimHost")` is a clean **0→1** | ⇒ ⛔ **the counter never reaches −1.** There is no underflow to clamp |
+| **c** | 📐 **LIVE, the discriminator:** SimHost visit 1 and visit 2 emit the **identical** `LayerControlMask` + `MainMenuBinding` + `ContextMenuBinding`. `GlobalGizmoManager` is a member of the **gated** `TogglablePostSimulationGroup` | ⇒ ⭐⭐ **the group is enabled on both visits.** An underflowed gate would emit **zero** of the three |
+
+#### ② What the cause actually is — 📐 the per-entity component diff, both perspectives, same 8 entities
+
+```
+SimHost  entity 1001: … Health, NavState, SimTransform, VehicleParams, VehicleState …
+Scenario entity 1001: the same, PLUS  MapDisplayComponent · VisualData  (+ NetworkOwnership, EgressPublicationState, …)
+```
+
+🔒 **`MapDisplayComponent` and `VisualData` are the two components every entity gizmo projects from.**
+⛔ **SimHost's entities have NEITHER** — so the shared, correctly-registered, correctly-executing
+projectors iterate and find nothing to draw. ⭐ **605/3 is a full frame of an empty query, not a stalled one.**
+
+#### ③ WHERE the two components come from — **and this is the structural finding**
+
+| component | registered by | **installed by** |
+|---|---|---|
+| `MapDisplayComponent` | ⚠ **IG · CGF · Editor only** — 📐 **zero source references anywhere under `Hrot/Subsystems/Hrot.SimHost/`** | 🔴 **`Hrot.IG/Systems/MapLayerAssignmentSystem.cs:122,126` — IG-PRIVATE** |
+| `VisualData` | ✅ shared *(`Hrot.Core/HrotSharedComponentRegistry.cs:57`)* | 🔴 **`Hrot.IG/Translators/PresentationTkbTranslator.cs:36` — IG-PRIVATE**, and it **early-returns** when the type is unregistered *(`:29`)* ⇒ silent |
+| 📌 how CGF/Scenario gets them anyway | — | ⭐ **`scenarios/hill-attack/scenario.json` AUTHORS BOTH.** The brain loads them from the file; ⛔ the muscle builds from the **TKB path**, which carries neither |
+
+⇒ ⭐⭐⭐ **RESTATED: registration is unified *(§2c, all five hosts)*, execution is fine, and the map is still
+dark — because the shared projectors' INPUTS are produced by one host's private system and one host's
+private translator.** ⭐ **That is precisely the user's ruling read literally**: *"same gizmos, differing
+just in the components currently present on the entity."* ⛔ Here the components differ **by how the entity
+was BUILT**, not by what it IS — which is the same disease as `CE-113`, one layer up.
+
+⚠ **And it is a silent failure by construction:** `PresentationTkbTranslator` returning early on an
+unregistered type is exactly the `CLAUDE.md` silent-default pattern — the capability looks built and
+contributes nothing.
+
+#### ⇒ What the pack must therefore own
+
+| # | |
+|---|---|
+| **①** | ⭐⭐ **construct** the buffer, `DataDrivenGizmoSystem`, `GlobalGizmoManager`, the togglable group and the controller — **one code path, one initial state** |
+| **②** | ⚠⚠ **SUPERSEDED — see §3.2b's closing subsection.** This originally recommended one policy, `Enabled = true` everywhere. ⛔ **RETRACTED:** `GZH-003` shows the split is deliberate *(interactive hosts on, headless-first hosts off)*. ⭐ **Corrected:** the pack owns the gate MECHANISM and takes **`startEnabled` as a host rule from the context** |
+| **③** | ⚠⚠ **DEMOTED `2026-08-28` by §3.0a — no longer a fix, at most hygiene.** 📐 Measured: the counter **never underflows** *(§3.0a ①b/①c)*, so a clamp fixes nothing observable. ⛔ **And a clamp that THROWS is a net risk** — it can only ever convert a silent state into a crash on a path nothing has demonstrated. ⇒ ⭐ **do not build it on its own**; if the pack rewrites the gate in `S2` anyway, make the invariant explicit **there**, non-throwing |
+| **④** | ⭐ **schedule it**, with the host supplying only *where* *(its group/kernel handle)* — ⛔ never *whether* |
+| **⑤** | ⭐ **`ReplayBrowser` gets a controller too** — §3.1b makes it a member, so the gate must exist there |
+
+⚠ **Scope honesty:** ① – ⑤ widen §3.2 from *registration* to *composition + execution*. ⭐ That is a bigger
+pack than drafted and it is what the user's *"whatever it takes"* asks for — ⛔ but it also means the
+`RW-M` estimate in `PLAN_Interaction_UX_Backlog` §4 is **light**; re-size when the UML is authored.
+
+### 3.1b 🔒🔒🔒 MEMBERSHIP IS A RULE, NOT A HOST LIST — **every ECS-enabled host** *(user, `2026-08-28`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"both cgf, ig and simhost should show the map (and replaybrowser as well). And
+> all the same way, using same gizmos etc, diffing just in the components currently present on the entity,
+> no differences, as written in the docs/UX documents. Map needs to be unified, same like many other UI
+> componenst we already unified."*
+> ⭐⭐ **And, on being offered a SimHost-only fix:** *"chasing SimHost gap means deepening the separation of
+> hosts, doesn't it? I can live with SimHost having no map if i knew we would work on unification that
+> brings same map capability to all ECS-enabled hosts."*
+
+⛔⛔ **THE SIMHOST-ONLY FIX IS REJECTED, and the reasoning is the user's:** patching SimHost's private map
+wiring **adds a line to the very code this pack deletes**. ⇒ 🔒 **a per-host repair is not a step toward
+unification, it is a step away from it** — and a mapless SimHost is the *acceptable* cost of not deepening
+the divergence. ⚠ **Investigating the SimHost gap is still valuable** — but as **inventory input to this
+design** *(what must the pack own so "does it actually run?" stops being per-host?)*, ⛔ **never as a patch.**
+
+⭐⭐⭐ **The sharpening this adds to §3.2.** §3.2 says *"all hosts share the FULL set"* and §2/§3.3 then
+enumerate **five named hosts** — ⛔ a list, which is what let the baseline rot and both hosts swap places
+unnoticed *(§2b)*. 🔒 **Restate it as a RULE:**
+
+> ⭐ **Every ECS-enabled host that presents a map calls `MapInteractionPack.Register` — membership is
+> derived from "has an ECS world + presents a map", never from a maintained host list.**
+
+| ⭐ why the rule beats the list | |
+|---|---|
+| ⭐⭐ **a new host cannot be forgotten** | there is no table to update, so there is no table to forget |
+| ⭐ **`ReplayBrowser` stops being a special case** | it is ECS-enabled and presents a map ⇒ it is a member; its read-only-ness is a **predicate outcome** *(§3.2's applicability)*, not an exclusion |
+| ⛔ **and it makes §2/§2c snapshots, not specifications** | ⚠ they document today's drift; **the rule is the contract** |
+
+⚠ **What it does NOT license:** ⛔ it is not *"every host gets every behaviour"*. Per §3.2 + ruling 49,
+**membership is uniform and visibility is earned** — an action a host structurally cannot service is not
+shown. ⭐ The user's own words already say this: *"diffing just in the components currently present on the
+entity"* ⇒ **the entity's components decide what draws, not the host's identity.**
+
+### 3.2 🔒 One registration entry point — `MapInteractionPack`
+
+```csharp
+public static class MapInteractionPack
+{
+    public static void Register(MapInteractionContext ctx);   // every map subsystem calls exactly this
+}
+```
+
+It performs, in one place, what five hosts do differently today: the four gizmo registrars, the action
+registry + dispatch + `ContextActionIngressSystem`, `SelectionInteractionSystem` **with** a
+`RubberBandState`, the rubber-band gizmo, the drag gizmo ([ruling 36](UX_RESUME_INTERACTION.md)),
+`CanvasMenuUpdateSystem`, and the layer control.
+
+🔒 **Per [the 2026-08-10 ruling](UX_Issues.md#uxi-23), all hosts share the FULL set** — differences are
+data availability or host rules, never set membership. ⇒ a host that cannot service an action **binds it
+and reports why**, rather than omitting it:
+
+| | |
+|---|---|
+| ✅ **Membership is uniform** | the pack decides; the host does not curate |
+| ✅ **Absence becomes impossible** | there is no "forgot to call registrar #3" |
+| ⭐ **Applicability stays per-host** | via [UXI-03](UX_Feature_Entity_Action_Vocabulary.md)'s descriptor predicates |
+
+> 🔒 **RULED 2026-08-13 ([ruling 49](UX_RESUME_INTERACTION.md)):** *"permanently grayed item is useless."*
+> ⇒ an action this host **structurally cannot service is not shown at all**. This design originally said
+> *disabled with a reason, never silently missing* — **inverted**
+> ([Correction 39](UX_Tasks_Detail.md#corrections)).
+>
+> ⭐ **The distinction that survives, and it is a good one:** grey means *"not now, try later"*. That is
+> honest only for a **transient** blocker — the [API §5](UX_Interaction_API.md) exclusivity gate, or
+> [UXI-08](UX_Feature_Layout_Defaults.md) case 5's *running outside the repo*. A blocker that can never
+> clear in this host is **not a state, it is a fact about the host**, so the item does not belong in its
+> menu at all.
+>
+> ⚠ **§3.2's uniform-membership rule still holds** — the **pack** registers the full set; the *menu* then
+> shows what this host can actually do. Membership is uniform, **visibility is earned**. That keeps the
+> "forgot to call registrar #3" failure impossible without producing dead rows.
+
+### 3.2a ⛔⛔⛔ THE PACK MAY NOT SCHEDULE SYSTEMS — **canon already forbids it, and already supplies the alternative** *(found `2026-08-28`, after the user asked for one more prior-art scan)*
+
+> 🔒 **User:** *"dont you want to make one more scan? it seems like evey time i ask about something weird in
+> your suggestion you find some 'new' concept or intent that has been already present"*
+> ⇒ ⭐⭐ **They were right. This is the fifth such find in one conversation, and it is the one that changes
+> the pack's SHAPE.**
+
+📄 **`DESIGN_Subsystem_Composition_Unification.md` §3.1 — a USER RULING (`AQ63` §9/§10), three axes:**
+
+| axis | reference | unify? |
+|---|---|---|
+| ⭐⭐⭐ **UI · scenario editing · monitoring · debugging** | **the EDITOR is the source and specimen** | ✅ **aggressively** |
+| ⛔⛔ **the RUN-SET — modules · systems · services** | **each host's ROLE** | ⛔ **never** |
+| ⛔⛔ **NETWORK — translators · DDS · participant** | **each host's ROLE** | ⛔ **never** |
+
+⚠⚠ **And §3.1 states the trap in the map's own terms:** *"A map bundle that registered `MapCullingModule` +
+`StyleResolutionModule` because the editor does would **silently change what CGF computes every frame — and
+would look like a successful unification.**"*
+🔒 **§3.2, THE STANDING CONSTRAINT, verbatim:** *"No bundle may register a module, a global system, a DDS
+translator, an egress/ingress system, or a participant."*
+
+⛔⛔ **THIS INVALIDATES §3.2b's `MapInteractionPack` AS DRAWN.** 📐 As authored it schedules the togglable
+group into the host kernel and installs `GlobalActionDispatchSystem`, `ContextActionIngressSystem`,
+`SelectionInteractionSystem` and `CanvasMenuUpdateSystem` — ⛔ **every one a run-set registration.** ⚠ And
+`MapInteractionContext` hands out `ModuleHostKernel Kernel` + `FdpEventBus InteractionBus`, which
+`UiBundleContext` **deliberately withholds** — its doc says *"the constraint is enforced by what a bundle
+CANNOT REACH, not by a review note."* ⇒ 📌 **I designed exactly the thing the seam was shaped to prevent.**
+
+#### ⭐⭐⭐ THE RESOLUTION IS THE NEXT ROW OF THE SAME TABLE — **DECLARE + REPORT UNSERVICEABLE**
+
+| ⭐ a bundle MAY | ⛔ a bundle MAY NOT |
+|---|---|
+| register **windows · panels · commands · menu items · toolbar entries** | ⛔ register anything from the run-set or the network |
+| ⭐⭐⭐ **DECLARE the systems its affordances require** | ⛔ decide the node's simulation topology |
+| ⭐⭐⭐ **report unserviceable when the host does not run them** | ⛔⛔ **silently no-op** |
+
+⇒ 🔒 **The corrected shape:**
+
+| # | |
+|---|---|
+| ⭐⭐ **the pack registers the map's UI affordances** *(windows, panels, commands, menu, toolbar)* — bundle-legal, and the axis-1 half the editor is the specimen for | |
+| ⭐⭐⭐ **it DECLARES its required systems** — `StatelessGizmoSystem`, `DataDrivenGizmoSystem`, `GlobalGizmoManager`, the gate | ⛔ it does **not** register them; **the HOST composes its run-set, per its ROLE** |
+| ⭐⭐⭐ **it REPORTS UNSERVICEABLE when a required system is absent** | ⛔ **never renders nothing in silence** |
+| ⭐⭐ **per-host capability variation stays in `IGizmoVisibilityPolicy` / `GizmoSettingsRegistry`** *(§3.2b)* | — the axis-1 configuration, which is legitimately shared |
+
+⭐⭐⭐ **AND THIS WOULD HAVE CAUGHT THE ACTUAL BUG.** 📌 SimHost's map **silently no-opped** — the precise
+thing the third row forbids. 🔒 **Had the map affordance declared its required systems and reported
+unserviceable, an empty SimHost map would have been a LOUD DIAGNOSTIC from the day `GZH-003` landed**,
+instead of something a user found by comparing two screens weeks later. ⇒ ⭐⭐ **the canon's own rule is a
+better fix than the one I proposed**, and it is *why* the rule exists.
+
+⭐⭐ **The two rulings are RECONCILED, not in conflict.** ⚠ The user's *"whatever it takes … same code"*
+and the standing *"the run-set never unifies"* both hold, because they answer different questions:
+**WHAT the map looks like and how it is configured = axis 1 = shared aggressively; WHETHER a node runs the
+gizmo systems = the run-set = that node's role.** ⇒ 🔒 **headless SimHost legitimately runs none of them —
+`GZH-003`'s intent — and the viewer-count model (§3.2b) is how a host with a viewer turns them on.** ⛔ What
+is *not* legitimate is the current third state: **the systems present, the gate shut, and nothing said.**
+
+✅✅ **RESOLVED `2026-08-28` — 🔒 USER RULING: *"yes, pack owns construction, host decides scheduling"*.**
+⇒ ⭐⭐ **the pack may CONSTRUCT the machinery every host already runs** *(§2c: all five register the same
+three)*, because that is deduplication and not topology — §3.1's harm *(giving a host compute it did not
+have)* cannot occur. ⛔ **The HOST alone schedules**, per its role. ⭐ **Enforced structurally, not by
+review:** `MapInteractionContext` carries **no `ModuleHostKernel`**, so the pack *cannot* schedule — the
+same technique `UiBundleContext` uses. 📄 **Drawn in §3.2b.**
+
+### 3.2b ⭐⭐⭐ THE UML — **REDRAWN `2026-08-28` to the construct-vs-schedule split** *(obligation ②)*
+
+> 🔒 **USER RULING, `2026-08-28`:** *"yes, pack owns construction, host decides scheduling; redraw the
+> diagram"* ⇒ ⭐⭐ **this settles §3.2a's open architect call.** The pack may **construct** the machinery
+> every host already runs; ⛔ **the host alone decides whether to SCHEDULE it**, because that is the
+> run-set and the run-set follows the host's role *(`DESIGN_Subsystem_Composition_Unification.md` §3.1)*.
+>
+> ⛔ **The previous drawing had `MapInteractionPack` scheduling into the kernel and a context carrying
+> `ModuleHostKernel` — both forbidden by §3.2.** ⭐ It is deleted rather than kept: 📄 §3.2a records what it
+> got wrong and why, which is the part worth surviving.
+
+⭐ **Every box marked `«existing»` is real code with its file.** ⛔ Only the three `«new»` boxes are new —
+and note that **none of them is a system**: they construct, declare and report.
+
+#### Class diagram — **two types on two sides of the fence**
+
+```mermaid
+classDiagram
+    class MapInteractionPack {
+        <<new>>
+        +Build(MapInteractionContext ctx) MapInteraction
+    }
+    class MapInteractionContext {
+        <<new>>
+        +EntityRepository World
+        +FdpEventBus InteractionBus
+        +GizmoSettingsRegistry Settings
+        +WriterFactory WriterFactory
+        +bool IsReadOnly
+    }
+    class MapInteraction {
+        <<new>>
+        +DebugPrimitiveBuffer Buffer
+        +TogglablePostSimulationGroup GizmoGroup
+        +IEcsModuleSystem[] InteractionSystems
+        +GizmoExecutionController Gate
+        +Type[] RequiredSystems
+        +Unserviceable(hostRunSet) string[]
+    }
+    class MapInteractionBundle {
+        <<new — IUiBundle>>
+        +Name
+        +Register(UiBundleContext ctx)
+    }
+
+    class IUiBundle {
+        <<existing interface>>
+        Fdp.Presentation/ImGui/IUiBundle.cs
+        may NOT register a system
+    }
+    class UiBundleContext {
+        <<existing>>
+        withholds Kernel and Bus by design
+    }
+    class GizmoReflectionRegistrar {
+        <<existing>>
+        Diagnostics/Gizmos
+        +RegisterAll(reg, stateless, settings)
+    }
+    class StatelessGizmoRegistry {
+        <<existing>>
+        Diagnostics/Gizmos
+    }
+    class IGizmoVisibilityPolicy {
+        <<existing interface>>
+        Diagnostics/Gizmos
+        +IsGloballyEnabled(view) bool
+    }
+    class GizmoSettingsRegistry {
+        <<existing>>
+        Diagnostics/Gizmos/Settings
+        Global Project Session scopes
+    }
+    class StatelessGizmoSystem {
+        <<existing>>
+        Diagnostics/Gizmos/Systems
+        runs every GizmoProjector
+    }
+    class DataDrivenGizmoSystem {
+        <<existing>>
+        Diagnostics/Gizmos/Systems
+    }
+    class GlobalGizmoManager {
+        <<existing>>
+        Diagnostics/Gizmos/Systems
+    }
+    class TogglablePostSimulationGroup {
+        <<existing>>
+        Fdp.ModuleHost/Scheduling
+        +bool Enabled
+    }
+    class GizmoExecutionController {
+        <<existing — clamp + assert>>
+        Diagnostics/Gizmos
+        -int _listenerCount
+        +AddListener()
+        +RemoveListener()
+    }
+    class DebugPrimitiveBuffer {
+        <<existing>>
+        Fdp.Diagnostics.Contracts
+    }
+    class ModuleHostKernel {
+        <<existing — HOST ONLY>>
+        Fdp.ModuleHost
+        +RegisterModule()
+    }
+    class IGizmoControllable {
+        <<existing interface>>
+        Hrot.Common/Diagnostics/Gizmos
+    }
+
+    MapInteractionPack ..> MapInteractionContext : consumes
+    MapInteractionPack --> MapInteraction : CONSTRUCTS and returns
+    MapInteractionPack ..> GizmoReflectionRegistrar : RegisterAll
+    GizmoReflectionRegistrar ..> StatelessGizmoRegistry : populates
+    StatelessGizmoRegistry o-- IGizmoVisibilityPolicy : per rule
+    IGizmoVisibilityPolicy ..> GizmoSettingsRegistry : reads values
+
+    MapInteraction *-- DebugPrimitiveBuffer : owns
+    MapInteraction *-- TogglablePostSimulationGroup : owns
+    MapInteraction *-- GizmoExecutionController : owns
+    TogglablePostSimulationGroup o-- StatelessGizmoSystem
+    TogglablePostSimulationGroup o-- DataDrivenGizmoSystem
+    TogglablePostSimulationGroup o-- GlobalGizmoManager
+    GizmoExecutionController --> TogglablePostSimulationGroup : gates
+    MapInteraction ..|> IGizmoControllable : satisfies
+
+    MapInteractionBundle ..|> IUiBundle : implements
+    MapInteractionBundle ..> UiBundleContext : windows panels commands only
+    MapInteractionBundle ..> MapInteraction : DECLARES RequiredSystems
+    MapInteractionBundle ..> MapInteraction : REPORTS Unserviceable
+
+    ModuleHostKernel ..> TogglablePostSimulationGroup : HOST schedules
+    ModuleHostKernel ..> MapInteraction : HOST schedules InteractionSystems
+```
+
+⭐⭐⭐ **What the redraw makes structurally impossible, which the prose could only ask for:**
+
+| | |
+|---|---|
+| ⭐⭐ **`MapInteractionContext` no longer carries `ModuleHostKernel`** | ⇒ ⛔ **the pack CANNOT schedule** — the §3.2 violation is unreachable, not merely forbidden. 📌 Exactly how `UiBundleContext` enforces the same rule |
+| ⭐⭐ **the only arrows INTO `ModuleHostKernel` come FROM the host** | ⇒ 🔒 the run-set stays the host's role, visibly |
+| ⭐ **`MapInteractionBundle` is a separate box implementing `IUiBundle`** | ⇒ the axis-1 half *(windows · panels · commands)* goes through the existing bundle seam, unchanged |
+| ⭐⭐⭐ **`Unserviceable(hostRunSet)` is a METHOD, not a convention** | ⇒ ⛔ *"silently no-op"* stops being expressible — the canon rule that would have caught this bug becomes a call site |
+
+#### Sequence 1 — **construct, hand over, schedule, attach**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Host as Any ECS map host
+    participant Pack as MapInteractionPack
+    participant MI as MapInteraction
+    participant Kernel as ModuleHostKernel
+    participant Win as Window or terminal
+
+    Host->>Pack: Build(ctx)
+    Note over Pack: ctx has World, bus, Settings,<br/>writer factory, IsReadOnly.<br/>NO kernel: it cannot schedule.
+    Pack->>Pack: RegisterAll projectors, uniformly
+    Pack->>MI: construct buffer, group, gate, systems
+    Note over MI: group starts DISABLED for everyone.<br/>No per-host literal anywhere.
+    Pack-->>Host: MapInteraction
+    Host->>Kernel: schedule MI.GizmoGroup
+    Host->>Kernel: schedule MI.InteractionSystems
+    Note over Host,Kernel: HOST decides this, per its ROLE.<br/>A headless node may schedule nothing.
+    Win->>MI: viewer attached, Gate.AddListener()
+    Note over MI: count 0 to 1, group ENABLED.<br/>Same rule on every host.
+```
+
+#### Sequence 2 — **the boot case, now correct by construction**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant PC as PerspectiveCoordinatorSystem
+    participant SG as SimHost gate
+    participant CG as CGF gate
+
+    Note over SG,CG: BOOT. SimHost is the active perspective,<br/>so it HAS a viewer and adds a listener.<br/>SimHost count=1 enabled. CGF count=0 off.
+    PC->>SG: RemoveListener() leaving SimHost
+    Note over SG: count 1 to 0. Correctly disabled.
+    PC->>CG: AddListener() entering CGF
+    Note over CG: count 0 to 1. Enabled.
+    PC->>CG: RemoveListener() leaving CGF
+    PC->>SG: AddListener() returning to SimHost
+    Note over SG: count 0 to 1. ENABLED. Entities draw.
+    Note over SG,CG: No count can go negative.<br/>An assert guards it as now-impossible.
+```
+
+⚠ **Contrast with the defect this replaces** *(§3.0)*: the old flow had **no listener at boot**, so leaving
+first drove the count to **−1** and `AddListener` returned **0**, never `1` — 📐 measured as SimHost's
+`605/3` on visits 1, 2 **and** 3. ⭐ **Step 1 above is the entire fix**, and it is a *structural* one: the
+active-at-boot perspective is a viewer like any other.
+
+#### 3.2d 🔴🔴🔴 THREE AMENDMENTS TO §3.2b, **MEASURED BEFORE BUILDING `S2b`** *(`2026-08-30`, obligation ⑤)*
+
+> ⭐ **§3.2b's class diagram stands.** ⛔ **Three of its NOTES do not**, and each would have caused a
+> regression if built literally. 📐 All three were measured, not reasoned.
+
+##### ⛔ ① *"group starts DISABLED for everyone. No per-host literal anywhere."* — **WOULD DARKEN IG AND THE EDITOR**
+
+📐 **Measured:** the only production driver of `GizmoExecutionController.AddListener()` is
+**`PerspectiveCoordinatorSystem`** *(`Hrot.ClusterRunner/Systems/`, `:76,:78`)*. ⚠⚠ **`LocalTerminalModule`
+and `GizmoCapabilitiesTracker` — the two FDP modules that would attach a viewer — are registered by
+NO host**: `grep -rn "LocalTerminalModule|GizmoCapabilitiesTracker" Hrot/` returns **nothing**.
+
+⇒ 🔴 **In a standalone run (IG alone, the editor alone — not under the cluster runner) there is NO
+listener driver at all.** ⭐ That is precisely why `IgApplication.cs:862` and `EditorSubsystem.cs:1827`
+hard-set `Enabled = true`, each with the comment *"interactive, always has a window at startup"*.
+⛔ **Starting the group disabled for everyone would leave both with a permanently shut gate.**
+
+⇒ 🔒 **AS BUILT:** the initial state becomes **one named context input — `MapInteractionContext.StartEnabled`**
+*(default `false`, `GZH-003` headless-first)*, and the four scattered literals are deleted. ⭐ **The per-host
+TRUTH survives; only the scattered LITERAL dies** — which is the deduplication the item was actually for.
+⚠ **This is the `S2a` lesson repeating**: the thing that differs per host is a **constructor input**, and the
+fix is to name it once, not to erase it *(`R-137`)*.
+
+##### ⛔ ② SEQUENCE 2 DESCRIBES A DEFECT THAT **§3.0a REFUTED BY MEASUREMENT**
+
+⚠⚠ §3.2b's *"Sequence 2 — the boot case"* is built on §3.0's story: *no listener at boot ⇒ the count goes
+to `−1` ⇒ `AddListener` returns `0`, never `1`*. 🔴 **§3.0a measured that false**: `CurrentPerspective`
+starts `"Default"`, there is **no unbalanced `Remove`**, and the gate is **enabled on every visit** —
+live visits 1 and 2 emit identical gizmo primitives.
+
+⇒ ⛔ **Sequence 2 is SUPERSEDED and must not be built to.** ⭐ Its one surviving claim is worth keeping:
+**the count must never go negative, and an assert should say so.** 📌 The real cause of the dark map was
+`S2a`'s selection gate *(§3.9j.1)*, not the gate's listener count.
+
+##### ⭐ ③ THE PACK MUST LET A HOST ADD ITS OWN GIZMOS **BEFORE** THE SYSTEMS ARE CONSTRUCTED
+
+📐 **Measured — four hosts register projectors the reflection pass cannot find**, and they do it *before*
+building `StatelessGizmoSystem`: `EntityEditorPolylineGizmo` + `EntityEditorLabelGizmo` *(both deliberately
+attribute-less — their constructors need a `BehaviorRegistry`, which reflection cannot supply)*,
+`RubberBandGizmo`, `ReplaySpatialBoundsGizmo`, `LayerControlGizmo`, `EntityDragGizmoDefinition`.
+
+⚠⚠ **And the ORDER is load-bearing, for a reason that fails silently:**
+`StatelessGizmoSystem`'s constructor sizes its visibility cache from `registry.Rules.Count` *(`:49-50`)*.
+📐 A rule registered afterwards lands **beyond the cache**, and `Execute`'s guard is
+`if (r < cache.Length && !cache[r]) continue;` ⇒ ⛔ **such a rule ignores its visibility policy entirely
+and always draws.** ⭐ Not a crash — a silent semantic difference, which is this codebase's signature
+failure mode.
+
+⇒ 🔒 **AS BUILT:** `MapInteractionContext.ContributeExtras` — an `Action<MapInteractionRegistries>?` the
+pack invokes **after `RegisterAll` and before constructing the systems**. ⭐ Every host keeps every gizmo it
+has today *(`R-137`)*, and the ordering hazard is closed by construction rather than by each host
+remembering it.
+
+#### 3.2e 🔴🔴🔴 `S3`'s PREMISE, RE-MEASURED — **declare-and-report would NOT have caught `CE-123`** *(`2026-08-30`)*
+
+> ⛔⛔ **§3.2a claims, in bold:** *"Had the map affordance declared its required systems and reported
+> unserviceable, an empty SimHost map would have been a LOUD DIAGNOSTIC from the day `GZH-003` landed."*
+> 🔴 **That is FALSE under the root cause `S2a` actually measured**, and building `S3` to it would produce a
+> gate that reports *"all good"* on the exact defect it was written for.
+
+📐 **Why it fails.** The claim was authored when the believed cause was the **gate's listener count**
+*(§3.0)*. ⛔ §3.0a refuted that by measurement, and `S2a` found the real cause: **SimHost passed
+`StatelessGizmoSystem` the selection predicate meant for the drag handles** *(§3.9j.1)*.
+
+| what a run-set check asks | 📐 SimHost's answer at the time of the bug |
+|---|---|
+| is the gizmo group **scheduled**? | ✅ **YES** — `SimHostApp.cs:442`, inside `GizmoInteractionModule`'s `interactionSystems` |
+| are the three systems **present**? | ✅ **YES** — all three, constructed and in the group |
+| is the gate **open**? | ✅ **YES** — §3.0a measured it enabled on every visit |
+| ⇒ **verdict a declare-and-report would print** | 🔴 **"nothing unserviceable"** — while the map drew **3 non-`Line` primitives for 8 entities** |
+
+⇒ ⭐⭐⭐ **The failure was never a MISSING system. It was a PRESENT system, correctly scheduled, correctly
+enabled, and told to draw nothing.** ⛔ No amount of declaring the run-set can see that.
+
+##### ⭐⭐ SO `S3` SPLITS IN TWO, AND ONLY THE SECOND HALF IS THE ONE THAT MATTERS
+
+| half | catches | verdict |
+|---|---|---|
+| ⭐ **`RequiredSystems` + `Unserviceable(hostRunSet)`** *(as designed)* | a host that **never schedules** the map — a real failure, and cheap to close | ✅ **KEEP, but do not oversell it.** ⛔ It would NOT have caught `CE-123` |
+| ⭐⭐⭐ **the RUNNING-AND-SILENT check** *(new)* | 🔒 **the map is composed, scheduled and ENABLED, the world holds entities the map's own query matches, and it emitted ZERO entity shapes** | ⭐⭐ **THIS is the loud diagnostic §3.2a wanted.** 📐 It is exactly `CE-123`'s signature: 8 eligible entities, `SemanticShape 0` |
+
+⭐ **Why the second half is expressible at all:** `S2b` gave the map one owner, so there is now a single
+place that knows the group, the buffer and the query — none of the five hand-written compositions did.
+
+⚠ **It reports; it never throws.** A host may legitimately draw no shapes *(everything culled — see
+`CE-131`, which is live today)*, so the diagnostic names culling among the causes and latches, rather than
+firing every frame or failing a boot.
+
+🔒 **Both halves follow `ToolActivationDrainSystem`'s contract verbatim** — an `Action<string>?` that
+defaults to the FDP log, carrying **the name and the reason**, because *"nothing happened"* is
+indistinguishable from *"not implemented"* to the operator holding the mouse.
+
+#### 3.2f ⭐⭐⭐ `S4` ①+③ — **CULLING MOVES TO THE POLICY SEAM** *(user-approved `2026-08-30`)*
+
+> 🔒 **The design is not new — it is [`UXI-10`](UX_Feature_Entity_Symbology.md) §3.4, verbatim:**
+> `registry.Register(new EntityPresentationGizmo(), new CullingStateVisibilityPolicy());`
+> ⭐ `S4` implements it. ⛔ **It was unimplementable until now**, for two measured reasons.
+
+##### 🔴 WHY §3.4 COULD NOT BE BUILT AS WRITTEN
+
+| # | blocker | 📐 measured |
+|---|---|---|
+| **①** | ⛔⛔ **the CONSUMER half does not exist** | `IGizmoVisibilityPolicy` declares `IsEntityVisible`; `DataDrivenGizmoSystem` honours it *(`:326`, `:369`)*; **`StatelessGizmoSystem` never calls it** *(only `IsGloballyEnabled`, `:69`/`:79`/`:92`)*. ⇒ a `CullingStateVisibilityPolicy` — inherently per-ENTITY — would be stored in `CompiledStatelessRule.VisibilityPolicy` and **silently do nothing**. ⚠ Worse than absent |
+| **②** | ⛔ **reflection cannot supply a policy** | `GizmoReflectionRegistrar` calls the 2-arg `Register(stateless, attr.RequiredComponents)`. 📌 §3.4's code line is a **hand-written registration site that `ST-031` deliberately deleted** |
+| ⭐ | **why the asymmetry exists at all** | `docs/designs/gizmos-1/DESIGN.md` §4.2 designed the policy for the **STATEFUL** kind only — `IGizmoDefinition` carries `VisibilityPolicy` as an interface member. `IStatelessGizmo` came later and has no equivalent |
+
+##### ⭐⭐ THE THREE PARTS, AND WHY EACH IS WHERE IT IS
+
+| part | ⭐ decision |
+|---|---|
+| **the MECHANISM** | ⭐⭐ **`IGizmoVisibilityPolicy.IsEntityVisible`, now honoured by `StatelessGizmoSystem`.** ⚠ Placed AFTER the mask match, so the cost is one call per **matched** entity, not per `rule × entity`; ⭐ and skipped by a reference compare when the policy is the `AlwaysVisiblePolicy` singleton, which is every projector's default |
+| **the KNOB** | ⭐ **`map.entity.cullOffscreen` stays** — runtime-settable and persistable via `GizmoSettingsRegistry` *(§3.2c)*. 🔒 The policy READS it; the policy does not replace it |
+| **the WIRING** | ⭐⭐ **`Func<Type, IGizmoVisibilityPolicy?>` resolver on `RegisterAll`** — §3.9's own `S4` row. The pack supplies a default resolver attaching the culling policy to the entity projector; ⭐ a host may override for any projector type |
+
+##### 🔒 RULING 9 — **the duplicate this collapses, stated plainly**
+
+⚠⚠ **`S2a` shipped culling as a SETTING READ INSIDE `Draw`** *(a `CullOffscreen` check plus a
+`HasComponent<CullingState>` presence test)*. ⛔ **That is a second implementation of *"should this entity
+draw?"***, and ruling 9 forbids two. ⇒ ⭐ `S4` **moves that logic wholesale into
+`CullingStateVisibilityPolicy` and deletes it from the projector.** 📌 The projector goes back to doing one
+job — emitting primitives — and visibility becomes the seam's business, which is what §3.4 wanted.
+
+##### 🔒 `R-137` — **what a host can still do, and what it GAINS**
+
+| capability | before `S4` | after |
+|---|---|---|
+| cull off-screen entities | ⭐ a setting, applying to the ONE merged projector | ⭐⭐ **a policy, attachable to ANY projector** — routes, tactical areas and overlays become cullable too |
+| turn it on at runtime | ✅ the setting | ✅ **unchanged — same setting, same store** |
+| a host-specific rule | ⛔ not expressible | ⭐⭐ **GAINED — supply a resolver** |
+
+⇒ ⛔ **Nothing lost; the axis widens from one projector to all of them.**
+
+⚠⚠ **`CE-131` IS REFUTED — see §3.2g.** 🔴 The *"culling blanks IG"* observation was a first-probe
+settling artifact: with culling forced ON, IG reads `SpatialAnchor 0` on probe 1 and `8` on every probe
+after, **identically with and without a fix to the culling input**. ⇒ 🔒 the default stays OFF, but as a
+**compatibility** choice, not because culling is broken. ⭐ The unset-viewport guard is kept on its own
+merits, for a genuinely headless node.
+
+#### 3.2g 🔴🔴🔴 **`CE-131` IS REFUTED — the "culling blanks IG" measurement was a SETTLING ARTIFACT** *(`2026-08-30`)*
+
+> ⛔⛔ **I filed `CE-131` on a single probe, and then cited it as MEASURED in four places.** ⭐ This section
+> is the retraction, and the discriminating experiment that produced it.
+
+##### 📐 WHAT I CLAIMED, AND WHERE IT WENT
+
+🔒 **The claim** *(§3.2d ①-adjacent, §3.9j.5b, `EntityPresentationGizmoSettings`, `CullingStateVisibilityPolicy`,
+`CE-131`)*: *"with culling on by default, the IG perspective emitted ZERO `SpatialAnchor` and `SemanticShape`
+— `MapCullingSystem` derives `IsVisible` from a viewport filled only on the non-headless path, so every
+entity tests out of view."*
+
+##### ⭐⭐ THE DISCRIMINATING EXPERIMENT — **the one I should have run first**
+
+📐 Culling forced ON, `--mode all`, IG perspective probed repeatedly after a scenario load:
+
+| build | probe 1 | probes 2-4 |
+|---|---|---|
+| ⭐ **WITH a fix** *(unset viewport ⇒ visible)* | `SpatialAnchor 0` | ⭐ **`8` · `8` · `8`** |
+| ⭐ **WITHOUT the fix** *(pre-`CE-131` semantics)* | `SpatialAnchor 0` | ⭐⭐ **`8` · `8` · `8` — IDENTICAL** |
+
+⇒ 🔴🔴🔴 **The fix changes nothing, because the symptom was never culling.** ⭐ IG's frame simply carries no
+entity shapes on the first probe after a load and settles a few seconds later. ⛔ **I probed once and filed
+a defect.**
+
+##### ⚠⚠ WHY THE FIX IS A NO-OP HERE, WHICH I COULD HAVE REASONED OUT
+
+📐 `IgApplication.cs:993-1001` writes the viewport **every frame**, inside `if (!_headless)` but **outside**
+the `_isActiveMapOwner()` guard. ⇒ under `--mode all` IG is not headless, the rect is real from frame 1, and
+a *"treat an unset viewport as visible"* guard **can never fire.** ⭐ Two minutes of reading would have
+predicted the experiment's result.
+
+##### ⭐ WHAT SURVIVES, AND WHAT DOES NOT
+
+| claim | verdict |
+|---|---|
+| ⛔ *"culling blanks IG"* | 🔴 **REFUTED.** Not reproducible once the frame settles |
+| ⛔ *"the default-OFF is MEASURED"* | 🔴 **REFUTED as stated.** ⭐ **OFF is still right — for a plainer reason:** before `S2a` merged them, IG's map was drawn by SimHost's and CGF's non-culling copies, so OFF reproduces what every host actually rendered. ⭐ A COMPATIBILITY choice, not a defect workaround |
+| ⭐ *"an unset viewport is all-zeros and culls everything"* | ✅ **TRUE and unchanged** — the bounds are auto-properties with no initializer, and the write is on the non-headless path only. ⇒ ⭐ **the guard is KEPT** *(absence of a viewport means visible)*, with rails, as a correct guard for a genuinely headless node — ⛔ **not as a fix for an observed symptom** |
+| ⭐ §3.9j.5b's ARITHMETIC *(16 = 2 × 8 before the merge, 8 after)* | ✅ **unaffected** — that is the duplicate-removal count, measured across same-boot before/after |
+
+##### 🔒 THE PROCESS LESSON — **the THIRD instance of one shape this session**
+
+⚠⚠ **All three were the same mistake: a confident conclusion from a probe that could not distinguish two
+explanations.**
+
+| # | |
+|---|---|
+| ① | a rail asserting *"the buffer is non-empty"* — **global rules satisfy it either way** |
+| ② | a rail using `NeverVisiblePolicy` — **fails the GLOBAL check first**, so it could not see the per-entity half it was named for |
+| ③ | ⭐ **this one** — *"zero shapes"* on one probe, when a healthy map **also** reads zero on its first probe |
+
+⇒ 🔒 **The rule, stated so it is checkable:** ⛔ **before filing a defect from a live probe, probe AGAIN.**
+⭐ A transient and a defect look identical in one sample; they differ in two. 📌 The `MapSelfCheckSystem`
+grace window *(`120` frames)* exists for exactly this reason — ⚠ **I built the control and then failed to
+apply it to myself.**
+
+#### 3.2c ⭐⭐ SETTINGS OWNERSHIP — **a standalone injected store, not a per-host field** *(user ruling, `2026-08-28`)*
+
+> 🔒 **User:** *"Persistence was meant for single-host nodes like a '2d map station' where the user want to
+> see the same settigng he made last time. So yes this must in general possible different for different
+> hosts while some host do not need it at all and some are sharing same settings. I.e. not strictly per
+> host, more standalone, injected to host or multiple different hosts. Special empty instance for hosts not
+> needing anything."*
+
+✅ **IT FITS — and it is already the shape of the code**, which is why it is the right model rather than a
+new one:
+
+| the requirement | 📐 state today |
+|---|---|
+| ⭐ **standalone, injectable** | ✅ **already exact.** `GizmoSettingsRegistry` is a plain class with **no host dependency**, constructed and passed in *(`GizmoReflectionRegistrar.RegisterAll(reg, stateless, settings)`)* ⇒ sharing ONE instance across several hosts already works in-process, and needs no code change |
+| ⭐ **persistence belongs to the instance, not the host** | ✅ **already exact.** `SaveToDisk(path, scope)` / `LoadFromDisk(path, scope)` take the path as a **parameter** ⇒ a *"2D map station"* node hands its instance a real file; an ephemeral host never calls save. ⭐⭐ **This retires the *"needs a per-host path convention"* gap I filed a turn earlier — the owner of the instance owns the path, by construction** |
+| ⭐ **different hosts may differ, share, or want none** | ⭐ **a composition choice**, expressible today: one instance each · one instance shared · one `Empty` |
+| 🔴 **a special empty instance** | 🔴 **does not exist** — `grep` finds no `Empty`/null-object. ⛔ And `settings` is **non-optional** on `RegisterAll`, so *"none"* has no legal spelling today |
+
+##### ⛔⛔ The one trap in *"empty"* — **it must be VISIBLY read-only, not quietly inert**
+
+📐 `Write(...)` today unconditionally mutates, sets `_isDirty` and raises `OnSettingChanged`. ⇒ an `Empty`
+that simply **swallowed** writes would give a host a settings UI whose toggles appear to work and change
+nothing — 🔒 **precisely the *"silently no-op"* that `DESIGN_Subsystem_Composition_Unification.md` §3.2
+forbids**, and the same failure mode as SimHost's silent map *(§3.0)*.
+
+⇒ ⭐⭐ **So `GizmoSettingsRegistry.Empty` is a NULL OBJECT that ANNOUNCES itself:**
+
+| | |
+|---|---|
+| ⭐ **reads** | return the **registered default** — every gizmo still renders per its declared default |
+| ⭐⭐ **writes** | ⛔ **not silently absorbed.** Either refused, or accepted `Session`-only and never persisted — ⭐ **and the instance exposes the fact** *(e.g. `IsPersistent`/`CanWrite`)* so the UI **hides or disables** the toggle rather than lying |
+| ⭐ **save/load** | no-ops, honestly reported |
+
+⭐ **Consequence to state, so it is never mistaken for a bug later:** ⚠ **two hosts SHARING one instance
+share every toggle** — a change in one is visible in the other. 🔒 That is the user's *"some are sharing
+same settings"*, working as asked; ⛔ it is not a leak.
+
+##### 🔴🔴 WHO SUPPLIES A POLICY — **per gizmo type, and the REFLECTION path has NO route** *(measured `2026-08-28`)*
+
+📐 A policy is attached **per RULE** — one per registered gizmo type — and stored on the compiled rule
+*(`CompiledStatelessRule.VisibilityPolicy`, `CompiledGlobalRule.VisibilityPolicy`)*, then pre-evaluated once
+per rule per frame. ⭐ Three supply routes exist; ⛔ **only two are reachable:**
+
+| # | route | who supplies | state |
+|---|---|---|---|
+| **①** | **manual `StatelessGizmoRegistry.Register(gizmo, components, visibilityPolicy: …)`** | ⭐ **the CALLER** — an optional 3rd argument | ✅ reachable. ⚠ `?? AlwaysVisiblePolicy.Instance` when omitted |
+| **②** | **`IGizmoDefinition.VisibilityPolicy`** *(the `GizmoRegistry` / definition path)* | ⭐ **the gizmo itself**, as a property | ✅ reachable. 📐 **one implementation repo-wide** — `EntityDragGizmo.cs:255`, returning the default |
+| 🔴 **③** | **reflection — `[GizmoProjector]` via `GizmoReflectionRegistrar`** | 🔴🔴 **NOBODY** | ⛔ **`GizmoReflectionRegistrar:~93` calls `statelessRegistry.Register(stateless, attr.RequiredComponents)` — with NO policy** ⇒ always `AlwaysVisiblePolicy`. ⛔ And `GizmoProjectorAttribute` carries **only** `RequiredComponents` — **no policy, no settings key** |
+
+⭐⭐⭐ **AND ROUTE ③ IS THE ONE THE UNIFICATION DEPENDS ON.** 📌 `ST-031`'s *"ONE reflection call replaces the
+hand-rolled family list… it declares everything and component presence decides what draws"* is exactly why
+all five hosts now register uniformly *(§2c)*. ⇒ 🔒 **the mechanism that delivered uniform MEMBERSHIP is the
+same one that removed the only per-gizmo CONFIGURATION hook.** ⚠ **That is why the repo has exactly one
+policy supplier** — it is not neglect, it is that **reflection-registered projectors have nowhere to say
+anything.**
+
+⇒ ⭐⭐ **The pack must REOPEN that hook.** 🔒 **USER RULING `2026-08-28`: option (b) — the RESOLVER.**
+⛔ **(a), a settings-key attribute on the gizmo, is NOT taken.**
+
+| | |
+|---|---|
+| ✅ **(b) CHOSEN — `RegisterAll` accepts an optional `Func<Type, IGizmoVisibilityPolicy?>` resolver** | ⭐ **the COMPOSITION maps projector type → policy.** ⇒ ⭐⭐ **gizmo code stays entirely free of settings concepts** — no attribute, no key constant, the gizmo just draws |
+| ⛔ ~~(a) a settings-key attribute on the gizmo~~ | **NOT TAKEN** *(user)*. ⭐ **A consequence worth naming: the key→gizmo mapping now lives in ONE shared table** *(the pack's default resolver)* instead of being scattered across attributes — ⭐ discoverable, and reviewable in one place |
+
+⛔⛔ **THE ONE HAZARD (b) INTRODUCES, and it is this session's recurring shape:** a **newly added**
+`[GizmoProjector]` gets **no entry** in the resolver ⇒ falls through to `AlwaysVisiblePolicy` ⇒ 🔴 **silently
+always-on**, which is a silent default by omission. ⇒ ⭐⭐ **Mitigation, consistent with the rest of this
+design:** `MapInteractionPack` **REPORTS every discovered projector for which the resolver returned
+`null`** — ⭐ not a failure *(always-on is often right)*, ⛔ but never invisible. 📌 Same discipline as
+`Unserviceable(...)` and as `Empty` announcing itself.
+
+🔒 **The split that makes this coherent:** ⭐ **the KEY belongs to the gizmo** *(what gates me)*; ⭐⭐ **the
+VALUE belongs to the settings instance** *(§3.2c: per host · shared · `Empty`)*; ⭐ **the OVERRIDE belongs to
+the composition** *(b)*. ⇒ **no host identity ever enters gizmo code**, which is what keeps the map shared.
+
+##### ⇒ What this makes concrete in fix item ⑥
+
+| # | |
+|---|---|
+| **⑥a** | ⭐⭐ **a settings-backed `IGizmoVisibilityPolicy`** — the missing link, ⭐ **plus the SUPPLY ROUTE for reflection-registered projectors** *(route ③ above has none: a settings-key attribute + an optional resolver on `RegisterAll`)*. 📐 Today the interface has **only** `AlwaysVisiblePolicy`/`NeverVisiblePolicy`, both singletons returning constants that ignore the view *and* every setting ⇒ **no setting can currently affect visibility at all.** ⭐ The policy takes the registry *(or a read delegate)* by injection, keeping it host-agnostic |
+| **⑥b** | ⭐ **`GizmoSettingsRegistry.Empty`**, per the trap above — ⛔ never `null`, which would be the silent-default shape |
+| **⑥c** | ⭐ **the composition wires WHICH instance each host gets** — its own · a shared one · `Empty`. ⛔ **`MapInteractionContext` already carries `Settings`** *(§3.2b)*, so the seam is drawn; only the instance choice is the host's |
+| ⛔ ~~a per-host settings path convention~~ | **RETIRED** — the path is the instance owner's, and `SaveToDisk` already takes it |
+
+#### 🔒 The fix set, final
+
+| # | | where it lives |
+|---|---|---|
+| ⭐⭐⭐ **①** | **`Enabled` is derived from the viewer count and assigned nowhere** | `MapInteractionPack` constructs it disabled; viewers add listeners |
+| ⭐⭐⭐ **②** | **the active-at-boot perspective adds a listener on activation** | `PerspectiveCoordinatorSystem` / host activation |
+| ⭐⭐ **③** | **assert on a negative count** | `GizmoExecutionController` |
+| ⭐⭐⭐ **④** | **the HOST schedules; the pack only constructs** | 🔒 the user's ruling, enforced by `ctx` having no kernel |
+| ⭐⭐⭐ **⑤** | **declare required systems + report unserviceable** | `MapInteractionBundle` — ⛔ never a silent no-op |
+| ⭐⭐ **⑥** | **all per-host capability variation is an `IGizmoVisibilityPolicy` value** | ⚠ needs real policies *(today: one supplier, returning the default)* — ⚠ **and `SettingScope` has no per-host scope yet** |
+| ⭐ **⑦** | **`IGizmoControllable` satisfied by `MapInteraction`** | ⇒ `ReplayBrowser` cannot hold a null gate |
+
+### 3.3 Binding the unbound
+
+| Host | Work |
+|---|---|
+| **CGF** | the whole pack — registry, dispatch, ingress, selection, drag, rubber-band, the `Common.Diagnostics` registrar. ⚠ **Its edits must be legal first** — [UXI-29](UX_Feature_Authority_Aware_Writes.md) |
+| **SimHost** | the missing 7 ids + `Common.Diagnostics` registrar + rubber-band **state** (one ctor argument) |
+| **IG** | migrate the fork; gain the rubber-band visual |
+| **ReplayBrowser** | ⚠ **read-only host** — binds the *inspection* subset; ⚠ its dispatch system is **never wired to an ingress**, so its 2 ids can never fire today (`:227` vs no `ContextActionIngressSystem`) |
+| **Editor** | reference implementation; loses its bespoke wiring |
+
+### 3.4 Per-selection actions — a finding, not this design's scope
+
+| | |
+|---|---|
+| **Delete-selected** | ✅ exists — but as a **raw `Delete` key** in `SelectionInteractionSystem.cs:117-152`, **not** an action id. So per-entity and per-selection Delete are **two unrelated code paths** |
+| **Centre-on-selected** | 🔴 **does not exist anywhere** — no id, no handler |
+
+⇒ **[UXI-24](UX_Issues.md#uxi-24) owns this.** ⚠ But note the consequence for [ruling 29](UX_RESUME_INTERACTION.md):
+the multi-delete confirmation must sit on the **key path**, which today bypasses the action vocabulary
+entirely.
+
+## 3.9 ⭐⭐⭐ RE-SIZE `2026-08-28` — **`RW-M` was wrong; it is `RW-H`, and it SLICES**
+
+📐 **Why the plan's `RW-M`** *("new component / some design")* **no longer holds:** the pack grew from
+*"one registration entry point"* to **construction + execution + the policy injection point**, across
+**five composition roots**, with **18 H acceptance cases**. ⚠ Per the legend that is `RW-H`
+*("new subsystem or architect decision first")* — ⭐ though its architect calls are now **CLOSED**, not
+pending *(§3.2a, §3.2c and the resolver ruling)*.
+
+⛔ **But a single `RW-H` label is not useful — it hides the order.** ⇒ ⭐⭐ **five slices, each independently
+shippable, cheapest and highest-value first:**
+
+| slice | what | size | why here |
+|---|---|---|---|
+| ⭐⭐⭐ **`S1` — the INPUTS** ⚠⚠ **REWRITTEN `2026-08-28`** | **Share the two producers of the components every entity gizmo reads.** 📐 `MapDisplayComponent` *(installed only by `Hrot.IG/Systems/MapLayerAssignmentSystem`, wrapped by the IG-private `Modules/MapLayerModule`)* and `VisualData` *(installed only by `Hrot.IG/Translators/PresentationTkbTranslator`)* ⇒ **lift both out of `Hrot.IG` into shared code**, register `MapDisplayComponent` wherever the map is a member *(§3.1b)*, and add the presentation translator to the host translator lists that lack it — 📌 **`SimHostNodeBootstrapper.BuildContext` has six translators and no presentation one** | **`RW-M`** | 🔒 **This is what actually restores the user's map** *(§3.0a)*, and it lands in **shared** code + each host's run set — ⛔ **not a SimHost patch.** ⭐ It is the user's ruling read literally: *same gizmos, differing only by the entity's components* — ⚠ today they differ **by how the entity was BUILT**, which is not a legitimate difference |
+| ⛔ ~~`S1` — the gate~~ | ~~`Enabled` derived from the viewer count · the active-at-boot perspective adds a listener · assert on negative~~ | — | 🔴 **WITHDRAWN `2026-08-28` — its premise was REFUTED by measurement** *(§3.0a ①)*: the boot perspective **is** announced *(`CurrentPerspective` starts `"Default"`)*, the counter **never underflows**, and the gate is **enabled on every visit**. ⭐ The `Enabled`-from-viewer-count cleanup is real but is **hygiene inside `S2`**, not a fix |
+| **`S2` — construct** | `MapInteractionPack.Build(ctx)` → `MapInteraction`; the five hosts hand their constructions over and **schedule** the result | **`RW-M`** | the core of the ruling *(pack constructs, host schedules)*. ⭐ Pure deduplication: all five already build the same three systems *(§2c)* |
+| **`S3` — declare + report** | `MapInteractionBundle : IUiBundle`; `RequiredSystems`; `Unserviceable(hostRunSet)` | **`RW-L`** | ⭐⭐ the rule that would have caught the original bug ⇒ **land it early so the next such fault is loud** |
+| **`S4` — configuration** | the `Func<Type, IGizmoVisibilityPolicy?>` resolver on `RegisterAll` · a settings-backed policy · `GizmoSettingsRegistry.Empty` · the unresolved-projector report · **real policies for the actual per-host differences** | **`RW-M`** | ⚠ **the genuinely new work.** 📐 Today: **one** policy supplier returning the default, and **no** route for reflection-registered projectors |
+| **`S5` — the action half** | IG's `switch` fork → the shared registry · CGF's `GlobalActionRegistry` + dispatch + ingress · `RubberBandState` in the three hosts that pass `null` | **`RW-M`** | 🔒 **§7's order still binds here:** this is the half that WRITES, so CGF must route through `EntityWriteRouter` first *(§2b: it is the one host not in the adopter list)* |
+
+⚠⚠ **What the slices do NOT change:** 🔒 **`S1` is the only one that makes a visible difference to the user
+before `S2`-`S5` land.** ⇒ ⭐ if the map must work sooner rather than later, `S1` is the answer **and it is
+not a divergence-deepening patch**; ⛔ everything else is structure whose payoff is that the next host
+cannot drift.
+
+⭐ **Dependency order:** `S1` is independent. `S2` → `S3` *(the bundle declares what `S2` constructs)*.
+`S4` is independent of `S2`/`S3` but pointless before them for **new** hosts. `S5` needs CGF's writer
+routing first.
+
+#### ⭐⭐ `S1`'s OPEN DESIGN CALL — **decide it with the user before building** *(raised `2026-08-28`)*
+
+📐 The two producers do **not** have the same character, and the difference decides how far `S1` reaches:
+
+| | `VisualData` *(`PresentationTkbTranslator`)* | `MapDisplayComponent` *(`MapLayerAssignmentSystem`)* |
+|---|---|---|
+| **what it is** | ⭐ **TKB-derived entity data** — appearance authored per entity type | ⚠ **a computed VIEW concern** — which map layers an entity belongs to, from a `MapLayerRegistry` |
+| **lift is** | ⭐ **clean** — a translator added to a host's list, exactly like `S1`'s five peers | ⚠ **less obvious** — layer definitions may legitimately be a per-host/per-station **configuration**, which is §3.2c's settings question, not a component question |
+
+⇒ ⭐ **Lean:** lift **both**, but treat the layer *definitions* as `S4` configuration *(the settings store
+already models exactly this)*, so `MapLayerAssignmentSystem` becomes shared while **what** the layers are
+stays per-host. ⛔ **Do not silently decide this inside the build** — it is the difference between
+unifying a mechanism and unifying a policy.
+
+## 3.9a ⭐⭐⭐ `S1` — THE DESIGN: **lift the two producers** *(user ruling `2026-08-28`; `build-state: READY-TO-BUILD`)*
+
+> 🔒🔒🔒 **User, verbatim:** *"lift both mechanisms, layer definitions as S4 config, shareable
+> between multiple subsystems"*
+
+⭐⭐ **That settles §3.9’s open call.** Both mechanisms become shared; the layer **definitions** are
+`S4` configuration, and — per settings ruling ④ — **one definition set is shareable across subsystems**,
+not cloned per host.
+
+### INVENTORY — `search_graph(name_pattern=".*MapLayer.*")` → **total 58**, plus a targeted translator query
+
+⚠ Recorded because a design may not claim a set it did not enumerate. Production types only *(docs, tests
+and the unrelated `IMapLayer` render-layer family are excluded — 📌 **`IMapLayer` is a DIFFERENT concept**:
+a Vis2D draw layer, not an entity-classification layer, and nothing here touches it)*:
+
+| type | today | verdict |
+|---|---|---|
+| `MapLayerAssignmentSystem` | `Hrot.IG/Systems/` | ⭐ **MOVE** |
+| `MapLayerRegistry` | `Hrot.IG/Systems/` | ⭐ **MOVE** |
+| `MapLayerDefinition` | `Hrot.IG/Systems/` | ⭐ **MOVE** |
+| `MapLayerModule` | `Hrot.IG/Modules/` | ⚠ **STAYS** — an IG-shaped `IEcsModule` wrapper; ⭐ the host decides scheduling *(ruling ③)* |
+| `PresentationTkbTranslator` | `Hrot.IG/Translators/` | ⭐ **MOVE** |
+| `MapDisplayComponent` | ✅ `Fdp.Presentation/Vis2D/Components/` | ✅ **already shared** — only its REGISTRATION is host-private |
+| `VisualData` · `VisualDefinitionDto` | ✅ `Hrot.Core/MapDefinitions/Tkb/` · `Fdp.Toolkits/Tkb/Domain/` | ✅ already shared |
+| `MapOverlayStyle` | ✅ `Hrot.Core/Components/Map/` — ⚠ **still in the `Hrot.IG.Components` NAMESPACE** | ✅ already shared — 📌 **and it is the PRECEDENT for this lift** |
+| `MapLayerBits` | `Hrot.Core/Config/` | 🔴 **DUPLICATE** — see below |
+
+#### 📌 TWO PRIOR-ART FINDINGS THE ENUMERATION TURNED UP — **both change the work**
+
+| # | |
+|---|---|
+| ⭐⭐⭐ **a** | **`MapLayerAssignmentSystem` IS ALREADY SHARED — the Editor registers it directly** *(`Hrot.Editor/EditorSubsystem.cs:1468`, `_kernel.RegisterGlobalSystem(new MapLayerAssignmentSystem())`)*, reaching cross-assembly into `Hrot.IG.Systems`. ⇒ ⭐⭐ **this slice RELOCATES already-shared code; it does not decide to share it.** ⚠ Which also means the type’s `Hrot.IG.*` name has been **actively misleading** for two consumers already |
+| ⭐⭐ **b** | **`MapLayerBits` is a hand-synchronised COPY of `MapLayerRegistry`’s five bit constants** — 🔒 its own doc says *"These values must match `Hrot.IG.Systems.MapLayerRegistry` exactly"*. ⚠ **A comment is not a mechanism.** ⇒ ⭐ once the registry lands in a home `MapLayerBits` can see, **collapse it**: the registry REFERENCES the constants instead of restating them |
+
+📌 **The precedent, verbatim, from `Hrot.IG/Components/MapOverlayStyle.cs`** *(a breadcrumb file left where the
+type used to be)*: *"MapOverlayStyle has been moved to `Hrot.Map.Common\Components\MapOverlayStyle.cs` so that
+both `Hrot.IG` and `Hrot.SimHost` can reference it without a circular project dependency."*
+⇒ ⭐ **the same move, for the same reason, is already in this codebase** — mirror it, including the breadcrumb.
+
+### 📐 WHERE EACH HALF LANDS — **forced by the reference graph, not by taste**
+
+```
+Fdp.Presentation → Fdp.Toolkits          (one-way; MEASURED)
+Hrot.Core        → Fdp.Core, Fdp.Toolkits   — ⛔ CANNOT see MapDisplayComponent
+Hrot.Presentation→ Hrot.Core, Fdp.Presentation, Fdp.Toolkits   — ✅ sees everything
+IG · CGF · Editor · SimHost  → Hrot.Presentation   (all four; MEASURED)
+```
+
+| half | home | why |
+|---|---|---|
+| the **layer mechanism** *(3 types)* | ⭐ **`Hrot.Presentation/Map/`** | needs `MapDisplayComponent` *(`Fdp.Presentation`)* ⇒ ⛔ **`Hrot.Core` is impossible.** ⭐ `MapLayerState` already lives in this assembly, and all four map hosts reference it |
+| the **presentation translator** | ⭐ **`Hrot.Core/MapDefinitions/Tkb/`** | it needs only `VisualData` *(right there)* + `VisualDefinitionDto` ⇒ ⭐ it belongs beside the type it writes, with its five peer translators’ shape |
+
+⭐ **Namespaces are RENAMED** *(`Hrot.IG.Systems` → `Hrot.Presentation.Map`, `Hrot.IG.Translators` →
+`Hrot.Map.Definitions.Tkb`)*. ⚠ **This is the one place this slice deviates from the `MapOverlayStyle`
+precedent, which kept its namespace to avoid churn.** 🔒 Deliberate: finding (a) shows the misleading name
+has already cost two consumers, the churn is **6 `using` lines**, and every one is compile-checked.
+⛔ `MapOverlayStyle`’s own namespace is left alone — out of scope, and it is a component, not a system.
+
+### ⭐ THE CLASS DIAGRAM — *(existing types carry their file; obligation ②)*
+
+```mermaid
+classDiagram
+    class MapDisplayComponent {
+        <<existing, shared>>
+        +uint LayerMask
+    }
+    note for MapDisplayComponent "Fdp.Presentation/Vis2D/Components/ - already shared"
+
+    class VisualData {
+        <<existing, shared>>
+        +FixedString32 SymbolCode
+        +FixedString32 MapShapeName
+    }
+    note for VisualData "Hrot.Core/MapDefinitions/Tkb/ - already shared"
+
+    class MapLayerBits {
+        <<existing, shared>>
+        +uint GroundUnitsBit
+        +uint AirUnitsBit
+        +uint VehiclesBit
+        +uint TacticalGraphicsBit
+        +uint RoadGraphsBit
+    }
+    note for MapLayerBits "Hrot.Core/Config/ - the SURVIVING copy of the five bits"
+
+    class MapLayerDefinition {
+        <<moved to Hrot.Presentation.Map>>
+        +string Name
+        +uint BitMask
+        +Func IsMember
+    }
+    class MapLayerRegistry {
+        <<moved to Hrot.Presentation.Map>>
+        +IReadOnlyList~MapLayerDefinition~ All
+    }
+    class MapLayerAssignmentSystem {
+        <<moved to Hrot.Presentation.Map>>
+        -IReadOnlyList~MapLayerDefinition~ _layers
+        +Execute(view, dt)
+    }
+    class PresentationTkbTranslator {
+        <<moved to Hrot.Map.Definitions.Tkb>>
+        +GetConsumedDescriptors()
+        +Inject(repo, entity, template)
+    }
+
+    MapLayerRegistry ..> MapLayerBits : references the bits<br/>(was a hand-synced copy)
+    MapLayerRegistry o-- MapLayerDefinition : holds 5
+    MapLayerAssignmentSystem o-- MapLayerDefinition : injected set<br/>defaults to Registry.All
+    MapLayerAssignmentSystem ..> MapDisplayComponent : writes
+    PresentationTkbTranslator ..> VisualData : writes
+
+    class IgApplication
+    class SimHostApp
+    class CgfSubsystem
+    class EditorSubsystem
+    IgApplication ..> MapLayerAssignmentSystem : already (via MapLayerModule)
+    EditorSubsystem ..> MapLayerAssignmentSystem : already (direct, line 1468)
+    SimHostApp ..> MapLayerAssignmentSystem : NEW
+    CgfSubsystem ..> MapLayerAssignmentSystem : NEW
+    SimHostApp ..> PresentationTkbTranslator : NEW
+```
+
+⭐⭐ **The `S4` seam is ALREADY OPEN and under-adopted** — the seam law again: `MapLayerAssignmentSystem`
+already takes `IReadOnlyList<MapLayerDefinition>? layers = null`, and **every production caller passes
+`null`.** ⇒ ⭐ `S1` does **not** build a config store; it keeps `MapLayerRegistry.All` as the default and
+**leaves that parameter as the injection point `S4` fills** with a definition set shared across subsystems.
+⛔ Do not add a second seam.
+
+### ⭐ THE SEQUENCE — what makes SimHost’s entities drawable
+
+```mermaid
+sequenceDiagram
+    participant Boot as SimHostNodeBootstrapper
+    participant Reg as SimHostComponentRegistry
+    participant Tkb as PresentationTkbTranslator
+    participant Sys as MapLayerAssignmentSystem
+    participant Giz as StatelessGizmoSystem
+
+    Note over Boot,Reg: NEW - register the component type first
+    Boot->>Reg: RegisterComponent(MapDisplayComponent)
+    Note over Boot,Tkb: NEW - add to the translator list (was 6, no presentation one)
+    Boot->>Tkb: Inject(repo, entity, template)
+    Tkb->>Tkb: IsComponentTypeRegistered(VisualData)?
+    Tkb-->>Boot: AddComponent(VisualData) + EntityInfo
+    Note over Boot,Sys: NEW - schedule the shared system (host decides, ruling 3)
+    loop each rescan pass
+        Sys->>Sys: evaluate the 5 layer predicates
+        Sys-->>Sys: AddComponent(MapDisplayComponent LayerMask)
+    end
+    Giz->>Giz: project entities carrying VisualData + MapDisplayComponent
+    Giz-->>Boot: primitives (non-Line count rises from 3)
+```
+
+⚠⚠ **The ORDER is load-bearing and is where this can silently no-op:** `PresentationTkbTranslator`
+**early-returns when `VisualData` is unregistered** *(`:29`)*, so a registration that lands after the
+translator runs produces **no error and no component** — 📌 the `CLAUDE.md` silent-default pattern, and the
+exact reason this bug survived. ⭐ **A rail must assert the component is PRESENT on a TKB-built entity**,
+not merely that the translator is in the list.
+
+## 3.9b 🔴🔴🔴 `S1` AS-BUILT — **the fix is REAL, MEASURED, and NOT SUFFICIENT** *(obligation ⑤, `2026-08-28`)*
+
+⭐⭐ **§3.0a's root cause is CONFIRMED as a real, now-closed gap.** ⛔⛔ **But it was not the WHOLE cause:
+SimHost's frame is still `605 / 3` after both components arrive.** 🔒 Recorded here so nobody reads
+§3.0a or §3.9a as "the map is fixed."
+
+### 📐 What was measured, live on `--mode all` + `hill-attack`, before → after
+
+| | before `S1` | after `S1` |
+|---|---|---|
+| `MapDisplayComponent` on SimHost's 8 entities | 🔴 **0 / 8** | ✅ **8 / 8** |
+| `VisualData` on SimHost's 8 entities | 🔴 **0 / 8** | ✅ **7 / 8** ⚠ *(`1005` authors no visuals — a type with no `WithVisual` entry; expected, not a defect)* |
+| SimHost non-`Line` primitives | `3` | 🔴 **`3` — UNCHANGED** |
+| Scenario / IG non-`Line` *(regression check)* | `69` / `104` | ✅ **`69` / `104` — unchanged, no regression** |
+
+⇒ ⭐⭐⭐ **The two inputs now reach the muscle. The projectors still draw nothing from them.**
+
+### 📌 `CE-118` was resolved inside `S1` — **a DEVIATION from §3.9a's scope, argued here**
+
+⚠ §3.9a scoped `S1` as *"lift the two producers."* 📐 Lifting `PresentationTkbTranslator` turned out to be
+**inert on its own**, because its input descriptor was produced by **nothing in the repository**:
+
+```csharp
+public NedTkbBuilder WithVisual(long tkbId, Action<IgVisualDef> configure) {
+    var template = _db.GetByType(tkbId);
+    if (template == null) throw ...;
+    // VisualData ECS component will be applied by IG-side translator in Phase 6.
+    return this;                       // <- configure() NEVER CALLED. Nine call sites authored into a void.
+}
+```
+
+⭐ **Identical in shape to `CE-113`'s `WithPhysics`, same "Phase 6" comment** ⇒ 📌 **two instances of one
+pattern**: a builder method that takes authored data, resolves the template, and forgets the descriptor.
+⛔ **Neither failed loudly**, because an absent descriptor is indistinguishable from an unauthored one.
+⇒ ⭐ **Fixed in `S1`** rather than deferred to `UXI-10`: without it the lift delivers a translator that
+cannot fire, so deferring would have shipped a slice that provably does nothing.
+
+### 🔴 THE REMAINING CAUSE — **a LEAD, explicitly NOT yet verified** ⇒ `S2`
+
+⚠⚠ **Stated as a hypothesis with its evidence, not as a root cause.** 📌 §3.0's gate story is exactly what
+happens when a plausible mechanism is written up as settled.
+
+| 📐 evidence | |
+|---|---|
+| **a** | 🔴 **THREE host-private entity presentation gizmos exist**: `Hrot.SimHost/Gizmos/SimHostEntityPresentationGizmo` *(38 lines)* · `Hrot.CGF/Gizmos/CgfEntityPresentationGizmo` *(52)* · `Hrot.Presentation/ScenarioEditor/Gizmos/IgEntityPresentationGizmo` *(54)*. ⭐ All three are thin wrappers over the **already-shared** `EntityPresentationGizmoShared` ⇒ ⭐⭐ **this is `S2`'s "one implementation" target, and it is much closer to done than §2c suggests** |
+| **b** | ⚠ SimHost's projector is `[GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity))]` and emits `SpatialAnchor` + a pick `Box2D` + `SemanticShape`. 📐 **SimHost's entities carry BOTH required components** ⇒ the query should match, and **none of those three shapes appears in its frame** |
+| **c** | 🔴 **`GizmoReflectionRegistrar.DiscoverProjectorTypes` scans `AppDomain.CurrentDomain.GetAssemblies()`** — i.e. **only assemblies already LOADED when `RegisterAll` is called.** ⚠ .NET loads assemblies lazily ⇒ **which projectors a host registers depends on its bootstrap ORDER**, which differs per host. ⭐ That is a mechanism that would produce exactly this symptom, and it is **cheap to test**: assert the registry's contents after `RegisterAll` on each host |
+
+⇒ ⭐⭐ **`S2`'s first item is now concrete**: assert what each host's `StatelessGizmoRegistry` actually
+CONTAINS after registration — ⛔ today nothing checks that a reflection-discovered projector was found,
+which is the same silent-capability shape as `PresentationTkbTranslator`'s early return. 🔒 **Do not
+assume (c) is the answer** — measure the registry first.
+
+### ⭐ What `S1` DID collapse — the durable value, independent of the remaining symptom
+
+| # | |
+|---|---|
+| ⭐ **1** | **`MapDisplayComponent` registration: 3 host-private copies + 1 silent omission → ONE shared list** *(`MapPresentationRegistry`)*. 📌 CGF, IG and the Editor each registered it separately; SimHost had **zero** references |
+| ⭐ **2** | **The layer mechanism is out of `Hrot.IG`** — where the Editor was already reaching cross-assembly for it, and where SimHost structurally could not reach it at all |
+| ⭐ **3** | **`MapLayerBits` is no longer a hand-synced copy** — its doc used to say *"must match `MapLayerRegistry` exactly"*; the agreement is now mechanical, with a rail |
+| ⭐ **4** | **`WithVisual` no longer discards its input** — and `VisualDefinitionDto`, previously produced by nothing, now has a producer, which makes its translator meaningful on **every** host |
+
+## 3.9c ⭐⭐⭐ **CAN IG'S RENDERING MERGE INTO ONE? — YES, and it is FAR closer than it looks** *(measured `2026-08-28`)*
+
+> 🔒 **User:** *"after the unification the IG styling etc should become the shared feature and we just
+> parametrize it, do i understand it correctly? IG should not keep using different map rendering as this
+> would not be unified. can the IG way of rendering be merged into one unified, how different is it from
+> the other subsystems?"*
+
+⭐⭐⭐ **Answer: the understanding is correct, and the premise is kinder than reality — ⛔ IG is NOT using a
+different rendering.** 📐 **All three hosts already call the SAME shared helpers**
+*(`EntityPresentationGizmoShared`)*. What differ are **three INPUTS** and **two DEFECTS**.
+
+### 📐 THE THREE ENTITY GIZMOS, LINE BY LINE
+
+| step | `SimHostEntityPresentationGizmo` *(38 ln)* | `CgfEntityPresentationGizmo` *(52 ln)* | `IgEntityPresentationGizmo` *(54 ln)* |
+|---|---|---|---|
+| `[GizmoProjector]` requires | `SimTransform`, `NetworkIdentity` | same | ⭐ **+ `CullingState`** |
+| visibility gate | — | — | ⭐ `if (!cull.IsVisible) return;` |
+| transform source | `SimTransform` | ⭐ **`NetworkTransform` preferred → `SimTransform`** *(it is the brain, reading replicated state)* | `SimTransform` |
+| spatial anchor | ✅ shared helper | ✅ shared helper | ✅ shared helper |
+| **pick box** | ✅ `EmitPickBox` | 🔴 **MISSING** | ✅ `EmitPickBox` |
+| dimensions + profile id | ✅ shared helper | ✅ shared helper | ✅ shared helper |
+| condition mask | `0u` | `0u` | ⭐ **computed from `IgHealthState`** *(`≥50` Damaged, `≥90` Immobile)* |
+| semantic shape | ✅ shared helper *(forces opaque cyan)* | 🔴 **raw `draw.DrawSemanticShape` → `Color (0,0,0,0)`** | ✅ shared helper |
+
+### ⭐⭐ THE REAL DIFFERENCES ARE **THREE PARAMETERS**, not three renderers
+
+| # | IG has | the others lack | ⭐ what it becomes when unified |
+|---|---|---|---|
+| **①** | a **visibility gate** *(`CullingState`, produced by the IG-private `MapCullingModule`)* | no gate — they draw everything | 🔒 **`IGizmoVisibilityPolicy` — THE SEAM ALREADY EXISTS** *(`Fdp.Toolkits/Diagnostics/Gizmos/IGizmoVisibilityPolicy.cs`)*, with `IsGloballyEnabled(view)` + `IsEntityVisible(view, entity)`. ⚠⚠ **Its only two implementations are `AlwaysVisiblePolicy` and `NeverVisiblePolicy`** ⇒ 📌 **the seam law again: IG's culling is a policy that was written as a hard-coded `if` instead of the policy the framework already offers** |
+| **②** | a **condition-mask source** *(`IgHealthState` → Damaged/Immobile)* | pass `0u` | ⭐ a **condition provider** parameter — ⛔ not a fork. 📌 The thresholds *(50 / 90)* are pure configuration |
+| **③** | — | 🔴 **CGF** prefers `NetworkTransform` | ⛔⛔ **NOT a parameter — DEAD WEIGHT, and sometimes HARMFUL.** ⚠⚠ **This row previously called it *"a legitimate ROLE difference … the clearest case for parameterising"* — that was written from the comment, not from measurement, and it is REFUTED below.** ⇒ ⭐⭐⭐ **the unified line reads `SimTransform` on every host: `|shared|shared|shared|`, with NO parameter** |
+
+#### 🔴🔴 ③ MEASURED — **`NetworkTransform` is NEVER the better source** *(`2026-08-28`)*
+
+🔒 The in-repo justification is `CgfSubsystem.cs:2608`: *"NetworkTransform preferred over SimTransform,
+which is the fresher position on a host that does not own the entity."* ⛔ **Measured false.**
+
+📐 **`GeoSpatialIngressTranslator` writes BOTH, in the same call, from the same packet** *(`:75` and `:89`)*,
+and gates the second on authority *(`:85` `bool isLocallyOwned = repo.HasAuthority<SimTransform>(entity);`)*:
+
+| | `SimTransform` | `NetworkTransform` |
+|---|---|---|
+| **on a NON-owner** *(what CGF usually is)* | ⭐ written by the ingress translator, **same tick, same values** | ⭐ written by the ingress translator | ⇒ ⭐⭐ **IDENTICAL. The preference buys NOTHING** |
+| **on an OWNER** *(CGF whenever it edits/drags)* | ⭐ **live** — physics and drag write here | 🔴 **the LAST-PUBLISHED SHADOW**, updated only when SmartEgress's threshold or heartbeat fires ⇒ **stale by design** | ⇒ 🔴 **strictly WORSE** |
+
+⇒ ⭐⭐⭐ **`SimTransform` is the correct single source everywhere**, because the authority-aware rule the
+"role difference" was reaching for **is ALREADY IMPLEMENTED — inside the ingress translator**, not in the
+renderer. 📌 **The renderer does not need to know about ownership at all.**
+
+⚠⚠ **And the harmful case is CGF's own job.** 🔒 The guard's comment names it: the guard exists so loopback
+does not write back *"undoing any position changes made by physics or **drag operations**."* ⇒ 🔴 **when CGF
+owns an entity and the user DRAGS it, `SimTransform` moves and `NetworkTransform` holds the last broadcast**
+— so CGF's gizmo would draw the avatar at the pre-drag position until the next publish.
+🔒 **VERIFY BY DRAGGING before calling it a live bug** — `CgfEntityPresentationGizmo:30` only takes the
+network value `if (nt.LastRotation != default)`, so an entity never yet published still falls back correctly.
+
+⇒ ⭐⭐⭐ **One `EntityPresentationGizmo` + three injected collaborators replaces three classes.** 🔒 **`R-137`
+governs the merge:** ⛔ do NOT unify by dropping IG's culling or its damage states — ⭐ **those are the
+capability, and the other hosts should GAIN the ability to have them**, defaulted off by configuration.
+
+### 🔴 AND THE COPY-DIVERGENCE ALREADY COST TWO DEFECTS — `CE-126`
+
+⭐⭐ **This is the argument for merging, made by the code itself.** 📐 `DebugPrimitiveBuffer.DrawSemanticShape`
+starts from `default(DebugPrimitive)` and **never sets `Color`** ⇒ `(0,0,0,0)`, fully transparent. 📌 The
+shared helper exists **precisely** to fix that — its own comment says *"leaves Color at (0,0,0,0) — fully
+transparent, so the avatar would draw invisibly. Set an explicit opaque color."*
+⇒ 🔴 **CGF calls the raw builder, so CGF's entity avatars are emitted TRANSPARENT**, and **CGF alone omits
+`EmitPickBox`**. ⚠ Three near-identical copies, and the one that drifted is **silently wrong in two ways.**
+
+## 3.9d ⭐⭐⭐ **"ALL LINES SHARED" — the end state, stated properly** *(user correction, `2026-08-28`)*
+
+> 🔒 **User:** *"not just that line. unification means all lines become 'shared', or what am I still missing?"*
+
+⛔⛔ **Nothing missing — §3.9c's TABLE was the defect.** ⚠ It printed **three columns**, which makes per-host
+difference look like something that SURVIVES the merge. ⭐⭐⭐ **It does not: after `S2` the table has ONE
+column, because there is ONE class with ONE code path.**
+
+### ⭐ Where the differences actually go — **out of the CODE and into INJECTED INSTANCES**
+
+| the line | after unification | what still differs |
+|---|---|---|
+| projector required components | ⭐ **shared** — the MINIMUM: `SimTransform` + `NetworkIdentity` | ⛔ nothing |
+| visibility gate | ⭐ **shared** — one line: `if (!policy.IsEntityVisible(view, entity)) return;` | ⭐ **which POLICY INSTANCE is injected** *(data)* |
+| transform source | ⭐ **shared** — `SimTransform`, full stop *(§3.9c ③)* | ⛔ nothing |
+| spatial anchor · pick box · dimensions · profile id · semantic shape | ⭐ **shared** — the helpers, uniformly | ⛔ nothing |
+| condition mask | ⭐ **shared** — one line: `uint mask = conditions.Compute(view, entity);` | ⭐ **whether a PROVIDER is supplied** *(data)* |
+
+⇒ ⭐⭐⭐ **Every LINE is shared. What varies is two INJECTED OBJECTS, and each host's choice of them is
+CONFIGURATION** — `R-137`'s *"unify the code, parameterise the behaviour"*, read literally.
+⭐⭐ **And the capability becomes available to ALL hosts**: ⛔ this is not *"IG keeps its two extras"* — it is
+*"any host may have culling and damage states, and today only IG configures them."*
+
+### ⛔⛔ THE ONE MECHANICAL TRAP — **the attribute must declare the MINIMUM, never the optional inputs**
+
+🔴 `IgEntityPresentationGizmo` today declares `[GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity), typeof(CullingState))]`.
+⚠⚠ **If the merged class kept `CullingState` in that list, the query would MATCH NOTHING on SimHost and CGF**
+— which produce no `CullingState` — and **every entity would silently vanish from their maps.**
+📌 **That is precisely the failure class this whole programme has been paying for** *(a query that does not
+match draws nothing, with no error)*.
+⇒ 🔒 **Rule: the `[GizmoProjector]` attribute lists only what the projector CANNOT RUN WITHOUT. Every
+optional capability is checked INSIDE the injected collaborator** *(`policy.IsEntityVisible` does its own
+`HasComponent<CullingState>`)*, never in the query.
+
+### 📐 THE RESIDUE, ENUMERATED — **6 host-private projectors; 18 already shared**
+
+⭐ *"All shared"* is **countable**, so it gets a gate rather than prose. 📐 Measured `2026-08-28`, every
+`[GizmoProjector]` class by owning assembly:
+
+| assembly | count | verdict |
+|---|---|---|
+| `Hrot.Common/Diagnostics/Gizmos` | **8** | ✅ shared |
+| `Hrot.Presentation/ScenarioEditor/Gizmos` | **7** | ✅ shared |
+| `Fdp.Toolkits/Diagnostics/Gizmos` | **2** | ✅ shared |
+| `Hrot.Presentation/Gizmos` | **1** | ✅ shared |
+| 🔴 **`Hrot.IG/Gizmos`** | **3** | ⛔ `EffectPresentationGizmo` · `EqsSensorGizmo` · `ProjectilePresentationGizmo` — ⚠ **these are CONTENT gizmos, not "IG's way of rendering"**: any host holding those components should draw them *(SimHost SIMULATES projectiles and cannot draw them today)* |
+| 🔴 **`Hrot.SimHost/Gizmos`** | **1** | ⛔ `SimHostEntityPresentationGizmo` → merges |
+| 🔴 **`Hrot.CGF/Gizmos`** | **1** | ⛔ `CgfEntityPresentationGizmo` → merges |
+| 🔴 **`Hrot.ReplayBrowser`** | **1** | ⛔ inline in the subsystem file |
+| ⚠ `Hrot.AI.Behaviors/Gizmos` | 1 | ⭐ **`HillAttackGizmo` — a DIFFERENT category, and legitimately not a host**: it belongs to a BEHAVIOUR/content pack. ⛔ Do not count it as host-private drift |
+
+⇒ ⭐⭐ **Target: `[GizmoProjector]` classes under `Hrot/Subsystems/<host>/` reach ZERO**, behaviour/content
+packs excepted. ⭐ That is a one-line grep, and it is the acceptance criterion for *"all lines shared"*.
+
+## 3.9e 🔴🔴🔴 **THE EDITING GIZMOS — how handles work, and what unification can break** *(measured `2026-08-28`)*
+
+> 🔒 **User:** *"when I select an entity it may (or may not, depending on which host) show some editing
+> gizmo (like handle points for moving vertices). How is this interconnected with gizmos? How can this break
+> if we unify the map rendering? Can we safely unify without breaking this?"*
+
+### ⭐ THE MECHANISM — **there are TWO gizmo kinds, and they share ONE buffer, ONE group, ONE gate**
+
+| kind | registry | system | what it draws | stateful? |
+|---|---|---|---|---|
+| **projectors** | `StatelessGizmoRegistry` *(`[GizmoProjector]`)* | `StatelessGizmoSystem` | the symbol, anchor, pick box — ⭐ **"the map"** | ⛔ no — pure function of components |
+| ⭐⭐ **entity-bound gizmos** | `GizmoRegistry` *(`IGizmoDefinition`)* | `DataDrivenGizmoSystem` | 🔒 **the DRAG HANDLES, the rotator, the vertex points** | ⭐ **yes — `CreateInstance` per entity, `IEntityStatefulGizmo.UpdateAndDraw`** |
+| **global tools** | — | `GlobalGizmoManager` | measure tool, canvas menu | yes |
+
+⇒ ⭐⭐⭐ **All three write into the SAME `DebugPrimitiveBuffer` and sit in the SAME
+`TogglablePostSimulationGroup`, behind the SAME `GizmoExecutionController`.** ⛔ **So "map rendering" and
+"editing handles" are NOT separate pipelines** — ⚠ **anything `S2` does to the group, the buffer or the gate
+touches the handles too.** 📌 That is the interconnection, and it is the reason this question matters.
+
+### 🔴 WHY IT DIFFERS PER HOST — **ONE constructor argument, measured**
+
+`DataDrivenGizmoSystem` takes `Func<ISimulationView, Entity, bool>? isSelectedPredicate`, and
+**`DataDrivenGizmoSystem.cs:308`** reads:
+
+```csharp
+bool alwaysDraw = _isSelectedPredicate == null;      // ⚠ null means ALWAYS, not never
+…
+bool selected = alwaysDraw || _isSelectedPredicate!(view, entity);
+```
+
+| host | predicate | ⇒ behaviour |
+|---|---|---|
+| **IG** *(`IgApplication.cs:805`)* | `null` — 🔒 its comment: *"IG is dumb terminal — draw all active gizmos"* | ⭐ **always draws handles** |
+| **CGF** *(`CgfSubsystem.cs:931`)* | `null` | ⭐ always draws handles |
+| **SimHost** *(`:369`)* · **Editor** *(`:1631`)* · **ReplayBrowser** *(`:189`)* | `SelectionState.IsSelected` | ⭐ **handles only on the SELECTED entity** |
+
+⚠⚠ **CORRECTED `2026-08-30` — this row used to also list SimHost `:440`.** ⛔ **That is NOT a handle site:
+`:440` is `StatelessGizmoSystem` — the MAP.** 📌 The table lumped the two systems under one label and so
+**printed a defect as if it were the design**; the three sites above are the genuine handle sites.
+🔴 **`:440` is the remaining root cause of `CE-123` — see §3.9j.1.**
+
+⇒ 🔒 **That is exactly the *"may or may not, depending on which host"* the user observed** — ⭐ and IG's
+`null` is **correct for its role**: a dumb terminal holds no local selection, so gating on selection there
+would show **nothing, ever**.
+
+### ⛔⛔ CAN UNIFICATION BREAK IT? — **YES, in FOUR distinct ways. Each is avoidable, and each is silent.**
+
+| # | 🔴 the break | why it is silent | ⭐ the guard |
+|---|---|---|---|
+| **①** | ⭐⭐⭐ **Collapsing `isSelectedPredicate` to one value.** ⛔ Pick *selection-gated* ⇒ **IG shows NO handles at all** *(no local selection)*. ⛔ Pick *always-draw* ⇒ **the editor shows drag handles on EVERY entity at once** — unusable | nothing errors; the handles are simply absent or everywhere | 🔒 **`R-137`: it stays a parameter.** ⭐ The seam **already exists** as a ctor argument — ⛔ `S2` must not "simplify" it away |
+| **②** | ⭐⭐ **`IGizmoDefinition.RequiredComponents` listing an OPTIONAL input** | 📌 **identical to acceptance `23.23`** — a rule whose mask does not match simply never activates | ⭐ declare the MINIMUM; check optional capability inside the gizmo or its `VisibilityPolicy` |
+| **③** | 🔴🔴 **RENAMING OR MERGING A GIZMO CLASS CHANGES ITS WIRE ROUTING KEY.** 📐 `GizmoTypeId` is the **FNV-1a hash of the implementing type's FULL NAME** *(`DebugPrimitive.cs:140`, `[FieldOffset(60)]`)*, stamped into the primitive, sent over DDS as `GizmoInteractionBatch.PickGizmoTypeId` *("composite routing key … 0 = legacy")*, and echoed back by the terminal as the discriminator for **which gizmo on that entity was grabbed** | ⚠⚠ **the handle still DRAWS; dragging just does nothing** — the interaction routes to a key nobody claims. ⛔ And it only breaks **across nodes / across builds** | 🔒 **Before renaming or merging any `IGizmoDefinition`, treat `GizmoTypeId` as a WIRE CONTRACT.** ⭐ Either keep the type name, or make `GizmoTypeId` an explicit constant instead of a name hash *(the interface already requires it to be given explicitly — ⭐ so pinning it is a one-line change per class)* |
+| **④** | ⚠ **In-progress interaction across a perspective switch.** `GizmoExecutionController.RemoveListener` calls `CancelInteractiveTools()` on **both** `GlobalGizmoManager` and `DataDrivenGizmoSystem` when the last listener leaves | a half-finished drag would otherwise stay "grabbed" | ⭐ if `S2` recomposes the group or the gate, **keep both cancel calls on the teardown path** and rail it |
+
+### ✅ SO: **CAN WE UNIFY SAFELY? — YES**, and the reason is structural, not optimistic
+
+⭐⭐⭐ **The parameterisation this needs ALREADY EXISTS in the contract:** `IGizmoDefinition` carries
+**`IGizmoVisibilityPolicy VisibilityPolicy`** *(per definition!)*, `RequiredComponents`, and an explicit
+`GizmoTypeId`; `DataDrivenGizmoSystem` carries the selection predicate. ⇒ ⛔ **`S2` does not need to invent a
+configuration mechanism for the editing gizmos — it needs to STOP each host from hard-coding one.**
+📌 **The seam law, for the fourth time in this design.**
+
+⚠⚠ **The one thing that is NOT safe is a *rename-and-merge* of `IGizmoDefinition` classes done casually** —
+🔴 risk ③ is a **cross-node wire break that unit tests cannot see**, because both sides of a single-process
+test compute the same hash from the same name. ⇒ ⭐ **pin `GizmoTypeId` explicitly BEFORE any such merge**,
+and rail the constant.
+
+## 3.9f ⭐⭐⭐ **WHO HANDLES THE INTERACTIONS — the tool path, measured** *(`2026-08-28`)*
+
+> 🔒 **User:** *"Who handles that interactions? I guess there is some tool stack or something, I just
+> can't remember the relation to gizmo (and risks from unification)."*
+
+⚠⚠ **CORRECTED `2026-08-28` — an earlier version of this line said *"there is no tool STACK"*. That was
+WRONG as history and misleading as design.** 🔒 **There WAS one, it was REMOVED, and its nesting capability
+was NOT carried over — see §3.9g.** ⭐ What exists TODAY is a single-FOCUS model plus a shared DISPATCHER;
+the dispatcher is already the shape `S3` was going to invent.
+
+### ⭐ THE CHAIN, end to end
+
+```
+toolbar / context menu
+   └─ publishes  ActivateEditorToolEvent(EditorTool.X)      on the WORLD bus
+        └─ ToolActivationDrainSystem        ⭐ SHARED — Hrot.Presentation/ScenarioEditor/Systems/
+             ├─ Select   → no-op (selection is via ECS gizmos)
+             ├─ Spawn    → startPlacementMode()      | ⛔ null ⇒ REPORTED unserviceable
+             ├─ Edit     → ToggleEntityGizmo<EditablePolyline> → VertexEditGizmo    🔒 THE VERTEX HANDLES
+             ├─ Route    → ToggleEntityGizmo<RoutePlan>        → RouteWaypointGizmo
+             ├─ Measure  → GlobalGizmoManager.Register(MeasureGizmo) | ⛔ null ⇒ REPORTED
+             └─ Rotate   → injects EntityRotatorGizmo into DataDrivenGizmoSystem
+```
+
+⚠ **`Rotate` takes a DIFFERENT route from `Edit`/`Route`** — direct injection rather than the toggle helper.
+⭐ One enum, two dispatch shapes; worth collapsing, ⛔ but not a defect today.
+
+### ⭐⭐ WHY A TOOL *"may or may not"* APPEAR — **THREE independent gates**, all silent when they close
+
+| # | gate | 📐 measured |
+|---|---|---|
+| **①** | **the host composed the collaborator** | `ToolActivationDrainSystem` takes `Func<>` resolvers — `selection`, `gizmos`, `globalGizmos`, `startPlacementMode`, `reportUnserviceable`. ⭐⭐ **A null one is REPORTED BY TOOL NAME AND REASON, never dropped** *(🔒 its own doc: "nothing happened is indistinguishable from not implemented to the operator holding the mouse")*. 📌 CGF composes no spawn adapter ⇒ *Spawn* says so |
+| **②** | **the selected entity carries the tool's component** | `ToggleEntityGizmo<TComponent>` — ⭐ *Edit* needs `EditablePolyline`, *Route* needs `RoutePlan`. ⇒ ⭐⭐ **this is the real answer to *"it may or may not show handles"*: it is per-ENTITY, not per-host** |
+| **③** | **the entity is drawn at all** | the `isSelectedPredicate` of §3.9e — IG/CGF `null` *(always)*, the rest selection-gated |
+
+⭐ **`ToggleEntityGizmo` also owns the TOGGLE semantics** — pressing a tool twice deactivates rather than
+stacking a second gizmo on the same entity. 🔒 Its doc: *"the editor had this; CGF's context-menu parallels
+did not have the concept at all."*
+
+### ⭐ THE HOSTING MODEL — **single focus, not a stack**
+
+`GlobalGizmoManager` holds `_activeGizmos` *(keyed by id)* + **one `_focusedGizmo`**. Each gizmo declares
+`RequiresExclusiveFocus` and `WantsRawInput`. ⭐⭐ **`CancelInteractiveTools()` destroys only the ON-DEMAND
+ones** — a gizmo that is neither exclusive-focus nor raw-input *(e.g. `LayerControlGizmo`)* is **PERMANENT and
+survives**. ⇒ ⭐ entity-scoped gizmos live in `DataDrivenGizmoSystem`; screen-space tools live in
+`GlobalGizmoManager`; ⛔ **the two are separate hosts with different lifetimes.**
+
+### ⛔⛔ RISKS FROM UNIFICATION — **three MORE, on top of §3.9e's four**
+
+| # | 🔴 the break | ⭐ the guard |
+|---|---|---|
+| **⑤** | ⚠⚠ **The FOCUS SLOT is single.** A merged or newly-shared gizmo that declares `RequiresExclusiveFocus` **steals focus from an in-progress tool** — 📌 e.g. a drag handle stealing the measure tool's focus mid-measure | ⭐ treat `RequiresExclusiveFocus`/`WantsRawInput` as part of each gizmo's contract; ⛔ do not let a merge change either flag silently |
+| **⑥** | 🔴 **The PERMANENT/ON-DEMAND classification is DERIVED FROM THOSE TWO FLAGS, not declared.** ⇒ flipping a flag during a merge either **destroys a permanent gizmo on every perspective switch** *(the layer control vanishes)* or **leaves a tool stuck grabbed** | ⭐ rail the classification per gizmo type, not the flags in isolation |
+| **⑦** | ⭐ **The `Func<>` resolvers must stay per-host** — same rule as `isSelectedPredicate`. ⚠ They are resolved **per Execute, not captured** *(the editor creates selection/camera AFTER `kernel.Initialize()` and nulls them on teardown)* ⇒ ⛔ a merge that "optimises" them into captured fields makes them **permanently null** | 🔒 keep the `Func<>` indirection; the doc already warns why |
+
+### ✅✅ THE BIG FINDING — **`S3` DOES NOT NEED INVENTING**
+
+⭐⭐⭐ **`ToolActivationDrainSystem` ALREADY IMPLEMENTS §3.2a's *"DECLARE and REPORT UNSERVICEABLE, never
+silently no-op"*** — per tool, with the name and the reason, defaulting to the FDP log and rail-injectable.
+⇒ ⛔ **`S3` must COPY this pattern for the map, not design a new one** — 📌 **the seam law, fifth instance in
+this design.** ⭐ And it is the counter-example that proves the rule is practical: the one surface that
+already reports unserviceable is the one nobody has complained about.
+
+## 3.9g 🔴🔴🔴 **THE TOOL STACK EXISTED AND WAS REMOVED — the nesting capability is GONE** *(user, `2026-08-28`)*
+
+> 🔒 **User:** *"wait. how comes there is no interaction tool stack. I remember one… it is common part of
+> visual editors that when one tool is running, we can switch temporarily into another tool."*
+
+⭐⭐⭐ **The memory is correct and my §3.9f answer was wrong.** ⚠ I searched only the gizmo systems and
+`Hrot/Engine` for five terms; ⛔ **the stack lived in `MapCanvas`, which neither scope covered.**
+📌 **The same narrow-scope error as the `head_limit` truncation and the `/gizmo/frame` 404** — a negative
+claim from a search that could not have found the thing.
+
+### 📐 WHAT EXISTED — `MapCanvas.PushTool` / `PopTool` / `ActiveTool`, over `IMapTool`
+
+📌 Documented across `.dev/_DONE/edit-1/` *(`BATCH-05-INSTRUCTIONS.md:61,67` names all three members and
+the file)*, with concrete tools: `CreationTool` · `RouteEditTool` · `EntityPickerTool`, and the classic
+idiom throughout the design talk:
+
+```csharp
+_canvas.PushTool(tool);                                   // temporarily switch
+…
+if (_canvas.ActiveTool == tool) _canvas.PopTool();        // and come back
+```
+
+⇒ ⭐⭐ **That is exactly the *"run a tool inside a tool and return"* the user remembers.**
+
+### ⛔ WHAT REPLACED IT — a SINGLE focus slot, **first-come-wins, silently**
+
+📐 `GlobalGizmoManager.Register` *(`:66`)*:
+
+```csharp
+_activeGizmos[id] = gizmo;
+if ((gizmo.RequiresExclusiveFocus || gizmo.WantsRawInput) && _focusedGizmo == null)
+{ _focusedGizmo = gizmo; gizmo.SetFocus(true); }          // ⛔ else: registered, NEVER focused
+```
+
+| | the STACK *(before)* | the FOCUS SLOT *(now)* |
+|---|---|---|
+| second tool starts while one runs | ⭐ **pushed on top; the first resumes on pop** | 🔴 **registered but NEVER given focus** — active and inert |
+| returning | ⭐ `PopTool()` | ⚠ an **exit callback** *(`GizmoInteractionProxyTool._onExit`)* — flat, one level, no resume |
+| denial | — | 🔴🔴 **SILENT.** `Register` does not report that focus was refused |
+
+⇒ 🔴🔴🔴 **The nesting capability was LOST in the Phase-5 gizmo migration** *(`ToolActivationDrainSystem`'s
+own `Select` arm records it: `"(Phase 5: _interactionTool removed; selection via ECS gizmos)"`)*.
+
+### ⚠ TWO LIVE COMMENTS STILL POINT AT THE DEAD API
+
+| file | says |
+|---|---|
+| `GizmoMap.Presentation/Gizmos/GizmoInteractionProxyTool.cs:16` | *"Uses an optional exit callback instead of `MapCanvas.PopTool()`"* — ⭐ accurate about the REPLACEMENT, and it is the only place the loss is written down |
+| `Hrot.Editor/Adapters/EditorMapPickAdapter.cs:26` | 🔴 *"The registered cancellation handler calls `MapCanvas.PopTool` …"* — ⛔ **stale: that API no longer exists.** 📐 The adapter was migrated to `GlobalGizmoManager.Register(id, gizmo)` *(`:73`, `:109`)* and only keeps `MapCanvas` for `PickTopmostEntity` |
+
+### ⛔⛔ OWNERSHIP — **this is `UXI-07`, not a `UXI-23` finding** *(corrected `2026-08-28`)*
+
+🔴 **Everything above was ALREADY KNOWN and DESIGNED as
+[`UX_Feature_Tool_Model.md`](UX_Feature_Tool_Model.md) (`UXI-07`), filed `2026-08-10`** — from the same user
+question, in the same words. ⭐ That doc is `state: LIVE, build-state: NOT-BUILT` and specifies the fix
+*(`ActiveModal` · `ModalStack` · `PushModal` "SUSPENDS the top; dispose pops & resumes" · `Cancel` "pops ONE
+level")*. ⚠ **It is also more complete than this section was**: four fossils rather than two, and the split
+that matters — ⭐ **the caller's control flow DOES resume** *(`TaskCompletionSource` + `ct.Register`)* **while
+the previous TOOL does not** ⇒ *"jump away and back"* is **half**-implemented, not absent.
+⛔ **Read `UXI-07` for this; do not treat it as `UXI-23` scope.** ⭐ `UXI-23`'s only stake is that `S2`/`S5`
+must not deepen the loss — see below.
+
+### ✅ INTENTIONAL OR ACCIDENT? — **answered `2026-08-28`, and it is BOTH, split cleanly**
+
+| what | design record | verdict |
+|---|---|---|
+| **single EXCLUSIVE focus (backend)** | `gizmo-input-focus-design.md` §6.2 — *"we prevent that situation entirely on the backend"*, one `ActiveInstance` | ✅ **INTENTIONAL** |
+| ⭐⭐ **the frontend TOOL STACK** | §14 — *"**The frontend keeps its tool stack for routing**, stripped of business logic … the proxy tool **pops itself**"* | 🔴 **the replacement design EXPECTED IT TO SURVIVE** |
+
+⇒ 🔒 **No decision to drop the stack is recorded anywhere in this repo** — and `UXI-07` measured why: 
+*"`PopTool` appears only in comments even at the squashed import commit (`e999566`), so the implementation
+lived in an ancestor repo."* ⇒ ⛔ **it was never deleted in THIS repo's history.**
+⚠ **Stated fairly:** the focus design is marked *"Design proposal"* ⇒ this is *"no record exists and the
+nearest intent says keep it"*, ⛔ **not** *"someone decided to remove it."*
+
+### 🔒 WHY THIS MATTERS TO `S2`/`S5` — **`R-137`, retroactively**
+
+⭐⭐⭐ **This is the ruling's own case study, and it already happened**: a migration that unified the mechanism
+**silently dropped a capability**, and nothing recorded it as a decision. ⇒ ⭐ `S2`/`S5` must **decide
+deliberately** whether the merged interaction model restores nesting, and **write the decision down** —
+⛔ not inherit the loss by default because that is what the code does today *(`R-129`)*.
+
+⚠⚠ **Before designing a restore, MEASURE whether it is reachable today**: the modal pickers
+*(`EditorMapPickAdapter`, entity/point picking for mission targets)* are exactly a *"switch tool, then
+return"* case. 🔒 **Whether a user can actually start one while a focus-holding tool runs depends on the UI
+paths, not on the manager** — ⛔ so verify by trying it, do not assume a live bug from the mechanism alone.
+⭐ **The mechanism-level fact is certain; the user-reachability is not.**
+
+## 3.9h ⭐⭐⭐ **COORDINATING `UXI-23` WITH `UXI-07` — and the layering that "does not make sense"** *(user, `2026-08-28`)*
+
+> 🔒 **User:** *"how is the interaction control connected with the gizmos/map, and how to coordinate their
+> unification? is touching gizmos first safe? does it live in the same layer? I can't understand how the
+> tool stack can live in frontend while the logic is in the backend."*
+
+### ⭐⭐⭐ THE LAYERING — **the objection is RIGHT: the word *"stack"* names TWO DIFFERENT THINGS**
+
+⛔ **That is why it does not make sense — it genuinely does not, as one thing.** 📐 Two documents use the
+word for two different mechanisms at two different layers:
+
+| | **frontend / terminal stack** | **backend / app stack** |
+|---|---|---|
+| **what it holds** | ⭐ *which input handler currently receives the mouse and keys* — pan/zoom/box-select, or a `GizmoInteractionProxyTool` capturing for the backend | ⭐⭐ *which editing OPERATION is active and which is SUSPENDED* |
+| **the doc** | `gizmo-input-focus-design.md` §14 — 🔒 *"keeps its tool stack **for routing**, but **stripped of business logic** … **No semantic decisions in the stack**"* | `UX_Feature_Tool_Model.md` *(`UXI-07`)* — `IToolController` with `ActiveModal` · `ModalStack` · `PushModal` *("SUSPENDS the top; dispose pops & resumes")* |
+| **status** | ⚠ *"Design proposal"*, older | ✅ **LIVE, user-ruled (Q27, `2026-08-10`), `NOT-BUILT`** |
+
+⇒ ⭐⭐⭐ **The USER'S INSTINCT IS THE NEWER RULING: the semantic stack belongs WITH THE LOGIC, in the
+backend.** 🔒 `UXI-07` puts it there. ⛔ The frontend "stack" in the older doc is **only an input-routing
+device** — it never held tool semantics, and calling it a *tool* stack is what makes the two irreconcilable
+in one sentence. ⇒ ⭐ **Read them as: input ROUTING at the terminal · tool MODALITY at the backend.**
+
+### ⭐⭐ HOW INTERACTION CONNECTS TO THE MAP — **`gizmo ≠ tool`, and the taxonomy is ALREADY RULED**
+
+🔒 **User, `2026-08-10` (Q27):** *"a gizmo is not equal to a tool: some gizmos are stateless, showing status
+per entity (health bar); many such can be active per entity."* ⇒ ⭐ already encoded in the interfaces:
+
+| category | encoding | ⭐ whose scope |
+|---|---|---|
+| **not a tool** — status draw | `IStatelessGizmo` | 🔒 **`UXI-23` `S2`** — the map projectors |
+| **modeless tool** | `IEntityStatefulGizmo`, `RequiresExclusiveFocus => false` | ⚠ `UXI-07` |
+| **modal tool** | `IEntityStatefulGizmo`, `RequiresExclusiveFocus => true` | ⚠ `UXI-07` |
+
+⇒ ⭐⭐⭐ **The seam between the two programmes is the INTERFACE, and it already exists.** 📌 `UXI-07`'s own
+words: *"The taxonomy exists; the enforcement does not"* — each engine consults `RequiresExclusiveFocus`
+only within itself *(its **two-arbiter** defect `A1`)*.
+
+### ✅✅ IS TOUCHING GIZMOS FIRST SAFE? — **YES for `S2`. NO for the `GizmoTypeId` pin and `S5`.**
+
+| `UXI-23` work | touches | overlaps `UXI-07`? |
+|---|---|---|
+| ⭐⭐ **`S2` — merge the three entity projectors** | `IStatelessGizmo` · `StatelessGizmoRegistry` · `StatelessGizmoSystem` | ✅ **NO — disjoint.** `UXI-07` touches only the two TOOL rows. 🔒 **Do `S2` first, independently** |
+| ⭐ `S3` declare+report | copies `ToolActivationDrainSystem`'s pattern | ✅ no code overlap — ⭐ borrows a pattern, changes nothing of it |
+| ⭐ `S4` configuration | `IGizmoVisibilityPolicy`, settings | ⚠ light — the policy seam is shared, ⛔ but `UXI-07` does not change it |
+| 🔴 **pin `GizmoTypeId`** *(§3.9e ③)* | **`IGizmoDefinition` classes = the TOOL path** | 🔴 **YES.** ⇒ ⭐ still do it FIRST *(it is a one-line constant per class and protects both programmes)*, ⛔ but **tell `UXI-07`** — its migration renames/reroutes these |
+| 🔴 **`S5` — the action half** | `GlobalActionRegistry`, the action→tool path | 🔴🔴 **YES, directly.** 📌 `UXI-07` migration **step 3** routes `GlobalActionIds.Rotate/EditOverlay/EditRoute` through `Activate()` and *"deletes the duplicated toggle logic"*; **step 4** converts the three bypassing adapters and *"completes `A1`"* ⇒ ⛔ **`S5` MUST NOT re-implement that.** ⭐ Sequence `S5` **after** `UXI-07` steps 3–4, or fold it in |
+
+### 🔒 THE COORDINATION RULE
+
+⭐⭐ **`UXI-23` owns the STATELESS half of the gizmo stack; `UXI-07` owns the TOOL half.** ⛔ Neither may
+change the other's interface without saying so. ⇒ ⭐ **`S2` proceeds now, alone.** ⚠ The moment work reaches
+`IGizmoDefinition` — the `GizmoTypeId` pin, or `S5` — it is **joint**, and `UXI-07`'s migration table is the
+schedule, not this design's.
+
+## 3.9i ⭐⭐⭐ **HOW IT ACTUALLY WORKS — the two halves, and what `UXI-23` unifies** *(measured `2026-08-28`)*
+
+> 🔒 **User:** *"are gizmos still a 'dumb terminal'? I guess there are two parts — the backend control
+> part and the frontend dumb part (drawing, user input). What are we unifying as part of map/gizmos?"*
+
+⭐⭐ **The two-part model is exactly right.** ⭐ And the answer to *"what are we unifying"* is short:
+🔒 **ONLY THE BACKEND HALF. The frontend was never fragmented.**
+
+### 📐 THE STACK, measured end to end
+
+```
+Raylib hardware input
+  │
+  ├─ GizmoMap.Presentation.DebugGizmoLayer          ⭐ THE TERMINAL  (454 ln, ExtDeps)
+  │    · hit-tests primitives, holds ONE _activeTool proxy
+  │    · reads InputCaptureBinding (:124) → exclusive capture
+  │    · ⚠ still names Left / Escape itself
+  │
+  └─ Fdp.Presentation.Vis2D.Layers.DebugGizmoLayer  ⭐ THE ADAPTER   (256 ln)
+       · 📐 ZERO Raylib input calls; HandleInput/HandleKeyInput return FALSE, PickEntity returns NULL
+       · delegates to _innerTerminal (:83), translates Commit/Cancel → FdpEventBus events
+       │
+       └─ FdpEventBus → ingress → 🔒 THE BACKEND (per host, ECS)
+            · GlobalGizmoManager        — screen-space tools, single focus, EMITS InputCaptureBinding (:138)
+            · DataDrivenGizmoSystem     — entity gizmos, EMITS InputCaptureBinding (:334, :373)
+            · StatelessGizmoSystem      — the map projectors
+```
+
+⭐⭐ **All five hosts construct the ADAPTER** *(`Fdp.Toolkit.Vis2D.Layers`)* — IG, SimHost, Editor, CGF,
+ReplayBrowser. ⇒ 🔒 **there is exactly ONE terminal, shared.** ⛔ **The frontend is NOT what differs per host.**
+
+### ✅ IS IT STILL A "DUMB TERMINAL"? — **the design WAS ported; "dumb" is 90% true, not 100%**
+
+⚠⚠ **CORRECTION of my own first reading:** I initially found `InputCaptureBinding` only under
+`GizmoMap.Example` and was about to report *"the focus design was never ported."* 🔴 **FALSE** — my grep
+excluded `Tests` and searched two directories. 📐 **Re-measured repo-wide, it is fully wired in production:**
+
+| | |
+|---|---|
+| **emitted** | `GlobalGizmoManager:138` · `DataDrivenGizmoSystem:334,373` — ⭐ *"emit `InputCaptureBinding` for the exclusive-focus holder"* |
+| **consumed** | `GizmoMap.Presentation.DebugGizmoLayer:124` |
+| **railed** | `DebugGizmoLayerCaptureTests` · `GlobalGizmoManagerTests` |
+
+⭐ Only the example's **class name** `GizmoInteractionManager` stayed behind — 📌 **its ROLE is filled by
+`GlobalGizmoManager` + `DataDrivenGizmoSystem`, which is precisely what §13 asked for** *("port the same
+manager and interface set into FDP and rewire `DataDrivenGizmoSystem` over it")*.
+
+⚠ **What is still NOT dumb:** the terminal names `MouseButton.Left` and `KeyboardKey.Escape` itself, and
+owns the `_activeTool` proxy slot. ⇒ ⭐ **the residual smartness is INPUT VOCABULARY, not semantics** — the
+backend decides what a press MEANS; the terminal still decides which physical button starts one.
+
+### 🔒 SO WHAT DOES `UXI-23` UNIFY? — **the backend column only**
+
+| layer | shared today? | `UXI-23` scope |
+|---|---|---|
+| **terminal** — drawing, hit-test, input capture | ✅ **already ONE** *(adapter + one inner layer, all five hosts)* | ⛔ **NOT IN SCOPE — nothing to unify** |
+| **wire** — `DebugPrimitive`, `GizmoTypeId`, DDS batch | ✅ already one contract | ⛔ only **protect** it *(pin `GizmoTypeId`, §3.9e ③)* |
+| 🔴 **backend — projectors** | ⛔ **3 host-private copies** | ⭐⭐ **`S2`** |
+| 🔴 **backend — the projectors' INPUTS** | ✅ **fixed by `S1`** *(was IG-private)* | ✅ done |
+| 🔴 **backend — construction of buffer/systems/group** | ⛔ 5 hand-wired copies | ⭐ `S2` |
+| 🔴 **backend — declaration + unserviceable report** | ⛔ absent for the map | ⭐ `S3` *(copy the tool drain)* |
+| 🔴 **backend — visibility policy / settings** | ⛔ hard-coded per host | ⭐ `S4` |
+| ⚠ **backend — tools & actions** | ⛔ two arbiters | 🔒 **`UXI-07` owns it**; `S5` is joint *(§3.9h)* |
+
+⇒ ⭐⭐⭐ **THE ONE-LINE ANSWER:** 🔒 **the map looks different per host because each host's BACKEND emits a
+different set of primitives — not because anything draws differently.** ⭐ `UXI-23` makes the backends emit
+the same set; ⛔ it changes no drawing code at all.
+
+## 3.9j 🔴🔴🔴 `S2` — THE DESIGN: **ONE PROJECTOR, AND THE GATE THAT DARKENED SIMHOST** *(`2026-08-30`; `build-state: READY-TO-BUILD`)*
+
+> 🔒 **User, resuming:** *"remember we should not lose features or flexibility by unifying!"* ⇒ **`R-137`
+> governs every line below.** ⭐ The capability ledger in §3.9j.4 is how this design answers it.
+
+### 3.9j.1 🔴🔴🔴 THE REMAINING ROOT CAUSE OF `CE-123` — **measured, and it is NOT the reflection hypothesis**
+
+⚠⚠ **§3.9b recorded a HYPOTHESIS** — *"`DiscoverProjectorTypes` sees only LOADED assemblies, so a host may
+register fewer projectors"*. 📐 **Measured `2026-08-30`: that is not what is dark.** ⛔ **The registry is
+fine; the SYSTEM THAT READS IT is gated.**
+
+📐 **`StatelessGizmoSystem.Execute`** *(`Fdp.Toolkits/Diagnostics/Gizmos/Systems/StatelessGizmoSystem.cs:81,108`)*:
+
+```csharp
+bool alwaysDraw = _isSelectedPredicate == null;          // :81  — null means ALWAYS
+...
+if (!alwaysDraw && !_isSelectedPredicate!(view, entity)) // :108 — one blanket gate over EVERY rule
+    continue;
+```
+
+⭐⭐⭐ **The gate is per-SYSTEM, not per-projector.** ⇒ a host that supplies it suppresses **every** stateless
+projector it owns — the entity avatars, the routes, the tactical areas, the map overlay, all of it.
+
+#### 📐 THE FIVE HOSTS, MEASURED — **four say *always*, one says *selected only***
+
+| host | `DataDrivenGizmoSystem` *(the drag handles)* | `StatelessGizmoSystem` *(**the map**)* |
+|---|---|---|
+| **IG** `IgApplication.cs` | `:805` `null` → always | `:860` **none → always** |
+| **CGF** `CgfSubsystem.cs` | `:931` `null` → always | `:958` **none → always** |
+| **ReplayBrowser** `ReplayBrowserSubsystem.cs` | `:189` selected | `:198` **none → always** |
+| **Editor** `EditorSubsystem.cs` | `:1631` selected | `:1825` **none → always** |
+| 🔴 **SimHost** `SimHostApp.cs` | `:369` selected ✅ *(correct — handles belong on the selection)* | 🔴🔴 **`:440` SELECTED** — **alone of five** |
+
+⇒ 🔴🔴🔴 **SimHost draws entity presentation ONLY for selected entities.** 📐 And on the cluster node path
+**nothing ever selects**: `SelectionState.IsSelected` is written by `SelectionInteractionSystem`, which
+SimHost constructs **only in `SimHostVisualization.cs:251`** *(the local windowed viewer)* — **not in
+`SimHostApp`'s node bootstrap.** ⇒ ⭐⭐ **the predicate is false for every entity, every frame, forever.**
+
+✅ **This explains the measurement `S1` could not:** SimHost's frame is `605` primitives / **`3` non-`Line`**.
+📐 Global rules bypass the gate entirely *(`:71-75` — they are dispatched before the per-entity loop and
+consult only `IsGloballyEnabled`)*, so **the ~602 `Line`s are the spatial grid** and the entity shapes —
+`SpatialAnchor`, the pick box, `SemanticShape` — **are all suppressed.**
+
+#### ⚠⚠ AND IT CORRECTS A CLAIM OF MY OWN — **§3.9e's table was wrong** *(obligation ⑤)*
+
+📌 **§3.9e:1225 lists** *"**SimHost** (`:369`, `:440`) · Editor (`:1631`) · ReplayBrowser (`:189`) →
+`SelectionState.IsSelected` → **handles only on the SELECTED entity**"*. ⛔ **`:440` is NOT a handle site —
+it is the STATELESS map system.** ⚠ The table lumped the two systems together under one label and so
+**printed the defect as if it were the design.** ⭐ **Corrected in place; `:369` · `:1631` · `:189` are the
+three genuine handle sites.**
+
+#### 🔒 WHY THIS IS A DEFECT AND NOT AN INTENT — **stated with what I could and could not measure**
+
+| probe | verdict |
+|---|---|
+| `git blame` on `SimHostApp.cs:437-442` | ⚠ **hits the grafted boundary commit** — the available history cannot say who wrote it or why. ⛔ **Not evidence either way; recorded as unknown** |
+| the design corpus *(`grep -rln` over `docs/` + `.dev/`)* | ⭐⭐ **NO record anywhere intends a selection-gated MAP.** The only hit was §3.9e's own mislabel, above |
+| the code's shape | ⭐ the lambda at `:440-442` is **byte-identical** to the one at `:369-371`, **70 lines apart in the same method** — one per system. ⚠ **Suggestive of a copy; not proof** |
+| function | ⭐⭐⭐ **a map that shows only the selected entity is not a map**, and four hosts disagree with it |
+
+### 3.9j.2 ⭐⭐ THE MERGE — **one projector, presence decides** *(§3.9c is the line-by-line basis)*
+
+⭐ **`EntityPresentationGizmo`** lands in `Hrot.Presentation/ScenarioEditor/Gizmos/`, beside the
+`EntityPresentationGizmoShared` helper all three copies already call, and the three host-private copies are
+deleted.
+
+| decision | ⭐ resolution | why |
+|---|---|---|
+| the `[GizmoProjector]` query | 🔴 **`SimTransform` + `NetworkIdentity` and NOTHING else** | ⛔ keeping IG's `CullingState` would make the query **match nothing** on SimHost and CGF and silently empty their maps *(acceptance 23.23)* |
+| culling | ⛔⛔ **SUPERSEDED — see §3.9j.5b.** *(designed as: presence decides. As built: a SETTING, `map.entity.cullOffscreen`, default `false`, AND the presence check. Shipping it presence-decided BLANKED IG in the live run)* | 🔒 the design basis was `ST-031`; the measurement overrode it |
+| condition mask | ⭐ **presence decides**: `HasComponent<IgHealthState>` → Damaged / Immobile | same rule. ⚠ **as built the thresholds are already settings**, not the `S4` deferral this row planned — §3.9j.5b |
+| transform source | ⭐ **`SimTransform` only** | 📐 §3.9c ③ — `NetworkTransform` is identical on a ghost and **stale on an owner**. ⛔ A defect, not a feature *(`CE-126(c)`)* |
+| pick box | ⭐ **always** | 🔴 CGF omitted it ⇒ CGF entities were unpickable *(`CE-126(b)`)* |
+| semantic shape | ⭐ **through the shared helper** | 🔴 CGF called the raw builder ⇒ `Color (0,0,0,0)`, **transparent avatars** *(`CE-126(a)`)* |
+
+⚠ **`GizmoTypeId` is NOT at risk here, and item ① of the resume plan does not block `S2`.** 📐 Measured:
+`GizmoTypeId` is declared **only on `IGizmoDefinition`** *(the STATEFUL kind)*; the three classes being
+merged are `IStatelessGizmo` and carry no wire-routing id — `EmitPickBox` leaves `PickGizmoTypeId` at `0`.
+⇒ ⭐ **the pin is still owed to `UXI-07`'s tool path, but it is not a prerequisite of this merge.**
+
+### 3.9j.3 ⚠ THE ONE RISK THIS MERGE INTRODUCES — **named, and verified live rather than assumed**
+
+⛔ Moving SimHost's projector out of `Hrot.SimHost` into `Hrot.Presentation` makes SimHost's map depend on
+`Hrot.Presentation` being **loaded** when `RegisterAll` runs — the documented `ST-033` risk.
+⚠ **In practice it already must be** *(`Hrot.Presentation` owns 7 of the projectors, and `SimHostApp`
+constructs `EntityDragGizmoDefinition` from it inside the same method)*, ⛔ **but that is an accident of JIT
+assembly resolution, not a guarantee.** ⇒ ⭐ **verified by the live run in §3.9j.6, and filed as `CE-128`.**
+
+### 3.9j.4 🔒🔒🔒 THE `R-137` CAPABILITY LEDGER — **nothing may be lost**
+
+| capability | before | after | ⭐ verdict |
+|---|---|---|---|
+| **cull invisible entities** | IG only, a hard-coded `if` | ⭐ **every host**, whenever the entity carries `CullingState` | ✅ **preserved AND spread** |
+| **damage / immobile condition** | IG only | ⭐ **every host**, whenever the entity carries `IgHealthState` | ✅ **preserved AND spread** |
+| **gate the map by selection** | SimHost, as a blanket argument | ⭐ **the `isSelectedPredicate` PARAMETER STAYS on the shared system** — any host may still pass one | ✅ **preserved.** ⛔ Only SimHost's *argument* is dropped: the seam is untouched, the wrong default is not |
+| **pick an entity on CGF** | 🔴 absent | ✅ present | ⭐ **gained** |
+| **see CGF avatars at all** | 🔴 transparent | ✅ opaque | ⭐ **gained** |
+| **CGF position on an owned entity** | 🔴 stale until next publish | ✅ live | ⭐ **gained** |
+| **per-PROJECTOR visibility** | 🔴 `IGizmoVisibilityPolicy.IsEntityVisible` is declared and **never called** by `StatelessGizmoSystem` | ⛔ **still dead — out of scope, filed as `CE-129`** | ⚠ **honest gap, not silently carried** |
+
+⇒ ⭐⭐⭐ **Six capabilities preserved or gained, zero lost.** ⭐ The one *unrealised* capability
+(`IsEntityVisible`) was already dead before this slice and is filed rather than quietly inherited.
+
+### 3.9j.5 ⭐⭐⭐ THE UML *(obligation ①; drawn AFTER the enumeration, obligation ②)*
+
+⭐ **Existing classes are marked `«exists»` with their file** so a proposed duplicate would be visible on the
+same canvas. 🔴 **Red-lined boxes are DELETED by this slice.**
+
+```mermaid
+classDiagram
+    class IStatelessGizmo {
+        <<interface>>
+        +Draw(view, entity, draw)
+    }
+    class StatelessGizmoSystem {
+        -isSelectedPredicate
+        +Execute(view, dt)
+    }
+    class StatelessGizmoRegistry {
+        +Register(projector, comps, policy)
+    }
+    class GizmoReflectionRegistrar {
+        +RegisterAll(gz, stateless, settings)
+        +DiscoverProjectorTypes()
+    }
+    class EntityPresentationGizmoShared {
+        +DrawSpatialAnchorFromRotation()
+        +EmitPickBox()
+        +TryGetVehicleDimensions()
+        +ResolveProfileId()
+        +DrawSemanticShape()
+    }
+    class EntityPresentationGizmo {
+        +Draw(view, entity, draw)
+        -CullingState presence gate
+        -IgHealthState condition mask
+    }
+    class IgEntityPresentationGizmo
+    class SimHostEntityPresentationGizmo
+    class CgfEntityPresentationGizmo
+
+    IStatelessGizmo <|.. EntityPresentationGizmo : NEW
+    IStatelessGizmo <|.. IgEntityPresentationGizmo : DELETED
+    IStatelessGizmo <|.. SimHostEntityPresentationGizmo : DELETED
+    IStatelessGizmo <|.. CgfEntityPresentationGizmo : DELETED
+    EntityPresentationGizmo ..> EntityPresentationGizmoShared : uses
+    GizmoReflectionRegistrar ..> IStatelessGizmo : discovers
+    GizmoReflectionRegistrar --> StatelessGizmoRegistry : fills
+    StatelessGizmoSystem --> StatelessGizmoRegistry : reads
+```
+
+| box | home | state |
+|---|---|---|
+| `IStatelessGizmo` · `StatelessGizmoSystem` · `StatelessGizmoRegistry` · `GizmoReflectionRegistrar` | `FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/` | ⭐ **«exists» — untouched** |
+| `EntityPresentationGizmoShared` | `Hrot/Engine/Hrot.Presentation/ScenarioEditor/Gizmos/` | ⭐ **«exists» — untouched** |
+| ⭐ **`EntityPresentationGizmo`** | `Hrot/Engine/Hrot.Presentation/ScenarioEditor/Gizmos/` | 🆕 **NEW — the one projector** |
+| `IgEntityPresentationGizmo` *(54 ln)* · `SimHostEntityPresentationGizmo` *(38 ln)* · `CgfEntityPresentationGizmo` *(52 ln)* | IG / SimHost / CGF | 🔴 **DELETED** |
+
+#### ⭐ The per-frame sequence — **where the gate was, and what replaces it**
+
+```mermaid
+sequenceDiagram
+    participant Group as TogglablePostSimulationGroup
+    participant Sys as StatelessGizmoSystem
+    participant Reg as StatelessGizmoRegistry
+    participant Giz as EntityPresentationGizmo
+    participant Shared as EntityPresentationGizmoShared
+    participant Buf as DebugPrimitiveBuffer
+
+    Group->>Sys: Execute(view, dt)
+    Sys->>Reg: Rules
+    loop each global rule
+        Sys->>Buf: global projector draws
+    end
+    loop each rule x each live entity
+        Sys->>Sys: mask match
+        Note over Sys: isSelectedPredicate<br/>null on all 5 hosts after S2
+        Sys->>Giz: Draw(view, entity, draw)
+        Giz->>Giz: CullingState present and hidden then return
+        Giz->>Giz: IgHealthState present then condition mask
+        Giz->>Shared: DrawSpatialAnchorFromRotation
+        Giz->>Shared: EmitPickBox
+        Giz->>Shared: DrawSemanticShape opaque
+        Shared->>Buf: EmitRaw
+    end
+```
+
+### 3.9j.5b 🔴🔴🔴 `S2` AS-BUILT — **the build DEVIATED, and the deviation is the most valuable thing in this slice** *(obligation ⑤, `2026-08-30`)*
+
+> 🔒 **The design above said culling would be PRESENCE-DECIDED.** ⛔ **It shipped as a SETTING, default
+> OFF.** ⭐ **This section is the correction; §3.9j.2's culling row is SUPERSEDED by it.**
+
+#### 📐 WHAT THE LIVE RUN MEASURED — **three perspectives, same boot, before and after**
+
+⚠⚠ **The recorded `739/69` baseline could not be reused** — it came from a different run, and this session
+measured IG's world at **0 entities via `/entities` in BOTH runs while its frame carried 16 anchors**, which
+means `/entities` does not read the world IG projects from. ⇒ ⭐ **the baseline was RE-MEASURED on the same
+boot by rebuilding the pre-change sources**, and only that comparison is quoted here.
+
+| perspective | BEFORE non-`Line` | AFTER non-`Line` | Δ | ⭐ what the delta IS |
+|---|---|---|---|---|
+| **Scenario** | 69 | **53** | **−16** | 📐 `SpatialAnchor 16→8`, `SemanticShape 16→8` ⇒ ⭐⭐ **THE DUPLICATE, REMOVED.** Two projectors *(SimHost's and CGF's — byte-identical queries)* each drew all 8 entities; one does now. ⚠ `Box2D` stayed `8` because CGF's copy never emitted a pick box |
+| **IG** | 80 | **64** | **−16** | 📐 the same `16→8` on both, `Box2D 16` unchanged ⇒ **the same duplicate** |
+| 🎉 **SimHost** | 🔴 **3** | ⭐⭐⭐ **55** | **+52** | `SpatialAnchor +8` · `SemanticShape +8` · `Box2D +8` · **`Arrow +12` · `Text +8` · `ContextMenuBinding +8`** ⇒ ⭐⭐ **the LAST THREE are the proof of the "one blanket gate" claim** — the gate was suppressing the routes and labels too, not just the avatars |
+
+⇒ ⭐⭐⭐ **Every perspective now emits exactly ONE primitive set per entity: 8 anchors, 8 shapes, 8 pick
+boxes for 8 entities.** 🔒 **That uniformity IS the unification, stated as a number.**
+
+#### 🔴🔴 THE DEVIATION — **presence-decided culling BLANKED IG, and the merge is what SURFACED it**
+
+⛔⛔ **THE CAUSAL STORY BELOW IS REFUTED — see §3.2g.** 🔴 It rests on ONE probe.
+
+📐 **What was observed:** on the first live run of the merge with culling presence-decided, IG read
+`SpatialAnchor 0`, `SemanticShape 0` *(80 → 40)*. ⛔ **I concluded the culling gate was suppressing every
+entity. That conclusion does not survive a second probe.**
+
+📐 **The discriminating experiment, run `2026-08-30`:** culling forced ON, IG probed repeatedly after a
+scenario load — **WITH** a fix to the culling input: `0`, then `8 · 8 · 8`; **WITHOUT** it: `0`, then
+`8 · 8 · 8`. ⇒ ⭐⭐ **identical.** The `0` is what a healthy IG frame reads on its FIRST probe after a load;
+it settles seconds later. ⚠ And it was predictable from source: `IgApplication.cs:993-1001` writes the
+viewport **every frame** on the non-headless path, so an *"unset viewport"* could never have been IG's
+problem under `--mode all`.
+
+⭐ **What survives, and it is the half that was actually measured properly:** 📐 **the `16` anchors were
+`2 × 8` from the two non-culling copies**, and after the merge there are `8` — that arithmetic comes from a
+same-boot before/after comparison and is unaffected. ⛔ **What does NOT survive is the claim that IG's own
+projector was contributing zero because of culling.**
+
+#### 🔒 THE FIX — **`R-137` applied literally: the feature came back as CONFIGURATION**
+
+⭐ **`EntityPresentationGizmoSettings`** *(new, beside the projector)* — three keys on the existing
+`GizmoSettingsRegistry`, which `GizmoReflectionRegistrar.Instantiate` already passes to any projector whose
+constructor takes one:
+
+| key | default | ⭐ why that default |
+|---|---|---|
+| ⭐⭐ **`map.entity.cullOffscreen`** | ⭐ **`false`** | ⭐ **COMPATIBILITY, not a defect workaround** — `false` reproduces exactly what every host rendered before the merge, because IG's map came from the two copies that never culled. ⚠⚠ **An earlier version of this row said the default was MEASURED, citing `CE-131`; that measurement is REFUTED — see §3.2g** |
+| `map.entity.damagedThreshold` | `50f` | ⭐ IG's literal, promoted to a shared default |
+| `map.entity.immobileThreshold` | `90f` | ⭐ IG's literal, promoted to a shared default |
+
+⇒ ⭐⭐ **Both guards are load-bearing and both are railed:** the **setting** stops a host being blanked by a
+culling input it does not maintain; the **presence check** keeps a host that produces no `CullingState`
+drawing everything. ✅ **Confirmed live — the single-variable change restored IG to `SpatialAnchor 8`,
+`SemanticShape 8` (`40 → 64`), which is also what CONFIRMS the culling diagnosis.**
+
+⚠ **The culling INPUT is still wrong and is NOT fixed here** — filed as **`CE-131`**. ⭐ When it is fixed a
+host can enable the setting and get the performance benefit `MapCullingSystem` was written for.
+
+📌 **`CE-128` is RESOLVED BY THIS RUN, not left open:** SimHost draws a projector that lives in
+`Hrot.Presentation`, so that assembly *is* loaded when `RegisterAll` runs. ⚠ It remains an accident of JIT
+assembly resolution rather than a guarantee — recorded, not relied upon.
+
+### 3.9j.6 ⭐ HOW `S2` IS PROVEN
+
+| # | proof |
+|---|---|
+| **①** | ⭐ **rails, each inverse-edit red-proved** — one projector per entity · culling honoured when present · condition honoured when present · pick box emitted · shape opaque · ⭐⭐ **no host passes a stateless selection gate** |
+| **②** | ⭐⭐ **live on `--mode all`**: SimHost's non-`Line` count rises from **`3`** toward Scenario's **`69`**, with **Scenario and IG unchanged** *(the no-regression half)* |
+| **③** | ⭐ **`CE-128`** — the live frame proving `Hrot.Presentation`'s projectors reach SimHost's registry settles §3.9j.3 |
+
+## 4. Acceptance
+
+| # | Case | Cls |
+|---|---|:--:|
+| 23.1 | Every map subsystem registers the **same action id set** — parameterised over all five; none may omit | H |
+| 23.2 | 🔴 **No registered id is inert**: every id a host binds has a handler that runs | H |
+| 23.3 | 🔴 **No menu item is emitted without a handler** — the *Measurement Tool* dead-click guard, per host | H |
+| 23.4 | IG's six forked behaviours are reachable **through the shared registry**; the `switch` is gone | H |
+| 23.5 | 🔒 An id a host **structurally cannot service is not shown at all** — never permanently greyed ([ruling 49](UX_RESUME_INTERACTION.md)). ⚠ **Inverted from this design's original wording** ([Correction 39](UX_Tasks_Detail.md#corrections)) | H |
+| 23.6 | Unhandled ids still forward to ExCon from IG — the fallback survives the migration | H |
+| 23.7 | `SelectionInteractionSystem` is constructed **with** a `RubberBandState` in every host | H |
+| 23.8 | CGF registers `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar` — ring, health bars, menus, layer control all present | H |
+| 23.9 | ReplayBrowser's dispatch is **wired to an ingress**, or its ids are deliberately unbound with a reason | H |
+| 23.10 | **CGF**: right-click an entity → the shared menu appears with live items | I |
+| 23.11 | **SimHost · IG**: rubber-band is **drawn** while dragging | I |
+| 23.12 | *Measurement Tool* works in every host that shows it | I |
+| ⭐ 23.13 | 🔒 **No host assigns `gizmoGroup.Enabled` anywhere.** Grep for `.Enabled = true`/`false` on a gizmo group returns **zero** production hits — the value is derived from the viewer count in every host *(§3.2b correction 2)* | H |
+| ⭐ 23.14 | 🔒 **A headless host still renders nothing**, and it gets there with no per-host constant — ⚠ **`GZH-003`'s two integration tests must stay green unmodified** *(start SimHost headless ⇒ `DataDrivenGizmoSystem.Execute` never called)* | H |
+| ⛔ ~~23.15~~ | 🔴 **WITHDRAWN `2026-08-28` — its PREMISE was refuted by measurement** *(§3.0a)*: the counter never underflows, so there is nothing to assert against. ⭐ If `S2` rewrites the gate it may make the invariant explicit there, **non-throwing**. ⛔ HISTORY: ~~A negative listener count is unreachable~~, and asserted against — parameterised over *boot-then-leave*, *enter-then-leave*, and *leave-twice* | H |
+| ⭐⭐ 23.16 | 🔒 **Every per-host capability difference is expressed as an `IGizmoVisibilityPolicy` / `GizmoSettingsRegistry` value, and NOWHERE ELSE.** 📐 Baseline `2026-08-28`: **one** production supplier, returning the default ⇒ ⛔ *"a host wires a different subset"* must be **unrepresentable** after this lands | H |
+
+| ⭐⭐ 23.17 | 🔒 **The pack CANNOT schedule** — `MapInteractionContext` exposes no kernel/module registry, asserted by a compile-time-shaped rail *(the type has no such member)*; ⛔ and no `MapInteraction*` type calls `RegisterModule`/`RegisterGlobalSystem` | H |
+| ⭐⭐⭐ 23.18 | 🔒 **A host that does not schedule the required systems is REPORTED, never silent** — `Unserviceable(hostRunSet)` names them, parameterised over a host that schedules none. 📌 **This is the case that would have caught SimHost's empty map** | H |
+
+| ⭐ 23.19 | 🔒 **`GizmoSettingsRegistry.Empty` never silently absorbs a write** — a write is refused or `Session`-only, and the instance reports its non-persistence so the UI can hide/disable the toggle. ⛔ Parameterised: no host receives `null` settings | H |
+| ⭐ 23.20 | ⭐ **Two hosts sharing one settings instance see each other's toggles** *(the user's "some are sharing same settings")*, and a host with `Empty` still renders every gizmo at its registered default | H |
+
+| ⭐ 23.21 | 🔒 **Every discovered `[GizmoProjector]` with no resolver entry is REPORTED** — always-on stays the default, ⛔ but never silently. Parameterised: add a projector, assert it appears in the report | H |
+| ⭐⭐ 23.28 | 🔒 **`RequiresExclusiveFocus` / `WantsRawInput` are part of each gizmo's CONTRACT.** A rail asserts the permanent-vs-on-demand classification per gizmo type — ⛔ flipping either flag in a merge silently destroys a permanent gizmo on every perspective switch, or leaves a tool stuck grabbed | H |
+| ⭐⭐ 23.29 | 🔒 **The tool drain's `Func<>` resolvers stay per-host AND stay lazy.** ⛔ Capturing them into fields makes them permanently null — the editor creates selection and camera AFTER `kernel.Initialize()` and nulls them on teardown | H |
+| ⭐⭐⭐ 23.30 | 🔒 **The map's unserviceable reporting COPIES `ToolActivationDrainSystem`** — by name and reason, defaulting to the log, rail-injectable. ⛔ `S3` does not design a second mechanism | H |
+| 🔴🔴 23.25 | 🔒 **`GizmoTypeId` IS A WIRE CONTRACT.** Every `IGizmoDefinition` pins it as an explicit constant, and a rail asserts the value — ⛔ never left as an implicit hash of the type's full name, which a rename or merge silently changes. ⚠ **Cross-node only**: a single-process test computes the same hash on both sides and cannot see this | H |
+| ⭐⭐⭐ 23.26 | 🔒 **`isSelectedPredicate` stays a per-host parameter.** ⛔ Collapsing it to one value breaks either IG *(dumb terminal, no local selection ⇒ no handles at all)* or the editor *(handles on every entity at once)*. 📌 `R-137`'s clearest instance in the interactive half | H |
+| ⭐⭐ 23.27 | 🔒 **The gate's teardown still cancels BOTH** `GlobalGizmoManager.CancelInteractiveTools()` and `DataDrivenGizmoSystem.CancelInteractiveTools()` — an in-progress drag must not survive a perspective switch as a stuck grab | H |
+| ⭐⭐⭐ 23.22 | 🔒 **ZERO `[GizmoProjector]` classes under `Hrot/Subsystems/<host>/`** — behaviour/content packs *(`Hrot.AI.Behaviors`)* excepted. 📐 Baseline `2026-08-28`: **6** *(IG 3 · SimHost 1 · CGF 1 · ReplayBrowser 1)*. ⭐ One grep; it is the mechanical form of *"all lines shared"* | H |
+| ⭐⭐⭐ 23.23 | ⛔⛔ **No `[GizmoProjector]` attribute lists an OPTIONAL input.** The merged entity projector requires `SimTransform` + `NetworkIdentity` and **nothing else**; `CullingState` and `IgHealthState` are checked inside the injected collaborators. ⚠ Keeping `CullingState` in the query would silently empty SimHost's and CGF's maps | H |
+| ⭐⭐ 23.24 | 🔒 **`R-137` receipt, per slice:** the merge is not accepted until it names what each host could do before and can still do — ⭐ IG's culling and damage-condition states must remain reachable, and must become AVAILABLE to the other hosts by configuration rather than being IG-only | H |
+
+**18 H · 3 I · 0 V.** ⚠ *(was 9 H — `23.13`-`23.16` come from §3.2b's two corrections; they are the acceptance half of "share the mechanism, let the rule vary through a parameter".)*
+
+## 5. ✅ CLOSED — the nine orphan ids are a **capability gap**, not a binding choice
+
+> 🔒 **User, 2026-08-13:** *"the actions like MoveHere, Engage, Stop, Properties, Teleport, Repair,
+> Reinforce, Resupply, Transfer are unresolved and need a dedicated design pass. **The only supported way
+> of commanding entities now is via a mission having a list of conditional behaviors to perform.** This is
+> not ExCon-only, must be equally supported by the CGF subsystem (who owns the entity brain)."*
+
+🔴 **The A/B/C options below were ill-posed** and my lean B was wrong on both halves — see
+[Correction 33](UX_Tasks_Detail.md#corrections). They are **not** ordinary actions with missing handlers:
+commanding enters the cognitive tier through `AssignTacticalIntentEvent` and ends at
+`BehaviorIngressSystem`, the sole `BehaviorState` writer. And ExCon is not their home — **CGF** is the
+Brain node and the only host running the mission→behavior pipeline.
+
+⇒ 🔒 **Moved to [UXI-32](UX_Issues.md#uxi-32) / [Q29](Architect_Question_29_Entity_Commanding.md)**,
+`RW-H`, **architect pass required before any binding**.
+
+**What this design still owes**, once Q29 is answered:
+
+| | |
+|---|---|
+| ✅ **`Properties` and `Teleport` are unblocked now** | neither is a command — `Properties` is *open the inspector*, `Teleport` is a pose write already owned by [UXI-29](UX_Feature_Authority_Aware_Writes.md). Bind both in the pack |
+| ⚠ **The other seven stay unbound** until Q29 rules | ⭐ **and four of them cost nothing today**: `Repair · Reinforce · Resupply · Transfer` sit behind ExCon menu strategies whose `SetStrategy` has **zero callers**, so they are **never emitted** ([Q29 §A](Architect_Question_29_Entity_Commanding.md)). Only `MoveHere · Engage · Stop` are actually on screen — emitted by `ContextMenuProjectorGizmo` |
+| 🔒 **Case 23.2 still binds** | *no registered id is inert* — so the seven must be **absent or disabled-with-reason**, never present-and-dead |
+
+## 6. 🔒 Out of scope
+
+| | |
+|---|---|
+| Multi-select fan-out and per-selection actions | [UXI-24](UX_Issues.md#uxi-24) |
+| The action **vocabulary** itself | [UXI-03](UX_Feature_Entity_Action_Vocabulary.md) / [UXI-04](UX_Feature_Cross_Surface_Actions.md) |
+| CGF's symbol, pick box, selection chain | [UXI-10](UX_Feature_Entity_Symbology.md), [UXI-11](UX_Feature_Selection.md) — **prerequisites** |
+| Making CGF's edits legal | [UXI-29](UX_Feature_Authority_Aware_Writes.md) — **prerequisite** |
+| ExCon | no map |
+
+## 7. Risks
+
+| | |
+|---|---|
+| 🔴 **Order matters** | UXI-10 → UXI-11 → UXI-29 → **this**. Binding *Rotate* in CGF before UXI-29 gives it an action that writes a component it does not own |
+| ⚠ **Migrating IG's fork touches the production map** | [ruling 20](UX_RESUME_INTERACTION.md). Its six behaviours must be proven identical before the `switch` is deleted |
+| ⚠ **The pack is a single point of failure** | one wrong line breaks five hosts at once — which is also why 23.1-23.3 are parameterised over all five |
+| ⚠ **A uniform set means CGF gains items it may not be able to service** | §3.2's *disabled with a reason* is what keeps that honest |

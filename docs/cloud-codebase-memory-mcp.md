@@ -104,6 +104,20 @@ dotnet --version                 # 8.x
 In Claude Code, `/mcp` (or the tools list) should show `codebase-memory-mcp` as
 connected. Then follow the graph-first workflow in `.claude/CLAUDE.md`.
 
+### ⚠ `dotnet: command not found` right after a successful install
+
+Claude's Bash tool spawns **plain non-interactive** shells. Those source **neither**
+`~/.bashrc` (it opens with `[ -z "$PS1" ] && return`) **nor** `~/.profile`, and
+`CLAUDE_ENV_FILE` is not always set — so a good SDK install could still leave every
+tool call reporting `dotnet: command not found`, which reads as a failed install when
+it is only an unreachable PATH.
+
+The bootstrap script therefore installs a small **wrapper at `/usr/local/bin/dotnet`**
+(that directory *is* on the default PATH). It must be a wrapper, not a symlink: the
+dotnet muxer infers its root from `argv[0]`'s directory. If you ever see the error
+again, check `command -v dotnet` — it should print `/usr/local/bin/dotnet` — and
+re-run the bootstrap, which recreates the wrapper idempotently.
+
 ## Updating the MCP binary
 
 The installer always pulls the latest release. To refresh an already-installed

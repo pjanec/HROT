@@ -77,6 +77,27 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     /// <summary>Internal test hook: current master sim time in seconds.</summary>
     internal double TestHook_CurrentSimTime => _masterSync?.GetCurrentState().TotalTime ?? 0.0;
 
+    /// <summary>
+    /// TestHook: the master controller's current time scale. Exposed so an integration test can
+    /// assert what the SetTimeScale cluster op actually delivered without inferring it from an
+    /// observed sim-time slope.
+    /// </summary>
+    internal float TestHook_TimeScale => _masterSync?.GetTimeScale() ?? 0.0f;
+
+    /// <summary>
+    /// ⭐⭐ <b>The ONE fact the debug API's ack-gate needs: is the master still awaiting step ACKs?</b>
+    /// <para><see langword="null"/> ⇒ <b>this node hosts no master</b> (parameterless/headless construction, or
+    /// after <see cref="Shutdown"/> disposes it) ⇒ a step cannot be confirmed cluster-wide here.
+    /// <see langword="true"/>/<see langword="false"/> ⇒ the master's own answer.</para>
+    /// <para>⭐ Deliberately the NARROWEST surface rather than the controller itself:
+    /// <see cref="MasterSyncController"/> also exposes <c>Step</c>/<c>SetTimeScale</c>, and handing those to the
+    /// debug host would invite it to drive time directly — bypassing the perspective-scoped drive facade that
+    /// <c>Architect_Question_54</c> Q54-2 established ("issue where the user is, confirm where the truth is").</para>
+    /// <para>⚠ Read LIVE, never latched: <c>_masterSync</c> is created in <see cref="Initialize"/> and set back to
+    /// <see langword="null"/> in <see cref="Shutdown"/>, so a captured reference would outlive the master and lie.</para>
+    /// </summary>
+    public bool? IsAwaitingStepAcks => _masterSync?.IsAwaitingStepAcks;
+
     public string Name => "Orchestrator";
 
     public System.Numerics.Vector4 TitleBarColor => new(0.72f, 0.64f, 0.47f, 1f);  // S0501: beige
@@ -139,12 +160,26 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _idAllocatorServerHandle = _networkFactory?.CreateIdAllocatorServer()
                                    ?? new NullDisposable();
 
+        // ⭐⭐⭐ HN-037 — hand the master the world's ONE id authority, so a scenario load resets it to 1000.
+        // 📄 docs/DESIGN_Deterministic_Network_Ids.md §11. ⭐ Type-tested rather than widening
+        //    INetworkFactory.CreateIdAllocatorServer's return type: only the NED factory hosts a real
+        //    authority, and a failed type-test already says "this host has none" (the IRestorableIdAllocator
+        //    idiom). ⚠ The 2026-08-16 rule — a production caller that HAS the dependency must PASS it — is
+        //    why this is wired here and not left for a later batch: the handle is in hand, two lines up.
+        _clusterMaster.IdAuthority =
+            _idAllocatorServerHandle as Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority;
+
         // ── Time controller setup (CGF1-A.1, BATCH-09) ─────────────────────
         // Must be created before _timeTranslators so the initial SwitchTimeModeEvent{Continuous}
         // is published to _bus PENDING. Swap it immediately so the first ScanAndPublish can
         // read it and forward it to DDS before slaves start their kernels.
+        // ⭐⭐⭐ CE-101 — BOOT PAUSED. 🔒 User, `2026-08-28`: *"simulation time is running from the beginning.
+        //    Undesired, should start paused."* 📐 Measured: the clock started ~2 s after boot and ran at ~1×
+        //    with NO scenario and zero entities, because the anchor event below announced Continuous and
+        //    `PauseRequested` is derived from that mode. ⛔ It also silently refused every /sim/step (CE-105).
+        //    ⚠ The anchor is still broadcast — only the MODE it announces changed. 📄 §5c.16.
         _masterSync       = new MasterSyncController(
-            _bus, new HashSet<int>(), TimeConfig.Default);
+            _bus, new HashSet<int>(), TimeConfig.Default, startPaused: true);
         
         
         _bus.SwapBuffers();

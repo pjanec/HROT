@@ -6,6 +6,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Common.Constants;
+using Fdp.Toolkit.Combat.Components;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
 
@@ -113,11 +114,14 @@ namespace Hrot.Common.Diagnostics.Gizmos
             else
             {
                 // Select the menu permutation based on health state when available.
+                // ⭐ CE-196 — derived from Health.Current/Max, not from a precomputed damage percentage.
+                //   The threshold is unchanged: "degraded" is 50% or more damage, i.e. at or below half
+                //   health. ⚠ Max <= 0 leaves the menu HEALTHY rather than dividing by zero.
                 menuJson = MenuJsonHealthy;
-                if (view.HasComponent<IgHealthState>(entity))
+                if (view.HasComponent<Health>(entity))
                 {
-                    ref readonly var health = ref view.GetComponentRO<IgHealthState>(entity);
-                    if (health.Damage >= 50f)
+                    ref readonly var health = ref view.GetComponentRO<Health>(entity);
+                    if (health.Max > 0f && health.Current / health.Max <= 0.5f)
                         menuJson = MenuJsonDegraded;
                 }
             }

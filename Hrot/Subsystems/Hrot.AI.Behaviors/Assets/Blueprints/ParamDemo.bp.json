@@ -1,39 +1,64 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000000-aaaa-0002-0000-0000000000d0",
   "Name": "ParamDemo",
-  "Dispatch": 1,
-  "TierHint": 0,
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
-    "Intent": 0,
-    "Hostings": [0]
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "d0000001-0001-0001-0001-000000000001",
       "Name": "Threshold",
-      "Type": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] }
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "d0000002-0002-0002-0002-000000000002",
       "Name": "FlagA",
-      "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] }
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "d0000003-0003-0003-0003-000000000003",
       "Name": "FlagB",
-      "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] }
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "Tooltip": null,
+      "Comment": null
     }
   ],
-  "WorkingState": [],
-  "Variables": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -41,31 +66,45 @@
     {
       "Id": "e500d001-0001-0001-0001-000000000001",
       "Name": "Main",
-      "Kind": 0,
+      "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "f500d001-0001-0001-0001-000000000001",
           "EventTypeId": "",
+          "Id": "f500d001-0001-0001-0001-000000000001",
           "Pins": [],
-          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "ChannelCommand",
-          "Id": "f500d001-0002-0002-0002-000000000001",
           "ChannelType": "LocomotionChannel",
           "ActionId": "DemoEnumAction",
+          "Id": "f500d001-0002-0002-0002-000000000001",
           "Pins": [],
-          "EditorMetadata": { "X": 420.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 420,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "f500d001-0003-0003-0003-000000000001",
-          "Status": 0,
           "Pins": [],
-          "EditorMetadata": { "X": 760.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 760,
+            "Y": 220,
+            "Comment": null
+          }
         }
       ],
       "Links": [
@@ -82,11 +121,17 @@
           "ToPinId": "e5dddd01-0003-b001-0001-000000000001"
         }
       ],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
-    "Description": "Params-carrying AiPrimitive (int + 2 bool) used to gate composed-blueprint Params sizing + bool [MarshalAs(I1)] layout end-to-end. EventEntry -> DemoEnumAction (no-op) -> Return.",
+    "Description": "Params-carrying AiPrimitive (int \u002B 2 bool) used to gate composed-blueprint Params sizing \u002B bool [MarshalAs(I1)] layout end-to-end. EventEntry -\u003E DemoEnumAction (no-op) -\u003E Return.",
     "Category": null,
     "Recipe": null
   }

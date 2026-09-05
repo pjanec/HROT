@@ -154,6 +154,102 @@ namespace Hrot.SimHost.Tests
         private static string SerializeGoldRepo(EntityRepository repo, ScenarioSerializer serializer)
             => serializer.Serialize(repo, new ScenarioHeader(SubsystemType)).ToJsonString();
 
+        // ── BP-509: the staging→runtime id table is HANDED OUT ────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>BP-509</c> — Pass 1's <c>oldToNewMap</c> reaches a subscriber.</b>
+        /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5 · §8 ① · §8a.
+        ///
+        /// <para>⛔⛔ It was a LOCAL that died in <c>Extract</c>, so ⚠ anything keyed on a runtime network
+        /// id broke on every scenario reload with no way to recover the correspondence.</para>
+        ///
+        /// <para>⭐ The sink is a CALLBACK, not a bus *(🔒 user ruling <c>2026-08-19</c>)</b> — this class
+        /// stays a pure transform and <c>Hrot.CGF</c> never learns about a bus *(<c>R-79</c>)</b>.</para>
+        ///
+        /// <para>⚠ The authored ids come from the serialised gold repo and the allocator hands out
+        /// <c>500, 501</c>, so the table's DIRECTION is asserted, not just its size — ⛔ an inverted map
+        /// would satisfy a count assertion and resolve every pin to the wrong entity.</para>
+        /// </summary>
+        [Fact]
+        public void Extract_PublishesTheStagingToRuntimeMap_ThroughTheOnRemapSink()
+        {
+            var a = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(a, new SimTransform());
+            _goldRepo.SetComponent(a, new NetworkIdentity(11));
+            var b = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(b, new SimTransform());
+            _goldRepo.SetComponent(b, new NetworkIdentity(22));
+
+            var serializer = BuildSerializer();
+            var json       = SerializeGoldRepo(_goldRepo, serializer);
+
+            IReadOnlyDictionary<long, long>? published = null;
+            int calls = 0;
+
+            var extractor = new StagingEntityExtractor
+            {
+                OnRemap = map => { published = map; calls++; },
+            };
+            extractor.Extract(serializer, json, new StubIdAllocator(500));
+
+            Assert.Equal(1, calls);
+            Assert.NotNull(published);
+            Assert.Equal(2, published!.Count);
+
+            // ⭐ AUTHORED id → RUNTIME id, in that direction.
+            Assert.Contains(11L, published.Keys);
+            Assert.Contains(22L, published.Keys);
+            Assert.All(published.Values, v => Assert.InRange(v, 500, 501));
+            Assert.NotEqual(published[11L], published[22L]);
+        }
+
+        /// <summary>
+        /// ⚠ <b>A scenario with no networked entities publishes an EMPTY table, not nothing.</b>
+        /// ⭐ "Nothing to remap" is an answer a reader must be able to act on — ⛔ silence would leave the
+        /// previous load's table in place, which is the stale-mapping failure the mechanism removes.
+        /// </summary>
+        [Fact]
+        public void Extract_WithNoNetworkedEntities_PublishesAnEmptyMapRatherThanSkipping()
+        {
+            var e = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(e, new SimTransform());
+
+            var serializer = BuildSerializer();
+            var json       = SerializeGoldRepo(_goldRepo, serializer);
+
+            IReadOnlyDictionary<long, long>? published = null;
+            var extractor = new StagingEntityExtractor { OnRemap = map => published = map };
+            extractor.Extract(serializer, json, new StubIdAllocator(500));
+
+            Assert.NotNull(published);
+            Assert.Empty(published!);
+        }
+
+        /// <summary>
+        /// ⚠ <b>The published table is a COPY.</b> ⛔ Handing out the live local would let a later edit to
+        /// Pass 2 become visible to a reader that already stored it — 📌 the subscriber keeps the table
+        /// for the lifetime of the load.
+        /// </summary>
+        [Fact]
+        public void Extract_PublishesACopy_NotTheLiveLocal()
+        {
+            var a = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(a, new SimTransform());
+            _goldRepo.SetComponent(a, new NetworkIdentity(11));
+
+            var serializer = BuildSerializer();
+            var json       = SerializeGoldRepo(_goldRepo, serializer);
+
+            IReadOnlyDictionary<long, long>? first = null;
+            var extractor = new StagingEntityExtractor { OnRemap = map => first ??= map };
+            extractor.Extract(serializer, json, new StubIdAllocator(500));
+            long firstRuntimeId = first![11L];
+
+            // ⭐ A SECOND load allocates fresh ids; the first table must be unchanged by it.
+            extractor.Extract(serializer, json, new StubIdAllocator(900));
+            Assert.Equal(firstRuntimeId, first[11L]);
+        }
+
         // ── Test 1: Basic extraction — single root entity ─────────────────────────
 
         // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup

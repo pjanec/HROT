@@ -92,7 +92,7 @@ namespace Hrot.SimHost.Integration.Tests
         {
             // Arrange
             var exerciseId    = Guid.NewGuid();
-            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: ControllerNodeId, _world);
 
             using var cts      = new CancellationTokenSource();
             var       loopTask = RunKernelLoop(_kernel, cts.Token);
@@ -116,7 +116,8 @@ namespace Hrot.SimHost.Integration.Tests
                 "RecordingModule must be uninstalled after FinalizeRecordingAsync.");
 
             // The .fdp file must exist (proves the recorder actually ran).
-            var expectedFile = Path.Combine(_tempDir, exerciseId.ToString(), "node_1.fdp");
+            // ⛔ NEVER hand-compose this path — see the note on ExerciseRecordingPath below.
+            var expectedFile = ExerciseRecordingPath(exerciseId);
             Assert.True(File.Exists(expectedFile),
                 $"Expected recording file at {expectedFile}.");
 
@@ -132,9 +133,10 @@ namespace Hrot.SimHost.Integration.Tests
             // Arrange: global recording + episode recording start concurrently.
             var exerciseId    = Guid.NewGuid();
             var episodeId    = Guid.NewGuid();
-            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: ControllerNodeId, _world);
 
-            Directory.CreateDirectory(Path.Combine(_tempDir, "episodes"));
+            Directory.CreateDirectory(
+                Fdp.Toolkit.Orchestration.OrchestrationConstants.GetEpisodesRoot(_tempDir));
 
             using var cts      = new CancellationTokenSource();
             var       loopTask = RunKernelLoop(_kernel, cts.Token);
@@ -151,9 +153,11 @@ namespace Hrot.SimHost.Integration.Tests
             cts.Cancel();
             await loopTask;
 
-            // Both .fdp files must exist.
-            var globalFile = Path.Combine(_tempDir, exerciseId.ToString(), "node_1.fdp");
-            var episodeFile  = Path.Combine(_tempDir, "episodes", $"{episodeId}_node1.fdp");
+            // Both .fdp files must exist. ⛔ Both paths come from the SAME helpers production writes
+            //   through — see the note on ExerciseRecordingPath below.
+            var globalFile = ExerciseRecordingPath(exerciseId);
+            var episodeFile  = Fdp.Toolkit.Orchestration.OrchestrationConstants
+                .GetEpisodeRecordingFilePath(_tempDir, episodeId, ControllerNodeId);
 
             Assert.True(File.Exists(globalFile),
                 $"Global recording file not found at {globalFile}.");
@@ -162,6 +166,29 @@ namespace Hrot.SimHost.Integration.Tests
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
+
+        /// <summary>The node id every <see cref="EcsRecordReplayController"/> in this class is built with.</summary>
+        private const int ControllerNodeId = 1;
+
+        /// <summary>
+        /// 🔴 <b>The exercise recording's path, resolved the way PRODUCTION resolves it.</b>
+        ///
+        /// <para>📐 <b>Measured <c>2026-09-01</c>:</b> both recording rails hand-composed
+        /// <c>{tempDir}/{exerciseId}/node_1.fdp</c> and asserted the file existed there. The recorder
+        /// writes to <c>{tempDir}/<b>exercises</b>/{exerciseId}/node_1.fdp</c>
+        /// (<c>EcsRecordReplayController.GetRecordingFilePath</c> →
+        /// <c>OrchestrationConstants.ExercisesDirectoryName</c>). ⇒ the rails failed as
+        /// <i>"recording file not found"</i> — which reads as <b>a recorder that never ran</b> and is
+        /// nothing of the sort. The recorder was writing correctly the whole time.</para>
+        ///
+        /// <para>⭐⭐ <b>Asserting on a path means calling the function that BUILT it.</b> The exercise
+        /// side now has <c>OrchestrationConstants.GetExerciseRecordingFilePath</c>, mirroring the episode
+        /// side's long-standing <c>GetEpisodeRecordingFilePath</c>; production and this rail call the same
+        /// one, so they cannot disagree about the layout again.</para>
+        /// </summary>
+        private string ExerciseRecordingPath(Guid exerciseId) =>
+            Fdp.Toolkit.Orchestration.OrchestrationConstants
+                .GetExerciseRecordingFilePath(_tempDir, exerciseId, ControllerNodeId);
 
         private static Task RunKernelLoop(ModuleHostKernel kernel, CancellationToken ct) =>
             Task.Run(() =>

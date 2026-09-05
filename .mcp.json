@@ -10,6 +10,18 @@
       "command": "node",
       "args": ["c:/Utils/AITools/ClaudeWorkerMCP/dist/index.js"],
       "env": {}
+    },
+    "hrot-ai-debug": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${HROT_REPO:-.}/tools/ai-debug-mcp/src/index.mjs",
+        "--runner-dll",
+        "${HROT_REPO:-.}/Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0/Hrot.ClusterRunner.dll",
+        "--port",
+        "8099"
+      ],
+      "env": {}
     }
   }
 }

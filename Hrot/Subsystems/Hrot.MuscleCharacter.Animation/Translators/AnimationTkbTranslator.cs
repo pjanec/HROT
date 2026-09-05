@@ -7,7 +7,7 @@ using Fdp.Core.Tkb;
 using Fdp.Toolkit.Behavior;
 using Hrot.MuscleCharacter.Animation.Baking;
 using Hrot.MuscleCharacter.Animation.Components;
-using Hrot.MuscleCharacter.Animation.Descriptors;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.MuscleCharacter.Animation.Translators
 {

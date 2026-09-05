@@ -1,0 +1,89 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: e0710001-0000-0000-0000-000000000001
+
+#nullable enable
+
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Attributes;
+using Fhsm.Kernel;
+using Fhsm.Kernel.Data;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+[BlueprintRegistrar]
+public static class HsmVariableShowcaseRegistrar
+{
+    // JSON options for ParseParams — the platform-canonical options (IncludeFields,
+    // vector/FixedString/strict-enum converters, and FC-3b fixed-list support) so
+    // Params defaults share ONE wire format with scenario save/load.
+    private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =
+        global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+
+    /// <summary>
+    /// Coordinator-injectable registrar (§3 D14, PU-203).
+    /// Registers the JSON-owned HSM definition and action/guard thunks.
+    /// HsmActionDispatcher is a static class and is called STATICALLY (§14 item 4).
+    /// </summary>
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging)
+    {
+        // Compile the blob from the topology-core thunk.
+        var blob = HsmVariableShowcase.Compile();
+
+        // BP-281: managed parameter supply — bake defaults, then overlay from json.
+        // The SAME ParseParamsDelegate the BTree bridge emits (DESIGN_Parameter_Model.md §3).
+        // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
+        global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
+        unsafe
+        {
+            __parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>
+            {
+                // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<float>("1.5", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
+                }
+
+                // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
+                // variable's deserializer (DEBT-AIB-021 names this shape).
+                // ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and
+                //    commits only on success, so a throw leaves the entity on its old behaviour.
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
+                    if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)
+                    {
+                        foreach (var __prop in __doc.RootElement.EnumerateObject())
+                        {
+                            switch (__prop.Name)
+                            {
+                                case "Threshold":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<float>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
+                                    break;
+                                }
+                                // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
+                                default: break;
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
+        // Register the JSON-owned HSM definition.
+        beh.Register(444402202, "HsmVariableShowcase", new BehaviorDefinition
+        {
+            Name          = "HsmVariableShowcase",
+            BrainTier     = BehaviorConstants.BrainTierHsm,
+            HsmDefinition = blob,
+            ParseParams   = __parseParams,
+            StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
+            {
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(577338280, global::System.Runtime.InteropServices.Marshal.SizeOf<int>(), unchecked(4180476474u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<int>()), typeof(int), "Cursor", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(740138773, global::System.Runtime.InteropServices.Marshal.SizeOf<int>(), unchecked(4180476474u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<int>()), typeof(int), "Ticks", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Entity),
+            },
+        });
+    }
+}

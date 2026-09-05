@@ -63,7 +63,15 @@ public static NodeStatus ClearOwnBehavior(Entity self, EntityRepository world)
 EventEntry ─► Action "ClearOwnBehavior" ─► Return(Success)
 ```
 Cross-entity (commander → subordinate order) — deferred, one-frame latency:
+
+> ⛔ **NOT IMPLEMENTED — this snippet is a design sketch, not working code.**
+> `BlueprintDeferredEvent` **does not exist anywhere in the repository** (verified 2026-08-04: zero
+> hits across `FDP/` and `Hrot/`). Neither does the `CommandBuffer.PublishEvent` routing it implies.
+> Cross-entity event dispatch is the most-cited deferred capability — tracked as **BP-45**. The
+> snippet is retained because it records the intended shape, but **it will not compile today.**
+
 ```csharp
+// DESIGN SKETCH ONLY -- BlueprintDeferredEvent does not exist. See BP-45.
 [SharedAiAction]
 public static NodeStatus DispatchOrder(Entity target, /*…scalars…*/ Entity self, EntityRepository world)
 {
@@ -72,8 +80,9 @@ public static NodeStatus DispatchOrder(Entity target, /*…scalars…*/ Entity s
     return NodeStatus.Success;
 }
 ```
-**Verdict:** publishing one event is a clean visual action. **Blueprint value: medium-high.** Shipped
-as the `PublishEvent` node (catalog-gated, per-field pins, Self/Any target routing).
+**Verdict:** publishing one event is a clean visual action. **Blueprint value: medium-high.**
+The **same-entity** case above is shipped as the `PublishEvent` node (catalog-gated, per-field pins,
+Self/Any target routing). The **cross-entity** case above is not (BP-45).
 
 ## 4. Respond to an event — an **Event node** per event (handler entry, Unreal-style)
 

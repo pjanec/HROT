@@ -1,4 +1,4 @@
-using Hrot.Core.Mission;
+﻿using Hrot.Core.Mission;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Events;
@@ -151,7 +151,30 @@ namespace Hrot.SimHost
         private int  _nodeIdOverride;
         private bool _initialized;
         // ── Role-based bootstrap ─────────────────────────────────────────────
-        private NodeRole          _role       = NodeRole.MuscleGround | NodeRole.Perception;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-197 — THE node's role, declared ONCE.</b>
+        ///
+        /// <para>📐 It used to be written in THREE places — this class's field initialiser, this class's
+        /// constructor DEFAULT PARAMETER, and <c>SimHostSubsystem._role</c> — and they did not agree with
+        /// what the host composed. All three said <c>MuscleGround | Perception</c> while
+        /// <c>SimHostNodeBootstrapper</c> composed <c>NavigationSolver</c> too, from a hard-coded
+        /// constant.</para>
+        ///
+        /// <para>⛔⛔ That was harmless only while the constant existed. The moment the capability set is
+        /// resolved FROM the declared role (<c>B4b</c> step 3), an under-declared role silently drops
+        /// <c>EngineBackedNavigationModule</c> and <c>EqsModule</c> — and a ctor default is exactly the
+        /// copy a careful edit misses, which is how five SimHost boot tests went red before this constant
+        /// existed. ⇒ one declaration, referenced everywhere.</para>
+        ///
+        /// <para>⚠ <c>NodeRole.NavigationSolver</c> is tested in exactly ONE place repo-wide,
+        /// <c>NedSimHostPathfindingTranslators.cs:35</c>, so the blast radius of declaring it honestly is
+        /// fully enumerated. 📄 §4.1v.</para>
+        /// </summary>
+        public const NodeRole DefaultRole =
+            NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver;
+
+        private NodeRole          _role       = DefaultRole;
         private NodeConfiguration? _nodeConfig;
         public new EntityRepository World => base.World
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
@@ -168,6 +191,29 @@ namespace Hrot.SimHost
 
         /// <summary>Internal test hook: exposes the NedReplicationModule after initialization.</summary>
         internal Hrot.Common.Abstractions.INedReplicationModule? TestHook_NedReplication => _context?.NedReplication;
+
+        /// <summary>
+        /// ⭐⭐ <b>This node's CONTROL-PLANE bus</b> — the one its <c>ClusterSlave</c> and
+        /// <c>ClusterOpEgressTranslator</c> sit on *(`NodeBootstrapper:194-200`)*, so a
+        /// <c>TransitionStateIntent</c> published here reaches the master over DDS. 📄 <c>HN-029</c>,
+        /// <c>MCP_Integration.md</c> § Group U.
+        /// <para>⛔ Not a test hook — the debug API's <c>scenario/load/*</c> uses it in production.
+        /// ⚠ <see langword="null"/> before <c>Initialize</c> and after <c>Shutdown</c>; read it, never latch it.</para>
+        /// </summary>
+        internal FdpEventBus? OrchestrationBus => _context?.EventBus;
+
+        /// <summary>
+        /// ⭐⭐ <b>This node's <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/></b> — the control-plane
+        /// endpoint that commits cluster-state transitions for SimHost and holds
+        /// <see cref="Fdp.Toolkit.Orchestration.ClusterSlave.LocalClusterState"/>.
+        ///
+        /// <para>⛔ <b>Not a test hook</b> — <c>CE-163</c> makes the debug API read it in production, on the
+        /// same argument as <see cref="OrchestrationBus"/> directly above. ⭐ Named and shaped to match
+        /// <c>CgfApplication.ClusterSlave</c> and <c>IgApplication.ClusterSlave</c>, so the three ECS nodes
+        /// present one member to the one shared projection. ⚠ <see langword="null"/> before
+        /// <c>Initialize</c> and after <c>Shutdown</c>; read it, never latch it.</para>
+        /// </summary>
+        internal Fdp.Toolkit.Orchestration.ClusterSlave? ClusterSlave => _clusterSlave;
 
         // ── Network factory (injected from composition root) ───────────────────
         private INetworkFactory? _networkFactory;
@@ -230,7 +276,7 @@ namespace Hrot.SimHost
         /// </param>
         public SimHostApp(
             int?              domainOverride = null,
-            NodeRole          role           = NodeRole.MuscleGround | NodeRole.Perception,
+            NodeRole          role           = DefaultRole,
             NodeConfiguration? nodeConfig    = null) : base(new ApplicationConfig
         {
             Width       = 1280,
@@ -330,31 +376,34 @@ namespace Hrot.SimHost
             var capturedLocalNodeId = localNodeId;
             _bootstrapper.ApplicationSystemsRegistrar = ctx =>
             {
-                _gizmoBuffer = new DebugPrimitiveBuffer();
-                _gizmoRegistry = new GizmoRegistry();
-                _statelessGizmoRegistry = new StatelessGizmoRegistry();
-                // GZ057: register entity presentation gizmos for SimHost.
-                Hrot.SimHost.Gizmos.GizmoRegistrar.RegisterAll(
-                    _gizmoRegistry,
-                    _statelessGizmoRegistry,
-                    settings: new GizmoSettingsRegistry());
-                // Register CanvasContextMenuGizmo for empty-space right-click context menus.
-                Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(
-                    _gizmoRegistry,
-                    _statelessGizmoRegistry,
-                    settings: new GizmoSettingsRegistry());
-                // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
-                _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
-                _interactionBus = new FdpEventBus();
-                Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
-                _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, _interactionBus);
-                _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
-                    _gizmoRegistry,
-                    _gizmoBuffer,
-                    isSelectedPredicate: static (view, entity) =>
-                        view.HasComponent<SelectionState>(entity) &&
-                        view.GetComponentRO<SelectionState>(entity).IsSelected,
-                    interactionBus: _interactionBus);
+                // QA-018: drain the test-only systems here — this callback is the one window where
+                // RegisterGlobalSystem is still legal (see TestHook_QueueSystem).
+                foreach (var pending in _pendingTestSystems)
+                    ctx.Kernel.RegisterGlobalSystem(pending);
+
+                // UXI-23 S2b: the buffer, both registries, the reflection pass and the three systems are
+                // built by the shared pack. 🔒 The pack CONSTRUCTS; this host still SCHEDULES, below.
+                var mapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+                    new Hrot.ScenarioEditor.Map.MapInteractionContext
+                    {
+                        World = ctx.World,
+                        IsSelectedPredicate = static (view, entity) =>
+                            view.HasComponent<SelectionState>(entity) &&
+                            view.GetComponentRO<SelectionState>(entity).IsSelected,
+                        // GZH-003: headless-first — enable only when a terminal connects.
+                        StartEnabled = false,
+                        ContributeExtras = static regs =>
+                            // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
+                            regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
+                                writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For)),  // ⭐ AX-007
+                    });
+
+                _gizmoBuffer            = mapInteraction.Buffer;
+                _gizmoRegistry          = mapInteraction.GizmoRegistry;
+                _statelessGizmoRegistry = mapInteraction.StatelessRegistry;
+                _interactionBus         = mapInteraction.InteractionBus;
+                _globalGizmoManager     = mapInteraction.GlobalManager;
+                _dataDrivenGizmoSystem  = mapInteraction.DataDrivenSystem;
                 // Register the global action registry and wire operator action handlers.
                 var actionRegistry = new GlobalActionRegistry();
                 long layerControlId = GlobalGizmoManager.NewId();
@@ -374,9 +423,12 @@ namespace Hrot.SimHost
                     if (!view.HasComponent<SimTransform>(target)) return;
                     // Always start fresh: deactivate any existing gizmo, then inject the new one.
                     _dataDrivenGizmoSystem!.DeactivateGizmo(target);
-                    var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                    var gizmo = new Hrot.ScenarioEditor.Gizmos.EntityRotatorGizmo(
                         view, target,
-                        onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target));
+                        onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target),
+                        // ⭐ AX-005b — SimHost usually OWNS the entity, so this routes Direct; the writer
+                        //   is passed anyway because the same node can hold unowned replicas.
+                        writer: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world!));
                     _dataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
                 });
 
@@ -413,18 +465,10 @@ namespace Hrot.SimHost
                     if (publisherSystem != null)
                         ctx.Kernel.RegisterGlobalSystem(publisherSystem);
                 }
-                var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
-                    _globalGizmoManager,
-                    _dataDrivenGizmoSystem,
-                    new StatelessGizmoSystem(
-                        _statelessGizmoRegistry,
-                        _gizmoBuffer,
-                        isSelectedPredicate: static (view, entity) =>
-                            view.HasComponent<SelectionState>(entity) &&
-                            view.GetComponentRO<SelectionState>(entity).IsSelected));
-                // GZH-003: headless-first; enable only when a terminal connects.
-                gizmoGroup.Enabled = false;
-                _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _dataDrivenGizmoSystem);
+                // UXI-23 S2b: the group, its three members and the gate come from the pack. This host's
+                // remaining job is to SCHEDULE them, which it does immediately below.
+                var gizmoGroup   = mapInteraction.GizmoGroup;
+                _gizmoController = mapInteraction.Gate;
                 ctx.Kernel.RegisterModule(new GizmoInteractionModule(
                     _interactionBus,
                     contextIngress: new ContextActionIngressSystem(ctx.EntityMap!, _interactionBus),
@@ -435,10 +479,16 @@ namespace Hrot.SimHost
                     },
                     gizmoIngress: gizmoIngress,
                     gizmoEgress:  gizmoEgress));
+                // ⭐⭐ UXI-23 S3: the map REPORTS what this host did not schedule, rather than going
+                // silently blank. ⚠ Scoped honestly (§3.2e): this catches a MISSING system, not CE-123 —
+                // that was a system present, scheduled and enabled, and told to draw nothing.
+                // MapSelfCheckSystem (last in the group) is what catches that.
+                foreach (string problem in mapInteraction.Unserviceable(new object[] { gizmoGroup }))
+                    FdpLog<SimHostApp>.Info("[Map] {0}", problem);
                 // ── GZ052: Entity attribute schema publisher ──────────────────────
                 // Build the compiler using the same geographic transform as the network factory.
                 // SimHost is always the default processor in standalone mode.
-                _jsonAttributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
+                _jsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(_geoTransform);
                 IDdsWriter<Hrot.NED.Messages.EntityAttributeSchema>? schemaWriter =
                     ctx.Participant != null
                         ? new DdsWriterGizmoAdapter<Hrot.NED.Messages.EntityAttributeSchema>(ctx.Participant)
@@ -455,6 +505,13 @@ namespace Hrot.SimHost
                 ctx.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _eventHistoryService, _interactionBus));
                 // Register canvas menu update so CanvasContextMenuGizmo has state to project.
                 ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+                // ⭐⭐⭐ UXI-23 S1 — stamps MapDisplayComponent.LayerMask so the shared entity gizmos
+                //    can layer-cull. 🔒 Ruling ③: the PACK owns construction, the HOST decides
+                //    scheduling — this is the host's half. The same shared system IG schedules via
+                //    MapLayerModule and the Editor registers directly (EditorSubsystem:1468).
+                // ⭐ The null default takes MapLayerRegistry.All; that ctor parameter is the seam
+                //    S4 fills with a definition set shared across subsystems.
+                ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Map.MapLayerAssignmentSystem());
             };
 
             // BootstrapNode runs all 7 phases including Phase 6d (callback) and Phase 7 (Initialize).
@@ -550,7 +607,8 @@ namespace Hrot.SimHost
         {
             Shutdown();
             // base.OnUnload() would call Kernel?.Dispose() and World?.Dispose() again;
-            // Shutdown() already handles that so we do not call base here to avoid double-dispose.
+            // Shutdown() disposes the node context (kernel THEN world — QA-001), so we do not call
+            // base here to avoid double-dispose.
         }
 
         // ── Embedded lifecycle (IgApplication pattern) ────────────────────────
@@ -596,12 +654,23 @@ namespace Hrot.SimHost
             _checkpointWorker = null;
 
             // ── Dispose simulation resources ──────────────────────────────────
+            // ⭐⭐⭐ CE-197 — free the node's RESOURCE PROVIDERS (B4b step 3).
+            //    📐 Nothing disposed TrajectoryPoolProvider before this, despite its own remarks claiming
+            //    "this bootstrapper disposes the provider" — so every node leaked its
+            //    TrajectoryPoolManager. The owner frees; capabilities only borrow.
+            // ⚠ Before _context.Dispose() below, because the providers' resources are the world's, not
+            //   the other way round.
+            _bootstrapper?.DisposeResources();
+
             _physicsModule?.Dispose();
             _physicsModule = null;
             _vis?.Dispose();
             _vis = null;
             _idAllocator?.Dispose();
-            _kernel?.Dispose();
+            // QA-001: dispose the whole node context — kernel THEN world. This used to be
+            // `_kernel?.Dispose()`, which left the EntityRepository (an int[1_000_000] free list plus
+            // one NativeChunkTable per registered component) alive for the life of the process.
+            _context?.Dispose();
 
             FdpLog<SimHostApp>.Info("[Node-{0}] Shutdown complete.", localNodeId);
 
@@ -646,6 +715,22 @@ namespace Hrot.SimHost
 
         /// <summary>TestHook: current kernel simulation time in seconds. Updates every frame.</summary>
         public double TestHook_CurrentSimTime => _kernel?.CurrentTime.TotalTime ?? 0.0;
+
+        /// <summary>
+        /// ⭐⭐ Diagnostic read-only window onto the kernel's OWN system profiler.
+        ///
+        /// <para>📌 Added <c>2026-09-01</c> for <c>CE-103</c>. That investigation had closed every
+        /// explanation except one — <i>"is <c>NavigationIntentBridgeSystem</c> actually CALLED on this
+        /// node?"</i> — and there was no way to ask it. Reading the composition code repeatedly produced
+        /// wrong answers twice; the kernel already counts every <c>ExecuteSystem</c> call in
+        /// <c>SystemProfileData.ExecutionCount</c>, so the honest move is to READ that rather than infer.</para>
+        ///
+        /// <para>⛔ Adds no behaviour and no state — it hands back the scheduler the kernel already owns
+        /// (<c>ModuleHostKernel.SystemScheduler</c>), whose <c>GetProfileData&lt;T&gt;()</c> answers
+        /// "how many times did this system run". <c>null</c> before <c>Initialize()</c>.</para>
+        /// </summary>
+        public Fdp.ModuleHost.Scheduling.SystemScheduler? TestHook_SystemScheduler
+            => _kernel?.SystemScheduler;
 
         /// <summary>TestHook: exposes the gizmo primitive buffer for integration tests.</summary>
         internal DebugPrimitiveBuffer? TestHook_GizmoBuffer => _gizmoBuffer;
@@ -799,17 +884,35 @@ namespace Hrot.SimHost
         internal int TestHook_ResolvedLocalNodeId =>
             _nodeIdOverride != 0 ? _nodeIdOverride : SimHostNetworkConstants.LocalNodeId;
 
+        // ── QA-018: test-only system injection ────────────────────────────────
+        private readonly List<IEcsModuleSystem> _pendingTestSystems = new();
+
         /// <summary>
-        /// TestHook: registers an additional ECS system on the kernel.
-        /// Must be called after <see cref="InitializeEmbedded"/> and before the first
-        /// <see cref="Tick"/> so that the system participates from the first frame.
-        /// Intended only for in-process integration/E2E tests.
+        /// ⭐⭐⭐ <c>QA-018</c> — <b>queues an extra ECS system to be registered in Phase 6d, BEFORE the
+        /// kernel is initialised.</b> Intended only for in-process integration/E2E tests.
+        ///
+        /// <para>⛔⛔ This replaces <c>TestHook_AddSystem</c>, whose contract was IMPOSSIBLE to satisfy:
+        /// it documented *"must be called AFTER <see cref="InitializeEmbedded"/>"* and threw
+        /// <c>if (!_initialized)</c>, while <c>ModuleHostKernel.RegisterGlobalSystem</c> throws
+        /// <c>if (_initialized)</c>. 📐 Measured 2026-08-26: every caller got
+        /// <c>"Cannot register systems after Initialize() called"</c>, which is the whole of the four
+        /// <c>ClusterOpE2eScriptTests</c> reds.</para>
+        ///
+        /// <para>⭐ The fix uses the seam this file already relies on for exactly this reason — the
+        /// Phase 6d <c>ApplicationSystemsRegistrar</c> callback, whose own comment says
+        /// *"RegisterModule / RegisterGlobalSystem throw after Initialize() — must run in Phase 6d."*
+        /// ⚠ Registering early is not a compromise for the caller: the one test system builds its query
+        /// lazily on first <c>Execute</c> precisely so the components it needs can be registered later.</para>
         /// </summary>
-        public void TestHook_AddSystem(IEcsModuleSystem system)
+        public void TestHook_QueueSystem(IEcsModuleSystem system)
         {
-            if (!_initialized)
-                throw new InvalidOperationException("SimHostApp is not initialized.");
-            _kernel!.RegisterGlobalSystem(system);
+            if (_initialized)
+                throw new InvalidOperationException(
+                    "TestHook_QueueSystem must be called BEFORE InitializeEmbedded. ModuleHostKernel "
+                    + "refuses RegisterGlobalSystem once Initialize() has run, so a system added after "
+                    + "boot could never execute.");
+
+            _pendingTestSystems.Add(system ?? throw new ArgumentNullException(nameof(system)));
         }
 
         // ── Component registration ────────────────────────────────────────────

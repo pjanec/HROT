@@ -62,6 +62,7 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 
 using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.Replication.Attributes;
 
 using Fdp.Toolkit.Replication.Components;
 
@@ -77,6 +78,7 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 
 using Fdp.Toolkit.Time.Controllers;
+using Hrot.Presentation.Map;
 
 using Fdp.Toolkit.Vis2D;
 
@@ -220,8 +222,10 @@ public class IgApplication : IDisposable
     // -- ClusterSlave (CGF1-S0104 / CMC-S016) ? wired in InitializeNetwork ------
     private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
     // CMC-S016: orchestration bus + slave translator (Option C).
-    private Fdp.Core.FdpEventBus?                             _igOrchestrationBus;
-    private Hrot.Common.Orchestration.NodeOpSlaveTranslator?    _igSlaveTranslator;
+    // ⛔ CE-164 — `_igOrchestrationBus` is GONE. There is ONE orchestration bus, `_context.EventBus`,
+    //    swapped ONCE per frame at the end of Update() (see the swap there). Two swaps of one
+    //    double-buffered bus in a frame would discard whatever was published between them.
+    private Hrot.Core.Network.ISlaveOrchestrationTranslator?  _slaveTranslator;
 
     // ?? HrotNodeBuilder infrastructure context (EAM-M002) ?????????????????????
     private HrotNodeContext? _context;
@@ -280,6 +284,20 @@ public class IgApplication : IDisposable
     /// Computed once in <see cref="InitializeEmbedded"/> and reused at runtime.
     /// </summary>
     private int _effectiveInstanceId;
+
+    /// <summary>
+    /// ⭐⭐⭐ The node's LOCAL entity-creation request source (host (f)). IG's authoring tools enqueue
+    /// INTENTS here instead of publishing <c>SpawnEntityCommand</c> ORDERS onto the event bus; the shared
+    /// pipeline drains it, and <c>ForwardingEntityCreationRequestSource</c> decides — per request — whether
+    /// this node services it or the NED egress sends it to the node that should.
+    ///
+    /// <para>⛔ <b>Read through to the pack, never a second instance.</b> The source is created by
+    /// <c>EntityCreationPack.Build</c> and published by <c>IgNodeBootstrapper</c>; owning a parallel one
+    /// here would be the duplicate-mechanism trap — the tools would fill a queue nothing drains.</para>
+    /// 📄 <c>docs/DESIGN_Entity_Creation_Unification.md</c> §3.4b.
+    /// </summary>
+    internal ScenarioEntityCreationRequestSource? LocalEntityCreationRequests
+        => _igBootstrapper?.LocalEntityCreationRequests;
 
     // -- Task 5: IG-to-ExCon event translator state ----------------------------------------------
 
@@ -685,15 +703,13 @@ public class IgApplication : IDisposable
         _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
 
         // ATTR2-DEBT-07: Build edge compiler once, shared across all CreationTool instances.
-        // Registers the same five paths used by AttributeCompilerFactory.BuildEdgeCompiler()
-        // in Hrot.SimHost so the JSON-Binary schema stays in sync on both ends of the wire.
-        _edgeCompiler = new JsonToRecordCompilerBuilder()
-            .Register("Name",                  AttributeIds.Name,        AttributeValueKind.CsString)
-            .Register("Affiliation",           AttributeIds.Affiliation,  AttributeValueKind.CsString)
-            .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,      AttributeValueKind.CsFloat64)
-            .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueKind.CsFloat64)
-            .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueKind.CsFloat64)
-            .Build();
+        //
+        // ⭐⭐⭐ AX-018 — CALL THE FACTORY. This used to re-Register the five paths by hand, with a comment
+        //    saying they must stay in sync with AttributeCompilerFactory.BuildEdgeCompiler(). 🔴 That comment
+        //    WAS the enforcement, and it had already failed: `Heading` was added to the JSON→ECS table and to
+        //    the binary interpreter and to NEITHER edge table, so IG's creation tool could not send a heading
+        //    at all — silently, no exception, no log. ⛔ Ruling 9: one implementation per concept.
+        _edgeCompiler = AttributeCompilerFactory.BuildEdgeCompiler();
 
         _igBootstrapper = new IgNodeBootstrapper(
             _networkFactory,
@@ -732,34 +748,69 @@ public class IgApplication : IDisposable
             ctx.Kernel.RegisterGlobalSystem(_contextMenuSystem);
 
             // Gizmo subsystem (GZ020) - renders entity-bound diagnostic overlays.
-            _gizmoBuffer            = new DebugPrimitiveBuffer(capacity: 4096);
-            _gizmoRegistry          = new GizmoRegistry();
-            _statelessGizmoRegistry = new StatelessGizmoRegistry();
-            _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
-            _gizmoUndoStack         = new GizmoUndoStack();
-            _interactionBus         = new FdpEventBus();
-            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
-            Hrot.IG.Gizmos.GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
-            // Register CanvasContextMenuGizmo so empty-space right-click resolves through the binding pipeline.
-            Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
-            // Phase 5: EntityDragGizmo makes entities draggable and emits pick spheres for selection.
-            if (_igBootstrapper!.NetworkEnabled)
-            {
-                _gizmoRegistry!.Register(
-                    new EntityDragGizmoDefinition(onDragCommitted: (entity, worldPos) =>
+            // ── UXI-23 S2b: the shared pack constructs the map's machinery ──────────────────────
+            // 🔒 The pack CONSTRUCTS; IG still SCHEDULES (below, into ctx.Kernel).
+            //
+            // 🔴 This also removes a DOUBLE REGISTRATION. IG used to call BOTH the reflection registrar
+            // (via Hrot.IG.Gizmos.GizmoRegistrar.Register) AND the source-GENERATED
+            // Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll. CanvasContextMenuGizmo carries
+            // [GizmoProjector], so reflection already finds it and the generated call registered it a
+            // SECOND time — measured live as ContextMenuBinding 10 on IG against 9 on Scenario. The pack
+            // does exactly one reflection pass.
+            //
+            // ⚠ ContributeExtras runs AFTER reflection and BEFORE the systems are built, which is the only
+            // safe window: StatelessGizmoSystem sizes its visibility cache from registry.Rules.Count.
+            var igMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+                new Hrot.ScenarioEditor.Map.MapInteractionContext
+                {
+                    World = ctx.World,
+                    // IG is a dumb terminal — draw all active gizmos, not just the selection's.
+                    IsSelectedPredicate = null,
+                    // IG draws the richest frame of the five.
+                    BufferCapacity = 4096,
+                    // GZH-003: IG is interactive and always has a window at startup. It is not driven by
+                    // PerspectiveCoordinatorSystem when run standalone, so starting disabled would shut
+                    // its gate permanently (§3.2d ①).
+                    StartEnabled = true,
+                    ContributeExtras = regs =>
                     {
-                        _lastDragWorldPos = worldPos;
-                        OnEntityDragEnded(entity);
-                    }));
-            }
-            else
-            {
-                _gizmoRegistry!.Register(new EntityDragGizmoDefinition());
-            }
-            // GZ058: manually register MissionPresentationGizmo (constructor requires IGeographicTransform).
-            _statelessGizmoRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(ctx.GeoTransform!),
-                new[] { typeof(SimTransform), typeof(SelectionState) });
+                        // Phase 5: EntityDragGizmo makes entities draggable and emits pick spheres.
+                        if (_igBootstrapper!.NetworkEnabled)
+                        {
+                            regs.Gizmos.Register(
+                                new EntityDragGizmoDefinition(
+                                    onDragCommitted: (entity, worldPos) =>
+                                    {
+                                        _lastDragWorldPos = worldPos;
+                                        OnEntityDragEnded(entity);
+                                    },
+                                    // ⭐ AX-007 — IG owns almost nothing, so a drag is a request to the owner.
+                                    writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));
+                        }
+                        else
+                        {
+                            regs.Gizmos.Register(new EntityDragGizmoDefinition(
+                                writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));
+                        }
+
+                        // GZ058: MissionPresentationGizmo's constructor requires IGeographicTransform,
+                        // which reflection cannot supply.
+                        regs.Stateless.Register(
+                            new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(ctx.GeoTransform!),
+                            new[] { typeof(SimTransform), typeof(SelectionState) });
+                    },
+                });
+
+            _gizmoBuffer            = igMapInteraction.Buffer;
+            _gizmoRegistry          = igMapInteraction.GizmoRegistry;
+            _statelessGizmoRegistry = igMapInteraction.StatelessRegistry;
+            _gizmoSettingsRegistry  = igMapInteraction.Settings;
+            _interactionBus         = igMapInteraction.InteractionBus;
+            _igDataDrivenGizmoSystem = igMapInteraction.DataDrivenSystem;
+            _gizmoUndoStack         = new GizmoUndoStack();
+            // ⚠ _globalGizmoManager is deliberately assigned LATER, at its original position, so that
+            // MapCommandController below keeps receiving exactly what it received before this migration.
+            // (It receives null today; changing that is a behaviour change and belongs in its own change.)
 
             // Phase 5: selection and drag handled by SelectionInteractionSystem + EntityDragGizmo.
             // Canvas no longer has a base tool for entity picking.
@@ -789,20 +840,18 @@ public class IgApplication : IDisposable
                     _canvas,
                     ctx.World.Bus,
                     dto => _networkAdapter?.WriteMapCommandAck(dto),
+                    LocalEntityCreationRequests ?? throw new InvalidOperationException(
+                        "The entity-creation pack has not been composed yet. RegisterSpawningPipeline "
+                        + "must run before RegisterApplicationSystems (SharedApplicationBootstrapper "
+                        + ":111 vs :139); if that order changed, IG's authoring tools have no sink."),
                     _effectiveInstanceId,
                     globalGizmoManager: _globalGizmoManager);
             }
 
-            // GZ038 reversed: DataDrivenGizmoSystem is registered for local vertex/route editing.
-            // isSelectedPredicate: null because IG is dumb terminal -- draw all active gizmos.
-            _igDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
-                _gizmoRegistry!,
-                _gizmoBuffer!,
-                isSelectedPredicate: null,
-                interactionBus: _interactionBus);
-
+            // UXI-23 S2b: both come from the pack. _globalGizmoManager is assigned HERE, at its original
+            // position, so the MapCommandController above keeps its pre-migration behaviour.
             // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
-            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!, _interactionBus);
+            _globalGizmoManager = igMapInteraction.GlobalManager;
             _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager, _gizmoSettingsRegistry);
             var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
             var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
@@ -850,13 +899,12 @@ public class IgApplication : IDisposable
                 if (publisherSystem != null)
                     ctx.Kernel.RegisterGlobalSystem(publisherSystem);
             }
-            var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
-                _globalGizmoManager,
-                _igDataDrivenGizmoSystem,
-                new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
-            // GZH-003: IG is interactive, always has a window at startup.
-            gizmoGroup.Enabled = true;
-            _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _igDataDrivenGizmoSystem);
+            // UXI-23 S2b: the group, its three members and the gate come from the pack.
+            var gizmoGroup   = igMapInteraction.GizmoGroup;
+            _gizmoController = igMapInteraction.Gate;
+            // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
+            foreach (string problem in igMapInteraction.Unserviceable(new object[] { gizmoGroup }))
+                Fdp.Core.Logging.FdpLog<IgApplication>.Info("[Map] {0}", problem);
             ctx.Kernel.RegisterModule(new GizmoInteractionModule(
                 _interactionBus!,
                 contextIngress: null,
@@ -884,8 +932,10 @@ public class IgApplication : IDisposable
         _networkAdapter      = _igBootstrapper.NetworkAdapter;
         _commandGateway      = _igBootstrapper.CommandGateway;
         _clusterSlave        = _context.ClusterSlave;
-        _igSlaveTranslator   = _igBootstrapper.IgSlaveTranslator;
-        _igOrchestrationBus  = _igBootstrapper.OrchestrationBus;
+        // ⭐⭐⭐ CE-164 — the node's OWN slave translator, from the context, exactly as SimHostApp:504 does.
+        //    ⛔ Was `_igBootstrapper.IgSlaveTranslator` — a second, ingress-only translator on a second bus.
+        //    📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1b.
+        _slaveTranslator     = _context.SlaveTranslator;
 
         _miniIosPanel = new MiniExConPanel(_miniIosState, _world.Bus);
         if (_networkEnabled)
@@ -929,9 +979,12 @@ public class IgApplication : IDisposable
     {
 
         _frameDt = dt;
-        // CMC-S016: swap orch bus then tick translator before clusterSlave.
-        _igOrchestrationBus?.SwapBuffers();
-        _igSlaveTranslator?.Tick();
+        // ⭐⭐ CMC-S016 / CE-164: translator tick BEFORE clusterSlave so DDS→bus ingress is processed
+        //    first — verbatim the SimHostApp:560-561 order, on the node's ONE orchestration bus.
+        // ⛔ The `SwapBuffers()` that stood on the first line is GONE: it swapped IG's second bus, and
+        //    swapping the shared bus HERE as well as at the end of Update() would double-swap it,
+        //    discarding anything published in between. 📄 DESIGN_Subsystem_Composition_Unification §4.1b.
+        _slaveTranslator?.Tick();
         _clusterSlave?.Tick();
 
         if (!_headless)
@@ -1607,7 +1660,9 @@ public class IgApplication : IDisposable
         _networkAdapter = null;
         _commandGateway = null;
 
-        _kernel?.Dispose();
+        // QA-001: dispose the whole node context — kernel THEN world. This used to be
+        // `_kernel?.Dispose()`, which leaked the EntityRepository on every IG teardown.
+        _context?.Dispose();
 
         if (ownsWindow)
 
@@ -1627,11 +1682,37 @@ public class IgApplication : IDisposable
 
 
     /// <summary>
+    /// ⭐⭐ <b>This node's <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/></b> — the control-plane
+    /// endpoint that commits cluster-state transitions for IG and holds
+    /// <see cref="Fdp.Toolkit.Orchestration.ClusterSlave.LocalClusterState"/>.
+    ///
+    /// <para>⛔ <b>Not a test hook</b> — <c>CE-163</c> makes the debug API read it in production, exactly
+    /// as it reads <see cref="OrchestrationBus"/>. ⭐ Named and shaped to match
+    /// <c>CgfApplication.ClusterSlave</c> and <c>SimHostApp.ClusterSlave</c>, so the three ECS nodes
+    /// present one member to the one shared projection. ⚠ Read it, never latch it: <see langword="null"/>
+    /// before <c>InitializeNetwork</c> *(e.g. headless tests without DDS)* and after <c>Shutdown</c>.</para>
+    /// </summary>
+    internal Fdp.Toolkit.Orchestration.ClusterSlave? ClusterSlave => _clusterSlave;
+
+    /// <summary>
     /// Internal test hook: exposes the <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/>
     /// for handler-registration assertions (CGF1-S0104 / A.2).  <c>null</c> when
     /// <see cref="InitializeNetwork"/> was not called (e.g. headless tests without DDS).
+    ///
+    /// <para>⭐ Now a forwarder to <see cref="ClusterSlave"/> — one member, two names, no second field.</para>
     /// </summary>
-    internal Fdp.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => _clusterSlave;
+    internal Fdp.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => ClusterSlave;
+
+    /// <summary>
+    /// ⭐⭐ <b>This node's CONTROL-PLANE bus</b> — the one its <c>ClusterSlave</c> and
+    /// <c>ClusterOpEgressTranslator</c> sit on *(`NodeBootstrapper:194-200`, shared by SimHost · CGF · IG)*, so
+    /// a <c>TransitionStateIntent</c> published here reaches the master over DDS. 📄 <c>HN-029</c>.
+    /// <para>⛔ Not a test hook — the debug API's <c>scenario/load/*</c> uses it in production. ⚠ Read it, never
+    /// latch it: <see langword="null"/> before <c>Initialize</c> and after <c>Shutdown</c>.</para>
+    /// <para>⭐ Note IG offers this while offering NO clock *(<c>drive: null</c>)* — 📌 the capabilities are
+    /// genuinely independent.</para>
+    /// </summary>
+    internal Fdp.Core.FdpEventBus? OrchestrationBus => _context?.EventBus;
 
     /// <summary>Current kernel sim time in seconds ? available in both headless and normal mode.</summary>
     internal double TestHook_CurrentSimTime => _kernel.CurrentTime.TotalTime;

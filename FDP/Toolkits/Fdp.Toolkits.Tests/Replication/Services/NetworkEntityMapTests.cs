@@ -79,5 +79,56 @@ namespace Fdp.Toolkit.Replication.Tests.Services
             Assert.True(map.TryGetEntity(netId, out var e));
             Assert.Equal(new Entity(2), e);
         }
+
+        // ── CE-144: the graveyard is now TICKED by the shared code ───────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-144</c> acceptance ⑤ — <b><c>DisposalMonitoringSystem</c> prunes BOTH:
+        /// dead entities into the graveyard, and the graveyard itself.</b>
+        ///
+        /// <para>📐 Until <c>2026-09-03</c> <c>PruneGraveyard</c> had <b>zero production callers</b>, so
+        /// the list only ever grew. ⛔ Nothing observed it — <c>IsGraveyard</c> has no production
+        /// readers — so the payoff is BOUNDED MEMORY rather than corrected behaviour, and this rail says
+        /// so rather than implying otherwise.</para>
+        ///
+        /// <para>⚠ It also pins the CLOCK. <c>PruneDeadEntities</c> stamps
+        /// <c>SimulationTick</c> (the documented frame clock), not <c>GlobalVersion</c> — the two diverge
+        /// under a mid-tick debug burst, and a window denominated in frames must be aged on the frame
+        /// clock. 🔒 <c>EntityRepository</c>: <i>"Frame-index / wall-tick consumers must read this, NOT
+        /// GlobalVersion"</i>.</para>
+        /// </summary>
+        [Fact]
+        public void DisposalMonitoringSystem_PrunesDeadEntitiesAndThenTheGraveyard()
+        {
+            var repo = new EntityRepository();
+            var map  = new NetworkEntityMap(graveyardDurationFrames: 3);
+            var sys  = new Fdp.Toolkit.Replication.Systems.DisposalMonitoringSystem(map);
+
+            var entity = repo.CreateEntity();
+            const long netId = 4242;
+            map.Register(netId, entity);
+
+            repo.DestroyEntity(entity);
+
+            // Tick 1: the dead entity is noticed and its id moves into the graveyard.
+            repo.Tick();
+            sys.Execute(repo, 1f / 60f);
+            Assert.False(map.TryGetEntity(netId, out _));
+            Assert.True(map.IsGraveyard(netId),
+                "PruneDeadEntities did not move the destroyed entity's id into the graveyard.");
+
+            // Inside the window it must STAY — otherwise the window means nothing.
+            repo.Tick();
+            sys.Execute(repo, 1f / 60f);
+            Assert.True(map.IsGraveyard(netId),
+                "The id was retired while still inside graveyardDurationFrames. Either the prune ignores " +
+                "the window, or PruneDeadEntities stamped a different clock than PruneGraveyard reads.");
+
+            // Past the window it must be retired — this is the half that had no production caller.
+            for (int i = 0; i < 5; i++) { repo.Tick(); sys.Execute(repo, 1f / 60f); }
+            Assert.False(map.IsGraveyard(netId),
+                "The graveyard still holds the id well past its window. PruneGraveyard is not being " +
+                "ticked, so the list grows without bound for the life of the node.");
+        }
     }
 }

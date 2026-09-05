@@ -1,0 +1,28 @@
+StructureHash: 0x058255709609E6C2
+Parameters:
+  StartX : System.Single @0 size=4
+  StartY : System.Single @4 size=4
+  EndX : System.Single @8 size=4
+  EndY : System.Single @12 size=4
+  BaselineStartX : System.Single @16 size=4
+  BaselineStartY : System.Single @20 size=4
+  BaselineEndX : System.Single @24 size=4
+  BaselineEndY : System.Single @28 size=4
+  AttackDirX : System.Single @32 size=4
+  AttackDirY : System.Single @36 size=4
+WorkingState:
+  (empty)
+Variables:
+  Runners : Hrot.AI.Behaviors.Brains.MemberSlotList @8 size=96
+  WaveUsedSlotsMask : System.UInt16 @104 size=2
+  BaselineReservedMask : System.UInt16 @106 size=2
+  BurnedSlotsMask : System.UInt16 @108 size=2
+  CurrentWave : System.Byte @110 size=1
+  TotalSlots : System.Int32 @112 size=4
+  CachedTargetGroupHandle : System.Int32 @116 size=4
+  CachedEqsRequestId : System.Int64 @120 size=8
+  EqsRequestTime : System.Single @128 size=4
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

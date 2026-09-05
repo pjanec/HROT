@@ -45,7 +45,6 @@
 - [X] Hrot.Editor.AiShared (Path: Hrot/Editor/Hrot.Editor.AiShared/Hrot.Editor.AiShared.csproj) -> docs/projects/Hrot/Editor/Hrot.Editor.AiShared.md
 - [X] Hrot.ReplayBrowser (Path: Hrot/Subsystems/Hrot.ReplayBrowser/Hrot.ReplayBrowser.csproj) -> docs/projects/Hrot/Subsystems/Hrot.ReplayBrowser.md
 - [X] Hrot.ClusterRunner (Path: Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj) -> docs/projects/Hrot/Runner/Hrot.ClusterRunner.md
-- [X] Hrot.FakeStrideApp (Path: Hrot/Runner/Hrot.FakeStrideApp/Hrot.FakeStrideApp.csproj) -> docs/projects/Hrot/Runner/Hrot.FakeStrideApp.md
 - [X] Fdp.Tools.RecordingDumper (Path: FDP/Tools/Fdp.Tools.RecordingDumper/Fdp.Tools.RecordingDumper.csproj) -> docs/projects/FDP/Tools/Fdp.Tools.RecordingDumper.md
 
 ## Phase 5-A: Domain / Simulation Subsystems
@@ -57,7 +56,7 @@
 - [X] Hrot.IG (Path: Hrot/Subsystems/Hrot.IG/Hrot.IG.csproj) -> docs/projects/Hrot/Subsystems/Hrot.IG.md
 - [X] Hrot.Orchestrator (Path: Hrot/Subsystems/Hrot.Orchestrator/Hrot.Orchestrator.csproj) -> docs/projects/Hrot/Subsystems/Hrot.Orchestrator.md
 - [X] Hrot.SimHost (Path: Hrot/Subsystems/Hrot.SimHost/Hrot.SimHost.csproj) -> docs/projects/Hrot/Subsystems/Hrot.SimHost.md
-- [X] Hrot.StrideMock (Path: Hrot/Subsystems/Hrot.StrideMock/Hrot.StrideMock.csproj) -> docs/projects/Hrot/Subsystems/Hrot.StrideMock.md
+- [X] Hrot.NodeComposition (Path: Hrot/Subsystems/Hrot.NodeComposition/Hrot.NodeComposition.csproj) -> docs/projects/Hrot/Subsystems/Hrot.NodeComposition.md
 
 ## Phase 5-B: Blueprints Subsystem
 *(Visual/Data-driven scripting for Hrot)*

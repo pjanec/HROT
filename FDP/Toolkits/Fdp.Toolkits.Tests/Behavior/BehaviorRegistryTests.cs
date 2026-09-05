@@ -172,6 +172,79 @@ namespace Fdp.Toolkit.Behavior.Tests
                 }));
         }
 
+        // ── G4 — id collision under DISTINCT names ──────────────────────────
+        /// <summary>
+        /// ⭐⭐ <b>The other half of the duplicate guard, and the one that was missing.</b>
+        ///
+        /// <para>
+        /// The name check cannot see this case: the id is <c>FNV-1a-32</c> of the name
+        /// (<see cref="BehaviorHash.FromName"/>), so two <b>distinct</b> names can hash to one id.
+        /// <c>_nameToId</c> then maps both names to that id while <c>_definitions[id]</c> holds only
+        /// the second definition ⇒ 🔴 <b>the first behavior silently resolves to the second's
+        /// topology</b> — no throw, no log, one behaviour quietly replaced by another.
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠ Driven through the <b>explicit-id</b> overload rather than by hunting for a real FNV
+        /// collision: that overload is a public entry point a generated registrar uses, so the
+        /// collision is reachable without any hashing at all — and a hand-found hash collision would
+        /// make the test about the hash rather than about the guard.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void Register_IdCollisionUnderDistinctNames_Throws()
+        {
+            var registry = new BehaviorRegistry();
+
+            registry.Register(777, "Alpha", new BehaviorDefinition
+            {
+                Name      = "Alpha",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                registry.Register(777, "Bravo", new BehaviorDefinition
+                {
+                    Name      = "Bravo",
+                    BrainTier = BehaviorConstants.BrainTierBTree,
+                }));
+
+            // ⭐ Both sides named: a collision message that omits the resident is unactionable.
+            Assert.Contains("Bravo", ex.Message);
+            Assert.Contains("Alpha", ex.Message);
+        }
+
+        /// <summary>
+        /// ⚠ <b>The id guard must not fire on the reload path.</b> <c>MergeFrom</c> deliberately
+        /// overwrites (a fresh assembly's definition replaces the live one under the same name and
+        /// therefore the same id) — routing that through <c>Register</c> would abort every hot reload.
+        /// ⭐ Stated as its own test because the id guard is the second reason a reload could now
+        /// throw, and the existing test only covers the name one.
+        /// </summary>
+        [Fact]
+        public void MergeFrom_SameNameSameDerivedId_StillOverwrites()
+        {
+            var live = new BehaviorRegistry();
+            live.Register("Reloadable", new BehaviorDefinition
+            {
+                Name      = "Reloadable",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+
+            var staging = new BehaviorRegistry();
+            var updated = new BehaviorDefinition
+            {
+                Name      = "Reloadable",
+                BrainTier = BehaviorConstants.BrainTierHsm,
+            };
+            staging.Register("Reloadable", updated);
+
+            live.MergeFrom(staging);
+
+            Assert.True(live.TryGetDefinition(BehaviorHash.FromName("Reloadable"), out var got));
+            Assert.Same(updated, got);
+        }
+
         // ── Test 8 — distinct names register independently ──────────────────
         /// <summary>
         /// Registering two distinct behavior names must not interfere with each other's
@@ -186,7 +259,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Alpha",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
             });
             registry.Register(2, "Bravo", new BehaviorDefinition
             {
@@ -222,7 +295,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Reloadable",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
             };
             staging.Register(BehaviorHash.FromName("Reloadable"), "Reloadable", updated);
 
@@ -279,7 +352,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // resolver registered BEFORE the topology
             var r1 = new BehaviorRegistry();
-            r1.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self) => { },
+            r1.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
                 typeof(int));
             r1.Register("Y", TopologyOnly());
             Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Y"), out var d1));
@@ -289,10 +362,73 @@ namespace Fdp.Toolkit.Behavior.Tests
             // resolver registered AFTER the topology
             var r2 = new BehaviorRegistry();
             r2.Register("Y", TopologyOnly());
-            r2.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self) => { },
+            r2.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
                 typeof(int));
             Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Y"), out var d2));
             Assert.NotNull(d2!.ParseParams);
+            Assert.Equal(typeof(int), d2.ParamsDtoType);
+        }
+
+        // ── Test 10b — the curated overlay OUTRANKS a generated ParseParams ──
+        /// <summary>
+        /// 📌 <b>User ruling (2026-08-23):</b> <i>"if curated (hand-authored) exists, then no other is
+        /// needed — having automatically generated is undesired in such a case."</i>
+        ///
+        /// <para>
+        /// 🔴 <b>The regression this locks.</b> <c>ApplyResolverOverlay</c> used to read
+        /// <c>if (def.ParseParams == null)</c>, so a generated registrar that set its own
+        /// <c>ParseParams</c> silently discarded the curated resolver. Only the curated one
+        /// understands geo-authored parameters, so <c>PlatoonHillAttack</c>'s commander params stayed
+        /// all-zero and the platoon drove to (0,0) instead of the computed baseline. Observed live;
+        /// the tell was <c>TankSpacing == 0</c>, which the curated parser cannot emit.
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠ Both orders are asserted: the generated registrar may run before OR after the curated
+        /// one, and the ruling must not depend on which.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void RegisterResolver_OverridesAGeneratedParseParams_InEitherOrder()
+        {
+            static BehaviorDefinition WithGeneratedParseParams(ParseParamsDelegate generated) => new()
+            {
+                Name          = "Z",
+                BrainTier     = BehaviorConstants.BrainTierBTree,
+                ParseParams   = generated,          // what a generated registrar emits
+                ParamsDtoType = typeof(long),       // and its own DTO type
+            };
+
+            bool generatedRan;
+            bool curatedRan;
+
+            ParseParamsDelegate MakeGenerated() =>
+                (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => generatedRan = true;
+            ParseParamsDelegate MakeCurated() =>
+                (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => curatedRan = true;
+
+            // ── generated topology FIRST, curated resolver second ──
+            generatedRan = false; curatedRan = false;
+            var r1 = new BehaviorRegistry();
+            r1.Register("Z", WithGeneratedParseParams(MakeGenerated()));
+            r1.RegisterResolver("Z", MakeCurated(), typeof(int));
+
+            Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Z"), out var d1));
+            d1!.ParseParams!(string.Empty, null, null!, default, null);
+            Assert.True(curatedRan,    "the curated resolver must win over a generated ParseParams");
+            Assert.False(generatedRan, "the generated ParseParams must not run once a curated one exists");
+            Assert.Equal(typeof(int), d1.ParamsDtoType);   // the curated DTO type wins too
+
+            // ── curated resolver FIRST, generated topology second ──
+            generatedRan = false; curatedRan = false;
+            var r2 = new BehaviorRegistry();
+            r2.RegisterResolver("Z", MakeCurated(), typeof(int));
+            r2.Register("Z", WithGeneratedParseParams(MakeGenerated()));
+
+            Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Z"), out var d2));
+            d2!.ParseParams!(string.Empty, null, null!, default, null);
+            Assert.True(curatedRan,    "order must not decide which resolver wins");
+            Assert.False(generatedRan);
             Assert.Equal(typeof(int), d2.ParamsDtoType);
         }
 

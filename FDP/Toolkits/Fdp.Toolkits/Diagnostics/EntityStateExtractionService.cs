@@ -59,7 +59,15 @@ namespace Fdp.Toolkit.Diagnostics
             var snapshotableMask = _serializer != null ? _repo.GetSnapshotableMask() : default;
             var resolver         = _serializer != null ? new DiagnosticGuidResolver()  : null;
 
-            var registeredTypes = _serializer == null ? _repo.GetRegisteredComponentTypes() : null;
+            // ⭐⭐⭐ CE-171 follow-up — ALWAYS resolve the registered types, even on the serializer path.
+            //    ⛔⛔ The serializer honours the SNAPSHOTABLE mask, which is correct for writing a scenario
+            //    and WRONG for a diagnostic dump: a transient/NoSave component simply vanishes. 📐 Measured
+            //    on `--mode all` entity 1000 — adopting the serializer path alone took the dump from 34
+            //    components to 29, silently losing `MissionPlanQueue`, `MissionAdapterState` and
+            //    `ActiveMissionPlan`, i.e. exactly the mission state a behaviour investigation needs.
+            //    ⇒ the dump is the UNION: translator-decoded where a translator exists, reflection for the
+            //    rest. ⭐ Strictly additive — nothing the serializer emits is overwritten.
+            var registeredTypes = _repo.GetRegisteredComponentTypes();
 
             for (int i = 0; i <= _repo.MaxEntityIndex; i++)
             {
@@ -85,6 +93,21 @@ namespace Fdp.Toolkit.Diagnostics
                     components = JsonSerializer.Deserialize<Dictionary<string, object>>(
                         componentsJson.ToJsonString(), FdpJsonOptionsRegistry.DefaultRelaxed)
                         ?? new Dictionary<string, object>();
+
+                    // ⭐ Fill the gaps the snapshotable mask left out. ⛔ Never overwrite a translator's
+                    //   output — that projection is the richer one and is why this path is preferred.
+                    foreach (var kvp in registeredTypes!)
+                    {
+                        var name = kvp.Key.Name;
+                        if (components.ContainsKey(name)) continue;
+                        if (!_repo.HasComponentByTypeId(entity, kvp.Value.ComponentTypeId)) continue;
+
+                        object? raw = null;
+                        try { raw = kvp.Value.GetRawObject(entity.Index); }
+                        catch { /* unmanaged component not present for this slot — skip */ }
+
+                        if (raw != null) components[name] = raw;
+                    }
                 }
                 else
                 {

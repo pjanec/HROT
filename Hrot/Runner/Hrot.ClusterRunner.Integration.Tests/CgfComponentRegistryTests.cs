@@ -63,3 +63,7 @@ public class CgfComponentRegistryTests
         Assert.Null(Record.Exception(() => world.GetComponentTable<EntityInfo>()));
     }
 }
+
+/// <summary>
+
+/// <summary>

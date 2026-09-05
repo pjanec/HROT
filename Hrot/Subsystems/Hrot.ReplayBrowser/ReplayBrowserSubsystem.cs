@@ -56,6 +56,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private TransientMasterBuilder? _transientBuilder;
     private FederationPanel? _federationPanel;
 
+    /// <summary>⭐⭐⭐ U-obs-5 follow-up — kept so <c>OnLoadGroup</c> can RE-REGISTER
+    /// <see cref="Fdp.Presentation.Windows.ReplayBrowser.FederationWindow"/> under the same id every
+    /// time <see cref="_federationPanel"/> is replaced by a fresh group load; <c>RegisterWindows</c> is
+    /// called only once, before any group is loaded, so this is the only place that can do it.</summary>
+    private WindowManager? _windowManager;
+
     // ── Internal accessors for testing ────────────────────────────────────
 
     internal FederatedReplayManager? Manager => _manager;
@@ -84,6 +90,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private ReplaySearchPanel? _searchPanel;
     private ScenarioSerializer _scenarioSerializer = null!;
     private BehaviorRegistry _behaviorRegistry = new();
+    // Required by PredicateCompiler for BlueprintVariablePredicateDto; without it, blueprint
+    // conditional breakpoints compile to a constant-false delegate (BP-29). Mirrors CgfSubsystem.
+    private Fdp.Toolkit.Blueprints.BlueprintRegistry _blueprintRegistry = new();
     // ── Continuous Diff Tracking ──────────────────────────────────────────
     private int _lastDiffFrame = -1;
     private Entity? _lastDiffEntity = null;
@@ -135,7 +144,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
-            CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry);
+            CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry, _blueprintRegistry);
             _scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
             Hrot.Presentation.Renderers.BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.Blackboard1024Renderer.BehaviorRegistryAccessor = behaviorRegistry;
@@ -144,49 +153,55 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             Hrot.Presentation.Renderers.BTreeTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.HsmTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             // â”€â”€ Gizmo Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            _gizmoBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
-            _interactionBus = new Fdp.Core.FdpEventBus();
-            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
-
-            var gizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
-            var statelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
-            var settingsRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
-
-            // 1. Register SimHost presentation gizmos (safe for SandboxRepo: relies on SimTransform, skips CullingState)
-            Hrot.SimHost.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
-            // 2. Register Common diagnostics (LayerControl, SelectionHighlight, etc)
-            Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
-            // 3. Register Canvas context menu
-            Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
-            // 4. Register AI behavior gizmos
-            Hrot.AI.Behaviors.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
-
-            // 5. Register specific ScenarioEditor gizmos manually (Overlays, Routes, Areas)
-            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.MapOverlayGizmo(), new[] { typeof(Fdp.Core.SimTransform), typeof(Hrot.IG.Components.MapOverlayStyle) });
-            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.RouteGizmo(), new[] { typeof(Fdp.Toolkit.Replication.Components.TkbIdentity) });
-            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.TacticalAreaGizmo(), new[] { typeof(Fdp.Toolkit.Replication.Components.TkbIdentity) });
-            statelessRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.EntityEditorPolylineGizmo(),
-                new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-            statelessRegistry.Register(
-                new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(behaviorRegistry),
-                new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-
-            _globalGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer, _interactionBus);
-
-            _dataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
-                gizmoRegistry,
-                _gizmoBuffer,
-                isSelectedPredicate: static (view, entity) =>
-                    view.HasComponent<Hrot.IG.Components.SelectionState>(entity) &&
-                    view.GetComponentRO<Hrot.IG.Components.SelectionState>(entity).IsSelected,
-                interactionBus: _interactionBus);
-
-            // â”€â”€ Selection Interaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── UXI-23 S2b: the shared pack constructs the map's machinery ──────────────────────
+            // 🔒 The pack CONSTRUCTS; this host still SCHEDULES (it holds the two systems directly rather
+            // than scheduling the togglable group, which remains its choice — the run-set is its role).
+            //
+            // ⚠⚠ The four projectors below go in through ContributeExtras, which the pack invokes AFTER
+            // the reflection pass and BEFORE constructing StatelessGizmoSystem. That ordering is
+            // load-bearing: the system sizes its visibility cache from registry.Rules.Count, so a rule
+            // registered afterwards lands beyond the cache and silently ignores its visibility policy.
+            //
+            // EntityEditorPolylineGizmo and EntityEditorLabelGizmo are deliberately attribute-LESS —
+            // their constructors need a BehaviorRegistry, which reflection cannot supply, so it correctly
+            // skips them rather than guessing.
             var rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
-            statelessRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBandState));
-            statelessRegistry.RegisterGlobal(new ReplaySpatialBoundsGizmo(() => _searchPanel?.ActiveSpatialBounds));
-            _statelessGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(statelessRegistry, _gizmoBuffer);
+
+            var mapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+                new Hrot.ScenarioEditor.Map.MapInteractionContext
+                {
+                    World = _activeRepo!,
+                    IsSelectedPredicate = static (view, entity) =>
+                        view.HasComponent<Hrot.IG.Components.SelectionState>(entity) &&
+                        view.GetComponentRO<Hrot.IG.Components.SelectionState>(entity).IsSelected,
+                    // The replay browser is an interactive window: it has a viewer from startup.
+                    StartEnabled = true,
+                    ContributeExtras = regs =>
+                    {
+                        regs.Stateless.Register(
+                            new Hrot.ScenarioEditor.Gizmos.EntityEditorPolylineGizmo(),
+                            new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+                        regs.Stateless.Register(
+                            new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(behaviorRegistry),
+                            new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+                        regs.Stateless.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBandState));
+                        regs.Stateless.RegisterGlobal(new ReplaySpatialBoundsGizmo(() => _searchPanel?.ActiveSpatialBounds));
+                    },
+                });
+
+            _gizmoBuffer           = mapInteraction.Buffer;
+            _interactionBus        = mapInteraction.InteractionBus;
+            _globalGizmoManager    = mapInteraction.GlobalManager;
+            _dataDrivenGizmoSystem = mapInteraction.DataDrivenSystem;
+            _statelessGizmoSystem  = mapInteraction.StatelessSystem;
+            var gizmoRegistry      = mapInteraction.GizmoRegistry;
+            var statelessRegistry  = mapInteraction.StatelessRegistry;
+            var settingsRegistry   = mapInteraction.Settings;
+            // ⭐⭐ UXI-23 S3: this host drives the three systems directly from its own Update rather than
+            // scheduling the group, so it declares exactly those three. §3.2e.
+            foreach (string problem in mapInteraction.Unserviceable(
+                         new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem }))
+                Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
 
             _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_activeRepo!, _interactionBus, rubberBandState);
             _selectionSystem.OnSelectionChanged += (entity, worldPos) =>
@@ -260,11 +275,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                     _manager = FederatedReplayManager.LoadGroup(paths);
                     _manager.OnTimeChanged += OnManagerTimeChanged;
 
-                    // Create/replace the federation panel for the new manager.
-                    if (_federationPanel != null)
-                        _federationPanel.OnViewModeChanged -= SetViewMode;
-                    _federationPanel = new FederationPanel(_manager);
-                    _federationPanel.OnViewModeChanged += SetViewMode;
+                    CreateOrReplaceFederationPanel();
 
                     OnManagerTimeChanged();
                     _timelinePanel?.SetManager(_manager!);
@@ -533,7 +544,28 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _manager = FederatedReplayManager.LoadGroup(paths);
         _manager.OnTimeChanged += OnManagerTimeChanged;
         _timelinePanel?.SetManager(_manager);
+
+        CreateOrReplaceFederationPanel();
+
         OnManagerTimeChanged();
+    }
+
+    /// <summary>⭐⭐⭐ U-obs-5 follow-up — creates (or replaces, on a subsequent group load) the
+    /// <see cref="FederationPanel"/> for the CURRENT <see cref="_manager"/>, and — when
+    /// <see cref="_windowManager"/> is already known (i.e. <see cref="RegisterWindows"/> already ran) —
+    /// (re)registers <see cref="Fdp.Presentation.Windows.ReplayBrowser.FederationWindow"/> under the
+    /// same id so <c>WindowManager</c>'s replace-by-id semantics swap in the new panel. Shared by the
+    /// real <c>OnLoadGroup</c> delegate and the <see cref="LoadFdpGroupForTest"/> test seam so both
+    /// paths exercise the identical wiring.</summary>
+    private void CreateOrReplaceFederationPanel()
+    {
+        if (_federationPanel != null)
+            _federationPanel.OnViewModeChanged -= SetViewMode;
+        _federationPanel = new FederationPanel(_manager!);
+        _federationPanel.OnViewModeChanged += SetViewMode;
+
+        if (_windowManager != null)
+            RegisterFederationWindow(_windowManager, _federationPanel);
     }
 
     private void RebindActiveRepo(EntityRepository repo)
@@ -561,13 +593,15 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     public void RegisterWindows(WindowManager windowManager)
     {
         if (_headless) return;
+        _windowManager = windowManager;
         RegisterWindowsCore(
             windowManager,
             _timelinePanel!,
             _inspectorPanel!,
             _diffPanel!,
             _eventPanel!,
-            _searchPanel!);
+            _searchPanel!,
+            _federationPanel);
 
         // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
         // Harmless no-op for the Win32 backend: WindowManager only draws the service
@@ -577,17 +611,20 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     }
 
     /// <summary>
-    /// Test seam: registers the five replay-browser windows using caller-supplied
+    /// Test seam: registers the replay-browser windows using caller-supplied
     /// panel instances. Skips the headless guard so tests can exercise window
     /// registration without initialising Raylib.
     /// </summary>
+    /// <param name="federationPanel">⭐⭐⭐ U-obs-5 follow-up — <c>null</c> until a replay group has
+    /// been loaded (the panel is created lazily); when non-null its window is registered too.</param>
     internal void RegisterWindowsCore(
         WindowManager windowManager,
         ReplayTimelinePanel timelinePanel,
         EntityInspectorPanel inspectorPanel,
         ComponentDiffPanel diffPanel,
         EventBrowserPanel eventPanel,
-        ReplaySearchPanel searchPanel)
+        ReplaySearchPanel searchPanel,
+        FederationPanel? federationPanel = null)
     {
         string perspective = "ReplayBrowser";
         Vector4 color = TitleBarColor;
@@ -613,7 +650,17 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ReplaySearchWindow(
             "rb_search", "Replay Search", perspective, searchPanel, color));
+
+        if (federationPanel != null)
+            RegisterFederationWindow(windowManager, federationPanel);
     }
+
+    /// <summary>⭐⭐⭐ U-obs-5 follow-up — shared by <see cref="RegisterWindowsCore"/> (the initial
+    /// registration, when a group happened to already be loaded) and <c>OnLoadGroup</c> (every
+    /// subsequent group load, which replaces <see cref="_federationPanel"/>).</summary>
+    private void RegisterFederationWindow(WindowManager windowManager, FederationPanel panel)
+        => windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.FederationWindow(
+            "rb_federation", "Federation", "ReplayBrowser", panel, TitleBarColor));
 
     // ── Delegate wiring ───────────────────────────────────────────────────
 
@@ -638,7 +685,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             .RegisterFieldEditor<BoundingBox2D>(new Fdp.Presentation.Editing.BoundingBoxFieldEditor())
             .RegisterFieldEditor<SearchPredicateDto>(new Fdp.Presentation.Editing.PredicateValueFieldEditor())
             .Build();
-        var predicateCompiler = new PredicateCompiler(editSvc, _behaviorRegistry);
+        // See BP-29: the registry is what makes BlueprintVariablePredicateDto evaluable.
+        var predicateCompiler = new PredicateCompiler(editSvc, _behaviorRegistry, _blueprintRegistry);
         var eventScannerCompiler = new EventScannerCompiler(editSvc);
         var searchSvc = new RecordingSearchService(predicateCompiler, eventScannerCompiler);
         Func<Entity?> getSelectedEntity = () => _inspectorState?.SelectedEntity;
@@ -926,17 +974,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         return repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value;
     }
 
+    /// <summary>
+    /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⛔ This copy scanned
+    /// <b>every</b> entity and asked <c>HasComponent</c> per entity; the shared one filters the query.
+    /// </summary>
     private Entity FindEntityByNetworkId(long networkId)
-    {
-        if (_activeRepo == null) return Entity.Null;
-        foreach (var e in _activeRepo.Query().Build())
-        {
-            if (_activeRepo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) &&
-                _activeRepo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == networkId)
-                return e;
-        }
-        return Entity.Null;
-    }
+        => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_activeRepo, networkId);
 
     // ── Null service stubs (used until real implementations are injected) ──
 

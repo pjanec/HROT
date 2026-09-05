@@ -179,24 +179,59 @@ namespace GizmoMap.Presentation.Tests
         }
 
         // SC-GZ055-6: MilStd2525 affiliation color mapping.
-        [Fact]
-        public void SC_GZ055_6_MilStd2525AffiliationColors()
+        // Corrected 2026-08-30: the previous expectations encoded the renderer's own bug --
+        // neutral and unknown were swapped against the standard, and Joker sat with the friends.
+        [Theory]
+        // Friend: F friend, A assumed friend, D exercise friend, M exercise assumed friend.
+        [InlineData("SF...", "friend")]
+        [InlineData("SA...", "friend")]
+        [InlineData("SD...", "friend")]
+        [InlineData("SM...", "friend")]
+        // Hostile: H hostile, S suspect, J joker, K faker.
+        [InlineData("SH...", "hostile")]
+        [InlineData("SS...", "hostile")]
+        [InlineData("SJ...", "hostile")]
+        [InlineData("SK...", "hostile")]
+        // Neutral: N neutral, L exercise neutral.
+        [InlineData("SN...", "neutral")]
+        [InlineData("SL...", "neutral")]
+        // Unknown: U unknown, P pending, G exercise pending, W exercise unknown, O none specified.
+        [InlineData("SU...", "unknown")]
+        [InlineData("SP...", "unknown")]
+        [InlineData("SG...", "unknown")]
+        [InlineData("SW...", "unknown")]
+        [InlineData("SO...", "unknown")]
+        // Unrecognised and degenerate codes fall to unknown, never to a coloured affiliation.
+        [InlineData("SZ...", "unknown")]
+        [InlineData("S",     "unknown")]
+        [InlineData("",      "unknown")]
+        public void SC_GZ055_6_MilStd2525AffiliationColors(string sidc, string expected)
         {
-            // Friendly: SIDC[1] = 'F'
-            var friendly = MilStd2525Renderer.GetAffiliationColor("SF...");
-            Assert.Equal(Color.Blue, friendly);
+            var want = expected switch
+            {
+                "friend"  => MilStd2525Renderer.FriendColor,
+                "hostile" => MilStd2525Renderer.HostileColor,
+                "neutral" => MilStd2525Renderer.NeutralColor,
+                _         => MilStd2525Renderer.UnknownColor,
+            };
 
-            // Hostile: SIDC[1] = 'H'
-            var hostile = MilStd2525Renderer.GetAffiliationColor("SH...");
-            Assert.Equal(Color.Red, hostile);
+            Assert.Equal(want, MilStd2525Renderer.GetAffiliationColor(sidc));
+        }
 
-            // Neutral: SIDC[1] = 'N'
-            var neutral = MilStd2525Renderer.GetAffiliationColor("SN...");
-            Assert.Equal(Color.Yellow, neutral);
+        // The four affiliation colours must be mutually distinct, or the mapping above could pass
+        // while every affiliation rendered identically.
+        [Fact]
+        public void SC_GZ055_6_AffiliationColorsAreDistinct()
+        {
+            var all = new[]
+            {
+                MilStd2525Renderer.FriendColor,
+                MilStd2525Renderer.HostileColor,
+                MilStd2525Renderer.NeutralColor,
+                MilStd2525Renderer.UnknownColor,
+            };
 
-            // Unknown: other
-            var unknown = MilStd2525Renderer.GetAffiliationColor("SU...");
-            Assert.Equal(Color.Green, unknown);
+            Assert.Equal(all.Length, all.Distinct().Count());
         }
     }
 

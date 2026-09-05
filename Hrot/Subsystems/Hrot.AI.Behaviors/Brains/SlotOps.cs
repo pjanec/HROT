@@ -40,11 +40,10 @@ namespace Hrot.AI.Behaviors.Brains
             if (availCount == 0) return -1;
 
             float simTime = view is EntityRepository w ? w.SimulationTime : 0f;
-            uint seed = (uint)((int)self.Index ^ currentWave ^ (int)simTime);
-            // xorshift so even tiny/adjacent seeds spread across the available slots deterministically.
-            seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5;
-            if (seed == 0) seed = 0x9E3779B9u;
-            return avail[(int)(seed % (uint)availCount)];
+            // ⭐ CE-202: the xorshift that used to be inlined here now lives in SimRng, so the oracle
+            //   below and this curated kernel draw from ONE generator instead of two copies.
+            var rng = SimRng.FromSim((int)self.Index, currentWave, simTime);
+            return avail[rng.NextInt(0, availCount)];
         }
 
         /// <summary>

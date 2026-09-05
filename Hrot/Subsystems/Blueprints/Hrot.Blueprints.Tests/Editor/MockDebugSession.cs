@@ -32,7 +32,27 @@ internal sealed class MockDebugSession : IBlueprintDebugSession
     public WatchId AddWatch(Guid assetId, Guid graphId, Guid pinId, string displayName, Type expectedType) => default;
     public void RemoveWatch(WatchId id) { }
     public void ClearAllWatches() { }
-    public IReadOnlyList<Watch> GetWatches() => Array.Empty<Watch>();
+    /// <summary>
+    /// ⭐ Row 59b — the watch list a test drives. ⛔ Was a hard-coded <c>Array.Empty</c>, which made
+    /// every Watch-panel test vacuous about CONTENT: a panel that rendered nothing passed.
+    /// </summary>
+    public List<Watch> Watches { get; } = new();
+
+    public IReadOnlyList<Watch> GetWatches() => Watches;
+
+    /// <summary>⭐ Adds a watch, optionally with an observed value, the way the runtime would.</summary>
+    public Watch AddWatchWithValue<T>(string name, T? value, uint tick) where T : unmanaged
+    {
+        var w = new Watch(default, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), name, typeof(T));
+        if (value.HasValue) w.WriteValue(value.Value, default, tick);
+        Watches.Add(w);
+        return w;
+    }
+
+    /// <summary>⭐ Fires the pin-value-changed event a Watch panel subscribes to.</summary>
+    public void RaisePinValueChanged()
+        => _pinValueChangedHandlers?.Invoke(
+               new PinValueChanged(default, "pin", Array.Empty<byte>(), typeof(int), 0));
     public bool IsAnyWatchActive => false;
 
     // ---- IBlueprintDebugSession -- entity filter ----------------------------

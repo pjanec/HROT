@@ -9,8 +9,60 @@ public abstract record IrTerminator
 
 public sealed record IrTerm_Goto(IrBlockId Target) : IrTerminator;
 public sealed record IrTerm_Branch(IrValue Condition, IrBlockId IfTrue, IrBlockId IfFalse) : IrTerminator;
-public sealed record IrTerm_Return(IrValue? Value) : IrTerminator;
-public sealed record IrTerm_ReturnStatus(NodeStatus Status) : IrTerminator;
+/// <summary>
+/// Returns from the generated method. <c>Value</c> set ⇒ <c>return __tN;</c>.
+///
+/// <para>
+/// BP-117: <c>Value</c> null is ambiguous on its own — it means <c>return;</c> for a void method, but a
+/// void <c>return;</c> in a method declared to return <c>T</c> (or a <c>ValueTuple</c>) is <b>CS0126</b>.
+/// The emitter cannot tell the two apart because it does not know the method's declared return type at
+/// this point, so the distinction is carried here: <c>ReturnsDefault</c> ⇒ <c>return default;</c>, which
+/// is valid for a scalar and a tuple alike. Set only by
+/// <c>Stage5_Schedule.SealFallThrough</c> for a Library graph that declares outputs and whose exec chain
+/// ran off the end with no <c>Return</c> node — and always alongside <c>BP1657</c> (a <b>Warning</b>),
+/// so the implicit default is reported rather than silently returned while the graph still compiles.
+/// </para>
+///
+/// <para>
+/// ⚠ Deliberately a flag on this record rather than a new <c>IrTerm_ReturnDefault</c> type: the two
+/// switches over <see cref="IrTerminator"/> (<c>TerminatorEmitter</c>, <c>IrPrinter</c>) both end in a
+/// catch-all, so a new terminator kind could have been silently mis-emitted instead of failing loudly.
+/// </para>
+/// </summary>
+public sealed record IrTerm_Return(IrValue? Value, bool ReturnsDefault = false) : IrTerminator;
+/// <summary>
+/// Returns a <c>NodeStatus</c> from the generated method — an AiPrimitive's BTree/HSM hosting
+/// contract, and a Library function that declares no outputs.
+///
+/// <para>
+/// ⭐ <b>BP-131.</b> <see cref="Status"/> alone is a <b>compile-time constant</b>, which is why the
+/// Return node's Status combo could never express an outcome that depends on execution — a node whose
+/// whole job is to report how execution went could report nothing execution decided.
+/// <see cref="Condition"/> is the fix: when set, it is a runtime <c>bool</c> and the emitter renders
+/// <c>return cond ? NodeStatus.Success : NodeStatus.Failure;</c> instead of a constant.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>The ABI does not change</b> (DECISIONS_Authoring_UX §D3/Q2): the method still returns
+/// <c>NodeStatus</c>; the <c>bool</c> maps to Success/Failure at the return statement. Nothing outside
+/// the blueprint subsystem sees a difference.
+/// </para>
+///
+/// <para>
+/// <see cref="Status"/> stays meaningful when <see cref="Condition"/> is null, and that is the
+/// back-compatible path every shipped asset takes: an unwired <c>Success</c> pin falls back to the
+/// authored <c>rn.Status</c> rather than to <c>default(bool)</c> — which is <c>false</c>, i.e.
+/// Failure, and would have flipped every AiPrimitive Return in the repo.
+/// </para>
+///
+/// <para>
+/// ⚠ Deliberately a field on this record rather than a new terminator type, for the reason given on
+/// <see cref="IrTerm_Return.ReturnsDefault"/>: both switches over <see cref="IrTerminator"/>
+/// (<c>TerminatorEmitter</c>, <c>IrPrinter</c>) end in a catch-all, so a new kind could be silently
+/// mis-emitted rather than failing loudly.
+/// </para>
+/// </summary>
+public sealed record IrTerm_ReturnStatus(NodeStatus Status, IrValue? Condition = null) : IrTerminator;
 // FailureBlock (Q#13): when set, the WaitForChannel latent lowering routes a channel-Failure
 // resume to this block (the wired OnFailure exec chain) instead of returning NodeStatus.Failure.
 // Null for LatentDelay / WaitForEvent / WaitForChannel-with-unwired-OnFailure (unchanged behavior).

@@ -1,24 +1,23 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "8f1a2c93-4d5e-4a1b-9c3d-1e2f3a4b5c65",
   "Name": "HillAssault2I_DispatchWaveWithTargets",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Action",
     "Hostings": [
       "BTreeAction"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "4fc24425-b17e-44b5-a632-9565209e5256",
       "Name": "StartX",
       "Type": {
@@ -26,9 +25,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "d66fa53e-23e8-4be2-92f3-1a9e71e89980",
       "Name": "StartY",
       "Type": {
@@ -36,9 +38,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "2d64f749-9590-435e-8276-0a21dbccc682",
       "Name": "EndX",
       "Type": {
@@ -46,9 +51,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "d9b2b6da-100f-43f5-9890-6fe345afa7e5",
       "Name": "EndY",
       "Type": {
@@ -56,9 +64,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "1425efdb-2729-4c2a-a18d-f4515926183d",
       "Name": "BaselineStartX",
       "Type": {
@@ -66,9 +77,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "f1696682-e63d-4648-b655-ca7627a94dc5",
       "Name": "BaselineStartY",
       "Type": {
@@ -76,9 +90,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "89b97e14-a487-45d4-b9cb-24aab291bf4e",
       "Name": "BaselineEndX",
       "Type": {
@@ -86,9 +103,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "19cedfd4-94e0-4f9e-9622-870d444f9f2a",
       "Name": "BaselineEndY",
       "Type": {
@@ -96,9 +116,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a051c08d-06ca-4862-a147-f56f26336cb1",
       "Name": "AttackDirX",
       "Type": {
@@ -106,9 +129,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "fb0753c0-d9b5-4409-94a5-07e93fd31eac",
       "Name": "AttackDirY",
       "Type": {
@@ -116,11 +142,14 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     }
   ],
-  "WorkingState": [],
-  "Variables": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -131,352 +160,382 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "d160c5a3-33c0-457b-9b35-4424ca124950",
           "EventTypeId": "",
+          "Id": "d160c5a3-33c0-457b-9b35-4424ca124950",
           "Pins": [],
           "EditorMetadata": {
             "X": 40,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "3f2688af-edb4-4d19-8d1f-2f9ac7a8130e",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.MemberSlotListOps",
           "MethodName": "Empty",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "3f2688af-edb4-4d19-8d1f-2f9ac7a8130e",
           "Pins": [],
           "EditorMetadata": {
             "X": 40,
-            "Y": 40
+            "Y": 40,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "a2c7a82d-6274-4e6b-8f27-9a3c05e2a1f3",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "a2c7a82d-6274-4e6b-8f27-9a3c05e2a1f3",
           "Pins": [],
           "EditorMetadata": {
             "X": 300,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "97bb5e8c-9b16-453b-a7b3-9b687c8d15df",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "WithActiveRunners",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "97bb5e8c-9b16-453b-a7b3-9b687c8d15df",
           "Pins": [],
           "EditorMetadata": {
             "X": 300,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "4586bf4d-ba79-4426-ba45-515acd790c7b",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "4586bf4d-ba79-4426-ba45-515acd790c7b",
           "Pins": [],
           "EditorMetadata": {
             "X": 300,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "b55606a8-2b9a-46da-8091-e3ebeacd4062",
           "TypeId": "System.UInt16",
           "ValueJson": "(ushort)0",
+          "Id": "b55606a8-2b9a-46da-8091-e3ebeacd4062",
           "Pins": [],
           "EditorMetadata": {
             "X": 300,
-            "Y": 60
+            "Y": 60,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "b22b83ea-b2e1-4040-b14e-1354530fe99b",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "b22b83ea-b2e1-4040-b14e-1354530fe99b",
           "Pins": [],
           "EditorMetadata": {
             "X": 560,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "c460aaf9-d52b-41de-8e25-ff21d834bd8a",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "WithWaveUsedSlotsMask",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "c460aaf9-d52b-41de-8e25-ff21d834bd8a",
           "Pins": [],
           "EditorMetadata": {
             "X": 560,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "2d2b275c-8a4f-4b7f-a945-14f7fad95d67",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "2d2b275c-8a4f-4b7f-a945-14f7fad95d67",
           "Pins": [],
           "EditorMetadata": {
             "X": 560,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FlowForEach",
-          "Id": "d3eb4d60-700a-44f9-93b6-e95557252029",
           "SourceComponentFqn": "Fdp.Core.CommandHierarchy.UnitRoster",
           "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
           "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+          "Id": "d3eb4d60-700a-44f9-93b6-e95557252029",
           "Pins": [],
           "EditorMetadata": {
             "X": 820,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "86012610-b7a3-494e-8ba3-9e62a6ff3ca8",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "86012610-b7a3-494e-8ba3-9e62a6ff3ca8",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 40
+            "Y": 40,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "6b003a1b-e88e-44fd-a0c6-73f0f9eb9f6e",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "GetActiveRunners",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "6b003a1b-e88e-44fd-a0c6-73f0f9eb9f6e",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 40
+            "Y": 40,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "92c7251c-1fa7-45d1-9c1f-4f683f5d4091",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "92c7251c-1fa7-45d1-9c1f-4f683f5d4091",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 100
+            "Y": 100,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "32882022-e202-4a87-97bb-4bfc30c50e7e",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "GetCurrentWave",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "32882022-e202-4a87-97bb-4bfc30c50e7e",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 100
+            "Y": 100,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "5b5fceff-1f49-4738-bcf3-eddefba2149e",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "5b5fceff-1f49-4738-bcf3-eddefba2149e",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 160
+            "Y": 160,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "73fa85cd-6d87-4962-891a-f3faa4cbfc21",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "GetBurnedSlotsMask",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "73fa85cd-6d87-4962-891a-f3faa4cbfc21",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 160
+            "Y": 160,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "7a2a98a6-4b92-4d77-824f-50768d554bcb",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "7a2a98a6-4b92-4d77-824f-50768d554bcb",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 220
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "7b6c6321-ba7a-4020-b7b4-e580b98b91c3",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "GetWaveUsedSlotsMask",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "7b6c6321-ba7a-4020-b7b4-e580b98b91c3",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 220
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "91c435f2-ee6c-4a01-a9be-b420c731630a",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "91c435f2-ee6c-4a01-a9be-b420c731630a",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 280
+            "Y": 280,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "1c3ac880-df8c-4680-85a5-e8417a196968",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "GetTotalSlots",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "1c3ac880-df8c-4680-85a5-e8417a196968",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 280
+            "Y": 280,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "115f365d-6e8d-4d85-bec9-77b0440c9a0e",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "115f365d-6e8d-4d85-bec9-77b0440c9a0e",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 340
+            "Y": 340,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "c97d0687-ac15-44d9-b217-7e1665f48faa",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "GetBaselineReservedMask",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "c97d0687-ac15-44d9-b217-7e1665f48faa",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 340
+            "Y": 340,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "7938c9c8-dcc9-4890-bcb8-a8ff858460fd",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "7938c9c8-dcc9-4890-bcb8-a8ff858460fd",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 400
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "fbbaac16-1377-4637-9b56-74989ffd8f5c",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "GetCachedEqsRequestId",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "fbbaac16-1377-4637-9b56-74989ffd8f5c",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 400
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "5fd81125-96ae-4499-b831-5e09e81cbfd6",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "5fd81125-96ae-4499-b831-5e09e81cbfd6",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 460
+            "Y": 460,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "d1527e5f-12f4-4936-a449-52232ee59267",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "GetCachedTargetGroupHandle",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "d1527e5f-12f4-4936-a449-52232ee59267",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 460
+            "Y": 460,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "ce2b4ea7-d526-49ba-beee-8f18192a0731",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.MemberSlotListOps",
           "MethodName": "Count",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "ce2b4ea7-d526-49ba-beee-8f18192a0731",
           "Pins": [],
           "EditorMetadata": {
             "X": 1340,
-            "Y": 40
+            "Y": 40,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "58820468-924e-4bb5-8303-ae30b66cdf20",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.WaveDispatchOps",
           "MethodName": "ShouldConsider",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "View",
+          "Id": "58820468-924e-4bb5-8303-ae30b66cdf20",
           "Pins": [],
           "EditorMetadata": {
             "X": 1340,
-            "Y": 160
+            "Y": 160,
+            "Comment": null
           }
         },
         {
@@ -485,42 +544,46 @@
           "Pins": [],
           "EditorMetadata": {
             "X": 1600,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "34707670-3ce9-4c0e-a381-99cbdc5181ae",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SlotOps",
           "MethodName": "PickRandomFreeSlot",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "SelfAndView",
+          "Id": "34707670-3ce9-4c0e-a381-99cbdc5181ae",
           "Pins": [],
           "EditorMetadata": {
             "X": 1860,
-            "Y": 160
+            "Y": 160,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "f71bb5e6-ee95-4b7c-a68e-d042e7155f05",
           "TypeId": "System.Int32",
           "ValueJson": "-1",
+          "Id": "f71bb5e6-ee95-4b7c-a68e-d042e7155f05",
           "Pins": [],
           "EditorMetadata": {
             "X": 1860,
-            "Y": 260
+            "Y": 260,
+            "Comment": null
           }
         },
         {
           "kind": "Compare",
-          "Id": "4fff6335-ea05-4428-871a-bc2520e37ef9",
           "Operator": "NotEqual",
+          "Id": "4fff6335-ea05-4428-871a-bc2520e37ef9",
           "Pins": [],
           "EditorMetadata": {
             "X": 1860,
-            "Y": 340
+            "Y": 340,
+            "Comment": null
           }
         },
         {
@@ -529,572 +592,618 @@
           "Pins": [],
           "EditorMetadata": {
             "X": 2120,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "6684977b-c095-408e-bb36-6019dd87b1e0",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
           "MethodName": "LerpParam",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "6684977b-c095-408e-bb36-6019dd87b1e0",
           "Pins": [],
           "EditorMetadata": {
             "X": 2380,
-            "Y": 40
+            "Y": 40,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
+          "MethodName": "Lerp",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
           "Id": "d54309f8-3588-4907-b9b5-f5edbeeb18f1",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2640,
+            "Y": 40,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "FunctionCall",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
           "MethodName": "Lerp",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 2640,
-            "Y": 40
-          }
-        },
-        {
-          "kind": "FunctionCall",
           "Id": "f33ca1d0-1dd1-49c0-a3f7-3a45397898d1",
-          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
-          "MethodName": "Lerp",
-          "IsPure": true,
-          "TargetGraphId": "",
-          "TrailingContext": "None",
           "Pins": [],
           "EditorMetadata": {
             "X": 2640,
-            "Y": 120
+            "Y": 120,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SlotOps",
           "MethodName": "PickClosestBaselineSlot",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
           "Pins": [],
           "EditorMetadata": {
             "X": 2900,
-            "Y": 160
+            "Y": 160,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "964470c1-3872-4e02-b21a-5809e9d4cde0",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
           "MethodName": "LerpParam",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "964470c1-3872-4e02-b21a-5809e9d4cde0",
           "Pins": [],
           "EditorMetadata": {
             "X": 3160,
-            "Y": 200
+            "Y": 200,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
+          "MethodName": "Lerp",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
           "Id": "a1b963f7-ec73-4ea7-b042-498ab9d74258",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 3420,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "FunctionCall",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
           "MethodName": "Lerp",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 3420,
-            "Y": 200
-          }
-        },
-        {
-          "kind": "FunctionCall",
           "Id": "dad51250-9624-49be-8582-23aabe1370c4",
-          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
-          "MethodName": "Lerp",
-          "IsPure": true,
-          "TargetGraphId": "",
-          "TrailingContext": "None",
           "Pins": [],
           "EditorMetadata": {
             "X": 3420,
-            "Y": 280
+            "Y": 280,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "135a1767-0f38-4a0b-9f60-44434ad543c5",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.MemberSlotListOps",
           "MethodName": "Count",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "135a1767-0f38-4a0b-9f60-44434ad543c5",
           "Pins": [],
           "EditorMetadata": {
             "X": 2380,
-            "Y": 340
+            "Y": 340,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "c1bfb7f8-8cdd-4cd0-a3da-a2da7f44e68d",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.TargetPoolOps",
           "MethodName": "ResolveNetId",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "View",
+          "Id": "c1bfb7f8-8cdd-4cd0-a3da-a2da7f44e68d",
           "Pins": [],
           "EditorMetadata": {
             "X": 2640,
-            "Y": 340
+            "Y": 340,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "f84d29b5-6530-45d9-9707-63dddf6be501",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HullDownIntentJson",
           "MethodName": "Build",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "f84d29b5-6530-45d9-9707-63dddf6be501",
           "Pins": [],
           "EditorMetadata": {
             "X": 3680,
-            "Y": 340
+            "Y": 340,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "6eacf272-d049-4040-85d7-25da44de263e",
           "TypeId": "System.String",
-          "ValueJson": "\"HullDownAttack\"",
+          "ValueJson": "\u0022HullDownAttack\u0022",
+          "Id": "6eacf272-d049-4040-85d7-25da44de263e",
           "Pins": [],
           "EditorMetadata": {
             "X": 3680,
-            "Y": 440
+            "Y": 440,
+            "Comment": null
           }
         },
         {
           "kind": "PublishEvent",
-          "Id": "30aa7708-8b89-4af5-b555-8ecb114794d4",
           "EventId": "AssignTacticalIntentEvent",
+          "Id": "30aa7708-8b89-4af5-b555-8ecb114794d4",
           "Pins": [],
           "EditorMetadata": {
             "X": 3940,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "d95a24c0-293c-47ff-ada3-fa94b77bfb1d",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "d95a24c0-293c-47ff-ada3-fa94b77bfb1d",
           "Pins": [],
           "EditorMetadata": {
             "X": 4200,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "c11951dc-7ac1-49ae-954b-edd3db91cdc3",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "WithActiveRunners",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "c11951dc-7ac1-49ae-954b-edd3db91cdc3",
           "Pins": [],
           "EditorMetadata": {
             "X": 4200,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "6247c002-45ea-4d0a-bc4f-feec51bb1e29",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "6247c002-45ea-4d0a-bc4f-feec51bb1e29",
           "Pins": [],
           "EditorMetadata": {
             "X": 4200,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "57d50a58-6ca0-40e2-b1f3-d30e1e2f280c",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.MemberSlotListOps",
           "MethodName": "AddRunner",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "57d50a58-6ca0-40e2-b1f3-d30e1e2f280c",
           "Pins": [],
           "EditorMetadata": {
             "X": 3940,
-            "Y": 760
+            "Y": 760,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "2ec36b50-1dd3-4762-8f14-6ea5e2cff74c",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "2ec36b50-1dd3-4762-8f14-6ea5e2cff74c",
           "Pins": [],
           "EditorMetadata": {
             "X": 4460,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "acaaf2d3-7602-4ccd-adbd-1fa3eacf1c1c",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "WithWaveUsedSlotsMask",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "acaaf2d3-7602-4ccd-adbd-1fa3eacf1c1c",
           "Pins": [],
           "EditorMetadata": {
             "X": 4460,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "4ee5dbb1-f0ea-458c-a0b3-4aab86fc5c8f",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "4ee5dbb1-f0ea-458c-a0b3-4aab86fc5c8f",
           "Pins": [],
           "EditorMetadata": {
             "X": 4460,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "83ebe745-51c7-43e7-bb3f-b3a91a8edbb8",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.MaskOps",
           "MethodName": "WithBitSet",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "83ebe745-51c7-43e7-bb3f-b3a91a8edbb8",
           "Pins": [],
           "EditorMetadata": {
             "X": 4200,
-            "Y": 860
+            "Y": 860,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "020c1181-a36a-430a-86d4-872a2839af66",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "020c1181-a36a-430a-86d4-872a2839af66",
           "Pins": [],
           "EditorMetadata": {
             "X": 4720,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "02de38e0-3148-4219-bcec-7e1adb6dd76a",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "WithBaselineReservedMask",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "02de38e0-3148-4219-bcec-7e1adb6dd76a",
           "Pins": [],
           "EditorMetadata": {
             "X": 4720,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "d8ae1f50-24e5-42a7-a701-d1423996ff86",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "d8ae1f50-24e5-42a7-a701-d1423996ff86",
           "Pins": [],
           "EditorMetadata": {
             "X": 4720,
-            "Y": 600
+            "Y": 600,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "07a530a3-cbf4-4118-864b-57d3e55d8863",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.MaskOps",
           "MethodName": "WithBitSet",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "07a530a3-cbf4-4118-864b-57d3e55d8863",
           "Pins": [],
           "EditorMetadata": {
             "X": 4460,
-            "Y": 940
+            "Y": 940,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "4b18c9a5-1330-4ad4-a18d-84ab8b5686fb",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "4b18c9a5-1330-4ad4-a18d-84ab8b5686fb",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "705e01f9-b9d4-4eec-8f3d-2eb8ac19a1f3",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "WithCachedTargetGroupHandle",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "705e01f9-b9d4-4eec-8f3d-2eb8ac19a1f3",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "4ffc2611-1129-4d9c-bb4d-d3fa438cc213",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "4ffc2611-1129-4d9c-bb4d-d3fa438cc213",
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "da739a29-92e7-4b48-b649-fefd30535adc",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.AreaQueryBatchOps",
           "MethodName": "Free",
           "IsPure": false,
           "TargetGraphId": "",
           "TrailingContext": "View",
+          "Id": "da739a29-92e7-4b48-b649-fefd30535adc",
           "Pins": [],
           "EditorMetadata": {
             "X": 1340,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "f8b9fa97-1567-4bad-bb31-8faeec95b730",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "f8b9fa97-1567-4bad-bb31-8faeec95b730",
           "Pins": [],
           "EditorMetadata": {
             "X": 1340,
-            "Y": 1280
+            "Y": 1280,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "f8966db8-a318-4309-a1d0-85308c5bc930",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "GetCachedEqsRequestId",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "f8966db8-a318-4309-a1d0-85308c5bc930",
           "Pins": [],
           "EditorMetadata": {
             "X": 1340,
-            "Y": 1280
+            "Y": 1280,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "ac6d0cc7-ac9f-4482-abf3-4e1a8d16392f",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "ac6d0cc7-ac9f-4482-abf3-4e1a8d16392f",
           "Pins": [],
           "EditorMetadata": {
             "X": 1600,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "8f118a39-277e-4712-b4e6-e725f24a4188",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "WithCachedEqsRequestId",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "8f118a39-277e-4712-b4e6-e725f24a4188",
           "Pins": [],
           "EditorMetadata": {
             "X": 1600,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "9811f8f5-9eec-41b0-9edb-006091c2f25e",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "9811f8f5-9eec-41b0-9edb-006091c2f25e",
           "Pins": [],
           "EditorMetadata": {
             "X": 1600,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "7b5b6ccd-d178-4137-a21c-c8484c41de6e",
           "TypeId": "System.Int64",
           "ValueJson": "-1L",
+          "Id": "7b5b6ccd-d178-4137-a21c-c8484c41de6e",
           "Pins": [],
           "EditorMetadata": {
             "X": 1600,
-            "Y": 1280
+            "Y": 1280,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "63bc5f00-582e-4211-913a-305307227040",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "63bc5f00-582e-4211-913a-305307227040",
           "Pins": [],
           "EditorMetadata": {
             "X": 1860,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "759b239d-93c2-4559-8ea3-934e9f769eb5",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "WithEqsRequestTime",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "759b239d-93c2-4559-8ea3-934e9f769eb5",
           "Pins": [],
           "EditorMetadata": {
             "X": 1860,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "4c7688c1-2b0b-4490-a91c-0c748e52c462",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "4c7688c1-2b0b-4490-a91c-0c748e52c462",
           "Pins": [],
           "EditorMetadata": {
             "X": 1860,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "61d4ae12-bd22-4a23-b35f-6d71450bc404",
           "TypeId": "System.Single",
           "ValueJson": "0f",
+          "Id": "61d4ae12-bd22-4a23-b35f-6d71450bc404",
           "Pins": [],
           "EditorMetadata": {
             "X": 1860,
-            "Y": 1280
+            "Y": 1280,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "5e30e76e-e5bf-46a7-91df-8eb156be2dd8",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "5e30e76e-e5bf-46a7-91df-8eb156be2dd8",
           "Pins": [],
           "EditorMetadata": {
             "X": 2120,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "c3d1d2ba-8d00-49c1-bccb-a6c5d7b347b9",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "WithCurrentWave",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "c3d1d2ba-8d00-49c1-bccb-a6c5d7b347b9",
           "Pins": [],
           "EditorMetadata": {
             "X": 2120,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "5648860a-edaa-495b-876c-871cdcaec2f7",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "5648860a-edaa-495b-876c-871cdcaec2f7",
           "Pins": [],
           "EditorMetadata": {
             "X": 2120,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "a2df0cbf-7b0a-4f6f-b066-92bbec67e876",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.WaveParityOps",
           "MethodName": "NextWave",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "a2df0cbf-7b0a-4f6f-b066-92bbec67e876",
           "Pins": [],
           "EditorMetadata": {
             "X": 2120,
-            "Y": 1280
+            "Y": 1280,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "f874af7e-c5bc-49f7-b436-980e894fd6bf",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "f874af7e-c5bc-49f7-b436-980e894fd6bf",
           "Pins": [],
           "EditorMetadata": {
             "X": 2120,
-            "Y": 1360
+            "Y": 1360,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "a8b419b2-6b18-42cf-a75c-7682b7967a32",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "GetCurrentWave",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "a8b419b2-6b18-42cf-a75c-7682b7967a32",
           "Pins": [],
           "EditorMetadata": {
             "X": 2120,
-            "Y": 1360
+            "Y": 1360,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
-          "Id": "b70cd628-bb06-4602-a9e4-ae7c31b6af11",
           "Status": "Success",
+          "Id": "b70cd628-bb06-4602-a9e4-ae7c31b6af11",
           "Pins": [],
           "EditorMetadata": {
             "X": 2380,
-            "Y": 1200
+            "Y": 1200,
+            "Comment": null
           }
         },
         {
@@ -1103,7 +1212,8 @@
           "Pins": [],
           "EditorMetadata": {
             "X": 1080,
-            "Y": 520
+            "Y": 520,
+            "Comment": null
           }
         }
       ],
@@ -1787,6 +1897,8 @@
           "ToPinId": "2dae502a-f0fd-3e5f-a29c-0c876beee6e1"
         }
       ],
+      "LocalVariables": [],
+      "Comments": [],
       "EditorMetadata": {
         "ViewportX": 0,
         "ViewportY": 0,
@@ -1795,7 +1907,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "P1b (Hill-attack -> Blueprints migration), tree-INTEGRATION track (architect Q#9-A): the integrated twin of HillAssault2_DispatchWaveWithTargets.bp.json -- SAME logic/kernels as the isolated twin, but leaves its native WorkingState EMPTY and converses over the standalone entity-scoped HillAttackSharedState struct via GetShared/SetShared(VariableId=\"state\"). Mechanically generated by scripts/hill_attack_integration transform (see PR description): every twin GetVariable(F) node was replaced 1:1 with a [GetShared(\"state\") -> HillAttackSharedStateOps.Get<F>(s)] pair (same fan-out topology preserved); every twin SetVariable(F) node was replaced 1:1 with a [GetShared(\"state\") -> HillAttackSharedStateOps.With<F>(s, v) -> SetShared(\"state\")] triple (fresh full-struct read immediately before each write, so sibling fields are never clobbered; correct inside FlowForEach bodies too, since GetShared/SetShared are ordinary ordered per-occurrence backing-storage accesses and FlowForEach lowers to a real inline-body loop -- confirmed via Hrot.Blueprints.Compiler Stage5 StatementEmitter.cs IrOp_ReadVariable/IrOp_WriteVariable and the GetShared/SetShared TryGetShared/TrySetShared emission). All other nodes (FlowForEach, Branch, Compare, FunctionCall kernels, PublishEvent, Literal, GetParameter) are byte-for-byte identical to the isolated twin. Does not modify the C# oracle, the isolated twin (HillAssault2_DispatchWaveWithTargets.bp.json), any *Ops/*Json/struct .cs file, or the compiler.",
+    "Description": "P1b (Hill-attack -\u003E Blueprints migration), tree-INTEGRATION track (architect Q#9-A): the integrated twin of HillAssault2_DispatchWaveWithTargets.bp.json -- SAME logic/kernels as the isolated twin, but leaves its native WorkingState EMPTY and converses over the standalone entity-scoped HillAttackSharedState struct via GetShared/SetShared(VariableId=\u0022state\u0022). Mechanically generated by scripts/hill_attack_integration transform (see PR description): every twin GetVariable(F) node was replaced 1:1 with a [GetShared(\u0022state\u0022) -\u003E HillAttackSharedStateOps.Get\u003CF\u003E(s)] pair (same fan-out topology preserved); every twin SetVariable(F) node was replaced 1:1 with a [GetShared(\u0022state\u0022) -\u003E HillAttackSharedStateOps.With\u003CF\u003E(s, v) -\u003E SetShared(\u0022state\u0022)] triple (fresh full-struct read immediately before each write, so sibling fields are never clobbered; correct inside FlowForEach bodies too, since GetShared/SetShared are ordinary ordered per-occurrence backing-storage accesses and FlowForEach lowers to a real inline-body loop -- confirmed via Hrot.Blueprints.Compiler Stage5 StatementEmitter.cs IrOp_ReadVariable/IrOp_WriteVariable and the GetShared/SetShared TryGetShared/TrySetShared emission). All other nodes (FlowForEach, Branch, Compare, FunctionCall kernels, PublishEvent, Literal, GetParameter) are byte-for-byte identical to the isolated twin. Does not modify the C# oracle, the isolated twin (HillAssault2_DispatchWaveWithTargets.bp.json), any *Ops/*Json/struct .cs file, or the compiler.",
     "Category": null,
     "Recipe": null
   }

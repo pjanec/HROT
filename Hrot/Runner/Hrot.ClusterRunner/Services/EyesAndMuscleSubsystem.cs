@@ -126,7 +126,9 @@ public sealed class EyesAndMuscleSubsystem : ISubsystem, IMapCameraProvider, IWi
     {
         if (!_initialized) return;
 
-        _context?.Kernel.Dispose();
+        // QA-001: dispose the whole node context — kernel THEN world. This used to be
+        // `_context?.Kernel.Dispose()`, which leaked the EntityRepository on every teardown.
+        _context?.Dispose();
         _context?.Participant?.Dispose();
         _initialized = false;
     }

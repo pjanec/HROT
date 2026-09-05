@@ -572,10 +572,22 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
 
     public WatchId AddWatch(Guid assetId, Guid graphId, Guid pinId, string displayName, Type expectedType)
     {
-        // Auto-instrumentation: if no DebugMap yet for this asset, request a Trace compile.
-        // Trace mode includes watch probes + breakpoints. If the asset is already Debug-compiled
-        // the instrumentation service handles upgrading without recompiling if possible.
-        if (!_debugMaps.ContainsKey(assetId) && _onInstrumentationRequested != null)
+        // ⭐⭐⭐ Auto-instrumentation: request a Trace compile when this PIN cannot yet report values.
+        //
+        // 🔴 C-watch (Batch 69) -- the old guard was `!_debugMaps.ContainsKey(assetId)`, i.e. "only
+        //    when the asset has NO map at all". ⛔ That skipped the case the comment claimed to
+        //    handle: set a BREAKPOINT first (which compiles in Debug) and the asset HAS a map, so
+        //    adding a watch requested nothing -- and `DebugProbeInsertion:149` emits
+        //    `PinValueChanged` only under `CompilerMode.Trace`. ⇒ the watch sat there receiving
+        //    nothing, with `(pending)` in the cell forever and no way for the designer to tell that
+        //    from "the value has not changed".
+        //
+        // ⭐ The right question is not "is there a map" but "does the map know this pin" -- which is
+        //   exactly what a Trace compile adds. A Debug map resolves no pins, so this fires; a Trace
+        //   map already has it, so it does not.
+        if (_onInstrumentationRequested != null
+            && (!_debugMaps.TryGetValue(assetId, out var existingMap)
+                || existingMap.TryGetPinById(pinId) is null))
         {
             _ = _onInstrumentationRequested.Invoke(assetId, BPCompilerMode.Trace);
         }
@@ -881,6 +893,210 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         => _activeEntities.TryGetValue(assetId, out var set)
             ? set.ToList().AsReadOnly()
             : Array.Empty<Entity>().AsReadOnly();
+
+    // ---- IBlueprintDebugSession -- live write (Batch 84, row 59c) -----------
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W3</c> — THE LIVE WRITE, AND THERE IS NOW EXACTLY ONE WAY IT HAPPENS: IT STAGES.</b>
+    /// 📄 <c>DESIGN_Staged_Live_Write.md</c> §1 *(the run-state table)* · §6 <c>W3</c>.
+    ///
+    /// <para>🔒 <b><c>R-126</c>, the user, verbatim:</b> <i>"I do not understand how comes that something
+    /// can be unwritable… we should be able to write anything anywhere"</i> ⇒ ⭐⭐⭐ <b>RUNNING IS NOT A
+    /// REASON TO REFUSE, IT IS A REASON TO STAGE.</b> The staged bytes are PULLED into the repository by
+    /// the kernel's <c>PreFrame</c> drain at the next advancing tick.</para>
+    ///
+    /// <para>⭐ <b>The manager is DERIVED, not a new argument</b> — <see cref="SetDataBreakpointManager"/>
+    /// already hands it to this session for breakpoints.</para>
+    ///
+    /// <para>⛔⛔ <b>WHAT <c>W3</c> DELETED, and why each deletion is safe NOW and was not before:</b>
+    /// <list type="table">
+    ///   <item><term><c>!IsClockHalted() ⇒ refuse</c></term><description>⭐ <c>R-126</c> deletes it. It
+    ///   was correct only while nothing drained a staged write: refusing was better than staging into a
+    ///   queue nobody emptied. ⇒ the drain wire *(design §8)* is what makes staging the honest
+    ///   answer.</description></item>
+    ///   <item><term><c>MIN</c>'s <c>WriteFieldNow</c> arm</term><description>⭐⭐ <c>R-130</c>:
+    ///   <i>"yellow is an indication of staged change… makes no sense if value is directly written
+    ///   now"</i> — a direct write is never in the pending set, so it never yellows, and the two paths
+    ///   disagreed about what a designer's edit looks like. ⚠ <b>The BEHAVIOUR changes and that is
+    ///   intended</b> *(§1's table)*: a toolbar-paused edit now stays 🟡 <b>staged</b> until the clock
+    ///   advances, instead of landing immediately and invisibly.</description></item>
+    ///   <item><term>the <c>IsPaused</c> three-way</term><description>⭐ there is no longer anything to
+    ///   choose between. 📌 <c>R-63</c> still holds and is still the reason staging is right while a
+    ///   breakpoint holds a rewound view — it is simply no longer a special case.</description></item>
+    /// </list></para>
+    ///
+    /// <para>⭐ <b>What survives is DATA-shaped only</b> *(<c>R-126</c>)*: no manager to stage into, and
+    /// the negative-offset guard. ⚠ The other three — no entity, unresolvable field, size mismatch —
+    /// are the CALLER's *(<c>BlueprintLiveValueWriter</c>)*, and <c>Q32</c> §2.1's size gate must stay.</para>
+    /// </summary>
+    public bool TryWriteWorkingStateField(
+        Entity entity, Type componentType, int componentOffsetBytes, ReadOnlySpan<byte> bytes)
+    {
+        if (componentType is null) throw new ArgumentNullException(nameof(componentType));
+
+        // ⭐ false, not an exception — the caller turns this answer into a sentence for the designer.
+        //   ⚠ This is now the ONLY `false` this method can return: a session with no manager has
+        //     nowhere to stage. Everything else either lands or throws.
+        if (_dataBreakpointManager is null) return false;
+
+        // ⭐⭐⭐ Batch 102 (102a) — THE OFFSET ARRIVES FULLY RESOLVED, and this method no longer
+        //    transforms it. ⛔ It used to apply WorkingStateLayout.ComponentOffsetOf (+8)
+        //    UNCONDITIONALLY, which is correct for AiPrimitive's flat block and WRONG for an Instance
+        //    slot — whose payload the partition allocator places and whose header is a 16-byte cursor,
+        //    not an 8-byte hash. ⇒ the +8 now lives in ResolveWorkingStateField's AiPrimitive arm,
+        //    where the layout is actually known. 📌 See WorkingStateFieldRef.ComponentOffsetBytes.
+        // ⚠ A negative offset is a broken layout, not a field near the start — fail LOUDLY rather than
+        //   memcpy at a negative index (the guard ComponentOffsetOf used to provide).
+        if (componentOffsetBytes < 0)
+            throw new ArgumentOutOfRangeException(nameof(componentOffsetBytes),
+                $"A component offset must not be negative (was {componentOffsetBytes}).");
+
+        // ⭐⭐⭐ ONE PATH, EVERY RUN STATE. The kernel's PreFrame ResumeAndDrainSystem pulls this into
+        //    the repository on the next advancing tick — and until it does, StagedWriteView reports the
+        //    row 🟡 pending and shows these very bytes (W4). 📌 R-130 is true by construction.
+        _dataBreakpointManager.StageFieldMutation(entity, componentType, componentOffsetBytes, bytes);
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 97 (<c>97c</c>) — the NAME → <c>(component, RAW offset, size)</c> lookup the write
+    /// path was missing.</b>
+    ///
+    /// <para>⭐ <b>Same two tables the READ consults</b> — <c>mapIndex.StateLayout.Fields</c> with a
+    /// fallback to <c>def.StateFields</c>, in that order, exactly as
+    /// <see cref="CaptureAiPrimitiveState"/> does. ⚠ <b>The LOOP is not shared and could not be</b>: the
+    /// read iterates every field to produce values, this looks one up by name. ⇒ 📌 the agreement is
+    /// asserted by a rail rather than bought by restructuring a hot read path.</para>
+    ///
+    /// <para>⛔⛔ <b>RAW offsets.</b> The read computes
+    /// <c>WorkingStateLayout.ComponentOffsetOf(field.OffsetBytes)</c> before slicing; ⭐ this returns
+    /// <c>field.OffsetBytes</c> UNCONVERTED, because
+    /// <see cref="TryWriteWorkingStateField"/> applies the header itself.</para>
+    ///
+    /// <para>⛔ <b><c>AiPrimitive</c> only.</b> An <c>Instance</c> blueprint's fields are offset within
+    /// a per-instance payload *(<c>payloadOffset + field.OffsetBytes</c>)* — a different space — and
+    /// the writer applies the <c>AiPrimitive</c> convention. ⚠ Answering for one would not mis-report a
+    /// value, it would <b>corrupt memory</b>.</para>
+    /// </summary>
+    public WorkingStateFieldRef? ResolveWorkingStateField(Entity entity, Guid assetId, string fieldName)
+    {
+        if (string.IsNullOrEmpty(fieldName)) return null;
+
+        _debugMaps.TryGetValue(assetId, out var mapIndex);
+        int blueprintId = BlueprintIdHash.Compute(assetId);
+        _registry.TryGetById(blueprintId, out var def);
+        if (def is null) return null;
+
+        return def.Kind switch
+        {
+            BlueprintDispatchKind.AiPrimitive => ResolveAiPrimitiveField(entity, def, mapIndex, fieldName),
+            BlueprintDispatchKind.Instance    => ResolveInstanceField(entity, blueprintId, def, mapIndex, fieldName),
+
+            // ⛔ Still refused for anything else — 📌 the remarks: never guess for a dispatch kind laid
+            //    out another way. ⭐ Batch 102 turned ONE of the two refusals into an arm; ⚠ the
+            //    remaining kinds are a refusal because nobody has measured their layout, ⛔ not because
+            //    refusing is "safe".
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// ⭐⭐ The <c>AiPrimitive</c> arm — a FLAT <c>Blackboard1024</c> working-state block.
+    ///
+    /// <para>⭐⭐⭐ <b>Batch 102 (<c>102a</c>) — this arm now VERIFIES THE LAYOUT before handing out an
+    /// address, and that is a fix, not a refactor.</b> 📐 <c>CaptureAiPrimitiveState:1395</c> refuses to
+    /// display a single field when <c>storedHash != def.StructureHash</c> — ⛔ <b>and the write path had
+    /// no such check</b>. ⚠ 📌 The handoff: <i>"if the read verifies identity before trusting an offset,
+    /// the WRITE must too — a stale layout writing at a valid-looking offset is exactly how memory gets
+    /// corrupted."</i> ⇒ the read would show the designer NOTHING while the write happily scribbled.</para>
+    /// </summary>
+    private WorkingStateFieldRef? ResolveAiPrimitiveField(
+        Entity entity, BlueprintDefinition def, DebugMapIndex? mapIndex, string fieldName)
+    {
+        if (!_view.HasComponent<Blackboard1024>(entity)) return null;
+
+        // ⭐ The SAME identity gate the read applies before it trusts any offset in this block.
+        ref readonly var bb = ref _view.GetComponentRO<Blackboard1024>(entity);
+        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+        if (bytes.Length < WorkingStateLayout.HeaderBytes) return null;
+        if (System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes) != def.StructureHash) return null;
+
+        // ⭐⭐ The +8 through its ONE owner (📌 Q32 §2.1), applied HERE rather than by the writer —
+        //    see WorkingStateFieldRef.ComponentOffsetBytes for why that moved in Batch 102.
+        if (FindField(mapIndex, def, fieldName) is not { } f) return null;
+        return new WorkingStateFieldRef(
+            typeof(Blackboard1024), WorkingStateLayout.ComponentOffsetOf(f.Offset), f.Size);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102a</c>) — THE <c>Instance</c> ARM. Built by MIRRORING THE READ.</b>
+    ///
+    /// <para>🔴 <b>User:</b> <i>"what is correct about not being able to write into a live blackboard of
+    /// instance when simulation is paused?"</i> ⭐⭐ <b>Nothing</b> — 📌 <c>M-36</c> carries the
+    /// retraction. 📐 The read has resolved this address all along *(it is what displayed the user's
+    /// number)*; ⛔ only the write refused.</para>
+    ///
+    /// <para>⭐ <b>Same component pick as <c>CaptureInstanceStateFromDefinition</c></b> — by what the
+    /// entity HAS, across the three tiers — ⭐⭐ <b>and the same slot maths</b>, through
+    /// <see cref="TryGetInstancePayloadOffset"/>, which both sides now call.</para>
+    ///
+    /// <para>⚠⚠ <b>NO <c>+8</c> HERE, and that is the whole reason the offset contract had to change.</b>
+    /// An <c>Instance</c> field lives at <c>payloadOffset + field.OffsetBytes</c>: the partition
+    /// allocator's slot offset already places it, and the block carries a 16-byte
+    /// <c>BlueprintLatentCursor</c>, ⛔ <b>not the 8-byte working-state header <c>AiPrimitive</c> has.</b>
+    /// ⇒ a writer that applied <c>ComponentOffsetOf</c> unconditionally would land <b>8 bytes past every
+    /// Instance field.</b></para>
+    /// </summary>
+    private WorkingStateFieldRef? ResolveInstanceField(
+        Entity entity, int blueprintId, BlueprintDefinition def, DebugMapIndex? mapIndex, string fieldName)
+    {
+        if (FindField(mapIndex, def, fieldName) is not { } f) return null;
+
+        // ⭐ The read's own component pick, in the read's own order.
+        if (TryInstanceSlot<BlueprintBlackboard1024>(entity, blueprintId, out int payload))
+            return Ref(typeof(BlueprintBlackboard1024), payload);
+        if (TryInstanceSlot<BlueprintBlackboard4096>(entity, blueprintId, out payload))
+            return Ref(typeof(BlueprintBlackboard4096), payload);
+        if (TryInstanceSlot<BlueprintBlackboard16384>(entity, blueprintId, out payload))
+            return Ref(typeof(BlueprintBlackboard16384), payload);
+
+        return null;
+
+        WorkingStateFieldRef Ref(Type component, int payloadOffset)
+            => new(component, payloadOffset + f.Offset, f.Size);
+    }
+
+    /// <summary>⭐ One tier's "does this entity carry it, and where is my slot?" — the span acquisition
+    /// the read does inline, here as a generic so the three tiers are not three copies.</summary>
+    private bool TryInstanceSlot<T>(Entity entity, int blueprintId, out int payloadOffset)
+        where T : unmanaged
+    {
+        payloadOffset = 0;
+        if (!_view.HasComponent<T>(entity)) return false;
+
+        ref readonly var bb = ref _view.GetComponentRO<T>(entity);
+        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+        return TryGetInstancePayloadOffset(bytes, blueprintId, out payloadOffset);
+    }
+
+    /// <summary>⭐ NAME → <c>(offset, size)</c> from the SAME two tables the read consults, in the same
+    /// order: the debug map's editor-authored layout first, the compiled <c>StateFields</c> second.</summary>
+    private static (int Offset, int Size)? FindField(
+        DebugMapIndex? mapIndex, BlueprintDefinition def, string fieldName)
+    {
+        var layoutFields = mapIndex?.StateLayout.Fields;
+        if (layoutFields != null)
+            foreach (var field in layoutFields)
+                if (string.Equals(field.Name, fieldName, StringComparison.Ordinal))
+                    return (field.OffsetBytes, field.SizeBytes);
+
+        if (def.StateFields != null && def.StateFields.TryGetValue(fieldName, out var descriptor))
+            return (descriptor.OffsetBytes, descriptor.SizeBytes);
+
+        return null;
+    }
 
     // ---- IBlueprintDebugSession -- pause state ------------------------------
 
@@ -1295,7 +1511,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
             System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
 
-        if (bytes.Length < 8) return;
+        if (bytes.Length < WorkingStateLayout.HeaderBytes) return;
 
         ulong storedHash = System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
         if (storedHash != def.StructureHash) return;
@@ -1305,7 +1521,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         {
             foreach (var field in layoutFields)
             {
-                int start = 8 + field.OffsetBytes;
+                // ⭐ BATCH 84 — the +8 through its ONE owner (Q32 §2.1). ⛔ The write path computes the
+                //   same offset the same way; a read and a write that disagree by 8 bytes do not show
+                //   a wrong number, they scribble on the neighbouring field.
+                int start = WorkingStateLayout.ComponentOffsetOf(field.OffsetBytes);
                 if (start + field.SizeBytes > bytes.Length) continue;
                 var fieldType = ResolveType(field.Type);
                 if (fieldType is null) continue;
@@ -1317,7 +1536,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         {
             foreach (var (name, descriptor) in def.StateFields)
             {
-                int start = 8 + descriptor.OffsetBytes;
+                int start = WorkingStateLayout.ComponentOffsetOf(descriptor.OffsetBytes);
                 if (start + descriptor.SizeBytes > bytes.Length) continue;
                 var raw = MarshalFromBytes(bytes.Slice(start, descriptor.SizeBytes).ToArray(), descriptor.ClrType);
                 if (raw != null) outFields[name] = raw;
@@ -1358,16 +1577,44 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102a</c>) — WHERE AN <c>Instance</c> BLUEPRINT'S SLOT PAYLOAD STARTS.
+    /// The ONE owner of that question, called by the READ and by the WRITE.</b>
+    ///
+    /// <para>📌 The handoff: <i>"⛔ Do not re-derive the slot maths — ruling 9: if the read's resolution
+    /// can be factored so both sides call it, do that."</i> ⭐ It could, and this is it.</para>
+    ///
+    /// <para>⚠⚠ <b>Why sharing THIS specifically matters more than tidiness.</b> An <c>Instance</c>
+    /// blackboard is partitioned: several blueprints share one component at slot offsets the allocator
+    /// chose at runtime. ⇒ ⛔ <b>a write that computed the payload offset even slightly differently from
+    /// the read would not show a wrong number — it would edit ANOTHER BLUEPRINT'S field.</b> 📌 <c>Q32</c>
+    /// §2.1: <i>"an out-of-range offset is MEMORY CORRUPTION, not a wrong value."</i></para>
+    ///
+    /// <para>⭐ The <c>fixed</c> lives here so neither caller has to be <c>unsafe</c> about it.</para>
+    /// </summary>
+    internal static unsafe bool TryGetInstancePayloadOffset(
+        ReadOnlySpan<byte> bytes, int blueprintId, out int payloadOffset)
+    {
+        payloadOffset = 0;
+        if (bytes.IsEmpty) return false;
+
+        fixed (byte* memory = bytes)
+            return BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset);
+    }
+
     internal static unsafe void ReadInstanceState(
         ReadOnlySpan<byte> bytes, int blueprintId, DebugStateLayout? stateLayout,
         BlueprintDefinition? def,
         Dictionary<string, object> outFields, out BlueprintLatentCursor? cursor)
     {
         cursor = null;
-        fixed (byte* memory = bytes)
         {
-            if (!BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int payloadOffset))
-                return;
+            // ⭐⭐⭐ Batch 102 (102a) — THE SLOT MATHS, through its ONE owner.
+            // 📌 Ruling 9 / the handoff: "do not re-derive the slot maths". The WRITE path
+            //    (ResolveWorkingStateField's Instance arm) calls this same helper, so a read and a
+            //    write cannot disagree about where a field lives — which, on a byte writer, is the
+            //    difference between editing a value and scribbling on the neighbouring one.
+            if (!TryGetInstancePayloadOffset(bytes, blueprintId, out int payloadOffset)) return;
 
             if (payloadOffset + 16 > bytes.Length) return;
             cursor = System.Runtime.InteropServices.MemoryMarshal.Read<BlueprintLatentCursor>(
@@ -1719,7 +1966,24 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         return entry.SourceStartLine;
     }
 
-    private static Type? ResolveType(string typeFullName) => typeFullName switch
+    /// <summary>
+    /// ⭐⭐ <c>S3</c> — FQN → loaded CLR type, <b>across every loaded assembly</b>.
+    ///
+    /// <para>
+    /// 🔴 <c>Type.GetType(fqn)</c> alone searches only the CALLING assembly and corelib, so it never
+    /// found a game struct — <c>Fdp.Core.FixedString32</c>, <c>Hrot.AI.Behaviors.Brains.MemberSlotList</c>
+    /// — and the field was silently <b>skipped</b>, not shown as undecodable. ⭐ The nine-case switch
+    /// below is kept: it short-circuits the common primitives before any assembly walk, and it is what
+    /// makes the FALLBACK's cost irrelevant.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Mirrors <c>ComponentFieldReflector.ResolveType</c> deliberately — the same
+    /// <c>EditorTypeResolutionScope</c> (BP-62), so a referenced-but-not-yet-loaded assembly is
+    /// force-loaded rather than silently missing here and present there.
+    /// </para>
+    /// </summary>
+    public static Type? ResolveType(string typeFullName) => typeFullName switch
     {
         "System.Int32"   => typeof(int),
         "System.Single"  => typeof(float),
@@ -1730,7 +1994,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         "System.UInt64"  => typeof(ulong),
         "System.Int16"   => typeof(short),
         "System.Byte"    => typeof(byte),
-        _                => Type.GetType(typeFullName),
+        _                => Hrot.Blueprints.Editor.NodeDrawers.ComponentFieldReflector
+                                .ResolveType(typeFullName),
     };
 
     public static object? MarshalFromBytes(byte[] bytes, Type type)
@@ -1742,8 +2007,98 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         if (type == typeof(uint))   return System.Runtime.InteropServices.MemoryMarshal.Read<uint>(bytes);
         if (type == typeof(long))   return System.Runtime.InteropServices.MemoryMarshal.Read<long>(bytes);
         if (type == typeof(double)) return System.Runtime.InteropServices.MemoryMarshal.Read<double>(bytes);
+        // FC-2/LV-5: narrow primitives, so fixed-list ELEMENTS of these types render as values.
+        if (type == typeof(byte))   return bytes[0];
+        if (type == typeof(sbyte))  return unchecked((sbyte)bytes[0]);
+        if (type == typeof(short))  return System.Runtime.InteropServices.MemoryMarshal.Read<short>(bytes);
+        if (type == typeof(ushort)) return System.Runtime.InteropServices.MemoryMarshal.Read<ushort>(bytes);
+        if (type == typeof(ulong))  return System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
+        if (TryFormatFixedList(bytes, type, out var formatted)) return formatted;
+        if (TryReadStruct(bytes, type, out var value)) return value;
         return bytes;
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S3</c> / <c>BP-01</c> — <b>the struct arm.</b> Seven of the editor's eighteen offerable
+    /// types (<c>Vector2/3/4</c>, <c>Quaternion</c>, <c>FixedString32/64/128</c>) reached
+    /// <c>return bytes</c>, so the watch panel showed raw hex for a type the picker itself offers.
+    /// ⛔ <b>That was never a panel bug.</b>
+    ///
+    /// <para>
+    /// ⭐ <b>Reflection is the ruled mechanism</b>, and the ruling bounds it: <i>"reflection-based for
+    /// structs (UI decode only, <b>not on the probe path</b>)"</i>
+    /// (<c>_DONE/blueprints-1/TASK-DETAIL.md:1840</c>). ✅ Honoured by placement — every caller of
+    /// <see cref="MarshalFromBytes"/> is a snapshot/watch read; the probe path never reaches here.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>A structural rule, not an allow-list</b> — an allow-list is the very defect <c>S5</c>
+    /// exists to remove, one layer down. The bound is <b>exactness</b>: an unmanaged value type whose
+    /// managed size is exactly the slice it was handed. ⚠ The design's <i>"small structs only"</i>
+    /// (<c>blueprint-dbg-1:193</c>) is a SCOPE note on what the Debug DD covered, not a byte ceiling;
+    /// inventing a number here would just re-create the silent skip above it.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b><see cref="System.Runtime.InteropServices.MemoryMarshal"/>, not
+    /// <c>Marshal.PtrToStructure</c>.</b> The bytes are the MANAGED layout the generated writer stores
+    /// (<c>Unsafe.As</c> onto the blackboard); <c>PtrToStructure</c> reads the MARSHALLED one, and the
+    /// two differ on <c>bool</c>. Reading with the wrong model yields a plausible wrong value, which is
+    /// worse than hex.
+    /// </para>
+    /// </summary>
+    internal static bool TryReadStruct(byte[] bytes, Type type, out object? value)
+    {
+        value = null;
+        if (!type.IsValueType || type.IsEnum || type.IsPrimitive || type.IsGenericTypeDefinition)
+            return false;
+
+        try
+        {
+            if ((bool)IsReferenceOrContainsReferencesMethod.MakeGenericMethod(type).Invoke(null, null)!)
+                return false;                                       // managed => not blittable bytes
+            if ((int)UnsafeSizeOfMethod.MakeGenericMethod(type).Invoke(null, null)! != bytes.Length)
+                return false;                                       // ⛔ exactness IS the bound
+
+            value = ReadManagedMethod.MakeGenericMethod(type).Invoke(null, new object[] { bytes });
+            return true;
+        }
+        catch
+        {
+            // A ref struct, a pointer field, an open generic — unreflectable. ⭐ Fall through to the
+            // raw bytes rather than throwing: the watch panel must never take the session down.
+            return false;
+        }
+    }
+
+    /// <summary>The one generic frame the reflective call above needs, so the span is created INSIDE
+    /// (a <c>Span&lt;byte&gt;</c> cannot be boxed into an <c>object[]</c> argument list).</summary>
+    private static object ReadManaged<T>(byte[] bytes) where T : struct
+        => System.Runtime.InteropServices.MemoryMarshal.Read<T>(bytes)!;
+
+    private static readonly System.Reflection.MethodInfo IsReferenceOrContainsReferencesMethod =
+        typeof(System.Runtime.CompilerServices.RuntimeHelpers)
+            .GetMethod(nameof(System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences))!;
+
+    private static readonly System.Reflection.MethodInfo UnsafeSizeOfMethod =
+        typeof(System.Runtime.CompilerServices.Unsafe)
+            .GetMethod(nameof(System.Runtime.CompilerServices.Unsafe.SizeOf))!;
+
+    private static readonly System.Reflection.MethodInfo ReadManagedMethod =
+        typeof(BlueprintDebugSession).GetMethod(nameof(ReadManaged),
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+
+    /// <summary>
+    /// FC-2/LV-5 → FC-3c: thin delegate to <see cref="Fdp.Core.FixedListFormatter"/> — THE
+    /// single definition of the list summary string, shared with the StructEdit
+    /// <c>FixedListBufferViewProvider</c>'s collapsed row. This watch stays a transient
+    /// bytes→string call by design: the wrapper types live in COLLECTIBLE ALCs and nothing
+    /// here may retain them (see Q#21 D addendum). Recognition is structural
+    /// (<see cref="Fdp.Core.FixedListShape"/>) — generated <c>__List_…</c> wrappers and
+    /// hand-authored A1 wrappers both render.
+    /// </summary>
+    internal static bool TryFormatFixedList(byte[] bytes, Type type, out string formatted)
+        => Fdp.Core.FixedListFormatter.TryFormat(bytes, type, out formatted);
 
     // ── IAiDebugSession bridge (toolbar/registry surface; UBP toolbar debug icons) ───────────────
     // BlueprintDebugSession also implements IAiDebugSession so it can be the registry's ActiveSession,

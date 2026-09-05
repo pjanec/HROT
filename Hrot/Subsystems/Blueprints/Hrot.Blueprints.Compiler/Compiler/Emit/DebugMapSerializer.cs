@@ -18,7 +18,18 @@ public static class DebugMapSerializer
         // Build a deterministic DTO to control field order and sort entries
         var dto = new DebugMapDto
         {
-            SchemaVersion       = "1.0",
+            // ⭐ BP-83 §2.3 ruling — bump to 1.1, tolerate 1.0 on read.
+            //
+            // The two new fields are ADDITIVE and nullable, so this is the cheapest honest option:
+            //   * A 1.0 map still loads. Its entries simply carry null provenance, which is not a
+            //     degraded read but the CORRECT one — a map written before macros existed has no
+            //     expanded nodes, so there is genuinely nothing to point back to.
+            //   * A 1.1 map for an asset with no macros serialises byte-identically to the 1.0 map it
+            //     replaces, because both fields are omitted when null. So the bump costs no churn.
+            //   * Leaving it at "1.0" was the alternative and is worse: the version would then be a
+            //     lie about the shape, and the first consumer to branch on it would branch wrongly.
+            //     A version that does not move when the schema moves is worse than no version.
+            SchemaVersion       = "1.1",
             AssetId             = debugMap.AssetId,
             AssetName           = debugMap.AssetName,
             BlueprintId         = debugMap.BlueprintId,
@@ -36,6 +47,8 @@ public static class DebugMapSerializer
                     NodeKind    = n.NodeKind,
                     DisplayName = n.DisplayName,
                     PhaseIndex  = n.PhaseIndex,
+                    OriginNodeId  = n.OriginNodeId,
+                    OriginGraphId = n.OriginGraphId,
                 })
                 .ToList(),
             Graphs = debugMap.Graphs
@@ -95,6 +108,10 @@ public static class DebugMapSerializer
                 NodeKind    = n.NodeKind,
                 DisplayName = n.DisplayName,
                 PhaseIndex  = n.PhaseIndex,
+                // Absent in a 1.0 map -- and null is exactly right there: a map written before macros
+                // existed has no expanded nodes, so there is no provenance to lose.
+                OriginNodeId  = n.OriginNodeId,
+                OriginGraphId = n.OriginGraphId,
             }).ToList(),
             Graphs = dto.Graphs.Select(g => new DebugGraphInfo(
                 g.GraphId, g.GraphName, g.GraphKind)).ToList(),
@@ -135,6 +152,16 @@ public static class DebugMapSerializer
         public string NodeKind    { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
         public int?   PhaseIndex  { get; set; }
+
+        // BP-83. Nullable and omitted when null, so a 1.1 map with no macros is byte-identical to
+        // the 1.0 map it replaces -- the version bump alone changes no existing output.
+        [System.Text.Json.Serialization.JsonIgnore(
+            Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public Guid?  OriginNodeId  { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore(
+            Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public Guid?  OriginGraphId { get; set; }
     }
 
     private sealed class GraphDto

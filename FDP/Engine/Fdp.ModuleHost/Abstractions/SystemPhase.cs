@@ -6,6 +6,17 @@ namespace Fdp.ModuleHost.Abstractions
     public enum SystemPhase
     {
         /// <summary>
+        /// PreFrame phase: runs BEFORE <see cref="Input"/>, immediately after the kernel has pushed
+        /// this frame's <c>GlobalTime</c> singleton (Main Thread).
+        ///
+        /// <para>Exists so a staged live edit can be applied to the repository before anything reads
+        /// it. Input runs roughly 25 state-mutating systems, so draining in <see cref="BeforeSync"/>
+        /// would let all of them run against state the designer had already changed. This is the only
+        /// point where the frame's delta is known AND nothing has touched the world yet.</para>
+        /// </summary>
+        PreFrame = 0,
+
+        /// <summary>
         /// Input phase: Hardware input, early processing (Main Thread).
         /// </summary>
         Input = 1,

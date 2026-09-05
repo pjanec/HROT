@@ -9,7 +9,9 @@ namespace Hrot.Blueprints.Tests.Compiler;
 /// </summary>
 public sealed class V_AllValidatorsCoverageTests
 {
-    // Codes that are defined but not yet emitted by current implementation.
+    // Codes that are DEFINED but not emitted -- either not yet (reserved for a future slice) or no
+    // longer (retired when the feature they gated shipped). Both belong here: the ratchet's question
+    // is "is this code emittable today", and a retired code answers no just as a reserved one does.
     private static readonly HashSet<string> KnownNotYetEmittedCodes = new(StringComparer.Ordinal)
     {
         "BP1600",  // OrphanedNode: declared as graph-structure code, not yet emitted
@@ -21,6 +23,34 @@ public sealed class V_AllValidatorsCoverageTests
         "BP4003",  // Reserved for Stage 5, Slice 2
         "BP1413",  // LatentInSequence: safety valve; fall-through propagation handles it, not emitted
         "BP6001",  // Reserved for Stage 7, Slice 2
+        // RETIRED, not reserved: BP1656 gated Function graphs with >1 output while N-output was
+        // unimplemented. BP-73 shipped N-output, so the gate is gone and the code is deliberately
+        // never emitted again -- kept in DiagnosticCodes only so the number is not reused.
+        "BP1656",
+        // RETIRED, not reserved (Batch 29): BP3011 warned "Implicit cast inserted from X to Y" on
+        // every rung of StaticTypeRegistry.CoercionTable -- which IS C#'s implicit-numeric-conversion
+        // table, widening only, with a written refusal to carry lossy rungs. Every cast it could
+        // report was therefore lossless and behaviour-preserving, leaving the designer nothing to act
+        // on. Kept defined so the number is not reused; the invariant it rested on is locked by
+        // Stage3_NormalizationTests.CoercionTable_ContainsOnlyLosslessWidenings.
+        "BP3011",
+        // RETIRED, not reserved (Batch 52, U-12): BP1024 refused an AiPrimitive that declared a
+        // Variable, on the reasoning that "AiPrimitive uses parameters and workingState". Under the
+        // unified model Variable and WorkingState are the SAME cell -- (State, Asset) -- so the rule
+        // enforced a spelling, not a semantic. What it was ALSO doing silently -- keeping cross-kind
+        // name collisions unreachable -- is now BP1673's job, explicitly. Kept defined so the number
+        // is not reused.
+        "BP1024",
+        // RETIRED, not reserved (Batch 70, the Instance params seam): BP1031's surviving half refused
+        // an Instance that declared parameters, and its message stated the reason -- "nothing supplies
+        // them at spawn." DESIGN_Parameter_Model.md 3.3 supplies them: the attach event carries params
+        // JSON, BlueprintDefinition.ParseParams resolves it through the SAME delegate the behaviour
+        // path uses, and the payload reserves [Cursor 16][Params N][State M]. Kept defined so the
+        // number is not reused; the retirement is asserted by
+        // V_DispatchKindCompatibilityTests.Instance_WithParams_NoLongerEmitsBP1031.
+        "BP1031",
+        // BP-80: allocated and emitted, but only reachable once MacroCallNode can be AUTHORED into a
+        // compiled graph. It IS covered -- see MacroSurfaceTests -- so it is NOT listed here.
     };
 
     [Fact]

@@ -59,22 +59,43 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
 
     // ── Test 1: Event struct layout ──────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 70 — this assertion is INVERTED, deliberately.</b> It read
+    /// <c>Assert.True(…IsValueType)</c>, and that was the shipped truth right up until
+    /// <c>DESIGN_Parameter_Model.md</c> §3.3 ruled that an Instance attach carries its params as JSON.
+    /// A managed string cannot ride the native bus ⇒ the event becomes a <b>class</b>, on the precedent
+    /// <c>AssignBehaviorEvent</c> set: <i>"must be a class (not a struct) because it carries managed
+    /// string fields."</i>
+    ///
+    /// <para>
+    /// ⭐ Kept rather than deleted, and inverted rather than relaxed: which bus an event rides is a
+    /// decision with a two-phase-drain consequence (see <c>BlueprintEventIngressSystem</c>), so it
+    /// stays asserted in both directions.
+    /// </para>
+    /// </summary>
     [Fact]
-    public void AttachInstanceBlueprintEvent_IsValueType()
+    public void AttachInstanceBlueprintEvent_IsAManagedClass_BecauseItCarriesParamsJson()
     {
-        Assert.True(typeof(AttachInstanceBlueprintEvent).IsValueType);
+        Assert.False(typeof(AttachInstanceBlueprintEvent).IsValueType);
+        Assert.Equal(typeof(string), typeof(AttachInstanceBlueprintEvent).GetField("ParamsJson")!.FieldType);
     }
 
+    /// <summary>
+    /// ⭐ <b>Remove stays a struct</b> — a detach carries no params, so nothing forces it onto the
+    /// managed bus. ⛔ Converting it "for symmetry" would cost an allocation per event for no gain.
+    /// </summary>
     [Fact]
     public void RemoveInstanceBlueprintEvent_IsValueType()
     {
         Assert.True(typeof(RemoveInstanceBlueprintEvent).IsValueType);
     }
 
+    /// <summary>⭐ Replace is a class for the same reason Attach is: its add half attaches.</summary>
     [Fact]
-    public void ReplaceInstanceBlueprintEvent_IsValueType()
+    public void ReplaceInstanceBlueprintEvent_IsAManagedClass_BecauseItsAddHalfAttaches()
     {
-        Assert.True(typeof(ReplaceInstanceBlueprintEvent).IsValueType);
+        Assert.False(typeof(ReplaceInstanceBlueprintEvent).IsValueType);
+        Assert.Equal(typeof(string), typeof(ReplaceInstanceBlueprintEvent).GetField("ParamsJson")!.FieldType);
     }
 
     [Fact]
@@ -135,15 +156,15 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
     public void AttachEvent_PublishReadRoundTrip_FieldsMatch()
     {
         var entity = _repo.CreateEntity();
-        _repo.Bus.Publish(new AttachInstanceBlueprintEvent
+        _repo.Bus.PublishManaged(new AttachInstanceBlueprintEvent
         {
             Entity = entity,
             BlueprintId = 42,
         });
         _repo.Bus.SwapBuffers();
 
-        var readSpan = _repo.Bus.Read<AttachInstanceBlueprintEvent>();
-        Assert.Equal(1, readSpan.Length);
+        var readSpan = _repo.Bus.ReadManaged<AttachInstanceBlueprintEvent>();
+        Assert.Equal(1, readSpan.Count);
         Assert.Equal(entity, readSpan[0].Entity);
         Assert.Equal(42, readSpan[0].BlueprintId);
     }
@@ -169,7 +190,7 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
     public void ReplaceEvent_PublishReadRoundTrip_FieldsMatch()
     {
         var entity = _repo.CreateEntity();
-        _repo.Bus.Publish(new ReplaceInstanceBlueprintEvent
+        _repo.Bus.PublishManaged(new ReplaceInstanceBlueprintEvent
         {
             Entity = entity,
             OldBlueprintId = 10,
@@ -177,8 +198,8 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         });
         _repo.Bus.SwapBuffers();
 
-        var readSpan = _repo.Bus.Read<ReplaceInstanceBlueprintEvent>();
-        Assert.Equal(1, readSpan.Length);
+        var readSpan = _repo.Bus.ReadManaged<ReplaceInstanceBlueprintEvent>();
+        Assert.Equal(1, readSpan.Count);
         Assert.Equal(entity, readSpan[0].Entity);
         Assert.Equal(10, readSpan[0].OldBlueprintId);
         Assert.Equal(20, readSpan[0].NewBlueprintId);
@@ -188,8 +209,8 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
     public void EmptyBus_Read_ReturnsEmptySpan()
     {
         _repo.Bus.SwapBuffers();
-        var readSpan = _repo.Bus.Read<AttachInstanceBlueprintEvent>();
-        Assert.Equal(0, readSpan.Length);
+        var readSpan = _repo.Bus.ReadManaged<AttachInstanceBlueprintEvent>();
+        Assert.Equal(0, readSpan.Count);
     }
 
     // ── Test 3: Attach event via system ───────────────────────────────────────
@@ -201,7 +222,7 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         var entity = _repo.CreateEntity();
         var sys = new BlueprintEventIngressSystem(_registry);
 
-        _repo.Bus.Publish(new AttachInstanceBlueprintEvent
+        _repo.Bus.PublishManaged(new AttachInstanceBlueprintEvent
         {
             Entity = entity,
             BlueprintId = FakeBpA_Id,
@@ -267,7 +288,7 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
 
         // Publish replace event: A → B.
         var sys = new BlueprintEventIngressSystem(_registry);
-        _repo.Bus.Publish(new ReplaceInstanceBlueprintEvent
+        _repo.Bus.PublishManaged(new ReplaceInstanceBlueprintEvent
         {
             Entity = entity,
             OldBlueprintId = FakeBpA_Id,
@@ -315,7 +336,7 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
         var sys = new BlueprintEventIngressSystem(_registry);
 
         // Replace where old blueprint is absent — should not throw; new should attach.
-        _repo.Bus.Publish(new ReplaceInstanceBlueprintEvent
+        _repo.Bus.PublishManaged(new ReplaceInstanceBlueprintEvent
         {
             Entity = entity,
             OldBlueprintId = FakeBpA_Id,  // not attached
@@ -367,7 +388,7 @@ public sealed unsafe class BlueprintEventIngressSystemTests : IDisposable
             Entity = entity,
             BlueprintId = FakeBpA_Id,
         });
-        _repo.Bus.Publish(new AttachInstanceBlueprintEvent
+        _repo.Bus.PublishManaged(new AttachInstanceBlueprintEvent
         {
             Entity = entity,
             BlueprintId = FakeBpE_Id,

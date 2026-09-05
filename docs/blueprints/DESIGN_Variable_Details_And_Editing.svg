@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 560" width="980" height="560" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <style>
+    .h1 { font-size:15px; fill:#1b1f24; font-weight:700; }
+    .h2 { font-size:11.5px; fill:#ffffff; font-weight:700; letter-spacing:.3px; }
+    .t  { font-size:12px; fill:#1b1f24; }
+    .tb { font-size:12px; fill:#1b1f24; font-weight:600; }
+    .s  { font-size:10.5px; fill:#57606a; }
+    .m  { font-size:11px; fill:#0a3069; font-family:ui-monospace, Consolas, monospace; }
+    .box { fill:#ffffff; stroke:#8c959f; stroke-width:1.2; rx:5; }
+    .src { fill:#eef4fb; stroke:#2f6fbf; stroke-width:1.4; rx:5; }
+    .dlg { fill:#fff8e6; stroke:#bf8700; stroke-width:1.6; rx:5; }
+    .ship{ fill:#e9f5e9; stroke:#4a8a3c; stroke-width:1.4; rx:5; }
+    .arr { stroke:#57606a; stroke-width:1.6; fill:none; marker-end:url(#a); }
+  </style>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#57606a"/></marker>
+  </defs>
+  <rect width="980" height="560" fill="#ffffff"/>
+
+  <text x="16" y="24" class="h1">Variable details &amp; editing — three surfaces, one table, one dialog</text>
+  <text x="16" y="42" class="s">One generic row list fed by SOURCES — it renders IReadOnlyList&lt;VariableRow&gt; and knows nothing about where rows came from. Green = already ships.</text>
+
+  <!-- SURFACES -->
+  <rect x="16" y="58" width="300" height="112" class="src"/>
+  <rect x="16" y="58" width="300" height="18" fill="#2f6fbf" rx="5"/>
+  <text x="24" y="71" class="h2">MY BLUEPRINT — the tree</text>
+  <text x="26" y="96" class="t">every variable, every asset type</text>
+  <text x="26" y="116" class="s">click a row ⇒ emits (asset, SECTION, row)</text>
+  <text x="26" y="140" class="tb">⋮ "Edit value…" / "Properties…"</text>
+  <text x="26" y="158" class="s">F2 / ⋮ "Rename" keep inline rename</text>
+
+  <rect x="332" y="58" width="300" height="112" class="src"/>
+  <rect x="332" y="58" width="300" height="18" fill="#2f6fbf" rx="5"/>
+  <text x="340" y="71" class="h2">DETAILS — the table, filtered by SECTION</text>
+  <text x="342" y="96" class="tb">Name + Value always · Type toggles</text>
+  <text x="342" y="116" class="s">one source: SectionSource(asset, section)</text>
+  <text x="342" y="140" class="tb">dblclick VALUE cell / NAME cell</text>
+  <text x="342" y="158" class="s">the only place all vars + values are together</text>
+
+  <rect x="648" y="58" width="316" height="112" class="src"/>
+  <rect x="648" y="58" width="316" height="18" fill="#2f6fbf" rx="5"/>
+  <text x="656" y="71" class="h2">WATCH — the same table, rows from MANY assets</text>
+  <text x="658" y="96" class="tb">heterogeneous: mixed assets + entities</text>
+  <text x="658" y="116" class="s">source qualifies the name; per-ROW asset tick</text>
+  <text x="658" y="140" class="tb">grouped + foldable; Type hidden</text>
+  <text x="658" y="158" class="s">collapsed header inherits child red/yellow</text>
+
+  <path class="arr" d="M166 176 L166 214"/>
+  <path class="arr" d="M482 176 L482 214"/>
+  <path class="arr" d="M806 176 L806 214"/>
+
+  <!-- DIALOG -->
+  <rect x="16" y="220" width="948" height="118" class="dlg"/>
+  <rect x="16" y="220" width="948" height="18" fill="#bf8700" rx="5"/>
+  <text x="24" y="233" class="h2">ONE DIALOG — StructEdit. The two MENU ITEMS are the two EditScopes; the user picks the act, run state only decides writability.</text>
+  <text x="26" y="258" class="m">IComponentEditService.Open(object, Type, EditScope, EditContext)</text>
+  <text x="26" y="280" class="s">takes ANY boxed object — not ECS-specific — and EditScope already ships WholeComponent / ForField / ForFields</text>
+
+  <rect x="30" y="292" width="452" height="34" class="box"/>
+  <text x="40" y="306" class="tb">"Properties…"  ⇒  EditScope.WholeComponent</text>
+  <text x="40" y="321" class="s">full attribute set · read-only once the exercise runs</text>
+
+  <rect x="498" y="292" width="452" height="34" class="box"/>
+  <text x="508" y="306" class="tb">"Edit value…"  ⇒  EditScope.ForField</text>
+  <text x="508" y="321" class="s">initial value when planning · live value when running</text>
+
+  <path class="arr" d="M256 344 L256 378"/>
+  <path class="arr" d="M724 344 L724 378"/>
+
+  <!-- COMMIT -->
+  <rect x="16" y="384" width="466" height="94" class="ship"/>
+  <rect x="16" y="384" width="466" height="18" fill="#4a8a3c" rx="5"/>
+  <text x="24" y="397" class="h2">COMMIT — planning ⇒ JSON (already ships)</text>
+  <text x="26" y="422" class="m">DefaultValueAuthoring.CommitAndSerialize</text>
+  <text x="26" y="440" class="m">IBlackboardManagedAsset.UpdateVariableDefaultValueJson</text>
+  <text x="26" y="462" class="s">a rename additionally runs the refactor service</text>
+
+  <rect x="498" y="384" width="466" height="94" class="box"/>
+  <rect x="498" y="384" width="466" height="18" fill="#57606a" rx="5"/>
+  <text x="506" y="397" class="h2">COMMIT — running ⇒ staged, display optimistic</text>
+  <text x="508" y="422" class="t">1. paint the new value NOW, in <tspan fill="#bf8700" font-weight="600">yellow</tspan> = pending</text>
+  <text x="508" y="440" class="t">2. stage it — lands at the tick N+1 boundary</text>
+  <text x="508" y="462" class="s">recorder stays linear; needs the surgical field write</text>
+
+  <rect x="16" y="492" width="948" height="52" class="box"/>
+  <text x="26" y="512" class="tb">Editability = run state ∧ row kind.</text>
+  <text x="222" y="512" class="t">Read-only-passthrough (🔒) and node-owned rows never get a writable dialog, in either mode.</text>
+  <text x="26" y="532" class="tb">Non-planning only:</text>
+  <text x="158" y="532" class="t">changed since the previous NON-FROZEN ASSET TICK ⇒</text>
+  <text x="472" y="532" class="tb" fill="#c0392b">red</text>
+  <text x="500" y="532" class="t">· pending edit ⇒</text>
+  <text x="606" y="532" class="tb" fill="#bf8700">yellow</text>
+  <text x="654" y="532" class="t">· bytes compared, not text.</text>
+</svg>

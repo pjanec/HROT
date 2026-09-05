@@ -407,7 +407,7 @@ public sealed class CgfSubsystemHeadlessTests
 
     /// <summary>
     /// Regression test: verifies that the CGF node does NOT crash when it receives
-    /// DDS entity state updates that include <see cref="IgHealthState"/> (component 165)
+    /// DDS entity state updates that carry the authority's <c>Health</c> (CE-196; component 165 is retired)
     /// and <see cref="EntityInfo"/> (component 164) data, which previously caused an
     /// <see cref="InvalidOperationException"/> ("Component type 165 not registered")
     /// during <c>EntityCommandBuffer.Playback</c>.
@@ -434,12 +434,12 @@ public sealed class CgfSubsystemHeadlessTests
         Assert.True(appeared, $"Entity {networkId} did not appear in CGF.");
 
         // Publish EntityDamage and EntityInfo DDS samples to trigger the previously-crashing
-        // translators (EntityDamageIngressTranslator â†’ IgHealthState, EntityInfoIngressTranslator â†’ EntityInfo).
+        // translators (EntityDamageIngressTranslator -> Health, EntityInfoIngressTranslator -> EntityInfo).
         using var participant   = new DdsParticipant((uint)domainId);
         using var damageWriter  = new DdsWriter<EntityDamage>(participant, "EntityDamage");
         using var infoWriter    = new DdsWriter<Hrot.NED.Descriptors.EntityInfo>(participant, "EntityInfo");
 
-        damageWriter.Write(new EntityDamage { EntityId = (int)networkId, Damage = 25.0f });
+        damageWriter.Write(new EntityDamage { EntityId = (int)networkId, Current = 75.0f, Max = 100.0f });
         infoWriter.Write(new Hrot.NED.Descriptors.EntityInfo
         {
             EntityId        = (int)networkId,

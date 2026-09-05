@@ -26,7 +26,11 @@ public static class IgRoleComponentRegistry
         world.RegisterComponent<SelectionState>();
 
         world.RegisterComponent<VehicleParams>();
-        world.RegisterComponent<IgHealthState>();
+        // ⛔ IgHealthState is GONE (CE-196). It was a render-only cache holding a precomputed damage
+        //    percentage — a second representation of health that nothing but the bar consumed, and
+        //    that disagreed with the Brain because the percentage was computed against the SENDER's
+        //    Max while this node kept its own TKB-seeded one. The EntityDamage descriptor now carries
+        //    Current+Max and the ingress writes the real Health component registered below.
         world.RegisterComponent<PerceptionReceptor>();
         world.RegisterComponent<TargetMemory>();
         world.RegisterComponent<WeaponState>();
@@ -45,7 +49,8 @@ public static class IgRoleComponentRegistry
 
         world.RegisterManagedComponent<EditablePolyline>();
         world.RegisterComponent<MapOverlayStyle>();
-        world.RegisterComponent<MapDisplayComponent>();
+        // UXI-23 S1: MapDisplayComponent moved to the shared map list.
+        Hrot.Presentation.Map.MapPresentationRegistry.RegisterAll(world);
         world.RegisterComponent<EntityInfo>();
         world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
 
