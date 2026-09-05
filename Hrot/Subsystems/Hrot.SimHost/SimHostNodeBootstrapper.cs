@@ -120,6 +120,17 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     private IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> _capabilities =
         System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
 
+    /// <summary>The providers this node's role required, kept so the node can free them.</summary>
+    /// <remarks>
+    /// ⛔⛔ <b>The owner frees it, and nobody did.</b> <see cref="TrajectoryPool"/>'s own remarks already
+    /// claimed "this bootstrapper disposes the provider, which nothing did before" — 📐 measured false:
+    /// this class had no <c>Dispose</c> at all, so every node leaked its <c>TrajectoryPoolManager</c>.
+    /// That is the same shape as <c>CE-177</c>/<c>CE-193</c>: whoever allocates a native-backed resource
+    /// disposes it. Holding the resolved provider list is what makes the claim true.
+    /// </remarks>
+    private IReadOnlyList<Hrot.Common.Infrastructure.INodeResourceProvider> _resourceProviders =
+        System.Array.Empty<Hrot.Common.Infrastructure.INodeResourceProvider>();
+
     /// <summary>
     /// Optional callback invoked during Phase 6d (after network translators, before Initialize).
     /// SimHostApp sets this to register gizmo modules and event-history capture systems that must
@@ -127,18 +138,62 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// </summary>
     public Action<HrotNodeContext>? ApplicationSystemsRegistrar { get; set; }
 
+    /// <summary>
+    /// Frees the resources this node's providers allocated.
+    /// </summary>
+    /// <remarks>
+    /// ⛔⛔ <b><c>B4b</c> step 3 — this method DID NOT EXIST, while <see cref="TrajectoryPool"/>'s own
+    /// remarks claimed "this bootstrapper disposes the provider, which nothing did before."</b>
+    /// 📐 Measured: no <c>Dispose</c> on this class and no call to <c>TrajectoryPoolProvider.Dispose</c>
+    /// anywhere in production ⇒ every node leaked its <c>TrajectoryPoolManager</c>. A documented
+    /// ownership claim that nothing implements is worse than an undocumented gap, because the next
+    /// reader stops looking.
+    ///
+    /// <para>⚠ Only the providers this node RESOLVED are freed, and each is freed once — the provider's
+    /// own <c>Dispose</c> is idempotent. Capabilities BORROW and must never free
+    /// (<see cref="Hrot.Common.Infrastructure.INodeResourceProvider"/>'s contract): a leak wastes memory,
+    /// but a borrower freeing a shared resource corrupts every other consumer still holding it.</para>
+    /// </remarks>
+    public void DisposeResources()
+    {
+        foreach (Hrot.Common.Infrastructure.INodeResourceProvider provider in _resourceProviders)
+            provider.Dispose();
+
+        _resourceProviders = System.Array.Empty<Hrot.Common.Infrastructure.INodeResourceProvider>();
+    }
+
     /// <inheritdoc/>
     protected override void RegisterApplicationSystems(HrotNodeContext context)
         => ApplicationSystemsRegistrar?.Invoke(context);
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Calls <see cref="EngineBackedNavigationModule.RegisterProviders"/> here (post-Initialize)
+    /// <para>Calls <see cref="EngineBackedNavigationModule.RegisterProviders"/> here (post-Initialize)
     /// because RegisterProviders requires <c>_navmesh</c>/<c>_registry</c> which are
-    /// created by <c>RegisterSystems</c> during <c>Kernel.Initialize()</c> (Phase 7).
+    /// created by <c>RegisterSystems</c> during <c>Kernel.Initialize()</c> (Phase 7).</para>
+    ///
+    /// <para>⛔⛔ <b>CE-197 — GUARDED on the capability actually being composed.</b> This used to call
+    /// <c>_navModule!.RegisterProviders</c> unconditionally, which was safe only because
+    /// <c>PopulateSystems</c> composed <c>NavigationSolver</c> from a hard-coded constant. 📐 The moment
+    /// the set is resolved from the declared role, a node without that flag never registers the module,
+    /// <c>RegisterSystems</c> never runs, and this throws
+    /// <i>"Call RegisterSystems before RegisterProviders."</i> — measured: it reddened five SimHost boot
+    /// tests.</para>
+    ///
+    /// <para>⚠ The unconditional call was an assumption about composition made by a step that does not
+    /// control it. Asking the resolved set is what makes a narrower role a supported configuration rather
+    /// than a crash.</para>
     /// </remarks>
     protected override void PostInitialize(HrotNodeContext context)
-        => _navModule!.RegisterProviders(context.World);
+    {
+        bool composedTheSolver = false;
+        foreach (Hrot.Common.Infrastructure.INodeCapability capability in _capabilities)
+            if (capability.Key == Hrot.Common.Infrastructure.CapabilityKeys.NavigationSolver)
+                composedTheSolver = true;
+
+        if (composedTheSolver)
+            _navModule!.RegisterProviders(context.World);
+    }
 
     /// <param name="networkFactory">Optional network factory for DDS setup.</param>
     /// <param name="role">Node role controlling which simulation modules are activated.</param>
@@ -251,15 +306,43 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             .Capability(NodeRole.NavigationSolver, new SimHostCapabilities.NavigationSolver(_navModule))
             .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSpatial(m => PerceptionModule = m));
 
-        // SimHost always composes all three, whatever the node's declared role flags: this host IS the
-        // Muscle+Perception+NavigationSolver node, and B4b is behaviour-preserving, so the set must not
-        // narrow here. Selecting BY the role flags is the next step, and it needs its own measurement of
-        // what each deployed role actually carries today.
-        const NodeRole composed = NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver;
+        // ⭐⭐⭐ B4b step 3 — THE NODE COMPOSES BY ITS DECLARED ROLE, not by a hard-coded constant.
+        //
+        // ⚠⚠ This replaces `const NodeRole composed = MuscleGround | Perception | NavigationSolver`, and
+        //    the measurement the old comment asked for is what made the swap safe — and it did NOT say
+        //    what was assumed: 📐 SimHostSubsystem.cs:101 declared `MuscleGround | Perception`,
+        //    WITHOUT NavigationSolver, while this host unconditionally composed all three. Resolving by
+        //    the declared role as it stood would have SILENTLY DROPPED EngineBackedNavigationModule and
+        //    EqsModule — a regression dressed as a refactor.
+        //
+        // ⇒ ⭐ The fix is to make the DECLARATION true rather than keep overriding it: this host runs the
+        //    navigation solver, so its role now says so (SimHostSubsystem.cs:101, SimHostApp.cs:154).
+        //    The composed set is then identical to the retired constant BY MEASUREMENT, and the role
+        //    flags stop being decorative.
+        //
+        // ⚠ NodeRole.NavigationSolver is tested in exactly ONE place repo-wide —
+        //   NedSimHostPathfindingTranslators.cs:35 — so the blast radius of the honest declaration is
+        //   fully enumerated. 📄 See §4.1v for what that pack does and why it stays inert.
+        NodeRole composed = _role;
 
         // Fails the node if a capability declared a resource nobody provides.
-        _ = plan.RequiredResources(composed);
-        _capabilities = plan.Resolve(composed);
+        _resourceProviders = plan.RequiredResources(composed);
+        _capabilities      = plan.Resolve(composed);
+
+        // ⛔⛔⛔ B4b step 3 — ALLOCATE CANNOT RUN HERE, AND THE REASON IS STRUCTURAL. 📄 §4.1v.
+        //    📐 MEASURED (a rail caught it before a cluster did): NodeBootValues.Set refuses any write
+        //    that is not inside a boot step which DECLARED the key in its `provides` —
+        //    "Boot step '(outside any step)' set 'res:trajectory-pool', which it does not declare in its
+        //    provides []." So calling provider.Allocate(context, someFreshBag) THROWS AT BOOT.
+        //
+        // ⇒ ⭐ The empty-bag note in RegisterSpawningPipeline was RIGHT, and it named this exact block:
+        //    the resource half cannot run until this host's capability registration moves INSIDE a
+        //    NodeBootPlan step that declares the resource keys it provides. That is a real change to the
+        //    shared base (the step must be declared where the keys are known), not a wiring oversight.
+        //
+        // ⭐⭐ What IS fixed here: the resolved providers are now HELD, so the node can free them —
+        //    see DisposeResources. Nothing disposed TrajectoryPoolProvider before, despite the property's
+        //    own remarks claiming otherwise.
 
         foreach (Hrot.Common.Infrastructure.INodeCapability capability in _capabilities)
             capability.PopulateSystems(context, input, sim, postSim);
@@ -409,12 +492,15 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //
         //    RegisterProviders on the navigation module is still deferred to PostInitialize: it needs
         //    _navmesh/_registry, which its own RegisterSystems creates during Kernel.Initialize.
-        //    ⚠ The values bag is EMPTY, not null: this host has not yet moved its capability registration
-        //    inside a NodeBootPlan step, so there is no live bag to hand over. An empty one makes a
-        //    capability that tries to read a resource fail with NodeBootValues' own message naming the
-        //    undeclared key, instead of a NullReferenceException — SimHost's capabilities receive their
-        //    resources by constructor during the migration. Passing null here would be the very
+        //
+        // ⚠ The values bag is EMPTY, not null, and that is still true after B4b step 3.
+        //    📐 A capability that tries to read a resource fails with NodeBootValues' own message naming
+        //    the undeclared key, instead of a NullReferenceException — SimHost's capabilities receive
+        //    their resources by CONSTRUCTOR during the migration. Passing null here would be the very
         //    silent-default shape this programme keeps removing.
+        // ⛔ Filling this bag requires provider.Allocate, which refuses to run outside a declaring boot
+        //    step — see the note in PopulateSystems and §4.1v. Do not "fix" it by handing Allocate a
+        //    free-standing bag: that is the boot crash the rails now pin.
         var migrationValues = new Hrot.Common.Infrastructure.NodeBootValues();
         foreach (Hrot.Common.Infrastructure.INodeCapability capability in _capabilities)
             capability.Register(context, migrationValues);

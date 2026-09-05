@@ -98,7 +98,9 @@ namespace Hrot.SimHost
 
         // ── Core application ──────────────────────────────────────────────────
 
-        private readonly NodeRole _role = NodeRole.MuscleGround | NodeRole.Perception;
+
+        // ⭐ CE-197 — the node's role is declared ONCE, on SimHostApp. See its remarks.
+        private readonly NodeRole _role = SimHostApp.DefaultRole;
         private readonly INetworkFactory? _networkFactory;
         private SimHostApp? _app;
         private bool _headless;

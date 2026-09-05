@@ -153,5 +153,82 @@ namespace Hrot.SimHost.Tests
             Assert.NotNull(dir);
             return dir!.FullName;
         }
-    }
+    
+        // ── CE-197: the declared role must CARRY what the host composes ──────────
+
+        private const string SimHostRoot    = "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs";
+        private const string SimHostApp     = "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs";
+        private const string SimHostSubsys  = "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs";
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-197 — SimHost DECLARES <c>NavigationSolver</c>, because it composes the navigation
+        /// solver.</b>
+        ///
+        /// <para>📐 The measurement that forced this rail: <c>SimHostSubsystem</c> declared
+        /// <c>MuscleGround | Perception</c> — <b>without</b> <c>NavigationSolver</c> — while
+        /// <c>SimHostNodeBootstrapper</c> composed all three from a hard-coded constant. Harmless while
+        /// the constant existed; the moment the capability set is resolved FROM the declared role
+        /// (<c>B4b</c> step 3, which this change made), an under-declared role SILENTLY DROPS
+        /// <c>EngineBackedNavigationModule</c> and <c>EqsModule</c>.</para>
+        ///
+        /// <para>⚠ The failure would be silent in the worst way: the node boots, the plan verifies, and
+        /// pathfinding is simply absent. That is why the invariant is pinned rather than trusted to the
+        /// comment beside it.</para>
+        /// </summary>
+        [Fact]
+        public void SimHostDeclaresTheNavigationSolverRoleItComposes()
+        {
+            var app = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(SimHostApp));
+
+            // The ONE declaration carries the solver flag …
+            Assert.Contains("const NodeRole DefaultRole", app);
+            Assert.Contains("NodeRole.NavigationSolver", app);
+
+            // … and the other two sites REFERENCE it rather than restating it. 📐 There were three
+            // copies (field, ctor default, subsystem) and the ctor default is the one a careful edit
+            // misses — it is what reddened five SimHost boot tests before the constant existed.
+            var subsystem = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(SimHostSubsys));
+
+            Assert.Contains("SimHostApp.DefaultRole", subsystem);
+            Assert.DoesNotContain("NodeRole.MuscleGround | NodeRole.Perception", subsystem);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-197 — the capability set is resolved from the DECLARED role, never from a constant.</b>
+        ///
+        /// <para>⛔ A re-introduced <c>const NodeRole composed = …</c> would make the role flags decorative
+        /// again and quietly re-open the gap this change closed — the host would compose correctly while
+        /// its declaration said something else, which is how the divergence above survived unnoticed.</para>
+        /// </summary>
+        [Fact]
+        public void TheComposedRoleIsNotHardCoded()
+        {
+            var src = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(SimHostRoot));
+
+            Assert.DoesNotContain("const NodeRole composed", src);
+            Assert.Contains("NodeRole composed = _role", src);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>CE-197 — the node FREES the resource providers it resolved.</b>
+        ///
+        /// <para>📐 <c>TrajectoryPool</c>'s own remarks claimed <i>"this bootstrapper disposes the
+        /// provider, which nothing did before"</i> — measured FALSE: the class had no <c>Dispose</c> at
+        /// all and nothing called <c>TrajectoryPoolProvider.Dispose</c> anywhere in production, so every
+        /// node leaked its <c>TrajectoryPoolManager</c>. ⚠ A documented ownership claim that nothing
+        /// implements is worse than an undocumented gap, because the next reader stops looking.</para>
+        /// </summary>
+        [Fact]
+        public void TheNodeFreesTheProvidersItResolved()
+        {
+            var src = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(SimHostRoot));
+
+            Assert.Contains("DisposeResources", src);
+            Assert.Contains("provider.Dispose()", src);
+        }
+}
 }

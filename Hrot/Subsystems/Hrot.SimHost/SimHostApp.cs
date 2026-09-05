@@ -151,7 +151,30 @@ namespace Hrot.SimHost
         private int  _nodeIdOverride;
         private bool _initialized;
         // ── Role-based bootstrap ─────────────────────────────────────────────
-        private NodeRole          _role       = NodeRole.MuscleGround | NodeRole.Perception;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-197 — THE node's role, declared ONCE.</b>
+        ///
+        /// <para>📐 It used to be written in THREE places — this class's field initialiser, this class's
+        /// constructor DEFAULT PARAMETER, and <c>SimHostSubsystem._role</c> — and they did not agree with
+        /// what the host composed. All three said <c>MuscleGround | Perception</c> while
+        /// <c>SimHostNodeBootstrapper</c> composed <c>NavigationSolver</c> too, from a hard-coded
+        /// constant.</para>
+        ///
+        /// <para>⛔⛔ That was harmless only while the constant existed. The moment the capability set is
+        /// resolved FROM the declared role (<c>B4b</c> step 3), an under-declared role silently drops
+        /// <c>EngineBackedNavigationModule</c> and <c>EqsModule</c> — and a ctor default is exactly the
+        /// copy a careful edit misses, which is how five SimHost boot tests went red before this constant
+        /// existed. ⇒ one declaration, referenced everywhere.</para>
+        ///
+        /// <para>⚠ <c>NodeRole.NavigationSolver</c> is tested in exactly ONE place repo-wide,
+        /// <c>NedSimHostPathfindingTranslators.cs:35</c>, so the blast radius of declaring it honestly is
+        /// fully enumerated. 📄 §4.1v.</para>
+        /// </summary>
+        public const NodeRole DefaultRole =
+            NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver;
+
+        private NodeRole          _role       = DefaultRole;
         private NodeConfiguration? _nodeConfig;
         public new EntityRepository World => base.World
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
@@ -253,7 +276,7 @@ namespace Hrot.SimHost
         /// </param>
         public SimHostApp(
             int?              domainOverride = null,
-            NodeRole          role           = NodeRole.MuscleGround | NodeRole.Perception,
+            NodeRole          role           = DefaultRole,
             NodeConfiguration? nodeConfig    = null) : base(new ApplicationConfig
         {
             Width       = 1280,
@@ -631,6 +654,14 @@ namespace Hrot.SimHost
             _checkpointWorker = null;
 
             // ── Dispose simulation resources ──────────────────────────────────
+            // ⭐⭐⭐ CE-197 — free the node's RESOURCE PROVIDERS (B4b step 3).
+            //    📐 Nothing disposed TrajectoryPoolProvider before this, despite its own remarks claiming
+            //    "this bootstrapper disposes the provider" — so every node leaked its
+            //    TrajectoryPoolManager. The owner frees; capabilities only borrow.
+            // ⚠ Before _context.Dispose() below, because the providers' resources are the world's, not
+            //   the other way round.
+            _bootstrapper?.DisposeResources();
+
             _physicsModule?.Dispose();
             _physicsModule = null;
             _vis?.Dispose();

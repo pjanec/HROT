@@ -21,18 +21,22 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   CapabilityKeys.ImageGenerator (declared since B3, unreferenced until now).
   ⇒ §4.1s's "INodeCapability gained a SECOND hook" row is SUPERSEDED — there are three.
   ⛔ REMAINING IN B4b, measured 2026-09-05:
-    (a) NEITHER host narrows by role — SimHost `const NodeRole composed = MuscleGround | Perception
-        | NavigationSolver` (SimHostNodeBootstrapper.cs:258), IG `= ImageGenerator`. Deliberate: B4b is
-        behaviour-preserving, so the set must not narrow yet. Selecting BY the declared role flags needs its
-        own measurement of what each deployed role actually carries.
-    (b) CGF, Stride and the editor are UNTOUCHED. ⭐ Stride is the cheapest next one: it already overrides
-        GetAdditionalModules with four pre-built modules, so it is a ProvideModules move with no new
-        mechanism.
-    (c) ⛔ INodeResourceProvider.Allocate has ZERO production call sites (grep, whole repo). SimHost reads
-        TrajectoryPool.Pool as a property and uses plan.RequiredResources() purely as a validation,
-        discarding the result ⇒ the RESOURCE half of the seam is declared and verified but never RUN.
-        Harmless today (capabilities receive resources by constructor) — do not mistake it for working
-        machinery.
+  ✅ B4b step 3 IS BUILT — §4.1v (2026-09-05): BOTH SimHost and IG now resolve their capability set from
+  the DECLARED role, not a constant. The measurement the old comment asked for CONTRADICTED the assumption:
+  SimHost declared MuscleGround|Perception WITHOUT NavigationSolver while composing all three, so narrowing
+  would have silently dropped EngineBackedNavigationModule + EqsModule. The declaration was made true (one
+  SimHostApp.DefaultRole, replacing THREE copies) and PostInitialize is now guarded on the resolved set.
+  ⛔ REMAINING IN B4b, measured 2026-09-05:
+    (a) CGF, Stride and the editor are UNTOUCHED. 🔒 User ruling 2026-09-05: STRIDE IS LAST — CGF and the
+        editor first — and Stride needs Windows, unverifiable from this environment.
+    (b) ⛔⛔ INodeResourceProvider.Allocate is BLOCKED, not merely unwired — and this CORRECTS the previous
+        entry here, which called it a wiring gap. NodeBootValues.Set refuses any write outside a boot step
+        that declared the key in its `provides`, so allocating into a free-standing bag THROWS AT BOOT
+        (a rail now pins this). The resource half cannot run until a host's capability registration moves
+        INSIDE a NodeBootPlan step declaring the resource keys — a change to the SHARED BASE.
+        ⛔ Do not "fix" it by relaxing the guard.
+    (c) ✅ What step 3 did fix: nothing disposed TrajectoryPoolProvider, despite its own remarks claiming
+        otherwise ⇒ every node leaked its TrajectoryPoolManager. Now freed via DisposeResources.
   B5 (the missing implementations) has not started.
   🔴🔴 NEW 2026-09-04: §4.1q CORRECTS §4.1j's B4 classDiagram — do NOT build from it as drawn. TWO of its
   four new abstractions ALREADY EXIST: IResourceScope is NodeBootValues (and stronger — it refuses an
@@ -1584,6 +1588,70 @@ intermittent by construction. 📄 The full per-translator table, and the answer
 *"which node applies damage"* question, are in [`Blueprint_Issues_Tracker.md` `CE-195`](blueprints/Blueprint_Issues_Tracker.md).
 
 ⭐⭐ **Zero exceptions, zero `ERROR` lines, zero swallowed module exceptions in the whole run.**
+
+### 4.1v ✅ AS BUILT — **`B4b` step 3: composition follows the DECLARED ROLE. And item ③ turned out to be BLOCKED, not unwired** *(`2026-09-05`)*
+
+#### ⭐⭐⭐ THE ROLE AXIS — the measurement contradicted the assumption
+
+§4.1s and §4.1t both resolved from `const NodeRole composed = …`, each with a comment saying narrowing
+"needs its own measurement of what each deployed role actually carries". 📐 **That measurement did not
+confirm the assumption:**
+
+| host | DECLARED | COMPOSED (the constant) |
+|---|---|---|
+| **SimHost** | 🔴 `MuscleGround \| Perception` | `MuscleGround \| Perception \| NavigationSolver` |
+| IG | ✅ `ImageGenerator` *(a literal, `IgApplication.cs:923`)* | `ImageGenerator` |
+
+⇒ ⛔ resolving SimHost by its declared role **would have silently dropped `EngineBackedNavigationModule`
+and `EqsModule`.** ⭐ The fix is to make the **declaration** true, not to keep overriding it.
+
+| # | what the switchover exposed | |
+|---|---|---|
+| ① | ⭐⭐ **the role was written THREE times** | `SimHostApp`'s field initialiser, `SimHostApp`'s **ctor default parameter**, `SimHostSubsystem._role`. 📌 The ctor default is the copy a careful edit misses — fixing only the other two **reddened five SimHost boot tests**. ⇒ collapsed to one `SimHostApp.DefaultRole` |
+| ② | ⛔⛔ **`PostInitialize` assumed composition it does not control** | it called `_navModule!.RegisterProviders(…)` unconditionally — safe only while the constant guaranteed the module. Now guarded on the resolved set, so a narrower role is a **supported configuration rather than a crash** |
+| ③ | ⚠ **the blast radius is fully enumerated** | `NodeRole.NavigationSolver` is tested in exactly ONE place repo-wide, `NedSimHostPathfindingTranslators.cs:35` |
+
+⭐ **The dormant pair stays dormant, and that is deliberate.** That one branch registers
+`PathRequestSolverIngressTranslator` + `PathResponseSolverEgressTranslator`. 📐 Its Brain half is gated on
+`role.HasFlag(Brain) && trajectoryPool != null`, and CGF passes a **null** pool (`CgfSubsystem.cs:905`) ⇒
+**neither half was ever registered, and neither is now.** Per *"unreferenced is not unintentional"*, this
+is a designed capability nobody switched on — ⛔ not something to activate as a side effect of a refactor.
+
+#### ⛔⛔⛔ ITEM ③ — **`Allocate` IS BLOCKED, NOT MERELY UNWIRED. I got this wrong first.**
+
+📐 `INodeResourceProvider.Allocate` having **zero production call sites** reads as a wiring gap. It is not:
+**`NodeBootValues.Set` refuses any write outside a boot step that declared the key in its `provides`** —
+*"Boot step '(outside any step)' set 'res:…', which it does not declare in its provides []."*
+
+⇒ ⛔ **the obvious fix — resolve the providers and allocate into a fresh bag — THROWS AT BOOT.** I wrote
+exactly that, and **a rail caught it before a cluster did**
+(`NodeCompositionPlanRails.AllocatingIntoAFreeStandingBagIsRefused`).
+
+⭐⭐ **So `SimHostNodeBootstrapper`'s own "the values bag is EMPTY" comment was RIGHT**, and it already named
+the blocker: the resource half cannot run until a host's capability registration moves **inside** a
+`NodeBootPlan` step declaring the resource keys. ⚠ That is a change to the **shared base** — the step must
+be declared where the keys are known — and it is the real remaining work, not a wiring oversight.
+⛔ **Do not "fix" it by relaxing the guard:** the guard is what keeps the declared dependency graph the real
+one.
+
+#### ✅ WHAT ITEM ③ DID DELIVER — a leak, found by reading a claim
+
+⛔⛔ `TrajectoryPool`'s remarks claimed *"this bootstrapper disposes the provider, which nothing did
+before."* 📐 **Measured FALSE:** the class had **no `Dispose` at all**, and nothing called
+`TrajectoryPoolProvider.Dispose` anywhere in production ⇒ **every node leaked its
+`TrajectoryPoolManager`** — the `CE-177`/`CE-193` shape. The resolved providers are now held and freed
+through `DisposeResources`, wired into `SimHostApp.Shutdown`.
+
+⚠ **A documented ownership claim that nothing implements is worse than an undocumented gap**, because the
+next reader stops looking. That is the generalisable lesson here.
+
+#### ⛔ WHAT IS STILL NOT DONE
+
+| | |
+|---|---|
+| ⭐⭐⭐ **the resource half** | blocked as above — needs a `NodeBootPlan` step that declares the resource keys, in the shared base |
+| **CGF · editor** | still off the seam entirely; CGF uses `HrotNodeBuilder`+`NodeBootPlan` directly, the editor neither |
+| **Stride** | 🔒 user ruling `2026-09-05`: **last**, after CGF and the editor — and it needs Windows, which this environment cannot verify |
 
 ### 4.1L 🔴🔴🔴 `CE-165` — **THE SLOTS ARE FULL, AND THE RUNNING EDITOR DOUBLE-TICKS TWO SYSTEMS TODAY** *(second user challenge, `2026-09-03`)*
 

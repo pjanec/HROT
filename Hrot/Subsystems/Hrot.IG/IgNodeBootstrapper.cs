@@ -130,6 +130,12 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
     {
+        // ⭐ CE-197 — remember the role so the capability set can be resolved FROM it (B4b step 3).
+        //   ⚠ Captured HERE, at boot phase 1, because every later step declares `requires: ["context"]`
+        //     — so the plan cannot run one before this has run. That is the same ordering argument the
+        //     lazy resolve in GetAdditionalModules rests on, and it is why this is not a hidden channel.
+        _declaredRole = role;
+
         // ⭐⭐⭐ CE-141 CLOSED 2026-09-03 — THE TRANSLATOR LIST IS NOT BUILT HERE, AND NOT PER-HOST.
         //
         // 🔒 User ruling: "entity creation needs to be unified. There should be nothing we give just to
@@ -247,15 +253,51 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
                 new IgCapabilities.Presentation(
                     _userConfig, _effectiveInstanceId, _cameraViewport, _headless));
 
-        const NodeRole composed = NodeRole.ImageGenerator;
+        // ⭐⭐⭐ CE-197 — resolved from the DECLARED role, not a constant (B4b step 3).
+        //    📐 Provably a no-op here: IgApplication.cs:923 passes the literal NodeRole.ImageGenerator,
+        //    which is exactly what the capability above is declared for. ⚠ Unlike SimHost — whose
+        //    declared role was MISSING NavigationSolver and had to be corrected before this swap was
+        //    safe — IG's declaration was already true.
+        NodeRole composed = _declaredRole;
 
         // Fails the node if a capability declared a resource nobody provides.
-        _ = plan.RequiredResources(composed);
+        _resourceProviders = plan.RequiredResources(composed);
+        _capabilities      = plan.Resolve(composed);
 
-        return _capabilities = plan.Resolve(composed);
+        // ⛔⛔ THE RESOURCE HALF CANNOT RUN HERE — a REFUSAL, not a silent skip. 📄 §4.1v.
+        //    Two independent reasons, and either alone is decisive:
+        //    ① IG resolves its plan LAZILY, from GetAdditionalModules, which has no HrotNodeContext.
+        //    ② 📐 NodeBootValues.Set refuses any write outside a boot step that DECLARED the key, so
+        //       provider.Allocate(ctx, freshBag) throws — measured on a rail, not guessed.
+        // ⭐ Costs nothing today: the presentation capability declares no Needs, so this list is EMPTY.
+        // ⚠ "Empty today" is how a silent default is born — so fail loudly the moment it stops being true.
+        if (_resourceProviders.Count > 0)
+            throw new InvalidOperationException(
+                $"IG resolved {_resourceProviders.Count} resource provider(s), but IG builds its " +
+                "composition plan lazily (no HrotNodeContext) and NodeBootValues refuses writes outside " +
+                "a declaring boot step. Move the plan into a boot step that declares the resource keys " +
+                "it provides before giving an IG capability a declared Need. See §4.1v.");
+
+        return _capabilities;
     }
 
     private IReadOnlyList<INodeCapability>? _capabilities;
+
+    /// <summary>The role this node was bootstrapped with, captured in <see cref="BuildContext"/>.</summary>
+    private NodeRole _declaredRole = NodeRole.ImageGenerator;
+
+    /// <summary>The providers this node's role required, kept so the node can free them.</summary>
+    private IReadOnlyList<INodeResourceProvider> _resourceProviders =
+        System.Array.Empty<INodeResourceProvider>();
+
+    /// <summary>Frees the resources this node's providers allocated. See SimHost's counterpart.</summary>
+    public void DisposeResources()
+    {
+        foreach (INodeResourceProvider provider in _resourceProviders)
+            provider.Dispose();
+
+        _resourceProviders = System.Array.Empty<INodeResourceProvider>();
+    }
 
     // ── Phase 5: Build orchestration ─────────────────────────────────────────
 

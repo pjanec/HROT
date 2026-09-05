@@ -38,14 +38,32 @@ public sealed class NodeCompositionPlanRails
         public void Register(HrotNodeContext context, NodeBootValues values) => RegisterCalls++;
     }
 
+    /// <summary>A resource key no production provider uses, so the rails cannot collide with one.</summary>
+    private const string FakeResourceKey = "res:fake-for-rails";
+
     private sealed class FakeProvider : INodeResourceProvider
     {
+        /// <summary>What <see cref="Allocate"/> publishes, so a rail can prove the value round-trips.</summary>
+        public const string Payload = "allocated-by-the-provider";
+
         public FakeProvider(string key) => Key = key;
 
         public string Key { get; }
         public int Disposals { get; private set; }
+        public int Allocations { get; private set; }
 
-        public void Allocate(HrotNodeContext context, NodeBootValues values) { }
+        /// <summary>
+        /// ⭐ CE-197 — this PUBLISHES now. It used to be an empty body, which mirrored production
+        /// faithfully only because production never called it: the seam's resource half was declared and
+        /// verified but never executed. Mirroring <c>TrajectoryPoolProvider.Allocate</c>'s one line
+        /// (<c>values.Set(Key, …)</c>) is what lets a rail assert the round trip.
+        /// </summary>
+        public void Allocate(HrotNodeContext context, NodeBootValues values)
+        {
+            Allocations++;
+            values.Set(Key, Payload);
+        }
+
         public void Dispose() => Disposals++;
     }
 
@@ -193,6 +211,64 @@ public sealed class NodeCompositionPlanRails
     /// the silent-default pattern: a capability whose need nobody supplies is exactly the situation
     /// in which a module quietly allocates its own copy.
     /// </summary>
+    // ── CE-197: the resource half must actually RUN ──────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>CE-197 — <c>Allocate</c> CANNOT be driven from a free-standing bag, and this rail exists
+    /// because that mistake was actually made.</b>
+    ///
+    /// <para>The resource half of the seam looks like it only needs wiring: no production code path
+    /// calls <see cref="INodeResourceProvider.Allocate"/> at all (measured: zero call sites repo-wide),
+    /// so the obvious "fix" is to resolve the providers and allocate them into a fresh
+    /// <see cref="NodeBootValues"/>. 📐 That THROWS: the bag refuses any write that is not inside a boot
+    /// step which declared the key in its <c>provides</c> — <i>"Boot step '(outside any step)' set
+    /// 'res:…', which it does not declare in its provides []."</i></para>
+    ///
+    /// <para>⇒ ⭐ Allocation is blocked on a host moving its capability registration INSIDE a
+    /// <c>NodeBootPlan</c> step that declares the resource keys — which is exactly what
+    /// <c>SimHostNodeBootstrapper</c>'s own "the values bag is EMPTY" note already said. This rail turns
+    /// that note into something that fails a build instead of being re-litigated. ⛔ Do not make it pass
+    /// by relaxing the guard: the guard is what keeps the declared dependency graph the real one.</para>
+    /// </summary>
+    [Fact]
+    public void AllocatingIntoAFreeStandingBagIsRefused()
+    {
+        var provider   = new FakeProvider(FakeResourceKey);
+        var capability = new FakeCapability("cap:reader", FakeResourceKey);
+
+        var plan = new NodeCompositionPlan()
+            .Provider(provider)
+            .Capability(NodeRole.MuscleGround, capability);
+
+        IReadOnlyList<INodeResourceProvider> required = plan.RequiredResources(NodeRole.MuscleGround);
+        Assert.Single(required);
+        Assert.Equal(0, provider.Allocations);   // resolution alone must never allocate
+
+        // The whole point: resolving is legal, allocating outside a declaring boot step is not.
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => required[0].Allocate(context: null!, new NodeBootValues()));
+
+        Assert.Contains("does not declare in its provides", ex.Message);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>CE-197 — a role whose capabilities declare no Needs selects NO providers.</b>
+    /// That minimality is what makes IG's loud refusal correct rather than merely convenient: IG resolves
+    /// lazily with no context, and that is safe only for as long as this stays empty.
+    /// </summary>
+    [Fact]
+    public void ARoleThatNeedsNothingSelectsNoProviders()
+    {
+        var provider = new FakeProvider(FakeResourceKey);
+
+        var plan = new NodeCompositionPlan()
+            .Provider(provider)
+            .Capability(NodeRole.ImageGenerator, new FakeCapability("cap:presentation"));
+
+        Assert.Empty(plan.RequiredResources(NodeRole.ImageGenerator));
+        Assert.Equal(0, provider.Allocations);
+    }
+
     [Fact]
     public void ANeedNoProviderSuppliesIsRefused()
     {
