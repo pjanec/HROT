@@ -299,7 +299,11 @@ namespace Hrot.Editor.DebugApi
                       + "Call GET /assets/{assetId}/graph/catalog for the kinds this graph accepts.",
                         DebugApiHints.Panel);
 
-            var pos = new Vector2(ReadFloat(body, "x"), ReadFloat(body, "y"));
+            if (!TryReadFloat(body, "x", out float px, out string? posError) ||
+                !TryReadFloat(body, "y", out float py, out posError))
+                return (null, posError, DebugApiHints.Panel);
+
+            var pos = new Vector2(px, py);
 
             var (fwd, inv) = new CommandBuilder(view!.Model).AddNode(new NodeKindKey(kind!), pos, null);
             var newId      = ((GraphCommand.AddNode)fwd).AssignedId;
@@ -477,8 +481,9 @@ namespace Hrot.Editor.DebugApi
                       + "the route docs.",
                         DebugApiHints.Panel);
 
-            var nodes = ReadGuidList(body, "nodes");
-            var links = ReadGuidList(body, "links");
+            if (!TryReadGuidList(body, "nodes", out var nodes, out string? idError) ||
+                !TryReadGuidList(body, "links", out var links, out idError))
+                return (null, idError, DebugApiHints.Panel);
             if (nodes.Count == 0 && links.Count == 0)
                 return (null,
                         "Body must name what to remove: {\"nodes\": [\"guid\", …]} and/or "
@@ -1269,7 +1274,8 @@ namespace Hrot.Editor.DebugApi
                       + "GET /editor/commands to see the live state, and set up the precondition first.",
                         DebugApiHints.Panel);
 
-            var ctx = BuildCommandContext(body);
+            if (!TryBuildCommandContext(body, out var ctx, out string? ctxError))
+                return (null, ctxError, DebugApiHints.Panel);
 
             NodeEditor.Core.Action.EditorCommandResult result;
             try
@@ -1332,14 +1338,33 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>⭐ The MCP body → <c>EditorCommandContext</c>: the args bag plus optional positions.</summary>
-        private static NodeEditor.Core.Action.EditorCommandContext BuildCommandContext(JsonNode? body)
+        /// <remarks>
+        /// ⭐ <c>CE-191</c> — an unparseable coordinate now REFUSES rather than silently becoming the origin.
+        /// A command invoked "at a position" that quietly ran at (0,0) is a wrong action reported as success.
+        /// </remarks>
+        private static bool TryBuildCommandContext(
+            JsonNode? body, out NodeEditor.Core.Action.EditorCommandContext ctx, out string? error)
         {
+            ctx   = default!;
+            error = null;
+
             Vector2? canvasPos = null, screenPos = null;
 
             if (body?["canvasPos"] is JsonObject cp)
-                canvasPos = new Vector2(ReadFloat(cp, "x"), ReadFloat(cp, "y"));
+            {
+                if (!TryReadFloat(cp, "x", out float cx, out error) ||
+                    !TryReadFloat(cp, "y", out float cy, out error))
+                    return false;
+                canvasPos = new Vector2(cx, cy);
+            }
+
             if (body?["screenPos"] is JsonObject sp)
-                screenPos = new Vector2(ReadFloat(sp, "x"), ReadFloat(sp, "y"));
+            {
+                if (!TryReadFloat(sp, "x", out float sx, out error) ||
+                    !TryReadFloat(sp, "y", out float sy, out error))
+                    return false;
+                screenPos = new Vector2(sx, sy);
+            }
 
             Dictionary<string, object?>? args = null;
             if (body?["args"] is JsonObject a)
@@ -1364,7 +1389,8 @@ namespace Hrot.Editor.DebugApi
                 }
             }
 
-            return new NodeEditor.Core.Action.EditorCommandContext(screenPos, canvasPos, args);
+            ctx = new NodeEditor.Core.Action.EditorCommandContext(screenPos, canvasPos, args);
+            return true;
         }
 
         // ══ helpers ═══════════════════════════════════════════════════════════
@@ -1389,11 +1415,37 @@ namespace Hrot.Editor.DebugApi
         /// </remarks>
         private static void MarkEdited(AiDocument doc) => doc.MarkDirty();
 
-        private static float ReadFloat(JsonNode? body, string key)
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-191</c> — reads a float, and <b>says so when it cannot</b>.
+        /// </summary>
+        /// <remarks>
+        /// <para>🔴 <b>This used to be <c>catch { return 0f; }</c>.</b> A malformed coordinate — <c>"x": "12"</c>,
+        /// <c>"x": null</c>, a typo — silently became <b>zero</b>, and the endpoint answered <c>ok:true</c>.
+        /// A node asked for at (300, 240) was created at the origin and the caller was told it worked.</para>
+        ///
+        /// <para>⭐ Shaped as <c>Try…(out value, out error)</c> to match <see cref="TryPin"/> in this same
+        /// file rather than inventing a second convention. ⚠ A MISSING key is still 0 and NOT an error —
+        /// these coordinates are genuinely optional; the defect was only ever the <i>unparseable</i> case.</para>
+        /// </remarks>
+        private static bool TryReadFloat(JsonNode? body, string key, out float value, out string? error)
         {
+            value = 0f;
+            error = null;
+
             var node = body?[key];
-            if (node is null) return 0f;
-            try { return node.GetValue<float>(); } catch { return 0f; }
+            if (node is null) return true;          // absent is legal — it means "use the default"
+
+            try
+            {
+                value = node.GetValue<float>();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"'{key}' must be a number; got {node.ToJsonString()} ({ex.GetType().Name}). "
+                      + "It was previously read as 0, which silently moved things to the origin.";
+                return false;
+            }
         }
 
         private static bool TryPin(JsonNode? body, string key, out PinId pin, out string? error)
@@ -1410,18 +1462,53 @@ namespace Hrot.Editor.DebugApi
             return true;
         }
 
-        private static List<Guid> ReadGuidList(JsonNode? body, string key)
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-191</c> — reads a GUID array, <b>refusing the whole list if any element is not one</b>.
+        /// </summary>
+        /// <remarks>
+        /// <para>🔴 <b>This used to skip bad elements silently</b> (<c>catch { continue; }</c>, plus a
+        /// <c>Guid.TryParse</c> whose <c>false</c> branch dropped the item). ⛔ Its only caller is the REMOVE
+        /// route — so a body naming five nodes of which one was malformed <b>deleted the other four and
+        /// answered <c>ok:true</c></b>.</para>
+        ///
+        /// <para>⭐⭐ <b>The caller already states the rule this violated.</b> Three lines below the call site:
+        /// <i>"Nothing was removed — a partial delete would be worse than a refusal."</i> That guard only ever
+        /// covered ids that parsed but were absent from the graph; an id that failed to <i>parse</i> silently
+        /// vanished before the check could see it. ⇒ this is the same principle applied one step earlier,
+        /// not a new policy.</para>
+        /// </remarks>
+        private static bool TryReadGuidList(
+            JsonNode? body, string key, out List<Guid> list, out string? error)
         {
-            var list = new List<Guid>();
-            if (body?[key] is JsonArray arr)
-                foreach (var item in arr)
+            list  = new List<Guid>();
+            error = null;
+
+            if (body?[key] is not JsonArray arr) return true;   // absent is legal — the caller checks emptiness
+
+            for (int i = 0; i < arr.Count; i++)
+            {
+                JsonNode? item = arr[i];
+                if (item is null)
                 {
-                    if (item is null) continue;
-                    string? raw;
-                    try { raw = item.GetValue<string>(); } catch { continue; }
-                    if (Guid.TryParse(raw, out var g)) list.Add(g);
+                    error = $"'{key}[{i}]' is null; every entry must be a GUID string. Nothing was removed.";
+                    return false;
                 }
-            return list;
+
+                string? raw;
+                try { raw = item.GetValue<string>(); }
+                catch { raw = null; }
+
+                if (raw is null || !Guid.TryParse(raw, out Guid g))
+                {
+                    error = $"'{key}[{i}]' must be a GUID string; got {item.ToJsonString()}. Nothing was "
+                          + "removed — a partial delete would be worse than a refusal.";
+                    return false;
+                }
+
+                list.Add(g);
+            }
+
+            return true;
         }
 
         /// <summary>

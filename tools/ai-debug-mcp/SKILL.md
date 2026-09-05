@@ -80,6 +80,20 @@ arrives wrapped in an `AggregateException`, and `site` deliberately names the *i
 await (`wrappedIn` records the wrapper); and file/line need PDBs beside the assembly — without them `site`
 degrades to `Type.Method +IL_0042`, never to nothing.
 
+**A malformed field is now a 400, not a silently-substituted value** (`CE-191`). The API used to answer
+`ok:true` after quietly discarding input it could not parse. It no longer does:
+
+| you send | you used to get | you now get |
+|---|---|---|
+| `spawn` with an unparseable `transform` | the entity **at the origin**, `ok:true` | 400, nothing spawned |
+| `spawn` with a **typo'd** component type | the entity **without that component**, `ok:true` | 400 naming the unknown type |
+| a graph command with `"x": "left-ish"` | the node at **0**, `ok:true` | 400 naming the field |
+| `remove` with one malformed id among five | **the other four deleted**, `ok:true` | 400, nothing removed |
+
+⚠ **Absent optional fields are still legal** — only *unparseable* ones changed. And on reads, an
+unserializable row is no longer dropped: it stays in the array carrying `payloadError` /
+`serializationError`, so a count is never quietly short.
+
 **Wait-gating (why you sometimes see `awaited:false`).** Commands that *could* wait for a result only do so
 when time is advancing. If you send a command with `wait:true` while the sim is paused/in Edit, you get
 `{awaited:false, reason:"sim not running"}` immediately instead of a hang. That is expected — pause-step-inspect

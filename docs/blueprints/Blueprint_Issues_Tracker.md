@@ -2089,3 +2089,29 @@ whenever the finding is "the sim did not do the impressive thing".**
   ⚠ **Lane note:** `DebugApi*.cs` is the **MCP lane**'s (`claude/mcp-authoring-commands-7l3n49`, ids `MX-`) declared territory; built on the UI lane at the user's direction.
 
   📄 Design: [`ai-debug-api/DESIGN.md` — the envelope note](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/ai-debug-api/DESIGN.md) · caller-facing: [`ai-debug-mcp/skill-parts/10-mental-model.md`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/tools/ai-debug-mcp/skill-parts/10-mental-model.md)
+
+- [x] **CE-191** · `RW-L` ⭐⭐⭐ — **A MALFORMED FIELD IS A REFUSAL, NEVER A SUBSTITUTED VALUE — the nine sites that answered `ok:true` about work they had discarded.** 🔒 **User:** the debug API's swallowed exceptions *"need to be surfaced as error response"* — the sibling half of `CE-190`.
+
+  🔴 **Why this half was the more dangerous one.** `CE-190` made a *thrown* exception locatable. **These nine never threw.** They caught, substituted something plausible, and returned success ⇒ there was no error to locate, and the wrongness surfaced later, somewhere else, as a thing that was not where or what the caller asked for.
+
+  | site | it used to | now |
+  |---|---|---|
+  | `SpawnEntity` transform | spawn **AT THE ORIGIN** | 400, nothing spawned |
+  | `SpawnEntity` components — ⭐ **FOUR** silent drops: null entry · no `type` · **UNKNOWN TYPE NAME** · unbindable data | spawn **WITHOUT the component asked for** | 400 naming which entry and why |
+  | `SendCommand` default-construct | publish a **null** event | 400 |
+  | `Authoring.ReadFloat` | a coordinate became **0** | 400 naming the field |
+  | `GraphCommandJson.F` | a Vec2/Vec4 channel became **0** ⇒ origin / black / transparent | throws `CommandJsonException` → 400 |
+  | `Authoring.ReadGuidList` | **DROPPED** bad ids ⇒ a **partial delete** | 400, nothing removed |
+  | events `payload` · TKB child blueprints · TKB descriptors | `null`, or **the row dropped ⇒ a silently SHORT array** | the row survives carrying `payloadError` / `serializationError` |
+
+  ⭐⭐ **Two were INCONSISTENCIES, not policies — which is what makes the fix safe rather than a behaviour change:** `GraphCommandJson.F` was the **only** reader in its file that swallowed *(`Bool`, `Int`, `Ints`, `Guid_`, `Guids` all already threw `CommandJsonException`, and `Parse` already turned that into the caller's error)*; and `ReadGuidList`'s own caller states the rule **three lines below the call** — *"a partial delete would be worse than a refusal"* — a guard that could never see an id which failed to **parse**.
+
+  ⚠ **The non-regression half is deliberate and railed:** an **ABSENT** optional field is still legal and still means "use the default" — only the *unparseable* case changed. ⛔ And **reads did not become failures**: an unserializable row is reported **in place**, following `DescribeCommand`'s existing `isEnabledError` shape, because failing a whole entity dump over one bad descriptor would make diagnostics worse.
+
+  ⭐ **Rails:** `Hrot.Editor.Tests/DebugApi/TheParseHelpersRefuseRatherThanDefaultTests.cs` (**6** — three refusals, three non-regressions). **Red-proof:** restoring the three swallows reddened **exactly the 3 refusal rails**; the 3 non-regression rails correctly stayed green *(the inverse edit does not touch absent-key behaviour)*.
+
+  ⛔⛔ **GAP FOUND WHILE DOING THIS — the debug API has NO COMPILED TEST COVERAGE in the integration project.** All **15** `DebugApi*Tests.cs` files are `<Compile Remove>`d from `Hrot.ClusterRunner.Integration.Tests.csproj` (**`DEBT-MCP-001`**): trunk's `EditorHarness` lacks the 9 collaborators `BuildDebugApiService` needs. ⇒ 🔴 **the four spawn-refusal rails written into `DebugApiBatch04Tests.cs` are written but NEITHER COMPILED NOR RUN**, and start gating only when that debt is paid. ⚠ **Verified as far as is possible:** temporarily un-excluding the file produced **only** pre-existing `BuildDebugApiService` errors and their cascade — including on the file's **own existing** `SendCommand` deconstructions — with none attributable to the new code. ⭐ Its two pre-existing call sites were migrated to the new tuple in the same edit, so the file does not rot further.
+
+  📐 **Gates:** `Hrot.Editor.Tests` **356 passed**, all **23** `DebugApi` rails green. ⚠ Run 2 of 2 reddened on `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` — the **pre-existing rotating flake baselined under `CE-190`** *(passes 3/3 in isolation; the baseline run with the change stashed reddened on a DIFFERENT test)*.
+
+  📄 Design: [`ai-debug-api/DESIGN.md` — the `CE-191` note](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/ai-debug-api/DESIGN.md) · caller-facing: [`ai-debug-mcp/skill-parts/10-mental-model.md`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/tools/ai-debug-mcp/skill-parts/10-mental-model.md)

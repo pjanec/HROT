@@ -229,6 +229,45 @@ endpoints. All bodies are JSON. `networkId` is the long network entity id (resol
 >
 > ⭐ Rails: `Hrot.Editor.Tests/DebugApi/TheFaultReportNamesWhereItHappenedTests.cs` (6).
 
+> ⭐⭐⭐ **`CE-191` (`2026-09-05`) — A MALFORMED FIELD IS A REFUSAL, NEVER A SUBSTITUTED VALUE.**
+>
+> `CE-190` above made a *thrown* exception locatable. This is its sibling and, measured, the more dangerous
+> half: **nine sites never threw at all.** They caught, substituted something plausible, and returned
+> `ok:true` — so there was no error to locate.
+>
+> | site | it used to | now |
+> |---|---|---|
+> | `SpawnEntity` transform | spawn **at the origin** | 400, nothing spawned |
+> | `SpawnEntity` components — **four** silent drops: null entry · no `type` · **unknown type name** · unbindable data | spawn **without the component** | 400 naming which entry and why |
+> | `SendCommand` default-construct | publish a **null** event | 400 |
+> | `Authoring.ReadFloat` | a coordinate became **0** | 400 naming the field |
+> | `GraphCommandJson.F` | a Vec2/Vec4 channel became **0** (origin / black / transparent) | `CommandJsonException` → 400 |
+> | `Authoring.ReadGuidList` | **dropped** bad ids ⇒ a partial delete | 400, nothing removed |
+> | events `payload`, TKB child blueprints, TKB descriptors | `null`, or the row **dropped** ⇒ a short array | the row survives with `payloadError` / `serializationError` |
+>
+> ⭐⭐ **Two of these were inconsistencies rather than policies, and that is what makes the fix safe:**
+> `GraphCommandJson.F` was the *only* reader in its file that swallowed — `Bool`, `Int`, `Ints`, `Guid_`,
+> `Guids` all already threw `CommandJsonException`. And `ReadGuidList`'s own caller states the rule three
+> lines below the call: *"a partial delete would be worse than a refusal"* — a guard that could never see an
+> id that failed to **parse**.
+>
+> ⚠ **The non-regression half is deliberate and railed:** an **absent** optional field is still legal and
+> still means "use the default". Only the *unparseable* case changed. Reads never became failures — an
+> unserializable row is reported **in place**, following `DescribeCommand`'s existing `isEnabledError` shape,
+> because failing a whole entity dump over one bad descriptor would make diagnostics worse.
+>
+> ⭐ Rails: `Hrot.Editor.Tests/DebugApi/TheParseHelpersRefuseRatherThanDefaultTests.cs` (6 — three refusals,
+> three non-regressions). ⛔ **The spawn refusals are NOT railed — see the gap below.**
+>
+> ⛔⛔ **GAP FOUND WHILE DOING THIS: the debug API has NO COMPILED TEST COVERAGE in the integration project.**
+> All **15** `DebugApi*Tests.cs` files are `<Compile Remove>`d from
+> `Hrot.ClusterRunner.Integration.Tests.csproj` (`DEBT-MCP-001`) because trunk's `EditorHarness` lacks the 9
+> collaborators `BuildDebugApiService` needs. ⇒ the four spawn-refusal rails written into
+> `DebugApiBatch04Tests.cs` are **written but neither compiled nor run**, and will only start gating when
+> that debt is paid. ⚠ Verified as far as possible: temporarily un-excluding the file produced *only*
+> pre-existing `BuildDebugApiService` errors and their cascade — including on the file's own **existing**
+> `SendCommand` deconstructions — with none attributable to the new code.
+
 ### Group A — Lifecycle & Status
 | HTTP | MCP tool | Request → Response |
 |---|---|---|

@@ -727,6 +727,7 @@ namespace Hrot.Editor.DebugApi
             foreach (var e in page)
             {
                 JsonNode? payload = null;
+                string?   payloadError = null;
                 try
                 {
                     // EventSerializationHelper produces inspector-grade readable JSON; parse it
@@ -734,9 +735,15 @@ namespace Hrot.Editor.DebugApi
                     var json = EventSerializationHelper.SerializeToJson(e.RawEvent);
                     payload  = JsonNode.Parse(json);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    payload = null; // unserializable payload — keep the metadata row.
+                    // ⭐⭐ CE-191 — keeping the metadata row is RIGHT (one unserializable event must not
+                    //   cost the caller the whole history). ⛔ Reporting nothing was not: a null payload
+                    //   read identically to "this event genuinely carried no data".
+                    // ⭐ Reported ON THE ROW rather than failing the read — the same shape
+                    //   DescribeCommand already uses for isEnabledError.
+                    payload      = null;
+                    payloadError = $"{ex.GetType().Name}: {ex.Message}";
                 }
 
                 arr.Add(new JsonObject
@@ -747,6 +754,7 @@ namespace Hrot.Editor.DebugApi
                     ["isManaged"] = e.IsManaged,
                     ["summary"]   = e.Summary,
                     ["payload"]   = payload,
+                    ["payloadError"] = payloadError,
                 });
             }
             return arr;
@@ -1248,8 +1256,23 @@ namespace Hrot.Editor.DebugApi
             else
             {
                 // Create a default instance.
+                //
+                // ⭐⭐ CE-191 — this was `catch { evt = null; }`, and the null then went straight into
+                //   PublishEventObject below. Whatever that did, the caller was never told the event they
+                //   asked for had not been constructed. A type without a usable parameterless constructor
+                //   is a refusal, not a publish.
                 try { evt = Activator.CreateInstance(clrType); }
-                catch { evt = null; }
+                catch (Exception ex)
+                {
+                    return (null,
+                            $"'{eventTypeName}' could not be default-constructed: {ex.GetType().Name}: "
+                          + $"{ex.Message}. Send a 'payload' object for this type instead.");
+                }
+
+                if (evt == null)
+                    return (null,
+                            $"'{eventTypeName}' default-constructed to null, so there is nothing to publish. "
+                          + "Send a 'payload' object for this type.");
             }
 
             // Publish via the appropriate bus method (unmanaged struct → Publish, managed → PublishManaged).
@@ -1289,7 +1312,11 @@ namespace Hrot.Editor.DebugApi
         /// — builds and publishes a <see cref="SpawnEntityCommand"/>. Returns <c>awaited</c>
         /// per the wait rule. Must run on the main thread.
         /// </summary>
-        public JsonNode SpawnEntity(
+        /// <remarks>
+        /// ⭐⭐⭐ <c>CE-191</c> — returns <c>(node, error)</c> rather than a bare node, because the two
+        /// optional parses below <b>used to be discarded silently</b>. See their comments.
+        /// </remarks>
+        public (JsonNode? Node, string? Error) SpawnEntity(
             long     tkbType,
             JsonNode? transform      = null,
             JsonNode? components     = null,
@@ -1305,6 +1332,11 @@ namespace Hrot.Editor.DebugApi
             };
 
             // Parse optional transform.
+            //
+            // ⭐⭐⭐ CE-191 — this was `catch { /* ignore malformed transform */ }`. A body whose transform
+            //   did not deserialize spawned the entity AT THE ORIGIN and answered ok:true. For a spatial
+            //   simulation that is the worst possible shape of failure: the caller is told the thing exists
+            //   where they asked, and it is somewhere else. Refuse instead.
             if (transform != null)
             {
                 try
@@ -1312,47 +1344,83 @@ namespace Hrot.Editor.DebugApi
                     var simTransform = JsonSerializer.Deserialize<SimTransform>(transform.ToJsonString());
                     cmd.InitialTransform = simTransform;
                 }
-                catch { /* ignore malformed transform */ }
+                catch (Exception ex)
+                {
+                    return (null,
+                            $"'transform' could not be read as a SimTransform: {ex.GetType().Name}: {ex.Message}. "
+                          + "Nothing was spawned — it would otherwise have been placed at the origin and "
+                          + "reported as success.");
+                }
             }
 
             // Parse optional extra components list (array of { type, data } or typed objects).
-            if (components != null && components is JsonArray compArr && compArr.Count > 0)
+            //
+            // ⭐⭐⭐ CE-191 — this block had FOUR silent drops, and the entity spawned WITHOUT the component
+            //   you asked for while the response said ok:true:
+            //     ① a null array entry            → `continue`
+            //     ② an entry with no "type"       → the `if (typeName != null)` never fired
+            //     ③ an UNKNOWN type name          → `compType != null` was false ⇒ **a typo'd component
+            //                                        vanished**, which is the one a caller is most likely
+            //                                        to hit and least able to notice
+            //     ④ a payload that would not bind → `catch { }`
+            //   ⛔ All four now refuse the whole spawn. A partially-built entity is worse than none: the
+            //   caller goes on to assert against a thing that is quietly missing half its state.
+            if (components is JsonArray compArr && compArr.Count > 0)
             {
                 cmd.InitialComponents = new List<object>();
-                foreach (var item in compArr)
+                for (int i = 0; i < compArr.Count; i++)
                 {
-                    if (item is null) continue;
-                    // Support { "type": "TypeName", "data": {...} } format.
-                    var typeName = item["type"]?.GetValue<string>();
-                    var data     = item["data"];
-                    if (typeName != null)
+                    JsonNode? item = compArr[i];
+                    if (item is null)
+                        return (null, $"'components[{i}]' is null; expected {{ \"type\": \"<name>\", \"data\": {{…}} }}.");
+
+                    string? typeName = item["type"]?.GetValue<string>();
+                    JsonNode? data   = item["data"];
+
+                    if (string.IsNullOrWhiteSpace(typeName))
+                        return (null,
+                                $"'components[{i}]' has no 'type'. Expected "
+                              + "{ \"type\": \"<component type name>\", \"data\": {…} }.");
+
+                    var compType = ComponentTypeRegistry.GetAllTypes()
+                        .FirstOrDefault(t => string.Equals(t.Name, typeName, StringComparison.OrdinalIgnoreCase));
+
+                    if (compType == null)
+                        return (null,
+                                $"'components[{i}].type' names '{typeName}', which is not a registered "
+                              + "component type. Nothing was spawned — it would otherwise have been created "
+                              + "without that component and reported as success. Read GET /components for "
+                              + "the registered names.");
+
+                    if (data == null)
+                        return (null, $"'components[{i}]' ({typeName}) has no 'data' object to deserialize.");
+
+                    object? compObj;
+                    try { compObj = JsonSerializer.Deserialize(data.ToJsonString(), compType); }
+                    catch (Exception ex)
                     {
-                        var compType = ComponentTypeRegistry.GetAllTypes()
-                            .FirstOrDefault(t => string.Equals(t.Name, typeName, StringComparison.OrdinalIgnoreCase));
-                        if (compType != null && data != null)
-                        {
-                            try
-                            {
-                                var compObj = JsonSerializer.Deserialize(data.ToJsonString(), compType);
-                                if (compObj != null)
-                                    cmd.InitialComponents.Add(compObj);
-                            }
-                            catch { /* ignore undeserializable component */ }
-                        }
+                        return (null,
+                                $"'components[{i}].data' does not bind to {typeName}: "
+                              + $"{ex.GetType().Name}: {ex.Message}. Nothing was spawned.");
                     }
+
+                    if (compObj == null)
+                        return (null, $"'components[{i}].data' deserialized to null for {typeName}. Nothing was spawned.");
+
+                    cmd.InitialComponents.Add(compObj);
                 }
             }
 
             _world.Bus.PublishManaged(cmd);
 
             bool timeAdvancing = _preview.IsInPreviewMode && !_time.IsPaused;
-            return new JsonObject
+            return (new JsonObject
             {
                 ["spawned"]  = true,
                 ["tkbType"]  = tkbType,
                 ["awaited"]  = false,
                 ["reason"]   = timeAdvancing ? null : (JsonNode?)"sim not running — time only advances in preview while unpaused; call POST /preview/enter then POST /sim/play, or POST /sim/step to advance.",
-            };
+            }, null);
         }
 
         // ── Group M — Focus + Annotations (ADA-BATCH-14) ────────────────────────
@@ -1686,18 +1754,30 @@ namespace Hrot.Editor.DebugApi
             var childArr = new JsonArray();
             foreach (var cb in t.ChildBlueprints)
             {
+                // ⭐⭐ CE-191 — this used to `catch { skip }`, which SHORTENED THE ARRAY silently: a caller
+                //   counting child blueprints got a wrong number with nothing to indicate it. The row now
+                //   stays and names its own failure.
                 try
                 {
                     var json = EventSerializationHelper.SerializeToJson(cb);
                     childArr.Add(JsonNode.Parse(json));
                 }
-                catch { /* skip unserializable */ }
+                catch (Exception ex)
+                {
+                    childArr.Add(new JsonObject
+                    {
+                        ["serializationError"] = $"{ex.GetType().Name}: {ex.Message}",
+                    });
+                }
             }
 
             // Descriptor bag
             var descrArr = new JsonArray();
             foreach (var (type, partId, data) in t.GetAllDescriptors())
             {
+                // ⭐⭐ CE-191 — same as the child blueprints above: skipping made the descriptor bag SHORT
+                //   with no way to tell an absent descriptor from an unserializable one. The row survives
+                //   and carries its own error.
                 try
                 {
                     var dJson = EventSerializationHelper.SerializeToJson(data);
@@ -1708,7 +1788,16 @@ namespace Hrot.Editor.DebugApi
                         ["data"]   = JsonNode.Parse(dJson),
                     });
                 }
-                catch { /* skip unserializable descriptor */ }
+                catch (Exception ex)
+                {
+                    descrArr.Add(new JsonObject
+                    {
+                        ["type"]   = type.Name,
+                        ["partId"] = partId,
+                        ["data"]   = null,
+                        ["serializationError"] = $"{ex.GetType().Name}: {ex.Message}",
+                    });
+                }
             }
 
             return new JsonObject

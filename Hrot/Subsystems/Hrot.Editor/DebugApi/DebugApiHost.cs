@@ -502,10 +502,12 @@ namespace Hrot.Editor.DebugApi
                 var components     = ctx.Body?["components"];
                 var attributesJson = ctx.Body?["attributesJson"]?.GetValue<string>();
 
-                var node = await _jobQueue.RunOnMainThread(() =>
+                // ⭐ CE-191 — the spawn now REFUSES a malformed transform or component list instead of
+                //   quietly dropping it; 400, because the caller can fix their own body.
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
                     Service().SpawnEntity(tkbType, transform, components, attributesJson))
                     .ConfigureAwait(false);
-                return Ok(node);
+                return error != null ? Fail(400, error, DebugApiHints.TkbType) : Ok(node);
             }));
 
             // Group P.0 / S — discovery WITH SCHEMA (MX4a, MX7). These exist so an agent never has

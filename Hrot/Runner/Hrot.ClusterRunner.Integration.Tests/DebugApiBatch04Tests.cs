@@ -212,9 +212,10 @@ public sealed class DebugApiBatch04Tests
 
         int countBefore = svc.GetStatus().AsObject()["entityCount"]!.GetValue<int>();
 
-        var result = svc.SpawnEntity(TestTkbType);
+        var (result, error) = svc.SpawnEntity(TestTkbType);
+        Assert.Null(error);
         Assert.NotNull(result);
-        Assert.True(result["spawned"]?.GetValue<bool>());
+        Assert.True(result!["spawned"]?.GetValue<bool>());
 
         // Pump until entityCount increases.
         bool grew = h.PumpUntil(
@@ -229,8 +230,9 @@ public sealed class DebugApiBatch04Tests
         using var h = new EditorHarness();
         var svc     = h.BuildDebugApiService();
 
-        var result = svc.SpawnEntity(TestTkbType);
-        Assert.False(result["awaited"]?.GetValue<bool>());
+        var (result, error) = svc.SpawnEntity(TestTkbType);
+        Assert.Null(error);
+        Assert.False(result!["awaited"]?.GetValue<bool>());
         Assert.NotNull(result["reason"]?.GetValue<string>());
     }
 
@@ -243,5 +245,94 @@ public sealed class DebugApiBatch04Tests
         svc.SpawnEntity(TestTkbType);
         Assert.True(h.PumpUntil(() => svc.ListEntities().AsArray().Count > 0, PumpTimeoutMs),
             "Spawned entity should appear in ListEntities.");
+    }
+
+    // ── CE-191 — a spawn that cannot honour the body REFUSES it ────────────────
+    //
+    // These live here, in the spawn feature's own suite, rather than in a new class (R-142).
+    //
+    // 🔒 User: the debug API's swallowed exceptions "need to be surfaced as error response".
+    //
+    // 🔴 Every case below previously returned ok:true. The entity was created — at the origin, or
+    //    without the component that was asked for — and the caller was told it had worked. For a
+    //    spatial simulation that is the worst shape of failure: the test that follows asserts against
+    //    a thing that is quietly not what it requested.
+
+    [Fact]
+    public void SpawnEntity_MalformedTransform_RefusesInsteadOfSpawningAtTheOrigin()
+    {
+        using var h = new EditorHarness();
+        var svc     = h.BuildDebugApiService();
+
+        int countBefore = svc.GetStatus().AsObject()["entityCount"]!.GetValue<int>();
+
+        // A transform that cannot bind to SimTransform at all.
+        var (node, error) = svc.SpawnEntity(
+            TestTkbType,
+            transform: System.Text.Json.Nodes.JsonNode.Parse("\"not-a-transform\""));
+
+        Assert.Null(node);
+        Assert.NotNull(error);
+        Assert.Contains("transform", error!);
+        Assert.Contains("origin", error);      // the message names the consequence it prevented
+
+        // ⭐ And nothing was created. A refusal that still spawned would be the same defect wearing
+        //   an error message.
+        h.PumpFrames(4);
+        Assert.Equal(countBefore, svc.GetStatus().AsObject()["entityCount"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void SpawnEntity_UnknownComponentType_RefusesInsteadOfSpawningWithoutIt()
+    {
+        using var h = new EditorHarness();
+        var svc     = h.BuildDebugApiService();
+
+        int countBefore = svc.GetStatus().AsObject()["entityCount"]!.GetValue<int>();
+
+        // ⚠ The case a caller is most likely to hit and least able to notice: a TYPO'd component name.
+        //   It used to be dropped silently by the `compType != null` guard.
+        var (node, error) = svc.SpawnEntity(
+            TestTkbType,
+            components: System.Text.Json.Nodes.JsonNode.Parse(
+                "[{\"type\":\"NoSuchComponentXyz\",\"data\":{}}]"));
+
+        Assert.Null(node);
+        Assert.NotNull(error);
+        Assert.Contains("NoSuchComponentXyz", error!);
+        Assert.Contains("not a registered", error);
+
+        h.PumpFrames(4);
+        Assert.Equal(countBefore, svc.GetStatus().AsObject()["entityCount"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void SpawnEntity_ComponentEntryWithoutAType_IsRefused()
+    {
+        using var h = new EditorHarness();
+        var svc     = h.BuildDebugApiService();
+
+        var (node, error) = svc.SpawnEntity(
+            TestTkbType,
+            components: System.Text.Json.Nodes.JsonNode.Parse("[{\"data\":{}}]"));
+
+        Assert.Null(node);
+        Assert.NotNull(error);
+        Assert.Contains("'type'", error!);
+    }
+
+    [Fact]
+    public void SpawnEntity_WithNoOptionalBody_StillSucceeds()
+    {
+        // ⛔ The guard against over-correction: absent transform/components are LEGAL and must stay so.
+        //    Only the unparseable case changed.
+        using var h = new EditorHarness();
+        var svc     = h.BuildDebugApiService();
+
+        var (node, error) = svc.SpawnEntity(TestTkbType);
+
+        Assert.Null(error);
+        Assert.NotNull(node);
+        Assert.True(node!["spawned"]?.GetValue<bool>());
     }
 }

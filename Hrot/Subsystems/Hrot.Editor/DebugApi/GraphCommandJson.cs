@@ -748,11 +748,25 @@ namespace Hrot.Editor.DebugApi
             return new Vector4(F(v, "r"), F(v, "g"), F(v, "b"), F(v, "a"));
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-191</c> — a float channel, which now REFUSES a value it cannot read.
+        /// </summary>
+        /// <remarks>
+        /// 🔴 It used to be <c>catch { return 0f; }</c>, and it feeds <c>Vec2</c> and <c>Vec4</c> — so a
+        /// malformed coordinate silently became the <b>origin</b> and a malformed colour channel silently
+        /// became <b>black</b> or <b>fully transparent</b>, under an <c>ok:true</c>.
+        /// ⭐ Every other reader in this file — <c>Bool</c>, <c>Int</c>, <c>Ints</c>, <c>Guid_</c>,
+        /// <c>Guids</c> — already throws <see cref="CommandJsonException"/> on exactly this, and
+        /// <c>Parse</c> already turns that into the caller's error. ⇒ <b>this was the odd one out, not a
+        /// deliberate leniency.</b>
+        /// ⚠ A MISSING key still returns 0 — these channels are optional; only the unparseable case changed.
+        /// </remarks>
         private static float F(JsonObject o, string key)
         {
             var n = o[key];
             if (n is null) return 0f;
-            try { return n.GetValue<float>(); } catch { return 0f; }
+            try { return n.GetValue<float>(); }
+            catch { throw new CommandJsonException($"'{key}' must be a number; got {n.ToJsonString()}."); }
         }
 
         /// <summary>A host-defined property bag — passed through as JSON primitives.</summary>
