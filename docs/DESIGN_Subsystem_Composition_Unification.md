@@ -10,8 +10,18 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   §4.1n; part 1 the perception grid; part 2 §4.1o; part 3 §4.1p — ALL THREE BUILT. B3 is COMPLETE.
   B4a (the seam) is BUILT — §4.1q; B4b step 1 is BUILT — §4.1r: SimHost takes the trajectory pool from
   a provider, verified byte-identical on entity/component sets and behaviourally on a 3600-step run.
-  Remaining in B4b: the CAPABILITY axis — no host resolves a NodeCompositionPlan yet — and CGF, IG,
-  Stride and the editor are untouched).
+  ✅ B4b step 2 (the CAPABILITY axis) is BUILT FOR SIMHOST — §4.1s: SimHostNodeBootstrapper:247 builds a
+  NodeCompositionPlan and :262 resolves it, and both boot hooks run off the resolved set.
+  ⚠⚠ CORRECTED 2026-09-05: this block previously said "no host resolves a NodeCompositionPlan yet" —
+  that was stale from the moment §4.1s shipped. Measured: SimHostNodeBootstrapper does.
+  ⛔ REMAINING IN B4b, measured 2026-09-05:
+    (a) SimHost's role set is still UNCONDITIONAL — `const NodeRole composed = MuscleGround | Perception
+        | NavigationSolver` (SimHostNodeBootstrapper.cs:258). Deliberate: B4b is behaviour-preserving, so
+        the set must not narrow yet. Selecting BY the declared role flags needs its own measurement of what
+        each deployed role actually carries.
+    (b) CGF, IG, Stride and the editor are UNTOUCHED — grep for NodeCompositionPlan/INodeCapability across
+        Hrot/ returns only Hrot.Common's seam, its rails, and the two SimHost files.
+  B5 (the missing implementations) has not started.
   🔴🔴 NEW 2026-09-04: §4.1q CORRECTS §4.1j's B4 classDiagram — do NOT build from it as drawn. TWO of its
   four new abstractions ALREADY EXIST: IResourceScope is NodeBootValues (and stronger — it refuses an
   undeclared read), and "assert every declared Need was allocated" is NodeBootPlan.Run's provided-check,
