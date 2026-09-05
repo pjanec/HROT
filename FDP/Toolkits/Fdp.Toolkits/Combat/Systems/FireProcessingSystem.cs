@@ -81,7 +81,13 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   ⇒ measured live on hill-attack-close, every combatant on SimHost:
                 //     { HasAuthority = false, PrimaryOwnerId = -1, LocalNodeId = 1 }
                 //     ⇒ every WeaponFireIntent was skipped, WeaponFire/EntityHitDamage
-                //       published 0 samples, and no entity could ever be killed.
+                //       published 0 samples, and nothing could be killed.
+                //
+                // ⚠ SCOPE: this bit on DISTRIBUTED topologies only — the 4-process cluster and
+                // --mode all, where the Muscle's combatants are ghosts. In --mode editor there is
+                // ONE world at node 0 and the entities are created locally, so NetworkAuthority
+                // reads { 0, 0 }, the gate passed, and kills always worked there. That is why the
+                // defect survived: the topology people watch most is the one it did not affect.
                 //
                 // The design is explicit that the Muscle executes the shot the Brain ordered
                 // (BS-1-DESIGN.md §2.1: "Brain ── WeaponFireIntent ─► WeaponFireRequest ─► Muscle

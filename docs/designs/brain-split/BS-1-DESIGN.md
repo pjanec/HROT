@@ -220,7 +220,16 @@ publishes a `WeaponFireNotification` event. See Task **BS1-T007**.
 
 ⚠ **`TD-6` (`BS-1-BATCH-04`) added exactly such a gate** — *"only spawns bullets if the node is
 authoritative over the shooter"* — and it **could never pass on the only node that runs the system**,
-silently disabling the whole kill chain on **every** topology.
+silently disabling the whole kill chain on **every DISTRIBUTED** topology.
+
+⚠⚠ **SCOPE — corrected `2026-09-05`; an earlier version of this section said "every topology" and that was
+too strong.** ⭐ In **`--mode editor`** there is **one world at node 0** and the entities are created
+locally, so `NetworkAuthority` reads `{PrimaryOwnerId: 0, LocalNodeId: 0}` ⇒ the gate **passed** and kills
+always worked — measured `2026-09-04` and reproduced exactly `2026-09-05`
+*(`1001 50/50 Ammo 41 · 1002 50/50 Ammo 41 · 1006 0/50 · 1007 0/50`)*. ⛔ **The gate bit only where the
+Muscle's combatants are ghosts** — the 4-process cluster and `--mode all`. ⇒ 🔒 **that asymmetry is why the
+defect survived: the topology exercised most often is the one it did not affect**, and the product's
+shipping topology is the one it killed.
 
 📐 **Measured live on `hill-attack-close`, 4-process cluster AND `--mode all`:**
 

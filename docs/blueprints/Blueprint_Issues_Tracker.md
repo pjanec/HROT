@@ -2217,7 +2217,9 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⛔⛔ **`CE-174` explains why kills are INTERMITTENT on `hill-attack`. It never explained why they were ZERO — and they were zero on `hill-attack-close` too, the fixture built precisely so geometry could not be the excuse.** 📐 Measured: **6× `"Engaging target"`, zero `"Creep failed due to overshoot"` — and still nothing died.** ⇒ ⭐⭐⭐ **the real cause is [`CE-198`](Blueprint_Issues_Tracker.md) *(`FireProcessingSystem`'s `TD-6` authority gate is false by construction on the only node that runs it, so no bullet was EVER spawned on any topology)*.**
 
-  ⚠⚠ **And the `simTime 51.9` kill claim is RETRACTED** — re-measured on `--mode all` and it behaved exactly like the cluster: `WeaponFire` sent **0**, health unchanged. ⛔ **It was not re-reproducible.**
+  ✅ **The `simTime 51.9` kill claim is REAL — its TOPOLOGY LABEL was wrong** *(corrected `2026-09-05` on the user's challenge "wait, it did kill, search the chat")*. 📐 The transcript shows that run launched with **`--mode editor`** *(`HROT_DEBUG_API_PORT=8131 … --mode editor --no-wait`, `hill-attack-close` loaded 19:24, read 19:33)* — ⛔ **not `--mode all`, as §4.1s and an earlier version of this line both said.** ⭐⭐ **Reproduced exactly on `2026-09-05` against the CE-198 fix**, same four numbers: `1001 50/50 Ammo 41 · 1002 50/50 Ammo 41 · 1006 0/50 · 1007 0/50` — ⇒ ⭐ the editor path killed before the fix and still kills after it.
+
+  ⭐⭐⭐ **And THAT is what reconciles the two observations:** in `--mode editor` there is **one world at node 0** and the entities are created locally, so `NetworkAuthority` reads **`{PrimaryOwnerId: 0, LocalNodeId: 0}`** ⇒ `HasAuthority` **true** ⇒ `TD-6`'s gate **passed**. ⛔ On the Muscle of any DISTRIBUTED topology the same entities are ghosts at `-1` ⇒ the gate **blocked**. ⇒ **`CE-198` is scoped to distributed topologies, and is NOT a regression from this session's work.**
 
   ⚠⚠⚠ **The lesson, named so it is not repeated:** ⭐ a *correct* explanation for a **weaker** observation (*"kills are intermittent"*) was accepted as an explanation for a **stronger** one (*"kills are absent"*). ⛔ **The tell was available and ignored: the fixture removed the geometry excuse and the outcome did not change.** ⇒ 🔒 **when a fixture is built to eliminate a cause and the symptom survives, the cause is NOT the cause.**
 
@@ -2293,7 +2295,7 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
-- [x] **CE-198** · `RW-M` 🔴🔴🔴 — **NOTHING COULD EVER BE KILLED, ON ANY TOPOLOGY: `FireProcessingSystem`'s `TD-6` AUTHORITY GATE IS FALSE BY CONSTRUCTION ON THE ONLY NODE THAT RUNS IT.** *(found while answering the user's "are you using hill-attack-close multi-node cluster to verify the last changes?")*
+- [x] **CE-198** · `RW-M` 🔴🔴🔴 — **NOTHING COULD EVER BE KILLED ON ANY DISTRIBUTED TOPOLOGY: `FireProcessingSystem`'s `TD-6` AUTHORITY GATE IS FALSE BY CONSTRUCTION ON THE ONLY NODE THAT RUNS IT.** ⚠ **Scope corrected — `--mode editor` was never affected; see the SCOPE block below.** *(found while answering the user's "are you using hill-attack-close multi-node cluster to verify the last changes?")*
 
   ⭐⭐⭐ **The kill chain stopped at its first step and said nothing.** The Brain ordered the shot, the order crossed DDS, the Muscle decoded it — and then `FireProcessingSystem` skipped every single intent.
 
@@ -2327,6 +2329,22 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⭐⭐ **Rails — into the feature's own suite (`R-142` ④):** `FireProcessingSystemTests` **+2, −1 rewritten** — `FireProcessing_SpawnsBullet_ForAGhostShooterWithTheUnknownOwnerSentinel` *(the rail that would have caught this)*, `..._WhenAnotherNodeOwnsTheShooter`, and the self-owned case kept unchanged. ⭐⭐⭐ **Red-proof by INVERSE EDIT:** restoring the `TD-6` gate reddens **exactly those 2** and leaves the self-owned one green — `10/10 → 8/10 → 10/10`.
 
-  ⚠⚠ **A PRIOR CLAIM OF MINE IS NOW DOUBTFUL, stated plainly:** [`CE-195`](Blueprint_Issues_Tracker.md) and `§4.1s` recorded *"kills at `simTime 51.9` on `2026-09-04`"* under `--mode all`. 📐 **This run measured `--mode all` doing exactly what the cluster did — `WeaponFire` sent 0, no health change.** ⇒ ⛔ **the earlier kill observation was not re-reproducible and should not be relied on.** ⭐ I predicted `--mode all` WOULD kill (locally-created entities having real authority) and **the measurement refuted it** — the Muscle kernel holds ghosts even in one process.
+  ### ⚠⚠⚠ SCOPE — **CORRECTED `2026-09-05`, and an earlier version of this row OVERSTATED IT**
+
+  🔒 **User challenge, verbatim: *"wait. it did kill, search the chat"* — and they were right.**
+
+  ⛔⛔ **This row first said *"nothing could ever be killed, on ANY topology"* and RETRACTED the `simTime 51.9` kill as non-reproducible. ⭐⭐ BOTH were WRONG.** 📐 The transcript shows that run was launched **`--mode editor`** *(port 8131, `--no-wait`)* — ⛔ **§4.1s mislabelled it `--mode all`**, and I then "refuted" the real observation by testing the wrong topology.
+
+  ⭐⭐⭐ **Reproduced exactly on `2026-09-05` against the fix** — `1001 50/50 Ammo 41 · 1002 50/50 Ammo 41 · 1006 0/50 · 1007 0/50`, the same four numbers, and `NetworkAuthority` reads **`{PrimaryOwnerId: 0, LocalNodeId: 0}`** ⇒ `HasAuthority` **true**.
+
+  | topology | shooter's `NetworkAuthority` on the node running `FireProcessingSystem` | `TD-6` gate | kills |
+  |---|---|---|---|
+  | ⭐ **`--mode editor`** — ONE world, node 0, entities created locally | `{0, 0}` ⇒ **true** | ✅ passed | ✅ **always worked, before and after the fix** |
+  | 🔴 **multi-node cluster** — the Muscle holds ghosts | `{-1, 1}` ⇒ false | ⛔ blocked | 🔴 never |
+  | 🔴 **`--mode all`** — separate kernels; the Muscle kernel ALSO holds ghosts | `{-1, 1}` ⇒ false | ⛔ blocked | 🔴 never |
+
+  ⇒ ⭐⭐ **`CE-198` is scoped to DISTRIBUTED topologies, and is NOT a regression from this session's work** — the gate is months old (`BS-1-BATCH-04`) and the editor path was never affected. ⭐ **The fix is still required and still correct**: the product's shipping topology is the cluster, and there the kill chain was dead.
+
+  ⚠ **The methodological error worth keeping:** I formed *"it never killed anywhere"* from **two** topologies and generalised to **all**, while a THIRD — the one the original observation actually used — sat unexamined in the transcript. ⇒ 🔒 **before retracting a recorded measurement, reproduce it in ITS OWN conditions; a null result under different conditions refutes nothing.**
 
   📄 Design fold-back *(obligation ⑤)*: [`BS-1-DESIGN.md` §5.4a](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/brain-split/BS-1-DESIGN.md) carries the as-built correction and marks `TD-6`'s gate superseded; §4.3 and §6.4's authority guards are explicitly **unchanged and correct** — the authority rule governs *who applies damage*, never *who executes a shot*.
