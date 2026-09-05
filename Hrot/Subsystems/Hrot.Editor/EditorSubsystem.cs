@@ -289,8 +289,11 @@ namespace Hrot.Editor
         private ScenarioEntityCreationRequestSource? _scenarioLoadSource;
         // ⚠ CE-203 widened this from TkbDatabase to the interface: the instance now comes from
         //   HrotNodeContext.TkbDb, which is typed ITkbDatabase. 📐 Measured — nothing reads a concrete
-        //   member off it; the only consumer outside this class is EditorStrideSubsystem:996, which
-        //   assigns it straight into an ITkbDatabase-typed field.
+        //   member off it. ⛔⛔ CE-204: this comment used to claim the only outside consumer,
+        //   EditorStrideSubsystem:996, "assigns it straight into an ITkbDatabase-typed field". IT DID
+        //   NOT — that property was TkbDatabase, and Stride stopped compiling for a whole commit. The
+        //   grep saw the NAME and could not see the TYPE. Stride is now widened to match, and
+        //   scripts/stride-check.sh compiles it in 43 s so the next one is caught.
         private ITkbDatabase?                       _tkbDatabase;
 
         // ?? Offline orchestrator (single-node scenario listing) ???????????????????

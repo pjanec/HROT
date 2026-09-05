@@ -5616,8 +5616,14 @@ delivered: `HrotNodeContext.TimeController`.
 is `ITkbDatabase`, so `EditorSubsystem._tkbDatabase`, its public `TkbDatabase` property, and
 `DebugApiService`'s `tkbDb` parameters/field widened from the concrete `TkbDatabase`. 📐 Measured: nothing
 reads a concrete member off any of them, and `DebugApiService._tkbDb` was **already** the interface — this
-was the last concrete link in the chain. The only out-of-solution consumer, `EditorStrideSubsystem:996`,
-assigns it straight into an `ITkbDatabase` field.
+was the last concrete link in the chain.
+
+⛔⛔ **THE NEXT SENTENCE OF THIS PARAGRAPH WAS FALSE AND IS CORRECTED HERE** *(`CE-204`, same day)*. It read:
+*"The only out-of-solution consumer, `EditorStrideSubsystem:996`, assigns it straight into an
+`ITkbDatabase` field."* 🔴 It did not — `EditorStrideSubsystem.TkbDb` was declared **`public TkbDatabase`**,
+so **the Stride host stopped compiling at `8ad97c07f`** and stayed broken behind a full green gate table.
+⭐ The grep that produced the claim saw the NAME and could not see the TYPE. 📄 §4.1z carries the
+measurement and the gate.
 
 ### ✅ VERIFIED
 
