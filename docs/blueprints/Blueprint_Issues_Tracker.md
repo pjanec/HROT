@@ -2381,6 +2381,32 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
+- [x] **CE-203** · `RW-M` ⭐⭐⭐ — **PHASE `N`, HOST (d): THE EDITOR COMPOSES FROM `HrotNodeBuilder` — AND THE UI IS PROVEN UNCHANGED DOWN TO PANEL *VALUES*.** *(user: "i need the editor to be unified too of course" · "i do not want any UI to disappear … not just scenario functioning the same, ale GUI panels being still present and showing the same")*
+
+  📐 **The duplication, measured before a line moved:** `EditorSubsystem.Initialize` re-implemented **EIGHT of `HrotNodeBuilder.Build()`'s ten steps** — world · accumulator+kernel · bus + `OrchestrationEventRegistry.RegisterAll` · time controller · entity map · `ClusterSlave` · TKB · geo transform — each with the *identical* call. ⛔ The blocker was never the code: `Build()` hardwired `TimeRole.Slave` and this host is the time authority, which is what `CE-201` (`N₀`) unblocked.
+
+  ⭐⭐ **The seam law, one more time.** `N₀` made the time ROLE an input but never exposed the RESULT, so a host that drives the clock still had to build its own controller. `HrotNodeContext.TimeController` (typed `ITimeController`, per `N₀` item ②) closes it — the editor casts at its own site, exactly as before.
+
+  ⛔⛔ **THE TRAP, and why this is `E1` of three slices.** Registering `context.BaseModules` would have smuggled in a **`GeographicModule` this host has never run** plus a **second `EntityLifecycleModule`** beside the creation pack's. ⇒ `E1` adopts the ENGINE CORE only. The private `SequentialIdAllocator` (`:599`) stays for `E2` because replacing it *changes which allocator issues entity ids* — a behaviour change, and `HN-037` measured that path as fragile.
+
+  ### ⭐⭐⭐ THE UI CONTROL — **a noise floor first, then the comparison**
+
+  🔒 The user's constraint is about **panels still showing the same**, so a shape check is not enough. `scripts/ui-snapshot.py --values` records every panel's whole model; `/preview/enter` + 600 fixed steps make two cold runs land on the identical world (`CE-202`), and the harness **refuses to capture** if `simTime` did not move.
+
+  | run | what it establishes |
+  |---|---|
+  | ⭐⭐ **two PRE-change runs** | the **noise floor**: **36 of 37** captured panels byte-identical in VALUES; only `fdp_message_log` differs *(timestamps)* |
+  | ⭐⭐⭐ **control vs after** *(same path, same steps, only the code differs)* | ⛔ **exactly the noise floor** — the 4 message logs + `editor_fdp_events`, whose only difference is the **rendered-frame counter** *(1809 / 1812 / 1810 across three runs of two builds)*. ⇒ **zero attributable differences** |
+  | ✅ | `64` registered · `37` captured · `26` kinds · 4 perspectives — unchanged |
+
+  ⚠⚠ **AND A CONFOUND I NEARLY SHIPPED AS A FINDING.** The first "before" was captured from a COPY of the pre-change build at `/tmp/prechange/`, and it reported `assetCount 49` against the after's `92`. 📐 The control — pre-change code rebuilt at the **normal path** — also reports **92**. ⇒ the asset catalog is discovered RELATIVE TO THE BINARY DIRECTORY, so the 49 was an artefact of *where I ran it*. ⛔ **A before/after captured from different directories is not a control**, and the difference looked exactly like a real regression.
+
+  ⭐⭐ **Gates:** `HrotNodeBuilderTests` **9/0** *(+2 rails; red-proof: deleting the one-line exposure reddens both and nothing else)* · `Hrot.ClusterRunner.Tests` **274/5** *(the 5 are the baselined pre-existing `OrchestratorSubsystemTests` ×3 + `DataDrivenGizmoPredicateTests` ×2)* · ⭐ **`EditorSubsystemBootTests` 12/0** — the feature's OWN suite (`R-142` T-1), and two of its rails assert precisely the invariant this change moves: the master drains a time intent published on the orchestration bus, and that bus carries the time-control registrations.
+
+  📄 Design: [`DESIGN_Subsystem_Composition_Unification.md` §4.1y](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md) — INVENTORY, the step-by-step duplication table, the decisions, and the `classDiagram` + `sequenceDiagram` (obligation ①).
+
+---
+
 - [x] **CE-202** · `RW-M` ⭐⭐⭐ — **THE BEHAVIOUR RNG BECOMES REPRODUCIBLE — AND ITS FIRST END-TO-END CLAIM WAS VACUOUS, CAUGHT AND CORRECTED HERE.** *(user: "replace it with something repeatable which just looks random to a first time observer but is actually the same for every scenario run")*
 
   ⭐⭐⭐ **THE ALGORITHM WAS ALREADY THERE AND ALREADY MANDATED.** `SlotOps.PickRandomFreeSlot` carried a deterministic sim-derived xorshift whose own doc says *"architect Q#8-C, **mandated** for replay/rollback/headless-proof determinism"*. ⛔ The two sites that actually run in production never adopted it and still called `Random.Shared`. ⇒ this is the **25th** measured instance of *"we need a shared X"* meaning **X exists and is under-adopted** — the seam law. Writing a second generator would have been the duplication, not the fix.

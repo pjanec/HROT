@@ -84,7 +84,16 @@ def warm_up(port, scenario, steps):
     between kernels is not reproducible and CE-202 does not claim to fix it. So run the value
     comparison on the editor, and keep the shape comparison for the cluster.
     """
-    call(port, "/scenario/load/live", "POST", {"name": scenario, "waitForReady": True}, timeout=60)
+    call(port, "/scenario/load/live", "POST", {"name": scenario, "waitForReady": True}, timeout=90)
+
+    # ⭐⭐⭐ PREVIEW FIRST, AND THIS IS THE WHOLE CAUSE OF THE VACUOUS CE-202 CLAIM.
+    # A freshly loaded editor sits in EDIT mode (inPreview:false) where the sim clock does not
+    # run at all, so every /sim/step is dropped and simTime stays 0.0. ⚠ The route SAYS so —
+    # "time only advances in preview while unpaused; call POST /preview/enter then POST /sim/play,
+    # or POST /sim/step to advance" — and I read that sentence in a response and did not act on it.
+    # ⇒ measured 2026-09-05: with preview entered, ONE step moves simTime 0 -> 0.0166666675.
+    # startPaused so the wall clock cannot advance between our steps and make them non-fixed-dt.
+    call(port, "/preview/enter", "POST", {"startPaused": True}, timeout=30)
 
     before = unwrap(call(port, "/status")).get("simTime") or 0.0
     remaining = steps

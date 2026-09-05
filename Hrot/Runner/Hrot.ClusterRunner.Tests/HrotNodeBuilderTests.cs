@@ -188,6 +188,49 @@ public sealed class HrotNodeBuilderTests
         Assert.IsType<MasterSyncController>(TimeControllerOf(ctx));
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-203</c> — <b>the context EXPOSES the controller it built, and it is THE SAME OBJECT the
+    /// kernel got.</b>
+    /// </summary>
+    /// <remarks>
+    /// ⛔ <b>Reference equality, not "is not null".</b> A property that returned a second, freshly-built
+    /// controller would satisfy a null check and hand the editor a clock nobody ticks — the silent-default
+    /// shape this programme has measured nine times. ⇒ the rail asserts the identity, which is the only
+    /// thing that makes the editor's adoption safe.
+    /// </remarks>
+    [Fact]
+    public void Build_ExposesTheSameTimeControllerTheKernelReceived()
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig())
+            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .Build();
+
+        Assert.NotNull(ctx.TimeController);
+        Assert.Same(TimeControllerOf(ctx), ctx.TimeController);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-203</c> — <b>the EDITOR's exact configuration</b>: <c>TimeRole.Standalone</c> yields a
+    /// master, reachable off the context.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <c>Standalone</c> and not <c>Master</c>: 📐 measured, <c>EditorSubsystem</c> passed
+    /// <c>new TimeControllerConfig { Role = TimeRole.Standalone }</c>, and
+    /// <c>TimeControllerFactory</c> routes BOTH roles to <c>MasterSyncController</c>. ⛔ The rail above
+    /// covers <c>Master</c>; without this one the role the editor actually uses is untested, and the
+    /// editor casts the result to the concrete master — an unchecked cast that would throw at boot.
+    /// </remarks>
+    [Fact]
+    public void Build_WithTimeRoleStandalone_ExposesAMasterOnTheContext()
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig())
+            .WithRole("Editor", Hrot.Common.NodeRole.None)
+            .WithTimeRole(TimeRole.Standalone)
+            .Build();
+
+        Assert.IsType<MasterSyncController>(ctx.TimeController);
+    }
+
     /// <summary>The time controller the kernel was actually built with.</summary>
     /// <remarks>
     /// ⭐⭐ <b>The role is expressed as the controller TYPE, not as a stored field</b> — measured:

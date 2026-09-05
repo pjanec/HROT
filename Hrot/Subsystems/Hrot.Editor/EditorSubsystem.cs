@@ -1,6 +1,7 @@
 ﻿using System;
 using Hrot.Common.EntityCreation;
 using Hrot.Common;
+using Hrot.Common.Infrastructure;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
@@ -187,6 +188,14 @@ namespace Hrot.Editor
 
         // ?? Core state ????????????????????????????????????????????????????????
 
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-203</c> — the shared node context this host is built from. Everything below that
+        /// used to be constructed here (<see cref="_world"/>, <see cref="_kernel"/>, the bus, the time
+        /// controller, the entity map, the cluster slave, the TKB, the geo transform) now comes off it,
+        /// and it owns the world+kernel teardown. 📄 <c>§4.1y</c>.
+        /// </summary>
+        private HrotNodeContext?        _node;
+
         private EntityRepository?       _world;
         private ModuleHostKernel?       _kernel;
         private MasterSyncController?   _timeController;
@@ -278,7 +287,11 @@ namespace Hrot.Editor
         // `ST-010` backing fields: both were locals inside Initialize; promoted so the
         // host-integration accessors above can project them. Nothing else reads them.
         private ScenarioEntityCreationRequestSource? _scenarioLoadSource;
-        private Fdp.Toolkit.Tkb.TkbDatabase?        _tkbDatabase;
+        // ⚠ CE-203 widened this from TkbDatabase to the interface: the instance now comes from
+        //   HrotNodeContext.TkbDb, which is typed ITkbDatabase. 📐 Measured — nothing reads a concrete
+        //   member off it; the only consumer outside this class is EditorStrideSubsystem:996, which
+        //   assigns it straight into an ITkbDatabase-typed field.
+        private ITkbDatabase?                       _tkbDatabase;
 
         // ?? Offline orchestrator (single-node scenario listing) ???????????????????
 
@@ -699,7 +712,7 @@ namespace Hrot.Editor
         /// an in-process host binds to the SAME database rather than a duplicate, which is what
         /// template-resolution drift would otherwise look like. Null until <see cref="Initialize"/>.
         /// </summary>
-        public Fdp.Toolkit.Tkb.TkbDatabase? TkbDatabase => _tkbDatabase;
+        public ITkbDatabase? TkbDatabase => _tkbDatabase;
 
         /// <summary>
         /// Invoked with the frame delta immediately BEFORE <c>Kernel.Update()</c>. Null by default,
@@ -953,13 +966,43 @@ namespace Hrot.Editor
             _isActiveMapOwner = config.IsActiveMapOwner;
             _requestAppExit   = config.RequestAppExit;
 
+            // ⭐⭐⭐ CE-203 (§4.1y) — THE ENGINE CORE COMES FROM THE SHARED BUILDER, host (d).
+            //
+            // 📐 This host used to re-implement EIGHT of HrotNodeBuilder.Build()'s ten steps by hand —
+            //    world, accumulator+kernel, bus + OrchestrationEventRegistry, time controller, entity map,
+            //    ClusterSlave, TKB and geo transform — each measured byte-equivalent to the builder's
+            //    (§4.1y's step table). The blocker was never the code: Build() HARDWIRED TimeRole.Slave
+            //    and this host is the time authority, so adopting it would have silently demoted the
+            //    editor to a slave. N₀ (CE-201) made the role an input and unblocked exactly this.
+            //
+            // ⛔⛔ Headless here means "SKIP DDS", not "no window". The name collides with this host's own
+            //    `config.Headless` (which means "no Raylib window") and they are unrelated — the editor is
+            //    an OFFLINE node, so there is no participant, no DDS allocator and no slave translator.
+            //
+            // ⛔⛔ context.BaseModules is deliberately NOT registered. It carries a GeographicModule this
+            //    host has never run and a second EntityLifecycleModule beside the creation pack's. Adopting
+            //    the builder must not smuggle in modules — that is a capability change, not a refactor.
+            //    📄 §4.1y "THE ONE TRAP".
+            _node = new HrotNodeBuilder(new HrotNodeConfig
+                    {
+                        NodeId        = EditorNodeId,
+                        SubsystemName = "Editor",
+                        Headless      = true,
+                    })
+                    .WithRole("Editor", Hrot.Common.NodeRole.None)
+                    // ⭐ Standalone, NOT Master: what `new TimeControllerConfig { Role = TimeRole.Standalone }`
+                    //   said here before, and TimeControllerFactory routes both to MasterSyncController.
+                    .WithTimeRole(TimeRole.Standalone)
+                    .Build();
+
             // ?? 1. ECS world ?????????????????????????????????????????????????
-            _world = new EntityRepository();
-            _orchestrationBus = new FdpEventBus(); // Control Plane bus (cluster management)
-            Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_orchestrationBus);
+            _world = _node.World;
+            _orchestrationBus = _node.EventBus; // Control Plane bus (cluster management)
+            // ⭐ OrchestrationEventRegistry.RegisterAll already ran inside Build() on this same bus.
+            //   RegisterInternalEvents stays HERE: it is Hrot.Orchestrator's own vocabulary and only two
+            //   hosts want it, so moving it into the builder would hand it to all six. 📄 §4.1y decision ③.
             Hrot.Orchestrator.OrchestratorEventRegistry.RegisterInternalEvents(_orchestrationBus);
-            var accumulator = new EventAccumulator();
-            _kernel = new ModuleHostKernel(_world, accumulator);
+            _kernel = _node.Kernel;
             _physicsModule = new PhysicsToolkitModule();
             _physicsModule.Initialize(_world);
 
@@ -1009,16 +1052,17 @@ namespace Hrot.Editor
             // ReadManaged on the other bus returns empty — no error, nothing happens. Putting them
             // on one bus is what unblocks paths B/C/D publishing intents like everyone else, and it
             // is the same code the CGF node will need for cluster-side debugging.
-            var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
-            _timeController = (MasterSyncController)TimeControllerFactory.Create(_orchestrationBus, timeConfig);
-            _kernel.SetTimeController(_timeController);
+            // ⭐ CE-203: the controller and the SetTimeController call are the builder's Step 4 now — it
+            //   creates it on THIS bus with Role = the declared time role. The cast is this host's, which
+            //   is why the context exposes ITimeController and not the concrete master (§4.1y decision ②).
+            _timeController = (MasterSyncController)_node.TimeController!;
             // Start in Deterministic mode so authoring starts paused (dt == 0 every frame).
             _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
 
             // ?? 3. Shared services ????????????????????????????????????????????
-            var geoTransform     = HrotEnvironment.CreateGeoTransform();
+            var geoTransform     = _node.GeoTransform!;
             _geoTransform = geoTransform;
-            var entityMap        = new NetworkEntityMap();
+            var entityMap        = _node.EntityMap;
             _entityMap = entityMap;
             _world.SetSingletonManaged<NetworkEntityMap>(entityMap);
             // Behavior resolvers (Phase 2b) read the geographic transform from this world singleton;
@@ -1198,7 +1242,8 @@ namespace Hrot.Editor
             _aiCoordinator.OnReloadCompleted += info => _hotReloadSource.OnReloadCompleted(info.DllPath ?? "__ai_behaviors__");
             _aiCoordinator.OnReloadFailed    += _hotReloadSource.OnReloadFailed;
 
-            var clusterSlave     = new ClusterSlave(EditorNodeId, "Editor", _orchestrationBus);
+            // ⭐ CE-203: the builder's Step 8 already made exactly this — same node id, same name, same bus.
+            var clusterSlave     = _node.ClusterSlave;
             var zoneService      = new ZoneManagerService();
 
             // Build the serializer with custom translators AFTER component registration
@@ -1227,7 +1272,9 @@ namespace Hrot.Editor
             fileService.RegisterWorldResetObserver(() => _entityMap?.Clear());
 
             // ?? 3b. TKB + ELM + offline spawning ?????????????????????????????
-            var tkbDb       = HrotEnvironment.CreateTkb();
+            // ⭐ CE-203: the builder's Step 9 calls HrotEnvironment.CreateTkb() — the identical call this
+            //   line used to make. Taking the context's instance is what stops the two drifting.
+            var tkbDb       = _node.TkbDb!;
             _tkbDatabase    = tkbDb;   // `ST-010`: expose the authoritative spawn DB to in-process hosts
             // ⭐ 2026-08-31: the explicit UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb)
             //   call that stood here was REMOVED. HrotEnvironment.CreateTkb() above now seeds the
@@ -4844,12 +4891,21 @@ namespace Hrot.Editor
             // ─────────────────────────────────────────────────────────────────────────────────────
             _aiCoordinator?.Dispose();
             _aiCoordinator = null;
-            _kernel?.Dispose();
-            _kernel = null;
+            // ⭐⭐ CE-203 — the node context OWNS the kernel and the world, and its Dispose() releases them
+            //    in that order. 🔒 HrotNodeContext's own contract (QA-001): "every consumer must call
+            //    context.Dispose(), NOT context.Kernel.Dispose()" — disposing the kernel alone is exactly
+            //    how four hosts came to leak their world. 📐 The two lines this replaces already disposed
+            //    kernel-then-world, so that ORDER is unchanged; what changes is who owns the decision.
+            // ⚠ _physicsModule now runs BEFORE the kernel instead of between kernel and world. 📐 Measured:
+            //    it is never registered on the kernel (only `new` + Initialize(_world) at :998), so its
+            //    position relative to the kernel is immaterial — what matters is that it still precedes
+            //    the world's disposal, and it does.
             _physicsModule?.Dispose();
             _physicsModule = null;
-            _world?.Dispose();
-            _world = null;
+            _node?.Dispose();
+            _node = null;
+            _kernel = null;
+            _world  = null;
             // QA-005: the breakpoint machinery owns TWO more repositories — the pre-tick snapshot
             // built here and the post-tick snapshot the manager builds for itself. Both leaked until
             // now; the world beside them was already being released, which is what made the omission

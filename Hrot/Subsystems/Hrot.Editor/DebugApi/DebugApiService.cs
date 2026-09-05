@@ -221,7 +221,10 @@ namespace Hrot.Editor.DebugApi
         /// ⭐ The EDITOR's own catalog, handed in by <c>EditorSubsystem</c>. ⛔ <see langword="null"/> in the
         /// cluster shape, where <see cref="_tkbDb"/> follows the ACTIVE PERSPECTIVE instead.
         /// </summary>
-        private readonly TkbDatabase?          _editorTkbDb;
+        // ⚠ CE-203 widened to the interface: EditorSubsystem's catalog now comes from
+        //   HrotNodeContext.TkbDb (typed ITkbDatabase), and _tkbDb below was ALREADY the
+        //   interface — this field was the only concrete link left in the chain.
+        private readonly Fdp.Interfaces.ITkbDatabase? _editorTkbDb;
         private readonly IGeographicTransform  _geoTransform;
         private readonly float                 _spatialGridCellSize;
         private readonly float                 _spatialGridOriginX;
@@ -405,7 +408,7 @@ namespace Hrot.Editor.DebugApi
             IDiagnosticEventHistoryService  eventHistory,
             MasterSyncController            timeController,
             Func<ClusterState>              clusterState,
-            TkbDatabase?                    tkbDb              = null,
+            Fdp.Interfaces.ITkbDatabase?    tkbDb              = null,
             IGeographicTransform?           geoTransform       = null,
             float                           spatialGridCellSize = 5.0f,
             float                           spatialGridOriginX  = 0f,
@@ -490,7 +493,7 @@ namespace Hrot.Editor.DebugApi
         public DebugApiService(
             Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher dispatcher,
             Func<ClusterState>?                           clusterState      = null,
-            TkbDatabase?                                  tkbDb             = null,
+            Fdp.Interfaces.ITkbDatabase?                  tkbDb             = null,
             IGeographicTransform?                         geoTransform      = null,
             DebugPrimitiveBuffer?                         primitiveBuffer   = null,
             Func<IReadOnlyList<IMessageLogSource>>?       logSinks          = null,

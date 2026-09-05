@@ -33,6 +33,14 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
         orchestration/participant/time authority. The two axes are orthogonal and CGF is the case that
         proves it. Still untouched: the EDITOR (neither axis) and STRIDE.
         🔒 User ruling 2026-09-05: STRIDE IS LAST — and Stride needs Windows, unverifiable from here.
+    (a2) ⭐ THE EDITOR: phase N₀ landed (CE-201, the time role is a builder input) and the ADOPTION is
+        designed at §4.1y (CE-203), build-state READY-TO-BUILD, sliced E1/E2/E3. Read §4.1y before
+        touching EditorSubsystem.Initialize — it measures which eight builder steps the editor
+        duplicates and names the ONE trap (registering BaseModules would add a GeographicModule the
+        editor has never run, plus a second EntityLifecycleModule beside the creation pack's).
+        ⛔ Its verification needs POST /preview/enter FIRST: the editor's clock does not run in edit
+        mode, and CE-202's first "editor is deterministic" claim was measured on two worlds frozen at
+        t=0. With preview entered the measurement is real — 8/8 entities identical over 600 fixed steps.
     (b) ✅✅ RESOLVED 2026-09-05 by CE-199 — SUPERSEDED, see §4.1w. This entry said Allocate was BLOCKED
         (NodeBootValues.Set refuses writes outside a declaring step). That diagnosis was right, and the
         fix was the one it named: the SHARED BASE now owns a `node-resources` step that declares the keys.
@@ -5404,3 +5412,213 @@ sequenceDiagram
 | ⭐⭐ **live 4-process cluster, `hill-attack-close`** | module order verbatim — `…NedReplication, **BehaviorDiagnostics, CgfLogicPack**, CgfSimulation…` · `WeaponFireRequest` 8→5 · `WeaponFire` 5→5 · `EntityHitDamage` 5→5 · `EntityDamage` 9→9 to IG · hostile 1007 **0/50** · 8 engagements, 3 waves · **zero errors on all three nodes** |
 
 ⚠ **1006 read `25/50` at the sample instant — mid-fight, not a defect.** The run was cut at 75 s.
+
+---
+
+## ⭐⭐⭐ §4.1y — **CE-203: PHASE `N`, HOST (d) — THE EDITOR ADOPTS `HrotNodeBuilder`** `build-state: E1 BUILT · E2/E3 DESIGNED` *(`2026-09-05`)*
+
+> 🔒 **User, `2026-09-03`:** *"i need the editor to be unified too of course."*
+> 🔒 **User, `2026-09-05`, the constraint that shapes the whole slice:** *"i do not want any UI to
+> disappear or something as a result of unification … not just scenario functioning the same, ale GUI
+> panels being still present and showing the same."*
+
+⭐ `N₀` (`CE-201`) removed the mechanical blocker — the time role is a builder input. ⭐⭐ This section is the
+adoption itself, and §4's phase table names the editor as the host that follows CGF.
+
+### 📐 INVENTORY *(`2026-09-05`; `search_code` **and** grep, both reported)*
+
+```
+search_code(pattern="new HrotNodeBuilder", limit=60)  → 73 grep matches / 43 indexed results
+grep -rn "new HrotNodeBuilder" --include=*.cs | grep -v obj/
+grep -rn "new HrotNodeContext" --include=*.cs | grep -v obj/
+```
+
+| | measured |
+|---|---|
+| ⭐ **production `HrotNodeBuilder` sites** | **5** — `SimHostNodeBootstrapper` · `StrideNodeBootstrapper` · `IgNodeBootstrapper` · `CgfSubsystem` · `EyesAndMuscleSubsystem`. ⛔ **the editor is not one.** *(Both halves agree on the file set.)* |
+| ⭐ **`HrotNodeContext` construction sites** | **1** — `HrotNodeBuilder:243`. ⇒ adding an `init` property to the record touches exactly one constructor |
+| 🔴 **what `EditorSubsystem.Initialize` re-implements** | **eight** of the builder's ten steps — see the table below |
+| ⚠ **`check_index_coverage`** | ⛔ **not available through the CLI** *(measured `2026-09-02`)*, so *"5 production sites"* rests on graph+grep agreement, not on a coverage proof |
+
+### 🔴 THE DUPLICATION, STEP BY STEP — **measured, not asserted**
+
+| builder step | `HrotNodeBuilder.Build()` | `EditorSubsystem.Initialize` | identical? |
+|---|---|---|---|
+| 1 world | `new EntityRepository()` :128 | `new EntityRepository()` :957 | ✅ |
+| 2 accumulator + kernel | :131-132 | :961-962 | ✅ |
+| 3 bus + `OrchestrationEventRegistry.RegisterAll` | :135, :148 | :958-959 | ✅ *(the editor adds `OrchestratorEventRegistry.RegisterInternalEvents` — **kept**, see decision ③)* |
+| 4 time controller | `Role = _timeRole`, `Mode = Continuous`, `LocalNodeId = NodeId`, `SyncConfig = Default` | `new TimeControllerConfig { Role = TimeRole.Standalone }` :1012 | ✅ **once `WithTimeRole(Standalone)` is passed** — the other three are the config's own defaults and `EditorNodeId == 0` |
+| 6 entity map | `new NetworkEntityMap()` :168 | `new NetworkEntityMap()` :1021 | ✅ |
+| 8 cluster slave | `new ClusterSlave(NodeId, name, bus)` :226 | `new ClusterSlave(EditorNodeId, "Editor", _orchestrationBus)` :1201 | ✅ **with `WithRole("Editor", …)`** |
+| 9 TKB | `HrotEnvironment.CreateTkb()` :236 | `HrotEnvironment.CreateTkb()` :1230 | ✅ |
+| 9 geo transform | `HrotEnvironment.CreateGeoTransform()` :237 | `HrotEnvironment.CreateGeoTransform()` :1019 | ✅ |
+| 5/7 participant + allocator | DDS, gated on `!Headless` | ⛔ the editor is offline and has a **private `SequentialIdAllocator`** :599 | ⛔ **NOT the same — deferred to `E2`** |
+| 9 `BaseModules` | `[EntityLifecycleModule, GeographicModule]` | ⛔ builds its own ELM inside `EntityCreationPack` :1265; **no `GeographicModule` at all** | ⛔ **NOT the same — see the trap** |
+
+⛔⛔ **THE ONE TRAP, and it is the reason this is a slice and not a rewrite.** Registering
+`context.BaseModules` on the editor's kernel would silently add a **`GeographicModule` the editor has never
+run**, and hand it a **second `EntityLifecycleModule`** beside the pack's. ⇒ ⭐ **`E1` deliberately does not
+touch module registration.** The builder's two base modules are constructed and left unregistered — an
+allocation, not a behaviour.
+
+### ⭐⭐ THE DECISIONS
+
+| # | decision | why |
+|---|---|---|
+| **①** | ⭐⭐⭐ **`E1` adopts the builder for the ENGINE CORE only** — world, accumulator, kernel, bus, time controller, entity map, cluster slave, TKB, geo transform | ⭐ every one of those nine is byte-equivalent per the table. ⛔ Everything whose equivalence is not *measured* stays where it is |
+| **②** | ⭐⭐ **`HrotNodeContext` gains `TimeController`, typed `ITimeController?`** | 🔒 `N₀` item ② said exactly this and `CE-201` did not build it. ⛔ Typed as the INTERFACE — a `MasterSyncController` property would push the role back into the builder's shape. ⭐ The editor casts at its own site, exactly as it does today |
+| **③** | ⭐ **`OrchestratorEventRegistry.RegisterInternalEvents` stays in the editor**, called on `context.EventBus` | ⛔ It is `Hrot.Orchestrator`'s vocabulary and only two hosts want it. Moving it into the builder would give it to all five |
+| **④** | ⭐⭐ **the editor's teardown becomes `context.Dispose()`** | 🔒 the record's own ownership contract (`QA-001`): *"every consumer must call `context.Dispose()`, NOT `context.Kernel.Dispose()`"*. 📐 The editor disposes kernel-then-world at `:4847`/`:4851` — **the same order**, so this is a rename, not a change |
+| **⑤** | ⛔ **`SequentialIdAllocator` is NOT deleted in `E1`** | ⭐ Replacing it means passing an `INetworkFactory` and letting the builder choose — a **behaviour change** *(which allocator runs, and entity-id issuance is what `HN-037` measured as fragile)*. ⇒ `E2`, with its own verification |
+| **⑥** | ⛔ **`SharedApplicationBootstrapper` is NOT adopted** | 📐 `CE-200` established that the builder axis and the bootstrapper axis are **two** steps; CGF took the first without the second. The editor is the same case |
+
+### ⭐ THE UML *(obligation ①; boxes marked `«existing»` already exist, with their file)*
+
+```mermaid
+classDiagram
+    class EditorSubsystem {
+        <<existing>>
+        -HrotNodeContext _node
+        -EntityRepository _world
+        -ModuleHostKernel _kernel
+        -FdpEventBus _orchestrationBus
+        -MasterSyncController _timeController
+        -SequentialIdAllocator _idAllocator
+        +Initialize(SubsystemConfig)
+        +Shutdown()
+    }
+    class HrotNodeBuilder {
+        <<existing>>
+        +WithRole(name, NodeRole)
+        +WithTimeRole(TimeRole)
+        +Build() HrotNodeContext
+    }
+    class HrotNodeConfig {
+        <<existing>>
+        +int NodeId
+        +string SubsystemName
+        +bool Headless
+    }
+    class HrotNodeContext {
+        <<existing>>
+        +EntityRepository World
+        +ModuleHostKernel Kernel
+        +EventAccumulator EventAccumulator
+        +FdpEventBus EventBus
+        +NetworkEntityMap EntityMap
+        +ClusterSlave ClusterSlave
+        +ITkbDatabase TkbDb
+        +IGeographicTransform GeoTransform
+        +IReadOnlyList~IEcsModule~ BaseModules
+        +ITimeController TimeController
+        +Dispose()
+    }
+    class ITimeController {
+        <<interface>>
+    }
+    class MasterSyncController {
+        <<existing>>
+        +SwitchToDeterministic(HashSet~int~)
+    }
+    class EntityCreationPack {
+        <<existing>>
+        +Build(EntityCreationContext) EntityCreationUnits
+    }
+
+    EditorSubsystem --> HrotNodeBuilder : builds once
+    HrotNodeBuilder --> HrotNodeConfig : reads
+    HrotNodeBuilder --> HrotNodeContext : creates
+    EditorSubsystem --> HrotNodeContext : owns, disposes
+    HrotNodeContext --> ITimeController : exposes
+    ITimeController <|.. MasterSyncController
+    EditorSubsystem ..> MasterSyncController : casts at its own site
+    EditorSubsystem --> EntityCreationPack : still builds its own ELM
+    HrotNodeContext ..> EntityCreationPack : BaseModules NOT passed
+```
+
+```mermaid
+sequenceDiagram
+    participant R as ClusterRunner
+    participant E as EditorSubsystem
+    participant B as HrotNodeBuilder
+    participant C as HrotNodeContext
+    participant P as EntityCreationPack
+
+    R->>E: Initialize(SubsystemConfig)
+    E->>B: new(HrotNodeConfig{NodeId=0, SubsystemName=Editor, Headless=true})
+    E->>B: WithRole("Editor", NodeRole.None)
+    E->>B: WithTimeRole(TimeRole.Standalone)
+    E->>B: Build()
+    B->>B: world, accumulator, kernel
+    B->>B: bus + OrchestrationEventRegistry.RegisterAll
+    B->>B: TimeControllerFactory.Create then SetTimeController
+    B->>B: entity map, ClusterSlave, TKB, geo transform
+    B-->>C: context
+    E->>C: read World, Kernel, EventBus, EntityMap, ClusterSlave, TkbDb, GeoTransform
+    E->>E: OrchestratorEventRegistry.RegisterInternalEvents(context.EventBus)
+    E->>E: cast context.TimeController to MasterSyncController
+    E->>E: SwitchToDeterministic(empty)
+    E->>E: register components on context.World
+    E->>P: Build(EntityCreationContext with its OWN ELM)
+    Note over E,C: BaseModules is deliberately NOT registered - it carries a GeographicModule the editor has never run
+    R->>E: Shutdown()
+    E->>C: Dispose()
+```
+
+### ⭐ THE SLICES
+
+| slice | what | how it is proven |
+|---|---|---|
+| ⭐⭐ **`E1`** | the engine core, decisions ①–④ | ⭐ **the UI snapshot, shape AND values** *(`scripts/ui-snapshot.py --values --scenario hill-attack-close`)* before and after, plus `scripts/determinism-probe.py` on the same scenario. ⛔ Both need `/preview/enter` — see the vacuity note below |
+| ⭐ **`E2`** | the private `SequentialIdAllocator` dies; an offline `INetworkFactory` supplies it | ⛔ **behaviour change.** Entity-id issuance across a second scenario load is what `HN-037` measured as fragile ⇒ load twice and compare id sets |
+| ⚠ **`E3`** *(candidate, not scheduled)* | the base modules — does the editor WANT a `GeographicModule`? | ⛔ a capability question, not a refactor; needs its own measurement |
+
+### ⛔⛔ HOW `E1` IS VERIFIED — **and why the first attempt at this control was worthless**
+
+📐 The editor's clock **does not run in edit mode**. A freshly loaded editor is `inPreview:false`, every
+`POST /sim/step` is dropped, and `simTime` stays `0.0` — and `CE-202` published a *"8 of 8 entities
+byte-identical"* claim measured exactly that way, comparing two worlds frozen at `t=0`.
+
+| ⭐ the control, as it now stands | |
+|---|---|
+| ⭐⭐⭐ **`POST /preview/enter {startPaused:true}` FIRST** | 📐 measured `2026-09-05`: with preview entered, one step moves `simTime` `0 → 0.0166666675` = exactly 1/60 |
+| ⭐⭐ **both harnesses REFUSE when the clock did not move** | ⛔ a control that can pass without exercising anything is worse than no control, because it is believed |
+| ✅ **the editor IS run-to-run deterministic** | 📐 two cold `--mode editor` processes, `hill-attack-close`, 600 fixed steps each *(`simTime 0 → 10.0000005`)*: **8 / 8 entities identical**, with four tanks genuinely moving *(speeds 1.17–6.92)* — ⭐ so the comparison is non-vacuous in both directions |
+
+
+### ✅ `E1` AS-BUILT *(`2026-09-05`; obligations ③ + ⑤)*
+
+⭐ **What was built matches the diagrams above**, with one addition the design named but `CE-201` had not
+delivered: `HrotNodeContext.TimeController`.
+
+| the design said | what was built |
+|---|---|
+| the editor builds through `HrotNodeBuilder` with `Headless = true`, `WithRole("Editor", NodeRole.None)`, `WithTimeRole(TimeRole.Standalone)` | ✅ verbatim, `EditorSubsystem.Initialize` |
+| nine values come off the context | ✅ `World` · `Kernel` · `EventBus` · `EntityMap` · `ClusterSlave` · `TkbDb` · `GeoTransform` · `TimeController`; the kernel's `SetTimeController` is the builder's now |
+| decision ② — `TimeController` typed as the interface | ✅ added to the record + set in `Build()`; **rail asserts REFERENCE EQUALITY with the kernel's**, because a property returning a *second* controller would pass a null check and hand the editor a clock nobody ticks |
+| decision ④ — teardown becomes `context.Dispose()` | ✅ — ⚠ **one deviation:** `_physicsModule.Dispose()` now runs BEFORE the kernel instead of between kernel and world, because the context disposes both together. 📐 Measured safe: the physics module is never registered on the kernel *(only `new` + `Initialize(_world)`)*, and it still precedes the world's disposal |
+| ⛔ `BaseModules` not registered | ✅ untouched |
+| ⛔ `SequentialIdAllocator` kept | ✅ untouched — `E2` |
+
+⚠ **One type widened beyond the design's list, and it is a consequence not a choice.** `HrotNodeContext.TkbDb`
+is `ITkbDatabase`, so `EditorSubsystem._tkbDatabase`, its public `TkbDatabase` property, and
+`DebugApiService`'s `tkbDb` parameters/field widened from the concrete `TkbDatabase`. 📐 Measured: nothing
+reads a concrete member off any of them, and `DebugApiService._tkbDb` was **already** the interface — this
+was the last concrete link in the chain. The only out-of-solution consumer, `EditorStrideSubsystem:996`,
+assigns it straight into an `ITkbDatabase` field.
+
+### ✅ VERIFIED
+
+| gate | result |
+|---|---|
+| ⭐⭐⭐ **UI values, control vs after** | ⛔ **exactly the noise floor** — 4 message logs *(timestamps)* + `editor_fdp_events` *(rendered-frame counter: 1809 / 1812 / 1810 across three runs of two builds)*. **Zero attributable differences.** `64` registered · `37` captured · `26` kinds |
+| ⭐⭐ **the noise floor itself** | two pre-change runs: **36 of 37** captured panels byte-identical in VALUES |
+| ⭐ `HrotNodeBuilderTests` | **9 / 0** *(+2)*; red-proof — deleting the one-line `TimeController` exposure reddens **both new rails and nothing else** |
+| ⭐ `Hrot.ClusterRunner.Tests` | **274 / 5** — the 5 are the baselined pre-existing reds *(`OrchestratorSubsystemTests` ×3, `DataDrivenGizmoPredicateTests` ×2)* |
+| ⭐⭐ **`EditorSubsystemBootTests`** *(the feature's OWN suite, `R-142` T-1)* | **12 / 0** — including the two rails that assert exactly what this change moves: the master drains a time intent published on the orchestration bus, and that bus carries the time-control registrations |
+
+⛔⛔ **A CONFOUND WORTH KEEPING, because it looked exactly like a regression.** The first "before" capture ran
+the pre-change build from a COPY at `/tmp/prechange/` and reported `assetCount 49` where the after reported
+`92`. 📐 The proper control — pre-change code rebuilt at the **normal path** — also reports `92`. ⇒ the AI
+asset catalog is discovered **relative to the binary directory**, so the 49 measured *where I ran it*, not
+what I changed. ⭐ **A before/after captured from two different directories is not a control.**
