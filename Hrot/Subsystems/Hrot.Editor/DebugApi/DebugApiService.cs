@@ -1906,7 +1906,8 @@ namespace Hrot.Editor.DebugApi
         public JsonNode AddBreakpoint(JsonNode? body)
         {
             if (_bpManager is null)
-                throw new InvalidOperationException("Breakpoint manager not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.Breakpoints);
 
             var conditionNode = body?["condition"];
             if (conditionNode is null)
@@ -1948,7 +1949,8 @@ namespace Hrot.Editor.DebugApi
         public JsonNode ListBreakpoints()
         {
             if (_bpManager is null)
-                throw new InvalidOperationException("Breakpoint manager not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.Breakpoints);
 
             var arr = new JsonArray();
             foreach (var bp in _bpManager.AllBreakpoints)
@@ -1970,7 +1972,8 @@ namespace Hrot.Editor.DebugApi
         public void RemoveBreakpoint(string idStr)
         {
             if (_bpManager is null)
-                throw new InvalidOperationException("Breakpoint manager not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.Breakpoints);
 
             BreakpointId id = ParseBreakpointId(idStr);
             _bpManager.Remove(id);
@@ -1980,7 +1983,8 @@ namespace Hrot.Editor.DebugApi
         public JsonNode GetBreakpointStatus()
         {
             if (_bpManager is null)
-                throw new InvalidOperationException("Breakpoint manager not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.Breakpoints);
 
             JsonNode? lastHit = null;
             if (_lastHitBreakpointId.IsValid)
@@ -2002,7 +2006,9 @@ namespace Hrot.Editor.DebugApi
 
         private BreakpointId ParseBreakpointId(string idStr)
         {
-            if (_bpManager is null) throw new InvalidOperationException("No bp manager.");
+            if (_bpManager is null)
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.Breakpoints);
             foreach (var bp in _bpManager.AllBreakpoints)
             {
                 if (string.Equals(bp.Id.ToString(), idStr, StringComparison.OrdinalIgnoreCase))
@@ -2187,7 +2193,8 @@ namespace Hrot.Editor.DebugApi
         public string BeginRecordingStart(string mode)
         {
             if (_rrController is null)
-                throw new InvalidOperationException("EcsRecordReplayController not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.RecordReplay);
             if (_isRecording)
                 throw new InvalidOperationException("Recording already active. Stop it first.");
 
@@ -2226,7 +2233,8 @@ namespace Hrot.Editor.DebugApi
         public async System.Threading.Tasks.Task CompleteRecordingStartAsync()
         {
             if (_rrController is null)
-                throw new InvalidOperationException("EcsRecordReplayController not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.RecordReplay);
             await _rrController.PrepareRecordingAsync(_activeRecordingExerciseId,
                 Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot())
                 .ConfigureAwait(false);
@@ -2241,7 +2249,8 @@ namespace Hrot.Editor.DebugApi
         public async System.Threading.Tasks.Task<string?> CompleteRecordingStopAsync()
         {
             if (_rrController is null)
-                throw new InvalidOperationException("EcsRecordReplayController not available.");
+                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
+                    Hrot.Presentation.DebugApi.DebugCapabilities.RecordReplay);
             if (!_isRecording)
                 throw new InvalidOperationException("No active recording.");
 

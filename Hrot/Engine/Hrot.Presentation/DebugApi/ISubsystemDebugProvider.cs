@@ -550,4 +550,24 @@ public static class DebugCapabilities
     /// capability is actually missing.</para>
     /// </summary>
     public const string ScenarioLoad = "scenario.load";
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-193</c> — <b>data breakpoints</b> (<c>/breakpoints/*</c>, <c>/breakpoints/state</c>).
+    /// </summary>
+    /// <remarks>
+    /// 📌 <b>Why this key exists.</b> Every breakpoint endpoint threw a bare
+    /// <c>InvalidOperationException("Breakpoint manager not available.")</c>, which the host turned into a
+    /// <b>500</b> — so <i>"this host wires no breakpoint manager"</i> and <i>"the breakpoint code crashed"</i>
+    /// were indistinguishable to a caller. ⛔ That is the same disease as <c>CE-190</c>/<c>CE-191</c> one
+    /// level up: an instrument that cannot tell ABSENT from BROKEN.
+    /// ⇒ ⭐ the absence now travels as <see cref="NotSupportedHereException"/> ⇒ <b>501</b> plus this key,
+    /// which is the shape <c>Architect_Question_54</c> Q54-1 Option C already chose for exactly this case.
+    /// </remarks>
+    public const string Breakpoints = "debug.breakpoints";
+
+    /// <summary>
+    /// ⭐ <c>CE-193</c> — <b>ECS record / replay</b> (<c>/recording/*</c>, <c>/replay/*</c>).
+    /// Same reasoning as <see cref="Breakpoints"/>: its three guards threw and read as a crash.
+    /// </summary>
+    public const string RecordReplay = "debug.recordReplay";
 }

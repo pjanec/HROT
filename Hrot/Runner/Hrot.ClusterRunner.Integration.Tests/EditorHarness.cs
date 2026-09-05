@@ -117,6 +117,9 @@ public sealed class EditorHarness : IDisposable
             editor:         Editor,
             eventHistory:   _eventHistory,
             timeController: _timeController!,
+            // ⭐ CE-193 — the breakpoint tier is now wired, so /breakpoints/* is PROVEN rather than
+            //   answering NOT_SUPPORTED_HERE. See BpManager's remarks for why it is real, not a stub.
+            bpManager:      BpManager,
             // ⭐ The harness is a single offline editor: it is always "the one node, operating".
             clusterState:   () => Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit);
 
@@ -132,6 +135,19 @@ public sealed class EditorHarness : IDisposable
     public Fdp.Core.Diagnostics.DiagnosticEventHistoryService EventHistory => _eventHistory;
 
     private readonly Fdp.Core.Diagnostics.DiagnosticEventHistoryService _eventHistory = new();
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-193</c> — the real <c>DataBreakpointManager</c>, wired as production wires it.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ A REAL manager, not a stub: the point is to prove the <c>/breakpoints/*</c> tier actually works,
+    /// and a stub would make every rail vacuously green — the failure mode this whole line of work exists
+    /// to remove.
+    /// </remarks>
+    public Hrot.Diagnostics.Breakpoints.DataBreakpointManager? BpManager { get; private set; }
+
+    /// <summary>The pre-tick mirror the manager diffs the live repo against. Held so it stays alive.</summary>
+    private EntityRepository? _bpPreTickSnapshot;
 
     // ── Nested test stub ─────────────────────────────────────────────────────
 
@@ -181,7 +197,14 @@ public sealed class EditorHarness : IDisposable
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
-    public EditorHarness(IEcsModuleSystem[]? extraGlobalSystems = null)
+    /// <param name="enableBreakpoints">
+    /// ⭐⭐⭐ <c>CE-193</c> — OPT IN to the data-breakpoint tier. ⛔ <b>Default OFF, and that is a
+    /// measurement, not caution:</b> wiring it unconditionally added a second <c>EntityRepository</c> and
+    /// two global systems to EVERY harness in the project, and the full integration suite went from
+    /// completing (19 failures) to <b>"Test host process crashed"</b> ~32 tests in. ⇒ only the suite that
+    /// tests breakpoints pays for them.
+    /// </param>
+    public EditorHarness(IEcsModuleSystem[]? extraGlobalSystems = null, bool enableBreakpoints = false)
     {
         Repo   = new EntityRepository();
         Bus    = Repo.Bus;
@@ -267,6 +290,43 @@ public sealed class EditorHarness : IDisposable
         Kernel.RegisterModule(simHostMod);
         Kernel.RegisterModule(new Hrot.SimHost.Modules.EqsModule());
         Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(EntityMap));
+
+        // ⭐⭐⭐ CE-193 — the DATA BREAKPOINT tier, mirroring EditorSubsystem.cs:1535-1561.
+        //
+        //   ⛔ Before this, `BuildDebugApiService` omitted `bpManager` and every /breakpoints/* endpoint
+        //   refused. That is honest but UNPROVEN — the whole group had zero compiled coverage.
+        //
+        //   ⚠ The pre-tick snapshot repo must carry the SAME component registrations as the live repo, or
+        //   the manager compares against a world that cannot hold the components it is watching. ⭐ Mirrored
+        //   from this harness's own live-repo registration above — deliberately NOT from EditorSubsystem's
+        //   list, which registers IG/Map components this harness's live repo does not have.
+        if (enableBreakpoints)
+        {
+        var bpPreTick = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(bpPreTick);
+        CognitiveComponentRegistry.RegisterAll(bpPreTick);
+        CombatComponentRegistry.RegisterAll(bpPreTick);
+        CgfComponentRegistry.RegisterAll(bpPreTick);
+        bpPreTick.RegisterManagedComponent<ZoneMembership>();
+        _bpPreTickSnapshot = bpPreTick;
+
+        var bpEditSvc          = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
+        var bpSnapshotProvider = new Hrot.Diagnostics.Breakpoints.DebugSnapshotProvider(bpPreTick);
+        BpManager = new Hrot.Diagnostics.Breakpoints.DataBreakpointManager(
+            Repo,
+            bpPreTick,
+            bpSnapshotProvider,
+            new Hrot.Blueprints.Editor.Debug.MasterSyncTimeControllerAdapter(_timeController!),
+            new Fdp.Toolkit.ReplayBrowser.Search.PredicateCompiler(bpEditSvc, behaviorRegistry, BlueprintRegistry),
+            new Fdp.Toolkit.ReplayBrowser.Search.EventScannerCompiler(bpEditSvc));
+
+        // ⭐ Production registers BOTH — the provider that takes the pre-tick snapshot, and the system that
+        //   evaluates conditions against it. Without the provider the manager compares against an EMPTY
+        //   world and every condition looks like a change.
+        Kernel.RegisterGlobalSystem(bpSnapshotProvider);
+        Kernel.RegisterGlobalSystem(
+            new Hrot.Diagnostics.Breakpoints.DataBreakpointSystem(BpManager, Bus));
+        }
 
         // ⭐⭐ CE-192 — mirror the editor's event-history capture, so GET /events has a PRODUCER.
         //   📐 EditorSubsystem.cs:1437 registers exactly this system for the world bus (and two more for
@@ -427,6 +487,14 @@ public sealed class EditorHarness : IDisposable
         _physicsModule?.Dispose();
         _physicsModule = null;
         Repo.Dispose();
+
+        // ⭐⭐⭐ CE-193 — the breakpoint pre-tick mirror is a SECOND EntityRepository, and it owns native
+        //   arrays exactly as the live one does. ⛔ Omitting this leaked a fully component-registered repo
+        //   PER HARNESS — one per test — and the test host CRASHED partway through the suite
+        //   ("Test host process crashed", 32 tests in). 📌 Same lesson as CE-177 earlier in this
+        //   programme: an EntityRepository that is allocated must be disposed by whoever allocated it.
+        _bpPreTickSnapshot?.Dispose();
+
         _idAllocator.Dispose();
     }
 

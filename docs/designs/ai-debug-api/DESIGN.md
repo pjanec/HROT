@@ -309,6 +309,53 @@ endpoints. All bodies are JSON. `networkId` is the long network entity id (resol
 > **not** wire. Un-excluding them wholesale would produce reds that say nothing about the API. ⭐ They are now
 > cheap to take one group at a time, each needing only the optional dependency its endpoints use.
 
+> ⭐⭐⭐ **`CE-193` (`2026-09-05`) — AN UNWIRED CAPABILITY SAYS SO; AND THE BREAKPOINT TIER IS NOW PROVEN.**
+> *(user: "do the features like the breakpoint and history etc work? do the tests prove it?")*
+>
+> **① The refusal was indistinguishable from a crash.** Every `/breakpoints/*` endpoint threw a bare
+> `InvalidOperationException("Breakpoint manager not available.")`, and the three `/recording|/replay`
+> guards threw the same shape. The host's catch-all turns an unrecognised exception into a **500** ⇒
+> *"this host wires no breakpoint manager"* and *"the breakpoint code crashed"* reached the caller
+> identically. ⛔ That is `CE-190`/`CE-191`'s disease one level up: **ABSENT vs BROKEN**.
+>
+> ⭐ **Fixed with the shape this API already had** — `NotSupportedHereException` ⇒ **501 + capability key**,
+> chosen in `Architect_Question_54` Q54-1 Option C precisely so *"a broken panel and an unported one"*
+> could not look the same. All **8** guards converted; two new keys added: `DebugCapabilities.Breakpoints`
+> (`debug.breakpoints`) and `RecordReplay` (`debug.recordReplay`).
+>
+> **② The breakpoint tier is wired and proven.** `EditorHarness` now builds a **real**
+> `DataBreakpointManager` mirroring `EditorSubsystem.cs:1535-1561` — including **both** global systems
+> (`DebugSnapshotProvider` and `DataBreakpointSystem`), because without the provider the manager diffs
+> against an empty world and every condition looks like a change. ⚠ The pre-tick snapshot repo mirrors
+> **this harness's own** live-repo registrations, not `EditorSubsystem`'s, which registers IG/Map
+> components this harness's live repo does not have.
+>
+> ⇒ `DebugApiBatch07Tests` **8/8**, previously never compiled. **Red-proof:** un-passing `bpManager`
+> reddens **all 8**.
+>
+> ⚠⚠ **What those 8 do NOT prove, stated plainly:** they are add / list / remove / status / round-trip
+> plus one hit-event test. ⛔ **None asserts that a breakpoint FIRES on a real data change.** The
+> management surface and the event plumbing are proven; the *detection* is not.
+>
+> ⭐ Rails: `Hrot.Editor.Tests/DebugApi/AnUnwiredCapabilitySaysSoInsteadOfCrashingTests.cs` (4, textual —
+> it asserts no guard still throws the untyped exception) + `DebugApiBatch07Tests` (8, behavioural).
+>
+> ⛔⛔ **THE BREAKPOINT WIRING IS OPT-IN, AND THAT IS A MEASUREMENT.** `new EditorHarness(enableBreakpoints: true)`
+> — default **off**. Wiring it unconditionally added a second `EntityRepository` plus two global systems to
+> **every** harness in the project. ⚠ It also exposed a real bug of mine: the pre-tick repo was never
+> disposed, and `EntityRepository` owns native memory exactly as the live one does (`Repo.Dispose()` was
+> right there) — 📌 the same lesson as `CE-177` earlier in this programme. Both are fixed; only the suite
+> that tests breakpoints now pays for the tier.
+>
+> ⚠⚠ **GATE HONESTY — the full `Hrot.ClusterRunner.Integration.Tests` run could NOT be gated for this
+> change.** It ended `Test Run Aborted — Test host process crashed` on three consecutive attempts. ⭐ **It
+> is not this change:** re-excluding `DebugApiBatch07Tests` while leaving the (then inert) harness code in
+> place **still aborted**, and container memory/disk were healthy. That matches the pre-existing,
+> intermittent crash `CLAUDE.md` already records for this suite — *"it makes the suite un-gateable and it is
+> pre-existing… do not let its noise stand in for 'verified.'"* ⇒ ⛔ **unlike `CE-192`, no "zero new
+> failures" claim is made here.** What IS measured: the two unlocked suites **23/23**, the editor's DebugApi
+> rails **27/27**, and both red-proofs.
+
 ### Group A — Lifecycle & Status
 | HTTP | MCP tool | Request → Response |
 |---|---|---|

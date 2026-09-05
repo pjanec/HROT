@@ -57,7 +57,6 @@
        =============================================================================================== -->
   <ItemGroup>
     <Compile Remove="DebugApiBatch05Tests.cs" />
-    <Compile Remove="DebugApiBatch07Tests.cs" />
     <Compile Remove="DebugApiBatch08Tests.cs" />
     <Compile Remove="DebugApiBatch09Tests.cs" />
     <Compile Remove="DebugApiBatch10Tests.cs" />
