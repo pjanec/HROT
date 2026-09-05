@@ -1,4 +1,7 @@
 using System;
+using System.Reflection;
+using Fdp.ModuleHost.Time;
+using Fdp.Toolkit.Time.Controllers;
 using Hrot.Common.Infrastructure;
 using Xunit;
 
@@ -144,5 +147,68 @@ public sealed class HrotNodeBuilderTests
         var read = ctx.EventBus.ReadManaged<Fdp.Toolkit.Time.Domain.StepTimeIntent>();
         Assert.Single(read);
         Assert.Equal(0.5f, read[0].DeltaSeconds, 3);
+    }
+
+    // ── N₀ / CE-201 — the TIME ROLE is an input, and its default is the old behaviour ──────
+    //
+    // ⭐⭐⭐ WHY THIS MATTERS BEYOND THE BUILDER. Build() HARDWIRED TimeRole.Slave, while the editor
+    // is the time MASTER — it drives a MasterSyncController. So the editor could not adopt this
+    // builder without silently becoming a slave to a cluster it is meant to drive, and every
+    // editor-adoption item was blocked on that one line.
+    // 🔒 User, 2026-09-03: "add the time role change to the plan to unblock editor."
+
+    /// <summary>
+    /// ⭐ The DEFAULT is Slave — exactly what every caller got before N₀, so the three hosts that
+    /// already use this builder are unaffected. A default that changed behaviour would be a
+    /// migration disguised as a parameter.
+    /// </summary>
+    [Fact]
+    public void Build_WithoutDeclaringATimeRole_IsStillASlave()
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig())
+            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .Build();
+
+        Assert.IsType<SlaveSyncController>(TimeControllerOf(ctx));
+    }
+
+    /// <summary>
+    /// ⭐⭐ THE RAIL THE EDITOR NEEDS: a declared Master is honoured, not quietly downgraded.
+    /// ⛔ Without this the unblocking is unverified — a WithTimeRole that was accepted and ignored
+    /// would compile, read as done, and leave the editor a slave.
+    /// </summary>
+    [Fact]
+    public void Build_WithTimeRoleMaster_TheNodeOwnsTheClock()
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig())
+            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
+            .WithTimeRole(TimeRole.Master)
+            .Build();
+
+        Assert.IsType<MasterSyncController>(TimeControllerOf(ctx));
+    }
+
+    /// <summary>The time controller the kernel was actually built with.</summary>
+    /// <remarks>
+    /// ⭐⭐ <b>The role is expressed as the controller TYPE, not as a stored field</b> — measured:
+    /// <c>TimeControllerFactory.Create</c> switches <c>TimeRole.Master =&gt; CreateMaster</c> /
+    /// <c>Slave =&gt; CreateSlave</c>, and neither controller keeps the enum. ⇒ asserting the type is
+    /// both simpler and STRONGER than reading a field back: it is the object whose behaviour differs.
+    ///
+    /// <para>⚠ Via reflection deliberately: the assertion must be about the CONSTRUCTED controller,
+    /// never about the config the test itself passed in — that is the <c>CE-053</c> shape, a rail
+    /// that supplies the input it is testing and therefore passes whatever the builder does.</para>
+    /// </remarks>
+    private static object TimeControllerOf(HrotNodeContext ctx)
+    {
+        foreach (var f in ctx.Kernel.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance))
+        {
+            object? v = f.GetValue(ctx.Kernel);
+            if (v is ITimeController controller) return controller;
+        }
+
+        throw new Xunit.Sdk.XunitException(
+            "The kernel holds no ITimeController. The rail must assert the CONSTRUCTED controller — " +
+            "fix the reader, do not weaken the assertion.");
     }
 }

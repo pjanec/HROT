@@ -44,6 +44,27 @@ public sealed class HrotNodeBuilder
     private INetworkFactory?  _networkFactory;
     private bool              _built;
 
+    /// <summary>
+    /// The node's TIME role. Defaults to <see cref="TimeRole.Slave"/> — what every caller got
+    /// before <c>N₀</c>, so this is behaviour-preserving for all of them.
+    /// </summary>
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>N₀</c> (<c>CE-201</c>) — why this had to become an input.</b> <c>Build()</c>
+    /// HARDWIRED <c>TimeRole.Slave</c>, while the editor is the time MASTER: it builds a
+    /// <c>MasterSyncController</c>. ⇒ the editor could not adopt this builder without silently
+    /// becoming a slave to a cluster it is meant to drive, so **every** editor-adoption item was
+    /// blocked on this one line.
+    ///
+    /// <para>🔒 User, <c>2026-09-03</c>: <i>"add the time role change to the plan to unblock editor
+    /// (because i need the editor to be unified too of course)."</i></para>
+    ///
+    /// <para>⛔ It is an INPUT, not an inference. A builder guessing the time role from
+    /// <c>NodeRole</c> would tie two independent axes together — a node's simulation role and its
+    /// clock authority are not the same question, and §3.1 is explicit that time authority is not to
+    /// be moved blindly.</para>
+    /// </remarks>
+    private TimeRole          _timeRole = TimeRole.Slave;
+
     public HrotNodeBuilder(HrotNodeConfig config)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -53,6 +74,21 @@ public sealed class HrotNodeBuilder
     public HrotNodeBuilder WithRole(string subsystemName, Hrot.Common.NodeRole role)
     {
         _subsystemName = subsystemName;
+        return this;
+    }
+
+    /// <summary>
+    /// Declares the node's TIME role. Omit it and the node is a time <see cref="TimeRole.Slave"/>,
+    /// which is what every caller got before <c>N₀</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ Pass <see cref="TimeRole.Master"/> only for a host that actually owns the clock — one that
+    /// drives a <c>MasterSyncController</c>. ⚠ Two masters on one cluster is a time-authority split,
+    /// which is exactly the class of defect §3.1 says not to create by accident.
+    /// </remarks>
+    public HrotNodeBuilder WithTimeRole(TimeRole timeRole)
+    {
+        _timeRole = timeRole;
         return this;
     }
 
@@ -111,11 +147,14 @@ public sealed class HrotNodeBuilder
         // node's bus was in CgfApplication, whose sole caller is a unit test.
         Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(eventBus);
 
-        // Step 4 — Time controller (Slave role; transitions handled by SlaveSyncController)
+        // Step 4 — Time controller. The role is DECLARED by the caller (N₀ / CE-201) and defaults to
+        //          Slave, whose transitions are handled by SlaveSyncController.
+        // ⛔ It used to be hardwired to Slave here, which is why the editor — a time MASTER that
+        //    drives a MasterSyncController — could not adopt this builder at all.
         var timeConfig = new TimeControllerConfig
         {
             Mode        = TimeMode.Continuous,
-            Role        = TimeRole.Slave,
+            Role        = _timeRole,
             LocalNodeId = _config.NodeId,
             SyncConfig  = Fdp.Toolkit.Time.Controllers.TimeConfig.Default,
         };
