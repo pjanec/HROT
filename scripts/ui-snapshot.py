@@ -71,7 +71,51 @@ def shape(node, path="", out=None):
     return out
 
 
-def capture(port, settle):
+def warm_up(port, scenario, steps):
+    """Put the world in a DETERMINISTIC state before reading panels.
+
+    ⭐⭐⭐ Why this makes VALUE comparison possible at all. Panels show live data, so two runs
+    only agree if the simulation reached the identical state. Two things make that true:
+    CE-202 made the behaviour RNG reproducible, and stepping advances a FIXED dt instead of
+    the wall clock. ⇒ measured: two separate --mode editor processes, 1000 steps each, gave
+    8/8 byte-identical entities.
+
+    ⚠ SINGLE-WORLD ONLY. On --mode all the same measurement gave 5/8: DDS delivery order
+    between kernels is not reproducible and CE-202 does not claim to fix it. So run the value
+    comparison on the editor, and keep the shape comparison for the cluster.
+    """
+    call(port, "/scenario/load/live", "POST", {"name": scenario, "waitForReady": True}, timeout=60)
+
+    before = unwrap(call(port, "/status")).get("simTime") or 0.0
+    remaining = steps
+    while remaining > 0:
+        batch = min(25, remaining)
+        try:
+            call(port, "/sim/step", "POST", {"count": batch}, timeout=30)
+        except Exception as exc:  # noqa: BLE001
+            raise SystemExit(
+                f"REFUSING TO CAPTURE: /sim/step failed ({exc}). A value comparison against a world "
+                "that never advanced compares two frozen worlds and reports them identical.") from exc
+        remaining -= batch
+    after = unwrap(call(port, "/status")).get("simTime") or 0.0
+
+    # ⛔⛔⛔ THE VACUITY GUARD, and it is here because I shipped exactly this mistake.
+    # CE-202 first claimed "--mode editor: 8 of 8 entities byte-identical" across two runs. The
+    # steps had never landed — /sim/step answers "the master never entered the step barrier and the
+    # clock never advanced" on that host — so simTime was 0.0 in BOTH runs and the comparison was
+    # between two frozen worlds. Identical, and worthless.
+    # ⇒ a warm-up that cannot prove the clock moved must REFUSE, not proceed quietly.
+    if after <= before:
+        raise SystemExit(
+            f"REFUSING TO CAPTURE: simTime did not advance ({before} -> {after}) after {steps} steps. "
+            "Every value would compare equal for the wrong reason. Check that this host can actually "
+            "step — the editor's clock starts in Deterministic mode and its step barrier may need "
+            "play/preview first.")
+
+    print(f"  warmed up: {scenario}, {steps} fixed steps, simTime {before} -> {after}")
+
+
+def capture(port, settle, values=False):
     perspectives = unwrap(call(port, "/perspectives"))
     names = perspectives.get("perspectives") or []
     snap = {"perspectives": {}, "union": {"registered": [], "captured": [], "kinds": {}}}
@@ -113,10 +157,15 @@ def capture(port, settle):
                     continue
 
                 got = unwrap(call(port, f"/panels/{pid}"))
-                models[pid] = {
+                entry = {
                     "panelKind": got.get("panelKind"),
                     "shape": sorted(shape(got.get("model"))),
                 }
+                if values:
+                    # ⭐ The whole model, verbatim. A shape check proves the panel still shows the
+                    #   same FIELDS; this proves it shows the same THINGS.
+                    entry["model"] = got.get("model")
+                models[pid] = entry
             except Exception as exc:  # noqa: BLE001 - a panel that refuses is a finding, not a crash
                 models[pid] = {"error": str(exc)}
 
@@ -180,6 +229,11 @@ def diff(before, after):
             if missing:
                 problems.append(f"{name}/{pid}: model lost fields {missing[:8]}"
                                 + (" ..." if len(missing) > 8 else ""))
+
+            # ⭐⭐ VALUE comparison, only when BOTH snapshots carry models. A shape-only baseline
+            #    compared against a value capture must not silently report "same".
+            if "model" in bm and "model" in am and bm["model"] != am["model"]:
+                problems.append(f"{name}/{pid}: VALUES DIFFER")
     return problems
 
 
@@ -190,6 +244,11 @@ def main():
     ap.add_argument("--settle", type=float, default=1.5,
                     help="seconds to wait after a perspective switch before reading panels")
     ap.add_argument("--diff", nargs=2, metavar=("BEFORE", "AFTER"))
+    ap.add_argument("--values", action="store_true",
+                    help="also record every panel's full model, for an exact value comparison")
+    ap.add_argument("--scenario", help="load this scenario and step before capturing")
+    ap.add_argument("--steps", type=int, default=1000,
+                    help="fixed-dt steps to advance before capturing (with --scenario)")
     args = ap.parse_args()
 
     if args.diff:
@@ -206,7 +265,9 @@ def main():
         return 1 if any(p.startswith(("LOST", "perspective")) or "stopped publishing" in p
                         or "model lost fields" in p for p in problems) else 0
 
-    snap = capture(args.port, args.settle)
+    if args.scenario:
+        warm_up(args.port, args.scenario, args.steps)
+    snap = capture(args.port, args.settle, values=args.values)
     text = json.dumps(snap, indent=2, sort_keys=True)
     if args.out:
         open(args.out, "w").write(text)

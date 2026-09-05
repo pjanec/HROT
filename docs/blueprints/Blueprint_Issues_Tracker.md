@@ -2381,6 +2381,37 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
+- [x] **CE-202** · `RW-M` ⭐⭐⭐ — **THE BEHAVIOUR RNG BECOMES REPRODUCIBLE — AND ITS FIRST END-TO-END CLAIM WAS VACUOUS, CAUGHT AND CORRECTED HERE.** *(user: "replace it with something repeatable which just looks random to a first time observer but is actually the same for every scenario run")*
+
+  ⭐⭐⭐ **THE ALGORITHM WAS ALREADY THERE AND ALREADY MANDATED.** `SlotOps.PickRandomFreeSlot` carried a deterministic sim-derived xorshift whose own doc says *"architect Q#8-C, **mandated** for replay/rollback/headless-proof determinism"*. ⛔ The two sites that actually run in production never adopted it and still called `Random.Shared`. ⇒ this is the **25th** measured instance of *"we need a shared X"* meaning **X exists and is under-adopted** — the seam law. Writing a second generator would have been the duplication, not the fix.
+
+  ⭐ **Three production sites, enumerated not assumed** *(everything else matching `Random.Shared` is demos, examples and benchmarks)*: `HillAttackCommanderNodes.cs:354` *(the firing-slot pick)* · `CgfNodes.cs:440-441` *(the wander)* · `SlotOps`' own inlined copy. All three now draw from `SimRng`.
+
+  | decision | why |
+  |---|---|
+  | ⭐⭐ **deterministic by DEFAULT, with an opt-out** | 🔒 the user asked for repeatable runs to be the normal case. ⛔ A determinism flag nobody remembers to switch on delivers nothing |
+  | ⭐ **advances per draw** | the wander needs an x AND a y; a stateless seed-per-call hands `x == y` and sends every wanderer down the diagonal — reproducible, and visibly broken |
+  | ⭐ **call sites take a SALT** | the slot pick and the wander are seeded from the same entity and tick; without a salt they correlate |
+
+  ⭐ **Rails — 9 in `SimRngRails`, deliberately in TWO halves** because the user's sentence has two halves and ⛔ **a generator that always returns 0 satisfies only one**: same inputs → same sequence · different entities/salts/draws diverge · **64 entities still spread over ≥6 of 8 buckets** · the opt-out really restores randomness.
+
+  ### 🔴🔴🔴 THE VACUOUS CLAIM — **corrected `2026-09-05`, same day, before it could be relied on**
+
+  ⛔⛔ **This row first reported: *"`--mode editor` (one world): 8 of 8 entities byte-identical"*. THAT MEASUREMENT WAS WORTHLESS.** 📐 Re-measured: `/sim/step` on the editor answers **`ok:false`** — *"The step was issued but did not land within 20s — the master never entered the step barrier and the clock never advanced"* — and `/status` reports **`simTime: 0`** before and after. ⇒ **the two runs I compared were both frozen at t=0.** Identical, for the wrong reason.
+
+  | topology | what was really measured |
+  |---|---|
+  | ⭐ **`--mode all`** *(four kernels)* | ✅ **REAL: 5 of 8 identical**, `simTime` genuinely reached `16.667` (1000 × 1/60). The residue is cross-kernel — DDS delivery order, which `SimRng` never claimed to fix |
+  | 🔴 **`--mode editor`** *(one world)* | ⛔ **NOT MEASURED.** The clock never moved. ⚠ Whether the editor is run-to-run deterministic is **still an open question**, not a green |
+
+  ⚠⚠ **This is the `CE-064` shape — an assertion over an empty collection — and I shipped it in a commit message.** ⭐⭐ The fix is not "be careful": `scripts/ui-snapshot.py`'s warm-up now reads `simTime` before and after and **REFUSES to capture** when it did not advance, naming the reason. ⛔ A control that can pass without exercising anything is worse than no control, because it is believed.
+
+  ⭐ **What still stands unchanged:** the 9 unit rails, the seam-law finding, and the three call sites. ⇒ the RNG **is** deterministic; what is unproven is the editor's end-to-end run-to-run equality.
+
+  ⭐⭐ **Gates:** `Hrot.SimHost.Tests` **904/1** *(was 895/1; +9 rails, the red being the baselined `FullBranchPipelineTests` flake)*.
+
+---
+
 - [x] **CE-200** · `RW-M` ⭐⭐⭐ — **HOST (c): CGF COMPOSES FROM THE CAPABILITY SEAM — ALL THREE CLUSTER HOSTS ARE NOW ON IT.** *(user: "return to unification" — item 2 of the picked order)*
 
   ⛔⛔ **AND IT SEPARATES TWO THINGS THIS SERIES HAD BEEN TREATING AS ONE.** 🔒 §4.1j's phase table marks **node-bootstrap adoption** *"optional, LAST"* — *"the only phase touching orchestration/participant/time authority, i.e. what §3.1 says not to move blindly."* ⇒ ⭐⭐⭐ **CGF does NOT adopt `SharedApplicationBootstrapper` here.** The capability axis needs only a role and the capability instances, so a host with its own inline ECS root takes it **without touching its boot sequence at all.** ⚠ The earlier hosts were already on the base, so *"onto the seam"* and *"onto the bootstrapper"* looked like one step. **They are two, and CGF is the case that separates them.**
