@@ -351,7 +351,15 @@ namespace Hrot.AI.Behaviors.Brains
                     BehaviorLog.Warn(ref ctx, "No firing-line slots available for subordinate Entity:" + sub.Index + "; skipping this wave assignment.");
                     continue;  // no slots left; skip tank
                 }
-                int firingSlot = avail[Random.Shared.Next(0, availCount)];
+                // ⭐⭐ CE-202 — REPRODUCIBLE, not fixed. This drew from Random.Shared, so two runs of the
+                //    same scenario picked different slots and could not be compared at all; it is also
+                //    why CE-174's mechanism made kills look intermittent. Same inputs now give the same
+                //    slot, while the xorshift keeps the scatter an observer sees.
+                //    ⛔ SlotOps.PickRandomFreeSlot — the curated twin of this very line — has carried
+                //    the deterministic form since architect Q#8-C mandated it. This is the oracle
+                //    adopting it, not a new invention.
+                var slotRng = SimRng.FromSim((int)sub.Index, s.CurrentWave, ctx.World.SimulationTime);
+                int firingSlot = avail[slotRng.NextInt(0, availCount)];
 
                 // Interpolate firing-slot world position.
                 float ft = s.TotalSlots > 1 ? (float)firingSlot / (s.TotalSlots - 1) : 0.5f;
