@@ -53,7 +53,15 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
         RETIRED by user ruling. Perception is DECLARED AND UNFILLED on Stride in both modes and is
         a prerequisite for mode 2, where CGF no longer masks it. Plan + UML: §4.1aa; tasks CE-205
         (StrideCapabilities) → CE-206 (perception) → CE-207 (mode 2) → CE-208 (mode 1 unified) →
-        CE-209 (retire self-contained). ⛔ The shape is forced by a measured constraint:
+        CE-209 (retire self-contained), plus CE-210 (the LOS redesign, §4.1ab — NOT a Stride-lane
+        change: it touches Fdp.Toolkits Perception/Eqs which every Muscle host shares).
+        ⚠ TWO CORRECTIONS ON USER CHALLENGES, 2026-09-05: (i) ImageGenerator is DROPPED from both
+        Stride modes — that role is the 2-D tactical-map stack, which the editor already registers
+        in mode 1 (duplicate modules) and which wants a map camera viewport Stride has not got;
+        (ii) the id-base concern applies ONLY to self-contained mode — mode 1 creates no allocator
+        and mode 2 gets the central DdsIdAllocator automatically. Two earlier framings of the id
+        question were wrong; scenario ids are remapped on load by StagingEntityExtractor Pass 1.
+        ⛔ The shape is forced by a measured constraint:
         Hrot.NodeComposition is net8.0 and CANNOT reference net8.0-windows Stride, so Stride's
         capability declarations live on the Stride side and are injected downward.
     (a2) ⭐ THE EDITOR: phase N₀ landed (CE-201, the time role is a builder input) and the ADOPTION is
@@ -5832,9 +5840,9 @@ its CURRENCY is wrong.**
 |---|---|---|
 | **①** | ⭐⭐⭐ **`StrideNodeBootstrapper` takes a CAPABILITY LIST, not four module slots** — `WithCapabilities(IReadOnlyList<INodeCapability>)` | ⛔ 📐 §4.1k measured all four slots passed `null` in every test and every caller ⇒ **four silent defaults retired at once**. ⭐ And a list is what lets mode 1 and mode 2 consume the *same declaration*, which is the user's actual ask |
 | **②** | ⭐⭐⭐ **`StrideCapabilities` lives in `Stride/HrotStrideApp.Game`** — host (e) of the seam | forced by the reference direction above. ⚠ It is the FIRST capability host outside the solution ⇒ it is also the first that `scripts/stride-check.sh` alone gates |
-| **③** | ⭐⭐⭐ **Perception REUSES SimHost's, it is not re-implemented** | 🔒 the user's own framing — Stride *"replaces SimHost"*. ⇒ the Muscle node should run **`EqsModule` + `CognitiveSpatialModule`**, the same pair `SimHostCapabilities.PerceptionSolver`/`PerceptionSpatial` register. ⛔ A Stride copy would be the duplication this programme removes |
+| **③** | ⭐⭐⭐ **Perception REUSES SimHost's, it is not re-implemented** | 🔒 the user's own framing — Stride *"replaces SimHost"*. ⇒ the Muscle node should run **`EqsModule`** *(drives `EqsSolverSystem` at 10 Hz, emits `EqsResultEvent` for the Brain's `EqsResultUpdateSystem`)* + **`CognitiveSpatialModule`** *(the sensing half: local grid, area-query solver, vision broadphase, LOS batching, sensor debounce)*. ⛔ A Stride copy would be the duplication this programme removes. ⭐ **The Brain/Muscle abstraction holds** — the Brain asks, the Muscle solves, results return as events; the Brain never learns who solved them |
 | **③b** | ⚠ **the two capability classes are `internal` to `Hrot.SimHost`** ⇒ promote them to `public` *(or extract the pair to a shared static)*. ⭐ Stride already reaches `Hrot.SimHost` transitively through `Hrot.NodeComposition` | ⛔ **Do NOT copy them into Stride** — that is exactly the second-implementation shape `CE-203` `E2` had to undo |
-| **④** | ⛔ **the Stride-native LOS upgrade is a SEPARATE, UNMEASURED question** | 📐 `ILosService` is injected into **query templates** *(`CheapLineOfSightTest`, `FindCoverFromTarget.Build(los)`)*, **not** into `EqsModule`. ⇒ *"inject `StrideRaycastLosService`"* needs a seam **that may not exist at module level**. ⭐ `CE-206` ships perception with the SHARED default; the raycast upgrade is its own item once the seam is measured |
+| **④** | ⛔⛔ **the Stride raycast LOS is a REDESIGN, not a wiring job — `CE-210`, and §4.1ab carries it** | 📐 Measured: `ILosService` has **zero production consumers**, the live LOS is an **inline 2-D sweep inside `LosRequestBatchingSystem`** with no injection point, and the API is `Vector2`-in with `StrideRaycastLosService` lifting both endpoints to a fixed `1.5 m`. 🔒 **User ruling:** Stride runs **SimHost's 2-D sweep unchanged** until `CE-210` lands — a known, accepted transitional limitation |
 | **⑤** | ⭐⭐ **mode 1 and mode 2 differ by ROLE ONLY** | mode 1 is networkless and fuses Brain; mode 2 is a networked Muscle node beside CGF. ⭐ **That is what a role-selected plan is for.** ⛔ It must not become two capability sets |
 | **⑥** | ⛔⛔ **retire self-contained LAST** | nothing is deleted before its replacement runs. ⚠ `STRIDE_SELFTEST` **forces** hosted mode, so it should survive — **measure, do not assume** |
 
@@ -5970,7 +5978,67 @@ sequenceDiagram
 
 | open | lean |
 |---|---|
-| ⛔ **`ImageGenerator`** — `StrideNodeBootstrapper.Role` declares it; the user's list does not | ⭐ **drop it from mode 2's role.** Stride draws its own 3D view; it is not an IG node publishing to others. ⚠ Measure what `IgCapabilities.Presentation` would even do here first |
-| ⛔ **the LOS upgrade** *(decision ④)* | ⭐ ship the shared default in `CE-206`; file the raycast adoption separately once the module-level seam is measured |
+| ✅ **`ImageGenerator`** — **RESOLVED `2026-09-05`: drop it from BOTH modes** | 🔒 User: *"'IG' role in this code base is way about 2d map, which stride doesn't do."* 📐 `IgCapabilities.Presentation` registers `StyleResolutionModule` · `MapCullingModule(cameraViewport)` · `MapLayerModule` · `HistoryTrailModule` · `EventEffectModule` — the **2-D tactical-map** stack. ⛔ In mode 1 the EDITOR already registers three of them on that world *(`EditorStrideSubsystem`'s header lists them as "deliberately omitted" for exactly this reason)* ⇒ **duplicate modules**; in mode 2 `MapCullingModule` wants a **map camera viewport** Stride has not got. ⇒ ⭐ `StrideNodeBootstrapper.Role` **drops `ImageGenerator`** |
+| ✅ **the id base** — **RESOLVED: it is not an issue for either mode** | 📐 mode 1 creates **no allocator** *(repoints to the editor's)*; mode 2 gets the **central `DdsIdAllocator`** automatically whenever a participant exists. ⇒ the 1000-base question lives **only in self-contained mode**, which `CE-209` retires. ⛔ Two earlier framings of this were WRONG — see the `CE-209` row |
 | ⛔ **how mode 2 is LAUNCHED** | ⭐ the Stride app is its own executable, so mode 2 is a Stride-side flag/arg, not a `--mode` in `Hrot.ClusterRunner` — 📐 the runner has **no Stride reference at all** and adding one would drag `net8.0-windows` into a `net8.0` runner |
 | ⛔ **behavioural verification** | 🔴 **compile-only off Windows.** Modes 1 and 2 both need a Windows pass; `CE-207`'s two-node run cannot be faked here |
+
+
+---
+
+## ⭐⭐⭐ §4.1ab — **LOS: THE STRIDE RAYCAST SERVICE IS AIMED AT THE WRONG SEAM, AND THE API IS 2-D** `build-state: DESIGN` *(`2026-09-05`)*
+
+> 🔒 **User, `2026-09-05`:** *"stride should provide raycast based LOS … LOS API can't be 2d of course."*
+> 🔒 And the transitional ruling: *"before LOS is properly implemented we can live with simHost's
+> implementation for a while, no problem, but this must be recorded properly and having a task for
+> proper implementation."*
+
+### ⛔⛔ FIRST, A CORRECTION — **`StrideRaycastLosService` is NOT "built and unadopted"**
+
+⚠ An earlier version of `§4.1aa` decision ④ and of `CE-206` called it the **27th seam-law instance** — a
+built thing under-adopted. 📐 **Measured, and it is a different failure:** it is built against a seam
+**nothing live uses.**
+
+| seam | who calls it |
+|---|---|
+| `ILosService` — what `StrideRaycastLosService` implements | ⛔ **ZERO production callers.** Only `CheapLineOfSightTest`, built solely by `FindCoverFromTarget.Build(ILosService)`, whose every caller is a test. The generator overload passes `BlockedLosService` and is *"used only for StructureHash computation, not for live evaluation"* |
+| ⭐ `LosRequestBatchingSystem` *(inside `CognitiveSpatialModule`)* | ✅ **this is the LOS that runs** — *"an inline 2-D segment-circle sweep using a caller-supplied [radius] delegate"*. ⛔ It never touches `ILosService` and offers **no injection point** for an alternative |
+
+⇒ ⭐⭐ **Not under-adopted — MIS-AIMED.** ⚠ The distinction matters: an under-adopted thing is wired by
+calling it, a mis-aimed one is not fixed until the seam it should have targeted exists.
+
+### 🔴 WHY THE API CANNOT STAY 2-D
+
+`bool HasCheapLineOfSight(Vector2 observer, Vector2 target)` — and `ILosService`'s own header says
+*"Phase 3 uses a stub (always blocked). **Phase 5 will replace with raycast against the occluder grid**."*
+⇒ ⭐ **it was always scaffolding, and Phase 5 never happened.**
+
+To satisfy it, `StrideRaycastLosService` lifts **both** endpoints to one fixed `EyeHeightMetres = 1.5f`:
+
+| what that destroys | |
+|---|---|
+| 🔴 **stance** | prone / crouched / standing all query at 1.5 m |
+| 🔴 **vehicles** | a commander's optic and a hull-down hull are the same ray |
+| 🔴 **terrain** | both endpoints forced to the SAME Z ⇒ a rise between them reads clear when the real sightline is blocked, **and the reverse** |
+
+⭐⭐ **The right method already exists and is unreachable:** `HasLineOfSight3D(Vector3, Vector3)` sits on
+the class and **not on the interface**.
+
+### ⭐ THE REDESIGN — `CE-210`, three parts in order
+
+| # | part | why in this order |
+|---|---|---|
+| **a** | ⭐⭐⭐ a **3-D LOS abstraction** — `Vector3` endpoints, eye/aim height read from the **ENTITY** *(stance, vehicle profile, TKB sensor mount)* | ⛔ a service-wide constant is what makes the current one unusable |
+| **b** | ⭐⭐⭐ **the LIVE seam** — `LosRequestBatchingSystem` takes an LOS strategy; SimHost passes today's 2-D sweep *(behaviour UNCHANGED)*, Stride passes the raycast | ⛔ **without (b) any implementation is dead code — which is exactly how the current one got here.** ⭐ This is the part that must not be skipped |
+| **c** | ⭐ **retire or re-home `ILosService`** | ⛔ two LOS interfaces, one unreachable, is the shape this programme removes |
+
+### ⚠⚠ THE TRANSITIONAL POSITION — **recorded, not hidden**
+
+🔒 **By user ruling, `CE-206` ships Stride perception running SimHost's 2-D sweep unchanged.** ⭐ That is a
+**known, accepted** limitation with a filed task, ⛔ not an oversight. ⚠ **Its consequence must be stated
+in any report claiming Stride perception works:** a Stride node reports LOS with **no terrain and no height
+sense**, so 3-D occlusion visible in the Stride window will **not** match what perception believes.
+
+⭐ **Blast radius:** `CE-210` touches `Fdp.Toolkits/Perception` and `Fdp.Toolkits/Spatial/Eqs`, which
+**every Muscle host shares** ⇒ ⛔ it is **not** a Stride-lane change and needs its own blast-radius pass
+before it starts.

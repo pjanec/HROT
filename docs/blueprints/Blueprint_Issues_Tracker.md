@@ -2395,9 +2395,46 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⚠⚠ **Today this is MASKED** — `CgfLogicPack` (Brain) sits in the same world in both existing modes, so perception-ish behaviour appears to work. ⛔ **In mode 2 CGF is a separate node and the mask is gone.** ⇒ this is a prerequisite for `CE-207`, not a follow-up.
 
-  ⭐⭐⭐ **THE SEAM LAW, 27th instance — the Stride-native half is BUILT and UNADOPTED.** `Hrot.Stride.Core/StrideRaycastLosService` is a *"drop-in replacement … satisfies `ILosService` exactly, replacing the flat spatial-hash approximation with a real 3-D raycast against Stride/Bullet scene geometry"*. ⇒ ⭐ the fill is **`EqsModule` + `CognitiveSpatialModule` with `StrideRaycastLosService` injected as the `ILosService`**, mirroring `SimHostCapabilities.PerceptionSolver` + `Perception:spatial`. ⛔ **Not a new perception implementation.**
+  ⭐ **THE FILL IS STRAIGHT ADOPTION** — `EqsModule` *(drives `EqsSolverSystem` at 10 Hz on the Muscle node, emitting `EqsResultEvent` for the Brain's `EqsResultUpdateSystem`)* + `CognitiveSpatialModule` *(the sensing half: `LocalGridBuilderSystem` · `AreaQuerySolverSystem` · `VisionBroadphaseSystem` · `LosRequestBatchingSystem` · `SensorTrackDebounceSystem` over a `SpatialHashGrid`)*, mirroring `SimHostCapabilities.PerceptionSolver` + `Perception:spatial`. ⛔ **Not a new perception implementation.**
 
-  ⚠ **To verify during the build:** that `EqsModule` actually takes an `ILosService` on a seam this can reach — measured only as far as `FindCoverFromTarget.Build(ILosService)`.
+  ⭐⭐ **AND IT SHIPS WITH SimHost's LOS, DELIBERATELY.** 🔒 User, `2026-09-05`: *"during the transition period (before LOS is properly implemented) we can live with simHost's implementation for a while, no problem, but this must be recorded properly and having a task for proper implementation."* ⇒ ⭐ **that task is `CE-210`**, and this row does **not** attempt the raycast LOS.
+
+  ⛔⛔ **AN EARLIER VERSION OF THIS ROW SAID `StrideRaycastLosService` IS *"BUILT AND UNADOPTED"* — THAT WAS WRONG.** 📐 It is built against a seam **nothing live uses**: `ILosService` is consumed only by EQS query tests *(`CheapLineOfSightTest`)* whose sole builder `FindCoverFromTarget.Build(los)` has **ZERO production callers**. ⭐ The LOS that actually runs is the **inline 2-D segment-circle sweep inside `LosRequestBatchingSystem`** — which never touches `ILosService`. ⇒ ⭐⭐ **it is not under-adopted; it is aimed at the wrong seam.** 📄 Full analysis and the redesign: `§4.1ab`.
+
+---
+
+- [ ] **CE-210** · `RW-H` ⭐⭐⭐ — **LOS NEEDS A 3-D API AND A LIVE SEAM. `StrideRaycastLosService` MUST BE REDESIGNED, NOT WIRED.** 🔒 *(user: "LOS API can't be 2d of course" · "stride should provide raycast based LOS" · "during the transition period we can live with simHost's implementation")*
+
+  ### 📐 THE THREE FINDINGS, MEASURED
+
+  | # | finding |
+  |---|---|
+  | **①** | ⛔⛔ **`ILosService` HAS NO PRODUCTION CONSUMER.** Its only consumer is `CheapLineOfSightTest`, built solely by `FindCoverFromTarget.Build(ILosService)` — **zero production callers**; every hit is a test. The other overload, `Build(IEqsTemplateBuilder)`, passes `new BlockedLosService()` and its own doc says the result is *"used only for **StructureHash** computation, **not for live evaluation**"* |
+  | **②** | ⭐⭐⭐ **THE LOS THAT ACTUALLY RUNS IS SOMEWHERE ELSE.** `LosRequestBatchingSystem` *(inside `CognitiveSpatialModule`)* does an *"inline **2-D segment-circle sweep** using a caller-supplied [`ColliderRadiusReader`] radius … if the delegate is `null` all candidates are treated as point entities (radius zero) which creates a degenerate check."* ⛔ **It never touches `ILosService`, and it has NO injection point for an alternative** — only a radius delegate |
+  | **③** | ⛔ **THE API IS 2-D AND THE INTERFACE ADMITS IT IS A STUB.** `bool HasCheapLineOfSight(Vector2 observer, Vector2 target)`, with `ILosService`'s own header reading *"Phase 3 uses a stub (always blocked). **Phase 5 will replace with raycast against the occluder grid**"* — ⇒ this was always scaffolding, and Phase 5 never happened |
+
+  ### ⛔⛔ WHY `StrideRaycastLosService` CANNOT SIMPLY BE WIRED
+
+  ⭐ It is a **real** raycast against Stride/Bullet geometry and the work in it is sound. ⛔ But to satisfy a **2-D** interface it lifts BOTH endpoints to **one fixed `EyeHeightMetres = 1.5f`** on Z. ⇒
+
+  | consequence | |
+  |---|---|
+  | 🔴 **stance is unrepresentable** | prone / crouched / standing all query at 1.5 m |
+  | 🔴 **vehicles are unrepresentable** | a tank commander's optic and a hull-down hull are the same ray |
+  | 🔴 **terrain height is discarded** | observer and target are forced to the SAME Z, so a hill between them at 1.5 m reads as clear while the real sightline is blocked — ⚠ and the reverse |
+  | ⭐ **the right method already exists — OUTSIDE the interface** | `HasLineOfSight3D(Vector3 observerFdp, Vector3 targetFdp)` is on the class and **not on `ILosService`**, so no caller can reach it |
+
+  ### ⭐⭐ THE REDESIGN — **three parts, in order**
+
+  | # | part |
+  |---|---|
+  | **a** | ⭐⭐⭐ **A 3-D LOS abstraction** whose endpoints are `Vector3` and whose eye/aim heights come from the ENTITY *(stance, vehicle profile, TKB sensor mount)* — ⛔ never a service-wide constant. ⭐ `HasLineOfSight3D` becomes the interface method rather than a bonus |
+  | **b** | ⭐⭐⭐ **A LIVE SEAM: `LosRequestBatchingSystem` takes an LOS strategy.** SimHost passes today's 2-D sweep *(behaviour UNCHANGED — this is the transitional default)*, Stride passes the raycast one. ⛔ **Without (b) any LOS implementation is dead code, which is exactly how the current one got here** |
+  | **c** | ⭐ **retire or re-home `ILosService`** — either give the EQS cover path a live caller on the new abstraction, or mark it stub-only. ⛔ Two LOS interfaces, one of them unreachable, is the shape this programme removes |
+
+  ⭐⭐ **TRANSITIONAL POSITION, RECORDED BY USER RULING:** until (a)–(c) land, **Stride runs SimHost's 2-D sweep unchanged** via `CE-206`. ⛔ That is a KNOWN, ACCEPTED limitation, not an oversight — a Stride node will report LOS with no terrain or height sense, and 3-D occlusion in the Stride window will NOT match what perception believes. ⚠ **Say so in any report that claims Stride perception works.**
+
+  ⛔ **Blocked on nothing** *(it can start whenever)* — ⚠ but it touches `Fdp.Toolkits/Perception` and `Spatial/Eqs`, which every Muscle host shares ⇒ it is **not** a Stride-lane change and needs its own blast-radius pass.
 
 ---
 
@@ -2429,7 +2466,17 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   📐 **What it costs:** `Initialize` steps 1–8 are **201 lines**, of which **six of the eight** duplicate `HrotNodeBuilder.Build()` — the file says so itself in **four** comments reading *"Mirror `EditorSubsystem` …"*, plus a class header *"Mirrors the simulation+orchestration core of `EditorSubsystem` lines 449–1092."*
 
-  ⭐⭐ **And the duplication has already drifted, twice:** ① the time controller is created on **`World.Bus`** while the orchestration vocabulary is registered on `OrchestrationBus` — the exact pre-`T3` split `EditorSubsystem:1000–1011` describes as *"intents landed on a bus the master never read — no error, nothing happens"* ⚠ **LATENT, not live** *(measured: nothing in `Stride/` publishes a time intent; `Tick` calls `TimeController.Step(dt)` directly)*; ② `new SequentialIdAllocator()` with **no `Reset(WorldBase)` and no `ClusterMaster.IdAuthority`**, so ids start at **2** and never reset — ⛔ `DESIGN_Deterministic_Network_Ids.md` never mentions this host at all.
+  ⭐⭐ **And the duplication has already drifted, twice:** ① the time controller is created on **`World.Bus`** while the orchestration vocabulary is registered on `OrchestrationBus` — the exact pre-`T3` split `EditorSubsystem:1000–1011` describes as *"intents landed on a bus the master never read — no error, nothing happens"* ⚠ **LATENT, not live** *(measured: nothing in `Stride/` publishes a time intent; `Tick` calls `TimeController.Step(dt)` directly)*; ② `new SequentialIdAllocator()` with **no `Reset(WorldBase)`**, so ids start at **2**.
+
+  ### ⛔⛔⛔ THE ID CLAIM WAS WRONG TWICE — **corrected `2026-09-05` on a user challenge, and the SCOPE is the correction**
+
+  | what was claimed | verdict |
+  |---|---|
+  | 🔴 *"it changes ids in saved scenarios"* | ⛔ **FALSE.** 📐 `StagingEntityExtractor` **Pass 1** allocates a FRESH id for every scenario entity carrying `NetworkIdentity` and records `oldId → newId`; Pass 2 patches ids embedded in behaviour params through that map. ⇒ **authored ids are INPUTS to a remap, never runtime ids** — no allocator choice can change anything stored in a scenario file. 🔒 The user said exactly this and was right |
+  | 🔴 *"cross-host id parity is a `CE-207` prerequisite"* | ⛔ **ALSO FALSE, and this is the load-bearing correction.** 📐 Measured: **mode 1 creates NO allocator at all** *(hosted `H1`/`H2` repoint everything to the editor's)*, and **mode 2 gets the CENTRAL one automatically** — `NedNetworkFactory.CreateIdAllocator` returns `DdsIdAllocator` whenever a participant exists. ⇒ **neither of the user's two modes is affected** |
+  | ✅ what is actually true | the 1000-base question exists **only inside self-contained mode**, i.e. only in the thing this row RETIRES. ⇒ ⭐ **it is an argument FOR retirement, not a prerequisite for anything** |
+
+  ⚠ *(For the record: `The_two_hosts_number_the_same_entities_identically` compares **an editor standalone load** against **a cluster load** — two separate RUNS — so a scenario debugged in the editor carries the same ids in the cluster. ⛔ Within ONE cluster there is no parity question: the central allocator issues once and the id replicates. 🔒 The user's model was correct and mine was not.)*
 
   ⛔⛔ **RETIRE LAST, after `CE-207` and `CE-208` are green** — ⭐ nothing is deleted before its replacement runs. ⚠ Check `STRIDE_SELFTEST` first: it **forces** hosted mode, so it should survive unchanged, but that must be measured rather than assumed.
 
