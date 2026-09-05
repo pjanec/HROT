@@ -65,6 +65,21 @@ mutually exclusive.
 `ok:false` and `error` explains why (and the tool result is flagged as an MCP error). `awaited` relates to
 wait-gating (below). The server passes this through verbatim — it never hides a failure as success.
 
+**On a 500, read `fault` — it says WHERE the exception happened** (`CE-190`). An unhandled server-side
+exception now reports its origin, not just its message:
+
+```
+"error": "System.NullReferenceException: Object reference not set… @ DebugApi/DebugApiService.cs:1234 in DebugApiService.DumpEntity",
+"fault": { "type": …, "message": …, "site": "<file>:<line> in <Type.Method>", "frames": [ … ], "inner": [ … ] }
+```
+
+`error` carries the type and site inline (some callers only ever see that string); `fault` carries the frame
+list and the inner-exception chain. **Report the `site` when you escalate a 500** — it is the difference
+between "the API broke" and a file and line someone can open. Two caveats: a fault raised on the main thread
+arrives wrapped in an `AggregateException`, and `site` deliberately names the *inner* throw rather than the
+await (`wrappedIn` records the wrapper); and file/line need PDBs beside the assembly — without them `site`
+degrades to `Type.Method +IL_0042`, never to nothing.
+
 **Wait-gating (why you sometimes see `awaited:false`).** Commands that *could* wait for a result only do so
 when time is advancing. If you send a command with `wait:true` while the sim is paused/in Edit, you get
 `{awaited:false, reason:"sim not running"}` immediately instead of a hang. That is expected — pause-step-inspect

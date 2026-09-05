@@ -2067,3 +2067,25 @@ whenever the finding is "the sim did not do the impressive thing".**
   ⚠ **Not done:** only `Fdp.ModuleHost`'s fault paths are covered. Swallows elsewhere — `SystemScheduler`, translators, the debug API — are untouched, so *"no exceptions swallowed **ever**"* is not yet literally true. A sweep of the remaining `catch (Exception)` sites is the follow-up.
 
   📄 Design: [`Fdp.ModuleHost.md` §5/§5b/§5c](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/projects/FDP/Core/Fdp.ModuleHost.md)
+
+- [x] **CE-190** · `RW-L` ⭐⭐⭐ — **AN MCP 500 MUST SAY *WHERE* THE EXCEPTION HAPPENED, NOT JUST WHAT IT SAID.** 🔒 **User:** *"ex.message in mcp response is not enough, can we add source tracking (where the exception happened?)"*
+
+  🔴 **The defect.** All five 500 paths in the debug API reported `ex.Message` and nothing else. For the types that actually turn up mid-refactor that is unusable — a `NullReferenceException` reads as *"Object reference not set to an instance of an object."*: **no type, no method, no file, no line.** The caller is an agent on the far side of MCP with no debugger, so the next move was a manual bisect of the whole route.
+
+  ⭐⭐ **TWO outputs, because TWO consumers read TWO different fields** — 📐 measured in `tools/ai-debug-mcp/src/index.mjs`, not assumed: `:215` does `const msg = envelope?.error` and that string *becomes* the `McpToolError` message (for some callers it is **all** they ever see) ⇒ the type and site go **inline in `error`**; `:296` spreads the **whole envelope** into the tool's error payload (`...(envelope || {})`) ⇒ a new **`fault`** object arrives verbatim **with no node-side change**. `fault` = `{ type, message, site, frames[], inner[]?, wrappedIn? }`, `site` = `<dir>/<file>:<line> in <Type.Method>`.
+
+  ⭐⭐⭐ **The property that decides whether this is useful at all: a main-thread fault ALWAYS arrives WRAPPED.** `MainThreadJobQueue` completes jobs with `TrySetException`, so a single-inner `AggregateException` is unwrapped before the site is taken — ⛔ otherwise every site would name the **`await`** rather than the bug. The wrapper is kept in `wrappedIn` (crossing a Task boundary changes where you look); a *multi*-inner aggregate is left alone rather than discarding real branches.
+
+  ⚠ **Degradation is explicit:** file/line need PDBs beside the assembly; without them `site` becomes `Type.Method +IL_0042` — ⛔ **never nothing**, since an unlocatable failure is the thing this exists to prevent.
+
+  📌 **A landmine found by building it:** printing the fault via `JsonNode.ToJsonString(options)` throws *"JsonSerializerOptions instance must specify a TypeInfoResolver"* — the trap already documented at `DebugApiHost.cs:225`. The HTTP path is safe because it goes through `JsonSerializer`, ⛔ but "safe by a distinction two call sites deep" is exactly what stops being true quietly ⇒ a rail now serializes the **whole envelope the way the host writes it** and asserts the `site` survives.
+
+  ⭐ **Rails:** `Hrot.Editor.Tests/DebugApi/TheFaultReportNamesWhereItHappenedTests.cs` (**6**) — type+site inline · `Describe` carries type/site/frames · the aggregate reports the **real** throw site not the await · innermost cause is the origin and the chain is kept · an unthrown exception degrades instead of throwing · **it serializes on the wire path**. **Red-proof:** reverting `OneLine` to the bare message reddened **3 of 6** (exactly the `OneLine`-dependent ones; the `Describe` three correctly stayed green).
+
+  📐 **Gates:** `Hrot.Editor.Tests` **2 full runs Test Run Successful** with the change. ⚠ **The baseline is NOT clean and that was measured, not recalled:** with the change **stashed**, run 1 reddened on `EditorOrbatAdapterTests.RequestDisembark_…` and run 2 passed — a **pre-existing ROTATING flake** in this suite (the first red seen was a different test, `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected`, which passes **3/3 in isolation**). Same shape as `DEBT-AIB-030` in `Fdp.Toolkits.Tests`. ⇒ ⛔ neither a red nor a green in a single full run of this project is evidence.
+
+  ⚠ **Scope — the sibling ask is NOT done.** This is the *source-tracking* half. The **silent-swallow** half (6 sites where a WRITE discards your input and still answers `ok:true` — spawn's malformed transform and undeserializable component, two `float → 0f` fallbacks, a dropped GUID, `evt = null`) is measured and **still open**.
+
+  ⚠ **Lane note:** `DebugApi*.cs` is the **MCP lane**'s (`claude/mcp-authoring-commands-7l3n49`, ids `MX-`) declared territory; built on the UI lane at the user's direction.
+
+  📄 Design: [`ai-debug-api/DESIGN.md` — the envelope note](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/ai-debug-api/DESIGN.md) · caller-facing: [`ai-debug-mcp/skill-parts/10-mental-model.md`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/tools/ai-debug-mcp/skill-parts/10-mental-model.md)

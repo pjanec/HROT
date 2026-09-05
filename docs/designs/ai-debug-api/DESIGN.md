@@ -195,7 +195,39 @@ discrete-stepping flow: pause → POST command (returns, not awaited) → POST s
 Each capability defines the HTTP endpoint and the MCP tool together; tools are strictly 1:1 with
 endpoints. All bodies are JSON. `networkId` is the long network entity id (resolved via
 `NetworkEntityMap.TryGetEntity`). Responses include a standard envelope
-`{ ok, data?, error?, awaited? }`.
+`{ ok, data?, error?, awaited?, hint?, fault? }`.
+
+> ⭐⭐ **`fault` added `2026-09-05` (`CE-190`) — a 500 must say WHERE it happened.**
+> 🔒 **User:** *"ex.message in mcp response is not enough, can we add source tracking (where the exception
+> happened?)"*
+>
+> Both 500 paths reported `ex.Message` alone, which for the types that actually turn up mid-refactor names
+> nothing: a `NullReferenceException` reads as *"Object reference not set to an instance of an object."* —
+> no type, no method, no file, no line. `DebugApiFault` now produces two things, because **two consumers
+> read two different fields** (measured in `tools/ai-debug-mcp/src/index.mjs`):
+>
+> | output | goes to | why |
+> |---|---|---|
+> | `OneLine(ex)` | the `error` **string** | `:215` does `const msg = envelope?.error` and that becomes the `McpToolError` message — for some callers it is *all* they see, so the type and site must be inline |
+> | `Describe(ex)` | the new `fault` **object** | `:296` spreads the whole envelope into the tool's error payload, so the field arrives verbatim **with no client change** |
+>
+> `fault` = `{ type, message, site, frames[], inner[]?, wrappedIn? }`, `site` = `<dir>/<file>:<line> in <Type.Method>`.
+>
+> ⚠ **Two properties that are load-bearing, not incidental:**
+> - **A main-thread fault always arrives wrapped.** `MainThreadJobQueue` completes jobs with
+>   `TrySetException`, so a single-inner `AggregateException` is unwrapped before the site is taken —
+>   otherwise every site would name the `await` instead of the bug. The wrapper is kept in `wrappedIn`
+>   because crossing a Task boundary changes where you look. A *multi*-inner aggregate is left alone.
+> - **File/line need PDBs beside the assembly.** Without them `site` degrades to `Type.Method +IL_0042` —
+>   ⛔ never to nothing, since an unlocatable failure is the thing this exists to prevent.
+>
+> 📌 **Serialization is only safe on the `JsonSerializer` path.** Building this hit the trap documented at
+> `DebugApiHost.cs:225` — `JsonNode.ToJsonString(options)` throws *"JsonSerializerOptions instance must
+> specify a TypeInfoResolver"*. The HTTP path goes through `JsonSerializer` and is fine; a rail now pins
+> that the whole envelope serializes with its `site` intact, because "safe by a distinction two call sites
+> deep" is exactly what stops being true quietly.
+>
+> ⭐ Rails: `Hrot.Editor.Tests/DebugApi/TheFaultReportNamesWhereItHappenedTests.cs` (6).
 
 ### Group A — Lifecycle & Status
 | HTTP | MCP tool | Request → Response |
@@ -448,7 +480,9 @@ simultaneously needs a dedicated snapshot service (must not bypass `PreviewClust
   - *attach* — connect to an already-running instance at a configured URL (handy mid manual session).
   - **Kill = graceful-then-hard:** `POST /shutdown` (or SIGTERM) → wait with timeout → `SIGKILL` the
     child if still alive.
-- **Errors/timeouts:** HTTP errors surfaced as structured MCP tool errors with the API's message.
+- **Errors/timeouts:** HTTP errors surfaced as structured MCP tool errors with the API's message — and,
+  since `CE-190`, with the exception's **origin**: the `error` string carries `Type: message @ file:line in
+  Method`, and the envelope's `fault` object carries the frames and inner chain. See the envelope note above.
 - This self-contained launch → drive → stop is what makes the server usable inside **test-fix
   integration loops**.
 

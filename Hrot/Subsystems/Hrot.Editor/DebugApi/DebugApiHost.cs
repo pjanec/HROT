@@ -121,7 +121,13 @@ namespace Hrot.Editor.DebugApi
             bool NeedsService = true,
             Action? AfterResponse = null);
 
-        private readonly record struct RouteResult(int Status, JsonNode? Data, string? Error, JsonNode? Hint = null);
+        /// <param name="Fault">
+        /// ⭐⭐ <c>CE-190</c> — where an unhandled exception actually happened. Set only on the 500 paths;
+        /// see <see cref="DebugApiFault"/> for why the site travels in BOTH this field and the
+        /// <see cref="Error"/> string.
+        /// </param>
+        private readonly record struct RouteResult(
+            int Status, JsonNode? Data, string? Error, JsonNode? Hint = null, JsonNode? Fault = null);
 
         private static RouteResult Ok(JsonNode? data) => new(200, data, null);
 
@@ -142,6 +148,18 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         private static RouteResult Fail(int status, string error, string? hintCategory = null)
             => new(status, null, error, DebugApiHints.For(hintCategory));
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-190</c> — <see cref="Fail"/> for a route that CAUGHT an exception: same envelope, plus
+        /// the throw site in <c>fault</c>.
+        /// </summary>
+        /// <remarks>
+        /// ⛔ The <paramref name="error"/> string stays the caller's own sentence — a route that has built a
+        /// better explanation than the raw exception (<i>"the mission verb threw before it acknowledged"</i>)
+        /// must keep it. ⭐ This only adds the location the sentence could never carry.
+        /// </remarks>
+        private static RouteResult FailFault(int status, string error, Exception ex, string? hintCategory = null)
+            => new(status, null, error, DebugApiHints.For(hintCategory), DebugApiFault.Describe(ex));
 
         /// <summary>
         /// ⭐⭐ The status classification the AUTHORING routes share *(Group W)*, in one place so six
@@ -765,7 +783,7 @@ namespace Hrot.Editor.DebugApi
                 }
                 catch (Exception ex)
                 {
-                    return Fail(500, $"Recording module install failed: {ex.Message}");
+                    return FailFault(500, $"Recording module install failed: {DebugApiFault.OneLine(ex)}", ex);
                 }
 
                 return Ok(new JsonObject
@@ -786,7 +804,7 @@ namespace Hrot.Editor.DebugApi
                     fdpPath = await Service().CompleteRecordingStopAsync().ConfigureAwait(false);
                 }
                 catch (InvalidOperationException ex) { return Fail(400, ex.Message, DebugApiHints.Recording); }
-                catch (Exception ex) { return Fail(500, ex.Message); }
+                catch (Exception ex) { return FailFault(500, DebugApiFault.OneLine(ex), ex); }
 
                 // Phase 2 (main thread): exit preview (triggers rewind), return status.
                 var node = await _jobQueue.RunOnMainThread(() => Service().FinishRecordingStop())
@@ -1612,7 +1630,7 @@ namespace Hrot.Editor.DebugApi
             }
             catch (Exception ex)
             {
-                return Fail(500, $"The mission {verb} threw before it acknowledged: {ex.Message}", DebugApiHints.MissionTask);
+                return FailFault(500, $"The mission {verb} threw before it acknowledged: {DebugApiFault.OneLine(ex)}", ex, DebugApiHints.MissionTask);
             }
 
             if (!result.Success)
@@ -1705,7 +1723,14 @@ namespace Hrot.Editor.DebugApi
                 }
                 catch (Exception ex)
                 {
-                    result = Fail(500, ex.Message);
+                    // ⭐⭐⭐ CE-190 — an unhandled route fault reports WHERE it happened, not just what it
+                    //   said. `ex.Message` alone is unusable for the types that actually turn up mid-refactor
+                    //   (a NullReferenceException's message names no type, no method, no file, no line), and
+                    //   the caller is an agent on the far side of MCP with no debugger.
+                    // ⚠ The site goes in BOTH places on purpose: the node client reads `envelope.error` as
+                    //   the tool-error message (index.mjs:215) and separately spreads the whole envelope
+                    //   (:296), so a caller that only ever sees the string still gets the location.
+                    result = new RouteResult(500, null, DebugApiFault.OneLine(ex), null, DebugApiFault.Describe(ex));
                 }
 
                 // ⭐⭐⭐ CE-107 — THE SUCCESS BRANCH CARRIES THE HINT TOO. ⛔ It used to drop it, so an
@@ -1756,7 +1781,7 @@ namespace Hrot.Editor.DebugApi
                 //    `/logs?limit=400` could return the whole unfiltered ring in silence.
                 var envelope = result.Error is null
                     ? new ApiResponse(true, Data: result.Data, Hint: result.Hint)
-                    : new ApiResponse(false, Error: result.Error, Hint: result.Hint);
+                    : new ApiResponse(false, Error: result.Error, Hint: result.Hint, Fault: result.Fault);
                 await WriteResponseAsync(ctx, result.Status, envelope).ConfigureAwait(false);
 
                 // ⭐ Post-response hook — see RouteEntry.AfterResponse. Only /shutdown uses it, and only
@@ -1765,7 +1790,13 @@ namespace Hrot.Editor.DebugApi
             }
             catch (Exception ex)
             {
-                try { await WriteResponseAsync(ctx, 500, new ApiResponse(false, Error: ex.Message)).ConfigureAwait(false); }
+                // ⭐ CE-190 — the OUTER catch too. This one fires for failures OUTSIDE any route handler
+                //   (body parsing, routing, serializing the response), which are precisely the ones whose
+                //   message names nothing recognisable. ⛔ It was the harder of the two to diagnose and had
+                //   exactly the same one-line report.
+                try { await WriteResponseAsync(ctx, 500,
+                          new ApiResponse(false, Error: DebugApiFault.OneLine(ex), Fault: DebugApiFault.Describe(ex)))
+                          .ConfigureAwait(false); }
                 catch { /* response already started */ }
             }
         }
@@ -1877,5 +1908,11 @@ namespace Hrot.Editor.DebugApi
     /// <see cref="DebugApiHints"/>. ⭐ The prose in <c>Error</c> is unchanged and still carries the
     /// human explanation; this spares an agent parsing an endpoint name out of a sentence.</para>
     /// </summary>
-    public record ApiResponse(bool Ok, JsonNode? Data = null, string? Error = null, bool? Awaited = null, JsonNode? Hint = null);
+    /// <param name="Fault">
+    /// ⭐⭐⭐ <c>CE-190</c> — the throw site, frames and inner chain of an unhandled exception, so an MCP
+    /// caller can locate a 500 instead of only reading its message. Null on every non-500 response.
+    /// ⭐ It reaches the agent with no client change: <c>ai-debug-mcp/src/index.mjs:296</c> spreads the
+    /// whole envelope into the tool's error payload.
+    /// </param>
+    public record ApiResponse(bool Ok, JsonNode? Data = null, string? Error = null, bool? Awaited = null, JsonNode? Hint = null, JsonNode? Fault = null);
 }
