@@ -2213,6 +2213,14 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⭐⭐⭐ **④'s absence is [`CE-174`](Blueprint_Issues_Tracker.md) *(a tank creeps its 50 m, still cannot see its ASSIGNED hostile, and reverses to baseline)* — ✅ **CLOSED `2026-09-05` as NOT A DEFECT by user ruling** ⇒ ⛔⛔ **④ is EXPECTED BEHAVIOUR on `hill-attack`, not a missing link.** ⭐ The link that must hold is on the fixture: on **`hill-attack-close`** every slot reaches both hostiles and every tank engages on every wave *(`CE-175`)* — ⚠ **that** is the scenario a kill-chain verification runs against.** 📌 The live log carries `Action_ReverseToBaseline` on 1002 and 1004 verbatim, and the friendlies circle rather than close — `CE-174` ⑤ exactly. ⚠ **Not called a regression:** the scenario is explicitly non-deterministic and `CE-174`'s mechanism predicts kills are **intermittent** (a wave whose round-robin happens to hand each tank a reachable target does kill) — §4.1s recorded kills at `simTime 51.9` on `2026-09-04`. ⇒ **this run is a data point for that intermittency, not evidence of a new break.**
 
+  ### 🔴🔴🔴 CORRECTED `2026-09-05` — **the paragraph above is HALF WRONG, and the wrong half hid a real defect for the whole programme**
+
+  ⛔⛔ **`CE-174` explains why kills are INTERMITTENT on `hill-attack`. It never explained why they were ZERO — and they were zero on `hill-attack-close` too, the fixture built precisely so geometry could not be the excuse.** 📐 Measured: **6× `"Engaging target"`, zero `"Creep failed due to overshoot"` — and still nothing died.** ⇒ ⭐⭐⭐ **the real cause is [`CE-198`](Blueprint_Issues_Tracker.md) *(`FireProcessingSystem`'s `TD-6` authority gate is false by construction on the only node that runs it, so no bullet was EVER spawned on any topology)*.**
+
+  ⚠⚠ **And the `simTime 51.9` kill claim is RETRACTED** — re-measured on `--mode all` and it behaved exactly like the cluster: `WeaponFire` sent **0**, health unchanged. ⛔ **It was not re-reproducible.**
+
+  ⚠⚠⚠ **The lesson, named so it is not repeated:** ⭐ a *correct* explanation for a **weaker** observation (*"kills are intermittent"*) was accepted as an explanation for a **stronger** one (*"kills are absent"*). ⛔ **The tell was available and ignored: the fixture removed the geometry excuse and the outcome did not change.** ⇒ 🔒 **when a fixture is built to eliminate a cause and the symptom survives, the cause is NOT the cause.**
+
   ✅✅✅ **AND IT CLOSES `CE-167`'s TAIL QUESTION.** That row filed the `Health` divergence *(scenario `{50,50}`; Brain/CGF reads **50/50** ✅, Muscle/SimHost reads **3000/3000**)* and left an explicit open item: 🔒 *"NOT YET MEASURED — do not assume: which node applies damage. If it is the Muscle, this alone could make the hostiles effectively unkillable."* 📐 **Measured, per-translator:**
 
   | topic | node · direction | sent | recv |
