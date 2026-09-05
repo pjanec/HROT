@@ -5729,6 +5729,23 @@ not recognized`** — which reads like *"Windows only"* and is what the earlier 
 **targeting-pack** problem, and `EnableWindowsTargeting` fetches the pack from NuGet. ⛔ Passed on the
 COMMAND LINE, never written into the `.csproj`s: it is a property of the machine, not of the projects.
 
+### ⛔⛔⛔ THIS WAS ALREADY WRITTEN DOWN — **and that is worse than it being unmeasured** *(`R-129`)*
+
+📄 **[`DESIGN_Stride_Port.md`](DESIGN_Stride_Port.md) §7.4, dated `2026-08-23`, says it verbatim:** *"with
+`-p:EnableWindowsTargeting=true`, **`HrotStrideApp.Game` and `Hrot.Stride.Core.Tests` both build 0 errors**
+… the relocation is **compile-verified end to end on Linux**"* — and, in the same section, the other half:
+*"⛔ Still owed a Windows check: RUNNING the Stride suites … the test host wants
+`Microsoft.WindowsDesktop.App` 8.0.0."*
+
+⇒ ⛔⛔ **An earlier version of the row above claimed *"searched `docs/` + `.dev/`, no record"*. That was
+FALSE.** ⭐ Both halves of the boundary — compile YES, run NO — were in the corpus for two weeks, and
+*"Stride needs Windows, unverifiable from here"* did not merely lack evidence: **it CONTRADICTED a design
+document nobody had read.** ⚠ `R-129`'s trigger is *"before you TOUCH or design a change to an existing
+feature"* — and a claim about **whether a host can be verified at all** is exactly such a claim.
+
+⭐ **What this section actually contributes, stated honestly:** not the discovery — **the GATE**
+*(`scripts/stride-check.sh`, 6 projects rather than §7.4's 2, red-proofed)* and **the defect it caught**.
+
 ### 🔴 WHAT THE MISSING GATE COST — **and it is the whole answer to *"how will we find out?"***
 
 📐 Stride is **not in `IOS-IG-SimHost.sln`** *(measured: 0 `HrotStrideApp` entries)*, so nothing in the
