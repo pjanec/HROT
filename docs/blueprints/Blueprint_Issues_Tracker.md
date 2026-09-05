@@ -2381,6 +2381,32 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
+- [x] **CE-204** · `RW-L` ⭐⭐⭐ — **STRIDE IS COMPILE-VERIFIABLE OFF WINDOWS — AND NOT COMPILING IT MEANT `CE-203` SHIPPED A BROKEN HOST BEHIND A FULL GREEN GATE TABLE.** *(user: "stride need to be done on windows or can you do it yourself? how will we find out that it does not break during the conversion?")*
+
+  🔴🔴🔴 **THE DEFECT FIRST, because it is the argument.** `CE-203` `E1` widened `EditorSubsystem.TkbDatabase` to `ITkbDatabase` on the strength of a grep that said *"the only consumer, `EditorStrideSubsystem:996`, assigns it straight into an `ITkbDatabase`-typed field."* ⛔⛔ **It did not.** That property was declared `public TkbDatabase`, and **the Stride host did not compile from `8ad97c07f` onward** — while the whole solution built, ~4 700 tests ran, the UI value snapshot matched the control, and **every gate reported green.**
+
+  ⭐⭐⭐ **A grep tells you a NAME appears. It cannot tell you a TYPE fits.** That is the compiler's job, and the compiler was never asked — because **Stride is not in `IOS-IG-SimHost.sln`** *(measured: 0 `HrotStrideApp` entries)*, so nothing in the ordinary gate table compiles it.
+
+  ### 📐 THE BOUNDARY, MEASURED — ⛔ not inferred from `net8.0-windows`
+
+  | activity | off Windows |
+  |---|---|
+  | restore + **COMPILE** all 6 library/game/test projects | ✅ **YES** — `-p:EnableWindowsTargeting=true`, **43 s warm** |
+  | build `HrotStrideApp.Windows` *(the launcher)* | ⛔ Stride's asset compiler shells out with `--platform=Windows --compile-property:StrideGraphicsApi=Direct3D11`, exit 150 |
+  | **RUN** any Stride test | ⛔ the test host needs the **`Microsoft.WindowsDesktop.App` RUNTIME**, which has no Linux build |
+
+  ⚠ **Why the earlier belief was wrong:** without the flag the first error is `NETSDK1073: FrameworkReference 'Microsoft.WindowsDesktop.App' was not recognized`, which READS like *"Windows only"*. ⭐ It is a **targeting-pack** problem; `EnableWindowsTargeting` fetches the pack from NuGet. ⛔ **The claim *"Stride needs Windows, unverifiable from here"* was inherited from the TFM and never measured** — it is now corrected in the design's STATUS block and at §4.1z.
+
+  ⭐ **The fix is ONE LINE:** `EditorStrideSubsystem.TkbDb` widened to `ITkbDatabase`. 📐 Every *production* consumer already took the interface *(`StrideNedRenderDescriptors.Apply`, `StrideVisualBindingSystem`'s ctor)*; the concrete type survives only in test fixtures that CONSTRUCT one, and the standalone path still assigns `HrotEnvironment.CreateTkb()` — widening a property never breaks its writers.
+
+  ⭐⭐ **The gate: [`scripts/stride-check.sh`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/scripts/stride-check.sh)** — 6 projects, **43 s warm**, and it **degrades loudly**, printing what it can and cannot prove instead of a green that means less than it looks. ⭐ **Red-proof:** reverting the one line makes it print `STRIDE IS BROKEN` and name `EditorStrideSubsystem.cs:1002`.
+
+  ⛔⛔ **WHAT IT CANNOT DO.** It is a **COMPILE** check: it catches signature/type drift — the entire class of breakage a composition refactor produces — and **nothing** about behaviour. No Stride test runs, no scene loads, no frame is drawn. ⇒ **behavioural verification of the Stride host still needs a Windows machine, and that is a real remaining gap.** ⭐ Run this on every batch touching `Hrot.Editor` / `Hrot.Core` / `Hrot.Common` / `Fdp.Toolkits`, and say in the report that it is compile-only.
+
+  📄 [`DESIGN_Subsystem_Composition_Unification.md` §4.1z](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md).
+
+---
+
 - [x] **CE-203** · `RW-M` ⭐⭐⭐ — **PHASE `N`, HOST (d): THE EDITOR COMPOSES FROM `HrotNodeBuilder` — AND THE UI IS PROVEN UNCHANGED DOWN TO PANEL *VALUES*.** *(user: "i need the editor to be unified too of course" · "i do not want any UI to disappear … not just scenario functioning the same, ale GUI panels being still present and showing the same")*
 
   📐 **The duplication, measured before a line moved:** `EditorSubsystem.Initialize` re-implemented **EIGHT of `HrotNodeBuilder.Build()`'s ten steps** — world · accumulator+kernel · bus + `OrchestrationEventRegistry.RegisterAll` · time controller · entity map · `ClusterSlave` · TKB · geo transform — each with the *identical* call. ⛔ The blocker was never the code: `Build()` hardwired `TimeRole.Slave` and this host is the time authority, which is what `CE-201` (`N₀`) unblocked.

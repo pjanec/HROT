@@ -193,7 +193,13 @@ public sealed class EditorStrideSubsystem : IDisposable
     /// The TKB database used by this subsystem.
     /// Exposed so tests can inspect which templates were registered.
     /// </summary>
-    public TkbDatabase TkbDb { get; private set; } = null!;
+    // ⚠ CE-203 — widened from TkbDatabase to the interface, because the hosted path at :996 now takes
+    //   EditorSubsystem.TkbDatabase, which is ITkbDatabase since the editor's instance comes from
+    //   HrotNodeContext.TkbDb. 📐 Measured: every PRODUCTION consumer already took the interface
+    //   (StrideNedRenderDescriptors.Apply, StrideVisualBindingSystem's ctor), and the concrete type
+    //   survives only in test fixtures that CONSTRUCT one. ⛔ The standalone path at :592 still assigns
+    //   the concrete HrotEnvironment.CreateTkb() result — widening a property never breaks its writers.
+    public ITkbDatabase TkbDb { get; private set; } = null!;
 
     // ── Physics body service + lifecycle (P1, STR-P1-T2) ─────────────────
 

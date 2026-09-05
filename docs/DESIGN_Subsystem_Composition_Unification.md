@@ -32,7 +32,19 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
         §4.1j marks node-bootstrap adoption "optional, LAST" because it is the only phase touching
         orchestration/participant/time authority. The two axes are orthogonal and CGF is the case that
         proves it. Still untouched: the EDITOR (neither axis) and STRIDE.
-        🔒 User ruling 2026-09-05: STRIDE IS LAST — and Stride needs Windows, unverifiable from here.
+        🔒 User ruling 2026-09-05: STRIDE IS LAST.
+        ⚠⚠ CORRECTED 2026-09-05, SAME DAY: this line used to add "and Stride needs Windows,
+        unverifiable from here." THAT WAS WRONG and it was never measured — it was inherited
+        from CLAUDE.md's note that Stride targets net8.0-windows. Measured: every Stride library,
+        game and TEST project COMPILES on Linux with -p:EnableWindowsTargeting=true (43 s warm,
+        `bash scripts/stride-check.sh`). What genuinely cannot happen here is RUNNING (the
+        Microsoft.WindowsDesktop.App runtime does not exist on Linux) and building the
+        HrotStrideApp.Windows launcher (Stride's asset compiler wants Direct3D11).
+        🔴 The cost of the wrong belief, measured: CE-203 E1 widened EditorSubsystem.TkbDatabase
+        to ITkbDatabase on the strength of a grep that said the only consumer assigned it into an
+        ITkbDatabase field. It did not — EditorStrideSubsystem.TkbDb was typed TkbDatabase, and
+        the Stride host was BROKEN from 8ad97c07f until CE-204 fixed it, while the whole solution
+        built and every gate stayed green. See §4.1z.
     (a2) ⭐ THE EDITOR: phase N₀ landed (CE-201, the time role is a builder input) and the ADOPTION is
         designed at §4.1y (CE-203), build-state READY-TO-BUILD, sliced E1/E2/E3. Read §4.1y before
         touching EditorSubsystem.Initialize — it measures which eight builder steps the editor
@@ -5688,3 +5700,52 @@ order-dependent in both directions**, which is the character `RULINGS.md` alread
 ⛔ **Stated plainly rather than dressed up:** this suite cannot confirm or refute a change of this size. ⭐
 The gate that CAN is `EditorSubsystemBootTests` — the feature's own suite, **12/0** — plus the live UI value
 comparison above.
+
+
+---
+
+## ⭐⭐⭐ §4.1z — **CE-204: STRIDE IS COMPILE-VERIFIABLE OFF WINDOWS, AND NOT COMPILING IT COST A BROKEN HOST** `build-state: BUILT` *(`2026-09-05`)*
+
+> 🔒 **User, `2026-09-05`:** *"stride need to be done on windows or can you do it yourself? how will we
+> find out that it does not break during the conversion?"*
+
+### 📐 THE BOUNDARY, MEASURED — ⛔ not derived from the TFM
+
+| activity | off Windows |
+|---|---|
+| restore + **COMPILE** all 6 library/game/test projects | ✅ **yes**, with `-p:EnableWindowsTargeting=true` — **43 s warm** |
+| build **`HrotStrideApp.Windows`** *(the launcher)* | ⛔ **no** — Stride's asset compiler shells out with `--platform=Windows --compile-property:StrideGraphicsApi=Direct3D11` and exits 150 *(`MSB3073`)* |
+| **RUN** any Stride test | ⛔ **no** — *"You must install or update .NET"*: the test host needs the **`Microsoft.WindowsDesktop.App` RUNTIME**, which has no Linux build |
+| run the app | ⛔ no — Windows + GPU |
+
+⚠ **Without the flag the first error is `NETSDK1073: FrameworkReference 'Microsoft.WindowsDesktop.App' was
+not recognized`** — which reads like *"Windows only"* and is what the earlier note assumed. ⭐ It is a
+**targeting-pack** problem, and `EnableWindowsTargeting` fetches the pack from NuGet. ⛔ Passed on the
+COMMAND LINE, never written into the `.csproj`s: it is a property of the machine, not of the projects.
+
+### 🔴 WHAT THE MISSING GATE COST — **and it is the whole answer to *"how will we find out?"***
+
+📐 Stride is **not in `IOS-IG-SimHost.sln`** *(measured: 0 `HrotStrideApp` entries)*, so nothing in the
+ordinary gate table compiles it. ⇒ `CE-203` `E1` widened `EditorSubsystem.TkbDatabase` to `ITkbDatabase`
+on the strength of a grep that said *"the only consumer assigns it straight into an `ITkbDatabase` field"*.
+⛔⛔ **It did not.** `EditorStrideSubsystem.TkbDb` was declared `public TkbDatabase`, and the Stride host
+**did not compile** from `8ad97c07f` onward — while the full solution built, ~4700 tests ran, the UI
+snapshot matched and every gate reported green.
+
+⭐⭐⭐ **A grep tells you a name appears. It does not tell you a TYPE fits.** That is the class of error the
+compiler exists to catch, and the compiler was never asked.
+
+### ✅ THE FIX AND THE GATE
+
+| | |
+|---|---|
+| ⭐ **the fix** | `EditorStrideSubsystem.TkbDb` widened to `ITkbDatabase` — **one line**. 📐 Every PRODUCTION consumer already took the interface *(`StrideNedRenderDescriptors.Apply`, `StrideVisualBindingSystem`'s ctor)*; the concrete type survives only in test fixtures that CONSTRUCT one. ⛔ The standalone path at `:592` still assigns `HrotEnvironment.CreateTkb()` — widening a property never breaks its writers |
+| ⭐⭐⭐ **the gate** | 📄 **`scripts/stride-check.sh`** — 6 projects, **43 s warm**, and it **degrades loudly**: it prints what it can and cannot prove rather than reporting a green that means less than it looks |
+| ⭐ **red-proof** | reverting the one-line fix makes the gate print `STRIDE IS BROKEN` and name `EditorStrideSubsystem.cs:1002` |
+
+⛔⛔ **WHAT THIS GATE CANNOT DO, so nobody over-trusts it.** It is a **COMPILE** check. It catches
+signature and type drift — the entire class of breakage a composition refactor produces — and it catches
+**nothing** about behaviour: no Stride test runs, no scene loads, no frame is drawn. ⭐ Behavioural
+verification of the Stride host still needs a Windows machine, and that is a genuine remaining gap, not a
+formality. ⇒ **run this gate on EVERY batch that touches `Hrot.Editor`, `Hrot.Core`, `Hrot.Common` or
+`Fdp.Toolkits`, and say in the report that it is compile-only.**
