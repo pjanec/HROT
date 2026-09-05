@@ -2403,6 +2403,30 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⭐⭐ **Gates:** `HrotNodeBuilderTests` **9/0** *(+2 rails; red-proof: deleting the one-line exposure reddens both and nothing else)* · `Hrot.ClusterRunner.Tests` **274/5** *(the 5 are the baselined pre-existing `OrchestratorSubsystemTests` ×3 + `DataDrivenGizmoPredicateTests` ×2)* · ⭐ **`EditorSubsystemBootTests` 12/0** — the feature's OWN suite (`R-142` T-1), and two of its rails assert precisely the invariant this change moves: the master drains a time intent published on the orchestration bus, and that bus carries the time-control registrations.
 
+  ### ⭐⭐ `E2` — **THE PRIVATE `SequentialIdAllocator` DIES, AND THE CODE HAD ALREADY WRITTEN DOWN WHY IT SHOULD**
+
+  📐 **THREE** copies of one class: `Hrot.Core.Network`'s *(shared)*, `EditorSubsystem`'s private nested one, `EditorHarness`'s test copy. ⛔⛔ **The shared class's own remarks record that the first two DISAGREED** — `Reset(1000)` issued `1001` there and `1000` in the editor — a divergence `HN-037` had to correct one level down. ⇒ a second implementation had already cost a real defect before this batch touched it. **26th measured instance of the seam law.**
+
+  ⭐⭐ **And the wiring existed too.** `OfflineNetworkFactory` — *in `Hrot.Editor`, used by `EditorStrideSubsystem:109` and two test suites* — has always returned the shared allocator. ⛔ **The editor was the one offline host not using its own offline factory.**
+
+  ⭐⭐⭐ **It is NOT a behaviour change, and that is measured not hoped.** The shared allocator PRE-increments from 1, the deleted one POST-incremented from 1000 — but `INetworkIdAllocator.Reset`'s contract is stated on the OBSERVABLE *("after this returns, the next id issued is `startId`")*, so one `Reset(WorldIdAuthority.WorldBase)` reproduces the sequence exactly. ⚠ `ClusterMaster.cs:918` already resets this same allocator to `WorldBase` at every scenario load, so the two only ever differed BEFORE the first load.
+
+  ⚠ **A capability nearly lost silently:** `PreviewParticipants.IdAllocator` **type-TESTS** for `IRestorableIdAllocator` and degrades quietly when absent. The shared class implements it — and a rail now asserts that rather than assuming it.
+
+  ⭐⭐ **`E2` gates:** `ThereIsOneSequentialIdAllocatorTests` **3/0** *(the allocator issues 1000/1001/1002 after `Reset(WorldBase)` · it IS the shared class and still restores a preview position · exactly ONE production file declares it)* · red-proof: re-adding a nested `class SequentialIdAllocator` reddens the structural rail **and only it** · `Hrot.Editor.Tests` **363/0** · ⭐⭐ **live `--mode editor`: entities still `1000…1007`**, and an E1-control-vs-E2 UI value diff shows **only the 4 timestamped message logs**.
+
+  ⛔⛔ **THE `assetCount` CONFOUND FIRED TWICE, AND THE SECOND TIME WAS EXPECTED.** `49 → 92` was the binary DIRECTORY *(the first "before" ran from a `/tmp` copy)*; `92 → 95` was the REBUILD *(the E1 code rebuilt in the same output state also reads 95)*. ⇒ ⭐ **`assetCount` is an environment reading, never a regression signal** — pair any before/after with a same-build control.
+
+  ### ⚠ THE INTEGRATION SUITE — **baselined, and it does not gate**
+
+  | run *(~12 min each)* | result |
+  |---|---|
+  | ⭐ parent `06e9ed8d5`, clean worktree — **the BASELINE** | **21 failed / 269 passed / 293** |
+  | this branch, clean re-run | **23 / 267 / 293** |
+  | ⛔ this branch, first pass | **ABORTED** — 30 `Failed` rows, **no summary line**; the host died mid-run ⇒ not comparable, **not used** |
+
+  ⭐⭐ The four that differ **pass IN ISOLATION** on the changed tree *(4/0)*, and two that failed in the BASELINE pass here ⇒ **the identity set is order-dependent in both directions.** ⛔ Stated plainly: this suite cannot confirm or refute a change of this size; `EditorSubsystemBootTests` **12/0** and the live UI value comparison are what actually gate it.
+
   📄 Design: [`DESIGN_Subsystem_Composition_Unification.md` §4.1y](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md) — INVENTORY, the step-by-step duplication table, the decisions, and the `classDiagram` + `sequenceDiagram` (obligation ①).
 
 ---

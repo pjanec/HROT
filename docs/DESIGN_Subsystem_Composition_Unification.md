@@ -5415,7 +5415,7 @@ sequenceDiagram
 
 ---
 
-## ⭐⭐⭐ §4.1y — **CE-203: PHASE `N`, HOST (d) — THE EDITOR ADOPTS `HrotNodeBuilder`** `build-state: E1 BUILT · E2/E3 DESIGNED` *(`2026-09-05`)*
+## ⭐⭐⭐ §4.1y — **CE-203: PHASE `N`, HOST (d) — THE EDITOR ADOPTS `HrotNodeBuilder`** `build-state: E1 + E2 BUILT · E3 DESIGNED` *(`2026-09-05`)*
 
 > 🔒 **User, `2026-09-03`:** *"i need the editor to be unified too of course."*
 > 🔒 **User, `2026-09-05`, the constraint that shapes the whole slice:** *"i do not want any UI to
@@ -5622,3 +5622,69 @@ the pre-change build from a COPY at `/tmp/prechange/` and reported `assetCount 4
 `92`. 📐 The proper control — pre-change code rebuilt at the **normal path** — also reports `92`. ⇒ the AI
 asset catalog is discovered **relative to the binary directory**, so the 49 measured *where I ran it*, not
 what I changed. ⭐ **A before/after captured from two different directories is not a control.**
+
+
+### ✅ `E2` AS-BUILT — **the private allocator dies, and the shared one was already being built for every other offline host** *(`2026-09-05`)*
+
+⭐⭐⭐ **The seam law, for the 26th measured time — and this one the CODE ITSELF had written down.** There
+were **THREE** `SequentialIdAllocator` classes: `Hrot.Core.Network`'s *(shared)*, `EditorSubsystem`'s private
+nested one, and `EditorHarness`'s test copy. ⛔ The shared class's own remarks record that the first two
+**DISAGREED** — `Reset(1000)` issued `1001` there and `1000` in the editor — a divergence `HN-037` had to
+correct one level down. ⚠ **A second implementation had already cost a real defect before this batch
+touched it.**
+
+⭐⭐ **And the wiring existed too:** `OfflineNetworkFactory` — *in `Hrot.Editor`, and used by
+`EditorStrideSubsystem:109` and two test suites* — has always returned the shared allocator from
+`CreateIdAllocator`. ⇒ ⛔ **the editor was the one offline host not using its own offline factory.**
+
+| the design said *(decision ⑤)* | what was built |
+|---|---|
+| *"an offline `INetworkFactory` supplies it"* | ✅ `.WithNetworkFactory(new OfflineNetworkFactory())` on the builder; `_node.IdAllocator` is the shared instance |
+| ⛔ *"behaviour change — verify separately"* | ⭐⭐ **it is NOT a behaviour change, and that is a measurement not a hope**: the shared allocator PRE-increments from 1 and the deleted one POST-incremented from 1000, but `INetworkIdAllocator.Reset`'s contract is stated on the **observable** — *"after this returns, the next id issued is `startId`"* — so one `Reset(WorldIdAuthority.WorldBase)` reproduces the old sequence exactly |
+| — | ⚠ **`ClusterMaster.cs:918` already resets this same allocator to `WorldBase` at every scenario load**, so the two only ever differed in the window BEFORE the first load. The explicit reset covers exactly that window |
+| — | ⭐ **construct the factory, do not use the injected one.** `EditorSubsystem(INetworkFactory _)` ignores its argument by design *(the runner injects whatever the RUN is)*; the editor is an offline node by definition, and `EditorStrideSubsystem` already constructs its own |
+
+⭐ **Nothing else in `OfflineNetworkFactory` is reached.** Every other member returns a `Null*` stub, and
+`Headless = true` means `Build()` takes neither the DDS branch nor the slave-translator branch. ⇒ the only
+object this changes is the allocator.
+
+⚠ **The preview capability is load-bearing and was nearly lost silently.** `PreviewParticipants.IdAllocator`
+**type-TESTS** for `IRestorableIdAllocator` and degrades quietly when it is absent — the silent-default
+shape. The deleted copy implemented it; the shared one does too, and a rail now asserts it rather than
+assuming it.
+
+#### ✅ VERIFIED
+
+| gate | result |
+|---|---|
+| ⭐⭐ **`ThereIsOneSequentialIdAllocatorTests`** *(3 rails, `Hrot.Editor.Tests`)* | **3 / 0** — the offline factory's allocator after `Reset(WorldBase)` issues **1000, 1001, 1002**; it IS the shared class and still restores a preview position; and **exactly one production file declares the class** |
+| ⭐ **red-proof** | re-adding a nested `class SequentialIdAllocator` to `EditorSubsystem` reddens the structural rail **and only it** |
+| ⭐ `Hrot.Editor.Tests` | **363 / 0** *(1 skipped)* |
+| ⭐⭐⭐ **live `--mode editor`** | the scenario's entities still carry ids **1000, 1001, … 1007** — the exact sequence the deleted allocator issued |
+| ⭐⭐ **UI values, E1-control vs E2** *(same build state, only the allocator differs)* | **only the 4 timestamped message-log panels differ** — below even the E1 noise floor |
+
+⛔⛔ **THE SAME CONFOUND FIRED AGAIN, AND THIS TIME I EXPECTED IT.** `assetCount` read **92** before the E2
+build and **95** after, with every other field of that panel identical. 📐 Control: the **E1 code rebuilt in
+the same output state** also reports **95**. ⇒ the AI asset catalog tracks the BUILD/OUTPUT state, not this
+change — twice now (`49 → 92` on the directory, `92 → 95` on the rebuild). ⭐ **Treat `assetCount` as an
+environment reading, never as a regression signal**, and pair any before/after with a same-build control.
+
+
+### ⚠ THE INTEGRATION SUITE — **baselined, and it does not gate**
+
+📐 Measured three ways on `Hrot.ClusterRunner.Integration.Tests` *(~12 minutes per pass)*:
+
+| run | result |
+|---|---|
+| parent commit `06e9ed8d5` *(the BASELINE, in a clean worktree)* | **21 failed / 269 passed / 293** |
+| this branch, clean re-run | **23 failed / 267 passed / 293** |
+| ⛔ this branch, first pass | **aborted** — 30 `Failed` rows and NO summary line ⇒ the test host died mid-run. **Not comparable, and not used** |
+
+⭐⭐ **The four that differ pass IN ISOLATION on the changed tree** *(`HrotRunnerHarnessTests` ×3 +
+`ReplicationPhaseExecutionTests.DisposalMonitoringSystem_PrunesMapAfterEntityDestroyed` — 4/0)*, and two
+that failed in the BASELINE (`TimeControlIntegrationTests` ×2) pass here. ⇒ **the identity set is
+order-dependent in both directions**, which is the character `RULINGS.md` already records for this suite.
+
+⛔ **Stated plainly rather than dressed up:** this suite cannot confirm or refute a change of this size. ⭐
+The gate that CAN is `EditorSubsystemBootTests` — the feature's own suite, **12/0** — plus the live UI value
+comparison above.

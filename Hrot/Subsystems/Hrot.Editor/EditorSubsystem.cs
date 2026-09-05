@@ -607,23 +607,16 @@ namespace Hrot.Editor
             }
         }
 
-        // ?? Nested helper: offline sequential ID allocator ????????????????????
-
-        private sealed class SequentialIdAllocator : INetworkIdAllocator, IRestorableIdAllocator
-        {
-            private long _next = 1000;
-            public long AllocateId()            => _next++;
-            public void Reset(long startId = 0) => _next = startId;
-
-            // ⭐⭐ HN-017 — the preview dry-run position. 📄 DESIGN_Deterministic_Network_Ids.md §4c.
-            // ⚠ POST-increment here, so `_next` is the NEXT id to issue — the Hrot.Core one pre-increments
-            //   and holds the LAST issued. 📌 §4b: both satisfy "restore my position"; no single NAME for
-            //   the value would be true of both, which is why the contract is the restore, not the read.
-            public object? CaptureIssuingPosition()               => _next;
-            public void RestoreIssuingPosition(object snapshot)    { if (snapshot is long v) _next = v; }
-
-            public void Dispose() { }
-        }
+        // ⛔⛔⛔ CE-203 `E2` — THE PRIVATE `SequentialIdAllocator` THAT STOOD HERE IS GONE.
+        //
+        // 📐 It was the SECOND of three copies of one class, and the shared one
+        //    (`Hrot.Core.Network.SequentialIdAllocator`) records in its own remarks that the two DISAGREED:
+        //    `Reset(1000)` issued 1001 there and 1000 here, until `HN-037` corrected the contract. ⭐ The
+        //    editor now takes the shared instance off `HrotNodeContext.IdAllocator`, which
+        //    `OfflineNetworkFactory` was already building for every other offline host.
+        //
+        // ⚠ Deliberately DESCRIBED, not quoted: a source-scan rail that looks for a second declaration must
+        //   not be satisfied by a comment containing the old code.
 
         // ?? Internal test accessors ???????????????????????????????????????????
 
@@ -993,6 +986,15 @@ namespace Hrot.Editor
                     // ⭐ Standalone, NOT Master: what `new TimeControllerConfig { Role = TimeRole.Standalone }`
                     //   said here before, and TimeControllerFactory routes both to MasterSyncController.
                     .WithTimeRole(TimeRole.Standalone)
+                    // ⭐⭐⭐ CE-203 `E2` — the offline factory supplies the id allocator, so this host stops
+                    //   carrying its own. 📄 §4.1y `E2`. ⛔ Constructed here rather than taken from the ctor's
+                    //   injected factory ON PURPOSE: the runner injects whatever the RUN is, and the editor is
+                    //   an offline node by definition — `EditorStrideSubsystem:109` does the same.
+                    //   ⚠ Every other member of OfflineNetworkFactory returns a Null* stub, and none of them
+                    //     is reached: `Headless = true` means no participant, so Build() takes neither the DDS
+                    //     branch nor the slave-translator branch. The ONLY thing this changes is which
+                    //     allocator object exists.
+                    .WithNetworkFactory(new OfflineNetworkFactory())
                     .Build();
 
             // ?? 1. ECS world ?????????????????????????????????????????????????
@@ -1282,7 +1284,24 @@ namespace Hrot.Editor
             //   TkbDatabase.Register rejects a duplicate name or type.
             //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
             if (!_world.HasSingletonManaged<ITkbDatabase>()) _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
-            var idAllocator       = new SequentialIdAllocator();
+            // ⭐⭐⭐ CE-203 `E2` — THE SHARED ALLOCATOR, NOT A THIRD COPY OF IT.
+            //
+            // 📐 There were THREE `SequentialIdAllocator` classes in the tree: `Hrot.Core.Network`'s (the
+            //    shared one, which `OfflineNetworkFactory.CreateIdAllocator` already returns), this host's
+            //    private nested one, and `EditorHarness`'s test copy. ⛔ The shared class's own remarks
+            //    record that this host's copy DISAGREED with it — `Reset(1000)` handed out 1001 there and
+            //    1000 here — which `HN-037` had to correct one level down. That is the divergence a second
+            //    implementation buys you, written down by the code itself.
+            //
+            // ⭐⭐ `Reset(WorldBase)` is what makes this behaviour-IDENTICAL, and it is not a fudge: the
+            //    shared allocator PRE-increments from 1, this host's POST-incremented from 1000, and the
+            //    interface contract is stated on the OBSERVABLE — "after this returns, the next id issued is
+            //    startId". ⇒ one call reproduces the old first id exactly. ⚠ And it is the same constant
+            //    `ClusterMaster` already resets this allocator to at every scenario load
+            //    (`ClusterMaster.cs:918`), so after the first load the two were always going to agree —
+            //    this line only covers the window BEFORE any load.
+            var idAllocator       = _node.IdAllocator!;
+            idAllocator.Reset(Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.WorldBase);
             // ⭐ HN-017 — held so the preview bracket can be given it at :8. 📌 The 2026-08-16 rule: a
             //   production caller that HAS a dependency must PASS it, and it cannot pass what it dropped.
             _idAllocator = idAllocator;
