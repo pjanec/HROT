@@ -1797,7 +1797,20 @@ what it points at.
 
 ---
 
-- [ ] **CE-174** · `RW-L` 🔴🔴 — **A TANK GIVES UP ITS ATTACK RUN 50 m PAST ITS FIRING SLOT BECAUSE ITS *ASSIGNED* TARGET IS UNREACHABLE BY SIGHT: ROUND-ROBIN TARGET ALLOCATION IGNORES GEOMETRY.** ⭐⭐⭐ **HOST-INDEPENDENT — measured identically on `--mode all` AND `--mode editor`.** ⛔ **Needs a user ruling before any code change: the round-robin rule is EXPLICIT DESIGN**, not an oversight.
+- [x] **CE-174** · `RW-L` ✅ — **CLOSED `2026-09-05` AS *NOT A DEFECT*, BY USER RULING.** ⛔ **No code change was made and none is wanted.** ⭐⭐ A tank that creeps its 50 m, still cannot see its *assigned* hostile, and reverses to baseline is **the simulation working as designed** — `VisionRange` stands in for the hill, and tanks are not to chase targets. ⭐ Tests that need predictable geometry use [`CE-175`](Blueprint_Issues_Tracker.md)'s **`scenarios/hill-attack-close/`** fixture; ⛔ `scenarios/hill-attack/` is the user's and stays untouched.
+
+  > 🔒 **User, verbatim, `2026-09-05`:** *"CE 174 tank creeping to targets that never get in range is not an error to be fixed. You created special version of hill attack scenario with short firing line to make sure this never happens in tests."*
+
+  ⭐ **What stays true and load-bearing from the analysis below** *(so nothing is lost by the closure)*:
+  - the mechanism ①–⑤ is **correctly measured** — it is the *verdict* that was wrong, not the measurement;
+  - ⭐⭐ **`Random.Shared` at `HillAttackCommanderNodes.cs:354` is unseeded**, so two runs of the **same** host differ ⇒ ⛔ **run-to-run variation on `hill-attack` must never be read as a host divergence.** 🔒 The user's own seeded-RNG design point *(`2026-09-04`)* remains **open and unfiled** — it is the one genuinely actionable item this row surfaced;
+  - ⚠ **`Condition_IsWaveCompleted`'s `targets == 0` exit is still unexercised** on `hill-attack` — it *is* exercised on `hill-attack-close`, where waves complete cleanly.
+
+  ⇒ ⭐⭐⭐ **Consequently [`CE-195`](Blueprint_Issues_Tracker.md)'s missing link ④ *(no kills observed on a live `hill-attack` run)* is EXPECTED BEHAVIOUR, not an open defect** — see that row's own note.
+
+## ⛔ HISTORY — CE-174's original framing *(⚠ RETRACTED; do NOT quote as current)*
+
+  ⛔⛔ **Everything from here to the end of this row is the pre-ruling framing.** ⭐ It is retained because its **measurements** are sound and cited elsewhere; ⛔ its **conclusion — that this was a defect — and its options A–D are VOID.**
 
   ⭐⭐ **This is what remained after [`CE-172`](Blueprint_Issues_Tracker.md) *(the area query never reached DDS)* unblocked the commander.** With `CE-172` fixed, the cluster runs the whole doctrine — baseline → EQS → wave dispatch → creep → engage → retreat — and both hosts now fail at the same place.
 
@@ -2198,7 +2211,7 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⭐⭐ **The health of the run itself:** **zero** exceptions, **zero** `ERROR` lines, **zero** `[ModuleHost] … exception` in the whole log — a real improvement over the `CE-172` era, where the root cause was an `ERROR` line printed every tick.
 
-  ⭐⭐⭐ **④'s absence is [`CE-174`](Blueprint_Issues_Tracker.md) *(round-robin target allocation ignores geometry — a tank creeps its 50 m, still cannot see its ASSIGNED hostile, and reverses to baseline)*, which is already open, host-independent, and awaiting a user ruling because the round-robin rule is explicit design.** 📌 The live log carries `Action_ReverseToBaseline` on 1002 and 1004 verbatim, and the friendlies circle rather than close — `CE-174` ⑤ exactly. ⚠ **Not called a regression:** the scenario is explicitly non-deterministic and `CE-174`'s mechanism predicts kills are **intermittent** (a wave whose round-robin happens to hand each tank a reachable target does kill) — §4.1s recorded kills at `simTime 51.9` on `2026-09-04`. ⇒ **this run is a data point for that intermittency, not evidence of a new break.**
+  ⭐⭐⭐ **④'s absence is [`CE-174`](Blueprint_Issues_Tracker.md) *(a tank creeps its 50 m, still cannot see its ASSIGNED hostile, and reverses to baseline)* — ✅ **CLOSED `2026-09-05` as NOT A DEFECT by user ruling** ⇒ ⛔⛔ **④ is EXPECTED BEHAVIOUR on `hill-attack`, not a missing link.** ⭐ The link that must hold is on the fixture: on **`hill-attack-close`** every slot reaches both hostiles and every tank engages on every wave *(`CE-175`)* — ⚠ **that** is the scenario a kill-chain verification runs against.** 📌 The live log carries `Action_ReverseToBaseline` on 1002 and 1004 verbatim, and the friendlies circle rather than close — `CE-174` ⑤ exactly. ⚠ **Not called a regression:** the scenario is explicitly non-deterministic and `CE-174`'s mechanism predicts kills are **intermittent** (a wave whose round-robin happens to hand each tank a reachable target does kill) — §4.1s recorded kills at `simTime 51.9` on `2026-09-04`. ⇒ **this run is a data point for that intermittency, not evidence of a new break.**
 
   ✅✅✅ **AND IT CLOSES `CE-167`'s TAIL QUESTION.** That row filed the `Health` divergence *(scenario `{50,50}`; Brain/CGF reads **50/50** ✅, Muscle/SimHost reads **3000/3000**)* and left an explicit open item: 🔒 *"NOT YET MEASURED — do not assume: which node applies damage. If it is the Muscle, this alone could make the hostiles effectively unkillable."* 📐 **Measured, per-translator:**
 
