@@ -2381,6 +2381,60 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
+- [ ] **CE-205** · `RW-M` ⭐⭐⭐ — **`StrideCapabilities` — THE STRIDE CAPABILITY DECLARATIONS, host (e) of the seam.** *(user: "of course the bootstrap/composition should be shared/unified as much as possible")*
+
+  ⭐ The 4th host onto `NodeCompositionPlan`, after SimHost (`§4.1s`), IG (`§4.1t`) and CGF (`§4.1x`). Declares `MuscleGround` · `NavigationSolver` · `Perception` · *(`ImageGenerator` — see the open question)* from the modules that already exist: `StrideMuscleModuleSet` = `StrideKinematicsModule` + `CombatModule` + `DamageAssessmentModule` + `NavigationIntentBridgeSystem` + `RouteTrajectorySyncSystem` + `PersonalRouteAuthoringSystem` + `VehicleNavigationIntentSystem`.
+
+  ⛔ **This is the UNIT both modes consume** — it is what makes mode 1 and mode 2 the same composition rather than two hand-rolled ones. 📄 `§4.1aa`.
+
+---
+
+- [ ] **CE-206** · `RW-M` ⭐⭐⭐ — **PERCEPTION IS DECLARED AND UNFILLED ON STRIDE — AND THE STRIDE-NATIVE PIECE ALREADY EXISTS.** *(user: "of course perception needs to be filled")*
+
+  📐 **Measured:** `StrideNodeBootstrapper.Role` declares `Perception`, and its `perceptionModule` ctor slot is **`null` at every call site**. `StrideMuscleModuleSet` contains **no** perception module. `new EqsModule()` / `new CognitiveSpatialModule(...)` appear in SimHost, the editor and tests — ⛔ **nowhere in `Stride/`**. Stride registers `EqsResultUpdateSystem` *(the CONSUMER of EQS results)* with **no `EqsModule`** *(the solver that produces them)*.
+
+  ⚠⚠ **Today this is MASKED** — `CgfLogicPack` (Brain) sits in the same world in both existing modes, so perception-ish behaviour appears to work. ⛔ **In mode 2 CGF is a separate node and the mask is gone.** ⇒ this is a prerequisite for `CE-207`, not a follow-up.
+
+  ⭐⭐⭐ **THE SEAM LAW, 27th instance — the Stride-native half is BUILT and UNADOPTED.** `Hrot.Stride.Core/StrideRaycastLosService` is a *"drop-in replacement … satisfies `ILosService` exactly, replacing the flat spatial-hash approximation with a real 3-D raycast against Stride/Bullet scene geometry"*. ⇒ ⭐ the fill is **`EqsModule` + `CognitiveSpatialModule` with `StrideRaycastLosService` injected as the `ILosService`**, mirroring `SimHostCapabilities.PerceptionSolver` + `Perception:spatial`. ⛔ **Not a new perception implementation.**
+
+  ⚠ **To verify during the build:** that `EqsModule` actually takes an `ILosService` on a seam this can reach — measured only as far as `FindCoverFromTarget.Build(ILosService)`.
+
+---
+
+- [ ] **CE-207** · `RW-H` ⭐⭐⭐ — **MODE 2: STRIDE AS A NETWORKED NODE REPLACING SimHost, BESIDE A CGF NODE.** 🔒 *(user: "stride as standalone networked node, replacing SimHost, running in cluster with cgf node")*
+
+  ⭐⭐⭐ **THE MACHINERY IS ALREADY WRITTEN — IT HAS NO CALLER.** `StrideNodeBootstrapper` is a `SharedApplicationBootstrapper` subclass doing the full networked-node stack: `.WithReplication(role)` · `context.Participant` · `SlaveTranslator` · `RegisterNetworkTranslators` · `RegisterSpawningPipeline` — the same shape as `SimHostNodeBootstrapper`. ⛔ `AttachBootstrapper` has **no caller** and `new StrideNodeBootstrapper()` appears only in its own tests.
+
+  ⚠⚠ **THIS SUPERSEDES `§4.1L`'s READING.** That section measured the dormancy and recorded *"⛔ searched `docs/` + `.dev/`, none found — it is **undeclared dormancy**"*. 🔒 **The user has now declared it:** the class is **built-but-unwired for a mode that was never stood up**, not dead code. ⛔ An earlier reading of this row as a retirement candidate is WITHDRAWN.
+
+  ⭐ **The template is `SimHostApp`:** construct the bootstrapper with its module slots, set `ApplicationSystemsRegistrar`, call `BootstrapNode(config, role, networkFactory)`, then tick `SlaveTranslator`. ⭐ `StrideNodeBootstrapper`'s ctor already takes exactly the four slots this needs — `kinematics` · `perception` · `combat` · `navigation`.
+
+  ⛔ **Blocked on `CE-205` + `CE-206`** — a node declaring `Perception` with an empty slot is the silent-default shape, and in mode 2 nothing else supplies it.
+
+---
+
+- [ ] **CE-208** · `RW-M` ⭐⭐ — **MODE 1 (the dual-window networkless editor) COMPOSES FROM THE SAME `StrideCapabilities`.** 🔒 *(user: "with networkless editor (dual window - 2d editor and 3d stride)")*
+
+  ⭐ Mode 1 **exists and works today** — `STRIDE_HOST_REAL_EDITOR=1` + `STRIDE_EDITOR_WINDOW=1`: one world *(the editor's)*, Stride's 3D window plus a second raylib/ImGui 2D window pumped from the same frame. ⇒ this task is **not** "build mode 1"; it is **"make mode 1 and mode 2 compose from one declaration."**
+
+  📐 Today the hosted path injects `StrideMuscleModules.Build(...)` through `_editor.MuscleModuleFactory`. ⇒ ⭐ after `CE-205` that becomes *"resolve `StrideCapabilities` for the declared role and hand the resolved set to the editor"* — the same units mode 2 gets, so the two modes cannot drift.
+
+  ⚠ **The role differs and that is legitimate:** mode 1 is networkless and fuses Brain, mode 2 is a networked Muscle node beside CGF. ⭐ **That is exactly what a role-selected plan is for** — ⛔ it must not become two capability sets.
+
+---
+
+- [ ] **CE-209** · `RW-L` ⭐⭐ — **RETIRE THE SELF-CONTAINED STRIDE MODE.** 🔒 *(user, `2026-09-05`: "self-contained stride can be retired")*
+
+  📐 **What it is:** the default path (`STRIDE_HOST_REAL_EDITOR` unset) — the **STR-P0 bring-up scaffold**. No network *(`OfflineNetworkFactory`, no-op DDS stubs)*, no real editor *(its own header: "without the Raylib/ImGui panels, AI hot-reload, breakpoints")*, and **Brain and Muscle FUSED in one world** *(`CgfLogicPack` beside `StrideMuscleModuleSet`, step 7)*. ⇒ ⛔ **it is neither of the user's two modes.**
+
+  📐 **What it costs:** `Initialize` steps 1–8 are **201 lines**, of which **six of the eight** duplicate `HrotNodeBuilder.Build()` — the file says so itself in **four** comments reading *"Mirror `EditorSubsystem` …"*, plus a class header *"Mirrors the simulation+orchestration core of `EditorSubsystem` lines 449–1092."*
+
+  ⭐⭐ **And the duplication has already drifted, twice:** ① the time controller is created on **`World.Bus`** while the orchestration vocabulary is registered on `OrchestrationBus` — the exact pre-`T3` split `EditorSubsystem:1000–1011` describes as *"intents landed on a bus the master never read — no error, nothing happens"* ⚠ **LATENT, not live** *(measured: nothing in `Stride/` publishes a time intent; `Tick` calls `TimeController.Step(dt)` directly)*; ② `new SequentialIdAllocator()` with **no `Reset(WorldBase)` and no `ClusterMaster.IdAuthority`**, so ids start at **2** and never reset — ⛔ `DESIGN_Deterministic_Network_Ids.md` never mentions this host at all.
+
+  ⛔⛔ **RETIRE LAST, after `CE-207` and `CE-208` are green** — ⭐ nothing is deleted before its replacement runs. ⚠ Check `STRIDE_SELFTEST` first: it **forces** hosted mode, so it should survive unchanged, but that must be measured rather than assumed.
+
+---
+
 - [x] **CE-204** · `RW-L` ⭐⭐⭐ — **STRIDE IS COMPILE-VERIFIABLE OFF WINDOWS — AND NOT COMPILING IT MEANT `CE-203` SHIPPED A BROKEN HOST BEHIND A FULL GREEN GATE TABLE.** *(user: "stride need to be done on windows or can you do it yourself? how will we find out that it does not break during the conversion?")*
 
   🔴🔴🔴 **THE DEFECT FIRST, because it is the argument.** `CE-203` `E1` widened `EditorSubsystem.TkbDatabase` to `ITkbDatabase` on the strength of a grep that said *"the only consumer, `EditorStrideSubsystem:996`, assigns it straight into an `ITkbDatabase`-typed field."* ⛔⛔ **It did not.** That property was declared `public TkbDatabase`, and **the Stride host did not compile from `8ad97c07f` onward** — while the whole solution built, ~4 700 tests ran, the UI value snapshot matched the control, and **every gate reported green.**

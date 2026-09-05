@@ -45,6 +45,17 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
         ITkbDatabase field. It did not — EditorStrideSubsystem.TkbDb was typed TkbDatabase, and
         the Stride host was BROKEN from 8ad97c07f until CE-204 fixed it, while the whole solution
         built and every gate stayed green. See §4.1z.
+    (a3) ⭐⭐⭐ STRIDE, 2026-09-05: the user named TWO required modes and retired a third.
+        Mode 1 (networkless dual-window editor) EXISTS today. Mode 2 (networked node replacing
+        SimHost beside CGF) DOES NOT — and StrideNodeBootstrapper is the machinery written for it,
+        which SUPERSEDES §4.1L's "undeclared dormancy" reading: it is built-but-unwired, not dead.
+        Self-contained mode (the STR-P0 scaffold: no network, no editor, Brain+Muscle fused) is
+        RETIRED by user ruling. Perception is DECLARED AND UNFILLED on Stride in both modes and is
+        a prerequisite for mode 2, where CGF no longer masks it. Plan + UML: §4.1aa; tasks CE-205
+        (StrideCapabilities) → CE-206 (perception) → CE-207 (mode 2) → CE-208 (mode 1 unified) →
+        CE-209 (retire self-contained). ⛔ The shape is forced by a measured constraint:
+        Hrot.NodeComposition is net8.0 and CANNOT reference net8.0-windows Stride, so Stride's
+        capability declarations live on the Stride side and are injected downward.
     (a2) ⭐ THE EDITOR: phase N₀ landed (CE-201, the time role is a builder input) and the ADOPTION is
         designed at §4.1y (CE-203), build-state READY-TO-BUILD, sliced E1/E2/E3. Read §4.1y before
         touching EditorSubsystem.Initialize — it measures which eight builder steps the editor
@@ -5772,3 +5783,194 @@ signature and type drift — the entire class of breakage a composition refactor
 verification of the Stride host still needs a Windows machine, and that is a genuine remaining gap, not a
 formality. ⇒ **run this gate on EVERY batch that touches `Hrot.Editor`, `Hrot.Core`, `Hrot.Common` or
 `Fdp.Toolkits`, and say in the report that it is compile-only.**
+
+---
+
+## ⭐⭐⭐ §4.1aa — **THE STRIDE MODE PLAN: mode 1 unified, mode 2 built, self-contained retired** `build-state: READY-TO-BUILD` *(`2026-09-05`)*
+
+> 🔒 **User, `2026-09-05`, verbatim:** *"I need stride in two modes: 1. with networkless editor (dual window
+> - 2d editor and 3d stride) ; 2. stride as standalone networked node, replacing SimHost, running in
+> cluster with cgf node. In both case the stride provides muscle, perception, navigation roles."*
+> 🔒 And: *"self-contained stride can be retired … of course perception needs to be filled. And of course
+> the bootstrap/composition should be shared/unified as much as possible."*
+
+### 📐 INVENTORY *(`2026-09-05`; `search_graph` **and** grep, both reported)*
+
+```
+search_graph(name_pattern=".*Stride.*",       label="Class")   → 65   (4 distinct things, see §4.1z)
+search_graph(name_pattern=".*Capabilities.*", label="Class")   → 14   (3 are INodeCapability hosts)
+grep -rn ": INodeCapability" --include=*.cs Hrot | grep -v obj/ → 7 production + 1 test double
+grep -rn "new EqsModule\|new CognitiveSpatialModule"            → SimHost, Editor, EditorHarness, tests — ZERO in Stride/
+grep -rn "AttachBootstrapper"  (whole tree, *.cs + *.md)        → declaration + 3 doc mentions, NO caller
+```
+
+| | measured |
+|---|---|
+| ⭐ **`INodeCapability` hosts today** | **3** — `SimHostCapabilities` *(MuscleGround · PerceptionSolver · NavigationSolver · PerceptionSpatial)* · `IgCapabilities` *(Presentation)* · `CgfCapabilities` *(Brain)*. ⛔ **Stride is not one** |
+| ⭐ **`CapabilityKeys` vocabulary** | `Brain` · `MuscleGround` · `Perception` · `NavigationSolver` · `ImageGenerator` *(+ 4 `ResourceKeys`)* — ⭐ **every role the user names already has a key** |
+| 🔴 **perception on Stride** | **declared, unfilled** — `StrideNodeBootstrapper.Role` includes `Perception`, its `perceptionModule` slot is `null` at every call site, `StrideMuscleModuleSet` has none, and Stride registers `EqsResultUpdateSystem` *(the consumer)* with no `EqsModule` *(the solver)* |
+| ⭐ **the Stride-native LOS** | `Hrot.Stride.Core/StrideRaycastLosService` — *"drop-in replacement … satisfies `ILosService` exactly … real 3-D raycast against Stride/Bullet geometry"*. ⛔ **unadopted** |
+
+### ⛔⛔⛔ THE CONSTRAINT THAT DECIDES THE SHAPE — **reference direction, measured**
+
+| | |
+|---|---|
+| `Hrot.NodeComposition` *(home of `StrideNodeBootstrapper`)* | **`net8.0`**, references `Hrot.Common` · `Hrot.SimHost` · `Hrot.IG` · `Fdp.Core` · `Fdp.Toolkits` |
+| `Hrot.Stride.Core` / `HrotStrideApp.Game` | **`net8.0-windows`** + `Stride.Engine` |
+| the edge that exists | ⭐ **`HrotStrideApp.Game` → `Hrot.NodeComposition`** |
+| 🔴 the edge that CANNOT exist | ⛔ **`Hrot.NodeComposition` → anything Stride** — a `net8.0` project cannot reference `net8.0-windows`, and §7.1 already established that a composition root sits **above** what it composes |
+
+⇒ ⭐⭐⭐ **Stride's capability declarations MUST live on the Stride side and be INJECTED downward.** ⚠ This is
+not a new idea — it is why `StrideNodeBootstrapper`'s ctor already takes four `IEcsModule?` slots, and its
+own header says so: *"Domain modules … are injected via the constructor so Stage 2 can swap in
+Stride-native implementations without touching the orchestration code."* ⭐ **The inversion is right; only
+its CURRENCY is wrong.**
+
+### ⭐⭐ THE DECISIONS
+
+| # | decision | why |
+|---|---|---|
+| **①** | ⭐⭐⭐ **`StrideNodeBootstrapper` takes a CAPABILITY LIST, not four module slots** — `WithCapabilities(IReadOnlyList<INodeCapability>)` | ⛔ 📐 §4.1k measured all four slots passed `null` in every test and every caller ⇒ **four silent defaults retired at once**. ⭐ And a list is what lets mode 1 and mode 2 consume the *same declaration*, which is the user's actual ask |
+| **②** | ⭐⭐⭐ **`StrideCapabilities` lives in `Stride/HrotStrideApp.Game`** — host (e) of the seam | forced by the reference direction above. ⚠ It is the FIRST capability host outside the solution ⇒ it is also the first that `scripts/stride-check.sh` alone gates |
+| **③** | ⭐⭐⭐ **Perception REUSES SimHost's, it is not re-implemented** | 🔒 the user's own framing — Stride *"replaces SimHost"*. ⇒ the Muscle node should run **`EqsModule` + `CognitiveSpatialModule`**, the same pair `SimHostCapabilities.PerceptionSolver`/`PerceptionSpatial` register. ⛔ A Stride copy would be the duplication this programme removes |
+| **③b** | ⚠ **the two capability classes are `internal` to `Hrot.SimHost`** ⇒ promote them to `public` *(or extract the pair to a shared static)*. ⭐ Stride already reaches `Hrot.SimHost` transitively through `Hrot.NodeComposition` | ⛔ **Do NOT copy them into Stride** — that is exactly the second-implementation shape `CE-203` `E2` had to undo |
+| **④** | ⛔ **the Stride-native LOS upgrade is a SEPARATE, UNMEASURED question** | 📐 `ILosService` is injected into **query templates** *(`CheapLineOfSightTest`, `FindCoverFromTarget.Build(los)`)*, **not** into `EqsModule`. ⇒ *"inject `StrideRaycastLosService`"* needs a seam **that may not exist at module level**. ⭐ `CE-206` ships perception with the SHARED default; the raycast upgrade is its own item once the seam is measured |
+| **⑤** | ⭐⭐ **mode 1 and mode 2 differ by ROLE ONLY** | mode 1 is networkless and fuses Brain; mode 2 is a networked Muscle node beside CGF. ⭐ **That is what a role-selected plan is for.** ⛔ It must not become two capability sets |
+| **⑥** | ⛔⛔ **retire self-contained LAST** | nothing is deleted before its replacement runs. ⚠ `STRIDE_SELFTEST` **forces** hosted mode, so it should survive — **measure, do not assume** |
+
+### ⭐ THE UML *(obligation ①; `«existing»` boxes already exist, with their home)*
+
+```mermaid
+classDiagram
+    class INodeCapability {
+        <<interface>>
+        +string Key
+        +IReadOnlyList~string~ Needs
+        +ProvideModules() IEnumerable~IEcsModule~
+        +PopulateSystems(context, input, sim, postSim)
+    }
+    class NodeCompositionPlan {
+        <<existing>>
+        +Capability(NodeRole, INodeCapability)
+        +Resolve(NodeRole) IReadOnlyList~INodeCapability~
+    }
+    class SimHostCapabilities {
+        <<existing>>
+        MuscleGround
+        PerceptionSolver
+        NavigationSolver
+        PerceptionSpatial
+    }
+    class CgfCapabilities {
+        <<existing>>
+        Brain
+    }
+    class IgCapabilities {
+        <<existing>>
+        Presentation
+    }
+    class StrideCapabilities {
+        <<new — HrotStrideApp.Game>>
+        MuscleGround
+        NavigationSolver
+        Perception
+    }
+    class StrideMuscleModuleSet {
+        <<existing — HrotStrideApp.Game>>
+        +StrideKinematicsModule StrideKinematics
+        +CombatModule Combat
+        +VehicleNavigationIntentSystem VehicleNavIntent
+    }
+    class StrideNodeBootstrapper {
+        <<existing — Hrot.NodeComposition>>
+        +NodeRole Role
+        +WithCapabilities(list)
+        +BootstrapNode(config, role, factory) HrotNodeContext
+    }
+    class SharedApplicationBootstrapper {
+        <<existing — Hrot.Common>>
+    }
+    class StrideNodeSubsystem {
+        <<new — mode 2 entry point>>
+        +Initialize(SubsystemConfig)
+        +Tick(float)
+    }
+    class EditorStrideSubsystem {
+        <<existing — mode 1>>
+        +bool HostRealEditor
+        +Tick(float)
+    }
+    class EditorSubsystem {
+        <<existing — Hrot.Editor>>
+    }
+
+    SharedApplicationBootstrapper <|-- StrideNodeBootstrapper
+    INodeCapability <|.. SimHostCapabilities
+    INodeCapability <|.. CgfCapabilities
+    INodeCapability <|.. IgCapabilities
+    INodeCapability <|.. StrideCapabilities
+    StrideCapabilities --> StrideMuscleModuleSet : wraps
+    StrideCapabilities ..> SimHostCapabilities : REUSES the perception pair
+    NodeCompositionPlan --> INodeCapability : resolves by role
+    StrideNodeSubsystem --> StrideNodeBootstrapper : mode 2 drives
+    StrideNodeSubsystem --> StrideCapabilities : injects resolved list
+    EditorStrideSubsystem --> StrideCapabilities : mode 1 injects the SAME list
+    EditorStrideSubsystem --> EditorSubsystem : hosts, borrows its world
+```
+
+```mermaid
+sequenceDiagram
+    participant G as StrideHrotGame
+    participant M1 as EditorStrideSubsystem
+    participant SC as StrideCapabilities
+    participant P as NodeCompositionPlan
+    participant E as EditorSubsystem
+
+    Note over G,E: MODE 1 - networkless dual-window editor
+    G->>M1: BootEditorSubsystem(hostRealEditor true, buildEditorUi true)
+    M1->>SC: build declarations
+    M1->>P: Capability(MuscleGround, ...) then Resolve(role)
+    P-->>M1: resolved capability list
+    M1->>E: MuscleModuleFactory returns the resolved units
+    M1->>E: Initialize(Headless false, OwnWindow false)
+    E-->>M1: World, Kernel, TimeController
+    M1->>M1: build Stride view systems on the editor world
+    G->>G: open second raylib window, pump each frame
+```
+
+```mermaid
+sequenceDiagram
+    participant R as Stride launcher
+    participant M2 as StrideNodeSubsystem
+    participant SC as StrideCapabilities
+    participant B as StrideNodeBootstrapper
+    participant C as HrotNodeContext
+
+    Note over R,C: MODE 2 - networked node beside CGF, replacing SimHost
+    R->>M2: Initialize(SubsystemConfig)
+    M2->>SC: build declarations
+    M2->>B: WithCapabilities(resolved list)
+    M2->>B: BootstrapNode(config, MuscleGround Perception NavigationSolver, factory)
+    B->>B: 7 phases, WithReplication(role), participant, translators
+    B-->>C: context with SlaveTranslator
+    M2->>C: tick SlaveTranslator and Kernel each frame
+```
+
+### ⭐ THE SLICES — **dependency order, and retirement last**
+
+| id | slice | gate |
+|---|---|---|
+| ⭐⭐ **`CE-205`** | `StrideCapabilities` — the declarations both modes consume | `stride-check.sh` *(compile)* + a Stride-side rail that `Resolve(role)` yields the expected key set |
+| ⭐⭐⭐ **`CE-206`** | **perception filled** — SimHost's `EqsModule` + `CognitiveSpatialModule` pair made reachable and declared | ⭐ a rail that a node declaring `Perception` **registers a solver**, red-proofed by removing it |
+| ⭐⭐⭐ **`CE-207`** | **mode 2** — `WithCapabilities` on the bootstrapper + a caller | `StrideNodeBootstrapperTests` *(12/0 on Linux)* extended; ⛔ **a real 2-node run with CGF is a WINDOWS gate** |
+| ⭐⭐ **`CE-208`** | **mode 1** composes from the same list | the UI value snapshot *(`scripts/ui-snapshot.py --values`)*, control-vs-after, as `CE-203` did |
+| ⭐ **`CE-209`** | **retire self-contained** — after 207 and 208 are green | `STRIDE_SELFTEST` still passes; `stride-check.sh` green |
+
+### ⚠ WHAT THIS DESIGN DOES **NOT** SETTLE — **named, not buried**
+
+| open | lean |
+|---|---|
+| ⛔ **`ImageGenerator`** — `StrideNodeBootstrapper.Role` declares it; the user's list does not | ⭐ **drop it from mode 2's role.** Stride draws its own 3D view; it is not an IG node publishing to others. ⚠ Measure what `IgCapabilities.Presentation` would even do here first |
+| ⛔ **the LOS upgrade** *(decision ④)* | ⭐ ship the shared default in `CE-206`; file the raycast adoption separately once the module-level seam is measured |
+| ⛔ **how mode 2 is LAUNCHED** | ⭐ the Stride app is its own executable, so mode 2 is a Stride-side flag/arg, not a `--mode` in `Hrot.ClusterRunner` — 📐 the runner has **no Stride reference at all** and adding one would drag `net8.0-windows` into a `net8.0` runner |
+| ⛔ **behavioural verification** | 🔴 **compile-only off Windows.** Modes 1 and 2 both need a Windows pass; `CE-207`'s two-node run cannot be faked here |
