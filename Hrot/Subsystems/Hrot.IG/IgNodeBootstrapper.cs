@@ -209,24 +209,53 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     // ── Phase 4b: Additional ECS modules ─────────────────────────────────────
 
     /// <inheritdoc/>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>B4b</c> step 2, host (b) — IG's modules come from a RESOLVED capability set.</b>
+    ///
+    /// <para>The five module constructions that stood here inline now live in
+    /// <c>IgCapabilities.Presentation</c>, and this hook walks whatever the plan resolved. 📄
+    /// <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §4.1t.</para>
+    ///
+    /// <para>⛔⛔ <b>The plan is resolved LAZILY, not stashed by an earlier phase.</b> The obvious shape
+    /// — build it in <c>PopulateSystems</c> as SimHost does, and read the field here — is a trap on this
+    /// host: the base declares <c>additional-modules</c> with <c>requires: ["context"]</c> only, NOT
+    /// <c>"system-groups"</c> (<c>SharedApplicationBootstrapper.cs:148</c>), so the boot plan is free to
+    /// run this step before <c>PopulateSystems</c>. The field would then be empty and IG would register
+    /// <i>no presentation modules at all</i> — silently, with a healthy boot. Resolving on first use
+    /// depends on nothing but this object, so no step ordering can break it.</para>
+    ///
+    /// <para>⚠ <b>The role is not consulted, deliberately</b> — the same stance
+    /// <c>SimHostNodeBootstrapper:254</c> takes. This host IS the image generator, and <c>B4b</c> is
+    /// behaviour-preserving, so the set must not narrow at the switchover. Selecting BY the declared
+    /// role flags is the next step and needs its own measurement of what each deployed role carries.</para>
+    /// </summary>
     protected override IEnumerable<IEcsModule> GetAdditionalModules()
     {
-        // E. StyleResolutionModule --- writes ResolvedStyle each Simulation tick
-        yield return new StyleResolutionModule(_userConfig, _effectiveInstanceId);
-
-        // F. MapCullingModule --- writes CullingState each PostSimulation tick
-        yield return new MapCullingModule(_cameraViewport);
-
-        // G2. MapLayerModule - assigns MapDisplayComponent bitmask per entity (time-sliced)
-        yield return new MapLayerModule();
-
-        // G. HistoryTrailModule --- records entity position trails (IG.4.1)
-        yield return new HistoryTrailModule();
-
-        // H. EventEffectModule --- spawns and cleans up visual effects (IG.4.2)
-        if (!_headless)
-            yield return new EventEffectModule();
+        foreach (INodeCapability capability in ResolveCapabilities())
+            foreach (IEcsModule module in capability.ProvideModules())
+                yield return module;
     }
+
+    /// <summary>Builds the node's composition plan and resolves it, once.</summary>
+    private IReadOnlyList<INodeCapability> ResolveCapabilities()
+    {
+        if (_capabilities != null) return _capabilities;
+
+        var plan = new NodeCompositionPlan()
+            .Capability(
+                NodeRole.ImageGenerator,
+                new IgCapabilities.Presentation(
+                    _userConfig, _effectiveInstanceId, _cameraViewport, _headless));
+
+        const NodeRole composed = NodeRole.ImageGenerator;
+
+        // Fails the node if a capability declared a resource nobody provides.
+        _ = plan.RequiredResources(composed);
+
+        return _capabilities = plan.Resolve(composed);
+    }
+
+    private IReadOnlyList<INodeCapability>? _capabilities;
 
     // ── Phase 5: Build orchestration ─────────────────────────────────────────
 

@@ -14,13 +14,25 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   NodeCompositionPlan and :262 resolves it, and both boot hooks run off the resolved set.
   ⚠⚠ CORRECTED 2026-09-05: this block previously said "no host resolves a NodeCompositionPlan yet" —
   that was stale from the moment §4.1s shipped. Measured: SimHostNodeBootstrapper does.
+  ✅ B4b step 2 IS ALSO BUILT FOR IG — §4.1t (2026-09-05), verified live in §4.1u. The SECOND host is what
+  found the seam's hole: INodeCapability reached only 2 of the base's 3 composition steps, because SimHost
+  does not override GetAdditionalModules at all. A THIRD hook, ProvideModules(), now mirrors the
+  `additional-modules` step; IgCapabilities.Presentation carries IG's five modules under
+  CapabilityKeys.ImageGenerator (declared since B3, unreferenced until now).
+  ⇒ §4.1s's "INodeCapability gained a SECOND hook" row is SUPERSEDED — there are three.
   ⛔ REMAINING IN B4b, measured 2026-09-05:
-    (a) SimHost's role set is still UNCONDITIONAL — `const NodeRole composed = MuscleGround | Perception
-        | NavigationSolver` (SimHostNodeBootstrapper.cs:258). Deliberate: B4b is behaviour-preserving, so
-        the set must not narrow yet. Selecting BY the declared role flags needs its own measurement of what
-        each deployed role actually carries.
-    (b) CGF, IG, Stride and the editor are UNTOUCHED — grep for NodeCompositionPlan/INodeCapability across
-        Hrot/ returns only Hrot.Common's seam, its rails, and the two SimHost files.
+    (a) NEITHER host narrows by role — SimHost `const NodeRole composed = MuscleGround | Perception
+        | NavigationSolver` (SimHostNodeBootstrapper.cs:258), IG `= ImageGenerator`. Deliberate: B4b is
+        behaviour-preserving, so the set must not narrow yet. Selecting BY the declared role flags needs its
+        own measurement of what each deployed role actually carries.
+    (b) CGF, Stride and the editor are UNTOUCHED. ⭐ Stride is the cheapest next one: it already overrides
+        GetAdditionalModules with four pre-built modules, so it is a ProvideModules move with no new
+        mechanism.
+    (c) ⛔ INodeResourceProvider.Allocate has ZERO production call sites (grep, whole repo). SimHost reads
+        TrajectoryPool.Pool as a property and uses plan.RequiredResources() purely as a validation,
+        discarding the result ⇒ the RESOURCE half of the seam is declared and verified but never RUN.
+        Harmless today (capabilities receive resources by constructor) — do not mistake it for working
+        machinery.
   B5 (the missing implementations) has not started.
   🔴🔴 NEW 2026-09-04: §4.1q CORRECTS §4.1j's B4 classDiagram — do NOT build from it as drawn. TWO of its
   four new abstractions ALREADY EXIST: IResourceScope is NodeBootValues (and stronger — it refuses an
@@ -120,7 +132,7 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
-updated: 2026-08-27
+updated: 2026-09-05
 current-answer: the whole file. This is the STANDING design for the composition-unification programme —
   the approach, the constraints and the phase plan. §5 = phase 0 (BUILT; §5.6-§5.9 are its as-built),
   §5b = phase 1 (seam BUILT; ⚠ §5b.4 records THREE argued deviations — read it before quoting §5b.2's
@@ -1449,7 +1461,7 @@ is declaration order regardless of how role declarations interleave. ⭐ The cla
 |---|---|
 | `SimHostCapabilities` | `MuscleGround` *(the only one contributing to BOTH boot steps)* · `PerceptionSolver` · `NavigationSolver` · `PerceptionSpatial` |
 | ⚠ **perception is TWO capabilities, and that is forced by measurement** | today's sequence interleaves perception concerns **around** navigation. Collapsing them would move the navigation module. ⛔ Whether that interleaving is meaningful or merely historical is **NOT measured** ⇒ ⭐ a follow-up should establish whether the halves can merge; until then the split preserves the observed order rather than guessing |
-| ⭐ **`INodeCapability` gained a second hook** | `PopulateSystems` + `Register`, mirroring the base's two existing boot steps *(`system-groups`, `spawning-pipeline`)* rather than inventing a third composition point. Both default to no-ops |
+| ⭐ **`INodeCapability` gained a second hook** | `PopulateSystems` + `Register`, mirroring the base's two existing boot steps *(`system-groups`, `spawning-pipeline`)* rather than inventing a third composition point. Both default to no-ops. ⚠⚠ **SUPERSEDED `2026-09-05` by §4.1t — there are now THREE hooks.** Two covered every step SimHost uses; IG registers at `additional-modules`, which neither reaches |
 | ⭐ **the migration bag is EMPTY, never `null`** | SimHost has not yet moved capability registration inside a `NodeBootPlan` step, so there is no live bag. An empty `NodeBootValues` makes a capability that reads fail with its own message naming the undeclared key — ⛔ passing `null` would be the exact silent-default shape this programme keeps removing |
 | ⛔ **the role set is not narrowed yet** | SimHost composes `MuscleGround\|Perception\|NavigationSolver` unconditionally, as today. Selecting **by** the node's declared flags needs its own measurement of what each deployed role actually carries |
 
@@ -1462,6 +1474,116 @@ is declaration order regardless of how role declarations interleave. ⭐ The cla
 | `Hrot.NodeComposition.Tests` | **45 / 0** *(the new order rail included)* |
 | `Hrot.SimHost.Tests` | **885 / 1** — `FullBranchPipelineTests`, baselined at `B2` |
 | ⚠ **a false alarm worth recording** | one verification run showed `simTime 2.8` after 3 600 requested steps and looked like a severe regression. 📐 **Cause: my backgrounded stepping loop had died, not the sim** — re-running deterministically advanced normally. ⭐ Measured before reporting; ⛔ a slower path would have been to report the scare |
+
+### 4.1t ✅ AS BUILT — **`B4b` step 2, host (b): IG joins the seam, and the SECOND host is what found the seam's hole** *(`2026-09-05`)*
+
+⭐⭐⭐ **The reason for switching hosts over ONE AT A TIME, vindicated on the first try.** §4.1s built the
+capability axis against SimHost alone and gave `INodeCapability` **two** hooks, chosen to mirror the base's
+boot steps. 📐 **Measured `2026-09-05`: those two hooks cover exactly the steps SimHost happens to use, and
+no more.**
+
+#### ⛔⛔ THE HOLE — **a third boot step no hook could reach**
+
+| # | measurement | evidence |
+|---|---|---|
+| ① | the base composes at **three** steps, not two: `system-groups` → **`additional-modules`** → `spawning-pipeline` | `SharedApplicationBootstrapper.cs:126` · **`:148`** · `:172` |
+| ② | `INodeCapability` reached the **first and third** only | `NodeCapability.cs` — `PopulateSystems`, `Register` |
+| ③ | ⭐⭐ **SimHost does not override `GetAdditionalModules` at all** ⇒ the gap was invisible | grep, whole repo: **2** overrides, and neither is SimHost |
+| ④ | ⭐⭐⭐ **the only two hosts that DO override it are IG and Stride** | `IgNodeBootstrapper.cs:212` · `StrideNodeBootstrapper.cs:269` |
+
+⇒ ⛔ **Expressing IG's five presentation modules through `Register` was NOT an option.** It would move all
+five from *before* `context.BaseModules` *(`EntityLifecycleModule`, `GeographicModule`)* to *after* them and
+after the spawning pipeline. `ModuleHostKernel.RegisterModule` appends to a plain `List` the frame loop walks
+in sequence *(`:437`)*, so **registration order is frame execution order** — that is a behaviour change, which
+is precisely what `B4b` forbids.
+
+⚠ **§4.1N ③ calls step `4b` "INCIDENTAL — no consumer found; only *before 7*", and that is NOT a licence to
+move it.** ⭐ That pass measured the **bootstrap data graph** — which step needs a value another produced. It
+says nothing about the **frame order of the modules the step registers**, and those are different questions.
+📌 Recorded because the sentence reads like permission and is not.
+
+#### ⭐ WHAT WAS BUILT
+
+| | |
+|---|---|
+| ⭐⭐⭐ **a THIRD hook, `ProvideModules()`** | mirrors `additional-modules`, exactly as the other two mirror their steps. Defaults to empty, so no existing capability changed. ⛔ **No parameters** — the base hook it mirrors takes none, and neither host's modules need the context; a capability needing more state takes it by **constructor**, which is the rule this interface already follows |
+| ⭐ **`IgCapabilities.Presentation`** | one capability under `CapabilityKeys.ImageGenerator` *(declared since `B3`, unreferenced until now)*, carrying all five modules **and** the `!headless` branch for `EventEffectModule` |
+| ⭐⭐ **the plan resolves LAZILY, not from a field an earlier phase set** | ⛔ the SimHost shape *(build in `PopulateSystems`, read the field later)* is a **trap here**: `additional-modules` declares `requires: ["context"]` only — **not** `"system-groups"` — so the plan may legally run it first, leaving the field empty and IG registering **no presentation modules at all**, silently, on a healthy boot |
+| ⛔ **the role set is not narrowed** | IG composes `ImageGenerator` unconditionally, the same stance `SimHostNodeBootstrapper:254` takes and for the same reason |
+
+```mermaid
+classDiagram
+    class INodeCapability {
+        <<interface>>
+        +string Key
+        +IReadOnlyList~string~ Needs
+        +PopulateSystems(ctx, input, sim, postSim)
+        +ProvideModules() IEnumerable~IEcsModule~
+        +Register(ctx, values)
+    }
+    class SharedApplicationBootstrapper {
+        <<existing>>
+        step system-groups
+        step additional-modules
+        step spawning-pipeline
+    }
+    class MuscleGround { <<SimHost>> }
+    class PerceptionSolver { <<SimHost>> }
+    class NavigationSolver { <<SimHost>> }
+    class PerceptionSpatial { <<SimHost>> }
+    class Presentation { <<IG, new>> }
+
+    INodeCapability <|.. MuscleGround
+    INodeCapability <|.. PerceptionSolver
+    INodeCapability <|.. NavigationSolver
+    INodeCapability <|.. PerceptionSpatial
+    INodeCapability <|.. Presentation
+    SharedApplicationBootstrapper ..> INodeCapability : one hook per step
+    NodeCompositionPlan --> INodeCapability : resolves in declaration order
+```
+
+#### ⭐ ACCEPTANCE + GATES
+
+| | |
+|---|---|
+| ⭐⭐⭐ **module SEQUENCE unchanged** | two new order rails in **`IgNodeBootstrapperTests`** *(the feature's own suite — `R-142` ④, no new class)*, green before and after the switchover |
+| ⭐⭐ **red-proof — INVERSE EDIT** | swapped `MapLayerModule` ↔ `HistoryTrailModule` in the capability, rebuilt: **the 2 order rails RED, the 6 pre-existing membership rails GREEN.** ⇒ the old six could never have seen a reorder, which is why the two were written |
+| `Hrot.IG.Tests` | **412 / 5**, total 416 → 418. ⛔ the 5 are **pre-existing**, baselined at `b0e0efbfc` before any edit: `EntityInfoTranslatorTests` ×4 *(`CS011_*`)* + `EntityMasterTranslatorTests.ProcessSample_WithSenderTracking_SetsOwnerId` |
+| `Hrot.NodeComposition.Tests` | **45 / 0** |
+| `Hrot.SimHost.Tests` | **885 / 1** — `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`, **baselined by stash + rebuild**: red without this change too |
+| ⭐ live `--mode all` | see §4.1u |
+
+#### ⛔ WHAT IS STILL NOT DONE — the rest of `B4b`
+
+| | |
+|---|---|
+| **CGF · Stride · editor** | untouched. ⭐ **Stride is the cheapest next one** — it already overrides `GetAdditionalModules` with four pre-built modules, so it is a `ProvideModules` move with no new mechanism |
+| **role narrowing** | neither host selects by its declared flags yet |
+| ⛔ **`INodeResourceProvider.Allocate` has ZERO production call sites** | 📐 grep, whole repo. SimHost reads `TrajectoryPool.Pool` as a property and uses `plan.RequiredResources()` purely as a **validation**, discarding the result. ⚠ The resource half of the seam is therefore **declared and verified but never RUN** — not a defect today *(every capability receives its resources by constructor)*, but it must not be mistaken for working machinery |
+
+### 4.1u ✅ LIVE VERIFICATION — **`--mode all` after the IG switchover** *(`2026-09-05`)*
+
+⭐⭐ **The composition claim, proven on a running node rather than in a test.** `/diagnostics/architecture`
+lists the IG subsystem's modules **in registration order**:
+
+```
+IgApplicationSim, StyleResolution, MapCulling, MapLayerAssignment, HistoryTrail, EventEffect,
+EntityLifecycleManager, GeographicServices, UnitHierarchy, NedReplication, GizmoInteraction
+```
+
+⇒ ⭐⭐⭐ **the five capability-provided modules appear in the declared sequence and BEFORE
+`EntityLifecycleManager`/`GeographicServices`** — exactly the ordering §4.1t argued the switchover had to
+preserve, and the ordering that routing them through `Register` would have destroyed.
+
+⭐ **Scenario behaviour** *(`hill-attack`, ~580 s of `simTime`)*: links ①②③ of `RUNBOOK` §8 hold — the
+friendlies advance, acquire and fire, and **IG receives the state** *(`WorldPos` 4997, `EntityDamage` 6,
+`EntityMission` 7)*. ⛔ **Link ④ — the enemy dies — does not**, and that belongs to `CE-174`
+*(round-robin target allocation ignores geometry)*, which is open, host-independent and awaiting a user
+ruling. ⚠ **Not a regression:** the scenario is non-deterministic and `CE-174`'s mechanism makes kills
+intermittent by construction. 📄 The full per-translator table, and the answer it gives to `CE-167`'s
+*"which node applies damage"* question, are in [`Blueprint_Issues_Tracker.md` `CE-195`](blueprints/Blueprint_Issues_Tracker.md).
+
+⭐⭐ **Zero exceptions, zero `ERROR` lines, zero swallowed module exceptions in the whole run.**
 
 ### 4.1L 🔴🔴🔴 `CE-165` — **THE SLOTS ARE FULL, AND THE RUNNING EDITOR DOUBLE-TICKS TWO SYSTEMS TODAY** *(second user challenge, `2026-09-03`)*
 

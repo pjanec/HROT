@@ -90,12 +90,13 @@ public interface INodeCapability
     /// <c>system-groups</c> boot step.
     /// </summary>
     /// <remarks>
-    /// <para><b>Why two hooks and not one.</b> The base composes a node in two distinct steps that run
-    /// at different times — <c>system-groups</c> builds the togglable phase groups, and
-    /// <c>spawning-pipeline</c> registers modules and global systems. A capability that contributes to
-    /// both (the Muscle pack does) needs to be asked twice. These hooks mirror the boot plan's existing
-    /// steps rather than inventing a third place to compose; both default to doing nothing, so a
-    /// capability implements only the half it actually contributes.</para>
+    /// <para><b>Why several hooks and not one.</b> The base composes a node in distinct steps that run
+    /// at different times — <c>system-groups</c> builds the togglable phase groups,
+    /// <c>additional-modules</c> registers whole modules, and <c>spawning-pipeline</c> registers modules
+    /// and global systems. A capability that contributes to more than one (the Muscle pack does) needs
+    /// to be asked more than once. These hooks mirror the boot plan's existing steps rather than
+    /// inventing a new place to compose; all default to doing nothing, so a capability implements only
+    /// the part it actually contributes.</para>
     /// </remarks>
     void PopulateSystems(
         HrotNodeContext context,
@@ -103,6 +104,36 @@ public interface INodeCapability
         System.Collections.Generic.List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> simulation,
         System.Collections.Generic.List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> postSimulation)
     { }
+
+    /// <summary>
+    /// The whole modules this capability contributes, in the order they must register. Called during
+    /// the base's <c>additional-modules</c> boot step.
+    /// </summary>
+    /// <remarks>
+    /// <para>⛔⛔ <b>Why a THIRD hook exists, and why the first two could not cover this.</b>
+    /// <c>PopulateSystems</c> fires at <c>system-groups</c> and <c>Register</c> at
+    /// <c>spawning-pipeline</c> — and <c>additional-modules</c> runs <i>between</i> them
+    /// (<c>SharedApplicationBootstrapper.cs:148</c> vs <c>:172</c>). A host whose modules register at
+    /// that middle step therefore has no hook to move onto, and expressing them through
+    /// <see cref="Register"/> instead would push them <i>after</i> <c>context.BaseModules</c> and the
+    /// spawning pipeline. Since <c>ModuleHostKernel.RegisterModule</c> appends to a plain list the frame
+    /// loop walks in sequence, that is a change to frame execution order — a behaviour change dressed as
+    /// a refactor, which is exactly what <c>B4b</c> forbids.</para>
+    ///
+    /// <para>⚠ <b>The gap was invisible while only one host used the seam.</b> SimHost does not override
+    /// <c>GetAdditionalModules</c> at all, so its two hooks happened to cover every step it used. IG and
+    /// Stride are the only hosts that do override it — measured — and the seam met the first of them
+    /// immediately. That is the point of switching hosts over one at a time.</para>
+    ///
+    /// <para><b>No parameters, deliberately.</b> The base hook this mirrors,
+    /// <c>SharedApplicationBootstrapper.GetAdditionalModules()</c>, takes none, and neither host's
+    /// modules need the context: every one is built from values the capability can take by constructor.
+    /// That is the same rule the rest of this interface follows — <i>the variation point is the
+    /// INSTANCE, not a factory</i> — so a capability needing more state is constructed with it rather
+    /// than handed a wider signature here.</para>
+    /// </remarks>
+    IEnumerable<Fdp.ModuleHost.Abstractions.IEcsModule> ProvideModules()
+        => Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModule>();
 
     /// <summary>Registers this capability's modules and global systems onto the node.</summary>
     /// <param name="context">The node being built.</param>
