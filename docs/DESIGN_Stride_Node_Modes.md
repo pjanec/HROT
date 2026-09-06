@@ -5,7 +5,7 @@ updated: 2026-09-05
 current-answer: the whole file. It is the ONE owning design for the Stride story — the two modes the user
   wants (mode 1 networkless dual-window editor, mode 2 networked node replacing SimHost), the shared
   composition, the window surfaces, gizmos, animation, perception/LOS, the role vocabulary, and §16
-  the TFM split that puts the portable half of Stride into the main solution.
+  getting Stride into the main solution (Tier 1 is one MSBuild property + three solution entries).
 design-basis: user rulings 2026-09-05 (quoted verbatim in §2) · .dev/_DONE/stride-mock/DESIGN.md (the
   mode-2 node design, ~70% still true — §3 says exactly which parts) · docs/DESIGN_Stride_Port.md (the
   as-built port + the Windows boundary §6.6/§7.4 + the mode rails §9) ·
@@ -61,7 +61,7 @@ none of the totals below is a proof of completeness — each was corroborated wi
 | ① | **`StrideNodeBootstrapper`** — the node composition root | `Hrot/Subsystems/Hrot.NodeComposition/` *(in-solution, net8.0)* | ⚠ **written, dormant** |
 | ② | **`EditorStrideSubsystem`** — mode 1's composition + the 3-D view tier | `Stride/HrotStrideApp.Game/` | ✅ live |
 | ③ | **`Hrot.Stride.Core` / `Hrot.Stride.Animation`** — the engine adapters *(Bullet, visual binding, raycast, animation)* | `Stride/` *(net8.0-windows)* | ✅ live |
-| ④ | **`Hrot.MuscleCharacter.Animation.Stride`** — a SECOND `StrideAnimationBackend` | `Hrot/Subsystems/` *(net8.0, no Stride packages)* | 🔴 **a FORK, production-dead, diverged by 898 lines** — §9, and §16.2 says why it exists |
+| ④ | **`Hrot.MuscleCharacter.Animation.Stride`** — a SECOND `StrideAnimationBackend` | `Hrot/Subsystems/` *(net8.0, no Stride packages)* | 🔴 **a FORK, production-dead, diverged by 898 lines** — §9, and §16.4 says why it exists |
 
 ---
 
@@ -379,7 +379,7 @@ units mode 1 uses** — `StrideVisualBindingSystem` *(in_degree 28, already shar
 
 | # | gap | evidence |
 |---|---|---|
-| **A1** | 🔴 **TWO `StrideAnimationBackend` classes.** `Hrot/Subsystems/Hrot.MuscleCharacter.Animation.Stride/` *(498 lines, net8.0, **no Stride packages**, referenced by **its own test project only**)* vs `Stride/Hrot.Stride.Animation/` *(628 lines, real `Stride.Engine`)*. ⭐ Both implement `IAnimationBackend` | `search_graph` — two nodes, same name |
+| **A1** | 🔴 **TWO `StrideAnimationBackend` classes — and `2026-09-05` measured WHY.** `Hrot/Subsystems/Hrot.MuscleCharacter.Animation.Stride/` *(657 lines, `net8.0`, **no Stride packages**, referenced by **its own test project only**)* vs `Stride/Hrot.Stride.Animation/` *(663 lines, `net8.0-windows`)*. ⭐⭐ **NEITHER backend file references a Stride type**: the first stands in for the engine with an `internal struct StrideEntityTransform` *("mirrors what `Stride.Engine.Entity.Transform` would carry")* and its header calls it **"the smoke backend"**; the second is Windows-only merely because `PerEntityBlendTreeBuilder` — the one file that does need `Stride.Animations`/`Stride.Engine` — sits beside it. ⇒ ⭐⭐⭐ **this is a PORTABILITY SPLIT done by COPYING instead of splitting**, and the copies have since **diverged: 898 differing lines, 75 vs 59 `public` members**, only the Stride one carrying `AttachBlendTreeBuilder`. 📄 §16.4 | per-file Stride-reference count + `diff` |
 | **A2** | ⚠ **`ST-013`** — `CivilianPedestrian` renders as a mannequin but has **no animation descriptor** *(matched from the source branch deliberately)* | `RESUME_Time_Stride_Session.md` §6 |
 | **A3** | ⛔ **mode 2 has no animation at all** — the bridge is constructed by mode 1's shell only ⇒ §7.3's view-tier extraction must carry it | measured: `blendTreeInstaller` is built in `BootEditorSubsystem` |
 | **A4** | ⚠ **never RUN.** Every animation test is in a `net8.0-windows` project ⇒ compile-verified only off Windows *(`ST-006`)* | `stride-check.sh` |
@@ -498,7 +498,7 @@ sequenceDiagram
 | **Q1** | Does mode 2 get its config from CLI args, env, or a file? | ⭐ **CLI args mirroring `ClusterRunner`'s** *(`--node-id`, `--domain`, `--no-wait`, `--staging`)*, defaulting node id to **700** *(mock §9.2, still free)*. ⛔ Not env vars — those are the mode-1 debug switches and they already sprawl |
 | **Q2** | How is the mode selected — env var, CLI, or build? | ⭐ **one CLI switch `--mode editor\|node`**, defaulting to `editor`. ⛔ After `CE-209` the three env vars collapse: `STRIDE_HOST_REAL_EDITOR` disappears *(hosted becomes the only editor path)*, `STRIDE_EDITOR_WINDOW` stays *(it is a window toggle)*, `STRIDE_SELFTEST` stays and implies `--mode editor` |
 | **Q3** | Does mode 2 need the companion 2-D map on day one? | ⭐ **No — `CE-214` after `CE-207`.** The 3-D window is the point; the map is a convenience the user asked to keep, not a blocker |
-| **Q4** | 🔴 **Is `NodeRole` PERSISTED by name?** | ⛔ **unmeasured, and it decides whether `CE-212` is a rename or a migration.** ⚠ It must be measured **before** `CE-212` starts, not during |
+| **Q4** | ✅ **RESOLVED `2026-09-05` — `NodeRole` is NOT persisted.** | 📐 Measured: **zero** occurrences in any `.json` / `.idl` / `.xml` / `.yaml` in the repo; every production use is an in-memory parameter; and the thing that *is* externally visible is the **subsystem NAME string**, mapped to the enum by `NedNetworkFactory.MapSubsystemNameToRole` *(`"IG" => NodeRole.ImageGenerator`)* ⇒ ⭐ **`CE-212` is a pure code rename, not a migration** — the `"IG"` string is untouched by it |
 | **Q5** | Should any 2-D-only gizmo get a real 3-D form? | ⭐ **Not now** — ship the existing subset plus skip counters, and let the counters name the shape that is actually wanted *(§8)* |
 | **Q6** | Do the four `IEcsModule?` ctor slots die, or stay as a test seam? | ⭐ **Die.** `StrideNodeBootstrapperTests` constructs with no arguments today, so nothing is lost; two swap mechanisms for one concern is the duplication this programme exists to remove |
 
@@ -515,90 +515,101 @@ sequenceDiagram
 
 ---
 
-## 16. ⭐⭐⭐ THE TFM SPLIT — **get the portable half of Stride into the main solution** *(user, `2026-09-05`: "can the non strictly windows stride parts be made of the main solution so they are compiled and tested with the rest?")*
+## 16. ⭐⭐⭐ GETTING STRIDE INTO THE MAIN SOLUTION *(user, `2026-09-05`: "can the non strictly windows stride parts be made of the main solution so they are compiled and tested with the rest?")*
 
-⭐ **Yes — and the way to do it is to SPLIT each project along the `net8.0-windows` line, never to add the
-Windows projects to `IOS-IG-SimHost.sln`.** ⛔ The standing warning holds: those projects target
-`net8.0-windows`, and folding them in changes what a full-solution build builds. ⭐ This proposal shrinks
-what sits **behind** that boundary instead of moving the boundary.
+> ⛔⛔ **CORRECTION, same day.** An earlier version of this section answered *"yes, by splitting each project
+> along the TFM line"* and priced it as real work. 🔒 **The user pushed back —** *"hmm i thought it is just
+> about of adding few csprojs to main solution and no extra effort"* — ⭐⭐ **and they were right.**
+> 📐 **Measured: it IS nearly free**, and the split is a **later, optional** refinement that buys only one
+> extra thing. ⚠ The failure was answering *"can it be done"* with the most thorough option instead of the
+> cheapest one that meets the stated goal.
 
-⚠ **`R-129` check:** 📄 [`Architect_Question_51_Project_Consolidation.md`](blueprints/Architect_Question_51_Project_Consolidation.md)
-§3 already names **`H4` — `net8.0-windows`, "the Stride tree and the Win32 bits", 9 projects** — as one of
-four **hard** boundaries, with a floor of **2–3** Stride projects. ⇒ ⭐ **this is consistent with `Q51`,
-not a challenge to it**: nothing Windows-only merges into a shared assembly; the *portable* code stops
-being Windows-only.
+### 16.1 ⭐⭐⭐ TIER 1 — one MSBuild property, three solution entries. **MEASURED.**
 
-### 16.1 What is actually portable — measured `2026-09-05`
+📐 **What blocks it today, exactly one thing:** off Windows a `net8.0-windows` project fails restore with
+`NETSDK1073: The FrameworkReference 'Microsoft.WindowsDesktop.App' was not recognized`. ⭐ That is why
+`stride-check.sh` passes `-p:EnableWindowsTargeting=true` on the command line — a property of **the
+machine**, which is why it was never written into the csproj files.
 
-📐 Per-file count of `using Stride.*` / `global::Stride.*` / `Stride.<Engine|Core|Physics|Rendering|Games|Particles|UI|Profiling|Graphics|Input|Animations>.`:
+⭐ **Put it in `Directory.Build.props`, conditioned on non-Windows, and the command-line flag disappears:**
 
-| project | TFM | `.cs` | ⭐ **zero Stride refs** | verdict |
-|---|---|---|---|---|
-| ⭐⭐⭐ **`Hrot.Stride.Animation`** | `net8.0-windows` | 4 | **3** — `StrideAnimationBackend` · `StrideAnimationBridge` · `LocomotionBlend` | ⭐ **only `PerEntityBlendTreeBuilder.cs` needs the engine** *(`Stride.Animations`, `Stride.Engine`)* |
-| ⭐⭐⭐ **`Hrot.Stride.Animation.Tests`** | `net8.0-windows` | 4 | 🔴 **4 — the WHOLE project** | ⛔ **~750 lines of animation tests that cannot run off Windows purely because of an INHERITED TFM** |
-| ⭐⭐ **`Hrot.Stride.Core`** | `net8.0-windows` | 32 | **18** — incl. `StrideVisualBindingSystem` · `StrideKinematicsModule` · `StridePhysicsBracket` · `StrideRaycastBackend` · `StrideRaycastLosService` · `StrideHostLoopDriver` · `PhysicsBodyLifecycleSystem` · `SplitAuthorityStrideSyncScript` · both `DotRecast*` · `VehicleWaypointController` | ⭐ **exactly the units the composition work touches** |
-| ⛔ `Hrot.Stride.Core.Tests` | `net8.0-windows` | 26 | **0** | ⛔ every one touches the engine ⇒ the portable half needs **new** rails or a test split. **This is the expensive project** |
-| ⛔ `HrotStrideApp.Game` | `net8.0-windows` | 19 | **1** | ⭐ correctly Windows — it IS the shell |
-| ⚠ `HrotStrideApp.Game.Tests` | `net8.0-windows` | 21 | **9** | second-order |
+```xml
+<PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+                            $([System.Runtime.InteropServices.OSPlatform]::Windows)))' != 'true'">
+  <EnableWindowsTargeting>true</EnableWindowsTargeting>
+</PropertyGroup>
+```
 
-⛔⛔ **A zero-usings count is a CANDIDATE LIST, not a partition.** 📌 `PhysicsBodyLifecycleSystem.cs` has
-zero Stride usings and consumes `IPhysicsBodyService`, which has two ⇒ it is **not** portable as-is. ⭐ The
-real partition needs the compiler: Roslyn `get_type_dependencies`, or — cheaper and just as conclusive —
-**create the `net8.0` project, move a file, build (~8 s), repeat.** ⭐ **The compiler is the oracle.**
-⚠ **Roslyn was NOT reachable in the session that measured this**, so the file lists above are candidates.
+📐 **Measured `2026-09-05` on this Linux container, with that property and NO `-p` flag:**
 
-### 16.2 ⭐⭐⭐ THE DUPLICATE ANIMATION BACKEND *(`CE-216`)* IS THIS SPLIT, ATTEMPTED BY COPYING
+| plain `dotnet build <proj>` | result |
+|---|---|
+| `Hrot.Stride.Animation` | ✅ **Build succeeded, 0 warnings** |
+| `HrotStrideApp.Game` *(the shell, 6 Stride packages + the asset-compiler package)* | ✅ **Build succeeded** *(75 s cold)* |
 
-📐 **Measured, and it reframes `CE-216`:**
+⇒ ⭐⭐⭐ **Adding `Hrot.Stride.Core`, `Hrot.Stride.Animation` and `HrotStrideApp.Game` to
+`IOS-IG-SimHost.sln` then requires NO code to move and NO project to be created.** ⛔ `HrotStrideApp.Windows`
+stays out — it is the one that genuinely cannot build here *(the Stride asset compiler wants Direct3D11,
+MSB3073 exit 150)*.
+
+| ⭐ what Tier 1 buys | ⛔ what it does not |
+|---|---|
+| ⭐⭐⭐ **the whole Stride production tree compiles on every solution build** ⇒ 📌 the `CE-203` defect class *(a widened signature breaking the Stride host while ~4 700 tests and every gate stayed green)* becomes **structurally impossible** | ⛔ **no Stride TEST runs** — that needs Tier 2 |
+| ⭐ `stride-check.sh` becomes a convenience rather than the only line of defence | ⚠ solution build time grows by three leaf projects |
+
+### 16.2 ⚠ THE ONE DECISION IN TIER 1 — **do the TEST projects go in?**
+
+📐 A Stride test project **compiles** off Windows but **cannot run**: the test host wants the
+`Microsoft.WindowsDesktop.App` **runtime** and reports *"No frameworks were found"*
+*(`DESIGN_Stride_Port.md` §6.6)*.
+
+| option | ⭐ |
+|---|---|
+| ⭐⭐ **libraries only** *(3 projects)* | ⛔ their test projects stay out-of-solution and keep needing `stride-check.sh` to be compiled at all — ⚠ **which is exactly the hole `CE-204` found**, just one level up |
+| ⭐⭐⭐ **libraries + test projects** *(6)*, **and never `dotnet test` the solution** | ⭐ everything compiles under the ordinary gate; ⛔ a solution-wide `dotnet test` would try to launch them and fail. ⚠ **This repo does not gate that way** — `quick-check.sh <proj>` and per-project filters are the convention *(the three-tier rule)* ⇒ ⭐ **LEAN: take all six**, and put the reason in a comment beside the solution entries |
+
+### 16.3 ⭐ TIER 2 — the TFM split, **demoted to optional**
+
+⭐ Splitting each project into a `net8.0` half *(in the solution)* and a `net8.0-windows` half buys
+**exactly one** thing Tier 1 does not: ⭐⭐ **the portable tests actually RUN, in CI, on Linux.**
+
+📐 **What is portable, per file** *(zero `using Stride.*` / `global::Stride.*` / `Stride.<Engine|Core|Physics|…>.`)*:
+
+| project | `.cs` | engine-free |
+|---|---|---|
+| ⭐⭐ **`Hrot.Stride.Animation`** | 4 | **3** — only `PerEntityBlendTreeBuilder` needs the engine |
+| ⭐⭐ **`Hrot.Stride.Animation.Tests`** | 4 | 🔴 **4 — all of it**, ~750 lines that cannot run purely because of an inherited TFM |
+| ⭐ `Hrot.Stride.Core` | 32 | **18** — `StrideVisualBindingSystem` · `StrideKinematicsModule` · `StridePhysicsBracket` · `StrideRaycastBackend` · `StrideRaycastLosService` · `StrideHostLoopDriver` · both `DotRecast*` … |
+| ⛔ `Hrot.Stride.Core.Tests` | 26 | **0** |
+| ⛔ `HrotStrideApp.Game` | 19 | **1** *(it IS the shell)* |
+
+⛔⛔ **A zero-usings count is a CANDIDATE LIST, not a partition** — 📌 `PhysicsBodyLifecycleSystem.cs` has
+zero Stride usings and consumes `IPhysicsBodyService`, which has two. ⭐ **The compiler is the oracle:**
+create the project, move a file, build *(~8 s)*, repeat.
+
+⇒ ⭐ **LEAN: Tier 1 now; Tier 2 only if the animation tests running in CI is worth it** — and if it is, do
+**`Hrot.Stride.Animation` alone** *(one file stays behind, its whole suite comes along)*. ⛔ `Hrot.Stride.Core`
+is a different size of job and its 26 test files all touch the engine, so moving its production code
+without rails would strand them.
+
+### 16.4 ⭐⭐ WHAT THE SPLIT ANALYSIS REVEALED ANYWAY — the animation fork *(feeds `CE-216`)*
+
+📐 Measured while doing the above, and it stands regardless of whether Tier 2 ever happens:
 
 | | `Hrot/Subsystems/Hrot.MuscleCharacter.Animation.Stride` | `Stride/Hrot.Stride.Animation` |
 |---|---|---|
-| TFM | ⭐ **`net8.0`** | `net8.0-windows` |
-| Stride packages | ⛔ **none** | `Stride.Engine` |
+| TFM · Stride packages | ⭐ **`net8.0`** · ⛔ **none** | `net8.0-windows` · `Stride.Engine` |
 | the backend's own Stride refs | **0** | ⭐ **also 0** |
-| how it fakes the engine | `internal struct StrideEntityTransform` — its own comment: *"mirrors what `Stride.Engine.Entity.Transform` would carry"*; header calls it **"the smoke backend"** | the real `AttachBlendTreeBuilder(handle, PerEntityBlendTreeBuilder)` seam |
-| size / surface | 657 lines · 59 `public` | 663 lines · **75 `public`** |
+| how it stands in for the engine | `internal struct StrideEntityTransform` — *"mirrors what `Stride.Engine.Entity.Transform` would carry"*; header calls it **"the smoke backend"** | the real `AttachBlendTreeBuilder(handle, PerEntityBlendTreeBuilder)` seam |
+| size · public surface | 657 lines · 59 | 663 lines · **75** |
 | referenced by | ⛔ **its own test project only** | in_degree 14 |
 
 ⇒ ⭐⭐ **They are one class forked in two: the portable copy was made by COPYING the file into a `net8.0`
-project instead of SPLITTING the assembly** — and the two have since **diverged by 898 differing lines.**
-⭐ **The split in §16.1 dissolves the duplicate rather than choosing a winner**: the engine-free backend
-belongs in the `net8.0` project; only `PerEntityBlendTreeBuilder` stays Windows.
+project instead of splitting the assembly** — and they have since **diverged by 898 differing lines.**
+⭐ Tier 2 on `Hrot.Stride.Animation` would dissolve the fork as a by-product; ⛔ **Tier 1 does not**, so
+`CE-216` stays open either way.
 
-⚠ **Still blocked on the same reading as `CE-216`** — 📄 `.dev/_DONE/anim-ctrl/DD-1` **§15–16** *(the
-"no leakage" rule both files cite)* must say which copy was meant to exist before either is deleted.
-⛔ **Do not merge them on this measurement alone.**
+⚠ **And it still does not license a deletion** — 📄 `.dev/_DONE/anim-ctrl/DD-1` **§15–16** *(the "no
+leakage" rule both files cite)* must say which copy was meant to exist. ⭐ Reading it is Windows-independent.
 
-### 16.3 The shape
-
-```
-Hrot.Stride.Animation.Core   (net8.0, IN the solution)   backend · bridge · blend
-Hrot.Stride.Animation        (net8.0-windows, outside)   PerEntityBlendTreeBuilder only
-Hrot.Stride.Core.Portable    (net8.0, IN the solution)   the ~18 engine-free units
-Hrot.Stride.Core             (net8.0-windows, outside)   Bullet · rendering · raycast · the sinks
-```
-
-⚠ **It costs projects** — +2 to +4, against `Q51`'s reduction goal. ⭐ **`Q51` §2's own finding answers
-it:** *"the thing that actually costs build time is dependency DEPTH, not project count"* — and these are
-leaf-ward. ⇒ ⭐ **the trade is a handful of leaf projects for compile-and-test coverage on every CI run of
-code that today is verified by a 43-second script nobody is obliged to run.**
-
-### 16.4 ⭐ What it buys, stated plainly
-
-| ⭐ | ⛔ what it does NOT buy |
-|---|---|
-| the portable half **compiles with every solution build** ⇒ 📌 the `CE-203` class of defect *(a widened signature breaking the Stride host behind a full green gate table)* becomes **impossible for that half** | ⛔ **the Windows half is unchanged** — `stride-check.sh` is still required, and still the only thing that compiles it |
-| ⭐⭐ **its tests RUN**, in CI, on Linux — starting with `Hrot.Stride.Animation.Tests`' 4/4 | ⛔ **nothing that needs a GPU, a `Game` loop or Bullet becomes testable** |
-| ⭐ `CE-216`'s duplicate dissolves as a by-product | ⛔ it does not decide which fork's behaviour is right — `DD-1` §15–16 does |
-
-### 16.5 ⭐⭐ THE LEAN — pilot on `Hrot.Stride.Animation`, then decide
-
-| # | | |
-|---|---|---|
-| **①** | ⭐⭐⭐ **`Hrot.Stride.Animation` FIRST** | 4 files, 3 portable, **one** file to leave behind, and its **entire** test project comes along ⇒ the payoff is visible on the first CI run. ⭐ It also settles `CE-216` |
-| **②** | ⭐ **measure the pilot's real cost** *(files that failed to move, references added, build-time delta)* **before touching `Hrot.Stride.Core`** | ⛔ 18 candidate files across a 32-file assembly with **zero** portable tests is a different size of job, and the honest estimate needs the pilot's number |
-| **③** | ⚠ **`Hrot.Stride.Core.Tests` is the real question** | its 26 files all touch the engine ⇒ moving production code without moving rails means **portable code in the solution with its tests still stranded**. ⭐ Deciding that is what ② is for |
-
-⇒ **`CE-217`.**
-
----
+⇒ **`CE-217`** *(Tier 1, and Tier 2 as an option inside it)*.
