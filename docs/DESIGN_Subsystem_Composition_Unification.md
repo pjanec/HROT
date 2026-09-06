@@ -341,7 +341,7 @@ bypass the bootstrapper"* collapses them and is why phase N has looked like one 
 
 | layer | what it settles | adoption, measured |
 |---|---|---|
-| ⭐⭐⭐ **`HrotNodeBuilder.Build()`** | world · `EventAccumulator` + `ModuleHostKernel` · bus + `OrchestrationEventRegistry.RegisterAll` · time controller · DDS participant · `NetworkEntityMap` · id allocator | ✅ **5 production sites**: `IgNodeBootstrapper:148` · `StrideNodeBootstrapper:216` · `SimHostNodeBootstrapper:161` · `CgfSubsystem:534` · `EyesAndMuscleSubsystem:70`. ⛔ **the Editor is NOT one** |
+| ⭐⭐⭐ **`HrotNodeBuilder.Build()`** | world · `EventAccumulator` + `ModuleHostKernel` · bus + `OrchestrationEventRegistry.RegisterAll` · time controller · DDS participant · `NetworkEntityMap` · id allocator | ✅ **4 production sites**: `IgNodeBootstrapper:148` · `StrideNodeBootstrapper:216` · `SimHostNodeBootstrapper:161` · `CgfSubsystem:534`. ⚠ **was 5 — `EyesAndMuscleSubsystem` RETIRED `2026-09-05` (`CE-218`)**. ⛔ *(the Editor was not one either; it became one at `CE-203`)* |
 | ⭐⭐ **`SharedApplicationBootstrapper`** *(the 7-phase ORDER)* | phases 1–7, of which **6a base modules · 6a+ `NedReplicationModule` · 6c time-sync · 7 `Initialize`** are base-class-only | ⚠ **3 subclasses**: SimHost *(387 ln)* · IG *(471)* · Stride *(376)*, over a **279-line** base. ⛔ CGF and the Editor re-run the order inline |
 | ⭐ **the packs** *(what the hooks build)* | `EntityCreationPack` · `MapInteractionPack` · the 9 `*TranslatorPack`s | ✅ shared and adopted independently of the two layers above — 📌 **which is why CGF gets the packs while bypassing the bootstrapper** |
 
@@ -408,7 +408,7 @@ missing.**
 | **SimHost** | ✅ `SimHostApp:560` *(from `_bootstrapper.SlaveTranslator`, `:504`)* | ✅ |
 | **Stride** | ✅ `StrideNodeBootstrapper:174` | ✅ `eventBus: context.EventBus` |
 | **CGF** | ✅ `CgfSubsystem:1294` | ✅ |
-| **EyesAndMuscle** | ✅ `EyesAndMuscleSubsystem:104` | ✅ |
+| ~~**EyesAndMuscle**~~ | ⛔ **RETIRED `2026-09-05` — `CE-218`** *(the pre-Stride tracer bullet)* | — |
 | 🔴 **IG** | ⛔ **no** — ticks its own bare one instead | ⛔ **no** — makes a second bus |
 
 #### ⛔ WHAT LETS THIS HAPPEN — the seam, not the node
@@ -5478,7 +5478,7 @@ grep -rn "new HrotNodeContext" --include=*.cs | grep -v obj/
 
 | | measured |
 |---|---|
-| ⭐ **production `HrotNodeBuilder` sites** | **5** — `SimHostNodeBootstrapper` · `StrideNodeBootstrapper` · `IgNodeBootstrapper` · `CgfSubsystem` · `EyesAndMuscleSubsystem`. ⛔ **the editor is not one.** *(Both halves agree on the file set.)* |
+| ⭐ **production `HrotNodeBuilder` sites** | **4** — `SimHostNodeBootstrapper` · `StrideNodeBootstrapper` · `IgNodeBootstrapper` · `CgfSubsystem`. ⚠ **measured as 5 at the time; `EyesAndMuscleSubsystem` RETIRED `2026-09-05` (`CE-218`)** and the editor joined at `CE-203`. |
 | ⭐ **`HrotNodeContext` construction sites** | **1** — `HrotNodeBuilder:243`. ⇒ adding an `init` property to the record touches exactly one constructor |
 | 🔴 **what `EditorSubsystem.Initialize` re-implements** | **eight** of the builder's ten steps — see the table below |
 | ⚠ **`check_index_coverage`** | ⛔ **not available through the CLI** *(measured `2026-09-02`)*, so *"5 production sites"* rests on graph+grep agreement, not on a coverage proof |

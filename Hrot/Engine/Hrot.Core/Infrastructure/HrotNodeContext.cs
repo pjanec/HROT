@@ -27,7 +27,7 @@ namespace Hrot.Common.Infrastructure;
 /// the world came to be leaked on every node teardown.</para>
 ///
 /// <para>📐 <b>Measured, 2026-08-26:</b> the four consumers that receive a world through this record
-/// (<c>SimHostApp</c>, <c>IgApplication</c>, <c>CgfSubsystem</c>, <c>EyesAndMuscleSubsystem</c>) all
+/// (<c>SimHostApp</c>, <c>IgApplication</c>, <c>CgfSubsystem</c>, <c>EditorSubsystem</c>) all
 /// disposed the kernel and none disposed the world; the three that build their own world directly
 /// (<c>CgfApplication</c>, <c>EditorSubsystem</c>, <c>ScenarioSubsystem</c>) all dispose it. ⇒ the
 /// defect was the MISSING OWNERSHIP CONTRACT on this record, not four independent oversights.

@@ -2445,6 +2445,29 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
+- [x] **CE-218** · `RW-S` ⭐⭐⭐ — **`EyesAndMuscle` RETIRED — the pre-Stride TRACER BULLET, structurally unreachable, and its own design says its job is done.** 🔒 *(user, `2026-09-05`: "The EyeAndMuscle was probably just a predecessor of Stride, a step on the way to stride, no longer needed i think, can you check? removing dead code is desired.")*
+
+  ⭐⭐⭐ **The user's hypothesis was right, and the DESIGN CORPUS SAYS SO IN ITS OWN WORDS.** 📄 [`docs/designs/eyes-and-muscle/DESIGN.md`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/designs/eyes-and-muscle/DESIGN.md) carries a section titled **"Why EyesAndMuscle first, Stride later"**: *"EyesAndMuscle is a **tracer bullet**: it proves the Snapshot-on-Demand (SoD) async-module pattern, the `NedReplicationModule`, and the DRY builder work correctly — all in pure C#, without the complexity of a 3D engine. **When Stride integration begins, these building blocks are already stress-tested.**"* ⇒ ⚠ **this is the rare case where the "unreferenced is not unintentional" rule RESOLVES TOWARD DELETION** — the record does not merely fail to defend it, it states a purpose that is **fulfilled**.
+
+  📐 **Measured before deleting — four independent checks:**
+
+  | check | result |
+  |---|---|
+  | ⭐⭐⭐ **reachable from any `--mode` token?** | 🔴 **NO — structurally excluded.** `Program.cs:791` had `&& t != typeof(EyesAndMuscleSubsystem)` inside `ScanForSubsystems()`, so no CLI token could ever start it; it is absent from `ModeStartupRails`' 7 mode cases |
+  | **production construction sites** | ⛔ **one** — its own `Initialize`. Everything else was tests |
+  | ⭐⭐ **`R-137` — does deleting cost a capability?** | ⛔ **No.** Its whole point was `ExecutionPolicy.SlowBackground` (async SoD). 📐 **Four production modules ship that pattern today**: `EqsModule` · `CognitiveSpatialModule` · `NavigationSolverModule` · `AutonomousPerceptionModule`. ⇒ the PoC is not the only exemplar; it is not an exemplar at all any more |
+  | **the thing it was a tracer FOR** | ✅ **Stride exists** *(`DESIGN_Stride_Port.md`, and `DESIGN_Stride_Node_Modes.md`)* |
+
+  ⭐ **Classification** *(the three-way rule)*: ⛔ not duplicate CODE, ⛔ not duplicate SURFACE — **genuinely dead, and the design record agrees.**
+
+  📐 **Deleted (513 lines):** `Hrot.ClusterRunner/Services/EyesAndMuscleSubsystem.cs` (153) · `Hrot.SimHost/Modules/EyesAndMuscleModule.cs` (133) · `EyesAndMuscleSubsystemTests.cs` (124) · `EyesAndMuscleIntegrationTests.cs` (103). ⭐ Plus every dangling reference: the `ScanForSubsystems` exclusion + its doc comment, two `IgNodeBootstrapper` prior-art citations, and three doc-comment examples in `HrotNodeContext` / `HrotNodeConfig` / `HrotNodeBuilder`.
+
+  ✅ **Gate — `R-142`, the feature's own suite, baselined before and after:** `dotnet test Hrot.ClusterRunner.Tests` **279 → 273 total, 274 → 268 passed, 5 → 5 failed** ⇒ ⭐ **exactly −6, the deleted class's own test count, and the SAME 5 pre-existing `OrchestratorSubsystemTests` reds on both sides.** `Hrot.SimHost` + `Hrot.ClusterRunner` + `Hrot.ClusterRunner.Integration.Tests` all build 0 errors. `grep EyesAndMuscle *.cs` returns only the retirement comment.
+
+  📄 **Design fold-back** *(obligation ⑤)*: the owning design gained a STATUS block — `state: HISTORICAL`, `stale-below` naming Phase 3 as deleted while Phases 1/2/4 *(`HrotNodeBuilder`, `NedReplicationModule`, the migrations)* stay LIVE. The three **live** claims elsewhere were corrected: `DESIGN_Subsystem_Composition_Unification.md`'s *"5 production `HrotNodeBuilder` sites"* → **4** *(two places)* and its capability row; `DESIGN_Stride_Node_Modes.md` §1's *"5 `IMapCameraProvider` implementors"* → **4**; the two `docs/projects/` reference pages lost their sections. ⚠ Historical measurement rows elsewhere in those designs are left as history.
+
+---
+
 - [ ] **CE-217** · `RW-S` ⭐⭐⭐ — **PUT THE STRIDE TREE IN THE MAIN SOLUTION — ONE MSBUILD PROPERTY, NOT A REFACTOR.** 🔒 *(user, `2026-09-05`: "can the non strictly windows stride parts be made of the main solution so they are compiled and tested with the rest?" — then, on the first answer: "hmm i thought it is just about of adding few csprojs to main solution and no extra effort")*
 
   ⛔⛔ **THE USER WAS RIGHT AND THE FIRST ANSWER WAS OVER-ENGINEERED.** It priced this as a per-project TFM split. 📐 **Measured: it is nearly free.**

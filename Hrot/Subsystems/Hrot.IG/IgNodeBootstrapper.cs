@@ -91,7 +91,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     // where the identical call on CGF moved all three nodes.
     //
     // ⭐ Readers now use context.EventBus and context.SlaveTranslator — the same members SimHostApp:504/560,
-    //   StrideNodeBootstrapper:174, CgfSubsystem:1294 and EyesAndMuscleSubsystem:104 already use. IG was
+    //   StrideNodeBootstrapper:174 and CgfSubsystem:1294 already use. IG was
     //   the only host that did not.
     // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1b.
 
@@ -309,7 +309,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //   📐 Searched docs/ and .dev/ for a record justifying a second bus inside IG: none found.
         //
         // ⭐ Same shape as StrideNodeBootstrapper:278, which delegates with `eventBus: context.EventBus`,
-        //   and as SimHost/CGF/EyesAndMuscle. A FRESH ClusterSlave on the SHARED bus is the normal pattern
+        //   and as SimHost/CGF. A FRESH ClusterSlave on the SHARED bus is the normal pattern
         //   (SharedApplicationBootstrapper:104 then swaps it onto the context); what must never be fresh
         //   is the BUS or the slave TRANSLATOR.
         // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1b.

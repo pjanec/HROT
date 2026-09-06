@@ -1,3 +1,22 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-09-05
+current-answer: Phases 1, 2 and 4 SHIPPED and are LIVE — HrotNodeBuilder / SharedApplicationBootstrapper,
+  NedReplicationModule, and the migration of SimHostApp / IgApplication / CgfSubsystem onto them. Those
+  are the parts of this document still worth reading.
+stale-below: ⛔ PHASE 3 — the EyesAndMuscleSubsystem / EyesAndMuscleModule artefacts were DELETED on
+  2026-09-05 (CE-218). Do NOT quote §"Phase 3 — EyesAndMuscle Subsystem" as describing live code.
+  This document's own §"Why EyesAndMuscle first, Stride later" says why: it was a TRACER BULLET, built
+  to prove the SoD async pattern "in pure C#, without the complexity of a 3D engine … when Stride
+  integration begins, these building blocks are already stress-tested". Stride integration is done
+  (docs/DESIGN_Stride_Port.md), the SoD pattern ships in EqsModule, CognitiveSpatialModule,
+  NavigationSolverModule and AutonomousPerceptionModule, and the subsystem was structurally
+  unreachable — Program.cs excluded it from ScanForSubsystems, so no --mode token could start it.
+superseded-by: docs/DESIGN_Stride_Node_Modes.md (for the Stride half) ·
+  docs/DESIGN_Subsystem_Composition_Unification.md (for the composition half).
+known-conflict: none.
+-->
+
 # EyesAndMuscle Design
 
 > **Scope of this document**

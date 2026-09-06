@@ -777,8 +777,15 @@ class Program
 
     /// <summary>
     /// Scans all loaded assemblies for non-abstract ISubsystem implementations
-    /// (excluding PerspectiveUpdateSubsystem, EyesAndMuscleSubsystem, and CiSubsystem
-    /// which are runner-internal or handled separately).
+    /// (excluding PerspectiveUpdateSubsystem and CiSubsystem, which are
+    /// runner-internal or handled separately).
+    ///
+    /// CE-218: EyesAndMuscleSubsystem used to be excluded here too. It was the
+    /// "tracer bullet" that proved the SoD async-module pattern before Stride
+    /// existed (docs/designs/eyes-and-muscle/DESIGN.md, "Why EyesAndMuscle first,
+    /// Stride later"); the patterns it proved now ship in EqsModule,
+    /// CognitiveSpatialModule, NavigationSolverModule and AutonomousPerceptionModule,
+    /// and it was never reachable from any --mode token. Retired.
     /// </summary>
     private static IEnumerable<Type> ScanForSubsystems()
     {
@@ -788,7 +795,6 @@ class Program
             .Where(t => t.IsClass && !t.IsAbstract
                      && subsystemType.IsAssignableFrom(t)
                      && t != typeof(PerspectiveUpdateSubsystem)
-                     && t != typeof(EyesAndMuscleSubsystem)
                      && t != typeof(CiSubsystem));
     }
 

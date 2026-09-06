@@ -30,7 +30,7 @@ namespace Hrot.Common.Infrastructure;
 /// <c>SimHostApp.OnLoad</c> with a 3-line call sequence:</para>
 /// <code>
 /// _context = new HrotNodeBuilder(config)
-///     .WithRole("EyesAndMuscle", NodeRole.MuscleGround | NodeRole.ImageGenerator)
+///     .WithRole("SimHost", NodeRole.MuscleGround | NodeRole.Perception)
 ///     .Build();
 /// </code>
 ///

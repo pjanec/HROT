@@ -50,7 +50,7 @@ none of the totals below is a proof of completeness — each was corroborated wi
 | `search_graph(name_pattern=".*Stride.*", label="Class")` | **65** | the whole Stride surface, incl. the **two** `StrideAnimationBackend` classes *(§9)* and `StrideInspectorViewModel` `in_degree: 0` *(§7)* |
 | `search_graph(name_pattern=".*Capabilities$", label="Class")` | **5** *(3 are node hosts)* | `SimHostCapabilities` · `IgCapabilities` · `CgfCapabilities` — ⛔ **no Stride host** ⇒ `CE-205` |
 | `grep "NodeRole.MuscleGround"` in `Hrot.SimHost` + runner | — | `SimHostApp.cs:175` = `MuscleGround\|Perception\|NavigationSolver` — ⛔ **no `ImageGenerator`** |
-| `grep "IMapCameraProvider"` | 5 production implementors | SimHost · IG · CGF · Editor · EyesAndMuscle ⇒ **the 2-D map is a SUBSYSTEM capability, not an IG one** *(§6)* |
+| `grep "IMapCameraProvider"` | **4** production implementors | SimHost · IG · CGF · Editor ⇒ **the 2-D map is a SUBSYSTEM capability, not an IG one** *(§6)*. ⚠ measured as **5** on `2026-09-05`; `EyesAndMuscleSubsystem` was retired the same day *(`CE-218`)* |
 | `grep "DeadReckoningSyncSystem"` | 3 production registrations | `NedReplicationModule.cs:333/339` **both behind `_roleHasIG`**; `BdcReplicationModule.cs:87` ⇒ §6's finding |
 | `grep "AttachBootstrapper"` | **1 declaration, 0 callers** | `StrideHrotGame.cs:266` — mode 2's entry point is unreachable |
 
