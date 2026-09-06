@@ -328,6 +328,21 @@ units mode 1 uses** — `StrideVisualBindingSystem` *(in_degree 28, already shar
 ⚠ The extraction of those steps out of `EditorStrideSubsystem` into a unit both shells call is the
 **real work** of `CE-207`, and it is where a duplicate would otherwise appear.
 
+⭐⭐⭐ **`2026-09-06` — REPLAY-CORRECTNESS IS ALREADY INHERITED** *(resolved by `Q66` §5 row 4b)*. §9's
+`A3`/§13's `S3` left it open whether the view tier reconciles **differentially** or leans on lifecycle
+events it happens to receive because the editor never blits ECS memory. 📐 **Measured:**
+`StrideVisualBindingSystem`'s own header states it *"Implements the two-pass differential sync pattern
+from `SyncFdpToStrideScript`"* — **Pass 1 destructions** *(iterate the visual dictionary, destroy dead)*,
+**Pass 2 creations** *(query `SimTransform` + `TkbIdentity`, upsert)*. ⇒ ⭐⭐ **the mock design §6's
+replay argument is already satisfied by the surviving system**, so extracting the view tier **inherits**
+replay/seek correctness rather than having to rebuild it. ⛔ The togglable-group suspension during
+`LoadingReplay` is still a separate obligation *(mock §5.9)*.
+
+⭐⭐ **AND MODE 2 GETS A READINESS HANDSHAKE IT DID NOT HAVE** *(`Q66` §5 row 3b)*. 📐 A
+**`SubsystemStatusAnnounce`** DDS topic exists *(`Hrot.Network.NED`; `SubsystemStatusAnnounceTests`
+exercises a `DdsWriter<SubsystemStatusAnnounce>` pub/sub round trip)* — the discovery/readiness
+mechanism §16's launch story had no answer for. ⇒ folded into `CE-207`'s launch item.
+
 ---
 
 ## 8. GIZMOS IN 3-D *(ruling `R-S4` — and it is further along than the question assumes)*
