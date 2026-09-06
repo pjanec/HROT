@@ -138,6 +138,22 @@ artefact quoted as current**, because the corpus still holds the dead `stride-mo
 standing caution for every future question: **ask which document a claim comes from, and check whether
 that document describes something already retired.**
 
+### ⛔⛔ AND DO **NOT** REACH FOR A `refresh` TO FIX EITHER PROBLEM *(user, `2026-09-06`)*
+
+> 🔒 **User, verbatim:** *"refresh is only needed if there are significant changes of current sources or
+> docs since previous refresh, otherwise it just takes more time to answer as it needs to upload and
+> index 50MB of text files."*
+
+⚠ **This session suggested a `refresh` before the next question, on two arguments. BOTH WERE WRONG:**
+
+| the argument | why it fails |
+|---|---|
+| 🔴 *"it would purge the dead `stride-mock` programme from the corpus"* | ⛔ **No.** `.dev/_DONE/stride-mock/` is **still in the repository** — a refresh re-uploads it. ⇒ **the retired-artefact hazard is permanent** and is handled by the caution above, never by refreshing |
+| 🔴 *"it would remove the echo problem"* | ⛔ **Backwards.** A refresh pulls in MORE of our freshly-written docs ⇒ ⭐⭐ **it makes the echo WORSE, not better** |
+
+⇒ ⭐ **The rule: `refresh` only after SIGNIFICANT source/doc change since the last one.** ⛔ Never as
+hygiene, never "to be safe" — it costs a 50 MB upload plus indexing, on top of the ask.
+
 ## 6. DECISION
 
 ⏳ **The user's call, per sub-question.** ⭐ What the relay changed, on verification:
