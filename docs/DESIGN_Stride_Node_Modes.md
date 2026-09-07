@@ -2,7 +2,8 @@
 state: LIVE
 build-state: READY-TO-BUILD
 updated: 2026-09-07
-current-answer: the whole file. §2.1 carries the 2026-09-07 rulings (R-S11 CLI args + ctor slots die,
+current-answer: §13.1 (the 2026-09-07 WINDOWS VERIFICATION - read it before quoting any
+  "compiled here" cell in §13). the whole file. §2.1 carries the 2026-09-07 rulings (R-S11 CLI args + ctor slots die,
   R-S12 the physics delta, R-S13 the shell drives brackets, R-S14 closing the last three open questions);
   §11.1 and §7.3a are where R-S12/R-S13 land, §7.2b is the day-1 operator surface. §14's questions are
   ALL CLOSED — the table is now a record, not a decision list. Build order is §13's slice table. S0/S1/S2a/S2b/S2c/S3 are BUILT
@@ -751,8 +752,8 @@ call **reaches a service**, not that the bracket calls the method.
 | **S0** | DR becomes role-independent + `SmoothingRate` parameterised | `CE-211` | ⭐ no | ghost entities smooth on SimHost/CGF; `ClusterRunner.Integration.Tests` + `SplitAuthoritySpawnTests` green with expectations reviewed, not adjusted |
 | **S1** | `StrideCapabilities` in `Hrot.Stride.Core`; SimHost's perception pair promoted | `CE-205` + `CE-206` | ⭐ no *(compile gate)* | `stride-check.sh` green; a rail asserts the resolved list for `Muscle\|Perception\|Nav` is **non-empty and equals SimHost's units** |
 | ⭐⭐⭐ **S2a** | **THE EDITOR'S ROOT RESOLVES A `NodeCompositionPlan`** — declare `EditorSubsystem.DefaultRole`, wrap **today's default arm** *(SimHost muscle + `CgfLogicPack` + `CognitiveSpatialModule`)* as three capabilities. `MuscleModuleFactory` keeps working | `CE-208` part (a) | ⭐ **no** | ⭐⭐ **host (d) on the capability axis** — 📄 `DESIGN_Subsystem_Composition_Unification.md` §4.1ac. ⛔ **Zero Stride involvement**, so it gates on the editor's own suites. 🔒 This is what makes *"STRIDE IS LAST"* true |
-| **S2b** | mode 1 composes from `StrideCapabilities` — the factory lambda is **replaced by the plan**; the 4 ctor slots retired | `CE-208` part (b) | ⚠ compile here, **RUN on Windows** | ⭐ **host (e).** Mode 1 behaves as before — `STRIDE_SELFTEST=1` passes on Windows |
-| **S2c** | ✅ **BUILT `2026-09-07`** — the physics delta becomes the SIM delta, `simRunning` is derived from it, and Bullet stops on a halted clock | `CE-219` | ⚠ compiled here, **STILL NEEDS THE WINDOWS RUN** | ⭐ **§11.1a is the as-built.** ① and ③ closed; ② shipped as **option B** *(mode 1 has no shell)* and A moves to `CE-207`; `FixedTimeStep`/`MaxSubSteps` **not** set. ⛔⛔ **The stated acceptance — *"a rail asserts a paused frame moves no body"* — is NOT met and cannot be off Windows** *(Bullet cannot be stepped headless)*. What ships is `StridePhysicsBracketPauseGateTests`: the gate flips both ways, every frame, and **reaches a real service** |
+| **S2b** | mode 1 composes from `StrideCapabilities` — the factory lambda is **replaced by the plan**; the 4 ctor slots retired | `CE-208` part (b) | ⚠ compile here, **RUN on Windows** | 🔴🔴 **NOT MET — measured `2026-09-07`, §13.1.** `STRIDE_SELFTEST=1` **FAILS**: the host dies in `BeginRun()` on `CE-221`, a `[SingleInstance]` duplicate that is **pre-existing** *(base `94156812d` crashes identically)*. ⚠ `S2b` is COMPILED and its runtime acceptance stays open, blocked on `CE-221` — ⛔ not on anything `S2b` did |
+| **S2c** | ✅ **BUILT `2026-09-07`** — the physics delta becomes the SIM delta, `simRunning` is derived from it, and Bullet stops on a halted clock | `CE-219` | ⚠ **RUN `2026-09-07`: rails green, acceptance still blocked** — §13.1 | ⭐ **§11.1a is the as-built.** ① and ③ closed; ② shipped as **option B** *(mode 1 has no shell)* and A moves to `CE-207`; `FixedTimeStep`/`MaxSubSteps` **not** set. ⛔⛔ **The stated acceptance — *"a rail asserts a paused frame moves no body"* — is NOT met and cannot be off Windows** *(Bullet cannot be stepped headless)*. What ships is `StridePhysicsBracketPauseGateTests`: the gate flips both ways, every frame, and **reaches a real service** |
 | **S3** | ✅ **BUILT `2026-09-07`** — view tier extracted out of `EditorStrideSubsystem` into **`StrideViewBracket`** | part of `CE-207` | ⚠ compiled here | ⭐ **§7.3b is the as-built** *(and corrects §7.3a in four places — one of them would have reintroduced a fixed defect)*. Both of mode 1's tick paths drive it; ⛔ *"called by both shells"* is **half-met** — mode 2's shell arrives with `S4`. Rails: `StrideViewBracketOrderTests`, incl. the BATCH-S2-AG reproduction |
 | **S4** | `StrideNodeShell` + launch/config + mode selector | `CE-207` | 🔴 **Windows** | `HrotStrideApp` joins a cluster beside CGF; entities replicate; **`--mode all`-equivalent smoke** |
 | **S5** | gizmo ingress + skip counters | `CE-215` | ⚠ | remote gizmos visible in 3-D; skipped shapes counted, not silent |
@@ -771,6 +772,44 @@ call **reaches a service**, not that the bracket calls the method.
 | ⚠ **`ModeStartupRails` cannot cover mode 2** | it boots `Hrot.ClusterRunner`, and Stride is a separate exe. ⇒ ⭐ **mode 2 needs its own launch rail, and it can only run on Windows** — state that rather than discover it |
 
 ---
+
+### ⭐⭐⭐ 13.1 THE WINDOWS VERIFICATION — **`2026-09-07`, the run §0 exists for**
+
+📐 **Branch `claude/reset-working-branch-qd1qpv` at `9ac7b8327`; baseline `94156812d`** *(the commit before
+`S0`, named by `bbd976a7d`'s started-marker)*. ⭐ **Both sides were BUILT AND RUN on Windows** — the base
+was not inferred.
+
+| # | gate | verdict |
+|---|---|---|
+| **§2.1** | `dotnet build Stride\HrotStrideApp.sln` | ✅ **0 errors**, 66 warnings, 6:38 — ⭐⭐ **including `HrotStrideApp.Windows`, which had never been compiled anywhere.** Base: 0 errors, 12:49 |
+| **§2.2** | the three Stride suites, `--no-build`, HEAD vs base | ✅ **ZERO REGRESSIONS** — table below |
+| ⭐⭐ **§2.2** | the two NEW rails, first execution anywhere | ✅ **`StridePhysicsBracketPauseGateTests` 3/3** *(`S2c`)* · ✅ **`StrideViewBracketOrderTests` 5/5** *(`S3`, incl. the BATCH-S2-AG reproduction)* |
+| 🔴🔴 **§2.3** | `STRIDE_SELFTEST=1` | ⛔⛔ **FAIL — the host does not boot.** `CE-221`: it dies in `StrideHrotGame.BeginRun()` on a `[SingleInstance]` duplicate, **identically at base** ⇒ pre-existing, not a slice regression |
+| 🔴 **§2.4** | the dual-window visual check | ⛔ **BLOCKED by `CE-221`** — the application cannot open a window |
+
+📐 **The suite comparison, one run per side** *(the reds are byte-identical in NAME on both sides, so no
+flake hunt was warranted; contrast `CE-146`, where two rotating flakes needed 9 runs per side)*:
+
+| suite | base `94156812d` | HEAD `9ac7b8327` | delta |
+|---|---|---|---|
+| `Hrot.Stride.Core.Tests` | 325 P / **2 F** / 327 | 328 P / **2 F** / 330 | ⭐ **+3 pass** *(the `S2c` rail)*, same 2 reds |
+| `Hrot.Stride.Animation.Tests` | 48 P / 0 F / 48 | 48 P / 0 F / 48 | identical |
+| `HrotStrideApp.Game.Tests` | 217 P / **14 F** / 231 | 227 P / **14 F** / 241 | ⭐ **+10 pass** *(incl. the 5 `S3` rails)*, same 14 reds |
+
+⭐ **The 16 reds, classified — all pre-existing, none attributable to `S0`–`S3`:**
+
+| # | reds | cause |
+|---|---|---|
+| **12** | `StrideEditorUiHostTests` (6) · `EditorSubsystemHeadlessBootTests` (4) · `EditorStrideSubsystemHostedModeTests` (2) | ⛔ **`CE-221`** — one defect, twelve names. All fail in **1 ms** in the constructor, on the same `[SingleInstance]` throw that kills the app |
+| **2** | `FdpMoveOrderIntegrationTests.VehicleNavSystem_ClosedLoop_AdvancesCorners_AndArrivesAtGoal` · `…_NoPath_HaltsVehicle_AndReportsNoPath` | pre-existing, `Hrot.Stride.Core.Tests` |
+| **2** | ⭐ **`StrD21NavigationFixTests`** — the two the bootstrap asked for a verdict on | ⭐⭐ **VERDICT: pre-existing, and NOT the boot defect.** They fail on **assertions**, not in the constructor: *"Assert.NotEqual() Failure: … Actual: FailedBlocked"* (`:333`) and *"Corner index must advance after entity reaches corner 1; got 0"* (`:460`). ⇒ the STANDALONE `EditorStrideSubsystem.Initialize()` path **does** boot — it dedupes at `EditorStrideSimulationModule` — so this is a nav-behaviour red, a sibling of the two `FdpMoveOrderIntegrationTests` above and of `CE-103`. ⛔ **Not investigated further this session; it is not a `CE-207` blocker** |
+| **1** | `StrideNedRenderDescriptorsTests.Translator_Infantry200_DoesNotInjectVehicleState` | *"VehicleState must NOT be injected for type 200 (Capsule infantry)"* — pre-existing, identical at base |
+
+⛔⛔ **WHAT THIS RUN COULD NOT VERIFY, stated so no report claims otherwise:** every acceptance line below
+that needs the application RUNNING — `S2b`'s *"mode 1 behaves as before"*, `S2c`'s paused-body check, `S3`'s
+selection-trail check — **remains unverified**, because `CE-221` stops the host before its first frame.
+⭐ What IS now verified is the half a compile gate could never reach: **the projects build on Windows, the
+suites run on Windows, and the two new rails are green on real execution.**
 
 ## 14. OPEN QUESTIONS — each with a lean
 
