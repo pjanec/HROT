@@ -2678,7 +2678,13 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⚠⚠ **THIS SUPERSEDES `§4.1L`'s READING.** That section measured the dormancy and recorded *"⛔ searched `docs/` + `.dev/`, none found — it is **undeclared dormancy**"*. 🔒 **The user has now declared it:** the class is **built-but-unwired for a mode that was never stood up**, not dead code. ⛔ An earlier reading of this row as a retirement candidate is WITHDRAWN.
 
-  ⭐ **The template is `SimHostApp`:** construct the bootstrapper with its module slots, set `ApplicationSystemsRegistrar`, call `BootstrapNode(config, role, networkFactory)`, then tick `SlaveTranslator`. ⭐ `StrideNodeBootstrapper`'s ctor already takes exactly the four slots this needs — `kinematics` · `perception` · `combat` · `navigation`.
+  ⭐ **The template is `SimHostApp`:** construct the bootstrapper with its module slots, set `ApplicationSystemsRegistrar`, call `BootstrapNode(config, role, networkFactory)`, then tick `SlaveTranslator`. ⚠ **Its ctor's four `IEcsModule?` slots are NOT the seam any more** — 🔒 *(user, `2026-09-07`: "ctor slots die - approved")* ⇒ they are **deleted** by `CE-208`; the capability plan replaces them.
+
+  ⭐⭐⭐ **APPROVED `2026-09-07` — the launch surface** 🔒 *(user: "cli args … approved")*: **CLI args mirroring `ClusterRunner`'s** (`--node-id` defaulting to **700**, `--domain`, `--no-wait`, `--staging`, plus `--debug-port` from `CE-214`), and **`--mode editor|node`** defaulting to `editor`. ⛔ Not env vars.
+
+  ⭐⭐⭐ **THE SHELL IS A BRACKET DRIVER, NOT A SECOND COMPOSITION ROOT** 🔒 *(user, `2026-09-07`: "stridenodeshell as bracket")*. `TickFrame` is a short body that calls, in order: **physics bracket pre → `Kernel.Update()` → physics bracket post → view bracket**. ⇒ the view tier is extracted out of `EditorStrideSubsystem` as **`StrideViewBracket`** in `Hrot.Stride.Core`, mirroring the existing `StridePhysicsBracket` member-for-member *(binding → animation → gizmos → selection, `wallDt`)*. 📄 [`DESIGN_Stride_Node_Modes.md` §7.3a](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).
+
+  ⭐⭐ **THE SHELL OWNS THE CLOCK ADVANCE** *(`R-S12`, §11.1 ②)* — it calls the time controller once at the top of the frame, hands `GlobalTime.DeltaTime` to the physics bracket, and passes the same instance to a new `Kernel.Update(in GlobalTime)`. ⛔ **Never the obsolete `Update(float)`** — that overload *fabricates* a clock (`ModuleHostKernel.cs:468`), which is why it desyncs. ⚠ A rail must assert `FrameNumber` increments **exactly once** per `TickFrame`.
 
   ⛔ **Blocked on `CE-205` + `CE-206`** — a node declaring `Perception` with an empty slot is the silent-default shape, and in mode 2 nothing else supplies it.
 
@@ -2691,6 +2697,22 @@ whenever the finding is "the sim did not do the impressive thing".**
   📐 Today the hosted path injects `StrideMuscleModules.Build(...)` through `_editor.MuscleModuleFactory`. ⇒ ⭐ after `CE-205` that becomes *"resolve `StrideCapabilities` for the declared role and hand the resolved set to the editor"* — the same units mode 2 gets, so the two modes cannot drift.
 
   ⚠ **The role differs and that is legitimate:** mode 1 is networkless and fuses Brain, mode 2 is a networked Muscle node beside CGF. ⭐ **That is exactly what a role-selected plan is for** — ⛔ it must not become two capability sets.
+
+  ⭐⭐⭐ **APPROVED `2026-09-07` — DELETE the four `IEcsModule?` ctor slots** 🔒 *(user: "ctor slots die - approved")*. 📐 `StrideNodeBootstrapperTests` constructs with **no arguments** today, so nothing is lost; the slots' one production use (`StrideMuscleModules.Build` through `_editor.MuscleModuleFactory`) becomes a capability. ⛔ Two swap mechanisms for one concern is the duplication this programme exists to remove.
+
+  🔴 **AND MODE 1's PHYSICS `dt` IS WRONG TODAY** *(`R-S12`)*. 📐 Measured `2026-09-07`: `EditorStrideSubsystem.cs:1089` passes `StepFixedDeltaSeconds` on a deterministic step but the **raw wall frame dt** in `Continuous` — while `StridePhysicsBracket.cs:157` documents that parameter as *"Simulation delta-time in seconds."* ⇒ **the caller violates the callee's stated contract.** ⭐ Fix here, in the same slice that repoints mode 1 at the capability plan. 📄 [`DESIGN_Stride_Node_Modes.md` §11.1](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).
+
+---
+
+- [ ] **CE-219** · `RW-M` ⭐⭐⭐ — 🔴 **STRIDE'S OWN BULLET STEP IS UNGATED: BODIES KEEP FALLING WHILE THE CLUSTER IS PAUSED.** 🔒 *(user, `2026-09-07`: "dt for physics needs to be the synced time dt so physics does nothing when sim time not advancing because paused/stepped")*
+
+  ⭐⭐ **A LIVE MODE-1 DEFECT, found while designing mode 2.** 📐 Measured `2026-09-07`: `StridePhysicsBracket` does **not** step Bullet — Stride's own `PhysicsProcessor` does, from Stride's game loop on **wall** time *(`BulletReverseSyncSystem.cs:20` — "runs once per frame **after** the `PhysicsProcessor` has stepped the simulation")*. ⛔ **Nothing in `Stride/` ever writes `FixedTimeStep`, `MaxSubSteps`, or disables the simulation** — `BulletPhysicsBodyService.cs:295` only **logs** `FixedTimeStep`. ⇒ pausing or stepping the cluster stops the motors *(they are gated on `simRunning`)* but **not gravity, not contacts, not any dynamic body**.
+
+  ⭐ **The fix is one assignment per frame.** `Stride.Physics.Simulation.DisableSimulation` is a public field — *"Totally disable the simulation if set to true"* *(`Stride.Physics` 4.2.1.2487)*. Drive it from `GlobalTime.IsAdvancing`, and set `FixedTimeStep`/`MaxSubSteps` from the sim step so a deterministic step integrates **once**.
+
+  ⛔ **The predicate is `IsAdvancing` (`DeltaTime > 0`), NEVER `IsPaused`** — the latter is `TimeScale == 0` and is **false while paused**; the type's own `[Obsolete]` attribute says so. ⭐ **No separate pause guard is needed** — 🔒 the user's `CE-211` ruling applies unchanged: *"sim time does not advance when paused/stepped."*
+
+  ⚠ **`R-142`: the feature's own suite is `PhysicsBodyLifecycleSystemTests` + `SimVelocityChainTests`** — but ⛔ **neither can run off Windows** and both stub the `Simulation`. ⇒ the acceptance rail is a **mode-1 Windows check**: pause the clock, pump N frames, assert **no** `SimTransform` moves. 📄 [`DESIGN_Stride_Node_Modes.md` §11.1 ③](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).
 
 ---
 

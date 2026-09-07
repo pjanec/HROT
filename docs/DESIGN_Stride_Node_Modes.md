@@ -1,8 +1,10 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN
-updated: 2026-09-05
-current-answer: the whole file. It is the ONE owning design for the Stride story — the two modes the user
+updated: 2026-09-07
+current-answer: the whole file. §2.1 carries the 2026-09-07 rulings (R-S11 CLI args + ctor slots die,
+  R-S12 the physics delta, R-S13 the shell drives brackets); §11.1 and §7.3a are where they land. It is
+  the ONE owning design for the Stride story — the two modes the user
   wants (mode 1 networkless dual-window editor, mode 2 networked node replacing SimHost), the shared
   composition, the window surfaces, gizmos, animation, perception/LOS, the role vocabulary, and §16
   getting Stride into the main solution (Tier 1 is one MSBuild property + three solution entries).
@@ -22,6 +24,11 @@ known-conflict: docs/DESIGN_Subsystem_Composition_Unification.md §4.1aa carried
 
 > 🔒 **Not approved to build.** `build-state: DESIGN`. It moves to `READY-TO-BUILD` only when the user
 > approves §14's open questions. ⛔ No `CE-2xx` Stride row starts before that.
+>
+> ⭐ **`2026-09-07` — `Q1`, `Q2`, `Q4`, `Q6` are CLOSED** *(`R-S11` + the earlier `NodeRole` measurement)*.
+> **Open: `Q3`** *(the companion map — ⭐ the user's `2026-09-07` ruling in §7.2b makes it **day 1**, which
+> supersedes `Q3`'s lean; the row stays until the user confirms)*, **`Q5`** *(3-D forms for 2-D-only
+> gizmos — lean "not now")*, and **`Q7`** *(new: where the shell gets the frame's sim delta — §11.1 ②)*.
 
 ## Headline
 
@@ -79,6 +86,14 @@ none of the totals below is a proof of completeness — each was corroborated wi
 | **R-S8** | *"Stride itself is not saving/loading scenarios; its editor part is."* | **§10** |
 | **R-S9** | *"self-contained stride can be retired"* | `CE-209`, LAST |
 | **R-S10** | *"during the transition period (before LOS is properly implemented) we can live with simHost's implementation for a while… but this must be recorded properly and having a task for proper implementation"* | **§12**, `CE-210` |
+
+### ⭐⭐⭐ 2.1 — the `2026-09-07` rulings, verbatim
+
+| # | ruling | consequence |
+|---|---|---|
+| **R-S11** | *"cli args, ctor slots die - approved."* | ✅ **§14 `Q1`, `Q2`, `Q6` CLOSED** — mode 2 is configured by CLI args mirroring `ClusterRunner`'s, the mode is a `--mode editor\|node` switch, and the four `IEcsModule?` ctor slots on `StrideNodeBootstrapper` are deleted by `CE-208` |
+| **R-S12** | *"dt for physics needs to be the synced time dt so physics does nothing when sim time not advancing because paused/stepped."* | ⭐⭐⭐ **§11.1** — and it is **a correction to mode 1**, not only a rule for mode 2. 📐 Measured: mode 1 passes the **wall** frame dt in `Continuous` and nothing at all gates Stride's own Bullet step |
+| **R-S13** | *"stridenodeshell as bracket"* | **§7.3a** — the view tier becomes a `StrideViewBracket` in the shape `StridePhysicsBracket` already has, and `StrideNodeShell` is the thing that *drives* two brackets around `Kernel.Update()` rather than a second composition root |
 
 ---
 
@@ -163,6 +178,14 @@ classDiagram
         <<new>>
         +PumpFrame()
     }
+    class StridePhysicsBracket {
+        +RunPreKernelStep(world, simDt, simRunning)
+        +RunPostKernelStep(world)
+    }
+    class StrideViewBracket {
+        <<new>>
+        +RunPostKernelStep(world, wallDt)
+    }
     class StrideVisualBindingSystem
     class StrideAnimationBridge
     class DebugPrimitiveRenderer3D
@@ -178,9 +201,13 @@ classDiagram
     EditorStrideSubsystem --> EditorSubsystem : hosts 1
     EditorStrideSubsystem --> StrideCapabilities : resolves
     StrideNodeBootstrapper --> StrideCapabilities : resolves
-    StrideHrotGame --> StrideVisualBindingSystem : view tier
-    StrideHrotGame --> StrideAnimationBridge : view tier
-    StrideHrotGame --> DebugPrimitiveRenderer3D : view tier
+    StrideNodeShell --> StridePhysicsBracket : drives
+    StrideNodeShell --> StrideViewBracket : drives
+    EditorStrideSubsystem --> StridePhysicsBracket : drives
+    EditorStrideSubsystem --> StrideViewBracket : drives
+    StrideViewBracket --> StrideVisualBindingSystem : owns
+    StrideViewBracket --> StrideAnimationBridge : owns
+    StrideViewBracket --> DebugPrimitiveRenderer3D : owns
 ```
 
 ⭐ **Existing boxes** *(files)*: `NodeCompositionPlan` `Hrot.Common/Infrastructure/NodeCapability.cs` ·
@@ -188,8 +215,11 @@ classDiagram
 `Hrot.NodeComposition/` · `EditorStrideSubsystem`, `StrideHrotGame` `Stride/HrotStrideApp.Game/` ·
 `StrideVisualBindingSystem`, `DebugPrimitiveRenderer3D` `Stride/Hrot.Stride.Core/` ·
 `StrideAnimationBridge` `Stride/Hrot.Stride.Animation/`.
-⭐ **`<<new>>` boxes**: `StrideCapabilities`, `StrideNodeShell`, `Map2DCompanion` — and
-`StrideEditorWindow` is the **renamed** `StrideInspectorWindow` *(§7.1)*.
+⭐ **`<<new>>` boxes**: `StrideCapabilities`, `StrideNodeShell`, `StrideViewBracket`, `Map2DCompanion` —
+and `StrideEditorWindow` is the **renamed** `StrideInspectorWindow` *(§7.1)*.
+⚠ **`StridePhysicsBracket` is drawn deliberately** *(`Stride/Hrot.Stride.Core/StridePhysicsBracket.cs`,
+existing)*: it is the **template** `StrideViewBracket` copies, and drawing both on one canvas is what
+makes the duplicate impossible to miss — §7.3a, ruling `R-S13`.
 
 ### 4.1 Where `StrideCapabilities` lives
 
@@ -362,6 +392,39 @@ replay argument is already satisfied by the surviving system**, so extracting th
 replay/seek correctness rather than having to rebuild it. ⛔ The togglable-group suspension during
 `LoadingReplay` is still a separate obligation *(mock §5.9)*.
 
+### ⭐⭐⭐ 7.3a WHAT *"`StrideNodeShell` AS A BRACKET"* MEANS *(ruling `R-S13`)*
+
+⭐⭐ **The shape already exists in this repo and has a name: `StridePhysicsBracket`** *(`Hrot.Stride.Core/StridePhysicsBracket.cs`)*.
+Read its header — it is the whole pattern:
+
+| ⭐ what a bracket IS | ⛔ what it is NOT |
+|---|---|
+| a **cohesive unit of host-driven steps that must run at a fixed point relative to `Kernel.Update()`**, because the engine outside the kernel *(Bullet, the renderer)* is stepped by Stride's loop, not by FDP's scheduler | a composition root — it **owns no modules, resolves no capabilities, builds no world** |
+| **two entry points with a documented order**: `RunPreKernelStep(world, dt, simRunning)` and `RunPostKernelStep(world)` — the numbered lists in its doc-comment ARE the contract | a system, a module, or an `IEcsModule` — the kernel never sees it |
+| **constructed by the shell and handed its collaborators** — the caller decides *whether* a step runs; the bracket decides *in what order* | a place for `if (mode == …)`. ⛔ **One bracket, two callers** |
+| ⭐ its own doc-comment states **what it does NOT own** *(orchestration pump, `Kernel.Update`, animation bridge, gizmo renderer, selection)* — that list is how a reviewer catches scope creep | |
+
+⇒ ⭐⭐⭐ **`StrideNodeShell` is not itself the bracket. It is the thing that DRIVES the brackets** —
+`Boot(config)` builds `StrideNodeBootstrapper` from `StrideCapabilities`, and `TickFrame(dt)` is a short,
+readable body that calls, in order: **physics bracket pre** → `Kernel.Update()` → **physics bracket post**
+→ **view bracket**. ⛔ Nothing else. That is the whole class.
+
+⭐⭐ **And `R-S13`'s actual work is the SECOND bracket.** §7.3's *"extraction of the view tier out of
+`EditorStrideSubsystem`"* has, until now, had no stated shape — which is exactly how a duplicate appears.
+⇒ it is extracted **as `StrideViewBracket`, in `Hrot.Stride.Core`, mirroring `StridePhysicsBracket`
+member-for-member**:
+
+| `StrideViewBracket` | ⭐ owns *(all EXISTING units — ⛔ no new rendering code)* |
+|---|---|
+| `RunPostKernelStep(world, wallDt)`, in this order | ① `StrideVisualBindingSystem` *(2-pass differential ECS→visual sync)* → ② `StrideAnimationBridge` → ③ `DebugPrimitiveRenderer3D` *(gizmos)* → ④ selection highlight |
+| **does NOT own** | the physics bracket · `Kernel.Update()` · the orchestration pump · the 2-D companion window · anything that writes `SimTransform` |
+| **`wallDt`, deliberately** | ⭐ the view tier is free-running and interpolates *between* sim frames — it is the **one** consumer that legitimately wants wall time. ⚠ Contrast `R-S12`: the *physics* bracket must not |
+
+⭐ **Why this is cheap:** both shells already call every one of those four units; the extraction moves
+call sites, not logic. ⭐ **Why it is worth a class:** the order between them is load-bearing *(binding
+must create the visual before the animation bridge or the gizmo renderer can touch it)*, and today that
+order is an accident of statement order inside a 1 000-line subsystem.
+
 ⭐⭐ **AND MODE 2 GETS A READINESS HANDSHAKE IT DID NOT HAVE** *(`Q66` §5 row 3b)*. 📐 A
 **`SubsystemStatusAnnounce`** DDS topic exists *(`Hrot.Network.NED`; `SubsystemStatusAnnounceTests`
 exercises a `DdsWriter<SubsystemStatusAnnounce>` pub/sub round trip)* — the discovery/readiness
@@ -466,21 +529,30 @@ sequenceDiagram
     participant G as StrideHrotGame
     participant S as StrideNodeShell
     participant B as StrideNodeBootstrapper
+    participant T as SlaveSyncController
+    participant P as StridePhysicsBracket
     participant K as ModuleHostKernel
+    participant V as StrideViewBracket
     participant W as Map2DCompanion
 
     OS->>G: Update(gameTime)
     G->>S: TickFrame(wallDt)
-    S->>B: Tick(wallDt)
+    S->>T: Update()
+    T-->>S: GlobalTime (simDt, IsAdvancing)
+    S->>S: Simulation.DisableSimulation = not IsAdvancing
+    S->>P: RunPreKernelStep(world, simDt, IsAdvancing)
+    S->>B: Tick(wallDt, globalTime)
     B->>B: ProducerBuffer.EndFrame(wallDt)
     B->>B: SlaveTranslator.Tick()
     B->>B: ClusterSlave.Tick()
-    B->>K: Update()
-    Note over K: no dt: SlaveSyncController owns time
+    B->>K: Update(in globalTime)
+    Note over K: never Update(float): that one fabricates a clock
     K-->>B: systems advanced
     B->>B: EventBus.SwapBuffers()
     B->>B: gizmoIngress.PollAndApply()
-    S->>S: view tier: visual binding, animation, gizmos 3D
+    S->>P: RunPostKernelStep(world)
+    S->>V: RunPostKernelStep(world, wallDt)
+    Note over V: view tier is free-running: wallDt is correct HERE
     G->>W: PumpFrame() if companion enabled
 ```
 
@@ -491,6 +563,43 @@ sequenceDiagram
 | ⚠ **mode 1 keeps `TickHosted(wallDt)` once per render frame** | ⛔ **not** through `StrideHostLoopDriver` — `FIX-PERF-1`: up to 8 substeps per frame each running the full editor update = spiral of death |
 | ⚠ **`StridePhysicsBracket.RunPreKernelStep` ordering** | mode 1 runs Bullet around the kernel step. ⇒ 🔴 **mode 2 must place the bracket at the same point relative to `Kernel.Update()`**, and that placement is an item of `CE-207`, not an afterthought |
 | ⚠ **render rate ≠ sim rate** | the view tier may run every render frame; the sim advances only as the master's clock allows. ⭐ That is what makes §6.1's smoothing matter |
+| 🔴 **physics `dt` is the SIM delta, never the wall dt** | ⭐⭐⭐ **§11.1** — ruling `R-S12`. ⛔ **Mode 1 gets this wrong today**, so it is a correction, not just a new-code rule |
+
+### ⭐⭐⭐ 11.1 THE PHYSICS DELTA *(ruling `R-S12`)*
+
+> 🔒 **User, verbatim, `2026-09-07`:** *"dt for physics needs to be the synced time dt so physics does
+> nothing when sim time not advancing because paused/stepped."*
+
+⭐⭐ **The ruling is right and it is bigger than mode 2** — it lands in **three separately-owned places**,
+and only the first was ever on anyone's list.
+
+| # | where | how it IS *(measured `2026-09-07`)* | what `R-S12` requires |
+|---|---|---|---|
+| **①** | the **bracket's `dt` parameter** — nav intent, character motor, vehicle motor, reverse-sync | ⚠ **half-right.** `EditorStrideSubsystem.cs:1089` passes `StepFixedDeltaSeconds` *(1/60)* on a deterministic step, but the **raw wall frame dt** in `Continuous`. ⭐ Motors are already gated by `simRunning` *(`StridePhysicsBracket.cs:177/181/185`)*, so a halted sim already does nothing here | pass the **sim** delta in `Continuous` too. ⭐ The parameter's own doc **already says so**: `StridePhysicsBracket.cs:157` — *"`dt` — Simulation delta-time in seconds"* ⇒ ⛔ **the caller violates the callee's stated contract** |
+| **②** | **where that sim delta comes from** | 🔴 **it does not exist before `Kernel.Update()`.** `ModuleHostKernel.cs:450` calls `_timeController.Update()` *inside* `Update()` and pushes the singleton at `:499`; `SimClock.cs`'s own header warns that asking the controller via `GetCurrentState()` returns a **zero** delta forever | see the two options below |
+| **③** | 🔴 **Stride's OWN Bullet step** | ⛔⛔ **completely ungated, and nobody had noticed.** The bracket does **not** step Bullet — Stride's `PhysicsProcessor` does, from Stride's game loop on **wall** time *(`BulletReverseSyncSystem.cs:20` — "after the `PhysicsProcessor` has stepped")*. 📐 Nothing in `Stride/` ever writes `FixedTimeStep`, `MaxSubSteps` or disables it — `BulletPhysicsBodyService.cs:295` only **logs** `FixedTimeStep` ⇒ **bodies keep falling while the cluster is paused** | gate it. ⭐ `Stride.Physics.Simulation.DisableSimulation` is a public field — *"Totally disable the simulation if set to true"* *(`Stride.Physics` 4.2.1.2487)* ⇒ **one assignment per frame from `IsAdvancing`**, plus `FixedTimeStep`/`MaxSubSteps` set from the sim step so a step integrates once |
+
+#### ⭐ ② — the two ways to get the current frame's sim delta, and the lean
+
+| | ⭐ **A — hoist the advance into the shell** *(the lean)* | ⚠ **B — last frame's pushed delta** |
+|---|---|---|
+| how | the shell calls the controller **once** at the top of `TickFrame`, keeps the `GlobalTime`, hands its `DeltaTime` to both brackets, and passes it to a **new** `Kernel.Update(in GlobalTime)` that skips its own advance | read `kernel.CurrentTime.DeltaTime` *(`ModuleHostKernel.cs:106`, already read by IG/CGF/SimHost)* before the kernel runs |
+| exactness | ✅ **exact** — physics and the kernel integrate the same delta on the same frame | ⛔ **one frame of lag**: physics takes one extra step *after* a cluster-wide pause and misses one on resume |
+| cost | a ~5-line kernel seam. ⛔ **Not** the obsolete `Update(float)` — that one *fabricates* a `GlobalTime` *(`:468`)*, which is why it desyncs; this one passes the controller's real instance through | zero |
+| risk | ⚠ the controller must then be advanced by **exactly one** caller — a rail must assert `FrameNumber` increments once per `TickFrame` | ⚠ the lag is invisible until two nodes disagree, which is the worst way to find it |
+
+⇒ ⭐⭐ **Lean: A.** `R-S12`'s stated purpose is *"physics does nothing when sim time is not advancing"*;
+**B does something on exactly the frame the pause lands**, and a cluster-wide pause is precisely when
+nodes must agree. ⚠ **What would change the lean:** if the new kernel overload turns out to fight
+`SwapTimeController` *(`ModuleHostKernel.cs:1128`)* or the replay path, take **B** and rail the lag.
+
+⛔⛔ **`R-S12` needs no pause guard of its own** — 🔒 the user's earlier ruling on `CE-211` applies
+unchanged: *"sim time does not advance when paused/stepped"*, so `DeltaTime == 0` **is** the guard. ⭐ The
+predicate is `GlobalTime.IsAdvancing` *(`DeltaTime > 0`)* — ⛔ **never `IsPaused`**, which is `TimeScale == 0`
+and is `false` while paused *(the type's own `[Obsolete]` says so)*.
+
+⭐ **Ownership:** ① and ② are `CE-207`/`CE-208` items *(the shell + mode 1's caller)*; ③ is its own row —
+**`CE-219`** — because it is a **live mode-1 defect** that ships before mode 2 exists.
 
 ---
 
@@ -511,7 +620,8 @@ sequenceDiagram
 | **S0** | DR becomes role-independent + `SmoothingRate` parameterised | `CE-211` | ⭐ no | ghost entities smooth on SimHost/CGF; `ClusterRunner.Integration.Tests` + `SplitAuthoritySpawnTests` green with expectations reviewed, not adjusted |
 | **S1** | `StrideCapabilities` in `Hrot.Stride.Core`; SimHost's perception pair promoted | `CE-205` + `CE-206` | ⭐ no *(compile gate)* | `stride-check.sh` green; a rail asserts the resolved list for `Muscle\|Perception\|Nav` is **non-empty and equals SimHost's units** |
 | **S2** | mode 1 composes from `StrideCapabilities`; the 4 ctor slots retired | `CE-208` | ⚠ compile here, **RUN on Windows** | mode 1 behaves as before — `STRIDE_SELFTEST=1` passes on Windows |
-| **S3** | view tier extracted out of `EditorStrideSubsystem` into a unit both shells call | part of `CE-207` | ⚠ | mode 1 unchanged; the unit has its own rails |
+| **S2b** | 🔴 **the physics delta becomes the SIM delta, and Bullet stops on a halted clock** | `CE-219` + `CE-208` | ⚠ compile, **RUN on Windows** | ⭐ §11.1's three places all closed: the bracket takes `simDt`, the shell owns the advance, `Simulation.DisableSimulation` follows `IsAdvancing`. **A rail asserts a paused frame moves no body** |
+| **S3** | view tier extracted out of `EditorStrideSubsystem` into **`StrideViewBracket`** *(§7.3a)*, called by both shells | part of `CE-207` | ⚠ | mode 1 unchanged; the bracket has its own rails, and its doc-comment states what it does NOT own |
 | **S4** | `StrideNodeShell` + launch/config + mode selector | `CE-207` | 🔴 **Windows** | `HrotStrideApp` joins a cluster beside CGF; entities replicate; **`--mode all`-equivalent smoke** |
 | **S5** | gizmo ingress + skip counters | `CE-215` | ⚠ | remote gizmos visible in 3-D; skipped shapes counted, not silent |
 | **S6** | the companion 2-D map | `CE-214` | ⚠ | window opens on a flag, shows the map, off by default |
@@ -534,12 +644,13 @@ sequenceDiagram
 
 | # | question | ⭐ lean |
 |---|---|---|
-| **Q1** | Does mode 2 get its config from CLI args, env, or a file? | ⭐ **CLI args mirroring `ClusterRunner`'s** *(`--node-id`, `--domain`, `--no-wait`, `--staging`)*, defaulting node id to **700** *(mock §9.2, still free)*. ⛔ Not env vars — those are the mode-1 debug switches and they already sprawl |
-| **Q2** | How is the mode selected — env var, CLI, or build? | ⭐ **one CLI switch `--mode editor\|node`**, defaulting to `editor`. ⛔ After `CE-209` the three env vars collapse: `STRIDE_HOST_REAL_EDITOR` disappears *(hosted becomes the only editor path)*, `STRIDE_EDITOR_WINDOW` stays *(it is a window toggle)*, `STRIDE_SELFTEST` stays and implies `--mode editor` |
+| **Q1** | ✅ **RESOLVED `2026-09-07` *(`R-S11`, "cli args … approved")*** — **CLI args mirroring `ClusterRunner`'s** *(`--node-id`, `--domain`, `--no-wait`, `--staging`)*, defaulting node id to **700** *(mock §9.2, still free)*. ⛔ Not env vars — those are the mode-1 debug switches and they already sprawl |
+| **Q2** | ✅ **RESOLVED `2026-09-07` *(`R-S11`)*** — **one CLI switch `--mode editor\|node`**, defaulting to `editor`. ⛔ After `CE-209` the three env vars collapse: `STRIDE_HOST_REAL_EDITOR` disappears *(hosted becomes the only editor path)*, `STRIDE_EDITOR_WINDOW` stays *(it is a window toggle)*, `STRIDE_SELFTEST` stays and implies `--mode editor` |
 | **Q3** | Does mode 2 need the companion 2-D map on day one? | ⭐ **No — `CE-214` after `CE-207`.** The 3-D window is the point; the map is a convenience the user asked to keep, not a blocker |
 | **Q4** | ✅ **RESOLVED `2026-09-05` — `NodeRole` is NOT persisted.** | 📐 Measured: **zero** occurrences in any `.json` / `.idl` / `.xml` / `.yaml` in the repo; every production use is an in-memory parameter; and the thing that *is* externally visible is the **subsystem NAME string**, mapped to the enum by `NedNetworkFactory.MapSubsystemNameToRole` *(`"IG" => NodeRole.ImageGenerator`)* ⇒ ⭐ **`CE-212` is a pure code rename, not a migration** — the `"IG"` string is untouched by it |
 | **Q5** | Should any 2-D-only gizmo get a real 3-D form? | ⭐ **Not now** — ship the existing subset plus skip counters, and let the counters name the shape that is actually wanted *(§8)* |
-| **Q6** | Do the four `IEcsModule?` ctor slots die, or stay as a test seam? | ⭐ **Die.** `StrideNodeBootstrapperTests` constructs with no arguments today, so nothing is lost; two swap mechanisms for one concern is the duplication this programme exists to remove |
+| **Q6** | ✅ **RESOLVED `2026-09-07` *(`R-S11`, "ctor slots die - approved")*** — **they die.** `StrideNodeBootstrapperTests` constructs with no arguments today, so nothing is lost; two swap mechanisms for one concern is the duplication this programme exists to remove. ⇒ `CE-208` |
+| **Q7** | ⭐ **NEW `2026-09-07`** — how does the shell get the current frame's sim delta, given the kernel computes it *inside* `Update()`? | ⭐ **Hoist the advance into the shell + a new `Kernel.Update(in GlobalTime)`** — §11.1 ② option **A**, with the fallback and what would change the lean stated there |
 
 ---
 
