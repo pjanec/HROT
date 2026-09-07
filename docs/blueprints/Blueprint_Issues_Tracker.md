@@ -2432,6 +2432,28 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⭐⭐ **And a hazard found while framing it:** ⛔ **if `nodeNow` advances on wall time while the simulation is PAUSED, `(now − stamp)` keeps growing and ghosts drift away from their last known position while paused.** ⇒ extrapolation must almost certainly freeze with the clock — which argues for a **simulation** clock rather than a wall clock, and makes this a correctness question rather than a style one.
 
+  #### ✅ RESOLVED `2026-09-07` — **SYNCED SIM TIME, FOR BOTH THE STAMP AND THE TARGET** *(user ruling)*
+
+  > 🔒 **User, verbatim:** *"stamping with wall time is wrong, synced sim time is what should be used for
+  > stamping and for target extrapolation time on unowning nodes. no special pause guard should be needed
+  > then, sim time does not advance when paused/stepped clusterwide."*
+
+  ⇒ ⭐⭐ **`nodeNow` and `netTf.Timestamp` are both cluster-synced SIMULATION time.** ⛔ **No pause guard** —
+  extrapolation freezes because its input stops, not because a predicate says so. ⚠ This also removes the
+  `IsPaused`/`IsAdvancing` landmine from this row entirely: nothing here has to ask whether time is moving.
+
+  ⭐ **It agrees with the codebase's only prior art** for the same computation: EQS `BecomesStale` ages a
+  sample as `time − buffer.LastUpdateTimeSeconds` over **`view.Time`** *(`EqsResultUpdateSystem.cs:65`)*,
+  chosen precisely so Brain/Muscle clock skew across the DDS bridge cannot corrupt the delta.
+
+  ##### 📐 Two measurements that price the change — **and it is cheaper than expected**
+
+  | | |
+  |---|---|
+  | ⭐⭐ **NOTHING reads `WorldPos.Time` today** | 📐 swept `Hrot/Network/`, `Hrot.IG`, `Hrot.SimHost`: **zero consumers**. ⇒ **re-pointing the field from wall to sim time breaks no reader** — the only writer is `GeoSpatialEgressTranslator:214` |
+  | ⭐⭐⭐ **AND THE FIELD WAS ALREADY MEANT TO BE EXERCISE TIME** | 📐 its own declaration reads `public DateTime Time; // Sync timestamp (**exercise** FILETIME). 0 = unspecified.` ⇒ ⚠ **the comment says exercise time and the code stamps `DateTime.UtcNow`** — the user's ruling **restores the field's documented intent** rather than repurposing it. ⭐ It also means the fix may need **no IDL change**: `WorldPos` is IDL-backed *(`[DdsTopic("WorldPos")]` + `[DdsIdlFile("hrot-sim-desc")]`)*, and exercise time fits the existing `DateTime` carrier |
+  | ⚠ **the encoding is the one thing left to settle** | how sim seconds are carried in a `DateTime` *(ticks from the exercise epoch)*, and whether that stays inside the existing field or wants an explicit type change — ⛔ **a type change WOULD touch the IDL and every node**, so prefer the existing carrier |
+
   #### ⭐⭐ ARCHITECT INPUT `2026-09-07` *(job `20260907T055024Z-b217f7b7` · 165 s · 8 118 chars · 54 citations)* — ⛔ **an input, not a ruling**
 
   | claim | verdict |
