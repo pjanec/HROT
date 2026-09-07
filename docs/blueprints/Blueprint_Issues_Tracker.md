@@ -2640,15 +2640,26 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
-- [ ] **CE-205** · `RW-M` ⭐⭐⭐ — **`StrideCapabilities` — THE STRIDE CAPABILITY DECLARATIONS, host (e) of the seam.** *(user: "of course the bootstrap/composition should be shared/unified as much as possible")*
+- [x] **CE-205** · `RW-M` ⭐⭐⭐ — **`StrideCapabilities` — THE STRIDE CAPABILITY DECLARATIONS, host (e) of the seam.** *(user: "of course the bootstrap/composition should be shared/unified as much as possible")*
 
   ⭐ The 4th host onto `NodeCompositionPlan`, after SimHost (`§4.1s`), IG (`§4.1t`) and CGF (`§4.1x`). Declares `MuscleGround` · `NavigationSolver` · `Perception` — ⭐ **`ImageGenerator` is RESOLVED OUT**: Stride's role becomes **identical to SimHost's**, which is only safe because `CE-211` makes dead-reckoning unconditional *(`DESIGN_Stride_Node_Modes.md` §6.3)*. ⚠ Home: **`Hrot.Stride.Core`**, the lower of the two candidates and referenced by both shells. Built from the modules that already exist: `StrideMuscleModuleSet` = `StrideKinematicsModule` + `CombatModule` + `DamageAssessmentModule` + `NavigationIntentBridgeSystem` + `RouteTrajectorySyncSystem` + `PersonalRouteAuthoringSystem` + `VehicleNavigationIntentSystem`.
 
   ⛔ **This is the UNIT both modes consume** — it is what makes mode 1 and mode 2 the same composition rather than two hand-rolled ones. 📄 `§4.1aa`.
 
+
+  ✅ **BUILT `2026-09-07`** *(slice `S1`)*. `StrideCapabilities` declares `MuscleGround` + `Perception` + `Perception:spatial`, and both shells resolve the one plan. ⭐ `bash scripts/stride-check.sh` green — **6/6 projects compile**; ⛔ **no Stride test can RUN off Windows**, so this is a COMPILE gate plus rails that will execute on the Windows lane.
+
+  ⚠⚠ **TWO DEVIATIONS FROM THIS ROW, both measured and both folded into the design** *(📄 [`DESIGN_Stride_Node_Modes.md` §4.1 + §4.1b](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md))*:
+
+  | # | this row said | measured, and what shipped |
+  |---|---|---|
+  | **1** | home = **`Hrot.Stride.Core`**, and `StrideMuscleModules` moves down with it | 🔴 the set is assembled from `CombatModule` · `RouteTrajectorySyncSystem` · `PersonalRouteAuthoringSystem` · `AreaQueryResultMaterializationSystem` *(all `Hrot.SimHost`)* and `EqsResultUpdateSystem` *(`Hrot.CGF`)* ⇒ moving it down drags **two node subsystems into a thin adapter library**. ⭐⭐ **Precedent settles it:** all three hosts on the seam keep capabilities in their **own** project. ⇒ shipped in **`HrotStrideApp.Game`**, **zero new project references**, and `StrideMuscleModules` stays put |
+  | **2** | role **"identical to SimHost's"** *(`MuscleGround\|NavigationSolver\|Perception`)* | ⭐ `ImageGenerator` still dropped — that half stands. ⛔ But `NavigationSolver` is **not claimed separately**: Stride's DotRecast nav is threaded through the muscle set and its two bridge systems register **mid-Simulation-phase**, so splitting them would **reorder registration** — a behaviour change. ⇒ role is **`MuscleGround \| Perception`** and the resolved set is exactly what runs |
+
+  ⭐ **Rails:** `StrideCapabilitiesTests` — 5 facts asserted on the **RESOLVED** set, never the declaration, because *declared-but-resolves-to-nothing* is the exact failure this seam exists to catch *(and the one `CE-206` documents, and the one `CE-211` found in BDC)*.
 ---
 
-- [ ] **CE-206** · `RW-M` ⭐⭐⭐ — **PERCEPTION IS DECLARED AND UNFILLED ON STRIDE — AND THE STRIDE-NATIVE PIECE ALREADY EXISTS.** *(user: "of course perception needs to be filled")*
+- [x] **CE-206** · `RW-M` ⭐⭐⭐ — **PERCEPTION IS DECLARED AND UNFILLED ON STRIDE — AND THE STRIDE-NATIVE PIECE ALREADY EXISTS.** *(user: "of course perception needs to be filled")*
 
   📐 **Measured:** `StrideNodeBootstrapper.Role` declares `Perception`, and its `perceptionModule` ctor slot is **`null` at every call site**. `StrideMuscleModuleSet` contains **no** perception module. `new EqsModule()` / `new CognitiveSpatialModule(...)` appear in SimHost, the editor and tests — ⛔ **nowhere in `Stride/`**. Stride registers `EqsResultUpdateSystem` *(the CONSUMER of EQS results)* with **no `EqsModule`** *(the solver that produces them)*.
 
@@ -2660,6 +2671,12 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⛔⛔ **AN EARLIER VERSION OF THIS ROW SAID `StrideRaycastLosService` IS *"BUILT AND UNADOPTED"* — THAT WAS WRONG.** 📐 It is built against a seam **nothing live uses**: `ILosService` is consumed only by EQS query tests *(`CheapLineOfSightTest`)* whose sole builder `FindCoverFromTarget.Build(los)` has **ZERO production callers**. ⭐ The LOS that actually runs is the **inline 2-D segment-circle sweep inside `LosRequestBatchingSystem`** — which never touches `ILosService`. ⇒ ⭐⭐ **it is not under-adopted; it is aimed at the wrong seam.** 📄 Full analysis and the redesign: `§4.1ab`.
 
+
+  ✅ **BUILT `2026-09-07`** *(slice `S1`, with `CE-205`)*. `StrideCapabilities.PerceptionSolver` registers `EqsModule`; `PerceptionSpatial` registers `AreaQueryResultMaterializationSystem` + `CognitiveSpatialModule` — mirroring `SimHostCapabilities` member-for-member. ⛔ **No new perception implementation**, as this row required.
+
+  ⭐ **The rail is `PerceptionIsFilled_NotJustDeclared`** — it asserts both capability keys are present in the **resolved** set. ⚠ A test on the declaration alone would have passed against the very defect this row describes *(the flag was declared while the ctor slot was `null` at every call site)*.
+
+  ⚠⚠ **STILL SHIPS SimHost's 2-D LOS, DELIBERATELY** *(`R-S10`)* — `LosRequestBatchingSystem`'s inline segment-circle sweep has no terrain or height sense, so a Stride node reports LOS that will **not** match what its own 3-D window shows occluded. ⛔ **Any report claiming Stride perception works must say this.** ⭐ The proper fix is `CE-210`.
 ---
 
 - [ ] **CE-210** · `RW-H` ⭐⭐⭐ — **LOS NEEDS A 3-D API AND A LIVE SEAM. `StrideRaycastLosService` MUST BE REDESIGNED, NOT WIRED.** 🔒 *(user: "LOS API can't be 2d of course" · "stride should provide raycast based LOS" · "during the transition period we can live with simHost's implementation")*

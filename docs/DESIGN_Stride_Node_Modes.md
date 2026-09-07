@@ -229,10 +229,53 @@ makes the duplicate impossible to miss — §7.3a, ruling `R-S13`.
 
 ### 4.1 Where `StrideCapabilities` lives
 
-📐 The muscle set (`StrideMuscleModules`) is in `HrotStrideApp.Game`; the kinematics module
-(`StrideKinematicsModule`) is in `Hrot.Stride.Core`. ⇒ ⭐ **`Hrot.Stride.Core`** — the lower of the two,
-referenced by both shells, and it keeps `HrotStrideApp.Game` a shell rather than a composition root.
-⚠ `StrideMuscleModules` moves down with it.
+⚠⚠ **CORRECTED AT BUILD TIME `2026-09-07` — it lives in `HrotStrideApp.Game`, not `Hrot.Stride.Core`.**
+⭐ Built and compiling; `stride-check.sh` green on all 6 projects.
+
+📐 **What the original reasoning missed.** It weighed only two files — the muscle set in
+`HrotStrideApp.Game` and `StrideKinematicsModule` in `Hrot.Stride.Core` — and picked the lower. ⛔ But the
+muscle set is **assembled from types that live elsewhere**:
+
+| the set needs | lives in |
+|---|---|
+| `CombatModule` · `RouteTrajectorySyncSystem` · `PersonalRouteAuthoringSystem` · `AreaQueryResultMaterializationSystem` | 🔴 **`Hrot.SimHost`** |
+| `EqsResultUpdateSystem` | 🔴 **`Hrot.CGF`** |
+| `INodeCapability` · `NodeCompositionPlan` · `CapabilityKeys` | **`Hrot.Common`** |
+
+⇒ ⛔ **moving the declaration down would drag two whole node subsystems into a thin Stride adapter
+library** that today references only `Fdp.Core`, `Fdp.Toolkits` and `Hrot.Core` — inverting the layering
+the choice was meant to protect.
+
+⭐⭐⭐ **And the decisive argument is PRECEDENT, which the original reasoning never consulted:** 📐 all three
+hosts already on the seam keep their capabilities **in their own project** — `Hrot.SimHost/SimHostCapabilities.cs` ·
+`Hrot.IG/IgCapabilities.cs` · `Hrot.CGF/CgfCapabilities.cs`. ⇒ ⭐ **Stride's host project is where both its
+shells live**, so this is the same shape as every other host, and it costs **zero new project references**.
+
+⭐ **`StrideMuscleModules` therefore does NOT move.** ⚠ *(An added reason it should not: its
+`ToEditorModuleList()` reaches into `Hrot.Editor`'s `MuscleModuleContext`, so moving the file down would
+pull the whole editor in too. `CE-208` removes that method's reason to exist; until then, leaving it put is
+the smaller truth.)*
+
+⛔ **The prior text is SUPERSEDED** — ~~*"`Hrot.Stride.Core` — the lower of the two … `StrideMuscleModules`
+moves down with it"*~~.
+
+#### ⚠ 4.1b The ROLE is `MuscleGround | Perception` — **`NavigationSolver` is NOT claimed separately**
+
+📐 SimHost has a separable `EngineBackedNavigationModule` and can declare it as its own capability.
+⛔ **Stride cannot:** its DotRecast navigation is threaded *through* the muscle set — `StrideKinematicsModule`
+owns the trajectory pool that `NavigationIntentBridgeSystem` and `RouteTrajectorySyncSystem` write into, and
+those two register **in the middle of the Simulation phase**, between the damage systems and the kinematics
+systems *(`StrideMuscleModule.RegisterSystems`, documented phase by phase)*.
+
+⇒ ⭐⭐ **Lifting them into a separate capability would MOVE them in the registration list — and registration
+order is execution order.** ⛔ That is a behaviour change dressed as a refactor, the exact thing `B4b`
+forbids. ⇒ ⭐ **navigation is provided by the `MuscleGround` capability and the flag is not claimed**, so
+**the resolved set is exactly what runs** — which is the property that matters, and the same honesty
+`SimHostCapabilities` applies when it keeps perception as two capabilities purely to preserve order.
+
+⚠ **This deviates from `CE-205`'s *"role identical to SimHost's"*.** ⭐ That phrase was about **dropping
+`ImageGenerator`**, which stands; the navigation half was not measured when it was written. ⭐ A later split
+is possible but needs an **ordering measurement first**, not a tidy-up.
 
 ### 4.2 The perception capability comes from SimHost, unchanged
 
