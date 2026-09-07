@@ -2714,6 +2714,8 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⛔ **The predicate is `IsAdvancing` (`DeltaTime > 0`), NEVER `IsPaused`** — the latter is `TimeScale == 0` and is **false while paused**; the type's own `[Obsolete]` attribute says so. ⭐ **No separate pause guard is needed** — 🔒 the user's `CE-211` ruling applies unchanged: *"sim time does not advance when paused/stepped."*
 
+  ⭐ **ORDERING SETTLED `2026-09-07`** 🔒 *(user: "slice order")* — ⛔ **NOT fast-tracked ahead of the dead-reckoning work**, even though it is a live mode-1 defect that does not technically depend on it. ⇒ it lands at **§13 `S2b`**, after `S0` *(`CE-211`)*, `S1` *(`CE-205`+`CE-206`)* and `S2` *(`CE-208`)*, together with the rest of the physics-delta fix.
+
   ⚠ **`R-142`: the feature's own suite is `PhysicsBodyLifecycleSystemTests` + `SimVelocityChainTests`** — but ⛔ **neither can run off Windows** and both stub the `Simulation`. ⇒ the acceptance rail is a **mode-1 Windows check**: pause the clock, pump N frames, assert **no** `SimTransform` moves. 📄 [`DESIGN_Stride_Node_Modes.md` §11.1 ③](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).
 
 ---
