@@ -2852,7 +2852,17 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⭐ **RAILS** — `StridePhysicsBracketPauseGateTests` *(new, `Hrot.Stride.Core.Tests`)*: the gate flips **both ways** *(a gate that only disables leaves the world frozen after the first pause — a worse failure)*, is asserted **every frame** rather than on transitions, and a missing service is tolerated. ⚠ **`R-142` check: the bracket had NO suite of its own** — measured, `scripts/find.sh StridePhysicsBracket` → 16 references, **none in a test file** — so a new class is correct here rather than a parallel one.
 
-  ⛔⛔ **WHAT IS NOT PROVEN, and no report may claim it:** §13's acceptance for `S2c` is *"a rail asserts a paused frame moves no body."* 🔴 **That rail does not exist and cannot exist off Windows** — Bullet cannot be stepped headless *(`PhysicsBodyLifecycleSystemTests`' own header records why: `Simulation`'s constructor and Add/RemoveBody are `internal` to `Stride.Physics` and owned by `PhysicsProcessor`)*. ⭐ What is proven is that the **gate is wired and reaches a real service**; that the disabled simulation actually stops Bullet is `Stride.Physics`' documented contract, **taken on trust until the Windows run**.
+  ⛔⛔ **WHAT IS NOT PROVEN, and no report may claim it:** §13's acceptance for `S2c` is *"a rail asserts a paused frame moves no body."* 🔴 **No such rail can RUN off Windows** — Bullet cannot be stepped headless *(`PhysicsBodyLifecycleSystemTests`' own header records why: `Simulation`'s constructor and Add/RemoveBody are `internal` to `Stride.Physics` and owned by `PhysicsProcessor`)*.
+
+  ⚠⚠ **CORRECTION `2026-09-07`, found while planning the Windows session — one HALF-rail DOES exist and I had said it did not.** `STRIDE_SELFTEST=1` carries a **`pausedFreeze`** verdict *(`StrideSelfTest.cs`: 120 frames, movement ≤ 1 m ⇒ PASS)*. ⛔ **But read exactly what it covers before trusting it:**
+
+  | | |
+  |---|---|
+  | ✅ **covers** | the **DETERMINISTIC / edit-mode** arm — the app boots deterministic and only `Resume` calls `SwitchToContinuous`. That arm's behaviour is unchanged by `CE-219` *(it was already `simRunning == false`)*, so a PASS is a **no-regression** check, not a proof of the fix |
+  | ⛔ **does NOT cover** | the arm `CE-219` actually FIXES — **`Continuous` while the CLUSTER is paused.** Mode 1 is **networkless**: there is no cluster to pause. ⇒ that arm is first testable in **mode 2** *(`S4`)* |
+  | ⚠ **and it may be blind to gravity anyway** | it measures displacement in FDP **X,Y** with a 1 m tolerance. **Gravity is Z.** A body sinking through the floor while paused would pass |
+
+  ⇒ ⭐ **The Windows session runs it as a REGRESSION gate on `S2b`/`S2c`/`S3`, and must not report it as `CE-219` verified.** ⭐ What is proven is that the **gate is wired and reaches a real service**; that the disabled simulation actually stops Bullet is `Stride.Physics`' documented contract, **taken on trust until the Windows run**.
 
   | gate | command | result |
   |---|---|---|

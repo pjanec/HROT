@@ -717,6 +717,15 @@ ways**, is asserted **every frame** rather than on transitions, and a missing se
 Windows, because Bullet cannot be stepped headless *(`PhysicsBodyLifecycleSystemTests`' own header
 records why)*. ⇒ ⚠ **the acceptance line in §13's slice table is NOT met off Windows and no report may claim it.**
 
+⚠⚠ **AND WHEN IT IS RUN ON WINDOWS, READ THE VERDICT NARROWLY.** `STRIDE_SELFTEST=1`'s **`pausedFreeze`**
+is the closest existing rail, and it covers **less than its name suggests**: the app boots
+**deterministic** and only `Resume` calls `SwitchToContinuous`, so `pausedFreeze` exercises the
+**edit-mode** arm — whose behaviour `CE-219` did **not** change. ⛔ The arm `CE-219` fixes is
+**`Continuous` while the CLUSTER is paused**, and mode 1 is **networkless**: there is no cluster to
+pause. ⇒ ⭐ **that arm is first testable in mode 2 (`S4`)**. ⚠ It also measures displacement in FDP
+**X,Y** at 1 m tolerance while **gravity is Z** ⇒ a body sinking through the floor would pass.
+⇒ ⭐ treat `pausedFreeze` as a **no-regression** gate on `S2b`/`S2c`/`S3`, never as `CE-219` verified.
+
 ⛔ **One silent-default caught in the act, worth recording because the shape recurs:** the bracket's
 `physicsBodyService` parameter is optional *(it must be — the fakes)*, and **both** production
 constructions in `EditorStrideSubsystem` initially omitted it while holding `PhysicsBodyService` in a
