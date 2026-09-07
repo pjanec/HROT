@@ -329,15 +329,19 @@ public sealed class NedReplicationModule : INedReplicationModule
             registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
             registry.RegisterSystem(new SubEntityCleanupSystem());
 
-            // DR sync -- smooth ALL remote entities (IG can create owned entities as well!)
-            registry.RegisterSystem(new DeadReckoningSyncSystem(driveFromNetwork: false));
         }
-        else if (_roleHasIG)
-        {
-            // AllInOne/combined role: DR sync with driveFromNetwork=false so locally-owned
-            // entities are not overridden by dead-reckoning.
-            registry.RegisterSystem(new DeadReckoningSyncSystem(driveFromNetwork: false));
-        }
+
+        // ── Dead reckoning: EVERY node, regardless of role (CE-211) ──────────
+        // Holding a usable position for entities this node does not own is what lets the network
+        // publish sparsely; it is not presentation. This used to sit inside the two ImageGenerator
+        // arms above with a hard-coded `driveFromNetwork: false`, while the ctor had already
+        // computed the correct value at _driveFromNetwork and exposed it as a property nothing
+        // read — a node that owned nothing therefore got the narrowed ghost-only behaviour it did
+        // not want, and a node with no IG flag got no smoothing at all. The predicate is about
+        // OWNERSHIP ("this node owns nothing"), never about what the node renders, and it is
+        // character-for-character the one BdcReplicationModule has always used.
+        // 📄 docs/DESIGN_Dead_Reckoning.md rule R1 + §5.1.
+        registry.RegisterSystem(new DeadReckoningSyncSystem(_driveFromNetwork));
 
         // ── Role-specific systems ────────────────────────────────────────────
         if (_roleHasMuscle || _roleHasBrain)

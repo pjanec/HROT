@@ -6124,7 +6124,25 @@ branched at `:1410`: `null` ⇒ build `SimHostCoreLogicPack` + `CognitiveSpatial
 |---|---|
 | ⭐⭐⭐ **structurally `INodeCapability.ProvideModules()` for ONE key** *(`MuscleGround`)*, hand-rolled | 🔒 **the seam law, a fifth measured instance**: *"we need a shared X"* ⇒ **X exists, under-adopted, and the one root that bypasses it is production** |
 | ⛔ **the other two capabilities are HARD-CODED beside it** | `CgfLogicPack` *(Brain)* and `CognitiveSpatialModule` *(Perception)* have no slot at all — so the editor can swap its muscle and nothing else |
-| ⛔ **the editor declares NO `NodeRole`** | 📐 `SimHostApp.cs:174` and `CgfSubsystem.cs:92` both declare a `DefaultRole`; **there is no `EditorSubsystem.DefaultRole`** ⇒ there is nothing for a plan to resolve **against**, and that declaration is item one of the adoption |
+| ⛔ **the editor declares NO `NodeRole`** | 📐 `SimHostApp.cs:174` and `CgfSubsystem.cs:92` both declare a `DefaultRole`; **there is no `EditorSubsystem.DefaultRole`** ⇒ there is nothing for a plan to resolve **against**, and that declaration is item one of the adoption. ✅ **RULED `2026-09-07` — see §4.1ac.1** |
+
+#### ✅ 4.1ac.1 — **THE EDITOR'S ROLE, RULED** *(user, `2026-09-07`)*
+
+> 🔒 **User, verbatim:** *"editor's subsystem role could be 'everything' what Cgf+SimHost (probably not
+> so much the IG) do now, for the purpose of editing scenarios and AI behaviors and testing them
+> quickly."*
+
+⭐⭐⭐ **The role is CGF ∪ SimHost** — `Brain | MuscleGround | Perception | NavigationSolver` — ⛔ **not
+`ImageGenerator`**. ⭐ And the **purpose clause is the load-bearing half**: the editor exists to *author
+scenarios and AI behaviours and test them fast in one process*, which is precisely *"be both nodes at
+once"*. ⇒ the role is not a shortcut, it is the honest description.
+
+| ⭐ what this settles | |
+|---|---|
+| ⭐⭐ **it matches what the editor ALREADY composes** | 📐 `CgfLogicPack` *(Brain)* + the SimHost muscle default + `CognitiveSpatialModule` *(Perception)* — ⇒ the declaration is made **true of today's code**, not aspirational |
+| ⚠ **the `ImageGenerator` half is HEDGED, and stays a measurement** | 🔒 the user said *"probably not so much"*, not "no". ⛔ The editor **does** have a 2-D map, but `IgCapabilities.Presentation`'s five modules are a **different question** from *"has a map canvas"* ⇒ **`S2a` measures whether any of those five is something the editor already runs**, and reports the answer rather than assuming it |
+| ⛔⛔ **the SimHost precedent says DO NOT narrow blind** | 📌 §4.1v: SimHost declared `MuscleGround\|Perception` **without** `NavigationSolver` while composing all three; narrowing to the declaration would have **silently dropped** `EngineBackedNavigationModule` + `EqsModule`. ⇒ ⭐ **`S2a` resolves the plan and DIFFS it against today's registered set before switching**, exactly as `B4b` step 3 did |
+| ⚠ **a role this wide weakens role-selection as a NARROWING device — and that is fine here** | ⭐ the editor is the one host that legitimately wants everything; ⛔ the value it takes from the seam is **one declaration and shared units**, not narrowing |
 | ⚠ **it is a `Func`, so it cannot express `Needs`** | ⛔ no resource keys ⇒ the trajectory-pool / perception-grid sharing that `B3` exists for **cannot be stated** on this path. 📌 That is `CE-181`'s shape *(`StrideKinematicsModule.cs:92`'s `?? new TrajectoryPoolManager()`)* waiting to happen in the editor |
 
 ### ⭐⭐ THE SIZE — **by the CGF precedent, this is one slice, not a programme**

@@ -96,6 +96,10 @@ namespace Hrot.Map.Common.Replication.Egress
             // supplies the live world; bail out safely if this ever changes.
             if (view is not EntityRepository repo) return;
 
+            // Sampled ONCE per scan, so every entity published in this frame carries the same stamp —
+            // which is what makes a receiver's `simNow - stamp` age comparable across entities.
+            double simNowSeconds = Fdp.Toolkit.Time.SimClock.Of(view).TotalTime;
+
             // ⭐⭐⭐ CE-147 — THE SHADOW IS ATTACHED HERE, BY ITS OWN CONSUMER.
             //
             // ⚠ This comment used to claim "entities spawned through NedTkbBuilder always receive this
@@ -211,7 +215,14 @@ namespace Hrot.Map.Common.Replication.Egress
                 Publish(new WorldPos
                 {
                     EntityId = (int)netId.Value,
-                    Time     = DateTime.UtcNow,
+                    // Cluster-synced SIMULATION time, not wall time (CE-211). The receiver ages this
+                    // sample as `simNow - stamp` to extrapolate; that subtraction only means anything
+                    // if both terms come from the same synced clock. A UtcNow stamp re-introduced the
+                    // node-to-node skew the time sync exists to remove, and kept advancing while the
+                    // cluster was paused. This also restores the field's own documented intent —
+                    // "Sync timestamp (exercise FILETIME)" is exercise time.
+                    // 📄 docs/DESIGN_Dead_Reckoning.md rule R4 + §"Encoding".
+                    Time     = SimStampCodec.Encode(simNowSeconds),
                     Pos = new GeoPoint
                     {
                         Latitude  = lat,

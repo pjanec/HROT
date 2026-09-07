@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN
+build-state: READY-TO-BUILD
 updated: 2026-09-07
+approved: 2026-09-07 by the user ("go"). CE-211 is slice S0 of the Stride build order and is IN FLIGHT
+  on claude/reset-working-branch-qd1qpv (started marker bbd976a7d).
 current-answer: the whole file. It is the ONE owning design for dead reckoning / remote-entity
   smoothing across every node and BOTH replication stacks (NED and BDC). CE-211 is its implementation.
 design-basis: user rulings 2026-09-05/06/07 (quoted verbatim in §2) · measured against
@@ -192,6 +194,21 @@ stamp at `GeoSpatialEgressTranslator:214` is the drift, not the field.
 | velocity | `Vel` *(+ `Acc`, unused)* | `Vel` |
 | DR registration | ⛔ `NedReplicationModule:333/339` — **gated on `_roleHasIG`** | ✅✅ **`:87` — UNCONDITIONAL** |
 | drive predicate | hard-coded per arm | ⭐⭐ **`!roleHasMuscle && !roleHasBrain`** *(`:58`)* |
+
+### 🔴 5.1 MEASURED AT BUILD TIME `2026-09-07` — **NED ALREADY COMPUTES THE RIGHT PREDICATE AND THROWS IT AWAY**
+
+📐 `NedReplicationModule.cs:194` computes **`_driveFromNetwork = !_roleHasMuscle && !_roleHasBrain`** —
+⭐⭐ **character-for-character BDC's `:58` predicate** — and exposes it as a public property
+`DriveFromNetwork` at `:124`. ⛔⛔ **Neither DR call site uses it:** `:333` and `:339` both pass a
+hard-coded **`driveFromNetwork: false`**.
+
+⇒ ⭐⭐⭐ **This is the SILENT-DEFAULT PATTERN exactly as `CLAUDE.md` defines it** — *"a production caller
+that HAS a dependency must PASS it"*. ⚠ It is the **third** measured instance, and the cheapest: the
+value is already right, already named, already public.
+
+⇒ ⭐ **`R1` is therefore a SMALLER change than the design assumed**: not *"invent a predicate for NED"*
+but *"delete the two `_roleHasIG` arms and register once with the field the constructor already set"*,
+which makes the two stacks textually identical.
 
 ⇒ ⭐⭐⭐ **The stacks already disagreed and BDC is the one that matches the rulings.** ⛔ **NED is the
 outlier.** ⚠ `Acc` is on the NED wire and unused — second-order DR is available later, and is **not** part
