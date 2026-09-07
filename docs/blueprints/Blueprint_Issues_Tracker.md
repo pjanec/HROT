@@ -2463,9 +2463,25 @@ whenever the finding is "the sim did not do the impressive thing".**
   | systems must read `GlobalTime` from the live world singleton via `SimClock.Of(view)`, never `ITimeController.GetCurrentState()` *(whose delta is hard-coded to zero)* | ✅ symbols exist *(`SimClock` 10 files)*; consistent with `R-126`/`M-42` |
   | ⚠ **the `IsPaused` landmine** — `IsPaused` is **false** while paused *(pause switches to `Stepping` with `DeltaTime → 0`, `TimeScale` unchanged)*; the only valid predicate is **`IsAdvancing` (`DeltaTime > 0`)** | ✅ `IsAdvancing` exists in 11 files; matches canon `M-42` |
   | 🔴 *"extrapolation freezes by construction because `deltaTime` goes to 0 when paused"* | ⛔⛔ **TRUE OF THE CURRENT CODE, FALSE OF THE PROPOSED DESIGN.** It reasons about `netVel * deltaTime`; under `(nodeNow − stamp)` there is no `deltaTime` factor, so **a wall clock would NOT freeze** and ghosts would drift while paused. ⚠ **The reassurance answers the old question, not the new one** |
-  | *"`BdcWorldPosTranslator` … stamps onto outbound `WorldPos` samples"* | ⚠ **imprecise, and it surfaced real scope:** BDC uses a **different wire type**, `BdcWorldPos` on topic `BDC_WorldPos` *(`Hrot.Network.BDC`)*, and it does its own ingress→`SimTransform` for ghosts. ⇒ ⭐ **`CE-211` must either cover the BDC stack too or explicitly scope itself to NED** |
+  | *"`BdcWorldPosTranslator` … stamps onto outbound `WorldPos` samples"* | ⚠ **imprecise — different wire type** *(`BdcWorldPos` on topic `BDC_WorldPos`)* — ⭐ **but it surfaced real scope, now RULED IN: see the BDC section below** |
 
   ⇒ ⭐⭐⭐ **The two verified findings point the same way: SIMULATION time.** It is what the codebase's own cross-node age computation already uses *(and for exactly this reason — skew)*, and it is the only choice that makes extrapolation freeze on pause without a special case. ⚠ **The consequence to price:** the publisher currently stamps `DateTime.UtcNow`, so `WorldPos.Time` would have to carry **sim time** instead — the field stays, its meaning changes, and egress changes with it.
+
+  ### ⭐⭐ BOTH STACKS — **BDC gets the same treatment as NED** *(user ruling, `2026-09-07`: "bdc stack uses same principles so it needs same treatment as ned")*
+
+  📐 **Measured — the two stacks are structurally identical here, and BDC is ALREADY RIGHT on the half `CE-211` is about:**
+
+  | | NED | BDC |
+  |---|---|---|
+  | wire type | `WorldPos` *(`[DdsIdlFile("hrot-sim-desc")]`)* | `BdcWorldPos` *(`[DdsIdlFile("bdc-entity-msgs")]`, topic `BDC_WorldPos`)* |
+  | ⭐ **timestamp field** | `public DateTime Time` | ⭐ **`public DateTime Time` — the same field, same type** |
+  | velocity on the wire | `Vel` *(+`Acc`)* | `Vel` |
+  | **DR registration** | ⛔ `NedReplicationModule:333/339` — **gated on `_roleHasIG`** | ✅✅ **`BdcReplicationModule:87` — UNCONDITIONAL**, outside the translator `if` |
+  | the drive predicate | `driveFromNetwork: false` hard-coded per arm | ⭐⭐ **`_driveFromNetwork = !roleHasMuscle && !roleHasBrain`** *(`:58`)* — i.e. *"this node owns nothing"* |
+
+  ⇒ ⭐⭐⭐ **The two stacks already DISAGREED, and BDC is the one that matches the ruling** — it registers dead reckoning on every node and derives the drive flag from *whether the node owns anything*, rather than from a presentation role. ⛔ **NED is the outlier.** ⇒ ⭐ `CE-211` should **adopt BDC's predicate on the NED side** rather than invent one, and apply the timestamp/read-only-sample half to **both** stacks.
+
+  ⭐ **So the change gains a mirrored BDC half:** stamp sim time in the BDC egress path, carry it at BDC ingress, and stop any `NetworkTransform` write there too. ⚠ **`BdcWorldPos` is IDL-backed as well**, so the same "keep the existing `DateTime` carrier, no IDL change" reasoning applies.
 
   ### ⚠ Blast radius and gate
 
