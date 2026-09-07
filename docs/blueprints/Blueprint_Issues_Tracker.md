@@ -2745,7 +2745,27 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⭐⭐⭐ **APPROVED `2026-09-07` — the launch surface** 🔒 *(user: "cli args … approved")*: **CLI args mirroring `ClusterRunner`'s** (`--node-id` defaulting to **700**, `--domain`, `--no-wait`, `--staging`, plus `--debug-port` from `CE-214`), and **`--mode editor|node`** defaulting to `editor`. ⛔ Not env vars.
 
-  ⭐⭐⭐ **THE SHELL IS A BRACKET DRIVER, NOT A SECOND COMPOSITION ROOT** 🔒 *(user, `2026-09-07`: "stridenodeshell as bracket")*. `TickFrame` is a short body that calls, in order: **physics bracket pre → `Kernel.Update()` → physics bracket post → view bracket**. ⇒ the view tier is extracted out of `EditorStrideSubsystem` as **`StrideViewBracket`** in `Hrot.Stride.Core`, mirroring the existing `StridePhysicsBracket` member-for-member *(binding → animation → gizmos → selection, `wallDt`)*. 📄 [`DESIGN_Stride_Node_Modes.md` §7.3a](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).
+  ⭐⭐⭐ **THE SHELL IS A BRACKET DRIVER, NOT A SECOND COMPOSITION ROOT** 🔒 *(user, `2026-09-07`: "stridenodeshell as bracket")*. `TickFrame` is a short body that calls, in order: **physics bracket pre → `Kernel.Update()` → physics bracket post → view bracket**. ⇒ the view tier is extracted out of `EditorStrideSubsystem` as **`StrideViewBracket`**, mirroring the existing `StridePhysicsBracket`. 📄 [`DESIGN_Stride_Node_Modes.md` §7.3b](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).
+
+  ✅ **`S3` DONE `2026-09-07` — the view bracket EXISTS and mode 1's two tick paths both drive it.** ⛔ The rest of `CE-207` *(the shell, the launch args, mode 2 itself)* is **still open** — this row stays `[ ]`.
+
+  ⚠⚠ **AND THE DESIGN WAS WRONG IN FOUR PLACES.** The sentence above used to read *"in `Hrot.Stride.Core` … binding → animation → gizmos → selection"*. 📐 Measured while building — **every clause of it**:
+
+  | ⛔ what it said | 📐 what is true |
+  |---|---|
+  | *"in `Hrot.Stride.Core`"* | **not buildable there.** `StrideAnimationBridge` is in `Hrot.Stride.Animation`, `MannequinAnimationBinder` in `HrotStrideApp.Game`; Core references **neither**. ⇒ the bracket lives in `HrotStrideApp.Game` — ⭐ **the same correction, for the same reason, as `StrideCapabilities` in `S1`** |
+  | *"binding → …"* | ⛔ `StrideVisualBindingSystem` is **already bracketed, by the PHYSICS bracket** — nothing calls it directly; it is **Pass A of `SplitAuthorityStrideSyncScript.Sync`**. Prying it out is logic surgery, against the design's own *"moves call sites, not logic"* |
+  | 🔴 *"… → gizmos → selection"* | ⛔⛔ **INVERTED, and building to it would have reintroduced a fixed defect.** The selection highlight and move marker used to be emitted **after** the render and drew **one tick late — a visible trail when dragging fast** ("BATCH-S2-AG"). Selection must come **before** the gizmo render |
+  | *(one call)* | ⛔ **two entry points.** The physics bracket's post step must run **between** them: the bridge registers mannequins, `SplitSync` Pass A creates their `AnimationComponent`s, and only then can the binder bind them ("STR-P4, BATCH-16 Fix A") |
+  | *(nothing said)* | the **animation binder reconcile** is a step, and the design's list omitted it entirely |
+
+  ⭐ **Selection ships as a HOST CALLBACK** (`emitHostGizmos`), not a bracket-owned step: the editor's emitters read the **2-D window's** selection version, so owning them would couple mode 2 to the editor. ⭐ Its **position** — immediately before the render — is what encodes the BATCH-S2-AG rule, so the ordering still lives in the bracket. ⚠ **Required, not defaulted**, so passing nothing is a written decision *(the `CE-219` slice had just been bitten by an optional dependency two production callers silently omitted)*.
+
+  ⭐ **RAILS:** `StrideViewBracketOrderTests` *(`HrotStrideApp.Game.Tests`)* — the load-bearing one **reproduces BATCH-S2-AG** *(a primitive emitted from the callback must reach the sink in the SAME frame)*, with the inverse-edit red-proof named in the test, plus its complement so it cannot go vacuous. ⚠ **`R-142` checked:** `EditorStrideSubsystemTests` covers boot and "does not throw"; `ReverseSyncOrderingTests` covers the **physics** bracket. ⛔ **Neither asserted the post-kernel view order** — which is why the trail was only ever found by eye.
+
+  ⚠ **DIAG bucket shift, stated so a perf log is not misread:** `AnimationBinder.Reconcile` moved from the `PostSync` bucket into `Gizmo`. It was already annotated "tiny"; every other bucket measures exactly what it used to.
+
+  ⛔ **Compiled, NOT run** — `stride-check.sh` 6/6 is the only gate available off Windows.
 
   ⭐⭐ **THE SHELL OWNS THE CLOCK ADVANCE** *(`R-S12`, §11.1 ②)* — it calls the time controller once at the top of the frame, hands `GlobalTime.DeltaTime` to the physics bracket, and passes the same instance to a new `Kernel.Update(in GlobalTime)`. ⛔ **Never the obsolete `Update(float)`** — that overload *fabricates* a clock (`ModuleHostKernel.cs:468`), which is why it desyncs. ⚠ A rail must assert `FrameNumber` increments **exactly once** per `TickFrame`.
 

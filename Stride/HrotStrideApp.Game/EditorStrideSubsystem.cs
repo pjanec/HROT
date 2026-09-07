@@ -411,6 +411,13 @@ public sealed class EditorStrideSubsystem : IDisposable
     // Reusable physics bracket (encapsulates host-driven pre/post-kernel muscle steps).
     private StridePhysicsBracket _physicsBracket = null!;
 
+    /// <summary>
+    /// The view tier (`CE-207` / `S3`) — the animation bridge, the live animation binder and the
+    /// 3-D gizmo render, in the one order that works. Its sibling is <see cref="_physicsBracket"/>,
+    /// whose post-kernel step runs BETWEEN this bracket's two entry points.
+    /// </summary>
+    private StrideViewBracket _viewBracket = null!;
+
     private VehicleNavigationIntentSystem? _vehicleNavIntentSystem;
 
     // ── Hosted-editor mode (STRIDE_HOST_REAL_EDITOR=1) ────────────────────
@@ -892,6 +899,16 @@ public sealed class EditorStrideSubsystem : IDisposable
         var effectiveSink = debugDrawSink ?? (Hrot.Stride.Core.IDebugDrawSink3D)new LoggingDebugDrawSink3D();
         _debugDrawSinkDisposable = effectiveSink as IDisposable;
         GizmoRenderer3D = new Hrot.Stride.Core.DebugPrimitiveRenderer3D(effectiveSink);
+
+        // ── View bracket (CE-207 / S3) ───────────────────────────────────
+        // Built LAST because it is handed the four units the steps above constructed. The public
+        // properties stay — they are read by tests and by StrideHrotGame — but the ORDER in which
+        // these units run is now the bracket's, not this method's statement order.
+        _viewBracket = new StrideViewBracket(
+            animationBridge: AnimationBridge,
+            animationBinder: AnimationBinder,
+            gizmoRenderer:   GizmoRenderer3D,
+            producerBuffer:  ProducerBuffer);
     }
 
     // ── Hosted-editor initialization (STRIDE_HOST_REAL_EDITOR=1) ─────────────────────────────
@@ -1200,6 +1217,16 @@ public sealed class EditorStrideSubsystem : IDisposable
         var effectiveSink = debugDrawSink ?? (Hrot.Stride.Core.IDebugDrawSink3D)new LoggingDebugDrawSink3D();
         _debugDrawSinkDisposable = effectiveSink as IDisposable;
         GizmoRenderer3D = new Hrot.Stride.Core.DebugPrimitiveRenderer3D(effectiveSink);
+
+        // ── View bracket (CE-207 / S3) ───────────────────────────────────
+        // Built LAST because it is handed the four units the steps above constructed. The public
+        // properties stay — they are read by tests and by StrideHrotGame — but the ORDER in which
+        // these units run is now the bracket's, not this method's statement order.
+        _viewBracket = new StrideViewBracket(
+            animationBridge: AnimationBridge,
+            animationBinder: AnimationBinder,
+            gizmoRenderer:   GizmoRenderer3D,
+            producerBuffer:  ProducerBuffer);
     }
 
     /// <summary>
@@ -1287,39 +1314,28 @@ public sealed class EditorStrideSubsystem : IDisposable
         // (DD-1 §10 phase placement). Reconciles backend registration with the live mannequin
         // set, pumps SimVelocity → idle/walk/run locomotion blend, routes off-mesh-link
         // traversal events to the jump montage path, and ticks the backend once.
-        var traversals = ((ISimulationView)World)
-            .ReadEvents<OffMeshTraversalStartedEvent>();
-        AnimationBridge.DispatchTraversals(traversals);
-        AnimationBridge.Execute(World, dt);
+        _viewBracket.RunAnimationStep(World, dt);
 
         // ── Step 5: Physics bracket post-kernel step ─────────────────────
         // Delegates to StridePhysicsBracket.RunPostKernelStep:
         //   5.  SplitSync.Sync  (Pass A: visual existence; Pass B: non-owned forward-sync)
         //       Fallback is a no-op in headless mode (same as the original else-branch).
+        // ⛔ It sits BETWEEN the view bracket's two entry points, and that is not incidental: its
+        //    Pass A creates the AnimationComponents the binder (step 5b, now inside the view
+        //    bracket) needs. See StrideViewBracket's class remarks.
         _physicsBracket.RunPostKernelStep(World);
 
-        // ── Step 5b: Live animation glue reconcile (STR-P4, BATCH-16 Fix A) ──
-        // After the bridge has registered mannequins with the backend (Step 4b) and the visual
-        // sync has created their AnimationComponents (Step 5), bind a PerEntityBlendTreeBuilder to
-        // each new mannequin (loading clips + attaching to the backend) and release it for any that
-        // disappeared. Only runs in the live GPU app (binder is null otherwise).
-        AnimationBinder?.Reconcile();
-
-        // ── Step 7 (MOVED EARLIER, BATCH-S2-AG): emit selection/marker into THIS frame's buffer ──
-        // (was after Step 6, which rendered them one tick late → trail when dragging fast)
-        // ClearIfDead removes the selection if the entity was destroyed this tick.
-        SelectionState.ClearIfDead(World);
-        EmitSelectionHighlight();
-        EmitMoveMarker(dt); // BATCH-S2-O: destination marker
-
-        // ── Step 6: 3D gizmo render (STR-P5-T1 / STR-D16, BATCH-21) — now renders the selection/marker emitted just above (same tick) ──
-        // BeginFrame hides last frame's pool entities; Render resolves+swizzles primitives and
-        // activates the needed pool entries; EndFrame is a no-op for the pooled sink (cleanup
-        // already done in BeginFrame). Then advance the buffer's persistence clock.
-        GizmoRenderer3D.Sink.BeginFrame();
-        GizmoRenderer3D.Render(ProducerBuffer.GetFrame());
-        GizmoRenderer3D.Sink.EndFrame();
-        ProducerBuffer.EndFrame(dt);
+        // ── Steps 5b + 7 + 6: view bracket post-kernel step ──────────────
+        //   5b. AnimationBinder.Reconcile
+        //   7.  the callback below — selection alive-guard + highlight + move marker, emitted into
+        //       THIS frame's buffer (BATCH-S2-AG: emitting after the render drew them one tick late)
+        //   6.  gizmo render + buffer clock advance
+        _viewBracket.RunPostKernelStep(World, dt, emitHostGizmos: () =>
+        {
+            SelectionState.ClearIfDead(World);
+            EmitSelectionHighlight();
+            EmitMoveMarker(dt); // BATCH-S2-O: destination marker
+        });
     }
 
     /// <summary>
@@ -1367,33 +1383,29 @@ public sealed class EditorStrideSubsystem : IDisposable
         // ── Step 4b: Animation bridge (E1) ───────────────────────────────
         // Identical to OFF path: runs after kernel.Update() to read post-physics state.
         _animBridgeSw.Restart();
-        var traversals = ((ISimulationView)World)
-            .ReadEvents<OffMeshTraversalStartedEvent>();
-        AnimationBridge.DispatchTraversals(traversals);
-        AnimationBridge.Execute(World, dt);
+        _viewBracket.RunAnimationStep(World, dt);
         _animBridgeSw.Stop();
 
         // ── Step 5: Physics bracket post-kernel step (forward-sync) (E2) ─
+        // ⚠ DIAG bucket shift (S3): step 5b (AnimationBinder.Reconcile) moved into the view
+        //   bracket, so it now lands in the Gizmo bucket instead of PostSync. It was already
+        //   described as "tiny"; the buckets otherwise measure exactly what they used to.
         _postSyncSw.Restart();
         _physicsBracket.RunPostKernelStep(World);
-        // Step 5b: Live animation glue reconcile (folded into PostSync bucket — tiny)
-        AnimationBinder?.Reconcile();
         _postSyncSw.Stop();
 
-        // ── Step 7 (MOVED EARLIER): selection sync + alive-guard + emit ──
-        _selectionSw.Restart();
-        SyncSelection2D3D(); // BATCH-S2-R: two-way 2D↔3D selection mirror (before ClearIfDead so sync sees live state)
-        SelectionState.ClearIfDead(World);
-        EmitSelectionHighlight();
-        EmitMoveMarker(dt); // BATCH-S2-O: destination marker
-        _selectionSw.Stop();
-
-        // ── Step 6: gizmo render (E3) — renders what Step 7 just emitted ──
+        // ── Steps 5b + 7 + 6: view bracket post-kernel step (E3) ─────────
+        //   Step 7's emission runs inside the callback, BEFORE the render — see StrideViewBracket.
         _gizmoSw.Restart();
-        GizmoRenderer3D.Sink.BeginFrame();
-        GizmoRenderer3D.Render(ProducerBuffer.GetFrame());
-        GizmoRenderer3D.Sink.EndFrame();
-        ProducerBuffer.EndFrame(dt);
+        _viewBracket.RunPostKernelStep(World, dt, emitHostGizmos: () =>
+        {
+            _selectionSw.Restart();
+            SyncSelection2D3D(); // BATCH-S2-R: two-way 2D↔3D selection mirror (before ClearIfDead so sync sees live state)
+            SelectionState.ClearIfDead(World);
+            EmitSelectionHighlight();
+            EmitMoveMarker(dt); // BATCH-S2-O: destination marker
+            _selectionSw.Stop();
+        });
         _gizmoSw.Stop();
 
         // ── Throttled breakdown log (~once per second at 60 fps) ──────────

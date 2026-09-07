@@ -5,8 +5,8 @@ updated: 2026-09-07
 current-answer: the whole file. §2.1 carries the 2026-09-07 rulings (R-S11 CLI args + ctor slots die,
   R-S12 the physics delta, R-S13 the shell drives brackets, R-S14 closing the last three open questions);
   §11.1 and §7.3a are where R-S12/R-S13 land, §7.2b is the day-1 operator surface. §14's questions are
-  ALL CLOSED — the table is now a record, not a decision list. Build order is §13's slice table. S0/S1/S2a/S2b/S2c are BUILT
-  (as-built for S2c: §11.1a). It is
+  ALL CLOSED — the table is now a record, not a decision list. Build order is §13's slice table. S0/S1/S2a/S2b/S2c/S3 are BUILT
+  (as-built: §11.1a for S2c, §7.3b for S3). It is
   the ONE owning design for the Stride story — the two modes the user
   wants (mode 1 networkless dual-window editor, mode 2 networked node replacing SimHost), the shared
   composition, the window surfaces, gizmos, animation, perception/LOS, the role vocabulary, and §16
@@ -21,6 +21,9 @@ known-rot: §11.1's table cell ① claimed the motors were already gated while p
   Continuous frame); the cell is marked SUPERSEDED in place and §11.1a carries the as-built.
   §11.1's lean for ② (option A, hoist the advance into the shell) was NOT taken in S2c — mode 1
   has no shell; option B shipped there and A moves to CE-207. §11.1a argues both.
+  §7.3a's StrideViewBracket table was wrong in four ways (assembly, a unit already bracketed
+  elsewhere, a missing step, and gizmos-before-selection which inverts the BATCH-S2-AG fix).
+  It is replaced by §7.3b, the as-built.
 known-conflict: docs/DESIGN_Subsystem_Composition_Unification.md §4.1aa carried an earlier, thinner
   version of the mode plan. §4.1aa is SUPERSEDED BY THIS FILE for anything about the Stride modes; it
   keeps only the capability-seam half. Its "ImageGenerator: drop from both modes" resolution is
@@ -465,19 +468,42 @@ readable body that calls, in order: **physics bracket pre** → `Kernel.Update()
 
 ⭐⭐ **And `R-S13`'s actual work is the SECOND bracket.** §7.3's *"extraction of the view tier out of
 `EditorStrideSubsystem`"* has, until now, had no stated shape — which is exactly how a duplicate appears.
-⇒ it is extracted **as `StrideViewBracket`, in `Hrot.Stride.Core`, mirroring `StridePhysicsBracket`
-member-for-member**:
+⇒ it is extracted **as `StrideViewBracket`, mirroring `StridePhysicsBracket`**.
 
-| `StrideViewBracket` | ⭐ owns *(all EXISTING units — ⛔ no new rendering code)* |
-|---|---|
-| `RunPostKernelStep(world, wallDt)`, in this order | ① `StrideVisualBindingSystem` *(2-pass differential ECS→visual sync)* → ② `StrideAnimationBridge` → ③ `DebugPrimitiveRenderer3D` *(gizmos)* → ④ selection highlight |
-| **does NOT own** | the physics bracket · `Kernel.Update()` · the orchestration pump · the 2-D companion window · anything that writes `SimTransform` |
-| **`wallDt`, deliberately** | ⭐ the view tier is free-running and interpolates *between* sim frames — it is the **one** consumer that legitimately wants wall time. ⚠ Contrast `R-S12`: the *physics* bracket must not |
+⛔⛔ **THE TABLE THAT USED TO BE HERE WAS WRONG IN FOUR WAYS — see §7.3b for the AS-BUILT.** It named the
+wrong assembly, listed a unit that is already bracketed elsewhere, omitted one that matters, and — the
+dangerous one — **put the gizmo render BEFORE the selection emission, which is the inverse of a defect
+this repo already fixed once.** ⭐ Building to it would have reintroduced the one-tick trail. The
+corrected shape is below; this paragraph is kept so a reader who remembers the old table knows it moved.
 
-⭐ **Why this is cheap:** both shells already call every one of those four units; the extraction moves
-call sites, not logic. ⭐ **Why it is worth a class:** the order between them is load-bearing *(binding
-must create the visual before the animation bridge or the gizmo renderer can touch it)*, and today that
-order is an accident of statement order inside a 1 000-line subsystem.
+⭐ **Why this is cheap:** both tick paths already call every one of these units; the extraction moves
+call sites, not logic. ⭐ **Why it is worth a class:** the order between them is load-bearing, and until
+the extraction it was an accident of statement order inside a 1 000-line subsystem — **duplicated across
+two tick paths**, where mode 2's shell would have made a third copy.
+
+### ⭐⭐⭐ 7.3b `StrideViewBracket` AS BUILT — **`S3`, `2026-09-07`** *(obligation ⑤)*
+
+| ⭐ | as built | ⛔ what §7.3a said, and why it was wrong |
+|---|---|---|
+| **home** | `HrotStrideApp.Game/StrideViewBracket.cs` | ⛔ *"in `Hrot.Stride.Core`"*. 📐 **Measured: not buildable.** `StrideAnimationBridge` lives in `Hrot.Stride.Animation` and `MannequinAnimationBinder` in `HrotStrideApp.Game`; **`Hrot.Stride.Core` references neither** *(its `.csproj` has no such `ProjectReference`, and they are siblings, not layers below it)*. ⭐ **Same correction, same cause, as `StrideCapabilities` in `S1`** — §4.1's home was corrected for exactly this reason. ⚠ Nothing is lost: both shells live in `HrotStrideApp.Game` |
+| **entry points** | ⭐⭐ **TWO** — `RunAnimationStep(world, wallDt)` and `RunPostKernelStep(world, wallDt, emitHostGizmos)` | ⛔ §7.3a implied one call. 📐 **The physics bracket's post step must run BETWEEN them:** the bridge registers mannequins (①), `SplitSync`'s Pass A creates their `AnimationComponent`s (②), and only then can the binder bind them (③). That dependency is recorded in `EditorStrideSubsystem` as "STR-P4, BATCH-16 Fix A" and is preserved rather than re-derived |
+| ⛔⛔ **the ORDER** | ① anim bridge → *(physics bracket post)* → ② binder reconcile → ③ **host emission** → ④ gizmo render + buffer clock | 🔴 §7.3a had **gizmos (③) BEFORE selection (④)**. ⭐⭐ **That is the inverse of a fix already in the code:** the selection highlight and move marker used to be emitted after the render and drew **one tick late — a visible trail when dragging fast** ("BATCH-S2-AG"). ⇒ **building to the diagram would have reintroduced it** |
+| ⭐ **`StrideVisualBindingSystem`** | ⛔ **NOT a step of this bracket** | ⛔ §7.3a listed it as step ①. 📐 **Measured `2026-09-07`: it is already bracketed — by the PHYSICS bracket.** Nothing calls it directly; it is **Pass A of `SplitAuthorityStrideSyncScript.Sync`**, whose Pass B is authority forward-sync, and that script is what `StridePhysicsBracket.RunPostKernelStep` drives. ⇒ prying Pass A out to satisfy the diagram is **logic surgery on a live render path**, against §7.3a's own justification *("moves call sites, not logic")*. ⭐ The bracket's doc-comment names it in the "does NOT own" list and says where it runs |
+| ⭐⭐ **selection is a HOST CALLBACK** | `emitHostGizmos`, invoked immediately before the render | ⛔ §7.3a made it bracket-owned step ④. 📐 The editor's emitters read the **2-D window's** selection version (`SyncSelection2D3D` → `_editor.Selection2DVersion`) and its move-order marker ⇒ owning them would couple mode 2 to the editor. ⭐ The **position** of the callback is what encodes the BATCH-S2-AG rule, so the ordering still lives in the bracket even though the content does not |
+| ⚠ **required, not defaulted** | `emitHostGizmos` has **no default value** | ⭐ deliberate: the `CE-219` slice had just been bitten by an optional dependency two production callers silently omitted. A required-but-nullable parameter makes passing nothing a **written decision** |
+| ✅ **`wallDt`** | unchanged — the view tier interpolates *between* sim frames | ⭐ §7.3a was right, and it is worth restating: ⛔ contrast `R-S12`/`CE-219` — the **physics** bracket must never be given the wall delta |
+
+⭐ **Rails:** `StrideViewBracketOrderTests` *(`HrotStrideApp.Game.Tests`)*. The load-bearing one **reproduces
+BATCH-S2-AG**: a primitive emitted from the callback must reach the sink in the **same** frame, with an
+inverse-edit red-proof named in the test, plus its complement *(a late emission must NOT appear in the
+frame that already rendered)* so the first rail cannot go vacuous.
+⚠ **`R-142` checked:** `EditorStrideSubsystemTests` covers boot and "does not throw" pumping;
+`ReverseSyncOrderingTests` covers the **physics** bracket. ⛔ **Neither asserted anything about the
+post-kernel view order** — which is why the one-tick trail was only ever found by eye.
+
+⛔ **`S3` is the EXTRACTION, not the second caller.** Both of mode 1's tick paths now drive the bracket;
+**mode 2's shell does not exist yet** *(`S4`)*, so §13's *"called by both shells"* is half-met by
+construction. ⚠ And, as with every Stride slice, this is **compiled and not run** off Windows.
 
 ⭐⭐ **AND MODE 2 GETS A READINESS HANDSHAKE IT DID NOT HAVE** *(`Q66` §5 row 3b)*. 📐 A
 **`SubsystemStatusAnnounce`** DDS topic exists *(`Hrot.Network.NED`; `SubsystemStatusAnnounceTests`
@@ -718,7 +744,7 @@ call **reaches a service**, not that the bracket calls the method.
 | ⭐⭐⭐ **S2a** | **THE EDITOR'S ROOT RESOLVES A `NodeCompositionPlan`** — declare `EditorSubsystem.DefaultRole`, wrap **today's default arm** *(SimHost muscle + `CgfLogicPack` + `CognitiveSpatialModule`)* as three capabilities. `MuscleModuleFactory` keeps working | `CE-208` part (a) | ⭐ **no** | ⭐⭐ **host (d) on the capability axis** — 📄 `DESIGN_Subsystem_Composition_Unification.md` §4.1ac. ⛔ **Zero Stride involvement**, so it gates on the editor's own suites. 🔒 This is what makes *"STRIDE IS LAST"* true |
 | **S2b** | mode 1 composes from `StrideCapabilities` — the factory lambda is **replaced by the plan**; the 4 ctor slots retired | `CE-208` part (b) | ⚠ compile here, **RUN on Windows** | ⭐ **host (e).** Mode 1 behaves as before — `STRIDE_SELFTEST=1` passes on Windows |
 | **S2c** | ✅ **BUILT `2026-09-07`** — the physics delta becomes the SIM delta, `simRunning` is derived from it, and Bullet stops on a halted clock | `CE-219` | ⚠ compiled here, **STILL NEEDS THE WINDOWS RUN** | ⭐ **§11.1a is the as-built.** ① and ③ closed; ② shipped as **option B** *(mode 1 has no shell)* and A moves to `CE-207`; `FixedTimeStep`/`MaxSubSteps` **not** set. ⛔⛔ **The stated acceptance — *"a rail asserts a paused frame moves no body"* — is NOT met and cannot be off Windows** *(Bullet cannot be stepped headless)*. What ships is `StridePhysicsBracketPauseGateTests`: the gate flips both ways, every frame, and **reaches a real service** |
-| **S3** | view tier extracted out of `EditorStrideSubsystem` into **`StrideViewBracket`** *(§7.3a)*, called by both shells | part of `CE-207` | ⚠ | mode 1 unchanged; the bracket has its own rails, and its doc-comment states what it does NOT own |
+| **S3** | ✅ **BUILT `2026-09-07`** — view tier extracted out of `EditorStrideSubsystem` into **`StrideViewBracket`** | part of `CE-207` | ⚠ compiled here | ⭐ **§7.3b is the as-built** *(and corrects §7.3a in four places — one of them would have reintroduced a fixed defect)*. Both of mode 1's tick paths drive it; ⛔ *"called by both shells"* is **half-met** — mode 2's shell arrives with `S4`. Rails: `StrideViewBracketOrderTests`, incl. the BATCH-S2-AG reproduction |
 | **S4** | `StrideNodeShell` + launch/config + mode selector | `CE-207` | 🔴 **Windows** | `HrotStrideApp` joins a cluster beside CGF; entities replicate; **`--mode all`-equivalent smoke** |
 | **S5** | gizmo ingress + skip counters | `CE-215` | ⚠ | remote gizmos visible in 3-D; skipped shapes counted, not silent |
 | **S6** | ⭐⭐ **the DAY-1 OPERATOR SURFACE** — the companion 2-D map **plus** the SimHost-equivalent diagnostics *(component + event inspectors, the debug API)* | `CE-214` | ⚠ | ⭐ **lands WITH `S4`, not after it** *(`R-S14`)*. The bundle composes on the Stride node; a `--debug-port` arg exists; the surface answers on it. ⛔ **Not "a 2-D map behind a flag"** — that framing is superseded, §7.2b |
