@@ -2700,6 +2700,16 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⚠ **The role differs and that is legitimate:** mode 1 is networkless and fuses Brain, mode 2 is a networked Muscle node beside CGF. ⭐ **That is exactly what a role-selected plan is for** — ⛔ it must not become two capability sets.
 
+  ⭐⭐⭐ **SPLIT `2026-09-07` INTO (a) THE EDITOR AND (b) STRIDE — because they are the SAME adoption and only (b) is Stride's.** 🔒 *(user: "these all look like feature updates, where is the unification of the composition code with other subsystems?")* 📐 **Measured:** mode 1 **is** `EditorSubsystem`, and Stride injects its muscle through `EditorSubsystem.MuscleModuleFactory` *(`:778`, branched `:1410`, assigned in production at `EditorStrideSubsystem.cs:942`)*. ⇒ *"mode 1 composes from `StrideCapabilities`"* **means** *"that factory slot becomes the capability plan"* — which **is the editor joining the capability seam**, the last ECS root off it.
+
+  | ⭐ | |
+  |---|---|
+  | **(a)** ⭐⭐⭐ **`S2a` — the editor's root resolves a `NodeCompositionPlan`** | declare `EditorSubsystem.DefaultRole` *(📐 there is none today — `SimHostApp.cs:174` and `CgfSubsystem.cs:92` both have one)*, wrap **today's default arm** as three capabilities, keep `MuscleModuleFactory` working. ⭐ **host (d)**, zero Stride involvement, gates **off Windows** |
+  | **(b)** ⭐⭐ **`S2b` — `StrideCapabilities` replaces the lambda** | ⭐ **host (e)**, needs a Windows run |
+  | 🔒 **why this order** | it is what makes the user's `2026-09-05` ruling **"STRIDE IS LAST"** true — ⛔ doing (b) first makes the *swapping* host the seam's fourth adopter, so the seam gets shaped by the swap instead of by the default composition every other host runs |
+
+  📄 The measurement, the three axes, and the two corrections it forced: [`DESIGN_Subsystem_Composition_Unification.md` §4.1ac](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md).
+
   ⭐⭐⭐ **APPROVED `2026-09-07` — DELETE the four `IEcsModule?` ctor slots** 🔒 *(user: "ctor slots die - approved")*. 📐 `StrideNodeBootstrapperTests` constructs with **no arguments** today, so nothing is lost; the slots' one production use (`StrideMuscleModules.Build` through `_editor.MuscleModuleFactory`) becomes a capability. ⛔ Two swap mechanisms for one concern is the duplication this programme exists to remove.
 
   🔴 **AND MODE 1's PHYSICS `dt` IS WRONG TODAY** *(`R-S12`)*. 📐 Measured `2026-09-07`: `EditorStrideSubsystem.cs:1089` passes `StepFixedDeltaSeconds` on a deterministic step but the **raw wall frame dt** in `Continuous` — while `StridePhysicsBracket.cs:157` documents that parameter as *"Simulation delta-time in seconds."* ⇒ **the caller violates the callee's stated contract.** ⭐ Fix here, in the same slice that repoints mode 1 at the capability plan. 📄 [`DESIGN_Stride_Node_Modes.md` §11.1](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).

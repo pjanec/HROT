@@ -32,6 +32,12 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
         §4.1j marks node-bootstrap adoption "optional, LAST" because it is the only phase touching
         orchestration/participant/time authority. The two axes are orthogonal and CGF is the case that
         proves it. Still untouched: the EDITOR (neither axis) and STRIDE.
+        ⚠⚠ CORRECTED 2026-09-07 — "the EDITOR (neither axis)" is STALE, and was so from the moment
+        CE-203 landed on 2026-09-05: the editor IS on the BUILDER axis (§4.1y, E1+E2 BUILT, host (d)).
+        It is off the CAPABILITY axis ONLY — and there it has a private one-slot substitute,
+        EditorSubsystem.MuscleModuleFactory, WHICH HAS A PRODUCTION CALLER
+        (EditorStrideSubsystem.cs:942). ⇒ READ §4.1ac before quoting this line, or §4.1L's
+        "MuscleModuleFactory has no production setter" row; both are corrected there.
         🔒 User ruling 2026-09-05: STRIDE IS LAST.
         ⚠⚠ CORRECTED 2026-09-05, SAME DAY: this line used to add "and Stride needs Windows,
         unverifiable from here." THAT WAS WRONG and it was never measured — it was inherited
@@ -191,7 +197,11 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
-updated: 2026-09-05
+updated: 2026-09-07
+known-rot: §4.1's "Still untouched: the EDITOR (neither axis)" and §4.1L's "MuscleModuleFactory has no
+  production setter" are BOTH corrected in §4.1ac (2026-09-07). The editor is on the BUILDER axis
+  (CE-203) and off the CAPABILITY axis only; MuscleModuleFactory is assigned in production at
+  EditorStrideSubsystem.cs:942. Read §4.1ac before quoting either.
 current-answer: the whole file. This is the STANDING design for the composition-unification programme —
   the approach, the constraints and the phase plan. §5 = phase 0 (BUILT; §5.6-§5.9 are its as-built),
   §5b = phase 1 (seam BUILT; ⚠ §5b.4 records THREE argued deviations — read it before quoting §5b.2's
@@ -1808,7 +1818,7 @@ locally and the production root did not.**
 | the live Stride root is `EditorStrideSubsystem` and its role slots are full | ✅ `:646` Brain, `:663` MuscleGround, `:642` orchestration | ✅ its own header — *"Brain (CGF) … Muscle (P0 stub) … ⚠ SEAM (P1) … (STR-P1-T1)"* |
 | both packs carry `UnitHierarchySystem` + `EqsResultUpdateSystem` | ✅ `CgfLogicPack:162,165` · `SimHostCoreLogicPack:137,138` | ✅ §4.1h — they are **capabilities**, role-independent; the duplication is pack drift |
 | roots ①②③ dedupe by type, root ④ does not | ✅ `:1692` · `:232` · `:389` vs `SpliceIntoSimulation:107` + `TogglableSimulationGroup:69` | ⛔ searched, no design records a dedupe obligation — ⭐ **that absence IS the finding** |
-| the editor takes the default (SimHost) muscle arm in production | ✅ `:1341`; `MuscleModuleFactory` set only at `EditorSubsystemHeadlessBootTests.cs:109` | ✅ `:1330` — *"MuscleModuleFactory == null -> EXACTLY the code that was here before"* (`ST-010`) |
+| the editor takes the default (SimHost) muscle arm in production | 🔴🔴 **SUPERSEDED `2026-09-07` — see §4.1ac.** 📐 Re-measured: **`Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs:942` assigns `_editor.MuscleModuleFactory` in PRODUCTION** (the hosted mode-1 path, set before `_editor.Initialize`). ⇒ *"set only at `EditorSubsystemHeadlessBootTests.cs:109`"* **is false now** — the editor's muscle arm IS swapped in production, by Stride. ⚠ The row is corrected, not deleted: it was either wrong when written or the wiring landed after `2026-09-03` | ✅ `:1330` — *"MuscleModuleFactory == null -> EXACTLY the code that was here before"* (`ST-010`) |
 | the double tick corrupts the roster | ✅ `UnitHierarchySystem.cs:107-140`, `Bus.Read` is a frame read | ✅ `UnitRoster.cs:18` — overflow is *"rejected … with a diagnostic warning"*, i.e. `Count` is trusted |
 | `EqsResultUpdateSystem`'s double tick is harmful | ⛔ **NOT MEASURED** — epoch-guarded, plausibly idempotent | ⛔ not searched |
 | ⚠ `check_index_coverage` was NOT run | — | ⛔ **unavailable through the CLI in this session**; the exhaustive claim *"four roots"* rests on `search_code` + grep together, not on coverage |
@@ -6071,3 +6081,100 @@ sense**, so 3-D occlusion visible in the Stride window will **not** match what p
 ⭐ **Blast radius:** `CE-210` touches `Fdp.Toolkits/Perception` and `Fdp.Toolkits/Spatial/Eqs`, which
 **every Muscle host shares** ⇒ ⛔ it is **not** a Stride-lane change and needs its own blast-radius pass
 before it starts.
+
+---
+
+## ⭐⭐⭐ §4.1ac — **THE EDITOR AND THE CAPABILITY AXIS: IT IS THE LAST ECS ROOT OFF THE SEAM, AND IT HAS A PRIVATE ONE-SLOT SUBSTITUTE** 📐 *(measured `2026-09-07`, on a user challenge)*
+
+> 🔒 **User, `2026-09-07`:** *"these all look like feature updates, where is the unification of the
+> composition code with other subsystems?"*
+
+⭐⭐ **The challenge was right about a real gap and it also exposed TWO STALE CLAIMS in this very
+document.** ⛔ Both are corrected here rather than in a batch report — an investigation that establishes a
+durable fact updates the owning design.
+
+### 📐 INVENTORY — **the three axes, and every host's state on each** *(graph + grep, both run)*
+
+```
+find.sh NodeCompositionPlan --glob '*.cs'          # the capability axis
+grep -rln SharedApplicationBootstrapper Hrot/ Stride/ FDP/
+grep -rn "DefaultRole" Hrot/Subsystems --include=*.cs
+grep -rn "MuscleModuleFactory" Hrot/ Stride/ --include=*.cs
+```
+
+| axis | what it unifies | production adopters | ⭐ the editor |
+|---|---|---|---|
+| **①** `HrotNodeBuilder` → `HrotNodeContext` | the **engine core** — world · accumulator+kernel · bus · time controller · entity map · `ClusterSlave` · TKB · geo transform | **4**: `SimHostNodeBootstrapper` · `IgNodeBootstrapper` · `CgfSubsystem` · `StrideNodeBootstrapper` *(dormant)* | ✅ **ON IT — `CE-203`, host (d), `E1`+`E2` BUILT** *(§4.1y)*. ⚠ `E3` *(the base modules — does the editor want a `GeographicModule`?)* is an **unscheduled candidate**, and it is a capability question, not a refactor |
+| **②** `NodeCompositionPlan` / `INodeCapability` | **which systems and modules a ROLE implies** | **3**: `SimHostNodeBootstrapper.cs:302` · `IgNodeBootstrapper.cs:250` · `CgfSubsystem.cs:844` | 🔴 **NOT ON IT** — and this is the whole remaining gap |
+| **③** `SharedApplicationBootstrapper` | the 7-phase **node boot** *(orchestration, participant, time authority)* | **3**: SimHost · IG · ExCon | ⛔ **deliberately not** — §4.1y decision ⑥, on `CE-200`'s precedent that axes ② and ③ are orthogonal. ⭐ **Not a gap; a decision** |
+
+### ⛔⛔ TWO CORRECTIONS TO THIS DOCUMENT
+
+| # | the claim | ⭐ measured `2026-09-07` |
+|---|---|---|
+| **①** | §4.1's STATUS block: *"Still untouched: the EDITOR (neither axis) and STRIDE"* | 🔴 **STALE** — it predates `CE-203`. The editor is on **axis ①** and has been since `2026-09-05`. ⭐ The sentence is true **only of axis ②**, and saying "neither" hid which one |
+| **②** | §4.1L's claim table: *"`MuscleModuleFactory` has no production setter — the only assignment in the tree is `EditorSubsystemHeadlessBootTests.cs:109`"* | 🔴 **FALSE NOW.** 📐 **`Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs:942` assigns it in production** — the hosted mode-1 path sets it *before* `_editor.Initialize(config)`, registers three crowd component types, and returns `StrideMuscleModules.Build(deferredCrowd).ToEditorModuleList()`. ⇒ ⭐ **the editor's muscle arm IS swapped in production, by Stride.** *(Either the claim was wrong or the wiring landed after `2026-09-03`; the row is corrected, not deleted)* |
+
+### 🔴 THE FINDING — **`MuscleModuleFactory` IS a capability seam. A private one, with exactly one slot.**
+
+📐 `EditorSubsystem.cs:778` — `public Func<MuscleModuleContext, IReadOnlyList<IEcsModule>>? MuscleModuleFactory { get; set; }`,
+branched at `:1410`: `null` ⇒ build `SimHostCoreLogicPack` + `CognitiveSpatialModule`; non-`null` ⇒ call it.
+
+| ⭐ what it is | |
+|---|---|
+| ⭐⭐⭐ **structurally `INodeCapability.ProvideModules()` for ONE key** *(`MuscleGround`)*, hand-rolled | 🔒 **the seam law, a fifth measured instance**: *"we need a shared X"* ⇒ **X exists, under-adopted, and the one root that bypasses it is production** |
+| ⛔ **the other two capabilities are HARD-CODED beside it** | `CgfLogicPack` *(Brain)* and `CognitiveSpatialModule` *(Perception)* have no slot at all — so the editor can swap its muscle and nothing else |
+| ⛔ **the editor declares NO `NodeRole`** | 📐 `SimHostApp.cs:174` and `CgfSubsystem.cs:92` both declare a `DefaultRole`; **there is no `EditorSubsystem.DefaultRole`** ⇒ there is nothing for a plan to resolve **against**, and that declaration is item one of the adoption |
+| ⚠ **it is a `Func`, so it cannot express `Needs`** | ⛔ no resource keys ⇒ the trajectory-pool / perception-grid sharing that `B3` exists for **cannot be stated** on this path. 📌 That is `CE-181`'s shape *(`StrideKinematicsModule.cs:92`'s `?? new TrajectoryPoolManager()`)* waiting to happen in the editor |
+
+### ⭐⭐ THE SIZE — **by the CGF precedent, this is one slice, not a programme**
+
+📐 CGF's adoption is **`CgfSubsystem.cs:844–870`, ~35 lines**: build the plan, `Resolve`, one loop for
+`ProvideModules()`, one for `PopulateSystems()`, plus a **loud refusal** for the phase group it does not
+build. ⛔ It adopted **no** bootstrapper and kept its inline ECS root.
+
+⇒ ⭐ **the editor is the same shape with three capabilities instead of one**, at a composition site of
+comparable size *(`EditorSubsystem.cs:1390–1460`)*. ⚠ **What makes it bigger than CGF, and it is not the
+line count:** ① a `DefaultRole` must be **chosen and defended** *(the editor fuses Brain+MuscleGround+
+Perception and is the time authority)*; ② `MuscleModuleFactory` has a **live production caller**, so it is
+a seam *migration*, not an addition; ③ the editor is the UI host, and 🔒 the user's `CE-203` constraint
+binds — *"i do not want any UI to disappear … GUI panels being still present and showing the same."*
+
+### ⭐⭐⭐ THE ORDERING CONSEQUENCE — **`CE-208` and "the editor joins the seam" ARE THE SAME WORK**
+
+📐 Mode 1 **is** `EditorSubsystem`, hosted, with Stride's modules injected through `MuscleModuleFactory`
+*(`EditorStrideSubsystem.cs:942`)*. ⇒ *"mode 1 composes from `StrideCapabilities`"* **means** *"the
+factory slot is replaced by the capability plan"* — which **is** the editor's axis-② adoption.
+
+⛔⛔ **So it was never a missing prerequisite slice. It was inside `CE-208`, unnamed** — and naming it
+matters because of the order it implies:
+
+| ⭐ split `CE-208` in two, and the second half is the only part that is Stride's | 🔒 honours *"STRIDE IS LAST"* *(user, `2026-09-05`)* |
+|---|---|
+| ⭐⭐ **(a) the editor's root resolves a `NodeCompositionPlan`** — declare `EditorSubsystem.DefaultRole`, wrap today's **default** arm *(SimHost muscle + `CgfLogicPack` + `CognitiveSpatialModule`)* as three capabilities, keep `MuscleModuleFactory` working | ⭐ **host (d) on axis ②.** ⛔ **Zero Stride involvement**, so it gates off Windows on the editor's own suites |
+| ⭐⭐ **(b) `StrideCapabilities` replaces the factory lambda** | ⭐ **host (e).** Needs a Windows run. ⇒ **Stride is genuinely last on this axis, which it is not if (a) is skipped** |
+
+⚠ **And the reason the order is not cosmetic:** a seam whose fourth adopter is the *swapping* host gets
+shaped by the swap. ⭐ Doing (a) first means the plan is proved against the **default** composition — the
+one every other host runs — before Stride's substitution arrives.
+
+### ⛔ STILL HOMELESS — **`CE-151`, and it is a DIFFERENT axis again**
+
+📐 `CE-151` *(world bootstrap has no shared seam — seven roots publish the geo transform by hand)* is about
+**singletons published into the world**, not about which units compose. ⭐ Axis ① *(`HrotNodeContext`)*
+**constructs** the geo transform; ⛔ nothing makes a host **publish** it, which is why
+`EditorStrideSubsystem`'s standalone path has none. ⇒ **it is not absorbed by any of the three axes and
+still needs its own slice.**
+
+### 📐 THE CLAIM TABLE
+
+| the finding rests on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| 3 production `NodeCompositionPlan` sites, none in `Hrot.Editor` or `Stride/` | ✅ `SimHostNodeBootstrapper.cs:302` · `IgNodeBootstrapper.cs:250` · `CgfSubsystem.cs:844` | ✅ §4.1s · §4.1t · §4.1x |
+| the editor IS on the builder axis | ✅ `CE-203` `[x]`, §4.1y `E1`+`E2` BUILT | ✅ §4.1y, 🔒 user *"i need the editor to be unified too of course"* |
+| `MuscleModuleFactory` has a production setter | ✅ `EditorStrideSubsystem.cs:942` | ⛔ **§4.1L says the opposite — corrected above** |
+| the editor declares no `NodeRole` | ✅ grep `DefaultRole` over `Hrot/Subsystems`: SimHost `:174`, CGF `:92`, **no editor** | ⛔ searched, no design record says what the editor's role should be — ⭐ **that absence is item one of the slice** |
+| CGF's adoption is ~35 lines and took no bootstrapper | ✅ `CgfSubsystem.cs:844–870` + its own comment | ✅ §4.1x · §4.1j *("node-bootstrap adoption optional, LAST")* |
+| the editor's adoption is comparable in size | ⛔ **INFERRED from the CGF precedent, not measured** — ⚠ the three multipliers are named above and none is a line count | — |
+| `E3`'s `GeographicModule` question interacts with `CE-151` | ⛔ **NOT MEASURED.** ⭐ Stated as a suspicion: both concern who publishes world singletons | ✅ §4.1y `E3` row · `CE-151` |
+| ⚠ `check_index_coverage` | ⛔ **unavailable through the CLI** — the exhaustive claims rest on graph+grep agreement, not a coverage proof | — |
