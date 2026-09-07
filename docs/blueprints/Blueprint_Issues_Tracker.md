@@ -2515,11 +2515,42 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
-- [ ] **CE-214** · `RW-M` ⭐⭐ — **MODE 2's OPTIONAL COMPANION 2-D MAP WINDOW.** 🔒 *(user: "Stride in mode 2 still needs an optional companion 2d window similar (or identical - 2d maps should be unified anyway) to simHost's one")*
+- [ ] **CE-214** · `RW-M` ⭐⭐⭐ — **MODE 2 GETS THE FULL SimHost-LIKE OPERATOR + DIAGNOSTICS SURFACE, FROM DAY 1.** 🔒 *(user, `2026-09-06`: "Stride in mode 2 still needs an optional companion 2d window similar (or identical - 2d maps should be unified anyway) to simHost's one"* · `2026-09-07`: *"i want companion map from day 1 … it is not just a 2d map, it needs to be full simhost-like UI and diag surface like simhost subsystem is having now - component and event inspectors, ai diag web server etc")*
 
-  📐 **"SimHost's 2-D window" is not SimHost's:** `ClusterRunner` opens **one** raylib window *(`RaylibPresentationShell.InitWindow`)*, `ISubsystem.cs:15` forbids a subsystem opening its own, and `SubsystemOrchestrator` builds the tab bar from the **five** `IMapCameraProvider` implementors *(SimHost · IG · CGF · Editor · EyesAndMuscle)*. ⇒ ⭐ **the map is a per-subsystem VIEW in a shared window** — which is why the user's *"2-D maps should be unified anyway"* is the right frame.
+  ⚠⚠ **RESCOPED `2026-09-07` from "an optional companion 2-D map, after `CE-207`" to "the operator surface, day 1".** ⛔ The earlier lean *(defer it)* is **withdrawn** — 📐 measured, the surface is **already shared**, so deferring buys almost nothing.
 
-  ⭐ **Reuse `CE-213`'s renamed host window** *(⛔ there must not be a second one)*, fill it with `SimPresentationModule`'s existing map surface, gate it behind one flag, **off by default**. ⚠ The map stack arrives as a **capability** (`StrideCapabilities.Map2D`), resolved only when the window is on — ⛔ **it does not come back as a node ROLE**. ⛔ **After `CE-207`, not with it.** 📄 §7.2.
+  ### 📐 What SimHost's surface actually IS — measured
+
+  | piece | where it lives | who already composes it |
+  |---|---|---|
+  | ⭐⭐ **the diagnostics windows** — `FdpEntityInspectorWindow` *(components)* · `FdpEventBrowserWindow` *(events)* · `ArchitectureDiagnosticsWindow` · `SystemProfilerWindow` | ⭐ **`Hrot/Engine/Hrot.Presentation/Windows/DiagnosticsWindowsBundle.cs`** — the SHARED engine assembly, **not** SimHost | ⭐⭐ **4 hosts: SimHost · IG · CGF · Editor**, each via `UiBundleHost.Compose` with its own `DiagnosticsHostServices` |
+  | ⭐⭐ **the debug-surface CONTRACT** — `IProvidesDebugSurface` / `ISubsystemDebugProvider` / `SubsystemDebugProvider` | ⭐ **`Hrot.Presentation.DebugApi`** — shared | ⭐⭐ **5 implementors: SimHost · IG · CGF · Editor · ExCon** |
+  | the map view | `SimPresentationModule` implements `IMapCameraProvider` | 4 production implementors |
+  | ⚠ **the ai-debug HTTP server** — `DebugApiHost` *(1 879 lines)* | ⛔ **`Hrot/Subsystems/Hrot.Editor/DebugApi/`** — editor-side | ⚠ **aggregated PER PROCESS**: `Program.cs:388` collects `IProvidesDebugSurface` via `.OfType<>()` over **the subsystems the runner composed** |
+
+  ⇒ ⭐⭐⭐ **SimHost does NOT run a web server.** It **fills a provider**; whichever process hosts the API serves it. ⚠ *"like SimHost has now"* is really *"like `ClusterRunner` exposes when SimHost runs inside it"* — ⛔ **in a distributed run each node needs its own host instance.**
+
+  ### ⭐⭐ Why day 1 is the right call, not a stretch
+
+  | | |
+  |---|---|
+  | ⭐ **the windows** | compose `DiagnosticsWindowsBundle` with a `DiagnosticsHostServices` — **the fifth host doing exactly what four already do** |
+  | ⭐ **the debug surface** | implement `IProvidesDebugSurface` — **the sixth implementor**, same shape as SimHost's `CreateDebugProvider()` |
+  | ⭐⭐ **the HTTP server** | `DebugApiHost`'s ctor is small — `(port, queue, onRequest)` — and ⭐ **`HrotStrideApp.Game` ALREADY has a `ProjectReference` to `Hrot.Editor`**, so mode 2 can construct one with nothing moved |
+  | ⭐⭐ **the window host** | ⭐ **`CE-213`'s renamed `StrideEditorWindow`** — raylib window + `WindowManager` + dockspace + message log. 🔒 The user's own argument: *"if it is done for editor+stride, it should be doable for mode 2"* — ⛔ **it is the same host object** |
+
+  ⇒ ⭐ **Deferring would save one composition call and cost the node its operator surface for the whole bring-up** — exactly when it is most needed. ⛔ **Take it day 1.**
+
+  ### ⚠ What this ADDS to the design
+
+  | # | |
+  |---|---|
+  | **1** | ⭐ **a PORT for mode 2's debug API** — several nodes on one machine need distinct ports ⇒ a `--debug-port` alongside `CE-207`'s launch args |
+  | **2** | ⭐⭐ **its API exposes THIS NODE, not the cluster** — correct and expected, ⛔ but it must be said, or someone will ask why the Stride node's `/panels` does not show CGF's |
+  | **3** | ⚠ **`DebugApiHost` lives in `Hrot.Editor`** — a *node* depending on the editor assembly is a smell. ⭐ The reference already exists, so it is **not blocking**; ⇒ file relocation as a follow-up, not a prerequisite |
+  | **4** | ⭐ the map surface reuses `SimPresentationModule`'s `IMapCameraProvider` — ⛔ **no new map code** |
+
+  📄 [`DESIGN_Stride_Node_Modes.md` §7.2](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md). ⛔ **Depends on `CE-213`** *(the window-host rename/extraction)*; ⭐ **lands WITH `CE-207`**, not after.
 
 ---
 

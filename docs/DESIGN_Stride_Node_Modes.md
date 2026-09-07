@@ -316,6 +316,30 @@ window** — which is precisely why the user's *"2-D maps should be unified anyw
 
 ⇒ **`CE-214`.** ⚠ **Depends on `CE-213`** *(the rename/extraction)* and on §6.2 only for naming.
 
+### ⭐⭐⭐ 7.2b DAY 1, AND IT IS THE FULL OPERATOR SURFACE *(user ruling, `2026-09-07`)*
+
+> 🔒 **User, verbatim:** *"i want companion map from day 1 … it is not just a 2d map, it needs to be full
+> simhost-like UI and diag surface like simhost subsystem is having now - component and event inspectors,
+> ai diag web server etc"* · *"if it is done for editor+stride, it should be doable for mode 2"*
+
+📐 **Measured, and the surface is ALREADY SHARED** — which is why day 1 is cheap:
+
+| piece | home | already composed by |
+|---|---|---|
+| component + event inspectors, architecture panel, profiler | ⭐ **`Hrot.Presentation/Windows/DiagnosticsWindowsBundle.cs`** *(shared engine assembly)* | ⭐⭐ **4 hosts** — SimHost · IG · CGF · Editor |
+| the debug-surface contract *(`IProvidesDebugSurface`)* | ⭐ `Hrot.Presentation.DebugApi` *(shared)* | ⭐⭐ **5 implementors** — + ExCon |
+| the ai-debug HTTP server *(`DebugApiHost`)* | ⚠ `Hrot.Editor/DebugApi/` | ⚠ **aggregated PER PROCESS** — `Program.cs:388` collects providers from the subsystems in that process |
+
+⇒ ⭐⭐ **SimHost runs no web server** — it fills a provider that its *process* serves. ⛔ In a distributed run
+**each node hosts its own**. ⭐ Mode 2 becomes **the 5th bundle host and the 6th provider**, and constructs a
+`DebugApiHost` of its own — `HrotStrideApp.Game` **already references `Hrot.Editor`**, so nothing moves.
+
+⚠ **Adds to the design:** a `--debug-port` *(several nodes, one machine)*; the statement that mode 2's API
+**exposes that node, not the cluster**; and a follow-up to re-home `DebugApiHost` out of the editor assembly
+*(a smell, not a blocker — the reference exists)*.
+
+⇒ ⭐ **`CE-214` lands WITH `CE-207`, depending on `CE-213`'s window host.**
+
 ### 7.3 The 3-D view tier in mode 2 — the largest hole
 
 📐 Mode 1's 3-D tier is **inside `EditorStrideSubsystem`** *(visual binding, Bullet bodies, motors,
