@@ -297,6 +297,23 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
             simulation.FixedTimeStep);
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// CE-219. <c>Simulation.DisableSimulation</c> is Stride's own switch — "Totally disable the
+    /// simulation if set to true". Driving it from the synced simulation clock is what makes a
+    /// cluster-wide pause actually stop the physics, instead of only stopping the motors while
+    /// gravity carried on.
+    ///
+    /// <para><b>⚠ MEASURED: it is a STATIC field, not an instance one</b> — the compiler rejects
+    /// <c>_simulation.DisableSimulation</c>. So this is a <b>process-wide</b> switch, not a per-
+    /// simulation one. That is correct for both Stride modes today, each of which runs exactly one
+    /// <c>Simulation</c> in its process; it would be wrong for a host that ran two and wanted to pause
+    /// only one. Recorded here rather than discovered later, because the call site reads as though it
+    /// were scoped to this service and it is not.</para>
+    /// </remarks>
+    public void SetSimulationAdvancing(bool advancing)
+        => Simulation.DisableSimulation = !advancing;
+
     // ── IPhysicsBodyService: body lifecycle ───────────────────────────────────
 
     /// <inheritdoc/>

@@ -5,7 +5,8 @@ updated: 2026-09-07
 current-answer: the whole file. §2.1 carries the 2026-09-07 rulings (R-S11 CLI args + ctor slots die,
   R-S12 the physics delta, R-S13 the shell drives brackets, R-S14 closing the last three open questions);
   §11.1 and §7.3a are where R-S12/R-S13 land, §7.2b is the day-1 operator surface. §14's questions are
-  ALL CLOSED — the table is now a record, not a decision list. Build order is §13's slice table. It is
+  ALL CLOSED — the table is now a record, not a decision list. Build order is §13's slice table. S0/S1/S2a/S2b/S2c are BUILT
+  (as-built for S2c: §11.1a). It is
   the ONE owning design for the Stride story — the two modes the user
   wants (mode 1 networkless dual-window editor, mode 2 networked node replacing SimHost), the shared
   composition, the window surfaces, gizmos, animation, perception/LOS, the role vocabulary, and §16
@@ -15,7 +16,11 @@ design-basis: user rulings 2026-09-05 (quoted verbatim in §2) · .dev/_DONE/str
   as-built port + the Windows boundary §6.6/§7.4 + the mode rails §9) ·
   docs/DESIGN_Subsystem_Composition_Unification.md §4.1L/§4.1y/§4.1z/§4.1aa/§4.1ab (the capability seam and
   the editor/Stride adoption) · docs/DESIGN_Node_Roles_And_Policies.md (the role vocabulary).
-known-rot: none yet — this document is new.
+known-rot: §11.1's table cell ① claimed the motors were already gated while paused. Measured FALSE
+  on 2026-09-07 (simRunning was derived from the time-controller MODE, true on every paused
+  Continuous frame); the cell is marked SUPERSEDED in place and §11.1a carries the as-built.
+  §11.1's lean for ② (option A, hoist the advance into the shell) was NOT taken in S2c — mode 1
+  has no shell; option B shipped there and A moves to CE-207. §11.1a argues both.
 known-conflict: docs/DESIGN_Subsystem_Composition_Unification.md §4.1aa carried an earlier, thinner
   version of the mode plan. §4.1aa is SUPERSEDED BY THIS FILE for anything about the Stride modes; it
   keeps only the capability-seam half. Its "ImageGenerator: drop from both modes" resolution is
@@ -624,7 +629,7 @@ and only the first was ever on anyone's list.
 
 | # | where | how it IS *(measured `2026-09-07`)* | what `R-S12` requires |
 |---|---|---|---|
-| **①** | the **bracket's `dt` parameter** — nav intent, character motor, vehicle motor, reverse-sync | ⚠ **half-right.** `EditorStrideSubsystem.cs:1089` passes `StepFixedDeltaSeconds` *(1/60)* on a deterministic step, but the **raw wall frame dt** in `Continuous`. ⭐ Motors are already gated by `simRunning` *(`StridePhysicsBracket.cs:177/181/185`)*, so a halted sim already does nothing here | pass the **sim** delta in `Continuous` too. ⭐ The parameter's own doc **already says so**: `StridePhysicsBracket.cs:157` — *"`dt` — Simulation delta-time in seconds"* ⇒ ⛔ **the caller violates the callee's stated contract** |
+| **①** | the **bracket's `dt` parameter** — nav intent, character motor, vehicle motor, reverse-sync | ⚠ **half-right.** `EditorStrideSubsystem.cs:1089` passes `StepFixedDeltaSeconds` *(1/60)* on a deterministic step, but the **raw wall frame dt** in `Continuous`. ⛔⛔ **SUPERSEDED by §11.1a — this cell was FALSE.** It claimed motors were already gated by `simRunning` *(`StridePhysicsBracket.cs:177/181/185`)* so a halted sim did nothing here; measured `2026-09-07`, `simRunning` was derived from the time-controller MODE and was **true on every paused Continuous frame** | pass the **sim** delta in `Continuous` too. ⭐ The parameter's own doc **already says so**: `StridePhysicsBracket.cs:157` — *"`dt` — Simulation delta-time in seconds"* ⇒ ⛔ **the caller violates the callee's stated contract** |
 | **②** | **where that sim delta comes from** | 🔴 **it does not exist before `Kernel.Update()`.** `ModuleHostKernel.cs:450` calls `_timeController.Update()` *inside* `Update()` and pushes the singleton at `:499`; `SimClock.cs`'s own header warns that asking the controller via `GetCurrentState()` returns a **zero** delta forever | see the two options below |
 | **③** | 🔴 **Stride's OWN Bullet step** | ⛔⛔ **completely ungated, and nobody had noticed.** The bracket does **not** step Bullet — Stride's `PhysicsProcessor` does, from Stride's game loop on **wall** time *(`BulletReverseSyncSystem.cs:20` — "after the `PhysicsProcessor` has stepped")*. 📐 Nothing in `Stride/` ever writes `FixedTimeStep`, `MaxSubSteps` or disables it — `BulletPhysicsBodyService.cs:295` only **logs** `FixedTimeStep` ⇒ **bodies keep falling while the cluster is paused** | gate it. ⭐ `Stride.Physics.Simulation.DisableSimulation` is a public field — *"Totally disable the simulation if set to true"* *(`Stride.Physics` 4.2.1.2487)* ⇒ **one assignment per frame from `IsAdvancing`**, plus `FixedTimeStep`/`MaxSubSteps` set from the sim step so a step integrates once |
 
@@ -650,6 +655,48 @@ and is `false` while paused *(the type's own `[Obsolete]` says so)*.
 ⭐ **Ownership:** ① and ② are `CE-207`/`CE-208` items *(the shell + mode 1's caller)*; ③ is its own row —
 **`CE-219`** — because it is a **live mode-1 defect** that ships before mode 2 exists.
 
+#### ⭐⭐⭐ 11.1a AS-BUILT — **`S2c` / `CE-219`, `2026-09-07`** *(obligation ⑤: the design must reflect what shipped)*
+
+⛔⛔ **The table above has one FALSE cell, and it was the load-bearing one.** ① says *"Motors are already
+gated by `simRunning` ⇒ a halted sim already does nothing here."* 📐 **Measured while building:**
+`EditorStrideSubsystem` computed `simRunning = timeMode == Continuous || steppedThisFrame` — **true on
+every Continuous frame, including every frame of a PAUSED cluster.** ⇒ the motors were **not** gated
+under a cluster-wide pause; ①'s "half-right" was optimistic and ③ was not the only ungated path.
+
+⭐⭐ **Why the mode is the wrong source, stated once so it is not re-derived:** a pause is
+`PauseTimeIntent → SwitchToDeterministic → Stepping` and shows up as a **zero `GlobalTime.DeltaTime`**.
+It leaves `TimeScale` untouched *(hence `GlobalTime.IsPaused`'s `[Obsolete]`)* and, on a slaved node,
+need not change the local controller's mode at all. **The only honest predicate is `DeltaTime > 0`.**
+
+| # | ⭐ what shipped | file |
+|---|---|---|
+| **①** | `physicsDt` is the **sim** delta in `Continuous` *(was: the wall frame dt)*, `StepFixedDeltaSeconds` on a granted step, `0` otherwise — and **`simRunning` is now DERIVED from it** (`physicsDt > 0`), which is exactly `GlobalTime.IsAdvancing` | `EditorStrideSubsystem.cs` — the `PreKernelUpdateHook` |
+| **②** | ⚠ **OPTION B SHIPPED, NOT THE LEAN.** `_editor.Kernel.CurrentTime.DeltaTime` — the previous frame's pushed `GlobalTime` | same |
+| **③** | `IPhysicsBodyService.SetSimulationAdvancing(bool)` *(default no-op — a dozen test fakes implement this interface)*; `BulletPhysicsBodyService` assigns `Simulation.DisableSimulation = !advancing`; the bracket calls it as **step 0** of `RunPreKernelStep`, every frame | `IPhysicsBodyService.cs` · `BulletPhysicsBodyService.cs` · `StridePhysicsBracket.cs` |
+
+##### ⛔ Three deviations, argued rather than silently taken
+
+| | ⭐ what the design said | ⛔ what shipped, and why |
+|---|---|---|
+| ⭐⭐⭐ **② A vs B** | **lean A** — the shell hoists the controller advance and a new `Kernel.Update(in GlobalTime)` skips its own | ⛔ **B.** ⭐ **A requires a shell, and mode 1 has none** — the advance happens inside `Kernel.Update()`, called by `EditorSubsystem`, which the Stride host only decorates with hooks. Taking A here would mean re-ordering **the editor's** kernel call for every host, to buy one frame. ⇒ ⭐⭐ **A remains the destination and moves to `CE-207`**, which owns `TickFrame`'s step order; B is what mode 1 gets until then, and its cost is bounded: a pause persists across frames, so the lagged delta is `0` for every paused frame **but the first** |
+| ⚠ **`FixedTimeStep` / `MaxSubSteps`** | ③ also asked for these *"set from the sim step so a step integrates once"* | ⛔ **NOT BUILT.** ⭐ It is a separate concern — *determinism of the step size* — from the one `R-S12` names, *not integrating at all while halted*. It also cannot be verified off Windows: `BulletPhysicsBodyService.cs` only ever **logged** `FixedTimeStep`, so nobody knows what Stride's default sub-stepping does to a 1/60 step here. ⇒ **left open, and it belongs with the Windows run** |
+| ⚠ **`DisableSimulation` is STATIC** | ③ calls it *"a public field"* | ⭐ True, but it is `Stride.Physics.Simulation.DisableSimulation` — **static, process-wide**, not per-`Simulation`. Harmless today *(one simulation per process)*, and documented at the assignment so a future multi-simulation host does not discover it the hard way |
+
+##### ⭐ What the rails cover, and what they cannot
+
+⭐⭐ `StridePhysicsBracketPauseGateTests` *(new — `Hrot.Stride.Core.Tests`; the bracket had **no** suite of
+its own, measured: 16 `StridePhysicsBracket` references, none in a test file)*: the gate flips **both
+ways**, is asserted **every frame** rather than on transitions, and a missing service is tolerated.
+⛔⛔ **They do NOT prove a paused frame moves no body** — that is `S2c`'s stated acceptance and it needs
+Windows, because Bullet cannot be stepped headless *(`PhysicsBodyLifecycleSystemTests`' own header
+records why)*. ⇒ ⚠ **the acceptance line in §13's slice table is NOT met off Windows and no report may claim it.**
+
+⛔ **One silent-default caught in the act, worth recording because the shape recurs:** the bracket's
+`physicsBodyService` parameter is optional *(it must be — the fakes)*, and **both** production
+constructions in `EditorStrideSubsystem` initially omitted it while holding `PhysicsBodyService` in a
+field. The gate compiled, read correctly at the call site, and did nothing. ⇒ ⭐ the rail asserts the
+call **reaches a service**, not that the bracket calls the method.
+
 ---
 
 ## 12. PERCEPTION AND LOS — pointers, not a restatement
@@ -670,7 +717,7 @@ and is `false` while paused *(the type's own `[Obsolete]` says so)*.
 | **S1** | `StrideCapabilities` in `Hrot.Stride.Core`; SimHost's perception pair promoted | `CE-205` + `CE-206` | ⭐ no *(compile gate)* | `stride-check.sh` green; a rail asserts the resolved list for `Muscle\|Perception\|Nav` is **non-empty and equals SimHost's units** |
 | ⭐⭐⭐ **S2a** | **THE EDITOR'S ROOT RESOLVES A `NodeCompositionPlan`** — declare `EditorSubsystem.DefaultRole`, wrap **today's default arm** *(SimHost muscle + `CgfLogicPack` + `CognitiveSpatialModule`)* as three capabilities. `MuscleModuleFactory` keeps working | `CE-208` part (a) | ⭐ **no** | ⭐⭐ **host (d) on the capability axis** — 📄 `DESIGN_Subsystem_Composition_Unification.md` §4.1ac. ⛔ **Zero Stride involvement**, so it gates on the editor's own suites. 🔒 This is what makes *"STRIDE IS LAST"* true |
 | **S2b** | mode 1 composes from `StrideCapabilities` — the factory lambda is **replaced by the plan**; the 4 ctor slots retired | `CE-208` part (b) | ⚠ compile here, **RUN on Windows** | ⭐ **host (e).** Mode 1 behaves as before — `STRIDE_SELFTEST=1` passes on Windows |
-| **S2c** | 🔴 **the physics delta becomes the SIM delta, and Bullet stops on a halted clock** | `CE-219` | ⚠ compile, **RUN on Windows** | ⭐ §11.1's three places all closed: the bracket takes `simDt`, the shell owns the advance, `Simulation.DisableSimulation` follows `IsAdvancing`. **A rail asserts a paused frame moves no body** |
+| **S2c** | ✅ **BUILT `2026-09-07`** — the physics delta becomes the SIM delta, `simRunning` is derived from it, and Bullet stops on a halted clock | `CE-219` | ⚠ compiled here, **STILL NEEDS THE WINDOWS RUN** | ⭐ **§11.1a is the as-built.** ① and ③ closed; ② shipped as **option B** *(mode 1 has no shell)* and A moves to `CE-207`; `FixedTimeStep`/`MaxSubSteps` **not** set. ⛔⛔ **The stated acceptance — *"a rail asserts a paused frame moves no body"* — is NOT met and cannot be off Windows** *(Bullet cannot be stepped headless)*. What ships is `StridePhysicsBracketPauseGateTests`: the gate flips both ways, every frame, and **reaches a real service** |
 | **S3** | view tier extracted out of `EditorStrideSubsystem` into **`StrideViewBracket`** *(§7.3a)*, called by both shells | part of `CE-207` | ⚠ | mode 1 unchanged; the bracket has its own rails, and its doc-comment states what it does NOT own |
 | **S4** | `StrideNodeShell` + launch/config + mode selector | `CE-207` | 🔴 **Windows** | `HrotStrideApp` joins a cluster beside CGF; entities replicate; **`--mode all`-equivalent smoke** |
 | **S5** | gizmo ingress + skip counters | `CE-215` | ⚠ | remote gizmos visible in 3-D; skipped shapes counted, not silent |

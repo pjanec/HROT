@@ -808,7 +808,12 @@ public sealed class EditorStrideSubsystem : IDisposable
             characterMotor:       characterMotor,
             vehicleMotor:         vehicleMotor,
             reverseSyncGroup:     reverseSyncGroup,
-            splitSync:            splitSync)
+            splitSync:            splitSync,
+            // ⭐ CE-219 — the bracket gates Stride's OWN Bullet step through this service. The parameter
+            //   is optional so the many test fakes need not implement it, but a production caller that
+            //   HOLDS the service must PASS it: an unpassed optional dependency here would leave gravity
+            //   running while the cluster is paused, silently and with the gate looking present.
+            physicsBodyService:   PhysicsBodyService)
         {
             VehicleNavIntentSystem = _vehicleNavIntentSystem,
         };
@@ -1071,7 +1076,12 @@ public sealed class EditorStrideSubsystem : IDisposable
             characterMotor:       characterMotor,
             vehicleMotor:         vehicleMotor,
             reverseSyncGroup:     reverseSyncGroup,
-            splitSync:            splitSync)
+            splitSync:            splitSync,
+            // ⭐ CE-219 — the bracket gates Stride's OWN Bullet step through this service. The parameter
+            //   is optional so the many test fakes need not implement it, but a production caller that
+            //   HOLDS the service must PASS it: an unpassed optional dependency here would leave gravity
+            //   running while the cluster is paused, silently and with the gate looking present.
+            physicsBodyService:   PhysicsBodyService)
         {
             VehicleNavIntentSystem = _vehicleNavIntentSystem,
         };
@@ -1094,11 +1104,44 @@ public sealed class EditorStrideSubsystem : IDisposable
             // that frame as "advancing" so physics runs exactly one step. Continuous is unchanged (always running).
             bool steppedThisFrame = timeMode != TimeMode.Continuous && curFrame != _lastSimFrameNumber;
             _lastSimFrameNumber = curFrame;
-            bool simRunning = timeMode == TimeMode.Continuous || steppedThisFrame;
 
-            // On a deterministic step, advance physics by the fixed step delta (not the wall dt) so the step is
-            // deterministic and not over-integrated when the editor was idle.
-            float physicsDt = steppedThisFrame ? StepFixedDeltaSeconds : dt;
+            // ⭐ CE-219 / S2c — PHYSICS IS DRIVEN BY THE SYNCED SIM DELTA, NEVER THE WALL CLOCK,
+            //   AND `simRunning` IS DERIVED FROM THAT DELTA RATHER THAN FROM THE MODE.
+            //
+            //   🔒 User ruling, 2026-09-07: "dt for physics needs to be the synced time dt so physics does
+            //   nothing when sim time not advancing because paused/stepped."
+            //
+            //   ⛔ What was wrong before: `simRunning` read `timeMode == Continuous || steppedThisFrame`, so
+            //   it was TRUE for every Continuous frame — including every frame of a PAUSED cluster. A pause
+            //   is issued as PauseTimeIntent → SwitchToDeterministic → Stepping and is expressed as a ZERO
+            //   GlobalTime.DeltaTime; it does NOT change TimeScale and, on a slaved editor, need not change
+            //   this node's own TimeController mode at all. So the motors kept steering and (before this
+            //   slice gated it) Bullet kept integrating gravity while the cluster stood still.
+            //
+            //   ⭐ The predicate used here is exactly GlobalTime.IsAdvancing — `DeltaTime > 0` — which
+            //   Fdp.Core documents as "THE predicate for 'is the simulation running'". Three cases:
+            //     • Continuous → the synced GlobalTime.DeltaTime. Already scaled by TimeScale, and 0 while
+            //       the cluster is paused, so a paused cluster integrates nothing.
+            //     • a granted deterministic Step → the fixed step delta, so the step is deterministic and not
+            //       over-integrated by however long the editor sat idle.
+            //     • deterministic, no step → 0 ⇒ simRunning false, which is what it already was.
+            //
+            //   ⚠ ONE-FRAME LAG, stated rather than hidden: `Kernel.CurrentTime` still holds the PREVIOUS
+            //   frame's GlobalTime here — the controller advances inside Kernel.Update(), which runs after
+            //   this hook returns. In Continuous mode the deltas are near-identical frame to frame, and the
+            //   property that matters is exact rather than approximate: a pause persists across frames, so
+            //   the lagged delta is 0 for every paused frame but the first. The exact fix is to hoist the
+            //   controller advance ahead of the bracket so the hook sees THIS frame's delta — that is
+            //   Q7 option A in DESIGN_Stride_Node_Modes.md §11.1 ②, and it belongs with mode 2's shell
+            //   (CE-207), which owns the step order. Doing it here would mean re-ordering mode 1's kernel
+            //   call for a difference of one frame's worth of gravity.
+            //
+            //   ⚠ The hook's `dt` argument (the WALL delta) is deliberately unused now. It stays in the
+            //   signature because the hook is shared, and a host that genuinely wants real time still has it.
+            float physicsDt = timeMode == TimeMode.Continuous
+                ? _editor.Kernel.CurrentTime.DeltaTime
+                : (steppedThisFrame ? StepFixedDeltaSeconds : 0f);
+            bool simRunning = physicsDt > 0f;
 
             // B: physics bracket pre-kernel (lifecycle + reposition + reverse-sync ALWAYS run;
             // the sim-advancing motors run only when simRunning).
@@ -1228,6 +1271,10 @@ public sealed class EditorStrideSubsystem : IDisposable
         //   2.  PhysicsBodyLifecycle.Execute  (if physicsIsActive)
         //   2b. VehicleNavIntentSystem.Execute → CharacterMotor.Execute → VehicleMotor.Execute
         //   3.  ReverseSyncGroup.Execute  (BEFORE Kernel.Update — design §8.3)
+        // ⚠ CE-219 does NOT change this path. Here the wall dt IS the sim dt by construction: the
+        //   two lines below force-step the time controller by the same `dt`, so GlobalTime.DeltaTime
+        //   for this frame equals what the bracket just integrated, and `simRunning: true` is true.
+        //   This standalone path has no cluster pause to observe — it drives the clock itself.
         _physicsBracket.RunPreKernelStep(World, dt, simRunning: true);
 
         // ── Step 4: FDP kernel tick ───────────────────────────────────────

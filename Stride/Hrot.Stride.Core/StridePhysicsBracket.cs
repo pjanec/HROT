@@ -75,6 +75,15 @@ public sealed class StridePhysicsBracket
     public bool PhysicsIsActive { get; }
 
     /// <summary>
+    /// The physics body service, used ONLY to gate Stride's own Bullet stepping (CE-219).
+    ///
+    /// <para>Optional because the headless and test paths have no simulation to gate. ⚠ A caller that
+    /// HAS one and does not pass it gets a node whose bodies keep falling while the cluster is
+    /// paused — so the production composition passes it, and that is the property worth checking.</para>
+    /// </summary>
+    public IPhysicsBodyService? PhysicsBodyService { get; }
+
+    /// <summary>
     /// The physics body lifecycle system (creates/destroys bodies on authority change).
     /// May be null when no visual factory was provided (headless runs without a GPU).
     /// </summary>
@@ -139,8 +148,10 @@ public sealed class StridePhysicsBracket
         BulletCharacterMotor?         characterMotor,
         KinematicVehicleMotor?        vehicleMotor,
         TogglablePostSimulationGroup  reverseSyncGroup,
-        SplitAuthorityStrideSyncScript? splitSync)
+        SplitAuthorityStrideSyncScript? splitSync,
+        IPhysicsBodyService?          physicsBodyService = null)
     {
+        PhysicsBodyService   = physicsBodyService;
         PhysicsIsActive      = physicsIsActive;
         PhysicsBodyLifecycle = physicsBodyLifecycle;
         CharacterMotor       = characterMotor;
@@ -154,17 +165,34 @@ public sealed class StridePhysicsBracket
     /// (EditorStrideSubsystem.Tick steps 2, 2b, 3 — preserved verbatim).
     /// </summary>
     /// <param name="world">The ECS world / entity repository.</param>
-    /// <param name="dt">Simulation delta-time in seconds.</param>
+    /// <param name="dt">
+    /// SIMULATION delta-time in seconds — <c>GlobalTime.DeltaTime</c>, not the wall/frame delta.
+    /// <c>CE-219</c>: a host that passes its render delta here integrates physics while the cluster
+    /// is paused, because the render loop keeps running when sim time does not.
+    /// </param>
     /// <param name="simRunning">
-    /// When <see langword="true"/> (default), the sim is in Continuous (preview/running) mode and
-    /// the motors advance normally. When <see langword="false"/> (edit/paused mode), the
-    /// VehicleNavIntent and motors are gated so bodies are frozen; lifecycle and reverse-sync
-    /// ALWAYS run regardless of this flag (drag/reposition must keep working while paused).
+    /// <b>Sim time advances on this frame</b> — the caller's <c>dt &gt; 0</c>, which is exactly what
+    /// <c>GlobalTime.IsAdvancing</c> means. When <see langword="false"/> the VehicleNavIntent and the
+    /// motors are gated and Stride's own Bullet step is disabled, so bodies are frozen; lifecycle and
+    /// reverse-sync ALWAYS run regardless (drag/reposition must keep working while paused).
+    ///
+    /// <para>⚠ <c>CE-219</c>: this is NOT "the time controller is in Continuous mode". A pause is
+    /// issued as <c>PauseTimeIntent</c> → <c>SwitchToDeterministic</c> → <c>Stepping</c> and shows up
+    /// as a ZERO delta, leaving <c>TimeScale</c> untouched and — on a slaved node — the local mode
+    /// potentially unchanged. Deriving this flag from the mode is how gravity kept running under a
+    /// cluster-wide pause.</para>
     /// </param>
     public void RunPreKernelStep(EntityRepository world, float dt, bool simRunning = true)
     {
         // Step 2: Physics body lifecycle — create/destroy bodies before motors.
         // Guard matches the original: only when a real physics service is active.
+        // ── 0. Gate Stride's OWN Bullet step (CE-219) ────────────────────────────
+        // The bracket does not step Bullet; Stride's PhysicsProcessor does, on wall time. Without
+        // this line a cluster-wide pause stopped the motors below and left gravity and contacts
+        // running, so bodies kept falling in a paused simulation. Driven from the SIM clock, so no
+        // separate pause flag is needed: sim time simply does not advance when paused or stepped.
+        PhysicsBodyService?.SetSimulationAdvancing(simRunning);
+
         // ALWAYS runs regardless of simRunning (drag/reposition must work while paused).
         _lifecycleSw.Restart();
         if (PhysicsIsActive)

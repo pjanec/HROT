@@ -42,6 +42,34 @@ namespace Hrot.Stride.Core;
 /// </summary>
 public interface IPhysicsBodyService
 {
+    // ── Simulation gating (CE-219) ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Suspends or resumes the underlying physics simulation for this frame.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Why this exists.</b> The physics bracket does not step Bullet — Stride's own
+    /// <c>PhysicsProcessor</c> does, from Stride's game loop, on <b>wall</b> time. So pausing or
+    /// stepping the cluster stopped the motors (they are gated on <c>simRunning</c>) but not gravity,
+    /// not contacts, and not any dynamic body: bodies kept falling while the simulation was paused.
+    /// Nothing in the codebase touched <c>FixedTimeStep</c>, <c>MaxSubSteps</c> or the simulation's
+    /// enable flag — the value was only ever logged.</para>
+    ///
+    /// <para><b>⚠ A DEFAULT NO-OP, deliberately.</b> Every implementation in the test tree is a fake
+    /// with no <c>Simulation</c> behind it, so "do nothing" is the correct behaviour there rather than
+    /// a stub hiding a gap. This is the case the silent-default rule explicitly exempts: a default is
+    /// a defect only when a caller that HELD the dependency failed to pass it. The one production
+    /// implementation overrides this.</para>
+    ///
+    /// <para>See <c>docs/DESIGN_Dead_Reckoning.md</c>'s sibling ruling and
+    /// <c>DESIGN_Stride_Node_Modes.md</c> §11.1 ③.</para>
+    /// </summary>
+    /// <param name="advancing">
+    /// <c>GlobalTime.IsAdvancing</c> — i.e. <c>DeltaTime &gt; 0</c>. ⛔ Never <c>IsPaused</c>, which is
+    /// <c>TimeScale == 0</c> and is <b>false</b> while the simulation is paused.
+    /// </param>
+    void SetSimulationAdvancing(bool advancing) { }
+
     // ── Body lifecycle (STR-P1-T2) ─────────────────────────────────────────────
 
     /// <summary>

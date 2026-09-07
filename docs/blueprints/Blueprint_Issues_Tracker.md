@@ -2797,9 +2797,11 @@ whenever the finding is "the sim did not do the impressive thing".**
   | `Hrot.Editor.Tests` | ✅ **368/0/1** on a clean run; ⚠ `CE-220` still intermittent *(2 red / 1 green of 3)* — **unchanged by this slice** |
 
   ⛔⛔ **NOT CLAIMED: nothing here RAN.** Mode 1 is Stride-tree code and no Stride test executes off Windows. This says the composition **compiles and resolves**; it does **not** say the dual-window editor boots. ⭐ That is the Windows lane's check, and it is the honest next verification.
+
+  ⚠⚠ **AND ONE HALF OF THIS ROW WAS NOT DONE HERE.** ⛔ The row also carried *"mode 1's physics `dt` is wrong today — fix here, in the same slice that repoints mode 1 at the capability plan"*. 🔴 **It was not fixed in `S2b`, and marking the row `[x]` without saying so would have been a false close.** ⇒ ⭐ **the `dt` half moves to `S2c` with `CE-219`**, where the rest of `R-S12`'s physics-delta work already lives — the two are one change to the same hook and splitting them across slices was the mistake.
 ---
 
-- [ ] **CE-219** · `RW-M` ⭐⭐⭐ — 🔴 **STRIDE'S OWN BULLET STEP IS UNGATED: BODIES KEEP FALLING WHILE THE CLUSTER IS PAUSED.** 🔒 *(user, `2026-09-07`: "dt for physics needs to be the synced time dt so physics does nothing when sim time not advancing because paused/stepped")*
+- [x] **CE-219** · `RW-M` ⭐⭐⭐ — ✅ **DONE `2026-09-07` (`S2c`)** — 🔴 **STRIDE'S OWN BULLET STEP WAS UNGATED: BODIES KEPT FALLING WHILE THE CLUSTER WAS PAUSED: BODIES KEEP FALLING WHILE THE CLUSTER IS PAUSED.** 🔒 *(user, `2026-09-07`: "dt for physics needs to be the synced time dt so physics does nothing when sim time not advancing because paused/stepped")*
 
   ⭐⭐ **A LIVE MODE-1 DEFECT, found while designing mode 2.** 📐 Measured `2026-09-07`: `StridePhysicsBracket` does **not** step Bullet — Stride's own `PhysicsProcessor` does, from Stride's game loop on **wall** time *(`BulletReverseSyncSystem.cs:20` — "runs once per frame **after** the `PhysicsProcessor` has stepped the simulation")*. ⛔ **Nothing in `Stride/` ever writes `FixedTimeStep`, `MaxSubSteps`, or disables the simulation** — `BulletPhysicsBodyService.cs:295` only **logs** `FixedTimeStep`. ⇒ pausing or stepping the cluster stops the motors *(they are gated on `simRunning`)* but **not gravity, not contacts, not any dynamic body**.
 
@@ -2808,6 +2810,35 @@ whenever the finding is "the sim did not do the impressive thing".**
   ⛔ **The predicate is `IsAdvancing` (`DeltaTime > 0`), NEVER `IsPaused`** — the latter is `TimeScale == 0` and is **false while paused**; the type's own `[Obsolete]` attribute says so. ⭐ **No separate pause guard is needed** — 🔒 the user's `CE-211` ruling applies unchanged: *"sim time does not advance when paused/stepped."*
 
   ⭐ **ORDERING SETTLED `2026-09-07`** 🔒 *(user: "slice order")* — ⛔ **NOT fast-tracked ahead of the dead-reckoning work**, even though it is a live mode-1 defect that does not technically depend on it. ⇒ it lands at **§13 `S2b`**, after `S0` *(`CE-211`)*, `S1` *(`CE-205`+`CE-206`)* and `S2` *(`CE-208`)*, together with the rest of the physics-delta fix.
+
+  ---
+
+  ⭐⭐⭐ **AS BUILT — `S2c`, `2026-09-07`.** 📄 Design fold-back: [`DESIGN_Stride_Node_Modes.md` §11.1a](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md) *(the as-built, the three deviations, and the FALSE cell in §11.1's table marked SUPERSEDED)*.
+
+  | ⭐ what shipped | file |
+  |---|---|
+  | `IPhysicsBodyService.SetSimulationAdvancing(bool)` — a **default no-op**, because a dozen test fakes implement this interface and a required member would break every one | `Stride/Hrot.Stride.Core/IPhysicsBodyService.cs` |
+  | `Simulation.DisableSimulation = !advancing` — ⚠ the field is **static**, i.e. process-wide, not per-`Simulation`; documented at the assignment | `Stride/HrotStrideApp.Game/BulletPhysicsBodyService.cs` |
+  | the bracket calls it as **step 0** of `RunPreKernelStep`, **every frame** — the field is a shared static, so re-asserting beats transition-tracking | `Stride/Hrot.Stride.Core/StridePhysicsBracket.cs` |
+  | ⭐⭐ mode 1's hook passes the **sim** delta *(`Kernel.CurrentTime.DeltaTime`)* in `Continuous`, the fixed step delta on a granted step, `0` otherwise — **and `simRunning` is now DERIVED from that delta** | `Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs` |
+
+  ⛔⛔ **THE DEFECT WAS BIGGER THAN THE ROW SAID, and the row's own words were part of why.** This row states the motors *"are gated on `simRunning`"* — 📐 **measured while building: they were NOT, while paused.** `simRunning` read `timeMode == Continuous || steppedThisFrame`, so it was **true on every frame of a paused cluster**: a pause is `PauseTimeIntent → SwitchToDeterministic → Stepping`, expressed as a **zero delta**, leaving `TimeScale` untouched and — on a slaved node — the local controller's mode possibly unchanged. ⇒ ⭐⭐ **nav intent, the character motor and the vehicle motor kept running under a cluster-wide pause too**, not just Bullet. Deriving the flag from `dt > 0` *(exactly `GlobalTime.IsAdvancing`)* fixes both halves with one predicate.
+
+  ⚠ **TWO DEVIATIONS, stated rather than buried** — both argued in §11.1a:
+  1. ⛔ **`§11.1`'s lean for ② (option A — hoist the controller advance into the shell) was NOT taken.** ⭐ **A requires a shell and mode 1 has none** — the advance happens inside `Kernel.Update()`, called by `EditorSubsystem`, which the Stride host only decorates with hooks. **Option B shipped** *(the previous frame's pushed `GlobalTime`)*; its cost is one frame of lag, bounded because a pause persists across frames — the lagged delta is `0` for every paused frame **but the first**. ⇒ **A moves to `CE-207`**, which owns `TickFrame`'s step order.
+  2. ⛔ **`FixedTimeStep` / `MaxSubSteps` were NOT set.** That is a *determinism-of-step-size* concern, distinct from the *do-not-integrate-while-halted* one `R-S12` names, and it cannot be verified off Windows — the code only ever **logged** `FixedTimeStep`, so Stride's actual sub-stepping under a 1/60 step is unmeasured here. **Left open for the Windows run.**
+
+  ⭐ **A SILENT DEFAULT, CAUGHT IN THE ACT** *(the shape `CLAUDE.md` names: "a production caller that HAS a dependency must PASS it")*: the bracket's `physicsBodyService` parameter is optional — it must be, for the fakes — and **both** production `StridePhysicsBracket` constructions in `EditorStrideSubsystem` initially omitted it **while holding `PhysicsBodyService` in a field two dozen lines above**. The gate compiled, read correctly at the call site, and did nothing. ⇒ the rail asserts the call **reaches a service**, not that the bracket calls the method.
+
+  ⭐ **RAILS** — `StridePhysicsBracketPauseGateTests` *(new, `Hrot.Stride.Core.Tests`)*: the gate flips **both ways** *(a gate that only disables leaves the world frozen after the first pause — a worse failure)*, is asserted **every frame** rather than on transitions, and a missing service is tolerated. ⚠ **`R-142` check: the bracket had NO suite of its own** — measured, `scripts/find.sh StridePhysicsBracket` → 16 references, **none in a test file** — so a new class is correct here rather than a parallel one.
+
+  ⛔⛔ **WHAT IS NOT PROVEN, and no report may claim it:** §13's acceptance for `S2c` is *"a rail asserts a paused frame moves no body."* 🔴 **That rail does not exist and cannot exist off Windows** — Bullet cannot be stepped headless *(`PhysicsBodyLifecycleSystemTests`' own header records why: `Simulation`'s constructor and Add/RemoveBody are `internal` to `Stride.Physics` and owned by `PhysicsProcessor`)*. ⭐ What is proven is that the **gate is wired and reaches a real service**; that the disabled simulation actually stops Bullet is `Stride.Physics`' documented contract, **taken on trust until the Windows run**.
+
+  | gate | command | result |
+  |---|---|---|
+  | Stride compile *(the only gate available off Windows)* | `bash scripts/stride-check.sh` | ✅ **6/6 ok** — `Hrot.Stride.Core`, `Hrot.Stride.Animation`, `HrotStrideApp.Game`, and all three test projects |
+  | design format | `python3 scripts/design-digest.py --check` | ✅ STATUS headers, INVENTORY blocks, and class+sequence diagrams all present |
+  | ⛔ **Stride tests RUN** | — | 🔴 **IMPOSSIBLE HERE.** No `Microsoft.WindowsDesktop.App` runtime; `HrotStrideApp.Windows` cannot even build *(asset compiler wants Direct3D11)*. The new rails are **compiled, not executed** |
 
   ⚠ **`R-142`: the feature's own suite is `PhysicsBodyLifecycleSystemTests` + `SimVelocityChainTests`** — but ⛔ **neither can run off Windows** and both stub the `Simulation`. ⇒ the acceptance rail is a **mode-1 Windows check**: pause the clock, pump N frames, assert **no** `SimTransform` moves. 📄 [`DESIGN_Stride_Node_Modes.md` §11.1 ③](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).
 
