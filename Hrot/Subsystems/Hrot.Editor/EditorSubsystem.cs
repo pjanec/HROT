@@ -284,6 +284,14 @@ namespace Hrot.Editor
         private uint                    _fdpFrameCount;
         private Hrot.SimHost.Modules.CognitiveSpatialModule? _perceptionMod;
 
+        /// <summary>
+        /// The capability set this host resolved from <see cref="EditorCapabilities.DefaultRole"/>
+        /// (S2a — host (d) on the capability axis). Held so the module-registration step can ask the
+        /// same set that contributed the systems, rather than re-deriving it and risking a divergence.
+        /// </summary>
+        private IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> _capabilities =
+            System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
+
         // `ST-010` backing fields: both were locals inside Initialize; promoted so the
         // host-integration accessors above can project them. Nothing else reads them.
         private ScenarioEntityCreationRequestSource? _scenarioLoadSource;
@@ -1432,6 +1440,32 @@ namespace Hrot.Editor
                 scenarioLoadSource,
                 mapperRegistry);
 
+            // ⭐⭐⭐ S2a — HOST (d) ON THE CAPABILITY AXIS. The editor was the last ECS composition root
+            //    still hand-assembling its unit list; SimHost (§4.1s), IG (§4.1t) and CGF (§4.1x) all
+            //    resolve a NodeCompositionPlan. What stood in for it here was MuscleModuleFactory — a
+            //    private one-slot substitute that can swap the muscle tier and nothing else.
+            //
+            // ⚠ BEHAVIOUR-PRESERVING BY CONSTRUCTION, NOT BY INSPECTION. Registration order is
+            //    execution order, so a reordered system list fails silently. EditorCapabilitiesTests
+            //    .ResolvedSet_ProducesTheSameSystemSequencesAsTheHandWrittenBlock builds both paths from
+            //    the same pack instances and asserts the three sequences match type for type, position
+            //    for position. That rail is the licence for this switch.
+            //
+            // ⛔ The two arms stay two PLAN SHAPES rather than one plan with nullable capabilities —
+            //    a null capability registered as if it were real is the silent-default shape this
+            //    programme keeps finding. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ac.
+            var compositionPlan = MuscleModuleFactory == null
+                ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, perceptionMod!)
+                : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPackInst, injectedMuscleModules);
+
+            _capabilities = compositionPlan.Resolve(EditorCapabilities.DefaultRole);
+
+            var planInputSystems   = new List<IEcsModuleSystem>();
+            var planSimSystems     = new List<IEcsModuleSystem>();
+            var planPostSimSystems = new List<IEcsModuleSystem>();
+            foreach (INodeCapability capability in _capabilities)
+                capability.PopulateSystems(_node!, planInputSystems, planSimSystems, planPostSimSystems);
+
             // ⭐⭐⭐ CE-165 — DEDUPLICATE BY TYPE when fusing the Brain and MuscleGround lists.
             // The editor is the one node that runs BOTH packs, and both carry UnitHierarchySystem and
             // EqsResultUpdateSystem. A plain Concat registered each twice, and a second UnitHierarchySystem
@@ -1441,10 +1475,12 @@ namespace Hrot.Editor
             // (EditorStrideSubsystem, StrideMuscleModule, EditorHarness); this one did not, which is exactly
             // why nothing ever disagreed out loud. SingleInstanceAttribute now makes the omission throw
             // instead of corrupting silently — see DESIGN_Subsystem_Composition_Unification.md §4.1L.
+            // The lists now come from the resolved capability set (Brain first, then MuscleGround —
+            // the plan's order is what keeps DistinctByType resolving a shared type to CGF's instance).
             var toggleInput = new TogglableInputGroup(
                 "EditorInput",
                 Fdp.ModuleHost.Scheduling.SystemComposition
-                    .DistinctByType(cgfLogicPackInst.InputSystems, muscleInputSystems).ToArray());
+                    .DistinctByType(planInputSystems, System.Array.Empty<IEcsModuleSystem>()).ToArray());
 
             // ── Blueprint runtime (MVE-BATCH-02) ──────────────────────────────────────
             // Wire the Instance-Blueprint runtime into THIS kernel (the real composition the
@@ -1467,12 +1503,12 @@ namespace Hrot.Editor
                 "EditorSim",
                 Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.SpliceIntoSimulation(
                     Fdp.ModuleHost.Scheduling.SystemComposition        // CE-165 — see toggleInput above
-                        .DistinctByType(cgfLogicPackInst.SimulationSystems, muscleSimSystems),
+                        .DistinctByType(planSimSystems, System.Array.Empty<IEcsModuleSystem>()),
                     bpTick).ToArray());
 
             var togglePostSim = new TogglablePostSimulationGroup(
                 "EditorPostSim",
-                musclePostSimSystems.ToArray());
+                planPostSimSystems.ToArray());
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
             // ⭐⭐⭐ CE-051 (Axis-C E3) — the module's interaction systems replace this host's own
             //    DrainToolActivationEvents + center/rename handlers. 📄
@@ -1495,9 +1531,13 @@ namespace Hrot.Editor
             // `ST-010`: the default arm registers exactly what it always did. The injected arm
             // registers the host's set instead -- note the default does NOT register
             // simHostCorePack (it never did; only its system lists are spliced above).
-            if (perceptionMod != null) _kernel.RegisterModule(perceptionMod);
-            foreach (var mod in injectedMuscleModules) _kernel.RegisterModule(mod);
-            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.AreaQueryResultMaterializationSystem());
+            // ⭐ The capabilities register their own modules, in plan order. That order reproduces the
+            //    hand-written sequence exactly on BOTH arms: default = perception module then the area
+            //    queries; injected = the host's muscle modules then the area queries (there is no
+            //    perception module on that arm, and there never was).
+            var bootValues = new Hrot.Common.Infrastructure.NodeBootValues();
+            foreach (INodeCapability capability in _capabilities)
+                capability.Register(_node!, bootValues);
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
 

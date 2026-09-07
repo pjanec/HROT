@@ -6176,6 +6176,36 @@ matters because of the order it implies:
 shaped by the swap. ⭐ Doing (a) first means the plan is proved against the **default** composition — the
 one every other host runs — before Stride's substitution arrives.
 
+### ✅ 4.1ac.2 AS BUILT — **the editor resolves a plan. All FIVE ECS roots are now on the capability axis** *(`2026-09-07`)*
+
+⭐⭐⭐ **`EditorSubsystem` composes from `EditorCapabilities` — host (d) — and the gap this section opened is CLOSED.**
+⇒ SimHost · IG · CGF · **editor** · Stride *(`CE-205`)* all resolve a `NodeCompositionPlan`.
+⛔ **`MuscleModuleFactory` is no longer the seam** — it now only *selects which plan shape is built*.
+
+| ⭐ what shipped | |
+|---|---|
+| **role** | `Brain \| MuscleGround \| Perception \| NavigationSolver` — 🔒 the user's `2026-09-07` ruling, pinned by a rail so a later edit cannot narrow it |
+| **two plan SHAPES, not one plan with nullable capabilities** | ⭐ `BuildDefault` *(SimHost muscle + `CgfLogicPack` + `CognitiveSpatialModule`)* · `BuildWithInjectedMuscle` *(a host supplies the muscle tier — today only Stride mode 1)*. ⛔ A null capability registered as if real is the silent-default shape this programme keeps finding |
+| **what made the switch safe** | ⭐⭐⭐ **the differential rail**, written and proven green BEFORE the flip: it builds both paths from the same pack instances and asserts the three system sequences match **type for type, position for position**. ⇒ behaviour-preserving **by construction**, not by inspection |
+
+⚠⚠ **TWO FACTS THE DESIGN DID NOT HAVE, measured while building and now load-bearing:**
+
+| # | measured | consequence |
+|---|---|---|
+| **1** | 🔴 **`CgfLogicPack` has NO post-simulation list** — only `InputSystems` and `SimulationSystems` | the hand-written block builds `togglePostSim` from the **muscle list alone**; the `Brain` capability contributes nothing there. Assuming symmetry with SimHost would have produced an empty-or-wrong post-sim group |
+| **2** | 🔴 **the editor's default arm NEVER registers its muscle pack as a module** — only its system lists are spliced | ⇒ `EditorCapabilities.MuscleGround` implements **`PopulateSystems` and deliberately NOT `Register`**. Mirroring `SimHostCapabilities` *(which does register its pack)* would have **double-run the whole muscle tier** |
+
+⭐ **Ordering, preserved exactly:** the plan lists **Brain before MuscleGround** because the fused lists are
+`DistinctByType(cgf…, muscle…)` and the helper keeps the **first** occurrence — both packs carry
+`UnitHierarchySystem` and `EqsResultUpdateSystem`, so reversing the two would silently swap which
+instance runs *(`CE-165`'s corruption, in a new disguise)*. A rail pins that order.
+
+📐 **Gates:** editor suite **368/0/1** *(baseline 363 + 5 new rails)* · `Hrot.ClusterRunner.Integration.Tests`
+`--filter Editor` **42/42** · `stride-check.sh` **6/6** *(the injected arm's consumer still compiles)*.
+⚠ One intermittent red, **`CE-220`**, reported as caused by the new rails rather than pre-existing.
+
+---
+
 ### ⛔ STILL HOMELESS — **`CE-151`, and it is a DIFFERENT axis again**
 
 📐 `CE-151` *(world bootstrap has no shared seam — seven roots publish the geo transform by hand)* is about
