@@ -98,15 +98,21 @@ public static class EditorCapabilities
     /// </remarks>
     public static NodeCompositionPlan BuildWithInjectedMuscle(
         CgfLogicPack cgfPack,
-        IReadOnlyList<IEcsModule> injectedMuscleModules)
+        IReadOnlyList<INodeCapability> injectedMuscleCapabilities)
     {
-        if (cgfPack is null)              throw new ArgumentNullException(nameof(cgfPack));
-        if (injectedMuscleModules is null) throw new ArgumentNullException(nameof(injectedMuscleModules));
+        if (cgfPack is null) throw new ArgumentNullException(nameof(cgfPack));
+        if (injectedMuscleCapabilities is null) throw new ArgumentNullException(nameof(injectedMuscleCapabilities));
 
-        return new NodeCompositionPlan()
-            .Capability(NodeRole.Brain,        new Brain(cgfPack))
-            .Capability(NodeRole.MuscleGround, new InjectedMuscle(injectedMuscleModules))
-            .Capability(NodeRole.Perception,   new PerceptionAreaQueries());
+        var plan = new NodeCompositionPlan()
+            .Capability(NodeRole.Brain, new Brain(cgfPack));
+
+        // ⭐ S2b — the host hands over CAPABILITIES, not bare modules. They are added in the host's
+        //    own order, between Brain and the area queries, which is where the muscle tier sat when
+        //    this was a Func returning IEcsModule (registration order is execution order).
+        foreach (INodeCapability capability in injectedMuscleCapabilities)
+            plan = plan.Capability(NodeRole.MuscleGround, capability);
+
+        return plan.Capability(NodeRole.Perception, new PerceptionAreaQueries());
     }
 
     /// <summary>The Brain tier — CGF's logic pack, contributed as systems, never as a module.</summary>
@@ -159,20 +165,10 @@ public static class EditorCapabilities
         }
     }
 
-    /// <summary>The MuscleGround tier when a host supplies it — registered as whole modules.</summary>
-    public sealed class InjectedMuscle : INodeCapability
-    {
-        private readonly IReadOnlyList<IEcsModule> _modules;
-        internal InjectedMuscle(IReadOnlyList<IEcsModule> modules) => _modules = modules;
-
-        public string Key => CapabilityKeys.MuscleGround;
-        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
-
-        public void Register(HrotNodeContext context, NodeBootValues values)
-        {
-            foreach (IEcsModule m in _modules) context.Kernel.RegisterModule(m);
-        }
-    }
+    // ⛔ `InjectedMuscle` (a capability that wrapped a host's bare IEcsModule list) was DELETED by
+    //    S2b. It only existed to adapt MuscleModuleFactory's return type; now that hosts hand over
+    //    INodeCapability directly there is nothing to adapt, and keeping the wrapper would be a
+    //    second way to express the same thing.
 
     /// <summary>Perception's spatial half — the cognitive grid. Default arm only.</summary>
     public sealed class PerceptionSpatial : INodeCapability

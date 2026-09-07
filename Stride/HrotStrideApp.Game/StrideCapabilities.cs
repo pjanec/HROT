@@ -115,8 +115,18 @@ public static class StrideCapabilities
         /// </summary>
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
-        public void Register(HrotNodeContext context, NodeBootValues values)
-            => context.Kernel.RegisterModule(new StrideMuscleModule(_set));
+        /// <summary>
+        /// ⭐ <b><c>ProvideModules</c>, not <c>Register</c> — and the difference is load-bearing.</b>
+        /// A host that only registers cannot be ASKED what it contributed. The editor needs exactly
+        /// that: <c>EditorApplication.SwitchToExternalAsync</c> uninstalls the logic packs by
+        /// reference, so it must hold the module this capability creates, not merely know that one was
+        /// registered. This is the hook the seam grew for hosts whose modules land at the
+        /// <c>additional-modules</c> step (§4.1t), and it is why that third hook exists.
+        /// </summary>
+        public IEnumerable<IEcsModule> ProvideModules()
+        {
+            yield return new StrideMuscleModule(_set);
+        }
     }
 
     /// <summary>

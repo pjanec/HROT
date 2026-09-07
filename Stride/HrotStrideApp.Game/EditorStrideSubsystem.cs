@@ -936,10 +936,15 @@ public sealed class EditorStrideSubsystem : IDisposable
 
         _editor = new EditorSubsystem();
 
-        // Set MuscleModuleFactory BEFORE Initialize (mirrors boot-test pattern exactly).
-        // The lambda registers the 3 extra muscle-specific component types on ctx.World,
-        // builds the Stride muscle set, captures it for the physics bracket, and returns it.
-        _editor.MuscleModuleFactory = ctx =>
+        // Set MuscleCapabilitiesFactory BEFORE Initialize (mirrors boot-test pattern exactly).
+        //
+        // ⭐⭐ S2b / CE-208 — this used to be `MuscleModuleFactory`, a Func returning bare IEcsModules.
+        //    It was the editor's private, one-slot stand-in for the capability seam: it could swap the
+        //    muscle tier and nothing else, and it had nowhere to declare a shared resource. Mode 1 now
+        //    hands over the SAME StrideCapabilities declaration mode 2 resolves, which is what makes
+        //    the two modes one composition rather than two that happen to agree today.
+        //    📄 docs/DESIGN_Stride_Node_Modes.md §4.
+        _editor.MuscleCapabilitiesFactory = ctx =>
         {
             // Mirror EditorStrideSubsystem.Initialize step 2: extra muscle-specific components.
             if (!ctx.World.IsComponentTypeRegistered<CrowdMotorIntent>())
@@ -951,7 +956,14 @@ public sealed class EditorStrideSubsystem : IDisposable
 
             var ms = StrideMuscleModules.Build(deferredCrowd);
             capturedMuscleSet = ms;
-            return ms.ToEditorModuleList();
+
+            // ⭐ The muscle CAPABILITY, resolved from the shared declaration — not a hand-built module
+            //   list. Resolving for MuscleGround alone is deliberate: the editor already supplies the
+            //   Brain and the perception tier, so taking Stride's perception capabilities here would
+            //   register a second EqsModule beside the editor's.
+            return StrideCapabilities
+                .Build(ms)
+                .Resolve(Hrot.Common.NodeRole.MuscleGround);
         };
 
         // Boot the real EditorSubsystem.

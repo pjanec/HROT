@@ -2753,7 +2753,7 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
-- [ ] **CE-208** · `RW-M` ⭐⭐ — **MODE 1 (the dual-window networkless editor) COMPOSES FROM THE SAME `StrideCapabilities`.** 🔒 *(user: "with networkless editor (dual window - 2d editor and 3d stride)")*
+- [x] **CE-208** · `RW-M` ⭐⭐ — **MODE 1 (the dual-window networkless editor) COMPOSES FROM THE SAME `StrideCapabilities`.** 🔒 *(user: "with networkless editor (dual window - 2d editor and 3d stride)")*
 
   ⭐ Mode 1 **exists and works today** — `STRIDE_HOST_REAL_EDITOR=1` + `STRIDE_EDITOR_WINDOW=1`: one world *(the editor's)*, Stride's 3D window plus a second raylib/ImGui 2D window pumped from the same frame. ⇒ this task is **not** "build mode 1"; it is **"make mode 1 and mode 2 compose from one declaration."**
 
@@ -2775,6 +2775,28 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   🔴 **AND MODE 1's PHYSICS `dt` IS WRONG TODAY** *(`R-S12`)*. 📐 Measured `2026-09-07`: `EditorStrideSubsystem.cs:1089` passes `StepFixedDeltaSeconds` on a deterministic step but the **raw wall frame dt** in `Continuous` — while `StridePhysicsBracket.cs:157` documents that parameter as *"Simulation delta-time in seconds."* ⇒ **the caller violates the callee's stated contract.** ⭐ Fix here, in the same slice that repoints mode 1 at the capability plan. 📄 [`DESIGN_Stride_Node_Modes.md` §11.1](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).
 
+
+  ✅ **BUILT `2026-09-07`** *(slices `S2a` + `S2b`)*. ⭐⭐⭐ **Both halves shipped, and the seam is now the SAME one all five ECS roots use.**
+
+  | ⭐ what changed | |
+  |---|---|
+  | **`MuscleModuleFactory` → `MuscleCapabilitiesFactory`** | ⛔ the old shape returned bare `IEcsModule`s: a **private, one-slot substitute** for the capability seam that could swap the muscle tier and nothing else, and had **nowhere to declare `Needs`** — a `Func` returning modules cannot express a shared resource. ⭐ Hosts now hand over `INodeCapability`, the same type the other four roots resolve |
+  | ⭐⭐ **mode 1 resolves `StrideCapabilities`** | `EditorStrideSubsystem.cs` returns `StrideCapabilities.Build(ms).Resolve(NodeRole.MuscleGround)`. ⚠ **`MuscleGround` alone, deliberately** — the editor already supplies Brain and perception, so taking Stride's perception capabilities too would register a **second `EqsModule`** beside the editor's |
+  | ⭐⭐⭐ **the four `IEcsModule?` ctor slots are DELETED** 🔒 *(user: "ctor slots die - approved")* | `StrideNodeBootstrapper` is now **parameterless** + `WithCapabilities(list)`. ⭐ Nothing lost: the slots' only production use was `StrideMuscleModules.Build`, now a capability, and `StrideNodeBootstrapperTests` already constructed it with no arguments |
+  | ⛔ **`EditorCapabilities.InjectedMuscle` deleted too** | it existed only to adapt the old return type; keeping it would be a second way to say one thing |
+
+  ⭐⭐ **A DESIGN CORRECTION MADE MID-BUILD — `ProvideModules()`, not `Register()`.** 📐 `EditorApplication.SwitchToExternalAsync` uninstalls the logic packs **by reference**, so the host must *hold* the module a capability creates, not merely know one was registered. ⇒ Stride's `MuscleGround` implements **`ProvideModules()`** and the editor makes **one ordered pass per capability** *(its modules, then its `Register`)*. ⭐ **That is exactly the step the seam's THIRD hook was added for** *(§4.1t)* — expressing it through `Register` would push the modules **after** `context.BaseModules` and the spawning pipeline, i.e. a frame-order change dressed as a refactor.
+
+  ⭐⭐⭐ **THE COMPILE GATE EARNED ITS KEEP.** ⛔ Renaming the property broke `EditorSubsystemHeadlessBootTests` — **a Stride-tree file the whole rest of the solution builds green without**. 📌 That is precisely the `CE-204` failure class *(a widened signature shipped a broken Stride host behind a full green gate table)*, caught this time by `scripts/stride-check.sh` **before** any commit.
+
+  | ⭐ gate | result |
+  |---|---|
+  | `scripts/stride-check.sh` | ✅ **6/6 compile** *(after fixing the boot test the gate caught)* |
+  | `Hrot.NodeComposition.Tests` | ✅ **53/53** |
+  | `Hrot.ClusterRunner.Integration.Tests --filter Editor` | ✅ **42/42** |
+  | `Hrot.Editor.Tests` | ✅ **368/0/1** on a clean run; ⚠ `CE-220` still intermittent *(2 red / 1 green of 3)* — **unchanged by this slice** |
+
+  ⛔⛔ **NOT CLAIMED: nothing here RAN.** Mode 1 is Stride-tree code and no Stride test executes off Windows. This says the composition **compiles and resolves**; it does **not** say the dual-window editor boots. ⭐ That is the Windows lane's check, and it is the honest next verification.
 ---
 
 - [ ] **CE-219** · `RW-M` ⭐⭐⭐ — 🔴 **STRIDE'S OWN BULLET STEP IS UNGATED: BODIES KEEP FALLING WHILE THE CLUSTER IS PAUSED.** 🔒 *(user, `2026-09-07`: "dt for physics needs to be the synced time dt so physics does nothing when sim time not advancing because paused/stepped")*

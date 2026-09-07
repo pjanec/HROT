@@ -292,6 +292,14 @@ namespace Hrot.Editor
         private IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> _capabilities =
             System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
 
+        /// <summary>
+        /// The modules the resolved capabilities contributed through <c>ProvideModules()</c>.
+        ///
+        /// <para>Held because <c>EditorApplication.SwitchToExternalAsync</c> uninstalls the logic packs
+        /// BY REFERENCE — knowing a module was registered is not enough, the instance is needed.</para>
+        /// </summary>
+        private readonly List<IEcsModule> _capabilityModules = new();
+
         // `ST-010` backing fields: both were locals inside Initialize; promoted so the
         // host-integration accessors above can project them. Nothing else reads them.
         private ScenarioEntityCreationRequestSource? _scenarioLoadSource;
@@ -775,15 +783,24 @@ namespace Hrot.Editor
         }
 
         /// <summary>
-        /// Replaces the muscle module set built during <see cref="Initialize"/>.
+        /// Replaces the muscle tier built during <see cref="Initialize"/> with a host's own
+        /// CAPABILITIES.
         ///
-        /// <para><b>Null is the default and means "exactly today's behaviour"</b> --
-        /// <c>SimHostCoreLogicPack</c> + <c>CognitiveSpatialModule</c>, registered as they always
-        /// were. Non-null means a host (the Stride muscle, with Bullet physics and DotRecast nav)
-        /// supplies the replacement set. The default arm is kept byte-for-byte rather than routed
-        /// through the factory, so an editor that sets nothing cannot be affected by this at all.</para>
+        /// <para><b>Null is the default and means exactly today's behaviour</b> —
+        /// <c>SimHostCoreLogicPack</c> + <c>CognitiveSpatialModule</c>. Non-null means a host
+        /// (today only Stride mode 1, with Bullet physics and DotRecast navigation) supplies its own
+        /// muscle capabilities, which are resolved alongside the Brain and perception ones.</para>
+        ///
+        /// <para><b>⚠ This REPLACED <c>MuscleModuleFactory</c>, which returned bare
+        /// <c>IEcsModule</c>s (S2b / CE-208).</b> The old shape was a private, single-slot
+        /// substitute for the capability seam: it could swap the muscle tier and nothing else, and it
+        /// could not express a shared resource because a <c>Func</c> returning modules has nowhere to
+        /// say <c>Needs</c>. Keeping both would be two mechanisms for one concern — the duplication
+        /// this programme exists to remove. Hosts now hand over the same
+        /// <see cref="Hrot.Common.Infrastructure.INodeCapability"/> the other four roots use.</para>
         /// </summary>
-        public Func<MuscleModuleContext, IReadOnlyList<IEcsModule>>? MuscleModuleFactory { get; set; }
+        public Func<MuscleModuleContext, IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability>>?
+            MuscleCapabilitiesFactory { get; set; }
 
         /// <summary>Internal test hook: exposes the data breakpoint manager (UBP-P10T1).</summary>
         internal IDataBreakpointManager? DataBreakpointManager => _bpManager;
@@ -1404,18 +1421,19 @@ namespace Hrot.Editor
 
             // ?? 4. Module registration (offline ? no translator packs) ????????
             // ── Muscle module set (`ST-010`: injectable; defaults to SimHost) ─────────────
-            // MuscleModuleFactory == null -> EXACTLY the code that was here before, unchanged.
-            // MuscleModuleFactory != null -> a host supplies the replacement set (the Stride muscle:
+            // MuscleCapabilitiesFactory == null -> EXACTLY the code that was here before, unchanged.
+            // MuscleCapabilitiesFactory != null -> a host supplies the replacement set (the Stride muscle:
             //                                Bullet physics + DotRecast nav).
             IReadOnlyList<IEcsModuleSystem> muscleInputSystems   = Array.Empty<IEcsModuleSystem>();
             IReadOnlyList<IEcsModuleSystem> muscleSimSystems     = Array.Empty<IEcsModuleSystem>();
             IReadOnlyList<IEcsModuleSystem> musclePostSimSystems = Array.Empty<IEcsModuleSystem>();
-            IReadOnlyList<IEcsModule>       injectedMuscleModules = Array.Empty<IEcsModule>();
+            IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> injectedMuscleCapabilities =
+                Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
 
             SimHostCoreLogicPack?    simHostCorePack = null;
             CognitiveSpatialModule?  perceptionMod   = null;
 
-            if (MuscleModuleFactory == null)
+            if (MuscleCapabilitiesFactory == null)
             {
                 simHostCorePack  = new SimHostCoreLogicPack(entityMap);
                 perceptionMod    = new CognitiveSpatialModule(
@@ -1431,7 +1449,7 @@ namespace Hrot.Editor
             }
             else
             {
-                injectedMuscleModules = MuscleModuleFactory(new MuscleModuleContext(_world!, entityMap));
+                injectedMuscleCapabilities = MuscleCapabilitiesFactory(new MuscleModuleContext(_world!, entityMap));
             }
             var mapperRegistry = new TacticalIntentMapperRegistry();
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
@@ -1454,9 +1472,9 @@ namespace Hrot.Editor
             // ⛔ The two arms stay two PLAN SHAPES rather than one plan with nullable capabilities —
             //    a null capability registered as if it were real is the silent-default shape this
             //    programme keeps finding. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ac.
-            var compositionPlan = MuscleModuleFactory == null
+            var compositionPlan = MuscleCapabilitiesFactory == null
                 ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, perceptionMod!)
-                : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPackInst, injectedMuscleModules);
+                : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPackInst, injectedMuscleCapabilities);
 
             _capabilities = compositionPlan.Resolve(EditorCapabilities.DefaultRole);
 
@@ -1535,9 +1553,19 @@ namespace Hrot.Editor
             //    hand-written sequence exactly on BOTH arms: default = perception module then the area
             //    queries; injected = the host's muscle modules then the area queries (there is no
             //    perception module on that arm, and there never was).
+            //   ⭐ ONE ordered pass per capability: the modules it PROVIDES, then its Register hook.
+            //     Asking for the modules (rather than letting the capability register them and
+            //     forgetting) is what lets SwitchToExternalAsync still uninstall them by reference.
             var bootValues = new Hrot.Common.Infrastructure.NodeBootValues();
             foreach (INodeCapability capability in _capabilities)
+            {
+                foreach (var mod in capability.ProvideModules())
+                {
+                    _kernel.RegisterModule(mod);
+                    _capabilityModules.Add(mod);
+                }
                 capability.Register(_node!, bootValues);
+            }
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
 
@@ -1619,7 +1647,7 @@ namespace Hrot.Editor
             var logicPacks = new List<IEcsModule> { cgfLogicPackInst };
             if (simHostCorePack != null) logicPacks.Insert(0, simHostCorePack);
             if (perceptionMod   != null) logicPacks.Insert(1, perceptionMod);
-            foreach (var mod in injectedMuscleModules) logicPacks.Insert(0, mod);
+            foreach (var mod in _capabilityModules) logicPacks.Insert(0, mod);
 
             // ?? 4d. MapLayerAssignmentSystem ? must be registered BEFORE Initialize() ??
             // Stamps MapDisplayComponent.LayerMask on each entity so the DebugGizmoLayer

@@ -106,7 +106,10 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         // in its standard component registries. These are required by the Stride navigation
         // systems (NavigationIntentBridgeSystem.RegisterAgent checks HasComponent<CrowdAgent>,
         // CrowdAgentUpdateSystem guards on IsComponentTypeRegistered<CrowdAgent>, etc.).
-        _editor.MuscleModuleFactory = ctx =>
+        // ⭐ S2b — the seam is now CAPABILITIES, not a module list. The test uses the same
+        //   StrideCapabilities declaration production does, so this rail exercises the real
+        //   composition path rather than a test-only assembly of the same parts.
+        _editor.MuscleCapabilitiesFactory = ctx =>
         {
             // Mirror EditorStrideSubsystem.Initialize step 2: extra muscle-specific components.
             // ctx.World is the live EntityRepository, available before Kernel.Initialize().
@@ -119,7 +122,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
 
             var ms = StrideMuscleModules.Build(_crowd);
             capturedSet = ms;
-            return ms.ToEditorModuleList();
+            return StrideCapabilities.Build(ms).Resolve(Hrot.Common.NodeRole.MuscleGround);
         };
 
         // Boot the real EditorSubsystem headlessly.

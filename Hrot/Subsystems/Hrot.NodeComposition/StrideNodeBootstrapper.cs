@@ -67,10 +67,22 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         NodeRole.MuscleGround | NodeRole.Perception |
         NodeRole.NavigationSolver | NodeRole.ImageGenerator;
 
-    private readonly IEcsModule? _kinematicsModule;
-    private readonly IEcsModule? _perceptionModule;
-    private readonly IEcsModule? _combatModule;
-    private readonly IEcsModule? _navigationModule;
+    /// <summary>
+    /// The capabilities this node composes, handed in by whichever shell boots it.
+    ///
+    /// <para><b>⭐ S2b / CE-208 — this REPLACED four <c>IEcsModule?</c> constructor slots</b>
+    /// (kinematics · perception · combat · navigation). Those were a private, per-host swap
+    /// mechanism for exactly what <see cref="INodeCapability"/> does for every other node, and
+    /// keeping both would be two ways to express one thing — 🔒 the ruling this programme runs on
+    /// ("no keeping two implementations for the same concept"). Nothing was lost: the slots' only
+    /// production use was <c>StrideMuscleModules.Build</c>, which is now a capability, and
+    /// <c>StrideNodeBootstrapperTests</c> already constructed this type with no arguments.</para>
+    ///
+    /// <para>⚠ Handed IN rather than resolved here, deliberately: mode 1 has no bootstrapper at all
+    /// (it composes through <c>EditorSubsystem</c>), so the declaration must be resolvable by a shell
+    /// that never constructs this class. 📄 <c>DESIGN_Stride_Node_Modes.md</c> §4.</para>
+    /// </summary>
+    private IReadOnlyList<INodeCapability> _capabilities = System.Array.Empty<INodeCapability>();
 
     // Saved by the overriding BootstrapNode so the abstract hooks can access them.
     private HrotNodeConfig?   _savedConfig;
@@ -116,20 +128,12 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
 
     // ITimeControlGateway? TimeControl is inherited from SharedApplicationBootstrapper.
 
-    /// <param name="kinematicsModule">Optional kinematics module (e.g. GroundKinematicsModule).</param>
-    /// <param name="perceptionModule">Optional perception module (e.g. CognitiveSpatialModule).</param>
-    /// <param name="combatModule">Optional combat module (e.g. CombatModule).</param>
-    /// <param name="navigationModule">Optional navigation solver module.</param>
-    public StrideNodeBootstrapper(
-        IEcsModule? kinematicsModule = null,
-        IEcsModule? perceptionModule = null,
-        IEcsModule? combatModule     = null,
-        IEcsModule? navigationModule = null)
+    /// <remarks>
+    /// ⭐ Parameterless since S2b. The four <c>IEcsModule?</c> slots this used to take are gone —
+    /// see the <c>_capabilities</c> field. Hand the units in with <see cref="WithCapabilities"/>.
+    /// </remarks>
+    public StrideNodeBootstrapper()
     {
-        _kinematicsModule = kinematicsModule;
-        _perceptionModule = perceptionModule;
-        _combatModule     = combatModule;
-        _navigationModule = navigationModule;
     }
 
     /// <summary>
@@ -268,10 +272,26 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// <inheritdoc/>
     protected override IEnumerable<IEcsModule> GetAdditionalModules()
     {
-        if (_kinematicsModule != null) yield return _kinematicsModule;
-        if (_perceptionModule != null) yield return _perceptionModule;
-        if (_combatModule     != null) yield return _combatModule;
-        if (_navigationModule != null) yield return _navigationModule;
+        // ⭐ The modules come from the resolved capability set. This is the `additional-modules` boot
+        //   step, which is exactly the step INodeCapability.ProvideModules() exists to serve (§4.1t):
+        //   expressing them through Register() instead would push them AFTER context.BaseModules and
+        //   the spawning pipeline, and registration order is execution order.
+        foreach (INodeCapability capability in _capabilities)
+            foreach (IEcsModule module in capability.ProvideModules())
+                yield return module;
+    }
+
+    /// <summary>
+    /// Hands this bootstrapper the capabilities its shell resolved. Call BEFORE bootstrapping.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ A shell that forgets this gets a node with no muscle tier and no perception — so the
+    /// bootstrapper refuses an empty set at boot rather than composing a silently hollow node.
+    /// </remarks>
+    public StrideNodeBootstrapper WithCapabilities(IReadOnlyList<INodeCapability> capabilities)
+    {
+        _capabilities = capabilities ?? throw new ArgumentNullException(nameof(capabilities));
+        return this;
     }
 
     /// <inheritdoc/>

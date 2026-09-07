@@ -169,7 +169,7 @@ public class EditorCapabilitiesTests : IDisposable
         var (cgf, _, _) = BuildPacks(world);
 
         IReadOnlyList<INodeCapability> resolved =
-            EditorCapabilities.BuildWithInjectedMuscle(cgf, Array.Empty<IEcsModule>())
+            EditorCapabilities.BuildWithInjectedMuscle(cgf, Array.Empty<INodeCapability>())
                               .Resolve(EditorCapabilities.DefaultRole);
 
         var input = new List<IEcsModuleSystem>();
