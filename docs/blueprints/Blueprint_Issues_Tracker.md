@@ -2385,17 +2385,75 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
-- [ ] **CE-211** · `RW-M` ⭐⭐⭐ — **DEAD RECKONING / SMOOTHING IS NOT AN IG FEATURE — AND TODAY SimHost AND CGF DO NOT DO IT AT ALL.** 🔒 *(user, `2026-09-05`: "dead reckoning … is basically something that every node needs to be doing for remote entities (for which the node does not own the simTransform) as dead reckoning is used to reduce network traffic. So likely not specific to IG nodes … in general DR/smoothing is nothing special to IG role only.")*
+- [ ] **CE-211** · `RW-M` ⭐⭐⭐ — **EVERY NODE DEAD-RECKONS REMOTE ENTITIES — FROM THE LAST SAMPLE AND ITS TIMESTAMP, NOT FROM AN ACCUMULATOR.** 🔒 *(user, `2026-09-05`: "dead reckoning … is basically something that every node needs to be doing for remote entities (for which the node does not own the simTransform) as dead reckoning is used to reduce network traffic … in general DR/smoothing is nothing special to IG role only."* · `2026-09-06`: *"dr writes simtransform. networktransform stays the last received sample. extrapolate dt = current time on node minus nettransform.timestamp"* · *"there should be no unstamped mode")*
 
-  📐 **Measured:** `DeadReckoningSyncSystem` is registered at `NedReplicationModule.cs:333` *(pure IG, `driveFromNetwork:true`)* and `:339` *(any role **containing** IG, `driveFromNetwork:false`)* — ⛔ **and nowhere else.** ⇒ **pure Muscle (`SimHostApp.cs:175` = `MuscleGround\|Perception\|NavigationSolver`) and pure Brain (CGF) never extrapolate a ghost's transform between packets.**
+  ⚠⚠ **THIS ROW WAS REWRITTEN `2026-09-06`. Its first version said "just remove the `_roleHasIG` gate — the system is already ghost-scoped, so it is a no-op on owned entities."** ⛔ **Measured false in the half that matters**, and the user's ruling replaced the mechanism. The old text is `## ⛔ HISTORY` at the end of this row.
 
-  ⭐⭐ **The fix is to REMOVE a gate, not add a system.** `driveFromNetwork:false` already means *"smooth only `EntityLifecycle.Ghost` entities"*, and the loop already skips anything with `authority.HasAuthority` ⇒ **registering it unconditionally is a no-op on owned entities.** ⚠ Keep the pure-IG `true` arm only if it measures differently. ⭐ **`SmoothingRate = 10.0f` becomes a ctor parameter** so a renderer can smooth at a higher rate — 🔒 user: *"they might just do smoothing on higher rate as they are usually running on higher fps than the brain nodes."* ⛔ **Not** a second system.
+  ### 📐 What the current system actually does *(measured, `DeadReckoningSyncSystem.cs:58-73`)*
 
-  ⚠ **Blast radius, stated:** ghost positions on SimHost and CGF **will start moving between packets** — that is the intent, and it may move test expectations that assert a frozen ghost. ⭐ **`R-142` gate: `SplitAuthoritySpawnTests` + `Hrot.ClusterRunner.Integration.Tests`.** ⛔ Expectations get **reviewed**, never silently adjusted.
+  It is **not** a presentation smoother. Per non-owned entity it writes **three** components:
 
-  ⭐⭐⭐ **This is a CLUSTER-WIDE correctness change, not a Stride change** — but it is a **hard prerequisite of `CE-207`**, because it is what lets Stride drop the `ImageGenerator` flag without losing smoothing. 📄 `DESIGN_Stride_Node_Modes.md` §6.1.
+  | line | write | verdict |
+  |---|---|---|
+  | `:64` | `NetworkTransform.LastPosition = LastPosition + Vel*dt` | 🔴 **DELETED by the ruling** — this turns "the last received sample" into a **frame-rate-dependent accumulator**, and the next frame extrapolates from its own previous guess |
+  | `:65` | `SimTransform.Position = Lerp(sim, projected, dt*SmoothingRate)` | ⭐ **STAYS — every frame, on every node.** This is the system's job and `CE-211` does not remove it |
+  | `:73` | `SimVelocity.Linear = netVel` | ⭐ **STAYS** |
 
----
+  ⛔⛔ **Why the old "no-op" claim was wrong:** `SimTransform` is **simulation state that perception reads unfiltered** — 📐 `LocalGridBuilderSystem.cs:94` is `view.Query().With<SimTransform>().Build()` *(no authority or lifecycle filter)*, and `VisionBroadphaseSystem` + `LosRequestBatchingSystem` are the same shape. ⇒ enabling DR on Muscle/Brain **changes what perception computes**. ⚠ And `Kernel.Update()` takes `globalTime.DeltaTime` from the time controller, which on a slave in continuous mode is **wall-derived and differs per node** ⇒ the old `dt`-scaled lerp would have given **different ghost positions per node**.
+
+  ### ⭐⭐⭐ The design, per the user's ruling
+
+  ⭐ Extrapolation becomes a **pure function of replicated data** — `target = netTf.LastPosition + Vel × (nodeNow − netTf.Timestamp)` — recomputed fresh each frame. ⇒ ⭐⭐ **time-synced nodes agree by construction**; there is no accumulator to diverge.
+
+  ### ✅ It needs NO wire change — the timestamp is already on the wire
+
+  📐 `WorldPos` *(`Hrot.Network.NED/SimDescriptors.cs:14`)* already carries `public DateTime Time` — *"Sync timestamp (exercise FILETIME)"* — plus `Vel` **and** `Acc`; and `GeoSpatialEgressTranslator.cs:214` **already stamps it** `Time = DateTime.UtcNow`. ⛔ **Ingress throws it away**: `GeoSpatialIngressTranslator.cs:75`/`:116` write only `LastPosition`/`LastRotation`.
+
+  ### 📐 The change — 6 production files, no new types
+
+  | | |
+  |---|---|
+  | `NetworkTransform` | ➕ **one timestamp field.** ⭐ It is `[DataPolicy(DataPolicy.NoRecord)]` ⇒ **never enters `.fdp` recordings** — no format change, no migration; `[ComponentId(52)]` unchanged, nothing against `R-44`'s 256-component cap |
+  | `GeoSpatialIngressTranslator` `:75`, `:116` | stamp it from `WorldPos.Time` |
+  | `DeadReckoningSyncSystem` `:64` | ⛔ delete — `NetworkTransform` becomes **read-only** on the receiving side |
+  | `DeadReckoningSyncSystem` `:65` | target from `(nodeNow − stamp)`; ⚠ `SmoothingRate = 10.0f` becomes a ctor parameter *(🔒 user: renderers "might just do smoothing on higher rate as they are usually running on higher fps")* |
+  | `NedReplicationModule` `:333`/`:339` | ⛔ the `_roleHasIG` gate goes — **every node registers it** |
+  | `IgApplication:2057` · `Fdp.Examples.Common/TransformSyncSystem:79` | the other two writers gain the field |
+
+  ⭐ **`NetworkTransform` is dual-purpose and that is fine:** its header says egress uses it as the *last published* shadow for threshold comparison, ingress as the *last received* sample. ⛔ They never collide per entity — DR skips anything with `HasAuthority`.
+
+  ### ⭐⭐ NO UNSTAMPED MODE *(user ruling)*
+
+  📐 **Production has exactly ONE `WorldPos` producer** — `GeoSpatialEgressTranslator.cs:211` — **and it already stamps.** Every other `new WorldPos` is a test or the SimHost integration harness. ⇒ ⭐ delete *"0 = unspecified"* from the field's comment, **guard loudly at ingress** *(an unstamped sample is a defect, not a degraded mode — the "make an omission loud" habit)*, and stamp the ~10 test fixtures. ⛔ **A silent zero-extrapolation fallback was proposed by this session and is WITHDRAWN.**
+
+  ### ⏳ THE ONE OPEN QUESTION — **which clock is `nodeNow`?** *(architect job `20260907T055024Z-b217f7b7`)*
+
+  ⚠ `WorldPos.Time` is the publisher's `DateTime.UtcNow`; the receiver needs the **same domain**. Candidates: `GlobalTime.TotalTime` · the world's `SimulationTime` · `SlaveSyncController`'s `SyncedWallTicks + masterWallClockOffset` · plain `DateTime.UtcNow`. ⛔ **Pick wrong and you get a CONSTANT POSITION OFFSET that reads as a calibration error, not a bug.**
+
+  ⭐⭐ **And a hazard found while framing it:** ⛔ **if `nodeNow` advances on wall time while the simulation is PAUSED, `(now − stamp)` keeps growing and ghosts drift away from their last known position while paused.** ⇒ extrapolation must almost certainly freeze with the clock — which argues for a **simulation** clock rather than a wall clock, and makes this a correctness question rather than a style one.
+
+  #### ⭐⭐ ARCHITECT INPUT `2026-09-07` *(job `20260907T055024Z-b217f7b7` · 165 s · 8 118 chars · 54 citations)* — ⛔ **an input, not a ruling**
+
+  | claim | verdict |
+  |---|---|
+  | ⭐⭐ **the wall-clock domains DO line up** — `SyncedWallTicks` = `HighResUtcClock.GetTicks() + _masterWallClockOffset`, NTP-synced across nodes | ✅✅ **VERIFIED.** `HighResUtcClock`'s own header: *"returns 100-nanosecond UTC ticks anchored to the system's hardware performance counter … capturing a UTC baseline once at application startup"*, because `DateTime.UtcNow.Ticks` is only 10–15 ms resolution ⇒ **same UTC epoch as the publisher's stamp, finer resolution** |
+  | ⭐⭐⭐ **PRIOR ART: the existing cross-node "age of a received sample" uses SIMULATION time, deliberately** — EQS `BecomesStale` computes `time − buffer.LastUpdateTimeSeconds` *"which prevents Brain and Muscle clock skew across the DDS bridge from corrupting the delta"* | ✅✅ **VERIFIED.** `EqsResultUpdateSystem.cs:65` → `buffer.LastUpdateTimeSeconds = (float)view.Time;` and the emitted `float age = time - buffer.LastUpdateTimeSeconds;` *(`StatementEmitter.cs:1442`)* |
+  | systems must read `GlobalTime` from the live world singleton via `SimClock.Of(view)`, never `ITimeController.GetCurrentState()` *(whose delta is hard-coded to zero)* | ✅ symbols exist *(`SimClock` 10 files)*; consistent with `R-126`/`M-42` |
+  | ⚠ **the `IsPaused` landmine** — `IsPaused` is **false** while paused *(pause switches to `Stepping` with `DeltaTime → 0`, `TimeScale` unchanged)*; the only valid predicate is **`IsAdvancing` (`DeltaTime > 0`)** | ✅ `IsAdvancing` exists in 11 files; matches canon `M-42` |
+  | 🔴 *"extrapolation freezes by construction because `deltaTime` goes to 0 when paused"* | ⛔⛔ **TRUE OF THE CURRENT CODE, FALSE OF THE PROPOSED DESIGN.** It reasons about `netVel * deltaTime`; under `(nodeNow − stamp)` there is no `deltaTime` factor, so **a wall clock would NOT freeze** and ghosts would drift while paused. ⚠ **The reassurance answers the old question, not the new one** |
+  | *"`BdcWorldPosTranslator` … stamps onto outbound `WorldPos` samples"* | ⚠ **imprecise, and it surfaced real scope:** BDC uses a **different wire type**, `BdcWorldPos` on topic `BDC_WorldPos` *(`Hrot.Network.BDC`)*, and it does its own ingress→`SimTransform` for ghosts. ⇒ ⭐ **`CE-211` must either cover the BDC stack too or explicitly scope itself to NED** |
+
+  ⇒ ⭐⭐⭐ **The two verified findings point the same way: SIMULATION time.** It is what the codebase's own cross-node age computation already uses *(and for exactly this reason — skew)*, and it is the only choice that makes extrapolation freeze on pause without a special case. ⚠ **The consequence to price:** the publisher currently stamps `DateTime.UtcNow`, so `WorldPos.Time` would have to carry **sim time** instead — the field stays, its meaning changes, and egress changes with it.
+
+  ### ⚠ Blast radius and gate
+
+  ⭐ **`R-142`: `SplitAuthoritySpawnTests` + `Hrot.ClusterRunner.Integration.Tests`.** ⚠ Ghost positions on SimHost and CGF **will start moving between packets** — that is the intent, and it **will move test expectations that assert a frozen ghost**. ⛔ Expectations get **reviewed**, never silently adjusted. ⭐ **`CE-211` remains a hard prerequisite of `CE-207`** — it is what lets Stride drop the `ImageGenerator` flag without losing smoothing. 📄 [`DESIGN_Stride_Node_Modes.md` §6.1](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).
+
+  #### ⛔ HISTORY — the superseded first version *(`2026-09-05`)*
+
+  > *"The fix is to REMOVE a gate, not add a system. `driveFromNetwork:false` already means 'smooth only `EntityLifecycle.Ghost` entities', and the loop already skips anything with `authority.HasAuthority` ⇒ registering it unconditionally is a no-op on owned entities."*
+
+  ⛔ **True of OWNED entities, and the wrong half.** It never priced what happens to **ghosts** on a simulating node, and it kept the `dt`-scaled accumulator the user's ruling removes.
 
 - [ ] **CE-212** · `RW-M` ⭐⭐ — **THE ROLE CALLED `ImageGenerator` IS REALLY "2-D MAP PRESENTATION" — RENAME IT `Map2D`.** 🔒 *(user: "'IG' role in this code base is way about 2d map, which stride doesn't do" · "the ability to support 2d map should be named as such (not IG but 2dMap or something) if that helps")*
 
