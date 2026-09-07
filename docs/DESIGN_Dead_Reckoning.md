@@ -210,8 +210,29 @@ value is already right, already named, already public.
 but *"delete the two `_roleHasIG` arms and register once with the field the constructor already set"*,
 which makes the two stacks textually identical.
 
-⇒ ⭐⭐⭐ **The stacks already disagreed and BDC is the one that matches the rulings.** ⛔ **NED is the
-outlier.** ⚠ `Acc` is on the NED wire and unused — second-order DR is available later, and is **not** part
+### 🔴🔴 5.2 SUPERSEDED AT BUILD TIME `2026-09-07` — **BDC's DR WAS REGISTERED AND INERT**
+
+⛔⛔ **The line below — *"BDC is the one that matches the rulings"* — is TRUE OF THE REGISTRATION LINE AND
+FALSE OF THE MECHANISM.** 📐 Measured while building `CE-211`:
+
+| what BDC had | measured |
+|---|---|
+| ✅ `DeadReckoningSyncSystem` registered unconditionally | `BdcReplicationModule.cs:87` — real |
+| 🔴 the components DR **queries** | ⛔ `BdcWorldPosTranslator` wrote **`SimTransform` only** — never `NetworkTransform`, never `NetworkVelocity`. DR's query requires both ⇒ on a BDC node it matched **zero entities** |
+| 🔴 the velocity it extrapolates **along** | ⛔ egress published **`Vel = { 0, 0, 0 }` hard-coded** ⇒ even with the components wired there was nothing to project |
+
+⇒ ⭐⭐⭐ **This is the `CLAUDE.md` distinction that matters: *"the seam is unused"* has two meanings — an
+interface nobody calls, versus one called every frame with a dead parameter.** ⚠ BDC was the second kind,
+and a registration-count check *(the shape the NED rails use)* could never have seen it. ⭐ **`D5`'s
+*"same treatment as ned"* was therefore BIGGER than a stamp** — it was the whole ingress/egress path.
+✅ Built: egress encodes `SimVelocity` the way NED does, ingress writes both components plus the stamp.
+
+⇒ ⭐⭐ **The corrected verdict:** ⛔ **neither stack matched the rulings.** NED had the mechanism and
+mis-gated it; BDC had the gate right and no mechanism. ⚠ **The table below is kept because its
+per-column facts are still accurate** — only the conclusion under it was wrong.
+
+⇒ ⛔ ~~**The stacks already disagreed and BDC is the one that matches the rulings.**~~ *(SUPERSEDED — §5.2)*
+⭐ What stands: **NED is the outlier on the GATE.** ⚠ `Acc` is on the NED wire and unused — second-order DR is available later, and is **not** part
 of this design.
 
 ---

@@ -2385,7 +2385,7 @@ whenever the finding is "the sim did not do the impressive thing".**
 
 ---
 
-- [ ] **CE-211** · `RW-M` ⭐⭐⭐ — **EVERY NODE DEAD-RECKONS REMOTE ENTITIES — FROM THE LAST SAMPLE AND ITS TIMESTAMP, NOT FROM AN ACCUMULATOR.** 🔒 *(user, `2026-09-05`: "dead reckoning … is basically something that every node needs to be doing for remote entities (for which the node does not own the simTransform) as dead reckoning is used to reduce network traffic … in general DR/smoothing is nothing special to IG role only."* · `2026-09-06`: *"dr writes simtransform. networktransform stays the last received sample. extrapolate dt = current time on node minus nettransform.timestamp"* · *"there should be no unstamped mode")*
+- [x] **CE-211** · `RW-M` ⭐⭐⭐ — **EVERY NODE DEAD-RECKONS REMOTE ENTITIES — FROM THE LAST SAMPLE AND ITS TIMESTAMP, NOT FROM AN ACCUMULATOR.** 🔒 *(user, `2026-09-05`: "dead reckoning … is basically something that every node needs to be doing for remote entities (for which the node does not own the simTransform) as dead reckoning is used to reduce network traffic … in general DR/smoothing is nothing special to IG role only."* · `2026-09-06`: *"dr writes simtransform. networktransform stays the last received sample. extrapolate dt = current time on node minus nettransform.timestamp"* · *"there should be no unstamped mode")*
 
   ⚠⚠ **THIS ROW WAS REWRITTEN `2026-09-06`. Its first version said "just remove the `_roleHasIG` gate — the system is already ghost-scoped, so it is a no-op on owned entities."** ⛔ **Measured false in the half that matters**, and the user's ruling replaced the mechanism. The old text is `## ⛔ HISTORY` at the end of this row.
 
@@ -2504,6 +2504,29 @@ whenever the finding is "the sim did not do the impressive thing".**
   ✅ **`Q4` RESOLVED `2026-09-05` — NOT BLOCKED.** 📐 Measured: `NodeRole` appears in **zero** `.json` / `.idl` / `.xml` / `.yaml` files in the repo; every production use is an in-memory parameter; and the externally-visible identifier is the **subsystem NAME string**, mapped to the enum by `NedNetworkFactory.MapSubsystemNameToRole` *(`"IG" => NodeRole.ImageGenerator`)*. ⇒ ⭐ **a pure code rename — the `"IG"` string is untouched.** 📄 §6.2.
 
   ⚠ **Tooling note:** `madq-roslynmcp` has **no per-tool CLI** *(its subcommands are `setup`/`hook`/`list`/`verify`/`update` only)* — ⭐ but it is an **MCP stdio server**, so it can be driven by a short JSON-RPC-over-stdin script when the registered MCP is down. ⛔ Still never a text search-and-replace.
+
+
+  ✅ **BUILT `2026-09-07`** *(slice `S0`; commit `6c7fafec1`, started marker `bbd976a7d`)*. 📄 [`DESIGN_Dead_Reckoning.md`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Dead_Reckoning.md) — §5.1 and §5.2 carry the two build-time corrections in the design's own words.
+
+  | ⭐ gate | baseline at `bbd976a7d` | after |
+  |---|---|---|
+  | DR unit rails *(`Hrot.IG.Tests`, `--filter DeadReckoning`)* | ✅ 8/8 | ✅ **9/9** *(one rail INVERTED for `R2`, one ADDED for `R3`+`R4`)* |
+  | `NedReplicationModuleTests` | ✅ 6/6 | ✅ **6/6** *(two rails INVERTED — they asserted Brain/Muscle must NOT register DR, the belief `D1` overturns)* |
+  | `SplitAuthoritySpawnTests` | ✅ 3/3 | ✅ **3/3** |
+  | `Hrot.IG.Tests` **whole** | ⚠ 410 pass / **5 fail** | ⚠ 411 pass / **5 fail** — ⭐ **the SAME 5 names, PROVEN in a worktree at the base sha**, not asserted *(`EntityInfoTranslatorTests` ×4, `EntityMasterTranslatorTests` ×1 — none touch DR)* |
+  | `Hrot.ClusterRunner.Tests` **whole** | ⚠ 268 pass / **5 fail** | ⚠ 268 pass / **5 fail** — ⭐ identical counts at base *(`DataDrivenGizmoPredicateTests` ×2, `OrchestratorSubsystemTests` ×3)* |
+  | working tree clean after every suite | — | ✅ |
+
+  ⚠⚠ **THE E2E/`--mode all` LANE HAS NOT RUN** *(`T3`, async by rule)*. ⛔ **The claim this change earns is "the unit and integration rails agree"; it is NOT "ghosts visibly smooth on a live cluster."** ⭐ That needs a `--mode all` run and it is the honest next verification.
+
+  ⭐⭐ **Two findings the build produced, both folded into the design rather than left in this row:**
+
+  | # | finding | where |
+  |---|---|---|
+  | **1** | 🔴 **NED already computed the right predicate and threw it away** — `NedReplicationModule.cs:194` set `_driveFromNetwork = !muscle && !brain` *(character-for-character BDC's `:58`)* and exposed it as a public property, while **both** DR call sites passed a hard-coded `false`. ⇒ the **silent-default pattern**, third measured instance. `R1` was a smaller change than the design assumed: delete the two arms, pass the field | §5.1 |
+  | **2** | 🔴🔴 **BDC's DR was REGISTERED AND INERT** — `:87` registers it unconditionally, but `BdcWorldPosTranslator` wrote **`SimTransform` only** *(never `NetworkTransform`/`NetworkVelocity`, which the query requires)* **and** egress published **`Vel = {0,0,0}` hard-coded**. ⇒ zero matched entities and nothing to extrapolate along. ⛔ The design's *"BDC already matches the rulings"* was **true of the registration line and false of the mechanism** ⇒ `D5`'s *"same treatment"* was the whole ingress/egress path, now built | §5.2 |
+
+  ⭐ **New shared type:** `SimStampCodec` *(`Fdp.Toolkits/Replication/Components/`)* — one encoding rule and one sentinel rule for four call sites across two stacks. ⛔ **No IDL change**: the stamp rides the existing `DateTime Time` field, and a one-tick bias keeps `0` meaning *"unstamped"* so simulation time `0.0` cannot masquerade as it.
 
 ---
 
