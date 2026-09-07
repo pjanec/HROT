@@ -251,7 +251,13 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             .Capability(
                 NodeRole.ImageGenerator,
                 new IgCapabilities.Presentation(
-                    _userConfig, _effectiveInstanceId, _cameraViewport, _headless));
+                    _userConfig, _effectiveInstanceId, _cameraViewport, _headless))
+            // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
+            //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes
+            //    a Brain+Muscle node register it ONCE instead of twice.
+            //    ⚠ IG carries UnitHierarchy only: it never had EqsResultUpdateSystem, and Hrot.IG does
+            //    not reference Hrot.SimHost where that system lives. Its system set is unchanged.
+            .Capability(NodeRole.ImageGenerator, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy());
 
         // ⭐⭐⭐ CE-197 — resolved from the DECLARED role, not a constant (B4b step 3).
         //    📐 Provably a no-op here: IgApplication.cs:923 passes the literal NodeRole.ImageGenerator,
@@ -481,8 +487,11 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             FdpLog<IgNodeBootstrapper>.Info(
                 "[IG] entity-creation pieces not scheduled: {0}", unserviceable);
 
-        // UnitHierarchySystem - maintains ECS commander-subordinate hierarchy on the IG node (CS016).
-        context.Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("UnitHierarchy", new UnitHierarchySystem()));
+        // ⭐ CE-221 — the standalone SingleSystemModule registration that used to sit here was the
+        //    PRECEDENT for treating UnitHierarchySystem as cross-role infrastructure rather than pack
+        //    content: IG got it right while three role packs carried their own copy. It is now declared
+        //    as CoreInfrastructureCapabilities.UnitHierarchy in this node's plan, so the system set is
+        //    unchanged and every host reaches it the same way.
     }
 
     // ── Phase 6b: Register network translators ────────────────────────────────

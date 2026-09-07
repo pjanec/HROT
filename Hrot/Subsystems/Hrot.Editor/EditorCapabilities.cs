@@ -69,6 +69,15 @@ public static class EditorCapabilities
     /// <c>DistinctByType(cgfLogicPack…, muscle…)</c>, so a CGF system wins the slot when both packs
     /// carry the same type. Reversing these two would silently change which instance runs.
     /// </remarks>
+        // ⭐⭐ CE-221 — cross-role infrastructure, declared LAST on BOTH arms.
+        //    Declared last => tail of the Simulation phase, which is where every carrier already put
+        //    these two. ⚠ On the editor that IS a behaviour change: DistinctByType(cgf…, muscle…) kept
+        //    CGF's copy, which sat ahead of the whole muscle tier, so UnitHierarchySystem consumed
+        //    CmdAssignSubordinate (published by VehicleCommandSystem in GroundKinematicsModule) one
+        //    frame late. SimHost always consumed it the same frame. This makes the editor agree.
+        //    ⭐ On the INJECTED arm the muscle tier also declares these (Stride resolves them into
+        //    this plan); Resolve de-duplicates by Key in declaration order, so the Brain-side
+        //    instance below wins — the same first-wins rule DistinctByType already encoded.
     public static NodeCompositionPlan BuildDefault(
         CgfLogicPack cgfPack,
         SimHostCoreLogicPack musclePack,
@@ -82,7 +91,9 @@ public static class EditorCapabilities
             .Capability(NodeRole.Brain,        new Brain(cgfPack))
             .Capability(NodeRole.MuscleGround, new MuscleGround(musclePack))
             .Capability(NodeRole.Perception,   new PerceptionSpatial(perceptionModule))
-            .Capability(NodeRole.Perception,   new PerceptionAreaQueries());
+            .Capability(NodeRole.Perception,   new PerceptionAreaQueries())
+            .Capability(NodeRole.Brain,        new CoreInfrastructureCapabilities.UnitHierarchy())
+            .Capability(NodeRole.Brain,        new EqsResultUpdateCapability());
     }
 
     /// <summary>
@@ -112,7 +123,10 @@ public static class EditorCapabilities
         foreach (INodeCapability capability in injectedMuscleCapabilities)
             plan = plan.Capability(NodeRole.MuscleGround, capability);
 
-        return plan.Capability(NodeRole.Perception, new PerceptionAreaQueries());
+        return plan
+            .Capability(NodeRole.Perception, new PerceptionAreaQueries())
+            .Capability(NodeRole.Brain,      new CoreInfrastructureCapabilities.UnitHierarchy())
+            .Capability(NodeRole.Brain,      new EqsResultUpdateCapability());
     }
 
     /// <summary>The Brain tier — CGF's logic pack, contributed as systems, never as a module.</summary>

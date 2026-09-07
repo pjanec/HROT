@@ -712,6 +712,15 @@ public sealed class EditorStrideSubsystem : IDisposable
         simSystems.Add(muscleSet.RouteTrajSync);
         foreach (var s in muscleSet.StrideKinematics.SimulationSystems) simSystems.Add(s);
         simSystems.Add(muscleSet.VehicleNavIntent);
+        // ⭐⭐ CE-221 — these two STAY, and that is deliberate, not an oversight.
+        //    They are cross-role infrastructure and every OTHER root now gets them from
+        //    CoreInfrastructureCapabilities.UnitHierarchy / EqsResultUpdateCapability. This
+        //    STANDALONE path resolves no NodeCompositionPlan at all — it hand-builds its list and
+        //    hands it to EditorStrideSimulationModule — so with CgfLogicPack no longer carrying
+        //    them, these two lines are the ONLY source of both systems here. Deleting them would
+        //    silently remove hierarchy maintenance and EQS ingestion from standalone mode.
+        //    ⚠ This is the last hand-written carrier left; putting this path on a plan is the
+        //    tidy end-state and is deliberately NOT bundled into CE-221.
         simSystems.Add(new UnitHierarchySystem());
         simSystems.Add(new EqsResultUpdateSystem());
 

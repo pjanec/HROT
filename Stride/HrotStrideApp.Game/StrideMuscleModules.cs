@@ -260,8 +260,10 @@ public sealed class StrideMuscleModule : IEcsModule
         Add(_set.RouteTrajSync);
         foreach (var sys in _set.StrideKinematics.SimulationSystems)    Add(sys);
         Add(_set.VehicleNavIntent);
-        Add(new UnitHierarchySystem());
-        Add(new EqsResultUpdateSystem());
+        // CE-221: UnitHierarchySystem + EqsResultUpdateSystem were registered here, and THIS is the
+        // registration that killed the hosted Stride editor: the module path is invisible to the
+        // editor's DistinctByType fuse, so its copy collided with CgfLogicPack's and [SingleInstance]
+        // threw in BeginRun(). They are now infrastructure capabilities, declared once per plan.
 
         // ── Post-simulation phase ─────────────────────────────────────────────────
         // Mirrors: foreach (var sys in muscleSet.Combat.PostSimulationSystems) Kernel.RegisterGlobalSystem(sys);

@@ -785,7 +785,26 @@ was not inferred.
 | **§2.2** | the three Stride suites, `--no-build`, HEAD vs base | ✅ **ZERO REGRESSIONS** — table below |
 | ⭐⭐ **§2.2** | the two NEW rails, first execution anywhere | ✅ **`StridePhysicsBracketPauseGateTests` 3/3** *(`S2c`)* · ✅ **`StrideViewBracketOrderTests` 5/5** *(`S3`, incl. the BATCH-S2-AG reproduction)* |
 | 🔴🔴 **§2.3** | `STRIDE_SELFTEST=1` | ⛔⛔ **FAIL — the host does not boot.** `CE-221`: it dies in `StrideHrotGame.BeginRun()` on a `[SingleInstance]` duplicate, **identically at base** ⇒ pre-existing, not a slice regression |
-| 🔴 **§2.4** | the dual-window visual check | ⛔ **BLOCKED by `CE-221`** — the application cannot open a window |
+| 🔴 **§2.4** | the dual-window visual check | ⛔ **was BLOCKED by `CE-221`** — ✅ **`CE-221` is now FIXED and the host BOOTS** *(§13.2)*; the visual check itself is still outstanding |
+
+### ⭐⭐⭐ 13.2 `CE-221` FIXED — **the host boots; the fix was to stop duplicating** *(`2026-09-07`)*
+
+⭐ `UnitHierarchySystem` and `EqsResultUpdateSystem` became **cross-role infrastructure capabilities**
+declared once per plan, and were removed from `CgfLogicPack`, `SimHostCoreLogicPack` and
+`StrideMuscleModule`. ⛔ No de-duplication mechanism was added — the plan already de-duplicates by
+`Key`. 📄 **The full as-built, the deliberate ordering correction and the gate table:**
+[`DESIGN_Subsystem_Composition_Unification.md` §4.1ad](DESIGN_Subsystem_Composition_Unification.md).
+
+| ⭐ what the Windows run now says | |
+|---|---|
+| `STRIDE_SELFTEST` | ⭐ **reaches a verdict for the first time since `2026-09-02`** — `initialHold=PASS drive=PASS`; ⚠ `repos`/`pausedFreeze` FAIL ⇒ **`CE-222`** *(one defect, two checks; measured NOT to be caused by the fix)* |
+| `HrotStrideApp.Game.Tests` | ⭐ **237 P / 4 F** *(base 217/14, pre-fix 227/14)* — 11 of the 12 `[SingleInstance]` reds are gone |
+| ⚠ the 4 remaining | 3 distinct PRE-EXISTING issues: `Translator_Infantry200` + `SI3` share one root cause *(infantry carrying `VehicleState`)*, and `StrD21` ×2. ⭐ `SI3` was previously MASKED by the boot crash |
+| 🎯 **`hill-attack-close`, `--mode all`** | ⭐⭐⭐ **both hostiles killed**; 15 waves; 0 overshoot; 0 errors — §4.1ad |
+
+⛔⛔ **`S2b`'s acceptance is NOW MET** *("mode 1 behaves as before — `STRIDE_SELFTEST=1` passes on
+Windows")* **only in part**: the host boots and drives, but `repos` is red under `CE-222`. ⭐ State it
+that way; do not claim the self-test passes.
 
 📐 **The suite comparison, one run per side** *(the reds are byte-identical in NAME on both sides, so no
 flake hunt was warranted; contrast `CE-146`, where two rotating flakes needed 9 runs per side)*:

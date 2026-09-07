@@ -84,7 +84,16 @@ public static class StrideCapabilities
         return new NodeCompositionPlan()
             .Capability(NodeRole.MuscleGround, new MuscleGround(muscleSet))
             .Capability(NodeRole.Perception,   new PerceptionSolver())
-            .Capability(NodeRole.Perception,   new PerceptionSpatial(publishPerceptionModule));
+            .Capability(NodeRole.Perception,   new PerceptionSpatial(publishPerceptionModule))
+            // ⭐⭐ CE-221 — the two systems StrideMuscleModule used to register itself. Registering them
+            //    from inside a PROVIDED MODULE is exactly what killed the hosted editor: the module path
+            //    is invisible to the host's DistinctByType fuse, so Stride's copy collided with
+            //    CgfLogicPack's and [SingleInstance] threw in BeginRun(). As capabilities they are
+            //    de-duplicated by Key when the editor resolves this plan together with its own.
+            //    ⚠ In MODE 2 there is no Brain in-process, so these are the only copy — which is why
+            //    they are declared here and not simply deleted.
+            .Capability(NodeRole.MuscleGround, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
+            .Capability(NodeRole.MuscleGround, new Hrot.SimHost.EqsResultUpdateCapability());
     }
 
     /// <summary>

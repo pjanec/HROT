@@ -119,8 +119,32 @@ public class EditorCapabilitiesTests : IDisposable
         Type[] planPostSim = postSim.Select(s => s.GetType()).ToArray();
 
         Assert.Equal(handInput, planInput);
-        Assert.Equal(handSim, planSim);
         Assert.Equal(handPostSim, planPostSim);
+
+        // ⭐⭐⭐ CE-221 — THE EXPECTATION CHANGED DELIBERATELY, and this is the argued deviation.
+        //    UnitHierarchySystem and EqsResultUpdateSystem are cross-role INFRASTRUCTURE: they used
+        //    to be carried by BOTH packs, so the hand-written block resolved them to CGF's copy at
+        //    the tail of CGF's list — i.e. AHEAD of the entire muscle tier. They are now declared
+        //    once, LAST in the plan, so they land at the tail of the Simulation phase, which is
+        //    where every carrier had always put them and where SimHost has always run them.
+        //    ⛔ This is NOT a re-baseline of a red rail: the sequence below is the hand-written
+        //       block with that tail appended, so every other position is still pinned exactly.
+        Type[] expectedSim = handSim
+            .Concat(new[] { typeof(Hrot.Common.Systems.UnitHierarchySystem),
+                            typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem) })
+            .ToArray();
+        Assert.Equal(expectedSim, planSim);
+
+        // ⭐⭐ The PROPERTY the reordering exists for, asserted directly so it cannot rot into a
+        //    bare sequence match: VehicleCommandSystem (GroundKinematicsModule, muscle tier)
+        //    PUBLISHES CmdAssignSubordinate and UnitHierarchySystem CONSUMES it. Running the
+        //    consumer first cost a frame on the editor and nowhere else.
+        int publisher = Array.IndexOf(planSim, typeof(CarKinem.Systems.VehicleCommandSystem));
+        int consumer  = Array.IndexOf(planSim, typeof(Hrot.Common.Systems.UnitHierarchySystem));
+        Assert.True(publisher >= 0, "VehicleCommandSystem must be in the editor's simulation list.");
+        Assert.True(consumer > publisher,
+            $"CE-221: UnitHierarchySystem (index {consumer}) must run AFTER VehicleCommandSystem " +
+            $"(index {publisher}) so CmdAssignSubordinate is consumed the same frame it is published.");
     }
 
     /// <summary>
@@ -180,7 +204,15 @@ public class EditorCapabilitiesTests : IDisposable
 
         // Everything contributed as SYSTEMS on this arm comes from the Brain pack.
         Assert.Equal(cgf.InputSystems.Select(s => s.GetType()), input.Select(s => s.GetType()));
-        Assert.Equal(cgf.SimulationSystems.Select(s => s.GetType()), sim.Select(s => s.GetType()));
+        // ⭐ CE-221 — plus the cross-role infrastructure tail, which is NOT muscle: it is declared by
+        //   this plan itself, once, and the supplying host's identical declaration de-duplicates
+        //   against it by Key. That is what stopped the hosted Stride editor registering two
+        //   UnitHierarchySystems and dying on [SingleInstance] in BeginRun().
+        Assert.Equal(
+            cgf.SimulationSystems.Select(s => s.GetType())
+               .Concat(new[] { typeof(Hrot.Common.Systems.UnitHierarchySystem),
+                               typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem) }),
+            sim.Select(s => s.GetType()));
         // CgfLogicPack contributes no post-simulation systems, and on this arm nothing else does
         // either — the supplying host owns that tier.
         Assert.Empty(postSim);

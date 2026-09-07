@@ -304,7 +304,12 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             .Capability(NodeRole.MuscleGround,     new SimHostCapabilities.MuscleGround(CoreLogicPack))
             .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSolver())
             .Capability(NodeRole.NavigationSolver, new SimHostCapabilities.NavigationSolver(_navModule))
-            .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSpatial(m => PerceptionModule = m));
+            .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSpatial(m => PerceptionModule = m))
+            // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
+            //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes
+            //    a Brain+Muscle node register it ONCE instead of twice.
+            .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
+            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.EqsResultUpdateCapability());
 
         // ⭐⭐⭐ B4b step 3 — THE NODE COMPOSES BY ITS DECLARED ROLE, not by a hard-coded constant.
         //

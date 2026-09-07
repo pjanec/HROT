@@ -843,6 +843,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   BehaviorDiagnosticsModule, then the pack, then the two groups built from the pack's lists.
         _capabilities = new NodeCompositionPlan()
             .Capability(CgfSubsystem.DefaultRole, new CgfCapabilities.Brain(cgfLogicPack))
+            // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
+            //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes
+            //    a Brain+Muscle node register it ONCE instead of twice.
+            .Capability(CgfSubsystem.DefaultRole, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
+            .Capability(CgfSubsystem.DefaultRole, new Hrot.SimHost.EqsResultUpdateCapability())
             .Resolve(CgfSubsystem.DefaultRole);
 
         foreach (INodeCapability capability in _capabilities)

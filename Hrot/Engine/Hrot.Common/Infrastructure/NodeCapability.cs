@@ -34,6 +34,37 @@ public static class CapabilityKeys
 
     /// <summary>Presentation-only node; no simulation logic.</summary>
     public const string ImageGenerator = "cap:image-generator";
+
+    /// <summary>
+    /// Commander/subordinate hierarchy maintenance — <c>CE-221</c>.
+    ///
+    /// <para><b>⭐ CROSS-ROLE INFRASTRUCTURE: it answers to no role, so no role pack may carry it.</b>
+    /// <c>UnitHierarchySystem</c> used to be a member of BOTH <c>CgfLogicPack</c> (Brain) and
+    /// <c>SimHostCoreLogicPack</c> / <c>StrideMuscleModuleSet</c> (MuscleGround), because each pack was
+    /// written to stand alone. Every node fusing a Brain with a Muscle therefore registered it twice,
+    /// and the whole de-duplication apparatus in this codebase — <c>SystemComposition.DistinctByType</c>,
+    /// its call sites, and <c>[SingleInstance]</c>'s recursion into groups — existed to manage that one
+    /// mis-assignment. A capability is declared ONCE per plan and <see cref="NodeCompositionPlan.Resolve"/>
+    /// de-duplicates by <see cref="INodeCapability.Key"/>, so there is nothing left to de-duplicate.</para>
+    ///
+    /// <para>⭐ The precedent was already in production and under-adopted: <c>IgNodeBootstrapper</c>
+    /// registered this system standalone via <c>SingleSystemModule</c> rather than through a pack.</para>
+    /// </summary>
+    public const string UnitHierarchy = "cap:infra:unit-hierarchy";
+
+    /// <summary>
+    /// EQS result ingestion — <c>CE-221</c>, the sibling of <see cref="UnitHierarchy"/>.
+    ///
+    /// <para>⚠ Kept a SEPARATE capability rather than folded into <see cref="UnitHierarchy"/> for one
+    /// measured reason: <c>Hrot.IG</c> references only <c>Hrot.Common</c>, not <c>Hrot.SimHost</c> where
+    /// <c>EqsResultUpdateSystem</c> lives, and IG never carried that system. Two capabilities keep every
+    /// host's system set EXACTLY as it was, which is what makes this change purely structural.</para>
+    ///
+    /// <para>⭐ The tidier end-state — move <c>EqsResultUpdateSystem</c> into <c>Hrot.Common</c> beside
+    /// <c>UnitHierarchySystem</c> and merge the two capabilities — is a Roslyn symbol move and is
+    /// deliberately NOT bundled here.</para>
+    /// </summary>
+    public const string EqsResultUpdate = "cap:infra:eqs-result-update";
 }
 
 /// <summary>Keys for the one-per-world resources capabilities share.</summary>

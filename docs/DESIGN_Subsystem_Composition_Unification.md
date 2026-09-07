@@ -6206,6 +6206,65 @@ instance runs *(`CE-165`'s corruption, in a new disguise)*. A rail pins that ord
 
 ---
 
+### ⭐⭐⭐ 4.1ad — `CE-221`: **THE SEAM HAD TWO CONTRIBUTION PATHS AND ONLY ONE WAS DE-DUPLICATED** *(as-built, `2026-09-07`)*
+
+⛔⛔ **§4.1L's table row ② carried the caveat that became a boot failure.** It marked
+`StrideMuscleModule.RegisterSystems` *"✅ type-keyed — ⚠ but scoped to the muscle set; it cannot see the
+CGF list."* ⭐ `CE-165` fixed root ④ *(the editor's DEFAULT arm)* and left the **INJECTED** arm — the one
+Stride actually uses — carrying it. Once `[SingleInstance]` made duplicates throw, the hosted Stride
+editor died in `BeginRun()` before its first frame, and stayed dead for three days because no compile
+gate can see a composition defect.
+
+| ⭐ the mechanism, measured | |
+|---|---|
+| `INodeCapability` contributes **two ways** | `PopulateSystems` → the host's phase lists → **`DistinctByType`'d**; `ProvideModules`/`Register` → straight onto the kernel → ⛔ **invisible to that de-duplication** |
+| both packs carried the same two systems | `CgfLogicPack` *(Brain)* and `SimHostCoreLogicPack` / `StrideMuscleModuleSet` *(MuscleGround)* |
+| ⇒ the collision | Brain's copy in the toggle group, Stride's inside a provided module ⇒ two instances at `SystemScheduler` ⇒ throw |
+
+#### ⭐⭐ THE FIX — **stop duplicating, rather than de-duplicate better**
+
+⭐⭐⭐ `UnitHierarchySystem` and `EqsResultUpdateSystem` **answer to no role**, so no role pack may carry
+them. They became **cross-role infrastructure capabilities**, declared once per plan:
+`CoreInfrastructureCapabilities.UnitHierarchy` *(`Hrot.Common`, all five hosts)* and
+`EqsResultUpdateCapability` *(`Hrot.SimHost`, the four hosts that reference it)*.
+⭐ `Resolve` already de-duplicates by `Key` in declaration order — the property
+`NodeCompositionPlanRails` pins — so the editor's declaration and the injected muscle tier's identical
+declaration resolve to **one**, Brain-side winning. ⛔ **No new mechanism was added**; the seam was
+already able to do this.
+
+| ⭐ three measurements that made it a mis-assignment rather than a design | |
+|---|---|
+| **①** | ⭐ **IG already did it right and was under-adopted** — `IgNodeBootstrapper:485` registered `UnitHierarchySystem` standalone via `SingleSystemModule`, not through a pack. That call is now folded into IG's plan |
+| **②** | 📐 **every carrier appended them at the TAIL of Simulation**, identically — `CgfLogicPack:162-165`, `SimHostCoreLogicPack:137-138`, `StrideMuscleModules:263-264`, `EditorStrideSubsystem:715-716`. Nobody positioned them relative to their own pack's systems |
+| **③** | ⭐ the plan de-duplicates **capabilities** already; one declaration yields one instance |
+
+#### 🔴🔴 THE DELIBERATE BEHAVIOUR CHANGE — **the editor consumed an event one frame late, and now does not**
+
+⛔⛔ **This SUPERSEDES §4.1ac.2's *"Ordering, preserved exactly"* for these two systems only.** That
+paragraph says the plan lists Brain before MuscleGround so `DistinctByType` keeps CGF's instance — ⭐
+true, and the consequence was never stated: **CGF's copy sat at the tail of CGF's list, i.e. AHEAD of the
+entire muscle tier.** 📐 `VehicleCommandSystem` *(`GroundKinematicsModule.cs:92`, muscle)* **publishes**
+`CmdAssignSubordinate` *(`VehicleCommandSystem.cs:153`)* and `UnitHierarchySystem` **consumes** it ⇒ on
+the editor the assignment landed **one frame late**, while `SimHostCoreLogicPack` — which puts the
+kinematics systems *before* it — has always consumed it the **same** frame.
+
+⇒ ⭐⭐ **Declaring the infrastructure LAST puts the editor where every other host already was.** It is a
+**correction**, and it is argued here rather than taken silently.
+⭐ **The rail now asserts the REASON, not a sequence:** `EditorCapabilitiesTests` compares against the
+hand-written block **plus the infrastructure tail**, and adds
+`Assert.True(consumer > publisher)` naming both indices — so a future reorder fails with an explanation
+instead of a diff.
+
+#### ⭐ Gates *(Windows, `2026-09-07`)*
+
+| | |
+|---|---|
+| 🎯 **`hill-attack-close` on `--mode all`** | ⭐⭐⭐ **BOTH hostiles killed** — `1006` Health `0/50` at simTime ≈21 s, `1007` at ≈46 s, read live off the Brain. 15 waves over 213 s, `slots=3 spacing=20m`, 32/32/32 dispatch·engage·retreat, **0** `Creep failed due to overshoot`, **0** errors, **0** `SingleInstance`. ⚠ `CE-176`'s tier divergence UNCHANGED *(Brain 50/50 vs Muscle 3000/3000; ammo 41 vs 42)* — evidence the change was structural |
+| ⭐ **the Stride host** | **BOOTS.** `STRIDE_SELFTEST` reached a verdict for the first time since `2026-09-02`: `initialHold=PASS drive=PASS`; `repos`/`pausedFreeze` FAIL ⇒ **`CE-222`**, proven not caused by this change |
+| suites | `HrotStrideApp.Game.Tests` **237/4** *(base 217/14)* · `Hrot.Stride.Core.Tests` **328/2** *(unchanged)* · `Animation` **48/0** *(unchanged)* · `Hrot.Editor.Tests` **368/0/1** · `SimHostCoreLogicPackTests`+`CgfLogicPackTests` **18/0** |
+| ⚠ **four rails changed expectation** | all four updated with the count **and** an assertion encoding why *(`DoesNotContain`, and the publisher/consumer ordering)*; ⭐ the coverage removed from the pack tests was **re-homed**, not deleted — `TheInfrastructureCapabilitiesSupplyExactlyOneOfEachHoistedSystem` |
+| ⚠ **not mine, measured** | `Fdp.ModuleHost.Tests` 6 red *(zero `FDP/` files modified)* · `FullBranchPipelineTests` red **identically at base `94156812d`** · 31 `Hrot.Editor.Tests` source-scan reds caused by an **untracked local `Hrot/docs/ReactiveGuards.md`** — moving it aside gives **368/0/1**, and those rails stop their upward walk at `…/Hrot` |
+
 ### ⛔ STILL HOMELESS — **`CE-151`, and it is a DIFFERENT axis again**
 
 📐 `CE-151` *(world bootstrap has no shared seam — seven roots publish the geo transform by hand)* is about

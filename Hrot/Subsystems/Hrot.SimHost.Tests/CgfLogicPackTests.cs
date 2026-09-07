@@ -116,7 +116,17 @@ namespace Hrot.SimHost.Tests
             // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
             //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
             //   📌 A hard-coded count is a tripwire for exactly this, and it fired; nobody read it.
-            Assert.Equal(19, pack.SimulationSystems.Count);
+            // ⭐⭐ CE-221 — 2 fewer: UnitHierarchySystem and EqsResultUpdateSystem left this pack.
+            //    They are cross-role infrastructure (no role selects them; every carrier appended them
+            //    at the tail of Simulation), and carrying them in BOTH the Brain and Muscle packs made
+            //    every fusing node register each twice. They now come from the infrastructure
+            //    capabilities, declared once per plan, so the NODE still runs exactly one of each.
+            Assert.Equal(17, pack.SimulationSystems.Count);
+
+            // ⛔ Assert the REMOVAL too — a count alone is the kind of thing a later session
+            //    re-baselines without reading why it moved.
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Hrot.Common.Systems.UnitHierarchySystem);
+            Assert.DoesNotContain(pack.SimulationSystems, x => x is Hrot.SimHost.Systems.EqsResultUpdateSystem);
         }
 
         /// <summary>
@@ -297,7 +307,12 @@ namespace Hrot.SimHost.Tests
             // ⭐ SimulationSystems: 19. ⚠ Was 18 and RED since `2026-08-19` — Batch 94b added
             //   `BehaviorFrameSystem` to `CognitiveRuntimeModule` (`:57`), which flows in here.
             //   📌 A hard-coded count is a tripwire for exactly this, and it fired; nobody read it.
-            Assert.Equal(19, pack.SimulationSystems.Count);
+            // ⭐⭐ CE-221 — 2 fewer: UnitHierarchySystem and EqsResultUpdateSystem left this pack.
+            //    They are cross-role infrastructure (no role selects them; every carrier appended them
+            //    at the tail of Simulation), and carrying them in BOTH the Brain and Muscle packs made
+            //    every fusing node register each twice. They now come from the infrastructure
+            //    capabilities, declared once per plan, so the NODE still runs exactly one of each.
+            Assert.Equal(17, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -317,7 +332,12 @@ namespace Hrot.SimHost.Tests
             var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
                 new TacticalIntentMapperRegistry());
             // Total systems across both phases equals 21 (2 input + 19 sim) — see the note above.
-            Assert.Equal(21, pack.InputSystems.Count + pack.SimulationSystems.Count);
+            // ⭐⭐ CE-221 — 2 fewer: UnitHierarchySystem and EqsResultUpdateSystem left this pack.
+            //    They are cross-role infrastructure (no role selects them; every carrier appended them
+            //    at the tail of Simulation), and carrying them in BOTH the Brain and Muscle packs made
+            //    every fusing node register each twice. They now come from the infrastructure
+            //    capabilities, declared once per plan, so the NODE still runs exactly one of each.
+            Assert.Equal(19, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────

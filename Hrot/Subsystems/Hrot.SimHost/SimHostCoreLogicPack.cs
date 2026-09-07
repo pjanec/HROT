@@ -57,8 +57,9 @@ namespace Hrot.SimHost
         private readonly RouteTrajectorySyncSystem    _routeTrajSync;
         private readonly PersonalRouteAuthoringSystem _personalRouteAuthoring;
 
-        // ── Hierarchy system ──────────────────────────────────────────────────
-        private readonly UnitHierarchySystem          _unitHierarchySystem;
+        // CE-221: UnitHierarchySystem and EqsResultUpdateSystem moved OUT of this pack. They are
+        // cross-role infrastructure (no role selects them), contributed once per node by
+        // CoreInfrastructureCapabilities.UnitHierarchy / EqsResultUpdateCapability.
 
         // ── Public accessors (mirroring SimulationLogicModule) ────────────────
 
@@ -119,8 +120,6 @@ namespace Hrot.SimHost
             _routeTrajSync          = new RouteTrajectorySyncSystem(_groundKinematicsModule.TrajectoryPool);
             _personalRouteAuthoring = new PersonalRouteAuthoringSystem();
 
-            // Hierarchy system
-            _unitHierarchySystem    = new UnitHierarchySystem();
 
             // Phase arrays
             var inputList   = new List<IEcsModuleSystem>();
@@ -134,8 +133,7 @@ namespace Hrot.SimHost
             simList.Add(_navIntentBridge);
             simList.Add(_routeTrajSync);
             foreach (var s in _groundKinematicsModule.SimulationSystems) simList.Add(s);
-            simList.Add(_unitHierarchySystem);
-            simList.Add(new EqsResultUpdateSystem());
+            // CE-221: UnitHierarchySystem + EqsResultUpdateSystem were appended here.
 
             foreach (var s in _combatModule.PostSimulationSystems)             postSimList.Add(s);
             foreach (var s in _groundKinematicsModule.PostSimulationSystems)   postSimList.Add(s);
