@@ -2519,6 +2519,8 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⚠⚠ **RESCOPED `2026-09-07` from "an optional companion 2-D map, after `CE-207`" to "the operator surface, day 1".** ⛔ The earlier lean *(defer it)* is **withdrawn** — 📐 measured, the surface is **already shared**, so deferring buys almost nothing.
 
+  ✅ **CONFIRMED `2026-09-07`** 🔒 *(user: "the map on day 1 approved")* ⇒ the design's `Q3` closes with a **yes**, and this row lands in the **same slice** as `CE-207` *(§13 `S6`, alongside `S4`)* — ⛔ **not as a follow-up.**
+
   ### 📐 What SimHost's surface actually IS — measured
 
   | piece | where it lives | who already composes it |

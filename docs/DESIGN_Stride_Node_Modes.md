@@ -1,9 +1,11 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN
+build-state: READY-TO-BUILD
 updated: 2026-09-07
 current-answer: the whole file. §2.1 carries the 2026-09-07 rulings (R-S11 CLI args + ctor slots die,
-  R-S12 the physics delta, R-S13 the shell drives brackets); §11.1 and §7.3a are where they land. It is
+  R-S12 the physics delta, R-S13 the shell drives brackets, R-S14 closing the last three open questions);
+  §11.1 and §7.3a are where R-S12/R-S13 land, §7.2b is the day-1 operator surface. §14's questions are
+  ALL CLOSED — the table is now a record, not a decision list. Build order is §13's slice table. It is
   the ONE owning design for the Stride story — the two modes the user
   wants (mode 1 networkless dual-window editor, mode 2 networked node replacing SimHost), the shared
   composition, the window surfaces, gizmos, animation, perception/LOS, the role vocabulary, and §16
@@ -22,13 +24,16 @@ known-conflict: docs/DESIGN_Subsystem_Composition_Unification.md §4.1aa carried
 
 # DESIGN — the Stride story: two modes, one composition
 
-> 🔒 **Not approved to build.** `build-state: DESIGN`. It moves to `READY-TO-BUILD` only when the user
-> approves §14's open questions. ⛔ No `CE-2xx` Stride row starts before that.
+> ✅✅✅ **APPROVED TO BUILD — `2026-09-07`.** `build-state: READY-TO-BUILD`. **All seven of §14's open
+> questions are CLOSED** *(`Q1`/`Q2`/`Q6` by `R-S11`, `Q4` by measurement, `Q3`/`Q5`/`Q7` by `R-S14`)*.
+> ⭐ **Build order is §13's slice table**, and it starts at **`S0` (`CE-211`, dead reckoning)** — ⛔ not at
+> the Stride rows, which depend on it.
 >
-> ⭐ **`2026-09-07` — `Q1`, `Q2`, `Q4`, `Q6` are CLOSED** *(`R-S11` + the earlier `NodeRole` measurement)*.
-> **Open: `Q3`** *(the companion map — ⭐ the user's `2026-09-07` ruling in §7.2b makes it **day 1**, which
-> supersedes `Q3`'s lean; the row stays until the user confirms)*, **`Q5`** *(3-D forms for 2-D-only
-> gizmos — lean "not now")*, and **`Q7`** *(new: where the shell gets the frame's sim delta — §11.1 ②)*.
+> ⚠ **Two standing constraints that survive the approval:** ⛔ **obligation ③** — an implementing task
+> **checks §4's `classDiagram` and §11's `sequenceDiagram` before building** and reports match-or-deviation;
+> ⛔ **obligation ⑤** — a deviation is folded **back into this file** before the batch closes, prior state
+> marked SUPERSEDED. ⭐ And most of the surface **cannot RUN off Windows**: `bash scripts/stride-check.sh`
+> is a **compile** gate *(6 projects, ~43 s)* — §13's gate story says which slices need a Windows run.
 
 ## Headline
 
@@ -94,6 +99,7 @@ none of the totals below is a proof of completeness — each was corroborated wi
 | **R-S11** | *"cli args, ctor slots die - approved."* | ✅ **§14 `Q1`, `Q2`, `Q6` CLOSED** — mode 2 is configured by CLI args mirroring `ClusterRunner`'s, the mode is a `--mode editor\|node` switch, and the four `IEcsModule?` ctor slots on `StrideNodeBootstrapper` are deleted by `CE-208` |
 | **R-S12** | *"dt for physics needs to be the synced time dt so physics does nothing when sim time not advancing because paused/stepped."* | ⭐⭐⭐ **§11.1** — and it is **a correction to mode 1**, not only a rule for mode 2. 📐 Measured: mode 1 passes the **wall** frame dt in `Continuous` and nothing at all gates Stride's own Bullet step |
 | **R-S13** | *"stridenodeshell as bracket"* | **§7.3a** — the view tier becomes a `StrideViewBracket` in the shape `StridePhysicsBracket` already has, and `StrideNodeShell` is the thing that *drives* two brackets around `Kernel.Update()` rather than a second composition root |
+| **R-S14** | *"the map on day 1 approved, same for q5 and q7"* | ✅ **THE LAST THREE OPEN QUESTIONS CLOSED** — `Q3` the operator surface ships **with** `CE-207` *(§7.2b)* · `Q5` 2-D-only gizmos get **skip counters, not 3-D forms, for now** *(§8)* · `Q7` the shell **owns the clock advance** *(§11.1 ②, option A)*. ⇒ ⭐⭐⭐ **`build-state: READY-TO-BUILD`** |
 
 ---
 
@@ -624,7 +630,7 @@ and is `false` while paused *(the type's own `[Obsolete]` says so)*.
 | **S3** | view tier extracted out of `EditorStrideSubsystem` into **`StrideViewBracket`** *(§7.3a)*, called by both shells | part of `CE-207` | ⚠ | mode 1 unchanged; the bracket has its own rails, and its doc-comment states what it does NOT own |
 | **S4** | `StrideNodeShell` + launch/config + mode selector | `CE-207` | 🔴 **Windows** | `HrotStrideApp` joins a cluster beside CGF; entities replicate; **`--mode all`-equivalent smoke** |
 | **S5** | gizmo ingress + skip counters | `CE-215` | ⚠ | remote gizmos visible in 3-D; skipped shapes counted, not silent |
-| **S6** | the companion 2-D map | `CE-214` | ⚠ | window opens on a flag, shows the map, off by default |
+| **S6** | ⭐⭐ **the DAY-1 OPERATOR SURFACE** — the companion 2-D map **plus** the SimHost-equivalent diagnostics *(component + event inspectors, the debug API)* | `CE-214` | ⚠ | ⭐ **lands WITH `S4`, not after it** *(`R-S14`)*. The bundle composes on the Stride node; a `--debug-port` arg exists; the surface answers on it. ⛔ **Not "a 2-D map behind a flag"** — that framing is superseded, §7.2b |
 | **S7** | dead inspector view-model deleted; class renamed | `CE-213` | ⭐ no | `stride-check.sh` green; `StrideInspectorViewModelTests` gone |
 | **S8** | animation duplicate investigated | `CE-216` | ⭐ no *(reading)* | `.dev/_DONE/anim-ctrl/DD-1` §15–16 read; a decision recorded HERE |
 | **S9** | retire self-contained mode | `CE-209` | ⚠ | **LAST**, after S2+S4 green. ⚠ Check `STRIDE_SELFTEST` survives — it *forces* hosted mode |
@@ -646,11 +652,13 @@ and is `false` while paused *(the type's own `[Obsolete]` says so)*.
 |---|---|---|
 | **Q1** | ✅ **RESOLVED `2026-09-07` *(`R-S11`, "cli args … approved")*** — **CLI args mirroring `ClusterRunner`'s** *(`--node-id`, `--domain`, `--no-wait`, `--staging`)*, defaulting node id to **700** *(mock §9.2, still free)*. ⛔ Not env vars — those are the mode-1 debug switches and they already sprawl |
 | **Q2** | ✅ **RESOLVED `2026-09-07` *(`R-S11`)*** — **one CLI switch `--mode editor\|node`**, defaulting to `editor`. ⛔ After `CE-209` the three env vars collapse: `STRIDE_HOST_REAL_EDITOR` disappears *(hosted becomes the only editor path)*, `STRIDE_EDITOR_WINDOW` stays *(it is a window toggle)*, `STRIDE_SELFTEST` stays and implies `--mode editor` |
-| **Q3** | Does mode 2 need the companion 2-D map on day one? | ⭐ **No — `CE-214` after `CE-207`.** The 3-D window is the point; the map is a convenience the user asked to keep, not a blocker |
+| **Q3** | ✅ **RESOLVED `2026-09-07` *(`R-S14`, "the map on day 1 approved")* — YES, and it is the FULL operator surface, not a map.** ⇒ **§7.2b** and `CE-214` land **with** `CE-207`, not after. ⛔ **The earlier lean *("no — after `CE-207`")* is WITHDRAWN** — 📐 measured, the surface is already shared *(one `DiagnosticsWindowsBundle` composed by 4 hosts; `IProvidesDebugSurface` with 5 implementors; `HrotStrideApp.Game` already references `Hrot.Editor`)*, so deferring bought almost nothing |
 | **Q4** | ✅ **RESOLVED `2026-09-05` — `NodeRole` is NOT persisted.** | 📐 Measured: **zero** occurrences in any `.json` / `.idl` / `.xml` / `.yaml` in the repo; every production use is an in-memory parameter; and the thing that *is* externally visible is the **subsystem NAME string**, mapped to the enum by `NedNetworkFactory.MapSubsystemNameToRole` *(`"IG" => NodeRole.ImageGenerator`)* ⇒ ⭐ **`CE-212` is a pure code rename, not a migration** — the `"IG"` string is untouched by it |
-| **Q5** | Should any 2-D-only gizmo get a real 3-D form? | ⭐ **Not now** — ship the existing subset plus skip counters, and let the counters name the shape that is actually wanted *(§8)* |
+| **Q5** | ✅ **RESOLVED `2026-09-07` *(`R-S14`)* — NOT NOW.** Ship the existing 3-D subset plus **skip counters**, and let the counters name the shape that is actually wanted *(§8)*. ⛔ **A skipped shape must be COUNTED, never silently dropped** — that counter is the whole point of deferring |
 | **Q6** | ✅ **RESOLVED `2026-09-07` *(`R-S11`, "ctor slots die - approved")*** — **they die.** `StrideNodeBootstrapperTests` constructs with no arguments today, so nothing is lost; two swap mechanisms for one concern is the duplication this programme exists to remove. ⇒ `CE-208` |
-| **Q7** | ⭐ **NEW `2026-09-07`** — how does the shell get the current frame's sim delta, given the kernel computes it *inside* `Update()`? | ⭐ **Hoist the advance into the shell + a new `Kernel.Update(in GlobalTime)`** — §11.1 ② option **A**, with the fallback and what would change the lean stated there |
+| **Q7** | ✅ **RESOLVED `2026-09-07` *(`R-S14`)* — option A: HOIST THE ADVANCE INTO THE SHELL**, plus a new `Kernel.Update(in GlobalTime)` — §11.1 ②. ⛔ **Not** the obsolete `Update(float)`, which fabricates a clock. ⚠ **The rail this obliges:** `FrameNumber` increments **exactly once** per `TickFrame` — the controller must have exactly one caller. ⭐ Fallback if that overload fights `SwapTimeController` or the replay path: option **B** *(last frame's delta)* **plus a rail for the one-frame lag** — ⛔ and that fallback is a reported finding, not a silent choice |
+
+⭐⭐⭐ **ALL SEVEN CLOSED `2026-09-07`.** ⇒ `build-state: READY-TO-BUILD`.
 
 ---
 
