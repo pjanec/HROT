@@ -359,6 +359,15 @@ Register it in:
 
 ---
 
+> ⛔⛔ **PARTLY SUPERSEDED `2026-09-07` by [`docs/DESIGN_Dead_Reckoning.md`](../../DESIGN_Dead_Reckoning.md).**
+> ⭐ **The PROBLEM below is still correctly stated** *(hard-snapping on irregular packets)*, and this is the
+> birth design of `DeadReckoningSyncSystem`. ⛔ **Part B's MECHANISM is superseded:** *"Advance
+> `NetworkPosition` by `NetworkVelocity * deltaTime` each frame"* makes the anchor an ACCUMULATOR that
+> extrapolates from its own previous guess and drifts with frame rate. 🔒 **User ruling `2026-09-06`:**
+> *"networktransform stays the last received sample; extrapolate dt = current time on node minus
+> nettransform.timestamp"* — and `2026-09-07`, that time is cluster-synced SIM time, not wall time.
+> ⛔ **Nor is DR an IG feature any more — every node runs it** *(`D1`)*. ⭐ Implementation: `CE-211`.
+
 ### 6.3 Deviation 3 — Hard-Snapping vs. Dead Reckoning (Stuttering Movement)
 
 **Root cause:** `Hrot.IG/Translators/WorldPosTranslator.cs` overwrites `SimTransform`

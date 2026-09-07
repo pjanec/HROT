@@ -2389,6 +2389,8 @@ whenever the finding is "the sim did not do the impressive thing".**
 
   ⚠⚠ **THIS ROW WAS REWRITTEN `2026-09-06`. Its first version said "just remove the `_roleHasIG` gate — the system is already ghost-scoped, so it is a no-op on owned entities."** ⛔ **Measured false in the half that matters**, and the user's ruling replaced the mechanism. The old text is `## ⛔ HISTORY` at the end of this row.
 
+  📄 **OWNING DESIGN: [`docs/DESIGN_Dead_Reckoning.md`](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Dead_Reckoning.md)** *(new `2026-09-07`)* — the principle, the rules `R1`–`R8`, the UML, both stacks, and what it supersedes. ⭐ **`CE-211` is its implementation**; the design is the durable record, this row is the work item.
+
   ### 📐 What the current system actually does *(measured, `DeadReckoningSyncSystem.cs:58-73`)*
 
   It is **not** a presentation smoother. Per non-owned entity it writes **three** components:
