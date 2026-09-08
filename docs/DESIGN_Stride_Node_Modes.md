@@ -797,7 +797,7 @@ declared once per plan, and were removed from `CgfLogicPack`, `SimHostCoreLogicP
 
 | ⭐ what the Windows run now says | |
 |---|---|
-| `STRIDE_SELFTEST` | ⭐ **reaches a verdict for the first time since `2026-09-02`** — `initialHold=PASS drive=PASS`; ⚠ `repos`/`pausedFreeze` FAIL ⇒ **`CE-222`** *(one defect, two checks; measured NOT to be caused by the fix)* |
+| `STRIDE_SELFTEST` | ⭐ **reaches a verdict for the first time since `2026-09-02`** — `initialHold=PASS`; ⚠ `repos`/`pausedFreeze` FAIL ⇒ **`CE-222`**. ⛔⛔ **`drive=PASS` IS VACUOUS — do not cite it.** 📐 Re-measured `2026-09-08`: `endDrive=(6.00,8.00)` is the START point, so the vehicle never moved; `drive` passes on the residual `B→A` offset of `13.34 m` because the reposition never happened. ⇒ **one defect compromises three of the four checks**; only `initialHold` is independent |
 | `HrotStrideApp.Game.Tests` | ⭐ **237 P / 4 F** *(base 217/14, pre-fix 227/14)* — 11 of the 12 `[SingleInstance]` reds are gone |
 | ⚠ the 4 remaining | 3 distinct PRE-EXISTING issues: `Translator_Infantry200` + `SI3` share one root cause *(infantry carrying `VehicleState`)*, and `StrD21` ×2. ⭐ `SI3` was previously MASKED by the boot crash |
 | 🎯 **`hill-attack-close`, `--mode all`** | ⭐⭐⭐ **both hostiles killed**; 15 waves; 0 overshoot; 0 errors — §4.1ad |

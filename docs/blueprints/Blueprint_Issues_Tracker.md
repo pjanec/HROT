@@ -1555,6 +1555,14 @@ nothing here moves the counts table.*
 
   ⭐ **What this row is NOT blocking:** `CE-221` is fixed and the host boots; `initialHold` and ⭐ **`drive` both PASS**, so boot, spawn, authority, navigation and the motor path all work. 📄 [`DESIGN_Stride_Node_Modes.md` §13.1](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).
 
+  🔴🔴 **RE-MEASURED `2026-09-08` AFTER `CE-223` — NOT FIXED, AND THE LEAD WAS WRONG.** This row recorded a lead: *"an ungated simulation letting `BulletReverseSyncSystem` overwrite the external write"*. 📐 `CE-223` gated the simulation and the self-test still returns **`repos=FAIL pausedFreeze=FAIL`** with the identical `errB=13.34`. ⇒ ⛔ **the physics gate was not the cause**; the lead is REFUTED and must not be re-proposed.
+
+  🔴🔴🔴 **AND THE RE-RUN EXPOSED A WORSE PROBLEM: `drive=PASS` IS VACUOUS.** 📐 `endDrive=(6.00,8.00)` — that is **`A`**, the start point. The vehicle **never moved at all**, and the check passed anyway: `drive` is granted when `driveDistMoved >= 3.0 m` measured **from `B`**, and because the reposition to `B=(-7,5)` never happened the residual `B→A` offset is `13.34 m`, which clears the threshold. ⭐ **The same 13.34 appears as `errB`, `pausedDistMoved` AND `driveDistMoved`** — one failure feeding three numbers.
+
+  ⇒ ⭐⭐ **ONE DEFECT COMPROMISES THREE OF THE FOUR CHECKS:** `repos` FAILS, `pausedFreeze` fails as a CONSEQUENCE, and `drive` **PASSES FOR THE WRONG REASON**. ⛔ Only `initialHold` is independent. ⚠⚠ **Any report citing `drive=PASS` as evidence that navigation or the motor path works is WRONG** — this session made that error and it is corrected here.
+
+  ⭐ **The rail fix this owes** *(`R-142` ③ — fix the blindness in place)*: `drive` must measure displacement **from where the vehicle ACTUALLY IS when the drive phase begins**, not from the position the reposition was supposed to have reached, and it must **refuse to run at all when `repos` failed** rather than reporting a pass built on the failure.
+
 - [x] **CE-223** · `RW-S` 🔴🔴🔴 ✅ **FIXED `2026-09-08`** — **`CE-219`'s PAUSE GATE WAS INERT IN THE LIVE APP: THE SERVICE THE HOST ACTUALLY CONSTRUCTS INHERITED AN EMPTY DEFAULT INTERFACE METHOD.** 📐 **Found BY EYE on Windows — every rail was green.** 🔒 *(user: "time paused, scenario never started, yet tanks are falling at coord syst origin")*
 
   📐 **The mechanism, three measured hops:**
