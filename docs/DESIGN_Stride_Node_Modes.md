@@ -918,6 +918,33 @@ published and ammo decrements, but no hit/damage event follows and both hostiles
 ⇒ next: `FireProcessingSystem` → `BallisticsSystem` → `HitResolutionSystem`.
 
 
+### ⭐⭐⭐ 13.5 `CE-234` — **"BOTH INTEGRATORS ARE ABSENT" WAS OVER-BROAD** *(`2026-09-08`, obligation ⑤)*
+
+⛔⛔ **This CORRECTS §5.4/§5.5's blanket statement**, restated in `StrideKinematicsModule` as *"`CarKinematicsSystem`
+and `LinearKinematicsSystem` are INTENTIONALLY ABSENT"*. ⭐ The rationale — *"locally-owned bodies are driven
+by Bullet"* — is **true of vehicles and characters and false of PROJECTILES**, and nothing in the design had
+considered them.
+
+| the claim | code — how it IS | design basis |
+|---|---|---|
+| a bullet is an ECS entity with `SimVelocity` and **no Stride visual** | ✅ `FireProcessingSystem` | — |
+| ⇒ it never gets a Bullet rigid body | ✅ measured: **6** `LC-CREATE` per run, all scenario entities | ✅ `PhysicsBodyLifecycleSystem` needs a visual entity |
+| ⇒ **nothing** integrated it | ✅ Bullet did not own it; the ECS integrator was absent | ⛔ §5.4 assumed Bullet owns everything that moves |
+| ⇒ the hit test degenerates | ✅ `BallisticsSystem` tests `PreviousPosition → Position`; frozen ⇒ **zero-length segment** | ✅ its own remark: *"movement is delegated to `LinearKinematicsSystem`"* |
+| re-adding it cannot double-integrate | ✅ query is `.Without<VehicleState>().Without<CrowdAgent>()` | ✅ its summary: *"Covers: bullets… Vehicles are handled by `CarKinematicsSystem`"* |
+
+⭐ **As built:** `LinearKinematicsSystem` appended **last** to `StrideKinematicsModule.PostSimulationSystems`.
+`CarKinematicsSystem` stays absent — that omission was correct. Ordering falls out of `StrideMuscleModule`
+adding `Combat` post-sim **before** `StrideKinematics` post-sim, giving `BallisticsSystem →
+LinearKinematicsSystem`, which is the order `BallisticsSystem` documents.
+
+⚠ **Residual edge:** an entity with `SimVelocity` **and** a Stride body but neither `VehicleState` nor
+`CrowdAgent` would integrate twice. None exists today; a future physics prop would need excluding.
+
+📐 **Verified live:** both hostiles drop `50 → 25` on the first wave's two rounds, and the full cycle
+*dispatch → creep → fire → HIT → retreat → next wave* runs end to end.
+
+
 ## 14. OPEN QUESTIONS — each with a lean
 
 | # | question | ⭐ lean |

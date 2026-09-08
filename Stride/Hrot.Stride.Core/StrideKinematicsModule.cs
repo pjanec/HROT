@@ -4,6 +4,7 @@ using CarKinem.Formation;
 using CarKinem.Systems;
 using CarKinem.Trajectory;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.CarKinem.Systems;   // LinearKinematicsSystem (CE-234)
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Systems;
 using Hrot.Common.Systems;           // DeadReckoningSyncSystem (namespace Hrot.Common.Systems, project Hrot.Core)
@@ -102,14 +103,47 @@ public sealed class StrideKinematicsModule
             new CrowdAgentUpdateSystem(dtCrowd),
         };
 
-        // CarKinematicsSystem and LinearKinematicsSystem are INTENTIONALLY ABSENT.
+        // CarKinematicsSystem is INTENTIONALLY ABSENT — Bullet drives vehicle bodies (§5.4).
         // TerrainQuerySubmitSystem / TerrainQuerySolverSystem / TerrainQueryResolutionSystem
         // are INTENTIONALLY ABSENT (§5.5 — Bullet resting contact provides authoritative Z).
+        //
+        // 🔴🔴 CE-234 — LinearKinematicsSystem is NO LONGER absent, and the original blanket
+        //   "both integrators are absent" was over-broad. The rationale for omitting them is that
+        //   "locally-owned bodies are driven by Bullet", which is true of VEHICLES and CHARACTERS —
+        //   and false of PROJECTILES:
+        //
+        //     • FireProcessingSystem spawns a bullet entity with SimTransform + SimVelocity +
+        //       BallisticProjectile + PhysicsCollider, and NO Stride visual entity.
+        //     • PhysicsBodyLifecycleSystem needs a visual entity to build a body, so a bullet never
+        //       gets one — measured on hill-attack-close: exactly 6 LC-CREATE calls, all of them
+        //       scenario entities, none a projectile.
+        //     • So nothing integrated bullets at all: Bullet did not own them and the ECS integrator
+        //       was absent. They sat at the muzzle for their whole lifetime and despawned.
+        //     • BallisticsSystem's hit test is the segment PreviousPosition → SimTransform.Position.
+        //       With the position frozen that segment has ZERO LENGTH, so it can never intersect a
+        //       target: WeaponFireNotification was published and ammo decremented, but no hit or
+        //       damage event ever followed and the hostiles held 50/50 indefinitely.
+        //
+        //   ⭐ It cannot double-integrate what Bullet owns: the system's query is
+        //   With<SimTransform>+With<SimVelocity> and .Without<VehicleState>().Without<CrowdAgent>(),
+        //   and its own summary says "Covers: bullets, pedestrians, projectiles, drift objects.
+        //   Vehicles are handled by CarKinematicsSystem."
+        //
+        //   ⚠ Residual edge, stated rather than hidden: an entity with SimVelocity and a Stride body
+        //   but NEITHER VehicleState NOR CrowdAgent would be integrated twice (once by Bullet's
+        //   reverse-sync, once here). No such entity exists today — every body-owning entity in the
+        //   scenario carries VehicleState — but a future physics prop would need excluding.
+        //
+        //   ⭐ ORDER: registered here rather than in CombatModule because StrideMuscleModule adds
+        //   Combat.PostSimulationSystems BEFORE StrideKinematics.PostSimulationSystems, which yields
+        //   BallisticsSystem → LinearKinematicsSystem — exactly the order BallisticsSystem documents
+        //   ("BallisticsSystem must run before that"). Added LAST, mirroring GroundKinematicsModule.
         PostSimulationSystems = new IEcsModuleSystem[]
         {
             // DriveFromNetwork=false: ghost/non-owned entities are dead-reckoned;
             // locally-owned bodies are driven by Bullet → reverse-sync only (§5.4).
             new DeadReckoningSyncSystem(driveFromNetwork: false),
+            new LinearKinematicsSystem(),
         };
     }
 

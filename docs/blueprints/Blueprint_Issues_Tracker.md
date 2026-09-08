@@ -1857,6 +1857,27 @@ nothing here moves the counts table.*
 
   ⭐ **Rails:** `SpawnTransformBindsTests` (`Hrot.Editor.Tests`) — the documented shape binds, a non-binding payload THROWS *(the anti-vacuity half, without which the first test could pass while the origin bug survived)*, and `SimTransform` still exposes fields so `IncludeFields` cannot be "simplified" away. ⭐⭐ They assert the **`internal` options instance the endpoint actually uses** — ⛔ a locally-built copy would pass while production stayed broken, which is the exact blindness `CE-223` and `CE-224` were each built on.
 
+- [x] **CE-234** · `RW-S` ✅ — **NOTHING INTEGRATED PROJECTILES ON STRIDE, SO EVERY ROUND HUNG AT THE MUZZLE AND NO SHOT COULD EVER HIT.**
+
+  📐 **The measurement.** After `CE-233` the platoon reached the firing line, acquired targets and **fired** — `WeaponFireIntent` → `WeaponFireNotification` published, ammo `42 → 41` — but **no hit or damage event ever followed** and both hostiles held `50/50` for ~520 s.
+
+  ⭐ **The cause.** `StrideKinematicsModule` declared *"`CarKinematicsSystem` and `LinearKinematicsSystem` are **INTENTIONALLY ABSENT**"*, on the rationale that *"locally-owned bodies are driven by Bullet"*. ⛔ **True of vehicles and characters; FALSE of projectiles:**
+
+  | | |
+  |---|---|
+  | `FireProcessingSystem` spawns a bullet with `SimTransform`+`SimVelocity`+`BallisticProjectile`+`PhysicsCollider` — and **no Stride visual entity** | ✅ its source |
+  | `PhysicsBodyLifecycleSystem` needs a visual entity to build a body ⇒ a bullet never gets one | ✅ measured: exactly **6** `LC-CREATE` calls on a full run, **all six scenario entities**, never a projectile |
+  | ⇒ **nothing integrated bullets at all** — Bullet did not own them and the ECS integrator was absent | ✅ they sat at the muzzle for their whole lifetime and despawned |
+  | `BallisticsSystem`'s hit test is the segment `PreviousPosition → SimTransform.Position` | ✅ its own remark: *"Bullet movement is delegated to `LinearKinematicsSystem`"* ⇒ **a frozen position gives a ZERO-LENGTH segment, which can never intersect a target** |
+
+  ⭐ **The blanket omission was over-broad.** `LinearKinematicsSystem`'s query is `With<SimTransform>`+`With<SimVelocity>`.`Without<VehicleState>()`.`Without<CrowdAgent>()`, and its summary reads *"Covers: bullets, pedestrians, projectiles, drift objects. Vehicles are handled by `CarKinematicsSystem`."* ⇒ ⭐⭐ **it is precisely the NON-body integrator, and it cannot double-integrate anything Bullet owns.** Omitting `CarKinematicsSystem` was right; omitting this one was not.
+
+  ✅ **Shipped:** `new LinearKinematicsSystem()` appended to `StrideKinematicsModule.PostSimulationSystems`. ⭐ **Ordering is correct by construction**: `StrideMuscleModule` adds `Combat.PostSimulationSystems` **before** `StrideKinematics.PostSimulationSystems`, giving `BallisticsSystem → LinearKinematicsSystem` — exactly the order `BallisticsSystem` documents. Added **last**, mirroring `GroundKinematicsModule`.
+
+  ⚠ **Residual edge, stated not hidden:** an entity with `SimVelocity` and a Stride body but **neither** `VehicleState` **nor** `CrowdAgent` would be integrated twice — once by the reverse-sync, once here. **No such entity exists today** *(every body-owning entity in the scenario carries `VehicleState`)*, but a future physics prop would need excluding.
+
+  📐 **VERIFIED LIVE — rounds now land.** `hill-attack-close`: both attackers creep to their firing slots, `Action_AimAndFireSpecific` logs *"Engaging target. TargetNetworkId=1006"* / *"…=1007"*, and **both hostiles drop `50 → 25`**, then `Action_ReverseToBaseline` *("Retreating to baseline. Destination=(527.5,474.5)")*. ⇒ ⭐ **the full hull-down attack-run cycle — dispatch → creep → fire → HIT → retreat → next wave — runs end to end on Stride for the first time.**
+
 - [x] **CE-233** · `RW-M` ✅ — **STRIDE'S HOSTED COMPOSITION HAD NO PERCEPTION TIER, SO EVERY EQS AREA QUERY TIMED OUT AND THE PLATOON COMMANDER LOOPED FOREVER.** 🔒 *(user, `2026-09-08`: "the scenario 'hill attack close' ensures targets are always in range … it was working on `--mode all` as well as `--mode editor` as before we started with stride unifications. so if it does not work now with stride is only the stride specific issues")*
 
   ⭐⭐⭐ **The user was right on every count, and the differential run is what proved it.** ⛔ My earlier report blamed the scenario — *"`PhaseCount: 1`, so the firing-line advance never runs"* and *"`VisionRange` 100 vs 143 m"*. 📐 **Both were symptoms, not causes.** The scenario DOES put targets in range: computed from the world origin `(52.52, 13.405)`, the **firing line** sits at local `(578.5, 444.6)–(581.1, 504.7)`, which is **91.2 m and 88.6 m** from the two hostiles — inside the 100 m `VisionRange`. The **baseline** is 144.2 m / 138.4 m away. ⇒ ⭐ *"targets always in range"* is true **at the firing line**, and the real defect is that Stride never advanced to it.
