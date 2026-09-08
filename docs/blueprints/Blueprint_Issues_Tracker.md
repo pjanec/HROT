@@ -1563,7 +1563,7 @@ nothing here moves the counts table.*
 
   ⭐ **The rail fix this owes** *(`R-142` ③ — fix the blindness in place)*: `drive` must measure displacement **from where the vehicle ACTUALLY IS when the drive phase begins**, not from the position the reposition was supposed to have reached, and it must **refuse to run at all when `repos` failed** rather than reporting a pass built on the failure.
 
-- [ ] **CE-227** · `RW-M` 🔴🔴 — **THE PAUSE GATE NEEDS A DESIGN THAT SURVIVES MODE 2; `CE-223`'s ONE-LINER DID NOT, AND IT ALSO CARRIED A LATCH THAT KILLED VEHICLE MOVEMENT.** 📐 **Measured `2026-09-08` on the live Stride host.** 🔒 *(user: "ELM and deferred ownership transfer is in play here and no editor specific shortcuts shall be made; it needs to work also for stride mode 2 where the brain who loads the scenario is on another node")*
+- [x] **CE-227** · `RW-M` ✅ — **THE PAUSE GATE NEEDS A DESIGN THAT SURVIVES MODE 2; `CE-223`'s ONE-LINER DID NOT, AND IT ALSO CARRIED A LATCH THAT KILLED VEHICLE MOVEMENT.** 📐 **Measured `2026-09-08` on the live Stride host.** 🔒 *(user: "ELM and deferred ownership transfer is in play here and no editor specific shortcuts shall be made; it needs to work also for stride mode 2 where the brain who loads the scenario is on another node")*
 
   ⭐⭐ **TWO INDEPENDENT PROBLEMS, and this session conflated them for a full diagnostic loop.**
 
@@ -1587,6 +1587,14 @@ nothing here moves the counts table.*
   ⭐ **The direction that is not editor-shaped:** freeze **PER BODY** and let the simulation keep stepping, so native bodies still initialise, instead of switching off a **process-wide static that also governs body CREATION**. ⚠ Note `Simulation.DisableSimulation` is **static**, so it was never scoped to one simulation anyway *(recorded in `DESIGN_Stride_Node_Modes.md` §11.1a)*.
 
   ⛔ **Acceptance must include BOTH halves, on the SAME run:** a paused world where a dynamic body does not sink **and** a resumed world where a commanded vehicle moves. 📌 Each of the two shipped attempts satisfied exactly one.
+
+  ✅✅✅ **FIXED `2026-09-08` — THE ANSWER WAS THE USER'S.** 🔒 *("cant we tick the physics all the time just with zero dt when simtime not advancing?" · "always elapsed seconds sim time")* ⭐⭐⭐ **`GameTime.Factor = simDeltaSeconds / wallDeltaSeconds`, set just before `base.Update`.** 📐 Stride's physics system does one thing with time — `Simulate((float)gameTime.WarpElapsed.TotalSeconds)` — and `WarpElapsed = Elapsed × Factor`, so the frame time **cancels** and Bullet integrates **sim seconds**. Paused ⇒ `Simulate(0)` ⇒ `carriedDelta += 0` ⇒ the fixed-step loop never runs ⇒ nothing integrates, while removals, bones, characters, contacts and events still tick.
+
+  ⛔⛔ **`Simulation.DisableSimulation` IS THE WRONG PRIMITIVE FOR A PAUSE** — it returns BEFORE `Simulate`, taking body readiness, contacts and events with it. ⭐ Stride's integrator is fixed-step either way, so wall time never reaches it; `Factor` only decides HOW MANY fixed steps a frame consumes, and **zero is legal**. ⚠⚠ **RETRACTED:** a note earlier in this session implied Stride's physics was wall-dt dependent and another engine might be needed. **Wrong** — the engine was correct; the integration used the wrong lever.
+
+  📐 **ACCEPTANCE MET ON ONE RUN** *(neither earlier attempt managed both)*: **paused 25 s** → `#1001` bit-identical at `[446.32,420.90,0.50]`, `simVel [0,0,0]`, **0** not-ready; **resumed 30 s** → **0** not-ready, **6** `InitialPose slammed`, `simVel` and `VehicleState.Speed` non-zero.
+
+  ⚠⚠ **NOT FIXED, same run:** once physics integrates the vehicles **fall** (`z=-180` at `-52 m/s`) because the scenario sits at world coords ~450–670 while the Stride ground is near the origin 🔒 *(user: "all entities out of terrain physics area (stride terrain is small)")* — ⛔ and their X/Y collapse from `(446,420)` to `(18,19)`, which free fall does **not** explain. **NOT MEASURED**, separate row.
 
 - [~] **CE-223** · `RW-S` ⚠⚠ **PARTLY FIXED, THEN SUPERSEDED BY [`CE-227`] — read that row before touching this one.** ⛔ The missing override WAS real and is declared; 🔴 but the implementation shipped a LATCH that stopped native bodies ever being created, so vehicles could not move. `2026-09-08` — **`CE-219`'s PAUSE GATE WAS INERT IN THE LIVE APP: THE SERVICE THE HOST ACTUALLY CONSTRUCTS INHERITED AN EMPTY DEFAULT INTERFACE METHOD.** 📐 **Found BY EYE on Windows — every rail was green.** 🔒 *(user: "time paused, scenario never started, yet tanks are falling at coord syst origin")*
 
@@ -1848,6 +1856,31 @@ nothing here moves the counts table.*
   ✅ **THE SUSPECTED SECOND HOP IS REFUTED.** This row warned that `ScenarioSpawnAdapter` folds `InitialTransform` into `InitialComponents` and that `EntityCreationRequest` does not carry it, so the transform might be dropped even once it bound. 📐 **Measured: it is not** — the position arrives intact. ⚠ Recorded because the row told the next reader to check it first.
 
   ⭐ **Rails:** `SpawnTransformBindsTests` (`Hrot.Editor.Tests`) — the documented shape binds, a non-binding payload THROWS *(the anti-vacuity half, without which the first test could pass while the origin bug survived)*, and `SimTransform` still exposes fields so `IncludeFields` cannot be "simplified" away. ⭐⭐ They assert the **`internal` options instance the endpoint actually uses** — ⛔ a locally-built copy would pass while production stayed broken, which is the exact blindness `CE-223` and `CE-224` were each built on.
+
+- [ ] **CE-230** · `RW-M` 🔴 — **WALL-CLOCK DELTAS STILL DRIVE THE STRIDE HOST'S TICK, ANIMATION AND VIEW TIER — [`R-143`](RULINGS.md) SAYS THEY MUST NOT.** 🔒 *(user, `2026-09-08`: "no wall clock enywhere, whole sim driven by sim time ONLY. only use of wallclock us stamping the fdp recording")*
+
+  ⭐ **`CE-227` applied the rule to PHYSICS only** — `GameTime.Factor = simDelta / wallDelta`, so Stride's integrator consumes sim seconds. ⛔ **Everything else in the host still runs on `gameTime.Elapsed`.**
+
+  📐 **The measured inventory — `grep` over `Stride/`, diagnostics and camera/input excluded:**
+
+  | site | what it drives | verdict |
+  |---|---|---|
+  | `StrideHrotGame.cs:422` `float wallDt = (float)gameTime.Elapsed.TotalSeconds` | the source of all of the below | 🔴 convert |
+  | `:436` `_editorSubsystem.Tick(wallDt)` | ⭐⭐ **the whole hosted editor/sim tick** — the biggest one, and it reaches `EditorSubsystem.Update(dt)` | 🔴 convert ⚠ **deepest blast radius; the editor's own tick contract, not Stride-local** |
+  | `:440` `_loopDriver.AdvanceFrame(wallDt, …)` | the self-contained loop driver | 🔴 convert |
+  | `StrideViewBracket.RunAnimationStep(world, wallDt)` | ⭐ **animation** — the case that PROMPTED the ruling | 🔴 convert |
+  | `StrideViewBracket.RunPostKernelStep(world, wallDt, …)` | view tier + gizmo producer buffer | 🔴 convert |
+  | `:450` `_testHarness?.Update(wallDt)` | the in-app test harness | ⚠ decide — it drives scripted probes, so probably sim time too |
+  | `PhysicsBodyLifecycleSystem.cs:110` · `EditorStrideSubsystem.cs:1753` *(`Stopwatch` throttles)* | ⭐ **log throttling only** — "warn at most once per second" | ✅ **legitimate, out of scope** per `R-143` |
+  | `BasicCameraController` · `PlayerInput` · `BepuSample` | operator camera/input, and a vendored sample | ✅ **out of scope** — interaction, not simulation |
+
+  ⭐⭐ **The delta to use already exists:** `EditorStrideSubsystem.CurrentSimDeltaSeconds`, published by `CE-227` and the same expression the motors and the integrator consume. ⛔ **Do not introduce a second source** — that is precisely how the motors and Bullet would drift apart.
+
+  ⚠ **Two things to settle rather than assume:**
+  ① **the view tier at zero.** With a sim delta, a paused world gives the animation step `dt = 0` every frame. ⭐ That is the intent — a paused world should not animate — ⛔ but confirm no view code divides by `dt` or requires monotonic progress before converting.
+  ② **`Tick(wallDt)` is the EDITOR's contract, not Stride's.** `EditorSubsystem.Update(dt)` advances the time controller from that argument, so feeding it the sim delta may be circular. ⛔ **Measure the dependency before changing it** — this row's other five sites are independent of that question and can land first.
+
+  ⭐ **`R-143` is the ruling; this row is the work.** 📄 The design cell that used to bless `wallDt` for the view tier is corrected in [`DESIGN_Stride_Node_Modes.md`](../DESIGN_Stride_Node_Modes.md) §7.3b.
 
 - [ ] **CE-220** · `RW-S` ⚠ — **`AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` IS AN INTERMITTENT GC-TIMING RAIL, AND `CE-205`'s NEW TESTS MADE IT MORE LIKELY TO FIRE.** 📐 **Measured `2026-09-07`, and reported as MINE rather than pre-existing.**
 
