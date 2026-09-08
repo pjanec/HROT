@@ -1012,12 +1012,41 @@ public sealed class EditorStrideSubsystem : IDisposable
             capturedMuscleSet = ms;
 
             // ⭐ The muscle CAPABILITY, resolved from the shared declaration — not a hand-built module
-            //   list. Resolving for MuscleGround alone is deliberate: the editor already supplies the
-            //   Brain and the perception tier, so taking Stride's perception capabilities here would
-            //   register a second EqsModule beside the editor's.
+            //   list.
+            //
+            // 🔴🔴 CE-233 — this used to resolve MuscleGround ALONE, on the premise that "the editor
+            //   already supplies the Brain and the perception tier". 📐 MEASURED FALSE, and it is what
+            //   stopped `hill-attack-close` ever completing on Stride:
+            //
+            //     • EditorCapabilities.BuildWithInjectedMuscle deliberately omits CognitiveSpatialModule
+            //       — its own remark says "the supplying host owns both". So the editor does NOT supply
+            //       the perception tier on this arm; it expects US to.
+            //     • Resolving MuscleGround alone dropped Stride's PerceptionSpatial, so the host booted
+            //       with NO CognitiveSpatialModule and therefore NO AreaQuerySolverSystem.
+            //     • The platoon commander's tree then hangs forever: it clears
+            //       Condition_AreAllAtBaseline ("Arrived=4/4"), calls Action_RequestAreaQuery, and
+            //       Condition_IsAreaQueryResolved logs "EQS area query timed out after 5.0s" — because
+            //       nothing in the world solves area queries. The tree restarts and re-drives the
+            //       platoon to the baseline, forever, so it never reaches the firing line, never gets
+            //       inside PerceptionReceptor.VisionRange (100 m; the firing line sits 89–91 m from the
+            //       hostiles, the baseline 138–144 m), and never engages.
+            //
+            //   ⭐ Both sides delegated perception to the other, so nobody registered it.
+            //
+            // 📐 The reference composition that DOES work — `--mode editor`, one process, no DDS — has
+            //   the CognitiveSpatial module and AreaQuerySolverSystem. Resolving the plan's own
+            //   DefaultRole (MuscleGround|Perception) is what makes mode 1 match it, and it is the same
+            //   role mode 2 resolves — which is exactly the "one composition, not two that happen to
+            //   agree today" that S2b/CE-208 set out to achieve.
+            //
+            // ⚠ The cap:perception key is shared by Stride's PerceptionSolver and the editor's
+            //   PerceptionAreaQueries, and Resolve is first-wins in declaration order, so the injected
+            //   solver displaces the editor's standalone materialisation capability. That is correct
+            //   here rather than lossy: Stride's PerceptionSpatial registers
+            //   AreaQueryResultMaterializationSystem itself, so exactly ONE of them is registered.
             return StrideCapabilities
                 .Build(ms)
-                .Resolve(Hrot.Common.NodeRole.MuscleGround);
+                .Resolve(StrideCapabilities.DefaultRole);
         };
 
         // Boot the real EditorSubsystem.

@@ -885,6 +885,39 @@ work until the bake covers scenario extents.** ⚠ Also open and unrelated to th
 `NavigationIntentBridgeSystem` skips crowd registration for anything with `VehicleState`.
 
 
+### ⭐⭐⭐ 13.4 `CE-233` — **THE HOSTED ARM HAD NO PERCEPTION TIER** *(`2026-09-08`, obligation ⑤)*
+
+⛔⛔ **This section RETRACTS a claim made in §"The EQS solver" remark of `StrideCapabilities` and repeated
+in `CE-206`'s framing:** that Stride's missing `EqsModule` *"looks like it works today only because CGF's
+brain sits in the same world in both existing modes and solves them."* 📐 **Measured false.** Nothing solved
+them. `AreaQuerySolverSystem` is owned by `CognitiveSpatialModule`, and the hosted Stride arm had no
+`CognitiveSpatialModule` at all — so **every** EQS area query timed out, in mode 1, from the beginning.
+
+| the claim | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| mode 1 resolved `MuscleGround` alone | ✅ `EditorStrideSubsystem.cs` muscle factory *(pre-fix)* | ⛔ contradicted by the plan's own `DefaultRole = MuscleGround\|Perception` |
+| the editor does NOT supply perception on the injected arm | ✅ `EditorCapabilities.BuildWithInjectedMuscle` omits `PerceptionSpatial` | ✅ its own remark: *"the supplying host owns both"* |
+| ⇒ neither side registered `CognitiveSpatialModule` | ✅ live module list: no `CognitiveSpatial`, no `AreaQuerySolverSystem` | — |
+| the commander therefore never advances | ✅ log: `"EQS area query timed out after 5.0s"`, then the tree restarts | ✅ `HillAttackCommanderNodes` — the EQS gate sits between the baseline and the wave dispatch |
+| the reference composition has it | ✅ `--mode editor`: modules include `CognitiveSpatial`; systems include `AreaQuerySolverSystem` | — |
+
+⭐ **As built:** the factory resolves **`StrideCapabilities.DefaultRole`**, so mode 1 and mode 2 resolve the
+same role — which is what `S2b`/`CE-208` claimed and did not yet deliver.
+
+⚠ **The `cap:perception` key is shared by three capabilities doing two jobs** — SimHost's and Stride's
+`PerceptionSolver` *(the EQS solver)* and the editor's `PerceptionAreaQueries` *(materialisation)*. They
+never co-occurred before, so the collision was latent. It resolves correctly here *(the injected solver
+displaces the editor's materialiser, and Stride's `PerceptionSpatial` registers materialisation itself —
+verified live as exactly one instance)*, ⛔ **but it is a modelling defect worth a distinct key** and the
+next change in this area should not assume it stays benign.
+
+⭐⭐ **Scenario state after the fix:** `hill-attack-close` advances baseline → firing line, acquires targets
+*(`SensorContactList.Count = 2`)* and fires. ⛔ **The rounds do not yet land** — `WeaponFireNotification` is
+published and ammo decrements, but no hit/damage event follows and both hostiles hold `50/50`. ⚠ **Not the
+`CE-232` clobber shape** — bullets get no Stride rigid body *(only 6 `LC-CREATE`, all scenario entities)*.
+⇒ next: `FireProcessingSystem` → `BallisticsSystem` → `HitResolutionSystem`.
+
+
 ## 14. OPEN QUESTIONS — each with a lean
 
 | # | question | ⭐ lean |
