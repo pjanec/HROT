@@ -1311,6 +1311,38 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
+        /// <summary>
+        /// 🔴🔴 <b>CE-225 — why this needs its own options, and why the default silently lost every
+        /// spawn position.</b>
+        /// </summary>
+        /// <remarks>
+        /// <para><c>SimTransform</c> declares <b>public FIELDS</b>, not properties
+        /// (<c>public Vector3 Position; public Quaternion Rotation;</c>), and
+        /// <c>System.Text.Json</c> <b>ignores fields unless <see cref="JsonSerializerOptions.IncludeFields"/>
+        /// is set</b>. So a bare <c>Deserialize&lt;SimTransform&gt;</c> could never bind a position from ANY
+        /// payload — it returned a default-constructed struct, the entity was created at the origin, and the
+        /// endpoint answered <c>ok:true</c>. 📐 Measured: both the shape this API's own SKILL documents
+        /// (<c>{"position":{"x":..}}</c>) and the shape the entity dump round-trips landed at
+        /// <c>[0,0,z]</c>.</para>
+        ///
+        /// <para>⛔⛔ <b>That is precisely the failure <c>CE-191</c> added the surrounding catch for</b> —
+        /// its comment calls an origin spawn reported as success "the worst possible shape of failure". The
+        /// catch never fired because <b>nothing threw</b>: unbound members are not an error by default.
+        /// ⇒ <c>JsonUnmappedMemberHandling.Disallow</c> is what makes that guard real: a payload whose
+        /// members do not bind now RAISES, and the existing catch refuses the spawn instead of misplacing
+        /// the entity.</para>
+        ///
+        /// <para>⭐ <see cref="JsonSerializerOptions.PropertyNameCaseInsensitive"/> so the documented
+        /// lower-case example binds as written, rather than the caller having to discover the field
+        /// casing.</para>
+        /// </remarks>
+        internal static readonly JsonSerializerOptions SpawnTransformJsonOptions = new()
+        {
+            IncludeFields               = true,
+            PropertyNameCaseInsensitive = true,
+            UnmappedMemberHandling      = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
+        };
+
         /// <c>POST /entities/spawn {tkbType, transform?, components?, attributesJson?}</c>
         /// — builds and publishes a <see cref="SpawnEntityCommand"/>. Returns <c>awaited</c>
         /// per the wait rule. Must run on the main thread.
@@ -1344,7 +1376,8 @@ namespace Hrot.Editor.DebugApi
             {
                 try
                 {
-                    var simTransform = JsonSerializer.Deserialize<SimTransform>(transform.ToJsonString());
+                    var simTransform = JsonSerializer.Deserialize<SimTransform>(
+                        transform.ToJsonString(), SpawnTransformJsonOptions);
                     cmd.InitialTransform = simTransform;
                 }
                 catch (Exception ex)

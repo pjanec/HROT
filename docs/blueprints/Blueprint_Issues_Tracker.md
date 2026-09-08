@@ -1603,7 +1603,7 @@ nothing here moves the counts table.*
 
   ⚠ **What is NOT claimed:** whether wiring the curated registrar alone fixes movement. ⛔ The generated definitions would still lack `ParamsDtoType` for behaviours the curated one does not cover, and whether the runtime actually READS the params from a mission task is a separate hop that has not been measured. ⭐ **`RUNBOOK` §8.1 applies — measure it on the entity, do not reason about it.**
 
-- [ ] **CE-225** · `RW-S` 🔴🔴 — **`spawn_entity` PLACES THE ENTITY AT THE ORIGIN AND ANSWERS `ok:true` — `CE-191`'s GUARD CATCHES MALFORMED JSON, NOT NON-BINDING JSON.** 📐 **Measured live `2026-09-08`, two payload shapes, two hosts.**
+- [x] **CE-225** · `RW-S` ✅ — **`spawn_entity` PLACES THE ENTITY AT THE ORIGIN AND ANSWERS `ok:true` — `CE-191`'s GUARD CATCHES MALFORMED JSON, NOT NON-BINDING JSON.** 📐 **Measured live `2026-09-08`, two payload shapes, two hosts.**
 
   ⛔⛔ **The defect is the one the code's own comment forbids.** `DebugApiService.cs:1340` reads: *"…did not deserialize spawned the entity AT THE ORIGIN and answered `ok:true`. For a spatial simulation that is the worst possible shape of failure: the caller is told the thing exists where they asked, and it is somewhere else. Refuse instead."* ⇒ ⭐ **that is exactly what still happens.**
 
@@ -1623,6 +1623,16 @@ nothing here moves the counts table.*
   ⭐ **The rail this owes:** a round-trip — spawn at a non-origin position, `GET /entities/{id}`, assert the position matches. ⛔ **An origin spawn must FAIL the rail**, and note that `(0,0,0)` is a legitimate position, so the rail must use a distinctive one.
 
   ⚠ **Scope: NOT Stride-specific and NOT from the `CE-221` batch** — reproduced on the Stride host and applies to the shared `Hrot.Editor` debug API used by every host.
+
+  ✅✅✅ **FIXED AND VERIFIED LIVE `2026-09-08`.** 📐 **The root cause was one line, and it was neither of the two suspects.** `SimTransform` declares its state as public **FIELDS** (`public Vector3 Position; public Quaternion Rotation;`), and `System.Text.Json` **ignores fields unless `IncludeFields` is set** ⇒ a bare `Deserialize<SimTransform>` bound **nothing from any payload**, which is why the documented shape AND the round-trip shape both produced the origin.
+
+  ⭐⭐ **And it is what made `CE-191`'s guard inert:** unbound members are not an error by default, so nothing threw and the catch never ran. `JsonUnmappedMemberHandling.Disallow` makes that guard REAL — a non-binding payload now raises and the spawn is refused. ⭐ `PropertyNameCaseInsensitive` makes the SKILL's documented lower-case example bind as written.
+
+  📐 **Verified on the live Stride host, not from source:** the documented payload `{"position":{"x":480,"y":450,"z":0.5}}` spawns an entity that reads back **`pos=[480, 450, 0.5]`**; the payload `{"nonsense":{"a":1}}` is **REFUSED** with *"The JSON property 'nonsense' could not be mapped… Nothing was spawned"*.
+
+  ✅ **THE SUSPECTED SECOND HOP IS REFUTED.** This row warned that `ScenarioSpawnAdapter` folds `InitialTransform` into `InitialComponents` and that `EntityCreationRequest` does not carry it, so the transform might be dropped even once it bound. 📐 **Measured: it is not** — the position arrives intact. ⚠ Recorded because the row told the next reader to check it first.
+
+  ⭐ **Rails:** `SpawnTransformBindsTests` (`Hrot.Editor.Tests`) — the documented shape binds, a non-binding payload THROWS *(the anti-vacuity half, without which the first test could pass while the origin bug survived)*, and `SimTransform` still exposes fields so `IncludeFields` cannot be "simplified" away. ⭐⭐ They assert the **`internal` options instance the endpoint actually uses** — ⛔ a locally-built copy would pass while production stayed broken, which is the exact blindness `CE-223` and `CE-224` were each built on.
 
 - [ ] **CE-220** · `RW-S` ⚠ — **`AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` IS AN INTERMITTENT GC-TIMING RAIL, AND `CE-205`'s NEW TESTS MADE IT MORE LIKELY TO FIRE.** 📐 **Measured `2026-09-07`, and reported as MINE rather than pre-existing.**
 
