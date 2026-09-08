@@ -151,6 +151,8 @@ public static class T33_ComposedParamBlueprintRegistrar
             {
                 new("bpParams", typeof(global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params), 0),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T33_ComposedParamBlueprint_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T33_ComposedParamBlueprint_FdpToolkitBehaviorComponentsBrainBlackboard),
             ParseParams  = __parseParams,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {

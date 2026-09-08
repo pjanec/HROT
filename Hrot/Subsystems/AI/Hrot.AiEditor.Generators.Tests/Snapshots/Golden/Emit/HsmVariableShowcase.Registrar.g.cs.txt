@@ -79,6 +79,10 @@ public static class HsmVariableShowcaseRegistrar
             BrainTier     = BehaviorConstants.BrainTierHsm,
             HsmDefinition = blob,
             ParseParams   = __parseParams,
+            ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
+            {
+                new("Threshold", typeof(float), 0),
+            },
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {
                 new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(577338280, global::System.Runtime.InteropServices.Marshal.SizeOf<int>(), unchecked(4180476474u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<int>()), typeof(int), "Cursor", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),

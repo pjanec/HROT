@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
-current-answer: the whole document; it is authoritative for parameters and storage
+updated: 2026-09-08
+current-answer: the whole document; it is authoritative for parameters and storage.
+  See 3.1's AS BUILT 2026-09-08 (CE-235) for the two-member split of the authored DTO
+  vs the blackboard layout - that is the live shape of BehaviorDefinition.
 known-rot: (none) - the BP1031-as-live rot was REPAIRED 2026-08-17, Batch 82; the
   section 3.2 "overlay is NOT implemented on every path" correction was REPAIRED
   2026-08-18 (it had gone false at Batch 70/74) and now sits under a HISTORY fold
@@ -29,7 +31,7 @@ known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rule
 
 | the wrong conclusion | the truth | evidence |
 |---|---|---|
-| *"the 100-byte region is carved up per action"* | ⭐ **ONE params struct per BEHAVIOUR.** An action **binds a FIELD** of it | `BehaviorDefinition.ParamsDtoType` is singular; `[SharedAiAction(typeof(Dto),"Field")]` |
+| *"the 100-byte region is carved up per action"* | ⭐ **ONE params struct per BEHAVIOUR.** An action **binds a FIELD** of it | `BehaviorDefinition.BlackboardLayoutType` *(named `ParamsDtoType` until `CE-235`)* is singular; `[SharedAiAction(typeof(Dto),"Field")]` |
 | *"blueprints keep inputs in allocated space"* | ⛔ **A blueprint has params only when `Dispatch == AiPrimitive`**, and they land in the same 100 bytes | `asset.Parameters` has ONE emitter: `AiPrimitiveEmitter.EmitParamsStruct`. `InstanceEmitter` never emits them |
 | *"the heavy tier moves params"* | ⛔ **heavy extends STATE, never INPUT** | `EmitHeavySharedAiAdapter` emits **both**: params from `bb.BehaviorParameters`, heavy from the component |
 | *"`BP1031` means nothing supplies params"* | ⛔⛔ **RETIRED — the rail is GONE.** *(Batch 70, `Stage2_Validate.cs:168`; tracker `BP-278`)*. ⚠ It was true of `Instance` dispatch only, and that is why it went | `Stage2_Validate.cs:168` · `BP-278` |
@@ -91,6 +93,53 @@ none — an Instance payload **starts with the 16-byte `BlueprintLatentCursor`**
 
 ⭐ **One shape by default** — the authored DTO is an auto-generated mirror; two shapes only on
 divergence *(geo point vs cartesian, network id vs `Entity`, derived fields)*.
+
+#### ✅ AS BUILT `2026-09-08` — `CE-235`: **the two shapes now have TWO MEMBERS, and the public one is the AUTHORED DTO**
+
+> 🔒 **User ruling, `2026-09-08`:** *"nothing but the behavior implementation itself should use and touch
+> the blackboard; the behavior spec from scenario or from mcp server or from wherever always comes with
+> json/dto only … the blackboard DTO should never appear in any public behavior description as it is
+> internal stuff."* · *"`ParamsDtoType` is then perfectly right name, just it must not be the blackboard
+> param layout type."*
+
+⛔⛔ **The rows above were RIGHT and the code did not honour them.** `BehaviorDefinition` had ONE type
+member — `ParamsDtoType` — born in `TASK-FBT-032` *(`.dev/_DONE/fluent-btree/`, Phase 4)* as the
+**blackboard** pointer for renderer projection. `CE-224` then wired `GET /behaviors` to it, so the endpoint
+published row 2 *(usable params — **not authored**)* as if it were row 1.
+
+| member | is | read by |
+|---|---|---|
+| ⭐⭐ **`JsonParamsDtoType`** *(renamed from `ParamsDtoType`)* | **row 1 — the authored DTO** | `DtoJsonSchemaExtractor` → `GET /behaviors`; the mission panel; MCP |
+| 🔒 **`BlackboardLayoutType`** *(new; takes the old meaning)* | **row 2 — the blittable layout** | `BrainBlackboardTranslator` · `BrainBlackboardRenderer` · `BlackboardReflection`/`BrainBlackboardViewProvider` *(StructEdit)* · the ReplayBrowser predicate compiler + its two field drawers · the 60-byte size guard |
+
+⭐⭐ **BOTH were renamed on purpose** *(user: "forcing the compiler to expose all places where it is used
+so we never forget to revise its correct usage")* — the migration is a **compile error at every one of the
+23 consumer files**, not a silent meaning change. 📌 It paid immediately: the sweep found **3 readers the
+prior enumeration had missed** *(`PredicateCompiler.cs:317`, `PropertyPathFieldDrawer.cs:148`,
+`PredicateValueFieldDrawer.cs:224`)*, and caught that the `MaxBehaviorParamByteSize` guard must read the
+LAYOUT type — a JSON DTO's `Marshal.SizeOf` is meaningless there.
+
+⭐ **Who fills each, per §3.1's own rule:**
+
+| behaviour kind | `JsonParamsDtoType` | `BlackboardLayoutType` | shapes |
+|---|---|---|---|
+| **generated BTree** *(34 assets)* | the emitted `*_Blackboard` struct | **the same type** | ⭐ **one** — §3.1's identity case, made explicit |
+| **generated HSM** | ⛔ none — the HSM generator emits **no struct** *(measured: `EmitBlackboardStructSource` has one caller, `BTreeJsonGenerator`)* ⇒ the schema falls back to `ManagedBlackboardVariables` | — | one, via the manifest |
+| **curated, no divergence** *(`FollowRoute`)* | its `[BehaviorContract]` DTO | the blittable struct | one in practice |
+| **curated, DIVERGENT** *(`MoveToLocation`, `FireAtTarget`)* | the `[BehaviorContract]` DTO | the blittable struct | ⭐ **two** — exactly §3.1's named cases |
+
+⭐⭐⭐ **The producer is the seam that already existed:** `[BehaviorContract]` → `BehaviorSchemaDiscovery`,
+which already drove the editor's parameter form and scenario id-remapping and was simply never handed to
+the runtime registry. ⛔ **One producer** *(`R-132`)*: the curated registrar deliberately does **not** set
+`JsonParamsDtoType`.
+
+📐 **What the old wiring cost, measured on `FireAtTarget`:** it advertised `TargetPacked` *(a resolved
+handle)* and `RoundsFired` *(a runtime OUTPUT counter)* — neither settable by a caller — and **omitted
+`TargetNetworkId`, the only key that aims the weapon.** An agent following that schema could not fire.
+
+⚠ **`JoinFormation` is a finding this exposed, not a regression:** its `[BehaviorContract]` DTO is
+deliberately memberless, yet its `BlackboardLayoutType` declares `LeaderNetworkId`/`FormationTypeId` and it
+registers **no resolver** ⇒ two blackboard fields nothing can ever fill. Filed on the tracker.
 
 ### 3.2 The activation sequence — **behaviours (shipped)**
 

@@ -507,6 +507,8 @@ public static class PlatoonHillAttackRegistrar
             {
                 new("Params", typeof(global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams), 0),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Blackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Blackboard),
             ParseParams  = __parseParams,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {

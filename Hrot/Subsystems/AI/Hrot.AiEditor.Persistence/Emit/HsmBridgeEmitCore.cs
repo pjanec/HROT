@@ -166,6 +166,14 @@ public static class HsmBridgeEmitCore
         // The array is emitted from the SAME packedFields that drive the ParseParams switch above, so
         // the schema and the parser cannot disagree; that correspondence is the whole point, and it is
         // what makes the manifest a truthful wire contract rather than a hint.
+        //
+        // ⚠ CE-235 — NO JsonParamsDtoType HERE, and that is measured, not an omission. Unlike the BTree
+        //   generator, the HSM generator emits NO blackboard struct: BTreeEmitCore.EmitBlackboardStructSource
+        //   has exactly one caller (BTreeJsonGenerator.cs:290), and no *.Blackboard.g.cs is produced for
+        //   any HSM asset. So there is no type to name, and the manifest below IS this asset's authored
+        //   contract — DtoJsonSchemaExtractor.ExtractParams falls back to it for exactly this case.
+        //   Legitimate because the names here are the same packed-field list the ParseParams switch above
+        //   is emitted from, so schema and parser cannot disagree.
         if (packedFields.Count > 0)
             BTreeBridgeEmitCore.EmitManagedBlackboardVariablesArray(sb, packedFields, pad2 + Indent);
         EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent);

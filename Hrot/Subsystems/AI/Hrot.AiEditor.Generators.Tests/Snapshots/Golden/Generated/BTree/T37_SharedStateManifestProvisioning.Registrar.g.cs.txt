@@ -150,6 +150,8 @@ public static class T37_SharedStateManifestProvisioningRegistrar
             {
                 new("bpParams", typeof(global::Hrot.AI.Behaviors.Generated.SharedStateRallyDemo_3CBD7255_Bp.Params), 0),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T37_SharedStateManifestProvisioning_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T37_SharedStateManifestProvisioning_FdpToolkitBehaviorComponentsBrainBlackboard),
             ParseParams  = __parseParams,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {

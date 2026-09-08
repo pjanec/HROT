@@ -9,28 +9,28 @@ using Xunit;
 namespace Hrot.Editor.Tests.DebugApi;
 
 /// <summary>
-/// <c>CE-224</c> — <c>GET /behaviors</c> must advertise a behaviour's REAL parameters, so an agent (or
-/// the editor's Mission panel) can author a task without guessing.
+/// <c>CE-224</c> → <c>CE-235</c> — <c>GET /behaviors</c> must advertise the shape a caller WRITES when
+/// assigning a behaviour, so an agent (or the editor's Mission panel) can author a task without guessing.
 ///
 /// <para>
-/// ⛔⛔ <b>WHY THESE RAILS EXIST IN THIS SHAPE, and why the three that were already green did not
-/// catch it.</b> Every behaviour reported <c>paramSchema: {"type":"object","properties":{}}</c> on every
-/// host — measured live on two of them — while three rails stayed green:
-/// <list type="bullet">
-///   <item><c>DiscoveryAndHintTests</c> asserted <c>paramSchema.type == "object"</c> — the
-///     <b>envelope</b>, never the contents, with its own comment calling an empty schema a pass.</item>
-///   <item><c>BehaviorRegistryTests</c> asserted the curated DTO type wins a precedence contest, using a
-///     <b>fake</b> registration — so it proved the precedence works IF USED, never that it is used.</item>
-///   <item><c>DebugApiCompositionTests</c> only named the field in a comment.</item>
-/// </list>
-/// ⇒ ⭐⭐ so the rails below assert a <b>NAMED behaviour has NAMED parameters</b>, resolved from a registry
-/// built by the <b>production</b> loader — not from a fake, and not "is an object".
+/// ⛔⛔ <b><c>CE-235</c> REWROTE THIS SUITE, AND THE REASON MATTERS MORE THAN THE FIX.</b> The original
+/// version asserted <c>MoveToLocation</c> advertises <c>X, Y, Speed, ArrivalRadius</c> — the fields of
+/// <c>CgfNodes.MoveToLocationParams</c>, the <b>blittable blackboard struct</b>. That made the rails
+/// green while the endpoint published an <i>engine-internal memory layout</i> as a public contract.
+/// 🔒 User ruling, <c>2026-09-08</c>: <i>"the behavior spec from scenario or from mcp server or from
+/// wherever always comes with json/dto only … blackboard layout is internal and there is a translator
+/// that converts the json dto into blackboard."</i>
+/// 📄 <c>Behavior_Parameter_Resolver_Detailed_Design.md</c> §3.2 — only the <b>authored DTO</b> is
+/// authored; the usable params are hot-path input the resolver writes.
 /// </para>
 ///
 /// <para>
-/// ⚠ <c>R-142</c> checked: <c>DtoJsonSchemaExtractor</c> had <b>no</b> suite of its own — measured,
-/// <c>scripts/find.sh DtoJsonSchemaExtractor</c> returns three hits, two production call sites and the
-/// declaration, none in a test file.
+/// 📐 <b>What the old rails could not see, measured on <c>FireAtTarget</c>:</b> the blackboard struct is
+/// <c>{TargetPacked, MaxRounds, CooldownSeconds, RoundsFired}</c> while the JSON the resolver parses is
+/// <c>{TargetNetworkId, MaxRounds, CooldownSeconds}</c>. So the endpoint advertised a resolved handle and
+/// a runtime OUTPUT counter — neither settable by a caller — and omitted the only key that aims the
+/// weapon. An agent following that schema could not fire. <see cref="TheSchemaNeverLeaksARuntimeOutputField"/>
+/// is the rail that now fails if that returns.
 /// </para>
 /// </summary>
 public sealed class ABehaviourAdvertisesItsRealParametersTests
@@ -38,8 +38,10 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     /// <summary>
     /// The production loader, verbatim — <c>CgfSubsystem</c>'s <c>behavior-registry</c> boot step calls
     /// exactly this. It scans the compile-time <c>Hrot.AI.Behaviors</c> assembly through
-    /// <c>BlueprintRegistrarScanner</c>, which is what invokes <c>CgfCuratedBehaviorRegistrar</c>
-    /// reflectively.
+    /// <c>BlueprintRegistrarScanner</c> (which invokes <c>CgfCuratedBehaviorRegistrar</c> reflectively),
+    /// and since <c>CE-235</c> also binds each <c>[BehaviorContract]</c> DTO as the authored contract.
+    /// ⭐ Using the real loader is the point: a fake registry proves the precedence rules work IF USED,
+    /// never that they ARE used — which is how <c>CE-224</c> stayed hidden.
     /// </summary>
     private static BehaviorRegistry LoadProductionRegistry()
     {
@@ -48,37 +50,62 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         return registry;
     }
 
-    private static JsonObject SchemaFor(BehaviorRegistry registry, string behaviourName)
+    private static BehaviorDefinition Definition(BehaviorRegistry registry, string behaviourName)
     {
         Assert.True(registry.TryGetId(behaviourName, out int id),
             $"Behaviour '{behaviourName}' is not registered at all — the loader changed, not just the schema.");
         Assert.True(registry.TryGetDefinition(id, out var definition) && definition is not null,
             $"Behaviour '{behaviourName}' has an id but no definition.");
-
-        return DtoJsonSchemaExtractor.ExtractParams(definition!.ParamsDtoType);
+        return definition!;
     }
+
+    private static JsonObject SchemaFor(BehaviorRegistry registry, string behaviourName)
+        => DtoJsonSchemaExtractor.ExtractParams(Definition(registry, behaviourName));
 
     private static string[] PropertyNames(JsonObject schema)
         => (schema["properties"] as JsonObject)?.Select(kv => kv.Key).ToArray() ?? System.Array.Empty<string>();
 
     /// <summary>
-    /// ⭐ THE ONE THAT MATTERS. <c>MoveToLocation</c> must advertise the four fields its params struct
-    /// actually has. Named, not counted: a count assertion would pass against the wrong four.
+    /// ⭐ THE ONE THAT MATTERS. <c>MoveToLocation</c> advertises its AUTHORED keys — the geo pair that is
+    /// the canonical form, plus the Cartesian escape hatch the user ruled should stay discoverable.
     ///
-    /// <para>
-    /// ⚠ Inverse-edit red-proof: drop the field loop from
-    /// <c>DtoJsonSchemaExtractor.PublicWritableMembers</c> and this fails with an empty list — which is
-    /// exactly the state the live API was in before <c>CE-224</c>.
-    /// </para>
+    /// <para>⚠ Inverse-edit red-proof: point <c>DtoJsonSchemaExtractor.ExtractParams</c> back at
+    /// <c>definition.BlackboardLayoutType</c> and this fails with the blackboard struct's four fields —
+    /// exactly the state <c>CE-224</c> left the endpoint in.</para>
     /// </summary>
     [Fact]
-    public void MoveToLocationAdvertisesItsFourParameters()
+    public void MoveToLocationAdvertisesItsAuthoredJsonKeys()
     {
-        JsonObject schema = SchemaFor(LoadProductionRegistry(), "MoveToLocation");
+        string[] advertised = PropertyNames(SchemaFor(LoadProductionRegistry(), "MoveToLocation"));
 
-        Assert.Equal(
-            new[] { "X", "Y", "Speed", "ArrivalRadius" },
-            PropertyNames(schema));
+        Assert.Contains("TargetLat", advertised);
+        Assert.Contains("TargetLon", advertised);
+        Assert.Contains("Speed", advertised);
+        Assert.Contains("ArrivalRadius", advertised);
+
+        // 🔒 User ruling 2026-09-08: cartesian is origin-dependent so geo is canonical, "but for purpose
+        //    of ai driven development cartesian is much easier … so i would keep it". Advertised, not hidden.
+        Assert.Contains("X", advertised);
+        Assert.Contains("Y", advertised);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ THE DEFECT THE OLD SUITE COULD NOT EXPRESS. The schema must not name a field that exists only
+    /// inside the blackboard. <c>RoundsFired</c> is a runtime counter the executor writes and
+    /// <c>TargetPacked</c> is a resolved <c>Entity</c> handle; neither is settable over the wire, and the
+    /// JSON DTO carries neither.
+    ///
+    /// <para>⚠ Inverse-edit red-proof: repoint the extractor at the layout type and this fails on both
+    /// names at once.</para>
+    /// </summary>
+    [Fact]
+    public void TheSchemaNeverLeaksARuntimeOutputField()
+    {
+        string[] advertised = PropertyNames(SchemaFor(LoadProductionRegistry(), "FireAtTarget"));
+
+        Assert.DoesNotContain("RoundsFired", advertised);
+        Assert.DoesNotContain("TargetPacked", advertised);
+        Assert.Contains("TargetNetworkId", advertised);   // and the key that DOES aim it is present
     }
 
     /// <summary>
@@ -86,43 +113,79 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     /// silently writes a zero — the failure mode <c>R-132</c> records (a platoon that drove to the origin).
     /// </summary>
     [Fact]
-    public void TheAdvertisedParameterTypesMatchTheStruct()
+    public void TheAdvertisedParameterTypesAreNumeric()
     {
         var props = (JsonObject)SchemaFor(LoadProductionRegistry(), "MoveToLocation")["properties"]!;
 
-        Assert.Equal("number", (string?)props["X"]!["type"]);
-        Assert.Equal("number", (string?)props["Y"]!["type"]);
+        Assert.Equal("number", (string?)props["TargetLat"]!["type"]);
+        Assert.Equal("number", (string?)props["TargetLon"]!["type"]);
         Assert.Equal("number", (string?)props["Speed"]!["type"]);
         Assert.Equal("number", (string?)props["ArrivalRadius"]!["type"]);
     }
 
     /// <summary>
-    /// ⭐⭐ Not one behaviour by luck. Every behaviour that HAS a params DTO must advertise something —
-    /// this is what turns the fix from "MoveToLocation works" into a property of the endpoint.
+    /// ⭐⭐ THE STRUCTURAL GUARANTEE, not one behaviour by luck: for EVERY behaviour that declares an
+    /// authored contract, what the endpoint advertises IS that contract — entry for entry. This is what
+    /// turns the fix from "MoveToLocation works" into a property of the endpoint.
     ///
     /// <para>
-    /// ⚠ Deliberately scoped to behaviours with a non-null <c>ParamsDtoType</c>. Most registered
-    /// behaviours are generated ones that never set it, and that gap is its own finding
-    /// (<c>CE-226</c>) — asserting over ALL behaviours here would either fail for a reason this rail
-    /// does not own, or have to be weakened into vacuity.
+    /// ⚠ <b>Correspondence, deliberately, not "at least one".</b> 📐 The first draft asserted
+    /// non-emptiness and reddened on <c>JoinFormation</c>, whose <c>[BehaviorContract]</c> DTO is
+    /// <i>deliberately</i> empty — its own doc says <i>"currently parameterless; the contract exists to
+    /// anchor the behavior ID and category."</i> ⭐ So an empty schema is the TRUTH there, and the rail
+    /// was wrong rather than the code. Equality is both stronger (it catches a wrong non-empty answer,
+    /// which non-emptiness cannot) and honest about the parameterless case.
     /// </para>
     /// </summary>
     [Fact]
-    public void EveryBehaviourThatHasAParamsDtoAdvertisesAtLeastOneParameter()
+    public void EveryBehaviourWithAnAuthoredContractAdvertisesExactlyIt()
     {
         BehaviorRegistry registry = LoadProductionRegistry();
 
-        var withDto = registry.GetRegisteredNames()
-            .Where(n => registry.TryGetId(n, out int id)
-                     && registry.TryGetDefinition(id, out var d)
-                     && d?.ParamsDtoType is not null)
+        var authored = registry.GetRegisteredNames()
+            .Select(n => (Name: n, Def: Definition(registry, n)))
+            .Where(x => x.Def.JsonParamsDtoType is not null)
             .ToArray();
 
-        Assert.NotEmpty(withDto);   // anti-vacuity: an empty set would make the loop below pass for free
+        Assert.NotEmpty(authored);   // anti-vacuity: an empty set would make the loop pass for free
 
-        foreach (string name in withDto)
-            Assert.True(PropertyNames(SchemaFor(registry, name)).Length > 0,
-                $"Behaviour '{name}' declares a params DTO but advertises no parameters.");
+        bool anyCarriedMembers = false;
+        foreach (var (name, def) in authored)
+        {
+            string[] advertised = PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def));
+            string[] contract   = PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def.JsonParamsDtoType));
+
+            Assert.True(advertised.SequenceEqual(contract),
+                $"Behaviour '{name}' advertises [{string.Join(", ", advertised)}] " +
+                $"but its authored contract is [{string.Join(", ", contract)}].");
+
+            anyCarriedMembers |= contract.Length > 0;
+        }
+
+        // ⭐ Second anti-vacuity guard: equality alone would pass if EVERY contract were empty.
+        Assert.True(anyCarriedMembers, "no authored contract carried a single member — the loader is broken.");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ THE SEPARATION ITSELF, asserted so it cannot quietly collapse back. The curated behaviours
+    /// that DIVERGE carry two DIFFERENT types — §3.2's "two shapes on divergence" — and the public one is
+    /// never the blittable struct.
+    /// </summary>
+    [Theory]
+    [InlineData("MoveToLocation")]
+    [InlineData("FireAtTarget")]
+    public void ADivergentBehaviourKeepsItsAuthoredAndBlackboardTypesDistinct(string behaviourName)
+    {
+        BehaviorDefinition def = Definition(LoadProductionRegistry(), behaviourName);
+
+        Assert.NotNull(def.JsonParamsDtoType);
+        Assert.NotNull(def.BlackboardLayoutType);
+        Assert.NotEqual(def.JsonParamsDtoType, def.BlackboardLayoutType);
+
+        // The authored one is a heap class a JSON serializer can round-trip; the internal one is a
+        // blittable struct projected over raw bytes.
+        Assert.True(def.JsonParamsDtoType!.IsClass,      "the authored contract must be a JSON-serializable class");
+        Assert.True(def.BlackboardLayoutType!.IsValueType, "the blackboard layout must stay a blittable struct");
     }
 
     /// <summary>
@@ -139,9 +202,9 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     }
 
     /// <summary>
-    /// ⚠ The complement, and the reason the fix is a widening rather than a swap: the predicate DTOs are
-    /// ordinary classes with PROPERTIES, they worked before, and they must keep working. Reading fields
-    /// only — the mirror-image mistake — would break <c>GET /breakpoint-types</c> instead.
+    /// ⚠ The complement, and the reason <c>CE-224</c>'s extractor fix is a widening rather than a swap:
+    /// the predicate DTOs are ordinary classes with PROPERTIES, they worked before, and they must keep
+    /// working. Reading fields only — the mirror-image mistake — would break <c>GET /breakpoint-types</c>.
     /// </summary>
     [Fact]
     public void PropertyBasedDtosStillWork()

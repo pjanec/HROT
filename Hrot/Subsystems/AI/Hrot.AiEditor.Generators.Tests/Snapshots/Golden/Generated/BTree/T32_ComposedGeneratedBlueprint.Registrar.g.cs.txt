@@ -150,6 +150,8 @@ public static class T32_ComposedGeneratedBlueprintRegistrar
             {
                 new("bpParams", typeof(global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.Params), 0),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T32_ComposedGeneratedBlueprint_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T32_ComposedGeneratedBlueprint_FdpToolkitBehaviorComponentsBrainBlackboard),
             ParseParams  = __parseParams,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {

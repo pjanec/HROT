@@ -38,6 +38,47 @@ public static class BTreeEmitCore
     // ---- Blackboard struct emit (S1-2) ----
 
     /// <summary>
+    /// The namespace the managed blackboard struct is emitted into.
+    /// </summary>
+    internal static string BlackboardStructNamespace(BehaviorTreeAssetDto dto)
+        => string.IsNullOrEmpty(dto.TargetNamespace) ? "Hrot.AI.Behaviors.Trees" : dto.TargetNamespace;
+
+    /// <summary>
+    /// The simple name of the managed blackboard struct for <paramref name="dto"/>.
+    ///
+    /// <para>
+    /// Always prefixed with the asset name to ensure uniqueness across multiple managed assets in the
+    /// same namespace — several assets share one <c>BlackboardTypeName</c> (e.g.
+    /// <c>Fdp.Toolkit.Behavior.Components.BrainBlackboard</c>), which would produce identical struct
+    /// names (CS0101) if the suffix were used alone. Pattern <c>{AssetName}_{TypeNameSuffix}</c>, e.g.
+    /// <c>T10_MultiAction_BrainBlackboard</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <c>CE-235</c>: extracted from <see cref="EmitBlackboardStructSource(BehaviorTreeAssetDto, IStructSizeResolver?, out IReadOnlyList{BTreeBlackboardPackHelper.PackedField})"/>
+    /// so the REGISTRAR emitter can name the same type when it sets
+    /// <c>BehaviorDefinition.JsonParamsDtoType</c>. ⛔ Two independent copies of this rule would be a
+    /// silent CS0246 waiting for the first asset with an unusual name — one producer, per <c>R-132</c>.
+    /// </para>
+    /// </summary>
+    internal static string BlackboardStructName(BehaviorTreeAssetDto dto)
+    {
+        string assetPrefix = SanitizeIdentifier(dto.Name);
+        string typeSuffix  = string.IsNullOrWhiteSpace(dto.Blackboard?.TypeName)
+            ? "Blackboard"
+            : SanitizeIdentifier(dto.Blackboard!.TypeName);
+        if (string.IsNullOrEmpty(typeSuffix)) typeSuffix = "Blackboard";
+        return assetPrefix + "_" + typeSuffix;
+    }
+
+    /// <summary>
+    /// The <c>global::</c>-qualified name of the managed blackboard struct, for emission into
+    /// generated code.
+    /// </summary>
+    internal static string BlackboardStructFqn(BehaviorTreeAssetDto dto)
+        => "global::" + BlackboardStructNamespace(dto) + "." + BlackboardStructName(dto);
+
+    /// <summary>
     /// Emits a <c>[StructLayout(LayoutKind.Sequential)]</c> struct for a managed blackboard block.
     /// Returns the C# source string and fills <paramref name="packedFields"/> with the
     /// packing result (name → byte offset, packed order = declaration order for master vars).
@@ -77,21 +118,8 @@ public static class BTreeEmitCore
 
         packedFields = fields;
 
-        var targetNs = string.IsNullOrEmpty(dto.TargetNamespace)
-            ? "Hrot.AI.Behaviors.Trees"
-            : dto.TargetNamespace;
-
-        // Always prefix with the asset name to ensure uniqueness across multiple managed assets
-        // in the same namespace — multiple assets share the same BlackboardTypeName (e.g.
-        // "Fdp.Toolkit.Behavior.Components.BrainBlackboard") which would produce identical
-        // struct names (CS0101) if we used the TypeName alone.
-        // Pattern: {AssetName}_{TypeNameSuffix} — e.g. "T10_MultiAction_BrainBlackboard".
-        string assetPrefix   = SanitizeIdentifier(dto.Name);
-        string typeSuffix    = string.IsNullOrWhiteSpace(dto.Blackboard.TypeName)
-            ? "Blackboard"
-            : SanitizeIdentifier(dto.Blackboard.TypeName);
-        if (string.IsNullOrEmpty(typeSuffix)) typeSuffix = "Blackboard";
-        string structName = assetPrefix + "_" + typeSuffix;
+        var targetNs    = BlackboardStructNamespace(dto);
+        string structName = BlackboardStructName(dto);
 
         var sb = new StringBuilder();
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));

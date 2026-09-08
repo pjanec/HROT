@@ -450,7 +450,29 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}BrainTier    = BehaviorConstants.BrainTierBTree,");
         sb.AppendLine($"{pad2}{Indent}BTreeInterpreter = interpreter,");
         if (isManaged && packedFields != null && packedFields.Count > 0)
+        {
             EmitManagedBlackboardVariablesArray(sb, packedFields, pad2 + Indent);
+
+            // ⭐⭐⭐ CE-235 — the AUTHORED JSON CONTRACT for a JSON-authored asset.
+            //
+            // For a generated asset the authored shape and the blackboard layout COINCIDE, and that
+            // is the design's default case, not a shortcut: Behavior_Parameter_Resolver_Detailed_Design
+            // §3.2 — "one shape by default — the authored DTO is an auto-generated mirror; two shapes
+            // only on divergence". The emitted struct IS that mirror. Its field names are exactly the
+            // `case` labels EmitParseParamsLocal writes from this same packedFields list, so the
+            // schema cannot drift from the parser — one list, three artefacts.
+            //
+            // ⛔ The two members still hold DIFFERENT types for the curated behaviours that DO
+            //   diverge (a geo point vs a Cartesian pair; a network id vs a resolved Entity) — those
+            //   get their authored DTO from [BehaviorContract] via BehaviorSchemaDiscovery.
+            //
+            // ⚠ Guarded by `packedFields.Count > 0` because that is the exact condition under which
+            //   BTreeEmitCore.EmitBlackboardStructSource emits the struct at all; naming it otherwise
+            //   would emit a reference to a type that does not exist.
+            string bbStructFqn = BTreeEmitCore.BlackboardStructFqn(dto);
+            sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({bbStructFqn}),");
+            sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({bbStructFqn}),");
+        }
         if (hasParseParams)
             sb.AppendLine($"{pad2}{Indent}ParseParams  = __parseParams,");
         if (isManaged)

@@ -136,6 +136,8 @@ public static class T10_MultiActionRegistrar
                 new("counter", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams), 0),
                 new("accum", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoAccumParams), 8),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T10_MultiAction_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T10_MultiAction_FdpToolkitBehaviorComponentsBrainBlackboard),
             ParseParams  = __parseParams,
         });
     }

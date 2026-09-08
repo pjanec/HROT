@@ -291,7 +291,7 @@ public sealed class AiHotReloadCoordinator : IDisposable
     public void Dispose()
     {
         StopWatching();
-        // Release BehaviorDefinition delegate references (ParseParams, ParamsDtoType, etc.)
+        // Release BehaviorDefinition delegate references (ParseParams, BlackboardLayoutType, etc.)
         // from collectible assemblies so they can be GC-reclaimed.
         _behaviorRegistry.Clear();
         foreach (var alc in _alcByBlueprintId.Values.Distinct())

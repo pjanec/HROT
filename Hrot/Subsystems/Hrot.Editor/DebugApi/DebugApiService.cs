@@ -115,6 +115,56 @@ namespace Hrot.Editor.DebugApi
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.TkbRead);
 
         /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-236</c> — THIS NODE'S GEOGRAPHIC TRANSFORM, and it is the SIMULATION'S OWN.</b>
+        /// Resolved exactly like <see cref="_tkbDb"/>: the injected instance, else the world singleton
+        /// this node's simulation actually converts with.
+        ///
+        /// <para>
+        /// 🔒 <b>User ruling, <c>2026-09-08</c>:</b> <i>"we should always have that world singleton
+        /// available. Not having it is a bug. And it must be shared … among ai debug mcp api, the
+        /// scenario loader &amp; json parameter interpreter etc. All implementations must point to the
+        /// same source, one single GeographicTransform implementation"</i>, and every consumer must read
+        /// it <i>"VIA THE INTERFACE (never directly looking up the singleton)"</i> — hence
+        /// <see cref="IGeographicTransform"/> here, resolved once in one property rather than
+        /// <c>GetSingletonManaged</c> scattered through the routes.
+        /// </para>
+        ///
+        /// <para>
+        /// 🔴🔴 <b>This used to be <c>_geoTransform = geoTransform ?? new WGS84Transform()</c>.</b>
+        /// ⛔ <c>WGS84Transform</c> has NO default origin — <c>_originLat/_originLon/_originAlt</c> are
+        /// plain fields defaulting to <c>0</c> and only <c>SetOrigin</c> fills them, while every
+        /// simulation node runs on the Berlin origin that <c>HrotEnvironment.CreateGeoTransform()</c>
+        /// sets. 📐 Measured <c>2026-09-08</c>: <c>ClusterRunner/Program.cs:447</c> passed no
+        /// <c>geoTransform:</c>, so on <c>--mode all</c> <c>GET /world/info</c> and
+        /// <c>POST /world/geo-to-local</c> answered against <b>0°N 0°E</b> — the Gulf of Guinea — while
+        /// the simulation converted against Berlin. ⚠ Not a small error: a different continent, reported
+        /// as success.
+        /// </para>
+        ///
+        /// <para>
+        /// ⛔ <b>THROWS rather than substituting an origin</b>, the same reasoning as <c>_tkbDb</c> and
+        /// ruling 49 (<i>absent-and-explained beats present-and-broken</i>): a coordinate computed
+        /// against the wrong origin is a valid-looking answer, so no caller can tell it from a right one.
+        /// </para>
+        /// </summary>
+        private IGeographicTransform GeoTransform
+            => _geoTransform
+               ?? WorldGeoTransformOrNull()
+               ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.WorldRead);
+
+        /// <summary>
+        /// The world singleton, when this node has a world and it publishes one. Null rather than
+        /// throwing so <see cref="GeoTransform"/> owns the single refusal.
+        /// </summary>
+        private IGeographicTransform? WorldGeoTransformOrNull()
+        {
+            EntityRepository? world = _editorWorld ?? _dispatcher?.World;
+            return world is not null && world.HasSingletonManaged<IGeographicTransform>()
+                ? world.GetSingletonManaged<IGeographicTransform>()
+                : null;
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <b><c>BP-487</c> — THIS HOST'S MAP FEED, resolved the same way as
         /// <see cref="_world"/>/<see cref="_time"/>: the editor's own buffer, else the ACTIVE PERSPECTIVE's.
         /// 📄 <c>DESIGN_Subsystem_Composition_Unification.md</c> §5.6 ·
@@ -225,7 +275,10 @@ namespace Hrot.Editor.DebugApi
         //   HrotNodeContext.TkbDb (typed ITkbDatabase), and _tkbDb below was ALREADY the
         //   interface — this field was the only concrete link left in the chain.
         private readonly Fdp.Interfaces.ITkbDatabase? _editorTkbDb;
-        private readonly IGeographicTransform  _geoTransform;
+        // ⭐ CE-236: NULLABLE on purpose — see the GeoTransform property. A composition root that has the
+        //   node's transform passes it; one that does not falls through to the world singleton rather
+        //   than to a private, origin-less WGS84Transform.
+        private readonly IGeographicTransform? _geoTransform;
         private readonly float                 _spatialGridCellSize;
         private readonly float                 _spatialGridOriginX;
         private readonly float                 _spatialGridOriginY;
@@ -273,7 +326,20 @@ namespace Hrot.Editor.DebugApi
         private readonly Fdp.Toolkit.Blueprints.BlueprintRegistry? _blueprintRegistry;
 
         // Group L — Attribute patch + StructEdit component edit
-        private readonly JsonAttributeCompiler _attributeCompiler;
+        private readonly JsonAttributeCompiler? _injectedAttributeCompiler;
+        private JsonAttributeCompiler? _builtAttributeCompiler;
+
+        /// <summary>
+        /// ⭐ <c>CE-236</c> — built LAZILY, because it needs <see cref="GeoTransform"/> and this service
+        /// is constructed BEFORE the world exists on some hosts (the same ordering that made
+        /// <c>_behaviorRegistry</c> a <c>Func</c> in <c>CE-169</c>). Building it in the constructor is
+        /// what forced the old <c>?? new WGS84Transform()</c> default that answered against the wrong
+        /// origin.
+        /// </summary>
+        private JsonAttributeCompiler _attributeCompiler
+            => _injectedAttributeCompiler
+               ?? (_builtAttributeCompiler ??=
+                   Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(GeoTransform));
         private readonly IComponentEditService _componentEditSvc;
 
         // Group M — Focus / Annotations (ADA-BATCH-14)
@@ -359,7 +425,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>Default upper bound for event-history queries.</summary>
         public const int DefaultMaxEvents = 200;
 
-        // MX4a — behaviour discovery. The registry already holds behaviourId -> ParamsDtoType, so
+        // MX4a — behaviour discovery. The registry already holds behaviourId -> JsonParamsDtoType, so
         // the schema comes from the SAME definition the runtime parses params with; the mission
         // service (optional) gives exact parity with the editor's mission-task combo for an entity.
         // ⭐⭐ CE-169 — TWO sources, because the two composition roots differ in TIMING, not in intent.
@@ -449,7 +515,7 @@ namespace Hrot.Editor.DebugApi
             //    a caller that HAS the dependency must pass it) — EditorSubsystem does.
             _editorRequestTransition = requestTransition;
             _editorTkbDb       = tkbDb            ?? new TkbDatabase();   // ⭐ the editor DOES pass one; kept non-null so its shape is unchanged
-            _geoTransform      = geoTransform     ?? new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            _geoTransform      = geoTransform;   // ⭐ CE-236: no origin-less default — see GeoTransform
             _spatialGridCellSize = spatialGridCellSize;
             _spatialGridOriginX  = spatialGridOriginX;
             _spatialGridOriginY  = spatialGridOriginY;
@@ -466,7 +532,7 @@ namespace Hrot.Editor.DebugApi
             _btreeSession     = btreeSession;
             _hsmSession       = hsmSession;
             _blueprintSession = blueprintSession;
-            _attributeCompiler = attributeCompiler ?? Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(_geoTransform);
+            _injectedAttributeCompiler = attributeCompiler;   // CE-236: else built lazily from GeoTransform
             _componentEditSvc  = componentEditSvc  ?? new ComponentEditServiceBuilder().Build();
             _primitiveBuffer   = primitiveBuffer;
             if (_bpManager != null)
@@ -510,7 +576,12 @@ namespace Hrot.Editor.DebugApi
             //    through to the ACTIVE PERSPECTIVE's real catalog (`_dispatcher.TkbDb`), and if a node
             //    genuinely has none the route says NOT_SUPPORTED_HERE instead of lying with an empty list.
             _editorTkbDb  = tkbDb;
-            _geoTransform = geoTransform ?? new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            // ⭐⭐⭐ CE-236 — ⛔⛔ NO `?? new WGS84Transform()` HERE, for exactly CE-110's reason one line
+            //    above. That default had NO ORIGIN (WGS84Transform's origin fields default to 0 and only
+            //    SetOrigin fills them), so --mode all answered /world/geo-to-local against 0°N 0°E while
+            //    every simulation node ran on Berlin. Left null, GeoTransform falls through to the world
+            //    singleton — the one the simulation itself converts with.
+            _geoTransform = geoTransform;
 
             _spatialGridCellSize = 5.0f;
             _spatialGridOriginX  = 0f;
@@ -520,7 +591,7 @@ namespace Hrot.Editor.DebugApi
 
             _diffService       = new ComponentDiffService();
             _logSinks          = logSinks ?? (() => Array.Empty<IMessageLogSource>());   // diagnostics MD-001: lazy Func
-            _attributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(_geoTransform);   // AX-017: moved to Fdp.Toolkits
+            _injectedAttributeCompiler = null;   // AX-017 lives in Fdp.Toolkits; CE-236 builds it lazily from GeoTransform
             _componentEditSvc  = new ComponentEditServiceBuilder().Build();
             _primitiveBuffer   = primitiveBuffer;
             _behaviorRegistryGetter = behaviorRegistry;
@@ -1661,7 +1732,7 @@ namespace Hrot.Editor.DebugApi
         /// <c>GET /behaviors?tkbType=</c> (or <c>?entityId=</c>) — the behaviours an entity of that
         /// type may run, each with the JSON schema of its parameter DTO (<c>MX4a</c>).
         ///
-        /// <para><b>Reuse, not a new registry.</b> <see cref="BehaviorDefinition.ParamsDtoType"/>
+        /// <para><b>Reuse, not a new registry.</b> <see cref="BehaviorDefinition.JsonParamsDtoType"/>
         /// already holds behaviourId → param DTO — the very type the runtime parses params with — so
         /// the schema an agent authors against and the bytes the engine reads come from ONE
         /// declaration. ⛔ Nothing here maintains a second list.</para>
@@ -1855,7 +1926,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>GET /world/info — geo origin, spatial grid extent, terrain/navmesh null.</summary>
         public JsonNode GetWorldInfo()
         {
-            var origin = _geoTransform.Origin;
+            var origin = GeoTransform.Origin;
             float extentMinX = _spatialGridOriginX;
             float extentMaxX = _spatialGridOriginX + _spatialGridWidth * _spatialGridCellSize;
             float extentMinY = _spatialGridOriginY;
@@ -1895,7 +1966,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>POST /world/geo-to-local — convert geodetic to local ENU coordinates.</summary>
         public JsonNode GeoToLocal(double lat, double lon, double alt, float? headingDeg)
         {
-            var pos = _geoTransform.ToCartesian(lat, lon, alt);
+            var pos = GeoTransform.ToCartesian(lat, lon, alt);
             var obj = new JsonObject
             {
                 ["x"] = pos.X,
@@ -1919,7 +1990,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>POST /world/local-to-geo — convert local ENU to geodetic coordinates.</summary>
         public JsonNode LocalToGeo(float x, float y, float z, Quaternion? rotation)
         {
-            var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(x, y, z));
+            var (lat, lon, alt) = GeoTransform.ToGeodetic(new Vector3(x, y, z));
             var obj = new JsonObject
             {
                 ["lat"] = lat,

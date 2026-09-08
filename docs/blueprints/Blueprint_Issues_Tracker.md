@@ -1797,7 +1797,7 @@ nothing here moves the counts table.*
 
 ---
 
-- [ ] **CE-228** · `RW-S` ⚠ **PARTLY FIXED `2026-09-08`** *(the misleading example is gone; the design half is still open)* — **THE `paramSchema` DESCRIBES THE BLACKBOARD STRUCT, BUT THE RESOLVER PARSES A DIFFERENT JSON DTO.** 📐 **Measured `2026-09-08`.**
+- [x] **CE-228** · `RW-S` ✅ **FIXED `2026-09-08`** *(`CE-235` closed the design half; the misleading example went first)* — **THE `paramSchema` DESCRIBES THE BLACKBOARD STRUCT, BUT THE RESOLVER PARSES A DIFFERENT JSON DTO.** 📐 **Measured `2026-09-08`.**
 
   ⭐ `ParamsDtoType` points at the **blittable blackboard struct** *(`MoveToLocationParams { X, Y, Speed, ArrivalRadius }`)*, which is what `CE-224` now advertises and what the runtime reads. ⚠ But the resolver deserializes a **separate wire type** — `MoveToLocationParamsJsonDto { TargetLat, TargetLon, Speed, ArrivalRadius, X, Y }` *(`CgfNodes.cs:130`)* — a **superset**.
 
@@ -1815,7 +1815,7 @@ nothing here moves the counts table.*
 
   `add_mission_task`'s `ExampleArgsJson` now shows **`{"X":500,"Y":520,"Speed":8,"ArrivalRadius":5}`** — `MoveToLocation`'s real keys, the ones proven end to end in `CE-224`. The old `{"Latitude","Longitude"}` bound to **nothing**: the params region would have stayed all-zero and the entity would have driven to the origin with no error anywhere — 📌 `R-132`'s exact failure shape, **invited by our own documentation**. A note in the route's `Notes` records what it used to say and why that mattered.
 
-  ## ⚠ THE DESIGN HALF IS STILL OPEN — and `CE-226` narrowed it
+  ## ⛔ HISTORY — THE DESIGN HALF, while it was open *(`CE-226` narrowed it; `CE-235` closed it — see the row below)*
 
   ⭐⭐ **For GENERATED behaviours the question is now ANSWERED by construction:** the manifest `CE-226` reads is emitted from the same packed-field list as the `ParseParams` switch, so the schema **is** the deserialized shape.
 
@@ -1844,6 +1844,76 @@ nothing here moves the counts table.*
   ### ⛔⛔ THE GEO ARM SILENTLY LANDS AT THE ORIGIN WHEN `CE-151`'s BOOTSTRAP STEP IS MISSING
 
   📐 `ResolveMoveToParams` *(`CgfNodes.cs:159`)* reads `IGeographicTransform` as a **world singleton**, passing `null` when absent; `ParseMoveToParams:205` then converts **only** `if (geoTransform != null)`, leaving `p.X = dto.X`, `p.Y = dto.Y` — **`0,0` for a geo-authored order.** ⇒ 🔴 **on any host that skipped the transform publish — precisely the hosts `CE-151` enumerates — a lat/lon move order drives the entity to the map origin with no error on any path.** ⭐⭐ **So `CE-228`'s design half and `CE-151` are the same silent-zero defect seen from the two ends**, and a `ParamsWireType` that advertises `TargetLat`/`TargetLon` **must not ship before `CE-151`'s forwarding rail**, or the API would start documenting a form that fails silently on three of the hosts.
+
+---
+
+
+- [x] **CE-235** · `RW-L` ✅ **FIXED `2026-09-08`** — ⭐⭐⭐ **`GET /behaviors` PUBLISHED THE BLACKBOARD LAYOUT AS A PUBLIC CONTRACT. IT NOW PUBLISHES THE AUTHORED JSON DTO.** 🔒 **User ruling, `2026-09-08`:** *"nothing but the behavior implementation itself should use and touch the blackboard; the behavior spec from scenario or from mcp server or from wherever always comes with json/dto only … the blackboard DTO should never appear in any public behavior description as it is internal stuff."* 📄 Design basis: [`DESIGN_Parameter_Model.md` §3.1](DESIGN_Parameter_Model.md) quoting [`Behavior_Parameter_Resolver_Detailed_Design.md` §3.2](Behavior_Parameter_Resolver_Detailed_Design.md) — *"the three data shapes"*, of which **only the authored DTO is authored**.
+
+  ⛔⛔ **The design said this three months ago and the code never honoured it.** `BehaviorDefinition` had ONE type member, `ParamsDtoType`, created by **`TASK-FBT-032`** *(`.dev/_DONE/fluent-btree/TASK-DETAIL.md:763`, Phase 4)* as the **blackboard** pointer *"for typed rendering in `BrainBlackboardRenderer`"*. `CE-224` wired the public schema to it; `CE-226` added a second layout description. ⇒ both my own rows published engine internals.
+
+  ### 📐 WHAT THAT COST, measured
+
+  | behaviour | advertised (layout) | actually accepted (JSON) | verdict |
+  |---|---|---|---|
+  | 🔴 **`FireAtTarget`** | `TargetPacked, MaxRounds, CooldownSeconds, RoundsFired` | `TargetNetworkId, MaxRounds, CooldownSeconds` | **WRONG** — a resolved handle and a runtime **OUTPUT** counter offered as settable, and the only key that aims the weapon **not advertised at all**. ⇒ an agent following the schema **could not fire** |
+  | ⚠ `MoveToLocation` | `X, Y, Speed, ArrivalRadius` | `TargetLat, TargetLon, Speed, ArrivalRadius, X, Y` | under-advertised — the geo form was accepted and hidden |
+  | ✅ `FollowRoute` | — | deserializes the struct **directly** | correct by identity |
+
+  ### ⭐ THE SHAPE, and it is TWO MEMBERS on one record
+
+  | member | is | read by |
+  |---|---|---|
+  | ⭐⭐ **`JsonParamsDtoType`** *(the rename)* | the **authored JSON contract** | `DtoJsonSchemaExtractor` → `GET /behaviors`, the mission panel, MCP |
+  | 🔒 **`BlackboardLayoutType`** *(new; the old meaning)* | the blittable layout | 10 internal readers — the SimHost translator, 3 renderers/StructEdit, the ReplayBrowser predicate compiler + 2 drawers, and the 60-byte size guard |
+
+  ⭐⭐⭐ **BOTH renamed deliberately** 🔒 *(user: "forcing the compiler to expose all places where it is used so we never forget to revise its correct usage")* ⇒ a **compile error at all 23 consumer files**, never a silent meaning change. 📌 **It paid at once:** the sweep found **3 readers my prior enumeration had missed** — `PredicateCompiler.cs:317`, `PropertyPathFieldDrawer.cs:148`, `PredicateValueFieldDrawer.cs:224` — and caught that the `MaxBehaviorParamByteSize` guard must read the LAYOUT type *(a JSON DTO's `Marshal.SizeOf` is meaningless)*.
+
+  ### ⭐⭐ THE PRODUCER ALREADY EXISTED — `[BehaviorContract]` → `BehaviorSchemaDiscovery`
+
+  11 tagged DTOs in `Hrot.Core/MapDefinitions/Behavior/`, discovered reflectively, already driving the editor's parameter form **and** scenario id-remapping, wired at two production sites. ⇒ the runtime registry was the **missing fourth consumer**. 📌 The seam law again: it existed and was under-adopted. ⛔ **One producer** *(`R-132`)* — the curated registrar deliberately does **not** set `JsonParamsDtoType`.
+
+  ### ⛔ AND I WAS WRONG ABOUT THE GENERATED ARM — the DTO existed all along
+
+  🔒 **User:** *"The dto is likely just generated but i am pretty sure it exists, pls find that in the design documents."* ✅ **Correct.** 📄 [`Blackboard_Authoring_Detailed_Design.md`](Blackboard_Authoring_Detailed_Design.md):18 — *"the **param-DTO struct** … is **generated from the JSON at build** … emitted to `obj/GeneratedFiles`"*; :1021 — the generated `Params` struct is *"treated the same as a hand-written DTO"*. 📐 **15 `*.Blackboard.g.cs` files were already on disk.** ⚠⚠ **My earlier "generated behaviours have no params DTO class" measured the ASSIGNMENT, not the EXISTENCE** — a false negative of exactly the shape `RULE ZERO`'s enumeration rule names. The registrar now emits `JsonParamsDtoType` **and** `BlackboardLayoutType` as the **same** emitted struct — §3.1's *"one shape by default"*, made explicit.
+
+  ⚠ **The HSM arm keeps the manifest fallback, and that is MEASURED not lazy:** the HSM generator emits **no** blackboard struct *(`EmitBlackboardStructSource` has exactly one caller, `BTreeJsonGenerator.cs:290`)*, so there is no type to name; its manifest and its `ParseParams` switch come from one packed-field list, so it cannot drift.
+
+  ### ⭐ `X`/`Y` STAY, ADVERTISED, WITH THE ORIGIN CAVEAT
+
+  🔒 **User:** *"cartesian depends on geoconverter, different nodes might use different origin, generic parameter for generic use should be geo always; for purpose of ai driven development cartesian is much easier … so i would keep it."* ⇒ added to the authored DTO documented as **local ENU relative to this node's origin, not portable**, with `TargetLat`/`TargetLon` named canonical.
+
+  ### 📐 GATES
+
+  | gate | result |
+  |---|---|
+  | `Hrot.Editor.Tests` | ✅ **385 passed / 0 failed / 1 skipped** *(baseline `373/1/374`; the `CE-220` ALC flake did not fire)* |
+  | the two rewritten rail suites | ✅ **14/14** |
+  | `Fdp.Toolkits.Tests` — Behavior + ReplayBrowser + Predicate | ✅ **368/368** |
+  | `Hrot.AiEditor.Generators.Tests` | ✅ **280/280** |
+  | `Hrot.AiEditor.Persistence.Tests` | ✅ **150/150** |
+  | ⭐ **golden movement** | **16 files, PURELY ADDITIVE — 34 insertions, 0 deletions**: two lines per BTree registrar, plus **4 lines for `HsmVariableShowcase`** |
+  | working tree after every suite | ✅ clean |
+
+  ⚠⚠ **A PRE-EXISTING RED WAS FOUND AND OWNED:** `HsmGoldenCorpusTests(HsmVariableShowcase)` **already failed at the base commit `7d4d37cc2`** *(stash-verified, 1 failed / 50)* — **`CE-226` added the HSM manifest emission and never regenerated that golden.** ⇒ my own gate miss two batches ago, not a regression here. Regenerated with `AI_REGENERATE_SNAPSHOTS=1`.
+
+  ### ⚠ TWO FINDINGS THIS EXPOSED, filed rather than fixed
+
+  ① **`JoinFormation` has unfillable blackboard fields** — its `[BehaviorContract]` DTO is deliberately memberless *("the contract exists to anchor the behavior ID and category")*, yet its layout declares `LeaderNetworkId`/`FormationTypeId` and it registers **no resolver** ⇒ two fields nothing can ever fill. ⭐ Before `CE-235` the endpoint advertised them as settable.
+  ② **A first-draft rail asserted "an authored contract ⇒ ≥1 parameter" and reddened on `JoinFormation`** — the RAIL was wrong, not the code. Restated as **correspondence** *(advertised == contract, entry for entry)*, which is strictly stronger and honest about the parameterless case.
+
+---
+
+
+- [x] **CE-236** · `RW-M` ✅ **FIXED `2026-09-08`** *(the debug-API half; the publish-everywhere half stays with `CE-151`)* — 🔴🔴 **THE CLUSTER DEBUG API CONVERTED COORDINATES AGAINST A DIFFERENT CONTINENT THAN THE SIMULATION.** 🔒 **User ruling, `2026-09-08`:** *"we should always have that world singleton available. Not having it is a bug. And it must be shared … among ai debug mcp api, the scenario loader & json parameter interpreter etc. All implementations must point to the same source, one single GeographicTransform implementation"* — and every consumer reads it *"VIA THE INTERFACE (never directly looking up the singleton)"*.
+
+  📐 **The mechanism, measured `2026-09-08`:** `DebugApiService.cs:452/:513` read `geoTransform ?? new WGS84Transform()`. ⛔ **`WGS84Transform` has NO default origin** — `_originLat/_originLon/_originAlt` are plain fields defaulting to `0`, filled only by `SetOrigin` — while every node runs on the Berlin origin `HrotEnvironment.CreateGeoTransform()` sets. ⇒ `ClusterRunner/Program.cs:447` passed no `geoTransform:`, so on `--mode all` **`GET /world/info` and `POST /world/geo-to-local` answered against 0°N 0°E**, the Gulf of Guinea. ⚠ Not a rounding error — a different continent, reported as success. ✅ `EditorSubsystem.cs:2166` did pass one, so the editor was fine and the cluster was not.
+
+  ⭐ **THE FIX, mirroring `CE-110` exactly** *(which deleted `?? new TkbDatabase()` for the same reason one line above)*: `_geoTransform` is nullable, a `GeoTransform` property resolves **injected → world singleton → `NotSupportedHere`**, and the composition root passes the node's transform. ⛔ **It THROWS rather than substituting an origin** — ruling 49, *absent-and-explained beats present-and-broken*: a coordinate computed against the wrong origin is a valid-looking answer no caller can distinguish from a right one.
+
+  ⭐ **One property, not scattered lookups** — the user's *"via the interface"* half: `GetSingletonManaged` appears **once**, inside `WorldGeoTransformOrNull()`; the three routes read `IGeographicTransform`. ⭐ `_attributeCompiler` became **lazy** for the same reason `CE-169` made the behaviour registry a `Func` — it needs the transform, and this service is built before the world exists.
+
+  ⚠ **STILL OPEN, and it is `CE-151`'s:** `HrotEnvironment.CreateGeoTransform()` is called at **6+ sites**, each returning a NEW `WGS84Transform` with the same hard-coded Berlin constants. ⇒ they agree **by copy-paste, not by construction**, and nothing asserts it. ⭐ The user's *"one single implementation"* needs `CE-151`'s world-bootstrap seam; this row only stops the debug API inventing its own.
 
 ---
 

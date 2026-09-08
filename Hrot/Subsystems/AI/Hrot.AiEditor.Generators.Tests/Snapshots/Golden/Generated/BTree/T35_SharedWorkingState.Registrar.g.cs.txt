@@ -304,6 +304,8 @@ public static class T35_SharedWorkingStateRegistrar
                 new("bpParamsSharedB", typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params), 4),
                 new("bpParamsControl", typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params), 8),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_FdpToolkitBehaviorComponentsBrainBlackboard),
             ParseParams  = __parseParams,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {

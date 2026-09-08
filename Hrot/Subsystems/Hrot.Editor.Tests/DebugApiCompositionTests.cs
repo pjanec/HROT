@@ -30,7 +30,8 @@ public sealed class DebugApiCompositionTests
     // BlueprintTierSummary needs the registry to turn a blackboard slot's int id into the asset Guid
     // the session addresses variables by. Without it no entity resolves to an asset at all.
     [InlineData("blueprintRegistry:", "an entity's attached blueprints cannot be resolved to an asset")]
-    // MX4a: GET /behaviors emits each behaviour's param schema from BehaviorDefinition.ParamsDtoType.
+    // MX4a: GET /behaviors emits each behaviour's param schema from BehaviorDefinition.JsonParamsDtoType
+    // (CE-235: the AUTHORED JSON contract; BlackboardLayoutType is engine-internal and never published).
     [InlineData("behaviorRegistry:", "GET /behaviors cannot report any behaviour's parameter schema")]
     // The staged-write queue is also what the pending (yellow) flag is read from.
     [InlineData("bpManager:", "breakpoints and the pending-write flag are both unavailable")]

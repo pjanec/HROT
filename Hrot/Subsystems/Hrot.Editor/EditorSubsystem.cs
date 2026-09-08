@@ -2175,7 +2175,7 @@ namespace Hrot.Editor
                         // dependency that is not passed is the silent-default defect, not a default.
                         blueprintSession: _blueprintDebugSession,
                         primitiveBuffer:  _gizmoBuffer,
-                        // MX4a — behaviour discovery. The registry carries behaviourId -> ParamsDtoType,
+                        // MX4a — behaviour discovery. The registry carries behaviourId -> JsonParamsDtoType,
                         // so GET /behaviors emits the schema from the same definition the runtime parses
                         // params with. Held here already; passing it is the whole wiring.
                         behaviorRegistry: behaviorRegistry,

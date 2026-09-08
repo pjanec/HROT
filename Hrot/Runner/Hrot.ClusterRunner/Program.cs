@@ -444,11 +444,19 @@ class Program
                                     .Select(s => s.BehaviorRegistry)
                                     .FirstOrDefault(r => r is not null);
 
+                // ⭐⭐ CE-236 — geoTransform is PASSED, not defaulted. Before this the service fell back
+                //    to `new WGS84Transform()`, whose origin fields default to 0, so GET /world/info and
+                //    POST /world/geo-to-local answered against 0°N 0°E while every node's simulation ran
+                //    on the Berlin origin HrotEnvironment.CreateGeoTransform() sets. 🔒 User ruling
+                //    2026-09-08: one GeographicTransform, shared by the debug API, the scenario loader
+                //    and the JSON parameter interpreter alike. ⛔ Null here is not a silent fallback any
+                //    more — the service then resolves the world singleton, and refuses if there is none.
                 clusterApiService = new Hrot.Editor.DebugApi.DebugApiService(
                     dispatcher,
                     logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(
                         windowCtrl?.WindowManager?.MessageLogRegistry),
-                    behaviorRegistry: behaviorRegistryGetter);
+                    behaviorRegistry: behaviorRegistryGetter,
+                    geoTransform: HrotEnvironment.CreateGeoTransform());
                 clusterApiHost.AttachService(clusterApiService);
                 clusterApiHost.Start();
 

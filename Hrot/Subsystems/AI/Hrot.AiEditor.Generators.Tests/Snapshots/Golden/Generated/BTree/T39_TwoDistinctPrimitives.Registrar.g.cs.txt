@@ -300,6 +300,8 @@ public static class T39_TwoDistinctPrimitivesRegistrar
                 new("bpParamsB", typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodesB.Params), 8),
                 new("bpParamsC", typeof(global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params), 16),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T39_TwoDistinctPrimitives_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T39_TwoDistinctPrimitives_FdpToolkitBehaviorComponentsBrainBlackboard),
             ParseParams  = __parseParams,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {

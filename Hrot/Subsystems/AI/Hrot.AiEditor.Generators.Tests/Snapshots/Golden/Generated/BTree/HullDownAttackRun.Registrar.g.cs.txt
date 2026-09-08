@@ -134,6 +134,8 @@ public static class HullDownAttackRunRegistrar
             {
                 new("Params", typeof(global::Hrot.AI.Behaviors.Brains.HullDownAttackParams), 0),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.HullDownAttackRun_Blackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.HullDownAttackRun_Blackboard),
             ParseParams  = __parseParams,
         });
     }

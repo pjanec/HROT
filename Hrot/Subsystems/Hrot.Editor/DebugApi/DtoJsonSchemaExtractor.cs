@@ -58,41 +58,43 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
-        /// The schema for a behaviour, from whichever of its two parameter descriptions exists.
+        /// The schema for a behaviour: the shape a caller writes when ASSIGNING it.
         /// </summary>
         /// <remarks>
-        /// ⭐⭐ <b><c>CE-226</c> — TWO KINDS OF BEHAVIOUR DESCRIBE THEIR PARAMETERS TWO WAYS, and reading
-        /// only the first left 34 of 40 blank.</b>
-        /// <list type="number">
-        ///   <item><b>Curated</b> behaviours carry a <c>ParamsDtoType</c> — a hand-written blittable
-        ///     struct — set by <c>CgfCuratedBehaviorRegistrar</c> or by a <c>RegisterResolver</c> overlay.</item>
-        ///   <item><b>Generated</b> (JSON-authored) behaviours have no such struct: their parameters are
-        ///     packed managed blackboard variables, and the generator describes them in
-        ///     <see cref="BehaviorDefinition.ManagedBlackboardVariables"/> —
-        ///     <c>ManagedBlackboardVariable(Name, Type, ByteOffset)</c>.</item>
-        /// </list>
+        /// ⭐⭐⭐ <b><c>CE-235</c> — THIS READS THE AUTHORED JSON CONTRACT, AND NOTHING ELSE OF THE
+        /// BLACKBOARD.</b> 🔒 User ruling, <c>2026-09-08</c>: <i>"the behavior spec from scenario or from
+        /// mcp server or from wherever always comes with json/dto only… the blackboard DTO should never
+        /// appear in any public behavior description as it is internal stuff."</i>
+        /// 📄 <c>Behavior_Parameter_Resolver_Detailed_Design.md</c> §3.2 names the three shapes and marks
+        /// only the <b>authored DTO</b> as authored — the usable params are hot-path input, written by the
+        /// resolver, never by a caller.
         ///
-        /// <para>⭐⭐⭐ <b>The manifest is not a second-best substitute — for these behaviours it is the
-        /// MORE truthful source.</b> 📐 Measured on <c>T09_BlackboardManaged</c>: the manifest's names are
-        /// <b>exactly</b> the <c>case</c> labels of the generated <c>ParseParams</c> switch —
-        /// <c>AttackRange, HomePosition, PatrolLoops, IsAlerted</c> — so it describes precisely what the
-        /// engine deserializes, which is what this endpoint promises. ⚠ Contrast the curated arm, where
-        /// <c>ParamsDtoType</c> is the <i>blackboard</i> struct while the resolver parses a separate wire
-        /// DTO that may accept more keys (<c>CE-228</c>).</para>
+        /// <para>
+        /// ⛔⛔ <b>What this used to do, and why it was wrong.</b> <c>CE-224</c> pointed this at
+        /// <c>ParamsDtoType</c>, which was the <i>blackboard layout</i> struct; <c>CE-226</c> then added
+        /// the packed-variable manifest, a second layout description. Both published engine internals as
+        /// a public contract. 📐 Measured on <c>FireAtTarget</c>: the layout advertises
+        /// <c>TargetPacked</c> and <c>RoundsFired</c> — a resolved handle and a runtime OUTPUT counter,
+        /// neither of which a caller may set — while omitting <c>TargetNetworkId</c>, the only key that
+        /// aims the weapon. An agent following that schema could not fire.
+        /// </para>
         ///
-        /// <para>⛔ <b>PREFER, never MERGE.</b> When both exist the DTO type wins, per
-        /// <c>R-132</c> — <i>"a curated (hand-authored) artefact outranks a generated one"</i>. Unioning
-        /// them would recreate the two-producers-for-one-slot shape that ruling exists to forbid.</para>
-        ///
-        /// <para>⭐ No new mechanism: the manifest already existed and every generated registrar already
-        /// populated it. This is adoption of an under-used seam, not a build.</para>
+        /// <para>
+        /// ⭐ <b>The fallback is not a second producer.</b> When a behaviour has no authored DTO the
+        /// manifest is used, and for a JSON-authored asset that is not a compromise: the generator emits
+        /// the <c>ParseParams</c> switch cases and the manifest from one packed-field list, so the names
+        /// ARE the accepted JSON keys — §3.2's <i>"one shape by default; the authored DTO is an
+        /// auto-generated mirror"</i>. It stays as a backstop for a behaviour whose generator predates
+        /// <c>CE-235</c>'s <c>JsonParamsDtoType</c> emission.
+        /// </para>
         /// </remarks>
         public static JsonObject ExtractParams(BehaviorDefinition definition)
         {
             if (definition is null) throw new ArgumentNullException(nameof(definition));
 
-            if (definition.ParamsDtoType is not null)
-                return ExtractParams(definition.ParamsDtoType);
+            // ⭐ THE CONTRACT. Never definition.BlackboardLayoutType — that is engine-internal.
+            if (definition.JsonParamsDtoType is not null)
+                return ExtractParams(definition.JsonParamsDtoType);
 
             var properties = new JsonObject();
             foreach (ManagedBlackboardVariable variable in
