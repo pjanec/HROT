@@ -267,6 +267,14 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         // VisualEffectCleanupSystem removes expired effect entities.
         sim.Add(new EventToEffectSystem());
         postSim.Add(new VisualEffectCleanupSystem());
+
+        // ⭐⭐ CE-244 (1 of 2) — the capabilities' `system-groups` half. See the CE-244 note on
+        //    RegisterSpawningPipeline below for the measurement; this is the same defect's other half.
+        //    UnitHierarchy and EqsResultUpdate (CoreInfrastructureCapabilities) contribute through
+        //    PopulateSystems rather than ProvideModules, deliberately, so without this pass their
+        //    systems were absent from a node whose boot log listed both capabilities by name.
+        foreach (INodeCapability capability in _capabilities)
+            capability.PopulateSystems(context, input, sim, postSim);
     }
 
     /// <inheritdoc/>
@@ -325,6 +333,40 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// <inheritdoc/>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
     {
+        // ⛔⛔⛔ CE-244 (2 of 2) — THIS BOOTSTRAPPER HONOURED ONLY ONE THIRD OF THE CAPABILITY
+        //    CONTRACT, and the missing two thirds failed SILENTLY.
+        //
+        // 📌 Measured 2026-09-09 on a CGF + Stride mode-2 run of hill-attack-close. The boot log
+        //    reported five capabilities by name --
+        //      [cap:muscle-ground, cap:perception, cap:perception:spatial,
+        //       cap:infra:unit-hierarchy, cap:infra:eqs-result-update]
+        //    -- and PERCEPTION WAS NEVER COMPOSED AT ALL. Only GetAdditionalModules() ran, which asks
+        //    each capability for ProvideModules() alone. cap:muscle-ground contributes that way, so
+        //    physics worked and the node looked healthy; every capability that contributes through
+        //    the other two hooks contributed nothing:
+        //      PerceptionSolver.Register    -> EqsModule                          NEVER REGISTERED
+        //      PerceptionSpatial.Register   -> AreaQueryResultMaterializationSystem
+        //                                      + CognitiveSpatialModule           NEVER REGISTERED
+        //      UnitHierarchy.PopulateSystems / EqsResultUpdate.PopulateSystems    NEVER CALLED
+        //
+        // 📐 INodeCapability's own remarks name the schedule: "PopulateSystems fires at system-groups
+        //    and Register at spawning-pipeline -- and additional-modules runs BETWEEN them." The three
+        //    hooks exist because the base composes in distinct steps and a capability contributing to
+        //    more than one must be asked more than once. This type asked once.
+        //
+        // ⭐ The proven template is the mode-1 editor, EditorSubsystem.cs:1506 (PopulateSystems),
+        //    :1583 (ProvideModules) and :1588 (Register) -- "ONE ordered pass per capability: the
+        //    modules it PROVIDES, then its Register hook". Mode 2 now runs the same three, each at the
+        //    step the interface documents for it rather than all at one convenient point.
+        //
+        // ⚠ Why the capability pass goes FIRST here, before this node's own spawn systems: the editor
+        //    registers capabilities ahead of its orchestration and scenario packs, and registration
+        //    order is execution order within a phase. Nothing below reads anything a capability
+        //    registers, and no capability reads the pack, so the two are independent today -- the
+        //    order is chosen to match the editor rather than to satisfy a dependency.
+        foreach (INodeCapability capability in _capabilities)
+            capability.Register(context, BootValues);
+
         // GenesisMaterializationSystem resolves cross-entity Intent DTOs into live
         // component data during scenario load. Runs in the Input phase.
         context.Kernel.RegisterGlobalSystem(
