@@ -151,3 +151,29 @@ hosted arm, mirroring `MuscleCapabilitiesFactory`)*, **not the shared-`Fdp.Toolk
 the codebase committed to stripping, and the strip is right.
 ⚠ **Still open and worth doing separately:** `NavAgentProfile` has no production writer (§3C), and
 infantry reads `Class: "PersonalCar"` rather than `Pedestrian` (§3E) — neither blocks the fix.
+
+
+## 7. ⛔ THE FIX WAS ATTEMPTED AND REVERTED — **`CE-237` needs `CE-234`'s edge closed first** *(`2026-09-08`)*
+
+⭐ §6's recommendation *(hand the translator placement to the hosted arm)* was **built, and it worked as
+far as it went**: a new `EditorSubsystem.TranslatorPlacements` seam, set by `EditorStrideSubsystem`'s
+hosted arm. 📐 Verified live — a spawned `InfantrySoldier` came out with **`VehicleState` absent,
+`VehicleParams` absent**, `NavigationIntent` intact, and the mannequin bound to the animation backend.
+
+⛔⛔ **Then it flew off at a constant 111 m/s.** With `VehicleState` stripped and no `CrowdAgent` tag yet,
+the soldier matches `LinearKinematicsSystem`'s `.Without<VehicleState>().Without<CrowdAgent>()` query —
+the system `CE-234` added to the Stride muscle — so it is ECS-integrated **while Bullet also owns it as a
+`CharacterComponent` capsule**. The reverse-sync then derives the character's `SimVelocity` from the
+inflated pose delta and feeds the integrator again: a self-sustaining loop.
+
+⇒ ⭐⭐⭐ **`CE-234`'s documented "residual edge" was the blocker all along, and stripping is what creates
+the entity it warned about.** ⭐ **Reverted** rather than left in the tree.
+
+| ⭐ the ordering this establishes | |
+|---|---|
+| **1st** | exclude **Bullet-owned** entities from the ECS integrator. ⚠ The exact marker is `PhysicsBodyReference` (`Hrot.Stride.Core`), which shared `Fdp.Toolkits` cannot reference ⇒ it needs a **seam**, not a query edit |
+| **2nd** | then the hosted-arm hand-over is safe, and infantry walks and animates |
+| **3rd** | then §6's follow-up — stamp `NavAgentProfile`, route on `MobilityProfile`, retire the strip |
+
+⚠ **This also weakens the strip strategy the architect reported as settled:** it only works where nothing
+else integrates the entity. On a Bullet host that is not free.
