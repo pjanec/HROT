@@ -312,7 +312,53 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
     /// were scoped to this service and it is not.</para>
     /// </remarks>
     public void SetSimulationAdvancing(bool advancing)
-        => Simulation.DisableSimulation = !advancing;
+    {
+        // 🔴🔴 CE-227 — DO NOT DISABLE WHILE A BODY IS STILL INITIALISING, and this is measured, not
+        //    defensive. Stride's DisableSimulation is documented "Totally disable the simulation", and
+        //    that includes the PhysicsProcessor step that first creates the native btRigidBody. The host
+        //    boots PAUSED, so gating from frame one meant the native body was NEVER created:
+        //    ApplyDynamicConfigIfReady threw forever, "InitialPose slammed" never ran, and every
+        //    velocity command was skipped — vehicles could not move at all.
+        //
+        // 📐 Measured on hill-attack-close, 25 s of sim, gate vs bypass:
+        //      gate on  -> 6 "not yet physics-ready", 0 slams, simVel [0,0,0]
+        //      bypassed -> 0 warnings,                6 slams, bodies live
+        //
+        // ⭐ So the gate yields until every body has been configured and had its initial pose applied.
+        //    That costs a few frames of physics on a paused world — bounded, and the InitialPose slam
+        //    puts the body back where it belongs — instead of costing the simulation its bodies.
+        //    ⛔ The alternative (disable unconditionally) is what shipped and is what broke movement.
+        // ⛔⛔⛔ CE-227 — THE GATE IS DELIBERATELY INERT UNTIL IT IS DESIGNED PROPERLY. Read this before
+        //    re-enabling it; two attempts have already been measured and BOTH were net-harmful.
+        //
+        // 📐 Attempt 1 (CE-223, shipped): `Simulation.DisableSimulation = !advancing`, unconditional.
+        //    Stride's DisableSimulation is documented "Totally disable the simulation" and that includes
+        //    the PhysicsProcessor step which FIRST CREATES the native btRigidBody. The host boots PAUSED,
+        //    so the native body was never created: ApplyDynamicConfigIfReady threw forever, InitialPose
+        //    was never slammed and every velocity command was skipped. ⇒ bodies stopped falling and
+        //    VEHICLES COULD NOT MOVE AT ALL. Measured, hill-attack-close, 25 s:
+        //       gate on  -> 6 "not yet physics-ready", 0 slams, simVel [0,0,0], no motion
+        //       bypassed -> 0 warnings, 6 slams, bodies live and moving
+        //
+        // 📐 Attempt 2: yield the gate while any body is still initialising. ALSO FAILS — measured
+        //    identically (6 warnings, 0 slams, no motion) — and it is unsound anyway: see below.
+        //
+        // 🔒 USER CONSTRAINT, 2026-09-08: "ELM and deferred ownership transfer is in play here and no
+        //    editor specific shortcuts shall be made; it needs to work also for stride mode 2 where the
+        //    brain who loads the scenario is on another node."
+        //    ⇒ ⛔ "yield while initialising" is EDITOR-SHAPED: on a cluster, entities stream in
+        //      continuously (late joiners, remote spawns, deferred ownership handover), so SOME body is
+        //      almost always initialising and the gate would never engage — an unbounded condition
+        //      masquerading as a transient one.
+        //    ⇒ ⛔ the InitialPose slam is likewise suspect in mode 2: the authoritative pose arrives by
+        //      REPLICATION, so slamming a locally-remembered pose can fight the owning node.
+        //
+        // ⭐ The shape a real fix probably needs: freeze PER BODY (the simulation keeps stepping, so
+        //    native bodies still initialise) rather than switching off a PROCESS-WIDE static that also
+        //    governs body creation. ⛔ Not built, because it is a design question about ELM ordering and
+        //    ownership, not a one-line gate — CE-227 carries it.
+        _ = advancing;
+    }
 
     // ── IPhysicsBodyService: body lifecycle ───────────────────────────────────
 
@@ -1660,7 +1706,20 @@ public sealed class BulletPhysicsBodyServiceDeferred : IPhysicsBodyService, IBod
     /// <see cref="BulletPhysicsBodyService.SetSimulationAdvancing"/>), so it needs no instance.</para>
     /// </remarks>
     public void SetSimulationAdvancing(bool advancing)
-        => Stride.Physics.Simulation.DisableSimulation = !advancing;
+    {
+        // ⭐⭐ CE-227 — forward to Inner once it exists, and DO NOTHING before then.
+        //
+        // ⛔⛔ The "do nothing before then" half is not tidiness, it is the defect. An earlier version of
+        //    this method set `Simulation.DisableSimulation = !advancing` on the pre-Inner branch,
+        //    reasoning that with no bodies yet there was nothing to protect. 📐 Measured: the host boots
+        //    PAUSED, so that branch latched the switch to TRUE during startup — exactly the window in
+        //    which Stride's PhysicsProcessor would create the native btRigidBodies — and once Inner
+        //    existed the (deliberately inert) forward never cleared it. ⇒ native bodies were never
+        //    created, and vehicles could not move even with the gate itself disabled.
+        //    ⚠ It cost a full diagnostic loop: the symptom is identical to the gate being at fault, and
+        //      it is not — the LATCH is.
+        if (_inner != null) _inner.SetSimulationAdvancing(advancing);
+    }
 
     /// <inheritdoc/>
     public object CreateBody(Fdp.Core.Entity entity, CollisionShapeKind shapeKind, ShapeDims dims, in SimTransform initialPose)

@@ -1563,7 +1563,32 @@ nothing here moves the counts table.*
 
   ⭐ **The rail fix this owes** *(`R-142` ③ — fix the blindness in place)*: `drive` must measure displacement **from where the vehicle ACTUALLY IS when the drive phase begins**, not from the position the reposition was supposed to have reached, and it must **refuse to run at all when `repos` failed** rather than reporting a pass built on the failure.
 
-- [x] **CE-223** · `RW-S` 🔴🔴🔴 ✅ **FIXED `2026-09-08`** — **`CE-219`'s PAUSE GATE WAS INERT IN THE LIVE APP: THE SERVICE THE HOST ACTUALLY CONSTRUCTS INHERITED AN EMPTY DEFAULT INTERFACE METHOD.** 📐 **Found BY EYE on Windows — every rail was green.** 🔒 *(user: "time paused, scenario never started, yet tanks are falling at coord syst origin")*
+- [ ] **CE-227** · `RW-M` 🔴🔴 — **THE PAUSE GATE NEEDS A DESIGN THAT SURVIVES MODE 2; `CE-223`'s ONE-LINER DID NOT, AND IT ALSO CARRIED A LATCH THAT KILLED VEHICLE MOVEMENT.** 📐 **Measured `2026-09-08` on the live Stride host.** 🔒 *(user: "ELM and deferred ownership transfer is in play here and no editor specific shortcuts shall be made; it needs to work also for stride mode 2 where the brain who loads the scenario is on another node")*
+
+  ⭐⭐ **TWO INDEPENDENT PROBLEMS, and this session conflated them for a full diagnostic loop.**
+
+  | # | | status |
+  |---|---|---|
+  | **①** | 🔴 **THE LATCH — introduced by `CE-223`.** `BulletPhysicsBodyServiceDeferred.SetSimulationAdvancing` set `Simulation.DisableSimulation` on its **pre-`Inner`** branch, on the reasoning that with no bodies yet there is nothing to protect. 📐 **The host boots PAUSED**, so that branch latched the switch **TRUE during startup** — precisely the window in which Stride's `PhysicsProcessor` creates the native `btRigidBody` — and nothing ever cleared it. ⇒ **native bodies were never created, `ApplyDynamicConfigIfReady` threw forever, `InitialPose` was never slammed, every velocity command was skipped, and vehicles could not move AT ALL** | ✅ **FIXED** |
+  | **②** | ⚠ **the gate itself** — still required, still not designed | ⛔ **inert**; bodies fall while paused, as before `CE-223` |
+
+  📐 **The isolating measurement — `hill-attack-close`, 25 s of sim, three states:**
+
+  | state | `not yet physics-ready` | `InitialPose slammed` | vehicles |
+  |---|---|---|---|
+  | `CE-223` as shipped *(latch active)* | **6** | **0** | ⛔ frozen, `simVel [0,0,0]` |
+  | gate inert but **latch still present** | **6** | **0** | ⛔ frozen — ⭐⭐ **this is what proved the GATE was not the cause** |
+  | latch removed | ✅ **0** | ✅ **6** | ✅ live *(and falling — ② is open)* |
+
+  ⛔⛔ **WHY "YIELD THE GATE WHILE ANY BODY IS INITIALISING" IS REJECTED** *(it was built and measured, and it is not merely unproven — it is wrong in shape)*: on a cluster, entities stream in continuously — late joiners, remote spawns, **deferred ownership handover** — so **some** body is nearly always initialising and the gate would **never engage**. ⇒ ⭐ an **unbounded** condition disguised as a transient one, and **editor-shaped** by construction, which the user's ruling forbids.
+
+  ⚠ **AND THE `InitialPose` SLAM IS SUSPECT IN MODE 2 FOR THE SAME REASON:** the authoritative pose arrives by **replication from the owning node**, so slamming a locally-remembered pose can fight ELM's handover. ⛔ **NOT MEASURED** — stated as a design hazard to settle, not a finding.
+
+  ⭐ **The direction that is not editor-shaped:** freeze **PER BODY** and let the simulation keep stepping, so native bodies still initialise, instead of switching off a **process-wide static that also governs body CREATION**. ⚠ Note `Simulation.DisableSimulation` is **static**, so it was never scoped to one simulation anyway *(recorded in `DESIGN_Stride_Node_Modes.md` §11.1a)*.
+
+  ⛔ **Acceptance must include BOTH halves, on the SAME run:** a paused world where a dynamic body does not sink **and** a resumed world where a commanded vehicle moves. 📌 Each of the two shipped attempts satisfied exactly one.
+
+- [~] **CE-223** · `RW-S` ⚠⚠ **PARTLY FIXED, THEN SUPERSEDED BY [`CE-227`] — read that row before touching this one.** ⛔ The missing override WAS real and is declared; 🔴 but the implementation shipped a LATCH that stopped native bodies ever being created, so vehicles could not move. `2026-09-08` — **`CE-219`'s PAUSE GATE WAS INERT IN THE LIVE APP: THE SERVICE THE HOST ACTUALLY CONSTRUCTS INHERITED AN EMPTY DEFAULT INTERFACE METHOD.** 📐 **Found BY EYE on Windows — every rail was green.** 🔒 *(user: "time paused, scenario never started, yet tanks are falling at coord syst origin")*
 
   📐 **The mechanism, three measured hops:**
 
