@@ -39,13 +39,21 @@ namespace HrotStrideApp;
 /// design's §9.2 allocation, and the participant enables sender tracking with it so the cluster can
 /// attribute this node's samples.</para>
 ///
-/// <para>⚠⚠ <b>STAGE 1 SCOPE, stated so nothing is claimed that is not built.</b> This shell brings the
-/// node up and joins it to the cluster with the muscle + perception capability set. It does <b>not</b>
-/// yet construct the physics bracket (<c>§3B</c>'s <c>StridePhysicsBracket</c>) or the view bracket
-/// (<c>StrideViewBracket</c>), both of which mode 1 builds inside <c>EditorStrideSubsystem</c>. Until
-/// those are hoisted into a shared composer, a mode-2 node replicates and ticks but does not drive
-/// Bullet — so vehicles will not move. That is the next stage, and it is the one that decides whether
-/// <c>hill-attack-close</c> behaves as it does on SimHost.</para>
+/// <para><b>⭐ STAGE 2 — the physics bracket.</b> <c>AttachPhysics</c> builds the same collaborator
+/// chain mode 1 builds *(visual binding → body lifecycle → motors → reverse-sync group → split sync)*
+/// and drives <c>StridePhysicsBracket</c> around the node tick: pre-kernel step, then the
+/// bootstrapper's <c>Kernel.Update()</c>, then the post-kernel step. Without it the node replicates
+/// and ticks but never drives Bullet, so nothing moves.</para>
+///
+/// <para>⚠⚠ <b>KNOWN DUPLICATION, declared rather than hidden.</b> That collaborator chain is
+/// currently built in TWO places — here and in <c>EditorStrideSubsystem.InitializeHosted</c>. Ruling 9
+/// says one implementation per concept, so this is debt, not a design. ⛔ It is deliberate for one
+/// night only: hoisting mode 1's construction into a shared composer means editing the path that
+/// currently works, unattended. ⭐ The follow-up is to extract a <c>StrideMuscleBracketComposer</c>
+/// both shells call, and it is filed rather than assumed.</para>
+///
+/// <para>⛔ <b>NOT built here:</b> the VIEW bracket (<c>StrideViewBracket</c> — animation, gizmos,
+/// selection). A mode-2 node simulates without it; it is what a 3-D operator view would need.</para>
 /// </summary>
 public sealed class StrideNodeShell : IDisposable
 {
@@ -56,6 +64,11 @@ public sealed class StrideNodeShell : IDisposable
 
     private readonly StrideNodeBootstrapper _bootstrapper = new();
     private DdsParticipant? _participant;
+    private StrideVisualBindingSystem? _visualBinding;
+    private StridePhysicsBracket? _physicsBracket;
+
+    /// <summary>The physics body service this node wired. Valid after <see cref="AttachPhysics"/>.</summary>
+    public IPhysicsBodyService? PhysicsBodyService { get; private set; }
 
     /// <summary>The bootstrapped node context. Valid after <see cref="Boot"/>.</summary>
     public HrotNodeContext? Context { get; private set; }
@@ -106,7 +119,46 @@ public sealed class StrideNodeShell : IDisposable
         {
             DomainId            = domainId,
             NodeId              = nodeId,
-            SubsystemName       = "Stride",
+            // ⛔⛔ CE-242 — THIS STRING IS A ROLE TOKEN, NOT A PROCESS NAME. It must be "SimHost".
+            //
+            // 📌 The defect it fixes, measured 2026-09-09 over a 597-second CGF+Stride run of
+            //    hill-attack-close: every entity replicated to this node as a GHOST and NOTHING EVER
+            //    MOVED (1001 pinned at (446,421) v=0.0 for the whole run), while the SimHost baseline
+            //    killed 1007 at t=34 and 1006 at t=39.
+            //
+            // 📐 The chain, each hop measured:
+            //    ClusterSlave.Tick publishes NodeHeartbeat{SubsystemName} at 1 Hz (ClusterSlave.cs:153)
+            //      -> CGF reads it in NedCgfEntityLifecycleAdapters.PollNetwork and converts the STRING
+            //         to a role via MapSubsystemNameToRole (NedNetworkFactory.cs:423), whose entire
+            //         table is { "SimHost" => MuscleGround, "CGF" => Brain, "IG" => ImageGenerator,
+            //         _ => NodeRole.None }
+            //      -> BrainMuscleOwnershipStrategy asks GetLeastLoadedNode(MuscleGround)
+            //         (BrainMuscleOwnershipStrategy.cs:43); with no node mapping to MuscleGround it
+            //         returns null and GetInitialGrants returns an EMPTY grant list -- its documented
+            //         "safe fallback: the Brain retains physics authority".
+            //    ⇒ "Stride" mapped to NodeRole.None, so CGF kept dtWorldPos/dtNavigationStatus and this
+            //      node was never granted anything to drive. The empty list is a silent fallback, which
+            //      is why the run looked healthy and simply stood still.
+            //
+            // ⭐ Why "SimHost" is the CORRECT value and not a lie: DESIGN_Stride_Node_Modes.md defines
+            //    mode 2 as "a networked node replacing SimHost" (§1 mode table) with a role
+            //    "identical to SimHost" (§5.3 / §4.1b). This node IS the cluster's MuscleGround node --
+            //    there is no other -- and MapSubsystemNameToRole's existence proves the field is
+            //    consumed as a role. The same token also puts this node in the four other rosters that
+            //    switch on it: ClusterMaster.cs:354 and OrchestratorSubsystem.cs:339 (the lockstep
+            //    roster the master collects ACKs from), ReplaySeekProcessManager.cs:55, and the
+            //    mandatory-subsystem readiness check. Naming it "Stride" excluded it from all five.
+            //
+            // ⚠ THE DEBT, so nobody reads this as an endorsement: one string is doing double duty as
+            //    node IDENTITY and node ROLE, and it is switched on by five separate hard-coded lists.
+            //    A Stride node therefore cannot coexist with a real SimHost on one domain -- they would
+            //    also collide on HrotNodeBuilder.cs:195's SubsystemName+"Allocator" DDS name. That is
+            //    acceptable here precisely because mode 2 REPLACES SimHost. The principled fix is
+            //    docs/DESIGN_Role_Affinity_Ownership.md (READY-TO-BUILD, not yet built), which derives
+            //    ownership locally from each node's own NodeRole and retires this grant path entirely.
+            //    Diagnostics cost until then: dump filenames and log names say "SimHost" (see
+            //    DiagnosticsDumpClusterOpHandler.cs:129). NodeId 700 still distinguishes this node.
+            SubsystemName       = "SimHost",
             Headless            = false,
             ExternalParticipant = _participant,
         };
@@ -124,6 +176,78 @@ public sealed class StrideNodeShell : IDisposable
                  Context.World != null, Context.Kernel != null, Context.ClusterSlave != null);
 
         return Context;
+    }
+
+    /// <summary>
+    /// ⭐⭐ STAGE 2 — builds and attaches the physics bracket so this node actually drives Bullet.
+    /// Call after <see cref="Boot"/>, once the Stride scene and its <c>PhysicsProcessor</c> exist.
+    /// </summary>
+    /// <returns><c>true</c> when a real Bullet service was wired; <c>false</c> means no-op physics.</returns>
+    public bool AttachPhysics(Stride.Engine.Game game, Stride.Engine.Scene scene)
+    {
+        if (Context == null) throw new InvalidOperationException("AttachPhysics before Boot.");
+
+        var visualFactory = new StrideVisualFactory(game, scene);
+        _visualBinding    = new StrideVisualBindingSystem(visualFactory, Context.TkbDb);
+
+        var physicsProcessor = game.SceneSystem.SceneInstance
+            .GetProcessor<Stride.Physics.PhysicsProcessor>();
+
+        IPhysicsBodyService service;
+        bool physicsIsActive;
+        if (physicsProcessor?.Simulation != null)
+        {
+            service = new BulletPhysicsBodyServiceDeferred(
+                physicsProcessor.Simulation,
+                () => _visualBinding?.Visuals
+                      ?? new System.Collections.Generic.Dictionary<Entity, StrideVisualReference>());
+            physicsIsActive = true;
+            Log.Info("[StrideNodeShell] Bullet physics wired for the mode-2 node.");
+        }
+        else
+        {
+            service = new NoOpPhysicsBodyService();
+            physicsIsActive = false;
+            Log.Warn("[StrideNodeShell] No PhysicsProcessor at attach time — mode 2 will NOT move bodies.");
+        }
+
+        PhysicsBodyService = service;
+        var lifecycle      = new PhysicsBodyLifecycleSystem(service, _visualBinding);
+        var characterMotor = new BulletCharacterMotor(service, lifecycle);
+        var vehicleMotor   = new KinematicVehicleMotor(service, lifecycle);
+        var reverseSync    = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup(
+            "BulletReverseSync", new BulletReverseSyncSystem(service, lifecycle));
+        var splitSync      = new SplitAuthorityStrideSyncScript(_visualBinding, visualFactory);
+
+        _physicsBracket = new StridePhysicsBracket(
+            physicsIsActive:      physicsIsActive,
+            physicsBodyLifecycle: lifecycle,
+            characterMotor:       characterMotor,
+            vehicleMotor:         vehicleMotor,
+            reverseSyncGroup:     reverseSync,
+            splitSync:            splitSync,
+            physicsBodyService:   service);
+
+        return physicsIsActive;
+    }
+
+    /// <summary>
+    /// ⭐⭐ One node frame: physics pre-step → node tick (<c>Kernel.Update()</c>) → physics post-step.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ The ORDER mirrors mode 1's documented frame exactly *(bracket pre, kernel, bracket post)*, which
+    /// is what makes the muscle tier read already-reverse-synced state in the same frame.
+    /// ⚠ <paramref name="wallDt"/> is the render delta. It reaches the bracket and the gizmo buffer only —
+    /// the KERNEL is advanced parameterless because this node is a time slave (Q66 §3A).
+    /// </remarks>
+    public void Tick(float wallDt)
+    {
+        var world = Context?.World;
+        if (world == null) return;
+
+        _physicsBracket?.RunPreKernelStep(world, wallDt, simRunning: true);
+        _bootstrapper.Tick(wallDt);
+        _physicsBracket?.RunPostKernelStep(world);
     }
 
     public void Dispose()

@@ -468,8 +468,10 @@ public sealed class StrideHrotGame : Game
         //   master supplies time. 📄 Q66 §3A.
         if (NodeMode)
         {
-            if (_bootstrapper != null)
-                _bootstrapper.Tick((float)gameTime.Elapsed.TotalSeconds);
+            // ⭐ The SHELL owns the frame: physics pre-step → Kernel.Update() → physics post-step,
+            //   mirroring mode 1's documented order. Driving _bootstrapper directly would skip the
+            //   brackets and the node would replicate without ever moving a body.
+            _nodeShell?.Tick((float)gameTime.Elapsed.TotalSeconds);
             return;
         }
 
@@ -1094,7 +1096,9 @@ public sealed class StrideHrotGame : Game
 
         _nodeShell = new StrideNodeShell();
         _nodeShell.Boot(NodeDomainId, NodeId);
+        bool physicsLive = _nodeShell.AttachPhysics(this, scene);
         AttachBootstrapper(_nodeShell.Bootstrapper);
+        Log.Info("[StrideHrotGame] CE-207 stage 2: physics bracket attached (bulletLive={0}).", physicsLive);
 
         Log.Info("[StrideHrotGame] CE-207: mode 2 node attached — the frame loop now drives " +
                  "StrideNodeBootstrapper.Tick (parameterless Kernel.Update, time slave).");

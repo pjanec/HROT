@@ -5,6 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Physics.Components;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
+using Hrot.SimHost;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems;
 
@@ -155,7 +156,50 @@ public static class StrideCapabilities
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         public void Register(HrotNodeContext context, NodeBootValues values)
-            => context.Kernel.RegisterModule(new EqsModule());
+        {
+            // ⛔⛔ CE-243 — THE SCHEMA TRAVELS WITH THE CAPABILITY. Registering EqsModule without
+            //    registering EQS's own event/singleton schema produced a node that booted clean,
+            //    replicated, took ownership, ran navigation -- and then KILLED THE PROCESS on the
+            //    first area query.
+            //
+            // 📌 Measured 2026-09-09 on a CGF + Stride mode-2 run of hill-attack-close: the node
+            //    drove entities for ~10 s, then died with an UNHANDLED exception --
+            //      System.InvalidOperationException: Event type 2020 not registered via
+            //      RegisterEvent<T>(). Cannot playback command.
+            //      at FdpEventBus.PublishRaw -> EntityCommandBuffer.Playback
+            //      -> ModuleHostKernel.UpdateInternal -> StrideNodeShell.Tick
+            //    Event 2020 is AreaQueryRequestEvent (Fdp.Toolkits/Spatial/Eqs/AreaQueryEvents.cs:12);
+            //    2021 is its result. The node reported NavigationStatus Result=FailedBlocked at the
+            //    same instant and then terminated, so from outside it looked like a navigation bug.
+            //
+            // 📐 Why nothing caught it: NavigationSolverComponentRegistry.RegisterAll is what
+            //    registers those two streams, and it lives in Hrot.SimHost. Every OTHER host reaches
+            //    it -- SimHostNodeBootstrapper.cs:262 and EditorStrideSubsystem.cs:575 via
+            //    SimHostComponentRegistry.RegisterAll (:46), CgfSubsystem.cs:656 via
+            //    CgfComponentRegistry.RegisterAll (:31). Mode 2 is the ONLY host that composes
+            //    perception from capabilities instead of from a whole-registry call:
+            //    StrideNodeBootstrapper.RegisterDomainComponents deliberately registers a
+            //    MUSCLE-ONLY subset (shared + muscle + presentation + genesis), which was correct
+            //    when that bootstrapper was written for a muscle-only mock and became wrong the
+            //    moment CE-207 put Perception into StrideCapabilities.DefaultRole.
+            //
+            // ⭐ Why HERE and not in the bootstrapper: this is the capability that registers
+            //    EqsModule, so it is the capability that owes EqsModule its schema. Putting it here
+            //    means any future host resolving cap:perception gets a working one, instead of the
+            //    bootstrapper having to know what each capability needs -- which is the whole point
+            //    of the seam. RegisterAll documents idempotence as its CONTRACT ("Idempotence is the
+            //    contract, not an optimisation") and guards each persistent allocation behind
+            //    HasSingleton, so mode 1 -- where EditorStrideSubsystem already calls it -- is
+            //    unaffected.
+            //
+            // ⚠ Not fixed here: the four Allocator.Persistent arrays RegisterAll owns are freed by
+            //    NavigationSolverComponentRegistry.DisposeAll, which the mode-2 shutdown path does
+            //    not call. That is a leak at process exit only, and SimHost's node has the same
+            //    shape. Tracked, not papered over.
+            NavigationSolverComponentRegistry.RegisterAll(context.World);
+
+            context.Kernel.RegisterModule(new EqsModule());
+        }
     }
 
     /// <summary>
