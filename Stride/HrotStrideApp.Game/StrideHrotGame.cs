@@ -1004,24 +1004,41 @@ public sealed class StrideHrotGame : Game
             is2D: false,
             size: new Vector3(ExtentMetres, ThicknessMetres, ExtentMetres));
 
-        var ground = new Stride.Engine.Entity("ScenarioGroundPlane")
-        {
-            new ModelComponent(model),
-            collider,
-        };
+        // ⭐⭐ CE-240 — the COLLIDER keeps its top face at exactly Y = 0; the VISUAL sits a few
+        //   centimetres lower on a CHILD entity.
+        //
+        //   🔒 User, 2026-09-08: "the floor plane z-fights with the in-area floor; lowering the
+        //   rendered floor plane a bit would help". MainScene's prefab floor tiles are also at Y = 0,
+        //   so two coplanar surfaces fight for depth across the whole arena.
+        //
+        //   ⛔ Lowering the WHOLE entity would drop the collider too, and every body would rest that
+        //   much lower — a physics change to fix a rendering artefact. Splitting the visual onto a
+        //   child keeps the contact plane exactly where CE-231 measured it (bodies hold z = 0.5) while
+        //   moving only what is drawn. ⚠ The offset is deliberately larger than typical depth-buffer
+        //   precision at these extents but far below anything visible at human scale.
+        const float VisualDropMetres = 0.05f;
 
-        // The cube primitive is unit-sized, so scale carries the extent for the VISUAL half.
-        ground.Transform.Scale    = new Vector3(ExtentMetres, ThicknessMetres, ExtentMetres);
+        var ground = new Stride.Engine.Entity("ScenarioGroundPlane") { collider };
         // Top face at Y = 0: the slab centre sits half a thickness below it.
         ground.Transform.Position = new Vector3(0f, -ThicknessMetres * 0.5f, 0f);
+
+        var groundVisual = new Stride.Engine.Entity("ScenarioGroundVisual")
+        {
+            new ModelComponent(model),
+        };
+        // The cube primitive is unit-sized, so scale carries the extent for the VISUAL half.
+        groundVisual.Transform.Scale    = new Vector3(ExtentMetres, ThicknessMetres, ExtentMetres);
+        groundVisual.Transform.Position = new Vector3(0f, -VisualDropMetres, 0f);
+        ground.AddChild(groundVisual);
 
         scene.Entities.Add(ground);
 
         Log.Info(
             "[StrideHrotGame] CE-231: scenario ground slab added — {0:F0} x {0:F0} m, {1:F1} m thick, " +
-            "top face at Y=0, visible + collidable. MainScene's prefab floor tiles span only a few " +
-            "metres; scenario coordinates run to ~700 m.",
-            ExtentMetres, ThicknessMetres);
+            "collider top face at Y=0, visual dropped {2:F2} m to avoid z-fighting with MainScene's " +
+            "coplanar floor tiles (CE-240). Those tiles span only a few metres; scenario coordinates " +
+            "run to ~700 m.",
+            ExtentMetres, ThicknessMetres, VisualDropMetres);
     }
 
     private void BootEditorSubsystem()
