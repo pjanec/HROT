@@ -4,6 +4,7 @@ using CarKinem.Formation;
 using CarKinem.Systems;
 using CarKinem.Trajectory;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Core;                      // GlobalComponentIds (CE-238)
 using Fdp.Toolkit.CarKinem.Systems;   // LinearKinematicsSystem (CE-234)
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Systems;
@@ -143,7 +144,17 @@ public sealed class StrideKinematicsModule
             // DriveFromNetwork=false: ghost/non-owned entities are dead-reckoned;
             // locally-owned bodies are driven by Bullet → reverse-sync only (§5.4).
             new DeadReckoningSyncSystem(driveFromNetwork: false),
-            new LinearKinematicsSystem(),
+            // ⭐⭐ CE-238 — NARROWED to projectiles, which is exactly what CE-234 restored this system
+            //   for. Bullet owns every entity that has a physics body here, and a bullet is the one
+            //   thing it does NOT own (PhysicsBodyLifecycleSystem needs a visual entity to build a body,
+            //   and a projectile has none — measured: 6 LC-CREATE per run, all scenario entities).
+            //   ⛔ Without the narrowing, an infantry character with VehicleState stripped and no
+            //   CrowdAgent yet is integrated by BOTH this system and its Bullet CharacterComponent; the
+            //   reverse-sync then derives SimVelocity from the inflated pose delta and feeds it back —
+            //   measured as a runaway at a constant 111 m/s.
+            //   ⚠ PhysicsBodyReference would be the intuitive marker but is NOT an ECS component (it
+            //   lives in a parallel dictionary), so it cannot be queried on.
+            new LinearKinematicsSystem(GlobalComponentIds.BallisticProjectile),
         };
     }
 

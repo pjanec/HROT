@@ -1049,6 +1049,25 @@ public sealed class EditorStrideSubsystem : IDisposable
                 .Resolve(StrideCapabilities.DefaultRole);
         };
 
+        // ⭐⭐ CE-237 — hand the TKB translator placement to the hosted editor.
+        //   The STANDALONE arm already places InfantryVehicleStateStripTkbTranslator immediately after
+        //   VehicleKinematicsTkbTranslator; the HOSTED arm's pack is built inside EditorSubsystem, whose
+        //   own comment read "ExtraTranslators is empty: this host's list was plain Base()". So in mode 1
+        //   the strip never ran and infantry kept the bogus VehicleState/VehicleParams that
+        //   VehicleKinematicsTkbTranslator injects from the SHARED VehicleParametersDto every ground
+        //   agent legitimately carries (Navigation_Design_v2_0.md §7 mandates infantry carry it).
+        //
+        //   ⚠ ORDERING: this is only safe because CE-238 excludes Bullet-owned entities from
+        //   LinearKinematicsSystem. Stripping VehicleState removes the guard that had been keeping
+        //   infantry out of the ECS integrator; without CE-238 the character is integrated twice and
+        //   runs away at a measured 111 m/s.
+        _editor.TranslatorPlacements = new[]
+        {
+            Hrot.Core.Tkb.TranslatorPlacement
+                .After<CarKinem.Tkb.VehicleKinematicsTkbTranslator>(
+                    new InfantryVehicleStateStripTkbTranslator()),
+        };
+
         // Boot the real EditorSubsystem.
         // Headless = !buildEditorUi:
         //   false  → full non-headless editor (MapCanvas + adapters + layers + all ImGui panels)

@@ -802,6 +802,24 @@ namespace Hrot.Editor
         public Func<MuscleModuleContext, IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability>>?
             MuscleCapabilitiesFactory { get; set; }
 
+        /// <summary>
+        /// 🔴🔴 <b><c>CE-237</c> — order-sensitive TKB translator additions a HOST contributes.</b>
+        /// <c>null</c>/empty means plain <c>Base()</c>, this host's unchanged default.
+        ///
+        /// <para><see cref="MuscleCapabilitiesFactory"/> hands over the MUSCLE tier and nothing else, so
+        /// a host's contribution to entity CREATION was silently lost in hosted mode. 📐 Measured:
+        /// <c>InfantryVehicleStateStripTkbTranslator</c> (which removes the bogus
+        /// <c>VehicleState</c>/<c>VehicleParams</c> from capsule infantry) is placed by
+        /// <c>EditorStrideSubsystem</c>'s STANDALONE arm and was unreachable in mode 1 — so infantry kept
+        /// <c>VehicleState</c>, was refused crowd registration, was driven by the vehicle nav system while
+        /// the vehicle motor skipped its capsule, and never moved. No motion means no pose delta, so
+        /// <c>SimVelocity</c> stayed zero and the animation blend sat at Idle.</para>
+        ///
+        /// <para>⛔ <c>Hrot.Editor</c> does not reference <c>Hrot.Stride.Core</c> by design, so the
+        /// contribution must be INVERTED in rather than named here.</para>
+        /// </summary>
+        public IReadOnlyList<Hrot.Core.Tkb.TranslatorPlacement>? TranslatorPlacements { get; set; }
+
         /// <summary>Internal test hook: exposes the data breakpoint manager (UBP-P10T1).</summary>
         internal IDataBreakpointManager? DataBreakpointManager => _bpManager;
 
@@ -1358,6 +1376,9 @@ namespace Hrot.Editor
                 IdAllocator = idAllocator,
                 Elm         = new EntityLifecycleModule(tkbDb, Array.Empty<int>()),
                 NodeId      = EditorNodeId,
+
+                // ⭐ CE-237 — a host's order-sensitive translator additions; null/empty keeps Base().
+                TranslatorPlacements = TranslatorPlacements is { Count: > 0 } ? TranslatorPlacements : null,
 
                 IsBroadcastArbiter = true,
             });
