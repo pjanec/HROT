@@ -1687,12 +1687,12 @@ nothing here moves the counts table.*
   | | |
   |---|---|
   | ⭐ **`CE-226`** | **34 / 40 behaviours are still empty** — the generated registrars never set `ParamsDtoType`. This row's hop ④ was right about that, and it is now the whole remaining gap |
-  | ⚠ **`CE-227`** | a mission task naming a behaviour the entity cannot run **crashes the host** — `InvalidOperationException: Entity Entity(0,v1) missing NavigationStatus`, unhandled out of `ModuleHostKernel.Update` |
+  | ⚠ **`CE-229`** | a mission task naming a behaviour the entity cannot run **crashes the host** — `InvalidOperationException: Entity Entity(0,v1) missing NavigationStatus`, unhandled out of `ModuleHostKernel.Update` |
   | ⚠ **`CE-228`** | the schema is derived from the **blackboard struct** while the resolver deserializes a **different JSON DTO** — for `MoveToLocation` the wire type also accepts `TargetLat`/`TargetLon`, which the schema does not advertise; and `add_mission_task`'s own `ExampleArgsJson` shows `{"Latitude":…,"Longitude":…}`, matching **neither** |
 
   📐 **Gates:** `Hrot.Editor.Tests` **373 passed / 1 failed / 374** vs baseline **367 / 1 / 369** *(same single red — `TwoReloadCycles_OldAlcIsCollected`, i.e. `CE-220`; ⚠ it flakes **0-or-1 across three consecutive runs**, so it is non-deterministic, not caused here)*. ⇒ **+5 rails, no new red.**
 
-- [ ] **CE-226** · `RW-M` ⭐⭐ — **34 OF 40 BEHAVIOURS STILL ADVERTISE NO PARAMETERS: THE GENERATED REGISTRARS NEVER SET `ParamsDtoType`.** 📐 **Measured live `2026-09-08`, after `CE-224`'s fix landed.**
+- [x] **CE-226** · `RW-M` ✅ **FIXED `2026-09-08`** — **34 OF 40 BEHAVIOURS ADVERTISED NO PARAMETERS.** ⚠ **The headline was right about the symptom and wrong about the cure: no DTO type needed to be invented — the description already existed and nothing read it.** 📐 **Measured live `2026-09-08`, after `CE-224`'s fix landed.**
 
   ⭐ `CE-224` fixed the **extractor** *(it read only C# properties; the DTOs are structs with fields)*. That took `GET /behaviors` from **0/40** to **6/40** — and **6 is exactly the set that HAS a `ParamsDtoType`**: the 4 curated topologies *(`MoveToLocation`, `FollowRoute`, `JoinFormation`, `FireAtTarget`)* plus the 2 the curated registrar supplies by `RegisterResolver` overlay *(`PlatoonHillAttack`, `HullDownAttackRun`)*.
 
@@ -1702,9 +1702,48 @@ nothing here moves the counts table.*
 
   ⭐ **Where to start:** the 34 names are listed in `CE-224`'s as-built run; `T09_BlackboardManaged` and `T33_ComposedParamBlueprint` are the obvious probes because their names say they carry params.
 
+  ---
+
+  ## ✅ AS BUILT — `2026-09-08`. ⭐⭐⭐ **THE SEAM ALREADY EXISTED; IT WAS UNDER-ADOPTED.**
+
+  📌 **The prior-art pass answered this before any design did** — the seam law in `CLAUDE.md`: *"a 'we need a shared X' almost always means X already exists and is under-adopted."*
+
+  | | |
+  |---|---|
+  | ⭐⭐⭐ **what already existed** | `BehaviorDefinition.ManagedBlackboardVariables` — `IReadOnlyList<ManagedBlackboardVariable(string Name, Type Type, int ByteOffset)>`, **populated by every generated registrar** |
+  | ⛔ **what was missing** | one reader. `DtoJsonSchemaExtractor` looked only at `ParamsDtoType` |
+  | ⭐⭐ **why the manifest is the MORE truthful source here** | 📐 measured on `T09_BlackboardManaged`: the manifest's names are **exactly** the `case` labels of the generated `ParseParams` switch — `AttackRange, HomePosition, PatrolLoops, IsAlerted` — because the generator emits **both from the same packed-field list**. ⇒ the schema **cannot drift from the parser**, which is what this endpoint promises and what `CE-228` shows the curated arm cannot yet guarantee |
+  | ⛔ **PREFER, never MERGE** | when both exist the curated DTO wins, per `R-132`. Unioning would recreate the two-producers-for-one-slot shape that ruling forbids |
+
+  ### ⭐ AND ONE GENUINE GENERATOR GAP, found by measuring the residue rather than declaring victory
+
+  📐 After the routing fix the count was **19/40**. Rather than call that done, every remaining empty entry was checked against its generated registrar's `ParseParams` switch:
+
+  | | |
+  |---|---|
+  | ✅ **20 of 21 were CORRECT** | `cases=[]` — they accept no parameters at all, so an empty schema is the truth |
+  | 🔴 **exactly ONE was a real gap** | **`HsmVariableShowcase`** — `case "Threshold"`, i.e. the engine **would** have accepted a parameter, and nothing described it |
+
+  ⇒ ⭐ **the HSM generator emitted `ParseParams` but no manifest.** 📐 `HsmBridgeEmitCore` already computes the **same `packedFields`** the BTree one does and already emits `ParseParams` from them *(`BP-281` mirrored that)* — it simply never emitted the array. Fixed by sharing `BTreeBridgeEmitCore.EmitManagedBlackboardVariablesArray` *(made `internal`, ⛔ **not duplicated** — a second emitter would be `R-132`'s two producers again)*.
+
+  ### 📐 MEASURED ON THE LIVE EDITOR
+
+  | | |
+  |---|---|
+  | non-empty `properties` | **0/40** *(session start)* → **6/40** *(`CE-224`)* → **19/40** *(the manifest reader)* → ✅ **20/40** *(the HSM generator)* |
+  | `T09_BlackboardManaged` | ✅ `AttackRange, HomePosition` *(nested vector3, with its own X/Y/Z)*, `PatrolLoops`, `IsAlerted` |
+  | `T33_ComposedParamBlueprint` | ✅ `bpParams` as a **nested object** with `Threshold`, `FlagA`, … |
+  | `HsmVariableShowcase` | `{}` → ✅ `{"Threshold": {"type":"number"}}` |
+
+  ⭐⭐ **The remaining 20 are correct, not outstanding** — each was measured to accept zero parameters.
+
+  ### ⭐ RAILS — `AGeneratedBehaviourAdvertisesItsManifestTests`, 4/4, from the production loader
+
+  A generated behaviour advertises its packed variables with **no `ParamsDtoType` present**; the advertised names equal the manifest entry-for-entry across **every** such behaviour *(anti-vacuity asserted)*; `R-132`'s prefer-not-merge is pinned on `HullDownAttackRun`, the real both-present case; and — the one that stops the residue regrowing — **any behaviour that DESCRIBES parameters must ADVERTISE them.**
+
 ---
 
-- [ ] **CE-227** · `RW-M` 🔴 — **A MISSION TASK NAMING A BEHAVIOUR THE ENTITY CANNOT RUN CRASHES THE HOST.** 📐 **Measured live `2026-09-08` while verifying `CE-224`.**
+- [x] **CE-229** · `RW-M` ✅ **FIXED `2026-09-08`** — **A MISSION TASK NAMING A BEHAVIOUR THE ENTITY CANNOT RUN CRASHED THE HOST.** ⚠ **RENUMBERED from `CE-227`:** the Stride session independently used that id for the pause-gate latch (its row is above, and `CE-223` already cross-references it). Theirs was pushed first and is referenced from another row, so this one moved — 📌 the id collision rule 3 exists to catch, caught at merge rather than three batches later. 📐 **Measured live `2026-09-08` while verifying `CE-224`.**
 
   📐 **The repro, exact:** load `hill-attack-close`, give the **platoon commander** *(entity 1000, which has `NavigationIntent` but **no** `NavigationStatus`)* a `MoveToLocation` task, `run_mission`, `play`. ⇒ the process dies with an **unhandled** exception out of the kernel:
 
@@ -1721,9 +1760,36 @@ nothing here moves the counts table.*
 
   ⚠ **A related question worth answering with it:** should `add_mission_task` **refuse** a behaviour the target entity cannot run *(the entity's `BehaviorCatalog` already answers "what can THIS entity do" — `GET /behaviors?entityId=`)*, rather than committing a task that later aborts the frame?
 
+  ---
+
+  ## ✅ AS BUILT — `2026-09-08`. **ONE LINE, AND THE POLICY WAS ALREADY IN THE SAME METHOD.**
+
+  📐 **The throw, exactly:** `MoveToExecutor.Execute` *(`FDP/Toolkits/Fdp.Toolkits/Navigation/Executors/MoveToExecutor.cs:77`)* did `world.GetComponent<NavigationStatus>(entity)` unguarded. **`NavigationStatus` is written by the MUSCLE layer**; this executor runs on the **BRAIN**, so an entity with no muscle tier — a platoon commander — never has one. It carries `NavigationIntent` *(the executor writes that itself in `OnEnter`)* but not `NavigationStatus`: an **asymmetry between two adjacent `GetComponent` calls**, only one of which is guaranteed.
+
+  ⭐⭐⭐ **The fix is not a new policy — it is the policy two lines below.** The method already returns *"keep Running; Muscle layer hasn't caught up yet"* for a status that exists but reports a stale intent. **A status that does not exist yet is that same condition one step earlier.**
+
+  ⭐ **And the codebase already agreed:** `HillAttackCommanderNodes.cs:155` treats a missing `NavigationStatus` exactly this way *(trace + `NodeStatus.Running`)*, and the generator proof test notes the same shape — *"`InProgress` … so `AreAllAtBaseline` correctly reports 'not arrived' instead of throwing on a missing `NavigationStatus`"*. ⇒ **`MoveToExecutor` was the outlier that threw.**
+
+  ⛔ **It does NOT silently succeed.** The channel stays `Running`, so a behaviour waiting on arrival keeps waiting rather than being told it arrived — both halves are asserted, because a bare "does not throw" would have accepted the worse fix.
+
+  ### ✅ VERIFIED LIVE — the exact host-killing sequence
+
+  Scenario `hill-attack-close`, `MoveToLocation` task on entity **1000** *(the commander)*, `run_mission`, `play`:
+
+  | | before | after |
+  |---|---|---|
+  | host process | 🔴 `Unhandled exception … missing NavigationStatus` → **`Aborted`** | ✅ **alive**, `simTime` advanced past **20 s**, 8 entities |
+  | unhandled exceptions in the log | 1 | ✅ **0** |
+
+  ⭐ **RAIL — folded into the feature's OWN suite** *(`R-142` ④)*: `MoveToExecutorTests` already existed, so the assertion went **in there** rather than into a new class — `MoveToExecutor_Execute_KeepsRunningWhenTheEntityHasNoNavigationStatus`. **11/11**, with an inverse-edit red-proof *(remove the guard ⇒ that one test fails)*.
+
+  ⚠ **STILL OPEN, and deliberately not done here:** the API-side question above — should `add_mission_task` **refuse** a behaviour the target entity cannot run? ⭐ This fix makes the engine survive it; it does not make the request wrong-at-the-door. ⛔ And the age question is still unanswered: this was **never measured at a base commit**, so whether it is old or recent is unknown.
+
+  ⚠ **FENCE NOTE:** the fix lands in `FDP/Toolkits/.../Navigation/Executors/`, which the `CE-224` handoff's fence table named neither as mine nor as the Stride session's. It is behaviour-runtime, not Stride and not the spawn path, so it was taken — flagged here so a reviewer can disagree cheaply.
+
 ---
 
-- [ ] **CE-228** · `RW-S` ⚠ — **THE `paramSchema` DESCRIBES THE BLACKBOARD STRUCT, BUT THE RESOLVER PARSES A DIFFERENT JSON DTO — AND THE ROUTE DOC'S OWN EXAMPLE MATCHES NEITHER.** 📐 **Measured `2026-09-08`.**
+- [ ] **CE-228** · `RW-S` ⚠ **PARTLY FIXED `2026-09-08`** *(the misleading example is gone; the design half is still open)* — **THE `paramSchema` DESCRIBES THE BLACKBOARD STRUCT, BUT THE RESOLVER PARSES A DIFFERENT JSON DTO.** 📐 **Measured `2026-09-08`.**
 
   ⭐ `ParamsDtoType` points at the **blittable blackboard struct** *(`MoveToLocationParams { X, Y, Speed, ArrivalRadius }`)*, which is what `CE-224` now advertises and what the runtime reads. ⚠ But the resolver deserializes a **separate wire type** — `MoveToLocationParamsJsonDto { TargetLat, TargetLon, Speed, ArrivalRadius, X, Y }` *(`CgfNodes.cs:130`)* — a **superset**.
 
@@ -1734,6 +1800,20 @@ nothing here moves the counts table.*
   | 🔴 **what is wrong** | `add_mission_task`'s `ExampleArgsJson` *(`DebugApiRouteDocs.cs`)* shows `{"Latitude":50.1,"Longitude":14.4}` — matching **neither** type. Those keys bind to nothing and would parse to an all-zero params region: 📌 exactly `R-132`'s silent-zero failure, this time invited by our own documentation |
 
   ⭐ **The cheap half is the example** *(fix it to the real keys)*. ⚠ **The design half is real and belongs with `CE-226`:** *which* type is the contract an agent should author against — the blackboard struct or the wire DTO? Whatever is decided, **`paramSchema` must describe the type the JSON is actually deserialized into.**
+
+  ---
+
+  ## ✅ THE CHEAP HALF, DONE `2026-09-08`
+
+  `add_mission_task`'s `ExampleArgsJson` now shows **`{"X":500,"Y":520,"Speed":8,"ArrivalRadius":5}`** — `MoveToLocation`'s real keys, the ones proven end to end in `CE-224`. The old `{"Latitude","Longitude"}` bound to **nothing**: the params region would have stayed all-zero and the entity would have driven to the origin with no error anywhere — 📌 `R-132`'s exact failure shape, **invited by our own documentation**. A note in the route's `Notes` records what it used to say and why that mattered.
+
+  ## ⚠ THE DESIGN HALF IS STILL OPEN — and `CE-226` narrowed it
+
+  ⭐⭐ **For GENERATED behaviours the question is now ANSWERED by construction:** the manifest `CE-226` reads is emitted from the same packed-field list as the `ParseParams` switch, so the schema **is** the deserialized shape.
+
+  🔴 **It remains open for CURATED behaviours only.** `ParamsDtoType` points at the **blackboard** struct *(`MoveToLocationParams`)* while the resolver deserializes **`MoveToLocationParamsJsonDto`** — a superset that also accepts `TargetLat`/`TargetLon`. ⇒ the geo form is **accepted and unadvertised**.
+
+  ⚠ **Do NOT "fix" this by repointing `ParamsDtoType` at the JSON DTO** — ⛔ measured hazard: that field is also read for **projection over blackboard memory** *(`Blackboard1024Renderer` and friends)*, and the JSON DTO has a different layout, so repointing it would corrupt the inspector. ⭐ A separate `ParamsWireType` is the shape that could work, and it is a **new mechanism** — it needs a decision, not a quiet addition.
 
 ---
 

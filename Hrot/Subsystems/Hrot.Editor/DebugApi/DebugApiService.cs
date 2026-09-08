@@ -1730,7 +1730,9 @@ namespace Hrot.Editor.DebugApi
                     ["id"]          = name,
                     ["name"]        = definition.Name,
                     ["brainTier"]   = definition.BrainTier,
-                    ["paramSchema"] = DtoJsonSchemaExtractor.ExtractParams(definition.ParamsDtoType),
+                    // CE-226: pass the DEFINITION, not just the DTO type — a generated behaviour has no DTO
+                    // struct and describes its parameters through ManagedBlackboardVariables instead.
+                    ["paramSchema"] = DtoJsonSchemaExtractor.ExtractParams(definition),
                 });
             }
 

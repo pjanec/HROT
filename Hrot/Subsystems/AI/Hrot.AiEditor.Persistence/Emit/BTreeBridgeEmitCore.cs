@@ -1170,7 +1170,13 @@ public static class BTreeBridgeEmitCore
     ///     },
     /// </code>
     /// </summary>
-    private static void EmitManagedBlackboardVariablesArray(
+    /// <remarks>
+    /// ⭐ <c>CE-226</c> — <b>internal, not private, because the HSM bridge emits the same array from the
+    /// same <c>packedFields</c>.</b> HSM already mirrors this file's <c>EmitParseParamsLocal</c>
+    /// (<c>BP-281</c>); duplicating the manifest emitter instead of sharing it would be the second
+    /// producer for one slot that <c>R-132</c> forbids, and the two would drift.
+    /// </remarks>
+    internal static void EmitManagedBlackboardVariablesArray(
         StringBuilder sb,
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields,
         string pad)

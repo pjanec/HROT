@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Fdp.Toolkit.Behavior;          // BehaviorDefinition, ManagedBlackboardVariable
 using Fdp.Toolkit.ReplayBrowser.Search;
 
 namespace Hrot.Editor.DebugApi
@@ -47,6 +48,57 @@ namespace Hrot.Editor.DebugApi
             {
                 foreach (var member in PublicWritableMembers(dtoType))
                     properties[member.Name] = DescribeMember(member);
+            }
+
+            return new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = properties,
+            };
+        }
+
+        /// <summary>
+        /// The schema for a behaviour, from whichever of its two parameter descriptions exists.
+        /// </summary>
+        /// <remarks>
+        /// ⭐⭐ <b><c>CE-226</c> — TWO KINDS OF BEHAVIOUR DESCRIBE THEIR PARAMETERS TWO WAYS, and reading
+        /// only the first left 34 of 40 blank.</b>
+        /// <list type="number">
+        ///   <item><b>Curated</b> behaviours carry a <c>ParamsDtoType</c> — a hand-written blittable
+        ///     struct — set by <c>CgfCuratedBehaviorRegistrar</c> or by a <c>RegisterResolver</c> overlay.</item>
+        ///   <item><b>Generated</b> (JSON-authored) behaviours have no such struct: their parameters are
+        ///     packed managed blackboard variables, and the generator describes them in
+        ///     <see cref="BehaviorDefinition.ManagedBlackboardVariables"/> —
+        ///     <c>ManagedBlackboardVariable(Name, Type, ByteOffset)</c>.</item>
+        /// </list>
+        ///
+        /// <para>⭐⭐⭐ <b>The manifest is not a second-best substitute — for these behaviours it is the
+        /// MORE truthful source.</b> 📐 Measured on <c>T09_BlackboardManaged</c>: the manifest's names are
+        /// <b>exactly</b> the <c>case</c> labels of the generated <c>ParseParams</c> switch —
+        /// <c>AttackRange, HomePosition, PatrolLoops, IsAlerted</c> — so it describes precisely what the
+        /// engine deserializes, which is what this endpoint promises. ⚠ Contrast the curated arm, where
+        /// <c>ParamsDtoType</c> is the <i>blackboard</i> struct while the resolver parses a separate wire
+        /// DTO that may accept more keys (<c>CE-228</c>).</para>
+        ///
+        /// <para>⛔ <b>PREFER, never MERGE.</b> When both exist the DTO type wins, per
+        /// <c>R-132</c> — <i>"a curated (hand-authored) artefact outranks a generated one"</i>. Unioning
+        /// them would recreate the two-producers-for-one-slot shape that ruling exists to forbid.</para>
+        ///
+        /// <para>⭐ No new mechanism: the manifest already existed and every generated registrar already
+        /// populated it. This is adoption of an under-used seam, not a build.</para>
+        /// </remarks>
+        public static JsonObject ExtractParams(BehaviorDefinition definition)
+        {
+            if (definition is null) throw new ArgumentNullException(nameof(definition));
+
+            if (definition.ParamsDtoType is not null)
+                return ExtractParams(definition.ParamsDtoType);
+
+            var properties = new JsonObject();
+            foreach (ManagedBlackboardVariable variable in
+                     definition.ManagedBlackboardVariables ?? Array.Empty<ManagedBlackboardVariable>())
+            {
+                properties[variable.Name] = Describe(variable.Type);
             }
 
             return new JsonObject

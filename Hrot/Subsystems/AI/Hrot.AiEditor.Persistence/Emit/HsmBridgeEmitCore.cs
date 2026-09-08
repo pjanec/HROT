@@ -156,6 +156,18 @@ public static class HsmBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}HsmDefinition = blob,");
         if (hasParseParams)
             sb.AppendLine($"{pad2}{Indent}ParseParams   = __parseParams,");
+        // ⭐⭐ CE-226 — DESCRIBE the parameters this asset accepts, not just parse them.
+        //
+        // Measured 2026-09-08: the HSM generator emitted ParseParams (so the asset DID accept a key)
+        // and no manifest (so nothing could say which). GET /behaviors therefore advertised an empty
+        // schema for HsmVariableShowcase while its ParseParams switch had a `case "Threshold"` — an
+        // agent could not discover a parameter the engine would have accepted.
+        //
+        // The array is emitted from the SAME packedFields that drive the ParseParams switch above, so
+        // the schema and the parser cannot disagree; that correspondence is the whole point, and it is
+        // what makes the manifest a truthful wire contract rather than a hint.
+        if (packedFields.Count > 0)
+            BTreeBridgeEmitCore.EmitManagedBlackboardVariablesArray(sb, packedFields, pad2 + Indent);
         EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent);
         sb.AppendLine($"{pad2}}});");
 
