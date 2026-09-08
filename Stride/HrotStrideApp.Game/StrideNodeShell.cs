@@ -226,7 +226,32 @@ public sealed class StrideNodeShell : IDisposable
             vehicleMotor:         vehicleMotor,
             reverseSyncGroup:     reverseSync,
             splitSync:            splitSync,
-            physicsBodyService:   service);
+            physicsBodyService:   service)
+        {
+            // ⛔⛔ CE-246 — WITHOUT THIS THE NODE OWNS THE TANKS AND NEVER DRIVES THEM.
+            //
+            // 📌 Measured 2026-09-09, CGF + Stride mode 2, hill-attack-close: the node took ownership
+            //    of all 8 entities, promoted every ghost to its full TKB shape (VehicleState,
+            //    VehicleParams, NavState, NavigationStatus present), and received a fresh
+            //    NavigationIntent {Mode=DirectPoint, FinalDestination=[523,401,0], TargetSpeed=15}
+            //    every few seconds -- and 1001 never left (446,421) with v=0.0. The bracket's own
+            //    telemetry named the hole in plain sight: "VehicleNavIntent=0.0" on every
+            //    [Bracket breakdown] line, because the property was NULL and `?.Execute` was a no-op.
+            //
+            // 📐 VehicleNavigationIntentSystem is the ONLY thing that turns an ingressed
+            //    NavigationIntent into the steering/throttle the vehicle motor consumes. With it
+            //    absent, every upstream stage works and the last one silently does nothing -- which is
+            //    exactly why the four defects before this one each looked like "navigation is broken".
+            //
+            // ⭐ The template is mode 1, EditorStrideSubsystem.cs:857 and :1183, which set this same
+            //    property from the same muscle set, in an object initializer, for the same reason. This
+            //    shell already built the set (MuscleSet, above) to compose its capabilities; it simply
+            //    never lent the bracket the one system that is NOT kernel-resident. It is a
+            //    constructor-adjacent property rather than a parameter precisely so it can be omitted
+            //    -- which made omitting it silent. A production caller that HAS the dependency must
+            //    PASS it.
+            VehicleNavIntentSystem = MuscleSet?.VehicleNavIntent,
+        };
 
         return physicsIsActive;
     }
@@ -240,6 +265,9 @@ public sealed class StrideNodeShell : IDisposable
     /// ⚠ <paramref name="wallDt"/> is the render delta. It reaches the bracket and the gizmo buffer only —
     /// the KERNEL is advanced parameterless because this node is a time slave (Q66 §3A).
     /// </remarks>
+    private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiQueue;
+    private Hrot.Editor.DebugApi.DebugApiHost?       _debugApiHost;
+
     public void Tick(float wallDt)
     {
         var world = Context?.World;
@@ -248,10 +276,101 @@ public sealed class StrideNodeShell : IDisposable
         _physicsBracket?.RunPreKernelStep(world, wallDt, simRunning: true);
         _bootstrapper.Tick(wallDt);
         _physicsBracket?.RunPostKernelStep(world);
+
+        // ⭐⭐ CE-245 — the debug API's jobs run HERE, on the node's own frame, after the kernel.
+        //    ⛔ Every route body is queued rather than executed on the HTTP thread, so a read sees a
+        //    consistent world between frames instead of mid-schedule. ClusterRunner drains at the
+        //    equivalent point (Program.cs:601-603).
+        _debugApiQueue?.DrainAll();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-245</c> — the mode-2 node's own debug/MCP surface.</b> 📄 Owning design:
+    /// <c>DESIGN_Stride_Node_Modes.md</c> §7.2b and slice <c>S6</c> (<c>CE-214</c>), which requires the
+    /// day-1 operator surface to land WITH <c>S4</c> rather than after it (<c>R-S14</c>).
+    /// </summary>
+    /// <remarks>
+    /// <para><b>📌 Why this was the next thing built and not a nice-to-have.</b> Mode 1 gets this free —
+    /// <c>EditorSubsystem</c> wires its own <c>DebugApiHost</c> behind <c>HROT_DEBUG_API_PORT</c>, and
+    /// mode 2 has no <c>EditorSubsystem</c>. Measured 2026-09-09: with CGF's API as the only instrument,
+    /// a CGF + Stride run could show that entities were not moving but could not show ANYTHING about the
+    /// node that owned them — every question about this node's own world had to be inferred from log
+    /// greps. <c>CE-242</c>, <c>CE-243</c> and <c>CE-244</c> were each found that way and each cost a
+    /// full rebuild-and-rerun cycle to confirm.</para>
+    ///
+    /// <para><b>⭐ Reuse, not new machinery.</b> This is the same four objects ClusterRunner composes for
+    /// every non-editor node (<c>Program.cs:418-460</c>): a <c>MainThreadJobQueue</c>, a
+    /// <c>SubsystemDebugProvider</c> over this node's world, a <c>PerspectiveScopedDispatcher</c>, and a
+    /// <c>DebugApiHost</c> + <c>DebugApiService</c>. Nothing here is Stride-specific except which
+    /// context the lambdas close over.</para>
+    ///
+    /// <para><b>⚠ Every accessor is a <c>Func</c>, deliberately</b> — the same measured reason
+    /// <c>SimHostSubsystem.CreateDebugProvider</c> gives: the provider is built after boot, and
+    /// <c>TkbDb</c> in particular is REPLACED on every PrepareLive/PrepareEdit, so a captured value
+    /// would report the boot catalog forever.</para>
+    ///
+    /// <para><b>⛔ What this surface does NOT have, so no report over-claims it:</b> no
+    /// <c>behaviorRegistry</c> (this node runs no CGF, so <c>GET /behaviors</c> answers honestly that it
+    /// has none rather than fabricating an empty one), no <c>drive</c> facade (mode 2 is a time SLAVE —
+    /// the cluster clock is driven through the orchestrator, not through this node), no gizmo buffer and
+    /// no mission editor. It answers READS about this node's own world, which is what it exists for.</para>
+    ///
+    /// <para>Call after <see cref="Boot"/>. A null or unparseable port disables it entirely, exactly as
+    /// the editor's and ClusterRunner's own gate does.</para>
+    /// </summary>
+    public void StartDebugApi(string? port)
+    {
+        if (Context == null) throw new InvalidOperationException("Boot() before StartDebugApi().");
+        if (string.IsNullOrWhiteSpace(port) || !int.TryParse(port, out int p)) return;
+
+        // ⭐ Capture must be ON before any panel draws or every dump is empty (ClusterRunner does the
+        //   same, and for the same reason).
+        Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = true;
+
+        HrotNodeContext ctx = Context;
+
+        var provider = new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
+            subsystemName: "SimHost",
+            // ⚠ "SimHost" for BOTH, and it is the same CE-242 reasoning as the heartbeat name: the
+            //   perspective is what routes a request to a node's surface, and mode 2 IS the cluster's
+            //   SimHost-role node. A tool that knows how to talk to a SimHost perspective talks to this
+            //   one unchanged, which is the whole point of "a node replacing SimHost".
+            perspective:   "SimHost",
+            world:         () => ctx.World,
+            entityMap:     () => ctx.EntityMap,
+            tkbDb:         () => ctx.TkbDb,
+            clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
+                               .ClusterStateFrom(() => ctx.ClusterSlave),
+            architecture:  () => new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => ctx.Kernel));
+
+        var dispatcher = new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
+            new[] { (Hrot.Presentation.DebugApi.ISubsystemDebugProvider)provider },
+            currentPerspective: () => "SimHost",
+            // ⛔ null, not false: there is no MasterSyncController on this node, and GET /capabilities
+            //   must report "no master here" rather than "the master is idle".
+            acksPending: null);
+
+        _debugApiQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+        _debugApiHost  = new Hrot.Editor.DebugApi.DebugApiHost(
+            p, _debugApiQueue, shutdownCallback: () => { }, mode: "stride-node");
+        _debugApiHost.AttachDispatcher(dispatcher);
+        _debugApiHost.AttachService(new Hrot.Editor.DebugApi.DebugApiService(
+            dispatcher,
+            logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(null),
+            behaviorRegistry: () => null,
+            // ⭐⭐ CE-236 — PASSED, never defaulted. A defaulted WGS84Transform origin is 0N 0E while
+            //    every node simulates on the Berlin origin HrotEnvironment.CreateGeoTransform() sets,
+            //    so geo routes would answer against the wrong planet.
+            geoTransform: HrotEnvironment.CreateGeoTransform()));
+        _debugApiHost.Start();
+
+        Log.Info("[StrideNodeShell] CE-245: debug API listening on {0} (perspective SimHost, node {1}).",
+                 p, ctx.NodeId);
     }
 
     public void Dispose()
     {
+        try { _debugApiHost?.Dispose(); } catch { /* teardown best-effort */ }
         try { _bootstrapper.Dispose(); } catch { /* teardown best-effort */ }
         _participant = null;
     }

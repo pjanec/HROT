@@ -1100,6 +1100,11 @@ public sealed class StrideHrotGame : Game
         AttachBootstrapper(_nodeShell.Bootstrapper);
         Log.Info("[StrideHrotGame] CE-207 stage 2: physics bracket attached (bulletLive={0}).", physicsLive);
 
+        // ⭐⭐ CE-245 — the node's own debug/MCP surface, on the SAME environment variable every other
+        //    host uses (the editor's and ClusterRunner's gate alike), so no tool needs a special case
+        //    for a Stride node. Absent variable ⇒ not started, costing nothing in a normal run.
+        _nodeShell.StartDebugApi(Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT"));
+
         Log.Info("[StrideHrotGame] CE-207: mode 2 node attached — the frame loop now drives " +
                  "StrideNodeBootstrapper.Tick (parameterless Kernel.Update, time slave).");
     }
