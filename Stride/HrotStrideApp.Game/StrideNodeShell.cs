@@ -80,6 +80,15 @@ public sealed class StrideNodeShell : IDisposable
     public StrideMuscleModuleSet? MuscleSet { get; private set; }
 
     /// <summary>
+    /// ⭐ <c>CE-248</c> — the deferred DotRecast crowd provider this node handed to its muscle set, so
+    /// the game can seed it with the baked Infantry navmesh once the scene exists. It starts in no-op
+    /// mode (<c>RegisterAgent</c>/<c>Update</c> return silently) and only becomes real after
+    /// <c>TryInitializeNavMesh</c>, which is why it must be reachable from the bake.
+    /// ⚠ Mode 1 exposes the same thing as <c>EditorStrideSubsystem.InfantryCrowdProvider</c>.
+    /// </summary>
+    public Hrot.Stride.Core.DotRecastDtCrowdProvider? InfantryCrowdProvider { get; private set; }
+
+    /// <summary>
     /// Boots the node: resolves the Stride capability plan, creates an isolated DDS participant, and
     /// runs the seven-phase bootstrap.
     /// </summary>
@@ -91,6 +100,7 @@ public sealed class StrideNodeShell : IDisposable
         //   DefaultRole (MuscleGround | Perception) is what CE-233 established as correct. In mode 2
         //   there is no editor to supply perception, so resolving the full role matters even more here.
         var crowd = new DotRecastDtCrowdProvider(maxAgentRadius: 0.4f);
+        InfantryCrowdProvider = crowd;   // CE-248 — the game seeds it after the navmesh bake.
         MuscleSet = StrideMuscleModules.Build(crowd);
         var capabilities = StrideCapabilities.Build(MuscleSet).Resolve(StrideCapabilities.DefaultRole);
         if (capabilities.Count == 0)
@@ -171,6 +181,46 @@ public sealed class StrideNodeShell : IDisposable
         Context = _bootstrapper
             .WithCapabilities(capabilities)
             .BootstrapNode(config, StrideCapabilities.DefaultRole, networkFactory);
+
+        // ⛔⛔⛔ CE-247 — WITHOUT THIS THE NODE RENDERS AND SIMULATES NOTHING, SILENTLY.
+        //
+        // 📌 Measured 2026-09-09 through the node's own debug API (CE-245), which is what finally made
+        //    this visible. Every earlier stage was working: ownership granted (DescriptorOwnership.Map
+        //    = {dtWorldPos: 700, dtNavStatus: 700}), ghosts promoted to their full TKB shape, the nav
+        //    intent arriving, VehicleNavIntentSystem wired (CE-246) -- and 1001 still sat at
+        //    (446,421) with v=0.0, with ZERO Bullet bodies ever created ("LC-CREATE" count 0).
+        //
+        // 📐 The chain, each hop measured:
+        //    PhysicsBodyLifecycleSystem skips any entity whose visual does not exist yet
+        //      ("visual not yet created -- skip; retry next frame", :212)
+        //      -> StrideVisualBindingSystem.TryCreateVisual returns null when the TKB template has no
+        //         StrideRenderModelDefDto -- "No Stride visual definition for this class -- skip
+        //         SILENTLY", by design and with no log
+        //      -> GET /tkb/types/100 on this node: M1 Abrams carries TkbMasterDto,
+        //         VisualDefinitionDto and VehicleParametersDto, and NO StrideRenderModelDefDto.
+        //    ⇒ no visual, so no body, so no motion -- and not one line of output anywhere saying so.
+        //
+        // ⭐ The descriptor is not in the scenario TKB and never was: in production
+        //    StrideRenderModelDefDto is constructed in exactly TWO places -- UrbanCombatTkbCatalog
+        //    (the demo catalog, five hard-coded templates) and this class. Everything else that
+        //    builds one is a test. HrotEnvironment.CreateTkb()/NedTkbCatalog seeds the platform
+        //    catalog with no Stride-specific descriptors, because the Stride models are shipped by
+        //    the Stride app rather than by the engine.
+        //
+        // ⭐⭐ So this is the SAME call mode 1 makes -- EditorStrideSubsystem.cs:1119, whose own
+        //    summary says it exists "so StrideVisualBindingSystem and VehicleKinematicsTkbTranslator
+        //    resolve the SAME templates the scenario spawns from". Mode 2 composes its TkbDb through
+        //    HrotNodeBuilder instead of through the editor, which is how it missed the one line.
+        //    ⛔ Not a new mechanism and not a second copy: the augmentation, its dimensions and its
+        //    idempotence guard all stay in StrideNedRenderDescriptors.
+        //
+        // ⚠ Once at boot is CORRECT HERE, and only here: this node's catalog is built once by
+        //    HrotEnvironment.CreateTkb() (HrotNodeBuilder.cs:236) and never reloaded, because
+        //    TkbLoadClusterStateHandler -- the SimHost handler that CLEARS and re-ingests the catalog
+        //    on every PrepareLive/PrepareEdit -- is not registered on the mode-2 node. If that handler
+        //    is ever added here, this call must move to after each ingest; Apply is idempotent
+        //    (HasDescriptor guard per template) so re-calling it is free.
+        StrideNedRenderDescriptors.Apply(Context.TkbDb);
 
         Log.Info("[StrideNodeShell] Node booted. World={0} Kernel={1} ClusterSlave={2}",
                  Context.World != null, Context.Kernel != null, Context.ClusterSlave != null);

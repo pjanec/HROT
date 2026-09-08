@@ -1100,6 +1100,15 @@ public sealed class StrideHrotGame : Game
         AttachBootstrapper(_nodeShell.Bootstrapper);
         Log.Info("[StrideHrotGame] CE-207 stage 2: physics bracket attached (bulletLive={0}).", physicsLive);
 
+        // ⭐⭐⭐ CE-248 — BAKE THE NAVMESH. Mode 1 does this at BootEditorSubsystem; mode 2 never did,
+        //    and VehicleNavigationIntentSystem returns immediately without an INavmeshProvider, so the
+        //    node planned no routes and commanded no motors while every earlier stage looked healthy.
+        //    ⚠ AFTER the ground slab and the collider neutralisation above: the bake reads the scene's
+        //    STATIC COLLIDERS, so it must see the 20 km scenario slab (CE-231) and must NOT see the
+        //    template arena's infinite planes (CE-232), which would otherwise bound the whole bake to
+        //    the few-metre arena.
+        BakeNavmesh(scene, _nodeShell.Context?.World, _nodeShell.InfantryCrowdProvider);
+
         // ⭐⭐ CE-245 — the node's own debug/MCP surface, on the SAME environment variable every other
         //    host uses (the editor's and ClusterRunner's gate alike), so no tool needs a special case
         //    for a Stride node. Absent variable ⇒ not started, costing nothing in a normal run.
@@ -1249,7 +1258,7 @@ public sealed class StrideHrotGame : Game
         // overwrites the FakeNavmeshProvider set up by the simulation logic packs.
         // Guarded: bake failure logs Warn and leaves _navmeshProvider null (F4 demo
         // handles the null case gracefully with a loud log rather than crashing).
-        BakeNavmesh(scene);
+        BakeNavmesh(scene, _editorSubsystem?.World, _editorSubsystem?.InfantryCrowdProvider);
 
         // ── 5. Enqueue demo UrbanCombat spawns ────────────────────────────
         // Spawn 4 InfantrySoldiers (TkbType 2002) + 2 MilitaryAPC vehicles (TkbType 2001).
@@ -1861,11 +1870,35 @@ public sealed class StrideHrotGame : Game
     /// "navmesh unavailable" rather than crashing.
     /// </para>
     /// </summary>
-    private void BakeNavmesh(global::Stride.Engine.Scene scene)
+    /// <remarks>
+    /// ⭐⭐ <b><c>CE-248</c> — PARAMETERISED so BOTH modes bake the same navmesh from the same code.</b>
+    /// It used to read <c>_editorSubsystem.World</c> and <c>_editorSubsystem.InfantryCrowdProvider</c>
+    /// directly and <c>return</c> early when that field was null — which is precisely mode 2, where
+    /// there is no <c>EditorStrideSubsystem</c> at all. The two things it actually needs are a world to
+    /// publish the singleton into and a crowd provider to seed, so it now takes them.
+    ///
+    /// <para>📌 <b>Why this was the last gate.</b> Measured 2026-09-09: with <c>CE-242</c>..<c>CE-247</c>
+    /// in place the mode-2 node owned its entities, promoted them, created six Bullet bodies and ran the
+    /// motors — and still nothing moved, because <c>VehicleNavigationIntentSystem.Execute</c> opens with
+    /// a <c>INavmeshProvider</c> lookup and returns immediately when there is none ("graceful no-op when
+    /// no navmesh is available"). No navmesh ⇒ no route ⇒ <c>NavigationStatus.Phase</c> never leaves
+    /// <c>Idle</c> ⇒ the vehicle motor is never commanded. ⛔ Nothing logged: three separate silent
+    /// no-ops (this one, <c>TryCreateVisual</c>'s missing render-def, and the ownership fallback's empty
+    /// grant list) sat in a row on the same path.</para>
+    ///
+    /// <para>⚠ Kept as one method rather than copied into the mode-2 boot: the bake, its layer mask, its
+    /// failure guards and its crowd seeding are exactly the same work in both modes. 🔒 The user's own
+    /// standing instruction on the human/vehicle kinematics split — "something shareable, parametrizing
+    /// shared code" — applies unchanged here.</para>
+    /// </remarks>
+    private void BakeNavmesh(
+        global::Stride.Engine.Scene scene,
+        Fdp.Core.EntityRepository? world,
+        Hrot.Stride.Core.DotRecastDtCrowdProvider? infantryCrowdProvider)
     {
-        if (_editorSubsystem == null)
+        if (world == null)
         {
-            Log.Warn("[StrideHrotGame] BakeNavmesh: EditorStrideSubsystem is null — cannot bake.");
+            Log.Warn("[StrideHrotGame] BakeNavmesh: no world — cannot bake.");
             return;
         }
 
@@ -1894,15 +1927,15 @@ public sealed class StrideHrotGame : Game
 
             // Construct the provider and register as the INavmeshProvider singleton.
             _navmeshProvider = new DotRecastNavmeshProvider(meshes);
-            _editorSubsystem.World.SetSingletonManaged<INavmeshProvider>(_navmeshProvider);
+            world.SetSingletonManaged<INavmeshProvider>(_navmeshProvider);
 
             // BATCH-19: supply the Infantry DtNavMesh to the deferred crowd provider so
             // real DotRecast crowd steering is active for infantry entities.
-            if (_editorSubsystem.InfantryCrowdProvider != null
+            if (infantryCrowdProvider != null
                 && _navmeshProvider.TryGetNavMesh(NavLayerMask.Infantry, out var infantryMesh)
                 && infantryMesh != null)
             {
-                bool crowdInit = _editorSubsystem.InfantryCrowdProvider.TryInitializeNavMesh(infantryMesh);
+                bool crowdInit = infantryCrowdProvider.TryInitializeNavMesh(infantryMesh);
                 _infantryCrowdProviderInitialized = crowdInit;
                 if (crowdInit)
                     Log.Info("[StrideHrotGame] Infantry DotRecastDtCrowdProvider initialized (BATCH-19, STR-D19).");
