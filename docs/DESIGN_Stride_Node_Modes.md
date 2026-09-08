@@ -945,6 +945,42 @@ LinearKinematicsSystem`, which is the order `BallisticsSystem` documents.
 *dispatch → creep → fire → HIT → retreat → next wave* runs end to end.
 
 
+### ⭐⭐⭐ 13.6 `CE-241` — **THE SUB-STEP QUESTION §11.1 DEFERRED IS ANSWERED, AND IT IS THE "SLOW MOTION"** *(`2026-09-08`)*
+
+🔒 **User:** *"the tanks move like a slow motion movie … it feels like 0.5 m/sec"* and *"tanks are moving
+faster but still very jumpy — long time slow then short time fast"*.
+
+⭐⭐ **§11.1's open row said exactly this would need answering on Windows:** *"`FixedTimeStep`/`MaxSubSteps`
+… **NOT BUILT** … nobody knows what Stride's default sub-stepping does to a 1/60 step here ⇒ left open,
+and it belongs with the Windows run."* ⭐ **This is that run. Measured:**
+
+| what | measured |
+|---|---|
+| `Simulation.FixedTimeStep` | **0.0167 s** (1/60) — live log, `BulletPhysicsBodyService` construction |
+| nothing in the tree sets `FixedTimeStep`/`MaxSubSteps` | ✅ grep: only a doc comment mentions them |
+| sim-clock rate vs wall | **0.997 sim-s per wall-s** — the clock itself is honest |
+| per-frame sim delta | **min 0.0142 · median 0.0220 · max 0.2251 s** (277 samples) — a **16× spread** |
+| ⇒ **the median frame asks for MORE time than one fixed step provides** | 0.0220 > 0.0167 |
+| realised motion, per **sim** second, while commanded 15 m/s | **1.3 · 2.7 · 4.3 · 5.0 · 11.3 · 13.3 · 25.0** — erratic, mostly far below 15 |
+
+⇒ ⭐⭐⭐ **Physics advance is quantised to a 1/60 fixed step per frame while sim time advances by a
+variable, usually larger amount.** With one step per frame the realised rate is `min(1/60, δ) / δ`:
+**100 %** at 0.0142 s, **76 %** at the median 0.0220 s, **17 %** at 0.10 s and **7 %** on a 0.225 s hitch.
+⭐ That is both the slow motion *and* its unevenness — the ratio swings with frame time, so the vehicle
+crawls through slow frames and lurches through fast ones.
+
+⚠ **STATED HONESTLY — what is NOT yet measured:** the exact value of `Simulation.MaxSubSteps` (Stride's
+source is not vendored and the field is never read here), and therefore whether the unspent remainder is
+**dropped** or **carried** and later discharged. ⛔ The `25 m/sim-s` sample is consistent with a carried
+remainder discharging, but that is an inference, not a measurement. ⚠⚠ **An earlier session claim that
+Stride "discharges a backlog" was retracted under user challenge — do not re-assert it without reading
+the field.**
+
+⭐ **The fix is the one §11.1 item ③ already specified** — *"`FixedTimeStep`/`MaxSubSteps` set from the sim
+step so a step integrates once"*. ⚠ It touches the same surface as `CE-227`'s pause gate
+*(`UpdateTime.Factor = simDelta / wallSeconds`)*, so it is a physics-timing change, not a tuning tweak.
+
+
 ## 14. OPEN QUESTIONS — each with a lean
 
 | # | question | ⭐ lean |
