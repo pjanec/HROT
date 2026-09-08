@@ -830,6 +830,61 @@ selection-trail check — **remains unverified**, because `CE-221` stops the hos
 ⭐ What IS now verified is the half a compile gate could never reach: **the projects build on Windows, the
 suites run on Windows, and the two new rails are green on real execution.**
 
+### ⭐⭐⭐ 13.3 `CE-232` — **THE TEMPLATE ARENA WAS A CLOSED BOX, AND IT ATE EVERY SCENARIO** *(`2026-09-08`, obligation ⑤)*
+
+⛔⛔ **This section corrects an assumption that ran through §13.1–§13.2 and through `CE-231`: that
+`hill-attack-close`'s vehicles were failing to move because the muscle, the motor or the nav was broken.**
+📐 **Measured: they were being physically ejected, and the mover was Bullet doing its job.**
+
+| the claim | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| bodies are CREATED at the authored world position | ✅ log: `CreateBody entity=#1 FDP=(446.317,420.903,0.000)`, reverse-sync writes it back for 5 frames | ✅ §11.1a — the reverse-sync owns `SimTransform` for owned bodies |
+| within 1 s they are somewhere else, far faster than any command | ✅ `#1` → `(289.62,302.90)` in **0.27 s** ≈ 780 m/s, while the motor asked `spd=2.90` | — |
+| `MainScene`'s four walls are **infinite half-space planes** at `X=±20`, `Z=±20` | ✅ `MainScene.sdscene`: 4 × `StaticPlaneColliderShapeDesc`, normals ±X *(N/S rotated)* | ⛔ **searched `docs/` and `.dev/`, no design record claims them** — the asset has **one commit**, *"initial, from template"* |
+| only body-owning entities collapsed | ✅ `#1000` and `#1005` have **no `PhysicsCollider`** and held `(427.8,457.9)` / `(670,473.5)` exactly | ✅ the partition follows from §11.1a: no body, no reverse-sync, no clobber |
+
+⭐⭐ **THE TWO SYMPTOMS `CE-231` FILED AS SEPARATE AND UNMEASURED ARE ONE DEFECT.** A tank reporting
+`SimVelocity` **2.39 m/s** and `wz` **0.424 rad/s** while its position moved **< 1 cm** and its yaw
+oscillated **±0.2° over ten samples without accumulating** is not a dead motor and not a stuck integrator —
+it is **a body pinned against a wall**, motor pushing, constraint cancelling. ⚠ The circle hypothesis that
+`v/ω ≈ 5.6 m` invites is **refuted by the yaw never accumulating**.
+
+⭐ **As built:** `StrideHrotGame.NeutralizeInfinitePlaneColliders`, run in `BootEditorSubsystem` **before**
+the `CE-231` ground slab, beside the existing `NeutralizeTemplatePlayer`. ⛔ **Matched structurally** — *"a
+static collider carrying a `StaticPlaneColliderShapeDesc`"*, never by name. ⭐ **The collider is removed,
+the entity is not**: the visual wall is decoration; only the infinite solid did damage.
+
+📐 **VERIFIED LIVE, `hill-attack-close`, `2026-09-08` — the first movement this tree has produced.** Paused
+after load, all 8 entities hold authored coordinates. On play, all four tanks advance in formation and
+**arrive**: `#1001 → (522,401)` against a destination of `(523,401)`, and its peers likewise within a metre;
+`NavigationStatus.Result = "Arrived"`, `LocomotionChannel.Status = "Success"`, `z` holds `0.5`. Boot log
+reports **4 planes neutralised** and the navmesh still bakes *(AABB-fallback `13 → 9`, triangles
+`3552 → 3504` — exactly the four walls)*.
+
+⛔⛔ **AND IT EXPOSES THAT `CE-221`'s "BOTH HOSTILES KILLED" GATE PASSED FOR THE WRONG REASON.** 🔴 That run
+killed both **in a collapsed world where all 8 entities were piled within ~2 m at the origin** ⇒ it proved
+the weapon chain fires at point-blank range, ⛔ **never the approach, the engagement or the mission.**
+⚠ `CE-232` did not break the kill — it removed the artefact that was faking it. ⭐ **The acceptance in
+§13.1/§13.2 that cites that kill should be read with this correction.**
+
+📐 **Why the scenario now stops short, measured — two independent causes, neither of them physics:**
+① the platoon's `MissionPlanQueue` reads **`CurrentPhase: 1, PhaseCount: 1`** while `PlatoonHillAttack`'s
+params carry **both** a `baselineStart/End` and a `firingLineStart/End` — only the baseline is executed and
+the advance to the firing line never happens *(the task still reads `state: "TASK_PLANNED"`)*.
+② at the baseline the tanks sit **~143 m** from the hostiles while `PerceptionReceptor.VisionRange` is
+**`100`** ⇒ `SensorContactList.Count = 0` and `WeaponChannel.Status = "Failure"` with 42 rounds unfired.
+⭐ **Searched `docs/` and `.dev/` for an owning design for the firing-line phase — none found**; both belong
+to the behaviour/mission lane, not to this document, and are recorded here only because this run is what
+made them visible.
+
+⚠⚠ **KNOWN, NOT FIXED HERE — the navmesh has the same shape of problem.** The bake reports
+`polys=43 (Vehicle) / 123 (Infantry)` from *"floor from arena colliders"*, so it covers the ±20 m arena and
+nothing where scenarios live. ⭐ Vehicles are unaffected today because `VehicleNavigationIntentSystem` logs
+*"navmesh bypassed"* and steers direct — ⛔ **but navmesh-driven infantry movement outside the arena cannot
+work until the bake covers scenario extents.** ⚠ Also open and unrelated to the walls:
+`NavigationIntentBridgeSystem` skips crowd registration for anything with `VehicleState`.
+
+
 ## 14. OPEN QUESTIONS — each with a lean
 
 | # | question | ⭐ lean |

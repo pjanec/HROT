@@ -1039,6 +1039,11 @@ public sealed class StrideHrotGame : Game
         // from the scene. We then create a fixed overview camera that can see the spawn area.
         NeutralizeTemplatePlayer(scene);
 
+        // ── 2a. STRIP THE TEMPLATE ARENA'S INFINITE PLANE WALLS ───────────
+        // CE-232. Must run BEFORE the ground slab and before any scenario loads: while these exist,
+        // every world coordinate beyond ±20 m is the inside of a solid half-space.
+        NeutralizeInfinitePlaneColliders(scene);
+
         // ── 2b. A GROUND PLANE BIG ENOUGH FOR REAL SCENARIO COORDINATES ───
         AddScenarioGroundPlane(scene);
 
@@ -1435,6 +1440,119 @@ public sealed class StrideHrotGame : Game
             // does not automatically remove child entities from the SceneInstance,
             // so we remove children explicitly.
             RemoveEntityAndChildren(scene, playerCharacter);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-232</c> — strips <b>infinite half-space plane colliders</b> from the template arena,
+    /// which were ejecting every scenario entity that owns a physics body back to the origin.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>📐 The defect, measured end to end on <c>hill-attack-close</c>.</b> Bodies are created at the
+    /// RIGHT place — the log shows <c>CreateBody entity=#1 FDP=(446.317,420.903,0.000)</c> and the
+    /// reverse-sync writing that same value back for the first frames. Within one second they are
+    /// somewhere else entirely: <c>#1</c> reads <c>(289.62,302.90)</c> <b>0.27 s</b> later (≈780 m/s) and
+    /// <c>#7</c> travels <c>x=668 → 587.8</c> in <b>0.6 s</b> (≈133 m/s). Nothing commands that — the
+    /// vehicle motor was asking for <c>spd=2.90</c>. They are being EJECTED.</para>
+    ///
+    /// <para><b>⭐ The cause.</b> <c>MainScene</c> carries four walls — <c>Wall_East</c>/<c>West</c> at
+    /// <c>X=±20</c> and <c>Wall_North</c>/<c>South</c> at <c>Z=±20</c> — and each is a
+    /// <c>StaticPlaneColliderShapeDesc</c>. ⛔⛔ <b>A Bullet static plane is an INFINITE half-space, not a
+    /// wall segment.</b> A scenario entity at <c>x=446</c> is therefore <b>426 m deep</b> inside solid
+    /// matter, and Bullet's penetration recovery does exactly what it should: it expels the body at a
+    /// speed proportional to the depth. Every body then comes to rest jammed just inside the ±20 box —
+    /// which is precisely where they were all measured: <c>|x| ∈ [17.9, 19.5]</c>, one of them at
+    /// <c>x = -18.95</c>, against the west wall.</para>
+    ///
+    /// <para>⭐⭐ <b>It explains the second symptom too, the one that looked separate.</b> A tank reported
+    /// <c>SimVelocity</c> 2.39 m/s and <c>wz</c> 0.424 rad/s while its position moved less than a
+    /// centimetre and its yaw oscillated ±0.2° over ten samples without ever accumulating. That is not a
+    /// dead motor and not a stuck integrator — it is a body pinned against a wall, the motor pushing and
+    /// the constraint cancelling. <b>One cause, both symptoms.</b></para>
+    ///
+    /// <para>⚠ <b>Why the partition proves it.</b> The two entities WITHOUT a physics body — the platoon
+    /// marker and the objective — held their authored coordinates exactly (<c>(427.8,457.9)</c> and
+    /// <c>(670,473.5)</c>). Only body-owning entities collapsed. Nothing but physics separates the two
+    /// groups.</para>
+    ///
+    /// <para>⭐ <b>Design basis: searched <c>docs/</c> and <c>.dev/</c>, no design record claims these walls.</b>
+    /// <c>MainScene.sdscene</c> has exactly one commit — <i>"feat: stride game project (initial, from
+    /// template)"</i> — so they are unmodified Stride template furniture bounding a demo arena, never a
+    /// designed constraint on the world. This host already neutralises template content that breaks
+    /// hosted mode (<see cref="NeutralizeTemplatePlayer"/>, and the skipped demo UrbanCombat spawns);
+    /// this is the same category and sits beside them.</para>
+    ///
+    /// <para>⛔ <b>Matched STRUCTURALLY, not by name.</b> The filter is "a static collider carrying a
+    /// <c>StaticPlaneColliderShapeDesc</c>", not <c>Wall_*</c>: an infinite half-space is never a valid
+    /// collider in a world whose scenarios span kilometres, so a fifth one added later is covered the day
+    /// it appears rather than the day someone watches a tank fly sideways.</para>
+    ///
+    /// <para>⭐ <b>The COLLIDER is removed, the entity is not.</b> The visual wall is harmless decoration at
+    /// the arena edge; only the infinite solid was doing damage. Keeping the entity is the smaller blast
+    /// radius and leaves the arena looking as authored. ⚠ It also drops these from
+    /// <c>StrideSceneGeometrySource</c>'s navmesh input, which is correct — they were bounding the bake
+    /// to the same ±20 box.</para>
+    /// </remarks>
+    private void NeutralizeInfinitePlaneColliders(Scene scene)
+    {
+        var victims = new List<(global::Stride.Engine.Entity Entity, StaticColliderComponent Collider)>();
+        foreach (var entity in scene.Entities)
+        {
+            CollectInfinitePlaneColliders(entity, victims);
+        }
+
+        foreach (var (entity, collider) in victims)
+        {
+            entity.Components.Remove(collider);
+            Log.Info(
+                "[StrideHrotGame] CE-232: removed an INFINITE plane collider from '{0}' at ({1:F1},{2:F1},{3:F1}). " +
+                "A Bullet static plane is a half-space, so it made every scenario coordinate beyond it solid " +
+                "matter and expelled body-owning entities back into the template arena.",
+                entity.Name,
+                entity.Transform.Position.X, entity.Transform.Position.Y, entity.Transform.Position.Z);
+        }
+
+        if (victims.Count == 0)
+        {
+            Log.Info("[StrideHrotGame] CE-232: no infinite plane colliders in the scene — nothing to neutralise.");
+        }
+        else
+        {
+            Log.Info(
+                "[StrideHrotGame] CE-232: neutralised {0} infinite plane collider(s); scenario coordinates " +
+                "outside the template arena are now free space.",
+                victims.Count);
+        }
+    }
+
+    /// <summary>
+    /// Depth-first walk collecting every <see cref="StaticColliderComponent"/> that carries at least one
+    /// <c>StaticPlaneColliderShapeDesc</c>. Collected first and mutated after, so the scene graph is never
+    /// modified while it is being walked.
+    /// </summary>
+    /// <remarks>⭐ <c>internal</c> rather than <c>private</c> so
+    /// <c>InfinitePlaneColliderNeutralisationTests</c> can assert the REAL filter. ⛔ A test-local copy of
+    /// this predicate would pass while production widened — the exact blindness <c>CE-223</c> shipped on.</remarks>
+    internal static void CollectInfinitePlaneColliders(
+        global::Stride.Engine.Entity entity,
+        List<(global::Stride.Engine.Entity Entity, StaticColliderComponent Collider)> victims)
+    {
+        var collider = entity.Get<StaticColliderComponent>();
+        if (collider != null)
+        {
+            foreach (var shapeDesc in collider.ColliderShapes)
+            {
+                if (shapeDesc is StaticPlaneColliderShapeDesc)
+                {
+                    victims.Add((entity, collider));
+                    break;
+                }
+            }
+        }
+
+        foreach (var childTransform in entity.Transform.Children)
+        {
+            CollectInfinitePlaneColliders(childTransform.Entity, victims);
         }
     }
 
