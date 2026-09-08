@@ -100,6 +100,20 @@ public sealed class StrideHrotGame : Game
     private StrideNodeBootstrapper? _bootstrapper;
 
     /// <summary>
+    /// ⭐⭐ <c>CE-207</c> — when true this process boots as a MODE 2 cluster node (Muscle + Perception
+    /// beside CGF) instead of the mode 1 hosted editor. Set by the composition root before Run().
+    /// </summary>
+    public bool NodeMode { get; set; }
+
+    /// <summary>DDS domain for mode 2. Ignored in mode 1.</summary>
+    public int NodeDomainId { get; set; }
+
+    /// <summary>Cluster node id for mode 2. Ignored in mode 1.</summary>
+    public int NodeId { get; set; } = StrideNodeShell.DefaultNodeId;
+
+    private StrideNodeShell? _nodeShell;
+
+    /// <summary>
     /// Exposes the bootstrapper for test/diagnostic inspection.
     /// Valid after <see cref="AttachBootstrapper"/> is called, which must happen
     /// before <see cref="Tick"/> is invoked for the first time.
@@ -362,6 +376,15 @@ public sealed class StrideHrotGame : Game
             return;
         _editorSubsystemBooted = true;
 
+        // ⭐⭐ CE-207 / S4 — mode 2 boots a CLUSTER NODE instead of the hosted editor. Both modes share
+        //   this Game, its scene setup and its brackets; only the composition root differs, which is
+        //   what Q66 §3B means by "mirror the bracket rather than invent a composition root".
+        if (NodeMode)
+        {
+            BootClusterNode();
+            return;
+        }
+
         BootEditorSubsystem();
     }
 
@@ -439,6 +462,17 @@ public sealed class StrideHrotGame : Game
         //   as-built: Stride's base.Update (and therefore the physics step) runs BEFORE the editor tick
         //   advances the clock. 📄 DESIGN_Stride_Node_Modes.md §11.1a, option B. Option A (hoisting the
         //   advance into a shell) is CE-207's and would make this the current frame's.
+        // ⭐⭐ CE-207 — MODE 2: the node is a TIME SLAVE. Its bootstrapper calls Kernel.Update()
+        //   parameterless, so the frame delta reaches only the gizmo producer buffer. There is no
+        //   CurrentSimDeltaSeconds here because there is no local editor clock to read it from — the
+        //   master supplies time. 📄 Q66 §3A.
+        if (NodeMode)
+        {
+            if (_bootstrapper != null)
+                _bootstrapper.Tick((float)gameTime.Elapsed.TotalSeconds);
+            return;
+        }
+
         float simDt = _editorSubsystem?.CurrentSimDeltaSeconds ?? 0f;
 
         // Internal-loop mode (BATCH-10): drive EditorStrideSubsystem.
@@ -1039,6 +1073,31 @@ public sealed class StrideHrotGame : Game
             "coplanar floor tiles (CE-240). Those tiles span only a few metres; scenario coordinates " +
             "run to ~700 m.",
             ExtentMetres, ThicknessMetres, VisualDropMetres);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-207</c> — mode 2 boot: join a cluster as a Muscle + Perception node.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ Keeps the SAME scene preparation mode 1 uses — the template player is neutralised, the
+    /// infinite plane walls are stripped (<c>CE-232</c>) and the scenario ground slab is added
+    /// (<c>CE-231</c>/<c>CE-240</c>) — because those are properties of the WORLD, not of the editor.
+    /// ⛔ It does not create the editor, its windows or its camera scripts.
+    /// </remarks>
+    private void BootClusterNode()
+    {
+        var scene = SceneSystem.SceneInstance.RootScene;
+        NeutralizeTemplatePlayer(scene);
+        NeutralizeInfinitePlaneColliders(scene);
+        AddScenarioGroundPlane(scene);
+        AddFixedCamera(scene);
+
+        _nodeShell = new StrideNodeShell();
+        _nodeShell.Boot(NodeDomainId, NodeId);
+        AttachBootstrapper(_nodeShell.Bootstrapper);
+
+        Log.Info("[StrideHrotGame] CE-207: mode 2 node attached — the frame loop now drives " +
+                 "StrideNodeBootstrapper.Tick (parameterless Kernel.Update, time slave).");
     }
 
     private void BootEditorSubsystem()
