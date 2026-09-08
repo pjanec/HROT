@@ -1857,7 +1857,7 @@ nothing here moves the counts table.*
 
   ⭐ **Rails:** `SpawnTransformBindsTests` (`Hrot.Editor.Tests`) — the documented shape binds, a non-binding payload THROWS *(the anti-vacuity half, without which the first test could pass while the origin bug survived)*, and `SimTransform` still exposes fields so `IncludeFields` cannot be "simplified" away. ⭐⭐ They assert the **`internal` options instance the endpoint actually uses** — ⛔ a locally-built copy would pass while production stayed broken, which is the exact blindness `CE-223` and `CE-224` were each built on.
 
-- [ ] **CE-230** · `RW-M` 🔴 — **WALL-CLOCK DELTAS STILL DRIVE THE STRIDE HOST'S TICK, ANIMATION AND VIEW TIER — [`R-143`](RULINGS.md) SAYS THEY MUST NOT.** 🔒 *(user, `2026-09-08`: "no wall clock enywhere, whole sim driven by sim time ONLY. only use of wallclock us stamping the fdp recording")*
+- [x] **CE-230** · `RW-M` ✅ — **WALL-CLOCK DELTAS STILL DRIVE THE STRIDE HOST'S TICK, ANIMATION AND VIEW TIER — [`R-143`](RULINGS.md) SAYS THEY MUST NOT.** 🔒 *(user, `2026-09-08`: "no wall clock enywhere, whole sim driven by sim time ONLY. only use of wallclock us stamping the fdp recording")*
 
   ⭐ **`CE-227` applied the rule to PHYSICS only** — `GameTime.Factor = simDelta / wallDelta`, so Stride's integrator consumes sim seconds. ⛔ **Everything else in the host still runs on `gameTime.Elapsed`.**
 
@@ -1881,6 +1881,25 @@ nothing here moves the counts table.*
   ② **`Tick(wallDt)` is the EDITOR's contract, not Stride's.** `EditorSubsystem.Update(dt)` advances the time controller from that argument, so feeding it the sim delta may be circular. ⛔ **Measure the dependency before changing it** — this row's other five sites are independent of that question and can land first.
 
   ⭐ **`R-143` is the ruling; this row is the work.** 📄 The design cell that used to bless `wallDt` for the view tier is corrected in [`DESIGN_Stride_Node_Modes.md`](../DESIGN_Stride_Node_Modes.md) §7.3b.
+
+  ✅✅ **DONE `2026-09-08` — CONVERTED AT THE TOP OF THE CHAIN, AFTER MEASURING THE ONE THING THAT COULD HAVE MADE IT UNSAFE.**
+
+  ⭐⭐⭐ **The measurement that unblocked it.** This row originally flagged `_editorSubsystem.Tick(wallDt)` as *"deepest blast radius — measure the dependency before changing it"*, the worry being circularity: if `EditorSubsystem.Update(dt)` advanced the time controller from that argument, feeding it the sim delta would feed the clock its own output. 📐 **Measured: it does not.** `EditorSubsystem.Update(deltaTime)` calls **`_kernel?.Update()` with NO ARGUMENT** — `ModuleHostKernel` advances the clock itself. The delta feeds only the canvas, the selection system, the gizmo producer buffer, the (already dt-ignoring) `PreKernelUpdateHook` and the cluster panel. ⇒ **no feedback loop, and one conversion at the top covers every consumer.**
+
+  ⭐ **Shipped:** `StrideHrotGame.Update` computes `simDt = _editorSubsystem.CurrentSimDeltaSeconds` and drives `Tick`, the loop driver and the test harness from it. The view bracket's animation and post-kernel steps inherit it, because they are handed the same `dt`. ⛔ `gameTime.Elapsed` no longer reaches any of them.
+
+  📐 **Verified live, `hill-attack-close`, one run:**
+
+  | | |
+  |---|---|
+  | **paused 20 s** | ✅ body bit-identical at `[446.32, 420.90, 0.50]` · **0** `not yet physics-ready` · ⭐ **UI still rendering** *(frame-timing reports kept arriving)* · ⭐ **debug API responsive** |
+  | **resumed 25 s** | ✅ **0** not-ready · **6** `InitialPose slammed` · physics integrating, `simVel` non-zero |
+
+  ⭐⭐ **The UI check mattered:** the obvious risk of feeding the editor a zero delta while paused was a frozen or unresponsive interface. 📐 It is not — ImGui rendering is not delta-driven. ⚠ **Limit, stated honestly: I verified that frames DRAW and the API answers. I did NOT verify interactive selection/drag while paused** — that needs a human at the window, and it belongs in the visual check.
+
+  ⚠ **The wider sweep found the rest of the codebase already compliant.** 📐 `grep` over `Hrot.Editor`, `Hrot.CGF`, `Hrot.SimHost`, `Hrot.IG`, `FDP/Engine`, `FDP/Toolkits`: the wall clock appears only in the **FlightRecorder** *(the sanctioned use — `GlobalTime` even carries a field so the recorder need not call `DateTime.UtcNow` directly)*, in diagnostics/log throttles, and in HTTP wait timeouts. ⇒ ⭐ **the violation was confined to the Stride host**, which is where `R-143` was raised.
+
+  ⚠ **NOT fixed here and not caused by it:** the vehicles still fall once physics integrates, because the scenario sits at world coordinates ~450–670 while the Stride ground is near the origin. Separate row.
 
 - [ ] **CE-220** · `RW-S` ⚠ — **`AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` IS AN INTERMITTENT GC-TIMING RAIL, AND `CE-205`'s NEW TESTS MADE IT MORE LIKELY TO FIRE.** 📐 **Measured `2026-09-07`, and reported as MINE rather than pre-existing.**
 

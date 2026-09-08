@@ -419,7 +419,23 @@ public sealed class StrideHrotGame : Game
         _baseUpdateSw.Stop();
         double baseUpdateMs = _baseUpdateSw.Elapsed.TotalMilliseconds;
 
-        float wallDt = (float)gameTime.Elapsed.TotalSeconds;
+        // ⭐⭐⭐ R-143 / CE-230 — THE SIM DELTA DRIVES EVERYTHING BELOW. NOT THE FRAME TIME.
+        //
+        // 🔒 User, 2026-09-08: "no wall clock enywhere, whole sim driven by sim time ONLY. only use of
+        //    wallclock us stamping the fdp recording" — "not in stirede, not in editor, not in cgf, not
+        //    in simhost, never where simulation is related".
+        //
+        // 📐 Measured before converting, because the obvious worry was circularity:
+        //    EditorSubsystem.Update(deltaTime) calls `_kernel?.Update()` with NO ARGUMENT — the kernel
+        //    advances the clock itself — so this delta NEVER reaches the simulation clock. It feeds the
+        //    canvas, the selection system, the gizmo producer buffer, the (already dt-ignoring)
+        //    PreKernelUpdateHook and the cluster panel. ⇒ no feedback loop, and the conversion is safe.
+        //
+        // ⚠ It is the PREVIOUS frame's sim delta, which is deliberate and already the documented
+        //   as-built: Stride's base.Update (and therefore the physics step) runs BEFORE the editor tick
+        //   advances the clock. 📄 DESIGN_Stride_Node_Modes.md §11.1a, option B. Option A (hoisting the
+        //   advance into a shell) is CE-207's and would make this the current frame's.
+        float simDt = _editorSubsystem?.CurrentSimDeltaSeconds ?? 0f;
 
         // Internal-loop mode (BATCH-10): drive EditorStrideSubsystem.
         if (_editorSubsystem != null)
@@ -433,21 +449,24 @@ public sealed class StrideHrotGame : Game
             // The OFF path (self-contained kernel) keeps the loop driver unchanged.
             if (_editorSubsystem.HostRealEditor)
             {
-                _editorSubsystem.Tick(wallDt);
+                _editorSubsystem.Tick(simDt);
             }
             else
             {
-                _loopDriver.AdvanceFrame(wallDt, dt => _editorSubsystem.Tick(dt));
+                _loopDriver.AdvanceFrame(simDt, dt => _editorSubsystem.Tick(dt));
             }
 
             // Spawn diagnostics (follow-up to BATCH-10): throttled to ~once per second.
             LogSpawnDiagnostics();
         }
 
-        // BATCH-12: drive the in-app test harness (keyboard polling + continuous-case
-        // hooks + on-screen DebugText status). Uses the render-frame wall delta so the
-        // orbiting-ghost demo advances smoothly regardless of the fixed sim cadence.
-        _testHarness?.Update(wallDt);
+        // BATCH-12: drive the in-app test harness (keyboard polling + continuous-case hooks +
+        // on-screen DebugText status).
+        // ⚠ R-143 — this used to take the render-frame WALL delta, with the stated reason that "the
+        //   orbiting-ghost demo advances smoothly regardless of the fixed sim cadence". That reason is
+        //   retired: the harness drives scripted SIMULATION probes, so a demo that advances while sim
+        //   time is stopped is measuring the frame rate, not the simulation.
+        _testHarness?.Update(simDt);
 
         // BATCH-S2-AG: mirror the paused-nav toast (BATCH-S2-AD) into the 3D Stride viewport (where the
         // operator is clicking). DebugTextSystem uses Stride's built-in font; auto-expiry already handled by
