@@ -122,6 +122,29 @@ public sealed class EditorStrideSubsystem : IDisposable
     /// <summary>The module-host kernel that drives all ECS systems.</summary>
     public ModuleHostKernel Kernel { get; private set; } = null!;
 
+    /// <summary>
+    /// ⭐⭐⭐ The SIM delta for this frame, in seconds — the value Stride's physics must advance by.
+    /// </summary>
+    /// <remarks>
+    /// <para>🔒 <b>User ruling, 2026-09-08:</b> <i>"physics should run always just sometime with zero dt"</i>
+    /// and <i>"no elapsed ticks of wall clock, always elapsed seconds sim time"</i>. This property is that
+    /// value, and <c>StrideHrotGame.Update</c> converts it into <c>GameTime.Factor</c> so Stride's own
+    /// physics step consumes SIM seconds and never the frame time.</para>
+    ///
+    /// <para>⛔ It is the SAME expression the physics bracket already uses for its motors, deliberately:
+    /// two sources for "how far did the world move" is how the motors and the integrator drift apart.
+    /// 📄 <c>DESIGN_Stride_Node_Modes.md</c> §11.1/§11.1a — it is option B (the previous frame's pushed
+    /// <c>GlobalTime</c>), because <c>base.Update</c> runs Stride's systems BEFORE the editor tick
+    /// advances the clock. Option A (hoisting the advance into a shell) is CE-207's, and would let this
+    /// read the current frame's delta instead.</para>
+    ///
+    /// <para>⚠ Zero while paused or on a non-granted step, which is the whole point: physics then ticks
+    /// with a zero delta rather than being switched off. ⛔ Switching it off (Simulation.DisableSimulation)
+    /// was CE-223/CE-227 and it took body readiness, contacts and events with it.</para>
+    /// </remarks>
+    public float CurrentSimDeltaSeconds { get; private set; }
+
+
     /// <summary>Time controller (deterministic/paused mode for authoring).</summary>
     public MasterSyncController TimeController { get; private set; } = null!;
 
@@ -1168,6 +1191,11 @@ public sealed class EditorStrideSubsystem : IDisposable
                 ? _editor.Kernel.CurrentTime.DeltaTime
                 : (steppedThisFrame ? StepFixedDeltaSeconds : 0f);
             bool simRunning = physicsDt > 0f;
+
+            // ⭐ CE-227 — publish the SAME delta to the host, which turns it into GameTime.Factor so
+            //    STRIDE's physics advances by sim seconds too. One source for "how far did the world
+            //    move": the motors below and Bullet's integrator must never disagree.
+            CurrentSimDeltaSeconds = physicsDt;
 
             // B: physics bracket pre-kernel (lifecycle + reposition + reverse-sync ALWAYS run;
             // the sim-advancing motors run only when simRunning).

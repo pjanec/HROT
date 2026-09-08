@@ -379,6 +379,40 @@ public sealed class StrideHrotGame : Game
         // ── Total StrideHrotGame.Update timing (DIAG) ─────────────────────
         _totalUpdateSw.Restart();
 
+        // ⭐⭐⭐ CE-227 — STRIDE'S PHYSICS ADVANCES BY SIM SECONDS, NEVER BY THE FRAME TIME.
+        //
+        // 🔒 User ruling, 2026-09-08: "physics should run always just sometime with zero dt" and
+        //    "no elapsed ticks of wall clock, always elapsed seconds sim time".
+        //
+        // 📐 Stride's physics game system does exactly one thing with time:
+        //        scene.Simulation.Simulate((float)gameTime.WarpElapsed.TotalSeconds)
+        //    and GameTime defines  WarpElapsed = Elapsed * Factor,  with Factor a public, clamped-to-
+        //    non-negative multiplier whose own doc says it "controls how much the warped time flows,
+        //    this includes physics, animations and particles".
+        //    ⇒ setting  Factor = simDelta / wallDelta  makes  WarpElapsed == simDelta  EXACTLY: the
+        //      frame time cancels, and Bullet integrates sim seconds. Paused ⇒ simDelta 0 ⇒ Factor 0 ⇒
+        //      Simulate(0) ⇒ `carriedDelta += 0` ⇒ its fixed-step loop never runs ⇒ NOTHING INTEGRATES,
+        //      while the rest of the physics update (removals, bones, characters, contacts, events)
+        //      still ticks. That is "always run, sometimes with zero dt".
+        //
+        // ⛔⛔ This REPLACES Simulation.DisableSimulation as the pause mechanism. That flag makes the
+        //    game system `return` before Simulate is even called, taking body readiness, contacts and
+        //    events with it — measured: bodies never became physics-ready and vehicles could not move
+        //    at all (CE-223 → CE-227). ⭐ Stride's integrator is fixed-step either way
+        //    (StepSimulation(FixedTimeStep, 0, FixedTimeStep)), so wall time never reaches it; Factor
+        //    only decides HOW MANY fixed steps a frame consumes, and zero is a legal answer.
+        //
+        // ⭐ Not editor-shaped: the input is "how far did SIM time move", read from the synced clock, so
+        //    a cluster-wide pause stops physics identically on every node in mode 2 — no reference to
+        //    who owns an entity or which node loaded the scenario.
+        double wallSeconds = gameTime.Elapsed.TotalSeconds;
+        if (_editorSubsystem != null && wallSeconds > 0.0)
+        {
+            // ⚠ Guarded on wallSeconds > 0: on the first frame (and any zero-length frame) Elapsed is
+            //   zero, so WarpElapsed is zero whatever the factor — the division would be meaningless.
+            UpdateTime.Factor = _editorSubsystem.CurrentSimDeltaSeconds / wallSeconds;
+        }
+
         // ── base.Update timing (DIAG) ─────────────────────────────────────
         _baseUpdateSw.Restart();
         base.Update(gameTime);
