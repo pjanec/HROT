@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-07
-current-answer: §2 (what to verify, FIRST) then §3 (what to build next). §1 is the standing context.
+updated: 2026-09-08
+current-answer: §S (SESSION STATE, at the END of this file) - read it FIRST after a compaction.
+  §2's verification is DONE and CE-221 is fixed; §3 (S4 / mode 2) has NOT started. §1 is standing context.
 design-basis: docs/DESIGN_Stride_Node_Modes.md (the owning design; §13 is the slice table, §7.3b and
   §11.1a are the as-built for the two slices most at risk) · docs/blueprints/Blueprint_Issues_Tracker.md
   (CE-205/206/207/208/211/213/214/215/216/219) · docs/RUNBOOK_Cluster_Debugging_Over_Http.md.
@@ -257,3 +258,76 @@ a control plane can throw every frame while the API answers `ok:true`.
 | **`CE-151`** | the world-bootstrap seam — still homeless | tracker |
 | ⚠ **`FixedTimeStep` / `MaxSubSteps`** | `CE-219` left these unset. It is a *determinism-of-step-size* concern, and it is **unmeasurable off Windows** — the code only ever **logged** `FixedTimeStep`. ⭐ **This machine can finally measure it** | §11.1a |
 | ⚠ **§11.1's option A** | mode 1 shipped **option B** *(one frame of lag)*. `S4` item ③ is where A lands | §11.1a |
+
+---
+
+# ⭐⭐⭐ SESSION STATE — `2026-09-08` — **READ THIS FIRST AFTER A COMPACTION**
+
+> ⭐ **§2's verification is DONE. `CE-221` is fixed and the host boots. The work since has been driven
+> by the user's own visual checks, and it found five production defects the ~8 000 tests were green on.**
+
+## S-1. The rulings this session produced — ⛔ they bind
+
+| ruling | |
+|---|---|
+| ⭐⭐⭐ [`R-143`](RULINGS.md) | 🔒 *"no wall clock enywhere, whole sim driven by sim time ONLY. only use of wallclock us stamping the fdp recording"* — *"not in stirede, not in editor, not in cgf, not in simhost, never where simulation is related"*. ⛔ It RETIRED §7.3b's *"the view tier is free-running so `wallDt` is correct here"* |
+| 🔒 **ELM / mode 2** | *"ELM and deferred ownership transfer is in play here and no editor specific shortcuts shall be made; it needs to work also for stride mode 2 where the brain who loads the scenario is on another node"* ⇒ ⛔ **any fix bounded only in the editor is wrong** |
+| 🔒 **hill-attack is the gate** | *"you absolutely must check the system using the hill attack close scenario"* and *"the scenario needs to end up with killing both enemy tanks"* |
+| ⛔ **MEASURE, do not offer a choice** | 🔒 *"always measure before decideind anything, i thought this is written clearly in calude.md"* — 📌 said after I offered an either/or instead of running the two commands that settled it |
+
+## S-2. What is FIXED and verified on Windows
+
+| id | what | proof |
+|---|---|---|
+| ✅ `CE-221` | the host **did not boot** — two `[SingleInstance]` systems registered twice. Fixed by hoisting `UnitHierarchySystem` + `EqsResultUpdateSystem` into **cross-role infrastructure capabilities** declared once per plan | `hill-attack-close`: **both hostiles killed** (`1006` t≈21 s, `1007` t≈46 s), 15 waves, 0 overshoot, 0 errors |
+| ✅ `CE-225` | `spawn_entity` placed everything at the **origin** and answered `ok:true`. `SimTransform` uses **public fields** and `JsonSerializer` ignores fields unless `IncludeFields` is set ⇒ no payload could ever bind | live: `{"position":{"x":480,"y":450,"z":0.5}}` → reads back `[480,450,0.5]`; a non-binding payload is now **refused** |
+| ✅ `CE-227` | ⭐⭐⭐ **the pause gate.** `GameTime.Factor = simDelta / wallDelta` ⇒ `WarpElapsed == simDelta` ⇒ Bullet integrates **sim seconds**; paused ⇒ `Simulate(0)` ⇒ its fixed-step loop never runs | paused 25 s bit-identical; resumed 30 s physics live |
+| ✅ `CE-230` | the host tick, loop driver, test harness and view bracket now run on `CurrentSimDeltaSeconds` | paused: UI still renders, API responsive; resumed: physics integrates |
+
+⛔⛔ **`Simulation.DisableSimulation` IS NOT A PAUSE — never use it as one.** It makes Stride's physics game
+system `return` **before** `Simulate`, taking body readiness, contacts and events with it. That was
+`CE-223`, and it made vehicles unable to move at all while looking like a fix.
+
+⚠⚠ **RETRACTED this session:** I claimed Stride's physics was wall-dt dependent and that another engine
+might be needed. **False.** `StepSimulation(FixedTimeStep, 0, FixedTimeStep)` is fixed-step; wall time only
+decided how many steps ran, and **zero is a legal answer**.
+
+## S-3. What is OPEN
+
+| id | what |
+|---|---|
+| ✅ **the terrain floor** | **DONE — `CE-231`.** A 20 km × 20 km visible + collidable slab, top face at `Y=0`, added in `BootEditorSubsystem`. 📐 Verified: vehicles hold `z=0.5`, `simVel.z=0` — **the falling is gone**. ⛔ It did NOT make them move |
+| 🔴🔴 **THE NEXT THING** | ⭐⭐ **velocity without translation, and the X/Y collapse.** 📐 Same run: `#1001` reports `SimVelocity` **2.4 m/s** while its position stays `(19.0, 18.5)` for **24 s** ⇒ non-zero velocity, **no motion**. 🔴 And it loads at `(446, 420)` but reads at `(19, 18)` — ⛔ **free fall never explained that, and now there is no fall at all**, so it is neither gravity nor the missing ground. **NOT MEASURED** |
+| ⛔ HISTORY — the terrain floor | ⭐⭐ **the current blocker.** Scenarios sit at world coords ~450–670; the Stride ground is near the origin, so vehicles **fall** the moment physics integrates. 🔒 *(user: "best if we could extend the stride's terrain floor to be way larger so our scenarios can be modelled outside of the current (and extremely small) stride arena")* ⚠ **Their X/Y also collapse from `(446,420)` to `(18,19)`, which free fall does NOT explain — NOT MEASURED** |
+| 🔴 **vehicle bodies** | `FdpMoveOrderIntegrationTests` is red **at `69390758e` itself**, the commit that introduced it *("port the Bullet Stride integration onto this line", 2026-08-22)* ⇒ ⭐ **it has NEVER passed in this tree** and predates the `CE-1xx` unification. 🔒 The user's memory of working vehicles is the **pre-port line** |
+| ⚠ `CE-222` | `repos`/`pausedFreeze` still red. ⛔ **The physics-gate lead is REFUTED** (still red after `CE-223`). 🔴 **And `drive=PASS` IS VACUOUS** — `endDrive` is the START point; it passes on the residual `B→A` offset of 13.34 m. ⇒ one defect corrupts **three of four** checks; only `initialHold` is independent |
+| ⚠ `CE-226` | generated registrars still lack `ParamsDtoType` (34/40 empty) — the other session's lane |
+| ⛔ **ANIMATION** | ⭐ **still never tested.** No assertion has been made about it in this session |
+
+## S-4. How to drive the host — ⭐ the tool that found most of the above
+
+⭐⭐ **The debug API needs ZERO code on Stride** — `EditorSubsystem` already builds a `DebugApiHost` behind
+`HROT_DEBUG_API_PORT`, and the Stride host hosts a real `EditorSubsystem`. It was under-adopted, not missing.
+
+```
+set HROT_DEBUG_API_PORT=8131, STRIDE_HOST_REAL_EDITOR=1, STRIDE_EDITOR_WINDOW=1
+run Stride\Bin\Windows\Debug\win-x64\HrotStrideApp.Windows.exe
+
+B=http://localhost:8131          # localhost, NEVER 127.0.0.1 (it 404s every route)
+POST $B/scenario/load/live       {"name":"hill-attack-close","waitForReady":true}
+POST $B/sim/play                 {}
+GET  $B/entities/1001            # READ THE ENTITY. Do not theorise from logs
+GET  $B/capabilities             # every route with its tool name — do not guess paths
+```
+
+⚠ **The host boots PAUSED** — nothing moves until `/sim/play`, and that is not a defect. 📌 A whole
+diagnostic loop went into *"nothing moves"* that was simply a paused world.
+
+## S-5. ⛔ THE PROCESS LESSONS THIS SESSION PAID FOR
+
+| | |
+|---|---|
+| ⛔⛔ **grep cannot settle a NEGATIVE claim** | 📌 I claimed *"`CgfCuratedBehaviorRegistrar.Register` has zero callers"*. It is `[BlueprintRegistrar]`-attributed and invoked **reflectively** — invisible to grep **by construction**. The other session corrected me. ⭐ codebase-memory MCP was down and **the CLI fallback exists**; I did not use it |
+| ⛔⛔ **a green rail is not a working feature** | 📌 **three times**: `StridePhysicsBracketPauseGateTests` passes against its own fake · `DiscoveryAndHintTests` asserts the schema is *"an object"* and its own comment says *"possibly empty"* · `drive=PASS` measures displacement from a point the entity never reached |
+| ⛔ **verify against the RIGHT baseline** | 📌 three sessions called the vehicle reds *"pre-existing"* against three different bases. That only ever proved *"not the last batch"*. The answer needed the commit that INTRODUCED the test |
+| ⛔ **do not present an inference as a measurement** | 📌 I said `DisableSimulation` blocks body creation. It was inferred from effect; the truth was a **latch of my own** in the wrapper's pre-`Inner` branch. The third configuration — gate inert, latch present — is what exposed it |

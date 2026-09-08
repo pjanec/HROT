@@ -19,6 +19,10 @@ using Stride.Games;
 using Stride.Input;
 using Stride.Physics;
 using Stride.Rendering;
+using Stride.Rendering.Materials;
+using Stride.Rendering.Materials.ComputeColors;
+using Stride.Graphics.GeometricPrimitives;
+using Stride.Extensions;
 using Stride.Rendering.Lights;
 using Fdp.ModuleHost.Time; // BATCH-S2-AD
 
@@ -925,6 +929,101 @@ public sealed class StrideHrotGame : Game
     /// Boots the EditorStrideSubsystem on the live scene.
     /// Called from <see cref="BeginRun"/> after scene and content are valid.
     /// </summary>
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-231</c> — a ground slab, VISIBLE and SOLID, large enough for scenario coordinates.
+    /// </summary>
+    /// <remarks>
+    /// <para>🔒 <b>User, 2026-09-08:</b> <i>"best if we could extend the stride's terrain floor to be way
+    /// larger so our scenarios can be modelled outside of the current (and extremely small) stride
+    /// arena"</i> — and, on a first draft that added only a collider: <i>"it can not be just a physics
+    /// collider, it must be something visible in 3d otherwise entities would be floating in the air
+    /// visually"</i>. ⇒ this entity carries BOTH a <c>ModelComponent</c> and a
+    /// <c>StaticColliderComponent</c>, sharing one size.</para>
+    ///
+    /// <para><b>📐 The problem, measured.</b> <c>MainScene</c>'s floor is a hand-placed mosaic of
+    /// <c>Floor1x0x1</c> / <c>Floor3x0x1</c> prefab tiles a few metres across, centred on the origin.
+    /// <c>hill-attack-close</c> puts its vehicles at world coordinates around <b>(446, 420)</b> to
+    /// <b>(668, 522)</b>, where there is nothing beneath them — so the moment physics integrates they
+    /// fall, measured to <c>z = -180 m</c> and still accelerating at <c>-52 m/s</c>.</para>
+    ///
+    /// <para>⭐ <b>Why built in code rather than authored as tiles.</b> The tiles are an ART asset and the
+    /// scene is the artist's; carpeting kilometres with prefab instances would bloat the asset and slow
+    /// the asset build, and it still would not follow a scenario that moves. One slab is O(1) and
+    /// trivially resized.</para>
+    ///
+    /// <para><b>⚠ AXIS MAPPING — measured, not assumed.</b> A live <c>BodyState</c> line shows FDP
+    /// <c>(446.3, 420.9, 0.5)</c> arriving as Stride <c>(446.317, 0.500, 420.903)</c> ⇒
+    /// <b>FDP.x → Stride.X, FDP.y → Stride.Z, FDP.z (up) → Stride.Y (up)</b>. The slab therefore spans
+    /// Stride's X/Z and is thin in Y, with its TOP face at <c>Y = 0</c>, the plane entities are authored
+    /// on.</para>
+    ///
+    /// <para>⚠ <b>Bounded on purpose.</b> A larger box is not free — Bullet's broadphase and contact
+    /// precision degrade as extents grow — so this covers realistic scenario space with margin rather
+    /// than being made astronomically large "to be safe". ⛔ It is also DELIBERATELY not a heightfield:
+    /// it is flat, so it gives ground and a visual reference, not terrain relief.</para>
+    /// </remarks>
+    private void AddScenarioGroundPlane(Scene scene)
+    {
+        // Metres. 20 km across covers scenario coordinates with wide margin; 1 m thick so a
+        // fast-falling body cannot tunnel through it within a single fixed physics step.
+        const float ExtentMetres    = 20000f;
+        const float ThicknessMetres = 1f;
+
+        // ⭐ A unit cube scaled to the slab: no plane-orientation ambiguity, and the SAME size drives
+        //   both the visual and the collider, so they cannot drift apart.
+        var material = Material.New(GraphicsDevice, new MaterialDescriptor
+        {
+            Attributes = new MaterialAttributes
+            {
+                Diffuse      = new MaterialDiffuseMapFeature(new ComputeColor(new Color4(0.22f, 0.25f, 0.20f, 1f))),
+                DiffuseModel = new MaterialDiffuseLambertModelFeature(),
+            },
+        });
+
+        // ⭐ The mesh is built the way this repo already builds one — PooledEntityDebugDrawSink3D
+        //   .AssembleModel. ⛔ There is no ToMeshDraw() extension in this Stride version, and inventing a
+        //   second construction path for the same job is the duplication this programme keeps removing.
+        var primitive = GeometricPrimitive.Cube.New(GraphicsDevice);
+        var half   = new Vector3(ExtentMetres, ThicknessMetres, ExtentMetres) * 0.5f;
+        var bbox   = new BoundingBox(-half, half);
+        var model  = new Model
+        {
+            new Mesh
+            {
+                Draw          = primitive.ToMeshDraw(),
+                BoundingBox   = bbox,
+                MaterialIndex = 0,
+            },
+        };
+        model.BoundingBox = bbox;
+        model.Materials.Add(new MaterialInstance(material));
+
+        var collider = new StaticColliderComponent();
+        collider.ColliderShape = new BoxColliderShape(
+            is2D: false,
+            size: new Vector3(ExtentMetres, ThicknessMetres, ExtentMetres));
+
+        var ground = new Stride.Engine.Entity("ScenarioGroundPlane")
+        {
+            new ModelComponent(model),
+            collider,
+        };
+
+        // The cube primitive is unit-sized, so scale carries the extent for the VISUAL half.
+        ground.Transform.Scale    = new Vector3(ExtentMetres, ThicknessMetres, ExtentMetres);
+        // Top face at Y = 0: the slab centre sits half a thickness below it.
+        ground.Transform.Position = new Vector3(0f, -ThicknessMetres * 0.5f, 0f);
+
+        scene.Entities.Add(ground);
+
+        Log.Info(
+            "[StrideHrotGame] CE-231: scenario ground slab added — {0:F0} x {0:F0} m, {1:F1} m thick, " +
+            "top face at Y=0, visible + collidable. MainScene's prefab floor tiles span only a few " +
+            "metres; scenario coordinates run to ~700 m.",
+            ExtentMetres, ThicknessMetres);
+    }
+
     private void BootEditorSubsystem()
     {
         // ── 1. Get the root scene ─────────────────────────────────────────
@@ -939,6 +1038,9 @@ public sealed class StrideHrotGame : Game
         // To prevent boot errors from these scripts, we remove the PlayerCharacter entity
         // from the scene. We then create a fixed overview camera that can see the spawn area.
         NeutralizeTemplatePlayer(scene);
+
+        // ── 2b. A GROUND PLANE BIG ENOUGH FOR REAL SCENARIO COORDINATES ───
+        AddScenarioGroundPlane(scene);
 
         // ── 3. Add a fixed overview camera ────────────────────────────────
         // Camera position in Stride space: (0, 10, -5).

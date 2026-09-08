@@ -1857,6 +1857,22 @@ nothing here moves the counts table.*
 
   ⭐ **Rails:** `SpawnTransformBindsTests` (`Hrot.Editor.Tests`) — the documented shape binds, a non-binding payload THROWS *(the anti-vacuity half, without which the first test could pass while the origin bug survived)*, and `SimTransform` still exposes fields so `IncludeFields` cannot be "simplified" away. ⭐⭐ They assert the **`internal` options instance the endpoint actually uses** — ⛔ a locally-built copy would pass while production stayed broken, which is the exact blindness `CE-223` and `CE-224` were each built on.
 
+- [x] **CE-231** · `RW-S` ✅ — **THE STRIDE ARENA HAD NO GROUND WHERE SCENARIOS LIVE, SO EVERY VEHICLE FELL. A SCENARIO-SCALE SLAB, VISIBLE AND SOLID.** 🔒 *(user, `2026-09-08`: "best if we could extend the stride's terrain floor to be way larger so our scenarios can be modelled outside of the current (and extremely small) stride arena" · and on a collider-only first draft: "it can not be just a physics collider, it must be something visible in 3d otherwise entities would be floating in the air visually")*
+
+  📐 **The problem, measured.** `MainScene` builds its floor from hand-placed `Floor1x0x1` / `Floor3x0x1` prefab tiles a few metres across, centred on the origin. `hill-attack-close` puts vehicles at **(446, 420)–(668, 522)** — nothing beneath them ⇒ once `CE-227` made physics integrate again they fell to **`z = -180 m`, still accelerating at `-52 m/s`**.
+
+  ✅ **Shipped:** one `ScenarioGroundPlane` entity added in `StrideHrotGame.BootEditorSubsystem` — **`ModelComponent` + `StaticColliderComponent`**, 20 000 × 20 000 m, 1 m thick, top face at `Y = 0`, one size driving both halves so visual and collider cannot drift apart.
+
+  ⭐ **Axis mapping measured, not assumed:** a live `BodyState` shows FDP `(446.3, 420.9, 0.5)` arriving as Stride `(446.317, 0.500, 420.903)` ⇒ **FDP.x → Stride.X, FDP.y → Stride.Z, FDP.z(up) → Stride.Y(up)**, so the slab spans X/Z and is thin in Y.
+
+  ⭐ **Reuse, not invention:** the mesh is assembled the way `PooledEntityDebugDrawSink3D.AssembleModel` already does it *(there is no `ToMeshDraw()` on `GeometricPrimitive` in this Stride version — it is an extension in **`Stride.Extensions`**, `Stride.Rendering.dll`)*. ⛔ Built in code rather than as tiles: the scene is an ART asset, and carpeting kilometres with prefab instances would bloat it, slow the asset build, and still not follow a scenario that moves.
+
+  📐 **VERIFIED LIVE** — `hill-attack-close`, physics running: vehicles hold **`z = 0.5`** with **`simVel.z = 0.0`**. ⛔ **The falling is gone.**
+
+  ⚠⚠ **AND IT DID NOT MAKE VEHICLES MOVE — read this before assuming it did.** 📐 Same run, `#1001` reports `SimVelocity` **2.4 m/s** while its position stays `(19.0, 18.5)` across **24 s**. ⇒ ⭐ **velocity is now non-zero (it was `[0,0,0]` before) but there is NO TRANSLATION.** ⛔ Separate defect, not measured.
+
+  🔴 **AND THE UNEXPLAINED X/Y COLLAPSE SURVIVES:** the tanks load at `(446, 420)` and are read at `(19, 18)`. ⛔ **Free fall never explained it, and now there is no fall at all** — so it is neither gravity nor the missing ground. **NOT MEASURED. It is the next thing to look at.**
+
 - [x] **CE-230** · `RW-M` ✅ — **WALL-CLOCK DELTAS STILL DRIVE THE STRIDE HOST'S TICK, ANIMATION AND VIEW TIER — [`R-143`](RULINGS.md) SAYS THEY MUST NOT.** 🔒 *(user, `2026-09-08`: "no wall clock enywhere, whole sim driven by sim time ONLY. only use of wallclock us stamping the fdp recording")*
 
   ⭐ **`CE-227` applied the rule to PHYSICS only** — `GameTime.Factor = simDelta / wallDelta`, so Stride's integrator consumes sim seconds. ⛔ **Everything else in the host still runs on `gameTime.Elapsed`.**
