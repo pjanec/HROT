@@ -1642,6 +1642,27 @@ public sealed class BulletPhysicsBodyServiceDeferred : IPhysicsBodyService, IBod
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// 🔴🔴 <b>CE-223 — THIS OVERRIDE IS THE WHOLE POINT, AND ITS ABSENCE WAS A LIVE DEFECT.</b>
+    /// <c>IPhysicsBodyService.SetSimulationAdvancing</c> has a <b>default interface implementation
+    /// that is an empty body</b>. This wrapper forwards every other member to <see cref="Inner"/>
+    /// but had no member for this one, so it silently inherited that no-op — and this wrapper is
+    /// what the live app actually constructs (<c>StrideHrotGame</c>). ⇒ <c>CE-219</c>'s pause gate
+    /// compiled, was called every frame with the correct value, and did nothing: gravity and
+    /// contacts kept running while the clock was halted, so bodies fell in a paused simulation.
+    /// Found by eye on Windows; every rail was green because they use their own fake.
+    ///
+    /// <para>⭐ <b>Deliberately NOT routed through <see cref="Inner"/>.</b> <c>Inner</c> is lazily
+    /// constructed on the first <c>CreateBody</c>, and this gate is called EVERY FRAME from the
+    /// pre-kernel step — forwarding would force the inner service into existence before any visual
+    /// exists, defeating the deferral this whole class exists for. Safe because the target is
+    /// <c>Simulation.DisableSimulation</c>, a <b>static</b> field (see the override on
+    /// <see cref="BulletPhysicsBodyService.SetSimulationAdvancing"/>), so it needs no instance.</para>
+    /// </remarks>
+    public void SetSimulationAdvancing(bool advancing)
+        => Stride.Physics.Simulation.DisableSimulation = !advancing;
+
+    /// <inheritdoc/>
     public object CreateBody(Fdp.Core.Entity entity, CollisionShapeKind shapeKind, ShapeDims dims, in SimTransform initialPose)
         => Inner.CreateBody(entity, shapeKind, dims, in initialPose);
 

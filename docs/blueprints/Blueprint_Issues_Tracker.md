@@ -1555,6 +1555,28 @@ nothing here moves the counts table.*
 
   ⭐ **What this row is NOT blocking:** `CE-221` is fixed and the host boots; `initialHold` and ⭐ **`drive` both PASS**, so boot, spawn, authority, navigation and the motor path all work. 📄 [`DESIGN_Stride_Node_Modes.md` §13.1](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Stride_Node_Modes.md).
 
+- [x] **CE-223** · `RW-S` 🔴🔴🔴 ✅ **FIXED `2026-09-08`** — **`CE-219`'s PAUSE GATE WAS INERT IN THE LIVE APP: THE SERVICE THE HOST ACTUALLY CONSTRUCTS INHERITED AN EMPTY DEFAULT INTERFACE METHOD.** 📐 **Found BY EYE on Windows — every rail was green.** 🔒 *(user: "time paused, scenario never started, yet tanks are falling at coord syst origin")*
+
+  📐 **The mechanism, three measured hops:**
+
+  | | |
+  |---|---|
+  | ① | `IPhysicsBodyService.SetSimulationAdvancing` is declared **`void SetSimulationAdvancing(bool advancing) { }`** — a **default interface implementation with an empty body** *(`IPhysicsBodyService.cs:71`)*, so the dozen test fakes need not implement it |
+  | ② | ⛔⛔ **`BulletPhysicsBodyServiceDeferred` never declared it.** 📐 Measured: **zero** occurrences of the name in the class, which forwards **every other member** to its lazily-built `Inner`. ⇒ it silently inherited the empty body |
+  | ③ | 🔴 **That wrapper is what the LIVE app constructs** — `StrideHrotGame.cs:965`. ⇒ `Simulation.DisableSimulation` was **never assigned**, gravity and contacts ran while the clock was halted, and dynamic bodies fell in a paused world |
+
+  ⭐⭐ **AND IT EXPLAINS THE "TANKS JUMP TO 0,0,0" REPORT TOO.** With physics ungated from the first frame, bodies fell from their scenario positions and `BulletReverseSyncSystem` wrote the falling pose back into `SimTransform`. ✅ **Confirmed by the user after the fix: *"scenario load, tanks stay where they should be, no falling."*** ⇒ what looked like a lost position was a body being dragged away by an unpaused simulation.
+
+  ⛔⛔ **WHY THE RAIL COULD NOT SEE IT — `R-142` ③ exactly.** `StridePhysicsBracketPauseGateTests` asserts the BRACKET calls the service, **against its own fake, which does implement the method**. It is a correct, green test of a dead feature. ⭐ The bracket rail structurally cannot reach the production implementor: it lives in `Hrot.Stride.Core.Tests`, and `BulletPhysicsBodyServiceDeferred` is in `HrotStrideApp.Game`, which `Hrot.Stride.Core` must not reference.
+
+  ✅ **THE FIX:** the wrapper declares `SetSimulationAdvancing` and sets `Stride.Physics.Simulation.DisableSimulation` **directly** — ⭐ deliberately **not** through `Inner`, because `Inner` is lazily built on the first `CreateBody` and this gate is called every frame; forwarding would force the inner service into existence before any visual exists and defeat the deferral the class exists for. ⭐ Safe because the target is a **static** field.
+
+  ⭐⭐ **THE BLINDNESS IS FIXED IN PLACE, not routed around** — `PhysicsPauseGateIsImplementedByProductionServicesTests` *(`HrotStrideApp.Game.Tests`)*: a **sweep** over every non-abstract `IPhysicsBodyService` in the host assembly asserting each **DECLARES** the method rather than inheriting the default *(with an anti-vacuity `NotEmpty` and a documented exemption for `NoOpPhysicsBodyService`)*, plus a named check on the deferred wrapper. ⭐ **Red-proof is measured, not claimed:** before the fix the wrapper contained zero occurrences of the method.
+
+  📐 **The generalisation, checked so the row is not narrower than the disease:** exactly **two** members of `IPhysicsBodyService` carry a default body — this one and `SetCharacterFacing`, which the wrapper **does** forward. ⇒ no third instance of this shape exists today, and the sweep now catches the next one.
+
+  ⚠ **This is the `CLAUDE.md` silent-default pattern with a NEW hop.** That rule says *"a production caller that HAS a dependency must PASS it"*, and §11.1a's own note checked exactly that — both bracket constructions **do** pass `PhysicsBodyService`. ⇒ ⭐⭐ **the caller was innocent; the SERVICE did not implement the method.** A default interface implementation makes "implements the interface" and "implements the behaviour" two different things, and only the first is a compile error.
+
 - [ ] **CE-220** · `RW-S` ⚠ — **`AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` IS AN INTERMITTENT GC-TIMING RAIL, AND `CE-205`'s NEW TESTS MADE IT MORE LIKELY TO FIRE.** 📐 **Measured `2026-09-07`, and reported as MINE rather than pre-existing.**
 
   ⭐ **What it asserts:** that a collectible `AssemblyLoadContext` has been GC-collected after **exactly two** `GC.Collect()` passes *(`AiHotReloadCoordinatorTests.cs:150-157`)*.
