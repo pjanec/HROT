@@ -45,8 +45,8 @@ namespace Hrot.Editor.DebugApi
 
             if (dtoType is not null)
             {
-                foreach (var property in PublicReadWrite(dtoType))
-                    properties[property.Name] = DescribeProperty(property);
+                foreach (var member in PublicWritableMembers(dtoType))
+                    properties[member.Name] = DescribeMember(member);
             }
 
             return new JsonObject
@@ -87,17 +87,58 @@ namespace Hrot.Editor.DebugApi
             return arms;
         }
 
-        private static IEnumerable<PropertyInfo> PublicReadWrite(Type type)
-            => type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                   .Where(p => p.CanRead && p.CanWrite && p.GetIndexParameters().Length == 0);
+        /// <summary>
+        /// One fillable member of a DTO — a public read-write property <b>or</b> a public instance field.
+        /// </summary>
+        /// <remarks>
+        /// ⭐⭐ <b><c>CE-224</c> — WHY FIELDS ARE HERE, and it is not a generalisation for its own sake.</b>
+        /// This extractor originally read <c>GetProperties()</c> alone, which is correct for the
+        /// breakpoint-predicate DTOs (ordinary classes with properties) and <b>silently wrong for every
+        /// behaviour parameter DTO</b>. A behaviour's params struct is memcpy'd into
+        /// <c>BrainBlackboard.BehaviorParameters</c>, a fixed byte region with a hard size cap, so it is
+        /// declared <c>[StructLayout(LayoutKind.Sequential)]</c> with public <b>fields</b> —
+        /// <c>MoveToLocationParams { public float X; public float Y; public float Speed;
+        /// public float ArrivalRadius; }</c>. Properties would put the layout at the compiler's
+        /// discretion and break that contract, so the DTOs cannot be reshaped to suit the extractor;
+        /// the extractor has to read what they actually are.
+        ///
+        /// <para>📐 Measured on the live editor, <c>2026-09-08</c>: <c>GET /behaviors</c> returned
+        /// <c>properties:{}</c> for all 40 behaviours while <c>GET /breakpoint-types</c> returned full
+        /// schemas from the same code path — the two differ only in property-vs-field.</para>
+        /// </remarks>
+        private readonly record struct SchemaMember(string Name, Type Type, MemberInfo Member);
 
-        private static JsonObject DescribeProperty(PropertyInfo property)
+        /// <summary>
+        /// Every member an agent may fill in: public read-write properties, then public instance fields.
+        /// </summary>
+        /// <remarks>
+        /// ⚠ <b>Excluded on purpose:</b> <c>const</c> (<c>IsLiteral</c>) and <c>readonly</c>
+        /// (<c>IsInitOnly</c>) fields — a caller cannot set either, so advertising them would invite a
+        /// write that silently does nothing, which is the shape of defect this whole endpoint exists to
+        /// prevent. Compiler-generated property backing fields are private and so never reach here.
+        ///
+        /// <para>⚠ The order is properties-then-fields, each in reflection order. That is deterministic
+        /// but it is <b>not</b> a wire order: the params region is filled by the behaviour's own
+        /// resolver, never by field position from this schema.</para>
+        /// </remarks>
+        private static IEnumerable<SchemaMember> PublicWritableMembers(Type type)
         {
-            var schema = Describe(property.PropertyType);
+            foreach (var p in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                if (p.CanRead && p.CanWrite && p.GetIndexParameters().Length == 0)
+                    yield return new SchemaMember(p.Name, p.PropertyType, p);
 
-            // The editor already declares these on the very same properties; surfacing them is what
+            foreach (var f in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
+                if (!f.IsInitOnly && !f.IsLiteral)
+                    yield return new SchemaMember(f.Name, f.FieldType, f);
+        }
+
+        private static JsonObject DescribeMember(SchemaMember member)
+        {
+            var schema = Describe(member.Type);
+
+            // The editor already declares these on the very same members; surfacing them is what
             // lets an agent tell "a string" from "a property path it must discover".
-            foreach (var attribute in property.GetCustomAttributes())
+            foreach (var attribute in member.Member.GetCustomAttributes())
             {
                 switch (attribute.GetType().Name)
                 {
@@ -172,8 +213,8 @@ namespace Hrot.Editor.DebugApi
             if (!type.IsPrimitive && (type.IsClass || type.IsValueType))
             {
                 var nested = new JsonObject();
-                foreach (var property in PublicReadWrite(type))
-                    nested[property.Name] = Describe(property.PropertyType);
+                foreach (var member in PublicWritableMembers(type))
+                    nested[member.Name] = Describe(member.Type);
 
                 var schema = new JsonObject { ["type"] = "object", ["clrType"] = type.Name };
                 if (nested.Count > 0) schema["properties"] = nested;

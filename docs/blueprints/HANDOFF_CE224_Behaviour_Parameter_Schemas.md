@@ -10,7 +10,22 @@ known-conflict: none.
 
 # HANDOFF — `CE-224`: no behaviour has parameters, on any host
 
-> ⭐ **Paste the prompt at the end of this file into a fresh session.**
+> ✅✅ **DONE `2026-09-08`.** The fix is in; `GET /behaviors` went **0/40 → 6/40** on the live editor and a
+> `MoveToLocation` task authored from the new schema put **`FinalDestination = [500,520,0]`, `TargetSpeed = 8`**
+> on the entity. 📄 **The as-built, the measurements and the three follow-up rows are in
+> [`Blueprint_Issues_Tracker.md`](Blueprint_Issues_Tracker.md) under `CE-224`.**
+>
+> ⛔⛔ **AND §1'S LOAD-BEARING HOP WAS WRONG — read this before trusting the chain below.**
+>
+> | | |
+> |---|---|
+> | 🔴 **hop ④ — *"`CgfCuratedBehaviorRegistrar.Register` HAS ZERO CALLERS"*** | **FALSE, and it is a grep artefact.** The class is `[BlueprintRegistrar]`-attributed and `BlueprintRegistrarScanner.Scan` invokes it **reflectively** *(`:99-158` — it injects both of its parameters, `BehaviorRegistry` and `ActionRegistry<BrainBlackboard,BTreeContext>`)*; `CgfBehaviorSetup.LoadFromAiAssembly` scans **its own assembly**. ⇒ ⭐ **a reflective call site is invisible to grep by construction** |
+> | ⭐ **what settled it** | the live API, not more reading. `MoveToLocation` **was present** in `GET /behaviors` — and nothing else registers that name — so the curated registrar had run and `ParamsDtoType` was set. The loss was downstream |
+> | ✅ **the real cause** | `DtoJsonSchemaExtractor` read **`GetProperties()`** only, while every behaviour params DTO is a `[StructLayout(Sequential)]` struct with public **FIELDS** *(it must be — it is memcpy'd into `BrainBlackboard.BehaviorParameters`)*. 📐 One-process proof: `/behaviors` empty for all 40 while `/breakpoint-types` returned full schemas — the two differ **only** in property-vs-field |
+> | ⚠ **the handoff's §3 row 2 was RIGHT** | *"the curated registrar covers a handful; the generated ones would still have `ParamsDtoType == null`"* — measured after the fix: **34/40 remain empty**. That is now **`CE-226`** |
+>
+> ⭐ **The rest of this file is kept as the record of what was believed on dispatch.** ⛔ Do not re-derive
+> from §1's chain — hops ① and ② are sound, ③ is sound, **④ is refuted**.
 
 ## 1. The defect, already root-caused — ⛔ do not re-derive it
 

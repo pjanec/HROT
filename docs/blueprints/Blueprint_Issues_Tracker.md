@@ -1577,7 +1577,7 @@ nothing here moves the counts table.*
 
   ⚠ **This is the `CLAUDE.md` silent-default pattern with a NEW hop.** That rule says *"a production caller that HAS a dependency must PASS it"*, and §11.1a's own note checked exactly that — both bracket constructions **do** pass `PhysicsBodyService`. ⇒ ⭐⭐ **the caller was innocent; the SERVICE did not implement the method.** A default interface implementation makes "implements the interface" and "implements the behaviour" two different things, and only the first is a compile error.
 
-- [ ] **CE-224** · `RW-M` 🔴🔴 — **EVERY BEHAVIOUR'S `paramSchema` IS EMPTY ON EVERY HOST: THE CURATED REGISTRAR THAT SUPPLIES `ParamsDtoType` HAS NO CALLER.** 📐 **Measured live `2026-09-08` over the debug API, on TWO hosts.** 🔒 *(user: "via ai debug api you can cretae entities etc. cay you try test all these?")*
+- [x] **CE-224** · `RW-M` ✅ **FIXED `2026-09-08`** — **EVERY BEHAVIOUR'S `paramSchema` WAS EMPTY ON EVERY HOST.** ⚠⚠ **The headline cause in this row was WRONG — see the AS-BUILT block at the end. The real cause is that the schema extractor read only C# PROPERTIES while every behaviour params DTO is a struct with public FIELDS.** 📐 **Measured live `2026-09-08` over the debug API, on TWO hosts.** 🔒 *(user: "via ai debug api you can cretae entities etc. cay you try test all these?")*
 
   📐 **The measurement, both hosts, same answer:**
 
@@ -1602,6 +1602,108 @@ nothing here moves the counts table.*
   ⭐⭐ **THE USER-VISIBLE COST, measured rather than argued:** `run_mission {behavior:"MoveToLocation", params:{...}}` on a spawned tank returns **`committed:true, version:1`** and then does nothing — `NavigationIntent.Mode` stays `None`, `NavigationStatus.Phase` stays `Idle`, position unchanged over 32 s. ⇒ ⭐ **the params are silently dropped because nothing describes them**, and the API's own guide promises the opposite: *"paramSchema is derived from the behaviour definition the runtime itself parses params with, so what you author matches what the engine reads."*
 
   ⚠ **What is NOT claimed:** whether wiring the curated registrar alone fixes movement. ⛔ The generated definitions would still lack `ParamsDtoType` for behaviours the curated one does not cover, and whether the runtime actually READS the params from a mission task is a separate hop that has not been measured. ⭐ **`RUNBOOK` §8.1 applies — measure it on the entity, do not reason about it.**
+
+  ---
+
+  ## ✅ AS BUILT — `2026-09-08`. ⛔⛔ **THE DIAGNOSIS ABOVE WAS WRONG IN ITS LOAD-BEARING HOP.**
+
+  🔴 **Hop ③ — *"`CgfCuratedBehaviorRegistrar.Register` HAS ZERO CALLERS"* — is a GREP ARTEFACT.** 📐 The class carries `[BlueprintRegistrar]` and is invoked **reflectively** by `BlueprintRegistrarScanner.Scan` *(`:99-158`: it enumerates `[BlueprintRegistrar]` types, finds `Register`, and injects both `BehaviorRegistry` and `ActionRegistry<BrainBlackboard,BTreeContext>` — exactly this method's two parameters)*. `CgfBehaviorSetup.LoadFromAiAssembly` scans `typeof(CgfCuratedBehaviorRegistrar).Assembly`, i.e. **its own**. ⇒ ⭐ **a reflective call site is invisible to grep BY CONSTRUCTION** — `CLAUDE.md`'s own warning that *"an absence claim from grep is an absence in your PATTERN, not in the repo"*.
+
+  ⭐⭐ **What settled it was the live API, not more reading.** `MoveToLocation` **was present** in `GET /behaviors` — and it is the *only* registrant of that name — so the curated registrar had plainly run, and `ParamsDtoType` was set. The loss was downstream.
+
+  ### 🔴 THE REAL CAUSE, and the one-command proof
+
+  | | |
+  |---|---|
+  | ⛔ **the defect** | `DtoJsonSchemaExtractor.PublicReadWrite` read **`type.GetProperties()`** and nothing else |
+  | ⭐ **why that is fatal here** | a behaviour's params DTO is memcpy'd into `BrainBlackboard.BehaviorParameters`, a fixed byte region with a hard cap *(`R-39`/`R-41`)*, so it is `[StructLayout(LayoutKind.Sequential)]` with public **FIELDS** — `MoveToLocationParams { public float X; public float Y; public float Speed; public float ArrivalRadius; }`. ⇒ **properties would break the layout contract; the DTOs cannot be reshaped to suit the extractor** |
+  | ⭐⭐ **the proof, one process, two endpoints** | on the SAME live editor: `GET /behaviors` → `properties:{}` for all 40, while `GET /breakpoint-types` → full schemas *(`BehaviorParam` → `TargetBlackboard, BehaviorId, PropertyPath, Operator, Predicate`)*. The two differ **only** in property-vs-field |
+
+  ⭐ **THE FIX:** `PublicWritableMembers` yields public read-write **properties** *(unchanged)* **then** public instance **fields**, excluding `const`/`readonly` — a caller cannot set those, and advertising them would invite a write that silently does nothing. Both call sites *(top level and the nested-object arm)* use it.
+
+  ### 📐 MEASURED ON THE LIVE EDITOR, before → after
+
+  | | before | after |
+  |---|---|---|
+  | `GET /behaviors` non-empty `properties` | ⛔ **0 / 40** | ✅ **6 / 40** |
+  | `MoveToLocation` | `{}` | ✅ `X, Y, Speed, ArrivalRadius` — all `number` |
+  | `FollowRoute` · `JoinFormation` · `FireAtTarget` · `PlatoonHillAttack` · `HullDownAttackRun` | `{}` | ✅ real fields |
+
+  ⭐ **6 is exactly the set that HAS a `ParamsDtoType`** — the 4 curated topologies plus the 2 supplied by `RegisterResolver`'s overlay. ⭐ `WanderMilitary`/`Idle` are curated and correctly parameterless.
+
+  ### ✅ ACCEPTANCE ②, END TO END ON THE LIVE HOST — **stronger than "non-`None`"**
+
+  Scenario `test-move` *(a single IFV; ⛔ NOT `spawn_entity` — `CE-225`)*, entity 1000, task authored **from the new schema** `{"X":500,"Y":520,"Speed":8,"ArrivalRadius":5}` via `add_mission_task` → `run_mission` → `play`:
+
+  | read back off the entity | before | after |
+  |---|---|---|
+  | `NavigationIntent.Mode` | `DirectPoint` | ✅ `DirectPoint` *(non-`None`)* |
+  | `NavigationIntent.FinalDestination` | `[489, 296, 0]` | ✅ **`[500, 520, 0]`** — my `X`/`Y` |
+  | `NavigationIntent.TargetSpeed` | `5` | ✅ **`8`** — my `Speed` |
+  | `BrainBlackboard.BehaviorParameters` | — | ✅ `{"X":500,"Y":520,"Speed":8,"ArrivalRadius":5}` |
+
+  ⇒ ⭐⭐⭐ **the whole chain is proven: schema → author → resolver → blackboard → NavigationIntent.** ⛔ Not merely "something moved" — **the exact authored values arrive**, which is what `run_mission` silently dropped before.
+
+  ### ⭐ RAILS — `ABehaviourAdvertisesItsRealParametersTests` *(`Hrot.Editor.Tests/DebugApi/`)*, 5/5
+
+  Built from the **production** loader *(`CgfBehaviorSetup.LoadFromAiAssembly`)*, ⛔ not a fake: a NAMED behaviour has NAMED parameters of the right types; every behaviour with a DTO advertises ≥1 *(with an anti-vacuity assertion)*; a parameterless behaviour still returns the envelope; and **property-based DTOs still work** *(the mirror-image mistake would break `/breakpoint-types`)*.
+  ⭐ **Inverse-edit red-proof: 3 of the 5 fail** with the field loop removed. ⚠ `R-142` checked — `DtoJsonSchemaExtractor` had **no** suite of its own.
+
+  ### ⚠ THREE THINGS FOUND ALONG THE WAY — filed, not folded in
+
+  | | |
+  |---|---|
+  | ⭐ **`CE-226`** | **34 / 40 behaviours are still empty** — the generated registrars never set `ParamsDtoType`. This row's hop ④ was right about that, and it is now the whole remaining gap |
+  | ⚠ **`CE-227`** | a mission task naming a behaviour the entity cannot run **crashes the host** — `InvalidOperationException: Entity Entity(0,v1) missing NavigationStatus`, unhandled out of `ModuleHostKernel.Update` |
+  | ⚠ **`CE-228`** | the schema is derived from the **blackboard struct** while the resolver deserializes a **different JSON DTO** — for `MoveToLocation` the wire type also accepts `TargetLat`/`TargetLon`, which the schema does not advertise; and `add_mission_task`'s own `ExampleArgsJson` shows `{"Latitude":…,"Longitude":…}`, matching **neither** |
+
+  📐 **Gates:** `Hrot.Editor.Tests` **373 passed / 1 failed / 374** vs baseline **367 / 1 / 369** *(same single red — `TwoReloadCycles_OldAlcIsCollected`, i.e. `CE-220`; ⚠ it flakes **0-or-1 across three consecutive runs**, so it is non-deterministic, not caused here)*. ⇒ **+5 rails, no new red.**
+
+- [ ] **CE-226** · `RW-M` ⭐⭐ — **34 OF 40 BEHAVIOURS STILL ADVERTISE NO PARAMETERS: THE GENERATED REGISTRARS NEVER SET `ParamsDtoType`.** 📐 **Measured live `2026-09-08`, after `CE-224`'s fix landed.**
+
+  ⭐ `CE-224` fixed the **extractor** *(it read only C# properties; the DTOs are structs with fields)*. That took `GET /behaviors` from **0/40** to **6/40** — and **6 is exactly the set that HAS a `ParamsDtoType`**: the 4 curated topologies *(`MoveToLocation`, `FollowRoute`, `JoinFormation`, `FireAtTarget`)* plus the 2 the curated registrar supplies by `RegisterResolver` overlay *(`PlatoonHillAttack`, `HullDownAttackRun`)*.
+
+  🔴 **The other 34 are JSON-authored assets whose GENERATED registrar emits `Name`, `BrainTier`, `BTreeInterpreter` and nothing else.** 📐 `grep -rc ParamsDtoType` over `Hrot.AI.Behaviors/obj/GeneratedFiles/` returns **no non-zero file** — the original `CE-224` hop ④, which was correct and is now the whole remaining gap.
+
+  ⚠ **NOT simply "wire more curated registrars".** ⭐ These behaviours' parameters live as **packed managed blackboard variables**, not as a hand-written DTO struct, so the fix is most likely in the **generator** *(emit a params DTO type, or a schema derived from the packed variable manifest)* — ⛔ **decide that with a measurement, not a preference**, exactly as `CE-224`'s handoff warned.
+
+  ⭐ **Where to start:** the 34 names are listed in `CE-224`'s as-built run; `T09_BlackboardManaged` and `T33_ComposedParamBlueprint` are the obvious probes because their names say they carry params.
+
+---
+
+- [ ] **CE-227** · `RW-M` 🔴 — **A MISSION TASK NAMING A BEHAVIOUR THE ENTITY CANNOT RUN CRASHES THE HOST.** 📐 **Measured live `2026-09-08` while verifying `CE-224`.**
+
+  📐 **The repro, exact:** load `hill-attack-close`, give the **platoon commander** *(entity 1000, which has `NavigationIntent` but **no** `NavigationStatus`)* a `MoveToLocation` task, `run_mission`, `play`. ⇒ the process dies with an **unhandled** exception out of the kernel:
+
+  ```
+  Unhandled exception. System.InvalidOperationException: Entity Entity(0, v1) missing NavigationStatus
+     at Fdp.ModuleHost.ModuleHostKernel.UpdateInternal(...) ModuleHostKernel.cs:697
+     at Hrot.Runner.Program.Main(...) Program.cs:629
+  Aborted
+  ```
+
+  ⚠⚠ **`ReportModuleFault` is in the stack and did NOT contain it** — the fault path re-threw and took the process down. ⭐ That is the interesting half: a **bad authoring input killed the host** rather than being refused, and the debug API had just answered `committed:true` for the task.
+
+  ⛔ **NOT measured at base** and ⛔ **not caused by `CE-224`** — that change only alters the JSON schema the API *reports*; it cannot reach the runtime. ⭐ The honest next step is to reproduce at a base commit before deciding whether this is old or recent.
+
+  ⚠ **A related question worth answering with it:** should `add_mission_task` **refuse** a behaviour the target entity cannot run *(the entity's `BehaviorCatalog` already answers "what can THIS entity do" — `GET /behaviors?entityId=`)*, rather than committing a task that later aborts the frame?
+
+---
+
+- [ ] **CE-228** · `RW-S` ⚠ — **THE `paramSchema` DESCRIBES THE BLACKBOARD STRUCT, BUT THE RESOLVER PARSES A DIFFERENT JSON DTO — AND THE ROUTE DOC'S OWN EXAMPLE MATCHES NEITHER.** 📐 **Measured `2026-09-08`.**
+
+  ⭐ `ParamsDtoType` points at the **blittable blackboard struct** *(`MoveToLocationParams { X, Y, Speed, ArrivalRadius }`)*, which is what `CE-224` now advertises and what the runtime reads. ⚠ But the resolver deserializes a **separate wire type** — `MoveToLocationParamsJsonDto { TargetLat, TargetLon, Speed, ArrivalRadius, X, Y }` *(`CgfNodes.cs:130`)* — a **superset**.
+
+  | | |
+  |---|---|
+  | ✅ **what is true** | every key the schema advertises IS accepted, and `X/Y/Speed/ArrivalRadius` were **proven end to end** on the live host *(`CE-224`)* |
+  | ⚠ **what is incomplete** | the geo pair `TargetLat`/`TargetLon` is accepted and **NOT advertised**, so an agent cannot discover the geo form |
+  | 🔴 **what is wrong** | `add_mission_task`'s `ExampleArgsJson` *(`DebugApiRouteDocs.cs`)* shows `{"Latitude":50.1,"Longitude":14.4}` — matching **neither** type. Those keys bind to nothing and would parse to an all-zero params region: 📌 exactly `R-132`'s silent-zero failure, this time invited by our own documentation |
+
+  ⭐ **The cheap half is the example** *(fix it to the real keys)*. ⚠ **The design half is real and belongs with `CE-226`:** *which* type is the contract an agent should author against — the blackboard struct or the wire DTO? Whatever is decided, **`paramSchema` must describe the type the JSON is actually deserialized into.**
+
+---
+
 
 - [x] **CE-225** · `RW-S` ✅ — **`spawn_entity` PLACES THE ENTITY AT THE ORIGIN AND ANSWERS `ok:true` — `CE-191`'s GUARD CATCHES MALFORMED JSON, NOT NON-BINDING JSON.** 📐 **Measured live `2026-09-08`, two payload shapes, two hosts.**
 
