@@ -94,15 +94,60 @@ SimHost, CGF and Stride alike. ⭐ Note the fix is two lines from the field it n
 live soldier reads `Class: "PersonalCar"`. ⭐ **Lean: rename later, separately from the behavioural fix**,
 and re-author infantry as `Pedestrian`. ⛔ Not worth coupling a rename's blast radius to a defect fix.
 
-## 4. RELAYED INPUT — NotebookLM architect
+## 4. RELAYED INPUT — NotebookLM architect *(`2026-09-08`, notebook `HROT - 279`, snapshot `*_279`)*
 
-⏳ *Pending — recorded verbatim on arrival, as INPUT and not a ruling.*
+⚠ **INPUT, not a ruling.** Job `20260908T191737Z-bac0a2bc`. No `refresh` was run: the notebook was
+already at `279` *(newer than the client's last-used `277`)* and carries `Stride.All_279.txt`; per the
+`Q66` user ruling a refresh is only for significant source change and would worsen the echo.
+⚠ The client crashed **printing** the answer *(cp1252 vs `U+1F4A1`)* — the ask itself succeeded and the
+text was read from `results/<id>.json`.
+
+| # | claim |
+|---|---|
+| **A** | ONE shared descriptor was deliberate. `TkbCivilianPedestrian` and `TkbInfantrySoldier` both carry `VehicleParametersDto`; steering fields are **simply ignored** for humans; `KinematicVehicleMotor` has a character-body guard skipping `Capsule` / `CrowdMotorIntent` |
+| **B** | The class is **already derived** at TKB build time — `BdcTkbBuilder.MapMobility(TerrainMobility)` maps `Infantry → VehicleClass.Pedestrian`. The DTO carries `VehicleClass? VehicleClass`, **not** a `MobilityProfile` byte. The record is **silent** on field-vs-derive |
+| **C** | `NavAgentProfile` was meant to be stamped at TKB injection time; **nothing writes it** in production — only tests/harnesses do. The record is **silent** on which system was to own it |
+| **D** | ⭐⭐⭐ **The codebase already committed to the STRIP strategy** — a dedicated `InfantryVehicleStateStripTkbTranslator` runs after `VehicleKinematicsTkbTranslator` and removes `VehicleState`/`VehicleParams` from capsule entities |
+| **E** | Consumers that would move if the discriminator changed: `LinearKinematicsSystem` (`.Without<VehicleState>()`), `CarKinematicsSystem` (`With<VehicleState>()`), `KinematicVehicleMotor`, the bridge, harness suites; DDS/replication is insulated *(uses `SimTransform`)* |
 
 ## 5. VERIFICATION — **every load-bearing claim, against source**
 
-⏳ *Pending. `Q66` scored 6 confirmed · 2 misleading · 2 fabricated; both falsehoods were retired
-artefacts quoted as current. Every named symbol below will be opened before it is acted on.*
+| # | claim | verdict |
+|---|---|---|
+| A1 | steering fields ignored; motor guards on capsule | ✅ `KinematicVehicleMotor.cs:161` skips `CollisionShapeKind.Capsule` |
+| B1 | `BdcTkbBuilder.MapMobility`, `Infantry → Pedestrian` | ✅ **REAL** — `BdcTkbBuilder.cs:330`, used at `:133` `VehicleClass = MapMobility(physicsDef.Mobility)` |
+| B2 | the DTO has `VehicleClass?`, not `MobilityProfile` | ✅ `VehicleParametersDto.cs:82` |
+| C1 | `NavAgentProfile` has zero production writers | ✅ confirmed independently before asking |
+| D1 | ⭐⭐⭐ `InfantryVehicleStateStripTkbTranslator` **EXISTS** | ✅✅ **REAL and NEW to this session** — `Stride/Hrot.Stride.Core/InfantryVehicleStateStripTkbTranslator.cs:32`. Its guard is **verbatim** as quoted: `VehicleParametersDto` present **and** `StrideRenderModelDefDto.ShapeKind == Capsule` ⇒ remove `VehicleState` + `VehicleParams` |
+| D2 | it runs after `VehicleKinematicsTkbTranslator` | ✅ `EditorStrideSubsystem.cs:660-664` uses `TranslatorPlacement.After<VehicleKinematicsTkbTranslator>(...)`. ⚠ `TkbTranslatorSet.cs`'s "contract violated today" note is **STALE** — it describes the `BasePlus` append that `CE-146` retired |
+| E1 | `LinearKinematicsSystem` filters `.Without<VehicleState>()` | ✅ verified this session *(`CE-234`)* |
+
+📐 **Tally: 7 checked, 7 confirmed, 0 fabricated.** ⭐ A markedly better result than `Q66` (6/2/2), and
+**`D1` is the answer's decisive contribution — a real translator this session had not found.**
+
+### ⭐⭐⭐ WHAT THE VERIFICATION THEN FOUND ON ITS OWN — **the strip never runs in HOSTED mode**
+
+⛔ The strip exists, is correct, and is correctly placed — **and our live soldier still had
+`VehicleState` + `VehicleParams{Class:"PersonalCar"}`.** 📐 Cause, measured:
+
+| | |
+|---|---|
+| `EditorStrideSubsystem.cs:652` builds an `EntityCreationPack` **with** the placement | ⭐ the **standalone** Stride arm |
+| `Hrot.Editor/EditorSubsystem.cs:1353` builds one with **no `ExtraTranslators` and no `TranslatorPlacements`** | its own comment: *"⛔ ExtraTranslators is empty: this host's list was plain `Base()`"* |
+| `Hrot.Editor.csproj` has **no Stride reference** | ⇒ it **structurally cannot** name the strip translator |
+| we run `STRIDE_HOST_REAL_EDITOR=1`, which boots the real `EditorSubsystem` | ⇒ creation goes through `:1353` ⇒ **no strip** |
+| the only hand-over seam is `MuscleCapabilitiesFactory` (`EditorSubsystem.cs:803`) | ⛔ there is **no translator equivalent** |
+
+⇒ ⭐⭐⭐ **This is exactly the `CE-233` shape:** the Stride arm declares something the hosted arm never
+receives, because the hand-over seam covers capabilities and not translators.
 
 ## 6. DECISION
 
-⏳ **The user's call, per sub-question.**
+⏳ **The user's call.** ⭐ But the verification collapses the question: **A is ratified, and B/C are no
+longer needed for the defect** — the record's answer to D already exists in code and simply never runs
+in mode 1. ⇒ ⭐⭐ **the fix is a Stride-lane composition change** *(hand the translator placement to the
+hosted arm, mirroring `MuscleCapabilitiesFactory`)*, **not the shared-`Fdp.Toolkits` discriminator change
+§3D proposed.** ⛔ My §3D lean *("leave `VehicleState`, change the discriminator")* is **withdrawn** —
+the codebase committed to stripping, and the strip is right.
+⚠ **Still open and worth doing separately:** `NavAgentProfile` has no production writer (§3C), and
+infantry reads `Class: "PersonalCar"` rather than `Pedestrian` (§3E) — neither blocks the fix.
