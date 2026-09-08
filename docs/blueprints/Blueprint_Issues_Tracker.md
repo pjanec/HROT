@@ -1577,6 +1577,53 @@ nothing here moves the counts table.*
 
   ⚠ **This is the `CLAUDE.md` silent-default pattern with a NEW hop.** That rule says *"a production caller that HAS a dependency must PASS it"*, and §11.1a's own note checked exactly that — both bracket constructions **do** pass `PhysicsBodyService`. ⇒ ⭐⭐ **the caller was innocent; the SERVICE did not implement the method.** A default interface implementation makes "implements the interface" and "implements the behaviour" two different things, and only the first is a compile error.
 
+- [ ] **CE-224** · `RW-M` 🔴🔴 — **EVERY BEHAVIOUR'S `paramSchema` IS EMPTY ON EVERY HOST: THE CURATED REGISTRAR THAT SUPPLIES `ParamsDtoType` HAS NO CALLER.** 📐 **Measured live `2026-09-08` over the debug API, on TWO hosts.** 🔒 *(user: "via ai debug api you can cretae entities etc. cay you try test all these?")*
+
+  📐 **The measurement, both hosts, same answer:**
+
+  | host | behaviours | with a non-empty `paramSchema` |
+  |---|---|---|
+  | Stride mode 1 *(`HrotStrideApp`, port 8131)* | 34 | ⛔ **0** |
+  | plain editor *(`ClusterRunner --mode editor`, port 8141)* | 40 | ⛔ **0** |
+
+  ⇒ ⭐⭐ **NOT Stride-specific and NOT from the `CE-221` batch** — it is a general defect of the behaviour registry, visible through the debug API on every host.
+
+  ⭐⭐⭐ **THE CHAIN, every hop measured:**
+
+  | # | |
+  |---|---|
+  | ① | `GET /behaviors` builds each entry with `DtoJsonSchemaExtractor.ExtractParams(definition.ParamsDtoType)` *(`DebugApiService.cs:1700`)*, and `ExtractParams` returns `{type:"object",properties:{}}` when the type is **null** *(`DtoJsonSchemaExtractor.cs:42-57`)* |
+  | ② | ⭐ **`CgfCuratedBehaviorRegistrar` DOES set it** — `ParamsDtoType = typeof(CgfNodes.MoveToLocationParams)` *(`:61`)*, and likewise for `FollowRoute`, `JoinFormation`, … |
+  | ③ | 🔴🔴 **and `CgfCuratedBehaviorRegistrar.Register` HAS ZERO CALLERS.** 📐 grep over `Hrot/`, `Stride/`, `FDP/`: the only mentions are comments and `typeof(...).Assembly` for assembly identity. `CgfBehaviorSetup.LoadFromAiAssembly` calls **only** `BlueprintRegistrarScanner.Scan` |
+  | ④ | 🔴 **the registry is populated by the GENERATED registrars alone**, and 📐 **no generated registrar sets `ParamsDtoType`** — `grep -rc ParamsDtoType` over `obj/GeneratedFiles/` returns **no non-zero file**. A generated `BehaviorDefinition` carries `Name`, `BrainTier`, `BTreeInterpreter` and nothing else |
+
+  ⛔⛔ **THIS IS [`R-132`](RULINGS.md) BY OMISSION.** That ruling — *"a CURATED (hand-authored) artefact OUTRANKS a generated one … two producers for one slot bound by REGISTRATION ORDER is a race, not a precedence rule"* — was filed when a **generated** `ParseParams` won the slot from a curated resolver and the platoon drove to `(0,0)`. ⭐ Here the curated producer does not even race: **it was never wired in.** ⚠ Same disease, one stage earlier.
+
+  ⭐⭐ **THE USER-VISIBLE COST, measured rather than argued:** `run_mission {behavior:"MoveToLocation", params:{...}}` on a spawned tank returns **`committed:true, version:1`** and then does nothing — `NavigationIntent.Mode` stays `None`, `NavigationStatus.Phase` stays `Idle`, position unchanged over 32 s. ⇒ ⭐ **the params are silently dropped because nothing describes them**, and the API's own guide promises the opposite: *"paramSchema is derived from the behaviour definition the runtime itself parses params with, so what you author matches what the engine reads."*
+
+  ⚠ **What is NOT claimed:** whether wiring the curated registrar alone fixes movement. ⛔ The generated definitions would still lack `ParamsDtoType` for behaviours the curated one does not cover, and whether the runtime actually READS the params from a mission task is a separate hop that has not been measured. ⭐ **`RUNBOOK` §8.1 applies — measure it on the entity, do not reason about it.**
+
+- [ ] **CE-225** · `RW-S` 🔴🔴 — **`spawn_entity` PLACES THE ENTITY AT THE ORIGIN AND ANSWERS `ok:true` — `CE-191`'s GUARD CATCHES MALFORMED JSON, NOT NON-BINDING JSON.** 📐 **Measured live `2026-09-08`, two payload shapes, two hosts.**
+
+  ⛔⛔ **The defect is the one the code's own comment forbids.** `DebugApiService.cs:1340` reads: *"…did not deserialize spawned the entity AT THE ORIGIN and answered `ok:true`. For a spatial simulation that is the worst possible shape of failure: the caller is told the thing exists where they asked, and it is somewhere else. Refuse instead."* ⇒ ⭐ **that is exactly what still happens.**
+
+  📐 **Measured, both shapes, `ok:true` both times:**
+
+  | payload | requested | landed |
+  |---|---|---|
+  | `{"position":{"x":460,"y":430,"z":0.5}}` — ⭐ **the shape the MCP SKILL's own example uses** | `(460, 430)` | ⛔ `[0, 0, 0.5]` |
+  | `{"Position":[470,440,0.5],"Rotation":[0,0,0,1]}` — the shape `SimTransform` actually SERIALIZES as in `GET /entities/{id}` | `(470, 440)` | ⛔ `[0, 0, 1.4]` |
+
+  ⇒ ⭐⭐ **It is not a caller mistake.** Both the documented shape and the round-trip shape fail, so there is no payload the caller can send that works.
+
+  🔴 **THE MECHANISM:** `JsonSerializer.Deserialize<SimTransform>(...)` **does not throw** when a well-formed JSON object's properties fail to bind — it returns a **default-constructed `SimTransform`**, i.e. all zeros. ⇒ the `catch` that `CE-191` added never runs, `cmd.InitialTransform` is set to the origin, and the endpoint reports success. ⛔ **The guard covers `JsonException` (malformed text) and NOT the silent-default case, which is the one that produces the wrong-place-reported-as-success failure it was written for.**
+
+  ⚠ **A SECOND HOP IS SUSPECTED AND NOT MEASURED — do not fix one and assume.** 📐 `ScenarioSpawnAdapter.cs:122-124` folds `cmd.InitialTransform` into `cmd.InitialComponents`, and `CreateEntityRequestDescriptorBuilder.cs:31` states that **`EntityCreationRequest` does NOT carry `InitialTransform` — it conveys position another way.** ⇒ if the debug API's spawn does not go through that adapter, the transform would be dropped **even when it binds correctly**. ⛔ **NOT MEASURED.** ⭐ The check is cheap and must come first: bind a transform successfully, then read the entity back.
+
+  ⭐ **The rail this owes:** a round-trip — spawn at a non-origin position, `GET /entities/{id}`, assert the position matches. ⛔ **An origin spawn must FAIL the rail**, and note that `(0,0,0)` is a legitimate position, so the rail must use a distinctive one.
+
+  ⚠ **Scope: NOT Stride-specific and NOT from the `CE-221` batch** — reproduced on the Stride host and applies to the shared `Hrot.Editor` debug API used by every host.
+
 - [ ] **CE-220** · `RW-S` ⚠ — **`AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` IS AN INTERMITTENT GC-TIMING RAIL, AND `CE-205`'s NEW TESTS MADE IT MORE LIKELY TO FIRE.** 📐 **Measured `2026-09-07`, and reported as MINE rather than pre-existing.**
 
   ⭐ **What it asserts:** that a collectible `AssemblyLoadContext` has been GC-collected after **exactly two** `GC.Collect()` passes *(`AiHotReloadCoordinatorTests.cs:150-157`)*.
